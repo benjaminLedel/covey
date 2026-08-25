@@ -153,10 +153,20 @@ type conn struct {
 // ErrNoRunner: this organisation has nothing that could carry the sandbox.
 var ErrNoRunner = errors.New("no runner available")
 
-// errNoneInOrg is the one case where creating a built-in runner is the answer:
-// the organisation has none at all. A runner that is there but does not fit is
-// a different situation — and creating a built-in one beside it would be the
-// mixed pool through the back door.
+// errNoneInOrg: the organisation has no connected runner at all. It used to be
+// the ONLY case in which a built-in runner was created — a runner that is there
+// but does not fit was treated as a different situation, because a built-in one
+// beside it is a mixed pool.
+//
+// That rule cost covey.work its whole data plane: one remote runner registered,
+// the control plane restarted, and the organisation had a runner that holds
+// covey-sandbox:latest and an agent that needs the deploy image from the
+// private registry. Every wake failed every 30 seconds while the machine that
+// held that image stood right there. A mixed pool is a trade-off; a control
+// plane that stops working because somebody added a host is not.
+//
+// So the fallback now applies to any pick that finds no candidate, and the
+// mixed pool is named in the log instead of happening quietly.
 var errNoneInOrg = fmt.Errorf("%w: this organisation has no connected runner", ErrNoRunner)
 
 const defaultStartTimeout = 2 * time.Minute
@@ -456,9 +466,9 @@ func (c *conn) ask(ctx context.Context, msgType string, payload any, timeout tim
 	}
 }
 
-// ensureAndPick gives an organisation without a runner its built-in one and
-// tries again. Serialised per organisation: two simultaneous wakes must not
-// each start one.
+// ensureAndPick gives an organisation its built-in runner and tries again —
+// whether it had none at all or none that fits this workplace. Serialised per
+// organisation: two simultaneous wakes must not each start one.
 func (p *Pool) ensureAndPick(ctx context.Context, want need) (*conn, error) {
 	p.mu.Lock()
 	lock := p.ensuring[want.orgID]
@@ -635,6 +645,31 @@ func (p *Pool) pick(want need) (*conn, error) {
 	return candidates[0], nil
 }
 
+// pickAll is pick's list: the same order, so the first element is what pick
+// would have returned. Start walks it because a runner can fail at the start
+// itself — no credentials for a private registry, a full disk, a Docker that
+// has just died. Before this, the sandbox was simply lost with it, although
+// another host of the organisation stood ready.
+func (p *Pool) pickAll(want need) ([]*conn, error) {
+	c, err := p.pick(want)
+	if err != nil {
+		return nil, err
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	out := []*conn{c}
+	for _, other := range p.conns {
+		if other == c || other.orgID != want.orgID {
+			continue
+		}
+		if !hasAll(other.tags, want.tags) || !holdsImage(other.images, want.image) {
+			continue
+		}
+		out = append(out, other)
+	}
+	return out, nil
+}
+
 // Start satisfies orchestrator.SandboxProvider.
 func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orchestrator.Sandbox, error) {
 	// Whatever the file browser wrote goes into the store BEFORE the home is
@@ -643,9 +678,31 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 	p.flushHome(ctx, spec.AgentID)
 
 	want := need{orgID: spec.OrgID, image: p.imageFor(ctx, spec.OrgID, spec.Image), tags: spec.RunnerTags}
-	c, err := p.pick(want)
-	if errors.Is(err, errNoneInOrg) && p.EnsureLocal != nil {
-		c, err = p.ensureAndPick(ctx, want)
+	candidates, err := p.pickAll(want)
+	// A pick fails for more reasons than "this organisation has no runner".
+	// A registered remote runner that does not hold this image leaves the
+	// organisation with a runner and without a candidate — and the built-in
+	// one, which claims no image and is therefore always a candidate, would
+	// never be started again. Measured on covey.work: one remote runner
+	// joined, the control plane restarted, and from then on every wake failed
+	// with "no runner holds the image" every 30 seconds while the machine that
+	// could have run it stood idle.
+	//
+	// The fallback smuggles nothing past a requirement: pick runs again after
+	// it, so tags still exclude the built-in runner where they matter.
+	if err != nil && p.EnsureLocal != nil {
+		if !errors.Is(err, errNoneInOrg) {
+			// Worth a sentence: from here on this organisation runs sandboxes
+			// on the control plane again, and whoever moved the data plane to
+			// another host should read why rather than notice it in a load
+			// graph.
+			p.Log.Warn("no connected runner fits — the built-in one takes it",
+				"org", want.orgID, "image", want.image, "tags", want.tags, "reason", err)
+		}
+		var c *conn
+		if c, err = p.ensureAndPick(ctx, want); err == nil {
+			candidates = []*conn{c}
+		}
 	}
 	if err != nil {
 		return nil, err
@@ -668,30 +725,45 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 		}
 	}
 
-	answer, err := c.ask(ctx, TypeStartSandbox, StartSandbox{
-		AgentID:     spec.AgentID,
-		OrgID:       spec.OrgID,
-		Image:       p.imageFor(ctx, spec.OrgID, spec.Image),
-		HomeDir:     spec.HomeDir,
-		Env:         spec.Env,
-		EgressToken: spec.EgressToken,
-		Snapshot:    snapshot,
-		ImageHint:   p.imageHints(ctx)[p.imageFor(ctx, spec.OrgID, spec.Image)],
-	}, timeout)
-	if err != nil {
-		return nil, err
+	// A start can fail at the runner itself: no credentials for a private
+	// registry, a full disk, a Docker that has just died. That is a reason to
+	// ask the next host of this organisation, not to lose the sandbox — the
+	// agent does not care which machine it wakes on.
+	var last error
+	for i, c := range candidates {
+		answer, err := c.ask(ctx, TypeStartSandbox, StartSandbox{
+			AgentID:     spec.AgentID,
+			OrgID:       spec.OrgID,
+			Image:       want.image,
+			HomeDir:     spec.HomeDir,
+			Env:         spec.Env,
+			EgressToken: spec.EgressToken,
+			Snapshot:    snapshot,
+			ImageHint:   p.imageHints(ctx)[want.image],
+		}, timeout)
+		switch {
+		case err != nil:
+			last = err
+		default:
+			res, decodeErr := decode[SandboxResult](answer)
+			switch {
+			case decodeErr != nil:
+				last = decodeErr
+			case res.Err != "":
+				last = errors.New(res.Err)
+			default:
+				c.mu.Lock()
+				c.sandboxes++
+				c.mu.Unlock()
+				return &poolSandbox{pool: p, conn: c, agentID: spec.AgentID, orgID: spec.OrgID}, nil
+			}
+		}
+		if i+1 < len(candidates) {
+			p.Log.Warn("runner could not start the sandbox — asking the next one",
+				"runner", short(c.runnerID), "image", want.image, "err", last)
+		}
 	}
-	res, err := decode[SandboxResult](answer)
-	if err != nil {
-		return nil, err
-	}
-	if res.Err != "" {
-		return nil, errors.New(res.Err)
-	}
-	c.mu.Lock()
-	c.sandboxes++
-	c.mu.Unlock()
-	return &poolSandbox{pool: p, conn: c, agentID: spec.AgentID, orgID: spec.OrgID}, nil
+	return nil, last
 }
 
 type poolSandbox struct {

@@ -2200,7 +2200,9 @@
     "agoHours_other": "{{count}} h ago",
     "agoDays_one": "1 day ago",
     "agoDays_other": "{{count}} days ago",
-    "cleanupAutomatic": "The cleanup runs by itself every six hours anyway. The button is for the moment the space is needed now — every agent’s current state always stays."
+    "cleanupAutomatic": "The cleanup runs by itself every six hours anyway. The button is for the moment the space is needed now — every agent’s current state always stays.",
+    "problemsTitle": "The data plane reports problems",
+    "problemsIntro": "While this stands, every wake whose workplace no runner can provide fails — the agents wait rather than fail."
   },
   "diagnostics": {
     "title": "Diagnostics",

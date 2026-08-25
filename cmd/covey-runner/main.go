@@ -115,7 +115,7 @@ func runRegister(ctx context.Context, args []string, log *slog.Logger) error {
 	workDir := fs.String("work-dir", "/var/lib/covey-runner", "working copies and local blocks")
 	noService := fs.Bool("no-service", false, "do not install the systemd service, only write the configuration")
 	var images stringList
-	fs.Var(&images, "image", "a sandbox image this host holds (repeatable); default covey-sandbox:latest")
+	fs.Var(&images, "image", "a sandbox image this host provides (repeatable); unset = every one, fetched on demand")
 	var tags stringList
 	fs.Var(&tags, "tag", "a capability of this host (repeatable), e.g. arm64")
 	if err := fs.Parse(args); err != nil {
@@ -129,9 +129,13 @@ func runRegister(ctx context.Context, args []string, log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	if len(images) == 0 {
-		images = stringList{"covey-sandbox:latest"}
-	}
+	// No --image means no claim, and that is the useful default: `docker run`
+	// fetches an image the host does not have, so a runner without a claim
+	// takes any workplace and pulls it. The old default said
+	// covey-sandbox:latest instead — a sentence about a host that had just
+	// been installed and held nothing at all, and one that excluded it from
+	// every other workplace. On covey.work that turned a freshly registered
+	// GPU host into an organisation without a data plane.
 	cfg := config{URL: strings.TrimRight(*url, "/"), Token: runnerToken, WorkDir: *workDir, Images: images, Tags: tags}
 	if err := writeConfig(*configPath, cfg); err != nil {
 		return fmt.Errorf("writing %s: %w — the runner token is lost with it, register again", *configPath, err)

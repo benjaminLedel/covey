@@ -84,6 +84,16 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
     // holen.
     refetchInterval: 10_000,
   });
+  // Was zwischen den Runnern dieser Organisation und einer laufenden Sandbox
+  // steht. Die Pruefung gab es vorher schon — sie lief beim Start ins Log und
+  // in die Onboarding-Ansicht, die verschwindet, sobald die fuenf Schritte
+  // erledigt sind. Genau deshalb meldete eine seit Wochen laufende Instanz
+  // nichts, als ihre Datenebene ausfiel.
+  const health = useQuery({
+    queryKey: ["runner-health"],
+    queryFn: () => api<{ ready: boolean; problems: string[] }>("/runners/health"),
+    refetchInterval: 30_000,
+  });
   const store = useQuery({
     queryKey: ["home-store"],
     queryFn: () => api<StoreView>("/platform/home-store"),
@@ -114,6 +124,18 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
         {!embedded && <h1 className="text-[22px]">{t("runners.title")}</h1>}
         <p className="muted text-sm">{t("runners.intro")}</p>
       </div>
+
+      {health.data && !health.data.ready && (
+        <div className="card" role="status" style={{ borderColor: "var(--text-warning)" }}>
+          <div className="font-medium">{t("runners.problemsTitle")}</div>
+          <p className="muted text-sm">{t("runners.problemsIntro")}</p>
+          <ul className="text-sm mono" style={{ marginTop: 8, paddingLeft: 18, listStyle: "disc" }}>
+            {health.data.problems.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         {runners.isLoading && <p className="muted text-sm p-4">{t("common.loading")}</p>}

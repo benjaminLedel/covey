@@ -1101,7 +1101,12 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	}
 	for _, o := range orgs {
 		if remote, err := runnerStore.HasRemote(ctx, o.ID); err == nil && remote {
-			log.Info("organisation has its own runner — the built-in one stays down", "org", o.ID)
+			// Down at startup, not forever: a remote runner that does not hold
+			// the workplace an agent needs brings the built-in one up at the
+			// first wake (internal/runner: pick + EnsureLocal). Otherwise one
+			// registered host would switch off a whole organisation's data
+			// plane, which is what happened on covey.work.
+			log.Info("organisation has its own runner — the built-in one stays down for now", "org", o.ID)
 			continue
 		}
 		if err := runnerPool.EnsureLocal(ctx, o.ID); err != nil {

@@ -2200,7 +2200,9 @@
     "agoHours_other": "vor {{count}} h",
     "agoDays_one": "vor 1 Tag",
     "agoDays_other": "vor {{count}} Tagen",
-    "cleanupAutomatic": "Aufgeräumt wird ohnehin alle sechs Stunden von selbst. Der Knopf ist für den Moment, in dem der Platz jetzt gebraucht wird — der aktuelle Stand jedes Agenten bleibt dabei immer."
+    "cleanupAutomatic": "Aufgeräumt wird ohnehin alle sechs Stunden von selbst. Der Knopf ist für den Moment, in dem der Platz jetzt gebraucht wird — der aktuelle Stand jedes Agenten bleibt dabei immer.",
+    "problemsTitle": "Die Datenebene meldet Probleme",
+    "problemsIntro": "So lange das steht, schlägt jeder Weckruf fehl, dessen Arbeitsplatz kein Runner bereitstellen kann — die Agenten warten, statt zu scheitern."
   },
   "diagnostics": {
     "title": "Diagnose",
