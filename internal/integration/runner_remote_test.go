@@ -53,7 +53,7 @@ func remoteStack(t *testing.T, dir string) (*stack, *runner.Pool, homestore.Blob
 // connectRemoteRunner registers a host and lets it connect, with the image
 // claim it is to make. Factored out because the interesting tests are the ones
 // where a registered runner exists and does NOT fit.
-func connectRemoteRunner(t *testing.T, s *stack, pool *runner.Pool, dir string, images []string) uuid.UUID {
+func registerRemoteRunner(t *testing.T, s *stack) (uuid.UUID, string) {
 	t.Helper()
 	ctx := context.Background()
 	regToken, err := s.runners.CreateRegistrationToken(ctx, s.orgID, "Build host", nil)
@@ -79,15 +79,23 @@ func connectRemoteRunner(t *testing.T, s *stack, pool *runner.Pool, dir string, 
 	if err := json.NewDecoder(resp.Body).Decode(&reg); err != nil {
 		t.Fatal(err)
 	}
-	node := runner.NewNode(reg.RunnerID, reg.OrgID, &runner.Docker{
-		RunnerID: reg.RunnerID, Image: "covey-sandbox:test",
+	return reg.RunnerID, reg.Token
+}
+
+// connectRemoteRunner registers a host AND lets it connect, with the image
+// claim it is to make.
+func connectRemoteRunner(t *testing.T, s *stack, pool *runner.Pool, dir string, images []string) uuid.UUID {
+	t.Helper()
+	runnerID, token := registerRemoteRunner(t, s)
+	node := runner.NewNode(runnerID, s.orgID, &runner.Docker{
+		RunnerID: runnerID, Image: "covey-sandbox:test",
 		DataDir: filepath.Join(dir, "remote-work"), DockerBin: fakeDocker(t, dir),
 	}, slog.Default())
 	node.Images = images
 	t.Cleanup(node.Close)
-	runCtx, cancel := context.WithCancel(ctx)
+	runCtx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	go func() { _ = runner.RunNode(runCtx, node, s.http.URL, reg.Token, 200*time.Millisecond) }()
+	go func() { _ = runner.RunNode(runCtx, node, s.http.URL, token, 200*time.Millisecond) }()
 	waitFor(t, "the remote runner has connected", 15*time.Second, func() bool {
 		for _, l := range pool.LiveFor(s.orgID) {
 			if l.Connected {
@@ -96,20 +104,19 @@ func connectRemoteRunner(t *testing.T, s *stack, pool *runner.Pool, dir string, 
 		}
 		return false
 	})
-	return reg.RunnerID
+	return runnerID
 }
 
 // The outage this test exists for: a GPU host registered, the control plane
 // restarted, and from then on every wake failed with "no runner holds the
-// image" — the registered host claimed covey-sandbox:latest, the agents needed
-// the deploy image, and the built-in runner was never brought up because the
-// organisation was no longer runner-less.
+// image" — the host claimed covey-sandbox:latest, the agents needed the deploy
+// image, and nobody was a candidate.
 //
-// It failed twice for the same reason in different places, which is why the
-// check runs through the WHOLE wiring here: the pool's fallback, the policy
-// from cmd/covey, and a real registered runner on a real WebSocket. A unit
-// test of either half stayed green while the instance stood still.
-func TestARegisteredRunnerThatDoesNotFitLeavesTheOrganisationWorking(t *testing.T) {
+// The answer is not a cleverer fallback, it is that the claim never excluded
+// anybody in the first place: docker run fetches an image the host does not
+// have, so a registered runner carries a workplace it never claimed. Only tags
+// exclude, because only a tag says what a host IS.
+func TestARegisteredRunnerCarriesAWorkplaceItDidNotClaim(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("the fake binary is a shell script")
 	}
@@ -117,14 +124,61 @@ func TestARegisteredRunnerThatDoesNotFitLeavesTheOrganisationWorking(t *testing.
 	ctx := context.Background()
 	s, pool, _ := remoteStack(t, dir)
 
-	// The wiring from cmd/covey, in one place: may the control plane carry
-	// this itself, and if so, bring its runner up.
-	mode := "auto"
-	// callCtx is the wake's, ctx is the process's — and the difference is the
-	// point: AttachLocal binds the runner's life to what it is given. Bound to
-	// the wake, the built-in one came up for a single run and was gone a minute
-	// later; the runner view showed it offline and every wake started another.
+	// callCtx is the wake's, ctx is the process's — AttachLocal binds the
+	// runner's life to what it is given, and bound to the wake the built-in one
+	// exists for a single run.
+	ensured := 0
 	pool.EnsureLocal = func(callCtx context.Context, orgID uuid.UUID) error {
+		ensured++
+		remote, err := s.runners.HasRemote(callCtx, orgID)
+		if err != nil {
+			return err
+		}
+		if !runner.BuiltinAllowed("auto", remote) {
+			return errors.New("the built-in runner is switched off for this organisation")
+		}
+		id := uuid.New()
+		return pool.AttachLocal(ctx, runner.NewNode(id, orgID, &runner.Docker{
+			RunnerID: id, Image: "covey-sandbox:test",
+			DataDir: filepath.Join(dir, "builtin-work"), DockerBin: fakeDocker(t, dir),
+		}, slog.Default()))
+	}
+
+	connectRemoteRunner(t, s, pool, dir, []string{"covey-sandbox:test"})
+	agent := s.newSupportAgent("agent-with-its-own-workplace")
+
+	sb, err := pool.Start(ctx, orchestrator.SandboxSpec{
+		AgentID: agent.ID, OrgID: s.orgID, Image: "registry.example.com/team/dev:1",
+	})
+	if err != nil {
+		t.Fatalf("the registered runner should have carried it: %v", err)
+	}
+	if err := sb.Stop(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// And the control plane stayed out of it: the host is there, it takes the
+	// work, and nothing had to step in.
+	if ensured != 0 {
+		t.Errorf("the built-in runner was brought up although a host was connected (%d×)", ensured)
+	}
+}
+
+// What is left of the built-in runner's job: a registered host that is not
+// connected — a maintenance window, a reboot, a dead network. Then the
+// organisation has a runner on paper and none in fact, and the control plane
+// carries the work unless somebody has said it must not.
+func TestBuiltinRunnerOffRefusesWhenNothingIsConnected(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	ctx := context.Background()
+	s, pool, _ := remoteStack(t, dir)
+
+	var asked int
+	mode := runner.BuiltinModeOff
+	pool.EnsureLocal = func(callCtx context.Context, orgID uuid.UUID) error {
+		asked++
 		remote, err := s.runners.HasRemote(callCtx, orgID)
 		if err != nil {
 			return err
@@ -139,77 +193,22 @@ func TestARegisteredRunnerThatDoesNotFitLeavesTheOrganisationWorking(t *testing.
 		}, slog.Default()))
 	}
 
-	connectRemoteRunner(t, s, pool, dir, []string{"covey-sandbox:test"})
-	agent := s.newSupportAgent("agent-with-its-own-workplace")
-
-	// The workplace nobody claims. Before the fix this was the end of the line.
-	sb, err := pool.Start(ctx, orchestrator.SandboxSpec{
-		AgentID: agent.ID, OrgID: s.orgID, Image: "registry.example.com/team/dev:1",
-	})
-	if err != nil {
-		t.Fatalf("the built-in runner should have carried it: %v", err)
-	}
-	if err := sb.Stop(ctx); err != nil {
-		t.Fatal(err)
-	}
-
-	// And it stays. A host that exists for the length of one wake is not a
-	// host: it stands as "offline" in the runner view between runs, and every
-	// wake pays for starting it again.
-	var connected int
-	for _, l := range pool.LiveFor(s.orgID) {
-		if l.Connected {
-			connected++
-		}
-	}
-	if connected != 2 {
-		t.Errorf("both runners should be connected after the wake, %d are", connected)
-	}
-	_ = mode
-}
-
-// The other direction, because the fallback has to stay a decision: whoever
-// says the compute does not belong on this machine gets a refusal and not a
-// sandbox behind their back. Its own stack, because the test above has a
-// built-in runner attached by then — and a runner that is already there is not
-// what this asks about.
-func TestBuiltinRunnerOffRefusesInsteadOfCarrying(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("the fake binary is a shell script")
-	}
-	dir := t.TempDir()
-	ctx := context.Background()
-	s, pool, _ := remoteStack(t, dir)
-
-	var asked int
-	pool.EnsureLocal = func(ctx context.Context, orgID uuid.UUID) error {
-		asked++
-		remote, err := s.runners.HasRemote(ctx, orgID)
-		if err != nil {
-			return err
-		}
-		if !runner.BuiltinAllowed(runner.BuiltinModeOff, remote) {
-			return errors.New("the built-in runner is switched off for this organisation")
-		}
-		id := uuid.New()
-		return pool.AttachLocal(ctx, runner.NewNode(id, orgID, &runner.Docker{
-			RunnerID: id, Image: "covey-sandbox:test",
-			DataDir: filepath.Join(dir, "builtin-work"), DockerBin: fakeDocker(t, dir),
-		}, slog.Default()))
-	}
-
-	connectRemoteRunner(t, s, pool, dir, []string{"covey-sandbox:test"})
+	// Registered, never connected.
+	registerRemoteRunner(t, s)
 	agent := s.newSupportAgent("agent-on-a-strict-instance")
 
-	if _, err := pool.Start(ctx, orchestrator.SandboxSpec{
-		AgentID: agent.ID, OrgID: s.orgID, Image: "registry.example.com/team/dev:1",
-	}); err == nil {
+	if _, err := pool.Start(ctx, orchestrator.SandboxSpec{AgentID: agent.ID, OrgID: s.orgID}); err == nil {
 		t.Fatal("COVEY_BUILTIN_RUNNER=off has to refuse")
 	}
-	// Asked and refused, not silently skipped: the difference matters when
-	// somebody reads the log and wonders whether the policy applied at all.
 	if asked == 0 {
 		t.Error("the policy was never consulted")
+	}
+
+	// The same instance with the default: the control plane carries it rather
+	// than leaving the organisation without a data plane.
+	mode = "auto"
+	if _, err := pool.Start(ctx, orchestrator.SandboxSpec{AgentID: agent.ID, OrgID: s.orgID}); err != nil {
+		t.Fatalf("with the default the built-in runner has to step in: %v", err)
 	}
 }
 

@@ -347,14 +347,17 @@ The cold start is therefore no longer a question of switching agents but only of
 
 Deliberately simple, because no runner has to be "the right one" — only the cheapest:
 
-1. Candidates: the **connected** runners of the agent's **organisation** whose tags satisfy its `runner_tags` **and** that hold its image. The organisation comes first and is not a filter among others: a runner of a foreign tenant is not a worse candidate, it is none.
+1. Candidates: the **connected** runners of the agent's **organisation** whose tags satisfy its `runner_tags`. The organisation comes first and is not a filter among others: a runner of a foreign tenant is not a worse candidate, it is none. And the tags are the **only** filter — see below.
 2. Of those, preferably the one the agent last ran on (`last_runner_id`) — its working copy is warm there.
-3. Otherwise the one with the fewest running sandboxes. No bin packing, no resource modelling.
-4. None suitable → the task stays put, with an explanatory state instead of an error message about a failed container start.
+3. Then the one that already holds the image: a start that has nothing to fetch is the cheaper one.
+4. Otherwise the one with the fewest running sandboxes. No bin packing, no resource modelling.
+5. None suitable → the task stays put, with an explanatory state instead of an error message about a failed container start.
 
-The last case deserves its own wording per cause, because the causes call for different actions: *this organisation has no runner at all* (`COVEY_RUNNER_LOCAL=off`, none registered) reads differently from *no runner holds this image* and differently again from *every runner is offline*. One collective "no capacity" would send whoever reads it looking in the wrong place.
+**Only the tags exclude, and that is a correction paid for in production.** The image used to be a filter too: a runner reported which images it held and got only matching agents. On 25 August 2026 one registered host — claiming `covey-sandbox:latest`, which is what `register` wrote when nobody passed `--image` — left an organisation whose agents run the deploy image with no candidate at all. Every wake failed for half an hour, every thirty seconds, while the machine that could have run it stood idle.
 
-The middle one is the message that has to be genuinely good, because it is the one the transition produces: whoever registers a build host with `arm64` and nothing else has, from that moment, an organisation whose developer agents find no candidate — the built-in runner has stood down and nothing falls back onto it. So the answer names the image or the tag that nobody holds, and the remedy is one of two sentences: build the image on the runner, or loosen the agent's `runner_tags`.
+The rule that replaced it says what a host *is* versus what it *happens to have*: a **tag** is a property nothing can stand in for — `arm64`, `gpu`, inside the target system's network — so an agent that asks for one waits until a host carries it. An **image** is a state that repairs itself: `docker run` fetches what the host does not have, and the workplace images are published, digest-pinned per Covey version, precisely so that any host can. Where the fetch cannot work — a private registry the host has no credentials for, a full disk — the start fails **on that host**, and the sandbox moves to the next candidate rather than being lost with the first.
+
+What remains of the "nothing fits" case therefore has two causes, and each still gets its own wording: *this organisation has no connected runner* (none registered, or every one offline) reads differently from *no runner carries the tags …*. The second names the tag, because the remedy is a decision — give a host that tag, or loosen the agent's `runner_tags`.
 
 `last_runner_id` is explicitly a **hint, not a promise**: the scheduler may override it at any time, and nothing in the system may assume a home is still there. An agent whose preferred runner is missing wakes up on a different one — slower, but without a human doing anything.
 
@@ -372,7 +375,7 @@ The image therefore belongs **on the agent** (D11 in [`07-open-decisions.md`](07
 
 The cut deliberately does **not** go along individual languages. A profile is a *union*: a developer agent legitimately works on a PHP and a Flutter project, and one image per language would bring back exactly the question that "version → home, toolchain → image" has already answered — which image do I start on wake, when it is not yet settled which ticket is coming?
 
-For runners the image is at the same time a **capability**: a runner reports which images it holds and gets only matching agents. The price is known and bearable — the warm pool fragments per image.
+A runner reports which images it holds, and an operator may assign that list in the interface instead (migration 0075: `extra_tags` add to what the host reports, `assigned_images` replace it, and an empty list is the decision "no claim"). It is a **statement about cost, not about permission**: the scheduler prefers a host that already has the image and sends the work there anyway when none does. What used to make it a capability — "gets only matching agents" — is the rule that cost an organisation its data plane, see "Scheduling".
 
 The profiles are a **catalogue in the code** (`internal/sandbox`), not a list in each place that needs one — the same shape the target-system plugins have. A profile declares its name, what is inside it, the image it defaults to, and the command that builds it. The last part is the reason the catalogue exists: without it, "how do I get this image?" was answered four times over, once by a `strings.Contains(image, "sandbox-dev")` that guessed the build command from the image name, and guessed wrongly for anyone who had configured an image of their own.
 

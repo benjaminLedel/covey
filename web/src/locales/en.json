@@ -2205,10 +2205,10 @@
     "problemsIntro": "While this stands, every wake whose workplace no runner can provide fails — the agents wait rather than fail.",
     "tagsLabel": "Tags (assigned)",
     "tagsPlaceholder": "gpu, frankfurt",
-    "tagsHint": "Comma-separated. Added to what the host reports about itself — an agent runs here only if all of its host requirements are carried.",
+    "tagsHint": "Comma-separated. Added to what the host reports about itself — and the only thing that excludes a host: an agent runs here only if all of its host requirements are carried.",
     "imagesLabel": "Workplaces",
     "imagesPlaceholder": "empty = all",
-    "imagesHint": "Comma-separated. Replaces the host's own claim. Empty means no restriction — this host provides every workplace and fetches the image if it is missing.",
+    "imagesHint": "Comma-separated. Replaces the list the host reports. It is a statement about cost, not a boundary: the scheduler prefers a host that already holds the image but sends the work to one without it too — a missing image is fetched. Only tags steer.",
     "reported": "The host reports: {{tags}} · {{images}}",
     "imagesNone": "no image claim",
     "nameHint": "This host's name in the overview — free to choose and changeable at any time. Empty shows the description from the registration."

@@ -62,10 +62,14 @@ covey-runner register --url https://covey.example --token <registration token> \
 covey-runner run
 ```
 
-The host also needs the sandbox image the agents work in — `make sandbox-image`
-there, or pull it from your registry. A runner reports which images it holds and
-gets only matching agents, so a host without the image is simply not a candidate
-rather than a failure at wake time.
+The host does **not** need the sandbox image up front. `docker run` fetches what
+is missing, and the workplace images are published and pinned by digest per
+Covey version so that any host can. Pulling it there in advance (`make
+sandbox-image`, or from your registry) only makes the first wake faster.
+
+The one case where that is not automatic: an image in a **private** registry.
+The host needs credentials for it (`docker login`), otherwise the start fails
+there — and the sandbox moves to the next runner rather than being lost.
 
 `register` writes `/etc/covey-runner/config.toml` (overridable with
 `--config`): the server address, the runner token, the working directory, and
@@ -80,17 +84,21 @@ statement that can only be corrected by an SSH session is one that stays wrong.
 `PATCH /api/v1/runners/{id}` carries the same thing, and a connected runner
 learns it immediately rather than at the next reconnect.
 
-The two halves behave differently on purpose:
+The two halves behave differently on purpose, and only one of them steers:
 
-- **Tags are added** to what the host reports. A machine does not stop being
-  `arm64` because somebody labelled it `build`.
-- **Images replace** the reported claim, and an **empty list is a decision**:
-  no claim, this host provides every workplace and fetches what it does not
-  have — which is what `docker run` does anyway. That difference is the only
-  way to take back a claim a registration invented: `register` used to write
+- **Tags are the steering.** They are added to what the host reports — a
+  machine does not stop being `arm64` because somebody labelled it `build` —
+  and they are the **only** thing that excludes a host. A tag says what a
+  machine *is*, and no other machine can stand in for that.
+- **Images are a statement about cost.** The assigned list replaces the one the
+  host reports, and the scheduler prefers a host that already holds the image —
+  but it sends the work there anyway when none does, because `docker run`
+  fetches what is missing. It used to exclude, and that is what cost a
+  production instance its whole data plane: `register` wrote the claim
   `covey-sandbox:latest` when no `--image` was given, a sentence about a host
-  that had just been installed and held nothing at all, and it excluded that
-  host from every other workplace. It writes no claim now.
+  that had just been installed and held nothing at all, and from then on the
+  agents that needed another workplace had no candidate. `register` writes no
+  claim now, and a claim no longer refuses.
 
 An agent asks for tags through **Host requirements** in its settings
 (`PATCH /api/v1/agents/{id}/runner-tags`); empty is the normal case and means
@@ -341,7 +349,7 @@ things:
 | Message | What to do |
 |---|---|
 | *this organisation has no runner* | the built-in one is switched off and none is registered |
-| *no runner holds this image* | build the image on the runner, or change the agent's profile |
+| *no runner carries the tags …* | give a host that tag (runner view), or loosen the agent's host requirements |
 | *every runner is offline* | the host is down or cannot reach the control plane |
 | *426 to the WebSocket handshake* | a proxy in front of the instance is not forwarding the upgrade — see above |
 

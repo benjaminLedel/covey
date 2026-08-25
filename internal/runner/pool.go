@@ -69,6 +69,13 @@ type Pool struct {
 	// runner CONNECTED, which is the one thing nobody wants to know about a
 	// runner that has since gone away.
 	Heard func(runnerID uuid.UUID)
+	// LastRunner names the host this agent last worked on — its home's working
+	// copy is there. Answering it is worth an ordering, not a requirement: a
+	// host that is gone must not keep an agent waiting, and a home is
+	// materialised from the store anywhere else. nil = no affinity, which is
+	// what an installation without a home store looks like.
+	LastRunner func(ctx context.Context, agentID uuid.UUID) (uuid.UUID, bool)
+
 	// Capabilities asks what an operator assigned to a runner in the
 	// interface — tags on top of what the host reports, and the workplaces it
 	// is to provide. nil = nothing is assigned anywhere, which is what a pool
@@ -664,21 +671,34 @@ type need struct {
 	orgID uuid.UUID
 	image string
 	tags  []string
+	// prefer is the host this agent last worked on. Not a requirement: a home
+	// that is already lying there is worth a lot (materialising a 7 GB working
+	// copy from the store costs minutes, pulling an image costs seconds), but
+	// not worth waiting for a machine that is gone.
+	prefer uuid.UUID
 }
 
-// pick chooses the runner for an agent. Deliberately simple, because no runner
-// has to be "the right one" — only the cheapest.
+// candidates ranks the runners that may carry this sandbox. What decides is
+// exactly one thing — the TAGS — and everything else is order:
 //
-// The message when nothing fits is worth as much as the choice itself: *this
-// organisation has no runner* calls for something different from *no runner
-// holds this image*, and a collective "no capacity" would send whoever reads it
-// looking in the wrong place. So the reason is carried along instead of
-// reconstructed.
-func (p *Pool) pick(want need) (*conn, error) {
+//  1. the host the agent last worked on, while it is connected. Its working
+//     copy of the home is there; every other host materialises it again.
+//  2. a host that already holds the image. Cheaper, not required: docker run
+//     fetches what is missing, and a claim that excluded a host instead cost
+//     covey.work its data plane for an afternoon — the registered runner
+//     claimed covey-sandbox:latest, the agents needed the deploy image, and
+//     nobody was a candidate.
+//  3. the fewest running sandboxes, and the runner id so that the choice does
+//     not depend on map order.
+//
+// A start that then fails on the chosen host — no credentials for a private
+// registry, a full disk — moves to the next in this list (see Start). That is
+// what makes the image an ordering criterion rather than a wall.
+func (p *Pool) candidates(want need) ([]*conn, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	var inOrg, byTags, candidates []*conn
+	var inOrg, out []*conn
 	for _, c := range p.conns {
 		// The organisation comes first and is not a filter among others: a
 		// runner of a foreign tenant is not a worse candidate, it is none.
@@ -686,66 +706,55 @@ func (p *Pool) pick(want need) (*conn, error) {
 			continue
 		}
 		inOrg = append(inOrg, c)
+		// A tag says what a host IS — arm64, gpu, inside the target system's
+		// network. That is the one thing no other machine can stand in for,
+		// and therefore the only thing that excludes.
 		if !hasAll(c.tags, want.tags) {
 			continue
 		}
-		byTags = append(byTags, c)
-		if !holdsImage(c.images, want.image) {
-			continue
-		}
-		candidates = append(candidates, c)
+		out = append(out, c)
 	}
 	switch {
 	case len(inOrg) == 0:
 		return nil, errNoneInOrg
-	case len(byTags) == 0:
+	case len(out) == 0:
 		return nil, fmt.Errorf("%w: no runner of this organisation carries the tags %v",
 			ErrNoRunner, want.tags)
-	case len(candidates) == 0:
-		return nil, fmt.Errorf("%w: no runner holds the image %q — build it there, "+
-			"or change the agent's workplace", ErrNoRunner, want.image)
 	}
-	// The fewest running sandboxes wins; the runner ID breaks ties so that the
-	// choice does not depend on map order.
-	sort.Slice(candidates, func(i, j int) bool {
-		ci, cj := candidates[i], candidates[j]
-		ci.mu.Lock()
-		ni := ci.sandboxes
-		ci.mu.Unlock()
-		cj.mu.Lock()
-		nj := cj.sandboxes
-		cj.mu.Unlock()
-		if ni != nj {
-			return ni < nj
+	rank := func(c *conn) (int, int) {
+		c.mu.Lock()
+		running := c.sandboxes
+		c.mu.Unlock()
+		score := 0
+		if want.prefer != uuid.Nil && c.runnerID == want.prefer {
+			score -= 2
 		}
-		return ci.runnerID.String() < cj.runnerID.String()
+		if len(c.images) > 0 && holdsImage(c.images, want.image) {
+			score--
+		}
+		return score, running
+	}
+	sort.Slice(out, func(i, j int) bool {
+		si, ri := rank(out[i])
+		sj, rj := rank(out[j])
+		if si != sj {
+			return si < sj
+		}
+		if ri != rj {
+			return ri < rj
+		}
+		return out[i].runnerID.String() < out[j].runnerID.String()
 	})
-	return candidates[0], nil
+	return out, nil
 }
 
-// pickAll is pick's list: the same order, so the first element is what pick
-// would have returned. Start walks it because a runner can fail at the start
-// itself — no credentials for a private registry, a full disk, a Docker that
-// has just died. Before this, the sandbox was simply lost with it, although
-// another host of the organisation stood ready.
-func (p *Pool) pickAll(want need) ([]*conn, error) {
-	c, err := p.pick(want)
+// pick is the first candidate — the one the scheduler would take.
+func (p *Pool) pick(want need) (*conn, error) {
+	out, err := p.candidates(want)
 	if err != nil {
 		return nil, err
 	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	out := []*conn{c}
-	for _, other := range p.conns {
-		if other == c || other.orgID != want.orgID {
-			continue
-		}
-		if !hasAll(other.tags, want.tags) || !holdsImage(other.images, want.image) {
-			continue
-		}
-		out = append(out, other)
-	}
-	return out, nil
+	return out[0], nil
 }
 
 // Start satisfies orchestrator.SandboxProvider.
@@ -756,7 +765,12 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 	p.flushHome(ctx, spec.AgentID)
 
 	want := need{orgID: spec.OrgID, image: p.imageFor(ctx, spec.OrgID, spec.Image), tags: spec.RunnerTags}
-	candidates, err := p.pickAll(want)
+	if p.LastRunner != nil {
+		if last, ok := p.LastRunner(ctx, spec.AgentID); ok {
+			want.prefer = last
+		}
+	}
+	candidates, err := p.candidates(want)
 	// A pick fails for more reasons than "this organisation has no runner".
 	// A registered remote runner that does not hold this image leaves the
 	// organisation with a runner and without a candidate — and the built-in

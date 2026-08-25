@@ -227,26 +227,19 @@ func TestTheBuiltInRunnerLivesAsLongAsItsContext(t *testing.T) {
 	})
 }
 
-// The regression that cost covey.work its data plane: a remote runner joined,
-// the control plane restarted, and the organisation had a runner that does not
-// hold the workplace its agents use. Every wake then failed with "no runner
-// holds the image" — while the built-in runner, which claims no image, was
-// never started because the organisation was no longer runner-less.
-func TestABuiltInRunnerStepsInWhenNoConnectedRunnerFits(t *testing.T) {
+// The regression that cost covey.work its data plane: a remote runner was
+// registered, the control plane restarted, and the built-in one was never
+// brought up again because the organisation was no longer runner-less. What is
+// left of that case after images stopped excluding anybody: a registered host
+// that is not CONNECTED — a maintenance window, a reboot, a dead network —
+// must not leave the organisation without a data plane either.
+func TestABuiltInRunnerStepsInWhenNothingIsConnected(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("the fake binary is a shell script")
 	}
 	dir := t.TempDir()
 	org := uuid.New()
-	p, _ := newLocalPool(t, dir, fakeDockerBin(t, dir, "nothing"), org)
-
-	// The organisation's only runner claims another image — as a freshly
-	// registered host does, whose --image default says covey-sandbox:latest.
-	p.mu.Lock()
-	for _, c := range p.conns {
-		c.images = []string{"covey-sandbox:latest"}
-	}
-	p.mu.Unlock()
+	p := NewPool(quietLog())
 
 	ensured := 0
 	p.EnsureLocal = func(ctx context.Context, orgID uuid.UUID) error {
@@ -257,7 +250,7 @@ func TestABuiltInRunnerStepsInWhenNoConnectedRunnerFits(t *testing.T) {
 		}, quietLog()))
 	}
 	if _, err := p.Start(context.Background(), orchestrator.SandboxSpec{
-		AgentID: uuid.New(), OrgID: org, Image: "registry.example.com/team/sandbox-dev:2026-08",
+		AgentID: uuid.New(), OrgID: org, Image: "registry.example.com/team/dev:1",
 	}); err != nil {
 		t.Fatalf("the built-in runner should have taken it: %v", err)
 	}
@@ -266,9 +259,37 @@ func TestABuiltInRunnerStepsInWhenNoConnectedRunnerFits(t *testing.T) {
 	}
 }
 
-// The fallback must not smuggle work past a requirement: a runner tag the
-// built-in one does not carry stays a refusal, because the tag says what the
-// host IS — an agent that needs a GPU is not helped by a machine without one.
+// A start can fail on the host that was chosen — no credentials for the
+// registry the image lies in, a full disk, a Docker that has just died. That
+// is what makes the image an ordering criterion and not a wall: the sandbox
+// moves to the next host instead of being lost with the first.
+func TestAStartThatFailsMovesToTheNextRunner(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	org := uuid.New()
+	p := NewPool(quietLog())
+	attach := func(dir, failOn string) uuid.UUID {
+		id := uuid.New()
+		if err := p.AttachLocal(context.Background(), NewNode(id, org, &Docker{
+			RunnerID: id, Image: "covey-sandbox:test", DataDir: dir, DockerBin: fakeDockerBin(t, dir, failOn),
+		}, quietLog())); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	// The one that claims the image is asked first — and cannot pull it.
+	broken := attach(t.TempDir(), "run")
+	p.SetCapabilities(broken, nil, []string{"team/dev:1"}, true)
+	attach(t.TempDir(), "nothing")
+
+	if _, err := p.Start(context.Background(), orchestrator.SandboxSpec{
+		AgentID: uuid.New(), OrgID: org, Image: "team/dev:1",
+	}); err != nil {
+		t.Fatalf("the second host should have carried it: %v", err)
+	}
+}
+
 func TestTheFallbackStillRespectsTags(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("the fake binary is a shell script")
@@ -318,22 +339,66 @@ func TestAssignedCapabilitiesApplyToARunningConnection(t *testing.T) {
 	if _, err := p.pick(need{orgID: org, tags: []string{"arm64", "build"}}); err != nil {
 		t.Fatalf("both tags should be carried: %v", err)
 	}
-	// The reported claim still applies while nothing is decided.
-	if _, err := p.pick(need{orgID: org, image: "registry.example.com/team/dev:1"}); err == nil {
-		t.Fatal("an undecided runner keeps its own claim")
-	}
-	// The decision "no claim" is what takes back what a registration invented.
-	p.SetCapabilities(id, []string{"build"}, []string{}, true)
+	// An image it does not claim is no longer a refusal — it is taken and
+	// fetched. Only the tag says what a host is.
 	if _, err := p.pick(need{orgID: org, image: "registry.example.com/team/dev:1"}); err != nil {
-		t.Fatalf("without a claim every workplace belongs to it: %v", err)
+		t.Fatalf("an unclaimed workplace still belongs to it: %v", err)
 	}
-	// And a decision with content is a wall again.
-	p.SetCapabilities(id, nil, []string{"covey-sandbox:latest"}, true)
-	if _, err := p.pick(need{orgID: org, image: "registry.example.com/team/dev:1"}); err == nil {
-		t.Fatal("an assigned claim excludes what is not in it")
-	}
+	// A tag that was taken back stops matching, though.
+	p.SetCapabilities(id, nil, nil, false)
 	if _, err := p.pick(need{orgID: org, tags: []string{"build"}}); err == nil {
-		t.Fatal("tags that were taken back must not keep matching")
+		t.Error("tags that were taken back must not keep matching")
+	}
+}
+
+// What a host holds is an ordering, not a wall: among candidates, the one that
+// already has the image is the cheaper start — and the host the agent last
+// worked on is cheaper still, because its home is lying there.
+func TestTheOrderPrefersTheLastHostThenTheOneHoldingTheImage(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	org := uuid.New()
+	p := NewPool(quietLog())
+	attach := func(images []string) uuid.UUID {
+		id := uuid.New()
+		if err := p.AttachLocal(context.Background(), NewNode(id, org, &Docker{
+			RunnerID: id, Image: "covey-sandbox:test", DataDir: dir, DockerBin: fakeDockerBin(t, dir, "nothing"),
+		}, quietLog())); err != nil {
+			t.Fatal(err)
+		}
+		p.SetCapabilities(id, nil, images, true)
+		return id
+	}
+	bare := attach([]string{})
+	holder := attach([]string{"team/dev:1"})
+
+	// Nobody has worked anywhere yet: the host that holds the image wins.
+	c, err := p.pick(need{orgID: org, image: "team/dev:1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.runnerID != holder {
+		t.Errorf("the host holding the image should come first, got %s", short(c.runnerID))
+	}
+	// The agent's last host beats it: an image is pulled in seconds, a home is
+	// materialised in minutes.
+	c, err = p.pick(need{orgID: org, image: "team/dev:1", prefer: bare})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.runnerID != bare {
+		t.Errorf("the last host should win, got %s", short(c.runnerID))
+	}
+	// But it is a preference and not a requirement: a host that is gone must
+	// not keep the agent waiting.
+	c, err = p.pick(need{orgID: org, image: "team/dev:1", prefer: uuid.New()})
+	if err != nil {
+		t.Fatalf("an absent last host must not be a refusal: %v", err)
+	}
+	if c.runnerID != holder {
+		t.Errorf("without its last host the image decides, got %s", short(c.runnerID))
 	}
 }
 
@@ -449,14 +514,13 @@ func TestSchedulingNamesWhyNothingFits(t *testing.T) {
 		t.Errorf("a missing tag has to be named: %v", err)
 	}
 
-	// The agent wants the dev workplace, which this host does not hold. The
-	// remedy has to be in the message — there is deliberately no fallback.
-	_, err = p.Start(ctx, orchestrator.SandboxSpec{AgentID: uuid.New(), OrgID: orgID, Image: "dev"})
-	if err == nil || !strings.Contains(err.Error(), "covey-sandbox-dev:test") {
-		t.Errorf("a missing image has to be named: %v", err)
-	}
-	if err != nil && !strings.Contains(err.Error(), "build it there") {
-		t.Errorf("the message has to name the remedy: %v", err)
+	// The agent wants the dev workplace, which this host does not claim. It
+	// still goes there: docker run fetches an image the host does not have,
+	// and a claim that excluded it instead is what left an organisation with a
+	// runner and without a data plane. What the host IS (its tags) decides;
+	// what it happens to hold is an ordering.
+	if _, err := p.Start(ctx, orchestrator.SandboxSpec{AgentID: uuid.New(), OrgID: orgID, Image: "dev"}); err != nil {
+		t.Errorf("an unclaimed workplace has to be taken and fetched: %v", err)
 	}
 
 	// What fits, runs — including the tag the host does carry.

@@ -2205,10 +2205,10 @@
     "problemsIntro": "So lange das steht, schlägt jeder Weckruf fehl, dessen Arbeitsplatz kein Runner bereitstellen kann — die Agenten warten, statt zu scheitern.",
     "tagsLabel": "Tags (zugewiesen)",
     "tagsPlaceholder": "gpu, frankfurt",
-    "tagsHint": "Kommagetrennt. Kommt zu dem dazu, was der Host über sich meldet — ein Agent läuft hier nur, wenn alle seine Host-Anforderungen getragen werden.",
+    "tagsHint": "Kommagetrennt. Kommt zu dem dazu, was der Host über sich meldet — und ist das Einzige, was einen Host ausschließt: ein Agent läuft hier nur, wenn alle seine Host-Anforderungen getragen werden.",
     "imagesLabel": "Arbeitsplätze",
     "imagesPlaceholder": "leer = alle",
-    "imagesHint": "Kommagetrennt. Ersetzt den Anspruch des Hosts. Leer heißt: keine Einschränkung — dieser Host stellt jeden Arbeitsplatz bereit und holt sich das Image, wenn es fehlt.",
+    "imagesHint": "Kommagetrennt. Ersetzt die Liste, die der Host meldet. Es ist eine Aussage über Kosten, keine Grenze: der Scheduler bevorzugt einen Host, der das Image schon hat, schickt die Arbeit aber auch zu einem ohne — fehlende Images holt er sich. Steuern tun nur die Tags.",
     "reported": "Der Host meldet: {{tags}} · {{images}}",
     "imagesNone": "kein Image-Anspruch",
     "nameHint": "Name dieses Hosts in der Übersicht — frei wählbar und jederzeit änderbar. Leer zeigt die Beschreibung aus der Registrierung."

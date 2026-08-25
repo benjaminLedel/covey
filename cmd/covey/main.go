@@ -1004,6 +1004,17 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 			snap, err := snapshotStore.LatestSnapshot(ctx, agentID)
 			return snap.ManifestHash, err
 		}
+		// Where the agent last worked. The snapshot knows it, and it is the
+		// cheapest scheduling hint there is: the working copy of the home lies
+		// on that host, and every other one materialises it from the store
+		// first — minutes for a large home, against seconds for an image pull.
+		runnerPool.LastRunner = func(ctx context.Context, agentID uuid.UUID) (uuid.UUID, bool) {
+			snap, err := snapshotStore.LatestSnapshot(ctx, agentID)
+			if err != nil || snap.RunnerID == nil {
+				return uuid.Nil, false
+			}
+			return *snap.RunnerID, true
+		}
 		runnerPool.SnapshotTaken = func(ctx context.Context, agentID, runnerID uuid.UUID, res runner.HomeSynced) error {
 			agent, err := registry.Get(ctx, agentID)
 			if err != nil {
