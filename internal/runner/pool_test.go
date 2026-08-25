@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 
 	"covey/internal/orchestrator"
+	"covey/internal/sandbox"
 )
 
 func quietLog() *slog.Logger {
@@ -485,6 +486,27 @@ func TestImageForResolvesProfilesAndOwnImages(t *testing.T) {
 // Runner and server are delivered separately, so different versions inevitably
 // meet. A refusal has to name which side is behind — a runner that quietly
 // fails to connect costs an evening of searching.
+// Der Fall, den covey.work an dem Tag zeigte, an dem es seine Arbeitsplätze aus
+// dem Katalog nahm: Ein Agent ohne benannten Arbeitsplatz landete auf dem
+// einkompilierten `covey-sandbox:latest`, weil DefaultImage beim Prozessstart
+// gefüllt wird — vor dem ersten Katalogabruf. Der Standard ist ein Profilname,
+// keine zweite Quelle.
+func TestTheDefaultWorkplaceComesFromTheCatalogueToo(t *testing.T) {
+	p := &Pool{
+		DefaultImage: "covey-sandbox:latest", // was der Prozess beim Start kannte
+		Profiles:     map[string]string{sandbox.DefaultName(): "ghcr.io/example/covey-sandbox@sha256:abc"},
+	}
+	if got := p.imageFor(t.Context(), uuid.Nil, ""); got != "ghcr.io/example/covey-sandbox@sha256:abc" {
+		t.Errorf("imageFor(\"\") = %q, erwartet das Bild des Standardprofils", got)
+	}
+	// Ohne Katalog bleibt der einkompilierte Wert die letzte Instanz — eine
+	// Installation ohne Internet soll nicht ohne Arbeitsplatz dastehen.
+	leer := &Pool{DefaultImage: "covey-sandbox:latest"}
+	if got := leer.imageFor(t.Context(), uuid.Nil, ""); got != "covey-sandbox:latest" {
+		t.Errorf("ohne Katalog = %q, erwartet den einkompilierten Standard", got)
+	}
+}
+
 func TestProtocolMismatchIsRefusedWithAReason(t *testing.T) {
 	p := NewPool(quietLog())
 	control, node := NewInProc()

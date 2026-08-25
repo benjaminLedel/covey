@@ -616,15 +616,31 @@ func holdsImage(has []string, wanted string) bool {
 }
 
 // imageFor resolves an agent's workplace. One rule, in this order: nothing
-// named → the instance default; a known profile → its image; anything else →
-// taken literally.
+// named → the DEFAULT PROFILE, resolved like any other; a known profile → its
+// image; anything else → taken literally.
+//
+// "Nothing named" used to go straight to DefaultImage, and that field is filled
+// at process start — before the catalogue has been fetched. While the instance
+// pinned its images through the environment the two agreed; the moment
+// covey.work took its workplaces from the catalogue they parted, and every
+// agent without a named workplace resolved to the compiled `covey-sandbox:latest`,
+// which exists on no host. The self-check said so within a minute:
+//
+//	sandbox image "covey-sandbox:latest" is missing — build it once …
+//
+// So the default is a profile name here, not a second source. DefaultImage
+// stays as the last resort for an installation whose catalogue is switched off.
 func (p *Pool) imageFor(ctx context.Context, orgID uuid.UUID, want string) string {
 	want = strings.TrimSpace(want)
-	if want == "" {
-		return p.DefaultImage
+	byDefault := want == ""
+	if byDefault {
+		want = sandbox.DefaultName()
 	}
 	if img, ok := p.profiles(ctx)[want]; ok && img != "" {
 		return img
+	}
+	if byDefault {
+		return p.DefaultImage
 	}
 	// Ein Arbeitsplatz dieser Organisation. Nach dem Katalog gefragt, weil ein
 	// veroeffentlichter Name nicht ueberschrieben werden kann — welcher
