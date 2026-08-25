@@ -1037,18 +1037,26 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	// tenant, and `--internal` cuts the way out, not the way sideways.
 	runnerPool.Capabilities = runnerStore.Capabilities
 	runnerPool.EnsureLocal = func(ctx context.Context, orgID uuid.UUID) error {
-		// An organisation has the built-in runner exactly as long as it has no
-		// registered one. Whoever adds a runner has said that compute leaves
-		// this machine; a control plane that kept quietly running sandboxes on
-		// the side has not been told that (spec/16).
+		// This used to refuse as soon as the organisation had a registered
+		// runner: whoever adds one has said that compute leaves this machine.
+		// The rule was right about the intent and wrong about the consequence —
+		// a host that does not hold the workplace image then leaves the
+		// organisation with a runner and without a data plane, which is how
+		// covey.work spent half an hour failing every wake while the machine
+		// that could have run it stood idle.
 		//
-		// Counted are REGISTERED runners, not connected ones: a maintenance
-		// window on the only runner must not silently move the whole workforce
-		// back onto the control plane's host.
-		if remote, err := runnerStore.HasRemote(ctx, orgID); err != nil {
-			return err
-		} else if remote {
-			return fmt.Errorf("organisation %s has its own runner — the built-in one has stood down", orgID)
+		// The decision therefore sits with the caller: the pool asks here only
+		// when no CONNECTED runner fits, and it says in the log that the
+		// control plane is carrying sandboxes again. An operator who wants the
+		// compute off this machine come what may sets COVEY_BUILTIN_RUNNER=off
+		// — said once, deliberately, instead of following from the existence of
+		// another host.
+		if strings.EqualFold(cfg.BuiltinRunner, "off") {
+			if remote, err := runnerStore.HasRemote(ctx, orgID); err != nil {
+				return err
+			} else if remote {
+				return fmt.Errorf("organisation %s has its own runner and COVEY_BUILTIN_RUNNER=off — no sandbox runs on the control plane", orgID)
+			}
 		}
 		runnerID, runnerToken, err := builtinRunners.For(ctx, orgID)
 		if err != nil {

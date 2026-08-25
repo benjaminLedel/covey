@@ -154,6 +154,18 @@ type Config struct {
 	// the Zammad host), on top of the permanently allowed Anthropic hosts.
 	// COVEY_EGRESS_ALLOW="helpdesk.example.com,*.internal.example.com".
 	EgressAllow []string
+	// BuiltinRunner says whether this control plane may carry sandboxes itself
+	// when no registered runner fits: "auto" (the default) lets it step in and
+	// says so in the log, "off" never runs a sandbox here.
+	//
+	// It exists because the rule that a registered runner switches the built-in
+	// one off cost covey.work its whole data plane: the remote host did not
+	// hold the workplace image, and every wake failed for half an hour while
+	// the machine that did stood idle. An operator who really wants the compute
+	// off this machine says so here, instead of it following silently from the
+	// existence of another host.
+	BuiltinRunner string
+
 	// EgressIsolation selects how strongly egress is enforced (docker provider):
 	// "proxy" (default, cooperative via HTTP_PROXY) | "network" (hard: sandbox on
 	// an internal network without internet, the proxy container as the only exit).
@@ -267,6 +279,7 @@ func FromEnv() (Config, error) {
 		BoardRetention:    getenvDuration("COVEY_BOARD_RETENTION", 24*time.Hour),
 		EgressEnforce:     getenvBool("COVEY_EGRESS_ENFORCE", false),
 		EgressAllow:       splitList(os.Getenv("COVEY_EGRESS_ALLOW")),
+		BuiltinRunner:     getenv("COVEY_BUILTIN_RUNNER", "auto"),
 		EgressIsolation:   getenv("COVEY_EGRESS_ISOLATION", "proxy"),
 		EgressProxyAddr:   getenv("COVEY_EGRESS_PROXY_ADDR", ":8888"),
 		ControlURL:        getenv("COVEY_CONTROL_URL", ""),

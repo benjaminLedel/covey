@@ -14,14 +14,25 @@ installation notices none of this.
 
 `COVEY_RUNNER_LOCAL` is not a switch you need. What matters is the rule:
 
-> **An organisation has the built-in runner exactly as long as it has no
-> registered one.** Registering the first runner ends it; deleting the last one
-> brings it back.
+> **An organisation's built-in runner stands down as soon as it has a
+> registered one — and steps back in when no connected runner fits.**
 
-Whoever adds a runner has said that compute leaves this machine. The
-alternative would be a mixed pool — some agents on the registered hosts, some
-on the control plane's, decided by a scheduling preference nobody remembers
-making.
+Whoever adds a runner has said that compute leaves this machine, and that is
+what the first half is for. The second half exists because the first one alone
+cost a production instance its whole data plane: the registered host claimed
+`covey-sandbox:latest`, the agents needed the deploy image, and every wake
+failed every 30 seconds for half an hour while the machine that held that image
+stood idle. A mixed pool is a trade-off; a control plane that stops because
+somebody added a host is not.
+
+The fallback is not quiet. It writes `no connected runner fits — the built-in
+one takes it` with the image and tags it was looking for, and it cannot smuggle
+work past a requirement: **tags still exclude it.** An agent that asks for `gpu`
+waits for a host with `gpu`.
+
+`COVEY_BUILTIN_RUNNER=off` turns the fallback off for good — for an instance
+whose compute must not touch the control plane's machine, said once and
+deliberately rather than following from the existence of another host.
 
 **Offline is not "no runner".** The rule counts registered runners, not
 connected ones. A maintenance window on your only runner does not move the
@@ -334,10 +345,12 @@ things:
 | *every runner is offline* | the host is down or cannot reach the control plane |
 | *426 to the WebSocket handshake* | a proxy in front of the instance is not forwarding the upgrade — see above |
 
-There is deliberately **no fallback** onto the built-in runner when a
-registered one does not fit: that would restore the mixed pool through the back
-door. Register an `arm64` build host and nothing else, and your developer
-agents have candidates on paper and none in fact — the message says so.
+When no connected runner fits, the built-in one steps in and the log says so
+(`COVEY_BUILTIN_RUNNER=off` prevents it). What it does **not** do is satisfy a
+tag: register an `arm64` build host and give an agent the requirement `arm64`,
+and a control plane that is not `arm64` remains no candidate — the message
+names the tag. A tag says what a host **is**, and no substitute machine changes
+that.
 
 ## The file browser
 
