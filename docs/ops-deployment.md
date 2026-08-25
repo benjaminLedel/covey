@@ -12,23 +12,34 @@ runbook describes the one-off setup and what happens in ongoing operation.
 
 The pipeline (`.gitlab-ci.yml`) has three stages: `test → build → deploy`.
 
-1. **build** builds two Docker images and pushes them into the registry, among
+1. **build** builds **one** Docker image and pushes it into the registry, among
    others onto the **immutable commit tag** `:$CI_COMMIT_SHORT_SHA` — that is
-   the "special tag" the deployment pins to:
-   - `…/covey` (the control plane, [`Dockerfile`](../Dockerfile)),
-   - `…/covey/sandbox` (coveyd + the Claude Code runtime,
-     [`Dockerfile.sandbox`](../Dockerfile.sandbox)).
+   the "special tag" the deployment pins to: `…/covey`, the control plane
+   ([`Dockerfile`](../Dockerfile)).
+
+   The sandbox images are **not** built here any more. They are built and
+   published by [`../.github/workflows/sandbox-images.yml`](../.github/workflows/sandbox-images.yml)
+   on every push to `main` and for every tag — public on ghcr, listed in the
+   workplace catalogue and pinned by digest. Two jobs and some twenty minutes
+   per pipeline went with them.
 2. **deploy** runs on a **shell runner directly on the target host**
    (runner tag `covey-deploy`). The job:
    - copies [`docker-compose.deploy.yml`](../docker-compose.deploy.yml) to
      `$DEPLOY_DIR/docker-compose.yml` (default `/opt/covey`),
    - creates, on the **first** deploy, a one-off `.env` with a random
      master key + passwords (never touched again afterwards),
-   - sets `COVEY_IMAGE` to `…/covey:$CI_COMMIT_SHORT_SHA`, pulls **both**
-     sandbox images onto the host and pins them via `COVEY_SANDBOX_IMAGE`
-     (profile `base`) and `COVEY_SANDBOX_IMAGE_DEV` (profile `dev`) — the
-     workplace hangs off the agent since the split, and an instance whose
-     agents are on `dev` fails every wake without that second image,
+   - sets `COVEY_IMAGE` to `…/covey:$CI_COMMIT_SHORT_SHA` — and **nothing**
+     about the workplaces: their images come from the published catalogue
+     ([`../spec/16-runner.md`](../spec/16-runner.md)), pinned by digest per
+     Covey version and public on ghcr, and a runner fetches what it is
+     missing. The job used to pull both sandbox images and pin them through
+     `COVEY_SANDBOX_IMAGE` / `COVEY_SANDBOX_IMAGE_DEV`, because the covey
+     container has no credentials for the private registry. With the first
+     runner of your own that stopped being a shortcut and became an exclusion:
+     that host has no credentials either, and should not get any. The two
+     variables still win where somebody sets them — a fork, an installation
+     without internet — they are simply no longer set here, and the deploy
+     removes leftovers of them from the `.env`,
    - `docker compose pull && docker compose up -d`.
 
 ### Sandbox isolation in the deployment

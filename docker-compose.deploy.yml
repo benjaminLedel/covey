@@ -18,8 +18,8 @@
 #
 # Sandboxen laufen als Sibling-Container (docker-SandboxProvider): der
 # covey-Container bekommt den Docker-Socket des Hosts und startet pro Wake
-# einen Container aus COVEY_SANDBOX_IMAGE (Dockerfile.sandbox, gepusht von der
-# CI, im Deploy-Job auf den Commit gepinnt). Damit die `-v`-Pfade der
+# einen Container aus dem Arbeitsplatz-Image des Agenten (aus dem öffentlichen
+# Katalog, siehe unten). Damit die `-v`-Pfade der
 # Sandbox-Homes für den Host-Daemon stimmen, ist das Datenverzeichnis ein
 # Bind-Mount unter IDENTISCHEM Pfad auf Host und im Container (COVEY_DATA_DIR,
 # Default /opt/covey/data) — ein benanntes Volume wäre für `docker run -v`
@@ -36,17 +36,21 @@ x-covey-base: &covey-base
     COVEY_ADMIN_EMAIL: ${COVEY_ADMIN_EMAIL:-admin@covey.local}
     COVEY_ADMIN_PASSWORD: ${COVEY_ADMIN_PASSWORD:?in .env setzen}
     COVEY_SANDBOX_PROVIDER: docker
-    COVEY_SANDBOX_IMAGE: ${COVEY_SANDBOX_IMAGE:-covey-sandbox:latest}
-    # Der zweite Arbeitsplatz (Profil `dev`: PHP, JDK, fvm, uv obendrauf). Seit
-    # der Aufteilung in zwei Profile braucht ihn jede Installation, die
-    # Entwickler-Agenten hat — die Migration hat Bestandsagenten genau dorthin
-    # gesetzt, weil das Image VOR der Aufteilung all das trug.
+    # Welches Image hinter einem Arbeitsplatz steht, sagt der VERÖFFENTLICHTE
+    # Katalog (spec/16): eine JSON-Datei neben dem Quelltext, je Covey-Version
+    # per Digest gepinnt, öffentlich auf ghcr. Deshalb steht hier nichts.
     #
-    # Ohne diese Zeile sucht der Host `covey-sandbox-dev:latest`, das eine
-    # Container-Installation nirgends her hat, und jedes Wecken scheitert am
-    # Start der Sandbox. Wer noch das alte, ungeteilte Image liegen hat, zeigt
-    # hier darauf — es IST der dev-Arbeitsplatz.
-    COVEY_SANDBOX_IMAGE_DEV: ${COVEY_SANDBOX_IMAGE_DEV:-covey-sandbox-dev:latest}
+    # Vorher standen hier zwei Zeilen mit privaten Registry-Referenzen, vom
+    # Deploy auf den Commit gepinnt — und eine gesetzte Variable schlägt den
+    # Katalog. Das ging, solange die einzige Maschine der Deploy-Host war. Mit
+    # dem ersten eigenen Runner ging es nicht mehr: Der Host bekam
+    # `denied: access forbidden`, weil er die Zugangsdaten zur privaten
+    # Registry nicht hat und nie bekommen sollte.
+    #
+    # Wer doch ein eigenes Image fahren will — ein Fork, eine Installation ohne
+    # Internet — setzt COVEY_SANDBOX_IMAGE (Profil `base`) bzw.
+    # COVEY_SANDBOX_IMAGE_DEV in der `.env`. Die Variable gewinnt weiterhin;
+    # sie ist nur nicht mehr die Vorgabe.
     # Wiki-Pflege (spec/05): legt jedem Agenten täglich einen Aufräum-Task an
     # (Duplikate zusammenführen, tote [[Verweise]] korrigieren). Der zentrale
     # Konsolidierungs-Pass arbeitet rein über Embedding-Ähnlichkeit und fasst
