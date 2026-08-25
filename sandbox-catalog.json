@@ -8,7 +8,7 @@
       "images": [
         {
           "covey_version": "main",
-          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:1feee535ebdd4fcaafb6f7067af1938c6479790beaac2bc30bde05b1226872ae",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:df8ace44c2fa862083cfe88a8cfcd09ece182023db1b2c0e5bc51ef89f40476d",
           "tag": "base-latest",
           "platforms": [
             "linux/amd64",
@@ -42,7 +42,7 @@
       "images": [
         {
           "covey_version": "main",
-          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:3544ee41dfcfa16da60f085692a554e7843d30059d0b75ed5749c590deec719e",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:df90bac6ec85d9b34f73828362ece53150012588915e58ce6069e5eeb2312153",
           "tag": "dev-latest",
           "platforms": [
             "linux/amd64",
@@ -70,5 +70,5 @@
       ]
     }
   ],
-  "generated_at": "2026-08-25T12:23:04Z"
+  "generated_at": "2026-08-25T13:13:41Z"
 }
