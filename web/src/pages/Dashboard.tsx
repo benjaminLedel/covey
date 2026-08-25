@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
@@ -24,12 +24,32 @@ import { fmtBytes } from "../format";
 // matches sucht dort, wo jemand suchen würde: Name, Rolle, Kürzel, Zustand —
 // und der Name der Abteilung, damit „support" auch die findet, die dort
 // arbeiten, ohne dass es in ihrem eigenen Namen steht.
-export function matches(a: Agent, deptName: string, q: string): boolean {
+export function matches(a: Agent, deptName: string, q: string, states: string[] = []): boolean {
+  if (states.length && !states.includes(stateOf(a))) return false;
   const needle = q.trim().toLowerCase();
   if (!needle) return true;
   return [a.display_name, a.job_title, a.slug, a.status, deptName]
     .filter(Boolean)
     .some((v) => String(v).toLowerCase().includes(needle));
+}
+
+// stateOf fasst zusammen, was die Karte als Abzeichen zeigt. Die Plattform
+// kennt fünf Zustände, aber „geweckt" und „triage" sind Sekunden auf dem Weg
+// ins Arbeiten — als eigene Filter wären es Knöpfe, die fast nie etwas finden.
+export function stateOf(a: Agent): "working" | "sleeping" | "killed" {
+  if (a.killed) return "killed";
+  if (a.status === "sleeping") return "sleeping";
+  return "working";
+}
+
+// Wer läuft, steht oben. Sonst entscheidet die Anlagereihenfolge, und die ist
+// für niemanden eine Auskunft.
+const RANK: Record<string, number> = { working: 0, triggered: 1, triage: 2, sleeping: 3, killed: 4 };
+function byBusy(a: Agent, b: Agent): number {
+  const ra = a.killed ? RANK.killed : (RANK[a.status] ?? 3);
+  const rb = b.killed ? RANK.killed : (RANK[b.status] ?? 3);
+  if (ra !== rb) return ra - rb;
+  return a.display_name.localeCompare(b.display_name);
 }
 
 export type Group = { id: string | null; name: string; color: string; agents: Agent[] };
@@ -39,13 +59,18 @@ export type Group = { id: string | null; name: string; color: string; agents: Ag
 // wäre, sondern weil es kein Ort ist, an dem jemand sucht. Leere Gruppen
 // entfallen: bei aktiver Suche ist eine Abteilungsüberschrift ohne Treffer
 // genau die Zeile, die den Blick kostet.
-export function groupByDepartment(agents: Agent[], departments: Department[], q: string): Group[] {
+export function groupByDepartment(
+  agents: Agent[],
+  departments: Department[],
+  q: string,
+  states: string[] = [],
+): Group[] {
   const byId = new Map(departments.map((d) => [d.id, d]));
   const groups = new Map<string, Group>();
   const ohne: Group = { id: null, name: "", color: "", agents: [] };
   for (const a of agents) {
     const d = a.department_id ? byId.get(a.department_id) : undefined;
-    if (!matches(a, d?.name ?? "", q)) continue;
+    if (!matches(a, d?.name ?? "", q, states)) continue;
     if (!d) {
       ohne.agents.push(a);
       continue;
@@ -56,6 +81,7 @@ export function groupByDepartment(agents: Agent[], departments: Department[], q:
   }
   const out = [...groups.values()].sort((x, y) => x.name.localeCompare(y.name));
   if (ohne.agents.length) out.push(ohne);
+  for (const g of out) g.agents.sort(byBusy);
   return out;
 }
 
@@ -69,16 +95,42 @@ export default function Dashboard({ me }: { me: Principal }) {
   const departments = useQuery({ queryKey: ["departments"], queryFn: () => api<Department[]>("/departments") });
   const [sp, setSp] = useSearchParams();
   const q = sp.get("q") ?? "";
-  const setQ = (v: string) =>
+  const states = (sp.get("status") ?? "").split(",").filter(Boolean);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const setParam = (key: string, v: string) =>
     setSp(
       (prev) => {
         const n = new URLSearchParams(prev);
-        if (v) n.set("q", v);
-        else n.delete("q");
+        if (v) n.set(key, v);
+        else n.delete(key);
         return n;
       },
       { replace: true },
     );
+  const setQ = (v: string) => setParam("q", v);
+  const toggleState = (st: string) =>
+    setParam("status", (states.includes(st) ? states.filter((x) => x !== st) : [...states, st]).join(","));
+
+  // „/" springt ins Suchfeld, Esc räumt es weg — bei einer Suche, die man
+  // mehrmals am Tag benutzt, ist der Griff zur Maus die Bewegung, die man
+  // spart. Nicht, während jemand woanders tippt: sonst frisst die Seite das
+  // Zeichen aus einem anderen Feld.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const inField = ["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement)?.tagName ?? "");
+      if (e.key === "/" && !inField) {
+        e.preventDefault();
+        searchRef.current?.focus();
+        return;
+      }
+      if (e.key === "Escape" && document.activeElement === searchRef.current) {
+        setQ("");
+        searchRef.current?.blur();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
   const fleet = useQuery({
     queryKey: ["fleet"],
     queryFn: () => api<{ fleet_killed: boolean }>("/fleet"),
@@ -101,8 +153,8 @@ export default function Dashboard({ me }: { me: Principal }) {
 
   const all = agents.data ?? [];
   const depts = departments.data ?? [];
-  const drafts = all.filter(isDraft).filter((a) => matches(a, "", q));
-  const groups = groupByDepartment(all.filter((a) => !isDraft(a)), depts, q);
+  const drafts = all.filter(isDraft).filter((a) => matches(a, "", q, states));
+  const groups = groupByDepartment(all.filter((a) => !isDraft(a)), depts, q, states);
   const shown = groups.reduce((n, g) => n + g.agents.length, 0) + drafts.length;
 
   const fleetMut = useMutation({
@@ -120,19 +172,10 @@ export default function Dashboard({ me }: { me: Principal }) {
       <div className="flex items-center gap-3 mb-4">
         <h1 className="text-[22px]">{t("dashboard.title")}</h1>
         <span className="muted text-sm">
-          {q
+          {q || states.length
             ? t("dashboard.countFiltered", { shown, count: all.length })
             : t("dashboard.count", { count: all.length })}
         </span>
-        <input
-          type="search"
-          className="text-sm"
-          style={{ width: 220 }}
-          placeholder={t("dashboard.searchPlaceholder")}
-          aria-label={t("dashboard.search")}
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
         <span className="ml-auto" />
         {canManage(me.Role) && (
           <button className="btn primary" onClick={() => setShowCreate(true)}>
@@ -150,6 +193,52 @@ export default function Dashboard({ me }: { me: Principal }) {
           </button>
         )}
       </div>
+
+      {/* Die Suche steht mittig und in eigener Zeile: sie ist das, was jemand
+          auf dieser Seite ab einem Dutzend Agenten zuerst tut, und in der
+          Kopfzeile zwischen Zählung und Knöpfen war sie geduldet, nicht
+          gestaltet. */}
+      {all.length > 3 && (
+        <div className="flex flex-col items-center gap-2 mb-5">
+          <div className="agent-search">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+              <circle cx="11" cy="11" r="7" />
+              <line x1="16.5" y1="16.5" x2="21" y2="21" />
+            </svg>
+            <input
+              ref={searchRef}
+              type="search"
+              placeholder={t("dashboard.searchPlaceholder")}
+              aria-label={t("dashboard.search")}
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+            {q && (
+              <button className="btn-ghost" aria-label={t("dashboard.searchClear")} onClick={() => setQ("")}>
+                ×
+              </button>
+            )}
+            <kbd className="secondary text-xs" title={t("dashboard.searchShortcut")}>/</kbd>
+          </div>
+          <div className="flex gap-2">
+            {(["working", "sleeping", "killed"] as const).map((st) => (
+              <button
+                key={st}
+                className={`badge st-${st}`}
+                aria-pressed={states.includes(st)}
+                style={{
+                  cursor: "pointer",
+                  opacity: states.length === 0 || states.includes(st) ? 1 : 0.45,
+                  outline: states.includes(st) ? "1px solid var(--text-accent)" : "none",
+                }}
+                onClick={() => toggleState(st)}
+              >
+                {t(`status.${st}`)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <Onboarding me={me} />
 
@@ -308,7 +397,13 @@ function AgentCard({
         <div className="avatar shrink-0">{initialsOf(agent.display_name)}</div>
         <div className="min-w-0" style={{ flex: 1 }}>
           <div className="font-medium text-sm agent-card-name">{agent.display_name}</div>
-          <div className="secondary text-xs agent-card-name">{agent.slug}</div>
+          {/* Der Job-Titel ist das, wonach das Auge scannt — „wer im Support"
+              beantwortet „Software-Entwicklerin", nicht „engineer-1". Das
+              Kürzel bleibt darunter, weil es in Logs und Webhooks auftaucht. */}
+          {agent.job_title && (
+            <div className="secondary text-xs agent-card-name">{agent.job_title}</div>
+          )}
+          <div className="secondary text-xs mono agent-card-name" style={{ opacity: 0.7 }}>{agent.slug}</div>
         </div>
         {!(draft && labelled) && (
           <span

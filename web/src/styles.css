@@ -162,6 +162,43 @@ h1, h2, h3 { font-weight: 500; margin: 0; }
    ohne Leerzeichen („Anlagenüberwachungs-Agent") notfalls im Wort. */
 .agent-card-name { overflow-wrap: anywhere; }
 
+/* Die Suche über der Belegschaft. Mittig und in eigener Zeile, weil sie ab
+   einem Dutzend Agenten das Erste ist, was jemand hier tut — in der Kopfzeile
+   zwischen Zählung und Knöpfen war sie geduldet, nicht gestaltet. */
+.agent-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 520px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elevated, var(--bg));
+  color: var(--text-secondary);
+}
+.agent-search:focus-within {
+  border-color: var(--text-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-accent) 18%, transparent);
+}
+.agent-search input {
+  flex: 1;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+.agent-search input:focus { outline: none; box-shadow: none; }
+/* Das Kreuz der Browser-Suchfelder doppelt unseres — eines reicht. */
+.agent-search input[type="search"]::-webkit-search-cancel-button { display: none; }
+.agent-search kbd {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 5px;
+  line-height: 1.5;
+}
+
 /* Die Bewerbungen: ein eigenes Feld, nicht nur eine Überschrift.
    Ein Agent, der noch nicht eingestellt ist, arbeitet nicht — zwischen den
    Kollegen stünde er da wie einer und wäre keiner. Deshalb gestrichelt

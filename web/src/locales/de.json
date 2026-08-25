@@ -712,7 +712,9 @@
     "searchPlaceholder": "Name, Rolle, Abteilung …",
     "countFiltered": "{{shown}} von {{count}}",
     "withoutDepartment": "Ohne Abteilung",
-    "noMatch": "Nichts gefunden zu „{{q}}“."
+    "noMatch": "Nichts gefunden zu „{{q}}“.",
+    "searchClear": "Suche löschen",
+    "searchShortcut": "Taste / springt ins Suchfeld, Esc löscht"
   },
   "agent": {
     "notFound": "Agent nicht gefunden.",
