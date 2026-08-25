@@ -225,9 +225,6 @@ build-image:
         PUSH_IMAGE: "false"
     - if: '$CI_COMMIT_BRANCH || $CI_COMMIT_TAG'
 
-# Sandbox-Image (coveyd + Claude-Code-Runtime, Dockerfile.sandbox) für den
-# docker-SandboxProvider. Gleiche Tag-Logik wie build-image, eigener
-# Registry-Pfad :$CI_REGISTRY_IMAGE/sandbox.
 # Die Sandbox-Images baut diese Pipeline NICHT mehr.
 #
 # Sie entstanden hier fuer die private Registry, und der Deploy pinnte die
@@ -285,10 +282,11 @@ deploy:
         echo "WICHTIG: $DEPLOY_DIR/.env sichern — enthält den Master-Key. Admin-Passwort steht dort."
       fi
     - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
-    # Alte Images wegräumen, BEVOR das neue gezogen wird. Jeder Deploy legt zwei
-    # Images auf dem Host ab (covey:<sha> und sandbox:<sha>, letzteres mit
-    # Chromium über 2 GB) — ohne Aufräumen läuft die Platte voll und der Pull
-    # scheitert mit "no space left on device" (so geschehen bei Pipeline 539).
+    # Alte Images wegräumen, BEVOR das neue gezogen wird. Der Host trägt das
+    # covey-Image je Deploy und dazu die Arbeitsplatz-Images aus dem Katalog
+    # (mit Chromium über 2 GB) — ohne Aufräumen läuft die Platte voll und der
+    # Pull scheitert mit "no space left on device" (so geschehen bei Pipeline
+    # 539).
     #
     # `until=24h` lässt alles von heute stehen: das gerade laufende Image, die
     # Rollback-Ziele der letzten Deploys und vor allem das aktuelle
