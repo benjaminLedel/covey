@@ -69,6 +69,12 @@ type Pool struct {
 	// runner CONNECTED, which is the one thing nobody wants to know about a
 	// runner that has since gone away.
 	Heard func(runnerID uuid.UUID)
+	// Capabilities asks what an operator assigned to a runner in the
+	// interface — tags on top of what the host reports, and the workplaces it
+	// is to provide. nil = nothing is assigned anywhere, which is what a pool
+	// without a database looks like (tests, the runner side).
+	Capabilities func(ctx context.Context, runnerID uuid.UUID) (extraTags, images []string, decided bool, err error)
+
 	// EnsureLocal is asked when an organisation has no connected runner: the
 	// built-in one is created on first use, because organisations come into
 	// being while the process runs. nil = nothing is created, and the
@@ -130,10 +136,17 @@ type conn struct {
 	protocol int
 	version  string
 	arch     string
-	tags     []string
-	images   []string
-	t        Transport
-	pool     *Pool
+	// tags/images are the EFFECTIVE sets the scheduler matches against: what
+	// the runner reported about itself, plus (tags) or replaced by (images)
+	// what an operator assigned in the interface. The reported halves stay
+	// beside them — for the runner view, and to recompute when an assignment
+	// changes while the connection stands.
+	tags           []string
+	images         []string
+	reportedTags   []string
+	reportedImages []string
+	t              Transport
+	pool           *Pool
 
 	mu      sync.Mutex
 	waiters map[string]chan Message
@@ -250,8 +263,21 @@ func (p *Pool) register(ctx context.Context, t Transport, builtin bool) (*conn, 
 		runnerID: reg.RunnerID, orgID: reg.OrgID, builtin: builtin,
 		protocol: reg.Protocol, version: reg.Version, arch: reg.Arch,
 		tags: reg.Tags, images: reg.Images,
+		reportedTags: reg.Tags, reportedImages: reg.Images,
 		t: t, pool: p, waiters: map[string]chan Message{}, streams: map[string]bool{},
 		lastHeard: time.Now(),
+	}
+	// What the interface assigned to this host applies from the first wake on,
+	// not from the next restart of the runner: the capabilities live here, the
+	// host only says what it knows about itself.
+	if p.Capabilities != nil {
+		extra, images, decided, err := p.Capabilities(ctx, reg.RunnerID)
+		if err != nil {
+			p.Log.Warn("assigned capabilities not readable — the runner's own claim applies",
+				"runner", reg.RunnerID, "err", err)
+		} else {
+			c.applyAssigned(extra, images, decided)
+		}
 	}
 	p.mu.Lock()
 	p.conns[reg.RunnerID] = c
@@ -259,6 +285,58 @@ func (p *Pool) register(ctx context.Context, t Transport, builtin bool) (*conn, 
 	p.Log.Info("runner connected", "runner", reg.RunnerID, "org", reg.OrgID,
 		"builtin", builtin, "version", reg.Version)
 	return c, nil
+}
+
+// applyAssigned recomputes the effective sets. Tags are a union — a host does
+// not stop being arm64 because somebody labelled it "build". Images are a
+// replacement when the operator has decided, because the point of deciding is
+// to be able to take back a claim the registration invented.
+func (c *conn) applyAssigned(extraTags, images []string, decided bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.tags = union(c.reportedTags, extraTags)
+	if decided {
+		c.images = images
+	} else {
+		c.images = c.reportedImages
+	}
+}
+
+// SetCapabilities carries an assignment made in the interface to a runner that
+// is connected right now. Without it the change would apply at the next
+// reconnect — and "why is it not taking anything, I gave it the tag" is exactly
+// the question this feature exists to answer.
+func (p *Pool) SetCapabilities(runnerID uuid.UUID, extraTags, images []string, decided bool) {
+	p.mu.Lock()
+	c := p.conns[runnerID]
+	p.mu.Unlock()
+	if c == nil {
+		return
+	}
+	c.applyAssigned(extraTags, images, decided)
+}
+
+// union keeps the order of the first set and appends what is new, compared
+// without regard to case — the same comparison hasAll makes.
+func union(a, b []string) []string {
+	out := append([]string{}, a...)
+	for _, x := range b {
+		x = strings.TrimSpace(x)
+		if x == "" {
+			continue
+		}
+		found := false
+		for _, have := range out {
+			if strings.EqualFold(strings.TrimSpace(have), x) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			out = append(out, x)
+		}
+	}
+	return out
 }
 
 func (p *Pool) detach(c *conn) {

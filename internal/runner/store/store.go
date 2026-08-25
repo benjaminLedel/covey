@@ -42,6 +42,19 @@ type Runner struct {
 	Name        string    `json:"name"`
 	Description string    `json:"description,omitempty"`
 	Tags        []string  `json:"tags,omitempty"`
+	// ExtraTags are what an operator assigned in the interface — ADDITIVE to
+	// what the runner reports about itself. A tag says what a host IS (arm64,
+	// gpu); this says what it is FOR (build, frankfurt), and it can be changed
+	// without touching the machine.
+	ExtraTags []string `json:"extra_tags,omitempty"`
+	// AssignedImages REPLACES the claim the runner reports when it is set. nil
+	// = the operator has not decided and the runner's own claim applies; an
+	// empty array = no claim at all, this host provides every workplace and
+	// fetches what it does not have. Without that difference a claim a
+	// registration invented could never be taken back.
+	AssignedImages []string `json:"assigned_images,omitempty"`
+	// ImagesDecided says which of the two the empty array means.
+	ImagesDecided bool `json:"images_decided"`
 	// Version, Arch and Protocol are what the runner reported when it
 	// connected — the basis for making version drift visible.
 	Version    string     `json:"version,omitempty"`
@@ -75,13 +88,52 @@ func NewToken() (string, error) {
 	return hex.EncodeToString(buf), nil
 }
 
-const columns = `id, org_id, kind, name, description, tags, version, arch, protocol, created_at, last_seen_at`
+const columns = `id, org_id, kind, name, description, tags, extra_tags, assigned_images, version, arch, protocol, created_at, last_seen_at`
 
 func scan(row pgx.Row) (Runner, error) {
 	var r Runner
-	err := row.Scan(&r.ID, &r.OrgID, &r.Kind, &r.Name, &r.Description, &r.Tags,
+	var images []string
+	err := row.Scan(&r.ID, &r.OrgID, &r.Kind, &r.Name, &r.Description, &r.Tags, &r.ExtraTags, &images,
 		&r.Version, &r.Arch, &r.Protocol, &r.CreatedAt, &r.LastSeenAt)
+	if images != nil {
+		r.AssignedImages, r.ImagesDecided = images, true
+	}
 	return r, err
+}
+
+// SetCapabilities is the interface's half of what a runner can do: the tags an
+// operator adds to it and the workplaces it is to provide. Both were properties
+// of the host's configuration file until now, sent once at connect — changing
+// them meant editing a file on the machine and restarting the runner.
+//
+// images == nil hands the decision back to the runner's own claim; a non-nil
+// empty slice is the decision "no claim".
+func (s *Store) SetCapabilities(ctx context.Context, orgID, id uuid.UUID, extraTags []string, images []string) (Runner, error) {
+	if extraTags == nil {
+		extraTags = []string{}
+	}
+	r, err := scan(s.pool.QueryRow(ctx,
+		`UPDATE runners SET extra_tags = $3, assigned_images = $4
+		 WHERE id = $1 AND org_id = $2 RETURNING `+columns, id, orgID, extraTags, images))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Runner{}, ErrNotFound
+	}
+	return r, err
+}
+
+// Capabilities is what the pool asks when a runner attaches: what an operator
+// assigned to this host, independently of what the host says about itself.
+func (s *Store) Capabilities(ctx context.Context, id uuid.UUID) (extraTags []string, images []string, decided bool, err error) {
+	var raw []string
+	err = s.pool.QueryRow(ctx,
+		`SELECT extra_tags, assigned_images FROM runners WHERE id = $1`, id).Scan(&extraTags, &raw)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	if raw != nil {
+		return extraTags, raw, true, nil
+	}
+	return extraTags, nil, false, nil
 }
 
 // EnsureBuiltin returns an organisation's built-in runner and creates it if it

@@ -22,6 +22,11 @@ type Live struct {
 	Arch      string    `json:"arch,omitempty"`
 	Tags      []string  `json:"tags,omitempty"`
 	Images    []string  `json:"images,omitempty"`
+	// What the host says about itself, beside the effective sets above: an
+	// operator who assigns nothing has to be able to see why an agent still
+	// does not land there.
+	ReportedTags   []string `json:"reported_tags,omitempty"`
+	ReportedImages []string `json:"reported_images,omitempty"`
 	Sandboxes int       `json:"sandboxes"`
 	// Outdated: it speaks an older protocol than this control plane. Named
 	// rather than merely tolerated — version drift between separately delivered
@@ -49,6 +54,7 @@ func (p *Pool) LiveFor(orgID uuid.UUID) map[uuid.UUID]Live {
 		out[c.runnerID] = Live{
 			RunnerID: c.runnerID, Connected: true, Protocol: c.protocol,
 			Version: c.version, Arch: c.arch, Tags: c.tags, Images: c.images,
+			ReportedTags: c.reportedTags, ReportedImages: c.reportedImages,
 			Sandboxes: running, Outdated: c.protocol < Protocol,
 		}
 	}

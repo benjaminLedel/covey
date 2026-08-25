@@ -2202,7 +2202,15 @@
     "agoDays_other": "{{count}} days ago",
     "cleanupAutomatic": "The cleanup runs by itself every six hours anyway. The button is for the moment the space is needed now — every agent’s current state always stays.",
     "problemsTitle": "The data plane reports problems",
-    "problemsIntro": "While this stands, every wake whose workplace no runner can provide fails — the agents wait rather than fail."
+    "problemsIntro": "While this stands, every wake whose workplace no runner can provide fails — the agents wait rather than fail.",
+    "tagsLabel": "Tags (assigned)",
+    "tagsPlaceholder": "gpu, frankfurt",
+    "tagsHint": "Comma-separated. Added to what the host reports about itself — an agent runs here only if all of its host requirements are carried.",
+    "imagesLabel": "Workplaces",
+    "imagesPlaceholder": "empty = all",
+    "imagesHint": "Comma-separated. Replaces the host's own claim. Empty means no restriction — this host provides every workplace and fetches the image if it is missing.",
+    "reported": "The host reports: {{tags}} · {{images}}",
+    "imagesNone": "no image claim"
   },
   "diagnostics": {
     "title": "Diagnostics",

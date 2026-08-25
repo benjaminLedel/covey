@@ -2202,7 +2202,15 @@
     "agoDays_other": "vor {{count}} Tagen",
     "cleanupAutomatic": "Aufgeräumt wird ohnehin alle sechs Stunden von selbst. Der Knopf ist für den Moment, in dem der Platz jetzt gebraucht wird — der aktuelle Stand jedes Agenten bleibt dabei immer.",
     "problemsTitle": "Die Datenebene meldet Probleme",
-    "problemsIntro": "So lange das steht, schlägt jeder Weckruf fehl, dessen Arbeitsplatz kein Runner bereitstellen kann — die Agenten warten, statt zu scheitern."
+    "problemsIntro": "So lange das steht, schlägt jeder Weckruf fehl, dessen Arbeitsplatz kein Runner bereitstellen kann — die Agenten warten, statt zu scheitern.",
+    "tagsLabel": "Tags (zugewiesen)",
+    "tagsPlaceholder": "gpu, frankfurt",
+    "tagsHint": "Kommagetrennt. Kommt zu dem dazu, was der Host über sich meldet — ein Agent läuft hier nur, wenn alle seine Host-Anforderungen getragen werden.",
+    "imagesLabel": "Arbeitsplätze",
+    "imagesPlaceholder": "leer = alle",
+    "imagesHint": "Kommagetrennt. Ersetzt den Anspruch des Hosts. Leer heißt: keine Einschränkung — dieser Host stellt jeden Arbeitsplatz bereit und holt sich das Image, wenn es fehlt.",
+    "reported": "Der Host meldet: {{tags}} · {{images}}",
+    "imagesNone": "kein Image-Anspruch"
   },
   "diagnostics": {
     "title": "Diagnose",
