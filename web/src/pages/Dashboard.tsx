@@ -176,7 +176,7 @@ export default function Dashboard({ me }: { me: Principal }) {
             Zählung „2 in der Organisation" stand daneben und beantwortete eine
             Frage, die niemand hat — was zählt, steht an den Abteilungen. */}
         {all.length > 0 && (
-          <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
+          <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <div className="agent-search">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
                 <circle cx="11" cy="11" r="7" />
@@ -197,6 +197,29 @@ export default function Dashboard({ me }: { me: Principal }) {
               )}
               <kbd className="secondary text-xs" title={t("dashboard.searchShortcut")}>/</kbd>
             </div>
+            {/* Die Chips hinter dem Feld statt darunter: eine zweite Zeile
+                schob die Belegschaft nach unten, und beides zusammen ist eine
+                Aussage — wonach suche ich, und wovon. */}
+            {(["working", "sleeping", "killed"] as const).map((st) => (
+              <button
+                key={st}
+                className={`badge st-${st}`}
+                aria-pressed={states.includes(st)}
+                style={{
+                  cursor: "pointer",
+                  opacity: states.length === 0 || states.includes(st) ? 1 : 0.45,
+                  outline: states.includes(st) ? "1px solid var(--text-accent)" : "none",
+                }}
+                onClick={() => toggleState(st)}
+              >
+                {t(`status.${st}`)}
+              </button>
+            ))}
+            {(q || states.length > 0) && (
+              <span className="secondary text-xs">
+                {t("dashboard.countFiltered", { shown, count: all.length })}
+              </span>
+            )}
           </div>
         )}
         {canManage(me.Role) && (
@@ -215,33 +238,6 @@ export default function Dashboard({ me }: { me: Principal }) {
           </button>
         )}
       </div>
-
-      {/* Nur die Chips bleiben unter der Kopfzeile — sie sind ein Filter, kein
-          Eingabefeld, und gehören zu dem, was sie filtern. */}
-      {all.length > 0 && (
-        <div className="flex justify-center items-center gap-2 mb-5">
-          {(["working", "sleeping", "killed"] as const).map((st) => (
-            <button
-              key={st}
-              className={`badge st-${st}`}
-              aria-pressed={states.includes(st)}
-              style={{
-                cursor: "pointer",
-                opacity: states.length === 0 || states.includes(st) ? 1 : 0.45,
-                outline: states.includes(st) ? "1px solid var(--text-accent)" : "none",
-              }}
-              onClick={() => toggleState(st)}
-            >
-              {t(`status.${st}`)}
-            </button>
-          ))}
-          {(q || states.length > 0) && (
-            <span className="secondary text-xs">
-              {t("dashboard.countFiltered", { shown, count: all.length })}
-            </span>
-          )}
-        </div>
-      )}
 
       <Onboarding me={me} />
 
