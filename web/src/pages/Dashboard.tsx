@@ -171,12 +171,34 @@ export default function Dashboard({ me }: { me: Principal }) {
     <div>
       <div className="flex items-center gap-3 mb-4">
         <h1 className="text-[22px]">{t("dashboard.title")}</h1>
-        <span className="muted text-sm">
-          {q || states.length
-            ? t("dashboard.countFiltered", { shown, count: all.length })
-            : t("dashboard.count", { count: all.length })}
-        </span>
-        <span className="ml-auto" />
+        {/* Die Suche auf Augenhöhe mit der Überschrift, mittig zwischen ihr und
+            den Knöpfen: eine eigene Zeile darunter kostete Höhe für nichts. Die
+            Zählung „2 in der Organisation" stand daneben und beantwortete eine
+            Frage, die niemand hat — was zählt, steht an den Abteilungen. */}
+        {all.length > 0 && (
+          <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
+            <div className="agent-search">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+                <circle cx="11" cy="11" r="7" />
+                <line x1="16.5" y1="16.5" x2="21" y2="21" />
+              </svg>
+              <input
+                ref={searchRef}
+                type="search"
+                placeholder={t("dashboard.searchPlaceholder")}
+                aria-label={t("dashboard.search")}
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+              {q && (
+                <button className="btn-ghost" aria-label={t("dashboard.searchClear")} onClick={() => setQ("")}>
+                  ×
+                </button>
+              )}
+              <kbd className="secondary text-xs" title={t("dashboard.searchShortcut")}>/</kbd>
+            </div>
+          </div>
+        )}
         {canManage(me.Role) && (
           <button className="btn primary" onClick={() => setShowCreate(true)}>
             {t("dashboard.newAgent")}
@@ -194,53 +216,30 @@ export default function Dashboard({ me }: { me: Principal }) {
         )}
       </div>
 
-      {/* Die Suche steht mittig und in eigener Zeile: sie ist das, was jemand
-          auf dieser Seite ab einem Dutzend Agenten zuerst tut, und in der
-          Kopfzeile zwischen Zählung und Knöpfen war sie geduldet, nicht
-          gestaltet.
-          Sie war kurz an eine Mindestzahl geknüpft — „über drei Karten ist eine
-          Suche Möblierung". Das war falsch: Wer sie beim zweiten Agenten nicht
-          findet, hält sie für kaputt, nicht für überflüssig. Ein Bedienelement,
-          das ab einer Zahl auftaucht, macht die Oberfläche unvorhersagbar. */}
+      {/* Nur die Chips bleiben unter der Kopfzeile — sie sind ein Filter, kein
+          Eingabefeld, und gehören zu dem, was sie filtern. */}
       {all.length > 0 && (
-        <div className="flex flex-col items-center gap-2 mb-5">
-          <div className="agent-search">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
-              <circle cx="11" cy="11" r="7" />
-              <line x1="16.5" y1="16.5" x2="21" y2="21" />
-            </svg>
-            <input
-              ref={searchRef}
-              type="search"
-              placeholder={t("dashboard.searchPlaceholder")}
-              aria-label={t("dashboard.search")}
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
-            {q && (
-              <button className="btn-ghost" aria-label={t("dashboard.searchClear")} onClick={() => setQ("")}>
-                ×
-              </button>
-            )}
-            <kbd className="secondary text-xs" title={t("dashboard.searchShortcut")}>/</kbd>
-          </div>
-          <div className="flex gap-2">
-            {(["working", "sleeping", "killed"] as const).map((st) => (
-              <button
-                key={st}
-                className={`badge st-${st}`}
-                aria-pressed={states.includes(st)}
-                style={{
-                  cursor: "pointer",
-                  opacity: states.length === 0 || states.includes(st) ? 1 : 0.45,
-                  outline: states.includes(st) ? "1px solid var(--text-accent)" : "none",
-                }}
-                onClick={() => toggleState(st)}
-              >
-                {t(`status.${st}`)}
-              </button>
-            ))}
-          </div>
+        <div className="flex justify-center items-center gap-2 mb-5">
+          {(["working", "sleeping", "killed"] as const).map((st) => (
+            <button
+              key={st}
+              className={`badge st-${st}`}
+              aria-pressed={states.includes(st)}
+              style={{
+                cursor: "pointer",
+                opacity: states.length === 0 || states.includes(st) ? 1 : 0.45,
+                outline: states.includes(st) ? "1px solid var(--text-accent)" : "none",
+              }}
+              onClick={() => toggleState(st)}
+            >
+              {t(`status.${st}`)}
+            </button>
+          ))}
+          {(q || states.length > 0) && (
+            <span className="secondary text-xs">
+              {t("dashboard.countFiltered", { shown, count: all.length })}
+            </span>
+          )}
         </div>
       )}
 
