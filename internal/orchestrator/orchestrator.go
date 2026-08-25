@@ -911,6 +911,16 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 		})
 		return fmt.Errorf("wake: %w", err)
 	}
+	// Where this run happens. With one machine it is not a question; with a
+	// second one it is the first one an operator asks in front of a run that
+	// behaved oddly — and the answer used to exist only in the process's log,
+	// if at all.
+	if placed, ok := sandbox.(Placed); ok {
+		id, label := placed.Runner()
+		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindLifecycle, map[string]any{
+			"status": "sandbox", "runner": id.String(), "runner_name": label,
+		})
+	}
 	s.link = link
 	defer func() {
 		final := agents.StatusSleeping

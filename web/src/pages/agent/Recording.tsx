@@ -84,6 +84,14 @@ function summarize(e: RecordingEvent): { text: string; mono?: boolean; muted?: b
   switch (e.kind) {
     case "lifecycle": {
       if (p.status === "task_done") return { text: i18n.t("activity.taskDone") };
+      // Wo ein Lauf stattfindet. Bei einer Maschine ist das keine Frage, ab
+      // der zweiten ist es die erste — und die Antwort stand vorher nur im Log
+      // des Prozesses, wenn überhaupt.
+      if (p.status === "sandbox")
+        return {
+          text: i18n.t("activity.sandboxOn", { runner: (p.runner_name as string) || (p.runner as string) }),
+          muted: true,
+        };
       const label = i18n.t(`status.${p.status as string}`, p.status as string);
       return { text: i18n.t("activity.statusChange", { label }), muted: p.status === "sleeping" };
     }

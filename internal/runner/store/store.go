@@ -143,6 +143,16 @@ func (s *Store) Update(ctx context.Context, orgID, id uuid.UUID, p Patch) (Runne
 	return r, err
 }
 
+// ByID reads one runner — for the places that have an id and need the name a
+// person gave it.
+func (s *Store) ByID(ctx context.Context, id uuid.UUID) (Runner, error) {
+	r, err := scan(s.pool.QueryRow(ctx, `SELECT `+columns+` FROM runners WHERE id = $1`, id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Runner{}, ErrNotFound
+	}
+	return r, err
+}
+
 // Capabilities is what the pool asks when a runner attaches: what an operator
 // assigned to this host, independently of what the host says about itself.
 func (s *Store) Capabilities(ctx context.Context, id uuid.UUID) (extraTags []string, images []string, decided bool, err error) {

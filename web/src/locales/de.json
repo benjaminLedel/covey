@@ -1981,7 +1981,8 @@
     "failed": "Fehlgeschlagen",
     "timeJustNow": "gerade eben",
     "timeMinutes": "vor {{n}} Min",
-    "timeHours": "vor {{n}} Std"
+    "timeHours": "vor {{n}} Std",
+    "sandboxOn": "Läuft auf Runner {{runner}}"
   },
   "common": {
     "loading": "lädt …"
@@ -2235,7 +2236,15 @@
       "lastSeen": "Zuletzt gesehen",
       "removeTitle": "Runner entfernen",
       "removeHint": "Die Registrierung wird gelöscht und das Token damit ungültig. Die Arbeitskopien auf dem Host bleiben liegen; alles, was zählt, steht im Home-Store.",
-      "remove": "Registrierung löschen"
+      "remove": "Registrierung löschen",
+      "pullTitle": "Images vorab holen",
+      "pullHint": "Der Host holt sich fehlende Images beim ersten Weckruf selbst — hier tust du es absichtlich und siehst zu. Bei einer privaten Registry ist das der Moment, in dem sich zeigt, ob die Zugangsdaten stimmen: hier in Sekunden, sonst mitten in einem Lauf.",
+      "pullOffline": "Der Host ist nicht verbunden — holen geht erst wieder, wenn er da ist.",
+      "pullPlaceholder": "registry.example.com/team/image:tag",
+      "pull": "Holen",
+      "pullRunning": "Wird geholt … das kann bei mehreren Gigabyte dauern.",
+      "pullDone": "{{image}} liegt jetzt auf diesem Host.",
+      "pullFailed": "{{image}} konnte nicht geholt werden: {{error}}"
     }
   },
   "diagnostics": {

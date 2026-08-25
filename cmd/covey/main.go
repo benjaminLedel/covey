@@ -1047,6 +1047,23 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	// too. Each carries its own egress segment: a runner serves exactly one
 	// tenant, and `--internal` cuts the way out, not the way sideways.
 	runnerPool.Capabilities = runnerStore.Capabilities
+	// How a host is called right now — for the line in the recording that says
+	// where a run happened.
+	runnerPool.RunnerLabel = func(ctx context.Context, runnerID uuid.UUID) string {
+		rn, err := runnerStore.ByID(ctx, runnerID)
+		if err != nil {
+			return ""
+		}
+		switch {
+		case rn.Name != "":
+			return rn.Name
+		case rn.Kind == "builtin":
+			return "built-in"
+		case rn.Description != "":
+			return rn.Description
+		}
+		return rn.ID.String()[:8]
+	}
 	runnerPool.EnsureLocal = func(callCtx context.Context, orgID uuid.UUID) error {
 		// This used to refuse as soon as the organisation had a registered
 		// runner: whoever adds one has said that compute leaves this machine.

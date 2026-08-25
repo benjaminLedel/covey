@@ -69,6 +69,12 @@ type Pool struct {
 	// runner CONNECTED, which is the one thing nobody wants to know about a
 	// runner that has since gone away.
 	Heard func(runnerID uuid.UUID)
+	// RunnerLabel is how a host is called in the interface right now — the
+	// operator's name for it, and what belongs in the recording beside the id.
+	// An id alone answers "which host" only for whoever keeps a mapping in
+	// their head.
+	RunnerLabel func(ctx context.Context, runnerID uuid.UUID) string
+
 	// LastRunner names the host this agent last worked on — its home's working
 	// copy is there. Answering it is worth an ordering, not a requirement: a
 	// host that is gone must not keep an agent waiting, and a home is
@@ -858,6 +864,22 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 	return nil, last
 }
 
+// Runner satisfies orchestrator.Placed: which host this sandbox runs on.
+func (s *poolSandbox) Runner() (uuid.UUID, string) {
+	label := ""
+	if s.pool.RunnerLabel != nil {
+		label = s.pool.RunnerLabel(context.Background(), s.conn.runnerID)
+	}
+	if label == "" {
+		if s.conn.builtin {
+			label = "built-in"
+		} else {
+			label = short(s.conn.runnerID)
+		}
+	}
+	return s.conn.runnerID, label
+}
+
 type poolSandbox struct {
 	pool    *Pool
 	conn    *conn
@@ -1137,6 +1159,39 @@ func (p *Pool) WorkplaceImages(ctx context.Context, orgID uuid.UUID, images []st
 		}
 	}
 	return out
+}
+
+// PullOn fetches one image onto ONE host — the deliberate version of what the
+// first wake there would do anyway, for the case the wake must not be the
+// moment it is discovered that the pull does not work: a private registry
+// without credentials answers in seconds here and in the middle of a run
+// otherwise.
+//
+// nameOrImage is a workplace name or a reference; both resolve the same way an
+// agent's workplace does.
+func (p *Pool) PullOn(ctx context.Context, orgID, runnerID uuid.UUID, nameOrImage string) (string, error) {
+	image := p.imageFor(ctx, orgID, nameOrImage)
+	if strings.TrimSpace(image) == "" {
+		return "", fmt.Errorf("no image for %q", nameOrImage)
+	}
+	p.mu.Lock()
+	c := p.conns[runnerID]
+	p.mu.Unlock()
+	if c == nil || c.orgID != orgID {
+		return image, fmt.Errorf("%w: this runner is not connected", ErrNoRunner)
+	}
+	answer, err := c.ask(ctx, TypePullImage, PullImage{Image: image}, 30*time.Minute)
+	if err != nil {
+		return image, err
+	}
+	res, err := decode[PullResult](answer)
+	if err != nil {
+		return image, err
+	}
+	if res.Err != "" {
+		return image, errors.New(res.Err)
+	}
+	return image, nil
 }
 
 // PullWorkplace fetches a profile's image onto every runner of the

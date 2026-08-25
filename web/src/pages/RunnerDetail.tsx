@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router";
-import { api, patch, del, type Principal } from "../api";
+import { api, patch, post, del, type Principal } from "../api";
 
 /* Die Detailseite eines Hosts.
  *
@@ -65,6 +65,23 @@ export default function RunnerDetail({ me }: { me: Principal }) {
   const r = (runners.data ?? []).find((x) => x.id === id);
 
   const [error, setError] = useState("");
+  // Arbeitsplätze zum Vorabholen: was diese Organisation kennt, plus ein
+  // Freitextfeld für eine Referenz, die in keinem Katalog steht.
+  const workplaces = useQuery({
+    queryKey: ["workplaces"],
+    queryFn: () => api<{ name: string; label: string; image: string }[]>("/workplaces"),
+  });
+  const [ownImage, setOwnImage] = useState("");
+  const [pullResult, setPullResult] = useState<{ image: string; ok: boolean; error?: string } | null>(null);
+  const pull = useMutation({
+    mutationFn: (body: { workplace?: string; image?: string }) =>
+      post<{ image: string; ok: boolean; error?: string }>(`/runners/${id}/pull`, body),
+    onSuccess: (res) => {
+      setPullResult(res);
+      qc.invalidateQueries({ queryKey: ["runners"] });
+    },
+    onError: (e) => setPullResult({ image: "", ok: false, error: String((e as Error)?.message) }),
+  });
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => patch(`/runners/${id}`, body),
     onSuccess: () => {
@@ -157,6 +174,60 @@ export default function RunnerDetail({ me }: { me: Principal }) {
           value={list(r.live?.reported_images) || t("runners.imagesNone")}
         />
       </div>
+
+      {manage && (
+        <div className="card flex flex-col gap-3">
+          <div>
+            <div className="font-medium">{t("runners.detail.pullTitle")}</div>
+            <p className="muted text-sm">{t("runners.detail.pullHint")}</p>
+          </div>
+          {!connected && <p className="muted text-sm">{t("runners.detail.pullOffline")}</p>}
+          <div className="flex flex-wrap gap-2">
+            {(workplaces.data ?? []).map((w) => (
+              <button
+                key={w.name}
+                className="btn sm"
+                disabled={!connected || pull.isPending}
+                onClick={() => {
+                  setPullResult(null);
+                  pull.mutate({ workplace: w.name });
+                }}
+                title={w.image}
+              >
+                {w.label || w.name}
+              </button>
+            ))}
+          </div>
+          <form
+            className="flex gap-2 items-center"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!ownImage.trim()) return;
+              setPullResult(null);
+              pull.mutate({ image: ownImage.trim() });
+            }}
+          >
+            <input
+              className="mono text-sm"
+              style={{ flex: 1 }}
+              placeholder={t("runners.detail.pullPlaceholder")}
+              value={ownImage}
+              onChange={(e) => setOwnImage(e.target.value)}
+            />
+            <button className="btn sm" disabled={!connected || pull.isPending}>
+              {t("runners.detail.pull")}
+            </button>
+          </form>
+          {pull.isPending && <p className="muted text-sm">{t("runners.detail.pullRunning")}</p>}
+          {pullResult && !pull.isPending && (
+            <p className={pullResult.ok ? "text-sm" : "text-sm danger-text"}>
+              {pullResult.ok
+                ? t("runners.detail.pullDone", { image: pullResult.image })
+                : t("runners.detail.pullFailed", { image: pullResult.image, error: pullResult.error })}
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="card flex flex-col gap-2">
         <div className="font-medium">{t("runners.detail.state")}</div>

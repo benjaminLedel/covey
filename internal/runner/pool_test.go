@@ -402,6 +402,43 @@ func TestTheOrderPrefersTheLastHostThenTheOneHoldingTheImage(t *testing.T) {
 	}
 }
 
+// The recording answers "where did this run happen" through an optional
+// interface — and an optional interface is the kind of thing a refactor drops
+// without a compiler noticing. So the test asks for it by name, and checks
+// that the label is the one an operator gave the host rather than a uuid.
+func TestASandboxSaysWhichHostItRunsOn(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	org := uuid.New()
+	p, _ := newLocalPool(t, dir, fakeDockerBin(t, dir, "nothing"), org)
+	p.RunnerLabel = func(context.Context, uuid.UUID) string { return "Build host Frankfurt" }
+
+	sb, err := p.Start(context.Background(), orchestrator.SandboxSpec{AgentID: uuid.New(), OrgID: org})
+	if err != nil {
+		t.Fatal(err)
+	}
+	placed, ok := sb.(orchestrator.Placed)
+	if !ok {
+		t.Fatal("a sandbox of the pool has to say which host it runs on")
+	}
+	id, label := placed.Runner()
+	if id == uuid.Nil {
+		t.Error("the host's id belongs in the recording")
+	}
+	if label != "Build host Frankfurt" {
+		t.Errorf("label = %q, expected the name from the interface", label)
+	}
+
+	// Without a name the label still has to be readable — the recording is
+	// read by people, and a bare uuid is not an answer.
+	p.RunnerLabel = nil
+	if _, label := placed.Runner(); label == "" || label == uuid.Nil.String() {
+		t.Errorf("without a name there still has to be something readable, got %q", label)
+	}
+}
+
 // The image hangs off the agent (spec/16). One column carries both a profile
 // name and an image of an organisation's own, so the resolution is the whole
 // rule — and if it is wrong, an agent silently works in a foreign workplace:

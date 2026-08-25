@@ -1981,7 +1981,8 @@
     "failed": "Failed",
     "timeJustNow": "just now",
     "timeMinutes": "{{n}} min ago",
-    "timeHours": "{{n}} h ago"
+    "timeHours": "{{n}} h ago",
+    "sandboxOn": "Running on runner {{runner}}"
   },
   "common": {
     "loading": "loading …"
@@ -2235,7 +2236,15 @@
       "lastSeen": "Last seen",
       "removeTitle": "Remove runner",
       "removeHint": "The registration is deleted and its token invalidated. The working copies on the host stay behind; everything that matters is in the home store.",
-      "remove": "Delete registration"
+      "remove": "Delete registration",
+      "pullTitle": "Fetch images in advance",
+      "pullHint": "The host fetches missing images at the first wake by itself — here you do it deliberately and watch. With a private registry this is the moment it shows whether the credentials are right: in seconds here, in the middle of a run otherwise.",
+      "pullOffline": "The host is not connected — fetching works again once it is.",
+      "pullPlaceholder": "registry.example.com/team/image:tag",
+      "pull": "Fetch",
+      "pullRunning": "Fetching … several gigabytes take their time.",
+      "pullDone": "{{image}} is on this host now.",
+      "pullFailed": "{{image}} could not be fetched: {{error}}"
     }
   },
   "diagnostics": {

@@ -46,6 +46,20 @@ type Sandbox interface {
 	Stop(ctx context.Context) error
 }
 
+// Placed is the optional half of a sandbox that knows which host it landed on.
+// Optional because not every provider has hosts to speak of — the mock in the
+// tests has none — and because the answer is worth a line in the recording
+// rather than a change to everything that starts a sandbox.
+//
+// It exists for the question an operator asks in front of a run that behaved
+// oddly: WHERE did this run? With one machine it is not a question; with a
+// second one it is the first one.
+type Placed interface {
+	// Runner names the host: its id, and the label it carries in the runner
+	// view at this moment.
+	Runner() (uuid.UUID, string)
+}
+
 // DataPlaneChecker is the optional self-check of a SandboxProvider: can it
 // start a sandbox at all, asked without starting one.
 //

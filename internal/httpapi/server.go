@@ -328,6 +328,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /api/v1/workplaces/{name}", s.rbac(manage, s.handleDeleteWorkplace))
 	mux.Handle("POST /api/v1/runners/registration-tokens", s.rbac(manage, s.handleCreateRegistrationToken))
 	mux.Handle("PATCH /api/v1/runners/{id}", s.rbac(manage, s.handleUpdateRunner))
+	mux.Handle("POST /api/v1/runners/{id}/pull", s.rbac(manage, s.handlePullOnRunner))
 	mux.Handle("DELETE /api/v1/runners/{id}", s.rbac(manage, s.handleDeleteRunner))
 
 	// The home store (spec/16, "Interface"). A store that grows quietly and

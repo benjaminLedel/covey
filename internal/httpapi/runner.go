@@ -304,6 +304,54 @@ func clean(in []string) []string {
 	return out
 }
 
+// handlePullOnRunner fetches an image onto one host, deliberately and while
+// somebody is watching. Without it the first wake there is the moment it turns
+// out that the pull does not work — a private registry without credentials
+// answers in seconds here and in the middle of a run otherwise.
+func (s *Server) handlePullOnRunner(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var in struct {
+		Workplace string `json:"workplace"`
+		Image     string `json:"image"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "body not readable")
+		return
+	}
+	want := strings.TrimSpace(in.Workplace)
+	if want == "" {
+		want = strings.TrimSpace(in.Image)
+	}
+	if want == "" {
+		writeErr(w, http.StatusBadRequest, "workplace or image missing")
+		return
+	}
+	if s.RunnerPool == nil {
+		writeErr(w, http.StatusServiceUnavailable, "no runner pool")
+		return
+	}
+	// The runner has to belong to this organisation — the pool checks it too,
+	// but a 404 here says the right thing instead of "not connected".
+	if _, err := s.Runners.ByID(r.Context(), id); err != nil {
+		mapErr(w, err)
+		return
+	}
+	image, err := s.RunnerPool.PullOn(r.Context(), p.OrgID, id, want)
+	if err != nil {
+		// The registry's own words: "no credentials", "manifest unknown" and a
+		// timeout call for different things, and a wrapped "pull failed" would
+		// hide which.
+		writeJSON(w, http.StatusOK, map[string]any{"image": image, "ok": false, "error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"image": image, "ok": true})
+}
+
 // handleRunnerHealth answers what stands between this organisation's runners
 // and a running sandbox. The check existed before this — it ran at startup into
 // the log and inside the onboarding view, which disappears as soon as the five
