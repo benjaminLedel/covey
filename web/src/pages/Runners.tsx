@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { api, post, del, type Principal } from "../api";
+import { api, post, type Principal } from "../api";
 
 // Die Runner-Ansicht (spec/16, Stufe 5). Ab dem dritten Runner ist sie das,
 // was den Betrieb bedienbar macht: welche Hosts es gibt, welcher gerade traegt,
@@ -109,10 +109,6 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
     mutationFn: () => post<{ token: string }>("/runners/registration-tokens", {}),
     onSuccess: (r) => setToken(r.token),
   });
-  const removeRunner = useMutation({
-    mutationFn: (id: string) => del(`/runners/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["runners"] }),
-  });
   const runCleanup = useMutation({
     mutationFn: (preview: boolean) =>
       post<CleanupView>(`/platform/home-store/cleanup?preview=${preview}`, {}),
@@ -213,18 +209,16 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
                   </td>
                   <td className="text-xs mono">{r.live?.version || r.version || "—"}</td>
                   <td className="text-right">
-                    {/* Der eingebaute wird nicht verwaltet: er hat kein Token
-                        zum Widerrufen und keinen Loeschknopf. Es gibt ihn, oder
-                        die Regel sagt, dass es ihn nicht gibt. */}
-                    {manage && r.kind === "remote" && (
-                      <button
-                        className="btn-ghost danger-text text-xs"
-                        onClick={() => {
-                          if (confirm(t("runners.confirmDelete"))) removeRunner.mutate(r.id);
-                        }}
-                      >
-                        {t("runners.decommission")}
-                      </button>
+                    {/* Der Name ist auch ein Link, aber ein Link in einer
+                        Tabellenzelle sieht aus wie Text: „Bearbeiten" steht
+                        dort, wo bei jeder anderen Zeile die Handlung steht.
+                        Der eingebaute Runner hat sie auch — Name, Tags und
+                        Arbeitsplätze gelten für ihn genauso; was ihm fehlt,
+                        ist das Löschen. */}
+                    {manage && (
+                      <Link className="btn sm" to={`/infrastructure/runners/${r.id}`}>
+                        {t("runners.edit")}
+                      </Link>
                     )}
                   </td>
                 </tr>

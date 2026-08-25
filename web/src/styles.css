@@ -162,6 +162,45 @@ h1, h2, h3 { font-weight: 500; margin: 0; }
    ohne Leerzeichen („Anlagenüberwachungs-Agent") notfalls im Wort. */
 .agent-card-name { overflow-wrap: anywhere; }
 
+/* Die Suche über der Belegschaft. Mittig und in eigener Zeile, weil sie ab
+   einem Dutzend Agenten das Erste ist, was jemand hier tut — in der Kopfzeile
+   zwischen Zählung und Knöpfen war sie geduldet, nicht gestaltet. */
+.agent-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 520px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  /* Dieselbe helle Fläche wie die Karten darunter — auf dem Papierton des
+     Hintergrunds verschwand das Feld sonst halb. */
+  background: var(--surface-2);
+  color: var(--text-secondary);
+}
+.agent-search:focus-within {
+  border-color: var(--text-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-accent) 18%, transparent);
+}
+.agent-search input {
+  flex: 1;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+.agent-search input:focus { outline: none; box-shadow: none; }
+/* Das Kreuz der Browser-Suchfelder doppelt unseres — eines reicht. */
+.agent-search input[type="search"]::-webkit-search-cancel-button { display: none; }
+.agent-search kbd {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 5px;
+  line-height: 1.5;
+}
+
 /* Die Bewerbungen: ein eigenes Feld, nicht nur eine Überschrift.
    Ein Agent, der noch nicht eingestellt ist, arbeitet nicht — zwischen den
    Kollegen stünde er da wie einer und wäre keiner. Deshalb gestrichelt
@@ -310,6 +349,11 @@ textarea.code { font-family: var(--mono); font-size: 12px; line-height: 1.55; }
   cursor: pointer;
 }
 .console .copy:hover { background: rgba(242, 238, 228, 0.16); }
+/* ACHTUNG beim Bauen neuer Seiten: Diese Regel steht UNGESCHICHTET, Tailwinds
+   Utilities liegen in einer @layer — ungeschichtetes CSS gewinnt. Ein
+   className="flex" auf einem <label> tut hier also nichts, und man sieht es
+   erst im Browser. Deshalb: Beschriftung ÜBER dem Feld, so wie diese Regel es
+   vorgibt, statt sie mit Utilities umbiegen zu wollen. */
 label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0 0 6px; }
 
 /* Sidebar-Navigation (Design-Sprache aus dem Mockup, weiterentwickelt) */
@@ -4045,3 +4089,19 @@ kbd {
   gap: 10px;
   padding: 2px 0;
 }
+
+
+/* ── Runner-Detailseite ────────────────────────────────────────────────
+   Abstände gehören hierher und nicht in Utility-Klassen an jedem Element:
+   die Seite besteht aus gleichartigen Abschnitten, und gleichartig heißt
+   auch gleich weit auseinander. */
+.rd-page { display: flex; flex-direction: column; gap: 14px; max-width: 860px; }
+.rd-card { display: flex; flex-direction: column; gap: 10px; }
+/* Die Einleitung gehört zur Überschrift, nicht zum ersten Feld. */
+.rd-card > h2 + p { margin: -6px 0 2px; }
+.rd-field { display: flex; flex-direction: column; }
+.rd-field input { width: 100%; max-width: 420px; }
+.rd-reported { display: flex; align-items: baseline; gap: 8px; font-size: 12px; }
+.rd-reported > span:first-child { color: var(--text-secondary); min-width: 190px; }
+.rd-row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.rd-row + .rd-row { border-top: 0.5px solid var(--border); padding-top: 6px; }

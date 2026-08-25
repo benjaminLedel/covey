@@ -707,7 +707,14 @@
     "rejectLead": "Der Entwurf wird verworfen. Er hat nie gearbeitet — es gibt keinen Lauf und keine Kosten. Die Ausschreibung, aus der er hervorging, bleibt als Aufgabe stehen.",
     "storeFull": "Der Home-Store hat nur noch {{free}} frei — das größte Home ist {{largest}} und passt nicht mehr hinein. Die nächste Sicherung eines Agenten schlägt fehl.",
     "storeTight": "Im Home-Store sind noch {{free}} frei, das größte Home ist {{largest}}. Das reicht für etwa eine weitere Sicherung.",
-    "storeAction": "Aufräumen"
+    "storeAction": "Aufräumen",
+    "search": "Agenten durchsuchen",
+    "searchPlaceholder": "Name, Rolle, Abteilung …",
+    "countFiltered": "{{shown}} von {{count}}",
+    "withoutDepartment": "Ohne Abteilung",
+    "noMatch": "Nichts gefunden zu „{{q}}“.",
+    "searchClear": "Suche löschen",
+    "searchShortcut": "Taste / springt ins Suchfeld, Esc löscht"
   },
   "agent": {
     "notFound": "Agent nicht gefunden.",
@@ -2245,7 +2252,8 @@
       "pullRunning": "Wird geholt … das kann bei mehreren Gigabyte dauern.",
       "pullDone": "{{image}} liegt jetzt auf diesem Host.",
       "pullFailed": "{{image}} konnte nicht geholt werden: {{error}}"
-    }
+    },
+    "edit": "Bearbeiten"
   },
   "diagnostics": {
     "title": "Diagnose",

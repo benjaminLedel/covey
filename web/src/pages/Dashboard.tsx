@@ -1,8 +1,8 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
-import { api, post, del, ApiError, isDraft, type Agent, type AgentTemplate, type Principal } from "../api";
+import { api, post, del, ApiError, isDraft, type Agent, type AgentTemplate, type Department, type Principal } from "../api";
 import { rollAgentName, slugify } from "../names";
 import { GuidedCreate } from "./agents/GuidedCreate";
 import { Brief } from "./agents/Brief";
@@ -11,6 +11,80 @@ import { Onboarding } from "../components/Onboarding";
 import { HireDialog } from "../components/HireDialog";
 import { fmtBytes } from "../format";
 
+/* Die Belegschaft nach Abteilungen, und eine Suche darüber.
+ *
+ * Die Übersicht war eine Kachelwand in Anlegereihenfolge. Das trägt, solange
+ * man alle kennt; ab etwa einem Dutzend ist die Frage nicht mehr „wer ist da",
+ * sondern „wer im Support" und „wo ist Brunhilde". Beides beantwortet dieselbe
+ * Ordnung, die das Organigramm schon hat — sie stand nur nicht in der Liste.
+ *
+ * Die Suche lebt in der URL (?q=…): geteilte Links und der Zurück-Knopf sollen
+ * funktionieren, wie überall sonst in dieser Oberfläche auch. */
+
+// matches sucht dort, wo jemand suchen würde: Name, Rolle, Kürzel, Zustand —
+// und der Name der Abteilung, damit „support" auch die findet, die dort
+// arbeiten, ohne dass es in ihrem eigenen Namen steht.
+export function matches(a: Agent, deptName: string, q: string, states: string[] = []): boolean {
+  if (states.length && !states.includes(stateOf(a))) return false;
+  const needle = q.trim().toLowerCase();
+  if (!needle) return true;
+  return [a.display_name, a.job_title, a.slug, a.status, deptName]
+    .filter(Boolean)
+    .some((v) => String(v).toLowerCase().includes(needle));
+}
+
+// stateOf fasst zusammen, was die Karte als Abzeichen zeigt. Die Plattform
+// kennt fünf Zustände, aber „geweckt" und „triage" sind Sekunden auf dem Weg
+// ins Arbeiten — als eigene Filter wären es Knöpfe, die fast nie etwas finden.
+export function stateOf(a: Agent): "working" | "sleeping" | "killed" {
+  if (a.killed) return "killed";
+  if (a.status === "sleeping") return "sleeping";
+  return "working";
+}
+
+// Wer läuft, steht oben. Sonst entscheidet die Anlagereihenfolge, und die ist
+// für niemanden eine Auskunft.
+const RANK: Record<string, number> = { working: 0, triggered: 1, triage: 2, sleeping: 3, killed: 4 };
+function byBusy(a: Agent, b: Agent): number {
+  const ra = a.killed ? RANK.killed : (RANK[a.status] ?? 3);
+  const rb = b.killed ? RANK.killed : (RANK[b.status] ?? 3);
+  if (ra !== rb) return ra - rb;
+  return a.display_name.localeCompare(b.display_name);
+}
+
+export type Group = { id: string | null; name: string; color: string; agents: Agent[] };
+
+// groupByDepartment ordnet die Belegschaft so, wie das Organigramm sie ordnet:
+// Abteilungen alphabetisch, „ohne Abteilung" zuletzt — nicht weil es unwichtig
+// wäre, sondern weil es kein Ort ist, an dem jemand sucht. Leere Gruppen
+// entfallen: bei aktiver Suche ist eine Abteilungsüberschrift ohne Treffer
+// genau die Zeile, die den Blick kostet.
+export function groupByDepartment(
+  agents: Agent[],
+  departments: Department[],
+  q: string,
+  states: string[] = [],
+): Group[] {
+  const byId = new Map(departments.map((d) => [d.id, d]));
+  const groups = new Map<string, Group>();
+  const ohne: Group = { id: null, name: "", color: "", agents: [] };
+  for (const a of agents) {
+    const d = a.department_id ? byId.get(a.department_id) : undefined;
+    if (!matches(a, d?.name ?? "", q, states)) continue;
+    if (!d) {
+      ohne.agents.push(a);
+      continue;
+    }
+    const g = groups.get(d.id) ?? { id: d.id, name: d.name, color: d.color, agents: [] };
+    g.agents.push(a);
+    groups.set(d.id, g);
+  }
+  const out = [...groups.values()].sort((x, y) => x.name.localeCompare(y.name));
+  if (ohne.agents.length) out.push(ohne);
+  for (const g of out) g.agents.sort(byBusy);
+  return out;
+}
+
 const canManage = (role: string) => role === "org_admin" || role === "agent_owner";
 const canSecurity = (role: string) => role === "org_admin" || role === "security";
 
@@ -18,6 +92,45 @@ export default function Dashboard({ me }: { me: Principal }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const agents = useQuery({ queryKey: ["agents"], queryFn: () => api<Agent[]>("/agents") });
+  const departments = useQuery({ queryKey: ["departments"], queryFn: () => api<Department[]>("/departments") });
+  const [sp, setSp] = useSearchParams();
+  const q = sp.get("q") ?? "";
+  const states = (sp.get("status") ?? "").split(",").filter(Boolean);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const setParam = (key: string, v: string) =>
+    setSp(
+      (prev) => {
+        const n = new URLSearchParams(prev);
+        if (v) n.set(key, v);
+        else n.delete(key);
+        return n;
+      },
+      { replace: true },
+    );
+  const setQ = (v: string) => setParam("q", v);
+  const toggleState = (st: string) =>
+    setParam("status", (states.includes(st) ? states.filter((x) => x !== st) : [...states, st]).join(","));
+
+  // „/" springt ins Suchfeld, Esc räumt es weg — bei einer Suche, die man
+  // mehrmals am Tag benutzt, ist der Griff zur Maus die Bewegung, die man
+  // spart. Nicht, während jemand woanders tippt: sonst frisst die Seite das
+  // Zeichen aus einem anderen Feld.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const inField = ["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement)?.tagName ?? "");
+      if (e.key === "/" && !inField) {
+        e.preventDefault();
+        searchRef.current?.focus();
+        return;
+      }
+      if (e.key === "Escape" && document.activeElement === searchRef.current) {
+        setQ("");
+        searchRef.current?.blur();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
   const fleet = useQuery({
     queryKey: ["fleet"],
     queryFn: () => api<{ fleet_killed: boolean }>("/fleet"),
@@ -39,8 +152,10 @@ export default function Dashboard({ me }: { me: Principal }) {
   });
 
   const all = agents.data ?? [];
-  const drafts = all.filter(isDraft);
-  const staff = all.filter((a) => !isDraft(a));
+  const depts = departments.data ?? [];
+  const drafts = all.filter(isDraft).filter((a) => matches(a, "", q, states));
+  const groups = groupByDepartment(all.filter((a) => !isDraft(a)), depts, q, states);
+  const shown = groups.reduce((n, g) => n + g.agents.length, 0) + drafts.length;
 
   const fleetMut = useMutation({
     mutationFn: (kill: boolean) => post(kill ? "/fleet/kill" : "/fleet/resume"),
@@ -56,8 +171,57 @@ export default function Dashboard({ me }: { me: Principal }) {
     <div>
       <div className="flex items-center gap-3 mb-4">
         <h1 className="text-[22px]">{t("dashboard.title")}</h1>
-        <span className="muted text-sm">{t("dashboard.count", { count: agents.data?.length ?? 0 })}</span>
-        <span className="ml-auto" />
+        {/* Die Suche auf Augenhöhe mit der Überschrift, mittig zwischen ihr und
+            den Knöpfen: eine eigene Zeile darunter kostete Höhe für nichts. Die
+            Zählung „2 in der Organisation" stand daneben und beantwortete eine
+            Frage, die niemand hat — was zählt, steht an den Abteilungen. */}
+        {all.length > 0 && (
+          <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <div className="agent-search">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+                <circle cx="11" cy="11" r="7" />
+                <line x1="16.5" y1="16.5" x2="21" y2="21" />
+              </svg>
+              <input
+                ref={searchRef}
+                type="search"
+                placeholder={t("dashboard.searchPlaceholder")}
+                aria-label={t("dashboard.search")}
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+              {q && (
+                <button className="btn-ghost" aria-label={t("dashboard.searchClear")} onClick={() => setQ("")}>
+                  ×
+                </button>
+              )}
+              <kbd className="secondary text-xs" title={t("dashboard.searchShortcut")}>/</kbd>
+            </div>
+            {/* Die Chips hinter dem Feld statt darunter: eine zweite Zeile
+                schob die Belegschaft nach unten, und beides zusammen ist eine
+                Aussage — wonach suche ich, und wovon. */}
+            {(["working", "sleeping", "killed"] as const).map((st) => (
+              <button
+                key={st}
+                className={`badge st-${st}`}
+                aria-pressed={states.includes(st)}
+                style={{
+                  cursor: "pointer",
+                  opacity: states.length === 0 || states.includes(st) ? 1 : 0.45,
+                  outline: states.includes(st) ? "1px solid var(--text-accent)" : "none",
+                }}
+                onClick={() => toggleState(st)}
+              >
+                {t(`status.${st}`)}
+              </button>
+            ))}
+            {(q || states.length > 0) && (
+              <span className="secondary text-xs">
+                {t("dashboard.countFiltered", { shown, count: all.length })}
+              </span>
+            )}
+          </div>
+        )}
         {canManage(me.Role) && (
           <button className="btn primary" onClick={() => setShowCreate(true)}>
             {t("dashboard.newAgent")}
@@ -132,21 +296,38 @@ export default function Dashboard({ me }: { me: Principal }) {
         </section>
       )}
 
-      {drafts.length > 0 && staff.length > 0 && (
+      {drafts.length > 0 && groups.length > 0 && (
         <h2 className="text-sm mb-2" style={{ fontWeight: 600 }}>
           {t("dashboard.employed")}{" "}
           <span className="secondary text-xs" style={{ fontWeight: 400 }}>{t("dashboard.employedHint")}</span>
         </h2>
       )}
 
-      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))" }}>
-        {staff.map((a) => (
-          <AgentCard key={a.id} agent={a} />
-        ))}
-        {agents.data?.length === 0 && (
-          <p className="muted">{t("dashboard.noAgents")}</p>
-        )}
-      </div>
+      {groups.map((g) => (
+        <section key={g.id ?? "ohne"} className="mb-5">
+          <div className="flex items-baseline gap-2 mb-2">
+            {/* Die Abteilungsfarbe ist dieselbe wie im Organigramm — zwei
+                Ansichten derselben Ordnung sollen auch gleich aussehen. */}
+            {g.color && (
+              <span
+                aria-hidden
+                style={{ width: 8, height: 8, borderRadius: 2, background: g.color, display: "inline-block" }}
+              />
+            )}
+            <h2 className="text-sm" style={{ fontWeight: 600 }}>
+              {g.id ? g.name : t("dashboard.withoutDepartment")}
+            </h2>
+            <span className="secondary text-xs">{g.agents.length}</span>
+          </div>
+          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))" }}>
+            {g.agents.map((a) => (
+              <AgentCard key={a.id} agent={a} />
+            ))}
+          </div>
+        </section>
+      ))}
+      {all.length === 0 && <p className="muted">{t("dashboard.noAgents")}</p>}
+      {all.length > 0 && shown === 0 && <p className="muted">{t("dashboard.noMatch", { q })}</p>}
 
       {hiring && <HireDialog agent={hiring} onClose={() => setHiring(null)} />}
       {rejecting && (
@@ -215,7 +396,13 @@ function AgentCard({
         <div className="avatar shrink-0">{initialsOf(agent.display_name)}</div>
         <div className="min-w-0" style={{ flex: 1 }}>
           <div className="font-medium text-sm agent-card-name">{agent.display_name}</div>
-          <div className="secondary text-xs agent-card-name">{agent.slug}</div>
+          {/* Der Job-Titel ist das, wonach das Auge scannt — „wer im Support"
+              beantwortet „Software-Entwicklerin", nicht „engineer-1". Das
+              Kürzel bleibt darunter, weil es in Logs und Webhooks auftaucht. */}
+          {agent.job_title && (
+            <div className="secondary text-xs agent-card-name">{agent.job_title}</div>
+          )}
+          <div className="secondary text-xs mono agent-card-name" style={{ opacity: 0.7 }}>{agent.slug}</div>
         </div>
         {!(draft && labelled) && (
           <span

@@ -707,7 +707,14 @@
     "rejectLead": "The draft is discarded. It never worked — there is no run and no cost. The brief it came out of stays as a task.",
     "storeFull": "The home store has only {{free}} left — the largest home is {{largest}} and no longer fits. The next sync of an agent will fail.",
     "storeTight": "{{free}} left in the home store, and the largest home is {{largest}}. Room for about one more.",
-    "storeAction": "Clean up"
+    "storeAction": "Clean up",
+    "search": "Search agents",
+    "searchPlaceholder": "name, role, department …",
+    "countFiltered": "{{shown}} of {{count}}",
+    "withoutDepartment": "Without a department",
+    "noMatch": "Nothing found for “{{q}}”.",
+    "searchClear": "Clear the search",
+    "searchShortcut": "Press / to jump into the search, Esc clears it"
   },
   "agent": {
     "notFound": "Agent not found.",
@@ -2245,7 +2252,8 @@
       "pullRunning": "Fetching … several gigabytes take their time.",
       "pullDone": "{{image}} is on this host now.",
       "pullFailed": "{{image}} could not be fetched: {{error}}"
-    }
+    },
+    "edit": "Edit"
   },
   "diagnostics": {
     "title": "Diagnostics",

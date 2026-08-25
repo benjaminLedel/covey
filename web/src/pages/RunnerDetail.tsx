@@ -31,6 +31,7 @@ type RunnerView = {
   created_at: string;
   live?: {
     connected: boolean;
+    protocol?: number;
     version?: string;
     arch?: string;
     tags?: string[];
@@ -100,7 +101,7 @@ export default function RunnerDetail({ me }: { me: Principal }) {
 
   const connected = !!r.live?.connected;
   return (
-    <div className="flex flex-col gap-4">
+    <div className="rd-page">
       <div>
         <Link to="/infrastructure/runners" className="muted text-sm">
           ← {t("runners.detail.back")}
@@ -119,11 +120,9 @@ export default function RunnerDetail({ me }: { me: Principal }) {
 
       {error && <div className="card danger-text text-sm">{error}</div>}
 
-      <div className="card flex flex-col gap-3">
-        <div>
-          <div className="font-medium">{t("runners.detail.identity")}</div>
-          <p className="muted text-sm">{t("runners.detail.identityHint")}</p>
-        </div>
+      <div className="card rd-card">
+        <h2 className="text-[15px]">{t("runners.detail.identity")}</h2>
+        <p className="muted text-xs">{t("runners.detail.identityHint")}</p>
         <Field
           label={t("runners.detail.name")}
           value={r.name ?? ""}
@@ -140,11 +139,9 @@ export default function RunnerDetail({ me }: { me: Principal }) {
         />
       </div>
 
-      <div className="card flex flex-col gap-3">
-        <div>
-          <div className="font-medium">{t("runners.detail.steering")}</div>
-          <p className="muted text-sm">{t("runners.detail.steeringHint")}</p>
-        </div>
+      <div className="card rd-card">
+        <h2 className="text-[15px]">{t("runners.detail.steering")}</h2>
+        <p className="muted text-xs">{t("runners.detail.steeringHint")}</p>
         <Field
           label={t("runners.tagsLabel")}
           value={list(r.extra_tags)}
@@ -156,11 +153,9 @@ export default function RunnerDetail({ me }: { me: Principal }) {
         <Reported label={t("runners.detail.effectiveTags")} value={list(r.live?.tags ?? r.tags)} />
       </div>
 
-      <div className="card flex flex-col gap-3">
-        <div>
-          <div className="font-medium">{t("runners.imagesLabel")}</div>
-          <p className="muted text-sm">{t("runners.detail.imagesHint")}</p>
-        </div>
+      <div className="card rd-card">
+        <h2 className="text-[15px]">{t("runners.imagesLabel")}</h2>
+        <p className="muted text-xs">{t("runners.detail.imagesHint")}</p>
         <Field
           label={t("runners.detail.assignedImages")}
           value={list(r.assigned_images)}
@@ -176,11 +171,9 @@ export default function RunnerDetail({ me }: { me: Principal }) {
       </div>
 
       {manage && (
-        <div className="card flex flex-col gap-3">
-          <div>
-            <div className="font-medium">{t("runners.detail.pullTitle")}</div>
-            <p className="muted text-sm">{t("runners.detail.pullHint")}</p>
-          </div>
+        <div className="card rd-card">
+          <h2 className="text-[15px]">{t("runners.detail.pullTitle")}</h2>
+          <p className="muted text-xs">{t("runners.detail.pullHint")}</p>
           {!connected && <p className="muted text-sm">{t("runners.detail.pullOffline")}</p>}
           <div className="flex flex-wrap gap-2">
             {(workplaces.data ?? []).map((w) => (
@@ -229,11 +222,16 @@ export default function RunnerDetail({ me }: { me: Principal }) {
         </div>
       )}
 
-      <div className="card flex flex-col gap-2">
-        <div className="font-medium">{t("runners.detail.state")}</div>
+      <div className="card rd-card">
+        <h2 className="text-[15px]">{t("runners.detail.state")}</h2>
         <Row label={t("runners.colVersion")} value={r.live?.version || r.version || "—"} />
         <Row label={t("runners.detail.arch")} value={r.live?.arch || r.arch || "—"} />
-        <Row label={t("runners.detail.protocol")} value={r.protocol ? String(r.protocol) : "—"} />
+        {/* Die Zeile kennt das Protokoll erst, wenn der Runner sich einmal
+            gemeldet hat — beim eingebauten steht es nur in der Verbindung. */}
+        <Row
+          label={t("runners.detail.protocol")}
+          value={String(r.live?.protocol || r.protocol || "—")}
+        />
         <Row
           label={t("runners.detail.sandboxes")}
           value={String(r.capacity?.sandboxes ?? r.live?.sandboxes ?? 0)}
@@ -243,9 +241,9 @@ export default function RunnerDetail({ me }: { me: Principal }) {
       </div>
 
       {manage && r.kind === "remote" && (
-        <div className="card flex flex-col gap-2">
-          <div className="font-medium">{t("runners.detail.removeTitle")}</div>
-          <p className="muted text-sm">{t("runners.detail.removeHint")}</p>
+        <div className="card rd-card">
+          <h2 className="text-[15px]">{t("runners.detail.removeTitle")}</h2>
+          <p className="muted text-xs">{t("runners.detail.removeHint")}</p>
           <div>
             <button
               className="btn-ghost danger-text text-sm"
@@ -264,7 +262,12 @@ export default function RunnerDetail({ me }: { me: Principal }) {
 
 /* Ein Feld, das beim Verlassen speichert — dieselbe Mechanik wie in den
  * Agenten-Einstellungen, damit niemand einen Speichern-Knopf sucht, den es an
- * der anderen Stelle nicht gibt. */
+ * der anderen Stelle nicht gibt.
+ *
+ * Aufbau bewusst wie überall sonst: <label> über dem Feld, nicht daneben.
+ * `label { display: block }` steht ungeschichtet in styles.css und schlägt
+ * jede Tailwind-Display-Utility — ein className="flex" auf einem <label> tut
+ * hier nichts, und das sieht man erst im Browser. */
 function Field({
   label,
   value,
@@ -281,8 +284,8 @@ function Field({
   onSave: (v: string) => void;
 }) {
   return (
-    <label className="flex flex-col gap-1">
-      <span className="text-sm">{label}</span>
+    <div className="rd-field">
+      <label>{label}</label>
       <input
         className={mono ? "mono" : undefined}
         key={`${label}:${value}`}
@@ -294,22 +297,24 @@ function Field({
           if (next !== value) onSave(next);
         }}
       />
-    </label>
+    </div>
   );
 }
 
+// Was der Host über sich meldet, steht neben dem, was jemand zugewiesen hat —
+// klein und ruhig: es ist eine Auskunft, kein Eingabefeld.
 function Reported({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col gap-1">
-      <span className="muted text-sm">{label}</span>
-      <span className="text-sm mono">{value || "—"}</span>
+    <div className="rd-reported">
+      <span>{label}</span>
+      <span className="mono">{value || "—"}</span>
     </div>
   );
 }
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between text-sm">
+    <div className="rd-row">
       <span className="muted">{label}</span>
       <span className="mono">{value}</span>
     </div>
