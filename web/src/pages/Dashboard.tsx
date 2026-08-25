@@ -1,8 +1,8 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
-import { api, post, del, ApiError, isDraft, type Agent, type AgentTemplate, type Principal } from "../api";
+import { api, post, del, ApiError, isDraft, type Agent, type AgentTemplate, type Department, type Principal } from "../api";
 import { rollAgentName, slugify } from "../names";
 import { GuidedCreate } from "./agents/GuidedCreate";
 import { Brief } from "./agents/Brief";
@@ -11,6 +11,54 @@ import { Onboarding } from "../components/Onboarding";
 import { HireDialog } from "../components/HireDialog";
 import { fmtBytes } from "../format";
 
+/* Die Belegschaft nach Abteilungen, und eine Suche darüber.
+ *
+ * Die Übersicht war eine Kachelwand in Anlegereihenfolge. Das trägt, solange
+ * man alle kennt; ab etwa einem Dutzend ist die Frage nicht mehr „wer ist da",
+ * sondern „wer im Support" und „wo ist Brunhilde". Beides beantwortet dieselbe
+ * Ordnung, die das Organigramm schon hat — sie stand nur nicht in der Liste.
+ *
+ * Die Suche lebt in der URL (?q=…): geteilte Links und der Zurück-Knopf sollen
+ * funktionieren, wie überall sonst in dieser Oberfläche auch. */
+
+// matches sucht dort, wo jemand suchen würde: Name, Rolle, Kürzel, Zustand —
+// und der Name der Abteilung, damit „support" auch die findet, die dort
+// arbeiten, ohne dass es in ihrem eigenen Namen steht.
+export function matches(a: Agent, deptName: string, q: string): boolean {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return true;
+  return [a.display_name, a.job_title, a.slug, a.status, deptName]
+    .filter(Boolean)
+    .some((v) => String(v).toLowerCase().includes(needle));
+}
+
+export type Group = { id: string | null; name: string; color: string; agents: Agent[] };
+
+// groupByDepartment ordnet die Belegschaft so, wie das Organigramm sie ordnet:
+// Abteilungen alphabetisch, „ohne Abteilung" zuletzt — nicht weil es unwichtig
+// wäre, sondern weil es kein Ort ist, an dem jemand sucht. Leere Gruppen
+// entfallen: bei aktiver Suche ist eine Abteilungsüberschrift ohne Treffer
+// genau die Zeile, die den Blick kostet.
+export function groupByDepartment(agents: Agent[], departments: Department[], q: string): Group[] {
+  const byId = new Map(departments.map((d) => [d.id, d]));
+  const groups = new Map<string, Group>();
+  const ohne: Group = { id: null, name: "", color: "", agents: [] };
+  for (const a of agents) {
+    const d = a.department_id ? byId.get(a.department_id) : undefined;
+    if (!matches(a, d?.name ?? "", q)) continue;
+    if (!d) {
+      ohne.agents.push(a);
+      continue;
+    }
+    const g = groups.get(d.id) ?? { id: d.id, name: d.name, color: d.color, agents: [] };
+    g.agents.push(a);
+    groups.set(d.id, g);
+  }
+  const out = [...groups.values()].sort((x, y) => x.name.localeCompare(y.name));
+  if (ohne.agents.length) out.push(ohne);
+  return out;
+}
+
 const canManage = (role: string) => role === "org_admin" || role === "agent_owner";
 const canSecurity = (role: string) => role === "org_admin" || role === "security";
 
@@ -18,6 +66,19 @@ export default function Dashboard({ me }: { me: Principal }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const agents = useQuery({ queryKey: ["agents"], queryFn: () => api<Agent[]>("/agents") });
+  const departments = useQuery({ queryKey: ["departments"], queryFn: () => api<Department[]>("/departments") });
+  const [sp, setSp] = useSearchParams();
+  const q = sp.get("q") ?? "";
+  const setQ = (v: string) =>
+    setSp(
+      (prev) => {
+        const n = new URLSearchParams(prev);
+        if (v) n.set("q", v);
+        else n.delete("q");
+        return n;
+      },
+      { replace: true },
+    );
   const fleet = useQuery({
     queryKey: ["fleet"],
     queryFn: () => api<{ fleet_killed: boolean }>("/fleet"),
@@ -39,8 +100,10 @@ export default function Dashboard({ me }: { me: Principal }) {
   });
 
   const all = agents.data ?? [];
-  const drafts = all.filter(isDraft);
-  const staff = all.filter((a) => !isDraft(a));
+  const depts = departments.data ?? [];
+  const drafts = all.filter(isDraft).filter((a) => matches(a, "", q));
+  const groups = groupByDepartment(all.filter((a) => !isDraft(a)), depts, q);
+  const shown = groups.reduce((n, g) => n + g.agents.length, 0) + drafts.length;
 
   const fleetMut = useMutation({
     mutationFn: (kill: boolean) => post(kill ? "/fleet/kill" : "/fleet/resume"),
@@ -56,7 +119,20 @@ export default function Dashboard({ me }: { me: Principal }) {
     <div>
       <div className="flex items-center gap-3 mb-4">
         <h1 className="text-[22px]">{t("dashboard.title")}</h1>
-        <span className="muted text-sm">{t("dashboard.count", { count: agents.data?.length ?? 0 })}</span>
+        <span className="muted text-sm">
+          {q
+            ? t("dashboard.countFiltered", { shown, count: all.length })
+            : t("dashboard.count", { count: all.length })}
+        </span>
+        <input
+          type="search"
+          className="text-sm"
+          style={{ width: 220 }}
+          placeholder={t("dashboard.searchPlaceholder")}
+          aria-label={t("dashboard.search")}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
         <span className="ml-auto" />
         {canManage(me.Role) && (
           <button className="btn primary" onClick={() => setShowCreate(true)}>
@@ -132,21 +208,38 @@ export default function Dashboard({ me }: { me: Principal }) {
         </section>
       )}
 
-      {drafts.length > 0 && staff.length > 0 && (
+      {drafts.length > 0 && groups.length > 0 && (
         <h2 className="text-sm mb-2" style={{ fontWeight: 600 }}>
           {t("dashboard.employed")}{" "}
           <span className="secondary text-xs" style={{ fontWeight: 400 }}>{t("dashboard.employedHint")}</span>
         </h2>
       )}
 
-      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))" }}>
-        {staff.map((a) => (
-          <AgentCard key={a.id} agent={a} />
-        ))}
-        {agents.data?.length === 0 && (
-          <p className="muted">{t("dashboard.noAgents")}</p>
-        )}
-      </div>
+      {groups.map((g) => (
+        <section key={g.id ?? "ohne"} className="mb-5">
+          <div className="flex items-baseline gap-2 mb-2">
+            {/* Die Abteilungsfarbe ist dieselbe wie im Organigramm — zwei
+                Ansichten derselben Ordnung sollen auch gleich aussehen. */}
+            {g.color && (
+              <span
+                aria-hidden
+                style={{ width: 8, height: 8, borderRadius: 2, background: g.color, display: "inline-block" }}
+              />
+            )}
+            <h2 className="text-sm" style={{ fontWeight: 600 }}>
+              {g.id ? g.name : t("dashboard.withoutDepartment")}
+            </h2>
+            <span className="secondary text-xs">{g.agents.length}</span>
+          </div>
+          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))" }}>
+            {g.agents.map((a) => (
+              <AgentCard key={a.id} agent={a} />
+            ))}
+          </div>
+        </section>
+      ))}
+      {all.length === 0 && <p className="muted">{t("dashboard.noAgents")}</p>}
+      {all.length > 0 && shown === 0 && <p className="muted">{t("dashboard.noMatch", { q })}</p>}
 
       {hiring && <HireDialog agent={hiring} onClose={() => setHiring(null)} />}
       {rejecting && (
