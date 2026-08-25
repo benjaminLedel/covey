@@ -234,6 +234,27 @@ func (s *Server) handleRunnerWhoami(w http.ResponseWriter, _ *http.Request, rn r
 // handleListRunners shows an organisation's runners. The built-in one is in
 // there too — visible so that the model is comprehensible, but it has no token
 // to revoke and no delete button: it exists, or the rule says it does not.
+// handleRunnerHealth answers what stands between this organisation's runners
+// and a running sandbox. The check existed before this — it ran at startup into
+// the log and inside the onboarding view, which disappears as soon as the five
+// steps are done. So an instance that had been working for weeks reported
+// nothing when its data plane fell over: on covey.work every wake failed for
+// half an hour with "no runner holds the image", and the only place that said
+// so was the recording of a task nobody was looking at.
+//
+// It belongs where somebody looks when agents stop running: the runner view.
+func (s *Server) handleRunnerHealth(w http.ResponseWriter, r *http.Request) {
+	if s.DataPlane == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"ready": true, "problems": []string{}})
+		return
+	}
+	problems := s.dataPlaneProblems(r.Context())
+	if problems == nil {
+		problems = []string{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ready": len(problems) == 0, "problems": problems})
+}
+
 func (s *Server) handleListRunners(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	list, err := s.Runners.ListForOrg(r.Context(), p.OrgID)

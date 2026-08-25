@@ -54,6 +54,10 @@ func main() {
 		err = runRegister(ctx, os.Args[2:], log)
 	case "run":
 		err = runRun(ctx, os.Args[2:], log)
+	case "install-service":
+		err = runInstallService(ctx, os.Args[2:], log)
+	case "remove-service":
+		err = runRemoveService(ctx, os.Args[2:], log)
 	case "version", "--version", "-v":
 		fmt.Println("covey-runner " + buildinfo.String())
 		fmt.Printf("runner protocol %d\n", runner.Protocol)
@@ -76,11 +80,18 @@ func usage() {
                         [--tag php --tag arm64] [--description "Build host Frankfurt"]
                         [--config <path>] [--work-dir <path>]
   covey-runner run      [--config <path>]
+  covey-runner install-service [--config <path>] [--user <name>] [--no-start] [--print]
+  covey-runner remove-service
   covey-runner version
 
 register writes the received runner token into the configuration file
 (`+defaultConfigPath+`, overridable with --config). run then holds the
 connection to the control plane.
+
+On a systemd host, register installs the service itself and starts it — a
+runner that only runs while a shell is open shows as offline the moment
+somebody logs out, and its agents wait. --no-service leaves that out;
+install-service does it afterwards, remove-service undoes it.
 
 The runner needs Docker on this host and no access to anything else — no
 database, no object store. It speaks exclusively the runner protocol.`)
@@ -102,8 +113,9 @@ func runRegister(ctx context.Context, args []string, log *slog.Logger) error {
 	description := fs.String("description", "", "what this host is, for the runner view")
 	configPath := fs.String("config", defaultConfigPath, "where the configuration is written")
 	workDir := fs.String("work-dir", "/var/lib/covey-runner", "working copies and local blocks")
+	noService := fs.Bool("no-service", false, "do not install the systemd service, only write the configuration")
 	var images stringList
-	fs.Var(&images, "image", "a sandbox image this host holds (repeatable); default covey-sandbox:latest")
+	fs.Var(&images, "image", "a sandbox image this host provides (repeatable); unset = every one, fetched on demand")
 	var tags stringList
 	fs.Var(&tags, "tag", "a capability of this host (repeatable), e.g. arm64")
 	if err := fs.Parse(args); err != nil {
@@ -117,9 +129,13 @@ func runRegister(ctx context.Context, args []string, log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	if len(images) == 0 {
-		images = stringList{"covey-sandbox:latest"}
-	}
+	// No --image means no claim, and that is the useful default: `docker run`
+	// fetches an image the host does not have, so a runner without a claim
+	// takes any workplace and pulls it. The old default said
+	// covey-sandbox:latest instead — a sentence about a host that had just
+	// been installed and held nothing at all, and one that excluded it from
+	// every other workplace. On covey.work that turned a freshly registered
+	// GPU host into an organisation without a data plane.
 	cfg := config{URL: strings.TrimRight(*url, "/"), Token: runnerToken, WorkDir: *workDir, Images: images, Tags: tags}
 	if err := writeConfig(*configPath, cfg); err != nil {
 		return fmt.Errorf("writing %s: %w — the runner token is lost with it, register again", *configPath, err)
@@ -142,7 +158,12 @@ func runRegister(ctx context.Context, args []string, log *slog.Logger) error {
 			"and start it with: covey-runner run --config %s\n", err, *configPath)
 		return err
 	}
-	fmt.Printf("Connection checked.\nStart it with: covey-runner run --config %s\n", *configPath)
+	fmt.Println("Connection checked.")
+	if *noService {
+		fmt.Printf("Start it with: covey-runner run --config %s\n", *configPath)
+		return nil
+	}
+	installServiceAfterRegister(ctx, *configPath, log)
 	return nil
 }
 

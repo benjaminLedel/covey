@@ -195,6 +195,69 @@ func TestPoolNeverAssignsAcrossOrganisations(t *testing.T) {
 	}
 }
 
+// The regression that cost covey.work its data plane: a remote runner joined,
+// the control plane restarted, and the organisation had a runner that does not
+// hold the workplace its agents use. Every wake then failed with "no runner
+// holds the image" — while the built-in runner, which claims no image, was
+// never started because the organisation was no longer runner-less.
+func TestABuiltInRunnerStepsInWhenNoConnectedRunnerFits(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	org := uuid.New()
+	p, _ := newLocalPool(t, dir, fakeDockerBin(t, dir, "nothing"), org)
+
+	// The organisation's only runner claims another image — as a freshly
+	// registered host does, whose --image default says covey-sandbox:latest.
+	p.mu.Lock()
+	for _, c := range p.conns {
+		c.images = []string{"covey-sandbox:latest"}
+	}
+	p.mu.Unlock()
+
+	ensured := 0
+	p.EnsureLocal = func(ctx context.Context, orgID uuid.UUID) error {
+		ensured++
+		id := uuid.New()
+		return p.AttachLocal(ctx, NewNode(id, orgID, &Docker{
+			RunnerID: id, Image: "covey-sandbox:test", DataDir: dir, DockerBin: fakeDockerBin(t, dir, "nothing"),
+		}, quietLog()))
+	}
+	if _, err := p.Start(context.Background(), orchestrator.SandboxSpec{
+		AgentID: uuid.New(), OrgID: org, Image: "registry.example.com/team/sandbox-dev:2026-08",
+	}); err != nil {
+		t.Fatalf("the built-in runner should have taken it: %v", err)
+	}
+	if ensured != 1 {
+		t.Errorf("EnsureLocal was called %d times, expected exactly one", ensured)
+	}
+}
+
+// The fallback must not smuggle work past a requirement: a runner tag the
+// built-in one does not carry stays a refusal, because the tag says what the
+// host IS — an agent that needs a GPU is not helped by a machine without one.
+func TestTheFallbackStillRespectsTags(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	org := uuid.New()
+	p, _ := newLocalPool(t, dir, fakeDockerBin(t, dir, "nothing"), org)
+	p.EnsureLocal = func(ctx context.Context, orgID uuid.UUID) error {
+		id := uuid.New()
+		return p.AttachLocal(ctx, NewNode(id, orgID, &Docker{
+			RunnerID: id, Image: "covey-sandbox:test", DataDir: dir, DockerBin: fakeDockerBin(t, dir, "nothing"),
+		}, quietLog()))
+	}
+	_, err := p.Start(context.Background(), orchestrator.SandboxSpec{
+		AgentID: uuid.New(), OrgID: org, RunnerTags: []string{"gpu"},
+	})
+	if !errors.Is(err, ErrNoRunner) {
+		t.Fatalf("a tag nobody carries has to stay a refusal, got %v", err)
+	}
+}
+
 // The image hangs off the agent (spec/16). One column carries both a profile
 // name and an image of an organisation's own, so the resolution is the whole
 // rule — and if it is wrong, an agent silently works in a foreign workplace:

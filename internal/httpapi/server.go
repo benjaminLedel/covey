@@ -314,6 +314,7 @@ func (s *Server) Handler() http.Handler {
 	// Runners (spec/16). Reading is for everyone who may look at the platform;
 	// adding and decommissioning a host is a management act.
 	mux.Handle("GET /api/v1/runners", s.rbac(anyRole, s.handleListRunners))
+	mux.Handle("GET /api/v1/runners/health", s.rbac(anyRole, s.handleRunnerHealth))
 	// The workplaces from the catalogue (spec/16) — readable for everyone who
 	// may look at an agent, because that is where they are chosen.
 	mux.Handle("GET /api/v1/workplaces", s.rbac(anyRole, s.handleListWorkplaces))
