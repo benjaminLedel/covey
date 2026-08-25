@@ -2252,7 +2252,8 @@
       "pullRunning": "Fetching … several gigabytes take their time.",
       "pullDone": "{{image}} is on this host now.",
       "pullFailed": "{{image}} could not be fetched: {{error}}"
-    }
+    },
+    "edit": "Edit"
   },
   "diagnostics": {
     "title": "Diagnostics",

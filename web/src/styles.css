@@ -349,6 +349,11 @@ textarea.code { font-family: var(--mono); font-size: 12px; line-height: 1.55; }
   cursor: pointer;
 }
 .console .copy:hover { background: rgba(242, 238, 228, 0.16); }
+/* ACHTUNG beim Bauen neuer Seiten: Diese Regel steht UNGESCHICHTET, Tailwinds
+   Utilities liegen in einer @layer — ungeschichtetes CSS gewinnt. Ein
+   className="flex" auf einem <label> tut hier also nichts, und man sieht es
+   erst im Browser. Deshalb: Beschriftung ÜBER dem Feld, so wie diese Regel es
+   vorgibt, statt sie mit Utilities umbiegen zu wollen. */
 label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0 0 6px; }
 
 /* Sidebar-Navigation (Design-Sprache aus dem Mockup, weiterentwickelt) */
@@ -4084,3 +4089,19 @@ kbd {
   gap: 10px;
   padding: 2px 0;
 }
+
+
+/* ── Runner-Detailseite ────────────────────────────────────────────────
+   Abstände gehören hierher und nicht in Utility-Klassen an jedem Element:
+   die Seite besteht aus gleichartigen Abschnitten, und gleichartig heißt
+   auch gleich weit auseinander. */
+.rd-page { display: flex; flex-direction: column; gap: 14px; max-width: 860px; }
+.rd-card { display: flex; flex-direction: column; gap: 10px; }
+/* Die Einleitung gehört zur Überschrift, nicht zum ersten Feld. */
+.rd-card > h2 + p { margin: -6px 0 2px; }
+.rd-field { display: flex; flex-direction: column; }
+.rd-field input { width: 100%; max-width: 420px; }
+.rd-reported { display: flex; align-items: baseline; gap: 8px; font-size: 12px; }
+.rd-reported > span:first-child { color: var(--text-secondary); min-width: 190px; }
+.rd-row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.rd-row + .rd-row { border-top: 0.5px solid var(--border); padding-top: 6px; }

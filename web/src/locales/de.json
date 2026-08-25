@@ -2252,7 +2252,8 @@
       "pullRunning": "Wird geholt … das kann bei mehreren Gigabyte dauern.",
       "pullDone": "{{image}} liegt jetzt auf diesem Host.",
       "pullFailed": "{{image}} konnte nicht geholt werden: {{error}}"
-    }
+    },
+    "edit": "Bearbeiten"
   },
   "diagnostics": {
     "title": "Diagnose",
