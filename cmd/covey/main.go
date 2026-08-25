@@ -1051,12 +1051,12 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		// compute off this machine come what may sets COVEY_BUILTIN_RUNNER=off
 		// — said once, deliberately, instead of following from the existence of
 		// another host.
-		if strings.EqualFold(cfg.BuiltinRunner, "off") {
-			if remote, err := runnerStore.HasRemote(ctx, orgID); err != nil {
-				return err
-			} else if remote {
-				return fmt.Errorf("organisation %s has its own runner and COVEY_BUILTIN_RUNNER=off — no sandbox runs on the control plane", orgID)
-			}
+		remote, err := runnerStore.HasRemote(ctx, orgID)
+		if err != nil {
+			return err
+		}
+		if !runner.BuiltinAllowed(cfg.BuiltinRunner, remote) {
+			return fmt.Errorf("organisation %s has its own runner and COVEY_BUILTIN_RUNNER=off — no sandbox runs on the control plane", orgID)
 		}
 		runnerID, runnerToken, err := builtinRunners.For(ctx, orgID)
 		if err != nil {
