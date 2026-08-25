@@ -20,6 +20,7 @@ import (
 	"covey/internal/orchestrator"
 	"covey/internal/runner"
 	runnerstore "covey/internal/runner/store"
+	"covey/internal/sandbox"
 )
 
 // The remote runner is the same implementation as the built-in one with a
@@ -41,7 +42,7 @@ func remoteStack(t *testing.T, dir string) (*stack, *runner.Pool, homestore.Blob
 	s := newStackWith(t, stackOpts{
 		provider: func(homeBase string, log *slog.Logger) orchestrator.SandboxProvider {
 			pool = runner.NewPool(log)
-			pool.DefaultImage = "covey-sandbox:test"
+			pool.Profiles = map[string]string{sandbox.DefaultName(): "covey-sandbox:test"}
 			pool.StartTimeout = 20 * time.Second
 			return pool
 		},

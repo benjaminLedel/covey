@@ -19,6 +19,7 @@ import (
 	"covey/internal/homestore"
 	"covey/internal/orchestrator"
 	"covey/internal/runner"
+	"covey/internal/sandbox"
 	"covey/internal/sandboxfs"
 )
 
@@ -44,7 +45,7 @@ func filesStack(t *testing.T, dir string) (*stack, *runner.Pool, *runner.Node, h
 	s := newStackWith(t, stackOpts{
 		provider: func(homeBase string, log *slog.Logger) orchestrator.SandboxProvider {
 			pool = runner.NewPool(log)
-			pool.DefaultImage = "covey-sandbox:test"
+			pool.Profiles = map[string]string{sandbox.DefaultName(): "covey-sandbox:test"}
 			pool.StartTimeout = 20 * time.Second
 			pool.Blobs = blobs
 			return pool

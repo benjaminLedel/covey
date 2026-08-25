@@ -920,7 +920,6 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	// is what keeps the path to a foreign host from being a second
 	// implementation that only whoever operates two machines ever exercises.
 	runnerPool := runner.NewPool(log)
-	runnerPool.DefaultImage = cfg.SandboxImage
 	// The profiles from the catalogue (spec/16). An agent's value that names
 	// none of them is taken as an image reference of its own.
 	//

@@ -26,11 +26,10 @@ import (
 // is why the runner needs no access to anything the platform holds.
 type Pool struct {
 	Log *slog.Logger
-	// DefaultImage applies to agents that name no workplace, Profiles maps a
+	// Profiles maps a
 	// profile name to its image (spec/16). A value that is neither is taken as
 	// an image reference — the "org-owned: anything" row of the profile table.
-	DefaultImage string
-	Profiles     map[string]string
+	Profiles map[string]string
 	// Catalog is the published workplace catalogue (spec/16): which image
 	// belongs to which Covey version, pinned by digest. Optional — without it
 	// Profiles stands, which is the state before the catalogue existed.
@@ -616,31 +615,29 @@ func holdsImage(has []string, wanted string) bool {
 }
 
 // imageFor resolves an agent's workplace. One rule, in this order: nothing
-// named → the DEFAULT PROFILE, resolved like any other; a known profile → its
-// image; anything else → taken literally.
+// named → the DEFAULT PROFILE (`base`), resolved like any other; a known
+// profile → its image; anything else → taken literally.
 //
-// "Nothing named" used to go straight to DefaultImage, and that field is filled
-// at process start — before the catalogue has been fetched. While the instance
-// pinned its images through the environment the two agreed; the moment
+// There used to be a second source for the empty case, a DefaultImage filled at
+// process start — before the catalogue has ever been fetched. While the
+// instance pinned its images through the environment the two agreed; the moment
 // covey.work took its workplaces from the catalogue they parted, and every
-// agent without a named workplace resolved to the compiled `covey-sandbox:latest`,
-// which exists on no host. The self-check said so within a minute:
+// agent without a named workplace resolved to the compiled
+// `covey-sandbox:latest`, which exists on no host. The self-check said so
+// within a minute:
 //
 //	sandbox image "covey-sandbox:latest" is missing — build it once …
 //
-// So the default is a profile name here, not a second source. DefaultImage
-// stays as the last resort for an installation whose catalogue is switched off.
+// The field is gone. "Nothing named" is a profile name, and `base` resolves
+// like every other: environment over catalogue over compiled default
+// (sandbox.Resolve) — one path, one answer.
 func (p *Pool) imageFor(ctx context.Context, orgID uuid.UUID, want string) string {
 	want = strings.TrimSpace(want)
-	byDefault := want == ""
-	if byDefault {
+	if want == "" {
 		want = sandbox.DefaultName()
 	}
 	if img, ok := p.profiles(ctx)[want]; ok && img != "" {
 		return img
-	}
-	if byDefault {
-		return p.DefaultImage
 	}
 	// Ein Arbeitsplatz dieser Organisation. Nach dem Katalog gefragt, weil ein
 	// veroeffentlichter Name nicht ueberschrieben werden kann — welcher

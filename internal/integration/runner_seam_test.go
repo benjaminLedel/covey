@@ -16,6 +16,7 @@ import (
 	"covey/internal/homestore"
 	"covey/internal/orchestrator"
 	"covey/internal/runner"
+	"covey/internal/sandbox"
 )
 
 // Every sandbox starts through the runner protocol — including on a single
@@ -79,7 +80,7 @@ func TestDeadSandboxEndsTheWakeInsteadOfTimingOut(t *testing.T) {
 		readyTimeout: 90 * time.Second,
 		provider: func(homeBase string, log *slog.Logger) orchestrator.SandboxProvider {
 			pool = runner.NewPool(log)
-			pool.DefaultImage = "covey-sandbox:test"
+			pool.Profiles = map[string]string{sandbox.DefaultName(): "covey-sandbox:test"}
 			pool.StartTimeout = 20 * time.Second
 			return pool
 		},
@@ -167,7 +168,7 @@ func TestHomeSurvivesTheLossOfItsRunnerWorkingCopy(t *testing.T) {
 	s := newStackWith(t, stackOpts{
 		provider: func(homeBase string, log *slog.Logger) orchestrator.SandboxProvider {
 			pool = runner.NewPool(log)
-			pool.DefaultImage = "covey-sandbox:test"
+			pool.Profiles = map[string]string{sandbox.DefaultName(): "covey-sandbox:test"}
 			pool.StartTimeout = 20 * time.Second
 			return pool
 		},

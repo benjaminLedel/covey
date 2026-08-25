@@ -64,7 +64,7 @@ func newLocalPool(t *testing.T, dir, dockerBin string, orgID uuid.UUID) (*Pool, 
 
 	runnerID := uuid.New()
 	p := NewPool(quietLog())
-	p.DefaultImage = "covey-sandbox:test"
+	p.Profiles = map[string]string{sandbox.DefaultName(): "covey-sandbox:test"}
 	p.Profiles = map[string]string{"base": "covey-sandbox:test", "dev": "covey-sandbox-dev:test"}
 	p.StartTimeout = 10 * time.Second
 
@@ -446,7 +446,6 @@ func TestASandboxSaysWhichHostItRunsOn(t *testing.T) {
 // either without the toolchain it needs, or with one it should not have.
 func TestImageForResolvesProfilesAndOwnImages(t *testing.T) {
 	p := &Pool{
-		DefaultImage: "covey-sandbox:latest",
 		Profiles: map[string]string{
 			"base": "covey-sandbox:latest",
 			"dev":  "covey-sandbox-dev:latest",
@@ -455,7 +454,7 @@ func TestImageForResolvesProfilesAndOwnImages(t *testing.T) {
 	faelle := []struct {
 		name, want, expected string
 	}{
-		{"nothing named → the instance default", "", "covey-sandbox:latest"},
+		{"nothing named → the default profile", "", "covey-sandbox:latest"},
 		{"profile base", "base", "covey-sandbox:latest"},
 		{"profile dev", "dev", "covey-sandbox-dev:latest"},
 		// The third row of the profile table: an organisation builds its own
@@ -477,7 +476,7 @@ func TestImageForResolvesProfilesAndOwnImages(t *testing.T) {
 	// A profile without a configured image must not swallow the value: an
 	// instance without COVEY_SANDBOX_IMAGE_DEV would otherwise start every dev
 	// agent in an empty image name.
-	leer := &Pool{DefaultImage: "covey-sandbox:latest", Profiles: map[string]string{"dev": ""}}
+	leer := &Pool{Profiles: map[string]string{"dev": ""}}
 	if got := leer.imageFor(t.Context(), uuid.Nil, "dev"); got != "dev" {
 		t.Errorf("an unconfigured profile stays the literal value, got %q", got)
 	}
@@ -488,22 +487,18 @@ func TestImageForResolvesProfilesAndOwnImages(t *testing.T) {
 // fails to connect costs an evening of searching.
 // Der Fall, den covey.work an dem Tag zeigte, an dem es seine Arbeitsplätze aus
 // dem Katalog nahm: Ein Agent ohne benannten Arbeitsplatz landete auf dem
-// einkompilierten `covey-sandbox:latest`, weil DefaultImage beim Prozessstart
-// gefüllt wird — vor dem ersten Katalogabruf. Der Standard ist ein Profilname,
-// keine zweite Quelle.
-func TestTheDefaultWorkplaceComesFromTheCatalogueToo(t *testing.T) {
-	p := &Pool{
-		DefaultImage: "covey-sandbox:latest", // was der Prozess beim Start kannte
-		Profiles:     map[string]string{sandbox.DefaultName(): "ghcr.io/example/covey-sandbox@sha256:abc"},
-	}
+// einkompilierten `covey-sandbox:latest`, weil dafür ein zweites Feld zuständig
+// war, das beim Prozessstart gefüllt wird — vor dem ersten Katalogabruf. Der
+// Standard ist ein Profilname, keine zweite Quelle.
+func TestTheDefaultWorkplaceIsTheBaseProfile(t *testing.T) {
+	p := &Pool{Profiles: map[string]string{sandbox.DefaultName(): "ghcr.io/example/covey-sandbox@sha256:abc"}}
 	if got := p.imageFor(t.Context(), uuid.Nil, ""); got != "ghcr.io/example/covey-sandbox@sha256:abc" {
 		t.Errorf("imageFor(\"\") = %q, erwartet das Bild des Standardprofils", got)
 	}
-	// Ohne Katalog bleibt der einkompilierte Wert die letzte Instanz — eine
-	// Installation ohne Internet soll nicht ohne Arbeitsplatz dastehen.
-	leer := &Pool{DefaultImage: "covey-sandbox:latest"}
-	if got := leer.imageFor(t.Context(), uuid.Nil, ""); got != "covey-sandbox:latest" {
-		t.Errorf("ohne Katalog = %q, erwartet den einkompilierten Standard", got)
+	// Und derselbe Name ausgeschrieben ergibt dasselbe — sonst hinge es davon
+	// ab, ob jemand das Feld ausfüllt.
+	if got := p.imageFor(t.Context(), uuid.Nil, sandbox.DefaultName()); got != "ghcr.io/example/covey-sandbox@sha256:abc" {
+		t.Errorf("imageFor(%q) = %q", sandbox.DefaultName(), got)
 	}
 }
 
@@ -543,7 +538,7 @@ func TestSchedulingNamesWhyNothingFits(t *testing.T) {
 	defer cancel()
 
 	p := NewPool(quietLog())
-	p.DefaultImage = "covey-sandbox:test"
+	p.Profiles = map[string]string{sandbox.DefaultName(): "covey-sandbox:test"}
 	p.Profiles = map[string]string{"base": "covey-sandbox:test", "dev": "covey-sandbox-dev:test"}
 	p.StartTimeout = 5 * time.Second
 
@@ -612,7 +607,7 @@ func TestPoolCheckAsksTheRunnersAboutTheImagesInUse(t *testing.T) {
 	dir := t.TempDir()
 	orgID := uuid.New()
 	p := NewPool(quietLog())
-	p.DefaultImage = "covey-sandbox:test"
+	p.Profiles = map[string]string{sandbox.DefaultName(): "covey-sandbox:test"}
 	p.Profiles = map[string]string{"base": "covey-sandbox:test", "dev": "covey-sandbox-dev:test"}
 	p.AgentImages = func(context.Context) (map[string]int, error) {
 		return map[string]int{"dev": 2}, nil // nobody on base
@@ -641,7 +636,7 @@ func TestPoolCheckAsksTheRunnersAboutTheImagesInUse(t *testing.T) {
 	// With everything in place the check stays silent. One that cries wolf gets
 	// ignored, and then the one that matters is ignored too.
 	quiet := NewPool(quietLog())
-	quiet.DefaultImage = "covey-sandbox:test"
+	quiet.Profiles = map[string]string{sandbox.DefaultName(): "covey-sandbox:test"}
 	quietID := uuid.New()
 	quietDir := t.TempDir()
 	if err := quiet.AttachLocal(ctx, NewNode(quietID, orgID, &Docker{
@@ -668,7 +663,7 @@ func TestCapacityReportsWhatTheRunnerCarries(t *testing.T) {
 
 	runnerID := uuid.New()
 	p := NewPool(quietLog())
-	p.DefaultImage = "covey-sandbox:test"
+	p.Profiles = map[string]string{sandbox.DefaultName(): "covey-sandbox:test"}
 	node := NewNode(runnerID, orgID, &Docker{
 		RunnerID: runnerID, Image: "covey-sandbox:test", DataDir: dir,
 		DockerBin: fakeDockerBin(t, dir, "nothing"),
@@ -723,7 +718,7 @@ func TestCapacityReportsWhatTheRunnerCarries(t *testing.T) {
 func TestSilentRunnerLeavesThePool(t *testing.T) {
 	orgID := uuid.New()
 	p := NewPool(quietLog())
-	p.DefaultImage = "covey-sandbox:test"
+	p.Profiles = map[string]string{sandbox.DefaultName(): "covey-sandbox:test"}
 	// A silence, at the speed of a test rather than of a network.
 	p.HeartbeatEvery = 50 * time.Millisecond
 	p.SilenceAfter = 150 * time.Millisecond
@@ -782,7 +777,7 @@ func TestHeartbeatKeepsARunnerAliveAndRefreshesLastSeen(t *testing.T) {
 
 	heard := make(chan uuid.UUID, 8)
 	p := NewPool(quietLog())
-	p.DefaultImage = "covey-sandbox:test"
+	p.Profiles = map[string]string{sandbox.DefaultName(): "covey-sandbox:test"}
 	p.Heard = func(id uuid.UUID) {
 		select {
 		case heard <- id:
