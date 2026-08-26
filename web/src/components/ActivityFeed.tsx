@@ -28,6 +28,10 @@ type ToolCall = {
   imageURL?: string; // Screenshot-Artefakt (browser), inline gerendert
   isError?: boolean;
   pending: boolean;
+  // Laufzeit eines noch offenen Aufrufs, aus dem Herzschlag der Runtime
+  // (tool_progress). Ohne sie sagt eine offene Zeile nur „läuft" — und ein
+  // zehn Minuten alter Bash-Aufruf sieht aus wie ein Hänger.
+  elapsedSeconds?: number;
 };
 
 type GateData = { icon: IconName; text: string; time: string; tone: Tone };
@@ -261,7 +265,46 @@ function buildItems(events: RecordingEvent[], nested: boolean): FeedItem[] {
           break;
         }
         switch (p.type) {
-          case "system":
+          // Ein `system`-Ereignis ist nicht gleich ein Sitzungsstart. Die
+          // Runtime schickt unter demselben Typ auch ihren Token-Zähler und
+          // den Zustand ihrer Hintergrundaufgaben — in einem gemessenen Lauf
+          // waren von 192 system-Zeilen ganze ZWEI ein `init`. Ohne diese
+          // Unterscheidung behauptet der Verlauf 192 Sitzungsstarts, und wer
+          // ihn als Beleg liest, liest etwas Falsches.
+          case "system": {
+            const subtype = String(p.subtype ?? "");
+            // thinking_tokens ist ein Zähler, task_updated und
+            // background_tasks_changed sind interne Zustandsspiegel: Sie
+            // gehören nicht in einen Lesetext. Was sie aussagen, steht
+            // ohnehin in den Zeilen daneben.
+            if (
+              subtype === "thinking_tokens" ||
+              subtype === "task_updated" ||
+              subtype === "background_tasks_changed"
+            ) {
+              break;
+            }
+            // Eine Hintergrundaufgabe ist echte Arbeit (ein `Bash`-Lauf, der
+            // den Turn überdauert) und wird deshalb benannt, nicht verworfen.
+            if (subtype === "task_started" || subtype === "task_notification") {
+              closeTurn();
+              const what = String(p.description ?? p.summary ?? "");
+              pushEvt({
+                key: k,
+                kind: "evt",
+                icon: "clock",
+                text:
+                  subtype === "task_started"
+                    ? i18n.t("activity.backgroundTaskStarted", { what })
+                    : i18n.t("activity.backgroundTaskEnded", { what }),
+                time,
+                tone: "muted",
+              });
+              break;
+            }
+            // `init` — und Aufzeichnungen aus der Zeit vor den Subtypen, die
+            // gar keinen tragen.
+            if (subtype !== "" && subtype !== "init") break;
             closeTurn();
             pushEvt({
               key: k,
@@ -274,6 +317,19 @@ function buildItems(events: RecordingEvent[], nested: boolean): FeedItem[] {
               tone: "muted",
             });
             break;
+          }
+          // Der Herzschlag eines laufenden Werkzeugs: alle 30 Sekunden eine
+          // Zeile, damit ein langer Aufruf von einem Hänger unterscheidbar
+          // bleibt. Er ist kein Ereignis für sich — er gehört an den offenen
+          // Aufruf, den er beschreibt.
+          case "tool_progress": {
+            const parent = p.parent_tool_use_id ? String(p.parent_tool_use_id) : "";
+            const call = parent ? toolIndex.get(parent) : undefined;
+            if (call?.pending && typeof p.elapsed_time_seconds === "number") {
+              call.elapsedSeconds = p.elapsed_time_seconds;
+            }
+            break;
+          }
           case "rate_limit_event":
             break;
           case "assistant": {
@@ -332,12 +388,18 @@ function buildItems(events: RecordingEvent[], nested: boolean): FeedItem[] {
             });
             break;
           }
+          // Was die Runtime sonst noch schickt, wird benannt und nicht
+          // ausgeschüttet: eine rohe JSON-Zeile im Verlauf ist der Grund,
+          // warum niemand mehr hinsieht. Der Typ reicht, um zu erkennen, dass
+          // hier etwas Unbehandeltes ankommt — und gleiche Zeilen fasst
+          // pushEvt zu einer mit Zähler zusammen.
           default:
-            items.push({
+            closeTurn();
+            pushEvt({
               key: k,
               kind: "evt",
               icon: "info",
-              text: truncate(JSON.stringify(e.payload), 160),
+              text: i18n.t("activity.runtimeEvent", { type: String(p.type ?? "?") }),
               time,
               tone: "muted",
             });
@@ -596,7 +658,11 @@ function newestFirst(items: FeedItem[]): FeedItem[] {
 function ToolRow({ call }: { call: ToolCall }) {
   const { t } = useTranslation();
   const pill = call.pending ? (
-    <span className="pill mut">{t("activity.toolPending")}</span>
+    <span className="pill mut">
+      {call.elapsedSeconds
+        ? t("activity.toolRunningFor", { time: fmtDelta(call.elapsedSeconds * 1000) })
+        : t("activity.toolPending")}
+    </span>
   ) : call.isError ? (
     <span className="pill err">{t("activity.toolError")}</span>
   ) : (
