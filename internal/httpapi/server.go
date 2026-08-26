@@ -110,6 +110,11 @@ type Server struct {
 	// RunnerPool is the control plane's side of the protocol: a foreign runner
 	// that connects is taken into it. nil = only the built-in one (tests).
 	RunnerPool *runner.Pool
+	// RunnerDownloadBase is where a runner fetches its new binary from when it
+	// is told to update itself. Empty = the releases of the public repository,
+	// which is where install.sh gets it too. Set for an installation that does
+	// not reach GitHub, or that publishes its own builds.
+	RunnerDownloadBase string
 	// Blobs is the home store. A remote runner reaches its blocks through the
 	// runner API — it never gets the store's credentials (spec/16).
 	Blobs homestore.BlobStore
@@ -329,6 +334,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/runners/registration-tokens", s.rbac(manage, s.handleCreateRegistrationToken))
 	mux.Handle("PATCH /api/v1/runners/{id}", s.rbac(manage, s.handleUpdateRunner))
 	mux.Handle("POST /api/v1/runners/{id}/pull", s.rbac(manage, s.handlePullOnRunner))
+	mux.Handle("POST /api/v1/runners/{id}/update", s.rbac(manage, s.handleUpdateRunnerBinary))
 	mux.Handle("DELETE /api/v1/runners/{id}", s.rbac(manage, s.handleDeleteRunner))
 
 	// The home store (spec/16, "Interface"). A store that grows quietly and

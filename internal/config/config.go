@@ -121,6 +121,13 @@ type Config struct {
 	// is a multi-gigabyte pull, and a runner that is dead is caught by the
 	// heartbeat within 90 seconds anyway. 0 = the built-in default.
 	SandboxStartTimeout time.Duration
+	// RunnerDownloadBase is where a runner fetches its binary from when the
+	// interface tells it to update itself. Empty = the releases of the public
+	// repository, the same place install.sh takes it from. Set it for an
+	// installation that does not reach GitHub, or one that publishes builds of
+	// its own: the directory has to hold SHA256SUMS and the archives named as
+	// the release workflow names them.
+	RunnerDownloadBase string
 	// SandboxCatalogURL is where the published workplaces are listed: which
 	// image belongs to which Covey version, pinned by digest. Empty switches
 	// the catalogue off; then the compiled defaults and the environment stand.
@@ -255,17 +262,18 @@ const DefaultMarketplaceURL = "https://raw.githubusercontent.com/benjaminLedel/c
 
 func FromEnv() (Config, error) {
 	c := Config{
-		DatabaseURL:       getenv("COVEY_DATABASE_URL", "postgres://covey:covey@localhost:5433/covey?sslmode=disable"),
-		ListenAddr:        getenv("COVEY_LISTEN_ADDR", ":8494"),
-		PublicURL:         getenv("COVEY_PUBLIC_URL", "http://localhost:8494"),
-		SiteURL:           os.Getenv("COVEY_SITE_URL"),
-		MasterKeyHex:      os.Getenv("COVEY_MASTER_KEY"),
-		IdentityProvider:  getenv("COVEY_IDENTITY_PROVIDER", "builtin"),
-		SecretStore:       getenv("COVEY_SECRET_STORE", "builtin"),
-		SandboxProvider:   getenv("COVEY_SANDBOX_PROVIDER", "docker"),
-		DataDir:           getenv("COVEY_DATA_DIR", "./data"),
-		SandboxImageEnv:   sandboxImageEnv(),
-		SandboxCatalogURL: getenv("COVEY_SANDBOX_CATALOG_URL", sandbox.DefaultCatalogURL()),
+		DatabaseURL:        getenv("COVEY_DATABASE_URL", "postgres://covey:covey@localhost:5433/covey?sslmode=disable"),
+		ListenAddr:         getenv("COVEY_LISTEN_ADDR", ":8494"),
+		PublicURL:          getenv("COVEY_PUBLIC_URL", "http://localhost:8494"),
+		SiteURL:            os.Getenv("COVEY_SITE_URL"),
+		MasterKeyHex:       os.Getenv("COVEY_MASTER_KEY"),
+		IdentityProvider:   getenv("COVEY_IDENTITY_PROVIDER", "builtin"),
+		SecretStore:        getenv("COVEY_SECRET_STORE", "builtin"),
+		SandboxProvider:    getenv("COVEY_SANDBOX_PROVIDER", "docker"),
+		DataDir:            getenv("COVEY_DATA_DIR", "./data"),
+		SandboxImageEnv:    sandboxImageEnv(),
+		RunnerDownloadBase: getenv("COVEY_RUNNER_DOWNLOAD_BASE", ""),
+		SandboxCatalogURL:  getenv("COVEY_SANDBOX_CATALOG_URL", sandbox.DefaultCatalogURL()),
 		// 0 lässt dem Pool seine eigene Vorgabe — eine zweite Zahl hier wäre
 		// eine zweite Wahrheit, und genau die hat heute zweimal zugebissen.
 		SandboxStartTimeout: getenvDuration("COVEY_SANDBOX_START_TIMEOUT", 0),

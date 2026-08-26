@@ -91,6 +91,26 @@ export default function RunnerDetail({ me }: { me: Principal }) {
     },
     onError: (e) => setPullResult({ image: "", ok: false, error: String((e as Error)?.message) }),
   });
+  // „Aktualisieren" ist eine Handlung mit Ergebnis, kein Schalter: Der Host
+  // laedt sein neues Binary, sagt was daraus wurde, und geht dann kurz weg.
+  const [updateResult, setUpdateResult] = useState<{
+    ok: boolean;
+    error?: string;
+    from?: string;
+    to?: string;
+    restarting?: boolean;
+  } | null>(null);
+  const update = useMutation({
+    mutationFn: () => post<{ ok: boolean; error?: string; from?: string; to?: string; restarting?: boolean }>(
+      `/runners/${id}/update`,
+      {},
+    ),
+    onSuccess: (res) => {
+      setUpdateResult(res);
+      qc.invalidateQueries({ queryKey: ["runners"] });
+    },
+    onError: (e) => setUpdateResult({ ok: false, error: String((e as Error)?.message) }),
+  });
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => patch(`/runners/${id}`, body),
     onSuccess: () => {
@@ -235,6 +255,37 @@ export default function RunnerDetail({ me }: { me: Principal }) {
               {pullResult.ok
                 ? t("runners.detail.pullDone", { image: pullResult.image })
                 : t("runners.detail.pullFailed", { image: pullResult.image, error: pullResult.error })}
+            </p>
+          )}
+        </div>
+      )}
+
+      {manage && r.kind === "remote" && (
+        <div className="card rd-card">
+          <h2 className="text-[15px]">{t("runners.detail.updateTitle")}</h2>
+          <p className="muted text-xs">{t("runners.detail.updateHint")}</p>
+          <Reported label={t("runners.colVersion")} value={r.live?.version || r.version || "—"} />
+          {!connected && <p className="muted text-sm">{t("runners.detail.updateOffline")}</p>}
+          <div>
+            <button
+              className="btn sm"
+              disabled={!connected || update.isPending}
+              onClick={() => {
+                setUpdateResult(null);
+                update.mutate();
+              }}
+            >
+              {t("runners.detail.update")}
+            </button>
+          </div>
+          {update.isPending && <p className="muted text-sm">{t("runners.detail.updateRunning")}</p>}
+          {updateResult && !update.isPending && (
+            <p className={updateResult.ok ? "text-sm" : "text-sm danger-text"}>
+              {!updateResult.ok
+                ? t("runners.detail.updateFailed", { error: updateResult.error })
+                : updateResult.restarting
+                  ? t("runners.detail.updateDone", { from: updateResult.from, to: updateResult.to })
+                  : t("runners.detail.updateCurrent", { version: updateResult.to || updateResult.from })}
             </p>
           )}
         </div>

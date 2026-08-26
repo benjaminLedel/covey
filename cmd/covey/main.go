@@ -1247,9 +1247,12 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Config:         &cfg,
 		Runners:        runnerStore,
 		RunnerPool:     runnerPool,
-		Blobs:          blobs,
-		ReqLog:         reqLog,
-		DataPlane:      dataPlane,
+		// Where a host fetches its new binary when somebody presses "update"
+		// (empty = the public releases, as install.sh does).
+		RunnerDownloadBase: cfg.RunnerDownloadBase,
+		Blobs:              blobs,
+		ReqLog:             reqLog,
+		DataPlane:          dataPlane,
 	}
 
 	httpServer := &http.Server{

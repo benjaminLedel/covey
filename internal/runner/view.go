@@ -2,6 +2,8 @@ package runner
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -95,6 +97,40 @@ func (p *Pool) Capacity(runnerID uuid.UUID) (CapacityView, bool) {
 	}
 	return CapacityView{CapacityReport: c.capacity, MeasuredAt: c.capacityAt}, true
 }
+
+// Update tells a host to replace its own binary. Long, because it downloads
+// tens of megabytes over whatever line that host has — and asked for, so
+// somebody is watching.
+//
+// The answer comes back BEFORE the runner restarts. That is what makes the
+// difference between "installed, coming back" and "fell over" readable at all:
+// after the restart there is nothing left to ask.
+func (p *Pool) Update(ctx context.Context, runnerID uuid.UUID, version, baseURL string) (UpdateResult, error) {
+	p.mu.Lock()
+	c := p.conns[runnerID]
+	p.mu.Unlock()
+	if c == nil {
+		return UpdateResult{}, ErrNoRunner
+	}
+	if c.builtin {
+		// The built-in runner is this process. It is updated by updating the
+		// control plane, and pretending otherwise would offer a button that
+		// downloads a binary nobody would ever start.
+		return UpdateResult{}, fmt.Errorf("%w: the built-in runner is updated with the control plane", ErrNotSupported)
+	}
+	answer, err := c.ask(ctx, TypeUpdate, Update{Version: version, BaseURL: baseURL}, updateTimeout)
+	if err != nil {
+		return UpdateResult{}, err
+	}
+	return decode[UpdateResult](answer)
+}
+
+// updateTimeout bounds one update. Generous for the same reason a start is: it
+// is a download, and a slow line is slow rather than broken.
+const updateTimeout = 15 * time.Minute
+
+// ErrNotSupported: the request is fine, this host is the wrong addressee.
+var ErrNotSupported = errors.New("not supported for this runner")
 
 // SyncNow forces a sync of an agent's home — "back up now", before a
 // maintenance window. It goes through the same path as falling asleep, so the

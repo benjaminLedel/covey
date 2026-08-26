@@ -169,6 +169,20 @@ The runner is **installed individually**, on machines where nothing else of Cove
 
 A separate repository modelled on `gitlab-runner` would remain possible once the protocol has settled. While it is in motion, the separation costs more than it brings — and for the operator it changes nothing anyway, because they see the artefact, not the repository.
 
+### Updating a runner
+
+Version drift is not a fault to be avoided — separate delivery is the point, and nobody should have to touch ten machines to upgrade one server. What was missing was the remedy in the place where the drift is named: the runner view marks a host as *outdated*, and the answer to that used to be an SSH session per host, which means the hosts nobody logs into keep their bugs.
+
+`update` therefore tells a runner to replace its own binary. It does what `installer/install.sh` does, deliberately and to the letter — fetch the release's checksums, fetch the archive for this platform, compare, unpack, replace, start again — because that is the path every installation exercises anyway. The checksum is not decoration: this downloads a program and then runs it, and "over HTTPS" is a statement about the transport, not about the file.
+
+Three rules make it something one can press:
+
+- **Not while it is carrying anything.** The containers would survive the restart — they belong to Docker — but the watchers would not, and a sandbox nobody watches any more is worse than an update that waits. The host refuses and names the number.
+- **The answer comes before the restart.** Afterwards there is nothing left to ask: without it, a successful update and a host that fell over look exactly alike.
+- **The built-in runner is not updated this way.** It is the control plane's own process, and it is updated by updating the control plane.
+
+Which version: the server's own when that is a released one, otherwise the newest published release — an instance built from `main` is ahead of every release, and prescribing its own version would send the host looking for an artefact that does not exist. `COVEY_RUNNER_DOWNLOAD_BASE` points the download somewhere else for an installation that does not reach GitHub, or one that publishes builds of its own.
+
 ### Protocol version
 
 Because runner and server are delivered separately, different versions inevitably meet — someone updates Covey and forgets three runners. The handshake therefore names a protocol version, and the control plane decides:
@@ -191,6 +205,7 @@ Refusal is explicit with a reason, not silent: a runner that quietly fails to co
 | `home_op` | File access to a home: list, read, write, delete (see file access) |
 | `set_allowlist` | Update the egress allowlist for the runner's local proxy |
 | `prune` | Clean up orphaned containers and the homes of deleted agents |
+| `update` | Replace your own binary and start again — how version drift is closed without an SSH session per host |
 
 ### Runner → control plane
 
@@ -202,6 +217,7 @@ Refusal is explicit with a reason, not silent: a runner that quietly fails to co
 | `home_synced` | The snapshot is written: identifier, blocks transferred, total size — only afterwards may anything be cleaned up locally |
 | `home_result` | The answer to a `home_op` |
 | `capacity` | Running sandboxes, free space — the basis for scheduling and warnings |
+| `update_result` | What became of an `update`: the versions before and after, or why nothing was replaced |
 | `heartbeat` | Sign of life |
 
 The heartbeat is not decoration. A TCP connection can be dead without either side noticing — a NAT that dropped the entry, a network partition, a host that went to sleep — and a runner in that state stays in the pool as *connected*. Every wake would then be assigned to a runner that hears nothing and would sit out its start timeout before failing, instead of going to one that works. So: a sign of life every 30 seconds, and after three missed ones the control plane closes the connection itself. Any message counts, not only a heartbeat; traffic is proof of life, and a runner busy answering need not say so twice.

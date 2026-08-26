@@ -47,6 +47,14 @@ type Node struct {
 	// turn holds, per agent, the end of the line: the channel the message
 	// currently being worked on closes when it is done. See inOrder.
 	turn map[uuid.UUID]chan struct{}
+	// Restart replaces this process with the binary that now lies at its path.
+	// A field so that a test can watch instead of disappearing; nil = execSelf,
+	// which is what a runner does.
+	Restart func() error
+	// executable answers where this process's binary lies — the file an update
+	// replaces. A seam of the same kind as Restart: a test must be able to say
+	// which file, or it would overwrite the one running the test.
+	executable func() (string, error)
 }
 
 // sandboxProc is a running sandbox as this node sees it.
@@ -191,6 +199,16 @@ func (n *Node) handle(ctx context.Context, t Transport, msg Message) {
 			}
 			n.reply(context.WithoutCancel(ctx), t, msg.ID, TypePullResult, res)
 		}(req)
+	case TypeUpdate:
+		req, err := decode[Update](msg)
+		if err != nil {
+			n.reply(ctx, t, msg.ID, TypeUpdateResult, UpdateResult{Err: err.Error()})
+			return
+		}
+		// Beside the loop and without the connection's cancel signal: this
+		// fetches tens of megabytes, and the answer has to get out before the
+		// process is replaced.
+		go n.update(context.WithoutCancel(ctx), t, msg.ID, req)
 	case TypeCheck:
 		req, err := decode[Check](msg)
 		if err != nil {
@@ -205,6 +223,34 @@ func (n *Node) handle(ctx context.Context, t Transport, msg Message) {
 		}()
 	default:
 		n.Log.Warn("runner: unknown message", "type", msg.Type)
+	}
+}
+
+// update replaces the binary and, if that worked, this process with it. The
+// answer goes out first: the connection ends with the restart, and a control
+// plane that only saw it drop could not tell a successful update from a host
+// that fell over.
+func (n *Node) update(ctx context.Context, t Transport, id string, req Update) {
+	res := n.updateSelf(ctx, req)
+	n.reply(ctx, t, id, TypeUpdateResult, res)
+	if !res.Restarting {
+		return
+	}
+	n.Log.Info("runner: binary replaced — restarting", "from", res.From, "to", res.To)
+	// A moment for the answer to leave the wire. Send has handed it to the
+	// kernel, but the exec closes the socket, and a message still sitting in a
+	// buffer would be the one message an operator needs.
+	time.Sleep(500 * time.Millisecond)
+	restart := n.Restart
+	if restart == nil {
+		restart = execSelf
+	}
+	if err := restart(); err != nil {
+		// exec does not return when it works. Whatever arrives here is a
+		// failure, and the new binary is already in place — saying so is the
+		// most useful thing left: a service manager brings the runner back,
+		// and whoever started it by hand reads this line.
+		n.Log.Error("runner: restart failed — the new binary is installed, start it again", "err", err)
 	}
 }
 

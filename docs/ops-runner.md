@@ -33,6 +33,39 @@ one takes it` with the image and tags it was looking for, and it cannot smuggle
 work past a requirement: **tags still exclude it.** An agent that asks for `gpu`
 waits for a host with `gpu`.
 
+## Updating a host
+
+The runner's page has **Update to the newest version**. The host then fetches
+its own binary from the same release `install.sh` installs from, checks the
+checksum before it replaces anything, and starts again — same command line,
+same configuration file, no reinstall. A systemd unit is not needed for it: the
+process replaces itself in place.
+
+Runner and control plane are delivered separately on purpose; nobody should
+have to touch ten machines to upgrade one server. The price used to be that a
+fix in the data plane meant an SSH session per host, and the hosts nobody logs
+into kept their bugs. This is that price paid back.
+
+Three things it will not do:
+
+- **Update while the host is carrying sandboxes.** It refuses and says how
+  many. The containers would survive the restart, the watchers would not.
+- **Update a host that is not connected.** A machine that hears nothing does
+  not update itself; start it, then press the button.
+- **Update the built-in runner.** That one is the control plane's own process
+  and is updated by updating Covey.
+
+The version installed is the server's own when the server runs a released
+version, and otherwise the newest published release — an instance built from
+`main` is ahead of every release. `COVEY_RUNNER_DOWNLOAD_BASE` points the
+download elsewhere: an installation that does not reach GitHub, or one that
+publishes its own builds. Whatever it points at has to hold `SHA256SUMS` and
+the archives named as the release names them
+(`covey-runner_<version>_<os>_<arch>.tar.gz`).
+
+If the runner runs as a user who may not write to its own path (`/usr/local/bin`
+belongs to root), the update says exactly that and changes nothing.
+
 ## Pausing a host
 
 **Pause** on the runner's page takes it out of service: it gets no new

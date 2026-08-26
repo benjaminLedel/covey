@@ -62,6 +62,12 @@ const (
 	// outside that looks like a hanging wake, not like a download. Asked for
 	// deliberately, it happens while somebody is looking.
 	TypePullImage = "pull_image"
+	// TypeUpdate tells the runner to replace its own binary and start again.
+	// Runner and control plane are delivered separately, so they drift apart —
+	// and the fix for a bug in the data plane is otherwise an SSH session per
+	// host. A capability statement that can only be corrected on the machine is
+	// one that stays wrong; the same is true of a version.
+	TypeUpdate = "update"
 )
 
 // Runner → control plane.
@@ -79,6 +85,7 @@ const (
 	TypeHomeResult     = "home_result"
 	TypeCapacityReport = "capacity_report"
 	TypePullResult     = "pull_result"
+	TypeUpdateResult   = "update_result"
 	// TypeHeartbeat is the sign of life. It is not decoration: a TCP connection
 	// can be dead without either side noticing — a NAT that dropped the entry,
 	// a network partition, a laptop that closed. The pool would then keep
@@ -96,6 +103,29 @@ const (
 	HeartbeatInterval = 30 * time.Second
 	Silence           = 3 * HeartbeatInterval
 )
+
+// Update is an order to replace one's own binary. Version empty = the newest
+// published release; BaseURL empty = the releases of the public repository.
+// Both exist for the same case: an installation that does not fetch from
+// GitHub, and one that wants a version other than the newest.
+type Update struct {
+	Version string `json:"version,omitempty"`
+	BaseURL string `json:"base_url,omitempty"`
+}
+
+// UpdateResult says what happened. From and To are the versions before and
+// after — "already up to date" is an answer, not a failure, and it needs both
+// figures to be readable as one.
+type UpdateResult struct {
+	From string `json:"from,omitempty"`
+	To   string `json:"to,omitempty"`
+	// Restarting: the binary was replaced and the runner is going down to come
+	// back. The connection ends right after this message, and that is not a
+	// fault — without saying so, an operator would see a host that vanishes at
+	// the moment they pressed the button.
+	Restarting bool   `json:"restarting,omitempty"`
+	Err        string `json:"err,omitempty"`
+}
 
 // CapacityReport is what a runner is carrying.
 type CapacityReport struct {

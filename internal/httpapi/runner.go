@@ -11,6 +11,8 @@ import (
 	"github.com/coder/websocket"
 	"github.com/google/uuid"
 
+	"covey/installer"
+	"covey/internal/buildinfo"
 	"covey/internal/egress"
 	"covey/internal/runner"
 	runnerstore "covey/internal/runner/store"
@@ -458,4 +460,61 @@ func (s *Server) handleDeleteRunner(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// handleUpdateRunnerBinary tells a host to replace its own binary and come
+// back. Runner and control plane are delivered separately — that is the point,
+// nobody should have to touch ten machines to upgrade one server — but the
+// price was that a fix in the data plane meant an SSH session per host. The
+// runner view has named version drift as a problem for a while; the remedy now
+// sits in the same place.
+//
+// The version is the server's own when it is a released one, and otherwise the
+// newest published release: an instance built from main is ahead of every
+// release, and prescribing its own version would send the host looking for an
+// artefact that does not exist. Whoever wants a different one names it.
+func (s *Server) handleUpdateRunnerBinary(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var in struct {
+		Version string `json:"version"`
+		BaseURL string `json:"base_url"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "body not readable")
+		return
+	}
+	if s.RunnerPool == nil {
+		writeErr(w, http.StatusServiceUnavailable, "no runner pool")
+		return
+	}
+	// The runner has to belong to this organisation — the pool checks it too,
+	// but a 404 here says the right thing instead of "not connected".
+	if _, err := s.Runners.ByID(r.Context(), id); err != nil {
+		mapErr(w, err)
+		return
+	}
+	version := strings.TrimSpace(in.Version)
+	if version == "" {
+		version = installer.VersionFuerRelease(buildinfo.Get().Version)
+	}
+	base := strings.TrimSpace(in.BaseURL)
+	if base == "" {
+		base = s.RunnerDownloadBase
+	}
+	res, err := s.RunnerPool.Update(r.Context(), id, version, base)
+	if err != nil {
+		// The host's own words. "not connected", "does not answer" and a
+		// refusal because it is carrying sandboxes call for different things,
+		// and a wrapped "update failed" would hide which.
+		writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok": res.Err == "", "error": res.Err,
+		"from": res.From, "to": res.To, "restarting": res.Restarting,
+	})
 }
