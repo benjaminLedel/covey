@@ -231,6 +231,7 @@ All runbooks are in English.
 | [`docs/quickstart-docker.md`](docs/quickstart-docker.md) | Compose setup, first agent, production checklist |
 | [`docs/ops-deployment.md`](docs/ops-deployment.md) | CI pipeline, auto-deploy to a target host |
 | [`docs/upgrade.md`](docs/upgrade.md) | Upgrades that need more than a restart — what to build and back up beforehand |
+| [`docs/api-keys.md`](docs/api-keys.md) | API keys: driving Covey from outside — what a key may do and what only the browser may |
 | [`docs/ops-runner.md`](docs/ops-runner.md) | Runners: sandboxes on more than one host, the home store, hard egress isolation |
 | [`docs/ops-zammad.md`](docs/ops-zammad.md) | Connecting Zammad: API token, webhook + trigger, customer-visible replies |
 | [`docs/ops-github.md`](docs/ops-github.md) | GitHub: issues, pull requests, Actions, checkout inside the sandbox |

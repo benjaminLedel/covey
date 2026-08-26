@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, del, patch, type Principal } from "../api";
+import ApiKeys from "./ApiKeys";
 
 type Session = { created_at: string; expires_at: string; current: boolean };
 
@@ -109,6 +110,8 @@ export default function AccountSettings({ me }: { me: Principal }) {
         ))}
         {sessions.data?.length === 0 && <p className="muted text-xs m-0">{t("account.noSessions")}</p>}
       </div>
+
+      <ApiKeys />
 
       <div className="card mt-4">
         <div className="flex items-center gap-3 mb-1">

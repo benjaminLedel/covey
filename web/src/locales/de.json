@@ -1894,6 +1894,28 @@
       "step1": "Der Skill ist unter .claude/skills/covey-agent/ schon verfügbar — nichts zu tun.",
       "step3": "In Claude Code aufrufen mit",
       "hint": "Danach genügt auch „baue einen Covey-Agenten für …“ — der Skill greift automatisch. Zum Weitergeben an Dritte: exportiere fertige Agenten als Bundle (Agenten-Seite → Config → Export) und importiere sie in einer anderen Covey-Instanz."
+    },
+    "apiKeys": {
+      "title": "API-Schlüssel",
+      "intro": "Ein Schlüssel meldet ein Skript, eine Pipeline oder ein Werkzeug an derselben API an, die auch die Oberfläche benutzt — mit den Rechten deines Sitzes in dieser Organisation, nicht mehr und nicht weniger. Er wird als Header mitgeschickt: Authorization: Bearer covey_…",
+      "name": "Name",
+      "namePlaceholder": "Wofür ist er?",
+      "expiry": "Läuft ab in (Tagen)",
+      "expiryNever": "nie",
+      "create": "Schlüssel erzeugen",
+      "created": "Notiere ihn jetzt — er wird nie wieder angezeigt.",
+      "copy": "Kopieren",
+      "copied": "Kopiert",
+      "done": "Verstanden",
+      "none": "Noch kein Schlüssel.",
+      "createdAt": "Erzeugt {{date}}",
+      "lastUsed": "Zuletzt benutzt {{date}}",
+      "neverUsed": "Noch nie benutzt",
+      "expiresOn": "Läuft ab {{date}}",
+      "expired": "Abgelaufen",
+      "revoke": "Widerrufen",
+      "revokeConfirm": "Diesen Schlüssel widerrufen? Was ihn benutzt, hört sofort auf zu funktionieren.",
+      "limits": "Ein Schlüssel darf keinen zweiten erzeugen und kein Passwort ändern — beides braucht die Anmeldung im Browser, damit ein abhandengekommener Schlüssel sich nicht selbst verewigen kann."
     }
   },
   "profile": {

@@ -230,6 +230,7 @@ Spezifikation und Runbooks sind auf **Englisch** — sie richten sich an alle, d
 |---|---|
 | [`docs/quickstart-docker.md`](docs/quickstart-docker.md) | Compose-Setup, erster Agent, Produktions-Checkliste |
 | [`docs/upgrade.md`](docs/upgrade.md) | Upgrades, die mehr als einen Neustart brauchen — was vorher zu bauen und zu sichern ist |
+| [`docs/api-keys.md`](docs/api-keys.md) | API-Schlüssel: Covey von außen bedienen — was ein Schlüssel darf und was nur der Browser darf |
 | [`docs/ops-runner.md`](docs/ops-runner.md) | Runner: Sandboxen auf mehr als einem Host, der Home-Store, harte Egress-Isolation |
 | [`docs/ops-deployment.md`](docs/ops-deployment.md) | CI-Pipeline, Auto-Deploy auf einen Zielhost |
 | [`docs/ops-zammad.md`](docs/ops-zammad.md) | Zammad anbinden: API-Token, Webhook + Trigger, kundensichtbare Antworten |

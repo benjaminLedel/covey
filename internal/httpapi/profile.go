@@ -86,6 +86,14 @@ func (s *Server) handleUpdateMe(w http.ResponseWriter, r *http.Request) {
 	upd := org.HumanUpdate{DisplayName: in.DisplayName}
 	in.profilePatch.apply(&upd)
 	if in.Password != nil {
+		// An API key must not be able to replace the password — that would let
+		// a leaked credential lock its owner out and keep the seat. Whoever
+		// changes the password does so in the browser.
+		if p.ViaAPIKey {
+			writeErr(w, http.StatusForbidden,
+				"an API key cannot change the password — sign in in the browser")
+			return
+		}
 		if len(*in.Password) < minPasswordLen {
 			writeErr(w, http.StatusBadRequest, "password needs at least 8 characters")
 			return

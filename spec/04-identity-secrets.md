@@ -15,6 +15,35 @@ The hardest and at the same time most defensible part of the platform — and it
 
 > **Pluggable — built-in as the default.** Broker and IdP are swappable behind narrow interfaces (`IdentityProvider`, `SecretStore`). The MVP ships a **simple, DB-backed built-in implementation** (signed JWTs, AES-GCM-encrypted secrets in Postgres); whoever has Keycloak or Vault configures the external provider instead. Keycloak and Vault are therefore **optional, not prerequisites**. The one limit: real RFC 8693 token exchange against third-party systems only runs through the external `oidc` provider, not through the built-in variant. Details in [`10-architecture-stack.md`](10-architecture-stack.md).
 
+## Human credentials: session and API key
+
+The human identity has two badges, and the second one exists because the first
+one is deliberately unreachable.
+
+- The **browser session** is a cookie — `HttpOnly`, `SameSite=Strict`, sliding
+  while somebody works. Every one of those properties is right for a browser
+  and useless outside one: no script can read it, which is the whole point.
+- The **API key** is what everything that is not a browser uses: a pipeline, a
+  script, the agent skill that creates an agent through the API. Without it,
+  operational tooling ends up beside the product instead of in it — which is
+  the failure mode this closes.
+
+A key is bound to a **seat**, not merely to an account. Role and organisation
+are properties of the membership, an account may hold several, and a credential
+that did not name the seat it works from would have an authority nobody can
+state. It carries that seat's role and no scope of its own: a scope that exists
+only on paper reads like a restriction and enforces nothing.
+
+Two moves stay with the session, and therefore with the password: **minting or
+revoking a key, and changing the password**. A credential that goes astray must
+not be able to entrench itself — those are exactly the two moves that would let
+it. The practical side is in [`../docs/api-keys.md`](../docs/api-keys.md).
+
+An API key has no business inside a sandbox. An agent talks to the control
+plane through the action proxy, which needs no credential at all; a key in a
+sandbox would be a long-lived secret in the one place this whole document keeps
+them out of.
+
 ## Token exchange flow (RFC 8693)
 
 The broker uses **RFC 8693 token exchange** — the same pattern as in the Girona setup (together with RFC 9728 protected resource metadata for resource discovery).

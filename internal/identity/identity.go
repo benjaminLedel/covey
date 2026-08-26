@@ -45,6 +45,14 @@ type Principal struct {
 	// PlatformRole is the instance level: user | system_admin. Deliberately
 	// not an org role — no organisation may hand it to itself.
 	PlatformRole string
+
+	// ViaAPIKey says how this principal proved who it is: false for a browser
+	// session, true for an API key. The rights are the same — a key carries the
+	// role of its seat — but two moves are reserved for the session, and
+	// therefore for the password: minting another key and changing the
+	// password itself. A leaked credential must not be able to entrench
+	// itself.
+	ViaAPIKey bool
 }
 
 // HasOrg reports whether this session works from a seat. False means: signed

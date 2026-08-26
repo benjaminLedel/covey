@@ -1894,6 +1894,28 @@
       "step1": "The skill is already available under .claude/skills/covey-agent/ — nothing to do.",
       "step3": "Invoke it in Claude Code with",
       "hint": "After that, just saying \"build a Covey agent for …\" triggers it automatically. To share with others: export finished agents as a bundle (agent page → Config → Export) and import them into another Covey instance."
+    },
+    "apiKeys": {
+      "title": "API keys",
+      "intro": "A key signs a script, a pipeline or a tool in to the same API the interface uses — with the rights of your seat in this organisation, no more and no less. It travels as a header: Authorization: Bearer covey_…",
+      "name": "Name",
+      "namePlaceholder": "What is it for?",
+      "expiry": "Expires in (days)",
+      "expiryNever": "never",
+      "create": "Create key",
+      "created": "Write it down now — it is never shown again.",
+      "copy": "Copy",
+      "copied": "Copied",
+      "done": "Got it",
+      "none": "No key yet.",
+      "createdAt": "Created {{date}}",
+      "lastUsed": "Last used {{date}}",
+      "neverUsed": "Never used",
+      "expiresOn": "Expires {{date}}",
+      "expired": "Expired",
+      "revoke": "Revoke",
+      "revokeConfirm": "Revoke this key? Whatever uses it stops working immediately.",
+      "limits": "A key cannot mint a second one and cannot change a password — both need the browser sign-in, so that a key that goes astray cannot entrench itself."
     }
   },
   "profile": {

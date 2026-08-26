@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/netip"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -227,6 +228,11 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/auth/me/profile", s.auth(s.handleMyProfile))
 	mux.Handle("GET /api/v1/auth/sessions", s.auth(s.handleListSessions))
 	mux.Handle("DELETE /api/v1/auth/sessions", s.auth(s.handleRevokeOtherSessions))
+	// API keys: readable with either badge, mintable and revocable only with
+	// the session — see sessionOnly.
+	mux.Handle("GET /api/v1/auth/api-keys", s.auth(s.handleListAPIKeys))
+	mux.Handle("POST /api/v1/auth/api-keys", s.auth(s.sessionOnly(s.handleCreateAPIKey)))
+	mux.Handle("DELETE /api/v1/auth/api-keys/{id}", s.auth(s.sessionOnly(s.handleDeleteAPIKey)))
 
 	// Agents & backlog. All roles may read (role-scoped views in the MVP: same
 	// data, different write rights).
@@ -690,6 +696,20 @@ func hashToken(tok string) string {
 
 func (s *Server) auth(next http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// An API key comes first: whoever sends one means it, and a stale
+		// cookie in the same client must not quietly take its place.
+		if token, ok := bearerToken(r); ok {
+			p, _, err := s.apiKeys().Principal(r.Context(), hashToken(token))
+			if err != nil {
+				writeErr(w, http.StatusUnauthorized, "api key invalid or expired")
+				return
+			}
+			if h, ok := r.Context().Value(akteurKey).(*akteurHalter); ok {
+				h.p = p
+			}
+			next(w, r.WithContext(context.WithValue(r.Context(), principalKey, p)))
+			return
+		}
 		cookie, err := r.Cookie("covey_session")
 		if err != nil {
 			writeErr(w, http.StatusUnauthorized, "not signed in")
@@ -718,6 +738,39 @@ func (s *Server) auth(next http.HandlerFunc) http.Handler {
 		}
 		next(w, r.WithContext(context.WithValue(r.Context(), principalKey, p)))
 	})
+}
+
+// bearerToken reads an "Authorization: Bearer covey_…" header. The prefix is
+// part of the check: the daemon, the runner and the agent trigger all carry
+// bearer tokens of their own on their own routes, and none of them should be
+// mistaken for a human API key here.
+func bearerToken(r *http.Request) (string, bool) {
+	h := r.Header.Get("Authorization")
+	if len(h) < 7 || !strings.EqualFold(h[:7], "Bearer ") {
+		return "", false
+	}
+	tok := strings.TrimSpace(h[7:])
+	if !strings.HasPrefix(tok, apiKeyPrefix) {
+		return "", false
+	}
+	return tok, true
+}
+
+// sessionOnly bars an API key from the two moves with which a leaked
+// credential would entrench itself: minting another key, and changing the
+// password. Both need the browser session — and therefore the password.
+//
+// It is not a rights question and therefore not a role: the owner of the key
+// may do all of this, just not with the key.
+func (s *Server) sessionOnly(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if principalFrom(r).ViaAPIKey {
+			writeErr(w, http.StatusForbidden,
+				"an API key cannot do this — sign in in the browser (a key must not be able to mint or replace itself)")
+			return
+		}
+		next(w, r)
+	}
 }
 
 // rbac enforces the role-scoped rights (spec/09).
