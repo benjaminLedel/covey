@@ -227,7 +227,23 @@ type Registered struct {
 	// which is what the built-in runner does, since the control plane can look
 	// at its images itself.
 	Images []string `json:"images,omitempty"`
+	// Features are what this build can do beyond the messages that have always
+	// existed. A new, optional field rather than a new protocol version — the
+	// handshake demands an exact version match, so raising it would disconnect
+	// every runner in the field, which is precisely the population that needs
+	// to be told something instead of dropped.
+	//
+	// It answers one question: may the control plane offer an action whose
+	// silence would otherwise be indistinguishable from a hang? An older runner
+	// ignores an unknown message, and the caller would wait out the timeout for
+	// a message that will never be answered.
+	Features []string `json:"features,omitempty"`
 }
+
+// FeatureSelfUpdate: this runner understands `update` and can replace its own
+// binary. Missing from every build before it existed — those are installed once
+// by hand, and can then update themselves.
+const FeatureSelfUpdate = "self_update"
 
 // Protocol is the version this build speaks. It is raised when a message
 // changes its meaning — a new, optional field is not a new version.

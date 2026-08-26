@@ -160,8 +160,11 @@ type conn struct {
 	images         []string
 	reportedTags   []string
 	reportedImages []string
-	t              Transport
-	pool           *Pool
+	// features are what this build of the runner announced it can do — see
+	// Registered.Features.
+	features []string
+	t        Transport
+	pool     *Pool
 
 	mu      sync.Mutex
 	waiters map[string]chan Message
@@ -304,7 +307,8 @@ func (p *Pool) register(ctx context.Context, t Transport, builtin bool) (*conn, 
 		protocol: reg.Protocol, version: reg.Version, arch: reg.Arch,
 		tags: reg.Tags, images: reg.Images,
 		reportedTags: reg.Tags, reportedImages: reg.Images,
-		t: t, pool: p, waiters: map[string]chan Message{}, streams: map[string]bool{},
+		features: reg.Features,
+		t:        t, pool: p, waiters: map[string]chan Message{}, streams: map[string]bool{},
 		lastHeard: time.Now(), openedAt: time.Now(),
 	}
 	// What the interface assigned to this host applies from the first wake on,

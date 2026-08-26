@@ -118,6 +118,14 @@ func (p *Pool) Update(ctx context.Context, runnerID uuid.UUID, version, baseURL 
 		// downloads a binary nobody would ever start.
 		return UpdateResult{}, fmt.Errorf("%w: the built-in runner is updated with the control plane", ErrNotSupported)
 	}
+	if !hasAll(c.features, []string{FeatureSelfUpdate}) {
+		// The one case where silence would be the answer: a build from before
+		// this message existed ignores it, and the caller would wait out the
+		// whole timeout for something that is never coming. Said in a sentence
+		// instead, with what to do about it.
+		return UpdateResult{}, fmt.Errorf("%w: this runner is older than the self-update — install it once by hand "+
+			"(curl -fsSL <this server>/install.sh | sh -s -- --runner), after that the button works", ErrNotSupported)
+	}
 	answer, err := c.ask(ctx, TypeUpdate, Update{Version: version, BaseURL: baseURL}, updateTimeout)
 	if err != nil {
 		return UpdateResult{}, err

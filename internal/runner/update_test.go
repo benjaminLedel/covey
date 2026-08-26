@@ -7,13 +7,16 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -157,5 +160,46 @@ func TestTheBuiltInRunnerIsNotUpdatedThroughTheProtocol(t *testing.T) {
 	p, runnerID := newLocalPool(t, dir, fakeDockerBin(t, dir, "nothing"), org)
 	if _, err := p.Update(context.Background(), runnerID, "v9.9.9", ""); err == nil {
 		t.Fatal("the built-in runner has to refuse the update")
+	}
+}
+
+// A build from before the self-update existed ignores the message — it does not
+// answer it, because it does not know it. Waiting that out would take the whole
+// update timeout and end in "does not answer", which is the sentence this
+// platform uses for a broken host. So the registration says what a build can do,
+// and the answer is immediate and names the way out.
+func TestARunnerTooOldToUpdateItselfSaysSoAtOnce(t *testing.T) {
+	orgID := uuid.New()
+	p := NewPool(quietLog())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	control, node := NewInProc()
+	defer control.Close()
+	go func() {
+		// No Features: the shape of every runner in the field today.
+		hello, _ := encode(TypeRegistered, "", Registered{RunnerID: uuid.New(), OrgID: orgID, Protocol: Protocol})
+		_ = node.Send(ctx, hello)
+		<-ctx.Done()
+	}()
+	go func() { _ = p.Attach(ctx, control, false) }()
+	waitUntil(t, 3*time.Second, func() bool { return len(p.LiveFor(orgID)) == 1 })
+
+	var id uuid.UUID
+	for k := range p.LiveFor(orgID) {
+		id = k
+	}
+	done := make(chan error, 1)
+	go func() { _, err := p.Update(ctx, id, "v9.9.9", ""); done <- err }()
+	select {
+	case err := <-done:
+		if err == nil || !errors.Is(err, ErrNotSupported) {
+			t.Fatalf("an old runner has to be named as such: %v", err)
+		}
+		if !strings.Contains(err.Error(), "install.sh") {
+			t.Errorf("the message has to say what to do instead: %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("the answer waited on a message the runner does not know")
 	}
 }

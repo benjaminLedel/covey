@@ -180,6 +180,7 @@ Three rules make it something one can press:
 - **Not while it is carrying anything.** The containers would survive the restart — they belong to Docker — but the watchers would not, and a sandbox nobody watches any more is worse than an update that waits. The host refuses and names the number.
 - **The answer comes before the restart.** Afterwards there is nothing left to ask: without it, a successful update and a host that fell over look exactly alike.
 - **The built-in runner is not updated this way.** It is the control plane's own process, and it is updated by updating the control plane.
+- **A runner that predates the feature is told, not waited for.** It would ignore the message, and the caller would wait out the whole timeout for an answer that is never coming — ending in "does not answer", which is this platform's sentence for a broken host. So `registered` carries a `features` list: a new optional field rather than a new protocol version, because the handshake demands an exact version match and raising it would disconnect precisely the population that needs to be told something.
 
 Which version: the server's own when that is a released one, otherwise the newest published release — an instance built from `main` is ahead of every release, and prescribing its own version would send the host looking for an artefact that does not exist. `COVEY_RUNNER_DOWNLOAD_BASE` points the download somewhere else for an installation that does not reach GitHub, or one that publishes builds of its own.
 

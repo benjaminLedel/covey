@@ -66,6 +66,11 @@ the archives named as the release names them
 If the runner runs as a user who may not write to its own path (`/usr/local/bin`
 belongs to root), the update says exactly that and changes nothing.
 
+**The first time is still by hand.** A runner built before this feature existed
+does not know the message and would simply not answer it — so it says at
+registration what it can do, and the button answers immediately with *install it
+once by hand*. After that installation the host updates itself.
+
 ## Pausing a host
 
 **Pause** on the runner's page takes it out of service: it gets no new

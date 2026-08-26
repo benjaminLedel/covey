@@ -93,6 +93,7 @@ func (n *Node) Run(ctx context.Context, t Transport) error {
 		Arch:     runtime.GOARCH,
 		Tags:     n.Tags,
 		Images:   n.Images,
+		Features: []string{FeatureSelfUpdate},
 	})
 	if err != nil {
 		return err
