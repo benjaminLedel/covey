@@ -208,6 +208,10 @@ type conn struct {
 	// pausedNow: an operator has taken this host out of service. It keeps its
 	// connection, its token and its working copies — it just gets nothing new.
 	pausedNow bool
+	// maxSandboxes is what this host said it will carry at once, 0 = no limit.
+	// It comes from the runner's own configuration: how much a machine can
+	// take is a fact about the machine.
+	maxSandboxes int
 	// sandboxes counts what is running here — the whole of the scheduling
 	// weight for now: no bin packing, no resource modelling.
 	sandboxes int
@@ -326,8 +330,8 @@ func (p *Pool) register(ctx context.Context, t Transport, builtin bool) (*conn, 
 		protocol: reg.Protocol, version: reg.Version, arch: reg.Arch,
 		tags: reg.Tags, images: reg.Images,
 		reportedTags: reg.Tags, reportedImages: reg.Images,
-		features: reg.Features,
-		t:        t, pool: p, waiters: map[string]chan Message{}, streams: map[string]bool{},
+		features: reg.Features, maxSandboxes: reg.MaxSandboxes,
+		t: t, pool: p, waiters: map[string]chan Message{}, streams: map[string]bool{},
 		lastHeard: time.Now(), openedAt: time.Now(),
 	}
 	// What the interface assigned to this host applies from the first wake on,
@@ -670,6 +674,14 @@ func (c *conn) watchdog(ctx context.Context) {
 // not thrown out: whatever it is doing may well be legitimate and long, and a
 // start that is running has to be allowed to finish. It just gets no more work
 // while it cannot say a word.
+// full reports whether this host is carrying as much as it said it would. A
+// host without a limit is never full — 0 means "no statement", not "none".
+func (c *conn) full() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.maxSandboxes > 0 && c.sandboxes >= c.maxSandboxes
+}
+
 func (c *conn) answering() bool {
 	c.mu.Lock()
 	last := c.capacityAt
@@ -1017,7 +1029,7 @@ func (p *Pool) candidates(want need) ([]*conn, error) {
 	// because the two say different things and each deserves its own sentence
 	// when nothing is left.
 	var inOrg, tagged, out []*conn
-	paused := 0
+	paused, full := 0, 0
 	for _, c := range p.conns {
 		// The organisation comes first and is not a filter among others: a
 		// runner of a foreign tenant is not a worse candidate, it is none.
@@ -1046,6 +1058,13 @@ func (p *Pool) candidates(want need) ([]*conn, error) {
 		if !c.answering() {
 			continue
 		}
+		// A host at its own limit is not a worse candidate, it is none — the
+		// runner would refuse the start anyway, and choosing it would cost a
+		// round trip and a failed wake to learn what the counter already knew.
+		if c.full() {
+			full++
+			continue
+		}
 		out = append(out, c)
 	}
 	switch {
@@ -1056,9 +1075,14 @@ func (p *Pool) candidates(want need) ([]*conn, error) {
 			ErrNoRunner, want.tags)
 	case len(out) == 0 && paused == len(tagged):
 		return nil, fmt.Errorf("%w: every runner of this organisation is paused", ErrNoRunner)
+	case len(out) == 0 && full == len(tagged):
+		// Its own sentence, because it is the one state that passes: a full
+		// host is working, and the wake belongs in the queue rather than in an
+		// error somebody goes looking for a network fault behind.
+		return nil, fmt.Errorf("%w: every runner of this organisation is at its sandbox limit", ErrNoRunner)
 	case len(out) == 0:
-		return nil, fmt.Errorf("%w: no runner of this organisation is available — %d paused, %d connected but not answering",
-			ErrNoRunner, paused, len(tagged)-paused)
+		return nil, fmt.Errorf("%w: no runner of this organisation is available — %d paused, %d at their sandbox limit, %d connected but not answering",
+			ErrNoRunner, paused, full, len(tagged)-paused-full)
 	}
 	rank := func(c *conn) (int, int) {
 		c.mu.Lock()

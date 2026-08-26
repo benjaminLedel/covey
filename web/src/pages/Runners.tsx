@@ -33,6 +33,7 @@ type RunnerView = {
     reported_tags?: string[];
     reported_images?: string[];
     sandboxes: number;
+    max_sandboxes?: number;
     outdated: boolean;
     // Die Leitung steht, der Host sagt nichts. Er bekommt in diesem Zustand
     // keine neuen Sandboxen — und „verbunden" neben einem Agenten, der nicht
@@ -238,7 +239,13 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
                       genau; die Platte ist das, was der Host zuletzt gemeldet
                       hat. Deshalb hier nicht mehr die Zahl aus dem
                       Platten-Bericht: die waere einen Takt alt. */}
-                  <td>{r.live ? t("runners.sandboxes", { count: r.live.sandboxes }) : "—"}</td>
+                  <td>
+                    {r.live
+                      ? r.live.max_sandboxes
+                        ? t("runners.sandboxesOf", { running: r.live.sandboxes, max: r.live.max_sandboxes })
+                        : t("runners.sandboxes", { count: r.live.sandboxes })
+                      : "—"}
+                  </td>
                   <td>
                     {r.capacity && r.capacity.total_bytes > 0 ? (
                       <>

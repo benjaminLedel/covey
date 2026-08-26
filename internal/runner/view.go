@@ -30,6 +30,8 @@ type Live struct {
 	ReportedTags   []string `json:"reported_tags,omitempty"`
 	ReportedImages []string `json:"reported_images,omitempty"`
 	Sandboxes      int      `json:"sandboxes"`
+	// MaxSandboxes is what this host says it will carry at once, 0 = no limit.
+	MaxSandboxes int `json:"max_sandboxes,omitempty"`
 	// Outdated: it speaks an older protocol than this control plane. Named
 	// rather than merely tolerated — version drift between separately delivered
 	// parts is a thing you want to see before it becomes a symptom.
@@ -62,7 +64,7 @@ func (p *Pool) LiveFor(orgID uuid.UUID) map[uuid.UUID]Live {
 			RunnerID: c.runnerID, Connected: true, Protocol: c.protocol,
 			Version: c.version, Arch: c.arch, Tags: c.tags, Images: c.images,
 			ReportedTags: c.reportedTags, ReportedImages: c.reportedImages,
-			Sandboxes: running, Outdated: c.protocol < Protocol,
+			Sandboxes: running, MaxSandboxes: c.maxSandboxes, Outdated: c.protocol < Protocol,
 			Unresponsive: !c.answering(),
 		}
 	}

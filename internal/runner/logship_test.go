@@ -3,6 +3,8 @@ package runner
 import (
 	"context"
 	"log/slog"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -156,4 +158,66 @@ func mustEncode(t *testing.T, msgType, id string, payload any) Message {
 		t.Fatal(err)
 	}
 	return msg
+}
+
+// A host carries what it says it will carry — and it says so itself, from its
+// own configuration, because how much a machine can take is a fact about the
+// machine.
+//
+// The limit is enforced on the host and not only in the scheduler. That is not
+// belt and braces: the scheduler works from a count it keeps itself, and
+// between its decision and the start a second one can arrive. Only the host
+// knows what is actually running on it, and only the host falls over when the
+// number is wrong.
+func TestTheHostRefusesBeyondItsLimit(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	orgID, runnerID := uuid.New(), uuid.New()
+	node := NewNode(runnerID, orgID, &Docker{
+		RunnerID: runnerID, Image: "covey-sandbox:test", DataDir: dir,
+		DockerBin: fakeDockerBin(t, dir, "nothing"),
+	}, quietLog())
+	node.MaxSandboxes = 1
+	t.Cleanup(node.Close)
+
+	control, nodeSide := NewInProc()
+	defer control.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	go node.Run(ctx, nodeSide)
+	receiveType(t, control, TypeRegistered)
+
+	// The first one is taken.
+	first := uuid.New()
+	send(t, ctx, control, TypeStartSandbox, "1", StartSandbox{AgentID: first, OrgID: orgID})
+	if res, _ := decode[SandboxResult](receiveType(t, control, TypeSandboxStarted)); res.AgentID != first {
+		t.Fatalf("the first sandbox did not start: %+v", res)
+	}
+
+	// The second is refused, and the answer says why rather than timing out.
+	send(t, ctx, control, TypeStartSandbox, "2", StartSandbox{AgentID: uuid.New(), OrgID: orgID})
+	res, err := decode[SandboxResult](receiveType(t, control, TypeSandboxFailed))
+	if err != nil {
+		t.Fatalf("no answer to the second start: %v", err)
+	}
+	if !strings.Contains(res.Err, "limit") {
+		t.Fatalf("the refusal does not say what happened: %q", res.Err)
+	}
+
+	// Restarting an agent that already runs here REPLACES its sandbox rather
+	// than adding one. Refusing that would leave a full host unable to restart
+	// its own agents — which is exactly when one usually needs restarting.
+	send(t, ctx, control, TypeStartSandbox, "3", StartSandbox{AgentID: first, OrgID: orgID})
+	if res, _ := decode[SandboxResult](receiveType(t, control, TypeSandboxStarted)); res.AgentID != first {
+		t.Fatalf("a running agent may be restarted on a full host: %+v", res)
+	}
+}
+
+func send(t *testing.T, ctx context.Context, tr Transport, msgType, id string, payload any) {
+	t.Helper()
+	if err := tr.Send(ctx, mustEncode(t, msgType, id, payload)); err != nil {
+		t.Fatalf("send %s: %v", msgType, err)
+	}
 }

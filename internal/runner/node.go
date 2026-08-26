@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"runtime"
 	"sync"
@@ -28,6 +29,11 @@ type Node struct {
 	// capacity — it gets only agents whose workplace it can provide. Empty =
 	// it makes no claim and is not excluded on that ground.
 	Images []string
+	// MaxSandboxes caps how many sandboxes run here at once, 0 = no limit.
+	// Set from the runner's own configuration file: how much this machine can
+	// carry is a fact about the machine, and the control plane has no way of
+	// knowing it.
+	MaxSandboxes int
 	// Blobs is the home store. The built-in runner reaches it directly — it
 	// sits in the process that owns it; that is a transport detail, and the
 	// sync logic above does not know the difference. nil = no store, and the
@@ -103,6 +109,8 @@ func (n *Node) Run(ctx context.Context, t Transport) error {
 		Tags:     n.Tags,
 		Images:   n.Images,
 		Features: []string{FeatureSelfUpdate},
+
+		MaxSandboxes: n.MaxSandboxes,
 	})
 	if err != nil {
 		return err
@@ -356,6 +364,30 @@ func (n *Node) sync(ctx context.Context, t Transport, id string, req SyncHome) {
 
 func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSandbox) {
 	startedAt := time.Now()
+	// The limit is enforced here as well as in the scheduler. Not belt and
+	// braces: the scheduler works from a count it keeps itself, and between its
+	// decision and this start a second one can arrive. The host is the only
+	// place that knows what is actually running on it — and it is the one that
+	// falls over if the number is wrong.
+	if n.MaxSandboxes > 0 {
+		n.mu.Lock()
+		running := len(n.running)
+		_, replacing := n.running[spec.AgentID]
+		n.mu.Unlock()
+		// A restart of an agent that already runs here replaces its sandbox
+		// rather than adding one — refusing that would make a full host unable
+		// to restart its own agents.
+		if !replacing && running >= n.MaxSandboxes {
+			n.Log.Warn("sandbox refused — this host is at its limit",
+				"agent", spec.AgentID, "running", running, "max", n.MaxSandboxes)
+			n.reply(ctx, t, id, TypeSandboxFailed, SandboxResult{
+				AgentID: spec.AgentID,
+				Err: fmt.Sprintf("runner at its limit: %d of %d sandboxes running",
+					running, n.MaxSandboxes),
+			})
+			return
+		}
+	}
 	n.Log.Info("sandbox start requested", "agent", spec.AgentID, "image", spec.Image,
 		"snapshot", spec.Snapshot != "")
 	// The home comes out of the store before the sandbox goes in. Only what
@@ -570,5 +602,6 @@ func (n *Node) capacity() CapacityReport {
 
 	work := n.Docker.DataDir
 	total, free := diskSpace(work)
-	return CapacityReport{Sandboxes: running, TotalBytes: total, FreeBytes: free, WorkDir: work}
+	return CapacityReport{Sandboxes: running, MaxSandboxes: n.MaxSandboxes,
+		TotalBytes: total, FreeBytes: free, WorkDir: work}
 }

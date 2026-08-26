@@ -2298,7 +2298,8 @@
       "pull": "Fetch",
       "pullRunning": "Fetching … several gigabytes take their time.",
       "pullDone": "{{image}} is on this host now.",
-      "pullFailed": "{{image}} could not be fetched: {{error}}"
+      "pullFailed": "{{image}} could not be fetched: {{error}}",
+      "sandboxesOf": "{{running}} of {{max}}"
     },
     "edit": "Edit",
     "log": {
@@ -2314,7 +2315,8 @@
       "offline": "The host is not connected right now — this is what it last said.",
       "debugOn": "This host is reporting at debug. Set it back to info when you are done: debug writes hundreds of lines per start.",
       "levelPending": "Stored but not delivered — the host takes it on its next connection. ({{error}})"
-    }
+    },
+    "sandboxesOf": "{{running}} of {{max}}"
   },
   "diagnostics": {
     "title": "Diagnostics",

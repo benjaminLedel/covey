@@ -153,6 +153,44 @@ what the host says about itself — `--tag arm64` says what it **is**, `--image`
 which workplaces it provides. The token is what this host acts for its
 organisation with; the file is written `0600` and belongs treated as such.
 
+### How many sandboxes this host carries
+
+A runner takes as many sandboxes at once as it is asked for — one per agent,
+several agents in parallel — and until now that was unbounded. Docker will
+happily start the twentieth container, and the machine finds out afterwards.
+
+The cap belongs to the host and is set in its configuration:
+
+```
+max_sandboxes = 4
+```
+
+`--max-sandboxes 4` at `register` writes it; afterwards you edit the file and
+restart the service. `0` — the default — means no limit.
+
+It is deliberately **not** in the runner view, unlike tags and images. Those
+are steering decisions somebody makes about a fleet; this is a statement about
+the iron. The scheduler can rank hosts, but it has no way of knowing that one
+of them is a laptop, and a number an operator can type into a browser about a
+machine they cannot see is a number that will be wrong.
+
+Both sides hold it:
+
+- The **scheduler** stops choosing a host that is at its limit. The runner
+  view shows `3 of 4` instead of `3`, and the reason a wake waits reads
+  *"every runner of this organisation is at its sandbox limit"* — a working
+  data plane with a queue, not a fault to go looking for.
+- The **host** refuses a start beyond its limit anyway. Not belt and braces:
+  the scheduler works from a count it keeps itself, and between its decision
+  and the start a second one can arrive. Only the host knows what is actually
+  running on it, and only the host falls over when the number is wrong. The
+  refusal is a line in its log.
+
+Restarting an agent that already runs on a full host is allowed — it replaces
+that agent's sandbox rather than adding one. Otherwise a host at its limit
+could not restart its own agents, which is exactly when one usually needs
+restarting.
+
 **Both are editable in the runner view, and that is the normal way.** They were
 properties of this file for a while, sent once at connect, and changing them
 meant editing it on the machine and restarting the runner — a capability

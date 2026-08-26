@@ -2298,7 +2298,8 @@
       "pull": "Holen",
       "pullRunning": "Wird geholt … das kann bei mehreren Gigabyte dauern.",
       "pullDone": "{{image}} liegt jetzt auf diesem Host.",
-      "pullFailed": "{{image}} konnte nicht geholt werden: {{error}}"
+      "pullFailed": "{{image}} konnte nicht geholt werden: {{error}}",
+      "sandboxesOf": "{{running}} von {{max}}"
     },
     "edit": "Bearbeiten",
     "log": {
@@ -2314,7 +2315,8 @@
       "offline": "Der Host ist gerade nicht verbunden — hier steht, was er zuletzt gesagt hat.",
       "debugOn": "Dieser Host meldet auf debug. Zurück auf info stellen, wenn du fertig bist: debug schreibt bei jedem Start hunderte Zeilen.",
       "levelPending": "Gespeichert, aber nicht zugestellt — der Host übernimmt es bei der nächsten Verbindung. ({{error}})"
-    }
+    },
+    "sandboxesOf": "{{running}} von {{max}}"
   },
   "diagnostics": {
     "title": "Diagnose",

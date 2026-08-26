@@ -180,10 +180,14 @@ type UpdateResult struct {
 
 // CapacityReport is what a runner is carrying.
 type CapacityReport struct {
-	Sandboxes  int    `json:"sandboxes"`
-	TotalBytes int64  `json:"total_bytes"`
-	FreeBytes  int64  `json:"free_bytes"`
-	WorkDir    string `json:"work_dir,omitempty"`
+	Sandboxes int `json:"sandboxes"`
+	// MaxSandboxes is what this host allows at once, 0 = no limit. Reported
+	// beside the count rather than derived from it: "3 running" and "3 of 4"
+	// are different answers to "can this machine take another one".
+	MaxSandboxes int    `json:"max_sandboxes,omitempty"`
+	TotalBytes   int64  `json:"total_bytes"`
+	FreeBytes    int64  `json:"free_bytes"`
+	WorkDir      string `json:"work_dir,omitempty"`
 }
 
 // The file operations of home_op. One message with an operation name rather
@@ -289,6 +293,17 @@ type Registered struct {
 	// ignores an unknown message, and the caller would wait out the timeout for
 	// a message that will never be answered.
 	Features []string `json:"features,omitempty"`
+	// MaxSandboxes is how many sandboxes this host will carry at once, 0 = no
+	// limit. It belongs to the RUNNER and is configured there, because what it
+	// states is a property of the iron — how much RAM this machine has, how
+	// many containers its disk stands. The control plane can rank hosts; it
+	// cannot know that one of them is a laptop.
+	//
+	// Reported rather than assigned, and enforced on both sides: the scheduler
+	// stops choosing a host that is full, and the host refuses a start beyond
+	// its limit anyway. An older control plane that does not know the field
+	// still cannot overload a runner that does.
+	MaxSandboxes int `json:"max_sandboxes,omitempty"`
 }
 
 // FeatureSelfUpdate: this runner understands `update` and can replace its own

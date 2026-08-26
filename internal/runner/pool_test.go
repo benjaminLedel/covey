@@ -1376,3 +1376,64 @@ func TestAStartSaysWhatItIsWaitingFor(t *testing.T) {
 		t.Fatal("the host said nothing about a download it was starting")
 	}
 }
+
+// A host at its own limit is not a worse candidate — it is none. Otherwise the
+// scheduler picks it, the host refuses, and the wake has spent a round trip
+// learning what the counter already knew.
+//
+// And when every host is full, the reason has to say so. "No runner available"
+// sends whoever reads it looking for a network fault; "every runner is at its
+// sandbox limit" is a working data plane with a queue.
+func TestAFullHostIsNoCandidate(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	org := uuid.New()
+	p := NewPool(quietLog())
+	attach := func() uuid.UUID {
+		id := uuid.New()
+		if err := p.AttachLocal(context.Background(), NewNode(id, org, &Docker{
+			RunnerID: id, Image: "covey-sandbox:test", DataDir: dir, DockerBin: fakeDockerBin(t, dir, "nothing"),
+		}, quietLog())); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	full, free := attach(), attach()
+
+	// Both hosts say they carry one at a time; the first one already does.
+	p.mu.Lock()
+	for id, c := range p.conns {
+		c.mu.Lock()
+		c.maxSandboxes = 1
+		if id == full {
+			c.sandboxes = 1
+		}
+		c.mu.Unlock()
+	}
+	p.mu.Unlock()
+
+	c, err := p.pick(need{orgID: org})
+	if err != nil {
+		t.Fatalf("one host still has room: %v", err)
+	}
+	if c.runnerID != free {
+		t.Errorf("the full host was chosen: %s", short(c.runnerID))
+	}
+
+	// Now the second one is full as well, and the refusal has to name the
+	// state instead of describing a fault.
+	p.mu.Lock()
+	p.conns[free].mu.Lock()
+	p.conns[free].sandboxes = 1
+	p.conns[free].mu.Unlock()
+	p.mu.Unlock()
+
+	if _, err = p.pick(need{orgID: org}); err == nil {
+		t.Fatal("a pool in which every host is full must not hand one out")
+	}
+	if !strings.Contains(err.Error(), "sandbox limit") {
+		t.Fatalf("the reason does not name the limit: %v", err)
+	}
+}

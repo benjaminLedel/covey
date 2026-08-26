@@ -42,11 +42,13 @@ type RunnerView = {
     reported_tags?: string[];
     reported_images?: string[];
     sandboxes: number;
+    max_sandboxes?: number;
     outdated: boolean;
     unresponsive?: boolean;
   };
   capacity?: {
     sandboxes: number;
+    max_sandboxes?: number;
     total_bytes: number;
     free_bytes: number;
     work_dir?: string;
@@ -333,7 +335,14 @@ export default function RunnerDetail({ me }: { me: Principal }) {
         />
         <Row
           label={t("runners.detail.sandboxes")}
-          value={String(r.live?.sandboxes ?? r.capacity?.sandboxes ?? 0)}
+          value={(() => {
+            const running = r.live?.sandboxes ?? r.capacity?.sandboxes ?? 0;
+            // Der Host sagt sein Limit selbst — es steht in seiner Konfiguration
+            // und nicht hier. „3 von 4" beantwortet die Frage, die man an dieser
+            // Zeile stellt; „3" beantwortet sie nur halb.
+            const max = r.live?.max_sandboxes ?? r.capacity?.max_sandboxes ?? 0;
+            return max > 0 ? t("runners.detail.sandboxesOf", { running, max }) : String(running);
+          })()}
         />
         <Row label={t("runners.detail.workDir")} value={r.capacity?.work_dir || "—"} />
         <Row label={t("runners.detail.lastSeen")} value={r.last_seen_at?.replace("T", " ").slice(0, 19) || "—"} />

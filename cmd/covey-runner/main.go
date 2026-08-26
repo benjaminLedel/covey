@@ -19,6 +19,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -104,6 +105,11 @@ type config struct {
 	WorkDir string
 	Images  []string
 	Tags    []string
+	// MaxSandboxes is how many sandboxes this host carries at once, 0 = no
+	// limit. It lives here and not in the control plane because what it states
+	// is a property of the iron: the scheduler can rank hosts, but it has no
+	// way of knowing that one of them is a laptop.
+	MaxSandboxes int
 }
 
 func runRegister(ctx context.Context, args []string, log *slog.Logger) error {
@@ -118,6 +124,7 @@ func runRegister(ctx context.Context, args []string, log *slog.Logger) error {
 	fs.Var(&images, "image", "a sandbox image this host provides (repeatable); unset = every one, fetched on demand")
 	var tags stringList
 	fs.Var(&tags, "tag", "a capability of this host (repeatable), e.g. arm64")
+	maxSandboxes := fs.Int("max-sandboxes", 0, "how many sandboxes this host carries at once (0 = no limit)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -136,7 +143,11 @@ func runRegister(ctx context.Context, args []string, log *slog.Logger) error {
 	// been installed and held nothing at all, and one that excluded it from
 	// every other workplace. On covey.work that turned a freshly registered
 	// GPU host into an organisation without a data plane.
-	cfg := config{URL: strings.TrimRight(*url, "/"), Token: runnerToken, WorkDir: *workDir, Images: images, Tags: tags}
+	if *maxSandboxes < 0 {
+		return errors.New("--max-sandboxes cannot be negative (0 = no limit)")
+	}
+	cfg := config{URL: strings.TrimRight(*url, "/"), Token: runnerToken, WorkDir: *workDir,
+		Images: images, Tags: tags, MaxSandboxes: *maxSandboxes}
 	if err := writeConfig(*configPath, cfg); err != nil {
 		return fmt.Errorf("writing %s: %w — the runner token is lost with it, register again", *configPath, err)
 	}
@@ -207,13 +218,14 @@ func runRun(ctx context.Context, args []string, log *slog.Logger) error {
 	node := runner.NewNode(me.RunnerID, me.OrgID, docker, log)
 	node.Tags = cfg.Tags
 	node.Images = cfg.Images
+	node.MaxSandboxes = cfg.MaxSandboxes
 	// The blocks come through the control plane: a runner never gets the
 	// store's credentials (spec/16, "Trust boundary").
 	node.Blobs = homestore.NewHTTPStore(cfg.URL, cfg.Token)
 
 	log.Info("covey-runner", "version", buildinfo.String(), "protocol", runner.Protocol,
 		"runner", me.RunnerID, "organisation", me.OrgID, "work-dir", cfg.WorkDir,
-		"arch", runtime.GOARCH)
+		"arch", runtime.GOARCH, "max-sandboxes", cfg.MaxSandboxes)
 	return runner.RunNode(ctx, node, cfg.URL, cfg.Token, 5*time.Second)
 }
 
@@ -231,6 +243,10 @@ func writeConfig(path string, cfg config) error {
 	fmt.Fprintf(&b, "work_dir = %q\n", cfg.WorkDir)
 	fmt.Fprintf(&b, "images = [%s]\n", quoteList(cfg.Images))
 	fmt.Fprintf(&b, "tags = [%s]\n", quoteList(cfg.Tags))
+	b.WriteString("# max_sandboxes: how many sandboxes this host carries at once. 0 = no limit.\n")
+	b.WriteString("# Change it here and restart the service; the control plane then stops\n")
+	b.WriteString("# choosing this host once it is full, and the host refuses anything beyond.\n")
+	fmt.Fprintf(&b, "max_sandboxes = %d\n", cfg.MaxSandboxes)
 	return os.WriteFile(path, []byte(b.String()), 0o600)
 }
 
@@ -270,6 +286,14 @@ func readConfig(path string) (config, error) {
 			cfg.Token = value
 		case "work_dir":
 			cfg.WorkDir = value
+		case "max_sandboxes":
+			n, err := strconv.Atoi(value)
+			if err != nil || n < 0 {
+				// Refused rather than rounded to 0: a typo that silently means
+				// "no limit" is the one failure this setting exists to prevent.
+				return config{}, fmt.Errorf("%s: max_sandboxes = %q is not a non-negative whole number", path, value)
+			}
+			cfg.MaxSandboxes = n
 		}
 	}
 	return cfg, nil
