@@ -110,6 +110,9 @@ type Orchestrator struct {
 	// agent sleeps (link open, container keeps running). The next wake takes them
 	// over instead of starting cold.
 	warm map[uuid.UUID]*warmSession
+	// lastWarmSync: when this agent's parked home last went into the store.
+	// Guarded by mu, like warm itself.
+	lastWarmSync map[uuid.UUID]time.Time
 
 	wikiSweepMu   sync.Mutex
 	lastWikiSweep time.Time
@@ -150,19 +153,28 @@ func New(opts Options) *Orchestrator {
 		opts.Log = slog.Default()
 	}
 	return &Orchestrator{
-		Options:  opts,
-		usage:    newUsageCache(),
-		sessions: map[uuid.UUID]*session{},
-		waiting:  map[uuid.UUID]chan DaemonLink{},
-		dying:    map[uuid.UUID]chan string{},
-		warm:     map[uuid.UUID]*warmSession{},
-		events:   NewBroadcaster(),
+		Options:      opts,
+		usage:        newUsageCache(),
+		sessions:     map[uuid.UUID]*session{},
+		waiting:      map[uuid.UUID]chan DaemonLink{},
+		dying:        map[uuid.UUID]chan string{},
+		warm:         map[uuid.UUID]*warmSession{},
+		lastWarmSync: map[uuid.UUID]time.Time{},
+		events:       NewBroadcaster(),
 	}
 }
 
 // warmIdleTTL: after this much idle time a parked warm sandbox is torn down
 // after all, so it does not hold resources indefinitely.
 const warmIdleTTL = 30 * time.Minute
+
+// warmSyncEvery bounds how often a parked warm home is written into the store.
+// Without a bound an agent on a two-minute heartbeat would pay for a full scan
+// of its home every two minutes; with it, the price is one scan per interval
+// and the exposure — work that exists only in a container volume — is at most
+// that interval long. Five minutes against a run that costs a quarter of an
+// hour of model time is the right way round.
+const warmSyncEvery = 5 * time.Minute
 
 // wikiIndexLimit caps the wiki index in the triage context. It is a backstop,
 // not a budget: the index carries slugs only, so even a large wiki stays cheap
@@ -961,7 +973,12 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 		// Warm and cleanly asleep: keep sandbox + link alive (drained while
 		// idle). Otherwise — or on kill/abort — tear the compute down.
 		if agent.WarmSandbox && !s.killed && ctx.Err() == nil {
-			o.parkWarm(agent.ID, link, sandbox)
+			ws := o.parkWarm(agent.ID, link, sandbox)
+			// The job is done, the home is what it produced — and for a warm
+			// agent nothing else is going to carry it into the store for the
+			// next half hour. Off the sleep path: the agent counts as asleep
+			// the moment it is parked, not when the scan is through.
+			o.syncParkedHome(agent.ID, sandbox, ws)
 		} else {
 			link.Close()
 			// Detached here too: on kill or abort ctx has already expired — the
@@ -1149,7 +1166,7 @@ func (o *Orchestrator) acquireSandbox(ctx context.Context, agent agents.Agent) (
 // daemon heartbeats in the background until the next wake takes over or the
 // reaper clears it away. If the link dies while idle, the sandbox is torn down
 // immediately.
-func (o *Orchestrator) parkWarm(agentID uuid.UUID, link DaemonLink, sandbox Sandbox) {
+func (o *Orchestrator) parkWarm(agentID uuid.UUID, link DaemonLink, sandbox Sandbox) *warmSession {
 	// The drain lives as long as the sandbox is parked — longer than the run
 	// that hands it over. It is terminated by the reaper (idle TTL), by the next
 	// wake, or on shutdown by teardownAllWarm.
@@ -1184,6 +1201,63 @@ func (o *Orchestrator) parkWarm(agentID uuid.UUID, link DaemonLink, sandbox Sand
 			// Discard the heartbeat/idle message — no task is running.
 		}
 	}()
+	return ws
+}
+
+// syncParkedHome writes the home of a just-parked warm sandbox into the store.
+//
+// This is the place where the promise of `spec/16-runner.md` is kept for warm
+// agents: after every job the home goes into the store. Not on the sleep path
+// — a scan of a seven-gigabyte home would otherwise stand between the end of
+// the run and the agent counting as asleep — and not more often than
+// warmSyncEvery, so an agent on a short heartbeat does not scan its home all
+// day.
+//
+// Three things it refuses to do: sync a sandbox that has meanwhile been taken
+// over (the next wake writes its own state), sync one that has been torn down
+// (the teardown syncs itself), and hold the caller up.
+func (o *Orchestrator) syncParkedHome(agentID uuid.UUID, sandbox Sandbox, ws *warmSession) {
+	syncer, ok := sandbox.(HomeSyncer)
+	if !ok || ws == nil {
+		return // a provider without a store — the mock in the tests, for one
+	}
+	o.mu.Lock()
+	if time.Since(o.lastWarmSync[agentID]) < warmSyncEvery {
+		o.mu.Unlock()
+		return
+	}
+	// Noted before the attempt: two runs finishing in quick succession are not
+	// two reasons to scan the same home twice.
+	o.lastWarmSync[agentID] = time.Now()
+	o.mu.Unlock()
+
+	go func() {
+		if !o.stillParked(agentID, ws) {
+			return
+		}
+		// Its own context: the run's has just ended, and this is exactly the
+		// work that must survive it. Generously bounded — the first sync of a
+		// grown home is a full pass.
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(o.base()), 30*time.Minute)
+		defer cancel()
+		if err := syncer.SyncHome(ctx); err != nil {
+			// Not a failure of the run, which is long over. But the interval
+			// is released again, so the next job tries rather than waiting out
+			// the five minutes on a home that is not in the store.
+			o.mu.Lock()
+			delete(o.lastWarmSync, agentID)
+			o.mu.Unlock()
+			o.Log.Warn("home of the parked sandbox not synced", "agent", agentID, "err", err)
+		}
+	}()
+}
+
+// stillParked: is this exact session still the parked one? A session that has
+// been taken over or torn down in the meantime is none of our business.
+func (o *Orchestrator) stillParked(agentID uuid.UUID, ws *warmSession) bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.warm[agentID] == ws
 }
 
 // takeWarm pulls a parked session out of the cache, stops its drain and returns

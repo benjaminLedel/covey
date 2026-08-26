@@ -46,6 +46,24 @@ type Sandbox interface {
 	Stop(ctx context.Context) error
 }
 
+// HomeSyncer is the optional half of a sandbox whose home lives in a central
+// store: it writes the home away WITHOUT the compute going down.
+//
+// It exists because of the warm sandbox. For an agent that falls asleep
+// properly, stopping the compute is what carries the home into the store — the
+// scan then runs on a home nothing writes into any more. A warm agent never
+// stops, so without this its work stays in one container volume on one host
+// until something tears that sandbox down, and every way of losing the
+// container in between (a hard restart, a prune, an OOM kill) loses the run
+// with it. `spec/16-runner.md` decides the other way round: after every job the
+// home goes into the store.
+//
+// Optional, because not every provider has a store to speak of — the mock in
+// the tests has none.
+type HomeSyncer interface {
+	SyncHome(ctx context.Context) error
+}
+
 // Placed is the optional half of a sandbox that knows which host it landed on.
 // Optional because not every provider has hosts to speak of — the mock in the
 // tests has none — and because the answer is worth a line in the recording

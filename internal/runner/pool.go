@@ -1262,13 +1262,31 @@ type poolSandbox struct {
 	once    sync.Once
 }
 
+// SyncHome writes the home into the store while the compute keeps running —
+// satisfies orchestrator.HomeSyncer, and it is how a warm-parked sandbox gets
+// its job into the store at all (see Stop below).
+//
+// The caller decides WHEN: the orchestrator syncs a parked sandbox, i.e. one
+// nobody is writing into at that moment. The one thing that cannot be ruled
+// out is the next wake arriving mid-scan; the snapshot then describes a home
+// in motion. That is the same window the manual backup has always had, and it
+// is the cheaper end of the trade — the alternative is a job that lives
+// nowhere but in a container volume.
+func (s *poolSandbox) SyncHome(ctx context.Context) error {
+	// Whatever the file browser has changed and not yet carried out goes in
+	// with it — two syncs in a row would only produce two snapshots of the
+	// same state.
+	s.pool.flushDirtyFlag(s.agentID)
+	return s.pool.syncHomeReason(ctx, s.conn, s.agentID, s.orgID, "job")
+}
+
 // Stop shuts the compute down and writes the home into the store. In that
 // order: the scan runs on a home nothing is writing into any more.
 //
-// This is the real falling-asleep. A warm-parked sandbox never gets here — the
-// warm session (spec/03) stays untouched by the sync, which is what keeps the
-// sleep path from becoming the slow path for agents that wake every few
-// minutes.
+// This is the real falling-asleep. A warm-parked sandbox does not get here —
+// it goes through SyncHome above instead, on the parked sandbox and off the
+// sleep path, so an agent that wakes every few minutes does not pay for a full
+// scan every time it nods off.
 func (s *poolSandbox) Stop(ctx context.Context) error {
 	var err error
 	s.once.Do(func() {
