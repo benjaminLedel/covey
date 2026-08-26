@@ -848,6 +848,8 @@
     },
     "recording": {
       "taskFilter": "Aufgabe: {{title}}",
+      "runsOn": "Läuft auf",
+      "ranOn": "Zuletzt gelaufen auf",
       "allEvents": "Alle Ereignisse",
       "readableView": "Lesbar",
       "rawView": "Rohdaten",
