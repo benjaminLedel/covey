@@ -1075,26 +1075,41 @@ func (p *Pool) Check(ctx context.Context) []string {
 	}
 
 	images := p.wantedImages(ctx)
-	var problems []string
-	for _, c := range conns {
-		answer, err := c.ask(ctx, TypeCheck, Check{Images: images, Hints: p.imageHints(ctx)}, 30*time.Second)
-		if err != nil {
-			problems = append(problems, fmt.Sprintf("runner %s does not answer: %v", short(c.runnerID), err))
-			continue
-		}
-		res, err := decode[CheckResult](answer)
-		if err != nil {
-			problems = append(problems, fmt.Sprintf("runner %s: %v", short(c.runnerID), err))
-			continue
-		}
-		for _, problem := range res.Problems {
-			// Only name the runner once there is more than one — on the normal
-			// installation the prefix would be noise in every line.
-			if len(conns) > 1 {
-				problem = "runner " + short(c.runnerID) + ": " + problem
+	hints := p.imageHints(ctx)
+	// All hosts at once. Serially, one host that does not answer held up the
+	// answer for all the others — and the caller behind this is a view that is
+	// polled, so its wait was everybody's wait. The order does not suffer: the
+	// lines are sorted afterwards anyway.
+	found := make([][]string, len(conns))
+	var wg sync.WaitGroup
+	for i, c := range conns {
+		wg.Add(1)
+		go func(i int, c *conn) {
+			defer wg.Done()
+			answer, err := c.ask(ctx, TypeCheck, Check{Images: images, Hints: hints}, 30*time.Second)
+			if err != nil {
+				found[i] = []string{fmt.Sprintf("runner %s does not answer: %v", short(c.runnerID), err)}
+				return
 			}
-			problems = append(problems, problem)
-		}
+			res, err := decode[CheckResult](answer)
+			if err != nil {
+				found[i] = []string{fmt.Sprintf("runner %s: %v", short(c.runnerID), err)}
+				return
+			}
+			for _, problem := range res.Problems {
+				// Only name the runner once there is more than one — on the
+				// normal installation the prefix would be noise in every line.
+				if len(conns) > 1 {
+					problem = "runner " + short(c.runnerID) + ": " + problem
+				}
+				found[i] = append(found[i], problem)
+			}
+		}(i, c)
+	}
+	wg.Wait()
+	var problems []string
+	for _, f := range found {
+		problems = append(problems, f...)
 	}
 	sort.Strings(problems)
 	return problems

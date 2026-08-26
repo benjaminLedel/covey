@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/coder/websocket"
 	"github.com/google/uuid"
@@ -393,17 +395,41 @@ func (s *Server) handleListRunners(w http.ResponseWriter, r *http.Request) {
 		view := RunnerView{Runner: rn}
 		if l, ok := live[rn.ID]; ok {
 			view.Live = &l
-			// Free disk is asked, not remembered: it changes while nobody is
-			// looking, and a cached figure is the kind that reassures right up
-			// to the moment the disk is full.
-			if cap, err := s.RunnerPool.Capacity(r.Context(), rn.ID); err == nil {
-				view.Capacity = &cap
-			}
 		}
 		out = append(out, view)
 	}
+	// Free disk is asked, not remembered: it changes while nobody is looking,
+	// and a cached figure is the kind that reassures right up to the moment the
+	// disk is full. But asked of all hosts at once and briefly — see
+	// capacityWait. Serially and with the full answer timeout this loop was
+	// what made the runner page take half a minute to appear whenever one host
+	// was busy.
+	ctx, cancel := context.WithTimeout(r.Context(), capacityWait)
+	defer cancel()
+	var wg sync.WaitGroup
+	for i := range out {
+		if out[i].Live == nil {
+			continue
+		}
+		wg.Add(1)
+		go func(v *RunnerView) {
+			defer wg.Done()
+			if cap, err := s.RunnerPool.Capacity(ctx, v.ID); err == nil {
+				v.Capacity = &cap
+			}
+		}(&out[i])
+	}
+	wg.Wait()
 	writeJSON(w, http.StatusOK, out)
 }
+
+// capacityWait is how long the list waits for the hosts' disk figures. A runner
+// answers this in milliseconds when it is idle — and not at all while it is
+// inside a start, because a start blocks its read loop and a start may be a
+// multi-gigabyte pull. The figure is worth showing; it is not worth a page that
+// does not come. What is missing shows as an empty column, next to a row that
+// is otherwise complete.
+const capacityWait = 2 * time.Second
 
 // RunnerView is one runner as the runner page shows it: what it is, and — while
 // it is connected — what it is carrying.

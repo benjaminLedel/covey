@@ -846,3 +846,65 @@ func waitUntil(t *testing.T, timeout time.Duration, cond func() bool) {
 	}
 	t.Fatalf("condition not met within %s", timeout)
 }
+
+// The data-plane check asks every host, and a host answers it out of its read
+// loop — the same loop a start occupies while it pulls a multi-gigabyte image.
+// Serially, one busy host therefore set the wait for all of them, and behind
+// this check sits a view that is polled: the runner page took the sum of every
+// host's slowness before it appeared. Now the question goes out to all at once,
+// so the wait is the slowest host's, not the sum.
+func TestTheCheckAsksEveryHostAtOnce(t *testing.T) {
+	orgID := uuid.New()
+	p := NewPool(quietLog())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	const answerAfter = 400 * time.Millisecond
+	for i := 0; i < 3; i++ {
+		control, node := NewInProc()
+		defer control.Close()
+		go slowRunner(ctx, node, orgID, answerAfter)
+		go func() { _ = p.Attach(ctx, control, false) }()
+	}
+	waitUntil(t, 3*time.Second, func() bool { return len(p.LiveFor(orgID)) == 3 })
+
+	start := time.Now()
+	if problems := p.Check(ctx); len(problems) != 0 {
+		t.Fatalf("the hosts answered without a complaint: %v", problems)
+	}
+	if took := time.Since(start); took > 2*answerAfter {
+		t.Errorf("three hosts asked one after the other: %s for an answer that takes %s", took, answerAfter)
+	}
+}
+
+// slowRunner is a host that answers correctly and slowly — a stand-in for one
+// whose read loop is busy with something big.
+func slowRunner(ctx context.Context, t Transport, orgID uuid.UUID, delay time.Duration) {
+	msg, _ := encode(TypeRegistered, "", Registered{RunnerID: uuid.New(), OrgID: orgID, Protocol: Protocol})
+	if err := t.Send(ctx, msg); err != nil {
+		return
+	}
+	for {
+		in, err := t.Receive(ctx)
+		if err != nil {
+			return
+		}
+		var answer Message
+		switch in.Type {
+		case TypeCheck:
+			answer, _ = encode(TypeCheckResult, in.ID, CheckResult{})
+		case TypeCapacity:
+			answer, _ = encode(TypeCapacityReport, in.ID, CapacityReport{})
+		default:
+			continue
+		}
+		select {
+		case <-time.After(delay):
+		case <-ctx.Done():
+			return
+		}
+		if err := t.Send(ctx, answer); err != nil {
+			return
+		}
+	}
+}
