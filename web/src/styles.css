@@ -4095,7 +4095,13 @@ kbd {
    Abstände gehören hierher und nicht in Utility-Klassen an jedem Element:
    die Seite besteht aus gleichartigen Abschnitten, und gleichartig heißt
    auch gleich weit auseinander. */
-.rd-page { display: flex; flex-direction: column; gap: 14px; max-width: 860px; }
+/* Breiter als die 860px von vorher, weil links jetzt 186px Menue stehen: der
+   Inhalt soll dieselbe Breite behalten wie damals, als er die ganze Seite war. */
+.rd-page { display: flex; flex-direction: column; gap: 14px; max-width: 1066px; }
+/* Ein Bereich kann aus mehreren Karten bestehen (Identitaet: Name und Tags).
+   Ohne diese Regel klebten sie aneinander — .rd-page gibt den Abstand nur
+   seinen eigenen Kindern, und die sind jetzt Kopf und Raster. */
+.rd-panes-content { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .rd-card { display: flex; flex-direction: column; gap: 10px; }
 /* Die Einleitung gehört zur Überschrift, nicht zum ersten Feld. */
 .rd-card > h2 + p { margin: -6px 0 2px; }

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, patch, post, del, type Principal } from "../api";
 import RunnerLog from "../components/RunnerLog";
 
@@ -69,6 +69,7 @@ export default function RunnerDetail({ me }: { me: Principal }) {
   const { id = "" } = useParams();
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const [sp, setSp] = useSearchParams();
   const manage = me.Role === "org_admin" || me.Role === "agent_owner";
 
   const runners = useQuery({
@@ -133,6 +134,37 @@ export default function RunnerDetail({ me }: { me: Principal }) {
   if (!r) return <p className="muted text-sm">{t("runners.detail.gone")}</p>;
 
   const connected = !!r.live?.connected;
+
+  /* Fuenf Bereiche statt neun Karten untereinander.
+   *
+   * Die Seite war eine Rolle: Identitaet, Tags, Images, Vorabholen,
+   * Aktualisieren, Pausieren, Log, Zustand, Entfernen — und wer nachsehen
+   * wollte, was der Host gerade sagt, scrollte an allem vorbei, was er heute
+   * nicht aendern will. Das Menue ist dasselbe wie in den Agenten-
+   * Einstellungen (settings-panes/settings-nav), damit niemand zwei Muster
+   * fuer dieselbe Sache lernen muss.
+   *
+   * Der Unterpunkt steht in der URL: ein Link auf das Log eines Hosts ist
+   * genau das, was man in einen Chat wirft, wenn etwas klemmt. */
+  const subs = [
+    ["state", t("runners.detail.subState"), true],
+    ["identity", t("runners.detail.subIdentity"), true],
+    ["workplaces", t("runners.detail.subWorkplaces"), true],
+    ["log", t("runners.detail.subLog"), true],
+    ["maintenance", t("runners.detail.subMaintenance"), manage],
+  ] as const;
+  const wanted = sp.get("sub") ?? "state";
+  const sub = subs.some(([k, , allowed]) => k === wanted && allowed) ? wanted : "state";
+  const setSub = (key: string) =>
+    setSp(
+      (prev) => {
+        const n = new URLSearchParams(prev);
+        n.set("sub", key);
+        return n;
+      },
+      { replace: false },
+    );
+
   return (
     <div className="rd-page">
       <div>
@@ -163,212 +195,249 @@ export default function RunnerDetail({ me }: { me: Principal }) {
 
       {error && <div className="card danger-text text-sm">{error}</div>}
 
-      <div className="card rd-card">
-        <h2 className="text-[15px]">{t("runners.detail.identity")}</h2>
-        <p className="muted text-xs">{t("runners.detail.identityHint")}</p>
-        <Field
-          label={t("runners.detail.name")}
-          value={r.name ?? ""}
-          placeholder={r.kind === "builtin" ? t("runners.builtin") : r.description || r.id.slice(0, 8)}
-          disabled={!manage}
-          onSave={(v) => save.mutate({ name: v })}
-        />
-        <Field
-          label={t("runners.detail.description")}
-          value={r.description ?? ""}
-          placeholder={t("runners.detail.descriptionPlaceholder")}
-          disabled={!manage}
-          onSave={(v) => save.mutate({ description: v })}
-        />
-      </div>
-
-      <div className="card rd-card">
-        <h2 className="text-[15px]">{t("runners.detail.steering")}</h2>
-        <p className="muted text-xs">{t("runners.detail.steeringHint")}</p>
-        <Field
-          label={t("runners.tagsLabel")}
-          value={list(r.extra_tags)}
-          placeholder={t("runners.tagsPlaceholder")}
-          disabled={!manage}
-          onSave={(v) => save.mutate({ tags: parse(v) })}
-        />
-        <Reported label={t("runners.detail.reportedTags")} value={list(r.live?.reported_tags ?? r.tags)} />
-        <Reported label={t("runners.detail.effectiveTags")} value={list(r.live?.tags ?? r.tags)} />
-      </div>
-
-      <div className="card rd-card">
-        <h2 className="text-[15px]">{t("runners.imagesLabel")}</h2>
-        <p className="muted text-xs">{t("runners.detail.imagesHint")}</p>
-        <Field
-          label={t("runners.detail.assignedImages")}
-          value={list(r.assigned_images)}
-          placeholder={t("runners.imagesPlaceholder")}
-          disabled={!manage}
-          onSave={(v) => save.mutate({ images: parse(v) })}
-          mono
-        />
-        <Reported
-          label={t("runners.detail.reportedImages")}
-          value={list(r.live?.reported_images) || t("runners.imagesNone")}
-        />
-      </div>
-
-      {manage && (
-        <div className="card rd-card">
-          <h2 className="text-[15px]">{t("runners.detail.pullTitle")}</h2>
-          <p className="muted text-xs">{t("runners.detail.pullHint")}</p>
-          {!connected && <p className="muted text-sm">{t("runners.detail.pullOffline")}</p>}
-          <div className="flex flex-wrap gap-2">
-            {(workplaces.data ?? []).map((w) => (
+      <div className="settings-panes">
+        <nav className="settings-nav" role="tablist">
+          {subs
+            .filter(([, , allowed]) => allowed)
+            .map(([key, label]) => (
               <button
-                key={w.name}
-                className="btn sm"
-                disabled={!connected || pull.isPending}
-                onClick={() => {
-                  setPullResult(null);
-                  pull.mutate({ workplace: w.name });
-                }}
-                title={w.image}
+                key={key}
+                role="tab"
+                aria-selected={sub === key}
+                className={`nav-item${sub === key ? " active" : ""}`}
+                onClick={() => setSub(key)}
               >
-                {w.label || w.name}
+                {label}
               </button>
             ))}
-          </div>
-          <form
-            className="flex gap-2 items-center"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!ownImage.trim()) return;
-              setPullResult(null);
-              pull.mutate({ image: ownImage.trim() });
-            }}
-          >
-            <input
-              className="mono text-sm"
-              style={{ flex: 1 }}
-              placeholder={t("runners.detail.pullPlaceholder")}
-              value={ownImage}
-              onChange={(e) => setOwnImage(e.target.value)}
+        </nav>
+
+        <div className="rd-panes-content">
+          {sub === "state" && (
+            <div className="card rd-card">
+              <h2 className="text-[15px]">{t("runners.detail.state")}</h2>
+              <Row label={t("runners.colVersion")} value={r.live?.version || r.version || "—"} />
+              <Row label={t("runners.detail.arch")} value={r.live?.arch || r.arch || "—"} />
+              {/* Die Zeile kennt das Protokoll erst, wenn der Runner sich einmal
+                  gemeldet hat — beim eingebauten steht es nur in der Verbindung. */}
+              <Row
+                label={t("runners.detail.protocol")}
+                value={String(r.live?.protocol || r.protocol || "—")}
+              />
+              <Row
+                label={t("runners.detail.sandboxes")}
+                value={(() => {
+                  const running = r.live?.sandboxes ?? r.capacity?.sandboxes ?? 0;
+                  // Der Host sagt sein Limit selbst — es steht in seiner Konfiguration
+                  // und nicht hier. „3 von 4" beantwortet die Frage, die man an dieser
+                  // Zeile stellt; „3" beantwortet sie nur halb.
+                  const max = r.live?.max_sandboxes ?? r.capacity?.max_sandboxes ?? 0;
+                  return max > 0 ? t("runners.detail.sandboxesOf", { running, max }) : String(running);
+                })()}
+              />
+              <Row label={t("runners.detail.workDir")} value={r.capacity?.work_dir || "—"} />
+              <Row
+                label={t("runners.detail.lastSeen")}
+                value={r.last_seen_at?.replace("T", " ").slice(0, 19) || "—"}
+              />
+            </div>
+          )}
+
+          {sub === "identity" && (
+            <>
+              <div className="card rd-card">
+                <h2 className="text-[15px]">{t("runners.detail.identity")}</h2>
+                <p className="muted text-xs">{t("runners.detail.identityHint")}</p>
+                <Field
+                  label={t("runners.detail.name")}
+                  value={r.name ?? ""}
+                  placeholder={r.kind === "builtin" ? t("runners.builtin") : r.description || r.id.slice(0, 8)}
+                  disabled={!manage}
+                  onSave={(v) => save.mutate({ name: v })}
+                />
+                <Field
+                  label={t("runners.detail.description")}
+                  value={r.description ?? ""}
+                  placeholder={t("runners.detail.descriptionPlaceholder")}
+                  disabled={!manage}
+                  onSave={(v) => save.mutate({ description: v })}
+                />
+              </div>
+
+              <div className="card rd-card">
+                <h2 className="text-[15px]">{t("runners.detail.steering")}</h2>
+                <p className="muted text-xs">{t("runners.detail.steeringHint")}</p>
+                <Field
+                  label={t("runners.tagsLabel")}
+                  value={list(r.extra_tags)}
+                  placeholder={t("runners.tagsPlaceholder")}
+                  disabled={!manage}
+                  onSave={(v) => save.mutate({ tags: parse(v) })}
+                />
+                <Reported label={t("runners.detail.reportedTags")} value={list(r.live?.reported_tags ?? r.tags)} />
+                <Reported label={t("runners.detail.effectiveTags")} value={list(r.live?.tags ?? r.tags)} />
+              </div>
+            </>
+          )}
+
+          {sub === "workplaces" && (
+            <>
+              <div className="card rd-card">
+                <h2 className="text-[15px]">{t("runners.imagesLabel")}</h2>
+                <p className="muted text-xs">{t("runners.detail.imagesHint")}</p>
+                <Field
+                  label={t("runners.detail.assignedImages")}
+                  value={list(r.assigned_images)}
+                  placeholder={t("runners.imagesPlaceholder")}
+                  disabled={!manage}
+                  onSave={(v) => save.mutate({ images: parse(v) })}
+                  mono
+                />
+                <Reported
+                  label={t("runners.detail.reportedImages")}
+                  value={list(r.live?.reported_images) || t("runners.imagesNone")}
+                />
+              </div>
+
+              {manage && (
+                <div className="card rd-card">
+                  <h2 className="text-[15px]">{t("runners.detail.pullTitle")}</h2>
+                  <p className="muted text-xs">{t("runners.detail.pullHint")}</p>
+                  {!connected && <p className="muted text-sm">{t("runners.detail.pullOffline")}</p>}
+                  <div className="flex flex-wrap gap-2">
+                    {(workplaces.data ?? []).map((w) => (
+                      <button
+                        key={w.name}
+                        className="btn sm"
+                        disabled={!connected || pull.isPending}
+                        onClick={() => {
+                          setPullResult(null);
+                          pull.mutate({ workplace: w.name });
+                        }}
+                        title={w.image}
+                      >
+                        {w.label || w.name}
+                      </button>
+                    ))}
+                  </div>
+                  <form
+                    className="flex gap-2 items-center"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (!ownImage.trim()) return;
+                      setPullResult(null);
+                      pull.mutate({ image: ownImage.trim() });
+                    }}
+                  >
+                    <input
+                      className="mono text-sm"
+                      style={{ flex: 1 }}
+                      placeholder={t("runners.detail.pullPlaceholder")}
+                      value={ownImage}
+                      onChange={(e) => setOwnImage(e.target.value)}
+                    />
+                    <button className="btn sm" disabled={!connected || pull.isPending}>
+                      {t("runners.detail.pull")}
+                    </button>
+                  </form>
+                  {pull.isPending && <p className="muted text-sm">{t("runners.detail.pullRunning")}</p>}
+                  {pullResult && !pull.isPending && (
+                    <p className={pullResult.ok ? "text-sm" : "text-sm danger-text"}>
+                      {pullResult.ok
+                        ? t("runners.detail.pullDone", { image: pullResult.image })
+                        : t("runners.detail.pullFailed", { image: pullResult.image, error: pullResult.error })}
+                    </p>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {sub === "log" && (
+            <RunnerLog
+              runnerId={r.id}
+              level={r.log_level || "info"}
+              connected={connected}
+              // Ein Host, dessen Build das Log noch nicht schickt, schweigt nicht —
+              // er kann nicht. Das zu unterscheiden ist der Unterschied zwischen
+              // „nichts los" und „du siehst hier nie etwas".
+              ships={!connected || (r.live?.features ?? []).includes("log_shipping")}
+              manage={manage}
             />
-            <button className="btn sm" disabled={!connected || pull.isPending}>
-              {t("runners.detail.pull")}
-            </button>
-          </form>
-          {pull.isPending && <p className="muted text-sm">{t("runners.detail.pullRunning")}</p>}
-          {pullResult && !pull.isPending && (
-            <p className={pullResult.ok ? "text-sm" : "text-sm danger-text"}>
-              {pullResult.ok
-                ? t("runners.detail.pullDone", { image: pullResult.image })
-                : t("runners.detail.pullFailed", { image: pullResult.image, error: pullResult.error })}
-            </p>
+          )}
+
+          {sub === "maintenance" && manage && (
+            <>
+              {r.kind === "remote" && (
+                <div className="card rd-card">
+                  <h2 className="text-[15px]">{t("runners.detail.updateTitle")}</h2>
+                  <p className="muted text-xs">{t("runners.detail.updateHint")}</p>
+                  <Reported label={t("runners.colVersion")} value={r.live?.version || r.version || "—"} />
+                  {!connected && <p className="muted text-sm">{t("runners.detail.updateOffline")}</p>}
+                  <div>
+                    <button
+                      className="btn sm"
+                      disabled={!connected || update.isPending}
+                      onClick={() => {
+                        setUpdateResult(null);
+                        update.mutate();
+                      }}
+                    >
+                      {t("runners.detail.update")}
+                    </button>
+                  </div>
+                  {update.isPending && <p className="muted text-sm">{t("runners.detail.updateRunning")}</p>}
+                  {updateResult && !update.isPending && (
+                    <p className={updateResult.ok ? "text-sm" : "text-sm danger-text"}>
+                      {!updateResult.ok
+                        ? t("runners.detail.updateFailed", { error: updateResult.error })
+                        : updateResult.restarting
+                          ? t("runners.detail.updateDone", { from: updateResult.from, to: updateResult.to })
+                          : t("runners.detail.updateCurrent", { version: updateResult.to || updateResult.from })}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div className="card rd-card">
+                <h2 className="text-[15px]">{t("runners.detail.pauseTitle")}</h2>
+                {/* Der Text ist zustandsabhängig, weil die Frage es ist: „Was passiert,
+                    wenn ich das drücke" ist bei einem pausierten Host eine andere als
+                    bei einem laufenden. */}
+                <p className="muted text-xs">
+                  {r.paused_at ? t("runners.detail.pausedHint") : t("runners.detail.pauseHint")}
+                </p>
+                <div>
+                  <button
+                    className="btn sm"
+                    disabled={save.isPending}
+                    onClick={() => save.mutate({ paused: !r.paused_at })}
+                  >
+                    {r.paused_at ? t("runners.detail.resume") : t("runners.detail.pause")}
+                  </button>
+                </div>
+              </div>
+
+              {r.kind === "remote" && (
+                <div className="card rd-card">
+                  <h2 className="text-[15px]">{t("runners.detail.removeTitle")}</h2>
+                  <p className="muted text-xs">{t("runners.detail.removeHint")}</p>
+                  <div>
+                    <button
+                      className="btn-ghost danger-text text-sm"
+                      onClick={() => {
+                        if (confirm(t("runners.confirmDelete"))) remove.mutate();
+                      }}
+                    >
+                      {t("runners.detail.remove")}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
-      )}
-
-      {manage && r.kind === "remote" && (
-        <div className="card rd-card">
-          <h2 className="text-[15px]">{t("runners.detail.updateTitle")}</h2>
-          <p className="muted text-xs">{t("runners.detail.updateHint")}</p>
-          <Reported label={t("runners.colVersion")} value={r.live?.version || r.version || "—"} />
-          {!connected && <p className="muted text-sm">{t("runners.detail.updateOffline")}</p>}
-          <div>
-            <button
-              className="btn sm"
-              disabled={!connected || update.isPending}
-              onClick={() => {
-                setUpdateResult(null);
-                update.mutate();
-              }}
-            >
-              {t("runners.detail.update")}
-            </button>
-          </div>
-          {update.isPending && <p className="muted text-sm">{t("runners.detail.updateRunning")}</p>}
-          {updateResult && !update.isPending && (
-            <p className={updateResult.ok ? "text-sm" : "text-sm danger-text"}>
-              {!updateResult.ok
-                ? t("runners.detail.updateFailed", { error: updateResult.error })
-                : updateResult.restarting
-                  ? t("runners.detail.updateDone", { from: updateResult.from, to: updateResult.to })
-                  : t("runners.detail.updateCurrent", { version: updateResult.to || updateResult.from })}
-            </p>
-          )}
-        </div>
-      )}
-
-      {manage && (
-        <div className="card rd-card">
-          <h2 className="text-[15px]">{t("runners.detail.pauseTitle")}</h2>
-          {/* Der Text ist zustandsabhängig, weil die Frage es ist: „Was passiert,
-              wenn ich das drücke" ist bei einem pausierten Host eine andere als
-              bei einem laufenden. */}
-          <p className="muted text-xs">
-            {r.paused_at ? t("runners.detail.pausedHint") : t("runners.detail.pauseHint")}
-          </p>
-          <div>
-            <button
-              className="btn sm"
-              disabled={save.isPending}
-              onClick={() => save.mutate({ paused: !r.paused_at })}
-            >
-              {r.paused_at ? t("runners.detail.resume") : t("runners.detail.pause")}
-            </button>
-          </div>
-        </div>
-      )}
-
-      <RunnerLog
-        runnerId={r.id}
-        level={r.log_level || "info"}
-        connected={connected}
-        // Ein Host, dessen Build das Log noch nicht schickt, schweigt nicht —
-        // er kann nicht. Das zu unterscheiden ist der Unterschied zwischen
-        // „nichts los" und „du siehst hier nie etwas".
-        ships={!connected || (r.live?.features ?? []).includes("log_shipping")}
-        manage={manage}
-      />
-
-      <div className="card rd-card">
-        <h2 className="text-[15px]">{t("runners.detail.state")}</h2>
-        <Row label={t("runners.colVersion")} value={r.live?.version || r.version || "—"} />
-        <Row label={t("runners.detail.arch")} value={r.live?.arch || r.arch || "—"} />
-        {/* Die Zeile kennt das Protokoll erst, wenn der Runner sich einmal
-            gemeldet hat — beim eingebauten steht es nur in der Verbindung. */}
-        <Row
-          label={t("runners.detail.protocol")}
-          value={String(r.live?.protocol || r.protocol || "—")}
-        />
-        <Row
-          label={t("runners.detail.sandboxes")}
-          value={(() => {
-            const running = r.live?.sandboxes ?? r.capacity?.sandboxes ?? 0;
-            // Der Host sagt sein Limit selbst — es steht in seiner Konfiguration
-            // und nicht hier. „3 von 4" beantwortet die Frage, die man an dieser
-            // Zeile stellt; „3" beantwortet sie nur halb.
-            const max = r.live?.max_sandboxes ?? r.capacity?.max_sandboxes ?? 0;
-            return max > 0 ? t("runners.detail.sandboxesOf", { running, max }) : String(running);
-          })()}
-        />
-        <Row label={t("runners.detail.workDir")} value={r.capacity?.work_dir || "—"} />
-        <Row label={t("runners.detail.lastSeen")} value={r.last_seen_at?.replace("T", " ").slice(0, 19) || "—"} />
       </div>
-
-      {manage && r.kind === "remote" && (
-        <div className="card rd-card">
-          <h2 className="text-[15px]">{t("runners.detail.removeTitle")}</h2>
-          <p className="muted text-xs">{t("runners.detail.removeHint")}</p>
-          <div>
-            <button
-              className="btn-ghost danger-text text-sm"
-              onClick={() => {
-                if (confirm(t("runners.confirmDelete"))) remove.mutate();
-              }}
-            >
-              {t("runners.detail.remove")}
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

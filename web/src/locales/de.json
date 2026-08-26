@@ -2299,7 +2299,12 @@
       "pullRunning": "Wird geholt … das kann bei mehreren Gigabyte dauern.",
       "pullDone": "{{image}} liegt jetzt auf diesem Host.",
       "pullFailed": "{{image}} konnte nicht geholt werden: {{error}}",
-      "sandboxesOf": "{{running}} von {{max}}"
+      "sandboxesOf": "{{running}} von {{max}}",
+      "subState": "Zustand",
+      "subIdentity": "Identität",
+      "subWorkplaces": "Arbeitsplätze",
+      "subLog": "Log",
+      "subMaintenance": "Wartung"
     },
     "edit": "Bearbeiten",
     "log": {
