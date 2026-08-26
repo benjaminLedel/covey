@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { api, post, type Principal } from "../api";
+import { api, patch, post, type Principal } from "../api";
 
 // Die Runner-Ansicht (spec/16, Stufe 5). Ab dem dritten Runner ist sie das,
 // was den Betrieb bedienbar macht: welche Hosts es gibt, welcher gerade traegt,
@@ -114,6 +114,12 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
     queryFn: () => api<StoreView>("/platform/home-store"),
   });
 
+  // Pausieren aus der Zeile heraus. Dieselbe Route wie auf der Detailseite —
+  // es ist dieselbe Entscheidung, nur naeher dran.
+  const setPaused = useMutation({
+    mutationFn: (v: { id: string; paused: boolean }) => patch(`/runners/${v.id}`, { paused: v.paused }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["runners"] }),
+  });
   const createToken = useMutation({
     mutationFn: () => post<{ token: string }>("/runners/registration-tokens", {}),
     onSuccess: (r) => setToken(r.token),
@@ -260,9 +266,24 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
                         Arbeitsplätze gelten für ihn genauso; was ihm fehlt,
                         ist das Löschen. */}
                     {manage && (
-                      <Link className="btn sm" to={`/infrastructure/runners/${r.id}`}>
-                        {t("runners.edit")}
-                      </Link>
+                      <div className="flex gap-2 justify-end">
+                        {/* Pausieren ist die Handlung, die man von der
+                            Uebersicht aus will: Man sieht hier, welcher Host
+                            traegt und welcher klemmt, und der Griff dazu darf
+                            nicht eine Seite weiter liegen. Alles andere —
+                            Namen, Tags, Arbeitsplaetze — braucht Platz fuer
+                            einen Satz daneben und bleibt drueben. */}
+                        <button
+                          className="btn-ghost text-xs"
+                          disabled={setPaused.isPending}
+                          onClick={() => setPaused.mutate({ id: r.id, paused: !r.paused_at })}
+                        >
+                          {r.paused_at ? t("runners.detail.resume") : t("runners.detail.pause")}
+                        </button>
+                        <Link className="btn sm" to={`/infrastructure/runners/${r.id}`}>
+                          {t("runners.edit")}
+                        </Link>
+                      </div>
                     )}
                   </td>
                 </tr>
