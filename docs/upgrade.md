@@ -215,10 +215,13 @@ Nothing to do for these; they are listed so the log lines make sense.
 ### 4. Optional, and only if you want it
 
 - **A second host**: `make runner`, then `covey-runner register` on that
-  machine. See [`ops-runner.md`](ops-runner.md). Note that the built-in runner
-  **stands down** as soon as an organisation registers a runner of its own —
-  compute is then either on this machine or off it, never quietly on both.
-  TLS becomes mandatory at that point: a `start_sandbox` carries daemon tokens.
+  machine. See [`ops-runner.md`](ops-runner.md). The built-in runner keeps
+  running beside it and takes over when the new host cannot — whoever wants no
+  compute on the control plane's machine **pauses** the built-in runner in the
+  runner view. (It used to stand down by itself as soon as a runner was
+  registered; that rule left more than one instance with a host on paper and no
+  data plane in fact.) TLS becomes mandatory at that point: a `start_sandbox`
+  carries daemon tokens.
 - **Blocks in an object store**: `COVEY_BLOB_STORE=s3` (see
   [`ops-runner.md`](ops-runner.md)). Switching backends does **not** move the
   blocks — copy the directory over first, or accept that every home is rebuilt

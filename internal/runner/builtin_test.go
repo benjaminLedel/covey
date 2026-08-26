@@ -2,30 +2,28 @@ package runner
 
 import "testing"
 
-// The rule that a registered runner switches the built-in one off was right
-// about the intent and wrong about the consequence: a host that does not hold
-// the workplace image left the organisation with a runner and without a data
-// plane. The table is short, and each row is a state that has actually
-// occurred on a running instance.
+// What the mode still decides — and what it no longer does. The existence of a
+// registered runner used to be half of this answer: "off" meant "off once the
+// organisation has one", and even the default let the built-in runner stand
+// down by itself. Both are gone. A rule that infers an intention from a fact
+// was wrong often enough to be expensive, and pausing the runner says the same
+// thing where a person can see it.
 func TestBuiltinAllowed(t *testing.T) {
 	cases := []struct {
-		name      string
-		mode      string
-		hasRemote bool
-		want      bool
+		name string
+		mode string
+		want bool
 	}{
-		{"no runner at all — the normal single-machine case", "auto", false, true},
-		{"a registered runner that does not fit — the outage", "auto", true, true},
-		{"off, and something else can carry it", "off", true, false},
-		{"off, but nothing else exists — an organisation that could never work", "off", false, true},
-		{"an unset variable is auto", "", true, true},
-		{"whitespace and case are not a second mode", " OFF ", true, false},
-		{"anything unrecognised stays permissive", "vielleicht", true, true},
+		{"the normal case: the control plane may carry sandboxes", "auto", true},
+		{"off means off, whether or not another host exists", "off", false},
+		{"an unset variable is auto", "", true},
+		{"whitespace and case are not a second mode", " OFF ", false},
+		{"anything unrecognised stays permissive", "vielleicht", true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := BuiltinAllowed(c.mode, c.hasRemote); got != c.want {
-				t.Errorf("BuiltinAllowed(%q, %v) = %v, expected %v", c.mode, c.hasRemote, got, c.want)
+			if got := BuiltinAllowed(c.mode); got != c.want {
+				t.Errorf("BuiltinAllowed(%q) = %v, expected %v", c.mode, got, c.want)
 			}
 		})
 	}

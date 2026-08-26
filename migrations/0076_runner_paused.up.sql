@@ -1,0 +1,12 @@
+-- A runner can be paused: it stays registered, keeps its token and its
+-- capabilities, and gets no new sandboxes. That is the maintenance window a
+-- host needs — kernel update, disk swap, a machine somebody wants quiet —
+-- without deleting and re-registering it, which would throw away exactly the
+-- working copies that make the host worth keeping.
+--
+-- It is also what replaces the rule that the built-in runner stood down by
+-- itself as soon as a remote one was registered. That rule guessed an
+-- intention from a fact, and guessed wrong often enough to cost a data plane:
+-- whoever wants no sandboxes on the control plane's machine now says so about
+-- that runner, in one place, visibly, and can take it back the same way.
+ALTER TABLE runners ADD COLUMN paused_at timestamptz;

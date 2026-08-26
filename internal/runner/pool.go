@@ -85,7 +85,7 @@ type Pool struct {
 	// interface — tags on top of what the host reports, and the workplaces it
 	// is to provide. nil = nothing is assigned anywhere, which is what a pool
 	// without a database looks like (tests, the runner side).
-	Capabilities func(ctx context.Context, runnerID uuid.UUID) (extraTags, images []string, decided bool, err error)
+	Capabilities func(ctx context.Context, runnerID uuid.UUID) (extraTags, images []string, decided, paused bool, err error)
 
 	// EnsureLocal is asked when an organisation has no connected runner: the
 	// built-in one is created on first use, because organisations come into
@@ -183,6 +183,9 @@ type conn struct {
 	// that has not arrived yet: a host that has just connected is given the
 	// same grace as one that has just answered.
 	openedAt time.Time
+	// pausedNow: an operator has taken this host out of service. It keeps its
+	// connection, its token and its working copies — it just gets nothing new.
+	pausedNow bool
 	// sandboxes counts what is running here — the whole of the scheduling
 	// weight for now: no bin packing, no resource modelling.
 	sandboxes int
@@ -308,12 +311,16 @@ func (p *Pool) register(ctx context.Context, t Transport, builtin bool) (*conn, 
 	// not from the next restart of the runner: the capabilities live here, the
 	// host only says what it knows about itself.
 	if p.Capabilities != nil {
-		extra, images, decided, err := p.Capabilities(ctx, reg.RunnerID)
+		extra, images, decided, paused, err := p.Capabilities(ctx, reg.RunnerID)
 		if err != nil {
 			p.Log.Warn("assigned capabilities not readable — the runner's own claim applies",
 				"runner", reg.RunnerID, "err", err)
 		} else {
 			c.applyAssigned(extra, images, decided)
+			// A pause survives a reconnect. Otherwise restarting the runner
+			// would be the way around it, and a maintenance window that a
+			// restart ends is none.
+			c.setPaused(paused)
 		}
 	}
 	p.mu.Lock()
@@ -337,6 +344,33 @@ func (c *conn) applyAssigned(extraTags, images []string, decided bool) {
 	} else {
 		c.images = c.reportedImages
 	}
+}
+
+// setPaused / paused: whether this host takes new sandboxes. Kept on the
+// connection and not only in the database, because that is where the scheduler
+// asks — a query per pick would put Postgres in the path of every wake.
+func (c *conn) setPaused(v bool) {
+	c.mu.Lock()
+	c.pausedNow = v
+	c.mu.Unlock()
+}
+
+func (c *conn) paused() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.pausedNow
+}
+
+// SetPaused carries a pause made in the interface to a runner that is connected
+// right now — it must apply to the next wake, not to the next reconnect.
+func (p *Pool) SetPaused(runnerID uuid.UUID, paused bool) {
+	p.mu.Lock()
+	c := p.conns[runnerID]
+	p.mu.Unlock()
+	if c == nil {
+		return
+	}
+	c.setPaused(paused)
 }
 
 // SetCapabilities carries an assignment made in the interface to a runner that
@@ -847,6 +881,7 @@ func (p *Pool) candidates(want need) ([]*conn, error) {
 	// because the two say different things and each deserves its own sentence
 	// when nothing is left.
 	var inOrg, tagged, out []*conn
+	paused := 0
 	for _, c := range p.conns {
 		// The organisation comes first and is not a filter among others: a
 		// runner of a foreign tenant is not a worse candidate, it is none.
@@ -861,6 +896,14 @@ func (p *Pool) candidates(want need) ([]*conn, error) {
 			continue
 		}
 		tagged = append(tagged, c)
+		// A paused host is out of service on purpose. Named separately from
+		// everything else that can exclude one, because it is the only reason
+		// somebody CHOSE — and the answer to "why is nothing running" then has
+		// to be the choice and not a guess about the network.
+		if c.paused() {
+			paused++
+			continue
+		}
 		// And a host that says nothing gets nothing. See answering: connected
 		// is not the same as reachable, and the difference is a start that
 		// waits out its whole timeout on a machine that never read it.
@@ -875,9 +918,11 @@ func (p *Pool) candidates(want need) ([]*conn, error) {
 	case len(tagged) == 0:
 		return nil, fmt.Errorf("%w: no runner of this organisation carries the tags %v",
 			ErrNoRunner, want.tags)
+	case len(out) == 0 && paused == len(tagged):
+		return nil, fmt.Errorf("%w: every runner of this organisation is paused", ErrNoRunner)
 	case len(out) == 0:
-		return nil, fmt.Errorf("%w: every runner of this organisation is connected but does not answer",
-			ErrNoRunner)
+		return nil, fmt.Errorf("%w: no runner of this organisation is available — %d paused, %d connected but not answering",
+			ErrNoRunner, paused, len(tagged)-paused)
 	}
 	rank := func(c *conn) (int, int) {
 		c.mu.Lock()

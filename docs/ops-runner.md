@@ -14,29 +14,50 @@ installation notices none of this.
 
 `COVEY_RUNNER_LOCAL` is not a switch you need. What matters is the rule:
 
-> **An organisation's built-in runner stands down as soon as it has a
-> registered one — and steps back in when no connected runner fits.**
+> **The built-in runner runs beside your own hosts, and takes over when none of
+> them can. Whoever does not want it pauses it.**
 
-Whoever adds a runner has said that compute leaves this machine, and that is
-what the first half is for. The second half exists because the first one alone
-cost a production instance its whole data plane: the registered host claimed
-`covey-sandbox:latest`, the agents needed the deploy image, and every wake
-failed every 30 seconds for half an hour while the machine that held that image
-stood idle. A mixed pool is a trade-off; a control plane that stops because
-somebody added a host is not.
+It used to stand down by itself as soon as an organisation had a registered
+runner, and that rule inferred an intention from a fact: somebody added a host,
+therefore they want nothing on this machine. The inference was wrong twice in
+one afternoon on a production instance — first because the registered host
+claimed `covey-sandbox:latest` while the agents needed the deploy image, so
+nobody was a candidate; then, a night later, because that host was connected and
+answered nothing while the machine that could have run the work stood idle.
+
+So a second runner is a second runner now, not a replacement. What used to be a
+rule nobody could see is a state everybody can: **Pause** in the runner view.
 
 The fallback is not quiet. It writes `no connected runner fits — the built-in
 one takes it` with the image and tags it was looking for, and it cannot smuggle
 work past a requirement: **tags still exclude it.** An agent that asks for `gpu`
 waits for a host with `gpu`.
 
-`COVEY_BUILTIN_RUNNER=off` turns the fallback off for good — for an instance
-whose compute must not touch the control plane's machine, said once and
-deliberately rather than following from the existence of another host.
+## Pausing a host
 
-**Offline is not "no runner".** The rule counts registered runners, not
-connected ones. A maintenance window on your only runner does not move the
-workforce back onto the control plane's host; the agents wait instead.
+**Pause** on the runner's page takes it out of service: it gets no new
+sandboxes, and everything else stays — token, tags, assigned images, and above
+all the working copies of the homes that make this host worth keeping. What is
+running there finishes; nothing is killed. Resuming makes it selectable again
+at once, with no restart of the runner.
+
+That is the maintenance window (kernel update, disk swap, a machine somebody
+wants quiet), and on the **built-in runner** it is the sentence *no compute on
+the control plane's machine* — said once, by a person, visible in the interface
+and reversible in the same place. It survives a restart of the runner and of the
+control plane: the pause is on the row, not on the connection.
+
+`COVEY_BUILTIN_RUNNER=off` is the same statement for an installation whose
+configuration, not whose database, should carry it — it now means "never",
+independently of whether any other runner exists.
+
+If everything is paused, a wake says so: *every runner of this organisation is
+paused*. That is a sentence about a decision, and deliberately not the same one
+as "no runner answers".
+
+**Offline is not "no runner".** A maintenance window on your only runner does
+not move the workforce back onto the control plane's host; the agents wait
+instead.
 
 ## Adding a host
 

@@ -131,11 +131,7 @@ func TestARegisteredRunnerCarriesAWorkplaceItDidNotClaim(t *testing.T) {
 	ensured := 0
 	pool.EnsureLocal = func(callCtx context.Context, orgID uuid.UUID) error {
 		ensured++
-		remote, err := s.runners.HasRemote(callCtx, orgID)
-		if err != nil {
-			return err
-		}
-		if !runner.BuiltinAllowed("auto", remote) {
+		if !runner.BuiltinAllowed("auto") {
 			return errors.New("the built-in runner is switched off for this organisation")
 		}
 		id := uuid.New()
@@ -180,11 +176,7 @@ func TestBuiltinRunnerOffRefusesWhenNothingIsConnected(t *testing.T) {
 	mode := runner.BuiltinModeOff
 	pool.EnsureLocal = func(callCtx context.Context, orgID uuid.UUID) error {
 		asked++
-		remote, err := s.runners.HasRemote(callCtx, orgID)
-		if err != nil {
-			return err
-		}
-		if !runner.BuiltinAllowed(mode, remote) {
+		if !runner.BuiltinAllowed(mode) {
 			return errors.New("the built-in runner is switched off for this organisation")
 		}
 		id := uuid.New()

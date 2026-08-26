@@ -28,6 +28,7 @@ type RunnerView = {
   arch?: string;
   protocol?: number;
   last_seen_at?: string;
+  paused_at?: string;
   created_at: string;
   live?: {
     connected: boolean;
@@ -117,12 +118,18 @@ export default function RunnerDetail({ me }: { me: Principal }) {
           <h1 className="text-[22px]">
             {r.name || (r.kind === "builtin" ? t("runners.builtin") : r.description || r.id.slice(0, 8))}
           </h1>
-          <span className={connected ? (r.live?.unresponsive ? "pill err" : "pill ok") : "pill mut"}>
-            {connected
-              ? r.live?.unresponsive
-                ? t("runners.unresponsive")
-                : t("runners.connected")
-              : t("runners.offline")}
+          <span
+            className={
+              r.paused_at ? "pill mut" : connected ? (r.live?.unresponsive ? "pill err" : "pill ok") : "pill mut"
+            }
+          >
+            {r.paused_at
+              ? t("runners.paused")
+              : connected
+                ? r.live?.unresponsive
+                  ? t("runners.unresponsive")
+                  : t("runners.connected")
+                : t("runners.offline")}
           </span>
           {r.live?.outdated && <span className="pill err">{t("runners.outdated")}</span>}
         </div>
@@ -230,6 +237,27 @@ export default function RunnerDetail({ me }: { me: Principal }) {
                 : t("runners.detail.pullFailed", { image: pullResult.image, error: pullResult.error })}
             </p>
           )}
+        </div>
+      )}
+
+      {manage && (
+        <div className="card rd-card">
+          <h2 className="text-[15px]">{t("runners.detail.pauseTitle")}</h2>
+          {/* Der Text ist zustandsabhängig, weil die Frage es ist: „Was passiert,
+              wenn ich das drücke" ist bei einem pausierten Host eine andere als
+              bei einem laufenden. */}
+          <p className="muted text-xs">
+            {r.paused_at ? t("runners.detail.pausedHint") : t("runners.detail.pauseHint")}
+          </p>
+          <div>
+            <button
+              className="btn sm"
+              disabled={save.isPending}
+              onClick={() => save.mutate({ paused: !r.paused_at })}
+            >
+              {r.paused_at ? t("runners.detail.resume") : t("runners.detail.pause")}
+            </button>
+          </div>
         </div>
       )}
 

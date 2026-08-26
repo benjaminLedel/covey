@@ -1085,3 +1085,69 @@ func TestARunnerThatDoesNotAnswerIsNoCandidate(t *testing.T) {
 		t.Errorf("the wake waited out the silent host: %s", took)
 	}
 }
+
+// A pause takes a host out of service without taking it apart: it keeps its
+// token, its tags and its working copies, and it comes back with one click and
+// no restart. It is also what replaced the rule that the built-in runner stood
+// down by itself as soon as a remote one existed — a rule that inferred an
+// intention from a fact and was wrong about it twice in one afternoon.
+func TestAPausedRunnerTakesNothingAndComesBack(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	org := uuid.New()
+	p, runnerID := newLocalPool(t, dir, fakeDockerBin(t, dir, "nothing"), org)
+	ctx := context.Background()
+
+	if _, err := p.Start(ctx, orchestrator.SandboxSpec{AgentID: uuid.New(), OrgID: org}); err != nil {
+		t.Fatalf("before the pause: %v", err)
+	}
+
+	p.SetPaused(runnerID, true)
+	_, err := p.Start(ctx, orchestrator.SandboxSpec{AgentID: uuid.New(), OrgID: org})
+	if err == nil {
+		t.Fatal("a paused host must not take a sandbox")
+	}
+	// The reason has to be the decision and not a guess about the network:
+	// whoever paused it should read that back, not "does not answer".
+	if !strings.Contains(err.Error(), "paused") {
+		t.Errorf("the message has to name the pause: %v", err)
+	}
+
+	p.SetPaused(runnerID, false)
+	if _, err := p.Start(ctx, orchestrator.SandboxSpec{AgentID: uuid.New(), OrgID: org}); err != nil {
+		t.Fatalf("after resuming: %v", err)
+	}
+}
+
+// And it survives a reconnect — otherwise restarting the runner would be the
+// way around the pause, and a maintenance window that a restart ends is none.
+// The connection asks the store for it at the handshake, next to the tags and
+// images an operator assigned.
+func TestAPauseSurvivesAReconnect(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	org := uuid.New()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	p := NewPool(quietLog())
+	p.Profiles = map[string]string{sandbox.DefaultName(): "covey-sandbox:test"}
+	p.Capabilities = func(context.Context, uuid.UUID) (extraTags, images []string, decided, paused bool, err error) {
+		return nil, nil, false, true, nil
+	}
+	id := uuid.New()
+	node := NewNode(id, org, &Docker{
+		RunnerID: id, Image: "covey-sandbox:test", DataDir: dir, DockerBin: fakeDockerBin(t, dir, "nothing"),
+	}, quietLog())
+	t.Cleanup(node.Close)
+	if err := p.AttachLocal(ctx, node); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.Start(ctx, orchestrator.SandboxSpec{AgentID: uuid.New(), OrgID: org}); err == nil {
+		t.Fatal("the host was paused before it connected — it must not take a sandbox")
+	}
+}

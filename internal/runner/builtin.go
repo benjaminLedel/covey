@@ -27,15 +27,23 @@ const BuiltinModeOff = "off"
 // smuggle work past a requirement, because pick runs again afterwards and tags
 // still exclude a host that does not carry them.
 //
-// "off": no, as soon as the organisation has a registered runner. For an
-// installation whose compute must not touch the control plane's host. Said
-// once and deliberately, rather than following silently from the existence of
-// another machine.
-func BuiltinAllowed(mode string, hasRemote bool) bool {
-	if !hasRemote {
-		// Without a registered runner there is nothing else that could carry
-		// the sandbox — "off" would mean an organisation that can never work.
-		return true
-	}
+// "off": never, for an installation whose compute must not touch the control
+// plane's host.
+//
+// The existence of another runner used to be part of this answer: "off" meant
+// "off as soon as the organisation has a registered one", and the default meant
+// the built-in stood down by itself in that case. Both are gone, and paused is
+// what replaced them. The rule inferred an intention from a fact — somebody
+// registered a host, therefore they want nothing on this machine — and the
+// inference was wrong often enough to be expensive: registering a runner cost
+// covey.work its data plane twice in one afternoon, and a host that was
+// connected but stuck cost it a night, because stepping in required there to be
+// no candidate at all.
+//
+// A pause says the same thing without guessing: it is set on the built-in
+// runner, by a person, it is visible in the runner view, it survives a restart,
+// and it can be taken back in the same place. What used to be a rule nobody
+// could see is now a state everybody can.
+func BuiltinAllowed(mode string) bool {
 	return !strings.EqualFold(strings.TrimSpace(mode), BuiltinModeOff)
 }

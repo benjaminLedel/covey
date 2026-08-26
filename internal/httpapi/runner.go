@@ -243,6 +243,12 @@ func (s *Server) handleRunnerWhoami(w http.ResponseWriter, _ *http.Request, rn r
 // reported claim, and an empty list is the decision "no claim" — this host
 // provides every workplace and fetches what it does not have, which is what
 // docker run does anyway.
+//
+// paused takes a host out of service without taking it apart: it keeps its
+// token, its tags and above all its working copies, and gets no new sandboxes.
+// That is the maintenance window — and, for the built-in runner, the way to say
+// "no compute on the control plane's machine". Said once, by a person, instead
+// of following from the existence of another host.
 func (s *Server) handleUpdateRunner(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	id, err := uuid.Parse(r.PathValue("id"))
@@ -255,12 +261,13 @@ func (s *Server) handleUpdateRunner(w http.ResponseWriter, r *http.Request) {
 		Images      *[]string `json:"images"`
 		Name        *string   `json:"name"`
 		Description *string   `json:"description"`
+		Paused      *bool     `json:"paused"`
 	}
 	if err := readJSON(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, "body not readable")
 		return
 	}
-	patch := runnerstore.Patch{Name: trimmed(in.Name), Description: trimmed(in.Description)}
+	patch := runnerstore.Patch{Name: trimmed(in.Name), Description: trimmed(in.Description), Paused: in.Paused}
 	if in.Tags != nil {
 		tags := clean(*in.Tags)
 		patch.ExtraTags = &tags
@@ -279,6 +286,7 @@ func (s *Server) handleUpdateRunner(w http.ResponseWriter, r *http.Request) {
 	// to answer.
 	if s.RunnerPool != nil {
 		s.RunnerPool.SetCapabilities(id, rn.ExtraTags, rn.AssignedImages, rn.ImagesDecided)
+		s.RunnerPool.SetPaused(id, rn.Paused())
 	}
 	writeJSON(w, http.StatusOK, rn)
 }

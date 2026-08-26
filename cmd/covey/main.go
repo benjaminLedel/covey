@@ -1065,30 +1065,31 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		return rn.ID.String()[:8]
 	}
 	runnerPool.EnsureLocal = func(callCtx context.Context, orgID uuid.UUID) error {
-		// This used to refuse as soon as the organisation had a registered
-		// runner: whoever adds one has said that compute leaves this machine.
-		// The rule was right about the intent and wrong about the consequence —
-		// a host that does not hold the workplace image then leaves the
-		// organisation with a runner and without a data plane, which is how
-		// covey.work spent half an hour failing every wake while the machine
-		// that could have run it stood idle.
-		//
-		// The decision therefore sits with the caller: the pool asks here only
-		// when no CONNECTED runner fits, and it says in the log that the
-		// control plane is carrying sandboxes again. An operator who wants the
-		// compute off this machine come what may sets COVEY_BUILTIN_RUNNER=off
-		// — said once, deliberately, instead of following from the existence of
-		// another host.
-		remote, err := runnerStore.HasRemote(callCtx, orgID)
-		if err != nil {
-			return err
-		}
-		if !runner.BuiltinAllowed(cfg.BuiltinRunner, remote) {
-			return fmt.Errorf("organisation %s has its own runner and COVEY_BUILTIN_RUNNER=off — no sandbox runs on the control plane", orgID)
+		// The existence of another runner is no longer part of this answer.
+		// It used to be: whoever registered a host had thereby said that
+		// compute leaves this machine — an intention inferred from a fact, and
+		// the inference was wrong often enough to be expensive. Twice in one
+		// afternoon a registered host left covey.work with a runner and without
+		// a data plane, and once a host that was connected but stuck cost it a
+		// night. Whoever wants nothing on this machine now PAUSES the built-in
+		// runner: visible in the runner view, surviving a restart, taken back
+		// in the same place. COVEY_BUILTIN_RUNNER=off stays as the version of
+		// that statement which belongs in the configuration of an installation
+		// rather than in its database.
+		if !runner.BuiltinAllowed(cfg.BuiltinRunner) {
+			return fmt.Errorf("COVEY_BUILTIN_RUNNER=off — no sandbox runs on the control plane's machine")
 		}
 		runnerID, runnerToken, err := builtinRunners.For(callCtx, orgID)
 		if err != nil {
 			return err
+		}
+		// A paused built-in runner is not brought up at all. Excluding it after
+		// the fact would work too — the scheduler does not pick a paused host —
+		// but starting a data plane on a machine that was told to stay out of
+		// it is the kind of thing an operator finds in a process list and does
+		// not forgive.
+		if rn, err := runnerStore.ByID(callCtx, runnerID); err == nil && rn.Paused() {
+			return fmt.Errorf("the built-in runner of organisation %s is paused — no sandbox runs on the control plane's machine", orgID)
 		}
 		docker := &runner.Docker{
 			RunnerID: runnerID,
@@ -1144,15 +1145,14 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		return err
 	}
 	for _, o := range orgs {
-		if remote, err := runnerStore.HasRemote(ctx, o.ID); err == nil && remote {
-			// Down at startup, not forever: a remote runner that does not hold
-			// the workplace an agent needs brings the built-in one up at the
-			// first wake (internal/runner: pick + EnsureLocal). Otherwise one
-			// registered host would switch off a whole organisation's data
-			// plane, which is what happened on covey.work.
-			log.Info("organisation has its own runner — the built-in one stays down for now", "org", o.ID)
-			continue
-		}
+		// Every organisation's built-in runner comes up, including those that
+		// have a host of their own. It used to stay down there, and the whole
+		// data plane of an organisation then hung on one machine that nobody
+		// had checked: on covey.work a registered host that held the wrong
+		// image, and a night later one that was connected and answered nothing.
+		// A second runner is now a second runner and not a replacement. Whoever
+		// does not want it pauses it — that is a decision in the runner view,
+		// and EnsureLocal honours it.
 		if err := runnerPool.EnsureLocal(ctx, o.ID); err != nil {
 			// Not an abort: an organisation whose runner does not come up is a
 			// problem for its agents, not for the instance. The self-check

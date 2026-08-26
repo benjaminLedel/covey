@@ -341,7 +341,7 @@ func (d *doctor) checkRunners(ctx context.Context, pool *pgxpool.Pool) {
 		d.ok("runners", fmt.Sprintf("%d organisation(s), all on the built-in runner", len(orgs)))
 	default:
 		d.ok("runners", fmt.Sprintf("%d of %d organisation(s) have a registered runner — "+
-			"their built-in one has stood down", withRemote, len(orgs)))
+			"the built-in one runs beside it and takes over when it cannot", withRemote, len(orgs)))
 	}
 }
 

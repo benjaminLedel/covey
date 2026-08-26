@@ -56,6 +56,28 @@ What still sticks to the local host is correspondingly manageable:
 
 The daemon's data path stays **untouched** by this: the sandbox still talks directly to the control plane, not through the runner. The runner starts and stops compute — it is not a proxy for the agent's work and does not see its events. That holds for the built-in runner too: a sandbox it starts dials the control plane like any other, not its parent process.
 
+## Out of service: pause
+
+A runner can be **paused**. It keeps its registration, its token, its tags and
+its working copies, and gets no new sandboxes; what is running on it finishes.
+Resuming needs no restart — the pause lives on the row and is carried to the
+connection, so it applies to the next wake and survives a reconnect of either
+side.
+
+It exists because the alternative was a rule that guessed. The built-in runner
+used to stand down as soon as an organisation had a registered one: an intention
+inferred from a fact, and the inference cost a production instance its data
+plane twice in one afternoon and its night's work once. A pause says the same
+thing without inferring anything — it is set by a person, it is visible, and it
+is taken back in the place it was set. The built-in runner is therefore an
+ordinary runner in this respect too: whoever wants no compute on the control
+plane's machine pauses it (or says so in the configuration, which is what
+`COVEY_BUILTIN_RUNNER=off` is for).
+
+Paused is named separately from every other reason a host is unavailable — it is
+the only one somebody *chose*, and the answer to "why is nothing running" has to
+be that choice rather than a guess about the network.
+
 ## The built-in runner
 
 A distributed data plane that has to be assembled before anything runs at all would be the wrong trade for an installation on one machine — which is Covey's normal case. Hence: **the runner protocol is the only way a sandbox starts, and by default the control plane speaks it with a runner of its own**, running inside the `covey serve` process.
@@ -75,25 +97,29 @@ That is the same seam `internal/daemon` already draws between the control plane 
 
 Two things stay genuinely cheaper in process, and both are transport details rather than exceptions: blocks are read and written through the `BlobStore` directly instead of over a signed URL, and file access reads the home from the local file system instead of through `home_op`.
 
-### It stands down as soon as a real runner exists
+### It runs beside the others, and a pause is what switches it off
 
-**An organisation has a built-in runner exactly as long as it has no registered one.** Registering the first runner ends it; deleting the last one brings it back.
+**The built-in runner is an ordinary runner.** It exists per organisation, it is a candidate like any other host, and whoever does not want it pauses it.
 
-The alternative would be a mixed pool, and that is the thing to avoid: some agents on the registered hosts, some on the control plane's machine, and the assignment decided by a scheduling preference nobody remembers making. Whoever adds a runner is saying that compute leaves this machine. A control plane that keeps quietly running sandboxes on the side has not been told that — and it is precisely the load one moved away in order to be able to reason about the control plane's own resource consumption again.
+That is the second answer to this question. The first one was: *an organisation has a built-in runner exactly as long as it has no registered one* — registering the first host ended it, deleting the last one brought it back. The reasoning was the mixed pool: some agents on the registered hosts, some on the control plane's machine, the assignment decided by a scheduling preference nobody remembers making. Whoever adds a runner is saying that compute leaves this machine.
 
-**Offline is not "no runner".** The rule counts registered runners, not connected ones. A maintenance window on the only runner must not silently move the whole workforce back onto the control plane's host; that would be the surprise, not the service. Deleting the last runner, by contrast, is a deliberate act, and the built-in one returning is the same rule read forwards.
+The reasoning was right and the rule was wrong, because it inferred that sentence from an event instead of hearing it from a person. What it actually produced, three times on a production instance:
 
-The transition **drains, it does not cut**: the built-in runner takes no new sandboxes, lets the running ones finish, syncs every home it holds into the store, and only then stands down. Agents then wake on the registered runner and materialise from the store — a full transfer for the first one, which is time and not data loss ("Affinity as a preference").
+1. The registered host claimed `covey-sandbox:latest` while the agents needed the deploy image. Candidates on paper, none in fact — and nothing fell back, because falling back would have restored the mixed pool through the back door. Half an hour of `no runner holds the image` every 30 seconds, next to an idle machine that held it.
+2. After the fallback was added, the same rule sat a second time in the place that brings the built-in runner up, and refused there.
+3. A night later the registered host was *connected* and answered nothing — its read loop was stuck inside an image pull. Now there WAS a candidate, so the fallback did not fire; every wake went to it and waited out its start timeout, an hour at a time.
 
-That the sync has to work before this can happen is the reason the home store comes **before** the remote runner in the build order: at the point where a runner can be registered at all, the store exists. Without it, standing the built-in runner down would mean handing over a home that only exists on this host.
+A pause says what the rule was guessing, and says it where somebody can read and revoke it: it is set on a runner, it is visible in the runner view, it survives restarts on both sides, and it excludes that host from scheduling with a message that names the decision. The mixed pool is thereby a choice one makes rather than a state one falls into — and the case where the pool has candidates on paper and none in fact no longer ends in an organisation that cannot work.
 
-Both directions belong in the interface, and not as a message after the fact: whoever registers their first runner should be told beforehand that the built-in one is standing down, that the agents move over, and that the first wake on the new host is slow.
+**Offline is not "no runner".** A maintenance window on the only registered runner does not silently move the whole workforce back onto the control plane's host; the agents wait. The built-in runner takes over when no other host *fits* — a distinction the log line says out loud (`no connected runner fits — the built-in one takes it`), and tags still exclude it.
 
-And the case that will catch someone out: the registered runner does not hold the image the agents need, or its tags do not fit. Then the organisation has candidates on paper and none in fact, and **nothing falls back onto the built-in runner** — a fallback would restore the mixed pool through the back door. What has to be good here is the message, not the exception: see "Scheduling".
+Handing work over **drains, it does not cut**: a paused runner takes no new sandboxes, lets the running ones finish, and syncs every home it holds into the store. Agents then wake elsewhere and materialise from the store — a full transfer for the first one, which is time and not data loss ("Affinity as a preference").
+
+That the sync has to work before this can happen is the reason the home store comes **before** the remote runner in the build order: at the point where a runner can be registered at all, the store exists. Without it, pausing the built-in runner would mean handing over a home that only exists on this host.
 
 ## Registration
 
-Registration concerns the *added* runner. The built-in one is created by the platform itself — one per organisation, at bootstrap and whenever an organisation is added — needs neither token nor configuration file, and gives way to the first registered runner of its organisation (see "It stands down as soon as a real runner exists").
+Registration concerns the *added* runner. The built-in one is created by the platform itself — one per organisation, at bootstrap and whenever an organisation is added — needs neither token nor configuration file, and stands beside the registered runners of its organisation (see "It runs beside the others, and a pause is what switches it off").
 
 For everything else, as with GitLab, split into a **registration token** (org-wide, creatable and revocable in the UI) and a **runner token** derived from it (long-lived, per runner, stored only as a hash):
 
@@ -529,7 +555,7 @@ Every stage is useful in itself and can be accepted individually:
 | 1 | An image per agent (`sandbox_image`), profiles `base`/`dev` | The mail agent no longer carries a JVM |
 | 2 | The seam: runner protocol, `Transport` with the in-process implementation, the built-in runner, the Docker provider moved behind it, `RunnerPool` as `SandboxProvider` | A crashed sandbox is reported instead of running into the `ReadyTimeout`, and what stands in the way of a wake becomes visible per host |
 | 3 | The home store: content-addressed storage, sync after the job, materialising on wake, local block storage | A lost home costs time instead of work, and the second agent on the same host starts warm — **both already with a single host** |
-| 4 | The remote runner: the WebSocket transport, `register` including a configuration file, the protocol handshake and version, `covey-runner` as a third binary plus its release artefacts (a binary per architecture, a Docker image, a systemd unit); and with it the built-in runner standing down | Sandboxes run on a second host — and only there |
+| 4 | The remote runner: the WebSocket transport, `register` including a configuration file, the protocol handshake and version, `covey-runner` as a third binary plus its release artefacts (a binary per architecture, a Docker image, a systemd unit); and with it the pause that takes a host out of service | Sandboxes run on a second host |
 | 5 | `home_op` — the file browser over the runner link, reading from the snapshot while a runner is offline, and the sync of what the browser writes | The file browser works remotely too, does not fail when a host does, and no longer loses an upload when the agent moves |
 | 6 | Tags, capacity, a runner view in the UI | Operability from more than two runners onwards |
 | 7 | Interface: home info, the periodic cleanup plus a button and a subcommand for it, fill level on the dashboard | The store is visible and operable instead of growing quietly |

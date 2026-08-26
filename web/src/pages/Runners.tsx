@@ -21,6 +21,7 @@ type RunnerView = {
   arch?: string;
   protocol?: number;
   last_seen_at?: string;
+  paused_at?: string;
   created_at: string;
   live?: {
     connected: boolean;
@@ -175,7 +176,18 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
                     {r.capacity?.work_dir && <div className="muted text-xs mono">{r.capacity.work_dir}</div>}
                   </td>
                   <td>
-                    {r.live?.connected ? (
+                    {/* Pausiert steht vor allem anderen: Es ist der einzige
+                        Zustand, den jemand GEWOLLT hat, und „verbunden" neben
+                        einem Agenten, der nicht läuft, schickt in die falsche
+                        Richtung. */}
+                    {r.paused_at ? (
+                      <>
+                        <span className="pill mut">{t("runners.paused")}</span>
+                        <div className="muted text-xs" style={{ marginTop: 2 }}>
+                          {t("runners.pausedSince", { when: ago(r.paused_at, t) })}
+                        </div>
+                      </>
+                    ) : r.live?.connected ? (
                       r.live.unresponsive ? (
                         <>
                           <span className="pill err">{t("runners.unresponsive")}</span>

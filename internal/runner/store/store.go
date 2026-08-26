@@ -62,7 +62,16 @@ type Runner struct {
 	Protocol   int        `json:"protocol,omitempty"`
 	CreatedAt  time.Time  `json:"created_at"`
 	LastSeenAt *time.Time `json:"last_seen_at,omitempty"`
+	// PausedAt: this host takes no new sandboxes. Set by an operator, not by a
+	// rule — a maintenance window, or the decision that the control plane's
+	// own machine is not to carry compute. Everything else about the runner
+	// stays: token, tags, working copies. nil = it works.
+	PausedAt *time.Time `json:"paused_at,omitempty"`
 }
+
+// Paused is the question the scheduler asks; the timestamp is for the sentence
+// in the interface.
+func (r Runner) Paused() bool { return r.PausedAt != nil }
 
 type Store struct {
 	pool *pgxpool.Pool
@@ -88,13 +97,13 @@ func NewToken() (string, error) {
 	return hex.EncodeToString(buf), nil
 }
 
-const columns = `id, org_id, kind, name, description, tags, extra_tags, assigned_images, version, arch, protocol, created_at, last_seen_at`
+const columns = `id, org_id, kind, name, description, tags, extra_tags, assigned_images, version, arch, protocol, created_at, last_seen_at, paused_at`
 
 func scan(row pgx.Row) (Runner, error) {
 	var r Runner
 	var images []string
 	err := row.Scan(&r.ID, &r.OrgID, &r.Kind, &r.Name, &r.Description, &r.Tags, &r.ExtraTags, &images,
-		&r.Version, &r.Arch, &r.Protocol, &r.CreatedAt, &r.LastSeenAt)
+		&r.Version, &r.Arch, &r.Protocol, &r.CreatedAt, &r.LastSeenAt, &r.PausedAt)
 	if images != nil {
 		r.AssignedImages, r.ImagesDecided = images, true
 	}
@@ -110,6 +119,10 @@ type Patch struct {
 	Images      *[]string
 	Name        *string
 	Description *string
+	// Paused: true stamps the moment, false clears it. The moment and not a
+	// flag, because "since when" is the first thing anybody asks about a host
+	// that is standing still.
+	Paused *bool
 }
 
 // Update writes what an operator decided about a host. Tags and images were
@@ -134,9 +147,14 @@ func (s *Store) Update(ctx context.Context, orgID, id uuid.UUID, p Patch) (Runne
 		     extra_tags      = coalesce($3, extra_tags),
 		     assigned_images = CASE WHEN $4::boolean THEN $5 ELSE assigned_images END,
 		     name            = coalesce($6, name),
-		     description     = coalesce($7, description)
+		     description     = coalesce($7, description),
+		     paused_at       = CASE
+		                         WHEN $8::boolean IS NULL THEN paused_at
+		                         WHEN $8::boolean THEN coalesce(paused_at, now())
+		                         ELSE NULL
+		                       END
 		 WHERE id = $1 AND org_id = $2 RETURNING `+columns,
-		id, orgID, extraTags, p.Images != nil, images, p.Name, p.Description))
+		id, orgID, extraTags, p.Images != nil, images, p.Name, p.Description, p.Paused))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Runner{}, ErrNotFound
 	}
@@ -154,18 +172,20 @@ func (s *Store) ByID(ctx context.Context, id uuid.UUID) (Runner, error) {
 }
 
 // Capabilities is what the pool asks when a runner attaches: what an operator
-// assigned to this host, independently of what the host says about itself.
-func (s *Store) Capabilities(ctx context.Context, id uuid.UUID) (extraTags []string, images []string, decided bool, err error) {
+// assigned to this host, independently of what the host says about itself —
+// including whether it is paused, which a reconnect must not silently undo.
+func (s *Store) Capabilities(ctx context.Context, id uuid.UUID) (extraTags []string, images []string, decided, paused bool, err error) {
 	var raw []string
+	var pausedAt *time.Time
 	err = s.pool.QueryRow(ctx,
-		`SELECT extra_tags, assigned_images FROM runners WHERE id = $1`, id).Scan(&extraTags, &raw)
+		`SELECT extra_tags, assigned_images, paused_at FROM runners WHERE id = $1`, id).Scan(&extraTags, &raw, &pausedAt)
 	if err != nil {
-		return nil, nil, false, err
+		return nil, nil, false, false, err
 	}
 	if raw != nil {
-		return extraTags, raw, true, nil
+		return extraTags, raw, true, pausedAt != nil, nil
 	}
-	return extraTags, nil, false, nil
+	return extraTags, nil, false, pausedAt != nil, nil
 }
 
 // EnsureBuiltin returns an organisation's built-in runner and creates it if it
