@@ -2196,6 +2196,7 @@
     "free": "{{size}} frei",
     "copy": "Kopieren",
     "copied": "Kopiert",
+    "diskAsOf": "Stand: {{when}}",
     "lastSeen": "zuletzt gesehen {{when}}",
     "agoJustNow": "gerade eben",
     "storeDedup": "Die Homes wiegen zusammen {{logical}} — der Speicher hält sie {{factor}}× kleiner, weil gleiche Inhalte nur einmal liegen.",

@@ -470,6 +470,8 @@ So a change through the browser marks the home and a sync follows. Two things ma
 
 A store that grows quietly in the background and whose content nobody can see is an operational risk — you notice it only when the disk is full. Both therefore belong in the UI and not only in environment variables.
 
+**What the interface shows about a host, it does not fetch while somebody waits.** A runner answers `capacity` out of the same read loop a `start_sandbox` occupies — and a start may be a multi-gigabyte pull, which is why its bound is an hour. Asked at the moment the page is opened, one host in that state set the wait for the whole view, and the view is polled. So the connection asks by itself, at the heartbeat's tempo, and remembers the answer with the moment it was taken; the page reads what is remembered. The age travels with the figure and is shown once it is more than a couple of minutes — a remembered number without an age is the kind that reassures right up to the moment the disk is full. The running sandbox count does not come from there at all: the pool counts it itself and knows it exactly. The same holds for the data-plane check behind the warning banner — the first one is fetched while somebody waits, because there is nothing to show yet; every later one runs beside the request.
+
 ### An agent's home
 
 On the agent page, next to the existing file browser:

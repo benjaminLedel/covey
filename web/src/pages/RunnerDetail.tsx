@@ -41,7 +41,13 @@ type RunnerView = {
     sandboxes: number;
     outdated: boolean;
   };
-  capacity?: { sandboxes: number; total_bytes: number; free_bytes: number; work_dir?: string };
+  capacity?: {
+    sandboxes: number;
+    total_bytes: number;
+    free_bytes: number;
+    work_dir?: string;
+    measured_at?: string;
+  };
 };
 
 const list = (v?: string[]) => (v ?? []).join(", ");
@@ -234,7 +240,7 @@ export default function RunnerDetail({ me }: { me: Principal }) {
         />
         <Row
           label={t("runners.detail.sandboxes")}
-          value={String(r.capacity?.sandboxes ?? r.live?.sandboxes ?? 0)}
+          value={String(r.live?.sandboxes ?? r.capacity?.sandboxes ?? 0)}
         />
         <Row label={t("runners.detail.workDir")} value={r.capacity?.work_dir || "—"} />
         <Row label={t("runners.detail.lastSeen")} value={r.last_seen_at?.replace("T", " ").slice(0, 19) || "—"} />

@@ -61,21 +61,33 @@ func (p *Pool) LiveFor(orgID uuid.UUID) map[uuid.UUID]Live {
 	return out
 }
 
-// Capacity asks a runner what it is carrying. Asked rather than remembered:
-// free disk changes while nobody is looking, and a cached figure is the kind
-// that reassures right up to the moment the disk is full.
-func (p *Pool) Capacity(ctx context.Context, runnerID uuid.UUID) (CapacityReport, error) {
+// CapacityView is what a host last said about its disk, with the moment it said
+// it. The moment belongs to the figure: a remembered number without an age is
+// the kind that reassures right up to the moment the disk is full, and one with
+// an age can be read for what it is — current, or from before the host became
+// busy.
+type CapacityView struct {
+	CapacityReport
+	MeasuredAt time.Time `json:"measured_at"`
+}
+
+// Capacity is the last figure a runner reported about itself. It costs no round
+// trip: the connection refreshes it in the background (capacityWatch), which is
+// what keeps a view of many hosts from being the sum of their slowness. false
+// means this runner is not connected, or has not answered once yet.
+func (p *Pool) Capacity(runnerID uuid.UUID) (CapacityView, bool) {
 	p.mu.Lock()
 	c := p.conns[runnerID]
 	p.mu.Unlock()
 	if c == nil {
-		return CapacityReport{}, ErrNoRunner
+		return CapacityView{}, false
 	}
-	answer, err := c.ask(ctx, TypeCapacity, nil, 30*time.Second)
-	if err != nil {
-		return CapacityReport{}, err
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.capacityAt.IsZero() {
+		return CapacityView{}, false
 	}
-	return decode[CapacityReport](answer)
+	return CapacityView{CapacityReport: c.capacity, MeasuredAt: c.capacityAt}, true
 }
 
 // SyncNow forces a sync of an agent's home — "back up now", before a

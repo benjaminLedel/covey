@@ -684,6 +684,8 @@ func TestCapacityReportsWhatTheRunnerCarries(t *testing.T) {
 	runnerID := uuid.New()
 	p := NewPool(quietLog())
 	p.Profiles = map[string]string{sandbox.DefaultName(): "covey-sandbox:test"}
+	// The refresh runs at the heartbeat's tempo — at the speed of a test here.
+	p.HeartbeatEvery = 100 * time.Millisecond
 	node := NewNode(runnerID, orgID, &Docker{
 		RunnerID: runnerID, Image: "covey-sandbox:test", DataDir: dir,
 		DockerBin: fakeDockerBin(t, dir, "nothing"),
@@ -692,10 +694,10 @@ func TestCapacityReportsWhatTheRunnerCarries(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cap, err := p.Capacity(ctx, runnerID)
-	if err != nil {
-		t.Fatalf("Capacity: %v", err)
-	}
+	// Nobody asks the host: the connection does that by itself, and the first
+	// question goes out with the connection.
+	waitUntil(t, 3*time.Second, func() bool { _, ok := p.Capacity(runnerID); return ok })
+	cap, _ := p.Capacity(runnerID)
 	if cap.Sandboxes != 0 {
 		t.Errorf("nothing is running yet: %d", cap.Sandboxes)
 	}
@@ -704,17 +706,21 @@ func TestCapacityReportsWhatTheRunnerCarries(t *testing.T) {
 	if cap.TotalBytes == 0 || cap.FreeBytes == 0 || cap.WorkDir != dir {
 		t.Errorf("the capacity is about the wrong thing: %+v", cap)
 	}
+	if cap.MeasuredAt.IsZero() {
+		t.Error("a remembered figure without the moment it was taken says nothing")
+	}
 
 	if _, err := p.Start(ctx, orchestrator.SandboxSpec{AgentID: uuid.New(), OrgID: orgID}); err != nil {
 		t.Fatal(err)
 	}
-	if cap, err = p.Capacity(ctx, runnerID); err != nil || cap.Sandboxes != 1 {
-		t.Errorf("the running sandbox has to show up: %+v, %v", cap, err)
-	}
+	// The disk figure follows a beat later — that is what "in the background"
+	// means, and the age beside it is what makes it readable.
+	waitUntil(t, 3*time.Second, func() bool { c, _ := p.Capacity(runnerID); return c.Sandboxes == 1 })
 
-	// A runner that is not connected has no capacity to report, and says so.
-	if _, err := p.Capacity(ctx, uuid.New()); !errors.Is(err, ErrNoRunner) {
-		t.Errorf("an unknown runner: %v", err)
+	// A runner that is not connected has no figure, and says so rather than
+	// reporting an empty disk.
+	if _, ok := p.Capacity(uuid.New()); ok {
+		t.Error("an unknown runner has no capacity")
 	}
 
 	// The live view the runner page is built from.
@@ -814,10 +820,8 @@ func TestHeartbeatKeepsARunnerAliveAndRefreshesLastSeen(t *testing.T) {
 	}
 
 	// Traffic is proof of life: an answered request reports in as much as a
-	// heartbeat does.
-	if _, err := p.Capacity(ctx, id); err != nil {
-		t.Fatal(err)
-	}
+	// heartbeat does — and one goes out with the connection, because it asks
+	// the host about its disk without being told to.
 	select {
 	case got := <-heard:
 		if got != id {

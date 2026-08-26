@@ -52,23 +52,58 @@ type dataPlaneState struct {
 // that is polled. Half a minute is short enough that whoever builds the image
 // in the terminal sees the tick shortly afterwards, without having to know
 // they should reload.
+//
+// Once filled, it is refreshed BESIDE the request and no longer inside it. The
+// check asks the hosts, and a host answers out of the read loop a sandbox start
+// occupies — so when the half minute ran out while a runner was pulling an
+// image, whoever loaded the page next waited for that pull. Everyone else too:
+// the lock was held for the whole time.
 type cachedCheck struct {
 	mu       sync.Mutex
 	at       time.Time
 	problems []string
+	filled   bool
+	running  bool
 }
 
 const dataPlaneCheckTTL = 30 * time.Second
 
+// dataPlaneCheckWait bounds one refresh. Nobody is waiting on it — but a check
+// that never ends would keep the next one from ever starting.
+const dataPlaneCheckWait = 2 * time.Minute
+
 func (s *Server) dataPlaneProblems(ctx context.Context) []string {
 	s.dataPlane.mu.Lock()
 	defer s.dataPlane.mu.Unlock()
-	if time.Since(s.dataPlane.at) < dataPlaneCheckTTL {
+	// The very first one is asked while somebody waits: there is nothing to
+	// show yet, and "everything fine" is the wrong thing to say when the answer
+	// is simply not there. It happens once per process, and an idle runner
+	// answers it in milliseconds.
+	if !s.dataPlane.filled {
+		s.dataPlane.problems = s.DataPlane.Check(ctx)
+		s.dataPlane.at = time.Now()
+		s.dataPlane.filled = true
 		return s.dataPlane.problems
 	}
-	s.dataPlane.problems = s.DataPlane.Check(ctx)
-	s.dataPlane.at = time.Now()
+	if time.Since(s.dataPlane.at) >= dataPlaneCheckTTL && !s.dataPlane.running {
+		s.dataPlane.running = true
+		// Detached from the request: whoever asked has already been served with
+		// the previous answer, and the connection they came in on is gone
+		// before this returns.
+		go s.refreshDataPlane(context.WithoutCancel(ctx))
+	}
 	return s.dataPlane.problems
+}
+
+func (s *Server) refreshDataPlane(ctx context.Context) {
+	ctx, cancel := context.WithTimeout(ctx, dataPlaneCheckWait)
+	defer cancel()
+	problems := s.DataPlane.Check(ctx)
+	s.dataPlane.mu.Lock()
+	s.dataPlane.problems = problems
+	s.dataPlane.at = time.Now()
+	s.dataPlane.running = false
+	s.dataPlane.mu.Unlock()
 }
 
 // runtimeCredentialKeys are the secret names the Claude Code runtime starts

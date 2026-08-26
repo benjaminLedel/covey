@@ -39,6 +39,10 @@ type RunnerView = {
     total_bytes: number;
     free_bytes: number;
     work_dir?: string;
+    // Wann die Zahl entstanden ist. Der Server fragt den Host im Hintergrund;
+    // was hier steht, ist das zuletzt Gehoerte — und ein Host, der gerade ein
+    // Image zieht, antwortet minutenlang nicht.
+    measured_at?: string;
   };
 };
 
@@ -199,10 +203,25 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
                       <div className="muted mono">{r.live.images.join(", ")}</div>
                     ) : null}
                   </td>
-                  <td>{r.live ? t("runners.sandboxes", { count: r.capacity?.sandboxes ?? r.live.sandboxes }) : "—"}</td>
+                  {/* Die laufenden Sandboxen weiss die Verbindung selbst und
+                      genau; die Platte ist das, was der Host zuletzt gemeldet
+                      hat. Deshalb hier nicht mehr die Zahl aus dem
+                      Platten-Bericht: die waere einen Takt alt. */}
+                  <td>{r.live ? t("runners.sandboxes", { count: r.live.sandboxes }) : "—"}</td>
                   <td>
                     {r.capacity && r.capacity.total_bytes > 0 ? (
-                      <DiskBar free={r.capacity.free_bytes} total={r.capacity.total_bytes} />
+                      <>
+                        <DiskBar free={r.capacity.free_bytes} total={r.capacity.total_bytes} />
+                        {/* Erst wenn die Zahl merklich alt ist, wird ihr Alter
+                            zur Auskunft: ein Host, der seit zwanzig Minuten
+                            nichts sagt, hat vielleicht laengst weniger Platz.
+                            Solange sie frisch ist, waere die Zeile Rauschen. */}
+                        {stale(r.capacity.measured_at) && (
+                          <div className="muted text-xs" style={{ marginTop: 2 }}>
+                            {t("runners.diskAsOf", { when: ago(r.capacity.measured_at!, t) })}
+                          </div>
+                        )}
+                      </>
                     ) : (
                       <span className="muted">—</span>
                     )}
@@ -364,6 +383,14 @@ function registerCommand(token: string): string {
 // ago ist „vor …" in grober Koernung. Genauer waere unnuetz: bei einem Runner,
 // der weg ist, entscheidet die Groessenordnung — Minuten sind ein Neustart,
 // Tage sind ein Host, um den sich niemand mehr kuemmert.
+// stale: Ab wann das Alter einer Zahl selbst eine Auskunft ist. Der Server
+// fragt im Takt des Heartbeats (30s) nach; zwei Minuten ohne neue Zahl heisst,
+// dass der Host nicht antwortet — und nicht, dass die Seite langsam ist.
+function stale(iso?: string): boolean {
+  if (!iso) return false;
+  return Date.now() - new Date(iso).getTime() > 120_000;
+}
+
 function ago(iso: string, t: (k: string, o?: Record<string, unknown>) => string): string {
   const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
   if (seconds < 90) return t("runners.agoJustNow");

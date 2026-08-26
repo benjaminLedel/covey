@@ -2196,6 +2196,7 @@
     "free": "{{size}} free",
     "copy": "Copy",
     "copied": "Copied",
+    "diskAsOf": "as of {{when}}",
     "lastSeen": "last seen {{when}}",
     "agoJustNow": "just now",
     "storeDedup": "The homes weigh {{logical}} together — the store holds them {{factor}}× smaller, because identical content is stored once.",

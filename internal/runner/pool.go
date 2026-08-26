@@ -173,6 +173,11 @@ type conn struct {
 	// it the first chunk would end the correlation and the rest would arrive
 	// with nobody waiting.
 	streams map[string]bool
+	// capacity is the last thing this host said about its disk, and capacityAt
+	// when it said it. Kept rather than asked at the moment somebody looks:
+	// see capacityWatch.
+	capacity   CapacityReport
+	capacityAt time.Time
 	// sandboxes counts what is running here — the whole of the scheduling
 	// weight for now: no bin packing, no resource modelling.
 	sandboxes int
@@ -414,6 +419,7 @@ func (c *conn) readLoop(ctx context.Context) error {
 	watch, stopWatch := context.WithCancel(ctx)
 	defer stopWatch()
 	go c.watchdog(watch)
+	go c.capacityWatch(watch)
 
 	for {
 		msg, err := c.t.Receive(ctx)
@@ -540,6 +546,63 @@ func (c *conn) watchdog(ctx context.Context) {
 		}
 	}
 }
+
+// capacityWatch keeps a host's disk figure current without anybody asking for
+// it. It used to be fetched when somebody opened the runner page — one round
+// trip per host, one after the other — and a host answers this out of its read
+// loop, which is exactly what a sandbox start occupies while it pulls an image
+// of several gigabytes. So the page waited out the whole start, per host.
+//
+// Here nobody is waiting: the answer arrives when it arrives, and until then
+// the previous one stands with the moment it was taken beside it. That is the
+// honest form of a remembered figure — a disk that is full says so a beat late
+// rather than not at all, and how late is visible.
+//
+// The ticker's own tempo is the heartbeat's: a figure that is at most one beat
+// old is fresh enough for the decision it serves, and the ask blocks the loop
+// while it runs, so there is never more than one outstanding.
+func (c *conn) capacityWatch(ctx context.Context) {
+	every := c.pool.HeartbeatEvery
+	if every <= 0 {
+		every = HeartbeatInterval
+	}
+	// Once straight away: the first look at the page after a runner connects
+	// should not show an empty column for a whole beat.
+	c.refreshCapacity(ctx)
+	ticker := time.NewTicker(every)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			c.refreshCapacity(ctx)
+		}
+	}
+}
+
+// refreshCapacity asks once and keeps what comes back. A host that does not
+// answer changes nothing: the older figure and its age are better than an
+// empty column, and the age is what says which of the two this is.
+func (c *conn) refreshCapacity(ctx context.Context) {
+	answer, err := c.ask(ctx, TypeCapacity, nil, capacityAsk)
+	if err != nil {
+		return
+	}
+	report, err := decode[CapacityReport](answer)
+	if err != nil {
+		return
+	}
+	c.mu.Lock()
+	c.capacity = report
+	c.capacityAt = time.Now()
+	c.mu.Unlock()
+}
+
+// capacityAsk bounds one such question. Generous, because nobody is waiting on
+// it — and pointless to make shorter: a host that has not answered within this
+// is inside something long, and the next tick asks again.
+const capacityAsk = 30 * time.Second
 
 // ask sends a request and waits for its answer.
 func (c *conn) ask(ctx context.Context, msgType string, payload any, timeout time.Duration) (Message, error) {
