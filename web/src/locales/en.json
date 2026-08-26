@@ -1991,6 +1991,11 @@
     "timeJustNow": "just now",
     "timeMinutes": "{{n}} min ago",
     "timeHours": "{{n}} h ago",
+    "phase": {
+      "home": "Materialising the working copy",
+      "image": "Fetching the workplace image: {{detail}}",
+      "home_synced": "Working copy secured"
+    },
     "sandboxOn": "Running on runner {{runner}}"
   },
   "common": {

@@ -1323,3 +1323,56 @@ func TestAStartIsTakenBackFromAHostThatGoesDeaf(t *testing.T) {
 		}
 	}
 }
+
+// A start that fetches a four-gigabyte image looks exactly like one that hangs
+// — from the outside, and above all in the recording, which is the one place
+// anybody looks. So the host says what it is doing while it does it.
+func TestAStartSaysWhatItIsWaitingFor(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	org := uuid.New()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	said := make(chan Progress, 8)
+	p := NewPool(quietLog())
+	p.Profiles = map[string]string{sandbox.DefaultName(): "covey-sandbox:test"}
+	p.Progress = func(orgID, runnerID uuid.UUID, pr Progress) {
+		select {
+		case said <- pr:
+		default:
+		}
+	}
+	// A docker whose `image inspect` fails: the image is not on this host, so
+	// the start has to announce the download.
+	runnerID := uuid.New()
+	node := NewNode(runnerID, org, &Docker{
+		RunnerID: runnerID, Image: "covey-sandbox:test", DataDir: dir,
+		DockerBin: fakeDockerBin(t, dir, "image"),
+	}, quietLog())
+	t.Cleanup(node.Close)
+	if err := p.AttachLocal(ctx, node); err != nil {
+		t.Fatal(err)
+	}
+
+	agent := uuid.New()
+	if _, err := p.Start(ctx, orchestrator.SandboxSpec{AgentID: agent, OrgID: org}); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	select {
+	case pr := <-said:
+		if pr.Phase != PhaseImage {
+			t.Errorf("the phase that takes the time has to be named: %+v", pr)
+		}
+		if pr.AgentID != agent {
+			t.Errorf("the line belongs to an agent, or it cannot be recorded: %+v", pr)
+		}
+		if pr.Detail == "" {
+			t.Errorf("which image is being fetched is the whole information: %+v", pr)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("the host said nothing about a download it was starting")
+	}
+}

@@ -324,9 +324,21 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 	// normal case, and then this costs nothing at all.
 	if spec.Snapshot != "" && n.Blobs != nil {
 		home, _, _ := n.Docker.AgentHome(spec.AgentID)
+		// Said before it happens, not after: on a host the agent has not
+		// worked on, this is minutes of copying, and afterwards is exactly
+		// when nobody needs to be told any more.
+		n.say(ctx, t, Progress{AgentID: spec.AgentID, Phase: PhaseHome})
+		began := time.Now()
 		m, err := homestore.Load(ctx, n.Blobs, spec.OrgID, spec.Snapshot)
 		if err == nil {
-			_, err = homestore.Materialize(ctx, n.Blobs, spec.OrgID, home, m)
+			var res homestore.MaterializeResult
+			res, err = homestore.Materialize(ctx, n.Blobs, spec.OrgID, home, m)
+			if err == nil {
+				n.say(ctx, t, Progress{
+					AgentID: spec.AgentID, Phase: PhaseHome, Bytes: res.BytesIn,
+					MS: time.Since(began).Milliseconds(),
+				})
+			}
 		}
 		if err != nil {
 			// Refused rather than started on a home that is not the one the
@@ -340,6 +352,12 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 		}
 	}
 
+	// `docker run` fetches a missing image by itself — silently, and for
+	// several gigabytes. That silence is what makes a start look like a hang,
+	// and it is the sentence this whole message type exists for.
+	if !n.Docker.HasImage(ctx, spec.Image) {
+		n.say(ctx, t, Progress{AgentID: spec.AgentID, Phase: PhaseImage, Detail: spec.Image})
+	}
 	container, err := n.Docker.Start(ctx, spec)
 	if err != nil {
 		n.reply(ctx, t, id, TypeSandboxFailed, SandboxResult{AgentID: spec.AgentID, Err: err.Error()})
@@ -456,6 +474,16 @@ func (n *Node) Close() {
 	for _, proc := range procs {
 		proc.cancel()
 	}
+}
+
+// say sends a line about work in progress. Nobody waits for it and nothing
+// depends on it: a failure to send it must not fail the start it describes.
+func (n *Node) say(ctx context.Context, t Transport, p Progress) {
+	msg, err := encode(TypeProgress, "", p)
+	if err != nil {
+		return
+	}
+	_ = t.Send(ctx, msg)
 }
 
 func (n *Node) reply(ctx context.Context, t Transport, id, msgType string, payload any) {

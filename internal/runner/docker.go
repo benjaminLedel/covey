@@ -281,6 +281,19 @@ func (p *Docker) Wait(ctx context.Context, name string) string {
 //
 // Empty result = nothing in the way. Messages are written for whoever operates
 // the instance and each one names its remedy.
+// HasImage: is this image already on the host? Asked before a start so that a
+// download can be announced as one — `docker run` fetches it silently, and the
+// difference between "downloading four gigabytes" and "hanging" is the whole
+// question somebody has while they wait.
+func (p *Docker) HasImage(ctx context.Context, image string) bool {
+	if image == "" {
+		return true
+	}
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	return exec.CommandContext(ctx, p.docker(), "image", "inspect", image).Run() == nil
+}
+
 func (p *Docker) Check(ctx context.Context, req Check) ([]string, map[string]bool) {
 	images, hints := req.Images, req.Hints
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)

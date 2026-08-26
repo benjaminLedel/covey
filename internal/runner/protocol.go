@@ -86,6 +86,13 @@ const (
 	TypeCapacityReport = "capacity_report"
 	TypePullResult     = "pull_result"
 	TypeUpdateResult   = "update_result"
+	// TypeProgress says what a host is DOING while a start takes its time.
+	// Without it a wake that fetches a multi-gigabyte image is indistinguishable
+	// from one that hangs: the agent stands in "triggered" for ten minutes and
+	// the recording — the one place somebody looks — has nothing at all to say.
+	// It is not an answer to anything; it arrives unasked, several times per
+	// start.
+	TypeProgress = "progress"
 	// TypeHeartbeat is the sign of life. It is not decoration: a TCP connection
 	// can be dead without either side noticing — a NAT that dropped the entry,
 	// a network partition, a laptop that closed. The pool would then keep
@@ -102,6 +109,33 @@ const (
 const (
 	HeartbeatInterval = 30 * time.Second
 	Silence           = 3 * HeartbeatInterval
+)
+
+// Progress is one line about a start that is under way. Not a measurement and
+// not a percentage — what it answers is "is anything happening", and the honest
+// form of that is a phase with the thing it is working on.
+type Progress struct {
+	AgentID uuid.UUID `json:"agent_id"`
+	Phase   string    `json:"phase"`
+	Detail  string    `json:"detail,omitempty"`
+	Bytes   int64     `json:"bytes,omitempty"`
+	MS      int64     `json:"ms,omitempty"`
+}
+
+// The phases a start goes through on the host. Named rather than numbered:
+// they are what somebody reads in the recording, and their order is not the
+// point — which one is taking the time is.
+const (
+	// PhaseHome: the working copy is being brought to the state of the
+	// snapshot. Costs nothing on the host the agent last ran on and minutes on
+	// a fresh one.
+	PhaseHome = "home"
+	// PhaseImage: the workplace image is not on this host and is being
+	// fetched. This is the phase that makes a start take an hour.
+	PhaseImage = "image"
+	// PhaseHomeSynced: the working copy went into the store — written by the
+	// control plane, which is where the figures arrive.
+	PhaseHomeSynced = "home_synced"
 )
 
 // Update is an order to replace one's own binary. Version empty = the newest

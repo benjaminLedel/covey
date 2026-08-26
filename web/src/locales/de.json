@@ -1991,6 +1991,11 @@
     "timeJustNow": "gerade eben",
     "timeMinutes": "vor {{n}} Min",
     "timeHours": "vor {{n}} Std",
+    "phase": {
+      "home": "Arbeitskopie wird hergestellt",
+      "image": "Arbeitsplatz-Image wird geholt: {{detail}}",
+      "home_synced": "Arbeitskopie gesichert"
+    },
     "sandboxOn": "Läuft auf Runner {{runner}}"
   },
   "common": {

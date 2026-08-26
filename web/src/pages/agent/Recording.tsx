@@ -8,6 +8,7 @@ import {
   type RecordingEvent,
 } from "../../api";
 import { ActivityFeed, subAgentMark } from "../../components/ActivityFeed";
+import { formatBytes } from "../Runners";
 
 export function Recording({
   agentId,
@@ -107,6 +108,17 @@ function summarize(e: RecordingEvent): { text: string; mono?: boolean; muted?: b
       // Wo ein Lauf stattfindet. Bei einer Maschine ist das keine Frage, ab
       // der zweiten ist es die erste — und die Antwort stand vorher nur im Log
       // des Prozesses, wenn überhaupt.
+      // Was der Host tut, waehrend ein Start dauert. Ohne diese Zeilen sind
+      // zehn Minuten Bild-Download und zehn Minuten Haenger dasselbe Bild:
+      // „triggered" und sonst nichts.
+      if (p.status === "preparing") {
+        const size = p.bytes ? ` · ${formatBytes(Number(p.bytes))}` : "";
+        const took = p.ms ? ` · ${Math.round(Number(p.ms) / 1000)}s` : "";
+        return {
+          text: i18n.t(`activity.phase.${p.phase as string}`, { detail: p.detail ?? "" }) + size + took,
+          muted: true,
+        };
+      }
       if (p.status === "sandbox")
         return {
           text: i18n.t("activity.sandboxOn", { runner: (p.runner_name as string) || (p.runner as string) }),

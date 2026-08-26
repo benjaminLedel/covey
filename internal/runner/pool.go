@@ -86,6 +86,13 @@ type Pool struct {
 	// is to provide. nil = nothing is assigned anywhere, which is what a pool
 	// without a database looks like (tests, the runner side).
 	Capabilities func(ctx context.Context, runnerID uuid.UUID) (extraTags, images []string, decided, paused bool, err error)
+	// Progress receives what a host says about a start that is under way —
+	// fetching an image, materialising a working copy. nil = nobody is
+	// listening, and the runner's lines are dropped. The control plane wires it
+	// to the recording: a wake that downloads four gigabytes has to be
+	// distinguishable from one that hangs, and the recording is where somebody
+	// looks for the difference.
+	Progress func(orgID, runnerID uuid.UUID, p Progress)
 
 	// EnsureLocal is asked when an organisation has no connected runner: the
 	// built-in one is created on first use, because organisations come into
@@ -518,6 +525,18 @@ func (c *conn) readLoop(ctx context.Context) error {
 			if c.pool.SandboxDied != nil {
 				c.pool.SandboxDied(ev.AgentID, ev.Reason)
 			}
+		case TypeProgress:
+			// A line about a start that is under way. It answers nothing and
+			// belongs to no correlation — it goes straight to whoever writes
+			// the recording.
+			if c.pool.Progress == nil {
+				continue
+			}
+			ev, err := decode[Progress](msg)
+			if err != nil {
+				continue
+			}
+			c.pool.Progress(c.orgID, c.runnerID, ev)
 		case TypeHeartbeat:
 		case TypeHomeResult:
 			// A chunk whose reader has gone: a download the browser cancelled.
@@ -1081,9 +1100,18 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 			p.Log.Warn("no connected runner fits — the built-in one takes it",
 				"org", want.orgID, "image", want.image, "tags", want.tags, "reason", err)
 		}
+		// The reason no registered host took it is the interesting half, and
+		// the fallback used to overwrite it: whoever read "the built-in runner
+		// is paused" learned nothing about the machine they had actually put
+		// the work on. Measured on covey.work, and it cost an hour of looking
+		// in the wrong place — the real reason was that no runner was connected
+		// in that second, because the control plane had just restarted.
+		why := err
 		var c *conn
 		if c, err = p.ensureAndPick(ctx, want); err == nil {
 			candidates = []*conn{c}
+		} else {
+			err = fmt.Errorf("%w — and the built-in runner did not step in: %v", why, err)
 		}
 	}
 	if err != nil {

@@ -1019,6 +1019,14 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 			if err != nil {
 				return err
 			}
+			// Into the recording as well, not only into the snapshot table.
+			// Securing the working copy is the last thing that happens in a
+			// run and the first thing somebody misses when a home comes back
+			// older than expected — and the recording is where they look.
+			_ = obs.Record(ctx, agent.OrgID, agentID, nil, observability.KindLifecycle, map[string]any{
+				"status": "preparing", "phase": runner.PhaseHomeSynced,
+				"bytes": res.BytesUp, "ms": res.DurationMS, "detail": res.Reason,
+			})
 			_, err = snapshotStore.RecordSnapshotTimed(ctx, agent.OrgID, agentID, &runnerID,
 				res.ManifestHash, res.TotalSize, res.Blocks, res.BytesUp, res.DurationMS, res.Reason)
 			return err
@@ -1046,6 +1054,22 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	// too. Each carries its own egress segment: a runner serves exactly one
 	// tenant, and `--internal` cuts the way out, not the way sideways.
 	runnerPool.StartTimeout = cfg.SandboxStartTimeout
+	// What a host says while a start takes its time goes into the agent's
+	// recording. Without it, the ten minutes in which a runner downloads its
+	// workplace image are ten minutes of "triggered" and nothing else — and
+	// the question that follows is always "is it broken", never "how big is
+	// that image".
+	runnerPool.Progress = func(orgID, runnerID uuid.UUID, pr runner.Progress) {
+		if pr.AgentID == uuid.Nil {
+			return
+		}
+		_ = obs.Record(context.WithoutCancel(ctx), orgID, pr.AgentID, nil,
+			observability.KindLifecycle, map[string]any{
+				"status": "preparing", "phase": pr.Phase,
+				"detail": pr.Detail, "bytes": pr.Bytes, "ms": pr.MS,
+				"runner": runnerID.String(),
+			})
+	}
 	runnerPool.Capabilities = runnerStore.Capabilities
 	// How a host is called right now — for the line in the recording that says
 	// where a run happened.
