@@ -4111,3 +4111,99 @@ kbd {
 .rd-reported > span:first-child { color: var(--text-secondary); min-width: 190px; }
 .rd-row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
 .rd-row + .rd-row { border-top: 0.5px solid var(--border); padding-top: 6px; }
+
+/* Runner-Log: eine Leseansicht, kein Terminal-Nachbau.
+ *
+ * Die Frage an eine Zeile ist immer dieselbe — wann, wie schlimm, was. Also
+ * feste Spalten fuer Zeit und Pegel und ein flexibler Rest, in dem die
+ * Attribute UMBRECHEN statt die Zeile aus dem Bild zu schieben. Vorher stand
+ * alles in einer Zeile ohne Umbruch: was hinten dranhing, war unsichtbar, und
+ * gerade dort steht bei einem Fehler der Grund.
+ *
+ * Farbe traegt nur, was selten ist. Info und Debug bleiben ruhig, Warnung und
+ * Fehler bekommen einen Streifen an der Kante — ein Log, in dem jede Zeile
+ * leuchtet, hat keine Hierarchie mehr. */
+.rlog {
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-1);
+  max-height: 460px;
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: 1.55;
+}
+/* Der Tag bleibt beim Scrollen stehen: eine Uhrzeit ohne Datum ist in einem
+   Log ueber mehrere Tage eine Falle. */
+.rlog-day {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 3px 10px;
+  background: var(--surface-0);
+  border-bottom: 0.5px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+}
+.rlog-line {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 3px 10px 3px 8px;
+  border-left: 2px solid transparent;
+}
+.rlog-line + .rlog-line { border-top: 0.5px solid var(--tint-weak); }
+.rlog-line:hover { background: var(--tint-weak); }
+.rlog-time {
+  flex: none;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.rlog-level {
+  flex: none;
+  width: 38px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+/* Nachricht und Attribute in einem umbrechenden Block: die Nachricht zuerst,
+   die Attribute dahinter, und wenn es nicht reicht, darunter — eingerueckt
+   bleibt es lesbar, weil Zeit und Pegel ihre feste Breite behalten. */
+.rlog-body {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 12px;
+  align-items: baseline;
+}
+.rlog-msg { color: var(--text-primary); }
+.rlog-attr { color: var(--text-secondary); white-space: nowrap; }
+.rlog-attr > span { opacity: 0.65; }
+.rlog-line.lvl-debug .rlog-msg { color: var(--text-secondary); }
+.rlog-line.lvl-warn { border-left-color: var(--text-warning); }
+.rlog-line.lvl-warn .rlog-level { color: var(--text-warning); }
+.rlog-line.lvl-error { border-left-color: var(--text-danger); }
+.rlog-line.lvl-error .rlog-level { color: var(--text-danger); }
+.rlog-line.lvl-error .rlog-msg { color: var(--text-danger); }
+/* Der Agent an der Zeile ist ein Filter, kein Etikett: Zeilen ueber einen
+   Start gehoeren zusammen, und das Einengen darauf ist der haeufigste Griff. */
+.rlog-agent {
+  border: 0.5px solid var(--border);
+  border-radius: 4px;
+  padding: 0 5px;
+  background: none;
+  font: inherit;
+  color: var(--text-accent);
+  cursor: pointer;
+}
+.rlog-agent:hover { background: var(--bg-accent); }
+/* „Filter aufheben" stand als blosser Satzteil da und sah nach Text aus. Ein
+   Knopf, den man fuer Text haelt, ist kein Knopf. */
+.rlog-clear {
+  border: 0; background: none; padding: 0;
+  font: inherit; font-size: 12px;
+  color: var(--text-accent);
+  text-decoration: underline;
+  cursor: pointer;
+}

@@ -83,9 +83,11 @@ type LogFilter struct {
 	Search string
 	// Limit caps the answer; 0 takes the default.
 	Limit int
-	// Before pages backwards: only lines with a smaller id. The id and not the
-	// timestamp, because two lines can share a millisecond and a page boundary
-	// that repeats or skips a line is worse than no paging.
+	// Before pages backwards: only lines older than this one. It names an id,
+	// but what it compares is the PAIR (ts, id) of that row — the same order
+	// the answer comes in. An id alone would page in a different order than it
+	// displays, and a page boundary that repeats or skips a line is worse than
+	// no paging.
 	Before int64
 }
 
@@ -111,10 +113,15 @@ func (s *Store) Logs(ctx context.Context, orgID, runnerID uuid.UUID, f LogFilter
 	}
 	if f.Before > 0 {
 		args = append(args, f.Before)
-		q += ` AND id < $` + strconv.Itoa(len(args))
+		n := strconv.Itoa(len(args))
+		q += ` AND (ts, id) < (SELECT ts, id FROM runner_logs WHERE id = $` + n + `)`
 	}
 	args = append(args, limit)
-	q += ` ORDER BY id DESC LIMIT $` + strconv.Itoa(len(args))
+	// By TIME, and by id only to break a tie. A runner that loses its
+	// connection keeps logging and delivers the buffer when it comes back —
+	// those lines get the highest ids and are the OLDEST there are. Ordering by
+	// id would put them at the top and quietly rewrite what happened when.
+	q += ` ORDER BY ts DESC, id DESC LIMIT $` + strconv.Itoa(len(args))
 
 	rows, err := s.pool.Query(ctx, q, args...)
 	if err != nil {

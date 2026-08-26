@@ -147,14 +147,17 @@ export default function RunnerDetail({ me }: { me: Principal }) {
    * Der Unterpunkt steht in der URL: ein Link auf das Log eines Hosts ist
    * genau das, was man in einen Chat wirft, wenn etwas klemmt. */
   const subs = [
-    ["state", t("runners.detail.subState"), true],
     ["identity", t("runners.detail.subIdentity"), true],
     ["workplaces", t("runners.detail.subWorkplaces"), true],
     ["log", t("runners.detail.subLog"), true],
+    ["state", t("runners.detail.subState"), true],
     ["maintenance", t("runners.detail.subMaintenance"), manage],
   ] as const;
-  const wanted = sp.get("sub") ?? "state";
-  const sub = subs.some(([k, , allowed]) => k === wanted && allowed) ? wanted : "state";
+  // Der Zustand steht weiter unten: Version, Architektur und Protokoll aendern
+  // sich fast nie, und was von ihnen taeglich interessiert, steht schon in der
+  // Uebersichtstabelle. Oben gehoert hin, was man aendert oder liest.
+  const wanted = sp.get("sub") ?? "identity";
+  const sub = subs.some(([k, , allowed]) => k === wanted && allowed) ? wanted : "identity";
   const setSub = (key: string) =>
     setSp(
       (prev) => {

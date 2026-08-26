@@ -2320,7 +2320,12 @@
       "offline": "Der Host ist gerade nicht verbunden — hier steht, was er zuletzt gesagt hat.",
       "debugOn": "Dieser Host meldet auf debug. Zurück auf info stellen, wenn du fertig bist: debug schreibt bei jedem Start hunderte Zeilen.",
       "levelPending": "Gespeichert, aber nicht zugestellt — der Host übernimmt es bei der nächsten Verbindung. ({{error}})",
-      "tooOld": "Dieser Host läuft auf einem Build, der sein Log noch nicht schickt. Er schweigt nicht — er kann nicht. Auf der Runner-Seite oben aktualisieren, danach kommen die Zeilen."
+      "tooOld": "Dieser Host läuft auf einem Build, der sein Log noch nicht schickt. Er schweigt nicht — er kann nicht. Auf der Runner-Seite oben aktualisieren, danach kommen die Zeilen.",
+      "agentChip": "Agent {{agent}}",
+      "filteredByAgent": "Nur Zeilen zum Agenten {{agent}}.",
+      "clearFilter": "Filter aufheben",
+      "more": "Ältere zeigen",
+      "capped": "Mehr als tausend Zeilen zeigt diese Ansicht nicht. Grenz die Suche ein oder filtere auf einen Agenten."
     },
     "sandboxesOf": "{{running}} von {{max}}"
   },

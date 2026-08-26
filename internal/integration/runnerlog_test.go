@@ -97,3 +97,41 @@ func TestLogLevelIsStoredOnTheRow(t *testing.T) {
 		t.Fatalf("the level is not on the row: %q", rn.LogLevel)
 	}
 }
+
+// A runner that loses its connection keeps working and keeps logging, and
+// delivers the buffer when it comes back. Those lines get the HIGHEST ids and
+// are the OLDEST there are — so ordering by id would put them at the top and
+// quietly rewrite what happened when.
+func TestLateBatchDoesNotJumpTheQueue(t *testing.T) {
+	s := newStack(t)
+	c := login(t, s, "admin@test.local", "admin-passwort")
+	ctx := context.Background()
+
+	tokens := runnerstore.NewBuiltinTokens(s.runners)
+	runnerID, _, err := tokens.For(ctx, s.orgID)
+	if err != nil {
+		t.Fatalf("built-in runner: %v", err)
+	}
+
+	now := time.Now()
+	// Written first, and recent.
+	if err := s.runners.AppendLogs(ctx, s.orgID, runnerID, []runner.LogEntry{
+		{Time: now, Level: "info", Msg: "connected to the control plane"},
+	}); err != nil {
+		t.Fatalf("AppendLogs: %v", err)
+	}
+	// Written second — the buffer from before the connection dropped.
+	if err := s.runners.AppendLogs(ctx, s.orgID, runnerID, []runner.LogEntry{
+		{Time: now.Add(-10 * time.Minute), Level: "warn", Msg: "from the buffer"},
+	}); err != nil {
+		t.Fatalf("AppendLogs: %v", err)
+	}
+
+	lines := c.expectList(http.MethodGet, "/api/v1/runners/"+runnerID.String()+"/logs", nil, http.StatusOK)
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 lines, got %d", len(lines))
+	}
+	if lines[0]["msg"] != "connected to the control plane" {
+		t.Fatalf("the late batch was sorted to the top — the log now tells the wrong order: %v", lines[0]["msg"])
+	}
+}

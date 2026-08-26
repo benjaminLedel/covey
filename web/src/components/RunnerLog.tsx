@@ -42,12 +42,21 @@ export default function RunnerLog({
   const [show, setShow] = useState<"info" | "debug">("info");
   const [search, setSearch] = useState("");
   const [note, setNote] = useState("");
+  // Zeilen ueber EINEN Start gehoeren zusammen. Der Filter sitzt an der Zeile
+  // selbst, weil man ihn dort braucht — nicht in einem Feld, in das man eine
+  // UUID abtippt.
+  const [agent, setAgent] = useState<string | null>(null);
+  // Mehr zeigen statt blaettern: ein Log liest man von oben nach unten und
+  // hoert auf, wenn man gefunden hat, was man sucht. Seiten mit Vor und
+  // Zurueck waeren hier ein Bedienelement fuer einen Weg, den niemand geht.
+  const [limit, setLimit] = useState(200);
 
-  const params = new URLSearchParams({ level: show, limit: "200" });
+  const params = new URLSearchParams({ level: show, limit: String(limit) });
   if (search.trim()) params.set("q", search.trim());
+  if (agent) params.set("agent", agent);
 
   const logs = useQuery({
-    queryKey: ["runner-logs", runnerId, show, search.trim()],
+    queryKey: ["runner-logs", runnerId, show, search.trim(), agent, limit],
     queryFn: () => api<LogLine[]>(`/runners/${runnerId}/logs?${params}`),
     refetchInterval: 5_000,
   });
@@ -65,8 +74,10 @@ export default function RunnerLog({
     onError: (e) => setNote(String((e as Error)?.message)),
   });
 
-  const time = (iso: string) => new Date(iso).toLocaleString(locale, { hour12: false });
-  const cls = (l: string) => (l === "error" ? "danger-text" : l === "warn" ? "warn-text" : "muted");
+  const hhmmss = (iso: string) =>
+    new Date(iso).toLocaleTimeString(locale, { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const day = (iso: string) => new Date(iso).toLocaleDateString(locale, { day: "2-digit", month: "long", year: "numeric" });
+  const lines = logs.data ?? [];
 
   return (
     <section className="card mt-4">
@@ -117,29 +128,66 @@ export default function RunnerLog({
       {!ships && <p className="warn-text text-xs">{t("runners.log.tooOld")}</p>}
       {level === "debug" && <p className="muted text-xs">{t("runners.log.debugOn")}</p>}
       {note && <p className="warn-text text-xs">{note}</p>}
+      {agent && (
+        <p className="text-xs mb-2">
+          {t("runners.log.filteredByAgent", { agent: agent.slice(0, 8) })}{" "}
+          <button className="rlog-clear" type="button" onClick={() => setAgent(null)}>
+            {t("runners.log.clearFilter")}
+          </button>
+        </p>
+      )}
 
       {logs.isLoading && <p className="muted text-sm">{t("common.loading")}</p>}
-      {logs.data?.length === 0 && ships && <p className="muted text-sm">{t("runners.log.empty")}</p>}
+      {lines.length === 0 && ships && !logs.isLoading && (
+        <p className="muted text-sm">{t("runners.log.empty")}</p>
+      )}
 
-      {(logs.data ?? []).length > 0 && (
-        <div style={{ maxHeight: 420, overflowY: "auto", overflowX: "auto" }}>
-          {(logs.data ?? []).map((l) => (
-            <div key={l.id} className="mono text-[12px] flex gap-2" style={{ padding: "2px 0", whiteSpace: "nowrap" }}>
-              <span className="muted">{time(l.ts)}</span>
-              <span className={cls(l.level)} style={{ width: 44, display: "inline-block" }}>
-                {l.level}
-              </span>
-              <span>{l.msg}</span>
-              {l.attrs &&
-                Object.entries(l.attrs).map(([k, v]) => (
-                  <span key={k} className="muted">
-                    {k}={v}
+      {lines.length > 0 && (
+        <div className="rlog mono">
+          {lines.map((l, i) => {
+            // Die Liste ist neueste zuerst; der Tageswechsel gehoert deshalb
+            // VOR die erste Zeile des jeweiligen Tages, also dort, wo sich das
+            // Datum gegenueber der vorherigen Zeile aendert.
+            const showDay = i === 0 || day(l.ts) !== day(lines[i - 1].ts);
+            return (
+              <div key={l.id}>
+                {showDay && <div className="rlog-day">{day(l.ts)}</div>}
+                <div className={`rlog-line lvl-${l.level}`}>
+                  <span className="rlog-time">{hhmmss(l.ts)}</span>
+                  <span className="rlog-level">{l.level}</span>
+                  <span className="rlog-body">
+                    <span className="rlog-msg">{l.msg}</span>
+                    {l.agent_id && (
+                      <button
+                        type="button"
+                        className="rlog-agent"
+                        title={l.agent_id}
+                        onClick={() => setAgent(agent === l.agent_id ? null : (l.agent_id ?? null))}
+                      >
+                        {t("runners.log.agentChip", { agent: l.agent_id.slice(0, 8) })}
+                      </button>
+                    )}
+                    {l.attrs &&
+                      Object.entries(l.attrs).map(([k, v]) => (
+                        <span key={k} className="rlog-attr">
+                          <span>{k}=</span>
+                          {v}
+                        </span>
+                      ))}
                   </span>
-                ))}
-            </div>
-          ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
+
+      {lines.length >= limit && limit < 1000 && (
+        <button className="btn sm mt-2" type="button" onClick={() => setLimit(limit + 200)}>
+          {t("runners.log.more")}
+        </button>
+      )}
+      {lines.length >= 1000 && <p className="muted text-xs mt-2">{t("runners.log.capped")}</p>}
     </section>
   );
 }
