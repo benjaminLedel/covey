@@ -2314,7 +2314,8 @@
       "empty": "Noch keine Zeile von diesem Host.",
       "offline": "Der Host ist gerade nicht verbunden — hier steht, was er zuletzt gesagt hat.",
       "debugOn": "Dieser Host meldet auf debug. Zurück auf info stellen, wenn du fertig bist: debug schreibt bei jedem Start hunderte Zeilen.",
-      "levelPending": "Gespeichert, aber nicht zugestellt — der Host übernimmt es bei der nächsten Verbindung. ({{error}})"
+      "levelPending": "Gespeichert, aber nicht zugestellt — der Host übernimmt es bei der nächsten Verbindung. ({{error}})",
+      "tooOld": "Dieser Host läuft auf einem Build, der sein Log noch nicht schickt. Er schweigt nicht — er kann nicht. Auf der Runner-Seite oben aktualisieren, danach kommen die Zeilen."
     },
     "sandboxesOf": "{{running}} von {{max}}"
   },

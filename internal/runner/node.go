@@ -108,7 +108,7 @@ func (n *Node) Run(ctx context.Context, t Transport) error {
 		Arch:     runtime.GOARCH,
 		Tags:     n.Tags,
 		Images:   n.Images,
-		Features: []string{FeatureSelfUpdate},
+		Features: []string{FeatureSelfUpdate, FeatureLogShipping},
 
 		MaxSandboxes: n.MaxSandboxes,
 	})

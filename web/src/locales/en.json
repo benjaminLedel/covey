@@ -2314,7 +2314,8 @@
       "empty": "No line from this host yet.",
       "offline": "The host is not connected right now — this is what it last said.",
       "debugOn": "This host is reporting at debug. Set it back to info when you are done: debug writes hundreds of lines per start.",
-      "levelPending": "Stored but not delivered — the host takes it on its next connection. ({{error}})"
+      "levelPending": "Stored but not delivered — the host takes it on its next connection. ({{error}})",
+      "tooOld": "This host runs a build that does not ship its log yet. It is not silent — it cannot speak. Update it further up this page, and the lines will come."
     },
     "sandboxesOf": "{{running}} of {{max}}"
   },

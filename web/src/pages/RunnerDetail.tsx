@@ -43,6 +43,7 @@ type RunnerView = {
     reported_images?: string[];
     sandboxes: number;
     max_sandboxes?: number;
+    features?: string[];
     outdated: boolean;
     unresponsive?: boolean;
   };
@@ -320,6 +321,10 @@ export default function RunnerDetail({ me }: { me: Principal }) {
         runnerId={r.id}
         level={r.log_level || "info"}
         connected={connected}
+        // Ein Host, dessen Build das Log noch nicht schickt, schweigt nicht —
+        // er kann nicht. Das zu unterscheiden ist der Unterschied zwischen
+        // „nichts los" und „du siehst hier nie etwas".
+        ships={!connected || (r.live?.features ?? []).includes("log_shipping")}
         manage={manage}
       />
 

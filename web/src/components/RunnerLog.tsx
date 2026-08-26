@@ -27,11 +27,13 @@ export default function RunnerLog({
   runnerId,
   level,
   connected,
+  ships,
   manage,
 }: {
   runnerId: string;
   level: string;
   connected: boolean;
+  ships: boolean;
   manage: boolean;
 }) {
   const { t, i18n } = useTranslation();
@@ -112,11 +114,12 @@ export default function RunnerLog({
       </div>
 
       {!connected && <p className="muted text-xs">{t("runners.log.offline")}</p>}
+      {!ships && <p className="warn-text text-xs">{t("runners.log.tooOld")}</p>}
       {level === "debug" && <p className="muted text-xs">{t("runners.log.debugOn")}</p>}
       {note && <p className="warn-text text-xs">{note}</p>}
 
       {logs.isLoading && <p className="muted text-sm">{t("common.loading")}</p>}
-      {logs.data?.length === 0 && <p className="muted text-sm">{t("runners.log.empty")}</p>}
+      {logs.data?.length === 0 && ships && <p className="muted text-sm">{t("runners.log.empty")}</p>}
 
       {(logs.data ?? []).length > 0 && (
         <div style={{ maxHeight: 420, overflowY: "auto", overflowX: "auto" }}>

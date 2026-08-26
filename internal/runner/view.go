@@ -27,6 +27,10 @@ type Live struct {
 	// What the host says about itself, beside the effective sets above: an
 	// operator who assigns nothing has to be able to see why an agent still
 	// does not land there.
+	// Features are what this build can do beyond the messages that have always
+	// existed. The interface needs them to tell "this host has nothing to say"
+	// apart from "this build cannot say anything".
+	Features       []string `json:"features,omitempty"`
 	ReportedTags   []string `json:"reported_tags,omitempty"`
 	ReportedImages []string `json:"reported_images,omitempty"`
 	Sandboxes      int      `json:"sandboxes"`
@@ -64,6 +68,7 @@ func (p *Pool) LiveFor(orgID uuid.UUID) map[uuid.UUID]Live {
 			RunnerID: c.runnerID, Connected: true, Protocol: c.protocol,
 			Version: c.version, Arch: c.arch, Tags: c.tags, Images: c.images,
 			ReportedTags: c.reportedTags, ReportedImages: c.reportedImages,
+			Features:  c.features,
 			Sandboxes: running, MaxSandboxes: c.maxSandboxes, Outdated: c.protocol < Protocol,
 			Unresponsive: !c.answering(),
 		}

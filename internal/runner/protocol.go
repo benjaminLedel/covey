@@ -311,6 +311,17 @@ type Registered struct {
 // by hand, and can then update themselves.
 const FeatureSelfUpdate = "self_update"
 
+// FeatureLogShipping: this runner sends its own log up the link. A build from
+// before it does not, and silence from such a host is indistinguishable from a
+// host that has nothing to say — which is the worse of the two, because the
+// empty panel looks like an answer. The interface asks for this flag so it can
+// say "this build does not ship its log yet" instead.
+//
+// A flag and not a protocol bump: the handshake demands an exact version match,
+// so raising it would disconnect every runner in the field — precisely the
+// population that needs to be told something rather than dropped.
+const FeatureLogShipping = "log_shipping"
+
 // Protocol is the version this build speaks. It is raised when a message
 // changes its meaning — a new, optional field is not a new version.
 const Protocol = 1
