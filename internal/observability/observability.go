@@ -456,6 +456,34 @@ func (s *Store) Events(ctx context.Context, agentID uuid.UUID, taskID *uuid.UUID
 	return out, rows.Err()
 }
 
+// LastPlacement is the host an agent last worked on, out of its own recording:
+// the newest `sandbox` event, which is written the moment a sandbox stands.
+//
+// Asked as a query and not read out of the log the interface loads, because
+// that log is the newest 500 events — and a talkative run fills those in nine
+// minutes, so the line lands out of reach exactly for the run somebody is
+// watching. Postgres walks this agent's events backwards and stops at the first
+// hit, which on any agent that has ever run is a few hundred rows.
+//
+// Empty and no error when nothing is found: an agent that has never woken, or
+// whose recording has been swept (retention). The caller then knows a poorer
+// answer — where the home lies — and may use it.
+func (s *Store) LastPlacement(ctx context.Context, agentID uuid.UUID) (runnerID, name string, err error) {
+	var payload map[string]any
+	err = s.pool.QueryRow(ctx, `SELECT payload FROM recording_events
+		WHERE agent_id = $1 AND kind = 'lifecycle' AND payload->>'status' = 'sandbox'
+		ORDER BY id DESC LIMIT 1`, agentID).Scan(&payload)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", "", nil
+		}
+		return "", "", err
+	}
+	runnerID, _ = payload["runner"].(string)
+	name, _ = payload["runner_name"].(string)
+	return runnerID, name, nil
+}
+
 // OrgEventsByKind returns the most recent events of one kind org-wide, newest
 // first — e.g. all triggered guard-rails for the audit feed.
 func (s *Store) OrgEventsByKind(ctx context.Context, orgID uuid.UUID, kind string, limit int) ([]RecordingEvent, error) {

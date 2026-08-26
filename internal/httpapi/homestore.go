@@ -272,6 +272,22 @@ func (s *Server) handleAgentPlacement(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// Nothing standing: then the recording says where it last stood. That is a
+	// different question from where its home lies, and the better answer to
+	// "where did this run" — a run that was interrupted before its home was
+	// synced has left no snapshot, and the older one would then name the wrong
+	// host with full confidence.
+	if s.Obs != nil {
+		if runnerID, name, err := s.Obs.LastPlacement(r.Context(), id); err == nil && runnerID != "" {
+			if parsed, err := uuid.Parse(runnerID); err == nil {
+				writeJSON(w, http.StatusOK, AgentPlacement{
+					RunnerID: runnerID, RunnerName: runnerName(name, parsed),
+				})
+				return
+			}
+		}
+	}
+	// And if the recording has been swept: where the working copy lies.
 	if s.Runners != nil {
 		if summary, err := s.Runners.HomeSummaryFor(r.Context(), id); err == nil &&
 			summary.Latest != nil && summary.Latest.RunnerID != nil {
