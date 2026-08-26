@@ -341,6 +341,7 @@ func (s *Server) Handler() http.Handler {
 	// whose content nobody can see is an operational risk — you notice it when
 	// the disk is full.
 	mux.Handle("GET /api/v1/agents/{id}/home", s.agentScoped(append(manage, identity.RoleSecurity), s.handleAgentHome))
+	mux.Handle("GET /api/v1/agents/{id}/placement", s.agentScoped(anyRole, s.handleAgentPlacement))
 	// One state per agent, so there is nothing to list and nothing to pick from
 	// (spec/16). What remains is forcing the sync that writes it.
 	mux.Handle("POST /api/v1/agents/{id}/home/snapshots", s.agentScoped(manage, s.handleBackupNow))

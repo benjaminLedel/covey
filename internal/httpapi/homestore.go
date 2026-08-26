@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -234,4 +235,67 @@ func (s *Server) handleCleanupStore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// AgentPlacement is where an agent works: the host its sandbox stands on right
+// now, or — when nothing is standing — the one its last snapshot came from,
+// which is where its working copy lies.
+//
+// Its own endpoint rather than a field on the agent, because it is the only
+// thing about an agent that is not in the database: the live half lives in the
+// orchestrator, and a field would have to be filled from there on every read of
+// every agent.
+//
+// The recording used to be the only place that answered this, as one grey line
+// among hundreds — and for a talkative run that line falls out of the window of
+// the newest 500 events, so precisely the run somebody is watching had no
+// answer at all.
+type AgentPlacement struct {
+	RunnerID   string `json:"runner_id,omitempty"`
+	RunnerName string `json:"runner_name,omitempty"`
+	// Live: it is standing there now. false with a runner named = that is
+	// where it last worked.
+	Live bool `json:"live"`
+}
+
+func (s *Server) handleAgentPlacement(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	if s.Orch != nil {
+		if runnerID, name, ok := s.Orch.Placement(id); ok {
+			writeJSON(w, http.StatusOK, AgentPlacement{
+				RunnerID: runnerID.String(), RunnerName: runnerName(name, runnerID), Live: true,
+			})
+			return
+		}
+	}
+	if s.Runners != nil {
+		if summary, err := s.Runners.HomeSummaryFor(r.Context(), id); err == nil &&
+			summary.Latest != nil && summary.Latest.RunnerID != nil {
+			name := summary.RunnerName
+			if name == "" && summary.RunnerKind == runnerstore.KindBuiltin {
+				name = "built-in"
+			}
+			writeJSON(w, http.StatusOK, AgentPlacement{
+				RunnerID:   summary.Latest.RunnerID.String(),
+				RunnerName: runnerName(name, *summary.Latest.RunnerID),
+			})
+			return
+		}
+	}
+	// Nowhere yet — a fresh agent that has never woken. An empty answer rather
+	// than a guess.
+	writeJSON(w, http.StatusOK, AgentPlacement{})
+}
+
+// runnerName falls back to the short id: a host somebody never named is still
+// a host, and eight characters are what the runner view shows for it too.
+func runnerName(name string, id uuid.UUID) string {
+	if name = strings.TrimSpace(name); name != "" {
+		return name
+	}
+	return id.String()[:8]
 }

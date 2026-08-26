@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
@@ -29,18 +29,26 @@ export function Recording({
     refetchInterval: 5000,
   });
   const list = events.data ?? [];
-  // Wo dieser Agent arbeitet. Die Auskunft steckte bisher als eine graue Zeile
-  // zwischen Hunderten im Verlauf — dabei ist sie ab der zweiten Maschine die
-  // erste Frage vor einem Lauf, der sich seltsam verhalten hat, und die einzige
-  // Antwort, die man nicht aus dem Rest herauslesen kann.
-  const host = useMemo(() => placedOn(list), [list]);
+  // Wo dieser Agent arbeitet. Ab der zweiten Maschine ist das die erste Frage
+  // vor einem Lauf, der sich seltsam verhalten hat — und die einzige Antwort,
+  // die man nicht aus dem Rest des Logs herauslesen kann.
+  //
+  // Gefragt statt aus den Ereignissen gelesen: Die Zeile „Sandbox auf X" steht
+  // zwar im Verlauf, faellt bei einem gespraechigen Lauf aber aus dem Fenster
+  // der neuesten 500 Ereignisse — also genau bei dem Lauf, dem gerade jemand
+  // zusieht.
+  const host = useQuery({
+    queryKey: ["placement", agentId],
+    queryFn: () => api<{ runner_id?: string; runner_name?: string; live: boolean }>(`/agents/${agentId}/placement`),
+    refetchInterval: 5000,
+  });
   return (
     <div>
       <div className="flex items-center gap-2 mb-3">
-        {host && (
+        {host.data?.runner_id && (
           <span className="muted text-sm">
-            {host.live ? t("agent.recording.runsOn") : t("agent.recording.ranOn")}{" "}
-            <Link to={`/infrastructure/runners/${host.id}`}>{host.name}</Link>
+            {host.data.live ? t("agent.recording.runsOn") : t("agent.recording.ranOn")}{" "}
+            <Link to={`/infrastructure/runners/${host.data.runner_id}`}>{host.data.runner_name}</Link>
           </span>
         )}
         {taskFilter && (
@@ -89,26 +97,6 @@ export function Recording({
       </div>
     </div>
   );
-}
-
-// placedOn liest aus dem Verlauf, auf welchem Host der Agent zuletzt gelandet
-// ist — und ob er dort noch ist. Beides steht in den Lebenszyklus-Ereignissen,
-// die ohnehin geladen sind: kein zweiter Aufruf fuer eine Zeile.
-//
-// „Noch dort" ist absichtlich vorsichtig: Was den Lauf beendet, ist ein
-// spaeteres schlafen/wake_failed. Fehlt das, laeuft er.
-function placedOn(list: RecordingEvent[]): { id: string; name: string; live: boolean } | null {
-  let host: { id: string; name: string; live: boolean } | null = null;
-  for (const e of list) {
-    if (e.kind !== "lifecycle") continue;
-    const p = (typeof e.payload === "object" && e.payload !== null ? e.payload : {}) as Record<string, any>;
-    if (p.status === "sandbox" && p.runner) {
-      host = { id: String(p.runner), name: String(p.runner_name || p.runner).slice(0, 40), live: true };
-    } else if (host && (p.status === "sleeping" || p.status === "wake_failed" || p.status === "killed")) {
-      host.live = false;
-    }
-  }
-  return host;
 }
 
 function summarize(e: RecordingEvent): { text: string; mono?: boolean; muted?: boolean; danger?: boolean } {

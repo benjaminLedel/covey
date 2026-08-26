@@ -280,6 +280,14 @@ type session struct {
 	// from the API puts into cooldown.
 	credRuntime uuid.UUID
 	credOrd     int
+	// Where this run is happening: the host the sandbox stands on, and the
+	// name it carried at that moment. Held here and not only written into the
+	// recording, because the question "where is this agent working right now"
+	// is asked while it works — and the recording answers it only for whoever
+	// scrolls far enough back, which on a talkative run is further than the
+	// log window reaches.
+	runnerID   uuid.UUID
+	runnerName string
 }
 
 // Run starts the dispatch loop: cheap, permanent, no LLM (spec/03).
@@ -760,6 +768,26 @@ func (o *Orchestrator) runWroteSignature(ctx context.Context, agentID uuid.UUID,
 	return false
 }
 
+// Placement says where an agent is working right now — the host its sandbox
+// stands on, including the parked one of a warm agent, which is compute on a
+// machine as much as a running one is. ok=false: nothing of this agent is
+// standing anywhere, and the last known host is then the one in its latest
+// snapshot (that is where its working copy lies).
+func (o *Orchestrator) Placement(agentID uuid.UUID) (uuid.UUID, string, bool) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if s := o.sessions[agentID]; s != nil && s.runnerID != uuid.Nil {
+		return s.runnerID, s.runnerName, true
+	}
+	if ws := o.warm[agentID]; ws != nil && ws.sandbox != nil {
+		if placed, ok := ws.sandbox.(Placed); ok {
+			id, label := placed.Runner()
+			return id, label, id != uuid.Nil
+		}
+	}
+	return uuid.Nil, "", false
+}
+
 // EnsureRunning starts an agent session if none is running (idempotent).
 func (o *Orchestrator) EnsureRunning(agentID uuid.UUID) {
 	o.mu.Lock()
@@ -917,6 +945,9 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 	// if at all.
 	if placed, ok := sandbox.(Placed); ok {
 		id, label := placed.Runner()
+		o.mu.Lock()
+		s.runnerID, s.runnerName = id, label
+		o.mu.Unlock()
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindLifecycle, map[string]any{
 			"status": "sandbox", "runner": id.String(), "runner_name": label,
 		})
