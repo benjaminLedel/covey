@@ -8,7 +8,6 @@ import {
   patch,
   del,
   buildInfo,
-  type Organization,
   type Stage,
   type Task,
   type TaskNote,
@@ -471,26 +470,19 @@ function TaskCard({
     queryFn: () => api<TaskNote[]>(`/tasks/${task.id}/notes`),
     enabled: open,
   });
-  // Wohin ein Plattform-Befund gemeldet wird: was die Organisation eingetragen
-  // hat, sonst das Projekt, aus dem dieses Binary stammt (spec/21). Beides
-  // liegt ohnehin in der API — die Adresse wird hier nirgends hartkodiert,
-  // damit ein Fork auf seinen eigenen Tracker zeigt.
-  const org = useQuery({
-    queryKey: ["own-org"],
-    queryFn: () => api<Organization>("/org"),
-    enabled: open,
-    staleTime: 5 * 60 * 1000,
-  });
+  // Wohin ein Plattform-Befund gemeldet wird: immer in das Projekt, aus dem
+  // dieses Binary stammt (buildinfo.SourceRepo). NICHT in das Repository, das
+  // die Organisation für Covey Doctor eingetragen hat — das ist die Adresse,
+  // an der sie ihre eigenen Vorgänge führt, und ein Fehler der Plattform
+  // gehört dorthin, wo die Plattform gepflegt wird. Ein Fork trägt seine
+  // eigene Adresse in der Konstante und zeigt damit auf seinen Tracker.
   const build = useQuery({
     queryKey: ["build-info"],
     queryFn: buildInfo,
     enabled: open,
     staleTime: 60 * 60 * 1000,
   });
-  const repo = {
-    system: org.data?.platform_repo_system || build.data?.source_system,
-    project: org.data?.platform_repo_project || build.data?.source_project,
-  };
+  const repo = { system: build.data?.source_system, project: build.data?.source_project };
   const cancel = useMutation({
     mutationFn: () => post(`/tasks/${task.id}/cancel`),
     onSuccess: invalBacklog,

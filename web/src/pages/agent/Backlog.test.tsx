@@ -88,19 +88,23 @@ describe("Befund aus einer Aufgaben-Notiz melden", () => {
     expect(link.rel).toContain("noopener");
   });
 
-  it("nimmt die Adresse der Organisation, wo sie eine eingetragen hat", async () => {
+  // Die Adresse ist NICHT verhandelbar: was die Organisation für ihre eigenen
+  // Vorgänge einträgt, ist ihr Repository — ein Fehler der Plattform gehört
+  // dorthin, wo die Plattform gepflegt wird.
+  it("zeigt auch dann auf das Hauptprojekt, wenn die Organisation ein eigenes Repo führt", async () => {
     mockFetch(routen({ ...ORG, platform_repo_system: "gitlab", platform_repo_project: "intern/covey" }));
     renderWithProviders(<Backlog agentId="a1" canManage onShowRecording={() => {}} />);
     await oeffneAufgabe();
 
     const link = (await screen.findByText("↗ nach oben melden")) as HTMLAnchorElement;
-    expect(link.href).toContain("gitlab.com/intern/covey/-/issues/new");
+    expect(link.href).toContain("github.com/benjaminLedel/covey/issues/new");
+    expect(link.href).not.toContain("intern/covey");
   });
 
-  // "-" ist in der Plattform das ausdrückliche „meldet nirgendwohin" — dann
-  // gehört auch kein Knopf dorthin.
-  it("zeigt keinen Link, wo das Melden abgestellt ist", async () => {
-    mockFetch(routen({ ...ORG, platform_repo_system: "-", platform_repo_project: "-" }));
+  // Ein Binary ohne bekannte Herkunft (eigener Build ohne die Konstante) hat
+  // kein Ziel — dann gehört auch kein Knopf dorthin.
+  it("zeigt keinen Link, wo die Herkunft unbekannt ist", async () => {
+    mockFetch({ ...routen(), "/api/v1/version": { ...BUILD, source_system: "", source_project: "" } });
     renderWithProviders(<Backlog agentId="a1" canManage onShowRecording={() => {}} />);
     await oeffneAufgabe();
 
