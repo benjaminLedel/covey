@@ -2300,7 +2300,21 @@
       "pullDone": "{{image}} liegt jetzt auf diesem Host.",
       "pullFailed": "{{image}} konnte nicht geholt werden: {{error}}"
     },
-    "edit": "Bearbeiten"
+    "edit": "Bearbeiten",
+    "log": {
+      "title": "Log",
+      "hint": "Was dieser Host sagt. Vorher stand das nur im journald der Maschine — für ausgerechnet die Komponente, die absichtlich woanders läuft, der falsche Ort.",
+      "levelLabel": "Der Host meldet",
+      "showLabel": "Angezeigt",
+      "level_info": "info",
+      "level_debug": "debug",
+      "searchLabel": "Suche",
+      "searchPlaceholder": "im Text der Zeile",
+      "empty": "Noch keine Zeile von diesem Host.",
+      "offline": "Der Host ist gerade nicht verbunden — hier steht, was er zuletzt gesagt hat.",
+      "debugOn": "Dieser Host meldet auf debug. Zurück auf info stellen, wenn du fertig bist: debug schreibt bei jedem Start hunderte Zeilen.",
+      "levelPending": "Gespeichert, aber nicht zugestellt — der Host übernimmt es bei der nächsten Verbindung. ({{error}})"
+    }
   },
   "diagnostics": {
     "title": "Diagnose",

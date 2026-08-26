@@ -341,6 +341,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/runners/{id}", s.rbac(manage, s.handleUpdateRunner))
 	mux.Handle("POST /api/v1/runners/{id}/pull", s.rbac(manage, s.handlePullOnRunner))
 	mux.Handle("POST /api/v1/runners/{id}/update", s.rbac(manage, s.handleUpdateRunnerBinary))
+	mux.Handle("GET /api/v1/runners/{id}/logs", s.rbac(anyRole, s.handleRunnerLogs))
+	mux.Handle("POST /api/v1/runners/{id}/log-level", s.rbac(manage, s.handleSetRunnerLogLevel))
 	mux.Handle("DELETE /api/v1/runners/{id}", s.rbac(manage, s.handleDeleteRunner))
 
 	// The home store (spec/16, "Interface"). A store that grows quietly and

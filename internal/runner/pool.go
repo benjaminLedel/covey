@@ -94,6 +94,18 @@ type Pool struct {
 	// looks for the difference.
 	Progress func(orgID, runnerID uuid.UUID, p Progress)
 
+	// LogLevelFor answers what level this runner is meant to report at. Asked
+	// on every registration, because the level is a property of the runner and
+	// not of the connection: a host somebody switched to debug that drops out
+	// for a minute must come back at debug, or the switch in the interface is
+	// lying about the state of the world.
+	LogLevelFor func(ctx context.Context, runnerID uuid.UUID) string
+
+	// Logs receives what a runner writes to its own log. Like Progress it
+	// answers nothing and belongs to no correlation — it arrives unasked and
+	// goes straight to whoever keeps it.
+	Logs func(orgID, runnerID uuid.UUID, batch LogBatch)
+
 	// EnsureLocal is asked when an organisation has no connected runner: the
 	// built-in one is created on first use, because organisations come into
 	// being while the process runs. nil = nothing is created, and the
@@ -339,6 +351,24 @@ func (p *Pool) register(ctx context.Context, t Transport, builtin bool) (*conn, 
 	p.mu.Unlock()
 	p.Log.Info("runner connected", "runner", reg.RunnerID, "org", reg.OrgID,
 		"builtin", builtin, "version", reg.Version)
+	// The stored log level, re-applied. In the background on purpose: a
+	// registration that waited for it would let a slow answer delay the first
+	// wake, and the worst case of failing here is a host that reports at info
+	// until somebody switches it again.
+	if p.LogLevelFor != nil {
+		go func() {
+			level := p.LogLevelFor(context.WithoutCancel(ctx), reg.RunnerID)
+			if !ValidLogLevel(level) || level == LogLevelInfo {
+				return
+			}
+			ask, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+			defer cancel()
+			if _, err := c.ask(ask, TypeSetLogLevel, SetLogLevel{Level: level}, 15*time.Second); err != nil {
+				p.Log.Warn("log level could not be restored on the runner",
+					"runner", reg.RunnerID, "level", level, "err", err)
+			}
+		}()
+	}
 	return c, nil
 }
 
@@ -537,6 +567,17 @@ func (c *conn) readLoop(ctx context.Context) error {
 				continue
 			}
 			c.pool.Progress(c.orgID, c.runnerID, ev)
+		case TypeLog:
+			// A batch of the runner's own log lines, so that the host can be
+			// read where it is administered instead of only over SSH.
+			if c.pool.Logs == nil {
+				continue
+			}
+			batch, err := decode[LogBatch](msg)
+			if err != nil {
+				continue
+			}
+			c.pool.Logs(c.orgID, c.runnerID, batch)
 		case TypeHeartbeat:
 		case TypeHomeResult:
 			// A chunk whose reader has gone: a download the browser cancelled.
@@ -1516,6 +1557,34 @@ func (p *Pool) PullOn(ctx context.Context, orgID, runnerID uuid.UUID, nameOrImag
 		return image, errors.New(res.Err)
 	}
 	return image, nil
+}
+
+// SetLogLevel asks one runner to report at this level from now on. It waits
+// for the confirmation and answers with the level the runner APPLIED — a
+// refused value must show up in the interface rather than look like it took.
+//
+// The caller stores it beside the runner as well: a runner that reconnects
+// otherwise comes back quietly at info while the switch still reads "debug",
+// and a switch that lies about the state is worse than no switch.
+func (p *Pool) SetLogLevel(ctx context.Context, orgID, runnerID uuid.UUID, level string) (string, error) {
+	if !ValidLogLevel(level) {
+		return "", fmt.Errorf("unknown log level %q (debug or info)", level)
+	}
+	p.mu.Lock()
+	c := p.conns[runnerID]
+	p.mu.Unlock()
+	if c == nil || c.orgID != orgID {
+		return "", fmt.Errorf("%w: this runner is not connected", ErrNoRunner)
+	}
+	answer, err := c.ask(ctx, TypeSetLogLevel, SetLogLevel{Level: level}, 15*time.Second)
+	if err != nil {
+		return "", err
+	}
+	res, err := decode[SetLogLevel](answer)
+	if err != nil {
+		return "", err
+	}
+	return res.Level, nil
 }
 
 // PullWorkplace fetches a profile's image onto every runner of the

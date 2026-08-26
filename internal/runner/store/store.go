@@ -67,6 +67,11 @@ type Runner struct {
 	// own machine is not to carry compute. Everything else about the runner
 	// stays: token, tags, working copies. nil = it works.
 	PausedAt *time.Time `json:"paused_at,omitempty"`
+	// LogLevel is what this runner is asked to report at — "info" normally,
+	// "debug" while somebody is looking into a problem on this one host. It
+	// lives on the row and not only in the message, so that a runner which
+	// reconnects comes back at the level the interface shows.
+	LogLevel string `json:"log_level"`
 }
 
 // Paused is the question the scheduler asks; the timestamp is for the sentence
@@ -97,13 +102,13 @@ func NewToken() (string, error) {
 	return hex.EncodeToString(buf), nil
 }
 
-const columns = `id, org_id, kind, name, description, tags, extra_tags, assigned_images, version, arch, protocol, created_at, last_seen_at, paused_at`
+const columns = `id, org_id, kind, name, description, tags, extra_tags, assigned_images, version, arch, protocol, created_at, last_seen_at, paused_at, log_level`
 
 func scan(row pgx.Row) (Runner, error) {
 	var r Runner
 	var images []string
 	err := row.Scan(&r.ID, &r.OrgID, &r.Kind, &r.Name, &r.Description, &r.Tags, &r.ExtraTags, &images,
-		&r.Version, &r.Arch, &r.Protocol, &r.CreatedAt, &r.LastSeenAt, &r.PausedAt)
+		&r.Version, &r.Arch, &r.Protocol, &r.CreatedAt, &r.LastSeenAt, &r.PausedAt, &r.LogLevel)
 	if images != nil {
 		r.AssignedImages, r.ImagesDecided = images, true
 	}

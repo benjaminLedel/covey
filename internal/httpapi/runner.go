@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/coder/websocket"
@@ -517,4 +518,95 @@ func (s *Server) handleUpdateRunnerBinary(w http.ResponseWriter, r *http.Request
 		"ok": res.Err == "", "error": res.Err,
 		"from": res.From, "to": res.To, "restarting": res.Restarting,
 	})
+}
+
+// handleRunnerLogs answers what a host has been saying. Newest first, because
+// that is the end anybody starts reading from when something is wrong.
+//
+// The level filter is the reader's, not the store's: what a runner SHIPS is
+// decided on the runner (see handleSetRunnerLogLevel), what is shown is decided
+// here. Confusing the two is how you end up switching a host to debug and still
+// seeing nothing.
+func (s *Server) handleRunnerLogs(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	if _, err := s.Runners.ByID(r.Context(), id); err != nil {
+		mapErr(w, err)
+		return
+	}
+	q := r.URL.Query()
+	f := runnerstore.LogFilter{
+		Level:  q.Get("level"),
+		Search: strings.TrimSpace(q.Get("q")),
+	}
+	if v := q.Get("agent"); v != "" {
+		if agentID, err := uuid.Parse(v); err == nil {
+			f.AgentID = agentID
+		}
+	}
+	if v := q.Get("limit"); v != "" {
+		f.Limit, _ = strconv.Atoi(v)
+	}
+	if v := q.Get("before"); v != "" {
+		f.Before, _ = strconv.ParseInt(v, 10, 64)
+	}
+	lines, err := s.Runners.Logs(r.Context(), p.OrgID, id, f)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, lines)
+}
+
+// handleSetRunnerLogLevel raises or lowers what a host reports.
+//
+// It writes the row FIRST and then tells the runner. The order matters on
+// reconnect: a runner that drops out between the two comes back and is told the
+// stored level, whereas the reverse order would leave the switch showing debug
+// on a host that reports info.
+func (s *Server) handleSetRunnerLogLevel(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var in struct {
+		Level string `json:"level"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "body not readable")
+		return
+	}
+	level := strings.TrimSpace(strings.ToLower(in.Level))
+	if !runner.ValidLogLevel(level) {
+		writeErr(w, http.StatusBadRequest, "unknown log level (debug or info)")
+		return
+	}
+	if _, err := s.Runners.ByID(r.Context(), id); err != nil {
+		mapErr(w, err)
+		return
+	}
+	if err := s.Runners.SetLogLevel(r.Context(), p.OrgID, id, level); err != nil {
+		mapErr(w, err)
+		return
+	}
+	if s.RunnerPool == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"level": level, "applied": false,
+			"error": "no runner pool"})
+		return
+	}
+	applied, err := s.RunnerPool.SetLogLevel(r.Context(), p.OrgID, id, level)
+	if err != nil {
+		// Stored but not delivered — an offline host takes it on its next
+		// connection. Saying so is the point: silence here reads as "done".
+		writeJSON(w, http.StatusOK, map[string]any{"level": level, "applied": false,
+			"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"level": applied, "applied": true})
 }

@@ -62,6 +62,12 @@ const (
 	// outside that looks like a hanging wake, not like a download. Asked for
 	// deliberately, it happens while somebody is looking.
 	TypePullImage = "pull_image"
+	// TypeSetLogLevel raises or lowers what a runner reports. Normally info;
+	// debug for as long as somebody is looking at a problem on that one host.
+	// A level that could only be set at start-up would mean an SSH session and
+	// a restart to answer a question — and a restart is what destroys the
+	// state the question was about.
+	TypeSetLogLevel = "set_log_level"
 	// TypeUpdate tells the runner to replace its own binary and start again.
 	// Runner and control plane are delivered separately, so they drift apart —
 	// and the fix for a bug in the data plane is otherwise an SSH session per
@@ -86,6 +92,10 @@ const (
 	TypeCapacityReport = "capacity_report"
 	TypePullResult     = "pull_result"
 	TypeUpdateResult   = "update_result"
+	// TypeLogLevelResult confirms the level a runner is now reporting at — the
+	// level it APPLIED, not the one it was asked for, so that a refused value
+	// shows up in the interface instead of looking like it took.
+	TypeLogLevelResult = "log_level_result"
 	// TypeProgress says what a host is DOING while a start takes its time.
 	// Without it a wake that fetches a multi-gigabyte image is indistinguishable
 	// from one that hangs: the agent stands in "triggered" for ten minutes and
@@ -93,6 +103,13 @@ const (
 	// It is not an answer to anything; it arrives unasked, several times per
 	// start.
 	TypeProgress = "progress"
+	// TypeLog carries what the runner writes to its own log, so that it can be
+	// read where the runner is administered instead of only on the host. It
+	// arrives unasked and in batches: a line per message would turn a busy
+	// start into hundreds of frames, and the lines are worth having together
+	// anyway — what one says is rarely the answer, what five say in a row
+	// usually is.
+	TypeLog = "log"
 	// TypeHeartbeat is the sign of life. It is not decoration: a TCP connection
 	// can be dead without either side noticing — a NAT that dropped the entry,
 	// a network partition, a laptop that closed. The pool would then keep
@@ -409,4 +426,44 @@ func decode[T any](m Message) (T, error) {
 		return out, fmt.Errorf("runner protocol: decode %s: %w", m.Type, err)
 	}
 	return out, nil
+}
+
+// LogEntry is one line a runner wrote. Deliberately flat and stringly typed:
+// this is the shape slog hands over, it survives a JSON round trip without a
+// schema, and whatever a future runner version invents as an attribute arrives
+// at an older control plane as text instead of as an error.
+type LogEntry struct {
+	Time    time.Time         `json:"t"`
+	Level   string            `json:"l"`
+	Msg     string            `json:"m"`
+	Attrs   map[string]string `json:"a,omitempty"`
+	AgentID uuid.UUID         `json:"agent_id,omitempty"`
+}
+
+// LogBatch is what one flush carries. Dropped says how many lines were thrown
+// away before this batch because the buffer was full — a number, once, instead
+// of a silence that looks like quiet.
+type LogBatch struct {
+	Entries []LogEntry `json:"entries"`
+	Dropped int        `json:"dropped,omitempty"`
+}
+
+// SetLogLevel asks a runner to report at this level from now on.
+type SetLogLevel struct {
+	Level string `json:"level"`
+}
+
+// LogLevels are the ones a runner accepts. Not slog's whole range: the two
+// above info are what a runner writes anyway, and offering a level nobody can
+// choose usefully only invites choosing it.
+const (
+	LogLevelDebug = "debug"
+	LogLevelInfo  = "info"
+)
+
+// ValidLogLevel keeps a typo from silencing a host. An unknown level is
+// refused rather than rounded to the nearest one — "warn" would look like it
+// worked and hide exactly the lines somebody switched the level to see.
+func ValidLogLevel(level string) bool {
+	return level == LogLevelDebug || level == LogLevelInfo
 }

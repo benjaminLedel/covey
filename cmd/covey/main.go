@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -1069,6 +1070,52 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 				"detail": pr.Detail, "bytes": pr.Bytes, "ms": pr.MS,
 				"runner": runnerID.String(),
 			})
+		// And beside the agent's recording, under the runner. The recording
+		// answers "what happened to this agent"; the runner's log answers "what
+		// is this host doing", and a twenty-minute image pull is a question of
+		// the second kind — one nobody should have to click through agents to
+		// see.
+		attrs := map[string]string{"phase": pr.Phase}
+		if pr.Detail != "" {
+			attrs["detail"] = pr.Detail
+		}
+		if pr.Bytes > 0 {
+			attrs["bytes"] = strconv.FormatInt(pr.Bytes, 10)
+		}
+		if pr.MS > 0 {
+			attrs["ms"] = strconv.FormatInt(pr.MS, 10)
+		}
+		_ = runnerStore.AppendLogs(context.WithoutCancel(ctx), orgID, runnerID, []runner.LogEntry{{
+			Time: time.Now(), Level: "info", Msg: "start: " + pr.Phase,
+			Attrs: attrs, AgentID: pr.AgentID,
+		}})
+	}
+	// What a runner writes to its own log, kept where the runner is
+	// administered. Without this it says it to journald on a host somebody has
+	// to have a shell on — and "why did that host stop taking sandboxes at
+	// three in the morning" is then a question for an SSH session, if the
+	// journal still has it.
+	runnerPool.Logs = func(orgID, runnerID uuid.UUID, batch runner.LogBatch) {
+		store := context.WithoutCancel(ctx)
+		if batch.Dropped > 0 {
+			// The gap says so itself. A silence where lines were thrown away
+			// reads exactly like a quiet host.
+			batch.Entries = append(batch.Entries, runner.LogEntry{
+				Time: time.Now(), Level: "warn",
+				Msg:   "log lines dropped — the runner's buffer was full",
+				Attrs: map[string]string{"dropped": strconv.Itoa(batch.Dropped)},
+			})
+		}
+		if err := runnerStore.AppendLogs(store, orgID, runnerID, batch.Entries); err != nil {
+			log.Warn("runner log not stored", "runner", runnerID, "err", err)
+		}
+	}
+	runnerPool.LogLevelFor = func(ctx context.Context, runnerID uuid.UUID) string {
+		rn, err := runnerStore.ByID(ctx, runnerID)
+		if err != nil {
+			return runner.LogLevelInfo
+		}
+		return rn.LogLevel
 	}
 	runnerPool.Capabilities = runnerStore.Capabilities
 	// How a host is called right now — for the line in the recording that says
@@ -1349,6 +1396,29 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 				}
 				if n > 0 {
 					log.Info("expired recordings removed", "deleted", n)
+				}
+			}
+		}
+	}()
+	// Runner log retention. Two caps, because either alone has a hole: age
+	// alone lets a host that logs in a loop fill the disk inside its window,
+	// count alone keeps a quiet runner's lines from three months ago and calls
+	// that a log. Whichever bites first is the right one.
+	go func() {
+		t := time.NewTicker(6 * time.Hour)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				n, err := runnerStore.CleanupLogs(ctx, 14*24*time.Hour, 50_000)
+				if err != nil {
+					log.Warn("runner log retention failed", "err", err)
+					continue
+				}
+				if n > 0 {
+					log.Info("old runner log lines removed", "deleted", n)
 				}
 			}
 		}

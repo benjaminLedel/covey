@@ -2300,7 +2300,21 @@
       "pullDone": "{{image}} is on this host now.",
       "pullFailed": "{{image}} could not be fetched: {{error}}"
     },
-    "edit": "Edit"
+    "edit": "Edit",
+    "log": {
+      "title": "Log",
+      "hint": "What this host is saying. It used to go only to the machine's journald — the wrong place for the one component that deliberately runs somewhere else.",
+      "levelLabel": "The host reports",
+      "showLabel": "Shown",
+      "level_info": "info",
+      "level_debug": "debug",
+      "searchLabel": "Search",
+      "searchPlaceholder": "in the line's text",
+      "empty": "No line from this host yet.",
+      "offline": "The host is not connected right now — this is what it last said.",
+      "debugOn": "This host is reporting at debug. Set it back to info when you are done: debug writes hundreds of lines per start.",
+      "levelPending": "Stored but not delivered — the host takes it on its next connection. ({{error}})"
+    }
   },
   "diagnostics": {
     "title": "Diagnostics",

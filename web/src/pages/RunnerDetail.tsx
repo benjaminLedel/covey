@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router";
 import { api, patch, post, del, type Principal } from "../api";
+import RunnerLog from "../components/RunnerLog";
 
 /* Die Detailseite eines Hosts.
  *
@@ -30,6 +31,7 @@ type RunnerView = {
   last_seen_at?: string;
   paused_at?: string;
   created_at: string;
+  log_level?: string;
   live?: {
     connected: boolean;
     protocol?: number;
@@ -311,6 +313,13 @@ export default function RunnerDetail({ me }: { me: Principal }) {
           </div>
         </div>
       )}
+
+      <RunnerLog
+        runnerId={r.id}
+        level={r.log_level || "info"}
+        connected={connected}
+        manage={manage}
+      />
 
       <div className="card rd-card">
         <h2 className="text-[15px]">{t("runners.detail.state")}</h2>

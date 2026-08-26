@@ -55,6 +55,9 @@ type Node struct {
 	// replaces. A seam of the same kind as Restart: a test must be able to say
 	// which file, or it would overwrite the one running the test.
 	executable func() (string, error)
+	// logs is the buffer between what this runner writes and what the control
+	// plane gets to read. See logship.go.
+	logs *logRing
 }
 
 // sandboxProc is a running sandbox as this node sees it.
@@ -71,11 +74,17 @@ func NewNode(runnerID, orgID uuid.UUID, docker *Docker, log *slog.Logger) *Node 
 	if log == nil {
 		log = slog.Default()
 	}
+	// Every line this node writes goes two ways from here on: to the host's
+	// own stderr as before, and into the ring the control plane reads. Wrapping
+	// in the constructor rather than at the call sites is what makes that true
+	// for the whole package — a logger passed on with WithAttrs keeps shipping.
+	ring := newLogRing(slog.LevelInfo)
 	return &Node{
 		RunnerID: runnerID,
 		OrgID:    orgID,
 		Docker:   docker,
-		Log:      log,
+		Log:      shippingLogger(log, ring),
+		logs:     ring,
 		running:  map[uuid.UUID]*sandboxProc{},
 		turn:     map[uuid.UUID]chan struct{}{},
 	}
@@ -108,6 +117,10 @@ func (n *Node) Run(ctx context.Context, t Transport) error {
 	beat, stopBeat := context.WithCancel(ctx)
 	defer stopBeat()
 	go n.heartbeat(beat, t)
+	// The log goes up the same link. It shares the heartbeat's lifetime: what
+	// this runner said is worth having exactly as long as there is somebody to
+	// say it to.
+	go n.shipLogs(beat, t)
 
 	for {
 		msg, err := t.Receive(ctx)
@@ -146,6 +159,10 @@ func (n *Node) heartbeat(ctx context.Context, t Transport) {
 }
 
 func (n *Node) handle(ctx context.Context, t Transport, msg Message) {
+	// One line per incoming message, at debug. It is the spine of the trace:
+	// with it, "this host received nothing for twenty minutes" and "it received
+	// a start and sat on it" are different pictures instead of the same silence.
+	n.Log.Debug("runner: message received", "type", msg.Type, "id", msg.ID)
 	switch msg.Type {
 	case TypeStartSandbox:
 		spec, err := decode[StartSandbox](msg)
@@ -210,6 +227,20 @@ func (n *Node) handle(ctx context.Context, t Transport, msg Message) {
 		// fetches tens of megabytes, and the answer has to get out before the
 		// process is replaced.
 		go n.update(context.WithoutCancel(ctx), t, msg.ID, req)
+	case TypeSetLogLevel:
+		in, err := decode[SetLogLevel](msg)
+		if err != nil {
+			n.reply(ctx, t, msg.ID, TypeLogLevelResult, SetLogLevel{Level: levelName(n.logs.level())})
+			return
+		}
+		if !n.logs.setLevel(in.Level) {
+			n.Log.Warn("runner: unknown log level, keeping the current one", "asked", in.Level)
+		} else {
+			// At the level it was just set to, so that switching to debug
+			// leaves a mark in the log it switched on.
+			n.Log.Info("log level set", "level", in.Level)
+		}
+		n.reply(ctx, t, msg.ID, TypeLogLevelResult, SetLogLevel{Level: levelName(n.logs.level())})
 	case TypeCheck:
 		req, err := decode[Check](msg)
 		if err != nil {
@@ -307,11 +338,16 @@ func (n *Node) sync(ctx context.Context, t Transport, id string, req SyncHome) {
 		return
 	}
 	home, _, _ := n.Docker.AgentHome(req.AgentID)
+	began := time.Now()
+	n.Log.Debug("home sync started", "agent", req.AgentID, "path", home)
 	res, err := homestore.Sync(ctx, n.Blobs, req.OrgID, home, req.Excludes)
 	if err != nil {
+		n.Log.Error("home sync failed", "agent", req.AgentID, "path", home, "err", err)
 		n.reply(ctx, t, id, TypeHomeSynced, HomeSynced{AgentID: req.AgentID, Err: err.Error()})
 		return
 	}
+	n.Log.Info("home synced", "agent", req.AgentID, "blocks", res.Blocks,
+		"bytes_up", res.BytesUp, "total", res.TotalSize, "ms", time.Since(began).Milliseconds())
 	n.reply(ctx, t, id, TypeHomeSynced, HomeSynced{
 		AgentID: req.AgentID, ManifestHash: res.ManifestHash,
 		TotalSize: res.TotalSize, Blocks: res.Blocks, BytesUp: res.BytesUp,
@@ -319,6 +355,9 @@ func (n *Node) sync(ctx context.Context, t Transport, id string, req SyncHome) {
 }
 
 func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSandbox) {
+	startedAt := time.Now()
+	n.Log.Info("sandbox start requested", "agent", spec.AgentID, "image", spec.Image,
+		"snapshot", spec.Snapshot != "")
 	// The home comes out of the store before the sandbox goes in. Only what
 	// differs is written — on the runner an agent last ran on that is the
 	// normal case, and then this costs nothing at all.
@@ -334,6 +373,8 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 			var res homestore.MaterializeResult
 			res, err = homestore.Materialize(ctx, n.Blobs, spec.OrgID, home, m)
 			if err == nil {
+				n.Log.Info("home materialised", "agent", spec.AgentID,
+					"bytes_in", res.BytesIn, "ms", time.Since(began).Milliseconds())
 				n.say(ctx, t, Progress{
 					AgentID: spec.AgentID, Phase: PhaseHome, Bytes: res.BytesIn,
 					MS: time.Since(began).Milliseconds(),
@@ -344,6 +385,8 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 			// Refused rather than started on a home that is not the one the
 			// snapshot describes: an agent that silently works on a half state
 			// produces work nobody can place afterwards.
+			n.Log.Error("materialising the home failed — sandbox refused",
+				"agent", spec.AgentID, "snapshot", spec.Snapshot, "err", err)
 			n.reply(ctx, t, id, TypeSandboxFailed, SandboxResult{
 				AgentID: spec.AgentID,
 				Err:     "materialising the home failed: " + err.Error(),
@@ -356,10 +399,17 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 	// several gigabytes. That silence is what makes a start look like a hang,
 	// and it is the sentence this whole message type exists for.
 	if !n.Docker.HasImage(ctx, spec.Image) {
+		// The one line that explains an hour: this host does not have the
+		// image and is about to fetch several gigabytes of it.
+		n.Log.Info("image not present — docker will fetch it", "agent", spec.AgentID, "image", spec.Image)
 		n.say(ctx, t, Progress{AgentID: spec.AgentID, Phase: PhaseImage, Detail: spec.Image})
 	}
 	container, err := n.Docker.Start(ctx, spec)
 	if err != nil {
+		// Docker's own words. A wrapped "start failed" hides which of "no such
+		// image", "port in use" and "no space left" it was — and those call for
+		// three different people.
+		n.Log.Error("docker start failed", "agent", spec.AgentID, "image", spec.Image, "err", err)
 		n.reply(ctx, t, id, TypeSandboxFailed, SandboxResult{AgentID: spec.AgentID, Err: err.Error()})
 		return
 	}
@@ -389,6 +439,8 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 	n.mu.Unlock()
 
 	go n.watch(watchCtx, t, spec.AgentID, proc)
+	n.Log.Info("sandbox started", "agent", spec.AgentID, "container", container,
+		"ms", time.Since(startedAt).Milliseconds())
 	n.reply(ctx, t, id, TypeSandboxStarted, SandboxResult{AgentID: spec.AgentID})
 }
 
@@ -408,9 +460,18 @@ func (n *Node) watch(ctx context.Context, t Transport, agentID uuid.UUID, proc *
 		delete(n.running, agentID)
 	}
 	n.mu.Unlock()
-	if asked || reason == "" {
+	if asked {
+		n.Log.Info("sandbox stopped", "agent", agentID, "container", proc.container)
 		return
 	}
+	if reason == "" {
+		return
+	}
+	// Nobody asked for this end. It is the most useful line this runner
+	// writes: the control plane learns it as a fact, and the reason is here
+	// while the container's own words still exist.
+	n.Log.Warn("sandbox ended on its own", "agent", agentID,
+		"container", proc.container, "reason", reason)
 
 	msg, err := encode(TypeSandboxExited, "", SandboxExited{AgentID: agentID, Reason: reason})
 	if err != nil {
@@ -441,6 +502,8 @@ func (n *Node) stop(ctx context.Context, t Transport, id string, agentID uuid.UU
 	proc.cancel()
 	res := SandboxResult{AgentID: agentID}
 	if err != nil {
+		n.Log.Error("stopping the sandbox failed", "agent", agentID,
+			"container", proc.container, "err", err)
 		res.Err = err.Error()
 	}
 	n.reply(ctx, t, id, TypeSandboxStopped, res)

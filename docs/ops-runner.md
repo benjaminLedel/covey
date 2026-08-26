@@ -281,6 +281,71 @@ An agent asks for a host's capabilities through **Host requirements** in its
 settings (`arm64`, `gpu`, a runner inside the target system's network). Empty is
 the normal case and means any runner of the organisation.
 
+## The log
+
+A runner writes to its own stderr, and under systemd that means journald on a
+machine somebody has to have a shell on. For the one component that
+deliberately stands on a host the control plane does not own, that is the wrong
+place: "why did that host stop taking sandboxes at three in the morning" was a
+question only an SSH session could answer, and only for as long as the journal
+kept it.
+
+The same lines now go two ways. The host's own log is unchanged — whoever
+debugs there keeps what they had. Beside it the runner buffers and ships them
+up the link it already holds, and the **Log** section on the runner's page is
+where you read them.
+
+### Two levels, and they are not the same one
+
+| Control | What it decides | Where it acts |
+|---|---|---|
+| **The host reports** | what the runner SENDS | on the runner, over the protocol |
+| **Shown** | what this page DISPLAYS | in the browser |
+
+Confusing the two is how you end up switching a host to debug and still seeing
+nothing — the filter above the list was left at info. Both are on the page next
+to each other for exactly that reason.
+
+Normal is `info`. `debug` adds one line per protocol message and the intermediate
+steps of a start; it is what you switch on while you are looking at a problem on
+one particular host, and off again afterwards, because it writes hundreds of
+lines per start.
+
+The level lives on the runner's row, not only in the message. A host somebody
+switched to debug that drops out for a minute comes back at debug — otherwise
+the switch would be showing a state that is not the world's.
+
+### What ends up in it
+
+- The connection: registered, reconnected, the protocol version refused.
+- Every sandbox start with its image, and the line that explains an hour —
+  *image not present, docker will fetch it.*
+- The home: materialised with bytes and milliseconds, synced with block counts.
+- Every failure with the words the underlying tool used. A wrapped "start
+  failed" hides whether it was "no such image", "port in use" or "no space left
+  on device", and those three call for three different people.
+- A sandbox that ended without being asked to, with the reason, while the
+  container's own words still exist.
+- The progress of a start (image, home) — the same lines that go into the
+  agent's recording. They belong in both places: the recording answers "what
+  happened to this agent", the runner's log answers "what is this host doing",
+  and a twenty-minute image pull is a question of the second kind.
+
+### Limits
+
+The buffer on the runner is a ring. A host that loses its connection keeps
+working and keeps logging, and an unbounded buffer would turn a network problem
+into an out-of-memory one on the machine that is currently running somebody's
+sandboxes. What overflows is the oldest line, and how many were lost travels
+with the next batch — a number, once, instead of a silence that reads like a
+quiet host.
+
+In the database the log is capped twice: by age (14 days) and by count per
+runner (50,000 lines). Either alone has a hole. Age alone lets a host that logs
+in a loop fill the disk inside its window; count alone keeps a quiet runner's
+lines from three months ago and calls that a log. Whichever bites first is the
+right one.
+
 ## What a runner needs, and what it must never have
 
 It needs Docker on its host and a way out to the control plane. That is all.
