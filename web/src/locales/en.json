@@ -837,7 +837,11 @@
       "parentTask": "parent task",
       "cost": "Cost",
       "costHint": "What this task's run has cost so far — from {{n}} entries",
-      "costEntries": "from {{n}} entries"
+      "costEntries": "from {{n}} entries",
+      "reportUpstream": "↗ report upstream",
+      "reportUpstreamHint": "Opens a prefilled issue form at {{repo}}. Nothing is sent — you read it over and file it under your own name.",
+      "reportTruncated": "… truncated. The full finding is on the task in the instance.",
+      "reportBody": "{{note}}\n\n---\nReported by **{{agent}}** on the task “{{task}}”.\nInstance: {{version}}"
     },
     "stageEditor": {
       "title": "Columns (Stages)",

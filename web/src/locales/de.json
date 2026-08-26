@@ -837,7 +837,11 @@
       "parentTask": "Ursprungsaufgabe",
       "cost": "Kosten",
       "costHint": "Was der Lauf dieser Aufgabe bisher gekostet hat — aus {{n}} Buchungen",
-      "costEntries": "aus {{n}} Buchungen"
+      "costEntries": "aus {{n}} Buchungen",
+      "reportUpstream": "↗ nach oben melden",
+      "reportUpstreamHint": "Öffnet ein vorbefülltes Issue-Formular bei {{repo}}. Nichts wird gesendet — du liest gegen und meldest unter deinem Namen.",
+      "reportTruncated": "… gekürzt. Der vollständige Befund steht in der Aufgabe auf der Instanz.",
+      "reportBody": "{{note}}\n\n---\nGemeldet von **{{agent}}** an der Aufgabe „{{task}}\".\nInstanz: {{version}}"
     },
     "stageEditor": {
       "title": "Spalten (Stages)",

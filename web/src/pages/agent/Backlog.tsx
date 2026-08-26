@@ -7,11 +7,14 @@ import {
   post,
   patch,
   del,
+  buildInfo,
+  type Organization,
   type Stage,
   type Task,
   type TaskNote,
 } from "../../api";
 import { fmtUSD } from "../../format";
+import { upstreamIssueURL } from "../../upstream";
 
 export function Backlog({
   agentId,
@@ -468,6 +471,26 @@ function TaskCard({
     queryFn: () => api<TaskNote[]>(`/tasks/${task.id}/notes`),
     enabled: open,
   });
+  // Wohin ein Plattform-Befund gemeldet wird: was die Organisation eingetragen
+  // hat, sonst das Projekt, aus dem dieses Binary stammt (spec/21). Beides
+  // liegt ohnehin in der API — die Adresse wird hier nirgends hartkodiert,
+  // damit ein Fork auf seinen eigenen Tracker zeigt.
+  const org = useQuery({
+    queryKey: ["own-org"],
+    queryFn: () => api<Organization>("/org"),
+    enabled: open,
+    staleTime: 5 * 60 * 1000,
+  });
+  const build = useQuery({
+    queryKey: ["build-info"],
+    queryFn: buildInfo,
+    enabled: open,
+    staleTime: 60 * 60 * 1000,
+  });
+  const repo = {
+    system: org.data?.platform_repo_system || build.data?.source_system,
+    project: org.data?.platform_repo_project || build.data?.source_project,
+  };
   const cancel = useMutation({
     mutationFn: () => post(`/tasks/${task.id}/cancel`),
     onSuccess: invalBacklog,
@@ -552,12 +575,44 @@ function TaskCard({
           {(notes.data?.length ?? 0) > 0 && (
             <div className="mt-2 mb-2">
               <div className="muted text-xs mb-1">{t("agent.backlog.agentNotes")}</div>
-              {notes.data!.map((n) => (
-                <div key={n.id} className="text-xs mb-1" style={{ borderLeft: "2px solid var(--border)", paddingLeft: 8 }}>
-                  <span className="secondary">{n.content}</span>{" "}
-                  <span className="muted">· {relTime(n.created_at)}</span>
-                </div>
-              ))}
+              {notes.data!.map((n) => {
+                // Der vorbefüllte Link, nicht der Versand: der Mensch sieht das
+                // Formular, liest gegen und meldet unter seinem Namen. Ohne
+                // eingerichtetes Ziel steht hier nichts.
+                const href = upstreamIssueURL({
+                  repo,
+                  title: task.title,
+                  body: t("agent.backlog.reportBody", {
+                    note: n.content,
+                    agent: n.author,
+                    task: task.title,
+                    version: build.data ? `${build.data.version} (${build.data.commit})` : "?",
+                  }),
+                  truncationNote: "\n\n" + t("agent.backlog.reportTruncated"),
+                });
+                return (
+                  <div key={n.id} className="text-xs mb-1" style={{ borderLeft: "2px solid var(--border)", paddingLeft: 8 }}>
+                    <span className="secondary">{n.content}</span>{" "}
+                    <span className="muted">· {relTime(n.created_at)}</span>
+                    {href && (
+                      <>
+                        {" · "}
+                        <a
+                          href={href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={t("agent.backlog.reportUpstreamHint", {
+                            repo: `${repo.system}:${repo.project}`,
+                          })}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {t("agent.backlog.reportUpstream")}
+                        </a>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
           <div className="flex gap-2 mt-1">
