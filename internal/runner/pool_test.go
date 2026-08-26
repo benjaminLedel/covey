@@ -1151,3 +1151,65 @@ func TestAPauseSurvivesAReconnect(t *testing.T) {
 		t.Fatal("the host was paused before it connected — it must not take a sandbox")
 	}
 }
+
+// The built-in runner no longer stands down when an organisation registers a
+// host of its own — but the intention behind that rule was right: whoever adds
+// a machine wants the compute there. So it is the last candidate of all, and
+// only the last: while a registered host can take the work it does, and when
+// none can, the organisation still runs instead of waiting.
+func TestTheBuiltInRunnerIsTheLastCandidate(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	org := uuid.New()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	p := NewPool(quietLog())
+	p.Profiles = map[string]string{sandbox.DefaultName(): "covey-sandbox:test"}
+
+	// The built-in one, in the pool from the start — as on every instance since
+	// it stopped standing down.
+	builtinDir := t.TempDir()
+	builtinID := uuid.New()
+	if err := p.AttachLocal(ctx, NewNode(builtinID, org, &Docker{
+		RunnerID: builtinID, Image: "covey-sandbox:test", DataDir: builtinDir,
+		DockerBin: fakeDockerBin(t, builtinDir, "nothing"),
+	}, quietLog())); err != nil {
+		t.Fatal(err)
+	}
+	// And a registered host beside it.
+	remoteDir := t.TempDir()
+	remoteID := uuid.New()
+	control, node := NewInProc()
+	defer control.Close()
+	go func() {
+		n := NewNode(remoteID, org, &Docker{
+			RunnerID: remoteID, Image: "covey-sandbox:test", DataDir: remoteDir,
+			DockerBin: fakeDockerBin(t, remoteDir, "nothing"),
+		}, quietLog())
+		defer n.Close()
+		_ = n.Run(ctx, node)
+	}()
+	go func() { _ = p.Attach(ctx, control, false) }()
+	waitUntil(t, 3*time.Second, func() bool { return len(p.LiveFor(org)) == 2 })
+
+	sb, err := p.Start(ctx, orchestrator.SandboxSpec{AgentID: uuid.New(), OrgID: org})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if id, _ := sb.(orchestrator.Placed).Runner(); id != remoteID {
+		t.Errorf("the registered host has to be asked first: %s", id)
+	}
+
+	// Pause it, and the built-in one carries the organisation rather than
+	// letting it stand still.
+	p.SetPaused(remoteID, true)
+	sb, err = p.Start(ctx, orchestrator.SandboxSpec{AgentID: uuid.New(), OrgID: org})
+	if err != nil {
+		t.Fatalf("with the host paused the built-in one has to take it: %v", err)
+	}
+	if id, _ := sb.(orchestrator.Placed).Runner(); id != builtinID {
+		t.Errorf("the built-in one had to take it: %s", id)
+	}
+}

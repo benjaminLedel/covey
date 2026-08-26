@@ -933,6 +933,17 @@ func (p *Pool) candidates(want need) ([]*conn, error) {
 		running := c.sandboxes
 		c.mu.Unlock()
 		score := 0
+		// The built-in runner comes last of all. It no longer stands down when
+		// an organisation registers a host of its own — that rule cost more
+		// than it was worth — but the intention behind it was right: whoever
+		// adds a machine wants the compute THERE, and a pool where half the
+		// agents quietly run on the control plane is the surprise the old rule
+		// was trying to prevent. As a last resort it keeps the intention
+		// without the failure mode: while a registered host can take the work,
+		// it does; when none can, the organisation still runs.
+		if c.builtin {
+			score += 10
+		}
 		if want.prefer != uuid.Nil && c.runnerID == want.prefer {
 			score -= 2
 		}

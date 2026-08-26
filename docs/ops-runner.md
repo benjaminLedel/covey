@@ -14,8 +14,8 @@ installation notices none of this.
 
 `COVEY_RUNNER_LOCAL` is not a switch you need. What matters is the rule:
 
-> **The built-in runner runs beside your own hosts, and takes over when none of
-> them can. Whoever does not want it pauses it.**
+> **The built-in runner runs beside your own hosts, is asked last of all, and
+> takes over when none of them can. Whoever does not want it pauses it.**
 
 It used to stand down by itself as soon as an organisation had a registered
 runner, and that rule inferred an intention from a fact: somebody added a host,
@@ -27,6 +27,13 @@ answered nothing while the machine that could have run the work stood idle.
 
 So a second runner is a second runner now, not a replacement. What used to be a
 rule nobody could see is a state everybody can: **Pause** in the runner view.
+
+The intention behind the old rule survives as an ordering rather than as a
+switch: **the built-in runner is the last candidate.** As long as a registered
+host can carry the work, it carries it — no mixed pool where half the agents
+quietly run on the control plane. Only when none can does the built-in one step
+in, which is the difference between a slow afternoon and an organisation that
+does nothing.
 
 The fallback is not quiet. It writes `no connected runner fits — the built-in
 one takes it` with the image and tags it was looking for, and it cannot smuggle
@@ -93,9 +100,12 @@ If everything is paused, a wake says so: *every runner of this organisation is
 paused*. That is a sentence about a decision, and deliberately not the same one
 as "no runner answers".
 
-**Offline is not "no runner".** A maintenance window on your only runner does
-not move the workforce back onto the control plane's host; the agents wait
-instead.
+**Offline is not "no runner" any more.** It used to be: the agents waited for
+their host to come back rather than moving onto the control plane's machine.
+Now the built-in runner takes over — during a maintenance window too. That is
+the price of the same fallback that keeps an organisation working when its host
+is wedged, and it is one decision away: pause the built-in runner for the
+window as well, and the agents wait exactly as they used to.
 
 ## Adding a host
 
@@ -248,8 +258,14 @@ Two things it says that are easy to miss:
 - **outdated protocol** — the runner speaks an older one than this control
   plane. Runner and server are delivered separately, so version drift is
   normal; it is named rather than merely tolerated.
-- **offline** — the row stays. Offline is not "no runner", so the built-in one
-  does not come back and the agents wait.
+- **offline** — the row stays, and so does everything on it: token, tags,
+  working copies. The agents move to the next host that fits, and to the
+  built-in one if none does.
+- **not answering** — the line is open and the host reacts to nothing. It gets
+  no new sandboxes until it answers again; what runs there may finish. This is
+  the state a stuck read loop produces, and it used to read as *connected*.
+- **paused** — somebody took it out of service. The only one of these states
+  that is a decision, which is why it is named separately from all of them.
 
 An agent asks for a host's capabilities through **Host requirements** in its
 settings (`arm64`, `gpu`, a runner inside the target system's network). Empty is
