@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"covey/internal/homestore"
 	"covey/internal/orchestrator"
 	"covey/internal/sandbox"
 )
@@ -1435,5 +1436,107 @@ func TestAFullHostIsNoCandidate(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "sandbox limit") {
 		t.Fatalf("the reason does not name the limit: %v", err)
+	}
+}
+
+// The sync of a home used to hang off the STOP of the sandbox alone, and a warm
+// agent's sandbox is not stopped when its job ends — its run then lived in one
+// container volume until something tore that sandbox down. So the sandbox can
+// now write its home away while the compute keeps running, and this test walks
+// the real path for it: pool → protocol → node → block store.
+//
+// The type assertion is half the point. The orchestrator reaches this through
+// the optional interface orchestrator.HomeSyncer; a wrapper inserted between
+// pool and orchestrator later would make the assertion fail silently, and the
+// fix would be gone without a single test going red.
+func TestAParkedSandboxSyncsItsHomeWithoutStopping(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	orgID, agentID, runnerID := uuid.New(), uuid.New(), uuid.New()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	blobs, err := homestore.NewDir(filepath.Join(dir, "blocks"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	docker := &Docker{RunnerID: runnerID, Image: "covey-sandbox:test", DataDir: dir, DockerBin: fakeDockerBin(t, dir, "nothing")}
+	node := NewNode(runnerID, orgID, docker, quietLog())
+	node.Blobs = blobs
+	t.Cleanup(node.Close)
+
+	p := NewPool(quietLog())
+	p.Profiles = map[string]string{"base": "covey-sandbox:test", "dev": "covey-sandbox-dev:test"}
+	p.StartTimeout = 10 * time.Second
+	if err := p.AttachLocal(ctx, node); err != nil {
+		t.Fatalf("built-in runner: %v", err)
+	}
+	var snapshots []HomeSynced
+	var snapRunner uuid.UUID
+	p.SnapshotTaken = func(_ context.Context, _, rID uuid.UUID, res HomeSynced) error {
+		snapRunner = rID
+		snapshots = append(snapshots, res)
+		return nil
+	}
+
+	sb, err := p.Start(context.Background(), orchestrator.SandboxSpec{
+		AgentID: agentID, OrgID: orgID, Image: "dev",
+		Env: map[string]string{"COVEY_DAEMON_TOKEN": "tok"},
+	})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	// What the run produced — the file that has to survive the parking.
+	home, _, _ := docker.AgentHome(agentID)
+	if err := os.MkdirAll(home, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, "START.sh"), []byte("#!/bin/sh\necho up\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	syncer, ok := sb.(orchestrator.HomeSyncer)
+	if !ok {
+		t.Fatal("the sandbox does not satisfy orchestrator.HomeSyncer — a warm home would never reach the store")
+	}
+	if err := syncer.SyncHome(context.Background()); err != nil {
+		t.Fatalf("SyncHome: %v", err)
+	}
+
+	if len(snapshots) != 1 {
+		t.Fatalf("expected one filed snapshot, got %d", len(snapshots))
+	}
+	if snapshots[0].ManifestHash == "" {
+		t.Error("a snapshot without a manifest hash is not one")
+	}
+	if snapshots[0].TotalSize == 0 {
+		t.Error("the snapshot claims an empty home although a file was written into it")
+	}
+	if snapRunner != runnerID {
+		t.Errorf("the snapshot was filed for the wrong host: %s instead of %s", snapRunner, runnerID)
+	}
+	// And the whole point: the compute is still up. A stop here would make the
+	// warm sandbox cold and the next wake expensive.
+	if _, err := os.Stat(filepath.Join(dir, "stopped")); err == nil {
+		t.Error("the sandbox was stopped — SyncHome must leave the compute alone")
+	}
+
+	// The manifest is readable again, so the run is genuinely in the store and
+	// not merely reported as such.
+	m, err := homestore.Load(context.Background(), blobs, orgID, snapshots[0].ManifestHash)
+	if err != nil {
+		t.Fatalf("the snapshot cannot be loaded again: %v", err)
+	}
+	found := false
+	for _, e := range m.Entries {
+		if e.Path == "START.sh" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("START.sh is not in the snapshot: %+v", m.Entries)
 	}
 }
