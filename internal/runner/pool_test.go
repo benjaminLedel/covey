@@ -1213,3 +1213,113 @@ func TestTheBuiltInRunnerIsTheLastCandidate(t *testing.T) {
 		t.Errorf("the built-in one had to take it: %s", id)
 	}
 }
+
+// deafRunner is a host that answers for a while and then reads nothing — the
+// shape of a runner whose loop is stuck inside an image pull. It keeps its
+// heartbeat, because that runs in a goroutine of its own: that is what made
+// the case so hard to see from the control plane.
+func deafRunner(ctx context.Context, t Transport, orgID uuid.UUID, answers int, got chan<- string) {
+	hello, _ := encode(TypeRegistered, "", Registered{RunnerID: uuid.New(), OrgID: orgID, Protocol: Protocol})
+	if err := t.Send(ctx, hello); err != nil {
+		return
+	}
+	go func() {
+		beat, _ := encode(TypeHeartbeat, "", nil)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(20 * time.Millisecond):
+				if err := t.Send(ctx, beat); err != nil {
+					return
+				}
+			}
+		}
+	}()
+	left := answers
+	for {
+		in, err := t.Receive(ctx)
+		if err != nil {
+			return
+		}
+		select {
+		case got <- in.Type:
+		default:
+		}
+		if in.Type == TypeCapacity && left > 0 {
+			left--
+			answer, _ := encode(TypeCapacityReport, in.ID, CapacityReport{})
+			if err := t.Send(ctx, answer); err != nil {
+				return
+			}
+		}
+	}
+}
+
+// A host can go deaf in the second after it was picked — "answering" is a
+// statement about the last 90 seconds, and a start may take an hour because it
+// may be a multi-gigabyte pull. On covey.work that combination cost an agent a
+// full hour of standing still with no message at all, while the signal that
+// would have said so — the capacity question every beat — kept arriving with
+// nobody listening.
+func TestAStartIsTakenBackFromAHostThatGoesDeaf(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	org := uuid.New()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	p := NewPool(quietLog())
+	p.Profiles = map[string]string{sandbox.DefaultName(): "covey-sandbox:test"}
+	// An hour in production; here the number that says "far longer than the
+	// test may take".
+	p.StartTimeout = 30 * time.Second
+	p.HeartbeatEvery = 60 * time.Millisecond
+	p.SilenceAfter = 200 * time.Millisecond
+
+	// The host that stops reading after its first capacity answer.
+	seen := make(chan string, 32)
+	control, node := NewInProc()
+	defer control.Close()
+	go deafRunner(ctx, node, org, 1, seen)
+	go func() { _ = p.Attach(ctx, control, false) }()
+	waitUntil(t, 3*time.Second, func() bool { return len(p.LiveFor(org)) == 1 })
+
+	// And the built-in one behind it, which is where the agent should end up.
+	dir := t.TempDir()
+	builtinID := uuid.New()
+	if err := p.AttachLocal(ctx, NewNode(builtinID, org, &Docker{
+		RunnerID: builtinID, Image: "covey-sandbox:test", DataDir: dir,
+		DockerBin: fakeDockerBin(t, dir, "nothing"),
+	}, quietLog())); err != nil {
+		t.Fatal(err)
+	}
+
+	started := time.Now()
+	sb, err := p.Start(ctx, orchestrator.SandboxSpec{AgentID: uuid.New(), OrgID: org})
+	if err != nil {
+		t.Fatalf("the agent had to end up somewhere: %v", err)
+	}
+	if took := time.Since(started); took > 5*time.Second {
+		t.Errorf("the start waited on the deaf host: %s", took)
+	}
+	if id, _ := sb.(orchestrator.Placed).Runner(); id != builtinID {
+		t.Errorf("the sandbox belongs on the host that answers: %s", id)
+	}
+
+	// And the abandoned start is taken back: the message lies in front of the
+	// stuck loop, and when the pull finishes it must not start a container for
+	// an agent that has long since woken elsewhere.
+	deadline := time.After(3 * time.Second)
+	for {
+		select {
+		case msg := <-seen:
+			if msg == TypeStopSandbox {
+				return
+			}
+		case <-deadline:
+			t.Fatal("the start was abandoned but never taken back")
+		}
+	}
+}

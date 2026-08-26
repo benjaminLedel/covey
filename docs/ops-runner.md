@@ -73,6 +73,13 @@ the archives named as the release names them
 If the runner runs as a user who may not write to its own path (`/usr/local/bin`
 belongs to root), the update says exactly that and changes nothing.
 
+**A new binary is not a new process.** The button takes care of that itself —
+the runner replaces itself in place. The script does too when it finds a running
+`covey-runner.service`: it restarts it and says so. Everywhere else (a runner in
+a terminal, in tmux, under a different unit name) the restart is yours, and
+until it happens nothing has changed — the old image keeps running and the
+version in the runner view stays what it was.
+
 **The first time is still by hand.** A runner built before this feature existed
 does not know the message and would simply not answer it — so it says at
 registration what it can do, and the button answers immediately with *install it
@@ -263,7 +270,10 @@ Two things it says that are easy to miss:
   built-in one if none does.
 - **not answering** — the line is open and the host reacts to nothing. It gets
   no new sandboxes until it answers again; what runs there may finish. This is
-  the state a stuck read loop produces, and it used to read as *connected*.
+  the state a stuck read loop produces, and it used to read as *connected*. A
+  start that is already on its way to such a host is taken back rather than
+  waited out: the agent moves to the next host within about 90 seconds instead
+  of standing still for the start timeout.
 - **paused** — somebody took it out of service. The only one of these states
   that is a decision, which is why it is named separately from all of them.
 

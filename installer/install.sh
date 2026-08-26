@@ -301,6 +301,34 @@ place_binary() {
     info "installed: ${dest}/${name}"
 }
 
+# A new binary is not a new process. Whoever installs the runner onto a host
+# that already runs one has updated nothing until the service restarts: systemd
+# keeps the old image alive, the version in the runner view stays what it was,
+# and the bug the update was for is still there. Reported from a real update —
+# "you have to restart the service by hand afterwards" — and a step somebody has
+# to know about is a step this script should take.
+#
+# Prints 'restarted' when it did it, 'todo' when it could only say so, and
+# nothing when there is no service here (a fresh installation, the normal case
+# for this script).
+restart_runner_service() {
+    command -v systemctl >/dev/null 2>&1 || return 0
+    systemctl is-active --quiet covey-runner.service 2>/dev/null || return 0
+    if [ "$(id -u)" = "0" ]; then
+        sudo_cmd=""
+    elif command -v sudo >/dev/null 2>&1; then
+        sudo_cmd="sudo"
+    else
+        printf 'todo'
+        return 0
+    fi
+    if $sudo_cmd systemctl restart covey-runner.service >/dev/null 2>&1; then
+        printf 'restarted'
+    else
+        printf 'todo'
+    fi
+}
+
 # A binary in the search path is not a running instance. What is still missing
 # belongs here — and it is something different per component.
 next_steps() {
@@ -323,6 +351,29 @@ https://github.com/${REPO}/blob/main/docs/ops-deployment.md
 EOF
                 ;;
             runner)
+                # A host that is already running one has been updated, not set
+                # up: everything below it has long since happened there.
+                case "$(restart_runner_service)" in
+                    restarted)
+                        cat <<EOF
+The covey-runner service was already running here — it has been restarted and
+is now on ${version}. The runner view of your instance shows the new version
+within a few seconds.
+
+EOF
+                        continue
+                        ;;
+                    todo)
+                        cat <<EOF
+The covey-runner service is running here WITH THE OLD BINARY — a new file is not
+a new process. Restart it, otherwise nothing has changed:
+
+  sudo systemctl restart covey-runner.service
+
+EOF
+                        continue
+                        ;;
+                esac
                 cat <<EOF
 The runner still has to register with a Covey instance. The token for that
 is issued by the runner view of the interface:

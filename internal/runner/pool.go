@@ -681,6 +681,78 @@ func (c *conn) refreshCapacity(ctx context.Context) {
 // is inside something long, and the next tick asks again.
 const capacityAsk = 30 * time.Second
 
+// askStart sends the start and gives up as soon as the host stops answering —
+// long before the start timeout, which is an hour because a first start may be
+// a multi-gigabyte pull.
+//
+// Those two facts fit together badly without this. The scheduler only picks
+// hosts that are answering, but "answering" is a statement about the last 90
+// seconds, and a host can go deaf in the second after it was picked: on
+// covey.work a runner answered 19 seconds before the wake, took the start, went
+// into the pull, and the agent then stood still for the full hour with no
+// message at all. The signal that would have said so was arriving the whole
+// time — the capacity question every beat — and nobody was listening to it
+// while the start was outstanding.
+//
+// A host that IS reading stays unaffected, however long its pull takes: since
+// the read loop hands off, capacity is answered beside it. Not answering while
+// a start is outstanding therefore means the loop is stuck, which is exactly
+// the case for a runner too old to hand off — and moving to the next host is
+// better for it than an hour of nothing.
+func (c *conn) askStart(ctx context.Context, spec StartSandbox, timeout time.Duration) (Message, error) {
+	watch, stopWatch := context.WithCancel(ctx)
+	defer stopWatch()
+	go func() {
+		every := c.pool.HeartbeatEvery
+		if every <= 0 {
+			every = HeartbeatInterval
+		}
+		ticker := time.NewTicker(every / 3)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-watch.Done():
+				return
+			case <-ticker.C:
+				if !c.answering() {
+					stopWatch()
+					return
+				}
+			}
+		}
+	}()
+
+	answer, err := c.ask(watch, TypeStartSandbox, spec, timeout)
+	if err != nil && ctx.Err() == nil && !c.answering() {
+		// And the start is taken back. A host whose read loop is stuck has the
+		// message lying in front of it, not lost: when the pull finishes it
+		// would start the container for an agent that has long since woken
+		// somewhere else. The stop goes into the same per-agent queue and is
+		// therefore worked on AFTER the start it cancels.
+		c.tell(TypeStopSandbox, StopSandbox{AgentID: spec.AgentID})
+		return Message{}, fmt.Errorf("runner %s stopped answering while the sandbox was starting — "+
+			"its start was taken back and the next host asked", short(c.runnerID))
+	}
+	return answer, err
+}
+
+// tell sends a message whose answer nobody waits for. For the case where
+// waiting is pointless: the host is not reading right now, and what matters is
+// that the message lies in front of it when it does.
+func (c *conn) tell(msgType string, payload any) {
+	msg, err := encode(msgType, uuid.NewString(), payload)
+	if err != nil {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(context.Background()), 30*time.Second)
+		defer cancel()
+		if err := c.t.Send(ctx, msg); err != nil {
+			c.pool.Log.Warn("runner: message could not be handed over", "type", msgType, "runner", c.runnerID, "err", err)
+		}
+	}()
+}
+
 // ask sends a request and waits for its answer.
 func (c *conn) ask(ctx context.Context, msgType string, payload any, timeout time.Duration) (Message, error) {
 	id := uuid.NewString()
@@ -1038,7 +1110,7 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 	// agent does not care which machine it wakes on.
 	var last error
 	for i, c := range candidates {
-		answer, err := c.ask(ctx, TypeStartSandbox, StartSandbox{
+		answer, err := c.askStart(ctx, StartSandbox{
 			AgentID:     spec.AgentID,
 			OrgID:       spec.OrgID,
 			Image:       want.image,
