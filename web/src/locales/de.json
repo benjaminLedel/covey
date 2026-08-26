@@ -2177,6 +2177,8 @@
     "builtinHint": "Tritt ab, sobald diese Organisation einen eigenen Runner registriert.",
     "connected": "verbunden",
     "offline": "offline",
+    "unresponsive": "antwortet nicht",
+    "unresponsiveHint": "Die Verbindung steht, der Host reagiert aber nicht. Er bekommt keine neuen Sandboxen, bis er wieder antwortet — was gerade läuft, darf zu Ende laufen.",
     "offlineHint": "Offline ist nicht „kein Runner“: Die Agenten warten, statt auf den Control-Plane-Host zurückzuwandern.",
     "outdated": "veraltetes Protokoll",
     "decommission": "Abbauen",

@@ -912,3 +912,176 @@ func slowRunner(ctx context.Context, t Transport, orgID uuid.UUID, delay time.Du
 		}
 	}
 }
+
+// hangingDockerBin is a docker whose FIRST call of one verb does not return —
+// the shape of a `docker run` that is pulling gigabytes, at the speed of a
+// test: it waits for a file instead of for a registry. Only the first, because
+// the point of the test is the second agent, whose image is already there.
+func hangingDockerBin(t *testing.T, dir, hangOn string) (bin string, release func()) {
+	t.Helper()
+	gate := filepath.Join(dir, "release")
+	seen := filepath.Join(dir, "first")
+	path := filepath.Join(dir, "docker")
+	script := `#!/bin/sh
+if [ "$1" = "` + hangOn + `" ] && [ ! -f ` + seen + ` ]; then
+  : > ` + seen + `
+  while [ ! -f ` + gate + ` ]; do
+    [ -d '` + dir + `' ] || exit 1
+    sleep 0.05
+  done
+fi
+if [ "$1" = "wait" ]; then
+  while [ ! -f ` + filepath.Join(dir, "stopped") + ` ]; do
+    [ -d '` + dir + `' ] || exit 1
+    sleep 0.05
+  done
+  cat ` + filepath.Join(dir, "stopped") + `
+  exit 0
+fi
+echo ok
+`
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return path, func() { _ = os.WriteFile(gate, []byte("go"), 0o644) }
+}
+
+// A start occupies the host for as long as its image takes, and that is allowed
+// to be an hour. What is not allowed is that the host stops hearing anything in
+// the meantime: on covey.work one agent's pull held up every other agent of the
+// organisation, and the runner reported itself as connected throughout, because
+// the heartbeat runs in a goroutine of its own.
+func TestALongStartDoesNotBlockTheRunner(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	org := uuid.New()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	bin, release := hangingDockerBin(t, dir, "run")
+	defer release()
+
+	runnerID := uuid.New()
+	p := NewPool(quietLog())
+	p.Profiles = map[string]string{sandbox.DefaultName(): "covey-sandbox:test"}
+	p.StartTimeout = 15 * time.Second
+	p.HeartbeatEvery = 100 * time.Millisecond
+	node := NewNode(runnerID, org, &Docker{
+		RunnerID: runnerID, Image: "covey-sandbox:test", DataDir: dir, DockerBin: bin,
+	}, quietLog())
+	t.Cleanup(node.Close)
+	if err := p.AttachLocal(ctx, node); err != nil {
+		t.Fatal(err)
+	}
+
+	// The first agent's start goes into the pull and stays there.
+	stuck := make(chan error, 1)
+	go func() {
+		_, err := p.Start(ctx, orchestrator.SandboxSpec{AgentID: uuid.New(), OrgID: org})
+		stuck <- err
+	}()
+
+	// While it hangs, the host still answers: the disk figure keeps coming.
+	first, _ := p.Capacity(runnerID)
+	waitUntil(t, 5*time.Second, func() bool {
+		c, ok := p.Capacity(runnerID)
+		return ok && c.MeasuredAt.After(first.MeasuredAt)
+	})
+	if problems := p.Check(ctx); len(problems) != 0 {
+		t.Errorf("the check has to get through while a start is running: %v", problems)
+	}
+
+	// And it still takes work: a second agent is not held hostage by the first
+	// one's download.
+	select {
+	case <-stuck:
+		t.Fatal("the first start ended although its docker run is still hanging")
+	default:
+	}
+	if _, err := p.Start(ctx, orchestrator.SandboxSpec{AgentID: uuid.New(), OrgID: org}); err != nil {
+		t.Fatalf("the second agent had to get through while the first was pulling: %v", err)
+	}
+
+	// And the first one finishes when its pull does — it was never lost, only
+	// slow.
+	release()
+	if err := <-stuck; err != nil {
+		t.Errorf("the first start after the pull: %v", err)
+	}
+}
+
+// The line stands, the host says nothing: a runner whose read loop is stuck
+// keeps its heartbeat — it runs in a goroutine of its own — and therefore
+// counted as a candidate. Every wake went to it and waited out the start
+// timeout, an hour, while the built-in runner stayed down: stepping in requires
+// there to be NO candidate. That is what cost covey.work a night.
+func TestARunnerThatDoesNotAnswerIsNoCandidate(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	org := uuid.New()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	p := NewPool(quietLog())
+	p.Profiles = map[string]string{sandbox.DefaultName(): "covey-sandbox:test"}
+	p.StartTimeout = 5 * time.Second
+	p.HeartbeatEvery = 50 * time.Millisecond
+	p.SilenceAfter = 250 * time.Millisecond
+
+	// A host that reports in and answers nothing.
+	control, node := NewInProc()
+	defer control.Close()
+	go func() {
+		hello, _ := encode(TypeRegistered, "", Registered{RunnerID: uuid.New(), OrgID: org, Protocol: Protocol})
+		if err := node.Send(ctx, hello); err != nil {
+			return
+		}
+		beat, _ := encode(TypeHeartbeat, "", nil)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(50 * time.Millisecond):
+				if err := node.Send(ctx, beat); err != nil {
+					return
+				}
+			}
+		}
+	}()
+	go func() { _ = p.Attach(ctx, control, false) }()
+
+	// It is connected — and stays connected: the heartbeat is genuine.
+	waitUntil(t, 3*time.Second, func() bool { return len(p.LiveFor(org)) == 1 })
+	// But after three unanswered questions it is named for what it is.
+	waitUntil(t, 5*time.Second, func() bool {
+		for _, l := range p.LiveFor(org) {
+			return l.Connected && l.Unresponsive
+		}
+		return false
+	})
+
+	// And the built-in runner steps in, instead of every wake waiting out its
+	// timeout on a machine that reads nothing.
+	dir := t.TempDir()
+	ensured := 0
+	p.EnsureLocal = func(ctx context.Context, orgID uuid.UUID) error {
+		ensured++
+		id := uuid.New()
+		return p.AttachLocal(ctx, NewNode(id, orgID, &Docker{
+			RunnerID: id, Image: "covey-sandbox:test", DataDir: dir, DockerBin: fakeDockerBin(t, dir, "nothing"),
+		}, quietLog()))
+	}
+	started := time.Now()
+	if _, err := p.Start(ctx, orchestrator.SandboxSpec{AgentID: uuid.New(), OrgID: org}); err != nil {
+		t.Fatalf("the built-in runner had to take it: %v", err)
+	}
+	if ensured != 1 {
+		t.Errorf("EnsureLocal was called %d times", ensured)
+	}
+	if took := time.Since(started); took > p.StartTimeout {
+		t.Errorf("the wake waited out the silent host: %s", took)
+	}
+}

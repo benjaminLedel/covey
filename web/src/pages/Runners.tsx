@@ -33,6 +33,10 @@ type RunnerView = {
     reported_images?: string[];
     sandboxes: number;
     outdated: boolean;
+    // Die Leitung steht, der Host sagt nichts. Er bekommt in diesem Zustand
+    // keine neuen Sandboxen — und „verbunden" neben einem Agenten, der nicht
+    // startet, schickt jeden in die falsche Richtung.
+    unresponsive?: boolean;
   };
   capacity?: {
     sandboxes: number;
@@ -172,7 +176,16 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
                   </td>
                   <td>
                     {r.live?.connected ? (
-                      <span className="pill ok">{t("runners.connected")}</span>
+                      r.live.unresponsive ? (
+                        <>
+                          <span className="pill err">{t("runners.unresponsive")}</span>
+                          <div className="muted text-xs" style={{ marginTop: 2 }}>
+                            {t("runners.unresponsiveHint")}
+                          </div>
+                        </>
+                      ) : (
+                        <span className="pill ok">{t("runners.connected")}</span>
+                      )
                     ) : (
                       <>
                         <span className="pill mut" title={t("runners.offlineHint")}>

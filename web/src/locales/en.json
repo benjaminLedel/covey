@@ -2177,6 +2177,8 @@
     "builtinHint": "Stands down as soon as this organisation registers a runner of its own.",
     "connected": "connected",
     "offline": "offline",
+    "unresponsive": "not answering",
+    "unresponsiveHint": "The line is open, the host does not react. It gets no new sandboxes until it answers again — whatever is running there may finish.",
     "offlineHint": "Offline is not “no runner”: the agents wait rather than moving back onto the control plane's host.",
     "outdated": "outdated protocol",
     "decommission": "Decommission",

@@ -44,6 +44,9 @@ type Node struct {
 	// tests can: t.Cleanup(node.Close) runs while node.Run is still live in its
 	// goroutine.
 	closed bool
+	// turn holds, per agent, the end of the line: the channel the message
+	// currently being worked on closes when it is done. See inOrder.
+	turn map[uuid.UUID]chan struct{}
 }
 
 // sandboxProc is a running sandbox as this node sees it.
@@ -66,6 +69,7 @@ func NewNode(runnerID, orgID uuid.UUID, docker *Docker, log *slog.Logger) *Node 
 		Docker:   docker,
 		Log:      log,
 		running:  map[uuid.UUID]*sandboxProc{},
+		turn:     map[uuid.UUID]chan struct{}{},
 	}
 }
 
@@ -140,21 +144,21 @@ func (n *Node) handle(ctx context.Context, t Transport, msg Message) {
 			n.reply(ctx, t, msg.ID, TypeSandboxFailed, SandboxResult{Err: err.Error()})
 			return
 		}
-		n.start(ctx, t, msg.ID, spec)
+		n.inOrder(spec.AgentID, func() { n.start(ctx, t, msg.ID, spec) })
 	case TypeStopSandbox:
 		spec, err := decode[StopSandbox](msg)
 		if err != nil {
 			n.reply(ctx, t, msg.ID, TypeSandboxStopped, SandboxResult{Err: err.Error()})
 			return
 		}
-		n.stop(ctx, t, msg.ID, spec.AgentID)
+		n.inOrder(spec.AgentID, func() { n.stop(ctx, t, msg.ID, spec.AgentID) })
 	case TypeSyncHome:
 		req, err := decode[SyncHome](msg)
 		if err != nil {
 			n.reply(ctx, t, msg.ID, TypeHomeSynced, HomeSynced{Err: err.Error()})
 			return
 		}
-		n.sync(ctx, t, msg.ID, req)
+		n.inOrder(req.AgentID, func() { n.sync(ctx, t, msg.ID, req) })
 	case TypeHomeOp:
 		op, err := decode[HomeOp](msg)
 		if err != nil {
@@ -165,7 +169,10 @@ func (n *Node) handle(ctx context.Context, t Transport, msg Message) {
 		// runner from starting a sandbox in the meantime.
 		go n.homeOp(context.WithoutCancel(ctx), t, msg.ID, op)
 	case TypeCapacity:
-		n.reply(ctx, t, msg.ID, TypeCapacityReport, n.capacity())
+		// Beside the loop, like everything that can take time. Free space is a
+		// statfs and costs nothing — until the file system it asks about hangs,
+		// and then this cheap question would block every other one.
+		go n.reply(ctx, t, msg.ID, TypeCapacityReport, n.capacity())
 	case TypePullImage:
 		req, err := decode[PullImage](msg)
 		if err != nil {
@@ -189,11 +196,60 @@ func (n *Node) handle(ctx context.Context, t Transport, msg Message) {
 		if err != nil {
 			req = Check{}
 		}
-		problems, present := n.Docker.Check(ctx, req)
-		n.reply(ctx, t, msg.ID, TypeCheckResult, CheckResult{Problems: problems, Present: present})
+		// The check spawns docker processes. Usually milliseconds, and a
+		// diagnosis that blocks the host it is diagnosing is the last thing
+		// anybody needs from it.
+		go func() {
+			problems, present := n.Docker.Check(ctx, req)
+			n.reply(ctx, t, msg.ID, TypeCheckResult, CheckResult{Problems: problems, Present: present})
+		}()
 	default:
 		n.Log.Warn("runner: unknown message", "type", msg.Type)
 	}
+}
+
+// inOrder runs the work of a message beside the read loop, but keeps the
+// messages of ONE agent in the order they arrived.
+//
+// Beside the loop, because a start is not a quick job: `docker run` fetches a
+// missing workplace image, and those are gigabytes — the bound for it is an
+// hour. Handled inside the loop, as it was, that hour was an hour in which this
+// runner read nothing at all: not the start for the next agent, not the
+// capacity question the runner page asks, not the check behind the warning
+// banner. On covey.work one image pull thus stopped every agent of the
+// organisation, and the host reported itself as connected the whole time,
+// because the heartbeat has a goroutine of its own.
+//
+// In order, because start, stop and sync of one agent describe one working
+// copy. A mutex would not do it: it hands the turn to whoever happens to be
+// waiting, so a stop could overtake the start it belongs to. So each message
+// takes the previous one's channel as its cue and leaves its own behind for the
+// next — the handover is arranged here in the read loop, which is what makes
+// the order the arrival order.
+//
+// Not for home_op: that is the file browser, and browsing an agent's home has
+// no business waiting an hour for its sandbox to start.
+func (n *Node) inOrder(agentID uuid.UUID, work func()) {
+	n.mu.Lock()
+	prev := n.turn[agentID]
+	mine := make(chan struct{})
+	n.turn[agentID] = mine
+	n.mu.Unlock()
+
+	go func() {
+		defer close(mine)
+		if prev != nil {
+			<-prev
+		}
+		work()
+		// Whoever is last in line takes the agent out of the map again —
+		// otherwise every agent that ever ran here would leave an entry behind.
+		n.mu.Lock()
+		if n.turn[agentID] == mine {
+			delete(n.turn, agentID)
+		}
+		n.mu.Unlock()
+	}()
 }
 
 // sync writes the home into the store. Only after home_synced may anything be

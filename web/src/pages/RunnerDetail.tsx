@@ -40,6 +40,7 @@ type RunnerView = {
     reported_images?: string[];
     sandboxes: number;
     outdated: boolean;
+    unresponsive?: boolean;
   };
   capacity?: {
     sandboxes: number;
@@ -116,8 +117,12 @@ export default function RunnerDetail({ me }: { me: Principal }) {
           <h1 className="text-[22px]">
             {r.name || (r.kind === "builtin" ? t("runners.builtin") : r.description || r.id.slice(0, 8))}
           </h1>
-          <span className={connected ? "pill ok" : "pill mut"}>
-            {connected ? t("runners.connected") : t("runners.offline")}
+          <span className={connected ? (r.live?.unresponsive ? "pill err" : "pill ok") : "pill mut"}>
+            {connected
+              ? r.live?.unresponsive
+                ? t("runners.unresponsive")
+                : t("runners.connected")
+              : t("runners.offline")}
           </span>
           {r.live?.outdated && <span className="pill err">{t("runners.outdated")}</span>}
         </div>

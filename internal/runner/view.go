@@ -32,6 +32,11 @@ type Live struct {
 	// rather than merely tolerated — version drift between separately delivered
 	// parts is a thing you want to see before it becomes a symptom.
 	Outdated bool `json:"outdated"`
+	// Unresponsive: the line stands, the host says nothing. It gets no new
+	// sandboxes in this state (see answering), and that is worth a word of its
+	// own — "connected" beside an agent that does not start is the sentence
+	// that sends somebody looking in the wrong place.
+	Unresponsive bool `json:"unresponsive,omitempty"`
 }
 
 // LiveFor reports what the pool knows about the connected runners of an
@@ -56,6 +61,7 @@ func (p *Pool) LiveFor(orgID uuid.UUID) map[uuid.UUID]Live {
 			Version: c.version, Arch: c.arch, Tags: c.tags, Images: c.images,
 			ReportedTags: c.reportedTags, ReportedImages: c.reportedImages,
 			Sandboxes: running, Outdated: c.protocol < Protocol,
+			Unresponsive: !c.answering(),
 		}
 	}
 	return out

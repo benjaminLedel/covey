@@ -175,9 +175,14 @@ type conn struct {
 	streams map[string]bool
 	// capacity is the last thing this host said about its disk, and capacityAt
 	// when it said it. Kept rather than asked at the moment somebody looks:
-	// see capacityWatch.
+	// see capacityWatch. capacityAt is also the answer to a second question —
+	// see answering.
 	capacity   CapacityReport
 	capacityAt time.Time
+	// openedAt is when this connection came up. It stands in for an answer
+	// that has not arrived yet: a host that has just connected is given the
+	// same grace as one that has just answered.
+	openedAt time.Time
 	// sandboxes counts what is running here — the whole of the scheduling
 	// weight for now: no bin packing, no resource modelling.
 	sandboxes int
@@ -297,7 +302,7 @@ func (p *Pool) register(ctx context.Context, t Transport, builtin bool) (*conn, 
 		tags: reg.Tags, images: reg.Images,
 		reportedTags: reg.Tags, reportedImages: reg.Images,
 		t: t, pool: p, waiters: map[string]chan Message{}, streams: map[string]bool{},
-		lastHeard: time.Now(),
+		lastHeard: time.Now(), openedAt: time.Now(),
 	}
 	// What the interface assigned to this host applies from the first wake on,
 	// not from the next restart of the runner: the capabilities live here, the
@@ -545,6 +550,40 @@ func (c *conn) watchdog(ctx context.Context) {
 			}
 		}
 	}
+}
+
+// answering reports whether this host still REACTS. That is not the same
+// question as whether the line is open, and the difference cost covey.work a
+// night: a runner sat there as connected — heartbeat every 30 seconds, last
+// seen a minute ago — while it answered nothing at all. Its read loop was
+// inside a `docker run` that was pulling an image, and the heartbeat goes out
+// from a goroutine of its own, so the one thing still working was the one
+// thing being measured.
+//
+// The scheduler nonetheless saw a candidate, sent it the start, and waited out
+// the start timeout — an hour, since we made room for exactly such a pull. The
+// built-in runner never stepped in, because stepping in requires there to be no
+// candidate. Three wakes, three hours, nothing done.
+//
+// So the second signal: the connection asks this host about its disk every beat
+// anyway (capacityWatch), and whether an answer comes back is a statement about
+// the read loop rather than about the socket. Three missed answers — the same
+// tolerance the heartbeat gets — and the host stops being a candidate. It is
+// not thrown out: whatever it is doing may well be legitimate and long, and a
+// start that is running has to be allowed to finish. It just gets no more work
+// while it cannot say a word.
+func (c *conn) answering() bool {
+	c.mu.Lock()
+	last := c.capacityAt
+	if last.Before(c.openedAt) {
+		last = c.openedAt
+	}
+	c.mu.Unlock()
+	silence := c.pool.SilenceAfter
+	if silence <= 0 {
+		silence = Silence
+	}
+	return time.Since(last) <= silence
 }
 
 // capacityWatch keeps a host's disk figure current without anybody asking for
@@ -804,7 +843,10 @@ func (p *Pool) candidates(want need) ([]*conn, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	var inOrg, out []*conn
+	// tagged is what the tags let through, out what also still answers. Both,
+	// because the two say different things and each deserves its own sentence
+	// when nothing is left.
+	var inOrg, tagged, out []*conn
 	for _, c := range p.conns {
 		// The organisation comes first and is not a filter among others: a
 		// runner of a foreign tenant is not a worse candidate, it is none.
@@ -818,14 +860,24 @@ func (p *Pool) candidates(want need) ([]*conn, error) {
 		if !hasAll(c.tags, want.tags) {
 			continue
 		}
+		tagged = append(tagged, c)
+		// And a host that says nothing gets nothing. See answering: connected
+		// is not the same as reachable, and the difference is a start that
+		// waits out its whole timeout on a machine that never read it.
+		if !c.answering() {
+			continue
+		}
 		out = append(out, c)
 	}
 	switch {
 	case len(inOrg) == 0:
 		return nil, errNoneInOrg
-	case len(out) == 0:
+	case len(tagged) == 0:
 		return nil, fmt.Errorf("%w: no runner of this organisation carries the tags %v",
 			ErrNoRunner, want.tags)
+	case len(out) == 0:
+		return nil, fmt.Errorf("%w: every runner of this organisation is connected but does not answer",
+			ErrNoRunner)
 	}
 	rank := func(c *conn) (int, int) {
 		c.mu.Lock()

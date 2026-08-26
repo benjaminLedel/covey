@@ -123,6 +123,16 @@ pull was still running. Whoever wants it tighter sets the variable; the button
 on the runner page (*fetch images in advance*) makes the wait happen while
 somebody is watching instead.
 
+**"Connected" and "answering" are two states.** The heartbeat below proves the
+process lives; it says nothing about whether the runner still reads its
+messages. A host stuck inside a long `docker run` keeps beating and answers
+nothing, and the control plane notices that separately: it asks every connected
+host for its capacity once a beat, and after three unanswered questions the host
+shows as **not answering** and is no longer given new sandboxes. Whatever is
+already running there may finish. If that is the only runner, the built-in one
+steps in — which is why an agent keeps working instead of waiting out the start
+timeout on a machine that reads nothing.
+
 Once running, the runner reports in every 30 seconds. After three missed beats
 the control plane closes the connection, and the runner shows as **offline**
 rather than as a host that is there but hears nothing — the state in which every

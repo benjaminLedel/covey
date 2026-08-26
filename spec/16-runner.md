@@ -182,6 +182,12 @@ The heartbeat is not decoration. A TCP connection can be dead without either sid
 
 It is also what makes "last seen" mean anything. Without it the figure would be the moment a runner **connected** — which is the one thing nobody wants to know about a runner that has since gone away.
 
+**And it is not enough on its own.** The heartbeat goes out from a goroutine of its own, so it keeps beating while the runner's read loop is stuck — inside a `docker run` that is fetching a workplace image, for instance, for which the bound is an hour. Such a host reports itself as connected and answers nothing, and a scheduler that only knows "connected" sends it every wake and waits each one out. Measured on covey.work: three wakes, three hours, nothing done, the built-in runner idle throughout, because stepping in requires there to be *no* candidate.
+
+So the second signal, and it costs no extra message: the control plane asks every connected host for its capacity once a beat anyway (see [Interface](#interface)). Whether an answer comes back is a statement about the **read loop** rather than about the socket. Three missed answers — the same tolerance the heartbeat gets — and the host stops being a candidate and is shown as *not answering* rather than as *connected*. It is not thrown out: what it is doing may be legitimate and long, and a start that is running has to be allowed to finish. It gets no new work while it cannot say a word.
+
+The runner's side of the same lesson: **the read loop hands off**. `start_sandbox`, `stop_sandbox` and `sync_home` are worked on beside it, in the order they arrived per agent (start, stop and sync of one agent describe one working copy, so their order is part of their meaning; a mutex would not do it, since it hands the turn to whoever happens to be waiting). `capacity` and `check` answer beside it too. That way one agent's image pull costs that agent time, not the host.
+
 `sandbox_exited` is the reason the runner has to observe the container state at all: today the control plane notices a crash only at the `ReadyTimeout` or at the breaking daemon link. With a runner that asks the local Docker daemon anyway, that becomes a reported fact instead of a guess.
 
 ## The home
