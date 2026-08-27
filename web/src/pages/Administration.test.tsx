@@ -63,9 +63,9 @@ describe("Administrations-Panel", () => {
     // Der Betrag steht in der Schreibweise, die die ganze Oberfläche benutzt
     // (fmtUSD): Zeichen hinter der Zahl. Hier stand „$12.50", und diese Seite
     // war damit eine von drei Schreibweisen für dieselbe Sorte Zahl.
-    expect(await screen.findByText("12.50 $")).toBeInTheDocument();
+    expect(await screen.findByText("12,50 $")).toBeInTheDocument();
     const werte = document.querySelectorAll(".stat .v");
-    expect([...werte].map((e) => e.textContent)).toEqual(["2", "3", "1", "12.50 $"]);
+    expect([...werte].map((e) => e.textContent)).toEqual(["2", "3", "1", "12,50 $"]);
   });
 
   it("zeigt die Mitgliederverwaltung ohne zweite Überschrift", async () => {

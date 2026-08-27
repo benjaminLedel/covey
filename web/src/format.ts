@@ -29,8 +29,15 @@ export function fmtBytes(n: number): string {
 // „2746 $" liest man ziffernweise, „2.746 $" auf einen Blick.
 export function fmtUSD(v: number): string {
   if (v >= 1000) return `${group(Math.round(v))} $`;
-  if (v >= 1) return `${v.toFixed(2)} $`;
-  return `${v.toFixed(4)} $`;
+  if (v >= 1) return `${dezimal(v, 2)} $`;
+  return `${dezimal(v, 4)} $`;
+}
+
+// dezimal: eine feste Zahl von Nachkommastellen, mit dem Trenner der
+// Oberfläche. Ohne das stünde auf der deutschen Seite „12.30 $" neben
+// „2.847 $", und derselbe Punkt hieße in einer Zeile zweierlei.
+function dezimal(v: number, stellen: number): string {
+  return v.toFixed(stellen).replace(".", komma());
 }
 
 // fmtCount bringt eine Anzahl auf das, was ein Mensch beim Überfliegen
@@ -59,7 +66,7 @@ export function fmtCount(n: number): string {
 // mit gewachsenem Cache „2500 M", und das zählt man wieder ziffernweise nach —
 // genau das, wogegen fmtCount angetreten ist.
 function milliarde(): string {
-  return i18n.language?.startsWith("de") ? "Mrd" : "B";
+  return deutsch() ? "Mrd" : "B";
 }
 
 // exact ist die Langfassung für den Tooltip neben einer gekürzten Zahl.
@@ -67,16 +74,21 @@ export function exact(n: number): string {
   return group(Math.round(n));
 }
 
-// group setzt Tausenderpunkte. Ohne Intl-Locale, wie der Rest dieser Datei:
-// die Einheiten sind in beiden Sprachen dieselben, und eine Zahl, die je nach
-// Browsersprache anders aussieht, macht Screenshots und Fehlerberichte
-// unvergleichbar.
+// group setzt Tausendertrenner — in der Schreibweise der Oberfläche.
+//
+// Hier stand einmal fest der Punkt, mit derselben Begründung wie oben: eine
+// Zahl, die je nach Browsersprache anders aussieht, macht Screenshots
+// unvergleichbar. Für Einheiten trägt das Argument, für Trenner nicht: „1.234"
+// ist auf Deutsch tausendzweihundert und auf Englisch etwas über eins. Auf der
+// englischen Oberfläche stand deshalb „2.847 $" für einen Betrag von
+// zweitausendachthundert — gelesen als zwei Dollar fünfundachtzig.
 function group(v: number): string {
   const neg = v < 0;
   const digits = Math.abs(v).toString();
+  const sep = tausender();
   let out = "";
   for (let i = 0; i < digits.length; i++) {
-    if (i > 0 && (digits.length - i) % 3 === 0) out += ".";
+    if (i > 0 && (digits.length - i) % 3 === 0) out += sep;
     out += digits[i];
   }
   return neg ? `-${out}` : out;
@@ -87,7 +99,23 @@ function group(v: number): string {
 function trim(v: number): string {
   const one = v.toFixed(1);
   const rounded = one.endsWith(".0") ? one.slice(0, -2) : one;
-  return rounded.replace(".", ",");
+  return rounded.replace(".", komma());
+}
+
+// Die beiden Trenner, und die eine Stelle, an der sie beschlossen werden. Sie
+// hängen aneinander: wer den Punkt als Tausendertrenner setzt, muss das Komma
+// als Dezimaltrenner setzen, sonst ergibt „1.234,5" gegen „1,234.5" ein
+// Mischmasch, das in keiner der beiden Sprachen richtig ist.
+function deutsch(): boolean {
+  return i18n.language?.startsWith("de") ?? true;
+}
+
+function tausender(): string {
+  return deutsch() ? "." : ",";
+}
+
+function komma(): string {
+  return deutsch() ? "," : ".";
 }
 
 // fmtDelta bringt eine Zeitspanne in Millisekunden auf die gröbste Einheit, die

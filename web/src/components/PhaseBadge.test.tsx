@@ -1,10 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import i18n from "../i18n";
 import { anteil, dauer, phaseZahlen } from "./PhaseBadge";
 import type { AgentPhase } from "../api";
 
 /* Die Phasenanzeige beantwortet eine Frage, auf die der Status keine Antwort
    hat: „triggered" steht auf einem frischen Host eine Dreiviertelstunde lang da
    und sagt in dieser Zeit nichts über das Image, das gerade geholt wird. */
+
+// Die Trenner folgen der Sprache; ein Test, der sie nicht festlegt, prüft die
+// Umgebung statt der Anzeige.
+beforeEach(async () => {
+  await i18n.changeLanguage("de");
+});
 
 const ph = (p: Partial<AgentPhase>): AgentPhase => ({
   phase: "image",

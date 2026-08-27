@@ -29,7 +29,7 @@ describe("CostBar", () => {
     // Ein vierstelliger Betrag braucht keine Zehntelcent, aber Tausenderpunkte.
     expect(await screen.findByText("2.817 $")).toBeInTheDocument();
     // Und ein Budget die zwei Stellen, die es trägt.
-    expect(screen.getByText("540.00 $")).toBeInTheDocument();
+    expect(screen.getByText("540,00 $")).toBeInTheDocument();
   });
 
   it("kürzt die Tokenzahlen und hält die genauen im Tooltip bereit", async () => {
