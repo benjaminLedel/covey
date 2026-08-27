@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { fmtCount, fmtUSD } from "../format";
 import {
   api,
   del,
@@ -20,9 +21,11 @@ import {
 // Reihenfolge gestellt werden: worauf arbeitet dieser Vertrag, wie voll ist er,
 // und wer sitzt darauf.
 
-const fmtUSD = (n: number) => `$${n.toFixed(2)}`;
-const fmtTokens = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 0 });
-const fmtAmount = (n: number, unit: string) => (unit === "tokens" ? fmtTokens(n) : fmtUSD(n));
+// Beträge und Anzahlen kommen aus format.ts — dieselbe Schreibweise wie auf der
+// Kostenseite und am Backlog. Diese Datei hatte ihre eigene Fassung („$12.30"
+// mit Zeichen vorn, Tokens als rohe Zahl), und zwei Schreibweisen für dieselbe
+// Sorte Zahl sind eine Frage zu viel für jeden, der beide Seiten offen hat.
+const fmtAmount = (n: number, unit: string) => (unit === "tokens" ? fmtCount(n) : fmtUSD(n));
 const fmtWindow = (secs: number) => (secs % 86400 === 0 ? `${secs / 86400} d` : `${Math.round(secs / 3600)} h`);
 
 export default function RuntimeInstances({ canEdit }: { canEdit: boolean }) {
@@ -395,8 +398,8 @@ function CredentialRow({
         ) : (
           <span className="muted">
             {t("runtimes.instances.usedNoLimit", {
-              usd: c.usage.usd.toFixed(2),
-              tokens: fmtTokens(c.usage.tokens),
+              usd: fmtUSD(c.usage.usd),
+              tokens: fmtCount(c.usage.tokens),
               window: fmtWindow(c.window_secs),
             })}
           </span>
