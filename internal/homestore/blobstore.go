@@ -19,6 +19,42 @@ import (
 	"github.com/google/uuid"
 )
 
+// BulkAsker is the optional half of a store that can answer for many blocks at
+// once. Optional because a directory on the same disk has nothing to gain: its
+// Has is a stat, and a thousand stats are a thousand stats either way.
+//
+// It exists for the store that lies behind a network. A sync asks for every
+// block of a home whether it is already there, and a grown home has six figures
+// of them — on a remote runner that used to be six figures of HTTPS round
+// trips, one after another, before a single new byte was uploaded. A 16.9 GB
+// home with 150,000 files did not finish inside the control plane's
+// thirty-minute bound, so it never got synced at all.
+//
+// Whoever does not implement it is asked one by one, which is what happened
+// before and stays correct.
+type BulkAsker interface {
+	// HasMany reports for each hash whether the store already holds it. The
+	// answer may leave a hash out; missing means "not there".
+	HasMany(ctx context.Context, orgID uuid.UUID, hashes []string) (map[string]bool, error)
+}
+
+// AskAll answers "which of these does the store already have" through the
+// bulk route where there is one, and one by one where there is not.
+func AskAll(ctx context.Context, blobs BlobStore, orgID uuid.UUID, hashes []string) (map[string]bool, error) {
+	if b, ok := blobs.(BulkAsker); ok {
+		return b.HasMany(ctx, orgID, hashes)
+	}
+	out := make(map[string]bool, len(hashes))
+	for _, h := range hashes {
+		has, err := blobs.Has(ctx, orgID, h)
+		if err != nil {
+			return nil, err
+		}
+		out[h] = has
+	}
+	return out, nil
+}
+
 // ErrNotFound: no block under this key.
 var ErrNotFound = errors.New("block not found")
 

@@ -757,3 +757,115 @@ func TestDieMarkeLiegtNebenDemHomeUndNichtDarin(t *testing.T) {
 		t.Errorf("die Marke liegt IM Home und würde jeden Schnappschuss verändern: %v", eintraege)
 	}
 }
+
+// einzelStore kann NICHT bündeln — wie die Verzeichnis-Variante auf derselben
+// Platte, die davon auch nichts hätte.
+type einzelStore struct {
+	*Dir
+	einzeln int
+}
+
+func (z *einzelStore) Has(ctx context.Context, orgID uuid.UUID, hash string) (bool, error) {
+	z.einzeln++
+	return z.Dir.Has(ctx, orgID, hash)
+}
+
+// buendelStore kann es — wie der Store hinter dem Netz, für den die Bündelung
+// gebaut ist.
+type buendelStore struct {
+	einzelStore
+	gebuendelt int
+}
+
+func (z *buendelStore) HasMany(ctx context.Context, orgID uuid.UUID, hashes []string) (map[string]bool, error) {
+	z.gebuendelt++
+	out := map[string]bool{}
+	for _, h := range hashes {
+		has, err := z.Dir.Has(ctx, orgID, h)
+		if err != nil {
+			return nil, err
+		}
+		out[h] = has
+	}
+	return out, nil
+}
+
+// Ein Sync fragt für JEDEN Block, ob der Store ihn schon kennt. Bei einem
+// gewachsenen Home sind das sechsstellig viele Fragen, und hinter einem Netz
+// war jede davon eine eigene Anfrage: ein 16,9-GB-Home mit 150.000 Dateien kam
+// nicht mehr innerhalb der halben Stunde durch, die die Steuerebene einem Sync
+// gibt.
+func TestDieFrageNachBekanntenBloeckenWirdGebuendelt(t *testing.T) {
+	ctx := context.Background()
+	org := uuid.New()
+	home := t.TempDir()
+	for i := 0; i < 1500; i++ {
+		write(t, home, fmt.Sprintf("viele/datei-%04d.txt", i), fmt.Sprintf("inhalt %d", i))
+	}
+
+	z := &buendelStore{einzelStore: einzelStore{Dir: newDir(t)}}
+	if _, err := Sync(ctx, z, org, home, nil); err != nil {
+		t.Fatal(err)
+	}
+	// Eine Einzelfrage bleibt: die nach dem Manifest selbst.
+	if z.einzeln > 1 {
+		t.Errorf("%d Einzelfragen, obwohl der Store bündeln kann", z.einzeln)
+	}
+	// 1500 Dateien, 512 pro Bündel: drei Fragen plus die für das Manifest.
+	if z.gebuendelt > 6 {
+		t.Errorf("%d Bündelfragen für 1500 Blöcke — das ist nicht gebündelt", z.gebuendelt)
+	}
+	if z.gebuendelt == 0 {
+		t.Error("es wurde gar nicht gefragt")
+	}
+}
+
+// Ein Store, der das Bündeln nicht kann — die Verzeichnis-Variante auf
+// derselben Platte hat nichts davon —, wird weiter einzeln gefragt. Das war
+// vorher richtig und bleibt es.
+func TestOhneBuendelfrageWirdWeiterEinzelnGefragt(t *testing.T) {
+	ctx := context.Background()
+	org := uuid.New()
+	home := t.TempDir()
+	for i := 0; i < 20; i++ {
+		write(t, home, fmt.Sprintf("datei-%02d.txt", i), fmt.Sprintf("inhalt %d", i))
+	}
+
+	z := &einzelStore{Dir: newDir(t)}
+	if _, err := Sync(ctx, z, org, home, nil); err != nil {
+		t.Fatal(err)
+	}
+	if z.einzeln == 0 {
+		t.Error("ohne Bündelfrage muss einzeln gefragt werden")
+	}
+}
+
+// Und das Ergebnis bleibt dasselbe: was fehlt, reist; was da ist, nicht.
+func TestGebuendeltReistTrotzdemNurWasFehlt(t *testing.T) {
+	ctx := context.Background()
+	org := uuid.New()
+	home := t.TempDir()
+	for i := 0; i < 600; i++ {
+		write(t, home, fmt.Sprintf("datei-%03d.txt", i), fmt.Sprintf("inhalt %d", i))
+	}
+	z := &buendelStore{einzelStore: einzelStore{Dir: newDir(t)}}
+	erst, err := Sync(ctx, z, org, home, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if erst.Blocks < 600 {
+		t.Fatalf("der erste Sync hat nur %d Blöcke abgelegt", erst.Blocks)
+	}
+	// Unverändertes Home: es darf nichts mehr hochgehen.
+	zweit, err := Sync(ctx, z, org, home, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if zweit.BytesUp != 0 || zweit.Blocks != 0 {
+		t.Errorf("der zweite Sync lud %d Bytes in %d Blöcken hoch", zweit.BytesUp, zweit.Blocks)
+	}
+	// Und der Schnappschuss ist derselbe.
+	if erst.ManifestHash != zweit.ManifestHash {
+		t.Error("zwei Syncs desselben Standes ergeben verschiedene Schnappschüsse")
+	}
+}

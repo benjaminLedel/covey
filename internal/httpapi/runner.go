@@ -145,6 +145,52 @@ func (s *Server) handleRunnerWS(w http.ResponseWriter, r *http.Request, rn runne
 // A runner never gets the store's credentials — that would be the same
 // omission as the database URL in the egress proxy. It is a client with a
 // token, and everything it can reach is its own organisation's (spec/16).
+// handleRunnerBlocksHave answers for many blocks at once whether the store
+// already holds them.
+//
+// One question instead of a hundred thousand. A sync asks for every block of a
+// home whether it is already there, and a grown home has six figures of them —
+// over a network that was six figures of round trips before the first new byte
+// went up, and a 16.9 GB home with 150,000 files stopped finishing inside the
+// thirty-minute bound the control plane gives a sync.
+//
+// The answer names only what IS there. Saying "not there" is the same
+// information as leaving it out, and leaving it out keeps the answer small in
+// the case that matters — the first sync of a home, where almost nothing is
+// known yet.
+func (s *Server) handleRunnerBlocksHave(w http.ResponseWriter, r *http.Request, rn runnerstore.Runner) {
+	if s.Blobs == nil {
+		writeErr(w, http.StatusServiceUnavailable, "no home store")
+		return
+	}
+	var in struct {
+		Hashes []string `json:"hashes"`
+	}
+	// A generous bound on the question, not on the home: 4096 hashes are
+	// 256 KB of hex, and a runner that needs more asks twice.
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&in); err != nil {
+		writeErr(w, http.StatusBadRequest, "body not readable")
+		return
+	}
+	if len(in.Hashes) > 4096 {
+		writeErr(w, http.StatusRequestEntityTooLarge, "at most 4096 hashes per question")
+		return
+	}
+	have := make([]string, 0, len(in.Hashes))
+	for _, hash := range in.Hashes {
+		ok, err := s.Blobs.Has(r.Context(), rn.OrgID, hash)
+		if err != nil {
+			s.Log.Warn("block lookup failed", "runner", rn.ID, "err", err)
+			writeErr(w, http.StatusInternalServerError, "lookup failed")
+			return
+		}
+		if ok {
+			have = append(have, hash)
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"have": have})
+}
+
 func (s *Server) handleRunnerBlock(w http.ResponseWriter, r *http.Request, rn runnerstore.Runner) {
 	if s.Blobs == nil {
 		writeErr(w, http.StatusServiceUnavailable, "no home store")
