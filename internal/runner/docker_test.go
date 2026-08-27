@@ -311,3 +311,92 @@ func TestNetworkIsolationRoutesEverythingThroughTheProxy(t *testing.T) {
 		t.Error("the egress proxy must not be given the database URL")
 	}
 }
+
+// waitDockerBin ist ein docker-Ersatz für den Sterbefall: `wait` liefert den
+// Exit-Code aus einer Datei, `logs` die letzte Ausgabe des Containers — und
+// `rm` schreibt mit, dass aufgeräumt wurde.
+func waitDockerBin(t *testing.T, dir, code, containerLog string) string {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, "code"), []byte(code+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "log"), []byte(containerLog), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "docker")
+	script := `#!/bin/sh
+case "$1" in
+  wait) cat ` + filepath.Join(dir, "code") + ` ;;
+  logs) cat ` + filepath.Join(dir, "log") + ` ;;
+  rm)   printf 'entfernt\n' >> ` + filepath.Join(dir, "removed") + ` ;;
+  *)    echo ok ;;
+esac
+`
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// Eine Sandbox, die beim Start stirbt, nahm ihre Ausgabe bisher mit: der
+// Container lief mit --rm und war weg, bevor irgendwer nachsehen konnte. In der
+// Aufzeichnung stand „exit 1" und sonst nichts — die Meldung, die einen
+// Menschen auf den Host schickt, wo der Container nicht mehr existiert.
+func TestDerTodEinerSandboxTraegtIhreLetztenWorte(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("das Docker-Double ist ein Shell-Skript")
+	}
+	dir := t.TempDir()
+	p := &Docker{DataDir: dir, DockerBin: waitDockerBin(t, dir, "1",
+		"coveyd: control plane unreachable: dial tcp: connection refused\n")}
+
+	reason := p.Wait(context.Background(), "covey-sandbox-x")
+	if !strings.Contains(reason, "exit 1") {
+		t.Errorf("der Exit-Code fehlt: %q", reason)
+	}
+	if !strings.Contains(reason, "connection refused") {
+		t.Errorf("die letzte Ausgabe des Containers fehlt: %q", reason)
+	}
+	// Gelesen wird vor dem Entfernen — und entfernt wird, weil ohne --rm sonst
+	// der Name für den nächsten Weckruf belegt bliebe.
+	if _, err := os.Stat(filepath.Join(dir, "removed")); err != nil {
+		t.Error("der Container wurde nach dem Lesen nicht entfernt")
+	}
+}
+
+// Ein stiller Container bekommt keinen Satz angedichtet.
+func TestEinStillerTodBleibtStill(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("das Docker-Double ist ein Shell-Skript")
+	}
+	dir := t.TempDir()
+	p := &Docker{DataDir: dir, DockerBin: waitDockerBin(t, dir, "137", "")}
+
+	reason := p.Wait(context.Background(), "covey-sandbox-x")
+	if strings.Contains(reason, "last output") {
+		t.Errorf("ohne Ausgabe darf keine behauptet werden: %q", reason)
+	}
+	// Der OOM-Verdacht bleibt, er ist die halbe Diagnose.
+	if !strings.Contains(reason, "out of memory") {
+		t.Errorf("exit 137 sollte den OOM-Verdacht nennen: %q", reason)
+	}
+}
+
+// Ein Container, der minutenlang geredet hat, darf die Aufzeichnung nicht
+// fluten — aber das ENDE muss durch, dort steht der Grund.
+func TestNurDasEndeDerAusgabeReist(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("das Docker-Double ist ein Shell-Skript")
+	}
+	dir := t.TempDir()
+	lang := strings.Repeat("belanglose Zeile\n", 2000) + "FATAL: hier ist der Grund\n"
+	p := &Docker{DataDir: dir, DockerBin: waitDockerBin(t, dir, "1", lang)}
+
+	reason := p.Wait(context.Background(), "covey-sandbox-x")
+	if len(reason) > logTailBytes+200 {
+		t.Errorf("die Meldung ist mit %d Zeichen zu lang", len(reason))
+	}
+	if !strings.Contains(reason, "FATAL: hier ist der Grund") {
+		t.Error("gekürzt wurde am falschen Ende — der Grund steht am Schluss")
+	}
+}
