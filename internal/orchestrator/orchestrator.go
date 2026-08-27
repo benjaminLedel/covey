@@ -92,7 +92,14 @@ type Options struct {
 type Orchestrator struct {
 	Options
 
-	mu       sync.Mutex
+	mu sync.Mutex
+	// laufend zählt, was der Orchestrator an eigenen Nebenläufigkeiten gestartet
+	// hat: die Sitzungen der Agenten und seine Dauerschleifen. Ohne sie heißt
+	// „abgebrochen" nur, dass das Signal gesetzt ist — und wer danach aufräumt,
+	// räumt unter noch laufender Arbeit weg. Im Test war das ein Verzeichnis,
+	// das gelöscht wurde, während eine Sitzung hineinschrieb; im Betrieb ist es
+	// ein Sandbox-Abbau, der beim Beenden des Prozesses abgeschnitten wird.
+	laufend  sync.WaitGroup
 	sessions map[uuid.UUID]*session
 	waiting  map[uuid.UUID]chan DaemonLink
 	// dying receives the reason when the sandbox of an agent currently being
@@ -328,10 +335,10 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 	} else if n > 0 {
 		o.Log.Info("startup reconcile: orphaned tasks requeued", "count", n)
 	}
-	go o.listenLoop(ctx)
-	go o.wikiMaintenanceLoop(ctx)
-	go o.warmReaperLoop(ctx)
-	go o.boardJanitorLoop(ctx)
+	o.nebenlaeufig(func() { o.listenLoop(ctx) })
+	o.nebenlaeufig(func() { o.wikiMaintenanceLoop(ctx) })
+	o.nebenlaeufig(func() { o.warmReaperLoop(ctx) })
+	o.nebenlaeufig(func() { o.boardJanitorLoop(ctx) })
 	ticker := time.NewTicker(o.TickInterval)
 	defer ticker.Stop()
 	o.tick(ctx)
@@ -814,7 +821,7 @@ func (o *Orchestrator) EnsureRunning(agentID uuid.UUID) {
 	o.sessions[agentID] = s
 	o.mu.Unlock()
 
-	go func() {
+	o.nebenlaeufig(func() {
 		defer func() {
 			o.mu.Lock()
 			delete(o.sessions, agentID)
@@ -824,7 +831,7 @@ func (o *Orchestrator) EnsureRunning(agentID uuid.UUID) {
 		if err := o.runAgent(ctx, agentID, s); err != nil && !errors.Is(err, context.Canceled) {
 			o.Log.Error("agent-session", "agent", agentID, "err", err)
 		}
-	}()
+	})
 }
 
 // SandboxDied reports a sandbox that ended without being asked to — the runner
@@ -3100,6 +3107,43 @@ func (o *Orchestrator) shutdown() {
 		<-ws.done
 		ws.teardown()
 	}
+
+	// Und jetzt warten, bis die abgebrochene Arbeit auch wirklich aufgehört
+	// hat. Abbrechen ist ein Signal; eine Sitzung merkt es erst, wenn sie
+	// wieder an ihrem Kontext vorbeikommt, und schreibt bis dahin weiter — in
+	// das Home des Agenten, in die Aufzeichnung, in die Datenbank.
+	//
+	// Mit Frist, denn das Warten darf nicht das neue Hängen sein: eine Sitzung,
+	// die in einem Netzaufruf ohne eigene Frist steckt, hielte sonst das
+	// Herunterfahren der ganzen Plattform auf. Wer die Frist reißt, steht im
+	// Log — das ist die Auskunft, mit der man ihn beim nächsten Mal findet.
+	fertig := make(chan struct{})
+	go func() {
+		o.laufend.Wait()
+		close(fertig)
+	}()
+	select {
+	case <-fertig:
+	case <-time.After(shutdownGrace):
+		o.Log.Warn("shutdown: something is still running after the grace period",
+			"grace", shutdownGrace)
+	}
+}
+
+// shutdownGrace: so lange wartet das Herunterfahren auf die eigene, bereits
+// abgebrochene Arbeit. Großzügig genug für einen Abbau, der noch einen
+// Container stoppt, und kurz genug, dass ein Deploy nicht daran hängen bleibt.
+const shutdownGrace = 30 * time.Second
+
+// nebenlaeufig startet etwas, worauf das Herunterfahren wartet. Jede
+// Nebenläufigkeit des Orchestrators geht hier durch — eine, die daran vorbei
+// gestartet wird, ist genau die, die niemand mehr einholt.
+func (o *Orchestrator) nebenlaeufig(f func()) {
+	o.laufend.Add(1)
+	go func() {
+		defer o.laufend.Done()
+		f()
+	}()
 }
 
 // HandleWebhook processes an incoming target-system event (M3/M4): idempotent;
