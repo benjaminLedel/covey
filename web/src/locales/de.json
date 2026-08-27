@@ -2399,7 +2399,9 @@
     "fieldDescription": "Wofür ist er da?",
     "fieldDescriptionHint": "z. B. Flutter-Toolchain plus internes Zertifikat",
     "fieldImage": "Image",
-    "ownHint": "Eigene Images werden hier angelegt und danach am Agenten ausgewählt — so stehen sie in einer Übersicht, tragen eine Beschreibung und ein Tippfehler fällt sofort auf statt beim ersten Wecken."
+    "ownHint": "Eigene Images werden hier angelegt und danach am Agenten ausgewählt — so stehen sie in einer Übersicht, tragen eine Beschreibung und ein Tippfehler fällt sofort auf statt beim ersten Wecken.",
+    "contains": "Was drin ist ({{count}} Werkzeuge)",
+    "sdkDirs": "Versionsmanager — die SDKs liegen im Home, nicht im Image:"
   },
   "infra": {
     "title": "Infrastruktur",

@@ -50,6 +50,15 @@ type workplaceView struct {
 	// counted: whoever is about to change or delete a workplace wants to know
 	// whom it concerns.
 	Agents []agents.AgentRef `json:"agents,omitempty"`
+	// Provides is what the image says about itself: the same file the agent
+	// reads inside its sandbox (internal/sandbox/workplaces). Without it,
+	// "which workplace do I put this agent in" is answerable only by reading a
+	// Dockerfile — and an agent that cannot see its tools fetches them a second
+	// time (#102).
+	//
+	// Empty for an own workplace: there the organisation named the image, and
+	// what is in it, the platform does not know.
+	Provides *sandbox.WorkplaceDoc `json:"provides,omitempty"`
 }
 
 func (s *Server) handleListWorkplaces(w http.ResponseWriter, r *http.Request) {
@@ -95,6 +104,9 @@ func (s *Server) handleListWorkplaces(w http.ResponseWriter, r *http.Request) {
 		}
 		view := workplaceView{Profile: prof, Kind: "catalog", Source: quelle,
 			Agents: byAgent[prof.Name]}
+		if doc, ok := sandbox.Workplace(prof.Name); ok {
+			view.Provides = &doc
+		}
 		if img, ok := eintraege[prof.Name]; ok && quelle == "catalog" {
 			view.Tag, view.Platforms = img.Tag, img.Platforms
 		}

@@ -574,10 +574,14 @@ func (c *Client) runTask(ctx context.Context, task AssignTask) {
 	}
 
 	spec := RunSpec{
-		TaskID:          task.TaskID,
-		Title:           task.Title,
-		Body:            task.Body,
-		SystemPrompt:    cfg.SystemPrompt,
+		TaskID: task.TaskID,
+		Title:  task.Title,
+		Body:   task.Body,
+		// Der Arbeitsplatz hängt hinten an, nicht in der Konfiguration des
+		// Agenten: Was das Image mitbringt, weiß nur das Image — die
+		// Steuerebene kennt es nicht einmal dem Namen nach, wenn jemand ein
+		// eigenes einträgt. Siehe workplace.go.
+		SystemPrompt:    withWorkplace(cfg.SystemPrompt),
 		Model:           cfg.Model,
 		Effort:          cfg.Effort,
 		MemoryContext:   task.MemoryContext,
@@ -710,4 +714,23 @@ func safeCredentialPath(p string) bool {
 		}
 	}
 	return true
+}
+
+// workplaceSource ist die Naht für Tests: im Betrieb die Datei im Image, im
+// Test das, was der Test sagt. Ohne sie müsste ein Test den einmaligen Lesecache
+// zurückdrehen, und ein Cache, den Tests zurückdrehen, ist keiner.
+var workplaceSource = WorkplaceContext
+
+// withWorkplace hängt die Selbstbeschreibung des Images an den Systemprompt.
+// Ohne Beschreibung bleibt der Prompt, wie er war — ein fremdes Image soll
+// nicht schlechter dastehen, sondern nur weniger sagen.
+func withWorkplace(prompt string) string {
+	w := workplaceSource()
+	if w == "" {
+		return prompt
+	}
+	if strings.TrimSpace(prompt) == "" {
+		return w
+	}
+	return prompt + "\n\n" + w
 }

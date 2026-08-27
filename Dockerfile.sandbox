@@ -74,6 +74,13 @@ ENV PATH=/home/agent/.npm-global/bin:/home/agent/.local/bin:${PATH}
 RUN useradd --create-home --uid 1001 agent
 COPY --from=build /coveyd /usr/local/bin/coveyd
 
+# Die Selbstbeschreibung des Arbeitsplatzes. Sie liegt im Repository (eine
+# Datei, zwei Verbraucher: dieses Image und die Oberfläche), und coveyd hängt
+# sie im Lauf an den Systemprompt — sonst sucht ein Agent Werkzeuge, die er
+# schon hat, und lädt sie ein zweites Mal in sein Home (siehe
+# internal/daemon/workplace.go).
+COPY internal/sandbox/workplaces/base.json /etc/covey/workplace.json
+
 USER agent
 WORKDIR /home/agent
 ENTRYPOINT ["coveyd"]

@@ -1237,6 +1237,14 @@ export type FileContent = {
 // Ein Arbeitsplatz aus dem Katalog des Servers (spec/16): das Image, in dem ein
 // Agent arbeitet, plus das, was nur die Instanz dazu weiß — welches Image dahinter
 // liegt, woher die Adresse stammt und ob sie schon auf einem Runner liegt.
+export type WorkplaceProvides = {
+  profile: string;
+  summary: string;
+  tools: { name: string; version?: string; note?: string }[];
+  sdk_dirs?: Record<string, string>;
+  notes?: string[];
+};
+
 export type Workplace = {
   name: string;
   label: string;
@@ -1258,6 +1266,13 @@ export type Workplace = {
      Voreinstellung. Ohne diese Angabe müsste jemand zwischen drei Quellen
      raten, wenn ein Image nicht das ist, was er erwartet hat. */
   source?: "catalog" | "env" | "builtin";
+  /* Was das Image über sich selbst sagt — dieselbe Datei, die der Agent in
+     seiner Sandbox liest. Ohne sie ist „welchen Arbeitsplatz gebe ich diesem
+     Agenten" nur durch Lesen eines Dockerfiles zu beantworten, und ein Agent,
+     der seine Werkzeuge nicht sieht, holt sie ein zweites Mal (#102). Fehlt bei
+     einem eigenen Arbeitsplatz: dort hat die Organisation das Image benannt,
+     und was darin ist, weiß die Plattform nicht. */
+  provides?: WorkplaceProvides;
   /** Aus dem Katalog des Projekts oder von dieser Organisation mitgebracht. */
   kind?: "catalog" | "own";
   /** Wer hier arbeitet — benannt, nicht gezählt. */

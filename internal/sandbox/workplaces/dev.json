@@ -1,0 +1,20 @@
+{
+  "profile": "dev",
+  "summary": "The base workplace plus the tool-chains a developer agent builds with: PHP, Java, native npm builds, and version managers for Flutter/Dart and Python.",
+  "tools": [
+    { "name": "node", "version": "26", "note": "npm global installs land in ~/.npm-global" },
+    { "name": "php", "version": "8.2", "note": "with xml, mbstring, curl, zip, gd, ldap, sqlite3, mysql, pgsql, bcmath, intl, and pcov as the coverage driver" },
+    { "name": "composer", "note": "for PHP projects" },
+    { "name": "openjdk", "version": "21", "note": "JAVA_HOME=/opt/java; gradlew downloads its own Gradle" },
+    { "name": "build-essential, python3", "note": "so npm packages with a native part (sharp, bcrypt, node-sass) build instead of failing halfway" },
+    { "name": "chromium", "note": "used by the browser plugin, headless" }
+  ],
+  "sdk_dirs": {
+    "fvm": "~/fvm — Flutter/Dart SDKs. fvm is installed; the SDKs are NOT in the image, they live in your home and survive every run. `fvm use` once per project.",
+    "uv": "~/.local/share/uv — Python interpreters. uv is installed; it fetches the version a project asks for."
+  },
+  "notes": [
+    "Java and Flutter are already here. Do not download a JDK or a Flutter SDK into your home — you would be carrying a second copy of something the workplace provides, and your home is written back after every run.",
+    "You are not root and apt is not available to you. If a tool is missing, say so instead of building a way around it — that is a request, not a defeat."
+  ]
+}

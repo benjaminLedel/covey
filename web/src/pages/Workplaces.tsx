@@ -9,6 +9,7 @@ import {
   deleteWorkplace,
   type Principal,
   type Workplace,
+  type WorkplaceProvides,
 } from "../api";
 import { ConfirmDialog } from "../components/Modal";
 
@@ -79,6 +80,11 @@ function Zeile({ w, me }: { w: Workplace; me: Principal }) {
       <p className="muted text-xs mb-2" style={{ maxWidth: 720 }}>
         {w.description}
       </p>
+
+      {/* Was drin ist — dieselbe Auskunft, die der Agent in seiner Sandbox
+          liest. „Welchen Arbeitsplatz gebe ich ihm" war sonst nur durch Lesen
+          eines Dockerfiles zu beantworten. */}
+      {w.provides && <Enthaelt provides={w.provides} />}
 
       <div className="text-xs flex flex-col gap-1" style={{ maxWidth: 720 }}>
         <div className="flex items-baseline gap-2 flex-wrap">
@@ -279,5 +285,48 @@ function Anlegen() {
         </button>
       </div>
     </form>
+  );
+}
+
+// Enthaelt zeigt die Selbstbeschreibung des Images: aufklappbar, weil die Liste
+// beim Überfliegen der Arbeitsplätze stört und genau dann gebraucht wird, wenn
+// jemand einen auswählt.
+function Enthaelt({ provides }: { provides: WorkplaceProvides }) {
+  const { t } = useTranslation();
+  const sdks = Object.entries(provides.sdk_dirs ?? {});
+  return (
+    <details className="text-xs mb-2" style={{ maxWidth: 720 }}>
+      <summary className="muted" style={{ cursor: "pointer" }}>
+        {t("workplaces.contains", { count: provides.tools.length })}
+      </summary>
+      <ul className="mt-1" style={{ paddingLeft: 18, listStyle: "disc" }}>
+        {provides.tools.map((tool) => (
+          <li key={tool.name}>
+            <span className="mono">
+              {tool.name}
+              {tool.version ? ` ${tool.version}` : ""}
+            </span>
+            {tool.note && <span className="muted"> — {tool.note}</span>}
+          </li>
+        ))}
+      </ul>
+      {sdks.length > 0 && (
+        <>
+          <div className="muted mt-2">{t("workplaces.sdkDirs")}</div>
+          <ul style={{ paddingLeft: 18, listStyle: "disc" }}>
+            {sdks.map(([name, wo]) => (
+              <li key={name}>
+                <span className="mono">{name}</span> <span className="muted">— {wo}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {provides.notes?.map((n, i) => (
+        <p key={i} className="muted mt-2">
+          {n}
+        </p>
+      ))}
+    </details>
   );
 }

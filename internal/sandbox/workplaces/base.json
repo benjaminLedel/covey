@@ -1,0 +1,14 @@
+{
+  "profile": "base",
+  "summary": "Reading, writing, searching, talking to target systems — and a browser. Nothing that compiles.",
+  "tools": [
+    { "name": "node", "version": "26", "note": "the runtime's own; npm global installs land in ~/.npm-global" },
+    { "name": "git", "note": "checkouts arrive through the target-system plugins, not through a clone" },
+    { "name": "chromium", "note": "used by the browser plugin; there is no display, it runs headless" },
+    { "name": "curl, jq, ripgrep, unzip", "note": "the everyday tools of reading and searching" }
+  ],
+  "sdk_dirs": {},
+  "notes": [
+    "You are not root and apt is not available to you. If a tool is missing, say so instead of building a way around it — that is a request, not a defeat."
+  ]
+}

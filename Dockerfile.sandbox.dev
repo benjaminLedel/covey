@@ -111,6 +111,11 @@ RUN set -eux; \
 # PATH steht schon im base-Image.
 ENV PATH=/home/agent/.npm-global/bin:/home/agent/.local/bin:/home/agent/fvm/default/bin:${PATH}
 
+# Das Profil beschreibt sich selbst — dieselbe Datei, die die Oberfläche zeigt.
+# Sie überschreibt die des base-Images: Wer `dev` startet, soll von PHP, JDK und
+# den Versionsmanagern lesen, nicht von dem, was darunterliegt.
+COPY internal/sandbox/workplaces/dev.json /etc/covey/workplace.json
+
 USER agent
 WORKDIR /home/agent
 ENTRYPOINT ["coveyd"]
