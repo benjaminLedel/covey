@@ -1273,6 +1273,11 @@ export type Workplace = {
      einem eigenen Arbeitsplatz: dort hat die Organisation das Image benannt,
      und was darin ist, weiß die Plattform nicht. */
   provides?: WorkplaceProvides;
+  /* Was das Holen dieses Images zuletzt gekostet hat — gemessen (die Phase
+     `image` aus der Aufzeichnung), nicht geschätzt. Fehlt, solange es niemand
+     auf einem bekannten Host geholt hat; das ist etwas anderes als „kostet
+     nichts". */
+  last_pull?: { bytes?: number; ms?: number; at: string };
   /** Aus dem Katalog des Projekts oder von dieser Organisation mitgebracht. */
   kind?: "catalog" | "own";
   /** Wer hier arbeitet — benannt, nicht gezählt. */

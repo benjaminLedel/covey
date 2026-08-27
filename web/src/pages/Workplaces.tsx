@@ -12,6 +12,7 @@ import {
   type WorkplaceProvides,
 } from "../api";
 import { ConfirmDialog } from "../components/Modal";
+import { fmtBytes, fmtDelta } from "../format";
 
 /* Die Arbeitsplätze — dieselbe Ansicht, die es für Zielsysteme gibt, für das
    andere Ding, das eine Organisation anschließt: das Image, in dem ein Agent
@@ -100,6 +101,17 @@ function Zeile({ w, me }: { w: Workplace; me: Principal }) {
           )}
           {w.platforms?.length ? <span className="muted">· {w.platforms.join(", ")}</span> : null}
         </div>
+        {/* Was das Holen zuletzt gekostet hat. Die Wahl eines Arbeitsplatzes
+            war sonst eine ohne Preisschild — und beim ersten Start auf einem
+            frischen Host ist genau das die längste Wartezeit, die es gibt. */}
+        {w.last_pull && (
+          <div className="muted">
+            {t("workplaces.lastPull", {
+              size: fmtBytes(w.last_pull.bytes ?? 0),
+              time: fmtDelta(w.last_pull.ms ?? 0),
+            })}
+          </div>
+        )}
         <div>
           <span className="muted">
             {w.source ? t(`workplaces.source.${w.source}`) : ""}

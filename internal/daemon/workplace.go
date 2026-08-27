@@ -6,7 +6,6 @@ import (
 	"os"
 	"sort"
 	"strings"
-	"sync"
 )
 
 // Der Arbeitsplatz beschreibt sich selbst.
@@ -41,17 +40,18 @@ type Workplace struct {
 	Notes   []string          `json:"notes,omitempty"`
 }
 
-var (
-	workplaceOnce sync.Once
-	workplaceText string
-)
-
 // WorkplaceContext ist der Absatz, der an den Systemprompt gehängt wird — leer,
 // wenn das Image keine Beschreibung mitbringt (ein fremdes Image, ein älteres,
 // ein selbst gebautes). Nichts zu sagen ist besser als etwas zu behaupten.
+//
+// Ohne Cache, und das ist eine Entscheidung: Im Betrieb ist coveyd ein eigener
+// Prozess je Sandbox, ein einmaliges Lesen wäre also richtig — im
+// Integrationsstapel läuft derselbe Daemon in einem Prozess mit allem anderen,
+// und ein prozessweiter Cache machte den ersten Lauf zur Wahrheit für alle
+// folgenden. Eine kleine Datei je Aufgabenstart ist der billigere Preis als ein
+// Zustand, der zwischen Tests hindurchleckt.
 func WorkplaceContext() string {
-	workplaceOnce.Do(func() { workplaceText = readWorkplace(workplacePathFromEnv()) })
-	return workplaceText
+	return readWorkplace(workplacePathFromEnv())
 }
 
 func workplacePathFromEnv() string {

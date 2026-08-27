@@ -2401,7 +2401,8 @@
     "fieldImage": "Image",
     "ownHint": "Eigene Images werden hier angelegt und danach am Agenten ausgewählt — so stehen sie in einer Übersicht, tragen eine Beschreibung und ein Tippfehler fällt sofort auf statt beim ersten Wecken.",
     "contains": "Was drin ist ({{count}} Werkzeuge)",
-    "sdkDirs": "Versionsmanager — die SDKs liegen im Home, nicht im Image:"
+    "sdkDirs": "Versionsmanager — die SDKs liegen im Home, nicht im Image:",
+    "lastPull": "zuletzt geholt: {{size}} in {{time}}"
   },
   "infra": {
     "title": "Infrastruktur",

@@ -63,13 +63,15 @@ func Register(p Profile) {
 
 func init() {
 	Register(Profile{
-		Name:        "base",
-		Label:       "base",
-		Description: "Node, git, chromium, ripgrep — enough for support, mail, QA and research agents.",
-		Image:       "covey-sandbox:latest",
-		Build:       "make sandbox-image",
-		Dockerfile:  "Dockerfile.sandbox",
-		Default:     true,
+		Name:  "base",
+		Label: "base",
+		Description: "Node, git, chromium, ripgrep — enough for support, mail, QA and research agents. " +
+			"Everything that does not compile belongs here: on a measured instance five of eight agents " +
+			"were carrying a compiler tool-chain to write wiki pages.",
+		Image:      "covey-sandbox:latest",
+		Build:      "make sandbox-image",
+		Dockerfile: "Dockerfile.sandbox",
+		Default:    true,
 	})
 	Register(Profile{
 		Name:  "dev",

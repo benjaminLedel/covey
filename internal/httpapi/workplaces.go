@@ -19,9 +19,13 @@ import (
 	"net/http"
 	"strings"
 
+	"context"
 	"covey/internal/agents"
 	"covey/internal/sandbox"
 	"covey/internal/workplaces"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 type workplaceView struct {
@@ -59,6 +63,24 @@ type workplaceView struct {
 	// Empty for an own workplace: there the organisation named the image, and
 	// what is in it, the platform does not know.
 	Provides *sandbox.WorkplaceDoc `json:"provides,omitempty"`
+	// LastPull ist, was das Holen dieses Images zuletzt gekostet hat —
+	// gemessen, nicht geschätzt (die Phase `image` aus der Aufzeichnung).
+	//
+	// Es steht hier, weil die Wahl eines Arbeitsplatzes sonst eine Wahl ohne
+	// Preisschild ist: Auf einer gemessenen Instanz trugen fünf von acht
+	// Agenten eine Compiler-Kette, um Wiki-Seiten zu schreiben. Nichts sagte
+	// ihnen, was das beim ersten Start auf einem frischen Host bedeutet.
+	//
+	// Fehlt, solange niemand dieses Image auf einem Host geholt hat, den diese
+	// Instanz kennt — das ist etwas anderes als „kostet nichts".
+	LastPull *pullCost `json:"last_pull,omitempty"`
+}
+
+// pullCost ist ein gemessener Abruf: wie viel, wie lange, wann.
+type pullCost struct {
+	Bytes int64     `json:"bytes,omitempty"`
+	MS    int64     `json:"ms,omitempty"`
+	At    time.Time `json:"at"`
 }
 
 func (s *Server) handleListWorkplaces(w http.ResponseWriter, r *http.Request) {
@@ -88,6 +110,7 @@ func (s *Server) handleListWorkplaces(w http.ResponseWriter, r *http.Request) {
 	}
 
 	byAgent, _ := s.Registry.AgentsPerWorkplace(r.Context(), p.OrgID)
+	kosten := s.pullKosten(r.Context(), p.OrgID)
 
 	out := make([]workplaceView, 0, len(sandbox.All())+len(eigene))
 	var report []string
@@ -107,6 +130,7 @@ func (s *Server) handleListWorkplaces(w http.ResponseWriter, r *http.Request) {
 		if doc, ok := sandbox.Workplace(prof.Name); ok {
 			view.Provides = &doc
 		}
+		view.LastPull = kosten[prof.Image]
 		if img, ok := eintraege[prof.Name]; ok && quelle == "catalog" {
 			view.Tag, view.Platforms = img.Tag, img.Platforms
 		}
@@ -238,4 +262,36 @@ func (s *Server) handlePullWorkplace(w http.ResponseWriter, r *http.Request) {
 		"image":    image,
 		"problems": problems,
 	})
+}
+
+// pullKosten liest aus der Aufzeichnung, was das Holen eines Images zuletzt
+// gekostet hat: je Image der jüngste abgeschlossene Bild-Abruf.
+//
+// Aus der Aufzeichnung und nicht aus einer eigenen Tabelle: die Ereignisse
+// liegen ohnehin dort, je Agent und dauerhaft, und eine zweite Ablage für
+// dieselbe Tatsache wäre eine weitere, die auseinanderlaufen kann.
+func (s *Server) pullKosten(ctx context.Context, orgID uuid.UUID) map[string]*pullCost {
+	rows, err := s.Pool.Query(ctx, `SELECT DISTINCT ON (payload->>'detail')
+			payload->>'detail', coalesce((payload->>'bytes')::bigint,0),
+			coalesce((payload->>'ms')::bigint,0), created_at
+		FROM recording_events
+		WHERE org_id=$1 AND kind='lifecycle'
+		  AND payload->>'phase'='image' AND payload->>'done'='true'
+		  AND coalesce(payload->>'detail','') <> ''
+		ORDER BY payload->>'detail', created_at DESC`, orgID)
+	if err != nil {
+		s.Log.Warn("pull cost not readable", "err", err)
+		return nil
+	}
+	defer rows.Close()
+	out := map[string]*pullCost{}
+	for rows.Next() {
+		var image string
+		var c pullCost
+		if rows.Scan(&image, &c.Bytes, &c.MS, &c.At) == nil && image != "" {
+			k := c
+			out[image] = &k
+		}
+	}
+	return out
 }

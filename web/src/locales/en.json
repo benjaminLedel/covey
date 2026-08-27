@@ -2401,7 +2401,8 @@
     "fieldImage": "Image",
     "ownHint": "Images of your own are added here and chosen on the agent afterwards — that way they appear in an overview, carry a description, and a typo shows up at once instead of at the first wake.",
     "contains": "What is in it ({{count}} tools)",
-    "sdkDirs": "Version managers — the SDKs live in the home, not in the image:"
+    "sdkDirs": "Version managers — the SDKs live in the home, not in the image:",
+    "lastPull": "last fetched: {{size}} in {{time}}"
   },
   "infra": {
     "title": "Infrastructure",
