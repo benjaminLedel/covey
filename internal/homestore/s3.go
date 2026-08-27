@@ -135,6 +135,26 @@ func (s *S3) Has(ctx context.Context, orgID uuid.UUID, hash string) (bool, error
 	}
 }
 
+// s3AskWorkers: wie viele HEAD-Anfragen gleichzeitig unterwegs sein dürfen.
+//
+// S3 kennt keine Bündelfrage — es gibt kein HEAD für viele Schlüssel. Der
+// einzige Hebel ist also, nicht hintereinander zu fragen. Sechzehn ist die
+// Zahl, die ein Sync eines gewachsenen Homes von Stunden auf Minuten bringt,
+// ohne dass ein Bucket sie als Sturm liest; wer mehr will, hat ein anderes
+// Problem als diese Konstante.
+const s3AskWorkers = 16
+
+// HasMany satisfies BulkAsker for a bucket: sixteen questions at a time
+// instead of one after another.
+//
+// Why this matters here and not for a directory: every Has against S3 is a
+// signed HEAD across the network. A home with 150,000 files asks that many
+// times before its first new byte travels — serially that is hours, and the
+// control plane gives a sync thirty minutes.
+func (s *S3) HasMany(ctx context.Context, orgID uuid.UUID, hashes []string) (map[string]bool, error) {
+	return AskEach(ctx, s, orgID, hashes, s3AskWorkers)
+}
+
 func (s *S3) Put(ctx context.Context, orgID uuid.UUID, hash string, r io.Reader) error {
 	if err := validHash(hash); err != nil {
 		return err

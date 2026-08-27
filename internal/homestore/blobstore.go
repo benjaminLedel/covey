@@ -15,6 +15,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"sync"
 
 	"github.com/google/uuid"
 )
@@ -44,13 +45,79 @@ func AskAll(ctx context.Context, blobs BlobStore, orgID uuid.UUID, hashes []stri
 	if b, ok := blobs.(BulkAsker); ok {
 		return b.HasMany(ctx, orgID, hashes)
 	}
-	out := make(map[string]bool, len(hashes))
-	for _, h := range hashes {
-		has, err := blobs.Has(ctx, orgID, h)
-		if err != nil {
-			return nil, err
+	return AskEach(ctx, blobs, orgID, hashes, 1)
+}
+
+// AskEach answers the same question by asking for every hash — with `workers`
+// of them in flight at once.
+//
+// It exists for the store that HAS no bulk call and whose Has is a network
+// round trip: S3 has no batched HEAD, so the only lever is not asking one after
+// another. A directory on the same disk passes 1 and loses nothing; the
+// difference only pays where a question costs milliseconds of network rather
+// than microseconds of stat.
+//
+// The first error ends it. A half-answered question would let a sync believe
+// blocks are present that nobody has confirmed, and a snapshot referring to a
+// block that is not there is worse than a sync that failed loudly.
+func AskEach(ctx context.Context, blobs BlobStore, orgID uuid.UUID, hashes []string, workers int) (map[string]bool, error) {
+	if workers < 1 {
+		workers = 1
+	}
+	if workers > len(hashes) {
+		workers = len(hashes)
+	}
+	if workers <= 1 {
+		out := make(map[string]bool, len(hashes))
+		for _, h := range hashes {
+			has, err := blobs.Has(ctx, orgID, h)
+			if err != nil {
+				return nil, err
+			}
+			out[h] = has
 		}
-		out[h] = has
+		return out, nil
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	var (
+		mu   sync.Mutex
+		out  = make(map[string]bool, len(hashes))
+		errs error
+		wg   sync.WaitGroup
+	)
+	feed := make(chan string)
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for h := range feed {
+				has, err := blobs.Has(ctx, orgID, h)
+				mu.Lock()
+				if err != nil {
+					if errs == nil {
+						errs = err
+						cancel()
+					}
+				} else {
+					out[h] = has
+				}
+				mu.Unlock()
+			}
+		}()
+	}
+	for _, h := range hashes {
+		select {
+		case feed <- h:
+		case <-ctx.Done():
+		}
+	}
+	close(feed)
+	wg.Wait()
+	if errs != nil {
+		return nil, errs
 	}
 	return out, nil
 }
