@@ -135,6 +135,16 @@ type Pool struct {
 	// SnapshotTaken files a completed sync. Only afterwards may anything be
 	// cleaned up locally — no prune before a successful sync (spec/16).
 	SnapshotTaken func(ctx context.Context, agentID, runnerID uuid.UUID, res HomeSynced) error
+	// SnapshotFailed files a sync that did NOT happen. It exists because the
+	// failure used to leave one line in the runner's debug log and nothing
+	// else: the interface went on showing the last snapshot that did work,
+	// with no hint that everything since was unprotected. On a production
+	// instance that state lasted weeks and cost a 39-minute run.
+	//
+	// A failure is not an error of the caller's — the run is over either way —
+	// so this reports rather than returns. nil = nothing is recorded, which is
+	// what the tests use.
+	SnapshotFailed func(ctx context.Context, agentID, runnerID uuid.UUID, reason, msg string)
 	// AgentHome answers the three things file access needs about an agent:
 	// whose organisation it is, which runner it last ran on, and which snapshot
 	// its home was last synced to. nil = the pool can only serve agents whose
@@ -1496,12 +1506,15 @@ func (p *Pool) syncHomeReason(ctx context.Context, c *conn, agentID, orgID uuid.
 	}, 30*time.Minute) // the first sync of a grown home is a full pass
 	if err != nil {
 		p.Log.Warn("home not synced", "agent", agentID, "err", err)
+		p.saySyncFailed(ctx, agentID, c.runnerID, reason, err.Error())
 		return err
 	}
 	res, err := decode[HomeSynced](answer)
 	if err != nil || res.Err != "" {
-		p.Log.Warn("home not synced", "agent", agentID, "err", firstNonEmpty(errString(err), res.Err))
-		return errors.New(firstNonEmpty(errString(err), res.Err))
+		grund := firstNonEmpty(errString(err), res.Err)
+		p.Log.Warn("home not synced", "agent", agentID, "err", grund)
+		p.saySyncFailed(ctx, agentID, c.runnerID, reason, grund)
+		return errors.New(grund)
 	}
 	res.DurationMS = int(time.Since(started).Milliseconds())
 	res.Reason = reason
@@ -1510,6 +1523,15 @@ func (p *Pool) syncHomeReason(ctx context.Context, c *conn, agentID, orgID uuid.
 		return err
 	}
 	return nil
+}
+
+// saySyncFailed meldet einen Sync, der nicht stattgefunden hat — dorthin, wo
+// ein Mensch hinsieht. Das Log allein hat wochenlang niemanden erreicht.
+func (p *Pool) saySyncFailed(ctx context.Context, agentID, runnerID uuid.UUID, reason, msg string) {
+	if p.SnapshotFailed == nil {
+		return
+	}
+	p.SnapshotFailed(context.WithoutCancel(ctx), agentID, runnerID, reason, msg)
 }
 
 func errString(err error) string {

@@ -32,6 +32,24 @@ type AgentHomeView struct {
 	TotalBytes     int64                `json:"total_bytes"`
 	ExclusiveBytes int64                `json:"exclusive_bytes"`
 	TopDirs        []homestore.DirUsage `json:"top_dirs,omitempty"`
+	// LastFailure is the newest attempt that did NOT produce a snapshot, if it
+	// is newer than the newest that did. It exists because the view was
+	// truthful and useless without it: it showed the last snapshot that
+	// worked, while every attempt since had failed — for weeks, on a
+	// production instance, until a 39-minute run was lost.
+	LastFailure *SyncFailure `json:"last_failure,omitempty"`
+}
+
+// SyncFailure is an attempt to secure the workplace that came to nothing.
+type SyncFailure struct {
+	At time.Time `json:"at"`
+	// Error is the host's own words. "413 Request Entity Too Large" names the
+	// reverse proxy in front of the control plane; "the runner disconnected"
+	// names a host that went away. Two very different jobs.
+	Error string `json:"error"`
+	// Reason is what triggered the attempt: the end of a job, the file
+	// browser, a maintenance window.
+	Reason string `json:"reason,omitempty"`
 }
 
 func (s *Server) handleAgentHome(w http.ResponseWriter, r *http.Request) {
@@ -53,6 +71,7 @@ func (s *Server) handleAgentHome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.HomeSummary = summary
+	view.LastFailure = s.lastSyncFailure(r.Context(), id, summary)
 	if summary.Latest == nil {
 		writeJSON(w, http.StatusOK, view)
 		return
@@ -70,6 +89,33 @@ func (s *Server) handleAgentHome(w http.ResponseWriter, r *http.Request) {
 	view.TopDirs = m.TopDirs(8)
 	view.ExclusiveBytes = m.ExclusiveBytes(s.sharedBlocks(r.Context(), p.OrgID, id))
 	writeJSON(w, http.StatusOK, view)
+}
+
+// lastSyncFailure looks for an attempt that failed AFTER the newest snapshot.
+//
+// Read out of the recording rather than kept in a table of its own: the
+// recording already holds every one of these events, durably and per agent,
+// and a second store for the same fact would be one more thing that can drift.
+// Older than the newest snapshot means it has been made good since — then the
+// view says nothing, because there is nothing to say.
+func (s *Server) lastSyncFailure(ctx context.Context, agentID uuid.UUID, summary runnerstore.HomeSummary) *SyncFailure {
+	var seit time.Time
+	if summary.Latest != nil {
+		seit = summary.Latest.CreatedAt
+	}
+	var at time.Time
+	var msg, reason string
+	err := s.Pool.QueryRow(ctx, `SELECT created_at,
+			coalesce(payload->>'error',''), coalesce(payload->>'detail','')
+		FROM recording_events
+		WHERE agent_id=$1 AND kind='lifecycle'
+		  AND payload->>'phase'='home_sync' AND coalesce(payload->>'error','') <> ''
+		  AND created_at > $2
+		ORDER BY created_at DESC LIMIT 1`, agentID, seit).Scan(&at, &msg, &reason)
+	if err != nil || msg == "" {
+		return nil
+	}
+	return &SyncFailure{At: at, Error: msg, Reason: reason}
 }
 
 // sharedBlocks are the blocks that OTHER agents of the organisation also hold.

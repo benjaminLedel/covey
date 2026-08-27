@@ -1240,7 +1240,8 @@
       "snapshots_one": "{{count}} Snapshot, vom {{since}}",
       "snapshots_other": "{{count}} Snapshots, ältester vom {{since}}",
       "files_one": "{{count}} Datei",
-      "files_other": "{{count}} Dateien"
+      "files_other": "{{count}} Dateien",
+      "syncFailed": "Seit {{when}} wurde der Arbeitsplatz nicht mehr gesichert: {{error}} — die Zahlen unten beschreiben einen älteren Stand."
     }
   },
   "approvals": {
@@ -2033,7 +2034,10 @@
       "home_syncedDone": "Schnappschuss abgelegt",
       "files": "{{count}} Dateien",
       "filesOf": "{{count}} von {{total}} Dateien",
-      "on": "auf {{runner}}"
+      "on": "auf {{runner}}",
+      "home_syncFailed": "Arbeitsplatz konnte nicht gesichert werden",
+      "homeFailed": "Arbeitsplatz konnte nicht hergestellt werden",
+      "imageFailed": "Arbeitsplatz-Image konnte nicht geholt werden"
     },
     "sandboxOn": "Läuft auf Runner {{runner}}",
     "stale": "Zustand aufgelöst: „{{was}}“ stand da, ohne dass ein Lauf dahinter war"

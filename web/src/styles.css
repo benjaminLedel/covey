@@ -4318,3 +4318,14 @@ kbd {
    dieselbe Wartezeit wie beim Agenten, nur dort gefragt, wo jemand auf das
    Ergebnis wartet. */
 .kc-phase { margin-top: 6px; }
+
+/* Eine Phase, die nicht durchgelaufen ist. Sie steht ruhig wie die anderen,
+   aber ohne Balken: was gescheitert ist, hat keinen Fortschritt. */
+.act-feed .act-phase.failed .ph b { color: var(--danger, #b3261e); }
+.act-feed .act-phase-error {
+  margin: 4px 0 0 26px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11.5px;
+  color: var(--text-muted);
+  word-break: break-word;
+}

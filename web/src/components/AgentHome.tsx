@@ -11,6 +11,11 @@ import { fmtBytes } from "../format";
 type HomeView = {
   enabled: boolean;
   latest?: Snapshot;
+  // Ein Versuch, der KEINEN Schnappschuss ergeben hat und jünger ist als der
+  // letzte, der einen ergab. Ohne ihn zeigte diese Ansicht den letzten
+  // geglückten Stand — wahr und nutzlos, während seither jeder Versuch
+  // scheiterte.
+  last_failure?: { at: string; error: string; reason?: string };
   runner_name?: string;
   runner_kind?: string;
   total_bytes: number;
@@ -57,6 +62,18 @@ export function AgentHome({ agent, canWrite }: { agent: Agent; canWrite: boolean
   return (
     <div className="card p-4 flex flex-col gap-2" style={{ marginTop: 16 }}>
       <h3 className="text-[15px]">{t("agent.home.title")}</h3>
+
+      {/* Zuerst, und in Warnfarbe: was hier steht, entwertet alle Zahlen
+          darunter. Der Schnappschuss stimmt, aber er ist nicht der Stand des
+          Arbeitsplatzes. */}
+      {home.data.last_failure && (
+        <p className="text-xs danger-text">
+          {t("agent.home.syncFailed", {
+            when: fmtDate(home.data.last_failure.at),
+            error: home.data.last_failure.error,
+          })}
+        </p>
+      )}
 
       {!latest && <p className="muted text-xs">{t("agent.home.noSnapshot")}</p>}
 
