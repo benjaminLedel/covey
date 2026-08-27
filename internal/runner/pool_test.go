@@ -1540,3 +1540,98 @@ func TestAParkedSandboxSyncsItsHomeWithoutStopping(t *testing.T) {
 		t.Errorf("START.sh is not in the snapshot: %+v", m.Entries)
 	}
 }
+
+// Die Runner-Affinität steht auf einem Satz aus spec/16: „prefer the one the
+// agent last ran on — its working copy is warm there". Für kleine Homes stimmte
+// er, für die teuren nicht: alles über wholeFileLimit galt als verändert und
+// wurde bei JEDEM Weckruf neu geholt. Auf einer Produktivinstanz waren das
+// 8,3 GB und elf Minuten, bevor der Agent seinen ersten Turn machte.
+//
+// Dieser Test geht den echten Weg — Pool → Protokoll → Node → Store — und misst
+// das, was der Runner selbst meldet: die Bytes, die beim Materialisieren
+// hereinkamen.
+func TestDerZweiteWeckrufAufDemselbenHostHoltNichts(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("das Docker-Double ist ein Shell-Skript")
+	}
+	dir := t.TempDir()
+	orgID, agentID, runnerID := uuid.New(), uuid.New(), uuid.New()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	blobs, err := homestore.NewDir(filepath.Join(dir, "blocks"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	docker := &Docker{RunnerID: runnerID, Image: "covey-sandbox:test", DataDir: dir,
+		DockerBin: fakeDockerBin(t, dir, "nothing")}
+	node := NewNode(runnerID, orgID, docker, quietLog())
+	node.Blobs = blobs
+	t.Cleanup(node.Close)
+
+	p := NewPool(quietLog())
+	p.Profiles = map[string]string{"base": "covey-sandbox:test"}
+	p.StartTimeout = 10 * time.Second
+	var snapshot string
+	p.SnapshotTaken = func(_ context.Context, _, _ uuid.UUID, res HomeSynced) error {
+		snapshot = res.ManifestHash
+		return nil
+	}
+	p.LatestSnapshot = func(context.Context, uuid.UUID) (string, error) { return snapshot, nil }
+	var homePhases []Progress
+	p.Progress = func(_, _ uuid.UUID, pr Progress) {
+		if pr.Phase == PhaseHome {
+			homePhases = append(homePhases, pr)
+		}
+	}
+	if err := p.AttachLocal(ctx, node); err != nil {
+		t.Fatalf("built-in runner: %v", err)
+	}
+
+	spec := orchestrator.SandboxSpec{AgentID: agentID, OrgID: orgID,
+		Env: map[string]string{"COVEY_DAEMON_TOKEN": "tok"}}
+	sb, err := p.Start(ctx, spec)
+	if err != nil {
+		t.Fatalf("erster Start: %v", err)
+	}
+
+	// Was ein Agent in seinem Home ansammelt: eine große Datei (gechunkt, weit
+	// über wholeFileLimit) neben kleinen.
+	home, _, _ := docker.AgentHome(agentID)
+	if err := os.MkdirAll(home, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, "sdk.tar"), []byte(strings.Repeat("SDK", 5*1024*1024)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, "notiz.md"), []byte("klein"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := sb.(orchestrator.HomeSyncer).SyncHome(ctx); err != nil {
+		t.Fatalf("SyncHome: %v", err)
+	}
+	if snapshot == "" {
+		t.Fatal("kein Schnappschuss abgelegt")
+	}
+	_ = sb.(orchestrator.Discardable).Discard(ctx)
+
+	// Zweiter Weckruf auf demselben Host: die Arbeitskopie liegt noch da.
+	homePhases = nil
+	if _, err := p.Start(ctx, spec); err != nil {
+		t.Fatalf("zweiter Start: %v", err)
+	}
+	var geholt int64
+	for _, pr := range homePhases {
+		if pr.Bytes > geholt {
+			geholt = pr.Bytes
+		}
+	}
+	if geholt != 0 {
+		t.Errorf("der zweite Weckruf holte %d Bytes, obwohl die Arbeitskopie warm ist", geholt)
+	}
+	// Und das Home steht trotzdem vollständig da.
+	raw, err := os.ReadFile(filepath.Join(home, "sdk.tar"))
+	if err != nil || len(raw) != 15*1024*1024 {
+		t.Errorf("die große Datei fehlt oder ist unvollständig (%d Bytes, %v)", len(raw), err)
+	}
+}
