@@ -663,3 +663,97 @@ func TestEineGeschrumpfteDateiBehaeltKeinenRest(t *testing.T) {
 		t.Errorf("der Rest wurde nicht abgeschnitten: %d Bytes", len(raw))
 	}
 }
+
+// Der Fall, der auf einer Produktivinstanz jede lange Aufgabe zweimal scheitern
+// ließ: Der Sync kam stundenlang nicht durch, also war der jüngste
+// Schnappschuss alt. Jeder Weckruf materialisierte ihn — und löschte dabei
+// alles, was er nicht kannte, unter anderem die Sitzungstranskripte der Läufe
+// seither (Claude Code legt sie im Home ab). Die Fortsetzung, die genau diese
+// Sitzung fortsetzen wollte, fand nichts: "No conversation found with session
+// ID …". Die Plattform hatte das Gedächtnis ihres eigenen unfertigen Laufs
+// gelöscht und dann dem Resume die Schuld gegeben.
+func TestEinAlterSchnappschussLoeschtNeuereArbeitNicht(t *testing.T) {
+	ctx := context.Background()
+	blobs := newDir(t)
+	org := uuid.New()
+	home := t.TempDir()
+
+	write(t, home, "SOUL.md", "# Agent")
+	res, err := Sync(ctx, blobs, org, home, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := Load(ctx, blobs, org, res.ManifestHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Der Agent hat seither gearbeitet: eine Sitzung liegt im Home, und der
+	// Sync dieses Standes ist NICHT durchgekommen.
+	write(t, home, ".claude/projects/covey/sitzung-e4090cda.jsonl", `{"turn":1}`)
+
+	// Weckruf mit dem alten Schnappschuss, und die Kopie steht nicht auf ihm.
+	if _, err := MaterializeInto(ctx, blobs, org, home, m, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".claude/projects/covey/sitzung-e4090cda.jsonl")); err != nil {
+		t.Fatal("das Sitzungstranskript wurde gelöscht — die Fortsetzung findet nichts mehr")
+	}
+	// Was der Schnappschuss beschreibt, steht trotzdem da.
+	if _, err := os.Stat(filepath.Join(home, "SOUL.md")); err != nil {
+		t.Fatal("der Schnappschuss wurde nicht materialisiert")
+	}
+}
+
+// Und die Gegenrichtung, damit das Räumen nicht stillschweigend abgeschafft
+// wird: steht die Kopie auf genau diesem Schnappschuss, ist alles Übrige ein
+// Überbleibsel und muss weg — sonst wäre die Kopie nicht der Stand, den sie
+// vorgibt zu sein.
+func TestAufDemEigenenSchnappschussWirdWeiterGeraeumt(t *testing.T) {
+	ctx := context.Background()
+	blobs := newDir(t)
+	org := uuid.New()
+	home := t.TempDir()
+
+	write(t, home, "SOUL.md", "# Agent")
+	res, err := Sync(ctx, blobs, org, home, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := Load(ctx, blobs, org, res.ManifestHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, home, "ueberbleibsel.tmp", "aus einem abgestürzten Lauf")
+
+	if _, err := MaterializeInto(ctx, blobs, org, home, m, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(home, "ueberbleibsel.tmp")); err == nil {
+		t.Error("das Überbleibsel steht noch da")
+	}
+}
+
+// Die Marke ist die Auskunft, an der die Entscheidung hängt — und sie liegt
+// NEBEN der Arbeitskopie: im Home wäre sie Teil jedes Schnappschusses und
+// änderte ihn bei jedem Sync.
+func TestDieMarkeLiegtNebenDemHomeUndNichtDarin(t *testing.T) {
+	home := filepath.Join(t.TempDir(), "agent-home")
+	if err := os.MkdirAll(home, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got := SyncedHash(home); got != "" {
+		t.Errorf("ohne Marke muss die Auskunft leer sein, bekam %q", got)
+	}
+	MarkSynced(home, "abc123")
+	if got := SyncedHash(home); got != "abc123" {
+		t.Errorf("die Marke wird nicht gelesen: %q", got)
+	}
+	eintraege, err := os.ReadDir(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(eintraege) != 0 {
+		t.Errorf("die Marke liegt IM Home und würde jeden Schnappschuss verändern: %v", eintraege)
+	}
+}

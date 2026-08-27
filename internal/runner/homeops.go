@@ -96,7 +96,12 @@ func (n *Node) restore(ctx context.Context, t Transport, id string, op HomeOp) {
 	home, _, _ := n.Docker.AgentHome(op.AgentID)
 	m, err := homestore.Load(ctx, n.Blobs, op.OrgID, op.Snapshot)
 	if err == nil {
-		_, err = homestore.Materialize(ctx, n.Blobs, op.OrgID, home, m)
+		// Der Restore räumt: hier hat ein Mensch gesagt „zurück auf diesen
+		// Stand", und ein Zurück, das Neueres stehen ließe, wäre keins.
+		_, err = homestore.MaterializeInto(ctx, n.Blobs, op.OrgID, home, m, true)
+		if err == nil {
+			homestore.MarkSynced(home, op.Snapshot)
+		}
 	}
 	n.answer(ctx, t, id, HomeResult{}, err)
 }
