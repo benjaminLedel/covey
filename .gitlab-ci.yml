@@ -150,7 +150,19 @@ test-go:
     # Konsorten. Das druecke den Badge auf 14,3 %, waehrend der eigene Code
     # tatsaechlich bei ~29 % liegt. Eine Kennzahl, die zur Haelfte fremden
     # Code misst, taugt nicht als Trend.
-    - go test -coverprofile=coverage.out -coverpkg="$(go list ./... | paste -sd, -)" ./...
+    # Die Ausgabe wird mitgeschrieben, weil ein gescheiterter Job sonst nichts
+    # hinterlässt, was man lesen könnte: coverage.txt und coverage.xml entstehen
+    # in Schritten NACH dieser Zeile, ein roter Lauf erreicht sie also nie. Als
+    # auf main ein Test flatterte, war hinterher nicht mehr feststellbar,
+    # welcher — der Trace ist der einzige Ort, an dem es stand.
+    #
+    # Geschrieben wird in die Datei, nicht durch eine Pipe: `... | tee` gäbe den
+    # Ausgang von tee zurück und ein roter Test käme als grüner Job heraus. Das
+    # wäre der schlechtere von zwei Fehlern. `set -o pipefail` würde das lösen —
+    # und die dash kennt es nicht, also risse die Zeile den Job, sobald der
+    # Runner keine bash wählt. Die Umleitung braucht beides nicht.
+    - if ! go test -coverprofile=coverage.out -coverpkg="$(go list ./... | paste -sd, -)" ./... > test.log 2>&1; then cat test.log; exit 1; fi
+    - cat test.log
     # Gesamt-Prozentwert für den GitLab-Coverage-Badge (siehe coverage-Regex unten).
     - go tool cover -func=coverage.out | tee coverage.txt
     # Cobertura-Report für die MR-Diff-Coverage-Anzeige in GitLab.
@@ -163,12 +175,17 @@ test-go:
   # (letzte Zeile "total: … 42.7%") und zeigt ihn als Badge/Trend an.
   coverage: '/^total:\s+\(statements\)\s+(\d+(?:\.\d+)?)%/'
   artifacts:
+    # when: always — der Fehlschlag ist der einzige Fall, in dem jemand das
+    # Testprotokoll sucht, und die Voreinstellung (on_success) wirft es genau
+    # dann weg.
+    when: always
     reports:
       coverage_report:
         coverage_format: cobertura
         path: coverage.xml
     paths:
       - coverage.txt
+      - test.log
     expire_in: 1 week
 
 build-image:
