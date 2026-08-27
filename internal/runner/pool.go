@@ -232,10 +232,41 @@ type conn struct {
 	// sandboxes counts what is running here — the whole of the scheduling
 	// weight for now: no bin packing, no resource modelling.
 	sandboxes int
+	// gone is closed when this connection is over. It is what turns a dropped
+	// runner into an answer: without it an outstanding question waits for its
+	// own timeout — thirty minutes for a home sync — for an answer nobody will
+	// ever send. Measured on covey.work: a runner restarted mid-sync at 14:33
+	// and the agent read `securing` until 15:02, with nothing happening in
+	// between.
+	gone     chan struct{}
+	goneOnce sync.Once
+}
+
+// end closes this connection out: every question still waiting on it is
+// answered with the fact that there is nothing left to wait for. Idempotent,
+// because a connection can be dropped from more than one place.
+func (c *conn) end() {
+	c.goneOnce.Do(func() { close(c.gone) })
+}
+
+// pending: how many questions this connection is still waiting on. It is the
+// second half of "is this host idle" — the first, the sandbox count, says
+// nothing about the home it may be writing at this moment, and writing a home
+// is the most valuable thing a host does.
+func (c *conn) pending() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.waiters)
 }
 
 // ErrNoRunner: this organisation has nothing that could carry the sandbox.
 var ErrNoRunner = errors.New("no runner available")
+
+// ErrRunnerGone: the connection ended while this request was outstanding. A
+// distinct error, because the two cases call for different things: a timeout
+// means the host is slow and may still answer, this means it is gone and the
+// request has to be made again on whatever connection comes back.
+var ErrRunnerGone = errors.New("the runner disconnected")
 
 // errNoneInOrg: the organisation has no connected runner at all. It used to be
 // the ONLY case in which a built-in runner was created — a runner that is there
@@ -349,7 +380,7 @@ func (p *Pool) register(ctx context.Context, t Transport, builtin bool) (*conn, 
 		reportedTags: reg.Tags, reportedImages: reg.Images,
 		features: reg.Features, maxSandboxes: reg.MaxSandboxes,
 		t: t, pool: p, waiters: map[string]chan Message{}, streams: map[string]bool{},
-		lastHeard: time.Now(), openedAt: time.Now(),
+		lastHeard: time.Now(), openedAt: time.Now(), gone: make(chan struct{}),
 	}
 	// What the interface assigned to this host applies from the first wake on,
 	// not from the next restart of the runner: the capabilities live here, the
@@ -473,6 +504,9 @@ func union(a, b []string) []string {
 }
 
 func (p *Pool) detach(c *conn) {
+	// Zuerst: wer noch auf eine Antwort wartet, wartet ab jetzt vergeblich und
+	// soll das sofort erfahren statt in einer halben Stunde.
+	c.end()
 	p.mu.Lock()
 	if p.conns[c.runnerID] == c {
 		delete(p.conns, c.runnerID)
@@ -767,7 +801,13 @@ func (c *conn) refreshCapacity(ctx context.Context) {
 	// Die Lücke, auf die ein geplantes Update wartet. Der Kapazitätsbericht ist
 	// dafür die verlässlichste Quelle: er zählt, was der Host WIRKLICH trägt,
 	// und nicht, was die Steuerebene glaubt.
-	if report.Sandboxes == 0 {
+	//
+	// Er zählt allerdings nur Sandboxen. Ein Host, der keine trägt, kann gerade
+	// ein Home schreiben — genau das war der Fall, in dem ein eingeplantes
+	// Update einen laufenden Sync abgeschnitten hat: die Sandbox war seit einer
+	// Sekunde weg, der Sync lief noch elf Minuten. Was noch offen ist, weiß die
+	// Verbindung selbst.
+	if report.Sandboxes == 0 && c.pending() == 0 {
 		c.runPlannedUpdate(ctx)
 	}
 }
@@ -936,6 +976,12 @@ func (c *conn) ask(ctx context.Context, msgType string, payload any, timeout tim
 	select {
 	case answer := <-ch:
 		return answer, nil
+	case <-c.gone:
+		// Die Verbindung ist weg. Ein Neuaufbau ist der Beweis, dass das, was
+		// die alte tat, vorbei ist — hier auf den eigenen Zeitablauf zu warten
+		// hieße, eine halbe Stunde lang auf niemanden zu warten.
+		return Message{}, fmt.Errorf("%w: runner %s while waiting for %s",
+			ErrRunnerGone, c.runnerID, msgType)
 	case <-ctx.Done():
 		return Message{}, fmt.Errorf("runner %s did not answer %s: %w", c.runnerID, msgType, ctx.Err())
 	}
