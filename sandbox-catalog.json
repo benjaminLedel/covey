@@ -68,6 +68,15 @@
             "linux/amd64",
             "linux/arm64"
           ]
+        },
+        {
+          "covey_version": "v0.8.1",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:5f343b627b8252f9bc6c5bef42abdd6f2cb94f836d334702f530542afaa70fd2",
+          "tag": "base-v0.8.1",
+          "platforms": [
+            "linux/amd64",
+            "linux/arm64"
+          ]
         }
       ]
     },
@@ -138,9 +147,18 @@
             "linux/amd64",
             "linux/arm64"
           ]
+        },
+        {
+          "covey_version": "v0.8.1",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:e46db5e4848f33dd9d86ce7b08a6bb06a3618627c1b360cb3285ad766d71a2f6",
+          "tag": "dev-v0.8.1",
+          "platforms": [
+            "linux/amd64",
+            "linux/arm64"
+          ]
         }
       ]
     }
   ],
-  "generated_at": "2026-08-27T13:23:22Z"
+  "generated_at": "2026-08-27T13:23:56Z"
 }
