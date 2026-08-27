@@ -1616,9 +1616,20 @@ func TestDerZweiteWeckrufAufDemselbenHostHoltNichts(t *testing.T) {
 	_ = sb.(orchestrator.Discardable).Discard(ctx)
 
 	// Zweiter Weckruf auf demselben Host: die Arbeitskopie liegt noch da.
+	// Festgehalten wird beides — was über die Leitung kam UND ob die Datei
+	// überhaupt angefasst wurde. Die zwei hängen nicht zusammen: fiele die
+	// Erkennung aus, spräche die Wiederverwendung der lokalen Stücke die
+	// Leitung frei, und die Datei würde trotzdem neu geschrieben.
+	vorher, err := os.Stat(filepath.Join(home, "sdk.tar"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	homePhases = nil
 	if _, err := p.Start(ctx, spec); err != nil {
 		t.Fatalf("zweiter Start: %v", err)
+	}
+	if len(homePhases) == 0 {
+		t.Fatal("kein Materialisieren beobachtet — der Test misst nichts")
 	}
 	var geholt int64
 	for _, pr := range homePhases {
@@ -1628,6 +1639,13 @@ func TestDerZweiteWeckrufAufDemselbenHostHoltNichts(t *testing.T) {
 	}
 	if geholt != 0 {
 		t.Errorf("der zweite Weckruf holte %d Bytes, obwohl die Arbeitskopie warm ist", geholt)
+	}
+	nachher, err := os.Stat(filepath.Join(home, "sdk.tar"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !nachher.ModTime().Equal(vorher.ModTime()) {
+		t.Error("die unveränderte Datei wurde neu geschrieben — erkannt wurde sie nicht")
 	}
 	// Und das Home steht trotzdem vollständig da.
 	raw, err := os.ReadFile(filepath.Join(home, "sdk.tar"))

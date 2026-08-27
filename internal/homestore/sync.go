@@ -402,32 +402,13 @@ func writeFile(ctx context.Context, blobs BlobStore, orgID uuid.UUID, target str
 	}
 	defer os.Remove(tmp.Name())
 
-	// What lies here already does not have to travel. For a chunked file that
-	// is the whole point of fixed-size blocks: an append leaves every preceding
-	// chunk byte-identical at the same offset (spec/16), so a grown transcript
-	// costs one chunk and not three gigabytes. Only for chunked files — a whole
-	// file that got here has been compared by unchanged() already.
-	var local *os.File
-	if len(e.Blocks) > 1 {
-		if f, err := os.Open(target); err == nil {
-			local = f
-			defer local.Close()
-		}
-	}
-	buf := make([]byte, chunkSize)
-
+	// No reuse of local bytes here on purpose: this is the route for a file
+	// that is NOT there yet (or could not be repaired), and what is not there
+	// has nothing to reuse. The saving lives in one place — updateInPlace above
+	// — and a second copy of it here would be a mechanism nothing exercises:
+	// removing it made no test go red, which is how it was found.
 	var n int64
-	for i, hash := range e.Blocks {
-		if local != nil {
-			read, err := local.ReadAt(buf, int64(i)*int64(chunkSize))
-			if read > 0 && (err == nil || err == io.EOF) && Hash(buf[:read]) == hash {
-				if _, err := tmp.Write(buf[:read]); err != nil {
-					tmp.Close()
-					return n, err
-				}
-				continue
-			}
-		}
+	for _, hash := range e.Blocks {
 		r, err := blobs.Get(ctx, orgID, hash)
 		if err != nil {
 			tmp.Close()
