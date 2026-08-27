@@ -103,6 +103,31 @@ func (e CatalogEntry) Find(version string) (CatalogImage, bool) {
 	return CatalogImage{}, false
 }
 
+// ForBuild is what THIS build should run: its own version, and otherwise the
+// rolling entry.
+//
+// The second half is not a nicety. A release tag changes the key this
+// catalogue is asked for, and a catalogue copy fetched before that release was
+// published has no answer — on a production instance that window took the
+// whole data plane down, because the caller then fell through to a compiled
+// name (`covey-sandbox:latest`) that exists only where somebody built it. The
+// rolling entry is published, pinned by digest, comes from the same source and
+// is at most one release older. "Runs on the previous image" is a state an
+// operator can live with; "no agent can start" is not.
+func (e CatalogEntry) ForBuild(version string) (CatalogImage, bool) {
+	if img, ok := e.Find(version); ok && strings.TrimSpace(img.Ref) != "" {
+		return img, true
+	}
+	if version == RollingVersion {
+		return CatalogImage{}, false
+	}
+	img, ok := e.Find(RollingVersion)
+	if ok && strings.TrimSpace(img.Ref) != "" {
+		return img, true
+	}
+	return CatalogImage{}, false
+}
+
 // Source reads the workplace catalogue. Nil, or one without a URL, simply has
 // nothing to say — then the compiled defaults and the environment stand, which
 // is exactly the state before the catalogue existed.
@@ -147,7 +172,7 @@ func (s *Source) Images(ctx context.Context) map[string]string {
 	version := CatalogVersion()
 	out := map[string]string{}
 	for _, e := range cat.Workplaces {
-		if img, ok := e.Find(version); ok && strings.TrimSpace(img.Ref) != "" {
+		if img, ok := e.ForBuild(version); ok {
 			out[e.Name] = img.Ref
 		}
 	}
@@ -164,7 +189,7 @@ func (s *Source) Resolved(ctx context.Context) map[string]CatalogImage {
 	version := CatalogVersion()
 	out := map[string]CatalogImage{}
 	for _, e := range cat.Workplaces {
-		if img, ok := e.Find(version); ok && strings.TrimSpace(img.Ref) != "" {
+		if img, ok := e.ForBuild(version); ok {
 			out[e.Name] = img
 		}
 	}
