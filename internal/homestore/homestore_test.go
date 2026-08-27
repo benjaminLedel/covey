@@ -376,33 +376,52 @@ func TestSweepKeepsWhatAnotherSnapshotStillNeeds(t *testing.T) {
 // HTTP-Anfrage, und sie starb an der Größenbegrenzung dessen, was vor der
 // Steuerebene steht: das Home war dauerhaft nicht sicherbar, während jedes
 // kleine Home funktionierte und die Installation gesund aussehen ließ.
+//
+// Geprüft wird am Manifest selbst und nicht an einem Home aus zwanzigtausend
+// Dateien: die Stückelung hängt an der GRÖSSE des Manifests, nicht daran, wie
+// sie zustande kam — und ein Test, der dafür ein halbes Dateisystem anlegt,
+// kostet auf einem ausgelasteten Runner Minuten, die nichts belegen.
 func TestEinGrossesManifestReistInStuecken(t *testing.T) {
 	ctx := context.Background()
 	org := uuid.New()
-	home := t.TempDir()
+	limit := &limitedBlobs{Dir: newDir(t), max: chunkSize}
 
-	// Viele kleine Dateien: der Inhalt ist winzig, das Manifest wird groß —
-	// genau die Form, die ein Entwickler-Home hat (node_modules, Caches).
-	for i := 0; i < 20000; i++ {
-		write(t, home, fmt.Sprintf("caches/paket-%05d/ein-recht-langer-dateiname.js", i), "x")
+	// Ein Manifest über der Blockgröße: 40.000 Einträge mit Pfad und Hash.
+	m := Manifest{}
+	for i := 0; i < 40000; i++ {
+		m.Entries = append(m.Entries, Entry{
+			Path:   fmt.Sprintf("caches/paket-%05d/ein-recht-langer-dateiname.js", i),
+			Mode:   0o644,
+			Size:   17,
+			Blocks: []string{Hash([]byte(fmt.Sprintf("inhalt %d", i)))},
+		})
+	}
+	raw, err := m.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(raw) <= chunkSize {
+		t.Fatalf("das Testmanifest ist mit %d Bytes zu klein für diesen Fall", len(raw))
 	}
 
-	limit := &limitedBlobs{Dir: newDir(t), max: chunkSize}
-	res, err := Sync(ctx, limit, org, home, nil)
+	hash, geschrieben, err := putManifest(ctx, limit, org, raw)
 	if err != nil {
-		t.Fatalf("Sync scheitert an der Größe des Manifests: %v", err)
+		t.Fatalf("das Manifest kommt nicht in den Store: %v", err)
+	}
+	if geschrieben < 2 {
+		t.Errorf("ein Manifest über der Blockgröße reist in Stücken, nicht als eins (%d Objekte)", geschrieben)
 	}
 	if limit.largest > chunkSize {
 		t.Errorf("ein Objekt von %d Bytes ging weg — mehr als ein Block tragen darf", limit.largest)
 	}
 
 	// Und es kommt vollständig zurück.
-	m, err := Load(ctx, limit, org, res.ManifestHash)
+	zurueck, err := Load(ctx, limit, org, hash)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if len(m.Entries) < 20000 {
-		t.Errorf("das Manifest kam unvollständig zurück: %d Einträge", len(m.Entries))
+	if len(zurueck.Entries) != len(m.Entries) {
+		t.Errorf("das Manifest kam mit %d statt %d Einträgen zurück", len(zurueck.Entries), len(m.Entries))
 	}
 }
 
