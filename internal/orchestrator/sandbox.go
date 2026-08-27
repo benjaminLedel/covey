@@ -64,6 +64,22 @@ type HomeSyncer interface {
 	SyncHome(ctx context.Context) error
 }
 
+// Discardable is the optional half of a sandbox that can be taken down WITHOUT
+// writing its home away.
+//
+// It exists for the start that never became a run: the container died at once,
+// or the daemon never connected. The home is then byte for byte what was
+// materialised into it a moment earlier, and syncing it back is a full scan of
+// a home that may be gigabytes — measured on a production instance: eleven
+// minutes to materialise 8.3 GB, the container gone in under a second, and then
+// half an hour of scanning before the failure was even recorded. The agent
+// spent forty-five minutes per attempt to arrive exactly where it started.
+//
+// Optional, because a provider without a store has nothing to skip.
+type Discardable interface {
+	Discard(ctx context.Context) error
+}
+
 // Placed is the optional half of a sandbox that knows which host it landed on.
 // Optional because not every provider has hosts to speak of — the mock in the
 // tests has none — and because the answer is worth a line in the recording

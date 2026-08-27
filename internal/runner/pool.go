@@ -1280,6 +1280,27 @@ func (s *poolSandbox) SyncHome(ctx context.Context) error {
 	return s.pool.syncHomeReason(ctx, s.conn, s.agentID, s.orgID, "job")
 }
 
+// Discard takes the compute down and leaves the store alone — satisfies
+// orchestrator.Discardable.
+//
+// For the start that never became a run: the home is byte for byte what was
+// materialised into it, so the sync would scan gigabytes to produce the
+// snapshot that is already there. The `once` is shared with Stop, so whichever
+// of the two the caller reaches for, the sandbox goes down exactly once.
+func (s *poolSandbox) Discard(ctx context.Context) error {
+	var err error
+	s.once.Do(func() {
+		s.conn.mu.Lock()
+		if s.conn.sandboxes > 0 {
+			s.conn.sandboxes--
+		}
+		s.conn.mu.Unlock()
+		_, err = s.conn.ask(context.WithoutCancel(ctx), TypeStopSandbox,
+			StopSandbox{AgentID: s.agentID}, 60*time.Second)
+	})
+	return err
+}
+
 // Stop shuts the compute down and writes the home into the store. In that
 // order: the scan runs on a home nothing is writing into any more.
 //
