@@ -2035,7 +2035,8 @@
       "filesOf": "{{count}} of {{total}} files",
       "on": "on {{runner}}"
     },
-    "sandboxOn": "Running on runner {{runner}}"
+    "sandboxOn": "Running on runner {{runner}}",
+    "stale": "State reconciled: “{{was}}” stood there with no run behind it"
   },
   "common": {
     "loading": "loading …"

@@ -1842,3 +1842,48 @@ func (p *Pool) PullWorkplace(ctx context.Context, orgID uuid.UUID, profile strin
 	}
 	return image, problems, nil
 }
+
+// StopStray stops a sandbox the control plane no longer holds a handle to —
+// satisfies orchestrator.StrayStopper.
+//
+// The handle hangs off the session, and the session is what got lost: a run
+// that hung and was given up on, or a restart of the control plane, whose
+// sessions live in memory while the container lives on the host. The container
+// then belongs to nobody. It does not block the next wake (a start removes a
+// leftover of the same name first), and it does hold memory and disk — and it
+// makes the host refuse its own update, because a runner carrying sandboxes
+// must not replace the binary that watches them.
+//
+// Asked of the host the home last lay on. Any other runner of the organisation
+// would be asked about a container it never started; that is not an error
+// there, just a wasted question.
+func (p *Pool) StopStray(ctx context.Context, agentID, orgID uuid.UUID) error {
+	var last uuid.UUID
+	if p.LastRunner != nil {
+		if id, ok := p.LastRunner(ctx, agentID); ok {
+			last = id
+		}
+	}
+	c := p.connFor(orgID, last)
+	if c == nil {
+		// Nobody to ask. The container — if there is one — is on a host that
+		// is not connected, and its own watcher will report the death when it
+		// comes back.
+		return nil
+	}
+	answer, err := c.ask(ctx, TypeStopSandbox, StopSandbox{AgentID: agentID}, 60*time.Second)
+	if err != nil {
+		return err
+	}
+	res, err := decode[SandboxResult](answer)
+	if err != nil {
+		return err
+	}
+	// "Was not there" is the normal case: usually nothing is left over, and
+	// asking is cheaper than finding out afterwards that something was.
+	if res.Err != "" {
+		p.Log.Debug("stopping a stray sandbox", "agent", agentID, "runner", c.runnerID, "answer", res.Err)
+	}
+	p.Phases.Clear(agentID)
+	return nil
+}

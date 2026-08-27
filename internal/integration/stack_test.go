@@ -177,6 +177,9 @@ type stackOpts struct {
 	// afterOrch runs once the orchestrator exists — for wiring that points
 	// back at it (the runner reporting a dead sandbox, say).
 	afterOrch func(*orchestrator.Orchestrator)
+	// staleAfter shortens the patience with a busy status nothing backs. Five
+	// minutes is right in production and is not a test.
+	staleAfter time.Duration
 }
 
 func newStack(t *testing.T) *stack {
@@ -268,6 +271,7 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 		DaemonTokenTTL: 5 * time.Minute,
 		TickInterval:   300 * time.Millisecond,
 		ReadyTimeout:   readyTimeout,
+		StaleAfter:     opts.staleAfter,
 		Log:            log,
 	})
 	if opts.afterOrch != nil {

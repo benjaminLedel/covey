@@ -2035,7 +2035,8 @@
       "filesOf": "{{count}} von {{total}} Dateien",
       "on": "auf {{runner}}"
     },
-    "sandboxOn": "Läuft auf Runner {{runner}}"
+    "sandboxOn": "Läuft auf Runner {{runner}}",
+    "stale": "Zustand aufgelöst: „{{was}}“ stand da, ohne dass ein Lauf dahinter war"
   },
   "common": {
     "loading": "lädt …"

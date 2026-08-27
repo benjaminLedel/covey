@@ -516,6 +516,18 @@ function buildItems(events: RecordingEvent[], nested: boolean): FeedItem[] {
           });
         } else if (status === "stage") {
           items.push({ key: k, kind: "evt", icon: "flag", text: i18n.t("activity.stage", { stage: p.stage }), time });
+        } else if (status === "stale") {
+          // Die Plattform hat einen Zustand aufgelöst, hinter dem nichts mehr
+          // stand. Ohne diese Zeile schliefe der Agent „einfach so", und die
+          // Stunde davor bliebe unerklärt.
+          items.push({
+            key: k,
+            kind: "gate",
+            icon: "clock",
+            text: i18n.t("activity.stale", { was: i18n.t(`status.${p.was}`, String(p.was ?? "")) }),
+            time,
+            tone: "warn",
+          });
         } else if (status === "killed") {
           items.push({ key: k, kind: "gate", icon: "x", text: i18n.t("activity.killed"), time, tone: "danger" });
         } else {

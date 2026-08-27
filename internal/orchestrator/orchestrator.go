@@ -82,6 +82,10 @@ type Options struct {
 	// a human at the "clean up" button. 0 → default.
 	BoardRetention time.Duration
 	ReadyTimeout   time.Duration
+	// StaleAfter: so lange darf ein Agent einen beschäftigten Zustand tragen,
+	// ohne dass eine Sitzung dahintersteht, bevor die Plattform ihn auflöst.
+	// 0 → Voreinstellung. Ein Knopf für Tests, kein Bedienelement.
+	StaleAfter time.Duration
 	// RuntimeTools is the runs' built-in tool scope (COVEY_RUNTIME_TOOLS).
 	// Empty → daemon.DefaultAllowedTools. The list decides not only what a run
 	// may use but what exists for it at all — see daemon.DefaultAllowedTools.
@@ -110,6 +114,11 @@ type Orchestrator struct {
 	// agent sleeps (link open, container keeps running). The next wake takes them
 	// over instead of starting cold.
 	warm map[uuid.UUID]*warmSession
+	// verwaist merkt sich, seit wann ein beschäftigter Zustand ohne Sitzung
+	// dasteht. Im Speicher und nicht in der Datenbank: nach einem Neustart der
+	// Steuerebene ist ohnehin JEDE Sitzung weg, und dann soll die Frist neu
+	// laufen statt sofort abzulaufen.
+	verwaist map[uuid.UUID]time.Time
 	// lastWarmSync: when this agent's parked home last went into the store.
 	// Guarded by mu, like warm itself.
 	lastWarmSync map[uuid.UUID]time.Time
@@ -146,6 +155,13 @@ func New(opts Options) *Orchestrator {
 	if opts.BoardRetention == 0 {
 		opts.BoardRetention = 24 * time.Hour
 	}
+	if opts.StaleAfter == 0 {
+		// Großzügig: ein Weckruf setzt den Zustand, bevor die Sitzung steht,
+		// und ein Sandbox-Start darf auf einem frischen Host eine
+		// Dreiviertelstunde dauern. Aufgelöst wird erst, was auch nach dieser
+		// Zeit noch niemanden hinter sich hat.
+		opts.StaleAfter = 5 * time.Minute
+	}
 	if len(opts.RuntimeTools) == 0 {
 		opts.RuntimeTools = daemon.DefaultAllowedTools
 	}
@@ -160,6 +176,7 @@ func New(opts Options) *Orchestrator {
 		dying:        map[uuid.UUID]chan string{},
 		warm:         map[uuid.UUID]*warmSession{},
 		lastWarmSync: map[uuid.UUID]time.Time{},
+		verwaist:     map[uuid.UUID]time.Time{},
 		events:       NewBroadcaster(),
 	}
 }
@@ -398,6 +415,93 @@ func (o *Orchestrator) tick(ctx context.Context) {
 	}
 	for _, id := range ids {
 		o.EnsureRunning(id)
+	}
+	o.reconcileStuck(ctx)
+}
+
+// reconcileStuck löst Zustände auf, hinter denen nichts mehr steht.
+//
+// Der Anlass: ein Agent stand um 08:02 auf `working`, seine letzte Aufgabe war
+// um 06:35 fertig, sein Backlog leer, und auf dem Host lief weiter ein
+// Container. Zwischen „letzte Aufgabe fertig" und „Sandbox unten" hängt keine
+// Frist, die den ganzen Vorgang umfasst — jeder Schritt hat eine, der Ablauf
+// als solcher nicht. Und ein Neustart der Steuerebene heilt es nicht, im
+// Gegenteil: die Sitzungen liegen im Speicher, der Zustand in der Datenbank,
+// und niemand vergleicht die beiden. Danach trägt der Agent einen Zustand, den
+// keine Sitzung deckt — derselbe Anblick, zweite Ursache.
+//
+// Was hier passiert, ist bewusst das Mildeste, das den Zustand wieder wahr
+// macht: schlafen legen, in die Aufzeichnung schreiben, und den Container
+// stoppen lassen, falls die Datenebene das anbietet. Nicht behoben wird damit
+// die Ursache — die ist unbekannt —, aber der Agent kommt ohne Neustart der
+// Plattform aus dem Zustand heraus, und das Ereignis sagt, dass es passiert
+// ist. Ein Vorgang, den niemand beenden kann, ist kein Zustand, sondern ein
+// Ausfall.
+func (o *Orchestrator) reconcileStuck(ctx context.Context) {
+	rows, err := o.Pool.Query(ctx, `SELECT id, org_id, status FROM agents
+		WHERE hired_at IS NOT NULL AND status = ANY($1)`,
+		[]string{agents.StatusTriggered, agents.StatusTriage, agents.StatusWorking, agents.StatusSecuring})
+	if err != nil {
+		o.Log.Warn("reconcile query", "err", err)
+		return
+	}
+	type verdacht struct {
+		id     uuid.UUID
+		orgID  uuid.UUID
+		status string
+	}
+	var kandidaten []verdacht
+	for rows.Next() {
+		var v verdacht
+		if rows.Scan(&v.id, &v.orgID, &v.status) == nil {
+			kandidaten = append(kandidaten, v)
+		}
+	}
+	rows.Close()
+
+	jetzt := time.Now()
+	for _, k := range kandidaten {
+		o.mu.Lock()
+		_, hatSitzung := o.sessions[k.id]
+		_, istWarm := o.warm[k.id]
+		if hatSitzung || istWarm {
+			delete(o.verwaist, k.id)
+			o.mu.Unlock()
+			continue
+		}
+		seit, gesehen := o.verwaist[k.id]
+		if !gesehen {
+			// Erst einmal nur merken: zwischen „Zustand gesetzt" und „Sitzung
+			// eingetragen" liegt ein Augenblick, und den soll niemand als
+			// Ausfall lesen.
+			o.verwaist[k.id] = jetzt
+			o.mu.Unlock()
+			continue
+		}
+		if jetzt.Sub(seit) < o.StaleAfter {
+			o.mu.Unlock()
+			continue
+		}
+		delete(o.verwaist, k.id)
+		o.mu.Unlock()
+
+		o.Log.Warn("agent carries a status no session backs — putting it to sleep",
+			"agent", k.id, "status", k.status, "for", jetzt.Sub(seit).Round(time.Second))
+		_ = o.Obs.Record(ctx, k.orgID, k.id, nil, observability.KindLifecycle,
+			map[string]string{"status": "stale", "was": k.status})
+		agent, err := o.Registry.Get(ctx, k.id)
+		if err != nil {
+			continue
+		}
+		// Der Reihe nach: erst der Container, dann der Zustand. Andersherum
+		// stünde einen Augenblick lang „schläft" über einer laufenden Sandbox.
+		o.evictWarm(ctx, k.id, true)
+		if stopper, ok := o.Provider.(StrayStopper); ok {
+			if err := stopper.StopStray(ctx, k.id, k.orgID); err != nil {
+				o.Log.Warn("the stray sandbox could not be stopped", "agent", k.id, "err", err)
+			}
+		}
+		o.setStatus(ctx, agent, nil, agents.StatusSleeping)
 	}
 }
 
