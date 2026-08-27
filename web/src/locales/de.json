@@ -1280,7 +1280,8 @@
       "approval": "Freigabe",
       "proposal": "Vorschlag",
       "finding": "Befund",
-      "issue": "Issue"
+      "issue": "Issue",
+      "tool_request": "Werkzeug-Bitte"
     },
     "status": {
       "pending": "Offen",

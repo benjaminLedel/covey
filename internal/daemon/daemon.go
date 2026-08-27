@@ -243,6 +243,7 @@ var routedInjectTypes = map[string]bool{
 	TypeInjectSkills:      true,
 	TypeInjectCreateTask:  true,
 	TypeInjectHiring:      true,
+	TypeInjectTool:        true,
 	TypeInjectSecret:      true,
 }
 
@@ -468,6 +469,19 @@ func (c *Client) createTask(ctx context.Context, req RequestCreateTask) (InjectC
 		return InjectCreateTask{}, err
 	}
 	return DecodePayload[InjectCreateTask](msg)
+}
+
+// requestTool meldet ein fehlendes Werkzeug an die Steuerebene. Sie beschafft
+// es nicht — sie schreibt es dorthin, wo ein Mensch es sieht.
+func (c *Client) requestTool(ctx context.Context, req RequestTool) (InjectTool, error) {
+	req.RequestID = uuid.NewString()
+	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	msg, err := c.request(reqCtx, TypeRequestTool, req.RequestID, req)
+	if err != nil {
+		return InjectTool{}, err
+	}
+	return DecodePayload[InjectTool](msg)
 }
 
 // hiring brokers a hiring meta action (covey/create_agent & co., spec/20) to

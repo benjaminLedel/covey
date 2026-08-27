@@ -159,6 +159,31 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 	switch action {
 	case "create_task":
 		return p.createTask(ctx, params)
+	case "request_tool":
+		// Die Bitte um ein Werkzeug. Jeder Agent darf sie stellen — sie liegt
+		// deshalb hier und nicht bei den Meta-Actions der Registry, die einen
+		// Scope brauchen: Ein Mitarbeiter, der Software braucht, stellt einen
+		// Antrag, und dafür braucht er keine Personalbefugnis.
+		var in struct {
+			Tool string `json:"tool"`
+			Why  string `json:"why"`
+		}
+		if err := json.Unmarshal(params, &in); err != nil || strings.TrimSpace(in.Tool) == "" {
+			return map[string]string{"status": "error", "error": "tool missing"}
+		}
+		resp, err := p.client.requestTool(ctx, RequestTool{TaskID: p.taskID, Tool: in.Tool, Why: in.Why})
+		if err != nil {
+			return map[string]string{"status": "error", "error": err.Error()}
+		}
+		if !resp.OK {
+			return map[string]string{"status": "error", "error": resp.Error}
+		}
+		audit, _ := json.Marshal(map[string]any{"action": "covey:request_tool", "tool": in.Tool})
+		_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
+		return map[string]any{"status": "ok", "id": resp.ID,
+			"hint": "Filed. Nobody will install it during this run — work with what is here, " +
+				"or say in your result that the task needs the tool."}
+
 	case "org_chart":
 		chart, err := p.client.orgChart(ctx)
 		if err != nil {

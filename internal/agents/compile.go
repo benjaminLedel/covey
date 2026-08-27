@@ -28,7 +28,13 @@ const CoveyActionsDoc = `The platform's own actions — your board, your memory,
    org_chart {} — who else works here, and for what.
    create_task {"title":"...","body":"<assignment with all names>","agent":"<slug, optional>"} —
    a task of your own for the rest, or a delegation to a colleague. The assignment is a
-   handover to somebody without your context.`
+   handover to somebody without your context.
+   request_tool {"tool":"<package or binary>","why":"<the command that failed, and what for>"} —
+   a tool is missing from your workplace. You are not root and cannot install one; building
+   a way around it (unpacking packages into your home) is worse than saying so, because it
+   is unreproducible, invisible, and carried along in every sync of your home. This files
+   the request where a human sees it; nothing gets installed during this run. Work with
+   what is there, or say in your result that the task needs the tool.`
 
 // ProtocolInstructions is the platform's share of the prompt: the contract
 // between runtime and daemon. The agent acts in target systems exclusively

@@ -2284,6 +2284,14 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		resp := o.createAgentTask(ctx, agent, taskID, req)
 		return false, o.sendMsg(ctx, link, daemon.TypeInjectCreateTask, resp)
 
+	case daemon.TypeRequestTool:
+		req, err := daemon.DecodePayload[daemon.RequestTool](msg)
+		if err != nil {
+			return false, nil
+		}
+		resp := o.toolRequest(ctx, agent, taskID, req)
+		return false, o.sendMsg(ctx, link, daemon.TypeInjectTool, resp)
+
 	case daemon.TypeRequestHiring:
 		req, err := daemon.DecodePayload[daemon.RequestHiring](msg)
 		if err != nil {

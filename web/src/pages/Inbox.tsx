@@ -32,7 +32,10 @@ import { canManage } from "./agent/roles";
    gruppiert, mit Filter und nachladbar — dorthin schaut man, wenn man etwas
    sucht, nicht wenn man etwas abarbeitet. */
 
-const TYPES = ["approval", "proposal", "finding", "issue"] as const;
+// tool_request: die Bitte um ein fehlendes Werkzeug (#106). Wie ein Befund —
+// kein Diff, ein Mensch entscheidet —, aber mit eigenem Namen, weil die Liste
+// „was fehlt der Belegschaft an ihren Arbeitsplätzen" für sich gelesen wird.
+const TYPES = ["approval", "proposal", "finding", "issue", "tool_request"] as const;
 type EntryType = (typeof TYPES)[number];
 
 export default function Inbox({ me }: { me: Principal }) {

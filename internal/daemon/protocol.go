@@ -57,6 +57,11 @@ const (
 	TypeRequestSkills     = "request_skills"
 	TypeRequestCreateTask = "request_create_task"
 	TypeRequestHiring     = "request_hiring"
+	// TypeRequestTool/TypeInjectTool: die Bitte um ein Werkzeug. Ein Agent, dem
+	// ein Paket fehlt, ist nirgends root und kann sich nichts nachinstallieren
+	// — ohne diesen Weg baut er apt in seinem Home nach (spec/16, #106).
+	TypeRequestTool = "request_tool"
+	TypeInjectTool  = "inject_tool"
 	// #nosec G101 — the name of a message kind, not a secret.
 	TypeRequestSecret = "request_secret"
 )
@@ -347,6 +352,32 @@ type RequestCreateTask struct {
 	Title     string `json:"title"`
 	Body      string `json:"body"`
 	Priority  int    `json:"priority,omitempty"`
+}
+
+// RequestTool/InjectTool sind die Meta-Action covey/request_tool: „mir fehlt
+// X, hier ist die Aufgabe, an der es mir gefehlt hat".
+//
+// Sie löst nichts, sie meldet. Entschieden wird von einem Menschen, und was
+// daraus wird, ist eine Zeile im Dockerfile eines Profils — für alle Agenten
+// darin, nicht für dieses eine Home.
+type RequestTool struct {
+	RequestID string `json:"request_id"`
+	TaskID    string `json:"task_id,omitempty"`
+	// Tool ist, was fehlt: ein Paketname, ein Binärname, so genau wie der
+	// Agent es weiß.
+	Tool string `json:"tool"`
+	// Why ist der Beleg: der Befehl, der daran gescheitert ist, und wofür er
+	// gebraucht wurde. Ohne ihn ist die Bitte nicht zu entscheiden.
+	Why string `json:"why"`
+}
+
+type InjectTool struct {
+	RequestID string `json:"request_id"`
+	OK        bool   `json:"ok"`
+	Error     string `json:"error,omitempty"`
+	// ID ist der offene Punkt, der daraus wurde — damit der Agent ihn nennen
+	// kann, statt beim nächsten Lauf dieselbe Bitte noch einmal zu stellen.
+	ID string `json:"id,omitempty"`
 }
 
 type InjectCreateTask struct {

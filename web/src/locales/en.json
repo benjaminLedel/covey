@@ -1280,7 +1280,8 @@
       "approval": "Approval",
       "proposal": "Proposal",
       "finding": "Finding",
-      "issue": "Issue"
+      "issue": "Issue",
+      "tool_request": "Tool request"
     },
     "status": {
       "pending": "Open",

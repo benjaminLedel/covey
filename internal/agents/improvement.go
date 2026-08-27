@@ -46,6 +46,11 @@ const (
 	// KindIssue ist ein Bericht, der schon im Tracker liegt — hier steht er,
 	// damit der Mensch ihn sieht, nicht damit er ihn ausführt.
 	KindIssue = "issue"
+	// KindToolRequest ist die Bitte um ein Werkzeug: Dem Agenten fehlt ein
+	// Paket, und er ist nirgends root. Ohne diesen Weg baute er sich apt im
+	// eigenen Home nach — unreproduzierbar, unaufgeschrieben, und bei jedem
+	// Sync mitgetragen. Wie ein Befund: kein Diff, ein Mensch entscheidet.
+	KindToolRequest = "tool_request"
 )
 
 const (
@@ -139,7 +144,7 @@ func (r *Registry) CreateImprovement(ctx context.Context, item ImprovementItem) 
 		default:
 			return item, err
 		}
-	case KindFinding, KindIssue:
+	case KindFinding, KindIssue, KindToolRequest:
 		// Ohne Diff: der Befund ist der Text, der Punkt bleibt offen, bis ein
 		// Mensch ihn schließt.
 		item.Files = nil
