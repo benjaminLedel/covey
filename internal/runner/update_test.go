@@ -19,6 +19,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"covey/internal/buildinfo"
 )
 
 // release is a stand-in for the published artefacts: one archive per platform
@@ -287,5 +289,79 @@ func TestOhnePlanUndBeimEingebautenPassiertNichts(t *testing.T) {
 	eingebaut.runPlannedUpdate(context.Background())
 	if gefragt != 1 {
 		t.Errorf("der eingebaute Runner wird nach keinem Plan gefragt (%d)", gefragt)
+	}
+}
+
+/* Ein Host, der sein eigenes Binary gebaut hat, trägt den Namen des Tags, auf
+   dem sein Baum steht — und ist trotzdem etwas anderes. Auf covey.work lief
+   „v0.7.2 (45c9c48-dirty)", während v0.7.2 die neueste Veröffentlichung war:
+   Der Vergleich sagte „schon aktuell", der Knopf meldete Erfolg, ersetzt wurde
+   nichts. Tagelang, und niemand sah, warum der Host zurückblieb. */
+
+func TestEinSchmutzigerBauGiltNichtAlsDieVeroeffentlichung(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("kein exec, das den Prozess ersetzt")
+	}
+	dir := t.TempDir()
+	exe := filepath.Join(dir, "covey-runner")
+	if err := os.WriteFile(exe, []byte("selbst gebaut"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	origin := release(t, "v0.7.2", "die Veröffentlichung")
+
+	// Derselbe Name, anderer Baum.
+	alt := buildinfo.Get
+	buildinfo.Get = func() buildinfo.Info {
+		return buildinfo.Info{Version: "v0.7.2", Commit: "45c9c48", Dirty: true}
+	}
+	defer func() { buildinfo.Get = alt }()
+
+	node := NewNode(uuid.New(), uuid.New(), &Docker{DataDir: dir}, quietLog())
+	node.Restart = func() error { return nil }
+	node.executable = func() (string, error) { return exe, nil }
+
+	res := node.updateSelf(context.Background(), Update{Version: "v0.7.2", BaseURL: origin.URL})
+	if res.Err != "" {
+		t.Fatalf("update: %s", res.Err)
+	}
+	if !res.Restarting {
+		t.Fatal("nichts ersetzt — genau die stille Absage aus #81")
+	}
+	if got, _ := os.ReadFile(exe); string(got) != "die Veröffentlichung" {
+		t.Fatalf("das Binary blieb das alte: %q", got)
+	}
+}
+
+// Die Gegenprobe, und sie ist die wichtigere: ein sauberer Bau auf derselben
+// Fassung wird NICHT ersetzt. Sonst lüde jeder Knopfdruck dieselben Megabyte
+// noch einmal und startete den Host ohne Grund neu.
+func TestEinSauberesBinaryAufDerselbenFassungBleibtLiegen(t *testing.T) {
+	dir := t.TempDir()
+	exe := filepath.Join(dir, "covey-runner")
+	if err := os.WriteFile(exe, []byte("die Veröffentlichung"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	alt := buildinfo.Get
+	buildinfo.Get = func() buildinfo.Info {
+		return buildinfo.Info{Version: "v0.7.2", Commit: "abc1234"}
+	}
+	defer func() { buildinfo.Get = alt }()
+
+	node := NewNode(uuid.New(), uuid.New(), &Docker{DataDir: dir}, quietLog())
+	node.Restart = func() error { t.Fatal("es wurde neu gestartet"); return nil }
+	node.executable = func() (string, error) { return exe, nil }
+
+	// Ohne BaseURL: Würde er etwas holen wollen, liefe er ins Netz und
+	// scheiterte — hier soll er gar nicht erst losgehen.
+	res := node.updateSelf(context.Background(), Update{Version: "v0.7.2"})
+	if res.Restarting || res.Err != "" {
+		t.Fatalf("er hat angefasst, was schon stimmte: %+v", res)
+	}
+	if res.From != "v0.7.2" || res.To != "v0.7.2" {
+		t.Fatalf("die Antwort nennt die Fassung nicht zweimal: %+v", res)
+	}
+	if got, _ := os.ReadFile(exe); string(got) != "die Veröffentlichung" {
+		t.Fatalf("das Binary wurde angefasst: %q", got)
 	}
 }
