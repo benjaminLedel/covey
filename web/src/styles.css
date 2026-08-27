@@ -141,6 +141,24 @@ h1, h2, h3 { font-weight: 500; margin: 0; }
 .st-blocked, .st-pending, .st-in_progress { background: var(--bg-warning); color: var(--text-warning); }
 .st-done, .st-approved { background: var(--bg-success); color: var(--text-success); }
 .st-sleeping, .st-cancelled { background: var(--surface-1); color: var(--text-secondary); border: 0.5px solid var(--border); }
+/* Sichern: die Arbeit des Agenten ist vorbei, die der Plattform noch nicht.
+   Deshalb gedämpft wie „schläft" und nicht betont wie „arbeitet" — es ist ein
+   Übergang, kein Zustand, in dem jemand etwas von diesem Agenten erwarten
+   sollte. Der Punkt daneben pulst, damit man sieht, dass es weitergeht. */
+.st-securing { background: var(--surface-1); color: var(--text-secondary); border: 0.5px dashed var(--border); }
+.st-securing::after {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.55;
+  animation: st-pulse 1.4s ease-in-out infinite;
+}
+@keyframes st-pulse {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 0.75; }
+}
 .st-killed, .st-failed, .st-denied { background: transparent; color: var(--text-danger); border: 0.5px solid var(--border-danger); }
 .st-open { background: var(--surface-1); color: var(--text-secondary); border: 0.5px dashed var(--clay); }
 /* Entwurf: angelegt, aber noch nicht eingestellt. Gestrichelt wie „offen" —

@@ -106,8 +106,10 @@ func (h *HTTPStore) HasMany(ctx context.Context, orgID uuid.UUID, hashes []strin
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusMethodNotAllowed {
-		// A control plane from before the bundled question. Ask singly.
-		return askOneByOne(ctx, h, orgID, hashes)
+		// A control plane from before the bundled question. Ask singly — but
+		// not one after another: the reason the bundle exists is the round
+		// trip, and it does not go away because the other side is older.
+		return AskEach(ctx, h, orgID, hashes, httpAskWorkers)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("blocks-have: %s", resp.Status)
@@ -125,17 +127,10 @@ func (h *HTTPStore) HasMany(ctx context.Context, orgID uuid.UUID, hashes []strin
 	return have, nil
 }
 
-func askOneByOne(ctx context.Context, blobs BlobStore, orgID uuid.UUID, hashes []string) (map[string]bool, error) {
-	out := make(map[string]bool, len(hashes))
-	for _, hash := range hashes {
-		has, err := blobs.Has(ctx, orgID, hash)
-		if err != nil {
-			return nil, err
-		}
-		out[hash] = has
-	}
-	return out, nil
-}
+// httpAskWorkers bounds the fallback against an older control plane. Eight,
+// not sixteen: this is the platform's own front door, not a bucket built for
+// fan-out.
+const httpAskWorkers = 8
 
 func (h *HTTPStore) Put(ctx context.Context, _ uuid.UUID, hash string, r io.Reader) error {
 	body, err := io.ReadAll(r)

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -30,6 +31,12 @@ type fakeS3 struct {
 	// pageSize forces paging, so the continuation token is exercised rather
 	// than assumed.
 	pageSize int
+	// parallel/maxParallel zählen überlappende Anfragen — womit ein Test
+	// belegen kann, dass nebenläufig gefragt wird und wie weit.
+	parallel    int
+	maxParallel int
+	// headFails lässt jede HEAD-Anfrage scheitern.
+	headFails bool
 }
 
 func newFakeS3(t *testing.T, pageSize int) (*fakeS3, *S3) {
@@ -48,6 +55,26 @@ func newFakeS3(t *testing.T, pageSize int) (*fakeS3, *S3) {
 }
 
 func (f *fakeS3) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodHead {
+		f.mu.Lock()
+		f.parallel++
+		if f.parallel > f.maxParallel {
+			f.maxParallel = f.parallel
+		}
+		scheitern := f.headFails
+		f.mu.Unlock()
+		// Kurz halten, damit sich die Anfragen überhaupt überschneiden können.
+		time.Sleep(5 * time.Millisecond)
+		defer func() {
+			f.mu.Lock()
+			f.parallel--
+			f.mu.Unlock()
+		}()
+		if scheitern {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	}
 	if !strings.HasPrefix(r.Header.Get("Authorization"), "AWS4-HMAC-SHA256 ") {
 		w.WriteHeader(http.StatusForbidden)
 		_, _ = w.Write([]byte(`<Error><Code>AccessDenied</Code><Message>unsigned</Message></Error>`))
@@ -457,5 +484,77 @@ func TestRunnerStoreRefusesDeletingAndListing(t *testing.T) {
 	}
 	if _, err := store.List(ctx, uuid.New()); err == nil {
 		t.Error("a runner must not enumerate an organisation's blocks")
+	}
+}
+
+// Bei S3 ist jede Frage eine signierte HEAD-Anfrage über das Netz. Ein Home mit
+// hunderttausend Dateien fragt so oft, bevor sein erstes neues Byte reist —
+// hintereinander sind das Stunden, und ein Sync hat dreißig Minuten. Eine
+// Bündelfrage gibt es bei S3 nicht, also ist Nebenläufigkeit der einzige Hebel.
+func TestS3FragtNebenlaeufigUndAntwortetVollstaendig(t *testing.T) {
+	ctx := context.Background()
+	f, store := newFakeS3(t, 0)
+	org := uuid.New()
+
+	// Blöcke sind inhaltsadressiert: der Schlüssel IST der Hash des Inhalts,
+	// und der Store prüft das — wie ein echter Bucket.
+	vorhanden := map[string]bool{}
+	var hashes []string
+	for i := 0; i < 50; i++ {
+		inhalt := fmt.Sprintf("block %d", i)
+		h := Hash([]byte(inhalt))
+		hashes = append(hashes, h)
+		if i%2 == 0 {
+			if err := store.Put(ctx, org, h, strings.NewReader(inhalt)); err != nil {
+				t.Fatal(err)
+			}
+			vorhanden[h] = true
+		}
+	}
+
+	// Gleichzeitigkeit messen: der Fake zählt mit, wie viele Anfragen sich
+	// überschneiden.
+	f.mu.Lock()
+	f.parallel, f.maxParallel = 0, 0
+	f.mu.Unlock()
+
+	have, err := store.HasMany(ctx, org, hashes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, h := range hashes {
+		if have[h] != vorhanden[h] {
+			t.Fatalf("falsche Auskunft für %s: %v statt %v", h[:8], have[h], vorhanden[h])
+		}
+	}
+	f.mu.Lock()
+	hoechstens := f.maxParallel
+	f.mu.Unlock()
+	if hoechstens < 2 {
+		t.Errorf("die Fragen liefen nacheinander (höchstens %d gleichzeitig)", hoechstens)
+	}
+	if hoechstens > s3AskWorkers {
+		t.Errorf("%d Anfragen gleichzeitig — mehr als die Grenze von %d", hoechstens, s3AskWorkers)
+	}
+}
+
+// Ein Fehler beendet die Frage, und zwar mit Fehler: eine halb beantwortete
+// Frage ließe einen Sync glauben, Blöcke seien vorhanden, die niemand bestätigt
+// hat — und ein Schnappschuss, der auf einen fehlenden Block zeigt, ist
+// schlimmer als ein Sync, der laut scheitert.
+func TestS3EinFehlerBeendetDieBuendelfrage(t *testing.T) {
+	ctx := context.Background()
+	f, store := newFakeS3(t, 0)
+	org := uuid.New()
+	f.mu.Lock()
+	f.headFails = true
+	f.mu.Unlock()
+
+	var hashes []string
+	for i := 0; i < 20; i++ {
+		hashes = append(hashes, Hash([]byte(fmt.Sprintf("block %d", i))))
+	}
+	if _, err := store.HasMany(ctx, org, hashes); err == nil {
+		t.Error("ein Fehler des Buckets muss durchschlagen")
 	}
 }
