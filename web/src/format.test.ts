@@ -22,6 +22,21 @@ describe("fmtCount", () => {
     expect(fmtCount(147_952_885)).toBe("148 M");
   });
 
+  // Über der Million hört M auf zu helfen: „2500 M" zählt man wieder
+  // ziffernweise nach. Der gemessene Anlass stand über einem Agenten auf
+  // covey.work — 2.499.833.356 Eingabe-Tokens.
+  it("hat eine Stufe für Milliarden, und die kennt die Sprache", async () => {
+    const i18n = (await import("./i18n")).default;
+    await i18n.changeLanguage("de");
+    expect(fmtCount(2_499_833_356)).toBe("2,5 Mrd");
+    expect(fmtCount(999_999_999)).toBe("1000 M");
+    await i18n.changeLanguage("en");
+    // „2,5 B" läse sich im Deutschen als Byte, „2.5 Mrd" im Englischen als
+    // nichts — das eine Zeichen dieser Datei, das die Sprache kennen muss.
+    expect(fmtCount(2_499_833_356)).toBe("2,5 B");
+    await i18n.changeLanguage("de");
+  });
+
   // Eine Nachkommastelle sagt bei 12,3 k etwas und bei 148,0 M nichts.
   it("hängt keine Null an, die nichts trägt", () => {
     expect(fmtCount(148_000_000)).toBe("148 M");

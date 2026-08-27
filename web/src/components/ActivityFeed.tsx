@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import i18n from "../i18n";
 import { type RecordingEvent, recordingBlobURL } from "../api";
-import { fmtBytes, fmtCount, fmtDelta } from "../format";
+import { fmtBytes, fmtCount, fmtDelta, fmtUSD } from "../format";
 
 // ActivityFeed: übersetzt das lückenlose Recording in eine erzählende
 // Aktivitätsansicht im Stil des Mockups — Turns mit der Stimme des Agenten
@@ -424,7 +424,7 @@ function buildItems(events: RecordingEvent[], nested: boolean): FeedItem[] {
           case "result": {
             closeTurn();
             const meta = [
-              p.total_cost_usd ? `$${Number(p.total_cost_usd).toFixed(4)}` : "",
+              p.total_cost_usd ? fmtUSD(Number(p.total_cost_usd)) : "",
               p.usage?.input_tokens
                 ? `${p.usage.input_tokens} → ${p.usage.output_tokens} Tokens`
                 : "",
@@ -679,7 +679,7 @@ function subAgentItem(group: RecordingEvent[], mark: SubAgentMark): FeedItem {
     tools ? i18n.t("activity.subAgentTools", { count: tools }) : "",
     turns ? i18n.t("activity.subAgentTurns", { count: turns }) : "",
     ms > 0 ? fmtDelta(ms) : "",
-    cost ? `$${cost.toFixed(4)}` : "",
+    cost ? fmtUSD(cost) : "",
     inTok ? `${inTok} → ${outTok} Tokens` : "",
   ]
     .filter(Boolean)
