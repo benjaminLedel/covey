@@ -82,6 +82,9 @@ type Options struct {
 	// a human at the "clean up" button. 0 → default.
 	BoardRetention time.Duration
 	ReadyTimeout   time.Duration
+	// TidyHomeAbove: ab dieser Größe wird ein Agent gebeten, sein Home
+	// aufzuräumen (siehe tidy.go). 0 oder kleiner = gar nicht.
+	TidyHomeAbove int64
 	// StaleAfter: so lange darf ein Agent einen beschäftigten Zustand tragen,
 	// ohne dass eine Sitzung dahintersteht, bevor die Plattform ihn auflöst.
 	// 0 → Voreinstellung. Ein Knopf für Tests, kein Bedienelement.
@@ -161,6 +164,13 @@ func New(opts Options) *Orchestrator {
 	}
 	if opts.BoardRetention == 0 {
 		opts.BoardRetention = 24 * time.Hour
+	}
+	if opts.TidyHomeAbove == 0 {
+		// Fünf Gigabyte: auf der gemessenen Instanz trifft das genau den
+		// Agenten mit 19,1 GB und keinen der übrigen sieben (0 bis 1,3 GB).
+		// Eine Schwelle, die alle trifft, wird zur Gewohnheit und dann
+		// ignoriert.
+		opts.TidyHomeAbove = 5 << 30
 	}
 	if opts.StaleAfter == 0 {
 		// Großzügig: ein Weckruf setzt den Zustand, bevor die Sitzung steht,
@@ -356,6 +366,7 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 	o.nebenlaeufig(func() { o.wikiMaintenanceLoop(ctx) })
 	o.nebenlaeufig(func() { o.warmReaperLoop(ctx) })
 	o.nebenlaeufig(func() { o.boardJanitorLoop(ctx) })
+	o.nebenlaeufig(func() { o.homeJanitorLoop(ctx) })
 	ticker := time.NewTicker(o.TickInterval)
 	defer ticker.Stop()
 	o.tick(ctx)

@@ -99,9 +99,16 @@ type Config struct {
 	// wildcard certificate, and those are what this is mostly pointed at.
 	S3PathStyle bool
 	// HomeExcludes are paths left out of the sync (comma-separated). Their role
-	// is a cost question, not a prerequisite for correctness: the default is
-	// empty, and without configuration everything is synced. Only demonstrably
-	// derivable paths belong here (analysis caches such as .dartServer).
+	// is a cost question, not a prerequisite for correctness — but "empty" was
+	// the wrong default for it: a measured home carried 19.1 GB into the store,
+	// among it __pycache__, .dartServer and an apt tree the agent had built by
+	// hand, all of it walked on every wake and written back after every run.
+	//
+	// The default is now the scrap class (DefaultHomeExcludes): paths that
+	// nothing but the tool reading them recreates, so leaving them out costs
+	// nothing at all. Package caches are deliberately NOT in it — see there.
+	// COVEY_HOME_EXCLUDES replaces the list, and an explicit "none" switches it
+	// off entirely.
 	HomeExcludes []string
 	// SandboxImages maps every profile of the catalogue (internal/sandbox) to
 	// the image this instance uses for it — the default from the catalogue, or
@@ -159,6 +166,11 @@ type Config struct {
 	// COVEY_BOARD_RETENTION (default 24h); a negative duration disables the
 	// cleanup and lets the board grow.
 	BoardRetention time.Duration
+	// TidyHomeAboveBytes: ab dieser Home-Größe bittet die Plattform den
+	// Agenten, aufzuräumen (COVEY_HOME_TIDY_ABOVE_GB, 0 = gar nicht). Eine
+	// Bitte und kein Kehrbesen: was Kratzverzeichnis ist und was Gedächtnis,
+	// weiß nur der, der es angelegt hat.
+	TidyHomeAboveBytes int64
 	// EgressEnforce enables the egress allowlist proxy (docker provider only):
 	// sandbox traffic then goes through a proxy that only lets allowlist hosts pass.
 	EgressEnforce bool
@@ -278,7 +290,7 @@ func FromEnv() (Config, error) {
 		// eine zweite Wahrheit, und genau die hat heute zweimal zugebissen.
 		SandboxStartTimeout: getenvDuration("COVEY_SANDBOX_START_TIMEOUT", 0),
 		HomeStore:           getenvBool("COVEY_HOME_STORE", true),
-		HomeExcludes:        splitList(os.Getenv("COVEY_HOME_EXCLUDES")),
+		HomeExcludes:        homeExcludes(os.Getenv("COVEY_HOME_EXCLUDES")),
 		BlobStore:           getenv("COVEY_BLOB_STORE", "builtin"),
 		S3Endpoint:          getenv("COVEY_S3_ENDPOINT", ""),
 		S3Bucket:            getenv("COVEY_S3_BUCKET", ""),
@@ -293,6 +305,7 @@ func FromEnv() (Config, error) {
 		SessionTTL:          getenvDuration("COVEY_SESSION_TTL", 7*24*time.Hour),
 		DaemonTokenTTL:      getenvDuration("COVEY_DAEMON_TOKEN_TTL", 15*time.Minute),
 		BoardRetention:      getenvDuration("COVEY_BOARD_RETENTION", 24*time.Hour),
+		TidyHomeAboveBytes:  int64(getenvInt("COVEY_HOME_TIDY_ABOVE_GB", 5)) << 30,
 		EgressEnforce:       getenvBool("COVEY_EGRESS_ENFORCE", false),
 		EgressAllow:         splitList(os.Getenv("COVEY_EGRESS_ALLOW")),
 		BuiltinRunner:       getenv("COVEY_BUILTIN_RUNNER", "auto"),
@@ -510,6 +523,21 @@ func parseTrustedProxies(raw string) ([]netip.Prefix, error) {
 	return out, nil
 }
 
+// getenvInt liest eine ganze Zahl aus der Umgebung. Was nicht als Zahl lesbar
+// ist, zählt als nicht gesetzt: eine halb gelesene Einstellung („5g") wäre eine
+// stillschweigend andere als die gemeinte.
+func getenvInt(key string, fallback int) int {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return fallback
+	}
+	return n
+}
+
 func getenvDuration(key string, fallback time.Duration) time.Duration {
 	v := os.Getenv(key)
 	if v == "" {
@@ -546,4 +574,50 @@ func sandboxImageEnv() map[string]string {
 		}
 	}
 	return overrides
+}
+
+// DefaultHomeExcludes ist die Schrott-Klasse: Pfade, die nichts als das
+// Werkzeug wiederherstellt, das sie ohnehin liest. Sie herauszulassen kostet
+// nichts — weder eine Wiederherstellung noch eine Entscheidung.
+//
+// Bewusst NICHT darin: die Paket-Caches (.npm, .gradle, .pub-cache, .composer).
+// Sie herauszulassen spart Speicher und Scan-Zeit und kostet einen erneuten
+// Download auf dem nächsten Host. Für einen Agenten, der immer auf demselben
+// Runner landet, ist das ein schlechter Tausch; für einen, der wandert, ein
+// guter. Das ist eine Entscheidung je Installation, und dafür gibt es die
+// Variable — eine Voreinstellung, die sie fällt, wäre eine Vermutung über
+// fremde Betriebsbedingungen.
+//
+// Der gemessene Anlass: ein Home mit 19,1 GB, darin __pycache__, .dartServer
+// und ein von Hand nachgebauter apt-Baum, bei jedem Weckruf durchgesehen und
+// nach jedem Lauf zurückgeschrieben (34 s prüfen, 140 s sichern).
+var DefaultHomeExcludes = []string{
+	"__pycache__",
+	".dartServer",
+	".cache/pip",
+	".cache/ms-playwright",
+	"*.pyc",
+	"*.tmp",
+	"aptroot/debs",
+	"aptroot/lists",
+	// Das Datenverzeichnis der Testdatenbank (siehe Dockerfile.sandbox.dev):
+	// Kratzarbeit per Definition. Es mitzusichern hieße, eine Sorte Ballast
+	// gegen eine andere zu tauschen.
+	".local/share/mariadb",
+}
+
+// homeExcludes liest die Einstellung: leer = die Voreinstellung, "none" = gar
+// keine (alles wird gesichert), sonst genau das, was dasteht.
+//
+// „none" braucht es, weil eine leere Variable jetzt nicht mehr „nichts
+// ausschließen" heißt — wer die alte Lage will, muss sie sagen können.
+func homeExcludes(v string) []string {
+	list := splitList(v)
+	if len(list) == 0 {
+		return DefaultHomeExcludes
+	}
+	if len(list) == 1 && strings.EqualFold(strings.TrimSpace(list[0]), "none") {
+		return nil
+	}
+	return list
 }

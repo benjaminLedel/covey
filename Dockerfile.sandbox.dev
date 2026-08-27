@@ -54,6 +54,24 @@ RUN curl -fsSL https://packages.sury.org/php/apt.gpg -o /usr/share/keyrings/sury
     && rm -f /etc/apt/sources.list.d/sury-php.list \
     && rm -rf /var/lib/apt/lists/*
 
+# Ein Datenbankserver für Testläufe. Das Image brachte die PHP-Erweiterungen für
+# MySQL und Postgres mit und keinen Server dazu — eine Laravel-Suite, deren CI
+# gegen MariaDB läuft, hatte also nichts, wogegen sie laufen konnte. Ein Agent
+# hat sich daraufhin MariaDB als Tarball ins Home entpackt: 1,4 GB, 21.951
+# Dateien, bei jedem Weckruf durchgesehen und nach jedem Lauf zurückgeschrieben.
+# ~150 MB hier ersetzen das, für alle.
+#
+# Dieselbe Begründung wie bei pcov eine Ebene höher: Was fehlt, hält der Agent
+# für eine kaputte Suite und fängt an, die Testumgebung zu reparieren, die nie
+# kaputt war.
+#
+# Ohne systemd und ohne root gestartet: mariadbd läuft als der Agent, mit einem
+# Datenverzeichnis in seinem Home. Der Arbeitsplatz sagt ihm das (workplaces/
+# dev.json) — sonst sucht er den Dienst, den es hier nicht gibt.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        mariadb-server mariadb-client \
+    && rm -rf /var/lib/apt/lists/* /var/lib/mysql
+
 # JDK für Kotlin/Java-Projekte. Bewusst nur EINE Version: `gradlew` braucht nur
 # eine JVM zum Starten und lädt sein Gradle selbst; ein Projekt, das ein anderes
 # JDK verlangt, holt es sich über Gradles Toolchain-Provisioning oder SDKMAN ins

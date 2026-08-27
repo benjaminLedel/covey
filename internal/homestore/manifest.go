@@ -97,18 +97,52 @@ func (m Manifest) BlockSet() map[string]bool {
 
 // Excludes decides what is left out of the sync. The role of this list is the
 // point: before, its completeness was a prerequisite for correctness and a
-// forgotten path meant data loss. Now it is a cost question — the default is
-// empty, and without configuration everything is synced (spec/16).
+// forgotten path meant data loss. Now it is a cost question (spec/16) — which
+// is why a considered default is worth having (config.DefaultHomeExcludes).
+//
+// Three kinds of pattern, because the paths worth leaving out come in three
+// shapes:
+//
+//	repos/scratch    a path from the root of the home, with everything under it
+//	__pycache__      a NAME, wherever it sits — scrap does not grow at the top
+//	*.pyc            a glob on the file name, at any depth
+//
+// Only the first kind existed, and it was the one that fit the fewest cases:
+// __pycache__ lies deep inside a project, never beside it.
 type Excludes []string
 
 func (e Excludes) skip(rel string) bool {
+	if len(e) == 0 {
+		return false
+	}
+	base := filepath.Base(rel)
+	segmente := strings.Split(filepath.ToSlash(rel), "/")
 	for _, pattern := range e {
-		pattern = strings.Trim(pattern, "/")
+		pattern = strings.Trim(strings.TrimSpace(pattern), "/")
 		if pattern == "" {
 			continue
 		}
-		if rel == pattern || strings.HasPrefix(rel, pattern+"/") {
-			return true
+		switch {
+		case strings.ContainsAny(pattern, "*?["):
+			// Ein Muster auf dem Dateinamen, in jeder Tiefe. Ein kaputtes
+			// Muster (filepath.Match meldet einen Fehler) schließt nichts aus:
+			// im Zweifel sichern.
+			if ok, err := filepath.Match(pattern, base); err == nil && ok {
+				return true
+			}
+		case strings.Contains(pattern, "/"):
+			// Ein Pfad ab der Wurzel des Homes, mit allem darunter.
+			if rel == pattern || strings.HasPrefix(rel, pattern+"/") {
+				return true
+			}
+		default:
+			// Ein Name, wo immer er steht — und alles darunter, weil ein
+			// ausgeschlossenes Verzeichnis seinen Inhalt mitnimmt.
+			for _, seg := range segmente {
+				if seg == pattern {
+					return true
+				}
+			}
 		}
 	}
 	return false

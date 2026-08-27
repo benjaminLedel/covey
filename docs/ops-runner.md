@@ -412,9 +412,24 @@ switch cost time instead of work.
 
 - `COVEY_HOME_STORE=false` turns it off. Then homes stay directories on the
   runner: no snapshots, no rollback, and unrecoverable when lost.
-- `COVEY_HOME_EXCLUDES=".dartServer,…"` leaves paths out. The default is empty
-  on purpose — the list is a cost question, not a prerequisite for
-  correctness. Only demonstrably derivable paths belong in it.
+- `COVEY_HOME_EXCLUDES=".dartServer,…"` leaves paths out, and it now has a
+  considered default instead of an empty one: the scrap class — `__pycache__`,
+  `.dartServer`, `*.pyc`, `*.tmp`, the pip and Playwright caches, an agent's
+  hand-built apt tree. Nothing but the tool reading them recreates those, so
+  leaving them out costs nothing. Three kinds of pattern are understood: a path
+  from the home root (`repos/scratch`), a NAME at any depth (`__pycache__`), and
+  a glob on the file name (`*.pyc`).
+
+  Package caches (`.npm`, `.gradle`, `.pub-cache`) are deliberately NOT in the
+  default. Leaving them out saves store and scan time and costs a re-download on
+  the next host — a good trade for an agent that moves between runners, a bad
+  one for an agent that always lands on the same. That decision is yours;
+  setting the variable replaces the default entirely, and `COVEY_HOME_EXCLUDES=none`
+  switches it off (everything is synced, as before).
+- `COVEY_HOME_TIDY_ABOVE_GB=5` is the size above which the platform asks an
+  agent to tidy its own home — a backlog task with the figures in it, not a
+  sweep. What is scratch and what is memory is known only by the agent that
+  created it. `0` switches it off.
 - The blocks live under `<COVEY_DATA_DIR>/blocks`. **This directory needs
   backup like the database.** 99 % of it would only have to be downloaded
   again; the rest exists nowhere else. It is a cache in its function, not in
