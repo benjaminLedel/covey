@@ -142,30 +142,69 @@ func TestEinHostMitOffenerFrageGiltNichtAlsLeerlaufend(t *testing.T) {
 	// … und der Host meldet dabei null Sandboxen. Genau die Lage aus #96.
 	ctx := context.Background()
 	warteAufTyp(t, nodeEnd, TypeSyncHome)
-	// Ohne t.Fatalf: aus einer Nebenläufigkeit heraus ist das nicht erlaubt,
-	// und ausbleiben kann die Antwort ohnehin nur so, dass refreshCapacity
-	// unten in seine eigene Frist läuft.
-	go func() {
-		for {
-			msg, err := nodeEnd.Receive(ctx)
-			if err != nil {
-				return
-			}
-			if msg.Type != TypeCapacity {
-				continue
-			}
-			antwort, err := encode(TypeCapacity, msg.ID, CapacityReport{Sandboxes: 0, FreeBytes: 1 << 30})
-			if err != nil {
-				return
-			}
-			_ = nodeEnd.Send(ctx, antwort)
-			return
-		}
-	}()
+	go antworteAufKapazitaet(nodeEnd, CapacityReport{Sandboxes: 0, FreeBytes: 1 << 30})
 	c.refreshCapacity(ctx)
 
 	if gefragt != 0 {
 		t.Fatalf("das eingeplante Update fragte %d mal nach, obwohl eine Frage offen war", gefragt)
+	}
+}
+
+// Die Gegenprobe, und sie ist die wichtigere Hälfte: ein Wächter, der nie
+// durchlässt, hat den Fehler nicht behoben, sondern die Funktion abgeschaltet.
+// Ein Host, der nichts trägt und auf nichts antworten muss, ist leerlaufend —
+// und dann läuft das eingeplante Update auch.
+func TestEinWirklichLeerlaufenderHostBekommtSeinUpdate(t *testing.T) {
+	p := NewPool(quietLog())
+	orgID := uuid.New()
+	gefragt := make(chan struct{}, 1)
+	p.PlannedUpdate = func(ctx context.Context, runnerID uuid.UUID) (string, error) {
+		select {
+		case gefragt <- struct{}{}:
+		default:
+		}
+		return "", nil // kein Plan hinterlegt — gefragt wurde trotzdem
+	}
+	nodeEnd, runnerID, _ := registriereFalschenRunner(t, p, orgID)
+	p.mu.Lock()
+	c := p.conns[runnerID]
+	p.mu.Unlock()
+
+	ctx := context.Background()
+	// Durchgehend antworten, nicht einmal: der Pool fragt von sich aus nach
+	// Kapazität, und wer nur die erste Frage beantwortet, beantwortet unter
+	// Umständen die falsche — die des Wächters, nicht die des Tests.
+	go antworteAufKapazitaet(nodeEnd, CapacityReport{Sandboxes: 0, FreeBytes: 1 << 30})
+	c.refreshCapacity(ctx)
+
+	select {
+	case <-gefragt:
+	case <-time.After(2 * time.Second):
+		t.Fatal("der leerlaufende Host wurde nie nach seinem Plan gefragt")
+	}
+}
+
+// antworteAufKapazitaet spielt den Host, der jede Kapazitätsfrage beantwortet,
+// bis die Verbindung endet. Ohne t.Fatalf: aus einer Nebenläufigkeit heraus ist
+// das nicht erlaubt, und ausbleiben kann eine Antwort ohnehin nur so, dass der
+// Wartende in seine eigene Frist läuft.
+func antworteAufKapazitaet(end Transport, bericht CapacityReport) {
+	ctx := context.Background()
+	for {
+		msg, err := end.Receive(ctx)
+		if err != nil {
+			return
+		}
+		if msg.Type != TypeCapacity {
+			continue
+		}
+		antwort, err := encode(TypeCapacity, msg.ID, bericht)
+		if err != nil {
+			return
+		}
+		if err := end.Send(ctx, antwort); err != nil {
+			return
+		}
 	}
 }
 
