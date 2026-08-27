@@ -1653,3 +1653,89 @@ func TestDerZweiteWeckrufAufDemselbenHostHoltNichts(t *testing.T) {
 		t.Errorf("die große Datei fehlt oder ist unvollständig (%d Bytes, %v)", len(raw), err)
 	}
 }
+
+// Die Kette, die einer Produktivinstanz einen Vormittag gekostet hat: Der Sync
+// eines großen Homes kam nicht durch, der jüngste Schnappschuss war Stunden
+// alt, und jeder Weckruf materialisierte ihn — samt Löschen dessen, was er
+// nicht kannte. Darunter die Sitzungstranskripte der Läufe seither, die Claude
+// Code im Home ablegt. Die Fortsetzung eines am Turn-Limit abgebrochenen Laufs
+// wollte genau diese Sitzung fortsetzen und fand nichts:
+// "No conversation found with session ID …". Zweimal an einem Vormittag,
+// jedesmal ein ganzer teurer Lauf umsonst.
+func TestEinWeckrufLoeschtNichtDieSitzungDesLetztenLaufs(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("das Docker-Double ist ein Shell-Skript")
+	}
+	dir := t.TempDir()
+	orgID, agentID, runnerID := uuid.New(), uuid.New(), uuid.New()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	blobs, err := homestore.NewDir(filepath.Join(dir, "blocks"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	docker := &Docker{RunnerID: runnerID, Image: "covey-sandbox:test", DataDir: dir,
+		DockerBin: fakeDockerBin(t, dir, "nothing")}
+	node := NewNode(runnerID, orgID, docker, quietLog())
+	node.Blobs = blobs
+	t.Cleanup(node.Close)
+
+	p := NewPool(quietLog())
+	p.Profiles = map[string]string{"base": "covey-sandbox:test"}
+	p.StartTimeout = 10 * time.Second
+	var snapshot string
+	p.SnapshotTaken = func(_ context.Context, _, _ uuid.UUID, res HomeSynced) error {
+		snapshot = res.ManifestHash
+		return nil
+	}
+	p.LatestSnapshot = func(context.Context, uuid.UUID) (string, error) { return snapshot, nil }
+	if err := p.AttachLocal(ctx, node); err != nil {
+		t.Fatalf("built-in runner: %v", err)
+	}
+	spec := orchestrator.SandboxSpec{AgentID: agentID, OrgID: orgID,
+		Env: map[string]string{"COVEY_DAEMON_TOKEN": "tok"}}
+
+	// Erster Lauf: der Agent hat etwas im Home, und der Sync kommt durch.
+	sb, err := p.Start(ctx, spec)
+	if err != nil {
+		t.Fatalf("erster Start: %v", err)
+	}
+	home, _, _ := docker.AgentHome(agentID)
+	if err := os.MkdirAll(home, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, "SOUL.md"), []byte("# Agent"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := sb.(orchestrator.HomeSyncer).SyncHome(ctx); err != nil {
+		t.Fatalf("SyncHome: %v", err)
+	}
+	_ = sb.(orchestrator.Discardable).Discard(ctx)
+
+	// Zweiter Lauf: er arbeitet, legt seine Sitzung ab — und sein Sync kommt
+	// NICHT durch (auf der Instanz: Zeitüberschreitung bei 150.000 Dateien).
+	if _, err := p.Start(ctx, spec); err != nil {
+		t.Fatalf("zweiter Start: %v", err)
+	}
+	sitzung := filepath.Join(home, ".claude/projects/covey/sitzung-e4090cda.jsonl")
+	if err := os.MkdirAll(filepath.Dir(sitzung), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(sitzung, []byte(`{"turn":101}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Dritter Weckruf — mit dem alten Schnappschuss, denn ein neuerer existiert
+	// nicht. Die Sitzung muss ihn überleben, sonst scheitert die Fortsetzung.
+	if _, err := p.Start(ctx, spec); err != nil {
+		t.Fatalf("dritter Start: %v", err)
+	}
+	if _, err := os.Stat(sitzung); err != nil {
+		t.Fatal("das Sitzungstranskript wurde gelöscht — die Fortsetzung findet nichts mehr")
+	}
+	// Und was der Schnappschuss beschreibt, steht weiterhin da.
+	if _, err := os.Stat(filepath.Join(home, "SOUL.md")); err != nil {
+		t.Errorf("der Schnappschuss wurde nicht materialisiert: %v", err)
+	}
+}

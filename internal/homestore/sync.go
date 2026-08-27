@@ -208,6 +208,24 @@ type MaterializeResult struct {
 // the home the snapshot describes, and the difference would show up as a
 // mystery in the agent's next run.
 func Materialize(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root string, m Manifest) (MaterializeResult, error) {
+	return MaterializeInto(ctx, blobs, orgID, root, m, true)
+}
+
+// MaterializeInto is Materialize with the one decision made explicit: may it
+// REMOVE what the snapshot does not describe?
+//
+// Removing is right when the working copy is supposed to be that snapshot and
+// nothing else — an explicit restore, or a copy that was last synced to exactly
+// this state. It is ruinous when the snapshot is older than the copy: on a
+// production instance a home whose sync had been failing for hours was
+// materialised from a stale snapshot at every wake, and every wake deleted the
+// session transcripts of the runs since. The continuations that wanted to
+// resume those sessions then failed with "no conversation found" — the platform
+// had erased the memory of its own unfinished work and blamed the runtime.
+//
+// So the caller decides, and the caller that cannot be sure says no: keeping a
+// file too many costs disk, deleting one costs work nobody can get back.
+func MaterializeInto(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root string, m Manifest, prune bool) (MaterializeResult, error) {
 	var res MaterializeResult
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		return res, err
@@ -262,18 +280,16 @@ func Materialize(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root str
 		}
 	}
 
-	removed, err := removeUnknown(root, wanted)
-	if err != nil {
-		return res, err
+	if prune {
+		removed, err := removeUnknown(root, wanted)
+		if err != nil {
+			return res, err
+		}
+		res.Removed = removed
 	}
-	res.Removed = removed
 	return res, nil
 }
 
-// unchanged answers whether the file on disk is already the one the snapshot
-// describes. Size plus the hash of the content — not the mtime: a materialised
-// file gets a fresh one, and comparing it would make every restore rewrite
-// everything.
 // unchanged: is the file on disk already the one the snapshot describes?
 //
 // It reads the file to answer that, LARGE FILES INCLUDED, and the earlier
@@ -488,4 +504,49 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// Woher eine Arbeitskopie weiß, ob sie noch der Schnappschuss ist, für den sie
+// sich hält: neben ihr liegt eine Marke mit dem Manifest-Hash des letzten
+// erfolgreichen Syncs. NEBEN ihr, nicht darin — im Home wäre sie Teil jedes
+// Schnappschusses und änderte ihn bei jedem Sync.
+//
+// Entscheidend ist, WANN sie verschwindet: sobald eine Sandbox startet. Ab dann
+// kann in der Kopie alles Mögliche entstehen, und niemand weiß mehr, ob sie
+// noch dem Schnappschuss entspricht. Erst ein gelungener Sync setzt sie wieder.
+//
+// Genau daran hing der Fall, der eine Produktivinstanz Tagesarbeit gekostet
+// hat: dort stand die Kopie formal auf demselben Schnappschuss wie der Store —
+// der letzte erfolgreiche Sync lag Stunden zurück —, und trotzdem trug sie die
+// Sitzungstranskripte dreier Läufe, deren Syncs nicht durchkamen. Die Frage
+// „steht sie auf diesem Stand?" hätte mit Ja geantwortet und die Transkripte
+// gelöscht. Die richtige Frage ist „hat seither jemand darin gearbeitet?".
+func stateFile(root string) string { return strings.TrimRight(root, "/\\") + ".snapshot" }
+
+// MarkSynced hält fest, dass diese Arbeitskopie GENAU dieser Schnappschuss ist.
+// Nur nach einem gelungenen Sync (oder einem ausdrücklichen Restore) wahr.
+func MarkSynced(root, manifestHash string) {
+	if root == "" || manifestHash == "" {
+		return
+	}
+	_ = os.WriteFile(stateFile(root), []byte(manifestHash), 0o600)
+}
+
+// MarkInUse nimmt die Marke zurück: eine Sandbox startet, ab jetzt gilt die
+// Kopie als verändert, bis das Gegenteil bewiesen ist.
+func MarkInUse(root string) {
+	if root == "" {
+		return
+	}
+	_ = os.Remove(stateFile(root))
+}
+
+// SyncedHash liest die Marke. Leer = die Kopie ist seit dem letzten Sync
+// benutzt worden, oder es gab nie einen — beides heißt: nichts löschen.
+func SyncedHash(root string) string {
+	b, err := os.ReadFile(stateFile(root))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
 }

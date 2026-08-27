@@ -354,6 +354,9 @@ func (n *Node) sync(ctx context.Context, t Transport, id string, req SyncHome) {
 		n.reply(ctx, t, id, TypeHomeSynced, HomeSynced{AgentID: req.AgentID, Err: err.Error()})
 		return
 	}
+	// Ab hier steht die Arbeitskopie auf diesem Schnappschuss — das ist die
+	// Auskunft, die der nächste Weckruf braucht, um räumen zu dürfen.
+	homestore.MarkSynced(home, res.ManifestHash)
 	n.Log.Info("home synced", "agent", req.AgentID, "blocks", res.Blocks,
 		"bytes_up", res.BytesUp, "total", res.TotalSize, "ms", time.Since(began).Milliseconds())
 	n.reply(ctx, t, id, TypeHomeSynced, HomeSynced{
@@ -402,9 +405,27 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 		began := time.Now()
 		m, err := homestore.Load(ctx, n.Blobs, spec.OrgID, spec.Snapshot)
 		if err == nil {
+			// Räumen darf nur, wer weiß, dass diese Kopie unverändert der
+			// Schnappschuss ist — also seit dem letzten gelungenen Sync keine
+			// Sandbox darin gearbeitet hat. Sonst trägt sie Arbeit, die der
+			// Schnappschuss nicht kennt, und die zu löschen hieße, das
+			// Gedächtnis eines unfertigen Laufs wegzuwerfen: die
+			// Sitzungstranskripte liegen im Home, und die Fortsetzung eines am
+			// Turn-Limit abgebrochenen Laufs will genau sie fortsetzen.
+			// Eine Datei zu viel kostet Platz, eine gelöschte kostet Arbeit,
+			// die niemand zurückholt.
+			stand := homestore.SyncedHash(home)
+			raeumen := stand != "" && stand == spec.Snapshot
 			var res homestore.MaterializeResult
-			res, err = homestore.Materialize(ctx, n.Blobs, spec.OrgID, home, m)
+			res, err = homestore.MaterializeInto(ctx, n.Blobs, spec.OrgID, home, m, raeumen)
 			if err == nil {
+				if !raeumen {
+					n.Log.Warn("working copy carries work this snapshot does not know — keeping it",
+						"agent", spec.AgentID, "snapshot", short8(spec.Snapshot), "working_copy", short8(stand))
+				}
+				// Ab hier läuft gleich eine Sandbox darin: die Kopie gilt als
+				// verändert, bis ein Sync das Gegenteil festhält.
+				homestore.MarkInUse(home)
 				n.Log.Info("home materialised", "agent", spec.AgentID,
 					"bytes_in", res.BytesIn, "ms", time.Since(began).Milliseconds())
 				n.say(ctx, t, Progress{
@@ -604,4 +625,15 @@ func (n *Node) capacity() CapacityReport {
 	total, free := diskSpace(work)
 	return CapacityReport{Sandboxes: running, MaxSandboxes: n.MaxSandboxes,
 		TotalBytes: total, FreeBytes: free, WorkDir: work}
+}
+
+// short8 kürzt einen Hash auf das, was in eine Logzeile gehört.
+func short8(h string) string {
+	if len(h) > 8 {
+		return h[:8]
+	}
+	if h == "" {
+		return "(unbekannt)"
+	}
+	return h
 }
