@@ -297,8 +297,29 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 
 	orchCtx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
+
+	// Abbrechen UND abwarten. Die Reihenfolge der Eintragung ist hier die
+	// umgekehrte der Ausführung: t.Cleanup läuft zuletzt-zuerst, also wird das
+	// Warten ZUERST eingetragen, damit es NACH dem cancel läuft — und vor dem
+	// Löschen des Verzeichnisses, das t.TempDir() weiter oben eingetragen hat
+	// (das läuft als allerletztes).
+	//
+	// Ohne das Warten löschte der Test sein Home-Verzeichnis, während eine
+	// Sitzung noch hineinschrieb: "TempDir RemoveAll cleanup: directory not
+	// empty", bei einem Test, dessen eigene Prüfungen alle gehalten hatten.
+	orchFertig := make(chan struct{})
+	t.Cleanup(func() {
+		select {
+		case <-orchFertig:
+		case <-time.After(45 * time.Second):
+			t.Error("der Orchestrator hört nicht auf — irgendetwas läuft nach dem Abbruch weiter")
+		}
+	})
 	t.Cleanup(cancel)
-	go s.orch.Run(orchCtx)
+	go func() {
+		defer close(orchFertig)
+		_ = s.orch.Run(orchCtx)
+	}()
 	go s.reqlog.Run(orchCtx)
 
 	// Organization + admin.
