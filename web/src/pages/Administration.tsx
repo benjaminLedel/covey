@@ -7,6 +7,7 @@ import Diagnostics from "./Diagnostics";
 import { CompanyDescription, PlatformRepo, RecordingSettings } from "./Org";
 import { ProfileFieldsSettings } from "./Organizations";
 import Users from "./Users";
+import { fmtUSD } from "../format";
 
 // Das Administrations-Panel: DIESE Organisation, nicht die Installation.
 //
@@ -158,7 +159,7 @@ function Usage() {
         </div>
         <div className="card stat">
           <div className="v">
-            {cost.data ? `$${cost.data.total_usd.toFixed(2)}` : "–"}
+            {cost.data ? fmtUSD(cost.data.total_usd) : "–"}
           </div>
           <div className="l">{t("administration.cost30d")}</div>
         </div>

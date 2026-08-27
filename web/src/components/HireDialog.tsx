@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, hireAgent, type Agent, type AgentSystem, type OrgChart } from "../api";
 import { Modal } from "./Modal";
+import { fmtUSD } from "../format";
 
 /* Einstellen — der eine Weg aus dem Entwurf.
  *
@@ -72,7 +73,7 @@ export function HireDialog({
         <Row label={t("hire.department")} value={dept?.name ?? "—"} />
         <Row
           label={t("hire.budget")}
-          value={agent.budget_usd > 0 ? `${agent.budget_usd.toFixed(2)} $` : t("hire.noBudget")}
+          value={agent.budget_usd > 0 ? fmtUSD(agent.budget_usd) : t("hire.noBudget")}
         />
       </dl>
 

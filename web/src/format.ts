@@ -1,6 +1,9 @@
-// Kleine Formatierer, die sich mehrere Ansichten teilen. Bewusst ohne i18n:
-// Die Einheiten (s/min/h/d) sind in beiden Sprachen dieselben, den Satz drumherum
-// bauen die Aufrufer über ihre eigenen Übersetzungsschlüssel.
+// Kleine Formatierer, die sich mehrere Ansichten teilen. Weitgehend ohne i18n:
+// Die Einheiten (s/min/h/d, k/M) sind in beiden Sprachen dieselben, den Satz
+// drumherum bauen die Aufrufer über ihre eigenen Übersetzungsschlüssel. Die
+// eine Ausnahme steht bei milliarde() und begründet sich dort.
+
+import i18n from "./i18n";
 
 // fmtBytes bringt eine Dateigröße auf die gröbste Einheit, die sie noch
 // beschreibt — „812 B", „14,2 kB", „3,1 MB". Genutzt vom Dateibrowser des
@@ -44,7 +47,19 @@ export function fmtCount(n: number): string {
   const v = Math.round(n);
   if (v < 10_000) return group(v);
   if (v < 1_000_000) return `${trim(v / 1000)} k`;
-  return `${trim(v / 1_000_000)} M`;
+  if (v < 1_000_000_000) return `${trim(v / 1_000_000)} M`;
+  return `${trim(v / 1_000_000_000)} ${milliarde()}`;
+}
+
+// milliarde: das eine Zeichen dieser Datei, das die Sprache kennen muss.
+//
+// k und M heißen in beiden Sprachen gleich — die Milliarde nicht: „Mrd" gegen
+// „B", und ein deutsches „2,5 B" läse sich als Byte. Deshalb hier die Ausnahme
+// von der Regel oben, und nur hier. Ohne diese Stufe stünde über einem Agenten
+// mit gewachsenem Cache „2500 M", und das zählt man wieder ziffernweise nach —
+// genau das, wogegen fmtCount angetreten ist.
+function milliarde(): string {
+  return i18n.language?.startsWith("de") ? "Mrd" : "B";
 }
 
 // exact ist die Langfassung für den Tooltip neben einer gekürzten Zahl.

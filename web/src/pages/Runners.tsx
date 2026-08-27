@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { api, patch, post, type Principal } from "../api";
+import { fmtBytes } from "../format";
 
 // Die Runner-Ansicht (spec/16, Stufe 5). Ab dem dritten Runner ist sie das,
 // was den Betrieb bedienbar macht: welche Hosts es gibt, welcher gerade traegt,
@@ -66,17 +67,7 @@ type CleanupView = {
   preview: boolean;
 };
 
-export function formatBytes(n: number): string {
-  if (!n) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let i = 0;
-  let v = n;
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024;
-    i++;
-  }
-  return `${v.toFixed(v >= 100 || i === 0 ? 0 : 1)} ${units[i]}`;
-}
+
 
 /* embedded: siehe Runtimes — der Reiter trägt die Überschrift. */
 export default function Runners({ me, embedded = false }: { me: Principal; embedded?: boolean }) {
@@ -347,7 +338,7 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
           <p className="muted text-xs">{t("runners.storeHint")}</p>
           <div className="text-sm" style={{ marginTop: 4 }}>
             {t("runners.storeSize", {
-              size: formatBytes(store.data.bytes),
+              size: fmtBytes(store.data.bytes),
               agents: store.data.agents,
             })}
           </div>
@@ -364,10 +355,10 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
                   behaupten, die es nicht gibt. */}
               {store.data.logical_bytes / store.data.bytes >= 1.1
                 ? t("runners.storeDedup", {
-                    logical: formatBytes(store.data.logical_bytes),
+                    logical: fmtBytes(store.data.logical_bytes),
                     factor: (store.data.logical_bytes / store.data.bytes).toFixed(1),
                   })
-                : t("runners.storeNoDedupYet", { logical: formatBytes(store.data.logical_bytes) })}
+                : t("runners.storeNoDedupYet", { logical: fmtBytes(store.data.logical_bytes) })}
             </div>
           )}
 
@@ -397,11 +388,11 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
               {cleanup.preview
                 ? t("runners.cleanupPreview", {
                     blocks: cleanup.blocks_removed,
-                    freed: formatBytes(cleanup.freed_bytes),
+                    freed: fmtBytes(cleanup.freed_bytes),
                   })
                 : t("runners.cleanupDone", {
                     blocks: cleanup.blocks_removed,
-                    freed: formatBytes(cleanup.freed_bytes),
+                    freed: fmtBytes(cleanup.freed_bytes),
                   })}
             </p>
           )}
@@ -476,7 +467,7 @@ function DiskBar({ free, total }: { free: number; total: number }) {
           }}
         />
       </div>
-      <div className="muted text-xs">{t("runners.free", { size: formatBytes(free) })}</div>
+      <div className="muted text-xs">{t("runners.free", { size: fmtBytes(free) })}</div>
     </div>
   );
 }

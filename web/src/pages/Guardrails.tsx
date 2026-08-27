@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { fmtUSD } from "../format";
 import {
   api,
   del,
@@ -89,7 +90,7 @@ export default function Guardrails({ me }: { me: Principal }) {
           </span>
           <span className="mono text-sm flex-1" style={r.enabled ? undefined : { opacity: 0.45 }}>
             {r.rule_type === "budget_limit" && r.params?.usd
-              ? `≤ ${r.params.usd.toFixed(2)} USD`
+              ? `≤ ${fmtUSD(r.params.usd)}`
               : r.pattern}
           </span>
           <span className="muted text-xs" title={r.agent_id ? agentName(r.agent_id) : undefined}>

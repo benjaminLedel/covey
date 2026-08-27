@@ -8,7 +8,8 @@ import {
   type RecordingEvent,
 } from "../../api";
 import { ActivityFeed, subAgentMark } from "../../components/ActivityFeed";
-import { formatBytes } from "../Runners";
+import { fmtBytes, fmtUSD } from "../../format";
+
 
 export function Recording({
   agentId,
@@ -112,7 +113,7 @@ function summarize(e: RecordingEvent): { text: string; mono?: boolean; muted?: b
       // zehn Minuten Bild-Download und zehn Minuten Haenger dasselbe Bild:
       // „triggered" und sonst nichts.
       if (p.status === "preparing") {
-        const size = p.bytes ? ` · ${formatBytes(Number(p.bytes))}` : "";
+        const size = p.bytes ? ` · ${fmtBytes(Number(p.bytes))}` : "";
         const took = p.ms ? ` · ${Math.round(Number(p.ms) / 1000)}s` : "";
         return {
           text: i18n.t(`activity.phase.${p.phase as string}`, { detail: p.detail ?? "" }) + size + took,
@@ -199,7 +200,7 @@ function summarizeRuntime(p: Record<string, any>): { text: string; mono?: boolea
       return { text: i18n.t("activity.runtimeInput"), muted: true };
     }
     case "result": {
-      const cost = p.total_cost_usd ? ` · $${Number(p.total_cost_usd).toFixed(4)}` : "";
+      const cost = p.total_cost_usd ? ` · ${fmtUSD(Number(p.total_cost_usd))}` : "";
       const tok = p.usage?.input_tokens ? ` · ${p.usage.input_tokens}→${p.usage.output_tokens} Tokens` : "";
       if (p.is_error) return { text: i18n.t("activity.runFailedText", { text: truncate(p.result ?? "", 300) }), danger: true };
       return { text: i18n.t("activity.runResultText", { text: truncate(p.result ?? "", 400), cost, tokens: tok }) };
