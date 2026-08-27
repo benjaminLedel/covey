@@ -184,3 +184,18 @@ describe("Phasen der Plattform", () => {
     expect(phasenAnteil(ohne)).toBeUndefined();
   });
 });
+
+/* Wenn die Plattform einen Zustand auflöst, hinter dem nichts mehr steht (#83),
+   muss das im Verlauf stehen. Sonst schläft der Agent „einfach so", und die
+   Stunde davor, in der er auf „arbeitet" stand, bleibt unerklärt. */
+describe("aufgelöste Zustände", () => {
+  it("nennt den Zustand, der aufgelöst wurde", () => {
+    const items = buildFeed([ev({ status: "stale", was: "working" }, "lifecycle")]);
+    const gate = items.find((i) => i.kind === "gate") as { text: string; tone: string } | undefined;
+    // Die übrigen Prüfungen dieser Datei lesen die englischen Texte; hier
+    // ebenso, statt für eine Zeile die Sprache umzustellen.
+    expect(gate?.text).toContain("reconciled");
+    expect(gate?.text).toContain("working");
+    expect(gate?.tone).toBe("warn");
+  });
+});

@@ -137,3 +137,27 @@ func (o *Orchestrator) AgentFiles(agentID uuid.UUID) (sandboxfs.Tree, error) {
 	}
 	return fa.AgentFiles(agentID)
 }
+
+// StrayStopper is the optional half of a SandboxProvider that can stop a
+// sandbox the control plane has lost the handle to.
+//
+// It exists for the state reconcileStuck cleans up after: an agent whose
+// session is gone — because the run hung and was given up on, or because the
+// control plane restarted and its sessions live in memory — while the host
+// still carries the container. Nothing in the ordinary path reaches that
+// container any more: Stop hangs off the Sandbox handle, and that handle went
+// with the session.
+//
+// A stray container blocks less than it seems (a start removes a leftover of
+// the same name first) and costs more than it seems: it holds memory and disk
+// on the host, and it makes the runner refuse its own update, because a host
+// carrying sandboxes must not replace the binary that watches them.
+//
+// Optional, because a provider without hosts has no strays — the mock in the
+// tests has none.
+type StrayStopper interface {
+	// StopStray stops whatever this agent left behind on its host, and says
+	// nothing when there is nothing: "already gone" is the normal case and not
+	// a failure.
+	StopStray(ctx context.Context, agentID, orgID uuid.UUID) error
+}
