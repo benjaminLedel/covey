@@ -260,3 +260,46 @@ func TestSandboxWithoutStoreIsNoError(t *testing.T) {
 	sandbox := &fakeSandbox{}
 	o.syncParkedHome(id, sandbox, o.parkWarm(id, newFakeLink(), sandbox))
 }
+
+// discardingSandbox kann beides und schreibt mit, was verlangt wurde.
+type discardingSandbox struct {
+	syncingSandbox
+	discards atomic.Int32
+}
+
+func (d *discardingSandbox) Discard(context.Context) error {
+	d.discards.Add(1)
+	d.stopped.Store(true)
+	return nil
+}
+
+// Ein Start, der nie ein Lauf wurde — Container sofort tot, oder der Daemon
+// meldet sich nie —, darf sein Home nicht zurückschreiben. Es ist Byte für Byte
+// das, was Minuten zuvor hineinmaterialisiert wurde; der Sync ist ein voller
+// Scan für ein identisches Ergebnis. Auf einer Produktivinstanz gemessen: elf
+// Minuten Home hinein, Container unter einer Sekunde tot, dann eine halbe
+// Stunde Scannen, bevor das Scheitern überhaupt aufgezeichnet war.
+func TestEinToterStartSchreibtDasHomeNichtZurueck(t *testing.T) {
+	sandbox := &discardingSandbox{}
+	discard(context.Background(), sandbox)
+
+	if got := sandbox.discards.Load(); got != 1 {
+		t.Errorf("erwartet ein Discard, bekommen %d", got)
+	}
+	if got := sandbox.syncs.Load(); got != 0 {
+		t.Errorf("das Home wurde trotzdem synchronisiert (%d)", got)
+	}
+	if !sandbox.stopped.Load() {
+		t.Error("die Rechenleistung muss trotzdem runter")
+	}
+}
+
+// Ein Provider, der den Unterschied nicht kennt, bekommt den gewöhnlichen
+// Stopp — verloren ist dann nur die Zeit, nicht die Arbeit.
+func TestOhneDiscardBleibtEsBeimStopp(t *testing.T) {
+	sandbox := &fakeSandbox{}
+	discard(context.Background(), sandbox)
+	if !sandbox.stopped.Load() {
+		t.Error("ohne Discard muss Stop greifen")
+	}
+}

@@ -1115,7 +1115,7 @@ func (o *Orchestrator) wake(ctx context.Context, agent agents.Agent) (DaemonLink
 		msg, err := link.Receive(readyCtx)
 		if err != nil || msg.Type != daemon.TypeReady {
 			link.Close()
-			sandbox.Stop(context.WithoutCancel(ctx))
+			discard(context.WithoutCancel(ctx), sandbox)
 			return nil, nil, fmt.Errorf("daemon not ready: %v (%s)", err, msg.Type)
 		}
 		return link, sandbox, nil
@@ -1123,10 +1123,10 @@ func (o *Orchestrator) wake(ctx context.Context, agent agents.Agent) (DaemonLink
 		// The runner watched the container and says it is gone. Reported
 		// instead of waited out: the ReadyTimeout would give the same outcome
 		// minutes later and blame the daemon for it.
-		sandbox.Stop(context.WithoutCancel(ctx))
+		discard(context.WithoutCancel(ctx), sandbox)
 		return nil, nil, fmt.Errorf("the sandbox did not survive its start: %s", reason)
 	case <-time.After(o.ReadyTimeout):
-		sandbox.Stop(context.WithoutCancel(ctx))
+		discard(context.WithoutCancel(ctx), sandbox)
 		// The address belongs in the message: the most common reason for this
 		// timeout is that the sandbox cannot reach the control plane at exactly
 		// this URL — wrong COVEY_PUBLIC_URL, missing egress allowance, a proxy in
@@ -1250,6 +1250,22 @@ func (o *Orchestrator) syncParkedHome(agentID uuid.UUID, sandbox Sandbox, ws *wa
 			o.Log.Warn("home of the parked sandbox not synced", "agent", agentID, "err", err)
 		}
 	}()
+}
+
+// discard takes a sandbox down that never became a run — the container died at
+// its start, or the daemon never connected. Its home is what was materialised
+// into it minutes ago and nothing else, so writing it back would be a full scan
+// for a byte-identical result: on a grown home that is half an hour, and it
+// stands between the failure and the record of it.
+//
+// A provider that cannot tell the difference gets the ordinary stop; nothing is
+// lost then except the time.
+func discard(ctx context.Context, sandbox Sandbox) {
+	if d, ok := sandbox.(Discardable); ok {
+		d.Discard(ctx)
+		return
+	}
+	sandbox.Stop(ctx)
 }
 
 // stillParked: is this exact session still the parked one? A session that has
