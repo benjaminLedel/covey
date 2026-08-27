@@ -3,6 +3,7 @@ package homestore
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -71,6 +72,69 @@ func (h *HTTPStore) Has(ctx context.Context, _ uuid.UUID, hash string) (bool, er
 	default:
 		return false, fmt.Errorf("block %s: %s", short(hash), resp.Status)
 	}
+}
+
+// HasMany satisfies BulkAsker: one question for many blocks.
+//
+// This is the difference between a home that syncs and one that does not. Every
+// block of a home is asked about before it travels, and a grown home has six
+// figures of them — one HTTPS round trip each meant a 16.9 GB home never
+// finished inside the thirty minutes the control plane allows a sync. The
+// answer names only what the store already has; anything left out is missing,
+// which is the same information and a far smaller answer on a home the store
+// does not know yet.
+//
+// An older control plane does not have the route. Then this reports "no" for
+// nothing and lets the caller fall back to asking one by one — a slow sync is
+// better than a wrong one.
+func (h *HTTPStore) HasMany(ctx context.Context, orgID uuid.UUID, hashes []string) (map[string]bool, error) {
+	if len(hashes) == 0 {
+		return map[string]bool{}, nil
+	}
+	body, err := json.Marshal(map[string]any{"hashes": hashes})
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, h.base+"/api/runner/v1/blocks-have", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := h.do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusMethodNotAllowed {
+		// A control plane from before the bundled question. Ask singly.
+		return askOneByOne(ctx, h, orgID, hashes)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("blocks-have: %s", resp.Status)
+	}
+	var out struct {
+		Have []string `json:"have"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&out); err != nil {
+		return nil, err
+	}
+	have := make(map[string]bool, len(out.Have))
+	for _, hash := range out.Have {
+		have[hash] = true
+	}
+	return have, nil
+}
+
+func askOneByOne(ctx context.Context, blobs BlobStore, orgID uuid.UUID, hashes []string) (map[string]bool, error) {
+	out := make(map[string]bool, len(hashes))
+	for _, hash := range hashes {
+		has, err := blobs.Has(ctx, orgID, hash)
+		if err != nil {
+			return nil, err
+		}
+		out[hash] = has
+	}
+	return out, nil
 }
 
 func (h *HTTPStore) Put(ctx context.Context, _ uuid.UUID, hash string, r io.Reader) error {

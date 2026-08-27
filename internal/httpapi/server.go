@@ -602,6 +602,9 @@ func (s *Server) Handler() http.Handler {
 	for _, method := range []string{"HEAD", "GET", "PUT"} {
 		mux.Handle(method+" /api/runner/v1/blocks/{hash}", s.runnerAuth(s.handleRunnerBlock))
 	}
+	// The bundled question sits beside the single one, not under {hash}: it is
+	// about many blocks and belongs to no single hash.
+	mux.Handle("POST /api/runner/v1/blocks-have", s.runnerAuth(s.handleRunnerBlocksHave))
 
 	// This instance's installation script — deliberately without a login:
 	// whoever fetches it has nothing yet to log in with. It ships its own

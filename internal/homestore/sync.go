@@ -26,12 +26,66 @@ type SyncResult struct {
 	Excluded int
 }
 
+// askBatch/askBatchBytes bound one bundled question. 512 blocks turn six
+// figures of round trips into three, and the byte cap keeps the buffer honest
+// when the blocks are large — 32 MiB is what a runner may hold for this, not
+// what a home may contain.
+const (
+	askBatch      = 512
+	askBatchBytes = 32 << 20
+)
+
+// pendingBlock is a block waiting for its answer.
+type pendingBlock struct {
+	hash string
+	data []byte
+}
+
 // Sync writes a home into the store as a snapshot and returns the manifest
 // hash. Everything goes in; the question "what is valuable?" is never asked
 // (spec/16).
 func Sync(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root string, excludes Excludes) (SyncResult, error) {
 	var res SyncResult
 	seen := map[string]bool{}
+
+	// Gefragt wird gebündelt, hochgeladen einzeln. Der Grund ist der Weg: bei
+	// einem Store hinter dem Netz war "kennst du diesen Block?" bisher eine
+	// Anfrage pro Block, nacheinander — bei einem gewachsenen Home sechsstellig
+	// oft, bevor auch nur ein neues Byte hochging. Ein 16,9-GB-Home mit 150.000
+	// Dateien kam damit nicht mehr durch.
+	//
+	// Der Puffer hält die Blöcke, bis genug beisammen ist, um EINE Frage zu
+	// stellen. Begrenzt wird er nach Bytes und nicht nach Anzahl, weil beides
+	// vorkommt: hunderttausend winzige Dateien und ein paar große. Was schon im
+	// Store liegt, wird verworfen, ohne je die Leitung gesehen zu haben.
+	buf := make([]pendingBlock, 0, askBatch)
+	bufBytes := 0
+	flush := func() error {
+		if len(buf) == 0 {
+			return nil
+		}
+		hashes := make([]string, len(buf))
+		for i, b := range buf {
+			hashes[i] = b.hash
+		}
+		have, err := AskAll(ctx, blobs, orgID, hashes)
+		if err != nil {
+			return err
+		}
+		for _, b := range buf {
+			if have[b.hash] {
+				continue
+			}
+			if err := blobs.Put(ctx, orgID, b.hash, bytes.NewReader(b.data)); err != nil {
+				return err
+			}
+			res.Blocks++
+			res.BytesUp += int64(len(b.data))
+		}
+		buf = buf[:0]
+		bufBytes = 0
+		return nil
+	}
 
 	manifest, err := Scan(root, excludes, func(hash string, data []byte) error {
 		if seen[hash] {
@@ -41,21 +95,22 @@ func Sync(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root string, ex
 		// Only what is missing travels. This is where the 4 GB of toolchain
 		// caches that are byte-for-byte identical on every developer home stop
 		// costing anything after the first agent.
-		has, err := blobs.Has(ctx, orgID, hash)
-		if err != nil {
-			return err
+		//
+		// Die Kopie ist nötig: Scan gibt seinen Lesepuffer weiter und
+		// überschreibt ihn beim nächsten Block.
+		cp := make([]byte, len(data))
+		copy(cp, data)
+		buf = append(buf, pendingBlock{hash: hash, data: cp})
+		bufBytes += len(cp)
+		if len(buf) >= askBatch || bufBytes >= askBatchBytes {
+			return flush()
 		}
-		if has {
-			return nil
-		}
-		if err := blobs.Put(ctx, orgID, hash, bytes.NewReader(data)); err != nil {
-			return err
-		}
-		res.Blocks++
-		res.BytesUp += int64(len(data))
 		return nil
 	})
 	if err != nil {
+		return SyncResult{}, err
+	}
+	if err := flush(); err != nil {
 		return SyncResult{}, err
 	}
 
