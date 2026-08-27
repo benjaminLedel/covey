@@ -59,6 +59,28 @@ export type Agent = {
   // Webhook, keine Sandbox, keine Kosten (spec/20).
   hired_at?: string;
   created_at: string;
+  // Worauf der Agent in DIESEM Moment wartet, falls die Plattform gerade etwas
+  // für ihn tut: ein Image holen, seinen Arbeitsplatz herstellen oder ihn
+  // zurückschreiben. Fehlt = er wartet auf nichts. Live-Zustand aus der
+  // Datenebene, in keiner Tabelle — nach einem Neustart der Kontrollebene
+  // passiert nichts mehr, worauf sich das beziehen könnte.
+  phase?: AgentPhase;
+};
+
+/** Eine laufende Phase der Plattform. Die beiden Gesamtzahlen sind getrennt,
+ *  weil ein Image Bytes zählt und ein Arbeitsplatz Dateien — ein Balken, der
+ *  raten muss, welche er bekommen hat, zeigt „3,4 GB von 9.870". 0/fehlend =
+ *  die Phase kennt ihr eigenes Ende nicht. */
+export type AgentPhase = {
+  phase: string;
+  detail?: string;
+  bytes?: number;
+  bytes_total?: number;
+  count?: number;
+  count_total?: number;
+  since: string;
+  updated: string;
+  runner?: string;
 };
 
 /** Entwurf: angelegt, aber noch nicht eingestellt. */

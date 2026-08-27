@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { api, post, del, ApiError, isDraft, type Agent, type AgentTemplate, type Department, type Principal } from "../api";
 import { rollAgentName, slugify } from "../names";
+import { PhaseBadge } from "../components/PhaseBadge";
 import { GuidedCreate } from "./agents/GuidedCreate";
 import { Brief } from "./agents/Brief";
 import { Modal, ConfirmDialog } from "../components/Modal";
@@ -418,6 +419,9 @@ function AgentCard({
         Engine: <span className="mono">{agent.runtime}</span>
         {agent.budget_usd > 0 && <> · {t("dashboard.budget")} {agent.budget_usd.toFixed(2)} $</>}
       </div>
+      {/* Ein Agent, der auf die Plattform wartet, sieht auf der Übersicht sonst
+          aus wie einer, der arbeitet. */}
+      {agent.phase && <PhaseBadge phase={agent.phase} compact />}
       {draft && (onHire || onReject) && (
         <div className="flex gap-2 agent-card-actions">
           {onHire && (

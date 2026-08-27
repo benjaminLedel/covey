@@ -8,19 +8,26 @@ import {
   patch,
   del,
   buildInfo,
+  type AgentPhase,
   type Stage,
   type Task,
   type TaskNote,
 } from "../../api";
 import { fmtUSD } from "../../format";
 import { upstreamIssueURL } from "../../upstream";
+import { PhaseBadge } from "../../components/PhaseBadge";
 
 export function Backlog({
   agentId,
+  phase,
   canManage,
   onShowRecording,
 }: {
   agentId: string;
+  // Woran die Plattform gerade für diesen Agenten arbeitet. Es hängt am
+  // Agenten, gezeigt wird es an der Aufgabe, die läuft: wer auf die Aufgabe
+  // sieht, wartet auf genau diesen Vorgang.
+  phase?: AgentPhase;
   canManage: boolean;
   onShowRecording: (taskId: string, title: string) => void;
 }) {
@@ -222,6 +229,7 @@ export function Backlog({
                         key={tk.id}
                         task={tk}
                         agentId={agentId}
+                        phase={phase}
                         canManage={canManage}
                         onShowRecording={onShowRecording}
                         onDragStart={() => setDragTask(tk.id)}
@@ -448,6 +456,7 @@ const SEARCH_LIMIT = 50;
 function TaskCard({
   task,
   agentId,
+  phase,
   canManage,
   stageName,
   onShowRecording,
@@ -456,6 +465,7 @@ function TaskCard({
 }: {
   task: Task;
   agentId: string;
+  phase?: AgentPhase;
   canManage: boolean;
   stageName?: string;
   onShowRecording: (taskId: string, title: string) => void;
@@ -521,6 +531,14 @@ function TaskCard({
         {archived && <span className="muted text-[11px] shrink-0">{t("agent.backlog.archived")}</span>}
         <span className="kc-prio">P{task.priority}</span>
       </div>
+      {/* Läuft die Aufgabe und tut die Plattform gerade etwas dafür, steht es
+          hier: „in Arbeit" allein erklärt keine Viertelstunde, in der das
+          Image geholt wird. */}
+      {phase && task.state === "in_progress" && (
+        <div className="kc-phase">
+          <PhaseBadge phase={phase} compact />
+        </div>
+      )}
       <div className="t">
         {subtitle} · {originLabel(task.origin)}
         {stageName && <> · {stageName}</>}

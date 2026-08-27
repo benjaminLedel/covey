@@ -18,6 +18,7 @@ import (
 	"covey/internal/identity"
 	"covey/internal/memory"
 	"covey/internal/observability"
+	"covey/internal/runner"
 	"covey/internal/secrets"
 )
 
@@ -33,7 +34,40 @@ func (s *Server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 	if list == nil {
 		list = []agents.Agent{}
 	}
-	writeJSON(w, http.StatusOK, list)
+	phasen := s.phases()
+	out := make([]agentWithPhase, 0, len(list))
+	for _, a := range list {
+		e := agentWithPhase{Agent: a}
+		if ph, ok := phasen[a.ID]; ok {
+			p := ph
+			e.Phase = &p
+		}
+		out = append(out, e)
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// agentWithPhase hängt an einen Agenten, worauf er in diesem Moment wartet: ein
+// Bild wird geholt, ein Home hergestellt, ein Home zurückgeschrieben.
+//
+// Das gehört nicht in agents.Agent — der Agent ist ein Datensatz, die Phase ist
+// Live-Zustand aus der Datenebene und steht in keiner Tabelle. Zusammengeführt
+// wird erst für die Ansicht, eingebettet, damit der Agent im JSON flach bleibt.
+//
+// Ein Zeiger, weil „gerade nichts" nicht dasselbe ist wie eine Phase mit leeren
+// Feldern: der Normalfall ist, dass ein Agent auf nichts wartet.
+type agentWithPhase struct {
+	agents.Agent
+	Phase *runner.Phase `json:"phase,omitempty"`
+}
+
+// phases: was die Hosts gerade tun, oder nichts, wenn diese Installation keinen
+// Pool hat (die Tests hängen den Server ohne Datenebene ein).
+func (s *Server) phases() map[uuid.UUID]runner.Phase {
+	if s.RunnerPool == nil {
+		return nil
+	}
+	return s.RunnerPool.Phases.All()
 }
 
 func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
@@ -80,7 +114,13 @@ func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, a)
+	out := agentWithPhase{Agent: a}
+	if s.RunnerPool != nil {
+		if ph, ok := s.RunnerPool.Phases.Of(a.ID); ok {
+			out.Phase = &ph
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {

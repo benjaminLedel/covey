@@ -86,6 +86,10 @@ type Pool struct {
 	// is to provide. nil = nothing is assigned anywhere, which is what a pool
 	// without a database looks like (tests, the runner side).
 	Capabilities func(ctx context.Context, runnerID uuid.UUID) (extraTags, images []string, decided, paused bool, err error)
+	// Phases is what the hosts are busy with at this moment, per agent. Set by
+	// NewPool; whoever builds a Pool by hand and leaves it nil loses the live
+	// display and nothing else.
+	Phases *Phases
 	// Progress receives what a host says about a start that is under way —
 	// fetching an image, materialising a working copy. nil = nobody is
 	// listening, and the runner's lines are dropped. The control plane wires it
@@ -306,6 +310,7 @@ func NewPool(log *slog.Logger) *Pool {
 		Log: log, conns: map[uuid.UUID]*conn{},
 		ensuring: map[uuid.UUID]*sync.Mutex{},
 		dirty:    map[uuid.UUID]*dirtyHome{},
+		Phases:   NewPhases(),
 	}
 }
 
@@ -612,13 +617,15 @@ func (c *conn) readLoop(ctx context.Context) error {
 			}
 		case TypeProgress:
 			// A line about a start that is under way. It answers nothing and
-			// belongs to no correlation — it goes straight to whoever writes
-			// the recording.
-			if c.pool.Progress == nil {
-				continue
-			}
+			// belongs to no correlation — it goes into the recording, which
+			// keeps it, and into Phases, which is where "what is this agent
+			// waiting on right now" is asked.
 			ev, err := decode[Progress](msg)
 			if err != nil {
+				continue
+			}
+			c.pool.Phases.Note(c.runnerID, ev)
+			if c.pool.Progress == nil {
 				continue
 			}
 			c.pool.Progress(c.orgID, c.runnerID, ev)
@@ -1265,6 +1272,10 @@ func (p *Pool) pick(want need) (*conn, error) {
 
 // Start satisfies orchestrator.SandboxProvider.
 func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orchestrator.Sandbox, error) {
+	// Whatever was reported while starting stops being current the moment this
+	// returns — either the sandbox is up, or the start failed. Both end the
+	// wait the display was about.
+	defer p.Phases.Clear(spec.AgentID)
 	// Whatever the file browser wrote goes into the store BEFORE the home is
 	// materialised over it. Otherwise a snapshot from before the upload would
 	// win, and the file would be gone without anyone having deleted it.
@@ -1476,6 +1487,9 @@ func (p *Pool) syncHomeReason(ctx context.Context, c *conn, agentID, orgID uuid.
 	if p.SnapshotTaken == nil {
 		return nil
 	}
+	// Same as with a start: when this returns, the writing back is over —
+	// finished, failed, or the host gone.
+	defer p.Phases.Clear(agentID)
 	started := time.Now()
 	answer, err := c.ask(ctx, TypeSyncHome, SyncHome{
 		AgentID: agentID, OrgID: orgID, Excludes: p.HomeExcludes,
