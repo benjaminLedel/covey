@@ -1619,8 +1619,16 @@ kbd {
 .node.human:hover { border-color: var(--border-strong); transform: translateY(-1px); }
 .node .avatar { width: 32px; height: 32px; font-size: 12px; }
 .node .avatar.hum { background: var(--surface-1); color: var(--text-secondary); }
-.node .nm { font-weight: 500; font-size: 13px; text-align: left; }
-.node .rl { color: var(--text-muted); font-size: 11px; text-align: left; }
+/* Die Textspalte muss schrumpfen dürfen, sonst gewinnt der Badge: er ist
+   `nowrap` und nimmt sich seine Breite, und was übrig bleibt, presst den Namen
+   in eine Spalte von einem Zeichen. Ein Name wird gekürzt, nicht zerlegt —
+   beobachtet an „Brunhilde Tatkräftig" neben einem längeren Status. */
+.node > div { flex: 1 1 auto; min-width: 0; }
+.node .nm { font-weight: 500; font-size: 13px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.node .rl { color: var(--text-muted); font-size: 11px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Und der Badge nimmt höchstens die Hälfte: er ist die Nebensache auf einer
+   Karte, die von einem Namen handelt. */
+.node .badge { flex: 0 1 auto; max-width: 50%; overflow: hidden; text-overflow: ellipsis; }
 .node .ntag { margin-left: auto; font-size: 10px; padding: 2px 8px; border-radius: 20px; background: var(--surface-1); color: var(--text-secondary); border: 0.5px solid var(--border); }
 .node .badge { font-size: 10px; padding: 2px 8px; margin-left: auto; }
 
