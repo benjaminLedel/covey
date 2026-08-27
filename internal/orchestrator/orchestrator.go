@@ -981,6 +981,12 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 			o.syncParkedHome(agent.ID, sandbox, ws)
 		} else {
 			link.Close()
+			// Said before it happens, not after: stopping the sandbox writes
+			// the home into the store, and on a grown home that is half a
+			// minute in which the agent is doing nothing while the interface
+			// claims it is working. The status carries the platform's own work
+			// instead of hiding it behind the agent's.
+			o.setStatus(context.WithoutCancel(ctx), agent, nil, agents.StatusSecuring)
 			// Detached here too: on kill or abort ctx has already expired — the
 			// sandbox still has to go.
 			stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
