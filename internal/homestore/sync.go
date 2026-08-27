@@ -3,6 +3,7 @@ package homestore
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -62,19 +63,24 @@ func Sync(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root string, ex
 	if err != nil {
 		return SyncResult{}, err
 	}
-	hash := Hash(raw)
-	has, err := blobs.Has(ctx, orgID, hash)
+	// The manifest itself obeys the block size, and it took a production
+	// instance to notice that it did not: every file in a home is chunked at
+	// chunkSize, but the manifest went as ONE object of whatever size it had.
+	// A home of 16.9 GB carries hundreds of thousands of entries, each with a
+	// path and a 64-character hash — tens of megabytes in one PUT. Over a
+	// remote runner that is an HTTP request, and it died against the request
+	// limit of whatever sits in front of the control plane. The home was
+	// therefore unsyncable, permanently, while every small home worked and made
+	// the installation look healthy.
+	hash, stored, err := putManifest(ctx, blobs, orgID, raw)
 	if err != nil {
 		return SyncResult{}, err
 	}
-	if !has {
-		if err := blobs.Put(ctx, orgID, hash, bytes.NewReader(raw)); err != nil {
-			return SyncResult{}, err
-		}
-		// The manifest is a block like any other and counts as one: the figure
-		// the interface shows is "what travelled", and a sync that stores a
-		// snapshot has moved at least this.
-		res.Blocks++
+	// The manifest is a block like any other and counts as one: the figure the
+	// interface shows is "what travelled", and a sync that stores a snapshot
+	// has moved at least this.
+	res.Blocks += stored
+	if stored > 0 {
 		res.BytesUp += int64(len(raw))
 	}
 	res.ManifestHash = hash
@@ -82,18 +88,107 @@ func Sync(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root string, ex
 	return res, nil
 }
 
-// Load reads a snapshot's manifest back.
+// manifestIndexMarker is what tells a stored object apart from a manifest: an
+// index names the chunks the manifest was split into. It is a field name and
+// not a length rule, because a reader must be able to decide from the CONTENT —
+// a snapshot written by an older version is a plain manifest of any size, and
+// it has to keep loading.
+type manifestIndex struct {
+	Chunks []string `json:"covey_manifest_chunks"`
+}
+
+// putManifest stores the manifest and returns the hash a snapshot refers to.
+// Small enough, and it lies there as before — a reader of any version
+// understands it. Above chunkSize it travels in pieces with a small index in
+// front, which is the only object the snapshot hash then points at.
+//
+// Returns how many objects were actually written (0 = everything was already
+// there, which is the normal case for an unchanged home).
+func putManifest(ctx context.Context, blobs BlobStore, orgID uuid.UUID, raw []byte) (string, int, error) {
+	if len(raw) <= chunkSize {
+		hash := Hash(raw)
+		has, err := blobs.Has(ctx, orgID, hash)
+		if err != nil {
+			return "", 0, err
+		}
+		if has {
+			return hash, 0, nil
+		}
+		if err := blobs.Put(ctx, orgID, hash, bytes.NewReader(raw)); err != nil {
+			return "", 0, err
+		}
+		return hash, 1, nil
+	}
+
+	var idx manifestIndex
+	written := 0
+	for off := 0; off < len(raw); off += chunkSize {
+		end := off + chunkSize
+		if end > len(raw) {
+			end = len(raw)
+		}
+		part := raw[off:end]
+		h := Hash(part)
+		idx.Chunks = append(idx.Chunks, h)
+		has, err := blobs.Has(ctx, orgID, h)
+		if err != nil {
+			return "", 0, err
+		}
+		if has {
+			continue
+		}
+		if err := blobs.Put(ctx, orgID, h, bytes.NewReader(part)); err != nil {
+			return "", 0, err
+		}
+		written++
+	}
+	enc, err := json.Marshal(idx)
+	if err != nil {
+		return "", 0, err
+	}
+	hash := Hash(enc)
+	has, err := blobs.Has(ctx, orgID, hash)
+	if err != nil {
+		return "", 0, err
+	}
+	if !has {
+		if err := blobs.Put(ctx, orgID, hash, bytes.NewReader(enc)); err != nil {
+			return "", 0, err
+		}
+		written++
+	}
+	return hash, written, nil
+}
+
+// Load reads a snapshot's manifest back — whether it lies there whole or as an
+// index over its chunks.
 func Load(ctx context.Context, blobs BlobStore, orgID uuid.UUID, manifestHash string) (Manifest, error) {
-	r, err := blobs.Get(ctx, orgID, manifestHash)
+	raw, err := fetch(ctx, blobs, orgID, manifestHash)
 	if err != nil {
 		return Manifest{}, err
 	}
-	defer r.Close()
-	raw, err := io.ReadAll(r)
-	if err != nil {
-		return Manifest{}, err
+	var idx manifestIndex
+	if err := json.Unmarshal(raw, &idx); err == nil && len(idx.Chunks) > 0 {
+		var buf bytes.Buffer
+		for _, h := range idx.Chunks {
+			part, err := fetch(ctx, blobs, orgID, h)
+			if err != nil {
+				return Manifest{}, fmt.Errorf("manifest chunk %s: %w", h, err)
+			}
+			buf.Write(part)
+		}
+		raw = buf.Bytes()
 	}
 	return DecodeManifest(raw)
+}
+
+func fetch(ctx context.Context, blobs BlobStore, orgID uuid.UUID, hash string) ([]byte, error) {
+	r, err := blobs.Get(ctx, orgID, hash)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+	return io.ReadAll(r)
 }
 
 // MaterializeResult is what restoring cost.

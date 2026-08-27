@@ -3,6 +3,8 @@ package homestore
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -365,4 +367,90 @@ func TestSweepKeepsWhatAnotherSnapshotStillNeeds(t *testing.T) {
 	if _, err := Load(ctx, blobs, org, alt.ManifestHash); err == nil {
 		t.Error("the removed snapshot is still readable")
 	}
+}
+
+// Jede Datei eines Homes wird gechunkt — das Manifest selbst ging bisher als
+// EIN Objekt weg, egal wie groß. Bei einem gewachsenen Home sind das
+// hunderttausende Einträge mit Pfad und 64-Zeichen-Hash, also zweistellige
+// Megabytes in einem PUT. Über einen entfernten Runner ist das eine
+// HTTP-Anfrage, und sie starb an der Größenbegrenzung dessen, was vor der
+// Steuerebene steht: das Home war dauerhaft nicht sicherbar, während jedes
+// kleine Home funktionierte und die Installation gesund aussehen ließ.
+func TestEinGrossesManifestReistInStuecken(t *testing.T) {
+	ctx := context.Background()
+	org := uuid.New()
+	home := t.TempDir()
+
+	// Viele kleine Dateien: der Inhalt ist winzig, das Manifest wird groß —
+	// genau die Form, die ein Entwickler-Home hat (node_modules, Caches).
+	for i := 0; i < 20000; i++ {
+		write(t, home, fmt.Sprintf("caches/paket-%05d/ein-recht-langer-dateiname.js", i), "x")
+	}
+
+	limit := &limitedBlobs{Dir: newDir(t), max: chunkSize}
+	res, err := Sync(ctx, limit, org, home, nil)
+	if err != nil {
+		t.Fatalf("Sync scheitert an der Größe des Manifests: %v", err)
+	}
+	if limit.largest > chunkSize {
+		t.Errorf("ein Objekt von %d Bytes ging weg — mehr als ein Block tragen darf", limit.largest)
+	}
+
+	// Und es kommt vollständig zurück.
+	m, err := Load(ctx, limit, org, res.ManifestHash)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(m.Entries) < 20000 {
+		t.Errorf("das Manifest kam unvollständig zurück: %d Einträge", len(m.Entries))
+	}
+}
+
+// Ein Schnappschuss aus der Zeit vor der Stückelung liegt als ganzes Manifest
+// im Store. Er muss weiter laden — sonst kostet die Änderung genau das, was sie
+// verhindern soll.
+func TestEinAltesManifestLaedtWeiterhin(t *testing.T) {
+	ctx := context.Background()
+	blobs := newDir(t)
+	org := uuid.New()
+	home := t.TempDir()
+	write(t, home, "klein.txt", "inhalt")
+
+	res, err := Sync(ctx, blobs, org, home, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Klein genug: es liegt unverändert als Manifest da, kein Index davor.
+	raw, err := fetch(ctx, blobs, org, res.ManifestHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "covey_manifest_chunks") {
+		t.Error("ein kleines Manifest soll unverändert liegen, damit jeder Leser es versteht")
+	}
+	if _, err := Load(ctx, blobs, org, res.ManifestHash); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+}
+
+// limitedBlobs ist der Store mit der Grenze, die in der Wirklichkeit vor ihm
+// steht: ein Proxy bzw. die Steuerebene nehmen keine beliebig großen Objekte an.
+type limitedBlobs struct {
+	*Dir
+	max     int
+	largest int
+}
+
+func (l *limitedBlobs) Put(ctx context.Context, orgID uuid.UUID, hash string, r io.Reader) error {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return err
+	}
+	if len(data) > l.largest {
+		l.largest = len(data)
+	}
+	if len(data) > l.max {
+		return fmt.Errorf("413 Request Entity Too Large (%d Bytes)", len(data))
+	}
+	return l.Dir.Put(ctx, orgID, hash, bytes.NewReader(data))
 }
