@@ -80,8 +80,11 @@ func TestDieArbeitsplatzAnsichtSagtWennSeitherNichtsGesichertWurde(t *testing.T)
 	// aufschreibt (cmd/covey: SnapshotFailed).
 	schreibeFehlschlag(t, s, agent.ID, agent.OrgID, "block 78a279df: 413 Request Entity Too Large",
 		// Kurz NACH dem Schnappschuss, nicht in der Zukunft: der zweite
-		// Schnappschuss unten entsteht jetzt und muss ihn überholen können.
-		view.Latest.CreatedAt.Add(10*time.Millisecond))
+		// Schnappschuss unten entsteht gleich und muss ihn überholen können.
+		// Eine Millisekunde, und danach wird gewartet — der ganze Test läuft in
+		// zehn Millisekunden ab, und mit zehn Millisekunden Vorsprung entstand
+		// der zweite Schnappschuss VOR dem Fehlschlag, den er überholen sollte.
+		view.Latest.CreatedAt.Add(time.Millisecond))
 
 	view = lies()
 	if view.LastFailure == nil {
@@ -93,12 +96,19 @@ func TestDieArbeitsplatzAnsichtSagtWennSeitherNichtsGesichertWurde(t *testing.T)
 
 	// Und er verschwindet wieder, sobald ein neuer Schnappschuss ihn überholt:
 	// „es hat seither geklappt" ist eine Auskunft, die niemand suchen muss.
+	//
+	// Abwarten, bis die Uhr über dem Fehlschlag steht: sonst prüft der Test
+	// nicht das Überholen, sondern die Geschwindigkeit der Maschine.
+	for time.Now().Before(view.LastFailure.At.Add(2 * time.Millisecond)) {
+		time.Sleep(time.Millisecond)
+	}
 	if _, err := tree.Write("arbeit/mehr.md", strings.NewReader("noch etwas")); err != nil {
 		t.Fatal(err)
 	}
 	pool.FlushHomes(ctx)
-	if view := lies(); view.LastFailure != nil {
-		t.Fatalf("der überholte Fehlschlag steht weiter da: %+v", view.LastFailure)
+	if v := lies(); v.LastFailure != nil {
+		t.Fatalf("der überholte Fehlschlag steht weiter da: %+v (Schnappschuss jetzt %v, vorher %v)",
+			v.LastFailure, v.Latest.CreatedAt, view.Latest.CreatedAt)
 	}
 }
 
