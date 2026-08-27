@@ -107,3 +107,59 @@ func TestPullable(t *testing.T) {
 		}
 	}
 }
+
+// Ein Release verschiebt den Schlüssel, unter dem gesucht wird: dieselbe
+// Instanz fragte gestern nach `main` und heute nach `v0.8.0`. Ist die
+// Katalog-Kopie älter als das Release, gibt es darauf keine Antwort — und der
+// Rückfall auf den einkompilierten Namen (`covey-sandbox:latest`) ist auf einem
+// Server der schlechteste verfügbare: ein Name, den es dort nachweislich nicht
+// gibt, gewählt anstelle eines Bildes, das es nachweislich gibt. Auf einer
+// Produktivinstanz stand damit eine Stunde lang die ganze Datenebene.
+func TestOhneEintragFuerDieseFassungGiltDerRollendeEintrag(t *testing.T) {
+	e := CatalogEntry{Name: "dev", Images: []CatalogImage{
+		{CoveyVersion: RollingVersion, Ref: "ghcr.io/x/covey-sandbox@sha256:rollend"},
+		{CoveyVersion: "v0.7.0", Ref: "ghcr.io/x/covey-sandbox@sha256:alt"},
+	}}
+
+	img, ok := e.ForBuild("v0.8.0")
+	if !ok || img.Ref != "ghcr.io/x/covey-sandbox@sha256:rollend" {
+		t.Errorf("eine unbekannte Fassung muss den rollenden Eintrag bekommen, bekam %q (%v)", img.Ref, ok)
+	}
+	// Die eigene Fassung schlägt den rollenden Eintrag weiterhin.
+	if img, ok := e.ForBuild("v0.7.0"); !ok || img.Ref != "ghcr.io/x/covey-sandbox@sha256:alt" {
+		t.Errorf("die eigene Fassung muss vorgehen, bekam %q", img.Ref)
+	}
+}
+
+// Ein Katalog ohne rollenden Eintrag kann nicht helfen — dann bleibt es beim
+// einkompilierten Namen, und das ist richtig so: eine Maschine ohne Katalog ist
+// meistens die, die ihre Bilder selbst baut.
+func TestOhneRollendenEintragBleibtEsBeiDerVoreinstellung(t *testing.T) {
+	e := CatalogEntry{Name: "dev", Images: []CatalogImage{
+		{CoveyVersion: "v0.7.0", Ref: "ghcr.io/x/covey-sandbox@sha256:alt"},
+	}}
+	if img, ok := e.ForBuild("v0.8.0"); ok {
+		t.Errorf("ohne rollenden Eintrag darf nichts erfunden werden, bekam %q", img.Ref)
+	}
+}
+
+// Und der Rückfall greift durch den ganzen Weg: was die Instanz auflöst, ist
+// ein veröffentlichtes Bild und kein lokaler Bauname.
+func TestDerRueckfallGehtDurchBisZurAufloesung(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(katalog))
+	}))
+	defer srv.Close()
+
+	// Der Katalog kennt nur `main` und `v0.4.0`; diese Fassung steht auf
+	// keinem der beiden.
+	s := NewSource(srv.URL, nil, nil)
+	images := s.Images(context.Background())
+	aufgeloest := Resolve(nil, images)
+	for _, name := range []string{"base", "dev"} {
+		if !Pullable(aufgeloest[name]) {
+			t.Errorf("%s löst auf %q auf — ein Name, den ein Server nicht ziehen kann", name, aufgeloest[name])
+		}
+	}
+}
