@@ -13,16 +13,14 @@ import {
   type RunCost,
   type Tokens,
 } from "../api";
-import { fmtUSD } from "../format";
+import { exact, fmtCount, fmtUSD } from "../format";
 import { PriceList } from "../components/PriceList";
 
 // --- Formatierung -----------------------------------------------------------
 
-function fmtTokens(v: number, locale: string): string {
-  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(2)} M`;
-  if (v >= 10_000) return `${(v / 1000).toFixed(1)} k`;
-  return v.toLocaleString(locale);
-}
+// Die Zahlenformatierung liegt in format.ts — eine für die ganze Oberfläche.
+// Vorher hatte diese Seite ihre eigene, und daneben standen rohe
+// toLocaleString-Zahlen: „3.05 M" und „147952885" auf demselben Schirm.
 
 // Buckets werden je nach Granularität unterschiedlich beschriftet.
 function fmtPeriod(iso: string, bucket: string, locale: string): string {
@@ -101,7 +99,7 @@ function CostChart({
             <text x={padL - 8} y={y(v) + 4} textAnchor="end" fontSize={11} fill="var(--text-muted)">
               {metric === "cost"
                 ? v >= 1 ? v.toFixed(0) : v.toFixed(2)
-                : fmtTokens(v, locale)}
+                : fmtCount(v)}
             </text>
           </g>
         ))}
@@ -186,15 +184,17 @@ function CostChart({
             <>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                 <span style={{ color: "var(--text-accent)" }}>■ {t("costs.input")}</span>
-                <span style={{ fontWeight: 600 }}>{totalInput(hb).toLocaleString(locale)}</span>
+                <span style={{ fontWeight: 600 }} title={exact(totalInput(hb))}>{fmtCount(totalInput(hb))}</span>
               </div>
               <div className="muted" style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 11 }}>
                 <span>{t("costs.ofWhichCached")}</span>
-                <span>{(hb.cache_read_tokens + hb.cache_creation_tokens).toLocaleString(locale)}</span>
+                <span title={exact(hb.cache_read_tokens + hb.cache_creation_tokens)}>
+                  {fmtCount(hb.cache_read_tokens + hb.cache_creation_tokens)}
+                </span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                 <span style={{ color: "var(--clay)" }}>■ {t("costs.output")}</span>
-                <span style={{ fontWeight: 600 }}>{hb.output_tokens.toLocaleString(locale)}</span>
+                <span style={{ fontWeight: 600 }} title={exact(hb.output_tokens)}>{fmtCount(hb.output_tokens)}</span>
               </div>
             </>
           )}
@@ -312,7 +312,7 @@ function TokenMix({ tokens, locale }: { tokens: Tokens; locale: string }) {
             {t(`costs.mix.${p.key}`)}
           </span>
           <span className="muted">
-            {fmtTokens(p.value, locale)} · {sum > 0 ? Math.round((p.value / sum) * 100) : 0}%
+            {fmtCount(p.value)} · {sum > 0 ? Math.round((p.value / sum) * 100) : 0}%
           </span>
         </div>
       ))}
@@ -354,7 +354,7 @@ function ExpensiveRuns({ runs, locale }: { runs: RunCost[]; locale: string }) {
               </td>
               <td style={{ padding: "6px 8px 6px 0", textAlign: "right", fontWeight: 600 }}>{fmtUSD(r.total_usd)}</td>
               <td style={{ padding: "6px 8px 6px 0", textAlign: "right" }} className="muted">
-                {fmtTokens(r.cache_read_tokens + r.cache_creation_tokens, locale)}
+                {fmtCount(r.cache_read_tokens + r.cache_creation_tokens)}
               </td>
               <td style={{ padding: "6px 0", textAlign: "right" }}>
                 {r.actions === 0 ? (
@@ -517,13 +517,13 @@ export default function Costs() {
         <Kpi label={t("costs.totalCost")} value={fmtUSD(totals.usd)} sub={t("costs.runsN", { count: totals.entries })} />
         <Kpi
           label={t("costs.inputTokens")}
-          value={fmtTokens(totals.input, locale)}
+          value={fmtCount(totals.input)}
           sub={t("costs.cachedShare", {
             pct: totals.input > 0 ? Math.round((totals.cached / totals.input) * 100) : 0,
           })}
         />
-        <Kpi label={t("costs.outputTokens")} value={fmtTokens(totals.output, locale)} sub={totals.output.toLocaleString(locale)} />
-        <Kpi label={t("costs.totalTokens")} value={fmtTokens(totals.input + totals.output, locale)} />
+        <Kpi label={t("costs.outputTokens")} value={fmtCount(totals.output)} sub={exact(totals.output)} />
+        <Kpi label={t("costs.totalTokens")} value={fmtCount(totals.input + totals.output)} />
       </div>
 
       {/* Diagramm */}
