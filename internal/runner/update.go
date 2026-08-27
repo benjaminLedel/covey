@@ -60,7 +60,8 @@ const maxBinary = 200 << 20
 // connection ends with the restart, and a caller who only saw it drop could not
 // tell success from a host that fell over.
 func (n *Node) updateSelf(ctx context.Context, req Update) UpdateResult {
-	from := buildinfo.Get().Version
+	info := buildinfo.Get()
+	from := info.Version
 	res := UpdateResult{From: from}
 
 	// Not while it is in the middle of something. The replacement itself would
@@ -90,7 +91,18 @@ func (n *Node) updateSelf(ctx context.Context, req Update) UpdateResult {
 		version = v
 	}
 	res.To = version
-	if version == from {
+	// Schon da — aber nur, wenn der Name auch für dasselbe Binary steht.
+	//
+	// Ein von Hand gebauter Runner trägt den Namen des Tags, auf dem sein Baum
+	// steht, und ist trotzdem etwas anderes: auf covey.work lief
+	// „v0.7.2 (45c9c48-dirty)", während v0.7.2 die neueste Veröffentlichung
+	// war. Der Vergleich sagte „schon aktuell", der Knopf meldete Erfolg, und
+	// ersetzt wurde nichts — tagelang, ohne dass jemand sah, warum der Host
+	// hinter der Steuerebene zurückblieb.
+	//
+	// Wer aktualisiert, will das veröffentlichte Binary. Ein schmutziger Baum
+	// ist der Beweis, dass das laufende nicht dieses ist.
+	if version == from && !info.Dirty {
 		// An answer, not a failure: whoever presses the button on a host that
 		// is already current should read that, and nothing should be replaced.
 		return res
