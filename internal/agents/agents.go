@@ -29,7 +29,14 @@ const (
 	StatusTriggered = "triggered"
 	StatusTriage    = "triage"
 	StatusWorking   = "working"
-	StatusKilled    = "killed"
+	// StatusSecuring: the run is over, the platform is not. The sandbox is
+	// being stopped and the home written into the store — seconds for a small
+	// home, half a minute for a grown one. It gets a name of its own because
+	// `working` answered "is this agent busy" with a yes that meant something
+	// else entirely, and hid the one moment where an operator would want to
+	// know what is going on.
+	StatusSecuring = "securing"
+	StatusKilled   = "killed"
 )
 
 type Agent struct {
