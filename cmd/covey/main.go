@@ -1118,6 +1118,18 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		return rn.LogLevel
 	}
 	runnerPool.Capabilities = runnerStore.Capabilities
+	// Ein Update, das an einer laufenden Sandbox scheiterte, bleibt als Wunsch
+	// an der Runner-Zeile stehen; der Pool holt ihn sich, sobald der Host nichts
+	// mehr trägt, und streicht ihn, wenn er erfüllt ist.
+	runnerPool.PlannedUpdate = runnerStore.PlannedUpdate
+	runnerPool.PlannedUpdateDone = func(ctx context.Context, runnerID uuid.UUID, version string) {
+		if err := runnerStore.PlanUpdate(ctx, runnerID, ""); err != nil {
+			log.Warn("planned update could not be cleared", "runner", runnerID, "err", err)
+		} else {
+			log.Info("planned update carried out", "runner", runnerID, "to", version)
+		}
+	}
+	runnerPool.RunnerDownloadBase = cfg.RunnerDownloadBase
 	// How a host is called right now — for the line in the recording that says
 	// where a run happened.
 	runnerPool.RunnerLabel = func(ctx context.Context, runnerID uuid.UUID) string {

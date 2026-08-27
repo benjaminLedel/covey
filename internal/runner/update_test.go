@@ -203,3 +203,89 @@ func TestARunnerTooOldToUpdateItselfSaysSoAtOnce(t *testing.T) {
 		t.Fatal("the answer waited on a message the runner does not know")
 	}
 }
+
+// Die Absage bekommt ein Feld und nicht nur einen Satz: die Steuerebene macht
+// aus ihr einen Plan, und etwas an einer Zeichenkette festzumachen, die jemand
+// umformulieren darf, hört irgendwann still auf zu funktionieren.
+func TestEineBeschaeftigteAbsageSagtDasAuchImFeld(t *testing.T) {
+	dir := t.TempDir()
+	node := NewNode(uuid.New(), uuid.New(), &Docker{DataDir: dir}, quietLog())
+	node.mu.Lock()
+	node.running[uuid.New()] = &sandboxProc{container: "c1", cancel: func() {}}
+	node.mu.Unlock()
+
+	res := node.updateSelf(context.Background(), Update{Version: "v9.9.9", BaseURL: "http://127.0.0.1:1"})
+	if !res.Busy {
+		t.Errorf("die Absage wegen laufender Sandboxen muss als solche erkennbar sein: %+v", res)
+	}
+}
+
+// Ein vorgemerktes Update wartet auf die Lücke — und der Kapazitätsbericht ist
+// die Stelle, an der die Lücke sichtbar wird. Ohne das blieb das Warten am
+// Menschen hängen: drücken, abgelehnt, später nochmal.
+func TestEinVorgemerktesUpdateLaeuftInDerLuecke(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("das Docker-Double ist ein Shell-Skript")
+	}
+	orgID, runnerID := uuid.New(), uuid.New()
+	p := NewPool(quietLog())
+	var gefragt, erledigt int
+	var erledigtMit string
+	p.PlannedUpdate = func(context.Context, uuid.UUID) (string, error) {
+		gefragt++
+		return "v9.9.9", nil
+	}
+	p.PlannedUpdateDone = func(_ context.Context, _ uuid.UUID, version string) {
+		erledigt++
+		erledigtMit = version
+	}
+
+	// Eine Verbindung, die sich für die gewünschte Fassung hält: dann ist der
+	// Wunsch erfüllt, ohne dass irgendetwas ersetzt werden muss.
+	c := &conn{pool: p, runnerID: runnerID, orgID: orgID, version: "v9.9.9"}
+	c.runPlannedUpdate(context.Background())
+	if gefragt != 1 {
+		t.Errorf("der Plan wurde nicht abgefragt (%d)", gefragt)
+	}
+	if erledigt != 1 || erledigtMit != "v9.9.9" {
+		t.Errorf("ein Host, der schon dort ist, erfüllt den Plan: %d/%q", erledigt, erledigtMit)
+	}
+}
+
+// Nach einem Versuch wird nicht sofort wieder losgelaufen: sonst liefe ein
+// Update, das an einem kaputten Download scheitert, alle dreißig Sekunden neu.
+func TestNachEinemVersuchWirdNichtSofortWiederGefragt(t *testing.T) {
+	p := NewPool(quietLog())
+	var gefragt int
+	p.PlannedUpdate = func(context.Context, uuid.UUID) (string, error) {
+		gefragt++
+		return "v9.9.9", nil
+	}
+	c := &conn{pool: p, runnerID: uuid.New(), orgID: uuid.New(), version: "v9.9.9"}
+	c.runPlannedUpdate(context.Background())
+	c.runPlannedUpdate(context.Background())
+	if gefragt != 1 {
+		t.Errorf("%d Abfragen kurz hintereinander — die Bremse greift nicht", gefragt)
+	}
+}
+
+// Ohne Plan passiert nichts, und der eingebaute Runner wird gar nicht erst
+// gefragt: er wird mit der Steuerebene aktualisiert.
+func TestOhnePlanUndBeimEingebautenPassiertNichts(t *testing.T) {
+	p := NewPool(quietLog())
+	var gefragt int
+	p.PlannedUpdate = func(context.Context, uuid.UUID) (string, error) {
+		gefragt++
+		return "", nil
+	}
+	c := &conn{pool: p, runnerID: uuid.New(), orgID: uuid.New()}
+	c.runPlannedUpdate(context.Background())
+	if gefragt != 1 {
+		t.Fatalf("ohne Plan darf gefragt werden, aber genau einmal (%d)", gefragt)
+	}
+	eingebaut := &conn{pool: p, runnerID: uuid.New(), orgID: uuid.New(), builtin: true}
+	eingebaut.runPlannedUpdate(context.Background())
+	if gefragt != 1 {
+		t.Errorf("der eingebaute Runner wird nach keinem Plan gefragt (%d)", gefragt)
+	}
+}

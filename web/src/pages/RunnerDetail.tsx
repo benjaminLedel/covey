@@ -105,9 +105,13 @@ export default function RunnerDetail({ me }: { me: Principal }) {
     from?: string;
     to?: string;
     restarting?: boolean;
+    // planned: Der Host trug gerade Sandboxen. Das ist kein Fehlschlag,
+    // sondern ein „nicht jetzt" — die Steuerebene holt es in der nächsten
+    // Lücke nach.
+    planned?: boolean;
   } | null>(null);
   const update = useMutation({
-    mutationFn: () => post<{ ok: boolean; error?: string; from?: string; to?: string; restarting?: boolean }>(
+    mutationFn: () => post<{ ok: boolean; error?: string; from?: string; to?: string; restarting?: boolean; planned?: boolean }>(
       `/runners/${id}/update`,
       {},
     ),
@@ -391,8 +395,10 @@ export default function RunnerDetail({ me }: { me: Principal }) {
                   </div>
                   {update.isPending && <p className="muted text-sm">{t("runners.detail.updateRunning")}</p>}
                   {updateResult && !update.isPending && (
-                    <p className={updateResult.ok ? "text-sm" : "text-sm danger-text"}>
-                      {!updateResult.ok
+                    <p className={updateResult.ok || updateResult.planned ? "text-sm" : "text-sm danger-text"}>
+                      {updateResult.planned
+                        ? t("runners.detail.updatePlanned", { to: updateResult.to })
+                        : !updateResult.ok
                         ? t("runners.detail.updateFailed", { error: updateResult.error })
                         : updateResult.restarting
                           ? t("runners.detail.updateDone", { from: updateResult.from, to: updateResult.to })

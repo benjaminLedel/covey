@@ -71,6 +71,7 @@ func (n *Node) updateSelf(ctx context.Context, req Update) UpdateResult {
 	running := len(n.running)
 	n.mu.Unlock()
 	if running > 0 {
+		res.Busy = true
 		res.Err = fmt.Sprintf("this host is carrying %d sandbox(es) — an update would leave them unwatched", running)
 		return res
 	}
