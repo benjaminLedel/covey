@@ -63,16 +63,20 @@ func (n *Node) updateSelf(ctx context.Context, req Update) UpdateResult {
 	from := buildinfo.Get().Version
 	res := UpdateResult{From: from}
 
-	// Not while it is carrying anything. The replacement itself would survive
-	// it — the containers belong to Docker, not to this process — but the
-	// watchers do not, and a sandbox nobody is watching any more is worse than
-	// an update that waits ten minutes.
-	n.mu.Lock()
-	running := len(n.running)
-	n.mu.Unlock()
-	if running > 0 {
+	// Not while it is in the middle of something. The replacement itself would
+	// survive a running sandbox — the containers belong to Docker, not to this
+	// process — but the watchers do not, and a sandbox nobody is watching any
+	// more is worse than an update that waits ten minutes.
+	//
+	// A working copy being written is worse still, and it is the case that
+	// actually happened: an agent finished, the sandbox went away, the host
+	// looked idle to the control plane, and the update restarted the process
+	// into a home sync that had eleven minutes left to run. The snapshot never
+	// moved. The sandbox count alone does not see that, so it is not the only
+	// thing asked.
+	if busy := n.busy(); busy != "" {
 		res.Busy = true
-		res.Err = fmt.Sprintf("this host is carrying %d sandbox(es) — an update would leave them unwatched", running)
+		res.Err = busy
 		return res
 	}
 
@@ -241,4 +245,24 @@ func (n *Node) replaceSelf(binary []byte) error {
 		return fmt.Errorf("cannot replace %s: %w", exe, err)
 	}
 	return nil
+}
+
+// busy says what this host is in the middle of, and the empty string when it is
+// in the middle of nothing. One sentence, because it goes straight into an
+// answer somebody reads: "the update stays planned — why?"
+//
+// Two things count. Sandboxes, because their watchers live in this process.
+// And working-copy work — a start, a stop, a sync — because that is the queue
+// (inOrder) through which everything passes that touches a home, and a restart
+// in the middle of one abandons it silently.
+func (n *Node) busy() string {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if len(n.running) > 0 {
+		return fmt.Sprintf("this host is carrying %d sandbox(es) — an update would leave them unwatched", len(n.running))
+	}
+	if len(n.turn) > 0 {
+		return fmt.Sprintf("this host is working on %d working cop(ies) — a restart would abandon the write", len(n.turn))
+	}
+	return ""
 }

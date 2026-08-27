@@ -586,13 +586,15 @@ func (s *Server) handleUpdateRunnerBinary(w http.ResponseWriter, r *http.Request
 	})
 }
 
-// runnerIsBusy: did the host refuse because it is carrying sandboxes?
+// runnerIsBusy: did the host refuse because it is in the middle of something?
 //
 // The field is the answer, and the sentence is the fallback for a runner built
 // before the field existed — which is exactly the host this feature is for: one
 // that cannot be updated right now is one that has been running the old binary
 // for a while. Reading the sentence is fragile, and that is why it is second,
-// not first.
+// not first. It also only catches the sandbox case; the newer refusal ("this
+// host is working on a working copy") arrives only from a runner that has the
+// field, so nothing is lost.
 func runnerIsBusy(res runner.UpdateResult) bool {
 	return res.Busy || strings.Contains(res.Err, "carrying")
 }
