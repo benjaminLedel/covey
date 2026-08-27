@@ -2023,9 +2023,17 @@
     "timeMinutes": "{{n}} min ago",
     "timeHours": "{{n}} h ago",
     "phase": {
-      "home": "Materialising the working copy",
-      "image": "Fetching the workplace image: {{detail}}",
-      "home_synced": "Working copy secured"
+      "image": "fetching the workplace image",
+      "imageDone": "workplace image fetched",
+      "home": "laying out the workplace",
+      "homeDone": "workplace ready",
+      "home_sync": "saving the workplace",
+      "home_syncDone": "workplace saved",
+      "home_synced": "snapshot stored",
+      "home_syncedDone": "snapshot stored",
+      "files": "{{count}} files",
+      "filesOf": "{{count}} of {{total}} files",
+      "on": "on {{runner}}"
     },
     "sandboxOn": "Running on runner {{runner}}"
   },

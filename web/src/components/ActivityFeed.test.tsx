@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildFeed } from "./ActivityFeed";
+import { buildFeed, phasenAnteil } from "./ActivityFeed";
 import type { RecordingEvent } from "../api";
 
 /* Der Verlauf ist der Beleg dafür, was ein Agent getan hat — und ein Beleg,
@@ -109,5 +109,78 @@ describe("unbekannte Runtime-Ereignisse", () => {
     const evts = items.filter((i) => i.kind === "evt") as { count?: number }[];
     expect(evts).toHaveLength(1);
     expect(evts[0].count).toBe(3);
+  });
+});
+
+/* Vor dem ersten Zug eines Agenten liegen auf einem frischen Host zwei
+   Vorgänge, die zusammen eine Dreiviertelstunde dauern können: das Image holen
+   und den Arbeitsplatz herstellen. Hinten dran hängt das Sichern. Die Plattform
+   meldet sie im Fünfzehn-Sekunden-Takt — als Ereignisse gelesen wären das
+   sechzig Zeilen für einen Vorgang. Es ist EINE Zeile, die sich ändert. */
+describe("Phasen der Plattform", () => {
+  const phase = (p: Record<string, unknown>) => ev({ status: "preparing", ...p }, "lifecycle");
+  const phasen = (items: ReturnType<typeof buildFeed>) => items.filter((i) => i.kind === "phase");
+
+  it("fasst den Takt einer Phase zu einer Zeile zusammen", () => {
+    const items = buildFeed([
+      phase({ phase: "image", detail: "ghcr.io/covey/sandbox:main" }),
+      phase({ phase: "image", detail: "ghcr.io/covey/sandbox:main", bytes: 400_000_000, bytes_total: 2_000_000_000, ms: 15_000 }),
+      phase({ phase: "image", detail: "ghcr.io/covey/sandbox:main", bytes: 1_200_000_000, bytes_total: 2_000_000_000, ms: 30_000 }),
+    ]);
+    const p = phasen(items);
+    expect(p).toHaveLength(1);
+    expect(p[0]).toMatchObject({ phase: "image", bytes: 1_200_000_000, bytesTotal: 2_000_000_000, done: false });
+  });
+
+  it("hält die Anfangsmeldung fest, statt sie zu überschreiben", () => {
+    // Die erste Meldung trägt das Image und keine Zahlen, die zweite Zahlen und
+    // (bei einem Sync) kein Detail. Beides gehört in dieselbe Zeile.
+    const items = buildFeed([
+      phase({ phase: "image", detail: "ghcr.io/covey/sandbox:main" }),
+      phase({ phase: "image", bytes: 5, bytes_total: 10 }),
+    ]);
+    expect(phasen(items)[0]).toMatchObject({ detail: "ghcr.io/covey/sandbox:main", bytes: 5 });
+  });
+
+  it("schließt eine Phase ab, wenn sie fertig meldet", () => {
+    const items = buildFeed([
+      phase({ phase: "home_sync" }),
+      phase({ phase: "home_sync", count: 400, bytes: 1_000, ms: 15_000 }),
+      phase({ phase: "home_sync", bytes: 2_500, ms: 22_000, done: true }),
+    ]);
+    const p = phasen(items);
+    expect(p).toHaveLength(1);
+    expect(p[0]).toMatchObject({ done: true, bytes: 2_500, ms: 22_000 });
+  });
+
+  // Zwei Vorgänge nacheinander sind zwei Zeilen — ein abgeschlossener Sync
+  // nimmt den nächsten nicht mehr in sich auf.
+  it("beginnt nach dem Abschluss eine neue Zeile", () => {
+    const items = buildFeed([
+      phase({ phase: "home_sync" }),
+      phase({ phase: "home_sync", bytes: 10, done: true }),
+      phase({ phase: "home_sync" }),
+    ]);
+    expect(phasen(items)).toHaveLength(2);
+  });
+
+  // Verschiedene Phasen laufen nicht ineinander, auch wenn sie sich zeitlich
+  // überschneiden — Image holen und Home herstellen sind zwei Wartezeiten.
+  it("hält verschiedene Phasen auseinander", () => {
+    const items = buildFeed([
+      phase({ phase: "home", count: 100, count_total: 9_870 }),
+      phase({ phase: "image", bytes: 5 }),
+      phase({ phase: "home", count: 4_000, count_total: 9_870 }),
+    ]);
+    const p = phasen(items) as { phase: string; count?: number }[];
+    expect(p).toHaveLength(2);
+    expect(p.find((x) => x.phase === "home")?.count).toBe(4_000);
+  });
+
+  it("gibt dem Balken nur eine Länge, wenn die Phase ihr Ende kennt", () => {
+    const mit = { key: "1", kind: "phase", phase: "home", time: "", done: false, count: 4_935, countTotal: 9_870 } as const;
+    const ohne = { key: "2", kind: "phase", phase: "home_sync", time: "", done: false, count: 400 } as const;
+    expect(phasenAnteil(mit)).toBeCloseTo(0.5);
+    expect(phasenAnteil(ohne)).toBeUndefined();
   });
 });

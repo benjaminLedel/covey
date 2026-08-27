@@ -1068,6 +1068,8 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 			observability.KindLifecycle, map[string]any{
 				"status": "preparing", "phase": pr.Phase,
 				"detail": pr.Detail, "bytes": pr.Bytes, "ms": pr.MS,
+				"count": pr.Count, "count_total": pr.CountTotal,
+				"bytes_total": pr.BytesTotal, "done": pr.Done,
 				"runner": runnerID.String(),
 			})
 		// And beside the agent's recording, under the runner. The recording
@@ -1084,6 +1086,15 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		}
 		if pr.MS > 0 {
 			attrs["ms"] = strconv.FormatInt(pr.MS, 10)
+		}
+		if pr.BytesTotal > 0 {
+			attrs["bytes_total"] = strconv.FormatInt(pr.BytesTotal, 10)
+		}
+		if pr.CountTotal > 0 {
+			attrs["count_total"] = strconv.FormatInt(pr.CountTotal, 10)
+		}
+		if pr.Done {
+			attrs["done"] = "true"
 		}
 		_ = runnerStore.AppendLogs(context.WithoutCancel(ctx), orgID, runnerID, []runner.LogEntry{{
 			Time: time.Now(), Level: "info", Msg: "start: " + pr.Phase,

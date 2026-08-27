@@ -45,6 +45,22 @@ type pendingBlock struct {
 // hash. Everything goes in; the question "what is valuable?" is never asked
 // (spec/16).
 func Sync(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root string, excludes Excludes) (SyncResult, error) {
+	return SyncWatched(ctx, blobs, orgID, root, excludes, nil)
+}
+
+// Watch is a sign of life while a long operation runs: how far it has come,
+// measured in what the operation actually does.
+//
+// It exists because "started" and "finished" are not enough for something that
+// takes minutes. A sync of a grown home reported nothing at all until it was
+// done — and when a runner restarted in the middle of one, the only trace was a
+// line in its debug log and an agent that said "securing" for half an hour.
+type Watch func(seen int, bytesUp int64)
+
+// SyncWatched is Sync with that sign of life. watch may be nil; it is called as
+// the scan walks, not on a timer — the caller decides how often that is worth
+// passing on, because only the caller knows what it costs to report.
+func SyncWatched(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root string, excludes Excludes, watch Watch) (SyncResult, error) {
 	var res SyncResult
 	seen := map[string]bool{}
 
@@ -88,6 +104,13 @@ func Sync(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root string, ex
 	}
 
 	manifest, err := Scan(root, excludes, func(hash string, data []byte) error {
+		// Je gelesenem Block, nicht je hochgeladenem: bei einem Home, das sich
+		// kaum geändert hat, ist das Durchsehen die Arbeit — jeder Block wird
+		// gelesen und gehasht, und in den Store geht am Ende nichts. Ein
+		// Lebenszeichen, das am Hochladen hinge, schwiege dann durchgehend.
+		if watch != nil {
+			watch(len(seen), res.BytesUp)
+		}
 		if seen[hash] {
 			return nil
 		}
@@ -281,6 +304,17 @@ func Materialize(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root str
 // So the caller decides, and the caller that cannot be sure says no: keeping a
 // file too many costs disk, deleting one costs work nobody can get back.
 func MaterializeInto(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root string, m Manifest, prune bool) (MaterializeResult, error) {
+	return MaterializeWatched(ctx, blobs, orgID, root, m, prune, nil)
+}
+
+// MaterializeWatched is MaterializeInto with a sign of life: watch is called as
+// the entries are walked, with how many have been dealt with and how many bytes
+// came out of the store. May be nil.
+//
+// The figures are the ones that make the wait explicable. Eleven minutes of
+// silence and eleven minutes with "3.1 GB of 8.3 GB" are the same wait, and
+// only one of them is a fault report.
+func MaterializeWatched(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root string, m Manifest, prune bool, watch Watch) (MaterializeResult, error) {
 	var res MaterializeResult
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		return res, err
@@ -297,12 +331,15 @@ func MaterializeInto(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root
 		return entries[i].Path < entries[j].Path
 	})
 
-	for _, e := range entries {
+	for i, e := range entries {
 		target, err := safeJoin(root, e.Path)
 		if err != nil {
 			return res, err
 		}
 		wanted[e.Path] = true
+		if watch != nil {
+			watch(i, res.BytesIn)
+		}
 		switch {
 		case e.Dir:
 			if err := os.MkdirAll(target, e.Mode|0o700); err != nil {

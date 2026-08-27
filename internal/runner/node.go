@@ -348,7 +348,12 @@ func (n *Node) sync(ctx context.Context, t Transport, id string, req SyncHome) {
 	home, _, _ := n.Docker.AgentHome(req.AgentID)
 	began := time.Now()
 	n.Log.Debug("home sync started", "agent", req.AgentID, "path", home)
-	res, err := homestore.Sync(ctx, n.Blobs, req.OrgID, home, req.Excludes)
+	// Gesagt, bevor es passiert: das Zurückschreiben eines gewachsenen Homes
+	// dauert Minuten, und wer in dieser Zeit auf die Aufzeichnung sieht, soll
+	// den Vorgang finden statt eine Lücke.
+	n.say(ctx, t, Progress{AgentID: req.AgentID, Phase: PhaseHomeSync})
+	res, err := homestore.SyncWatched(ctx, n.Blobs, req.OrgID, home, req.Excludes,
+		n.ticker(ctx, t, req.AgentID, PhaseHomeSync, began, 0))
 	if err != nil {
 		n.Log.Error("home sync failed", "agent", req.AgentID, "path", home, "err", err)
 		n.reply(ctx, t, id, TypeHomeSynced, HomeSynced{AgentID: req.AgentID, Err: err.Error()})
@@ -357,6 +362,12 @@ func (n *Node) sync(ctx context.Context, t Transport, id string, req SyncHome) {
 	// Ab hier steht die Arbeitskopie auf diesem Schnappschuss — das ist die
 	// Auskunft, die der nächste Weckruf braucht, um räumen zu dürfen.
 	homestore.MarkSynced(home, res.ManifestHash)
+	// Die Schlussmeldung der Phase: ab hier sind die Zahlen ein Ergebnis und
+	// kein Zwischenstand mehr.
+	n.say(ctx, t, Progress{
+		AgentID: req.AgentID, Phase: PhaseHomeSync, Bytes: res.BytesUp,
+		MS: time.Since(began).Milliseconds(), Done: true,
+	})
 	n.Log.Info("home synced", "agent", req.AgentID, "blocks", res.Blocks,
 		"bytes_up", res.BytesUp, "total", res.TotalSize, "ms", time.Since(began).Milliseconds())
 	n.reply(ctx, t, id, TypeHomeSynced, HomeSynced{
@@ -417,7 +428,8 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 			stand := homestore.SyncedHash(home)
 			raeumen := stand != "" && stand == spec.Snapshot
 			var res homestore.MaterializeResult
-			res, err = homestore.MaterializeInto(ctx, n.Blobs, spec.OrgID, home, m, raeumen)
+			res, err = homestore.MaterializeWatched(ctx, n.Blobs, spec.OrgID, home, m, raeumen,
+				n.ticker(ctx, t, spec.AgentID, PhaseHome, began, int64(len(m.Entries))))
 			if err == nil {
 				if !raeumen {
 					n.Log.Warn("working copy carries work this snapshot does not know — keeping it",
@@ -430,7 +442,8 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 					"bytes_in", res.BytesIn, "ms", time.Since(began).Milliseconds())
 				n.say(ctx, t, Progress{
 					AgentID: spec.AgentID, Phase: PhaseHome, Bytes: res.BytesIn,
-					MS: time.Since(began).Milliseconds(),
+					MS: time.Since(began).Milliseconds(), Done: true,
+					Count: int64(len(m.Entries)), CountTotal: int64(len(m.Entries)),
 				})
 			}
 		}
@@ -454,8 +467,37 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 	if !n.Docker.HasImage(ctx, spec.Image) {
 		// The one line that explains an hour: this host does not have the
 		// image and is about to fetch several gigabytes of it.
-		n.Log.Info("image not present — docker will fetch it", "agent", spec.AgentID, "image", spec.Image)
+		n.Log.Info("image not present — fetching it", "agent", spec.AgentID, "image", spec.Image)
 		n.say(ctx, t, Progress{AgentID: spec.AgentID, Phase: PhaseImage, Detail: spec.Image})
+		// Deliberately fetched here instead of leaving it to `docker run`:
+		// docker does the same thing either way, but only this way does
+		// anybody find out how far it has got.
+		pullBegan := time.Now()
+		melden := n.gate(ctx, t)
+		var letzte Progress
+		out, err := n.Docker.PullWatched(ctx, spec.Image, func(pr PullProgress) {
+			letzte = Progress{
+				AgentID: spec.AgentID, Phase: PhaseImage, Detail: spec.Image,
+				Bytes: pr.Bytes, BytesTotal: pr.Total,
+				MS: time.Since(pullBegan).Milliseconds(),
+			}
+			melden(letzte)
+		})
+		if err != nil {
+			// Not a reason to refuse: `docker run` fetches it too, and its
+			// error message is the one worth reporting. What is worth keeping
+			// is that the attempt was made and what it said.
+			n.Log.Warn("fetching the image failed — leaving it to docker run",
+				"agent", spec.AgentID, "image", spec.Image, "err", err, "out", tailOf(out))
+		} else {
+			n.Log.Info("image fetched", "agent", spec.AgentID, "image", spec.Image,
+				"bytes", letzte.BytesTotal, "ms", time.Since(pullBegan).Milliseconds())
+		}
+		n.say(ctx, t, Progress{
+			AgentID: spec.AgentID, Phase: PhaseImage, Detail: spec.Image,
+			Bytes: letzte.BytesTotal, BytesTotal: letzte.BytesTotal, Done: true,
+			MS: time.Since(pullBegan).Milliseconds(),
+		})
 	}
 	container, err := n.Docker.Start(ctx, spec)
 	if err != nil {
@@ -636,4 +678,52 @@ func short8(h string) string {
 		return "(unbekannt)"
 	}
 	return h
+}
+
+// progressEvery: how often a phase that is still running says so. Every report
+// is a row in the agent's recording and a line in the runner's log, so it has
+// to be rare enough that a quarter of an hour of syncing stays readable
+// afterwards — and frequent enough that somebody watching now sees movement.
+const progressEvery = 15 * time.Second
+
+// gate hands back a way to report progress that passes at most one report every
+// progressEvery, however often it is called. The caller reports whenever it
+// knows something new; how much of that is worth keeping is decided here.
+func (n *Node) gate(ctx context.Context, t Transport) func(Progress) {
+	var mu sync.Mutex
+	last := time.Now()
+	return func(p Progress) {
+		mu.Lock()
+		if time.Since(last) < progressEvery {
+			mu.Unlock()
+			return
+		}
+		last = time.Now()
+		mu.Unlock()
+		n.say(ctx, t, p)
+	}
+}
+
+// ticker is that gate as the sign of life a home operation gives: how many
+// entries it has dealt with, of how many, and how many bytes went over the wire
+// doing it. total 0 means the operation does not know its own end.
+func (n *Node) ticker(ctx context.Context, t Transport, agentID uuid.UUID, phase string, began time.Time, total int64) homestore.Watch {
+	melden := n.gate(ctx, t)
+	return func(seen int, bytes int64) {
+		melden(Progress{
+			AgentID: agentID, Phase: phase,
+			Count: int64(seen), CountTotal: total, Bytes: bytes,
+			MS: time.Since(began).Milliseconds(),
+		})
+	}
+}
+
+// tailOf keeps the end of a command's output: that is where the reason stands,
+// and the beginning is a list of layers nobody reads.
+func tailOf(out string) string {
+	const keep = 500
+	if len(out) <= keep {
+		return out
+	}
+	return "…" + out[len(out)-keep:]
 }

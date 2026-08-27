@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"log/slog"
@@ -661,4 +662,134 @@ func PruneLegacyEgress(ctx context.Context, dockerBin string, log *slog.Logger) 
 func (p *Docker) Pull(ctx context.Context, image string) (string, error) {
 	out, err := exec.CommandContext(ctx, p.docker(), "pull", image).CombinedOutput()
 	return string(out), err
+}
+
+// PullProgress is what a running pull can say about itself: how many bytes of
+// the image are here, how many there are in total, and what docker is busy with
+// at this moment.
+type PullProgress struct {
+	Bytes  int64
+	Total  int64
+	Detail string
+}
+
+// PullWatched fetches an image and says how far it has got while it does.
+//
+// It exists because the first start on a fresh host is the longest wait the
+// platform has, and until now it was also the quietest: `docker run` fetches a
+// missing image by itself, several gigabytes of it, and reports nothing until
+// it is done. Whoever was watching saw an agent that had been "starting" for
+// forty minutes and no way to tell a slow line from a hang.
+//
+// The figures come out of docker's own progress lines. Without a terminal it
+// writes one line per update instead of redrawing, which is what makes them
+// readable at all:
+//
+//	a1b2c3d4e5f6: Downloading [====>       ]  1.2GB/3.4GB
+//	a1b2c3d4e5f6: Extracting  [==========> ]  3.4GB/3.4GB
+//	a1b2c3d4e5f6: Pull complete
+//
+// Per layer the newest figure counts; the sum over the layers is the progress
+// of the whole image. That sum is not exact — a layer docker has not started on
+// yet is not in it, so the total grows during the first seconds — and it does
+// not have to be. It answers "is this moving", and that is the question.
+func (p *Docker) PullWatched(ctx context.Context, image string, watch func(PullProgress)) (string, error) {
+	cmd := exec.CommandContext(ctx, p.docker(), "pull", image)
+	out, err := cmd.StdoutPipe()
+	if err != nil {
+		return "", err
+	}
+	cmd.Stderr = cmd.Stdout
+	if err := cmd.Start(); err != nil {
+		return "", err
+	}
+
+	var tail strings.Builder
+	layers := map[string]PullProgress{}
+	sc := bufio.NewScanner(out)
+	sc.Buffer(make([]byte, 0, 64*1024), 1<<20)
+	for sc.Scan() {
+		line := sc.Text()
+		if tail.Len() < logTailBytes {
+			tail.WriteString(line)
+			tail.WriteByte('\n')
+		}
+		id, pr, ok := parsePullLine(line)
+		if !ok {
+			continue
+		}
+		layers[id] = pr
+		if watch == nil {
+			continue
+		}
+		var sum PullProgress
+		for _, l := range layers {
+			sum.Bytes += l.Bytes
+			sum.Total += l.Total
+		}
+		sum.Detail = pr.Detail
+		watch(sum)
+	}
+	err = cmd.Wait()
+	return tail.String(), err
+}
+
+// parsePullLine reads one of docker's progress lines. Anything else — "Using
+// default tag", "Status: Downloaded newer image" — is not progress and is
+// passed over rather than guessed at.
+func parsePullLine(line string) (string, PullProgress, bool) {
+	id, rest, ok := strings.Cut(line, ": ")
+	if !ok || id == "" || strings.ContainsAny(id, " \t") {
+		return "", PullProgress{}, false
+	}
+	rest = strings.TrimSpace(rest)
+	status, figures, hasFigures := strings.Cut(rest, "[")
+	status = strings.TrimSpace(status)
+	if status == "" {
+		return "", PullProgress{}, false
+	}
+	pr := PullProgress{Detail: status}
+	if !hasFigures {
+		// "Pull complete" / "Already exists": the layer is here, but how big it
+		// was is not in this line. Whatever was counted for it last stands.
+		return "", PullProgress{}, false
+	}
+	_, sizes, ok := strings.Cut(figures, "]")
+	if !ok {
+		return "", PullProgress{}, false
+	}
+	done, total, ok := strings.Cut(strings.TrimSpace(sizes), "/")
+	if !ok {
+		return "", PullProgress{}, false
+	}
+	pr.Bytes = parseDockerSize(done)
+	pr.Total = parseDockerSize(total)
+	if pr.Total == 0 {
+		return "", PullProgress{}, false
+	}
+	return id, pr, true
+}
+
+// parseDockerSize reads docker's own way of writing a size ("1.234GB", "512B",
+// "45.5kB"). Its units are decimal — that is docker's choice, and copying it
+// here keeps our figure and the one in `docker pull` the same figure.
+func parseDockerSize(s string) int64 {
+	s = strings.TrimSpace(s)
+	units := []struct {
+		suffix string
+		factor float64
+	}{
+		{"TB", 1e12}, {"GB", 1e9}, {"MB", 1e6}, {"kB", 1e3}, {"KB", 1e3}, {"B", 1},
+	}
+	for _, u := range units {
+		if !strings.HasSuffix(s, u.suffix) {
+			continue
+		}
+		v, err := strconv.ParseFloat(strings.TrimSpace(strings.TrimSuffix(s, u.suffix)), 64)
+		if err != nil {
+			return 0
+		}
+		return int64(v * u.factor)
+	}
+	return 0
 }

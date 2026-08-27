@@ -2023,9 +2023,17 @@
     "timeMinutes": "vor {{n}} Min",
     "timeHours": "vor {{n}} Std",
     "phase": {
-      "home": "Arbeitskopie wird hergestellt",
-      "image": "Arbeitsplatz-Image wird geholt: {{detail}}",
-      "home_synced": "Arbeitskopie gesichert"
+      "image": "Arbeitsplatz-Image wird geholt",
+      "imageDone": "Arbeitsplatz-Image geholt",
+      "home": "Arbeitsplatz wird hergestellt",
+      "homeDone": "Arbeitsplatz hergestellt",
+      "home_sync": "Arbeitsplatz wird gesichert",
+      "home_syncDone": "Arbeitsplatz gesichert",
+      "home_synced": "Schnappschuss abgelegt",
+      "home_syncedDone": "Schnappschuss abgelegt",
+      "files": "{{count}} Dateien",
+      "filesOf": "{{count}} von {{total}} Dateien",
+      "on": "auf {{runner}}"
     },
     "sandboxOn": "Läuft auf Runner {{runner}}"
   },

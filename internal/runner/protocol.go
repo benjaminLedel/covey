@@ -137,6 +137,21 @@ type Progress struct {
 	Detail  string    `json:"detail,omitempty"`
 	Bytes   int64     `json:"bytes,omitempty"`
 	MS      int64     `json:"ms,omitempty"`
+	// How far along the phase is, in the two units a phase can be measured in:
+	// bytes over the wire and entries dealt with. Both totals are 0 where the
+	// phase does not know its own end — a scan finds out how much there is by
+	// walking it — and then the running figure alone is the sign of life.
+	//
+	// Kept apart rather than one pair of "count/total", because an image counts
+	// bytes and a home counts files, and a display that has to guess which one
+	// it was given ends up showing "3.4 GB of 9,870".
+	BytesTotal int64 `json:"bytes_total,omitempty"`
+	Count      int64 `json:"count,omitempty"`
+	CountTotal int64 `json:"count_total,omitempty"`
+	// Done marks the last report of a phase: from here the figures are the
+	// result and no longer a snapshot. Whoever renders progress needs to know
+	// when to stop showing it as running.
+	Done bool `json:"done,omitempty"`
 }
 
 // The phases a start goes through on the host. Named rather than numbered:
@@ -150,6 +165,11 @@ const (
 	// PhaseImage: the workplace image is not on this host and is being
 	// fetched. This is the phase that makes a start take an hour.
 	PhaseImage = "image"
+	// PhaseHomeSync: the working copy is being written back into the store.
+	// The other direction of PhaseHome, and the one that reported nothing at
+	// all until it was finished — for a grown home that was a quarter of an
+	// hour in which the platform looked stuck and could not say otherwise.
+	PhaseHomeSync = "home_sync"
 	// PhaseHomeSynced: the working copy went into the store — written by the
 	// control plane, which is where the figures arrive.
 	PhaseHomeSynced = "home_synced"

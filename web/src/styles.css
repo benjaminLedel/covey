@@ -4233,3 +4233,76 @@ kbd {
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* Eine Phase der Plattform: Image holen, Arbeitsplatz herstellen, Arbeitsplatz
+   sichern. Sie steht zwischen den Ereignissen, aber ruhiger als sie — was hier
+   passiert, ist Hausarbeit und nicht die Arbeit des Agenten. Solange sie läuft,
+   trägt sie einen Balken; danach bleibt die Zeile mit ihren Zahlen stehen. */
+.act-feed .act-phase {
+  margin-bottom: 16px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+.act-feed .act-phase .ph {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.act-feed .act-phase .ph b { font-weight: 500; }
+.act-feed .act-phase.done { color: var(--text-muted); }
+.act-feed .act-phase-detail {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11.5px;
+  color: var(--text-muted);
+  background: var(--bg-subtle, rgba(0, 0, 0, 0.04));
+  border-radius: 6px;
+  padding: 1px 6px;
+  max-width: 40ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.act-feed .act-phase .act-meta { color: var(--text-muted); margin-left: auto; }
+.act-bar {
+  margin-top: 6px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+.act-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--text-secondary);
+  transition: width 0.4s ease;
+}
+/* Ohne bekannte Gesamtgröße läuft der Balken, statt eine Prozentzahl zu
+   behaupten, die niemand hat. */
+.act-bar.unknown > span {
+  width: 30%;
+  animation: act-bar-run 1.6s ease-in-out infinite;
+}
+@keyframes act-bar-run {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(333%); }
+}
+
+/* Die Phasenanzeige neben einem Status: derselbe Vorgang wie im Verlauf, nur
+   auf eine Zeile eingedampft. Sie steht neben dem Badge und nicht in ihm — was
+   dort steht, ist ein Wort, und „holt Image, 1,2 von 3,4 GB" ist keines. */
+.phase-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  min-width: 0;
+}
+.phase-badge .phase-label { white-space: nowrap; }
+.phase-badge .phase-pct { font-variant-numeric: tabular-nums; color: var(--text-primary); }
+.phase-badge .phase-figures { color: var(--text-muted); white-space: nowrap; }
+.phase-badge .act-bar { width: 90px; flex: none; }
+.phase-badge.compact { font-size: 11.5px; gap: 6px; }
+.phase-badge.compact .act-bar { width: 48px; }

@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import i18n from "../i18n";
 import { type RecordingEvent, recordingBlobURL } from "../api";
-import { fmtDelta } from "../format";
+import { fmtBytes, fmtCount, fmtDelta } from "../format";
 
 // ActivityFeed: übersetzt das lückenlose Recording in eine erzählende
 // Aktivitätsansicht im Stil des Mockups — Turns mit der Stimme des Agenten
@@ -45,6 +45,23 @@ type FeedItem = { key: string } & (
   | { kind: "gate"; icon: IconName; text: string; time: string; tone: Tone }
   | { kind: "parked"; title: string; text: string; time: string }
   | { kind: "result"; ok: boolean; text: string; meta: string; time: string }
+  | {
+      // Eine Phase der Plattform selbst: ein Image wird geholt, ein Home
+      // hergestellt oder zurückgeschrieben. Anders als ein Ereignis ist das
+      // eine Zeile, die sich ändert — solange die Phase läuft, tragen die
+      // folgenden Meldungen ihre Zahlen in DIESE Zeile nach, statt sich
+      // darunter zu stapeln.
+      kind: "phase";
+      phase: string;
+      detail?: string;
+      time: string;
+      done: boolean;
+      bytes?: number;
+      bytesTotal?: number;
+      count?: number;
+      countTotal?: number;
+      ms?: number;
+    }
   | {
       kind: "subagent";
       dir: string;
@@ -101,9 +118,15 @@ type IconName =
   | "flag"
   | "info"
   | "layers"
+  | "download"
+  | "save"
   | "file";
 
 const paths: Record<IconName, string> = {
+  // download: etwas kommt auf diesen Host — ein Image, ein Arbeitsplatz.
+  download: "M12 3v12m0 0l-4-4m4 4l4-4M4 19h16",
+  // save: etwas geht von diesem Host weg, in den Speicher.
+  save: "M12 21V9m0 0l-4 4m4-4l4 4M4 5h16",
   // file: eine Änderung am Arbeitsplatz — von Menschenhand, nicht vom Agenten.
   file: "M6 3h7l5 5v13H6V3zm7 0v5h5",
   // layers: der Sub-Lauf — eine zweite Ebene unter der laufenden Arbeit.
@@ -201,6 +224,37 @@ function buildItems(events: RecordingEvent[], nested: boolean): FeedItem[] {
   const pushGate = (gate: GateData, key: string) => {
     if (turn) turn.rows.push({ type: "gate", gate });
     else items.push({ key, kind: "gate", ...gate });
+  };
+  // Die offene Phase je Art: solange sie läuft, trägt jede weitere Meldung
+  // ihre Zahlen in dieselbe Zeile nach. Fünfzehn Minuten Sichern sind EIN
+  // Vorgang und keine sechzig Zeilen.
+  const offenePhasen = new Map<string, Extract<FeedItem, { kind: "phase" }>>();
+  const pushPhase = (p: Record<string, unknown>, time: string, key: string) => {
+    const phase = String(p.phase ?? "");
+    if (!phase) return;
+    const zahl = (v: unknown) => (typeof v === "number" && v > 0 ? v : undefined);
+    const done = p.done === true || phase === "home_synced";
+    const offen = offenePhasen.get(phase);
+    const ziel: Extract<FeedItem, { kind: "phase" }> = offen ?? {
+      key,
+      kind: "phase",
+      phase,
+      time,
+      done: false,
+    };
+    ziel.time = time;
+    ziel.done = done;
+    if (typeof p.detail === "string" && p.detail) ziel.detail = p.detail;
+    // Zahlen nur übernehmen, wenn welche da sind: die Anfangsmeldung hat
+    // keine, und sie darf die letzte Zwischenmeldung nicht auf null setzen.
+    ziel.bytes = zahl(p.bytes) ?? ziel.bytes;
+    ziel.bytesTotal = zahl(p.bytes_total) ?? ziel.bytesTotal;
+    ziel.count = zahl(p.count) ?? ziel.count;
+    ziel.countTotal = zahl(p.count_total) ?? ziel.countTotal;
+    ziel.ms = zahl(p.ms) ?? ziel.ms;
+    if (!offen) items.push(ziel);
+    if (done) offenePhasen.delete(phase);
+    else offenePhasen.set(phase, ziel);
   };
   const pushEvt = (evt: Extract<FeedItem, { kind: "evt" }>) => {
     const last = items[items.length - 1];
@@ -410,7 +464,9 @@ function buildItems(events: RecordingEvent[], nested: boolean): FeedItem[] {
       case "lifecycle": {
         closeTurn();
         const status = String(p.status ?? "");
-        if (status === "blocked") {
+        if (status === "preparing") {
+          pushPhase(p, time, k);
+        } else if (status === "blocked") {
           items.push({
             key: k,
             kind: "parked",
@@ -738,6 +794,66 @@ function SubRun({ item }: { item: Extract<FeedItem, { kind: "subagent" }> }) {
   );
 }
 
+// PhaseRow ist die Zeile für eine Phase der Plattform: Image holen, Home
+// herstellen, Home sichern. Solange sie läuft, trägt sie einen Balken — bei
+// bekannter Gesamtgröße einen echten, sonst einen laufenden ohne Anspruch auf
+// eine Prozentzahl. Ist sie durch, bleibt sie als Zeile mit ihren Zahlen
+// stehen: „3,4 GB in 4 min" ist hinterher die Auskunft, die zählt.
+// phasenAnteil: der Balken bekommt nur dann eine Länge, wenn die Phase ihr
+// eigenes Ende kennt. Ein Bild kennt seine Größe, ein Sync erst, wenn er durch
+// ist — und ein Balken, der eine Zahl behauptet, die niemand hat, ist schlimmer
+// als keiner.
+export function phasenAnteil(item: Extract<FeedItem, { kind: "phase" }>): number | undefined {
+  if (item.bytesTotal && item.bytes !== undefined) return Math.min(1, item.bytes / item.bytesTotal);
+  if (item.countTotal && item.count !== undefined) return Math.min(1, item.count / item.countTotal);
+  return undefined;
+}
+
+function PhaseRow({ item }: { item: Extract<FeedItem, { kind: "phase" }> }) {
+  const { t } = useTranslation();
+  const icons: Record<string, IconName> = {
+    image: "download",
+    home: "download",
+    home_sync: "save",
+    home_synced: "save",
+  };
+  const label = t(`activity.phase.${item.phase}${item.done ? "Done" : ""}`, item.phase);
+  const anteil = phasenAnteil(item);
+  const zahlen: string[] = [];
+  if (item.bytes !== undefined && item.bytesTotal) {
+    zahlen.push(`${fmtBytes(item.bytes)} / ${fmtBytes(item.bytesTotal)}`);
+  } else if (item.bytes !== undefined) {
+    zahlen.push(fmtBytes(item.bytes));
+  }
+  if (item.count !== undefined) {
+    zahlen.push(
+      item.countTotal
+        ? t("activity.phase.filesOf", { count: fmtCount(item.count), total: fmtCount(item.countTotal) })
+        : t("activity.phase.files", { count: fmtCount(item.count) }),
+    );
+  }
+  if (item.ms !== undefined) zahlen.push(fmtDelta(item.ms));
+
+  return (
+    <div className={`act-phase ${item.done ? "done" : "running"}`}>
+      <div className="ph">
+        <Icon name={icons[item.phase] ?? "info"} />
+        <b>{label}</b>
+        {item.detail && <code className="act-phase-detail">{item.detail}</code>}
+        <span className="act-meta">
+          {zahlen.length > 0 && `${zahlen.join(" · ")} · `}
+          {item.time}
+        </span>
+      </div>
+      {!item.done && (
+        <div className={`act-bar ${anteil === undefined ? "unknown" : ""}`}>
+          <span style={anteil === undefined ? undefined : { width: `${Math.round(anteil * 100)}%` }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // FeedItems rendert eine Item-Liste. Eigene Komponente, weil der Sub-Lauf-Block
 // sie für seinen Inhalt erneut braucht.
 function FeedItems({ items }: { items: FeedItem[] }) {
@@ -759,6 +875,8 @@ function FeedItems({ items }: { items: FeedItem[] }) {
                 {it.count && it.count > 1 ? ` (×${it.count})` : ""} · {it.time}
               </div>
             );
+          case "phase":
+            return <PhaseRow key={it.key} item={it} />;
           case "gate":
             return (
               <div key={it.key} className={`gate ${it.tone}`}>

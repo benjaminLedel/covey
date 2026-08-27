@@ -4,6 +4,7 @@ import { Link, useParams, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { api, post, isDraft, type Agent, type Principal } from "../api";
 import { AgentFiles } from "../components/AgentFiles";
+import { PhaseBadge } from "../components/PhaseBadge";
 import { AgentHome } from "../components/AgentHome";
 import { HireDialog } from "../components/HireDialog";
 import { canFiles, canKill, canManage, canRecord, canSecrets } from "./agent/roles";
@@ -128,6 +129,10 @@ export default function AgentPage({ me }: { me: Principal }) {
         {(a.status === "working" || a.status === "triage" || a.status === "triggered") && (
           <span className="live-dot" title={t("agent.sandbox")} />
         )}
+        {/* Der Status sagt „triggered"; worauf der Agent dabei wartet, sagt
+            erst die Phase — und auf einem frischen Host ist das die längste
+            Wartezeit, die die Plattform hat. */}
+        {a.phase && <PhaseBadge phase={a.phase} />}
         <span className="muted text-xs mono">
           runtime: {a.runtime}
           {a.model && ` · ${a.model}`}
@@ -218,6 +223,7 @@ export default function AgentPage({ me }: { me: Principal }) {
       {tab === "backlog" && (
         <Backlog
           agentId={a.id}
+          phase={a.phase}
           canManage={canManage(me.Role)}
           onShowRecording={(id, title) => {
             setRecTask({ id, title });
