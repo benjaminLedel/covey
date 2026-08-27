@@ -579,3 +579,87 @@ func TestBeimAnhaengenReistNurDasNeueStueck(t *testing.T) {
 		t.Errorf("die Datei ist nicht der Stand des Schnappschusses (%d Bytes)", len(raw))
 	}
 }
+
+// Eine gewachsene Datei wurde bisher vollständig neu geschrieben, auch wenn nur
+// ein Stück fehlte: der Weg über temporäre Datei plus rename kopiert alles.
+// Auf einem Home von Gigabyte ist das die lokale Hälfte derselben
+// Verschwendung, die die Wiederverwendung der Chunks von der Leitung nimmt.
+//
+// Nachgewiesen über einen harten Link: wird die Datei an Ort und Stelle
+// ausgebessert, sieht der Link den neuen Inhalt — beim rename bliebe er auf dem
+// alten Stand zurück.
+func TestEineGewachseneDateiWirdAnOrtUndStelleAusgebessert(t *testing.T) {
+	ctx := context.Background()
+	blobs := newDir(t)
+	org := uuid.New()
+	home := t.TempDir()
+	pfad := filepath.Join(home, "transkript.jsonl")
+
+	write(t, home, "transkript.jsonl", strings.Repeat("z", 12*1024*1024)+"ENDE")
+	res, err := Sync(ctx, blobs, org, home, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := Load(ctx, blobs, org, res.ManifestHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Arbeitskopie auf dem alten Stand, plus ein harter Link darauf.
+	write(t, home, "transkript.jsonl", strings.Repeat("z", 12*1024*1024))
+	// Neben dem Home, nicht darin: was der Schnappschuss nicht kennt, räumt
+	// Materialize aus dem Home weg — zu Recht.
+	link := filepath.Join(t.TempDir(), "derselbe-inode")
+	if err := os.Link(pfad, link); err != nil {
+		t.Skipf("harte Links nicht verfügbar: %v", err)
+	}
+
+	if _, err := Materialize(ctx, blobs, org, home, m); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(string(raw), "ENDE") {
+		t.Error("die Datei wurde ersetzt statt ausgebessert — der Link zeigt noch den alten Stand")
+	}
+	// Und der Inhalt stimmt vollständig.
+	direkt, err := os.ReadFile(pfad)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(direkt) != 12*1024*1024+4 {
+		t.Errorf("die Datei hat %d Bytes statt %d", len(direkt), 12*1024*1024+4)
+	}
+}
+
+// Und die Datei, die KÜRZER geworden ist, behält keinen Rest.
+func TestEineGeschrumpfteDateiBehaeltKeinenRest(t *testing.T) {
+	ctx := context.Background()
+	blobs := newDir(t)
+	org := uuid.New()
+	home := t.TempDir()
+
+	write(t, home, "gross.bin", strings.Repeat("a", 9*1024*1024))
+	res, err := Sync(ctx, blobs, org, home, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := Load(ctx, blobs, org, res.ManifestHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Lokal ist sie länger als der Schnappschuss.
+	write(t, home, "gross.bin", strings.Repeat("a", 9*1024*1024)+strings.Repeat("b", 5*1024*1024))
+	if _, err := Materialize(ctx, blobs, org, home, m); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(home, "gross.bin"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(raw) != 9*1024*1024 || strings.Contains(string(raw), "b") {
+		t.Errorf("der Rest wurde nicht abgeschnitten: %d Bytes", len(raw))
+	}
+}

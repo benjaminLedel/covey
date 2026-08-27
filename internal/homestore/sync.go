@@ -326,9 +326,73 @@ func unchanged(path string, e Entry) bool {
 	return true
 }
 
+// updateInPlace repairs a chunked file that is already there, writing ONLY the
+// chunks that differ. Without it a changed file is rewritten whole: a
+// transcript that grew by a line costs its full size in local writes, and on a
+// home of gigabytes that is the second half of the same waste the reuse of
+// local chunks removes from the wire.
+//
+// Not writing through a temporary file is the deliberate part. The temp+rename
+// dance protects against a half-written file that looks finished — and the
+// protection is now elsewhere and stronger: unchanged() compares by content,
+// so a file left mixed by a crash is detected at the next materialisation and
+// repaired from the store. The working copy is replaceable; that is the whole
+// premise of the home store.
+//
+// Reports what had to be FETCHED, like writeFile — the bytes taken from the
+// file itself never travelled.
+func updateInPlace(ctx context.Context, blobs BlobStore, orgID uuid.UUID, f *os.File, e Entry) (int64, error) {
+	buf := make([]byte, chunkSize)
+	var n int64
+	for i, hash := range e.Blocks {
+		off := int64(i) * int64(chunkSize)
+		read, err := f.ReadAt(buf, off)
+		if read > 0 && (err == nil || err == io.EOF) && Hash(buf[:read]) == hash {
+			continue
+		}
+		r, err := blobs.Get(ctx, orgID, hash)
+		if err != nil {
+			return n, fmt.Errorf("block %s of %s: %w", hash[:min(8, len(hash))], e.Path, err)
+		}
+		data, err := io.ReadAll(r)
+		r.Close()
+		if err != nil {
+			return n, err
+		}
+		if _, err := f.WriteAt(data, off); err != nil {
+			return n, err
+		}
+		n += int64(len(data))
+	}
+	// A file that used to be longer keeps its tail without this.
+	if err := f.Truncate(e.Size); err != nil {
+		return n, err
+	}
+	return n, f.Sync()
+}
+
 func writeFile(ctx context.Context, blobs BlobStore, orgID uuid.UUID, target string, e Entry) (int64, error) {
 	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 		return 0, err
+	}
+	// A chunked file that is already here is repaired where it lies — only the
+	// chunks that differ are written, and nothing is copied that has not
+	// changed. Everything else takes the route below.
+	if len(e.Blocks) > 1 {
+		if f, err := os.OpenFile(target, os.O_RDWR, e.Mode); err == nil {
+			info, statErr := f.Stat()
+			if statErr == nil && info.Mode().IsRegular() {
+				n, err := updateInPlace(ctx, blobs, orgID, f, e)
+				closeErr := f.Close()
+				if err == nil && closeErr == nil {
+					return n, os.Chmod(target, e.Mode)
+				}
+				// Anything unexpected falls through to the whole rewrite —
+				// which is correct in every case, only more expensive.
+			} else {
+				f.Close()
+			}
+		}
 	}
 	// Into a temporary file and rename, so a failed restore does not leave a
 	// half file behind that looks like the real one.
