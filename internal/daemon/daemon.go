@@ -547,6 +547,22 @@ func (c *Client) runTask(ctx context.Context, task AssignTask) {
 	defer proxy.Close()
 
 	env := append([]string{"COVEY_ACTION_PORT=" + proxy.Port()}, c.runtimeKeyEnv()...)
+	// The same port into the daemon's OWN environment, and not as a
+	// convenience: `dev exec` and `dev start` spawn their shells as children of
+	// this process, and every compiled prompt tells the agent to reach its
+	// target systems exactly through this port. Without it those calls went to
+	// `http://localhost/actions/…` — port 80, nothing listening, and an error
+	// that reads like a broken network instead of a missing variable.
+	//
+	// Runtime children are untouched by this: childEnv strips every COVEY_*
+	// variable out of the inherited environment and puts back only what a run
+	// gets explicitly, so the hermetic sub-agent stays hermetic.
+	//
+	// A job outlives the run that started it — that is what `dev start` is for
+	// — and keeps the port it was handed. Once that run's proxy is closed its
+	// calls fail with a refused connection, which at least says what happened.
+	os.Setenv("COVEY_ACTION_PORT", proxy.Port())
+	defer os.Unsetenv("COVEY_ACTION_PORT")
 	// Engines that take their credential as a file get it for this run only.
 	defer c.writeCredentialFile()()
 

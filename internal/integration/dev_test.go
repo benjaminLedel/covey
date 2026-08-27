@@ -3,6 +3,9 @@ package integration
 import (
 	"context"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -84,5 +87,54 @@ func TestDevPluginSandboxComputer(t *testing.T) {
 	}
 	if got.Error == nil || !strings.Contains(*got.Error, "ACCESS.md") {
 		t.Fatalf("the error should name the missing access, got %v", got.Error)
+	}
+}
+
+// Der Aufruf, den jeder kompilierte Prompt lehrt, lautet
+// `curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/<system>/<action>`.
+// In der Shell aus `dev exec` war die Variable leer — die Anfrage ging an Port
+// 80 und verschwand, und der Fehler las sich wie ein Netzproblem statt wie eine
+// fehlende Variable. Ein QA-Agent hat daran mehrere Turns verloren, weil seine
+// Warteschleife nie irgendwo angefragt hat.
+//
+// Dieser Test geht den Weg des Agenten: Aufgabe → Runtime → dev/exec → Shell.
+// Was dort ankommt, ist die Portnummer des Action-Proxies dieses Laufs.
+func TestDieShellAusDevExecErreichtDenActionProxy(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	admin.expect(http.MethodPatch, "/api/v1/targets/dev", map[string]any{"enabled": true}, http.StatusOK)
+
+	agent, err := s.registry.Create(ctx, s.orgID, "port-prober", "Port-Prüfer", "mock", &s.adminID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.registry.SaveConfig(ctx, agent.ID, map[string]string{
+		"SOUL.md":   "# Port-Prüfer",
+		"ACCESS.md": "- system: dev scope: exec",
+	}, &s.adminID); err != nil {
+		t.Fatal(err)
+	}
+
+	// Die Shell schreibt, was sie sieht, ins Home — die Aufzeichnung hält von
+	// einer Aktion nur ok/Aktion/Parameter fest, nicht ihre Ausgabe.
+	task, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Action-Port prüfen",
+		`[mock:action dev/exec {"cmd":"echo \"port=[$COVEY_ACTION_PORT]\" > port.txt"}]`+
+			` [mock:result geprüft]`, "manual", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "port task done", 15*time.Second, func() bool {
+		return s.taskState(task.ID) == backlog.StateDone
+	})
+
+	raw, err := os.ReadFile(filepath.Join(s.homeBase, agent.ID.String(), "port.txt"))
+	if err != nil {
+		t.Fatalf("die Shell hat nichts geschrieben: %v", err)
+	}
+	got := strings.TrimSpace(string(raw))
+	port := strings.TrimSuffix(strings.TrimPrefix(got, "port=["), "]")
+	if n, err := strconv.Atoi(port); err != nil || n <= 0 {
+		t.Fatalf("die Shell aus dev/exec sieht COVEY_ACTION_PORT nicht: %q", got)
 	}
 }
