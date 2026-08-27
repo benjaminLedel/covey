@@ -184,3 +184,29 @@ describe("Phasen der Plattform", () => {
     expect(phasenAnteil(ohne)).toBeUndefined();
   });
 });
+
+/* Ein Sync, der scheitert, hinterließ eine Zeile im Debug-Log des Runners und
+   sonst nichts (#72). Die Oberfläche zeigte weiter den letzten geglückten
+   Schnappschuss — wahr und nutzlos, während seither jeder Versuch scheiterte.
+   Im Verlauf ist der Fehlschlag jetzt eine Zeile wie jede andere. */
+describe("gescheiterte Phasen", () => {
+  const phase = (p: Record<string, unknown>) => ev({ status: "preparing", ...p }, "lifecycle");
+
+  it("zeigt den Grund, statt einen Balken zu füllen", () => {
+    const items = buildFeed([
+      phase({ phase: "home_sync" }),
+      phase({ phase: "home_sync", done: true, error: "block 78a279df: 413 Request Entity Too Large" }),
+    ]);
+    const p = items.filter((i) => i.kind === "phase") as { error?: string; done: boolean }[];
+    expect(p).toHaveLength(1);
+    expect(p[0].error).toContain("413");
+  });
+
+  // Ein Fehlschlag darf nicht als Erfolg durchgehen, nur weil er „fertig" sagt.
+  it("hält Fehlschlag und Abschluss auseinander", () => {
+    const gut = buildFeed([phase({ phase: "home_sync", done: true, bytes: 42 })]);
+    const schlecht = buildFeed([phase({ phase: "home_sync", done: true, error: "weg" })]);
+    expect((gut.find((i) => i.kind === "phase") as { error?: string }).error).toBeUndefined();
+    expect((schlecht.find((i) => i.kind === "phase") as { error?: string }).error).toBe("weg");
+  });
+});

@@ -61,6 +61,10 @@ type FeedItem = { key: string } & (
       count?: number;
       countTotal?: number;
       ms?: number;
+      // Der Vorgang ist nicht durchgelaufen. Eine Phase mit Fehler ist kein
+      // Fortschritt mehr, sondern ein Befund — und der Balken hat dort nichts
+      // zu suchen.
+      error?: string;
     }
   | {
       kind: "subagent";
@@ -245,6 +249,7 @@ function buildItems(events: RecordingEvent[], nested: boolean): FeedItem[] {
     ziel.time = time;
     ziel.done = done;
     if (typeof p.detail === "string" && p.detail) ziel.detail = p.detail;
+    if (typeof p.error === "string" && p.error) ziel.error = p.error;
     // Zahlen nur übernehmen, wenn welche da sind: die Anfangsmeldung hat
     // keine, und sie darf die letzte Zwischenmeldung nicht auf null setzen.
     ziel.bytes = zahl(p.bytes) ?? ziel.bytes;
@@ -833,6 +838,19 @@ function PhaseRow({ item }: { item: Extract<FeedItem, { kind: "phase" }> }) {
     );
   }
   if (item.ms !== undefined) zahlen.push(fmtDelta(item.ms));
+
+  if (item.error) {
+    return (
+      <div className="act-phase failed">
+        <div className="ph">
+          <Icon name="x" />
+          <b>{t(`activity.phase.${item.phase}Failed`, label)}</b>
+          <span className="act-meta">{item.time}</span>
+        </div>
+        <p className="act-phase-error">{item.error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className={`act-phase ${item.done ? "done" : "running"}`}>

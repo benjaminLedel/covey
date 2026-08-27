@@ -1015,6 +1015,23 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 			}
 			return *snap.RunnerID, true
 		}
+		// Ein Sync, der NICHT stattgefunden hat, gehört in dieselbe Zeile wie
+		// einer, der stattgefunden hat. Vorher stand er nur im Debug-Log des
+		// Runners: die Oberfläche zeigte weiter den letzten geglückten
+		// Schnappschuss, und dass seither nichts mehr gesichert wurde, sah
+		// wochenlang niemand.
+		runnerPool.SnapshotFailed = func(ctx context.Context, agentID, runnerID uuid.UUID, reason, msg string) {
+			agent, err := registry.Get(ctx, agentID)
+			if err != nil {
+				return
+			}
+			_ = obs.Record(ctx, agent.OrgID, agentID, nil, observability.KindLifecycle, map[string]any{
+				"status": "preparing", "phase": runner.PhaseHomeSync, "done": true,
+				"error": msg, "detail": reason, "runner": runnerID.String(),
+			})
+			log.Warn("home not secured — the workplace stands on an older snapshot",
+				"agent", agentID, "reason", reason, "err", msg)
+		}
 		runnerPool.SnapshotTaken = func(ctx context.Context, agentID, runnerID uuid.UUID, res runner.HomeSynced) error {
 			agent, err := registry.Get(ctx, agentID)
 			if err != nil {

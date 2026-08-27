@@ -1240,7 +1240,8 @@
       "snapshots_one": "{{count}} snapshot, from {{since}}",
       "snapshots_other": "{{count}} snapshots, the oldest from {{since}}",
       "files_one": "{{count}} file",
-      "files_other": "{{count}} files"
+      "files_other": "{{count}} files",
+      "syncFailed": "The workplace has not been secured since {{when}}: {{error}} — the figures below describe an older state."
     }
   },
   "approvals": {
@@ -2033,7 +2034,10 @@
       "home_syncedDone": "snapshot stored",
       "files": "{{count}} files",
       "filesOf": "{{count}} of {{total}} files",
-      "on": "on {{runner}}"
+      "on": "on {{runner}}",
+      "home_syncFailed": "the workplace could not be secured",
+      "homeFailed": "the workplace could not be laid out",
+      "imageFailed": "the workplace image could not be fetched"
     },
     "sandboxOn": "Running on runner {{runner}}"
   },
