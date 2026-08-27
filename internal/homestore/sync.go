@@ -274,21 +274,56 @@ func Materialize(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root str
 // describes. Size plus the hash of the content — not the mtime: a materialised
 // file gets a fresh one, and comparing it would make every restore rewrite
 // everything.
+// unchanged: is the file on disk already the one the snapshot describes?
+//
+// It reads the file to answer that, LARGE FILES INCLUDED, and the earlier
+// version deliberately did not — "hashing a 3 GB SDK tarball to save writing it
+// is a bad trade". The trade it actually made was worse: everything above
+// wholeFileLimit counted as changed, always, and was therefore fetched and
+// written again on every single wake. Measured on a production instance: an
+// agent whose home holds an SDK, a JDK and package caches pulled 8.3 GB across
+// the network at every wake — eleven minutes, before its first turn, every
+// time. Reading those same bytes off the local disk costs seconds.
+//
+// The comparison mirrors how the blocks were made (blocksOf): one block means
+// the whole file was hashed at once, several mean fixed chunkSize pieces.
 func unchanged(path string, e Entry) bool {
 	info, err := os.Lstat(path)
 	if err != nil || !info.Mode().IsRegular() || info.Size() != e.Size {
 		return false
 	}
-	// Only for small files: hashing a 3 GB SDK tarball to save writing it is a
-	// bad trade, and large files in a home are the ones that rarely change.
-	if e.Size > wholeFileLimit || len(e.Blocks) != 1 {
-		return false
+	if len(e.Blocks) == 0 {
+		return e.Size == 0
 	}
-	data, err := os.ReadFile(path)
+	f, err := os.Open(path)
 	if err != nil {
 		return false
 	}
-	return Hash(data) == e.Blocks[0]
+	defer f.Close()
+
+	if len(e.Blocks) == 1 {
+		data, err := io.ReadAll(f)
+		if err != nil {
+			return false
+		}
+		return Hash(data) == e.Blocks[0]
+	}
+	buf := make([]byte, chunkSize)
+	for _, want := range e.Blocks {
+		n, err := io.ReadFull(f, buf)
+		if n == 0 || (err != nil && err != io.ErrUnexpectedEOF) {
+			return false
+		}
+		if Hash(buf[:n]) != want {
+			return false
+		}
+	}
+	// Nothing may follow: a longer file with the same prefix is not this one.
+	// The size check above already says so — this is the belt to its braces.
+	if n, _ := f.Read(buf[:1]); n != 0 {
+		return false
+	}
+	return true
 }
 
 func writeFile(ctx context.Context, blobs BlobStore, orgID uuid.UUID, target string, e Entry) (int64, error) {
@@ -303,8 +338,32 @@ func writeFile(ctx context.Context, blobs BlobStore, orgID uuid.UUID, target str
 	}
 	defer os.Remove(tmp.Name())
 
+	// What lies here already does not have to travel. For a chunked file that
+	// is the whole point of fixed-size blocks: an append leaves every preceding
+	// chunk byte-identical at the same offset (spec/16), so a grown transcript
+	// costs one chunk and not three gigabytes. Only for chunked files — a whole
+	// file that got here has been compared by unchanged() already.
+	var local *os.File
+	if len(e.Blocks) > 1 {
+		if f, err := os.Open(target); err == nil {
+			local = f
+			defer local.Close()
+		}
+	}
+	buf := make([]byte, chunkSize)
+
 	var n int64
-	for _, hash := range e.Blocks {
+	for i, hash := range e.Blocks {
+		if local != nil {
+			read, err := local.ReadAt(buf, int64(i)*int64(chunkSize))
+			if read > 0 && (err == nil || err == io.EOF) && Hash(buf[:read]) == hash {
+				if _, err := tmp.Write(buf[:read]); err != nil {
+					tmp.Close()
+					return n, err
+				}
+				continue
+			}
+		}
 		r, err := blobs.Get(ctx, orgID, hash)
 		if err != nil {
 			tmp.Close()

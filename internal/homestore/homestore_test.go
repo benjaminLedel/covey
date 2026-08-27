@@ -454,3 +454,128 @@ func (l *limitedBlobs) Put(ctx context.Context, orgID uuid.UUID, hash string, r 
 	}
 	return l.Dir.Put(ctx, orgID, hash, bytes.NewReader(data))
 }
+
+// Ein zweiter Weckruf auf demselben Host darf nichts kosten — das ist die
+// Zusage, auf der die Runner-Affinität steht. Sie galt nur für kleine Dateien:
+// alles über wholeFileLimit galt als verändert und wurde JEDES Mal neu geholt.
+// Auf einer Produktivinstanz waren das 8,3 GB und elf Minuten pro Weckruf,
+// bevor der Agent seinen ersten Turn machte.
+func TestEineGrosseDateiWirdNichtBeiJedemWeckrufNeuGeholt(t *testing.T) {
+	ctx := context.Background()
+	blobs := newDir(t)
+	org := uuid.New()
+	home := t.TempDir()
+
+	// Eine Datei über wholeFileLimit (also gechunkt) und eine knapp darunter.
+	write(t, home, "sdk/flutter.tar", strings.Repeat("SDK", 4*1024*1024))
+	write(t, home, "mittel.bin", strings.Repeat("m", 6*1024*1024))
+	write(t, home, "klein.txt", "kurz")
+
+	res, err := Sync(ctx, blobs, org, home, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := Load(ctx, blobs, org, res.ManifestHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Dieselbe Arbeitskopie noch einmal auf denselben Stand bringen: es ist
+	// nichts zu tun, und es darf nichts über die Leitung gehen.
+	second, err := Materialize(ctx, blobs, org, home, m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.BytesIn != 0 {
+		t.Errorf("%d Bytes wurden erneut geholt, obwohl sich nichts geändert hat", second.BytesIn)
+	}
+	if second.Written != 0 {
+		t.Errorf("%d Dateien wurden erneut geschrieben", second.Written)
+	}
+	if second.Kept != 3 {
+		t.Errorf("erwartet 3 unveränderte Dateien, gezählt %d", second.Kept)
+	}
+}
+
+// Und die Gegenrichtung: eine große Datei, die sich WIRKLICH geändert hat, muss
+// erkannt werden — sonst wäre die Ersparnis mit falschen Daten bezahlt.
+func TestEineVeraenderteGrosseDateiWirdErkannt(t *testing.T) {
+	ctx := context.Background()
+	blobs := newDir(t)
+	org := uuid.New()
+	home := t.TempDir()
+	write(t, home, "gross.bin", strings.Repeat("a", 10*1024*1024))
+
+	res, err := Sync(ctx, blobs, org, home, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := Load(ctx, blobs, org, res.ManifestHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Gleiche Länge, anderer Inhalt — die Größe allein verrät es nicht.
+	write(t, home, "gross.bin", strings.Repeat("a", 5*1024*1024)+strings.Repeat("b", 5*1024*1024))
+	back, err := Materialize(ctx, blobs, org, home, m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if back.Written != 1 {
+		t.Errorf("die veränderte Datei wurde nicht zurückgeholt (Written %d)", back.Written)
+	}
+	raw, err := os.ReadFile(filepath.Join(home, "gross.bin"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "b") {
+		t.Error("der Stand des Schnappschusses hat sich nicht durchgesetzt")
+	}
+}
+
+// Ein gewachsenes Transkript ist der Fall, für den feste Blöcke überhaupt
+// gewählt wurden: ein Anhängen lässt jeden vorherigen Chunk byteweise gleich,
+// an derselben Stelle. Eingelöst wurde das nicht — writeFile holte jeden Block
+// aus dem Store, auch die, die lokal schon danebenlagen.
+func TestBeimAnhaengenReistNurDasNeueStueck(t *testing.T) {
+	ctx := context.Background()
+	blobs := newDir(t)
+	org := uuid.New()
+	home := t.TempDir()
+
+	// 12 MiB: gechunkt in 3 Stücke.
+	write(t, home, ".claude/transkript.jsonl", strings.Repeat("z", 12*1024*1024))
+	if _, err := Sync(ctx, blobs, org, home, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	// Angehängt: die ersten drei Chunks bleiben, ein vierter kommt dazu.
+	write(t, home, ".claude/transkript.jsonl", strings.Repeat("z", 12*1024*1024)+strings.Repeat("neu", 100))
+	res, err := Sync(ctx, blobs, org, home, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := Load(ctx, blobs, org, res.ManifestHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Die Arbeitskopie steht auf dem ALTEN Stand — wie auf einem Runner, der
+	// den Agenten zuletzt vor dem Anhängen getragen hat.
+	write(t, home, ".claude/transkript.jsonl", strings.Repeat("z", 12*1024*1024))
+	back, err := Materialize(ctx, blobs, org, home, m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Nur das letzte, kurze Stück darf über die Leitung — nicht die 12 MiB davor.
+	if back.BytesIn > chunkSize {
+		t.Errorf("%d Bytes geholt, obwohl nur ein Stück angehängt wurde", back.BytesIn)
+	}
+	raw, err := os.ReadFile(filepath.Join(home, ".claude/transkript.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(raw) != 12*1024*1024+300 || !strings.HasSuffix(string(raw), "neu") {
+		t.Errorf("die Datei ist nicht der Stand des Schnappschusses (%d Bytes)", len(raw))
+	}
+}
