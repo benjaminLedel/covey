@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -167,7 +168,14 @@ func (p *Docker) Start(ctx context.Context, spec StartSandbox) (string, error) {
 
 	// --init: the runtime spawns child processes; tini as PID 1 inherits and
 	// reaps them, while coveyd still gets SIGTERM passed through cleanly.
-	args := []string{"run", "-d", "--rm", "--init",
+	//
+	// Deliberately WITHOUT --rm. A sandbox that dies at its start takes its own
+	// output with it the moment docker removes it, and "exit 1" without a word
+	// is the sentence that sends an operator onto the host — where the
+	// container is already gone. So it stays until Wait has read its last lines
+	// (logTail); removal happens there and in Stop, and Start above clears a
+	// leftover of the same name before it begins.
+	args := []string{"run", "-d", "--init",
 		"--name", name,
 		"-v", home + ":" + sandboxHome,
 		"-e", "HOME=" + sandboxHome,
@@ -236,10 +244,12 @@ func (p *Docker) Stop(ctx context.Context, name string) error {
 	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 	defer cancel()
 	out, err := exec.CommandContext(stopCtx, p.docker(), "stop", "-t", "5", name).CombinedOutput()
-	if err != nil && !strings.Contains(string(out), "No such container") {
-		// Force cleanup so the name is free for the next wake.
-		_ = exec.CommandContext(stopCtx, p.docker(), "rm", "-f", name).Run()
+	if err != nil && strings.Contains(string(out), "No such container") {
+		return nil
 	}
+	// Always, not only after an error: without --rm the container stays behind
+	// after a clean stop too, and the next wake needs the name.
+	_ = exec.CommandContext(stopCtx, p.docker(), "rm", "-f", name).Run()
 	return nil
 }
 
@@ -253,20 +263,59 @@ func (p *Docker) Wait(ctx context.Context, name string) string {
 	}
 	code := strings.TrimSpace(string(out))
 	if err != nil {
-		// The container is already gone — with --rm that is the normal end of
-		// a `docker stop`, and the caller decides whether anyone asked for it.
+		// The container is already gone — somebody removed it, and the caller
+		// decides whether anyone asked for that.
 		return "container gone: " + firstLine(string(out), err)
 	}
+	// Read before removing: this is the only moment the container's own words
+	// are still available, and they are what the whole report is worth.
+	tail := p.logTail(ctx, name)
+	defer func() {
+		rmCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 20*time.Second)
+		defer cancel()
+		_ = exec.CommandContext(rmCtx, p.docker(), "rm", "-f", name).Run()
+	}()
 	switch code {
 	case "0":
-		return "sandbox ended by itself (exit 0)"
+		return "sandbox ended by itself (exit 0)" + tail
 	case "137":
 		// 128+9: killed. In a container that is nearly always the OOM killer,
 		// and naming it saves a search that otherwise starts at the runtime.
-		return "sandbox killed (exit 137 — out of memory?)"
+		return "sandbox killed (exit 137 — out of memory?)" + tail
 	default:
-		return "sandbox ended by itself (exit " + code + ")"
+		return "sandbox ended by itself (exit " + code + ")" + tail
 	}
+}
+
+// logTailLines/logTailBytes bound what travels. The report goes into the
+// recording of a run, where it is read by a human looking for the reason — the
+// last lines carry it, and a whole log would bury it as reliably as no log at
+// all.
+const (
+	logTailLines = 40
+	logTailBytes = 4000
+)
+
+// logTail is the container's last output, prepared for a one-line report.
+// Empty when there is nothing to say — a container that dies silently should
+// not produce a sentence pretending otherwise.
+func (p *Docker) logTail(ctx context.Context, name string) string {
+	logCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 20*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(logCtx, p.docker(), "logs",
+		"--tail", strconv.Itoa(logTailLines), name).CombinedOutput()
+	text := strings.TrimSpace(string(out))
+	if err != nil && text == "" {
+		return ""
+	}
+	if text == "" {
+		return ""
+	}
+	if len(text) > logTailBytes {
+		// From the END: the last lines are the ones that say why.
+		text = "…" + text[len(text)-logTailBytes:]
+	}
+	return " — its last output: " + text
 }
 
 // Check reports what stands between this platform and a running sandbox —
