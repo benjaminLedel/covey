@@ -14,6 +14,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -72,6 +73,15 @@ type Runner struct {
 	// lives on the row and not only in the message, so that a runner which
 	// reconnects comes back at the level the interface shows.
 	LogLevel string `json:"log_level"`
+	// UpdateTo is the version this host is to be lifted to as soon as it
+	// carries nothing. Empty = nothing planned.
+	//
+	// It sits on the row rather than in the process because the wait may be
+	// long: an agent working for half an hour is a normal reason for a runner
+	// to be busy, and a control plane that restarts in the meantime must not
+	// forget what an operator asked for.
+	UpdateTo        string     `json:"update_to,omitempty"`
+	UpdatePlannedAt *time.Time `json:"update_planned_at,omitempty"`
 }
 
 // Paused is the question the scheduler asks; the timestamp is for the sentence
@@ -102,17 +112,45 @@ func NewToken() (string, error) {
 	return hex.EncodeToString(buf), nil
 }
 
-const columns = `id, org_id, kind, name, description, tags, extra_tags, assigned_images, version, arch, protocol, created_at, last_seen_at, paused_at, log_level`
+const columns = `id, org_id, kind, name, description, tags, extra_tags, assigned_images, version, arch, protocol, created_at, last_seen_at, paused_at, log_level, update_to, update_planned_at`
 
 func scan(row pgx.Row) (Runner, error) {
 	var r Runner
 	var images []string
 	err := row.Scan(&r.ID, &r.OrgID, &r.Kind, &r.Name, &r.Description, &r.Tags, &r.ExtraTags, &images,
-		&r.Version, &r.Arch, &r.Protocol, &r.CreatedAt, &r.LastSeenAt, &r.PausedAt, &r.LogLevel)
+		&r.Version, &r.Arch, &r.Protocol, &r.CreatedAt, &r.LastSeenAt, &r.PausedAt, &r.LogLevel,
+		&r.UpdateTo, &r.UpdatePlannedAt)
 	if images != nil {
 		r.AssignedImages, r.ImagesDecided = images, true
 	}
 	return r, err
+}
+
+// PlanUpdate records "lift this host to that version at the next gap", or
+// clears the wish when the version is empty. Two writes and no read: whoever
+// plans an update last has said the last word, and a plan that had to be read
+// before it could be replaced would be a race between two operators.
+func (s *Store) PlanUpdate(ctx context.Context, id uuid.UUID, version string) error {
+	version = strings.TrimSpace(version)
+	if version == "" {
+		_, err := s.pool.Exec(ctx,
+			`UPDATE runners SET update_to='', update_planned_at=NULL WHERE id=$1`, id)
+		return err
+	}
+	_, err := s.pool.Exec(ctx,
+		`UPDATE runners SET update_to=$2, update_planned_at=now() WHERE id=$1`, id, version)
+	return err
+}
+
+// PlannedUpdate is what the pool asks when a host has become idle. Empty = the
+// host is to stay where it is.
+func (s *Store) PlannedUpdate(ctx context.Context, id uuid.UUID) (string, error) {
+	var version string
+	err := s.pool.QueryRow(ctx, `SELECT update_to FROM runners WHERE id=$1`, id).Scan(&version)
+	if err == pgx.ErrNoRows {
+		return "", nil
+	}
+	return version, err
 }
 
 // Patch is what the interface may change about a runner. Every field is a

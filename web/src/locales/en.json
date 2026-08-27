@@ -2313,7 +2313,8 @@
       "subIdentity": "Identity",
       "subWorkplaces": "Workplaces",
       "subLog": "Log",
-      "subMaintenance": "Maintenance"
+      "subMaintenance": "Maintenance",
+      "updatePlanned": "The host is carrying sandboxes — the update to {{to}} runs at the next gap."
     },
     "edit": "Edit",
     "log": {

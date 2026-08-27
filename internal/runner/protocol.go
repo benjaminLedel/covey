@@ -174,8 +174,13 @@ type UpdateResult struct {
 	// back. The connection ends right after this message, and that is not a
 	// fault — without saying so, an operator would see a host that vanishes at
 	// the moment they pressed the button.
-	Restarting bool   `json:"restarting,omitempty"`
-	Err        string `json:"err,omitempty"`
+	Restarting bool `json:"restarting,omitempty"`
+	// Busy: refused because this host is carrying sandboxes. A field and not
+	// only a sentence, because the control plane acts on it — it turns the
+	// refusal into a plan for the next gap — and acting on a string somebody
+	// may reword is how that stops working silently.
+	Busy bool   `json:"busy,omitempty"`
+	Err  string `json:"err,omitempty"`
 }
 
 // CapacityReport is what a runner is carrying.

@@ -94,6 +94,19 @@ type Pool struct {
 	// looks for the difference.
 	Progress func(orgID, runnerID uuid.UUID, p Progress)
 
+	// PlannedUpdate asks whether an update is waiting for this host to become
+	// idle, and UpdatePlanned* record what came of it. nil = nothing is
+	// planned anywhere, which is what a pool without a database looks like.
+	//
+	// The wait is the point: a runner that carries sandboxes refuses an update
+	// for a good reason, and until now the waiting was left to a human who had
+	// to press the button again at the right minute.
+	PlannedUpdate     func(ctx context.Context, runnerID uuid.UUID) (string, error)
+	PlannedUpdateDone func(ctx context.Context, runnerID uuid.UUID, version string)
+	// RunnerDownloadBase is where a planned update fetches its binary from —
+	// the same address the interface would have sent.
+	RunnerDownloadBase string
+
 	// LogLevelFor answers what level this runner is meant to report at. Asked
 	// on every registration, because the level is a property of the runner and
 	// not of the connection: a host somebody switched to debug that drops out
@@ -199,8 +212,12 @@ type conn struct {
 	// when it said it. Kept rather than asked at the moment somebody looks:
 	// see capacityWatch. capacityAt is also the answer to a second question —
 	// see answering.
-	capacity   CapacityReport
-	capacityAt time.Time
+	capacity CapacityReport
+	// updating/updateTried gehören zum geplanten Update: eins zur Zeit, und
+	// nach einem Fehlschlag nicht sofort wieder.
+	updating    bool
+	updateTried time.Time
+	capacityAt  time.Time
 	// openedAt is when this connection came up. It stands in for an answer
 	// that has not arrived yet: a host that has just connected is given the
 	// same grace as one that has just answered.
@@ -746,6 +763,75 @@ func (c *conn) refreshCapacity(ctx context.Context) {
 	c.capacity = report
 	c.capacityAt = time.Now()
 	c.mu.Unlock()
+
+	// Die Lücke, auf die ein geplantes Update wartet. Der Kapazitätsbericht ist
+	// dafür die verlässlichste Quelle: er zählt, was der Host WIRKLICH trägt,
+	// und nicht, was die Steuerebene glaubt.
+	if report.Sandboxes == 0 {
+		c.runPlannedUpdate(ctx)
+	}
+}
+
+// plannedRetry: so lange wird nach einem missglückten Versuch nicht erneut
+// gefragt. Ohne diese Bremse liefe ein Update, das an einem kaputten Download
+// scheitert, alle dreißig Sekunden wieder los.
+const plannedRetry = 5 * time.Minute
+
+// runPlannedUpdate führt aus, was für diesen Host vorgemerkt ist — jetzt, wo er
+// nichts trägt.
+//
+// Der Plan bleibt stehen, solange er nicht erfüllt ist: ein Versuch, der an
+// einem Download scheitert, ist kein Grund, den Wunsch zu vergessen. Erfüllt
+// ist er, wenn der Host auf der gewünschten Fassung läuft — auch wenn ihn
+// jemand von Hand dorthin gebracht hat.
+func (c *conn) runPlannedUpdate(ctx context.Context) {
+	p := c.pool
+	if p.PlannedUpdate == nil || c.builtin {
+		return
+	}
+	c.mu.Lock()
+	if c.updating || time.Since(c.updateTried) < plannedRetry {
+		c.mu.Unlock()
+		return
+	}
+	c.updating, c.updateTried = true, time.Now()
+	version := c.version
+	c.mu.Unlock()
+	defer func() {
+		c.mu.Lock()
+		c.updating = false
+		c.mu.Unlock()
+	}()
+
+	want, err := p.PlannedUpdate(ctx, c.runnerID)
+	if err != nil || strings.TrimSpace(want) == "" {
+		return
+	}
+	if want == version {
+		// Schon da — dann war der Plan die Wirklichkeit, und der Wunsch ist
+		// erfüllt, ohne dass jemand etwas ersetzen musste.
+		if p.PlannedUpdateDone != nil {
+			p.PlannedUpdateDone(ctx, c.runnerID, want)
+		}
+		return
+	}
+	p.Log.Info("carrying out the planned update", "runner", short(c.runnerID), "to", want)
+	res, err := p.Update(ctx, c.runnerID, want, p.RunnerDownloadBase)
+	switch {
+	case err != nil:
+		p.Log.Warn("planned update did not run", "runner", short(c.runnerID), "err", err)
+	case res.Busy:
+		// Zwischen Bericht und Auftrag ist ein Lauf gestartet. Der Plan bleibt.
+		p.Log.Info("host became busy again — the update stays planned", "runner", short(c.runnerID))
+	case res.Err != "":
+		p.Log.Warn("planned update failed", "runner", short(c.runnerID), "err", res.Err)
+	default:
+		p.Log.Info("planned update under way", "runner", short(c.runnerID),
+			"from", res.From, "to", res.To, "restarting", res.Restarting)
+		if p.PlannedUpdateDone != nil {
+			p.PlannedUpdateDone(ctx, c.runnerID, want)
+		}
+	}
 }
 
 // capacityAsk bounds one such question. Generous, because nobody is waiting on

@@ -2313,7 +2313,8 @@
       "subIdentity": "Identität",
       "subWorkplaces": "Arbeitsplätze",
       "subLog": "Log",
-      "subMaintenance": "Wartung"
+      "subMaintenance": "Wartung",
+      "updatePlanned": "Der Host trägt gerade Sandboxen — das Update auf {{to}} läuft in der nächsten Lücke."
     },
     "edit": "Bearbeiten",
     "log": {

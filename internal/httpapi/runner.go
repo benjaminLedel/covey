@@ -560,10 +560,54 @@ func (s *Server) handleUpdateRunnerBinary(w http.ResponseWriter, r *http.Request
 		writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
+	// Carrying sandboxes is not a failure, it is a "not now". The refusal
+	// becomes a plan: the pool carries it out at the next gap, and nobody has
+	// to sit in front of the button waiting for one. Which version was asked
+	// for has to be recorded — "the newest" would mean something else by then.
+	if res.Busy && s.Runners != nil {
+		target := res.To
+		if target == "" {
+			target = version
+		}
+		if target != "" {
+			if err := s.Runners.PlanUpdate(r.Context(), id, target); err != nil {
+				s.Log.Warn("update could not be planned", "runner", id, "err", err)
+			} else {
+				writeJSON(w, http.StatusOK, map[string]any{
+					"ok": false, "planned": true, "to": target, "error": res.Err,
+				})
+				return
+			}
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok": res.Err == "", "error": res.Err,
 		"from": res.From, "to": res.To, "restarting": res.Restarting,
 	})
+}
+
+// handleCancelRunnerUpdate takes a planned update back. Its own route rather
+// than an empty version in the update call: there, empty means "the newest
+// release", and one field cannot mean both "the latest" and "none".
+func (s *Server) handleCancelRunnerUpdate(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	if s.Runners == nil {
+		writeErr(w, http.StatusServiceUnavailable, "runner API not available")
+		return
+	}
+	if _, err := s.Runners.ByID(r.Context(), id); err != nil {
+		mapErr(w, err)
+		return
+	}
+	if err := s.Runners.PlanUpdate(r.Context(), id, ""); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 // handleRunnerLogs answers what a host has been saying. Newest first, because
