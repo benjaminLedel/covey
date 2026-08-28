@@ -6,8 +6,8 @@
 
 **The IT and HR department for AI agents.**
 
-An agent gets an identity, a locked-down workplace, credentials it never keeps,<br/>
-a backlog and a place on the org chart. You get to see everything it did.
+Every agent gets its own sandbox, its own logins and its own backlog.<br/>
+You hand out the work, set the limits, and read back what was done.
 
 [![covey.work](https://img.shields.io/badge/live-covey.work-cc7a5b)](https://covey.work)
 [![CI](https://github.com/benjaminLedel/covey/actions/workflows/ci.yml/badge.svg)](https://github.com/benjaminLedel/covey/actions/workflows/ci.yml)
@@ -35,21 +35,21 @@ a backlog and a place on the org chart. You get to see everything it did.
 
 ## What Covey is
 
-An agent that does real work needs what a new colleague needs: an account, a machine, access to the systems the work happens in, a list of what to do, and somebody who notices when it goes wrong.
+Covey is a self-hosted platform for running AI agents inside a company. You create an agent, give it access to the systems it needs, and it works through a backlog on its own. Everything it does is logged, and everything it costs is counted.
 
-Most agent frameworks hand you the model and leave the rest to you. Covey is the rest.
+Three examples of what an agent does here:
 
-- A **support agent** watches a Zammad queue, answers what it can and escalates the rest.
-- A **developer agent** takes a Jira ticket, checks out the repository, opens a merge request and comments the link back on the ticket.
-- A **QA agent** drives your web UI in a headless browser and files what it finds.
+- **Support** — watches a Zammad queue, answers what it can and escalates the rest.
+- **Development** — picks up a Jira ticket, checks out the repository, opens a merge request and links it back on the ticket.
+- **QA** — clicks through a web interface in a headless browser and files what breaks.
 
-They sleep until something wakes them — a webhook, a heartbeat, a person. Every run is recorded with screenshots. The bill is on one page, per agent and per model. One switch stops all of them.
+An agent sleeps until a webhook, a scheduled check or a person wakes it, so an idle agent costs nothing. What it is allowed to reach is decided by the platform, not by the agent's prompt. Its actions and screenshots go into a recording you can read afterwards, spend is broken down per agent and per model, and one button stops every agent in the organisation at once.
 
-**The unit is the organisation, not the user.** This is the platform a *company* runs to govern its entire agent workforce: many human stakeholders (IT, team leads, security, audit, controlling), guard rails enforced centrally, and one org chart with humans and agents in it. That is the difference from the single-user "AI employee" apps.
+Covey is built for organisations rather than for one person at a desk. Several people administer it — IT, team leads, security, controlling — permissions and guard rails are set centrally, and humans and agents appear in the same org chart.
 
-**Where it stands:** well beyond the MVP. The end-to-end path from [`spec/11-mvp-plan.md`](spec/11-mvp-plan.md) is in place and everything on this page is built on top of it; the acceptance checklist runs as an integration test suite. [covey.work](https://covey.work) is this repository's `main`, deployed on every push.
+**Status:** Covey is ready to use. [covey.work](https://covey.work) runs this repository's `main` and is redeployed on every push; releases are versioned, upgrades are documented, and an integration suite covers the whole path from wake to result.
 
-> **Codename.** A *covey* is a small, coordinated flock — a group that moves together. That is the platform: many agents, centrally orchestrated.
+> **Codename.** A *covey* is a small flock that moves together — roughly what the platform does with agents.
 
 <a id="start-in-two-minutes" name="start-in-two-minutes"></a>
 
@@ -67,9 +67,11 @@ docker compose up -d --build    # Postgres + Covey
 
 Open **[http://localhost:8494](http://localhost:8494)** and log in with `admin@covey.local` / `covey-admin`.
 
-Setup asks three questions, each one skippable: the engine and its credential (checked before it is stored), three sentences on what your company does, and whether you want a **People department** — an agent whose job is drafting the others. Then *New agent → brief* is the shortest way to your first colleague: describe in a few sentences what they should do, and the People department writes the configuration.
+The setup asks three things, and you can skip any of them: which engine to use and its credential (it is checked before it is stored), a few sentences about what your company does, and whether you want a **People department** — an agent that writes the configuration for other agents.
 
-Two notes on what those five lines do:
+For your first agent, go to *New agent → brief* and describe the job in a few sentences. The People department turns that into a configuration you can read through and change before you hire it.
+
+What those five commands set up:
 
 - [`docker-compose.yml`](docker-compose.yml) brings Postgres (pgvector) and the covey binary with the admin UI embedded. Migrations run on start; `bootstrap` creates the organisation, the admin and a demo agent.
 - `make sandbox-images-pull` fetches the containers an agent works inside — `base` ([`Dockerfile.sandbox`](Dockerfile.sandbox): Claude Code, chromium, git, ripgrep) and `dev` (plus PHP, a JDK and the version managers `fvm`/`uv`), for amd64 and arm64, built by [the project's own pipeline](.github/workflows/sandbox-images.yml). `make sandbox-images` builds them here instead.
@@ -80,7 +82,7 @@ Full walkthrough including your first agent and a production checklist: [`docs/q
 
 | | |
 |---|---|
-| 🧑‍💼 **An identity per agent** | Own sandbox, own home directory, own credentials — and a place on the org chart beside the humans. |
+| 🧑‍💼 **An identity per agent** | Its own sandbox, home directory and credentials, and a place on the org chart next to the humans. |
 | 🧑‍🎓 **Hiring, not a config form** | Describe the job in a few sentences; the People department writes the configuration and asks back when the brief is thin. What comes out is a draft until a human hires it. |
 | 📥 **Backlog and wake sources** | Tasks as first-class objects. Agents wake on a webhook, a heartbeat or a nudge, then go back to sleep. |
 | 🔌 **Target systems as plugins** | Jira, Confluence, GitLab, GitHub, Zammad, Salesforce, Teams, SharePoint, Nextcloud, Kubernetes, email (IMAP/SMTP), headless browser, MCP. |
@@ -92,7 +94,7 @@ Full walkthrough including your first agent and a production checklist: [`docs/q
 | 🎥 **Recording and kill switch** | Every run recorded including screenshots, cost per agent and model, one emergency stop for the whole organisation. |
 | 📦 **One binary** | Frontend and migrations compiled in. Copy it, run `covey serve` — no nginx, no separate frontend hosting. |
 
-**Plugins are nobody's privilege.** None of those target systems live in this repository. They are separate modules against a [public SDK](https://github.com/benjaminLedel/covey-plugin-sdk); the ones Covey ships with sit in the [plugin pack](https://github.com/benjaminLedel/covey-plugin-pack), and the rest install from the [catalogue](https://github.com/benjaminLedel/covey-plugins) at runtime. Zammad, Kubernetes and the vulnerability databases are compiled WebAssembly from that same catalogue — on exactly the footing a plugin of yours would have.
+None of these target systems live in this repository. Each one is a separate Go module written against a [public SDK](https://github.com/benjaminLedel/covey-plugin-sdk). The ones Covey ships with are in the [plugin pack](https://github.com/benjaminLedel/covey-plugin-pack); the others install at runtime from the [catalogue](https://github.com/benjaminLedel/covey-plugins), without rebuilding anything. Zammad, Kubernetes and the vulnerability databases run as WebAssembly modules from that catalogue, the same way a plugin you write would be installed. There is no privileged tier for the ones we wrote.
 
 ## What it looks like
 
@@ -131,11 +133,11 @@ flowchart LR
     CP --- DB[("PostgreSQL + pgvector")]
 ```
 
-The **control plane** is stateful and always on: scheduler, agent registry, backlog, identity and secrets broker, guard rails, observability. The **data plane** is a set of isolated, ephemeral sandboxes with a persistent home — lose one and it is rebuilt from config plus home.
+The **control plane** is always on and holds the state: scheduler, agent registry, backlog, identity and secrets broker, guard rails, observability. The **data plane** is a set of isolated sandboxes with a persistent home directory. A sandbox is disposable — if one is lost it is rebuilt from the config and the home.
 
-Each sandbox runs a slim **daemon** that speaks one uniform protocol, and a thin **adapter** bootstraps the concrete runtime inside it (Claude Code today). Covey manages the sandbox, not the framework. That is what keeps the runtime swappable. Details in [`spec/01-architecture.md`](spec/01-architecture.md).
+Inside each sandbox a small **daemon** speaks a single protocol to the control plane, and an **adapter** starts the actual runtime, currently Claude Code. Because Covey manages the sandbox and not the agent framework, replacing the runtime does not touch the rest of the system. Details in [`spec/01-architecture.md`](spec/01-architecture.md).
 
-Nearly every component has a counterpart in a real company, which is also the fastest way to read the system:
+Most parts of the system have a counterpart in an ordinary company:
 
 | In a company | On the platform |
 |---|---|
@@ -149,7 +151,14 @@ Nearly every component has a counterpart in a real company, which is also the fa
 | Operations manual / compliance | Central guard rails (platform-enforced) |
 | SIEM / EDR | Session recording + alerts + kill switch |
 
-**The stack**, in four lines: a single Go binary (API and orchestration in one process); a React + Tailwind + shadcn/ui frontend baked in via `//go:embed`; PostgreSQL as the anchor for state, backlog, RBAC, the job queue (`SKIP LOCKED`), pub/sub (`LISTEN/NOTIFY`), memory (`pgvector`) and AES-GCM secret columns; and `builtin` everywhere by default — Keycloak, Vault and Redis are optional, never prerequisites. Details in [`spec/10-architecture-stack.md`](spec/10-architecture-stack.md).
+**The stack:**
+
+- One Go binary. API and orchestration run in the same process.
+- A React + Tailwind + shadcn/ui frontend, compiled into that binary with `//go:embed`.
+- PostgreSQL for everything stateful: backlog, RBAC, the job queue (`SKIP LOCKED`), pub/sub (`LISTEN/NOTIFY`), memory (`pgvector`) and AES-GCM secret columns.
+- `builtin` implementations by default. Keycloak, Vault and Redis are supported, never required.
+
+Details in [`spec/10-architecture-stack.md`](spec/10-architecture-stack.md).
 
 ## Design principles
 
@@ -174,14 +183,14 @@ Covey also runs without Docker Compose. The installer picks the binary for your 
 curl -sSL https://raw.githubusercontent.com/benjaminLedel/covey/main/installer/install.sh | sh
 ```
 
-To read the script first — a reasonable thing to want — fetch it separately:
+To read it before running it:
 
 ```bash
 curl -sSLO https://raw.githubusercontent.com/benjaminLedel/covey/main/installer/install.sh
 less install.sh && sh install.sh
 ```
 
-There are two programs: the control plane (`covey`) and the runner (`covey-runner`, which executes sandboxes for a server). At a terminal the script asks which one you want; in a pipeline it takes the default rather than waiting for an answer nobody can give. Say it outright with `--server`, `--runner` or `--all`; pin a version with `--version v0.8.0`, change the target with `--bin-dir ~/bin`.
+There are two programs: the control plane (`covey`) and the runner (`covey-runner`), which runs sandboxes on behalf of a server. At a terminal the script asks which one you want; without a terminal it uses the default. You can also say it directly with `--server`, `--runner` or `--all`, pin a version with `--version v0.8.0`, or change the target directory with `--bin-dir ~/bin`.
 
 **Every running instance serves the same script for its own version:**
 
@@ -189,7 +198,7 @@ There are two programs: the control plane (`covey`) and the runner (`covey-runne
 curl -sSL https://covey.example/install.sh | sh
 ```
 
-That is the way to add a runner: the instance knows its version, so the runner you get speaks the same protocol as the server it registers with. The binaries still come from the GitHub release — the instance decides the version, not the content.
+This is how you add a runner. The instance knows its own version, so you get a runner that speaks the same protocol as the server it will register with. The binaries still come from the GitHub release; the instance decides the version, not the content.
 
 This installs binaries only. The control plane still needs PostgreSQL (with pgvector) and Docker for the sandboxes; the script prints what is left, and [`docs/ops-deployment.md`](docs/ops-deployment.md) has the full path.
 
@@ -317,7 +326,7 @@ Without either, tasks fail with "Not logged in · Please run /login": the sandbo
 
 ## Contributing
 
-Changes to concept and architecture go through the spec: proposals as a merge request against [`spec/`](spec/), open points discussed in [`spec/07-open-decisions.md`](spec/07-open-decisions.md). For code, the build order from the MVP plan applies — thinnest vertical slice first, `builtin` as the default, interface before implementation. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
+Changes to concept and architecture go through the spec: proposals as a merge request against [`spec/`](spec/), open points discussed in [`spec/07-open-decisions.md`](spec/07-open-decisions.md). For code the rule is thinnest vertical slice first, `builtin` as the default, and the interface before the implementation. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Licence
 
