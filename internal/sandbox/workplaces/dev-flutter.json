@@ -1,0 +1,20 @@
+{
+  "profile": "dev-flutter",
+  "summary": "The base workplace plus the Flutter/Dart toolchain: a Flutter SDK that is already here, a JDK for Gradle, and fvm for projects that pin a different version.",
+  "tools": [
+    { "name": "flutter", "version": "3.47.2", "note": "in /opt/flutter and on your PATH, warmed up for web builds. This is the baseline — you do not download it. The version is the one the image was built with; an installation may have rebuilt it with another, so `flutter --version` is the authority, not this line." },
+    { "name": "dart", "note": "the SDK's own, /opt/flutter/bin/cache/dart-sdk/bin" },
+    { "name": "fvm", "version": "4.1.2", "note": "only for a project that pins another version: `fvm use <version>` puts it in ~/fvm and it stays there" },
+    { "name": "openjdk", "version": "21", "note": "JAVA_HOME=/opt/java; a Flutter build for Android is a Gradle build, and gradlew fetches its own Gradle" },
+    { "name": "node", "version": "26", "note": "npm global installs land in ~/.npm-global" },
+    { "name": "chromium", "note": "used by the browser plugin, headless; also what `flutter run -d chrome` needs" }
+  ],
+  "sdk_dirs": {
+    "fvm": "~/fvm — only versions you asked for yourself. The baseline SDK is NOT here, it is in the image."
+  },
+  "notes": [
+    "Flutter is already here and it is on your PATH. Check `flutter --version` before you fetch anything — an SDK in your home is a second copy of something the workplace provides, and your home is written back after every run.",
+    "No Android SDK. A build that has to produce an APK needs one, and asking for it is the way to get it — do not unpack platform-tools into your home.",
+    "You are not root and apt is not available to you. If a tool is missing, say so instead of building a way around it — that is a request, not a defeat."
+  ]
+}

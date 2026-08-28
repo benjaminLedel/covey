@@ -2,16 +2,17 @@
 #
 # Warum hier und nicht in der GitLab-Seite: Die interne Pipeline baut sie in
 # eine private Registry, an die kein Dritter kommt. Wer Covey von GitHub
-# installiert, stand bis hierher vor einem `make sandbox-images` — zwei Images
-# mit chromium, JDK und PHP, mehrere Gigabyte Bauzeit auf der eigenen Maschine,
-# und beim Upgrade wieder. Eine Container-Installation hat dafür nicht einmal
+# installiert, stand bis hierher vor einem `make sandbox-images` — Images mit
+# chromium, JDK, PHP und einem Flutter-SDK, mehrere Gigabyte Bauzeit auf der
+# eigenen Maschine, und beim Upgrade wieder. Eine Container-Installation hat dafür nicht einmal
 # ein Repository. Betriebswerkzeug gehört ins Produkt, und ein fertiges Image
 # ist hier das Produkt.
 #
-# EIN Package, die Varianten als Tag-Präfix (`base-…`, `dev-…`) statt zwei
-# Packages: Sie werden zusammen gebaut, zusammen versioniert und zusammen
-# gezogen — und eine Sichtbarkeit, die man einmal auf öffentlich stellt, ist
-# eine weniger, die man vergessen kann.
+# EIN Package, die Varianten als Tag-Präfix (`base-…`, `dev-…`, `dev-flutter-…`)
+# statt ein Package je Arbeitsplatz: Sie werden zusammen gebaut, zusammen
+# versioniert und zusammen gezogen — und eine Sichtbarkeit, die man einmal auf
+# öffentlich stellt, ist eine weniger, die man vergessen kann. Das gilt umso
+# mehr, seit es fünf davon sind.
 #
 # Zwei Architekturen auf je eigenem Runner statt per QEMU: Die Images
 # installieren chromium, ein JDK und PHP über apt. Emuliert dauert das Stunden;
@@ -132,21 +133,29 @@ jobs:
           echo "ref=${image}:base-latest" >> "$GITHUB_OUTPUT"
           docker buildx imagetools inspect "${image}:base-latest"
 
-  # Stufe 2: dev auf dem gerade veröffentlichten base. Der Tag genügt als
-  # BASE_IMAGE — die Registry liefert jedem Runner die Architektur, auf der er
-  # steht, und so baut arm64 auf arm64 und amd64 auf amd64.
-  dev:
+  # Stage 2: every workplace that builds on the base just published. The tag is
+  # enough as BASE_IMAGE — the registry hands each runner the architecture it
+  # stands on, so arm64 builds on arm64 and amd64 on amd64.
+  #
+  # One matrix over profile x architecture instead of a job per profile: the
+  # roles differ in their Dockerfile and in nothing else, and a copied job is
+  # the place where the fifth profile gets forgotten. The Dockerfile name is
+  # derived from the profile (Dockerfile.sandbox.<profile>) — the same rule the
+  # catalogue in internal/sandbox states.
+  layers:
     needs: base-manifest
     strategy:
       fail-fast: false
       matrix:
+        profile: [dev, dev-flutter, dev-php, dev-web]
+        arch: [amd64, arm64]
         include:
-          - runner: ubuntu-latest
+          - arch: amd64
+            runner: ubuntu-latest
             platform: linux/amd64
-            arch: amd64
-          - runner: ubuntu-24.04-arm
+          - arch: arm64
+            runner: ubuntu-24.04-arm
             platform: linux/arm64
-            arch: arm64
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -162,12 +171,12 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: Dockerfile.sandbox.dev
+          file: Dockerfile.sandbox.${{ matrix.profile }}
           platforms: ${{ matrix.platform }}
           build-args: |
             BASE_IMAGE=${{ needs.base-manifest.outputs.ref }}
-          cache-from: type=registry,ref=${{ steps.meta.outputs.image }}:dev-cache-${{ matrix.arch }}
-          cache-to: type=registry,ref=${{ steps.meta.outputs.image }}:dev-cache-${{ matrix.arch }},mode=max
+          cache-from: type=registry,ref=${{ steps.meta.outputs.image }}:${{ matrix.profile }}-cache-${{ matrix.arch }}
+          cache-to: type=registry,ref=${{ steps.meta.outputs.image }}:${{ matrix.profile }}-cache-${{ matrix.arch }},mode=max
           outputs: type=image,name=${{ steps.meta.outputs.image }},push-by-digest=true,name-canonical=true,push=true
       - name: Digest ablegen
         run: |
@@ -178,17 +187,21 @@ jobs:
           DIGEST: ${{ steps.build.outputs.digest }}
       - uses: actions/upload-artifact@v4
         with:
-          name: digests-dev-${{ matrix.arch }}
+          name: digests-${{ matrix.profile }}-${{ matrix.arch }}
           path: /tmp/digests/*
           retention-days: 1
 
-  dev-manifest:
-    needs: dev
+  layer-manifest:
+    needs: layers
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [dev, dev-flutter, dev-php, dev-web]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: digests-dev-*
+          pattern: digests-${{ matrix.profile }}-*
           merge-multiple: true
           path: /tmp/digests
       - uses: docker/login-action@v3
@@ -196,13 +209,15 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - run: |
+      - env:
+          PROFILE: ${{ matrix.profile }}
+        run: |
           set -eu
           image=$(echo "$REGISTRY/$GITHUB_REPOSITORY-sandbox" | tr 'A-Z' 'a-z')
           if [ "$GITHUB_REF_TYPE" = "tag" ]; then
-            tags="dev-$GITHUB_REF_NAME dev-latest"
+            tags="$PROFILE-$GITHUB_REF_NAME $PROFILE-latest"
           else
-            tags="dev-latest dev-$(echo "$GITHUB_SHA" | cut -c1-12)"
+            tags="$PROFILE-latest $PROFILE-$(echo "$GITHUB_SHA" | cut -c1-12)"
           fi
           args=""
           for d in /tmp/digests/*; do args="$args ${image}@sha256:$(basename "$d")"; done
@@ -210,7 +225,7 @@ jobs:
             # shellcheck disable=SC2086
             docker buildx imagetools create --tag "${image}:${t}" $args
           done
-          docker buildx imagetools inspect "${image}:dev-latest"
+          docker buildx imagetools inspect "${image}:${PROFILE}-latest"
 
   # Der Katalog: welches Image zu welcher Covey-Fassung gehört, gepinnt auf den
   # Digest (spec/16). Er entsteht HIER, weil nur diese Seite die Digests kennt —
@@ -229,7 +244,7 @@ jobs:
   # Historie unlesbar. `catalog` trägt keinen Quelltext, nur diese eine Datei,
   # ausgeliefert über raw.githubusercontent.
   catalog:
-    needs: [base-manifest, dev-manifest]
+    needs: [base-manifest, layer-manifest]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -265,8 +280,17 @@ jobs:
 
           # Der Digest der Manifest-LISTE, nicht der einer Architektur: Ein
           # Host, der ihn zieht, bekommt die Architektur, auf der er steht.
-          base_digest=$(docker buildx imagetools inspect "${image}:base-${imgtag}" --format '{{ .Manifest.Digest }}')
-          dev_digest=$(docker buildx imagetools inspect "${image}:dev-${imgtag}" --format '{{ .Manifest.Digest }}')
+          #
+          # Die Reihenfolge ist die des Katalogs in internal/sandbox: base, die
+          # Vereinigung, dann die Rollen. Wer hier ein Profil hinzufuegt, fuegt
+          # es dort ebenfalls hinzu — sonst veroeffentlicht dieser Lauf ein
+          # Image, das keine Instanz kennt.
+          profiles="base dev dev-flutter dev-php dev-web"
+          digests=""
+          for p in $profiles; do
+            d=$(docker buildx imagetools inspect "${image}:${p}-${imgtag}" --format '{{ .Manifest.Digest }}')
+            digests="$digests $p=$d"
+          done
 
           # Ein eigenes Verzeichnis: Dieser Branch hat mit dem Quelltext nichts
           # zu tun, und ein Checkout, in dem beides liegt, verwechselt das früher
@@ -284,9 +308,9 @@ jobs:
           # Bestehende Einträge anderer Fassungen bleiben stehen: Eine
           # Installation auf v0.4.0 muss ihren Eintrag noch finden, nachdem
           # v0.5.0 erschienen ist.
-          python3 - "$version" "$imgtag" "$image" "$base_digest" "$dev_digest" <<'PY'
+          python3 - "$version" "$imgtag" "$image" "$digests" <<'PY'
           import json, sys, datetime
-          version, imgtag, image, base_digest, dev_digest = sys.argv[1:6]
+          version, imgtag, image, digestliste = sys.argv[1:5]
           pfad = "sandbox-catalog.json"
           try:
               with open(pfad) as f:
@@ -294,16 +318,28 @@ jobs:
           except FileNotFoundError:
               cat = {"schema": 1, "workplaces": []}
 
+          # Kurzfassung der Beschreibung aus internal/sandbox/profiles.go. Sie
+          # steht hier ein zweites Mal, weil der Katalog Instanzen erreicht, die
+          # diesen Stand nicht compiliert haben — ein Profil, das eine aeltere
+          # Covey nicht kennt, wird trotzdem angeboten und braucht dafuer einen
+          # Satz, der sagt, was darin liegt.
           beschreibung = {
               "base": "Node, git, chromium, ripgrep — enough for support, mail, QA and research agents.",
-              "dev": "Everything from base plus PHP, JDK, fvm, uv and the node-gyp toolchain.",
+              "dev": "Everything from base plus PHP, JDK, fvm, uv and the node-gyp toolchain — the union, for an agent whose field is not settled.",
+              "dev-flutter": "Base plus a Flutter SDK that is already in the image, fvm for projects that pin another version, and a JDK for Gradle.",
+              "dev-php": "Base plus PHP 8.2 with the projects' extensions, Composer, a MariaDB to test against, and the node-gyp toolchain.",
+              "dev-web": "Base plus the native build toolchain for npm packages — for Node and TypeScript projects.",
           }
-          digests = {"base": base_digest, "dev": dev_digest}
+          label = {"dev-flutter": "dev · Flutter", "dev-php": "dev · PHP", "dev-web": "dev · Web"}
+          digests = dict(t.split("=", 1) for t in digestliste.split())
+          reihenfolge = [n for n in ("base", "dev", "dev-flutter", "dev-php", "dev-web") if n in digests]
 
           eintraege = {e["name"]: e for e in cat.get("workplaces", [])}
-          for name, digest in digests.items():
-              e = eintraege.setdefault(name, {"name": name, "label": name,
+          for name in reihenfolge:
+              digest = digests[name]
+              e = eintraege.setdefault(name, {"name": name, "label": label.get(name, name),
                                               "description": beschreibung[name], "images": []})
+              e["label"] = label.get(name, name)
               e["description"] = beschreibung[name]
               images = [i for i in e.get("images", []) if i.get("covey_version") != version]
               images.append({"covey_version": version, "ref": f"{image}@{digest}",
@@ -312,7 +348,10 @@ jobs:
               e["images"] = sorted(images, key=lambda i: i["covey_version"] != "main")
           cat["schema"] = 1
           cat["generated_at"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-          cat["workplaces"] = [eintraege[n] for n in ("base", "dev") if n in eintraege]
+          # Bestehende Eintraege anderer Profile bleiben stehen, auch wenn
+          # dieser Lauf sie nicht gebaut hat.
+          cat["workplaces"] = [eintraege[n] for n in reihenfolge] + [
+              e for n, e in eintraege.items() if n not in reihenfolge]
           with open(pfad, "w") as f:
               json.dump(cat, f, indent=2)
               f.write("\n")
@@ -325,7 +364,7 @@ jobs:
             echo "Nichts zu committen — die Digests sind unverändert."
             exit 0
           fi
-          git commit -q -m "catalog: $version — base $base_digest, dev $dev_digest"
+          git commit -q -m "catalog: $version —$digests"
           git push -q origin catalog
           echo "Katalog veröffentlicht:"
           cat sandbox-catalog.json

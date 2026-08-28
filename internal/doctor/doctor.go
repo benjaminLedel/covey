@@ -30,6 +30,7 @@ import (
 	runnerstore "covey/internal/runner/store"
 	"covey/internal/sandbox"
 	"covey/internal/settings"
+	orgworkplaces "covey/internal/workplaces"
 	"covey/migrations"
 )
 
@@ -112,6 +113,7 @@ func (d *doctor) check(ctx context.Context, pool *pgxpool.Pool) {
 		return
 	}
 	d.checkImages(ctx, pool)
+	d.checkWorkplaceNames(ctx, pool)
 	d.checkHomeStore(ctx, pool)
 	d.checkEgress(ctx)
 	d.checkRunners(ctx, pool)
@@ -141,6 +143,43 @@ func (d *doctor) checkMigrations(ctx context.Context, pool *pgxpool.Pool) bool {
 	}
 	d.problem("migrations", detail, remedy, false)
 	return false
+}
+
+// checkWorkplaceNames finds the one collision an upgrade can produce silently.
+//
+// A published profile's name beats an organisation's own of the same name when
+// an agent's workplace is resolved (runner.Pool.imageFor), and that order is
+// deliberate: which image a name means must not depend on who looks first.
+// Creating an own workplace under a published name is refused for the same
+// reason. What cannot be refused is the other direction — a name somebody chose
+// last month and the project publishes this month. Since the role workplaces
+// exist (`dev-flutter`, `dev-php`, `dev-web`, #112), that is no longer
+// hypothetical, and the agent would start a different image than the one that
+// was registered, without anything saying so.
+//
+// Not blocking: the agents work, they just work somewhere else than intended.
+func (d *doctor) checkWorkplaceNames(ctx context.Context, pool *pgxpool.Pool) {
+	own, err := orgworkplaces.AllImages(ctx, pool)
+	if err != nil {
+		d.problem("own workplaces", "not readable: "+err.Error(), "", false)
+		return
+	}
+	var collided int
+	for name, image := range own {
+		prof, published := sandbox.Get(name)
+		if !published {
+			continue
+		}
+		collided++
+		d.problem("workplace "+name,
+			fmt.Sprintf("an own workplace carries the name of a published profile — agents in it start %s, not %s",
+				prof.Image, image),
+			"register your image under a free name, move the agents to it, then delete this one",
+			false)
+	}
+	if collided == 0 && len(own) > 0 {
+		d.ok("own workplaces", fmt.Sprintf("%d, none of them on a published name", len(own)))
+	}
 }
 
 // checkImages is the one that bites at an upgrade: the image an agent is

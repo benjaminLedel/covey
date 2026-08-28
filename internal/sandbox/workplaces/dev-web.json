@@ -1,0 +1,16 @@
+{
+  "profile": "dev-web",
+  "summary": "The base workplace plus the native build toolchain — for Node and TypeScript projects, and nothing beyond them.",
+  "tools": [
+    { "name": "node", "version": "26", "note": "npm global installs land in ~/.npm-global" },
+    { "name": "build-essential, python3", "note": "so npm packages with a native part (sharp, bcrypt, node-sass) build instead of failing halfway" },
+    { "name": "chromium", "note": "used by the browser plugin and by Playwright/Puppeteer — PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD and PUPPETEER_SKIP_DOWNLOAD are set, the runners use this browser" },
+    { "name": "git, curl, ripgrep, unzip", "note": "the everyday tools of reading and searching" }
+  ],
+  "sdk_dirs": {},
+  "notes": [
+    "The package manager's cache (~/.npm) lives in your home and survives every run — a second `npm install` in the same project costs nothing. Do not clear it and do not copy it anywhere.",
+    "No PHP, no JDK, no Flutter here. This workplace is for web work; if your ticket needs another toolchain, that is worth saying out loud rather than fetching it into your home.",
+    "You are not root and apt is not available to you. If a tool is missing, say so instead of building a way around it — that is a request, not a defeat."
+  ]
+}

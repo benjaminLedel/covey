@@ -77,12 +77,52 @@ func init() {
 		Name:  "dev",
 		Label: "dev",
 		Description: "Everything from base plus PHP, JDK, fvm, uv and the node-gyp toolchain — " +
-			"for agents that build software. A profile is a union of toolchains and not a cut " +
-			"along languages: a developer agent works on PHP and Flutter projects, a mail agent " +
-			"on neither.",
+			"the union, for an agent whose field is not settled when it wakes. An agent that " +
+			"only ever gets tickets of one kind is better off in a role workplace: it carries " +
+			"the same toolchain and not the three it never calls.",
 		Image:      "covey-sandbox-dev:latest",
 		Build:      "make sandbox-image-dev",
 		Dockerfile: "Dockerfile.sandbox.dev",
+	})
+	// The role workplaces. They do not replace `dev` and they are not a cut
+	// along languages — they are the cut that already runs between `base` and
+	// `dev`, drawn one step further: the image hangs off the AGENT, and an
+	// agent with a settled field carries what that field needs.
+	//
+	// A role image is worth its own build when it saves more than it costs.
+	// `dev-python` is therefore not here: it would differ from `dev-web` by one
+	// 40 MB binary whose interpreters live in the home either way. It earns its
+	// place when an agent asks for it, not before.
+	Register(Profile{
+		Name:  "dev-flutter",
+		Label: "dev · Flutter",
+		Description: "Base plus a Flutter SDK that is already in the image, fvm for projects " +
+			"that pin another version, and a JDK for Gradle. The SDK sits here rather than in " +
+			"the home on purpose: for a Flutter agent the version question is settled, and the " +
+			"home is walked at every wake and written back after every run.",
+		Image:      "covey-sandbox-dev-flutter:latest",
+		Build:      "make sandbox-image-dev-flutter",
+		Dockerfile: "Dockerfile.sandbox.dev-flutter",
+	})
+	Register(Profile{
+		Name:  "dev-php",
+		Label: "dev · PHP",
+		Description: "Base plus PHP 8.2 with the extensions the projects use, Composer, a " +
+			"MariaDB to test against, and the node-gyp toolchain for the asset build — without " +
+			"the JDK and the Flutter toolchain a Laravel agent would otherwise carry along.",
+		Image:      "covey-sandbox-dev-php:latest",
+		Build:      "make sandbox-image-dev-php",
+		Dockerfile: "Dockerfile.sandbox.dev-php",
+	})
+	Register(Profile{
+		Name:  "dev-web",
+		Label: "dev · Web",
+		Description: "Base plus the native build toolchain for npm packages — node, git and " +
+			"chromium already come from base. The smallest of the developer workplaces: what a " +
+			"Node/TypeScript project needs, and nothing beyond it.",
+		Image:      "covey-sandbox-dev-web:latest",
+		Build:      "make sandbox-image-dev-web",
+		Dockerfile: "Dockerfile.sandbox.dev-web",
 	})
 }
 

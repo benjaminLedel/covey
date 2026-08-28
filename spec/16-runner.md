@@ -380,6 +380,8 @@ That hits exactly the waste that is unavoidable today. A sandbox currently has *
 | `.npm` | 402 MB | no |
 | `jdk` | 346 MB | no |
 
+Two of those rows are no longer a deduplication case but a mistake: `flutter` and `jdk` in a home are copies of something the workplace image brings along — since the role profiles, for the Flutter agent too. The measurement is from before them and stays here because it is what the numbers were measured on.
+
 Two developer agents on the same host today hold the same 4 GB twice; five hold 20 GB. With content-addressed deduplication they sit **once** in the runner's local storage — and the second agent materialises its home from it without fetching a single byte over the wire. A *new* agent on a run-in runner therefore starts almost warm, even though it has never run there.
 
 ### Why that dissolves the isolation question
@@ -425,10 +427,21 @@ The image therefore belongs **on the agent** (D11 in [`07-open-decisions.md`](07
 | Profile | Contents | For whom |
 |---|---|---|
 | `base` | coveyd, Node, git, chromium, ripgrep | support, mail, QA, research |
-| `dev` | + PHP, JDK, `fvm`, `uv` | developer agents |
+| `dev` | + PHP, JDK, `fvm`, `uv`, node-gyp | developer agents without a settled field |
+| `dev-flutter` | + Flutter SDK (in the image), `fvm`, JDK | Flutter agents |
+| `dev-php` | + PHP 8.2, Composer, MariaDB, node-gyp | PHP/Laravel agents |
+| `dev-web` | + node-gyp toolchain | Node/TypeScript agents |
+
+Measured on arm64: `base` 1.54 GB, `dev` 2.53, `dev-flutter` 3.21, `dev-php` 2.12, `dev-web` 1.82.
 | org-owned | anything | special cases, tighter sandboxes |
 
-The cut deliberately does **not** go along individual languages. A profile is a *union*: a developer agent legitimately works on a PHP and a Flutter project, and one image per language would bring back exactly the question that "version → home, toolchain → image" has already answered — which image do I start on wake, when it is not yet settled which ticket is coming?
+`dev` is a *union*, and it stays one: a developer agent may legitimately work on a PHP and a Flutter project, and for that agent one image per language would bring back exactly the question that "version → home, toolchain → image" has already answered — which image do I start on wake, when it is not yet settled which ticket is coming?
+
+The role profiles are not the counter-argument to that sentence, they are its other half. The question only arises where the field is open. Covey's premise is that an agent is an employee with a role, not an interchangeable worker, and for an agent that never gets the PHP ticket the union is not caution, it is ballast. Measured on the layers of `dev`: JDK 302 MB, `fvm`/`uv` 104 MB, PHP 94 MB, MariaDB ~150 MB, the node-gyp toolchain 278 MB — a Flutter agent carries the PHP half, a Laravel agent the JVM, and each pulls it on every runner it is scheduled to. Which of the two an agent gets is therefore a statement about the agent, not about the platform — and `dev` remains the answer whenever nobody makes it.
+
+The `dev-flutter` image is where this pays for itself twice, and it is the one place where "version → home, toolchain → image" is deliberately reversed. In `dev` the Flutter SDK is not in the image at all; `fvm` fetches it into the home, and the home is the most expensive storage the platform has — walked at every wake, written back after every run. A ~1.3 GB SDK that is identical for every Flutter agent then lies there once per agent. In the role image the baseline version lies in the image, because for a *Flutter* agent the version question is settled. `fvm` stays installed beside it: a project that pins another version still gets it, into the home, once — for that one deviation instead of for everybody.
+
+A role image only earns its own build when it saves more than it costs. `dev-python` is therefore not one: it would differ from `dev-web` by a 40 MB binary whose interpreters live in the home either way.
 
 A runner reports which images it holds, and an operator may assign that list in the interface instead (migration 0075: `extra_tags` add to what the host reports, `assigned_images` replace it, and an empty list is the decision "no claim"). It is a **statement about cost, not about permission**: the scheduler prefers a host that already has the image and sends the work there anyway when none does. What used to make it a capability — "gets only matching agents" — is the rule that cost an organisation its data plane, see "Scheduling".
 

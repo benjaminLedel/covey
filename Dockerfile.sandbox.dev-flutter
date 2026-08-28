@@ -1,0 +1,107 @@
+# Sandbox image, profile `dev-flutter`: base plus the Flutter/Dart toolchain.
+# Build: `make sandbox-image-dev-flutter` (builds base along with it).
+#
+# A ROLE, not a language cut. `dev` stays the union for an agent whose field is
+# not settled when it wakes; this image is for an agent whose field IS settled —
+# a Flutter developer, who never gets the PHP ticket and should not carry a
+# database server and a dozen PHP extensions to every runner (spec/16-runner.md,
+# "Sandbox images per agent").
+ARG BASE_IMAGE=covey-sandbox:latest
+FROM ${BASE_IMAGE}
+
+USER root
+
+# The JDK, because a Flutter build is a Gradle build as soon as it targets
+# Android: `gradlew` needs a JVM to start and reads JAVA_HOME for toolchain
+# detection. Only ONE version, for the reason the `dev` image gives: gradlew
+# fetches its own Gradle, and every further JDK costs ~200 MB.
+#
+# What is deliberately NOT here: the Android SDK. Platform tools, a build-tools
+# release and one platform are ~2 GB, and the version an app compiles against
+# sits in the project, not in the role. An agent that has to produce an APK says
+# so (the tool request, #106) instead of finding an image that guessed.
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends openjdk-21-jdk-headless; \
+    rm -rf /var/lib/apt/lists/*; \
+    ln -s "/usr/lib/jvm/java-21-openjdk-$(dpkg --print-architecture)" /opt/java
+ENV JAVA_HOME=/opt/java
+
+# The SDK itself, and this is the one place where "version → home, toolchain →
+# image" is turned around on purpose.
+#
+# The rule is right for `dev`: which Flutter version a project wants is the
+# project's business, so `fvm` fetches it into the persistent home. But the home
+# is the most expensive place the platform has — it is walked at every wake and
+# written back after every run (34 s and 140 s on a measured home,
+# internal/orchestrator/tidy.go). A ~1.3 GB SDK that is the same for every
+# Flutter agent has no business being there once per agent.
+#
+# So the baseline version lies in the image, where it is pulled once per runner
+# and costs nothing again. `fvm` stays installed right beside it: a project that
+# pins a different version still gets it, into the home, once — for that one
+# deviation instead of for everybody.
+#
+# Pinned by ARG rather than "stable": an installation whose projects run an
+# older version rebuilds with --build-arg FLUTTER_VERSION=… and gets its
+# baseline for free too, and a rebuild months from now produces the same image.
+ARG FLUTTER_VERSION=3.47.2
+ARG FVM_VERSION=4.1.2
+# From the git repository and not from the published tarball, and that is not a
+# preference: flutter_infra_release publishes linux archives for x64 ONLY. On an
+# arm64 host the tarball is either missing (404) or, worse, x64 binaries under a
+# name that says nothing about it. The clone works on both, because the first
+# `flutter` call fetches the Dart SDK for the architecture it is standing on.
+# --depth 1 on the tag: the SDK is a tool here, not a repository somebody works
+# in, and its history is several hundred megabytes.
+#
+# One RUN for cloning, warming up and handing over: a `chown -R` in a layer of
+# its own would write the whole tree into the image a second time.
+#
+# It has to be handed over, because the agent is not root and Flutter is not a
+# read-only tool: it writes version stamps and its tool cache into the SDK
+# directory. `safe.directory` on top of that is belt and braces — Flutter runs
+# git inside its own checkout, so any uid that does not match the owner ends
+# every `flutter` call at git's "dubious ownership" instead of at a build. The
+# chown makes them match today; the line costs nothing and keeps that true if
+# the container is ever started under another user.
+RUN set -eux; \
+    case "$(dpkg --print-architecture)" in \
+        amd64) fvm_arch=x64   ;; \
+        arm64) fvm_arch=arm64 ;; \
+        *) echo "unsupported architecture: $(dpkg --print-architecture)" >&2; exit 1 ;; \
+    esac; \
+    git clone --depth 1 --branch "${FLUTTER_VERSION}" \
+        https://github.com/flutter/flutter.git /opt/flutter; \
+    tmp="$(mktemp -d)"; \
+    curl -fsSL -o "$tmp/fvm.tar.gz" \
+        "https://github.com/leoafarias/fvm/releases/download/${FVM_VERSION}/fvm-${FVM_VERSION}-linux-${fvm_arch}.tar.gz"; \
+    tar -xzf "$tmp/fvm.tar.gz" -C "$tmp"; \
+    rm -rf /opt/fvm; \
+    mv "$tmp/fvm" /opt/fvm; \
+    ln -s /opt/fvm/fvm /usr/local/bin/fvm; \
+    rm -rf "$tmp"; \
+    git config --system --add safe.directory /opt/flutter; \
+    /opt/flutter/bin/flutter --version; \
+    /opt/flutter/bin/flutter precache --universal --web; \
+    chown -R agent:agent /opt/flutter; \
+    /opt/fvm/fvm --version
+
+# The SDK from the image comes first; `~/fvm/default` is what fvm links when a
+# project pins its own version, and it wins over the baseline because `fvm use`
+# is an explicit decision. The rest of the PATH comes from the base image.
+ENV PATH=/home/agent/fvm/default/bin:/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:/home/agent/.npm-global/bin:/home/agent/.local/bin:${PATH}
+# FLUTTER_ROOT so tooling that looks for the SDK by variable finds this one and
+# not a copy. Analytics off by variable and not by `flutter config`: that config
+# lands in the home of whoever ran it — at build time root, which the agent
+# never reads. Without it the first call answers with a consent banner that an
+# agent takes for output of its build.
+ENV FLUTTER_ROOT=/opt/flutter \
+    FLUTTER_SUPPRESS_ANALYTICS=true \
+    DART_SUPPRESS_ANALYTICS=true
+
+COPY internal/sandbox/workplaces/dev-flutter.json /etc/covey/workplace.json
+
+USER agent
+WORKDIR /home/agent
+ENTRYPOINT ["coveyd"]

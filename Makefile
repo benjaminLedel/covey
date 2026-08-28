@@ -12,7 +12,7 @@ LDFLAGS := -X covey/internal/buildinfo.version=$(VERSION) \
            -X covey/internal/buildinfo.commit=$(COMMIT) \
            -X covey/internal/buildinfo.date=$(DATE)
 
-.PHONY: build build-nopack web test test-integration run bootstrap dev-db sandbox-image sandbox-image-dev sandbox-images sandbox-images-pull upgrade runner egress-image clean skill-sync
+.PHONY: build build-nopack web test test-integration run bootstrap dev-db sandbox-image sandbox-image-dev sandbox-image-dev-flutter sandbox-image-dev-php sandbox-image-dev-web sandbox-images sandbox-images-pull upgrade runner egress-image clean skill-sync
 
 # npm ci instead of npm install — deliberately: it installs exactly the lockfile
 # and never rewrites it. npm install on macOS throws the Linux/wasm branches
@@ -56,9 +56,10 @@ run: build
 # before the first wake, not before the first start: `covey serve` comes up
 # without it and says at startup that it is missing.
 #
-# Two profiles (spec/16): `base` carries what every agent needs, `dev` adds the
-# toolchains of a developer agent (PHP, JDK, fvm, uv, node-gyp). The image hangs
-# off the agent — a mail agent no longer carries a JVM.
+# The image hangs off the agent (spec/16), and there are three kinds of them:
+# `base` carries what every agent needs, `dev` the union of the developer
+# toolchains, and the role workplaces below one field each. A mail agent
+# therefore carries no JVM, and a Flutter agent no database server.
 sandbox-image:
 	docker build -f Dockerfile.sandbox \
 		--build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) --build-arg DATE=$(DATE) \
@@ -69,28 +70,63 @@ sandbox-image-dev: sandbox-image
 		--build-arg BASE_IMAGE=covey-sandbox:latest \
 		-t covey-sandbox-dev:latest .
 
-# Both profiles at once — what an installation that has developer agents needs.
-sandbox-images: sandbox-image-dev
+# The role workplaces: base plus the toolchain of ONE field. For an agent whose
+# field is settled — it carries the same tools as in `dev` and not the three it
+# never calls. Each one builds on base, none on `dev`; a role image derived from
+# the union would save nothing.
+sandbox-image-dev-flutter: sandbox-image
+	docker build -f Dockerfile.sandbox.dev-flutter \
+		--build-arg BASE_IMAGE=covey-sandbox:latest \
+		-t covey-sandbox-dev-flutter:latest .
 
-# The same two images, but pulled instead of built: GitHub builds and publishes
-# them on every push and every release (.github/workflows/sandbox-images.yml).
+sandbox-image-dev-php: sandbox-image
+	docker build -f Dockerfile.sandbox.dev-php \
+		--build-arg BASE_IMAGE=covey-sandbox:latest \
+		-t covey-sandbox-dev-php:latest .
+
+sandbox-image-dev-web: sandbox-image
+	docker build -f Dockerfile.sandbox.dev-web \
+		--build-arg BASE_IMAGE=covey-sandbox:latest \
+		-t covey-sandbox-dev-web:latest .
+
+# Every workplace at once — several gigabytes and the better part of an hour.
+# An installation rarely needs all of them: build the profiles your agents
+# actually stand in, or pull them (sandbox-images-pull).
+sandbox-images: sandbox-image-dev sandbox-image-dev-flutter sandbox-image-dev-php sandbox-image-dev-web
+
+# The same images, but pulled instead of built: GitHub builds and publishes them
+# on every push and every release (.github/workflows/sandbox-images.yml).
 # Minutes instead of a multi-gigabyte build, and the only way that works at all
 # where there is no checkout — a container installation sets
-# COVEY_SANDBOX_IMAGE / COVEY_SANDBOX_IMAGE_DEV to these references instead.
+# COVEY_SANDBOX_IMAGE / COVEY_SANDBOX_IMAGE_<PROFILE> to these references
+# instead.
 #
 # SANDBOX_TAG picks the state: `latest` follows main, a release tag (v0.4.0)
 # fetches the images built for that release. Take the one your binary is.
+#
+# SANDBOX_PROFILES picks which ones: all of them by default, a subset where the
+# agents stand in only one field (`make sandbox-images-pull
+# SANDBOX_PROFILES="base dev-flutter"`).
 SANDBOX_PKG ?= ghcr.io/benjaminledel/covey-sandbox
 SANDBOX_TAG ?= latest
+SANDBOX_PROFILES ?= base dev dev-flutter dev-php dev-web
 sandbox-images-pull:
-	docker pull $(SANDBOX_PKG):base-$(SANDBOX_TAG)
-	docker pull $(SANDBOX_PKG):dev-$(SANDBOX_TAG)
-	docker tag $(SANDBOX_PKG):base-$(SANDBOX_TAG) covey-sandbox:latest
-	docker tag $(SANDBOX_PKG):dev-$(SANDBOX_TAG) covey-sandbox-dev:latest
-	@echo "Both workplaces now sit under the names the instance looks for."
+	@for p in $(SANDBOX_PROFILES); do \
+		docker pull $(SANDBOX_PKG):$$p-$(SANDBOX_TAG) || exit 1; \
+		case "$$p" in \
+			base) local_name=covey-sandbox:latest ;; \
+			*)    local_name=covey-sandbox-$$p:latest ;; \
+		esac; \
+		docker tag $(SANDBOX_PKG):$$p-$(SANDBOX_TAG) $$local_name; \
+		echo "$$p -> $$local_name"; \
+	done
+	@echo "The workplaces now sit under the names the instance looks for."
 
-# What an upgrade needs: the new binaries and both sandbox profiles. Afterwards
-# `covey doctor` says whether anything is still in the way on THIS installation.
+# What an upgrade needs: the new binaries and the sandbox images, because each
+# one carries a coveyd that has to speak to this control plane. All workplaces
+# is a long build — an installation that pulls instead runs `make build` and
+# `make sandbox-images-pull`. Afterwards `covey doctor` says whether anything is
+# still in the way on THIS installation.
 upgrade: build sandbox-images
 	@echo
 	@echo "Built. Now:  covey doctor   (says what a restart would run into here)" 

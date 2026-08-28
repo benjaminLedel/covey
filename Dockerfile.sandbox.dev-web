@@ -1,0 +1,28 @@
+# Sandbox image, profile `dev-web`: base plus what a Node/TypeScript project
+# needs to build. Build: `make sandbox-image-dev-web` (builds base along with
+# it).
+#
+# The smallest of the role images on purpose. Node, git, ripgrep and chromium
+# already come from base — what is missing for a web project is exactly the
+# native build toolchain, and that is ~250 MB instead of the ~700 MB an agent
+# carries in `dev` for PHP, a database and a JVM it never calls.
+ARG BASE_IMAGE=covey-sandbox:latest
+FROM ${BASE_IMAGE}
+
+USER root
+
+# node-gyp looks for make, g++ and python3, and node:26-slim brings none of the
+# three. A project that pulls sharp, bcrypt or node-sass otherwise breaks off in
+# the middle of `npm install`; the agent cannot install anything as a non-root
+# user and builds itself a replacement harness out of stubs. ~250 MB so that
+# "install the dependencies" stays the first step and does not become the first
+# dead end.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY internal/sandbox/workplaces/dev-web.json /etc/covey/workplace.json
+
+USER agent
+WORKDIR /home/agent
+ENTRYPOINT ["coveyd"]

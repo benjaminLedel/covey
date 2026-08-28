@@ -130,9 +130,9 @@ make sandbox-images-pull   # pulls both from the published package (minutes)
 make sandbox-images        # or builds them here: base, then dev on top of it
 ```
 
-The project publishes both workplaces as one package on every push and every
+The project publishes every workplace as one package on every push and every
 release — `ghcr.io/benjaminledel/covey-sandbox`, the variants as a tag prefix
-(`base-latest`, `dev-latest`, `base-v0.4.0`, …). Take the tag your binary is:
+(`base-latest`, `dev-latest`, `dev-flutter-latest`, `base-v0.4.0`, …). Take the tag your binary is:
 the image carries the `coveyd` that talks to this control plane.
 
 Without it every wake fails with *sandbox image "covey-sandbox-dev:latest" is
@@ -164,6 +164,11 @@ the missing image.
 Afterwards, move the agents that do not need a toolchain to `base` (agent →
 settings → *workplace*). That is what the split is for: a mail agent should not
 carry a JVM. It is a decision per agent and not one a migration makes.
+
+Since then there are **role workplaces** beside `dev` — `dev-flutter`,
+`dev-php`, `dev-web` — for agents whose field is settled. Nothing moves an agent
+there either; `dev` keeps working. [`ops-workplaces.md`](ops-workplaces.md) says
+what each contains and what one costs.
 
 ### 2. Back up the new block store
 

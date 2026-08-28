@@ -1,0 +1,71 @@
+# Sandbox image, profile `dev-php`: base plus the PHP toolchain and a database
+# to test against. Build: `make sandbox-image-dev-php` (builds base along with
+# it).
+#
+# A ROLE, not a language cut — see Dockerfile.sandbox.dev-flutter for the
+# reasoning. `dev` remains the union for an agent whose field is not settled;
+# this image is for one whose field is, and it saves that agent the JDK and the
+# Flutter toolchain on every runner it lands on.
+ARG BASE_IMAGE=covey-sandbox:latest
+FROM ${BASE_IMAGE}
+
+USER root
+
+# PHP 8.2 + Composer. The version is not arbitrary: Debian trixie ships 8.4, the
+# CI of the target projects runs 8.2 — an agent that builds and tests against a
+# different minor version reports green and the pipeline turns red. Hence the
+# packages from packages.sury.org, where 8.2 is still maintained. Extensions:
+# zip/gd/ldap as in the projects' CI, plus the ones composer.json demands
+# (dom/json/openssl/pdo) and pdo_sqlite, because PHPUnit runs against an
+# in-memory SQLite there. Plus pgsql (projects whose test database is Postgres)
+# and pcov: without a coverage driver every `phpunit --coverage-*` aborts with
+# "No code coverage driver available" — the agent reads that as a broken suite
+# and starts repairing a test environment that was never broken. pcov rather
+# than xdebug, because xdebug slows every test run down by a multiple and
+# contributes nothing else here.
+#
+# A side effect of sury one has to know: the source brings its own rebuilds of
+# some system libraries along, and php8.2-gd pulls its libgd3 instead of the
+# Debian one. That is unavoidable with sury (the dependency is built that way),
+# but it means a third-party repository delivers more here than just PHP. So the
+# source file goes out again in the same layer — the image is not to carry an
+# active foreign source, and the agent never has apt anyway.
+RUN curl -fsSL https://packages.sury.org/php/apt.gpg -o /usr/share/keyrings/sury-php.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/sury-php.gpg] https://packages.sury.org/php/ trixie main" \
+         > /etc/apt/sources.list.d/sury-php.list \
+    && apt-get update && apt-get install -y --no-install-recommends \
+         php8.2-cli php8.2-xml php8.2-mbstring php8.2-curl php8.2-zip php8.2-gd \
+         php8.2-ldap php8.2-sqlite3 php8.2-mysql php8.2-bcmath php8.2-intl composer \
+         php8.2-pgsql php8.2-pcov \
+    && rm -f /etc/apt/sources.list.d/sury-php.list \
+    && rm -rf /var/lib/apt/lists/*
+
+# A database server for test runs. The image used to bring the PHP extensions
+# for MySQL and Postgres and no server to go with them — a Laravel suite whose
+# CI runs against MariaDB therefore had nothing to run against. An agent
+# thereupon unpacked MariaDB into its home as a tarball: 1.4 GB, 21,951 files,
+# walked at every wake and written back after every run. ~150 MB here replace
+# that, for everybody.
+#
+# Started without systemd and without root: mariadbd runs as the agent, with a
+# data directory in its home. The workplace tells it so (workplaces/
+# dev-php.json) — otherwise it goes looking for a service that does not exist
+# here.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        mariadb-server mariadb-client \
+    && rm -rf /var/lib/apt/lists/* /var/lib/mysql
+
+# The build toolchain for npm packages with a native part. A Laravel project is
+# a PHP project with a frontend build in front of it, and node-sass, sharp or
+# bcrypt look for exactly these three. Without them the agent sees an
+# `npm install` that breaks off halfway, cannot install anything as a non-root
+# user, and builds itself a replacement harness out of stubs instead.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY internal/sandbox/workplaces/dev-php.json /etc/covey/workplace.json
+
+USER agent
+WORKDIR /home/agent
+ENTRYPOINT ["coveyd"]

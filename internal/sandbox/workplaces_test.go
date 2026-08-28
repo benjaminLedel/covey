@@ -8,7 +8,15 @@ import "testing"
    Wahrheiten — dieser Test hält fest, dass es eine ist. */
 
 func TestJedesAusgelieferteProfilBeschreibtSich(t *testing.T) {
-	for _, profil := range []string{"base", "dev"} {
+	// Die Liste kommt aus der Registrierung und nicht von Hand: Ein Profil, das
+	// jemand hinzufuegt und nicht beschreibt, stellt seinen Agenten wieder ohne
+	// Auskunft in die Werkstatt — und ein von Hand gepflegter Testfall haette
+	// genau das nicht gemerkt (#112).
+	if len(All()) < 2 {
+		t.Fatal("die Registrierung ist leer — dann prueft dieser Test nichts")
+	}
+	for _, profil := range All() {
+		profil := profil.Name
 		doc, ok := Workplace(profil)
 		if !ok {
 			t.Fatalf("%s hat keine Beschreibung — dann steht der Agent wieder ohne Auskunft da", profil)

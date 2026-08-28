@@ -1,6 +1,12 @@
 package sandbox
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"testing"
+)
 
 // The catalogue exists so that one list does not become four. What that costs
 // if it slips is not a compile error but a wrong sentence in an error message —
@@ -127,8 +133,45 @@ func TestKnownImagesAreUniqueAndSorted(t *testing.T) {
 	// Two profiles on one image is a legitimate configuration (whoever points
 	// dev at base has no dev toolchain, and knows it) — asking about it twice
 	// is not.
+	voll := KnownImages(nil)
 	images := KnownImages(map[string]string{"dev": Images(nil)[DefaultName()]})
-	if len(images) != 1 {
+	if len(images) != len(voll)-1 {
 		t.Errorf("identical images have to collapse into one: %v", images)
+	}
+	if !sort.StringsAreSorted(images) {
+		t.Errorf("the list is not sorted: %v", images)
+	}
+}
+
+// Every profile is one image and one build. The catalogue exists so that the
+// answer to "how do I get this?" is not guessed — a build hint naming a
+// Dockerfile that is not in the repository is exactly the guess it replaced.
+func TestEveryProfileNamesAFileThatExists(t *testing.T) {
+	seen := map[string]string{}
+	for _, p := range All() {
+		if p.Dockerfile == "" {
+			t.Errorf("profile %q names no Dockerfile", p.Name)
+			continue
+		}
+		if _, err := os.Stat(filepath.Join("..", "..", p.Dockerfile)); err != nil {
+			t.Errorf("profile %q names %s, which is not there: %v", p.Name, p.Dockerfile, err)
+		}
+		if other, doppelt := seen[p.Image]; doppelt {
+			t.Errorf("profiles %q and %q ship the same image %q", other, p.Name, p.Image)
+		}
+		seen[p.Image] = p.Name
+
+		// And it copies ITS OWN self-description into the image. A role image
+		// derived from another one by copy is one line away from telling its
+		// agent about a toolchain that is not in it — and that line is the one
+		// the agent believes (#112).
+		roh, err := os.ReadFile(filepath.Join("..", "..", p.Dockerfile))
+		if err != nil {
+			continue
+		}
+		zeile := "COPY internal/sandbox/workplaces/" + p.Name + ".json /etc/covey/workplace.json"
+		if !strings.Contains(string(roh), zeile) {
+			t.Errorf("%s does not copy the description of %q into the image (%q)", p.Dockerfile, p.Name, zeile)
+		}
 	}
 }

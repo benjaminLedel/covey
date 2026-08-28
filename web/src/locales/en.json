@@ -1109,13 +1109,16 @@
       "subGeneral": "General",
       "sandboxImage": "Workplace",
       "sandboxImageDefault": "Instance default",
-      "sandboxImageHint": "The image this agent works in. A profile is a union of toolchains, not a cut along languages: a developer agent works on PHP and Flutter projects, a mail agent on neither. Takes effect at the next cold start; a running or warm-parked sandbox keeps its image.",
+      "sandboxImageHint": "The image this agent works in. `dev` is the union of the developer toolchains — for an agent whose field is not settled when it wakes. Where it is settled, a role workplace carries the same toolchain and not the three others beside it. Takes effect at the next cold start; a running or warm-parked sandbox keeps its image.",
       "filesReadOnly": "Read-only — from the last snapshot",
       "runnerTags": "Host requirements",
       "runnerTagsHint": "Tags a runner has to carry for this agent to run there — arm64, say, or a host inside the target system's network. Empty means any runner of the organisation. A runner may carry more than is asked of it; if a required capability is missing the agent waits and the message names the tag.",
       "sandboxProfile": {
         "base": "base — Node, git, chromium, ripgrep",
-        "dev": "dev — plus PHP, JDK, fvm, uv"
+        "dev": "dev — plus PHP, JDK, fvm, uv",
+        "dev-flutter": "dev · Flutter — Flutter SDK in the image, fvm, JDK",
+        "dev-php": "dev · PHP — PHP 8.2, Composer, MariaDB",
+        "dev-web": "dev · Web — node-gyp toolchain, chromium"
       },
       "sandboxImageMissing": "The image {{image}} is on no runner of this organisation — until it is built, every wake fails. Once: {{build}}",
       "sandboxImageSource": {
