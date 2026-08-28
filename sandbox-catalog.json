@@ -8,7 +8,7 @@
       "images": [
         {
           "covey_version": "main",
-          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:0a0b21c177c0f473c31ddb9a9f9d284435d54d90358904d7b351ab39c01c404a",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:7337e5f81183f18cc98d0f6fc176fe15566bd454fe6d25775ac6b65fe8a13d86",
           "tag": "base-latest",
           "platforms": [
             "linux/amd64",
@@ -96,7 +96,7 @@
       "images": [
         {
           "covey_version": "main",
-          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:ff06e9b548c9a2458ab038cabda9d72503deb7b2635cf72a2ba45b642ba823c5",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:cf2aaff10dc9772518c331ea45b9754b68b28797faae30e604646a5c3c890a35",
           "tag": "dev-latest",
           "platforms": [
             "linux/amd64",
@@ -184,7 +184,7 @@
       "images": [
         {
           "covey_version": "main",
-          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:db4fe43faede6b8f132cf6bfe2efb003a81aeea0c2ab23511dad1be71ae9c671",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:713b020ceedbecf71d70962574f084e69b6a9b8e457953a496bfc7403afd2d87",
           "tag": "dev-flutter-latest",
           "platforms": [
             "linux/amd64",
@@ -200,7 +200,7 @@
       "images": [
         {
           "covey_version": "main",
-          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:6ad93213ea0ff9bfbd45f787237b70b3f1ff37ca112dccb7a43700d9bebbaa2a",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:fc245461a87cb794df56ae53902d9c306d6fb24162ca23ff7dcc54cb97d39577",
           "tag": "dev-php-latest",
           "platforms": [
             "linux/amd64",
@@ -216,8 +216,24 @@
       "images": [
         {
           "covey_version": "main",
-          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:58b7d3ee10e385e239403c327030a421a63585e31a9836bc728b1024e62c4123",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:a27c32f89fd1312cf88c2b4f062972e0fa020695527bbc5e9efc97473b1a2882",
           "tag": "dev-web-latest",
+          "platforms": [
+            "linux/amd64",
+            "linux/arm64"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "dev-full",
+      "label": "dev \u00b7 Full stack",
+      "description": "Every developer toolchain in one image, including the Flutter SDK \u2014 for an installation that would rather not split.",
+      "images": [
+        {
+          "covey_version": "main",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:2d3b5825f4652ad7a8c19faebcaaddf6e224b068bf3ddd781b61003166c81004",
+          "tag": "dev-full-latest",
           "platforms": [
             "linux/amd64",
             "linux/arm64"
@@ -226,5 +242,5 @@
       ]
     }
   ],
-  "generated_at": "2026-08-28T08:28:20Z"
+  "generated_at": "2026-08-28T10:15:55Z"
 }
