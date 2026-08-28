@@ -1118,7 +1118,8 @@
         "dev": "dev — plus PHP, JDK, fvm, uv",
         "dev-flutter": "dev · Flutter — Flutter SDK in the image, fvm, JDK",
         "dev-php": "dev · PHP — PHP 8.2, Composer, MariaDB",
-        "dev-web": "dev · Web — node-gyp toolchain, chromium"
+        "dev-web": "dev · Web — node-gyp toolchain, chromium",
+        "dev-full": "dev · Full stack — all of it, Flutter SDK included"
       },
       "sandboxImageMissing": "The image {{image}} is on no runner of this organisation — until it is built, every wake fails. Once: {{build}}",
       "sandboxImageSource": {

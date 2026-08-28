@@ -166,8 +166,9 @@ settings → *workplace*). That is what the split is for: a mail agent should no
 carry a JVM. It is a decision per agent and not one a migration makes.
 
 Since then there are **role workplaces** beside `dev` — `dev-flutter`,
-`dev-php`, `dev-web` — for agents whose field is settled. Nothing moves an agent
-there either; `dev` keeps working. [`ops-workplaces.md`](ops-workplaces.md) says
+`dev-php`, `dev-web` — for agents whose field is settled, and `dev-full` for an
+installation that would rather not split at all. Nothing moves an agent there
+either; `dev` keeps working. [`ops-workplaces.md`](ops-workplaces.md) says
 what each contains and what one costs.
 
 ### 2. Back up the new block store

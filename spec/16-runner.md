@@ -431,9 +431,10 @@ The image therefore belongs **on the agent** (D11 in [`07-open-decisions.md`](07
 | `dev-flutter` | + Flutter SDK (in the image), `fvm`, JDK | Flutter agents |
 | `dev-php` | + PHP 8.2, Composer, MariaDB, node-gyp | PHP/Laravel agents |
 | `dev-web` | + node-gyp toolchain | Node/TypeScript agents |
-
-Measured on arm64: `base` 1.54 GB, `dev` 2.53, `dev-flutter` 3.21, `dev-php` 2.12, `dev-web` 1.82.
+| `dev-full` | + all of the above, Flutter SDK included | an installation that would rather not split |
 | org-owned | anything | special cases, tighter sandboxes |
+
+Measured on arm64: `base` 1.54 GB, `dev` 2.53, `dev-flutter` 3.21, `dev-php` 2.12, `dev-web` 1.82, `dev-full` 3.89 GB.
 
 `dev` is a *union*, and it stays one: a developer agent may legitimately work on a PHP and a Flutter project, and for that agent one image per language would bring back exactly the question that "version → home, toolchain → image" has already answered — which image do I start on wake, when it is not yet settled which ticket is coming?
 
@@ -442,6 +443,8 @@ The role profiles are not the counter-argument to that sentence, they are its ot
 The `dev-flutter` image is where this pays for itself twice, and it is the one place where "version → home, toolchain → image" is deliberately reversed. In `dev` the Flutter SDK is not in the image at all; `fvm` fetches it into the home, and the home is the most expensive storage the platform has — walked at every wake, written back after every run. A ~1.3 GB SDK that is identical for every Flutter agent then lies there once per agent. In the role image the baseline version lies in the image, because for a *Flutter* agent the version question is settled. `fvm` stays installed beside it: a project that pins another version still gets it, into the home, once — for that one deviation instead of for everybody.
 
 A role image only earns its own build when it saves more than it costs. `dev-python` is therefore not one: it would differ from `dev-web` by a 40 MB binary whose interpreters live in the home either way.
+
+`dev-full` is the counterpart to all of this and belongs to the same decision: everything in one image, Flutter SDK included. Without it the choice would be rigged — `dev` looks like "everything" and is a union of tool-chains, not of SDKs, so the installation that does not want to split would be the one paying for the SDK in every home. Splitting is a decision about size; it should not also be a decision about whether an SDK lands in a home.
 
 A runner reports which images it holds, and an operator may assign that list in the interface instead (migration 0075: `extra_tags` add to what the host reports, `assigned_images` replace it, and an empty list is the decision "no claim"). It is a **statement about cost, not about permission**: the scheduler prefers a host that already has the image and sends the work there anyway when none does. What used to make it a capability — "gets only matching agents" — is the rule that cost an organisation its data plane, see "Scheduling".
 

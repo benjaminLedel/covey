@@ -74,7 +74,7 @@ Für den ersten Agenten gehen Sie auf *Neuer Agent → Ausschreibung* und beschr
 Was diese fünf Befehle einrichten:
 
 - [`docker-compose.yml`](docker-compose.yml) bringt Postgres (pgvector) und das covey-Binary mit eingebetteter Admin-UI. Migrationen laufen beim Start; `bootstrap` legt Organisation, Admin und einen Demo-Agenten an.
-- `make sandbox-images-pull` holt die Container, in denen ein Agent arbeitet — `base` ([`Dockerfile.sandbox`](Dockerfile.sandbox): Claude Code, chromium, git, ripgrep), `dev` (zusätzlich PHP, JDK und die Versionsmanager `fvm`/`uv`) und die Rollen-Arbeitsplätze `dev-flutter`, `dev-php` und `dev-web` für Agenten, deren Feld feststeht ([`docs/ops-workplaces.md`](docs/ops-workplaces.md)), für amd64 und arm64, gebaut von [der Pipeline des Projekts](.github/workflows/sandbox-images.yml). `SANDBOX_PROFILES="base dev-web"` holt nur, was gebraucht wird; `make sandbox-images` baut sie stattdessen hier.
+- `make sandbox-images-pull` holt die Container, in denen ein Agent arbeitet — `base` ([`Dockerfile.sandbox`](Dockerfile.sandbox): Claude Code, chromium, git, ripgrep), `dev` (zusätzlich PHP, JDK und die Versionsmanager `fvm`/`uv`) die Rollen-Arbeitsplätze `dev-flutter`, `dev-php` und `dev-web` für Agenten, deren Feld feststeht, und `dev-full` für eine Installation, die gar nicht aufteilen will ([`docs/ops-workplaces.md`](docs/ops-workplaces.md)), für amd64 und arm64, gebaut von [der Pipeline des Projekts](.github/workflows/sandbox-images.yml). `SANDBOX_PROFILES="base dev-web"` holt nur, was gebraucht wird; `make sandbox-images` baut sie stattdessen hier.
 
 Vollständige Anleitung inklusive erstem Agenten und Produktions-Checkliste: [`docs/quickstart-docker.md`](docs/quickstart-docker.md).
 

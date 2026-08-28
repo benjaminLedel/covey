@@ -177,12 +177,17 @@ func TestEveryProfileNamesAFileThatExists(t *testing.T) {
 	}
 }
 
-// The workflow that BUILDS the images names the profiles a third time — in the
-// build matrix, in the shell loop that collects the digests, and in the
-// catalogue entry it writes. It has to: a GitHub matrix cannot ask a Go
+// The workflow that BUILDS the images names the profiles four times over — in
+// the two build matrices, in the shell loop that collects the digests, and in
+// the catalogue entry it writes. It has to: a GitHub matrix cannot ask a Go
 // registry. What it must not do is drift, and the failure is quiet in both
 // directions — a profile missing there is a workplace every instance offers and
 // no host can pull; a profile only there is an image nobody knows.
+//
+// Which matrix a profile belongs in is not written down twice either: it
+// follows from its Dockerfile. One that starts on `base` is built in the second
+// stage beside the others; one that starts on `dev` has to wait until `dev` is
+// published, and that is what the third stage is for.
 func TestTheWorkflowBuildsExactlyTheseProfiles(t *testing.T) {
 	roh, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", "sandbox-images.yml"))
 	if err != nil {
@@ -190,13 +195,26 @@ func TestTheWorkflowBuildsExactlyTheseProfiles(t *testing.T) {
 	}
 	workflow := string(roh)
 
-	var alle, ohneBase []string
+	var alle, aufBase, aufDev []string
 	for _, p := range All() {
 		alle = append(alle, p.Name)
-		if p.Name != "base" {
+		if p.Name == "base" {
 			// `base` is built by its own stage — everything else runs through
-			// the matrix on top of it.
-			ohneBase = append(ohneBase, p.Name)
+			// a matrix on top of something.
+			continue
+		}
+		df, err := os.ReadFile(filepath.Join("..", "..", p.Dockerfile))
+		if err != nil {
+			t.Errorf("%s: %v", p.Dockerfile, err)
+			continue
+		}
+		switch {
+		case strings.Contains(string(df), "ARG BASE_IMAGE=covey-sandbox:latest"):
+			aufBase = append(aufBase, p.Name)
+		case strings.Contains(string(df), "ARG BASE_IMAGE=covey-sandbox-dev:latest"):
+			aufDev = append(aufDev, p.Name)
+		default:
+			t.Errorf("%s names no base image this workflow knows how to stage", p.Dockerfile)
 		}
 	}
 
@@ -206,7 +224,8 @@ func TestTheWorkflowBuildsExactlyTheseProfiles(t *testing.T) {
 		trenner string
 		erwarte []string
 	}{
-		{"the build matrix", `profile: \[([^\]]*)\]`, ",", ohneBase},
+		{"the second stage", `profile: \[(dev, [^\]]*)\]`, ",", aufBase},
+		{"the third stage", `profile: \[(dev-full[^\]]*)\]`, ",", aufDev},
 		{"the digest loop", `profiles="([^"]*)"`, " ", alle},
 		{"the catalogue order", `reihenfolge = \[n for n in \(([^)]*)\)`, ",", alle},
 	}
@@ -227,6 +246,48 @@ func TestTheWorkflowBuildsExactlyTheseProfiles(t *testing.T) {
 			if strings.Join(namen, " ") != strings.Join(f.erwarte, " ") {
 				t.Errorf("%s says %v, the catalogue says %v", f.was, namen, f.erwarte)
 			}
+		}
+	}
+}
+
+// The Flutter images share one install script, and they have to: the version
+// would otherwise stand in two Dockerfiles and drift apart at the first bump.
+// The workplace descriptions name it a third and fourth time, because that is
+// the line an agent reads before deciding whether it has to fetch an SDK.
+func TestTheFlutterImagesAgreeOnTheirVersion(t *testing.T) {
+	script, err := os.ReadFile(filepath.Join("..", "..", "internal", "sandbox", "install-flutter.sh"))
+	if err != nil {
+		t.Fatalf("the shared install script is gone: %v", err)
+	}
+	m := regexp.MustCompile(`FLUTTER_VERSION="\$\{FLUTTER_VERSION:-([^}"]+)\}"`).FindStringSubmatch(string(script))
+	if m == nil {
+		t.Fatal("the script names no default Flutter version")
+	}
+	version := m[1]
+
+	for _, profil := range []string{"dev-flutter", "dev-full"} {
+		doc, ok := Workplace(profil)
+		if !ok {
+			t.Errorf("%s has no description", profil)
+			continue
+		}
+		var genannt string
+		for _, tool := range doc.Tools {
+			if tool.Name == "flutter" {
+				genannt = tool.Version
+			}
+		}
+		if genannt != version {
+			t.Errorf("%s tells the agent about Flutter %q, the image installs %q",
+				profil, genannt, version)
+		}
+		df, err := os.ReadFile(filepath.Join("..", "..", "Dockerfile.sandbox."+profil))
+		if err != nil {
+			t.Errorf("%s: %v", profil, err)
+			continue
+		}
+		if !strings.Contains(string(df), "install-flutter.sh") {
+			t.Errorf("Dockerfile.sandbox.%s installs Flutter past the shared script", profil)
 		}
 	}
 }
