@@ -1,0 +1,26 @@
+{
+  "profile": "dev-full",
+  "summary": "Everything the developer workplaces carry, in one image: PHP, Java, Flutter, the Python and Flutter version managers, a database and the native build toolchain. The all-rounder — nothing here has to be fetched first.",
+  "tools": [
+    { "name": "flutter", "version": "3.47.2", "note": "in /opt/flutter and on your PATH, warmed up for web builds. This is the baseline — you do not download it. The version is the one the image was built with, so `flutter --version` is the authority, not this line." },
+    { "name": "dart", "note": "the SDK's own, /opt/flutter/bin/cache/dart-sdk/bin" },
+    { "name": "fvm", "version": "4.1.2", "note": "only for a project that pins another Flutter version: `fvm use <version>` puts it in ~/fvm and it stays there" },
+    { "name": "php", "version": "8.2", "note": "with xml, mbstring, curl, zip, gd, ldap, sqlite3, mysql, pgsql, bcmath, intl, and pcov as the coverage driver" },
+    { "name": "composer", "note": "for PHP projects" },
+    { "name": "openjdk", "version": "21", "note": "JAVA_HOME=/opt/java; gradlew downloads its own Gradle" },
+    { "name": "node", "version": "26", "note": "npm global installs land in ~/.npm-global" },
+    { "name": "build-essential, python3", "note": "so npm packages with a native part (sharp, bcrypt, node-sass) build instead of failing halfway" },
+    { "name": "uv", "note": "Python interpreters, version from .python-version; they land in ~/.local/share/uv" },
+    { "name": "chromium", "note": "used by the browser plugin, headless; also what `flutter run -d chrome` needs" },
+    { "name": "mariadb-server", "note": "for test suites that need a real database. No systemd here and you are not root: initialise a data directory in your home once (mariadb-install-db --datadir=~/.local/share/mariadb) and start mariadbd yourself against it. Put that directory in a place you are willing to lose — it is scratch, not memory." }
+  ],
+  "sdk_dirs": {
+    "fvm": "~/fvm — only Flutter versions you asked for yourself. The baseline SDK is NOT here, it is in the image.",
+    "uv": "~/.local/share/uv — Python interpreters. uv fetches the version a project asks for."
+  },
+  "notes": [
+    "This workplace has every toolchain there is here. If something seems to be missing, look again before you fetch it — Java, Flutter and a database are all present, and a copy in your home is written back after every run.",
+    "No Android SDK. A build that has to produce an APK needs one, and asking for it is the way to get it — do not unpack platform-tools into your home.",
+    "You are not root and apt is not available to you. If a tool is missing, say so instead of building a way around it — that is a request, not a defeat."
+  ]
+}

@@ -124,6 +124,21 @@ func init() {
 		Build:      "make sandbox-image-dev-web",
 		Dockerfile: "Dockerfile.sandbox.dev-web",
 	})
+	// The all-rounder, and the counterpart to the three above: `dev` looks like
+	// "everything" and is a union of tool-chains, not of SDKs — it carries fvm
+	// and no Flutter. Without this profile an installation that does not want
+	// to split pays that difference in every agent's home.
+	Register(Profile{
+		Name:  "dev-full",
+		Label: "dev · Full stack",
+		Description: "Everything the developer workplaces carry, in one image: PHP, JDK, the " +
+			"Flutter SDK, fvm, uv, MariaDB and the node-gyp toolchain. For an installation that " +
+			"would rather keep one workplace than choose one per agent — the largest of them, " +
+			"and the only one where nothing has to be fetched into the home first.",
+		Image:      "covey-sandbox-dev-full:latest",
+		Build:      "make sandbox-image-dev-full",
+		Dockerfile: "Dockerfile.sandbox.dev-full",
+	})
 }
 
 // All returns the registered profiles in registration order.

@@ -12,7 +12,7 @@ LDFLAGS := -X covey/internal/buildinfo.version=$(VERSION) \
            -X covey/internal/buildinfo.commit=$(COMMIT) \
            -X covey/internal/buildinfo.date=$(DATE)
 
-.PHONY: build build-nopack web test test-integration run bootstrap dev-db sandbox-image sandbox-image-dev sandbox-image-dev-flutter sandbox-image-dev-php sandbox-image-dev-web sandbox-images sandbox-images-pull upgrade runner egress-image clean skill-sync
+.PHONY: build build-nopack web test test-integration run bootstrap dev-db sandbox-image sandbox-image-dev sandbox-image-dev-flutter sandbox-image-dev-php sandbox-image-dev-web sandbox-image-dev-full sandbox-images sandbox-images-pull upgrade runner egress-image clean skill-sync
 
 # npm ci instead of npm install — deliberately: it installs exactly the lockfile
 # and never rewrites it. npm install on macOS throws the Linux/wasm branches
@@ -89,10 +89,19 @@ sandbox-image-dev-web: sandbox-image
 		--build-arg BASE_IMAGE=covey-sandbox:latest \
 		-t covey-sandbox-dev-web:latest .
 
+# The all-rounder: dev plus the Flutter SDK in the image. On `dev` and not on
+# base, because that is what it is — everything in dev, and nothing fetched into
+# the home first. The largest of the workplaces, and the one to take if you do
+# not want to choose one per agent.
+sandbox-image-dev-full: sandbox-image-dev
+	docker build -f Dockerfile.sandbox.dev-full \
+		--build-arg BASE_IMAGE=covey-sandbox-dev:latest \
+		-t covey-sandbox-dev-full:latest .
+
 # Every workplace at once — several gigabytes and the better part of an hour.
 # An installation rarely needs all of them: build the profiles your agents
 # actually stand in, or pull them (sandbox-images-pull).
-sandbox-images: sandbox-image-dev sandbox-image-dev-flutter sandbox-image-dev-php sandbox-image-dev-web
+sandbox-images: sandbox-image-dev sandbox-image-dev-flutter sandbox-image-dev-php sandbox-image-dev-web sandbox-image-dev-full
 
 # The same images, but pulled instead of built: GitHub builds and publishes them
 # on every push and every release (.github/workflows/sandbox-images.yml).
@@ -109,7 +118,7 @@ sandbox-images: sandbox-image-dev sandbox-image-dev-flutter sandbox-image-dev-ph
 # SANDBOX_PROFILES="base dev-flutter"`).
 SANDBOX_PKG ?= ghcr.io/benjaminledel/covey-sandbox
 SANDBOX_TAG ?= latest
-SANDBOX_PROFILES ?= base dev dev-flutter dev-php dev-web
+SANDBOX_PROFILES ?= base dev dev-flutter dev-php dev-web dev-full
 sandbox-images-pull:
 	@for p in $(SANDBOX_PROFILES); do \
 		docker pull $(SANDBOX_PKG):$$p-$(SANDBOX_TAG) || exit 1; \

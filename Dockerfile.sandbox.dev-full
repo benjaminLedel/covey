@@ -1,0 +1,46 @@
+# Sandbox image, profile `dev-full`: the all-rounder. Everything `dev` carries,
+# plus the Flutter SDK in the image. Build: `make sandbox-image-dev-full`
+# (builds base and dev along with it).
+#
+# This is the workplace for an installation that does NOT want to split. `dev`
+# looks like that already, but it is a union of tool-chains and not of SDKs: it
+# ships `fvm` and no Flutter, so an agent working on a Flutter project fetches
+# 1.3 GB into its home — the storage that is walked at every wake and written
+# back after every run. Without this image "do not split" therefore reads as the
+# careless choice, when it is a legitimate one: one agent, several kinds of
+# ticket, a single image to keep an eye on.
+#
+# The price is stated rather than hidden: ~3.9 GB, against 2.53 for `dev` and
+# 1.82 for the smallest role workplace. Whoever pulls this pulls all of it onto
+# every runner the agent is scheduled to.
+#
+# FROM `dev` and not from `base`, because it IS dev plus the SDK. Repeating PHP,
+# MariaDB, the JDK and the node-gyp tool-chain in a second Dockerfile would be
+# the same list in two places, and that list drifts.
+ARG BASE_IMAGE=covey-sandbox-dev:latest
+FROM ${BASE_IMAGE}
+
+USER root
+
+# The same script `dev-flutter` runs, for the same reasons — one place for the
+# SDK, one version. See internal/sandbox/install-flutter.sh.
+ARG FLUTTER_VERSION=
+ARG FVM_VERSION=
+COPY internal/sandbox/install-flutter.sh /tmp/install-flutter.sh
+RUN FLUTTER_VERSION="$FLUTTER_VERSION" FVM_VERSION="$FVM_VERSION" \
+        /tmp/install-flutter.sh \
+    && rm -f /tmp/install-flutter.sh
+
+# `dev` already installed fvm and put ~/fvm/default on the PATH; what is new
+# here is the SDK from the image, which goes behind it: a project that pins its
+# own version through `fvm use` has made an explicit decision and keeps winning.
+ENV PATH=/home/agent/fvm/default/bin:/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:/home/agent/.npm-global/bin:/home/agent/.local/bin:${PATH}
+ENV FLUTTER_ROOT=/opt/flutter \
+    FLUTTER_SUPPRESS_ANALYTICS=true \
+    DART_SUPPRESS_ANALYTICS=true
+
+COPY internal/sandbox/workplaces/dev-full.json /etc/covey/workplace.json
+
+USER agent
+WORKDIR /home/agent
+ENTRYPOINT ["coveyd"]

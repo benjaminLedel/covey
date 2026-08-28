@@ -3,8 +3,9 @@
 #   1. cp .env.example .env
 #   2. echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env   # 32-byte key
 #   3. make sandbox-images-pull   # the agents' workplaces, once, minutes
-#      (base for support/mail/QA, dev for developer agents, and a role
-#       workplace each for Flutter, PHP and web — docs/ops-workplaces.md)
+#      (base for support/mail/QA, dev for developer agents, a role workplace
+#       each for Flutter, PHP and web, and dev-full with all of it in one
+#       image — docs/ops-workplaces.md)
 #   4. docker compose up -d --build
 #   5. http://localhost:8494  →  admin@covey.local / covey-admin
 #

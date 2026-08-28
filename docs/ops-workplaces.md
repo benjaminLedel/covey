@@ -15,13 +15,16 @@ them, and what a choice costs.
 | `dev-flutter` | `covey-sandbox-dev-flutter:latest` | Flutter SDK, `fvm`, JDK | 3.21 GB | Flutter agents |
 | `dev-php` | `covey-sandbox-dev-php:latest` | PHP 8.2, Composer, MariaDB, node-gyp | 2.12 GB | PHP/Laravel agents |
 | `dev-web` | `covey-sandbox-dev-web:latest` | node-gyp toolchain | 1.82 GB | Node/TypeScript agents |
+| `dev-full` | `covey-sandbox-dev-full:latest` | everything above, Flutter SDK included | 3.89 GB | an installation that would rather not split |
 
 Sizes measured with `docker images` on arm64 — uncompressed, so a pull moves
 less, and a host that already has `base` moves only the difference. Read them as
 a comparison, not as a download figure.
 
 `dev` is the **union** of the developer toolchains and stays the answer for an
-agent that may get a PHP ticket today and a Flutter one tomorrow. The role
+agent that may get a PHP ticket today and a Flutter one tomorrow. `dev-full` is
+that union plus the Flutter SDK — see below for why those are two different
+things. The role
 workplaces are for an agent whose field is settled — it carries the same
 toolchain and not the three others beside it. Which one an agent gets is a
 statement about the agent, so nothing decides it automatically: agent →
@@ -54,6 +57,19 @@ docker build -f Dockerfile.sandbox.dev-flutter \
   --build-arg FLUTTER_VERSION=3.44.5 \
   -t covey-sandbox-dev-flutter:latest .
 ```
+
+### If you would rather not split at all
+
+`dev-full` is the all-rounder: everything the role workplaces carry, in one
+image, Flutter SDK included. It exists because `dev` looks like that and is not
+— `dev` is a union of *tool-chains*, and the Flutter SDK is not one of them, so
+an agent there fetches 1.3 GB into its home. Without `dev-full` "do not split"
+would read as the careless choice when it is a legitimate one: one agent,
+several kinds of ticket, a single image to keep an eye on.
+
+The price is the size, and it is the honest trade: 3.89 GB against 2.53 GB for
+`dev`, on every runner an agent is scheduled to. What it buys is that nothing
+has to be fetched into a home first.
 
 ## Getting the images
 

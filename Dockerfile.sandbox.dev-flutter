@@ -42,50 +42,17 @@ ENV JAVA_HOME=/opt/java
 # pins a different version still gets it, into the home, once — for that one
 # deviation instead of for everybody.
 #
-# Pinned by ARG rather than "stable": an installation whose projects run an
-# older version rebuilds with --build-arg FLUTTER_VERSION=… and gets its
-# baseline for free too, and a rebuild months from now produces the same image.
-ARG FLUTTER_VERSION=3.47.2
-ARG FVM_VERSION=4.1.2
-# From the git repository and not from the published tarball, and that is not a
-# preference: flutter_infra_release publishes linux archives for x64 ONLY. On an
-# arm64 host the tarball is either missing (404) or, worse, x64 binaries under a
-# name that says nothing about it. The clone works on both, because the first
-# `flutter` call fetches the Dart SDK for the architecture it is standing on.
-# --depth 1 on the tag: the SDK is a tool here, not a repository somebody works
-# in, and its history is several hundred megabytes.
-#
-# One RUN for cloning, warming up and handing over: a `chown -R` in a layer of
-# its own would write the whole tree into the image a second time.
-#
-# It has to be handed over, because the agent is not root and Flutter is not a
-# read-only tool: it writes version stamps and its tool cache into the SDK
-# directory. `safe.directory` on top of that is belt and braces — Flutter runs
-# git inside its own checkout, so any uid that does not match the owner ends
-# every `flutter` call at git's "dubious ownership" instead of at a build. The
-# chown makes them match today; the line costs nothing and keeps that true if
-# the container is ever started under another user.
-RUN set -eux; \
-    case "$(dpkg --print-architecture)" in \
-        amd64) fvm_arch=x64   ;; \
-        arm64) fvm_arch=arm64 ;; \
-        *) echo "unsupported architecture: $(dpkg --print-architecture)" >&2; exit 1 ;; \
-    esac; \
-    git clone --depth 1 --branch "${FLUTTER_VERSION}" \
-        https://github.com/flutter/flutter.git /opt/flutter; \
-    tmp="$(mktemp -d)"; \
-    curl -fsSL -o "$tmp/fvm.tar.gz" \
-        "https://github.com/leoafarias/fvm/releases/download/${FVM_VERSION}/fvm-${FVM_VERSION}-linux-${fvm_arch}.tar.gz"; \
-    tar -xzf "$tmp/fvm.tar.gz" -C "$tmp"; \
-    rm -rf /opt/fvm; \
-    mv "$tmp/fvm" /opt/fvm; \
-    ln -s /opt/fvm/fvm /usr/local/bin/fvm; \
-    rm -rf "$tmp"; \
-    git config --system --add safe.directory /opt/flutter; \
-    /opt/flutter/bin/flutter --version; \
-    /opt/flutter/bin/flutter precache --universal --web; \
-    chown -R agent:agent /opt/flutter; \
-    /opt/fvm/fvm --version
+# The version is not pinned here but in the script, which both Flutter images
+# run — otherwise the number would stand in two Dockerfiles and drift apart at
+# the first bump. Empty ARGs so that `--build-arg FLUTTER_VERSION=3.44.5` still
+# reaches it: an installation whose projects run an older version rebuilds and
+# gets its baseline for free too.
+ARG FLUTTER_VERSION=
+ARG FVM_VERSION=
+COPY internal/sandbox/install-flutter.sh /tmp/install-flutter.sh
+RUN FLUTTER_VERSION="$FLUTTER_VERSION" FVM_VERSION="$FVM_VERSION" \
+        /tmp/install-flutter.sh \
+    && rm -f /tmp/install-flutter.sh
 
 # The SDK from the image comes first; `~/fvm/default` is what fvm links when a
 # project pins its own version, and it wins over the baseline because `fvm use`
