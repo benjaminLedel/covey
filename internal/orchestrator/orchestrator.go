@@ -1047,8 +1047,15 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 	// the wrong place. The reason is HERE, so it is said here.
 	if credErr != nil && engineNeedsCredential(agent.Runtime) {
 		if o.noteMissingCredential(agent.ID) {
+			// The error is NAMED, not printed — the same decision as in the
+			// branch above, and for the same reason: nothing that arrives here
+			// carries a secret value today, but an error assembled deep in the
+			// stack is an unbounded string, and a log line is where that is not
+			// good enough. errKind keeps what a reader needs (which of the
+			// cases) and drops what nobody decided to print.
 			o.Log.Warn("wake cancelled — the agent reaches no credential",
-				"agent", agent.Slug, "engine", agent.Runtime, "runtime", agent.RuntimeID, "err", credErr)
+				"agent", agent.Slug, "engine", agent.Runtime, "runtime", agent.RuntimeID,
+				"reason", errKind(credErr))
 			_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential, map[string]any{
 				"system": agent.Runtime, "granted": false, "reason": noCredentialReason(agent),
 			})
@@ -1629,6 +1636,30 @@ func (o *Orchestrator) noteMissingCredential(agentID uuid.UUID) bool {
 	}
 	o.noCredNoted[agentID] = time.Now()
 	return true
+}
+
+// errKind names an error instead of printing it: for the cases this path knows,
+// the case; for everything else the type. It exists so that the log line about
+// a missing credential says which of the handful of reasons it was without
+// carrying an arbitrary string out of the depths of the stack into the log —
+// the store's errors name a secret's KEY and never its content, and this keeps
+// it that way even if somebody later wraps more into one of them.
+func errKind(err error) string {
+	switch {
+	case err == nil:
+		return ""
+	case errors.Is(err, errNoRuntime):
+		return "no workplace assigned"
+	case errors.Is(err, runtimes.ErrNotFound):
+		return "workplace without a credential"
+	case errors.Is(err, secrets.ErrNotFound):
+		return "the deposited value is gone"
+	}
+	var wrong *runtimes.WrongEngine
+	if errors.As(err, &wrong) {
+		return "the seat belongs to another engine"
+	}
+	return fmt.Sprintf("%T", err)
 }
 
 // noCredentialReason names the case in the recording, in the words of whoever
