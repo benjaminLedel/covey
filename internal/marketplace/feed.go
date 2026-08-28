@@ -56,6 +56,16 @@ type Feed[T any] struct {
 	refreshing bool
 	loaded     bool
 	lastErr    error
+	// ownFetch: has THIS process fetched, or is it serving what a previous one
+	// left behind? The stored copy stays usable — it is what keeps a start
+	// without network from having nothing at all — but it does not count as
+	// fresh. A restart therefore fetches, always.
+	//
+	// That is the lever an operator already has. Without it a corrected
+	// catalogue took up to the TTL to arrive and nothing could say "now": no
+	// endpoint refreshed the feed, restarting did not, and the only remaining
+	// knob was an environment variable per profile on the host (#117).
+	ownFetch bool
 }
 
 // Enabled: is a URL configured at all?
@@ -91,7 +101,7 @@ func (f *Feed[T]) Get(ctx context.Context) (*T, time.Time, error) {
 
 	f.mu.Lock()
 	cached, fetched, lastErr := f.cached, f.fetched, f.lastErr
-	fresh := cached != nil && time.Since(fetched) < f.ttl()
+	fresh := cached != nil && f.ownFetch && time.Since(fetched) < f.ttl()
 	f.mu.Unlock()
 
 	if fresh {
@@ -130,6 +140,7 @@ func (f *Feed[T]) adopt(ctx context.Context, doc *T, body []byte) *T {
 	now := time.Now()
 	f.mu.Lock()
 	f.cached, f.fetched, f.lastErr = doc, now, nil
+	f.ownFetch = true
 	f.mu.Unlock()
 	if f.Store != nil {
 		// Deliberately not ctx: the request that triggered this may be done by
@@ -171,6 +182,10 @@ func (f *Feed[T]) loadStored(ctx context.Context) {
 	}
 	f.mu.Lock()
 	if f.cached == nil {
+		// With its original timestamp, so the age shown is the age of the
+		// document and not of this process. It stays stale by definition
+		// (ownFetch is false) — the first Get hands it out and refreshes
+		// behind it.
 		f.cached, f.fetched = doc, at
 	}
 	f.mu.Unlock()

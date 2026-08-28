@@ -238,6 +238,64 @@ func TestPersistentCacheSurvivesARestart(t *testing.T) {
 	}
 }
 
+// TestARestartFetchesAgain: the stored copy carries a fresh process over a
+// missing network, it does not excuse it from asking.
+//
+// The measured case: a corrected catalogue was published, the instance was
+// restarted, and it went on serving the old digests — the stored copy was
+// inside its TTL, so nothing asked. There was no other lever either: no
+// endpoint refreshes a feed, and the only knob left was an environment variable
+// per profile on the host (#117). A restart is the lever every operator already
+// has; it costs one request per process, not one per page.
+func TestARestartFetchesAgain(t *testing.T) {
+	store := &memCache{}
+	var body atomic.Value
+	body.Store(`{"schema":1,"plugins":[{"name":"redmine","kind":"custom"}]}`)
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		fmt.Fprint(w, body.Load().(string))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL)
+	c.HTTP, c.Store = srv.Client(), store
+	if _, _, err := c.Catalog(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	// While running, the TTL holds: a second look asks nobody.
+	if _, _, err := c.Catalog(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if n := calls.Load(); n != 1 {
+		t.Fatalf("a running process asked %d times inside its TTL", n)
+	}
+
+	// Somebody publishes a correction, and the process restarts.
+	body.Store(`{"schema":1,"plugins":[{"name":"redmine","kind":"custom"},{"name":"zammad","kind":"custom"}]}`)
+	fresh := New(srv.URL)
+	fresh.HTTP, fresh.Store = srv.Client(), store
+
+	// The stored copy comes back at once — nobody waits on a foreign host.
+	cat, _, err := fresh.Catalog(context.Background())
+	if err != nil || cat == nil {
+		t.Fatalf("the stored copy has to carry the start: %v", err)
+	}
+
+	// And behind it, the correction arrives without anybody asking for it.
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		cat, _, _ := fresh.Catalog(context.Background())
+		if cat != nil && len(cat.Plugins) == 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("a restart went on serving the old copy — the correction never arrived")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 func TestSafeIconLetsOnlyEmbeddedImagesThrough(t *testing.T) {
 	ok := "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4="
 	for name, tc := range map[string]struct {
