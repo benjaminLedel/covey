@@ -3,6 +3,7 @@ package web
 import (
 	"io/fs"
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -31,7 +32,10 @@ func TestAssetsTragenEinenHash(t *testing.T) {
 		t.Skip("dist/assets is empty")
 	}
 	for _, e := range eintraege {
-		if e.IsDir() || gehasht.MatchString(e.Name()) {
+		// The precompressed twins (web/compress.mjs) carry the hash of the file
+		// they belong to, one extension further in.
+		name := strings.TrimSuffix(strings.TrimSuffix(e.Name(), ".br"), ".gz")
+		if e.IsDir() || gehasht.MatchString(name) {
 			continue
 		}
 		t.Errorf("assets/%s carries no hash in its name — the handler would hand it "+

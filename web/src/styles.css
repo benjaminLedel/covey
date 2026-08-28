@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* Hier steht, was jeder sieht: die Farbtoken, die Elementregeln, die
+   öffentliche Website und alles, was beide Seiten benutzen. Das Aussehen der
+   angemeldeten Oberfläche liegt in app.css und wird mit ihr geladen — dieses
+   Stylesheet blockiert das Rendern, und ein Besucher der Startseite soll nicht
+   auf die Formulare hinter der Anmeldung warten (#122). */
+
 /* Design-Sprache aus mockup/covey-ui-mockup.html — warmes Papier-Theme, und
    daneben seine dunkle Fassung: dieselbe warme Familie, nur von Papier auf
    Tinte gedreht.
@@ -126,20 +132,7 @@ h1, h2, h3 { font-weight: 500; margin: 0; }
 .btn.primary:hover { opacity: 0.92; }
 .btn.danger { color: var(--text-danger); border-color: var(--border-danger); }
 .btn.sm { padding: 5px 10px; font-size: 12px; }
-
-.badge {
-  font-size: 12px;
-  padding: 3px 10px;
-  border-radius: 20px;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  white-space: nowrap;
-}
 .st-working { background: var(--bg-accent); color: var(--text-accent); }
-.st-triggered, .st-triage { background: var(--bg-pro); color: var(--text-pro); }
-.st-blocked, .st-pending, .st-in_progress { background: var(--bg-warning); color: var(--text-warning); }
-.st-done, .st-approved { background: var(--bg-success); color: var(--text-success); }
 .st-sleeping, .st-cancelled { background: var(--surface-1); color: var(--text-secondary); border: 0.5px solid var(--border); }
 /* Sichern: die Arbeit des Agenten ist vorbei, die der Plattform noch nicht.
    Deshalb gedämpft wie „schläft" und nicht betont wie „arbeitet" — es ist ein
@@ -159,144 +152,11 @@ h1, h2, h3 { font-weight: 500; margin: 0; }
   0%, 100% { opacity: 0.2; }
   50% { opacity: 0.75; }
 }
-.st-killed, .st-failed, .st-denied { background: transparent; color: var(--text-danger); border: 0.5px solid var(--border-danger); }
-.st-open { background: var(--surface-1); color: var(--text-secondary); border: 0.5px dashed var(--clay); }
-/* Entwurf: angelegt, aber noch nicht eingestellt. Gestrichelt wie „offen" —
-   es ist derselbe Gedanke, nur über einen Mitarbeiter statt über eine
-   Aufgabe: da ist etwas, und es fehlt noch eine Entscheidung. */
-.st-draft { background: transparent; color: var(--text-secondary); border: 0.5px dashed var(--text-secondary); }
-
-/* Die Agentenkarte: gleich hoch wie ihre Nachbarn, Knöpfe am Fuß.
-   Ohne das standen in einer Reihe drei verschieden hohe Karten, je nachdem
-   wie lang der Name war — und die Knöpfe klebten jeweils woanders. */
-.agent-card {
-  display: flex;
-  flex-direction: column;
-  color: inherit;
-  height: 100%;
-}
-.agent-card-actions { margin-top: auto; padding-top: 10px; }
-/* Lange Namen brechen um statt die Karte zu sprengen; erfundene Bot-Namen
-   ohne Leerzeichen („Anlagenüberwachungs-Agent") notfalls im Wort. */
-.agent-card-name { overflow-wrap: anywhere; }
-
-/* Die Suche über der Belegschaft. Mittig und in eigener Zeile, weil sie ab
-   einem Dutzend Agenten das Erste ist, was jemand hier tut — in der Kopfzeile
-   zwischen Zählung und Knöpfen war sie geduldet, nicht gestaltet. */
-.agent-search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  max-width: 520px;
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  /* Dieselbe helle Fläche wie die Karten darunter — auf dem Papierton des
-     Hintergrunds verschwand das Feld sonst halb. */
-  background: var(--surface-2);
-  color: var(--text-secondary);
-}
-.agent-search:focus-within {
-  border-color: var(--text-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-accent) 18%, transparent);
-}
-.agent-search input {
-  flex: 1;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: var(--text-primary);
-  font-size: 14px;
-}
-.agent-search input:focus { outline: none; box-shadow: none; }
-/* Das Kreuz der Browser-Suchfelder doppelt unseres — eines reicht. */
-.agent-search input[type="search"]::-webkit-search-cancel-button { display: none; }
-.agent-search kbd {
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 0 5px;
-  line-height: 1.5;
-}
-
-/* Die Bewerbungen: ein eigenes Feld, nicht nur eine Überschrift.
-   Ein Agent, der noch nicht eingestellt ist, arbeitet nicht — zwischen den
-   Kollegen stünde er da wie einer und wäre keiner. Deshalb gestrichelt
-   abgesetzt, mit ruhigem Grund: es ist ein Wartebereich, keine Warnung. */
-.applications {
-  border: 1px dashed var(--border);
-  border-radius: 10px;
-  padding: 14px 16px 16px;
-  background: var(--surface-1);
-}
 /* Die Karten behalten ihren eigenen, helleren Grund — sonst laufen sie
    auf dem Grau des Feldes, und die kleine Schrift verliert genau den
    Kontrast, den sie am nötigsten hat. */
 .applications .card { background: var(--surface-2); }
-
-/* Die Notizen im laufenden Einstellungsgespräch. */
-.brief-notes { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 6px; font-size: 13px; }
-.brief-notes li { padding-left: 10px; border-left: 2px solid var(--border); }
-
-/* Die Einrichtung als eigene Flaeche: keine Seitenleiste, kein Hilfe-Regal.
-   Der Kopf traegt die Wortmarke, den Stand und den Weg heraus; darunter steht
-   mittig, was zu tun ist — in Lesebreite, damit die drei Karten eine Strecke
-   ergeben und keine Wand. */
-.setup-page {
-  min-height: 100vh;
-  background: var(--surface-0);
-  display: flex;
-  flex-direction: column;
-}
-.setup-head {
-  padding: 12px 22px;
-  border-bottom: 0.5px solid var(--border);
-  background: var(--surface-2);
-}
-.setup-head-in {
-  width: 100%;
-  max-width: 720px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-/* Die Wortmarke bringt aus der Seitenleiste einen Abstand nach unten mit —
-   in einer Kopfzeile sitzt sie damit schief. */
-.setup-head .brand { margin: 0; font-size: 15px; }
-.setup-head .brand .mark { width: 24px; height: 24px; border-radius: 8px; }
-.setup-body {
-  width: 100%;
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 34px 22px 80px;
-}
-
-/* Die Nummern der Setup-Karten: erledigte tragen einen Haken statt der Ziffer. */
-.setup-n {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 0.5px solid var(--border);
-  font-size: 11px;
-  color: var(--text-secondary);
-  flex-shrink: 0;
-}
 .setup-n.done { border-color: var(--text-success); color: var(--text-success); }
-
-/* Die Zusammenfassung im Einstellungs-Dialog: Label links, Wert rechts. */
-.hire-summary {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 6px 16px;
-  align-items: baseline;
-  margin: 0;
-}
-.hire-summary dd { margin: 0; }
-.hire-systems { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; font-size: 13px; }
 
 /* Einzeilige Felder deckeln: seit der Rahmen die volle Bildschirmbreite nutzt,
    liefe ein `width: 100%`-Feld sonst über 2000px — bedienbar wird es dadurch
@@ -320,30 +180,6 @@ input, textarea, select {
   font-size: 13px;
 }
 textarea.code { font-family: var(--mono); font-size: 12px; line-height: 1.55; }
-
-/* Ein Block, den man in eine Shell einfügt — und der auch so aussieht. Dunkel
-   in beiden Themes, weil das die Aussage ist: hier hört die Oberfläche auf und
-   fängt die Kommandozeile an. Die Farbe kommt trotzdem aus der warmen Palette
-   und nicht aus einem fremden Schwarz.
-
-   Der Kopieren-Knopf sitzt im Block, nicht darunter: was zum Kopieren da ist,
-   soll den Knopf dort haben, wo der Inhalt ist. */
-.console {
-  --console-bg: light-dark(#211f1a, #131210);
-  --console-fg: light-dark(#eae6dc, #e8e4da);
-  position: relative;
-  background: var(--console-bg);
-  color: var(--console-fg);
-  font-family: var(--mono);
-  font-size: 12px;
-  line-height: 1.7;
-  border-radius: var(--radius);
-  /* Rechts Platz für den Knopf, damit eine lange Zeile nicht darunter läuft. */
-  padding: 12px 84px 12px 14px;
-  white-space: pre-wrap;
-  word-break: break-all;
-  margin: 0;
-}
 
 /* Die Eingabeaufforderung gehört zum Bild und nicht in den kopierten Text —
    deshalb als ::before und nicht als Zeichen im Inhalt. */
@@ -373,78 +209,6 @@ textarea.code { font-family: var(--mono); font-size: 12px; line-height: 1.55; }
    erst im Browser. Deshalb: Beschriftung ÜBER dem Feld, so wie diese Regel es
    vorgibt, statt sie mit Utilities umbiegen zu wollen. */
 label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0 0 6px; }
-
-/* Sidebar-Navigation (Design-Sprache aus dem Mockup, weiterentwickelt) */
-.sidebar {
-  width: 232px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  padding: 18px 14px 14px;
-  border-right: 0.5px solid var(--border);
-  background: linear-gradient(180deg, var(--surface-1) 0%, var(--surface-0) 100%);
-}
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 2px 6px 16px;
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--text-primary);
-}
-.brand .mark {
-  width: 28px;
-  height: 28px;
-  border-radius: 9px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(140deg, #d98a6a 0%, var(--clay) 55%, #b25f41 100%);
-  box-shadow: 0 1px 2px var(--shadow-md), inset 0 1px 0 rgba(255, 255, 255, 0.22);
-}
-.brand .mark svg {
-  stroke: #fff;
-  fill: none;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.nav-group { display: flex; flex-direction: column; gap: 1px; }
-
-.nav-item {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 8px 11px;
-  border-radius: var(--radius);
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-size: 13.5px;
-  margin-bottom: 1px;
-  text-decoration: none;
-  transition: background 0.12s, color 0.12s;
-}
-.nav-item .ic {
-  width: 18px;
-  height: 18px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.9;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  flex-shrink: 0;
-  opacity: 0.72;
-  transition: opacity 0.12s, color 0.12s;
-}
-.nav-item:hover { background: var(--surface-2); color: var(--text-primary); }
-.nav-item:hover .ic { opacity: 1; }
 .nav-item.active {
   background: var(--surface-2);
   color: var(--text-primary);
@@ -464,186 +228,13 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
   border-radius: 3px;
   background: var(--clay);
 }
-.nav-item .count {
-  margin-left: auto;
-  font-size: 11px;
-  font-weight: 500;
-  background: var(--bg-warning);
-  color: var(--text-warning);
-  padding: 1px 8px;
-  border-radius: 20px;
-}
-.nav-item kbd { margin-left: auto; }
-
-.nav-sec {
-  margin: 16px 0 5px;
-  padding: 0 11px;
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-.nav-sec.toggle {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  width: 100%;
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-family: inherit;
-  text-align: left;
-  transition: color 0.12s;
-}
-.nav-sec.toggle:hover:not(:disabled) { color: var(--text-secondary); }
-.nav-sec.toggle:disabled { cursor: default; }
-.nav-sec.toggle .ic {
-  width: 12px;
-  height: 12px;
-  margin-left: auto;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  transition: transform 0.15s;
-}
 .nav-sec.toggle.open .ic { transform: rotate(90deg); }
-
-/* Fuß der Sidebar: Nutzer + Aktionen, leicht und ohne Kasten — nur eine
-   Haarlinie trennt den Fuß von der Navigation. */
-.side-foot {
-  margin-top: 12px;
-  padding-top: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  border-top: 0.5px solid var(--border);
-}
-.side-foot .suser {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  padding: 6px 7px;
-  border-radius: var(--radius);
-  text-decoration: none;
-  color: inherit;
-  transition: background 0.12s;
-}
-.side-foot .suser:hover { background: var(--surface-2); }
-.side-foot .suser .avatar { width: 30px; height: 30px; font-size: 11px; }
-.side-foot .suser .nm { font-weight: 500; font-size: 12.5px; color: var(--text-primary); }
-.side-foot .suser .rl { font-size: 11px; color: var(--text-muted); }
-/* Build-Zeile am Fuß der Hauptspalte: Version · Commit · Bauzeit, mittig.
-   Bewusst leise — sie wird nur gesucht, wenn jemand wissen will, welcher
-   Stand läuft. */
-.main-build {
-  padding: 0 26px 16px;
-  text-align: center;
-  font-size: 10.5px;
-  line-height: 1.5;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-  cursor: default;
-}
-.main-build .bt { opacity: 0.75; }
-/* Der Quelltext-Link (AGPL) tritt bewusst zurück: Er muss auffindbar sein,
-   nicht auffallen. Erst beim Überfahren nimmt er die Textfarbe an. */
-.main-build .build-src { color: inherit; text-decoration: none; }
-.main-build .build-src:hover { color: var(--text-primary); text-decoration: underline; }
-
-/* Eine Zeile: Nutzer + ⋯-Button; das Menü öffnet darüber. */
-.suser-row { position: relative; display: flex; align-items: center; gap: 2px; }
-.suser-row .suser { flex: 1; min-width: 0; }
-.foot-menu-btn { flex-shrink: 0; border: none; color: var(--text-muted); }
 .foot-menu-btn:hover, .foot-menu-btn.open { background: var(--surface-2); color: var(--text-primary); }
-.foot-menu-backdrop { position: fixed; inset: 0; z-index: 40; }
-.foot-menu {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  right: 0;
-  z-index: 41;
-  min-width: 190px;
-  padding: 5px;
-  background: var(--surface-0);
-  border: 0.5px solid var(--border-strong);
-  border-radius: 12px;
-  box-shadow: 0 8px 28px var(--shadow-md), 0 2px 8px var(--shadow-sm);
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-.foot-menu button {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 7px 9px;
-  border: none;
-  background: none;
-  border-radius: 8px;
-  font-family: inherit;
-  font-size: 12.5px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.1s, color 0.1s;
-}
-.foot-menu button:hover { background: var(--surface-2); color: var(--text-primary); }
-.foot-menu button.danger { color: var(--text-danger); }
-.foot-menu button.danger:hover { background: var(--danger-tint); color: var(--text-danger); }
-.foot-menu .ic {
-  width: 15px;
-  height: 15px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.9;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  flex-shrink: 0;
-}
-.foot-menu .sep { height: 0.5px; background: var(--border); margin: 3px 6px; }
-.foot-menu-sec {
-  padding: 4px 9px 3px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-/* Erscheinungsbild: drei Möglichkeiten nebeneinander, die gewählte gehoben —
-   dieselbe Zeichnung wie der Segment-Umschalter .seg, nur enger. */
-.theme-seg {
-  display: flex;
-  gap: 2px;
-  margin: 0 4px 2px;
-  padding: 2px;
-  border-radius: 8px;
-  background: var(--tint-weak);
-}
-/* Symbol über der Beschriftung: nebeneinander passte „System" in der Breite
-   des Menüs nicht und wurde beschnitten. */
-.foot-menu .theme-seg button {
-  flex: 1;
-  min-width: 0;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  padding: 6px 2px;
-  border-radius: 6px;
-  font-size: 11px;
-  color: var(--text-muted);
-}
-.foot-menu .theme-seg button:hover { background: var(--tint); color: var(--text-secondary); }
 .foot-menu .theme-seg button.on {
   background: var(--surface-2);
   color: var(--text-primary);
   box-shadow: 0 0 0 0.5px var(--border);
 }
-.theme-seg .ic { width: 13px; height: 13px; }
-.theme-seg span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .icon-btn {
   display: inline-flex;
   align-items: center;
@@ -670,164 +261,17 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-
-.avatar {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 500;
-  font-size: 13px;
-  background: var(--bg-accent);
-  color: var(--text-accent);
-  flex-shrink: 0;
-}
-.avatar.hum { background: var(--surface-1); color: var(--text-secondary); border: 0.5px solid var(--border); }
 .voice { font-family: var(--voice); }
-.mono { font-family: var(--mono); }
-.muted { color: var(--text-muted); }
-.secondary { color: var(--text-secondary); }
 .danger-text { color: var(--text-danger); }
-.warn-text { color: var(--text-warning); }
-.ok-text { color: var(--text-success); }
-
-.timeline-item {
-  display: flex;
-  gap: 10px;
-  padding: 8px 0;
-  border-bottom: 0.5px solid var(--border);
-  font-size: 12.5px;
-}
-.timeline-item:last-child { border-bottom: none; }
-.kind-tag {
-  font-size: 10.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 1px 7px;
-  border-radius: 4px;
-  background: var(--surface-1);
-  border: 0.5px solid var(--border);
-  color: var(--text-secondary);
-  flex-shrink: 0;
-  height: fit-content;
-  margin-top: 1px;
-}
-/* Recording: lesbare Zusammenfassung, Rohdaten pro Eintrag aufklappbar. */
-.rec-summary {
-  cursor: pointer;
-  list-style: none;
-  overflow-wrap: anywhere;
-}
-.rec-summary::-webkit-details-marker { display: none; }
-.rec-summary::before {
-  content: "▸";
-  display: inline-block;
-  width: 12px;
-  color: var(--text-secondary);
-  font-size: 10px;
-  transition: transform 0.12s ease;
-}
-.rec-details[open] > .rec-summary::before { transform: rotate(90deg); }
-.rec-raw {
-  margin: 6px 0 4px 12px;
-  padding: 8px 10px;
-  background: var(--surface-1);
-  border: 0.5px solid var(--border);
-  border-radius: 6px;
-  font-size: 11px;
-  line-height: 1.5;
-  overflow-x: auto;
-  white-space: pre;
-  max-height: 320px;
-  overflow-y: auto;
-}
 
 .kind-guardrail { background: var(--bg-warning); color: var(--text-warning); }
 .kind-credential { background: var(--bg-pro); color: var(--text-pro); }
 .kind-action { background: var(--bg-accent); color: var(--text-accent); }
 .kind-lifecycle { background: var(--bg-success); color: var(--text-success); }
-.kind-subagent { background: var(--bg-accent); color: var(--text-accent); font-style: italic; }
-
-/* Segment-Umschalter (Lesbar | Rohdaten) */
-.seg {
-  display: inline-flex;
-  border: 0.5px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-  background: var(--surface-1);
-}
-.seg button {
-  border: 0;
-  background: transparent;
-  padding: 4px 12px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-family: inherit;
-}
 .seg button.active {
   background: var(--surface-2);
   color: var(--text-primary);
   box-shadow: 0 0 0 0.5px var(--border);
-}
-
-/* Activity-Feed: erzählende Recording-Ansicht im Stil des Mockups. */
-.act-feed { padding: 4px 2px; }
-.act-ic {
-  width: 15px;
-  height: 15px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  flex-shrink: 0;
-}
-.act-day {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 14px 0 16px;
-  color: var(--text-muted);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-.act-day::before,
-.act-day::after {
-  content: "";
-  flex: 1;
-  border-top: 0.5px solid var(--border);
-}
-.act-feed .evt {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-secondary);
-  font-size: 12.5px;
-  margin-bottom: 16px;
-}
-.act-feed .evt.muted { color: var(--text-muted); }
-.act-feed .turn { margin-bottom: 22px; }
-.act-feed .turn-h {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 7px;
-}
-.act-feed .turn-h .lbl {
-  font-size: 12px;
-  color: var(--text-muted);
-  font-family: var(--mono);
-}
-.act-feed .turn-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--clay, var(--text-accent));
-  flex-shrink: 0;
 }
 .act-feed .voice {
   font-family: var(--voice);
@@ -862,122 +306,7 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
   gap: 7px;
   min-width: 0;
 }
-.act-feed .tool-name { flex-shrink: 0; color: var(--text-primary); }
-.act-feed .tool-detail {
-  color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.act-feed .chev {
-  font-size: 10px;
-  color: var(--text-muted);
-  transition: transform 0.12s ease;
-}
 .act-feed details.tool[open] > summary .chev { transform: rotate(90deg); }
-.act-feed .tool-body {
-  border-top: 0.5px solid var(--border);
-  padding: 9px 12px;
-  background: var(--surface-1);
-  font-family: var(--mono);
-  font-size: 11.5px;
-  color: var(--text-secondary);
-  line-height: 1.55;
-}
-.act-feed .tool-sec { margin-bottom: 8px; }
-.act-feed .tool-sec:last-child { margin-bottom: 0; }
-.act-feed .tool-sec-l {
-  display: block;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-  margin-bottom: 3px;
-}
-.act-feed .tool-sec pre {
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  max-height: 300px;
-  overflow-y: auto;
-}
-.act-feed .tool-shot {
-  display: block;
-  max-width: 100%;
-  max-height: 420px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-}
-.act-feed .tool-shot-badge {
-  flex-shrink: 0;
-  color: var(--text-muted);
-  font-size: 12px;
-}
-
-/* Sub-Lauf: die Arbeit des Sub-Agenten im Projekt-Checkout als ein
-   zugeklappter Block. Die Akzentkante links trennt ihn vom äußeren Lauf,
-   ohne ihn wie einen Fehler aussehen zu lassen. */
-.act-feed details.subrun {
-  border: 0.5px solid var(--border);
-  border-left: 2px solid var(--text-accent);
-  border-radius: 8px;
-  margin-bottom: 18px;
-  overflow: hidden;
-  background: var(--surface-2);
-}
-.act-feed details.subrun > summary {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 9px 12px;
-  cursor: pointer;
-  list-style: none;
-}
-.act-feed details.subrun > summary::-webkit-details-marker { display: none; }
-.act-feed .subrun-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--text-primary);
-}
-.act-feed details.subrun[open] > summary .chev { transform: rotate(90deg); }
-/* Schrumpfen darf der Name, nicht die Status-Pille: Ein langer Checkout-Pfad
-   soll ellipsieren statt die Pille aus der Zeile zu drücken (details.subrun
-   schneidet sie sonst ab) — wie .tool-detail in der Tool-Zeile. */
-.act-feed .subrun-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.act-feed .subrun-time {
-  flex: 1;
-  color: var(--text-muted);
-  font-size: 11px;
-}
-.act-feed .subrun-task {
-  font-family: var(--voice);
-  font-size: 13.5px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-  padding-left: 20px;
-  overflow-wrap: anywhere;
-}
-.act-feed .subrun-meta {
-  font-size: 11px;
-  color: var(--text-muted);
-  padding-left: 20px;
-}
-/* Innen wieder normaler Feed — nur etwas eingerückt und ohne den Rahmen
-   doppelt zu ziehen. */
-.act-feed .subrun-body {
-  padding: 12px 12px 2px;
-  border-top: 0.5px solid var(--border);
-  background: var(--surface-1);
-}
-.act-feed .subrun-body > *:last-child { margin-bottom: 8px; }
 
 .pill {
   font-size: 11px;
@@ -988,23 +317,7 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
 .pill.ok { background: var(--bg-success); color: var(--text-success); }
 .pill.mut { color: var(--text-muted); }
 .pill.err { background: var(--bg-danger, var(--bg-warning)); color: var(--text-danger); }
-.act-feed .gate {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-secondary);
-  font-size: 12.5px;
-  margin-bottom: 16px;
-}
 .act-feed .gate.ok .act-ic { color: var(--text-success); }
-.act-feed .gate.warn .act-ic { color: var(--text-warning); }
-.act-feed .gate.danger { color: var(--text-danger); }
-/* Gate innerhalb eines Turns: kleiner, eingerückt in den Fluss der Tool-Zeilen. */
-.act-feed .gate.in-turn {
-  margin: 2px 0 8px;
-  font-size: 12px;
-  padding-left: 2px;
-}
 .act-feed .parked,
 .act-feed .act-result {
   background: var(--bg-warning);
@@ -1012,7 +325,6 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
   padding: 13px 16px;
   margin-bottom: 16px;
 }
-.act-feed .act-result { background: var(--bg-success); }
 .act-feed .act-result.err { background: var(--bg-warning); }
 .act-feed .parked .ph,
 .act-feed .act-result .ph {
@@ -1027,7 +339,6 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
   font-size: 13.5px;
 }
 .act-feed .parked { color: var(--text-warning); }
-.act-feed .act-result { color: var(--text-success); }
 .act-feed .act-result.err { color: var(--text-warning); }
 .act-feed .parked p,
 .act-feed .act-result p {
@@ -1036,93 +347,20 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
   line-height: 1.55;
 }
 .act-feed .act-result p.voice { font-size: 14.5px; }
-.act-feed .act-meta {
-  margin-left: auto;
-  font-size: 11px;
-  font-family: var(--mono);
-  opacity: 0.8;
-}
-
-/* Daten-Tabellen (Egress-Log u. a.) */
-.tbl { width: 100%; font-size: 12.5px; border-collapse: collapse; }
-.tbl th {
-  text-align: left;
-  font-weight: 500;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-  padding: 9px 14px 7px;
-  border-bottom: 0.5px solid var(--border);
-  white-space: nowrap;
-}
-.tbl td { padding: 7px 14px; border-top: 0.5px solid var(--border); vertical-align: top; }
-.tbl tbody tr:first-child td { border-top: none; }
-.tbl tbody tr:hover td { background: var(--surface-1); }
-
-/* Host-Muster-Chip (Egress-Allowlisten) */
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--mono);
-  font-size: 12px;
-  background: var(--surface-1);
-  border: 0.5px solid var(--border);
-  border-radius: 6px;
-  padding: 3px 9px;
-  color: var(--text-primary);
-}
 /* "is-"-Präfix mit Absicht: eine Klasse namens `fixed` kollidiert mit Tailwinds
    Utility `.fixed { position: fixed }`. Da hier kein `position` gesetzt wird,
    griff die Utility ungehindert durch — der Chip verließ den Textfluss und
    klebte am Viewport, blieb beim Scrollen also mitten im Text stehen. Kurze
    Zustandsnamen deshalb immer mit Präfix. */
 .chip.is-fixed { border-style: dashed; color: var(--text-secondary); }
-.chip svg { flex: none; opacity: 0.8; margin-right: -2px; }
 .chip .src { font-family: var(--sans); font-size: 10.5px; color: var(--text-muted); }
-.chip button {
-  border: none;
-  background: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 0 0 0 2px;
-  font-size: 13px;
-  line-height: 1;
-}
-.chip button:hover { color: var(--text-danger); }
 
 @keyframes fade { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
-.fade { animation: fade 0.18s ease; }
-
-/* Wiki-Gedächtnis: klickbare [[Wikilinks]], gerenderter Seiten-Body, Index. */
-.wikilink {
-  font-family: var(--sans);
-  color: var(--text-accent);
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  text-decoration: underline;
-  text-decoration-thickness: 0.5px;
-  text-underline-offset: 2px;
-}
-.wikilink:hover { text-decoration-thickness: 1.5px; }
 .wikilink.missing {
   color: var(--text-danger);
   text-decoration-style: dashed;
   cursor: default;
 }
-/* Lesebreite: der mittlere Bereich wächst mit dem Fenster, Fließtext soll das
-   nicht. Rund 78 Zeichen sind die Grenze, ab der das Auge die nächste Zeile
-   nicht mehr sicher findet. */
-.wiki-body { line-height: 1.55; max-width: 78ch; }
-.wiki-body p { margin: 0 0 8px; }
-.wiki-body p:last-child { margin-bottom: 0; }
-.wiki-body ul { margin: 0 0 8px; padding-left: 18px; list-style: disc; }
-.wiki-body li { margin: 1px 0; }
-.wiki-h { font-family: var(--sans); font-weight: 600; margin: 12px 0 5px; }
-.wiki-h:first-child { margin-top: 0; }
 .wiki-h1 { font-size: 15px; }
 .wiki-h2 { font-size: 13.5px; }
 .wiki-h3 { font-size: 12.5px; color: var(--text-secondary); }
@@ -1142,171 +380,16 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
 .wiki-row .t { font-weight: 500; font-size: 14px; color: var(--text-primary); }
 .wiki-row .p { color: var(--text-secondary); font-size: 12.5px; min-width: 0; }
 .wiki-refcount { font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); white-space: nowrap; }
-.wiki-search { display: flex; align-items: center; gap: 10px; }
-.wiki-search input { flex: 1; }
-
-/* Wiki-Arbeitsfläche: Baum | Seite | Kontext. Die Liste bleibt stehen, während
-   man Verweisen folgt — sonst verliert man bei jedem Sprung den Überblick. */
-.wiki-panes {
-  display: grid;
-  grid-template-columns: 258px minmax(0, 1fr) 278px;
-  gap: 12px;
-  align-items: start;
-}
-.wiki-pane { max-height: 68vh; overflow-y: auto; overflow-x: hidden; }
-@media (max-width: 1100px) {
-  .wiki-panes { grid-template-columns: 1fr; }
-  .wiki-pane { max-height: none; }
-}
-
-/* Fortschritt des Wartungslaufs: Phase, laufende Uhr, ein Ring der sich dreht.
-   Kein Balken — es gibt keinen Anteil, den er ehrlich abbilden könnte. */
-.wiki-progress {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12.5px;
-  color: var(--text-secondary);
-}
-.wiki-progress .spin {
-  width: 11px;
-  height: 11px;
-  flex: none;
-  border-radius: 50%;
-  border: 1.5px solid var(--border-strong);
-  border-top-color: var(--text-accent);
-  animation: wiki-spin 0.7s linear infinite;
-}
 @keyframes wiki-spin {
   to { transform: rotate(360deg); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .wiki-progress .spin { animation-duration: 2.4s; }
-}
-
-/* Titel-Vorschläge des Wartungslaufs. Alt und neu untereinander statt
-   nebeneinander: die Titel sind lang, und was zählt, ist der neue. */
-.wiki-titles { padding: 10px 14px 12px; }
-.wiki-titles-h {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-bottom: 8px;
-  font-size: 12.5px;
-  color: var(--text-secondary);
-}
-.wiki-title-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 8px 0;
-  border-top: 0.5px solid var(--border);
 }
 .wiki-title-row .old,
 .wiki-title-row .new,
 .wiki-title-row .why { display: block; overflow-wrap: anywhere; }
-.wiki-title-row .old {
-  font-size: 11.5px;
-  color: var(--text-muted);
-  text-decoration: line-through;
-}
 .wiki-title-row .new { font-size: 13.5px; font-weight: 500; color: var(--text-primary); }
 .wiki-title-row .why { font-size: 11.5px; color: var(--text-secondary); margin-top: 1px; }
-
-/* Sortierwahl über dem Baum. Zurückhaltend gezeichnet — sie ist ein Regler,
-   kein Formularfeld, und darf die Seitenliste nicht überstimmen. */
-.wiki-sort { display: flex; align-items: center; }
-.wiki-sort select {
-  width: auto;
-  max-width: 100%;
-  padding: 1px 2px;
-  border: none;
-  background: none;
-  font-size: 11px;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-.wiki-sort select:hover { color: var(--text-secondary); }
-
-/* Navigationsbaum: erste Ebene Seitentyp, darunter die Seiten. */
-.wiki-tree { display: flex; flex-direction: column; gap: 1px; }
-.wiki-group + .wiki-group { margin-top: 7px; }
-.wiki-group-h {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  /* Symbole sind dekorativ und dürfen nie schmaler werden als gezeichnet. */
-}
-.wiki-group-h svg { flex: none; opacity: 0.75; }
-.wiki-group-h {
-  padding: 3px 4px;
-  font-size: 11px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-.wiki-group-h .cnt { margin-left: auto; font-variant-numeric: tabular-nums; }
-.wiki-node {
-  display: flex;
-  /* Oben ausgerichtet, weil ein zweizeiliger Titel den Aufklapp-Pfeil sonst
-     in die Mitte schiebt und der Baum seine Kante verliert. */
-  align-items: flex-start;
-  gap: 4px;
-  border-radius: 5px;
-  padding: 1px 4px;
-}
-.wiki-node:hover { background: var(--surface-1); }
 .wiki-node.sel { background: var(--bg-accent); }
 .wiki-node.sel .lbl { color: var(--text-accent); }
-.wiki-node.orphan .lbl { color: var(--text-muted); }
-.wiki-node .tw {
-  width: 13px;
-  flex: none;
-  border: none;
-  background: none;
-  padding: 0;
-  font-size: 9px;
-  line-height: 1;
-  color: var(--text-muted);
-  cursor: pointer;
-  /* Auf die erste Textzeile des Titels ausgerichtet, nicht auf den Block. */
-  padding-top: 7px;
-}
-.wiki-node .tw:disabled { cursor: default; opacity: 0.55; }
-.wiki-node .tw svg { display: block; opacity: 0.7; }
-.wiki-node .lbl {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  background: none;
-  padding: 2px 0;
-  text-align: left;
-  font: inherit;
-  font-size: 12.5px;
-  color: var(--text-primary);
-  cursor: pointer;
-  /* Zwei Zeilen statt einer: die Agenten schreiben lange, satzartige Titel,
-     und eine einzeilige Ellipse schneidet genau die Unterscheidung weg
-     ("Projekt X (148): Review" vs. "… : Merge-Konflikt"). Kurze Titel bleiben
-     einzeilig, die Liste wird also nur dort höher, wo es nötig ist. */
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  line-height: 1.35;
-}
-.wiki-node .cnt {
-  flex: none;
-  font-size: 10.5px;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-  padding-top: 4px;
-}
-.wiki-kids { margin-left: 13px; padding-left: 5px; border-left: 0.5px solid var(--border); }
-
-/* Qualitätsleiste: Zahlen, die zugleich Filter sind. */
-.wiki-quality { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
 .chip.q {
   background: var(--bg-warning);
   color: var(--text-warning);
@@ -1315,101 +398,17 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
 }
 .chip.q.on { outline: 1.5px solid var(--text-warning); outline-offset: 1px; }
 .chip.ok { background: var(--bg-success); color: var(--text-success); border-color: transparent; }
-
-/* Backlink mit dem Satz, in dem der Verweis steht. */
-.wiki-ctx { padding: 6px 0; border-bottom: 0.5px solid var(--border); }
-.wiki-ctx:last-child { border-bottom: none; }
-.wiki-quote {
-  font-family: var(--voice);
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin: 2px 0 0;
-}
-
-/* Protokoll als Aktivitätsliste: nach Tagen gruppiert, pro Zeile Uhrzeit,
-   Vorgang und Seite. Feste Spalten, weil sich sonst jede Zeile nach der Länge
-   ihres Slugs richtet (bis 64 Zeichen), umbricht und die Nachbarspalten
-   verschiebt — dann fluchtet über zwölf Zeilen nichts mehr. */
-.wiki-log-day + .wiki-log-day { margin-top: 16px; }
-.wiki-log-day-h {
-  font-size: 11px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  margin: 0 0 5px 2px;
-}
-.wiki-log-row {
-  display: grid;
-  grid-template-columns: 48px 100px minmax(0, 1fr);
-  align-items: baseline;
-  gap: 12px;
-  padding: 6px 0;
-  border-bottom: 0.5px solid var(--border);
-  font-size: 12.5px;
-}
-.wiki-log-row:last-child { border-bottom: none; }
-.wiki-log-row > * { min-width: 0; }
 .wiki-log-row .at {
   color: var(--text-muted);
   font-size: 11.5px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-/* Der Vorgang als gefärbtes Wort statt als gestricheltes Kästchen: zwölf
-   Kästchen untereinander sind Unruhe, die Farbe trägt dieselbe Information. */
-.wiki-log-row .op {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11.5px;
-  white-space: nowrap;
-  color: var(--text-secondary);
-}
-.wiki-log-row .op svg { flex: none; opacity: 0.8; }
-.wiki-log-row .op-merge { color: var(--text-accent); }
-.wiki-log-row .op-delete { color: var(--text-muted); }
-/* Eine Zeile, Rest als Ellipse — der volle Text steht im title-Attribut. */
-.wiki-log-row .cell {
-  display: block;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .wiki-log-row .detail { color: var(--text-muted); }
 /* Im Protokoll ist eine fehlende Seite der Normalfall (die Zeile daneben sagt
    „gelöscht") — kein Grund für Alarmrot wie sonst bei toten Verweisen. */
 .wiki-log-row .wikilink.missing { color: var(--text-muted); border-bottom: none; }
-@media (max-width: 700px) {
-  .wiki-log-row { grid-template-columns: 48px minmax(0, 1fr); }
-  .wiki-log-row .op { display: none; }
-}
-
-/* Graph */
-.wiki-legend {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
-  padding: 8px 14px;
-  border-top: 0.5px solid var(--border);
-  font-size: 12px;
-  color: var(--text-secondary);
-}
 .wiki-legend .key { display: inline-flex; align-items: center; gap: 6px; }
-.wiki-legend .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--text-secondary); }
-.wiki-legend .dot.hub { width: 13px; height: 13px; background: var(--text-accent); }
-.wiki-legend .dot.orph { background: var(--text-muted); opacity: 0.5; }
-.wiki-tip {
-  position: absolute;
-  pointer-events: none;
-  padding: 4px 8px;
-  border-radius: 6px;
-  background: var(--surface-0);
-  border: 0.5px solid var(--border-strong);
-  font-size: 12px;
-  max-width: 240px;
-}
 
 /* Modal: zentrierter Dialog mit Backdrop, Maße pro Größe gedeckelt. */
 .modal-backdrop {
@@ -1449,40 +448,11 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
 }
 .modal-head h2 { font-size: 15px; font-weight: 500; }
 .modal-body { padding: 16px 18px; overflow-y: auto; font-size: 13px; }
-.modal-foot {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 12px 18px 14px;
-  border-top: 0.5px solid var(--border);
-}
-
-/* Sub-Navigation innerhalb einer Seite (z. B. Egress: Übersicht | Templates) */
-.subnav {
-  display: flex;
-  gap: 2px;
-  margin-bottom: 18px;
-  border-bottom: 0.5px solid var(--border);
-}
-.subnav a {
-  padding: 7px 13px 8px;
-  font-size: 13px;
-  color: var(--text-secondary);
-  text-decoration: none;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -0.5px;
-  transition: color 0.12s;
-}
-.subnav a:hover { color: var(--text-primary); }
 .subnav a.active {
   color: var(--text-primary);
   font-weight: 500;
   border-bottom-color: var(--clay);
 }
-
-/* Stat-Kacheln (Monitoring-Übersicht) */
-.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-.stat { padding: 12px 15px; }
 .stat .v { font-size: 22px; font-weight: 500; line-height: 1.2; }
 .stat .l { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
 
@@ -1506,7 +476,6 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
 .step p { margin: 0; font-size: 12px; color: var(--text-secondary); line-height: 1.45; }
 
 @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
-.live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-success); animation: pulse-dot 1.6s infinite; }
 
 /* Inline-Hilfe: Slide-Over rechts, kontextsensitiv (HelpDrawer). */
 kbd {
@@ -1519,118 +488,15 @@ kbd {
   background: var(--surface-1);
   color: var(--text-secondary);
 }
-.help-backdrop {
-  position: fixed;
-  inset: 0;
-  background: var(--scrim-weak);
-  z-index: 40;
-  animation: fade 0.15s ease;
-}
 @keyframes slide-in { from { transform: translateX(14px); opacity: 0; } to { transform: none; opacity: 1; } }
-.help-drawer {
-  position: fixed;
-  top: 0;
-  right: 0;
-  height: 100vh;
-  width: min(400px, 92vw);
-  background: var(--surface-2);
-  border-left: 0.5px solid var(--border);
-  box-shadow: -12px 0 32px var(--shadow-sm);
-  padding: 18px 20px 40px;
-  overflow-y: auto;
-  z-index: 41;
-  animation: slide-in 0.16s ease;
-}
-.help-topic { border-top: 0.5px solid var(--border); }
-.help-topic:last-of-type { border-bottom: 0.5px solid var(--border); }
-.help-topic-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
-  padding: 10px 2px;
-  border: none;
-  background: none;
-  font: inherit;
-  font-size: 13.5px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
 .help-topic-head:hover, .help-topic-head.open { color: var(--text-primary); }
-.help-body {
-  padding: 0 2px 14px;
-  font-size: 13px;
-  color: var(--text-secondary);
-  line-height: 1.55;
-}
-.help-body p { margin: 0 0 10px; }
-.help-body b { color: var(--text-primary); font-weight: 500; }
-.help-body ul, .help-body ol { margin: 0 0 10px; padding-left: 18px; }
-.help-body li { margin-bottom: 6px; }
-.help-body dl { margin: 0 0 10px; }
-.help-body dt { margin-bottom: 3px; }
-.help-body dd { margin: 0 0 9px; }
-
-/* Backlog-Kanban (Design-Sprache aus dem Mockup) */
-/* Spalten haben eine Mindestbreite: passen sie nicht mehr nebeneinander, scrollt
-   das Board waagerecht, statt die Spuren so schmal zu quetschen, dass Kopfzeilen
-   und Karten in die Nachbarspalte laufen. */
-.kanban { display: grid; grid-template-columns: repeat(var(--kcols, 4), minmax(220px, 1fr)); gap: 12px; overflow-x: auto; padding-bottom: 4px; }
-.kcol { min-width: 0; }
-.kc.draggable { cursor: grab; }
-.kc.draggable:active { cursor: grabbing; }
-.kcol.droppable { outline: 1px dashed var(--border-strong); outline-offset: 2px; border-radius: var(--radius); }
-.kc-state { font-size: 10px; padding: 1px 6px; flex-shrink: 0; }
-.dot-btn { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0.5px solid var(--border); border-radius: 6px; background: transparent; cursor: pointer; }
-.kcol .kh { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-secondary); margin-bottom: 10px; min-width: 0; }
-.kcol .kh .knm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kcol .kh .n { margin-left: auto; flex: none; color: var(--text-muted); }
-.kc { background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 8px; font-size: 13px; cursor: pointer; min-width: 0; overflow-wrap: anywhere; }
-.kc.expanded { border-color: var(--border-strong); }
-.kc .kc-title { display: flex; align-items: center; gap: 8px; }
-.kc .kc-title .kc-prio { margin-left: auto; color: var(--text-muted); font-size: 11px; flex-shrink: 0; }
 .kc .t { color: var(--text-muted); font-size: 11px; margin-top: 5px; display: flex; align-items: center; gap: 5px; }
-.kc .kc-detail { margin-top: 9px; padding-top: 9px; border-top: 0.5px solid var(--border); font-size: 12px; }
-.kc .kc-detail p { margin: 0 0 5px; }
-.kanban .kc-empty { color: var(--text-muted); font-size: 12px; padding: 2px 0; }
-.kcol .kc-more { width: 100%; margin-bottom: 8px; color: var(--text-secondary); }
-/* Suche über dem Board: schmal wie die Knöpfe daneben, damit die Zeile eine
-   Zeile bleibt. Die Trefferliste ist bewusst einspaltig — ein Treffer kommt aus
-   irgendeiner Spalte, ein Raster würde eine Ordnung behaupten, die es nicht
-   gibt. */
-.bl-search { width: 220px; padding: 5px 10px; font-size: 12.5px; }
-.bl-results { max-width: 720px; }
-.bl-results .kc-empty { color: var(--text-muted); font-size: 12px; padding: 2px 0; }
-.dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-@media (max-width: 900px) { .kanban { grid-template-columns: repeat(var(--kcols, 4), minmax(200px, 1fr)); } }
-
-/* ── Org-Chart: gemeinsame Node-Stile ───────────────────────────── */
-.org-legend { display: flex; gap: 16px; margin-bottom: 18px; font-size: 12px; color: var(--text-secondary); }
-.org-legend span { display: inline-flex; align-items: center; gap: 6px; }
-.org-legend .sw { width: 10px; height: 10px; border-radius: 50%; }
 .org-drag-hint { color: var(--text-accent); font-size: 12px; display: inline-flex; align-items: center; gap: 5px; }
-
-/* Basis-Node (Human & Agent) */
-.node { display: inline-flex; align-items: center; gap: 9px; background: var(--surface-2); border: 0.5px solid var(--border); border-radius: 10px; padding: 9px 13px; min-width: 158px; text-decoration: none; color: inherit; }
 .node.agent { cursor: pointer; transition: border-color 0.12s, transform 0.12s; }
 .node.agent:hover { border-color: var(--border-strong); transform: translateY(-1px); }
 .node.human { cursor: pointer; transition: border-color 0.12s, transform 0.12s; }
 .node.human:hover { border-color: var(--border-strong); transform: translateY(-1px); }
-.node .avatar { width: 32px; height: 32px; font-size: 12px; }
-.node .avatar.hum { background: var(--surface-1); color: var(--text-secondary); }
-/* Die Textspalte muss schrumpfen dürfen, sonst gewinnt der Badge: er ist
-   `nowrap` und nimmt sich seine Breite, und was übrig bleibt, presst den Namen
-   in eine Spalte von einem Zeichen. Ein Name wird gekürzt, nicht zerlegt —
-   beobachtet an „Brunhilde Tatkräftig" neben einem längeren Status. */
-.node > div { flex: 1 1 auto; min-width: 0; }
-.node .nm { font-weight: 500; font-size: 13px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.node .rl { color: var(--text-muted); font-size: 11px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Und der Badge nimmt höchstens die Hälfte: er ist die Nebensache auf einer
-   Karte, die von einem Namen handelt. */
-.node .badge { flex: 0 1 auto; max-width: 50%; overflow: hidden; text-overflow: ellipsis; }
-.node .ntag { margin-left: auto; font-size: 10px; padding: 2px 8px; border-radius: 20px; background: var(--surface-1); color: var(--text-secondary); border: 0.5px solid var(--border); }
-.node .badge { font-size: 10px; padding: 2px 8px; margin-left: auto; }
 
 /* ── Abteilungen: Karten-Hintergrund mit Baum-Hierarchie ───────── */
 
@@ -1713,35 +579,8 @@ kbd {
 .dept-card.depth-0 .dept-lbl { color: var(--clay); }
 
 .dept-count { font-size: 10.5px; color: var(--text-muted); margin-left: auto; white-space: nowrap; flex-shrink: 0; }
-
-/* Aufklapper an Abteilungs- und Mitarbeiter-Knoten. Zugeklappt steht die Zahl
-   der verborgenen Knoten daneben — sonst verschwände sie spurlos. */
-.dept-toggle-btn {
-  min-width: 20px; height: 20px; flex-shrink: 0;
-  display: inline-flex; align-items: center; justify-content: center; gap: 3px;
-  border: 0.5px solid var(--border); border-radius: 5px;
-  background: var(--surface-2); color: var(--text-muted);
-  cursor: pointer; padding: 0 4px;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
-}
-.dept-toggle-btn svg { width: 10px; height: 10px; flex-shrink: 0; transition: transform 0.12s; }
 .dept-toggle-btn .n { font-size: 10px; font-variant-numeric: tabular-nums; }
-.dept-toggle-btn:hover { background: var(--surface-0); color: var(--text-primary); border-color: var(--border-strong); }
 .dept-toggle-btn.closed svg { transform: rotate(-90deg); }
-
-/* Am Mitarbeiter-Chip: sitzt rechts im Chip, bleibt dezent bis zum Hover. */
-.subtree-toggle {
-  display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0;
-  align-self: center;   /* .orgmember streckt seine Kinder sonst auf Chip-Höhe */
-  margin: 0 8px 0 2px; padding: 2px 6px;
-  border: 0.5px solid var(--border); border-radius: 20px;
-  background: var(--surface-1); color: var(--text-muted);
-  font-size: 10px; font-variant-numeric: tabular-nums;
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
-}
-.subtree-toggle svg { width: 10px; height: 10px; transition: transform 0.12s; }
-.subtree-toggle:hover { background: var(--surface-0); color: var(--text-primary); border-color: var(--border-strong); }
 .subtree-toggle.closed { border-color: var(--border-strong); color: var(--text-secondary); }
 .subtree-toggle.closed svg { transform: rotate(-90deg); }
 
@@ -1836,25 +675,6 @@ kbd {
 .agent-chip > .node.agent { border: none; background: transparent; border-radius: 0 9px 9px 0; padding-left: 6px; }
 .agent-chip > .node.agent:hover { transform: none; border: none; }
 
-.agent-grip {
-  display: flex; align-items: center; justify-content: center;
-  width: 24px; padding: 0 4px; flex-shrink: 0;
-  color: var(--text-muted);
-  border-right: 0.5px solid var(--border);
-  background: var(--surface-1);
-  transition: color 0.12s, background 0.12s;
-}
-.agent-grip svg { width: 8px; height: 13px; }
-.agent-chip:hover .agent-grip { color: var(--text-secondary); background: var(--surface-0); }
-
-/* ── Abteilungs-Verwaltung (echte Department-Entitäten) ── */
-.dept-create-form {
-  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
-  padding: 10px 12px; margin: 8px 0 14px;
-  background: var(--surface-1); border: 0.5px solid var(--border);
-  border-radius: 10px;
-}
-
 .dept-entity-grid {
   display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start;
   margin-top: 14px;
@@ -1882,72 +702,13 @@ kbd {
 .dept-member-node {
   flex-shrink: 0;
 }
-
-.dept-drop-hint {
-  font-size: 11px; color: var(--text-muted); font-style: italic;
-  padding: 4px 0;
-}
-
-/* Farbwahl für Abteilungen: runde Swatches, erster Punkt = Standard.
-   Abstand > Ringbreite + Hover-Zoom, damit sich nichts überlappt. */
-.dept-colors { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; padding: 3px 2px; }
-.dept-swatch {
-  width: 18px; height: 18px; border-radius: 50%;
-  border: 1px solid var(--border-strong);
-  cursor: pointer; padding: 0; flex-shrink: 0;
-  transition: transform 0.1s, box-shadow 0.1s;
-}
-.dept-swatch:hover { transform: scale(1.1); }
 .dept-swatch.sel { box-shadow: 0 0 0 2px var(--surface-0), 0 0 0 3px var(--text-secondary); }
 .dept-swatch.none { background: var(--surface-2); position: relative; overflow: hidden; }
 .dept-swatch.none::after {
   content: ""; position: absolute; left: -2px; right: -2px; top: 50%;
   height: 1.5px; background: var(--text-muted); transform: rotate(-45deg);
 }
-
-/* Leitung einer Abteilung: Chips im Abteilungsknoten + Drop-Zone beim Ziehen */
-.dept-leads {
-  display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
-  margin-top: 6px; padding-top: 6px;
-  border-top: 0.5px dashed var(--border);
-}
-.dept-leads-label {
-  font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
-  color: var(--text-muted);
-}
-.dept-lead-chip {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 1px 3px 1px 2px; border-radius: 999px;
-  border: 0.5px solid var(--border); background: var(--surface-1);
-  font-size: 11px; color: var(--text-secondary);
-}
-.dept-lead-chip a {
-  display: inline-flex; align-items: center; gap: 4px;
-  color: inherit; text-decoration: none;
-}
 .dept-lead-chip .icon-btn { font-size: 10px; padding: 0 3px; }
-/* Während eines Drag-Vorgangs: zwei großzügige, klar getrennte Drop-Zonen
-   („Als Mitglied" / „Als Leitung") statt der kleinen Kartenfläche.
-   Sie legen sich ÜBER die Karte, statt sie auseinanderzuziehen: eine
-   wachsende Karte schiebt den Berichtsbaum darunter nach unten — also auch
-   die Karte, die man gerade angefasst hat. Rutscht die im selben Moment
-   unter dem Zeiger weg, bricht Chrome den Drag ab, und nichts lässt sich
-   mehr aufnehmen. */
-.dept-dropzones {
-  position: absolute; inset: 0; z-index: 3;
-  display: flex; flex-direction: column; gap: 4px;
-  margin: 0; padding: 5px;
-  border-radius: inherit;
-  background: var(--surface-2);
-}
-.dept-dz {
-  flex: 1; min-height: 0;
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  padding: 2px 8px;
-  border: 1.5px dashed var(--border-strong); border-radius: 8px;
-  font-size: 11px; line-height: 1.25; color: var(--text-muted); text-align: center;
-  transition: border-color 0.12s, color 0.12s, background 0.12s;
-}
 .dept-dz.over {
   border-color: var(--text-accent); color: var(--text-accent);
   background: var(--accent-tint);
@@ -1971,23 +732,6 @@ kbd {
   background: var(--accent-tint);
 }
 
-/* ── Diagramm-Ansicht: klassischer Org-Chart-Baum ────────────────────── */
-/* Kein seitliches Padding: mit min-width:100% am Wurzel-ul ergäbe es sonst
-   dauerhaft ein paar Pixel Querlauf, auch wenn der Baum längst passt. */
-.tree { overflow-x: auto; padding: 6px 0 20px; }
-.tree ul { display: flex; justify-content: center; padding: 22px 0 0; position: relative; margin: 0; list-style: none; }
-/* width: max-content — sonst zentriert flex breiteren Inhalt über den
-   Scroll-Ursprung hinaus nach links, wo er unerreichbar abgeschnitten wird. */
-.tree > ul { padding-top: 0; width: max-content; min-width: 100%; margin: 0 auto; }
-.tree li { position: relative; padding: 22px 6px 0; display: flex; flex-direction: column; align-items: center; }
-.tree li::before, .tree li::after { content: ""; position: absolute; top: 0; right: 50%; width: 50%; height: 22px; border-top: 1.5px solid var(--border-strong); }
-.tree li::after { right: auto; left: 50%; border-left: 1.5px solid var(--border-strong); }
-.tree li:only-child::before, .tree li:only-child::after { display: none; }
-.tree li:first-child::before, .tree li:last-child::after { border: 0; }
-.tree li:last-child::before { border-right: 1.5px solid var(--border-strong); border-radius: 0 6px 0 0; }
-.tree li:first-child::after { border-radius: 6px 0 0 0; }
-.tree ul ul::before { content: ""; position: absolute; top: 0; left: 50%; height: 22px; border-left: 1.5px solid var(--border-strong); }
-
 /* Breite Ebenen brechen in mehrere Reihen um — eine einzige Zeile ließe den
    Baum mit jedem Mitglied weiter nach rechts wachsen. --tree-avail ist die
    sichtbare Breite des Scroll-Containers (gemessen in Org.tsx; Prozente gehen
@@ -2006,9 +750,6 @@ kbd {
   max-width: min(1200px, var(--tree-avail, 900px));
   row-gap: 10px;
 }
-/* Abteilungs-Karten sind deutlich breiter als ein Mitglied — sie dürfen die
-   ganze sichtbare Breite nutzen. */
-.tree ul.tree-grid-wide { max-width: var(--tree-avail, 1200px); row-gap: 22px; }
 
 /* Der Stamm: die Senkrechte, an der die Reihen hängen. Sie läuft unter dem
    Elternknoten herunter, durch eine Lücke zwischen den Karten — Position
@@ -2020,46 +761,6 @@ kbd {
   height: var(--grid-spine, 0);
   border-left: 1.5px solid var(--border-strong);
 }
-.tree > ul.tree-grid::after { top: 0; }
-
-/* Verbinder je Reihe — dieselbe Zeichnung wie im klassischen Baum, nur an
-   data-row-first/-last statt an :first-child/:last-child, damit jede Reihe
-   ihren eigenen Balken bekommt. */
-/* Karten stehen dicht beieinander wie im klassischen Baum — sie über die
-   Reihenbreite zu verteilen ließ zwischen ihnen tote Flächen entstehen, auf
-   denen ein Drop ins Leere geht. Dass der Strich des Elternknotens trotzdem
-   auf dem Balken der ersten Reihe landet, besorgt der Stamm samt Armen. */
-.tree ul.tree-grid > li { padding-top: 14px; }
-.tree ul.tree-grid > li::before,
-.tree ul.tree-grid > li::after { height: 14px; }
-/* Alle Reihen-Regeln tragen [data-wrapped]: gleiche Spezifität, damit allein
-   die Reihenfolge entscheidet. Ohne Umbruch zeichnet weiterhin die klassische
-   :first-child/:last-child-Fassung oben. */
-/* Erste Karte der Reihe: ohne Arm kein Strich nach links — der Balken der
-   Reihe beginnt bei ihrer Mitte. */
-.tree ul.tree-grid[data-wrapped] > li[data-row-first]::before { border: 0; }
-/* Mit Arm: Balken vom Stamm bis zur Mitte der Karte (--arm ist der Abstand
-   des Stamms zur linken Kante dieser Karte, notfalls negativ). */
-.tree ul.tree-grid[data-wrapped] > li[data-arm-left]::before {
-  left: var(--arm); right: 50%; width: auto;
-  border: 0; border-top: 1.5px solid var(--border-strong);
-  border-radius: 0;
-}
-/* Letzte Karte der Reihe: rechts endet der Balken, der Abzweig sitzt links. */
-.tree ul.tree-grid[data-wrapped] > li[data-row-last]::after { border: 0; }
-.tree ul.tree-grid[data-wrapped] > li[data-row-last]::before {
-  border-right: 1.5px solid var(--border-strong);
-  border-radius: 0 6px 0 0;
-}
-/* Arm nach rechts: der Stamm liegt hinter der letzten Karte der Reihe, der
-   Balken läuft von ihrer Mitte bis dorthin weiter. */
-.tree ul.tree-grid[data-wrapped] > li[data-arm-right]::after {
-  left: 50%; right: var(--arm-right); width: auto;
-  border: 0;
-  border-top: 1.5px solid var(--border-strong);
-  border-left: 1.5px solid var(--border-strong);
-  border-radius: 0;
-}
 
 /* Org-Wurzel- und Abteilungs-Knoten im Baum */
 .node.org, .node.dept { flex-direction: column; align-items: flex-start; gap: 2px; cursor: default; min-width: 168px; }
@@ -2068,68 +769,12 @@ kbd {
   align-items: center; text-align: center;
 }
 .node.org .nm { font-size: 13px; font-weight: 600; }
-.node.dept {
-  background: var(--surface-2); transition: border-color 0.15s, box-shadow 0.15s;
-  box-shadow: inset 3px 0 0 var(--text-accent);
-  padding-left: 15px;
-  position: relative;   /* Bezug für die Drop-Zonen, die sich darüberlegen */
-}
-.node.dept .nm { font-size: 13px; font-weight: 600; }
-.node.dept .rl { color: var(--text-muted); font-size: 11px; }
-.node.dept.unassigned {
-  border-style: dashed; background: var(--surface-1);
-  box-shadow: inset 3px 0 0 var(--border-strong);
-}
-.node.dept.unassigned .nm { color: var(--text-secondary); font-weight: 500; }
-
-/* Kopfzeile eines Abteilungs-Knotens: Name + Umbenennen/Löschen */
-.dept-tree-hdr { display: flex; align-items: center; gap: 4px; width: 100%; }
-.dept-tree-hdr .nm { margin-right: auto; }
 .dept-tree-hdr .icon-btn { opacity: 0; transition: opacity 0.12s; }
 .node.dept:hover .dept-tree-hdr .icon-btn { opacity: 0.7; }
 .dept-tree-hdr .icon-btn:hover { opacity: 1; }
-.dept-tree-rename { display: flex; gap: 4px; align-items: center; width: 100%; }
-.dept-tree-rename input { flex: 1; min-width: 0; height: 26px; font-size: 12px; }
-
-/* Einheitliche Mitglieds-Karte (Mensch wie Agent); Agenten sind ziehbar */
-.orgmember {
-  display: inline-flex; align-items: stretch;
-  border: 0.5px solid var(--border); border-radius: 10px;
-  background: var(--surface-2); overflow: hidden;
-  transition: opacity 0.15s, border-color 0.15s, box-shadow 0.15s;
-}
-.orgmember:hover { border-color: var(--border-strong); box-shadow: 0 1px 4px var(--shadow-xs); }
-.orgmember[draggable="true"] { cursor: grab; }
-.orgmember[draggable="true"]:active { cursor: grabbing; }
-.orgmember.orgmember-out { opacity: 0.35; }
-.orgmember > .node { border: none; background: transparent; border-radius: 0; }
-.orgmember > .node:hover { transform: none; border: none; }
 .orgmember > .node.human { padding-left: 13px; }
-.orgmember:hover .agent-grip { color: var(--text-secondary); background: var(--surface-0); }
-
-/* Leitung: interne Abteilungsleitung als Baum-Knoten deutlich markieren —
-   Akzentrahmen plus „Leitung"-Pille mit Entfernen-Aktion. */
-.orgmember.orgmember-lead {
-  border-color: var(--text-accent);
-  box-shadow: inset 3px 0 0 var(--text-accent);
-}
-.lead-pill {
-  display: inline-flex; align-items: center; gap: 3px;
-  align-self: center; margin: 0 8px 0 -2px;
-  padding: 2px 4px 2px 8px; border-radius: 999px;
-  font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
-  color: var(--text-accent);
-  background: var(--accent-tint);
-}
 .lead-pill .icon-btn { font-size: 10px; padding: 0 3px; color: var(--text-accent); }
 .lead-pill .icon-btn:hover { color: var(--text-danger); }
-
-/* Drop-Ziel-Hervorhebung (Abteilung wie Mitglied) */
-.orgmember.node-drop-over, .node.dept.node-drop-over {
-  border-color: var(--text-accent);
-  box-shadow: 0 0 0 2px var(--accent-ring);
-}
-.node.dept.node-drop-over { box-shadow: inset 3px 0 0 var(--text-accent), 0 0 0 2px var(--accent-ring); }
 
 /* ── Login-Screen ─────────────────────────────────────────────────────
    Warmes Papier-Theme mit dezentem Lehm-Schein und einem stillen Schwarm
@@ -2910,59 +1555,6 @@ kbd {
   .landing-feature, .landing-feature-icon { transition: none; }
   .boids { display: none; }
 }
-
-/* Config-Copilot — KI-Assistent zum Anpassen von Agenten (FR-001).
-   Bewusst dezent: eine Sektion innerhalb des Config-Tabs, keine aufgesetzte
-   Karte. Chat-Bubbles im Papier-Theme. */
-.assist {
-  margin: 0 0 18px;
-  padding: 13px 15px;
-  border: 0.5px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface-1);
-}
-.assist-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.assist-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-.assist-toggle .caret {
-  color: var(--text-muted);
-  font-size: 10px;
-  transition: transform 0.12s;
-}
-.assist-toggle[aria-expanded="true"] .caret { transform: rotate(90deg); }
-.assist-body { margin-top: 12px; }
-.assist-log {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-  max-height: 340px;
-  overflow-y: auto;
-  padding: 1px;
-}
-.assist-msg {
-  max-width: 86%;
-  padding: 8px 11px;
-  border-radius: 12px;
-  font-size: 13px;
-  line-height: 1.5;
-  word-break: break-word;
-}
 .assist-msg.user {
   align-self: flex-end;
   background: var(--bg-accent);
@@ -2970,146 +1562,10 @@ kbd {
   border-bottom-right-radius: 4px;
   white-space: pre-wrap;
 }
-/* Markdown-Elemente in der Assistent-Bubble (Komponente Markdown). */
-.assist-msg .md-p { margin: 0 0 8px; }
-.assist-msg .md-p:last-child { margin-bottom: 0; }
-.assist-msg .md-h { margin: 6px 0 6px; font-size: 13px; font-weight: 600; }
-.assist-msg .md-h:first-child { margin-top: 0; }
-.assist-msg .md-list { margin: 0 0 8px; padding-left: 18px; }
-.assist-msg .md-list:last-child { margin-bottom: 0; }
-.assist-msg .md-list li { margin: 2px 0; }
-.assist-msg code {
-  font-family: var(--mono);
-  font-size: 12px;
-  background: var(--tint);
-  padding: 1px 4px;
-  border-radius: 4px;
-}
-.assist-msg .md-pre {
-  margin: 0 0 8px;
-  padding: 8px 10px;
-  background: var(--surface-0);
-  border: 0.5px solid var(--border);
-  border-radius: 8px;
-  overflow-x: auto;
-}
-.assist-msg .md-pre:last-child { margin-bottom: 0; }
-.assist-msg .md-pre code { background: none; padding: 0; }
-/* Erste Schritte: die Checkliste auf der Agenten-Übersicht. Zurückhaltend —
-   sie ist eine Handreichung, kein Banner, und verschwindet ohnehin, sobald sie
-   nichts mehr zu sagen hat. */
-.onboarding-steps {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.onboarding-steps li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 8px;
-  border-radius: 8px;
-  font-size: 13px;
-}
 .onboarding-steps li.next { background: var(--surface-1); }
 .onboarding-steps li.done .what { color: var(--text-secondary); }
-.onboarding-steps .mark {
-  display: flex;
-  width: 16px;
-  justify-content: center;
-  flex-shrink: 0;
-  color: var(--text-success);
-}
-/* Offener Schritt: ein leerer Ring statt eines Hakens. */
-.onboarding-steps .dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  border: 1.5px solid var(--border-strong, var(--border));
-}
 .onboarding-steps li.next .dot { border-color: var(--text-accent); }
 .onboarding-steps li.done .mark .file-ic { opacity: 1; stroke-width: 2.2; }
-
-/* Der Zustand der Data Plane: kein Schritt, sondern ein Hinweis. Deshalb
-   farbig abgesetzt und über der Liste — was hier steht, erledigt niemand mit
-   einem Klick in dieser Oberfläche, sondern im Terminal des Betreibers. */
-.onboarding-warn {
-  background: var(--bg-warning);
-  color: var(--text-warning);
-  border-radius: 8px;
-  padding: 8px 10px;
-}
-.onboarding-warn ul { list-style: none; margin: 0; padding: 0; }
-.onboarding-warn li { margin-top: 3px; line-height: 1.5; }
-
-/* Datei-Symbole im Arbeitsplatz: Strichstil wie die übrige Navigation. Ohne
-   eigene Regel griffe keine der `.ic`-Regeln (die hängen alle an .nav-item)
-   und die Pfade kämen schwarz gefüllt heraus. */
-.file-ic {
-  width: 14px;
-  height: 14px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  flex-shrink: 0;
-  opacity: 0.6;
-}
-
-/* Dieselbe Markdown-Komponente als Dokument statt als Chat-Bubble: die
-   Vorschau einer .md-Datei im Arbeitsplatz. Mehr Luft, größere Überschriften
-   — man liest hier eine Seite, keine Antwort. */
-.md-body {
-  max-height: 60vh;
-  overflow: auto;
-  padding: 4px 2px;
-  font-size: 13.5px;
-  line-height: 1.6;
-}
-.md-body .md-p { margin: 0 0 10px; }
-.md-body .md-h { margin: 16px 0 8px; font-weight: 600; line-height: 1.35; }
-.md-body h4.md-h { font-size: 17px; }
-.md-body h5.md-h { font-size: 15px; }
-.md-body h6.md-h { font-size: 13.5px; color: var(--text-secondary); }
-.md-body .md-h:first-child { margin-top: 0; }
-.md-body .md-list { margin: 0 0 10px; padding-left: 20px; }
-/* Der Reset nimmt Listen ihre Punkte; im Dokument gehören sie hin — ohne sie
-   ist eine Aufzählung nicht von aneinandergereihten Absätzen zu unterscheiden. */
-.md-body ul.md-list { list-style: disc; }
-.md-body ol.md-list { list-style: decimal; }
-.md-body .md-list li { margin: 3px 0; }
-.md-body code {
-  font-family: var(--mono);
-  font-size: 12px;
-  background: var(--tint);
-  padding: 1px 4px;
-  border-radius: 4px;
-}
-.md-body .md-pre {
-  margin: 0 0 10px;
-  padding: 10px 12px;
-  background: var(--surface-0);
-  border: 0.5px solid var(--border);
-  border-radius: 8px;
-  overflow-x: auto;
-}
-.md-body .md-pre code { background: none; padding: 0; }
-.md-body a { color: var(--text-accent); text-decoration: underline; }
-.assist-msg a { color: var(--text-accent); text-decoration: underline; }
-.assist-msg.bot {
-  align-self: flex-start;
-  background: var(--surface-2);
-  border: 0.5px solid var(--border);
-  border-bottom-left-radius: 4px;
-}
-.assist-proposals { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.assist-status { align-self: flex-start; color: var(--text-muted); font-size: 12px; padding: 2px 2px; }
-.assist-input { display: flex; gap: 8px; align-items: flex-end; margin-top: 11px; }
-.assist-input textarea { flex: 1; resize: vertical; }
 
 /* ── Öffentliche Mehrseiten-Website ──────────────────────────────────
    Sticky Kopfzeile + Seiten (Home, Funktion, Produkte). Baut auf den
@@ -3167,36 +1623,10 @@ kbd {
   backdrop-filter: none;
   background: var(--tint-weak);
 }
-
-/* Erscheinungsbild in der öffentlichen Kopfzeile: dieselbe Pille wie die
-   Sprachwahl, nur mit Symbolen. Die gewählte Fassung wird gehoben statt
-   eingefärbt — zwei lehmfarbene Pillen nebeneinander wären eine zu viel. */
-.theme-pill button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px 8px;
-  color: var(--text-muted);
-}
 .theme-pill button.on {
   background: var(--surface-2);
   color: var(--text-primary);
   box-shadow: 0 0 0 0.5px var(--border);
-}
-.theme-pill .ic {
-  width: 14px;
-  height: 14px;
-  display: block;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-@media (max-width: 640px) {
-  /* Auf dem Telefon reichen Kopfzeile und Sprachwahl den Platz nicht weiter —
-     die Wahl steht im Fußmenü der Oberfläche weiterhin bereit. */
-  .theme-pill { display: none; }
 }
 
 /* Innenseiten (Funktion, Produkte) — Hero + gruppierte Abschnitte. */
@@ -3715,43 +2145,11 @@ kbd {
   }
   .docs-content { padding: 24px 20px; }
 }
-
-/* Store-Ansicht: Tab-Umschalter als Buttons + Kategorie-Chips. */
-.subnav button {
-  padding: 7px 13px 8px;
-  font-size: 13px;
-  font-family: inherit;
-  color: var(--text-secondary);
-  background: transparent;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -0.5px;
-  cursor: pointer;
-  transition: color 0.12s;
-}
-.subnav button:hover { color: var(--text-primary); }
 .subnav button.active {
   color: var(--text-primary);
   font-weight: 500;
   border-bottom-color: var(--clay);
 }
-
-.tgt-cats { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.tgt-cat {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 11px;
-  border-radius: 20px;
-  border: 0.5px solid var(--border);
-  background: var(--surface-2);
-  color: var(--text-secondary);
-  font-family: inherit;
-  font-size: 12px;
-  cursor: pointer;
-  transition: border-color 0.12s, color 0.12s, background 0.12s;
-}
-.tgt-cat:hover { border-color: var(--border-strong); color: var(--text-primary); }
 .tgt-cat .n { font-size: 10.5px; color: var(--text-muted); }
 .tgt-cat.active {
   background: var(--clay-tint);
@@ -3762,256 +2160,11 @@ kbd {
 
 .btn.cta { color: var(--clay); border-color: var(--clay-line); }
 .btn.cta:hover { background: var(--clay-tint); }
-
-/* Zielsysteme: Plugin-Karten in gleicher Höhe, Details im Modal. */
-.tgt-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 14px;
-}
-.tgt-search {
-  width: 220px;
-  padding: 6px 10px;
-  font-size: 12.5px;
-  background: var(--surface-2);
-}
-.tgt-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 12px;
-  align-items: stretch;
-}
-.tgt-card {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 14px 16px;
-  min-width: 0;
-  transition: border-color 0.14s, box-shadow 0.14s;
-}
-.tgt-card:hover { border-color: var(--border-strong); box-shadow: 0 1px 3px var(--shadow-xs); }
 .tgt-card.off { background: var(--surface-1); }
 .tgt-card.off .tgt-name { color: var(--text-secondary); }
 .tgt-card.off .tgt-mark { opacity: 0.55; }
-
-.tgt-head { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
-.tgt-mark {
-  flex-shrink: 0;
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  background: var(--surface-1);
-  color: var(--text-secondary);
-  border: 0.5px solid var(--border);
-}
-.tgt-mark.lg { width: 40px; height: 40px; font-size: 14px; border-radius: 10px; }
-.tgt-mark.k-custom { background: var(--bg-accent); color: var(--text-accent); border-color: transparent; }
-.tgt-mark.k-mcp { background: var(--bg-pro); color: var(--text-pro); border-color: transparent; }
-/* Marken-Signet: neutrale Kachel, damit die Logo-Farbe für sich steht. */
-.tgt-mark.brand { background: var(--surface-2); color: var(--text-secondary); }
-.tgt-mark svg { display: block; }
-
-.tgt-id { min-width: 0; flex: 1; }
-.tgt-name {
-  font-weight: 500;
-  font-size: 13.5px;
-  line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tgt-slug {
-  font-size: 11px;
-  color: var(--text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tgt-kind {
-  flex-shrink: 0;
-  font-size: 10.5px;
-  letter-spacing: 0.02em;
-  padding: 2px 8px;
-  border-radius: 20px;
-  background: var(--surface-1);
-  color: var(--text-muted);
-  border: 0.5px solid var(--border);
-  white-space: nowrap;
-}
-.tgt-kind.k-custom { background: var(--bg-accent); color: var(--text-accent); border-color: transparent; }
-.tgt-kind.k-mcp { background: var(--bg-pro); color: var(--text-pro); border-color: transparent; }
-
-.tgt-desc {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.55;
-  color: var(--text-secondary);
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.tgt-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  color: var(--text-muted);
-  min-width: 0;
-}
-.tgt-meta > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tgt-meta > span + span::before { content: "·"; margin-right: 8px; color: var(--border-strong); }
-
-.tgt-foot {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: auto;
-  padding-top: 10px;
-  border-top: 0.5px solid var(--border);
-}
-.tgt-state {
-  margin-right: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11.5px;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-.tgt-state i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: transparent;
-  border: 1px solid var(--text-muted);
-}
 .tgt-state.on { color: var(--text-success); }
 .tgt-state.on i { background: var(--text-success); border-color: var(--text-success); }
-
-.tgt-connect {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-  margin-top: 22px;
-  padding: 14px 16px;
-  background: var(--surface-1);
-}
-
-.tgt-dl-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding-bottom: 14px;
-  border-bottom: 0.5px solid var(--border);
-}
-.tgt-sec { margin-top: 16px; }
-.tgt-sec-h {
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  margin: 0 0 6px;
-}
-.tgt-doc {
-  margin: 0;
-  padding: 12px 14px;
-  background: var(--surface-1);
-  border: 0.5px solid var(--border);
-  border-radius: var(--radius);
-  font-family: inherit;
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--text-secondary);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.tgt-tools { list-style: none; padding: 0; margin: 0; font-size: 12px; }
-.tgt-tools li {
-  padding: 5px 0;
-  border-bottom: 0.5px solid var(--border);
-  line-height: 1.5;
-}
-.tgt-tools li:last-child { border-bottom: none; }
-
-/* Traumerzählung: bewusst anders gesetzt als alles andere in der Karte —
-   kursiv, eingerückt, mit Mond. Wer sie liest, soll sofort wissen, dass hier
-   erzählt und nicht protokolliert wird. */
-.dream-story {
-  display: flex;
-  gap: 8px;
-  margin: 2px 0 8px;
-  padding: 8px 12px;
-  border-radius: 6px;
-  background: var(--surface-1);
-  font-family: var(--voice);
-  font-style: italic;
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--text-secondary);
-}
-.dream-story .mark { flex: none; font-style: normal; opacity: 0.5; }
-
-/* Einstellungen: Menue links, Inhalt rechts. Die vier Bereiche sind lange
-   Formulare — eine Leiste oben waere nach dem ersten Scrollen weg, waehrend
-   das Seitenmenue stehen bleibt und zeigt, wo man ist. */
-.settings-panes {
-  display: grid;
-  grid-template-columns: 186px minmax(0, 1fr);
-  gap: 20px;
-  align-items: start;
-}
-.settings-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  position: sticky;
-  top: 12px;
-}
-.settings-nav .nav-item {
-  border: 0.5px solid transparent; /* Sprung beim Aktivieren vermeiden */
-  background: none;
-  text-align: left;
-  font-family: inherit;
-}
-@media (max-width: 900px) {
-  .settings-panes { grid-template-columns: 1fr; gap: 12px; }
-  /* Schmal wird aus der Spalte eine Zeile: untereinander waeren vier Punkte
-     hier nur verlorene Hoehe. */
-  .settings-nav { position: static; flex-direction: row; flex-wrap: wrap; }
-}
-
-/* Zielsystem-Assistent: eine Schrittleiste und ein Arbeitsbereich. Bewusst
-   flach — der Assistent soll fuehren, nicht beeindrucken. */
-.tgt-steps {
-  list-style: none;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 0 0 16px;
-  padding: 0;
-}
-.tgt-steps li {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 5px 11px;
-  border: 0.5px solid var(--border);
-  border-radius: 999px;
-  font-size: 12.5px;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
 .tgt-steps li.at { border-color: var(--clay); color: var(--text-primary); background: var(--clay-tint); }
 .tgt-steps li.done .n { background: var(--text-success); color: var(--surface); border-color: transparent; }
 .tgt-steps .n {
@@ -4024,260 +2177,8 @@ kbd {
   border: 0.5px solid var(--border);
   font-size: 10.5px;
 }
-.tgt-step-body { display: flex; flex-direction: column; gap: 10px; }
-.tgt-cred { display: flex; flex-direction: column; gap: 4px; }
-.tgt-scopes { display: flex; flex-wrap: wrap; gap: 12px; }
-.tgt-scopes label { display: inline-flex; align-items: center; gap: 5px; }
-.tgt-diff { display: flex; flex-direction: column; gap: 4px; }
-.tgt-copy { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.tgt-copy code {
-  flex: 1;
-  min-width: 0;
-  word-break: break-all;
-  font-size: 12px;
-  background: var(--surface-2);
-  padding: 6px 8px;
-  border-radius: 6px;
-}
-.tgt-doc-details summary { font-size: 12.5px; color: var(--text-secondary); cursor: pointer; }
-
-/* Offene Punkte aus dem Betrieb (spec/21): der Diff, den ein Mensch liest,
-   bevor er einen Vorschlag annimmt. Gruen/rot bewusst zusaetzlich durch das
-   Vorzeichen getragen — Farbe allein traegt keine Bedeutung. */
-.diff {
-  border: 0.5px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-  background: var(--surface-1);
-}
-.diff-head {
-  padding: 5px 10px;
-  font-size: 12px;
-  border-bottom: 0.5px solid var(--border);
-  color: var(--text-secondary);
-}
-.diff-body {
-  margin: 0;
-  padding: 6px 0;
-  max-height: 340px;
-  overflow: auto;
-  font-family: var(--mono);
-  font-size: 12px;
-  line-height: 1.55;
-}
-.diff-line { display: block; padding: 0 10px; white-space: pre-wrap; word-break: break-word; }
 .diff-line.add { background: var(--bg-success); color: var(--text-success); }
-.diff-line.del { background: var(--danger-tint); color: var(--text-danger); }
-.diff-skip {
-  display: block;
-  padding: 2px 10px;
-  color: var(--text-muted);
-  font-size: 11px;
-  border-top: 0.5px dashed var(--border);
-  border-bottom: 0.5px dashed var(--border);
-}
-/* Die Freigabe ist die einzige Sorte, bei der jemand wartet — sie traegt
-   deshalb die Warnfarbe, die der Rest der Oberflaeche fuer „blockiert" nutzt. */
-.badge.kind-approval { background: var(--bg-warning); color: var(--text-warning); }
-.badge.kind-proposal { background: var(--bg-accent); color: var(--text-accent); }
-.badge.kind-finding { background: var(--bg-warning); color: var(--text-warning); }
-.badge.kind-issue { background: var(--surface-1); color: var(--text-secondary); border: 0.5px solid var(--border); }
-
-/* Die schmale Zeile der Auflistung: klappt zur ganzen Karte auf. */
-.inbox-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  text-align: left;
-  padding: 8px 15px;
-  margin-bottom: 6px;
-  background: var(--surface-2);
-  border: 0.5px solid var(--border);
-  border-radius: 10px;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-.inbox-row:hover { background: var(--surface-1); }
-
-/* Arbeitsakte (spec/21): die Abschnitte nebeneinander, solange Platz ist —
-   sie beantworten dieselbe Frage aus verschiedenen Quellen und werden
-   nebeneinander gelesen, nicht nacheinander. */
-.rec-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 10px;
-}
-.rec-row {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  padding: 2px 0;
-}
-
-
-/* ── Runner-Detailseite ────────────────────────────────────────────────
-   Abstände gehören hierher und nicht in Utility-Klassen an jedem Element:
-   die Seite besteht aus gleichartigen Abschnitten, und gleichartig heißt
-   auch gleich weit auseinander. */
-/* Breiter als die 860px von vorher, weil links jetzt 186px Menue stehen: der
-   Inhalt soll dieselbe Breite behalten wie damals, als er die ganze Seite war. */
-.rd-page { display: flex; flex-direction: column; gap: 14px; max-width: 1066px; }
-/* Ein Bereich kann aus mehreren Karten bestehen (Identitaet: Name und Tags).
-   Ohne diese Regel klebten sie aneinander — .rd-page gibt den Abstand nur
-   seinen eigenen Kindern, und die sind jetzt Kopf und Raster. */
-.rd-panes-content { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-.rd-card { display: flex; flex-direction: column; gap: 10px; }
-/* Die Einleitung gehört zur Überschrift, nicht zum ersten Feld. */
-.rd-card > h2 + p { margin: -6px 0 2px; }
-.rd-field { display: flex; flex-direction: column; }
-.rd-field input { width: 100%; max-width: 420px; }
-.rd-reported { display: flex; align-items: baseline; gap: 8px; font-size: 12px; }
-.rd-reported > span:first-child { color: var(--text-secondary); min-width: 190px; }
-.rd-row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
-.rd-row + .rd-row { border-top: 0.5px solid var(--border); padding-top: 6px; }
-
-/* Runner-Log: eine Leseansicht, kein Terminal-Nachbau.
- *
- * Die Frage an eine Zeile ist immer dieselbe — wann, wie schlimm, was. Also
- * feste Spalten fuer Zeit und Pegel und ein flexibler Rest, in dem die
- * Attribute UMBRECHEN statt die Zeile aus dem Bild zu schieben. Vorher stand
- * alles in einer Zeile ohne Umbruch: was hinten dranhing, war unsichtbar, und
- * gerade dort steht bei einem Fehler der Grund.
- *
- * Farbe traegt nur, was selten ist. Info und Debug bleiben ruhig, Warnung und
- * Fehler bekommen einen Streifen an der Kante — ein Log, in dem jede Zeile
- * leuchtet, hat keine Hierarchie mehr. */
-.rlog {
-  border: 0.5px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-1);
-  max-height: 460px;
-  overflow-y: auto;
-  font-size: 12px;
-  line-height: 1.55;
-}
-/* Der Tag bleibt beim Scrollen stehen: eine Uhrzeit ohne Datum ist in einem
-   Log ueber mehrere Tage eine Falle. */
-.rlog-day {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  padding: 3px 10px;
-  background: var(--surface-0);
-  border-bottom: 0.5px solid var(--border);
-  color: var(--text-secondary);
-  font-size: 11px;
-  letter-spacing: 0.03em;
-}
-.rlog-line {
-  display: flex;
-  gap: 10px;
-  align-items: baseline;
-  padding: 3px 10px 3px 8px;
-  border-left: 2px solid transparent;
-}
-.rlog-line + .rlog-line { border-top: 0.5px solid var(--tint-weak); }
-.rlog-line:hover { background: var(--tint-weak); }
-.rlog-time {
-  flex: none;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
-.rlog-level {
-  flex: none;
-  width: 38px;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-}
-/* Nachricht und Attribute in einem umbrechenden Block: die Nachricht zuerst,
-   die Attribute dahinter, und wenn es nicht reicht, darunter — eingerueckt
-   bleibt es lesbar, weil Zeit und Pegel ihre feste Breite behalten. */
-.rlog-body {
-  min-width: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 12px;
-  align-items: baseline;
-}
-.rlog-msg { color: var(--text-primary); }
-.rlog-attr { color: var(--text-secondary); white-space: nowrap; }
-.rlog-attr > span { opacity: 0.65; }
-.rlog-line.lvl-debug .rlog-msg { color: var(--text-secondary); }
-.rlog-line.lvl-warn { border-left-color: var(--text-warning); }
-.rlog-line.lvl-warn .rlog-level { color: var(--text-warning); }
-.rlog-line.lvl-error { border-left-color: var(--text-danger); }
-.rlog-line.lvl-error .rlog-level { color: var(--text-danger); }
-.rlog-line.lvl-error .rlog-msg { color: var(--text-danger); }
-/* Der Agent an der Zeile ist ein Filter, kein Etikett: Zeilen ueber einen
-   Start gehoeren zusammen, und das Einengen darauf ist der haeufigste Griff. */
-.rlog-agent {
-  border: 0.5px solid var(--border);
-  border-radius: 4px;
-  padding: 0 5px;
-  background: none;
-  font: inherit;
-  color: var(--text-accent);
-  cursor: pointer;
-}
-.rlog-agent:hover { background: var(--bg-accent); }
-/* „Filter aufheben" stand als blosser Satzteil da und sah nach Text aus. Ein
-   Knopf, den man fuer Text haelt, ist kein Knopf. */
-.rlog-clear {
-  border: 0; background: none; padding: 0;
-  font: inherit; font-size: 12px;
-  color: var(--text-accent);
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-/* Eine Phase der Plattform: Image holen, Arbeitsplatz herstellen, Arbeitsplatz
-   sichern. Sie steht zwischen den Ereignissen, aber ruhiger als sie — was hier
-   passiert, ist Hausarbeit und nicht die Arbeit des Agenten. Solange sie läuft,
-   trägt sie einen Balken; danach bleibt die Zeile mit ihren Zahlen stehen. */
-.act-feed .act-phase {
-  margin-bottom: 16px;
-  font-size: 12.5px;
-  color: var(--text-secondary);
-}
-.act-feed .act-phase .ph {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.act-feed .act-phase .ph b { font-weight: 500; }
 .act-feed .act-phase.done { color: var(--text-muted); }
-.act-feed .act-phase-detail {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 11.5px;
-  color: var(--text-muted);
-  background: var(--bg-subtle, rgba(0, 0, 0, 0.04));
-  border-radius: 6px;
-  padding: 1px 6px;
-  max-width: 40ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.act-feed .act-phase .act-meta { color: var(--text-muted); margin-left: auto; }
-.act-bar {
-  margin-top: 6px;
-  height: 4px;
-  border-radius: 999px;
-  background: var(--border);
-  overflow: hidden;
-}
-.act-bar > span {
-  display: block;
-  height: 100%;
-  border-radius: 999px;
-  background: var(--text-secondary);
-  transition: width 0.4s ease;
-}
 /* Ohne bekannte Gesamtgröße läuft der Balken, statt eine Prozentzahl zu
    behaupten, die niemand hat. */
 .act-bar.unknown > span {
@@ -4288,44 +2189,9 @@ kbd {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(333%); }
 }
-
-/* Die Phasenanzeige neben einem Status: derselbe Vorgang wie im Verlauf, nur
-   auf eine Zeile eingedampft. Sie steht neben dem Badge und nicht in ihm — was
-   dort steht, ist ein Wort, und „holt Image, 1,2 von 3,4 GB" ist keines. */
-.phase-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
-}
-.phase-badge .phase-label {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-}
-.phase-badge .phase-pct { font-variant-numeric: tabular-nums; color: var(--text-primary); }
-.phase-badge .phase-figures { color: var(--text-muted); white-space: nowrap; }
-.phase-badge .act-bar { width: 90px; flex: none; }
 .phase-badge.compact { font-size: 11.5px; gap: 6px; }
 .phase-badge.compact .act-bar { width: 48px; }
-
-/* Auf der Aufgabenkarte steht die Phase unter Titel und Zustand — es ist
-   dieselbe Wartezeit wie beim Agenten, nur dort gefragt, wo jemand auf das
-   Ergebnis wartet. */
-.kc-phase { margin-top: 6px; }
 
 /* Eine Phase, die nicht durchgelaufen ist. Sie steht ruhig wie die anderen,
    aber ohne Balken: was gescheitert ist, hat keinen Fortschritt. */
 .act-feed .act-phase.failed .ph b { color: var(--danger, #b3261e); }
-.act-feed .act-phase-error {
-  margin: 4px 0 0 26px;
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 11.5px;
-  color: var(--text-muted);
-  word-break: break-word;
-}

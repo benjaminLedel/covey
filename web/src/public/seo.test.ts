@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 // Der Quelltext von App.tsx als Text — Vite löst ?raw auf, damit der Test ohne
 // Node-Typen auskommt (tsc -b prüft die Tests mit).
-import appQuelltext from "../App.tsx?raw";
+import appQuelltext from "../AppShell.tsx?raw";
 import { DOC_PAGES } from "./docs/docsContent";
 import { seoTags } from "./Head";
 import {
@@ -138,7 +138,7 @@ describe("Strukturierte Daten", () => {
 });
 
 /* Die Präfixe der angemeldeten Oberfläche stehen in seo.ts, die Routen in
-   App.tsx. Der Go-Handler entscheidet anhand der Präfixe, ob ein Pfad die
+   AppShell.tsx. Der Go-Handler entscheidet anhand der Präfixe, ob ein Pfad die
    SPA-Hülle bekommt oder eine 404 — eine vergessene Route wäre damit ab sofort
    nicht mehr erreichbar. Deshalb hier der Abgleich.
 
@@ -155,7 +155,7 @@ describe("App-Präfixe", () => {
   );
   const pfade = [...ausRouten, ...ausAbzweigung].filter((p) => p !== "/" && p !== "*");
 
-  it("deckt jede Route aus App.tsx ab", () => {
+  it("deckt jede Route aus AppShell.tsx ab", () => {
     expect(pfade.length).toBeGreaterThan(10);
     for (const p of pfade) {
       const prefix = "/" + p.split("/")[1];
@@ -163,10 +163,10 @@ describe("App-Präfixe", () => {
     }
   });
 
-  it("führt kein Präfix, das es in App.tsx nicht gibt", () => {
+  it("führt kein Präfix, das es in AppShell.tsx nicht gibt", () => {
     const vorhanden = new Set(pfade.map((p) => "/" + p.split("/")[1]));
     for (const prefix of APP_ROUTE_PREFIXES) {
-      expect(vorhanden, `${prefix} hat keine Route in App.tsx`).toContain(prefix);
+      expect(vorhanden, `${prefix} hat keine Route in AppShell.tsx`).toContain(prefix);
     }
   });
 
