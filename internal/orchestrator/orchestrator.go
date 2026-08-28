@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -1659,7 +1660,11 @@ func errKind(err error) string {
 	if errors.As(err, &wrong) {
 		return "the seat belongs to another engine"
 	}
-	return fmt.Sprintf("%T", err)
+	// The TYPE, asked for where the type lives. fmt.Sprintf("%T", err) would
+	// say the same thing today and is one character away from saying the error
+	// itself — a guarantee that lives in a formatting verb is the weakest kind
+	// there is. reflect leaves no verb to change (issue #109).
+	return reflect.TypeOf(err).String()
 }
 
 // noCredentialReason names the case in the recording, in the words of whoever
