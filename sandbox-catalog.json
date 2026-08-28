@@ -8,7 +8,7 @@
       "images": [
         {
           "covey_version": "main",
-          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:1c5f11ca0cdd1cc112d7340e985ee0c4f6f0c58a18cabb2728bdee99155e39b2",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:e207f752d188e692d4dc656896fa2bf2cf1e23eb96174349c1fa2b0ca6919db8",
           "tag": "base-latest",
           "platforms": [
             "linux/amd64",
@@ -92,11 +92,11 @@
     {
       "name": "dev",
       "label": "dev",
-      "description": "Everything from base plus PHP, JDK, fvm, uv and the node-gyp toolchain.",
+      "description": "Everything from base plus PHP, JDK, fvm, uv and the node-gyp toolchain \u2014 the union, for an agent whose field is not settled.",
       "images": [
         {
           "covey_version": "main",
-          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:081a2ecdd32beb2baaa592b54ac65781090753419d6b5e3394e430f1c0512b6a",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:4d43b5264419e9ca39f40e0e821e0c6b71b79ecab645fc3bad6e3abdc0bc9356",
           "tag": "dev-latest",
           "platforms": [
             "linux/amd64",
@@ -176,7 +176,55 @@
           ]
         }
       ]
+    },
+    {
+      "name": "dev-flutter",
+      "label": "dev \u00b7 Flutter",
+      "description": "Base plus a Flutter SDK that is already in the image, fvm for projects that pin another version, and a JDK for Gradle.",
+      "images": [
+        {
+          "covey_version": "main",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:f33f6d6ee2223f0b07cb770b8bd37e3b8ef52c8660dc352330dbdaf4eda6fd14",
+          "tag": "dev-flutter-latest",
+          "platforms": [
+            "linux/amd64",
+            "linux/arm64"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "dev-php",
+      "label": "dev \u00b7 PHP",
+      "description": "Base plus PHP 8.2 with the projects' extensions, Composer, a MariaDB to test against, and the node-gyp toolchain.",
+      "images": [
+        {
+          "covey_version": "main",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:6ab09e9db2cb50f5b16ddaa4baf3065b6579a3f3d3b9c795795569653dc4f123",
+          "tag": "dev-php-latest",
+          "platforms": [
+            "linux/amd64",
+            "linux/arm64"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "dev-web",
+      "label": "dev \u00b7 Web",
+      "description": "Base plus the native build toolchain for npm packages \u2014 for Node and TypeScript projects.",
+      "images": [
+        {
+          "covey_version": "main",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:babdf90bf2e41e41a96d208b228032fe1df4141d7760bc8e6ee9cac9ea8f3cc7",
+          "tag": "dev-web-latest",
+          "platforms": [
+            "linux/amd64",
+            "linux/arm64"
+          ]
+        }
+      ]
     }
   ],
-  "generated_at": "2026-08-28T06:49:36Z"
+  "generated_at": "2026-08-28T07:59:17Z"
 }
