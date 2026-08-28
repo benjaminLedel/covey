@@ -50,6 +50,15 @@ type Node struct {
 	// tests can: t.Cleanup(node.Close) runs while node.Run is still live in its
 	// goroutine.
 	closed bool
+	// watchers counts the sandbox watchers this node has started. Cancelling
+	// one is a signal, not a join: `docker wait` dies when its context ends,
+	// but the goroutine around it is still on its way past that context and
+	// still holds a container, a working copy and a temp directory. Close used
+	// to return in between, and whoever cleaned up afterwards cleaned up under
+	// running work — in a test that was a directory removed while the docker
+	// double was still writing into it (#114), in production it is a teardown
+	// cut off by the process exiting. Same defect one layer up: #98.
+	watchers sync.WaitGroup
 	// turn holds, per agent, the end of the line: the channel the message
 	// currently being worked on closes when it is done. See inOrder.
 	turn map[uuid.UUID]chan struct{}
@@ -533,7 +542,11 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 	n.running[spec.AgentID] = proc
 	n.mu.Unlock()
 
-	go n.watch(watchCtx, t, spec.AgentID, proc)
+	n.watchers.Add(1)
+	go func() {
+		defer n.watchers.Done()
+		n.watch(watchCtx, t, spec.AgentID, proc)
+	}()
 	n.Log.Info("sandbox started", "agent", spec.AgentID, "container", container,
 		"ms", time.Since(startedAt).Milliseconds())
 	n.reply(ctx, t, id, TypeSandboxStarted, SandboxResult{AgentID: spec.AgentID})
@@ -632,7 +645,33 @@ func (n *Node) Close() {
 	for _, proc := range procs {
 		proc.cancel()
 	}
+
+	// And now wait until the cancelled work has actually stopped. Otherwise
+	// Close means "the signal is set", the caller reads it as "the node is
+	// finished", and the difference between the two is a watcher still writing
+	// where nobody expects one any more.
+	//
+	// With a deadline, because the waiting must not become the new hanging. The
+	// bound is generous on purpose: a watcher whose container ended by itself
+	// is inside `Docker.Wait`, whose removal carries its own 20-second limit
+	// (docker.go), and cutting that off would leave exactly the orphaned
+	// container this node exists to avoid. Whoever misses the deadline is
+	// named in the log — that is the note somebody needs to find it next time.
+	done := make(chan struct{})
+	go func() {
+		n.watchers.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(closeGrace):
+		n.Log.Warn("runner node: a sandbox watcher is still running after the grace period",
+			"grace", closeGrace)
+	}
 }
+
+// closeGrace is how long Close waits for the watchers it has just cancelled.
+const closeGrace = 30 * time.Second
 
 // say sends a line about work in progress. Nobody waits for it and nothing
 // depends on it: a failure to send it must not fail the start it describes.
