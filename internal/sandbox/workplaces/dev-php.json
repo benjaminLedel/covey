@@ -1,0 +1,19 @@
+{
+  "profile": "dev-php",
+  "summary": "The base workplace plus the PHP toolchain: PHP 8.2 with the extensions the projects use, Composer, a database server, and the native build toolchain for the frontend part.",
+  "tools": [
+    { "name": "php", "version": "8.2", "note": "with xml, mbstring, curl, zip, gd, ldap, sqlite3, mysql, pgsql, bcmath, intl, and pcov as the coverage driver" },
+    { "name": "composer", "note": "for PHP projects" },
+    { "name": "mariadb-server", "note": "for test suites that need a real database. No systemd here and you are not root: initialise a data directory in your home once (mariadb-install-db --datadir=~/.local/share/mariadb) and start mariadbd yourself against it. Put that directory in a place you are willing to lose — it is scratch, not memory." },
+    { "name": "node", "version": "26", "note": "for the asset build; npm global installs land in ~/.npm-global" },
+    { "name": "build-essential, python3", "note": "so npm packages with a native part (sharp, bcrypt, node-sass) build instead of failing halfway" },
+    { "name": "chromium", "note": "used by the browser plugin, headless" }
+  ],
+  "sdk_dirs": {},
+  "notes": [
+    "PHP 8.2 is the version the target projects' CI runs. Do not install another one — a suite that is green against a different minor version turns the pipeline red.",
+    "A database is here. Do not download one into your home — a server unpacked from a tarball costs 1.4 GB in every sync, for good.",
+    "No JDK and no Flutter here. This workplace is for PHP work; if your ticket needs another toolchain, that is worth saying out loud rather than fetching it into your home.",
+    "You are not root and apt is not available to you. If a tool is missing, say so instead of building a way around it — that is a request, not a defeat."
+  ]
+}

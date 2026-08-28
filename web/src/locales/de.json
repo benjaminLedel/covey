@@ -1109,13 +1109,16 @@
       "subGeneral": "Allgemein",
       "sandboxImage": "Arbeitsplatz",
       "sandboxImageDefault": "Voreinstellung der Instanz",
-      "sandboxImageHint": "Das Image, in dem dieser Agent arbeitet. Ein Profil ist eine Vereinigung von Toolchains, kein Sprachschnitt: ein Entwickler-Agent arbeitet an PHP- und Flutter-Projekten, ein Mail-Agent an keinem von beiden. Gilt ab dem nächsten Kaltstart; eine laufende oder warm geparkte Sandbox behält ihr Image.",
+      "sandboxImageHint": "Das Image, in dem dieser Agent arbeitet. `dev` ist die Vereinigung der Entwickler-Toolchains — für einen Agenten, dessen Feld beim Aufwachen nicht feststeht. Steht es fest, trägt ein Rollen-Arbeitsplatz dieselbe Toolchain und nicht die drei anderen dazu. Gilt ab dem nächsten Kaltstart; eine laufende oder warm geparkte Sandbox behält ihr Image.",
       "filesReadOnly": "Nur lesbar — aus dem letzten Snapshot",
       "runnerTags": "Host-Anforderungen",
       "runnerTagsHint": "Tags, die der Runner tragen muss, damit dieser Agent dort laufen darf — etwa arm64 oder ein Host im Netz des Zielsystems. Leer heißt: jeder Runner der Organisation. Ein Runner darf mehr tragen, als verlangt wird; fehlt eine geforderte Fähigkeit, wartet der Agent und die Meldung nennt das Tag.",
       "sandboxProfile": {
         "base": "base — Node, git, chromium, ripgrep",
-        "dev": "dev — zusätzlich PHP, JDK, fvm, uv"
+        "dev": "dev — zusätzlich PHP, JDK, fvm, uv",
+        "dev-flutter": "dev · Flutter — Flutter-SDK im Image, fvm, JDK",
+        "dev-php": "dev · PHP — PHP 8.2, Composer, MariaDB",
+        "dev-web": "dev · Web — node-gyp-Toolchain, chromium"
       },
       "sandboxImageMissing": "Das Image {{image}} liegt auf keinem Runner dieser Organisation — bis es gebaut ist, scheitert jedes Aufwachen. Einmalig: {{build}}",
       "sandboxImageSource": {

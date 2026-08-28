@@ -61,7 +61,7 @@ Covey is built for organisations rather than for one person at a desk. Several p
 git clone https://github.com/benjaminLedel/covey.git && cd covey
 cp .env.example .env
 echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env
-make sandbox-images-pull        # the two prebuilt workplaces an agent runs in
+make sandbox-images-pull        # the prebuilt workplaces an agent runs in
 docker compose up -d --build    # Postgres + Covey
 ```
 
@@ -74,7 +74,7 @@ For your first agent, go to *New agent → brief* and describe the job in a few 
 What those five commands set up:
 
 - [`docker-compose.yml`](docker-compose.yml) brings Postgres (pgvector) and the covey binary with the admin UI embedded. Migrations run on start; `bootstrap` creates the organisation, the admin and a demo agent.
-- `make sandbox-images-pull` fetches the containers an agent works inside — `base` ([`Dockerfile.sandbox`](Dockerfile.sandbox): Claude Code, chromium, git, ripgrep) and `dev` (plus PHP, a JDK and the version managers `fvm`/`uv`), for amd64 and arm64, built by [the project's own pipeline](.github/workflows/sandbox-images.yml). `make sandbox-images` builds them here instead.
+- `make sandbox-images-pull` fetches the containers an agent works inside — `base` ([`Dockerfile.sandbox`](Dockerfile.sandbox): Claude Code, chromium, git, ripgrep), `dev` (plus PHP, a JDK and the version managers `fvm`/`uv`) and the role workplaces `dev-flutter`, `dev-php` and `dev-web` for agents whose field is settled ([`docs/ops-workplaces.md`](docs/ops-workplaces.md)), for amd64 and arm64, built by [the project's own pipeline](.github/workflows/sandbox-images.yml). `SANDBOX_PROFILES="base dev-web"` pulls only what you need; `make sandbox-images` builds them here instead.
 
 Full walkthrough including your first agent and a production checklist: [`docs/quickstart-docker.md`](docs/quickstart-docker.md).
 
@@ -213,6 +213,7 @@ All runbooks are in English.
 | [`docs/upgrade.md`](docs/upgrade.md) | Upgrades that need more than a restart — what to build and back up beforehand |
 | [`docs/api-keys.md`](docs/api-keys.md) | API keys: driving Covey from outside — what a key may do and what only the browser may |
 | [`docs/ops-runner.md`](docs/ops-runner.md) | Runners: sandboxes on more than one host, the home store, hard egress isolation |
+| [`docs/ops-workplaces.md`](docs/ops-workplaces.md) | Workplaces: which image an agent works in, the role images, a workplace of your own |
 | [`docs/ops-zammad.md`](docs/ops-zammad.md) | Zammad: API token, webhook + trigger, customer-visible replies |
 | [`docs/ops-github.md`](docs/ops-github.md) | GitHub: issues, pull requests, Actions, checkout inside the sandbox |
 | [`docs/ops-gitlab.md`](docs/ops-gitlab.md) | GitLab: issues, merge requests, checkout inside the sandbox |
@@ -274,7 +275,7 @@ make run          # covey serve on http://localhost:8494
 
 Without either, tasks fail with "Not logged in · Please run /login": the sandbox has its own empty `HOME`, so your local `claude` login is not visible in there.
 
-**Sandbox isolation.** The control plane starts sandboxes as containers (**docker provider**, the default) — real isolation at the container level. `make sandbox-image` builds the `base` profile ([`Dockerfile.sandbox`](Dockerfile.sandbox)), `make sandbox-image-dev` the `dev` one ([`Dockerfile.sandbox.dev`](Dockerfile.sandbox.dev)). **The image hangs off the agent**, not off the instance: a support or mail agent runs on `base` and no longer carries a developer agent's JVM. The profile is set per agent in the interface, and an image of your own is a valid value there. `COVEY_SANDBOX_IMAGE` / `COVEY_SANDBOX_IMAGE_DEV` override what the two profiles resolve to. The rule when extending them: **version → home, toolchain → image** — SDK versions are fetched by the agent itself into its persistent home, following the pin in the project repo ([`docs/ops-deployment.md`](docs/ops-deployment.md)).
+**Sandbox isolation.** The control plane starts sandboxes as containers (**docker provider**, the default) — real isolation at the container level. `make sandbox-image` builds the `base` profile ([`Dockerfile.sandbox`](Dockerfile.sandbox)), `make sandbox-image-dev` the `dev` one, and beside them stand the role workplaces `dev-flutter`, `dev-php` and `dev-web` ([`docs/ops-workplaces.md`](docs/ops-workplaces.md)). **The image hangs off the agent**, not off the instance: a support or mail agent runs on `base` and no longer carries a developer agent's JVM, and a Flutter agent no longer carries a database server. The profile is set per agent in the interface, and an image of your own is a valid value there. `COVEY_SANDBOX_IMAGE_<PROFILE>` overrides what a profile resolves to. The rule when extending them: **version → home, toolchain → image** — SDK versions are fetched by the agent itself into its persistent home, following the pin in the project repo. A role workplace is where that rule is deliberately reversed: for an agent whose field is settled the version is settled too, so `dev-flutter` carries its baseline SDK in the image.
 
 **Tests.** `make test` (unit) and `make test-integration` (the full end-to-end path against the dev DB, with a mock runtime and a fake Zammad; it skips when port 5433 is unreachable). For demos without a real Zammad: run `go run ./demo/fakezammad`, then set the secrets `zammad_url` = `http://localhost:9999` and `zammad_token` (any value).
 

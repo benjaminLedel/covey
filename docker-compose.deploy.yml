@@ -49,8 +49,9 @@ x-covey-base: &covey-base
     #
     # Wer doch ein eigenes Image fahren will — ein Fork, eine Installation ohne
     # Internet — setzt COVEY_SANDBOX_IMAGE (Profil `base`) bzw.
-    # COVEY_SANDBOX_IMAGE_DEV in der `.env`. Die Variable gewinnt weiterhin;
-    # sie ist nur nicht mehr die Vorgabe.
+    # COVEY_SANDBOX_IMAGE_<PROFIL> in der `.env`, Bindestriche als Unterstriche:
+    # COVEY_SANDBOX_IMAGE_DEV, COVEY_SANDBOX_IMAGE_DEV_FLUTTER. Die Variable
+    # gewinnt weiterhin; sie ist nur nicht mehr die Vorgabe.
     # Wiki-Pflege (spec/05): legt jedem Agenten täglich einen Aufräum-Task an
     # (Duplikate zusammenführen, tote [[Verweise]] korrigieren). Der zentrale
     # Konsolidierungs-Pass arbeitet rein über Embedding-Ähnlichkeit und fasst

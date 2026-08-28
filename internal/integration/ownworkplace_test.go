@@ -21,8 +21,8 @@ func TestEigenerArbeitsplatz(t *testing.T) {
 	c := login(t, s, "admin@test.local", "admin-passwort")
 
 	anlegen := map[string]string{
-		"name":        "dev-flutter",
-		"label":       "Flutter",
+		"name":        "dev-flutter-intern",
+		"label":       "Flutter (interne CA)",
 		"description": "Flutter-Toolchain plus internes Zertifikat",
 		"image":       "registry.example.com/team/sandbox:2026-08",
 	}
@@ -34,10 +34,12 @@ func TestEigenerArbeitsplatz(t *testing.T) {
 	c.expect(http.MethodPost, "/api/v1/workplaces", anlegen, http.StatusConflict)
 
 	// Und ein Name aus dem Katalog ist vergeben, auch wenn diese Organisation
-	// ihn nie benutzt hat.
-	c.expect(http.MethodPost, "/api/v1/workplaces", map[string]string{
-		"name": "dev", "image": "registry.example.com/team/anderes:1",
-	}, http.StatusConflict)
+	// ihn nie benutzt hat — die Vereinigung wie die Rollen (#112).
+	for _, vergeben := range []string{"dev", "dev-flutter"} {
+		c.expect(http.MethodPost, "/api/v1/workplaces", map[string]string{
+			"name": vergeben, "image": "registry.example.com/team/anderes:1",
+		}, http.StatusConflict)
+	}
 
 	// In der Liste steht er neben den veroeffentlichten — fuer den, der
 	// auswaehlt, sind es dieselben Dinge.
@@ -57,7 +59,7 @@ func TestEigenerArbeitsplatz(t *testing.T) {
 	for i, w := range list {
 		nach[w.Name] = i
 	}
-	eigener, ok := nach["dev-flutter"]
+	eigener, ok := nach["dev-flutter-intern"]
 	if !ok {
 		t.Fatalf("der eigene Arbeitsplatz fehlt in der Liste: %+v", list)
 	}
@@ -71,7 +73,7 @@ func TestEigenerArbeitsplatz(t *testing.T) {
 	// Ein Agent zieht ein — und steht danach an seinem Arbeitsplatz, mit Namen.
 	agent := s.newSupportAgent("flutter-agent")
 	c.expect(http.MethodPatch, "/api/v1/agents/"+agent.ID.String()+"/sandbox-image",
-		map[string]string{"sandbox_image": "dev-flutter"}, http.StatusOK)
+		map[string]string{"sandbox_image": "dev-flutter-intern"}, http.StatusOK)
 
 	resp = c.do(http.MethodGet, "/api/v1/workplaces", nil)
 	json.NewDecoder(resp.Body).Decode(&list)
@@ -79,15 +81,15 @@ func TestEigenerArbeitsplatz(t *testing.T) {
 	for i, w := range list {
 		nach[w.Name] = i
 	}
-	if n := len(list[nach["dev-flutter"]].Agents); n != 1 {
+	if n := len(list[nach["dev-flutter-intern"]].Agents); n != 1 {
 		t.Fatalf("erwartet 1 Agent an diesem Arbeitsplatz, sind %d", n)
 	}
 
 	// Loeschen, solange jemand darin arbeitet, wuerde die Agenten auf einen
 	// Namen zeigen lassen, hinter dem nichts mehr steht.
-	c.expect(http.MethodDelete, "/api/v1/workplaces/dev-flutter", nil, http.StatusConflict)
+	c.expect(http.MethodDelete, "/api/v1/workplaces/dev-flutter-intern", nil, http.StatusConflict)
 
 	c.expect(http.MethodPatch, "/api/v1/agents/"+agent.ID.String()+"/sandbox-image",
 		map[string]string{"sandbox_image": ""}, http.StatusOK)
-	c.expect(http.MethodDelete, "/api/v1/workplaces/dev-flutter", nil, http.StatusOK)
+	c.expect(http.MethodDelete, "/api/v1/workplaces/dev-flutter-intern", nil, http.StatusOK)
 }

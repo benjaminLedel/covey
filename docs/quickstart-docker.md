@@ -50,8 +50,13 @@ That's it. `docker compose` starts three things:
 ### Why step 3 is a step of its own
 
 An agent works inside its own container, and that image is not part of the
-compose build. It is deliberately separate: it carries chromium, a JDK and a
-Node toolchain and takes minutes, while everything else here takes seconds.
+compose build. It is deliberately separate: it carries chromium and a Node
+toolchain and takes minutes, while everything else here takes seconds.
+
+That is the `base` workplace, and it is enough for support, mail, QA and
+research agents. An agent that builds software needs one of the developer
+workplaces on top of it — `make sandbox-images-pull` fetches them all, and
+[`ops-workplaces.md`](ops-workplaces.md) says which one an agent belongs in.
 
 Skipping it costs nothing at first — the platform starts, the interface works,
 agents and configs can be created. Only the first wake fails, with
