@@ -1,5 +1,6 @@
 import PubLink from "./PubLink";
 import { useTranslation } from "react-i18next";
+import Bild from "./Bild";
 import { BirdMark, RotatingWord, HeroFlock, icons } from "./chrome";
 import Screenshots from "./Screenshots";
 
@@ -50,7 +51,18 @@ export default function Home() {
 
       {/* Schwarm-Bild als breites Band — die Leitmetapher wörtlich genommen. */}
       <figure className="landing-band reveal">
-        <img src="/landing/murmuration.jpg" alt={t("landing.bandAlt")} loading="lazy" />
+        <Bild
+          src="/landing/murmuration.jpg"
+          breiten={[700, 1400]}
+          /* Das Band ist beschnitten (object-fit: cover) und wandert langsam:
+             Es steht über die volle Breite, aber nur 220 bis 380 px hoch. Die
+             volle Gerätedichte darauf zu verlangen hieße, ein Telefon die
+             große Fassung laden zu lassen für Pixel, die es beschneidet. */
+          sizes="(max-width: 800px) 700px, 1400px"
+          alt={t("landing.bandAlt")}
+          breite={1400}
+          hoehe={927}
+        />
         <figcaption>{t("landing.bandCaption")}</figcaption>
       </figure>
 
@@ -134,7 +146,14 @@ export default function Home() {
           </ol>
         </div>
         <div className="landing-how-img reveal">
-          <img src="/landing/formation.jpg" alt={t("landing.howAlt")} loading="lazy" />
+          <Bild
+            src="/landing/formation.jpg"
+            breiten={[480, 960]}
+            sizes="(max-width: 900px) 100vw, 480px"
+            alt={t("landing.howAlt")}
+            breite={1600}
+            hoehe={1600}
+          />
         </div>
       </section>
     </div>

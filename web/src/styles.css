@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* <picture> ist nur die Hülle um die Formatwahl und soll im Layout nicht
+   vorkommen: Mit display:contents bleibt das <img> das Kind, das die Regeln
+   daneben meinen (.landing-band img, .pub-shot-frame img …). Sonst stünde
+   zwischen Rahmen und Bild ein Inline-Kasten mit eigener Zeilenhöhe. */
+picture { display: contents; }
+
 /* Hier steht, was jeder sieht: die Farbtoken, die Elementregeln, die
    öffentliche Website und alles, was beide Seiten benutzen. Das Aussehen der
    angemeldeten Oberfläche liegt in app.css und wird mit ihr geladen — dieses

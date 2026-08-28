@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import Bild from "./Bild";
 
 /* Interaktive Screenshot-Galerie der echten Software: großes Vorschaubild in
    einem Browser-Rahmen + Thumbnails zum Umschalten. Bilder liegen unter
@@ -26,10 +27,13 @@ export default function Screenshots() {
       <div className="pub-shot-stage reveal">
         <figure className="pub-shot-frame">
           <div className="pub-shot-bar" aria-hidden="true"><span /><span /><span /></div>
-          <img
+          <Bild
             src={`/shots/${cur.img}`}
+            breiten={[320, 1280]}
+            sizes="(max-width: 1000px) 100vw, 900px"
             alt={t(`public.shots.${cur.k}.t`)}
-            loading="lazy"
+            breite={1280}
+            hoehe={800}
           />
         </figure>
         <p className="pub-shot-cap">
@@ -46,7 +50,16 @@ export default function Screenshots() {
             className={`pub-shot-thumb ${sel === i ? "active" : ""}`}
             onClick={() => setSel(i)}
           >
-            <img src={`/shots/${s.img}`} alt="" loading="lazy" />
+            {/* Die Vorschau ist gut hundert Pixel breit — sie hat den
+                Screenshot in voller Größe nie gebraucht. */}
+            <Bild
+              src={`/shots/${s.img}`}
+              breiten={[320, 1280]}
+              sizes="130px"
+              alt=""
+              breite={1280}
+              hoehe={800}
+            />
             <span>{t(`public.shots.${s.k}.t`)}</span>
           </button>
         ))}

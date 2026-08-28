@@ -1,5 +1,6 @@
 import PubLink from "./PubLink";
 import { useTranslation } from "react-i18next";
+import Bild from "./Bild";
 import { BirdMark, icons } from "./chrome";
 import Screenshots from "./Screenshots";
 
@@ -70,7 +71,14 @@ export default function ProductCovey() {
           </ul>
         </div>
         <figure className="pub-split-img">
-          <img src="/landing/formation.jpg" alt={t("landing.howAlt")} loading="lazy" />
+          <Bild
+            src="/landing/formation.jpg"
+            breiten={[480, 960]}
+            sizes="(max-width: 900px) 100vw, 480px"
+            alt={t("landing.howAlt")}
+            breite={1600}
+            hoehe={1600}
+          />
         </figure>
       </section>
 
@@ -90,7 +98,14 @@ export default function ProductCovey() {
           </ol>
         </div>
         <div className="landing-how-img reveal">
-          <img src="/landing/murmuration.jpg" alt={t("landing.bandAlt")} loading="lazy" />
+          <Bild
+            src="/landing/murmuration.jpg"
+            breiten={[700, 1400]}
+            sizes="(max-width: 900px) 100vw, 700px"
+            alt={t("landing.bandAlt")}
+            breite={1400}
+            hoehe={927}
+          />
         </div>
       </section>
 
