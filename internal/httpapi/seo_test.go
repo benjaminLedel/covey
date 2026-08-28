@@ -42,6 +42,10 @@ func testDist() fs.FS {
 		"en/404.html":              seite("Not found"),
 		"app.html":                 seite("Covey — Control Plane"),
 		"assets/index-DOnPDnv_.js": {Data: []byte("console.log(1)")},
+		// What web/compress.mjs writes beside it. The content is not real
+		// brotli — the handler passes it through, it does not read it.
+		"assets/index-DOnPDnv_.js.br": {Data: []byte("brotli")},
+		"assets/index-DOnPDnv_.js.gz": {Data: []byte("gzipped")},
 		// Not everything under assets/ has to be hashed — the cache header
 		// distinguishes, so both cases belong in the test FS.
 		"assets/ohne-hash.js": {Data: []byte("console.log(2)")},

@@ -47,14 +47,7 @@ func mitKompression(next http.Handler) http.Handler {
 	})
 }
 
-func akzeptiertGzip(r *http.Request) bool {
-	for _, teil := range strings.Split(r.Header.Get("Accept-Encoding"), ",") {
-		if name, _, _ := strings.Cut(strings.TrimSpace(teil), ";"); strings.EqualFold(name, "gzip") {
-			return true
-		}
-	}
-	return false
-}
+func akzeptiertGzip(r *http.Request) bool { return akzeptiertEncoding(r, "gzip") }
 
 // lohntKompression decides by content type. The list is deliberately an
 // allowlist: a new binary format that lands here uncompressed costs bandwidth,
