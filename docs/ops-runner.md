@@ -298,6 +298,20 @@ containers up with the sandbox, on a network belonging to that sandbox alone,
 and the agent reaches each one under its name — `db:5432`, exactly as the
 project's own `docker-compose.yml` writes it.
 
+**Which images may run is your decision, once.** The organisation keeps an
+allowlist under *Infrastructure → Workplaces → Services beside the sandbox*, and
+it governs every path — what a manager types as much as what an agent derives
+from a project's compose file. Patterns are an exact reference (`postgres:16`)
+or a star bound to a separator (`postgres:*`, `ghcr.io/acme/*`); `*` alone
+allows everything. An empty list allows nothing, which is the safe default for a
+fresh installation — the upgrade seeded what your agents already declared, so
+nothing that ran yesterday stopped.
+
+A refusal names the pattern that would let the image run, so answering it is one
+line rather than a trip to this page. It is checked when the declaration is
+saved and again at the wake: the second one refuses the whole wake rather than
+starting a sandbox with two of its three services.
+
 Set in the agent's settings under **Services**, or through the API:
 
 ```bash
@@ -328,6 +342,14 @@ Three things are worth knowing before you use it:
   point rather than a limitation: what an agent keeps belongs in its home, and a
   database that survived a run would hand the next one a state nobody wrote
   down. Anything you would miss does not belong in a service.
+
+**What actually ran is in the recording, per job.** The host reports which image
+each service started from — the image id, not only the tag it was configured
+with — and that is recorded twice: once at the wake (what came up, or what was
+refused), and once at the start of every job (what this run worked against). The
+second one exists because a warm sandbox serves job after job on services that
+came up hours earlier; without it, a run whose result nobody can reproduce would
+point at a waking phase that has long scrolled off.
 
 A service that cannot start **ends the wake** and takes the ones already up with
 it, with the reason in the agent's recording. Half a workplace is the state in

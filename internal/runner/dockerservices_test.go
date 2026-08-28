@@ -46,7 +46,7 @@ func TestDockerStartsServicesBesideTheSandbox(t *testing.T) {
 
 	agentID := uuid.New()
 	p := &Docker{Image: "covey-sandbox:test", DataDir: dir, DockerBin: fake}
-	container, err := p.Start(context.Background(), StartSandbox{
+	container, _, err := p.Start(context.Background(), StartSandbox{
 		AgentID: agentID,
 		Services: []sandbox.Service{
 			{Name: "db", Image: "postgres:16", Env: map[string]string{"POSTGRES_PASSWORD": "test"}},
@@ -100,7 +100,7 @@ func TestDockerWithoutServicesTouchesNoNetwork(t *testing.T) {
 
 	agentID := uuid.New()
 	p := &Docker{Image: "covey-sandbox:test", DataDir: dir, DockerBin: fake}
-	if _, err := p.Start(context.Background(), StartSandbox{AgentID: agentID}); err != nil {
+	if _, _, err := p.Start(context.Background(), StartSandbox{AgentID: agentID}); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	raw, _ := os.ReadFile(argsFile)
@@ -118,7 +118,7 @@ func TestDockerServiceFailureEndsTheStart(t *testing.T) {
 
 	agentID := uuid.New()
 	p := &Docker{Image: "covey-sandbox:test", DataDir: dir, DockerBin: fake}
-	_, err := p.Start(context.Background(), StartSandbox{
+	_, _, err := p.Start(context.Background(), StartSandbox{
 		AgentID: agentID,
 		Services: []sandbox.Service{
 			{Name: "db", Image: "postgres:16"},

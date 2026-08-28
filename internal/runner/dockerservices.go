@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"covey/internal/sandbox"
 )
 
 // The services that run beside a sandbox (spec/16, "Services beside the
@@ -69,14 +71,15 @@ func agentIDFromContainer(name string) (uuid.UUID, bool) {
 // another question and deliberately not answered here: a database is running
 // long before it accepts connections, and whoever waits for a port is the one
 // that wants to talk to it. The agent retries; the platform does not pretend.
-func (p *Docker) startServices(ctx context.Context, spec StartSandbox) error {
+func (p *Docker) startServices(ctx context.Context, spec StartSandbox) ([]sandbox.ServiceRun, error) {
 	if len(spec.Services) == 0 {
-		return nil
+		return nil, nil
 	}
 	network := servicesNetworkFor(spec.AgentID)
 	if err := p.ensureServicesNetwork(ctx, spec.AgentID, network); err != nil {
-		return err
+		return nil, err
 	}
+	started := make([]sandbox.ServiceRun, 0, len(spec.Services))
 	for _, svc := range spec.Services {
 		name := serviceContainerName(spec.AgentID, svc.Name)
 		// A predecessor of the same name blocks the start. It belongs to this
@@ -109,13 +112,29 @@ func (p *Docker) startServices(ctx context.Context, spec StartSandbox) error {
 			p.removeServices(context.WithoutCancel(ctx), spec.AgentID)
 			if strings.Contains(msg, "No such image") || strings.Contains(msg, "Unable to find image") ||
 				strings.Contains(msg, "pull access denied") || strings.Contains(msg, "manifest unknown") {
-				return fmt.Errorf("service %q: the image %q could not be fetched — it is the project's image, not one of the workplace catalogue's, so this host needs access to the registry it comes from: %s",
+				return nil, fmt.Errorf("service %q: the image %q could not be fetched — it is the project's image, not one of the workplace catalogue's, so this host needs access to the registry it comes from: %s",
 					svc.Name, svc.Image, msg)
 			}
-			return fmt.Errorf("service %q (%s): %v: %s", svc.Name, svc.Image, err, msg)
+			return nil, fmt.Errorf("service %q (%s): %v: %s", svc.Name, svc.Image, err, msg)
 		}
+		started = append(started, sandbox.ServiceRun{
+			Name: svc.Name, Image: svc.Image, ImageID: p.imageIDOf(ctx, name),
+		})
 	}
-	return nil
+	return started, nil
+}
+
+// imageIDOf asks what the container was actually created from. Best effort: a
+// start does not fail because the host could not be asked afterwards, and an
+// empty ID says exactly that rather than pretending to a digest.
+func (p *Docker) imageIDOf(ctx context.Context, container string) string {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, p.docker(), "inspect", "-f", "{{.Image}}", container).Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 // ensureServicesNetwork creates the sandbox's internal segment.

@@ -1302,6 +1302,20 @@ export const createWorkplace = (w: { name: string; label: string; description: s
   post<Workplace>("/workplaces", w);
 export const deleteWorkplace = (name: string) => del<{ ok: boolean }>(`/workplaces/${name}`);
 
+// Welche Images neben einer Sandbox laufen dürfen (spec/16). Die Liste gehört
+// der Organisation: Ein Image zu NENNEN ist nicht das Privileg, die Liste zu
+// erweitern ist es.
+export type ServiceImagePattern = {
+  id: string;
+  pattern: string;
+  note: string;
+  created_at: string;
+};
+export const listServiceImages = () => api<ServiceImagePattern[]>("/service-images");
+export const addServiceImage = (pattern: string, note: string) =>
+  post<ServiceImagePattern>("/service-images", { pattern, note });
+export const deleteServiceImage = (id: string) => del<{ ok: boolean }>(`/service-images/${id}`);
+
 // KI-Assistent zum Anpassen von Agenten (Config-Copilot, FR-001).
 export type AssistMessage = { role: "user" | "assistant"; content: string };
 export type AssistProposal = { file: string; content: string };

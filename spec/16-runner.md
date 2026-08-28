@@ -527,6 +527,27 @@ The services end with the sandbox, on every path: the clean stop, the crash the 
 
 Readiness is deliberately **not** answered here. A database is running long before it accepts connections, and whoever waits for a port is the one that wants to talk to it. The agent retries; the platform does not pretend.
 
+### Which images may run at all
+
+A service is an image reference, and an image reference is the decision **which foreign code runs on the runner host**. Inside the sandbox that decision is already the agent's — it runs shell commands there, without root and behind the egress allowlist. A service container is not inside it: it is a second container beside it, from an image nobody looked at, with the host's memory and no accounting against the capacity figure.
+
+So the line is not "may an agent name an image" but "which images may run here at all". Per organisation, one list, and it holds for **every** path — the declaration a manager types as much as the one an agent derives from a project's compose file. Whoever may EXTEND the list is the privileged party; naming an image, once the list stands, is not. That is what makes it safe to let an agent set itself up: it chooses within a boundary somebody drew on purpose.
+
+Patterns are an exact reference (`postgres:16`) or a star **bound to a separator** (`postgres:*`, `ghcr.io/acme/*`, `db@*`); `*` alone allows everything and is a decision rather than a default. The binding is the whole safety property: a free-floating `postgres*` would also match `postgres-evil.example.com/backdoor` — same prefix, different registry, and nobody reading the list would see it.
+
+Fail-closed: an empty list allows nothing. That is right for a fresh installation and wrong for an upgrade, so the migration seeds what agents already declare — an instance that had services yesterday keeps them, and the list it wakes up with describes its own state rather than somebody else's idea of a sensible default.
+
+Checked twice, and the second one is the one that matters. The API refuses at the moment the declaration is typed, so the message reaches whoever can act on it — including the pattern that WOULD let the image run, because a refusal that only says no leaves the reader to derive the syntax from documentation. The **wake** checks again, because that is the last gate before a container exists: a pattern withdrawn after the fact, a bundle imported through another handler, a path added later. It refuses the wake rather than dropping the service — a sandbox with two of its three services is the state in which an agent reports the wrong defect.
+
+### What ran, on the job that ran against it
+
+A recording that says an agent had a database is worth little. The two useful questions are *which* images came up and *which bytes* they were, and neither can be answered from the control plane: `postgres:16` names a different image this month than last, and only the host that ran `docker run` knows what the reference resolved to. So the runner reports it back — name, reference, and the image id docker created the container from — and it travels in `SandboxResult`.
+
+It is recorded **twice**, against different things, because two different questions are asked:
+
+- At the wake, against the agent: what was brought up, or what was refused and why.
+- At the start of **every job**, against the task: what this run worked against. A warm sandbox serves job after job on services that came up hours earlier, so a run whose result nobody can reproduce carries the answer itself instead of pointing at a waking phase that has scrolled off.
+
 ### Where the list comes from
 
 On the agent, beside the workplace image — because at the moment a sandbox starts, the agent is what the platform has. An agent that accepts merge requests in several projects will outgrow that, and reading the list from the project's own compose file (a subset of it: `image`, `environment`, `depends_on`; no `build:`, no host volumes, no `privileged`) is the next step.

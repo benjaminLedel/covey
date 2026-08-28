@@ -124,6 +124,7 @@ type IconName =
   | "layers"
   | "download"
   | "save"
+  | "box"
   | "file";
 
 const paths: Record<IconName, string> = {
@@ -133,6 +134,9 @@ const paths: Record<IconName, string> = {
   save: "M12 21V9m0 0l-4 4m4-4l4 4M4 5h16",
   // file: eine Änderung am Arbeitsplatz — von Menschenhand, nicht vom Agenten.
   file: "M6 3h7l5 5v13H6V3zm7 0v5h5",
+  // box: ein Dienst neben der Sandbox — ein Container, den der Agent nicht
+  // betreibt und der mit der Sandbox wieder verschwindet.
+  box: "M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3zm0 0v18m8-13.5L4 16.5",
   // layers: der Sub-Lauf — eine zweite Ebene unter der laufenden Arbeit.
   layers: "M12 3l8 4.5-8 4.5-8-4.5L12 3zm-8 9l8 4.5 8-4.5",
   bolt: "M13 2L4 14h6l-1 8 9-12h-6l1-8z",
@@ -603,6 +607,49 @@ function buildItems(events: RecordingEvent[], nested: boolean): FeedItem[] {
           time,
           tone: "danger",
         }, k);
+        break;
+      }
+
+      /* Was neben der Sandbox lief (spec/16). Drei Zustände, und sie
+         beantworten drei verschiedene Fragen: `started` sagt, was beim Wecken
+         hochgefahren wurde, `running` steht auf JEDEM Job und sagt, wogegen
+         genau dieser Lauf gearbeitet hat (bei einer warmen Sandbox kamen die
+         Dienste womöglich Stunden vorher hoch), und `refused` sagt, warum es
+         keinen Lauf gab.
+
+         Das Image-Id steht bewusst dabei: Ein Tag ist ein bewegliches Ziel,
+         und die Frage nach einem halben Jahr lautet nicht, welcher Tag
+         konfiguriert war, sondern welche Bytes liefen. */
+      case "service": {
+        const list = Array.isArray(p.services) ? (p.services as Record<string, unknown>[]) : [];
+        const names = list
+          .map((svc) =>
+            svc.image_id
+              ? `${svc.name} = ${svc.image} (${String(svc.image_id).slice(0, 19)})`
+              : `${svc.name} = ${svc.image}`,
+          )
+          .join(", ");
+        if (p.status === "refused") {
+          pushGate({
+            icon: "shield",
+            text: i18n.t("activity.servicesRefused", { services: names, error: p.error ?? "" }),
+            time,
+            tone: "danger",
+          }, k);
+          break;
+        }
+        closeTurn();
+        items.push({
+          key: k,
+          kind: "evt",
+          icon: "box",
+          text: i18n.t(p.status === "running" ? "activity.servicesRunning" : "activity.servicesStarted", {
+            services: names,
+            count: list.length,
+          }),
+          time,
+          tone: "muted",
+        });
         break;
       }
 

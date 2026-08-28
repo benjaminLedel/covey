@@ -1082,6 +1082,15 @@ func (s *Server) handleSetServices(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	// The allowlist. Checked here so the refusal reaches whoever is typing,
+	// with the pattern that would let it through — the same check runs again at
+	// the next wake, where it is the last gate before a container exists.
+	if s.OrgWorkplaces != nil {
+		if err := s.OrgWorkplaces.CheckServices(r.Context(), principalFrom(r).OrgID, clean); err != nil {
+			writeErr(w, http.StatusForbidden, err.Error())
+			return
+		}
+	}
 	if err := s.Registry.SetServices(r.Context(), id, clean); err != nil {
 		mapErr(w, err)
 		return

@@ -132,3 +132,26 @@ func ServiceImages(services []Service) []string {
 	}
 	return out
 }
+
+// ServiceRun is what actually came up beside a sandbox — one entry per service
+// the runner started.
+//
+// ImageID is the point of it. Image is what somebody wrote down, and a tag is a
+// moving target: `postgres:16` names a different set of bytes this month than
+// last. The question a recording has to answer six months later is not which
+// tag was configured but which image RAN, and only the host that started it can
+// say so.
+//
+// It sits here beside Service rather than in the runner protocol because two
+// sides need it and neither may depend on the other: the protocol carries it
+// back from the host, and the orchestrator's sandbox port hands it to the
+// recording.
+type ServiceRun struct {
+	Name  string `json:"name"`
+	Image string `json:"image"`
+	// ImageID is docker's own identity for the image the container was created
+	// from (sha256:…). Empty when the host could not be asked — that is not
+	// worth failing a start over, but it is worth being able to tell apart from
+	// "there was no service".
+	ImageID string `json:"image_id,omitempty"`
+}

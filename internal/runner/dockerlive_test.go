@@ -46,12 +46,22 @@ func TestLiveServicesAreReachableFromTheSandbox(t *testing.T) {
 			{Name: "db", Image: liveImage, Env: map[string]string{"POSTGRES_PASSWORD": "test"}},
 		},
 	}
-	container, err := p.Start(ctx, spec)
+	container, started, err := p.Start(ctx, spec)
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	// Whatever happens below, nothing of this may outlive the test.
 	t.Cleanup(func() { _ = p.Stop(context.Background(), container) })
+
+	// What came up, in the host's own words. The declaration says
+	// `pgvector/pgvector:pg16`; only the host can say which bytes that
+	// resolved to, and that is the half a recording needs six months later.
+	if len(started) != 1 || started[0].Name != "db" {
+		t.Fatalf("the host did not report the service it started: %+v", started)
+	}
+	if !strings.HasPrefix(started[0].ImageID, "sha256:") {
+		t.Errorf("no image id for the started service: %+v", started[0])
+	}
 
 	// The service answers to its name. This is the whole promise: the agent
 	// writes `db`, not an address and not a container name with an ID in it.

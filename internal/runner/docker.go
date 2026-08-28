@@ -137,7 +137,9 @@ func (p *Docker) homePath(agentID string) string {
 }
 
 // Start brings up the sandbox and returns the container's name.
-func (p *Docker) Start(ctx context.Context, spec StartSandbox) (string, error) {
+// The second return value is what came up beside the sandbox — empty for an
+// agent that declared no services.
+func (p *Docker) Start(ctx context.Context, spec StartSandbox) (string, []sandbox.ServiceRun, error) {
 	home := spec.HomeDir
 	if home == "" {
 		home = p.homePath(spec.AgentID.String())
@@ -159,7 +161,7 @@ func (p *Docker) Start(ctx context.Context, spec StartSandbox) (string, error) {
 	// matter which uid ends up owning it; secrets never live here regardless
 	// (spec/04), so the wider "other" read/traverse bit is not a new exposure.
 	if err := os.MkdirAll(home, 0o755); err != nil {
-		return "", err
+		return "", nil, err
 	}
 	_ = os.Chown(home, sandboxUID, sandboxGID)
 
@@ -174,8 +176,9 @@ func (p *Docker) Start(ctx context.Context, spec StartSandbox) (string, error) {
 	// The services first: a daemon that reports `ready` should be reporting a
 	// workplace that is complete. A failure here ends the start — an agent that
 	// believes it has a database and has not would report the wrong defect.
-	if err := p.startServices(ctx, spec); err != nil {
-		return "", err
+	services, err := p.startServices(ctx, spec)
+	if err != nil {
+		return "", nil, err
 	}
 
 	// --init: the runtime spawns child processes; tini as PID 1 inherits and
@@ -202,7 +205,8 @@ func (p *Docker) Start(ctx context.Context, spec StartSandbox) (string, error) {
 		// the proxy as HTTP(S)_PROXY. Loopback (the daemon's action proxy) stays
 		// direct.
 		if err := p.ensureNetworkIsolation(ctx); err != nil {
-			return "", fmt.Errorf("prepare egress network: %w", err)
+			p.removeServices(context.WithoutCancel(ctx), spec.AgentID)
+			return "", nil, fmt.Errorf("prepare egress network: %w", err)
 		}
 		proxyURL := egressURLWithCreds("http://"+egressProxyAlias+":8888", spec.AgentID.String(), spec.EgressToken)
 		args = append(args, "--network", egressNetworkFor(p.RunnerID))
@@ -239,6 +243,7 @@ func (p *Docker) Start(ctx context.Context, spec StartSandbox) (string, error) {
 
 	out, err := exec.CommandContext(ctx, p.docker(), args...).CombinedOutput()
 	if err != nil {
+
 		// The services came up for a sandbox that never did. Nothing will stop
 		// them later — no container name is registered anywhere — so they go
 		// here.
@@ -246,10 +251,10 @@ func (p *Docker) Start(ctx context.Context, spec StartSandbox) (string, error) {
 		msg := strings.TrimSpace(string(out))
 		if strings.Contains(msg, "No such image") || strings.Contains(msg, "pull access denied") ||
 			strings.Contains(msg, "Unable to find image") {
-			return "", fmt.Errorf("sandbox image %q is missing — %s: %s",
+			return "", nil, fmt.Errorf("sandbox image %q is missing — %s: %s",
 				image, buildHint(map[string]string{image: spec.ImageHint}, image), msg)
 		}
-		return "", fmt.Errorf("docker run: %v: %s", err, msg)
+		return "", nil, fmt.Errorf("docker run: %v: %s", err, msg)
 	}
 	if err := p.joinServices(ctx, spec, name); err != nil {
 		// A sandbox that cannot reach its services is not a sandbox with a
@@ -257,9 +262,9 @@ func (p *Docker) Start(ctx context.Context, spec StartSandbox) (string, error) {
 		// go, and the start fails with the reason.
 		_ = exec.CommandContext(context.WithoutCancel(ctx), p.docker(), "rm", "-f", name).Run()
 		p.removeServices(context.WithoutCancel(ctx), spec.AgentID)
-		return "", err
+		return "", nil, err
 	}
-	return name, nil
+	return name, services, nil
 }
 
 // Stop shuts the compute instance down; the home stays.

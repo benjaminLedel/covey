@@ -48,7 +48,7 @@ func TestDockerStart(t *testing.T) {
 
 	agentID := uuid.New()
 	p := &Docker{Image: "covey-sandbox:test", DataDir: dir, DockerBin: fake}
-	container, err := p.Start(context.Background(), StartSandbox{
+	container, _, err := p.Start(context.Background(), StartSandbox{
 		AgentID: agentID,
 		Env: map[string]string{
 			"COVEY_WS_URL":       "ws://localhost:8494/api/daemon/ws",
@@ -274,7 +274,7 @@ func TestNetworkIsolationRoutesEverythingThroughTheProxy(t *testing.T) {
 		EgressProxyEnv:    map[string]string{"COVEY_CONTROL_URL": "https://covey.example"},
 	}
 	agentID := uuid.New()
-	if _, err := p.Start(context.Background(), StartSandbox{
+	if _, _, err := p.Start(context.Background(), StartSandbox{
 		AgentID: agentID, EgressToken: "sandbox-token",
 		Env: map[string]string{"COVEY_WS_URL": "wss://covey.example/api/daemon/ws"},
 	}); err != nil {

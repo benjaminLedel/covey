@@ -484,7 +484,7 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 		n.ensureImage(ctx, t, spec.AgentID, image)
 	}
 
-	container, err := n.Docker.Start(ctx, spec)
+	container, services, err := n.Docker.Start(ctx, spec)
 	if err != nil {
 		// Docker's own words. A wrapped "start failed" hides which of "no such
 		// image", "port in use" and "no space left" it was — and those call for
@@ -493,7 +493,7 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 		n.reply(ctx, t, id, TypeSandboxFailed, SandboxResult{AgentID: spec.AgentID, Err: err.Error()})
 		return
 	}
-	n.watchSandbox(ctx, t, id, spec, container, startedAt)
+	n.watchSandbox(ctx, t, id, spec, container, services, startedAt)
 }
 
 // ensureImage fetches an image if this host does not have it, and says how far
@@ -543,7 +543,7 @@ func (n *Node) ensureImage(ctx context.Context, t Transport, agentID uuid.UUID, 
 // outlives this call. Split off from the start only so that fetching an image
 // could become a step of its own — the sandbox has more than one image to wait
 // for now that services stand beside it.
-func (n *Node) watchSandbox(ctx context.Context, t Transport, id string, spec StartSandbox, container string, startedAt time.Time) {
+func (n *Node) watchSandbox(ctx context.Context, t Transport, id string, spec StartSandbox, container string, services []sandbox.ServiceRun, startedAt time.Time) {
 	// The watcher outlives this call — it has to survive the run that started
 	// it, because what it waits for is precisely the end nobody asked for.
 	watchCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
@@ -574,8 +574,11 @@ func (n *Node) watchSandbox(ctx context.Context, t Transport, id string, spec St
 		n.watch(watchCtx, t, spec.AgentID, proc)
 	}()
 	n.Log.Info("sandbox started", "agent", spec.AgentID, "container", container,
-		"ms", time.Since(startedAt).Milliseconds())
-	n.reply(ctx, t, id, TypeSandboxStarted, SandboxResult{AgentID: spec.AgentID})
+		"services", len(services), "ms", time.Since(startedAt).Milliseconds())
+	// The services travel back with the answer: only this host knows which
+	// image each one actually started from, and that is what a recording has to
+	// be able to say six months later.
+	n.reply(ctx, t, id, TypeSandboxStarted, SandboxResult{AgentID: spec.AgentID, Services: services})
 }
 
 // watch waits for the container to end and reports it — unless somebody asked

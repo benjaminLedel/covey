@@ -36,9 +36,11 @@ import (
 	"covey/internal/reqlog"
 	reqlogstore "covey/internal/reqlog/store"
 	"covey/internal/runtimes"
+	"covey/internal/sandbox"
 	"covey/internal/secrets"
 	"covey/internal/skills"
 	targetstore "covey/internal/target/store"
+	"covey/internal/workplaces"
 	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
@@ -67,6 +69,12 @@ type Options struct {
 	Skills  *skills.Store
 	Targets *targetstore.Store
 	Egress  *egress.Store
+	// Workplaces holds what an organisation brings along itself — its own
+	// workplace images, and the allowlist of images that may run BESIDE a
+	// sandbox as services (spec/16). nil = no allowlist is enforced, which is
+	// the state of a stack wired without it (the integration harness); the
+	// production wiring always sets it.
+	Workplaces *workplaces.Store
 	// ReqLog records the HTTP requests of the target-system plugins (diagnosis,
 	// spec/06). nil = request log switched off; the sandbox's events are then
 	// discarded.
@@ -335,6 +343,11 @@ type session struct {
 	// log window reaches.
 	runnerID   uuid.UUID
 	runnerName string
+	// And what stands beside the sandbox. Kept for the same reason as the two
+	// above and one more: a warm sandbox serves many jobs, so the services a
+	// run worked against were often brought up in a waking phase that is no
+	// longer on screen. Each job records them again from here.
+	services []sandbox.ServiceRun
 }
 
 // Run starts the dispatch loop: cheap, permanent, no LLM (spec/03).
@@ -1094,6 +1107,20 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 			"status": "sandbox", "runner": id.String(), "runner_name": label,
 		})
 	}
+	// And what stands beside it. Held on the session as well as recorded,
+	// because a warm sandbox serves many jobs: the run that asks "which
+	// database was I talking to" may be the fifth one on services that came up
+	// hours ago, and only the session still knows.
+	if withServices, ok := sandbox.(WithServices); ok {
+		if running := withServices.Services(); len(running) > 0 {
+			o.mu.Lock()
+			s.services = running
+			o.mu.Unlock()
+			_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindService, map[string]any{
+				"status": "started", "services": running,
+			})
+		}
+	}
 	s.link = link
 	defer func() {
 		final := agents.StatusSleeping
@@ -1186,6 +1213,18 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 	return ctx.Err()
 }
 
+// recordServicesRefused writes the refusal into the recording. The declaration
+// travels with it: whoever reads this afterwards needs to see WHICH image was
+// asked for, not only that something was.
+func (o *Orchestrator) recordServicesRefused(ctx context.Context, agent agents.Agent, want []sandbox.Service, why error) {
+	if o.Obs == nil {
+		return
+	}
+	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindService, map[string]any{
+		"status": "refused", "services": want, "error": why.Error(),
+	})
+}
+
 // wake starts the sandbox and waits for the daemon's ready message.
 func (o *Orchestrator) wake(ctx context.Context, agent agents.Agent) (DaemonLink, Sandbox, error) {
 	tok, err := o.Identity.IssueAgentToken(ctx, agent.ID,
@@ -1230,6 +1269,25 @@ func (o *Orchestrator) wake(ctx context.Context, agent agents.Agent) (DaemonLink
 	env["COVEY_WS_URL"] = o.PublicWSURL
 	env["COVEY_DAEMON_TOKEN"] = tok.Value
 	env["COVEY_AGENT_ID"] = agent.ID.String()
+
+	// The allowlist, and it is enforced HERE rather than only where the
+	// declaration was typed. The API checks it too, so this one almost never
+	// fires — but "almost never" is the wrong bar for the question "which
+	// foreign image runs on the runner": a pattern withdrawn after the fact, a
+	// declaration written through a path added later, a bundle imported while
+	// the check sat in one handler. This is the last gate before a container
+	// exists, so it is the one that has to hold.
+	//
+	// It refuses the wake instead of dropping the service. A sandbox with two
+	// of its three services is the state in which an agent reports the wrong
+	// defect — and the message names the pattern that would let it run, so the
+	// refusal can be answered rather than only read.
+	if o.Workplaces != nil && len(agent.Services) > 0 {
+		if err := o.Workplaces.CheckServices(ctx, agent.OrgID, agent.Services); err != nil {
+			o.recordServicesRefused(ctx, agent, agent.Services, err)
+			return nil, nil, fmt.Errorf("the services of this agent are not allowed here: %w", err)
+		}
+	}
 
 	sandbox, err := o.Provider.Start(ctx, SandboxSpec{
 		AgentID:     agent.ID,
@@ -1953,6 +2011,20 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	taskID := task.ID
 	o.setStatus(ctx, agent, &taskID, agents.StatusTriage)
 	o.publishTask(taskID, agent)
+
+	// What this job runs against, on the job. The wake already recorded the
+	// start of the services — but that event hangs off the AGENT, and a warm
+	// sandbox serves job after job on services that came up hours earlier. So
+	// the run that produced a result nobody can reproduce carries the answer
+	// itself: these images, these ids, this job.
+	o.mu.Lock()
+	running := s.services
+	o.mu.Unlock()
+	if len(running) > 0 && o.Obs != nil {
+		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindService, map[string]any{
+			"status": "running", "services": running,
+		})
+	}
 
 	// Triage: check the wiki (spec/05) and compile the config (M2). Relevant
 	// pages (vector hits) plus the compact index of the whole wiki.

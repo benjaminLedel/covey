@@ -48,6 +48,7 @@ import (
 	targetstore "covey/internal/target/store"
 	"covey/internal/templates"
 	"covey/internal/waitlist"
+	"covey/internal/workplaces"
 
 	_ "github.com/benjaminLedel/covey-plugin-pack/browser"
 	_ "github.com/benjaminLedel/covey-plugin-pack/confluence"
@@ -113,24 +114,27 @@ func (s *inprocSandbox) Stop(ctx context.Context) error {
 }
 
 type stack struct {
-	t         *testing.T
-	pool      *pgxpool.Pool
-	registry  *agents.Registry
-	backlog   *backlog.Store
-	obs       *observability.Store
-	rails     *guardrails.Store
-	secrets   *secbuiltin.Store
-	runtimes  *runtimes.Store
-	mem       *memory.Store
-	targets   *targetstore.Store
-	egress    *egress.Store
-	runners   *runnerstore.Store
-	skills    *skills.Store
-	reqlog    *reqlogstore.Store
-	templates *templates.Store
-	audit     *audit.Store
-	dreams    *dream.Store
-	orch      *orchestrator.Orchestrator
+	t        *testing.T
+	pool     *pgxpool.Pool
+	registry *agents.Registry
+	backlog  *backlog.Store
+	obs      *observability.Store
+	rails    *guardrails.Store
+	secrets  *secbuiltin.Store
+	runtimes *runtimes.Store
+	mem      *memory.Store
+	targets  *targetstore.Store
+	egress   *egress.Store
+	runners  *runnerstore.Store
+	skills   *skills.Store
+	reqlog   *reqlogstore.Store
+	// workplaces carries the organisation's own workplaces and the allowlist of
+	// images that may run beside a sandbox (spec/16).
+	workplaces *workplaces.Store
+	templates  *templates.Store
+	audit      *audit.Store
+	dreams     *dream.Store
+	orch       *orchestrator.Orchestrator
 	// srv is the HTTP server itself, so a test can equip it with something the
 	// basic stack deliberately leaves out — a plugin catalogue, for instance.
 	srv        *httpapi.Server
@@ -239,6 +243,7 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 	s.egress = egress.NewStore(pool)
 	s.runners = runnerstore.NewStore(pool)
 	s.skills = skills.NewStore(pool)
+	s.workplaces = workplaces.New(pool)
 	// Request log as in production, but without reqlog.SetDefault: the sink is
 	// process-wide, and stacks running in parallel would push their entries at
 	// each other. What goes through orchestrator and HTTP server (sandbox
@@ -266,6 +271,7 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 		Rails: s.rails, Secrets: secretStore, Runtimes: s.runtimes, Identity: idp, Memory: s.mem,
 		Targets:        s.targets,
 		Skills:         s.skills,
+		Workplaces:     s.workplaces,
 		ReqLog:         s.reqlog,
 		Provider:       provider,
 		DaemonTokenTTL: 5 * time.Minute,

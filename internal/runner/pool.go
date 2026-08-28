@@ -1381,7 +1381,10 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 				c.mu.Lock()
 				c.sandboxes++
 				c.mu.Unlock()
-				return &poolSandbox{pool: p, conn: c, agentID: spec.AgentID, orgID: spec.OrgID}, nil
+				return &poolSandbox{
+					pool: p, conn: c, agentID: spec.AgentID, orgID: spec.OrgID,
+					services: res.Services,
+				}, nil
 			}
 		}
 		if i+1 < len(candidates) {
@@ -1414,7 +1417,15 @@ type poolSandbox struct {
 	agentID uuid.UUID
 	orgID   uuid.UUID
 	once    sync.Once
+	// services is what the host reported it brought up, with the image each
+	// one actually started from.
+	services []sandbox.ServiceRun
 }
+
+// Services satisfies orchestrator.WithServices: what stands beside this
+// sandbox. The control plane cannot work this out for itself — only the host
+// that ran `docker run` knows which image the reference resolved to.
+func (s *poolSandbox) Services() []sandbox.ServiceRun { return s.services }
 
 // SyncHome writes the home into the store while the compute keeps running —
 // satisfies orchestrator.HomeSyncer, and it is how a warm-parked sandbox gets

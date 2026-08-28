@@ -422,7 +422,10 @@ type StopSandbox struct {
 // SandboxResult answers start/stop. Err empty = it worked.
 type SandboxResult struct {
 	AgentID uuid.UUID `json:"agent_id"`
-	Err     string    `json:"err,omitempty"`
+	// Services are the ones that came up with this sandbox, with the image
+	// each one actually started from. Empty for an agent that declared none.
+	Services []sandbox.ServiceRun `json:"services,omitempty"`
+	Err      string               `json:"err,omitempty"`
 }
 
 // SandboxExited reports a sandbox that ended without being asked to.

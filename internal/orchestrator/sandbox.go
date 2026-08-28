@@ -48,6 +48,16 @@ type SandboxSpec struct {
 	Services []sandbox.Service
 }
 
+// WithServices is the optional half of a sandbox that has services standing
+// beside it: what came up, and which image each one actually started from.
+//
+// Optional, like Placed next to it — a provider without a notion of a second
+// container simply does not implement it, and the recording then says nothing
+// rather than something made up.
+type WithServices interface {
+	Services() []sandbox.ServiceRun
+}
+
 type Sandbox interface {
 	// Stop shuts the compute instance down; the home stays.
 	Stop(ctx context.Context) error

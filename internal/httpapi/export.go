@@ -709,6 +709,15 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if len(b.Agent.Services) > 0 {
+		if s.OrgWorkplaces != nil {
+			if err := s.OrgWorkplaces.CheckServices(ctx, p.OrgID, b.Agent.Services); err != nil {
+				// A bundle from elsewhere brings the images its author's
+				// organisation allowed. Refused with the pattern to add, so
+				// importing it is one decision away rather than a puzzle.
+				writeErr(w, http.StatusForbidden, err.Error())
+				return
+			}
+		}
 		// A bundle with an unusable declaration is refused here rather than at
 		// the first wake: the import is where somebody is watching, and a
 		// service that only fails when the agent next wakes fails in front of

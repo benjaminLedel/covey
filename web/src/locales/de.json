@@ -2050,7 +2050,10 @@
       "imageFailed": "Arbeitsplatz-Image konnte nicht geholt werden"
     },
     "sandboxOn": "Läuft auf Runner {{runner}}",
-    "stale": "Zustand aufgelöst: „{{was}}“ stand da, ohne dass ein Lauf dahinter war"
+    "stale": "Zustand aufgelöst: „{{was}}“ stand da, ohne dass ein Lauf dahinter war",
+    "servicesStarted": "Dienste hochgefahren: {{services}}",
+    "servicesRunning": "Lief gegen: {{services}}",
+    "servicesRefused": "Arbeitsplatz abgelehnt — {{error}}"
   },
   "common": {
     "loading": "lädt …"
@@ -2412,7 +2415,13 @@
     "ownHint": "Eigene Images werden hier angelegt und danach am Agenten ausgewählt — so stehen sie in einer Übersicht, tragen eine Beschreibung und ein Tippfehler fällt sofort auf statt beim ersten Wecken.",
     "contains": "Was drin ist ({{count}} Werkzeuge)",
     "sdkDirs": "Versionsmanager — die SDKs liegen im Home, nicht im Image:",
-    "lastPull": "zuletzt geholt: {{size}} in {{time}}"
+    "lastPull": "zuletzt geholt: {{size}} in {{time}}",
+    "serviceImages": "Dienste neben der Sandbox",
+    "serviceImagesDesc": "Welche Images neben einer Sandbox laufen dürfen — die Datenbank, gegen die eine Testsuite läuft, die Queue, mit der eine Anwendung spricht. Ein Image zu nennen ist kein Privileg; diese Liste zu erweitern ist es, denn sie entscheidet, welcher fremde Code auf dem Runner läuft. Muster: eine genaue Referenz (postgres:16) oder ein Stern, der auf `/`, `:` oder `@` folgt (postgres:*, ghcr.io/acme/*). `*` allein erlaubt alles — eine Entscheidung, keine Voreinstellung.",
+    "serviceImagesEmpty": "Leer: Kein Dienst darf neben einer Sandbox laufen. Das ist die sichere Voreinstellung — trag ein Muster ein, sobald ein Projekt eine Datenbank braucht.",
+    "serviceImagesAdd": "Erlauben",
+    "serviceImagesRemove": "Entfernen",
+    "serviceImagesNote": "wofür (optional)"
   },
   "infra": {
     "title": "Infrastruktur",

@@ -338,6 +338,12 @@ func (s *Server) Handler() http.Handler {
 	// als freier Text an jedem Agenten (spec/16).
 	mux.Handle("POST /api/v1/workplaces", s.rbac(manage, s.handleCreateWorkplace))
 	mux.Handle("DELETE /api/v1/workplaces/{name}", s.rbac(manage, s.handleDeleteWorkplace))
+	// Which images may run BESIDE a sandbox as services (spec/16). Under
+	// manage, because extending the list is the privileged act — naming an
+	// image, once the list stands, is not.
+	mux.Handle("GET /api/v1/service-images", s.rbac(manage, s.handleListServiceImages))
+	mux.Handle("POST /api/v1/service-images", s.rbac(manage, s.handleAddServiceImage))
+	mux.Handle("DELETE /api/v1/service-images/{id}", s.rbac(manage, s.handleDeleteServiceImage))
 	mux.Handle("POST /api/v1/runners/registration-tokens", s.rbac(manage, s.handleCreateRegistrationToken))
 	mux.Handle("PATCH /api/v1/runners/{id}", s.rbac(manage, s.handleUpdateRunner))
 	mux.Handle("POST /api/v1/runners/{id}/pull", s.rbac(manage, s.handlePullOnRunner))

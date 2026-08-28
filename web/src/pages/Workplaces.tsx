@@ -7,6 +7,9 @@ import {
   post,
   createWorkplace,
   deleteWorkplace,
+  listServiceImages,
+  addServiceImage,
+  deleteServiceImage,
   type Principal,
   type Workplace,
   type WorkplaceProvides,
@@ -211,6 +214,98 @@ export default function Workplaces({ me, embedded = false }: { me: Principal; em
       ))}
 
       {darfHolen(me.Role) && <Anlegen />}
+      {darfHolen(me.Role) && <Dienstimages />}
+    </div>
+  );
+}
+
+/* Welche Images neben einer Sandbox laufen dürfen.
+
+   Steht auf dieser Seite und nicht am Agenten, weil es keine Eigenschaft eines
+   Agenten ist: Ein Dienst-Image ist die Entscheidung, welcher fremde Code auf
+   dem Runner läuft, und die trifft die Organisation einmal. Am Agenten steht
+   danach nur noch, WELCHES der erlaubten er nimmt — und ab Stufe 2 nimmt er es
+   aus der Compose-Datei des Projekts, ohne dass jemand es tippt.
+
+   Leer heißt: kein Dienst. Das ist die richtige Voreinstellung für eine frische
+   Installation und die falsche für ein Upgrade — deshalb hat die Migration
+   übernommen, was Agenten bereits deklariert hatten. */
+function Dienstimages() {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const [pattern, setPattern] = useState("");
+  const [notiz, setNotiz] = useState("");
+
+  const liste = useQuery({
+    queryKey: ["service-images"],
+    queryFn: listServiceImages,
+  });
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["service-images"] });
+  const hinzufuegen = useMutation({
+    mutationFn: () => addServiceImage(pattern, notiz),
+    onSuccess: () => {
+      setPattern("");
+      setNotiz("");
+      invalidate();
+    },
+  });
+  const entfernen = useMutation({
+    mutationFn: (id: string) => deleteServiceImage(id),
+    onSuccess: invalidate,
+  });
+
+  return (
+    <div style={{ marginTop: 32, paddingTop: 16, borderTop: "0.5px solid var(--border)" }}>
+      <h2 className="text-[17px] mb-1">{t("workplaces.serviceImages")}</h2>
+      <p className="muted text-xs mb-3" style={{ maxWidth: 720 }}>
+        {t("workplaces.serviceImagesDesc")}
+      </p>
+      {(liste.data ?? []).length === 0 && (
+        <p className="muted text-xs mb-3">{t("workplaces.serviceImagesEmpty")}</p>
+      )}
+      {(liste.data ?? []).map((p) => (
+        <div key={p.id} className="flex items-center gap-3 py-1">
+          <code className="mono">{p.pattern}</code>
+          {p.note && <span className="muted text-xs">{p.note}</span>}
+          <button
+            type="button"
+            className="ghost text-xs"
+            style={{ marginLeft: "auto" }}
+            disabled={entfernen.isPending}
+            onClick={() => entfernen.mutate(p.id)}
+          >
+            {t("workplaces.serviceImagesRemove")}
+          </button>
+        </div>
+      ))}
+      <div className="flex gap-2 items-center mt-3">
+        <input
+          className="mono"
+          style={{ width: 220 }}
+          placeholder="postgres:*"
+          value={pattern}
+          onChange={(e) => setPattern(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && pattern.trim() && hinzufuegen.mutate()}
+        />
+        <input
+          style={{ flex: 1, minWidth: 160 }}
+          placeholder={t("workplaces.serviceImagesNote")}
+          value={notiz}
+          onChange={(e) => setNotiz(e.target.value)}
+        />
+        <button
+          type="button"
+          disabled={!pattern.trim() || hinzufuegen.isPending}
+          onClick={() => hinzufuegen.mutate()}
+        >
+          {t("workplaces.serviceImagesAdd")}
+        </button>
+      </div>
+      {hinzufuegen.isError && (
+        <p className="danger-text text-xs mt-2">
+          {String((hinzufuegen.error as Error)?.message ?? "")}
+        </p>
+      )}
     </div>
   );
 }
