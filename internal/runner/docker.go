@@ -166,6 +166,17 @@ func (p *Docker) Start(ctx context.Context, spec StartSandbox) (string, error) {
 	name := containerName(spec.AgentID.String())
 	// Clear leftovers of a crashed predecessor sandbox — the name has to be free.
 	_ = exec.CommandContext(ctx, p.docker(), "rm", "-f", name).Run()
+	// And its services with it. They are bound to the sandbox's life, so one
+	// that outlived its sandbox is a leftover too — with a database still
+	// holding the state of a run that ended, which is the more expensive half.
+	p.removeServices(ctx, spec.AgentID)
+
+	// The services first: a daemon that reports `ready` should be reporting a
+	// workplace that is complete. A failure here ends the start — an agent that
+	// believes it has a database and has not would report the wrong defect.
+	if err := p.startServices(ctx, spec); err != nil {
+		return "", err
+	}
 
 	// --init: the runtime spawns child processes; tini as PID 1 inherits and
 	// reaps them, while coveyd still gets SIGTERM passed through cleanly.
@@ -228,6 +239,10 @@ func (p *Docker) Start(ctx context.Context, spec StartSandbox) (string, error) {
 
 	out, err := exec.CommandContext(ctx, p.docker(), args...).CombinedOutput()
 	if err != nil {
+		// The services came up for a sandbox that never did. Nothing will stop
+		// them later — no container name is registered anywhere — so they go
+		// here.
+		p.removeServices(context.WithoutCancel(ctx), spec.AgentID)
 		msg := strings.TrimSpace(string(out))
 		if strings.Contains(msg, "No such image") || strings.Contains(msg, "pull access denied") ||
 			strings.Contains(msg, "Unable to find image") {
@@ -235,6 +250,14 @@ func (p *Docker) Start(ctx context.Context, spec StartSandbox) (string, error) {
 				image, buildHint(map[string]string{image: spec.ImageHint}, image), msg)
 		}
 		return "", fmt.Errorf("docker run: %v: %s", err, msg)
+	}
+	if err := p.joinServices(ctx, spec, name); err != nil {
+		// A sandbox that cannot reach its services is not a sandbox with a
+		// smaller workplace; it is one whose declaration is a lie. Both halves
+		// go, and the start fails with the reason.
+		_ = exec.CommandContext(context.WithoutCancel(ctx), p.docker(), "rm", "-f", name).Run()
+		p.removeServices(context.WithoutCancel(ctx), spec.AgentID)
+		return "", err
 	}
 	return name, nil
 }
@@ -251,6 +274,13 @@ func (p *Docker) Stop(ctx context.Context, name string) error {
 	// Always, not only after an error: without --rm the container stays behind
 	// after a clean stop too, and the next wake needs the name.
 	_ = exec.CommandContext(stopCtx, p.docker(), "rm", "-f", name).Run()
+	// The services live exactly as long as the sandbox does. Whatever state
+	// they hold is scratch by definition — what an agent keeps lives in its
+	// home (spec/01), and a database that outlived its run would hand the next
+	// one a state nobody wrote down.
+	if agentID, ok := agentIDFromContainer(name); ok {
+		p.removeServices(stopCtx, agentID)
+	}
 	return nil
 }
 
@@ -275,6 +305,13 @@ func (p *Docker) Wait(ctx context.Context, name string) string {
 		rmCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 20*time.Second)
 		defer cancel()
 		_ = exec.CommandContext(rmCtx, p.docker(), "rm", "-f", name).Run()
+		// This is the path nobody asked for — a crash, an OOM kill, an exit 0
+		// the control plane did not order. Stop will not run for it, so the
+		// services would stay behind here of all places: on a host that has
+		// just shown it is short of something.
+		if agentID, ok := agentIDFromContainer(name); ok {
+			p.removeServices(rmCtx, agentID)
+		}
 	}()
 	switch code {
 	case "0":

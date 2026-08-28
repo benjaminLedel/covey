@@ -19,6 +19,7 @@ import (
 	"covey/internal/memory"
 	"covey/internal/observability"
 	"covey/internal/runner"
+	"covey/internal/sandbox"
 	"covey/internal/secrets"
 )
 
@@ -1050,6 +1051,42 @@ func (s *Server) handleSetRunnerTags(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "runner_tags": in.Tags})
+}
+
+// handleSetServices sets what runs beside an agent's sandbox (spec/16): a
+// database, a queue — the half of a workplace an image cannot carry.
+//
+// Unlike the workplace image this IS validated against rules, and the
+// difference is not an inconsistency: an image reference is a string docker
+// either resolves or does not, while a service name becomes a host name on a
+// segment and a container name on a shared runner. A wrong image fails loudly
+// at the next wake with the image named; a wrong service name would fail as a
+// resolver returning something else.
+func (s *Server) handleSetServices(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var in struct {
+		Services []sandbox.Service `json:"services"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "services missing")
+		return
+	}
+	clean, err := sandbox.ValidateServices(in.Services)
+	if err != nil {
+		// The declaration's own error, not a generic one: it names the service
+		// and what is wrong with it, and it is written for whoever typed it.
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := s.Registry.SetServices(r.Context(), id, clean); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "services": clean})
 }
 
 // handleOrgRecording reads (GET) and sets (PATCH) the org floor of the

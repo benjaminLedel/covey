@@ -473,20 +473,48 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 	// `docker run` fetches a missing image by itself — silently, and for
 	// several gigabytes. That silence is what makes a start look like a hang,
 	// and it is the sentence this whole message type exists for.
-	if !n.Docker.HasImage(ctx, spec.Image) {
+	n.ensureImage(ctx, t, spec.AgentID, spec.Image)
+	// The services' images are fetched the same way and for the same reason. A
+	// project's database is a few hundred megabytes rather than a few gigabytes
+	// — but it is fetched on the FIRST wake after somebody declared it, which
+	// is exactly the moment they are watching to see whether the declaration
+	// worked.
+	for _, image := range serviceImages(spec) {
+		n.ensureImage(ctx, t, spec.AgentID, image)
+	}
+
+	container, err := n.Docker.Start(ctx, spec)
+	if err != nil {
+		// Docker's own words. A wrapped "start failed" hides which of "no such
+		// image", "port in use" and "no space left" it was — and those call for
+		// three different people.
+		n.Log.Error("docker start failed", "agent", spec.AgentID, "image", spec.Image, "err", err)
+		n.reply(ctx, t, id, TypeSandboxFailed, SandboxResult{AgentID: spec.AgentID, Err: err.Error()})
+		return
+	}
+	n.watchSandbox(ctx, t, id, spec, container, startedAt)
+}
+
+// ensureImage fetches an image if this host does not have it, and says how far
+// it has got while it does.
+func (n *Node) ensureImage(ctx context.Context, t Transport, agentID uuid.UUID, image string) {
+	if image == "" {
+		return
+	}
+	if !n.Docker.HasImage(ctx, image) {
 		// The one line that explains an hour: this host does not have the
 		// image and is about to fetch several gigabytes of it.
-		n.Log.Info("image not present — fetching it", "agent", spec.AgentID, "image", spec.Image)
-		n.say(ctx, t, Progress{AgentID: spec.AgentID, Phase: PhaseImage, Detail: spec.Image})
+		n.Log.Info("image not present — fetching it", "agent", agentID, "image", image)
+		n.say(ctx, t, Progress{AgentID: agentID, Phase: PhaseImage, Detail: image})
 		// Deliberately fetched here instead of leaving it to `docker run`:
 		// docker does the same thing either way, but only this way does
 		// anybody find out how far it has got.
 		pullBegan := time.Now()
 		melden := n.gate(ctx, t)
 		var letzte Progress
-		out, err := n.Docker.PullWatched(ctx, spec.Image, func(pr PullProgress) {
+		out, err := n.Docker.PullWatched(ctx, image, func(pr PullProgress) {
 			letzte = Progress{
-				AgentID: spec.AgentID, Phase: PhaseImage, Detail: spec.Image,
+				AgentID: agentID, Phase: PhaseImage, Detail: image,
 				Bytes: pr.Bytes, BytesTotal: pr.Total,
 				MS: time.Since(pullBegan).Milliseconds(),
 			}
@@ -497,27 +525,24 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 			// error message is the one worth reporting. What is worth keeping
 			// is that the attempt was made and what it said.
 			n.Log.Warn("fetching the image failed — leaving it to docker run",
-				"agent", spec.AgentID, "image", spec.Image, "err", err, "out", tailOf(out))
+				"agent", agentID, "image", image, "err", err, "out", tailOf(out))
 		} else {
-			n.Log.Info("image fetched", "agent", spec.AgentID, "image", spec.Image,
+			n.Log.Info("image fetched", "agent", agentID, "image", image,
 				"bytes", letzte.BytesTotal, "ms", time.Since(pullBegan).Milliseconds())
 		}
 		n.say(ctx, t, Progress{
-			AgentID: spec.AgentID, Phase: PhaseImage, Detail: spec.Image,
+			AgentID: agentID, Phase: PhaseImage, Detail: image,
 			Bytes: letzte.BytesTotal, BytesTotal: letzte.BytesTotal, Done: true,
 			MS: time.Since(pullBegan).Milliseconds(),
 		})
 	}
-	container, err := n.Docker.Start(ctx, spec)
-	if err != nil {
-		// Docker's own words. A wrapped "start failed" hides which of "no such
-		// image", "port in use" and "no space left" it was — and those call for
-		// three different people.
-		n.Log.Error("docker start failed", "agent", spec.AgentID, "image", spec.Image, "err", err)
-		n.reply(ctx, t, id, TypeSandboxFailed, SandboxResult{AgentID: spec.AgentID, Err: err.Error()})
-		return
-	}
+}
 
+// watchSandbox registers the started container and hands it to a watcher that
+// outlives this call. Split off from the start only so that fetching an image
+// could become a step of its own — the sandbox has more than one image to wait
+// for now that services stand beside it.
+func (n *Node) watchSandbox(ctx context.Context, t Transport, id string, spec StartSandbox, container string, startedAt time.Time) {
 	// The watcher outlives this call — it has to survive the run that started
 	// it, because what it waits for is precisely the end nobody asked for.
 	watchCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))

@@ -21,6 +21,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"covey/internal/sandbox"
 	"covey/internal/sandboxfs"
 )
 
@@ -373,6 +374,19 @@ type StartSandbox struct {
 	// whether the instance has renamed it — is known here. Empty = an image
 	// the catalogue does not know.
 	ImageHint string `json:"image_hint,omitempty"`
+	// Services run BESIDE this sandbox for as long as it lives: a database, a
+	// queue, whatever the project needs in order to be started at all. The
+	// runner brings them up on a network belonging to this sandbox, where each
+	// is reachable under its name — the agent connects to `db:5432` and neither
+	// operates them nor knows the host they run on.
+	//
+	// Where the list comes from is decided on the control plane; the protocol
+	// stays out of it. That is deliberate, because the source is the part still
+	// expected to change: today the agent declares it, later a project may.
+	//
+	// Empty = no services, which is the normal case and the one every agent
+	// that only writes wiki pages stays in.
+	Services []sandbox.Service `json:"services,omitempty"`
 }
 
 // SyncHome writes an agent's home into the store.

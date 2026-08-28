@@ -1238,6 +1238,7 @@ func (o *Orchestrator) wake(ctx context.Context, agent agents.Agent) (DaemonLink
 		RunnerTags:  agent.RunnerTags,
 		EgressToken: egressToken,
 		Env:         env,
+		Services:    agent.Services,
 	})
 	if err != nil {
 		return nil, nil, err

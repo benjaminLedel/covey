@@ -1365,6 +1365,7 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 			EgressToken: spec.EgressToken,
 			Snapshot:    snapshot,
 			ImageHint:   p.imageHints(ctx)[want.image],
+			Services:    spec.Services,
 		}, timeout)
 		switch {
 		case err != nil:

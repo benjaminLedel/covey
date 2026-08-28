@@ -18,6 +18,7 @@ import (
 	"covey/internal/egress"
 	"covey/internal/guardrails"
 	"covey/internal/identity"
+	"covey/internal/sandbox"
 	"covey/internal/skills"
 )
 
@@ -55,6 +56,16 @@ type bundleAgent struct {
 	WebhookEnabled bool `json:"webhook_enabled,omitempty"`
 	// WarmSandbox keeps the sandbox alive between wake phases (opt-in, e.g. QA).
 	WarmSandbox bool `json:"warm_sandbox,omitempty"`
+	// Services are what runs beside the sandbox (spec/16) — the database a QA
+	// agent's test suite needs, the queue an application talks to.
+	//
+	// In the bundle, while the workplace image deliberately is not: an image
+	// reference is an instance-local name (`covey-sandbox-dev:latest`, or
+	// whatever an operator overrode it with), and carrying it would import a
+	// name that means something else on the other side. A service names an
+	// image the PROJECT already names, in the same words its compose file uses.
+	// That travels.
+	Services []sandbox.Service `json:"services,omitempty"`
 }
 
 type bundleStage struct {
@@ -160,6 +171,7 @@ func (s *Server) buildBundle(ctx context.Context, orgID, agentID uuid.UUID, incl
 			Model: a.Model, Effort: a.Effort, MaxTurns: a.MaxTurns, BudgetUSD: a.BudgetUSD,
 			WebhookEnabled: a.WebhookToken != nil,
 			WarmSandbox:    a.WarmSandbox,
+			Services:       a.Services,
 			JobTitle:       a.JobTitle,
 		},
 	}
@@ -692,6 +704,16 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	if b.Agent.WarmSandbox {
 		if err := s.Registry.SetWarmSandbox(ctx, a.ID, true); err != nil {
+			mapErr(w, err)
+			return
+		}
+	}
+	if len(b.Agent.Services) > 0 {
+		// A bundle with an unusable declaration is refused here rather than at
+		// the first wake: the import is where somebody is watching, and a
+		// service that only fails when the agent next wakes fails in front of
+		// the agent instead.
+		if err := s.Registry.SetServices(ctx, a.ID, b.Agent.Services); err != nil {
 			mapErr(w, err)
 			return
 		}

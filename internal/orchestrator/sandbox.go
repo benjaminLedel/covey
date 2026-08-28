@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"covey/internal/sandbox"
 	"covey/internal/sandboxfs"
 )
 
@@ -39,6 +40,12 @@ type SandboxSpec struct {
 	// as this agent to the egress proxy (Proxy-Authorization). Empty = no
 	// egress enforcement for this sandbox.
 	EgressToken string
+	// Services run beside this sandbox for as long as it lives — the database a
+	// test suite needs, the queue an application talks to. The provider brings
+	// them up on a segment of this sandbox's own, where each answers to its
+	// name; how it does that is its business, and a provider without a notion
+	// of a second container may ignore them.
+	Services []sandbox.Service
 }
 
 type Sandbox interface {
