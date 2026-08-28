@@ -2,8 +2,9 @@
 #
 #   1. cp .env.example .env
 #   2. echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env   # 32-byte key
-#   3. make sandbox-images    # the agents' workplaces, once, ~5 min
-#      (base for support/mail/QA, dev on top of it for developer agents)
+#   3. make sandbox-images-pull   # the agents' workplaces, once, minutes
+#      (base for support/mail/QA, dev for developer agents, and a role
+#       workplace each for Flutter, PHP and web — docs/ops-workplaces.md)
 #   4. docker compose up -d --build
 #   5. http://localhost:8494  →  admin@covey.local / covey-admin
 #
@@ -45,6 +46,10 @@ x-covey-base: &covey-base
     # `dev` adds. Whoever still has that old image points this at it instead of
     # building a second one.
     COVEY_SANDBOX_IMAGE_DEV: ${COVEY_SANDBOX_IMAGE_DEV:-covey-sandbox-dev:latest}
+    # The role workplaces resolve from the published catalogue on their own.
+    # Overriding one means adding its line here — COVEY_SANDBOX_IMAGE_<PROFILE>,
+    # hyphens as underscores (COVEY_SANDBOX_IMAGE_DEV_FLUTTER) — because compose
+    # passes on only what is written down.
   volumes:
     - ${PWD}/data:${PWD}/data
 

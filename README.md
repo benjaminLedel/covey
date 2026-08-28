@@ -61,7 +61,7 @@ Covey is built for organisations rather than for one person at a desk. Several p
 git clone https://github.com/benjaminLedel/covey.git && cd covey
 cp .env.example .env
 echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env
-make sandbox-images-pull        # the two prebuilt workplaces an agent runs in
+make sandbox-images-pull        # the prebuilt workplaces an agent runs in
 docker compose up -d --build    # Postgres + Covey
 ```
 
@@ -74,7 +74,7 @@ For your first agent, go to *New agent → brief* and describe the job in a few 
 What those five commands set up:
 
 - [`docker-compose.yml`](docker-compose.yml) brings Postgres (pgvector) and the covey binary with the admin UI embedded. Migrations run on start; `bootstrap` creates the organisation, the admin and a demo agent.
-- `make sandbox-images-pull` fetches the containers an agent works inside — `base` ([`Dockerfile.sandbox`](Dockerfile.sandbox): Claude Code, chromium, git, ripgrep) and `dev` (plus PHP, a JDK and the version managers `fvm`/`uv`), for amd64 and arm64, built by [the project's own pipeline](.github/workflows/sandbox-images.yml). `make sandbox-images` builds them here instead.
+- `make sandbox-images-pull` fetches the containers an agent works inside — `base` ([`Dockerfile.sandbox`](Dockerfile.sandbox): Claude Code, chromium, git, ripgrep), `dev` (plus PHP, a JDK and the version managers `fvm`/`uv`) and the role workplaces `dev-flutter`, `dev-php` and `dev-web` for agents whose field is settled ([`docs/ops-workplaces.md`](docs/ops-workplaces.md)), for amd64 and arm64, built by [the project's own pipeline](.github/workflows/sandbox-images.yml). `SANDBOX_PROFILES="base dev-web"` pulls only what you need; `make sandbox-images` builds them here instead.
 
 Full walkthrough including your first agent and a production checklist: [`docs/quickstart-docker.md`](docs/quickstart-docker.md).
 
