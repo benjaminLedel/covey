@@ -295,3 +295,74 @@ func (s *Server) pullKosten(ctx context.Context, orgID uuid.UUID) map[string]*pu
 	}
 	return out
 }
+
+// The allowlist of images that may run beside a sandbox (spec/16, "Services
+// beside the sandbox").
+//
+// It sits under the manage role, and that is the whole shape of the permission:
+// naming an image is not privileged once the list stands — extending the list
+// is. An agent that derives its services from a project's compose file
+// therefore needs no new right; it needs an organisation that has said which
+// images may run here.
+
+func (s *Server) handleListServiceImages(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	if s.OrgWorkplaces == nil {
+		writeErr(w, http.StatusServiceUnavailable, "no workplace store")
+		return
+	}
+	list, err := s.OrgWorkplaces.ListServicePatterns(r.Context(), p.OrgID)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	if list == nil {
+		list = []workplaces.ServicePattern{}
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+func (s *Server) handleAddServiceImage(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	if s.OrgWorkplaces == nil {
+		writeErr(w, http.StatusServiceUnavailable, "no workplace store")
+		return
+	}
+	var in struct {
+		Pattern string `json:"pattern"`
+		Note    string `json:"note"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "body not readable")
+		return
+	}
+	added, err := s.OrgWorkplaces.AddServicePattern(r.Context(), p.OrgID, in.Pattern, in.Note)
+	if err != nil {
+		// The syntax error's own words: it says which part of the pattern is
+		// the problem and why, and that is more use than "bad request".
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, added)
+}
+
+func (s *Server) handleDeleteServiceImage(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	if s.OrgWorkplaces == nil {
+		writeErr(w, http.StatusServiceUnavailable, "no workplace store")
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	switch err := s.OrgWorkplaces.DeleteServicePattern(r.Context(), p.OrgID, id); {
+	case errors.Is(err, workplaces.ErrNotFound):
+		writeErr(w, http.StatusNotFound, "not found")
+	case err != nil:
+		mapErr(w, err)
+	default:
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	}
+}

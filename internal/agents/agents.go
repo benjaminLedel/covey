@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"covey/internal/org"
+	"covey/internal/sandbox"
 )
 
 var slugRe = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
@@ -92,6 +93,16 @@ type Agent struct {
 	// a runner inside the target system's network. Empty = any runner of the
 	// organisation (spec/16, "Scheduling").
 	RunnerTags []string `json:"runner_tags,omitempty"`
+	// Services run beside this agent's sandbox for as long as it lives: the
+	// database a test suite needs, the queue an application talks to. They are
+	// the half of a workplace the image cannot carry — a project's database is
+	// not part of Covey, and building it into the image made every agent pay
+	// for it (spec/16, "Services beside the sandbox").
+	//
+	// It sits on the agent because that is what the platform has when a sandbox
+	// starts. An agent working in several projects will outgrow that, and the
+	// runner protocol is deliberately indifferent to where the list came from.
+	Services []sandbox.Service `json:"services,omitempty"`
 	// WarmSandbox keeps this agent's sandbox alive between waking phases
 	// (opt-in): dev servers and caches survive, the next run starts without a
 	// cold build-up. Default false → ephemeral like everyone else (spec/01).
@@ -149,13 +160,13 @@ type Registry struct {
 
 func NewRegistry(pool *pgxpool.Pool) *Registry { return &Registry{pool: pool} }
 
-const agentCols = "id, org_id, slug, display_name, runtime, model, effort, max_turns, status, owner_id, supervisor_id, department_id, job_title, identities, phone, responsibilities, custom, killed, budget_usd, runtime_id, webhook_token, COALESCE(recording_level,''), recording_retention_days, sandbox_image, runner_tags, warm_sandbox, hired_at, created_at, updated_at"
+const agentCols = "id, org_id, slug, display_name, runtime, model, effort, max_turns, status, owner_id, supervisor_id, department_id, job_title, identities, phone, responsibilities, custom, killed, budget_usd, runtime_id, webhook_token, COALESCE(recording_level,''), recording_retention_days, sandbox_image, runner_tags, services, warm_sandbox, hired_at, created_at, updated_at"
 
 func scanAgent(row pgx.Row) (Agent, error) {
 	var a Agent
 	err := row.Scan(&a.ID, &a.OrgID, &a.Slug, &a.DisplayName, &a.Runtime, &a.Model, &a.Effort, &a.MaxTurns, &a.Status,
 		&a.OwnerID, &a.SupervisorID, &a.DepartmentID, &a.JobTitle, &a.Identities, &a.Phone, &a.Responsibilities, &a.Custom,
-		&a.Killed, &a.BudgetUSD, &a.RuntimeID, &a.WebhookToken, &a.RecordingLevel, &a.RecordingRetentionDays, &a.SandboxImage, &a.RunnerTags, &a.WarmSandbox, &a.HiredAt, &a.CreatedAt, &a.UpdatedAt)
+		&a.Killed, &a.BudgetUSD, &a.RuntimeID, &a.WebhookToken, &a.RecordingLevel, &a.RecordingRetentionDays, &a.SandboxImage, &a.RunnerTags, &a.Services, &a.WarmSandbox, &a.HiredAt, &a.CreatedAt, &a.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return a, ErrNotFound
 	}
@@ -548,6 +559,29 @@ func (r *Registry) SetRunnerTags(ctx context.Context, id uuid.UUID, tags []strin
 		}
 	}
 	tag, err := r.pool.Exec(ctx, "UPDATE agents SET runner_tags=$2, updated_at=now() WHERE id=$1", id, clean)
+	if err == nil && tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return err
+}
+
+// SetServices sets what runs beside this agent's sandbox. Empty = nothing,
+// which is where every agent starts. Takes effect at the next cold start: the
+// services are brought up with the sandbox, so a running or warm-parked one
+// keeps the set it was started with.
+//
+// The declaration is validated here rather than trusted from the caller — this
+// is the last place before it becomes a container name and a host name on a
+// shared runner.
+func (r *Registry) SetServices(ctx context.Context, id uuid.UUID, services []sandbox.Service) error {
+	clean, err := sandbox.ValidateServices(services)
+	if err != nil {
+		return err
+	}
+	if clean == nil {
+		clean = []sandbox.Service{}
+	}
+	tag, err := r.pool.Exec(ctx, "UPDATE agents SET services=$2, updated_at=now() WHERE id=$1", id, clean)
 	if err == nil && tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}

@@ -496,6 +496,78 @@ The catalogue URL defaults to what the project publishes and is derived from the
 
 What this removes is the class of failure, not one instance of it: a fresh installation needs no image name, an upgrade needs no second build, and "the image is missing" stops being a thing an operator has to fix by hand — the host pulls what the catalogue names.
 
+## Services beside the sandbox
+
+A workplace was an image and nothing else. What a project needs **beyond** the image — a database to test against, a queue an application talks to — had no place, and so it ended up in one of two spots that both cost:
+
+- **Built into the image and operated by hand.** `dev-full` and `dev-php` ship `mariadb-server`, and the workplace description tells the agent what to do with it: initialise a data directory with `mariadb-install-db` in its own home and start `mariadbd` against it. That puts scratch state into the one directory that is walked at every wake and written back after every run, spends an agent's turns on `mariadb-install-db` before it has read a line of the change it is meant to accept, and makes every agent that starts from that image carry a database server it never calls.
+- **Missing.** The QA agent's procedure had one exit for it: "a missing service … do NOT build a substitute out of stubs … write it into the MR as a finding". That instruction is right as long as the platform has nothing to offer — and it is the platform giving up in front of an answer the repository has usually already written down, in its own `docker-compose.yml`.
+
+A service is the third thing: **a container that runs beside the sandbox, for as long as the sandbox does, reachable under its name.** The agent connects to `db:5432`. It does not install it, does not operate it and does not see the host it runs on.
+
+```json
+{ "name": "db", "image": "postgres:16", "env": { "POSTGRES_PASSWORD": "test" } }
+```
+
+What is deliberately **not** in it: no port published to the host, no volume, no `build:`. Those are the parts of a compose file that only make sense on a developer's own machine — on a runner they are somebody else's machine.
+
+### The segment belongs to the sandbox
+
+The mechanism is the egress proxy's, one section down: an internal docker network and containers on it under a DNS alias. Two things differ, and both follow from what a service is.
+
+**The network hangs off the sandbox, not off the runner.** The egress segment is shared by an organisation on purpose. A service segment must not be: two agents both asking for `db` would put two aliases of the same name into one network, and docker would answer whichever it liked. A wrong database that answers is worse than none that does.
+
+**It is `--internal`.** A test database has no business on the internet, and the sandbox's own way out is the egress proxy's to grant. This is also what makes the construction safe: an internal network brings no gateway with it, so joining one leaves the sandbox's default route exactly as it was — which is what allows it to be attached as a *second* network beside the egress one. For the same reason the sandbox joins its services **after** its own start: the first network decides its default route, and that decision must not depend on whether somebody happened to declare a database.
+
+### Fail-closed, and scratch by definition
+
+A service that cannot start **ends the wake**, and takes the ones already up with it. Half a set of services is the state in which an agent reports the wrong defect — it finds the queue missing and writes that into a merge request, while the fault was a typo in an image reference.
+
+The services end with the sandbox, on every path: the clean stop, the crash the watcher saw, and the start of the next sandbox before anything else happens. Whatever they hold is therefore scratch by definition — what an agent keeps lives in its home ([`01-architecture.md`](01-architecture.md)), and a database that outlived its run would hand the next one a state nobody wrote down.
+
+Readiness is deliberately **not** answered here. A database is running long before it accepts connections, and whoever waits for a port is the one that wants to talk to it. The agent retries; the platform does not pretend.
+
+### Which images may run at all
+
+A service is an image reference, and an image reference is the decision **which foreign code runs on the runner host**. Inside the sandbox that decision is already the agent's — it runs shell commands there, without root and behind the egress allowlist. A service container is not inside it: it is a second container beside it, from an image nobody looked at, with the host's memory and no accounting against the capacity figure.
+
+So the line is not "may an agent name an image" but "which images may run here at all". Per organisation, one list, and it holds for **every** path — the declaration a manager types as much as the one an agent derives from a project's compose file. Whoever may EXTEND the list is the privileged party; naming an image, once the list stands, is not. That is what makes it safe to let an agent set itself up: it chooses within a boundary somebody drew on purpose.
+
+Patterns are an exact reference (`postgres:16`) or a star **bound to a separator** (`postgres:*`, `ghcr.io/acme/*`, `db@*`); `*` alone allows everything and is a decision rather than a default. The binding is the whole safety property: a free-floating `postgres*` would also match `postgres-evil.example.com/backdoor` — same prefix, different registry, and nobody reading the list would see it.
+
+Fail-closed: an empty list allows nothing. That is right for a fresh installation and wrong for an upgrade, so the migration seeds what agents already declare — an instance that had services yesterday keeps them, and the list it wakes up with describes its own state rather than somebody else's idea of a sensible default.
+
+Checked twice, and the second one is the one that matters. The API refuses at the moment the declaration is typed, so the message reaches whoever can act on it — including the pattern that WOULD let the image run, because a refusal that only says no leaves the reader to derive the syntax from documentation. The **wake** checks again, because that is the last gate before a container exists: a pattern withdrawn after the fact, a bundle imported through another handler, a path added later. It refuses the wake rather than dropping the service — a sandbox with two of its three services is the state in which an agent reports the wrong defect.
+
+### What ran, on the job that ran against it
+
+A recording that says an agent had a database is worth little. The two useful questions are *which* images came up and *which bytes* they were, and neither can be answered from the control plane: `postgres:16` names a different image this month than last, and only the host that ran `docker run` knows what the reference resolved to. So the runner reports it back — name, reference, and the image id docker created the container from — and it travels in `SandboxResult`.
+
+It is recorded **twice**, against different things, because two different questions are asked:
+
+- At the wake, against the agent: what was brought up, or what was refused and why.
+- At the start of **every job**, against the task: what this run worked against. A warm sandbox serves job after job on services that came up hours earlier, so a run whose result nobody can reproduce carries the answer itself instead of pointing at a waking phase that has scrolled off.
+
+### Where the list comes from
+
+Two places, and they answer different questions.
+
+**On the agent**, beside the workplace image: what this agent always needs, brought up with the sandbox and therefore already there when the daemon reports ready.
+
+**Out of the project's own `docker-compose.yml`**, asked for by the agent during the run. That is the one that makes the mechanism usable rather than merely correct: a typed declaration assumes somebody knew, before the run, which database this project wants — and for an agent accepting merge requests across several projects that assumption is wrong on the second project. The answer has been in the repository all along.
+
+The agent reads the file (it is in a checkout it made on a machine only it can see) and sends the **content**; a path would have to be resolved by a control plane that does not reach into sandboxes. What comes back is three lists, because three different things happened: `started`, `skipped` (not for you — the project's own application above all, which is built from the source the agent has and therefore belongs *inside* its sandbox), and `refused` (the organisation does not allow that image). Only the third is somebody else's decision to change, and the agent is told so rather than left to retry.
+
+Partial is normal on this path, and that is the difference from the declared set at the wake. A compose file legitimately contains services that must not run beside a sandbox; refusing the file because of them would make the mechanism useless for the files it exists for. The declared set is different in kind — somebody stated exactly that, so one of them missing means the configuration is wrong.
+
+The subset that is read: `image`, `environment` (both spellings compose allows), and nothing else. `build:` marks a service as the project's own. A host bind mount, `privileged`, `cap_add`, `devices`, a foreign `network_mode` or `pid` namespace each cost that one service its place, with the reason — those are the keys that would turn a service into a way onto the runner.
+
+The runner protocol stays **indifferent to where the list came from**: `start_sandbox` carries services and `add_services` brings them to a sandbox that is already up. Nothing in the data plane knows whether an agent, a manager or a compose file named them.
+
+The capability follows a scope of its own, `services:write`, and deliberately not `agents:write` — that one lets an agent draft colleagues, and a QA agent that wants a database has no business with it. Whoever holds it reads about the action in their prompt; whoever does not, does not. A capability by suggestion that is then refused is the worst kind.
+
+The images are the project's, not Covey's: they are not resolved through the workplace catalogue above, which answers "which image belongs to this Covey version" — a project's database is not part of Covey. They are fetched the same way though, and for the same reason, with progress reported: `docker run` would fetch them silently, and silence is what makes a start look like a hang.
+
 ## Trust boundary
 
 With `start_sandbox` a runner receives an agent's `COVEY_DAEMON_TOKEN` and egress token in order to inject them into the container. It **can** therefore impersonate every agent it hosts. That is the same trust level as a CI runner that sees job tokens — but it has to be said out loud:

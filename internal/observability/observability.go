@@ -23,6 +23,11 @@ const (
 	KindApproval   = "approval"   // approval gate requested/decided
 	KindGuardrail  = "guardrail"  // triggered guard-rail (blocked/gated)
 	KindAction     = "action"     // action in the target system via the action proxy
+	// KindService: what ran BESIDE the sandbox (spec/16) — which images came
+	// up, which were refused. Its own kind rather than a lifecycle status,
+	// because the question it answers is asked separately: "what was this run
+	// talking to", months later, in front of a result nobody can reproduce.
+	KindService = "service"
 )
 
 // Recording levels (recording depth, spec/06): minimal < standard < full.

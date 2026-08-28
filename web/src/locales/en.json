@@ -1113,6 +1113,11 @@
       "filesReadOnly": "Read-only — from the last snapshot",
       "runnerTags": "Host requirements",
       "runnerTagsHint": "Tags a runner has to carry for this agent to run there — arm64, say, or a host inside the target system's network. Empty means any runner of the organisation. A runner may carry more than is asked of it; if a required capability is missing the agent waits and the message names the tag.",
+      "services": "Services",
+      "servicesHint": "What runs beside the sandbox for as long as it lives: the database a test suite needs, the queue an application talks to. The agent reaches each one under its name (db:5432) — it installs and operates none of them. They hang in a network belonging to this sandbox alone and do not reach the internet; they end with the sandbox, so their state is scratch, not memory. No published port, no volume: those are the parts of a compose file that only make sense on your own machine. Takes effect at the next cold start.",
+      "servicesName": "db",
+      "servicesAdd": "service",
+      "servicesRemove": "remove service",
       "sandboxProfile": {
         "base": "base — Node, git, chromium, ripgrep",
         "dev": "dev — plus PHP, JDK, fvm, uv",
@@ -2045,7 +2050,11 @@
       "imageFailed": "the workplace image could not be fetched"
     },
     "sandboxOn": "Running on runner {{runner}}",
-    "stale": "State reconciled: “{{was}}” stood there with no run behind it"
+    "stale": "State reconciled: “{{was}}” stood there with no run behind it",
+    "servicesStarted": "Services brought up: {{services}}",
+    "servicesRunning": "Ran against: {{services}}",
+    "servicesRefused": "Workplace refused — {{error}}",
+    "servicesNotAllowed": "Not allowed, so not started: {{services}}"
   },
   "common": {
     "loading": "loading …"
@@ -2407,7 +2416,13 @@
     "ownHint": "Images of your own are added here and chosen on the agent afterwards — that way they appear in an overview, carry a description, and a typo shows up at once instead of at the first wake.",
     "contains": "What is in it ({{count}} tools)",
     "sdkDirs": "Version managers — the SDKs live in the home, not in the image:",
-    "lastPull": "last fetched: {{size}} in {{time}}"
+    "lastPull": "last fetched: {{size}} in {{time}}",
+    "serviceImages": "Services beside the sandbox",
+    "serviceImagesDesc": "Which images may run beside a sandbox — the database a test suite runs against, the queue an application talks to. Naming an image is not a privilege; extending this list is, because it decides which foreign code runs on the runner. Patterns: an exact reference (postgres:16) or a star following `/`, `:` or `@` (postgres:*, ghcr.io/acme/*). `*` on its own allows everything — a decision, not a default.",
+    "serviceImagesEmpty": "Empty: no service may run beside a sandbox. That is the safe default — add a pattern once a project needs a database.",
+    "serviceImagesAdd": "Allow",
+    "serviceImagesRemove": "Remove",
+    "serviceImagesNote": "what for (optional)"
   },
   "infra": {
     "title": "Infrastructure",

@@ -17,6 +17,15 @@ export type Principal = {
 /** Verwaltet diese Person die Installation selbst? */
 export const istSystemAdmin = (me: Principal) => me.PlatformRole === "system_admin";
 
+// Ein Dienst neben der Sandbox (spec/16). Bewusst schmal: kein Port nach
+// draußen, kein Volume, kein Build — das sind die Teile einer Compose-Datei,
+// die nur auf dem eigenen Rechner Sinn ergeben.
+export type SandboxService = {
+  name: string;
+  image: string;
+  env?: Record<string, string>;
+};
+
 export type Agent = {
   id: string;
   slug: string;
@@ -41,6 +50,11 @@ export type Agent = {
   // Welche Fähigkeiten der Host haben muss (arm64, gpu, ein Runner im Netz des
   // Zielsystems). Leer = jeder Runner der Organisation (spec/16).
   runner_tags?: string[];
+  // Was neben der Sandbox läuft, solange sie läuft: die Datenbank, die eine
+  // Testsuite braucht, die Queue, mit der eine Anwendung spricht. Jeder Dienst
+  // ist unter seinem Namen erreichbar (`db:5432`) — die Hälfte eines
+  // Arbeitsplatzes, die kein Image tragen kann (spec/16).
+  services?: SandboxService[];
   warm_sandbox: boolean; // hält die Sandbox zwischen Wach-Phasen live (opt-in)
   status: string;
   supervisor_id?: string;
@@ -1287,6 +1301,20 @@ export type Workplace = {
 export const createWorkplace = (w: { name: string; label: string; description: string; image: string }) =>
   post<Workplace>("/workplaces", w);
 export const deleteWorkplace = (name: string) => del<{ ok: boolean }>(`/workplaces/${name}`);
+
+// Welche Images neben einer Sandbox laufen dürfen (spec/16). Die Liste gehört
+// der Organisation: Ein Image zu NENNEN ist nicht das Privileg, die Liste zu
+// erweitern ist es.
+export type ServiceImagePattern = {
+  id: string;
+  pattern: string;
+  note: string;
+  created_at: string;
+};
+export const listServiceImages = () => api<ServiceImagePattern[]>("/service-images");
+export const addServiceImage = (pattern: string, note: string) =>
+  post<ServiceImagePattern>("/service-images", { pattern, note });
+export const deleteServiceImage = (id: string) => del<{ ok: boolean }>(`/service-images/${id}`);
 
 // KI-Assistent zum Anpassen von Agenten (Config-Copilot, FR-001).
 export type AssistMessage = { role: "user" | "assistant"; content: string };

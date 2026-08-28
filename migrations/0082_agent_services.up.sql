@@ -1,0 +1,21 @@
+-- The services that run beside an agent's sandbox (spec/16).
+--
+-- A workplace was an image and nothing else. Whatever a project needed BEYOND
+-- the image had no place in the platform, so it ended up in one of two spots
+-- that both cost: built into the image and operated by hand — the `dev-full`
+-- and `dev-php` workplaces told the agent to run `mariadb-install-db` into its
+-- own home, a directory that is walked at every wake and written back after
+-- every run — or simply missing, at which point the QA agent's procedure had
+-- one exit left: write a finding and hand over.
+--
+-- Why on the agent and not on the project: at the moment a sandbox starts, the
+-- agent is the only thing the platform has. An agent that accepts merge
+-- requests in several projects will outgrow this, and that is the known next
+-- question (issue #121) — the runner protocol therefore carries the list
+-- without an opinion on where it came from, so moving the source later does not
+-- touch the data plane.
+--
+-- jsonb rather than a table of its own: it is read exactly once, whole, at the
+-- start of a sandbox, and it is never queried across agents. A table would buy
+-- joins nobody makes and cost a migration for every field a service grows.
+ALTER TABLE agents ADD COLUMN services JSONB NOT NULL DEFAULT '[]'::jsonb;

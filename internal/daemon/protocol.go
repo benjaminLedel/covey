@@ -450,6 +450,19 @@ type RequestHiring struct {
 	// judgement — one call, one moment.
 	Findings []ReviewNote `json:"findings,omitempty"`
 	Issues   []ReviewNote `json:"issues,omitempty"`
+
+	// --- Services beside the sandbox (spec/16), unlocked by
+	// `scope: services:write` ---
+
+	// Compose is the CONTENT of a project's docker-compose.yml, read by the
+	// agent out of its own checkout. Sent rather than pointed at: the file
+	// exists inside the sandbox, on a host the control plane does not reach
+	// into, and a path would have to be resolved by somebody who cannot see it.
+	Compose string `json:"compose,omitempty"`
+	// Only is an optional filter over the services in that file: bring up the
+	// database, leave the rest. Empty = everything the file offers and the
+	// organisation allows.
+	Only []string `json:"only,omitempty"`
 }
 
 // ReviewNote is one finding or one filed issue: a line a human reads, the

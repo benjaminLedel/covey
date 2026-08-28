@@ -1113,6 +1113,11 @@
       "filesReadOnly": "Nur lesbar — aus dem letzten Snapshot",
       "runnerTags": "Host-Anforderungen",
       "runnerTagsHint": "Tags, die der Runner tragen muss, damit dieser Agent dort laufen darf — etwa arm64 oder ein Host im Netz des Zielsystems. Leer heißt: jeder Runner der Organisation. Ein Runner darf mehr tragen, als verlangt wird; fehlt eine geforderte Fähigkeit, wartet der Agent und die Meldung nennt das Tag.",
+      "services": "Dienste",
+      "servicesHint": "Was neben der Sandbox läuft, solange sie läuft: die Datenbank, die eine Testsuite braucht, die Queue, mit der eine Anwendung spricht. Der Agent erreicht jeden unter seinem Namen (db:5432) — er installiert und betreibt nichts davon selbst. Die Dienste hängen in einem Netz nur dieser Sandbox und kommen nicht ins Internet; sie enden mit der Sandbox, ihr Zustand ist also Notizzettel, nicht Gedächtnis. Kein Port nach außen, kein Volume: Das sind die Teile einer Compose-Datei, die nur auf dem eigenen Rechner Sinn ergeben. Wirkt beim nächsten Kaltstart.",
+      "servicesName": "db",
+      "servicesAdd": "Dienst",
+      "servicesRemove": "Dienst entfernen",
       "sandboxProfile": {
         "base": "base — Node, git, chromium, ripgrep",
         "dev": "dev — zusätzlich PHP, JDK, fvm, uv",
@@ -2045,7 +2050,11 @@
       "imageFailed": "Arbeitsplatz-Image konnte nicht geholt werden"
     },
     "sandboxOn": "Läuft auf Runner {{runner}}",
-    "stale": "Zustand aufgelöst: „{{was}}“ stand da, ohne dass ein Lauf dahinter war"
+    "stale": "Zustand aufgelöst: „{{was}}“ stand da, ohne dass ein Lauf dahinter war",
+    "servicesStarted": "Dienste hochgefahren: {{services}}",
+    "servicesRunning": "Lief gegen: {{services}}",
+    "servicesRefused": "Arbeitsplatz abgelehnt — {{error}}",
+    "servicesNotAllowed": "Nicht erlaubt und deshalb nicht gestartet: {{services}}"
   },
   "common": {
     "loading": "lädt …"
@@ -2407,7 +2416,13 @@
     "ownHint": "Eigene Images werden hier angelegt und danach am Agenten ausgewählt — so stehen sie in einer Übersicht, tragen eine Beschreibung und ein Tippfehler fällt sofort auf statt beim ersten Wecken.",
     "contains": "Was drin ist ({{count}} Werkzeuge)",
     "sdkDirs": "Versionsmanager — die SDKs liegen im Home, nicht im Image:",
-    "lastPull": "zuletzt geholt: {{size}} in {{time}}"
+    "lastPull": "zuletzt geholt: {{size}} in {{time}}",
+    "serviceImages": "Dienste neben der Sandbox",
+    "serviceImagesDesc": "Welche Images neben einer Sandbox laufen dürfen — die Datenbank, gegen die eine Testsuite läuft, die Queue, mit der eine Anwendung spricht. Ein Image zu nennen ist kein Privileg; diese Liste zu erweitern ist es, denn sie entscheidet, welcher fremde Code auf dem Runner läuft. Muster: eine genaue Referenz (postgres:16) oder ein Stern, der auf `/`, `:` oder `@` folgt (postgres:*, ghcr.io/acme/*). `*` allein erlaubt alles — eine Entscheidung, keine Voreinstellung.",
+    "serviceImagesEmpty": "Leer: Kein Dienst darf neben einer Sandbox laufen. Das ist die sichere Voreinstellung — trag ein Muster ein, sobald ein Projekt eine Datenbank braucht.",
+    "serviceImagesAdd": "Erlauben",
+    "serviceImagesRemove": "Entfernen",
+    "serviceImagesNote": "wofür (optional)"
   },
   "infra": {
     "title": "Infrastruktur",

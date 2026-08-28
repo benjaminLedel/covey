@@ -10,6 +10,7 @@ import {
   del,
   type Agent,
   type RuntimeInfo,
+  type SandboxService,
   type Workplace,
 } from "../../api";
 import ProfileForm from "../../components/ProfileForm";
@@ -155,6 +156,10 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
   });
   const setSandboxImage = useMutation({
     mutationFn: (image: string) => patch(`/agents/${agent.id}/sandbox-image`, { sandbox_image: image }),
+    onSuccess: invalidate,
+  });
+  const setServices = useMutation({
+    mutationFn: (services: SandboxService[]) => patch(`/agents/${agent.id}/services`, { services }),
     onSuccess: invalidate,
   });
   // Die Arbeitsplätze kommen aus dem Katalog des Servers (internal/sandbox),
@@ -487,6 +492,27 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
         />
         <span className="muted text-xs">{t("agent.settings.runnerTagsHint")}</span>
       </div>
+      <div style={{ ...row, alignItems: "start" }}>
+        <span className="text-sm" style={{ paddingTop: 6 }}>{t("agent.settings.services")}</span>
+        <ServicesEditor
+          /* Neu montiert, sobald der Server einen anderen Stand liefert — wie
+             die Runner-Tags daneben. Ein Entwurf, der eine fremde Änderung
+             überlebt, ist der, der sie überschreibt. */
+          key={JSON.stringify(agent.services ?? [])}
+          services={agent.services ?? []}
+          editable={editable && !setServices.isPending}
+          t={t}
+          onSave={(next) => setServices.mutate(next)}
+        />
+        <span className="muted text-xs">
+          {t("agent.settings.servicesHint")}
+          {setServices.isError && (
+            <span className="danger-text" style={{ display: "block", marginTop: 4 }}>
+              {String((setServices.error as Error)?.message ?? "")}
+            </span>
+          )}
+        </span>
+      </div>
       <div style={{ ...row, borderBottom: "none" }}>
         <span className="text-sm">{t("agent.settings.warmSandbox")}</span>
         <label className="flex items-center gap-2 text-sm">
@@ -618,4 +644,113 @@ function defaultProfile(profiles: Workplace[]): string {
 function profileLabel(t: TFunction, p: Workplace): string {
   const translated = t(`agent.settings.sandboxProfile.${p.name}`, { defaultValue: "" });
   return translated || `${p.label} — ${p.description}`;
+}
+
+/* Die Dienste neben der Sandbox (spec/16).
+
+   Ein Textfeld mit `name=image` je Zeile wäre billiger gewesen, und genau
+   deshalb steht hier keins: Der Name wird ein Hostname auf einem geteilten
+   Runner, und ein Tippfehler darin fällt nicht als Fehler auf, sondern als
+   Datenbank, die nicht antwortet. Drei getrennte Felder zeigen, dass es drei
+   verschiedene Dinge sind — und der Server prüft sie noch einmal, denn diese
+   Oberfläche ist nicht der einzige Weg zu ihm. */
+function ServicesEditor({
+  services,
+  editable,
+  t,
+  onSave,
+}: {
+  services: SandboxService[];
+  editable: boolean;
+  t: TFunction;
+  onSave: (next: SandboxService[]) => void;
+}) {
+  const [draft, setDraft] = useState<SandboxService[]>(services);
+
+  const envText = (env?: Record<string, string>) =>
+    Object.entries(env ?? {})
+      .map(([k, v]) => `${k}=${v}`)
+      .join(", ");
+  const parseEnv = (text: string): Record<string, string> | undefined => {
+    const out: Record<string, string> = {};
+    for (const part of text.split(",")) {
+      const eq = part.indexOf("=");
+      if (eq <= 0) continue;
+      const k = part.slice(0, eq).trim();
+      if (k) out[k] = part.slice(eq + 1).trim();
+    }
+    return Object.keys(out).length ? out : undefined;
+  };
+  const change = (i: number, patchOne: Partial<SandboxService>) =>
+    setDraft(draft.map((s, j) => (i === j ? { ...s, ...patchOne } : s)));
+  // Gespeichert wird die ganze Liste, nicht das einzelne Feld: Ein Dienst ohne
+  // Image ist keine halbe Zeile, sondern ein unfertiger Entwurf — der bleibt
+  // hier stehen, bis er vollständig ist.
+  const save = (next: SandboxService[]) => {
+    const clean = next.filter((s) => s.name.trim() && s.image.trim());
+    if (JSON.stringify(clean) !== JSON.stringify(services)) onSave(clean);
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      {draft.map((svc, i) => (
+        <div key={i} className="flex gap-2 items-center">
+          <input
+            value={svc.name}
+            placeholder={t("agent.settings.servicesName")}
+            disabled={!editable}
+            className="mono"
+            style={{ width: 96 }}
+            onChange={(e) => change(i, { name: e.target.value })}
+            onBlur={() => save(draft)}
+          />
+          <input
+            value={svc.image}
+            placeholder="postgres:16"
+            disabled={!editable}
+            className="mono"
+            style={{ flex: 1, minWidth: 120 }}
+            onChange={(e) => change(i, { image: e.target.value })}
+            onBlur={() => save(draft)}
+          />
+          <input
+            defaultValue={envText(svc.env)}
+            placeholder="KEY=value"
+            disabled={!editable}
+            className="mono"
+            style={{ flex: 1, minWidth: 120 }}
+            onBlur={(e) => {
+              const next = draft.map((s, j) =>
+                i === j ? { ...s, env: parseEnv(e.target.value) } : s,
+              );
+              setDraft(next);
+              save(next);
+            }}
+          />
+          <button
+            type="button"
+            className="ghost"
+            disabled={!editable}
+            title={t("agent.settings.servicesRemove")}
+            onClick={() => {
+              const next = draft.filter((_, j) => j !== i);
+              setDraft(next);
+              save(next);
+            }}
+          >
+            ×
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        className="ghost text-xs"
+        disabled={!editable}
+        style={{ alignSelf: "start" }}
+        onClick={() => setDraft([...draft, { name: "", image: "" }])}
+      >
+        + {t("agent.settings.servicesAdd")}
+      </button>
+    </div>
+  );
 }

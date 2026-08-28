@@ -21,6 +21,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"covey/internal/sandbox"
 	"covey/internal/sandboxfs"
 )
 
@@ -62,6 +63,11 @@ const (
 	// outside that looks like a hanging wake, not like a download. Asked for
 	// deliberately, it happens while somebody is looking.
 	TypePullImage = "pull_image"
+	// TypeAddServices brings services up beside a sandbox that is already
+	// running. The path an agent takes for itself: it finds a compose file in a
+	// checkout it made during THIS run, and a mechanism that only took effect
+	// at the next wake would be one nobody uses.
+	TypeAddServices = "add_services"
 	// TypeSetLogLevel raises or lowers what a runner reports. Normally info;
 	// debug for as long as somebody is looking at a problem on that one host.
 	// A level that could only be set at start-up would mean an SSH session and
@@ -373,7 +379,33 @@ type StartSandbox struct {
 	// whether the instance has renamed it — is known here. Empty = an image
 	// the catalogue does not know.
 	ImageHint string `json:"image_hint,omitempty"`
+	// Services run BESIDE this sandbox for as long as it lives: a database, a
+	// queue, whatever the project needs in order to be started at all. The
+	// runner brings them up on a network belonging to this sandbox, where each
+	// is reachable under its name — the agent connects to `db:5432` and neither
+	// operates them nor knows the host they run on.
+	//
+	// Where the list comes from is decided on the control plane; the protocol
+	// stays out of it. That is deliberate, because the source is the part still
+	// expected to change: today the agent declares it, later a project may.
+	//
+	// Empty = no services, which is the normal case and the one every agent
+	// that only writes wiki pages stays in.
+	Services []sandbox.Service `json:"services,omitempty"`
 }
+
+// AddServices asks for services beside a sandbox that is already up. The
+// control plane has already decided WHETHER they may run — the organisation's
+// allowlist is its question, and the runner would have to be a database client
+// to ask it (spec/16, "Trust boundary").
+type AddServices struct {
+	AgentID  uuid.UUID         `json:"agent_id"`
+	Services []sandbox.Service `json:"services"`
+}
+
+// TypeServicesAdded is the answer: what came up, with the image each one
+// actually started from.
+const TypeServicesAdded = "services_added"
 
 // SyncHome writes an agent's home into the store.
 type SyncHome struct {
@@ -408,7 +440,10 @@ type StopSandbox struct {
 // SandboxResult answers start/stop. Err empty = it worked.
 type SandboxResult struct {
 	AgentID uuid.UUID `json:"agent_id"`
-	Err     string    `json:"err,omitempty"`
+	// Services are the ones that came up with this sandbox, with the image
+	// each one actually started from. Empty for an agent that declared none.
+	Services []sandbox.ServiceRun `json:"services,omitempty"`
+	Err      string               `json:"err,omitempty"`
 }
 
 // SandboxExited reports a sandbox that ended without being asked to.

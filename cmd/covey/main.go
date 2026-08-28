@@ -1311,6 +1311,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Targets:        targets,
 		Skills:         skillStore,
 		Egress:         egressStore,
+		Workplaces:     orgWorkplaces,
 		ReqLog:         reqLog,
 		Provider:       provider,
 		PublicWSURL:    wsURL,

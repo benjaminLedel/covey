@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"covey/internal/sandbox"
 	"covey/internal/sandboxfs"
 )
 
@@ -39,6 +40,34 @@ type SandboxSpec struct {
 	// as this agent to the egress proxy (Proxy-Authorization). Empty = no
 	// egress enforcement for this sandbox.
 	EgressToken string
+	// Services run beside this sandbox for as long as it lives — the database a
+	// test suite needs, the queue an application talks to. The provider brings
+	// them up on a segment of this sandbox's own, where each answers to its
+	// name; how it does that is its business, and a provider without a notion
+	// of a second container may ignore them.
+	Services []sandbox.Service
+}
+
+// WithServices is the optional half of a sandbox that has services standing
+// beside it: what came up, and which image each one actually started from.
+//
+// Optional, like Placed next to it — a provider without a notion of a second
+// container simply does not implement it, and the recording then says nothing
+// rather than something made up.
+type WithServices interface {
+	Services() []sandbox.ServiceRun
+}
+
+// ServiceStarter is the optional half of a sandbox that can take services
+// while it runs — the path an agent uses for itself.
+//
+// Separate from WithServices because the two are separate capabilities: a
+// provider may be able to REPORT what stands beside a sandbox without being
+// able to add to it. The orchestrator asks for each where it needs it, and a
+// provider that has neither simply refuses the agent's request with a sentence
+// rather than failing somewhere deeper.
+type ServiceStarter interface {
+	StartServices(ctx context.Context, services []sandbox.Service) ([]sandbox.ServiceRun, error)
 }
 
 type Sandbox interface {

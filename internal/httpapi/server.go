@@ -321,6 +321,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/agents/{id}/warm-sandbox", s.agentScoped(manage, s.handleSetWarmSandbox))
 	mux.Handle("PATCH /api/v1/agents/{id}/sandbox-image", s.agentScoped(manage, s.handleSetSandboxImage))
 	mux.Handle("PATCH /api/v1/agents/{id}/runner-tags", s.agentScoped(manage, s.handleSetRunnerTags))
+	mux.Handle("PATCH /api/v1/agents/{id}/services", s.agentScoped(manage, s.handleSetServices))
 
 	// Runners (spec/16). Reading is for everyone who may look at the platform;
 	// adding and decommissioning a host is a management act.
@@ -337,6 +338,12 @@ func (s *Server) Handler() http.Handler {
 	// als freier Text an jedem Agenten (spec/16).
 	mux.Handle("POST /api/v1/workplaces", s.rbac(manage, s.handleCreateWorkplace))
 	mux.Handle("DELETE /api/v1/workplaces/{name}", s.rbac(manage, s.handleDeleteWorkplace))
+	// Which images may run BESIDE a sandbox as services (spec/16). Under
+	// manage, because extending the list is the privileged act — naming an
+	// image, once the list stands, is not.
+	mux.Handle("GET /api/v1/service-images", s.rbac(manage, s.handleListServiceImages))
+	mux.Handle("POST /api/v1/service-images", s.rbac(manage, s.handleAddServiceImage))
+	mux.Handle("DELETE /api/v1/service-images/{id}", s.rbac(manage, s.handleDeleteServiceImage))
 	mux.Handle("POST /api/v1/runners/registration-tokens", s.rbac(manage, s.handleCreateRegistrationToken))
 	mux.Handle("PATCH /api/v1/runners/{id}", s.rbac(manage, s.handleUpdateRunner))
 	mux.Handle("POST /api/v1/runners/{id}/pull", s.rbac(manage, s.handlePullOnRunner))

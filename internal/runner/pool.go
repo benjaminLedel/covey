@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -1365,6 +1366,7 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 			EgressToken: spec.EgressToken,
 			Snapshot:    snapshot,
 			ImageHint:   p.imageHints(ctx)[want.image],
+			Services:    spec.Services,
 		}, timeout)
 		switch {
 		case err != nil:
@@ -1380,7 +1382,10 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 				c.mu.Lock()
 				c.sandboxes++
 				c.mu.Unlock()
-				return &poolSandbox{pool: p, conn: c, agentID: spec.AgentID, orgID: spec.OrgID}, nil
+				return &poolSandbox{
+					pool: p, conn: c, agentID: spec.AgentID, orgID: spec.OrgID,
+					services: res.Services,
+				}, nil
 			}
 		}
 		if i+1 < len(candidates) {
@@ -1413,6 +1418,52 @@ type poolSandbox struct {
 	agentID uuid.UUID
 	orgID   uuid.UUID
 	once    sync.Once
+	// services is what the host reported it brought up, with the image each
+	// one actually started from.
+	services []sandbox.ServiceRun
+}
+
+// Services satisfies orchestrator.WithServices: what stands beside this
+// sandbox. The control plane cannot work this out for itself — only the host
+// that ran `docker run` knows which image the reference resolved to.
+func (s *poolSandbox) Services() []sandbox.ServiceRun {
+	// Under the lock, because StartServices appends to this while the sandbox
+	// runs: the agent asking for its project's database is a second writer to
+	// a slice the orchestrator reads whenever it records a job.
+	s.pool.mu.Lock()
+	defer s.pool.mu.Unlock()
+	return slices.Clone(s.services)
+}
+
+// StartServices satisfies orchestrator.ServiceStarter: bring services up
+// beside this sandbox while it runs.
+//
+// It goes to the host this sandbox is ON, not to any host of the organisation —
+// a service is only useful on the network its sandbox hangs in, and the
+// connection is already here. Whether they MAY run has been decided before this
+// call: the allowlist is the organisation's question, and a runner would have
+// to be a database client to ask it.
+func (s *poolSandbox) StartServices(ctx context.Context, services []sandbox.Service) ([]sandbox.ServiceRun, error) {
+	answer, err := s.conn.ask(ctx, TypeAddServices, AddServices{
+		AgentID: s.agentID, Services: services,
+	}, s.pool.startTimeout())
+	if err != nil {
+		return nil, err
+	}
+	res, err := decode[SandboxResult](answer)
+	if err != nil {
+		return nil, err
+	}
+	if res.Err != "" {
+		return nil, errors.New(res.Err)
+	}
+	// What the agent gets told is what the HOST reported, not what was asked
+	// for. The two differ exactly when something went wrong quietly, and that
+	// is the case worth not papering over.
+	s.pool.mu.Lock()
+	s.services = append(s.services, res.Services...)
+	s.pool.mu.Unlock()
+	return res.Services, nil
 }
 
 // SyncHome writes the home into the store while the compute keeps running —
