@@ -19,14 +19,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import PublicSite from "./public/PublicSite";
 import { renderHeadTags, seoTags } from "./public/Head";
 import { NOT_FOUND_ROUTE, matchRoute, type Lang } from "./public/seo";
-import i18n from "./i18n";
+import { ladeSprache } from "./i18n";
 
 export { PRERENDER_URLS, SEO_URLS, APP_ROUTE_PREFIXES, NOT_FOUND_ROUTE, LANGS } from "./public/seo";
 
 export type RenderResult = { html: string; head: string; lang: Lang };
 
 export async function renderPage(url: string, lang: Lang): Promise<RenderResult> {
-  await i18n.changeLanguage(lang);
+  await ladeSprache(lang);
 
   const html = renderToString(
     <QueryClientProvider client={new QueryClient()}>

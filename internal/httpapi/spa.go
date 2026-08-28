@@ -5,6 +5,8 @@ import (
 	"io/fs"
 	"mime"
 	"net/http"
+	"path"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -71,6 +73,10 @@ func (s *Server) spaHandler(dist fs.FS) http.Handler {
 
 		if path != "" {
 			if info, err := fs.Stat(dist, path); err == nil && !info.IsDir() {
+				setzeCacheHeader(w, path)
+				if serviereVorkomprimiert(w, r, dist, path) {
+					return
+				}
 				fileServer.ServeHTTP(w, r)
 				return
 			}
@@ -124,9 +130,108 @@ func istLokalerPfad(ziel string) bool {
 func (s *Server) schreibeHTML(w http.ResponseWriter, r *http.Request, daten []byte, status int) {
 	html := strings.ReplaceAll(string(daten), platzhalterOrigin, s.origin(r))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	// The HTML is assembled per request — the address of this installation goes
+	// in above — and it names the hashed assets of the current build. A cache
+	// that keeps it hands out yesterday's asset names after a deploy. no-cache
+	// does not forbid storing it, it requires asking first; the ETag then still
+	// answers most of those questions with a 304.
+	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Content-Length", strconv.Itoa(len(html)))
 	w.WriteHeader(status)
 	_, _ = io.WriteString(w, html)
+}
+
+// setzeCacheHeader decides how long a static file may be held. Without this
+// header a browser gets nothing to go on and asks again on every visit — the
+// second visit then pays a round trip per file for a 304 that says "unchanged".
+//
+// The distinction is not the file type but whether the name changes with the
+// content. Vite writes everything under assets/ as name-<hash>.ext: a changed
+// file gets a new name, so the old one can never be wrong and may be kept for
+// as long as a browser is willing to (a year is the accepted maximum).
+// istGehasht checks that rather than trusting the directory — a file that lands
+// there without a hash would otherwise be frozen in every visitor's cache.
+//
+// Everything beside it (the images under shots/ and landing/, the favicons, the
+// manifest) keeps its name across releases. A day, and a revalidation after
+// that: long enough to carry a session, short enough that a replaced screenshot
+// arrives the next day rather than next year.
+func setzeCacheHeader(w http.ResponseWriter, pfad string) {
+	if strings.HasPrefix(pfad, "assets/") && istGehasht(pfad) {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		return
+	}
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+}
+
+// istGehasht: does this name carry a content hash before its extension? Vite
+// builds them from base64url, eight characters — index-DOnPDnv_.js,
+// inter-latin-400-normal-C38fXH4l.woff2.
+var gehashtesAsset = regexp.MustCompile(`-[A-Za-z0-9_-]{8}\.[A-Za-z0-9]+$`)
+
+func istGehasht(pfad string) bool { return gehashtesAsset.MatchString(pfad) }
+
+// vorkomprimierteFormen: the encodings the build writes beside a file
+// (web/compress.mjs), in the order of preference. Brotli first — it is what
+// saves the most and what every browser that can read this bundle understands.
+var vorkomprimierteFormen = []struct{ encoding, endung string }{
+	{"br", ".br"},
+	{"gzip", ".gz"},
+}
+
+// serviereVorkomprimiert hands out the compressed form of a static file when
+// the client accepts that encoding and the build produced one. It says whether
+// it answered.
+//
+// The alternative is what happens without it: mitKompression compresses the
+// same bundle again for every visitor, at gzip's fastest setting, because that
+// is the right trade for an API answer computed per request. A file that is
+// built once and identical until the next release deserves the opposite trade —
+// compressed once, as well as the compressor can.
+//
+// Content-Encoding is set before anything is written, which is also what keeps
+// mitKompression out of the way: it leaves an answer alone that is already
+// encoded.
+func serviereVorkomprimiert(w http.ResponseWriter, r *http.Request, dist fs.FS, pfad string) bool {
+	for _, form := range vorkomprimierteFormen {
+		if !akzeptiertEncoding(r, form.encoding) {
+			continue
+		}
+		daten, err := fs.ReadFile(dist, pfad+form.endung)
+		if err != nil {
+			continue
+		}
+		h := w.Header()
+		// The type is the one of the original file — the encoding is what the
+		// compression says, not the content type. Without this the browser
+		// would get application/octet-stream and download the stylesheet
+		// instead of applying it.
+		if typ := mime.TypeByExtension(strings.ToLower(path.Ext(pfad))); typ != "" {
+			h.Set("Content-Type", typ)
+		}
+		h.Set("Content-Encoding", form.encoding)
+		// The same address answers differently depending on the request header.
+		// A cache that does not know that hands a brotli body to a client that
+		// cannot read it.
+		h.Set("Vary", "Accept-Encoding")
+		h.Set("Content-Length", strconv.Itoa(len(daten)))
+		_, _ = w.Write(daten)
+		return true
+	}
+	return false
+}
+
+// akzeptiertEncoding: did the client name this encoding in Accept-Encoding? A
+// q=0 is a refusal — "gzip;q=0" means explicitly not that one.
+func akzeptiertEncoding(r *http.Request, encoding string) bool {
+	for _, teil := range strings.Split(r.Header.Get("Accept-Encoding"), ",") {
+		name, rest, _ := strings.Cut(strings.TrimSpace(teil), ";")
+		if !strings.EqualFold(strings.TrimSpace(name), encoding) {
+			continue
+		}
+		return strings.ReplaceAll(rest, " ", "") != "q=0"
+	}
+	return false
 }
 
 // setzeSchutzHeader gives the admin interface the headers a browser needs in

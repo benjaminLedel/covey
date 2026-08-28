@@ -1,5 +1,8 @@
 // Gemeinsame Vorbereitung aller Frontend-Tests.
 import "@testing-library/jest-dom/vitest";
+import i18n from "../i18n";
+import de from "../locales/de.json";
+import en from "../locales/en.json";
 import { cleanup, configure } from "@testing-library/react";
 import { afterEach, beforeEach, vi } from "vitest";
 
@@ -12,6 +15,13 @@ import { afterEach, beforeEach, vi } from "vitest";
 // Fünf Sekunden statt einer: Eine Oberfläche, die dann noch nichts gerendert
 // hat, ist kaputt, und das soll der Test weiterhin sagen.
 configure({ asyncUtilTimeout: 5000 });
+
+// Die Anwendung lädt ihre Kataloge nach (i18n.ts) — ein Bündel je Sprache,
+// damit ein Besucher nicht beide bezahlt. Im Test ist das nur im Weg: Die
+// Prüfungen wechseln die Sprache mitten im Ablauf und rechnen damit, dass der
+// Text sofort da ist. Hier liegen deshalb beide von Anfang an bereit.
+i18n.addResourceBundle("de", "translation", de, true, true);
+i18n.addResourceBundle("en", "translation", en, true, true);
 
 // localStorage: Node bringt inzwischen eine eigene, halbfertige Fassung mit,
 // die die von jsdom hier verdeckt — beim ersten Import von i18n.ts schlägt

@@ -212,6 +212,36 @@ left of the real address and is passed over.
 
 The registry login runs automatically through the built-in `$CI_REGISTRY_*`.
 
+### The proxy itself — HTTP/2, and what not to undo
+
+Two settings on the terminating proxy decide how fast the interface feels, and
+neither of them is a default.
+
+**HTTP/2.** nginx speaks HTTP/1.1 unless the `listen` line says otherwise, and
+the website is many small files: the bundle, the stylesheet, the fonts, the
+pictures. Over HTTP/1.1 they queue six at a time, each paying its own handshake
+and its own slow start. Measured on covey.work with everything else already in
+place, Lighthouse put 1.5 s on that one line:
+
+```nginx
+listen 443 ssl;
+http2 on;                      # nginx ≥ 1.25.1; older: `listen 443 ssl http2;`
+```
+
+**Do not compress what is already compressed.** The binary answers with brotli
+where it can (the frontend assets are compressed at build time) and gzips the
+rest itself — `internal/httpapi/compression.go` explains why that sits in the
+product and not here. A proxy that strips `Accept-Encoding` on the way in, or
+re-compresses on the way out, replaces the good compression with a worse one
+and pays CPU for it. nginx does the right thing by default; the trap is a
+`proxy_set_header Accept-Encoding "";` copied from somewhere, and `gzip on;`
+for proxied responses that arrive encoded.
+
+The rest of the proxy configuration — the WebSocket upgrade for a remote runner
+and the read timeout that goes with it — is in
+[`ops-runner.md`](ops-runner.md#behind-a-reverse-proxy). Whatever runs in front
+also has to be named in `COVEY_TRUSTED_PROXIES`, see above.
+
 ### 3. The first push to main
 
 On the first deploy the job creates `$DEPLOY_DIR/.env` with a random master

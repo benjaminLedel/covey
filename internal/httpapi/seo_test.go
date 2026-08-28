@@ -35,13 +35,20 @@ func testDist() fs.FS {
 	}
 
 	return fstest.MapFS{
-		"index.html":          seite("Startseite"),
-		"funktion/index.html": seite("Funktion"),
-		"en/index.html":       seite("Home"),
-		"404.html":            seite("Nicht gefunden"),
-		"en/404.html":         seite("Not found"),
-		"app.html":            seite("Covey — Control Plane"),
-		"assets/index-abc.js": {Data: []byte("console.log(1)")},
+		"index.html":               seite("Startseite"),
+		"funktion/index.html":      seite("Funktion"),
+		"en/index.html":            seite("Home"),
+		"404.html":                 seite("Nicht gefunden"),
+		"en/404.html":              seite("Not found"),
+		"app.html":                 seite("Covey — Control Plane"),
+		"assets/index-DOnPDnv_.js": {Data: []byte("console.log(1)")},
+		// What web/compress.mjs writes beside it. The content is not real
+		// brotli — the handler passes it through, it does not read it.
+		"assets/index-DOnPDnv_.js.br": {Data: []byte("brotli")},
+		"assets/index-DOnPDnv_.js.gz": {Data: []byte("gzipped")},
+		// Not everything under assets/ has to be hashed — the cache header
+		// distinguishes, so both cases belong in the test FS.
+		"assets/ohne-hash.js": {Data: []byte("console.log(2)")},
 		"landing/bild.jpg":    {Data: []byte("jpeg")},
 		"seo.json":            {Data: rohSeo},
 	}
@@ -118,7 +125,7 @@ func TestSPAAppPfadeLiefernDieHuelle(t *testing.T) {
 func TestSPAStatischeDateienUndSchraegstrich(t *testing.T) {
 	s := testServer()
 
-	if rec := hole(t, s, "/assets/index-abc.js"); rec.Code != http.StatusOK {
+	if rec := hole(t, s, "/assets/index-DOnPDnv_.js"); rec.Code != http.StatusOK {
 		t.Fatalf("asset: status %d, expected 200", rec.Code)
 	}
 

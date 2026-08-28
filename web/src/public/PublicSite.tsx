@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Routes, Route, useLocation, Link } from "react-router";
 import { useTranslation } from "react-i18next";
-import i18n from "../i18n";
+import i18n, { ladeSprache } from "../i18n";
 import { PublicBackground, useReveal, BirdMark } from "./chrome";
 import PublicNav from "./PublicNav";
 import LoginCard from "./LoginCard";
@@ -125,7 +125,7 @@ export default function PublicSite({ onLogin }: { onLogin: () => void }) {
 
   // Die Sprache folgt der URL (siehe lang.ts).
   useEffect(() => {
-    if (i18n.language !== lang) void i18n.changeLanguage(lang);
+    if (i18n.language !== lang) void ladeSprache(lang);
   }, [lang]);
 
   /* Die Seiten sind je Sprache eigene Routen — die englischen Slugs sind

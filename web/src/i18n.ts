@@ -1,7 +1,5 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
-import de from "./locales/de.json";
-import en from "./locales/en.json";
 
 export type Lang = "de" | "en";
 
@@ -71,9 +69,33 @@ export function merkeSprache(lang: Lang) {
   }
 }
 
+/* Die Kataloge werden nachgeladen, nicht mitgeliefert. Zusammen sind sie
+   262 kB — ein Fünftel des Bündels, und die Hälfte davon in einer Sprache,
+   die dieser Besucher nicht liest. Als dynamischer Import wird jeder ein
+   eigenes Stück, und geladen wird das eine, das gebraucht wird (#122).
+
+   Der Aufrufer wartet darauf, bevor er rendert: Eine vorgerenderte Seite
+   muss beim ersten Rendervorgang im Browser denselben Text erzeugen, den der
+   Server geschrieben hat — mit leerem Katalog stünden dort die Schlüssel. */
+const kataloge: Record<Lang, () => Promise<{ default: Record<string, unknown> }>> = {
+  de: () => import("./locales/de.json"),
+  en: () => import("./locales/en.json"),
+};
+
+export async function ladeSprache(lang: Lang): Promise<void> {
+  if (!i18n.hasResourceBundle(lang, "translation")) {
+    const { default: katalog } = await kataloge[lang]();
+    i18n.addResourceBundle(lang, "translation", katalog, true, true);
+  }
+  if (i18n.language !== lang) await i18n.changeLanguage(lang);
+}
+
 i18n.use(initReactI18next).init({
-  resources: { de: { translation: de }, en: { translation: en } },
+  resources: {},
   lng: initialLang(),
+  /* Beide Kataloge tragen dieselben Schlüssel (ein Test hält das fest), die
+     Ersatzsprache greift also nur bei einem Schlüssel, den keiner von beiden
+     kennt — und dann steht er selbst da, geladen oder nicht. */
   fallbackLng: "en",
   interpolation: { escapeValue: false },
 });
