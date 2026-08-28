@@ -1113,6 +1113,11 @@
       "filesReadOnly": "Read-only — from the last snapshot",
       "runnerTags": "Host requirements",
       "runnerTagsHint": "Tags a runner has to carry for this agent to run there — arm64, say, or a host inside the target system's network. Empty means any runner of the organisation. A runner may carry more than is asked of it; if a required capability is missing the agent waits and the message names the tag.",
+      "services": "Services",
+      "servicesHint": "What runs beside the sandbox for as long as it lives: the database a test suite needs, the queue an application talks to. The agent reaches each one under its name (db:5432) — it installs and operates none of them. They hang in a network belonging to this sandbox alone and do not reach the internet; they end with the sandbox, so their state is scratch, not memory. No published port, no volume: those are the parts of a compose file that only make sense on your own machine. Takes effect at the next cold start.",
+      "servicesName": "db",
+      "servicesAdd": "service",
+      "servicesRemove": "remove service",
       "sandboxProfile": {
         "base": "base — Node, git, chromium, ripgrep",
         "dev": "dev — plus PHP, JDK, fvm, uv",

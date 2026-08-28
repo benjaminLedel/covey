@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"covey/internal/sandbox"
 )
 
 // The services that run beside a sandbox (spec/16, "Services beside the
@@ -188,11 +186,4 @@ func (p *Docker) removeServices(ctx context.Context, agentID uuid.UUID) {
 	// and that is correct: the next start creates it again under the same name
 	// and finds it usable.
 	_ = exec.CommandContext(ctx, p.docker(), "network", "rm", servicesNetworkFor(agentID)).Run()
-}
-
-// serviceImages are the images a start needs beyond the workplace image. The
-// node fetches them the same way, and for the same reason: `docker run` would
-// do it silently, and silence is what makes a start look like a hang.
-func serviceImages(spec StartSandbox) []string {
-	return sandbox.ServiceImages(spec.Services)
 }

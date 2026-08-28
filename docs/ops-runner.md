@@ -290,6 +290,55 @@ TimeoutStopSec=60
 WantedBy=multi-user.target
 ```
 
+## Services beside a sandbox
+
+An agent may declare what has to run **beside** its sandbox: the database a test
+suite needs, the queue an application talks to. The runner brings those
+containers up with the sandbox, on a network belonging to that sandbox alone,
+and the agent reaches each one under its name — `db:5432`, exactly as the
+project's own `docker-compose.yml` writes it.
+
+Set in the agent's settings under **Services**, or through the API:
+
+```bash
+curl -X PATCH https://covey.example.com/api/v1/agents/$AGENT/services \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"services":[{"name":"db","image":"postgres:16",
+                    "env":{"POSTGRES_PASSWORD":"test"}}]}'
+```
+
+Three things are worth knowing before you use it:
+
+- **It costs memory on the host, and nothing counts it.** The capacity figure
+  above counts sandboxes, not the containers standing beside them. A Postgres
+  and a Redis per agent are real memory on that runner, and an agent set to
+  three services is three containers per wake — plan the host for it rather than
+  discovering it under load. It also costs one docker network per sandbox, and
+  the daemon's default address pool holds only a few dozen of those: a host
+  carrying many concurrent sandboxes with services wants
+  `default-address-pools` widened in `daemon.json` before it runs out, because
+  the error when it does names the network and not the cause.
+- **The services have no way out.** Their network is `--internal`: no internet,
+  by construction and not by allowlist. An image that wants to fetch something
+  at startup will not work, and that is deliberate — a test database has no
+  business outside. The sandbox's own way out is unaffected; it keeps the route
+  the egress configuration gives it.
+- **Their state ends with the sandbox.** Every path that ends a sandbox ends
+  them — the clean stop, a crash, and the start of the next sandbox. That is the
+  point rather than a limitation: what an agent keeps belongs in its home, and a
+  database that survived a run would hand the next one a state nobody wrote
+  down. Anything you would miss does not belong in a service.
+
+A service that cannot start **ends the wake** and takes the ones already up with
+it, with the reason in the agent's recording. Half a workplace is the state in
+which an agent reports the wrong defect — it finds the queue missing and writes
+that into a merge request, while the fault was a typo in an image reference.
+
+The images are the project's, not Covey's: they come from wherever the reference
+points, so a host behind a proxy or without access to that registry fails here
+with docker's own words. The declaration itself is checked when it is saved — a
+name has to be a host name, because that is what it becomes.
+
 ## The runner view
 
 **Runners** shows, per host: whether it is connected, which tags and images it

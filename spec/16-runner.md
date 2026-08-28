@@ -496,6 +496,45 @@ The catalogue URL defaults to what the project publishes and is derived from the
 
 What this removes is the class of failure, not one instance of it: a fresh installation needs no image name, an upgrade needs no second build, and "the image is missing" stops being a thing an operator has to fix by hand — the host pulls what the catalogue names.
 
+## Services beside the sandbox
+
+A workplace was an image and nothing else. What a project needs **beyond** the image — a database to test against, a queue an application talks to — had no place, and so it ended up in one of two spots that both cost:
+
+- **Built into the image and operated by hand.** `dev-full` and `dev-php` ship `mariadb-server`, and the workplace description tells the agent what to do with it: initialise a data directory with `mariadb-install-db` in its own home and start `mariadbd` against it. That puts scratch state into the one directory that is walked at every wake and written back after every run, spends an agent's turns on `mariadb-install-db` before it has read a line of the change it is meant to accept, and makes every agent that starts from that image carry a database server it never calls.
+- **Missing.** The QA agent's procedure had one exit for it: "a missing service … do NOT build a substitute out of stubs … write it into the MR as a finding". That instruction is right as long as the platform has nothing to offer — and it is the platform giving up in front of an answer the repository has usually already written down, in its own `docker-compose.yml`.
+
+A service is the third thing: **a container that runs beside the sandbox, for as long as the sandbox does, reachable under its name.** The agent connects to `db:5432`. It does not install it, does not operate it and does not see the host it runs on.
+
+```json
+{ "name": "db", "image": "postgres:16", "env": { "POSTGRES_PASSWORD": "test" } }
+```
+
+What is deliberately **not** in it: no port published to the host, no volume, no `build:`. Those are the parts of a compose file that only make sense on a developer's own machine — on a runner they are somebody else's machine.
+
+### The segment belongs to the sandbox
+
+The mechanism is the egress proxy's, one section down: an internal docker network and containers on it under a DNS alias. Two things differ, and both follow from what a service is.
+
+**The network hangs off the sandbox, not off the runner.** The egress segment is shared by an organisation on purpose. A service segment must not be: two agents both asking for `db` would put two aliases of the same name into one network, and docker would answer whichever it liked. A wrong database that answers is worse than none that does.
+
+**It is `--internal`.** A test database has no business on the internet, and the sandbox's own way out is the egress proxy's to grant. This is also what makes the construction safe: an internal network brings no gateway with it, so joining one leaves the sandbox's default route exactly as it was — which is what allows it to be attached as a *second* network beside the egress one. For the same reason the sandbox joins its services **after** its own start: the first network decides its default route, and that decision must not depend on whether somebody happened to declare a database.
+
+### Fail-closed, and scratch by definition
+
+A service that cannot start **ends the wake**, and takes the ones already up with it. Half a set of services is the state in which an agent reports the wrong defect — it finds the queue missing and writes that into a merge request, while the fault was a typo in an image reference.
+
+The services end with the sandbox, on every path: the clean stop, the crash the watcher saw, and the start of the next sandbox before anything else happens. Whatever they hold is therefore scratch by definition — what an agent keeps lives in its home ([`01-architecture.md`](01-architecture.md)), and a database that outlived its run would hand the next one a state nobody wrote down.
+
+Readiness is deliberately **not** answered here. A database is running long before it accepts connections, and whoever waits for a port is the one that wants to talk to it. The agent retries; the platform does not pretend.
+
+### Where the list comes from
+
+On the agent, beside the workplace image — because at the moment a sandbox starts, the agent is what the platform has. An agent that accepts merge requests in several projects will outgrow that, and reading the list from the project's own compose file (a subset of it: `image`, `environment`, `depends_on`; no `build:`, no host volumes, no `privileged`) is the next step.
+
+The runner protocol is therefore **indifferent to where the list came from**: `start_sandbox` carries services, and nothing in the data plane knows whether an agent, a project or a compose file named them. Moving the source later is a change on the control plane alone.
+
+The images are the project's, not Covey's: they are not resolved through the workplace catalogue above, which answers "which image belongs to this Covey version" — a project's database is not part of Covey. They are fetched the same way though, and for the same reason, with progress reported: `docker run` would fetch them silently, and silence is what makes a start look like a hang.
+
 ## Trust boundary
 
 With `start_sandbox` a runner receives an agent's `COVEY_DAEMON_TOKEN` and egress token in order to inject them into the container. It **can** therefore impersonate every agent it hosts. That is the same trust level as a CI runner that sees job tokens — but it has to be said out loud:

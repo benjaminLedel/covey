@@ -13,6 +13,7 @@ import (
 
 	"covey/internal/buildinfo"
 	"covey/internal/homestore"
+	"covey/internal/sandbox"
 )
 
 // Node is the runner side of the protocol: it starts and stops sandboxes and
@@ -479,7 +480,7 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 	// — but it is fetched on the FIRST wake after somebody declared it, which
 	// is exactly the moment they are watching to see whether the declaration
 	// worked.
-	for _, image := range serviceImages(spec) {
+	for _, image := range sandbox.ServiceImages(spec.Services) {
 		n.ensureImage(ctx, t, spec.AgentID, image)
 	}
 

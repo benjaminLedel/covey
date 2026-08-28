@@ -21,6 +21,7 @@
   "notes": [
     "This workplace has every toolchain there is here. If something seems to be missing, look again before you fetch it — Java, Flutter and a database are all present, and a copy in your home is written back after every run.",
     "No Android SDK. A build that has to produce an APK needs one, and asking for it is the way to get it — do not unpack platform-tools into your home.",
-    "You are not root and apt is not available to you. If a tool is missing, say so instead of building a way around it — that is a request, not a defeat."
+    "You are not root and apt is not available to you. If a tool is missing, say so instead of building a way around it — that is a request, not a defeat.",
+    "A database, a queue or any other service the project needs can also run BESIDE your sandbox — declared on your agent, brought up by the platform, reachable under its name (db:5432) and gone again with the sandbox. That is the better way: it costs no space in your home, no turns at the start of a run, and its state is scratch, which is what it should be. The server in this image is the fallback for when nobody has declared one."
   ]
 }
