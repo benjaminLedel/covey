@@ -95,7 +95,7 @@ jobs:
           DIGEST: ${{ steps.build.outputs.digest }}
       - uses: actions/upload-artifact@v4
         with:
-          name: digests-base-${{ matrix.arch }}
+          name: digests--base--${{ matrix.arch }}
           path: /tmp/digests/*
           retention-days: 1
 
@@ -107,7 +107,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: digests-base-*
+          pattern: digests--base--*
           merge-multiple: true
           path: /tmp/digests
       - uses: docker/login-action@v3
@@ -123,6 +123,17 @@ jobs:
             tags="base-$GITHUB_REF_NAME base-latest"
           else
             tags="base-latest base-$(echo "$GITHUB_SHA" | cut -c1-12)"
+          fi
+          # Eine Architektur, ein Digest: Steht hier eine andere Zahl, ist
+          # etwas eingesammelt worden, das nicht zu diesem Profil gehört —
+          # genau so entstand das Tag mit sechzehn Einträgen (#116). Lieber
+          # laut scheitern als ein Manifest veröffentlichen, aus dem sich jeder
+          # Host etwas anderes zieht.
+          n=$(ls -1 /tmp/digests | wc -l)
+          if [ "$n" -ne 2 ]; then
+            echo "expected 2 digests (amd64, arm64), found $n:" >&2
+            ls -1 /tmp/digests >&2
+            exit 1
           fi
           args=""
           for d in /tmp/digests/*; do args="$args ${image}@sha256:$(basename "$d")"; done
@@ -185,9 +196,15 @@ jobs:
           touch "/tmp/digests/${DIGEST#sha256:}"
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
+      # Der doppelte Bindestrich trennt, und das ist keine Kosmetik: Mit
+      # `digests-dev-amd64` zog das Manifest von `dev` per `digests-dev-*` auch
+      # die Digests von `dev-flutter`, `dev-php`, `dev-web` und `dev-full` an
+      # sich — ein Tag mit sechzehn Einträgen, aus dem sich jeder Host irgendein
+      # Rollen-Image zog (#116). Ein Profilname kann Bindestriche enthalten, ein
+      # DOPPELTER kommt darin nicht vor.
       - uses: actions/upload-artifact@v4
         with:
-          name: digests-${{ matrix.profile }}-${{ matrix.arch }}
+          name: digests--${{ matrix.profile }}--${{ matrix.arch }}
           path: /tmp/digests/*
           retention-days: 1
 
@@ -201,7 +218,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: digests-${{ matrix.profile }}-*
+          pattern: digests--${{ matrix.profile }}--*
           merge-multiple: true
           path: /tmp/digests
       - uses: docker/login-action@v3
@@ -218,6 +235,17 @@ jobs:
             tags="$PROFILE-$GITHUB_REF_NAME $PROFILE-latest"
           else
             tags="$PROFILE-latest $PROFILE-$(echo "$GITHUB_SHA" | cut -c1-12)"
+          fi
+          # Eine Architektur, ein Digest: Steht hier eine andere Zahl, ist
+          # etwas eingesammelt worden, das nicht zu diesem Profil gehört —
+          # genau so entstand das Tag mit sechzehn Einträgen (#116). Lieber
+          # laut scheitern als ein Manifest veröffentlichen, aus dem sich jeder
+          # Host etwas anderes zieht.
+          n=$(ls -1 /tmp/digests | wc -l)
+          if [ "$n" -ne 2 ]; then
+            echo "expected 2 digests (amd64, arm64), found $n:" >&2
+            ls -1 /tmp/digests >&2
+            exit 1
           fi
           args=""
           for d in /tmp/digests/*; do args="$args ${image}@sha256:$(basename "$d")"; done
@@ -288,7 +316,7 @@ jobs:
           DIGEST: ${{ steps.build.outputs.digest }}
       - uses: actions/upload-artifact@v4
         with:
-          name: digests-${{ matrix.profile }}-${{ matrix.arch }}
+          name: digests--${{ matrix.profile }}--${{ matrix.arch }}
           path: /tmp/digests/*
           retention-days: 1
 
@@ -302,7 +330,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: digests-${{ matrix.profile }}-*
+          pattern: digests--${{ matrix.profile }}--*
           merge-multiple: true
           path: /tmp/digests
       - uses: docker/login-action@v3
@@ -319,6 +347,17 @@ jobs:
             tags="$PROFILE-$GITHUB_REF_NAME $PROFILE-latest"
           else
             tags="$PROFILE-latest $PROFILE-$(echo "$GITHUB_SHA" | cut -c1-12)"
+          fi
+          # Eine Architektur, ein Digest: Steht hier eine andere Zahl, ist
+          # etwas eingesammelt worden, das nicht zu diesem Profil gehört —
+          # genau so entstand das Tag mit sechzehn Einträgen (#116). Lieber
+          # laut scheitern als ein Manifest veröffentlichen, aus dem sich jeder
+          # Host etwas anderes zieht.
+          n=$(ls -1 /tmp/digests | wc -l)
+          if [ "$n" -ne 2 ]; then
+            echo "expected 2 digests (amd64, arm64), found $n:" >&2
+            ls -1 /tmp/digests >&2
+            exit 1
           fi
           args=""
           for d in /tmp/digests/*; do args="$args ${image}@sha256:$(basename "$d")"; done

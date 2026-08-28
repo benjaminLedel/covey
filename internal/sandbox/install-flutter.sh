@@ -41,6 +41,11 @@ case "$(dpkg --print-architecture)" in
     *) echo "unsupported architecture: $(dpkg --print-architecture)" >&2; exit 1 ;;
 esac
 
+# /opt/flutter belongs to this script, so it takes it rather than assuming it
+# is free: a base image that already carries an SDK (dev-full builds on dev, and
+# a mis-tagged dev once WAS dev-flutter, #116) would otherwise stop the build at
+# "destination path already exists" instead of installing the version asked for.
+rm -rf /opt/flutter
 git clone --depth 1 --branch "${FLUTTER_VERSION}" \
     https://github.com/flutter/flutter.git /opt/flutter
 
