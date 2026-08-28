@@ -343,6 +343,11 @@ type session struct {
 	// log window reaches.
 	runnerID   uuid.UUID
 	runnerName string
+	// The sandbox itself, so that an action can reach it while the run is
+	// going on. The agent's own request for services needs it: it comes in over
+	// the daemon link, in the middle of a run, and the only other route to the
+	// right host would be a lookup by agent — which is the same thing, worse.
+	sandbox Sandbox
 	// And what stands beside the sandbox. Kept for the same reason as the two
 	// above and one more: a warm sandbox serves many jobs, so the services a
 	// run worked against were often brought up in a waking phase that is no
@@ -1098,6 +1103,9 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 	// second one it is the first one an operator asks in front of a run that
 	// behaved oddly — and the answer used to exist only in the process's log,
 	// if at all.
+	o.mu.Lock()
+	s.sandbox = sandbox
+	o.mu.Unlock()
 	if placed, ok := sandbox.(Placed); ok {
 		id, label := placed.Runner()
 		o.mu.Lock()
@@ -2097,6 +2105,13 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	// Und dasselbe fuer die andere Haelfte: `scope: agents:review` schaltet das
 	// Lesen und Vorschlagen frei (spec/21). Zwei Scopes, zwei Abschnitte — wer
 	// nur begutachten darf, liest nichts ueber das Entwerfen und umgekehrt.
+	// Und dasselbe für die Dienste: Wer `scope: services:write` trägt, liest,
+	// wie er die Compose-Datei seines Projekts hochfährt — und wer ihn nicht
+	// trägt, liest nichts davon. Eine Fähigkeit anzudeuten, die dann abgewiesen
+	// wird, ist die schlechteste Sorte (spec/20).
+	if o.mayStartServices(ctx, agent) {
+		compiled += "\n\n" + agents.ServicesDoc
+	}
 	mayReview := o.mayReviewAgents(ctx, agent)
 	if mayReview {
 		compiled += "\n\n" + agents.ReviewDoc

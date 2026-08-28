@@ -629,7 +629,7 @@ function buildItems(events: RecordingEvent[], nested: boolean): FeedItem[] {
               : `${svc.name} = ${svc.image}`,
           )
           .join(", ");
-        if (p.status === "refused") {
+        if (p.status === "refused" || p.status === "failed") {
           pushGate({
             icon: "shield",
             text: i18n.t("activity.servicesRefused", { services: names, error: p.error ?? "" }),
@@ -639,17 +639,34 @@ function buildItems(events: RecordingEvent[], nested: boolean): FeedItem[] {
           break;
         }
         closeTurn();
-        items.push({
-          key: k,
-          kind: "evt",
-          icon: "box",
-          text: i18n.t(p.status === "running" ? "activity.servicesRunning" : "activity.servicesStarted", {
-            services: names,
-            count: list.length,
-          }),
-          time,
-          tone: "muted",
-        });
+        // Abgelehnte Images stehen NEBEN den gestarteten, nicht statt ihrer:
+        // Beim Weg über die Compose-Datei ist beides zugleich normal, und wer
+        // den Lauf später liest, braucht gerade die Lücke — sie erklärt, warum
+        // ein Ergebnis weniger wert ist, als es aussieht.
+        const abgelehnt = Array.isArray(p.refused) ? (p.refused as Record<string, unknown>[]) : [];
+        if (list.length > 0) {
+          items.push({
+            key: k,
+            kind: "evt",
+            icon: "box",
+            text: i18n.t(p.status === "running" ? "activity.servicesRunning" : "activity.servicesStarted", {
+              services: names,
+              count: list.length,
+            }),
+            time,
+            tone: "muted",
+          });
+        }
+        if (abgelehnt.length > 0) {
+          pushGate({
+            icon: "shield",
+            text: i18n.t("activity.servicesNotAllowed", {
+              services: abgelehnt.map((svc) => `${svc.name} = ${svc.image}`).join(", "),
+            }),
+            time,
+            tone: "danger",
+          }, `${k}-refused`);
+        }
         break;
       }
 

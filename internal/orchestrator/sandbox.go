@@ -58,6 +58,18 @@ type WithServices interface {
 	Services() []sandbox.ServiceRun
 }
 
+// ServiceStarter is the optional half of a sandbox that can take services
+// while it runs — the path an agent uses for itself.
+//
+// Separate from WithServices because the two are separate capabilities: a
+// provider may be able to REPORT what stands beside a sandbox without being
+// able to add to it. The orchestrator asks for each where it needs it, and a
+// provider that has neither simply refuses the agent's request with a sentence
+// rather than failing somewhere deeper.
+type ServiceStarter interface {
+	StartServices(ctx context.Context, services []sandbox.Service) ([]sandbox.ServiceRun, error)
+}
+
 type Sandbox interface {
 	// Stop shuts the compute instance down; the home stays.
 	Stop(ctx context.Context) error

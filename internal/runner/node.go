@@ -212,6 +212,16 @@ func (n *Node) handle(ctx context.Context, t Transport, msg Message) {
 		// In its own goroutine: a download of a few gigabytes must not stop the
 		// runner from starting a sandbox in the meantime.
 		go n.homeOp(context.WithoutCancel(ctx), t, msg.ID, op)
+	case TypeAddServices:
+		req, err := decode[AddServices](msg)
+		if err != nil {
+			n.reply(ctx, t, msg.ID, TypeServicesAdded, SandboxResult{Err: err.Error()})
+			return
+		}
+		// In order with the starts and stops of the same agent: bringing a
+		// service up while its sandbox is being torn down would leave a
+		// container that belongs to nothing.
+		n.inOrder(req.AgentID, func() { n.addServices(ctx, t, msg.ID, req) })
 	case TypeCapacity:
 		// Beside the loop, like everything that can take time. Free space is a
 		// statfs and costs nothing — until the file system it asks about hangs,
@@ -579,6 +589,36 @@ func (n *Node) watchSandbox(ctx context.Context, t Transport, id string, spec St
 	// image each one actually started from, and that is what a recording has to
 	// be able to say six months later.
 	n.reply(ctx, t, id, TypeSandboxStarted, SandboxResult{AgentID: spec.AgentID, Services: services})
+}
+
+// addServices brings services up beside a running sandbox.
+//
+// It refuses when there is no sandbox, and that refusal is the useful half: an
+// agent asking for a database is asking from INSIDE its sandbox, so "there is
+// none" means this runner is not the one holding it. Saying so is better than
+// starting containers that would then stand beside nothing.
+func (n *Node) addServices(ctx context.Context, t Transport, id string, req AddServices) {
+	n.mu.Lock()
+	proc := n.running[req.AgentID]
+	n.mu.Unlock()
+	if proc == nil {
+		n.reply(ctx, t, id, TypeServicesAdded, SandboxResult{
+			AgentID: req.AgentID,
+			Err:     "this runner is not holding a sandbox for this agent",
+		})
+		return
+	}
+	for _, image := range sandbox.ServiceImages(req.Services) {
+		n.ensureImage(ctx, t, req.AgentID, image)
+	}
+	started, err := n.Docker.AddServices(ctx, req.AgentID, proc.container, req.Services)
+	if err != nil {
+		n.Log.Warn("adding services failed", "agent", req.AgentID, "err", err)
+		n.reply(ctx, t, id, TypeServicesAdded, SandboxResult{AgentID: req.AgentID, Err: err.Error()})
+		return
+	}
+	n.Log.Info("services added", "agent", req.AgentID, "count", len(started))
+	n.reply(ctx, t, id, TypeServicesAdded, SandboxResult{AgentID: req.AgentID, Services: started})
 }
 
 // watch waits for the container to end and reports it — unless somebody asked

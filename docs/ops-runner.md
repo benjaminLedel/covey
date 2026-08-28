@@ -343,6 +343,20 @@ Three things are worth knowing before you use it:
   database that survived a run would hand the next one a state nobody wrote
   down. Anything you would miss does not belong in a service.
 
+**An agent can bring up its project's own services.** Give it
+`- system: covey scope: services:write` in its ACCESS.md and it may send the
+content of a repository's `docker-compose.yml` and get what stands in it — the
+database, the cache, the queue. It still chooses only among the images your
+allowlist permits, so this grants no new reach: the privileged act stays
+extending the list. Without that scope the agent neither reads about the action
+in its prompt nor may call it.
+
+Useful to know when you read such a run: the project's own application is
+normally *skipped*, because it is built from the source the agent has and
+belongs inside its sandbox rather than beside it. And a service the allowlist
+refuses is reported to the agent by name, so it can tell you instead of quietly
+producing a result that means nothing.
+
 **What actually ran is in the recording, per job.** The host reports which image
 each service started from — the image id, not only the tag it was configured
 with — and that is recorded twice: once at the wake (what came up, or what was

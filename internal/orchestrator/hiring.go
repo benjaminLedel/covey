@@ -75,6 +75,12 @@ var coveyOps = map[string]coveyOp{
 	// Kollegen. Geprüft in reviewPropose, wo der Betroffene bekannt ist.
 	"propose_agent_config": {Subject: "covey:propose_agent_config", Scopes: []string{scopeReview, scopeWrite}},
 	"write_review":         {Subject: "covey:write_review", Scopes: []string{scopeReview}},
+
+	// Die Dienste neben der eigenen Sandbox (spec/16). Eigener Scope, und das
+	// ist keine Sorgfalt um ihrer selbst willen: `agents:write` lässt einen
+	// Agenten Kollegen entwerfen, und ein QA-Agent, der eine Datenbank braucht,
+	// hat damit nichts zu schaffen.
+	"start_services": {Subject: "covey:start_services", Scopes: []string{scopeServices}},
 }
 
 // hiringSystem is the name of the access in ACCESS.md that unlocks these
@@ -94,6 +100,11 @@ const hiringSystem = "covey"
 const (
 	scopeWrite  = "agents:write"
 	scopeReview = "agents:review"
+	// scopeServices erlaubt einem Agenten, die Dienste seines Projekts neben
+	// seiner Sandbox hochzufahren (spec/16). Er wählt dabei keine Images: er
+	// wählt unter denen, die die Organisation erlaubt hat. Das Privileg ist die
+	// Allowlist zu erweitern, nicht eine Referenz zu nennen.
+	scopeServices = "services:write"
 	// hiringScope bleibt als Name stehen, wo der Entwurfs-Pfad ihn nennt.
 	hiringScope = scopeWrite
 )
@@ -208,6 +219,8 @@ func (o *Orchestrator) hiring(ctx context.Context, agent agents.Agent, taskID uu
 		return o.reviewPropose(ctx, agent, taskID, req, ok, fail)
 	case "write_review":
 		return o.reviewWrite(ctx, agent, taskID, req, ok, fail)
+	case "start_services":
+		return o.startServices(ctx, agent, taskID, req, ok, fail)
 	}
 	return fail("unknown covey action %q", op)
 }

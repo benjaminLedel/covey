@@ -63,6 +63,11 @@ const (
 	// outside that looks like a hanging wake, not like a download. Asked for
 	// deliberately, it happens while somebody is looking.
 	TypePullImage = "pull_image"
+	// TypeAddServices brings services up beside a sandbox that is already
+	// running. The path an agent takes for itself: it finds a compose file in a
+	// checkout it made during THIS run, and a mechanism that only took effect
+	// at the next wake would be one nobody uses.
+	TypeAddServices = "add_services"
 	// TypeSetLogLevel raises or lowers what a runner reports. Normally info;
 	// debug for as long as somebody is looking at a problem on that one host.
 	// A level that could only be set at start-up would mean an SSH session and
@@ -388,6 +393,19 @@ type StartSandbox struct {
 	// that only writes wiki pages stays in.
 	Services []sandbox.Service `json:"services,omitempty"`
 }
+
+// AddServices asks for services beside a sandbox that is already up. The
+// control plane has already decided WHETHER they may run — the organisation's
+// allowlist is its question, and the runner would have to be a database client
+// to ask it (spec/16, "Trust boundary").
+type AddServices struct {
+	AgentID  uuid.UUID         `json:"agent_id"`
+	Services []sandbox.Service `json:"services"`
+}
+
+// TypeServicesAdded is the answer: what came up, with the image each one
+// actually started from.
+const TypeServicesAdded = "services_added"
 
 // SyncHome writes an agent's home into the store.
 type SyncHome struct {

@@ -550,9 +550,21 @@ It is recorded **twice**, against different things, because two different questi
 
 ### Where the list comes from
 
-On the agent, beside the workplace image — because at the moment a sandbox starts, the agent is what the platform has. An agent that accepts merge requests in several projects will outgrow that, and reading the list from the project's own compose file (a subset of it: `image`, `environment`, `depends_on`; no `build:`, no host volumes, no `privileged`) is the next step.
+Two places, and they answer different questions.
 
-The runner protocol is therefore **indifferent to where the list came from**: `start_sandbox` carries services, and nothing in the data plane knows whether an agent, a project or a compose file named them. Moving the source later is a change on the control plane alone.
+**On the agent**, beside the workplace image: what this agent always needs, brought up with the sandbox and therefore already there when the daemon reports ready.
+
+**Out of the project's own `docker-compose.yml`**, asked for by the agent during the run. That is the one that makes the mechanism usable rather than merely correct: a typed declaration assumes somebody knew, before the run, which database this project wants — and for an agent accepting merge requests across several projects that assumption is wrong on the second project. The answer has been in the repository all along.
+
+The agent reads the file (it is in a checkout it made on a machine only it can see) and sends the **content**; a path would have to be resolved by a control plane that does not reach into sandboxes. What comes back is three lists, because three different things happened: `started`, `skipped` (not for you — the project's own application above all, which is built from the source the agent has and therefore belongs *inside* its sandbox), and `refused` (the organisation does not allow that image). Only the third is somebody else's decision to change, and the agent is told so rather than left to retry.
+
+Partial is normal on this path, and that is the difference from the declared set at the wake. A compose file legitimately contains services that must not run beside a sandbox; refusing the file because of them would make the mechanism useless for the files it exists for. The declared set is different in kind — somebody stated exactly that, so one of them missing means the configuration is wrong.
+
+The subset that is read: `image`, `environment` (both spellings compose allows), and nothing else. `build:` marks a service as the project's own. A host bind mount, `privileged`, `cap_add`, `devices`, a foreign `network_mode` or `pid` namespace each cost that one service its place, with the reason — those are the keys that would turn a service into a way onto the runner.
+
+The runner protocol stays **indifferent to where the list came from**: `start_sandbox` carries services and `add_services` brings them to a sandbox that is already up. Nothing in the data plane knows whether an agent, a manager or a compose file named them.
+
+The capability follows a scope of its own, `services:write`, and deliberately not `agents:write` — that one lets an agent draft colleagues, and a QA agent that wants a database has no business with it. Whoever holds it reads about the action in their prompt; whoever does not, does not. A capability by suggestion that is then refused is the worst kind.
 
 The images are the project's, not Covey's: they are not resolved through the workplace catalogue above, which answers "which image belongs to this Covey version" — a project's database is not part of Covey. They are fetched the same way though, and for the same reason, with progress reported: `docker run` would fetch them silently, and silence is what makes a start look like a hang.
 

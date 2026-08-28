@@ -176,7 +176,7 @@ func (p *Docker) Start(ctx context.Context, spec StartSandbox) (string, []sandbo
 	// The services first: a daemon that reports `ready` should be reporting a
 	// workplace that is complete. A failure here ends the start — an agent that
 	// believes it has a database and has not would report the wrong defect.
-	services, err := p.startServices(ctx, spec)
+	services, err := p.startServices(ctx, spec.AgentID, spec.Services)
 	if err != nil {
 		return "", nil, err
 	}
@@ -256,7 +256,7 @@ func (p *Docker) Start(ctx context.Context, spec StartSandbox) (string, []sandbo
 		}
 		return "", nil, fmt.Errorf("docker run: %v: %s", err, msg)
 	}
-	if err := p.joinServices(ctx, spec, name); err != nil {
+	if err := p.joinSandboxToItsServices(ctx, spec, name); err != nil {
 		// A sandbox that cannot reach its services is not a sandbox with a
 		// smaller workplace; it is one whose declaration is a lie. Both halves
 		// go, and the start fails with the reason.

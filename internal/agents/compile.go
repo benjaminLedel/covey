@@ -401,6 +401,50 @@ own role — after your first task, say. For a COLLEAGUE's configuration this
 action is closed to you: that is somebody else's job and needs a different
 access.`
 
+// ServicesDoc describes bringing up a project's services (spec/16). Like
+// HiringDoc it follows the SCOPE: it stands in the prompt of whoever has
+// `- system: covey scope: services:write`, and nobody else reads about a
+// capability they do not have.
+const ServicesDoc = `## Bringing up what a project needs
+
+A project usually says for itself what it needs in order to run: a database, a
+cache, a queue. If there is a ` + "`docker-compose.yml`" + ` in the checkout, that file
+is the answer, and you can act on it instead of asking somebody.
+
+   ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/covey/start_services -d '{\"compose\":\"<the content of the file>\"}'`" + `
+   — send the CONTENT of the file, not its path: the platform cannot see into
+     your sandbox. Optionally ` + "`\"only\":[\"db\",\"cache\"]`" + ` to bring up part of it.
+
+What comes back has three lists, and they mean three different things:
+
+- ` + "`started`" + ` — running now. Each is reachable under its own name, exactly as
+  the compose file writes it: ` + "`db:5432`" + `, ` + "`cache:6379`" + `. Do NOT use
+  ` + "`localhost`" + ` for them; they are beside your sandbox, not inside it.
+- ` + "`skipped`" + ` — not for you, with the reason. The project's own application is
+  normally here: it is built from the source you have, so it belongs in your
+  sandbox where you build and run it, not beside it.
+- ` + "`refused`" + ` — the organisation does not allow that image beside a sandbox.
+  You cannot change that and should not try. Report it — name the service and
+  the image — and carry on without it, or say plainly which part of your
+  assignment you could not do.
+
+Three things this is not:
+
+**Not a substitute for reading.** The compose file may set variables the project
+also expects elsewhere; check its README as well.
+
+**Not persistent.** These containers end with your sandbox, and everything in
+them goes with it. That is what they are for — a test database is scratch. What
+you want to keep goes in your home or on a wiki page.
+
+**Not immediate.** A database is running long before it accepts connections.
+Wait for the port, retry; do not conclude from one refused connection that the
+service did not start.
+
+You do not install these services, you do not configure them and you do not
+operate them. If one is missing from the file, that is a finding about the
+project, not a job for you.`
+
 // ReviewDoc describes the review actions (spec/21). Like HiringDoc it follows
 // the SCOPE, not the agent: it stands in the prompt of whoever has
 // `- system: covey scope: agents:review` in its ACCESS.md, and in nobody

@@ -2053,7 +2053,8 @@
     "stale": "Zustand aufgelöst: „{{was}}“ stand da, ohne dass ein Lauf dahinter war",
     "servicesStarted": "Dienste hochgefahren: {{services}}",
     "servicesRunning": "Lief gegen: {{services}}",
-    "servicesRefused": "Arbeitsplatz abgelehnt — {{error}}"
+    "servicesRefused": "Arbeitsplatz abgelehnt — {{error}}",
+    "servicesNotAllowed": "Nicht erlaubt und deshalb nicht gestartet: {{services}}"
   },
   "common": {
     "loading": "lädt …"

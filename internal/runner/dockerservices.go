@@ -71,17 +71,17 @@ func agentIDFromContainer(name string) (uuid.UUID, bool) {
 // another question and deliberately not answered here: a database is running
 // long before it accepts connections, and whoever waits for a port is the one
 // that wants to talk to it. The agent retries; the platform does not pretend.
-func (p *Docker) startServices(ctx context.Context, spec StartSandbox) ([]sandbox.ServiceRun, error) {
-	if len(spec.Services) == 0 {
+func (p *Docker) startServices(ctx context.Context, agentID uuid.UUID, services []sandbox.Service) ([]sandbox.ServiceRun, error) {
+	if len(services) == 0 {
 		return nil, nil
 	}
-	network := servicesNetworkFor(spec.AgentID)
-	if err := p.ensureServicesNetwork(ctx, spec.AgentID, network); err != nil {
+	network := servicesNetworkFor(agentID)
+	if err := p.ensureServicesNetwork(ctx, agentID, network); err != nil {
 		return nil, err
 	}
-	started := make([]sandbox.ServiceRun, 0, len(spec.Services))
-	for _, svc := range spec.Services {
-		name := serviceContainerName(spec.AgentID, svc.Name)
+	started := make([]sandbox.ServiceRun, 0, len(services))
+	for _, svc := range services {
+		name := serviceContainerName(agentID, svc.Name)
 		// A predecessor of the same name blocks the start. It belongs to this
 		// agent either way — the name says so — so it goes.
 		_ = exec.CommandContext(ctx, p.docker(), "rm", "-f", name).Run()
@@ -92,7 +92,7 @@ func (p *Docker) startServices(ctx context.Context, spec StartSandbox) ([]sandbo
 			// The alias is the whole point: the agent reaches `db`, not a
 			// container name with an ID in it.
 			"--network-alias", svc.Name,
-			"--label", serviceLabel + "=" + spec.AgentID.String(),
+			"--label", serviceLabel + "=" + agentID.String(),
 			// No restart policy: a service that dies has failed, and a loop
 			// that hides it would leave the agent guessing at a database that
 			// is there every second time.
@@ -109,7 +109,7 @@ func (p *Docker) startServices(ctx context.Context, spec StartSandbox) ([]sandbo
 			// services is the state in which an agent reports the wrong defect:
 			// it finds the queue missing and writes that into a merge request,
 			// while the real fault was a typo in an image reference.
-			p.removeServices(context.WithoutCancel(ctx), spec.AgentID)
+			p.removeServices(context.WithoutCancel(ctx), agentID)
 			if strings.Contains(msg, "No such image") || strings.Contains(msg, "Unable to find image") ||
 				strings.Contains(msg, "pull access denied") || strings.Contains(msg, "manifest unknown") {
 				return nil, fmt.Errorf("service %q: the image %q could not be fetched — it is the project's image, not one of the workplace catalogue's, so this host needs access to the registry it comes from: %s",
@@ -162,12 +162,19 @@ func (p *Docker) ensureServicesNetwork(ctx context.Context, agentID uuid.UUID, n
 // It still happens inside Start, so it is done before the control plane treats
 // the sandbox as up: the daemon has yet to report `ready`, and no job runs
 // before it does.
-func (p *Docker) joinServices(ctx context.Context, spec StartSandbox, container string) error {
+// joinSandboxToItsServices is the start path's caller: a sandbox that declared
+// nothing has no segment to join, and asking docker to connect it to one that
+// does not exist would fail every ordinary start.
+func (p *Docker) joinSandboxToItsServices(ctx context.Context, spec StartSandbox, container string) error {
 	if len(spec.Services) == 0 {
 		return nil
 	}
+	return p.joinServices(ctx, spec.AgentID, container)
+}
+
+func (p *Docker) joinServices(ctx context.Context, agentID uuid.UUID, container string) error {
 	out, err := exec.CommandContext(ctx, p.docker(), "network", "connect",
-		servicesNetworkFor(spec.AgentID), container).CombinedOutput()
+		servicesNetworkFor(agentID), container).CombinedOutput()
 	if err != nil {
 		msg := strings.TrimSpace(string(out))
 		if strings.Contains(msg, "already exists") || strings.Contains(msg, "already connected") {
@@ -205,4 +212,27 @@ func (p *Docker) removeServices(ctx context.Context, agentID uuid.UUID) {
 	// and that is correct: the next start creates it again under the same name
 	// and finds it usable.
 	_ = exec.CommandContext(ctx, p.docker(), "network", "rm", servicesNetworkFor(agentID)).Run()
+}
+
+// AddServices brings services up beside a sandbox that is ALREADY running, and
+// attaches it to them.
+//
+// This is the path an agent takes for itself: it finds a `docker-compose.yml`
+// in the checkout it has just made and asks for what stands in it. That cannot
+// wait for the next wake — the checkout the file came from was made during THIS
+// run, and a mechanism that only takes effect afterwards is one nobody uses.
+//
+// Everything here is idempotent, and it has to be: the segment may already
+// exist from the declared services at the wake, the sandbox may already hang in
+// it, and an agent may ask twice because its first attempt returned something
+// it did not read properly.
+func (p *Docker) AddServices(ctx context.Context, agentID uuid.UUID, container string, services []sandbox.Service) ([]sandbox.ServiceRun, error) {
+	started, err := p.startServices(ctx, agentID, services)
+	if err != nil {
+		return nil, err
+	}
+	if err := p.joinServices(ctx, agentID, container); err != nil {
+		return nil, err
+	}
+	return started, nil
 }

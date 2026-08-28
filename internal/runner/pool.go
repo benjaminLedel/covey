@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -1425,7 +1426,45 @@ type poolSandbox struct {
 // Services satisfies orchestrator.WithServices: what stands beside this
 // sandbox. The control plane cannot work this out for itself — only the host
 // that ran `docker run` knows which image the reference resolved to.
-func (s *poolSandbox) Services() []sandbox.ServiceRun { return s.services }
+func (s *poolSandbox) Services() []sandbox.ServiceRun {
+	// Under the lock, because StartServices appends to this while the sandbox
+	// runs: the agent asking for its project's database is a second writer to
+	// a slice the orchestrator reads whenever it records a job.
+	s.pool.mu.Lock()
+	defer s.pool.mu.Unlock()
+	return slices.Clone(s.services)
+}
+
+// StartServices satisfies orchestrator.ServiceStarter: bring services up
+// beside this sandbox while it runs.
+//
+// It goes to the host this sandbox is ON, not to any host of the organisation —
+// a service is only useful on the network its sandbox hangs in, and the
+// connection is already here. Whether they MAY run has been decided before this
+// call: the allowlist is the organisation's question, and a runner would have
+// to be a database client to ask it.
+func (s *poolSandbox) StartServices(ctx context.Context, services []sandbox.Service) ([]sandbox.ServiceRun, error) {
+	answer, err := s.conn.ask(ctx, TypeAddServices, AddServices{
+		AgentID: s.agentID, Services: services,
+	}, s.pool.startTimeout())
+	if err != nil {
+		return nil, err
+	}
+	res, err := decode[SandboxResult](answer)
+	if err != nil {
+		return nil, err
+	}
+	if res.Err != "" {
+		return nil, errors.New(res.Err)
+	}
+	// What the agent gets told is what the HOST reported, not what was asked
+	// for. The two differ exactly when something went wrong quietly, and that
+	// is the case worth not papering over.
+	s.pool.mu.Lock()
+	s.services = append(s.services, res.Services...)
+	s.pool.mu.Unlock()
+	return res.Services, nil
+}
 
 // SyncHome writes the home into the store while the compute keeps running —
 // satisfies orchestrator.HomeSyncer, and it is how a warm-parked sandbox gets

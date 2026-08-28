@@ -9,9 +9,14 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.10.0
 	golang.org/x/crypto v0.55.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
-require github.com/emersion/go-message v0.18.2 // indirect
+require (
+	github.com/emersion/go-message v0.18.2 // indirect
+	github.com/kr/text v0.2.0 // indirect
+	github.com/rogpeppe/go-internal v1.16.0 // indirect
+)
 
 require (
 	github.com/benjaminLedel/covey-plugin-pack v0.14.0

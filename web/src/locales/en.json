@@ -2053,7 +2053,8 @@
     "stale": "State reconciled: “{{was}}” stood there with no run behind it",
     "servicesStarted": "Services brought up: {{services}}",
     "servicesRunning": "Ran against: {{services}}",
-    "servicesRefused": "Workplace refused — {{error}}"
+    "servicesRefused": "Workplace refused — {{error}}",
+    "servicesNotAllowed": "Not allowed, so not started: {{services}}"
   },
   "common": {
     "loading": "loading …"
