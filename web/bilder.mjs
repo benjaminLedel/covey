@@ -31,7 +31,7 @@ const BILDER = [
   // decoration behind a caption, and it drifts (band-zoom). Hence the lower
   // quality — measured against the screenshots beside it, where a lower one
   // would blur the very thing the picture is there to show.
-  { datei: "landing/murmuration.jpg", breiten: [700, 1400], q: 48 },
+  { datei: "landing/murmuration.jpg", breiten: [700, 1400], q: 40 },
   // "How Covey works": beside the three steps, at most 320 px high — the
   // source is 1600 × 1600.
   { datei: "landing/formation.jpg", breiten: [480, 960] },
