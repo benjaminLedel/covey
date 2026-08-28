@@ -3,6 +3,7 @@ package sandbox
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -172,6 +173,60 @@ func TestEveryProfileNamesAFileThatExists(t *testing.T) {
 		zeile := "COPY internal/sandbox/workplaces/" + p.Name + ".json /etc/covey/workplace.json"
 		if !strings.Contains(string(roh), zeile) {
 			t.Errorf("%s does not copy the description of %q into the image (%q)", p.Dockerfile, p.Name, zeile)
+		}
+	}
+}
+
+// The workflow that BUILDS the images names the profiles a third time — in the
+// build matrix, in the shell loop that collects the digests, and in the
+// catalogue entry it writes. It has to: a GitHub matrix cannot ask a Go
+// registry. What it must not do is drift, and the failure is quiet in both
+// directions — a profile missing there is a workplace every instance offers and
+// no host can pull; a profile only there is an image nobody knows.
+func TestTheWorkflowBuildsExactlyTheseProfiles(t *testing.T) {
+	roh, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", "sandbox-images.yml"))
+	if err != nil {
+		t.Skipf("no workflow to compare against: %v", err)
+	}
+	workflow := string(roh)
+
+	var alle, ohneBase []string
+	for _, p := range All() {
+		alle = append(alle, p.Name)
+		if p.Name != "base" {
+			// `base` is built by its own stage — everything else runs through
+			// the matrix on top of it.
+			ohneBase = append(ohneBase, p.Name)
+		}
+	}
+
+	fundstellen := []struct {
+		was     string
+		muster  string
+		trenner string
+		erwarte []string
+	}{
+		{"the build matrix", `profile: \[([^\]]*)\]`, ",", ohneBase},
+		{"the digest loop", `profiles="([^"]*)"`, " ", alle},
+		{"the catalogue order", `reihenfolge = \[n for n in \(([^)]*)\)`, ",", alle},
+	}
+	for _, f := range fundstellen {
+		treffer := regexp.MustCompile(f.muster).FindAllStringSubmatch(workflow, -1)
+		if len(treffer) == 0 {
+			t.Errorf("%s was not found in the workflow — has it been rewritten?", f.was)
+			continue
+		}
+		for _, tr := range treffer {
+			var namen []string
+			for _, teil := range strings.Split(tr[1], f.trenner) {
+				name := strings.Trim(strings.TrimSpace(teil), `"'`)
+				if name != "" {
+					namen = append(namen, name)
+				}
+			}
+			if strings.Join(namen, " ") != strings.Join(f.erwarte, " ") {
+				t.Errorf("%s says %v, the catalogue says %v", f.was, namen, f.erwarte)
+			}
 		}
 	}
 }
