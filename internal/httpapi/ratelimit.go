@@ -172,7 +172,7 @@ func (l *loginLimiter) sweep(now time.Time) {
 // ignored: the header is written by whoever sends the request, so an instance
 // reachable directly would let every attacker pick their own bucket.
 //
-// Behind a reverse proxy — the setup docs/ops-deployment.md recommends for
+// Behind a reverse proxy — the setup docs/en/operations/deployment.md recommends for
 // production — the peer address is the PROXY, the same one for everybody.
 // Every limit keyed on it then becomes one shared bucket: ten sign-up attempts
 // an hour for the whole installation, and the eleventh guest at the conference

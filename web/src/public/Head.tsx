@@ -163,9 +163,14 @@ export function seoTags(
     tags.push({ tag: "link", attrs: { rel: "canonical", href: canonical } });
   }
 
-  // hreflang: beide Fassungen zeigen aufeinander, x-default auf die deutsche.
-  // Fehlt die Gegenrichtung, wertet Google die Angabe nicht.
-  if (route.indexable) {
+  /* hreflang: beide Fassungen zeigen aufeinander, x-default auf die deutsche.
+     Fehlt die Gegenrichtung, wertet Google die Angabe nicht.
+
+     Nicht für Seiten mit fremdem Canonical: Wer seine kanonische Adresse
+     woanders hat, tritt nicht selbst als Sprachfassung auf. Das betrifft die
+     Betriebs-Rezepte, die es nur auf Englisch gibt — eine deutsche Adresse
+     mit englischem Text ist keine deutsche Fassung. */
+  if (route.indexable && !route.canonical) {
     for (const l of LANGS) {
       tags.push({
         tag: "link",

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 // Der Quelltext von App.tsx als Text — Vite löst ?raw auf, damit der Test ohne
 // Node-Typen auskommt (tsc -b prüft die Tests mit).
 import appQuelltext from "../AppShell.tsx?raw";
-import { DOC_PAGES } from "./docs/docsContent";
+import { DOC_PAGES } from "./docs/content.generated";
 import { seoTags } from "./Head";
 import {
   APP_ROUTE_PREFIXES,
@@ -30,7 +30,13 @@ describe("Routen-Tabelle", () => {
   });
 
   it("gibt jeder Seite einen eigenen Titel und eine Description", () => {
-    const titel = PUBLIC_ROUTES.flatMap((r) => LANGS.map((l) => r.title[l]));
+    /* Nur die Adressen, die für sich selbst stehen. Eine Seite mit fremdem
+       Canonical tritt im Index nicht eigenständig auf — die Betriebs-Rezepte
+       gibt es nur auf Englisch und ihre deutsche Adresse zeigt auf die
+       englische, trägt also zu Recht denselben Titel. */
+    const titel = PUBLIC_ROUTES.flatMap((r) =>
+      LANGS.filter((l) => !r.canonical || r.canonical[l] === r.path[l]).map((l) => r.title[l]),
+    );
     expect(new Set(titel).size).toBe(titel.length);
 
     for (const r of PUBLIC_ROUTES) {

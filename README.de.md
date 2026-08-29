@@ -74,9 +74,9 @@ Für den ersten Agenten gehen Sie auf *Neuer Agent → Ausschreibung* und beschr
 Was diese fünf Befehle einrichten:
 
 - [`docker-compose.yml`](docker-compose.yml) bringt Postgres (pgvector) und das covey-Binary mit eingebetteter Admin-UI. Migrationen laufen beim Start; `bootstrap` legt Organisation, Admin und einen Demo-Agenten an.
-- `make sandbox-images-pull` holt die Container, in denen ein Agent arbeitet — `base` ([`Dockerfile.sandbox`](Dockerfile.sandbox): Claude Code, chromium, git, ripgrep), `dev` (zusätzlich PHP, JDK und die Versionsmanager `fvm`/`uv`) die Rollen-Arbeitsplätze `dev-flutter`, `dev-php` und `dev-web` für Agenten, deren Feld feststeht, und `dev-full` für eine Installation, die gar nicht aufteilen will ([`docs/ops-workplaces.md`](docs/ops-workplaces.md)), für amd64 und arm64, gebaut von [der Pipeline des Projekts](.github/workflows/sandbox-images.yml). `SANDBOX_PROFILES="base dev-web"` holt nur, was gebraucht wird; `make sandbox-images` baut sie stattdessen hier.
+- `make sandbox-images-pull` holt die Container, in denen ein Agent arbeitet — `base` ([`Dockerfile.sandbox`](Dockerfile.sandbox): Claude Code, chromium, git, ripgrep), `dev` (zusätzlich PHP, JDK und die Versionsmanager `fvm`/`uv`) die Rollen-Arbeitsplätze `dev-flutter`, `dev-php` und `dev-web` für Agenten, deren Feld feststeht, und `dev-full` für eine Installation, die gar nicht aufteilen will ([`docs/en/operations/workplaces.md`](docs/en/operations/workplaces.md)), für amd64 und arm64, gebaut von [der Pipeline des Projekts](.github/workflows/sandbox-images.yml). `SANDBOX_PROFILES="base dev-web"` holt nur, was gebraucht wird; `make sandbox-images` baut sie stattdessen hier.
 
-Vollständige Anleitung inklusive erstem Agenten und Produktions-Checkliste: [`docs/quickstart-docker.md`](docs/quickstart-docker.md).
+Vollständige Anleitung inklusive erstem Agenten und Produktions-Checkliste: [`docs/en/getting-started/quickstart.md`](docs/en/getting-started/quickstart.md).
 
 ## Was Sie bekommen
 
@@ -200,32 +200,37 @@ curl -sSL https://covey.example/install.sh | sh
 
 So fügen Sie einen Runner hinzu. Die Instanz kennt ihre eigene Version, also bekommen Sie einen Runner, der dasselbe Protokoll spricht wie der Server, bei dem er sich registrieren wird. Die Binaries kommen weiterhin aus dem GitHub-Release; die Instanz bestimmt die Version, nicht den Inhalt.
 
-Das installiert nur Binaries. Die Control Plane braucht zusätzlich PostgreSQL (mit pgvector) und Docker für die Sandboxes; das Skript nennt, was noch fehlt, und [`docs/ops-deployment.md`](docs/ops-deployment.md) hat den vollständigen Weg.
+Das installiert nur Binaries. Die Control Plane braucht zusätzlich PostgreSQL (mit pgvector) und Docker für die Sandboxes; das Skript nennt, was noch fehlt, und [`docs/en/operations/deployment.md`](docs/en/operations/deployment.md) hat den vollständigen Weg.
 
 ## Dokumentation
 
-Alle Runbooks sind auf Englisch.
+Die Dokumentation liegt unter [`docs/`](docs/) und ist derselbe Text, den die
+Website ausliefert — eine Quelle, per Pull Request änderbar. Englisch ist diese
+Quelle (`docs/en/…`); wo es eine deutsche Übersetzung gibt, steht sie unter
+demselben relativen Pfad in `docs/de/…`, und
+[`docs/sections.yml`](docs/sections.yml) hält die Lesereihenfolge. Die
+Betriebs-Runbooks unten gibt es nur auf Englisch.
 
 | Dokument | Inhalt |
 |---|---|
-| [`docs/quickstart-docker.md`](docs/quickstart-docker.md) | Compose-Setup, erster Agent, Produktions-Checkliste |
-| [`docs/ops-deployment.md`](docs/ops-deployment.md) | CI-Pipeline, Auto-Deploy auf einen Zielhost |
-| [`docs/upgrade.md`](docs/upgrade.md) | Upgrades, die mehr brauchen als einen Neustart — was vorher zu bauen und zu sichern ist |
-| [`docs/api-keys.md`](docs/api-keys.md) | API-Keys: Covey von außen steuern — was ein Key darf und was nur der Browser darf |
-| [`docs/ops-runner.md`](docs/ops-runner.md) | Runner: Sandboxes auf mehreren Hosts, der Home-Store, harte Egress-Isolation |
-| [`docs/ops-workplaces.md`](docs/ops-workplaces.md) | Arbeitsplätze: in welchem Image ein Agent arbeitet, die Rollen-Images, ein eigener Arbeitsplatz |
-| [`docs/ops-zammad.md`](docs/ops-zammad.md) | Zammad: API-Token, Webhook + Trigger, kundensichtbare Antworten |
-| [`docs/ops-github.md`](docs/ops-github.md) | GitHub: Issues, Pull Requests, Actions, Checkout in der Sandbox |
-| [`docs/ops-gitlab.md`](docs/ops-gitlab.md) | GitLab: Issues, Merge Requests, Checkout in der Sandbox |
-| [`docs/ops-jira.md`](docs/ops-jira.md) | Jira: das Ticket neben dem Repository — Cloud und Data Center, der Workflow, das Heartbeat-Gate |
-| [`docs/ops-confluence.md`](docs/ops-confluence.md) | Confluence: die Dokumentation als Kontext und als Ort für Ergebnisse |
-| [`docs/ops-email.md`](docs/ops-email.md) | Ein E-Mail-Postfach als Wake-Quelle (IMAP/SMTP) |
-| [`docs/ops-teams.md`](docs/ops-teams.md) | Microsoft Teams als Kanal zwischen Mensch und Agent |
-| [`docs/ops-sharepoint.md`](docs/ops-sharepoint.md) | SharePoint- / Teams-Dateien über Microsoft Graph |
-| [`docs/ops-nextcloud.md`](docs/ops-nextcloud.md) | Nextcloud-Dateien über WebDAV |
-| [`docs/ops-browser.md`](docs/ops-browser.md) | Headless Chrome: Weboberflächen bedienen, Screenshots in die Aufzeichnung |
-| [`docs/ops-vulndb.md`](docs/ops-vulndb.md) | Bekannte Schwachstellen in Paket-Abhängigkeiten (npm, Composer, Dart/Flutter) |
-| [`docs/ops-k8s.md`](docs/ops-k8s.md) | Einen Kubernetes-Cluster lesen: ServiceAccount, Token, Cluster-CA |
+| [`docs/en/getting-started/quickstart.md`](docs/en/getting-started/quickstart.md) | Compose-Setup, erster Agent, Produktions-Checkliste |
+| [`docs/en/operations/deployment.md`](docs/en/operations/deployment.md) | CI-Pipeline, Auto-Deploy auf einen Zielhost |
+| [`docs/en/operations/upgrade.md`](docs/en/operations/upgrade.md) | Upgrades, die mehr brauchen als einen Neustart — was vorher zu bauen und zu sichern ist |
+| [`docs/en/operations/api-keys.md`](docs/en/operations/api-keys.md) | API-Keys: Covey von außen steuern — was ein Key darf und was nur der Browser darf |
+| [`docs/en/operations/runner.md`](docs/en/operations/runner.md) | Runner: Sandboxes auf mehreren Hosts, der Home-Store, harte Egress-Isolation |
+| [`docs/en/operations/workplaces.md`](docs/en/operations/workplaces.md) | Arbeitsplätze: in welchem Image ein Agent arbeitet, die Rollen-Images, ein eigener Arbeitsplatz |
+| [`docs/en/integrations/zammad.md`](docs/en/integrations/zammad.md) | Zammad: API-Token, Webhook + Trigger, kundensichtbare Antworten |
+| [`docs/en/integrations/github.md`](docs/en/integrations/github.md) | GitHub: Issues, Pull Requests, Actions, Checkout in der Sandbox |
+| [`docs/en/integrations/gitlab.md`](docs/en/integrations/gitlab.md) | GitLab: Issues, Merge Requests, Checkout in der Sandbox |
+| [`docs/en/integrations/jira.md`](docs/en/integrations/jira.md) | Jira: das Ticket neben dem Repository — Cloud und Data Center, der Workflow, das Heartbeat-Gate |
+| [`docs/en/integrations/confluence.md`](docs/en/integrations/confluence.md) | Confluence: die Dokumentation als Kontext und als Ort für Ergebnisse |
+| [`docs/en/integrations/email.md`](docs/en/integrations/email.md) | Ein E-Mail-Postfach als Wake-Quelle (IMAP/SMTP) |
+| [`docs/en/integrations/teams.md`](docs/en/integrations/teams.md) | Microsoft Teams als Kanal zwischen Mensch und Agent |
+| [`docs/en/integrations/sharepoint.md`](docs/en/integrations/sharepoint.md) | SharePoint- / Teams-Dateien über Microsoft Graph |
+| [`docs/en/integrations/nextcloud.md`](docs/en/integrations/nextcloud.md) | Nextcloud-Dateien über WebDAV |
+| [`docs/en/integrations/browser.md`](docs/en/integrations/browser.md) | Headless Chrome: Weboberflächen bedienen, Screenshots in die Aufzeichnung |
+| [`docs/en/integrations/vulndb.md`](docs/en/integrations/vulndb.md) | Bekannte Schwachstellen in Paket-Abhängigkeiten (npm, Composer, Dart/Flutter) |
+| [`docs/en/integrations/kubernetes.md`](docs/en/integrations/kubernetes.md) | Einen Kubernetes-Cluster lesen: ServiceAccount, Token, Cluster-CA |
 
 Die vollständige Spezifikation liegt in [`spec/`](spec/) — Einstieg über [`spec/README.md`](spec/README.md).
 
@@ -275,11 +280,11 @@ make run          # covey serve auf http://localhost:8494
 
 Ohne eines von beiden scheitern Aufgaben mit „Not logged in · Please run /login": Die Sandbox hat ihr eigenes, leeres `HOME`, Ihr lokaler `claude`-Login ist darin nicht sichtbar.
 
-**Sandbox-Isolation.** Die Control Plane startet Sandboxes als Container (**Docker-Provider**, die Vorgabe) — echte Isolation auf Container-Ebene. `make sandbox-image` baut das Profil `base` ([`Dockerfile.sandbox`](Dockerfile.sandbox)), `make sandbox-image-dev` das Profil `dev`, daneben stehen die Rollen-Arbeitsplätze `dev-flutter`, `dev-php` und `dev-web` ([`docs/ops-workplaces.md`](docs/ops-workplaces.md)). **Das Image hängt am Agenten**, nicht an der Instanz: Ein Support- oder Mail-Agent läuft auf `base` und schleppt die JVM eines Entwickler-Agenten nicht mehr mit, ein Flutter-Agent keinen Datenbankserver. Das Profil wird je Agent in der Oberfläche gesetzt, ein eigenes Image ist dort ein gültiger Wert. `COVEY_SANDBOX_IMAGE_<PROFIL>` überschreibt, worauf ein Profil auflöst. Die Regel beim Erweitern: **Version → Home, Toolchain → Image** — SDK-Versionen holt sich der Agent selbst in sein persistentes Home, dem Pin im Projekt-Repo folgend. Ein Rollen-Arbeitsplatz ist die bewusste Umkehr dieser Regel: Wo das Feld des Agenten feststeht, steht auch die Version fest, und `dev-flutter` trägt sein Basis-SDK im Image.
+**Sandbox-Isolation.** Die Control Plane startet Sandboxes als Container (**Docker-Provider**, die Vorgabe) — echte Isolation auf Container-Ebene. `make sandbox-image` baut das Profil `base` ([`Dockerfile.sandbox`](Dockerfile.sandbox)), `make sandbox-image-dev` das Profil `dev`, daneben stehen die Rollen-Arbeitsplätze `dev-flutter`, `dev-php` und `dev-web` ([`docs/en/operations/workplaces.md`](docs/en/operations/workplaces.md)). **Das Image hängt am Agenten**, nicht an der Instanz: Ein Support- oder Mail-Agent läuft auf `base` und schleppt die JVM eines Entwickler-Agenten nicht mehr mit, ein Flutter-Agent keinen Datenbankserver. Das Profil wird je Agent in der Oberfläche gesetzt, ein eigenes Image ist dort ein gültiger Wert. `COVEY_SANDBOX_IMAGE_<PROFIL>` überschreibt, worauf ein Profil auflöst. Die Regel beim Erweitern: **Version → Home, Toolchain → Image** — SDK-Versionen holt sich der Agent selbst in sein persistentes Home, dem Pin im Projekt-Repo folgend. Ein Rollen-Arbeitsplatz ist die bewusste Umkehr dieser Regel: Wo das Feld des Agenten feststeht, steht auch die Version fest, und `dev-flutter` trägt sein Basis-SDK im Image.
 
 **Tests.** `make test` (Unit) und `make test-integration` (der vollständige Pfad gegen die Dev-DB, mit Mock-Runtime und Fake-Zammad; überspringt, wenn Port 5433 nicht erreichbar ist). Für Demos ohne echtes Zammad: `go run ./demo/fakezammad`, dann die Secrets `zammad_url` = `http://localhost:9999` und `zammad_token` (beliebiger Wert) setzen.
 
-**CI.** Jeder Push und jeder Pull Request prüft Formatierung, `go vet`, die Go- und Frontend-Tests, `govulncheck` und CodeQL — auf GitHub über [Actions](.github/workflows/), auf GitLab über die Pipeline. Jeder Push auf `main` rollt Covey zusätzlich auf einen Zielhost aus (`test → build → deploy`); so bleibt [covey.work](https://covey.work) aktuell. Siehe [`docs/ops-deployment.md`](docs/ops-deployment.md).
+**CI.** Jeder Push und jeder Pull Request prüft Formatierung, `go vet`, die Go- und Frontend-Tests, `govulncheck` und CodeQL — auf GitHub über [Actions](.github/workflows/), auf GitLab über die Pipeline. Jeder Push auf `main` rollt Covey zusätzlich auf einen Zielhost aus (`test → build → deploy`); so bleibt [covey.work](https://covey.work) aktuell. Siehe [`docs/en/operations/deployment.md`](docs/en/operations/deployment.md).
 
 </details>
 

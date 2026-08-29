@@ -37,7 +37,7 @@ only on paper reads like a restriction and enforces nothing.
 Two moves stay with the session, and therefore with the password: **minting or
 revoking a key, and changing the password**. A credential that goes astray must
 not be able to entrench itself — those are exactly the two moves that would let
-it. The practical side is in [`../docs/api-keys.md`](../docs/api-keys.md).
+it. The practical side is in [`../docs/en/operations/api-keys.md`](../docs/en/operations/api-keys.md).
 
 An API key has no business inside a sandbox. An agent talks to the control
 plane through the action proxy, which needs no credential at all; a key in a

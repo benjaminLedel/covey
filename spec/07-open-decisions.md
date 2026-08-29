@@ -68,7 +68,7 @@ The image hangs off the **agent**, not off the language: a profile is a *union* 
 
 Rejected: **installing packages at runtime through the UI.** Three reasons, all structural — the agent runs as non-root (Claude Code refuses `--dangerously-skip-permissions` as root); a package manager on the egress allowlist is a generic code-execution channel and not a target-system host; and a sandbox whose tools arise from a click list plus the state of a mirror is no longer reconstructible from config + home — the core of the "dumb and replaceable" promise from [`01-architecture.md`](01-architecture.md).
 
-The operations side including egress templates is in [`../docs/ops-deployment.md`](../docs/ops-deployment.md).
+The operations side including egress templates is in [`../docs/en/operations/deployment.md`](../docs/en/operations/deployment.md).
 
 ### D12 — Distributed data plane: runners ✅ *decided*
 
