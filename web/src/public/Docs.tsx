@@ -1,12 +1,12 @@
 import { Link, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Markdown } from "../components/Markdown";
-import { DOC_SECTIONS, DOC_PAGES, FIRST_DOC } from "./docs/docsContent";
+import { DOC_SECTIONS, DOC_PAGES, FIRST_DOC } from "./docs/content.generated";
 import { usePublicLang } from "./lang";
 import { pathOf } from "./seo";
 
 /* Docs-Bereich: linke Kategorie-/Seiten-Navigation + Markdown-Inhalt.
-   Zweisprachig — Titel und Body je Sprache in docs/docsContent.ts. Die
+   Zweisprachig — Titel und Body je Sprache in den Markdown-Dateien unter docs/. Die
    Sprache kommt aus der URL, nicht aus i18n: Sie steht damit schon beim ersten
    Rendern fest und ist beim Vorrendern dieselbe wie im Browser. */
 export default function Docs() {

@@ -5,7 +5,7 @@
 #   3. make sandbox-images-pull   # the agents' workplaces, once, minutes
 #      (base for support/mail/QA, dev for developer agents, a role workplace
 #       each for Flutter, PHP and web, and dev-full with all of it in one
-#       image — docs/ops-workplaces.md)
+#       image — docs/en/operations/workplaces.md)
 #   4. docker compose up -d --build
 #   5. http://localhost:8494  →  admin@covey.local / covey-admin
 #

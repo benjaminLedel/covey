@@ -97,7 +97,7 @@ func Dial(ctx context.Context, controlURL, token string) (Transport, error) {
 					"a proxy in front of the instance is not forwarding the upgrade. "+
 					"For nginx: proxy_http_version 1.1 plus `proxy_set_header Upgrade $http_upgrade` "+
 					"and `proxy_set_header Connection $connection_upgrade` on this location "+
-					"(see docs/ops-runner.md)", wsURL)
+					"(see docs/en/operations/runner.md)", wsURL)
 			}
 		}
 		return nil, err

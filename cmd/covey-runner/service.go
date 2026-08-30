@@ -40,7 +40,7 @@ func unitFile(p unitParams) string {
 	var b strings.Builder
 	b.WriteString(`[Unit]
 Description=Covey runner
-Documentation=https://github.com/benjaminLedel/covey/blob/main/docs/ops-runner.md
+Documentation=https://github.com/benjaminLedel/covey/blob/main/docs/en/operations/runner.md
 After=network-online.target docker.service
 Wants=network-online.target
 

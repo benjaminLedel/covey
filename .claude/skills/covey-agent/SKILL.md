@@ -29,7 +29,7 @@ adapt it:
 | `qa-agent.bundle.json` | Tester: accept others' MRs, check web UIs in the browser, bug intake by mail |
 | `web-researcher.bundle.json` | Researcher: research on the open web with a real browser |
 | `log-triage-agent.bundle.json` | Log triage: reported logs → GitLab tickets |
-| `delivery-lead.bundle.json` | Delivery lead: drive a GitLab milestone to its deadline — prepare tickets, keep the order, dispatch to developer colleagues, report the state. What is engagement-specific sits in a brief in the wiki (template: `docs/ops-gitlab.md` §2.9.1), not in the config |
+| `delivery-lead.bundle.json` | Delivery lead: drive a GitLab milestone to its deadline — prepare tickets, keep the order, dispatch to developer colleagues, report the state. What is engagement-specific sits in a brief in the wiki (template: `docs/en/integrations/gitlab.md` §2.9.1), not in the config |
 
 Read the chosen template in full before you change anything — it shows the proven structure.
 

@@ -1,0 +1,71 @@
+# Die Ordnung des Doku-Bereichs — Reihenfolge der Abschnitte, Reihenfolge der
+# Seiten darin, und wie ein Abschnitt in der Navigation heißt.
+#
+# Warum hier und nicht aus dem Dateisystem: eine alphabetische Reihenfolge
+# stellt "Architektur" vor "Was ist Covey?", und die Doku hat eine Leserichtung.
+# Die Titel der Abschnitte stehen ebenfalls hier, weil sie zu keiner Seite
+# gehören — sie sind Überschriften der Navigation.
+#
+# Der Rest steht in den Seiten selbst: Adresse, Titel, Description und FAQ im
+# Frontmatter jeder Datei (docs/en/… ist die Quelle, docs/de/… die Übersetzung
+# unter demselben relativen Pfad).
+#
+# Eine Seite, die hier fehlt, wird nicht ausgeliefert — der Test in
+# web/src/public/docs/docs.test.ts sagt es.
+
+sections:
+  - id: introduction
+    title: { de: Einführung, en: Introduction }
+    pages:
+      - what-is-covey
+      - core-concepts
+      - architecture
+
+  - id: getting-started
+    title: { de: Erste Schritte, en: Getting started }
+    pages:
+      - quickstart
+      - first-agent
+
+  - id: concepts
+    title: { de: Konzepte, en: Concepts }
+    pages:
+      - agent-model
+      - memory
+      - guard-rails
+      - identity-and-secrets
+      - backlog-and-lifecycle
+
+  # Die Übersicht steht vorn, die Rezepte danach alphabetisch: wer ein
+  # bestimmtes Zielsystem sucht, sucht es unter seinem Namen.
+  - id: integrations
+    title: { de: Integrationen, en: Integrations }
+    pages:
+      - target-systems
+      - browser
+      - confluence
+      - email
+      - github
+      - gitlab
+      - jira
+      - kubernetes
+      - nextcloud
+      - sharepoint
+      - teams
+      - vulndb
+      - zammad
+
+  - id: operations
+    title: { de: Betrieb, en: Operations }
+    pages:
+      - operations
+      - deployment
+      - upgrade
+      - runner
+      - workplaces
+      - api-keys
+
+  - id: companion
+    title: { de: Companion, en: Companion }
+    pages:
+      - companion

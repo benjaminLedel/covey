@@ -56,7 +56,7 @@ Out of scope:
 ## Operating Covey safely
 
 If you are deploying rather than testing, the checklist in
-[`docs/quickstart-docker.md`](docs/quickstart-docker.md) covers the things that
+[`docs/en/getting-started/quickstart.md`](docs/en/getting-started/quickstart.md) covers the things that
 actually matter: change the admin password, keep `COVEY_MASTER_KEY` out of the
 image and backed up, put TLS in front, and decide on egress isolation before
 you give an agent real credentials.

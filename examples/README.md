@@ -28,7 +28,7 @@ optional.
 | `dependency-security-agent.bundle.json` | `covey-depsec` | Dependency security: scan the lock files of the projects in its register (`vulndb scan_lockfile`), assess every hit against the project — direct or transitive, which fix branch applies — and file traceable GitLab tickets with evidence after a mandatory duplicate check; hand the upgrade to a developer agent. |
 
 Together they form the two-agent setup from
-[`docs/ops-gitlab.md`](../docs/ops-gitlab.md) §2.7: the developer agent enters
+[`docs/en/integrations/gitlab.md`](../docs/en/integrations/gitlab.md) §2.7: the developer agent enters
 the QA agent as the `reviewer` of its MRs (it finds them automatically in the
 prompt section "Team (AI colleagues)"), the QA agent tests and comments, and the
 developer works the feedback in through its `gitlab:mr` loop.
@@ -64,13 +64,13 @@ assignment — not the ticket title.
 So that the same agent can drive the next engagement, nothing
 engagement-specific sits in its config — project, milestone, deadline, order and
 WIP limit sit in a wiki page, the engagement brief. The template and the
-reasoning behind the fields: [`docs/ops-gitlab.md`](../docs/ops-gitlab.md)
+reasoning behind the fields: [`docs/en/integrations/gitlab.md`](../docs/en/integrations/gitlab.md)
 §2.9.1. **One lead drives exactly one engagement**; for a second one a second
 lead is created (the same config, its own brief), because its heartbeats name no
 milestone and it could not tell two briefs apart.
 
 **A bundle carries only the config files**, no master data. Still necessary
-after the import (see `docs/ops-gitlab.md` 2.2, 2.7 and — for the lead — 2.9):
+after the import (see `docs/en/integrations/gitlab.md` 2.2, 2.7 and — for the lead — 2.9):
 
 - Assign the secrets `gitlab_token` + `gitlab_url`, enable the GitLab and `dev`
   target systems. The developer, QA and lead agents each need **their own
@@ -106,7 +106,7 @@ Additionally for the **delivery lead** only:
 - Enter a **human manager** **whose GitLab identifier has to be deposited in
   their profile**. Without it, `assign` fails on every open subject-matter
   question — that is, in exactly the path that involves humans.
-- Create the wiki page with the brief (template: `docs/ops-gitlab.md`
+- Create the wiki page with the brief (template: `docs/en/integrations/gitlab.md`
   §2.9.1) before the first heartbeat fires.
 
 Additionally for the **dependency security agent** only:

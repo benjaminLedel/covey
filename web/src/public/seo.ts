@@ -13,7 +13,7 @@
    für Suchmaschinen nicht: eine Sprache, die nur im localStorage umschaltet,
    hat keine Adresse, unter der sie indexiert werden könnte. */
 
-import { DOC_SECTIONS, type Faq } from "./docs/docsContent";
+import { DOC_SECTIONS, type Faq } from "./docs/content.generated";
 
 export type Lang = "de" | "en";
 export type Localized = Record<Lang, string>;
@@ -209,8 +209,8 @@ export function descriptionFromMarkdown(md: string, max = 160): string {
   return cut.slice(0, cut.lastIndexOf(" ")).replace(/[,;:—-]$/, "") + " …";
 }
 
-/* Die Docs-Seiten kommen aus dem Inhalt selbst — eine neue Seite in
-   docsContent.ts steht damit ohne weiteres Zutun in der Sitemap.
+/* Die Docs-Seiten kommen aus dem Inhalt selbst — eine neue Markdown-Datei
+   unter docs/ steht damit ohne weiteres Zutun in der Sitemap.
 
    Der Slug kommt je Sprache aus dem Inhalt: Die englische Fassung lief vorher
    unter dem deutschen (/en/docs/gedaechtnis), und eine Adresse ist das Erste,
@@ -234,6 +234,14 @@ const DOCS: PublicRoute[] = DOC_SECTIONS.flatMap((sec) =>
     indexable: true,
     priority: 0.6,
     faq: p.faq,
+    /* Seiten ohne Übersetzung (die Betriebs-Rezepte) stehen unter beiden
+       Adressen, tragen aber denselben englischen Text. Beide auf sich selbst
+       kanonisch wären zwei konkurrierende Seiten mit identischem Inhalt, und
+       ein hreflang de↔en behauptete eine deutsche Fassung, die es nicht gibt.
+       Deshalb zeigt die deutsche Adresse auf die englische. */
+    ...(p.nurEnglisch
+      ? { canonical: { de: `/en/docs/${p.slug.en}`, en: `/en/docs/${p.slug.en}` } }
+      : {}),
   })),
 );
 
@@ -259,8 +267,17 @@ export type SeoUrl = {
   alt: Localized;
 };
 
-export const SEO_URLS: SeoUrl[] = PUBLIC_ROUTES.filter((r) => r.indexable).flatMap(
-  (r) => LANGS.map((l) => ({ path: r.path[l], lang: l, priority: r.priority, alt: r.path })),
+/* In die Sitemap gehört nur, was für sich selbst steht. Eine Adresse, deren
+   Canonical woanders zeigt, dort einzutragen, hieße einer Suchmaschine zwei
+   Dinge gleichzeitig zu sagen — nimm diese Seite auf, und nimm sie nicht auf.
+   Betrifft die deutschen Adressen der Rezepte, die es nur auf Englisch gibt. */
+export const SEO_URLS: SeoUrl[] = PUBLIC_ROUTES.filter((r) => r.indexable).flatMap((r) =>
+  LANGS.filter((l) => !r.canonical || r.canonical[l] === r.path[l]).map((l) => ({
+    path: r.path[l],
+    lang: l,
+    priority: r.priority,
+    alt: r.path,
+  })),
 );
 
 /* Auch die nicht indexierbaren Seiten werden vorgerendert — sie sollen ohne
