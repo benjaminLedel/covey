@@ -31,7 +31,7 @@ Migrations run automatically at startup, guarded by an advisory lock; two instan
 Two variables look alike and mean opposite things:
 
 - `COVEY_PUBLIC_URL` points **inwards** — the address at which the **sandboxes** reach the control plane. Put the website's domain here and the containers dial back over the open network and fail at the egress allowlist.
-- `COVEY_SITE_URL` points **outwards** — website, sitemap, copyable webhook URLs. Leaving it empty is the normal case; the server derives it from the request.
+- `COVEY_SITE_URL` points **outwards** — the copyable webhook and trigger URLs, the address in the downloadable skill. Leaving it empty is the normal case; the server derives it from the request.
 
 At startup Covey warns when these two roles look swapped.
 

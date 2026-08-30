@@ -102,13 +102,14 @@ describe("App ohne gültige Sitzung", () => {
     expect(screen.getByText(/Sitzung ist abgelaufen/)).toBeInTheDocument();
   });
 
-  it("lässt eine öffentliche Adresse in Ruhe", async () => {
+  it("zeigt auf der Wurzel die Anmeldung, ohne von einer Sitzung zu reden", async () => {
     serverMitSitzung(() => false);
     renderApp(<App />, "/");
 
-    // Die Startseite bleibt die Startseite — keine Weiterleitung, und damit
-    // auch kein Hinweis auf eine Sitzung, aus der niemand gefallen ist.
-    expect(await screen.findByRole("link", { name: "Docs" })).toBeInTheDocument();
+    /* Seit die Website ausgezogen ist (#130), ist „/" hier die Anmeldung und
+       nichts sonst. Wer noch nie angemeldet war, soll deshalb auch nicht
+       lesen, seine Sitzung sei abgelaufen. */
+    expect(await screen.findByLabelText("Passwort")).toBeInTheDocument();
     expect(screen.queryByText(/Sitzung ist abgelaufen/)).not.toBeInTheDocument();
   });
 });
@@ -132,9 +133,9 @@ describe("App bei ablaufender Sitzung", () => {
   });
 
   it("landet auch von der Übersicht aus auf der Anmeldung", async () => {
-    /* „/" ist zweierlei: die Übersicht der Oberfläche und die öffentliche
-       Startseite. Wem die Sitzung dort wegläuft, der soll die Anmeldung
-       sehen — nicht die Werbeseite. */
+    /* Wem die Sitzung auf der Übersicht wegläuft, der soll die Anmeldung
+       sehen und lesen, warum er wieder davorsteht — auch von „/" aus, wo ein
+       Erstbesucher den Satz gerade nicht bekommt. */
     let angemeldet = true;
     serverMitSitzung(() => angemeldet);
     renderApp(<App />, "/");

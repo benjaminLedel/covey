@@ -2,9 +2,9 @@ import { Suspense, lazy, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Navigate, useLocation } from "react-router";
 import { api, setUnauthorizedHandler, type Principal } from "./api";
-import { gespeicherteSprache, istVorgerendert } from "./i18n";
-import { APP_ROUTE_PREFIXES, LANGS, pathOf } from "./public/seo";
-import PublicSite from "./public/PublicSite";
+import { gespeicherteSprache } from "./i18n";
+import { LANGS, PUBLIC_ROUTES, pathOf } from "./public/routes";
+import SignedOut from "./public/SignedOut";
 
 /* Die angemeldete Oberfläche kommt aus einem eigenen Bündel — sie ist der
    größere Teil der Anwendung und geht keinen an, der die öffentliche Website
@@ -43,47 +43,48 @@ function useLiveEvents(enabled: boolean) {
   }, [enabled, qc]);
 }
 
-/* Wurde diese Seite beim Build vorgerendert? Dann steht ihr Inhalt schon im
-   HTML, und der erste Rendervorgang im Browser muss ihn treffen — sonst
-   verwirft React das vorgerenderte Markup. Deshalb zeigt App auf solchen
-   Seiten die öffentliche Website bereits, während /auth/me noch läuft. Auf
-   allen anderen Pfaden bleibt es beim bisherigen Verhalten. */
-const prerendered = istVorgerendert();
-
 /* Die leere UUID ist die Antwort des Servers auf "noch keine Organisation" —
    Principal.OrgID ist ein Wert, kein Zeiger, und hat deshalb keinen NULL. */
 const LEERE_UUID = "00000000-0000-0000-0000-000000000000";
 
-/* Nicht (mehr) angemeldet. Die öffentliche Website steht unter ihren eigenen
-   Adressen — eine Adresse der Oberfläche (/agents/…, /inbox, …) kennt sie
-   nicht und beantwortete sie mit „Seite nicht gefunden". Genau das passierte
-   bisher, wenn eine Sitzung ablief: wer neu lud, landete auf einer 404 statt
-   auf der Anmeldung.
+/* Nicht (mehr) angemeldet: Jede Adresse außer den beiden offenen führt auf die
+   Anmeldung — mit dem Ziel im Gepäck (?weiter=), damit sie dorthin zurückführt,
+   wo jemand unterbrochen wurde.
 
-   Deshalb hier die Weiterleitung — mit dem Ziel im Gepäck (?weiter=), damit
-   die Anmeldung dorthin zurückführt, wo jemand unterbrochen wurde. */
-function Abgemeldet({ onLogin, ausDerOberflaeche = false }: { onLogin: () => void; ausDerOberflaeche?: boolean }) {
+   Bis #130 stand hier eine Fallunterscheidung, weil „/" zwei Dinge zugleich
+   war: die Übersicht der Oberfläche und die Startseite der Website. Wem die
+   Sitzung weglief, der landete auf der Werbeseite statt am Formular, und die
+   Regel dagegen musste unterscheiden, ob jemand gerade herausgefallen oder neu
+   gekommen war. Seit die Website auf ihrem eigenen Host steht, ist „/" hier
+   nur noch eines. */
+function Abgemeldet({
+  onLogin,
+  ausDerOberflaeche = false,
+}: {
+  onLogin: () => void;
+  ausDerOberflaeche?: boolean;
+}) {
   const { pathname, search } = useLocation();
-  /* Wer gerade noch angemeldet war, gehört immer auf die Anmeldung — auch von
-     „/" aus. Die Adresse der Übersicht ist zugleich die der öffentlichen
-     Startseite; ohne diese Unterscheidung landete jemand, dem die Sitzung
-     unter den Händen wegläuft, auf der Werbeseite statt am Anmeldeformular.
-     Beim ersten Aufruf entscheidet dagegen der Pfad: dort ist „/" wirklich
-     die Startseite. */
-  const schonAufDerAnmeldung = LANGS.some((l) => pathOf("anmelden", l) === pathname);
-  const zurAnmeldung =
-    !schonAufDerAnmeldung &&
-    (ausDerOberflaeche ||
-      APP_ROUTE_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/")));
-  if (zurAnmeldung) {
-    /* Die Sprache der Anmeldeseite folgt der Oberfläche, aus der jemand
-       herausgefallen ist (Shell-Voreinstellung: englisch) — nicht dem Pfad,
-       der bei App-Adressen gar keine Sprache trägt. */
+  const offen = PUBLIC_ROUTES.some((r) => LANGS.some((l) => r.path[l] === pathname));
+  if (!offen) {
+    /* Die Sprache folgt der gespeicherten Wahl (Voreinstellung: englisch) —
+       nicht dem Pfad, der bei App-Adressen keine trägt. */
     const lang = gespeicherteSprache() === "de" ? "de" : "en";
-    const ziel = `${pathOf("anmelden", lang)}?weiter=${encodeURIComponent(pathname + search)}`;
+    const anmeldung = pathOf("anmelden", lang);
+    /* ?weiter= trägt zweierlei: wohin es nach der Anmeldung zurückgeht, und
+       den Satz „Ihre Sitzung ist abgelaufen" (LoginCard liest den Parameter).
+       Von der blanken Wurzel gibt es das erste nicht — „/" ist ohnehin, wo die
+       Oberfläche startet. Wem die Sitzung gerade unter den Händen weggelaufen
+       ist, dem gehört der Satz trotzdem: dafür steht ausDerOberflaeche.
+       Andernfalls stünde er vor jedem Erstbesucher, der /aufruft und noch nie
+       angemeldet war. */
+    const mitZiel = ausDerOberflaeche || pathname !== "/";
+    const ziel = mitZiel
+      ? `${anmeldung}?weiter=${encodeURIComponent(pathname + search)}`
+      : anmeldung;
     return <Navigate to={ziel} replace />;
   }
-  return <PublicSite onLogin={onLogin} />;
+  return <SignedOut onLogin={onLogin} />;
 }
 
 /* Ein sicheres ?weiter=: nur ein Pfad dieser Installation. „//host" wäre für
@@ -130,9 +131,11 @@ export default function App() {
   useLiveEvents(me.isSuccess && !abgelaufen);
 
   if (abgelaufen) return <Abgemeldet onLogin={anmelden} ausDerOberflaeche />;
-  if (me.isLoading) {
-    return prerendered ? <PublicSite onLogin={anmelden} /> : null;
-  }
+  /* Solange /auth/me läuft, steht nichts: Ein Formular, das nach einem
+     Augenblick von der Oberfläche ersetzt wird, ist unruhiger als eine kurze
+     Leere. Bis #130 stand hier die vorgerenderte Website — die gab es schon
+     im HTML, hier gibt es nichts vorzuzeigen. */
+  if (me.isLoading) return null;
   if (me.isError) return <Abgemeldet onLogin={anmelden} />;
   /* Angemeldet, aber ohne Sitz: seit die Anmeldung am Konto hängt (FR-002),
      kann ein Konto existieren, bevor eine Organisation es kennt. Die Shell

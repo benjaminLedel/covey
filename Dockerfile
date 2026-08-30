@@ -1,16 +1,14 @@
 # Multi-stage build from spec/10-architecture-stack.md:
 # Node builds the frontend → Go embeds it → distroless final image.
 FROM node:26 AS web
-# The stage is rooted at /src and the frontend sits at /src/web — the same
-# shape as the repository. Since the documentation has one source (#128),
-# web/docs.mjs reads ../docs while building, and it checks the links that lead
-# from there back into the repository (spec/, README.md, examples/, internal/).
-# So the stage gets the whole context, not just web/: a narrower copy would
-# turn every new link in a doc page into a failing image build.
-WORKDIR /src/web
+# Only web/ — the frontend build reads nothing outside it. It read docs/ for a
+# while (#128), which is why this stage briefly copied the whole context; with
+# the documentation pages out of the binary (#130) it is back to what it needs,
+# and a change anywhere else no longer invalidates this layer.
+WORKDIR /web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
-COPY . /src/
+COPY web/ .
 RUN npm run build
 
 FROM golang:1.26 AS build
@@ -24,7 +22,7 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-COPY --from=web /src/web/dist ./web/dist
+COPY --from=web /web/dist ./web/dist
 RUN LDFLAGS="-X covey/internal/buildinfo.version=$VERSION \
              -X covey/internal/buildinfo.commit=$COMMIT \
              -X covey/internal/buildinfo.date=$DATE" && \

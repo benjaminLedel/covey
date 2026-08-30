@@ -176,10 +176,10 @@ type Server struct {
 	signupLimiter  *webhookLimiter
 	webhookLimiter *webhookLimiter
 
-	// seo is the map of the public website from dist/seo.json
-	// (internal/httpapi/seo.go). It carries the addresses for sitemap.xml and
-	// the path prefixes of the signed-in interface.
-	seo seoIndex
+	// routen is the route list from dist/app-routes.json
+	// (internal/httpapi/approutes.go): which paths the SPA shell answers and
+	// which ones are an honest 404.
+	routen appRouten
 }
 
 func (s *Server) Handler() http.Handler {
@@ -192,7 +192,7 @@ func (s *Server) Handler() http.Handler {
 	if s.webhookLimiter == nil {
 		s.webhookLimiter = newWebhookLimiter()
 	}
-	s.seo = ladeSEOIndex(s.WebFS)
+	s.routen = ladeAppRouten(s.WebFS)
 	mux := http.NewServeMux()
 
 	// Health/readiness (without auth).
@@ -623,7 +623,6 @@ func (s *Server) Handler() http.Handler {
 	// Embedded SPA together with the pre-rendered public website.
 	if s.WebFS != nil {
 		mux.HandleFunc("GET /robots.txt", s.handleRobots)
-		mux.HandleFunc("GET /sitemap.xml", s.handleSitemap)
 		mux.Handle("/", s.spaHandler(s.WebFS))
 	}
 	// The audit trail sits INSIDE, directly around the mux: it needs the

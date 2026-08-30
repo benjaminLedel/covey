@@ -22,8 +22,8 @@ func TestCacheHeaderStatischeDateien(t *testing.T) {
 			"the name carries the content hash — a changed file gets a new address"},
 		{"/assets/ohne-hash.js", "public, max-age=86400",
 			"same directory, but the name says nothing about the content"},
-		{"/landing/bild.jpg", "public, max-age=86400",
-			"an image keeps its name across releases"},
+		{"/icon-192.png", "public, max-age=86400",
+			"an icon keeps its name across releases"},
 	}
 	for _, f := range faelle {
 		rec := hole(t, s, f.pfad)
@@ -37,10 +37,11 @@ func TestCacheHeaderStatischeDateien(t *testing.T) {
 }
 
 // The HTML names the assets of the current build. Whoever holds it hands out
-// the names of the previous one after a deploy.
+// the names of the previous one after a deploy. Only the shell is meant here —
+// since #130 an unknown path is a bare 404 with no HTML to hold on to.
 func TestCacheHeaderHTML(t *testing.T) {
 	s := testServer()
-	for _, pfad := range []string{"/", "/funktion", "/agents/17", "/gibtesnicht"} {
+	for _, pfad := range []string{"/", "/anmelden", "/agents/17"} {
 		if cc := hole(t, s, pfad).Header().Get("Cache-Control"); cc != "no-cache" {
 			t.Errorf("%s: Cache-Control=%q, expected no-cache", pfad, cc)
 		}
@@ -94,11 +95,11 @@ func TestVorkomprimierteAssets(t *testing.T) {
 func TestOhneVorkomprimierteForm(t *testing.T) {
 	s := testServer()
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/landing/bild.jpg", nil)
+	req := httptest.NewRequest(http.MethodGet, "/icon-192.png", nil)
 	req.Header.Set("Accept-Encoding", "br, gzip")
 	s.spaHandler(s.WebFS).ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK || rec.Body.String() != "jpeg" {
+	if rec.Code != http.StatusOK || rec.Body.String() != "png" {
 		t.Errorf("status %d, body %q — expected 200 and the file itself", rec.Code, rec.Body.String())
 	}
 	if got := rec.Header().Get("Content-Encoding"); got != "" {

@@ -178,13 +178,14 @@ In GitLab under **Settings → CI/CD → Variables**:
 > The value has to be reachable **from the sandbox**, nothing else.
 
 Everything this instance addresses **outward**, by contrast, hangs off
-`COVEY_SITE_URL`: `canonical`, `hreflang`, `sitemap.xml`, `robots.txt`, the
-webhook and trigger URLs for copying, and the target URL in the downloadable
-skill. **Leaving it empty is the normal case** — the server then derives the
-address from the request (the host header plus `X-Forwarded-Proto`). Since the
-interface is called under the right domain, the URLs displayed are then correct
-by themselves. Set it only when the reverse proxy does not pass the origin
-through and `http://` or an internal name would otherwise land in the sitemap.
+`COVEY_SITE_URL`: the webhook and trigger URLs for copying, and the target URL
+in the downloadable skill — the addresses somebody pastes into Zammad, GitLab
+or a runner's notes. **Leaving it empty is the normal case** — the server then
+derives the address from the request (the host header plus
+`X-Forwarded-Proto`). Since the interface is called under the right domain, the
+URLs displayed are then correct by themselves. Set it only when the reverse
+proxy does not pass the origin through and `http://` or an internal name would
+otherwise end up in a foreign system, where nobody can reach it.
 
 In short: `COVEY_PUBLIC_URL` points **inward** (to the sandboxes),
 `COVEY_SITE_URL` points **outward** (to visitors and third-party systems).
