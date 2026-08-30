@@ -258,7 +258,7 @@ export function GuidedCreate({ onBack, onDone }: { onBack: () => void; onDone: (
             disabled={!name.trim() || !slug.trim()}
             onClick={() => setStep(STEPS[idx + 1])}
           >
-            {t("public.docs.next")}
+            {t("common.next")}
           </button>
         )}
         {last && (

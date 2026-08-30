@@ -20,8 +20,9 @@ web/dist/
 # Not build-relevant.
 praesentationen/
 mockup/
-
-# docs/ is deliberately NOT excluded. Since the documentation has one source
-# (#128), web/docs.mjs reads it while building the frontend. Excluded, it was
-# missing from the context and `npm run build` failed inside the image — while
-# build-web stayed green in CI, where the whole repository is checked out.
+# docs/ was build-relevant for one day: between #128 and #130 the frontend
+# generated the documentation pages from it. The pages left the binary with the
+# website (#130), so the build reads nothing here again — but whoever adds a
+# build step that does has to take this line out, or the image build fails on
+# a file that is simply not in the context.
+docs/

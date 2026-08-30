@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { ApiError } from "../api";
 import { BirdMark } from "./chrome";
 import { usePublicLang } from "./lang";
-import { pathOf } from "./seo";
+import { pathOf } from "./routes";
 import { signup, useSignupState } from "./signupState";
 
 /* Registrieren (/registrieren, /en/sign-up) — der Weg ins Produkt für alle,

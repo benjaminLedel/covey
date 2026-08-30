@@ -1,9 +1,12 @@
-import { useEffect, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useEffect, useRef } from "react";
 
-/* Geteilte Bausteine der öffentlichen Website (Chrome, Animationen, Icons).
-   Aus der früheren Einseiten-Landing (pages/Login.tsx) extrahiert, damit
-   Home, Funktion und die Produktseiten dieselbe Design-Sprache teilen. */
+/* Geteilte Bausteine: die Wortmarke, der Hintergrund des Anmeldebereichs und
+   die Symbole der Oberfläche.
+
+   Bis #130 war das die Möblierung einer Website — Hero-Org-Chart, rotierendes
+   Wort, Scroll-Reveals. Was davon zu den Seiten gehörte, ist mit ihnen in das
+   eigene Repository der Website gezogen; hier steht, was die Anwendung selbst
+   noch braucht. */
 
 /* Covey = ein Schwarm — drei Vögel in Flugformation als Wortmarke. */
 export function BirdMark({ size = 84 }: { size?: number }) {
@@ -199,125 +202,6 @@ export function PublicBackground() {
   );
 }
 
-/* Hero-Org-Chart: baut sich selbst auf — der Team-Lead und seine Agenten
-   poppen gestaffelt ins Bild, die Verbindungslinien zeichnen sich, ein
-   Aufgaben-Punkt fließt vom Lead zu einem Agenten, Status-Dots pulsieren.
-   Endlos-Loop; bei prefers-reduced-motion statisch aufgebaut. */
-export function HeroOrg() {
-  // Menschen und Agenten mit Namen — eine zusammenarbeitende Organisation,
-  // nicht ein einzelner Nutzer.
-  const HUMANS = [
-    { x: 45, name: "Mara", role: "Team-Lead", delay: "0s" },
-    { x: 215, name: "Jonas", role: "Security", delay: "0.12s" },
-  ];
-  const AGENTS = [
-    { cx: 70, name: "Ada", sys: "Zammad", delay: "0.62s" },
-    { cx: 190, name: "Kilo", sys: "GitLab", delay: "0.74s" },
-    { cx: 310, name: "Nova", sys: "E-Mail", delay: "0.86s" },
-  ];
-  const links = [
-    { d: "M105 74 V140", delay: "0.28s" },
-    { d: "M275 74 V140", delay: "0.32s" },
-    { d: "M70 140 H310", delay: "0.44s" },
-    { d: "M70 140 V200", delay: "0.55s" },
-    { d: "M190 140 V200", delay: "0.6s" },
-    { d: "M310 140 V200", delay: "0.65s" },
-  ];
-  // Zusammenarbeit: Peer-Linie zwischen den Menschen, Übergaben im Agenten-Team.
-  const colinks = [
-    { d: "M165 52 H215", delay: "0.9s" },
-    { d: "M118 229 H142", delay: "1s" },
-    { d: "M238 229 H262", delay: "1.05s" },
-  ];
-  return (
-    <svg className="hero-org" viewBox="0 0 380 300" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-      <g className="org-links">
-        {links.map((l) => (
-          <path key={l.d} className="org-link" d={l.d} pathLength={1} style={{ animationDelay: l.delay }} />
-        ))}
-      </g>
-      <g className="org-colinks">
-        {colinks.map((l) => (
-          <path key={l.d} className="org-colink" d={l.d} style={{ animationDelay: l.delay }} />
-        ))}
-      </g>
-
-      {/* Menschen */}
-      {HUMANS.map((h) => (
-        <g key={h.name} className="org-node org-lead" style={{ animationDelay: h.delay }}>
-          <rect x={h.x} y="30" width="120" height="44" rx="12" />
-          <circle className="org-avatar" cx={h.x + 24} cy="52" r="8" />
-          <path
-            className="org-avatar-glyph"
-            d={`M${h.x + 24} 49a2.3 2.3 0 1 0 0 4.6 2.3 2.3 0 0 0 0-4.6M${h.x + 20} 56.6a4 4 0 0 1 8 0`}
-          />
-          <text className="org-label" x={h.x + 42} y="49">{h.name}</text>
-          <text className="org-sub" x={h.x + 42} y="60">{h.role}</text>
-        </g>
-      ))}
-
-      {/* Agenten */}
-      {AGENTS.map((a) => (
-        <g key={a.name} className="org-node" style={{ animationDelay: a.delay }}>
-          <rect x={a.cx - 48} y="200" width="96" height="58" rx="12" />
-          <path className="org-bird" d={`M${a.cx - 34} 221 q4.5 -4.6 9 0 q4.5 -4.6 9 0`} />
-          <circle className="org-status" cx={a.cx + 34} cy="217" r="3.2" />
-          <text className="org-label" x={a.cx} y="241" textAnchor="middle">{a.name}</text>
-          <text className="org-sub" x={a.cx} y="251.5" textAnchor="middle">{a.sys}</text>
-        </g>
-      ))}
-
-      {/* Aufgaben fließen: Delegation nach unten, Übergabe quer durchs Team. */}
-      <circle className="org-token" r="3.4" cx="0" cy="0" />
-      <circle className="org-token2" r="3.4" cx="0" cy="0" />
-    </svg>
-  );
-}
-
-/* Rückwärtskompatibler Alias. */
-export const HeroFlock = HeroOrg;
-
-/* Rotierendes Wort im Hero — bei jedem Wechsel remountet der key die
-   CSS-Einblendanimation. */
-export function RotatingWord() {
-  const { t } = useTranslation();
-  const words = [1, 2, 3, 4, 5].map((n) => t(`landing.rot${n}`));
-  const [i, setI] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setI((v) => (v + 1) % 5), 2400);
-    return () => clearInterval(id);
-  }, []);
-  return (
-    <span className="rot-word" key={i}>
-      {words[i]}
-    </span>
-  );
-}
-
-/* Scroll-Reveal: Elemente mit .reveal blenden ein, sobald sie sichtbar
-   werden. dep (Pfad) sorgt dafür, dass beim Seitenwechsel neu beobachtet
-   wird. Bei prefers-reduced-motion greift die CSS-Abschaltung. */
-export function useReveal(dep?: unknown) {
-  useEffect(() => {
-    const els = document.querySelectorAll<HTMLElement>(".reveal:not(.in)");
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (e.isIntersecting) {
-            (e.target as HTMLElement).classList.add("in");
-            io.unobserve(e.target);
-          }
-        }
-      },
-      { threshold: 0.12 },
-    );
-    els.forEach((el) => io.observe(el));
-    return () => io.disconnect();
-  }, [dep]);
-}
-
-/* Icon-Pfade im Stil der Sidebar-Nav (App.tsx / Mockup). Zentral, damit
-   Home, Funktion und Produktseiten dieselben Glyphen teilen. */
 export const icons: Record<string, React.JSX.Element> = {
   sitemap: (
     <>

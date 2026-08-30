@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
 import { post } from "../api";
 import { usePublicLang } from "./lang";
-import { pathOf } from "./seo";
+import { pathOf } from "./routes";
 import { useSignupState } from "./signupState";
 
 const DEMO_EMAIL = "admin@covey.local";

@@ -4,14 +4,11 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "npm run docs && vite",
-    "build": "npm run docs && tsc -b && vite build && npm run build:ssr && node prerender.mjs && node compress.mjs",
-    "build:ssr": "vite build --ssr src/entry-server.tsx --outDir dist-ssr --emptyOutDir",
+    "dev": "vite",
+    "build": "tsc -b && vite build && node compress.mjs",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "docs": "node docs.mjs",
-    "pretest": "npm run docs"
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@fontsource/inter": "^5.3.0",

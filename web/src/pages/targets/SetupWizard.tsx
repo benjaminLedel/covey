@@ -128,7 +128,7 @@ export function TargetSetupWizard({ name, onClose }: { name: string; onClose: ()
             disabled={step >= steps.length - 1}
             onClick={() => setStep((n) => n + 1)}
           >
-            {t("public.docs.next")}
+            {t("common.next")}
           </button>
         </>
       }

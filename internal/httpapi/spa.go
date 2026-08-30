@@ -21,23 +21,21 @@ func init() {
 	_ = mime.AddExtensionType(".webmanifest", "application/manifest+json")
 }
 
-// platzhalterOrigin stands in the prerendered HTML everywhere the address of
-// this installation belongs (canonical, hreflang, og:url, JSON-LD). The build
-// does not know it — Covey is self-hosted. See seo.go.
-const platzhalterOrigin = "__COVEY_ORIGIN__"
-
-// spaHandler serves the website. Four cases, in this order:
+// spaHandler serves the interface. Three cases, in this order:
 //
-//  1. a prerendered public page (dist/funktion/index.html …),
-//  2. a static file (assets, images, manifest),
-//  3. a path of the signed-in interface → the SPA shell, not indexable,
-//  4. otherwise: an honest 404.
+//  1. a static file (assets, images, manifest),
+//  2. a path the SPA knows → the shell,
+//  3. otherwise: an honest 404.
 //
-// Point 4 is the difference to before. Until then every path got index.html with
-// status 200 — inconspicuous for visitors, a "soft 404" for search engines:
-// arbitrarily many addresses that all show the same thing and all count as a
-// valid page. Without a prerendered dist/ (old build, tests with a hand-built
-// FS) the old behaviour remains — see seoIndex.istAppPfad.
+// Until #130 there was a fourth case in front: a prerendered public page. The
+// website lived in the binary and brought its own HTML per address; that is
+// gone, and with it the placeholder for the installation's own origin, which
+// only the prerendered head needed.
+//
+// Case 3 is worth keeping even though nothing is indexed here any more: a typo
+// should say so instead of quietly showing the sign-in. Without a route list
+// (an old build, tests with a hand-built FS) everything falls to the shell —
+// see appRouten.istAppPfad.
 func (s *Server) spaHandler(dist fs.FS) http.Handler {
 	fileServer := http.FileServer(http.FS(dist))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -82,15 +80,11 @@ func (s *Server) spaHandler(dist fs.FS) http.Handler {
 			}
 		}
 
-		if s.seo.istAppPfad(r.URL.Path) {
+		if s.routen.istAppPfad(r.URL.Path) {
 			// The interface itself does not belong in the index: without a
 			// session it shows nothing, and its address space is infinite.
 			w.Header().Set("X-Robots-Tag", "noindex")
-			daten, err := fs.ReadFile(dist, "app.html")
-			if err != nil {
-				// Build without prerendering — then index.html is the shell.
-				daten, err = fs.ReadFile(dist, "index.html")
-			}
+			daten, err := fs.ReadFile(dist, "index.html")
 			if err != nil {
 				http.NotFound(w, r)
 				return
@@ -99,16 +93,10 @@ func (s *Server) spaHandler(dist fs.FS) http.Handler {
 			return
 		}
 
-		file := "404.html"
-		if strings.HasPrefix(path, "en/") || path == "en" {
-			file = "en/404.html"
-		}
-		daten, err := fs.ReadFile(dist, file)
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		s.schreibeHTML(w, r, daten, http.StatusNotFound)
+		/* Bis #130 stand hier eine vorgerenderte 404-Seite je Sprache. Ohne
+		   Website gibt es sie nicht mehr, und für eine Anwendung, die nichts
+		   indexieren lässt, reicht die schlichte Antwort des Servers. */
+		http.NotFound(w, r)
 	})
 }
 
@@ -125,10 +113,9 @@ func istLokalerPfad(ziel string) bool {
 		!strings.HasPrefix(ziel, "/\\")
 }
 
-// schreibeHTML inserts the address of this installation into the prerendered
-// HTML and serves it.
-func (s *Server) schreibeHTML(w http.ResponseWriter, r *http.Request, daten []byte, status int) {
-	html := strings.ReplaceAll(string(daten), platzhalterOrigin, s.origin(r))
+// schreibeHTML serves the SPA shell.
+func (s *Server) schreibeHTML(w http.ResponseWriter, _ *http.Request, daten []byte, status int) {
+	html := string(daten)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	// The HTML is assembled per request — the address of this installation goes
 	// in above — and it names the hashed assets of the current build. A cache
