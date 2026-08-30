@@ -1,16 +1,22 @@
-# Multi-Stage-Build aus spec/10-architecture-stack.md:
-# Node baut das Frontend → Go bettet es ein → distroless-Endimage.
+# Multi-stage build from spec/10-architecture-stack.md:
+# Node builds the frontend → Go embeds it → distroless final image.
 FROM node:26 AS web
-WORKDIR /web
+# The stage is rooted at /src and the frontend sits at /src/web — the same
+# shape as the repository. Since the documentation has one source (#128),
+# web/docs.mjs reads ../docs while building, and it checks the links that lead
+# from there back into the repository (spec/, README.md, examples/, internal/).
+# So the stage gets the whole context, not just web/: a narrower copy would
+# turn every new link in a doc page into a failing image build.
+WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
-COPY web/ .
+COPY . /src/
 RUN npm run build
 
 FROM golang:1.26 AS build
-# Herkunft des Binaries (internal/buildinfo). Im Image gibt es kein .git
-# (siehe .dockerignore), deshalb reicht der Aufrufer die Werte durch —
-# die CI setzt sie aus $CI_COMMIT_*; ohne Build-Args bleibt es "dev".
+# Provenance of the binary (internal/buildinfo). The image has no .git
+# (see .dockerignore), so the caller passes the values in — CI sets them from
+# $CI_COMMIT_*; without build args it stays "dev".
 ARG VERSION=dev
 ARG COMMIT=
 ARG DATE=
@@ -18,7 +24,7 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-COPY --from=web /web/dist ./web/dist
+COPY --from=web /src/web/dist ./web/dist
 RUN LDFLAGS="-X covey/internal/buildinfo.version=$VERSION \
              -X covey/internal/buildinfo.commit=$COMMIT \
              -X covey/internal/buildinfo.date=$DATE" && \
@@ -28,8 +34,8 @@ RUN LDFLAGS="-X covey/internal/buildinfo.version=$VERSION \
 FROM gcr.io/distroless/static
 COPY --from=build /covey /covey
 COPY --from=build /coveyd /coveyd
-# Statische docker-CLI für den docker-SandboxProvider: er startet Sandboxen
-# via `docker run` über den gemounteten Host-Socket (Sibling-Container).
+# Static docker CLI for the docker sandbox provider: it starts sandboxes via
+# `docker run` over the mounted host socket (sibling containers).
 COPY --from=docker:27-cli /usr/local/bin/docker /usr/local/bin/docker
 ENV COVEY_COVEYD_PATH=/coveyd
 ENTRYPOINT ["/covey"]

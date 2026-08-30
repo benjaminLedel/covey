@@ -1,23 +1,27 @@
-# Build-Kontext klein halten: nur Quellcode + go.mod/sum + web/-Quellen werden
-# gebraucht (das Dockerfile baut Frontend und Binaries selbst im Image).
+# Keep the build context small: only source plus go.mod/sum and the web/
+# sources are needed (the Dockerfile builds frontend and binaries itself).
 .git
 .gitignore
 
-# Lokal vorgebaute Binaries — werden im Image ohnehin neu gebaut.
+# Locally prebuilt binaries — the image rebuilds them anyway.
 /covey
 /coveyd
 
-# Laufzeit-/lokale Artefakte.
+# Runtime and local artefacts.
 data/
 *.log
 .covey.key
 .DS_Store
 
-# Frontend-Artefakte: Quellen bleiben, Build passiert im Image.
+# Frontend artefacts: the sources stay, the build happens in the image.
 web/node_modules/
 web/dist/
 
-# Nicht build-relevantes Material.
+# Not build-relevant.
 praesentationen/
 mockup/
-docs/
+
+# docs/ is deliberately NOT excluded. Since the documentation has one source
+# (#128), web/docs.mjs reads it while building the frontend. Excluded, it was
+# missing from the context and `npm run build` failed inside the image — while
+# build-web stayed green in CI, where the whole repository is checked out.
