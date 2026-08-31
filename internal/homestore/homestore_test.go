@@ -369,6 +369,71 @@ func TestSweepKeepsWhatAnotherSnapshotStillNeeds(t *testing.T) {
 	}
 }
 
+// A manifest over the chunk limit lies in the store as an index over its
+// pieces, and those pieces are blocks like any other — so a sweep sees them
+// like any other. They appear in no entry of the manifest, which is why the
+// keep-set has to name them explicitly.
+//
+// Without that the failure is total and silent in the same breath: the index
+// survives, its chunks do not, and the agent's home cannot be materialised
+// again — "manifest chunk …: block not found" on every wake, for ever. It hits
+// exactly one agent per instance, the one with the biggest home, and no small
+// home ever shows a symptom.
+func TestSweepKeepsTheChunksOfALargeManifest(t *testing.T) {
+	ctx := context.Background()
+	blobs := newDir(t)
+	org := uuid.New()
+
+	// A manifest above the block size — the same shape a grown home produces.
+	m := Manifest{}
+	for i := 0; i < 40000; i++ {
+		m.Entries = append(m.Entries, Entry{
+			Path:   fmt.Sprintf("caches/paket-%05d/ein-recht-langer-dateiname.js", i),
+			Mode:   0o644,
+			Size:   17,
+			Blocks: []string{Hash([]byte(fmt.Sprintf("inhalt %d", i)))},
+		})
+	}
+	raw, err := m.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(raw) <= chunkSize {
+		t.Fatalf("the test manifest is too small for this case at %d bytes", len(raw))
+	}
+	hash, written, err := putManifest(ctx, blobs, org, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if written < 2 {
+		t.Fatalf("the manifest did not travel in pieces (%d objects)", written)
+	}
+
+	// Something that really is rubbish, so the sweep has work to do and a pass
+	// that removes nothing at all cannot pass this test by accident.
+	garbage := Hash([]byte("kein Schnappschuss verweist darauf"))
+	if err := blobs.Put(ctx, org, garbage, bytes.NewReader([]byte("kein Schnappschuss verweist darauf"))); err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := Sweep(ctx, blobs, org, []string{hash})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Removed != 1 {
+		t.Errorf("the sweep removed %d blocks, and only the garbage was one", res.Removed)
+	}
+
+	// The point of the whole test: the snapshot is still readable afterwards.
+	back, err := Load(ctx, blobs, org, hash)
+	if err != nil {
+		t.Fatalf("the surviving snapshot is unreadable after the sweep: %v", err)
+	}
+	if len(back.Entries) != len(m.Entries) {
+		t.Errorf("the manifest came back with %d instead of %d entries", len(back.Entries), len(m.Entries))
+	}
+}
+
 // Jede Datei eines Homes wird gechunkt — das Manifest selbst ging bisher als
 // EIN Objekt weg, egal wie groß. Bei einem gewachsenen Home sind das
 // hunderttausende Einträge mit Pfad und 64-Zeichen-Hash, also zweistellige
