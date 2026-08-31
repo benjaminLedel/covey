@@ -83,7 +83,7 @@ Besides the target-system webhooks (plugin, signature check, correlation — see
         │                                    │
         │                                    ▼
         │                              ┌───────────┐
-        │  done                        │  working  │
+        │  securing                    │  working  │
         └──────────────┐               └──┬─────▲──┘
                        │                  │     │
                   ┌────┴─────┐   block    │     │  correlated event
@@ -101,8 +101,11 @@ Besides the target-system webhooks (plugin, signature check, correlation — see
 | `working` | the task is being worked on in the sandbox | runtime on (full) |
 | `blocked` | task parked, waiting for an external event | none (suspended) |
 | `done` | task finished, result + memory update | runtime shuts down |
+| `securing` | sandbox stopped, home written into the store | runtime off, control plane busy |
 
-The full cycle: `sleeping → triggered → triage → working → (blocked ⇄ working) → done → sleeping`.
+The full cycle: `sleeping → triggered → triage → working → (blocked ⇄ working) → done → securing → sleeping`.
+
+**`securing` names the phase between "the last task is done" and "the sandbox is gone"** (migration `0079_status_securing`). The run is over, the platform is not: the container is being stopped and the home written into the store — a second for a small home, half a minute of scanning for a grown one. It gets a name of its own because `working` answered *is this agent busy* with a yes that meant something else entirely, and hid the one moment an operator would want explained. During `securing` the agent is not available for work, which is true, and is what a status should say.
 
 ## The `blocked` state
 

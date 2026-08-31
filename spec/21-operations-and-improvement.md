@@ -137,7 +137,7 @@ Once a proposal is **accepted** it is an ordinary config version and the agent r
 
 The three outcomes above have one thing in common — each needs a person, and two of them are not proposals. The temptation is to build a way to *tell* somebody, and that is the wrong shape: the platform has no notion of a message to a human, and inventing one for this feature would produce a second, worse inbox next to the one that already has to exist.
 
-Because slice 1 needs an accept/reject surface anyway, that surface **is** the channel: a list of open items per agent owner, carrying all three outcomes — proposals with their diff, findings without one, and issues already filed. It is the shape the approval gates already use, with a filter and a count on it. A finding that only a person can act on is then not a message that can be missed but an open item that stays open.
+Because slice 1 needs an accept/reject surface anyway, that surface **is** the channel: a list of open items per agent owner, carrying all of them — proposals with their diff, findings without one, issues already filed, and the tool request an agent wrote itself (see below). It is the shape the approval gates already use, with a filter and a count on it. A finding that only a person can act on is then not a message that can be missed but an open item that stays open.
 
 **Email is a notifier on top of it, never the channel itself.** Where Covey Doctor has an address ([`02-agent-model.md`](02-agent-model.md) — optional, not mandatory), it can tell an owner there is something waiting and link to it. Building the reverse would make the department's core function depend on optional infrastructure, and it would put the content somewhere a proposal cannot be accepted.
 
@@ -154,6 +154,20 @@ Agents can already flag problems to it. `covey/create_task` delegates to a colle
 So the channel is a **section in `PLAYBOOKS.md`**, not a mechanism: when you were blocked by something that was not the assignment — a missing action, a tool that is not allowed, a limit you keep hitting — report it instead of working around it silently. What that buys is the thing the work record cannot show: the agent's own account of *why*, written while it still knew. It is also the only one of the three causes the evidence is genuinely poor at, because an assignment that is wrong produces runs that look ordinary.
 
 Two properties of `create_task` are worth watching rather than pre-empting: every report wakes Covey Doctor immediately, and every wake is a run that costs money. If the noise turns out to be real, the answer is a report that collects until the next heartbeat rather than dispatching — but that is a new concept next to the backlog, and it should be paid for by observed noise, not by anticipation.
+
+## The fourth kind: the tool request
+
+The section above concluded that the channel from colleagues needs no mechanism — a paragraph in `PLAYBOOKS.md` and `covey/create_task` are enough. That held for reports in general and broke on one case, and the case is worth writing down because it is the platform failing at its own metaphor.
+
+**What was observed.** An agent that is missing a package had no way to say so. It is root nowhere, `apt` is not for it, and the workplace stands fixed until somebody rebuilds an image. What it did instead was lying in its home: `~/aptroot` with a `sources.list`, resolved package URIs and unpacked `.deb` files, last modified on the day of the observation. Not an afternoon of improvisation — the standing procedure.
+
+Covey is the IT department for these employees, and an employee who needs a tool files an application. Because there was no switch, this one built it in the basement: badly, repeatedly, and invisibly to everyone.
+
+**`tool_request` is that application** (migration `0081_tool_request`). `improvement_items.kind` now reads `proposal | finding | issue | tool_request`.
+
+Why it is a kind in the existing table rather than a table of its own: it is the same proceeding as a finding. No diff, a human decides, and the reason for a rejection stays on the record. Same person, same inbox, same verbs. A second table would have been a second, worse inbox — which is the argument this document already made once, in "How it reaches a human".
+
+What it changes about the agent's behaviour is the point: a wall it used to work around silently now has a door, and going through the door leaves a record of what was missing and who decided about it. A workaround in a home directory leaves neither.
 
 ## Issues in the platform's own repository
 
