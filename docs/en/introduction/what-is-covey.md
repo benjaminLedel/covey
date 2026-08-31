@@ -6,7 +6,7 @@ faq:
   - q: Does Covey need a cloud, or an account with you?
     a: 'No. Covey is self-hosted: one binary, one Postgres database, Docker for the sandboxes. The only account you need is with the model provider — an Anthropic API key or a subscription token, both deposited in your own instance.'
   - q: How is Covey different from an agent framework like LangChain or CrewAI?
-    a: A framework builds the agent, Covey operates it. Identity, access, backlog, guard-rails, recording and cost are operational questions and live outside the runtime — which is what keeps the runtime replaceable. The first adapter is Claude Code headless.
+    a: 'Covey does not replace an agent framework — it operates one. Role, access, cadence and memory are very much Covey''s to set; that is the same surface LangChain or CrewAI claim. What Covey does not do is drive the model loop, sitting between the model and the tool call and deciding the next step. That stays the runtime''s job — which is exactly why it hangs off a thin adapter and stays replaceable. The first one is Claude Code headless.'
   - q: What licence is Covey under?
     a: 'AGPL-3.0. You may run it, modify it and pass it on. The one obligation that matters in practice: if you offer a modified version to others over a network, those users must be able to get your modified source under the same terms. Running Covey inside your own organisation triggers none of that.'
   - q: Can an agent work without a target system?
@@ -23,7 +23,9 @@ Technically, Covey is **one Go binary next to a Postgres database**. The admin i
 
 For the moment a company runs more than one agent and somebody asks who has actually been watching. That is: who gave this agent that access, what did it do with it last week, what did it cost, and who stops it when it goes wrong.
 
-That is the difference from an agent framework. A framework helps you build the agent. Covey manages the finished agent in operation — which is why the framework stays replaceable: the runtime hangs off a thin adapter, and the first one is [Claude Code headless](architecture.md).
+This is also where the line against an agent framework runs, and it is narrower than it sounds. **Covey does not replace a framework, it operates one.** Who the agent is, what it may reach, when it runs and what it keeps are all Covey's to set: `SOUL.md` is compiled into the system prompt, `HEARTBEAT.md` sets the cadence, `ACCESS.md` the access, the wiki the memory. That is the same surface LangChain or CrewAI claim, and talking it away would be dishonest.
+
+What Covey does not do is drive the **model loop** — sit between the model and the tool call and decide the next step. That is the runtime's job ([Core concepts](core-concepts.md)), and because it stays there, the runtime hangs off a thin adapter and is replaceable. The first one is [Claude Code headless](architecture.md).
 
 ## The organisation is the unit, not the user
 
