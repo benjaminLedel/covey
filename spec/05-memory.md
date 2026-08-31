@@ -63,7 +63,7 @@ This separation resolves the "files vs. control plane" tension: file ergonomics 
 
 **Lint / consolidation** — **periodically as a scheduled maintenance job** (not in the hot path of the `done` step): merge duplicate pages, resolve contradictions between pages, mark outdated statements, find orphaned pages and missing cross-references. **This is the curation mechanic the flat snippet store lacked** — it keeps the wiki low on contradictions and lets knowledge *condense* with every task instead of merely *growing*. It can also be triggered manually for an agent through the UI.
 
-Consolidation runs on **two levels**: (1) **central & deterministic** — the control plane's scheduled `Consolidate` pass merges embedding-similar duplicate pages, free of charge and without an LLM. (2) **agentic** — an optional, platform-wide configurable **cleanup heartbeat** (`COVEY_WIKI_CLEANUP`, e.g. `täglich 03:00`) periodically creates a backlog task for every agent in which it curates its own wiki with judgement: merge similar pages by content, smooth out outdated/contradictory statements, fix dead `[[references]]`. For that the agent has, alongside `wiki_search|read|write`, the tool **`wiki_delete`** (agent-scoped: only within its own wiki). The heartbeat is a normal system default heartbeat (`source='system'` in `agent_heartbeats`) — overridable per agent by a `HEARTBEAT.md` entry of the same name, visible and manually triggerable in the heartbeat tab.
+Consolidation runs on **two levels**: (1) **central & deterministic** — the control plane's scheduled `Consolidate` pass merges embedding-similar duplicate pages, free of charge and without an LLM. (2) **agentic** — an optional, platform-wide configurable **cleanup heartbeat** (`COVEY_WIKI_CLEANUP`, e.g. `täglich 03:00`) periodically creates a backlog task for every agent in which it curates its own wiki with judgement: merge similar pages by content, smooth out outdated/contradictory statements, fix dead `[[references]]`. For that the agent has, alongside `wiki_search|read|write`, the tool **`wiki_delete`** (agent-scoped: only within its own wiki). The heartbeat is a normal system default heartbeat (`source='system'` in `agent_heartbeats`) — overridable per agent by a `HEARTBEAT.md` entry of the same name, visible and manually triggerable in the heartbeat tab. **A third level came later**, and it is a different kind of thing — it does not go through the backlog and does not wake the agent: see [The dream](#the-dream).
 
 ## Integration into the lifecycle
 
@@ -73,6 +73,7 @@ working: (work the task; pages directly readable/writable in the home)
 done:    wiki.ingest(insight)     → create/edit page, links, index.md, log.md; sync into the control plane
 ─────────
 lint:    wiki.consolidate()       → periodic, independent of tasks
+dream:   dream.run()              → nightly, in the control plane: merge, retitle, tell what happened
 ```
 
 This makes memory not a separate feature but a fixed part of every work cycle.
@@ -81,6 +82,25 @@ Two quality rules at the ingest point:
 
 - **No noise:** filler without informational value ("no new insights", "n/a") is discarded — the prompt instructs the agent not to touch the wiki in that case; the memory layer additionally filters as a safety net.
 - **Manual curation:** humans with a manage role can create, change and delete pages through API and UI (bring onboarding knowledge along, correct outdated or wrong entries) — the induction conversation for the new employee. Manually curated pages carry `source: manual` in the frontmatter and thus stay distinguishable from what the agent learned.
+
+## The dream
+
+Consolidation as described above is a maintenance job: it runs, it merges, it reports a number. What it cannot do is judgement — recognising that a page titled *"Ticket 4711: certificate expired"* is really about *certificate renewal* takes reading it. `internal/dream` (migrations `0042_dreams`, `0043_dream_story`) is where that judgement happens, and it happens at night.
+
+The dream runs **in the control plane, not in the sandbox**. It does not go through the backlog, does not wake the agent and costs it no turn; it works on the pages directly. Two phases, in this order:
+
+1. **Merge** — the deterministic `Consolidate` pass from above, wrapped: every merged pair becomes a recorded action.
+2. **Retitle** — at most `MaxPages` (40) pages, the first 400 characters of each, are put to the model at `llm.TierBest`: which of these titles names an event instead of a thing? Whatever is over the cap is left for the next night and said so — *a dream must not look more complete than it was.*
+
+Afterwards it **tells the story**: not "maintenance performed", but which page, from which title to which, and why. Whoever works unsupervised at night has to be able to say what they did.
+
+Three properties earn it the name rather than "nightly job":
+
+- **It writes, unasked, with nobody watching.** That is the entire reason for the next point.
+- **Every action records the state before it** — and the two kinds differ in what that buys. A **retitle can be taken back individually** the next morning (`POST /api/v1/dream-actions/{id}/undo`). A **merge cannot**: separating merged pages again would mean guessing which sentence came from where. So the record is what remains where the action is not reversible — visible, attributable, and honest about being final.
+- **Thinking stays on.** Measured: with thinking disabled the model answers in two seconds instead of sixty and delivers nothing usable — zero renames for a title that plainly needed one. At night a minute is not an argument; an empty result is.
+
+Triggered `nightly` on a schedule the control plane checks every five minutes, or `manual` from the agent's dream tab. A dream that has been "running" for thirty minutes did not survive a restart of the control plane and is cleared out at the next start — an agent listed as dreaming forever is a lie in a status column, and the status column is the thing an operator trusts.
 
 ## Scoping the memory
 

@@ -153,7 +153,7 @@ There is, however, a fourth case that is worth having and is often what is actua
 
 Not every task an organisation gives an agent is agentic. Classify this ticket. Summarise this thread. Extract these fields. Such work needs **one model call**, no tools, no turns, no sandbox — and driving it through a coding harness pays for a system prompt, tool definitions and a multi-turn loop in order to answer a single question.
 
-Covey already does this, it is just not modelled as an engine: `internal/claudeapi` is a narrow, tool-less path to the Messages API, used by the config copilot and by the dream. It is control-plane work rather than agent work, and it is wired to one provider.
+Covey already does this, it is just not modelled as an engine: `internal/claudeapi` is a narrow, tool-less path to the Messages API, used by the config copilot and by the dream ([`05-memory.md`](05-memory.md)). It is control-plane work rather than agent work, and it is wired to one provider.
 
 Turning that into a **direct engine** would be tidy rather than ambitious: single turn, no tools, an answer instead of a run. It has three properties the harness engines do not:
 
