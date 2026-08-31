@@ -49,14 +49,25 @@ func Plan(ctx context.Context, blobs BlobStore, orgID uuid.UUID, live []string) 
 	return out, nil
 }
 
-// liveBlocks is everything the surviving snapshots reference.
+// liveBlocks is everything the surviving snapshots reference — the files they
+// hold AND the objects the manifests themselves are made of.
+//
+// The second half is not decoration. A manifest over the chunk limit lies in
+// the store as an index over its pieces (putManifest), and those pieces are
+// blocks like any other. A keep-set built from the snapshot hash plus
+// BlockSet() named the index and the file contents, but never the chunks in
+// between — so the next sweep deleted them, the index survived pointing at
+// nothing, and the agent's home could not be materialised again. That is why
+// this asks for the objects rather than only the manifest.
 func liveBlocks(ctx context.Context, blobs BlobStore, orgID uuid.UUID, live []string) (map[string]bool, error) {
 	keep := map[string]bool{}
 	for _, manifestHash := range live {
-		keep[manifestHash] = true
-		m, err := Load(ctx, blobs, orgID, manifestHash)
+		m, objects, err := LoadWithObjects(ctx, blobs, orgID, manifestHash)
 		if err != nil {
 			return nil, err
+		}
+		for _, o := range objects {
+			keep[o] = true
 		}
 		for block := range m.BlockSet() {
 			keep[block] = true

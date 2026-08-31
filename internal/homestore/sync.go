@@ -241,23 +241,46 @@ func putManifest(ctx context.Context, blobs BlobStore, orgID uuid.UUID, raw []by
 // Load reads a snapshot's manifest back — whether it lies there whole or as an
 // index over its chunks.
 func Load(ctx context.Context, blobs BlobStore, orgID uuid.UUID, manifestHash string) (Manifest, error) {
+	m, _, err := LoadWithObjects(ctx, blobs, orgID, manifestHash)
+	return m, err
+}
+
+// LoadWithObjects reads the manifest and additionally names the objects the
+// manifest ITSELF occupies: the hash a snapshot points at, plus the chunks it
+// was split into when it did not fit into one.
+//
+// It exists for the garbage collection. A manifest's chunks are blocks like any
+// other and are therefore swept like any other — but they appear in no entry,
+// so a keep-set built from BlockSet() plus the snapshot hash leaves them out.
+// The first sweep after a large home was synced then deleted exactly the pieces
+// the index points at, the index survived pointing at nothing, and the agent
+// could never be woken again ("manifest chunk …: block not found"). Below the
+// chunk limit nothing of this was visible, which is why it only ever hit the
+// biggest home on an instance.
+func LoadWithObjects(ctx context.Context, blobs BlobStore, orgID uuid.UUID, manifestHash string) (Manifest, []string, error) {
+	objects := []string{manifestHash}
 	raw, err := fetch(ctx, blobs, orgID, manifestHash)
 	if err != nil {
-		return Manifest{}, err
+		return Manifest{}, nil, err
 	}
 	var idx manifestIndex
 	if err := json.Unmarshal(raw, &idx); err == nil && len(idx.Chunks) > 0 {
 		var buf bytes.Buffer
 		for _, h := range idx.Chunks {
+			objects = append(objects, h)
 			part, err := fetch(ctx, blobs, orgID, h)
 			if err != nil {
-				return Manifest{}, fmt.Errorf("manifest chunk %s: %w", h, err)
+				return Manifest{}, nil, fmt.Errorf("manifest chunk %s: %w", h, err)
 			}
 			buf.Write(part)
 		}
 		raw = buf.Bytes()
 	}
-	return DecodeManifest(raw)
+	m, err := DecodeManifest(raw)
+	if err != nil {
+		return Manifest{}, nil, err
+	}
+	return m, objects, nil
 }
 
 func fetch(ctx context.Context, blobs BlobStore, orgID uuid.UUID, hash string) ([]byte, error) {
