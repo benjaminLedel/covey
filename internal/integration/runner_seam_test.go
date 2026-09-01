@@ -276,3 +276,107 @@ func TestHomeSurvivesTheLossOfItsRunnerWorkingCopy(t *testing.T) {
 		}
 	}
 }
+
+// The other direction of the same seam: the STORE loses part of a home while
+// the working copy still holds it. The agent has to wake anyway.
+//
+// This is the incident that closed #137/#138, in the shape it actually took on
+// covey.work. A sweep deleted the manifest chunks of a snapshot minutes after
+// it was written; from then on every wake ended with "manifest chunk …: block
+// not found". The refusal was deliberate — never work on a half state — but it
+// was wrong here: the home lay complete on the runner, unchanged since the sync
+// that wrote that very snapshot. The agent stayed down for six and a half hours
+// beside its own intact files.
+//
+// So a start is allowed when the copy PROVES it is the state that was asked
+// for: SyncedHash is written after a successful sync and names it. Anything
+// else still refuses.
+func TestWakeUsesTheWorkingCopyWhenTheStoreLostTheState(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	dockerBin := fakeDocker(t, dir)
+	ctx := context.Background()
+
+	blobs, err := homestore.NewDir(filepath.Join(dir, "blocks"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pool *runner.Pool
+	s := newStackWith(t, stackOpts{
+		provider: func(homeBase string, log *slog.Logger) orchestrator.SandboxProvider {
+			pool = runner.NewPool(log)
+			pool.Profiles = map[string]string{sandbox.DefaultName(): "covey-sandbox:test"}
+			pool.StartTimeout = 20 * time.Second
+			return pool
+		},
+	})
+	agent := s.newSupportAgent("verlorener-block")
+	pool.LatestSnapshot = func(ctx context.Context, agentID uuid.UUID) (string, error) {
+		snap, err := s.runners.LatestSnapshot(ctx, agentID)
+		return snap.ManifestHash, err
+	}
+	pool.SnapshotTaken = func(ctx context.Context, agentID, runnerID uuid.UUID, res runner.HomeSynced) error {
+		_, err := s.runners.RecordSnapshot(ctx, s.orgID, agentID, &runnerID,
+			res.ManifestHash, res.TotalSize, res.Blocks, res.BytesUp, "job")
+		return err
+	}
+	rn, err := s.runners.EnsureBuiltin(ctx, s.orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	homes := filepath.Join(dir, "data")
+	node := runner.NewNode(rn.ID, s.orgID, &runner.Docker{
+		RunnerID: rn.ID, Image: "covey-sandbox:test", DataDir: homes, DockerBin: dockerBin,
+	}, slog.Default())
+	node.Blobs = blobs
+	t.Cleanup(node.Close)
+	if err := pool.AttachLocal(ctx, node); err != nil {
+		t.Fatal(err)
+	}
+
+	home := filepath.Join(homes, "homes", agent.ID.String())
+	if err := os.MkdirAll(home, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, "arbeit.md"), []byte("was der Agent zuletzt tat"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// A run, and the sync at the end of it: now the copy and the snapshot are
+	// the same state, and the copy says so.
+	sb, err := pool.Start(ctx, orchestrator.SandboxSpec{AgentID: agent.ID, OrgID: s.orgID})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "exit"), []byte("0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := sb.Stop(ctx); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+	snap, err := s.runners.LatestSnapshot(ctx, agent.ID)
+	if err != nil || snap.ManifestHash == "" {
+		t.Fatalf("no snapshot after the sync: %v", err)
+	}
+	if stand := homestore.SyncedHash(home); stand != snap.ManifestHash {
+		t.Fatalf("the working copy does not name the state it was synced to: %q vs %q", stand, snap.ManifestHash)
+	}
+
+	// The store loses the manifest — the sweep's mistake, in one line.
+	if err := blobs.Delete(ctx, s.orgID, snap.ManifestHash); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := homestore.Load(ctx, blobs, s.orgID, snap.ManifestHash); err == nil {
+		t.Fatal("the state has to be unreadable for this test to be the case it claims")
+	}
+
+	// The wake works anyway, out of the copy on this host.
+	if _, err := pool.Start(ctx, orchestrator.SandboxSpec{AgentID: agent.ID, OrgID: s.orgID}); err != nil {
+		t.Fatalf("the agent stayed down beside its own intact home: %v", err)
+	}
+	if b, err := os.ReadFile(filepath.Join(home, "arbeit.md")); err != nil || string(b) != "was der Agent zuletzt tat" {
+		t.Errorf("the working copy did not survive the start: %v", err)
+	}
+}

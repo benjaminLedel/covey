@@ -513,11 +513,38 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 			break
 		}
 		if err != nil {
+			// Nothing in the store could be read. There is one case left in
+			// which starting is not a half state but the RIGHT one: the copy
+			// on this host says it is exactly the snapshot that was asked for.
+			//
+			// SyncedHash is written after a successful sync and names the
+			// state the copy was brought to. If it equals the snapshot the
+			// control plane wants, then the files here ARE that state — the
+			// store lost its copy of something this disk still holds. Refusing
+			// then is not caution, it is throwing away the last intact copy:
+			// on covey.work exactly this kept an agent down for six and a half
+			// hours while its home lay complete on the runner (#138).
+			//
+			// Any other case still refuses. A copy that says nothing, or says
+			// a different state, is not the snapshot — and an agent working on
+			// one of those produces work nobody can place afterwards.
+			if stand := homestore.SyncedHash(home); stand != "" && stand == spec.Snapshot {
+				n.Log.Warn("the store lost this state — the working copy on this host is it",
+					"agent", spec.AgentID, "snapshot", short8(spec.Snapshot), "err", err)
+				n.say(ctx, t, Progress{
+					AgentID: spec.AgentID, Phase: PhaseHome, Done: true,
+					Detail: "the store could not produce this state; the working copy on this host is it, unchanged since the last sync",
+				})
+				homestore.MarkInUse(home)
+				err = nil
+			}
+		}
+		if err != nil {
 			// Refused rather than started on a home that is not the one the
 			// snapshot describes: an agent that silently works on a half state
 			// produces work nobody can place afterwards. What changed with
 			// #138 is only WHEN this is reached — after every state has been
-			// tried, not after the first one.
+			// tried, and after the working copy has been ruled out.
 			n.Log.Error("materialising the home failed — sandbox refused",
 				"agent", spec.AgentID, "snapshot", spec.Snapshot,
 				"fallbacks", len(spec.Fallbacks), "err", err)
