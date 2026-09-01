@@ -373,6 +373,16 @@ type StartSandbox struct {
 	// starts. Empty = whatever lies in the working copy — which is the case on
 	// the very first wake, and after that only when the store is switched off.
 	Snapshot string `json:"snapshot,omitempty"`
+	// Fallbacks are older states, newest first, for the case that Snapshot
+	// cannot be read — a block the store lost takes its snapshot with it, and
+	// without a way back that ends the agent (#138).
+	//
+	// The list travels with the start rather than being asked for afterwards:
+	// the runner is the only one that finds out a manifest is unreadable, and a
+	// second round trip to learn what else there is would make every failed
+	// wake a conversation. An older runner ignores the field and behaves as
+	// before — additive, like every other field here.
+	Fallbacks []string `json:"fallbacks,omitempty"`
 	// ImageHint is how one obtains this image, for the case that it is not
 	// there. It travels along because only the control plane can answer it: the
 	// runner sees an image reference, and which profile it belongs to — and

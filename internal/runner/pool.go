@@ -133,6 +133,9 @@ type Pool struct {
 	// nil or an empty hash = the working copy on the runner applies, which is
 	// what the very first wake looks like.
 	LatestSnapshot func(ctx context.Context, agentID uuid.UUID) (string, error)
+	// SnapshotChain are the states to try, newest first, when the newest one
+	// cannot be read (#138). nil = no way back, the behaviour before.
+	SnapshotChain func(ctx context.Context, agentID uuid.UUID) ([]string, error)
 	// SnapshotTaken files a completed sync. Only afterwards may anything be
 	// cleaned up locally — no prune before a successful sync (spec/16).
 	SnapshotTaken func(ctx context.Context, agentID, runnerID uuid.UUID, res HomeSynced) error
@@ -1342,7 +1345,18 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 	// an agent that cannot start at all because a lookup failed would be the
 	// worse outcome.
 	snapshot := ""
-	if p.LatestSnapshot != nil {
+	var fallbacks []string
+	if p.SnapshotChain != nil {
+		// The whole chain in one question: which of them can be read is only
+		// found out where the blocks are fetched, so the runner gets the list
+		// and walks it (#138).
+		if chain, err := p.SnapshotChain(ctx, spec.AgentID); err != nil {
+			p.Log.Warn("snapshots not readable — the working copy applies",
+				"agent", spec.AgentID, "err", err)
+		} else if len(chain) > 0 {
+			snapshot, fallbacks = chain[0], chain[1:]
+		}
+	} else if p.LatestSnapshot != nil {
 		if hash, err := p.LatestSnapshot(ctx, spec.AgentID); err != nil {
 			p.Log.Warn("last snapshot not readable — the working copy applies",
 				"agent", spec.AgentID, "err", err)
@@ -1365,6 +1379,7 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 			Env:         spec.Env,
 			EgressToken: spec.EgressToken,
 			Snapshot:    snapshot,
+			Fallbacks:   fallbacks,
 			ImageHint:   p.imageHints(ctx)[want.image],
 			Services:    spec.Services,
 		}, timeout)

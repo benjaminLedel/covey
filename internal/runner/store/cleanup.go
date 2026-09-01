@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -19,6 +20,10 @@ type Cleanup struct {
 	BlocksRemoved int   `json:"blocks_removed"`
 	FreedBytes    int64 `json:"freed_bytes"`
 	Preview       bool  `json:"preview"`
+	// BlocksSpared were unreferenced but too young to touch — a sync that is
+	// still running would reference them in a moment (#137). They go in the
+	// next pass, which is why this is a figure and not a warning.
+	BlocksSpared int `json:"blocks_spared,omitempty"`
 }
 
 // CleanupOrg sweeps every block that no agent's current manifest references any
@@ -34,13 +39,16 @@ type Cleanup struct {
 //
 // Which is why this has to run on a timer rather than on a button. The garbage
 // is proportional to how often agents work, not to anything anyone chose.
-func (s *Store) CleanupOrg(ctx context.Context, blobs homestore.BlobStore, orgID uuid.UUID, preview bool) (Cleanup, error) {
+// grace is how young a block has to be to be spared (#137);
+// homestore.DefaultGrace is what every caller in the product passes. A test
+// that wants to see the sweep work passes 0 — and says so by doing it.
+func (s *Store) CleanupOrg(ctx context.Context, blobs homestore.BlobStore, orgID uuid.UUID, preview bool, grace time.Duration) (Cleanup, error) {
 	out := Cleanup{Preview: preview}
 	live, err := s.Manifests(ctx, orgID)
 	if err != nil {
 		return out, err
 	}
-	plan, err := homestore.Plan(ctx, blobs, orgID, live)
+	plan, err := homestore.Plan(ctx, blobs, orgID, live, grace)
 	if err != nil {
 		return out, err
 	}
@@ -49,19 +57,34 @@ func (s *Store) CleanupOrg(ctx context.Context, blobs homestore.BlobStore, orgID
 		return out, nil
 	}
 
-	// Read the manifests again rather than sweeping against the list the plan
-	// used: a sync that landed in between is in the database but not in that
-	// list, and sweeping against the older one would delete the blocks it had
-	// just uploaded and leave its row pointing at nothing.
+	// The order of these two is the whole point, and it is the opposite of the
+	// obvious one (#137).
+	//
+	// The list of blocks is taken FIRST, the manifests after it. Then a sync
+	// that lands while the sweep runs is invisible to the sweep: its blocks
+	// are not in the list, so nothing can delete them, however long the walk
+	// takes. The other way round — manifests first, blocks after — is what
+	// happened on covey.work: the sweep deleted the manifest chunks a snapshot
+	// had uploaded minutes earlier, the row survived pointing at nothing, and
+	// the agent with the biggest home could not be woken again.
+	//
+	// Reading the manifests a second time (which is what stood here) makes the
+	// window smaller and leaves it open. This closes it, and the grace period
+	// in SweepList covers the last order: a sync whose blocks were up but
+	// whose row was not written yet.
+	all, err := blobs.List(ctx, orgID)
+	if err != nil {
+		return out, err
+	}
 	live, err = s.Manifests(ctx, orgID)
 	if err != nil {
 		return out, err
 	}
-	res, err := homestore.Sweep(ctx, blobs, orgID, live)
+	res, err := homestore.SweepList(ctx, blobs, orgID, live, all, grace)
 	if err != nil {
 		return out, err
 	}
-	out.BlocksRemoved = res.Removed
+	out.BlocksRemoved, out.BlocksSpared = res.Removed, res.Spared
 	return out, nil
 }
 

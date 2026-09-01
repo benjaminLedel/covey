@@ -332,7 +332,7 @@ func TestHomeRoundTripThroughS3(t *testing.T) {
 	}
 
 	// And the cleanup: with this snapshot alive, nothing may go.
-	plan, err := Plan(ctx, store, org, []string{res.ManifestHash})
+	plan, err := Plan(ctx, store, org, []string{res.ManifestHash}, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -341,7 +341,7 @@ func TestHomeRoundTripThroughS3(t *testing.T) {
 	}
 	// Without it, everything goes — and the measured figure is the space
 	// actually freed, which needs a size per block.
-	plan, err = Plan(ctx, store, org, nil)
+	plan, err = Plan(ctx, store, org, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

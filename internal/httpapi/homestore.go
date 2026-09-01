@@ -275,7 +275,7 @@ func (s *Server) handleCleanupStore(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	preview := r.URL.Query().Get("preview") != "false"
 
-	out, err := s.Runners.CleanupOrg(r.Context(), s.Blobs, p.OrgID, preview)
+	out, err := s.Runners.CleanupOrg(r.Context(), s.Blobs, p.OrgID, preview, homestore.DefaultGrace)
 	if err != nil {
 		mapErr(w, err)
 		return

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -434,8 +435,36 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 		// when nobody needs to be told any more.
 		n.say(ctx, t, Progress{AgentID: spec.AgentID, Phase: PhaseHome})
 		began := time.Now()
-		m, err := homestore.Load(ctx, n.Blobs, spec.OrgID, spec.Snapshot)
-		if err == nil {
+
+		// The newest state first, then the ones behind it. A snapshot whose
+		// manifest cannot be read is not a reason to give up on the agent:
+		// until #138 exactly that ended one for good, because the control
+		// plane offered the same unreadable state every thirty seconds while
+		// nine readable ones lay in the same table.
+		//
+		// Falling back does not endanger the working copy. Pruning happens
+		// only when the copy IS the snapshot being restored, and against an
+		// older one it never is — so the newer files stay where they are.
+		var err error
+		for i, hash := range append([]string{spec.Snapshot}, spec.Fallbacks...) {
+			var m homestore.Manifest
+			m, err = homestore.Load(ctx, n.Blobs, spec.OrgID, hash)
+			if err != nil {
+				n.Log.Warn("snapshot unreadable", "agent", spec.AgentID,
+					"snapshot", short8(hash), "err", err)
+				continue
+			}
+			if i > 0 {
+				// Not a log line: whoever looks at this agent has to see that
+				// it is not running on the state it last saved.
+				n.say(ctx, t, Progress{
+					AgentID: spec.AgentID, Phase: PhaseHome,
+					Detail: fmt.Sprintf("the last snapshot could not be read — going back %d state(s), to %s", i, short8(hash)),
+				})
+				n.Log.Warn("falling back to an older snapshot", "agent", spec.AgentID,
+					"wanted", short8(spec.Snapshot), "using", short8(hash), "back", i)
+			}
+
 			// Räumen darf nur, wer weiß, dass diese Kopie unverändert der
 			// Schnappschuss ist — also seit dem letzten gelungenen Sync keine
 			// Sandbox darin gearbeitet hat. Sonst trägt sie Arbeit, die der
@@ -446,33 +475,52 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 			// Eine Datei zu viel kostet Platz, eine gelöschte kostet Arbeit,
 			// die niemand zurückholt.
 			stand := homestore.SyncedHash(home)
-			raeumen := stand != "" && stand == spec.Snapshot
+			raeumen := stand != "" && stand == hash
 			var res homestore.MaterializeResult
 			res, err = homestore.MaterializeWatched(ctx, n.Blobs, spec.OrgID, home, m, raeumen,
 				n.ticker(ctx, t, spec.AgentID, PhaseHome, began, int64(len(m.Entries))))
-			if err == nil {
-				if !raeumen {
-					n.Log.Warn("working copy carries work this snapshot does not know — keeping it",
-						"agent", spec.AgentID, "snapshot", short8(spec.Snapshot), "working_copy", short8(stand))
-				}
-				// Ab hier läuft gleich eine Sandbox darin: die Kopie gilt als
-				// verändert, bis ein Sync das Gegenteil festhält.
-				homestore.MarkInUse(home)
-				n.Log.Info("home materialised", "agent", spec.AgentID,
-					"bytes_in", res.BytesIn, "ms", time.Since(began).Milliseconds())
+			if err != nil {
+				break
+			}
+			if !raeumen {
+				n.Log.Warn("working copy carries work this snapshot does not know — keeping it",
+					"agent", spec.AgentID, "snapshot", short8(hash), "working_copy", short8(stand))
+			}
+			// Files the store no longer holds are named rather than fatal
+			// (#138) — but they are named. A gap in a home that nobody
+			// mentions is the one outcome worse than a refused start.
+			if len(res.Missing) > 0 {
+				n.Log.Warn("files missing from the store — restored without them",
+					"agent", spec.AgentID, "snapshot", short8(hash), "files", len(res.Missing),
+					"first", strings.Join(cut(res.Missing, 5), ", "))
 				n.say(ctx, t, Progress{
-					AgentID: spec.AgentID, Phase: PhaseHome, Bytes: res.BytesIn,
-					MS: time.Since(began).Milliseconds(), Done: true,
-					Count: int64(len(m.Entries)), CountTotal: int64(len(m.Entries)),
+					AgentID: spec.AgentID, Phase: PhaseHome,
+					Detail: fmt.Sprintf("%d file(s) are no longer in the store and could not be restored: %s",
+						len(res.Missing), strings.Join(cut(res.Missing, 5), ", ")),
 				})
 			}
+			// Ab hier läuft gleich eine Sandbox darin: die Kopie gilt als
+			// verändert, bis ein Sync das Gegenteil festhält.
+			homestore.MarkInUse(home)
+			n.Log.Info("home materialised", "agent", spec.AgentID,
+				"bytes_in", res.BytesIn, "ms", time.Since(began).Milliseconds())
+			n.say(ctx, t, Progress{
+				AgentID: spec.AgentID, Phase: PhaseHome, Bytes: res.BytesIn,
+				MS: time.Since(began).Milliseconds(), Done: true,
+				Count: int64(len(m.Entries)), CountTotal: int64(len(m.Entries)),
+			})
+			err = nil
+			break
 		}
 		if err != nil {
 			// Refused rather than started on a home that is not the one the
 			// snapshot describes: an agent that silently works on a half state
-			// produces work nobody can place afterwards.
+			// produces work nobody can place afterwards. What changed with
+			// #138 is only WHEN this is reached — after every state has been
+			// tried, not after the first one.
 			n.Log.Error("materialising the home failed — sandbox refused",
-				"agent", spec.AgentID, "snapshot", spec.Snapshot, "err", err)
+				"agent", spec.AgentID, "snapshot", spec.Snapshot,
+				"fallbacks", len(spec.Fallbacks), "err", err)
 			n.reply(ctx, t, id, TypeSandboxFailed, SandboxResult{
 				AgentID: spec.AgentID,
 				Err:     "materialising the home failed: " + err.Error(),
@@ -834,4 +882,14 @@ func tailOf(out string) string {
 		return out
 	}
 	return "…" + out[len(out)-keep:]
+}
+
+// cut is the first n of a list — for a message that names examples rather than
+// a list nobody reads. A home has six figures of files; five of them say what
+// kind of thing is missing, and the count says how much.
+func cut(list []string, n int) []string {
+	if len(list) <= n {
+		return list
+	}
+	return append(append([]string{}, list[:n]...), "…")
 }

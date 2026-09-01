@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -298,6 +299,15 @@ type MaterializeResult struct {
 	Kept    int   // files already correct on disk
 	Removed int   // paths the snapshot does not know
 	BytesIn int64 // what had to be fetched
+	// Missing are the paths whose blocks the store no longer holds — the
+	// snapshot names them, nothing can produce them.
+	//
+	// They are a result and not an error on purpose. Refusing a whole start
+	// over one unreadable file is the harsher of two bad outcomes: the agent
+	// could work, it just has to be told what is not there (#138). Whoever
+	// receives this has to SAY so — a silent gap in a home is the one thing
+	// worse than a refused start.
+	Missing []string
 }
 
 // Materialize brings a working copy to the state of a snapshot. It writes only
@@ -388,6 +398,18 @@ func MaterializeWatched(ctx context.Context, blobs BlobStore, orgID uuid.UUID, r
 			}
 			n, err := writeFile(ctx, blobs, orgID, target, e)
 			if err != nil {
+				// A block the store does not have any more cannot be produced
+				// by trying again — for this file the answer is final, for the
+				// rest of the home it is not (#138). Anything else (a full
+				// disk, a broken connection) still ends the whole run: that is
+				// a condition of the machine, not of one file.
+				if errors.Is(err, ErrNotFound) {
+					res.Missing = append(res.Missing, e.Path)
+					// Half a file is worse than none: the next unchanged()
+					// would find the right size with the wrong content.
+					_ = os.Remove(target)
+					continue
+				}
 				return res, err
 			}
 			res.Written++

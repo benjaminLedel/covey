@@ -1004,6 +1004,12 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 			snap, err := snapshotStore.LatestSnapshot(ctx, agentID)
 			return snap.ManifestHash, err
 		}
+		// And what to try when that state cannot be read (#138). The retention
+		// keeps ten; all of them are candidates, because the sweep that loses
+		// the newest one keeps the older ones — they are in its keep-set.
+		runnerPool.SnapshotChain = func(ctx context.Context, agentID uuid.UUID) ([]string, error) {
+			return snapshotStore.SnapshotChain(ctx, agentID, 10)
+		}
 		// Where the agent last worked. The snapshot knows it, and it is the
 		// cheapest scheduling hint there is: the working copy of the home lies
 		// on that host, and every other one materialises it from the store
@@ -1490,7 +1496,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 						continue
 					}
 					for _, id := range orgs {
-						res, err := runnerStore.CleanupOrg(ctx, blobs, id, false)
+						res, err := runnerStore.CleanupOrg(ctx, blobs, id, false, homestore.DefaultGrace)
 						if err != nil {
 							// One organisation's store being unreadable must not
 							// stop the others: the next one may be the one that

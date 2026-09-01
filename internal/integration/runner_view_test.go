@@ -15,6 +15,7 @@ import (
 	"covey/internal/config"
 	"covey/internal/homestore"
 	"covey/internal/orchestrator"
+	"time"
 )
 
 // The runner view and the home store's interface (spec/16, stages 5 and 6). A
@@ -289,6 +290,10 @@ func TestCleanupFreesOnlyWhatNothingElseNeeds(t *testing.T) {
 		FreedBytes    int64 `json:"freed_bytes"`
 		Preview       bool  `json:"preview"`
 	}
+	// The blocks of this test are seconds old; the sweep spares anything a
+	// running sync might still be writing (#137). Backdated they are what a
+	// real store holds, and the cleanup does what it is asked here to prove.
+	alteBloecke(t, dir, 24*time.Hour)
 	resp := c.do(http.MethodPost, "/api/v1/platform/home-store/cleanup?preview=true", map[string]any{})
 	if err := json.NewDecoder(resp.Body).Decode(&preview); err != nil {
 		t.Fatal(err)
@@ -376,7 +381,7 @@ func TestCleanupReclaimsWhatADeletedAgentLeftBehind(t *testing.T) {
 		t.Fatalf("the row should have gone with the agent: %q, %v", left.ManifestHash, err)
 	}
 
-	res, err := s.runners.CleanupOrg(ctx, blobs, s.orgID, false)
+	res, err := s.runners.CleanupOrg(ctx, blobs, s.orgID, false, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

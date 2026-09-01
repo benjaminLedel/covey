@@ -286,6 +286,23 @@ func (s *S3) list(ctx context.Context, orgID uuid.UUID) ([]string, int64, error)
 }
 
 // BlockSize is how much one block occupies — what the cleanup preview adds up.
+// BlockModified is the object's Last-Modified — the age a sweep judges by
+// before it deletes something a running sync may still need (#137).
+func (s *S3) BlockModified(ctx context.Context, orgID uuid.UUID, hash string) (time.Time, error) {
+	if err := validHash(hash); err != nil {
+		return time.Time{}, err
+	}
+	resp, err := s.do(ctx, http.MethodHead, s.url(s.key(orgID, hash)), nil, emptyPayload)
+	if err != nil {
+		return time.Time{}, err
+	}
+	defer drain(resp)
+	if resp.StatusCode != http.StatusOK {
+		return time.Time{}, s.fail(resp, "head")
+	}
+	return http.ParseTime(resp.Header.Get("Last-Modified"))
+}
+
 func (s *S3) BlockSize(ctx context.Context, orgID uuid.UUID, hash string) (int64, error) {
 	if err := validHash(hash); err != nil {
 		return 0, err

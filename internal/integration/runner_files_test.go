@@ -422,3 +422,25 @@ func TestMkdirOverTheLinkIsSyncedToo(t *testing.T) {
 	}
 	t.Errorf("the folder is missing from the snapshot: %+v", m.Entries)
 }
+
+// alteBloecke backdates every block on disk.
+//
+// The sweep spares what a running sync might still be writing (#137), which is
+// right in production and inconvenient in a test: a test writes its blocks
+// seconds before it cleans up, and would then measure the grace period instead
+// of the sweep. Backdating produces the situation a real store is in — blocks
+// from hours ago — rather than switching the protection off, which would leave
+// the path the product actually takes untested.
+func alteBloecke(t *testing.T, dir string, um time.Duration) {
+	t.Helper()
+	wann := time.Now().Add(-um)
+	err := filepath.Walk(filepath.Join(dir, "blocks"), func(p string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return err
+		}
+		return os.Chtimes(p, wann, wann)
+	})
+	if err != nil {
+		t.Fatalf("backdating the blocks failed: %v", err)
+	}
+}

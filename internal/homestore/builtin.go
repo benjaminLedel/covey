@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -169,6 +170,20 @@ func (d *Dir) Size(_ context.Context, orgID uuid.UUID) (int64, error) {
 }
 
 // BlockSize is how much one block occupies — what the cleanup preview adds up.
+// BlockModified is when this block was written — what a sweep needs in order
+// to spare one that a sync may still be finishing (#137).
+func (d *Dir) BlockModified(_ context.Context, orgID uuid.UUID, hash string) (time.Time, error) {
+	p, err := d.path(orgID, hash)
+	if err != nil {
+		return time.Time{}, err
+	}
+	info, err := os.Stat(p)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return info.ModTime(), nil
+}
+
 func (d *Dir) BlockSize(_ context.Context, orgID uuid.UUID, hash string) (int64, error) {
 	p, err := d.path(orgID, hash)
 	if err != nil {

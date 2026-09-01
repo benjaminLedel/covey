@@ -9,6 +9,8 @@ import (
 	"covey/internal/config"
 	"covey/internal/db"
 	runnerstore "covey/internal/runner/store"
+
+	"covey/internal/homestore"
 )
 
 // runHomeStore is the cleanup from the operator's side. It is the same pass the
@@ -61,7 +63,7 @@ func runHomeStore(ctx context.Context, cfg config.Config, args []string, log *sl
 	var blocks int
 	var freed int64
 	for _, id := range orgs {
-		res, err := store.CleanupOrg(ctx, blobs, id, !apply)
+		res, err := store.CleanupOrg(ctx, blobs, id, !apply, homestore.DefaultGrace)
 		if err != nil {
 			return fmt.Errorf("organisation %s: %w", id, err)
 		}

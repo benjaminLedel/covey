@@ -3,12 +3,14 @@ package homestore
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -340,7 +342,14 @@ func TestSweepKeepsWhatAnotherSnapshotStillNeeds(t *testing.T) {
 	}
 
 	// The old snapshot goes; the new one stays.
-	res, err := Sweep(ctx, blobs, org, []string{neu.ManifestHash})
+	// Ohne Schonfrist: dieser Test fragt, WAS gelöscht wird, nicht wann
+	// (SweepList mit 0). Die Schonfrist selbst prüft
+	// TestSweepSparesBlocksASyncMayStillBeWriting.
+	all, err := blobs.List(ctx, org)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := SweepList(ctx, blobs, org, []string{neu.ManifestHash}, all, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -416,7 +425,11 @@ func TestSweepKeepsTheChunksOfALargeManifest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, err := Sweep(ctx, blobs, org, []string{hash})
+	all, err := blobs.List(ctx, org)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := SweepList(ctx, blobs, org, []string{hash}, all, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -951,5 +964,165 @@ func TestGebuendeltReistTrotzdemNurWasFehlt(t *testing.T) {
 	// Und der Schnappschuss ist derselbe.
 	if erst.ManifestHash != zweit.ManifestHash {
 		t.Error("zwei Syncs desselben Standes ergeben verschiedene Schnappschüsse")
+	}
+}
+
+// A block the store no longer holds costs its file — not the whole start.
+//
+// The case is not hypothetical: a sweep that met a sync deleted blocks a
+// snapshot had just uploaded (#137), and until #138 every wake afterwards ended
+// with "block not found" and the agent stayed down. Refusing a start over one
+// unreadable file is the harsher of two bad outcomes; the rest of the home is
+// intact and the agent can work with it, as long as it is TOLD what is gone.
+func TestMaterializeSkipsBlocksTheStoreLost(t *testing.T) {
+	ctx := context.Background()
+	blobs := newDir(t)
+	org := uuid.New()
+
+	da := []byte("this one is still there")
+	weg := []byte("this one the sweep took")
+	for _, b := range [][]byte{da, weg} {
+		if err := blobs.Put(ctx, org, Hash(b), bytes.NewReader(b)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	m := Manifest{Entries: []Entry{
+		{Path: "vorhanden.txt", Mode: 0o644, Size: int64(len(da)), Blocks: []string{Hash(da)}},
+		{Path: "fehlt.txt", Mode: 0o644, Size: int64(len(weg)), Blocks: []string{Hash(weg)}},
+	}}
+	// Exactly what a sweep does, and the only thing that makes this test the
+	// case it claims to be.
+	if err := blobs.Delete(ctx, org, Hash(weg)); err != nil {
+		t.Fatal(err)
+	}
+
+	root := filepath.Join(t.TempDir(), "home")
+	res, err := Materialize(ctx, blobs, org, root, m)
+	if err != nil {
+		t.Fatalf("a lost block ended the whole materialisation: %v", err)
+	}
+	if len(res.Missing) != 1 || res.Missing[0] != "fehlt.txt" {
+		t.Fatalf("the missing file is not named: %v", res.Missing)
+	}
+	if res.Written != 1 {
+		t.Errorf("the intact file was not written (%d written)", res.Written)
+	}
+	if b, err := os.ReadFile(filepath.Join(root, "vorhanden.txt")); err != nil || string(b) != string(da) {
+		t.Errorf("the intact file is not on disk: %v", err)
+	}
+	// Half a file would be worse than none: the next wake would find the right
+	// size and take it for the real thing.
+	if _, err := os.Stat(filepath.Join(root, "fehlt.txt")); !os.IsNotExist(err) {
+		t.Errorf("a remnant of the unreadable file stayed behind: %v", err)
+	}
+}
+
+// Everything else still ends the run. A full disk is a condition of the
+// machine, not a fact about one file, and carrying on would produce a home
+// that is quietly incomplete for a reason nobody recorded.
+func TestMaterializeStillFailsOnEverythingElse(t *testing.T) {
+	ctx := context.Background()
+	org := uuid.New()
+	inhalt := []byte("egal")
+	m := Manifest{Entries: []Entry{
+		{Path: "datei.txt", Mode: 0o644, Size: int64(len(inhalt)), Blocks: []string{Hash(inhalt)}},
+	}}
+	_, err := Materialize(ctx, &kaputterStore{}, org, filepath.Join(t.TempDir(), "home"), m)
+	if err == nil {
+		t.Fatal("a store that answers with a real fault must not be treated as a missing block")
+	}
+	if errors.Is(err, ErrNotFound) {
+		t.Fatalf("the fault was turned into a missing block: %v", err)
+	}
+}
+
+// kaputterStore answers every read with a fault that is not "not found".
+type kaputterStore struct{}
+
+func (kaputterStore) Has(context.Context, uuid.UUID, string) (bool, error) { return false, nil }
+func (kaputterStore) Get(context.Context, uuid.UUID, string) (io.ReadCloser, error) {
+	return nil, errors.New("store unreachable")
+}
+func (kaputterStore) Put(context.Context, uuid.UUID, string, io.Reader) error { return nil }
+func (kaputterStore) Delete(context.Context, uuid.UUID, string) error         { return nil }
+func (kaputterStore) List(context.Context, uuid.UUID) ([]string, error)       { return nil, nil }
+
+// A block younger than the grace period stays, even though no snapshot names
+// it — because a sync that is still running would name it in a moment.
+//
+// This is the case that took covey.work down (#137): the sweep read which
+// manifests were alive, walked the store for minutes, and deleted the manifest
+// chunks a snapshot had uploaded in between. The row survived pointing at
+// nothing, and the agent with the biggest home never woke again. Its sync took
+// over two minutes — the biggest home spends the most time inside the window,
+// which is why it is always that one agent.
+func TestSweepSparesBlocksASyncMayStillBeWriting(t *testing.T) {
+	ctx := context.Background()
+	blobs := newDir(t)
+	org := uuid.New()
+
+	frisch := []byte("uploaded a moment ago, its snapshot row is not written yet")
+	if err := blobs.Put(ctx, org, Hash(frisch), bytes.NewReader(frisch)); err != nil {
+		t.Fatal(err)
+	}
+	all, err := blobs.List(ctx, org)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// No live snapshot references it — by the old rule it was garbage.
+	res, err := SweepList(ctx, blobs, org, nil, all, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Removed != 0 || res.Spared != 1 {
+		t.Fatalf("the fresh block was not spared (removed %d, spared %d)", res.Removed, res.Spared)
+	}
+	if has, err := blobs.Has(ctx, org, Hash(frisch)); err != nil || !has {
+		t.Fatal("the block a running sync needs is gone")
+	}
+
+	// And it does go once it is old enough — the sparing is a delay, not a leak.
+	res, err = SweepList(ctx, blobs, org, nil, all, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Removed != 1 {
+		t.Fatalf("the block was spared for good (removed %d)", res.Removed)
+	}
+}
+
+// A block that arrives WHILE the sweep runs cannot be deleted, however long
+// the sweep takes: it is not in the list the caller took beforehand. That is
+// the other half of #137, and the half that does not depend on a clock.
+func TestSweepListOnlyTouchesWhatTheCallerSaw(t *testing.T) {
+	ctx := context.Background()
+	blobs := newDir(t)
+	org := uuid.New()
+
+	alt := []byte("garbage from a snapshot nobody keeps")
+	if err := blobs.Put(ctx, org, Hash(alt), bytes.NewReader(alt)); err != nil {
+		t.Fatal(err)
+	}
+	all, err := blobs.List(ctx, org)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The sync lands after the list was taken.
+	waehrenddessen := []byte("a sync that started after the list was taken")
+	if err := blobs.Put(ctx, org, Hash(waehrenddessen), bytes.NewReader(waehrenddessen)); err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := SweepList(ctx, blobs, org, nil, all, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Removed != 1 {
+		t.Fatalf("expected exactly the block from the list to go, %d went", res.Removed)
+	}
+	if has, err := blobs.Has(ctx, org, Hash(waehrenddessen)); err != nil || !has {
+		t.Fatal("a block uploaded during the sweep was deleted — the window is still open")
 	}
 }
