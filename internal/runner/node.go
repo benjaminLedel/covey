@@ -432,7 +432,13 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 	// differs is written — on the runner an agent last ran on that is the
 	// normal case, and then this costs nothing at all.
 	if spec.Snapshot != "" && n.Blobs != nil {
-		home, _, _ := n.Docker.AgentHome(spec.AgentID)
+		home, uid, gid := n.Docker.AgentHome(spec.AgentID)
+		// Whose the restored files are. The runner is root on a runner host,
+		// so without this every file it writes belongs to root and the agent
+		// inside — uid 1001 — can read its home and change nothing in it
+		// (#120). It was asked to tidy up caches it had no permission to
+		// delete, and reported exactly that.
+		besitzer := &homestore.Owner{UID: uid, GID: gid}
 		// Said before it happens, not after: on a host the agent has not
 		// worked on, this is minutes of copying, and afterwards is exactly
 		// when nobody needs to be told any more.
@@ -480,8 +486,8 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 			stand := homestore.SyncedHash(home)
 			raeumen := stand != "" && stand == hash
 			var res homestore.MaterializeResult
-			res, err = homestore.MaterializeWatched(ctx, n.Blobs, spec.OrgID, home, m, raeumen,
-				n.ticker(ctx, t, spec.AgentID, PhaseHome, began, int64(len(m.Entries))))
+			res, err = homestore.MaterializeOwned(ctx, n.Blobs, spec.OrgID, home, m, raeumen,
+				n.ticker(ctx, t, spec.AgentID, PhaseHome, began, int64(len(m.Entries))), besitzer)
 			if err != nil {
 				break
 			}
@@ -501,6 +507,12 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 					Detail: fmt.Sprintf("%d file(s) are no longer in the store and could not be restored: %s",
 						len(res.Missing), strings.Join(cut(res.Missing, 5), ", ")),
 				})
+			}
+			// Homes that predate #120 belong to root all the way down. Handing
+			// one over walks it once and then leaves a marker — a home nobody
+			// has to repair twice.
+			if anzahl, repariert := homestore.Adopt(home, *besitzer); repariert {
+				n.Log.Info("home handed to its agent", "agent", spec.AgentID, "entries", anzahl)
 			}
 			// Ab hier läuft gleich eine Sandbox darin: die Kopie gilt als
 			// verändert, bis ein Sync das Gegenteil festhält.

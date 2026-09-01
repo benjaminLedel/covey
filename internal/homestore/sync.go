@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"syscall"
 )
 
 // SyncResult is what a sync cost and what it produced.
@@ -310,6 +311,34 @@ type MaterializeResult struct {
 	Missing []string
 }
 
+// Owner is who the materialised files belong to.
+//
+// It exists because a home restored on a runner used to belong to root: the
+// runner runs as root (Docker wants that), and every file it wrote carried its
+// ownership. The agent inside the sandbox is uid 1001 and cannot touch any of
+// it — 13 of 16 GB of one home, including the caches the platform then asked it
+// to tidy up (#120). It could not repair its own workspace either: a
+// half-unpacked archive, a broken checkout, a wrong SDK — all restored as root,
+// all read-only in practice.
+//
+// A chown per created entry costs nothing next to writing the content, and it
+// is the difference between a home an agent lives in and one it only looks at.
+type Owner struct{ UID, GID int }
+
+// gehoert sets the owner of a path, if one was asked for.
+//
+// Errors are swallowed on purpose. Only root may hand a file to another user,
+// and the same code runs on a developer's machine where the runner is not root
+// and the files are already theirs. Refusing to materialise a home there
+// because a chown was not permitted would trade a real start for a cosmetic
+// one.
+func (o *Owner) gehoert(pfad string) {
+	if o == nil {
+		return
+	}
+	_ = os.Lchown(pfad, o.UID, o.GID)
+}
+
 // Materialize brings a working copy to the state of a snapshot. It writes only
 // what differs and leaves the rest alone: on the runner an agent last ran on
 // that is the normal case, and then materialising costs nothing at all.
@@ -348,10 +377,20 @@ func MaterializeInto(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root
 // silence and eleven minutes with "3.1 GB of 8.3 GB" are the same wait, and
 // only one of them is a fault report.
 func MaterializeWatched(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root string, m Manifest, prune bool, watch Watch) (MaterializeResult, error) {
+	return MaterializeOwned(ctx, blobs, orgID, root, m, prune, watch, nil)
+}
+
+// MaterializeOwned is MaterializeWatched with the answer to "and whose is it?".
+//
+// owner nil = whatever the writing process is, which is right for a restore
+// into a directory somebody is looking at. On a runner it is the agent, and
+// that is the whole point (#120).
+func MaterializeOwned(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root string, m Manifest, prune bool, watch Watch, owner *Owner) (MaterializeResult, error) {
 	var res MaterializeResult
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		return res, err
 	}
+	owner.gehoert(root)
 
 	wanted := map[string]bool{}
 	// Directories first, and shallow before deep — a file cannot be written
@@ -378,6 +417,7 @@ func MaterializeWatched(ctx context.Context, blobs BlobStore, orgID uuid.UUID, r
 			if err := os.MkdirAll(target, e.Mode|0o700); err != nil {
 				return res, err
 			}
+			owner.gehoert(target)
 		case e.Link != "":
 			if old, err := os.Readlink(target); err == nil && old == e.Link {
 				res.Kept++
@@ -390,6 +430,7 @@ func MaterializeWatched(ctx context.Context, blobs BlobStore, orgID uuid.UUID, r
 			if err := os.Symlink(e.Link, target); err != nil {
 				return res, err
 			}
+			owner.gehoert(target)
 			res.Written++
 		default:
 			if unchanged(target, e) {
@@ -412,6 +453,7 @@ func MaterializeWatched(ctx context.Context, blobs BlobStore, orgID uuid.UUID, r
 				}
 				return res, err
 			}
+			owner.gehoert(target)
 			res.Written++
 			res.BytesIn += n
 		}
@@ -659,6 +701,51 @@ func min(a, b int) int {
 // „steht sie auf diesem Stand?" hätte mit Ja geantwortet und die Transkripte
 // gelöscht. Die richtige Frage ist „hat seither jemand darin gearbeitet?".
 func stateFile(root string) string { return strings.TrimRight(root, "/\\") + ".snapshot" }
+
+// ownerFile marks that this home has been handed to its agent once.
+func ownerFile(root string) string { return strings.TrimRight(root, "/\\") + ".owned" }
+
+// Adopt hands an existing home to its agent — once, and then never again.
+//
+// Homes materialised before #120 belong to root all the way down: the runner
+// wrote them, and the runner is root. The agent inside cannot delete a cache it
+// is asked to clean up, cannot repair a broken checkout, cannot do anything but
+// read. Walking the tree costs seconds for half a million files and is paid
+// once per home, which is why the marker matters more than the speed.
+//
+// Errors are counted, not returned. On a machine where the runner is not root
+// every chown fails and the home is already the right person's — refusing to
+// start there would be a fix that breaks the case it does not apply to.
+func Adopt(root string, owner Owner) (int, bool) {
+	if _, err := os.Stat(ownerFile(root)); err == nil {
+		return 0, false
+	}
+	var geaendert int
+	_ = filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			return nil
+		}
+		if st, ok := info.Sys().(*syscall.Stat_t); ok &&
+			int(st.Uid) == owner.UID && int(st.Gid) == owner.GID {
+			return nil
+		}
+		if os.Lchown(p, owner.UID, owner.GID) == nil {
+			geaendert++
+		}
+		return nil
+	})
+	// The marker only goes down when there was nothing left to hand over.
+	// Otherwise a run that could not chown (not root) would mark the home as
+	// done and the real repair would never happen.
+	if geaendert == 0 {
+		_ = os.WriteFile(ownerFile(root), []byte("1"), 0o600)
+	}
+	return geaendert, geaendert > 0
+}
 
 // MarkSynced hält fest, dass diese Arbeitskopie GENAU dieser Schnappschuss ist.
 // Nur nach einem gelungenen Sync (oder einem ausdrücklichen Restore) wahr.

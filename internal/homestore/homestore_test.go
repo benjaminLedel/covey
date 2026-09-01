@@ -1126,3 +1126,74 @@ func TestSweepListOnlyTouchesWhatTheCallerSaw(t *testing.T) {
 		t.Fatal("a block uploaded during the sweep was deleted — the window is still open")
 	}
 }
+
+// A home belongs to the agent that lives in it — and a chown that is not
+// permitted must not cost the start.
+//
+// On a runner host the runner is root, so every file it wrote belonged to root
+// and the agent inside (uid 1001) could read its home and change nothing in it.
+// 13 of 16 GB of one home were untouchable, including the caches the platform
+// then filed a task about: "tidy up", addressed to somebody without permission
+// to delete anything (#120).
+//
+// This test runs as an ordinary user, which is the harder half of the case: the
+// chown to a foreign uid fails, and materialising has to succeed anyway.
+// Otherwise the fix for a production host would break every developer machine.
+func TestMaterializeSurvivesAChownItMayNotDo(t *testing.T) {
+	ctx := context.Background()
+	blobs := newDir(t)
+	org := uuid.New()
+
+	inhalt := []byte("was der Agent lesen und ändern können muss")
+	if err := blobs.Put(ctx, org, Hash(inhalt), bytes.NewReader(inhalt)); err != nil {
+		t.Fatal(err)
+	}
+	m := Manifest{Entries: []Entry{
+		{Path: "verzeichnis", Dir: true, Mode: 0o755},
+		{Path: "verzeichnis/datei.txt", Mode: 0o644, Size: int64(len(inhalt)), Blocks: []string{Hash(inhalt)}},
+	}}
+
+	root := filepath.Join(t.TempDir(), "home")
+	// 1001:1001 is the `agent` user of the sandbox image. Unless this test runs
+	// as root, every chown below fails — and that has to be invisible.
+	res, err := MaterializeOwned(ctx, blobs, org, root, m, true, nil, &Owner{UID: 1001, GID: 1001})
+	if err != nil {
+		t.Fatalf("a chown that was not permitted ended the materialisation: %v", err)
+	}
+	// Directories are created, not "written" — the count is about content.
+	if res.Written != 1 {
+		t.Errorf("the file was not written: %+v", res)
+	}
+	if info, err := os.Stat(filepath.Join(root, "verzeichnis")); err != nil || !info.IsDir() {
+		t.Errorf("the directory is missing: %v", err)
+	}
+	if b, err := os.ReadFile(filepath.Join(root, "verzeichnis", "datei.txt")); err != nil || string(b) != string(inhalt) {
+		t.Errorf("the file is not there or wrong: %v", err)
+	}
+}
+
+// The one-off handover happens once. The marker is what makes it once, and it
+// is only written when there was nothing left to hand over — otherwise a run
+// that could not chown would mark the home as done and the real repair would
+// never happen.
+func TestAdoptMarksOnlyWhenItIsActuallyDone(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "datei.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// The files already belong to this user: nothing to do, and that is the
+	// case in which the home may be marked.
+	eigen := Owner{UID: os.Getuid(), GID: os.Getgid()}
+	if n, repariert := Adopt(root, eigen); repariert || n != 0 {
+		t.Errorf("nothing had to change, yet %d entries were reported", n)
+	}
+	if _, err := os.Stat(ownerFile(root)); err != nil {
+		t.Error("a home that needed nothing was not marked, so it will be walked again on every wake")
+	}
+
+	// And a marked home is not walked again.
+	if n, _ := Adopt(root, eigen); n != 0 {
+		t.Errorf("the marker did not hold: %d entries", n)
+	}
+}
