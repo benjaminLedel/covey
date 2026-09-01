@@ -157,8 +157,7 @@
     "pending": "ausstehend",
     "approved": "freigegeben",
     "denied": "abgelehnt",
-    "wakeFailed": "weckt nicht",
-    "wakeFailedWhy": "{{n}} Weckversuche gescheitert: {{err}}"
+    "wakeFailed": "weckt nicht"
   },
   "role": {
     "org_admin": "Org-Admin",
@@ -858,7 +857,8 @@
       "files_one": "{{count}} Datei",
       "files_other": "{{count}} Dateien",
       "syncFailed": "Seit {{when}} wurde der Arbeitsplatz nicht mehr gesichert: {{error}} — die Zahlen unten beschreiben einen älteren Stand."
-    }
+    },
+    "wakeFailedWhy": "{{n}} Weckversuche gescheitert: {{err}}"
   },
   "approvals": {
     "approve": "Freigeben",

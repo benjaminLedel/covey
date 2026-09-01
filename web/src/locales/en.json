@@ -157,8 +157,7 @@
     "pending": "pending",
     "approved": "approved",
     "denied": "denied",
-    "wakeFailed": "cannot wake",
-    "wakeFailedWhy": "{{n}} failed wakes: {{err}}"
+    "wakeFailed": "cannot wake"
   },
   "role": {
     "org_admin": "Org Admin",
@@ -858,7 +857,8 @@
       "files_one": "{{count}} file",
       "files_other": "{{count}} files",
       "syncFailed": "The workplace has not been secured since {{when}}: {{error}} — the figures below describe an older state."
-    }
+    },
+    "wakeFailedWhy": "{{n}} failed wakes: {{err}}"
   },
   "approvals": {
     "approve": "Approve",

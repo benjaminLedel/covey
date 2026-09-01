@@ -127,7 +127,7 @@ export default function AgentPage({ me }: { me: Principal }) {
              Rohdaten der Aufzeichnung kennen, wird nicht gelesen (#139). */
           <span
             className="badge st-wake-failed"
-            title={t("status.wakeFailedWhy", { n: a.wake_trouble.failures, err: a.wake_trouble.error ?? "" })}
+            title={t("agent.wakeFailedWhy", { n: a.wake_trouble.failures, err: a.wake_trouble.error ?? "" })}
           >
             {t("status.wakeFailed")}
           </span>

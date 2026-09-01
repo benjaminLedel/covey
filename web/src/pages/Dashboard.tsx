@@ -414,7 +414,7 @@ function AgentCard({
           agent.wake_trouble && !draft && !agent.killed ? (
             <span
               className="badge shrink-0 st-wake-failed"
-              title={t("status.wakeFailedWhy", {
+              title={t("agent.wakeFailedWhy", {
                 n: agent.wake_trouble.failures,
                 err: agent.wake_trouble.error ?? "",
               })}
