@@ -632,6 +632,68 @@ Two idiosyncrasies you have to know when designing such an agent:
   automatically; it has to include it in `remove_labels` itself. That is exactly
   why the rule "both in the same call" stands above.
 
+### 5.2 The undertaking: the milestone actions
+
+A milestone is what a delivery lead leads (2.9): a release, a tender, a sprint
+with a deadline. For a long time the plugin knew it only as a **filter** —
+`list_issues` took a milestone title and every issue carried its milestone
+back. That was enough to *watch* an undertaking and not enough to *lead* one:
+a lead could see which tickets belonged to its milestone but could not put one
+into it.
+
+| Action | What it does |
+|---|---|
+| `list_milestones` | the undertakings of a project (`state`, `search`, `include_parent`) |
+| `get_milestone` | one of them, addressed by title or by `milestone_id` |
+| `create_milestone` | cuts a new one (`title`, `description`, `start_date`, `due_date`) |
+| `update_milestone` | moves a date, rewrites the description, closes or reactivates |
+| `set_milestone` | puts an issue **or** a merge request into a milestone — or takes it out |
+
+`set_milestone {"project_id":40,"issue_iid":819,"milestone":"NLC App"}` is the
+one that carries the role. As with `set_labels`, `mr_iid` instead of
+`issue_iid` does the same to a merge request — exactly one of the two, never
+both. `create_issue` takes a `milestone` along as well, so a newly filed ticket
+does not spend the gap between two calls outside every undertaking.
+
+Four things worth knowing when designing such an agent:
+
+- **A milestone carries an `id` and an `iid`, and only the `id` attaches.**
+  The `iid` is its number within the project, the `id` is instance-wide, and
+  the attachment field means the `id`. Handing the `iid` over does not fail: on
+  a project whose numbering happens to line up it attaches a *different,
+  existing* milestone, and nothing afterwards shows it. That is why the actions
+  take a **title** and resolve it themselves — an ambiguous or unknown title is
+  an error with the candidates listed, never a guess.
+- **Detaching has to be asked for** (`"detach": true`). If an omitted milestone
+  meant "take it off", a forgotten field would silently unfile a ticket.
+- **There is no delete.** A milestone that is over gets `"state":"close"`,
+  which keeps its issues and its history — and the recommended guard rail
+  `deny_action *:delete*` would refuse it anyway.
+- **A group milestone can be filled but not edited from a project.** One that
+  spans several projects only appears with `"include_parent":true`, and GitLab
+  answers an edit through the project path with a 404 that reads like a wrong
+  id; the action says what is actually the matter instead.
+
+The actions sit under the scope `write`. For a delivery lead that plans but
+does not develop, that is worth cutting down with the `tools:` allowlist — the
+same scope otherwise opens `commit` and `create_merge_request` to it:
+
+```
+- system: gitlab scope: read,write,comment
+  tools: …, list_milestones, get_milestone, set_milestone
+```
+
+In GitLab itself **reporter** suffices for all of this; managing milestones
+does not need developer. So a planning agent gets a token that cannot push.
+
+The delivery-lead template (`examples/delivery-lead.bundle.json`) carries
+`list_milestones`, `get_milestone` and `set_milestone` — the ones its
+documented role needs, since it leads **one existing** milestone from its
+undertaking profile. `create_milestone` and `update_milestone` are deliberately
+not in it: cutting a new milestone or moving a deadline is a wider brief than
+the template describes, and it wants its own playbook alongside the extra
+permission. Whoever needs it adds the two actions to the `tools:` line.
+
 ---
 
 ## 6. Env reference (GitLab-relevant)
