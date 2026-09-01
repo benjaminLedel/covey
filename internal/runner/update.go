@@ -76,10 +76,27 @@ func (n *Node) updateSelf(ctx context.Context, req Update) UpdateResult {
 	// moved. The sandbox count alone does not see that, so it is not the only
 	// thing asked.
 	if busy := n.busy(); busy != "" {
+		// Not now — but not forgotten either. Refusing outright made a host
+		// unupdatable for good in one ordinary case: an agent with a warm
+		// sandbox keeps one alive between runs, so this host is never empty,
+		// and every attempt got the same sentence. The only way through was to
+		// stop that agent by hand (covey.work, 01.09.).
+		//
+		// So the wish is kept and carried out at the next moment this host has
+		// nothing in its hands — the end of a sandbox, the end of a sync. The
+		// answer says both: not now, and that it will happen.
+		n.mu.Lock()
+		n.pendingUpdate = &req
+		n.mu.Unlock()
 		res.Busy = true
-		res.Err = busy
+		res.Planned = true
+		res.Err = busy + " — the update is planned and runs as soon as it is free"
 		return res
 	}
+	// It is happening now, so nothing is left over for later.
+	n.mu.Lock()
+	n.pendingUpdate = nil
+	n.mu.Unlock()
 
 	version := strings.TrimSpace(req.Version)
 	if version == "" {
@@ -277,4 +294,29 @@ func (n *Node) busy() string {
 		return fmt.Sprintf("this host is working on %d working cop(ies) — a restart would abandon the write", len(n.turn))
 	}
 	return ""
+}
+
+// runPendingUpdate carries out an update that had to wait, if this host is now
+// free. Called wherever something ends that made it busy.
+//
+// Silent when there is nothing planned, and silent when the host is still
+// occupied: this is a check on the way past, not an event of its own.
+func (n *Node) runPendingUpdate(ctx context.Context) {
+	n.mu.Lock()
+	req := n.pendingUpdate
+	n.mu.Unlock()
+	if req == nil {
+		return
+	}
+	if busy := n.busy(); busy != "" {
+		return
+	}
+	n.Log.Info("carrying out the update that was waiting", "version", req.Version)
+	res := n.updateSelf(ctx, *req)
+	if res.Err != "" && !res.Busy {
+		n.Log.Warn("the planned update failed", "err", res.Err)
+	}
+	if res.Restarting {
+		n.Log.Info("the planned update is being installed", "from", res.From, "to", res.To)
+	}
 }

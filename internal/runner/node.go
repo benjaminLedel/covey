@@ -22,11 +22,14 @@ import (
 // runner and the one on a foreign host — what differs is the Transport it is
 // handed.
 type Node struct {
-	RunnerID uuid.UUID
-	OrgID    uuid.UUID
-	Docker   *Docker
-	Log      *slog.Logger
-	Tags     []string
+	// pendingUpdate is an update that arrived while this host was busy. It is
+	// carried out at the next moment nothing is in its hands (see update.go).
+	pendingUpdate *Update
+	RunnerID      uuid.UUID
+	OrgID         uuid.UUID
+	Docker        *Docker
+	Log           *slog.Logger
+	Tags          []string
 	// Images this host holds. On a runner the image is a statement of
 	// capacity — it gets only agents whose workplace it can provide. Empty =
 	// it makes no claim and is not excluded on that ground.
@@ -712,6 +715,9 @@ func (n *Node) watch(ctx context.Context, t Transport, agentID uuid.UUID, proc *
 		delete(n.running, agentID)
 	}
 	n.mu.Unlock()
+	// A sandbox ending is one of the two moments this host can become free —
+	// and an update may have been waiting for exactly that.
+	defer n.runPendingUpdate(ctx)
 	if asked {
 		n.Log.Info("sandbox stopped", "agent", agentID, "container", proc.container)
 		return

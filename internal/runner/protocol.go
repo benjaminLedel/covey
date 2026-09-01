@@ -196,6 +196,11 @@ type Update struct {
 type UpdateResult struct {
 	From string `json:"from,omitempty"`
 	To   string `json:"to,omitempty"`
+	// Planned: the host was busy and kept the wish. It carries it out at the
+	// next moment it has nothing in its hands. Without this an agent with a
+	// warm sandbox made a host unupdatable for good — it is never empty, and
+	// every attempt was refused with the same sentence.
+	Planned bool `json:"planned,omitempty"`
 	// Restarting: the binary was replaced and the runner is going down to come
 	// back. The connection ends right after this message, and that is not a
 	// fault — without saying so, an operator would see a host that vanishes at
