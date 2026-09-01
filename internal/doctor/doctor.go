@@ -27,6 +27,7 @@ import (
 	"covey/internal/config"
 	"covey/internal/db"
 	"covey/internal/homestore"
+	"covey/internal/marketplace"
 	runnerstore "covey/internal/runner/store"
 	"covey/internal/sandbox"
 	"covey/internal/settings"
@@ -192,7 +193,33 @@ func (d *doctor) checkImages(ctx context.Context, pool *pgxpool.Pool) {
 		d.problem("sandbox images", "not readable: "+err.Error(), "", false)
 		return
 	}
+	// Which image a profile means is decided in three steps: environment,
+	// catalogue, compiled default (spec/16). cfg.SandboxImages knows the first
+	// and the third — the catalogue is fetched where the wake happens, and the
+	// doctor had no hold of it. So on an installation that runs the published
+	// images it reported three missing local build products that this host has
+	// never had and does not need (#118).
+	//
+	// The check that somebody reads BEFORE a restart must not be the one that
+	// invents work. Whoever believes it builds images nobody needs; whoever
+	// learns not to believe it stops reading the doctor at the moment it has
+	// something real to say.
 	profiles := d.cfg.SandboxImages
+	katalogGefragt := false
+	if d.cfg.SandboxCatalogURL != "" && pool != nil {
+		quelle := sandbox.NewSource(d.cfg.SandboxCatalogURL, marketplace.NewPgCache(pool), nil)
+		if katalog := quelle.Images(ctx); len(katalog) > 0 {
+			profiles = sandbox.Resolve(d.cfg.SandboxImageEnv, katalog)
+			katalogGefragt = true
+		}
+	}
+	// An unreachable catalogue is not a reason to keep quiet about the images —
+	// but it IS a reason to say which answer this is. The compiled defaults are
+	// a guess about a host that may well start something else.
+	if d.cfg.SandboxCatalogURL != "" && !katalogGefragt {
+		d.problem("workplace catalogue", "not reachable — the images below are the compiled defaults",
+			"that is what a wake would fall back to as well; with the catalogue reachable the answer may differ", false)
+	}
 
 	byImage := map[string]int{}
 	for value, n := range wanted {
