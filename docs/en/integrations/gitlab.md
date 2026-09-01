@@ -664,15 +664,25 @@ Four things worth knowing when designing such an agent:
   existing* milestone, and nothing afterwards shows it. That is why the actions
   take a **title** and resolve it themselves — an ambiguous or unknown title is
   an error with the candidates listed, never a guess.
+- **Contradictory input is refused, not ranked.** Title *and* `milestone_id`
+  together, or `detach` together with a milestone, are errors. Both used to be
+  resolved silently in favour of one side, and in both cases the agent got an
+  operation it had not asked for — the wrong milestone edited, or a ticket
+  unfiled — with nothing in the answer to show it.
 - **Detaching has to be asked for** (`"detach": true`). If an omitted milestone
   meant "take it off", a forgotten field would silently unfile a ticket.
 - **There is no delete.** A milestone that is over gets `"state":"close"`,
-  which keeps its issues and its history — and the recommended guard rail
-  `deny_action *:delete*` would refuse it anyway.
+  which keeps its issues and its history. If you want deletion barred centrally
+  as well, note that the guard-rail matcher takes `*` or a **trailing** `*`
+  only — the rule has to read `deny_action gitlab:delete*`, one per system. A
+  pattern with the wildcard in the middle (`*:delete*`) matches nothing and is
+  furniture.
 - **A group milestone can be filled but not edited from a project.** One that
-  spans several projects only appears with `"include_parent":true`, and GitLab
-  answers an edit through the project path with a 404 that reads like a wrong
-  id; the action says what is actually the matter instead.
+  spans several projects only appears with `"include_parent":true`. Attaching
+  works by title *and* by `milestone_id` — the project-scoped GitLab endpoint
+  answers 404 for such an id, so `set_milestone` falls back to the list rather
+  than refusing an operation GitLab supports. Editing one really is impossible
+  from here, and the action says so instead of passing GitLab's 404 on.
 
 The actions sit under the scope `write`. For a delivery lead that plans but
 does not develop, that is worth cutting down with the `tools:` allowlist — the
