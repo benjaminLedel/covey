@@ -16,7 +16,6 @@ An enterprise platform that treats **AI agents like employees**: an identity, an
 - `demo/fakezammad/` — a Zammad double for local demos.
 - `mockup/covey-ui-mockup.html` — a static HTML mockup; the React UI takes its design language from it (CSS variables, Inter/Lora).
 - `.claude/skills/covey-agent/` — a Claude Code skill for **building, designing and updating Covey agents**: it produces a `covey.agent-config` bundle following the repo's conventions (SOUL/PLAYBOOKS/ACCESS/HEARTBEAT, loop protection, `warm_sandbox`) and optionally creates the agent through the API. Start at its `SKILL.md`.
-- `praesentationen/*.pptx` — pitch and investor material (do not edit unless asked to).
 
 Development workflow: `make dev-db && make bootstrap && make run` (see the README). Tests: `make test`; integration tests: `make test-integration` (they need the dev database and skip when port 5433 is unreachable). `web/dist` has to exist before the Go build (`cd web && npm run build`) — `//go:embed` pulls it into the binary.
 
@@ -91,7 +90,7 @@ covey/                    ← repo root = Go module root (go.mod here)
   migrations/             SQL migrations (up/down, embedded via //go:embed)
   go.mod
   ─────────────────────── (existing, stays beside it)
-  spec/  mockup/  praesentationen/
+  spec/  mockup/
 ```
 
 The reasoning: one binary → `go.mod` at the root, `web/` and `migrations/` as siblings of `cmd/` (otherwise `//go:embed` does not reach them). `internal/` keeps the packages private. For the pluggable ports (`identity/`, `secrets/`) the interface sits in the package root and the implementations in subpackages — "interface before implementation".
