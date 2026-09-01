@@ -406,14 +406,30 @@ function AgentCard({
           )}
           <div className="secondary text-xs mono agent-card-name" style={{ opacity: 0.7 }}>{agent.slug}</div>
         </div>
+        {/* „Schläft" und „kommt nicht hoch" sahen gleich aus. Ein Agent, dessen
+            Weckversuche scheitern, bekommt deshalb sein eigenes Abzeichen —
+            und der Grund steht im Titel, statt in den Rohdaten der
+            Aufzeichnung zu warten (#139). */}
         {!(draft && labelled) && (
-          <span
-            className={`badge shrink-0 ${draft ? "st-draft" : `st-${agent.killed ? "killed" : agent.status}`}`}
-          >
-            {draft
-              ? t("dashboard.draftBadge")
-              : t(`status.${agent.killed ? "killed" : agent.status}`, agent.status)}
-          </span>
+          agent.wake_trouble && !draft && !agent.killed ? (
+            <span
+              className="badge shrink-0 st-wake-failed"
+              title={t("status.wakeFailedWhy", {
+                n: agent.wake_trouble.failures,
+                err: agent.wake_trouble.error ?? "",
+              })}
+            >
+              {t("status.wakeFailed")}
+            </span>
+          ) : (
+            <span
+              className={`badge shrink-0 ${draft ? "st-draft" : `st-${agent.killed ? "killed" : agent.status}`}`}
+            >
+              {draft
+                ? t("dashboard.draftBadge")
+                : t(`status.${agent.killed ? "killed" : agent.status}`, agent.status)}
+            </span>
+          )
         )}
       </div>
       <div className="secondary text-xs">

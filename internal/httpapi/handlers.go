@@ -18,6 +18,7 @@ import (
 	"covey/internal/identity"
 	"covey/internal/memory"
 	"covey/internal/observability"
+	"covey/internal/orchestrator"
 	"covey/internal/runner"
 	"covey/internal/sandbox"
 	"covey/internal/secrets"
@@ -36,12 +37,20 @@ func (s *Server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 		list = []agents.Agent{}
 	}
 	phasen := s.phases()
+	sorgen := map[uuid.UUID]orchestrator.WakeTrouble{}
+	if s.Orch != nil {
+		sorgen = s.Orch.WakeTroubles()
+	}
 	out := make([]agentWithPhase, 0, len(list))
 	for _, a := range list {
 		e := agentWithPhase{Agent: a}
 		if ph, ok := phasen[a.ID]; ok {
 			p := ph
 			e.Phase = &p
+		}
+		if t, ok := sorgen[a.ID]; ok {
+			w := t
+			e.Wake = &w
 		}
 		out = append(out, e)
 	}
@@ -60,6 +69,14 @@ func (s *Server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 type agentWithPhase struct {
 	agents.Agent
 	Phase *runner.Phase `json:"phase,omitempty"`
+	// Wake is set for an agent that cannot be woken: how often it has failed,
+	// what it said, and when the next attempt is due.
+	//
+	// Without it the interface has one word for two states. An agent that has
+	// failed 900 times reads as "sleeping", exactly like the seven healthy
+	// ones beside it, and the reason lives in the raw events (#139). A status
+	// nobody is shown is a status nobody acts on.
+	Wake *orchestrator.WakeTrouble `json:"wake_trouble,omitempty"`
 }
 
 // phases: was die Hosts gerade tun, oder nichts, wenn diese Installation keinen
@@ -119,6 +136,11 @@ func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 	if s.RunnerPool != nil {
 		if ph, ok := s.RunnerPool.Phases.Of(a.ID); ok {
 			out.Phase = &ph
+		}
+	}
+	if s.Orch != nil {
+		if t, _ := s.Orch.WakeBlocked(a.ID); t != nil {
+			out.Wake = t
 		}
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -598,7 +620,7 @@ func (s *Server) handleWake(w http.ResponseWriter, r *http.Request) {
 	if a, err := s.Registry.Get(r.Context(), id); err == nil && draftBlocked(w, a) {
 		return
 	}
-	s.Orch.EnsureRunning(id)
+	s.Orch.WakeNow(id)
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
@@ -995,6 +1017,12 @@ func (s *Server) handleSetWarmSandbox(w http.ResponseWriter, r *http.Request) {
 	if err := readJSON(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, "warm missing")
 		return
+	}
+	// Switching it off releases what is already parked. Otherwise the setting
+	// says one thing and the host does another until the idle TTL runs out —
+	// and a host with a warm sandbox cannot be updated at all.
+	if !in.Warm && s.Orch != nil {
+		defer s.Orch.DropWarm(id)
 	}
 	if err := s.Registry.SetWarmSandbox(r.Context(), id, in.Warm); err != nil {
 		mapErr(w, err)

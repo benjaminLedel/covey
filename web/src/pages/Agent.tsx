@@ -121,6 +121,16 @@ export default function AgentPage({ me }: { me: Principal }) {
         <h1 className="text-[22px]">{a.display_name}</h1>
         {isDraft(a) ? (
           <span className="badge st-draft">{t("dashboard.draftBadge")}</span>
+        ) : a.wake_trouble && !a.killed ? (
+          /* Nicht „schläft": Dieser Agent versucht aufzuwachen und kann nicht.
+             Der Grund gehört neben den Zustand — ein Fehler, den nur die
+             Rohdaten der Aufzeichnung kennen, wird nicht gelesen (#139). */
+          <span
+            className="badge st-wake-failed"
+            title={t("status.wakeFailedWhy", { n: a.wake_trouble.failures, err: a.wake_trouble.error ?? "" })}
+          >
+            {t("status.wakeFailed")}
+          </span>
         ) : (
           <span className={`badge st-${a.killed ? "killed" : a.status}`}>
             {t(`status.${a.killed ? "killed" : a.status}`, a.status)}

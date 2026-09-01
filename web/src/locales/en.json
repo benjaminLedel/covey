@@ -156,7 +156,9 @@
     "cancelled": "cancelled",
     "pending": "pending",
     "approved": "approved",
-    "denied": "denied"
+    "denied": "denied",
+    "wakeFailed": "cannot wake",
+    "wakeFailedWhy": "{{n}} failed wakes: {{err}}"
   },
   "role": {
     "org_admin": "Org Admin",

@@ -123,6 +123,23 @@ type Orchestrator struct {
 	// or OOM-killed container costs the full ReadyTimeout and produces a
 	// message about a daemon that never had a chance to connect.
 	dying map[uuid.UUID]chan string
+	// wakeFehler hält fest, welcher Agent gerade NICHT aufwachen kann, und
+	// verzögert den nächsten Versuch.
+	//
+	// Ohne das versucht der Scheduler es alle dreißig Sekunden weiter, für
+	// immer. Auf covey.work waren das rund 900 Fehlversuche in sechseinhalb
+	// Stunden — jeder mit einem Runner-Platz, vier Zeilen Aufzeichnung und
+	// keiner Aussicht auf ein anderes Ergebnis: Was einen Weckversuch
+	// scheitern lässt (ein verlorener Block, ein fehlendes Image, ein Host,
+	// der nicht antwortet), ändert sich nicht dadurch, dass man dreißig
+	// Sekunden wartet.
+	//
+	// Im Speicher und nicht in der Datenbank: Ein Neustart der Control Plane
+	// ist genau der Moment, in dem sich etwas geändert haben KANN — ein
+	// Deploy, eine neue Fassung, eine reparierte Einstellung. Dann soll sofort
+	// wieder versucht werden, nicht erst nach Ablauf einer gespeicherten
+	// Sperre.
+	wakeFehler map[uuid.UUID]*WakeTrouble
 	// baseCtx is the control plane's lifecycle, set by Run. Sessions hang off it
 	// instead of context.Background(): on shutdown, running runs should be
 	// aborted and not linger as orphaned goroutines with an open sandbox. Before
@@ -941,10 +958,28 @@ func (o *Orchestrator) Placement(agentID uuid.UUID) (uuid.UUID, string, bool) {
 	return uuid.Nil, "", false
 }
 
+// WakeNow is EnsureRunning without the backoff: a person asked for it.
+//
+// Whoever presses the button has just changed something — deposited a
+// credential, fixed a host, deployed a version — and is waiting for the answer,
+// not for a wait that was measured for an unattended retry (#139).
+func (o *Orchestrator) WakeNow(agentID uuid.UUID) {
+	o.clearWakeFailure(agentID)
+	o.EnsureRunning(agentID)
+}
+
 // EnsureRunning starts an agent session if none is running (idempotent).
 func (o *Orchestrator) EnsureRunning(agentID uuid.UUID) {
 	o.mu.Lock()
 	if _, active := o.sessions[agentID]; active {
+		o.mu.Unlock()
+		return
+	}
+	// Not while the last wake is still fresh in the wrong way. A cause that
+	// stops a wake does not change in thirty seconds, and asking anyway costs a
+	// runner slot and four lines of recording per attempt (#139). The wait
+	// grows with the number of failures and stops at half an hour.
+	if t := o.wakeFehler[agentID]; t != nil && time.Now().Before(t.Until) {
 		o.mu.Unlock()
 		return
 	}
@@ -1094,11 +1129,20 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 		// the process's stderr while they are looking at the agent's page. The
 		// runner names what happened (a dead container, a missing image) — that
 		// sentence belongs where the question is asked.
+		o.noteWakeFailure(agent.ID, err)
+		trouble, _ := o.WakeBlocked(agent.ID)
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindLifecycle, map[string]any{
 			"status": "wake_failed", "error": err.Error(),
+			// How often, and when the next attempt is due — so that the
+			// recording answers "is anybody still trying?" without counting
+			// entries.
+			"failures": trouble.Failures, "retry_at": trouble.Until.UTC().Format(time.RFC3339),
 		})
 		return fmt.Errorf("wake: %w", err)
 	}
+	// A wake that worked ends the trouble — including the report of it.
+	o.clearWakeFailure(agent.ID)
+
 	// Where this run happens. With one machine it is not a question; with a
 	// second one it is the first one an operator asks in front of a run that
 	// behaved oddly — and the answer used to exist only in the process's log,
@@ -1577,6 +1621,30 @@ func (o *Orchestrator) warmReaperLoop(ctx context.Context) {
 }
 
 // teardownAllWarm tears down all parked sandboxes on shutdown.
+// DropWarm ends a parked warm sandbox now instead of waiting for its idle TTL.
+//
+// It is what "keep no sandbox warm any more" has to mean. Setting the flag to
+// false used to change a column and nothing else: the container stayed up
+// until the reaper came round, and on covey.work that made a host
+// unupdatable — the update refuses while a sandbox is running, and this one
+// never ended by itself.
+//
+// Does nothing when the agent has no warm sandbox, which is the normal case.
+func (o *Orchestrator) DropWarm(agentID uuid.UUID) {
+	o.mu.Lock()
+	ws := o.warm[agentID]
+	if ws != nil {
+		delete(o.warm, agentID)
+	}
+	o.mu.Unlock()
+	if ws == nil {
+		return
+	}
+	ws.cancel()
+	ws.teardown()
+	o.Log.Info("warm sandbox released", "agent", agentID)
+}
+
 func (o *Orchestrator) teardownAllWarm() {
 	o.mu.Lock()
 	all := make([]*warmSession, 0, len(o.warm))
@@ -3452,4 +3520,91 @@ func (o *Orchestrator) HandleAgentTrigger(ctx context.Context, agent agents.Agen
 	}
 	o.publishTask(task.ID, agent)
 	return "created", nil
+}
+
+// WakeTrouble is what an agent that cannot be woken looks like from outside:
+// how often it has failed, what it said, and when the next attempt is due.
+//
+// It exists because "sleeping" was the only word the interface had for this.
+// An agent that has failed 900 times looked exactly like one waiting for work,
+// and the reason lived four clicks deep in the raw events (#139). Whoever
+// looks at the org chart has to see the difference.
+type WakeTrouble struct {
+	// Failures counts consecutive failed wakes; a successful one clears it.
+	Failures int `json:"failures"`
+	// Err is the last reason, as the runner phrased it.
+	Err string `json:"error,omitempty"`
+	// Since is when it started failing, Until when the next attempt is due.
+	Since time.Time `json:"since"`
+	Until time.Time `json:"until"`
+}
+
+// wakeBackoff is how long to wait after n consecutive failures.
+//
+// It grows and it stops growing: half an hour is long enough that a broken
+// agent costs nothing, and short enough that a repair is noticed without
+// anybody pressing anything. The first retry stays quick — a host that was
+// briefly away is the common case, and it deserves the fast path.
+func wakeBackoff(n int) time.Duration {
+	stufen := []time.Duration{
+		30 * time.Second, time.Minute, 2 * time.Minute, 5 * time.Minute,
+		10 * time.Minute, 20 * time.Minute, 30 * time.Minute,
+	}
+	if n < 1 {
+		n = 1
+	}
+	if n > len(stufen) {
+		n = len(stufen)
+	}
+	return stufen[n-1]
+}
+
+// noteWakeFailure records a failed wake and says when the next one may happen.
+func (o *Orchestrator) noteWakeFailure(agentID uuid.UUID, err error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.wakeFehler == nil {
+		o.wakeFehler = map[uuid.UUID]*WakeTrouble{}
+	}
+	t := o.wakeFehler[agentID]
+	if t == nil {
+		t = &WakeTrouble{Since: time.Now()}
+		o.wakeFehler[agentID] = t
+	}
+	t.Failures++
+	t.Err = err.Error()
+	t.Until = time.Now().Add(wakeBackoff(t.Failures))
+}
+
+// clearWakeFailure forgets the trouble — after a wake that worked, and after a
+// person asked for one by hand: whoever presses the button has just changed
+// something and is waiting for the answer, not for a backoff to expire.
+func (o *Orchestrator) clearWakeFailure(agentID uuid.UUID) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	delete(o.wakeFehler, agentID)
+}
+
+// WakeBlocked reports whether this agent is inside its backoff, and what for.
+func (o *Orchestrator) WakeBlocked(agentID uuid.UUID) (*WakeTrouble, bool) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	t := o.wakeFehler[agentID]
+	if t == nil {
+		return nil, false
+	}
+	kopie := *t
+	return &kopie, time.Now().Before(t.Until)
+}
+
+// WakeTroubles is the same for everyone at once — what the agent list needs in
+// order to stop calling this "sleeping".
+func (o *Orchestrator) WakeTroubles() map[uuid.UUID]WakeTrouble {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	out := make(map[uuid.UUID]WakeTrouble, len(o.wakeFehler))
+	for id, t := range o.wakeFehler {
+		out[id] = *t
+	}
+	return out
 }

@@ -156,7 +156,9 @@
     "cancelled": "verworfen",
     "pending": "ausstehend",
     "approved": "freigegeben",
-    "denied": "abgelehnt"
+    "denied": "abgelehnt",
+    "wakeFailed": "weckt nicht",
+    "wakeFailedWhy": "{{n}} Weckversuche gescheitert: {{err}}"
   },
   "role": {
     "org_admin": "Org-Admin",

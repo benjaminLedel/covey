@@ -79,6 +79,24 @@ export type Agent = {
   // Datenebene, in keiner Tabelle — nach einem Neustart der Kontrollebene
   // passiert nichts mehr, worauf sich das beziehen könnte.
   phase?: AgentPhase;
+  // Gesetzt, wenn dieser Agent gerade NICHT aufwachen kann: wie oft es
+  // scheiterte, was zuletzt dagegen sprach, wann der nächste Versuch fällig
+  // ist. Fehlt = er schläft, weil nichts zu tun ist.
+  //
+  // Ohne dieses Feld hatte die Oberfläche ein Wort für zwei Zustände: Ein
+  // Agent, der 900-mal am Aufwachen gescheitert war, stand als „schläft"
+  // neben sieben gesunden Kollegen (#139).
+  wake_trouble?: WakeTrouble;
+};
+
+/** Warum ein Agent nicht aufwacht. Live-Zustand der Kontrollebene wie `phase`
+ *  — nach einem Neustart wird sofort wieder versucht, und dann ist das hier
+ *  wieder leer. */
+export type WakeTrouble = {
+  failures: number;
+  error?: string;
+  since: string;
+  until: string;
 };
 
 /** Eine laufende Phase der Plattform. Die beiden Gesamtzahlen sind getrennt,
