@@ -291,3 +291,88 @@ func TestTheFlutterImagesAgreeOnTheirVersion(t *testing.T) {
 		}
 	}
 }
+
+// A workplace describes what it contains, and every command it names has to be
+// in the image that ships it.
+//
+// This is not pedantry about a word. The description is the paragraph coveyd
+// appends to the system prompt: its whole purpose is that an agent stops
+// guessing what it has. `base` promised `jq` for months and did not have it
+// (#113) — the agent pipes an API answer through it, gets "command not found",
+// and debugs its own toolchain instead of the ticket. It cannot install
+// anything either; it is not root, and the description says so two lines
+// further down.
+//
+// The check follows the FROM chain: dev images are built on base and inherit
+// what apt put there, so a name may be fulfilled by any Dockerfile above.
+func TestEveryToolAWorkplacePromisesIsInItsImage(t *testing.T) {
+	// Only names that look like a command. The descriptions also carry prose
+	// ("Java (Temurin)", "the everyday tools of reading and searching"), and a
+	// test that guesses at prose reports noise until somebody switches it off.
+	istKommando := regexp.MustCompile(`^[a-z][a-z0-9._+-]*$`)
+
+	for _, p := range All() {
+		doc, ok := Workplace(p.Name)
+		if !ok {
+			continue
+		}
+		kette, err := dockerfileKette(p.Dockerfile)
+		if err != nil {
+			t.Errorf("profile %q: %v", p.Name, err)
+			continue
+		}
+		for _, tool := range doc.Tools {
+			for _, teil := range strings.Split(tool.Name, ",") {
+				name := strings.TrimSpace(teil)
+				if !istKommando.MatchString(name) {
+					continue
+				}
+				if !strings.Contains(kette, name) {
+					t.Errorf("workplace %q promises %q, and no Dockerfile in its chain mentions it (%s)",
+						p.Name, name, p.Dockerfile)
+				}
+			}
+		}
+	}
+}
+
+// dockerfileKette is a Dockerfile plus everything it is built on: a role image
+// inherits the tools of the image it derives from, and the promise may be kept
+// anywhere along that line.
+func dockerfileKette(datei string) (string, error) {
+	var alles strings.Builder
+	gesehen := map[string]bool{}
+	for datei != "" && !gesehen[datei] {
+		gesehen[datei] = true
+		roh, err := os.ReadFile(filepath.Join("..", "..", datei))
+		if err != nil {
+			return "", err
+		}
+		// Ohne Kommentare: Ein Werkzeug, das nur in einer Begründung steht,
+		// ist nicht im Image. Genau daran wäre dieser Test bei seinem eigenen
+		// Anlass vorbeigelaufen — der Kommentar über der apt-Zeile nennt jq,
+		// und ein Test, der Prosa für eine Installation hält, sagt nie wieder
+		// etwas.
+		for _, zeile := range strings.Split(string(roh), "\n") {
+			if strings.HasPrefix(strings.TrimSpace(zeile), "#") {
+				continue
+			}
+			alles.WriteString(zeile)
+			alles.WriteString("\n")
+		}
+		datei = ""
+		// Which image it builds on, and which Dockerfile produces that one.
+		for _, zeile := range strings.Split(alles.String(), "\n") {
+			if !strings.HasPrefix(zeile, "ARG BASE_IMAGE=") {
+				continue
+			}
+			basis := strings.TrimPrefix(zeile, "ARG BASE_IMAGE=")
+			for _, p := range All() {
+				if p.Image == basis && !gesehen[p.Dockerfile] {
+					datei = p.Dockerfile
+				}
+			}
+		}
+	}
+	return alles.String(), nil
+}

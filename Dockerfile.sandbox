@@ -32,8 +32,14 @@ FROM node:26-slim
 # Sandbox lädt — als Nicht-Root kann er nichts nachinstallieren), chromium für
 # das browser-Plugin (headless Chrome via chromedp; die nötigen Fonts/Libs
 # zieht das chromium-Paket mit).
+#
+# jq, weil die Arbeitsplatz-Beschreibung es dem Agenten zusagt und weil jedes
+# gebrokerte Zielsystem mit JSON antwortet. Es fehlte, und die Zusage stand
+# trotzdem da (#113): Der Agent leitet eine API-Antwort hindurch, bekommt
+# „command not found" und sucht den Fehler ab da bei sich — nachinstallieren
+# kann er nichts, er ist nicht root. Ein Megabyte gegen diese Sackgasse.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        git ca-certificates curl ripgrep unzip chromium \
+        git ca-certificates curl jq ripgrep unzip chromium \
     && rm -rf /var/lib/apt/lists/*
 # Damit chromedp den Browser ohne Rätselraten findet.
 ENV COVEY_BROWSER_CHROME_PATH=/usr/bin/chromium
