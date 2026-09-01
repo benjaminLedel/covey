@@ -139,6 +139,10 @@ type Config struct {
 	// image belongs to which Covey version, pinned by digest. Empty switches
 	// the catalogue off; then the compiled defaults and the environment stand.
 	SandboxCatalogURL string
+	// HSTS: how far the HTTPS promise reaches — "basic" (this host),
+	// "subdomains", or "off" when the terminating proxy sets the header
+	// itself. Default basic; see httpapi.Server.HSTS for why (#132).
+	HSTS string
 	// WebhookSecrets verify signatures of incoming target-system webhooks:
 	// COVEY_<SYSTEM>_WEBHOOK_SECRET → entry under the lowercased system name
 	// (e.g. COVEY_ZAMMAD_WEBHOOK_SECRET → "zammad").
@@ -286,6 +290,7 @@ func FromEnv() (Config, error) {
 		SandboxImageEnv:    sandboxImageEnv(),
 		RunnerDownloadBase: getenv("COVEY_RUNNER_DOWNLOAD_BASE", ""),
 		SandboxCatalogURL:  getenv("COVEY_SANDBOX_CATALOG_URL", sandbox.DefaultCatalogURL()),
+		HSTS:               getenv("COVEY_HSTS", "basic"),
 		// 0 lässt dem Pool seine eigene Vorgabe — eine zweite Zahl hier wäre
 		// eine zweite Wahrheit, und genau die hat heute zweimal zugebissen.
 		SandboxStartTimeout: getenvDuration("COVEY_SANDBOX_START_TIMEOUT", 0),

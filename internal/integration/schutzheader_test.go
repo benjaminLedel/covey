@@ -57,3 +57,55 @@ func TestSchutzHeaderDerOberflaeche(t *testing.T) {
 		t.Errorf("the HTTP instance sets HSTS (%q) — that locks access out", h)
 	}
 }
+
+// And what an HTTPS instance promises, it promises about itself.
+//
+// The header used to carry includeSubDomains on every HTTPS instance — a claim
+// about every sibling name under a domain that is not ours, remembered by each
+// visitor's browser for a year (#132). An organisation at covey.example.com
+// with an internal tool on http://tools.example.com loses that tool, and
+// max-age=0 only reaches browsers that come back to Covey.
+//
+// The HTTP case above and this one belong together: one says the header must
+// not be there, the other says how far it may reach when it is.
+func TestHSTSReachesThisHostOnlyByDefault(t *testing.T) {
+	s := newStack(t)
+	// The stack runs over HTTP; CookieSecure is what tells the server it is on
+	// HTTPS, and it is the same switch the header hangs off.
+	s.srv.CookieSecure = true
+	t.Cleanup(func() { s.srv.CookieSecure = false })
+
+	resp, err := http.Get(s.http.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	got := resp.Header.Get("Strict-Transport-Security")
+	if got != "max-age=31536000" {
+		t.Errorf("HSTS = %q, expected max-age=31536000 without includeSubDomains", got)
+	}
+
+	// An operator who knows every name below the domain speaks HTTPS says so.
+	s.srv.HSTS = "subdomains"
+	resp2, err := http.Get(s.http.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp2.Body.Close()
+	if got := resp2.Header.Get("Strict-Transport-Security"); got != "max-age=31536000; includeSubDomains" {
+		t.Errorf("with subdomains: %q", got)
+	}
+
+	// And an installation whose proxy owns the header can stay quiet: nginx
+	// appends rather than replaces, and a browser takes the first one.
+	s.srv.HSTS = "off"
+	resp3, err := http.Get(s.http.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp3.Body.Close()
+	if got := resp3.Header.Get("Strict-Transport-Security"); got != "" {
+		t.Errorf(`with "off" the binary still sets %q — the proxy cannot own the header then`, got)
+	}
+}

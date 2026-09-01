@@ -157,6 +157,22 @@ type Server struct {
 	SiteURL string
 	// CookieSecure sets the Secure flag on the session cookie (HTTPS only).
 	CookieSecure bool
+	// HSTS is how far the HTTPS promise reaches: "basic" for this host,
+	// "subdomains" for everything below it, "off" for none at all. Empty =
+	// basic.
+	//
+	// It used to be "subdomains", always, and that is a promise about a domain
+	// that is not ours (#132). An organisation running Covey at
+	// covey.example.com got an unrequested guarantee covering every sibling
+	// name under it, remembered by every visitor's browser for a year — and if
+	// one of those names is an internal tool still on HTTP, it disappears. The
+	// remedy (max-age=0) only reaches browsers that come back.
+	//
+	// "off" is for the installation whose terminating proxy owns the header:
+	// nginx appends rather than replaces, so both used to stand, and a browser
+	// takes the FIRST one (RFC 6797 §8.1) — ours, undoing what the proxy had
+	// carefully left out.
+	HSTS string
 	// TrustedProxies are the addresses whose X-Forwarded-For is believed —
 	// empty (the default) means: none, the peer address counts. It decides who
 	// a rate limit and an audit entry are attributed to (clientIP in
@@ -644,10 +660,28 @@ func (s *Server) mitSchutzHeadern(next http.Handler) http.Handler {
 		// is the same switch). On a local HTTP instance the header would nail
 		// the browser to https for months and block the way in.
 		if s.CookieSecure {
-			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+			if wert := hstsHeader(s.HSTS); wert != "" {
+				w.Header().Set("Strict-Transport-Security", wert)
+			}
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// hstsHeader turns the setting into the header — or into nothing.
+//
+// The default reaches this host and no further. What we can promise is that
+// THIS name speaks HTTPS; whether every sibling under the domain does is not
+// ours to say, and a browser remembers the claim for a year (#132).
+func hstsHeader(einstellung string) string {
+	switch einstellung {
+	case "off":
+		return ""
+	case "subdomains":
+		return "max-age=31536000; includeSubDomains"
+	default:
+		return "max-age=31536000"
+	}
 }
 
 // --- Helpers ---

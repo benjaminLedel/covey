@@ -190,6 +190,32 @@ otherwise end up in a foreign system, where nobody can reach it.
 In short: `COVEY_PUBLIC_URL` points **inward** (to the sandboxes),
 `COVEY_SITE_URL` points **outward** (to visitors and third-party systems).
 
+### `COVEY_HSTS` — how far the HTTPS promise reaches
+
+On an HTTPS instance the server sends `Strict-Transport-Security`. A browser
+remembers it for a year, and there is no quick way back: the withdrawal
+(`max-age=0`) only reaches browsers that visit again.
+
+```
+COVEY_HSTS=basic        # the default: this host speaks HTTPS
+COVEY_HSTS=subdomains   # …and every name below the domain does too
+COVEY_HSTS=off          # the terminating proxy sets the header
+```
+
+**`basic` promises what we can know.** Covey knows that the name it answers
+under speaks HTTPS. Whether `tools.example.com` beside it does is not ours to
+say — and an internal tool still on HTTP disappears for a year from every
+browser that has seen the Covey instance. Turn it up to `subdomains` when you
+know every name below the domain, and only then.
+
+`off` belongs to the installation whose reverse proxy sets the header itself.
+nginx's `add_header` appends rather than replaces, so both would stand, and a
+browser processes the **first** one (RFC 6797 §8.1) — the server's, which would
+undo what the proxy carefully left out.
+
+On an HTTP instance no HSTS header is sent at all, whatever this says: it would
+nail the browser to a `https://` that does not answer.
+
 ### `COVEY_TRUSTED_PROXIES` — who a request comes from
 
 Behind a reverse proxy every request arrives from the same address: the proxy's.

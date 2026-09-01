@@ -1359,6 +1359,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		SessionTTL:     cfg.SessionTTL,
 		SiteURL:        cfg.SiteURL,
 		CookieSecure:   cfg.CookieSecure,
+		HSTS:           cfg.HSTS,
 		TrustedProxies: cfg.TrustedProxies,
 		EgressStore:    egressStore,
 		EgressEnforced: egressEnforced,
