@@ -11,7 +11,7 @@ RUN npm ci
 COPY web/ .
 RUN npm run build
 
-FROM golang:1.26 AS build
+FROM golang:1.27 AS build
 # Provenance of the binary (internal/buildinfo). The image has no .git
 # (see .dockerignore), so the caller passes the values in — CI sets them from
 # $CI_COMMIT_*; without build args it stays "dev".
