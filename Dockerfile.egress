@@ -2,7 +2,7 @@
 # Bauen: `make egress-image`. Die Control Plane startet daraus einen Proxy-
 # Container, der auf dem internen Sandbox-Netz als EINZIGER Ausgang sitzt und
 # nur Allowlist-Hosts durchlässt (Allowlist aus DB + ENV, live nachgeladen).
-FROM golang:1.26 AS build
+FROM golang:1.27 AS build
 # Herkunft des Binaries (internal/buildinfo), analog Dockerfile.
 ARG VERSION=dev
 ARG COMMIT=

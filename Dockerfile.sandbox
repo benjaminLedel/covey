@@ -8,7 +8,7 @@
 # entlang, sondern an Rollen — ein Entwickler-Agent arbeitet legitim an einem
 # PHP- UND einem Flutter-Projekt, und ein Mail-Agent an keinem von beiden
 # (spec/16-runner.md, „Sandbox images per agent").
-FROM golang:1.26 AS build
+FROM golang:1.27 AS build
 # Herkunft des Binaries (internal/buildinfo) — `coveyd version` im Container
 # beantwortet, welcher Stand im Sandbox-Image liegt. Werte reicht der Aufrufer
 # durch (make sandbox-image / CI); ohne Build-Args bleibt es "dev".
