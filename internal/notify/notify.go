@@ -220,8 +220,19 @@ func (s *Store) recipients(ctx context.Context, ev Event) ([]uuid.UUID, error) {
 
 	switch ev.Class {
 	case ClassDecision:
-		// Whoever may decide (the roles behind POST /approvals/{id}/decide and
-		// …/improvements/{id}/decide), plus the agent's owner.
+		if ev.Kind == KindImprovement {
+			// An open point from covey Doctor (spec/21) is a proposal about
+			// how the organisation runs its agents. It blocks nothing, and
+			// the organisation's administrator is who answers for its
+			// configuration — so it goes to them alone, not to everybody
+			// who could decide an approval (#181).
+			query = `SELECT DISTINCT h.account_id FROM humans h
+				WHERE h.org_id=$1 AND h.role='org_admin'`
+			args = []any{ev.OrgID}
+			break
+		}
+		// Whoever may decide (the roles behind POST /approvals/{id}/decide),
+		// plus the agent's owner.
 		query = `SELECT DISTINCT h.account_id FROM humans h
 			WHERE h.org_id=$1 AND (h.role = ANY($2)
 				OR h.id = (SELECT owner_id FROM agents WHERE id=$3))`

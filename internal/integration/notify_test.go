@@ -393,3 +393,62 @@ func TestInstanceSwitchesGoverntheMails(t *testing.T) {
 		t.Errorf("the row stands at %q, expected obsolete", state)
 	}
 }
+
+// An open point from covey Doctor goes to the organisation's admins alone;
+// an approval goes to everybody who may decide it, the owner included (#181).
+func TestDoctorsPointsReachOnlyTheOrgAdmin(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	store := s.emitter()
+
+	// A second seat: an agent owner with an account of their own.
+	ownerAccount, ownerHuman := uuid.New(), uuid.New()
+	if _, err := s.pool.Exec(ctx, `INSERT INTO accounts (id, email, password_hash, display_name, email_verified_at)
+		VALUES ($1,'owner@test.local','x','Owner',now())`, ownerAccount); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.pool.Exec(ctx, `INSERT INTO humans (id, org_id, account_id, email, display_name, password_hash, role)
+		VALUES ($1,$2,$3,'owner@test.local','Owner','x','agent_owner')`, ownerHuman, s.orgID, ownerAccount); err != nil {
+		t.Fatal(err)
+	}
+	agent, err := s.registry.Create(ctx, s.orgID, "doktor", "Doktor", "mock", &ownerHuman)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	recipients := func(kind string) []string {
+		t.Helper()
+		if _, err := s.pool.Exec(ctx, `DELETE FROM notifications`); err != nil {
+			t.Fatal(err)
+		}
+		id := uuid.New()
+		if err := store.Emit(ctx, notify.Event{
+			OrgID: s.orgID, AgentID: agent.ID,
+			Class: notify.ClassDecision, Kind: kind, SubjectID: &id,
+			Title: "x", Link: "/inbox",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := s.pool.Query(ctx, `SELECT a.email FROM notifications n JOIN accounts a ON a.id=n.account_id ORDER BY a.email`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		var out []string
+		for rows.Next() {
+			var e string
+			if err := rows.Scan(&e); err != nil {
+				t.Fatal(err)
+			}
+			out = append(out, e)
+		}
+		return out
+	}
+
+	if got := recipients(notify.KindImprovement); strings.Join(got, ",") != "admin@test.local" {
+		t.Errorf("an improvement item reached %v, expected the org admin alone", got)
+	}
+	if got := recipients(notify.KindApproval); strings.Join(got, ",") != "admin@test.local,owner@test.local" {
+		t.Errorf("an approval reached %v, expected admin and owner", got)
+	}
+}
