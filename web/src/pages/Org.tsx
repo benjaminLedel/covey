@@ -83,15 +83,13 @@ export function CompanyDescription() {
  * Prompt. Leer heißt: die dritte Schicht gibt es nicht, und im Prompt steht
  * davon auch nichts.
  *
- * Zwei Dinge haben der Karte gefehlt, und beide machten sie zu einer
- * Einstellung, die man dort nicht erwartet, wo sie steht:
- *
- * Am Organigramm stand sie auch auf Instanzen ohne covey Doctor — ein Formular
- * für einen Agenten, den es nicht gibt, zwischen den Menschen und Abteilungen,
- * die es gibt. Dort hängt sie jetzt an ihm (nurMitDoctor): Sie ist da
- * Zusammenhang zu einem Kollegen, den man im Chart sieht. In den Stammdaten der
- * Verwaltung bleibt sie immer stehen — das ist die Fläche für Einstellungen,
- * auch für die noch ungenutzten.
+ * The card lives under Verwaltung → Organisation, beside the company
+ * description and the recording settings — the surface for settings, the
+ * not-yet-used ones included. It used to stand on the org chart as well,
+ * first always, then only where covey Doctor existed; a setting for one
+ * reader between the people and departments of a chart about escalation is
+ * a setting in the wrong place either way (#178). The component stays in
+ * this file because the Administration page imports it from here.
  *
  * Und sie war die halbe Einrichtung: ohne eine Zeile in der ACCESS.md von covey
  * Doctor bleibt der Abschnitt aus seinem Prompt, und davon stand nichts auf der
@@ -219,7 +217,7 @@ export function RecordingSettings() {
   );
 }
 
-export function PlatformRepo({ nurMitDoctor = false }: { nurMitDoctor?: boolean }) {
+export function PlatformRepo() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const own = useQuery({ queryKey: ["own-org"], queryFn: () => api<Organization>("/org") });
@@ -265,7 +263,7 @@ export function PlatformRepo({ nurMitDoctor = false }: { nurMitDoctor?: boolean 
 
   /* Am Organigramm ohne covey Doctor: keine Karte. Wer ihn einstellt, findet
      sie mit ihm vor — in den Stammdaten steht sie ohnehin. */
-  if (!own.data || (nurMitDoctor && !doctor)) return null;
+  if (!own.data) return null;
 
   /* Dieselbe Auflösung wie im Backend (agents.PlatformRepo): eigenes
      Repository, sonst das Projekt dieser Plattform, außer es ist abgeschaltet.
@@ -399,7 +397,6 @@ export default function Org() {
       </p>
 
       <CompanyDescription />
-      <PlatformRepo nurMitDoctor />
 
       <OrgChartView chart={chart.data} orgName={own.data?.name ?? ""} />
     </div>
