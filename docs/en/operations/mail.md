@@ -45,6 +45,14 @@ restart.
 
 `none` sends in plain text and exists for a local double, not for a mailbox.
 
+Two more settings decide what the mails contain, under *Platform → Settings*:
+
+| Setting | Meaning |
+|---|---|
+| `site.url` | the address this installation is reachable at from outside (`https://covey.example.com`) — every link in a mail is built from it. It takes precedence over `COVEY_SITE_URL`; empty means the variable, and for notification mails no links at all |
+| `notify.window` | how long notification events are collected before a mail goes out — a duration such as `5m` or `1h`, at most `24h`; `0s` sends on the sender's next pass, which runs once a minute |
+| `notify.decision`, `notify.task`, `notify.cost`, `notify.ops` | the installation's master switch per notification class, `on` or `off`. `off` overrides every account's own switch: nothing of that class is written down for anybody, and rows still waiting when the switch is flipped are retired rather than sent |
+
 ## 3. The test mail
 
 The button sends to the address of the administrator pressing it, over exactly
@@ -75,10 +83,14 @@ than any sentence that could replace it:
 
 ## 4. What the installation sends
 
-Three messages, all of them plain text, all of them in the language the sender
-page was in — the catalogues are the interface's own
-(`web/src/locales/*.json`), so a mail arrives in the language somebody
-registered in:
+Four messages, all of them in the language the sender page was in — the
+catalogues are the interface's own (`web/src/locales/*.json`), so a mail
+arrives in the language somebody registered in. Each goes out as
+`multipart/alternative`: a plain-text part, and beside it the same content as
+HTML in the interface's design language. The HTML loads nothing — no font, no
+image, no stylesheet from anywhere — so a client that blocks remote content
+shows the same mail as one that does not, and the text part is the whole mail
+for a client that shows no HTML.
 
 | Mail | Trigger | Lifetime of its link |
 |---|---|---|
@@ -87,16 +99,21 @@ registered in:
 | Test mail | the button on this page | — |
 | Notifications | something needs a person: a waiting decision, a finished task, a budget cap, a runner that left | — |
 
-Notification mails are grouped: an event is sent a few minutes after it
-happens, together with whatever joined it in that window, and what has been
+Notification mails are grouped: an event is sent after the `notify.window`
+has passed, together with whatever joined it in that window, and what has been
 dealt with by then produces no mail at all. Every person chooses per class on
-their own account page which of them they want (`spec/06`).
+their own account page which of them they want; the installation's
+`notify.<class>` switches stand above that choice, and a class switched off
+there shows greyed out on the account page.
 
-**Set `COVEY_SITE_URL` on a public instance.** The links in those mails need a
-host, and without that variable it comes from the request — which means from
-the `Host` header. Behind a proxy that passes the origin through, that is
-right; where anybody can set the header, it lets a stranger decide which domain
-a confirmation link points at, and the mail would carry the token there.
+**Set `site.url` on a public instance.** The links in those mails need a host.
+The notification sender has no request to derive one from and leaves the links
+out while neither the setting nor `COVEY_SITE_URL` is set; the confirmation and
+reset mails fall back to the request — which means to the `Host` header. Behind
+a proxy that passes the origin through, that is right; where anybody can set
+the header, it lets a stranger decide which domain a confirmation link points
+at, and the mail would carry the token there. The setting closes both gaps
+from the same page the mail server is configured on.
 
 ## 5. Why registration hangs on it
 

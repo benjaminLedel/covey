@@ -31,6 +31,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"covey/internal/settings"
 )
 
 // The classes. They group what is sent together and what a person can switch
@@ -77,10 +79,11 @@ var Defaults = map[string]bool{
 	ClassOps:      true,
 }
 
-// DefaultWindow is how long events are collected before a mail goes out.
-// Long enough for ten blocked tasks to become one mail, short enough that a
-// waiting agent is not waiting for us as well.
-const DefaultWindow = 5 * time.Minute
+// DefaultWindow is how long events are collected before a mail goes out
+// while nobody has set notify.window (#180). Long enough for ten blocked
+// tasks to become one mail, short enough that a waiting agent is not waiting
+// for us as well.
+const DefaultWindow = settings.DefaultNotifyWindow
 
 // Event is what a caller reports. The recipients are not part of it: who is
 // told follows from the class and the organisation, and a caller that had to
@@ -103,15 +106,27 @@ type Event struct {
 }
 
 type Store struct {
-	pool   *pgxpool.Pool
+	pool *pgxpool.Pool
+	// settings carries the instance's say: the window (notify.window) and
+	// the master switch per class (notify.<class>). Nil means the defaults.
+	settings *settings.Store
+	// window, when set, overrides the setting. A knob for tests.
 	window time.Duration
 }
 
-func New(pool *pgxpool.Pool) *Store { return &Store{pool: pool, window: DefaultWindow} }
+func New(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
-// WithWindow sets the damping window. A knob for tests, not a control.
+// WithSettings hands the store the instance settings it reads the window and
+// the class switches from.
+func (s *Store) WithSettings(st *settings.Store) *Store {
+	s.settings = st
+	return s
+}
+
+// WithWindow pins the damping window. A knob for tests, not a control — the
+// control is the notify.window setting.
 //
-// Zero keeps the default — an unset duration must not mean "send at once".
+// Zero keeps the setting — an unset duration must not mean "send at once".
 // A negative one means exactly that, and is how a test gets its event out
 // without waiting five minutes for it.
 func (s *Store) WithWindow(d time.Duration) *Store {
@@ -119,6 +134,38 @@ func (s *Store) WithWindow(d time.Duration) *Store {
 		s.window = d
 	}
 	return s
+}
+
+// Window answers the damping window in force: the pinned one, else the
+// setting, else the default.
+func (s *Store) Window(ctx context.Context) time.Duration {
+	if s.window != 0 {
+		return s.window
+	}
+	if s.settings != nil {
+		return s.settings.NotifyWindowValue(ctx)
+	}
+	return DefaultWindow
+}
+
+// classOn asks the instance's master switch.
+func (s *Store) classOn(ctx context.Context, class string) bool {
+	if s.settings == nil {
+		return true
+	}
+	return s.settings.NotifyClassOn(ctx, class)
+}
+
+// Disabled lists the classes the installation has switched off for
+// everybody — what the account page greys out.
+func (s *Store) Disabled(ctx context.Context) []string {
+	out := []string{}
+	for _, class := range settings.NotifyClasses {
+		if !s.classOn(ctx, class) {
+			out = append(out, class)
+		}
+	}
+	return out
 }
 
 // Emit writes one event for everybody it concerns.
@@ -130,6 +177,11 @@ func (s *Store) Emit(ctx context.Context, ev Event) error {
 	if s == nil || s.pool == nil {
 		return nil
 	}
+	// The instance's switch comes before anybody's: a class switched off
+	// here is not written down for anyone.
+	if !s.classOn(ctx, ev.Class) {
+		return nil
+	}
 	recipients, err := s.recipients(ctx, ev)
 	if err != nil {
 		return err
@@ -137,7 +189,11 @@ func (s *Store) Emit(ctx context.Context, ev Event) error {
 	if len(recipients) == 0 {
 		return nil
 	}
-	due := time.Now().Add(s.window)
+	// The due time is the DATABASE's now plus the window, not this
+	// process's: the sender asks the database whether a row is due, and two
+	// clocks — the host's and a container's — disagree by enough to hold a
+	// zero-window row back for a pass or two.
+	window := s.Window(ctx).Seconds()
 	batch := &pgx.Batch{}
 	for _, account := range recipients {
 		var org *uuid.UUID
@@ -147,8 +203,8 @@ func (s *Store) Emit(ctx context.Context, ev Event) error {
 		}
 		batch.Queue(`INSERT INTO notifications
 			(id, account_id, org_id, class, kind, subject_id, title, link, due_at)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-			uuid.New(), account, org, ev.Class, ev.Kind, ev.SubjectID, ev.Title, ev.Link, due)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8, now() + make_interval(secs => $9))`,
+			uuid.New(), account, org, ev.Class, ev.Kind, ev.SubjectID, ev.Title, ev.Link, window)
 	}
 	return s.pool.SendBatch(ctx, batch).Close()
 }
@@ -164,8 +220,19 @@ func (s *Store) recipients(ctx context.Context, ev Event) ([]uuid.UUID, error) {
 
 	switch ev.Class {
 	case ClassDecision:
-		// Whoever may decide (the roles behind POST /approvals/{id}/decide and
-		// …/improvements/{id}/decide), plus the agent's owner.
+		if ev.Kind == KindImprovement {
+			// An open point from covey Doctor (spec/21) is a proposal about
+			// how the organisation runs its agents. It blocks nothing, and
+			// the organisation's administrator is who answers for its
+			// configuration — so it goes to them alone, not to everybody
+			// who could decide an approval (#181).
+			query = `SELECT DISTINCT h.account_id FROM humans h
+				WHERE h.org_id=$1 AND h.role='org_admin'`
+			args = []any{ev.OrgID}
+			break
+		}
+		// Whoever may decide (the roles behind POST /approvals/{id}/decide),
+		// plus the agent's owner.
 		query = `SELECT DISTINCT h.account_id FROM humans h
 			WHERE h.org_id=$1 AND (h.role = ANY($2)
 				OR h.id = (SELECT owner_id FROM agents WHERE id=$3))`

@@ -1630,7 +1630,8 @@
       "cost": "Kosten",
       "costHint": "Een agent die bij zijn budgetplafond is gestopt, en de noodstop.",
       "ops": "Platform",
-      "opsHint": "Een runner die verdwijnt, een toegang die een doelsysteem weigert of binnenkort weigert, en andere dingen die het beheer moet weten."
+      "opsHint": "Een runner die verdwijnt, een toegang die een doelsysteem weigert of binnenkort weigert, en andere dingen die het beheer moet weten.",
+      "instanceOff": "Door de beheerder voor de hele installatie uitgeschakeld."
     }
   },
   "profile": {
@@ -1880,7 +1881,13 @@
       "mail.smtp_user": "De aanmeldnaam. Vaak het afzenderadres, maar niet altijd.",
       "mail.smtp_password": "Wordt verzegeld opgeslagen en nooit teruggegeven.",
       "mail.from": "Het afzenderadres van de installatie.",
-      "mail.from_name": "De naam ervoor. Leeg betekent: de naam van de installatie."
+      "mail.from_name": "De naam ervoor. Leeg betekent: de naam van de installatie.",
+      "site.url": "Het adres waarop deze installatie van buiten bereikbaar is — elke link in een mail wordt eruit opgebouwd. Leeg: COVEY_SITE_URL, en meldingen gaan zonder links de deur uit.",
+      "notify.window": "Hoe lang gebeurtenissen worden verzameld voordat een meldingsmail uitgaat, bijv. 5m of 1h. 0s verstuurt bij de volgende ronde.",
+      "notify.decision": "Mails over wachtende beslissingen — voor iedereen op deze installatie. Uit gaat vóór de schakelaar van elk account.",
+      "notify.task": "Mails over afgeronde taken — voor iedereen op deze installatie. Uit gaat vóór de schakelaar van elk account.",
+      "notify.cost": "Mails over geld — een budgetplafond, de noodstop — voor iedereen op deze installatie. Uit gaat vóór de schakelaar van elk account.",
+      "notify.ops": "Mails over het platform zelf — een runner die wegviel, een geweigerde toegang — voor iedereen op deze installatie. Uit gaat vóór de schakelaar van elk account."
     },
     "choice": {
       "signup.mode": {
@@ -1892,7 +1899,9 @@
         "starttls": "STARTTLS (587)",
         "tls": "TLS vanaf de eerste byte (465)",
         "none": "onversleuteld — alleen voor lokale tests"
-      }
+      },
+      "on": "aan",
+      "off": "uit"
     },
     "waitlistDesc": "Codes waarmee iemand een account kan aanmaken zolang signup.mode op “code vereist” staat. Alleen de hash wordt bewaard — de leesbare tekst bestaat precies één keer, bij het aanmaken.",
     "noCodes": "Nog geen codes.",
@@ -2169,11 +2178,13 @@
   "mails": {
     "verify": {
       "subject": "{{site}}: bevestig uw adres",
-      "body": "Hallo {{name}},\n\nvoor dit adres is bij {{site}} een account aangemaakt.\n\nBevestig het via deze link:\n\n{{link}}\n\nDe link is 24 uur geldig. Was u dit niet, negeer dan deze mail — zonder de bevestiging blijft het account onbruikbaar."
+      "body": "Hallo {{name}},\n\nvoor dit adres is bij {{site}} een account aangemaakt.\n\nBevestig het via deze link:\n\n{{link}}\n\nDe link is 24 uur geldig. Was u dit niet, negeer dan deze mail — zonder de bevestiging blijft het account onbruikbaar.",
+      "action": "Adres bevestigen"
     },
     "reset": {
       "subject": "{{site}}: nieuw wachtwoord instellen",
-      "body": "Hallo {{name}},\n\niemand heeft gevraagd het wachtwoord van uw account bij {{site}} opnieuw in te stellen.\n\nStel hier een nieuw wachtwoord in:\n\n{{link}}\n\nDe link is een uur geldig en werkt eenmalig. Was u dit niet, dan is er niets gebeurd — uw huidige wachtwoord blijft geldig."
+      "body": "Hallo {{name}},\n\niemand heeft gevraagd het wachtwoord van uw account bij {{site}} opnieuw in te stellen.\n\nStel hier een nieuw wachtwoord in:\n\n{{link}}\n\nDe link is een uur geldig en werkt eenmalig. Was u dit niet, dan is er niets gebeurd — uw huidige wachtwoord blijft geldig.",
+      "action": "Nieuw wachtwoord instellen"
     },
     "notify": {
       "decision": {

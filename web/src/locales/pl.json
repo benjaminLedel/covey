@@ -1630,7 +1630,8 @@
       "cost": "Koszty",
       "costHint": "Agent zatrzymany na limicie budżetu oraz wyłącznik awaryjny.",
       "ops": "Platforma",
-      "opsHint": "Runner, który znika, poświadczenie, które system docelowy odrzuca lub wkrótce odrzuci, i inne rzeczy, o których powinna wiedzieć obsługa."
+      "opsHint": "Runner, który znika, poświadczenie, które system docelowy odrzuca lub wkrótce odrzuci, i inne rzeczy, o których powinna wiedzieć obsługa.",
+      "instanceOff": "Wyłączone dla całej instalacji przez administratora."
     }
   },
   "profile": {
@@ -1880,7 +1881,13 @@
       "mail.smtp_user": "Nazwa logowania. Często adres nadawcy, ale nie zawsze.",
       "mail.smtp_password": "Przechowywane w postaci zapieczętowanej i nigdy nie wydawane.",
       "mail.from": "Adres nadawcy tej instalacji.",
-      "mail.from_name": "Nazwa przed nim. Puste oznacza: nazwa instalacji."
+      "mail.from_name": "Nazwa przed nim. Puste oznacza: nazwa instalacji.",
+      "site.url": "Adres, pod którym ta instalacja jest dostępna z zewnątrz — z niego powstaje każdy link w wiadomości. Puste: COVEY_SITE_URL, a powiadomienia wychodzą bez linków.",
+      "notify.window": "Jak długo zdarzenia są zbierane, zanim wyjdzie wiadomość z powiadomieniem, np. 5m lub 1h. 0s wysyła przy następnym przebiegu.",
+      "notify.decision": "Wiadomości o oczekujących decyzjach — dla wszystkich w tej instalacji. Wyłączone ma pierwszeństwo przed ustawieniem każdego konta.",
+      "notify.task": "Wiadomości o zakończonych zadaniach — dla wszystkich w tej instalacji. Wyłączone ma pierwszeństwo przed ustawieniem każdego konta.",
+      "notify.cost": "Wiadomości o pieniądzach — limit budżetu, wyłącznik awaryjny — dla wszystkich w tej instalacji. Wyłączone ma pierwszeństwo przed ustawieniem każdego konta.",
+      "notify.ops": "Wiadomości o samej platformie — runner, który zniknął, odrzucone poświadczenie — dla wszystkich w tej instalacji. Wyłączone ma pierwszeństwo przed ustawieniem każdego konta."
     },
     "choice": {
       "signup.mode": {
@@ -1892,7 +1899,9 @@
         "starttls": "STARTTLS (587)",
         "tls": "TLS od pierwszego bajtu (465)",
         "none": "bez szyfrowania — tylko do testów lokalnych"
-      }
+      },
+      "on": "włączone",
+      "off": "wyłączone"
     },
     "waitlistDesc": "Kody, które pozwalają komuś założyć konto, gdy signup.mode stoi na „wymagany kod”. Zapisywany jest tylko skrót — jawny tekst istnieje dokładnie raz, przy tworzeniu.",
     "noCodes": "Nie ma jeszcze kodów.",
@@ -2169,11 +2178,13 @@
   "mails": {
     "verify": {
       "subject": "{{site}}: potwierdź swój adres",
-      "body": "Witaj {{name}},\n\ndla tego adresu utworzono konto w {{site}}.\n\nPotwierdź go, otwierając ten odnośnik:\n\n{{link}}\n\nOdnośnik jest ważny 24 godziny. Jeśli to nie Ty, zignoruj tę wiadomość — bez potwierdzenia konto pozostaje bezużyteczne."
+      "body": "Witaj {{name}},\n\ndla tego adresu utworzono konto w {{site}}.\n\nPotwierdź go, otwierając ten odnośnik:\n\n{{link}}\n\nOdnośnik jest ważny 24 godziny. Jeśli to nie Ty, zignoruj tę wiadomość — bez potwierdzenia konto pozostaje bezużyteczne.",
+      "action": "Potwierdź adres"
     },
     "reset": {
       "subject": "{{site}}: ustaw nowe hasło",
-      "body": "Witaj {{name}},\n\nktoś poprosił o zresetowanie hasła do Twojego konta w {{site}}.\n\nUstaw nowe tutaj:\n\n{{link}}\n\nOdnośnik jest ważny godzinę i działa jeden raz. Jeśli to nie Ty, nic się nie stało — dotychczasowe hasło pozostaje ważne."
+      "body": "Witaj {{name}},\n\nktoś poprosił o zresetowanie hasła do Twojego konta w {{site}}.\n\nUstaw nowe tutaj:\n\n{{link}}\n\nOdnośnik jest ważny godzinę i działa jeden raz. Jeśli to nie Ty, nic się nie stało — dotychczasowe hasło pozostaje ważne.",
+      "action": "Ustaw nowe hasło"
     },
     "notify": {
       "decision": {

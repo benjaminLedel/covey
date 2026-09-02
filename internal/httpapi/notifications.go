@@ -12,22 +12,39 @@ package httpapi
 
 import "net/http"
 
+// notificationPrefs is the answer of both endpoints: the person's switches,
+// and the classes the installation has switched off for everybody (#180) —
+// so the page can grey those out instead of offering a switch that does
+// nothing.
+type notificationPrefs struct {
+	Prefs    map[string]bool `json:"prefs"`
+	Disabled []string        `json:"disabled"`
+}
+
+func (s *Server) notificationPrefs(r *http.Request) (notificationPrefs, error) {
+	p := principalFrom(r)
+	prefs, err := s.Notify.Preferences(r.Context(), p.AccountID)
+	if err != nil {
+		return notificationPrefs{}, err
+	}
+	return notificationPrefs{Prefs: prefs, Disabled: s.Notify.Disabled(r.Context())}, nil
+}
+
 // handleGetNotificationPrefs — GET /api/v1/auth/notifications.
 //
 // It answers with the EFFECTIVE settings, defaults included, so the interface
 // does not have to carry a second copy of what "on by default" means.
 func (s *Server) handleGetNotificationPrefs(w http.ResponseWriter, r *http.Request) {
 	if s.Notify == nil {
-		writeJSON(w, http.StatusOK, map[string]bool{})
+		writeJSON(w, http.StatusOK, notificationPrefs{Prefs: map[string]bool{}, Disabled: []string{}})
 		return
 	}
-	p := principalFrom(r)
-	prefs, err := s.Notify.Preferences(r.Context(), p.AccountID)
+	out, err := s.notificationPrefs(r)
 	if err != nil {
 		mapErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, prefs)
+	writeJSON(w, http.StatusOK, out)
 }
 
 // handleSetNotificationPrefs — PUT /api/v1/auth/notifications.
@@ -52,10 +69,10 @@ func (s *Server) handleSetNotificationPrefs(w http.ResponseWriter, r *http.Reque
 			return
 		}
 	}
-	prefs, err := s.Notify.Preferences(r.Context(), p.AccountID)
+	out, err := s.notificationPrefs(r)
 	if err != nil {
 		mapErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, prefs)
+	writeJSON(w, http.StatusOK, out)
 }

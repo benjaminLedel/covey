@@ -1630,7 +1630,8 @@
       "cost": "Custos",
       "costHint": "Um agente parado no seu limite de orçamento, e a paragem de emergência.",
       "ops": "Plataforma",
-      "opsHint": "Um runner que desaparece, uma credencial que um sistema de destino recusa ou está prestes a recusar, e outras coisas que a operação deve saber."
+      "opsHint": "Um runner que desaparece, uma credencial que um sistema de destino recusa ou está prestes a recusar, e outras coisas que a operação deve saber.",
+      "instanceOff": "Desligado para toda esta instalação pelo administrador."
     }
   },
   "profile": {
@@ -1880,7 +1881,13 @@
       "mail.smtp_user": "O nome de acesso. Muitas vezes o endereço do remetente, mas nem sempre.",
       "mail.smtp_password": "É guardada selada e nunca é devolvida.",
       "mail.from": "O endereço de remetente da instalação.",
-      "mail.from_name": "O nome que o antecede. Vazio significa: o nome da instalação."
+      "mail.from_name": "O nome que o antecede. Vazio significa: o nome da instalação.",
+      "site.url": "O endereço em que esta instalação é acessível de fora — cada link num e-mail é construído a partir dele. Vazio: COVEY_SITE_URL, e as notificações saem sem links.",
+      "notify.window": "Durante quanto tempo os eventos são recolhidos antes de sair um e-mail de notificação, p. ex. 5m ou 1h. 0s envia na passagem seguinte.",
+      "notify.decision": "E-mails sobre decisões pendentes — para todos nesta instalação. Desligado sobrepõe-se ao interruptor de cada conta.",
+      "notify.task": "E-mails sobre tarefas concluídas — para todos nesta instalação. Desligado sobrepõe-se ao interruptor de cada conta.",
+      "notify.cost": "E-mails sobre dinheiro — um limite de orçamento, a paragem de emergência — para todos nesta instalação. Desligado sobrepõe-se ao interruptor de cada conta.",
+      "notify.ops": "E-mails sobre a própria plataforma — um runner que desapareceu, uma credencial recusada — para todos nesta instalação. Desligado sobrepõe-se ao interruptor de cada conta."
     },
     "choice": {
       "signup.mode": {
@@ -1892,7 +1899,9 @@
         "starttls": "STARTTLS (587)",
         "tls": "TLS desde o primeiro byte (465)",
         "none": "sem cifra — apenas para testes locais"
-      }
+      },
+      "on": "ligado",
+      "off": "desligado"
     },
     "waitlistDesc": "Códigos que deixam alguém criar conta enquanto signup.mode estiver em «é preciso código». Só o hash é guardado — o texto simples existe exatamente uma vez, ao ser criado.",
     "noCodes": "Ainda sem códigos.",
@@ -2169,11 +2178,13 @@
   "mails": {
     "verify": {
       "subject": "{{site}}: confirme o seu endereço",
-      "body": "Olá {{name}},\n\nfoi criada uma conta para este endereço em {{site}}.\n\nConfirme-o abrindo esta ligação:\n\n{{link}}\n\nA ligação é válida durante 24 horas. Se não foi você, ignore esta mensagem — sem a confirmação a conta permanece inutilizável."
+      "body": "Olá {{name}},\n\nfoi criada uma conta para este endereço em {{site}}.\n\nConfirme-o abrindo esta ligação:\n\n{{link}}\n\nA ligação é válida durante 24 horas. Se não foi você, ignore esta mensagem — sem a confirmação a conta permanece inutilizável.",
+      "action": "Confirmar endereço"
     },
     "reset": {
       "subject": "{{site}}: definir uma nova palavra-passe",
-      "body": "Olá {{name}},\n\nalguém pediu para repor a palavra-passe da sua conta em {{site}}.\n\nDefina uma nova aqui:\n\n{{link}}\n\nA ligação é válida durante uma hora e funciona uma única vez. Se não foi você, nada aconteceu — a sua palavra-passe atual continua válida."
+      "body": "Olá {{name}},\n\nalguém pediu para repor a palavra-passe da sua conta em {{site}}.\n\nDefina uma nova aqui:\n\n{{link}}\n\nA ligação é válida durante uma hora e funciona uma única vez. Se não foi você, nada aconteceu — a sua palavra-passe atual continua válida.",
+      "action": "Definir uma nova palavra-passe"
     },
     "notify": {
       "decision": {

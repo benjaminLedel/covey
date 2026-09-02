@@ -285,7 +285,7 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 		Skills:         s.skills,
 		Workplaces:     s.workplaces,
 		ReqLog:         s.reqlog,
-		Notify:         notify.New(pool),
+		Notify:         notify.New(pool).WithSettings(s.settings),
 		Provider:       provider,
 		DaemonTokenTTL: 5 * time.Minute,
 		TickInterval:   300 * time.Millisecond,
@@ -310,7 +310,7 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 		Mail: mail.New(s.settings),
 		// The notification switches (#169). Without the store the endpoints
 		// answer 503, and a test would be checking the wrong thing.
-		Notify:    notify.New(pool),
+		Notify:    notify.New(pool).WithSettings(s.settings),
 		Templates: s.templates, Dreams: s.dreams, Audit: s.audit,
 		Skills:      s.skills,
 		EgressStore: s.egress,

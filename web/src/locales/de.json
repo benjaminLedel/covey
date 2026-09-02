@@ -1630,7 +1630,8 @@
       "cost": "Kosten",
       "costHint": "Ein Agent, der an seinem Budgetdeckel angehalten wurde, und der Not-Aus.",
       "ops": "Plattform",
-      "opsHint": "Ein Runner, der verschwindet, ein Zugang, den ein Zielsystem abweist oder bald abweisen wird, und anderes, was der Betrieb wissen sollte."
+      "opsHint": "Ein Runner, der verschwindet, ein Zugang, den ein Zielsystem abweist oder bald abweisen wird, und anderes, was der Betrieb wissen sollte.",
+      "instanceOff": "Vom Administrator für die ganze Installation abgeschaltet."
     }
   },
   "profile": {
@@ -1880,7 +1881,13 @@
       "mail.smtp_user": "Der Anmeldename. Oft die Absenderadresse, aber nicht immer.",
       "mail.smtp_password": "Wird versiegelt abgelegt und nie wieder herausgegeben.",
       "mail.from": "Die Absenderadresse der Installation.",
-      "mail.from_name": "Der Name davor. Leer heisst: der Name der Installation."
+      "mail.from_name": "Der Name davor. Leer heisst: der Name der Installation.",
+      "site.url": "Die Adresse, unter der diese Installation von außen erreichbar ist — jeder Link in einer Mail entsteht daraus. Leer: COVEY_SITE_URL, und Benachrichtigungsmails gehen ohne Links hinaus.",
+      "notify.window": "Wie lange Ereignisse gesammelt werden, bevor eine Benachrichtigungsmail hinausgeht, z. B. 5m oder 1h. 0s sendet beim nächsten Durchlauf.",
+      "notify.decision": "Mails über wartende Entscheidungen — für alle auf dieser Installation. Aus übersteuert den Schalter jedes Kontos.",
+      "notify.task": "Mails über beendete Aufgaben — für alle auf dieser Installation. Aus übersteuert den Schalter jedes Kontos.",
+      "notify.cost": "Mails über Geld — ein Budgetdeckel, der Not-Aus — für alle auf dieser Installation. Aus übersteuert den Schalter jedes Kontos.",
+      "notify.ops": "Mails über die Plattform selbst — ein Runner, der weg ist, ein abgewiesener Zugang — für alle auf dieser Installation. Aus übersteuert den Schalter jedes Kontos."
     },
     "choice": {
       "signup.mode": {
@@ -1892,7 +1899,9 @@
         "starttls": "STARTTLS (587)",
         "tls": "TLS ab dem ersten Byte (465)",
         "none": "unverschlüsselt — nur für lokale Tests"
-      }
+      },
+      "on": "an",
+      "off": "aus"
     },
     "waitlistDesc": "Codes, mit denen jemand ein Konto anlegen darf, solange signup.mode auf „nur mit Code“ steht. Abgelegt wird nur der Hash — den Klartext gibt es genau einmal, im Moment der Erzeugung.",
     "noCodes": "Noch keine Codes.",
@@ -2169,11 +2178,13 @@
   "mails": {
     "verify": {
       "subject": "{{site}}: Adresse bestätigen",
-      "body": "Hallo {{name}},\n\nfür diese Adresse wurde bei {{site}} ein Konto angelegt.\n\nBestätigen Sie sie über diesen Link:\n\n{{link}}\n\nDer Link gilt 24 Stunden. Waren Sie das nicht, ignorieren Sie diese Mail — ohne die Bestätigung bleibt das Konto unbenutzbar."
+      "body": "Hallo {{name}},\n\nfür diese Adresse wurde bei {{site}} ein Konto angelegt.\n\nBestätigen Sie sie über diesen Link:\n\n{{link}}\n\nDer Link gilt 24 Stunden. Waren Sie das nicht, ignorieren Sie diese Mail — ohne die Bestätigung bleibt das Konto unbenutzbar.",
+      "action": "Adresse bestätigen"
     },
     "reset": {
       "subject": "{{site}}: neues Passwort setzen",
-      "body": "Hallo {{name}},\n\njemand hat darum gebeten, das Passwort Ihres Kontos bei {{site}} zurückzusetzen.\n\nHier setzen Sie ein neues:\n\n{{link}}\n\nDer Link gilt eine Stunde und genau einmal. Waren Sie das nicht, ist nichts geschehen — Ihr bisheriges Passwort gilt weiter."
+      "body": "Hallo {{name}},\n\njemand hat darum gebeten, das Passwort Ihres Kontos bei {{site}} zurückzusetzen.\n\nHier setzen Sie ein neues:\n\n{{link}}\n\nDer Link gilt eine Stunde und genau einmal. Waren Sie das nicht, ist nichts geschehen — Ihr bisheriges Passwort gilt weiter.",
+      "action": "Neues Passwort setzen"
     },
     "notify": {
       "decision": {

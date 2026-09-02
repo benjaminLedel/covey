@@ -54,17 +54,21 @@ func (s *Server) handleTestMail(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), testMailTimeout)
 	defer cancel()
-	sendErr := s.Mail.Send(ctx, mail.Message{
-		To:      p.Email,
-		Subject: fmt.Sprintf("%s: test mail", site),
-		Body: fmt.Sprintf(`This is the test mail from %s.
+	body := fmt.Sprintf(`This is the test mail from %s.
 
 If you are reading it, the installation can send mail: %s over %s as %s.
 
 Nothing follows from this mail. It was triggered by hand on the platform's
 mail settings, and its only purpose is to prove that the path works before
 somebody's verification link depends on it.
-`, site, cfg.Addr(), cfg.Security, cfg.Sender()),
+`, site, cfg.Addr(), cfg.Security, cfg.Sender())
+	sendErr := s.Mail.Send(ctx, mail.Message{
+		To:      p.Email,
+		Subject: fmt.Sprintf("%s: test mail", site),
+		Body:    body,
+		// The HTML part travels too: a test that proved only the text half
+		// would leave the styled half unproven.
+		HTML: mail.Render(mail.BaseLang, mail.Page{Site: site, Title: "Test mail", Body: mail.FromText(body, "")}),
 	})
 
 	// Recorded either way, and deliberately not inside the send: what is worth

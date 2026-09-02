@@ -121,6 +121,10 @@ function Settings() {
  *  ungeprüft. */
 const CHOICES: Record<string, string[]> = {
   "signup.mode": ["off", "waitlist", "open"],
+  "notify.decision": ["on", "off"],
+  "notify.task": ["on", "off"],
+  "notify.cost": ["on", "off"],
+  "notify.ops": ["on", "off"],
 };
 
 function SettingRow({ setting }: { setting: Setting }) {
@@ -153,7 +157,9 @@ function SettingRow({ setting }: { setting: Setting }) {
           >
             {choices.map((c) => (
               <option key={c} value={c}>
-                {t(`platform.choice.${setting.key}.${c}`, c)}
+                {/* Ein Wert, den mehrere Schalter teilen (an/aus), hat seinen
+                    Text einmal unter platform.choice und nicht je Schalter. */}
+                {t([`platform.choice.${setting.key}.${c}`, `platform.choice.${c}`], c)}
               </option>
             ))}
           </select>

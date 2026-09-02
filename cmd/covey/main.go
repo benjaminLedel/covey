@@ -891,7 +891,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	}
 	settingsStore := settings.New(pool, box)
 	// What the platform tells a person who is not looking at the tab (#169).
-	notifyStore := notify.New(pool)
+	notifyStore := notify.New(pool).WithSettings(settingsStore)
 
 	runnerStore := runnerstore.NewStore(pool)
 	snapshotStore := runnerStore
