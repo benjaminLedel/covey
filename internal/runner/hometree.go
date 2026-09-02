@@ -141,9 +141,30 @@ func (t *remoteTree) Open(rel string) (io.ReadCloser, sandboxfs.FileInfo, error)
 // the first byte goes to the browser.
 func (t *remoteTree) stream(op HomeOp, withInfo bool) (io.ReadCloser, sandboxfs.FileInfo, error) {
 	op.AgentID = t.agentID
+	// Flow control, for a host that understands it: the runner sends a window
+	// of chunks and then waits for the reader. Without it a slow browser
+	// blocked the connection's read loop — and with it every other answer on
+	// that connection (#156). An older host streams as before.
+	credits := t.conn.has(FeatureStreamCredit)
+	if credits {
+		op.Window = streamWindow
+	}
 	ch, stop, err := t.conn.askStream(context.Background(), TypeHomeOp, op)
 	if err != nil {
 		return nil, sandboxfs.FileInfo{}, err
+	}
+	id := stop.id
+	grant := func(chunks int) {
+		if !credits {
+			return
+		}
+		msg, err := encode(TypeStreamCredit, id, StreamCredit{Chunks: chunks})
+		if err != nil {
+			return
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_ = t.conn.t.Send(ctx, msg)
 	}
 
 	var info sandboxfs.FileInfo
@@ -152,31 +173,37 @@ func (t *remoteTree) stream(op HomeOp, withInfo bool) (io.ReadCloser, sandboxfs.
 		case msg := <-ch:
 			res, err := decode[HomeResult](msg)
 			if err != nil {
-				stop()
+				stop.stop()
 				return nil, sandboxfs.FileInfo{}, err
 			}
 			if res.Err != "" {
-				stop()
+				stop.stop()
 				return nil, sandboxfs.FileInfo{}, sandboxfs.ErrorFromKind(res.ErrKind, res.Err)
 			}
 			if res.Info != nil {
 				info = *res.Info
 			}
+		case <-t.conn.gone:
+			stop.stop()
+			return nil, sandboxfs.FileInfo{}, ErrRunnerGone
 		case <-time.After(homeOpTimeout):
-			stop()
+			stop.stop()
 			return nil, sandboxfs.FileInfo{}, fmt.Errorf("runner %s does not answer", short(t.conn.runnerID))
 		}
 	}
-	return &chunkReader{ch: ch, stop: stop}, info, nil
+	return &chunkReader{ch: ch, gone: t.conn.gone, stop: stop.stop, grant: grant}, info, nil
 }
 
 // chunkReader turns the stream of answers back into a reader.
 type chunkReader struct {
 	ch   <-chan Message
+	gone <-chan struct{}
 	stop func()
-	rest []byte
-	done bool
-	err  error
+	// grant tells the runner it may send this many more chunks; -1 cancels.
+	grant func(chunks int)
+	rest  []byte
+	done  bool
+	err   error
 }
 
 func (r *chunkReader) Read(p []byte) (int, error) {
@@ -188,15 +215,7 @@ func (r *chunkReader) Read(p []byte) (int, error) {
 			return 0, io.EOF
 		}
 		select {
-		case msg, ok := <-r.ch:
-			if !ok {
-				r.done = true
-				// The connection went away mid-download. Reported as an error
-				// and not as EOF: a truncated file that arrives as a complete
-				// one is worse than a broken download.
-				r.err = errors.New("the connection to the runner broke off during the transfer")
-				continue
-			}
+		case msg := <-r.ch:
 			res, err := decode[HomeResult](msg)
 			if err != nil {
 				r.done, r.err = true, err
@@ -208,7 +227,17 @@ func (r *chunkReader) Read(p []byte) (int, error) {
 				if res.Err != "" {
 					r.err = sandboxfs.ErrorFromKind(res.ErrKind, res.Err)
 				}
+				continue
 			}
+			// Consumed — the runner may send one more.
+			r.grant(1)
+		case <-r.gone:
+			// The connection went away mid-download. Reported as an error and
+			// not as EOF: a truncated file that arrives as a complete one is
+			// worse than a broken download — and reported now, not after the
+			// timeout (#156).
+			r.done = true
+			r.err = errors.New("the connection to the runner broke off during the transfer")
 		case <-time.After(homeOpTimeout):
 			r.done = true
 			r.err = errors.New("the runner stopped sending during the transfer")
@@ -219,7 +248,12 @@ func (r *chunkReader) Read(p []byte) (int, error) {
 	return n, nil
 }
 
+// Close ends the stream on both sides: the correlation here, and the pump on
+// the runner — which would otherwise read the rest of the file for nobody.
 func (r *chunkReader) Close() error {
+	if !r.done {
+		r.grant(-1)
+	}
 	r.stop()
 	return nil
 }

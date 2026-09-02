@@ -261,7 +261,35 @@ type HomeOp struct {
 	// copy to, and whose blocks to read.
 	Snapshot string    `json:"snapshot,omitempty"`
 	OrgID    uuid.UUID `json:"org_id,omitempty"`
+	// Window is the flow control of a streaming answer (open, zip): how many
+	// chunks the runner may have in flight before it waits for a stream_credit.
+	// 0 = none, the runner sends as fast as the link takes — which is what a
+	// control plane from before #156 asks for, and what it can handle only by
+	// blocking its read loop on a slow reader, which then blocks everything
+	// else on that connection.
+	Window int `json:"window,omitempty"`
 }
+
+// TypeStreamCredit (control plane → runner) lets a stream continue: the reader
+// has consumed chunks and the runner may send as many again. A negative credit
+// cancels the stream — the browser closed the download, and the rest of a 4 GB
+// file has nowhere to go.
+const TypeStreamCredit = "stream_credit"
+
+// StreamCredit is the payload; the message's ID names the stream.
+type StreamCredit struct {
+	Chunks int `json:"chunks"`
+}
+
+// FeatureStreamCredit: this runner honours HomeOp.Window and stream_credit. A
+// control plane sends credits only to a host that announced it, because to an
+// older one they are unknown messages — one warning line per chunk.
+const FeatureStreamCredit = "stream_credit"
+
+// streamWindow is how many chunks a stream may have in flight: enough that a
+// fast reader never waits for the round trip, few enough that a slow one costs
+// the connection a couple of megabytes of buffer and nothing else.
+const streamWindow = 4
 
 // HomeResult answers a home_op. Streaming answers (open, zip) arrive as
 // several results with the same correlation ID; the last one carries EOF.

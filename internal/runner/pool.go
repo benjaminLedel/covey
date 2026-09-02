@@ -800,13 +800,17 @@ func (c *conn) recordLateSync(ctx context.Context, msg Message) {
 // caller reads until a message carries EOF and must always call the returned
 // stop — otherwise the correlation stays registered and the connection
 // accumulates readers nobody serves.
-func (c *conn) askStream(ctx context.Context, msgType string, payload any) (<-chan Message, func(), error) {
+func (c *conn) askStream(ctx context.Context, msgType string, payload any) (<-chan Message, streamHandle, error) {
 	id := uuid.NewString()
 	msg, err := encode(msgType, id, payload)
 	if err != nil {
-		return nil, func() {}, err
+		return nil, streamHandle{stop: func() {}}, err
 	}
-	ch := make(chan Message, 4)
+	// Room for the whole window plus the message that ends the stream: a
+	// runner that honours the window never has more than that in flight, so
+	// the read loop never blocks on this channel (#156). An older runner may
+	// still fill it, and then the loop blocks as it always did.
+	ch := make(chan Message, streamWindow+2)
 	c.mu.Lock()
 	c.waiters[id] = ch
 	c.streams[id] = true
@@ -819,9 +823,21 @@ func (c *conn) askStream(ctx context.Context, msgType string, payload any) (<-ch
 	}
 	if err := c.t.Send(ctx, msg); err != nil {
 		stop()
-		return nil, func() {}, err
+		return nil, streamHandle{stop: func() {}}, err
 	}
-	return ch, stop, nil
+	return ch, streamHandle{id: id, stop: stop}, nil
+}
+
+// streamHandle is what a stream's opener holds: the correlation id, for the
+// credits it sends, and the stop that ends the correlation.
+type streamHandle struct {
+	id   string
+	stop func()
+}
+
+// has: did this runner announce the feature?
+func (c *conn) has(feature string) bool {
+	return slices.Contains(c.features, feature)
 }
 
 // watchdog closes a connection that has gone quiet. Receive would otherwise

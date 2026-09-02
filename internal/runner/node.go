@@ -68,6 +68,9 @@ type Node struct {
 	// turn holds, per agent, the end of the line: the channel the message
 	// currently being worked on closes when it is done. See inOrder.
 	turn map[uuid.UUID]chan struct{}
+	// streams are the chunked answers under way, by correlation id, for the
+	// credits that let them continue (see pump).
+	streams map[string]*stream
 	// ReadSilence is how long this node tolerates hearing NOTHING from the
 	// control plane before it closes the connection and lets RunNode dial
 	// again. The control plane asks every connected host for its capacity once
@@ -138,6 +141,7 @@ func NewNode(runnerID, orgID uuid.UUID, docker *Docker, log *slog.Logger) *Node 
 		logs:     ring,
 		running:  map[uuid.UUID]*sandboxProc{},
 		turn:     map[uuid.UUID]chan struct{}{},
+		streams:  map[string]*stream{},
 	}
 }
 
@@ -153,7 +157,7 @@ func (n *Node) Run(ctx context.Context, t Transport) error {
 		Arch:     runtime.GOARCH,
 		Tags:     n.Tags,
 		Images:   n.Images,
-		Features: []string{FeatureSelfUpdate, FeatureLogShipping},
+		Features: []string{FeatureSelfUpdate, FeatureLogShipping, FeatureStreamCredit},
 
 		MaxSandboxes: n.MaxSandboxes,
 	})
@@ -291,6 +295,12 @@ func (n *Node) handle(ctx context.Context, t Transport, msg Message) {
 		// service up while its sandbox is being torn down would leave a
 		// container that belongs to nothing.
 		n.inOrder(req.AgentID, func() { n.addServices(ctx, t, msg.ID, req) })
+	case TypeStreamCredit:
+		credit, err := decode[StreamCredit](msg)
+		if err != nil {
+			return
+		}
+		n.grant(msg.ID, credit.Chunks)
 	case TypeCapacity:
 		// Beside the loop, like everything that can take time. Free space is a
 		// statfs and costs nothing — until the file system it asks about hangs,

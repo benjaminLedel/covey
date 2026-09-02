@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"io"
+	"sync"
+	"time"
 
 	"covey/internal/homestore"
 	"covey/internal/sandboxfs"
@@ -134,7 +136,7 @@ func (n *Node) stream(ctx context.Context, t Transport, id string, tree *sandbox
 	}
 	defer rc.Close()
 	n.replyHome(ctx, t, id, HomeResult{Info: &info}, false)
-	n.pump(ctx, t, id, rc)
+	n.pump(ctx, t, id, op.Window, rc)
 }
 
 // streamZip plans afresh and writes the archive into the link. Planning twice
@@ -144,24 +146,122 @@ func (n *Node) stream(ctx context.Context, t Transport, id string, tree *sandbox
 func (n *Node) streamZip(ctx context.Context, t Transport, id string, tree *sandboxfs.FS, op HomeOp) {
 	plan, err := tree.PlanZip(op.Paths)
 	if err != nil {
-		n.answer(ctx, t, id, HomeResult{}, err)
+		// With EOF: the other side opened this as a stream and reads until the
+		// message that ends it. An error without EOF left it waiting for a
+		// next chunk that never came (#156).
+		n.replyHome(ctx, t, id, HomeResult{Err: err.Error(), ErrKind: sandboxfs.ErrorKind(err), EOF: true}, true)
 		return
 	}
 	pr, pw := io.Pipe()
 	go func() { pw.CloseWithError(tree.WriteZip(pw, plan)) }()
 	defer pr.Close()
-	n.pump(ctx, t, id, pr)
+	n.pump(ctx, t, id, op.Window, pr)
+}
+
+// stream is a chunked answer under way: the credits it may still spend, and
+// whether the reader has gone.
+type stream struct {
+	mu        sync.Mutex
+	credit    int
+	cancelled bool
+	wake      chan struct{}
+}
+
+// openStream registers a stream with its initial window. window 0 = no flow
+// control asked for; the stream then never waits (the behaviour before #156).
+func (n *Node) openStream(id string, window int) *stream {
+	st := &stream{credit: window, wake: make(chan struct{}, 1)}
+	if window <= 0 {
+		st.credit = -1 // unlimited
+	}
+	n.mu.Lock()
+	n.streams[id] = st
+	n.mu.Unlock()
+	return st
+}
+
+func (n *Node) closeStream(id string) {
+	n.mu.Lock()
+	delete(n.streams, id)
+	n.mu.Unlock()
+}
+
+// grant hands a stream credits, or cancels it.
+func (n *Node) grant(id string, chunks int) {
+	n.mu.Lock()
+	st := n.streams[id]
+	n.mu.Unlock()
+	if st == nil {
+		return // already over
+	}
+	st.mu.Lock()
+	if chunks < 0 {
+		st.cancelled = true
+	} else if st.credit >= 0 {
+		st.credit += chunks
+	}
+	st.mu.Unlock()
+	select {
+	case st.wake <- struct{}{}:
+	default:
+	}
+}
+
+// take spends one credit, waiting for it if none is left. False = the stream
+// is over: cancelled by the reader, or nobody granted anything for as long as
+// a home operation may take — a reader that vanished without saying so.
+func (st *stream) take(ctx context.Context) bool {
+	for {
+		st.mu.Lock()
+		switch {
+		case st.cancelled:
+			st.mu.Unlock()
+			return false
+		case st.credit < 0:
+			st.mu.Unlock()
+			return true
+		case st.credit > 0:
+			st.credit--
+			st.mu.Unlock()
+			return true
+		}
+		st.mu.Unlock()
+		select {
+		case <-st.wake:
+		case <-ctx.Done():
+			return false
+		case <-time.After(homeOpTimeout):
+			return false
+		}
+	}
 }
 
 // pump moves a stream into the link, chunk by chunk, and closes it with EOF.
-func (n *Node) pump(ctx context.Context, t Transport, id string, r io.Reader) {
+//
+// With a window it waits for the reader: the control plane's read loop
+// delivers chunks into a bounded channel, and a runner that sent faster than
+// the browser read blocked that loop — and with it every other answer on the
+// connection, until the host counted as not answering and a start under way on
+// it was taken back (#156). Now at most `window` chunks are in flight; the
+// reader grants more as it consumes.
+func (n *Node) pump(ctx context.Context, t Transport, id string, window int, r io.Reader) {
+	st := n.openStream(id, window)
+	defer n.closeStream(id)
 	buf := make([]byte, chunkLimit)
 	for {
+		if !st.take(ctx) {
+			n.Log.Debug("runner: stream ended by the reader", "id", id)
+			return
+		}
 		read, err := r.Read(buf)
 		if read > 0 {
 			chunk := make([]byte, read)
 			copy(chunk, buf[:read])
-			n.replyHome(ctx, t, id, HomeResult{Data: chunk}, false)
+			if sendErr := n.sendHome(ctx, t, id, HomeResult{Data: chunk}); sendErr != nil {
+				// The link is gone. Reading the rest of a 4 GB file to send it
+				// nowhere is the one thing not worth doing here.
+				return
+			}
 		}
 		if errors.Is(err, io.EOF) {
 			n.replyHome(ctx, t, id, HomeResult{EOF: true}, true)
@@ -180,6 +280,16 @@ func (n *Node) pump(ctx context.Context, t Transport, id string, r io.Reader) {
 func (n *Node) replyHome(ctx context.Context, t Transport, id string, res HomeResult, last bool) {
 	_ = last // the correlation ends with EOF; kept for readability at the call sites
 	n.reply(ctx, t, id, TypeHomeResult, res)
+}
+
+// sendHome is replyHome for a chunk: the caller wants to know when the link is
+// gone, because it decides whether to keep reading.
+func (n *Node) sendHome(ctx context.Context, t Transport, id string, res HomeResult) error {
+	msg, err := encode(TypeHomeResult, id, res)
+	if err != nil {
+		return err
+	}
+	return n.send(ctx, t, msg)
 }
 
 func bytesReader(b []byte) io.Reader { return &sliceReader{b: b} }
