@@ -15,7 +15,9 @@ covey.log
 /data/
 
 # Frontend
-web/node_modules/
+# Ohne Schrägstrich: ein Verzeichnis wird so genauso gefasst wie der
+# Symlink, der hier schon einmal versehentlich eingecheckt wurde (#152).
+web/node_modules
 web/dist/
 web/dist-ssr/
 
