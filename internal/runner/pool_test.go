@@ -34,6 +34,11 @@ func fakeDockerBin(t *testing.T, dir string, failOn string) string {
 printf '%s ' "$@" >> ` + filepath.Join(dir, "args") + `
 printf '\n' >> ` + filepath.Join(dir, "args") + `
 if [ "$1" = "` + failOn + `" ]; then echo 'boom' >&2; exit 1; fi
+if [ "$1" = "ps" ]; then
+  # What a predecessor left running: a test writes the lines docker would print.
+  [ -f ` + filepath.Join(dir, "ps") + ` ] && cat ` + filepath.Join(dir, "ps") + `
+  exit 0
+fi
 if [ "$1" = "wait" ]; then
   printf '%s' "$$" > ` + filepath.Join(dir, "waitpid") + `
   while [ ! -f ` + filepath.Join(dir, "stopped") + ` ]; do
@@ -1277,7 +1282,11 @@ func TestAStartIsTakenBackFromAHostThatGoesDeaf(t *testing.T) {
 	// test may take".
 	p.StartTimeout = 30 * time.Second
 	p.HeartbeatEvery = 60 * time.Millisecond
-	p.SilenceAfter = 200 * time.Millisecond
+	// Long enough that the host is still "answering" when the start is
+	// picked — attaching the built-in runner below costs a docker call for
+	// the sandboxes a predecessor may have left (#155) — and short enough
+	// that it goes deaf well within the test.
+	p.SilenceAfter = 800 * time.Millisecond
 
 	// The host that stops reading after its first capacity answer.
 	seen := make(chan string, 32)

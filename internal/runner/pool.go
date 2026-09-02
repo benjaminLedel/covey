@@ -260,6 +260,13 @@ type conn struct {
 	// sandboxes counts what is running here — the whole of the scheduling
 	// weight for now: no bin packing, no resource modelling.
 	sandboxes int
+	// strays are the sandboxes this host reported at connect that the pool
+	// had not placed there, each closed when its stop has gone through. A
+	// start for the same agent waits for it, or the stop would land on the
+	// sandbox it has just started (see askStart).
+	strays map[uuid.UUID]chan struct{}
+	// running is what the host reported at connect; consumed by reconcile.
+	running []uuid.UUID
 	// gone is closed when this connection is over. It is what turns a dropped
 	// runner into an answer: without it an outstanding question waits for its
 	// own timeout — thirty minutes for a home sync — for an answer nobody will
@@ -428,7 +435,9 @@ func (p *Pool) handshake(ctx context.Context, t Transport, builtin bool) (*conn,
 		reportedTags: reg.Tags, reportedImages: reg.Images,
 		features: reg.Features, maxSandboxes: reg.MaxSandboxes,
 		t: t, pool: p, waiters: map[string]chan Message{}, streams: map[string]bool{},
+		strays:    map[uuid.UUID]chan struct{}{},
 		lastHeard: time.Now(), openedAt: time.Now(), gone: make(chan struct{}),
+		running: reg.Running,
 	}
 	// What the interface assigned to this host applies from the first wake on,
 	// not from the next restart of the runner: the capabilities live here, the
@@ -465,7 +474,8 @@ func (p *Pool) admit(ctx context.Context, c *conn) {
 	p.conns[c.runnerID] = c
 	p.mu.Unlock()
 	p.Log.Info("runner connected", "runner", c.runnerID, "org", c.orgID,
-		"builtin", c.builtin, "version", c.version)
+		"builtin", c.builtin, "version", c.version, "running", len(c.running))
+	p.reconcile(ctx, c)
 	// The stored log level, re-applied. In the background on purpose: a
 	// registration that waited for it would let a slow answer delay the first
 	// wake, and the worst case of failing here is a host that reports at info
@@ -1066,6 +1076,9 @@ const capacityAsk = 30 * time.Second
 // the case for a runner too old to hand off — and moving to the next host is
 // better for it than an hour of nothing.
 func (c *conn) askStart(ctx context.Context, spec StartSandbox, timeout time.Duration) (Message, error) {
+	if err := c.awaitStray(ctx, spec.AgentID); err != nil {
+		return Message{}, err
+	}
 	watch, stopWatch := context.WithCancel(ctx)
 	defer stopWatch()
 	go func() {
@@ -1552,6 +1565,10 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 	// registry, a full disk, a Docker that has just died. That is a reason to
 	// ask the next host of this organisation, not to lose the sandbox — the
 	// agent does not care which machine it wakes on.
+	//
+	// A start given up on because the HOST went away may still complete there
+	// after the reconnect. It is not placed, so when that host comes back and
+	// reports it, reconcile stops it as a stray (#155).
 	var last error
 	for i, c := range candidates {
 		answer, err := c.askStart(ctx, StartSandbox{
@@ -1753,6 +1770,7 @@ func (s *poolSandbox) Discard(ctx context.Context) error {
 		ctx = context.WithoutCancel(ctx)
 		var c *conn
 		if c, err = s.host(ctx); err != nil {
+			s.pool.unplace(s.agentID, s.runnerID)
 			return
 		}
 		c.release()
@@ -1771,6 +1789,88 @@ func (c *conn) release() {
 		c.sandboxes--
 	}
 	c.mu.Unlock()
+}
+
+// reconcile squares what a host reported running at connect with what the
+// pool knows. A sandbox the pool placed on this host is adopted — counted, and
+// from here on reported on like any other. One it did not place is a stray: a
+// start this pool gave up on and moved elsewhere, a sandbox from before a
+// control-plane restart, a stop that never reached the host. It is stopped, and
+// its home is secured first — that home may hold a run nobody else has (#155).
+//
+// The stops run beside the handshake, not in it: a stop is a round trip on
+// the connection that is being admitted, and the connection has to be reading
+// for that. A start for the same agent waits for its stray to be gone.
+func (p *Pool) reconcile(ctx context.Context, c *conn) {
+	if len(c.running) == 0 {
+		return
+	}
+	adopted := 0
+	var strays []uuid.UUID
+	p.mu.Lock()
+	for _, agentID := range c.running {
+		if p.placed[agentID] == c.runnerID {
+			adopted++
+			continue
+		}
+		strays = append(strays, agentID)
+	}
+	p.mu.Unlock()
+	c.mu.Lock()
+	c.sandboxes = adopted
+	for _, agentID := range strays {
+		c.strays[agentID] = make(chan struct{})
+	}
+	c.mu.Unlock()
+	c.running = nil
+	if adopted > 0 {
+		p.Log.Info("sandboxes adopted on a reconnected runner", "runner", short(c.runnerID), "count", adopted)
+	}
+	for _, agentID := range strays {
+		go p.stopStray(context.WithoutCancel(ctx), c, agentID)
+	}
+}
+
+// stopStray stops a sandbox the pool did not place, secures its home, and
+// releases whatever start was waiting for that.
+func (p *Pool) stopStray(ctx context.Context, c *conn, agentID uuid.UUID) {
+	defer func() {
+		c.mu.Lock()
+		if done := c.strays[agentID]; done != nil {
+			close(done)
+			delete(c.strays, agentID)
+		}
+		c.mu.Unlock()
+	}()
+	p.Log.Warn("runner holds a sandbox the control plane did not place — stopping it and securing its home",
+		"runner", short(c.runnerID), "agent", agentID)
+	if _, err := c.ask(ctx, TypeStopSandbox, StopSandbox{AgentID: agentID}, 60*time.Second); err != nil {
+		p.Log.Warn("stray sandbox not stopped", "runner", short(c.runnerID), "agent", agentID, "err", err)
+		return
+	}
+	if c.serves(ctx, agentID) {
+		_ = p.syncHomeReason(ctx, c, agentID, c.orgID, "stray")
+	}
+}
+
+// awaitStray holds a start until a stray of the same agent on this host has
+// been stopped. Otherwise the stop, queued behind the start on the host,
+// would end the sandbox that was just started.
+func (c *conn) awaitStray(ctx context.Context, agentID uuid.UUID) error {
+	c.mu.Lock()
+	done := c.strays[agentID]
+	c.mu.Unlock()
+	if done == nil {
+		return nil
+	}
+	select {
+	case <-done:
+		return nil
+	case <-c.gone:
+		return ErrRunnerGone
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // unplace forgets where a sandbox ran, once it no longer does.
@@ -1800,10 +1900,12 @@ func (s *poolSandbox) Stop(ctx context.Context) error {
 		ctx = context.WithoutCancel(ctx)
 		var c *conn
 		if c, err = s.host(ctx); err != nil {
-			// The host is gone for longer than a reconnect takes. The container,
-			// if it still runs, is stopped when the host comes back and the next
-			// wake or a StopStray asks; the home is unsecured until then, and
-			// that is worth the same line a failed sync gets.
+			// The host is gone for longer than a reconnect takes. Forgotten as
+			// placed, so that when the host does come back and reports the
+			// sandbox, the pool treats it as a stray: stops it and secures its
+			// home (reconcile). Until then the home is unsecured, and that is
+			// worth the same line a failed sync gets.
+			s.pool.unplace(s.agentID, s.runnerID)
 			s.pool.saySyncFailed(ctx, s.agentID, s.runnerID, "job", err.Error())
 			return
 		}

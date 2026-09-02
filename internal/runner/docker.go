@@ -192,6 +192,12 @@ func (p *Docker) Start(ctx context.Context, spec StartSandbox) (string, []sandbo
 	// leftover of the same name before it begins.
 	args := []string{"run", "-d", "--init",
 		"--name", name,
+		// Labelled, so that a runner which restarts finds what it was running
+		// and takes it back under its watch (see Running). The name alone
+		// would do for the sandbox; the labels make the question one filter
+		// rather than a parse of every container on the host.
+		"--label", runnerLabel + "=" + p.RunnerID.String(),
+		"--label", agentLabel + "=" + spec.AgentID.String(),
 		"-v", home + ":" + sandboxHome,
 		"-e", "HOME=" + sandboxHome,
 		"-e", "COVEY_HOME=" + sandboxHome,
@@ -513,6 +519,52 @@ func firstLine(out string, fallback error) string {
 		}
 	}
 	return fallback.Error()
+}
+
+// The labels a sandbox container carries: whose runner, whose agent.
+const (
+	runnerLabel = "covey.runner"
+	agentLabel  = "covey.agent"
+)
+
+// RunningSandbox is a sandbox container this host holds — found rather than
+// started, by a runner that came back.
+type RunningSandbox struct {
+	AgentID   uuid.UUID
+	Container string
+}
+
+// Running lists the sandbox containers of this runner that are up right now.
+// Asked once, when a runner process starts: the containers belong to Docker
+// and survive the runner — what did not survive is the watcher and the count,
+// and until #155 nothing brought either back. The sandboxes ran unwatched,
+// uncounted, and a start for the same agent removed them by name without a
+// word about what was in them.
+//
+// Containers from before the labels are not found here; they are cleared by
+// name at the next start of their agent, as before.
+func (p *Docker) Running(ctx context.Context) ([]RunningSandbox, error) {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, p.docker(), "ps",
+		"--filter", "label="+runnerLabel+"="+p.RunnerID.String(),
+		"--format", "{{.Names}}\t{{.Label \""+agentLabel+"\"}}").CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("docker ps: %v: %s", err, firstLine(string(out), err))
+	}
+	var found []RunningSandbox
+	for _, line := range strings.Split(string(out), "\n") {
+		name, agent, ok := strings.Cut(strings.TrimSpace(line), "\t")
+		if !ok {
+			continue
+		}
+		id, err := uuid.Parse(strings.TrimSpace(agent))
+		if err != nil || !strings.HasPrefix(name, "covey-sandbox-") {
+			continue
+		}
+		found = append(found, RunningSandbox{AgentID: id, Container: name})
+	}
+	return found, nil
 }
 
 // containerName derives a stable, docker-compatible name from the agent ID —

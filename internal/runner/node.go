@@ -71,6 +71,9 @@ type Node struct {
 	// streams are the chunked answers under way, by correlation id, for the
 	// credits that let them continue (see pump).
 	streams map[string]*stream
+	// adopted marks that this process has looked for the containers a
+	// predecessor left running — once, at the first connection.
+	adopted sync.Once
 	// ReadSilence is how long this node tolerates hearing NOTHING from the
 	// control plane before it closes the connection and lets RunNode dial
 	// again. The control plane asks every connected host for its capacity once
@@ -149,6 +152,10 @@ func NewNode(runnerID, orgID uuid.UUID, docker *Docker, log *slog.Logger) *Node 
 // registers first: the control plane may not assign anything to a runner whose
 // identity and protocol version it does not know.
 func (n *Node) Run(ctx context.Context, t Transport) error {
+	// What a predecessor left running is taken under watch BEFORE the
+	// handshake names it — the control plane reconciles against the list, and
+	// a sandbox the list did not carry would be one nobody ever stops.
+	n.adopt(ctx)
 	hello, err := encode(TypeRegistered, "", Registered{
 		RunnerID: n.RunnerID,
 		OrgID:    n.OrgID,
@@ -158,6 +165,7 @@ func (n *Node) Run(ctx context.Context, t Transport) error {
 		Tags:     n.Tags,
 		Images:   n.Images,
 		Features: []string{FeatureSelfUpdate, FeatureLogShipping, FeatureStreamCredit},
+		Running:  n.runningAgents(),
 
 		MaxSandboxes: n.MaxSandboxes,
 	})
@@ -391,6 +399,57 @@ func (n *Node) update(ctx context.Context, t Transport, id string, req Update) {
 		// and whoever started it by hand reads this line.
 		n.Log.Error("runner: restart failed — the new binary is installed, start it again", "err", err)
 	}
+}
+
+// adopt takes the sandbox containers a previous runner process left running
+// back under watch: a proc and a watcher each, as if this process had started
+// them. The containers belong to Docker and survived; the watcher and the
+// count did not, and until #155 nothing brought them back (#155).
+//
+// The watchers get no transport of their own: the link is set once the
+// handshake is out, and a death reported before `registered` would be the
+// first message on the connection — which the pool refuses. Until then a
+// report goes into the outbox and follows the handshake.
+func (n *Node) adopt(ctx context.Context) {
+	n.adopted.Do(func() {
+		if n.Docker == nil {
+			return
+		}
+		found, err := n.Docker.Running(ctx)
+		if err != nil {
+			n.Log.Warn("could not look for sandboxes a predecessor left running", "err", err)
+			return
+		}
+		for _, sb := range found {
+			watchCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+			proc := &sandboxProc{container: sb.Container, cancel: cancel}
+			n.mu.Lock()
+			if n.closed || n.running[sb.AgentID] != nil {
+				n.mu.Unlock()
+				cancel()
+				continue
+			}
+			n.running[sb.AgentID] = proc
+			n.mu.Unlock()
+			n.watchers.Add(1)
+			go func(agentID uuid.UUID, proc *sandboxProc) {
+				defer n.watchers.Done()
+				n.watch(watchCtx, nil, agentID, proc)
+			}(sb.AgentID, proc)
+			n.Log.Info("sandbox found running — taken under watch", "agent", sb.AgentID, "container", sb.Container)
+		}
+	})
+}
+
+// runningAgents lists whose sandboxes this host holds right now.
+func (n *Node) runningAgents() []uuid.UUID {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	out := make([]uuid.UUID, 0, len(n.running))
+	for id := range n.running {
+		out = append(out, id)
+	}
+	return out
 }
 
 // inOrder runs the work of a message beside the read loop, but keeps the

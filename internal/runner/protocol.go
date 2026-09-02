@@ -357,6 +357,13 @@ type Registered struct {
 	// ignores an unknown message, and the caller would wait out the timeout for
 	// a message that will never be answered.
 	Features []string `json:"features,omitempty"`
+	// Running are the agents whose sandboxes this host holds at the moment it
+	// connects — found on the host, not remembered. The control plane
+	// reconciles: what it placed here it adopts, and what it does not know is
+	// stopped and its home secured (#155). That is the body spec/16's `prune`
+	// was meant to have. Absent from an older runner, which then reports
+	// nothing and is reconciled with nothing.
+	Running []uuid.UUID `json:"running,omitempty"`
 	// MaxSandboxes is how many sandboxes this host will carry at once, 0 = no
 	// limit. It belongs to the RUNNER and is configured there, because what it
 	// states is a property of the iron — how much RAM this machine has, how
