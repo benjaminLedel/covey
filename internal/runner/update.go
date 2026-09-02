@@ -60,6 +60,15 @@ const maxBinary = 200 << 20
 // connection ends with the restart, and a caller who only saw it drop could not
 // tell success from a host that fell over.
 func (n *Node) updateSelf(ctx context.Context, req Update) UpdateResult {
+	// One at a time. The control plane re-issues a planned update on every
+	// idle beat, and an operator may press the button beside it; two of these
+	// writing the same .new file and renaming over each other could exec a
+	// half-written binary (#161).
+	n.updateMu.Lock()
+	defer n.updateMu.Unlock()
+	n.setUpdating(true)
+	defer n.setUpdating(false)
+
 	info := buildinfo.Get()
 	from := info.Version
 	res := UpdateResult{From: from}
@@ -76,27 +85,19 @@ func (n *Node) updateSelf(ctx context.Context, req Update) UpdateResult {
 	// moved. The sandbox count alone does not see that, so it is not the only
 	// thing asked.
 	if busy := n.busy(); busy != "" {
-		// Not now — but not forgotten either. Refusing outright made a host
-		// unupdatable for good in one ordinary case: an agent with a warm
-		// sandbox keeps one alive between runs, so this host is never empty,
-		// and every attempt got the same sentence. The only way through was to
-		// stop that agent by hand (covey.work, 01.09.).
-		//
-		// So the wish is kept and carried out at the next moment this host has
-		// nothing in its hands — the end of a sandbox, the end of a sync. The
-		// answer says both: not now, and that it will happen.
-		n.mu.Lock()
-		n.pendingUpdate = &req
-		n.mu.Unlock()
+		// Not now. The control plane keeps the wish — on the runner's row,
+		// where it survives a restart of either side — and carries it out at
+		// the next beat that finds this host idle (Pool.runPlannedUpdate).
+		// Refusing outright made a host unupdatable for good in one ordinary
+		// case: an agent with a warm sandbox keeps one alive between runs, so
+		// this host is never empty (covey.work, 01.09.). The runner used to
+		// keep a plan of its own beside the control plane's; that one
+		// installed without restarting and fired only for a sandbox that
+		// died on its own, so it is gone (#161).
 		res.Busy = true
-		res.Planned = true
 		res.Err = busy + " — the update is planned and runs as soon as it is free"
 		return res
 	}
-	// It is happening now, so nothing is left over for later.
-	n.mu.Lock()
-	n.pendingUpdate = nil
-	n.mu.Unlock()
 
 	version := strings.TrimSpace(req.Version)
 	if version == "" {
@@ -159,6 +160,16 @@ func (n *Node) updateSelf(ctx context.Context, req Update) UpdateResult {
 	binary, err := binaryFromArchive(blob, "covey-runner")
 	if err != nil {
 		res.Err = err.Error()
+		return res
+	}
+	// Asked again, now that the download is behind us: it had ten minutes to
+	// run, and a sync or a start may have begun in that time (starts are
+	// refused while updating, syncs are not — a sync is the home being
+	// secured, and that is not the thing to refuse). A replacement now would
+	// exec into the middle of it (#161).
+	if busy := n.busy(); busy != "" {
+		res.Busy = true
+		res.Err = busy + " — the host became busy while the update was downloading; it stays planned"
 		return res
 	}
 	if err := n.replaceSelf(binary); err != nil {
@@ -296,27 +307,15 @@ func (n *Node) busy() string {
 	return ""
 }
 
-// runPendingUpdate carries out an update that had to wait, if this host is now
-// free. Called wherever something ends that made it busy.
-//
-// Silent when there is nothing planned, and silent when the host is still
-// occupied: this is a check on the way past, not an event of its own.
-func (n *Node) runPendingUpdate(ctx context.Context) {
+// setUpdating / isUpdating: whether this process is fetching its successor.
+func (n *Node) setUpdating(v bool) {
 	n.mu.Lock()
-	req := n.pendingUpdate
+	n.updating = v
 	n.mu.Unlock()
-	if req == nil {
-		return
-	}
-	if busy := n.busy(); busy != "" {
-		return
-	}
-	n.Log.Info("carrying out the update that was waiting", "version", req.Version)
-	res := n.updateSelf(ctx, *req)
-	if res.Err != "" && !res.Busy {
-		n.Log.Warn("the planned update failed", "err", res.Err)
-	}
-	if res.Restarting {
-		n.Log.Info("the planned update is being installed", "from", res.From, "to", res.To)
-	}
+}
+
+func (n *Node) isUpdating() bool {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.updating
 }

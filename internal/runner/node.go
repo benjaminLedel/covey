@@ -23,14 +23,11 @@ import (
 // runner and the one on a foreign host — what differs is the Transport it is
 // handed.
 type Node struct {
-	// pendingUpdate is an update that arrived while this host was busy. It is
-	// carried out at the next moment nothing is in its hands (see update.go).
-	pendingUpdate *Update
-	RunnerID      uuid.UUID
-	OrgID         uuid.UUID
-	Docker        *Docker
-	Log           *slog.Logger
-	Tags          []string
+	RunnerID uuid.UUID
+	OrgID    uuid.UUID
+	Docker   *Docker
+	Log      *slog.Logger
+	Tags     []string
 	// Images this host holds. On a runner the image is a statement of
 	// capacity — it gets only agents whose workplace it can provide. Empty =
 	// it makes no claim and is not excluded on that ground.
@@ -74,6 +71,13 @@ type Node struct {
 	// adopted marks that this process has looked for the containers a
 	// predecessor left running — once, at the first connection.
 	adopted sync.Once
+	// updateMu serialises updateSelf: two orders arriving at once must not
+	// both write the new binary and rename over each other (#161). updating is
+	// the flag the rest of the node reads: a start that arrives while the
+	// binary is being fetched is refused rather than accepted into a process
+	// that is about to exec.
+	updateMu sync.Mutex
+	updating bool
 	// ReadSilence is how long this node tolerates hearing NOTHING from the
 	// control plane before it closes the connection and lets RunNode dial
 	// again. The control plane asks every connected host for its capacity once
@@ -539,6 +543,16 @@ func (n *Node) sync(ctx context.Context, t Transport, id string, req SyncHome) {
 
 func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSandbox) {
 	startedAt := time.Now()
+	if n.isUpdating() {
+		// The binary is being fetched and this process is about to be replaced.
+		// A sandbox accepted now would be watched by nobody in a minute — the
+		// case the busy check in updateSelf exists for, seen from the other
+		// side (#161). Refused, so the pool asks the next host.
+		n.reply(ctx, t, id, TypeSandboxFailed, SandboxResult{
+			AgentID: spec.AgentID, Err: "this host is installing an update — not taking sandboxes until it is back",
+		})
+		return
+	}
 	// The limit is enforced here as well as in the scheduler. Not belt and
 	// braces: the scheduler works from a count it keeps itself, and between its
 	// decision and this start a second one can arrive. The host is the only
@@ -960,9 +974,6 @@ func (n *Node) watch(ctx context.Context, t Transport, agentID uuid.UUID, proc *
 		delete(n.running, agentID)
 	}
 	n.mu.Unlock()
-	// A sandbox ending is one of the two moments this host can become free —
-	// and an update may have been waiting for exactly that.
-	defer n.runPendingUpdate(ctx)
 	if asked {
 		n.Log.Info("sandbox stopped", "agent", agentID, "container", proc.container)
 		return

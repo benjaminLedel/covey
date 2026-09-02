@@ -139,6 +139,13 @@ func (p *Pool) Update(ctx context.Context, orgID, runnerID uuid.UUID, version, b
 		return UpdateResult{}, fmt.Errorf("%w: this runner is older than the self-update — install it once by hand "+
 			"(curl -fsSL <this server>/install.sh | sh -s -- --runner), after that the button works", ErrNotSupported)
 	}
+	// One at a time, and out of the scheduler's sight while it runs: the host
+	// is about to exec, and a start accepted in the meantime would be
+	// abandoned by it (#161).
+	if !c.setUpdating(true) {
+		return UpdateResult{}, fmt.Errorf("an update is already under way on runner %s", short(runnerID))
+	}
+	defer c.setUpdating(false)
 	answer, err := c.ask(ctx, TypeUpdate, Update{Version: version, BaseURL: baseURL}, updateTimeout)
 	if err != nil {
 		return UpdateResult{}, err

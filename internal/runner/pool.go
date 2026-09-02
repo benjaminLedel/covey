@@ -241,8 +241,10 @@ type conn struct {
 	// see capacityWatch. capacityAt is also the answer to a second question —
 	// see answering.
 	capacity CapacityReport
-	// updating/updateTried gehören zum geplanten Update: eins zur Zeit, und
-	// nach einem Fehlschlag nicht sofort wieder.
+	// updating: an update is under way on this host — pressed or planned — and
+	// the scheduler leaves it alone until it is back. updateTried is when the
+	// planned one was last attempted, so a failing download is not retried
+	// every beat.
 	updating    bool
 	updateTried time.Time
 	capacityAt  time.Time
@@ -905,6 +907,25 @@ func (c *conn) watchdog(ctx context.Context) {
 // while it cannot say a word.
 // full reports whether this host is carrying as much as it said it would. A
 // host without a limit is never full — 0 means "no statement", not "none".
+// isUpdating / setUpdating: an update is under way on this host, planned or
+// pressed. The flag lives here so the scheduler can read it; the host refuses
+// starts on its own account as well.
+func (c *conn) isUpdating() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.updating
+}
+
+func (c *conn) setUpdating(v bool) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if v && c.updating {
+		return false
+	}
+	c.updating = v
+	return true
+}
+
 func (c *conn) full() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -1012,20 +1033,19 @@ func (c *conn) runPlannedUpdate(ctx context.Context) {
 		c.mu.Unlock()
 		return
 	}
-	c.updating, c.updateTried = true, time.Now()
+	c.updateTried = time.Now()
 	version := c.version
 	c.mu.Unlock()
-	defer func() {
-		c.mu.Lock()
-		c.updating = false
-		c.mu.Unlock()
-	}()
 
 	want, err := p.PlannedUpdate(ctx, c.runnerID)
 	if err != nil || strings.TrimSpace(want) == "" {
 		return
 	}
-	if want == version {
+	// The host says "v0.7.2 (abc1234, 2026-…, go1.26)", the plan says
+	// "v0.7.2". Compared on the tag, and a dirty build never counts as there:
+	// its name is the tag its tree stands on, its binary is something else
+	// (#161).
+	if tag, dirty := versionTag(version); tag == want && !dirty {
 		// Schon da — dann war der Plan die Wirklichkeit, und der Wunsch ist
 		// erfüllt, ohne dass jemand etwas ersetzen musste.
 		if p.PlannedUpdateDone != nil {
@@ -1050,6 +1070,16 @@ func (c *conn) runPlannedUpdate(ctx context.Context) {
 			p.PlannedUpdateDone(ctx, c.runnerID, want)
 		}
 	}
+}
+
+// versionTag splits what a runner reports about its build into the release tag
+// and whether the tree it was built from was dirty.
+func versionTag(reported string) (tag string, dirty bool) {
+	fields := strings.Fields(reported)
+	if len(fields) == 0 {
+		return "", false
+	}
+	return fields[0], strings.Contains(reported, "-dirty")
 }
 
 // capacityAsk bounds one such question. Generous, because nobody is waiting on
@@ -1367,7 +1397,7 @@ func (p *Pool) candidates(want need) ([]*conn, error) {
 	// because the two say different things and each deserves its own sentence
 	// when nothing is left.
 	var inOrg, tagged, out []*conn
-	paused, full := 0, 0
+	paused, full, updating := 0, 0, 0
 	for _, c := range p.conns {
 		// The organisation comes first and is not a filter among others: a
 		// runner of a foreign tenant is not a worse candidate, it is none.
@@ -1404,6 +1434,12 @@ func (p *Pool) candidates(want need) ([]*conn, error) {
 			full++
 			continue
 		}
+		// A host installing its update is about to exec; it refuses starts
+		// itself, and asking it would only cost the round trip (#161).
+		if c.isUpdating() {
+			updating++
+			continue
+		}
 		out = append(out, c)
 	}
 	switch {
@@ -1420,8 +1456,8 @@ func (p *Pool) candidates(want need) ([]*conn, error) {
 		// error somebody goes looking for a network fault behind.
 		return nil, fmt.Errorf("%w: every runner of this organisation is at its sandbox limit", ErrNoRunner)
 	case len(out) == 0:
-		return nil, fmt.Errorf("%w: no runner of this organisation is available — %d paused, %d at their sandbox limit, %d connected but not answering",
-			ErrNoRunner, paused, full, len(tagged)-paused-full)
+		return nil, fmt.Errorf("%w: no runner of this organisation is available — %d paused, %d at their sandbox limit, %d installing an update, %d connected but not answering",
+			ErrNoRunner, paused, full, updating, len(tagged)-paused-full-updating)
 	}
 	rank := func(c *conn) (int, int) {
 		c.mu.Lock()
