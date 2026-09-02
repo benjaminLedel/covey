@@ -6,7 +6,7 @@ The **runner** solves this: a standalone process on an arbitrary host that **reg
 
 Why you want this: more agents than one machine carries; data residency per department or tenant (see [`09-enterprise-model.md`](09-enterprise-model.md)); hardware proximity (ARM builds, GPU, a runner inside the target system's network); and the clean separation of control plane and compute load that today exists only conceptually.
 
-But the runner is **not an add-on that has to be set up**. The control plane starts every sandbox through a runner, and in the normal case through one it runs itself — see "The built-in runner". Whoever installs Covey on one machine notices none of this and installs nothing extra. Whoever registers a runner has thereby said that compute leaves this machine, and the built-in one gives way to it.
+But the runner is **not an add-on that has to be set up**. The control plane starts every sandbox through a runner, and in the normal case through one it runs itself — see "The built-in runner". Whoever installs covey on one machine notices none of this and installs nothing extra. Whoever registers a runner has thereby said that compute leaves this machine, and the built-in one gives way to it.
 
 ## What already carries
 
@@ -80,7 +80,7 @@ be that choice rather than a guess about the network.
 
 ## The built-in runner
 
-A distributed data plane that has to be assembled before anything runs at all would be the wrong trade for an installation on one machine — which is Covey's normal case. Hence: **the runner protocol is the only way a sandbox starts, and by default the control plane speaks it with a runner of its own**, running inside the `covey serve` process.
+A distributed data plane that has to be assembled before anything runs at all would be the wrong trade for an installation on one machine — which is covey's normal case. Hence: **the runner protocol is the only way a sandbox starts, and by default the control plane speaks it with a runner of its own**, running inside the `covey serve` process.
 
 For whoever operates it, that means the setup does not change at all. No token, no registration, no configuration file, no second artefact. The built-in runner appears in the interface as *this host* — visible, so that the model is comprehensible, but it is not administered: it has no token to revoke and no delete button. It exists, or the rule below says it does not. `COVEY_RUNNER_LOCAL=off` switches it off from the outset, for a control plane that is meant to feed foreign runners only.
 
@@ -132,7 +132,7 @@ covey-runner register --url https://covey.example --token <registration-token> \
 
 `register` then opens the connection once and lets it go again. Registering is an HTTP call and running is a WebSocket, and the two fail differently: a reverse proxy that does not upgrade, a TLS chain this host does not trust, a firewall that lets 443 through but not the upgrade. Finding that out while somebody is standing at that shell is worth the two seconds; finding it out later means reading a log on a machine nobody logged into again.
 
-`register` writes the received runner token into a **configuration file** (`/etc/covey-runner/config.toml`, overridable) — server address, token, tags, working directory. Deliberately a file and not just environment variables: the runner runs as a service on a machine that otherwise has nothing to do with Covey, and `register` has to be able to deposit its result somewhere.
+`register` writes the received runner token into a **configuration file** (`/etc/covey-runner/config.toml`, overridable) — server address, token, tags, working directory. Deliberately a file and not just environment variables: the runner runs as a service on a machine that otherwise has nothing to do with covey, and `register` has to be able to deposit its result somewhere.
 
 After that `covey-runner run` holds a permanent WebSocket connection on `/api/runner/ws`, authenticated with the runner token. On connecting, the runner reports its **capabilities**:
 
@@ -144,7 +144,7 @@ After that `covey-runner run` holds a permanent WebSocket connection on `/api/ru
 
 ### One runner, one organisation
 
-A runner registers with exactly one Covey server **and belongs there to exactly one organisation**. It inherits that organisation from the registration token and cannot change it. Whoever wants to serve two instances or two organisations starts two processes.
+A runner registers with exactly one covey server **and belongs there to exactly one organisation**. It inherits that organisation from the registration token and cannot change it. Whoever wants to serve two instances or two organisations starts two processes.
 
 The reason is the one this document already gives for the block store: shared block storage across two organisations would be a channel between them, and distributing capacity between foreign tenants would be a policy nobody needs. The same argument that makes an instance boundary out of it makes an organisation boundary out of it — a runner holds homes and daemon tokens, and both are the property of exactly one tenant. `runtimes` carries the identical reasoning for the identical reason (`org_id NOT NULL`, migration 0048): whatever holds the material of an organisation is bound to it in the schema, not by a query someone has to remember to write.
 
@@ -163,7 +163,7 @@ A runner without a connection is **offline**, not deleted — the distinction ma
 
 ## Delivery
 
-The runner is **installed individually**, on machines where nothing else of Covey lives. It is therefore a release artefact of its own with its own version number: a static binary per architecture, a Docker image, a systemd unit. An operator downloads it, calls `register` with a token and is done — they notice nothing of the rest of the project.
+The runner is **installed individually**, on machines where nothing else of covey lives. It is therefore a release artefact of its own with its own version number: a static binary per architecture, a Docker image, a systemd unit. An operator downloads it, calls `register` with a token and is done — they notice nothing of the rest of the project.
 
 **A binary of its own, not a subcommand of `covey`.** The tempting simplification would be to spare the extra artefact and let the same binary serve as the runner. It is the wrong one: on a runner host `serve`, `migrate` and `bootstrap` should not exist at all, and the trust boundary below ("no database access") reads badly when the database code is compiled in beside it. The easy path is bought by the built-in runner, which requires no artefact whatsoever — not by merging two that have different jobs.
 
@@ -188,7 +188,7 @@ Which version: the server's own when that is a released one, otherwise the newes
 
 ### Protocol version
 
-Because runner and server are delivered separately, different versions inevitably meet — someone updates Covey and forgets three runners. The handshake therefore names a protocol version, and the control plane decides:
+Because runner and server are delivered separately, different versions inevitably meet — someone updates covey and forgets three runners. The handshake therefore names a protocol version, and the control plane decides:
 
 - **matching** → normal assignment.
 - **older, but supported** → the connection stands, marked as outdated in the runner view.
@@ -241,7 +241,7 @@ The runner's side of the same lesson: **the read loop hands off**. `start_sandbo
 
 ## The home
 
-Here the GitLab analogy appears to end: a CI runner may be chosen freely because it is **stateless** — a job clones anew, builds, throws everything away. Covey's sandbox, by contrast, has a persistent home, and that *is* part of the promise ("if a sandbox is lost, it is rebuilt from config + home", [`01-architecture.md`](01-architecture.md)).
+Here the GitLab analogy appears to end: a CI runner may be chosen freely because it is **stateless** — a job clones anew, builds, throws everything away. covey's sandbox, by contrast, has a persistent home, and that *is* part of the promise ("if a sandbox is lost, it is rebuilt from config + home", [`01-architecture.md`](01-architecture.md)).
 
 The appearance deceives. A measured developer home (7.1 GB) consists almost entirely of things that **already have a source elsewhere**:
 
@@ -321,9 +321,9 @@ Another port following the pattern of `IdentityProvider` and `SecretStore` ([`10
 
 The organisation is part of the key in both backends — the first path element with `builtin`, the object prefix with `s3`. Garbage collection walks per organisation for the same reason: a block is released when no remaining snapshot of **this** organisation references it any more.
 
-The default is deliberately the directory. For an installation on one machine — Covey's normal case — an object store is unnecessary operational surface, and the promise "one binary + Postgres" should not quietly become "one binary + Postgres + MinIO".
+The default is deliberately the directory. For an installation on one machine — covey's normal case — an object store is unnecessary operational surface, and the promise "one binary + Postgres" should not quietly become "one binary + Postgres + MinIO".
 
-**If an object store, then S3-compatible — not "AWS S3".** The protocol is the common denominator of Hetzner Object Storage, Garage, MinIO, Ceph RadosGW and SeaweedFS; Covey does not prescribe a server but speaks the protocol. For the operator's choice: whatever the hoster offers anyway (on the Hetzner/Proxmox infrastructure named in [`10-architecture-stack.md`](10-architecture-stack.md) that means Hetzner Object Storage), otherwise **Garage** — lightweight and built for exactly such small, self-operated clusters. MinIO, if it is running in-house anyway.
+**If an object store, then S3-compatible — not "AWS S3".** The protocol is the common denominator of Hetzner Object Storage, Garage, MinIO, Ceph RadosGW and SeaweedFS; covey does not prescribe a server but speaks the protocol. For the operator's choice: whatever the hoster offers anyway (on the Hetzner/Proxmox infrastructure named in [`10-architecture-stack.md`](10-architecture-stack.md) that means Hetzner Object Storage), otherwise **Garage** — lightweight and built for exactly such small, self-operated clusters. MinIO, if it is running in-house anyway.
 
 **Decided in stage 8: a minimal client of our own** — the row below that costs no dependency. The reasoning it was measured against held: a block store needs five operations, and it is smaller than it looks. A block store needs five operations: `PUT`, `GET`, `HEAD`, `DELETE` and the signing of short-lived URLs. Because blocks are small and immutable, the most laborious part of an S3 client falls away entirely: **multipart upload is never needed.**
 
@@ -331,7 +331,7 @@ Measured rather than estimated:
 
 | Candidate | Cost | Note |
 |---|---|---|
-| `minio-go/v7` | **18 indirect modules, 41 compiled foreign packages** | Covey has 22 modules *in total* today. It brings `msgp`, `xxh3`, `crc64nvme`, `md5-simd`, `compress` for replication, ILM, notifications, S3 Select — none of which will ever be used |
+| `minio-go/v7` | **18 indirect modules, 41 compiled foreign packages** | covey has 22 modules *in total* today. It brings `msgp`, `xxh3`, `crc64nvme`, `md5-simd`, `compress` for replication, ILM, notifications, S3 Select — none of which will ever be used |
 | `aws-sdk-go-v2` | heavier still | Official and thorough, but more awkward against foreign endpoints |
 | a minimal client of our own | no dependency | SigV4 over `crypto/hmac` + `crypto/sha256`; the presign variant is the simpler one (query-string auth) |
 
@@ -412,7 +412,7 @@ Deliberately simple, because no runner has to be "the right one" — only the ch
 
 **Only the tags exclude, and that is a correction paid for in production.** The image used to be a filter too: a runner reported which images it held and got only matching agents. On 25 August 2026 one registered host — claiming `covey-sandbox:latest`, which is what `register` wrote when nobody passed `--image` — left an organisation whose agents run the deploy image with no candidate at all. Every wake failed for half an hour, every thirty seconds, while the machine that could have run it stood idle.
 
-The rule that replaced it says what a host *is* versus what it *happens to have*: a **tag** is a property nothing can stand in for — `arm64`, `gpu`, inside the target system's network — so an agent that asks for one waits until a host carries it. An **image** is a state that repairs itself: `docker run` fetches what the host does not have, and the workplace images are published, digest-pinned per Covey version, precisely so that any host can. Where the fetch cannot work — a private registry the host has no credentials for, a full disk — the start fails **on that host**, and the sandbox moves to the next candidate rather than being lost with the first.
+The rule that replaced it says what a host *is* versus what it *happens to have*: a **tag** is a property nothing can stand in for — `arm64`, `gpu`, inside the target system's network — so an agent that asks for one waits until a host carries it. An **image** is a state that repairs itself: `docker run` fetches what the host does not have, and the workplace images are published, digest-pinned per covey version, precisely so that any host can. Where the fetch cannot work — a private registry the host has no credentials for, a full disk — the start fails **on that host**, and the sandbox moves to the next candidate rather than being lost with the first.
 
 What remains of the "nothing fits" case therefore has two causes, and each still gets its own wording: *this organisation has no connected runner* (none registered, or every one offline) reads differently from *no runner carries the tags …*. The second names the tag, because the remedy is a decision — give a host that tag, or loosen the agent's `runner_tags`.
 
@@ -438,7 +438,7 @@ Measured on arm64: `base` 1.54 GB, `dev` 2.53, `dev-flutter` 3.21, `dev-php` 2.1
 
 `dev` is a *union*, and it stays one: a developer agent may legitimately work on a PHP and a Flutter project, and for that agent one image per language would bring back exactly the question that "version → home, toolchain → image" has already answered — which image do I start on wake, when it is not yet settled which ticket is coming?
 
-The role profiles are not the counter-argument to that sentence, they are its other half. The question only arises where the field is open. Covey's premise is that an agent is an employee with a role, not an interchangeable worker, and for an agent that never gets the PHP ticket the union is not caution, it is ballast. Measured on the layers of `dev`: JDK 302 MB, `fvm`/`uv` 104 MB, PHP 94 MB, MariaDB ~150 MB, the node-gyp toolchain 278 MB — a Flutter agent carries the PHP half, a Laravel agent the JVM, and each pulls it on every runner it is scheduled to. Which of the two an agent gets is therefore a statement about the agent, not about the platform — and `dev` remains the answer whenever nobody makes it.
+The role profiles are not the counter-argument to that sentence, they are its other half. The question only arises where the field is open. covey's premise is that an agent is an employee with a role, not an interchangeable worker, and for an agent that never gets the PHP ticket the union is not caution, it is ballast. Measured on the layers of `dev`: JDK 302 MB, `fvm`/`uv` 104 MB, PHP 94 MB, MariaDB ~150 MB, the node-gyp toolchain 278 MB — a Flutter agent carries the PHP half, a Laravel agent the JVM, and each pulls it on every runner it is scheduled to. Which of the two an agent gets is therefore a statement about the agent, not about the platform — and `dev` remains the answer whenever nobody makes it.
 
 The `dev-flutter` image is where this pays for itself twice, and it is the one place where "version → home, toolchain → image" is deliberately reversed. In `dev` the Flutter SDK is not in the image at all; `fvm` fetches it into the home, and the home is the most expensive storage the platform has — walked at every wake, written back after every run. A ~1.3 GB SDK that is identical for every Flutter agent then lies there once per agent. In the role image the baseline version lies in the image, because for a *Flutter* agent the version question is settled. `fvm` stays installed beside it: a project that pins another version still gets it, into the home, once — for that one deviation instead of for everybody.
 
@@ -488,7 +488,7 @@ The image is therefore **published, and listed in a catalogue of its own** — t
 
 Three properties carry it, and each answers something that went wrong without it:
 
-- **Pinned by digest, per Covey version.** The image carries the `coveyd` that speaks to this control plane, so "which image" is not a question about the newest one but about *this build*. A tag would be a moving target; the digest is not, and docker refuses a mismatch without anybody here writing a check — the same hinge the marketplace's `sha256` is.
+- **Pinned by digest, per covey version.** The image carries the `coveyd` that speaks to this control plane, so "which image" is not a question about the newest one but about *this build*. A tag would be a moving target; the digest is not, and docker refuses a mismatch without anybody here writing a check — the same hinge the marketplace's `sha256` is.
 - **Written by the side that builds.** The images and the catalogue come from the same pipeline ([`.github/workflows/sandbox-images.yml`](../.github/workflows/sandbox-images.yml)), because the digests exist nowhere else at that moment. Entries for older versions stay: an installation on `v0.4.0` still finds its own after `v0.5.0` is published.
 - **Three sources, in one order.** `COVEY_SANDBOX_IMAGE_<PROFILE>` beats the catalogue beats the compiled default. Whoever names an image on their own host has the last word — a remote file that could overrule it would decide what runs on somebody else's machine. An air-gapped installation sets the variable, points `COVEY_SANDBOX_CATALOG_URL` at a `file://` path, or leaves both alone; none of the three is a special case in the code.
 
@@ -566,7 +566,7 @@ The runner protocol stays **indifferent to where the list came from**: `start_sa
 
 The capability follows a scope of its own, `services:write`, and deliberately not `agents:write` — that one lets an agent draft colleagues, and a QA agent that wants a database has no business with it. Whoever holds it reads about the action in their prompt; whoever does not, does not. A capability by suggestion that is then refused is the worst kind.
 
-The images are the project's, not Covey's: they are not resolved through the workplace catalogue above, which answers "which image belongs to this Covey version" — a project's database is not part of Covey. They are fetched the same way though, and for the same reason, with progress reported: `docker run` would fetch them silently, and silence is what makes a start look like a hang.
+The images are the project's, not covey's: they are not resolved through the workplace catalogue above, which answers "which image belongs to this covey version" — a project's database is not part of covey. They are fetched the same way though, and for the same reason, with progress reported: `docker run` would fetch them silently, and silence is what makes a start look like a hang.
 
 ## Trust boundary
 
@@ -629,7 +629,7 @@ On the agent page, next to the existing file browser:
 
 Plus one action: **back up now** (force a sync, e.g. before maintenance). There is no list to pick from and no restore, because there is nothing to pick: the snapshot is the state the next wake materialises, and the sync replaces it. What is offered here is the last write, not a choice between several.
 
-The rollback that a kept history would allow lives one level down, in the backup of the block store on the host, and belongs to whoever operates the installation rather than to whoever clicks in it. That is a deliberate trade and it has a price worth naming: **an agent that wrecks its own home and then falls asleep has overwritten the only state Covey holds.** Whoever cannot accept that operates the block store as a backed-up directory — or points it at an object store whose bucket is.
+The rollback that a kept history would allow lives one level down, in the backup of the block store on the host, and belongs to whoever operates the installation rather than to whoever clicks in it. That is a deliberate trade and it has a price worth naming: **an agent that wrecks its own home and then falls asleep has overwritten the only state covey holds.** Whoever cannot accept that operates the block store as a backed-up directory — or points it at an object store whose bucket is.
 
 ### Cleaning up
 
@@ -653,7 +653,7 @@ Deliberately left out so that the first pass stays small:
 - **Anticipatory warming** — mirroring blocks onto runners an agent has never run on as a precaution. The local block cache grows out of actual use; *anticipating* it is a later optimisation.
 - **Migration back** after a runner failure (see "The home": the preference stays sticky).
 - **Several simultaneous sandboxes per agent** — "serial before parallel" still applies.
-- **The runner as a promise of dedicated hardware.** That a runner belongs to exactly one organisation is decided (see "One runner, one organisation") — its state, its blocks and its network segment are the property of one tenant. What is *not* promised is that no second organisation's runner runs on the same machine: two built-in runners share a host by construction. Whether Covey ever guarantees a tenant its own iron is a question of the offering, not of this protocol, and it belongs in [`09-enterprise-model.md`](09-enterprise-model.md).
+- **The runner as a promise of dedicated hardware.** That a runner belongs to exactly one organisation is decided (see "One runner, one organisation") — its state, its blocks and its network segment are the property of one tenant. What is *not* promised is that no second organisation's runner runs on the same machine: two built-in runners share a host by construction. Whether covey ever guarantees a tenant its own iron is a question of the offering, not of this protocol, and it belongs in [`09-enterprise-model.md`](09-enterprise-model.md).
 - **Non-Docker runners** (Firecracker, Kubernetes pods). The runner protocol is cut so that they fit behind it later — the Docker runner is built first.
 
 ## Build order

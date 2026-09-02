@@ -162,7 +162,7 @@ type Server struct {
 	// basic.
 	//
 	// It used to be "subdomains", always, and that is a promise about a domain
-	// that is not ours (#132). An organisation running Covey at
+	// that is not ours (#132). An organisation running covey at
 	// covey.example.com got an unrequested guarantee covering every sibling
 	// name under it, remembered by every visitor's browser for a year — and if
 	// one of those names is an internal tool still on HTTP, it disappears. The

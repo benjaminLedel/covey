@@ -1,7 +1,7 @@
 ---
 slug: api-keys
 title: API keys
-description: 'Driving Covey from outside: issuing an API key, the Bearer header, what a key is allowed to do and how to revoke it.'
+description: 'Driving covey from outside: issuing an API key, the Bearer header, what a key is allowed to do and how to revoke it.'
 ---
 
 Everything the interface does, it does through `/api/v1/…`. This runbook is
@@ -24,7 +24,7 @@ to import an agent config, a script that reads costs at the end of the month,
 the `covey-agent` skill creating an agent through the API. The consequence was
 not that these things did not happen; it was that they happened **beside** the
 product — in somebody's CI, with a copied cookie, or by hand. Operational
-tooling belongs in the binary, because whoever installs Covey from the
+tooling belongs in the binary, because whoever installs covey from the
 repository has to have the same means as whoever runs the instance it came from.
 
 ## 2. Creating a key
@@ -113,7 +113,7 @@ either dead or a spare set of house keys under the mat.
 
 - Not in a repository, not in a `docker-compose.yml`, not in a CI variable that
   is readable by everyone with access to the pipeline.
-- Not in an agent's `ACCESS.md` or bundle. An agent talks to Covey through the
+- Not in an agent's `ACCESS.md` or bundle. An agent talks to covey through the
   action proxy (`covey/…`), which needs no credential at all — a key inside a
   sandbox is a long-lived secret in the one place the whole architecture keeps
   them out of (`spec/04-identity-secrets.md`).

@@ -1,12 +1,12 @@
-# Contributing to Covey
+# Contributing to covey
 
-Thanks for looking. Covey is a young project with a small maintainer circle —
+Thanks for looking. covey is a young project with a small maintainer circle —
 issues, questions and pull requests are all welcome, and so is the observation
 that something in here does not make sense.
 
 ## Before you write code
 
-**Concept and architecture changes go through the spec first.** Covey is
+**Concept and architecture changes go through the spec first.** covey is
 specified in [`spec/`](spec/) (16 documents, start at
 [`spec/README.md`](spec/README.md)). If your change alters how the system
 behaves rather than how it is implemented, open an issue or a pull request
@@ -108,5 +108,5 @@ Please do not open a public issue for a vulnerability. See
 
 ## Licence
 
-Covey is licensed under the [AGPL-3.0](LICENSE). By contributing you agree that
+covey is licensed under the [AGPL-3.0](LICENSE). By contributing you agree that
 your contribution is licensed under the same terms.

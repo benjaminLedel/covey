@@ -1,6 +1,6 @@
 # Demo tooling
 
-Programs that exist for demonstrating and documenting Covey — not part of the
+Programs that exist for demonstrating and documenting covey — not part of the
 product, not shipped in the binary.
 
 | Directory | What it is |
@@ -21,7 +21,7 @@ languages, in about two minutes.
 people and departments before it writes its own. Use a throwaway database.
 
 ```bash
-# 1. A throwaway Postgres and a Covey on its own port
+# 1. A throwaway Postgres and a covey on its own port
 docker run -d --name covey-demo-pg \
   -e POSTGRES_USER=covey -e POSTGRES_PASSWORD=covey -e POSTGRES_DB=covey \
   -p 5434:5432 pgvector/pgvector:pg16

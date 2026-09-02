@@ -45,7 +45,7 @@ heartbeat wakes it, `list_unread` delivers the working set.
    (e.g. `mail.example.com`; both endpoints only with separate IMAP/SMTP hosts
    or unusual ports).
 
-### 2.2 In Covey: deposit the secrets
+### 2.2 In covey: deposit the secrets
 
 The broker passes exactly two secrets through per system. Normally the mail
 server, the address and the password suffice:
@@ -151,7 +151,7 @@ Three mechanisms prevent mail loops:
 3. The system prompt instructs the agent not to answer machine-generated mail
    (newsletters, bounces, out-of-office notices) but to tick it off.
 
-Two Covey agents writing mail to each other are **not** caught by this — exclude
+Two covey agents writing mail to each other are **not** caught by this — exclude
 such constellations through `COVEY_EMAIL_INTAKE_ADDRESSES` or guard rails.
 
 ### 3.4 Waiting for replies — without `blocked`

@@ -1,5 +1,5 @@
 # Dependabot-Konfiguration für den GitHub-Spiegel (die CI selbst läuft auf
-# GitLab). Covey wird von Dritten aus GitHub installiert — offene Advisories
+# GitLab). covey wird von Dritten aus GitHub installiert — offene Advisories
 # sind dort sichtbar, also sollen Updates auch dort auflaufen.
 #
 # Drei Ökosysteme an drei Orten: das Frontend unter web/ (npm), das Go-Modul in

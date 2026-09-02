@@ -1,10 +1,10 @@
 # 14 — Companion: brain dump & context for agents
 
-Covey treats agents like employees — with an identity, a workplace and **memory** ([`05-memory.md`](05-memory.md)). What the agents lack is the context from their humans' knowledge: mails, ideas spoken on the move, whiteboard photos, screen recordings, PDFs skimmed once. That knowledge sits scattered and gets lost.
+covey treats agents like employees — with an identity, a workplace and **memory** ([`05-memory.md`](05-memory.md)). What the agents lack is the context from their humans' knowledge: mails, ideas spoken on the move, whiteboard photos, screen recordings, PDFs skimmed once. That knowledge sits scattered and gets lost.
 
-The **companion** is a dedicated app alongside the Covey web UI, a capture product of its own. Its purpose: to collect a person's brain dump in one place and make it available as context for their agents. The human offloads raw material, the platform condenses it into structured knowledge, the agents consume it. Unlike a private notes tool, sharing with agents is the actual purpose here, not an add-on.
+The **companion** is a dedicated app alongside the covey web UI, a capture product of its own. Its purpose: to collect a person's brain dump in one place and make it available as context for their agents. The human offloads raw material, the platform condenses it into structured knowledge, the agents consume it. Unlike a private notes tool, sharing with agents is the actual purpose here, not an add-on.
 
-Technically the companion is a separate client on Covey's backend: the data lives in the control plane (Postgres, memory — [`10-architecture-stack.md`](10-architecture-stack.md)), there is one source of truth, and the agents read directly. No second store.
+Technically the companion is a separate client on covey's backend: the data lives in the control plane (Postgres, memory — [`10-architecture-stack.md`](10-architecture-stack.md)), there is one source of truth, and the agents read directly. No second store.
 
 ## Guiding principles
 
@@ -32,7 +32,7 @@ The **MVP** carries **audio (with transcription) and text**; all further sources
 
 ## Processing — the memory curator
 
-The pure cosine assignment of the ingest ([`05`](05-memory.md)) carries terse entries but not a raw stream of mails, memos and PDFs in which people, projects and decisions run together. This **cut** is made by an LLM step — and in Covey that is consistently **an agent** itself: the **memory curator**.
+The pure cosine assignment of the ingest ([`05`](05-memory.md)) carries terse entries but not a raw stream of mails, memos and PDFs in which people, projects and decisions run together. This **cut** is made by an LLM step — and in covey that is consistently **an agent** itself: the **memory curator**.
 
 Instead of wiring an LLM call into the control plane, the triage is an org-owned agent with its own `SOUL.md`. It thereby inherits everything agents have anyway: **config as code** (the curation rules are versioned and changeable by PR; the human defines how their brain dump is cut), the runtime abstraction, cost accounting, guard rails and the shared LLM subscription (the "global token") as a credential. The global token only determines how the curator reaches the model, not what it does.
 

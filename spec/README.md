@@ -1,10 +1,10 @@
-# Covey — Specification
+# covey — Specification
 
-> **Codename: Covey.** A *covey* is a small, coordinated flock — a group that moves together. That is exactly what this platform is: many agents, centrally orchestrated.
+> **Codename: covey.** A *covey* is a small, coordinated flock — a group that moves together. That is exactly what this platform is: many agents, centrally orchestrated.
 
 A central platform that treats AI agents like employees — with an identity, a workplace, credentials, a backlog and a manager — and gives the IT admin the tooling to lead and supervise them.
 
-**Covey's unit is the organisation, not the individual user.** That is the load-bearing distinction from single-user "AI employee" apps: Covey is the platform a *company* operates to manage and govern its entire agent workforce — with many human stakeholders (IT, team leads, security/compliance, audit, controlling), central governance and a company-wide org chart. Agents are organisation-owned resources, not personal assistants. Details in [`09-enterprise-model.md`](09-enterprise-model.md).
+**covey's unit is the organisation, not the individual user.** That is the load-bearing distinction from single-user "AI employee" apps: covey is the platform a *company* operates to manage and govern its entire agent workforce — with many human stakeholders (IT, team leads, security/compliance, audit, controlling), central governance and a company-wide org chart. Agents are organisation-owned resources, not personal assistants. Details in [`09-enterprise-model.md`](09-enterprise-model.md).
 
 The guiding metaphor from which the whole architecture follows: the platform is the **IT and HR department for AI agents**. Nearly every component has a counterpart in a real company, and that is exactly what gives us the blueprint — proven prior art can be adopted everywhere instead of reinvented.
 
@@ -44,13 +44,13 @@ The guiding metaphor from which the whole architecture follows: the platform is 
 | [`18-runtimes-capacity.md`](18-runtimes-capacity.md) | Runtimes as contracts: engine vs. configured seat, credential pools per provider, merit order, reported utilisation, what a cost figure means |
 | [`19-codex-adapter.md`](19-codex-adapter.md) | Second engine (planned): `codex exec`, credential as a file vs. an environment variable, tokens without a price, no utilisation source |
 | [`20-hiring-and-setup.md`](20-hiring-and-setup.md) | Setup (the credential first, the company description as org master data) and hiring: the People department as an agent, the `covey` self-service actions, the draft state |
-| [`21-operations-and-improvement.md`](21-operations-and-improvement.md) | Why a workforce underperforms — config, assignment or the platform itself: the work record as recorded evidence, config changes as proposals a human accepts, issues against Covey's own repository |
+| [`21-operations-and-improvement.md`](21-operations-and-improvement.md) | Why a workforce underperforms — config, assignment or the platform itself: the work record as recorded evidence, config changes as proposals a human accepts, issues against covey's own repository |
 | [`22-plugin-marketplace.md`](22-plugin-marketplace.md) | Target systems from a catalogue: the index repository next to third-party plugin repositories, one catalogue file behind one configurable URL, the digest as the trust anchor, publishing by pull request |
 | [`23-educa-adapter.md`](23-educa-adapter.md) | Third engine (verified): educa AI Core as a GATEWAY — the Claude Code harness on an Anthropic-compatible endpoint, two contracts on one token, why the harness's price is not inherited, and the input tokens the gateway loses while streaming |
 
 ## Design principles
 
-1. **The organisation is the unit, not the user.** Covey is an enterprise platform: org-owned agents, several human roles with RBAC, central governance, a company-wide org chart. Not a single-user productivity tool.
+1. **The organisation is the unit, not the user.** covey is an enterprise platform: org-owned agents, several human roles with RBAC, central governance, a company-wide org chart. Not a single-user productivity tool.
 2. **The control plane is the product.** Sandboxes are commodity, runtimes are swappable. The value sits in scheduling, identity, governance and observability — the layer nobody else builds.
 3. **Runtime-agnostic.** The platform manages the sandbox, not the framework. A slim daemon with a uniform protocol runs inside the sandbox; OpenHands, Harness, Claude Code & co. are interchangeable behind it.
 4. **Always reachable, compute only on demand.** "Always-on" is a UX property, not a runtime property. Idle has to mean idle, or the bill scales away from you.
@@ -80,12 +80,12 @@ The guiding metaphor from which the whole architecture follows: the platform is 
 - **Supervisor agent** — An optional agent that reviews other agents' activity and flags anomalies.
 - **Enforcement point** — A place where the platform sits in the data flow anyway (broker, egress, tool layer) and where guard rails are enforced technically.
 - **Plugin catalogue (marketplace)** — A JSON file behind a configurable URL listing installable target-system plugins. Its entries point at artefacts hosted anywhere and pin them by digest; publishing means a pull request against the index repository the catalogue is generated from. See [`22-plugin-marketplace.md`](22-plugin-marketplace.md).
-- **Organisation / tenant** — The unit a Covey instance is operated for. All agents, roles, guard rails, budgets and audits are org-scoped.
+- **Organisation / tenant** — The unit a covey instance is operated for. All agents, roles, guard rails, budgets and audits are org-scoped.
 - **Human role** — A person with defined rights on the platform (e.g. org admin, agent owner, security/compliance, auditor, controlling). Governed by RBAC, authenticated via SSO.
 - **Agent owner** — The person (usually a department's team lead) accountable for a particular agent: its config, its backlog priority, its approvals.
 - **Draft** — An agent that has been created but not yet hired: it has a config, a name and a place, but it is not dispatched, has no heartbeat, no sandbox and no cost. It becomes an employee when a person hires it. See [`20-hiring-and-setup.md`](20-hiring-and-setup.md).
 - **People department** — The org-owned agent whose job is hiring other agents: it turns a person's description of a job into a complete agent config and drafts the agent. Config as code instead of a hardcoded generation call — the same principle as the memory curator. See [`20-hiring-and-setup.md`](20-hiring-and-setup.md).
-- **Covey Doctor** — The org-owned agent whose subject is not an employee but the working conditions of the whole workforce. It reads what a colleague actually did and works out which of three causes is behind it: the configuration (→ a proposal), the assignment (→ a finding for the owner) or the platform itself (→ an issue against Covey's own repository). See [`21-operations-and-improvement.md`](21-operations-and-improvement.md).
+- **covey Doctor** — The org-owned agent whose subject is not an employee but the working conditions of the whole workforce. It reads what a colleague actually did and works out which of three causes is behind it: the configuration (→ a proposal), the assignment (→ a finding for the owner) or the platform itself (→ an issue against covey's own repository). See [`21-operations-and-improvement.md`](21-operations-and-improvement.md).
 - **Work record** — The condensed record the control plane assembles about one agent over a period: throughput, aborts, executed actions, indicators, cost, friction, lint findings. Facts it recorded itself, not text the agent or a target system produced. See [`21-operations-and-improvement.md`](21-operations-and-improvement.md).
 - **Proposal** — A stored agent configuration that is *not in effect*: written by an agent, accepted or rejected by a human, and only then a version. The counterpart to the draft — a draft is an agent nobody hired, a proposal is a change nobody made yet.
 - **Companion** — The dedicated (mobile/desktop) app for offloading the entire brain load (audio, mail, screen recording, documents, links) in one place. The memory curator condenses it into a wiki with media (linked pages + `pgvector`); private by default, shareable with your own agents on request — as their context. See [`14-companion-memory.md`](14-companion-memory.md).

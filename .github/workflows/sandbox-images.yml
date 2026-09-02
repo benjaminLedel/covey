@@ -1,7 +1,7 @@
 # Die Sandbox-Images, öffentlich gebaut und veröffentlicht.
 #
 # Warum hier und nicht in der GitLab-Seite: Die interne Pipeline baut sie in
-# eine private Registry, an die kein Dritter kommt. Wer Covey von GitHub
+# eine private Registry, an die kein Dritter kommt. Wer covey von GitHub
 # installiert, stand bis hierher vor einem `make sandbox-images` — Images mit
 # chromium, JDK, PHP und einem Flutter-SDK, mehrere Gigabyte Bauzeit auf der
 # eigenen Maschine, und beim Upgrade wieder. Eine Container-Installation hat dafür nicht einmal
@@ -367,7 +367,7 @@ jobs:
           done
           docker buildx imagetools inspect "${image}:${PROFILE}-latest"
 
-  # Der Katalog: welches Image zu welcher Covey-Fassung gehört, gepinnt auf den
+  # Der Katalog: welches Image zu welcher covey-Fassung gehört, gepinnt auf den
   # Digest (spec/16). Er entsteht HIER, weil nur diese Seite die Digests kennt —
   # eine Instanz soll nicht raten und nicht konfiguriert werden müssen.
   #
@@ -375,7 +375,7 @@ jobs:
   # Bau, und ein Bot, der dafür in den Hauptzweig committet, macht dessen
   # Historie unlesbar. `catalog` ist ein verwaister Branch — kein Quelltext,
   # eine Datei, ausgeliefert über raw.githubusercontent.
-  # Der Katalog: welches Image zu welcher Covey-Fassung gehört, gepinnt auf den
+  # Der Katalog: welches Image zu welcher covey-Fassung gehört, gepinnt auf den
   # Digest (spec/16). Er entsteht HIER, weil nur diese Seite die Digests kennt —
   # eine Instanz soll nicht raten und nicht konfiguriert werden müssen.
   #
@@ -402,7 +402,7 @@ jobs:
           image=$(echo "$REGISTRY/$GITHUB_REPOSITORY-sandbox" | tr 'A-Z' 'a-z')
           # Zwei Namen für denselben Stand, und sie sind NICHT dasselbe:
           #
-          #   version  die Covey-Fassung, unter der eine Instanz ihren Eintrag
+          #   version  die covey-Fassung, unter der eine Instanz ihren Eintrag
           #            sucht — der Release-Tag, sonst "main"
           #            (sandbox.CatalogVersion()).
           #   imgtag   der Tag, unter dem das Image veröffentlicht wurde — der
@@ -461,7 +461,7 @@ jobs:
           # Kurzfassung der Beschreibung aus internal/sandbox/profiles.go. Sie
           # steht hier ein zweites Mal, weil der Katalog Instanzen erreicht, die
           # diesen Stand nicht compiliert haben — ein Profil, das eine aeltere
-          # Covey nicht kennt, wird trotzdem angeboten und braucht dafuer einen
+          # covey nicht kennt, wird trotzdem angeboten und braucht dafuer einen
           # Satz, der sagt, was darin liegt.
           beschreibung = {
               "base": "Node, git, chromium, ripgrep — enough for support, mail, QA and research agents.",

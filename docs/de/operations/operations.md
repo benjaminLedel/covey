@@ -1,21 +1,21 @@
 ---
 slug: betrieb
 title: Betrieb & Deployment
-description: 'Covey im Betrieb: ein Binary plus Postgres, Port 8494, Migrationen beim Start, HTTPS über Reverse-Proxy, Egress-Isolation, Sicherungen und Updates.'
+description: 'covey im Betrieb: ein Binary plus Postgres, Port 8494, Migrationen beim Start, HTTPS über Reverse-Proxy, Egress-Isolation, Sicherungen und Updates.'
 faq:
-  - q: Wie viel Arbeitsspeicher braucht ein Covey-Server?
+  - q: Wie viel Arbeitsspeicher braucht ein covey-Server?
     a: 'Die Control Plane selbst ist genügsam — ein Go-Prozess neben Postgres. Der Bedarf entsteht in den Sandboxen: Jede läuft mit einer Node-Runtime, bei Browser-Aufgaben zusätzlich mit chromium. Planen Sie nach gleichzeitig wachen Agenten, nicht nach der Anzahl angelegter.'
-  - q: Kann ich Covey hinter einen Reverse-Proxy stellen?
+  - q: Kann ich covey hinter einen Reverse-Proxy stellen?
     a: Ja, das ist der vorgesehene Weg für HTTPS. Wichtig ist nur, `COVEY_PUBLIC_URL` nicht auf die öffentliche Domain zu setzen, wenn die Sandboxen sie nicht erreichen — diese Variable zeigt nach innen.
   - q: Wie aktualisiere ich ohne Datenverlust?
     a: Binary oder Image tauschen und neu starten; die Migrationen laufen beim Start und sind gegen parallele Starts abgesichert. Vorher die Datenbank sichern, den Master-Key ohnehin aufbewahren. Danach `covey config lint` laufen lassen.
-  - q: Läuft Covey auch ohne Internetzugang?
+  - q: Läuft covey auch ohne Internetzugang?
     a: Die Plattform ja. Die Agenten brauchen den Modell-Endpunkt — bei harter Egress-Isolation steht der Proxy davor und lässt genau die erlaubten Hosts durch. Ein selbst betriebener Einbettungsdienst hält zusätzlich die Wiki-Suche im Haus.
 ---
 
 # Betrieb & Deployment
 
-Covey ist bewusst langweilig zu betreiben: ein Prozess, eine Datenbank, ein Port. Alles, was darüber hinausgeht, ist optional.
+covey ist bewusst langweilig zu betreiben: ein Prozess, eine Datenbank, ein Port. Alles, was darüber hinausgeht, ist optional.
 
 ## Was läuft
 
@@ -33,7 +33,7 @@ Zwei Variablen sehen ähnlich aus und meinen Gegenteiliges:
 - `COVEY_PUBLIC_URL` zeigt **nach innen** — unter dieser Adresse erreichen die **Sandboxen** die Control Plane. Steht hier die Domain der Website, wählen die Container über das offene Netz zurück und scheitern an der Egress-Allowlist.
 - `COVEY_SITE_URL` zeigt **nach außen** — die kopierbaren Webhook- und Trigger-URLs, die Adresse im herunterladbaren Skill. Leer lassen ist der Normalfall; der Server leitet sie aus dem Request ab.
 
-Beim Start warnt Covey, wenn diese beiden Rollen vertauscht aussehen.
+Beim Start warnt covey, wenn diese beiden Rollen vertauscht aussehen.
 
 ## HTTPS
 

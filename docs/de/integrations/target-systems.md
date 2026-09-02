@@ -1,7 +1,7 @@
 ---
 slug: zielsysteme
 title: Zielsysteme & Plugins
-description: 'Zammad, Salesforce, Jira, Confluence, GitHub, GitLab, Teams, SharePoint, Nextcloud, E-Mail, Browser und MCP: Wie Covey Agenten über Plugins an Fremdsysteme anbindet.'
+description: 'Zammad, Salesforce, Jira, Confluence, GitHub, GitLab, Teams, SharePoint, Nextcloud, E-Mail, Browser und MCP: Wie covey Agenten über Plugins an Fremdsysteme anbindet.'
 faq:
   - q: Kann ich ein System anbinden, für das es kein Plugin gibt?
     a: 'Ja — am schnellsten über einen MCP-Server, dessen Werkzeuge der Agent dann nutzen kann. Wer Weckereignisse, Scopes und Aktionen im Recording braucht, schreibt ein Plugin: als Manifest (JSON, ohne Neubau installierbar), als WebAssembly-Modul oder kompiliert in Go. Die mitgelieferten liegen im Plugin-Pack und sind die Vorlage.'
@@ -13,7 +13,7 @@ faq:
 
 # Zielsysteme & Plugins
 
-Ein Agent wird nützlich, wenn er in den Systemen arbeitet, in denen ohnehin gearbeitet wird. In Covey ist jedes davon ein **Plugin**: Es beschreibt seine Aktionen, seine Scopes und seine Weckereignisse, und der Kern kennt keine Sonderfälle.
+Ein Agent wird nützlich, wenn er in den Systemen arbeitet, in denen ohnehin gearbeitet wird. In covey ist jedes davon ein **Plugin**: Es beschreibt seine Aktionen, seine Scopes und seine Weckereignisse, und der Kern kennt keine Sonderfälle.
 
 ## Was mitgeliefert wird
 
@@ -34,11 +34,11 @@ Ein Agent wird nützlich, wenn er in den Systemen arbeitet, in denen ohnehin gea
 
 Die meisten sind einkompiliert und einfach da. Drei nicht: **Zammad**,
 **Kubernetes** und **VulnDB** kommen als WebAssembly-Module aus dem **Katalog**
-und werden einmal installiert — *Store → Katalog → Installieren*. Covey prüft
+und werden einmal installiert — *Store → Katalog → Installieren*. covey prüft
 dabei den Digest, auf den der Katalog das Modul festlegt.
 
 Der Unterschied ist Absicht, nicht Geschichte: ein Plugin aus dem Katalog wird
-ohne neues Covey-Release aktualisiert, und ein Dritter veröffentlicht eines zu
+ohne neues covey-Release aktualisiert, und ein Dritter veröffentlicht eines zu
 genau denselben Bedingungen wie wir. Wer eine Installation über 0.6.0 hinweg
 aktualisiert, installiert die drei danach einmal — die Zugänge der Agenten
 bleiben erhalten.
@@ -49,7 +49,7 @@ Der Agent ruft ein Zielsystem nicht direkt. Er nennt eine Aktion, die Control Pl
 
 ## Weckereignisse
 
-Der beste Weg ist der Webhook: Passiert im Ticketsystem etwas, ruft es Covey, und der zuständige Agent wacht auf. Wo es keinen Webhook gibt, hilft ein Heartbeat mit `nur-wenn:` — die Control Plane prüft billig, ob es Arbeit gibt, und weckt sonst niemanden.
+Der beste Weg ist der Webhook: Passiert im Ticketsystem etwas, ruft es covey, und der zuständige Agent wacht auf. Wo es keinen Webhook gibt, hilft ein Heartbeat mit `nur-wenn:` — die Control Plane prüft billig, ob es Arbeit gibt, und weckt sonst niemanden.
 
 Ereignisse tragen einen Korrelationsschlüssel, damit eine wartende Aufgabe wieder aufgenommen wird und nicht eine neue entsteht.
 
@@ -66,7 +66,7 @@ Die Werte dahinter — URL, Token — liegen bei der Organisation, nicht beim Ag
 
 ## Ein eigenes System anbinden
 
-Vier Wege, je nachdem, wie weit die Anbindung tragen soll. Am schnellsten ist ein **MCP-Server** — der Agent bekommt dessen Werkzeuge, ohne dass an Covey etwas geändert wird. Ein **Manifest** beschreibt eine REST-API als JSON-Datei und wird zur Laufzeit installiert, ohne Neubau. Ein **WebAssembly-Modul** bringt eigene Logik mit und kommt ebenfalls aus dem Katalog. Und ein **kompiliertes Plugin** in Go ist der Weg, wenn die Integration übersetzen muss, was das Fremdsystem speichert — Jira und Confluence tun genau das mit ihren Dokumentformaten. Alle vier bedienen dieselbe Schnittstelle; die mitgelieferten liegen im Plugin-Pack und sind die Vorlage.
+Vier Wege, je nachdem, wie weit die Anbindung tragen soll. Am schnellsten ist ein **MCP-Server** — der Agent bekommt dessen Werkzeuge, ohne dass an covey etwas geändert wird. Ein **Manifest** beschreibt eine REST-API als JSON-Datei und wird zur Laufzeit installiert, ohne Neubau. Ein **WebAssembly-Modul** bringt eigene Logik mit und kommt ebenfalls aus dem Katalog. Und ein **kompiliertes Plugin** in Go ist der Weg, wenn die Integration übersetzen muss, was das Fremdsystem speichert — Jira und Confluence tun genau das mit ihren Dokumentformaten. Alle vier bedienen dieselbe Schnittstelle; die mitgelieferten liegen im Plugin-Pack und sind die Vorlage.
 
 ## Weiter
 

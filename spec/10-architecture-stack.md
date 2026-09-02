@@ -1,6 +1,6 @@
 # 10 — Architecture stack
 
-Technical implementation decisions for Covey's own code (not the adopted services — those are in [`08-market.md`](08-market.md)).
+Technical implementation decisions for covey's own code (not the adopted services — those are in [`08-market.md`](08-market.md)).
 
 ## Frontend
 
@@ -15,7 +15,7 @@ This choice is independent of the backend language and is considered settled.
 
 ## Backend: two concerns, one process
 
-Covey is **not a CRUD web app**. The code separates two requirement profiles (see the diagram in the architecture discussion):
+covey is **not a CRUD web app**. The code separates two requirement profiles (see the diagram in the architecture discussion):
 
 - **API / BFF** — the classic web backend job: agents/config/roles/dashboards, REST/GraphQL, RBAC.
 - **Orchestration core** — the **always-on concurrency**: many long-lived daemon connections, a dispatch loop per agent, event routing, `blocked` states.
@@ -43,7 +43,7 @@ See D10 in [`07-open-decisions.md`](07-open-decisions.md). Both options are viab
 The load-bearing implementation principle. **Every platform capability has a simple, DB-backed built-in default and a narrow interface for an external, heavyweight provider.** Operational load beats lines of code: operating, securing and upgrading a third-party service is often more expensive than a simple built-in implementation.
 
 - The **MVP runs with `builtin` everywhere** — effectively **binary + Postgres + sandbox infra, nothing else**.
-- **Enterprise environments** plug existing services (Keycloak, Vault, Redis, Langfuse) in through the same interface without Covey's core changing.
+- **Enterprise environments** plug existing services (Keycloak, Vault, Redis, Langfuse) in through the same interface without covey's core changing.
 
 This principle is design principle #10 (see [`README.md`](README.md)).
 
@@ -80,8 +80,8 @@ Two ports carry the bulk of the "built ourselves vs. external" pattern. They are
 Issue agent identities, authenticate humans, mint scoped/short-lived tokens.
 
 - **`builtin`** — a DB entry + a signing key; tokens are **signed JWTs** (Ed25519), short TTL, scoped. Human login is simple (Argon2id + sessions).
-- **`oidc`** — delegates to Keycloak/Entra/Okta; Covey is the relying party. Humans are federated to the company IdP.
-- **Limit:** real **RFC 8693 token exchange against third-party systems** is **not** rebuilt — the `oidc` provider handles that. The built-in variant only mints Covey's own tokens for Covey's own target systems or ones connected simply by API key.
+- **`oidc`** — delegates to Keycloak/Entra/Okta; covey is the relying party. Humans are federated to the company IdP.
+- **Limit:** real **RFC 8693 token exchange against third-party systems** is **not** rebuilt — the `oidc` provider handles that. The built-in variant only mints covey's own tokens for covey's own target systems or ones connected simply by API key.
 
 ### `SecretStore`
 
@@ -154,11 +154,11 @@ Which implementation is loaded is decided by the config at start (`identity.prov
 
 **Target systems** (Zammad, GitLab, …) follow the same pattern as the runtimes: a self-registering plugin registry instead of hardcoded lists. The interface lives in a module of its own — [`github.com/benjaminLedel/covey-plugin-sdk`](https://github.com/benjaminLedel/covey-plugin-sdk), package `target` — and every plugin is a package that registers itself in `init()`.
 
-**No plugin code lives in this repository.** The plugins Covey ships with are an ordinary Go module of their own ([`github.com/benjaminLedel/covey-plugin-pack`](https://github.com/benjaminLedel/covey-plugin-pack)), which the binaries blank-import. That is not tidiness: it puts anybody else's plugin on exactly the same footing as ours — same SDK, same registry, same build, no privileged "compiled in" tier. The dependency graph stays acyclic (Covey → SDK, pack → SDK, Covey → pack), and a plugin author depends on a dependency-free contract rather than on Postgres, chromedp and a wasm runtime.
+**No plugin code lives in this repository.** The plugins covey ships with are an ordinary Go module of their own ([`github.com/benjaminLedel/covey-plugin-pack`](https://github.com/benjaminLedel/covey-plugin-pack)), which the binaries blank-import. That is not tidiness: it puts anybody else's plugin on exactly the same footing as ours — same SDK, same registry, same build, no privileged "compiled in" tier. The dependency graph stays acyclic (covey → SDK, pack → SDK, covey → pack), and a plugin author depends on a dependency-free contract rather than on Postgres, chromedp and a wasm runtime.
 
 There are four kinds of plugin:
 
-- **Compiled plugins** (`github.com/benjaminLedel/covey-plugin-pack/zammad`, …): pulled in by blank import in `cmd/covey` and `cmd/coveyd`. Whoever wants to ship Covey **lean** leaves the import out — the rest of the system stays unchanged. Necessary for everything that goes beyond simple REST calls (OAuth flows, special protocols).
+- **Compiled plugins** (`github.com/benjaminLedel/covey-plugin-pack/zammad`, …): pulled in by blank import in `cmd/covey` and `cmd/coveyd`. Whoever wants to ship covey **lean** leaves the import out — the rest of the system stays unchanged. Necessary for everything that goes beyond simple REST calls (OAuth flows, special protocols).
 - **Manifest plugins** (kind=`custom`): an admin uploads a **JSON plugin file** at runtime (UI "Target systems" or `POST /api/v1/targets`) declaring webhook mapping, actions (method + path with `{param}` placeholders) and auth headers. A generic REST engine interprets the manifest — no recompilation, no deploy. The daemon fetches manifests through the daemon protocol (`request_target`/`inject_target`), only for enabled systems.
 
   Beyond the actions, a manifest declares the same optional capabilities a compiled plugin implements: `probe` (one read-only GET plus the field the identity is read from → the connection test in the store), `poll` (one GET per sub-scope plus the field that carries the work signature → `nur-wenn:` in `HEARTBEAT.md` gates on it), `scopes` (the vocabulary `ACCESS.md` may use for this system) and per-action `scope`/`doc` lines (which is what lets the prompt doc be narrowed to an agent's scopes — free text cannot be cut at a guess). Without a block, the capability is simply absent and the platform falls open where it always did: no probe means no connection test, no poll means every heartbeat fires.
@@ -204,7 +204,7 @@ That machinery is gone. The website lives in its own repository and on its own h
 - **One source for the routes:** the build writes that list to `dist/app-routes.json`, and the Go handler reads it. The browser and the server thus decide from the same file what exists.
 - **SPA fallback with an honest 404:** the root, the two open addresses and every app path get the shell; an unknown path gets 404 rather than the shell with status 200.
 - **`robots.txt` locks everything.** It stays a handler rather than a file because the decision belongs to the server, not to the frontend build. There is no `sitemap.xml` any more: nothing here is meant to be found.
-- **The address only at runtime:** Covey is self-hosted, every installation has its own domain. Whatever leaves the interface for a foreign system — a webhook URL to paste into Zammad, an install command — is assembled from the request, overridable via `COVEY_SITE_URL`. Deliberately **not** `COVEY_PUBLIC_URL`: that is the control plane's address as reachable by the sandboxes and therefore an internal operational address.
+- **The address only at runtime:** covey is self-hosted, every installation has its own domain. Whatever leaves the interface for a foreign system — a webhook URL to paste into Zammad, an install command — is assembled from the request, overridable via `COVEY_SITE_URL`. Deliberately **not** `COVEY_PUBLIC_URL`: that is the control plane's address as reachable by the sandboxes and therefore an internal operational address.
 - **Fonts in the binary:** Inter and Lora ship with it rather than being loaded from Google's CDN — our own CSP allows no foreign hosts, and every visitor's IP would otherwise go to a third party.
 
 ## Operations & bootstrapping

@@ -1,4 +1,4 @@
-# GitLab CI für Covey.
+# GitLab CI für covey.
 #
 # Pipeline: test → build → deploy.
 # - test:  govulncheck (Abhängigkeiten gegen die Go-Schwachstellendatenbank),
@@ -316,7 +316,7 @@ deploy:
     # Image auf den unveränderlichen Commit-Tag pinnen ("spezieller Tag").
     - export COVEY_IMAGE="$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
     # Die Arbeitsplatz-Images pinnt dieser Job NICHT mehr. Sie kommen aus dem
-    # veroeffentlichten Katalog (spec/16), je Covey-Version per Digest,
+    # veroeffentlichten Katalog (spec/16), je covey-Version per Digest,
     # oeffentlich auf ghcr — und ein Runner holt sich, was ihm fehlt. Vorher
     # zog der Deploy sie vor, weil der covey-Container keine Zugangsdaten zur
     # privaten Registry hat; mit dem ersten eigenen Runner wurde daraus ein

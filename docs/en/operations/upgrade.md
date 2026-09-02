@@ -62,7 +62,7 @@ next one.
 > should fetch the three `.wasm` files from the
 > [pack's v0.7.0 release](https://github.com/benjaminLedel/covey-plugin-pack/releases/tag/v0.7.0)
 > beforehand and install them from file — the digests are in the release notes,
-> and Covey checks them either way.
+> and covey checks them either way.
 
 ### 2. Two settings are gone, and one of them silently
 
@@ -76,7 +76,7 @@ The middle one is the one to act on. A module gets no process environment, so an
 allowlist that used to be honoured is not merely ignored — **every group's
 tickets now arrive**. If you relied on it, put the condition in the trigger
 before the upgrade, not after: the filter belongs there anyway, because a
-trigger that does not fire costs nothing while a webhook Covey discards has
+trigger that does not fire costs nothing while a webhook covey discards has
 already been sent, signed and verified.
 
 `vulndb_token` is dead configuration and can be deleted. It used to raise NVD's
@@ -89,7 +89,7 @@ otherwise complete result, the same as any source that does not answer.
 
 `k8s` used to take the certificate as an action parameter,
 `{{secret:k8s_ca}}` in `ca_pem`. That parameter is gone. Store the certificate
-as the secret **`k8s_ca`** and Covey builds the trust store from it.
+as the secret **`k8s_ca`** and covey builds the trust store from it.
 
 This is a fix as much as a move: a certificate passed per action travelled
 through the model's context, the guard-rail subject and the recording of every
@@ -143,7 +143,7 @@ Without it every wake fails with *sandbox image "covey-sandbox-dev:latest" is
 missing*. `covey doctor` names it before the restart, with how many agents are
 waiting on it; the startup check and the agent overview say it afterwards.
 
-**Running Covey as a container?** Then there is no checkout and no `make`, and
+**Running covey as a container?** Then there is no checkout and no `make`, and
 the image has to come from somewhere else. Two ways, both a line in the
 deployment's `.env`:
 

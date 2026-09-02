@@ -181,5 +181,5 @@ func (o *Orchestrator) recordServiceRequest(
 // not `agents:write` — that one lets an agent draft colleagues, and a QA agent
 // that wants a database has no business with it.
 func (o *Orchestrator) mayStartServices(ctx context.Context, agent agents.Agent) bool {
-	return o.mayUseCovey(ctx, agent, scopeServices)
+	return o.mayUsecovey(ctx, agent, scopeServices)
 }

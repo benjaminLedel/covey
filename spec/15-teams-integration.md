@@ -2,11 +2,11 @@
 
 Connects **Microsoft Teams** as a target system so that agents can **receive and send** messages there — the chat becomes the channel between human and agent, analogous to the helpdesk in [`13-zammad-integration.md`](13-zammad-integration.md). Teams is the second webhook-driven target system (after Zammad) and the first with **OAuth2/JWT** instead of a long-lived API token.
 
-Architecturally Teams is a **compiled target-system plugin** (`github.com/benjaminLedel/covey-plugin-pack/teams`, in the plugin pack rather than in Covey's repository, pulled in by blank import — see [`10-architecture-stack.md`](10-architecture-stack.md), "Target systems as plugins"): the same `System`/`Webhooker` interface as Zammad, the same event router, the same dedup/correlation mechanics. Only the auth surface is new.
+Architecturally Teams is a **compiled target-system plugin** (`github.com/benjaminLedel/covey-plugin-pack/teams`, in the plugin pack rather than in covey's repository, pulled in by blank import — see [`10-architecture-stack.md`](10-architecture-stack.md), "Target systems as plugins"): the same `System`/`Webhooker` interface as Zammad, the same event router, the same dedup/correlation mechanics. Only the auth surface is new.
 
 ## The route: Azure Bot Framework
 
-Teams bots do not run directly between Teams and Covey but through the **Azure Bot Service** (Bot Framework). That is the canonical, documented route for bidirectional bots (@mention in channels, 1:1 chat) and fits Covey's pattern exactly: a webhook inbound, a REST call outbound.
+Teams bots do not run directly between Teams and covey but through the **Azure Bot Service** (Bot Framework). That is the canonical, documented route for bidirectional bots (@mention in channels, 1:1 chat) and fits covey's pattern exactly: a webhook inbound, a REST call outbound.
 
 ```
 Teams client  ──(user writes @agent or a DM)──►  Azure Bot Service
@@ -25,11 +25,11 @@ Teams client  ──(user writes @agent or a DM)──►  Azure Bot Service
 
 ### 1. Inbound: wake via the messaging endpoint
 
-The Azure Bot Service delivers every message as an **activity** (JSON) to the bot's messaging endpoint — in Covey that is `POST {public_url}/api/webhooks/teams/<agent-slug>`. Relevant fields: `type` (`message`, `conversationUpdate`, …), `id` (the activity ID), `text`, `from` (the sender), `recipient` (the bot), `conversation` (`id`, `conversationType`, `tenantId`), `serviceUrl` (the bot connector host for the reply).
+The Azure Bot Service delivers every message as an **activity** (JSON) to the bot's messaging endpoint — in covey that is `POST {public_url}/api/webhooks/teams/<agent-slug>`. Relevant fields: `type` (`message`, `conversationUpdate`, …), `id` (the activity ID), `text`, `from` (the sender), `recipient` (the bot), `conversation` (`id`, `conversationType`, `tenantId`), `serviceUrl` (the bot connector host for the reply).
 
 - **New message / DM** → activity → event router → the agent wakes up (a wake source).
 - **A follow-up message in the same conversation** → correlation via the `conversation.id` → the blocked agent wakes up.
-- **Integrity:** the Bot Service signs every delivery with a **JWT** in the `Authorization: Bearer …` header (issuer `https://api.botframework.com`, audience = the bot's Microsoft app ID, RS256, keys from the Bot Framework JWKS). Covey validates this token before trusting the event.
+- **Integrity:** the Bot Service signs every delivery with a **JWT** in the `Authorization: Bearer …` header (issuer `https://api.botframework.com`, audience = the bot's Microsoft app ID, RS256, keys from the Bot Framework JWKS). covey validates this token before trusting the event.
 - **Idempotency:** the Bot Service retries deliveries on failure. The event router deduplicates via the activity `id` (`teams:activity:<id>`), so that the same message triggers only one wake.
 
 ### 2. Outbound: replying through the bot connector
@@ -61,7 +61,7 @@ Teams has no ticket state like Zammad's `pending`. The natural correlation ancho
 
 1. The agent asks a follow-up question (`send`/`reply`) and parks the task → `blocked`, **correlation key = `teams:conversation:<conversation_id>`**, plus the runtime `session_id` (see [`12-claude-code-adapter.md`](12-claude-code-adapter.md)).
 2. The user replies → the Bot Service delivers the next activity.
-3. Covey correlates via the `conversation.id`, wakes the agent and continues.
+3. covey correlates via the `conversation.id`, wakes the agent and continues.
 
 As with Zammad, correlation is therefore "free" — no key of its own has to be looped back through the communication.
 
@@ -90,7 +90,7 @@ An optional operational filter through ENV (12-factor, as with Zammad):
 
 ## Reading attachments
 
-Messages often carry files — screenshots, PDFs, logs. An incoming activity lists them in the field `attachments` (name, `contentType`, download URL). Covey does **not pass the bytes through the control plane** but follows the established pattern from GitLab (`download_upload`): the event router lists the attachments as text in the task body (name, type, a ready-made `download_attachment` call), and the agent fetches the file into its sandbox when needed.
+Messages often carry files — screenshots, PDFs, logs. An incoming activity lists them in the field `attachments` (name, `contentType`, download URL). covey does **not pass the bytes through the control plane** but follows the established pattern from GitLab (`download_upload`): the event router lists the attachments as text in the task body (name, type, a ready-made `download_attachment` call), and the agent fetches the file into its sandbox when needed.
 
 - **Materialisation into the sandbox:** `download_attachment` loads the bytes brokered (the connector token stays in the daemon) into `<workspace>/attachments/<file>` and returns the path + content type. The agent then reads the file with the read tool — images by vision. Path traversal is reduced to the basename, and a size limit (`COVEY_TEAMS_ATTACHMENT_MAX_MB`, default 25 MB) applies fail-closed.
 - **Two kinds of URL:** shared files arrive as `file.download.info` with a **pre-authorised** `content.downloadUrl` (no token); inline images as `image/*` with a `contentUrl` on the connector host (**a bearer token is needed**). `download_attachment` first tries without auth and, on `401/403`, retries once with the connector token — both kinds work this way without a special case in the prompt.
@@ -104,7 +104,7 @@ recipient's consent, and only that creates the upload location — this is a
 platform requirement and cannot be short-cut:
 
 1. The agent calls `send_file` with the path of a file in its working directory.
-   Covey posts a card (`…card.file.consent`) with name, description and
+   covey posts a card (`…card.file.consent`) with name, description and
    size; the `context.key` carries the **requested path** through both
    directions (not just the file name — otherwise it would point into the void
    for a file in a subfolder).

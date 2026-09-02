@@ -58,7 +58,7 @@ refused daemon-side — the agent sees only what the link or the account release
 ### B) Account access (the whole file directory)
 
 1. In Nextcloud → **Settings → Security → "Create app password"**.
-   Never deposit the login password in Covey.
+   Never deposit the login password in covey.
 2. Deposit under **Secrets** and assign to the agent:
    - `nextcloud_url` = the server base URL, e.g. `https://cloud.example.com`
      (a subdirectory such as `/nextcloud` is preserved)

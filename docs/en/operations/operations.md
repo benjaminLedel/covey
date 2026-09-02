@@ -1,21 +1,21 @@
 ---
 slug: operations
 title: Operations & deployment
-description: 'Running Covey: one binary plus Postgres, port 8494, migrations at startup, HTTPS through a reverse proxy, egress isolation, backups and updates without ceremony.'
+description: 'Running covey: one binary plus Postgres, port 8494, migrations at startup, HTTPS through a reverse proxy, egress isolation, backups and updates without ceremony.'
 faq:
-  - q: How much memory does a Covey server need?
+  - q: How much memory does a covey server need?
     a: 'The control plane itself is frugal — a Go process next to Postgres. The demand comes from the sandboxes: each runs a Node runtime, plus chromium for browser work. Size by the number of agents awake at once, not by the number created.'
-  - q: Can I put Covey behind a reverse proxy?
+  - q: Can I put covey behind a reverse proxy?
     a: Yes, that is the intended route for HTTPS. The one thing to get right is not setting `COVEY_PUBLIC_URL` to the public domain when the sandboxes cannot reach it — that variable points inwards.
   - q: How do I update without losing data?
     a: Swap the binary or image and restart; migrations run at startup and are guarded against concurrent starts. Back up the database first, and keep the master key anyway. Afterwards run `covey config lint`.
-  - q: Does Covey run without internet access?
+  - q: Does covey run without internet access?
     a: The platform does. The agents need the model endpoint — with hard egress isolation the proxy sits in front and lets exactly the allowed hosts through. A self-hosted embedding service additionally keeps wiki search in the building.
 ---
 
 # Operations & deployment
 
-Covey is deliberately boring to run: one process, one database, one port. Everything beyond that is optional.
+covey is deliberately boring to run: one process, one database, one port. Everything beyond that is optional.
 
 ## What runs
 
@@ -33,7 +33,7 @@ Two variables look alike and mean opposite things:
 - `COVEY_PUBLIC_URL` points **inwards** — the address at which the **sandboxes** reach the control plane. Put the website's domain here and the containers dial back over the open network and fail at the egress allowlist.
 - `COVEY_SITE_URL` points **outwards** — the copyable webhook and trigger URLs, the address in the downloadable skill. Leaving it empty is the normal case; the server derives it from the request.
 
-At startup Covey warns when these two roles look swapped.
+At startup covey warns when these two roles look swapped.
 
 ## HTTPS
 

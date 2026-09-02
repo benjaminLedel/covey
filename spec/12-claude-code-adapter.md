@@ -17,11 +17,11 @@ claude -p "<task>" \
 
 `-p` switches from the interactive REPL into a single batch run; all CLI options work with `-p`.
 
-## Flag → Covey concept
+## Flag → covey concept
 
 The control maps almost 1:1 onto the daemon protocol:
 
-| Claude Code flag | Covey concept |
+| Claude Code flag | covey concept |
 |---|---|
 | `-p "<task>"` | `assign_task` — a task from the backlog ([`03`](03-lifecycle-scheduling.md)) |
 | `--append-system-prompt` / `--system-prompt` | `inject_config` — the compiled `SOUL.md` ([`02`](02-agent-model.md)) |
@@ -36,7 +36,7 @@ The control maps almost 1:1 onto the daemon protocol:
 | `--mcp-config` | the action proxy as a tool server — target actions as typed tool calls instead of `curl` in the shell ([`01`](01-architecture.md)) |
 | exit code ≠ 0 | error path → `task_done`(error) |
 
-**On `--effort`:** the levels are a property of the **engine**, not of Covey, and are therefore declared by the runtime plugin (`RuntimeCapabilities.EffortLevels`) rather than listed in the API layer. The control plane validates a level against the engine the agent runs on, the interface offers only the levels that engine declares, and an engine without the control does not show the field at all. Switching an agent to an engine that does not know its level resets the level to that engine's default — a setting that is stored, displayed and read by nobody is the worst of the available outcomes.
+**On `--effort`:** the levels are a property of the **engine**, not of covey, and are therefore declared by the runtime plugin (`RuntimeCapabilities.EffortLevels`) rather than listed in the API layer. The control plane validates a level against the engine the agent runs on, the interface offers only the levels that engine declares, and an engine without the control does not show the field at all. Switching an agent to an engine that does not know its level resets the level to that engine's default — a setting that is stored, displayed and read by nobody is the worst of the available outcomes.
 
 The flag is also **younger than some sandbox images**. The image installs the CLI unpinned (`npm install -g @anthropic-ai/claude-code`), so its version freezes at build time; a `claude` that predates `--effort` fails every run of an effort-configured agent with `unknown option '--effort'`. Rebuild the sandbox image (`make sandbox-image`) after adopting the field — that is the same step as for any other daemon-side change.
 
@@ -46,16 +46,16 @@ The flag is also **younger than some sandbox images**. The image installs the CL
 
 Headless runs are stateless by default but can be **threaded**: `--output-format json` delivers a `session_id`; a later `claude -p --resume <session_id> "<new input>"` loads the context of the existing run.
 
-That maps exactly onto Covey's `blocked` mechanic:
+That maps exactly onto covey's `blocked` mechanic:
 
 1. The agent asks a follow-up question → the daemon reports `blocked` with a **correlation key**; in addition the Claude Code run's **`session_id`** is stored on the parked task.
 2. The sandbox shuts down (no compute).
 3. A correlated event arrives (ticket update) → the daemon starts the sandbox and calls `claude -p --resume <session_id> "<answer>"`.
-4. Claude Code restores the conversation context **itself** — Covey does not have to reconstruct it.
+4. Claude Code restores the conversation context **itself** — covey does not have to reconstruct it.
 
 With that, the `blocked → working` edge from [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md) is realised with the runtime's own means.
 
-> **Short term vs. long term.** The Claude Code session is the *short-term working context* (a limited context window, possibly expiring). *Durable* memory across tasks stays Covey's memory layer ([`05-memory.md`](05-memory.md)) — ingest at `done`, query at `triage`. Session persistence alone should not be relied on for long-term knowledge.
+> **Short term vs. long term.** The Claude Code session is the *short-term working context* (a limited context window, possibly expiring). *Durable* memory across tasks stays covey's memory layer ([`05-memory.md`](05-memory.md)) — ingest at `done`, query at `triage`. Session persistence alone should not be relied on for long-term knowledge.
 
 ## Streaming → recording
 
@@ -63,7 +63,7 @@ With that, the `blocked → working` edge from [`03-lifecycle-scheduling.md`](03
 
 ## Cost
 
-The final `result` event (or `--output-format json`) contains `total_cost_usd` including a breakdown per model → straight into Covey's **cost tracking** per agent ([`06-observability-control.md`](06-observability-control.md)), without a separate usage query.
+The final `result` event (or `--output-format json`) contains `total_cost_usd` including a breakdown per model → straight into covey's **cost tracking** per agent ([`06-observability-control.md`](06-observability-control.md)), without a separate usage query.
 
 On a **subscription seat that figure is notional** — Claude Code prices the run as if it had been billed, but the seat is paid for regardless. It is booked as it arrives and labelled by the credential it came from; what that means for totals and unit costs is in [`18-runtimes-capacity.md`](18-runtimes-capacity.md) and [`17-kpis.md`](17-kpis.md). An adapter for another engine may not report a dollar figure at all, in which case it has to be derived from tokens and a price list — which is why the token counts are stored separately and not only the money.
 
@@ -74,17 +74,17 @@ Claude Code can report what its credential has consumed: `claude -p "/usage"` an
 The adapter therefore implements the optional **utilisation capability** described in [`18-runtimes-capacity.md`](18-runtimes-capacity.md). Two constraints come with it:
 
 - The numbers arrive as **prose in the `result` field**, not structured, even under `--output-format json`. Reading them is text matching against a format that will change between versions, so it is handled **fail-open**: an answer that no longer parses leaves the fleet running and falls back to the platform's own estimate. It never blocks.
-- The **scope** of the figure needs verifying. Claude Code notes that its contribution breakdown covers only local sessions on that machine; with a fresh sandbox per waking phase that would be a fraction of the credential's real use. Whether the headline window percentages are account-wide is an open point ([`07-open-decisions.md`](07-open-decisions.md)) and decides whether this source carries in Covey at all.
+- The **scope** of the figure needs verifying. Claude Code notes that its contribution breakdown covers only local sessions on that machine; with a fresh sandbox per waking phase that would be a fraction of the credential's real use. Whether the headline window percentages are account-wide is an open point ([`07-open-decisions.md`](07-open-decisions.md)) and decides whether this source carries in covey at all.
 
 ## Auth
 
-Headless needs non-interactive credentials: `ANTHROPIC_API_KEY` as an ENV variable, a long-lived OAuth token via `claude setup-token`, or provider credentials (Bedrock/Vertex/Foundry). In Covey this key is itself a **brokered secret** ([`04-identity-secrets.md`](04-identity-secrets.md)): the daemon gets it injected at runtime, it does not sit permanently in the sandbox.
+Headless needs non-interactive credentials: `ANTHROPIC_API_KEY` as an ENV variable, a long-lived OAuth token via `claude setup-token`, or provider credentials (Bedrock/Vertex/Foundry). In covey this key is itself a **brokered secret** ([`04-identity-secrets.md`](04-identity-secrets.md)): the daemon gets it injected at runtime, it does not sit permanently in the sandbox.
 
 Which secret and which ENV variable is a property of the **engine**, not of the platform: the name binds the intent (`anthropic_api_key` → `ANTHROPIC_API_KEY`, `claude_code_oauth_token` → `CLAUDE_CODE_OAUTH_TOKEN`; do not guess from the token prefix). The engine declares its credentials in order of precedence, and everything above them — several seats, distribution, limits, cost attribution — follows from [`18-runtimes-capacity.md`](18-runtimes-capacity.md) without the adapter knowing about it.
 
 ## Permissions & guard rails
 
-Full non-interactive operation needs `--dangerously-skip-permissions` (it skips the interactive approval prompts). In Covey that is **defensible, because the sandbox is isolated and the hard limits are enforced externally anyway** — at the broker, at the egress, in the tool layer ([`06-observability-control.md`](06-observability-control.md)). Claude Code's interactive approval would be redundant inside the sandbox; Covey's guard rails sit one level above.
+Full non-interactive operation needs `--dangerously-skip-permissions` (it skips the interactive approval prompts). In covey that is **defensible, because the sandbox is isolated and the hard limits are enforced externally anyway** — at the broker, at the egress, in the tool layer ([`06-observability-control.md`](06-observability-control.md)). Claude Code's interactive approval would be redundant inside the sandbox; covey's guard rails sit one level above.
 
 As **defence in depth**, `--allowedTools` (and `--permission-mode`) is nevertheless set, to trim the tool scope in the subprocess as well — the soft inner limit in addition to the hard outer one. The standard scope (`daemon.DefaultAllowedTools`) covers the productive basics: reading/writing/editing/searching files (`Read`, `Write`, `Edit`, `Glob`, `Grep`, `NotebookEdit`), shell (`Bash`, `BashOutput`, `KillShell`), web (`WebFetch`, `WebSearch`) as well as `Task`/`TodoWrite`. Web access still runs through the egress proxy — the allowlist remains the hard limit.
 
@@ -127,7 +127,7 @@ So that the agent knows afterwards **what** was changed, the checkout creates a 
 
 ## CLI (`-p`) vs. the Agent SDK
 
-Alongside the CLI, Anthropic also offers an **Agent SDK** (Python/TypeScript) for embedding as a library; the official recommendation is the SDK for production automation, the CLI for scripts. Since Covey's daemon runs in **Go** and there is no official Go SDK, the pragmatic route is the **subprocess call to `claude -p`**: start a process, stdin/stdout, exit code — like any other CLI. If the daemon part ever arose in Python/TS, the SDK would be the richer alternative (native message objects, tool approval callbacks).
+Alongside the CLI, Anthropic also offers an **Agent SDK** (Python/TypeScript) for embedding as a library; the official recommendation is the SDK for production automation, the CLI for scripts. Since covey's daemon runs in **Go** and there is no official Go SDK, the pragmatic route is the **subprocess call to `claude -p`**: start a process, stdin/stdout, exit code — like any other CLI. If the daemon part ever arose in Python/TS, the SDK would be the richer alternative (native message objects, tool approval callbacks).
 
 ## Notes / open points
 

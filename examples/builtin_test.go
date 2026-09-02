@@ -119,7 +119,7 @@ func TestBuiltinSkills(t *testing.T) {
 // section that only some bundles carry is a channel that only sometimes exists,
 // which is why this is pinned rather than trusted.
 //
-// Covey Doctor is exempt: it is the recipient.
+// covey Doctor is exempt: it is the recipient.
 func TestBuiltinMeldetNachOben(t *testing.T) {
 	// Two markers, one per language — the section is written out in each
 	// bundle, in its own language, and both name the action.

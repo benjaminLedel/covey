@@ -109,11 +109,11 @@ const (
 	hiringScope = scopeWrite
 )
 
-// mayUseCovey: hat dieser Agent das eigene System der Plattform in seiner
+// mayUsecovey: hat dieser Agent das eigene System der Plattform in seiner
 // ACCESS.md, mit einem der Scopes, die die Aktion trägt? Fail-closed — ein
 // Zugang, der sich nicht lesen lässt, ist keiner, und ein Eintrag ohne den
 // Scope ebenfalls nicht.
-func (o *Orchestrator) mayUseCovey(ctx context.Context, agent agents.Agent, scopes ...string) bool {
+func (o *Orchestrator) mayUsecovey(ctx context.Context, agent agents.Agent, scopes ...string) bool {
 	accesses, err := o.Registry.Accesses(ctx, agent.ID)
 	if err != nil {
 		return false
@@ -138,11 +138,11 @@ func (o *Orchestrator) mayUseCovey(ctx context.Context, agent agents.Agent, scop
 // create_agent liest und dann abgewiesen wird, ist genau die
 // Fähigkeit-durch-Andeutung, gegen die diese Datei gebaut ist.
 func (o *Orchestrator) mayDraftAgents(ctx context.Context, agent agents.Agent) bool {
-	return o.mayUseCovey(ctx, agent, scopeWrite)
+	return o.mayUsecovey(ctx, agent, scopeWrite)
 }
 
 func (o *Orchestrator) mayReviewAgents(ctx context.Context, agent agents.Agent) bool {
-	return o.mayUseCovey(ctx, agent, scopeReview)
+	return o.mayUsecovey(ctx, agent, scopeReview)
 }
 
 func (o *Orchestrator) hiring(ctx context.Context, agent agents.Agent, taskID uuid.UUID, req daemon.RequestHiring) daemon.InjectHiring {
@@ -168,7 +168,7 @@ func (o *Orchestrator) hiring(ctx context.Context, agent agents.Agent, taskID uu
 	// actions is a colleague or a judgement about one. The error names the whole
 	// line, scope included: whoever reads it is a human editing a config, and
 	// half a line is a second round trip.
-	if !o.mayUseCovey(ctx, agent, def.Scopes...) {
+	if !o.mayUsecovey(ctx, agent, def.Scopes...) {
 		return fail("%s", "this agent has no access to the platform's own system "+
 			"(`- system: "+hiringSystem+" scope: "+strings.Join(def.Scopes, "` or `")+"` in ACCESS.md)")
 	}

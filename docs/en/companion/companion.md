@@ -6,7 +6,7 @@ description: 'The outlook: an app where people offload their knowledge, a curato
 
 # The Companion app
 
-> **In development.** The concept stands, the build follows. Its foundation is Covey's memory infrastructure.
+> **In development.** The concept stands, the build follows. Its foundation is covey's memory infrastructure.
 
 The Companion is a separate, optional app: the place where a person offloads what they carry in their head — ideas spoken on the move, notes, documents — and turns it into context for their agents.
 

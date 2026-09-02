@@ -38,7 +38,7 @@ func Render(version, standard string) string {
 	}
 	var b strings.Builder
 	b.WriteString("#!/bin/sh\n")
-	b.WriteString("# Preamble of this Covey instance — the body is, unchanged, the script\n")
+	b.WriteString("# Preamble of this covey instance — the body is, unchanged, the script\n")
 	b.WriteString("# from the repository (installer/install.sh).\n")
 	if version != "" {
 		fmt.Fprintf(&b, "COVEY_INSTALL_VERSION=%q\n", version)

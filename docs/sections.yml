@@ -2,7 +2,7 @@
 # Seiten darin, und wie ein Abschnitt in der Navigation heißt.
 #
 # Warum hier und nicht aus dem Dateisystem: eine alphabetische Reihenfolge
-# stellt "Architektur" vor "Was ist Covey?", und die Doku hat eine Leserichtung.
+# stellt "Architektur" vor "Was ist covey?", und die Doku hat eine Leserichtung.
 # Die Titel der Abschnitte stehen ebenfalls hier, weil sie zu keiner Seite
 # gehören — sie sind Überschriften der Navigation.
 #

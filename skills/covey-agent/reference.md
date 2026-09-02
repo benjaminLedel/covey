@@ -11,7 +11,7 @@ An agent bundle is a JSON file. Mandatory are `kind`, `version`, `agent.slug`,
   "version": 1,
   "agent": {
     "slug": "covey-support",              // unique per org, [a-z0-9-]
-    "display_name": "Covey Support",
+    "display_name": "covey Support",
     "runtime": "claude-code",             // currently the only runtime
     "model": "",                          // optional, empty = the runtime default
     "effort": "",                         // optional, empty = the runtime default; the levels are declared by the

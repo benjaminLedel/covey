@@ -1,7 +1,7 @@
 ---
 slug: github
 title: GitHub
-description: 'Connecting Covey to GitHub: token, webhook, intake repositories and the checkout an agent works in. The unit of work is the issue, the result a pull request.'
+description: 'Connecting covey to GitHub: token, webhook, intake repositories and the checkout an agent works in. The unit of work is the issue, the result a pull request.'
 ---
 
 A practical runbook for the target system **GitHub** (`github.com/benjaminLedel/covey-plugin-pack/github`).
@@ -37,7 +37,7 @@ URL. A `HEARTBEAT.md` entry puts the task into the agent's backlog
 periodically; the agent finds its working set itself:
 
 ```
-Covey  ──(heartbeat tick)──►  backlog task "review GitHub issues"
+covey  ──(heartbeat tick)──►  backlog task "review GitHub issues"
                                  │
                                  ▼
                               agent (sandbox, Claude Code)
@@ -45,11 +45,11 @@ Covey  ──(heartbeat tick)──►  backlog task "review GitHub issues"
 GitHub ◄──(REST api.github.com)──┘  list_issues → get_issue/list_comments → checkout → comment/set_state
 ```
 
-**b) By webhook** — real time, needs a publicly reachable Covey
+**b) By webhook** — real time, needs a publicly reachable covey
 (`COVEY_PUBLIC_URL`):
 
 ```
-GitHub ──(POST /api/webhooks/github/<agent>)──►  Covey
+GitHub ──(POST /api/webhooks/github/<agent>)──►  covey
            X-Hub-Signature-256 (HMAC-SHA256)       │ verify → deduplicate → correlate
                                                    ▼
                                        new task  or  wake a blocked task
@@ -94,9 +94,9 @@ repositories. Then generate a token **as that account**:
 
 > **Fine-grained tokens expire.** GitHub caps them at one year. Note the date —
 > when it lapses, every action fails with `HTTP 401` at once. The token is
-> replaced in Covey under Secrets; nothing else changes.
+> replaced in covey under Secrets; nothing else changes.
 
-### 2.2 In Covey: deposit the secrets
+### 2.2 In covey: deposit the secrets
 
 Under **Secrets**, and assign them to the agent:
 
@@ -113,7 +113,7 @@ browser; the plugin appends `/api/v3` itself.
 > assigned to the agent produces an action that fails with a broker error at
 > run time — the most common setup mistake.
 
-### 2.3 In Covey: enable the target system
+### 2.3 In covey: enable the target system
 
 In the agent's `ACCESS.md`:
 
@@ -167,7 +167,7 @@ In the repository under **Settings › Webhooks › Add webhook**:
 |---|---|
 | Payload URL | `<COVEY_PUBLIC_URL>/api/webhooks/github/<agent-slug>` |
 | Content type | `application/json` |
-| Secret | a random value — deposit the **same** value in Covey as the agent's webhook secret |
+| Secret | a random value — deposit the **same** value in covey as the agent's webhook secret |
 | Events | *Let me select individual events*: Issues, Issue comments, Pull requests, Pull request reviews, Pull request review comments |
 
 The signature is checked as HMAC-SHA256 over the raw body
@@ -353,7 +353,7 @@ separate endpoints on GitHub — the PR exists once the first call succeeds, so 
 failure on the second is reported without undoing it):
 
 - The **assignee** is the *reporter* of the underlying issue — whoever wrote the
-  need down decides on the merge. Passing `issue_number` lets Covey look them up
+  need down decides on the merge. Passing `issue_number` lets covey look them up
   itself. Entering the manager across the board makes them the bottleneck for
   work they never asked for.
 - The **reviewer** is the QA/test agent from the team directory, if there is

@@ -1,4 +1,4 @@
-# Covey — Produktions-Compose für das automatische Deployment.
+# covey — Produktions-Compose für das automatische Deployment.
 #
 # Im Unterschied zu docker-compose.yml (baut das Image lokal, für lokales
 # Ausprobieren) zieht diese Datei ein *fertiges* Image aus der Registry, pro
@@ -37,7 +37,7 @@ x-covey-base: &covey-base
     COVEY_ADMIN_PASSWORD: ${COVEY_ADMIN_PASSWORD:?in .env setzen}
     COVEY_SANDBOX_PROVIDER: docker
     # Welches Image hinter einem Arbeitsplatz steht, sagt der VERÖFFENTLICHTE
-    # Katalog (spec/16): eine JSON-Datei neben dem Quelltext, je Covey-Version
+    # Katalog (spec/16): eine JSON-Datei neben dem Quelltext, je covey-Version
     # per Digest gepinnt, öffentlich auf ghcr. Deshalb steht hier nichts.
     #
     # Vorher standen hier zwei Zeilen mit privaten Registry-Referenzen, vom

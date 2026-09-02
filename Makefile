@@ -1,4 +1,4 @@
-# Covey — development workflow. `make dev-db && make bootstrap && make run`.
+# covey — development workflow. `make dev-db && make bootstrap && make run`.
 
 GO ?= go
 DB_URL ?= postgres://covey:covey@localhost:5433/covey?sslmode=disable

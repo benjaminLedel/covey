@@ -1,7 +1,7 @@
 ---
 slug: memory
 title: The wiki memory
-description: 'How a Covey agent retains knowledge: linked Markdown pages with a pgvector index instead of flat snippets — readable, correctable, condensed across runs.'
+description: 'How a covey agent retains knowledge: linked Markdown pages with a pgvector index instead of flat snippets — readable, correctable, condensed across runs.'
 faq:
   - q: Where does my agents' memory live?
     a: In your Postgres database and in the home of the respective sandbox. None of it leaves your installation — unless you deliberately configure an external embedding service. If you want to avoid that, run the embedding yourself via Ollama.
@@ -13,7 +13,7 @@ faq:
 
 # The wiki memory
 
-An agent that forgets what it learned after every task repeats every mistake and every piece of research. For that, Covey gives it neither a transcript nor a heap of snippets but a **wiki**: linked Markdown pages, one per thing, searchable through a `pgvector` index.
+An agent that forgets what it learned after every task repeats every mistake and every piece of research. For that, covey gives it neither a transcript nor a heap of snippets but a **wiki**: linked Markdown pages, one per thing, searchable through a `pgvector` index.
 
 ## Why a wiki and not a snippet store
 

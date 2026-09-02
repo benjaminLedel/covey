@@ -1,10 +1,10 @@
 #!/bin/sh
-# Install Covey: fetch the binary from the GitHub release, compare the
+# Install covey: fetch the binary from the GitHub release, compare the
 # checksum, put it into the search path.
 #
 #   curl -sSL https://raw.githubusercontent.com/benjaminLedel/covey/main/installer/install.sh | sh
 #
-# Every running Covey instance serves this script itself as well, then for its
+# Every running covey instance serves this script itself as well, then for its
 # own version:
 #
 #   curl -sSL https://covey.example/install.sh | sh
@@ -84,7 +84,7 @@ main() {
 
 usage() {
     cat <<'EOF'
-Install Covey.
+Install covey.
 
   install.sh [--server|--runner|--all] [--version <tag>] [--bin-dir <directory>]
 
@@ -375,7 +375,7 @@ EOF
                         ;;
                 esac
                 cat <<EOF
-The runner still has to register with a Covey instance. The token for that
+The runner still has to register with a covey instance. The token for that
 is issued by the runner view of the interface:
 
   covey-runner register --url https://covey.example --token <registration-token>

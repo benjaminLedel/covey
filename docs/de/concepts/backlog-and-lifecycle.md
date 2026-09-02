@@ -13,7 +13,7 @@ faq:
 
 # Backlog & Lifecycle
 
-Arbeit kommt bei Covey nicht aus einem Chat-Fenster, sondern aus einem Backlog. Das ist keine Geschmacksfrage: Eine Aufgabe, die ein eigenes Objekt ist, hat einen Zustand, einen Verantwortlichen, eine Historie und ein Ende — ein Chat-Verlauf hat nichts davon.
+Arbeit kommt bei covey nicht aus einem Chat-Fenster, sondern aus einem Backlog. Das ist keine Geschmacksfrage: Eine Aufgabe, die ein eigenes Objekt ist, hat einen Zustand, einen Verantwortlichen, eine Historie und ein Ende — ein Chat-Verlauf hat nichts davon.
 
 ## Die Zustände
 
@@ -38,7 +38,7 @@ Trifft später ein Ereignis mit demselben Schlüssel ein, weckt es genau diese A
 
 ## Weckquellen
 
-- **Webhook** — das Zielsystem ruft Covey, wenn dort etwas passiert. Der schnellste Weg, und der einzige ohne Leerlauf.
+- **Webhook** — das Zielsystem ruft covey, wenn dort etwas passiert. Der schnellste Weg, und der einzige ohne Leerlauf.
 - **Heartbeat** — ein Takt aus der `HEARTBEAT.md`, etwa `- alle: 30m titel: Posteingang aufgabe: Neue Tickets sichten.` Mit `nur-wenn:` fragt die Control Plane vorher billig nach, ob es überhaupt etwas zu tun gibt, und lässt den Agenten sonst schlafen.
 - **Von Hand** — „Wecken" in der Oberfläche, oder ein API-Aufruf.
 

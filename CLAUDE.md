@@ -2,7 +2,7 @@
 
 Orientation for Claude Code in this repository.
 
-## What Covey is
+## What covey is
 
 An enterprise platform that treats **AI agents like employees**: an identity, an isolated sandbox, brokered access, a backlog, a place in the org chart, central governance. The unit is the **organisation**, not the individual user. The guiding metaphor: the **IT and HR department for AI agents**.
 
@@ -15,7 +15,7 @@ An enterprise platform that treats **AI agents like employees**: an identity, an
 - `internal/integration/` — the acceptance checklist from `spec/11-mvp-plan.md` as an integration test suite (a real Postgres on port 5433, an in-process daemon over a real WebSocket, a mock runtime, a fake Zammad).
 - `demo/fakezammad/` — a Zammad double for local demos.
 - `mockup/covey-ui-mockup.html` — a static HTML mockup; the React UI takes its design language from it (CSS variables, Inter/Lora).
-- `.claude/skills/covey-agent/` — a Claude Code skill for **building, designing and updating Covey agents**: it produces a `covey.agent-config` bundle following the repo's conventions (SOUL/PLAYBOOKS/ACCESS/HEARTBEAT, loop protection, `warm_sandbox`) and optionally creates the agent through the API. Start at its `SKILL.md`.
+- `.claude/skills/covey-agent/` — a Claude Code skill for **building, designing and updating covey agents**: it produces a `covey.agent-config` bundle following the repo's conventions (SOUL/PLAYBOOKS/ACCESS/HEARTBEAT, loop protection, `warm_sandbox`) and optionally creates the agent through the API. Start at its `SKILL.md`.
 
 Development workflow: `make dev-db && make bootstrap && make run` (see the README). Tests: `make test`; integration tests: `make test-integration` (they need the dev database and skip when port 5433 is unreachable). `web/dist` has to exist before the Go build (`cd web && npm run build`) — `//go:embed` pulls it into the binary.
 
@@ -23,7 +23,7 @@ Development workflow: `make dev-db && make bootstrap && make run` (see the READM
 
 ## Language and conventions
 
-- **Everything in this repository is English.** `spec/`, `docs/`, `README.md`, commit messages, code comments, branch names, file names. The repo is public on GitHub, third parties install Covey from it, write plugins against it and read the code — a German history and German comments shut them out. The *tone* stays as it was: sober, precise, no marketing language; a sentence says what changes and why, not what was touched.
+- **Everything in this repository is English.** `spec/`, `docs/`, `README.md`, commit messages, code comments, branch names, file names. The repo is public on GitHub, third parties install covey from it, write plugins against it and read the code — a German history and German comments shut them out. The *tone* stays as it was: sober, precise, no marketing language; a sentence says what changes and why, not what was touched.
 - **Strings that come out of the program are not translated:** error messages, log lines, UI labels and config syntax a parser reads (the `HEARTBEAT.md` keys `alle:`/`täglich:`/`nur-wenn:`/`titel:`/`aufgabe:`). They stand verbatim, with an explanation beside them — a translated error message documents something that never appears.
 - **Existing German comments are not translated in one sweep**; whoever touches a place brings it along.
 - **README:** `README.md` is the English calling card. The German version sits beside it in `README.de.md`. Keep both in step when changing one — they are translations of each other, not separate documents.
@@ -55,7 +55,7 @@ Plugin code does **not** live in this repository. Three modules of their own car
 | Repo | Module | Contents |
 |---|---|---|
 | [covey-plugin-sdk](https://github.com/benjaminLedel/covey-plugin-sdk) | `github.com/benjaminLedel/covey-plugin-sdk` | the contract: `target.System`, registry, `Descriptor`, credentials, sandbox helpers, HTTP client. **No dependencies** — a plugin author does not drag covey along. |
-| [covey-plugin-pack](https://github.com/benjaminLedel/covey-plugin-pack) | `github.com/benjaminLedel/covey-plugin-pack` | the plugins Covey ships with as ordinary Go code, the three that moved to the catalogue as wasm modules under wasm/, plus the manifest plugins |
+| [covey-plugin-pack](https://github.com/benjaminLedel/covey-plugin-pack) | `github.com/benjaminLedel/covey-plugin-pack` | the plugins covey ships with as ordinary Go code, the three that moved to the catalogue as wasm modules under wasm/, plus the manifest plugins |
 | [covey-plugins](https://github.com/benjaminLedel/covey-plugins) | — | the catalogue: entries pointing at artefacts hosted anywhere, pinned by digest |
 
 The dependency graph is acyclic: covey → SDK, pack → SDK, covey → pack (for the default build). **Nothing depends on covey.**
@@ -111,8 +111,8 @@ The reasoning: one binary → `go.mod` at the root, `web/` and `migrations/` as 
 
 ## Git
 
-- Branch `main`. **Two remotes, and both get every push:** `origin` (GitLab, `gitlab.lapco.legal` — pipeline and deploy run here) and `github` (`benjaminLedel/covey` — the public version third parties install Covey from). A branch on only one of them lets the two histories drift apart; "push" without further qualification means `git push origin <branch> && git push github <branch>`.
+- Branch `main`. **Two remotes, and both get every push:** `origin` (GitLab, `gitlab.lapco.legal` — pipeline and deploy run here) and `github` (`benjaminLedel/covey` — the public version third parties install covey from). A branch on only one of them lets the two histories drift apart; "push" without further qualification means `git push origin <branch> && git push github <branch>`.
 - **Commit regularly:** hold a finished, coherent step (a feature done, tests green) as its own commit — do not collect everything into one huge one.
 - Do not commit to `main` without asking — create a branch first. Push only when explicitly asked.
 - **Every change is represented by an issue**, and the issue comes first: what was observed, how it was reproduced, and what the code says about it — written so that somebody who was not there can follow it. Then the branch, then the commit that names the issue (`closes #<n>`), so the merge closes it. A bug found while fixing another one gets its own issue rather than being carried along quietly in a commit message. Issues belong in the repository that owns the code: plugin behaviour in the pack, the contract in the SDK, everything else here.
-  The reason is not bookkeeping. A commit answers "what changed"; the issue answers "what was wrong, and how do you know" — and that second half is what a maintainer needs six months later, what a third party reads before installing Covey, and what keeps the same fault from being diagnosed twice. Where a finding must not be public (credentials, a way in), it is written down where it belongs and the public issue stays with the harmless half.
+  The reason is not bookkeeping. A commit answers "what changed"; the issue answers "what was wrong, and how do you know" — and that second half is what a maintainer needs six months later, what a third party reads before installing covey, and what keeps the same fault from being diagnosed twice. Where a finding must not be public (credentials, a way in), it is written down where it belongs and the public issue stays with the harmless half.

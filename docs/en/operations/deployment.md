@@ -1,10 +1,10 @@
 ---
 slug: deployment
 title: Automatic deployment
-description: 'Every push to main rolls Covey out onto a target host: the one-off CI setup, what happens in ongoing operation, and how to roll back to an earlier image.'
+description: 'Every push to main rolls covey out onto a target host: the one-off CI setup, what happens in ongoing operation, and how to roll back to an earlier image.'
 ---
 
-Every push to `main` rolls Covey out onto a target host automatically. This
+Every push to `main` rolls covey out onto a target host automatically. This
 runbook describes the one-off setup and what happens in ongoing operation.
 
 > For trying things out locally without CI see
@@ -35,7 +35,7 @@ The pipeline (`.gitlab-ci.yml`) has three stages: `test → build → deploy`.
    - sets `COVEY_IMAGE` to `…/covey:$CI_COMMIT_SHORT_SHA` — and **nothing**
      about the workplaces: their images come from the published catalogue
      ([`../spec/16-runner.md`](../../../spec/16-runner.md)), pinned by digest per
-     Covey version and public on ghcr, and a runner fetches what it is
+     covey version and public on ghcr, and a runner fetches what it is
      missing. The job used to pull both sandbox images and pin them through
      `COVEY_SANDBOX_IMAGE` / `COVEY_SANDBOX_IMAGE_DEV`, because the covey
      container has no credentials for the private registry. With the first
@@ -202,10 +202,10 @@ COVEY_HSTS=subdomains   # …and every name below the domain does too
 COVEY_HSTS=off          # the terminating proxy sets the header
 ```
 
-**`basic` promises what we can know.** Covey knows that the name it answers
+**`basic` promises what we can know.** covey knows that the name it answers
 under speaks HTTPS. Whether `tools.example.com` beside it does is not ours to
 say — and an internal tool still on HTTP disappears for a year from every
-browser that has seen the Covey instance. Turn it up to `subdomains` when you
+browser that has seen the covey instance. Turn it up to `subdomains` when you
 know every name below the domain, and only then.
 
 `off` belongs to the installation whose reverse proxy sets the header itself.
@@ -435,7 +435,7 @@ Two consequences follow, and both are worth knowing before tuning anything:
 ### `COVEY_RUNTIME_TOOLS`
 
 The built-in tool scope of a run, comma-separated; empty = the default. The
-default deliberately carries only what a Covey agent uses — file, shell, search,
+default deliberately carries only what a covey agent uses — file, shell, search,
 web and task tools. The runtime's full built-in set costs 20.811 prompt tokens,
 the default 11.045.
 

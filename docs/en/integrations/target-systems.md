@@ -1,7 +1,7 @@
 ---
 slug: target-systems
 title: Target systems & plugins
-description: 'Zammad, Salesforce, Jira, Confluence, GitHub, GitLab, Teams, SharePoint, Nextcloud, email, browser and MCP: how Covey connects agents to foreign systems through plugins.'
+description: 'Zammad, Salesforce, Jira, Confluence, GitHub, GitLab, Teams, SharePoint, Nextcloud, email, browser and MCP: how covey connects agents to foreign systems through plugins.'
 faq:
   - q: Can I connect a system that has no plugin?
     a: 'Yes — fastest through an MCP server, whose tools the agent can then use. If you need wake events, scopes and actions in the recording, write a plugin: as a manifest (JSON, installable with no rebuild), as a WebAssembly module, or compiled in Go. The ones that ship sit in the plugin pack and are the template.'
@@ -13,7 +13,7 @@ faq:
 
 # Target systems & plugins
 
-An agent becomes useful when it works in the systems where the work already happens. In Covey each of them is a **plugin**: it declares its actions, its scopes and its wake events, and the core knows no special cases.
+An agent becomes useful when it works in the systems where the work already happens. In covey each of them is a **plugin**: it declares its actions, its scopes and its wake events, and the core knows no special cases.
 
 ## What ships with it
 
@@ -35,10 +35,10 @@ An agent becomes useful when it works in the systems where the work already happ
 Most of them are compiled in and are simply there. Three are not: **Zammad**,
 **Kubernetes** and **VulnDB** arrive from the **catalogue** as WebAssembly
 modules, and they have to be installed once — *Store → Catalogue → Install*.
-Covey verifies the digest the catalogue pins before storing the module.
+covey verifies the digest the catalogue pins before storing the module.
 
 The difference is deliberate rather than historical: a plugin from the
-catalogue is upgraded without a new Covey release, and a third party can
+catalogue is upgraded without a new covey release, and a third party can
 publish one on exactly the terms we do. Anyone upgrading an installation
 across 0.6.0 installs those three once afterwards — the agents keep their
 access.
@@ -49,7 +49,7 @@ The agent does not call a target system directly. It names an action, the contro
 
 ## Wake events
 
-The best route is the webhook: when something happens in the ticket system, it calls Covey and the responsible agent wakes up. Where there is no webhook, a heartbeat with `nur-wenn:` helps — the control plane checks cheaply whether there is work and otherwise wakes nobody.
+The best route is the webhook: when something happens in the ticket system, it calls covey and the responsible agent wakes up. Where there is no webhook, a heartbeat with `nur-wenn:` helps — the control plane checks cheaply whether there is work and otherwise wakes nobody.
 
 Events carry a correlation key so that a waiting task is resumed instead of a new one being created.
 
@@ -66,7 +66,7 @@ The values behind them — URL, token — belong to the organisation, not to the
 
 ## Connecting your own system
 
-Four routes, depending on how far the connection has to carry. The quickest is an **MCP server** — the agent gets its tools without anything in Covey changing. A **manifest** describes a REST API as a JSON file and installs at runtime, with no rebuild. A **WebAssembly module** brings logic of its own and comes from the catalogue too. And a **compiled plugin** in Go is the route when the integration has to translate what the foreign system stores — Jira and Confluence do exactly that with their document formats. All four serve the same interface; the ones that ship sit in the plugin pack and are the template.
+Four routes, depending on how far the connection has to carry. The quickest is an **MCP server** — the agent gets its tools without anything in covey changing. A **manifest** describes a REST API as a JSON file and installs at runtime, with no rebuild. A **WebAssembly module** brings logic of its own and comes from the catalogue too. And a **compiled plugin** in Go is the route when the integration has to translate what the foreign system stores — Jira and Confluence do exactly that with their document formats. All four serve the same interface; the ones that ship sit in the plugin pack and are the template.
 
 ## Next
 

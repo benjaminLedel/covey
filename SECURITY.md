@@ -1,6 +1,6 @@
 # Security policy
 
-Covey brokers credentials, runs untrusted model output inside sandboxes and
+covey brokers credentials, runs untrusted model output inside sandboxes and
 enforces guard rails on an organisation's behalf. A hole in any of those is
 worth reporting carefully.
 
@@ -23,7 +23,7 @@ rather stay anonymous.
 
 ## Supported versions
 
-Covey has no long-term support branches yet. Fixes go to `main` and into the
+covey has no long-term support branches yet. Fixes go to `main` and into the
 next release; there is no backporting to older tags.
 
 ## Scope
@@ -53,7 +53,7 @@ Out of scope:
 - Denial of service through sheer volume, and findings from automated scanners
   without a demonstrated impact.
 
-## Operating Covey safely
+## Operating covey safely
 
 If you are deploying rather than testing, the checklist in
 [`docs/en/getting-started/quickstart.md`](docs/en/getting-started/quickstart.md) covers the things that

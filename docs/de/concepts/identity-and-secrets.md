@@ -45,7 +45,7 @@ Bekannte Credentials werden beim Speichern sofort gegen ihr System geprüft. Ein
 
 ## Kapazität statt Passwort-Zettel
 
-Mehrere Zugänge zur selben Engine — drei Abo-Sitze und ein API-Schlüssel — sind keine Sicherheitsfrage, sondern eine kaufmäntische. Covey bildet sie als [Arbeitsplatz mit Merit Order](../introduction/core-concepts.md) ab: bezahltes Kontingent zuerst, Verbrauchsabrechnung als Spitzenlast.
+Mehrere Zugänge zur selben Engine — drei Abo-Sitze und ein API-Schlüssel — sind keine Sicherheitsfrage, sondern eine kaufmäntische. covey bildet sie als [Arbeitsplatz mit Merit Order](../introduction/core-concepts.md) ab: bezahltes Kontingent zuerst, Verbrauchsabrechnung als Spitzenlast.
 
 ## Weiter
 

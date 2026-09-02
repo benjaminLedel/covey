@@ -13,7 +13,7 @@ faq:
 
 # Das Wiki-Gedächtnis
 
-Ein Agent, der nach jeder Aufgabe vergisst, was er gelernt hat, wiederholt jeden Fehler und jede Recherche. Covey gibt ihm dafür kein Protokoll und keine Schnipselhalde, sondern ein **Wiki**: verlinkte Markdown-Seiten, eine je Sache, durchsuchbar über einen `pgvector`-Index.
+Ein Agent, der nach jeder Aufgabe vergisst, was er gelernt hat, wiederholt jeden Fehler und jede Recherche. covey gibt ihm dafür kein Protokoll und keine Schnipselhalde, sondern ein **Wiki**: verlinkte Markdown-Seiten, eine je Sache, durchsuchbar über einen `pgvector`-Index.
 
 ## Warum ein Wiki und kein Schnipsel-Speicher
 

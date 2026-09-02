@@ -1,13 +1,13 @@
 ---
 slug: ersten-agenten
 title: Den ersten Agenten anlegen
-description: 'In fünf Schritten vom leeren Covey zum arbeitenden KI-Agenten: einrichten, ausschreiben, Entwurf durchsehen und einstellen, Aufgabe stellen, Lauf im Recording ansehen.'
+description: 'In fünf Schritten vom leeren covey zum arbeitenden KI-Agenten: einrichten, ausschreiben, Entwurf durchsehen und einstellen, Aufgabe stellen, Lauf im Recording ansehen.'
 faq:
   - q: Wie viel kostet ein Agentenlauf?
-    a: So viel wie die Tokens, die das Modell dabei verbraucht — Covey selbst rechnet nichts ab. Jeder Lauf wird mit Tokens und Kosten aufgezeichnet, aufgeschlüsselt nach Agent und Modell. Pro Agent lässt sich ein Budget setzen; ist es erreicht, arbeitet er nicht weiter.
+    a: So viel wie die Tokens, die das Modell dabei verbraucht — covey selbst rechnet nichts ab. Jeder Lauf wird mit Tokens und Kosten aufgezeichnet, aufgeschlüsselt nach Agent und Modell. Pro Agent lässt sich ein Budget setzen; ist es erreicht, arbeitet er nicht weiter.
   - q: Was gehört in die SOUL.md und was in die PLAYBOOKS.md?
     a: 'In die `SOUL.md` gehört, wer der Agent ist: Rolle, Zuständigkeit, Ton, Grenzen. In die `PLAYBOOKS.md` gehört, wie er vorgeht: die Schrittfolge für einen wiederkehrenden Fall. Faustregel — die SOUL ändert sich selten, ein Playbook ändert sich, sobald sich der Ablauf ändert.'
-  - q: Kann ich einen Agenten aus einem anderen Covey übernehmen?
+  - q: Kann ich einen Agenten aus einem anderen covey übernehmen?
     a: Ja. Die Konfiguration lässt sich als Bündel exportieren und in einer anderen Instanz importieren — mitsamt Playbooks, Zugriffswünschen und Heartbeat. Die Secrets bleiben, wo sie waren; sie gehören der Organisation, nicht dem Bündel.
   - q: Warum tut mein Agent nichts, obwohl eine Aufgabe im Backlog liegt?
     a: 'Die drei häufigsten Gründe: Es liegt kein Credential vor (dann sagt es die Checkliste), das Sandbox-Image fehlt (dann sagt es der Start-Log), oder der Agent wurde per Not-Aus angehalten. Im Recording steht in allen drei Fällen, woran es lag.'

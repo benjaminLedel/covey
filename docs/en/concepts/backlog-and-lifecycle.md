@@ -13,7 +13,7 @@ faq:
 
 # Backlog & lifecycle
 
-In Covey, work does not arrive through a chat window but through a backlog. That is not a matter of taste: a task that is an object of its own has a state, an owner, a history and an end — a chat history has none of those.
+In covey, work does not arrive through a chat window but through a backlog. That is not a matter of taste: a task that is an object of its own has a state, an owner, a history and an end — a chat history has none of those.
 
 ## The states
 
@@ -38,7 +38,7 @@ When an event with the same key arrives later, it wakes exactly that task again,
 
 ## Wake sources
 
-- **Webhook** — the target system calls Covey when something happens there. The fastest route, and the only one without idle polling.
+- **Webhook** — the target system calls covey when something happens there. The fastest route, and the only one without idle polling.
 - **Heartbeat** — a schedule from `HEARTBEAT.md`, e.g. `- alle: 30m titel: Inbox aufgabe: Triage new tickets.` With `nur-wenn:` the control plane cheaply checks first whether there is anything to do at all, and otherwise lets the agent sleep.
 - **By hand** — "Wake" in the interface, or an API call.
 

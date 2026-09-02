@@ -1,7 +1,7 @@
 ---
 slug: agenten-modell
 title: Das Agenten-Modell
-description: 'Was einen Covey-Agenten ausmacht: eigene Identität, isolierte Sandbox mit persistentem Home, versioniertes Verhalten in SOUL.md und Rechenzeit nur bei Bedarf.'
+description: 'Was einen covey-Agenten ausmacht: eigene Identität, isolierte Sandbox mit persistentem Home, versioniertes Verhalten in SOUL.md und Rechenzeit nur bei Bedarf.'
 faq:
   - q: Behält ein Agent seine Dateien zwischen zwei Läufen?
     a: Ja. Der Container ist ephemer, das Home nicht — es wird als Volume eingehängt und überlebt jeden Neustart. Ein geklontes Repository, eine heruntergeladene Datei oder eine Notiz ist beim nächsten Wecken noch da.

@@ -1,6 +1,6 @@
 # 22 — The plugin marketplace (target systems from a catalogue)
 
-Covey connects target systems as **plugins** ([`10-architecture-stack.md`](10-architecture-stack.md), [`13-zammad-integration.md`](13-zammad-integration.md)). Four kinds satisfy the same `target.System` interface, and they differ in what the artefact is and whether installing it needs a rebuild:
+covey connects target systems as **plugins** ([`10-architecture-stack.md`](10-architecture-stack.md), [`13-zammad-integration.md`](13-zammad-integration.md)). Four kinds satisfy the same `target.System` interface, and they differ in what the artefact is and whether installing it needs a rebuild:
 
 | Kind | Artefact | Installable at runtime |
 |---|---|---|
@@ -27,7 +27,7 @@ covey-plugins (the index)                    any repository (the artefact)
 | | Index repository | Plugin repository |
 |---|---|---|
 | Contents | one entry file per plugin: metadata, versions, the URL and digest of the artefact | the manifest or the MCP configuration itself |
-| Who owns it | the Covey project (or, for a self-hosted catalogue, whoever operates it) | the plugin's author, anywhere |
+| Who owns it | the covey project (or, for a self-hosted catalogue, whoever operates it) | the plugin's author, anywhere |
 | How it changes | pull request | however its owner likes |
 
 The split is what makes third-party hosting acceptable. A marketplace that stored the plugins themselves would inherit the whole hosting problem — uploads, quotas, takedowns, storage. An index that merely points inherits none of it, and the author keeps their plugin where their tests, their issues and their release process already live.
@@ -91,7 +91,7 @@ The instance fetches it periodically, caches the last good copy and keeps servin
 
 ## The digest is the hinge
 
-The foreign repository may be force-pushed, retagged, deleted or sold. None of that can change what a Covey instance installs, because the instance verifies the `sha256` from the entry before it stores anything. A changed artefact no longer matches its digest and the installation fails loudly — it does not silently become something else.
+The foreign repository may be force-pushed, retagged, deleted or sold. None of that can change what a covey instance installs, because the instance verifies the `sha256` from the entry before it stores anything. A changed artefact no longer matches its digest and the installation fails loudly — it does not silently become something else.
 
 That is what turns "the plugin may live in a third-party repository" from a risk into a detail. **Every change that ever reaches an instance is a merge into the index**, which is to say: a reviewable diff, in one place, with a history.
 
@@ -184,7 +184,7 @@ The catalogue is where a target system goes by default. Compiling one in is the 
 | Materialising files into the sandbox, or running work there | `gitlab`, `github` (checkout, uploads, sub-agent runs), `browser`, `dev` |
 | Real computation, not a call | **nobody, any more.** This was `vulndb` and `k8s`, and it is the one reason a wasm module covers as well as a compiled plugin — so both left, and a new system of this shape belongs in the catalogue |
 
-That left three whose **logic** did not need the binary, each held there by one capability the engine lacked. **All three have moved** — `zammad`, `vulndb` and `k8s` are wasm entries in the catalogue as of Covey 0.6.0, and the table below is kept as the record of what it took, because the next person to move a plugin will meet the same shape of problem.
+That left three whose **logic** did not need the binary, each held there by one capability the engine lacked. **All three have moved** — `zammad`, `vulndb` and `k8s` are wasm entries in the catalogue as of covey 0.6.0, and the table below is kept as the record of what it took, because the next person to move a plugin will meet the same shape of problem.
 
 | Plugin | What held it in the binary | What cleared it |
 |---|---|---|
@@ -212,13 +212,13 @@ Everything above is about which plugins *exist* in the binary. Whoever wants non
 make build-nopack        # or: go build -tags nopack ./cmd/covey
 ```
 
-Such a binary registers no target system of its own and takes every one of them from the catalogue — about 3 MB smaller, and above all with nothing left that has to wait for a Covey release when it changes. Finer than the tag, one line in that file is one plugin: delete it and the rest stays as it is. Both binaries need the same list — the control plane brokers the access, the daemon executes it, so a plugin missing on one side is missing on both.
+Such a binary registers no target system of its own and takes every one of them from the catalogue — about 3 MB smaller, and above all with nothing left that has to wait for a covey release when it changes. Finer than the tag, one line in that file is one plugin: delete it and the rest stays as it is. Both binaries need the same list — the control plane brokers the access, the daemon executes it, so a plugin missing on one side is missing on both.
 
 The tag changes nothing about manifest, wasm and MCP plugins: those arrive at runtime, and an installation that has them keeps them.
 
 ## Built-ins in the catalogue
 
-A compiled plugin cannot be installed at runtime, but it should still be *findable* — somebody looking for "Zammad" should not have to know which of the three kinds it happens to be. Entries with `kind: "builtin"` therefore appear in the catalogue as **"ships with Covey ≥ X — activate instead of install"**, with the store showing the activation switch rather than an install button. Their contribution path is a pull request against Covey's own repository, not against the index.
+A compiled plugin cannot be installed at runtime, but it should still be *findable* — somebody looking for "Zammad" should not have to know which of the three kinds it happens to be. Entries with `kind: "builtin"` therefore appear in the catalogue as **"ships with covey ≥ X — activate instead of install"**, with the store showing the activation switch rather than an install button. Their contribution path is a pull request against covey's own repository, not against the index.
 
 ## Deliberately not, for now
 
@@ -228,7 +228,7 @@ A compiled plugin cannot be installed at runtime, but it should still be *findab
 
 ## Acceptance
 
-- A manifest lands in the store of an instance through a pull request against the index repository, without a Covey release.
+- A manifest lands in the store of an instance through a pull request against the index repository, without a covey release.
 - An artefact changed after the fact at the same URL cannot be installed — the digest fails and the error names it.
 - `COVEY_MARKETPLACE_URL` pointed at a fork shows that fork's plugins and none of the official ones; empty shows the state as it is today.
 - An installed plugin stays usable when the catalogue is unreachable.

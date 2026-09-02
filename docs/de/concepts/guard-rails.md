@@ -1,7 +1,7 @@
 ---
 slug: guard-rails
 title: Guard-Rails & Kontrolle
-description: 'Freigaben, Aufzeichnung und Not-Aus: Wie Covey Grenzen für KI-Agenten außerhalb der Runtime erzwingt — fail-closed, nicht über den Prompt, und für jeden Lauf nachvollziehbar.'
+description: 'Freigaben, Aufzeichnung und Not-Aus: Wie covey Grenzen für KI-Agenten außerhalb der Runtime erzwingt — fail-closed, nicht über den Prompt, und für jeden Lauf nachvollziehbar.'
 faq:
   - q: Kann ein Agent seine eigenen Guard-Rails ändern?
     a: Nein. Sie liegen in der Control Plane, nicht in seiner Konfiguration, und werden außerhalb der Runtime durchgesetzt. Ändern kann sie ein Mensch mit der passenden Rolle — und diese Änderung steht im Audit-Trail.
@@ -15,7 +15,7 @@ faq:
 
 # Guard-Rails & Kontrolle
 
-Die Frage, die über den Einsatz von Agenten in einem Unternehmen entscheidet, ist nicht „kann er das?", sondern „was passiert, wenn er sich irrt?". Covey beantwortet sie mit drei Dingen: erzwungenen Grenzen, Freigaben an den richtigen Stellen und einer Aufzeichnung, die hinterher trägt.
+Die Frage, die über den Einsatz von Agenten in einem Unternehmen entscheidet, ist nicht „kann er das?", sondern „was passiert, wenn er sich irrt?". covey beantwortet sie mit drei Dingen: erzwungenen Grenzen, Freigaben an den richtigen Stellen und einer Aufzeichnung, die hinterher trägt.
 
 ## Warum nicht im Prompt
 

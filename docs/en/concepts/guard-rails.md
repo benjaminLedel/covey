@@ -1,7 +1,7 @@
 ---
 slug: guard-rails
 title: Guard-rails & control
-description: 'Approvals, recording and a kill switch: how Covey enforces boundaries for AI agents outside the runtime — fail-closed, not through the prompt, and traceable for every run.'
+description: 'Approvals, recording and a kill switch: how covey enforces boundaries for AI agents outside the runtime — fail-closed, not through the prompt, and traceable for every run.'
 faq:
   - q: Can an agent change its own guard-rails?
     a: No. They live in the control plane, not in its configuration, and are enforced outside the runtime. A human with the right role can change them — and that change appears in the audit trail.
@@ -15,7 +15,7 @@ faq:
 
 # Guard-rails & control
 
-The question that decides whether agents get used in a company is not "can it do this?" but "what happens when it gets it wrong?". Covey answers with three things: enforced boundaries, approvals in the right places, and a recording that holds up afterwards.
+The question that decides whether agents get used in a company is not "can it do this?" but "what happens when it gets it wrong?". covey answers with three things: enforced boundaries, approvals in the right places, and a recording that holds up afterwards.
 
 ## Why not in the prompt
 

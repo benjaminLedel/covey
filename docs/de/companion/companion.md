@@ -6,7 +6,7 @@ description: 'Der Ausblick: eine App, in der Menschen Wissen abladen, ein Kurato
 
 # Die Companion-App
 
-> **In Entwicklung.** Das Konzept steht, der Bau folgt. Grundlage ist die Gedächtnis-Infrastruktur von Covey.
+> **In Entwicklung.** Das Konzept steht, der Bau folgt. Grundlage ist die Gedächtnis-Infrastruktur von covey.
 
 Der Companion ist eine eigenständige, optionale App: der Ort, an dem ein Mensch ablädt, was er im Kopf trägt — Ideen unterwegs gesprochen, Notizen, Dokumente — und daraus Kontext für seine Agenten macht.
 

@@ -1,4 +1,4 @@
-# Covey — the setup for trying it out.
+# covey — the setup for trying it out.
 #
 #   1. cp .env.example .env
 #   2. echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env   # 32-byte key
@@ -9,7 +9,7 @@
 #   4. docker compose up -d --build
 #   5. http://localhost:8494  →  admin@covey.local / covey-admin
 #
-# Contains everything Covey needs: Postgres (pgvector) and the covey binary with
+# Contains everything covey needs: Postgres (pgvector) and the covey binary with
 # its embedded admin UI. `bootstrap` creates the organisation, the admin, a demo
 # agent and its workplace once; after that `covey serve` starts (migrations run
 # automatically).

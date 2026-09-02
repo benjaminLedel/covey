@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in Covey behaves differently than it should
+description: Something in covey behaves differently than it should
 labels: ["bug"]
 body:
   - type: markdown
@@ -13,7 +13,7 @@ body:
     id: what-happened
     attributes:
       label: What happened
-      description: What you did, and what Covey did instead of what you expected.
+      description: What you did, and what covey did instead of what you expected.
       placeholder: |
         I assigned a GitLab target system to an agent and woke it via webhook.
         The task went to `blocked` and never came back, even after the merge
@@ -55,7 +55,7 @@ body:
   - type: dropdown
     id: deployment
     attributes:
-      label: How are you running Covey
+      label: How are you running covey
       options:
         - docker compose (the bundled docker-compose.yml)
         - Binary from a release

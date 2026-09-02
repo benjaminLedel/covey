@@ -20,7 +20,7 @@ production use lie.
 ## 1. Overview of the data flow
 
 ```
-Teams  ──(user @mention/DM)──►  Azure Bot Service  ──(POST activity, JWT)──►  Covey
+Teams  ──(user @mention/DM)──►  Azure Bot Service  ──(POST activity, JWT)──►  covey
                                                                                 │  /api/webhooks/teams/<agent-slug>
                                                                                 │  check JWT → intake filter → backlog task
                                                                                 ▼
@@ -31,10 +31,10 @@ Teams  ◄──(bot connector /v3, OAuth2 token)──────────�
 
 Two directions, two auth routes:
 
-- **Inbound** (Bot Service → Covey): the messaging endpoint, verified by a **JWT**
+- **Inbound** (Bot Service → covey): the messaging endpoint, verified by a **JWT**
   (issuer `api.botframework.com`, audience = the bot app ID, RS256/JWKS). The
   expected app ID through `COVEY_TEAMS_WEBHOOK_SECRET`.
-- **Outbound** (Covey → bot connector): REST with a short-lived token exchanged
+- **Outbound** (covey → bot connector): REST with a short-lived token exchanged
   by OAuth2 `client_credentials`. The app ID + app password come brokered
   (the secret `teams_token`) and are never persisted in the sandbox.
 
@@ -43,7 +43,7 @@ Two directions, two auth routes:
 ## 2. Setup — step by step
 
 Order: **Azure first** (register the bot), **then Teams** (the app package, so
-that users can write to the bot), **then Covey** (secrets, target system, env).
+that users can write to the bot), **then covey** (secrets, target system, env).
 Reckon with ~30 minutes if you have the necessary roles.
 
 ### 2.0 Which roles/rights do I need?
@@ -53,7 +53,7 @@ Reckon with ~30 minutes if you have the necessary roles.
 | Create the Azure bot resource + app registration | **Application Administrator** (or Cloud Application Administrator) in Entra ID **and** *Contributor* on an Azure subscription/resource group |
 | Upload (sideload) a custom Teams app | A user whose **Teams setup policy** allows "Upload custom apps" — enabled by the **Teams administrator** |
 | Publish/approve the app org-wide | **Teams Administrator** (Teams Admin Center → *Teams apps → Manage apps*) |
-| Configure Covey (secrets, target system, env) | Covey **org_admin**/**security** + the **agent owner** |
+| Configure covey (secrets, target system, env) | covey **org_admin**/**security** + the **agent owner** |
 
 > **Important — no Graph, no admin consent for the MVP.** For pure
 > sending/receiving **including file attachments in 1:1 chats** the bot needs
@@ -69,7 +69,7 @@ Reckon with ~30 minutes if you have the necessary roles.
 1. Azure portal → create an **"Azure Bot"** (the resource "Azure Bot"). As the
    *Microsoft App ID* choose "Create new", type **Multi-Tenant** (the simplest
    start; single-tenant works too, then set `teams_url` tenant-specifically in
-   Covey — see 2.4).
+   covey — see 2.4).
 2. After creation note the **Microsoft app ID** (the client ID of the
    associated app registration) — it is at once the bot ID, a credential
    component and the JWT audience.
@@ -92,7 +92,7 @@ The bot resource → *Configuration* → **Messaging endpoint**:
 https://covey.example.com/api/webhooks/teams/<agent-slug>
 ```
 
-`<agent-slug>` = the slug of the responsible agent in Covey; the message is
+`<agent-slug>` = the slug of the responsible agent in covey; the message is
 assigned to the agent through the URL. The **agent ID** is accepted as an
 alternative (the UUID from the agent page's URL) — handy when the endpoint in
 the third-party system cannot be changed afterwards. The slug is still the
@@ -122,10 +122,10 @@ from 2.1 and adjust the domains/names:
     "privacyUrl": "https://covey.example.com/privacy",
     "termsOfUseUrl": "https://covey.example.com/terms"
   },
-  "name": { "short": "Covey agent", "full": "Covey AI agent" },
+  "name": { "short": "covey agent", "full": "covey AI agent" },
   "description": {
     "short": "AI agent in the Teams chat",
-    "full": "A Covey agent that works on messages and files in the Teams chat."
+    "full": "A covey agent that works on messages and files in the Teams chat."
   },
   "icons": { "color": "color.png", "outline": "outline.png" },
   "accentColor": "#2A5B9E",
@@ -156,13 +156,13 @@ The important fields:
 **Uploading (sideloading)** — Teams → *Apps* → *Manage your apps* → *Upload an
 app* → *Upload a custom app* → choose the `.zip` → *Add*. Prerequisite: custom
 app upload is allowed for you (2.0). Afterwards open the bot as a 1:1 chat or
-write `@Covey agent …` in a channel where the app is installed.
+write `@covey agent …` in a channel where the app is installed.
 
 **Rolling out org-wide** (instead of sideloading per user): Teams Admin Center →
 *Teams apps → Manage apps* → *Upload new app*, then release it through
 *Permission policies*. This needs the Teams admin role.
 
-### 2.4 Covey: deposit the secrets
+### 2.4 covey: deposit the secrets
 
 Set per agent in the SecretStore (UI: agent page → Secrets, or via the API):
 
@@ -176,7 +176,7 @@ The app ID goes **before** the first `:`, the rest is the password (it may
 contain `:`). Without one of the Claude values, tasks fail with
 "Not logged in" — the sandbox has its own empty `HOME`.
 
-### 2.5 Covey: enable the target system + release access
+### 2.5 covey: enable the target system + release access
 
 The target system `teams` has to be **enabled** for the org (UI: Target systems
 → enable Microsoft Teams). If it is not active, the broker refuses every
@@ -187,7 +187,7 @@ In addition the agent has to be allowed to access `teams` according to its
 forbid `teams` / `teams:send` / `teams:reply` / `teams:create_conversation` /
 `teams:download_attachment`.
 
-### 2.6 Covey: set the process env
+### 2.6 covey: set the process env
 
 ```bash
 COVEY_PUBLIC_URL=https://covey.example.com        # reachable from the Bot Service, NOT localhost
@@ -205,7 +205,7 @@ COVEY_TEAMS_ATTACHMENT_MAX_MB=25                  # size limit per attachment (1
 ### 2.7 Testing
 
 1. Send the bot a **1:1 message** in Teams (or @mention it in a channel).
-2. In Covey: does a backlog task appear at the agent? → look at the recording.
+2. In covey: does a backlog task appear at the agent? → look at the recording.
 3. If the agent replies, check: does the reply arrive in the Teams chat?
 4. Attach a file: does the agent load it (`download_attachment`) and engage with
    its content?
@@ -220,7 +220,7 @@ COVEY_TEAMS_ATTACHMENT_MAX_MB=25                  # size limit per attachment (1
 > connector call by the agent including Microsoft's answer. Credentials are
 > redacted in it, bodies truncated; retention 72 h
 > (`COVEY_REQUEST_LOG_RETENTION`). If no incoming entry arrives at all, the path
-> ends before Covey: the messaging endpoint, `COVEY_PUBLIC_URL` or the reverse
+> ends before covey: the messaging endpoint, `COVEY_PUBLIC_URL` or the reverse
 > proxy.
 
 ### 2.8 Common stumbling blocks
@@ -228,7 +228,7 @@ COVEY_TEAMS_ATTACHMENT_MAX_MB=25                  # size limit per attachment (1
 | Symptom | Cause / fix |
 |---|---|
 | The bot does not appear in Teams | Custom app upload not allowed (2.0) or the app not installed. Roll out org-wide or adjust the setup policy. |
-| The message arrives but Covey does not react | The messaging endpoint is wrong (`<agent-slug>`?), `COVEY_PUBLIC_URL` is not public, or the target system `teams` is not enabled (2.5). |
+| The message arrives but covey does not react | The messaging endpoint is wrong (`<agent-slug>`?), `COVEY_PUBLIC_URL` is not public, or the target system `teams` is not enabled (2.5). |
 | `signatur ungültig` / 401 at the webhook | `COVEY_TEAMS_WEBHOOK_SECRET` ≠ the bot app ID. Both have to be the app ID from 2.1. |
 | The agent does not answer back | `teams_token` is wrong (`appId:appPassword`?), the secret has expired, or the egress blocks `login.microsoftonline.com` / the connector host (section 5). The recording states the cause in plain words — "Zugang zu teams verweigert" means the secret is missing or not assigned to the agent. |
 | File attachments are missing in the 1:1 chat | `supportsFiles: true` forgotten in the manifest (2.3). |
@@ -261,7 +261,7 @@ A message **with an attachment only** (a file without text) wakes as well.
 
 ### Attachments
 
-If a message carries files, Covey lists them in the task body (name, content
+If a message carries files, covey lists them in the task body (name, content
 type, a ready-made `download_attachment` call). The agent loads them through the
 action `download_attachment {"url":"…","name":"…"}` into its sandbox
 (`attachments/`) and reads them with the read tool (images by vision). Details:
@@ -322,7 +322,7 @@ with that agent's slug URL.
 
 If the agent asks a follow-up question (`send`/`reply`), it goes `blocked`.
 The correlation key is `teams:conversation:<conversation_id>`. The user's
-follow-up message is delivered by the Bot Service as a new activity; Covey
+follow-up message is delivered by the Bot Service as a new activity; covey
 correlates via the `conversation.id` and continues the agent via
 `claude -p --resume`.
 Details: [`../spec/15-teams-integration.md`](../../../spec/15-teams-integration.md).
@@ -371,7 +371,7 @@ port 9998. That is how you test outbound without an Azure registration:
 1. Start `go run ./demo/faketeams`.
 2. Secret `teams_token = demo-app:demo-secret`, `teams_url = http://localhost:9998/token`.
 3. Leave `COVEY_TEAMS_WEBHOOK_SECRET` **empty** (JWT check off).
-4. Simulate an incoming message (inbound → wake Covey):
+4. Simulate an incoming message (inbound → wake covey):
 
    ```bash
    curl -X POST http://localhost:8494/api/webhooks/teams/<agent-slug> \
@@ -379,7 +379,7 @@ port 9998. That is how you test outbound without an Azure registration:
        "type":"message","id":"a1","text":"Hallo Agent",
        "serviceUrl":"http://localhost:9998","channelId":"msteams",
        "from":{"id":"29:kunde","name":"Kunde"},
-       "recipient":{"id":"28:bot","name":"Covey"},
+       "recipient":{"id":"28:bot","name":"covey"},
        "conversation":{"id":"19:conv1","conversationType":"personal","tenantId":"t1"}}'
    ```
 
@@ -420,7 +420,7 @@ Subject: Azure Bot (Bot Framework) for AI-agent pilot — <Company / Tenant>
 
 Context
 We are evaluating how to roll out AI agents across the organization (platform:
-Covey — it manages AI agents like employees). We want to connect Microsoft Teams
+covey — it manages AI agents like employees). We want to connect Microsoft Teams
 as the human<->agent channel and therefore need an Azure Bot based on the
 Microsoft Bot Framework in the <Company> Microsoft 365 tenant.
 
@@ -436,7 +436,7 @@ What we need — please pick ONE option
 
 Messaging endpoint (enter when creating the bot resource)
   https://<covey-host>/api/webhooks/teams/<agent-slug>
-  (I will provide the final URL once the pilot's Covey instance is up.)
+  (I will provide the final URL once the pilot's covey instance is up.)
 
 Teams side
   Please either enable custom-app upload for me, or approve the app org-wide
@@ -460,6 +460,6 @@ Secret handling
   <e.g. 6 months>.
 ```
 
-After provisioning, the Covey side follows (a manifest with
+After provisioning, the covey side follows (a manifest with
 `supportsFiles: true`, secrets, enabling the target system) according to
 section 2.

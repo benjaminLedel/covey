@@ -1,4 +1,4 @@
-# GitHub-Pipeline für Covey.
+# GitHub-Pipeline für covey.
 #
 # Das Repository liegt auf GitLab (dort läuft die vollständige Pipeline samt
 # Deploy) UND auf GitHub — dort ist es das öffentliche Gesicht des Projekts.

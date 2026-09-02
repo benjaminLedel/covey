@@ -64,7 +64,7 @@ answers with **concrete proposed changes to the config files**:
   and shows the gap instead of writing blindly.
 
 While formulating, the assistant knows the **platform context**: the
-Covey platform protocol (`agents.ProtocolInstructions`), the target systems connected
+covey platform protocol (`agents.ProtocolInstructions`), the target systems connected
 to the agent including their available actions, the guard rails in force and
 the org embedding. That way it only proposes behaviour the platform actually permits
 (it invents no action the action proxy does not offer).

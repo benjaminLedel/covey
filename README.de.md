@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="web/public/icon-192.png" alt="Covey" width="88" />
+<img src="web/public/icon-192.png" alt="covey" width="88" />
 
-# Covey
+# covey
 
 **Die IT- und HR-Abteilung für KI-Agenten.**
 
@@ -23,7 +23,7 @@ Sie verteilen die Arbeit, setzen die Grenzen und lesen nach, was getan wurde.
 
 ---
 
-![Ein Durchgang durch Covey](web/public/shots/tour.de.gif)
+![Ein Durchgang durch covey](web/public/shots/tour.de.gif)
 
 <div align="center">
 
@@ -33,9 +33,9 @@ Sie verteilen die Arbeit, setzen die Grenzen und lesen nach, was getan wurde.
 
 ---
 
-## Was Covey ist
+## Was covey ist
 
-Covey ist eine selbst gehostete Plattform, um KI-Agenten im Unternehmen zu betreiben. Sie legen einen Agenten an, geben ihm Zugang zu den Systemen, die er braucht, und er arbeitet seinen Backlog selbständig ab. Alles, was er tut, wird protokolliert, und alles, was er kostet, wird gezählt.
+covey ist eine selbst gehostete Plattform, um KI-Agenten im Unternehmen zu betreiben. Sie legen einen Agenten an, geben ihm Zugang zu den Systemen, die er braucht, und er arbeitet seinen Backlog selbständig ab. Alles, was er tut, wird protokolliert, und alles, was er kostet, wird gezählt.
 
 Drei Beispiele für das, was ein Agent hier tut:
 
@@ -45,9 +45,9 @@ Drei Beispiele für das, was ein Agent hier tut:
 
 Ein Agent schläft, bis ein Webhook, eine geplante Prüfung oder ein Mensch ihn weckt; ein untätiger Agent kostet deshalb nichts. Worauf er zugreifen darf, entscheidet die Plattform und nicht der Prompt des Agenten. Seine Aktionen und Screenshots landen in einer Aufzeichnung, die Sie später lesen können, die Ausgaben sind nach Agent und Modell aufgeschlüsselt, und ein Knopf stoppt alle Agenten der Organisation auf einmal.
 
-Covey ist für Organisationen gebaut, nicht für eine einzelne Person am Schreibtisch. Mehrere Leute verwalten es — IT, Team-Leads, Security, Controlling —, Rechte und Leitplanken werden zentral gesetzt, und Menschen und Agenten stehen im selben Organigramm.
+covey ist für Organisationen gebaut, nicht für eine einzelne Person am Schreibtisch. Mehrere Leute verwalten es — IT, Team-Leads, Security, Controlling —, Rechte und Leitplanken werden zentral gesetzt, und Menschen und Agenten stehen im selben Organigramm.
 
-**Status:** Covey ist einsatzbereit. [covey.work](https://covey.work) läuft auf dem `main` dieses Repos und wird bei jedem Push neu ausgerollt; Releases sind versioniert, Upgrades dokumentiert, und eine Integrationssuite deckt den ganzen Weg vom Wecken bis zum Ergebnis ab.
+**Status:** covey ist einsatzbereit. [covey.work](https://covey.work) läuft auf dem `main` dieses Repos und wird bei jedem Push neu ausgerollt; Releases sind versioniert, Upgrades dokumentiert, und eine Integrationssuite deckt den ganzen Weg vom Wecken bis zum Ergebnis ab.
 
 > **Codename.** Ein „covey" ist ein kleiner Schwarm, der zusammen unterwegs ist — ungefähr das, was die Plattform mit Agenten macht.
 
@@ -62,7 +62,7 @@ git clone https://github.com/benjaminLedel/covey.git && cd covey
 cp .env.example .env
 echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env
 make sandbox-images-pull        # die fertigen Arbeitsplätze, in denen ein Agent läuft
-docker compose up -d --build    # Postgres + Covey
+docker compose up -d --build    # Postgres + covey
 ```
 
 **[http://localhost:8494](http://localhost:8494)** öffnen, Login `admin@covey.local` / `covey-admin`.
@@ -135,7 +135,7 @@ flowchart LR
 
 Die **Control Plane** ist immer an und hält den Zustand: Scheduler, Agenten-Registry, Backlog, Identitäts- und Secrets-Broker, Leitplanken, Observability. Die **Data Plane** ist eine Menge isolierter Sandboxes mit persistentem Home-Verzeichnis. Eine Sandbox ist Wegwerfware — geht eine verloren, wird sie aus Config und Home neu gebaut.
 
-In jeder Sandbox spricht ein kleiner **Daemon** ein einziges Protokoll zur Control Plane, und ein **Adapter** startet darin die eigentliche Runtime, derzeit Claude Code. Weil Covey die Sandbox verwaltet und nicht das Agenten-Framework, rührt ein Austausch der Runtime den Rest des Systems nicht an. Details in [`spec/01-architecture.md`](spec/01-architecture.md).
+In jeder Sandbox spricht ein kleiner **Daemon** ein einziges Protokoll zur Control Plane, und ein **Adapter** startet darin die eigentliche Runtime, derzeit Claude Code. Weil covey die Sandbox verwaltet und nicht das Agenten-Framework, rührt ein Austausch der Runtime den Rest des Systems nicht an. Details in [`spec/01-architecture.md`](spec/01-architecture.md).
 
 Die meisten Teile des Systems haben ein Gegenstück im gewöhnlichen Unternehmen:
 
@@ -177,7 +177,7 @@ Details in [`spec/10-architecture-stack.md`](spec/10-architecture-stack.md).
 
 ## Das Binary installieren
 
-Covey läuft auch ohne Docker Compose. Der Installer holt das Binary für Ihr Betriebssystem und Ihre Architektur aus dem [neuesten Release](https://github.com/benjaminLedel/covey/releases/latest), **prüft die SHA-256-Summe** und legt es nach `/usr/local/bin`:
+covey läuft auch ohne Docker Compose. Der Installer holt das Binary für Ihr Betriebssystem und Ihre Architektur aus dem [neuesten Release](https://github.com/benjaminLedel/covey/releases/latest), **prüft die SHA-256-Summe** und legt es nach `/usr/local/bin`:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/benjaminLedel/covey/main/installer/install.sh | sh
@@ -216,7 +216,7 @@ Betriebs-Runbooks unten gibt es nur auf Englisch.
 | [`docs/en/getting-started/quickstart.md`](docs/en/getting-started/quickstart.md) | Compose-Setup, erster Agent, Produktions-Checkliste |
 | [`docs/en/operations/deployment.md`](docs/en/operations/deployment.md) | CI-Pipeline, Auto-Deploy auf einen Zielhost |
 | [`docs/en/operations/upgrade.md`](docs/en/operations/upgrade.md) | Upgrades, die mehr brauchen als einen Neustart — was vorher zu bauen und zu sichern ist |
-| [`docs/en/operations/api-keys.md`](docs/en/operations/api-keys.md) | API-Keys: Covey von außen steuern — was ein Key darf und was nur der Browser darf |
+| [`docs/en/operations/api-keys.md`](docs/en/operations/api-keys.md) | API-Keys: covey von außen steuern — was ein Key darf und was nur der Browser darf |
 | [`docs/en/operations/runner.md`](docs/en/operations/runner.md) | Runner: Sandboxes auf mehreren Hosts, der Home-Store, harte Egress-Isolation |
 | [`docs/en/operations/workplaces.md`](docs/en/operations/workplaces.md) | Arbeitsplätze: in welchem Image ein Agent arbeitet, die Rollen-Images, ein eigener Arbeitsplatz |
 | [`docs/en/integrations/zammad.md`](docs/en/integrations/zammad.md) | Zammad: API-Token, Webhook + Trigger, kundensichtbare Antworten |
@@ -284,7 +284,7 @@ Ohne eines von beiden scheitern Aufgaben mit „Not logged in · Please run /log
 
 **Tests.** `make test` (Unit) und `make test-integration` (der vollständige Pfad gegen die Dev-DB, mit Mock-Runtime und Fake-Zammad; überspringt, wenn Port 5433 nicht erreichbar ist). Für Demos ohne echtes Zammad: `go run ./demo/fakezammad`, dann die Secrets `zammad_url` = `http://localhost:9999` und `zammad_token` (beliebiger Wert) setzen.
 
-**CI.** Jeder Push und jeder Pull Request prüft Formatierung, `go vet`, die Go- und Frontend-Tests, `govulncheck` und CodeQL — auf GitHub über [Actions](.github/workflows/), auf GitLab über die Pipeline. Jeder Push auf `main` rollt Covey zusätzlich auf einen Zielhost aus (`test → build → deploy`); so bleibt [covey.work](https://covey.work) aktuell. Siehe [`docs/en/operations/deployment.md`](docs/en/operations/deployment.md).
+**CI.** Jeder Push und jeder Pull Request prüft Formatierung, `go vet`, die Go- und Frontend-Tests, `govulncheck` und CodeQL — auf GitHub über [Actions](.github/workflows/), auf GitLab über die Pipeline. Jeder Push auf `main` rollt covey zusätzlich auf einen Zielhost aus (`test → build → deploy`); so bleibt [covey.work](https://covey.work) aktuell. Siehe [`docs/en/operations/deployment.md`](docs/en/operations/deployment.md).
 
 </details>
 
@@ -303,7 +303,7 @@ Ohne eines von beiden scheitern Aufgaben mit „Not logged in · Please run /log
 | `internal/` | Orchestrator, Agenten, Backlog, Identität/Secrets, Leitplanken, Observability, Gedächtnis, Egress, Org, Vorlagen, die Plugin-Mechanik (`target/`: Manifest-Engine, wasm-Runtime, MCP, Aktivierung je Org), HTTP-API |
 | `migrations/` | Versionierte SQL-Migrationen (per `//go:embed` eingebettet) |
 | `web/` | React/Vite/Tailwind-Admin-UI (`dist/` wird eingebettet) |
-| `skills/covey-agent/` | Claude-Code-Skill zum Bauen und Aktualisieren von Covey-Agenten |
+| `skills/covey-agent/` | Claude-Code-Skill zum Bauen und Aktualisieren von covey-Agenten |
 | [`examples/`](examples/) | Fertige Agenten-Bundles: Coding-Agent, QA-Agent, Web-Rechercheur, Log-Triage |
 | `demo/fakezammad/` | Minimaler Zammad-Doppelgänger für lokale Demos |
 | `demo/seed/`, `demo/tour/` | Die Demo-Organisation hinter den Screenshots oben und das Programm, das sie neu aufnimmt |
@@ -338,6 +338,6 @@ Ohne eines von beiden scheitern Aufgaben mit „Not logged in · Please run /log
 
 Copyright (C) 2026 Benjamin Ledel
 
-Covey ist freie Software unter der [GNU Affero General Public License v3.0](LICENSE). Sie dürfen es betreiben, studieren, ändern und weitergeben. Die eine Pflicht, die in der Praxis zählt: Wer ein geändertes Covey anderen über ein Netzwerk anbietet, muss diesen Nutzern den geänderten Quellcode unter denselben Bedingungen zugänglich machen.
+covey ist freie Software unter der [GNU Affero General Public License v3.0](LICENSE). Sie dürfen es betreiben, studieren, ändern und weitergeben. Die eine Pflicht, die in der Praxis zählt: Wer ein geändertes covey anderen über ein Netzwerk anbietet, muss diesen Nutzern den geänderten Quellcode unter denselben Bedingungen zugänglich machen.
 
 Selbst-Hosting innerhalb der eigenen Organisation löst nichts aus — es zu betreiben, wie auch immer konfiguriert, ist schlicht Benutzung der Software.

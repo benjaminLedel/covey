@@ -120,7 +120,7 @@ Org-wide, indicators with the same `kennzahl:` key are summed across agents, and
 
 A third property has to be stated, because the price list invites a reading it cannot quite carry. **Not every dollar in the numerator is a dollar that was spent.** The figure is computed from token counts at standard list prices: on a metered credential — an API key — that is what was billed, on a subscription seat it is what the same work *would* have cost through the API. The seat is paid for regardless ([`18-runtimes-capacity.md`](18-runtimes-capacity.md)).
 
-Covey keeps one figure rather than two, and labels it. A second cost model — fixed seat amounts, entered by hand and apportioned at period close — would buy a more exact number at the price of an apparatus that has to be maintained and can be wrong in its own ways, and it would still not be the invoice.
+covey keeps one figure rather than two, and labels it. A second cost model — fixed seat amounts, entered by hand and apportioned at period close — would buy a more exact number at the price of an apparatus that has to be maintained and can be wrong in its own ways, and it would still not be the invoice.
 
 What that means for reading the price list:
 
@@ -227,7 +227,7 @@ The qualifying figures above narrow the gap but do not close it. Rework, rejecti
 
 The judgement itself stays where it already sits: in the recording, in the approval gates, and in the humans who read both.
 
-Covey Doctor reads all of it and judges — but its output is a **proposal**, never a change in effect ([`21-operations-and-improvement.md`](21-operations-and-improvement.md)). That keeps the sentences above true rather than rewriting them: still nothing rewards an agent for a figure, still nothing shows it its target, still no scheduler decision hangs off one. The humans get the judgement prepared instead of having to assemble it.
+covey Doctor reads all of it and judges — but its output is a **proposal**, never a change in effect ([`21-operations-and-improvement.md`](21-operations-and-improvement.md)). That keeps the sentences above true rather than rewriting them: still nothing rewards an agent for a figure, still nothing shows it its target, still no scheduler decision hangs off one. The humans get the judgement prepared instead of having to assemble it.
 
 ---
 

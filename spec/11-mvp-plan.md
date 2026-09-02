@@ -4,7 +4,7 @@ Translates the MVP scope from [`07-open-decisions.md`](07-open-decisions.md), th
 
 ## Goal (definition of done)
 
-A **support agent** that triages a ticket, answers it itself or escalates it, goes cleanly `blocked` on a follow-up question, wakes up correctly again on the incoming answer and writes the solution into memory — **fully recorded, fenced in by central guard rails and with a kill switch**. When this one vertical slice runs, Covey's core stands.
+A **support agent** that triages a ticket, answers it itself or escalates it, goes cleanly `blocked` on a follow-up question, wakes up correctly again on the incoming answer and writes the solution into memory — **fully recorded, fenced in by central guard rails and with a kill switch**. When this one vertical slice runs, covey's core stands.
 
 ## MVP principles
 

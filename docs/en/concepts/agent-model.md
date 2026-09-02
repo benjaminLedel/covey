@@ -1,7 +1,7 @@
 ---
 slug: agent-model
 title: The agent model
-description: 'What makes up a Covey agent: its own identity, an isolated sandbox with a persistent home, versioned behaviour in SOUL.md, and compute only on demand.'
+description: 'What makes up a covey agent: its own identity, an isolated sandbox with a persistent home, versioned behaviour in SOUL.md, and compute only on demand.'
 faq:
   - q: Does an agent keep its files between runs?
     a: Yes. The container is ephemeral, the home is not — it is mounted as a volume and survives every restart. A cloned repository, a downloaded file or a note is still there at the next wake.

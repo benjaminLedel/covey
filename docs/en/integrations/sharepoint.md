@@ -66,7 +66,7 @@ The link has to point at a **folder** — a link to an individual file is refuse
 during resolution. A plain browser URL of the folder works too; the Graph
 `/shares` endpoint accepts both forms.
 
-### 2.3 In Covey: deposit the secrets
+### 2.3 In covey: deposit the secrets
 
 | Secret | Value | Purpose |
 |---|---|---|
@@ -105,7 +105,7 @@ The following have to be reachable from the sandbox:
 
 ### 2.6 Optional: intake by heartbeat
 
-SharePoint has **no webhook intake** in Covey (Graph change notifications need
+SharePoint has **no webhook intake** in covey (Graph change notifications need
 a publicly validated HTTPS subscription — deliberately not in the MVP). If the
 agent should work through an inbox folder on its own, in the
 `HEARTBEAT.md`:

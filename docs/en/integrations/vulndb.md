@@ -56,7 +56,7 @@ pairs yourself and send them through `query_batch`.
 ## 3. Setup
 
 > **Installing it.** As of 0.6.0 this is a **catalogue plugin**, not a compiled
-> one — Store → Catalogue → Vulnerability databases → Install. Covey verifies the digest the
+> one — Store → Catalogue → Vulnerability databases → Install. covey verifies the digest the
 > catalogue pins before storing the module. Upgrading across 0.6.0 with the
 > plugin already in use: the plugin row and its secrets survive, only the code
 > now arrives from the catalogue, so install it once afterwards and the agents

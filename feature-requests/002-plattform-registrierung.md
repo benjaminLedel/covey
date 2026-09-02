@@ -1,4 +1,4 @@
-# FR-002 — Covey as a platform: self-registration with a waitlist code
+# FR-002 — covey as a platform: self-registration with a waitlist code
 
 Status: **Proposed** · As of: 2026-08-11
 
@@ -8,9 +8,9 @@ Status: **Proposed** · As of: 2026-08-11
 
 ## In short
 
-Today a Covey installation is opened by hand: `covey bootstrap` creates one
+Today a covey installation is opened by hand: `covey bootstrap` creates one
 organisation with one `platform_admin`, and every further human is created by
-that admin under *Users*. Whoever wants to try Covey has to install it.
+that admin under *Users*. Whoever wants to try covey has to install it.
 
 This request describes what has to change so that **a person can sign up on the
 public website**, gated by a **waitlist code**, and then either **join an
@@ -33,7 +33,7 @@ that only whoever can restart the process may change.
 Three things are currently impossible, and each of them costs a real
 conversation:
 
-1. **Nobody can try Covey without installing it.** The public website
+1. **Nobody can try covey without installing it.** The public website
    ([`web/src/public/`](../web/src/public)) explains the product and then offers
    a login form for an account that a visitor does not have. The only path from
    "interested" to "seeing it" runs through Docker and a terminal.
@@ -304,7 +304,7 @@ Defined keys, all with a compiled-in default so a fresh database needs no seed:
 | `mail.from` / `mail.from_name` | text | — | envelope and display sender |
 | `mail.starttls` | bool | `true` | |
 | `mail.last_test_at` / `mail.last_test_error` | timestamp / text | — | written by the test mail; the gate for `signup.mode` reads it |
-| `site.name` | text | `Covey` | what the mails and the sign-up page call this instance |
+| `site.name` | text | `covey` | what the mails and the sign-up page call this instance |
 
 Reads go through a small in-process cache in front of the table; invalidation
 uses the `LISTEN/NOTIFY` channel that the stack already uses for pub/sub
@@ -416,7 +416,7 @@ form that does not know a newly added setting cannot wipe it.
 
 ## RBAC: the missing installation level
 
-Covey's five roles are **org roles** — they answer "what may this person do
+covey's five roles are **org roles** — they answer "what may this person do
 inside their organisation". Nothing in that set answers "what may this person do
 to the *instance*", because until now the two questions had the same answer.
 
@@ -507,7 +507,7 @@ Everything on the page is audited (`audit_log`, migration 0044) with the actor,
 the key and the old/new value — secret values as "changed", never as text.
 
 **Why a table and not an environment variable.** Operating tooling belongs in
-the binary, because Covey is installed from GitHub by third parties
+the binary, because covey is installed from GitHub by third parties
 ([`README.md`](../README.md)) who do not have our deployment pipeline: a setting
 that only exists as an environment variable can be changed only by whoever can
 edit the unit file and restart the process — which on a hosted instance is

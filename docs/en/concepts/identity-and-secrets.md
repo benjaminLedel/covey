@@ -45,7 +45,7 @@ Known credentials are verified against their system the moment they are saved. A
 
 ## Capacity instead of a list of passwords
 
-Several credentials for the same engine — three subscription seats and an API key — are not a security question but a commercial one. Covey models them as a [workplace with a merit order](../introduction/core-concepts.md): capacity already paid for first, metered billing as peak load.
+Several credentials for the same engine — three subscription seats and an API key — are not a security question but a commercial one. covey models them as a [workplace with a merit order](../introduction/core-concepts.md): capacity already paid for first, metered billing as peak load.
 
 ## Next
 

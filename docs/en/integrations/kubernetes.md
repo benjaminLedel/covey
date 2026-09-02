@@ -38,12 +38,12 @@ revealing the value.
 
 ## 2. Installing it
 
-`k8s` is a **catalogue plugin**, not a compiled one. Up to Covey 0.5.0 it
+`k8s` is a **catalogue plugin**, not a compiled one. Up to covey 0.5.0 it
 shipped inside the binary; from 0.6.0 it is a WebAssembly module installed from
 the [plugin catalogue](https://github.com/benjaminLedel/covey-plugins), on the
 same footing as anybody else's plugin.
 
-Store → Catalogue → Kubernetes → Install. Covey verifies the digest the
+Store → Catalogue → Kubernetes → Install. covey verifies the digest the
 catalogue pins before the module is stored, and refuses the install if the
 artefact is not the one the entry names.
 
@@ -92,7 +92,7 @@ two differently privileged tokens under the same name.
 **3. Store the API server endpoint** as `k8s_url` (`https://…:6443`).
 
 **4. If the API server is self-signed** — the k3s default — store the cluster CA
-as `k8s_ca`. Covey builds the trust store from it and dials for the module.
+as `k8s_ca`. covey builds the trust store from it and dials for the module.
 
 > **Changed in 0.6.0.** The certificate used to be passed per action as
 > `{{secret:k8s_ca}}` in a `ca_pem` parameter. It no longer is, and the
@@ -121,7 +121,7 @@ a human decision.
 ## 5. Security model
 
 - **RBAC is the authoritative limit, not the scopes.** A ServiceAccount bound to
-  `view` cannot delete a pod however the agent's `ACCESS.md` reads. Covey's
+  `view` cannot delete a pod however the agent's `ACCESS.md` reads. covey's
   scopes shape what an agent is *told* it can do; Kubernetes decides what it can
   actually do. Both matter, in that order.
 - **The module never sees the token.** It names a path; the host adds the

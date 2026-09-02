@@ -1,11 +1,11 @@
 ---
 name: covey-agent
-description: Build, design, update and share Covey agents. Use this skill when a Covey agent (developer, QA, researcher, support …) is to be designed from scratch, its config (SOUL/PLAYBOOKS/ACCESS/HEARTBEAT) changed, or exported/imported as a bundle. Produces a covey.agent-config bundle following the repo conventions and optionally creates the agent directly through the API.
+description: Build, design, update and share covey agents. Use this skill when a covey agent (developer, QA, researcher, support …) is to be designed from scratch, its config (SOUL/PLAYBOOKS/ACCESS/HEARTBEAT) changed, or exported/imported as a bundle. Produces a covey.agent-config bundle following the repo conventions and optionally creates the agent directly through the API.
 ---
 
-# Building Covey agents
+# Building covey agents
 
-A Covey agent is **config as code**: its behaviour sits in a few Markdown files,
+A covey agent is **config as code**: its behaviour sits in a few Markdown files,
 packed together as a **bundle** (`covey.agent-config`, version 1). This skill leads through
 design, creation, update and sharing. Details of the bundle schema and the target-system
 catalogue are in [reference.md](reference.md) — look them up there, do not guess.
@@ -48,7 +48,7 @@ Read the chosen template in full before you change anything — it shows the pro
 4. **Create it** (workflow D) or put it down as a file so that the user imports it through the UI.
 5. **Name the follow-up work:** the import creates the config but **no secrets** — tell the user
    which secret names the agent needs (from `ACCESS.md`, e.g. `gitlab_token`, `gitlab_url`)
-   and that they have to assign them in Covey. Likewise the egress allowlist where relevant
+   and that they have to assign them in covey. Likewise the egress allowlist where relevant
    (browser/HTTP).
 
 ## Workflow B — Updating an existing agent
@@ -72,7 +72,7 @@ Read the chosen template in full before you change anything — it shows the pro
 
 ## Workflow D — Creating it live (API)
 
-Ask for the **Covey base URL** and **auth** (an admin session cookie OR a bearer token of a
+Ask for the **covey base URL** and **auth** (an admin session cookie OR a bearer token of a
 manage role) — never hardcode credentials. Then:
 
 ```bash
@@ -138,13 +138,13 @@ These rules come from real mistakes — always take them into account when desig
   `:has-text("…")` (the innermost visible text hit). `screenshot` can take `highlight`+`label` to
   mark a defect visually. Reachability depends on the **egress allowlist**.
 - **Never put secrets in the bundle:** only names (`ACCESS.md` / the `secrets` block). Values are
-  assigned separately in Covey and brokered at runtime.
+  assigned separately in covey and brokered at runtime.
 - **Team reference:** refer in `SOUL.md`/`PLAYBOOKS.md` to "the team (AI colleagues)" instead of
-  fixed names — Covey plays the team directory into the prompt (e.g. who gets entered as the
+  fixed names — covey plays the team directory into the prompt (e.g. who gets entered as the
   reviewer).
 - **Every agent reports upwards.** `PLAYBOOKS.md` gets a section telling the agent to report what
   held it up when it was NOT the assignment — a missing action, a tool it is not allowed, a limit
-  it keeps hitting — to Covey Doctor by `covey/create_task`, instead of quietly
+  it keeps hitting — to covey Doctor by `covey/create_task`, instead of quietly
   working around it (spec/21). Write it so it degrades: the agent looks for such a colleague in
   its prompt, and puts the report into its result if there is none. The platform can see THAT a
   run went wrong; why it went wrong only the agent knows, and only while it still knows. The

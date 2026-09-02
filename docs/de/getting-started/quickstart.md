@@ -1,23 +1,23 @@
 ---
 slug: schnellstart
 title: Schnellstart (Docker)
-description: 'Covey selbst hosten: Repository klonen, Master-Key erzeugen, Sandbox-Image bauen, docker compose up — danach läuft die Plattform auf Port 8494.'
+description: 'covey selbst hosten: Repository klonen, Master-Key erzeugen, Sandbox-Image bauen, docker compose up — danach läuft die Plattform auf Port 8494.'
 faq:
-  - q: Welche Ports braucht Covey?
+  - q: Welche Ports braucht covey?
     a: 'Einen: **8494** für API und Oberfläche. Postgres läuft im Compose-Setup auf dem internen Netz und muss nicht nach außen. Die Sandboxen brauchen keinen eingehenden Port — sie rufen die Control Plane von sich aus.'
   - q: Warum dauert der Sandbox-Image-Build so lange?
     a: 'Weil in dem Image der Arbeitsplatz eines Agenten steckt: Claude Code, git, ripgrep, chromium für den Browser, dazu eine Node- und Java-Toolchain und Build-Werkzeuge für native npm-Pakete. Das sind einige Gigabyte, und sie werden einmal gebaut, nicht bei jedem Lauf.'
-  - q: Kann ich Covey ohne den Image-Build ausprobieren?
+  - q: Kann ich covey ohne den Image-Build ausprobieren?
     a: 'Ja — die Plattform startet, die Oberfläche funktioniert, Agenten und Konfigurationen lassen sich anlegen. Nur der erste Lauf scheitert dann, und zwar mit einer Meldung, die genau das sagt: beim Start im Log und in der Checkliste auf der Agenten-Übersicht.'
   - q: Was passiert, wenn ich den COVEY_MASTER_KEY verliere?
     a: Dann ist jedes hinterlegte Secret unlesbar — der Schlüssel ver- und entschlüsselt sie mit AES-GCM. Es gibt keine Hintertür. Sichern Sie die `.env`, und behandeln Sie den Schlüssel wie ein Datenbank-Passwort.
-  - q: Läuft Covey auf einem Raspberry Pi oder auf ARM?
+  - q: Läuft covey auf einem Raspberry Pi oder auf ARM?
     a: 'Die Binaries gibt es für linux/amd64, linux/arm64 sowie macOS in beiden Architekturen. Entscheidend ist weniger die Architektur als der Arbeitsspeicher: In jeder Sandbox laufen eine Node-Runtime und je nach Aufgabe ein chromium.'
 ---
 
 # Schnellstart (Docker)
 
-Covey läuft als einzelnes Binary neben einer Postgres-Datenbank. Ohne Go, ohne Node, ohne lokale Postgres — Docker genügt.
+covey läuft als einzelnes Binary neben einer Postgres-Datenbank. Ohne Go, ohne Node, ohne lokale Postgres — Docker genügt.
 
 ## Voraussetzungen
 
@@ -43,7 +43,7 @@ Der `COVEY_MASTER_KEY` ver- und entschlüsselt alle hinterlegten Secrets. Geht e
 
 Alles außer `docker build` dauert Sekunden. Diese Zeile baut den Container, **in dem ein Agent arbeitet** (Claude Code, chromium, eine Node- und Java-Toolchain) und braucht ein paar Minuten.
 
-Zum Umsehen kann man sie weglassen: Die Plattform startet, die Oberfläche funktioniert, Agenten und Configs lassen sich anlegen. Erst der erste Lauf scheitert dann — und sagt auch, woran. Covey prüft das beim Start und meldet es in den **ersten Schritten** auf der Agenten-Übersicht.
+Zum Umsehen kann man sie weglassen: Die Plattform startet, die Oberfläche funktioniert, Agenten und Configs lassen sich anlegen. Erst der erste Lauf scheitert dann — und sagt auch, woran. covey prüft das beim Start und meldet es in den **ersten Schritten** auf der Agenten-Übersicht.
 
 ## Was `docker compose` startet
 

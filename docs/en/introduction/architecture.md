@@ -3,25 +3,25 @@ slug: architecture
 title: Architecture overview
 description: The control plane as one Go binary, a data plane of ephemeral Docker sandboxes, a WebSocket protocol between them. Postgres carries state, queue and vector search.
 faq:
-  - q: Does Covey need Redis, RabbitMQ or Kafka?
+  - q: Does covey need Redis, RabbitMQ or Kafka?
     a: No. The queue is `SELECT … FOR UPDATE SKIP LOCKED`, the notification is `LISTEN/NOTIFY`, the vector search is `pgvector` — all in the same Postgres instance. A broker would be a second service with its own failure modes for something the database already does.
   - q: Can I use a runtime other than Claude Code?
     a: 'Structurally, yes: runtimes hang off a registry as plugins and speak the daemon protocol through a thin adapter. What ships today is Claude Code headless, plus a mock runtime for tests and demos without model cost.'
   - q: Why does the sandbox run in Docker rather than as a subprocess?
     a: Because process isolation is not isolation once an agent executes tools. The container gives you namespaces, its own filesystem and a controllable way out to the network. There used to be a local provider; it was removed so nobody goes to production without isolation by accident.
-  - q: How does Covey scale beyond one machine?
+  - q: How does covey scale beyond one machine?
     a: 'Through runners: standalone processes that register with the control plane and execute sandboxes. There is still one control plane, the state stays in Postgres, and the homes live centrally.'
 ---
 
 # Architecture overview
 
-Covey falls into two halves that behave very differently: a **control plane** that holds the state and is always running, and a **data plane** of sandboxes that come and go. Between them sits a protocol, and that seam is exactly what keeps the platform replaceable with respect to the runtime.
+covey falls into two halves that behave very differently: a **control plane** that holds the state and is always running, and a **data plane** of sandboxes that come and go. Between them sits a protocol, and that seam is exactly what keeps the platform replaceable with respect to the runtime.
 
 ## Control plane — one process, one binary
 
 A single Go binary unites scheduler and dispatcher, agent registry and org chart, backlog store, identity and secrets broker, guard-rail engine, observability and the HTTP API. The React interface is compiled in via `//go:embed`, and so are the SQL migrations; at startup the instance migrates itself, guarded by a `pg_advisory_lock`.
 
-The reason for the single process is not frugality but operability: whoever installs Covey should copy one file and start it. Everything that would otherwise stand next to it as a second service — queue, pub/sub, vector index — lives in Postgres.
+The reason for the single process is not frugality but operability: whoever installs covey should copy one file and start it. Everything that would otherwise stand next to it as a second service — queue, pub/sub, vector index — lives in Postgres.
 
 ## Data plane — dumb and replaceable
 

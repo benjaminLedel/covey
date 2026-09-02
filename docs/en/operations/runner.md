@@ -69,7 +69,7 @@ Three things it will not do:
 - **Update a host that is not connected.** A machine that hears nothing does
   not update itself; start it, then press the button.
 - **Update the built-in runner.** That one is the control plane's own process
-  and is updated by updating Covey.
+  and is updated by updating covey.
 
 The version installed is the server's own when the server runs a released
 version, and otherwise the newest published release — an instance built from
@@ -149,7 +149,7 @@ covey-runner run
 
 The host does **not** need the sandbox image up front. `docker run` fetches what
 is missing, and the workplace images are published and pinned by digest per
-Covey version so that any host can. Pulling it there in advance (`make
+covey version so that any host can. Pulling it there in advance (`make
 sandbox-image`, or from your registry) only makes the first wake faster.
 
 The one case where that is not automatic: an image in a **private** registry.
@@ -285,7 +285,7 @@ machine that runs something else needs the text, not a refusal.
 
 ```ini
 [Unit]
-Description=Covey runner
+Description=covey runner
 After=network-online.target docker.service
 Wants=network-online.target
 
@@ -379,7 +379,7 @@ it, with the reason in the agent's recording. Half a workplace is the state in
 which an agent reports the wrong defect — it finds the queue missing and writes
 that into a merge request, while the fault was a typo in an image reference.
 
-The images are the project's, not Covey's: they come from wherever the reference
+The images are the project's, not covey's: they come from wherever the reference
 points, so a host behind a proxy or without access to that registry fails here
 with docker's own words. The declaration itself is checked when it is saved — a
 name has to be a host name, because that is what it becomes.
@@ -548,7 +548,7 @@ COVEY_S3_PATH_STYLE=true         # default; false addresses the bucket in the ho
 ```
 
 **S3-compatible, not "AWS S3".** The protocol is the common denominator of
-Hetzner Object Storage, Garage, MinIO, Ceph RadosGW and SeaweedFS — Covey does
+Hetzner Object Storage, Garage, MinIO, Ceph RadosGW and SeaweedFS — covey does
 not prescribe a server. Whatever your hoster offers is usually the right answer;
 otherwise Garage, which is built for exactly this kind of small self-operated
 cluster.
@@ -630,7 +630,7 @@ out. But the connection is an HTTP **upgrade**, and a proxy that does not
 forward it turns the runner into a host that registers and then never connects.
 
 The symptom is unambiguous once you know it: registration succeeds (that is
-plain HTTP), and the connection fails with **426**. The 426 comes from Covey
+plain HTTP), and the connection fails with **426**. The 426 comes from covey
 itself — the request reached it without the upgrade headers, so something in
 between dropped them.
 

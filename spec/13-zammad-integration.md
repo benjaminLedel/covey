@@ -2,19 +2,19 @@
 
 Makes the "one target system" from M5 in [`11-mvp-plan.md`](11-mvp-plan.md) concrete as **Zammad** (an open-source helpdesk, self-hostable, REST/JSON API, triggers + webhooks). Zammad touches three MVP milestones: the event wake (M3), event correlation (M4) and broker + API actions (M5).
 
-Architecturally Zammad is the **first compiled target-system plugin** (`github.com/benjaminLedel/covey-plugin-pack/zammad`). It does not live in Covey's repository: like every plugin it is an ordinary Go package against the public SDK, in the plugin pack, pulled in by blank import — see [`10-architecture-stack.md`](10-architecture-stack.md), "Target systems as plugins". Covey can be built lean without Zammad, and further target systems arrive as further plugins, as uploaded JSON manifests or as WebAssembly modules without touching the core.
+Architecturally Zammad is the **first compiled target-system plugin** (`github.com/benjaminLedel/covey-plugin-pack/zammad`). It does not live in covey's repository: like every plugin it is an ordinary Go package against the public SDK, in the plugin pack, pulled in by blank import — see [`10-architecture-stack.md`](10-architecture-stack.md), "Target systems as plugins". covey can be built lean without Zammad, and further target systems arrive as further plugins, as uploaded JSON manifests or as WebAssembly modules without touching the core.
 
-It fits well because Zammad is widespread in German-speaking countries and, like Covey, self-hostable — both run on the same infrastructure.
+It fits well because Zammad is widespread in German-speaking countries and, like covey, self-hostable — both run on the same infrastructure.
 
 ## Three integration surfaces
 
 ### 1. Inbound: wake via triggers + webhooks (M3/M4)
 
-Zammad knows **triggers** (they react to ticket lifecycle events: created, status changed, new message) and **webhooks** (a POST to an external URL). A trigger fires the webhook at Covey's event router.
+Zammad knows **triggers** (they react to ticket lifecycle events: created, status changed, new message) and **webhooks** (a POST to an external URL). A trigger fires the webhook at covey's event router.
 
 - **New ticket** → trigger → webhook → event router → the support agent wakes up (the M3 wake source).
 - **Customer reply / ticket update** → trigger → webhook → correlation → the blocked agent wakes up (M4).
-- The webhook payload is JSON and contains the ticket (including the **`id`** and `article_ids`), the article, the group and the user; its integrity is verifiable through an **HMAC-SHA1 signature** in the header (an optional signature token) — Covey checks the signature before trusting the event.
+- The webhook payload is JSON and contains the ticket (including the **`id`** and `article_ids`), the article, the group and the user; its integrity is verifiable through an **HMAC-SHA1 signature** in the header (an optional signature token) — covey checks the signature before trusting the event.
 - Operational reality: webhooks are **not guaranteed to arrive immediately** (the same priority/ordering as email triggers) and are retried up to four times on failure. The event router therefore has to be idempotent (the same ticket update must not trigger two wakes).
 
 ### 2. Outbound: actions through the REST API (M5)
@@ -32,7 +32,7 @@ On articles, `internal: true|false` controls visibility (an internal note vs. vi
 
 ### 3. Auth: the broker against Zammad (M5)
 
-Zammad supports three auth methods: HTTP basic, **token access** (permission-scoped API tokens) and OAuth2. For Covey:
+Zammad supports three auth methods: HTTP basic, **token access** (permission-scoped API tokens) and OAuth2. For covey:
 
 - **Token access** is the way: a **dedicated role** with exactly the necessary rights (e.g. `ticket.agent` for particular groups — least privilege), with the token created in the admin interface under *System → API* ("Token access allowed").
 - The **secrets broker** holds this token and injects it into the daemon at runtime — **nothing long-lived in the sandbox** (see [`04-identity-secrets.md`](04-identity-secrets.md)).
@@ -41,14 +41,14 @@ Zammad supports three auth methods: HTTP basic, **token access** (permission-sco
 
 ## `blocked` ↔ Zammad's `pending` state (M4)
 
-Zammad has a **`pending reminder`/`pending close`** state with a `pending_time` — that maps Covey's `blocked` natively and at the same time keeps the **human view consistent**: the ticket visibly sits at "waiting for the customer", neither open nor closed.
+Zammad has a **`pending reminder`/`pending close`** state with a `pending_time` — that maps covey's `blocked` natively and at the same time keeps the **human view consistent**: the ticket visibly sits at "waiting for the customer", neither open nor closed.
 
 Sequence:
 
 1. The agent asks the customer a follow-up question (`POST /ticket_articles`, `internal: false`) and sets the ticket to `pending reminder` (`PUT /tickets/{id}`).
-2. Covey parks the task → `blocked`, **correlation key = the Zammad ticket `id`**, plus the Claude Code `session_id` (see [`12-claude-code-adapter.md`](12-claude-code-adapter.md)).
+2. covey parks the task → `blocked`, **correlation key = the Zammad ticket `id`**, plus the Claude Code `session_id` (see [`12-claude-code-adapter.md`](12-claude-code-adapter.md)).
 3. The customer replies → a Zammad trigger fires the webhook (ticket update, `sender: Customer`).
-4. Covey correlates via the ticket `id`, wakes the agent and continues via `claude -p --resume <session_id>`.
+4. covey correlates via the ticket `id`, wakes the agent and continues via `claude -p --resume <session_id>`.
 
 ## Correlation — practically free for Zammad
 
@@ -66,4 +66,4 @@ Later (not MVP): OAuth2 instead of a token, several groups/agents, attachments (
 ## Notes
 
 - Zammad webhooks have existed since 3.6, freely customisable payloads since 6.0. Checked against the Zammad documentation (`docs.zammad.org`, `admin-docs.zammad.org`, as of July 2026) — check briefly before building.
-- Both systems (Covey and Zammad) run self-hosted; the webhook path Zammad → Covey and the API path Covey → Zammad stay internal, with no detour through third parties.
+- Both systems (covey and Zammad) run self-hosted; the webhook path Zammad → covey and the API path covey → Zammad stay internal, with no detour through third parties.

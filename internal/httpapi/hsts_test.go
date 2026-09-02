@@ -6,7 +6,7 @@ import "testing"
 //
 // The header used to read "max-age=31536000; includeSubDomains" on every HTTPS
 // instance. That is a promise about a domain that is not ours: an organisation
-// running Covey at covey.example.com got a guarantee covering every sibling
+// running covey at covey.example.com got a guarantee covering every sibling
 // name under it, cached in every visitor's browser for a year — and an internal
 // tool still on HTTP under one of those names simply disappears (#132).
 //

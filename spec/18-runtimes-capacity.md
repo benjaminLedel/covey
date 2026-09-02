@@ -24,7 +24,7 @@ A runtime carries:
 - the **model** it uses, because that is a property of the contract and not of the agent (a subscription seat can afford the large model where a metered key cannot),
 - its **limits**, in the sense given below.
 
-A runtime belongs to **exactly one organisation**. It carries credentials, and a credential reaching across tenants would be a channel between them — the same reason a runner serves exactly one Covey instance and, within it, exactly one organisation ([`16-runner.md`](16-runner.md)). It is not only policy: the built-in secret store binds every ciphertext to its organisation through the AES-GCM AAD ([`04-identity-secrets.md`](04-identity-secrets.md)), so a shared credential would not decrypt for the second tenant in the first place. The schema follows the storage rather than fighting it.
+A runtime belongs to **exactly one organisation**. It carries credentials, and a credential reaching across tenants would be a channel between them — the same reason a runner serves exactly one covey instance and, within it, exactly one organisation ([`16-runner.md`](16-runner.md)). It is not only policy: the built-in secret store binds every ciphertext to its organisation through the AES-GCM AAD ([`04-identity-secrets.md`](04-identity-secrets.md)), so a shared credential would not decrypt for the second tenant in the first place. The schema follows the storage rather than fighting it.
 
 The price is worth stating: a group with one provider contract and three subsidiary tenants deposits that credential three times, and its seats cannot be pooled across them. That is a **billing** problem, not a credential problem — costs can be rolled up across organisations later without any tenant ever holding another's secret, and that is the cheaper direction to solve it from.
 
@@ -77,7 +77,7 @@ The file form is subject to the same rule as the variable: written for the run, 
 
 The credential was the first thing that turned out not to be uniform across engines. It is not the last, and the pattern is always the same: something the platform assumed was universal is in fact a convention of the first engine.
 
-- **Where materialised files go.** Covey writes an agent's skills into its home before every run ([`02-agent-model.md`](02-agent-model.md)); the path it writes to is Claude Code's convention (`~/.claude/skills/<name>/SKILL.md`), and another engine looks elsewhere or nowhere. So the engine declares the path — otherwise skills would silently do nothing on the second engine, which is the worst failure mode available: configured, visible in the interface, without effect.
+- **Where materialised files go.** covey writes an agent's skills into its home before every run ([`02-agent-model.md`](02-agent-model.md)); the path it writes to is Claude Code's convention (`~/.claude/skills/<name>/SKILL.md`), and another engine looks elsewhere or nowhere. So the engine declares the path — otherwise skills would silently do nothing on the second engine, which is the worst failure mode available: configured, visible in the interface, without effect.
 - **What the engine can do.** Not every engine covers the whole agent model. The decisive one is **session resume**, on which the entire `blocked` mechanism rests ([`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)): an engine that cannot resume can carry agents that finish their work in one run, and cannot carry an agent that waits for an answer. That has to be a declared property, checked when an agent is assigned — a support agent placed on an engine without resume must be refused at assignment time, not discovered when the first customer query comes back.
 
 Both follow the rule that makes the registry worth having: a difference between engines belongs in the engine's declaration, never in a conditional in the orchestrator.
@@ -127,7 +127,7 @@ Read as consumption, the number is sound in both cases and comparable across the
 
 The overstatement runs in the harmless direction for the question that matters most. An agent on a subscription seat looks *more* expensive than it is, so "is this workforce worth it" is answered conservatively rather than flatteringly. It runs the wrong way only for the marginal question — "should we hand it this next case as well" — where the honest answer on a seat with headroom is closer to nothing than to the reported figure. Where that question is actually being asked, the seat's utilisation is the figure to look at, not the price.
 
-For an authoritative statement about money, the platform is the wrong place to ask: on a metered credential the provider's own billing view is the record, and on a subscription the record is the invoice for the seats. Covey reports consumption and attributes it; it does not reconcile a bill.
+For an authoritative statement about money, the platform is the wrong place to ask: on a metered credential the provider's own billing view is the record, and on a subscription the record is the invoice for the seats. covey reports consumption and attributes it; it does not reconcile a bill.
 
 **And an engine that reports no figure at all is not hypothetical.** Codex reports token counts and leaves the pricing to the caller ([`19-codex-adapter.md`](19-codex-adapter.md)). So "book what the engine reports" holds only where an engine reports something, and the platform needs a **price list** — per model, per token kind — with which it prices the rest itself.
 
@@ -145,7 +145,7 @@ Cost must therefore be attributed not only to the agent and the task but to the 
 
 **A different provider behind the same engine is not one either**, where the engine supports it. Claude Code speaks to Bedrock, Vertex and Foundry as well as to Anthropic directly; that is a matter of which credential and which endpoint the engine is handed, not of a new adapter.
 
-**Covey implementing the agent loop itself is a new engine — and one to think twice about.** What the existing engines provide is not the model call; it is everything around it: tool use, file editing, patch application, shell execution, context compaction, session persistence and resume, and a system prompt that has been tuned against real work. Rebuilding that means becoming a harness vendor, and it contradicts two of the design principles this platform rests on — the control plane is the product, and runtimes are swappable ([`README.md`](README.md), principles 2 and 3). Session resume in particular is not a detail: the whole `blocked` mechanism hangs off it ([`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)).
+**covey implementing the agent loop itself is a new engine — and one to think twice about.** What the existing engines provide is not the model call; it is everything around it: tool use, file editing, patch application, shell execution, context compaction, session persistence and resume, and a system prompt that has been tuned against real work. Rebuilding that means becoming a harness vendor, and it contradicts two of the design principles this platform rests on — the control plane is the product, and runtimes are swappable ([`README.md`](README.md), principles 2 and 3). Session resume in particular is not a detail: the whole `blocked` mechanism hangs off it ([`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)).
 
 There is, however, a fourth case that is worth having and is often what is actually meant:
 
@@ -153,7 +153,7 @@ There is, however, a fourth case that is worth having and is often what is actua
 
 Not every task an organisation gives an agent is agentic. Classify this ticket. Summarise this thread. Extract these fields. Such work needs **one model call**, no tools, no turns, no sandbox — and driving it through a coding harness pays for a system prompt, tool definitions and a multi-turn loop in order to answer a single question.
 
-Covey already does this, it is just not modelled as an engine: `internal/claudeapi` is a narrow, tool-less path to the Messages API, used by the config copilot and by the dream ([`05-memory.md`](05-memory.md)). It is control-plane work rather than agent work, and it is wired to one provider.
+covey already does this, it is just not modelled as an engine: `internal/claudeapi` is a narrow, tool-less path to the Messages API, used by the config copilot and by the dream ([`05-memory.md`](05-memory.md)). It is control-plane work rather than agent work, and it is wired to one provider.
 
 Turning that into a **direct engine** would be tidy rather than ambitious: single turn, no tools, an answer instead of a run. It has three properties the harness engines do not:
 
@@ -163,7 +163,7 @@ Turning that into a **direct engine** would be tidy rather than ambitious: singl
 
 The distinction to keep is therefore not "CLI versus API" but **agentic versus not**. A harness engine drives work that needs tools and turns; the direct engine answers questions. Building the second one to do the first one's job is where this goes wrong.
 
-Whether Covey ships a direct engine at all is [`07-open-decisions.md`](07-open-decisions.md), D14.
+Whether covey ships a direct engine at all is [`07-open-decisions.md`](07-open-decisions.md), D14.
 
 ## Moving an agent: within an engine it is cheap, across engines it is not
 

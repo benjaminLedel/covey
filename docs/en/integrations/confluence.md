@@ -1,7 +1,7 @@
 ---
 slug: confluence
 title: Confluence
-description: 'Connecting Covey to Confluence Cloud or Server/Data Center: API token, webhook, intake spaces — the unit of work is the page.'
+description: 'Connecting covey to Confluence Cloud or Server/Data Center: API token, webhook, intake spaces — the unit of work is the page.'
 ---
 
 A practical runbook for the target system **Confluence**
@@ -28,7 +28,7 @@ Two boundaries are worth drawing before the first token is created:
   plugin has no work check at all, and a test in the pack asserts that it never
   grows one by accident. Give the agent Jira or GitLab beside it, or it has no
   occasion to look here.
-- **It is not Covey's wiki memory.** Covey has one of its own
+- **It is not covey's wiki memory.** covey has one of its own
   ([`../spec/05-memory.md`](../../../spec/05-memory.md)): linked Markdown pages with a
   `pgvector` index, private to the agent, curated for retrieval. That is the
   agent's *memory*. Confluence is the *company's* documentation — shared with
@@ -69,12 +69,12 @@ of the page history should be able to tell an agent's edit from a colleague's.
 
 **Cloud:** log in as that user → `id.atlassian.com` → *Security → API tokens*.
 It is the **same kind of token Jira uses** — one Atlassian account, two
-products, two secrets in Covey. If the agent already works Jira, this is the
+products, two secrets in covey. If the agent already works Jira, this is the
 same account and can be the same token value.
 
 **Server/Data Center:** as that user → *Profile → Personal Access Tokens*.
 
-### 1.2 In Covey: deposit the secrets
+### 1.2 In covey: deposit the secrets
 
 | Secret | Value |
 |---|---|
@@ -106,7 +106,7 @@ your query:   type = page AND title ~ "runbook" ORDER BY created
 what is sent: space in (ENG) AND (type = page AND title ~ "runbook") ORDER BY created
 ```
 
-### 1.3 In Covey: enable the target system
+### 1.3 In covey: enable the target system
 
 ```markdown
 - system: confluence scope: read,write,comment
@@ -130,7 +130,7 @@ The connection test on the plugin page names the account, the deployment and the
 wall:
 
 ```
-Covey Bot (covey-bot@acme.example) · Cloud · ENG
+covey Bot (covey-bot@acme.example) · Cloud · ENG
 ```
 
 Read all three. The deployment is an inference from the token's shape, and this
@@ -285,5 +285,5 @@ app.
 
 - [`ops-jira.md`](./jira.md) — the ticket, and the same Atlassian account
 - [`ops-gitlab.md`](./gitlab.md), [`ops-github.md`](./github.md) — the code
-- [`../spec/05-memory.md`](../../../spec/05-memory.md) — Covey's own wiki memory, and
+- [`../spec/05-memory.md`](../../../spec/05-memory.md) — covey's own wiki memory, and
   why it is a different thing

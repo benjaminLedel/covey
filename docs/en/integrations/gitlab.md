@@ -1,7 +1,7 @@
 ---
 slug: gitlab
 title: GitLab
-description: 'Connecting Covey to a GitLab instance: token, webhook, intake projects, merge requests and the checkout limits an agent works within.'
+description: 'Connecting covey to a GitLab instance: token, webhook, intake projects, merge requests and the checkout limits an agent works within.'
 ---
 
 A practical runbook for the target system **GitLab** (`github.com/benjaminLedel/covey-plugin-pack/gitlab`).
@@ -27,7 +27,7 @@ task "review issues" into the agent's backlog periodically. The agent finds its
 working set itself through the discovery actions:
 
 ```
-Covey  ──(heartbeat tick)──►  backlog task "review GitLab issues"
+covey  ──(heartbeat tick)──►  backlog task "review GitLab issues"
                                  │
                                  ▼
                               agent (sandbox, Claude Code)
@@ -35,7 +35,7 @@ Covey  ──(heartbeat tick)──►  backlog task "review GitLab issues"
 GitLab  ◄──(REST /api/v4)────────┘  list_issues → get_issue/list_notes → checkout → comment/set_state/escalate
 ```
 
-No inbound traffic, no public URL, no webhook secret — it works even when Covey
+No inbound traffic, no public URL, no webhook secret — it works even when covey
 runs behind NAT/a firewall.
 
 > **No webhook for GitLab.** Unlike Zammad, the GitLab plugin has **no**
@@ -48,7 +48,7 @@ runs behind NAT/a firewall.
 > `/api/trigger/<token>` for third-party systems is unaffected by this — it is
 > not a target-system webhook.)
 
-Auth (outbound only, Covey → GitLab): REST with a brokered API token
+Auth (outbound only, covey → GitLab): REST with a brokered API token
 (the secret `gitlab_token`) that is never persisted in the sandbox.
 
 ---
@@ -57,7 +57,7 @@ Auth (outbound only, Covey → GitLab): REST with a brokered API token
 
 ### 2.1 In GitLab: create a user + token
 
-1. Create **a user of its own** for the Covey agent (e.g. `covey-bot`) —
+1. Create **a user of its own** for the covey agent (e.g. `covey-bot`) —
    do not use a person's token. All the agent's comments and commits run
    through this user; by `list_notes` it recognises its own last state at the
    next run and does not work on anything twice.
@@ -68,7 +68,7 @@ Auth (outbound only, Covey → GitLab): REST with a brokered API token
    **project access token** per project (least privilege). Note the token down
    (it is shown only once).
 
-### 2.2 In Covey: deposit the secrets
+### 2.2 In covey: deposit the secrets
 
 Set per agent in the SecretStore (UI: agent page → Secrets, or via the API):
 
@@ -78,7 +78,7 @@ Set per agent in the SecretStore (UI: agent page → Secrets, or via the API):
 | `gitlab_token` | the token from 2.1 | outbound auth (the `PRIVATE-TOKEN` header) |
 | `anthropic_api_key` *or* `claude_code_oauth_token` | an API key or `claude setup-token` | the runtime in the sandbox |
 
-### 2.3 In Covey: enable the target system
+### 2.3 In covey: enable the target system
 
 The target system `gitlab` has to be **enabled** for the org (UI: Target
 systems). In addition the agent has to be allowed to access `gitlab` according
@@ -168,7 +168,7 @@ Two built-in brakes dampen this but do not replace a sensible interval:
 - The `nur-wenn:` condition checks the edge, not the level (see above).
 
 What neither catches: a run that ends without a result at the turn limit.
-Covey recognises that (`max_turns`), has the run summarise its own interim
+covey recognises that (`max_turns`), has the run summarise its own interim
 state and creates a **follow-up task** from it that continues the session —
 instead of letting the next heartbeat start from zero. After several
 continuations in a row the task escalates to the manager instead of continuing.
@@ -218,8 +218,8 @@ regardless of whether an issue happens to be open.
 The review loop from 2.7 waits by default for a **human** (the manager, who is
 entered as the MR assignee). But the review can also be given to a **second
 agent** — a QA/test agent that accepts the feature and gives the developer agent
-feedback. Both are normal Covey agents; they work together through GitLab
-(Covey knows no direct agent-to-agent task handover — the collaboration runs
+feedback. Both are normal covey agents; they work together through GitLab
+(covey knows no direct agent-to-agent task handover — the collaboration runs
 through the shared target system). The trick: the developer agent already has
 the MR review loop (2.7) — if the QA agent comments defects on the MR, the
 developer picks them up **automatically** at its next `gitlab:mr` run. So only

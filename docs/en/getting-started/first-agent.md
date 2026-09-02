@@ -1,13 +1,13 @@
 ---
 slug: first-agent
 title: Create your first agent
-description: 'Five steps from an empty Covey to a working AI agent: set it up, write a brief, look the draft through and hire it, give it a task, watch the run in the recording.'
+description: 'Five steps from an empty covey to a working AI agent: set it up, write a brief, look the draft through and hire it, give it a task, watch the run in the recording.'
 faq:
   - q: What does an agent run cost?
-    a: As much as the tokens the model consumes — Covey itself bills nothing. Every run is recorded with tokens and cost, broken down by agent and model. You can set a budget per agent; once it is reached, the agent stops working.
+    a: As much as the tokens the model consumes — covey itself bills nothing. Every run is recorded with tokens and cost, broken down by agent and model. You can set a budget per agent; once it is reached, the agent stops working.
   - q: What belongs in SOUL.md and what in PLAYBOOKS.md?
     a: '`SOUL.md` holds who the agent is: role, remit, tone, limits. `PLAYBOOKS.md` holds how it proceeds: the sequence of steps for a recurring case. Rule of thumb — the soul rarely changes, a playbook changes as soon as the procedure does.'
-  - q: Can I move an agent from another Covey instance?
+  - q: Can I move an agent from another covey instance?
     a: Yes. A configuration can be exported as a bundle and imported into another instance — playbooks, requested access and heartbeat included. Secrets stay where they were; they belong to the organisation, not to the bundle.
   - q: Why is my agent doing nothing although there is a task in its backlog?
     a: 'The three usual reasons: no credential is deposited (the checklist says so), the sandbox image is missing (the startup log says so), or the agent was stopped with the kill switch. In all three cases the recording names the reason.'

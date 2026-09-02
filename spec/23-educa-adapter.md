@@ -2,7 +2,7 @@
 
 The third engine, and the first that does not sit in front of a *provider* but in front of a **gateway**. educa AI Core puts one bearer token before several LLM backends and serves them in two dialects at once: `/v1/chat/completions` in OpenAI's and `/v1/messages` in Anthropic's — the latter with `tools`, `system`, SSE streaming and `/v1/messages/count_tokens`.
 
-That second dialect is what makes the engine cheap to build honestly. An API is not a harness: an agent that edits files, runs a shell, resumes a session and closes with a `COVEY_STATUS` line needs one, and Covey already has a verified harness that speaks exactly that dialect. So `educa-ai` is **Claude Code with its base URL pointed at educa** ([`12-claude-code-adapter.md`](12-claude-code-adapter.md)), not a second agent loop.
+That second dialect is what makes the engine cheap to build honestly. An API is not a harness: an agent that edits files, runs a shell, resumes a session and closes with a `COVEY_STATUS` line needs one, and covey already has a verified harness that speaks exactly that dialect. So `educa-ai` is **Claude Code with its base URL pointed at educa** ([`12-claude-code-adapter.md`](12-claude-code-adapter.md)), not a second agent loop.
 
 Status: **verified against the hosted instance.** The harness completes a run, executes tools and resumes a session across a second run; `--effort` passes through. The measurements are in `internal/daemon/runtime_educa_live_test.go`, which skips without a token. One defect was measured and is named below rather than worked around.
 
@@ -35,7 +35,7 @@ The adapter additionally **clears** `ANTHROPIC_API_KEY` and `CLAUDE_CODE_OAUTH_T
 
 ## Cost: the figure is not inherited
 
-Claude Code computes a dollar amount itself and Covey books it unchanged. Through a gateway that number prices the **wrong contract**, and for a model the harness's table does not know it becomes zero — the failure the price list was built to avoid: a run priced at zero looks free, and nobody checks it.
+Claude Code computes a dollar amount itself and covey books it unchanged. Through a gateway that number prices the **wrong contract**, and for a model the harness's table does not know it becomes zero — the failure the price list was built to avoid: a run priced at zero looks free, and nobody checks it.
 
 The adapter therefore discards the harness's amount and re-derives it from this engine's own price list, which is deliberately **empty**: what educa costs follows from a contract, not from a published table. Token counts stay — they are measured, not inferred — so a run carries its consumption and no amount. The empty list is the seam: whoever knows their rates enters them there and every recorded token count is priced at once.
 
@@ -47,7 +47,7 @@ educa does report per-token windows under `GET /stats/{token_id}`, but that need
 
 ## The model is mandatory
 
-Which ids exist is the instance's business (`GET /v1/models`, bearer-authenticated). The harness's own default names an Anthropic model the gateway need not route, so a run without a configured model is **refused before the harness starts**, with the curl that lists the ids in the error text. Fail-closed, and the check can be satisfied — which is the whole requirement Covey puts on a check ([`README.md`](../README.md)).
+Which ids exist is the instance's business (`GET /v1/models`, bearer-authenticated). The harness's own default names an Anthropic model the gateway need not route, so a run without a configured model is **refused before the harness starts**, with the curl that lists the ids in the error text. Fail-closed, and the check can be satisfied — which is the whole requirement covey puts on a check ([`README.md`](../README.md)).
 
 ## Egress
 
@@ -85,7 +85,7 @@ Two properties of the instance are worth knowing before an agent is assigned:
 An instance's `/v1/models` is a listing, not a promise. Two of educa's entries would look like a working choice in a dropdown built from it and are not:
 
 - **`Qwen-AgentWorld-35B-A3B`** answers `500` on every request — a listed model is not a running one.
-- **`EuroLLM-9B-Instruct`** has a `max_model_len` of **2048** tokens while Covey's protocol prompt alone is some 9 KB. It cannot hold the prompt, let alone the task; the trial run ended after seven minutes with ten output tokens and nothing done. That is not a quality judgement, it is arithmetic.
+- **`EuroLLM-9B-Instruct`** has a `max_model_len` of **2048** tokens while covey's protocol prompt alone is some 9 KB. It cannot hold the prompt, let alone the task; the trial run ended after seven minutes with ten output tokens and nothing done. That is not a quality judgement, it is arithmetic.
 
 So the engine **declares** the ids it carries, and they are the ones that did the work. The trial was the platform's real prompt (`agents.ProtocolInstructions`), the default tool scope, and a genuinely multi-step task: a failing check, a bug in the code under it, a fix, a re-run to prove it — with a hostile assertion afterwards, because deleting the test is the cheapest way to make it pass.
 

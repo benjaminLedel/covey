@@ -8,12 +8,12 @@ Status: **Proposed** · As of: 2026-08-11
 
 ## In short
 
-Everything in Covey is org-scoped **by intent**. This document records where it
+Everything in covey is org-scoped **by intent**. This document records where it
 is not so **in fact**: seven places where data or a write crosses the boundary
 between two organisations. Five of them are a few lines each, one is a routing
 decision, one is the data plane.
 
-None of this matters on a single-tenant installation, which is what Covey has
+None of this matters on a single-tenant installation, which is what covey has
 been until now. All of it matters the moment one instance carries strangers —
 which is exactly what [`002-plattform-registrierung.md`](002-plattform-registrierung.md)
 proposes. **This request is a prerequisite for that one**, not a follow-up: an

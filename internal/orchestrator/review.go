@@ -180,7 +180,7 @@ func (o *Orchestrator) reviewPropose(ctx context.Context, agent agents.Agent, ta
 	// eigene Konfiguration vorschlagen. Für die eines KOLLEGEN braucht es den
 	// Review-Scope — sonst hätte die Personalabteilung sich über die
 	// Hintertür genau die Reichweite geholt, die zwei Scopes verhindern sollen.
-	if other.ID != agent.ID && !o.mayUseCovey(ctx, agent, scopeReview) {
+	if other.ID != agent.ID && !o.mayUsecovey(ctx, agent, scopeReview) {
 		return fail("%s", "with `scope: "+scopeWrite+"` you may propose only your OWN "+
 			"configuration — proposing for a colleague needs `scope: "+scopeReview+"`")
 	}

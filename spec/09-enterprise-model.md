@@ -1,10 +1,10 @@
 # 09 — Enterprise model (the organisation as the unit)
 
-The load-bearing principle that separates Covey from the single-user "AI employee" apps: **Covey's unit is the organisation, not the individual user.** Covey is the platform a *company* operates to manage and govern its entire agent workforce — with many human stakeholders, central governance and a company-wide org chart. Everything — agents, roles, guard rails, budgets, audit — is **org-scoped**.
+The load-bearing principle that separates covey from the single-user "AI employee" apps: **covey's unit is the organisation, not the individual user.** covey is the platform a *company* operates to manage and govern its entire agent workforce — with many human stakeholders, central governance and a company-wide org chart. Everything — agents, roles, guard rails, budgets, audit — is **org-scoped**.
 
 ## Why org level instead of user level
 
-The single-user tools (Lindy, Relevance AI, Frontier & co.) optimise the productivity of *one person* or a small team: "your first AI employee". Covey sits one level above — it is the **shared infrastructure a company operates**, the way it operates Active Directory, a SIEM or an HR department for the whole organisation rather than for an individual employee.
+The single-user tools (Lindy, Relevance AI, Frontier & co.) optimise the productivity of *one person* or a small team: "your first AI employee". covey sits one level above — it is the **shared infrastructure a company operates**, the way it operates Active Directory, a SIEM or an HR department for the whole organisation rather than for an individual employee.
 
 Concretely that means:
 
@@ -13,7 +13,7 @@ Concretely that means:
 - **Governance is central and org-wide**, not configured per individual.
 - **The org chart is company-wide** and covers humans *and* agents. Both carry **the same profile fields** (function, contact, platform identifiers, responsibilities as well as the org-wide configurable fields from `profile_fields`) — and agents can query the org chart themselves at runtime (meta action `covey/org_chart` at the action proxy, see [`01-architecture.md`](01-architecture.md)) to look up responsibilities and escalation paths.
 
-This delineation is deliberately the answer to the market situation (see [`08-market.md`](08-market.md)): the "AI coworker" category exists, but the mature offerings are either single-user/cloud-only SaaS or heavyweight enterprise suites. Covey's place is the self-hostable enterprise platform for a technical operator.
+This delineation is deliberately the answer to the market situation (see [`08-market.md`](08-market.md)): the "AI coworker" category exists, but the mature offerings are either single-user/cloud-only SaaS or heavyweight enterprise suites. covey's place is the self-hostable enterprise platform for a technical operator.
 
 ## Human roles & RBAC
 
@@ -21,7 +21,7 @@ The platform has several human stakeholders with clearly separated rights. RBAC 
 
 | Role | Responsibility | Typical rights |
 |---|---|---|
-| **Org admin / IT** (`org_admin`) | Operates this organisation's use of Covey: sandbox infra, runtimes, platform health | Create/delete agents, kill switch (fleet-wide within the organisation), infrastructure configuration |
+| **Org admin / IT** (`org_admin`) | Operates this organisation's use of covey: sandbox infra, runtimes, platform health | Create/delete agents, kill switch (fleet-wide within the organisation), infrastructure configuration |
 | **Agent owner / team lead** | Accountable for individual agents of a department | Maintain `SOUL.md` & config, prioritise the backlog, approve their agent's approval gates |
 | **Security / compliance** | Sets the org-wide guard rails | Define global guard rails (**not** overridable by agent owners), policy reviews |
 | **Auditor** | Checks behaviour and compliance | Read-only on recording/audit trail, export for inspections |
@@ -50,7 +50,7 @@ Day-to-day work on the workforce — secrets, target systems, skills, templates,
 
 ## Two identity layers
 
-Covey separates cleanly between **human identity** and **agent identity**:
+covey separates cleanly between **human identity** and **agent identity**:
 
 - **Humans** authenticate through the organisation's identity provider — **SSO via SAML/OIDC** (Keycloak, Entra, Okta), with a joiner-mover-leaver lifecycle. RBAC hangs off this identity.
 - **Agents** have their own machine identity and get access through the secrets broker (RFC 8693). Details in [`04-identity-secrets.md`](04-identity-secrets.md).
@@ -73,7 +73,7 @@ It is master data rather than a setup prompt because the same three sentences an
 
 - **Departments / teams** — agents are assigned to organisational units. The org chart maps the real structure (team lead → their agents), and guard rails as well as budgets can be scoped **per department** (see guard-rail scope in [`06-observability-control.md`](06-observability-control.md)).
 - **Cost centres** — costs (from cost tracking) are aggregated per agent, department and cost centre so that controlling can charge them cleanly.
-- **Tenant model** — primarily **single-org self-hosted**: one company operates one Covey instance for itself. Several organisations on one instance work: they are isolated in the data model (`org_id` everywhere, enforced by middleware rather than by each handler remembering), the login sits one level above the membership, and the instance level that administers them all is out of reach of any single tenant. What an instance carrying *strangers* still needs is the data plane — sandboxes of different tenants share one Docker network today (finding G in [`003-mandantentrennung.md`](../feature-requests/003-mandantentrennung.md)).
+- **Tenant model** — primarily **single-org self-hosted**: one company operates one covey instance for itself. Several organisations on one instance work: they are isolated in the data model (`org_id` everywhere, enforced by middleware rather than by each handler remembering), the login sits one level above the membership, and the instance level that administers them all is out of reach of any single tenant. What an instance carrying *strangers* still needs is the data plane — sandboxes of different tenants share one Docker network today (finding G in [`003-mandantentrennung.md`](../feature-requests/003-mandantentrennung.md)).
 
 ## Governance & compliance
 
@@ -81,12 +81,12 @@ Enterprise means: the **audit trail has to survive an external inspection**. In 
 
 - **A complete, org-wide audit trail** — every agent and human action traceable, exportable, with a retention policy (builds on session recording in [`06-observability-control.md`](06-observability-control.md)).
 - **Role-separated responsibility** — guard-rail owner ≠ agent owner ≠ auditor (see above).
-- **EU AI Act** — agents that touch employment/HR-adjacent decisions fall under the high-risk classification (Annex III). Covey has to be able to deliver the evidence that an agent acted within its authority — which is not possible at all without a clean agent identity (see [`04-identity-secrets.md`](04-identity-secrets.md)).
+- **EU AI Act** — agents that touch employment/HR-adjacent decisions fall under the high-risk classification (Annex III). covey has to be able to deliver the evidence that an agent acted within its authority — which is not possible at all without a clean agent identity (see [`04-identity-secrets.md`](04-identity-secrets.md)).
 - **Data residency** — self-hosting (e.g. on your own Hetzner/Proxmox infrastructure) is an advantage here over the cloud SaaS competitors.
 
 ## Delineation from single-user tools
 
-| | Single-user "AI employee" (Lindy, Relevance, Frontier …) | Covey |
+| | Single-user "AI employee" (Lindy, Relevance, Frontier …) | covey |
 |---|---|---|
 | **Unit** | User / small team | Organisation |
 | **The agent belongs to** | the user | the company |
@@ -95,4 +95,4 @@ Enterprise means: the **audit trail has to survive an external inspection**. In 
 | **Deployment** | cloud SaaS, closed | self-hostable (your own infrastructure) |
 | **Audit** | tool-internal | inspection-proof, exportable |
 
-Covey therefore does not compete with the no-code productivity apps but occupies the gap above them: **the self-hostable, runtime-agnostic agent platform a company operates and is accountable for as a whole.**
+covey therefore does not compete with the no-code productivity apps but occupies the gap above them: **the self-hostable, runtime-agnostic agent platform a company operates and is accountable for as a whole.**

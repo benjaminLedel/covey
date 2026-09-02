@@ -1,7 +1,7 @@
 ---
 slug: jira
 title: Jira
-description: 'Connecting Covey to Jira Cloud or Server/Data Center: API token, webhook, intake projects — the unit of work is the issue.'
+description: 'Connecting covey to Jira Cloud or Server/Data Center: API token, webhook, intake projects — the unit of work is the issue.'
 ---
 
 A practical runbook for the target system **Jira**
@@ -14,7 +14,7 @@ A practical runbook for the target system **Jira**
 > site may post, by a **webhook** on top. These are **configuration steps**, not
 > a rebuild.
 
-Jira differs from the other ticket systems in Covey in one way that shapes
+Jira differs from the other ticket systems in covey in one way that shapes
 everything below: **it does not hold the code.** A developer agent works Jira
 *and* GitLab or GitHub, and what ties the two together is the issue key
 (section 5). Whoever sets Jira up alone has given the agent a board and no
@@ -62,7 +62,7 @@ There are two routes in, and either on its own is enough.
 URL:
 
 ```
-Covey  ──(heartbeat tick)──►  backlog task "work the Jira board"
+covey  ──(heartbeat tick)──►  backlog task "work the Jira board"
                                  │
                                  ▼
                               agent (sandbox, Claude Code)
@@ -70,11 +70,11 @@ Covey  ──(heartbeat tick)──►  backlog task "work the Jira board"
 Jira   ◄──(REST /rest/api/3)─────┘  search_issues → get_issue/list_comments → transition/comment
 ```
 
-**b) By webhook** — real time, needs a publicly reachable Covey
+**b) By webhook** — real time, needs a publicly reachable covey
 (`COVEY_PUBLIC_URL`):
 
 ```
-Jira ──(POST /api/webhooks/jira/<agent-slug>)──►  Covey
+Jira ──(POST /api/webhooks/jira/<agent-slug>)──►  covey
         X-Hub-Signature (HMAC-SHA256)               │ verify → deduplicate → correlate
                                                     ▼
                                         new task  or  wake a blocked task
@@ -112,7 +112,7 @@ Create API token*. The token is shown once.
 Create token*. Set an expiry you will remember; a PAT that expires quietly looks
 like a permission problem three weeks later.
 
-### 2.2 In Covey: deposit the secrets
+### 2.2 In covey: deposit the secrets
 
 Set per agent under *Secrets* (or through the API):
 
@@ -149,7 +149,7 @@ what is sent: project in (ACME) AND (status = Open OR reporter = dana) ORDER BY 
 Appended behind the `OR` instead, the condition would bind to the last term
 only — a wall with a hole exactly where somebody used an `OR`.
 
-### 2.3 In Covey: enable the target system
+### 2.3 In covey: enable the target system
 
 In the agent's `ACCESS.md`:
 
@@ -216,11 +216,11 @@ wakes.
 the agent at all, and it does so in Jira, where the person who owns the board
 can see and change it — better than any filter on this end.
 
-The secret makes Jira sign the body (HMAC-SHA256, `X-Hub-Signature`), and Covey
+The secret makes Jira sign the body (HMAC-SHA256, `X-Hub-Signature`), and covey
 checks it. The same value goes into `COVEY_JIRA_WEBHOOK_SECRET` on the control
 plane. An empty secret switches the check off — for local tests, and only
 there. An automation rule that assembles the call itself may send the signature
-as `X-Covey-Signature` instead; both headers are accepted.
+as `X-covey-Signature` instead; both headers are accepted.
 
 Set `COVEY_JIRA_BOT_ACCOUNT` (section 8) as well. Without it the agent's own
 comment comes back through the webhook and wakes it to read its own sentence:
@@ -236,7 +236,7 @@ main road: 30 or 60 minutes are enough then.
 ### 2.6 Testing
 
 1. **Connection test** on the plugin page: it names the account and the
-   deployment (`Covey Bot (covey-bot@acme.example) · Cloud · ACME`). Read both
+   deployment (`covey Bot (covey-bot@acme.example) · Cloud · ACME`). Read both
    halves — the identity is what every action will carry, the deployment is an
    inference worth checking.
 2. Assign a test issue to `covey-bot`, wait for one interval.
@@ -411,7 +411,7 @@ the agent's Markdown is stored as Markdown (Jira renders wiki markup there, so
 | `COVEY_JIRA_WEBHOOK_SECRET` | *(empty)* | the shared secret for the webhook signature. Empty = the check is off. Read on the **control plane**, not in the sandbox — the intake never reaches the plugin's action side. |
 
 These are read **in the sandbox**, where the action proxy runs the plugin, and
-Covey carries them there because the plugin declares them.
+covey carries them there because the plugin declares them.
 
 ---
 

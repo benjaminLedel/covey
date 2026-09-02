@@ -64,7 +64,7 @@ func TestSchutzHeaderDerOberflaeche(t *testing.T) {
 // about every sibling name under a domain that is not ours, remembered by each
 // visitor's browser for a year (#132). An organisation at covey.example.com
 // with an internal tool on http://tools.example.com loses that tool, and
-// max-age=0 only reaches browsers that come back to Covey.
+// max-age=0 only reaches browsers that come back to covey.
 //
 // The HTTP case above and this one belong together: one says the header must
 // not be there, the other says how far it may reach when it is.

@@ -1,21 +1,21 @@
 ---
 slug: quickstart
 title: Quick start (Docker)
-description: 'Self-host Covey: clone the repository, generate a master key, build the sandbox image, docker compose up — then the platform runs on port 8494.'
+description: 'Self-host covey: clone the repository, generate a master key, build the sandbox image, docker compose up — then the platform runs on port 8494.'
 faq:
-  - q: Which ports does Covey need?
+  - q: Which ports does covey need?
     a: 'One: **8494** for the API and the interface. In the compose setup Postgres lives on the internal network and needs no exposure. The sandboxes need no inbound port — they dial the control plane themselves.'
   - q: Why does the sandbox image build take so long?
     a: 'Because that image is an agent''s workplace: Claude Code, git, ripgrep, chromium for the browser plugin, plus a Node and Java toolchain and the build tools for native npm packages. That is several gigabytes, and it is built once rather than per run.'
-  - q: Can I try Covey without building the image?
+  - q: Can I try covey without building the image?
     a: 'Yes — the platform starts, the interface works, agents and configurations can be created. Only the first run fails, and it fails with a message that says exactly that: in the log at startup and in the checklist on the agent overview.'
   - q: What happens if I lose the COVEY_MASTER_KEY?
     a: Every deposited secret becomes unreadable — the key en- and decrypts them with AES-GCM. There is no back door. Keep the `.env` safe and treat the key like a database password.
-  - q: Does Covey run on a Raspberry Pi or on ARM?
+  - q: Does covey run on a Raspberry Pi or on ARM?
     a: 'Binaries exist for linux/amd64, linux/arm64 and macOS in both architectures. The deciding factor is memory rather than architecture: every sandbox runs a Node runtime and, depending on the task, a chromium.'
 ---
 
-Try Covey out locally in a few minutes — **without Go, Node or a local
+Try covey out locally in a few minutes — **without Go, Node or a local
 Postgres installation**. Docker and Docker Compose suffice.
 
 > For development (hot reload, tests) see the "Development" section in the
@@ -75,7 +75,7 @@ workplaces on top of it — `make sandbox-images-pull` fetches them all, and
 
 Skipping it costs nothing at first — the platform starts, the interface works,
 agents and configs can be created. Only the first wake fails, with
-`sandbox image "covey-sandbox:latest" is missing`. Covey checks for this at
+`sandbox image "covey-sandbox:latest" is missing`. covey checks for this at
 `serve` start and says so in the log, and the **first steps** on the agent
 overview say so too, so the answer is not buried in the recording of a task
 that never ran.
@@ -199,5 +199,5 @@ least:
 - **DB TLS:** `sslmode=require` (or higher) in `COVEY_DATABASE_URL`.
 - **Egress & isolation:** the docker provider + `COVEY_EGRESS_ENFORCE=true`.
 
-Covey also prints these points as warnings itself at `serve` start, as soon as
+covey also prints these points as warnings itself at `serve` start, as soon as
 it is not bound purely locally (`localhost`).

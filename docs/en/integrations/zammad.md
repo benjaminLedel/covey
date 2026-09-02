@@ -20,7 +20,7 @@ production use lie.
 ## 1. Overview of the data flow
 
 ```
-Zammad  ──(trigger + webhook, HMAC-signed)──►  Covey  /api/webhooks/zammad/<agent-slug>
+Zammad  ──(trigger + webhook, HMAC-signed)──►  covey  /api/webhooks/zammad/<agent-slug>
                                                    │  check signature → intake filter → backlog task
                                                    ▼
                                                  agent (sandbox, Claude Code)
@@ -30,9 +30,9 @@ Zammad  ◄──(REST /api/v1, token auth)────────────�
 
 Two directions, two auth routes:
 
-- **Inbound** (Zammad → Covey): a webhook, verified by an HMAC-SHA1 signature
+- **Inbound** (Zammad → covey): a webhook, verified by an HMAC-SHA1 signature
   (`COVEY_ZAMMAD_WEBHOOK_SECRET`).
-- **Outbound** (Covey → Zammad): REST with a brokered API token
+- **Outbound** (covey → Zammad): REST with a brokered API token
   (the secret `zammad_token`) that is never persisted in the sandbox.
 
 ---
@@ -40,7 +40,7 @@ Two directions, two auth routes:
 ## 2. Step-by-step instructions
 
 > **Installing it.** As of 0.6.0 this is a **catalogue plugin**, not a compiled
-> one — Store → Catalogue → Zammad → Install. Covey verifies the digest the
+> one — Store → Catalogue → Zammad → Install. covey verifies the digest the
 > catalogue pins before storing the module. Upgrading across 0.6.0 with the
 > plugin already in use: the plugin row and its secrets survive, only the code
 > now arrives from the catalogue, so install it once afterwards and the agents
@@ -50,13 +50,13 @@ Two directions, two auth routes:
 
 1. Create an **agent role** with least-privilege rights: `ticket.agent`
    for **exactly the group(s)** the agent should work on — no more.
-2. Create a **user** (the "Covey agent") with that role and assign them the
+2. Create a **user** (the "covey agent") with that role and assign them the
    target group.
 3. Enable token access: *Admin → System → API →* switch on "Token Access".
 4. As that user create an **API token** (*Profile → Token Access*) with the
    permissions `ticket.agent`. Note the token down (it is shown only once).
 
-### 2.2 In Covey: deposit the secrets
+### 2.2 In covey: deposit the secrets
 
 Set per agent in the SecretStore (UI: agent page → Secrets, or via the API):
 
@@ -69,7 +69,7 @@ Set per agent in the SecretStore (UI: agent page → Secrets, or via the API):
 Without one of the Claude values, tasks fail with "Not logged in" — the sandbox
 has its own empty `HOME`.
 
-### 2.3 In Covey: enable the target system
+### 2.3 In covey: enable the target system
 
 The target system `zammad` has to be **enabled** for the org (UI: Target
 systems → enable Zammad). If it is not active, the broker refuses every
@@ -79,7 +79,7 @@ In addition the agent has to be allowed to access `zammad` according to its
 `ACCESS.md`, and the guard rails must not forbid `zammad` /
 `zammad:reply_external`.
 
-### 2.4 In Covey: set the process env
+### 2.4 In covey: set the process env
 
 ```bash
 COVEY_PUBLIC_URL=https://covey.example.com        # reachable from Zammad, NOT localhost
@@ -98,12 +98,12 @@ otherwise Zammad cannot deliver the webhook.
 
 1. Create a **webhook** (*Admin → Manage → Webhooks*):
    - Endpoint: `https://covey.example.com/api/webhooks/zammad/<agent-slug>`
-     (`<agent-slug>` = the slug of the responsible agent in Covey; the ticket is
+     (`<agent-slug>` = the slug of the responsible agent in covey; the ticket is
      assigned to the agent through the URL — see section 3.2. The agent ID, the
      UUID from the agent page's URL, is accepted as an alternative.)
 
      > On an installation with **several organisations**, use the agent id. A
-     > slug is unique only within its organisation, and Covey refuses to deliver
+     > slug is unique only within its organisation, and covey refuses to deliver
      > an ambiguous one with a 404 rather than guessing which `support` was
      > meant.
    - HMAC signature token: **the same value** as `COVEY_ZAMMAD_WEBHOOK_SECRET`.
@@ -120,7 +120,7 @@ otherwise Zammad cannot deliver the webhook.
 ### 2.6 Testing
 
 1. Create a ticket in the target group in Zammad (reply as the customer).
-2. In Covey: does a backlog task appear at the agent? → look at the recording.
+2. In covey: does a backlog task appear at the agent? → look at the recording.
 3. If the agent replies, check: does the reply arrive **visibly for the
    customer** (section 4)?
 4. On a follow-up question: does the ticket go to `pending reminder` and the
@@ -138,18 +138,18 @@ decision.
 
 The cleanest filter sits at the source: the Zammad **trigger** fires the
 webhook only when its conditions are met (group, priority, state, tag, owner,
-…). What the trigger does not let through never reaches Covey at all.
+…). What the trigger does not let through never reaches covey at all.
 For "only tickets of the group *Support L1*" a trigger condition suffices.
 
-### 3.2 Level 2 — Covey side (intake filter)
+### 3.2 Level 2 — covey side (intake filter)
 
-If a webhook reaches Covey, the adapter decides whether a task comes out of it.
+If a webhook reaches covey, the adapter decides whether a task comes out of it.
 Two criteria, both of which must apply (`ShouldWake` in
 `github.com/benjaminLedel/covey-plugin-pack/zammad/webhook.go`):
 
 1. **A customer message:** `article.sender == "Customer"` and not internal. That
    way the agent's *own reply* does not trigger a new wake cycle.
-2. **A group allowlist — set it in the Zammad trigger, not in Covey.**
+2. **A group allowlist — set it in the Zammad trigger, not in covey.**
 
    `COVEY_ZAMMAD_INTAKE_GROUPS` is gone as of 0.6.0, and it is not replaced by a
    plugin setting. A Zammad trigger has had a condition on the group all along:
@@ -158,7 +158,7 @@ Two criteria, both of which must apply (`ShouldWake` in
 
    That is the better place for it and always was. The env var applied the same
    filter one step too late — after Zammad had built and sent the request, and
-   after Covey had verified its signature, only to discard it.
+   after covey had verified its signature, only to discard it.
    (backwards-compatible). Prerequisite: the webhook payload contains
    `ticket.group` as a name.
 
@@ -171,7 +171,7 @@ safety net / central enforcement, in case the trigger is drawn too widely.
 Today the mapping runs **solely through the `<agent-slug>` in the webhook URL**.
 For several support areas you create one Zammad webhook per agent (with a
 matching trigger condition) on that agent's slug URL. A central queue→agent
-mapping does not (yet) exist in Covey — see section 7.
+mapping does not (yet) exist in covey — see section 7.
 
 ---
 
@@ -203,7 +203,7 @@ The adapter distinguishes:
 If the agent asks a follow-up question, it sets the ticket to `pending reminder`
 (`set_state`) and goes `blocked` itself. The correlation key is the
 ticket `id`. The customer's reply (a new customer article) fires the trigger,
-Covey correlates via the ticket `id` and continues the agent via
+covey correlates via the ticket `id` and continues the agent via
 `claude -p --resume`. Details: [`../spec/13-zammad-integration.md`](../../../spec/13-zammad-integration.md).
 
 Make sure the trigger fires **for ticket updates too** (not just "created") —
@@ -365,7 +365,7 @@ have to be considered (details and file references below). Prioritised:
 - **Per-org intake configuration in the DB** instead of env: several support
   queues on several agents, maintained through the UI (today: env + one webhook
   per agent).
-- **Queue→agent routing in Covey**, so that a single webhook distributes tickets
+- **Queue→agent routing in covey**, so that a single webhook distributes tickets
   onto different agents based on their group (today: mapping through the
   slug URL).
 - **A declarative intake filter** as with the manifest plugins

@@ -98,15 +98,15 @@ var manifest = []struct {
 		DescriptionDe: "Die Personalabteilung der Organisation: macht aus ein paar Sätzen darüber, was jemand tun soll, einen vollständigen Agenten — Charakter, Zuständigkeit, Verfahren, Zugänge, Platz im Org-Chart — und legt ihn als Entwurf hin, den ein Mensch einstellt. Wird beim Setup eingerichtet; hier für alle, die das übersprungen haben.",
 	},
 	{
-		// Der Dateiname bleibt, obwohl der Agent Covey Doctor heisst: aus ihm
+		// Der Dateiname bleibt, obwohl der Agent covey Doctor heisst: aus ihm
 		// entsteht der Key `builtin:improvement-engineer`, und der ist ein
 		// stabiler Link-Anker — TestBuiltinIDsStable haelt ihn ausdruecklich
 		// fest, weil bestehende Instanziierungs-Links sonst brechen.
 		File:          "improvement-engineer.bundle.json",
-		Name:          "Covey Doctor (reviews colleagues)",
-		Description:   "Reads what a colleague actually did — throughput, aborts with their reason, cost, stuck tasks — works out whether the configuration, the assignment or the platform is at fault, and proposes a change a human accepts. Weekly, one task per cycle. Needs `scope: agents:review`; give it read access to Covey's own repository (Org chart → this platform's source) and its findings become diagnoses instead of symptoms.",
-		NameDe:        "Covey Doctor (begutachtet Kollegen)",
-		DescriptionDe: "Liest, was ein Kollege tatsächlich getan hat — Durchsatz, Abbrüche mit ihrem Grund, Kosten, hängende Aufgaben —, entscheidet, ob die Konfiguration, der Auftrag oder die Plattform schuld ist, und schlägt eine Änderung vor, die ein Mensch annimmt. Wöchentlich, ein Auftrag je Zyklus. Braucht `scope: agents:review`; gib ihm zusätzlich Lesezugriff auf Coveys eigenes Repository (Organigramm → Quelltext dieser Plattform), dann werden aus Symptomen Diagnosen.",
+		Name:          "covey Doctor (reviews colleagues)",
+		Description:   "Reads what a colleague actually did — throughput, aborts with their reason, cost, stuck tasks — works out whether the configuration, the assignment or the platform is at fault, and proposes a change a human accepts. Weekly, one task per cycle. Needs `scope: agents:review`; give it read access to covey's own repository (Org chart → this platform's source) and its findings become diagnoses instead of symptoms.",
+		NameDe:        "covey Doctor (begutachtet Kollegen)",
+		DescriptionDe: "Liest, was ein Kollege tatsächlich getan hat — Durchsatz, Abbrüche mit ihrem Grund, Kosten, hängende Aufgaben —, entscheidet, ob die Konfiguration, der Auftrag oder die Plattform schuld ist, und schlägt eine Änderung vor, die ein Mensch annimmt. Wöchentlich, ein Auftrag je Zyklus. Braucht `scope: agents:review`; gib ihm zusätzlich Lesezugriff auf coveys eigenes Repository (Organigramm → Quelltext dieser Plattform), dann werden aus Symptomen Diagnosen.",
 	},
 	{
 		File:          "coding-agent.bundle.json",

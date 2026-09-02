@@ -2,7 +2,7 @@
 #
 # Warum GitHub und nicht die GitLab-Seite: Die GitLab-Pipeline deployt die
 # eigene Instanz (covey.work) und schiebt Images in eine private Registry —
-# beides für Dritte unerreichbar. Wer Covey installieren will, holt es von
+# beides für Dritte unerreichbar. Wer covey installieren will, holt es von
 # GitHub, und dafür braucht es dort veröffentlichte Artefakte. Betriebs- und
 # Installationswerkzeug gehört ins Produkt, nicht in die interne CI.
 #
@@ -73,7 +73,7 @@ jobs:
       # unabhängig von deren libc. Genau das macht die Installation per Skript
       # überhaupt erst so einfach.
       #
-      # darwin ist dabei, weil Covey lokal auf macOS entwickelt und
+      # darwin ist dabei, weil covey lokal auf macOS entwickelt und
       # ausprobiert wird; die Sandbox-Provider brauchen dort trotzdem Docker.
       - name: Bauen
         env:

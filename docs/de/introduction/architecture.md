@@ -3,25 +3,25 @@ slug: architektur
 title: Architektur-Überblick
 description: Control Plane als einzelnes Go-Binary, Data Plane aus ephemeren Docker-Sandboxen, dazwischen ein WebSocket-Protokoll. Postgres trägt Zustand, Queue und Vektorsuche.
 faq:
-  - q: Braucht Covey Redis, RabbitMQ oder Kafka?
+  - q: Braucht covey Redis, RabbitMQ oder Kafka?
     a: Nein. Die Warteschlange ist `SELECT … FOR UPDATE SKIP LOCKED`, die Benachrichtigung `LISTEN/NOTIFY`, die Vektorsuche `pgvector` — alles in derselben Postgres-Instanz. Ein Broker wäre ein zweiter Dienst mit eigenem Ausfallverhalten für einen Nutzen, den die Datenbank schon hat.
   - q: Kann ich eine andere Runtime als Claude Code verwenden?
     a: 'Vom Aufbau her ja: Runtimes hängen als Plugins an einer Registry und sprechen über einen dünnen Adapter das Daemon-Protokoll. Ausgeliefert ist derzeit Claude Code headless, dazu eine Mock-Runtime für Tests und Demos ohne Modellkosten.'
   - q: Warum läuft die Sandbox in Docker und nicht als Unterprozess?
     a: Weil Prozess-Isolation keine ist, sobald ein Agent Werkzeuge ausführt. Der Container gibt Namespaces, ein eigenes Dateisystem und einen kontrollierbaren Netzausgang. Einen local-Provider gab es früher; er ist entfernt, damit niemand versehentlich ohne Isolation produktiv geht.
-  - q: Wie skaliert Covey über eine Maschine hinaus?
+  - q: Wie skaliert covey über eine Maschine hinaus?
     a: 'Über Runner: eigenständige Prozesse, die sich bei der Control Plane registrieren und Sandboxen ausführen. Die Control Plane bleibt eine, der Zustand bleibt in Postgres, die Homes liegen zentral.'
 ---
 
 # Architektur-Überblick
 
-Covey zerfällt in zwei Hälften, die sich sehr unterschiedlich verhalten: eine **Control Plane**, die den Zustand führt und immer läuft, und eine **Data Plane** aus Sandboxen, die entstehen und wieder verschwinden. Dazwischen liegt ein Protokoll, und genau an dieser Naht wird die Plattform gegenüber der Runtime austauschbar.
+covey zerfällt in zwei Hälften, die sich sehr unterschiedlich verhalten: eine **Control Plane**, die den Zustand führt und immer läuft, und eine **Data Plane** aus Sandboxen, die entstehen und wieder verschwinden. Dazwischen liegt ein Protokoll, und genau an dieser Naht wird die Plattform gegenüber der Runtime austauschbar.
 
 ## Control Plane — ein Prozess, ein Binary
 
 Ein einzelnes Go-Binary vereint Scheduler und Dispatcher, Agent-Registry und Org-Chart, Backlog-Store, Identitäts- und Secrets-Broker, Guard-Rail-Engine, Observability und die HTTP-API. Die React-Oberfläche ist über `//go:embed` einkompiliert, die SQL-Migrationen ebenso; beim Start migriert die Instanz sich selbst, abgesichert über ein `pg_advisory_lock`.
 
-Der Grund für den einen Prozess ist nicht Sparsamkeit, sondern Betreibbarkeit: Wer Covey installiert, soll eine Datei kopieren und sie starten. Alles, was sonst als zweiter Dienst danebenstünde — Queue, Pub/Sub, Vektorindex —, liegt in Postgres.
+Der Grund für den einen Prozess ist nicht Sparsamkeit, sondern Betreibbarkeit: Wer covey installiert, soll eine Datei kopieren und sie starten. Alles, was sonst als zweiter Dienst danebenstünde — Queue, Pub/Sub, Vektorindex —, liegt in Postgres.
 
 ## Data Plane — dumm und ersetzbar
 
