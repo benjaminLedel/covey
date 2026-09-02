@@ -11,6 +11,11 @@ type Session = { created_at: string; expires_at: string; current: boolean };
    seiner Antwort nicht vor. */
 const NOTIFY_CLASSES = ["decision", "task", "cost", "ops"] as const;
 
+/* Die Antwort von /auth/notifications: die eigenen Schalter, und die Klassen,
+   die die Installation für alle abgeschaltet hat (#180) — die stehen hier
+   ausgegraut, statt einen Schalter anzubieten, der nichts bewirkt. */
+type NotifyPrefs = { prefs: Record<string, boolean>; disabled: string[] };
+
 export default function AccountSettings({ me }: { me: Principal }) {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
@@ -30,14 +35,14 @@ export default function AccountSettings({ me }: { me: Principal }) {
      zweite Kopie davon, was „standardmäßig an" heißt. */
   const notify = useQuery({
     queryKey: ["notifications"],
-    queryFn: () => api<Record<string, boolean>>("/auth/notifications"),
+    queryFn: () => api<NotifyPrefs>("/auth/notifications"),
   });
   const setNotify = useMutation({
     /* Nur der eine geänderte Schalter geht hin: zwei offene Browser würden
        sich sonst gegenseitig Antworten überschreiben, nach denen sie gar nicht
        gefragt wurden. */
     mutationFn: (change: Record<string, boolean>) =>
-      put<Record<string, boolean>>("/auth/notifications", change),
+      put<NotifyPrefs>("/auth/notifications", change),
     onSuccess: (prefs) => qc.setQueryData(["notifications"], prefs),
     onError: (e) => setNote(String(e)),
   });
@@ -136,21 +141,30 @@ export default function AccountSettings({ me }: { me: Principal }) {
       <div className="card mt-4">
         <div className="text-sm font-medium mb-1">{t("account.notify.title")}</div>
         <p className="muted text-xs mb-3" style={{ maxWidth: 620 }}>{t("account.notify.desc")}</p>
-        {NOTIFY_CLASSES.map((c) => (
-          <label key={c} className="flex items-start gap-3 py-1 text-xs" style={{ cursor: "pointer" }}>
-            <input
-              type="checkbox"
-              checked={notify.data?.[c] ?? false}
-              disabled={notify.isLoading || setNotify.isPending}
-              onChange={(e) => setNotify.mutate({ [c]: e.target.checked })}
-              style={{ width: "auto", marginTop: 2 }}
-            />
-            <span>
-              <span className="text-sm">{t(`account.notify.${c}`)}</span>
-              <span className="muted block">{t(`account.notify.${c}Hint`)}</span>
-            </span>
-          </label>
-        ))}
+        {NOTIFY_CLASSES.map((c) => {
+          const instanceOff = notify.data?.disabled?.includes(c) ?? false;
+          return (
+            <label
+              key={c}
+              className="flex items-start gap-3 py-1 text-xs"
+              style={{ cursor: instanceOff ? "default" : "pointer", opacity: instanceOff ? 0.55 : 1 }}
+            >
+              <input
+                type="checkbox"
+                checked={!instanceOff && (notify.data?.prefs?.[c] ?? false)}
+                disabled={instanceOff || notify.isLoading || setNotify.isPending}
+                onChange={(e) => setNotify.mutate({ [c]: e.target.checked })}
+                style={{ width: "auto", marginTop: 2 }}
+              />
+              <span>
+                <span className="text-sm">{t(`account.notify.${c}`)}</span>
+                <span className="muted block">
+                  {instanceOff ? t("account.notify.instanceOff") : t(`account.notify.${c}Hint`)}
+                </span>
+              </span>
+            </label>
+          );
+        })}
       </div>
 
       <ApiKeys />

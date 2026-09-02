@@ -187,6 +187,12 @@ URLs displayed are then correct by themselves. Set it only when the reverse
 proxy does not pass the origin through and `http://` or an internal name would
 otherwise end up in a foreign system, where nobody can reach it.
 
+The same address can be set from inside the product as the `site.url` setting
+(*Platform → Settings*), which takes precedence over the variable. The
+notification mails need one of the two: they are sent from a loop with no
+request to derive an address from, and without it they go out without links
+([mail](mail.md)).
+
 In short: `COVEY_PUBLIC_URL` points **inward** (to the sandboxes),
 `COVEY_SITE_URL` points **outward** (to visitors and third-party systems).
 

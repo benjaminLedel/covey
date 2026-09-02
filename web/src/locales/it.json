@@ -1630,7 +1630,8 @@
       "cost": "Costi",
       "costHint": "Un agente fermato al suo tetto di spesa, e l'arresto d'emergenza.",
       "ops": "Piattaforma",
-      "opsHint": "Un runner che scompare, una credenziale che un sistema di destinazione rifiuta o sta per rifiutare, e altre cose che l'esercizio dovrebbe sapere."
+      "opsHint": "Un runner che scompare, una credenziale che un sistema di destinazione rifiuta o sta per rifiutare, e altre cose che l'esercizio dovrebbe sapere.",
+      "instanceOff": "Spento per l'intera installazione dall'amministratore."
     }
   },
   "profile": {
@@ -1880,7 +1881,13 @@
       "mail.smtp_user": "Il nome di accesso. Spesso l'indirizzo del mittente, ma non sempre.",
       "mail.smtp_password": "Viene conservata sigillata e non viene mai restituita.",
       "mail.from": "L'indirizzo del mittente dell'installazione.",
-      "mail.from_name": "Il nome che lo precede. Vuoto significa: il nome dell'installazione."
+      "mail.from_name": "Il nome che lo precede. Vuoto significa: il nome dell'installazione.",
+      "site.url": "L'indirizzo con cui questa installazione è raggiungibile dall'esterno: da esso nasce ogni link in una mail. Vuoto: COVEY_SITE_URL, e le notifiche partono senza link.",
+      "notify.window": "Per quanto tempo gli eventi vengono raccolti prima che parta una mail di notifica, ad es. 5m o 1h. 0s invia al passaggio successivo.",
+      "notify.decision": "Mail sulle decisioni in attesa, per tutti su questa installazione. Spento prevale sull'interruttore di ogni account.",
+      "notify.task": "Mail sui compiti conclusi, per tutti su questa installazione. Spento prevale sull'interruttore di ogni account.",
+      "notify.cost": "Mail sul denaro — un tetto di budget, l'arresto d'emergenza — per tutti su questa installazione. Spento prevale sull'interruttore di ogni account.",
+      "notify.ops": "Mail sulla piattaforma stessa — un runner sparito, una credenziale rifiutata — per tutti su questa installazione. Spento prevale sull'interruttore di ogni account."
     },
     "choice": {
       "signup.mode": {
@@ -1892,7 +1899,9 @@
         "starttls": "STARTTLS (587)",
         "tls": "TLS dal primo byte (465)",
         "none": "in chiaro — solo per prove locali"
-      }
+      },
+      "on": "acceso",
+      "off": "spento"
     },
     "waitlistDesc": "Codici che permettono a qualcuno di creare un account finché signup.mode è su «serve un codice». Viene memorizzato solo l'hash — il testo in chiaro esiste una volta sola, alla creazione.",
     "noCodes": "Ancora nessun codice.",
@@ -2169,11 +2178,13 @@
   "mails": {
     "verify": {
       "subject": "{{site}}: conferma il tuo indirizzo",
-      "body": "Ciao {{name}},\n\nper questo indirizzo è stato creato un account su {{site}}.\n\nConfermalo aprendo questo link:\n\n{{link}}\n\nIl link è valido per 24 ore. Se non sei stato tu, ignora questa e-mail: senza la conferma l'account resta inutilizzabile."
+      "body": "Ciao {{name}},\n\nper questo indirizzo è stato creato un account su {{site}}.\n\nConfermalo aprendo questo link:\n\n{{link}}\n\nIl link è valido per 24 ore. Se non sei stato tu, ignora questa e-mail: senza la conferma l'account resta inutilizzabile.",
+      "action": "Conferma l'indirizzo"
     },
     "reset": {
       "subject": "{{site}}: imposta una nuova password",
-      "body": "Ciao {{name}},\n\nqualcuno ha chiesto di reimpostare la password del tuo account su {{site}}.\n\nImpostane una nuova qui:\n\n{{link}}\n\nIl link è valido per un'ora e funziona una sola volta. Se non sei stato tu, non è successo nulla: la tua password attuale resta valida."
+      "body": "Ciao {{name}},\n\nqualcuno ha chiesto di reimpostare la password del tuo account su {{site}}.\n\nImpostane una nuova qui:\n\n{{link}}\n\nIl link è valido per un'ora e funziona una sola volta. Se non sei stato tu, non è successo nulla: la tua password attuale resta valida.",
+      "action": "Imposta una nuova password"
     },
     "notify": {
       "decision": {

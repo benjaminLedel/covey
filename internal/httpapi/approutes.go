@@ -82,10 +82,16 @@ func (a appRouten) istAppPfad(path string) bool {
 // Hanging both on one variable would mean nobody can set the website address
 // without taking the data plane off the network.
 //
-// The default is therefore the request's own origin; COVEY_SITE_URL is the way
-// out for setups in which the proxy does not pass it through.
+// The default is therefore the request's own origin. The site.url setting
+// and, behind it, COVEY_SITE_URL are the way out for setups in which the proxy
+// does not pass it through — and the way to stop a stranger's Host header
+// from deciding where a confirmation link points (#180).
 func (s *Server) origin(r *http.Request) string {
-	if s.SiteURL != "" {
+	if s.Settings != nil {
+		if v := s.Settings.SiteURLValue(r.Context(), s.SiteURL); v != "" {
+			return v
+		}
+	} else if s.SiteURL != "" {
 		return strings.TrimRight(s.SiteURL, "/")
 	}
 	schema := "http"

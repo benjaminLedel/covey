@@ -37,11 +37,20 @@ type Sender struct {
 	Pool     *pgxpool.Pool
 	Mail     mail.Sender
 	Settings *settings.Store
-	// SiteURL is the address the links are built from. Empty = the mail lists
-	// what is waiting without links: a path alone helps nobody, and guessing a
-	// host would send people somewhere.
+	// SiteURL is the environment's address (COVEY_SITE_URL). The site.url
+	// setting takes precedence over it (#180); where neither is set the mail
+	// lists what is waiting without links: a path alone helps nobody, and
+	// guessing a host would send people somewhere.
 	SiteURL string
 	Log     *slog.Logger
+}
+
+// siteURL answers the address links are built from, without a trailing slash.
+func (s *Sender) siteURL(ctx context.Context) string {
+	if s.Settings == nil {
+		return strings.TrimRight(s.SiteURL, "/")
+	}
+	return s.Settings.SiteURLValue(ctx, s.SiteURL)
 }
 
 // Run keeps sending until the context ends.
@@ -102,6 +111,18 @@ func (s *Sender) Once(ctx context.Context) (int, error) {
 
 	sent := 0
 	for _, g := range groups {
+		// A class the installation switched off while these rows were
+		// waiting: they are not sent, and not kept either — pending rows of a
+		// class nobody wants would be the first thing to go out the day the
+		// switch is flipped back, weeks stale.
+		if s.Settings != nil && !s.Settings.NotifyClassOn(ctx, g.class) {
+			if _, err := s.Pool.Exec(ctx,
+				`UPDATE notifications SET state='obsolete', sent_at=now()
+				 WHERE account_id=$1 AND class=$2 AND state='pending'`, g.account, g.class); err != nil {
+				s.Log.Warn("notification rows of a switched-off class could not be retired", "class", g.class, "err", err)
+			}
+			continue
+		}
 		ok, err := s.sendGroup(ctx, g)
 		if err != nil {
 			s.Log.Warn("notification mail failed", "class", g.class, "err", err)
@@ -193,7 +214,7 @@ func (s *Sender) sendGroup(ctx context.Context, g group) (bool, error) {
 		return false, err
 	}
 	site, _ := s.Settings.Get(ctx, settings.SiteName)
-	msg := s.compose(mail.Lang(lang), site, name, g.class, live)
+	msg := s.compose(mail.Lang(lang), site, name, g.class, live, s.siteURL(ctx))
 	msg.To = email
 
 	// Sent first, marked afterwards. The other order loses a mail whenever the
@@ -273,32 +294,50 @@ func (s *Sender) stillOpen(ctx context.Context, tx pgx.Tx, it item) (bool, error
 
 // compose builds the message. Subject and the framing sentences come from the
 // interface's language catalogues; the lines themselves were rendered when the
-// event was written.
-func (s *Sender) compose(lang, site, name, class string, items []item) mail.Message {
+// event was written. Text and HTML carry the same content: the text is the
+// mail, the HTML is how it reads where it can.
+func (s *Sender) compose(lang, site, name, class string, items []item, siteURL string) mail.Message {
 	vars := map[string]string{"site": site, "name": name}
+	intro := mail.Text(lang, "mails.notify."+class+".intro", vars)
+	subject := mail.Text(lang, "mails.notify."+class+".subject", vars)
+
 	var b strings.Builder
-	b.WriteString(mail.Text(lang, "mails.notify."+class+".intro", vars))
+	b.WriteString(intro)
 	b.WriteString("\n\n")
+	lines := make([]mail.Item, 0, len(items))
 	for _, it := range items {
 		b.WriteString("- ")
 		b.WriteString(it.title)
 		b.WriteString("\n")
-		if s.SiteURL != "" && it.link != "" {
+		line := mail.Item{Text: it.title}
+		if siteURL != "" && it.link != "" {
+			line.Href = siteURL + it.link
 			b.WriteString("  ")
-			b.WriteString(strings.TrimRight(s.SiteURL, "/") + it.link)
+			b.WriteString(line.Href)
 			b.WriteString("\n")
 		}
+		lines = append(lines, line)
 	}
 	b.WriteString("\n")
 	footer := map[string]string{"site": site, "link": ""}
-	if s.SiteURL != "" {
-		footer["link"] = strings.TrimRight(s.SiteURL, "/") + "/profile"
+	if siteURL != "" {
+		footer["link"] = siteURL + "/profile"
 	}
-	b.WriteString(mail.Text(lang, "mails.notify.footer", footer))
+	footerText := mail.Text(lang, "mails.notify.footer", footer)
+	b.WriteString(footerText)
+
 	return mail.Message{
 		// To is filled by the caller, which is the only place that has the
 		// address — compose builds what everybody gets to see.
-		Subject: mail.Text(lang, "mails.notify."+class+".subject", vars),
+		Subject: subject,
 		Body:    b.String(),
+		HTML: mail.Render(lang, mail.Page{
+			Site:  site,
+			Title: mail.Heading(subject, site),
+			Body:  mail.Paragraph(intro) + mail.List(lines),
+			// The footer names the settings page; FromText turns the address
+			// at its end into a link and leaves the sentence alone.
+			Footer: mail.FromText(footerText, ""),
+		}),
 	}
 }

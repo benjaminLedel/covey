@@ -1630,7 +1630,8 @@
       "cost": "Coûts",
       "costHint": "Un agent arrêté à son plafond de budget, et l'arrêt d'urgence.",
       "ops": "Plateforme",
-      "opsHint": "Un runner qui disparaît, un identifiant qu'un système cible refuse ou va refuser, et d'autres choses que l'exploitation devrait savoir."
+      "opsHint": "Un runner qui disparaît, un identifiant qu'un système cible refuse ou va refuser, et d'autres choses que l'exploitation devrait savoir.",
+      "instanceOff": "Désactivé pour toute cette installation par son administrateur."
     }
   },
   "profile": {
@@ -1880,7 +1881,13 @@
       "mail.smtp_user": "Le nom de connexion. Souvent l'adresse d'expéditeur, mais pas toujours.",
       "mail.smtp_password": "Conservé scellé et jamais restitué.",
       "mail.from": "L'adresse d'expéditeur de l'installation.",
-      "mail.from_name": "Le nom qui la précède. Vide signifie : le nom de l'installation."
+      "mail.from_name": "Le nom qui la précède. Vide signifie : le nom de l'installation.",
+      "site.url": "L'adresse à laquelle cette installation est joignable de l'extérieur — chaque lien d'un courriel en est construit. Vide : COVEY_SITE_URL, et les notifications partent sans liens.",
+      "notify.window": "Combien de temps les événements sont rassemblés avant l'envoi d'un courriel de notification, p. ex. 5m ou 1h. 0s envoie au passage suivant.",
+      "notify.decision": "Courriels sur les décisions en attente — pour tout le monde sur cette installation. Désactivé l'emporte sur le réglage de chaque compte.",
+      "notify.task": "Courriels sur les tâches terminées — pour tout le monde sur cette installation. Désactivé l'emporte sur le réglage de chaque compte.",
+      "notify.cost": "Courriels sur l'argent — un plafond budgétaire, l'arrêt d'urgence — pour tout le monde sur cette installation. Désactivé l'emporte sur le réglage de chaque compte.",
+      "notify.ops": "Courriels sur la plateforme elle-même — un runner disparu, un identifiant refusé — pour tout le monde sur cette installation. Désactivé l'emporte sur le réglage de chaque compte."
     },
     "choice": {
       "signup.mode": {
@@ -1892,7 +1899,9 @@
         "starttls": "STARTTLS (587)",
         "tls": "TLS dès le premier octet (465)",
         "none": "en clair — uniquement pour des tests locaux"
-      }
+      },
+      "on": "activé",
+      "off": "désactivé"
     },
     "waitlistDesc": "Codes qui permettent à quelqu'un de créer un compte tant que signup.mode est sur « code requis ». Seul le condensé est stocké — le texte clair n'existe qu'une seule fois, à la création.",
     "noCodes": "Pas encore de codes.",
@@ -2169,11 +2178,13 @@
   "mails": {
     "verify": {
       "subject": "{{site}} : confirmez votre adresse",
-      "body": "Bonjour {{name}},\n\nun compte a été créé pour cette adresse sur {{site}}.\n\nConfirmez-la en ouvrant ce lien :\n\n{{link}}\n\nLe lien est valable 24 heures. Si ce n'était pas vous, ignorez ce message — sans la confirmation, le compte reste inutilisable."
+      "body": "Bonjour {{name}},\n\nun compte a été créé pour cette adresse sur {{site}}.\n\nConfirmez-la en ouvrant ce lien :\n\n{{link}}\n\nLe lien est valable 24 heures. Si ce n'était pas vous, ignorez ce message — sans la confirmation, le compte reste inutilisable.",
+      "action": "Confirmer l'adresse"
     },
     "reset": {
       "subject": "{{site}} : définir un nouveau mot de passe",
-      "body": "Bonjour {{name}},\n\nquelqu'un a demandé la réinitialisation du mot de passe de votre compte sur {{site}}.\n\nDéfinissez-en un nouveau ici :\n\n{{link}}\n\nLe lien est valable une heure et ne fonctionne qu'une fois. Si ce n'était pas vous, rien ne s'est passé — votre mot de passe actuel reste valable."
+      "body": "Bonjour {{name}},\n\nquelqu'un a demandé la réinitialisation du mot de passe de votre compte sur {{site}}.\n\nDéfinissez-en un nouveau ici :\n\n{{link}}\n\nLe lien est valable une heure et ne fonctionne qu'une fois. Si ce n'était pas vous, rien ne s'est passé — votre mot de passe actuel reste valable.",
+      "action": "Définir un nouveau mot de passe"
     },
     "notify": {
       "decision": {

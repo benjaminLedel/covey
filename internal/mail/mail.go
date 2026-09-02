@@ -32,16 +32,19 @@ import (
 	"github.com/google/uuid"
 )
 
-// Message is one transactional mail: one recipient, one subject, plain text.
+// Message is one transactional mail: one recipient, one subject, a plain-text
+// body — and, where the sender built one, an HTML rendering of the same
+// content beside it (html.go).
 //
-// No HTML, and that is a decision rather than an omission: what this platform
-// sends is a link and a sentence about why. Plain text renders everywhere,
-// cannot be blocked as remote content, and gives a phishing filter nothing to
-// chew on.
+// The text is not optional and never a summary of the HTML: it is the mail
+// for every client that shows no HTML, and it is what the HTML is built from.
+// Nothing in the HTML part is loaded from anywhere, so a client that blocks
+// remote content still shows it whole.
 type Message struct {
 	To      string
 	Subject string
 	Body    string
+	HTML    string
 }
 
 // Sender delivers a message. The port exists so a test can count mails
@@ -77,13 +80,37 @@ func build(from, fromAddr string, m Message, now time.Time) []byte {
 	// participants and no exit.
 	header("Auto-Submitted", "auto-generated")
 	header("MIME-Version", "1.0")
-	header("Content-Type", "text/plain; charset=utf-8")
-	header("Content-Transfer-Encoding", "quoted-printable")
+	if m.HTML == "" {
+		header("Content-Type", "text/plain; charset=utf-8")
+		header("Content-Transfer-Encoding", "quoted-printable")
+		b.WriteString("\r\n")
+		writeQP(&b, m.Body)
+		return []byte(b.String())
+	}
+	// multipart/alternative, text first: the order tells the client which
+	// part is the fallback and which the preferred rendering.
+	boundary := "=_covey_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	header("Content-Type", `multipart/alternative; boundary="`+boundary+`"`)
 	b.WriteString("\r\n")
-	qp := quotedprintable.NewWriter(&b)
-	qp.Write([]byte(m.Body))
-	qp.Close()
+	for _, part := range []struct{ ctype, body string }{
+		{"text/plain", m.Body},
+		{"text/html", m.HTML},
+	} {
+		b.WriteString("--" + boundary + "\r\n")
+		header("Content-Type", part.ctype+"; charset=utf-8")
+		header("Content-Transfer-Encoding", "quoted-printable")
+		b.WriteString("\r\n")
+		writeQP(&b, part.body)
+		b.WriteString("\r\n")
+	}
+	b.WriteString("--" + boundary + "--\r\n")
 	return []byte(b.String())
+}
+
+func writeQP(b *strings.Builder, body string) {
+	qp := quotedprintable.NewWriter(b)
+	qp.Write([]byte(body))
+	qp.Close()
 }
 
 // sanitizeHeader strips line breaks out of header values. The subject is the

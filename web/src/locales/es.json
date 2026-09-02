@@ -1630,7 +1630,8 @@
       "cost": "Costes",
       "costHint": "Un agente detenido en su límite de presupuesto, y la parada de emergencia.",
       "ops": "Plataforma",
-      "opsHint": "Un runner que desaparece, una credencial que un sistema de destino rechaza o está a punto de rechazar, y otras cosas que la operación debería saber."
+      "opsHint": "Un runner que desaparece, una credencial que un sistema de destino rechaza o está a punto de rechazar, y otras cosas que la operación debería saber.",
+      "instanceOff": "Desactivado para toda esta instalación por su administrador."
     }
   },
   "profile": {
@@ -1880,7 +1881,13 @@
       "mail.smtp_user": "El nombre de acceso. A menudo la dirección del remitente, pero no siempre.",
       "mail.smtp_password": "Se guarda sellada y nunca se devuelve.",
       "mail.from": "La dirección del remitente de la instalación.",
-      "mail.from_name": "El nombre que la precede. Vacío significa: el nombre de la instalación."
+      "mail.from_name": "El nombre que la precede. Vacío significa: el nombre de la instalación.",
+      "site.url": "La dirección con la que esta instalación es accesible desde fuera: de ella se construye cada enlace de un correo. Vacío: COVEY_SITE_URL, y las notificaciones salen sin enlaces.",
+      "notify.window": "Cuánto tiempo se acumulan los eventos antes de enviar un correo de notificación, p. ej. 5m o 1h. 0s envía en la siguiente pasada.",
+      "notify.decision": "Correos sobre decisiones pendientes, para todos en esta instalación. Apagado prevalece sobre el interruptor de cada cuenta.",
+      "notify.task": "Correos sobre tareas terminadas, para todos en esta instalación. Apagado prevalece sobre el interruptor de cada cuenta.",
+      "notify.cost": "Correos sobre dinero (un tope de presupuesto, la parada de emergencia), para todos en esta instalación. Apagado prevalece sobre el interruptor de cada cuenta.",
+      "notify.ops": "Correos sobre la propia plataforma (un runner desaparecido, una credencial rechazada), para todos en esta instalación. Apagado prevalece sobre el interruptor de cada cuenta."
     },
     "choice": {
       "signup.mode": {
@@ -1892,7 +1899,9 @@
         "starttls": "STARTTLS (587)",
         "tls": "TLS desde el primer byte (465)",
         "none": "sin cifrar — solo para pruebas locales"
-      }
+      },
+      "on": "activado",
+      "off": "desactivado"
     },
     "waitlistDesc": "Códigos que permiten a alguien crear una cuenta mientras signup.mode está en «hace falta código». Solo se guarda el hash: el texto en claro existe exactamente una vez, al crearlo.",
     "noCodes": "Todavía no hay códigos.",
@@ -2169,11 +2178,13 @@
   "mails": {
     "verify": {
       "subject": "{{site}}: confirme su dirección",
-      "body": "Hola {{name}}:\n\nse ha creado una cuenta para esta dirección en {{site}}.\n\nConfírmela abriendo este enlace:\n\n{{link}}\n\nEl enlace es válido durante 24 horas. Si no ha sido usted, ignore este correo: sin la confirmación la cuenta queda inutilizable."
+      "body": "Hola {{name}}:\n\nse ha creado una cuenta para esta dirección en {{site}}.\n\nConfírmela abriendo este enlace:\n\n{{link}}\n\nEl enlace es válido durante 24 horas. Si no ha sido usted, ignore este correo: sin la confirmación la cuenta queda inutilizable.",
+      "action": "Confirmar dirección"
     },
     "reset": {
       "subject": "{{site}}: establecer una nueva contraseña",
-      "body": "Hola {{name}}:\n\nalguien ha pedido restablecer la contraseña de su cuenta en {{site}}.\n\nEstablezca una nueva aquí:\n\n{{link}}\n\nEl enlace es válido durante una hora y sirve una sola vez. Si no ha sido usted, no ha ocurrido nada: su contraseña actual sigue siendo válida."
+      "body": "Hola {{name}}:\n\nalguien ha pedido restablecer la contraseña de su cuenta en {{site}}.\n\nEstablezca una nueva aquí:\n\n{{link}}\n\nEl enlace es válido durante una hora y sirve una sola vez. Si no ha sido usted, no ha ocurrido nada: su contraseña actual sigue siendo válida.",
+      "action": "Establecer una nueva contraseña"
     },
     "notify": {
       "decision": {

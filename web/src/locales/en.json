@@ -1630,7 +1630,8 @@
       "cost": "Costs",
       "costHint": "An agent paused at its budget cap, and the emergency stop.",
       "ops": "Platform",
-      "opsHint": "A runner that leaves, a credential a target system refuses or is about to, and other things the operation should know."
+      "opsHint": "A runner that leaves, a credential a target system refuses or is about to, and other things the operation should know.",
+      "instanceOff": "Switched off for this whole installation by its administrator."
     }
   },
   "profile": {
@@ -1880,7 +1881,13 @@
       "mail.smtp_user": "The login name. Often the sender address, but not always.",
       "mail.smtp_password": "Stored sealed and never handed back out.",
       "mail.from": "The installation's sender address.",
-      "mail.from_name": "The name in front of it. Empty means the installation's name."
+      "mail.from_name": "The name in front of it. Empty means the installation's name.",
+      "site.url": "The address this installation is reachable at from outside — every link in a mail is built from it. Empty: COVEY_SITE_URL, and notification mails go out without links.",
+      "notify.window": "How long notification events are collected before a mail goes out, e.g. 5m or 1h. 0s sends on the next pass.",
+      "notify.decision": "Mails about decisions that are waiting — for everybody on this installation. Off overrides every account's own switch.",
+      "notify.task": "Mails about finished tasks — for everybody on this installation. Off overrides every account's own switch.",
+      "notify.cost": "Mails about money — a budget cap, the emergency stop — for everybody on this installation. Off overrides every account's own switch.",
+      "notify.ops": "Mails about the platform itself — a runner that left, a refused credential — for everybody on this installation. Off overrides every account's own switch."
     },
     "choice": {
       "signup.mode": {
@@ -1892,7 +1899,9 @@
         "starttls": "STARTTLS (587)",
         "tls": "TLS from the first byte (465)",
         "none": "plain text — local tests only"
-      }
+      },
+      "on": "on",
+      "off": "off"
     },
     "waitlistDesc": "Codes that let somebody create an account while signup.mode is set to “code required”. Only the hash is stored — the plaintext exists exactly once, at creation.",
     "noCodes": "No codes yet.",
@@ -2169,11 +2178,13 @@
   "mails": {
     "verify": {
       "subject": "{{site}}: confirm your address",
-      "body": "Hello {{name}},\n\nan account was created for this address at {{site}}.\n\nConfirm it by opening this link:\n\n{{link}}\n\nThe link is valid for 24 hours. If this was not you, ignore this mail — without the confirmation the account stays unusable."
+      "body": "Hello {{name}},\n\nan account was created for this address at {{site}}.\n\nConfirm it by opening this link:\n\n{{link}}\n\nThe link is valid for 24 hours. If this was not you, ignore this mail — without the confirmation the account stays unusable.",
+      "action": "Confirm address"
     },
     "reset": {
       "subject": "{{site}}: set a new password",
-      "body": "Hello {{name}},\n\nsomebody asked to reset the password of your account at {{site}}.\n\nSet a new one here:\n\n{{link}}\n\nThe link is valid for one hour and works once. If this was not you, nothing has happened — your current password stays valid."
+      "body": "Hello {{name}},\n\nsomebody asked to reset the password of your account at {{site}}.\n\nSet a new one here:\n\n{{link}}\n\nThe link is valid for one hour and works once. If this was not you, nothing has happened — your current password stays valid.",
+      "action": "Set a new password"
     },
     "notify": {
       "decision": {

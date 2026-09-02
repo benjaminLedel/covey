@@ -31,7 +31,7 @@ Migrations run automatically at startup, guarded by an advisory lock; two instan
 Two variables look alike and mean opposite things:
 
 - `COVEY_PUBLIC_URL` points **inwards** — the address at which the **sandboxes** reach the control plane. Put the website's domain here and the containers dial back over the open network and fail at the egress allowlist.
-- `COVEY_SITE_URL` points **outwards** — the copyable webhook and trigger URLs, the address in the downloadable skill. Leaving it empty is the normal case; the server derives it from the request.
+- `COVEY_SITE_URL` points **outwards** — the copyable webhook and trigger URLs, the address in the downloadable skill, the links in the mails the installation sends. Leaving it empty is the normal case; the server derives it from the request. The `site.url` setting (*Platform → Settings*) says the same thing from inside the product and takes precedence — the mails sent from the notification loop have no request to fall back on and need one of the two ([mail](mail.md)).
 
 At startup covey warns when these two roles look swapped.
 

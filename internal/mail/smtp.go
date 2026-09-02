@@ -61,7 +61,7 @@ func deliver(ctx context.Context, cfg settings.Mail, m Message) error {
 	if err != nil {
 		return err
 	}
-	msg := build(cfg.Sender(), from, Message{To: to, Subject: m.Subject, Body: m.Body}, time.Now())
+	msg := build(cfg.Sender(), from, Message{To: to, Subject: m.Subject, Body: m.Body, HTML: m.HTML}, time.Now())
 
 	c, err := connect(ctx, cfg)
 	if err != nil {

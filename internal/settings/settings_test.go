@@ -44,6 +44,21 @@ func TestPruefung(t *testing.T) {
 		{SignupOrgQuota, "viele", false},
 		{SiteName, "covey", true},
 		{SiteName, "", false},
+		{SiteURL, "", true},
+		{SiteURL, "https://covey.example.com", true},
+		{SiteURL, "https://covey.example.com/covey/", true},
+		{SiteURL, "covey.example.com", false},
+		{SiteURL, "ftp://covey.example.com", false},
+		{SiteURL, "https://covey.example.com/?x=1", false},
+		{NotifyWindow, "5m", true},
+		{NotifyWindow, "0s", true},
+		{NotifyWindow, "24h", true},
+		{NotifyWindow, "25h", false},
+		{NotifyWindow, "-1m", false},
+		{NotifyWindow, "soon", false},
+		{NotifyClassKey("task"), "on", true},
+		{NotifyClassKey("task"), "off", true},
+		{NotifyClassKey("task"), "yes", false},
 	}
 	for _, f := range faelle {
 		err := validate(f.key, f.value)

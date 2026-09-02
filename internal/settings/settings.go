@@ -14,6 +14,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -45,7 +46,45 @@ const (
 	// has to be able to END. A check that stands on "!" forever is furniture
 	// after two weeks, and then the finding next to it is not read either.
 	HomeStoreBackup = "homestore.backup_confirmed"
+	// SiteURL: the address under which this installation is reachable from
+	// outside — the host every link in a mail is built from. Empty means the
+	// environment (COVEY_SITE_URL) and, for the HTTP handlers, the request's
+	// own origin; the mails sent from a loop have no request to ask and go out
+	// without links (#180).
+	//
+	// A setting and not only a variable, because the person who notices that
+	// the links are missing is the one reading the mail — and they should be
+	// able to fix it where they fix the mail server, not in a redeploy.
+	SiteURL = "site.url"
+	// NotifyWindow: how long notification events are collected before a mail
+	// goes out (a duration, "5m"). Zero sends on the next pass of the sender.
+	NotifyWindow = "notify.window"
+	// NotifyClassPrefix + class: the instance's master switch per notification
+	// class, on | off. Off means nobody on this installation is written to
+	// about the class, whatever their own account says.
+	NotifyClassPrefix = "notify."
 )
+
+// The values of the notify.<class> switches.
+const (
+	On  = "on"
+	Off = "off"
+)
+
+// NotifyClasses are the classes internal/notify knows, spelled out here so the
+// settings table can carry a switch per class without importing the package
+// that would import this one back.
+var NotifyClasses = []string{"decision", "task", "cost", "ops"}
+
+// NotifyClassKey names the master switch of one class.
+func NotifyClassKey(class string) string { return NotifyClassPrefix + class }
+
+// DefaultNotifyWindow is what applies while nobody has set notify.window.
+const DefaultNotifyWindow = 5 * time.Minute
+
+// MaxNotifyWindow bounds it: a day of collecting is a digest, and past that
+// the "agent waits" the mails exist for has waited too long.
+const MaxNotifyWindow = 24 * time.Hour
 
 // The modes of signup.mode.
 const (
@@ -66,7 +105,15 @@ var Defaults = map[string]string{
 	SignupMode:      ModeOff,
 	SignupOrgQuota:  "1",
 	SiteName:        "covey",
+	SiteURL:         "",
 	HomeStoreBackup: "",
+	NotifyWindow:    "5m",
+}
+
+func init() {
+	for _, c := range NotifyClasses {
+		Defaults[NotifyClassKey(c)] = On
+	}
 }
 
 var (
@@ -203,6 +250,25 @@ func validate(key, value string) error {
 			return fmt.Errorf("%w: %s must not be empty", ErrInvalid, key)
 		}
 		return nil
+	case SiteURL:
+		// Empty is allowed and means "not decided here". Anything else has to
+		// be an absolute http(s) address: a bare host would produce links
+		// without a scheme, and a path-only value links nowhere.
+		if value == "" {
+			return nil
+		}
+		u, err := url.Parse(value)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" ||
+			u.RawQuery != "" || u.Fragment != "" {
+			return fmt.Errorf("%w: %s must be an absolute http(s) address such as https://covey.example.com", ErrInvalid, key)
+		}
+		return nil
+	case NotifyWindow:
+		d, err := time.ParseDuration(value)
+		if err != nil || d < 0 || d > MaxNotifyWindow {
+			return fmt.Errorf("%w: %s must be a duration between 0s and 24h, e.g. 5m", ErrInvalid, key)
+		}
+		return nil
 	case HomeStoreBackup:
 		// A date, or empty for "withdrawn". Deliberately not a boolean: what
 		// makes the confirmation worth anything is WHEN it was given — a tick
@@ -218,7 +284,52 @@ func validate(key, value string) error {
 	if strings.HasPrefix(key, "mail.") {
 		return validateMail(key, value)
 	}
+	if strings.HasPrefix(key, NotifyClassPrefix) {
+		if value != On && value != Off {
+			return fmt.Errorf("%w: %s must be on or off", ErrInvalid, key)
+		}
+		return nil
+	}
 	return nil
+}
+
+// SiteURLValue answers the address links are built from: the setting, and
+// the environment's value (handed in by the caller) where the setting is
+// empty. Without a trailing slash, so a path can be appended directly. Empty
+// when neither is set — the caller decides what that means for it.
+func (s *Store) SiteURLValue(ctx context.Context, env string) string {
+	v, err := s.Get(ctx, SiteURL)
+	if err != nil || v == "" {
+		v = env
+	}
+	return strings.TrimRight(strings.TrimSpace(v), "/")
+}
+
+// NotifyWindowValue answers the damping window. A broken database or an
+// unparsable row answers the default rather than zero: "send at once" must
+// never be what an error means.
+func (s *Store) NotifyWindowValue(ctx context.Context) time.Duration {
+	v, err := s.Get(ctx, NotifyWindow)
+	if err != nil {
+		return DefaultNotifyWindow
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil || d < 0 {
+		return DefaultNotifyWindow
+	}
+	return d
+}
+
+// NotifyClassOn says whether the installation sends mails of one class at
+// all. Fails OPEN on a database error, deliberately: the switch exists to
+// quiet a class, and a mail that goes out although the store was unreachable
+// is the lesser fault next to one that is silently dropped.
+func (s *Store) NotifyClassOn(ctx context.Context, class string) bool {
+	v, err := s.Get(ctx, NotifyClassKey(class))
+	if err != nil {
+		return true
+	}
+	return v != Off
 }
 
 // Mode is the shorthand for the question the public website asks on every

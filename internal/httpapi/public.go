@@ -160,14 +160,8 @@ func (s *Server) handleSignup(w http.ResponseWriter, r *http.Request) {
 			// has to repair by hand; this way a mail server that refuses takes
 			// the whole registration back with it. The price is one SMTP round
 			// trip inside a short transaction, and the sender has a timeout.
-			if err := s.Mail.Send(r.Context(), mail.Message{
-				To:      in.Email,
-				Subject: mail.Text(lang, "mails.verify.subject", map[string]string{"site": site}),
-				Body: mail.Text(lang, "mails.verify.body", map[string]string{
-					"site": site, "name": in.DisplayName,
-					"link": base + "/verify?token=" + url.QueryEscape(token),
-				}),
-			}); err != nil {
+			if err := s.Mail.Send(r.Context(), transactional(lang, "verify", site, in.DisplayName,
+				base+"/verify?token="+url.QueryEscape(token), in.Email)); err != nil {
 				return fmt.Errorf("%w: %v", errMailFailed, err)
 			}
 			return nil
@@ -315,14 +309,8 @@ func (s *Server) handleResendVerification(w http.ResponseWriter, r *http.Request
 	if name == "" {
 		name = acc.Email
 	}
-	if err := s.Mail.Send(r.Context(), mail.Message{
-		To:      acc.Email,
-		Subject: mail.Text(lang, "mails.verify.subject", map[string]string{"site": site}),
-		Body: mail.Text(lang, "mails.verify.body", map[string]string{
-			"site": site, "name": name,
-			"link": s.origin(r) + "/verify?token=" + url.QueryEscape(token),
-		}),
-	}); err != nil {
+	if err := s.Mail.Send(r.Context(), transactional(lang, "verify", site, name,
+		s.origin(r)+"/verify?token="+url.QueryEscape(token), acc.Email)); err != nil {
 		s.Log.Error("could not send the confirmation mail again", "err", err)
 	}
 }
@@ -382,14 +370,8 @@ func (s *Server) handlePasswordReset(w http.ResponseWriter, r *http.Request) {
 	if name == "" {
 		name = acc.Email
 	}
-	if err := s.Mail.Send(r.Context(), mail.Message{
-		To:      acc.Email,
-		Subject: mail.Text(lang, "mails.reset.subject", map[string]string{"site": site}),
-		Body: mail.Text(lang, "mails.reset.body", map[string]string{
-			"site": site, "name": name,
-			"link": s.origin(r) + "/reset?token=" + url.QueryEscape(token),
-		}),
-	}); err != nil {
+	if err := s.Mail.Send(r.Context(), transactional(lang, "reset", site, name,
+		s.origin(r)+"/reset?token="+url.QueryEscape(token), acc.Email)); err != nil {
 		// Into the log, not into the answer: the person waiting for the mail
 		// cannot act on an SMTP error, and whoever can is reading the log.
 		s.Log.Error("could not send the reset mail", "err", err)
@@ -458,4 +440,24 @@ func (s *Server) startSession(w http.ResponseWriter, r *http.Request, acc accoun
 		return
 	}
 	s.setSessionCookie(w, token, int(s.SessionTTL.Seconds()))
+}
+
+// transactional builds one of the mails that carry a single link — the
+// confirmation, the reset — from the catalogue entries under mails.<kind>:
+// subject, body, and the label of the button the HTML part makes of the
+// link (#180).
+func transactional(lang, kind, site, name, link, to string) mail.Message {
+	vars := map[string]string{"site": site, "name": name, "link": link}
+	subject := mail.Text(lang, "mails."+kind+".subject", vars)
+	body := mail.Text(lang, "mails."+kind+".body", vars)
+	return mail.Message{
+		To:      to,
+		Subject: subject,
+		Body:    body,
+		HTML: mail.Render(lang, mail.Page{
+			Site:  site,
+			Title: mail.Heading(subject, site),
+			Body:  mail.FromText(body, mail.Text(lang, "mails."+kind+".action", vars)),
+		}),
+	}
 }
