@@ -1,7 +1,7 @@
-github.com/benjaminLedel/covey-plugin-pack v0.14.0 h1:EE0Y5mwHl6nOVPS1zarrX707jR6aox6DbCDncnvX8OQ=
-github.com/benjaminLedel/covey-plugin-pack v0.14.0/go.mod h1:a3grAG3Hutm2Ys9+ThtPLsEm2TBbSeY3cSXaVX3xjmw=
-github.com/benjaminLedel/covey-plugin-sdk v0.4.0 h1:5E4OGoMfh1JKAb9ljLWBGY8sUSaXiPFK7CVzu4fn738=
-github.com/benjaminLedel/covey-plugin-sdk v0.4.0/go.mod h1:Jchr0Mi5pKJ57o+TnTRcIUXFpS8Ij6ALcdqsN1FbbX4=
+github.com/benjaminLedel/covey-plugin-pack v0.15.0 h1:HA6uQZX8pmG2xN6ArH1aFa44DwKn3md/k6eir5jpLPY=
+github.com/benjaminLedel/covey-plugin-pack v0.15.0/go.mod h1:0YoSPcTlhiDnWcmJdqf900DtlJxACIprA7V7QwuQ8yQ=
+github.com/benjaminLedel/covey-plugin-sdk v0.5.0 h1:dQK317F2JaM4rZMMRnEbh0dpQ0+tPHYkzAlHKJUbvCQ=
+github.com/benjaminLedel/covey-plugin-sdk v0.5.0/go.mod h1:Jchr0Mi5pKJ57o+TnTRcIUXFpS8Ij6ALcdqsN1FbbX4=
 github.com/chromedp/cdproto v0.0.0-20260714215040-dc233986426f h1:0Z1zcSLEmnj2c2CmJYBqewtS6pxhB39bNWUSEUAWjgk=
 github.com/chromedp/cdproto v0.0.0-20260714215040-dc233986426f/go.mod h1:RwFsSODCtFExll+GhHM6R92SARHR3Z3oipaxLHj46C0=
 github.com/chromedp/chromedp v0.16.0 h1:rOO4deOm4CbZgBCa8mD9g2rDyIoNs0BkgvNrlbp5ouk=
