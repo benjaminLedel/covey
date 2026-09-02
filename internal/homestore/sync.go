@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -37,6 +39,11 @@ const (
 	askBatch      = 512
 	askBatchBytes = 32 << 20
 )
+
+// transferWorkers is how many blocks are in flight at once, in either
+// direction. Eight is enough to hide a remote store's round trip behind the
+// disk and small enough that a runner host does not feel it (#175).
+const transferWorkers = 8
 
 // pendingBlock is a block waiting for its answer. data is nil for a block the
 // stat cache vouched for: it is read from disk only if the store lacks it.
@@ -93,42 +100,38 @@ func SyncWatched(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root str
 	// Store liegt, wird verworfen, ohne je die Leitung gesehen zu haben.
 	buf := make([]pendingBlock, 0, askBatch)
 	bufBytes := 0
+	// The scan runs ahead of the upload: a full batch is handed to the
+	// uploader and the scan carries on reading while it goes up, at most one
+	// batch waiting. Within a batch the blocks the store lacks are put
+	// concurrently (#175). res is the uploader's to write until it is joined.
+	ctx, stop := context.WithCancel(ctx)
+	defer stop()
+	batches := make(chan []pendingBlock, 1)
+	uploaded := make(chan error, 1)
+	var blocksUp, bytesUp atomic.Int64
+	go func() {
+		err := uploadBatches(ctx, blobs, orgID, batches, &blocksUp, &bytesUp)
+		if err != nil {
+			// Ends the scan too: a flush waiting to hand over a batch would
+			// otherwise wait for an uploader that has gone.
+			stop()
+		}
+		uploaded <- err
+	}()
 	flush := func() error {
 		if len(buf) == 0 {
 			return nil
 		}
-		hashes := make([]string, len(buf))
-		for i, b := range buf {
-			hashes[i] = b.hash
-		}
-		have, err := AskAll(ctx, blobs, orgID, hashes)
-		if err != nil {
-			return err
-		}
-		for _, b := range buf {
-			if have[b.hash] {
-				continue
-			}
-			data := b.data
-			if data == nil {
-				// The cache vouched for a block the store does not hold — it
-				// was swept, or never arrived. Read now, from where the cache
-				// said it lies.
-				read, err := readBlock(b.path, b.size, b.index, b.hash)
-				if err != nil {
-					return err
-				}
-				data = read
-			}
-			if err := blobs.Put(ctx, orgID, b.hash, bytes.NewReader(data)); err != nil {
-				return err
-			}
-			res.Blocks++
-			res.BytesUp += int64(len(data))
-		}
-		buf = buf[:0]
+		batch := buf
+		buf = make([]pendingBlock, 0, askBatch)
 		bufBytes = 0
-		return nil
+		select {
+		case batches <- batch:
+			return nil
+		case <-ctx.Done():
+			// The uploader gave up; its error is read at the join.
+			return ctx.Err()
+		}
 	}
 
 	manifest, err := scanCached(root, excludes, cache, func(hash string, data []byte) error {
@@ -137,7 +140,7 @@ func SyncWatched(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root str
 		// gelesen und gehasht, und in den Store geht am Ende nichts. Ein
 		// Lebenszeichen, das am Hochladen hinge, schwiege dann durchgehend.
 		if watch != nil {
-			watch(len(seen), res.BytesUp)
+			watch(len(seen), bytesUp.Load())
 		}
 		if data == nil {
 			// A hash the cache vouched for. Its place in the file is counted
@@ -177,11 +180,18 @@ func SyncWatched(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root str
 	}, func(path string, size int64) {
 		cachedPath, cachedSize, cachedIndex = path, size, 0
 	})
+	flushErr := flush()
+	close(batches)
+	if upErr := <-uploaded; upErr != nil {
+		return SyncResult{}, upErr
+	}
+	res.Blocks = int(blocksUp.Load())
+	res.BytesUp = bytesUp.Load()
 	if err != nil {
 		return SyncResult{}, err
 	}
-	if err := flush(); err != nil {
-		return SyncResult{}, err
+	if flushErr != nil {
+		return SyncResult{}, flushErr
 	}
 	if err := cache.Save(root); err != nil {
 		// Not fatal: the snapshot is what matters, the cache is a saving.
@@ -216,6 +226,77 @@ func SyncWatched(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root str
 	res.ManifestHash = hash
 	res.TotalSize = manifest.TotalSize()
 	return res, nil
+}
+
+// uploadBatches takes batches off the channel until it is closed: asks the
+// store which of the batch it holds, and puts the rest, transferWorkers at a
+// time. The first error ends it, and the context with it, so the scan stops
+// feeding.
+func uploadBatches(ctx context.Context, blobs BlobStore, orgID uuid.UUID, batches <-chan []pendingBlock, blocksUp, bytesUp *atomic.Int64) error {
+	for batch := range batches {
+		hashes := make([]string, len(batch))
+		for i, b := range batch {
+			hashes[i] = b.hash
+		}
+		have, err := AskAll(ctx, blobs, orgID, hashes)
+		if err != nil {
+			return err
+		}
+		var (
+			wg      sync.WaitGroup
+			slots   = make(chan struct{}, transferWorkers)
+			firstMu sync.Mutex
+			first   error
+		)
+		for _, b := range batch {
+			if have[b.hash] {
+				continue
+			}
+			firstMu.Lock()
+			failed := first != nil
+			firstMu.Unlock()
+			if failed {
+				break
+			}
+			slots <- struct{}{}
+			wg.Add(1)
+			go func(b pendingBlock) {
+				defer wg.Done()
+				defer func() { <-slots }()
+				data := b.data
+				if data == nil {
+					// The cache vouched for a block the store does not hold —
+					// it was swept, or never arrived. Read now, from where the
+					// cache said it lies.
+					read, err := readBlock(b.path, b.size, b.index, b.hash)
+					if err != nil {
+						firstMu.Lock()
+						if first == nil {
+							first = err
+						}
+						firstMu.Unlock()
+						return
+					}
+					data = read
+				}
+				if err := blobs.Put(ctx, orgID, b.hash, bytes.NewReader(data)); err != nil {
+					firstMu.Lock()
+					if first == nil {
+						first = err
+					}
+					firstMu.Unlock()
+					return
+				}
+				blocksUp.Add(1)
+				bytesUp.Add(int64(len(data)))
+			}(b)
+		}
+		wg.Wait()
+		if first != nil {
+			return first
+		}
+	}
+	return nil
 }
 
 // manifestIndexMarker is what tells a stored object apart from a manifest: an
@@ -457,15 +538,18 @@ func MaterializeOwned(ctx context.Context, blobs BlobStore, orgID uuid.UUID, roo
 		return entries[i].Path < entries[j].Path
 	})
 
-	for i, e := range entries {
+	// Directories and links first, in order and on this goroutine; the files
+	// afterwards, several at a time. On a fresh host every file is a fetch
+	// from the store — over a remote runner one HTTP round trip each — and a
+	// home has six figures of them: done one after the other that was minutes
+	// of latency with the line idle (#175).
+	var files []Entry
+	for _, e := range entries {
 		target, err := safeJoin(root, e.Path)
 		if err != nil {
 			return res, err
 		}
 		wanted[e.Path] = true
-		if watch != nil {
-			watch(i, res.BytesIn)
-		}
 		switch {
 		case e.Dir:
 			if err := os.MkdirAll(target, e.Mode|0o700); err != nil {
@@ -487,18 +571,61 @@ func MaterializeOwned(ctx context.Context, blobs BlobStore, orgID uuid.UUID, roo
 			owner.gehoert(target)
 			res.Written++
 		default:
-			if cachedMatch(cache, target, e) {
-				res.Kept++
-				continue
+			files = append(files, e)
+		}
+	}
+
+	var (
+		mu      sync.Mutex // guards res, cache and the watch below
+		wg      sync.WaitGroup
+		slots   = make(chan struct{}, transferWorkers)
+		firstMu sync.Mutex
+		first   error
+		done    int
+	)
+	ctx, stop := context.WithCancel(ctx)
+	defer stop()
+	fail := func(err error) {
+		firstMu.Lock()
+		if first == nil {
+			first = err
+			stop()
+		}
+		firstMu.Unlock()
+	}
+	for _, e := range files {
+		if ctx.Err() != nil {
+			break
+		}
+		slots <- struct{}{}
+		wg.Add(1)
+		go func(e Entry) {
+			defer wg.Done()
+			defer func() { <-slots }()
+			target, err := safeJoin(root, e.Path)
+			if err != nil {
+				fail(err)
+				return
 			}
-			if unchanged(target, e) {
+			mu.Lock()
+			hit := cachedMatch(cache, target, e)
+			mu.Unlock()
+			if hit || unchanged(target, e) {
+				mu.Lock()
 				res.Kept++
-				// Read once, and remembered: the next materialise or sync of
-				// this file costs a stat.
-				if info, err := os.Lstat(target); err == nil {
-					cache.Note(e.Path, info, e.Blocks)
+				if !hit {
+					// Read once, and remembered: the next materialise or
+					// sync of this file costs a stat.
+					if info, err := os.Lstat(target); err == nil {
+						cache.Note(e.Path, info, e.Blocks)
+					}
 				}
-				continue
+				done++
+				if watch != nil {
+					watch(done, res.BytesIn)
+				}
+				mu.Unlock()
+				return
 			}
 			n, err := writeFile(ctx, blobs, orgID, target, e)
 			if err != nil {
@@ -508,22 +635,38 @@ func MaterializeOwned(ctx context.Context, blobs BlobStore, orgID uuid.UUID, roo
 				// disk, a broken connection) still ends the whole run: that is
 				// a condition of the machine, not of one file.
 				if errors.Is(err, ErrNotFound) {
-					res.Missing = append(res.Missing, e.Path)
 					// Half a file is worse than none: the next unchanged()
 					// would find the right size with the wrong content.
 					_ = os.Remove(target)
-					continue
+					mu.Lock()
+					res.Missing = append(res.Missing, e.Path)
+					done++
+					mu.Unlock()
+					return
 				}
-				return res, err
+				fail(err)
+				return
 			}
 			owner.gehoert(target)
+			mu.Lock()
 			res.Written++
 			res.BytesIn += n
 			if info, err := os.Lstat(target); err == nil {
 				cache.Note(e.Path, info, e.Blocks)
 			}
-		}
+			done++
+			if watch != nil {
+				watch(done, res.BytesIn)
+			}
+			mu.Unlock()
+		}(e)
 	}
+	wg.Wait()
+	if first != nil {
+		return res, first
+	}
+	// A stable order for the report, whatever order the fetches finished in.
+	sort.Strings(res.Missing)
 
 	if prune {
 		removed, err := removeUnknown(root, wanted)

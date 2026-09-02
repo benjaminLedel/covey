@@ -2,8 +2,11 @@ package homestore
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -238,5 +241,84 @@ func TestARemovedCopyHasNoStateAndNoCache(t *testing.T) {
 	}
 	if got := LoadStatCache(home); len(got.Files) != 0 {
 		t.Fatal("a removed copy still has a cache")
+	}
+}
+
+// slowBlobs is a store behind a slow line: every Get and Put takes a moment,
+// and it counts how many are in flight at once.
+type slowBlobs struct {
+	*Dir
+	inFlight atomic.Int32
+	peak     atomic.Int32
+}
+
+func (s *slowBlobs) enter() {
+	n := s.inFlight.Add(1)
+	for {
+		p := s.peak.Load()
+		if n <= p || s.peak.CompareAndSwap(p, n) {
+			break
+		}
+	}
+	time.Sleep(15 * time.Millisecond)
+}
+
+func (s *slowBlobs) Get(ctx context.Context, orgID uuid.UUID, hash string) (io.ReadCloser, error) {
+	s.enter()
+	defer s.inFlight.Add(-1)
+	return s.Dir.Get(ctx, orgID, hash)
+}
+
+func (s *slowBlobs) Put(ctx context.Context, orgID uuid.UUID, hash string, r io.Reader) error {
+	s.enter()
+	defer s.inFlight.Add(-1)
+	return s.Dir.Put(ctx, orgID, hash, r)
+}
+
+// Blocks travel several at a time, in both directions. One HTTP round trip per
+// block, in sequence, left the line idle for minutes on a cold start (#175).
+func TestBlocksTravelSeveralAtATime(t *testing.T) {
+	ctx := context.Background()
+	store := &slowBlobs{Dir: newDir(t)}
+	orgID := uuid.New()
+	home := filepath.Join(t.TempDir(), "home")
+	if err := os.MkdirAll(home, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 48; i++ {
+		if err := os.WriteFile(filepath.Join(home, fmt.Sprintf("f%02d", i)), []byte(fmt.Sprintf("content %d", i)), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	res, err := Sync(ctx, store, orgID, home, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if peak := store.peak.Load(); peak < 2 {
+		t.Fatalf("uploads went one at a time (peak %d in flight)", peak)
+	}
+
+	// And down again, onto a fresh host.
+	store.peak.Store(0)
+	m, err := Load(ctx, store, orgID, res.ManifestHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fresh := filepath.Join(t.TempDir(), "fresh")
+	back, err := Materialize(ctx, store, orgID, fresh, m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if back.Written != 48 {
+		t.Fatalf("48 files expected, %d written", back.Written)
+	}
+	if peak := store.peak.Load(); peak < 2 {
+		t.Fatalf("fetches went one at a time (peak %d in flight)", peak)
+	}
+	for i := 0; i < 48; i++ {
+		got, _ := os.ReadFile(filepath.Join(fresh, fmt.Sprintf("f%02d", i)))
+		if string(got) != fmt.Sprintf("content %d", i) {
+			t.Fatalf("f%02d came back as %q", i, got)
+		}
 	}
 }
