@@ -1571,6 +1571,18 @@
       "revoke": "Unieważnij",
       "revokeConfirm": "Unieważnić ten klucz? Wszystko, co go używa, natychmiast przestanie działać.",
       "limits": "Klucz nie utworzy drugiego klucza ani nie zmieni hasła — jedno i drugie wymaga logowania w przeglądarce, żeby zgubiony klucz nie mógł się okopać."
+    },
+    "notify": {
+      "title": "Wiadomości z powiadomieniami",
+      "desc": "O czym platforma pisze do Ciebie, gdy nie patrzysz. Każda wiadomość przychodzi kilka minut po zdarzeniu, razem z tym, co w tym czasie doszło — a to, co do tej pory załatwiono, nie wywołuje żadnej wiadomości.",
+      "decision": "Czeka na decyzję",
+      "decisionHint": "Zgoda, przez którą agent stoi, oraz otwarte punkty z przeglądów.",
+      "task": "Zadania zakończone",
+      "taskHint": "Każde zadanie kończone przez Twojego agenta — domyślnie wyłączone, to ta głośna kategoria.",
+      "cost": "Koszty",
+      "costHint": "Agent zatrzymany na limicie budżetu oraz wyłącznik awaryjny.",
+      "ops": "Platforma",
+      "opsHint": "Runner, który znika, i inne rzeczy, o których powinna wiedzieć eksploatacja."
     }
   },
   "profile": {
@@ -2108,6 +2120,25 @@
     "reset": {
       "subject": "{{site}}: ustaw nowe hasło",
       "body": "Witaj {{name}},\n\nktoś poprosił o zresetowanie hasła do Twojego konta w {{site}}.\n\nUstaw nowe tutaj:\n\n{{link}}\n\nOdnośnik jest ważny godzinę i działa jeden raz. Jeśli to nie Ty, nic się nie stało — dotychczasowe hasło pozostaje ważne."
+    },
+    "notify": {
+      "decision": {
+        "subject": "{{site}}: czeka na Twoją decyzję",
+        "intro": "To czeka w Twojej skrzynce. Dopóki czeka, czeka też agent, który to zgłosił:"
+      },
+      "task": {
+        "subject": "{{site}}: nowości od Twoich agentów",
+        "intro": "Co Twoi agenci ukończyli:"
+      },
+      "cost": {
+        "subject": "{{site}}: to dotyczy pieniędzy",
+        "intro": "Platforma zatrzymała coś ze względu na koszt:"
+      },
+      "ops": {
+        "subject": "{{site}}: platforma wymaga uwagi",
+        "intro": "Platforma zgłasza:"
+      },
+      "footer": "Te wiadomości wyłączysz w ustawieniach konta: {{link}}"
     }
   }
 }

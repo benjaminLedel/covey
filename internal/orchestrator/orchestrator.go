@@ -32,6 +32,7 @@ import (
 	"covey/internal/guardrails"
 	"covey/internal/identity"
 	"covey/internal/memory"
+	"covey/internal/notify"
 	"covey/internal/observability"
 	"covey/internal/reqlog"
 	reqlogstore "covey/internal/reqlog/store"
@@ -98,6 +99,10 @@ type Options struct {
 	// ohne dass eine Sitzung dahintersteht, bevor die Plattform ihn auflöst.
 	// 0 → Voreinstellung. Ein Knopf für Tests, kein Bedienelement.
 	StaleAfter time.Duration
+	// Notify records what a person should be told about (#169). nil = the
+	// platform keeps its news to itself, which is what every installation did
+	// before this existed and what a test stack does.
+	Notify *notify.Store
 	// RuntimeTools is the runs' built-in tool scope (COVEY_RUNTIME_TOOLS).
 	// Empty → daemon.DefaultAllowedTools. The list decides not only what a run
 	// may use but what exists for it at all — see daemon.DefaultAllowedTools.
@@ -2782,6 +2787,7 @@ func (o *Orchestrator) enforceBudget(ctx context.Context, agent agents.Agent, li
 	s.killed = true
 	_, _ = o.Backlog.Reopen(ctx, taskID, "budget exceeded — agent paused")
 	_ = o.sendMsg(ctx, link, daemon.TypeKill, map[string]string{"reason": "budget"})
+	o.notifyBudget(ctx, agent, summary.TotalUSD, limit)
 	return fmt.Errorf("%w (%.4f ≥ %.4f USD)", errBudgetExceeded, summary.TotalUSD, limit)
 }
 
@@ -3301,6 +3307,8 @@ func (o *Orchestrator) approvalGate(ctx context.Context, agent agents.Agent, tas
 		map[string]any{"action": action, "decision": "pending", "approval_id": appr.ID.String()})
 	o.events.Publish(Event{Type: "approval", AgentID: agent.ID.String(), OrgID: agent.OrgID,
 		Data: map[string]string{"approval_id": appr.ID.String(), "action": action}})
+	// The event bus reaches an open tab; this reaches whoever has none (#169).
+	o.notifyApproval(ctx, agent, appr)
 	return gateVerdict{ApprovalID: appr.ID.String(), CorrelationKey: "approval:" + appr.ID.String()}
 }
 
@@ -3400,6 +3408,7 @@ func (o *Orchestrator) KillFleet(ctx context.Context, orgID uuid.UUID) error {
 	if err := o.Registry.SetFleetKilled(ctx, orgID, true); err != nil {
 		return err
 	}
+	o.notifyFleetKilled(ctx, orgID)
 	ids, err := o.agentIDs(ctx, orgID)
 	if err != nil {
 		return err

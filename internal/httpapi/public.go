@@ -143,7 +143,7 @@ func (s *Server) handleSignup(w http.ResponseWriter, r *http.Request) {
 
 	acc, err := s.Accounts.Register(r.Context(),
 		accounts.Registration{Email: in.Email, DisplayName: in.DisplayName,
-			PasswordHash: hash, Verified: false},
+			PasswordHash: hash, Verified: false, Lang: lang},
 		func(tx pgx.Tx, accountID uuid.UUID) error {
 			if mode == settings.ModeWaitlist {
 				if _, err := s.Waitlist.Redeem(r.Context(), tx, in.Code, in.Email, accountID); err != nil {

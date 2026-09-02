@@ -58,6 +58,7 @@ func (o *Orchestrator) toolRequest(ctx context.Context, agent agents.Agent, task
 		return fail(err.Error())
 	}
 	o.Log.Info("tool request filed", "agent", agent.ID, "tool", werkzeug, "item", angelegt.ID)
+	o.notifyImprovement(ctx, angelegt)
 	return daemon.InjectTool{RequestID: req.RequestID, OK: true, ID: angelegt.ID.String()}
 }
 

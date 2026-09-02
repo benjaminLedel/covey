@@ -1571,6 +1571,18 @@
       "revoke": "Revocar",
       "revokeConfirm": "¿Revocar esta clave? Lo que la use dejará de funcionar de inmediato.",
       "limits": "Una clave no puede acuñar otra ni cambiar una contraseña: ambas cosas requieren el inicio de sesión en el navegador, para que una clave extraviada no pueda atrincherarse."
+    },
+    "notify": {
+      "title": "Correos de notificación",
+      "desc": "Sobre qué le escribe la plataforma cuando usted no está mirando. Cada correo llega unos minutos después del suceso, junto con lo que se le haya sumado — y lo que para entonces está resuelto no genera correo alguno.",
+      "decision": "Espera una decisión",
+      "decisionHint": "Una autorización por la que un agente está parado, y puntos abiertos de las revisiones.",
+      "task": "Tareas terminadas",
+      "taskHint": "Cada tarea que termina uno de sus agentes: desactivado por defecto, es el más ruidoso.",
+      "cost": "Costes",
+      "costHint": "Un agente detenido en su límite de presupuesto, y la parada de emergencia.",
+      "ops": "Plataforma",
+      "opsHint": "Un runner que desaparece y otras cosas que la operación debería saber."
     }
   },
   "profile": {
@@ -2108,6 +2120,25 @@
     "reset": {
       "subject": "{{site}}: establecer una nueva contraseña",
       "body": "Hola {{name}}:\n\nalguien ha pedido restablecer la contraseña de su cuenta en {{site}}.\n\nEstablezca una nueva aquí:\n\n{{link}}\n\nEl enlace es válido durante una hora y sirve una sola vez. Si no ha sido usted, no ha ocurrido nada: su contraseña actual sigue siendo válida."
+    },
+    "notify": {
+      "decision": {
+        "subject": "{{site}}: espera su decisión",
+        "intro": "Esto espera en su bandeja. Mientras espera, también espera el agente que lo planteó:"
+      },
+      "task": {
+        "subject": "{{site}}: novedades de sus agentes",
+        "intro": "Lo que han terminado sus agentes:"
+      },
+      "cost": {
+        "subject": "{{site}}: esto afecta al dinero",
+        "intro": "La plataforma ha detenido algo por su coste:"
+      },
+      "ops": {
+        "subject": "{{site}}: la plataforma necesita atención",
+        "intro": "La plataforma informa:"
+      },
+      "footer": "Puede desactivar estos correos en los ajustes de su cuenta: {{link}}"
     }
   }
 }

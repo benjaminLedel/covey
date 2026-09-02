@@ -140,6 +140,49 @@ Not optional but a prerequisite for the always-on economics (see [`03-lifecycle-
 
 Without these three mechanisms the bill scales away from you at the tenth agent.
 
+## Notification mails
+
+The admin view above answers everything — to somebody who is looking at it.
+The platform's whole point is that agents work while nobody watches, so what
+needs a person has to travel to them.
+
+Four **classes**, because each has a different recipient and a different
+urgency:
+
+| Class | What it carries | Who is told |
+|---|---|---|
+| `decision` | an approval gate holding an agent still, an open point from a review ([`21`](21-operations-and-improvement.md)) | whoever may decide, plus the agent's owner |
+| `task` | a task ended — done or failed | the agent's owner |
+| `cost` | a budget cap that paused an agent, the fleet kill switch | org admin and controlling |
+| `ops` | a runner that left, and what else the operation should know | org admin; system admin where it concerns the instance |
+
+Three properties make the difference between a channel people read and one they
+filter away:
+
+- **Immediate, but damped.** An event is written down when it happens and sent
+  a few minutes later, together with whatever joined it in that window. Ten
+  tasks blocked by the same egress rule are one mail with ten lines. The window
+  is per recipient *and* class, so a cost alert does not queue behind task
+  results.
+- **What resolves itself sends nothing.** Before a mail goes out the platform
+  asks again whether the thing is still open. An approval decided two minutes
+  after it was raised produces no mail — which is what makes the damping worth
+  more than the delay it costs.
+- **An outbox, not a channel.** Every event is a row with a state. A mail that
+  could not go out because SMTP was down is still there afterwards; one that
+  did go out does not go again after a restart. Sending happens before the row
+  is marked, so a crash in between repeats a mail rather than losing it.
+
+`task` is **off by default** — it is the class most likely to become noise, and
+the one whose absence costs least. `decision` and `cost` are on, because their
+absence is the reason this exists. Every person decides for themselves, per
+class, on their account page; the setting belongs to the account and not to a
+seat, so somebody working in two organisations answers the question once.
+
+The mails need a mailer, which is instance configuration
+([`FR-002`](../feature-requests/002-plattform-registrierung.md), *Platform →
+E-mail*). Without one nothing is attempted and nothing is lost: the rows wait.
+
 ## The admin view
 
 The platform views are **role-scoped** (see RBAC in [`09-enterprise-model.md`](09-enterprise-model.md)): an agent owner sees their agents, security/compliance the guard rails, the auditor the audit trail read-only, controlling the costs. In the respective view the human gets:

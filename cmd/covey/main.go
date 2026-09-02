@@ -41,6 +41,7 @@ import (
 	"covey/internal/mail"
 	"covey/internal/marketplace"
 	"covey/internal/memory"
+	"covey/internal/notify"
 	"covey/internal/observability"
 	"covey/internal/orchestrator"
 	"covey/internal/org"
@@ -889,6 +890,8 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		return err
 	}
 	settingsStore := settings.New(pool, box)
+	// What the platform tells a person who is not looking at the tab (#169).
+	notifyStore := notify.New(pool)
 
 	runnerStore := runnerstore.NewStore(pool)
 	snapshotStore := runnerStore
@@ -1366,12 +1369,34 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		BoardRetention: cfg.BoardRetention,
 		TidyHomeAbove:  cfg.TidyHomeAboveBytes,
 		RuntimeTools:   cfg.RuntimeTools,
+		Notify:         notifyStore,
 		Log:            log,
 	})
 	// A sandbox that dies is reported by the runner instead of being inferred
 	// from a ReadyTimeout minutes later — that is what watching the container
 	// buys (spec/16).
 	runnerPool.SandboxDied = orch.SandboxDied
+	// A finished task is news for whoever answers for the agent. The hook sits
+	// on the store rather than on the five places that end a task — see
+	// backlog.Store.OnComplete.
+	backlogStore.OnComplete = orch.NotifyTaskEnded
+	// A registered host that leaves takes an organisation's data plane with
+	// it. Whether that is worth a mail is decided when the mail would go out:
+	// a runner back within the window produces none.
+	runnerPool.RunnerGone = func(runnerID, orgID uuid.UUID) {
+		name := runnerID.String()
+		if rn, err := runnerStore.ByID(ctx, runnerID); err == nil && rn.Name != "" {
+			name = rn.Name
+		}
+		id := runnerID
+		if err := notifyStore.Emit(ctx, notify.Event{
+			OrgID: orgID, Class: notify.ClassOps, Kind: notify.KindRunnerGone, SubjectID: &id,
+			Title: "The runner " + name + " has disconnected",
+			Link:  "/runners/" + runnerID.String(),
+		}); err != nil {
+			log.Warn("runner departure not recorded", "runner", runnerID, "err", err)
+		}
+	}
 
 	dist, err := web.Dist()
 	if err != nil {
@@ -1394,6 +1419,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Workplaces: workplaces, OrgWorkplaces: orgWorkplaces,
 		Settings: settingsStore, Accounts: accounts.New(pool), Waitlist: waitlist.New(pool),
 		Mail:   mail.New(settingsStore),
+		Notify: notifyStore,
 		Skills: skillStore,
 		Orch:   orch, WebFS: dist, Log: log,
 		WebhookSecrets: cfg.WebhookSecrets,
@@ -1449,6 +1475,16 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 			return p, err == nil
 		}, log)
 	}
+	// The notification mails (#169). One loop, one pass a minute: what is due
+	// goes out, what has resolved itself in the meantime does not.
+	//
+	// It stands here and not in the orchestrator because it is not part of the
+	// work — an instance without a mailer simply never has anything to send,
+	// and the loop notices that in one query.
+	go (&notify.Sender{
+		Pool: pool, Mail: mail.New(settingsStore), Settings: settingsStore,
+		SiteURL: cfg.SiteURL, Log: log,
+	}).Run(ctx)
 	// Egress log retention: clear out old decisions periodically.
 	go func() {
 		t := time.NewTicker(6 * time.Hour)

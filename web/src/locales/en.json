@@ -1571,6 +1571,18 @@
       "revoke": "Revoke",
       "revokeConfirm": "Revoke this key? Whatever uses it stops working immediately.",
       "limits": "A key cannot mint a second one and cannot change a password — both need the browser sign-in, so that a key that goes astray cannot entrench itself."
+    },
+    "notify": {
+      "title": "Notification mails",
+      "desc": "What the platform writes to you about when you are not looking at it. Every mail arrives a few minutes after the event, together with whatever joined it in that time — and what has been dealt with by then produces no mail at all.",
+      "decision": "Waiting for a decision",
+      "decisionHint": "A release an agent is standing still for, and open points from reviews.",
+      "task": "Tasks finished",
+      "taskHint": "Every task one of your agents ends — off by default, this is the loud one.",
+      "cost": "Costs",
+      "costHint": "An agent paused at its budget cap, and the emergency stop.",
+      "ops": "Platform",
+      "opsHint": "A runner that leaves, and other things the operation should know."
     }
   },
   "profile": {
@@ -2108,6 +2120,25 @@
     "reset": {
       "subject": "{{site}}: set a new password",
       "body": "Hello {{name}},\n\nsomebody asked to reset the password of your account at {{site}}.\n\nSet a new one here:\n\n{{link}}\n\nThe link is valid for one hour and works once. If this was not you, nothing has happened — your current password stays valid."
+    },
+    "notify": {
+      "decision": {
+        "subject": "{{site}}: waiting for your decision",
+        "intro": "The following is waiting in your inbox. As long as it waits, the agent that raised it waits too:"
+      },
+      "task": {
+        "subject": "{{site}}: news about your agents",
+        "intro": "What your agents have finished:"
+      },
+      "cost": {
+        "subject": "{{site}}: this concerns money",
+        "intro": "The platform stopped something because of its cost:"
+      },
+      "ops": {
+        "subject": "{{site}}: the platform needs attention",
+        "intro": "The platform reports:"
+      },
+      "footer": "You can switch these mails off in your account settings: {{link}}"
     }
   }
 }

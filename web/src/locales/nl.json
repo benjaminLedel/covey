@@ -1571,6 +1571,18 @@
       "revoke": "Intrekken",
       "revokeConfirm": "Deze sleutel intrekken? Wat hem gebruikt, stopt onmiddellijk met werken.",
       "limits": "Een sleutel kan geen tweede sleutel maken en geen wachtwoord wijzigen — beide vragen de aanmelding in de browser, zodat een zoekgeraakte sleutel zich niet kan ingraven."
+    },
+    "notify": {
+      "title": "Meldingsmails",
+      "desc": "Waarover het platform u schrijft als u niet kijkt. Elke mail komt een paar minuten na de gebeurtenis, samen met wat er intussen bij is gekomen — en wat dan al is afgehandeld levert helemaal geen mail op.",
+      "decision": "Wacht op een beslissing",
+      "decisionHint": "Een vrijgave waarvoor een agent stilstaat, en openstaande punten uit reviews.",
+      "task": "Taken afgerond",
+      "taskHint": "Elke taak die een van uw agenten afrondt — standaard uit, dit is de luidruchtige.",
+      "cost": "Kosten",
+      "costHint": "Een agent die bij zijn budgetplafond is gestopt, en de noodstop.",
+      "ops": "Platform",
+      "opsHint": "Een runner die verdwijnt, en verder wat de bedrijfsvoering moet weten."
     }
   },
   "profile": {
@@ -2108,6 +2120,25 @@
     "reset": {
       "subject": "{{site}}: nieuw wachtwoord instellen",
       "body": "Hallo {{name}},\n\niemand heeft gevraagd het wachtwoord van uw account bij {{site}} opnieuw in te stellen.\n\nStel hier een nieuw wachtwoord in:\n\n{{link}}\n\nDe link is een uur geldig en werkt eenmalig. Was u dit niet, dan is er niets gebeurd — uw huidige wachtwoord blijft geldig."
+    },
+    "notify": {
+      "decision": {
+        "subject": "{{site}}: wacht op uw beslissing",
+        "intro": "Dit wacht in uw postvak. Zolang het wacht, wacht ook de agent die het aankaartte:"
+      },
+      "task": {
+        "subject": "{{site}}: nieuws van uw agenten",
+        "intro": "Wat uw agenten hebben afgerond:"
+      },
+      "cost": {
+        "subject": "{{site}}: dit gaat over geld",
+        "intro": "Het platform heeft iets stilgelegd vanwege de kosten:"
+      },
+      "ops": {
+        "subject": "{{site}}: het platform vraagt aandacht",
+        "intro": "Het platform meldt:"
+      },
+      "footer": "U schakelt deze mails uit in uw accountinstellingen: {{link}}"
     }
   }
 }

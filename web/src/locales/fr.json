@@ -1571,6 +1571,18 @@
       "revoke": "Révoquer",
       "revokeConfirm": "Révoquer cette clé ? Tout ce qui l'utilise cesse aussitôt de fonctionner.",
       "limits": "Une clé ne peut pas en créer une seconde ni changer un mot de passe — les deux passent par la connexion au navigateur, pour qu'une clé égarée ne puisse pas s'installer durablement."
+    },
+    "notify": {
+      "title": "E-mails de notification",
+      "desc": "Ce dont la plateforme vous informe quand vous ne regardez pas. Chaque message arrive quelques minutes après l'événement, avec ce qui s'y est ajouté entre-temps — et ce qui est réglé d'ici là ne déclenche aucun message.",
+      "decision": "En attente d'une décision",
+      "decisionHint": "Une autorisation pour laquelle un agent est à l'arrêt, et les points ouverts des revues.",
+      "task": "Tâches terminées",
+      "taskHint": "Chaque tâche que termine l'un de vos agents — désactivé par défaut, c'est le plus bavard.",
+      "cost": "Coûts",
+      "costHint": "Un agent arrêté à son plafond de budget, et l'arrêt d'urgence.",
+      "ops": "Plateforme",
+      "opsHint": "Un runner qui disparaît, et le reste de ce que l'exploitation devrait savoir."
     }
   },
   "profile": {
@@ -2108,6 +2120,25 @@
     "reset": {
       "subject": "{{site}} : définir un nouveau mot de passe",
       "body": "Bonjour {{name}},\n\nquelqu'un a demandé la réinitialisation du mot de passe de votre compte sur {{site}}.\n\nDéfinissez-en un nouveau ici :\n\n{{link}}\n\nLe lien est valable une heure et ne fonctionne qu'une fois. Si ce n'était pas vous, rien ne s'est passé — votre mot de passe actuel reste valable."
+    },
+    "notify": {
+      "decision": {
+        "subject": "{{site}} : en attente de votre décision",
+        "intro": "Ceci attend dans votre boîte de réception. Tant que cela attend, l'agent qui l'a déclenché attend aussi :"
+      },
+      "task": {
+        "subject": "{{site}} : des nouvelles de vos agents",
+        "intro": "Ce que vos agents ont terminé :"
+      },
+      "cost": {
+        "subject": "{{site}} : cela concerne l'argent",
+        "intro": "La plateforme a arrêté quelque chose à cause de son coût :"
+      },
+      "ops": {
+        "subject": "{{site}} : la plateforme demande votre attention",
+        "intro": "La plateforme signale :"
+      },
+      "footer": "Vous pouvez désactiver ces messages dans les paramètres de votre compte : {{link}}"
     }
   }
 }

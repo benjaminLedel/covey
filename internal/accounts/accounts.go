@@ -62,10 +62,16 @@ type Registration struct {
 	Email        string
 	DisplayName  string
 	PasswordHash string
-	// Verified marks the address as confirmed straight away. True as long as
-	// no mailer is configured: a confirmation nobody can send would be an
-	// account nobody ever uses.
+	// Verified marks the address as confirmed straight away. Since #168 the
+	// registration leaves this false and sends a link; it stays because a
+	// bootstrap or an import creates an account nobody has to confirm.
 	Verified bool
+	// Lang is the language this person is written to in — taken from the page
+	// they registered on. Empty = the installation's base language.
+	//
+	// It sits on the account and not in a session because the mails that need
+	// it are written when nobody is signed in (#169).
+	Lang string
 }
 
 // Register creates an account and runs `withinTx` in the SAME transaction —
@@ -115,9 +121,9 @@ func (s *Store) Register(ctx context.Context, reg Registration,
 		verifiedAt = &now
 	}
 	err = tx.QueryRow(ctx,
-		`INSERT INTO accounts (id, email, password_hash, display_name, email_verified_at)
-		 VALUES ($1,$2,$3,$4,$5) RETURNING created_at, email_verified_at`,
-		a.ID, a.Email, reg.PasswordHash, a.DisplayName, verifiedAt).
+		`INSERT INTO accounts (id, email, password_hash, display_name, email_verified_at, lang)
+		 VALUES ($1,$2,$3,$4,$5,$6) RETURNING created_at, email_verified_at`,
+		a.ID, a.Email, reg.PasswordHash, a.DisplayName, verifiedAt, strings.TrimSpace(reg.Lang)).
 		Scan(&a.CreatedAt, &a.VerifiedAt)
 	if isUniqueViolation(err) {
 		return Account{}, ErrEmailTaken

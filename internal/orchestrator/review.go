@@ -215,6 +215,7 @@ func (o *Orchestrator) reviewPropose(ctx context.Context, agent agents.Agent, ta
 	if err != nil {
 		return fail("%v", err)
 	}
+	o.notifyImprovement(ctx, item)
 	// Herkunft schreibt die Plattform, nicht das Modell: aus welcher Aufgabe
 	// ein Vorschlag kam, steht hier und nicht in einer Meldung.
 	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
@@ -275,14 +276,16 @@ func (o *Orchestrator) reviewWrite(ctx context.Context, agent agents.Agent, task
 			if strings.TrimSpace(n.Title) == "" {
 				continue
 			}
-			if _, err := o.Registry.CreateImprovement(ctx, agents.ImprovementItem{
+			item, err := o.Registry.CreateImprovement(ctx, agents.ImprovementItem{
 				OrgID: agent.OrgID, AgentID: other.ID, Kind: spec.kind,
 				Title: n.Title, Rationale: n.Detail, Link: n.Link,
 				AuthorAgentID: &agent.ID, TaskID: &taskID,
-			}); err != nil {
+			})
+			if err != nil {
 				o.Log.Warn("review: item not stored", "agent", other.Slug, "kind", spec.kind, "err", err)
 				continue
 			}
+			o.notifyImprovement(ctx, item)
 			angelegt++
 		}
 	}

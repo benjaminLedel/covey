@@ -35,6 +35,7 @@ import (
 	"covey/internal/mail"
 	"covey/internal/marketplace"
 	"covey/internal/memory"
+	"covey/internal/notify"
 	"covey/internal/observability"
 	"covey/internal/orchestrator"
 	"covey/internal/org"
@@ -88,6 +89,10 @@ type Server struct {
 	// instance cannot send, which every caller has to handle: registration
 	// refuses rather than creating an account nobody can confirm.
 	Mail mail.Sender
+	// Notify records what a person should be told about by mail (#169).
+	// nil = the installation keeps its news to itself; the preference
+	// endpoints then answer with an empty set instead of failing.
+	Notify *notify.Store
 	// Skills are the agents' capabilities (library + agent-owned).
 	// nil = feature switched off; the skill routes then answer with 503
 	// (the same meaning as orchestrator.Options.Skills == nil).
@@ -254,6 +259,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/auth/me/profile", s.auth(s.handleMyProfile))
 	mux.Handle("GET /api/v1/auth/sessions", s.auth(s.handleListSessions))
 	mux.Handle("DELETE /api/v1/auth/sessions", s.auth(s.handleRevokeOtherSessions))
+	// The notification switches hang on auth and not on rbac: they belong to
+	// the person, and a person without a seat still gets mail (#169).
+	mux.Handle("GET /api/v1/auth/notifications", s.auth(s.handleGetNotificationPrefs))
+	mux.Handle("PUT /api/v1/auth/notifications", s.auth(s.handleSetNotificationPrefs))
 	// API keys: readable with either badge, mintable and revocable only with
 	// the session — see sessionOnly.
 	mux.Handle("GET /api/v1/auth/api-keys", s.auth(s.handleListAPIKeys))

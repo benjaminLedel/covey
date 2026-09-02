@@ -109,6 +109,16 @@ type Transition struct {
 
 type Store struct {
 	pool *pgxpool.Pool
+	// OnComplete is called after a task has ended — done or failed. It exists
+	// for the notification mails (#169), and it is a function field rather
+	// than an import so that the backlog keeps knowing nothing about who is
+	// told what.
+	//
+	// Five places in the orchestrator finish a task, and each of them would
+	// have been a place to forget the call. The hook sits where they all pass
+	// through. It runs synchronously, so it has to stay cheap, and its failure
+	// is not the task's.
+	OnComplete func(context.Context, Task)
 }
 
 func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
@@ -473,7 +483,11 @@ func (s *Store) Complete(ctx context.Context, id uuid.UUID, state, result, errMs
 	if state != StateDone && state != StateFailed {
 		return Task{}, fmt.Errorf("%w: complete to %s", ErrInvalidTransition, state)
 	}
-	return s.transition(ctx, id, state, "", "result=$3, error=NULLIF($4,''), correlation_key=NULL", result, errMsg)
+	task, err := s.transition(ctx, id, state, "", "result=$3, error=NULLIF($4,''), correlation_key=NULL", result, errMsg)
+	if err == nil && s.OnComplete != nil {
+		s.OnComplete(ctx, task)
+	}
+	return task, err
 }
 
 // Reopen resets an in_progress task back to open (e.g. a kill mid-run, or the

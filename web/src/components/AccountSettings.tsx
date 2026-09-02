@@ -1,10 +1,15 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, del, patch, type Principal } from "../api";
+import { api, del, patch, put, type Principal } from "../api";
 import ApiKeys from "./ApiKeys";
 
 type Session = { created_at: string; expires_at: string; current: boolean };
+
+/* Die vier Klassen aus internal/notify. Sie stehen hier als Reihenfolge —
+   welche es gibt, entscheidet der Server, und was er nicht kennt, kommt in
+   seiner Antwort nicht vor. */
+const NOTIFY_CLASSES = ["decision", "task", "cost", "ops"] as const;
 
 export default function AccountSettings({ me }: { me: Principal }) {
   const { t, i18n } = useTranslation();
@@ -18,6 +23,23 @@ export default function AccountSettings({ me }: { me: Principal }) {
   const sessions = useQuery({
     queryKey: ["sessions"],
     queryFn: () => api<Session[]>("/auth/sessions"),
+  });
+
+  /* Welche Mails diese Person bekommt (#169). Der Server antwortet mit den
+     WIRKSAMEN Werten, Vorgaben eingerechnet — die Oberfläche trägt also keine
+     zweite Kopie davon, was „standardmäßig an" heißt. */
+  const notify = useQuery({
+    queryKey: ["notifications"],
+    queryFn: () => api<Record<string, boolean>>("/auth/notifications"),
+  });
+  const setNotify = useMutation({
+    /* Nur der eine geänderte Schalter geht hin: zwei offene Browser würden
+       sich sonst gegenseitig Antworten überschreiben, nach denen sie gar nicht
+       gefragt wurden. */
+    mutationFn: (change: Record<string, boolean>) =>
+      put<Record<string, boolean>>("/auth/notifications", change),
+    onSuccess: (prefs) => qc.setQueryData(["notifications"], prefs),
+    onError: (e) => setNote(String(e)),
   });
 
   const saveName = useMutation({
@@ -109,6 +131,26 @@ export default function AccountSettings({ me }: { me: Principal }) {
           </div>
         ))}
         {sessions.data?.length === 0 && <p className="muted text-xs m-0">{t("account.noSessions")}</p>}
+      </div>
+
+      <div className="card mt-4">
+        <div className="text-sm font-medium mb-1">{t("account.notify.title")}</div>
+        <p className="muted text-xs mb-3" style={{ maxWidth: 620 }}>{t("account.notify.desc")}</p>
+        {NOTIFY_CLASSES.map((c) => (
+          <label key={c} className="flex items-start gap-3 py-1 text-xs" style={{ cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={notify.data?.[c] ?? false}
+              disabled={notify.isLoading || setNotify.isPending}
+              onChange={(e) => setNotify.mutate({ [c]: e.target.checked })}
+              style={{ width: "auto", marginTop: 2 }}
+            />
+            <span>
+              <span className="text-sm">{t(`account.notify.${c}`)}</span>
+              <span className="muted block">{t(`account.notify.${c}Hint`)}</span>
+            </span>
+          </label>
+        ))}
       </div>
 
       <ApiKeys />

@@ -61,6 +61,18 @@ type Pool struct {
 	// (value → number of agents); the self-check asks the runners about
 	// exactly those. nil = unknown, then only the default is asked about.
 	AgentImages func(ctx context.Context) (map[string]int, error)
+	// RunnerGone is called when a REGISTERED runner's connection ends. It
+	// carries the notification mails (#169) — a host that leaves takes an
+	// organisation's data plane with it, and the platform is the only one who
+	// notices at the time.
+	//
+	// The built-in runner is deliberately excluded: it ends with the process
+	// it lives in, and reporting the shutdown of the thing that would send the
+	// mail is a message nobody can act on.
+	//
+	// A host that comes back within the damping window produces no mail — the
+	// sender checks last_seen_at before it writes one.
+	RunnerGone func(runnerID, orgID uuid.UUID)
 	// SandboxDied is called when a runner reports the end of a sandbox nobody
 	// asked for. nil = the report is only logged.
 	SandboxDied func(agentID uuid.UUID, reason string)
@@ -538,6 +550,9 @@ func (p *Pool) detach(c *conn) {
 	}
 	p.mu.Unlock()
 	p.Log.Info("runner disconnected", "runner", c.runnerID)
+	if p.RunnerGone != nil && !c.builtin {
+		p.RunnerGone(c.runnerID, c.orgID)
+	}
 }
 
 // AttachLocal wires the built-in runner: one connection, both ends in this

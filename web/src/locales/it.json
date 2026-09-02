@@ -1571,6 +1571,18 @@
       "revoke": "Revoca",
       "revokeConfirm": "Revocare questa chiave? Tutto ciò che la usa smette subito di funzionare.",
       "limits": "Una chiave non può crearne una seconda né cambiare una password — per entrambe le cose serve l'accesso dal browser, così che una chiave finita in mani sbagliate non possa radicarsi."
+    },
+    "notify": {
+      "title": "E-mail di notifica",
+      "desc": "Di che cosa ti scrive la piattaforma quando non stai guardando. Ogni e-mail arriva qualche minuto dopo l'evento, insieme a quello che nel frattempo si è aggiunto — e ciò che entro allora è stato risolto non produce alcuna e-mail.",
+      "decision": "Attende una decisione",
+      "decisionHint": "Un'autorizzazione per cui un agente è fermo, e i punti aperti delle revisioni.",
+      "task": "Attività concluse",
+      "taskHint": "Ogni attività che un tuo agente conclude: disattivato di default, è il più rumoroso.",
+      "cost": "Costi",
+      "costHint": "Un agente fermato al suo tetto di spesa, e l'arresto d'emergenza.",
+      "ops": "Piattaforma",
+      "opsHint": "Un runner che sparisce, e il resto di ciò che l'esercizio dovrebbe sapere."
     }
   },
   "profile": {
@@ -2108,6 +2120,25 @@
     "reset": {
       "subject": "{{site}}: imposta una nuova password",
       "body": "Ciao {{name}},\n\nqualcuno ha chiesto di reimpostare la password del tuo account su {{site}}.\n\nImpostane una nuova qui:\n\n{{link}}\n\nIl link è valido per un'ora e funziona una sola volta. Se non sei stato tu, non è successo nulla: la tua password attuale resta valida."
+    },
+    "notify": {
+      "decision": {
+        "subject": "{{site}}: attende la tua decisione",
+        "intro": "Questo attende nella tua posta in arrivo. Finché attende, attende anche l'agente che lo ha sollevato:"
+      },
+      "task": {
+        "subject": "{{site}}: novità dai tuoi agenti",
+        "intro": "Che cosa hanno finito i tuoi agenti:"
+      },
+      "cost": {
+        "subject": "{{site}}: qui si tratta di denaro",
+        "intro": "La piattaforma ha fermato qualcosa per via del costo:"
+      },
+      "ops": {
+        "subject": "{{site}}: la piattaforma richiede attenzione",
+        "intro": "La piattaforma segnala:"
+      },
+      "footer": "Puoi disattivare queste e-mail nelle impostazioni del tuo account: {{link}}"
     }
   }
 }

@@ -1571,6 +1571,18 @@
       "revoke": "Revogar",
       "revokeConfirm": "Revogar esta chave? Tudo o que a usa deixa de funcionar de imediato.",
       "limits": "Uma chave não pode criar uma segunda nem alterar uma palavra-passe — ambas as coisas exigem a entrada pelo browser, para que uma chave extraviada não se possa entrincheirar."
+    },
+    "notify": {
+      "title": "Mensagens de notificação",
+      "desc": "Sobre o que a plataforma lhe escreve quando não está a olhar. Cada mensagem chega alguns minutos depois do acontecimento, com o que entretanto se lhe juntou — e o que até lá estiver resolvido não gera mensagem nenhuma.",
+      "decision": "Aguarda uma decisão",
+      "decisionHint": "Uma autorização pela qual um agente está parado, e pontos em aberto das revisões.",
+      "task": "Tarefas terminadas",
+      "taskHint": "Cada tarefa que um dos seus agentes termina — desligado por omissão, é a categoria ruidosa.",
+      "cost": "Custos",
+      "costHint": "Um agente parado no seu limite de orçamento, e a paragem de emergência.",
+      "ops": "Plataforma",
+      "opsHint": "Um runner que desaparece, e o resto do que a operação deve saber."
     }
   },
   "profile": {
@@ -2108,6 +2120,25 @@
     "reset": {
       "subject": "{{site}}: definir uma nova palavra-passe",
       "body": "Olá {{name}},\n\nalguém pediu para repor a palavra-passe da sua conta em {{site}}.\n\nDefina uma nova aqui:\n\n{{link}}\n\nA ligação é válida durante uma hora e funciona uma única vez. Se não foi você, nada aconteceu — a sua palavra-passe atual continua válida."
+    },
+    "notify": {
+      "decision": {
+        "subject": "{{site}}: aguarda a sua decisão",
+        "intro": "Isto aguarda na sua caixa de entrada. Enquanto aguarda, aguarda também o agente que o levantou:"
+      },
+      "task": {
+        "subject": "{{site}}: novidades dos seus agentes",
+        "intro": "O que os seus agentes terminaram:"
+      },
+      "cost": {
+        "subject": "{{site}}: isto tem que ver com dinheiro",
+        "intro": "A plataforma parou algo por causa do custo:"
+      },
+      "ops": {
+        "subject": "{{site}}: a plataforma precisa de atenção",
+        "intro": "A plataforma comunica:"
+      },
+      "footer": "Pode desligar estas mensagens nas definições da sua conta: {{link}}"
     }
   }
 }

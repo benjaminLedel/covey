@@ -1571,6 +1571,18 @@
       "revoke": "Widerrufen",
       "revokeConfirm": "Diesen Schlüssel widerrufen? Was ihn benutzt, hört sofort auf zu funktionieren.",
       "limits": "Ein Schlüssel darf keinen zweiten erzeugen und kein Passwort ändern — beides braucht die Anmeldung im Browser, damit ein abhandengekommener Schlüssel sich nicht selbst verewigen kann."
+    },
+    "notify": {
+      "title": "Benachrichtigungsmails",
+      "desc": "Worüber die Plattform Ihnen schreibt, wenn Sie nicht hinsehen. Jede Mail kommt einige Minuten nach dem Ereignis, zusammen mit allem, was in der Zeit dazugekommen ist — und was bis dahin erledigt ist, löst gar keine Mail aus.",
+      "decision": "Wartet auf eine Entscheidung",
+      "decisionHint": "Eine Freigabe, für die ein Agent stillsteht, und offene Punkte aus Reviews.",
+      "task": "Aufgaben fertig",
+      "taskHint": "Jede Aufgabe, die einer Ihrer Agenten beendet — voreingestellt aus, das ist die laute.",
+      "cost": "Kosten",
+      "costHint": "Ein Agent, der an seinem Budgetdeckel angehalten wurde, und der Not-Aus.",
+      "ops": "Plattform",
+      "opsHint": "Ein Runner, der verschwindet, und anderes, was der Betrieb wissen sollte."
     }
   },
   "profile": {
@@ -2108,6 +2120,25 @@
     "reset": {
       "subject": "{{site}}: neues Passwort setzen",
       "body": "Hallo {{name}},\n\njemand hat darum gebeten, das Passwort Ihres Kontos bei {{site}} zurückzusetzen.\n\nHier setzen Sie ein neues:\n\n{{link}}\n\nDer Link gilt eine Stunde und genau einmal. Waren Sie das nicht, ist nichts geschehen — Ihr bisheriges Passwort gilt weiter."
+    },
+    "notify": {
+      "decision": {
+        "subject": "{{site}}: wartet auf Ihre Entscheidung",
+        "intro": "Das hier wartet in Ihrem Posteingang. Solange es wartet, wartet auch der Agent, der es ausgelöst hat:"
+      },
+      "task": {
+        "subject": "{{site}}: Neues von Ihren Agenten",
+        "intro": "Was Ihre Agenten fertig haben:"
+      },
+      "cost": {
+        "subject": "{{site}}: das betrifft Geld",
+        "intro": "Die Plattform hat etwas angehalten, weil es zu teuer wurde:"
+      },
+      "ops": {
+        "subject": "{{site}}: die Plattform braucht Aufmerksamkeit",
+        "intro": "Die Plattform meldet:"
+      },
+      "footer": "Diese Mails schalten Sie in Ihren Kontoeinstellungen ab: {{link}}"
     }
   }
 }

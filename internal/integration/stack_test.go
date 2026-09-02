@@ -35,6 +35,7 @@ import (
 	identbuiltin "covey/internal/identity/builtin"
 	"covey/internal/mail"
 	"covey/internal/memory"
+	"covey/internal/notify"
 	"covey/internal/observability"
 	"covey/internal/orchestrator"
 	"covey/internal/org"
@@ -305,7 +306,10 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 		// The mailer as in production — an SMTP sender over the stored
 		// settings. Without a host configured it refuses, which is exactly
 		// what an unconfigured instance does.
-		Mail:      mail.New(s.settings),
+		Mail: mail.New(s.settings),
+		// The notification switches (#169). Without the store the endpoints
+		// answer 503, and a test would be checking the wrong thing.
+		Notify:    notify.New(pool),
 		Templates: s.templates, Dreams: s.dreams, Audit: s.audit,
 		Skills:      s.skills,
 		EgressStore: s.egress,

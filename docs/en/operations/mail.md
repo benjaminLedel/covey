@@ -85,6 +85,12 @@ registered in:
 | Confirmation | a registration, and *send a new link* on `/verify` | 24 hours, one use |
 | Password reset | *forgotten your password?* on the sign-in page | one hour, one use |
 | Test mail | the button on this page | — |
+| Notifications | something needs a person: a waiting decision, a finished task, a budget cap, a runner that left | — |
+
+Notification mails are grouped: an event is sent a few minutes after it
+happens, together with whatever joined it in that window, and what has been
+dealt with by then produces no mail at all. Every person chooses per class on
+their own account page which of them they want (`spec/06`).
 
 **Set `COVEY_SITE_URL` on a public instance.** The links in those mails need a
 host, and without that variable it comes from the request — which means from
