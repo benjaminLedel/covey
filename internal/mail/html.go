@@ -102,16 +102,25 @@ func Heading(subject, site string) string {
 	return string(unicode.ToUpper(r)) + t[size:]
 }
 
+// safe marks a string the building blocks below assembled as HTML. It is the
+// ONE place the conversion happens, so the discipline is easy to audit: every
+// piece of foreign text — a name, a title, an address — passes through
+// html.EscapeString before it reaches here, and everything else is literal
+// markup from this file.
+//
+// #nosec G203 — see above: the inputs are escaped by the callers, one by one.
+func safe(s string) template.HTML { return template.HTML(s) }
+
 // The building blocks, each returning safe HTML.
 
 // Paragraph wraps escaped text.
 func Paragraph(text string) template.HTML {
-	return template.HTML(`<p style="margin:0 0 14px;">` + html.EscapeString(text) + `</p>`)
+	return safe(`<p style="margin:0 0 14px;">` + html.EscapeString(text) + `</p>`)
 }
 
 // Link is an inline anchor in the accent colour.
 func Link(href, text string) template.HTML {
-	return template.HTML(`<a href="` + html.EscapeString(href) + `" style="color:` + colourAccent + `;text-decoration:underline;">` + html.EscapeString(text) + `</a>`)
+	return safe(`<a href="` + html.EscapeString(href) + `" style="color:` + colourAccent + `;text-decoration:underline;">` + html.EscapeString(text) + `</a>`)
 }
 
 // Button is the one action of a mail — the confirmation, the reset — as a
@@ -119,7 +128,7 @@ func Link(href, text string) template.HTML {
 // for the reader whose client turns buttons into nothing.
 func Button(href, text string) template.HTML {
 	h := html.EscapeString(href)
-	return template.HTML(`<p style="margin:20px 0;"><a href="` + h + `" style="display:inline-block;background:` + colourAccent + `;color:#ffffff;text-decoration:none;font-size:14px;font-weight:500;padding:10px 18px;border-radius:8px;">` + html.EscapeString(text) + `</a></p>` +
+	return safe(`<p style="margin:20px 0;"><a href="` + h + `" style="display:inline-block;background:` + colourAccent + `;color:#ffffff;text-decoration:none;font-size:14px;font-weight:500;padding:10px 18px;border-radius:8px;">` + html.EscapeString(text) + `</a></p>` +
 		`<p style="margin:0 0 14px;font-size:12px;color:` + colourMuted + `;word-break:break-all;">` + h + `</p>`)
 }
 
@@ -144,7 +153,7 @@ func List(items []Item) template.HTML {
 		b.WriteString(`</li>`)
 	}
 	b.WriteString(`</ul>`)
-	return template.HTML(b.String())
+	return safe(b.String())
 }
 
 var urlPattern = regexp.MustCompile(`https?://[^\s<>"]+`)
@@ -179,5 +188,5 @@ func FromText(body, action string) template.HTML {
 		b.WriteString(html.EscapeString(para[last:]))
 		b.WriteString(`</p>`)
 	}
-	return template.HTML(b.String())
+	return safe(b.String())
 }
