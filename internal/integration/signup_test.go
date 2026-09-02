@@ -38,7 +38,7 @@ func (s *stack) postJSON(t *testing.T, path string, body any) *http.Response {
 func TestRegistrierungMitCode(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
-	settingsStore := settings.New(s.pool)
+	settingsStore := s.settings
 	codes := waitlist.New(s.pool)
 
 	// Geschlossen ist der Auslieferungszustand: der Endpunkt gibt es dann für
@@ -52,6 +52,7 @@ func TestRegistrierungMitCode(t *testing.T) {
 	}
 	res.Body.Close()
 
+	s.proveMailer(t)
 	if err := settingsStore.Set(ctx, settings.SignupMode, settings.ModeWaitlist, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +146,8 @@ func TestRegistrierungMitCode(t *testing.T) {
 func TestEinmalCodeHaeltGleichzeitigkeitStand(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
-	if err := settings.New(s.pool).Set(ctx, settings.SignupMode, settings.ModeWaitlist, nil); err != nil {
+	s.proveMailer(t)
+	if err := s.settings.Set(ctx, settings.SignupMode, settings.ModeWaitlist, nil); err != nil {
 		t.Fatal(err)
 	}
 	codes := waitlist.New(s.pool)
@@ -164,7 +166,7 @@ func TestEinmalCodeHaeltGleichzeitigkeitStand(t *testing.T) {
 			defer wg.Done()
 			<-start
 			res := s.postJSON(t, "/api/v1/public/signup", map[string]any{
-				"code": code, "email": mail(i), "display_name": "Test", "password": "hinreichend-lang",
+				"code": code, "email": adresse(i), "display_name": "Test", "password": "hinreichend-lang",
 			})
 			ergebnis[i] = res.StatusCode
 			res.Body.Close()
@@ -195,7 +197,7 @@ func TestEinmalCodeHaeltGleichzeitigkeitStand(t *testing.T) {
 	}
 }
 
-func mail(i int) string {
+func adresse(i int) string {
 	return string(rune('a'+i)) + "@example.de"
 }
 
@@ -204,7 +206,8 @@ func mail(i int) string {
 func TestAbgelaufenUndZurueckgezogen(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
-	if err := settings.New(s.pool).Set(ctx, settings.SignupMode, settings.ModeWaitlist, nil); err != nil {
+	s.proveMailer(t)
+	if err := s.settings.Set(ctx, settings.SignupMode, settings.ModeWaitlist, nil); err != nil {
 		t.Fatal(err)
 	}
 	codes := waitlist.New(s.pool)

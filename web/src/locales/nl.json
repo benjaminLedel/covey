@@ -1784,13 +1784,25 @@
     "setting": {
       "signup.mode": "Laat deze installatie zelfregistratie toe?",
       "signup.org_quota": "Hoeveel organisaties één account mag aanmaken.",
-      "site.name": "Hoe deze installatie zichzelf noemt — op de registratiepagina en in haar e-mails."
+      "site.name": "Hoe deze installatie zichzelf noemt — op de registratiepagina en in haar e-mails.",
+      "mail.smtp_host": "De mailserver, zonder schema en zonder poort.",
+      "mail.smtp_port": "587 voor STARTTLS, 465 voor TLS vanaf de eerste byte.",
+      "mail.security": "Hoe de verbinding wordt versleuteld.",
+      "mail.smtp_user": "De aanmeldnaam. Vaak het afzenderadres, maar niet altijd.",
+      "mail.smtp_password": "Wordt verzegeld opgeslagen en nooit teruggegeven.",
+      "mail.from": "Het afzenderadres van de installatie.",
+      "mail.from_name": "De naam ervoor. Leeg betekent: de naam van de installatie."
     },
     "choice": {
       "signup.mode": {
         "off": "gesloten",
         "waitlist": "code vereist",
         "open": "open"
+      },
+      "mail.security": {
+        "starttls": "STARTTLS (587)",
+        "tls": "TLS vanaf de eerste byte (465)",
+        "none": "onversleuteld — alleen voor lokale tests"
       }
     },
     "waitlistDesc": "Codes waarmee iemand een account kan aanmaken zolang signup.mode op “code vereist” staat. Alleen de hash wordt bewaard — de leesbare tekst bestaat precies één keer, bij het aanmaken.",
@@ -1815,7 +1827,18 @@
     "codeRevoked": "ingetrokken",
     "codeExpired": "verlopen",
     "codeUsedUp": "opgebruikt",
-    "revoke": "Intrekken"
+    "revoke": "Intrekken",
+    "tabMail": "E-mail",
+    "mailDesc": "Hoe deze installatie mail verstuurt — bevestigingen, wachtwoordherstel, meldingen. Registratie blijft gesloten totdat een testmail aantoonbaar is aangekomen.",
+    "mailTest": "Testmail versturen",
+    "mailTesting": "versturen …",
+    "mailTestSent": "Aangekomen: verstuurd naar {{to}}.",
+    "mailSaveFirst": "Eerst opslaan — getest wordt wat is opgeslagen.",
+    "mailPasswordSet": "opgeslagen — typ een nieuw wachtwoord om het te vervangen",
+    "mailPasswordUnset": "geen opgeslagen",
+    "mailNeverTested": "Nooit getest. Totdat een testmail aankomt, blijft signup.mode gesloten.",
+    "mailLastOk": "Laatst getest {{date}} — aangekomen.",
+    "mailLastFailed": "Laatst getest {{date}} — mislukt: {{error}}"
   },
   "catalog": {
     "loading": "De catalogus laden …",

@@ -32,6 +32,7 @@ import (
 	"covey/internal/guardrails"
 	"covey/internal/homestore"
 	"covey/internal/identity"
+	"covey/internal/mail"
 	"covey/internal/marketplace"
 	"covey/internal/memory"
 	"covey/internal/observability"
@@ -82,6 +83,11 @@ type Server struct {
 	// does not advertise the attempt.
 	Accounts *accounts.Store
 	Waitlist *waitlist.Store
+	// Mail is how the installation sends a message of its own — the test
+	// mail, and from #168 onwards the verification and reset links. nil = the
+	// instance cannot send, which every caller has to handle: registration
+	// refuses rather than creating an account nobody can confirm.
+	Mail mail.Sender
 	// Skills are the agents' capabilities (library + agent-owned).
 	// nil = feature switched off; the skill routes then answer with 503
 	// (the same meaning as orchestrator.Options.Skills == nil).
@@ -589,6 +595,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/platform/accounts/{id}", s.platformAdmin(s.handleSetAccountPlatformRole))
 	mux.Handle("GET /api/v1/platform/settings", s.platformAdmin(s.handleListSettings))
 	mux.Handle("PUT /api/v1/platform/settings/{key}", s.platformAdmin(s.handleSetSetting))
+	mux.Handle("POST /api/v1/platform/mail/test", s.platformAdmin(s.handleTestMail))
 	mux.Handle("GET /api/v1/platform/waitlist-codes", s.platformAdmin(s.handleListWaitlistCodes))
 	mux.Handle("POST /api/v1/platform/waitlist-codes", s.platformAdmin(s.handleCreateWaitlistCode))
 	mux.Handle("DELETE /api/v1/platform/waitlist-codes/{hash}", s.platformAdmin(s.handleRevokeWaitlistCode))

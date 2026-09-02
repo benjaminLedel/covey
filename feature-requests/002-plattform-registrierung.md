@@ -298,11 +298,11 @@ Defined keys, all with a compiled-in default so a fresh database needs no seed:
 | `signup.org_quota` | int | `1` | organisations one account may create |
 | `signup.new_org_sandboxes` | bool | `false` | may a self-registered organisation run sandboxes before a system admin approves it |
 | `signup.default_join_policy` | `invite` \| `request` \| `domain` | `invite` | what a newly created organisation starts with |
-| `mail.smtp_host` / `mail.smtp_port` | text / int | — | the mailer |
+| `mail.smtp_host` / `mail.smtp_port` | text / int | — / `587` | the mailer |
 | `mail.smtp_user` | text | — | |
 | `mail.smtp_password` | **secret** | — | sealed, never returned to the browser |
 | `mail.from` / `mail.from_name` | text | — | envelope and display sender |
-| `mail.starttls` | bool | `true` | |
+| `mail.security` | `starttls` \| `tls` \| `none` | `starttls` | built as an enum rather than the boolean `mail.starttls` this document first proposed: implicit TLS on port 465 is half the installed base, and `none` is what makes a local mail double usable at all |
 | `mail.last_test_at` / `mail.last_test_error` | timestamp / text | — | written by the test mail; the gate for `signup.mode` reads it |
 | `site.name` | text | `covey` | what the mails and the sign-up page call this instance |
 
@@ -362,11 +362,21 @@ host is not evidence, a delivered message is.
 ### `internal/mail` — the control plane learns to send
 
 The RFC-5322 builder and the PLAIN/STARTTLS delivery already exist, but as part
-of an agent target plugin (`github.com/benjaminLedel/covey-plugin-pack/email/smtp.go`). Extract the message
-builder and the sender into `internal/mail` with a small `Sender` port
-(`builtin` SMTP; `log` for development, which writes the link into the log
-instead of sending); the target plugin then uses the same builder, so there is
-one place where a message is assembled.
+of an agent target plugin (`github.com/benjaminLedel/covey-plugin-pack/email/smtp.go`).
+
+*Built* (#167), with two corrections to what stood here:
+
+- The builder is **not shared**. The dependency graph is acyclic and nothing
+  depends on covey — the pack cannot import `internal/mail`. Sharing would mean
+  moving the builder into the plugin SDK and making the message format part of
+  the contract third parties build against; for two senders with different
+  requirements (an agent's threaded reply into a foreign mailbox versus a short
+  transactional message from the instance) that price is too high. The
+  duplication is deliberate and the package comment says so.
+- There is **no `log` sender**. One that "succeeded" would satisfy the gate
+  below and open registration on an instance that sends nothing. A development
+  instance points at the mail double in `demo/fakemail` instead, where the
+  message can actually be looked at.
 
 The sender reads its configuration from `internal/settings`, not from the
 process environment, and re-reads it on change — an admin who fixes a typo in
@@ -569,14 +579,19 @@ table stays in the environment.
 Each step is releasable on its own and leaves the single-tenant installation
 working.
 
-> **Stand.** P1 and P2 are built. Of P3 and P4 the stores and the public sign-up
-> exist (`internal/settings`, `internal/waitlist`, `internal/accounts`), and
-> since the two administration panels they have a surface as well: the switches
-> and the codes are administered under *Platform* (`/api/v1/platform/settings`,
-> `/api/v1/platform/waitlist-codes`, `…/accounts`). What is still missing from
-> P3 is the **mailer** — no SMTP, therefore no confirmation and no password
-> reset, which is why registration marks addresses as verified straight away.
-> P5 (joining, org switcher) and P6 (quotas) are open.
+> **Stand.** P1, P2 and P3 are built. The stores and the public sign-up exist
+> (`internal/settings`, `internal/waitlist`, `internal/accounts`), and the
+> switches and the codes are administered under *Platform*
+> (`/api/v1/platform/settings`, `/api/v1/platform/waitlist-codes`,
+> `…/accounts`). The **mailer** followed with #167: `internal/mail`, the sealed
+> SMTP password in `system_settings`, the *E-mail* card with its test mail, and
+> the gate that keeps `signup.mode` on `off` until a mail has demonstrably gone
+> out.
+>
+> What P4 still lacks is the **mails themselves** (#168) — confirmation link
+> and password reset; until they exist, registration marks addresses as
+> verified straight away. P5 (joining, org switcher) and P6 (quotas) are open,
+> and notification mails are #169.
 
 - **P1 — accounts and sessions.** Migrations 0052/0053, backfill, identity and
   session refactor, org-less principal. *Nothing user-visible changes.*
@@ -586,8 +601,8 @@ working.
   tenant endpoints move, `covey system-admin add`. Acceptance: a
   `platform_admin` of org A gets a 403 on every route that touches org B; the
   bootstrap admin does not notice the change.
-- **P3 — system settings and mail.** Migration 0058, `internal/settings`,
-  `internal/mail`, the *System* page with its three cards. Acceptance: an admin
+- **P3 — system settings and mail.** *Built* (migration 0057,
+  `internal/settings`, `internal/mail`, the *E-mail* page). Acceptance: an admin
   configures SMTP in the UI, the test mail arrives, password reset works end to
   end against a local SMTP double (`demo/` has the pattern for a mail double),
   switching `signup.mode` is refused while no mailer works, and every change

@@ -1784,13 +1784,25 @@
     "setting": {
       "signup.mode": "Czy ta instalacja przyjmuje samodzielne rejestracje?",
       "signup.org_quota": "Ile organizacji może utworzyć jedno konto.",
-      "site.name": "Jak nazywa się ta instalacja — na stronie rejestracji i w jej mailach."
+      "site.name": "Jak nazywa się ta instalacja — na stronie rejestracji i w jej mailach.",
+      "mail.smtp_host": "Serwer pocztowy, bez schematu i bez portu.",
+      "mail.smtp_port": "587 dla STARTTLS, 465 dla TLS od pierwszego bajtu.",
+      "mail.security": "Jak szyfrowane jest połączenie.",
+      "mail.smtp_user": "Nazwa logowania. Często adres nadawcy, ale nie zawsze.",
+      "mail.smtp_password": "Przechowywane w postaci zapieczętowanej i nigdy nie wydawane.",
+      "mail.from": "Adres nadawcy tej instalacji.",
+      "mail.from_name": "Nazwa przed nim. Puste oznacza: nazwa instalacji."
     },
     "choice": {
       "signup.mode": {
         "off": "zamknięte",
         "waitlist": "wymagany kod",
         "open": "otwarte"
+      },
+      "mail.security": {
+        "starttls": "STARTTLS (587)",
+        "tls": "TLS od pierwszego bajtu (465)",
+        "none": "bez szyfrowania — tylko do testów lokalnych"
       }
     },
     "waitlistDesc": "Kody, które pozwalają komuś założyć konto, gdy signup.mode stoi na „wymagany kod”. Zapisywany jest tylko skrót — jawny tekst istnieje dokładnie raz, przy tworzeniu.",
@@ -1815,7 +1827,18 @@
     "codeRevoked": "unieważniony",
     "codeExpired": "wygasł",
     "codeUsedUp": "wyczerpany",
-    "revoke": "Unieważnij"
+    "revoke": "Unieważnij",
+    "tabMail": "E-mail",
+    "mailDesc": "Jak ta instalacja wysyła pocztę — potwierdzenia, resetowanie haseł, powiadomienia. Rejestracja pozostaje zamknięta, dopóki wiadomość testowa nie dotrze w sposób dowiedziony.",
+    "mailTest": "Wyślij wiadomość testową",
+    "mailTesting": "wysyłanie …",
+    "mailTestSent": "Dotarła: wysłana do {{to}}.",
+    "mailSaveFirst": "Najpierw zapisz — sprawdzany jest stan zapisany.",
+    "mailPasswordSet": "zapisane — wpisz nowe, aby je zastąpić",
+    "mailPasswordUnset": "brak zapisanego",
+    "mailNeverTested": "Nigdy nie sprawdzano. Dopóki wiadomość testowa nie dotrze, signup.mode pozostaje zamknięty.",
+    "mailLastOk": "Ostatnio sprawdzono {{date}} — dotarła.",
+    "mailLastFailed": "Ostatnio sprawdzono {{date}} — nie powiodło się: {{error}}"
   },
   "catalog": {
     "loading": "Wczytywanie katalogu …",

@@ -1784,13 +1784,25 @@
     "setting": {
       "signup.mode": "Cette installation accepte-t-elle les inscriptions spontanées ?",
       "signup.org_quota": "Combien d'organisations un compte peut créer.",
-      "site.name": "Comment cette installation se nomme — sur la page d'inscription et dans ses e-mails."
+      "site.name": "Comment cette installation se nomme — sur la page d'inscription et dans ses e-mails.",
+      "mail.smtp_host": "Le serveur de messagerie, sans schéma ni port.",
+      "mail.smtp_port": "587 pour STARTTLS, 465 pour TLS dès le premier octet.",
+      "mail.security": "Comment la connexion est chiffrée.",
+      "mail.smtp_user": "Le nom de connexion. Souvent l'adresse d'expéditeur, mais pas toujours.",
+      "mail.smtp_password": "Conservé scellé et jamais restitué.",
+      "mail.from": "L'adresse d'expéditeur de l'installation.",
+      "mail.from_name": "Le nom qui la précède. Vide signifie : le nom de l'installation."
     },
     "choice": {
       "signup.mode": {
         "off": "fermé",
         "waitlist": "code requis",
         "open": "ouvert"
+      },
+      "mail.security": {
+        "starttls": "STARTTLS (587)",
+        "tls": "TLS dès le premier octet (465)",
+        "none": "en clair — uniquement pour des tests locaux"
       }
     },
     "waitlistDesc": "Codes qui permettent à quelqu'un de créer un compte tant que signup.mode est sur « code requis ». Seul le condensé est stocké — le texte clair n'existe qu'une seule fois, à la création.",
@@ -1815,7 +1827,18 @@
     "codeRevoked": "révoqué",
     "codeExpired": "expiré",
     "codeUsedUp": "épuisé",
-    "revoke": "Révoquer"
+    "revoke": "Révoquer",
+    "tabMail": "E-mail",
+    "mailDesc": "Comment cette installation envoie du courrier — confirmations, réinitialisations de mot de passe, notifications. L'inscription reste fermée tant qu'un e-mail de test n'est pas arrivé de manière démontrable.",
+    "mailTest": "Envoyer un e-mail de test",
+    "mailTesting": "envoi …",
+    "mailTestSent": "Arrivé : envoyé à {{to}}.",
+    "mailSaveFirst": "Enregistrez d'abord — ce qui est testé est ce qui est enregistré.",
+    "mailPasswordSet": "enregistré — saisissez-en un nouveau pour le remplacer",
+    "mailPasswordUnset": "aucun enregistré",
+    "mailNeverTested": "Jamais testé. Tant qu'un e-mail de test n'arrive pas, signup.mode reste fermé.",
+    "mailLastOk": "Dernier test {{date}} — arrivé.",
+    "mailLastFailed": "Dernier test {{date}} — échec : {{error}}"
   },
   "catalog": {
     "loading": "Chargement du catalogue …",

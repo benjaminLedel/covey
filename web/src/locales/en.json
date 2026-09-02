@@ -1784,13 +1784,25 @@
     "setting": {
       "signup.mode": "Does this installation accept self-registration?",
       "signup.org_quota": "How many organizations one account may create.",
-      "site.name": "What this installation calls itself — on the sign-up page and in its mails."
+      "site.name": "What this installation calls itself — on the sign-up page and in its mails.",
+      "mail.smtp_host": "The mail server, without a scheme and without a port.",
+      "mail.smtp_port": "587 for STARTTLS, 465 for TLS from the first byte.",
+      "mail.security": "How the connection is encrypted.",
+      "mail.smtp_user": "The login name. Often the sender address, but not always.",
+      "mail.smtp_password": "Stored sealed and never handed back out.",
+      "mail.from": "The installation's sender address.",
+      "mail.from_name": "The name in front of it. Empty means the installation's name."
     },
     "choice": {
       "signup.mode": {
         "off": "closed",
         "waitlist": "code required",
         "open": "open"
+      },
+      "mail.security": {
+        "starttls": "STARTTLS (587)",
+        "tls": "TLS from the first byte (465)",
+        "none": "plain text — local tests only"
       }
     },
     "waitlistDesc": "Codes that let somebody create an account while signup.mode is set to “code required”. Only the hash is stored — the plaintext exists exactly once, at creation.",
@@ -1815,7 +1827,18 @@
     "codeRevoked": "revoked",
     "codeExpired": "expired",
     "codeUsedUp": "used up",
-    "revoke": "Revoke"
+    "revoke": "Revoke",
+    "tabMail": "E-mail",
+    "mailDesc": "How this installation sends mail — confirmations, password resets, notifications. Registration stays closed until a test mail has demonstrably arrived.",
+    "mailTest": "Send test mail",
+    "mailTesting": "sending …",
+    "mailTestSent": "Arrived: sent to {{to}}.",
+    "mailSaveFirst": "Save first — what is tested is what is stored.",
+    "mailPasswordSet": "stored — type a new one to replace it",
+    "mailPasswordUnset": "none stored",
+    "mailNeverTested": "Never tested. Until a test mail arrives, signup.mode stays closed.",
+    "mailLastOk": "Last tested {{date}} — arrived.",
+    "mailLastFailed": "Last tested {{date}} — failed: {{error}}"
   },
   "catalog": {
     "loading": "Loading the catalogue …",

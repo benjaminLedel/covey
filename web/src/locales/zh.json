@@ -1784,13 +1784,25 @@
     "setting": {
       "signup.mode": "这套安装是否接受自助注册？",
       "signup.org_quota": "一个账户可以创建多少个组织。",
-      "site.name": "这套安装如何称呼自己——出现在注册页面和它发出的邮件里。"
+      "site.name": "这套安装如何称呼自己——出现在注册页面和它发出的邮件里。",
+      "mail.smtp_host": "邮件服务器，不带协议前缀，也不带端口。",
+      "mail.smtp_port": "STARTTLS 用 587，从第一个字节开始 TLS 用 465。",
+      "mail.security": "连接如何加密。",
+      "mail.smtp_user": "登录名。通常是发件地址，但并非总是。",
+      "mail.smtp_password": "密封保存，永不返回。",
+      "mail.from": "这套安装的发件地址。",
+      "mail.from_name": "其前面的名称。留空表示：这套安装的名称。"
     },
     "choice": {
       "signup.mode": {
         "off": "关闭",
         "waitlist": "需要邀请码",
         "open": "开放"
+      },
+      "mail.security": {
+        "starttls": "STARTTLS (587)",
+        "tls": "从第一个字节开始 TLS (465)",
+        "none": "明文——仅用于本地测试"
       }
     },
     "waitlistDesc": "当 signup.mode 设为“需要邀请码”时，这些码可以让人创建账户。只保存哈希——明文只在创建的那一刻存在一次。",
@@ -1815,7 +1827,18 @@
     "codeRevoked": "已吊销",
     "codeExpired": "已过期",
     "codeUsedUp": "已用完",
-    "revoke": "吊销"
+    "revoke": "吊销",
+    "tabMail": "邮件",
+    "mailDesc": "这套安装如何发送邮件——确认、密码重置、通知。在测试邮件确实送达之前，注册保持关闭。",
+    "mailTest": "发送测试邮件",
+    "mailTesting": "发送中 …",
+    "mailTestSent": "已送达：已发送至 {{to}}。",
+    "mailSaveFirst": "请先保存——验证的是已保存的设置。",
+    "mailPasswordSet": "已保存——输入新密码以替换",
+    "mailPasswordUnset": "未保存",
+    "mailNeverTested": "尚未验证。在测试邮件送达之前，signup.mode 保持关闭。",
+    "mailLastOk": "上次验证 {{date}}——已送达。",
+    "mailLastFailed": "上次验证 {{date}}——失败：{{error}}"
   },
   "catalog": {
     "loading": "正在加载目录 …",

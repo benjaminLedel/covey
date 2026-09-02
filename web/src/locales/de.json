@@ -1784,13 +1784,25 @@
     "setting": {
       "signup.mode": "Nimmt diese Installation Selbstregistrierungen an?",
       "signup.org_quota": "Wie viele Organisationen ein Konto gründen darf.",
-      "site.name": "Wie sich diese Installation nennt — auf der Registrierungsseite und in ihren Mails."
+      "site.name": "Wie sich diese Installation nennt — auf der Registrierungsseite und in ihren Mails.",
+      "mail.smtp_host": "Der Mailserver, ohne Schema und ohne Port.",
+      "mail.smtp_port": "587 für STARTTLS, 465 für TLS ab dem ersten Byte.",
+      "mail.security": "Wie die Verbindung verschlüsselt wird.",
+      "mail.smtp_user": "Der Anmeldename. Oft die Absenderadresse, aber nicht immer.",
+      "mail.smtp_password": "Wird versiegelt abgelegt und nie wieder herausgegeben.",
+      "mail.from": "Die Absenderadresse der Installation.",
+      "mail.from_name": "Der Name davor. Leer heisst: der Name der Installation."
     },
     "choice": {
       "signup.mode": {
         "off": "geschlossen",
         "waitlist": "nur mit Code",
         "open": "offen"
+      },
+      "mail.security": {
+        "starttls": "STARTTLS (587)",
+        "tls": "TLS ab dem ersten Byte (465)",
+        "none": "unverschlüsselt — nur für lokale Tests"
       }
     },
     "waitlistDesc": "Codes, mit denen jemand ein Konto anlegen darf, solange signup.mode auf „nur mit Code“ steht. Abgelegt wird nur der Hash — den Klartext gibt es genau einmal, im Moment der Erzeugung.",
@@ -1815,7 +1827,18 @@
     "codeRevoked": "zurückgezogen",
     "codeExpired": "abgelaufen",
     "codeUsedUp": "aufgebraucht",
-    "revoke": "Zurückziehen"
+    "revoke": "Zurückziehen",
+    "tabMail": "E-Mail",
+    "mailDesc": "Wie diese Installation Mail verschickt — Bestätigungen, Passwort-Zurücksetzungen, Benachrichtigungen. Ohne einen Mailserver, dessen Testmail nachweislich ankam, bleibt die Registrierung geschlossen.",
+    "mailTest": "Testmail senden",
+    "mailTesting": "sendet …",
+    "mailTestSent": "Angekommen: gesendet an {{to}}.",
+    "mailSaveFirst": "Erst speichern — geprüft wird der gespeicherte Stand.",
+    "mailPasswordSet": "hinterlegt — zum Ersetzen neu eingeben",
+    "mailPasswordUnset": "keines hinterlegt",
+    "mailNeverTested": "Noch nie geprüft. Bis eine Testmail ankommt, bleibt signup.mode auf „geschlossen“.",
+    "mailLastOk": "Zuletzt geprüft {{date}} — angekommen.",
+    "mailLastFailed": "Zuletzt geprüft {{date}} — fehlgeschlagen: {{error}}"
   },
   "catalog": {
     "loading": "Katalog wird geladen …",

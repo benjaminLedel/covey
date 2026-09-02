@@ -60,6 +60,7 @@ sections:
     pages:
       - operations
       - deployment
+      - mail
       - upgrade
       - runner
       - workplaces

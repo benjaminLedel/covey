@@ -650,6 +650,14 @@ export type Setting = {
   key: string;
   value: string;
   default: string;
+  /** Ein geheimer Schalter (das SMTP-Passwort): `value` ist dann immer leer,
+   *  und `set` sagt das Einzige, was die Aussenwelt erfahren darf — ob einer
+   *  hinterlegt ist. */
+  secret?: boolean;
+  set?: boolean;
+  /** Schreibt die Installation ueber sich selbst (das Ergebnis der Testmail).
+   *  Wird angezeigt, nicht angeboten. */
+  read_only?: boolean;
 };
 
 /** Ein Wartelisten-Code — ohne Klartext, den gibt es nur im Moment der

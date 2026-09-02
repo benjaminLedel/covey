@@ -33,6 +33,7 @@ import (
 	"covey/internal/homestore"
 	"covey/internal/httpapi"
 	identbuiltin "covey/internal/identity/builtin"
+	"covey/internal/mail"
 	"covey/internal/memory"
 	"covey/internal/observability"
 	"covey/internal/orchestrator"
@@ -43,6 +44,7 @@ import (
 	"covey/internal/runtimes"
 	"covey/internal/sandboxfs"
 	secbuiltin "covey/internal/secrets/builtin"
+	"covey/internal/secrets/sealbox"
 	"covey/internal/settings"
 	"covey/internal/skills"
 	targetstore "covey/internal/target/store"
@@ -133,6 +135,10 @@ type stack struct {
 	workplaces *workplaces.Store
 	templates  *templates.Store
 	audit      *audit.Store
+	// settings are the instance's own switches. The stack holds the same
+	// store the server uses, so a test can prove the mailer (mail_test.go)
+	// without building a second one over the same table.
+	settings *settings.Store
 	dreams     *dream.Store
 	orch       *orchestrator.Orchestrator
 	// srv is the HTTP server itself, so a test can equip it with something the
@@ -254,6 +260,11 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 	// run into a nil pointer instead of the code that is supposed to be checked.
 	s.templates = templates.NewStore(pool)
 	s.audit = audit.NewStore(pool)
+	box, err := sealbox.New(masterKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.settings = settings.New(pool, box)
 	s.dreams = dream.NewStore(pool, s.mem, log)
 	s.homeBase = t.TempDir()
 
@@ -290,7 +301,11 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 		Org: org.NewStore(pool), Targets: s.targets,
 		// Self-registration (FR-002): the public endpoints answer 404 without
 		// these, so a stack that lacks them would test the wrong thing.
-		Settings: settings.New(pool), Accounts: accounts.New(pool), Waitlist: waitlist.New(pool),
+		Settings: s.settings, Accounts: accounts.New(pool), Waitlist: waitlist.New(pool),
+		// The mailer as in production — an SMTP sender over the stored
+		// settings. Without a host configured it refuses, which is exactly
+		// what an unconfigured instance does.
+		Mail: mail.New(s.settings),
 		Templates: s.templates, Dreams: s.dreams, Audit: s.audit,
 		Skills:      s.skills,
 		EgressStore: s.egress,

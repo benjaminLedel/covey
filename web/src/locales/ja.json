@@ -1784,13 +1784,25 @@
     "setting": {
       "signup.mode": "このインストールは自己登録を受け入れますか？",
       "signup.org_quota": "1 つのアカウントが作れる組織の数。",
-      "site.name": "このインストールの名乗り — 登録ページとメールに出ます。"
+      "site.name": "このインストールの名乗り — 登録ページとメールに出ます。",
+      "mail.smtp_host": "メールサーバー。スキームもポートも付けません。",
+      "mail.smtp_port": "STARTTLS は 587、最初のバイトから TLS なら 465。",
+      "mail.security": "接続をどう暗号化するか。",
+      "mail.smtp_user": "ログイン名。多くは送信者アドレスですが、常にではありません。",
+      "mail.smtp_password": "封印して保存され、二度と外には出しません。",
+      "mail.from": "このインストールの送信者アドレス。",
+      "mail.from_name": "その前に付く名前。空ならインストールの名前。"
     },
     "choice": {
       "signup.mode": {
         "off": "受付停止",
         "waitlist": "コードが必要",
         "open": "自由"
+      },
+      "mail.security": {
+        "starttls": "STARTTLS (587)",
+        "tls": "最初のバイトから TLS (465)",
+        "none": "暗号化なし — ローカルの試験専用"
       }
     },
     "waitlistDesc": "signup.mode が「コードが必要」のあいだ、アカウント作成を許すコードです。保存されるのはハッシュだけで、平文は作成時に一度だけ存在します。",
@@ -1815,7 +1827,18 @@
     "codeRevoked": "失効",
     "codeExpired": "期限切れ",
     "codeUsedUp": "使い切り",
-    "revoke": "失効させる"
+    "revoke": "失効させる",
+    "tabMail": "メール",
+    "mailDesc": "このインストールがメールを送る方法 — 確認、パスワード再設定、通知。テストメールが実際に届くまで、登録は閉じたままです。",
+    "mailTest": "テストメールを送信",
+    "mailTesting": "送信中 …",
+    "mailTestSent": "届きました: {{to}} に送信しました。",
+    "mailSaveFirst": "先に保存してください — 検証されるのは保存された設定です。",
+    "mailPasswordSet": "保存済み — 置き換えるには新しいものを入力",
+    "mailPasswordUnset": "未設定",
+    "mailNeverTested": "まだ検証していません。テストメールが届くまで signup.mode は閉じたままです。",
+    "mailLastOk": "最終検証 {{date}} — 届きました。",
+    "mailLastFailed": "最終検証 {{date}} — 失敗: {{error}}"
   },
   "catalog": {
     "loading": "カタログを読み込んでいます …",

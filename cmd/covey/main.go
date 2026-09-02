@@ -38,6 +38,7 @@ import (
 	"covey/internal/httpapi"
 	identbuiltin "covey/internal/identity/builtin"
 	"covey/internal/llm"
+	"covey/internal/mail"
 	"covey/internal/marketplace"
 	"covey/internal/memory"
 	"covey/internal/observability"
@@ -51,6 +52,7 @@ import (
 	"covey/internal/runtimes"
 	"covey/internal/sandbox"
 	secbuiltin "covey/internal/secrets/builtin"
+	"covey/internal/secrets/sealbox"
 	"covey/internal/settings"
 	"covey/internal/skills"
 	targetstore "covey/internal/target/store"
@@ -351,7 +353,11 @@ func runSettings(ctx context.Context, cfg config.Config, args []string, log *slo
 		return err
 	}
 	defer pool.Close()
-	store := settings.New(pool)
+	// A box without a master key is acceptable here: this command is the way
+	// back in when the interface is unreachable, and it must not refuse to
+	// show signup.mode because a secret setting could not be sealed.
+	box, _ := sealbox.New(cfg.MasterKeyHex)
+	store := settings.New(pool, box)
 
 	switch len(args) {
 	case 0:
@@ -360,14 +366,33 @@ func runSettings(ctx context.Context, cfg config.Config, args []string, log *slo
 			return err
 		}
 		for _, k := range settings.Keys() {
-			markierung := ""
-			if werte[k] == settings.Defaults[k] {
+			wert, markierung := werte[k], ""
+			switch {
+			case settings.Secrets[k]:
+				// A secret has no value to print — only whether one is there.
+				gesetzt, err := store.SecretSet(ctx, k)
+				if err != nil {
+					return err
+				}
+				wert = "(none)"
+				if gesetzt {
+					wert = "(set)"
+				}
+			case wert == settings.Defaults[k]:
 				markierung = "   (default)"
 			}
-			fmt.Printf("%-20s %s%s\n", k, werte[k], markierung)
+			fmt.Printf("%-22s %s%s\n", k, wert, markierung)
 		}
 		return nil
 	case 2:
+		if settings.Secrets[args[0]] {
+			if err := store.SetSecret(ctx, args[0], args[1], nil); err != nil {
+				return err
+			}
+			// The value never appears in the log — that is the point of it.
+			log.Info("secret setting changed", "key", args[0], "set", args[1] != "")
+			return nil
+		}
 		if err := store.Set(ctx, args[0], args[1], nil); err != nil {
 			return err
 		}
@@ -856,6 +881,14 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	// The instance's own settings seal their one secret (the SMTP password)
+	// with the same master key — under their own associated data, since an
+	// instance-level value belongs to no organisation.
+	box, err := sealbox.New(cfg.MasterKeyHex)
+	if err != nil {
+		return err
+	}
+	settingsStore := settings.New(pool, box)
 
 	runnerStore := runnerstore.NewStore(pool)
 	snapshotStore := runnerStore
@@ -1359,7 +1392,8 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 			return m
 		}(),
 		Workplaces: workplaces, OrgWorkplaces: orgWorkplaces,
-		Settings: settings.New(pool), Accounts: accounts.New(pool), Waitlist: waitlist.New(pool),
+		Settings: settingsStore, Accounts: accounts.New(pool), Waitlist: waitlist.New(pool),
+		Mail:   mail.New(settingsStore),
 		Skills: skillStore,
 		Orch:   orch, WebFS: dist, Log: log,
 		WebhookSecrets: cfg.WebhookSecrets,

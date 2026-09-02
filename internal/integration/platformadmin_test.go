@@ -86,6 +86,11 @@ func TestSystemEinstellungenUeberDieApi(t *testing.T) {
 	}
 
 	// Gültig, ungültig, unbekannt: drei Antworten, nicht eine.
+	//
+	// Der gültige Wert braucht seit #167 einen nachgewiesenen Mailversand —
+	// eine Instanz ohne ihn nähme Konten auf, deren Bestätigungslink nie
+	// abginge. Was der Nachweis wert ist, prüft mail_test.go.
+	s.proveMailer(t)
 	admin.expect(http.MethodPut, "/api/v1/platform/settings/"+settings.SignupMode,
 		map[string]string{"value": settings.ModeWaitlist}, http.StatusOK)
 	admin.expect(http.MethodPut, "/api/v1/platform/settings/"+settings.SignupMode,

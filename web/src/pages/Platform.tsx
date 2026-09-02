@@ -8,6 +8,7 @@ import {
 } from "../api";
 import Organizations from "./Organizations";
 import PlatformHeader from "./platform/Header";
+import Mail from "./platform/Mail";
 
 // Das Plattform-Panel: die Installation, nicht eine Organisation darin.
 //
@@ -22,6 +23,7 @@ export default function Platform({ me }: { me: Principal }) {
       <Route index element={<Organizations me={me} />} />
       <Route path="accounts" element={<Accounts me={me} />} />
       <Route path="settings" element={<Settings />} />
+      <Route path="mail" element={<Mail />} />
       <Route path="waitlist" element={<Waitlist />} />
     </Routes>
   );
@@ -101,9 +103,14 @@ function Settings() {
     <div>
       <PlatformHeader />
       <p className="muted text-xs mb-4" style={{ maxWidth: 640 }}>{t("platform.settingsDesc")}</p>
-      {(settings.data ?? []).map((s) => (
-        <SettingRow key={s.key} setting={s} />
-      ))}
+      {/* mail.* hat eine eigene Seite: sieben Felder, die nur zusammen einen
+          Sinn ergeben, plus den Knopf, der sie beweist. Hier stuenden sie als
+          sieben unabhaengige Zeilen — und das Passwort als achte. */}
+      {(settings.data ?? [])
+        .filter((s) => !s.key.startsWith("mail."))
+        .map((s) => (
+          <SettingRow key={s.key} setting={s} />
+        ))}
     </div>
   );
 }

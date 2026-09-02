@@ -1784,13 +1784,25 @@
     "setting": {
       "signup.mode": "¿Admite esta instalación el registro por cuenta propia?",
       "signup.org_quota": "Cuántas organizaciones puede crear una cuenta.",
-      "site.name": "Cómo se llama esta instalación: en la página de registro y en sus correos."
+      "site.name": "Cómo se llama esta instalación: en la página de registro y en sus correos.",
+      "mail.smtp_host": "El servidor de correo, sin esquema y sin puerto.",
+      "mail.smtp_port": "587 para STARTTLS, 465 para TLS desde el primer byte.",
+      "mail.security": "Cómo se cifra la conexión.",
+      "mail.smtp_user": "El nombre de acceso. A menudo la dirección del remitente, pero no siempre.",
+      "mail.smtp_password": "Se guarda sellada y nunca se devuelve.",
+      "mail.from": "La dirección del remitente de la instalación.",
+      "mail.from_name": "El nombre que la precede. Vacío significa: el nombre de la instalación."
     },
     "choice": {
       "signup.mode": {
         "off": "cerrado",
         "waitlist": "hace falta código",
         "open": "abierto"
+      },
+      "mail.security": {
+        "starttls": "STARTTLS (587)",
+        "tls": "TLS desde el primer byte (465)",
+        "none": "sin cifrar — solo para pruebas locales"
       }
     },
     "waitlistDesc": "Códigos que permiten a alguien crear una cuenta mientras signup.mode está en «hace falta código». Solo se guarda el hash: el texto en claro existe exactamente una vez, al crearlo.",
@@ -1815,7 +1827,18 @@
     "codeRevoked": "revocado",
     "codeExpired": "caducado",
     "codeUsedUp": "agotado",
-    "revoke": "Revocar"
+    "revoke": "Revocar",
+    "tabMail": "Correo",
+    "mailDesc": "Cómo envía correo esta instalación: confirmaciones, restablecimientos de contraseña, notificaciones. El registro permanece cerrado hasta que un correo de prueba haya llegado de forma demostrable.",
+    "mailTest": "Enviar correo de prueba",
+    "mailTesting": "enviando …",
+    "mailTestSent": "Ha llegado: enviado a {{to}}.",
+    "mailSaveFirst": "Guarde primero: se comprueba lo que está guardado.",
+    "mailPasswordSet": "guardada — escriba otra para reemplazarla",
+    "mailPasswordUnset": "ninguna guardada",
+    "mailNeverTested": "Nunca comprobado. Hasta que llegue un correo de prueba, signup.mode sigue cerrado.",
+    "mailLastOk": "Última comprobación {{date}}: llegó.",
+    "mailLastFailed": "Última comprobación {{date}}: falló: {{error}}"
   },
   "catalog": {
     "loading": "Cargando el catálogo …",

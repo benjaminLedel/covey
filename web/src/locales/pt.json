@@ -1784,13 +1784,25 @@
     "setting": {
       "signup.mode": "Esta instalação aceita registos por iniciativa própria?",
       "signup.org_quota": "Quantas organizações uma conta pode criar.",
-      "site.name": "Como esta instalação se chama — na página de registo e nos seus e-mails."
+      "site.name": "Como esta instalação se chama — na página de registo e nos seus e-mails.",
+      "mail.smtp_host": "O servidor de correio, sem esquema e sem porta.",
+      "mail.smtp_port": "587 para STARTTLS, 465 para TLS desde o primeiro byte.",
+      "mail.security": "Como a ligação é cifrada.",
+      "mail.smtp_user": "O nome de acesso. Muitas vezes o endereço do remetente, mas nem sempre.",
+      "mail.smtp_password": "É guardada selada e nunca é devolvida.",
+      "mail.from": "O endereço de remetente da instalação.",
+      "mail.from_name": "O nome que o antecede. Vazio significa: o nome da instalação."
     },
     "choice": {
       "signup.mode": {
         "off": "fechado",
         "waitlist": "é preciso código",
         "open": "aberto"
+      },
+      "mail.security": {
+        "starttls": "STARTTLS (587)",
+        "tls": "TLS desde o primeiro byte (465)",
+        "none": "sem cifra — apenas para testes locais"
       }
     },
     "waitlistDesc": "Códigos que deixam alguém criar conta enquanto signup.mode estiver em «é preciso código». Só o hash é guardado — o texto simples existe exatamente uma vez, ao ser criado.",
@@ -1815,7 +1827,18 @@
     "codeRevoked": "revogado",
     "codeExpired": "expirado",
     "codeUsedUp": "esgotado",
-    "revoke": "Revogar"
+    "revoke": "Revogar",
+    "tabMail": "E-mail",
+    "mailDesc": "Como esta instalação envia correio — confirmações, reposições de palavra-passe, notificações. O registo permanece fechado até que um e-mail de teste tenha chegado de forma comprovada.",
+    "mailTest": "Enviar e-mail de teste",
+    "mailTesting": "a enviar …",
+    "mailTestSent": "Chegou: enviado para {{to}}.",
+    "mailSaveFirst": "Guarde primeiro — o que é testado é o que está guardado.",
+    "mailPasswordSet": "guardada — escreva uma nova para a substituir",
+    "mailPasswordUnset": "nenhuma guardada",
+    "mailNeverTested": "Nunca testado. Até chegar um e-mail de teste, signup.mode permanece fechado.",
+    "mailLastOk": "Último teste {{date}} — chegou.",
+    "mailLastFailed": "Último teste {{date}} — falhou: {{error}}"
   },
   "catalog": {
     "loading": "A carregar o catálogo …",

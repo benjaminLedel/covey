@@ -5,12 +5,7 @@ package builtin
 
 import (
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
-	"fmt"
 	"strconv"
 
 	"github.com/google/uuid"
@@ -18,38 +13,27 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"covey/internal/secrets"
+	"covey/internal/secrets/sealbox"
 )
 
 type Store struct {
 	pool *pgxpool.Pool
-	aead cipher.AEAD
+	box  *sealbox.Box
 }
 
 // New expects the master key as 64 hex characters (32 bytes → AES-256).
 func New(pool *pgxpool.Pool, masterKeyHex string) (*Store, error) {
-	key, err := hex.DecodeString(masterKeyHex)
-	if err != nil || len(key) != 32 {
-		return nil, fmt.Errorf("COVEY_MASTER_KEY must be 32 bytes of hex (64 characters)")
-	}
-	block, err := aes.NewCipher(key)
+	box, err := sealbox.New(masterKeyHex)
 	if err != nil {
 		return nil, err
 	}
-	aead, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-	return &Store{pool: pool, aead: aead}, nil
+	return &Store{pool: pool, box: box}, nil
 }
 
-// GenerateMasterKey creates a new master key for bootstrapping.
-func GenerateMasterKey() (string, error) {
-	key := make([]byte, 32)
-	if _, err := rand.Read(key); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(key), nil
-}
+// GenerateMasterKey creates a new master key for bootstrapping. It stays here
+// as well as in sealbox because the callers are the bootstrap paths, which know
+// the secret store and have no reason to learn about the primitive underneath.
+func GenerateMasterKey() (string, error) { return sealbox.GenerateMasterKey() }
 
 // aad binds the ciphertext to its place (no row swapping): org+key for org-wide
 // secrets, org+agent+key for an agent's own — plus the slot, since a key can
@@ -71,19 +55,11 @@ func aad(orgID uuid.UUID, agentID *uuid.UUID, key string, slot int) []byte {
 }
 
 func (s *Store) seal(aad []byte, value string) (nonce, ciphertext []byte, err error) {
-	nonce = make([]byte, s.aead.NonceSize())
-	if _, err = rand.Read(nonce); err != nil {
-		return nil, nil, err
-	}
-	return nonce, s.aead.Seal(nil, nonce, []byte(value), aad), nil
+	return s.box.Seal(aad, value)
 }
 
 func (s *Store) open(key string, aad, nonce, ciphertext []byte) (string, error) {
-	plain, err := s.aead.Open(nil, nonce, ciphertext, aad)
-	if err != nil {
-		return "", fmt.Errorf("secret %q: decryption failed: %w", key, err)
-	}
-	return string(plain), nil
+	return s.box.Open(`secret "`+key+`"`, aad, nonce, ciphertext)
 }
 
 // Put writes the key's FIRST value (slot 0) — creating the secret and, for a

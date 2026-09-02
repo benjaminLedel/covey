@@ -95,10 +95,29 @@ func (s *Server) handleListSettings(w http.ResponseWriter, r *http.Request) {
 		Key     string `json:"key"`
 		Value   string `json:"value"`
 		Default string `json:"default"`
+		// Secret marks a key whose value never leaves the server; Set says
+		// whether one is stored. That pair is the whole outside view of a
+		// secret setting — the same rule the SecretStore's previews follow.
+		Secret bool `json:"secret,omitempty"`
+		Set    bool `json:"set,omitempty"`
+		// ReadOnly marks what the installation writes about itself (the test
+		// mail's result). The UI shows it and offers no field.
+		ReadOnly bool `json:"read_only,omitempty"`
 	}
 	out := make([]entry, 0, len(values))
 	for _, k := range settings.Keys() {
-		out = append(out, entry{Key: k, Value: values[k], Default: settings.Defaults[k]})
+		e := entry{Key: k, Value: values[k], Default: settings.Defaults[k],
+			Secret: settings.Secrets[k], ReadOnly: settings.ReadOnly[k]}
+		if e.Secret {
+			e.Value = ""
+			set, err := s.Settings.SecretSet(r.Context(), k)
+			if err != nil {
+				mapErr(w, err)
+				return
+			}
+			e.Set = set
+		}
+		out = append(out, e)
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -115,7 +134,15 @@ func (s *Server) handleSetSetting(w http.ResponseWriter, r *http.Request) {
 	}
 	p := principalFrom(r)
 	by := &p.AccountID
-	if err := s.Settings.Set(r.Context(), key, in.Value, by); err != nil {
+	// A secret key takes the same route from the outside — one PUT with a
+	// value — and a different one underneath: sealed instead of stored, and
+	// never read back. An empty value clears it, which is what the UI's
+	// "remove" does.
+	set := s.Settings.Set
+	if settings.Secrets[key] {
+		set = s.Settings.SetSecret
+	}
+	if err := set(r.Context(), key, in.Value, by); err != nil {
 		switch {
 		case errors.Is(err, settings.ErrUnknownKey):
 			writeErr(w, http.StatusNotFound, err.Error())
@@ -124,6 +151,10 @@ func (s *Server) handleSetSetting(w http.ResponseWriter, r *http.Request) {
 		default:
 			mapErr(w, err)
 		}
+		return
+	}
+	if settings.Secrets[key] {
+		writeJSON(w, http.StatusOK, map[string]any{"key": key, "set": in.Value != ""})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"key": key, "value": in.Value})

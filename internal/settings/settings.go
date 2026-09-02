@@ -21,6 +21,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"covey/internal/secrets/sealbox"
 )
 
 // Keys. Named as strings rather than as an enum because the table is a
@@ -72,9 +74,16 @@ var (
 	ErrInvalid    = errors.New("invalid value")
 )
 
-type Store struct{ pool *pgxpool.Pool }
+type Store struct {
+	pool *pgxpool.Pool
+	// box seals the secret settings (the SMTP password). It may be nil — a
+	// caller without a master key can read and write every plain setting and
+	// gets an error on the secret ones, which is better than a store that
+	// silently keeps a password in clear text.
+	box *sealbox.Box
+}
 
-func New(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
+func New(pool *pgxpool.Pool, box *sealbox.Box) *Store { return &Store{pool: pool, box: box} }
 
 // Get reads one setting, falling back to its default. An unknown key is an
 // error rather than an empty string: whoever asks for a key that does not
@@ -147,9 +156,25 @@ func (s *Store) Set(ctx context.Context, key, value string, by *uuid.UUID) error
 	if _, ok := Defaults[key]; !ok {
 		return fmt.Errorf("%w: %s", ErrUnknownKey, key)
 	}
+	if Secrets[key] {
+		return fmt.Errorf("%w: %s is a secret — use SetSecret", ErrInvalid, key)
+	}
+	if ReadOnly[key] {
+		return fmt.Errorf("%w: %s is written by the installation itself", ErrInvalid, key)
+	}
 	value = strings.TrimSpace(value)
 	if err := validate(key, value); err != nil {
 		return err
+	}
+	// The one check that needs the database and therefore cannot live in
+	// validate: registration does not open while no mail has demonstrably
+	// gone out. A filled-in SMTP host is not evidence, a delivered message is
+	// — otherwise the first person to notice the typo is the one whose
+	// verification link never arrives.
+	if key == SignupMode && value != ModeOff {
+		if err := s.mailerProven(ctx); err != nil {
+			return err
+		}
 	}
 	_, err := s.pool.Exec(ctx,
 		`INSERT INTO system_settings (key, value, updated_by, updated_at)
@@ -189,6 +214,9 @@ func validate(key, value string) error {
 			return fmt.Errorf("%w: %s must be an RFC3339 timestamp", ErrInvalid, key)
 		}
 		return nil
+	}
+	if strings.HasPrefix(key, "mail.") {
+		return validateMail(key, value)
 	}
 	return nil
 }

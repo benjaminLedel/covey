@@ -1784,13 +1784,25 @@
     "setting": {
       "signup.mode": "Questa installazione accetta le registrazioni spontanee?",
       "signup.org_quota": "Quante organizzazioni può creare un singolo account.",
-      "site.name": "Come si chiama questa installazione — sulla pagina di registrazione e nelle sue e-mail."
+      "site.name": "Come si chiama questa installazione — sulla pagina di registrazione e nelle sue e-mail.",
+      "mail.smtp_host": "Il server di posta, senza schema e senza porta.",
+      "mail.smtp_port": "587 per STARTTLS, 465 per TLS dal primo byte.",
+      "mail.security": "Come viene cifrata la connessione.",
+      "mail.smtp_user": "Il nome di accesso. Spesso l'indirizzo del mittente, ma non sempre.",
+      "mail.smtp_password": "Viene conservata sigillata e non viene mai restituita.",
+      "mail.from": "L'indirizzo del mittente dell'installazione.",
+      "mail.from_name": "Il nome che lo precede. Vuoto significa: il nome dell'installazione."
     },
     "choice": {
       "signup.mode": {
         "off": "chiuso",
         "waitlist": "serve un codice",
         "open": "aperto"
+      },
+      "mail.security": {
+        "starttls": "STARTTLS (587)",
+        "tls": "TLS dal primo byte (465)",
+        "none": "in chiaro — solo per prove locali"
       }
     },
     "waitlistDesc": "Codici che permettono a qualcuno di creare un account finché signup.mode è su «serve un codice». Viene memorizzato solo l'hash — il testo in chiaro esiste una volta sola, alla creazione.",
@@ -1815,7 +1827,18 @@
     "codeRevoked": "revocato",
     "codeExpired": "scaduto",
     "codeUsedUp": "esaurito",
-    "revoke": "Revoca"
+    "revoke": "Revoca",
+    "tabMail": "E-mail",
+    "mailDesc": "Come questa installazione invia la posta — conferme, reimpostazioni della password, notifiche. La registrazione resta chiusa finché un'e-mail di prova non è arrivata in modo dimostrabile.",
+    "mailTest": "Invia e-mail di prova",
+    "mailTesting": "invio in corso …",
+    "mailTestSent": "Arrivata: inviata a {{to}}.",
+    "mailSaveFirst": "Salva prima — viene provato ciò che è salvato.",
+    "mailPasswordSet": "memorizzata — digitane una nuova per sostituirla",
+    "mailPasswordUnset": "nessuna memorizzata",
+    "mailNeverTested": "Mai provato. Finché non arriva un'e-mail di prova, signup.mode resta chiuso.",
+    "mailLastOk": "Ultima prova {{date}} — arrivata.",
+    "mailLastFailed": "Ultima prova {{date}} — fallita: {{error}}"
   },
   "catalog": {
     "loading": "Caricamento del catalogo …",
