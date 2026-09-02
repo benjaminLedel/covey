@@ -77,6 +77,18 @@ func newSignupLimiter() *webhookLimiter {
 	}
 }
 
+// newRegisterLimiter throttles runner enrolment (POST /api/runner/v1/register).
+// Unauthenticated by construction — the host has nothing to log in with — so
+// the token is the only secret, and every attempt counts as a guess at it.
+// Twenty an hour per address is far above what enrolling a fleet by hand takes.
+func newRegisterLimiter() *webhookLimiter {
+	return &webhookLimiter{
+		hits:    make(map[string][]time.Time),
+		maxHits: 20,
+		window:  time.Hour,
+	}
+}
+
 // allow books a call and reports whether it is still within bounds.
 func (l *webhookLimiter) allow(key string, now time.Time) bool {
 	l.mu.Lock()

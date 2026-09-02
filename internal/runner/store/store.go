@@ -321,7 +321,28 @@ func (s *Store) ListForOrg(ctx context.Context, orgID uuid.UUID) ([]Runner, erro
 // --- Registration (spec/16) ---
 
 // ErrTokenInvalid: no usable registration token.
-var ErrTokenInvalid = errors.New("registration token invalid or revoked")
+var ErrTokenInvalid = errors.New("registration token invalid, expired or revoked")
+
+// RegistrationTokenTTL is how long a registration token can enrol a host.
+// Enrolling is a moment — creating the token and pasting it into `register` —
+// not a standing permission, and a token that leaked into a config repository
+// used to enrol runners for as long as its row existed (#163).
+const RegistrationTokenTTL = 24 * time.Hour
+
+// RegistrationToken is one enrolment token as the interface lists it: never
+// the token itself, which exists in the clear exactly once.
+type RegistrationToken struct {
+	ID          uuid.UUID  `json:"id"`
+	Description string     `json:"description"`
+	CreatedAt   time.Time  `json:"created_at"`
+	ExpiresAt   time.Time  `json:"expires_at"`
+	RevokedAt   *time.Time `json:"revoked_at,omitempty"`
+}
+
+// Usable: neither revoked nor expired.
+func (t RegistrationToken) Usable(now time.Time) bool {
+	return t.RevokedAt == nil && now.Before(t.ExpiresAt)
+}
 
 // CreateRegistrationToken issues an organisation's registration token and
 // returns it in the clear — the only moment it exists outside a hash.
@@ -331,13 +352,36 @@ func (s *Store) CreateRegistrationToken(ctx context.Context, orgID uuid.UUID, de
 		return "", err
 	}
 	_, err = s.pool.Exec(ctx,
-		`INSERT INTO runner_registration_tokens (id, org_id, token_hash, description, created_by)
-		 VALUES ($1,$2,$3,$4,$5)`,
-		uuid.New(), orgID, HashToken(token), description, createdBy)
+		`INSERT INTO runner_registration_tokens (id, org_id, token_hash, description, created_by, expires_at)
+		 VALUES ($1,$2,$3,$4,$5,$6)`,
+		uuid.New(), orgID, HashToken(token), description, createdBy, time.Now().Add(RegistrationTokenTTL))
 	if err != nil {
 		return "", err
 	}
 	return token, nil
+}
+
+// ListRegistrationTokens lists an organisation's enrolment tokens, newest
+// first — the revoked and expired ones included, because "which token did that
+// host come in on" is a question that outlives the token.
+func (s *Store) ListRegistrationTokens(ctx context.Context, orgID uuid.UUID) ([]RegistrationToken, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT id, description, created_at, expires_at, revoked_at
+		   FROM runner_registration_tokens WHERE org_id = $1
+		  ORDER BY created_at DESC`, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []RegistrationToken
+	for rows.Next() {
+		var t RegistrationToken
+		if err := rows.Scan(&t.ID, &t.Description, &t.CreatedAt, &t.ExpiresAt, &t.RevokedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
 }
 
 // RevokeRegistrationToken makes a token unusable without removing it: whoever
@@ -360,7 +404,7 @@ func (s *Store) Register(ctx context.Context, registrationToken, description str
 	var orgID uuid.UUID
 	err := s.pool.QueryRow(ctx,
 		`SELECT org_id FROM runner_registration_tokens
-		  WHERE token_hash = $1 AND revoked_at IS NULL`, HashToken(registrationToken)).Scan(&orgID)
+		  WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > now()`, HashToken(registrationToken)).Scan(&orgID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Runner{}, "", ErrTokenInvalid
 	}

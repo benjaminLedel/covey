@@ -554,6 +554,28 @@ func (p *Pool) SetPaused(runnerID uuid.UUID, paused bool) {
 	c.setPaused(paused)
 }
 
+// Evict ends a runner's connection: its waiters are answered with the fact
+// that there is nothing left to wait for, the transport is closed, and the
+// entry leaves the pool. For a runner that has been deleted or whose token was
+// revoked — until #163 the row went and the connection stayed, so the host
+// kept receiving starts with daemon tokens while its own requests failed with
+// 401. Its next dial fails at the door, which is where a revoked token should
+// fail.
+func (p *Pool) Evict(runnerID uuid.UUID) {
+	p.mu.Lock()
+	c := p.conns[runnerID]
+	if c != nil {
+		delete(p.conns, runnerID)
+	}
+	p.mu.Unlock()
+	if c == nil {
+		return
+	}
+	p.Log.Info("runner evicted from the pool", "runner", short(runnerID))
+	c.end()
+	_ = c.t.Close()
+}
+
 // SetCapabilities carries an assignment made in the interface to a runner that
 // is connected right now. Without it the change would apply at the next
 // reconnect — and "why is it not taking anything, I gave it the tag" is exactly

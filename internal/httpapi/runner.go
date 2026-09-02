@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/coder/websocket"
 	"github.com/google/uuid"
@@ -248,14 +249,32 @@ func (s *Server) handleRunnerRegister(w http.ResponseWriter, r *http.Request) {
 		Version     string   `json:"version"`
 		Arch        string   `json:"arch"`
 	}
+	// Throttled like the sign-up, for the same reason: what is being guessed
+	// at here is a token, and every attempt counts (#163). Twenty an hour per
+	// address is far above what an operator enrolling a fleet by hand needs.
+	if !s.registerLimiter.allow(s.clientIP(r), time.Now()) {
+		writeErr(w, http.StatusTooManyRequests, "too many registration attempts — try again later")
+		return
+	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&in); err != nil {
 		writeErr(w, http.StatusBadRequest, "body is not valid JSON")
 		return
 	}
+	// Bounded, because both land in a row and in the interface as typed.
+	if len(in.Description) > 200 || len(in.Tags) > 32 {
+		writeErr(w, http.StatusBadRequest, "description (200) or tags (32) too long")
+		return
+	}
+	for _, tag := range in.Tags {
+		if len(tag) > 64 {
+			writeErr(w, http.StatusBadRequest, "a tag is longer than 64 characters")
+			return
+		}
+	}
 	rn, token, err := s.Runners.Register(r.Context(), in.Token, in.Description, in.Tags)
 	if err != nil {
 		if errors.Is(err, runnerstore.ErrTokenInvalid) {
-			writeErr(w, http.StatusUnauthorized, "registration token invalid or revoked")
+			writeErr(w, http.StatusUnauthorized, "registration token invalid, expired or revoked")
 			return
 		}
 		s.Log.Warn("runner registration failed", "err", err)
@@ -493,10 +512,48 @@ func (s *Server) handleCreateRegistrationToken(w http.ResponseWriter, r *http.Re
 	})
 }
 
+// handleListRegistrationTokens lists the organisation's enrolment tokens —
+// never the tokens themselves, only what is known about them: when created,
+// until when usable, whether taken back. The list is what makes the revoke
+// below findable; a token that exists only in the moment it was shown cannot
+// be revoked by anyone who was not there (#163).
+func (s *Server) handleListRegistrationTokens(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	list, err := s.Runners.ListRegistrationTokens(r.Context(), p.OrgID)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	if list == nil {
+		list = []runnerstore.RegistrationToken{}
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+// handleRevokeRegistrationToken takes an enrolment token back. Revoked, not
+// deleted: which token a host came in on stays answerable.
+func (s *Server) handleRevokeRegistrationToken(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	p := principalFrom(r)
+	if err := s.Runners.RevokeRegistrationToken(r.Context(), p.OrgID, id); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 // handleDeleteRunner decommissions a registered runner. It takes only its local
 // working copy with it, no platform state — everything that mattered is in the
 // home store. If it was the organisation's last one, the built-in runner is the
 // answer again at the next start.
+//
+// The connection goes with the row. Otherwise the host stayed in the pool as a
+// candidate — receiving starts, with daemon tokens — while every request of
+// its own now failed with 401 (#163).
 func (s *Server) handleDeleteRunner(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
@@ -507,6 +564,9 @@ func (s *Server) handleDeleteRunner(w http.ResponseWriter, r *http.Request) {
 	if err := s.Runners.Delete(r.Context(), p.OrgID, id); err != nil {
 		mapErr(w, err)
 		return
+	}
+	if s.RunnerPool != nil {
+		s.RunnerPool.Evict(id)
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }

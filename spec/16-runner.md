@@ -123,7 +123,7 @@ That the sync has to work before this can happen is the reason the home store co
 
 Registration concerns the *added* runner. The built-in one is created by the platform itself — one per organisation, at bootstrap and whenever an organisation is added — needs neither token nor configuration file, and stands beside the registered runners of its organisation (see "It runs beside the others, and a pause is what switches it off").
 
-For everything else, as with GitLab, split into a **registration token** (org-wide, creatable and revocable in the UI) and a **runner token** derived from it (long-lived, per runner, stored only as a hash):
+For everything else, as with GitLab, split into a **registration token** (org-wide, creatable, listable and revocable in the UI, valid for a day — enrolling is a moment, not a standing permission) and a **runner token** derived from it (long-lived, per runner, stored only as a hash; deleting the runner ends its connection on the spot, not at its next dial):
 
 ```
 covey-runner register --url https://covey.example --token <registration-token> \
