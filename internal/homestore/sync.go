@@ -38,10 +38,15 @@ const (
 	askBatchBytes = 32 << 20
 )
 
-// pendingBlock is a block waiting for its answer.
+// pendingBlock is a block waiting for its answer. data is nil for a block the
+// stat cache vouched for: it is read from disk only if the store lacks it.
 type pendingBlock struct {
 	hash string
 	data []byte
+	// path, size and index locate the block on disk for the nil-data case.
+	path  string
+	size  int64
+	index int
 }
 
 // Sync writes a home into the store as a snapshot and returns the manifest
@@ -66,6 +71,15 @@ type Watch func(seen int, bytesUp int64)
 func SyncWatched(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root string, excludes Excludes, watch Watch) (SyncResult, error) {
 	var res SyncResult
 	seen := map[string]bool{}
+	// The cache beside the copy: a file it vouches for is not read (#174).
+	// Loaded here and saved at the end, so a sync that fails midway leaves the
+	// previous cache — which is at worst stale, never wrong about a file it
+	// names, because the stat has to match too.
+	cache := LoadStatCache(root)
+	// Where each cached hash would be read from, should the store lack it.
+	var cachedPath string
+	var cachedSize int64
+	cachedIndex := 0
 
 	// Gefragt wird gebündelt, hochgeladen einzeln. Der Grund ist der Weg: bei
 	// einem Store hinter dem Netz war "kennst du diesen Block?" bisher eine
@@ -95,24 +109,52 @@ func SyncWatched(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root str
 			if have[b.hash] {
 				continue
 			}
-			if err := blobs.Put(ctx, orgID, b.hash, bytes.NewReader(b.data)); err != nil {
+			data := b.data
+			if data == nil {
+				// The cache vouched for a block the store does not hold — it
+				// was swept, or never arrived. Read now, from where the cache
+				// said it lies.
+				read, err := readBlock(b.path, b.size, b.index, b.hash)
+				if err != nil {
+					return err
+				}
+				data = read
+			}
+			if err := blobs.Put(ctx, orgID, b.hash, bytes.NewReader(data)); err != nil {
 				return err
 			}
 			res.Blocks++
-			res.BytesUp += int64(len(b.data))
+			res.BytesUp += int64(len(data))
 		}
 		buf = buf[:0]
 		bufBytes = 0
 		return nil
 	}
 
-	manifest, err := Scan(root, excludes, func(hash string, data []byte) error {
+	manifest, err := scanCached(root, excludes, cache, func(hash string, data []byte) error {
 		// Je gelesenem Block, nicht je hochgeladenem: bei einem Home, das sich
 		// kaum geändert hat, ist das Durchsehen die Arbeit — jeder Block wird
 		// gelesen und gehasht, und in den Store geht am Ende nichts. Ein
 		// Lebenszeichen, das am Hochladen hinge, schwiege dann durchgehend.
 		if watch != nil {
 			watch(len(seen), res.BytesUp)
+		}
+		if data == nil {
+			// A hash the cache vouched for. Its place in the file is counted
+			// whether or not it is asked about again — a block seen before
+			// still occupies its index.
+			index := cachedIndex
+			cachedIndex++
+			if seen[hash] {
+				return nil
+			}
+			seen[hash] = true
+			// Asked about like any other; read only if the store says no.
+			buf = append(buf, pendingBlock{hash: hash, path: cachedPath, size: cachedSize, index: index})
+			if len(buf) >= askBatch {
+				return flush()
+			}
+			return nil
 		}
 		if seen[hash] {
 			return nil
@@ -132,12 +174,19 @@ func SyncWatched(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root str
 			return flush()
 		}
 		return nil
+	}, func(path string, size int64) {
+		cachedPath, cachedSize, cachedIndex = path, size, 0
 	})
 	if err != nil {
 		return SyncResult{}, err
 	}
 	if err := flush(); err != nil {
 		return SyncResult{}, err
+	}
+	if err := cache.Save(root); err != nil {
+		// Not fatal: the snapshot is what matters, the cache is a saving.
+		// Without it the next sync reads everything, as before.
+		_ = err
 	}
 
 	raw, err := manifest.Encode()
@@ -392,6 +441,10 @@ func MaterializeOwned(ctx context.Context, blobs BlobStore, orgID uuid.UUID, roo
 		return res, err
 	}
 	owner.gehoert(root)
+	// The same cache the sync keeps (#174): a file whose stat the cache knows
+	// and whose cached hashes are the manifest's is correct without being
+	// read. Saved at the end, with what was written noted.
+	cache := LoadStatCache(root)
 
 	wanted := map[string]bool{}
 	// Directories first, and shallow before deep — a file cannot be written
@@ -434,8 +487,17 @@ func MaterializeOwned(ctx context.Context, blobs BlobStore, orgID uuid.UUID, roo
 			owner.gehoert(target)
 			res.Written++
 		default:
+			if cachedMatch(cache, target, e) {
+				res.Kept++
+				continue
+			}
 			if unchanged(target, e) {
 				res.Kept++
+				// Read once, and remembered: the next materialise or sync of
+				// this file costs a stat.
+				if info, err := os.Lstat(target); err == nil {
+					cache.Note(e.Path, info, e.Blocks)
+				}
 				continue
 			}
 			n, err := writeFile(ctx, blobs, orgID, target, e)
@@ -457,6 +519,9 @@ func MaterializeOwned(ctx context.Context, blobs BlobStore, orgID uuid.UUID, roo
 			owner.gehoert(target)
 			res.Written++
 			res.BytesIn += n
+			if info, err := os.Lstat(target); err == nil {
+				cache.Note(e.Path, info, e.Blocks)
+			}
 		}
 	}
 
@@ -466,8 +531,29 @@ func MaterializeOwned(ctx context.Context, blobs BlobStore, orgID uuid.UUID, roo
 			return res, err
 		}
 		res.Removed = removed
+		cache.Forget(wanted)
 	}
+	_ = cache.Save(root) // a saving, not the result — see SyncWatched
 	return res, nil
+}
+
+// cachedMatch: does the cache vouch for this file being exactly the entry?
+// Same stat as at the last scan, and the same blocks then as now.
+func cachedMatch(cache *StatCache, path string, e Entry) bool {
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() || info.Size() != e.Size {
+		return false
+	}
+	blocks, ok := cache.Lookup(e.Path, info)
+	if !ok || len(blocks) != len(e.Blocks) {
+		return false
+	}
+	for i := range blocks {
+		if blocks[i] != e.Blocks[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // unchanged: is the file on disk already the one the snapshot describes?
