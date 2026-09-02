@@ -34,6 +34,7 @@ const (
 	// some providers want an account name instead.
 	MailUser = "mail.smtp_user"
 	// MailPassword is the only secret setting. Sealed, never returned.
+	// #nosec G101 — the key the password is stored under, not the password.
 	MailPassword = "mail.smtp_password"
 	// MailFrom, MailFromName: envelope sender and the name in front of it.
 	// An empty MailFromName falls back to SiteName.
