@@ -154,10 +154,14 @@ var urlPattern = regexp.MustCompile(`https?://[^\s<>"]+`)
 // rest escaped, addresses turned into links. A paragraph that is nothing but
 // an address becomes the button, because in those mails that is the one thing
 // to do. `action` is the button's label.
+//
+// A single line break inside a paragraph is a wrapped line of the text
+// version, not a break the reader should see: it becomes a space, and the
+// client wraps the paragraph to its own width.
 func FromText(body, action string) template.HTML {
 	var b strings.Builder
 	for _, para := range strings.Split(strings.ReplaceAll(body, "\r\n", "\n"), "\n\n") {
-		para = strings.TrimSpace(para)
+		para = strings.TrimSpace(strings.Join(strings.Fields(para), " "))
 		if para == "" {
 			continue
 		}
@@ -168,11 +172,11 @@ func FromText(body, action string) template.HTML {
 		b.WriteString(`<p style="margin:0 0 14px;">`)
 		last := 0
 		for _, m := range urlPattern.FindAllStringIndex(para, -1) {
-			b.WriteString(strings.ReplaceAll(html.EscapeString(para[last:m[0]]), "\n", "<br>"))
+			b.WriteString(html.EscapeString(para[last:m[0]]))
 			b.WriteString(string(Link(para[m[0]:m[1]], para[m[0]:m[1]])))
 			last = m[1]
 		}
-		b.WriteString(strings.ReplaceAll(html.EscapeString(para[last:]), "\n", "<br>"))
+		b.WriteString(html.EscapeString(para[last:]))
 		b.WriteString(`</p>`)
 	}
 	return template.HTML(b.String())

@@ -109,12 +109,13 @@ func TestMultipartShape(t *testing.T) {
 // display name, a task title. It is escaped, its addresses become links, and
 // a paragraph that is only an address becomes the button.
 func TestFromTextEscapesAndLinks(t *testing.T) {
-	got := string(FromText("Hello <b>Erika</b>,\n\nopen this:\n\nhttps://covey.example.test/verify?token=a&b\n\nSee https://example.test/x for more.", "Confirm"))
+	got := string(FromText("Hello <b>Erika</b>,\n\nopen this:\n\nhttps://covey.example.test/verify?token=a&b\n\nSee https://example.test/x for more,\nwrapped in the text.", "Confirm"))
 	for _, want := range []string{
 		"Hello &lt;b&gt;Erika&lt;/b&gt;,",
 		`<a href="https://covey.example.test/verify?token=a&amp;b" style="display:inline-block;`,
 		">Confirm</a>",
 		`<a href="https://example.test/x" style="color:`,
+		"for more, wrapped in the text.", // a wrapped line is one paragraph, not a <br>
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the HTML lacks %q:\n%s", want, got)
