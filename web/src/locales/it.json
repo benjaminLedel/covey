@@ -27,6 +27,35 @@
         "title": "Account creato",
         "text": "{{email}} è registrato: puoi accedere. Entrare in un'organizzazione o fondarne una propria è il passo successivo."
       }
+    },
+    "verify": {
+      "checking": "Conferma dell'indirizzo in corso …",
+      "okTitle": "Indirizzo confermato",
+      "okText": "Hai effettuato l'accesso.",
+      "failTitle": "Questo link non è più valido",
+      "failText": "I link di conferma valgono 24 ore e funzionano una sola volta. Indica il tuo indirizzo e ne inviamo uno nuovo.",
+      "resendEmail": "Indirizzo e-mail",
+      "resend": "Invia un nuovo link",
+      "resending": "invio …",
+      "resent": "Se a questo indirizzo corrisponde un account non confermato, un nuovo link è in arrivo."
+    },
+    "reset": {
+      "forgot": "Password dimenticata?",
+      "requestTitle": "Reimposta la password",
+      "requestText": "Ti inviamo un link con cui impostare una nuova password. Vale un'ora.",
+      "email": "Indirizzo e-mail",
+      "request": "Invia il link",
+      "requesting": "invio …",
+      "sentTitle": "Controlla la casella",
+      "sentText": "Se a questo indirizzo corrisponde un account, il link è in arrivo. Vale un'ora e funziona una sola volta.",
+      "setTitle": "Imposta una nuova password",
+      "setText": "Almeno 8 caratteri. Il link funziona una volta: dopo accedi con la nuova password.",
+      "password": "Nuova password",
+      "save": "Salva la password",
+      "saving": "salvataggio …",
+      "doneTitle": "Password cambiata",
+      "doneText": "Ora puoi accedere con questa.",
+      "error": "Non ha funzionato."
     }
   },
   "nav": {
@@ -2070,5 +2099,15 @@
     "star": "Metti una stella su GitHub",
     "repo": "covey su GitHub",
     "hint": "covey è software libero (AGPL-3.0). Una stella aiuta gli altri a trovarlo."
+  },
+  "mails": {
+    "verify": {
+      "subject": "{{site}}: conferma il tuo indirizzo",
+      "body": "Ciao {{name}},\n\nper questo indirizzo è stato creato un account su {{site}}.\n\nConfermalo aprendo questo link:\n\n{{link}}\n\nIl link è valido per 24 ore. Se non sei stato tu, ignora questa e-mail: senza la conferma l'account resta inutilizzabile."
+    },
+    "reset": {
+      "subject": "{{site}}: imposta una nuova password",
+      "body": "Ciao {{name}},\n\nqualcuno ha chiesto di reimpostare la password del tuo account su {{site}}.\n\nImpostane una nuova qui:\n\n{{link}}\n\nIl link è valido per un'ora e funziona una sola volta. Se non sei stato tu, non è successo nulla: la tua password attuale resta valida."
+    }
   }
 }

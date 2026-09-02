@@ -27,6 +27,35 @@
         "title": "Compte créé",
         "text": "{{email}} est enregistré — vous pouvez vous connecter. Rejoindre une organisation ou fonder la vôtre est l'étape suivante."
       }
+    },
+    "verify": {
+      "checking": "Confirmation de votre adresse …",
+      "okTitle": "Adresse confirmée",
+      "okText": "Vous êtes connecté.",
+      "failTitle": "Ce lien n'est plus valable",
+      "failText": "Les liens de confirmation sont valables 24 heures et ne fonctionnent qu'une fois. Indiquez votre adresse et nous en enverrons un nouveau.",
+      "resendEmail": "Adresse e-mail",
+      "resend": "Envoyer un nouveau lien",
+      "resending": "envoi …",
+      "resent": "Si un compte non confirmé correspond à cette adresse, un nouveau lien est en route."
+    },
+    "reset": {
+      "forgot": "Mot de passe oublié ?",
+      "requestTitle": "Réinitialiser le mot de passe",
+      "requestText": "Nous vous enverrons un lien pour définir un nouveau mot de passe. Il est valable une heure.",
+      "email": "Adresse e-mail",
+      "request": "Envoyer le lien",
+      "requesting": "envoi …",
+      "sentTitle": "Regardez votre boîte mail",
+      "sentText": "Si un compte correspond à cette adresse, un lien est en route. Il est valable une heure et ne fonctionne qu'une fois.",
+      "setTitle": "Définir un nouveau mot de passe",
+      "setText": "Au moins 8 caractères. Le lien ne fonctionne qu'une fois — ensuite, connectez-vous avec le nouveau mot de passe.",
+      "password": "Nouveau mot de passe",
+      "save": "Enregistrer le mot de passe",
+      "saving": "enregistrement …",
+      "doneTitle": "Mot de passe modifié",
+      "doneText": "Vous pouvez maintenant vous connecter avec.",
+      "error": "Cela n'a pas fonctionné."
     }
   },
   "nav": {
@@ -2070,5 +2099,15 @@
     "star": "Mettre une étoile sur GitHub",
     "repo": "covey sur GitHub",
     "hint": "covey est un logiciel libre (AGPL-3.0). Une étoile aide les autres à le trouver."
+  },
+  "mails": {
+    "verify": {
+      "subject": "{{site}} : confirmez votre adresse",
+      "body": "Bonjour {{name}},\n\nun compte a été créé pour cette adresse sur {{site}}.\n\nConfirmez-la en ouvrant ce lien :\n\n{{link}}\n\nLe lien est valable 24 heures. Si ce n'était pas vous, ignorez ce message — sans la confirmation, le compte reste inutilisable."
+    },
+    "reset": {
+      "subject": "{{site}} : définir un nouveau mot de passe",
+      "body": "Bonjour {{name}},\n\nquelqu'un a demandé la réinitialisation du mot de passe de votre compte sur {{site}}.\n\nDéfinissez-en un nouveau ici :\n\n{{link}}\n\nLe lien est valable une heure et ne fonctionne qu'une fois. Si ce n'était pas vous, rien ne s'est passé — votre mot de passe actuel reste valable."
+    }
   }
 }

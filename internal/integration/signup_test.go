@@ -52,7 +52,7 @@ func TestRegistrierungMitCode(t *testing.T) {
 	}
 	res.Body.Close()
 
-	s.proveMailer(t)
+	s.workingMailer(t)
 	if err := settingsStore.Set(ctx, settings.SignupMode, settings.ModeWaitlist, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -88,10 +88,10 @@ func TestRegistrierungMitCode(t *testing.T) {
 	if acc.DisplayName != "Erika Musterfrau" {
 		t.Errorf("Name = %q", acc.DisplayName)
 	}
-	// Ohne Mailversand gilt die Adresse sofort als bestätigt — eine
-	// Bestätigung, die niemand verschicken kann, wäre ein totes Konto.
-	if !acc.Verified() {
-		t.Error("Konto ohne Mailer muss sofort bestätigt sein")
+	// Die Adresse ist NICHT bestätigt: dafür ist die Mail da, die gerade
+	// hinausging (#168). Was der Link damit macht, steht in verify_test.go.
+	if acc.Verified() {
+		t.Error("Adresse gilt als bestätigt, obwohl sie niemand bestätigt hat")
 	}
 	// Die Organisation wird hier NICHT gewählt: das Konto steht für sich, bis
 	// sein Inhaber beitritt oder gründet.
@@ -146,7 +146,7 @@ func TestRegistrierungMitCode(t *testing.T) {
 func TestEinmalCodeHaeltGleichzeitigkeitStand(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
-	s.proveMailer(t)
+	s.workingMailer(t)
 	if err := s.settings.Set(ctx, settings.SignupMode, settings.ModeWaitlist, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +206,7 @@ func adresse(i int) string {
 func TestAbgelaufenUndZurueckgezogen(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
-	s.proveMailer(t)
+	s.workingMailer(t)
 	if err := s.settings.Set(ctx, settings.SignupMode, settings.ModeWaitlist, nil); err != nil {
 		t.Fatal(err)
 	}

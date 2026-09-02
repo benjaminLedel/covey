@@ -15,7 +15,9 @@ import { PublicBackground, BirdMark } from "./chrome";
 import GitHubLink from "../components/GitHubLink";
 import LangPicker from "../components/LangPicker";
 import LoginCard from "./LoginCard";
+import Reset from "./Reset";
 import SignUp from "./SignUp";
+import Verify from "./Verify";
 import { usePublicLang } from "./lang";
 import { useSignupState } from "./signupState";
 import { LANGS, PUBLIC_ROUTES, matchRoute, pathOf, type Lang } from "./routes";
@@ -100,6 +102,9 @@ export default function SignedOut({ onLogin }: { onLogin: () => void }) {
               <Route key={`${route.id}-${l}`} path={route.path[l]} element={elemente[route.id]} />
             )),
           )}
+          {/* Ohne Sprache im Pfad, weil sie aus einer Mail kommen (routes.ts). */}
+          <Route path="/verify" element={<Verify onLogin={onLogin} />} />
+          <Route path="/reset" element={<Reset />} />
           <Route path="*" element={<Navigate to={ziel} replace />} />
         </Routes>
       </main>

@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-import { APP_ROUTE_PREFIXES, LANGS, PUBLIC_ROUTES } from "./src/public/routes";
+import { APP_ROUTE_PREFIXES, LANGS, MAIL_LINK_PATHS, PUBLIC_ROUTES } from "./src/public/routes";
 
 /* Die Routenliste für den Go-Handler. Er muss unterscheiden können, was zur
    Oberfläche gehört (und auf die Hülle fällt) und was ein Tippfehler ist (und
@@ -21,7 +21,10 @@ function appRouten() {
         source: JSON.stringify(
           {
             appPrefixes: APP_ROUTE_PREFIXES,
-            publicPaths: PUBLIC_ROUTES.flatMap((r) => LANGS.map((l) => r.path[l])),
+            publicPaths: [
+              ...PUBLIC_ROUTES.flatMap((r) => LANGS.map((l) => r.path[l])),
+              ...MAIL_LINK_PATHS,
+            ],
           },
           null,
           2,

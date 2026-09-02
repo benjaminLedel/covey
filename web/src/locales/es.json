@@ -27,6 +27,35 @@
         "title": "Cuenta creada",
         "text": "{{email}} está registrado: ya puedes iniciar sesión. Unirte a una organización o fundar la tuya es el siguiente paso."
       }
+    },
+    "verify": {
+      "checking": "Confirmando su dirección …",
+      "okTitle": "Dirección confirmada",
+      "okText": "Ha iniciado sesión.",
+      "failTitle": "Este enlace ya no es válido",
+      "failText": "Los enlaces de confirmación son válidos 24 horas y sirven una sola vez. Indique su dirección y le enviaremos uno nuevo.",
+      "resendEmail": "Dirección de correo",
+      "resend": "Enviar un enlace nuevo",
+      "resending": "enviando …",
+      "resent": "Si a esta dirección le corresponde una cuenta sin confirmar, ya va en camino un enlace nuevo."
+    },
+    "reset": {
+      "forgot": "¿Ha olvidado su contraseña?",
+      "requestTitle": "Restablecer contraseña",
+      "requestText": "Le enviaremos un enlace para establecer una nueva contraseña. Es válido durante una hora.",
+      "email": "Dirección de correo",
+      "request": "Enviar enlace",
+      "requesting": "enviando …",
+      "sentTitle": "Revise su buzón",
+      "sentText": "Si a esta dirección le corresponde una cuenta, el enlace va en camino. Es válido durante una hora y sirve una sola vez.",
+      "setTitle": "Establecer una nueva contraseña",
+      "setText": "Al menos 8 caracteres. El enlace sirve una vez; después inicie sesión con la nueva contraseña.",
+      "password": "Nueva contraseña",
+      "save": "Guardar contraseña",
+      "saving": "guardando …",
+      "doneTitle": "Contraseña cambiada",
+      "doneText": "Ya puede iniciar sesión con ella.",
+      "error": "No ha funcionado."
     }
   },
   "nav": {
@@ -2070,5 +2099,15 @@
     "star": "Dale una estrella en GitHub",
     "repo": "covey en GitHub",
     "hint": "covey es software libre (AGPL-3.0). Una estrella ayuda a que otros lo encuentren."
+  },
+  "mails": {
+    "verify": {
+      "subject": "{{site}}: confirme su dirección",
+      "body": "Hola {{name}}:\n\nse ha creado una cuenta para esta dirección en {{site}}.\n\nConfírmela abriendo este enlace:\n\n{{link}}\n\nEl enlace es válido durante 24 horas. Si no ha sido usted, ignore este correo: sin la confirmación la cuenta queda inutilizable."
+    },
+    "reset": {
+      "subject": "{{site}}: establecer una nueva contraseña",
+      "body": "Hola {{name}}:\n\nalguien ha pedido restablecer la contraseña de su cuenta en {{site}}.\n\nEstablezca una nueva aquí:\n\n{{link}}\n\nEl enlace es válido durante una hora y sirve una sola vez. Si no ha sido usted, no ha ocurrido nada: su contraseña actual sigue siendo válida."
+    }
   }
 }

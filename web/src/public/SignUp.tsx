@@ -44,6 +44,7 @@ export default function SignUp() {
         email: email.trim(),
         display_name: name.trim(),
         password,
+        lang,
       });
       setFertig(res.verification_sent);
     } catch (err) {

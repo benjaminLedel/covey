@@ -139,8 +139,8 @@ type stack struct {
 	// store the server uses, so a test can prove the mailer (mail_test.go)
 	// without building a second one over the same table.
 	settings *settings.Store
-	dreams     *dream.Store
-	orch       *orchestrator.Orchestrator
+	dreams   *dream.Store
+	orch     *orchestrator.Orchestrator
 	// srv is the HTTP server itself, so a test can equip it with something the
 	// basic stack deliberately leaves out — a plugin catalogue, for instance.
 	srv        *httpapi.Server
@@ -305,7 +305,7 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 		// The mailer as in production — an SMTP sender over the stored
 		// settings. Without a host configured it refuses, which is exactly
 		// what an unconfigured instance does.
-		Mail: mail.New(s.settings),
+		Mail:      mail.New(s.settings),
 		Templates: s.templates, Dreams: s.dreams, Audit: s.audit,
 		Skills:      s.skills,
 		EgressStore: s.egress,

@@ -104,6 +104,13 @@ export default function LoginCard({ onLogin }: { onLogin: () => void }) {
           </button>
         </>
       )}
+      {/* Der Weg zurück, wenn das Passwort weg ist. Er steht unabhängig von
+          signup.mode da: eine geschlossene Installation hat trotzdem Konten,
+          und wer seins vergisst, ist kein Fremder, der eingelassen werden
+          will — er ist schon drin (#168). */}
+      <p className="login-alt">
+        <Link to="/reset">{t("public.reset.forgot")}</Link>
+      </p>
       {signupState.mode !== "off" && (
         <p className="login-alt">
           {t("public.signup.noAccount")}{" "}

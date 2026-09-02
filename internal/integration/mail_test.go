@@ -42,6 +42,19 @@ func (s *stack) proveMailer(t *testing.T) {
 	}
 }
 
+// workingMailer is what a test needs that is not about the mailer but cannot
+// do without one: a mail server that answers, and the record of a test mail
+// that went through. Since #168 a registration without a mailer creates
+// nothing at all — which is the point, and which every sign-up test has to
+// stand in front of.
+func (s *stack) workingMailer(t *testing.T) *fakeSMTPServer {
+	t.Helper()
+	smtp := startFakeSMTP(t)
+	s.configureMailer(t, smtp)
+	s.proveMailer(t)
+	return smtp
+}
+
 // configureMailer points the instance at a mail server and returns it.
 func (s *stack) configureMailer(t *testing.T, smtp *fakeSMTPServer) {
 	t.Helper()

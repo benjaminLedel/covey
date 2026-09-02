@@ -27,6 +27,35 @@
         "title": "Konto założone",
         "text": "{{email}} jest zarejestrowany — możesz się zalogować. Dołączenie do organizacji albo założenie własnej to kolejny krok."
       }
+    },
+    "verify": {
+      "checking": "Potwierdzanie adresu …",
+      "okTitle": "Adres potwierdzony",
+      "okText": "Jesteś zalogowany.",
+      "failTitle": "Ten odnośnik już nie działa",
+      "failText": "Odnośniki potwierdzające są ważne 24 godziny i działają jeden raz. Podaj swój adres, a wyślemy nowy.",
+      "resendEmail": "Adres e-mail",
+      "resend": "Wyślij nowy odnośnik",
+      "resending": "wysyłanie …",
+      "resent": "Jeśli do tego adresu należy niepotwierdzone konto, nowy odnośnik jest już w drodze."
+    },
+    "reset": {
+      "forgot": "Nie pamiętasz hasła?",
+      "requestTitle": "Zresetuj hasło",
+      "requestText": "Wyślemy odnośnik, którym ustawisz nowe hasło. Jest ważny godzinę.",
+      "email": "Adres e-mail",
+      "request": "Wyślij odnośnik",
+      "requesting": "wysyłanie …",
+      "sentTitle": "Sprawdź skrzynkę",
+      "sentText": "Jeśli do tego adresu należy konto, odnośnik jest w drodze. Jest ważny godzinę i działa jeden raz.",
+      "setTitle": "Ustaw nowe hasło",
+      "setText": "Co najmniej 8 znaków. Odnośnik działa raz — potem logujesz się nowym hasłem.",
+      "password": "Nowe hasło",
+      "save": "Zapisz hasło",
+      "saving": "zapisywanie …",
+      "doneTitle": "Hasło zmienione",
+      "doneText": "Możesz się teraz nim zalogować.",
+      "error": "Nie udało się."
     }
   },
   "nav": {
@@ -2070,5 +2099,15 @@
     "star": "Daj gwiazdkę na GitHubie",
     "repo": "covey na GitHubie",
     "hint": "covey jest otwartym oprogramowaniem (AGPL-3.0). Gwiazdka pomaga innym go znaleźć."
+  },
+  "mails": {
+    "verify": {
+      "subject": "{{site}}: potwierdź swój adres",
+      "body": "Witaj {{name}},\n\ndla tego adresu utworzono konto w {{site}}.\n\nPotwierdź go, otwierając ten odnośnik:\n\n{{link}}\n\nOdnośnik jest ważny 24 godziny. Jeśli to nie Ty, zignoruj tę wiadomość — bez potwierdzenia konto pozostaje bezużyteczne."
+    },
+    "reset": {
+      "subject": "{{site}}: ustaw nowe hasło",
+      "body": "Witaj {{name}},\n\nktoś poprosił o zresetowanie hasła do Twojego konta w {{site}}.\n\nUstaw nowe tutaj:\n\n{{link}}\n\nOdnośnik jest ważny godzinę i działa jeden raz. Jeśli to nie Ty, nic się nie stało — dotychczasowe hasło pozostaje ważne."
+    }
   }
 }

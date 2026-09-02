@@ -58,6 +58,11 @@ export type SignupInput = {
   email: string;
   display_name: string;
   password: string;
+  /* Die Sprache der Registrierungsseite. Sie geht mit, weil die Mail sie
+     braucht: der Server kennt die Wahl des Browsers sonst nicht, und eine
+     Bestätigung auf Englisch an jemanden, der gerade auf Polnisch registriert
+     hat, ist ein Bruch mitten im Vorgang. */
+  lang: string;
 };
 
 export type SignupResult = {
@@ -73,4 +78,34 @@ export const signup = (input: SignupInput) =>
   api<SignupResult>("/public/signup", {
     method: "POST",
     body: JSON.stringify(input),
+  });
+
+/* Bestätigung und Passwort-Zurücksetzung (#168).
+
+   Alle vier Endpunkte antworten absichtlich gleichförmig: „angenommen" heißt
+   nicht „diese Adresse gibt es". Wer eine Antwort auswerten wollte, um
+   herauszufinden, wer hier ein Konto hat, erfährt aus ihr nichts. */
+
+export const verifyAddress = (token: string) =>
+  api<{ ok: boolean; email: string }>("/public/verify", {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  });
+
+export const resendVerification = (email: string, lang: string) =>
+  api<{ ok: boolean }>("/public/verify/resend", {
+    method: "POST",
+    body: JSON.stringify({ email, lang }),
+  });
+
+export const requestPasswordReset = (email: string, lang: string) =>
+  api<{ ok: boolean }>("/public/password-reset", {
+    method: "POST",
+    body: JSON.stringify({ email, lang }),
+  });
+
+export const confirmPasswordReset = (token: string, password: string) =>
+  api<{ ok: boolean; email: string }>("/public/password-reset/confirm", {
+    method: "POST",
+    body: JSON.stringify({ token, password }),
   });

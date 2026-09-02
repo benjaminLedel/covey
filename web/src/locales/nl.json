@@ -27,6 +27,35 @@
         "title": "Account aangemaakt",
         "text": "{{email}} is geregistreerd — u kunt nu inloggen. Aansluiten bij een organisatie of er zelf een oprichten volgt als volgende stap."
       }
+    },
+    "verify": {
+      "checking": "Adres wordt bevestigd …",
+      "okTitle": "Adres bevestigd",
+      "okText": "U bent aangemeld.",
+      "failTitle": "Deze link is niet meer geldig",
+      "failText": "Bevestigingslinks zijn 24 uur geldig en werken eenmalig. Geef uw adres op, dan sturen we een nieuwe.",
+      "resendEmail": "E-mailadres",
+      "resend": "Nieuwe link sturen",
+      "resending": "versturen …",
+      "resent": "Hoort bij dit adres een onbevestigd account, dan is een nieuwe link onderweg."
+    },
+    "reset": {
+      "forgot": "Wachtwoord vergeten?",
+      "requestTitle": "Wachtwoord opnieuw instellen",
+      "requestText": "We sturen u een link waarmee u een nieuw wachtwoord instelt. Hij is een uur geldig.",
+      "email": "E-mailadres",
+      "request": "Link sturen",
+      "requesting": "versturen …",
+      "sentTitle": "Kijk in uw postvak",
+      "sentText": "Hoort bij dit adres een account, dan is een link onderweg. Hij is een uur geldig en werkt eenmalig.",
+      "setTitle": "Nieuw wachtwoord instellen",
+      "setText": "Minstens 8 tekens. De link werkt eenmalig — daarna meldt u zich met het nieuwe wachtwoord aan.",
+      "password": "Nieuw wachtwoord",
+      "save": "Wachtwoord opslaan",
+      "saving": "opslaan …",
+      "doneTitle": "Wachtwoord gewijzigd",
+      "doneText": "U kunt zich er nu mee aanmelden.",
+      "error": "Dat is niet gelukt."
     }
   },
   "nav": {
@@ -2070,5 +2099,15 @@
     "star": "Geef een ster op GitHub",
     "repo": "covey op GitHub",
     "hint": "covey is opensource (AGPL-3.0). Een ster helpt anderen het te vinden."
+  },
+  "mails": {
+    "verify": {
+      "subject": "{{site}}: bevestig uw adres",
+      "body": "Hallo {{name}},\n\nvoor dit adres is bij {{site}} een account aangemaakt.\n\nBevestig het via deze link:\n\n{{link}}\n\nDe link is 24 uur geldig. Was u dit niet, negeer dan deze mail — zonder de bevestiging blijft het account onbruikbaar."
+    },
+    "reset": {
+      "subject": "{{site}}: nieuw wachtwoord instellen",
+      "body": "Hallo {{name}},\n\niemand heeft gevraagd het wachtwoord van uw account bij {{site}} opnieuw in te stellen.\n\nStel hier een nieuw wachtwoord in:\n\n{{link}}\n\nDe link is een uur geldig en werkt eenmalig. Was u dit niet, dan is er niets gebeurd — uw huidige wachtwoord blijft geldig."
+    }
   }
 }

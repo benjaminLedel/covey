@@ -27,6 +27,35 @@
         "title": "Conta criada",
         "text": "{{email}} está registado — já pode entrar. Juntar-se a uma organização ou fundar a sua é o passo seguinte."
       }
+    },
+    "verify": {
+      "checking": "A confirmar o seu endereço …",
+      "okTitle": "Endereço confirmado",
+      "okText": "A sessão está iniciada.",
+      "failTitle": "Esta ligação já não é válida",
+      "failText": "As ligações de confirmação são válidas 24 horas e funcionam uma vez. Indique o seu endereço e enviamos uma nova.",
+      "resendEmail": "Endereço de e-mail",
+      "resend": "Enviar nova ligação",
+      "resending": "a enviar …",
+      "resent": "Se a este endereço pertencer uma conta por confirmar, vai uma nova ligação a caminho."
+    },
+    "reset": {
+      "forgot": "Esqueceu-se da palavra-passe?",
+      "requestTitle": "Repor a palavra-passe",
+      "requestText": "Enviamos-lhe uma ligação para definir uma nova palavra-passe. É válida durante uma hora.",
+      "email": "Endereço de e-mail",
+      "request": "Enviar ligação",
+      "requesting": "a enviar …",
+      "sentTitle": "Veja a sua caixa de correio",
+      "sentText": "Se a este endereço pertencer uma conta, a ligação vai a caminho. É válida durante uma hora e funciona uma vez.",
+      "setTitle": "Definir uma nova palavra-passe",
+      "setText": "Pelo menos 8 caracteres. A ligação funciona uma vez — depois inicie sessão com a nova palavra-passe.",
+      "password": "Nova palavra-passe",
+      "save": "Guardar palavra-passe",
+      "saving": "a guardar …",
+      "doneTitle": "Palavra-passe alterada",
+      "doneText": "Já pode iniciar sessão com ela.",
+      "error": "Não funcionou."
     }
   },
   "nav": {
@@ -2070,5 +2099,15 @@
     "star": "Dê uma estrela no GitHub",
     "repo": "covey no GitHub",
     "hint": "O covey é software livre (AGPL-3.0). Uma estrela ajuda outros a encontrá-lo."
+  },
+  "mails": {
+    "verify": {
+      "subject": "{{site}}: confirme o seu endereço",
+      "body": "Olá {{name}},\n\nfoi criada uma conta para este endereço em {{site}}.\n\nConfirme-o abrindo esta ligação:\n\n{{link}}\n\nA ligação é válida durante 24 horas. Se não foi você, ignore esta mensagem — sem a confirmação a conta permanece inutilizável."
+    },
+    "reset": {
+      "subject": "{{site}}: definir uma nova palavra-passe",
+      "body": "Olá {{name}},\n\nalguém pediu para repor a palavra-passe da sua conta em {{site}}.\n\nDefina uma nova aqui:\n\n{{link}}\n\nA ligação é válida durante uma hora e funciona uma única vez. Se não foi você, nada aconteceu — a sua palavra-passe atual continua válida."
+    }
   }
 }

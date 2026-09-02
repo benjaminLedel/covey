@@ -73,7 +73,26 @@ than any sentence that could replace it:
 | `550 … not permitted to send` | the mailbox may not send under this `mail.from` |
 | a timeout after 15 seconds | a firewall between instance and mail server that swallows the packets |
 
-## 4. Why registration hangs on it
+## 4. What the installation sends
+
+Three messages, all of them plain text, all of them in the language the sender
+page was in — the catalogues are the interface's own
+(`web/src/locales/*.json`), so a mail arrives in the language somebody
+registered in:
+
+| Mail | Trigger | Lifetime of its link |
+|---|---|---|
+| Confirmation | a registration, and *send a new link* on `/verify` | 24 hours, one use |
+| Password reset | *forgotten your password?* on the sign-in page | one hour, one use |
+| Test mail | the button on this page | — |
+
+**Set `COVEY_SITE_URL` on a public instance.** The links in those mails need a
+host, and without that variable it comes from the request — which means from
+the `Host` header. Behind a proxy that passes the origin through, that is
+right; where anybody can set the header, it lets a stranger decide which domain
+a confirmation link points at, and the mail would carry the token there.
+
+## 5. Why registration hangs on it
 
 `signup.mode` cannot leave `off` while no test mail has ever gone through. That
 is deliberate: an instance that opens self-registration without a working mailer
@@ -82,7 +101,7 @@ affected cannot report it, because reporting it would require an account.
 
 A filled-in host is not evidence. A delivered message is.
 
-## 5. Trying it out locally
+## 6. Trying it out locally
 
 `demo/fakemail` (`go run ./demo/fakemail`) is a mail double: it accepts
 everything and keeps a log of what arrived. For a development instance:

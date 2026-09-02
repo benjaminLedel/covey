@@ -27,6 +27,35 @@
         "title": "Account created",
         "text": "{{email}} is registered — you can sign in now. Joining an organisation or founding your own follows as the next step."
       }
+    },
+    "verify": {
+      "checking": "Confirming your address …",
+      "okTitle": "Address confirmed",
+      "okText": "You are signed in.",
+      "failTitle": "This link is no longer valid",
+      "failText": "Confirmation links are valid for 24 hours and work once. Enter your address and we will send a new one.",
+      "resendEmail": "E-mail address",
+      "resend": "Send a new link",
+      "resending": "sending …",
+      "resent": "If an unconfirmed account belongs to this address, a new link is on its way."
+    },
+    "reset": {
+      "forgot": "Forgotten your password?",
+      "requestTitle": "Reset password",
+      "requestText": "We will send you a link that lets you set a new password. It is valid for one hour.",
+      "email": "E-mail address",
+      "request": "Send link",
+      "requesting": "sending …",
+      "sentTitle": "Check your mailbox",
+      "sentText": "If an account belongs to this address, a link is on its way. It is valid for one hour and works once.",
+      "setTitle": "Set a new password",
+      "setText": "At least 8 characters. The link works once — after this you sign in with the new password.",
+      "password": "New password",
+      "save": "Save password",
+      "saving": "saving …",
+      "doneTitle": "Password changed",
+      "doneText": "You can sign in with it now.",
+      "error": "That did not work."
     }
   },
   "nav": {
@@ -2070,5 +2099,15 @@
     "star": "Star on GitHub",
     "repo": "covey on GitHub",
     "hint": "covey is open source (AGPL-3.0). A star helps others find it."
+  },
+  "mails": {
+    "verify": {
+      "subject": "{{site}}: confirm your address",
+      "body": "Hello {{name}},\n\nan account was created for this address at {{site}}.\n\nConfirm it by opening this link:\n\n{{link}}\n\nThe link is valid for 24 hours. If this was not you, ignore this mail — without the confirmation the account stays unusable."
+    },
+    "reset": {
+      "subject": "{{site}}: set a new password",
+      "body": "Hello {{name}},\n\nsomebody asked to reset the password of your account at {{site}}.\n\nSet a new one here:\n\n{{link}}\n\nThe link is valid for one hour and works once. If this was not you, nothing has happened — your current password stays valid."
+    }
   }
 }

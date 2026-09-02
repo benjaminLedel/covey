@@ -241,6 +241,10 @@ func (s *Server) Handler() http.Handler {
 	// installation accept registrations (public.go).
 	mux.HandleFunc("GET /api/v1/public/signup-state", s.handleSignupState)
 	mux.HandleFunc("POST /api/v1/public/signup", s.handleSignup)
+	mux.HandleFunc("POST /api/v1/public/verify", s.handleVerify)
+	mux.HandleFunc("POST /api/v1/public/verify/resend", s.handleResendVerification)
+	mux.HandleFunc("POST /api/v1/public/password-reset", s.handlePasswordReset)
+	mux.HandleFunc("POST /api/v1/public/password-reset/confirm", s.handlePasswordResetConfirm)
 
 	// Auth.
 	mux.HandleFunc("POST /api/v1/auth/login", s.handleLogin)

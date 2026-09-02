@@ -94,6 +94,18 @@ export const PUBLIC_ROUTES: PublicRoute[] = [
   },
 ];
 
+/* Die zwei Adressen, die aus einer Mail heraus angesteuert werden (#168).
+
+   Sie tragen bewusst KEINE Sprache: sie stehen in einer Mail, die Monate im
+   Postfach liegen kann, und ein Link muss auch dann noch stimmen, wenn jemand
+   die Sprache inzwischen gewechselt hat. Übersetzt wird der Text auf der
+   Seite, nicht ihre Adresse.
+
+   Der Go-Handler braucht sie in derselben Liste wie die übrigen offenen Pfade
+   (vite.config.ts schreibt app-routes.json) — sonst antwortet ein Aufruf des
+   Bestätigungslinks mit 404 statt mit der Oberfläche. */
+export const MAIL_LINK_PATHS = ["/verify", "/reset"];
+
 /** Der Pfad einer Route in der gewünschten Sprache; unbekannt → die Anmeldung. */
 export function pathOf(id: string, lang: Lang): string {
   const route = PUBLIC_ROUTES.find((r) => r.id === id);

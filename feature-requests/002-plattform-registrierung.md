@@ -588,10 +588,16 @@ working.
 > the gate that keeps `signup.mode` on `off` until a mail has demonstrably gone
 > out.
 >
-> What P4 still lacks is the **mails themselves** (#168) — confirmation link
-> and password reset; until they exist, registration marks addresses as
-> verified straight away. P5 (joining, org switcher) and P6 (quotas) are open,
-> and notification mails are #169.
+> P4's mails followed with #168: registration now leaves the address
+> unconfirmed and sends the link (`account_tokens`, migration 0085), `/verify`
+> confirms and signs in, a link that expired can be replaced, and the password
+> reset works end to end — on a closed instance as well, since whoever forgot
+> their password is already inside. The mails' texts live in the interface's
+> own language catalogues, embedded through package `web`, so all ten
+> languages carry them and the parity test covers them.
+>
+> P5 (joining, org switcher) and P6 (quotas) are open, and notification mails
+> are #169.
 
 - **P1 — accounts and sessions.** Migrations 0052/0053, backfill, identity and
   session refactor, org-less principal. *Nothing user-visible changes.*

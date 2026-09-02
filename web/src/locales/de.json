@@ -27,6 +27,35 @@
         "title": "Konto angelegt",
         "text": "{{email}} ist registriert — Sie können sich jetzt anmelden. Einer Organisation beitreten oder eine eigene gründen folgt als nächster Schritt."
       }
+    },
+    "verify": {
+      "checking": "Adresse wird bestätigt …",
+      "okTitle": "Adresse bestätigt",
+      "okText": "Sie sind angemeldet.",
+      "failTitle": "Dieser Link gilt nicht mehr",
+      "failText": "Bestätigungslinks gelten 24 Stunden und genau einmal. Geben Sie Ihre Adresse an, dann schicken wir einen neuen.",
+      "resendEmail": "E-Mail-Adresse",
+      "resend": "Neuen Link schicken",
+      "resending": "sendet …",
+      "resent": "Gehört zu dieser Adresse ein unbestätigtes Konto, ist ein neuer Link unterwegs."
+    },
+    "reset": {
+      "forgot": "Passwort vergessen?",
+      "requestTitle": "Passwort zurücksetzen",
+      "requestText": "Wir schicken Ihnen einen Link, mit dem Sie ein neues Passwort setzen. Er gilt eine Stunde.",
+      "email": "E-Mail-Adresse",
+      "request": "Link schicken",
+      "requesting": "sendet …",
+      "sentTitle": "Sehen Sie ins Postfach",
+      "sentText": "Gehört zu dieser Adresse ein Konto, ist ein Link unterwegs. Er gilt eine Stunde und genau einmal.",
+      "setTitle": "Neues Passwort setzen",
+      "setText": "Mindestens 8 Zeichen. Der Link gilt einmal — danach melden Sie sich mit dem neuen Passwort an.",
+      "password": "Neues Passwort",
+      "save": "Passwort speichern",
+      "saving": "speichert …",
+      "doneTitle": "Passwort geändert",
+      "doneText": "Sie können sich jetzt damit anmelden.",
+      "error": "Das hat nicht geklappt."
     }
   },
   "nav": {
@@ -2070,5 +2099,15 @@
     "star": "Auf GitHub einen Stern geben",
     "repo": "covey auf GitHub",
     "hint": "covey ist quelloffen (AGPL-3.0). Ein Stern hilft anderen, es zu finden."
+  },
+  "mails": {
+    "verify": {
+      "subject": "{{site}}: Adresse bestätigen",
+      "body": "Hallo {{name}},\n\nfür diese Adresse wurde bei {{site}} ein Konto angelegt.\n\nBestätigen Sie sie über diesen Link:\n\n{{link}}\n\nDer Link gilt 24 Stunden. Waren Sie das nicht, ignorieren Sie diese Mail — ohne die Bestätigung bleibt das Konto unbenutzbar."
+    },
+    "reset": {
+      "subject": "{{site}}: neues Passwort setzen",
+      "body": "Hallo {{name}},\n\njemand hat darum gebeten, das Passwort Ihres Kontos bei {{site}} zurückzusetzen.\n\nHier setzen Sie ein neues:\n\n{{link}}\n\nDer Link gilt eine Stunde und genau einmal. Waren Sie das nicht, ist nichts geschehen — Ihr bisheriges Passwort gilt weiter."
+    }
   }
 }
