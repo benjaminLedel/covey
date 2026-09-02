@@ -1252,248 +1252,157 @@
 .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 @media (max-width: 900px) { .kanban { grid-template-columns: repeat(var(--kcols, 4), minmax(200px, 1fr)); } }
 
-/* ── Org-Chart: gemeinsame Node-Stile ───────────────────────────── */
-.org-legend { display: flex; gap: 16px; margin-bottom: 18px; font-size: 12px; color: var(--text-secondary); }
-.org-legend span { display: inline-flex; align-items: center; gap: 6px; }
-.org-legend .sw { width: 10px; height: 10px; border-radius: 50%; }
-
-/* Basis-Node (Human & Agent) */
-.node { display: inline-flex; align-items: center; gap: 9px; background: var(--surface-2); border: 0.5px solid var(--border); border-radius: 10px; padding: 9px 13px; min-width: 158px; text-decoration: none; color: inherit; }
-.node .avatar { width: 32px; height: 32px; font-size: 12px; }
-.node .avatar.hum { background: var(--surface-1); color: var(--text-secondary); }
-/* Die Textspalte muss schrumpfen dürfen, sonst gewinnt der Badge: er ist
-   `nowrap` und nimmt sich seine Breite, und was übrig bleibt, presst den Namen
-   in eine Spalte von einem Zeichen. Ein Name wird gekürzt, nicht zerlegt —
-   beobachtet an „Brunhilde Tatkräftig" neben einem längeren Status. */
-.node > div { flex: 1 1 auto; min-width: 0; }
-.node .nm { font-weight: 500; font-size: 13px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.node .rl { color: var(--text-muted); font-size: 11px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Und der Badge nimmt höchstens die Hälfte: er ist die Nebensache auf einer
-   Karte, die von einem Namen handelt. */
-.node .badge { flex: 0 1 auto; max-width: 50%; overflow: hidden; text-overflow: ellipsis; }
-.node .ntag { margin-left: auto; font-size: 10px; padding: 2px 8px; border-radius: 20px; background: var(--surface-1); color: var(--text-secondary); border: 0.5px solid var(--border); }
-.node .badge { font-size: 10px; padding: 2px 8px; margin-left: auto; }
-
-/* Aufklapper an Abteilungs- und Mitarbeiter-Knoten. Zugeklappt steht die Zahl
-   der verborgenen Knoten daneben — sonst verschwände sie spurlos. */
-.dept-toggle-btn {
-  min-width: 20px; height: 20px; flex-shrink: 0;
-  display: inline-flex; align-items: center; justify-content: center; gap: 3px;
-  border: 0.5px solid var(--border); border-radius: 5px;
-  background: var(--surface-2); color: var(--text-muted);
-  cursor: pointer; padding: 0 4px;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
+/* ── Org chart: a layered tree on a canvas (#177) ──────────────────────
+   Positions come from components/orgchart/layout.ts; the stylesheet only
+   dresses the cards and the ground. Nothing here decides where a line runs. */
+.orgc { margin-top: 18px; }
+.orgc-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px;
+  margin-bottom: 10px; font-size: 12px; color: var(--text-secondary);
 }
-.dept-toggle-btn svg { width: 10px; height: 10px; flex-shrink: 0; transition: transform 0.12s; }
-.dept-toggle-btn:hover { background: var(--surface-0); color: var(--text-primary); border-color: var(--border-strong); }
-
-/* Am Mitarbeiter-Chip: sitzt rechts im Chip, bleibt dezent bis zum Hover. */
-.subtree-toggle {
-  display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0;
-  align-self: center;   /* .orgmember streckt seine Kinder sonst auf Chip-Höhe */
-  margin: 0 8px 0 2px; padding: 2px 6px;
-  border: 0.5px solid var(--border); border-radius: 20px;
-  background: var(--surface-1); color: var(--text-muted);
-  font-size: 10px; font-variant-numeric: tabular-nums;
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
+.orgc-legend { display: flex; gap: 14px; flex: none; }
+.orgc-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.orgc-mini { width: 16px; height: 16px; font-size: 8px; font-weight: 600; }
+.orgc-hint { margin: 0; flex: 1 1 260px; min-width: 0; }
+.orgc-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
+.orgc-zoom {
+  display: inline-flex; align-items: center; gap: 2px; padding: 2px;
+  border: 0.5px solid var(--border); border-radius: var(--radius); background: var(--surface-2);
 }
-.subtree-toggle svg { width: 10px; height: 10px; transition: transform 0.12s; }
-.subtree-toggle:hover { background: var(--surface-0); color: var(--text-primary); border-color: var(--border-strong); }
+.orgc-zoom .icon-btn { width: 26px; height: 26px; border: 0; }
+.orgc-pct { min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; font-size: 11.5px; color: var(--text-muted); }
 
-.agent-grip {
-  display: flex; align-items: center; justify-content: center;
-  width: 24px; padding: 0 4px; flex-shrink: 0;
-  color: var(--text-muted);
-  border-right: 0.5px solid var(--border);
-  background: var(--surface-1);
-  transition: color 0.12s, background 0.12s;
-}
-.agent-grip svg { width: 8px; height: 13px; }
-.agent-chip:hover .agent-grip { color: var(--text-secondary); background: var(--surface-0); }
-
-/* ── Abteilungs-Verwaltung (echte Department-Entitäten) ── */
-.dept-create-form {
+.orgc-new {
   display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
-  padding: 10px 12px; margin: 8px 0 14px;
-  background: var(--surface-1); border: 0.5px solid var(--border);
-  border-radius: 10px;
+  padding: 10px 12px; margin: 0 0 10px;
+  background: var(--surface-2); border: 0.5px solid var(--border); border-radius: 10px;
 }
+.orgc-new input { flex: 1 1 160px; min-width: 0; }
 
-.dept-drop-hint {
-  font-size: 11px; color: var(--text-muted); font-style: italic;
-  padding: 4px 0;
+/* The ground: one layer below the page, inside a hairline. Cards float on
+   it; the canvas itself can be grabbed and focused. */
+.orgc-canvas {
+  position: relative; overflow: hidden;
+  height: clamp(440px, 68vh, 920px);
+  background: var(--surface-1); border: 0.5px solid var(--border); border-radius: 12px;
+  cursor: grab; user-select: none;
+  /* A finger over the chart scrolls the page until the canvas is tapped
+     into focus; then it pans. The same gate the wheel has. */
+  touch-action: pan-y pinch-zoom;
 }
+.orgc-canvas:focus { touch-action: none; }
+.orgc-canvas.panning { cursor: grabbing; }
+/* Where the chart runs past the frame, the edge fades: a clipped card is
+   "more", not broken. */
+.orgc-canvas::before, .orgc-canvas::after {
+  content: ""; position: absolute; top: 0; bottom: 0; width: 44px; z-index: 2;
+  pointer-events: none; opacity: 0; transition: opacity 0.18s;
+}
+.orgc-canvas::before { left: 0; background: linear-gradient(to right, var(--surface-1), transparent); }
+.orgc-canvas::after { right: 0; background: linear-gradient(to left, var(--surface-1), transparent); }
+.orgc-canvas[data-more~="left"]::before, .orgc-canvas[data-more~="right"]::after { opacity: 1; }
+.orgc-more-bottom {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 44px; z-index: 2; pointer-events: none;
+  background: linear-gradient(to top, var(--surface-1), transparent);
+  opacity: 0; transition: opacity 0.18s;
+}
+.orgc-canvas[data-more~="bottom"] .orgc-more-bottom { opacity: 1; }
+.orgc-canvas:focus-visible { outline: 2px solid var(--text-accent); outline-offset: 2px; }
+.orgc-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+.orgc-edges { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.orgc-edges path { fill: none; stroke: var(--border-strong); stroke-width: 1.5; }
 
-/* Farbwahl für Abteilungen: runde Swatches, erster Punkt = Standard.
-   Abstand > Ringbreite + Hover-Zoom, damit sich nichts überlappt. */
-.dept-colors { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; padding: 3px 2px; }
-.dept-swatch {
-  width: 18px; height: 18px; border-radius: 50%;
-  border: 1px solid var(--border-strong);
-  cursor: pointer; padding: 0; flex-shrink: 0;
-  transition: transform 0.1s, box-shadow 0.1s;
+.orgc-node { position: absolute; box-sizing: border-box; transition: opacity 0.15s; }
+.orgc-node.busy { opacity: 0.5; pointer-events: none; }
+.orgc-card, .orgc-org {
+  height: 100%; box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 4px; justify-content: center;
+  padding: 10px 12px;
+  background: var(--surface-2); border: 0.5px solid var(--border); border-radius: 10px;
+  box-shadow: 0 1px 2px var(--shadow-xs);
+  cursor: default;
+  transition: border-color 0.12s, box-shadow 0.12s, opacity 0.15s;
 }
-.dept-swatch:hover { transform: scale(1.1); }
+.orgc-org { align-items: center; text-align: center; border-color: var(--border-strong); }
+/* A department's colour is an edge, nothing more. */
+.orgc-card.dept { padding-left: 14px; box-shadow: inset 3px 0 0 var(--edge, var(--border-strong)), 0 1px 2px var(--shadow-xs); }
+.orgc-card.dept.loose { background: var(--surface-1); border-style: dashed; box-shadow: none; }
 
-/* Leitung einer Abteilung: Chips im Abteilungsknoten + Drop-Zone beim Ziehen */
-.dept-leads {
-  display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
-  margin-top: 6px; padding-top: 6px;
-  border-top: 0.5px dashed var(--border);
-}
-.dept-leads-label {
-  font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
-  color: var(--text-muted);
-}
-.dept-lead-chip {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 1px 3px 1px 2px; border-radius: 999px;
-  border: 0.5px solid var(--border); background: var(--surface-1);
-  font-size: 11px; color: var(--text-secondary);
-}
-.dept-lead-chip a {
-  display: inline-flex; align-items: center; gap: 4px;
-  color: inherit; text-decoration: none;
-}
-/* Während eines Drag-Vorgangs: zwei großzügige, klar getrennte Drop-Zonen
-   („Als Mitglied" / „Als Leitung") statt der kleinen Kartenfläche.
-   Sie legen sich ÜBER die Karte, statt sie auseinanderzuziehen: eine
-   wachsende Karte schiebt den Berichtsbaum darunter nach unten — also auch
-   die Karte, die man gerade angefasst hat. Rutscht die im selben Moment
-   unter dem Zeiger weg, bricht Chrome den Drag ab, und nichts lässt sich
-   mehr aufnehmen. */
-.dept-dropzones {
-  position: absolute; inset: 0; z-index: 3;
-  display: flex; flex-direction: column; gap: 4px;
-  margin: 0; padding: 5px;
-  border-radius: inherit;
-  background: var(--surface-2);
-}
-.dept-dz {
-  flex: 1; min-height: 0;
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  padding: 2px 8px;
-  border: 1.5px dashed var(--border-strong); border-radius: 8px;
-  font-size: 11px; line-height: 1.25; color: var(--text-muted); text-align: center;
-  transition: border-color 0.12s, color 0.12s, background 0.12s;
-}
+.orgc-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.orgc-nm { font-size: 13px; font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.orgc-org .orgc-nm, .orgc-card.dept .orgc-nm { font-weight: 600; flex: 1 1 auto; }
+.orgc-rl { display: block; font-size: 11px; color: var(--text-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.orgc-rl.mono { font-family: var(--mono); }
+.orgc-who { display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1 1 auto; color: inherit; text-decoration: none; border-radius: 6px; }
+.orgc-who:hover .orgc-nm { text-decoration: underline; text-underline-offset: 2px; }
+.orgc-text { display: flex; flex-direction: column; min-width: 0; }
+.orgc-card.member .badge { flex: 0 1 auto; max-width: 42%; overflow: hidden; text-overflow: ellipsis; font-size: 10px; padding: 2px 8px; }
+.orgc-card.member.lead { border-color: var(--border-strong); }
+.orgc-leadtag { display: inline-flex; align-items: center; gap: 3px; flex: none; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); }
 
-/* ── Diagramm-Ansicht: klassischer Org-Chart-Baum ────────────────────── */
-/* Kein seitliches Padding: mit min-width:100% am Wurzel-ul ergäbe es sonst
-   dauerhaft ein paar Pixel Querlauf, auch wenn der Baum längst passt. */
-.tree { overflow-x: auto; padding: 6px 0 20px; }
-.tree ul { display: flex; justify-content: center; padding: 22px 0 0; position: relative; margin: 0; list-style: none; }
-/* width: max-content — sonst zentriert flex breiteren Inhalt über den
-   Scroll-Ursprung hinaus nach links, wo er unerreichbar abgeschnitten wird. */
-.tree > ul { padding-top: 0; width: max-content; min-width: 100%; margin: 0 auto; }
-.tree li { position: relative; padding: 22px 6px 0; display: flex; flex-direction: column; align-items: center; }
-.tree li::before, .tree li::after { content: ""; position: absolute; top: 0; right: 50%; width: 50%; height: 22px; border-top: 1.5px solid var(--border-strong); }
-.tree li::after { right: auto; left: 50%; border-left: 1.5px solid var(--border-strong); }
-.tree li:only-child::before, .tree li:only-child::after { display: none; }
-.tree li:first-child::before, .tree li:last-child::after { border: 0; }
-.tree li:last-child::before { border-right: 1.5px solid var(--border-strong); border-radius: 0 6px 0 0; }
-.tree li:first-child::after { border-radius: 6px 0 0 0; }
-.tree ul ul::before { content: ""; position: absolute; top: 0; left: 50%; height: 22px; border-left: 1.5px solid var(--border-strong); }
-/* Abteilungs-Karten sind deutlich breiter als ein Mitglied — sie dürfen die
-   ganze sichtbare Breite nutzen. */
-.tree ul.tree-grid-wide { max-width: var(--tree-avail, 1200px); row-gap: 22px; }
-.tree > ul.tree-grid::after { top: 0; }
+.orgc-toggle {
+  flex: none; display: inline-flex; align-items: center; gap: 3px;
+  min-width: 24px; height: 24px; padding: 0 5px;
+  border: 0.5px solid var(--border); border-radius: 6px;
+  background: var(--surface-2); color: var(--text-muted);
+  font-size: 11px; font-variant-numeric: tabular-nums; cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.orgc-toggle svg { transition: transform 0.12s; }
+.orgc-toggle.closed svg { transform: rotate(-90deg); }
+.orgc-toggle:hover { background: var(--surface-1); color: var(--text-primary); border-color: var(--border-strong); }
 
-/* Verbinder je Reihe — dieselbe Zeichnung wie im klassischen Baum, nur an
-   data-row-first/-last statt an :first-child/:last-child, damit jede Reihe
-   ihren eigenen Balken bekommt. */
-/* Karten stehen dicht beieinander wie im klassischen Baum — sie über die
-   Reihenbreite zu verteilen ließ zwischen ihnen tote Flächen entstehen, auf
-   denen ein Drop ins Leere geht. Dass der Strich des Elternknotens trotzdem
-   auf dem Balken der ersten Reihe landet, besorgt der Stamm samt Armen. */
-.tree ul.tree-grid > li { padding-top: 14px; }
-.tree ul.tree-grid > li::before,
-.tree ul.tree-grid > li::after { height: 14px; }
-/* Alle Reihen-Regeln tragen [data-wrapped]: gleiche Spezifität, damit allein
-   die Reihenfolge entscheidet. Ohne Umbruch zeichnet weiterhin die klassische
-   :first-child/:last-child-Fassung oben. */
-/* Erste Karte der Reihe: ohne Arm kein Strich nach links — der Balken der
-   Reihe beginnt bei ihrer Mitte. */
-.tree ul.tree-grid[data-wrapped] > li[data-row-first]::before { border: 0; }
-/* Mit Arm: Balken vom Stamm bis zur Mitte der Karte (--arm ist der Abstand
-   des Stamms zur linken Kante dieser Karte, notfalls negativ). */
-.tree ul.tree-grid[data-wrapped] > li[data-arm-left]::before {
-  left: var(--arm); right: 50%; width: auto;
-  border: 0; border-top: 1.5px solid var(--border-strong);
-  border-radius: 0;
+/* Edit mode: the controls sit on the cards, and a card can be lifted. */
+.orgc-grip { flex: none; display: flex; color: var(--text-muted); cursor: grab; }
+.orgc-card.member[draggable="true"] { cursor: grab; }
+.orgc-card.member.lifted { opacity: 0.4; }
+.orgc-card.member.nodrop { opacity: 0.55; }
+.orgc-card.over { border-color: var(--text-accent); box-shadow: 0 0 0 2px var(--accent-ring), 0 1px 2px var(--shadow-xs); }
+.orgc-card.dept.over { box-shadow: inset 3px 0 0 var(--edge, var(--border-strong)), 0 0 0 2px var(--accent-ring); }
+.orgc-drophint { color: var(--text-accent); }
+.orgc-edit { display: flex; align-items: flex-end; gap: 6px; margin-top: 2px; }
+.orgc-field { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 0; font-size: 10px; color: var(--text-muted); }
+.orgc-field select { width: 100%; min-width: 0; height: 26px; padding: 2px 6px; font-size: 11.5px; }
+.orgc-leadbtn {
+  flex: none; display: inline-flex; align-items: center; gap: 4px;
+  height: 26px; padding: 0 8px;
+  border: 0.5px solid var(--border); border-radius: 6px;
+  background: var(--surface-2); color: var(--text-secondary); font-size: 11px; cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
-/* Letzte Karte der Reihe: rechts endet der Balken, der Abzweig sitzt links. */
-.tree ul.tree-grid[data-wrapped] > li[data-row-last]::after { border: 0; }
-.tree ul.tree-grid[data-wrapped] > li[data-row-last]::before {
-  border-right: 1.5px solid var(--border-strong);
-  border-radius: 0 6px 0 0;
+.orgc-leadbtn:hover { border-color: var(--border-strong); color: var(--text-primary); }
+.orgc-leadbtn.on { color: var(--text-accent); border-color: var(--text-accent); background: var(--accent-tint); }
+.orgc-rename { flex: 1 1 auto; min-width: 0; height: 28px; font-size: 13px; font-weight: 600; padding: 2px 6px; }
+.orgc-tones { display: flex; gap: 8px; align-items: center; }
+.orgc-tone {
+  width: 24px; height: 24px; border-radius: 50%; padding: 0; position: relative;
+  border: 1px solid var(--border-strong); background: var(--surface-2); cursor: pointer;
 }
-/* Arm nach rechts: der Stamm liegt hinter der letzten Karte der Reihe, der
-   Balken läuft von ihrer Mitte bis dorthin weiter. */
-.tree ul.tree-grid[data-wrapped] > li[data-arm-right]::after {
-  left: 50%; right: var(--arm-right); width: auto;
-  border: 0;
-  border-top: 1.5px solid var(--border-strong);
-  border-left: 1.5px solid var(--border-strong);
-  border-radius: 0;
-}
-.node.dept {
-  background: var(--surface-2); transition: border-color 0.15s, box-shadow 0.15s;
-  box-shadow: inset 3px 0 0 var(--text-accent);
-  padding-left: 15px;
-  position: relative;   /* Bezug für die Drop-Zonen, die sich darüberlegen */
-}
-.node.dept .nm { font-size: 13px; font-weight: 600; }
-.node.dept .rl { color: var(--text-muted); font-size: 11px; }
-.node.dept.unassigned {
-  border-style: dashed; background: var(--surface-1);
-  box-shadow: inset 3px 0 0 var(--border-strong);
-}
-.node.dept.unassigned .nm { color: var(--text-secondary); font-weight: 500; }
+.orgc-tone.none::after { content: ""; position: absolute; inset: 5px; border-radius: 50%; border: 1.5px dashed var(--border-strong); }
+.orgc-tone.sel { box-shadow: 0 0 0 2px var(--surface-2), 0 0 0 3.5px var(--text-primary); }
+.orgc-card .icon-btn { width: 26px; height: 26px; flex: none; }
 
-/* Kopfzeile eines Abteilungs-Knotens: Name + Umbenennen/Löschen */
-.dept-tree-hdr { display: flex; align-items: center; gap: 4px; width: 100%; }
-.dept-tree-hdr .nm { margin-right: auto; }
-.dept-tree-rename { display: flex; gap: 4px; align-items: center; width: 100%; }
-.dept-tree-rename input { flex: 1; min-width: 0; height: 26px; font-size: 12px; }
+/* One status line for every change, success and failure alike. It floats
+   over the ground so the chart does not jump when it appears. */
+.orgc-status {
+  position: absolute; left: 12px; bottom: 12px; margin: 0; max-width: min(560px, calc(100% - 24px));
+  font-size: 12px; padding: 6px 10px; border-radius: 8px;
+  background: var(--surface-2); border: 0.5px solid var(--border); color: var(--text-secondary);
+  box-shadow: 0 2px 8px var(--shadow-sm);
+  pointer-events: none; opacity: 0; transform: translateY(4px);
+  transition: opacity 0.18s, transform 0.18s;
+}
+.orgc-status.ok, .orgc-status.error { opacity: 1; transform: none; }
+.orgc-status.error { color: var(--text-danger); border-color: var(--border-danger); }
 
-/* Einheitliche Mitglieds-Karte (Mensch wie Agent); Agenten sind ziehbar */
-.orgmember {
-  display: inline-flex; align-items: stretch;
-  border: 0.5px solid var(--border); border-radius: 10px;
-  background: var(--surface-2); overflow: hidden;
-  transition: opacity 0.15s, border-color 0.15s, box-shadow 0.15s;
+@media (max-width: 640px) {
+  .orgc-canvas { height: 60vh; }
+  .orgc-hint { flex-basis: 100%; }
+  .orgc-tools { margin-left: 0; }
 }
-.orgmember:hover { border-color: var(--border-strong); box-shadow: 0 1px 4px var(--shadow-xs); }
-.orgmember[draggable="true"] { cursor: grab; }
-.orgmember[draggable="true"]:active { cursor: grabbing; }
-.orgmember.orgmember-out { opacity: 0.35; }
-.orgmember > .node { border: none; background: transparent; border-radius: 0; }
-.orgmember > .node:hover { transform: none; border: none; }
-.orgmember:hover .agent-grip { color: var(--text-secondary); background: var(--surface-0); }
-
-/* Leitung: interne Abteilungsleitung als Baum-Knoten deutlich markieren —
-   Akzentrahmen plus „Leitung"-Pille mit Entfernen-Aktion. */
-.orgmember.orgmember-lead {
-  border-color: var(--text-accent);
-  box-shadow: inset 3px 0 0 var(--text-accent);
+@media (prefers-reduced-motion: reduce) {
+  .orgc-status, .orgc-toggle svg, .orgc-card, .orgc-node, .orgc-toggle, .orgc-leadbtn, .orgc-canvas::before, .orgc-canvas::after { transition: none; }
 }
-.lead-pill {
-  display: inline-flex; align-items: center; gap: 3px;
-  align-self: center; margin: 0 8px 0 -2px;
-  padding: 2px 4px 2px 8px; border-radius: 999px;
-  font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
-  color: var(--text-accent);
-  background: var(--accent-tint);
-}
-
-/* Drop-Ziel-Hervorhebung (Abteilung wie Mitglied) */
-.orgmember.node-drop-over, .node.dept.node-drop-over {
-  border-color: var(--text-accent);
-  box-shadow: 0 0 0 2px var(--accent-ring);
-}
-.node.dept.node-drop-over { box-shadow: inset 3px 0 0 var(--text-accent), 0 0 0 2px var(--accent-ring); }
 
 /* Config-Copilot — KI-Assistent zum Anpassen von Agenten (FR-001).
    Bewusst dezent: eine Sektion innerhalb des Config-Tabs, keine aufgesetzte

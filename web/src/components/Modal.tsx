@@ -58,6 +58,7 @@ export function ConfirmDialog({
   onConfirm,
   onClose,
   pending = false,
+  danger = true,
 }: {
   title: string;
   children: ReactNode;
@@ -65,6 +66,9 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onClose: () => void;
   pending?: boolean;
+  /** Red confirm for what destroys; a change made on purpose (a lead, a
+   *  move) takes the primary button. */
+  danger?: boolean;
 }) {
   const { t } = useTranslation();
   return (
@@ -75,7 +79,7 @@ export function ConfirmDialog({
       footer={
         <>
           <button className="btn sm" onClick={onClose}>{t("modal.cancel")}</button>
-          <button className="btn sm danger" disabled={pending} onClick={onConfirm}>
+          <button className={`btn sm ${danger ? "danger" : "primary"}`} disabled={pending} onClick={onConfirm}>
             {confirmLabel ?? t("modal.delete")}
           </button>
         </>
