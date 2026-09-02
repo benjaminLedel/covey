@@ -1255,10 +1255,19 @@
 /* ── Org chart: a layered tree on a canvas (#177) ──────────────────────
    Positions come from components/orgchart/layout.ts; the stylesheet only
    dresses the cards and the ground. Nothing here decides where a line runs. */
-.orgc { margin-top: 18px; }
+/* One frame, three bands: the organisation, the tools, the ground. */
+.orgc {
+  margin-top: 4px;
+  border: 0.5px solid var(--border); border-radius: 12px;
+  background: var(--surface-2); overflow: hidden;
+}
+.orgc-head { padding: 14px 17px 12px; }
+.orgc-head-name { font-size: 15px; letter-spacing: -0.01em; }
+.orgc-head textarea { width: 100%; }
 .orgc-bar {
   display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px;
-  margin-bottom: 10px; font-size: 12px; color: var(--text-secondary);
+  padding: 9px 12px 9px 17px; border-top: 0.5px solid var(--border);
+  font-size: 12px; color: var(--text-secondary);
 }
 .orgc-legend { display: flex; gap: 14px; flex: none; }
 .orgc-legend > span { display: inline-flex; align-items: center; gap: 6px; }
@@ -1274,8 +1283,8 @@
 
 .orgc-new {
   display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
-  padding: 10px 12px; margin: 0 0 10px;
-  background: var(--surface-2); border: 0.5px solid var(--border); border-radius: 10px;
+  padding: 10px 17px; margin: 0;
+  background: var(--surface-2); border-top: 0.5px solid var(--border);
 }
 .orgc-new input { flex: 1 1 160px; min-width: 0; }
 
@@ -1284,7 +1293,7 @@
 .orgc-canvas {
   position: relative; overflow: hidden;
   height: clamp(440px, 68vh, 920px);
-  background: var(--surface-1); border: 0.5px solid var(--border); border-radius: 12px;
+  background: var(--surface-1); border-top: 0.5px solid var(--border);
   cursor: grab; user-select: none;
   /* A finger over the chart scrolls the page until the canvas is tapped
      into focus; then it pans. The same gate the wheel has. */
@@ -1307,7 +1316,7 @@
   opacity: 0; transition: opacity 0.18s;
 }
 .orgc-canvas[data-more~="bottom"] .orgc-more-bottom { opacity: 1; }
-.orgc-canvas:focus-visible { outline: 2px solid var(--text-accent); outline-offset: 2px; }
+.orgc-canvas:focus-visible { outline: 2px solid var(--text-accent); outline-offset: -3px; border-radius: 0 0 12px 12px; }
 .orgc-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
 .orgc-edges { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
 .orgc-edges path { fill: none; stroke: var(--border-strong); stroke-width: 1.5; }

@@ -8,7 +8,9 @@ import {
 } from "../api";
 import { OrgChart as OrgChartView } from "../components/orgchart/OrgChart";
 
-export function CompanyDescription() {
+// `head`: the band at the top of the org chart's frame; `card` (default):
+// the boxed card among the other settings on the Administration page.
+export function CompanyDescription({ variant = "card" }: { variant?: "card" | "head" }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const own = useQuery({ queryKey: ["own-org"], queryFn: () => api<Organization>("/org") });
@@ -27,9 +29,9 @@ export function CompanyDescription() {
   const editing = draft !== null;
 
   return (
-    <div className="card mb-4">
+    <div className={variant === "head" ? "orgc-head" : "card mb-4"}>
       <div className="flex items-baseline gap-2 mb-1">
-        <h2 className="text-sm" style={{ fontWeight: 600 }}>{own.data.name}</h2>
+        <h2 className={variant === "head" ? "orgc-head-name" : "text-sm"} style={{ fontWeight: 600 }}>{own.data.name}</h2>
         <span className="muted text-xs">{t("org.company.label")}</span>
         {!editing && (
           <button className="btn sm ml-auto" style={{ border: "none" }} onClick={() => setDraft(text)}>
@@ -396,9 +398,7 @@ export default function Org() {
         {t("org.desc")}
       </p>
 
-      <CompanyDescription />
-
-      <OrgChartView chart={chart.data} orgName={own.data?.name ?? ""} />
+      <OrgChartView chart={chart.data} orgName={own.data?.name ?? ""} head={<CompanyDescription variant="head" />} />
     </div>
   );
 }

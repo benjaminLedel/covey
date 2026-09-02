@@ -51,6 +51,8 @@ const ZOOM_MAX = 2;
 // size and the chart is panned instead.
 const EDIT_MIN = 1;
 const PAD = 28;
+const CANVAS_MIN = 440;
+const CANVAS_BOTTOM_GAP = 24;
 
 /* ── Collapse state ───────────────────────────────────────────────────── */
 
@@ -104,7 +106,9 @@ type Pending =
   | { kind: "lead"; member: Member; dept: Department; add: boolean }
   | { kind: "delete"; dept: Department };
 
-export function OrgChart({ chart, orgName }: { chart: OrgChartData; orgName: string }) {
+// `head` is the band above the tools: the organisation this chart belongs
+// to, rendered by the page. Head, tools and ground share one frame.
+export function OrgChart({ chart, orgName, head }: { chart: OrgChartData; orgName: string; head?: ReactNode }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [mode, setMode] = useState<Mode>("view");
@@ -219,10 +223,38 @@ export function OrgChart({ chart, orgName }: { chart: OrgChartData; orgName: str
   const [size, setSize] = useState({ w: 0, h: 0 });
   const fitted = useRef(false);
 
+  // The ground reaches the bottom of the window: it measures where it
+  // starts on the page and takes what is left, never less than the floor
+  // the stylesheet sets. A fixed share of the viewport left a band of empty
+  // ground under a short chart and a scrollbar under a tall one.
+  const [height, setHeight] = useState<number | undefined>(undefined);
   useEffect(() => {
     const el = canvasRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight }));
+    const measure = () => {
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      // What follows the ground on the page (the version line) keeps its
+      // room, so the page fits the window without a scrollbar where it can.
+      const after = document.documentElement.scrollHeight - (top + el.offsetHeight);
+      setHeight(Math.max(CANVAS_MIN, window.innerHeight - top - Math.max(after, CANVAS_BOTTOM_GAP)));
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    // The head above grows when its form opens; the frame's own size says so.
+    const ro = new ResizeObserver(measure);
+    if (el.parentElement) ro.observe(el.parentElement);
+    return () => { window.removeEventListener("resize", measure); ro.disconnect(); };
+  }, []);
+
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    // Measured once right away: a ResizeObserver reports only when the tab
+    // paints, and a chart opened in a background tab would otherwise sit at
+    // its raw scale until the first frame.
+    const read = () => setSize({ w: el.clientWidth, h: el.clientHeight });
+    read();
+    const ro = new ResizeObserver(read);
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -356,6 +388,7 @@ export function OrgChart({ chart, orgName }: { chart: OrgChartData; orgName: str
 
   return (
     <section className={`orgc${editing ? " editing" : ""}`} aria-label={t("org.title")}>
+      {head}
       <div className="orgc-bar">
         <div className="orgc-legend" aria-hidden="true">
           <span><span className="avatar hum orgc-mini">M</span>{t("org.legendHuman")}</span>
@@ -400,6 +433,7 @@ export function OrgChart({ chart, orgName }: { chart: OrgChartData; orgName: str
         role="group"
         aria-label={t("org.chart.canvasLabel")}
         data-more={more || undefined}
+        style={height ? { height } : undefined}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
