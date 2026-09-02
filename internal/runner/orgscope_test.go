@@ -69,3 +69,25 @@ func TestASandboxExitIsOnlyTakenFromTheHostThatRunsIt(t *testing.T) {
 	case <-time.After(300 * time.Millisecond):
 	}
 }
+
+// An assignment from the interface while a wake is picking a host: the writer
+// takes c.mu, the readers used to take only p.mu. The race detector is the
+// assertion here (#157).
+func TestAssigningCapabilitiesWhileSchedulingIsRaceFree(t *testing.T) {
+	orgID := uuid.New()
+	p := NewPool(quietLog())
+	_, id, _ := registriereFalschenRunner(t, p, orgID)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 200; i++ {
+			p.SetCapabilities(id, []string{"gpu"}, []string{"img"}, true)
+			p.SetCapabilities(id, nil, nil, false)
+		}
+	}()
+	for i := 0; i < 200; i++ {
+		_, _ = p.candidates(need{orgID: orgID, tags: []string{"gpu"}})
+		_ = p.LiveFor(orgID)
+	}
+	<-done
+}

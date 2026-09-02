@@ -64,10 +64,12 @@ func (p *Pool) LiveFor(orgID uuid.UUID) map[uuid.UUID]Live {
 		c.mu.Lock()
 		running := c.sandboxes
 		c.mu.Unlock()
+		tags, images := c.effective()
+		reportedTags, reportedImages := c.reported()
 		out[c.runnerID] = Live{
 			RunnerID: c.runnerID, Connected: true, Protocol: c.protocol,
-			Version: c.version, Arch: c.arch, Tags: c.tags, Images: c.images,
-			ReportedTags: c.reportedTags, ReportedImages: c.reportedImages,
+			Version: c.version, Arch: c.arch, Tags: tags, Images: images,
+			ReportedTags: reportedTags, ReportedImages: reportedImages,
 			Features:  c.features,
 			Sandboxes: running, MaxSandboxes: c.maxSandboxes, Outdated: c.protocol < Protocol,
 			Unresponsive: !c.answering(),

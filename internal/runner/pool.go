@@ -501,6 +501,23 @@ func (c *conn) applyAssigned(extraTags, images []string, decided bool) {
 	}
 }
 
+// effective returns the sets the scheduler matches against, read under the
+// lock that applyAssigned writes them under. Callers used to read the fields
+// directly while holding only p.mu — a different lock from the writer's, which
+// is no lock at all (#157).
+func (c *conn) effective() (tags, images []string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.tags, c.images
+}
+
+// reported returns what the runner said about itself, for the view.
+func (c *conn) reported() (tags, images []string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.reportedTags, c.reportedImages
+}
+
 // setPaused / paused: whether this host takes new sandboxes. Kept on the
 // connection and not only in the database, because that is where the scheduler
 // asks — a query per pick would put Postgres in the path of every wake.
@@ -1295,7 +1312,8 @@ func (p *Pool) candidates(want need) ([]*conn, error) {
 		// A tag says what a host IS — arm64, gpu, inside the target system's
 		// network. That is the one thing no other machine can stand in for,
 		// and therefore the only thing that excludes.
-		if !hasAll(c.tags, want.tags) {
+		tags, _ := c.effective()
+		if !hasAll(tags, want.tags) {
 			continue
 		}
 		tagged = append(tagged, c)
@@ -1358,7 +1376,7 @@ func (p *Pool) candidates(want need) ([]*conn, error) {
 		if want.prefer != uuid.Nil && c.runnerID == want.prefer {
 			score -= 2
 		}
-		if len(c.images) > 0 && holdsImage(c.images, want.image) {
+		if _, images := c.effective(); len(images) > 0 && holdsImage(images, want.image) {
 			score--
 		}
 		return score, running
