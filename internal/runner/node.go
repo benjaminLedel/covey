@@ -596,6 +596,19 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 		// the sandbox starts on it, and the control plane learns the state it
 		// did not know.
 		n.secureCopyBeforeStart(ctx, t, spec, why)
+	} else if home, _, _ := n.Docker.AgentHome(spec.AgentID); spec.Snapshot != "" && n.Blobs != nil &&
+		homestore.SyncedHash(home) == spec.Snapshot {
+		// The copy IS the snapshot — the mark says so, written after the sync
+		// of this very copy and taken back by every use since. Materialising
+		// would walk every entry and read every file to the end to find that
+		// it already matches: gigabytes of reading for nothing, on every wake,
+		// on precisely the host the scheduler prefers because the copy is warm
+		// there (#173). Nothing to bring; the sandbox starts on what lies here.
+		n.Log.Info("working copy is the snapshot — nothing to materialise",
+			"agent", spec.AgentID, "snapshot", short8(spec.Snapshot))
+		n.say(ctx, t, Progress{AgentID: spec.AgentID, Phase: PhaseHome, Done: true,
+			Detail: "the working copy on this host is the snapshot — nothing to bring"})
+		homestore.MarkInUse(home)
 	} else if spec.Snapshot != "" && n.Blobs != nil {
 		home, uid, gid := n.Docker.AgentHome(spec.AgentID)
 		// Whose the restored files are. The runner is root on a runner host,
@@ -701,39 +714,16 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 			err = nil
 			break
 		}
-		if err != nil {
-			// Nothing in the store could be read. There is one case left in
-			// which starting is not a half state but the RIGHT one: the copy
-			// on this host says it is exactly the snapshot that was asked for.
-			//
-			// SyncedHash is written after a successful sync and names the
-			// state the copy was brought to. If it equals the snapshot the
-			// control plane wants, then the files here ARE that state — the
-			// store lost its copy of something this disk still holds. Refusing
-			// then is not caution, it is throwing away the last intact copy:
-			// on covey.work exactly this kept an agent down for six and a half
-			// hours while its home lay complete on the runner (#138).
-			//
-			// Any other case still refuses. A copy that says nothing, or says
-			// a different state, is not the snapshot — and an agent working on
-			// one of those produces work nobody can place afterwards.
-			if stand := homestore.SyncedHash(home); stand != "" && stand == spec.Snapshot {
-				n.Log.Warn("the store lost this state — the working copy on this host is it",
-					"agent", spec.AgentID, "snapshot", short8(spec.Snapshot), "err", err)
-				n.say(ctx, t, Progress{
-					AgentID: spec.AgentID, Phase: PhaseHome, Done: true,
-					Detail: "the store could not produce this state; the working copy on this host is it, unchanged since the last sync",
-				})
-				homestore.MarkInUse(home)
-				err = nil
-			}
-		}
+		// A copy that says it IS the requested state never gets here — it is
+		// started on without asking the store at all (#173). That is also what
+		// #138's last resort has become: the store losing a state this disk
+		// still holds costs nothing, because the disk is never asked to prove
+		// it against the store.
 		if err != nil {
 			// Refused rather than started on a home that is not the one the
 			// snapshot describes: an agent that silently works on a half state
-			// produces work nobody can place afterwards. What changed with
-			// #138 is only WHEN this is reached — after every state has been
-			// tried, and after the working copy has been ruled out.
+			// produces work nobody can place afterwards. A copy that says
+			// nothing, or says a different state, is not the snapshot.
 			n.Log.Error("materialising the home failed — sandbox refused",
 				"agent", spec.AgentID, "snapshot", spec.Snapshot,
 				"fallbacks", len(spec.Fallbacks), "err", err)
