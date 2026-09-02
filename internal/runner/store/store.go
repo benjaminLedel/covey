@@ -15,6 +15,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -90,6 +91,8 @@ func (r Runner) Paused() bool { return r.PausedAt != nil }
 
 type Store struct {
 	pool *pgxpool.Pool
+	// seenAt is when each runner's last_seen_at was last written (see Seen).
+	seenAt sync.Map
 }
 
 func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
@@ -294,9 +297,21 @@ func (s *Store) ByToken(ctx context.Context, token string) (Runner, error) {
 // Seen records a sign of life. Failures are the caller's to ignore — a missing
 // timestamp is a display flaw, not a reason to reject a request.
 func (s *Store) Seen(ctx context.Context, id uuid.UUID) error {
+	// At most once per beat per runner. The call comes per HTTP request and
+	// per WebSocket message — during a sync that is one per block, six
+	// figures of them — and "last seen" is not a figure that needs to be
+	// exact to the block (#165).
+	now := time.Now()
+	if last, ok := s.seenAt.Load(id); ok && now.Sub(last.(time.Time)) < seenEvery {
+		return nil
+	}
+	s.seenAt.Store(id, now)
 	_, err := s.pool.Exec(ctx, `UPDATE runners SET last_seen_at = now() WHERE id = $1`, id)
 	return err
 }
+
+// seenEvery is how often "last seen" is actually written per runner.
+const seenEvery = 30 * time.Second
 
 // ListForOrg returns an organisation's runners, the built-in one first.
 func (s *Store) ListForOrg(ctx context.Context, orgID uuid.UUID) ([]Runner, error) {

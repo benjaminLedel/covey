@@ -86,6 +86,8 @@ func TestThePoolStopsWhatItDidNotPlaceAndAdoptsWhatItDid(t *testing.T) {
 	p := NewPool(quietLog())
 	p.Profiles = map[string]string{"base": "covey-sandbox:test"}
 	p.StartTimeout = 10 * time.Second
+	p.HeartbeatEvery = 100 * time.Millisecond
+	p.SilenceAfter = 5 * time.Second
 	synced := make(chan HomeSynced, 4)
 	p.SnapshotTaken = func(_ context.Context, _, _ uuid.UUID, res HomeSynced) error {
 		synced <- res
@@ -124,13 +126,14 @@ func TestThePoolStopsWhatItDidNotPlaceAndAdoptsWhatItDid(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("the stray was not stopped and secured")
 	}
+	// The tally: adopted at once, and corrected by the host's own report as
+	// soon as the stray is gone — the report is the truth, once a beat.
 	c := p.connFor(orgID, runnerID)
-	c.mu.Lock()
-	count := c.sandboxes
-	c.mu.Unlock()
-	if count != 1 {
-		t.Fatalf("the placed sandbox has to be adopted and counted, got %d", count)
-	}
+	waitUntil(t, 5*time.Second, func() bool {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		return c.sandboxes == 1
+	})
 	args, _ := os.ReadFile(filepath.Join(dir, "args"))
 	if !strings.Contains(string(args), "stop -t 5 "+containerName(stray.String())) {
 		t.Fatal("the stray was not stopped")

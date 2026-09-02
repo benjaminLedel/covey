@@ -155,12 +155,14 @@ func (s *Store) CleanupLogs(ctx context.Context, maxAge time.Duration, keepPerRu
 	if keepPerRunner <= 0 {
 		return removed, nil
 	}
-	// The second cap: per runner, keep the newest N. A host that logs in a
-	// loop would otherwise be within its retention window and still fill the
-	// disk.
+	// The second cap: per runner, keep the newest N — by the time the line was
+	// written, as the display orders them. Ranking by id kept the lines a
+	// reconnect delivered late (high ids, old times) over newer ones (#165). A
+	// host that logs in a loop would otherwise be within its retention window
+	// and still fill the disk.
 	tag, err = s.pool.Exec(ctx, `DELETE FROM runner_logs WHERE id IN (
 		SELECT id FROM (
-			SELECT id, row_number() OVER (PARTITION BY runner_id ORDER BY id DESC) AS rn
+			SELECT id, row_number() OVER (PARTITION BY runner_id ORDER BY ts DESC, id DESC) AS rn
 			FROM runner_logs
 		) ranked WHERE rn > $1)`, keepPerRunner)
 	if err != nil {

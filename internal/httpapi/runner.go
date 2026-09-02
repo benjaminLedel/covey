@@ -445,10 +445,46 @@ func (s *Server) handleRunnerHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	problems := s.dataPlaneProblems(r.Context())
+	// The check is instance-wide and cached once for everyone; the answer is
+	// not. A line that names a host is shown only to the organisation the host
+	// belongs to — another tenant's runner ids and image references are not
+	// this caller's to read (#165).
+	if s.Runners != nil {
+		p := principalFrom(r)
+		if own, err := s.Runners.ListForOrg(r.Context(), p.OrgID); err == nil {
+			problems = problemsForOrg(problems, own)
+		}
+	}
 	if problems == nil {
 		problems = []string{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ready": len(problems) == 0, "problems": problems})
+}
+
+// problemsForOrg keeps the lines of the data-plane check that concern this
+// organisation's hosts. Pool.Check prefixes a line with "runner <id>: " once
+// more than one host is connected; a line without the prefix is about the only
+// host there is, and belongs to whoever owns it.
+func problemsForOrg(problems []string, own []runnerstore.Runner) []string {
+	mine := map[string]bool{}
+	for _, rn := range own {
+		mine[rn.ID.String()[:8]] = true
+	}
+	var out []string
+	for _, line := range problems {
+		rest, prefixed := strings.CutPrefix(line, "runner ")
+		if !prefixed {
+			if len(own) > 0 {
+				out = append(out, line)
+			}
+			continue
+		}
+		id, _, _ := strings.Cut(rest, ":")
+		if mine[strings.TrimSpace(id)] {
+			out = append(out, line)
+		}
+	}
+	return out
 }
 
 func (s *Server) handleListRunners(w http.ResponseWriter, r *http.Request) {

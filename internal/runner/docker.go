@@ -140,13 +140,11 @@ func (p *Docker) homePath(agentID string) string {
 // The second return value is what came up beside the sandbox — empty for an
 // agent that declared no services.
 func (p *Docker) Start(ctx context.Context, spec StartSandbox) (string, []sandbox.ServiceRun, error) {
-	home := spec.HomeDir
-	if home == "" {
-		home = p.homePath(spec.AgentID.String())
-	}
-	if abs, err := filepath.Abs(home); err == nil {
-		home = abs
-	}
+	// The home is where THIS host keeps it. A path in the start used to be
+	// honoured here; nothing ever set it, and a control plane that did would
+	// have bind-mounted an arbitrary path of the runner host — and synced a
+	// different directory than the sandbox wrote into (#165).
+	home := p.homePath(spec.AgentID.String())
 	// 0o755, not 0o700: the chown below is best-effort (only succeeds as root —
 	// the deployment container; locally the control plane runs as a normal host
 	// user and Docker Desktop is left to map the ownership). When that mapping

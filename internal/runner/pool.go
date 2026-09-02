@@ -387,6 +387,9 @@ func (p *Pool) AttachRemote(ctx context.Context, t Transport, runnerID, orgID uu
 	return c.readLoop(ctx)
 }
 
+// handshakeTimeout is how long a fresh connection has to say who it is.
+const handshakeTimeout = 30 * time.Second
+
 // register performs the handshake and takes the runner into the pool — for a
 // connection whose identity needs no second check (the built-in runner).
 func (p *Pool) register(ctx context.Context, t Transport, builtin bool) (*conn, error) {
@@ -404,8 +407,12 @@ func (p *Pool) register(ctx context.Context, t Transport, builtin bool) (*conn, 
 func (p *Pool) handshake(ctx context.Context, t Transport, builtin bool) (*conn, error) {
 	// The first message has to be `registered`: without an identity the pool
 	// does not know whose organisation this runner serves, and assigning it
-	// anything would be a guess about the tenant.
-	msg, err := t.Receive(ctx)
+	// anything would be a guess about the tenant. Bounded: a connection that
+	// never says who it is is not a runner, and holding it for ever was a way
+	// to park connections on the control plane (#165).
+	first, cancel := context.WithTimeout(ctx, handshakeTimeout)
+	defer cancel()
+	msg, err := t.Receive(first)
 	if err != nil {
 		return nil, err
 	}
@@ -722,11 +729,10 @@ func (c *conn) readLoop(ctx context.Context) error {
 			if err != nil || !c.serves(ctx, ev.AgentID) {
 				continue
 			}
-			c.mu.Lock()
-			if c.sandboxes > 0 {
-				c.sandboxes--
-			}
-			c.mu.Unlock()
+			// Not taken off the count here: the orchestrator's Stop follows
+			// every death and takes it off once. Doing both counted one
+			// sandbox twice (#165); the host's own report corrects the tally
+			// every beat anyway (refreshCapacity).
 			c.pool.unplace(ev.AgentID, c.runnerID)
 			c.pool.Log.Warn("sandbox ended without being asked to",
 				"agent", ev.AgentID, "runner", c.runnerID, "reason", ev.Reason)
@@ -1014,6 +1020,11 @@ func (c *conn) refreshCapacity(ctx context.Context) {
 	c.mu.Lock()
 	c.capacity = report
 	c.capacityAt = time.Now()
+	// The host counts what it actually carries; the pool's own tally is a
+	// running estimate between two reports and drifts — a stop that never
+	// reached the host, a restart of either side. The report is the truth,
+	// once a beat (#165).
+	c.sandboxes = report.Sandboxes
 	c.mu.Unlock()
 
 	// Die Lücke, auf die ein geplantes Update wartet. Der Kapazitätsbericht ist
@@ -1630,7 +1641,6 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 			AgentID:     spec.AgentID,
 			OrgID:       spec.OrgID,
 			Image:       want.image,
-			HomeDir:     spec.HomeDir,
 			Env:         spec.Env,
 			EgressToken: spec.EgressToken,
 			Snapshot:    snapshot,

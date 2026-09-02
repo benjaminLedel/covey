@@ -202,6 +202,11 @@ func (n *Node) Run(ctx context.Context, t Transport) error {
 	// say it to.
 	go n.shipLogs(beat, t)
 
+	// What the runner said last goes out before the connection is given up —
+	// here, synchronously, and not from the shipper's goroutine, which raced
+	// RunNode's Close of the transport (#165). On a link that is already dead
+	// the lines stay in the ring for the next connection.
+	defer n.flushLogs(context.WithoutCancel(ctx), t)
 	for {
 		msg, err := t.Receive(ctx)
 		if err != nil {

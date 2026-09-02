@@ -168,12 +168,16 @@ func (t *snapshotTree) PlanZip(rels []string) (sandboxfs.ZipPlan, error) {
 func (t *snapshotTree) WriteZip(w io.Writer, plan sandboxfs.ZipPlan) error {
 	zw := zip.NewWriter(w)
 	var paths []string
+	seen := map[string]bool{}
 	for _, rel := range plan.Paths {
 		rel = strings.Trim(path.Clean("/"+rel), "/")
 		for p, e := range t.byPath {
-			if e.Dir || (p != rel && !strings.HasPrefix(p, rel+"/")) {
+			if e.Dir || (p != rel && !strings.HasPrefix(p, rel+"/")) || seen[p] {
 				continue
 			}
+			// Once, however many selected paths cover it — a selection of
+			// "a" and "a/b" wrote a/b twice (#165), as PlanZip already knew.
+			seen[p] = true
 			paths = append(paths, p)
 		}
 	}

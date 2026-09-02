@@ -105,6 +105,21 @@ func (r *logRing) take(max int) ([]LogEntry, int) {
 	return out, dropped
 }
 
+// putBack returns entries a flush could not deliver to the front of the ring,
+// so they go with the next batch instead of vanishing uncounted (#165). What
+// does not fit any more is dropped as the oldest, and counted.
+func (r *logRing) putBack(entries []LogEntry, dropped int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.dropped += dropped
+	room := logRingCap - len(r.entries)
+	if room < len(entries) {
+		r.dropped += len(entries) - room
+		entries = entries[len(entries)-room:]
+	}
+	r.entries = append(append(make([]LogEntry, 0, len(entries)+len(r.entries)), entries...), r.entries...)
+}
+
 // shipHandler is an slog.Handler that passes everything to the handler it
 // wraps and additionally records it for the control plane.
 type shipHandler struct {
@@ -209,9 +224,8 @@ func (n *Node) shipLogs(ctx context.Context, t Transport) {
 	for {
 		select {
 		case <-ctx.Done():
-			// One last attempt, so that what a runner said just before it went
-			// down is not exactly the part that is missing.
-			n.flushLogs(context.WithoutCancel(ctx), t)
+			// The last flush is Run's, synchronously, before the transport is
+			// closed — from here it would race that close (#165).
 			return
 		case <-tick.C:
 			n.flushLogs(ctx, t)
@@ -219,6 +233,9 @@ func (n *Node) shipLogs(ctx context.Context, t Transport) {
 	}
 }
 
+// flushLogs sends what has gathered. What cannot be sent goes back into the
+// ring: the lines a runner wrote just before its link went are precisely the
+// ones worth having, and they go up with the next connection.
 func (n *Node) flushLogs(ctx context.Context, t Transport) {
 	for {
 		entries, dropped := n.logs.take(logBatchMax)
@@ -230,6 +247,7 @@ func (n *Node) flushLogs(ctx context.Context, t Transport) {
 			return
 		}
 		if err := t.Send(ctx, msg); err != nil {
+			n.logs.putBack(entries, dropped)
 			return
 		}
 		if len(entries) < logBatchMax {

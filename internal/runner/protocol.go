@@ -404,7 +404,6 @@ type StartSandbox struct {
 	AgentID uuid.UUID         `json:"agent_id"`
 	OrgID   uuid.UUID         `json:"org_id"`
 	Image   string            `json:"image"`
-	HomeDir string            `json:"home_dir,omitempty"`
 	Env     map[string]string `json:"env,omitempty"`
 	// EgressToken identifies the sandbox to the egress proxy as this agent.
 	// Empty = no egress enforcement for this sandbox.
