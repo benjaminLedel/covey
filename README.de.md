@@ -105,7 +105,7 @@ Keines dieser Zielsysteme liegt in diesem Repository. Jedes ist ein eigenes Go-M
 | | |
 |---|---|
 | ![Der Backlog eines Agenten](web/public/shots/backlog.de.jpg) | ![Organigramm](web/public/shots/org.de.jpg) |
-| **Backlog** — Aufgaben als First-Class-Objekte mit frei konfigurierbaren Spalten; Kosten, Tokens und Budget stehen im Kopf des Agenten. | **Organigramm** — Menschen und Agenten in derselben Struktur; Abteilung und Berichtslinie per Drag & Drop. |
+| **Backlog** — Aufgaben als First-Class-Objekte mit frei konfigurierbaren Spalten; Kosten, Tokens und Budget stehen im Kopf des Agenten. | **Organigramm** — Menschen und Agenten in derselben Struktur auf einer zoombaren Fläche; Abteilung, Berichtslinie und Leitung ändern sich im Bearbeiten-Modus, per Auswahl oder Drag & Drop. |
 | ![Das Gedächtnis eines Agenten](web/public/shots/memory.de.jpg) | ![Kosten & Tokens](web/public/shots/costs.de.jpg) |
 | **Gedächtnis** — was der Agent gelernt hat, lesbar und änderbar: Wissen von Hand ergänzen oder gezielt vergessen lassen. | **Kosten & Tokens** — Ausgaben über die Zeit, aufgeschlüsselt nach Agent und Modell, für die ganze Organisation oder einen einzelnen Agenten. |
 

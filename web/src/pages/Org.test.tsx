@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import Org, { PlatformRepo } from "./Org";
 import { mockFetch, renderWithProviders, useGerman } from "../test/render";
 
@@ -69,18 +69,9 @@ describe("Organigramm", () => {
 });
 
 describe("Quelltext dieser Plattform", () => {
-  it("steht am Organigramm nur, wo es covey Doctor gibt", async () => {
-    mockFetch(routen(false, true));
-    const { container } = renderWithProviders(<PlatformRepo nurMitDoctor />);
-
-    // Nichts — kein Formular für einen Agenten, den diese Organisation nicht
-    // hat. Auf den Stammdaten der Verwaltung steht dieselbe Karte weiterhin.
-    await waitFor(() => expect(container).toBeEmptyDOMElement());
-  });
-
   it("sagt, wenn covey Doctor dort keinen Zugang hat", async () => {
     mockFetch(routen(true, false));
-    renderWithProviders(<PlatformRepo nurMitDoctor />);
+    renderWithProviders(<PlatformRepo />);
 
     expect(await screen.findByText(/Wirkt noch nicht/)).toBeInTheDocument();
     // Und den Weg dorthin, wo die fehlende Zeile hingehört.
@@ -92,7 +83,7 @@ describe("Quelltext dieser Plattform", () => {
 
   it("sagt, dass es wirkt, wenn der Zugang steht", async () => {
     mockFetch(routen(true, true));
-    renderWithProviders(<PlatformRepo nurMitDoctor />);
+    renderWithProviders(<PlatformRepo />);
 
     expect(await screen.findByText(/^Wirkt:/)).toBeInTheDocument();
     expect(screen.queryByText(/Wirkt noch nicht/)).not.toBeInTheDocument();
@@ -100,7 +91,7 @@ describe("Quelltext dieser Plattform", () => {
 
   it("sagt, wenn das Zielsystem der Organisation nicht mehr freigeschaltet ist", async () => {
     mockFetch(routen(true, true, false));
-    renderWithProviders(<PlatformRepo nurMitDoctor />);
+    renderWithProviders(<PlatformRepo />);
 
     expect(await screen.findByText(/nicht freigeschaltet/)).toBeInTheDocument();
   });
@@ -117,7 +108,7 @@ describe("Quelltext dieser Plattform", () => {
         { name: "github", label: "GitHub", kind: "builtin", enabled: true, access: true },
       ],
     });
-    renderWithProviders(<PlatformRepo nurMitDoctor />);
+    renderWithProviders(<PlatformRepo />);
 
     expect(await screen.findByText("benjaminLedel/covey")).toBeInTheDocument();
     expect(screen.getByText(/Voreinstellung/)).toBeInTheDocument();
@@ -131,7 +122,7 @@ describe("Quelltext dieser Plattform", () => {
       ...routen(true, true),
       "/api/v1/org": { ...org, platform_repo_system: "-", platform_repo_project: "" },
     });
-    renderWithProviders(<PlatformRepo nurMitDoctor />);
+    renderWithProviders(<PlatformRepo />);
 
     expect(await screen.findByText(/Abgeschaltet/)).toBeInTheDocument();
     expect(screen.queryByText(/Wirkt/)).not.toBeInTheDocument();
