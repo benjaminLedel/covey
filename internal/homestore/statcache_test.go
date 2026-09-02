@@ -217,3 +217,26 @@ func TestMaterialisingKeepsWhatTheCacheVouchesFor(t *testing.T) {
 		t.Fatal("the file was rewritten")
 	}
 }
+
+// The mark and the cache lie beside the copy and survive its removal. A copy
+// that is not there has no state and no cache, whatever the files say (#173).
+func TestARemovedCopyHasNoStateAndNoCache(t *testing.T) {
+	home := filepath.Join(t.TempDir(), "home")
+	if err := os.MkdirAll(home, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	MarkSynced(home, "abc")
+	c := &StatCache{Files: map[string]statEntry{"x": {Size: 1}}, dirty: true}
+	if err := c.Save(home); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(home); err != nil {
+		t.Fatal(err)
+	}
+	if got := SyncedHash(home); got != "" {
+		t.Fatalf("a removed copy claims to be synced to %q", got)
+	}
+	if got := LoadStatCache(home); len(got.Files) != 0 {
+		t.Fatal("a removed copy still has a cache")
+	}
+}

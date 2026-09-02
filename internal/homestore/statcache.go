@@ -61,6 +61,10 @@ func LoadStatCache(root string) *StatCache {
 	if root == "" {
 		return c
 	}
+	// Beside the copy, like the state mark — and just as void without it.
+	if info, err := os.Stat(root); err != nil || !info.IsDir() {
+		return c
+	}
 	raw, err := os.ReadFile(statCacheFile(root))
 	if err != nil {
 		return c

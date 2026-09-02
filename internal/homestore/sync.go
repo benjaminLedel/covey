@@ -904,6 +904,12 @@ func InUseSince(root string) time.Time {
 // The bare hash is what versions before #153 wrote; it still reads as synced,
 // only without a time.
 func readState(root string) (hash string, at time.Time, inUse bool) {
+	// The mark lies BESIDE the copy, so it survives `rm -rf` of the copy
+	// itself — and then claims a state of a directory that is not there. A
+	// copy that does not exist has no state, whatever the mark says (#173).
+	if info, err := os.Stat(root); err != nil || !info.IsDir() {
+		return "", time.Time{}, false
+	}
 	b, err := os.ReadFile(stateFile(root))
 	if err != nil {
 		return "", time.Time{}, false
