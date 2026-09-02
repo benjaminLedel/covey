@@ -603,6 +603,18 @@ func (p *Pool) detach(c *conn) {
 // Which of several built-in runners answers does not matter there, because a
 // home is addressed by agent and not by organisation.
 func (p *Pool) AttachLocal(ctx context.Context, node *Node) error {
+	if c := p.connFor(node.OrgID, node.RunnerID); c != nil {
+		select {
+		case <-c.gone:
+		default:
+			// Already here. A second attachment would take the first one's
+			// place in the pool while the first keeps running — its watchers,
+			// its heartbeat, its capacity question every beat — for the life
+			// of the process (#160). The node handed in has started nothing.
+			p.Log.Debug("built-in runner already attached", "runner", short(node.RunnerID))
+			return nil
+		}
+	}
 	control, nodeEnd := NewInProc()
 	go func() {
 		// The built-in runner does not reconnect: this one call is its whole
@@ -1142,13 +1154,38 @@ func (p *Pool) ensureAndPick(ctx context.Context, want need) (*conn, error) {
 	lock.Lock()
 	defer lock.Unlock()
 	// Whoever waited on the lock may find the runner already there.
-	if c, err := p.pick(want); err == nil {
+	c, err := p.pick(want)
+	if err == nil {
 		return c, nil
+	}
+	if p.builtinConnected(want.orgID) {
+		// The built-in runner IS there and was not picked — paused, full, or
+		// the tags exclude it. Bringing it up again would not change that; it
+		// would only stand a second node beside the first, and until #160 it
+		// did exactly that, once per failed wake.
+		return nil, err
 	}
 	if err := p.EnsureLocal(ctx, want.orgID); err != nil {
 		return nil, err
 	}
 	return p.pick(want)
+}
+
+// builtinConnected: does this organisation's built-in runner stand in the pool
+// right now? Whether it is a candidate is a different question.
+func (p *Pool) builtinConnected(orgID uuid.UUID) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, c := range p.conns {
+		if c.builtin && c.orgID == orgID {
+			select {
+			case <-c.gone:
+			default:
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // hasAll: every tag the agent asks for has to be on the runner. The other

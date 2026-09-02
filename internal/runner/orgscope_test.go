@@ -2,10 +2,14 @@ package runner
 
 import (
 	"context"
+	"runtime"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+
+	"covey/internal/orchestrator"
 )
 
 // A handshake that names another runner's id is refused BEFORE it touches the
@@ -90,4 +94,48 @@ func TestAssigningCapabilitiesWhileSchedulingIsRaceFree(t *testing.T) {
 		_ = p.LiveFor(orgID)
 	}
 	<-done
+}
+
+// EnsureLocal used to be asked on EVERY failed pick — tags no host carries,
+// every host paused — and every answer attached a fresh built-in runner beside
+// the one already there, which kept running for the life of the process. One
+// per organisation, and once (#160).
+func TestTheBuiltInRunnerIsBroughtUpOnce(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	orgID := uuid.New()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	p := NewPool(quietLog())
+	p.Profiles = map[string]string{"base": "covey-sandbox:test"}
+	p.StartTimeout = 5 * time.Second
+
+	var ensured atomic.Int32
+	runnerID := uuid.New()
+	p.EnsureLocal = func(ctx context.Context, org uuid.UUID) error {
+		ensured.Add(1)
+		node := NewNode(runnerID, org, &Docker{
+			RunnerID: runnerID, Image: "covey-sandbox:test", DataDir: dir,
+			DockerBin: fakeDockerBin(t, dir, "nothing"),
+		}, quietLog())
+		t.Cleanup(node.Close)
+		return p.AttachLocal(ctx, node)
+	}
+
+	for i := 0; i < 3; i++ {
+		_, err := p.Start(ctx, orchestrator.SandboxSpec{
+			AgentID: uuid.New(), OrgID: orgID, RunnerTags: []string{"gpu"},
+		})
+		if err == nil {
+			t.Fatal("no host carries the tag — the start has to fail")
+		}
+	}
+	if n := ensured.Load(); n != 1 {
+		t.Fatalf("the built-in runner was brought up %d times", n)
+	}
+	if got := len(p.LiveFor(orgID)); got != 1 {
+		t.Fatalf("%d built-in runners stand in the pool", got)
+	}
 }
