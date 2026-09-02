@@ -1292,8 +1292,15 @@ func (o *Orchestrator) recordServicesRefused(ctx context.Context, agent agents.A
 
 // wake starts the sandbox and waits for the daemon's ready message.
 func (o *Orchestrator) wake(ctx context.Context, agent agents.Agent) (DaemonLink, Sandbox, error) {
+	// The token has to outlive the start it is minted for. The TTL alone
+	// covers a daemon that dials within minutes; the start bound is added for
+	// the one that dials after a multi-gigabyte pull (#164).
+	ttl := o.DaemonTokenTTL
+	if bounded, ok := o.Provider.(StartBounded); ok {
+		ttl += bounded.StartBound()
+	}
 	tok, err := o.Identity.IssueAgentToken(ctx, agent.ID,
-		identity.Scope{Audience: "daemon"}, o.DaemonTokenTTL)
+		identity.Scope{Audience: "daemon"}, ttl)
 	if err != nil {
 		return nil, nil, err
 	}

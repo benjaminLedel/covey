@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -160,7 +161,7 @@ func TestTheBuiltInRunnerIsNotUpdatedThroughTheProtocol(t *testing.T) {
 	dir := t.TempDir()
 	org := uuid.New()
 	p, runnerID := newLocalPool(t, dir, fakeDockerBin(t, dir, "nothing"), org)
-	if _, err := p.Update(context.Background(), runnerID, "v9.9.9", ""); err == nil {
+	if _, err := p.Update(context.Background(), org, runnerID, "v9.9.9", ""); err == nil {
 		t.Fatal("the built-in runner has to refuse the update")
 	}
 }
@@ -192,7 +193,7 @@ func TestARunnerTooOldToUpdateItselfSaysSoAtOnce(t *testing.T) {
 		id = k
 	}
 	done := make(chan error, 1)
-	go func() { _, err := p.Update(ctx, id, "v9.9.9", ""); done <- err }()
+	go func() { _, err := p.Update(ctx, orgID, id, "v9.9.9", ""); done <- err }()
 	select {
 	case err := <-done:
 		if err == nil || !errors.Is(err, ErrNotSupported) {
@@ -363,5 +364,108 @@ func TestEinSauberesBinaryAufDerselbenFassungBleibtLiegen(t *testing.T) {
 	}
 	if got, _ := os.ReadFile(exe); string(got) != "die Veröffentlichung" {
 		t.Fatalf("das Binary wurde angefasst: %q", got)
+	}
+}
+
+// The busy check runs twice: before the download and again after it, since a
+// download has ten minutes to run and a sync may begin in that time. A host
+// that became busy while downloading keeps its old binary and says so (#161).
+func TestAHostThatBecomesBusyDuringTheDownloadIsNotReplaced(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no exec that replaces the process")
+	}
+	dir := t.TempDir()
+	exe := filepath.Join(dir, "covey-runner")
+	if err := os.WriteFile(exe, []byte("the old one"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	node := NewNode(uuid.New(), uuid.New(), &Docker{DataDir: dir}, quietLog())
+	node.executable = func() (string, error) { return exe, nil }
+
+	// The release server is where the download happens — and where the host
+	// becomes busy in the middle of it: a working copy enters the queue.
+	origin := release(t, "v9.9.9", "the new one")
+	busyDuring := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/SHA256SUMS" {
+			node.mu.Lock()
+			node.turn[uuid.New()] = make(chan struct{})
+			node.mu.Unlock()
+		}
+		resp, err := http.Get(origin.URL + r.URL.Path)
+		if err != nil {
+			http.Error(w, err.Error(), 502)
+			return
+		}
+		defer resp.Body.Close()
+		_, _ = io.Copy(w, resp.Body)
+	}))
+	t.Cleanup(busyDuring.Close)
+
+	res := node.updateSelf(context.Background(), Update{Version: "v9.9.9", BaseURL: busyDuring.URL})
+	if !res.Busy || res.Restarting {
+		t.Fatalf("a host that became busy has to refuse and say so: %+v", res)
+	}
+	if got, _ := os.ReadFile(exe); string(got) != "the old one" {
+		t.Fatalf("the binary was replaced under a busy host: %q", got)
+	}
+}
+
+// While the binary is being fetched the host takes no sandbox: the process is
+// about to be replaced, and a sandbox accepted now would be watched by nobody
+// in a minute. The pool leaves such a host out of the candidates for the same
+// reason (#161).
+func TestAnUpdatingHostRefusesStartsAndIsNoCandidate(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	orgID, runnerID := uuid.New(), uuid.New()
+	node := NewNode(runnerID, orgID, &Docker{
+		RunnerID: runnerID, Image: "covey-sandbox:test", DataDir: dir, DockerBin: fakeDockerBin(t, dir, "nothing"),
+	}, quietLog())
+	t.Cleanup(node.Close)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	control, _ := startNodeOn(t, ctx, node)
+
+	node.setUpdating(true)
+	start, _ := encode(TypeStartSandbox, "1", StartSandbox{AgentID: uuid.New(), OrgID: orgID})
+	if err := control.Send(ctx, start); err != nil {
+		t.Fatal(err)
+	}
+	res, _ := decode[SandboxResult](warteAufTyp(t, control, TypeSandboxFailed))
+	if !strings.Contains(res.Err, "installing an update") {
+		t.Fatalf("the refusal has to name the update: %q", res.Err)
+	}
+
+	p := NewPool(quietLog())
+	_, id, _ := registriereFalschenRunner(t, p, orgID)
+	c := p.connFor(orgID, id)
+	c.setUpdating(true)
+	if _, err := p.candidates(need{orgID: orgID}); err == nil || !strings.Contains(err.Error(), "installing an update") {
+		t.Fatalf("an updating host is no candidate, and the message says why: %v", err)
+	}
+}
+
+// The host reports "v0.7.2 (abc1234, 2026-…, go1.26)" and the plan says
+// "v0.7.2": the same version, compared on the tag — and a dirty build is never
+// the release, whatever its tag says (#161).
+func TestAPlanIsFulfilledByTheTagNotTheWholeBuildString(t *testing.T) {
+	p := NewPool(quietLog())
+	p.PlannedUpdate = func(context.Context, uuid.UUID) (string, error) { return "v9.9.9", nil }
+	done := 0
+	p.PlannedUpdateDone = func(context.Context, uuid.UUID, string) { done++ }
+
+	clean := &conn{pool: p, runnerID: uuid.New(), orgID: uuid.New(), version: "v9.9.9 (abc1234, 2026-09-02T00:00:00Z, go1.26)"}
+	clean.runPlannedUpdate(context.Background())
+	if done != 1 {
+		t.Fatalf("a clean build on the planned tag fulfils the plan (%d)", done)
+	}
+	dirty := &conn{pool: p, runnerID: uuid.New(), orgID: uuid.New(), version: "v9.9.9 (abc1234-dirty, 2026-09-02T00:00:00Z, go1.26)"}
+	// No connection to update over: the attempt fails, and that is the point —
+	// it was attempted rather than declared done.
+	dirty.runPlannedUpdate(context.Background())
+	if done != 1 {
+		t.Fatalf("a dirty build must not count as the release (%d)", done)
 	}
 }

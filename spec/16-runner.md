@@ -123,7 +123,7 @@ That the sync has to work before this can happen is the reason the home store co
 
 Registration concerns the *added* runner. The built-in one is created by the platform itself — one per organisation, at bootstrap and whenever an organisation is added — needs neither token nor configuration file, and stands beside the registered runners of its organisation (see "It runs beside the others, and a pause is what switches it off").
 
-For everything else, as with GitLab, split into a **registration token** (org-wide, creatable and revocable in the UI) and a **runner token** derived from it (long-lived, per runner, stored only as a hash):
+For everything else, as with GitLab, split into a **registration token** (org-wide, creatable, listable and revocable in the UI, valid for a day — enrolling is a moment, not a standing permission) and a **runner token** derived from it (long-lived, per runner, stored only as a hash; deleting the runner ends its connection on the spot, not at its next dial):
 
 ```
 covey-runner register --url https://covey.example --token <registration-token> \
@@ -179,7 +179,7 @@ Version drift is not a fault to be avoided — separate delivery is the point, a
 
 Three rules make it something one can press:
 
-- **Not while it is carrying anything.** The containers would survive the restart — they belong to Docker — but the watchers would not, and a sandbox nobody watches any more is worse than an update that waits. The host refuses and names the number.
+- **Not while it is carrying anything.** The containers would survive the restart — they belong to Docker — but the watchers would not, and a sandbox nobody watches any more is worse than an update that waits. The host refuses and names the number; the control plane keeps the wish on the runner's row and carries it out at the next beat that finds the host idle — one plan, on the side that survives a restart of either. While the binary is being fetched the host takes no sandbox and the scheduler does not offer it one, and the host asks "am I carrying anything" once more after the download, before it replaces itself.
 - **The answer comes before the restart.** Afterwards there is nothing left to ask: without it, a successful update and a host that fell over look exactly alike.
 - **The built-in runner is not updated this way.** It is the control plane's own process, and it is updated by updating the control plane.
 - **A runner that predates the feature is told, not waited for.** It would ignore the message, and the caller would wait out the whole timeout for an answer that is never coming — ending in "does not answer", which is this platform's sentence for a broken host. So `registered` carries a `features` list: a new optional field rather than a new protocol version, because the handshake demands an exact version match and raising it would disconnect precisely the population that needs to be told something.
@@ -198,30 +198,47 @@ Refusal is explicit with a reason, not silent: a runner that quietly fails to co
 
 ## Runner protocol
 
+The two tables are the reference and are kept in step with `internal/runner/protocol.go`; a message that exists in one and not the other is a defect in whichever is behind. Every message is a JSON envelope `{type, id, payload}`; the `id` correlates an answer with its request, and a message that answers nothing carries none.
+
 ### Control plane → runner
 
 | Message | Purpose |
 |---|---|
-| `start_sandbox` | Start a sandbox: agent ID, image, home identifier, env (`COVEY_WS_URL`, `COVEY_DAEMON_TOKEN`, egress token) |
+| `start_sandbox` | Start a sandbox: agent, organisation, the resolved image and how to obtain it, env (`COVEY_WS_URL`, `COVEY_DAEMON_TOKEN`), egress token, the snapshot to materialise and when it was taken, the sync exclusions, the services to bring up beside it |
 | `stop_sandbox` | Shut compute down; the home stays |
-| `sync_home` | Write the home into the store as a snapshot — regularly after the job, and enforceable besides (maintenance, decommissioning a runner) |
-| `home_op` | File access to a home: list, read, write, delete (see file access) |
-| `set_allowlist` | Update the egress allowlist for the runner's local proxy |
-| `prune` | Clean up orphaned containers and the homes of deleted agents |
+| `sync_home` | Write the home into the store as a snapshot — after the job, and enforceable besides (maintenance, "back up now") |
+| `home_op` | File access to a home: `list`, `read`, `open` (streamed), `plan`/`zip` (an archive, measured then streamed), `write`, `mkdir`, `remove`, `move`, `usage`. A stream names a window; see `stream_credit` |
+| `stream_credit` | Lets a streamed `home_op` continue: the reader has consumed chunks and the runner may send as many again. Negative = the reader is gone, stop |
+| `add_services` | Bring services up beside a sandbox that is already running — the path an agent takes for its project's compose file |
+| `check` | What stands between this host and a running sandbox — no Docker daemon, a missing image — plus which of a list of images lie here |
+| `capacity` | What this host is carrying: running sandboxes, free disk. Asked once a beat; the answer is also the second liveness signal (see below) |
+| `pull_image` | Fetch a workplace image now, while somebody is looking, instead of at the first wake |
+| `set_log_level` | Raise or lower what this host ships of its own log (`debug`/`info`) |
 | `update` | Replace your own binary and start again — how version drift is closed without an SSH session per host |
 
 ### Runner → control plane
 
 | Message | Purpose |
 |---|---|
-| `registered` | Capabilities, tags, version — the first message after connecting |
-| `sandbox_started` / `sandbox_failed` | The result of a `start_sandbox` (the `ready` proof still comes from the daemon itself) |
-| `sandbox_exited` | The sandbox ended on its own (crash, OOM) — the control plane learns of it without waiting for the daemon timeout |
-| `home_synced` | The snapshot is written: identifier, blocks transferred, total size — only afterwards may anything be cleaned up locally |
-| `home_result` | The answer to a `home_op` |
-| `capacity` | Running sandboxes, free space — the basis for scheduling and warnings |
-| `update_result` | What became of an `update`: the versions before and after, or why nothing was replaced |
+| `registered` | The first message: identity, protocol version, own version and architecture, tags, images, features this build has beyond the base protocol, the sandbox limit — and the agents whose sandboxes this host is running right now (reconciled, see below) |
+| `sandbox_started` / `sandbox_failed` | The result of a `start_sandbox`, with the services that came up and the image each actually started from (the `ready` proof still comes from the daemon itself) |
+| `sandbox_stopped` | The result of a `stop_sandbox` |
+| `sandbox_exited` | The sandbox ended on its own (crash, OOM) — the control plane learns of it as a fact instead of inferring it from the `ReadyTimeout` |
+| `home_synced` | The snapshot is written: identifier, blocks transferred, total size — only afterwards may anything be cleaned up locally. Also sent unasked, for a sync whose answer an earlier connection could not carry, and for the copy a start secured because it was newer than the snapshot |
+| `home_result` | The answer to a `home_op`; a stream is several of them under one id, the last carrying `eof` |
+| `services_added` | The answer to `add_services` |
+| `check_result` | The answer to `check`: what is in the way, and which images are present |
+| `capacity_report` | The answer to `capacity` |
+| `pull_result` | The answer to `pull_image` |
+| `log_level_result` | The level the host now ships at — the one it applied, not the one asked for |
+| `update_result` | What became of an `update`: the versions before and after, that it is restarting, or that it is busy and the update stays planned |
+| `progress` | What a start is doing while it takes its time — fetching an image, materialising or securing a home — unasked, several times per start, into the recording |
+| `log` | A batch of the host's own log lines, so the host can be read where it is administered and not only over SSH. A ring on the host bounds it; how many lines overflowed travels with the next batch |
 | `heartbeat` | Sign of life |
+
+**Features, not versions.** The protocol version is raised only when a message changes its meaning; a new optional field is not a new version. What a build can do beyond the base — replace its own binary, ship its log, honour a stream window — it announces in `registered` as a feature, and the control plane offers the corresponding action only to a host that named it. An older host is told what it cannot do rather than waited on for an answer that is never coming.
+
+**The host's own log.** Every line a runner writes goes two ways: to its stderr as before, and into a ring the control plane drains once every two seconds over the same link. The ring is bounded — a host that lost its connection keeps working and keeps logging, and an unbounded buffer would turn a network problem into an out-of-memory one on a machine running somebody's sandboxes — so what overflows is the oldest line, counted once in the next batch. The level shipped is switched from the interface (`set_log_level`) and re-applied when the host reconnects; the control plane keeps the lines for a fortnight and fifty thousand per host, whichever is less.
 
 The heartbeat is not decoration. A TCP connection can be dead without either side noticing — a NAT that dropped the entry, a network partition, a host that went to sleep — and a runner in that state stays in the pool as *connected*. Every wake would then be assigned to a runner that hears nothing and would sit out its start timeout before failing, instead of going to one that works. So: a sign of life every 30 seconds, and after three missed ones the control plane closes the connection itself. Any message counts, not only a heartbeat; traffic is proof of life, and a runner busy answering need not say so twice.
 
@@ -236,6 +253,8 @@ And the same signal is listened to **while a start is outstanding**. "Answering"
 A host that is genuinely reading stays unaffected however long its pull takes, because capacity is answered beside the loop. Not answering while a start is outstanding therefore means the loop is stuck.
 
 The runner's side of the same lesson: **the read loop hands off**. `start_sandbox`, `stop_sandbox` and `sync_home` are worked on beside it, in the order they arrived per agent (start, stop and sync of one agent describe one working copy, so their order is part of their meaning; a mutex would not do it, since it hands the turn to whoever happens to be waiting). `capacity` and `check` answer beside it too. That way one agent's image pull costs that agent time, not the host.
+
+**What a host is running is reconciled at every connect.** The containers belong to Docker and survive the runner process; the watcher and the count did not, and a control plane that restarts loses its sessions while the sandboxes behind them keep running. So a runner that starts looks for the sandbox containers carrying its label, takes them back under watch, and names them in `registered`. The control plane squares the list with what it placed: a sandbox it placed on this host is adopted — counted, reported on like any other — and one it did not place is a stray and is **stopped, its home secured first**. A stray is a start the control plane gave up on and moved elsewhere, a sandbox from before a restart, or a stop that never reached the host; its home may hold a run nobody else has, which is why the sync comes before the stop's cleanup. A start for the same agent waits until its stray is gone. This is what the `prune` message of earlier drafts was meant to do, done without a message: the moment it is needed is the moment a host connects, and the host already speaks then.
 
 `sandbox_exited` is the reason the runner has to observe the container state at all: today the control plane notices a crash only at the `ReadyTimeout` or at the breaking daemon link. With a runner that asks the local Docker daemon anyway, that becomes a reported fact instead of a guess.
 

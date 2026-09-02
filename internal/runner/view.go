@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"covey/internal/sandboxfs"
 )
 
 // The control plane's side of the runner view (spec/16, stage 5): what a
@@ -64,10 +62,12 @@ func (p *Pool) LiveFor(orgID uuid.UUID) map[uuid.UUID]Live {
 		c.mu.Lock()
 		running := c.sandboxes
 		c.mu.Unlock()
+		tags, images := c.effective()
+		reportedTags, reportedImages := c.reported()
 		out[c.runnerID] = Live{
 			RunnerID: c.runnerID, Connected: true, Protocol: c.protocol,
-			Version: c.version, Arch: c.arch, Tags: c.tags, Images: c.images,
-			ReportedTags: c.reportedTags, ReportedImages: c.reportedImages,
+			Version: c.version, Arch: c.arch, Tags: tags, Images: images,
+			ReportedTags: reportedTags, ReportedImages: reportedImages,
 			Features:  c.features,
 			Sandboxes: running, MaxSandboxes: c.maxSandboxes, Outdated: c.protocol < Protocol,
 			Unresponsive: !c.answering(),
@@ -112,11 +112,15 @@ func (p *Pool) Capacity(runnerID uuid.UUID) (CapacityView, bool) {
 // The answer comes back BEFORE the runner restarts. That is what makes the
 // difference between "installed, coming back" and "fell over" readable at all:
 // after the restart there is nothing left to ask.
-func (p *Pool) Update(ctx context.Context, runnerID uuid.UUID, version, baseURL string) (UpdateResult, error) {
+func (p *Pool) Update(ctx context.Context, orgID, runnerID uuid.UUID, version, baseURL string) (UpdateResult, error) {
 	p.mu.Lock()
 	c := p.conns[runnerID]
 	p.mu.Unlock()
-	if c == nil {
+	if c == nil || c.orgID != orgID {
+		// A runner of another organisation is not connected as far as this
+		// caller is concerned: this message hands the host a URL to fetch and
+		// run a binary from, and the organisation is the runner's, not the
+		// request's (#159).
 		return UpdateResult{}, ErrNoRunner
 	}
 	if c.builtin {
@@ -133,6 +137,13 @@ func (p *Pool) Update(ctx context.Context, runnerID uuid.UUID, version, baseURL 
 		return UpdateResult{}, fmt.Errorf("%w: this runner is older than the self-update — install it once by hand "+
 			"(curl -fsSL <this server>/install.sh | sh -s -- --runner), after that the button works", ErrNotSupported)
 	}
+	// One at a time, and out of the scheduler's sight while it runs: the host
+	// is about to exec, and a start accepted in the meantime would be
+	// abandoned by it (#161).
+	if !c.setUpdating(true) {
+		return UpdateResult{}, fmt.Errorf("an update is already under way on runner %s", short(runnerID))
+	}
+	defer c.setUpdating(false)
 	answer, err := c.ask(ctx, TypeUpdate, Update{Version: version, BaseURL: baseURL}, updateTimeout)
 	if err != nil {
 		return UpdateResult{}, err
@@ -160,34 +171,6 @@ func (p *Pool) SyncNow(ctx context.Context, agentID, orgID uuid.UUID, reason str
 	// same state.
 	p.flushDirtyFlag(agentID)
 	return p.syncHomeReason(ctx, c, agentID, orgID, reason)
-}
-
-// Restore brings a home back to an earlier state. Only when the agent is not
-// running — otherwise the running sandbox writes into a home that changes
-// underneath it. That check lives in the HTTP layer, where the agent's status
-// is known.
-func (p *Pool) Restore(ctx context.Context, agentID, orgID uuid.UUID, snapshot string) error {
-	c := p.connFor(orgID, p.lastRunnerOf(ctx, agentID))
-	if c == nil {
-		return ErrNoRunner
-	}
-	answer, err := c.ask(ctx, TypeHomeOp, HomeOp{
-		AgentID: agentID, OrgID: orgID, Op: OpRestore, Snapshot: snapshot,
-	}, homeOpTimeout)
-	if err != nil {
-		return err
-	}
-	res, err := decode[HomeResult](answer)
-	if err != nil {
-		return err
-	}
-	if res.Err != "" {
-		return sandboxfs.ErrorFromKind(res.ErrKind, res.Err)
-	}
-	// The restored state becomes the current one — otherwise the next wake
-	// would materialise the newer snapshot over it and the rollback would last
-	// exactly until then.
-	return p.syncHomeReason(ctx, c, agentID, orgID, "restore")
 }
 
 func (p *Pool) lastRunnerOf(ctx context.Context, agentID uuid.UUID) uuid.UUID {

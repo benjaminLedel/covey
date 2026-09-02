@@ -15,6 +15,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -90,6 +91,8 @@ func (r Runner) Paused() bool { return r.PausedAt != nil }
 
 type Store struct {
 	pool *pgxpool.Pool
+	// seenAt is when each runner's last_seen_at was last written (see Seen).
+	seenAt sync.Map
 }
 
 func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
@@ -205,9 +208,23 @@ func (s *Store) Update(ctx context.Context, orgID, id uuid.UUID, p Patch) (Runne
 }
 
 // ByID reads one runner — for the places that have an id and need the name a
-// person gave it.
+// person gave it. Not for a request: a handler that acts for an organisation
+// asks with ByIDForOrg, so that a foreign id is "not found" rather than a row.
 func (s *Store) ByID(ctx context.Context, id uuid.UUID) (Runner, error) {
 	r, err := scan(s.pool.QueryRow(ctx, `SELECT `+columns+` FROM runners WHERE id = $1`, id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Runner{}, ErrNotFound
+	}
+	return r, err
+}
+
+// ByIDForOrg reads one runner of THIS organisation. The organisation is a
+// property of the runner, not of the request (spec/16, "Trust boundary"), and
+// a runner of another tenant is not a runner the caller may not touch — it is
+// none (#159).
+func (s *Store) ByIDForOrg(ctx context.Context, orgID, id uuid.UUID) (Runner, error) {
+	r, err := scan(s.pool.QueryRow(ctx,
+		`SELECT `+columns+` FROM runners WHERE id = $1 AND org_id = $2`, id, orgID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Runner{}, ErrNotFound
 	}
@@ -280,9 +297,21 @@ func (s *Store) ByToken(ctx context.Context, token string) (Runner, error) {
 // Seen records a sign of life. Failures are the caller's to ignore — a missing
 // timestamp is a display flaw, not a reason to reject a request.
 func (s *Store) Seen(ctx context.Context, id uuid.UUID) error {
+	// At most once per beat per runner. The call comes per HTTP request and
+	// per WebSocket message — during a sync that is one per block, six
+	// figures of them — and "last seen" is not a figure that needs to be
+	// exact to the block (#165).
+	now := time.Now()
+	if last, ok := s.seenAt.Load(id); ok && now.Sub(last.(time.Time)) < seenEvery {
+		return nil
+	}
+	s.seenAt.Store(id, now)
 	_, err := s.pool.Exec(ctx, `UPDATE runners SET last_seen_at = now() WHERE id = $1`, id)
 	return err
 }
+
+// seenEvery is how often "last seen" is actually written per runner.
+const seenEvery = 30 * time.Second
 
 // ListForOrg returns an organisation's runners, the built-in one first.
 func (s *Store) ListForOrg(ctx context.Context, orgID uuid.UUID) ([]Runner, error) {
@@ -307,7 +336,28 @@ func (s *Store) ListForOrg(ctx context.Context, orgID uuid.UUID) ([]Runner, erro
 // --- Registration (spec/16) ---
 
 // ErrTokenInvalid: no usable registration token.
-var ErrTokenInvalid = errors.New("registration token invalid or revoked")
+var ErrTokenInvalid = errors.New("registration token invalid, expired or revoked")
+
+// RegistrationTokenTTL is how long a registration token can enrol a host.
+// Enrolling is a moment — creating the token and pasting it into `register` —
+// not a standing permission, and a token that leaked into a config repository
+// used to enrol runners for as long as its row existed (#163).
+const RegistrationTokenTTL = 24 * time.Hour
+
+// RegistrationToken is one enrolment token as the interface lists it: never
+// the token itself, which exists in the clear exactly once.
+type RegistrationToken struct {
+	ID          uuid.UUID  `json:"id"`
+	Description string     `json:"description"`
+	CreatedAt   time.Time  `json:"created_at"`
+	ExpiresAt   time.Time  `json:"expires_at"`
+	RevokedAt   *time.Time `json:"revoked_at,omitempty"`
+}
+
+// Usable: neither revoked nor expired.
+func (t RegistrationToken) Usable(now time.Time) bool {
+	return t.RevokedAt == nil && now.Before(t.ExpiresAt)
+}
 
 // CreateRegistrationToken issues an organisation's registration token and
 // returns it in the clear — the only moment it exists outside a hash.
@@ -317,13 +367,36 @@ func (s *Store) CreateRegistrationToken(ctx context.Context, orgID uuid.UUID, de
 		return "", err
 	}
 	_, err = s.pool.Exec(ctx,
-		`INSERT INTO runner_registration_tokens (id, org_id, token_hash, description, created_by)
-		 VALUES ($1,$2,$3,$4,$5)`,
-		uuid.New(), orgID, HashToken(token), description, createdBy)
+		`INSERT INTO runner_registration_tokens (id, org_id, token_hash, description, created_by, expires_at)
+		 VALUES ($1,$2,$3,$4,$5,$6)`,
+		uuid.New(), orgID, HashToken(token), description, createdBy, time.Now().Add(RegistrationTokenTTL))
 	if err != nil {
 		return "", err
 	}
 	return token, nil
+}
+
+// ListRegistrationTokens lists an organisation's enrolment tokens, newest
+// first — the revoked and expired ones included, because "which token did that
+// host come in on" is a question that outlives the token.
+func (s *Store) ListRegistrationTokens(ctx context.Context, orgID uuid.UUID) ([]RegistrationToken, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT id, description, created_at, expires_at, revoked_at
+		   FROM runner_registration_tokens WHERE org_id = $1
+		  ORDER BY created_at DESC`, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []RegistrationToken
+	for rows.Next() {
+		var t RegistrationToken
+		if err := rows.Scan(&t.ID, &t.Description, &t.CreatedAt, &t.ExpiresAt, &t.RevokedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
 }
 
 // RevokeRegistrationToken makes a token unusable without removing it: whoever
@@ -346,7 +419,7 @@ func (s *Store) Register(ctx context.Context, registrationToken, description str
 	var orgID uuid.UUID
 	err := s.pool.QueryRow(ctx,
 		`SELECT org_id FROM runner_registration_tokens
-		  WHERE token_hash = $1 AND revoked_at IS NULL`, HashToken(registrationToken)).Scan(&orgID)
+		  WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > now()`, HashToken(registrationToken)).Scan(&orgID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Runner{}, "", ErrTokenInvalid
 	}

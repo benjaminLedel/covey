@@ -114,7 +114,22 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
   });
   const createToken = useMutation({
     mutationFn: () => post<{ token: string }>("/runners/registration-tokens", {}),
-    onSuccess: (r) => setToken(r.token),
+    onSuccess: (r) => {
+      setToken(r.token);
+      qc.invalidateQueries({ queryKey: ["registration-tokens"] });
+    },
+  });
+  // The tokens that exist, never the tokens themselves: a token is shown once
+  // in the clear and lives on as a row — which is what makes taking it back
+  // possible for somebody who was not there when it was created.
+  const tokens = useQuery({
+    queryKey: ["registration-tokens"],
+    queryFn: () => api<RegistrationToken[]>("/runners/registration-tokens"),
+    enabled: manage,
+  });
+  const revokeToken = useMutation({
+    mutationFn: (id: string) => post<{ ok: boolean }>(`/runners/registration-tokens/${id}/revoke`, {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["registration-tokens"] }),
   });
   const runCleanup = useMutation({
     mutationFn: (preview: boolean) =>
@@ -329,6 +344,40 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
               </pre>
             </div>
           )}
+          {tokens.data && tokens.data.length > 0 && (
+            <table className="text-sm" style={{ marginTop: 8 }}>
+              <thead>
+                <tr>
+                  <th>{t("runners.tokenCreated")}</th>
+                  <th>{t("runners.tokenState")}</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {tokens.data.map((tok) => {
+                  const state = tok.revoked_at
+                    ? t("runners.tokenRevoked")
+                    : new Date(tok.expires_at).getTime() < Date.now()
+                      ? t("runners.tokenExpired")
+                      : t("runners.tokenUsableUntil", { until: new Date(tok.expires_at).toLocaleString() });
+                  const usable = !tok.revoked_at && new Date(tok.expires_at).getTime() >= Date.now();
+                  return (
+                    <tr key={tok.id}>
+                      <td>{new Date(tok.created_at).toLocaleString()}</td>
+                      <td className={usable ? "" : "muted"}>{state}</td>
+                      <td>
+                        {usable && (
+                          <button className="btn btn-ghost" onClick={() => revokeToken.mutate(tok.id)}>
+                            {t("runners.revokeToken")}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
 
@@ -415,6 +464,14 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
 // Ohne Beschreibung und Tags: beides ist optional, und ein Platzhalter im
 // Befehl ist etwas, das jemand mitkopiert und dann sucht, warum sein Runner
 // „…" heißt.
+type RegistrationToken = {
+  id: string;
+  description: string;
+  created_at: string;
+  expires_at: string;
+  revoked_at?: string;
+};
+
 function registerCommand(token: string): string {
   const origin = window.location.origin;
   return [

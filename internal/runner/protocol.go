@@ -196,10 +196,10 @@ type Update struct {
 type UpdateResult struct {
 	From string `json:"from,omitempty"`
 	To   string `json:"to,omitempty"`
-	// Planned: the host was busy and kept the wish. It carries it out at the
-	// next moment it has nothing in its hands. Without this an agent with a
-	// warm sandbox made a host unupdatable for good — it is never empty, and
-	// every attempt was refused with the same sentence.
+	// Planned: the host was busy and kept the wish itself. Set by no current
+	// runner — the plan lives on the control plane alone since #161, where it
+	// survives a restart of either side — and read only for a runner from
+	// the builds in between.
 	Planned bool `json:"planned,omitempty"`
 	// Restarting: the binary was replaced and the runner is going down to come
 	// back. The connection ends right after this message, and that is not a
@@ -241,9 +241,6 @@ const (
 	OpRemove = "remove"
 	OpMove   = "move"
 	OpUsage  = "usage"
-	// OpRestore materialises a snapshot over the working copy — the rollback
-	// that falls out of the construction anyway (spec/16).
-	OpRestore = "restore"
 )
 
 // HomeOp is one file operation on an agent's home.
@@ -257,11 +254,35 @@ type HomeOp struct {
 	// Data is the content of a write, in one message. Bounded by
 	// sandboxfs.MaxWriteBytes, which the control plane checks before sending.
 	Data []byte `json:"data,omitempty"`
-	// Snapshot and OrgID belong to a restore: which state to bring the working
-	// copy to, and whose blocks to read.
-	Snapshot string    `json:"snapshot,omitempty"`
-	OrgID    uuid.UUID `json:"org_id,omitempty"`
+	// Window is the flow control of a streaming answer (open, zip): how many
+	// chunks the runner may have in flight before it waits for a stream_credit.
+	// 0 = none, the runner sends as fast as the link takes — which is what a
+	// control plane from before #156 asks for, and what it can handle only by
+	// blocking its read loop on a slow reader, which then blocks everything
+	// else on that connection.
+	Window int `json:"window,omitempty"`
 }
+
+// TypeStreamCredit (control plane → runner) lets a stream continue: the reader
+// has consumed chunks and the runner may send as many again. A negative credit
+// cancels the stream — the browser closed the download, and the rest of a 4 GB
+// file has nowhere to go.
+const TypeStreamCredit = "stream_credit"
+
+// StreamCredit is the payload; the message's ID names the stream.
+type StreamCredit struct {
+	Chunks int `json:"chunks"`
+}
+
+// FeatureStreamCredit: this runner honours HomeOp.Window and stream_credit. A
+// control plane sends credits only to a host that announced it, because to an
+// older one they are unknown messages — one warning line per chunk.
+const FeatureStreamCredit = "stream_credit"
+
+// streamWindow is how many chunks a stream may have in flight: enough that a
+// fast reader never waits for the round trip, few enough that a slow one costs
+// the connection a couple of megabytes of buffer and nothing else.
+const streamWindow = 4
 
 // HomeResult answers a home_op. Streaming answers (open, zip) arrive as
 // several results with the same correlation ID; the last one carries EOF.
@@ -329,6 +350,13 @@ type Registered struct {
 	// ignores an unknown message, and the caller would wait out the timeout for
 	// a message that will never be answered.
 	Features []string `json:"features,omitempty"`
+	// Running are the agents whose sandboxes this host holds at the moment it
+	// connects — found on the host, not remembered. The control plane
+	// reconciles: what it placed here it adopts, and what it does not know is
+	// stopped and its home secured (#155). That is the body spec/16's `prune`
+	// was meant to have. Absent from an older runner, which then reports
+	// nothing and is reconciled with nothing.
+	Running []uuid.UUID `json:"running,omitempty"`
 	// MaxSandboxes is how many sandboxes this host will carry at once, 0 = no
 	// limit. It belongs to the RUNNER and is configured there, because what it
 	// states is a property of the iron — how much RAM this machine has, how
@@ -369,7 +397,6 @@ type StartSandbox struct {
 	AgentID uuid.UUID         `json:"agent_id"`
 	OrgID   uuid.UUID         `json:"org_id"`
 	Image   string            `json:"image"`
-	HomeDir string            `json:"home_dir,omitempty"`
 	Env     map[string]string `json:"env,omitempty"`
 	// EgressToken identifies the sandbox to the egress proxy as this agent.
 	// Empty = no egress enforcement for this sandbox.
@@ -378,15 +405,12 @@ type StartSandbox struct {
 	// starts. Empty = whatever lies in the working copy — which is the case on
 	// the very first wake, and after that only when the store is switched off.
 	Snapshot string `json:"snapshot,omitempty"`
-	// Fallbacks are older states, newest first, for the case that Snapshot
-	// cannot be read — a block the store lost takes its snapshot with it, and
-	// without a way back that ends the agent (#138).
-	//
-	// The list travels with the start rather than being asked for afterwards:
-	// the runner is the only one that finds out a manifest is unreadable, and a
-	// second round trip to learn what else there is would make every failed
-	// wake a conversation. An older runner ignores the field and behaves as
-	// before — additive, like every other field here.
+	// Fallbacks are older states, newest first, to try when Snapshot cannot be
+	// read. The control plane sends none: the store keeps one snapshot per
+	// agent (spec/16), so there is no older state to name, and the fallback a
+	// wake has is the working copy on the host (#162). The field stays in the
+	// protocol — a runner still walks whatever it is given — so that a store
+	// which keeps a history one day needs no protocol change to use it.
 	Fallbacks []string `json:"fallbacks,omitempty"`
 	// SnapshotAt is when Snapshot was taken, by the control plane's clock. It is
 	// what lets the runner tell a restore from a reversal (#153): a working copy

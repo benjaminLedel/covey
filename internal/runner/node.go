@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,14 +23,11 @@ import (
 // runner and the one on a foreign host — what differs is the Transport it is
 // handed.
 type Node struct {
-	// pendingUpdate is an update that arrived while this host was busy. It is
-	// carried out at the next moment nothing is in its hands (see update.go).
-	pendingUpdate *Update
-	RunnerID      uuid.UUID
-	OrgID         uuid.UUID
-	Docker        *Docker
-	Log           *slog.Logger
-	Tags          []string
+	RunnerID uuid.UUID
+	OrgID    uuid.UUID
+	Docker   *Docker
+	Log      *slog.Logger
+	Tags     []string
 	// Images this host holds. On a runner the image is a statement of
 	// capacity — it gets only agents whose workplace it can provide. Empty =
 	// it makes no claim and is not excluded on that ground.
@@ -67,6 +65,29 @@ type Node struct {
 	// turn holds, per agent, the end of the line: the channel the message
 	// currently being worked on closes when it is done. See inOrder.
 	turn map[uuid.UUID]chan struct{}
+	// streams are the chunked answers under way, by correlation id, for the
+	// credits that let them continue (see pump).
+	streams map[string]*stream
+	// adopted marks that this process has looked for the containers a
+	// predecessor left running — once, at the first connection.
+	adopted sync.Once
+	// updateMu serialises updateSelf: two orders arriving at once must not
+	// both write the new binary and rename over each other (#161). updating is
+	// the flag the rest of the node reads: a start that arrives while the
+	// binary is being fetched is refused rather than accepted into a process
+	// that is about to exec.
+	updateMu sync.Mutex
+	updating bool
+	// ReadSilence is how long this node tolerates hearing NOTHING from the
+	// control plane before it closes the connection and lets RunNode dial
+	// again. The control plane asks every connected host for its capacity once
+	// per beat, so silence for three beats is a dead link, not a quiet one —
+	// and without this the runner learned of a NAT-dropped connection only
+	// when the kernel gave up on its own writes, a quarter of an hour later,
+	// offline for the pool the whole time (#158). 0 = off, which is what the
+	// built-in runner runs with: its link is a channel pair, and closing it
+	// would end the one connection it gets.
+	ReadSilence time.Duration
 	// Restart replaces this process with the binary that now lies at its path.
 	// A field so that a test can watch instead of disappearing; nil = execSelf,
 	// which is what a runner does.
@@ -127,6 +148,7 @@ func NewNode(runnerID, orgID uuid.UUID, docker *Docker, log *slog.Logger) *Node 
 		logs:     ring,
 		running:  map[uuid.UUID]*sandboxProc{},
 		turn:     map[uuid.UUID]chan struct{}{},
+		streams:  map[string]*stream{},
 	}
 }
 
@@ -134,6 +156,10 @@ func NewNode(runnerID, orgID uuid.UUID, docker *Docker, log *slog.Logger) *Node 
 // registers first: the control plane may not assign anything to a runner whose
 // identity and protocol version it does not know.
 func (n *Node) Run(ctx context.Context, t Transport) error {
+	// What a predecessor left running is taken under watch BEFORE the
+	// handshake names it — the control plane reconciles against the list, and
+	// a sandbox the list did not carry would be one nobody ever stops.
+	n.adopt(ctx)
 	hello, err := encode(TypeRegistered, "", Registered{
 		RunnerID: n.RunnerID,
 		OrgID:    n.OrgID,
@@ -142,7 +168,8 @@ func (n *Node) Run(ctx context.Context, t Transport) error {
 		Arch:     runtime.GOARCH,
 		Tags:     n.Tags,
 		Images:   n.Images,
-		Features: []string{FeatureSelfUpdate, FeatureLogShipping},
+		Features: []string{FeatureSelfUpdate, FeatureLogShipping, FeatureStreamCredit},
+		Running:  n.runningAgents(),
 
 		MaxSandboxes: n.MaxSandboxes,
 	})
@@ -165,11 +192,21 @@ func (n *Node) Run(ctx context.Context, t Transport) error {
 	beat, stopBeat := context.WithCancel(ctx)
 	defer stopBeat()
 	go n.heartbeat(beat, t)
+	var heard atomic.Int64
+	heard.Store(time.Now().UnixNano())
+	if n.ReadSilence > 0 {
+		go n.readWatchdog(beat, t, &heard)
+	}
 	// The log goes up the same link. It shares the heartbeat's lifetime: what
 	// this runner said is worth having exactly as long as there is somebody to
 	// say it to.
 	go n.shipLogs(beat, t)
 
+	// What the runner said last goes out before the connection is given up —
+	// here, synchronously, and not from the shipper's goroutine, which raced
+	// RunNode's Close of the transport (#165). On a link that is already dead
+	// the lines stay in the ring for the next connection.
+	defer n.flushLogs(context.WithoutCancel(ctx), t)
 	for {
 		msg, err := t.Receive(ctx)
 		if err != nil {
@@ -178,7 +215,30 @@ func (n *Node) Run(ctx context.Context, t Transport) error {
 			}
 			return err
 		}
+		heard.Store(time.Now().UnixNano())
 		n.handle(ctx, t, msg)
+	}
+}
+
+// readWatchdog closes the transport when the control plane has said nothing
+// for ReadSilence — the mirror of the pool's watchdog, for the same half-open
+// link seen from the other end.
+func (n *Node) readWatchdog(ctx context.Context, t Transport, heard *atomic.Int64) {
+	ticker := time.NewTicker(n.ReadSilence / 3)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			quiet := time.Since(time.Unix(0, heard.Load()))
+			if quiet > n.ReadSilence {
+				n.Log.Warn("nothing heard from the control plane — closing the connection to dial again",
+					"silent_for", quiet.Round(time.Second))
+				_ = t.Close()
+				return
+			}
+		}
 	}
 }
 
@@ -252,6 +312,12 @@ func (n *Node) handle(ctx context.Context, t Transport, msg Message) {
 		// service up while its sandbox is being torn down would leave a
 		// container that belongs to nothing.
 		n.inOrder(req.AgentID, func() { n.addServices(ctx, t, msg.ID, req) })
+	case TypeStreamCredit:
+		credit, err := decode[StreamCredit](msg)
+		if err != nil {
+			return
+		}
+		n.grant(msg.ID, credit.Chunks)
 	case TypeCapacity:
 		// Beside the loop, like everything that can take time. Free space is a
 		// statfs and costs nothing — until the file system it asks about hangs,
@@ -344,6 +410,57 @@ func (n *Node) update(ctx context.Context, t Transport, id string, req Update) {
 	}
 }
 
+// adopt takes the sandbox containers a previous runner process left running
+// back under watch: a proc and a watcher each, as if this process had started
+// them. The containers belong to Docker and survived; the watcher and the
+// count did not, and until #155 nothing brought them back (#155).
+//
+// The watchers get no transport of their own: the link is set once the
+// handshake is out, and a death reported before `registered` would be the
+// first message on the connection — which the pool refuses. Until then a
+// report goes into the outbox and follows the handshake.
+func (n *Node) adopt(ctx context.Context) {
+	n.adopted.Do(func() {
+		if n.Docker == nil {
+			return
+		}
+		found, err := n.Docker.Running(ctx)
+		if err != nil {
+			n.Log.Warn("could not look for sandboxes a predecessor left running", "err", err)
+			return
+		}
+		for _, sb := range found {
+			watchCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+			proc := &sandboxProc{container: sb.Container, cancel: cancel}
+			n.mu.Lock()
+			if n.closed || n.running[sb.AgentID] != nil {
+				n.mu.Unlock()
+				cancel()
+				continue
+			}
+			n.running[sb.AgentID] = proc
+			n.mu.Unlock()
+			n.watchers.Add(1)
+			go func(agentID uuid.UUID, proc *sandboxProc) {
+				defer n.watchers.Done()
+				n.watch(watchCtx, nil, agentID, proc)
+			}(sb.AgentID, proc)
+			n.Log.Info("sandbox found running — taken under watch", "agent", sb.AgentID, "container", sb.Container)
+		}
+	})
+}
+
+// runningAgents lists whose sandboxes this host holds right now.
+func (n *Node) runningAgents() []uuid.UUID {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	out := make([]uuid.UUID, 0, len(n.running))
+	for id := range n.running {
+		out = append(out, id)
+	}
+	return out
+}
+
 // inOrder runs the work of a message beside the read loop, but keeps the
 // messages of ONE agent in the order they arrived.
 //
@@ -431,6 +548,16 @@ func (n *Node) sync(ctx context.Context, t Transport, id string, req SyncHome) {
 
 func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSandbox) {
 	startedAt := time.Now()
+	if n.isUpdating() {
+		// The binary is being fetched and this process is about to be replaced.
+		// A sandbox accepted now would be watched by nobody in a minute — the
+		// case the busy check in updateSelf exists for, seen from the other
+		// side (#161). Refused, so the pool asks the next host.
+		n.reply(ctx, t, id, TypeSandboxFailed, SandboxResult{
+			AgentID: spec.AgentID, Err: "this host is installing an update — not taking sandboxes until it is back",
+		})
+		return
+	}
 	// The limit is enforced here as well as in the scheduler. Not belt and
 	// braces: the scheduler works from a count it keeps itself, and between its
 	// decision and this start a second one can arrive. The host is the only
@@ -483,11 +610,12 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 		n.say(ctx, t, Progress{AgentID: spec.AgentID, Phase: PhaseHome})
 		began := time.Now()
 
-		// The newest state first, then the ones behind it. A snapshot whose
-		// manifest cannot be read is not a reason to give up on the agent:
-		// until #138 exactly that ended one for good, because the control
-		// plane offered the same unreadable state every thirty seconds while
-		// nine readable ones lay in the same table.
+		// The state asked for, then whatever older ones travel with it. Today
+		// none do — the store keeps one snapshot per agent (#162) — and a
+		// snapshot whose manifest cannot be read then ends in the one fallback
+		// left, the working copy on this host, below. Until #138 an unreadable
+		// state ended the agent for good: the control plane offered it again
+		// every thirty seconds, for ever.
 		//
 		// Falling back does not delete from the working copy: pruning happens
 		// only when the copy IS the snapshot being restored, and against an
@@ -852,9 +980,6 @@ func (n *Node) watch(ctx context.Context, t Transport, agentID uuid.UUID, proc *
 		delete(n.running, agentID)
 	}
 	n.mu.Unlock()
-	// A sandbox ending is one of the two moments this host can become free —
-	// and an update may have been waiting for exactly that.
-	defer n.runPendingUpdate(ctx)
 	if asked {
 		n.Log.Info("sandbox stopped", "agent", agentID, "container", proc.container)
 		return

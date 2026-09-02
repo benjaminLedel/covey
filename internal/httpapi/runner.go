@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/coder/websocket"
 	"github.com/google/uuid"
@@ -248,14 +249,32 @@ func (s *Server) handleRunnerRegister(w http.ResponseWriter, r *http.Request) {
 		Version     string   `json:"version"`
 		Arch        string   `json:"arch"`
 	}
+	// Throttled like the sign-up, for the same reason: what is being guessed
+	// at here is a token, and every attempt counts (#163). Twenty an hour per
+	// address is far above what an operator enrolling a fleet by hand needs.
+	if !s.registerLimiter.allow(s.clientIP(r), time.Now()) {
+		writeErr(w, http.StatusTooManyRequests, "too many registration attempts — try again later")
+		return
+	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&in); err != nil {
 		writeErr(w, http.StatusBadRequest, "body is not valid JSON")
 		return
 	}
+	// Bounded, because both land in a row and in the interface as typed.
+	if len(in.Description) > 200 || len(in.Tags) > 32 {
+		writeErr(w, http.StatusBadRequest, "description (200) or tags (32) too long")
+		return
+	}
+	for _, tag := range in.Tags {
+		if len(tag) > 64 {
+			writeErr(w, http.StatusBadRequest, "a tag is longer than 64 characters")
+			return
+		}
+	}
 	rn, token, err := s.Runners.Register(r.Context(), in.Token, in.Description, in.Tags)
 	if err != nil {
 		if errors.Is(err, runnerstore.ErrTokenInvalid) {
-			writeErr(w, http.StatusUnauthorized, "registration token invalid or revoked")
+			writeErr(w, http.StatusUnauthorized, "registration token invalid, expired or revoked")
 			return
 		}
 		s.Log.Warn("runner registration failed", "err", err)
@@ -388,14 +407,16 @@ func (s *Server) handlePullOnRunner(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "workplace or image missing")
 		return
 	}
-	if s.RunnerPool == nil {
-		writeErr(w, http.StatusServiceUnavailable, "no runner pool")
+	// The runner has to belong to this organisation. The pool checks it too,
+	// but a 404 here says the right thing instead of "not connected" — and
+	// this is the one route that hands a host a URL to download and run a
+	// binary from, so the check is not a courtesy (#159).
+	if _, err := s.Runners.ByIDForOrg(r.Context(), p.OrgID, id); err != nil {
+		mapErr(w, err)
 		return
 	}
-	// The runner has to belong to this organisation — the pool checks it too,
-	// but a 404 here says the right thing instead of "not connected".
-	if _, err := s.Runners.ByID(r.Context(), id); err != nil {
-		mapErr(w, err)
+	if s.RunnerPool == nil {
+		writeErr(w, http.StatusServiceUnavailable, "no runner pool")
 		return
 	}
 	image, err := s.RunnerPool.PullOn(r.Context(), p.OrgID, id, want)
@@ -424,10 +445,46 @@ func (s *Server) handleRunnerHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	problems := s.dataPlaneProblems(r.Context())
+	// The check is instance-wide and cached once for everyone; the answer is
+	// not. A line that names a host is shown only to the organisation the host
+	// belongs to — another tenant's runner ids and image references are not
+	// this caller's to read (#165).
+	if s.Runners != nil {
+		p := principalFrom(r)
+		if own, err := s.Runners.ListForOrg(r.Context(), p.OrgID); err == nil {
+			problems = problemsForOrg(problems, own)
+		}
+	}
 	if problems == nil {
 		problems = []string{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ready": len(problems) == 0, "problems": problems})
+}
+
+// problemsForOrg keeps the lines of the data-plane check that concern this
+// organisation's hosts. Pool.Check prefixes a line with "runner <id>: " once
+// more than one host is connected; a line without the prefix is about the only
+// host there is, and belongs to whoever owns it.
+func problemsForOrg(problems []string, own []runnerstore.Runner) []string {
+	mine := map[string]bool{}
+	for _, rn := range own {
+		mine[rn.ID.String()[:8]] = true
+	}
+	var out []string
+	for _, line := range problems {
+		rest, prefixed := strings.CutPrefix(line, "runner ")
+		if !prefixed {
+			if len(own) > 0 {
+				out = append(out, line)
+			}
+			continue
+		}
+		id, _, _ := strings.Cut(rest, ":")
+		if mine[strings.TrimSpace(id)] {
+			out = append(out, line)
+		}
+	}
+	return out
 }
 
 func (s *Server) handleListRunners(w http.ResponseWriter, r *http.Request) {
@@ -491,10 +548,48 @@ func (s *Server) handleCreateRegistrationToken(w http.ResponseWriter, r *http.Re
 	})
 }
 
+// handleListRegistrationTokens lists the organisation's enrolment tokens —
+// never the tokens themselves, only what is known about them: when created,
+// until when usable, whether taken back. The list is what makes the revoke
+// below findable; a token that exists only in the moment it was shown cannot
+// be revoked by anyone who was not there (#163).
+func (s *Server) handleListRegistrationTokens(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	list, err := s.Runners.ListRegistrationTokens(r.Context(), p.OrgID)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	if list == nil {
+		list = []runnerstore.RegistrationToken{}
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+// handleRevokeRegistrationToken takes an enrolment token back. Revoked, not
+// deleted: which token a host came in on stays answerable.
+func (s *Server) handleRevokeRegistrationToken(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	p := principalFrom(r)
+	if err := s.Runners.RevokeRegistrationToken(r.Context(), p.OrgID, id); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 // handleDeleteRunner decommissions a registered runner. It takes only its local
 // working copy with it, no platform state — everything that mattered is in the
 // home store. If it was the organisation's last one, the built-in runner is the
 // answer again at the next start.
+//
+// The connection goes with the row. Otherwise the host stayed in the pool as a
+// candidate — receiving starts, with daemon tokens — while every request of
+// its own now failed with 401 (#163).
 func (s *Server) handleDeleteRunner(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
@@ -505,6 +600,9 @@ func (s *Server) handleDeleteRunner(w http.ResponseWriter, r *http.Request) {
 	if err := s.Runners.Delete(r.Context(), p.OrgID, id); err != nil {
 		mapErr(w, err)
 		return
+	}
+	if s.RunnerPool != nil {
+		s.RunnerPool.Evict(id)
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
@@ -521,6 +619,7 @@ func (s *Server) handleDeleteRunner(w http.ResponseWriter, r *http.Request) {
 // release, and prescribing its own version would send the host looking for an
 // artefact that does not exist. Whoever wants a different one names it.
 func (s *Server) handleUpdateRunnerBinary(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid id")
@@ -534,14 +633,16 @@ func (s *Server) handleUpdateRunnerBinary(w http.ResponseWriter, r *http.Request
 		writeErr(w, http.StatusBadRequest, "body not readable")
 		return
 	}
-	if s.RunnerPool == nil {
-		writeErr(w, http.StatusServiceUnavailable, "no runner pool")
+	// The runner has to belong to this organisation. The pool checks it too,
+	// but a 404 here says the right thing instead of "not connected" — and
+	// this is the one route that hands a host a URL to download and run a
+	// binary from, so the check is not a courtesy (#159).
+	if _, err := s.Runners.ByIDForOrg(r.Context(), p.OrgID, id); err != nil {
+		mapErr(w, err)
 		return
 	}
-	// The runner has to belong to this organisation — the pool checks it too,
-	// but a 404 here says the right thing instead of "not connected".
-	if _, err := s.Runners.ByID(r.Context(), id); err != nil {
-		mapErr(w, err)
+	if s.RunnerPool == nil {
+		writeErr(w, http.StatusServiceUnavailable, "no runner pool")
 		return
 	}
 	version := strings.TrimSpace(in.Version)
@@ -552,7 +653,7 @@ func (s *Server) handleUpdateRunnerBinary(w http.ResponseWriter, r *http.Request
 	if base == "" {
 		base = s.RunnerDownloadBase
 	}
-	res, err := s.RunnerPool.Update(r.Context(), id, version, base)
+	res, err := s.RunnerPool.Update(r.Context(), p.OrgID, id, version, base)
 	if err != nil {
 		// The host's own words. "not connected", "does not answer" and a
 		// refusal because it is carrying sandboxes call for different things,
@@ -603,6 +704,7 @@ func runnerIsBusy(res runner.UpdateResult) bool {
 // than an empty version in the update call: there, empty means "the newest
 // release", and one field cannot mean both "the latest" and "none".
 func (s *Server) handleCancelRunnerUpdate(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid id")
@@ -612,7 +714,7 @@ func (s *Server) handleCancelRunnerUpdate(w http.ResponseWriter, r *http.Request
 		writeErr(w, http.StatusServiceUnavailable, "runner API not available")
 		return
 	}
-	if _, err := s.Runners.ByID(r.Context(), id); err != nil {
+	if _, err := s.Runners.ByIDForOrg(r.Context(), p.OrgID, id); err != nil {
 		mapErr(w, err)
 		return
 	}
@@ -637,7 +739,7 @@ func (s *Server) handleRunnerLogs(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	if _, err := s.Runners.ByID(r.Context(), id); err != nil {
+	if _, err := s.Runners.ByIDForOrg(r.Context(), p.OrgID, id); err != nil {
 		mapErr(w, err)
 		return
 	}
@@ -690,7 +792,7 @@ func (s *Server) handleSetRunnerLogLevel(w http.ResponseWriter, r *http.Request)
 		writeErr(w, http.StatusBadRequest, "unknown log level (debug or info)")
 		return
 	}
-	if _, err := s.Runners.ByID(r.Context(), id); err != nil {
+	if _, err := s.Runners.ByIDForOrg(r.Context(), p.OrgID, id); err != nil {
 		mapErr(w, err)
 		return
 	}

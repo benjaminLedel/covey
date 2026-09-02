@@ -7,8 +7,10 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 )
 
@@ -111,6 +113,16 @@ func runInstallService(ctx context.Context, args []string, log *slog.Logger) err
 	if _, err := os.Stat(*configPath); err != nil {
 		return fmt.Errorf("%s is not there — run `covey-runner register` first, the service starts a runner without a token otherwise", *configPath)
 	}
+	// register wrote the configuration as root, 0700/0600. A service that runs
+	// as somebody else cannot read it — and cannot create its work directory
+	// under /var/lib either — so the unit was written and the service failed
+	// on its first start (#165). What the service needs is handed to the user
+	// it runs as.
+	if *user != "root" {
+		if err := handToUser(*user, *configPath); err != nil {
+			return err
+		}
+	}
 
 	path := filepath.Join(serviceUnitDir, serviceUnitName)
 	if err := os.WriteFile(path, []byte(unit), 0o644); err != nil {
@@ -197,4 +209,41 @@ func installServiceAfterRegister(ctx context.Context, configPath string, log *sl
 				"The registration stands — start it with: covey-runner run --config %s\n", err, configPath)
 		}
 	}
+}
+
+// handToUser makes the configuration and the work directory the service
+// user's: the directory the config lies in, the config itself, and the work
+// directory the config names (created if it is not there yet).
+func handToUser(name, configPath string) error {
+	u, err := user.Lookup(name)
+	if err != nil {
+		return fmt.Errorf("service user %q: %w", name, err)
+	}
+	uid, _ := strconv.Atoi(u.Uid)
+	gid, _ := strconv.Atoi(u.Gid)
+	own := func(path string) error {
+		if err := os.Chown(path, uid, gid); err != nil {
+			return fmt.Errorf("handing %s to %s: %w", path, name, err)
+		}
+		return nil
+	}
+	if err := own(filepath.Dir(configPath)); err != nil {
+		return err
+	}
+	if err := own(configPath); err != nil {
+		return err
+	}
+	cfg, err := readConfig(configPath)
+	if err != nil {
+		return err
+	}
+	if cfg.WorkDir != "" {
+		if err := os.MkdirAll(cfg.WorkDir, 0o750); err != nil {
+			return fmt.Errorf("creating the work directory %s: %w", cfg.WorkDir, err)
+		}
+		if err := own(cfg.WorkDir); err != nil {
+			return err
+		}
+	}
+	return nil
 }

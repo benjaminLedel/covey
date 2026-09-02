@@ -1040,12 +1040,6 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 			snap, err := snapshotStore.LatestSnapshot(ctx, agentID)
 			return snap.ManifestHash, err
 		}
-		// And what to try when that state cannot be read (#138). The retention
-		// keeps ten; all of them are candidates, because the sweep that loses
-		// the newest one keeps the older ones — they are in its keep-set.
-		runnerPool.SnapshotChain = func(ctx context.Context, agentID uuid.UUID) ([]string, error) {
-			return snapshotStore.SnapshotChain(ctx, agentID, 10)
-		}
 		// And when that state was taken: the runner compares it with the age
 		// of the working copy it holds, and secures the copy instead of writing
 		// the snapshot over it when the copy is the later state (#153).

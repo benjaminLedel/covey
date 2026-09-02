@@ -140,13 +140,11 @@ func (p *Docker) homePath(agentID string) string {
 // The second return value is what came up beside the sandbox — empty for an
 // agent that declared no services.
 func (p *Docker) Start(ctx context.Context, spec StartSandbox) (string, []sandbox.ServiceRun, error) {
-	home := spec.HomeDir
-	if home == "" {
-		home = p.homePath(spec.AgentID.String())
-	}
-	if abs, err := filepath.Abs(home); err == nil {
-		home = abs
-	}
+	// The home is where THIS host keeps it. A path in the start used to be
+	// honoured here; nothing ever set it, and a control plane that did would
+	// have bind-mounted an arbitrary path of the runner host — and synced a
+	// different directory than the sandbox wrote into (#165).
+	home := p.homePath(spec.AgentID.String())
 	// 0o755, not 0o700: the chown below is best-effort (only succeeds as root —
 	// the deployment container; locally the control plane runs as a normal host
 	// user and Docker Desktop is left to map the ownership). When that mapping
@@ -192,6 +190,12 @@ func (p *Docker) Start(ctx context.Context, spec StartSandbox) (string, []sandbo
 	// leftover of the same name before it begins.
 	args := []string{"run", "-d", "--init",
 		"--name", name,
+		// Labelled, so that a runner which restarts finds what it was running
+		// and takes it back under its watch (see Running). The name alone
+		// would do for the sandbox; the labels make the question one filter
+		// rather than a parse of every container on the host.
+		"--label", runnerLabel + "=" + p.RunnerID.String(),
+		"--label", agentLabel + "=" + spec.AgentID.String(),
 		"-v", home + ":" + sandboxHome,
 		"-e", "HOME=" + sandboxHome,
 		"-e", "COVEY_HOME=" + sandboxHome,
@@ -513,6 +517,52 @@ func firstLine(out string, fallback error) string {
 		}
 	}
 	return fallback.Error()
+}
+
+// The labels a sandbox container carries: whose runner, whose agent.
+const (
+	runnerLabel = "covey.runner"
+	agentLabel  = "covey.agent"
+)
+
+// RunningSandbox is a sandbox container this host holds — found rather than
+// started, by a runner that came back.
+type RunningSandbox struct {
+	AgentID   uuid.UUID
+	Container string
+}
+
+// Running lists the sandbox containers of this runner that are up right now.
+// Asked once, when a runner process starts: the containers belong to Docker
+// and survive the runner — what did not survive is the watcher and the count,
+// and until #155 nothing brought either back. The sandboxes ran unwatched,
+// uncounted, and a start for the same agent removed them by name without a
+// word about what was in them.
+//
+// Containers from before the labels are not found here; they are cleared by
+// name at the next start of their agent, as before.
+func (p *Docker) Running(ctx context.Context) ([]RunningSandbox, error) {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, p.docker(), "ps",
+		"--filter", "label="+runnerLabel+"="+p.RunnerID.String(),
+		"--format", "{{.Names}}\t{{.Label \""+agentLabel+"\"}}").CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("docker ps: %v: %s", err, firstLine(string(out), err))
+	}
+	var found []RunningSandbox
+	for _, line := range strings.Split(string(out), "\n") {
+		name, agent, ok := strings.Cut(strings.TrimSpace(line), "\t")
+		if !ok {
+			continue
+		}
+		id, err := uuid.Parse(strings.TrimSpace(agent))
+		if err != nil || !strings.HasPrefix(name, "covey-sandbox-") {
+			continue
+		}
+		found = append(found, RunningSandbox{AgentID: id, Container: name})
+	}
+	return found, nil
 }
 
 // containerName derives a stable, docker-compatible name from the agent ID —

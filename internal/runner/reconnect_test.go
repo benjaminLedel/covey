@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -341,5 +342,41 @@ func TestAWorkingCopyOlderThanTheSnapshotIsMaterialisedOver(t *testing.T) {
 	warteAufTyp(t, control, TypeSandboxStarted)
 	if b, _ := os.ReadFile(filepath.Join(home, "work.md")); string(b) != "newer" {
 		t.Fatalf("the later snapshot has to win over a stale copy: work.md = %q", b)
+	}
+}
+
+// A link the network dropped without a FIN: the control plane's watchdog closes
+// its side after three beats, and the node used to sit on its Receive until the
+// kernel gave up on the heartbeat's writes — offline for a quarter of an hour
+// while its own log said connected. It now closes the link itself when it has
+// heard nothing for as long (#158).
+func TestANodeThatHearsNothingClosesTheLinkAndDialsAgain(t *testing.T) {
+	orgID, runnerID := uuid.New(), uuid.New()
+	node := NewNode(runnerID, orgID, &Docker{RunnerID: runnerID, DataDir: t.TempDir()}, quietLog())
+	node.ReadSilence = 300 * time.Millisecond
+	t.Cleanup(node.Close)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	control, done := startNodeOn(t, ctx, node)
+	// The control plane says nothing at all.
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Run ended with an error rather than a closed transport: %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("the node has to close a silent link")
+	}
+	// Whatever was still queued drains; then the closed transport says so.
+	short, stop := context.WithTimeout(ctx, 2*time.Second)
+	defer stop()
+	for {
+		if _, err := control.Receive(short); err != nil {
+			if !errors.Is(err, ErrTransportClosed) {
+				t.Fatalf("the transport has to be closed from the node's side, got %v", err)
+			}
+			return
+		}
 	}
 }

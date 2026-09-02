@@ -258,7 +258,11 @@ func readConfig(path string) (config, error) {
 	if err != nil {
 		return config{}, fmt.Errorf("%s: %w — run `covey-runner register` first", path, err)
 	}
-	cfg := config{WorkDir: "/var/lib/covey-runner", Images: []string{"covey-sandbox:latest"}}
+	// No image claim by default. register stopped writing `covey-sandbox:latest`
+	// for a reason — a claim nobody made cost an organisation its data plane
+	// (spec/16, "Scheduling") — and a hand-written config without the key must
+	// not get it back through the default (#165).
+	cfg := config{WorkDir: "/var/lib/covey-runner"}
 	for _, line := range strings.Split(string(raw), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {

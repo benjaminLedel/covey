@@ -199,9 +199,12 @@ type Server struct {
 
 	// loginLimiter slows brute force on /auth/login, webhookLimiter the
 	// unauthenticated webhook endpoints (both initialized lazily in Handler).
-	loginLimiter   *loginLimiter
-	signupLimiter  *webhookLimiter
-	webhookLimiter *webhookLimiter
+	loginLimiter  *loginLimiter
+	signupLimiter *webhookLimiter
+	// registerLimiter throttles runner enrolment: an unauthenticated route
+	// whose only secret is the token being presented (#163).
+	registerLimiter *webhookLimiter
+	webhookLimiter  *webhookLimiter
 
 	// routen is the route list from dist/app-routes.json
 	// (internal/httpapi/approutes.go): which paths the SPA shell answers and
@@ -215,6 +218,9 @@ func (s *Server) Handler() http.Handler {
 	}
 	if s.signupLimiter == nil {
 		s.signupLimiter = newSignupLimiter()
+	}
+	if s.registerLimiter == nil {
+		s.registerLimiter = newRegisterLimiter()
 	}
 	if s.webhookLimiter == nil {
 		s.webhookLimiter = newWebhookLimiter()
@@ -380,6 +386,11 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/service-images", s.rbac(manage, s.handleAddServiceImage))
 	mux.Handle("DELETE /api/v1/service-images/{id}", s.rbac(manage, s.handleDeleteServiceImage))
 	mux.Handle("POST /api/v1/runners/registration-tokens", s.rbac(manage, s.handleCreateRegistrationToken))
+	mux.Handle("GET /api/v1/runners/registration-tokens", s.rbac(manage, s.handleListRegistrationTokens))
+	// Revoke as an action rather than DELETE on the id: the token is kept as a
+	// row (which host came in on it stays answerable), and the ServeMux cannot
+	// tell "registration-tokens/{id}" from "{id}/update" anyway.
+	mux.Handle("POST /api/v1/runners/registration-tokens/{id}/revoke", s.rbac(manage, s.handleRevokeRegistrationToken))
 	mux.Handle("PATCH /api/v1/runners/{id}", s.rbac(manage, s.handleUpdateRunner))
 	mux.Handle("POST /api/v1/runners/{id}/pull", s.rbac(manage, s.handlePullOnRunner))
 	mux.Handle("POST /api/v1/runners/{id}/update", s.rbac(manage, s.handleUpdateRunnerBinary))
@@ -733,7 +744,8 @@ func mapErr(w http.ResponseWriter, err error) {
 	case errors.Is(err, agents.ErrNotFound), errors.Is(err, backlog.ErrNotFound),
 		errors.Is(err, observability.ErrNotFound), errors.Is(err, secrets.ErrNotFound),
 		errors.Is(err, org.ErrNotFound), errors.Is(err, org.ErrDeptNotFound),
-		errors.Is(err, accounts.ErrNotFound), errors.Is(err, pgx.ErrNoRows):
+		errors.Is(err, accounts.ErrNotFound), errors.Is(err, runnerstore.ErrNotFound),
+		errors.Is(err, pgx.ErrNoRows):
 		writeErr(w, http.StatusNotFound, "not found")
 	case errors.Is(err, backlog.ErrInvalidTransition),
 		errors.Is(err, org.ErrLastAdmin), errors.Is(err, org.ErrEmailTaken),
