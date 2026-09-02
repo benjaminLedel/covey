@@ -9,7 +9,7 @@ import {
   type SecretCheck,
   type SecretPreview,
 } from "../../api";
-import { SecretValue } from "../Secrets";
+import { SecretLifetimeLine, SecretValue } from "../Secrets";
 
 export function AgentSecrets({ agentId }: { agentId: string }) {
   const { t } = useTranslation();
@@ -96,15 +96,19 @@ export function AgentSecrets({ agentId }: { agentId: string }) {
         <>
           <label>{t("agent.secrets.assignedOrg")}</label>
           {inherited.map((s) => (
-            <div key={s.key} className="card mb-2 flex items-center gap-4" style={{ padding: "11px 15px", opacity: ownKeys.has(s.key) ? 0.55 : 1 }}>
-              <span className="mono text-sm flex-1">{s.key}</span>
-              {ownKeys.has(s.key) && (
-                <span className="muted text-xs">{t("agent.secrets.shadowed")}</span>
-              )}
-              <SecretValue secret={s} />
-              <button className="btn sm" disabled={unassign.isPending} onClick={() => unassign.mutate(s.key)}>
-                {t("agent.secrets.removeAssignment")}
-              </button>
+            <div key={s.key} className="card mb-2" style={{ padding: "11px 15px", opacity: ownKeys.has(s.key) ? 0.55 : 1 }}>
+              <div className="flex items-center gap-4">
+                <span className="mono text-sm flex-1">{s.key}</span>
+                {ownKeys.has(s.key) && (
+                  <span className="muted text-xs">{t("agent.secrets.shadowed")}</span>
+                )}
+                <SecretValue secret={s} />
+                <button className="btn sm" disabled={unassign.isPending} onClick={() => unassign.mutate(s.key)}>
+                  {t("agent.secrets.removeAssignment")}
+                </button>
+              </div>
+              {/* Read-only here: the org-wide value is edited on the Secrets page. */}
+              <SecretLifetimeLine life={s} path={`/secrets/${encodeURIComponent(s.key)}`} canEdit={false} />
             </div>
           ))}
         </>
@@ -152,29 +156,37 @@ export function AgentSecrets({ agentId }: { agentId: string }) {
       </form>
 
       {(own.data ?? []).map((s) => (
-        <div key={s.key} className="card mb-2 flex items-center gap-4" style={{ padding: "11px 15px" }}>
-          <span className="mono text-sm flex-1">{s.key}</span>
-          <span className="badge st-triage">{t("agent.secrets.agentOwn")}</span>
-          {s.sensitive && (
-            <span className="badge st-blocked" title={t("secrets.sensitiveHint")}>
-              {t("secrets.sensitive")}
-            </span>
-          )}
-          <SecretValue secret={s} />
-          {!s.sensitive && (
-            <button
-              className="btn sm"
-              disabled={protect.isPending}
-              onClick={() => {
-                if (confirm(t("secrets.protectConfirm", { key: s.key }))) protect.mutate(s.key);
-              }}
-            >
-              {t("secrets.protect")}
+        <div key={s.key} className="card mb-2" style={{ padding: "11px 15px" }}>
+          <div className="flex items-center gap-4">
+            <span className="mono text-sm flex-1">{s.key}</span>
+            <span className="badge st-triage">{t("agent.secrets.agentOwn")}</span>
+            {s.sensitive && (
+              <span className="badge st-blocked" title={t("secrets.sensitiveHint")}>
+                {t("secrets.sensitive")}
+              </span>
+            )}
+            <SecretValue secret={s} />
+            {!s.sensitive && (
+              <button
+                className="btn sm"
+                disabled={protect.isPending}
+                onClick={() => {
+                  if (confirm(t("secrets.protectConfirm", { key: s.key }))) protect.mutate(s.key);
+                }}
+              >
+                {t("secrets.protect")}
+              </button>
+            )}
+            <button className="btn sm" onClick={() => remove.mutate(s.key)}>
+              {t("agent.secrets.delete")}
             </button>
-          )}
-          <button className="btn sm" onClick={() => remove.mutate(s.key)}>
-            {t("agent.secrets.delete")}
-          </button>
+          </div>
+          <SecretLifetimeLine
+            life={s}
+            path={`/agents/${agentId}/secrets/${encodeURIComponent(s.key)}`}
+            canEdit
+            queryKey={["agent-secrets", agentId]}
+          />
         </div>
       ))}
       {own.data?.length === 0 && <p className="muted mb-3">{t("agent.secrets.noOwn")}</p>}

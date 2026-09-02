@@ -1774,22 +1774,68 @@ func (s *Server) handleDeleteSecret(w http.ResponseWriter, r *http.Request) {
 // handlePatchSecret marks an org secret as sensitive. Deliberately one-way:
 // sensitive=false is refused — lifting the protection would mean disclosing the
 // value after all. Back only by deleting and creating it anew.
+// secretPatch is what PATCH may change about a secret: its protection (one
+// way), and the date a person knows it runs out. expires_at is RFC 3339 or a
+// plain date; null or "" clears it. Both may come together; at least one has
+// to.
+type secretPatch struct {
+	Sensitive *bool   `json:"sensitive"`
+	ExpiresAt *string `json:"expires_at"`
+	hasExpiry bool
+}
+
+func (in *secretPatch) UnmarshalJSON(data []byte) error {
+	type plain secretPatch
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	_, in.hasExpiry = raw["expires_at"]
+	return json.Unmarshal(data, (*plain)(in))
+}
+
+// expiry reads the date: nil for "clear", an error for a date nobody can mean.
+func (in *secretPatch) expiry() (*time.Time, error) {
+	if in.ExpiresAt == nil || strings.TrimSpace(*in.ExpiresAt) == "" {
+		return nil, nil
+	}
+	v := strings.TrimSpace(*in.ExpiresAt)
+	for _, layout := range []string{time.RFC3339, "2006-01-02"} {
+		if t, err := time.Parse(layout, v); err == nil {
+			return &t, nil
+		}
+	}
+	return nil, errors.New("expires_at: " + strconv.Quote(v) + " is neither a date (2026-09-30) nor a timestamp")
+}
+
 func (s *Server) handlePatchSecret(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
-	var in struct {
-		Sensitive *bool `json:"sensitive"`
-	}
-	if err := readJSON(r, &in); err != nil || in.Sensitive == nil {
-		writeErr(w, http.StatusBadRequest, "sensitive missing")
+	var in secretPatch
+	if err := readJSON(r, &in); err != nil || (in.Sensitive == nil && !in.hasExpiry) {
+		writeErr(w, http.StatusBadRequest, "sensitive or expires_at missing")
 		return
 	}
-	if !*in.Sensitive {
+	if in.Sensitive != nil && !*in.Sensitive {
 		writeErr(w, http.StatusConflict, "once marked sensitive a secret stays protected — delete it and create it anew")
 		return
 	}
-	if err := s.Secrets.MarkSensitive(r.Context(), p.OrgID, r.PathValue("key")); err != nil {
-		mapErr(w, err)
-		return
+	key := r.PathValue("key")
+	if in.hasExpiry {
+		at, err := in.expiry()
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		if err := s.Secrets.SetExpiry(r.Context(), secrets.Ref{OrgID: p.OrgID, Key: key}, at); err != nil {
+			mapErr(w, err)
+			return
+		}
+	}
+	if in.Sensitive != nil {
+		if err := s.Secrets.MarkSensitive(r.Context(), p.OrgID, key); err != nil {
+			mapErr(w, err)
+			return
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
@@ -1802,20 +1848,32 @@ func (s *Server) handlePatchAgentSecret(w http.ResponseWriter, r *http.Request) 
 		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	var in struct {
-		Sensitive *bool `json:"sensitive"`
-	}
-	if err := readJSON(r, &in); err != nil || in.Sensitive == nil {
-		writeErr(w, http.StatusBadRequest, "sensitive missing")
+	var in secretPatch
+	if err := readJSON(r, &in); err != nil || (in.Sensitive == nil && !in.hasExpiry) {
+		writeErr(w, http.StatusBadRequest, "sensitive or expires_at missing")
 		return
 	}
-	if !*in.Sensitive {
+	if in.Sensitive != nil && !*in.Sensitive {
 		writeErr(w, http.StatusConflict, "once marked sensitive a secret stays protected — delete it and create it anew")
 		return
 	}
-	if err := s.Secrets.MarkAgentSensitive(r.Context(), p.OrgID, agentID, r.PathValue("key")); err != nil {
-		mapErr(w, err)
-		return
+	key := r.PathValue("key")
+	if in.hasExpiry {
+		at, err := in.expiry()
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		if err := s.Secrets.SetExpiry(r.Context(), secrets.Ref{OrgID: p.OrgID, AgentID: &agentID, Key: key}, at); err != nil {
+			mapErr(w, err)
+			return
+		}
+	}
+	if in.Sensitive != nil {
+		if err := s.Secrets.MarkAgentSensitive(r.Context(), p.OrgID, agentID, key); err != nil {
+			mapErr(w, err)
+			return
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }

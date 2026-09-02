@@ -106,11 +106,16 @@ issues — for **exactly the projects** it is to work, no more. On Cloud that is
 project role; on Data Center a permission scheme.
 
 **Cloud:** log in as that user → `id.atlassian.com` → *Security → API tokens →
-Create API token*. The token is shown once.
+Create API token*. The token is shown once, and it **expires** — a year at most,
+and Atlassian offers no API to renew it. Enter the date on the secret in covey
+(*Secrets → jira_token → Set expiry*): covey warns two weeks ahead, on the
+agent's page and by mail, and a token Jira refuses is marked the moment a run
+hits it rather than three weeks later.
 
 **Server/Data Center:** as that user → *Profile → Personal Access Tokens →
-Create token*. Set an expiry you will remember; a PAT that expires quietly looks
-like a permission problem three weeks later.
+Create token*. Here covey reads the expiry from the instance and **renews the
+PAT itself** a month before it runs out — the connection test shows the date
+and says so.
 
 ### 2.2 In covey: deposit the secrets
 

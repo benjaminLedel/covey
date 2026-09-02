@@ -33,7 +33,7 @@ type SetupState = {
   agents: SetupAgent[];
   setup_doc?: string;
 };
-type ProbeResult = { ok: boolean; identity?: string; error?: string };
+type ProbeResult = { ok: boolean; identity?: string; error?: string; expires_at?: string; rotatable?: boolean };
 
 type StepKey = "activate" | "credentials" | "access" | "webhook" | "probe";
 
@@ -197,6 +197,14 @@ export function TargetSetupWizard({ name, onClose }: { name: string; onClose: ()
             {probe.data?.ok && (
               <p className="text-xs ok-text mt-2">
                 {t("targets.wizard.probeOk", { identity: probe.data.identity || "—" })}
+                {probe.data.expires_at && (
+                  <>
+                    {" · "}
+                    {t(probe.data.rotatable ? "targets.wizard.probeExpiresRenewed" : "targets.wizard.probeExpires", {
+                      date: new Date(probe.data.expires_at).toLocaleDateString(),
+                    })}
+                  </>
+                )}
               </p>
             )}
             {probe.data && !probe.data.ok && (

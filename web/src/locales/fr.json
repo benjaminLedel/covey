@@ -1228,6 +1228,18 @@
       "cancel": "Annuler",
       "deleteConfirm": "Retirer vraiment la valeur n° {{slot}} du pool ?",
       "capacityHint": "Ce que ces valeurs peuvent consommer et qui est assis sur laquelle se voit sous Postes de travail — ici, il n'y a que la valeur."
+    },
+    "life": {
+      "rejected": "refusé le {{date}}",
+      "expired": "expiré {{date}}",
+      "expiring": "expire {{date}}",
+      "checkFailed": "vérification échouée",
+      "expiresOn": "expire le {{date}}",
+      "renewed": "covey le renouvelle avant l'échéance",
+      "checked": "vérifié {{date}} en tant que {{identity}}",
+      "setExpiry": "Définir l'expiration",
+      "changeExpiry": "Modifier l'expiration",
+      "expiryHint": "Date à partir de laquelle le système cible n'acceptera plus cette valeur. covey prévient deux semaines à l'avance ; là où le système indique lui-même la date (un PAT Data Center), elle y est lue."
     }
   },
   "skills": {
@@ -1346,7 +1358,9 @@
       "docSummary": "Ce qu'il faut faire dans le système cible lui-même",
       "copy": "Copier",
       "optional": "facultatif",
-      "stored": "enregistré"
+      "stored": "enregistré",
+      "probeExpires": "expire {{date}}",
+      "probeExpiresRenewed": "expire {{date}} — covey le renouvelle lui-même"
     },
     "tabAvailable": "Disponibles",
     "toAvailable": "Vers les disponibles",
@@ -1582,7 +1596,7 @@
       "cost": "Coûts",
       "costHint": "Un agent arrêté à son plafond de budget, et l'arrêt d'urgence.",
       "ops": "Plateforme",
-      "opsHint": "Un runner qui disparaît, et le reste de ce que l'exploitation devrait savoir."
+      "opsHint": "Un runner qui disparaît, un identifiant qu'un système cible refuse ou va refuser, et d'autres choses que l'exploitation devrait savoir."
     }
   },
   "profile": {

@@ -1228,6 +1228,18 @@
       "cancel": "Abbrechen",
       "deleteConfirm": "Wert #{{slot}} wirklich aus dem Pool entfernen?",
       "capacityHint": "Was diese Werte verbrauchen dürfen und wer auf welchem sitzt, steht bei den Arbeitsplätzen — hier liegt nur der Wert."
+    },
+    "life": {
+      "rejected": "abgewiesen am {{date}}",
+      "expired": "abgelaufen {{date}}",
+      "expiring": "läuft ab {{date}}",
+      "checkFailed": "Prüfung fehlgeschlagen",
+      "expiresOn": "läuft ab am {{date}}",
+      "renewed": "covey erneuert ihn vor Ablauf",
+      "checked": "geprüft {{date}} als {{identity}}",
+      "setExpiry": "Ablauf eintragen",
+      "changeExpiry": "Ablauf ändern",
+      "expiryHint": "Ab wann das Zielsystem diesen Wert nicht mehr annimmt. covey warnt zwei Wochen vorher; wo das System das Datum selbst nennt (ein Data-Center-PAT), wird es von dort gelesen."
     }
   },
   "skills": {
@@ -1346,7 +1358,9 @@
       "docSummary": "Was im Zielsystem selbst zu tun ist",
       "copy": "Kopieren",
       "optional": "optional",
-      "stored": "hinterlegt"
+      "stored": "hinterlegt",
+      "probeExpires": "läuft ab {{date}}",
+      "probeExpiresRenewed": "läuft ab {{date}} — covey erneuert ihn selbst"
     },
     "tabAvailable": "Vorhanden",
     "toAvailable": "Zu den vorhandenen",
@@ -1582,7 +1596,7 @@
       "cost": "Kosten",
       "costHint": "Ein Agent, der an seinem Budgetdeckel angehalten wurde, und der Not-Aus.",
       "ops": "Plattform",
-      "opsHint": "Ein Runner, der verschwindet, und anderes, was der Betrieb wissen sollte."
+      "opsHint": "Ein Runner, der verschwindet, ein Zugang, den ein Zielsystem abweist oder bald abweisen wird, und anderes, was der Betrieb wissen sollte."
     }
   },
   "profile": {

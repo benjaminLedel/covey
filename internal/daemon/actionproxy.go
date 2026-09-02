@@ -76,6 +76,24 @@ func (p *actionProxy) handle(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, p.run(r.Context(), r.PathValue("system"), r.PathValue("action"), params))
 }
 
+// CredentialRejected reads an action's error for the one thing worth telling
+// the secret store: the target system refused the credential itself. A plugin
+// built against the SDK says so in the error's type; one that only formats
+// what it saw is read by its text — a 401 is that statement in any plugin's
+// words, a 403 is not (that is a permission, and marking the secret for it
+// would be wrong in the way that matters).
+func CredentialRejected(err error) bool {
+	if err == nil {
+		return false
+	}
+	if target.IsCredentialRejected(err) {
+		return true
+	}
+	t := strings.ToLower(err.Error())
+	return strings.Contains(t, "http 401") || strings.Contains(t, "401 unauthorized") ||
+		strings.Contains(t, "status 401") || strings.Contains(t, "(401)")
+}
+
 // run is the one path an action takes, whichever door it came through (shell or
 // MCP): guard-rail decision, brokered execution, recording. Returns what the
 // caller sends back — a map, so a plugin's arbitrary result travels unchanged.
@@ -121,6 +139,15 @@ func (p *actionProxy) run(ctx context.Context, system, action string, params jso
 	// along base64-encoded; the orchestrator stores it as a blob and replaces it
 	// with a reference (the bytes never land in the JSONB).
 	auditMap := map[string]any{"action": subject, "params": params, "ok": err == nil}
+	if err != nil && CredentialRejected(err) {
+		// The target system refused the credential itself. Said in the event,
+		// the control plane marks the stored secret — and the cached copy
+		// here is forgotten, so the next action asks again rather than
+		// walking into the same wall for the rest of the TTL.
+		auditMap["credential_rejected"] = true
+		auditMap["error"] = err.Error()
+		p.client.forgetCredential(system)
+	}
 	if artifact != nil && len(artifact.Bytes) > 0 {
 		auditMap["image_b64"] = base64.StdEncoding.EncodeToString(artifact.Bytes)
 		auditMap["image_mime"] = artifact.MIME

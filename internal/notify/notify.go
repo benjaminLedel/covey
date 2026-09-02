@@ -59,6 +59,9 @@ const (
 	KindBudget      = "budget"
 	KindFleetKilled = "fleet_killed"
 	KindRunnerGone  = "runner_gone"
+	// KindCredential: a target system refused a stored credential, or will
+	// soon — the one kind of ops event an agent cannot get past on its own.
+	KindCredential = "credential"
 )
 
 // Defaults per class, applied while nobody has decided otherwise.
@@ -183,9 +186,16 @@ func (s *Store) recipients(ctx context.Context, ev Event) ([]uuid.UUID, error) {
 			query = `SELECT id FROM accounts WHERE platform_role='system_admin'`
 			break
 		}
+		roles := []string{"org_admin", "platform_admin"}
+		if ev.Kind == KindCredential {
+			// Secrets are the security role's to replace (the routes behind
+			// /secrets) — a warning about one that only the admins read
+			// waits for them to forward it.
+			roles = append(roles, "security")
+		}
 		query = `SELECT DISTINCT h.account_id FROM humans h
 			WHERE h.org_id=$1 AND h.role = ANY($2)`
-		args = []any{ev.OrgID, []string{"org_admin", "platform_admin"}}
+		args = []any{ev.OrgID, roles}
 	default:
 		return nil, errors.New("unknown notification class: " + ev.Class)
 	}

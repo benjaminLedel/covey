@@ -74,7 +74,7 @@ func (s *Store) Put(ctx context.Context, orgID uuid.UUID, key, value string) err
 	_, err = s.pool.Exec(ctx, `INSERT INTO secrets (org_id, key, slot, nonce, ciphertext)
 		VALUES ($1,$2,0,$3,$4)
 		ON CONFLICT (org_id, key, slot) WHERE agent_id IS NULL
-		DO UPDATE SET nonce=$3, ciphertext=$4, updated_at=now()`,
+		DO UPDATE SET nonce=$3, ciphertext=$4, updated_at=now(), `+lifetimeReset,
 		orgID, key, nonce, ct)
 	return err
 }
@@ -90,7 +90,7 @@ func (s *Store) PutAgent(ctx context.Context, orgID, agentID uuid.UUID, key, val
 		SELECT $1, $2, $3, 0, $4, $5
 		WHERE EXISTS (SELECT 1 FROM agents WHERE id=$2 AND org_id=$1)
 		ON CONFLICT (org_id, agent_id, key, slot) WHERE agent_id IS NOT NULL
-		DO UPDATE SET nonce=$4, ciphertext=$5, updated_at=now()`,
+		DO UPDATE SET nonce=$4, ciphertext=$5, updated_at=now(), `+lifetimeReset,
 		orgID, agentID, key, nonce, ct)
 	if err != nil {
 		return err
@@ -215,7 +215,7 @@ func (s *Store) Previews(ctx context.Context, orgID uuid.UUID) ([]secrets.KeyPre
 		return nil, err
 	}
 
-	rows, err := s.pool.Query(ctx, `SELECT key, slot, nonce, ciphertext, sensitive, updated_at
+	rows, err := s.pool.Query(ctx, `SELECT key, slot, nonce, ciphertext, sensitive, updated_at, `+lifetimeColumns+`
 		FROM secrets WHERE org_id=$1 AND agent_id IS NULL ORDER BY key, slot`, orgID)
 	if err != nil {
 		return nil, err
@@ -229,7 +229,8 @@ func (s *Store) Previews(ctx context.Context, orgID uuid.UUID) ([]secrets.KeyPre
 			// nonce/ciphertext stay local — nothing encrypted leaves this loop.
 			nonce, ct []byte
 		)
-		if err := rows.Scan(&k, &pv.Slot, &nonce, &ct, &pv.Sensitive, &pv.UpdatedAt); err != nil {
+		dest := append([]any{&k, &pv.Slot, &nonce, &ct, &pv.Sensitive, &pv.UpdatedAt}, lifetimeDest(&pv.Lifetime)...)
+		if err := rows.Scan(dest...); err != nil {
 			return nil, err
 		}
 		pv.Value, pv.Prefix = s.expose(k, aad(orgID, nil, k, pv.Slot), nonce, ct, pv.Sensitive)
@@ -243,7 +244,7 @@ func (s *Store) Previews(ctx context.Context, orgID uuid.UUID) ([]secrets.KeyPre
 		}
 		out = append(out, secrets.KeyPreview{
 			Key: k, Sensitive: pv.Sensitive, Value: pv.Value, Prefix: pv.Prefix,
-			AgentIDs: ids, Values: []secrets.PoolValue{pv},
+			AgentIDs: ids, Values: []secrets.PoolValue{pv}, Lifetime: pv.Lifetime,
 		})
 	}
 	return out, rows.Err()
@@ -280,7 +281,7 @@ func (s *Store) MarkAgentSensitive(ctx context.Context, orgID, agentID uuid.UUID
 
 func (s *Store) AgentPreviews(ctx context.Context, orgID, agentID uuid.UUID) ([]secrets.KeyPreview, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT key, slot, nonce, ciphertext, sensitive, updated_at
+		`SELECT key, slot, nonce, ciphertext, sensitive, updated_at, `+lifetimeColumns+`
 		 FROM secrets WHERE org_id=$1 AND agent_id=$2 ORDER BY key, slot`,
 		orgID, agentID)
 	if err != nil {
@@ -294,13 +295,14 @@ func (s *Store) AgentPreviews(ctx context.Context, orgID, agentID uuid.UUID) ([]
 			pv        secrets.PoolValue
 			nonce, ct []byte
 		)
-		if err := rows.Scan(&k, &pv.Slot, &nonce, &ct, &pv.Sensitive, &pv.UpdatedAt); err != nil {
+		dest := append([]any{&k, &pv.Slot, &nonce, &ct, &pv.Sensitive, &pv.UpdatedAt}, lifetimeDest(&pv.Lifetime)...)
+		if err := rows.Scan(dest...); err != nil {
 			return nil, err
 		}
 		pv.Value, pv.Prefix = s.expose(k, aad(orgID, &agentID, k, pv.Slot), nonce, ct, pv.Sensitive)
 		out = append(out, secrets.KeyPreview{
 			Key: k, Sensitive: pv.Sensitive, Value: pv.Value, Prefix: pv.Prefix,
-			AgentIDs: []string{}, Values: []secrets.PoolValue{pv},
+			AgentIDs: []string{}, Values: []secrets.PoolValue{pv}, Lifetime: pv.Lifetime,
 		})
 	}
 	return out, rows.Err()

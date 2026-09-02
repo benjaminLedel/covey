@@ -72,6 +72,14 @@ type Subject struct {
 	// every freshly created agent would be nagged about rules that simply have
 	// not had their first hit yet.
 	ActionCounts map[string]int
+
+	// Credentials are the tokens the agent's target systems resolve to, with
+	// what the store knows about their life (#176). Nil when the caller did
+	// not collect them; the credential rules are then dropped.
+	Credentials []CredentialState
+	// Now is the lint's clock; zero means time.Now(). A rule about an expiry
+	// date needs one, and a test needs to set it.
+	Now time.Time
 }
 
 // heavySystems are target systems whose use typically lifts a run into the
@@ -115,6 +123,7 @@ func Lint(s Subject) []Finding {
 	out = append(out, lintStages(s)...)
 	out = append(out, lintTurnLimit(s)...)
 	out = append(out, lintDeadKPIs(s)...)
+	out = append(out, lintCredentials(s)...)
 
 	sort.SliceStable(out, func(i, j int) bool {
 		return out[i].Severity == SeverityWarn && out[j].Severity != SeverityWarn

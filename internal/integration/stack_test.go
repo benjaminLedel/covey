@@ -285,6 +285,7 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 		Skills:         s.skills,
 		Workplaces:     s.workplaces,
 		ReqLog:         s.reqlog,
+		Notify:         notify.New(pool),
 		Provider:       provider,
 		DaemonTokenTTL: 5 * time.Minute,
 		TickInterval:   300 * time.Millisecond,

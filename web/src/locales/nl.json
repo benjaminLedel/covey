@@ -1228,6 +1228,18 @@
       "cancel": "Annuleren",
       "deleteConfirm": "Waarde nr. {{slot}} echt uit de pool verwijderen?",
       "capacityHint": "Wat deze waarden mogen verbruiken en wie op welke zit, staat onder Werkplekken — hier staat alleen de waarde."
+    },
+    "life": {
+      "rejected": "geweigerd op {{date}}",
+      "expired": "verlopen {{date}}",
+      "expiring": "verloopt {{date}}",
+      "checkFailed": "controle mislukt",
+      "expiresOn": "verloopt op {{date}}",
+      "renewed": "covey vernieuwt hem vóór het verlopen",
+      "checked": "gecontroleerd {{date}} als {{identity}}",
+      "setExpiry": "Vervaldatum instellen",
+      "changeExpiry": "Vervaldatum wijzigen",
+      "expiryHint": "Vanaf wanneer het doelsysteem deze waarde niet meer accepteert. covey waarschuwt twee weken van tevoren; waar het systeem de datum zelf noemt (een Data Center-PAT), wordt hij daar gelezen."
     }
   },
   "skills": {
@@ -1346,7 +1358,9 @@
       "docSummary": "Wat u in het doelsysteem zelf moet doen",
       "copy": "Kopiëren",
       "optional": "optioneel",
-      "stored": "opgeslagen"
+      "stored": "opgeslagen",
+      "probeExpires": "verloopt {{date}}",
+      "probeExpiresRenewed": "verloopt {{date}} — covey vernieuwt hem zelf"
     },
     "tabAvailable": "Beschikbaar",
     "toAvailable": "Naar de beschikbare",
@@ -1582,7 +1596,7 @@
       "cost": "Kosten",
       "costHint": "Een agent die bij zijn budgetplafond is gestopt, en de noodstop.",
       "ops": "Platform",
-      "opsHint": "Een runner die verdwijnt, en verder wat de bedrijfsvoering moet weten."
+      "opsHint": "Een runner die verdwijnt, een toegang die een doelsysteem weigert of binnenkort weigert, en andere dingen die het beheer moet weten."
     }
   },
   "profile": {

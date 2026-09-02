@@ -108,6 +108,24 @@ An agent-owned secret takes precedence over the pool as before; such an agent do
 
  By default a secret is a simple **variable** (server name, URL) and readable through the API. Values marked **sensitive** (tokens, passwords) are write-only with a prefix preview — the marking is deliberately one-way (lifting the protection would mean disclosing the value after all; the way back is deletion and recreation). Both apply at both levels; in the built-in implementation the AES-GCM AAD additionally binds the ciphertext to org, agent and key.
 
+## The life of a value
+
+A target-system token has a lifetime the store did not use to know about. Atlassian ends every Cloud API token after a year at most; a Data Center PAT ends after what the instance allows; GitLab and GitHub tokens carry a date when their owner set one. The first sign used to be a 401 inside a recording, filed under the action that hit it — which reads as a permission problem three weeks later, to somebody who has to work out that it is not (#176).
+
+The store now keeps **what the platform learns about a value beside the value**: when the system will stop accepting it (`expires_at`), whether it already has (`rejected_at` with the reason), what the last connection test saw (`probed_at`, the identity, the error), the system's own id for it, and whether the plugin can mint its successor. These are storage *about* the value, not a policy about choosing between values — that distinction is the one drawn under *Pools* above, and it still holds. Every field is cleared when the value is overwritten: a new value is a new credential, and the state of the old one would be a lie beside it.
+
+Two signals write there:
+
+- **The hard one — a run was refused.** The daemon reads a plugin's action error for the one statement worth passing on, *the target system refused the credential itself*: the plugin says so in the error's type (`target.CredentialRejectedError`, a 401 — never a 403, which is a permission), or, for a plugin that only formats what it saw, the text does. The action event carries the flag, the control plane marks the secret the run was given (the agent's own before the assigned org-wide one, as the broker chose it), and the daemon forgets its cached copy so the next action asks again instead of walking into the same wall for the rest of the TTL. This is the counterpart of the runtime seat's rejection under *Pools*: the same signal, on the other kind of credential.
+- **The soft one — a daily probe.** The connection test the setup wizard runs once (`Prober`) runs for every stored token once a day, without anybody pressing. Where the plugin implements `CredentialInspector`, the probe also learns the expiry and the id; where it does not, it learns whether the value works. A probe that works clears a rejection — a credential that works is not a rejected one — and a probe that fails for another reason (no route, a 502) does not unsay one that stands.
+
+What the store knows is then **acted on, in this order**:
+
+1. A value that can mint its successor (`Rotator`; a Data Center PAT creates a PAT) and is inside a month of its date is **rotated**: mint, verify the successor, store it, and only then revoke the old one by the id kept from the probe. Revoke last — a rotation that revoked first and then failed to store would leave the agent with nothing. The successor takes the old value's place under the same key and slot, so assignments and the agent's seat are untouched; the rotation stands in the recording as a credential event.
+2. A value that is refused, has run out, or is inside a fortnight of its date and cannot be rotated — Cloud tokens, which Atlassian offers no API to renew — is **reported**: a lint finding on the agent (`credential-rejected`, `credential-expired`, `credential-expiring`; [`02-agent-model.md`](02-agent-model.md)), and a notification of the `ops` class to the people who can replace it, **once** — the store remembers that they were told, and forgets it when the state changes. A finding here ends the way it is fixed: with a new value under the same key, or a rotation that worked.
+
+Where the system does not state the date — Jira Cloud states nothing about its tokens — a person enters it on the secret, and the platform warns from that. The plugin's word wins over the entered date where both exist, because the system is the one that will act on it.
+
 ## Threat model
 
 Agents with real access are an attack surface. This has to be thought through from the start, otherwise you build a wonderful exfiltration machine.

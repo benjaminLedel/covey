@@ -1228,6 +1228,18 @@
       "cancel": "キャンセル",
       "deleteConfirm": "プールから値 #{{slot}} を本当に取り除きますか？",
       "capacityHint": "これらの値がどれだけ消費してよいか、誰がどの値に座っているかは「作業場」に表示されます。ここにあるのは値だけです。"
+    },
+    "life": {
+      "rejected": "{{date}} に拒否",
+      "expired": "{{date}} に期限切れ",
+      "expiring": "{{date}} に期限切れ予定",
+      "checkFailed": "確認に失敗",
+      "expiresOn": "有効期限 {{date}}",
+      "renewed": "期限前に covey が更新します",
+      "checked": "{{date}} に {{identity}} として確認済み",
+      "setExpiry": "有効期限を設定",
+      "changeExpiry": "有効期限を変更",
+      "expiryHint": "対象システムがこの値を受け付けなくなる日。covey は 2 週間前に警告します。システム自身が日付を示す場合（Data Center の PAT）はそこから読み取ります。"
     }
   },
   "skills": {
@@ -1346,7 +1358,9 @@
       "docSummary": "対象システム側で行うこと",
       "copy": "コピー",
       "optional": "任意",
-      "stored": "保存済み"
+      "stored": "保存済み",
+      "probeExpires": "有効期限 {{date}}",
+      "probeExpiresRenewed": "有効期限 {{date}} — covey が自動で更新します"
     },
     "tabAvailable": "利用可能",
     "toAvailable": "利用可能なものへ",
@@ -1582,7 +1596,7 @@
       "cost": "費用",
       "costHint": "予算上限で止まったエージェントと、緊急停止。",
       "ops": "プラットフォーム",
-      "opsHint": "いなくなったランナーなど、運用が知っておくべきこと。"
+      "opsHint": "消えたランナー、対象システムが拒否した（または間もなく拒否する）認証情報、その他運用が知っておくべきこと。"
     }
   },
   "profile": {

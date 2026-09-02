@@ -1228,6 +1228,18 @@
       "cancel": "Cancelar",
       "deleteConfirm": "Remover mesmo o valor n.º {{slot}} do conjunto?",
       "capacityHint": "O que estes valores podem consumir e quem está sentado em qual vê-se em Postos de trabalho — aqui está apenas o valor."
+    },
+    "life": {
+      "rejected": "recusado em {{date}}",
+      "expired": "expirado {{date}}",
+      "expiring": "expira {{date}}",
+      "checkFailed": "verificação falhou",
+      "expiresOn": "expira em {{date}}",
+      "renewed": "o covey renova-o antes de expirar",
+      "checked": "verificado {{date}} como {{identity}}",
+      "setExpiry": "Definir validade",
+      "changeExpiry": "Alterar validade",
+      "expiryHint": "A partir de quando o sistema de destino deixa de aceitar este valor. O covey avisa com duas semanas de antecedência; onde o sistema indica a data por si (um PAT de Data Center), é lida de lá."
     }
   },
   "skills": {
@@ -1346,7 +1358,9 @@
       "docSummary": "O que fazer no próprio sistema de destino",
       "copy": "Copiar",
       "optional": "opcional",
-      "stored": "guardado"
+      "stored": "guardado",
+      "probeExpires": "expira {{date}}",
+      "probeExpiresRenewed": "expira {{date}} — o covey renova-o sozinho"
     },
     "tabAvailable": "Disponíveis",
     "toAvailable": "Para os disponíveis",
@@ -1582,7 +1596,7 @@
       "cost": "Custos",
       "costHint": "Um agente parado no seu limite de orçamento, e a paragem de emergência.",
       "ops": "Plataforma",
-      "opsHint": "Um runner que desaparece, e o resto do que a operação deve saber."
+      "opsHint": "Um runner que desaparece, uma credencial que um sistema de destino recusa ou está prestes a recusar, e outras coisas que a operação deve saber."
     }
   },
   "profile": {

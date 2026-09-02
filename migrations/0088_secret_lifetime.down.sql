@@ -1,0 +1,10 @@
+ALTER TABLE secrets
+    DROP COLUMN expires_at,
+    DROP COLUMN rejected_at,
+    DROP COLUMN rejected_reason,
+    DROP COLUMN probed_at,
+    DROP COLUMN probe_error,
+    DROP COLUMN probe_identity,
+    DROP COLUMN credential_id,
+    DROP COLUMN rotatable,
+    DROP COLUMN warned_at;

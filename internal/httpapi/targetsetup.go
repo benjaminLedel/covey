@@ -10,6 +10,8 @@ import (
 	"github.com/google/uuid"
 
 	"covey/internal/agents"
+	"covey/internal/daemon"
+	"covey/internal/secrets"
 	"covey/internal/target/manifestplug"
 	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
@@ -213,6 +215,11 @@ type probeResult struct {
 	OK       bool   `json:"ok"`
 	Identity string `json:"identity,omitempty"`
 	Error    string `json:"error,omitempty"`
+	// What the plugin knows about the credential's life, where it does
+	// (target.CredentialInspector): the date it runs out, and whether covey
+	// can renew it itself.
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+	Rotatable bool       `json:"rotatable,omitempty"`
 }
 
 func (s *Server) handleTargetProbe(w http.ResponseWriter, r *http.Request) {
@@ -224,8 +231,9 @@ func (s *Server) handleTargetProbe(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "unknown target system")
 		return
 	}
-	prober, ok := target.Probes(sys)
-	if !ok {
+	inspector, inspects := target.Inspects(sys)
+	prober, probes := target.Probes(sys)
+	if !inspects && !probes {
 		writeErr(w, http.StatusBadRequest, "this target system cannot test its connection")
 		return
 	}
@@ -252,7 +260,23 @@ func (s *Server) handleTargetProbe(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
-	identity, err := prober.Probe(ctx, cred)
+	var info target.CredentialInfo
+	if inspects {
+		info, err = inspector.Inspect(ctx, cred)
+	} else {
+		info.Identity, err = prober.Probe(ctx, cred)
+	}
+	// What the test saw is kept beside the token — the same columns the
+	// daily check writes, so the wizard's button and the loop tell one
+	// story. A system without credentials has no row to write to.
+	if !d.NoCredentials {
+		rec := secrets.Probe{At: time.Now(), Identity: info.Identity, ExpiresAt: info.ExpiresAt,
+			CredentialID: info.ID, Rotatable: info.Rotatable}
+		if err != nil {
+			rec.Err, rec.Rejected = err.Error(), daemon.CredentialRejected(err)
+		}
+		_ = s.Secrets.RecordProbe(r.Context(), secrets.Ref{OrgID: p.OrgID, Key: name + "_token"}, rec)
+	}
 	if err != nil {
 		// Die Fehlermeldung des Zielsystems steht hier bewusst so, wie sie
 		// kam: "HTTP 401" ist für den, der gerade einen Token eingesetzt hat,
@@ -260,7 +284,7 @@ func (s *Server) handleTargetProbe(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, probeResult{Error: err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, probeResult{OK: true, Identity: identity})
+	writeJSON(w, http.StatusOK, probeResult{OK: true, Identity: info.Identity, ExpiresAt: info.ExpiresAt, Rotatable: info.Rotatable})
 }
 
 // orgSecret liest einen org-weiten Wert (Slot 0) — den, den der Broker zur
