@@ -1228,6 +1228,18 @@
       "cancel": "取消",
       "deleteConfirm": "真的从池中移除第 {{slot}} 个值？",
       "capacityHint": "这些值可以消耗多少、谁坐在哪一个上，在“工位”里显示——这里只有值本身。"
+    },
+    "life": {
+      "rejected": "于 {{date}} 被拒绝",
+      "expired": "已于 {{date}} 过期",
+      "expiring": "将于 {{date}} 过期",
+      "checkFailed": "检查失败",
+      "expiresOn": "有效期至 {{date}}",
+      "renewed": "covey 会在到期前自动续期",
+      "checked": "{{date}} 以 {{identity}} 身份检查通过",
+      "setExpiry": "设置有效期",
+      "changeExpiry": "修改有效期",
+      "expiryHint": "目标系统从何时起不再接受此值。covey 会提前两周提醒；若系统本身提供日期（Data Center 的 PAT），则从那里读取。"
     }
   },
   "skills": {
@@ -1346,7 +1358,9 @@
       "docSummary": "需要在目标系统那边做的事",
       "copy": "复制",
       "optional": "可选",
-      "stored": "已保存"
+      "stored": "已保存",
+      "probeExpires": "有效期至 {{date}}",
+      "probeExpiresRenewed": "有效期至 {{date}} — covey 会自动续期"
     },
     "tabAvailable": "可用",
     "toAvailable": "去看可用的",
@@ -1582,7 +1596,7 @@
       "cost": "费用",
       "costHint": "因预算上限而暂停的智能体，以及紧急停止。",
       "ops": "平台",
-      "opsHint": "离线的 runner，以及运维应当知道的其他情况。"
+      "opsHint": "消失的 Runner、被目标系统拒绝或即将被拒绝的凭据，以及其他运维应当知道的事情。"
     }
   },
   "profile": {

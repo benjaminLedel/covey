@@ -1228,6 +1228,18 @@
       "cancel": "Cancelar",
       "deleteConfirm": "¿Quitar de verdad el valor n.º {{slot}} del conjunto?",
       "capacityHint": "Lo que estos valores pueden consumir y quién se sienta en cada uno se ve en Puestos de trabajo; aquí solo está el valor."
+    },
+    "life": {
+      "rejected": "rechazado el {{date}}",
+      "expired": "caducado {{date}}",
+      "expiring": "caduca {{date}}",
+      "checkFailed": "comprobación fallida",
+      "expiresOn": "caduca el {{date}}",
+      "renewed": "covey lo renueva antes de que caduque",
+      "checked": "comprobado {{date}} como {{identity}}",
+      "setExpiry": "Fijar caducidad",
+      "changeExpiry": "Cambiar caducidad",
+      "expiryHint": "Cuándo el sistema de destino dejará de aceptar este valor. covey avisa con dos semanas de antelación; donde el sistema indica la fecha por sí mismo (un PAT de Data Center), se lee de allí."
     }
   },
   "skills": {
@@ -1346,7 +1358,9 @@
       "docSummary": "Qué hacer en el propio sistema de destino",
       "copy": "Copiar",
       "optional": "opcional",
-      "stored": "guardado"
+      "stored": "guardado",
+      "probeExpires": "caduca {{date}}",
+      "probeExpiresRenewed": "caduca {{date}} — covey lo renueva por sí mismo"
     },
     "tabAvailable": "Disponibles",
     "toAvailable": "A los disponibles",
@@ -1582,7 +1596,7 @@
       "cost": "Costes",
       "costHint": "Un agente detenido en su límite de presupuesto, y la parada de emergencia.",
       "ops": "Plataforma",
-      "opsHint": "Un runner que desaparece y otras cosas que la operación debería saber."
+      "opsHint": "Un runner que desaparece, una credencial que un sistema de destino rechaza o está a punto de rechazar, y otras cosas que la operación debería saber."
     }
   },
   "profile": {

@@ -1228,6 +1228,18 @@
       "cancel": "Anuluj",
       "deleteConfirm": "Naprawdę usunąć wartość nr {{slot}} z puli?",
       "capacityHint": "To, ile te wartości mogą zużyć i kto na której siedzi, widać w Stanowiskach pracy — tutaj jest tylko sama wartość."
+    },
+    "life": {
+      "rejected": "odrzucony {{date}}",
+      "expired": "wygasł {{date}}",
+      "expiring": "wygasa {{date}}",
+      "checkFailed": "sprawdzenie nieudane",
+      "expiresOn": "wygasa {{date}}",
+      "renewed": "covey odnawia go przed wygaśnięciem",
+      "checked": "sprawdzono {{date}} jako {{identity}}",
+      "setExpiry": "Ustaw wygaśnięcie",
+      "changeExpiry": "Zmień wygaśnięcie",
+      "expiryHint": "Od kiedy system docelowy przestanie przyjmować tę wartość. covey ostrzega dwa tygodnie wcześniej; tam, gdzie system sam podaje datę (PAT w Data Center), jest ona stamtąd odczytywana."
     }
   },
   "skills": {
@@ -1346,7 +1358,9 @@
       "docSummary": "Co zrobić w samym systemie docelowym",
       "copy": "Kopiuj",
       "optional": "opcjonalnie",
-      "stored": "zapisane"
+      "stored": "zapisane",
+      "probeExpires": "wygasa {{date}}",
+      "probeExpiresRenewed": "wygasa {{date}} — covey odnawia go samodzielnie"
     },
     "tabAvailable": "Dostępne",
     "toAvailable": "Do dostępnych",
@@ -1582,7 +1596,7 @@
       "cost": "Koszty",
       "costHint": "Agent zatrzymany na limicie budżetu oraz wyłącznik awaryjny.",
       "ops": "Platforma",
-      "opsHint": "Runner, który znika, i inne rzeczy, o których powinna wiedzieć eksploatacja."
+      "opsHint": "Runner, który znika, poświadczenie, które system docelowy odrzuca lub wkrótce odrzuci, i inne rzeczy, o których powinna wiedzieć obsługa."
     }
   },
   "profile": {

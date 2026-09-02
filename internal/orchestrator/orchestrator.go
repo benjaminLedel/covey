@@ -414,6 +414,7 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 	o.nebenlaeufig(func() { o.warmReaperLoop(ctx) })
 	o.nebenlaeufig(func() { o.boardJanitorLoop(ctx) })
 	o.nebenlaeufig(func() { o.homeJanitorLoop(ctx) })
+	o.nebenlaeufig(func() { o.credentialLoop(ctx) })
 	ticker := time.NewTicker(o.TickInterval)
 	defer ticker.Stop()
 	o.tick(ctx)
@@ -2404,6 +2405,10 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		if ev.Kind == daemon.EventKindAction {
 			kind = observability.KindAction
 			payload = o.storeActionArtifact(ctx, agent, taskID, payload)
+			// The hard signal: the target system refused the credential
+			// itself. Marked on the secret before the event is filed under
+			// the action, where it would read as a permission problem.
+			o.noteTargetRejection(ctx, agent, payload)
 		}
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, kind, payload)
 		o.events.Publish(Event{Type: "recording", AgentID: agent.ID.String(), OrgID: agent.OrgID,

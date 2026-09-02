@@ -1027,6 +1027,22 @@ export type SecretPreview = {
   value?: string;
   agent_ids: string[];
   values: SecretPoolValue[];
+} & SecretLifetime;
+
+// Was die Plattform über einen Wert weiß, über den Wert hinaus (#176): wann
+// das Zielsystem ihn nicht mehr annimmt, ob es ihn schon abgewiesen hat, was
+// der letzte Verbindungstest gesehen hat. Alles optional — ein Wert, über den
+// nichts bekannt ist, trägt nichts.
+export type SecretLifetime = {
+  expires_at?: string;
+  rejected_at?: string;
+  rejected_reason?: string;
+  probed_at?: string;
+  probe_error?: string;
+  probe_identity?: string;
+  credential_id?: string;
+  rotatable?: boolean;
+  warned_at?: string;
 };
 
 // Ein Schlüssel darf mehrere Werte tragen (spec/04): mehrere Abo-Sitze, mehrere
@@ -1042,7 +1058,7 @@ export type SecretPoolValue = {
   cooldown_reason?: string;
   limit: SecretLimit;
   updated_at: string;
-};
+} & SecretLifetime;
 
 // window_secs = 0 heißt: kein Limit. amount ist je nach unit Geld oder Tokens.
 export type SecretLimit = {

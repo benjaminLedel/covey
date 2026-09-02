@@ -85,6 +85,9 @@ func LintSubjects(ctx context.Context, pool *pgxpool.Pool, orgID uuid.UUID, skil
 		if out[i].ActionCounts, err = actionCounts(ctx, pool, out[i].AgentID); err != nil {
 			return nil, err
 		}
+		if out[i].Credentials, err = credentialStates(ctx, pool, out[i].OrgID, out[i].AgentID); err != nil {
+			return nil, err
+		}
 		if skills != nil {
 			if out[i].Skills, err = skills(ctx, out[i].OrgID, out[i].AgentID); err != nil {
 				return nil, err

@@ -332,6 +332,18 @@ func (c *Client) credential(ctx context.Context, system, taskID string) (InjectC
 	return cred, nil
 }
 
+// forgetCredential drops the cached credential for system: the target system
+// has just refused it, and serving it again until the TTL runs out would only
+// repeat the refusal. The next action asks the control plane, which hands out
+// whatever is stored — the same value while nobody has replaced it, the new
+// one as soon as somebody has.
+func (c *Client) forgetCredential(system string) {
+	c.mu.Lock()
+	delete(c.creds, system)
+	delete(c.credsFetched, system)
+	c.mu.Unlock()
+}
+
 // credFresh reports whether the cached credential for system is still within
 // its TTL. Called with c.mu held. A credential granted without a TTL (0)
 // never counts as fresh — cache it, still, but always confirm on next use.

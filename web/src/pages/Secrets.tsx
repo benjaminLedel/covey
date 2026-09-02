@@ -10,6 +10,7 @@ import {
   type Agent,
   type Principal,
   type SecretCheck,
+  type SecretLifetime as Lifetime,
   type SecretPreview,
 } from "../api";
 
@@ -146,8 +147,105 @@ function SecretCard({ secret, agents, canEdit }: { secret: SecretPreview; agents
           </>
         )}
       </div>
+      <SecretLifetimeLine life={secret} path={`/secrets/${encodeURIComponent(secret.key)}`} canEdit={canEdit} />
       <Assignments secret={secret} agents={agents} />
       <Pool secret={secret} canEdit={canEdit} />
+    </div>
+  );
+}
+
+// Fortnight before the date the platform starts saying so — the same
+// fortnight the lint and the daily check use (#176).
+const WARN_AHEAD_MS = 14 * 24 * 3600 * 1000;
+
+// Das Leben eines Werts: abgewiesen, abgelaufen, läuft bald ab, zuletzt
+// geprüft — und das Datum, das ein Mensch einträgt, wo das Zielsystem es
+// nicht selbst sagt (Jira Cloud). Nichts davon steht, solange nichts bekannt
+// ist: ein Wert ohne Befund trägt keine Zeile.
+export function SecretLifetimeLine({
+  life,
+  path,
+  canEdit,
+  queryKey = ["secrets"],
+}: {
+  life: Lifetime;
+  path: string;
+  canEdit: boolean;
+  queryKey?: unknown[];
+}) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const setExpiry = useMutation({
+    mutationFn: (expires_at: string) => patch<{ ok: boolean }>(path, { expires_at }),
+    onSuccess: () => {
+      setEditing(false);
+      qc.invalidateQueries({ queryKey });
+    },
+  });
+
+  const day = (iso: string) => new Date(iso).toLocaleDateString();
+  const now = Date.now();
+  const expiresAt = life.expires_at ? new Date(life.expires_at).getTime() : null;
+  const rejected = !!life.rejected_at;
+  const expired = expiresAt !== null && expiresAt <= now;
+  const expiring = expiresAt !== null && !expired && expiresAt - now < WARN_AHEAD_MS;
+  const checkFailed = !!life.probe_error && !rejected;
+  const nothing = !rejected && expiresAt === null && !life.probed_at && !canEdit;
+  if (nothing) return null;
+
+  return (
+    <div className="flex items-center gap-2 mt-2 text-xs flex-wrap">
+      {rejected && (
+        <span className="badge st-failed" title={life.rejected_reason}>
+          {t("secrets.life.rejected", { date: day(life.rejected_at!) })}
+        </span>
+      )}
+      {expired && !rejected && (
+        <span className="badge st-failed">{t("secrets.life.expired", { date: day(life.expires_at!) })}</span>
+      )}
+      {expiring && !rejected && (
+        <span className="badge st-blocked">{t("secrets.life.expiring", { date: day(life.expires_at!) })}</span>
+      )}
+      {checkFailed && (
+        <span className="badge st-blocked" title={life.probe_error}>
+          {t("secrets.life.checkFailed")}
+        </span>
+      )}
+      {expiresAt !== null && !expired && !expiring && (
+        <span className="muted">{t("secrets.life.expiresOn", { date: day(life.expires_at!) })}</span>
+      )}
+      {life.rotatable && <span className="muted">· {t("secrets.life.renewed")}</span>}
+      {life.probed_at && !life.probe_error && (
+        <span className="muted">
+          · {t("secrets.life.checked", { date: day(life.probed_at), identity: life.probe_identity || "—" })}
+        </span>
+      )}
+      {canEdit && !life.rotatable && (
+        <span className="ml-auto flex items-center gap-2">
+          {editing ? (
+            <input
+              type="date"
+              style={{ width: "auto", padding: "2px 6px", fontSize: 12 }}
+              autoFocus
+              defaultValue={life.expires_at ? life.expires_at.slice(0, 10) : ""}
+              onBlur={(e) => {
+                const v = e.target.value;
+                if (v !== (life.expires_at ? life.expires_at.slice(0, 10) : "")) setExpiry.mutate(v);
+                else setEditing(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setEditing(false);
+                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+              }}
+            />
+          ) : (
+            <button className="btn sm" title={t("secrets.life.expiryHint")} onClick={() => setEditing(true)}>
+              {expiresAt !== null ? t("secrets.life.changeExpiry") : t("secrets.life.setExpiry")}
+            </button>
+          )}
+        </span>
+      )}
     </div>
   );
 }

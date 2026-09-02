@@ -1228,6 +1228,18 @@
       "cancel": "Cancel",
       "deleteConfirm": "Really remove value #{{slot}} from the pool?",
       "capacityHint": "What these values may consume and who sits on which is shown under Workplaces — here is only the value."
+    },
+    "life": {
+      "rejected": "refused on {{date}}",
+      "expired": "expired {{date}}",
+      "expiring": "expires {{date}}",
+      "checkFailed": "check failed",
+      "expiresOn": "expires on {{date}}",
+      "renewed": "renewed by covey before it runs out",
+      "checked": "checked {{date}} as {{identity}}",
+      "setExpiry": "Set expiry",
+      "changeExpiry": "Change expiry",
+      "expiryHint": "When the target system stops accepting this value. covey warns two weeks ahead; where the system states the date itself (a Data Center PAT), it is read from there."
     }
   },
   "skills": {
@@ -1346,7 +1358,9 @@
       "docSummary": "What to do in the target system itself",
       "copy": "Copy",
       "optional": "optional",
-      "stored": "stored"
+      "stored": "stored",
+      "probeExpires": "expires {{date}}",
+      "probeExpiresRenewed": "expires {{date}} — covey renews it itself"
     },
     "tabAvailable": "Available",
     "toAvailable": "To the available ones",
@@ -1582,7 +1596,7 @@
       "cost": "Costs",
       "costHint": "An agent paused at its budget cap, and the emergency stop.",
       "ops": "Platform",
-      "opsHint": "A runner that leaves, and other things the operation should know."
+      "opsHint": "A runner that leaves, a credential a target system refuses or is about to, and other things the operation should know."
     }
   },
   "profile": {
