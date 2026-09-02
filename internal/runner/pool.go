@@ -136,6 +136,12 @@ type Pool struct {
 	// SnapshotChain are the states to try, newest first, when the newest one
 	// cannot be read (#138). nil = no way back, the behaviour before.
 	SnapshotChain func(ctx context.Context, agentID uuid.UUID) ([]string, error)
+	// SnapshotAt is when the agent's latest snapshot was taken. It travels with
+	// the start so the runner can tell whether the working copy it holds is a
+	// later state than the snapshot — a sync whose answer was lost, a run whose
+	// sync failed — and secure that instead of writing the snapshot over it
+	// (#153). nil = the runner cannot tell and materialises as before.
+	SnapshotAt func(ctx context.Context, agentID uuid.UUID) (time.Time, error)
 	// SnapshotTaken files a completed sync. Only afterwards may anything be
 	// cleaned up locally — no prune before a successful sync (spec/16).
 	SnapshotTaken func(ctx context.Context, agentID, runnerID uuid.UUID, res HomeSynced) error
@@ -655,6 +661,14 @@ func (c *conn) readLoop(ctx context.Context) error {
 			}
 			c.pool.Logs(c.orgID, c.runnerID, batch)
 		case TypeHeartbeat:
+		case TypeHomeSynced:
+			// A sync result nobody is waiting for: the answer to a question an
+			// earlier connection asked, delivered now that there is a
+			// connection again — or a sync the runner ran on its own because
+			// the copy it holds was newer than the snapshot it was sent (#153).
+			// Either way it is a state the store holds and the database does
+			// not, and the next wake builds on whatever the database says.
+			c.recordLateSync(ctx, msg)
 		case TypeHomeResult:
 			// A chunk whose reader has gone: a download the browser cancelled.
 			// Dropped silently — the alternative is a warning per chunk, which
@@ -663,6 +677,32 @@ func (c *conn) readLoop(ctx context.Context) error {
 			c.pool.Log.Warn("runner: unexpected message", "type", msg.Type, "runner", c.runnerID)
 		}
 	}
+}
+
+// recordLateSync files a home_synced that arrived outside its correlation.
+func (c *conn) recordLateSync(ctx context.Context, msg Message) {
+	p := c.pool
+	res, err := decode[HomeSynced](msg)
+	if err != nil || res.Err != "" || res.ManifestHash == "" || p.SnapshotTaken == nil {
+		return
+	}
+	// The organisation is a property of the runner, not of the message: a
+	// state reported for an agent this host does not serve is not recorded.
+	if p.HomeInfo != nil {
+		orgID, _, _, err := p.HomeInfo(ctx, res.AgentID)
+		if err != nil || orgID != c.orgID {
+			p.Log.Warn("runner reported a sync for an agent outside its organisation — ignored",
+				"runner", short(c.runnerID), "agent", res.AgentID)
+			return
+		}
+	}
+	res.Reason = "recovered"
+	if err := p.SnapshotTaken(ctx, res.AgentID, c.runnerID, res); err != nil {
+		p.Log.Warn("late sync result not recorded", "agent", res.AgentID, "err", err)
+		return
+	}
+	p.Log.Info("a sync result the last connection could not deliver has been recorded",
+		"agent", res.AgentID, "runner", short(c.runnerID), "snapshot", short8(res.ManifestHash))
 }
 
 // askStream sends a request whose answer arrives as several messages. The
@@ -1365,6 +1405,16 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 		}
 	}
 
+	var snapshotAt time.Time
+	if snapshot != "" && p.SnapshotAt != nil {
+		if at, err := p.SnapshotAt(ctx, spec.AgentID); err != nil {
+			p.Log.Warn("snapshot time not readable — the runner cannot tell the copy's age",
+				"agent", spec.AgentID, "err", err)
+		} else {
+			snapshotAt = at
+		}
+	}
+
 	// A start can fail at the runner itself: no credentials for a private
 	// registry, a full disk, a Docker that has just died. That is a reason to
 	// ask the next host of this organisation, not to lose the sandbox — the
@@ -1380,6 +1430,8 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 			EgressToken: spec.EgressToken,
 			Snapshot:    snapshot,
 			Fallbacks:   fallbacks,
+			SnapshotAt:  snapshotAt,
+			Excludes:    p.HomeExcludes,
 			ImageHint:   p.imageHints(ctx)[want.image],
 			Services:    spec.Services,
 		}, timeout)
@@ -1398,7 +1450,8 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 				c.sandboxes++
 				c.mu.Unlock()
 				return &poolSandbox{
-					pool: p, conn: c, agentID: spec.AgentID, orgID: spec.OrgID,
+					pool: p, runnerID: c.runnerID, builtin: c.builtin,
+					agentID: spec.AgentID, orgID: spec.OrgID,
 					services: res.Services,
 				}, nil
 			}
@@ -1415,27 +1468,70 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 func (s *poolSandbox) Runner() (uuid.UUID, string) {
 	label := ""
 	if s.pool.RunnerLabel != nil {
-		label = s.pool.RunnerLabel(context.Background(), s.conn.runnerID)
+		label = s.pool.RunnerLabel(context.Background(), s.runnerID)
 	}
 	if label == "" {
-		if s.conn.builtin {
+		if s.builtin {
 			label = "built-in"
 		} else {
-			label = short(s.conn.runnerID)
+			label = short(s.runnerID)
 		}
 	}
-	return s.conn.runnerID, label
+	return s.runnerID, label
 }
 
+// poolSandbox is the orchestrator's handle on a running sandbox. It names its
+// HOST, not the connection the start went over: a connection ends far more
+// often than a runner does — a deploy of the control plane, a proxy timeout,
+// the watchdog — and a handle that held the connection answered every later
+// call with ErrRunnerGone the moment it did. The stop then never reached the
+// host, and the sync that goes with it never ran (#154).
 type poolSandbox struct {
-	pool    *Pool
-	conn    *conn
-	agentID uuid.UUID
-	orgID   uuid.UUID
-	once    sync.Once
+	pool     *Pool
+	runnerID uuid.UUID
+	builtin  bool
+	agentID  uuid.UUID
+	orgID    uuid.UUID
+	once     sync.Once
 	// services is what the host reported it brought up, with the image each
 	// one actually started from.
 	services []sandbox.ServiceRun
+}
+
+// reconnectGrace is how long a call on a sandbox waits for its host to come
+// back when the connection is down at that moment. Long enough to span a
+// control-plane deploy or a runner's reconnect backoff, short against the
+// sync bound that follows a stop — and a host that stays away longer is gone
+// for the purposes of this call, which is what the error then says.
+const reconnectGrace = 2 * time.Minute
+
+// host is the connection to this sandbox's runner as it stands now. It waits,
+// bounded, for one to come back rather than failing on the spot: the error
+// text of ErrRunnerGone has always promised that the request is made again on
+// whatever connection comes back, and this is where that happens.
+func (s *poolSandbox) host(ctx context.Context) (*conn, error) {
+	grace := reconnectGrace
+	if s.builtin {
+		// The built-in runner does not reconnect — its one connection is its
+		// whole life, and when it is gone the process is going down with it.
+		// Waiting would only hold up the shutdown.
+		grace = 0
+	}
+	deadline := time.Now().Add(grace)
+	for {
+		if c := s.pool.connFor(s.orgID, s.runnerID); c != nil && c.runnerID == s.runnerID {
+			return c, nil
+		}
+		if !time.Now().Before(deadline) {
+			return nil, fmt.Errorf("%w: runner %s has not come back within %s",
+				ErrRunnerGone, short(s.runnerID), reconnectGrace)
+		}
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("%w: runner %s not connected", ErrRunnerGone, short(s.runnerID))
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
 }
 
 // Services satisfies orchestrator.WithServices: what stands beside this
@@ -1459,7 +1555,11 @@ func (s *poolSandbox) Services() []sandbox.ServiceRun {
 // call: the allowlist is the organisation's question, and a runner would have
 // to be a database client to ask it.
 func (s *poolSandbox) StartServices(ctx context.Context, services []sandbox.Service) ([]sandbox.ServiceRun, error) {
-	answer, err := s.conn.ask(ctx, TypeAddServices, AddServices{
+	c, err := s.host(ctx)
+	if err != nil {
+		return nil, err
+	}
+	answer, err := c.ask(ctx, TypeAddServices, AddServices{
 		AgentID: s.agentID, Services: services,
 	}, s.pool.startTimeout())
 	if err != nil {
@@ -1496,7 +1596,12 @@ func (s *poolSandbox) SyncHome(ctx context.Context) error {
 	// with it — two syncs in a row would only produce two snapshots of the
 	// same state.
 	s.pool.flushDirtyFlag(s.agentID)
-	return s.pool.syncHomeReason(ctx, s.conn, s.agentID, s.orgID, "job")
+	c, err := s.host(ctx)
+	if err != nil {
+		s.pool.saySyncFailed(ctx, s.agentID, s.runnerID, "job", err.Error())
+		return err
+	}
+	return s.pool.syncHomeReason(ctx, c, s.agentID, s.orgID, "job")
 }
 
 // Discard takes the compute down and leaves the store alone — satisfies
@@ -1509,15 +1614,26 @@ func (s *poolSandbox) SyncHome(ctx context.Context) error {
 func (s *poolSandbox) Discard(ctx context.Context) error {
 	var err error
 	s.once.Do(func() {
-		s.conn.mu.Lock()
-		if s.conn.sandboxes > 0 {
-			s.conn.sandboxes--
+		ctx = context.WithoutCancel(ctx)
+		var c *conn
+		if c, err = s.host(ctx); err != nil {
+			return
 		}
-		s.conn.mu.Unlock()
-		_, err = s.conn.ask(context.WithoutCancel(ctx), TypeStopSandbox,
-			StopSandbox{AgentID: s.agentID}, 60*time.Second)
+		c.release()
+		_, err = c.ask(ctx, TypeStopSandbox, StopSandbox{AgentID: s.agentID}, 60*time.Second)
 	})
 	return err
+}
+
+// release takes one sandbox off this host's count. Guarded at zero: the count
+// is the pool's own tally and a reconnect starts it afresh, so a stop for a
+// sandbox started over an earlier connection has nothing to take off.
+func (c *conn) release() {
+	c.mu.Lock()
+	if c.sandboxes > 0 {
+		c.sandboxes--
+	}
+	c.mu.Unlock()
 }
 
 // Stop shuts the compute down and writes the home into the store. In that
@@ -1530,19 +1646,24 @@ func (s *poolSandbox) Discard(ctx context.Context) error {
 func (s *poolSandbox) Stop(ctx context.Context) error {
 	var err error
 	s.once.Do(func() {
-		s.conn.mu.Lock()
-		if s.conn.sandboxes > 0 {
-			s.conn.sandboxes--
-		}
-		s.conn.mu.Unlock()
 		// Without cancel: the stop has to go through even when the run that
 		// held this sandbox has just been cancelled — otherwise the container
 		// stays behind and the name is taken at the next wake. The same for
 		// the sync: a cancelled run is exactly when the work in the home is
 		// worth keeping.
 		ctx = context.WithoutCancel(ctx)
-		_, err = s.conn.ask(ctx, TypeStopSandbox, StopSandbox{AgentID: s.agentID}, 60*time.Second)
-		s.pool.syncHome(ctx, s.conn, s.agentID, s.orgID)
+		var c *conn
+		if c, err = s.host(ctx); err != nil {
+			// The host is gone for longer than a reconnect takes. The container,
+			// if it still runs, is stopped when the host comes back and the next
+			// wake or a StopStray asks; the home is unsecured until then, and
+			// that is worth the same line a failed sync gets.
+			s.pool.saySyncFailed(ctx, s.agentID, s.runnerID, "job", err.Error())
+			return
+		}
+		c.release()
+		_, err = c.ask(ctx, TypeStopSandbox, StopSandbox{AgentID: s.agentID}, 60*time.Second)
+		s.pool.syncHome(ctx, c, s.agentID, s.orgID)
 	})
 	return err
 }

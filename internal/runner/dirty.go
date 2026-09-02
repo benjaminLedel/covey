@@ -24,10 +24,13 @@ import (
 // upload produces one sync and not one per file.
 const dirtySettle = 3 * time.Second
 
+// dirtyHome names the HOST the change landed on, not the connection it went
+// over: the flush may run after a reconnect, and a connection held here would
+// then be a dead one (#154).
 type dirtyHome struct {
-	conn  *conn
-	orgID uuid.UUID
-	timer *time.Timer
+	runnerID uuid.UUID
+	orgID    uuid.UUID
+	timer    *time.Timer
 }
 
 // markHomeDirty notes a change and (re)starts the settling period.
@@ -38,11 +41,17 @@ func (p *Pool) markHomeDirty(c *conn, agentID, orgID uuid.UUID) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if d := p.dirty[agentID]; d != nil {
-		d.conn = c
-		d.timer.Reset(dirtySettle)
+		d.runnerID = c.runnerID
+		if d.timer == nil {
+			// A flag a failed flush left behind: it gets its settling period
+			// back now that the browser is writing again.
+			d.timer = time.AfterFunc(dirtySettle, func() { p.flushHome(context.Background(), agentID) })
+		} else {
+			d.timer.Reset(dirtySettle)
+		}
 		return
 	}
-	d := &dirtyHome{conn: c, orgID: orgID}
+	d := &dirtyHome{runnerID: c.runnerID, orgID: orgID}
 	d.timer = time.AfterFunc(dirtySettle, func() { p.flushHome(context.Background(), agentID) })
 	p.dirty[agentID] = d
 }
@@ -57,13 +66,30 @@ func (p *Pool) flushHome(ctx context.Context, agentID uuid.UUID) {
 	d := p.dirty[agentID]
 	if d != nil {
 		delete(p.dirty, agentID)
-		d.timer.Stop()
+		if d.timer != nil {
+			d.timer.Stop()
+		}
 	}
 	p.mu.Unlock()
 	if d == nil {
 		return
 	}
-	p.syncHome(context.WithoutCancel(ctx), d.conn, agentID, d.orgID)
+	ctx = context.WithoutCancel(ctx)
+	c := p.connFor(d.orgID, d.runnerID)
+	if c == nil || p.syncHomeReason(ctx, c, agentID, d.orgID, "job") != nil {
+		// Not carried out — the host is away, or the sync failed. The flag
+		// stays, so the next start tries again before it materialises anything
+		// over the change; dropping it here would be the window this file
+		// exists to close.
+		if c == nil {
+			p.saySyncFailed(ctx, agentID, d.runnerID, "job", "runner not connected — the browser's change is unsecured")
+		}
+		p.mu.Lock()
+		if _, again := p.dirty[agentID]; !again {
+			p.dirty[agentID] = &dirtyHome{runnerID: d.runnerID, orgID: d.orgID}
+		}
+		p.mu.Unlock()
+	}
 }
 
 // FlushHomes syncs everything the file browser has changed and not yet carried

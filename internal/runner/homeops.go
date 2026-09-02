@@ -38,14 +38,18 @@ func (n *Node) homeOp(ctx context.Context, t Transport, id string, op HomeOp) {
 		usage := tree.Usage()
 		n.answer(ctx, t, id, HomeResult{Usage: &usage}, nil)
 	case OpMkdir:
+		n.touched(op)
 		entry, err := tree.Mkdir(op.Path)
 		n.answer(ctx, t, id, HomeResult{Entry: &entry}, err)
 	case OpRemove:
+		n.touched(op)
 		n.answer(ctx, t, id, HomeResult{}, tree.Remove(op.Path))
 	case OpMove:
+		n.touched(op)
 		entry, err := tree.Move(op.Path, op.To)
 		n.answer(ctx, t, id, HomeResult{Entry: &entry}, err)
 	case OpWrite:
+		n.touched(op)
 		n.write(ctx, t, id, tree, op)
 	case OpPlan:
 		plan, err := tree.PlanZip(op.Paths)
@@ -60,6 +64,19 @@ func (n *Node) homeOp(ctx context.Context, t Transport, id string, op HomeOp) {
 		n.streamZip(ctx, t, id, tree, op)
 	default:
 		n.replyHome(ctx, t, id, HomeResult{Err: "unknown file operation " + op.Op}, true)
+	}
+}
+
+// touched marks the working copy as changed before a browser operation
+// modifies it. A copy that was exactly its snapshot is not any more, and the
+// mark is what keeps the next wake from pruning the upload as "not in the
+// snapshot" when the sync the control plane owes it did not go through (#153).
+// The control plane's own dirty flag covers the same window from its side; the
+// mark here is the one that survives a control-plane restart.
+func (n *Node) touched(op HomeOp) {
+	home, _, _ := n.Docker.AgentHome(op.AgentID)
+	if homestore.SyncedHash(home) != "" {
+		homestore.MarkInUse(home)
 	}
 }
 
