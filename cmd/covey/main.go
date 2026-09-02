@@ -1010,6 +1010,13 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		runnerPool.SnapshotChain = func(ctx context.Context, agentID uuid.UUID) ([]string, error) {
 			return snapshotStore.SnapshotChain(ctx, agentID, 10)
 		}
+		// And when that state was taken: the runner compares it with the age
+		// of the working copy it holds, and secures the copy instead of writing
+		// the snapshot over it when the copy is the later state (#153).
+		runnerPool.SnapshotAt = func(ctx context.Context, agentID uuid.UUID) (time.Time, error) {
+			snap, err := snapshotStore.LatestSnapshot(ctx, agentID)
+			return snap.CreatedAt, err
+		}
 		// Where the agent last worked. The snapshot knows it, and it is the
 		// cheapest scheduling hint there is: the working copy of the home lies
 		// on that host, and every other one materialises it from the store

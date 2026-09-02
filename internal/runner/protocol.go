@@ -388,6 +388,15 @@ type StartSandbox struct {
 	// wake a conversation. An older runner ignores the field and behaves as
 	// before — additive, like every other field here.
 	Fallbacks []string `json:"fallbacks,omitempty"`
+	// SnapshotAt is when Snapshot was taken, by the control plane's clock. It is
+	// what lets the runner tell a restore from a reversal (#153): a working copy
+	// that was synced or put to work AFTER this moment is a later state than the
+	// snapshot, and materialising the snapshot over it would undo a run. Zero =
+	// an older control plane that cannot say; the runner then behaves as before.
+	SnapshotAt time.Time `json:"snapshot_at,omitempty"`
+	// Excludes are the sync's exclusions (see SyncHome), for the sync a start
+	// runs itself when the copy turns out to be the later state.
+	Excludes []string `json:"excludes,omitempty"`
 	// ImageHint is how one obtains this image, for the case that it is not
 	// there. It travels along because only the control plane can answer it: the
 	// runner sees an image reference, and which profile it belongs to — and

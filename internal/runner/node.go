@@ -78,7 +78,27 @@ type Node struct {
 	// logs is the buffer between what this runner writes and what the control
 	// plane gets to read. See logship.go.
 	logs *logRing
+
+	// link is the connection this node speaks over RIGHT NOW. Everything that
+	// outlives a connection — a sandbox watcher, a start or sync that was under
+	// way when the link dropped — answers over this rather than over the
+	// transport it was handed at the time (#154). Before, every such answer went
+	// to the socket of the connection that had asked, which after a reconnect is
+	// a closed one: a crash was "reported" into the void and the control plane
+	// went back to inferring it from the ReadyTimeout.
+	linkMu sync.Mutex
+	link   Transport
+	// outbox holds the messages that could not be sent and must not be lost —
+	// a sandbox's death, a completed sync. They go out first on the next
+	// connection. Bounded: a host that is offline for a day does not need to
+	// deliver a day of progress lines, and those are not kept here anyway.
+	outbox []Message
 }
+
+// outboxLimit bounds what a node keeps for the next connection. Exits and sync
+// results are rare — a handful per sandbox per day — so the bound is generous
+// against those and tight against anything that would leak.
+const outboxLimit = 256
 
 // sandboxProc is a running sandbox as this node sees it.
 type sandboxProc struct {
@@ -135,6 +155,12 @@ func (n *Node) Run(ctx context.Context, t Transport) error {
 	// Said once, and only on success: whoever starts `covey-runner run` and
 	// sees nothing cannot tell a working connection from a silent failure.
 	n.Log.Info("connected to the control plane", "runner", n.RunnerID, "organisation", n.OrgID)
+	n.setLink(t)
+	// What the last connection could not deliver goes first. A sandbox that
+	// died while the link was down is still a death the control plane has to
+	// hear of, and a sync that finished into a dead socket is still the state
+	// the next wake must build on (#153).
+	n.flushOutbox(ctx, t)
 
 	beat, stopBeat := context.WithCancel(ctx)
 	defer stopBeat()
@@ -394,7 +420,10 @@ func (n *Node) sync(ctx context.Context, t Transport, id string, req SyncHome) {
 	})
 	n.Log.Info("home synced", "agent", req.AgentID, "blocks", res.Blocks,
 		"bytes_up", res.BytesUp, "total", res.TotalSize, "ms", time.Since(began).Milliseconds())
-	n.reply(ctx, t, id, TypeHomeSynced, HomeSynced{
+	// Kept if it cannot be delivered: the control plane records the snapshot
+	// only when it hears this, and a snapshot it never hears of is one the next
+	// wake materialises the previous state over (#153).
+	n.replyKept(ctx, t, id, TypeHomeSynced, HomeSynced{
 		AgentID: req.AgentID, ManifestHash: res.ManifestHash,
 		TotalSize: res.TotalSize, Blocks: res.Blocks, BytesUp: res.BytesUp,
 	})
@@ -431,7 +460,16 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 	// The home comes out of the store before the sandbox goes in. Only what
 	// differs is written — on the runner an agent last ran on that is the
 	// normal case, and then this costs nothing at all.
-	if spec.Snapshot != "" && n.Blobs != nil {
+	if why := n.copyPrevails(spec); why != "" && n.Blobs != nil {
+		// The copy on this host is a LATER state than the snapshot the control
+		// plane asked for — a sync whose answer never arrived, or a run whose
+		// sync failed. Materialising the snapshot over it would rewrite every
+		// file that run changed and bring back every file it deleted; prune=false
+		// only spares the files it added (#153). So the copy is secured first and
+		// the sandbox starts on it, and the control plane learns the state it
+		// did not know.
+		n.secureCopyBeforeStart(ctx, t, spec, why)
+	} else if spec.Snapshot != "" && n.Blobs != nil {
 		home, uid, gid := n.Docker.AgentHome(spec.AgentID)
 		// Whose the restored files are. The runner is root on a runner host,
 		// so without this every file it writes belongs to root and the agent
@@ -451,9 +489,11 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 		// plane offered the same unreadable state every thirty seconds while
 		// nine readable ones lay in the same table.
 		//
-		// Falling back does not endanger the working copy. Pruning happens
+		// Falling back does not delete from the working copy: pruning happens
 		// only when the copy IS the snapshot being restored, and against an
-		// older one it never is — so the newer files stay where they are.
+		// older one it never is. Files the older snapshot knows are still
+		// brought to its state — which is why copyPrevails runs before this,
+		// and a copy that is the later state never gets here (#153).
 		var err error
 		for i, hash := range append([]string{spec.Snapshot}, spec.Fallbacks...) {
 			var m homestore.Manifest
@@ -492,7 +532,13 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 				break
 			}
 			if !raeumen {
-				n.Log.Warn("working copy carries work this snapshot does not know — keeping it",
+				// Precisely what that means: files the snapshot does not know
+				// stay; files it does know are brought to ITS state, changed
+				// ones included. That is right here, because copyPrevails has
+				// already ruled out that the copy is the later state — an
+				// older snapshot is only ever written over a copy whose run it
+				// supersedes, or one whose age nothing can tell (#153).
+				n.Log.Warn("working copy carries files this snapshot does not know — keeping those, the rest is brought to the snapshot",
 					"agent", spec.AgentID, "snapshot", short8(hash), "working_copy", short8(stand))
 			}
 			// Files the store no longer holds are named rather than fatal
@@ -594,6 +640,85 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 		return
 	}
 	n.watchSandbox(ctx, t, id, spec, container, services, startedAt)
+}
+
+// copyPrevails decides whether the working copy on this host is a later state
+// than the snapshot the control plane asked for. Empty = it is not, or nothing
+// can be said; then the snapshot is materialised as before.
+//
+// Two ways the copy is the later one, and both are ordinary rather than exotic:
+//
+//   - It is synced to a state the control plane does not hold, and that sync is
+//     younger than the control plane's snapshot. That is a `home_synced` whose
+//     answer was lost — the sync ran to the end while the connection dropped.
+//   - It has been in use since AFTER the control plane's snapshot was taken and
+//     never synced since: the post-job sync failed, or the runner was restarted
+//     mid-run and the control plane never asked for one.
+//
+// The other direction is just as ordinary and must materialise: the agent ran
+// on this host, its sync failed, and it then ran on ANOTHER host whose sync
+// succeeded. Then the snapshot is the later state and the dirty copy here is
+// superseded. Only the times tell the two apart, which is why they are kept.
+func (n *Node) copyPrevails(spec StartSandbox) string {
+	if spec.SnapshotAt.IsZero() || spec.Snapshot == "" {
+		// An older control plane, or a first wake: nothing to compare against.
+		return ""
+	}
+	home, _, _ := n.Docker.AgentHome(spec.AgentID)
+	if stand := homestore.SyncedHash(home); stand != "" {
+		if stand == spec.Snapshot {
+			return ""
+		}
+		if at := homestore.SyncedAt(home); !at.IsZero() && at.After(spec.SnapshotAt) {
+			return fmt.Sprintf("the working copy was synced to %s at %s, after the snapshot the control plane holds (%s, %s)",
+				short8(stand), at.Format(time.RFC3339), short8(spec.Snapshot), spec.SnapshotAt.Format(time.RFC3339))
+		}
+		return ""
+	}
+	if since := homestore.InUseSince(home); !since.IsZero() && since.After(spec.SnapshotAt) {
+		return fmt.Sprintf("the working copy has been in use since %s and was not synced since, the snapshot the control plane holds is from %s",
+			since.Format(time.RFC3339), spec.SnapshotAt.Format(time.RFC3339))
+	}
+	return ""
+}
+
+// secureCopyBeforeStart syncs a working copy that prevails over the snapshot
+// (see copyPrevails) and tells the control plane the state it produced. The
+// start then proceeds on the copy, untouched.
+//
+// A sync that fails here does not refuse the start: the copy is the later
+// state whether or not the store took it, and an agent working on it loses
+// nothing that a refusal would save. What it costs is that the state exists on
+// this host alone until the next sync goes through — said out loud, in the
+// recording, as every unsecured state is.
+func (n *Node) secureCopyBeforeStart(ctx context.Context, t Transport, spec StartSandbox, why string) {
+	home, _, _ := n.Docker.AgentHome(spec.AgentID)
+	n.Log.Warn("working copy is newer than the snapshot — securing it before the start", "agent", spec.AgentID, "why", why)
+	n.say(ctx, t, Progress{AgentID: spec.AgentID, Phase: PhaseHomeSync,
+		Detail: "the working copy on this host is newer than the snapshot — securing it first; " + why})
+	began := time.Now()
+	res, err := homestore.SyncWatched(ctx, n.Blobs, spec.OrgID, home, spec.Excludes,
+		n.ticker(ctx, t, spec.AgentID, PhaseHomeSync, began, 0))
+	if err != nil {
+		n.Log.Error("securing the working copy failed — starting on it anyway, unsecured",
+			"agent", spec.AgentID, "err", err)
+		n.say(ctx, t, Progress{AgentID: spec.AgentID, Phase: PhaseHomeSync, Done: true,
+			Detail: "securing the working copy failed — the sandbox starts on it, and the state exists on this host alone until the next sync: " + err.Error()})
+		homestore.MarkInUse(home)
+		return
+	}
+	homestore.MarkSynced(home, res.ManifestHash)
+	n.say(ctx, t, Progress{AgentID: spec.AgentID, Phase: PhaseHomeSync, Bytes: res.BytesUp,
+		MS: time.Since(began).Milliseconds(), Done: true})
+	n.Log.Info("working copy secured before the start", "agent", spec.AgentID, "snapshot", short8(res.ManifestHash),
+		"blocks", res.Blocks, "bytes_up", res.BytesUp, "ms", time.Since(began).Milliseconds())
+	// Unasked, and kept until delivered: the control plane has to record this
+	// state, or the next wake asks for the old one again.
+	n.replyKept(ctx, t, "", TypeHomeSynced, HomeSynced{
+		AgentID: spec.AgentID, ManifestHash: res.ManifestHash,
+		TotalSize: res.TotalSize, Blocks: res.Blocks, BytesUp: res.BytesUp,
+	})
+	homestore.MarkInUse(home)
 }
 
 // ensureImage fetches an image if this host does not have it, and says how far
@@ -747,8 +872,14 @@ func (n *Node) watch(ctx context.Context, t Transport, agentID uuid.UUID, proc *
 	if err != nil {
 		return
 	}
-	if err := t.Send(ctx, msg); err != nil {
-		n.Log.Warn("runner: reporting the end of a sandbox failed", "agent", agentID, "err", err)
+	// Over the connection that stands NOW, not the one that started the
+	// sandbox — and kept for the next one if none does. This is the message
+	// the whole watcher exists for, and until #154 a single reconnect between
+	// start and death sent it into a closed socket.
+	if err := n.send(ctx, t, msg); err != nil {
+		n.Log.Warn("runner: the end of a sandbox could not be reported yet — kept for the next connection",
+			"agent", agentID, "err", err)
+		n.keep(msg)
 	}
 }
 
@@ -842,7 +973,7 @@ func (n *Node) say(ctx context.Context, t Transport, p Progress) {
 	if err != nil {
 		return
 	}
-	_ = t.Send(ctx, msg)
+	_ = n.send(ctx, t, msg)
 }
 
 func (n *Node) reply(ctx context.Context, t Transport, id, msgType string, payload any) {
@@ -851,8 +982,78 @@ func (n *Node) reply(ctx context.Context, t Transport, id, msgType string, paylo
 		n.Log.Error("runner: encoding the answer failed", "type", msgType, "err", err)
 		return
 	}
-	if err := t.Send(ctx, msg); err != nil && !errors.Is(err, ErrTransportClosed) {
+	if err := n.send(ctx, t, msg); err != nil && !errors.Is(err, ErrTransportClosed) {
 		n.Log.Warn("runner: sending the answer failed", "type", msgType, "err", err)
+	}
+}
+
+// replyKept is reply for an answer that must arrive even if this connection
+// does not survive to carry it: it is kept and sent first on the next one. The
+// correlation id travels along — the control plane's waiter will be gone by
+// then, and it handles the message as what it is rather than as an answer.
+func (n *Node) replyKept(ctx context.Context, t Transport, id, msgType string, payload any) {
+	msg, err := encode(msgType, id, payload)
+	if err != nil {
+		n.Log.Error("runner: encoding the answer failed", "type", msgType, "err", err)
+		return
+	}
+	if err := n.send(ctx, t, msg); err != nil {
+		n.Log.Warn("runner: answer could not be delivered — kept for the next connection",
+			"type", msgType, "err", err)
+		n.keep(msg)
+	}
+}
+
+// send puts a message on the connection that stands now. fallback is the
+// transport the work was handed when it began; it is used only while Run has
+// never set a link — which is the tests' case, not production's.
+func (n *Node) send(ctx context.Context, fallback Transport, msg Message) error {
+	n.linkMu.Lock()
+	t := n.link
+	n.linkMu.Unlock()
+	if t == nil {
+		t = fallback
+	}
+	if t == nil {
+		return ErrTransportClosed
+	}
+	return t.Send(ctx, msg)
+}
+
+func (n *Node) setLink(t Transport) {
+	n.linkMu.Lock()
+	n.link = t
+	n.linkMu.Unlock()
+}
+
+// keep holds a message for the next connection. Oldest out when full — what is
+// dropped is named, once, because a silent drop here is a silent data loss one
+// layer up.
+func (n *Node) keep(msg Message) {
+	n.linkMu.Lock()
+	defer n.linkMu.Unlock()
+	if len(n.outbox) >= outboxLimit {
+		n.Log.Warn("runner: outbox full — dropping the oldest undelivered message", "type", n.outbox[0].Type)
+		n.outbox = n.outbox[1:]
+	}
+	n.outbox = append(n.outbox, msg)
+}
+
+// flushOutbox delivers what earlier connections could not. Whatever fails
+// again stays kept, in order.
+func (n *Node) flushOutbox(ctx context.Context, t Transport) {
+	n.linkMu.Lock()
+	pending := n.outbox
+	n.outbox = nil
+	n.linkMu.Unlock()
+	for i, msg := range pending {
+		if err := t.Send(ctx, msg); err != nil {
+			n.linkMu.Lock()
+			n.outbox = append(pending[i:], n.outbox...)
+			n.linkMu.Unlock()
+			return
+		}
+		n.Log.Info("runner: delivered a message the last connection could not", "type", msg.Type)
 	}
 }
 

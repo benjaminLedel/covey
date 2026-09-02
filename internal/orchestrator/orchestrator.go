@@ -253,6 +253,7 @@ type warmSession struct {
 	done         chan struct{}      // closed once the drain has finished
 	dead         atomic.Bool        // link died while idle
 	teardownOnce sync.Once
+	log          *slog.Logger
 }
 
 func (ws *warmSession) teardown() {
@@ -263,7 +264,12 @@ func (ws *warmSession) teardown() {
 		// here and the container would stay up.
 		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		_ = ws.sandbox.Stop(stopCtx)
+		if err := ws.sandbox.Stop(stopCtx); err != nil && ws.log != nil {
+			// Not fatal for the teardown, but not silent either: a stop that
+			// did not reach its host leaves a container and an unsecured home
+			// behind, and the log is where that has to be findable (#154).
+			ws.log.Warn("warm sandbox not stopped", "err", err)
+		}
 	})
 }
 
@@ -1199,7 +1205,9 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 			// Detached here too: on kill or abort ctx has already expired — the
 			// sandbox still has to go.
 			stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			sandbox.Stop(stopCtx)
+			if err := sandbox.Stop(stopCtx); err != nil {
+				o.Log.Warn("sandbox not stopped", "agent", agent.ID, "err", err)
+			}
 			cancel()
 		}
 		o.setStatus(context.WithoutCancel(ctx), agent, nil, final)
@@ -1418,7 +1426,7 @@ func (o *Orchestrator) parkWarm(agentID uuid.UUID, link DaemonLink, sandbox Sand
 	// that hands it over. It is terminated by the reaper (idle TTL), by the next
 	// wake, or on shutdown by teardownAllWarm.
 	drainCtx, cancel := context.WithCancel(context.Background())
-	ws := &warmSession{link: link, sandbox: sandbox, lastUsed: time.Now(), cancel: cancel, done: make(chan struct{})}
+	ws := &warmSession{link: link, sandbox: sandbox, lastUsed: time.Now(), cancel: cancel, done: make(chan struct{}), log: o.Log}
 	o.mu.Lock()
 	// Make way for a possibly still-registered predecessor session of the same agent.
 	if old := o.warm[agentID]; old != nil {

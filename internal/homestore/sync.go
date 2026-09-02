@@ -11,9 +11,10 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/google/uuid"
-	"syscall"
 )
 
 // SyncResult is what a sync cost and what it produced.
@@ -747,30 +748,86 @@ func Adopt(root string, owner Owner) (int, bool) {
 	return geaendert, geaendert > 0
 }
 
-// MarkSynced hält fest, dass diese Arbeitskopie GENAU dieser Schnappschuss ist.
-// Nur nach einem gelungenen Sync (oder einem ausdrücklichen Restore) wahr.
+// MarkSynced records that this working copy IS exactly this snapshot, and
+// when that became true. Only after a successful sync (or an explicit restore).
+//
+// The moment travels with the hash because the hash alone cannot say whether
+// the copy is newer or older than the state the control plane holds. Two
+// states meet on a wake — the copy on this host and the snapshot in the
+// database — and when they differ, which of the two is the later one decides
+// whether materialising is a restore or a reversal (#153). The times are the
+// host's own clock, compared against the control plane's; a skew of seconds is
+// irrelevant against the minutes a run takes, and a skew of hours is a broken
+// host that has worse problems than this.
 func MarkSynced(root, manifestHash string) {
 	if root == "" || manifestHash == "" {
 		return
 	}
-	_ = os.WriteFile(stateFile(root), []byte(manifestHash), 0o600)
+	_ = os.WriteFile(stateFile(root), []byte(manifestHash+" "+time.Now().UTC().Format(time.RFC3339Nano)), 0o600)
 }
 
-// MarkInUse nimmt die Marke zurück: eine Sandbox startet, ab jetzt gilt die
-// Kopie als verändert, bis das Gegenteil bewiesen ist.
+// inUseMark is what the state file holds while a sandbox is (or was) working
+// in the copy: not a hash, but the moment the work began. Until #153 the file
+// was simply removed here, and with it the one fact the next wake needs — that
+// the copy carries a run the snapshot in the database does not know, and since
+// when.
+const inUseMark = "in-use"
+
+// MarkInUse takes the synced mark back: a sandbox starts, and from now on the
+// copy counts as changed until a sync proves otherwise. The moment is kept.
 func MarkInUse(root string) {
 	if root == "" {
 		return
 	}
-	_ = os.Remove(stateFile(root))
+	_ = os.WriteFile(stateFile(root), []byte(inUseMark+" "+time.Now().UTC().Format(time.RFC3339Nano)), 0o600)
 }
 
-// SyncedHash liest die Marke. Leer = die Kopie ist seit dem letzten Sync
-// benutzt worden, oder es gab nie einen — beides heißt: nichts löschen.
+// SyncedHash reads the mark. Empty = the copy has been used since its last
+// sync, or there never was one — both mean: delete nothing.
 func SyncedHash(root string) string {
-	b, err := os.ReadFile(stateFile(root))
-	if err != nil {
+	hash, _, inUse := readState(root)
+	if inUse {
 		return ""
 	}
-	return strings.TrimSpace(string(b))
+	return hash
+}
+
+// SyncedAt is when the copy was last brought to the state SyncedHash names.
+// Zero when it is in use, never synced, or the mark predates the timestamp.
+func SyncedAt(root string) time.Time {
+	_, at, inUse := readState(root)
+	if inUse {
+		return time.Time{}
+	}
+	return at
+}
+
+// InUseSince is when a sandbox last started working in this copy without a
+// sync having closed the run since. Zero when the copy is synced, or has never
+// been used, or the mark predates #153 (then MarkInUse removed the file, and
+// nothing can be said about when).
+func InUseSince(root string) time.Time {
+	_, at, inUse := readState(root)
+	if !inUse {
+		return time.Time{}
+	}
+	return at
+}
+
+// readState parses the mark: "<hash>", "<hash> <time>" or "in-use <time>".
+// The bare hash is what versions before #153 wrote; it still reads as synced,
+// only without a time.
+func readState(root string) (hash string, at time.Time, inUse bool) {
+	b, err := os.ReadFile(stateFile(root))
+	if err != nil {
+		return "", time.Time{}, false
+	}
+	first, rest, _ := strings.Cut(strings.TrimSpace(string(b)), " ")
+	if rest != "" {
+		at, _ = time.Parse(time.RFC3339Nano, strings.TrimSpace(rest))
+	}
+	if first == inUseMark {
+		return "", at, true
+	}
+	return first, at, false
 }
