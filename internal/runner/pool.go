@@ -193,6 +193,10 @@ type Pool struct {
 	// agent that wakes elsewhere in the meantime would materialise a snapshot
 	// that does not have it.
 	dirty map[uuid.UUID]*dirtyHome
+	// placed records which runner each running sandbox was started on. It is
+	// what lets a message about an agent be checked against the host that
+	// sent it without a database query per message (see conn.serves).
+	placed map[uuid.UUID]uuid.UUID
 	// local is the built-in runner when it runs in this process. It is kept
 	// only for the short path to the home: reading a file from the directory
 	// next door does not need a round trip through the protocol.
@@ -330,6 +334,7 @@ func NewPool(log *slog.Logger) *Pool {
 		Log: log, conns: map[uuid.UUID]*conn{},
 		ensuring: map[uuid.UUID]*sync.Mutex{},
 		dirty:    map[uuid.UUID]*dirtyHome{},
+		placed:   map[uuid.UUID]uuid.UUID{},
 		Phases:   NewPhases(),
 	}
 }
@@ -355,15 +360,20 @@ func (p *Pool) Attach(ctx context.Context, t Transport, builtin bool) error {
 // version drift becomes visible instead of merely being suspected.
 func (p *Pool) AttachRemote(ctx context.Context, t Transport, runnerID, orgID uuid.UUID,
 	noteCapabilities func(version, arch string, protocol int)) error {
-	c, err := p.register(ctx, t, false)
+	c, err := p.handshake(ctx, t, false)
 	if err != nil {
 		return err
 	}
+	// Checked BEFORE the connection enters the pool. It used to be checked
+	// after, and detach then removed what register had inserted — so a
+	// handshake naming another runner's id evicted that runner's live entry
+	// for the moment in between, and could have been picked for a start in
+	// the same moment (#159).
 	if c.runnerID != runnerID || c.orgID != orgID {
-		p.detach(c)
 		return fmt.Errorf("runner %s reports a different identity (%s/%s) than its token — refused",
 			runnerID, c.runnerID, c.orgID)
 	}
+	p.admit(ctx, c)
 	if noteCapabilities != nil {
 		noteCapabilities(c.version, c.arch, c.protocol)
 	}
@@ -371,8 +381,21 @@ func (p *Pool) AttachRemote(ctx context.Context, t Transport, runnerID, orgID uu
 	return c.readLoop(ctx)
 }
 
-// register performs the handshake and takes the runner into the pool.
+// register performs the handshake and takes the runner into the pool — for a
+// connection whose identity needs no second check (the built-in runner).
 func (p *Pool) register(ctx context.Context, t Transport, builtin bool) (*conn, error) {
+	c, err := p.handshake(ctx, t, builtin)
+	if err != nil {
+		return nil, err
+	}
+	p.admit(ctx, c)
+	return c, nil
+}
+
+// handshake reads the first message and builds the connection from it. The
+// connection is not in the pool yet: whoever called decides, with the identity
+// in hand, whether it goes in.
+func (p *Pool) handshake(ctx context.Context, t Transport, builtin bool) (*conn, error) {
 	// The first message has to be `registered`: without an identity the pool
 	// does not know whose organisation this runner serves, and assigning it
 	// anything would be a guess about the tenant.
@@ -423,18 +446,33 @@ func (p *Pool) register(ctx context.Context, t Transport, builtin bool) (*conn, 
 			c.setPaused(paused)
 		}
 	}
+	return c, nil
+}
+
+// admit takes a connection whose identity has been accepted into the pool.
+func (p *Pool) admit(ctx context.Context, c *conn) {
 	p.mu.Lock()
-	p.conns[reg.RunnerID] = c
+	if old := p.conns[c.runnerID]; old != nil && old != c {
+		// The same runner, twice. A reconnect whose predecessor the watchdog
+		// has not yet closed is the usual case, two processes on one token the
+		// unusual one — and the latter shows as a host that connects again and
+		// again. Either way the old connection is over: ending it here answers
+		// its waiters now instead of after three missed beats.
+		p.Log.Warn("runner connected while an earlier connection still stood — replacing it",
+			"runner", short(c.runnerID))
+		old.end()
+	}
+	p.conns[c.runnerID] = c
 	p.mu.Unlock()
-	p.Log.Info("runner connected", "runner", reg.RunnerID, "org", reg.OrgID,
-		"builtin", builtin, "version", reg.Version)
+	p.Log.Info("runner connected", "runner", c.runnerID, "org", c.orgID,
+		"builtin", c.builtin, "version", c.version)
 	// The stored log level, re-applied. In the background on purpose: a
 	// registration that waited for it would let a slow answer delay the first
 	// wake, and the worst case of failing here is a host that reports at info
 	// until somebody switches it again.
 	if p.LogLevelFor != nil {
 		go func() {
-			level := p.LogLevelFor(context.WithoutCancel(ctx), reg.RunnerID)
+			level := p.LogLevelFor(context.WithoutCancel(ctx), c.runnerID)
 			if !ValidLogLevel(level) || level == LogLevelInfo {
 				return
 			}
@@ -442,11 +480,10 @@ func (p *Pool) register(ctx context.Context, t Transport, builtin bool) (*conn, 
 			defer cancel()
 			if _, err := c.ask(ask, TypeSetLogLevel, SetLogLevel{Level: level}, 15*time.Second); err != nil {
 				p.Log.Warn("log level could not be restored on the runner",
-					"runner", reg.RunnerID, "level", level, "err", err)
+					"runner", short(c.runnerID), "level", level, "err", err)
 			}
 		}()
 	}
-	return c, nil
 }
 
 // applyAssigned recomputes the effective sets. Tags are a union — a host does
@@ -622,7 +659,7 @@ func (c *conn) readLoop(ctx context.Context) error {
 		switch msg.Type {
 		case TypeSandboxExited:
 			ev, err := decode[SandboxExited](msg)
-			if err != nil {
+			if err != nil || !c.serves(ctx, ev.AgentID) {
 				continue
 			}
 			c.mu.Lock()
@@ -630,6 +667,7 @@ func (c *conn) readLoop(ctx context.Context) error {
 				c.sandboxes--
 			}
 			c.mu.Unlock()
+			c.pool.unplace(ev.AgentID, c.runnerID)
 			c.pool.Log.Warn("sandbox ended without being asked to",
 				"agent", ev.AgentID, "runner", c.runnerID, "reason", ev.Reason)
 			if c.pool.SandboxDied != nil {
@@ -641,7 +679,7 @@ func (c *conn) readLoop(ctx context.Context) error {
 			// keeps it, and into Phases, which is where "what is this agent
 			// waiting on right now" is asked.
 			ev, err := decode[Progress](msg)
-			if err != nil {
+			if err != nil || !c.serves(ctx, ev.AgentID) {
 				continue
 			}
 			c.pool.Phases.Note(c.runnerID, ev)
@@ -679,6 +717,37 @@ func (c *conn) readLoop(ctx context.Context) error {
 	}
 }
 
+// serves answers whether a message this runner sent about an agent may be
+// acted on: the organisation is a property of the runner, not of the message
+// (spec/16, "Trust boundary"), and a runner that names an agent of another
+// tenant is telling a story about somebody else's sandbox (#159).
+//
+// Cheap first: an agent the pool placed on this runner is its own. Otherwise
+// the agent's organisation is looked up — the sandbox may predate this control
+// plane's process, and its death is still worth hearing. Without a way to
+// look it up, nothing unplaced is taken.
+func (c *conn) serves(ctx context.Context, agentID uuid.UUID) bool {
+	p := c.pool
+	p.mu.Lock()
+	on, placed := p.placed[agentID]
+	p.mu.Unlock()
+	if placed {
+		return on == c.runnerID
+	}
+	if p.HomeInfo == nil {
+		// No way to ask, no placement to fall back on: the tests' pool, and a
+		// pool without a database. Trusting the message is what it did before.
+		return true
+	}
+	orgID, _, _, err := p.HomeInfo(ctx, agentID)
+	if err != nil || orgID != c.orgID {
+		p.Log.Warn("runner reported on an agent outside its organisation — ignored",
+			"runner", short(c.runnerID), "agent", agentID)
+		return false
+	}
+	return true
+}
+
 // recordLateSync files a home_synced that arrived outside its correlation.
 func (c *conn) recordLateSync(ctx context.Context, msg Message) {
 	p := c.pool
@@ -686,15 +755,8 @@ func (c *conn) recordLateSync(ctx context.Context, msg Message) {
 	if err != nil || res.Err != "" || res.ManifestHash == "" || p.SnapshotTaken == nil {
 		return
 	}
-	// The organisation is a property of the runner, not of the message: a
-	// state reported for an agent this host does not serve is not recorded.
-	if p.HomeInfo != nil {
-		orgID, _, _, err := p.HomeInfo(ctx, res.AgentID)
-		if err != nil || orgID != c.orgID {
-			p.Log.Warn("runner reported a sync for an agent outside its organisation — ignored",
-				"runner", short(c.runnerID), "agent", res.AgentID)
-			return
-		}
+	if !c.serves(ctx, res.AgentID) {
+		return
 	}
 	res.Reason = "recovered"
 	if err := p.SnapshotTaken(ctx, res.AgentID, c.runnerID, res); err != nil {
@@ -917,7 +979,7 @@ func (c *conn) runPlannedUpdate(ctx context.Context) {
 		return
 	}
 	p.Log.Info("carrying out the planned update", "runner", short(c.runnerID), "to", want)
-	res, err := p.Update(ctx, c.runnerID, want, p.RunnerDownloadBase)
+	res, err := p.Update(ctx, c.orgID, c.runnerID, want, p.RunnerDownloadBase)
 	switch {
 	case err != nil:
 		p.Log.Warn("planned update did not run", "runner", short(c.runnerID), "err", err)
@@ -1449,6 +1511,9 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 				c.mu.Lock()
 				c.sandboxes++
 				c.mu.Unlock()
+				p.mu.Lock()
+				p.placed[spec.AgentID] = c.runnerID
+				p.mu.Unlock()
 				return &poolSandbox{
 					pool: p, runnerID: c.runnerID, builtin: c.builtin,
 					agentID: spec.AgentID, orgID: spec.OrgID,
@@ -1620,6 +1685,7 @@ func (s *poolSandbox) Discard(ctx context.Context) error {
 			return
 		}
 		c.release()
+		s.pool.unplace(s.agentID, s.runnerID)
 		_, err = c.ask(ctx, TypeStopSandbox, StopSandbox{AgentID: s.agentID}, 60*time.Second)
 	})
 	return err
@@ -1634,6 +1700,15 @@ func (c *conn) release() {
 		c.sandboxes--
 	}
 	c.mu.Unlock()
+}
+
+// unplace forgets where a sandbox ran, once it no longer does.
+func (p *Pool) unplace(agentID, runnerID uuid.UUID) {
+	p.mu.Lock()
+	if p.placed[agentID] == runnerID {
+		delete(p.placed, agentID)
+	}
+	p.mu.Unlock()
 }
 
 // Stop shuts the compute down and writes the home into the store. In that
@@ -1662,6 +1737,7 @@ func (s *poolSandbox) Stop(ctx context.Context) error {
 			return
 		}
 		c.release()
+		s.pool.unplace(s.agentID, s.runnerID)
 		_, err = c.ask(ctx, TypeStopSandbox, StopSandbox{AgentID: s.agentID}, 60*time.Second)
 		s.pool.syncHome(ctx, c, s.agentID, s.orgID)
 	})

@@ -205,9 +205,23 @@ func (s *Store) Update(ctx context.Context, orgID, id uuid.UUID, p Patch) (Runne
 }
 
 // ByID reads one runner — for the places that have an id and need the name a
-// person gave it.
+// person gave it. Not for a request: a handler that acts for an organisation
+// asks with ByIDForOrg, so that a foreign id is "not found" rather than a row.
 func (s *Store) ByID(ctx context.Context, id uuid.UUID) (Runner, error) {
 	r, err := scan(s.pool.QueryRow(ctx, `SELECT `+columns+` FROM runners WHERE id = $1`, id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Runner{}, ErrNotFound
+	}
+	return r, err
+}
+
+// ByIDForOrg reads one runner of THIS organisation. The organisation is a
+// property of the runner, not of the request (spec/16, "Trust boundary"), and
+// a runner of another tenant is not a runner the caller may not touch — it is
+// none (#159).
+func (s *Store) ByIDForOrg(ctx context.Context, orgID, id uuid.UUID) (Runner, error) {
+	r, err := scan(s.pool.QueryRow(ctx,
+		`SELECT `+columns+` FROM runners WHERE id = $1 AND org_id = $2`, id, orgID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Runner{}, ErrNotFound
 	}

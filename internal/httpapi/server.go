@@ -713,7 +713,8 @@ func mapErr(w http.ResponseWriter, err error) {
 	case errors.Is(err, agents.ErrNotFound), errors.Is(err, backlog.ErrNotFound),
 		errors.Is(err, observability.ErrNotFound), errors.Is(err, secrets.ErrNotFound),
 		errors.Is(err, org.ErrNotFound), errors.Is(err, org.ErrDeptNotFound),
-		errors.Is(err, accounts.ErrNotFound), errors.Is(err, pgx.ErrNoRows):
+		errors.Is(err, accounts.ErrNotFound), errors.Is(err, runnerstore.ErrNotFound),
+		errors.Is(err, pgx.ErrNoRows):
 		writeErr(w, http.StatusNotFound, "not found")
 	case errors.Is(err, backlog.ErrInvalidTransition),
 		errors.Is(err, org.ErrLastAdmin), errors.Is(err, org.ErrEmailTaken),

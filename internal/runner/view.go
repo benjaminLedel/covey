@@ -112,11 +112,15 @@ func (p *Pool) Capacity(runnerID uuid.UUID) (CapacityView, bool) {
 // The answer comes back BEFORE the runner restarts. That is what makes the
 // difference between "installed, coming back" and "fell over" readable at all:
 // after the restart there is nothing left to ask.
-func (p *Pool) Update(ctx context.Context, runnerID uuid.UUID, version, baseURL string) (UpdateResult, error) {
+func (p *Pool) Update(ctx context.Context, orgID, runnerID uuid.UUID, version, baseURL string) (UpdateResult, error) {
 	p.mu.Lock()
 	c := p.conns[runnerID]
 	p.mu.Unlock()
-	if c == nil {
+	if c == nil || c.orgID != orgID {
+		// A runner of another organisation is not connected as far as this
+		// caller is concerned: this message hands the host a URL to fetch and
+		// run a binary from, and the organisation is the runner's, not the
+		// request's (#159).
 		return UpdateResult{}, ErrNoRunner
 	}
 	if c.builtin {

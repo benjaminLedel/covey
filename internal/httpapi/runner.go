@@ -388,14 +388,16 @@ func (s *Server) handlePullOnRunner(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "workplace or image missing")
 		return
 	}
-	if s.RunnerPool == nil {
-		writeErr(w, http.StatusServiceUnavailable, "no runner pool")
+	// The runner has to belong to this organisation. The pool checks it too,
+	// but a 404 here says the right thing instead of "not connected" — and
+	// this is the one route that hands a host a URL to download and run a
+	// binary from, so the check is not a courtesy (#159).
+	if _, err := s.Runners.ByIDForOrg(r.Context(), p.OrgID, id); err != nil {
+		mapErr(w, err)
 		return
 	}
-	// The runner has to belong to this organisation — the pool checks it too,
-	// but a 404 here says the right thing instead of "not connected".
-	if _, err := s.Runners.ByID(r.Context(), id); err != nil {
-		mapErr(w, err)
+	if s.RunnerPool == nil {
+		writeErr(w, http.StatusServiceUnavailable, "no runner pool")
 		return
 	}
 	image, err := s.RunnerPool.PullOn(r.Context(), p.OrgID, id, want)
@@ -521,6 +523,7 @@ func (s *Server) handleDeleteRunner(w http.ResponseWriter, r *http.Request) {
 // release, and prescribing its own version would send the host looking for an
 // artefact that does not exist. Whoever wants a different one names it.
 func (s *Server) handleUpdateRunnerBinary(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid id")
@@ -534,14 +537,16 @@ func (s *Server) handleUpdateRunnerBinary(w http.ResponseWriter, r *http.Request
 		writeErr(w, http.StatusBadRequest, "body not readable")
 		return
 	}
-	if s.RunnerPool == nil {
-		writeErr(w, http.StatusServiceUnavailable, "no runner pool")
+	// The runner has to belong to this organisation. The pool checks it too,
+	// but a 404 here says the right thing instead of "not connected" — and
+	// this is the one route that hands a host a URL to download and run a
+	// binary from, so the check is not a courtesy (#159).
+	if _, err := s.Runners.ByIDForOrg(r.Context(), p.OrgID, id); err != nil {
+		mapErr(w, err)
 		return
 	}
-	// The runner has to belong to this organisation — the pool checks it too,
-	// but a 404 here says the right thing instead of "not connected".
-	if _, err := s.Runners.ByID(r.Context(), id); err != nil {
-		mapErr(w, err)
+	if s.RunnerPool == nil {
+		writeErr(w, http.StatusServiceUnavailable, "no runner pool")
 		return
 	}
 	version := strings.TrimSpace(in.Version)
@@ -552,7 +557,7 @@ func (s *Server) handleUpdateRunnerBinary(w http.ResponseWriter, r *http.Request
 	if base == "" {
 		base = s.RunnerDownloadBase
 	}
-	res, err := s.RunnerPool.Update(r.Context(), id, version, base)
+	res, err := s.RunnerPool.Update(r.Context(), p.OrgID, id, version, base)
 	if err != nil {
 		// The host's own words. "not connected", "does not answer" and a
 		// refusal because it is carrying sandboxes call for different things,
@@ -603,6 +608,7 @@ func runnerIsBusy(res runner.UpdateResult) bool {
 // than an empty version in the update call: there, empty means "the newest
 // release", and one field cannot mean both "the latest" and "none".
 func (s *Server) handleCancelRunnerUpdate(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid id")
@@ -612,7 +618,7 @@ func (s *Server) handleCancelRunnerUpdate(w http.ResponseWriter, r *http.Request
 		writeErr(w, http.StatusServiceUnavailable, "runner API not available")
 		return
 	}
-	if _, err := s.Runners.ByID(r.Context(), id); err != nil {
+	if _, err := s.Runners.ByIDForOrg(r.Context(), p.OrgID, id); err != nil {
 		mapErr(w, err)
 		return
 	}
@@ -637,7 +643,7 @@ func (s *Server) handleRunnerLogs(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	if _, err := s.Runners.ByID(r.Context(), id); err != nil {
+	if _, err := s.Runners.ByIDForOrg(r.Context(), p.OrgID, id); err != nil {
 		mapErr(w, err)
 		return
 	}
@@ -690,7 +696,7 @@ func (s *Server) handleSetRunnerLogLevel(w http.ResponseWriter, r *http.Request)
 		writeErr(w, http.StatusBadRequest, "unknown log level (debug or info)")
 		return
 	}
-	if _, err := s.Runners.ByID(r.Context(), id); err != nil {
+	if _, err := s.Runners.ByIDForOrg(r.Context(), p.OrgID, id); err != nil {
 		mapErr(w, err)
 		return
 	}

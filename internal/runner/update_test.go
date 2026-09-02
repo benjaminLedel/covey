@@ -160,7 +160,7 @@ func TestTheBuiltInRunnerIsNotUpdatedThroughTheProtocol(t *testing.T) {
 	dir := t.TempDir()
 	org := uuid.New()
 	p, runnerID := newLocalPool(t, dir, fakeDockerBin(t, dir, "nothing"), org)
-	if _, err := p.Update(context.Background(), runnerID, "v9.9.9", ""); err == nil {
+	if _, err := p.Update(context.Background(), org, runnerID, "v9.9.9", ""); err == nil {
 		t.Fatal("the built-in runner has to refuse the update")
 	}
 }
@@ -192,7 +192,7 @@ func TestARunnerTooOldToUpdateItselfSaysSoAtOnce(t *testing.T) {
 		id = k
 	}
 	done := make(chan error, 1)
-	go func() { _, err := p.Update(ctx, id, "v9.9.9", ""); done <- err }()
+	go func() { _, err := p.Update(ctx, orgID, id, "v9.9.9", ""); done <- err }()
 	select {
 	case err := <-done:
 		if err == nil || !errors.Is(err, ErrNotSupported) {
