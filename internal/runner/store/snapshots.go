@@ -89,46 +89,6 @@ func (s *Store) LatestSnapshot(ctx context.Context, agentID uuid.UUID) (Snapshot
 	return snap, err
 }
 
-// SnapshotChain are the states an agent's home can be materialised from,
-// newest first — the one a wake uses and the ones it may fall back to.
-//
-// It exists because "the newest snapshot" and "a snapshot that can be read"
-// are not the same thing. A block the store lost takes its snapshot with it,
-// and until #138 that ended the agent: the control plane offered the same
-// unreadable state every thirty seconds, for ever, while nine readable ones
-// sat in the same table (covey.work, 780 wakes over six and a half hours).
-//
-// The limit is the retention's, not a number of its own: whatever the
-// organisation keeps is what there is to fall back to.
-func (s *Store) SnapshotChain(ctx context.Context, agentID uuid.UUID, limit int) ([]string, error) {
-	if limit <= 0 {
-		limit = 10
-	}
-	rows, err := s.pool.Query(ctx,
-		`SELECT manifest_hash FROM home_snapshots WHERE agent_id = $1
-		 ORDER BY created_at DESC LIMIT $2`, agentID, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []string
-	seen := map[string]bool{}
-	for rows.Next() {
-		var h string
-		if err := rows.Scan(&h); err != nil {
-			return nil, err
-		}
-		// Two syncs that changed nothing carry the same hash. As a fallback the
-		// second one is not a second chance.
-		if h == "" || seen[h] {
-			continue
-		}
-		seen[h] = true
-		out = append(out, h)
-	}
-	return out, rows.Err()
-}
-
 // HomeSummary is what the agent page shows about a home. The interesting figure
 // is not the size but the difference: a 7 GB home, of which perhaps 200 MB only
 // this agent holds (spec/16, "Interface").

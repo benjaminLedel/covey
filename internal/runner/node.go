@@ -605,11 +605,12 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 		n.say(ctx, t, Progress{AgentID: spec.AgentID, Phase: PhaseHome})
 		began := time.Now()
 
-		// The newest state first, then the ones behind it. A snapshot whose
-		// manifest cannot be read is not a reason to give up on the agent:
-		// until #138 exactly that ended one for good, because the control
-		// plane offered the same unreadable state every thirty seconds while
-		// nine readable ones lay in the same table.
+		// The state asked for, then whatever older ones travel with it. Today
+		// none do — the store keeps one snapshot per agent (#162) — and a
+		// snapshot whose manifest cannot be read then ends in the one fallback
+		// left, the working copy on this host, below. Until #138 an unreadable
+		// state ended the agent for good: the control plane offered it again
+		// every thirty seconds, for ever.
 		//
 		// Falling back does not delete from the working copy: pruning happens
 		// only when the copy IS the snapshot being restored, and against an

@@ -133,9 +133,6 @@ type Pool struct {
 	// nil or an empty hash = the working copy on the runner applies, which is
 	// what the very first wake looks like.
 	LatestSnapshot func(ctx context.Context, agentID uuid.UUID) (string, error)
-	// SnapshotChain are the states to try, newest first, when the newest one
-	// cannot be read (#138). nil = no way back, the behaviour before.
-	SnapshotChain func(ctx context.Context, agentID uuid.UUID) ([]string, error)
 	// SnapshotAt is when the agent's latest snapshot was taken. It travels with
 	// the start so the runner can tell whether the working copy it holds is a
 	// later state than the snapshot — a sync whose answer was lost, a run whose
@@ -1566,19 +1563,15 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 	// working copy on the runner is then what applies — slower or older, but
 	// an agent that cannot start at all because a lookup failed would be the
 	// worse outcome.
+	//
+	// One state, no chain behind it: the store keeps one snapshot per agent
+	// (spec/16, migration 0073), so what a wake can fall back to when that
+	// state cannot be read is the working copy on the host — which node.start
+	// tries — and nothing else. #138 gave the start a list of older states to
+	// walk; the schema had one row per agent by then and the list was always
+	// one long (#162).
 	snapshot := ""
-	var fallbacks []string
-	if p.SnapshotChain != nil {
-		// The whole chain in one question: which of them can be read is only
-		// found out where the blocks are fetched, so the runner gets the list
-		// and walks it (#138).
-		if chain, err := p.SnapshotChain(ctx, spec.AgentID); err != nil {
-			p.Log.Warn("snapshots not readable — the working copy applies",
-				"agent", spec.AgentID, "err", err)
-		} else if len(chain) > 0 {
-			snapshot, fallbacks = chain[0], chain[1:]
-		}
-	} else if p.LatestSnapshot != nil {
+	if p.LatestSnapshot != nil {
 		if hash, err := p.LatestSnapshot(ctx, spec.AgentID); err != nil {
 			p.Log.Warn("last snapshot not readable — the working copy applies",
 				"agent", spec.AgentID, "err", err)
@@ -1615,7 +1608,6 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 			Env:         spec.Env,
 			EgressToken: spec.EgressToken,
 			Snapshot:    snapshot,
-			Fallbacks:   fallbacks,
 			SnapshotAt:  snapshotAt,
 			Excludes:    p.HomeExcludes,
 			ImageHint:   p.imageHints(ctx)[want.image],

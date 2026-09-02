@@ -413,15 +413,12 @@ type StartSandbox struct {
 	// starts. Empty = whatever lies in the working copy — which is the case on
 	// the very first wake, and after that only when the store is switched off.
 	Snapshot string `json:"snapshot,omitempty"`
-	// Fallbacks are older states, newest first, for the case that Snapshot
-	// cannot be read — a block the store lost takes its snapshot with it, and
-	// without a way back that ends the agent (#138).
-	//
-	// The list travels with the start rather than being asked for afterwards:
-	// the runner is the only one that finds out a manifest is unreadable, and a
-	// second round trip to learn what else there is would make every failed
-	// wake a conversation. An older runner ignores the field and behaves as
-	// before — additive, like every other field here.
+	// Fallbacks are older states, newest first, to try when Snapshot cannot be
+	// read. The control plane sends none: the store keeps one snapshot per
+	// agent (spec/16), so there is no older state to name, and the fallback a
+	// wake has is the working copy on the host (#162). The field stays in the
+	// protocol — a runner still walks whatever it is given — so that a store
+	// which keeps a history one day needs no protocol change to use it.
 	Fallbacks []string `json:"fallbacks,omitempty"`
 	// SnapshotAt is when Snapshot was taken, by the control plane's clock. It is
 	// what lets the runner tell a restore from a reversal (#153): a working copy
