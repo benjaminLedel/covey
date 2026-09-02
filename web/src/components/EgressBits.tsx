@@ -152,7 +152,7 @@ export function EgressLogTable({ agentId, withAgentFilter = false }: { agentId?:
                 <td className="mono">{e.host}</td>
                 <td className="secondary">{e.method}</td>
                 <td>
-                  <span className={`badge ${e.allowed ? "st-done" : "st-failed"}`}>
+                  <span className={`badge state ${e.allowed ? "st-done" : "st-failed"}`}>
                     {e.allowed ? t("egress.log.allowed") : t("egress.log.blocked")}
                   </span>
                 </td>

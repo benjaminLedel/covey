@@ -68,7 +68,7 @@ type Server struct {
 	// (spec/22). nil / empty URL = no catalogue configured.
 	Marketplace *marketplace.Client
 	// Workplaces is the published workplace catalogue (spec/16) — which image
-	// belongs to which Covey version. nil = none configured; then the
+	// belongs to which covey version. nil = none configured; then the
 	// compiled defaults and the environment stand.
 	Workplaces *sandbox.Source
 	// OrgWorkplaces are the workplaces an organisation brought along itself —
@@ -965,7 +965,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 // (with maxAge -1) at sign-out. One place, because the flags belong together:
 // three copies of them are three chances to lose one.
 //
-// SameSite=Strict instead of Lax: Covey is an administration tool you navigate
+// SameSite=Strict instead of Lax: covey is an administration tool you navigate
 // into — there are no deep links from foreign pages that would need any
 // consideration. Lax sends the cookie along on every top-level navigation from
 // outside; Strict does not, and thereby takes the whole class of attacks that

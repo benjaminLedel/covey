@@ -35,7 +35,7 @@ func newLoginLimiter() *loginLimiter {
 
 // webhookLimiter throttles the webhook endpoints. Those are deliberately
 // reachable UNAUTHENTICATED — a target system should be able to deliver without
-// a Covey account — and every accepted call wakes an agent, i.e. an LLM run with
+// a covey account — and every accepted call wakes an agent, i.e. an LLM run with
 // real cost. Whoever knows the URL (it sits in the target system's
 // configuration) could otherwise run up arbitrary cost.
 //

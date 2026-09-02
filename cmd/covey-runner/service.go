@@ -18,7 +18,7 @@ import (
 // fail, which is the expensive kind of broken.
 //
 // So the service belongs in the binary, not in a documentation snippet somebody
-// copies. Third parties install Covey from GitHub and have exactly the means
+// copies. Third parties install covey from GitHub and have exactly the means
 // this binary brings; a paragraph in a runbook is not one of them.
 const (
 	serviceUnitName = "covey-runner.service"
@@ -39,7 +39,7 @@ type unitParams struct {
 func unitFile(p unitParams) string {
 	var b strings.Builder
 	b.WriteString(`[Unit]
-Description=Covey runner
+Description=covey runner
 Documentation=https://github.com/benjaminLedel/covey/blob/main/docs/en/operations/runner.md
 After=network-online.target docker.service
 Wants=network-online.target

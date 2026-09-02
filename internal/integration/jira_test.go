@@ -255,7 +255,7 @@ func (f *fakeJira) handle(w http.ResponseWriter, r *http.Request) {
 
 	switch {
 	case path == "/myself":
-		out(map[string]any{"accountId": "5b10bot", "displayName": "Covey Bot", "emailAddress": "covey-bot@acme.example"})
+		out(map[string]any{"accountId": "5b10bot", "displayName": "covey Bot", "emailAddress": "covey-bot@acme.example"})
 
 	case path == "/issue/ACME-17" && r.Method == http.MethodGet:
 		out(map[string]any{"key": "ACME-17", "fields": f.fields()})
@@ -278,7 +278,7 @@ func (f *fakeJira) handle(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 
 	case path == "/issue/ACME-17/assignee":
-		f.assignee = map[string]any{"accountId": "5b10bot", "displayName": "Covey Bot"}
+		f.assignee = map[string]any{"accountId": "5b10bot", "displayName": "covey Bot"}
 		w.WriteHeader(http.StatusNoContent)
 
 	case path == "/issue/ACME-17/comment" && r.Method == http.MethodPost:

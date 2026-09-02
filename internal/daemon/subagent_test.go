@@ -256,8 +256,8 @@ func runGit(t *testing.T, dir string, args ...string) {
 	// Identity as ENV instead of via git config — like initGitBaseline in the
 	// checkout.
 	cmd.Env = append(os.Environ(),
-		"GIT_AUTHOR_NAME=Covey", "GIT_AUTHOR_EMAIL=covey@localhost",
-		"GIT_COMMITTER_NAME=Covey", "GIT_COMMITTER_EMAIL=covey@localhost")
+		"GIT_AUTHOR_NAME=covey", "GIT_AUTHOR_EMAIL=covey@localhost",
+		"GIT_COMMITTER_NAME=covey", "GIT_COMMITTER_EMAIL=covey@localhost")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git %v: %v\n%s", args, err, out)
 	}

@@ -24,7 +24,7 @@ import (
 // Manifest is a declarative target system plugin: a JSON file an admin uploads
 // instead of compiling Go code. A generic REST engine (Sys)
 // interprets it — that way API-key-based REST systems can be connected without
-// shipping a new Covey build. For anything beyond that (OAuth flows, special
+// shipping a new covey build. For anything beyond that (OAuth flows, special
 // protocols) the way remains a compiled built-in plugin.
 type Manifest struct {
 	Name        string `json:"name"`

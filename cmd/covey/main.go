@@ -83,7 +83,7 @@ func main() {
 		return
 	case "version", "--version", "-v":
 		fmt.Println("covey " + buildinfo.String())
-		// Covey is a network service under AGPL-3.0: whoever offers a modified
+		// covey is a network service under AGPL-3.0: whoever offers a modified
 		// version to others owes them the source. Naming the address right here
 		// turns that from a research task into a trifle for operators.
 		fmt.Println("AGPL-3.0 · source: " + buildinfo.SourceURL)
@@ -904,7 +904,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	skillStore := skills.NewStore(pool)
 
 	// Die veroeffentlichten Arbeitsplaetze (spec/16): welches Image zu welcher
-	// Covey-Fassung gehoert, gepinnt auf den Digest. Mit demselben Cache wie
+	// covey-Fassung gehoert, gepinnt auf den Digest. Mit demselben Cache wie
 	// der Plugin-Katalog — der Stand ueberlebt den Neustart, und faellt der
 	// Server dahinter aus, gilt der letzte gueltige weiter.
 	workplaces := sandbox.NewSource(cfg.SandboxCatalogURL, marketplace.NewPgCache(pool), log)
@@ -925,7 +925,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	// none of them is taken as an image reference of its own.
 	//
 	// Three sources, in this order: what the environment names, what the
-	// published catalogue holds for THIS Covey version (pinned by digest), and
+	// published catalogue holds for THIS covey version (pinned by digest), and
 	// the compiled default. The pool resolves that itself, because the middle
 	// one can change while the process runs — a release is published and the
 	// next wake takes the image built for it.

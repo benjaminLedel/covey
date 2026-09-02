@@ -32,6 +32,79 @@
 .st-done, .st-approved { background: var(--bg-success); color: var(--text-success); }
 .st-killed, .st-failed, .st-denied { background: transparent; color: var(--text-danger); border: 0.5px solid var(--border-danger); }
 .st-open { background: var(--surface-1); color: var(--text-secondary); border: 0.5px dashed var(--clay); }
+
+/* ── State marks ──────────────────────────────────────────────────────
+   Every state carries a drawn mark whose SHAPE says what it is; the
+   colour beside it only reinforces. Colour alone was the sole carrier
+   until now, which fails anyone who cannot separate these hues and
+   turns a printout into a row of identical grey pills.
+
+   The mark hangs on `.state`, not on `.badge`: it is a claim about a
+   thing's condition, and only a badge whose LABEL is that condition may
+   make it. A pill carrying a count, a kind or a schedule is not in a
+   state — on `.badge` alone every one of them drew the hollow disc,
+   which by the legend below means "at rest", beside a number or the
+   word "built-in". The state classes cannot decide it either: half of
+   them are worn for their colour (a model name in `st-triage`, a
+   sensitive secret in `st-blocked`), and a colour borrowed is not a
+   state claimed. So the mark is asked for, once, where it is meant.
+
+   The marks are drawn with a border and a gradient rather than set as
+   glyphs: a character would follow the text font's metrics and drift
+   against the label, and an icon font is a second dependency for six
+   shapes. One 9px box, one stroke weight, six forms:
+
+     filled        working, in progress   the work is running
+     filled + ring triggered              something woke it
+     hollow        sleeping, cancelled    at rest
+     dashed        draft, open, securing  undecided or in transit
+     barred        blocked, pending       held up
+     crossed       killed, failed, denied ended against its purpose
+
+   The mark inherits currentColor, so each state's own colour rides
+   along without a second declaration per state. */
+.badge.state::before {
+  content: "";
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  box-sizing: border-box;
+}
+/* Running: the disc is filled. */
+.state.st-working::before, .state.st-in_progress::before { background: currentColor; }
+/* Woken from outside: a filled core inside its own ring. The gap between
+   core and ring is painted in the badge's OWN ground (--bg-pro, the rule
+   above), not in the card's: on the grey pill a white gap was a halo. */
+.state.st-triggered::before, .state.st-triage::before {
+  background: currentColor;
+  box-shadow: 0 0 0 1.5px var(--bg-pro), 0 0 0 3px currentColor;
+}
+/* At rest: the outline alone. (.badge.state::before already draws it.) */
+/* Undecided or in transit: the outline breaks up. */
+.state.st-draft::before, .state.st-open::before, .state.st-securing::before { border-style: dashed; }
+/* Held up: one bar across the disc. */
+.state.st-blocked::before, .state.st-pending::before {
+  background: linear-gradient(to bottom right,
+    transparent calc(50% - 0.8px), currentColor calc(50% - 0.8px),
+    currentColor calc(50% + 0.8px), transparent calc(50% + 0.8px));
+}
+/* Ended against its purpose: both bars. */
+.state.st-killed::before, .state.st-failed::before, .state.st-denied::before {
+  background:
+    linear-gradient(to bottom right,
+      transparent calc(50% - 0.8px), currentColor calc(50% - 0.8px),
+      currentColor calc(50% + 0.8px), transparent calc(50% + 0.8px)),
+    linear-gradient(to bottom left,
+      transparent calc(50% - 0.8px), currentColor calc(50% - 0.8px),
+      currentColor calc(50% + 0.8px), transparent calc(50% + 0.8px));
+}
+/* Signed off: filled, with the ring standing clear of it. */
+.state.st-done::before, .state.st-approved::before {
+  background: currentColor;
+  box-shadow: inset 0 0 0 1.5px var(--bg-success);
+}
 /* Entwurf: angelegt, aber noch nicht eingestellt. Gestrichelt wie „offen" —
    es ist derselbe Gedanke, nur über einen Mitarbeiter statt über eine
    Aufgabe: da ist etwas, und es fehlt noch eine Entscheidung. */
@@ -40,16 +113,66 @@
 /* Die Agentenkarte: gleich hoch wie ihre Nachbarn, Knöpfe am Fuß.
    Ohne das standen in einer Reihe drei verschieden hohe Karten, je nachdem
    wie lang der Name war — und die Knöpfe klebten jeweils woanders. */
-.agent-card {
-  display: flex;
-  flex-direction: column;
-  color: inherit;
-  height: 100%;
+/* ── Das Register ──────────────────────────────────────────────────────
+   Die Belegschaft als Personalbogen: eine Zeile je Person, feste Spalten,
+   alles in einer Flucht. Die Zeilen sind durch Haarlinien getrennt wie die
+   Zeilen eines Vordrucks, nicht durch Abstand — Abstand zwischen Karten
+   kostet Platz und stellt trotzdem keine Flucht her.
+
+   Sieben Spalten: Zeichen, wer, Kürzel, Engine, Budget, Stand, Handlung.
+   Unter 1000px fallen Kürzel und Engine weg, unter 720px auch das Budget:
+   wer bleibt und wie er steht, ist das, wofür man die Liste öffnet. */
+.register {
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  overflow: hidden;
 }
-.agent-card-actions { margin-top: auto; padding-top: 10px; }
-/* Lange Namen brechen um statt die Karte zu sprengen; erfundene Bot-Namen
-   ohne Leerzeichen („Anlagenüberwachungs-Agent") notfalls im Wort. */
-.agent-card-name { overflow-wrap: anywhere; }
+.reg-kopf,
+.reg-row {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 2.2fr) minmax(0, 1.1fr) minmax(0, 1fr) 88px 132px auto;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+}
+/* Der Spaltenkopf ist Vordruck: er steht still und wird nicht mitgelesen. */
+.reg-kopf {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  border-bottom: 0.5px solid var(--border);
+  background: var(--surface-1);
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.reg-row {
+  border-top: 0.5px solid var(--border);
+  color: inherit;
+  transition: background 0.12s;
+}
+.reg-row:first-child { border-top: none; }
+.reg-kopf + .reg-row { border-top: none; }
+/* Beim Überfahren tönt sich die ganze Zeile — der Zeilenfinger auf dem Bogen. */
+.reg-row:hover { background: var(--surface-1); }
+.reg-name { overflow-wrap: anywhere; }
+.reg-slug, .reg-engine { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reg-budget { text-align: right; font-variant-numeric: tabular-nums; }
+.reg-stand { display: flex; justify-content: flex-start; }
+.reg-tun { display: flex; gap: 6px; justify-content: flex-end; }
+/* Eine Bewerbung ist eine noch nicht besetzte Zeile: die Leerstelle wird
+   gezeichnet, nicht weggelassen. */
+.reg-row-draft { background: var(--tint-weak); }
+.reg-leer { color: var(--text-muted); }
+
+@media (max-width: 1000px) {
+  .reg-kopf, .reg-row { grid-template-columns: 30px minmax(0, 2.2fr) 88px 132px auto; }
+  .reg-slug, .reg-engine, .reg-kopf span:nth-child(3), .reg-kopf span:nth-child(4) { display: none; }
+}
+@media (max-width: 720px) {
+  .reg-kopf, .reg-row { grid-template-columns: 30px minmax(0, 1fr) 132px auto; gap: 10px; }
+  .reg-budget, .reg-kopf span:nth-child(5) { display: none; }
+}
+
 
 /* Die Suche über der Belegschaft. Mittig und in eigener Zeile, weil sie ab
    einem Dutzend Agenten das Erste ist, was jemand hier tut — in der Kopfzeile
@@ -131,7 +254,7 @@
 /* Die Wortmarke bringt aus der Seitenleiste einen Abstand nach unten mit —
    in einer Kopfzeile sitzt sie damit schief. */
 .setup-head .brand { margin: 0; font-size: 15px; }
-.setup-head .brand .mark { width: 24px; height: 24px; border-radius: 8px; }
+
 .setup-body {
   width: 100%;
   max-width: 720px;
@@ -211,16 +334,9 @@
   letter-spacing: -0.01em;
   color: var(--text-primary);
 }
-.brand .mark {
-  width: 28px;
-  height: 28px;
-  border-radius: 9px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(140deg, #d98a6a 0%, var(--clay) 55%, #b25f41 100%);
-  box-shadow: 0 1px 2px var(--shadow-md), inset 0 1px 0 rgba(255, 255, 255, 0.22);
-}
+/* Kachel und Farbe stehen im SVG der Komponente, damit das Markup mit der
+   Website und dem Favicon identisch ist. Hier bleibt nur das Verhalten. */
+.signet { flex: none; display: block; }
 .brand .mark svg {
   stroke: #fff;
   fill: none;
@@ -674,7 +790,6 @@
   font-size: 11px;
 }
 .act-feed .subrun-task {
-  font-family: var(--voice);
   font-size: 13.5px;
   line-height: 1.5;
   color: var(--text-secondary);
@@ -945,7 +1060,6 @@
 .wiki-ctx { padding: 6px 0; border-bottom: 0.5px solid var(--border); }
 .wiki-ctx:last-child { border-bottom: none; }
 .wiki-quote {
-  font-family: var(--voice);
   font-size: 12px;
   color: var(--text-secondary);
   margin: 2px 0 0;
@@ -1812,7 +1926,6 @@
   padding: 8px 12px;
   border-radius: 6px;
   background: var(--surface-1);
-  font-family: var(--voice);
   font-style: italic;
   font-size: 13px;
   line-height: 1.55;
@@ -1888,8 +2001,8 @@
 .tgt-doc-details summary { font-size: 12.5px; color: var(--text-secondary); cursor: pointer; }
 
 /* Offene Punkte aus dem Betrieb (spec/21): der Diff, den ein Mensch liest,
-   bevor er einen Vorschlag annimmt. Gruen/rot bewusst zusaetzlich durch das
-   Vorzeichen getragen — Farbe allein traegt keine Bedeutung. */
+   bevor er einen Vorschlag annimmt. Das Vorzeichen traegt die Aussage,
+   die Flaeche hilft ihr — Farbe allein traegt keine Bedeutung. */
 .diff {
   border: 0.5px solid var(--border);
   border-radius: 8px;
@@ -1913,6 +2026,13 @@
 }
 .diff-line { display: block; padding: 0 10px; white-space: pre-wrap; word-break: break-word; }
 .diff-line.del { background: var(--danger-tint); color: var(--text-danger); }
+/* Die Zugaenge: eine Lasur aus Tinte, keine gruene Flaeche. Die Palette hat
+   kein Gruen mehr (styles.css: Rot ist die eine Ausnahme), und --bg-success
+   ist inzwischen dasselbe Grau wie der Grund des Diffs — die Hervorhebung war
+   damit unsichtbar, waehrend die Entfernungen rot blieben. Auf dem Bogen, auf
+   dem jemand einen Vorschlag von covey Doctor abzeichnet, sah nur die Haelfte
+   markiert aus. */
+.diff-line.add { background: var(--tint); color: var(--text-primary); }
 .diff-skip {
   display: block;
   padding: 2px 10px;

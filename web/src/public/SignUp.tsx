@@ -60,7 +60,7 @@ export default function SignUp() {
     <div className="landing pub-signin">
       <div className="pub-signin-brand login-rise">
         <BirdMark size={52} />
-        <h1 className="login-wordmark">Covey</h1>
+        <h1 className="login-wordmark">covey</h1>
       </div>
       <p
         className="landing-tagline login-rise"

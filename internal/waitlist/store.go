@@ -21,7 +21,7 @@ var (
 	ErrExpired       = errors.New("this code has expired")
 	ErrUsedUp        = errors.New("this code has already been used up")
 	ErrEmailMismatch = errors.New("this code applies to a different e-mail address")
-	ErrMalformed     = errors.New("this is not a Covey code")
+	ErrMalformed     = errors.New("this is not a covey code")
 )
 
 // Code is a waitlist code as the administration sees it — without its

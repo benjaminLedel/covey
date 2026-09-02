@@ -47,7 +47,7 @@ func init() {
 		Description: "OpenAI Codex headless (codex exec). Planned — the run is not yet verified against the binary; see spec/19.",
 		Credentials: []RuntimeCredential{
 			// The API key is an environment variable and explicitly supported
-			// only in `codex exec` — exactly the injection point Covey uses.
+			// only in `codex exec` — exactly the injection point covey uses.
 			{Kind: CredAPIKey, Label: "API key",
 				Secret: "openai_api_key", EnvVar: "CODEX_API_KEY"},
 			// The ChatGPT plan login is a FILE. This is the case that broke the
@@ -96,7 +96,7 @@ func init() {
 	})
 }
 
-// Prices is the price list Covey uses to turn Codex's token counts into a
+// Prices is the price list covey uses to turn Codex's token counts into a
 // comparable figure — Codex reports usage and no money (spec/19).
 //
 // Deliberately EMPTY until the figures are checked against the provider's

@@ -1,6 +1,6 @@
 // Package mcp binds MCP servers (Model Context Protocol) as target-system
 // plugins — the third plugin type alongside compiled built-ins and declarative
-// manifests (see internal/target). An MCP server exposes a tool list; Covey
+// manifests (see internal/target). An MCP server exposes a tool list; covey
 // discovers it (control plane, tools/list for the UI) and executes individual
 // tools through the daemon's action proxy (tools/call). All central enforcement
 // points (broker, guard-rails, recording) apply unchanged, because an MCP
@@ -26,7 +26,7 @@ import (
 	"covey/internal/reqlog"
 )
 
-// protocolVersion is the MCP version Covey offers as a client.
+// protocolVersion is the MCP version covey offers as a client.
 const protocolVersion = "2025-06-18"
 
 // Tool is a tool offered by the MCP server — the unit that appears in the UI,
@@ -61,7 +61,7 @@ func (e *rpcError) Error() string { return fmt.Sprintf("mcp error %d: %s", e.Cod
 
 // Conn is a short-lived MCP session: it initializes, performs a handful of
 // calls, and is closed. It is built freshly per discovery (control plane) and
-// per tool call (daemon) — Covey keeps no state.
+// per tool call (daemon) — covey keeps no state.
 type Conn struct {
 	url       string
 	authHdr   string // header name for the token (empty = no auth)

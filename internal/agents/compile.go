@@ -40,9 +40,9 @@ const CoveyActionsDoc = `The platform's own actions — your board, your memory,
 // between runtime and daemon. The agent acts in target systems exclusively
 // through the daemon's action proxy (guard rails take hold centrally, secrets
 // stay outside) and reports its result as a COVEY_STATUS line.
-const ProtocolInstructions = `## Covey platform protocol
+const ProtocolInstructions = `## covey platform protocol
 
-You are an agent on the Covey platform. The following rules apply:
+You are an agent on the covey platform. The following rules apply:
 
 1. **Target systems:** you NEVER access target systems (e.g. the ticket system)
    directly, but exclusively through the local action proxy. You run actions with curl:
@@ -449,7 +449,7 @@ project, not a job for you.`
 // the SCOPE, not the agent: it stands in the prompt of whoever has
 // `- system: covey scope: agents:review` in its ACCESS.md, and in nobody
 // else's. The two scopes are deliberately separate — the People department
-// hires, Covey Doctor reads and proposes, and neither can do the
+// hires, covey Doctor reads and proposes, and neither can do the
 // other's job with the other's credentials.
 const ReviewDoc = `## Reading colleagues, and proposing changes
 
@@ -502,7 +502,7 @@ delivering is misconfigured, or it has the wrong assignment, or the platform
 underneath it is at fault. Only the first is a proposal. The second belongs to
 the human who owns the agent — say it plainly in your review; you cannot
 redirect a colleague's remit and neither can the platform. The third is a bug
-in Covey.
+in covey.
 
 **Never quote a colleague its own figures.** A proposal describes behaviour and
 procedure — "close the partial result before the turn limit and file the rest
@@ -678,7 +678,7 @@ func PlatformRepoDoc(system, project, ref string, refIsTag bool) string {
 	}
 	return `## The platform you run on
 
-Covey's own source lives on ` + "`" + system + "`" + `, project ` + "`" + project + "`" + `. You may READ it —
+covey's own source lives on ` + "`" + system + "`" + `, project ` + "`" + project + "`" + `. You may READ it —
 check it out and search it like any other repository — and you may file issues
 there. Nothing else.
 

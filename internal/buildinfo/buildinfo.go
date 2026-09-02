@@ -24,7 +24,7 @@ import (
 	"sync"
 )
 
-// SourceURL is the public source of this program. Covey is licensed under the
+// SourceURL is the public source of this program. covey is licensed under the
 // AGPL-3.0 and runs as a network service: whoever offers a modified version to
 // others owes them the source. The address therefore belongs where it can be
 // found without searching — the CLI and the UI footer. Whoever forks and
@@ -56,7 +56,7 @@ type Info struct {
 	// not the origin's.
 	Source string `json:"source"`
 	// SourceSystem/SourceProject are the same address as a target-system
-	// address (SourceRepo): the default Covey Doctor reports to as long as the
+	// address (SourceRepo): the default covey Doctor reports to as long as the
 	// organisation has not named a repository of its own. The interface shows
 	// it where that setting sits, instead of leaving "not set up" standing over
 	// something that is set up.
@@ -124,7 +124,7 @@ func (i Info) String() string {
 func String() string { return Get().String() }
 
 // SourceRepo derives from SourceURL which target-system plugin the source lives
-// on and under which project — the address Covey Doctor reads and files its
+// on and under which project — the address covey Doctor reads and files its
 // issues at when an organisation has not named one of its own (spec/21).
 //
 // Derived, not configured a second time: the program knows where it comes from,

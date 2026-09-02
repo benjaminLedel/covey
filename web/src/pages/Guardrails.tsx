@@ -290,7 +290,7 @@ function RuleTester({ agents }: { agents: Agent[] }) {
       </form>
       {v && (
         <div className="flex items-center gap-3 mt-3 flex-wrap">
-          <span className={`badge ${decisionClass[v.decision] ?? "st-triage"}`}>
+          <span className={`badge state ${decisionClass[v.decision] ?? "st-triage"}`}>
             {t(`guardrails.decisionLabels.${v.decision}`, v.decision)}
           </span>
           <span className="mono text-sm">{v.subject}</span>

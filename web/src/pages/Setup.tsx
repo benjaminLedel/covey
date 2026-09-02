@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { BirdMark } from "../components/BirdMark";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
@@ -35,14 +36,8 @@ export default function Setup() {
       <header className="setup-head">
         <div className="setup-head-in">
           <span className="brand">
-            <span className="mark" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="18" height="18">
-                <path d="M7 15 Q9.75 11.8 12.5 15 Q15.25 11.8 18 15" />
-                <path d="M3.5 10 Q5.5 7.7 7.5 10 Q9.5 7.7 11.5 10" />
-                <path d="M13 8 Q14.5 6.3 16 8 Q17.5 6.3 19 8" />
-              </svg>
-            </span>
-            Covey
+            <BirdMark size={26} />
+            covey
           </span>
           <span className="ml-auto" />
           <span className="secondary text-xs">{t("setup.progress", { done, total: 3 })}</span>

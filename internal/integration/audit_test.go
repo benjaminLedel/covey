@@ -30,7 +30,7 @@ func auditSpur(t *testing.T, c *apiClient) []auditEintrag {
 	return out
 }
 
-// Covey promises gapless traceability (spec/06) — but only had one half of it:
+// covey promises gapless traceability (spec/06) — but only had one half of it:
 // what AGENTS do is in the recording; what HUMANS do to the platform was
 // nowhere. Without that half someone could delete a guard rail, let the agent
 // work and create the rule again afterwards — and the recording would show a

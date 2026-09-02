@@ -23,7 +23,7 @@ import (
 //
 // WHICH variables travel is not decided here. Each plugin declares what it
 // reads (target.Descriptor.Env) and this collects the declarations from the
-// registry. A hand-maintained list in Covey was the first fix, and it was
+// registry. A hand-maintained list in covey was the first fix, and it was
 // wrong in a way that would have kept costing: it described code living in
 // another repository, it had already missed two entries when it was written,
 // and it could never have covered a plugin somebody else wrote.

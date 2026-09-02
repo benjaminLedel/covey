@@ -7,7 +7,7 @@ import (
 // Frontmatter handling of SKILL.md.
 //
 // Claude Code expects a YAML block between --- at the start of SKILL.md, whose
-// `description` decides whether the skill is loaded. Covey nevertheless keeps
+// `description` decides whether the skill is loaded. covey nevertheless keeps
 // the description as a COLUMN and the SKILL.md without frontmatter: lists, UI
 // and bundle need the description without parsing files, and the description
 // must not be able to contradict itself in two places.
@@ -89,7 +89,7 @@ func SplitEntry(content string) (name, description, body string) {
 }
 
 // UnsupportedFrontmatterKeys returns the frontmatter keys of a SKILL.md that
-// Covey does not track — empty when only name/description (or no block at all)
+// covey does not track — empty when only name/description (or no block at all)
 // occur.
 //
 // The caller uses this to reject rather than store. Reason: SplitEntry cuts off

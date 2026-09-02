@@ -240,7 +240,7 @@ func (s *Server) handleDecideImprovement(w http.ResponseWriter, r *http.Request)
 
 	// Ablehnen kostet nichts und nimmt nichts weg: das darf jeder, der die
 	// Liste bedienen darf. Der Grund bleibt stehen — ein abgelehnter Vorschlag
-	// ist das Nützlichste, was jemand lesen kann, der Covey Doctor
+	// ist das Nützlichste, was jemand lesen kann, der covey Doctor
 	// selbst überprüfen will.
 	if !in.Accept {
 		s.finishImprovement(w, r, item.ID, agents.ImprovementRejected, in.Note, 0)

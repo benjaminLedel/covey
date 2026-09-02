@@ -1,4 +1,4 @@
-// Package waitlist manages the codes with which Covey opens in stages: create
+// Package waitlist manages the codes with which covey opens in stages: create
 // one, hand it out, redeem it once with a sign-up.
 //
 // The format follows from the way a code travels. It stands in an e-mail, on a
@@ -16,7 +16,7 @@ import (
 	"strings"
 )
 
-// Prefix makes the code recognisable in a mail as belonging to Covey. It is
+// Prefix makes the code recognisable in a mail as belonging to covey. It is
 // not part of the secret and is stripped before anything else — it must not
 // take part in normalisation, because its own letters (C, O, V, E, Y) are
 // symbols of the alphabet and an O would otherwise turn into a 0.

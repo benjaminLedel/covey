@@ -20,7 +20,7 @@ import (
 // from the control plane's disk is wanted (spec/16, "Where the blocks live").
 //
 // S3-compatible and not "AWS S3": the protocol is the common denominator of
-// Hetzner Object Storage, Garage, MinIO, Ceph RadosGW and SeaweedFS. Covey does
+// Hetzner Object Storage, Garage, MinIO, Ceph RadosGW and SeaweedFS. covey does
 // not prescribe a server, it speaks the protocol.
 type S3 struct {
 	// Endpoint is the base address, e.g. https://s3.eu-central-1.example.com.
@@ -33,7 +33,7 @@ type S3 struct {
 	// are mostly self-hosted.
 	PathStyle bool
 	// Prefix puts the blocks under a common path, for a bucket that holds more
-	// than Covey.
+	// than covey.
 	Prefix string
 
 	Client *http.Client

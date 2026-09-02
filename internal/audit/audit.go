@@ -4,7 +4,7 @@
 // The separation from the recording (internal/observability) is one of content:
 // there it says what the AGENTS do — gapless, with screenshots, attached to the
 // task. Here it says what HUMANS do to the platform. Only both together yield
-// the traceability Covey sets out to deliver (spec/06): without this half,
+// the traceability covey sets out to deliver (spec/06): without this half,
 // somebody could delete a guard-rail, let the agent do its work and create the
 // rule again afterwards — and the recording would show a flawless run.
 package audit

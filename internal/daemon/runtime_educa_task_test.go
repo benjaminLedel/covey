@@ -17,7 +17,7 @@ import (
 
 // Whether the plumbing holds and whether an agent can WORK are two questions,
 // and the first one flatters the second. TestEducaLive answers "does a run
-// complete"; this one answers "does a Covey agent get a job done on these
+// complete"; this one answers "does a covey agent get a job done on these
 // models" — with the platform's real prompt (agents.ProtocolInstructions, ~9 KB),
 // the default tool scope, several turns, and a result somebody can check without
 // believing the agent's own report.
@@ -104,7 +104,7 @@ print("all checks passed")
 		// The platform's own share of the prompt, verbatim — this is what every
 		// agent actually carries, and it is most of what a small model has to
 		// cope with before it gets to the task.
-		SystemPrompt: "You are Testfried, a developer agent at Covey.\n\n" + agents.ProtocolInstructions,
+		SystemPrompt: "You are Testfried, a developer agent at covey.\n\n" + agents.ProtocolInstructions,
 		Model:        model,
 		AllowedTools: DefaultAllowedTools,
 		MaxTurns:     25,

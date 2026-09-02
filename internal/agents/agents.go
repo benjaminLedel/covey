@@ -96,7 +96,7 @@ type Agent struct {
 	// Services run beside this agent's sandbox for as long as it lives: the
 	// database a test suite needs, the queue an application talks to. They are
 	// the half of a workplace the image cannot carry — a project's database is
-	// not part of Covey, and building it into the image made every agent pay
+	// not part of covey, and building it into the image made every agent pay
 	// for it (spec/16, "Services beside the sandbox").
 	//
 	// It sits on the agent because that is what the platform has when a sandbox
@@ -192,22 +192,22 @@ func (r *Registry) CreateDraft(ctx context.Context, orgID uuid.UUID, slug, displ
 // the same question as create() answers.
 const DefaultRuntime = "claude-code"
 
-// Covey Doctor trägt einen festen Namen.
+// covey Doctor trägt einen festen Namen.
 //
 // Er ist kein Kollege, den eine Organisation sich ausdenkt, sondern die
 // Plattform, die sich selbst betrachtet (spec/21) — dieselbe Rolle, die
 // `covey doctor` vor einem Upgrade einnimmt. Ein Agent, der jeden Kollegen
 // beurteilen und für ihn Änderungen vorschlagen darf, soll überall gleich
-// heißen: wer in einem fremden Recording „Covey Doctor" liest, weiß, was das
+// heißen: wer in einem fremden Recording „covey Doctor" liest, weiß, was das
 // war, ohne die ACCESS.md nachzuschlagen. Deshalb Name und Slug reserviert und
 // gegen Umbenennen gesperrt — ein umbenannter Doctor wäre ein Agent mit den
 // Rechten des Doctors und dem Namen eines Kollegen.
 const (
 	DoctorSlug = "covey-doctor"
-	DoctorName = "Covey Doctor"
+	DoctorName = "covey Doctor"
 )
 
-// IsDoctor erkennt Covey Doctor am reservierten Slug. Der Slug ist
+// IsDoctor erkennt covey Doctor am reservierten Slug. Der Slug ist
 // der Anker und nicht der Anzeigename, weil er eindeutig je Organisation ist —
 // und er ist mitgesperrt, sonst wäre das Umbenennen des Slugs der Umweg um die
 // Namenssperre.

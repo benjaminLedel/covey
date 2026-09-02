@@ -129,7 +129,7 @@ export function CompanyDescription() {
 
 /* Wo der Quelltext dieser Plattform liegt (spec/21).
  *
- * Covey Doctor macht den wertvollsten Befund dort, wo er ihn nicht
+ * covey Doctor macht den wertvollsten Befund dort, wo er ihn nicht
  * durch eine Config beheben kann — und er ist der Einzige in der Organisation,
  * der ihn bei mehreren Kollegen gleichzeitig gesehen hat. Damit daraus eine
  * Diagnose statt eines Symptoms wird, liest er den Quelltext; damit der Bericht
@@ -144,21 +144,21 @@ export function CompanyDescription() {
  * Zwei Dinge haben der Karte gefehlt, und beide machten sie zu einer
  * Einstellung, die man dort nicht erwartet, wo sie steht:
  *
- * Am Organigramm stand sie auch auf Instanzen ohne Covey Doctor — ein Formular
+ * Am Organigramm stand sie auch auf Instanzen ohne covey Doctor — ein Formular
  * für einen Agenten, den es nicht gibt, zwischen den Menschen und Abteilungen,
  * die es gibt. Dort hängt sie jetzt an ihm (nurMitDoctor): Sie ist da
  * Zusammenhang zu einem Kollegen, den man im Chart sieht. In den Stammdaten der
  * Verwaltung bleibt sie immer stehen — das ist die Fläche für Einstellungen,
  * auch für die noch ungenutzten.
  *
- * Und sie war die halbe Einrichtung: ohne eine Zeile in der ACCESS.md von Covey
+ * Und sie war die halbe Einrichtung: ohne eine Zeile in der ACCESS.md von covey
  * Doctor bleibt der Abschnitt aus seinem Prompt, und davon stand nichts auf der
  * Karte, sondern im Kleingedruckten des Formulars. Wer speicherte, sah nicht,
  * ob es gewirkt hat. Jetzt steht der Zustand da, wo das Ergebnis steht
  * (RepoZugang). */
 
 /* Ob die Einstellung überhaupt wirkt — gelesen aus derselben Quelle, aus der
-   der Prompt entsteht: `access` ist die Zeile in der ACCESS.md von Covey
+   der Prompt entsteht: `access` ist die Zeile in der ACCESS.md von covey
    Doctor, `enabled` die Freigabe des Plugins für die Organisation. */
 function RepoZugang({
   doctor,
@@ -293,7 +293,7 @@ export function PlatformRepo({ nurMitDoctor = false }: { nurMitDoctor?: boolean 
      zweites Mal, die Karte liest nur mit. */
   const chart = useQuery({ queryKey: ["orgchart"], queryFn: () => api<OrgChart>("/org/chart") });
   const doctor = (chart.data?.agents ?? []).find((a) => a.slug === "covey-doctor");
-  /* Was Covey Doctor an Zugängen HAT — dieselbe Quelle, aus der sein Prompt
+  /* Was covey Doctor an Zugängen HAT — dieselbe Quelle, aus der sein Prompt
      entsteht (access = eine Zeile in seiner ACCESS.md). */
   const systeme = useQuery({
     queryKey: ["agent-systems", doctor?.id],
@@ -321,7 +321,7 @@ export function PlatformRepo({ nurMitDoctor = false }: { nurMitDoctor?: boolean 
     onError: (e: Error) => setError(e.message),
   });
 
-  /* Am Organigramm ohne Covey Doctor: keine Karte. Wer ihn einstellt, findet
+  /* Am Organigramm ohne covey Doctor: keine Karte. Wer ihn einstellt, findet
      sie mit ihm vor — in den Stammdaten steht sie ohnehin. */
   if (!own.data || (nurMitDoctor && !doctor)) return null;
 
@@ -992,8 +992,8 @@ function MemberNode({
           </div>
           {isAgent ? (
             draft
-              ? <span className="badge st-draft">{t("dashboard.draftBadge")}</span>
-              : <span className={`badge st-${status}`}>{t(`status.${status}`, status)}</span>
+              ? <span className="badge state st-draft">{t("dashboard.draftBadge")}</span>
+              : <span className={`badge state st-${status}`}>{t(`status.${status}`, status)}</span>
           ) : (
             <span className="ntag">{t("org.nodeHuman")}</span>
           )}

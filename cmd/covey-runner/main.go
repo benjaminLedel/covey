@@ -33,7 +33,7 @@ import (
 
 // defaultConfigPath is where `register` deposits its result. Deliberately a
 // file and not just environment variables: the runner runs as a service on a
-// machine that otherwise has nothing to do with Covey, and register has to be
+// machine that otherwise has nothing to do with covey, and register has to be
 // able to put its result somewhere.
 const defaultConfigPath = "/etc/covey-runner/config.toml"
 
@@ -75,7 +75,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, `covey-runner — runs sandboxes for a Covey control plane
+	fmt.Fprintln(os.Stderr, `covey-runner — runs sandboxes for a covey control plane
 
   covey-runner register --url <control plane> --token <registration token>
                         [--tag php --tag arm64] [--description "Build host Frankfurt"]
@@ -252,7 +252,7 @@ func writeConfig(path string, cfg config) error {
 
 // readConfig reads the handful of keys register writes. Deliberately no TOML
 // library: five scalar keys and one list are not worth a dependency on a host
-// that is supposed to carry as little of Covey as possible.
+// that is supposed to carry as little of covey as possible.
 func readConfig(path string) (config, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {

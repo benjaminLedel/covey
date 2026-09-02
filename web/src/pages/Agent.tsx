@@ -120,9 +120,9 @@ export default function AgentPage({ me }: { me: Principal }) {
       <div className="flex items-center gap-3 mb-5 flex-wrap">
         <h1 className="text-[22px]">{a.display_name}</h1>
         {isDraft(a) ? (
-          <span className="badge st-draft">{t("dashboard.draftBadge")}</span>
+          <span className="badge state st-draft">{t("dashboard.draftBadge")}</span>
         ) : (
-          <span className={`badge st-${a.killed ? "killed" : a.status}`}>
+          <span className={`badge state st-${a.killed ? "killed" : a.status}`}>
             {t(`status.${a.killed ? "killed" : a.status}`, a.status)}
           </span>
         )}

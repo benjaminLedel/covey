@@ -4,7 +4,7 @@
       "title": "Sign up",
       "subtitle": "Your AI workforce, professionally run.",
       "code": "Waitlist code",
-      "codeHint": "Covey opens in stages. The code is in the invitation that brought you here.",
+      "codeHint": "covey opens in stages. The code is in the invitation that brought you here.",
       "name": "Name",
       "email": "E-mail",
       "password": "Password",
@@ -127,9 +127,7 @@
     "credentialHint": "Runs from before the attribution are missing here; they still count towards the total."
   },
   "lang": {
-    "toggle": "DE",
-    "current": "EN",
-    "switchTo": "Language: Deutsch"
+    "label": "Language"
   },
   "theme": {
     "label": "Appearance",
@@ -320,7 +318,12 @@
     "withoutDepartment": "Without a department",
     "noMatch": "Nothing found for “{{q}}”.",
     "searchClear": "Clear the search",
-    "searchShortcut": "Press / to jump into the search, Esc clears it"
+    "searchShortcut": "Press / to jump into the search, Esc clears it",
+    "colWho": "Who",
+    "colSlug": "Slug",
+    "colEngine": "Engine",
+    "colBudget": "Budget",
+    "colState": "State"
   },
   "agent": {
     "notFound": "Agent not found.",
@@ -680,7 +683,7 @@
       "modelHint": "Model ID or alias, e.g. claude-opus-4-8 or sonnet.",
       "modelDefault": "Engine default ({{model}})",
       "modelHintFixed": "This engine carries a fixed list of models. Left unset, it uses its own default.",
-      "fixedIdentity": "Fixed: the operations engineer is called \"Covey Doctor\" on every instance. The name belongs to the platform, so that an agent with these permissions stays recognisable as one everywhere.",
+      "fixedIdentity": "Fixed: the operations engineer is called \"covey Doctor\" on every instance. The name belongs to the platform, so that an agent with these permissions stays recognisable as one everywhere.",
       "effort": "Reasoning effort",
       "effortDefault": "empty = engine default",
       "effortHint": "Independent of the model — how hard it thinks per turn. The engine decides which levels exist; engines without this control do not show the row.",
@@ -1029,20 +1032,20 @@
     },
     "repo": {
       "title": "This platform's source",
-      "empty": "Not set up. Without it Covey Doctor reports symptoms instead of diagnoses — and without a target, nothing at all.",
+      "empty": "Not set up. Without it covey Doctor reports symptoms instead of diagnoses — and without a target, nothing at all.",
       "system": "Target system",
       "project": "Project",
       "none": "— none —",
       "projectPlaceholder": "e.g. 42 or group/covey",
-      "hint": "Where Covey itself lives: Covey Doctor reads the source there (pinned to the running version) and files its bug reports there. The default is the project this platform comes from; whoever wants to keep findings in-house enters an enabled target system of their own.",
-      "stateOk": "In effect: Covey Doctor has access there and gets the section in its prompt —",
-      "stateNoAccess": "Not in effect yet: {{system}} is not in Covey Doctor's ACCESS.md. Without that line the section stays out of its prompt, and the broker refuses the checkout. Add it at",
+      "hint": "Where covey itself lives: covey Doctor reads the source there (pinned to the running version) and files its bug reports there. The default is the project this platform comes from; whoever wants to keep findings in-house enters an enabled target system of their own.",
+      "stateOk": "In effect: covey Doctor has access there and gets the section in its prompt —",
+      "stateNoAccess": "Not in effect yet: {{system}} is not in covey Doctor's ACCESS.md. Without that line the section stays out of its prompt, and the broker refuses the checkout. Add it at",
       "stateDisabled": "Not in effect: {{system}} is not enabled for this organization. Enable it under",
       "stateUnknownSystem": "Not in effect: the target system \"{{system}}\" does not exist here (any more).",
       "isDefault": "default: the project this platform comes from",
       "defaultOption": "Default ({{project}})",
       "offOption": "— not at all —",
-      "stateOff": "Switched off: Covey Doctor neither reads this platform's source nor files anything there."
+      "stateOff": "Switched off: covey Doctor neither reads this platform's source nor files anything there."
     },
     "recording": {
       "title": "Recording",
@@ -1055,8 +1058,8 @@
   },
   "orgs": {
     "title": "Organizations",
-    "subtitle": "Tenants of this Covey installation",
-    "desc": "The organization is the unit of Covey: agents, users, secrets and guard rails belong to it. Deletion removes the tenant with all its contents — your own organization is exempt.",
+    "subtitle": "Tenants of this covey installation",
+    "desc": "The organization is the unit of covey: agents, users, secrets and guard rails belong to it. Deletion removes the tenant with all its contents — your own organization is exempt.",
     "noAccess": "Your role ({{role}}) does not have access to tenant management.",
     "createOrg": "Create",
     "orgName": "Organization name",
@@ -1224,8 +1227,8 @@
   },
   "targets": {
     "title": "Target Systems",
-    "subtitle": "What your agents work in — from the store, connected yourself, or shipped with Covey",
-    "desc": "Target systems are plugins. Most of them you get from the store: a catalogue you install from, without a deploy and without a new Covey release. Only what genuinely needs code ships compiled in — protocols beyond REST, OAuth flows, work inside the sandbox. A REST system of your own you connect as a JSON manifest.",
+    "subtitle": "What your agents work in — from the store, connected yourself, or shipped with covey",
+    "desc": "Target systems are plugins. Most of them you get from the store: a catalogue you install from, without a deploy and without a new covey release. Only what genuinely needs code ships compiled in — protocols beyond REST, OAuth flows, work inside the sandbox. A REST system of your own you connect as a JSON manifest.",
     "noAccess": "Your role ({{role}}) can view target systems but not manage them.",
     "noTargets": "No target systems registered — this binary was built without built-in plugins.",
     "search": "Search…",
@@ -1280,7 +1283,7 @@
     "mcpToken": "Token for discovery (optional, not stored)",
     "mcpConnect": "Connect & discover tools",
     "manifestFormDesc": "Paste a JSON manifest or choose a file. Describes webhook mapping, actions, and the auth header.",
-    "mcpFormDesc": "Covey connects via Streamable HTTP to the MCP server, discovers the tool list and shows it here. Guard rails and broker apply unchanged.",
+    "mcpFormDesc": "covey connects via Streamable HTTP to the MCP server, discovers the tool list and shows it here. Guard rails and broker apply unchanged.",
     "tokenPlaceholder": "Token (if auth required)",
     "discoverSuccess": "\"{{name}}\" connected — {{count}} tool(s) discovered.",
     "discoverError": "Created, but tool discovery failed: {{err}}",
@@ -1301,11 +1304,11 @@
       "pickAgent": "Which agent?",
       "writeAccess": "Write ACCESS.md",
       "saving": "Saving …",
-      "webhookHint": "This is the address the target system calls so Covey hears about what happens there. The slug at the end is the agent that gets woken.",
+      "webhookHint": "This is the address the target system calls so covey hears about what happens there. The slug at the end is the agent that gets woken.",
       "webhookNoAgent": "Pick an agent in the previous step and its finished address appears here.",
       "secretSet": "{{env}} is set — incoming calls are signature-checked.",
       "secretMissing": "{{env}} is not set. The endpoint accepts calls but verifies no signature — set it before going live.",
-      "probeHint": "The test calls the target system read-only with the stored credentials and reports who Covey arrives as.",
+      "probeHint": "The test calls the target system read-only with the stored credentials and reports who covey arrives as.",
       "probeBtn": "Test connection",
       "probing": "Testing …",
       "probeOk": "Connected as {{identity}}",
@@ -1399,13 +1402,13 @@
   "requests": {
     "title": "Requests",
     "subtitle": "HTTP traffic at the edges",
-    "intro": "Every request a target-system plugin makes (outbound) and every webhook Covey receives (inbound) — including the rejected ones. The recording shows WHAT an agent did; this shows what actually went over the wire. Diagnostic data with short retention, not an audit trail. Credentials are redacted, bodies truncated.",
+    "intro": "Every request a target-system plugin makes (outbound) and every webhook covey receives (inbound) — including the rejected ones. The recording shows WHAT an agent did; this shows what actually went over the wire. Diagnostic data with short retention, not an audit trail. Credentials are redacted, bodies truncated.",
     "disabled": "Request log is switched off",
     "disabledHint": "Enable with COVEY_REQUEST_LOG=true (the default) and restart the process.",
     "filterDirection": "Filter by direction",
     "allDirections": "All directions",
-    "dirIn": "Inbound (webhook to Covey)",
-    "dirOut": "Outbound (Covey to target system)",
+    "dirIn": "Inbound (webhook to covey)",
+    "dirOut": "Outbound (covey to target system)",
     "dirInShort": "in",
     "dirOutShort": "out",
     "filterSystem": "Filter by target system",
@@ -1509,12 +1512,12 @@
     "skill": {
       "title": "Claude skill: build agents",
       "download": "Download skill (.zip)",
-      "intro": "The Claude Code skill \"covey-agent\" lets you design, build and update Covey agents right in Claude Code — it knows the bundle conventions (SOUL/PLAYBOOKS/ACCESS/HEARTBEAT, loop protection) and can create the agent via the API.",
-      "downloadHint": "No Git access needed: download the skill as a ZIP and extract it into your personal Claude directory. This Covey instance's URL is already baked into the skill.",
+      "intro": "The Claude Code skill \"covey-agent\" lets you design, build and update covey agents right in Claude Code — it knows the bundle conventions (SOUL/PLAYBOOKS/ACCESS/HEARTBEAT, loop protection) and can create the agent via the API.",
+      "downloadHint": "No Git access needed: download the skill as a ZIP and extract it into your personal Claude directory. This covey instance's URL is already baked into the skill.",
       "repoNote": "Alternatively, if you work with Claude Code inside the covey repo:",
       "step1": "The skill is already available under .claude/skills/covey-agent/ — nothing to do.",
       "step3": "Invoke it in Claude Code with",
-      "hint": "After that, just saying \"build a Covey agent for …\" triggers it automatically. To share with others: export finished agents as a bundle (agent page → Config → Export) and import them into another Covey instance."
+      "hint": "After that, just saying \"build a covey agent for …\" triggers it automatically. To share with others: export finished agents as a bundle (agent page → Config → Export) and import them into another covey instance."
     },
     "apiKeys": {
       "title": "API keys",
@@ -1815,14 +1818,14 @@
   "catalog": {
     "loading": "Loading the catalogue …",
     "disabled": "No store is configured for this instance.",
-    "disabledHint": "The operator decides with COVEY_MARKETPLACE_URL which catalogue may be installed from — a file of your own works just as well, including one on an internal network. Without a store you keep what the instance already has: the plugins that ship with Covey and whatever was uploaded by hand.",
+    "disabledHint": "The operator decides with COVEY_MARKETPLACE_URL which catalogue may be installed from — a file of your own works just as well, including one on an internal network. Without a store you keep what the instance already has: the plugins that ship with covey and whatever was uploaded by hand.",
     "source": "Catalogue:",
     "fetched": "fetched at {{time}}",
     "stale": "The catalogue was unreachable on the last attempt — showing the last good copy.",
     "empty": "Nothing matches this search.",
     "by": "by",
-    "since": "from Covey {{v}}",
-    "shipped": "ships with Covey — activate it under “Available”",
+    "since": "from covey {{v}}",
+    "shipped": "ships with covey — activate it under “Available”",
     "install": "Install",
     "installing": "installing …",
     "installed": "installed (v{{v}})",
@@ -1991,7 +1994,7 @@
   "workplaces": {
     "title": "Workplaces",
     "subtitle": "the images agents work in",
-    "desc": "A workplace is the image a sandbox starts from — tooling, not configuration. Which image that is comes from the published catalogue for this Covey version; override it per profile if you want. The workplace itself is chosen per agent under Settings.",
+    "desc": "A workplace is the image a sandbox starts from — tooling, not configuration. Which image that is comes from the published catalogue for this covey version; override it per profile if you want. The workplace itself is chosen per agent under Settings.",
     "loadError": "The workplaces could not be loaded.",
     "default": "default",
     "present": "ready here",
@@ -2036,5 +2039,11 @@
     "tabRuntimes": "Engines",
     "tabWorkplaces": "Workplaces",
     "tabRunners": "Runners"
+  },
+  "github": {
+    "label": "GitHub",
+    "star": "Star on GitHub",
+    "repo": "covey on GitHub",
+    "hint": "covey is open source (AGPL-3.0). A star helps others find it."
   }
 }

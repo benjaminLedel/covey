@@ -133,7 +133,7 @@ func TestSandboxFilesAPI(t *testing.T) {
 
 // TestSandboxFilePreview checks the inline preview (spec/02): images and PDF
 // come inline with their real type, everything else not at all — the allowlist
-// is the bolt against executing foreign HTML on the Covey origin.
+// is the bolt against executing foreign HTML on the covey origin.
 func TestSandboxFilePreview(t *testing.T) {
 	s := newStack(t)
 	admin := login(t, s, "admin@test.local", "admin-passwort")

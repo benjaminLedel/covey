@@ -100,7 +100,7 @@ func TestWriteSkillDirsRemovesWithdrawnSkills(t *testing.T) {
 	}
 }
 
-// Covey also clears away foreign files in the skills directory. The directory
+// covey also clears away foreign files in the skills directory. The directory
 // belongs to the control plane — whatever the agent puts there deliberately does
 // not survive.
 func TestWriteSkillDirsRejectsUnsafeNames(t *testing.T) {

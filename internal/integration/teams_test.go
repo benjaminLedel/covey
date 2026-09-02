@@ -206,7 +206,7 @@ func teamsActivity(id, convID, fromID, botID, text string, attachment map[string
 		"serviceUrl": "", // taken per test from the text (service_url); the field stays informative
 		"channelId":  "msteams",
 		"from":       map[string]any{"id": fromID, "name": "Alice"},
-		"recipient":  map[string]any{"id": botID, "name": "Covey"},
+		"recipient":  map[string]any{"id": botID, "name": "covey"},
 		"conversation": map[string]any{
 			"id": convID, "conversationType": "personal", "tenantId": "t1",
 		},
@@ -308,7 +308,7 @@ func TestTeamsSendFileConsentFlow(t *testing.T) {
 		"type": "invoke", "id": "inv-1", "name": "fileConsent/invoke",
 		"serviceUrl": svc, "channelId": "msteams",
 		"from":         map[string]any{"id": "29:user", "name": "Alice"},
-		"recipient":    map[string]any{"id": "28:bot", "name": "Covey"},
+		"recipient":    map[string]any{"id": "28:bot", "name": "covey"},
 		"conversation": map[string]any{"id": "19:c", "conversationType": "personal", "tenantId": "t1"},
 		"value": map[string]any{
 			"type": "fileUpload", "action": "accept",
@@ -386,7 +386,7 @@ func TestTeamsSendFileAbgelehnt(t *testing.T) {
 		"type": "invoke", "id": "inv-2", "name": "fileConsent/invoke",
 		"serviceUrl": svc, "channelId": "msteams",
 		"from":         map[string]any{"id": "29:user", "name": "Alice"},
-		"recipient":    map[string]any{"id": "28:bot", "name": "Covey"},
+		"recipient":    map[string]any{"id": "28:bot", "name": "covey"},
 		"conversation": map[string]any{"id": "19:c", "conversationType": "personal", "tenantId": "t1"},
 		"value": map[string]any{
 			"type": "fileUpload", "action": "decline",
@@ -422,7 +422,7 @@ func TestTeamsSendFileOhneWartenden(t *testing.T) {
 		"type": "invoke", "id": "inv-3", "name": "fileConsent/invoke",
 		"serviceUrl": teams.srv.URL, "channelId": "msteams",
 		"from":         map[string]any{"id": "29:user", "name": "Alice"},
-		"recipient":    map[string]any{"id": "28:bot", "name": "Covey"},
+		"recipient":    map[string]any{"id": "28:bot", "name": "covey"},
 		"conversation": map[string]any{"id": "19:leer", "conversationType": "personal", "tenantId": "t1"},
 		"value": map[string]any{
 			"type": "fileUpload", "action": "accept",

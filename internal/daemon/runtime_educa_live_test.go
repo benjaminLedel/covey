@@ -45,7 +45,7 @@ func TestEducaLive(t *testing.T) {
 		Body: "Answer with the single word `bereit` and nothing else. Do not use any tool.\n" +
 			"Then close with exactly this line:\n" +
 			`COVEY_STATUS: {"status":"done","result":"bereit"}`,
-		SystemPrompt: "You are a Covey agent under test. Be terse.",
+		SystemPrompt: "You are a covey agent under test. Be terse.",
 		Model:        model,
 		// Declared levels are only worth as much as a run that carries one:
 		// COVEY_EDUCA_EFFORT=high exercises the flag against the gateway.
@@ -102,7 +102,7 @@ func TestEducaLiveToolsAndResume(t *testing.T) {
 	defer cancel()
 
 	base := RunSpec{
-		SystemPrompt: "You are a Covey agent under test. Be terse.",
+		SystemPrompt: "You are a covey agent under test. Be terse.",
 		Model:        model,
 		AllowedTools: []string{"Bash", "Read", "Glob", "Grep"},
 		MaxTurns:     8,

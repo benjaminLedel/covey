@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import de from "./de.json";
 import en from "./en.json";
+import es from "./es.json";
+import fr from "./fr.json";
+import italienisch from "./it.json";
+import nl from "./nl.json";
+import pl from "./pl.json";
+import pt from "./pt.json";
+import ja from "./ja.json";
+import zh from "./zh.json";
 
 /* Ein Status wird als Badge gerendert — neben dem Namen eines Agenten, in einer
    Karte und in der Kopfzeile. Was dort steht, ist ein Wort, keine Erklärung:
@@ -20,6 +28,14 @@ const badgeLimit = 20;
 const statusSets: [string, Record<string, string>][] = [
   ["de", de.status as Record<string, string>],
   ["en", en.status as Record<string, string>],
+  ["es", es.status as Record<string, string>],
+  ["fr", fr.status as Record<string, string>],
+  ["it", italienisch.status as Record<string, string>],
+  ["nl", nl.status as Record<string, string>],
+  ["pl", pl.status as Record<string, string>],
+  ["pt", pt.status as Record<string, string>],
+  ["ja", ja.status as Record<string, string>],
+  ["zh", zh.status as Record<string, string>],
 ];
 
 describe("Status-Beschriftungen", () => {
@@ -28,12 +44,13 @@ describe("Status-Beschriftungen", () => {
     expect(zuLang).toEqual([]);
   });
 
-  // Zweisprachig heißt: in beiden Dateien, sonst fällt i18n auf den rohen
+  // Mehrsprachig heißt: in jeder Datei, sonst fällt i18n auf den rohen
   // Statusnamen zurück und der Nutzer liest `securing` statt einer Übersetzung.
-  it("gibt es in beiden Sprachen", () => {
-    const [, deLabels] = statusSets[0];
+  it("gibt es in jeder Sprache vollständig", () => {
     const [, enLabels] = statusSets[1];
-    expect(Object.keys(deLabels).sort()).toEqual(Object.keys(enLabels).sort());
+    for (const [sprache, labels] of statusSets) {
+      expect(Object.keys(labels).sort(), sprache).toEqual(Object.keys(enLabels).sort());
+    }
   });
 
   // Die Zustände, die der Server kennt (internal/agents/agents.go), müssen

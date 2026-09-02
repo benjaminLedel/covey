@@ -34,8 +34,8 @@ import (
 
 // Directions of a logged request.
 const (
-	DirectionIn  = "in"  // Covey received the request (webhook, trigger)
-	DirectionOut = "out" // Covey issued the request (target-system API)
+	DirectionIn  = "in"  // covey received the request (webhook, trigger)
+	DirectionOut = "out" // covey issued the request (target-system API)
 )
 
 // MaxBody is the upper bound per stored body excerpt. Requests such as a file

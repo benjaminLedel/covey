@@ -144,7 +144,7 @@ func TestSkillsAPI(t *testing.T) {
 			"files": skillFiles([2]string{"referenz.md", "x"})}},
 		{"description missing", map[string]any{"name": "ohne-desc",
 			"files": skillFiles([2]string{"SKILL.md", "x"})}},
-		// Covey stores only name/description; everything else in the frontmatter
+		// covey stores only name/description; everything else in the frontmatter
 		// would be gone without a trace after saving. With allowed-tools that
 		// would mean: the skill runs with MORE rights than its author wrote.
 		{"unknown frontmatter key", map[string]any{

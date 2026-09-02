@@ -7,7 +7,7 @@ package orchestrator
 // `- system: covey scope: agents:review`. Er schaltet diese drei Aktionen frei
 // und NICHT das Entwerfen; `agents:write` schaltet das Entwerfen frei und nicht
 // diese. Ein Agent darf beide halten — die Personalabteilung und der
-// Covey Doctor tun es nicht, und deshalb kann keiner von beiden mit den
+// covey Doctor tun es nicht, und deshalb kann keiner von beiden mit den
 // Zugängen des anderen dessen Arbeit machen.
 //
 // Fünf Regeln tragen sie, alle fünf hier durchgesetzt und nicht im Prompt:
@@ -16,7 +16,7 @@ package orchestrator
 //     eine inaktive Version. Es gibt von hier keinen Weg zu einer laufenden
 //     Config — für keine Datei. Regel 4 aus spec/20 bleibt unangetastet:
 //     set_agent_config wird nicht geweitet, die neue Aktion ist strikt
-//     schwächer. Ein kompromittierter Covey Doctor erzeugt eine
+//     schwächer. Ein kompromittierter covey Doctor erzeugt eine
 //     Warteschlange schlechter Vorschläge, die ein Mensch ablehnt — ein
 //     Ärgernis, kein Vorfall.
 //  2. ER LIEST SEINE EIGENEN ZAHLEN NICHT. work_record erreicht den Aufrufer
@@ -140,7 +140,7 @@ func (o *Orchestrator) reviewReadRecording(ctx context.Context, agent agents.Age
 	}
 	// Das Lesen selbst gehört ins Recording des LESENDEN — und zwar von der
 	// Control Plane geschrieben, nicht vom Sandbox-Proxy. Wer die Akte eines
-	// von Covey Doctor liest, muss sehen, in welche Gespräche er geschaut
+	// von covey Doctor liest, muss sehen, in welche Gespräche er geschaut
 	// hat; sonst prüft man ihn an dem, was er geschrieben hat, ohne zu wissen,
 	// was er gelesen hat. Als Lifecycle-Ereignis wie bei den Entwurfs-Aktionen:
 	// die Aktion selbst schreibt der Proxy, die Herkunft schreibt die Plattform.

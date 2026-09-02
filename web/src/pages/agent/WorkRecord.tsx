@@ -158,7 +158,7 @@ export function WorkRecord({ agentId }: { agentId: string }) {
         )}
         {r.throughput.tasks.map((task) => (
           <div key={task.id} className="rec-row" style={{ padding: "5px 15px" }}>
-            <span className={`badge st-${task.state}`}>{t(`status.${task.state}`, task.state)}</span>
+            <span className={`badge state st-${task.state}`}>{t(`status.${task.state}`, task.state)}</span>
             <span className="text-xs flex-1 min-w-0 truncate">{task.title}</span>
             <span className="muted text-xs mono">{task.origin.split(":")[0]}</span>
             {task.cost_usd > 0 && <span className="muted text-xs">{fmtUSD(task.cost_usd)}</span>}

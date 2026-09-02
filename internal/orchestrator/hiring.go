@@ -94,7 +94,7 @@ const hiringSystem = "covey"
 // sie ist, und das hier ist die Zeile, deren Ausgabe andere Agenten sind.
 //
 // scopeWrite stellt ein (entwirft), scopeReview liest und schlägt vor. Ein
-// Agent darf beide halten; die Personalabteilung und Covey Doctor tun
+// Agent darf beide halten; die Personalabteilung und covey Doctor tun
 // es bewusst nicht — keiner von beiden kann mit den Zugängen des anderen
 // dessen Arbeit machen (spec/21).
 const (

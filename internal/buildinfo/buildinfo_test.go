@@ -3,7 +3,7 @@ package buildinfo
 import "testing"
 
 // Die Quelle als Zielsystem-Adresse: Was in der Fusszeile als Link steht, ist
-// dieselbe Angabe, die Covey Doctor als Voreinstellung ausliest (spec/21).
+// dieselbe Angabe, die covey Doctor als Voreinstellung ausliest (spec/21).
 func TestSourceRepo(t *testing.T) {
 	system, project := SourceRepo()
 	if system != "github" || project != "benjaminLedel/covey" {

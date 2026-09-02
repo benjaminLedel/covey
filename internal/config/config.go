@@ -136,7 +136,7 @@ type Config struct {
 	// the release workflow names them.
 	RunnerDownloadBase string
 	// SandboxCatalogURL is where the published workplaces are listed: which
-	// image belongs to which Covey version, pinned by digest. Empty switches
+	// image belongs to which covey version, pinned by digest. Empty switches
 	// the catalogue off; then the compiled defaults and the environment stand.
 	SandboxCatalogURL string
 	// WebhookSecrets verify signatures of incoming target-system webhooks:
@@ -485,7 +485,7 @@ func splitList(raw string) []string {
 
 // privateRanges are what "private" stands for: loopback, the RFC-1918 ranges,
 // the link-local ones and the IPv6 unique-local block. A reverse proxy sitting
-// in front of Covey lives in exactly one of them — in a docker network with an
+// in front of covey lives in exactly one of them — in a docker network with an
 // address nobody chose, which is why naming it by hand is no help.
 var privateRanges = []string{
 	"127.0.0.0/8", "::1/128",

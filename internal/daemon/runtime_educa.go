@@ -7,7 +7,7 @@
 // prompt, SSE streaming and `/v1/messages/count_tokens`. That second dialect is
 // what makes this engine cheap to build honestly: an API alone is not a harness
 // — an agent that edits files, runs a shell, resumes a session and closes with
-// COVEY_STATUS needs one — and Covey already has a verified harness that speaks
+// COVEY_STATUS needs one — and covey already has a verified harness that speaks
 // exactly that dialect. So this engine is Claude Code with its base URL pointed
 // at educa, not a second agent loop written from scratch.
 //
@@ -146,7 +146,7 @@ func init() {
 			// (runtime_educa_task_test.go). Two of the instance's listed models
 			// are deliberately absent: Qwen-AgentWorld-35B-A3B answers 500 on
 			// every request, and EuroLLM-9B-Instruct has a 2048-token context
-			// while Covey's protocol prompt alone is some 9 KB — it cannot hold
+			// while covey's protocol prompt alone is some 9 KB — it cannot hold
 			// the prompt, let alone the task. Both would look like a working
 			// choice in a dropdown built from /v1/models.
 			// First is the default, and it is not the fastest of the three —
@@ -259,7 +259,7 @@ func (e *Educa) Run(ctx context.Context, spec RunSpec, onEvent func(kind string,
 	case spec.Model == "":
 		// Never leave it empty. The harness would fall back to ITS default, an
 		// id of its own provider that the gateway need not route, and the run
-		// would die on the first request with an error that reads like a Covey
+		// would die on the first request with an error that reads like a covey
 		// bug. The engine's own default is an id it declared.
 		spec.Model = d.DefaultModel()
 	case known && !d.AcceptsModel(spec.Model):

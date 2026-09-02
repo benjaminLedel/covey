@@ -13,6 +13,7 @@
    sie nie öffnet, nie. */
 
 import { Suspense, lazy, useEffect, useState, type JSX } from "react";
+import { BirdMark } from "./components/BirdMark";
 import { useQuery } from "@tanstack/react-query";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
@@ -25,8 +26,10 @@ import {
   type Principal,
   type SetupState,
 } from "./api";
-import i18n, { gespeicherteSprache, ladeSprache, merkeSprache, type Lang } from "./i18n";
+import i18n, { initialLang, ladeSprache } from "./i18n";
 import HelpDrawer from "./components/HelpDrawer";
+import GitHubLink from "./components/GitHubLink";
+import LangPicker from "./components/LangPicker";
 import ThemeSwitch from "./components/ThemeSwitch";
 
 /* Das Aussehen der Oberfläche kommt mit ihr, nicht vor ihr — siehe app.css. */
@@ -252,7 +255,7 @@ function BuildLine() {
     <div className="main-build" title={title}>
       {short}
       {valid && <span className="bt"> · {built.toLocaleString(i18n.language, fmt)}</span>}
-      {/* Covey läuft als Netzwerkdienst unter AGPL-3.0. Der Quelltext-Link
+      {/* covey läuft als Netzwerkdienst unter AGPL-3.0. Der Quelltext-Link
           steht hier, weil genau das die Pflicht ist, die ein Betreiber sonst
           übersieht — und weil er von jeder Seite aus erreichbar sein soll. */}
       {b.source && (
@@ -268,22 +271,30 @@ function BuildLine() {
 
 export default function AppShell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
   const { t } = useTranslation();
+  /* Dieselbe Abfrage wie in der Bauzeile im Fuß — TanStack liefert sie aus
+     dem Cache, der Server wird nicht zweimal gefragt. Gebraucht wird davon
+     hier nur die Adresse des Quelltexts. */
+  const build = useQuery({ queryKey: ["version"], queryFn: buildInfo, staleTime: Infinity, retry: false });
   const location = useLocation();
   const [helpOpen, setHelpOpen] = useState(false);
   const [userMenu, setUserMenu] = useState(false);
 
   /* Die Sprachwahl der Oberfläche ist eine persönliche Einstellung und steht
-     im localStorage. Auf einer vorgerenderten Seite startet i18n bewusst auf
-     Deutsch, damit die Hydration passt (siehe i18n.ts) — hier wird die Wahl
-     nachgeholt, sobald die Oberfläche übernimmt. Ohne gespeicherte Wahl gilt
-     die Basissprache: Sonst bliebe die angemeldete Oberfläche für jeden, der
-     über eine vorgerenderte Seite hereinkommt, dauerhaft deutsch. */
+     im localStorage. Der Anmeldebereich richtet sich nach der Adresse, die
+     angemeldete Oberfläche nach der Wahl — hier wird sie nachgeholt, sobald
+     die Oberfläche übernimmt.
+
+     Es ist dieselbe Entscheidung wie beim Start (initialLang in i18n.ts), und
+     sie steht deshalb an einer Stelle: gespeicherte Wahl, sonst die Sprache
+     des Browsers, sonst die Basissprache. Stand hier ein festes „en", kippte
+     die Oberfläche jedem, der ohne gespeicherte Wahl hereinkommt, gleich nach
+     der Anmeldung von der Sprache seines Browsers auf Englisch — die
+     Anmeldeseite hatte ihn bereits in seiner eigenen begrüßt.
+
+     Der Pfad ist hier „/" und nicht der echte: eine App-Adresse trägt keine
+     Sprache, und die des Anmeldebereichs ist nach der Anmeldung vorbei. */
   useEffect(() => {
-    /* Was im Speicher steht, ist kein Beleg dafür, dass es eine Sprache ist —
-       er gehört dem Browser, nicht uns. Alles außer „de" ist die
-       Basissprache; ein Katalog, den es nicht gibt, wäre sonst ein
-       Ladefehler statt einer Voreinstellung. */
-    const gewaehlt: Lang = gespeicherteSprache() === "de" ? "de" : "en";
+    const gewaehlt = initialLang("/");
     if (i18n.language !== gewaehlt) void ladeSprache(gewaehlt);
   }, []);
 
@@ -359,25 +370,12 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
     );
   }
 
-  const toggleLang = () => {
-    const next = i18n.language === "de" ? "en" : "de";
-    void ladeSprache(next);
-    merkeSprache(next);
-  };
-
   return (
     <div className="flex min-h-screen">
       <aside className="sidebar">
         <div className="brand">
-          <span className="mark" aria-hidden="true">
-            {/* Covey = ein Schwarm — drei Vögel in Flugformation als Wortmarke. */}
-            <svg viewBox="0 0 24 24" width="18" height="18">
-              <path d="M7 15 Q9.75 11.8 12.5 15 Q15.25 11.8 18 15" />
-              <path d="M3.5 10 Q5.5 7.7 7.5 10 Q9.5 7.7 11.5 10" />
-              <path d="M13 8 Q14.5 6.3 16 8 Q17.5 6.3 19 8" />
-            </svg>
-          </span>
-          Covey
+          <BirdMark size={26} />
+          covey
         </div>
         {/* Die Navigation ist gewachsen — die Reihenfolge bildete ab, wann
             etwas dazukam, nicht wann man es braucht. Jetzt nach dem Alltag
@@ -469,10 +467,9 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
                     <div className="foot-menu-sec">{t("theme.label")}</div>
                     <ThemeSwitch />
                     <div className="sep" />
-                    <button onClick={toggleLang}>
-                      <NavIcon name="globe" />
-                      {t("lang.switchTo")}
-                    </button>
+                    <LangPicker variant="menu" />
+                    <div className="sep" />
+                    <GitHubLink url={build.data?.source} variant="menu" />
                     <button onClick={() => { setUserMenu(false); setHelpOpen(true); }}>
                       <NavIcon name="help" />
                       {t("nav.help")}

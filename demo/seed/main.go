@@ -1,4 +1,4 @@
-// demo-seed füllt eine FRISCH gebootstrappte Covey-Instanz mit einem
+// demo-seed füllt eine FRISCH gebootstrappte covey-Instanz mit einem
 // glaubwürdigen englischen Beispiel-Datensatz: eine Organisation mit drei
 // Abteilungen, fünf Menschen, sieben Agenten, gefüllten Backlogs, Wiki-
 // Gedächtnis, Kostenhistorie und einer vollständigen Aufzeichnung eines Laufs.

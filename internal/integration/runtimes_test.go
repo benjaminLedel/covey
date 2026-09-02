@@ -307,7 +307,7 @@ func TestRuntimeRefusesUndeclaredCredentialKind(t *testing.T) {
 
 // TestRuntimeSkipsSeatTheProviderReportsFull is the case that actually
 // happened in production: an agent sat on a subscription seat whose window was
-// used up, and went back to it every fifteen minutes because nothing in Covey
+// used up, and went back to it every fifteen minutes because nothing in covey
 // knew the seat was full.
 //
 // The knowledge exists — the engine can ask the provider — and this pins that
@@ -364,7 +364,7 @@ func TestRuntimeSkipsSeatTheProviderReportsFull(t *testing.T) {
 }
 
 // TestFreshSetupNeedsNoWorkplaceStep walks the path of somebody installing
-// Covey: deposit one token, create one agent, done. No workplace is created by
+// covey: deposit one token, create one agent, done. No workplace is created by
 // hand, because the contract model only earns its keep with the SECOND
 // credential and has to carry the first one silently.
 //
@@ -597,7 +597,7 @@ func TestTheSeatFollowsTheEngine(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.seat(t, educa.ID, daemon.CredAPIKey, "educa_api_token", "educa-token", "Covey Key")
+	s.seat(t, educa.ID, daemon.CredAPIKey, "educa_api_token", "educa-token", "covey Key")
 
 	// newSupportAgent runs on the mock; the first engine change is already the
 	// first half of the rule — it has to put the agent on a Claude Code seat.
@@ -642,7 +642,7 @@ func TestTheSeatFollowsTheEngine(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.seat(t, second.ID, daemon.CredAPIKey, "educa_api_token", "educa-token-2", "Covey Key 2")
+	s.seat(t, second.ID, daemon.CredAPIKey, "educa_api_token", "educa-token-2", "covey Key 2")
 	c.expect(http.MethodPost, "/api/v1/agents/"+agent.ID.String()+"/runtime-instance",
 		map[string]string{"runtime_id": second.ID.String()}, http.StatusOK)
 	c.expect(http.MethodPatch, "/api/v1/agents/"+agent.ID.String()+"/runtime",

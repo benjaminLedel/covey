@@ -249,7 +249,7 @@ func (d *doctor) checkImages(ctx context.Context, pool *pgxpool.Pool) {
 			continue
 		}
 		// Two routes, because there are two kinds of installation. Whoever runs
-		// Covey as a container has no checkout and cannot run a make target —
+		// covey as a container has no checkout and cannot run a make target —
 		// for them the answer is the variable, and after an upgrade that is the
 		// more common case, not the rarer one.
 		remedy := "build it: " + target

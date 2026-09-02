@@ -5,7 +5,7 @@ package httpapi
 // installation accept registrations (feature-requests/002-plattform-registrierung.md).
 //
 // It is answered by the server rather than baked into the build for the same
-// reason the install script is served by the instance: Covey is self-hosted,
+// reason the install script is served by the instance: covey is self-hosted,
 // and what is true for this installation is not true for the next one. A
 // website that guessed would either offer a sign-up nobody can complete, or
 // hide one that is open.
@@ -20,6 +20,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"covey/internal/accounts"
+	"covey/internal/buildinfo"
 	identbuiltin "covey/internal/identity/builtin"
 	"covey/internal/settings"
 	"covey/internal/waitlist"
@@ -30,10 +31,17 @@ type signupState struct {
 	Mode string `json:"mode"`
 	// SiteName: what this installation calls itself.
 	SiteName string `json:"site_name"`
+	// Source is the public source of this program (buildinfo.SourceURL). It
+	// travels without a session because the AGPL obligation does: whoever is
+	// offered the service is owed the source, and the sign-in page is where
+	// most people meet the service. Version and commit stay behind the
+	// session — which build runs here is nobody else's business; the address
+	// of the project is.
+	Source string `json:"source"`
 }
 
 func (s *Server) handleSignupState(w http.ResponseWriter, r *http.Request) {
-	st := signupState{Mode: settings.ModeOff, SiteName: "Covey"}
+	st := signupState{Mode: settings.ModeOff, SiteName: "covey", Source: buildinfo.SourceURL}
 	if s.Settings != nil {
 		st.Mode = s.Settings.Mode(r.Context())
 		if name, err := s.Settings.Get(r.Context(), settings.SiteName); err == nil && name != "" {

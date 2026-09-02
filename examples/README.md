@@ -19,7 +19,7 @@ optional.
 
 | Bundle | Slug | Role |
 |---|---|---|
-| `improvement-engineer.bundle.json` | `covey-doctor` | Covey Doctor, the operations engineer — the name and the slug are fixed by the platform and cannot be renamed. It reads a colleague's **work record** (`covey/work_record`), tell apart the three causes an agent underdelivers for — its configuration, its assignment, or the platform underneath it — and propose a config change as a stored, inactive version a human accepts (`covey/propose_agent_config`). Weekly, one task per cycle. |
+| `improvement-engineer.bundle.json` | `covey-doctor` | covey Doctor, the operations engineer — the name and the slug are fixed by the platform and cannot be renamed. It reads a colleague's **work record** (`covey/work_record`), tell apart the three causes an agent underdelivers for — its configuration, its assignment, or the platform underneath it — and propose a config change as a stored, inactive version a human accepts (`covey/propose_agent_config`). Weekly, one task per cycle. |
 | `coding-agent.bundle.json` | `covey-dev` | Developer: pick up issues **assigned to it** (`nur-wenn: gitlab:issues:assigned`), verify bugs against the code, have fixes developed, open merge requests and live the review loop. |
 | `qa-agent.bundle.json` | `covey-qa` | QA/test: accept others' merge requests end to end as the reviewer — set the project up once per project and keep it, operate the application in the browser, support states and defects with screenshots, run the test suite as a job that outlives the run, and close a green acceptance with `approve_mr` + `merge_mr`. |
 | `delivery-lead.bundle.json` | `covey-lead` | Delivery lead: drive a GitLab milestone to its deadline — make tickets implementable (acceptance criteria, affected code locations), keep dependent tickets in order, dispatch work to the developers within a WIP limit, report the state, escalate open subject-matter questions to the human. |
@@ -138,14 +138,14 @@ GitLab token is still the better choice, so that the security tickets are
 attributable and the second heartbeat (`nur-wenn: gitlab:issues:assigned`) only
 sees what really belongs to it.
 
-Additionally for the **Covey Doctor** only:
+Additionally for the **covey Doctor** only:
 
 - Its `ACCESS.md` carries one line, `- system: covey scope: agents:review`, and
   that is everything it needs to read colleagues and propose configurations.
   Nothing else has to be set up for the review cycle.
 - **Reading the platform's own source is two settings, and both are needed.**
   Under *Organisation → Source of this platform* enter the target system and the
-  project Covey itself lives in — and add **that same system to the agent's
+  project covey itself lives in — and add **that same system to the agent's
   `ACCESS.md`**, scoped to reading the code and filing issues. The master datum
   alone is half the setup: without the access line the section stays out of the
   agent's prompt entirely, because an agent that reads it may check out and then

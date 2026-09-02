@@ -133,7 +133,7 @@ function BriefProgress({ result, onOpen }: { result: BriefResult; onOpen: (a: Ag
       )}
 
       <div className="flex items-baseline gap-2 mb-2">
-        <span className={`badge st-${task.state}`}>{t(`status.${task.state}`, task.state)}</span>
+        <span className={`badge state st-${task.state}`}>{t(`status.${task.state}`, task.state)}</span>
         <span className="text-sm">{task.title}</span>
       </div>
 

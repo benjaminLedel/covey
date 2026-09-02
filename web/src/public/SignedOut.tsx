@@ -8,13 +8,16 @@
    Adresse der Anwendung ist „/" die Anmeldung, und sonst gar nichts. */
 
 import { useEffect } from "react";
-import { Navigate, Route, Routes, useLocation } from "react-router";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
-import i18n, { gespeicherteSprache, ladeSprache } from "../i18n";
+import i18n, { initialLang, ladeSprache } from "../i18n";
 import { PublicBackground, BirdMark } from "./chrome";
+import GitHubLink from "../components/GitHubLink";
+import LangPicker from "../components/LangPicker";
 import LoginCard from "./LoginCard";
 import SignUp from "./SignUp";
 import { usePublicLang } from "./lang";
+import { useSignupState } from "./signupState";
 import { LANGS, PUBLIC_ROUTES, matchRoute, pathOf, type Lang } from "./routes";
 
 /* Die Anmeldeseite: Wortmarke, ein Satz, die Karte. */
@@ -24,7 +27,7 @@ function AnmeldenPage({ onLogin }: { onLogin: () => void }) {
     <div className="landing pub-signin">
       <div className="pub-signin-brand login-rise">
         <BirdMark size={52} />
-        <h1 className="login-wordmark">Covey</h1>
+        <h1 className="login-wordmark">covey</h1>
       </div>
       <p
         className="landing-tagline login-rise"
@@ -50,7 +53,12 @@ function useTitel(pathname: string) {
 
 export default function SignedOut({ onLogin }: { onLogin: () => void }) {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const lang = usePublicLang();
+  /* Dieselbe Abfrage, die die Anmelde-Karte ohnehin stellt (TanStack cacht
+     sie nicht, aber der Hook hält sie pro Seite) — hier für die Adresse des
+     Quelltexts. */
+  const { state: installation } = useSignupState();
   useTitel(pathname);
 
   // Die Sprache folgt der Adresse (siehe lang.ts).
@@ -64,12 +72,27 @@ export default function SignedOut({ onLogin }: { onLogin: () => void }) {
   };
 
   /* Alles andere gehört zur Anmeldung. Die Sprache dafür kommt aus der
-     gespeicherten Wahl, nicht aus dem Pfad — App-Adressen tragen keine. */
-  const ziel = pathOf("anmelden", gespeicherteSprache() === "de" ? "de" : "en");
+     gespeicherten Wahl (oder der des Browsers), nicht aus dem Pfad — eine
+     App-Adresse trägt keine. */
+  const ziel = pathOf("anmelden", initialLang("/"));
+
+  /* Die Sprachwahl wechselt hier die Adresse, nicht nur den Katalog: Vor der
+     Anmeldung ist die Sprache Teil der URL (routes.ts), und wer /fr/connexion
+     im Reiter stehen hat, soll sie teilen können. Der Effekt oben lädt den
+     Katalog dann von selbst nach — eine Stelle, an der die Sprache gesetzt
+     wird, nicht zwei. */
+  const wechsleSprache = (neu: Lang) => {
+    const treffer = matchRoute(pathname);
+    navigate(pathOf(treffer?.route.id ?? "anmelden", neu));
+  };
 
   return (
     <div className="login-bg pub-shell">
       <PublicBackground />
+      <div className="pub-top">
+        <GitHubLink url={installation.source} />
+        <LangPicker onSelect={wechsleSprache} />
+      </div>
       <main className="pub-main">
         <Routes>
           {PUBLIC_ROUTES.flatMap((route) =>

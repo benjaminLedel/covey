@@ -4,7 +4,7 @@ import { api } from "../api";
 /* Ob diese Installation Registrierungen annimmt — die eine Frage, die sowohl
    die Registrierungsseite als auch die Anmelde-Karte stellen müssen.
 
-   Warum überhaupt gefragt wird: Covey wird von Dritten selbst betrieben
+   Warum überhaupt gefragt wird: covey wird von Dritten selbst betrieben
    (README). Auf einer internen Installation gibt es keine Selbstregistrierung,
    und dann darf die Oberfläche sie auch nicht anbieten — ein Knopf, der zu
    einem "geschlossen" führt, ist eine Einladung, die keine ist. Die Antwort
@@ -17,11 +17,16 @@ export type SignupState = {
   /* Wie sich diese Installation nennt — steht auf der Seite und später in den
      Mails. */
   site_name: string;
+  /* Die öffentliche Quelle dieses Programms (buildinfo.SourceURL). Sie kommt
+     ohne Sitzung mit, weil die Pflicht aus der AGPL ohne Sitzung gilt — und
+     weil der Stern auf GitHub von Leuten kommt, die vor der Anmeldung
+     stehen. Ein Fork zeigt hier seine eigene Adresse. */
+  source: string;
 };
 
 /* Geschlossen ist die sichere Antwort: Solange der Endpunkt fehlt (ältere
    Installation) oder nicht antwortet, bietet die Oberfläche nichts an. */
-const GESCHLOSSEN: SignupState = { mode: "off", site_name: "Covey" };
+const GESCHLOSSEN: SignupState = { mode: "off", site_name: "covey", source: "" };
 
 export function useSignupState(): { state: SignupState; loading: boolean } {
   /* Beim Vorrendern (prerender.mjs) läuft kein Effekt, die Seite entsteht also

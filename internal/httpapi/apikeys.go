@@ -23,7 +23,7 @@ import (
 // browser needs, and unreachable for everything else. Anything outside a
 // browser — a pipeline, a script, the agent skill that creates an agent through
 // the API — therefore had no route in at all. That is why this sits in the
-// binary and not in somebody's CI: whoever installs Covey from the repository
+// binary and not in somebody's CI: whoever installs covey from the repository
 // gets the same means as whoever runs the instance it came from.
 //
 // Two decisions shape everything below:

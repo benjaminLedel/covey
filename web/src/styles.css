@@ -12,9 +12,9 @@ picture { display: contents; }
    Stylesheet blockiert das Rendern, und ein Besucher der Startseite soll nicht
    auf die Formulare hinter der Anmeldung warten (#122). */
 
-/* Design-Sprache aus mockup/covey-ui-mockup.html — warmes Papier-Theme, und
-   daneben seine dunkle Fassung: dieselbe warme Familie, nur von Papier auf
-   Tinte gedreht.
+/* Die Design-Sprache und ihre dunkle Fassung: derselbe Bogen, von Papier auf
+   Tinte gedreht. Warm war er bis zu diesem Zweig; der Grund für den Wechsel
+   auf ein neutrales Grau steht bei den Token unten, wo er nachzumessen ist.
 
    Beide Werte stehen in derselben Zeile; `light-dark()` wählt anhand des
    `color-scheme`, das weiter unten gesetzt wird. Zwei Gründe für diese Form:
@@ -36,61 +36,97 @@ picture { display: contents; }
      die Teile der Oberfläche, die der Browser selbst zeichnet. */
   color-scheme: light dark;
 
-  --surface-0: light-dark(#efede4, #171612);
-  --surface-1: light-dark(#f5f3ec, #1f1d18);
-  --surface-2: light-dark(#fdfcf9, #26241e);
-  --text-primary: light-dark(#1e1c17, #f1eee5);
-  --text-secondary: light-dark(#6b675e, #aaa398);
-  --text-muted: light-dark(#9c978b, #7d776b);
-  --border: light-dark(rgba(30, 28, 23, 0.1), rgba(242, 238, 228, 0.12));
-  --border-strong: light-dark(rgba(30, 28, 23, 0.18), rgba(242, 238, 228, 0.22));
-  --bg-accent: light-dark(#e6f1fb, #17293a);
-  --text-accent: light-dark(#185fa5, #8dbde9);
-  --bg-warning: light-dark(#faeeda, #382a15);
-  --text-warning: light-dark(#8a5310, #e0b170);
-  --bg-success: light-dark(#eaf3de, #232f18);
-  --text-success: light-dark(#3b6d11, #a2c977);
-  --bg-pro: light-dark(#edebfb, #272444);
-  --text-pro: light-dark(#534ab7, #b0a8ee);
-  --text-danger: light-dark(#a32d2d, #ef8d84);
-  --border-danger: light-dark(rgba(163, 45, 45, 0.35), rgba(239, 141, 132, 0.4));
+  /* Exactly neutral, and layered rather than coloured.
+     
+     Two earlier attempts are spent. Warm paper was the rendition every model
+     ships for a filing-cabinet subject. Replacing it with a slightly green
+     grey only removed the colour without putting anything in its place: at a
+     saturation span of 3 out of 255 that is not a hue, it is grey with
+     measurement noise, and it read as flat.
+
+     So the separation comes from layering and hairlines instead, with no hue
+     at all: R, G and B are identical in every ground. Surface-1 is DARKER
+     than surface-0, not lighter — it is the pressed-in surface (sidebar,
+     hover, a resting badge), while surface-2 is the raised one (the card,
+     the form sheet). Measured 4.65:1 or better for every text and mark
+     against all three. */
+  --surface-0: light-dark(#f5f5f5, #131313);
+  --surface-1: light-dark(#ebebeb, #0e0e0e);
+  --surface-2: light-dark(#ffffff, #1c1c1e);
+  --text-primary: light-dark(#1d1d1f, #f2f2f3);
+  --text-secondary: light-dark(#55555a, #a6a6ab);
+  --text-muted: light-dark(#67676d, #8a8a90);
+  --border: light-dark(rgba(0, 0, 0, 0.11), rgba(255, 255, 255, 0.13));
+  --border-strong: light-dark(rgba(0, 0, 0, 0.2), rgba(255, 255, 255, 0.24));
+  /* One colour, one job — and the job is not "state".
+     
+     Every state already carries a drawn SHAPE (see the state marks further
+     down): filled runs, hollow rests, dashed is undecided, a bar is held up,
+     a cross has ended. Once the form says it, a colour beside it only
+     repeats — so the state palette is neutral and the marks do the work.
+     That also settles the accessibility question the old palette had, where
+     hue was the sole carrier.
+
+     The single exception is red, and it earns its place: working, sleeping
+     and waiting are equivalent states somebody may scan past, a dead agent
+     is not. Red here means "this ended against its purpose", nowhere else.
+
+     Measured: badge text 9.1:1 light and 7.2:1 dark against its own ground,
+     red 6.0:1 or better everywhere. */
+  /* The one colour, and it is the brand's own. Clay marks action and
+     activity — the primary button, a link, the active navigation point, an
+     agent that is working. Nothing else. The signet keeps #cc7a5b as the
+     picture mark; this is its deeper, text-capable cut, because #cc7a5b
+     carries white at only 3.2:1 and cannot hold a button. Same value on the
+     website, so the product has one mark and not two. */
+  --bg-accent: light-dark(#f6ece6, #2c1d15);
+  --text-accent: light-dark(#a4522c, #e0906f);
+  --bg-warning: light-dark(#e6e6e6, #2a2a2d);
+  --text-warning: light-dark(#3a3a3e, #b8b8bd);
+  --bg-success: light-dark(#e6e6e6, #2a2a2d);
+  --text-success: light-dark(#3a3a3e, #b8b8bd);
+  --bg-pro: light-dark(#e6e6e6, #2a2a2d);
+  --text-pro: light-dark(#3a3a3e, #b8b8bd);
+  --text-danger: light-dark(#9d2427, #ef8d84);
+  --border-danger: light-dark(rgba(157, 36, 39, 0.35), rgba(239, 141, 132, 0.4));
+  /* The signet keeps its colour so the mark stays the mark across website and
+     product. It is no longer part of the surface system: it marks the brand,
+     it does not tint the interface. */
   --clay: light-dark(#cc7a5b, #d4805f);
 
-  /* Akzent als Fläche (Primärknopf) statt als Schrift: im Dunkeln muss die
-     Fläche dunkler sein als die Schriftfarbe, sonst trägt Weiß darauf nicht. */
-  --accent-solid: light-dark(#185fa5, #2c6ba8);
+  /* The primary button is filled with ink, the way a form is printed: black
+     on the sheet, not a colour. That frees every colour in the carbon-copy
+     set to mean an addressee instead of an action. White on ink measures
+     16.9:1 light; dark keeps a filled surface darker than its own label. */
+  --accent-solid: light-dark(#1a1d22, #2c3038);
   --on-accent: #fff;
 
   /* Schatten tragen auf Papier; im Dunkeln ist der Grund schon schwarz. Sie
      bleiben, werden aber tiefer und leiser — die Trennung übernimmt dort die
      hellere Kante (--border). */
-  --shadow-xs: light-dark(rgba(30, 28, 23, 0.05), rgba(0, 0, 0, 0.4));
-  --shadow-sm: light-dark(rgba(30, 28, 23, 0.08), rgba(0, 0, 0, 0.5));
-  --shadow-md: light-dark(rgba(30, 28, 23, 0.18), rgba(0, 0, 0, 0.6));
-  --shadow-lg: light-dark(rgba(30, 28, 23, 0.32), rgba(0, 0, 0, 0.72));
+  --shadow-xs: light-dark(rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.4));
+  --shadow-sm: light-dark(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.5));
+  --shadow-md: light-dark(rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.6));
+  --shadow-lg: light-dark(rgba(0, 0, 0, 0.32), rgba(0, 0, 0, 0.72));
   /* Schleier hinter Dialogen und Schubladen. */
-  --scrim: light-dark(rgba(30, 28, 23, 0.28), rgba(0, 0, 0, 0.6));
-  --scrim-weak: light-dark(rgba(30, 28, 23, 0.18), rgba(0, 0, 0, 0.45));
+  --scrim: light-dark(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.6));
+  --scrim-weak: light-dark(rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.45));
 
   /* Lasuren: eine Spur Tinte auf hellem Grund, eine Spur Licht auf dunklem.
      Sie heben eine Fläche an, ohne eine eigene Farbe mitzubringen. */
-  --tint-weak: light-dark(rgba(30, 28, 23, 0.04), rgba(255, 255, 255, 0.045));
-  --tint: light-dark(rgba(30, 28, 23, 0.06), rgba(255, 255, 255, 0.07));
+  --tint-weak: light-dark(rgba(0, 0, 0, 0.04), rgba(255, 255, 255, 0.045));
+  --tint: light-dark(rgba(0, 0, 0, 0.06), rgba(255, 255, 255, 0.07));
   /* Glanzkante oben auf erhabenen Flächen — im Dunkeln fast nur noch angedeutet. */
   --inset-highlight: light-dark(rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.06));
 
   /* Eingefärbte Lasuren: Drop-Ziele, Lehm-Schein, Löschen-Warnung. Sie leiten
      sich von --clay/--text-accent/--text-danger ab und drehen deshalb mit. */
-  --clay-tint: color-mix(in srgb, var(--clay) 11%, transparent);
-  --clay-line: color-mix(in srgb, var(--clay) 32%, transparent);
-  --clay-glow: color-mix(in srgb, var(--clay) 17%, transparent);
-  --accent-tint: color-mix(in srgb, var(--text-accent) 11%, transparent);
-  --accent-ring: color-mix(in srgb, var(--text-accent) 22%, transparent);
+  --accent-tint: color-mix(in srgb, var(--text-accent) 12%, transparent);
+  --accent-ring: color-mix(in srgb, var(--text-accent) 30%, transparent);
   --danger-tint: color-mix(in srgb, var(--text-danger) 9%, transparent);
 
   --radius: 8px;
   --sans: "Inter", ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --voice: "Lora", Georgia, "Times New Roman", serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
@@ -267,7 +303,22 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.voice { font-family: var(--voice); }
+/* What an agent said or entered. On a form you know an entry because it
+   stands IN THE FIELD, not because it is set in another face — so the
+   entry gets the field: the form white of a fill-in area, a rule down its
+   left edge, and the indent that follows from it. The serif this used to
+   carry was the warm world's voice and is gone with it. */
+.voice {
+  background: var(--surface-2);
+  border-left: 2px solid var(--border-strong);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 9px 12px;
+}
+/* Ein <pre> in dieser Rolle behält den Umbruch, nicht die Schreibmaschine:
+   der Text einer Aufgabe ist Prosa, die ihre Zeilenumbrüche selbst mitbringt.
+   Ohne diese Zeile fiele er auf die Monospace des Browsers zurück — bis zum
+   Wegfall der Serife hielt ihn --voice in der Textschrift. */
+pre.voice { font-family: inherit; }
 .danger-text { color: var(--text-danger); }
 
 .kind-guardrail { background: var(--bg-warning); color: var(--text-warning); }
@@ -280,8 +331,7 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
   box-shadow: 0 0 0 0.5px var(--border);
 }
 .act-feed .voice {
-  font-family: var(--voice);
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.6;
   margin: 0 0 9px;
   overflow-wrap: anywhere;
@@ -566,7 +616,7 @@ kbd {
   border-bottom: 1px solid var(--border);
   border-radius: 13px 13px 0 0;
 }
-.dept-card.depth-0 .dept-hdr { background: var(--clay-tint); border-bottom-color: var(--clay-tint); }
+.dept-card.depth-0 .dept-hdr { background: var(--tint-weak); border-bottom-color: var(--border); }
 .dept-card.depth-1 .dept-hdr { background: var(--tint-weak); }
 .dept-card.depth-2 .dept-hdr { background: var(--tint-weak); }
 .dept-card.depth-3 .dept-hdr { background: transparent; }
@@ -806,7 +856,9 @@ kbd {
   height: 560px;
   max-width: 90vw;
   transform: translateX(-50%);
-  background: radial-gradient(circle, var(--clay-glow) 0%, transparent 68%);
+  /* Daylight on paper, not a brand glow. The signet keeps its colour;
+     the surface does not borrow it. */
+  background: radial-gradient(circle, var(--tint-weak) 0%, transparent 68%);
   pointer-events: none;
 }
 .login-flock {
@@ -827,7 +879,6 @@ kbd {
 }
 .login-wordmark {
   margin-top: 22px;
-  font-family: var(--voice);
   font-size: 44px;
   font-weight: 500;
   letter-spacing: -0.02em;
@@ -857,7 +908,6 @@ kbd {
 .landing-brand .login-wordmark { margin-top: 0; }
 .landing-tagline {
   margin-top: 20px;
-  font-family: var(--voice);
   font-size: 23px;
   line-height: 1.35;
   letter-spacing: -0.01em;
@@ -900,7 +950,6 @@ kbd {
   stroke-linejoin: round;
 }
 .login-card-title {
-  font-family: var(--voice);
   font-size: 19px;
   margin-bottom: 18px;
 }
@@ -954,7 +1003,7 @@ kbd {
   border-radius: 18px;
   overflow: hidden;
   background:
-    radial-gradient(130% 100% at 50% 0%, var(--clay-tint), transparent 62%),
+    radial-gradient(130% 100% at 50% 0%, var(--tint-weak), transparent 62%),
     var(--surface-2);
   border: 0.5px solid var(--border);
   box-shadow:
@@ -1075,7 +1124,6 @@ kbd {
   text-align: center;
 }
 .landing-features h2 {
-  font-family: var(--voice);
   font-size: 26px;
   letter-spacing: -0.01em;
 }
@@ -1114,7 +1162,7 @@ kbd {
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: var(--clay-tint);
+  background: var(--tint-weak);
   transition: transform 0.2s ease;
 }
 .landing-feature-icon svg {
@@ -1150,6 +1198,179 @@ kbd {
 .js .reveal.in { opacity: 1; transform: none; }
 
 /* Sprachumschalter oben rechts auf der öffentlichen Seite. */
+/* Die Sprachwahl: oben rechts auf der Anmeldeseite (pill) und offen im
+   Fußmenü der Oberfläche (menu) — eine Komponente, siehe LangPicker.tsx.
+
+   Flagge, Eigenname, nichts weiter. Die Flagge ist der Anker fürs Auge, der
+   Name die eigentliche Auskunft; wo ein Betriebssystem keine Flaggen-Emoji
+   kennt (Windows zeichnet stattdessen das Länderkürzel), bleibt die Zeile
+   lesbar. */
+/* Der Kopf der offenen Seiten: GitHub-Stern und Sprachwahl, oben rechts
+   nebeneinander. Fix statt mitscrollend — die Anmeldeseite scrollt nicht. */
+.pub-top {
+  position: fixed;
+  top: 18px;
+  right: 20px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pub-top .lang-pick.pill { position: static; }
+
+.gh-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 0.5px solid var(--border);
+  background: color-mix(in srgb, var(--surface-2) 72%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 10px var(--shadow-sm);
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color 0.15s, background 0.15s;
+}
+.gh-pill:hover { color: var(--text-primary); }
+.gh-pill .ic, .gh-menu .ic { width: 14px; height: 14px; }
+.gh-pill .star, .gh-menu .star { color: var(--clay); }
+/* Auf schmalen Schirmen bleibt das Signet: der Satz „Star on GitHub" ist in
+   zehn Sprachen unterschiedlich lang, das Symbol ist es nicht. */
+@media (max-width: 560px) {
+  .gh-pill .nm { display: none; }
+}
+
+.gh-menu {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 9px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+.gh-menu:hover { background: var(--tint-weak); color: var(--text-primary); }
+.gh-menu .nm { flex: 1; }
+
+.lang-pick.pill {
+  position: fixed;
+  top: 18px;
+  right: 20px;
+  z-index: 20;
+}
+.lang-pick-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 9px 5px 11px;
+  border-radius: 999px;
+  border: 0.5px solid var(--border);
+  background: color-mix(in srgb, var(--surface-2) 72%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 10px var(--shadow-sm);
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+.lang-pick-btn:hover { color: var(--text-primary); }
+.lang-pick-btn .flag { font-size: 15px; line-height: 1; }
+.lang-pick-btn .ic {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.7;
+}
+.lang-pick-backdrop { position: fixed; inset: 0; z-index: 30; }
+.lang-pick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 176px;
+  max-height: min(60vh, 340px);
+  overflow-y: auto;
+  padding: 5px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 0.5px solid var(--border);
+  box-shadow: 0 12px 32px var(--shadow-md);
+}
+.lang-pick.pill .lang-pick-list {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+}
+.lang-pick-list button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 6px 9px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  text-align: left;
+  cursor: pointer;
+}
+.lang-pick-list button .flag { font-size: 15px; line-height: 1; }
+.lang-pick-list button:hover { background: var(--tint-weak); color: var(--text-primary); }
+.lang-pick-list button.on { background: var(--tint); color: var(--text-primary); }
+/* Im Fußmenü ist die Sprachwahl eine Zeile wie die anderen; die Liste klappt
+   darunter auf und rückt ein, damit sie zur Zeile gehört. */
+.lang-pick-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 6px 9px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
+}
+.lang-pick-row:hover { background: var(--tint-weak); color: var(--text-primary); }
+.lang-pick-row .lb { flex: 1; }
+.lang-pick-row .cur {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
+.lang-pick-row .cur .flag { font-size: 14px; line-height: 1; }
+.lang-pick-row .ic {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  opacity: 0.75;
+}
+.lang-pick.menu .lang-pick-list {
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 2px 0 2px 22px;
+  min-width: 0;
+  max-height: 176px;
+}
+
 .lang-switch {
   position: fixed;
   top: 18px;
@@ -1210,7 +1431,7 @@ kbd {
   height: 46vw;
   left: -10vw;
   top: -14vw;
-  background: radial-gradient(circle, rgba(204, 122, 91, 0.22), rgba(204, 122, 91, 0) 70%);
+  background: radial-gradient(circle, var(--tint), transparent 70%);
   animation: aurora-a 26s ease-in-out infinite alternate;
 }
 .aurora i:nth-child(2) {
@@ -1218,7 +1439,7 @@ kbd {
   height: 38vw;
   right: -8vw;
   top: 4vw;
-  background: radial-gradient(circle, rgba(224, 176, 92, 0.18), rgba(224, 176, 92, 0) 70%);
+  background: radial-gradient(circle, var(--tint-weak), transparent 70%);
   animation: aurora-b 32s ease-in-out infinite alternate;
 }
 .aurora i:nth-child(3) {
@@ -1226,7 +1447,7 @@ kbd {
   height: 34vw;
   left: 28vw;
   bottom: -18vw;
-  background: radial-gradient(circle, rgba(24, 95, 165, 0.10), rgba(24, 95, 165, 0) 70%);
+  background: radial-gradient(circle, var(--tint-weak), transparent 70%);
   animation: aurora-c 38s ease-in-out infinite alternate;
 }
 @keyframes aurora-a {
@@ -1242,33 +1463,13 @@ kbd {
   to { transform: translate(6vw, -8vw) scale(1.2); }
 }
 
-/* Warmer Glanz, der gelegentlich über die Wortmarke streicht. */
-.login-wordmark {
-  background: linear-gradient(
-    100deg,
-    var(--text-primary) 0%,
-    var(--text-primary) 38%,
-    var(--clay) 50%,
-    #e0b05c 56%,
-    var(--text-primary) 68%,
-    var(--text-primary) 100%
-  );
-  background-size: 320% 100%;
-  background-position: 100% 0;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: wordmark-sheen 7s ease-in-out infinite;
-}
-@keyframes wordmark-sheen {
-  0%, 55% { background-position: 100% 0; }
-  85%, 100% { background-position: 0% 0; }
-}
+/* The wordmark stands in ink. The sheen that used to travel across it was
+   the warm world's one flourish; a filing cabinet does not shine. */
+.login-wordmark { color: var(--text-primary); }
 
 /* Rotierendes Wort: serif, clay-Verlauf, kippt bei jedem Wechsel herein. */
 .landing-rot {
   margin-top: 16px;
-  font-family: var(--voice);
   font-size: 17px;
   color: var(--text-secondary);
 }
@@ -1346,14 +1547,13 @@ kbd {
   right: 0;
   bottom: 0;
   padding: 40px 26px 18px;
-  font-family: var(--voice);
   font-size: clamp(16px, 2.2vw, 21px);
   color: #fff;
   text-shadow: 0 1px 10px rgba(0, 0, 0, 0.45);
   background: linear-gradient(to top, rgba(20, 14, 10, 0.55), rgba(20, 14, 10, 0));
 }
 
-/* „Wie Covey arbeitet" — drei Schritte neben der Vogelformation. */
+/* „Wie covey arbeitet" — drei Schritte neben der Vogelformation. */
 .landing-how {
   margin-top: 72px;
   display: grid;
@@ -1362,7 +1562,6 @@ kbd {
   align-items: center;
 }
 .landing-how h2 {
-  font-family: var(--voice);
   font-size: 26px;
   letter-spacing: -0.01em;
 }
@@ -1383,11 +1582,10 @@ kbd {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--voice);
   font-size: 15px;
   color: var(--clay);
-  background: var(--clay-tint);
-  border: 0.5px solid var(--clay-line);
+  background: var(--tint-weak);
+  border: 0.5px solid var(--border-strong);
 }
 .landing-how li h3 { font-size: 14.5px; font-weight: 600; margin-top: 5px; }
 .landing-how li p {
@@ -1435,7 +1633,7 @@ kbd {
 .imprint-body p { margin: 0 0 10px; }
 .imprint-body p:last-child { margin-bottom: 0; }
 .imprint-law { color: var(--text-muted); font-size: 12px; }
-.imprint-name { font-family: var(--voice); font-size: 17px; }
+.imprint-name { font-size: 17px; }
 .imprint-addr { color: var(--text-secondary); }
 
 @media (max-width: 900px) {
@@ -1470,6 +1668,7 @@ kbd {
 @media (max-width: 640px) {
   .landing { padding: 64px 16px 28px; }
   .lang-switch { top: 12px; right: 12px; }
+  .pub-top { top: 12px; right: 12px; }
   .landing-brand { gap: 13px; }
   .landing-brand > span:first-child {
     width: 52px !important;
@@ -1519,7 +1718,7 @@ kbd {
 }
 .login-card input:focus {
   border-color: var(--clay);
-  box-shadow: 0 0 0 3px var(--clay-tint);
+  box-shadow: 0 0 0 3px var(--tint-weak);
   outline: none;
 }
 .login-divider {
@@ -1602,7 +1801,6 @@ kbd {
   text-decoration: none;
 }
 .pubnav-word {
-  font-family: var(--voice);
   font-size: 19px;
   font-weight: 500;
   color: var(--text-primary);
@@ -1618,7 +1816,7 @@ kbd {
   transition: background 0.15s, color 0.15s;
 }
 .pubnav-link:hover { color: var(--text-primary); background: var(--tint-weak); }
-.pubnav-link.active { color: var(--clay); background: var(--clay-tint); }
+.pubnav-link.active { color: var(--clay); background: var(--tint-weak); }
 .pubnav-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
 .pubnav-cta { padding: 7px 16px; font-size: 13px; }
 .lang-switch.inline {
@@ -1650,7 +1848,6 @@ kbd {
 }
 .pub-hero h1 {
   margin-top: 12px;
-  font-family: var(--voice);
   font-size: clamp(26px, 4.5vw, 38px);
   line-height: 1.12;
   letter-spacing: -0.015em;
@@ -1675,7 +1872,6 @@ kbd {
 
 .pub-group { margin-top: 56px; }
 .pub-group > h2 {
-  font-family: var(--voice);
   font-size: 24px;
   letter-spacing: -0.01em;
   text-align: center;
@@ -1726,7 +1922,7 @@ kbd {
   padding: 26px 28px;
   text-align: center;
 }
-.int-trust h2 { font-family: var(--voice); font-size: 21px; letter-spacing: -0.01em; }
+.int-trust h2 { font-size: 21px; letter-spacing: -0.01em; }
 .int-trust p {
   margin: 10px auto 0;
   max-width: 620px;
@@ -1765,7 +1961,6 @@ kbd {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-family: var(--voice);
   font-size: 18px;
 }
 .pub-product p { margin: 4px 0 0; font-size: 13.5px; line-height: 1.6; color: var(--text-secondary); }
@@ -1805,7 +2000,7 @@ kbd {
   gap: 44px;
   align-items: center;
 }
-.pub-split-text h2 { font-family: var(--voice); font-size: 24px; letter-spacing: -0.01em; }
+.pub-split-text h2 { font-size: 24px; letter-spacing: -0.01em; }
 .pub-split-text p { margin: 12px 0 4px; font-size: 14px; line-height: 1.65; color: var(--text-secondary); }
 .pub-split-text .landing-points { margin-top: 16px; }
 .pub-split-img img {
@@ -1832,11 +2027,10 @@ kbd {
 .pub-step-n {
   position: absolute;
   top: 18px; right: 18px;
-  font-family: var(--voice);
   font-size: 22px;
-  color: var(--clay-line);
+  color: var(--border-strong);
 }
-.pub-step h3 { margin-top: 13px; font-size: 15px; font-weight: 600; font-family: var(--voice); }
+.pub-step h3 { margin-top: 13px; font-size: 15px; font-weight: 600; }
 .pub-step p { margin: 7px 0 0; font-size: 13px; line-height: 1.6; color: var(--text-secondary); }
 
 /* Ruhiger Hinweis-Block (Datenschutz). */
@@ -1863,7 +2057,7 @@ kbd {
   border: 0.5px solid var(--border);
   border-radius: 20px;
 }
-.pub-cta h2 { font-family: var(--voice); font-size: 24px; letter-spacing: -0.01em; }
+.pub-cta h2 { font-size: 24px; letter-spacing: -0.01em; }
 .pub-cta p { margin: 10px auto 0; max-width: 480px; font-size: 14px; line-height: 1.6; color: var(--text-secondary); }
 .pub-cta-row { margin-top: 22px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 
@@ -1891,7 +2085,7 @@ kbd {
   min-height: 62vh;
   text-align: center;
 }
-.pub-notfound h1 { font-family: var(--voice); font-size: 30px; font-weight: 400; }
+.pub-notfound h1 { font-size: 30px; font-weight: 400; }
 .pub-notfound .landing-pitch { max-width: 46ch; }
 
 @media (max-width: 820px) {
@@ -1971,7 +2165,7 @@ kbd {
 .pub-shot-thumb:hover { transform: translateY(-2px); box-shadow: 0 8px 18px -12px var(--shadow-md); }
 .pub-shot-thumb.active {
   border-color: var(--clay);
-  box-shadow: 0 0 0 2px var(--clay-line);
+  box-shadow: 0 0 0 2px var(--border-strong);
 }
 .pub-shot-thumb.active span { color: var(--text-primary); font-weight: 500; }
 @media (max-width: 820px) {
@@ -2000,7 +2194,6 @@ kbd {
   padding-right: 8px;
 }
 .docs-nav-title {
-  font-family: var(--voice);
   font-size: 15px;
   font-weight: 500;
   margin-bottom: 14px;
@@ -2029,7 +2222,7 @@ kbd {
 .docs-nav-link:hover { color: var(--text-primary); background: var(--tint-weak); }
 .docs-nav-link.active {
   color: var(--clay);
-  background: var(--clay-tint);
+  background: var(--tint-weak);
   border-left-color: var(--clay);
   font-weight: 500;
 }
@@ -2046,14 +2239,12 @@ kbd {
    Größen sind dieselben wie vorher — an der Optik ändert sich nichts, nur an
    dem, was im Dokument steht. */
 .docs-body h1.md-h {
-  font-family: var(--voice);
   font-size: 27px;
   letter-spacing: -0.015em;
   color: var(--text-primary);
   margin: 0 0 16px;
 }
 .docs-body h2.md-h {
-  font-family: var(--voice);
   font-size: 19px;
   color: var(--text-primary);
   margin: 30px 0 10px;
@@ -2093,7 +2284,6 @@ kbd {
    Seite schwächer. */
 .docs-faq { margin-top: 36px; padding-top: 24px; border-top: 0.5px solid var(--border); }
 .docs-faq h2 {
-  font-family: var(--voice);
   font-size: 19px;
   color: var(--text-primary);
   margin: 0 0 14px;
@@ -2136,7 +2326,7 @@ kbd {
   border: 0.5px solid var(--border);
   transition: border-color 0.15s, background 0.15s;
 }
-.docs-pager-link:hover { border-color: var(--clay); background: var(--clay-tint); }
+.docs-pager-link:hover { border-color: var(--clay); background: var(--tint-weak); }
 .docs-pager-link.next { text-align: right; margin-left: auto; align-items: flex-end; }
 .docs-pager-dir { font-size: 11.5px; color: var(--text-muted); }
 .docs-pager-title { font-size: 13.5px; color: var(--text-primary); font-weight: 500; }
@@ -2158,20 +2348,20 @@ kbd {
 }
 .tgt-cat .n { font-size: 10.5px; color: var(--text-muted); }
 .tgt-cat.active {
-  background: var(--clay-tint);
-  border-color: var(--clay-line);
+  background: var(--tint-weak);
+  border-color: var(--border-strong);
   color: var(--text-primary);
 }
 .tgt-cat.active .n { color: var(--clay); }
 
-.btn.cta { color: var(--clay); border-color: var(--clay-line); }
-.btn.cta:hover { background: var(--clay-tint); }
+.btn.cta { color: var(--clay); border-color: var(--border-strong); }
+.btn.cta:hover { background: var(--tint-weak); }
 .tgt-card.off { background: var(--surface-1); }
 .tgt-card.off .tgt-name { color: var(--text-secondary); }
 .tgt-card.off .tgt-mark { opacity: 0.55; }
 .tgt-state.on { color: var(--text-success); }
 .tgt-state.on i { background: var(--text-success); border-color: var(--text-success); }
-.tgt-steps li.at { border-color: var(--clay); color: var(--text-primary); background: var(--clay-tint); }
+.tgt-steps li.at { border-color: var(--clay); color: var(--text-primary); background: var(--tint-weak); }
 .tgt-steps li.done .n { background: var(--text-success); color: var(--surface); border-color: transparent; }
 .tgt-steps .n {
   display: inline-flex;
@@ -2183,7 +2373,6 @@ kbd {
   border: 0.5px solid var(--border);
   font-size: 10.5px;
 }
-.diff-line.add { background: var(--bg-success); color: var(--text-success); }
 .act-feed .act-phase.done { color: var(--text-muted); }
 /* Ohne bekannte Gesamtgröße läuft der Balken, statt eine Prozentzahl zu
    behaupten, die niemand hat. */

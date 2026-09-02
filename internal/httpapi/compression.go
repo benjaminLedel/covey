@@ -17,7 +17,7 @@ import (
 // nginx compresses text/html and nothing else unless somebody uncomments a
 // gzip_types line. Measured on a real installation, that left a 1.1 MB
 // frontend bundle and every API response uncompressed — an agent's log page is
-// between 265 kB and 1.4 MB of JSON. Whoever installs Covey from GitHub should
+// between 265 kB and 1.4 MB of JSON. Whoever installs covey from GitHub should
 // not have to find a proxy setting to make the product usable, and an
 // installation with no proxy at all should not be the slow one.
 //

@@ -8,41 +8,9 @@ import { useEffect, useRef } from "react";
    eigene Repository der Website gezogen; hier steht, was die Anwendung selbst
    noch braucht. */
 
-/* Covey = ein Schwarm — drei Vögel in Flugformation als Wortmarke. */
-export function BirdMark({ size = 84 }: { size?: number }) {
-  return (
-    <span
-      aria-hidden="true"
-      style={{
-        width: size,
-        height: size,
-        borderRadius: size * 0.32,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background:
-          "linear-gradient(140deg, #d98a6a 0%, var(--clay) 55%, #b25f41 100%)",
-        boxShadow:
-          "0 10px 28px rgba(178, 95, 65, 0.34), 0 1px 2px rgba(30, 28, 23, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.28)",
-      }}
-    >
-      <svg
-        viewBox="0 0 24 24"
-        width={size * 0.62}
-        height={size * 0.62}
-        fill="none"
-        stroke="#fff"
-        strokeWidth={1.7}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M7 15 Q9.75 11.8 12.5 15 Q15.25 11.8 18 15" />
-        <path d="M3.5 10 Q5.5 7.7 7.5 10 Q9.5 7.7 11.5 10" />
-        <path d="M13 8 Q14.5 6.3 16 8 Q17.5 6.3 19 8" />
-      </svg>
-    </span>
-  );
-}
+/* Das Signet kommt aus der gemeinsamen Komponente — bis #131 zeichnete
+   dieser Bereich eine eigene Fassung mit eigenem Farbverlauf. */
+export { BirdMark } from "../components/BirdMark";
 
 /* Ein einzelner Vogel-Glyph für den Hintergrund-Schwarm. */
 export function Bird({

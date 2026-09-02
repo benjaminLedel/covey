@@ -8,7 +8,7 @@ export type HelpTopic = {
 };
 
 const Badge = ({ st, children }: { st: string; children: ReactNode }) => (
-  <span className={`badge st-${st}`} style={{ fontSize: 11, padding: "1px 8px" }}>
+  <span className={`badge state st-${st}`} style={{ fontSize: 11, padding: "1px 8px" }}>
     {children}
   </span>
 );
@@ -23,7 +23,7 @@ const deTopics: HelpTopic[] = [
     body: (
       <>
         <p>
-          Covey behandelt KI-Agenten wie Mitarbeiter: jeder hat eine Identität, ein eigenes Backlog,
+          covey behandelt KI-Agenten wie Mitarbeiter: jeder hat eine Identität, ein eigenes Backlog,
           eine isolierte Sandbox und bekommt Zugänge nur kurzlebig gebrokert. Der schnellste Weg zum
           ersten arbeitenden Agenten:
         </p>
@@ -114,7 +114,7 @@ const deTopics: HelpTopic[] = [
           </li>
         </ul>
         <p>
-          Die Beziehung ist mehr als Deko: Bei einer Eskalation vermerkt Covey den Vorgesetzten im
+          Die Beziehung ist mehr als Deko: Bei einer Eskalation vermerkt covey den Vorgesetzten im
           Ergebnis der Aufgabe.
         </p>
       </>
@@ -356,7 +356,7 @@ const deTopics: HelpTopic[] = [
         <p>
           Das Request-Log zeigt, was an den Rändern der Plattform über die Leitung ging: jeder
           Aufruf, den ein Zielsystem-Plugin nach draußen stellt (<b>raus</b>), und jeder Webhook,
-          den Covey empfängt (<b>rein</b>) — <b>auch die abgelehnten</b>. Genau die sind beim
+          den covey empfängt (<b>rein</b>) — <b>auch die abgelehnten</b>. Genau die sind beim
           Anbinden eines Systems die interessanten: falscher Slug, nicht aktiviertes Zielsystem,
           ungültige Signatur.
         </p>
@@ -406,7 +406,7 @@ const enTopics: HelpTopic[] = [
     body: (
       <>
         <p>
-          Covey treats AI agents like employees: each has an identity, its own backlog, an isolated
+          covey treats AI agents like employees: each has an identity, its own backlog, an isolated
           sandbox, and gets credentials brokered only for short lifetimes. The fastest path to your
           first working agent:
         </p>
@@ -499,7 +499,7 @@ const enTopics: HelpTopic[] = [
           </li>
         </ul>
         <p>
-          The relationship is more than decoration: on escalation, Covey records the supervisor in
+          The relationship is more than decoration: on escalation, covey records the supervisor in
           the task result.
         </p>
       </>
@@ -738,7 +738,7 @@ const enTopics: HelpTopic[] = [
       <>
         <p>
           The request log shows what actually went over the wire at the edges of the platform:
-          every call a target-system plugin makes outbound (<b>out</b>) and every webhook Covey
+          every call a target-system plugin makes outbound (<b>out</b>) and every webhook covey
           receives (<b>in</b>) — <b>including the rejected ones</b>. Those are the interesting
           ones while connecting a system: wrong slug, target system not enabled, invalid
           signature.

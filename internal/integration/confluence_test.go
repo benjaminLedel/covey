@@ -190,7 +190,7 @@ func (f *fakeConfluence) handle(w http.ResponseWriter, r *http.Request) {
 
 	switch {
 	case path == "/rest/api/user/current":
-		out(map[string]any{"accountId": "5b10bot", "displayName": "Covey Bot", "email": "covey-bot@acme.example"})
+		out(map[string]any{"accountId": "5b10bot", "displayName": "covey Bot", "email": "covey-bot@acme.example"})
 
 	case path == "/api/v2/spaces":
 		out(map[string]any{"results": []any{
