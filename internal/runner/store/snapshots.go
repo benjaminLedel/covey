@@ -122,34 +122,3 @@ func (s *Store) HomeSummaryFor(ctx context.Context, agentID uuid.UUID) (HomeSumm
 	}
 	return out, nil
 }
-
-// GetSnapshot reads one snapshot of an organisation.
-func (s *Store) GetSnapshot(ctx context.Context, orgID, id uuid.UUID) (Snapshot, error) {
-	snap, err := scanSnapshot(s.pool.QueryRow(ctx,
-		`SELECT `+snapshotCols+` FROM home_snapshots WHERE id = $1 AND org_id = $2`, id, orgID))
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Snapshot{}, ErrNotFound
-	}
-	return snap, err
-}
-
-// ManifestsExcept are the manifest hashes of an organisation that survive when
-// the given snapshots go — what the sweep has to keep.
-func (s *Store) ManifestsExcept(ctx context.Context, orgID uuid.UUID, removing []uuid.UUID) ([]string, error) {
-	rows, err := s.pool.Query(ctx,
-		`SELECT DISTINCT manifest_hash FROM home_snapshots
-		  WHERE org_id = $1 AND NOT (id = ANY($2::uuid[]))`, orgID, removing)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []string
-	for rows.Next() {
-		var h string
-		if err := rows.Scan(&h); err != nil {
-			return nil, err
-		}
-		out = append(out, h)
-	}
-	return out, rows.Err()
-}

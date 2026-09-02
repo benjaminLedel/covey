@@ -241,9 +241,6 @@ const (
 	OpRemove = "remove"
 	OpMove   = "move"
 	OpUsage  = "usage"
-	// OpRestore materialises a snapshot over the working copy — the rollback
-	// that falls out of the construction anyway (spec/16).
-	OpRestore = "restore"
 )
 
 // HomeOp is one file operation on an agent's home.
@@ -257,10 +254,6 @@ type HomeOp struct {
 	// Data is the content of a write, in one message. Bounded by
 	// sandboxfs.MaxWriteBytes, which the control plane checks before sending.
 	Data []byte `json:"data,omitempty"`
-	// Snapshot and OrgID belong to a restore: which state to bring the working
-	// copy to, and whose blocks to read.
-	Snapshot string    `json:"snapshot,omitempty"`
-	OrgID    uuid.UUID `json:"org_id,omitempty"`
 	// Window is the flow control of a streaming answer (open, zip): how many
 	// chunks the runner may have in flight before it waits for a stream_credit.
 	// 0 = none, the runner sends as fast as the link takes — which is what a

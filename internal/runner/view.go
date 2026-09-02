@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"covey/internal/sandboxfs"
 )
 
 // The control plane's side of the runner view (spec/16, stage 5): what a
@@ -173,34 +171,6 @@ func (p *Pool) SyncNow(ctx context.Context, agentID, orgID uuid.UUID, reason str
 	// same state.
 	p.flushDirtyFlag(agentID)
 	return p.syncHomeReason(ctx, c, agentID, orgID, reason)
-}
-
-// Restore brings a home back to an earlier state. Only when the agent is not
-// running — otherwise the running sandbox writes into a home that changes
-// underneath it. That check lives in the HTTP layer, where the agent's status
-// is known.
-func (p *Pool) Restore(ctx context.Context, agentID, orgID uuid.UUID, snapshot string) error {
-	c := p.connFor(orgID, p.lastRunnerOf(ctx, agentID))
-	if c == nil {
-		return ErrNoRunner
-	}
-	answer, err := c.ask(ctx, TypeHomeOp, HomeOp{
-		AgentID: agentID, OrgID: orgID, Op: OpRestore, Snapshot: snapshot,
-	}, homeOpTimeout)
-	if err != nil {
-		return err
-	}
-	res, err := decode[HomeResult](answer)
-	if err != nil {
-		return err
-	}
-	if res.Err != "" {
-		return sandboxfs.ErrorFromKind(res.ErrKind, res.Err)
-	}
-	// The restored state becomes the current one — otherwise the next wake
-	// would materialise the newer snapshot over it and the rollback would last
-	// exactly until then.
-	return p.syncHomeReason(ctx, c, agentID, orgID, "restore")
 }
 
 func (p *Pool) lastRunnerOf(ctx context.Context, agentID uuid.UUID) uuid.UUID {

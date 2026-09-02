@@ -90,7 +90,7 @@ func (s *Store) CleanupOrg(ctx context.Context, blobs homestore.BlobStore, orgID
 
 // Manifests are all manifest hashes an organisation still holds rows for.
 //
-// Deliberately its own query rather than ManifestsExcept with an empty list:
+// Deliberately its own query rather than a filter with an empty exclusion list:
 // there, an empty slice and a nil slice mean opposite things to Postgres, and
 // the nil case would report that nothing survives — which a sweep would read
 // as permission to delete everything.

@@ -198,30 +198,47 @@ Refusal is explicit with a reason, not silent: a runner that quietly fails to co
 
 ## Runner protocol
 
+The two tables are the reference and are kept in step with `internal/runner/protocol.go`; a message that exists in one and not the other is a defect in whichever is behind. Every message is a JSON envelope `{type, id, payload}`; the `id` correlates an answer with its request, and a message that answers nothing carries none.
+
 ### Control plane → runner
 
 | Message | Purpose |
 |---|---|
-| `start_sandbox` | Start a sandbox: agent ID, image, home identifier, env (`COVEY_WS_URL`, `COVEY_DAEMON_TOKEN`, egress token) |
+| `start_sandbox` | Start a sandbox: agent, organisation, the resolved image and how to obtain it, env (`COVEY_WS_URL`, `COVEY_DAEMON_TOKEN`), egress token, the snapshot to materialise and when it was taken, the sync exclusions, the services to bring up beside it |
 | `stop_sandbox` | Shut compute down; the home stays |
-| `sync_home` | Write the home into the store as a snapshot — regularly after the job, and enforceable besides (maintenance, decommissioning a runner) |
-| `home_op` | File access to a home: list, read, write, delete (see file access) |
-| `set_allowlist` | Update the egress allowlist for the runner's local proxy |
-| `prune` | Clean up orphaned containers and the homes of deleted agents |
+| `sync_home` | Write the home into the store as a snapshot — after the job, and enforceable besides (maintenance, "back up now") |
+| `home_op` | File access to a home: `list`, `read`, `open` (streamed), `plan`/`zip` (an archive, measured then streamed), `write`, `mkdir`, `remove`, `move`, `usage`. A stream names a window; see `stream_credit` |
+| `stream_credit` | Lets a streamed `home_op` continue: the reader has consumed chunks and the runner may send as many again. Negative = the reader is gone, stop |
+| `add_services` | Bring services up beside a sandbox that is already running — the path an agent takes for its project's compose file |
+| `check` | What stands between this host and a running sandbox — no Docker daemon, a missing image — plus which of a list of images lie here |
+| `capacity` | What this host is carrying: running sandboxes, free disk. Asked once a beat; the answer is also the second liveness signal (see below) |
+| `pull_image` | Fetch a workplace image now, while somebody is looking, instead of at the first wake |
+| `set_log_level` | Raise or lower what this host ships of its own log (`debug`/`info`) |
 | `update` | Replace your own binary and start again — how version drift is closed without an SSH session per host |
 
 ### Runner → control plane
 
 | Message | Purpose |
 |---|---|
-| `registered` | Capabilities, tags, version — the first message after connecting |
-| `sandbox_started` / `sandbox_failed` | The result of a `start_sandbox` (the `ready` proof still comes from the daemon itself) |
-| `sandbox_exited` | The sandbox ended on its own (crash, OOM) — the control plane learns of it without waiting for the daemon timeout |
-| `home_synced` | The snapshot is written: identifier, blocks transferred, total size — only afterwards may anything be cleaned up locally |
-| `home_result` | The answer to a `home_op` |
-| `capacity` | Running sandboxes, free space — the basis for scheduling and warnings |
-| `update_result` | What became of an `update`: the versions before and after, or why nothing was replaced |
+| `registered` | The first message: identity, protocol version, own version and architecture, tags, images, features this build has beyond the base protocol, the sandbox limit — and the agents whose sandboxes this host is running right now (reconciled, see below) |
+| `sandbox_started` / `sandbox_failed` | The result of a `start_sandbox`, with the services that came up and the image each actually started from (the `ready` proof still comes from the daemon itself) |
+| `sandbox_stopped` | The result of a `stop_sandbox` |
+| `sandbox_exited` | The sandbox ended on its own (crash, OOM) — the control plane learns of it as a fact instead of inferring it from the `ReadyTimeout` |
+| `home_synced` | The snapshot is written: identifier, blocks transferred, total size — only afterwards may anything be cleaned up locally. Also sent unasked, for a sync whose answer an earlier connection could not carry, and for the copy a start secured because it was newer than the snapshot |
+| `home_result` | The answer to a `home_op`; a stream is several of them under one id, the last carrying `eof` |
+| `services_added` | The answer to `add_services` |
+| `check_result` | The answer to `check`: what is in the way, and which images are present |
+| `capacity_report` | The answer to `capacity` |
+| `pull_result` | The answer to `pull_image` |
+| `log_level_result` | The level the host now ships at — the one it applied, not the one asked for |
+| `update_result` | What became of an `update`: the versions before and after, that it is restarting, or that it is busy and the update stays planned |
+| `progress` | What a start is doing while it takes its time — fetching an image, materialising or securing a home — unasked, several times per start, into the recording |
+| `log` | A batch of the host's own log lines, so the host can be read where it is administered and not only over SSH. A ring on the host bounds it; how many lines overflowed travels with the next batch |
 | `heartbeat` | Sign of life |
+
+**Features, not versions.** The protocol version is raised only when a message changes its meaning; a new optional field is not a new version. What a build can do beyond the base — replace its own binary, ship its log, honour a stream window — it announces in `registered` as a feature, and the control plane offers the corresponding action only to a host that named it. An older host is told what it cannot do rather than waited on for an answer that is never coming.
+
+**The host's own log.** Every line a runner writes goes two ways: to its stderr as before, and into a ring the control plane drains once every two seconds over the same link. The ring is bounded — a host that lost its connection keeps working and keeps logging, and an unbounded buffer would turn a network problem into an out-of-memory one on a machine running somebody's sandboxes — so what overflows is the oldest line, counted once in the next batch. The level shipped is switched from the interface (`set_log_level`) and re-applied when the host reconnects; the control plane keeps the lines for a fortnight and fifty thousand per host, whichever is less.
 
 The heartbeat is not decoration. A TCP connection can be dead without either side noticing — a NAT that dropped the entry, a network partition, a host that went to sleep — and a runner in that state stays in the pool as *connected*. Every wake would then be assigned to a runner that hears nothing and would sit out its start timeout before failing, instead of going to one that works. So: a sign of life every 30 seconds, and after three missed ones the control plane closes the connection itself. Any message counts, not only a heartbeat; traffic is proof of life, and a runner busy answering need not say so twice.
 
