@@ -304,6 +304,16 @@ Two states meet on a wake: the snapshot the control plane holds and the working 
 
 So the copy carries its age beside its hash — when it was last synced, or since when it has been in use — and the start carries the snapshot's. A copy that is the later state is **secured first**: synced into the store, reported, and the sandbox starts on it untouched. A copy that is the older one (the agent ran elsewhere in between) is materialised over as before. And a sync result survives its connection: what a runner could not deliver it keeps and delivers first on the next one, and the control plane records a `home_synced` it did not ask for as what it is. The same holds for everything else that outlives a connection — a sandbox's death, a stop, the sync that follows it: they address the *runner*, and wait a bounded moment for it to come back rather than failing because the socket the start went over is closed.
 
+### What a sync and a wake actually cost on the host the agent lives on
+
+Runners are sticky by design, so the common case is the same host, over and over — and that case has to be cheap or the whole construction is felt at every wake. Three things make it so:
+
+- **A copy that is the snapshot is not materialised.** The mark beside the working copy says which snapshot it is exactly; when that is the one the wake asks for, nothing is brought and nothing is read. Materialising used to walk every file to find that it already matched.
+- **A sync reads what a run changed.** A stat cache beside the copy remembers, per file, size, mtime, inode and the block hashes that content had; a file whose stat is unchanged hands its hashes over unread. The store is still asked about every block, so a block the sweep lost is read from disk and uploaded again — the cache saves reading, never correctness. A file modified within two seconds of the cache's own write is read regardless (the racy case rsync and git guard against).
+- **Blocks travel several at a time.** Eight in flight in either direction, and the scan runs ahead of the upload. A cold start on a fresh host used to be one HTTP round trip per block, in sequence — minutes of latency with the line idle.
+
+What travels was always the diff — content-addressed blocks, only the ones the store lacks. What these three remove is the work before and around it.
+
 ### Materialising: reflink, otherwise a copy
 
 Handing a file from the local block storage into the working copy must not be a **hard link**: it shares the inode, and the first agent that writes into the file corrupts the store for everyone who references that block. A store whose content changes behind its own hash is worse than no store.

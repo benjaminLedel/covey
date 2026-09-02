@@ -3,10 +3,12 @@ package runner
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -378,5 +380,66 @@ func TestANodeThatHearsNothingClosesTheLinkAndDialsAgain(t *testing.T) {
 			}
 			return
 		}
+	}
+}
+
+// countingBlobs counts what a start asks of the store.
+type countingBlobs struct {
+	homestore.BlobStore
+	gets atomic.Int32
+}
+
+func (c *countingBlobs) Get(ctx context.Context, orgID uuid.UUID, hash string) (io.ReadCloser, error) {
+	c.gets.Add(1)
+	return c.BlobStore.Get(ctx, orgID, hash)
+}
+
+// On the host the agent last ran on the copy IS the snapshot, and the mark
+// says so. The start used to materialise anyway — every file read to the end
+// to find it already matched — for minutes, on every wake. Now it asks the
+// store nothing at all (#173).
+func TestAStartOnTheHostThatHoldsTheSnapshotReadsNothing(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	orgID, runnerID, agentID := uuid.New(), uuid.New(), uuid.New()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	inner, err := homestore.NewDir(filepath.Join(dir, "blocks"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	blobs := &countingBlobs{BlobStore: inner}
+	node := NewNode(runnerID, orgID, &Docker{
+		RunnerID: runnerID, Image: "covey-sandbox:test", DataDir: dir,
+		DockerBin: fakeDockerBin(t, dir, "nothing"),
+	}, quietLog())
+	node.Blobs = blobs
+	t.Cleanup(node.Close)
+
+	home, _, _ := node.Docker.AgentHome(agentID)
+	if err := os.MkdirAll(home, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, "work.md"), []byte("as synced"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	snapshot := syncedHome(t, ctx, blobs, orgID, home)
+	blobs.gets.Store(0)
+
+	control, _ := startNodeOn(t, ctx, node)
+	start, _ := encode(TypeStartSandbox, "1", StartSandbox{
+		AgentID: agentID, OrgID: orgID, Snapshot: snapshot, SnapshotAt: time.Now(),
+	})
+	if err := control.Send(ctx, start); err != nil {
+		t.Fatal(err)
+	}
+	warteAufTyp(t, control, TypeSandboxStarted)
+	if n := blobs.gets.Load(); n != 0 {
+		t.Fatalf("the copy is the snapshot; the store was still asked %d times", n)
+	}
+	if homestore.SyncedHash(home) != "" {
+		t.Fatal("a started sandbox takes the synced mark back")
 	}
 }

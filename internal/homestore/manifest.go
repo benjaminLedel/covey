@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -153,7 +154,20 @@ func (e Excludes) skip(rel string) bool {
 // that is so is decided by the caller, which is the only one that knows the
 // store.
 func Scan(root string, excludes Excludes, put func(hash string, data []byte) error) (Manifest, error) {
+	return scanCached(root, excludes, nil, put, nil)
+}
+
+// scanCached is Scan with a stat cache (#174). A file the cache knows —
+// same size, mtime and inode as at the last scan — is not read: its hashes
+// are handed to put with NO data, and the caller decides whether the store
+// still holds them. Everything read is noted in the cache; what the walk did
+// not see is forgotten from it.
+//
+// onFile, if given, is told which file the following cached hashes belong to,
+// so the caller can find a block on disk without the data in hand.
+func scanCached(root string, excludes Excludes, cache *StatCache, put func(hash string, data []byte) error, onFile func(path string, size int64)) (Manifest, error) {
 	var m Manifest
+	seen := map[string]bool{}
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			// A file that disappeared under us is not a reason to lose the
@@ -204,6 +218,24 @@ func Scan(root string, excludes Excludes, put func(hash string, data []byte) err
 			return nil
 		}
 
+		seen[rel] = true
+		if blocks, ok := cache.Lookup(rel, info); ok {
+			// Known content, unread. The hashes still go to put — the caller
+			// asks the store about them and reads the file only if one is
+			// missing there.
+			if onFile != nil {
+				onFile(path, info.Size())
+			}
+			for _, h := range blocks {
+				if err := put(h, nil); err != nil {
+					return err
+				}
+			}
+			m.Entries = append(m.Entries, Entry{
+				Path: rel, Mode: info.Mode().Perm(), Size: info.Size(), Blocks: blocks,
+			})
+			return nil
+		}
 		blocks, err := blocksOf(path, info.Size(), put)
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -211,6 +243,10 @@ func Scan(root string, excludes Excludes, put func(hash string, data []byte) err
 			}
 			return err
 		}
+		// Noted with the stat from BEFORE the read: a file that changed under
+		// the read has a newer mtime than this by now and misses the cache
+		// next time, which is the safe side.
+		cache.Note(rel, info, blocks)
 		m.Entries = append(m.Entries, Entry{
 			Path: rel, Mode: info.Mode().Perm(), Size: info.Size(), Blocks: blocks,
 		})
@@ -219,6 +255,7 @@ func Scan(root string, excludes Excludes, put func(hash string, data []byte) err
 	if err != nil {
 		return Manifest{}, err
 	}
+	cache.Forget(seen)
 	// A stable order makes two manifests of the same content identical — and
 	// therefore the same block. Without it the manifest would be new after
 	// every run even when nothing changed.
@@ -265,6 +302,38 @@ func blocksOf(path string, size int64, put func(hash string, data []byte) error)
 		}
 	}
 	return out, nil
+}
+
+// readBlock reads one block of a file by its index — the block a cached hash
+// stood for, now that the store turned out not to hold it. Its hash is
+// checked: the cache's bet lost (the file changed with size and mtime intact,
+// which the racy guard is there to make rare), and a wrong block must not be
+// uploaded under a hash it does not have.
+func readBlock(path string, size int64, index int, want string) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	var data []byte
+	if size <= wholeFileLimit {
+		data, err = io.ReadAll(f)
+	} else {
+		data = make([]byte, chunkSize)
+		var n int
+		n, err = f.ReadAt(data, int64(index)*chunkSize)
+		if err == io.EOF {
+			err = nil
+		}
+		data = data[:n]
+	}
+	if err != nil {
+		return nil, err
+	}
+	if Hash(data) != want {
+		return nil, fmt.Errorf("%s: block %d changed under the cache", path, index)
+	}
+	return data, nil
 }
 
 // DirUsage is one directory of a home with what it holds.
