@@ -39,7 +39,7 @@ type marketplaceEntry struct {
 	// Version ist die neueste veröffentlichte Version (leer bei builtin).
 	Version string `json:"version,omitempty"`
 	Notes   string `json:"notes,omitempty"`
-	// BuiltinSince: ab dieser Covey-Fassung mitgeliefert — aktivieren statt
+	// BuiltinSince: ab dieser covey-Fassung mitgeliefert — aktivieren statt
 	// installieren.
 	BuiltinSince string `json:"builtin_since,omitempty"`
 	// Kein Endpoint-Feld: bei kind=mcp steht der Host IM Artefakt, nicht im
@@ -173,7 +173,7 @@ func (s *Server) handleMarketplaceInstall(w http.ResponseWriter, r *http.Request
 		// Ein kompiliertes Plugin lässt sich nicht installieren; es ist da oder
 		// nicht. Der Katalog führt es nur, damit man es findet.
 		writeErr(w, http.StatusBadRequest,
-			"this plugin ships with Covey — activate it instead of installing it")
+			"this plugin ships with covey — activate it instead of installing it")
 		return
 	}
 
@@ -189,7 +189,7 @@ func (s *Server) handleMarketplaceInstall(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// The catalogue may say which Covey this artefact needs, and a version that
+	// The catalogue may say which covey this artefact needs, and a version that
 	// says so has to be believed. It matters in one window in particular: an
 	// entry appears BEFORE the release that drops the matching built-in, so
 	// that nobody upgrades into a missing target system — and in that window an
@@ -202,7 +202,7 @@ func (s *Server) handleMarketplaceInstall(w http.ResponseWriter, r *http.Request
 	// release it names exists.
 	if ok, known := marketplace.MeetsMinVersion(buildinfo.Get().Version, version.CoveyMinVersion); !ok && known {
 		writeErr(w, http.StatusConflict, fmt.Sprintf(
-			"%s %s needs Covey %s or newer, and this is %s — upgrade first, or install an older version of the plugin",
+			"%s %s needs covey %s or newer, and this is %s — upgrade first, or install an older version of the plugin",
 			name, version.Version, version.CoveyMinVersion, buildinfo.Get().Version))
 		return
 	}

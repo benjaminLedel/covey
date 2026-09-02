@@ -65,7 +65,7 @@ func laufLassen(t *testing.T, s *stack, agent agents.Agent, titel, body string) 
 
 // TestReviewScopeTrenntDieBeidenHaelften: `agents:review` schaltet Lesen und
 // Vorschlagen frei und NICHT das Entwerfen; `agents:write` umgekehrt. Die
-// Personalabteilung stellt ein, Covey Doctor liest und schlägt vor,
+// Personalabteilung stellt ein, covey Doctor liest und schlägt vor,
 // und keiner von beiden kann mit den Zugängen des anderen dessen Arbeit machen
 // (spec/21).
 func TestReviewScopeTrenntDieBeidenHaelften(t *testing.T) {
@@ -74,7 +74,7 @@ func TestReviewScopeTrenntDieBeidenHaelften(t *testing.T) {
 	personal := reviewAgent(t, s, "personal", "agents:write")
 	reviewAgent(t, s, "kollege", "")
 
-	// Covey Doctor darf lesen …
+	// covey Doctor darf lesen …
 	if _, msg := laufLassen(t, s, betrieb, "Akte lesen",
 		`[mock:action covey/work_record {"agent":"kollege","days":30}]`); strings.Contains(msg, "no access") {
 		t.Fatalf("agents:review muss die Arbeitsakte freischalten: %s", msg)
@@ -345,7 +345,7 @@ func TestCoveyDoctorBundle(t *testing.T) {
 		}
 	}
 	if bundle == nil {
-		t.Fatal("das ausgelieferte Bundle von Covey Doctor fehlt")
+		t.Fatal("das ausgelieferte Bundle von covey Doctor fehlt")
 	}
 	imported := admin.expect(http.MethodPost, "/api/v1/agents/import?slug=betrieb",
 		bundle, http.StatusCreated)
@@ -503,7 +503,7 @@ func TestPlattformRepoStehtImPrompt(t *testing.T) {
 	admin.expect(http.MethodPatch, "/api/v1/org/platform-repo",
 		map[string]any{"system": "gitlab", "project": "covey/covey"}, http.StatusOK)
 
-	// Das Stammdatum allein reicht NICHT. Covey Doctor hat GitLab
+	// Das Stammdatum allein reicht NICHT. covey Doctor hat GitLab
 	// nicht in seiner ACCESS.md, also stuende im Prompt ein Repository, das der
 	// Broker ihm gleich darauf verweigert.
 	if p := prompt(betrieb); strings.Contains(p, "The platform you run on") {

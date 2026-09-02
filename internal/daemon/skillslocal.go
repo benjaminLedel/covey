@@ -16,7 +16,7 @@ import (
 // Claude Code loads personal skills from ~/.claude/skills/<name>/SKILL.md. The
 // daemon starts the run with HOME=<agent home> (runtime_claudecode.go), so a
 // directory written there becomes a personal skill of exactly this agent —
-// without Covey having to change anything about the prompt.
+// without covey having to change anything about the prompt.
 //
 // The gain lies in load time: the description is always in the context, body
 // and additional files are only read by the runtime once the skill applies.
@@ -105,7 +105,7 @@ func (c *Client) materializeSkills(ctx context.Context, engine string) int {
 	return len(res.Skills)
 }
 
-// clearSkillDirs removes everything Covey previously put under dir, without
+// clearSkillDirs removes everything covey previously put under dir, without
 // writing anything new. A missing directory is not an error — then there never
 // were any skills.
 func clearSkillDirs(dir string) error {
@@ -125,7 +125,7 @@ func clearSkillDirs(dir string) error {
 }
 
 // writeSkillDirs creates the skill directories and first removes everything
-// Covey wrote there before.
+// covey wrote there before.
 //
 // The cleanup is the reason why this does not simply write: the home outlives
 // the run (warm_sandbox, persistent /home). A skill deleted in the control plane

@@ -35,7 +35,7 @@ type workplaceView struct {
 	// one can be deleted, a published one cannot.
 	Kind string `json:"kind"`
 	// Source says where the IMAGE behind it comes from: "catalog" (published
-	// for this Covey version), "env" (this instance named it) or "builtin" (the
+	// for this covey version), "env" (this instance named it) or "builtin" (the
 	// compiled default). Empty for an own workplace, where the organisation
 	// named the image itself and there is nothing to disambiguate.
 	Source string `json:"source,omitempty"`

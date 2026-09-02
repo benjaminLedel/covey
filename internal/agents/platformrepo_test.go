@@ -7,7 +7,7 @@ import (
 	"covey/internal/buildinfo"
 )
 
-// Wohin Covey Doctor meldet, wenn niemand es ihm gesagt hat: in das Projekt,
+// Wohin covey Doctor meldet, wenn niemand es ihm gesagt hat: in das Projekt,
 // aus dem dieses Programm stammt. Die Adresse stand vorher als Frage in den
 // Stammdaten — dabei weiss die Plattform sie ueber sich selbst (spec/21).
 func TestPlatformRepoVoreinstellung(t *testing.T) {

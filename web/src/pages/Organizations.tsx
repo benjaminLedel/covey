@@ -255,7 +255,7 @@ function OrgRow({ org, isOwn }: { org: Organization; isOwn: boolean }) {
             </div>
           </div>
         )}
-        {org.fleet_killed && <span className="badge st-killed">{t("orgs.fleetStopped")}</span>}
+        {org.fleet_killed && <span className="badge state st-killed">{t("orgs.fleetStopped")}</span>}
         {!editing && (
           <button className="btn sm" onClick={() => setEditing(true)}>
             {t("orgs.rename")}

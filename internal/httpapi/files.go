@@ -94,7 +94,7 @@ func (s *Server) handleWriteFile(w http.ResponseWriter, r *http.Request) {
 
 // handleDownloadFile: GET /agents/{id}/files/download?path=… — the raw file, at
 // full length. Always as an attachment: letting a file from an agent home be
-// rendered in the browser would mean executing foreign HTML/JS on the Covey
+// rendered in the browser would mean executing foreign HTML/JS on the covey
 // origin.
 func (s *Server) handleDownloadFile(w http.ResponseWriter, r *http.Request) {
 	fs, _, ok := s.agentFS(w, r)
@@ -157,7 +157,7 @@ func (s *Server) handleZipFiles(w http.ResponseWriter, r *http.Request) {
 // the download, but displayable *inline*: images and PDFs straight in the
 // browser instead of "download first, then hunt for it in the file manager".
 //
-// Inline means: foreign bytes from an agent home are rendered on the Covey
+// Inline means: foreign bytes from an agent home are rendered on the covey
 // origin. Three bars keep that narrow:
 //   - A short allowlist of types (sandboxfs.InlineType); everything else gets a
 //     415 here and only leaves via the download endpoint.

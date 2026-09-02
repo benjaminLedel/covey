@@ -81,7 +81,7 @@ func toClaudeMessages(in []Message) []claudeapi.Message {
 
 // An OpenAI implementation belongs beside this one and is the open half of D15
 // ([`spec/07-open-decisions.md`]): until it exists, an organisation that set
-// Covey up with Codex has agents that work and no control-plane features. That
+// covey up with Codex has agents that work and no control-plane features. That
 // is a gap with a name, not an oversight — every caller here already asks
 // Resolve and handles ErrNoCredential, so the implementation is the only thing
 // missing, not a change to the callers.

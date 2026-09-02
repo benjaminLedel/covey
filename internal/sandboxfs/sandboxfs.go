@@ -94,7 +94,7 @@ const (
 // inlineTypes is the allowlist of types that may be delivered *inline* —
 // everything else goes out as an attachment only. Deliberately short and
 // fail-closed: inline delivery from an agent home means rendering foreign bytes
-// on the Covey origin. Images and PDF are worth it, HTML is not.
+// on the covey origin. Images and PDF are worth it, HTML is not.
 //
 // SVG is included because it executes no script in an <img> context; against a
 // direct call of the URL the handler additionally guards with a sandbox CSP

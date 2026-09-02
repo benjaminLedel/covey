@@ -33,7 +33,7 @@ const (
 )
 
 // subAgentPrompt is the platform's only contribution to the sub-run's prompt.
-// Deliberately terse: the project's harness should dominate, not Covey.
+// Deliberately terse: the project's harness should dominate, not covey.
 const subAgentPrompt = `You are working in the checkout of a project and are responsible for exactly one work order.
 This project's conventions apply: follow CLAUDE.md, CONTRIBUTING and the rules,
 skills and subagents the project brings along.

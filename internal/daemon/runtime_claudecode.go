@@ -205,7 +205,7 @@ func (c *ClaudeCode) buildArgs(spec RunSpec) ([]string, string) {
 	// is read afresh on every turn, so it is the schemas, not the calls, that
 	// carry the cost. Without this flag a run drags the runtime's whole built-in
 	// set along (Cron*, Workflow, ScheduleWakeup, RemoteTrigger, Task*, … — none
-	// of which a Covey agent ever touches).
+	// of which a covey agent ever touches).
 	//
 	// MCP tools stay out of it: --tools knows only built-in names, and the
 	// action proxy reaches the run through --allowedTools.
@@ -352,23 +352,23 @@ func (c *ClaudeCode) Run(ctx context.Context, spec RunSpec, onEvent func(kind st
 			return res, nil
 		}
 		// "Not logged in · Please run /login" means: no credential arrived in the
-		// sandbox. Untranslated this reads like a Covey login problem — hence the
+		// sandbox. Untranslated this reads like a covey login problem — hence the
 		// actionable hint here.
 		if strings.Contains(res.Error, "/login") {
 			res.Error = fmt.Sprintf(
 				"Claude Code has no credential in the sandbox (%q). "+
 					"Store `anthropic_api_key` (API key) or `claude_code_oauth_token` "+
-					"(subscription, via `claude setup-token`) in Covey under Secrets.",
+					"(subscription, via `claude setup-token`) in covey under Secrets.",
 				res.Error)
 		}
 		// "Invalid bearer token" (401): the brokered subscription token has
-		// expired or been revoked — untranslated that sounds like a Covey bug.
+		// expired or been revoked — untranslated that sounds like a covey bug.
 		if strings.Contains(res.Error, "Invalid bearer token") ||
 			strings.Contains(res.Error, "OAuth token has expired") {
 			res.Error = fmt.Sprintf(
 				"The stored subscription token is rejected by the Anthropic API (%q). "+
 					"Subscription tokens expire and are revoked on a new login — run "+
-					"`claude setup-token` in a terminal and save the new token in Covey under "+
+					"`claude setup-token` in a terminal and save the new token in covey under "+
 					"Secrets as `claude_code_oauth_token`.",
 				res.Error)
 		}

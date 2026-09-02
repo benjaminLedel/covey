@@ -32,7 +32,7 @@ func TestCompilePromptOrderAndProtocol(t *testing.T) {
 
 func TestCompilePromptEmptyFiles(t *testing.T) {
 	p := CompilePrompt(map[string]string{"SOUL.md": "  \n"})
-	if !strings.HasPrefix(p, "## Covey platform protocol") {
+	if !strings.HasPrefix(p, "## covey platform protocol") {
 		t.Fatalf("empty files should be skipped, got: %.60q", p)
 	}
 }

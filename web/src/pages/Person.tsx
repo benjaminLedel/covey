@@ -87,7 +87,7 @@ export default function PersonPage({ me }: { me: Principal }) {
                   <Link key={a.id} to={`/agents/${a.id}`}>
                     {a.display_name}
                     <span
-                      className={`badge st-${a.killed ? "killed" : a.status}`}
+                      className={`badge state st-${a.killed ? "killed" : a.status}`}
                       style={{ marginLeft: 4 }}
                     >
                       {t(`status.${a.killed ? "killed" : a.status}`, a.killed ? "killed" : a.status)}

@@ -29,7 +29,7 @@ func (s *Server) handleDownloadSkill(w http.ResponseWriter, r *http.Request) {
 	// runs on someone else's machine and has to reach the instance from the
 	// outside — not under the address sandboxes connect back through.
 	base := s.origin(r)
-	header := fmt.Sprintf("> **This Covey instance:** `COVEY_URL=%s`\n"+
+	header := fmt.Sprintf("> **This covey instance:** `COVEY_URL=%s`\n"+
 		"> This skill was downloaded from the instance above — use this URL as the default target\n"+
 		"> for \"creating it live\"/update (Workflow D). Ask the user for auth (token/session).\n\n",
 		base)

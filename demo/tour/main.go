@@ -1,4 +1,4 @@
-// demo-tour fährt die Oberfläche einer Covey-Instanz einmal ab und legt von
+// demo-tour fährt die Oberfläche einer covey-Instanz einmal ab und legt von
 // jeder Station ein Bild ab: die Screenshots für das README und die Einzelbilder
 // für das Demo-GIF.
 //

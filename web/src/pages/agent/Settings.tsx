@@ -209,7 +209,7 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
      Freitextfeld böte dort Modelle an, die die Instanz zwar listet, aber nicht
      fährt — und es gibt keinen Default, auf den man zurückfallen könnte. */
   const models = rtList.find((rt) => rt.name === agent.runtime)?.capabilities.models ?? [];
-  // Covey Doctor heisst ueberall gleich: Name und Slug gehoeren der
+  // covey Doctor heisst ueberall gleich: Name und Slug gehoeren der
   // Plattform, nicht der Organisation. Die Sperre steht im Server (409) — hier
   // steht sie nur sichtbar davor, damit niemand gegen ein Feld tippt, dessen
   // Antwort schon feststeht.

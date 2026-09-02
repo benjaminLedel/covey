@@ -5,7 +5,7 @@ import { fmtBytes, fmtCount, fmtDelta, fmtUSD } from "../format";
 
 // ActivityFeed: übersetzt das lückenlose Recording in eine erzählende
 // Aktivitätsansicht im Stil des Mockups — Turns mit der Stimme des Agenten
-// (Lora), aufklappbare Tool-Aufrufe mit Status-Pill, Ereignis- und
+// (.voice, das eingetragene Feld), aufklappbare Tool-Aufrufe mit Status-Pill, Ereignis- und
 // Gate-Zeilen für Lifecycle/Credential/Approval/Guardrail sowie ein
 // Parked-Block, wenn der Agent auf ein externes Ereignis wartet.
 // Tool-Aufruf und Tool-Ergebnis werden über die tool_use_id korreliert,

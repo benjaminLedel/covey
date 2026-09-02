@@ -482,7 +482,7 @@ function TaskCard({
   });
   // Wohin ein Plattform-Befund gemeldet wird: immer in das Projekt, aus dem
   // dieses Binary stammt (buildinfo.SourceRepo). NICHT in das Repository, das
-  // die Organisation für Covey Doctor eingetragen hat — das ist die Adresse,
+  // die Organisation für covey Doctor eingetragen hat — das ist die Adresse,
   // an der sie ihre eigenen Vorgänge führt, und ein Fehler der Plattform
   // gehört dorthin, wo die Plattform gepflegt wird. Ein Fork trägt seine
   // eigene Adresse in der Konstante und zeigt damit auf seinen Tracker.
@@ -526,7 +526,7 @@ function TaskCard({
       style={archived ? { opacity: 0.55 } : undefined}
     >
       <div className="kc-title">
-        <span className={`badge st-${task.state} kc-state`}>{t(`status.${task.state}`, task.state)}</span>
+        <span className={`badge state st-${task.state} kc-state`}>{t(`status.${task.state}`, task.state)}</span>
         <span className="font-medium min-w-0 truncate">{task.title}</span>
         {archived && <span className="muted text-[11px] shrink-0">{t("agent.backlog.archived")}</span>}
         <span className="kc-prio">P{task.priority}</span>
@@ -554,7 +554,7 @@ function TaskCard({
       {open && (
         <div className="kc-detail fade">
           {task.body && (
-            <pre className="voice whitespace-pre-wrap m-0 mb-2 secondary" style={{ fontFamily: "var(--voice)" }}>{task.body}</pre>
+            <pre className="voice whitespace-pre-wrap m-0 mb-2 secondary">{task.body}</pre>
           )}
           {task.correlation_key && (
             <p>

@@ -306,7 +306,7 @@ func TestPreviewKindAndInlineTypes(t *testing.T) {
 	}
 
 	// Only what is on the allowlist may go inline — HTML is deliberately not
-	// part of it: it would run as a document on the Covey origin.
+	// part of it: it would run as a document on the covey origin.
 	for _, name := range []string{"seite.html", "skript.js", "notiz.md", "daten.csv", "archiv.zip"} {
 		if got := InlineType(name); got != "" {
 			t.Errorf("InlineType(%q) = %q, expected empty", name, got)

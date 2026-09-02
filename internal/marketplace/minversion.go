@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// The catalogue may say which Covey a plugin needs, and until now that was a
+// The catalogue may say which covey a plugin needs, and until now that was a
 // field nobody read.
 //
 // It matters most at exactly one moment, which is the one this repository is
@@ -21,7 +21,7 @@ import (
 // A declared constraint that is never checked is worse than no constraint: the
 // entry says 0.6.0, the operator reads it, and the button works anyway.
 
-// MeetsMinVersion reports whether a Covey of version have satisfies want.
+// MeetsMinVersion reports whether a covey of version have satisfies want.
 //
 // known is false when the running version is not a release — a dev build, a
 // source checkout, a commit behind a tag. Then there is nothing to compare and

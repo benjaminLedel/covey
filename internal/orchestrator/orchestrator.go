@@ -2201,7 +2201,7 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 		// gleich darauf ab: Faehigkeit durch Andeutung, dieselbe, die der
 		// Abschnitt darueber fuer das Entwerfen ausdruecklich vermeidet. Das
 		// Stammdatum allein ist die halbe Einrichtung — die andere Haelfte ist
-		// eine Zeile in der ACCESS.md von Covey Doctor.
+		// eine Zeile in der ACCESS.md von covey Doctor.
 		//
 		// Der Scope INNERHALB des Systems bleibt Sache dieser Zeile: welche
 		// Aktionen sie traegt, steht ohnehin im Zielsystem-Abschnitt des

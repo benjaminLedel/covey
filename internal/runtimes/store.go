@@ -352,7 +352,7 @@ func CanCarryBlocking(engine string) bool {
 // declares.
 //
 // This exists so that the SIMPLE case needs no extra step. Whoever installs
-// Covey deposits one token and creates one agent; being told to also create a
+// covey deposits one token and creates one agent; being told to also create a
 // seat and hang the token on it would be three steps for what is one
 // decision — and the contract model only starts paying off with the second
 // credential. The first one it should carry silently.

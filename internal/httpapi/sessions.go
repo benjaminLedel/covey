@@ -78,7 +78,7 @@ func (st sessionStore) Principal(ctx context.Context, tokenHash string) (identit
 }
 
 // Renew pushes the end of a session back — the sliding session. Without it the
-// lifetime counts from the sign-in, and somebody who works in Covey all day is
+// lifetime counts from the sign-in, and somebody who works in covey all day is
 // thrown out in the middle of it; with it, only an unused session expires.
 //
 // The condition on expires_at keeps this from resurrecting a session that has

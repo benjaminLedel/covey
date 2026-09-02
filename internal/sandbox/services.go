@@ -9,7 +9,7 @@ import (
 // A workplace is an image plus the services that belong beside it.
 //
 // The image half was settled first (profiles.go, catalog.go): pinned by digest,
-// published per Covey version. Everything a project needs BEYOND the image had
+// published per covey version. Everything a project needs BEYOND the image had
 // no place — so it ended up in one of two spots that both cost. Either it was
 // built into the image and operated by hand, which is what the `dev-full` and
 // `dev-php` workplaces did with MariaDB: the agent was told to run
@@ -35,8 +35,8 @@ type Service struct {
 	Name string `json:"name"`
 	// Image is the reference, as a registry states it (`postgres:16`). It is
 	// NOT resolved through the workplace catalogue: that catalogue answers
-	// "which image belongs to this Covey version", and a project's database is
-	// not a part of Covey.
+	// "which image belongs to this covey version", and a project's database is
+	// not a part of covey.
 	Image string `json:"image"`
 	// Env is what the image is configured with — POSTGRES_PASSWORD and its
 	// like. This is a place for fixtures, not for credentials: it stands in the

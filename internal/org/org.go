@@ -1,5 +1,5 @@
 // Package org manages the tenants (organizations) and the humans within them
-// (RBAC, spec/09). The organization is Covey's unit — this store carries the
+// (RBAC, spec/09). The organization is covey's unit — this store carries the
 // admin side: create/change/remove users, manage tenants. Protective rules (the
 // last org_admin stays) are enforced here, not in the UI.
 package org
@@ -37,7 +37,7 @@ type Organization struct {
 	// every hiring brief and into the config copilot's system prompt (spec/20).
 	Description string `json:"description"`
 	// PlatformRepo names where this platform's own source lives — the target
-	// system and the project on it (spec/21). Covey Doctor reads
+	// system and the project on it (spec/21). covey Doctor reads
 	// the code there and files its issues there; both from the same address,
 	// because reporting against code you have not read produces symptoms.
 	// Empty = not set up, and then nothing about it stands in any prompt.

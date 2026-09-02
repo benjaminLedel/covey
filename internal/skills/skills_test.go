@@ -6,7 +6,7 @@ import (
 )
 
 // ValidatePath is a security boundary: the path is appended to the skill
-// directory in the agent home while materializing. If it breaks out, Covey
+// directory in the agent home while materializing. If it breaks out, covey
 // writes into other parts of the home — .claude/settings.json, say.
 func TestValidatePathRejectsTraversal(t *testing.T) {
 	ok := []string{"SKILL.md", "reference.md", "templates/mail.md", "a/b/c.txt", "SKILL.md.bak"}

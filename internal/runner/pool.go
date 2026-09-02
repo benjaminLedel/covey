@@ -32,7 +32,7 @@ type Pool struct {
 	// an image reference — the "org-owned: anything" row of the profile table.
 	Profiles map[string]string
 	// Catalog is the published workplace catalogue (spec/16): which image
-	// belongs to which Covey version, pinned by digest. Optional — without it
+	// belongs to which covey version, pinned by digest. Optional — without it
 	// Profiles stands, which is the state before the catalogue existed.
 	Catalog *sandbox.Source
 	// OrgImages resolves the workplaces an organisation brought along itself:

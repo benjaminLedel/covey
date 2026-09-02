@@ -8,7 +8,7 @@
 //	HTTP :8025 — POST /send {from,to,subject,body} injects a mail,
 //	             GET /mails lists all deliveries (newest last)
 //
-// Mailboxes: agent@covey.demo (password agent-pw) for the Covey agent,
+// Mailboxes: agent@covey.demo (password agent-pw) for the covey agent,
 // kunde@covey.demo (kunde-pw) as the counterpart. Secrets for the agent:
 //
 //	email_url   = imap+insecure://127.0.0.1:1143 smtp+insecure://127.0.0.1:1025

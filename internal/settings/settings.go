@@ -63,7 +63,7 @@ const (
 var Defaults = map[string]string{
 	SignupMode:      ModeOff,
 	SignupOrgQuota:  "1",
-	SiteName:        "Covey",
+	SiteName:        "covey",
 	HomeStoreBackup: "",
 }
 

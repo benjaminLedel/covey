@@ -4,7 +4,7 @@ import Org, { PlatformRepo } from "./Org";
 import { mockFetch, renderWithProviders, useGerman } from "../test/render";
 
 /* Die Karte „Quelltext dieser Plattform" ist eine Einstellung für genau einen
-   Leser: Covey Doctor. Was sie vorher nicht zeigte, war beides — ob es diesen
+   Leser: covey Doctor. Was sie vorher nicht zeigte, war beides — ob es diesen
    Leser überhaupt gibt, und ob die Einstellung bei ihm ankommt. Das
    Stammdatum allein ist die halbe Einrichtung; die andere Hälfte ist eine
    Zeile in seiner ACCESS.md, und die stand nur als Satz im Formular. */
@@ -14,7 +14,7 @@ const DOCTOR = "dddddddd-dddd-dddd-dddd-dddddddddddd";
 const chart = (mitDoctor: boolean) => ({
   humans: [],
   agents: mitDoctor
-    ? [{ id: DOCTOR, slug: "covey-doctor", display_name: "Covey Doctor" }]
+    ? [{ id: DOCTOR, slug: "covey-doctor", display_name: "covey Doctor" }]
     : [{ id: "1111", slug: "alice", display_name: "Alice Beispiel" }],
   departments: [],
 });
@@ -69,7 +69,7 @@ describe("Organigramm", () => {
 });
 
 describe("Quelltext dieser Plattform", () => {
-  it("steht am Organigramm nur, wo es Covey Doctor gibt", async () => {
+  it("steht am Organigramm nur, wo es covey Doctor gibt", async () => {
     mockFetch(routen(false, true));
     const { container } = renderWithProviders(<PlatformRepo nurMitDoctor />);
 
@@ -78,13 +78,13 @@ describe("Quelltext dieser Plattform", () => {
     await waitFor(() => expect(container).toBeEmptyDOMElement());
   });
 
-  it("sagt, wenn Covey Doctor dort keinen Zugang hat", async () => {
+  it("sagt, wenn covey Doctor dort keinen Zugang hat", async () => {
     mockFetch(routen(true, false));
     renderWithProviders(<PlatformRepo nurMitDoctor />);
 
     expect(await screen.findByText(/Wirkt noch nicht/)).toBeInTheDocument();
     // Und den Weg dorthin, wo die fehlende Zeile hingehört.
-    expect(screen.getByRole("link", { name: "Covey Doctor" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "covey Doctor" })).toHaveAttribute(
       "href",
       `/agents/${DOCTOR}?tab=config`,
     );
@@ -122,7 +122,7 @@ describe("Quelltext dieser Plattform", () => {
     expect(await screen.findByText("benjaminLedel/covey")).toBeInTheDocument();
     expect(screen.getByText(/Voreinstellung/)).toBeInTheDocument();
     // Und der Zustand prüft gegen das voreingestellte System, nicht gegen ein
-    // gespeichertes: hier hat Covey Doctor Zugang zu github.
+    // gespeichertes: hier hat covey Doctor Zugang zu github.
     expect(await screen.findByText(/^Wirkt:/)).toBeInTheDocument();
   });
 

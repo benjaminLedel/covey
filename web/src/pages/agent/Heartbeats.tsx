@@ -128,7 +128,7 @@ function HeartbeatCard({
           {scheduleLabel(hb)}
         </span>
         {killed && (
-          <span className="badge st-killed" title={t("agent.heartbeat.stoppedHint")}>
+          <span className="badge state st-killed" title={t("agent.heartbeat.stoppedHint")}>
             {t("agent.heartbeat.stopped")}
           </span>
         )}

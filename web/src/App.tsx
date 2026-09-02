@@ -2,7 +2,7 @@ import { Suspense, lazy, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Navigate, useLocation } from "react-router";
 import { api, setUnauthorizedHandler, type Principal } from "./api";
-import { gespeicherteSprache } from "./i18n";
+import { initialLang } from "./i18n";
 import { LANGS, PUBLIC_ROUTES, pathOf } from "./public/routes";
 import SignedOut from "./public/SignedOut";
 
@@ -67,9 +67,9 @@ function Abgemeldet({
   const { pathname, search } = useLocation();
   const offen = PUBLIC_ROUTES.some((r) => LANGS.some((l) => r.path[l] === pathname));
   if (!offen) {
-    /* Die Sprache folgt der gespeicherten Wahl (Voreinstellung: englisch) —
-       nicht dem Pfad, der bei App-Adressen keine trägt. */
-    const lang = gespeicherteSprache() === "de" ? "de" : "en";
+    /* Die Sprache folgt der gespeicherten Wahl, sonst dem Browser — nicht dem
+       Pfad, der bei App-Adressen keine trägt. */
+    const lang = initialLang("/");
     const anmeldung = pathOf("anmelden", lang);
     /* ?weiter= trägt zweierlei: wohin es nach der Anmeldung zurückgeht, und
        den Satz „Ihre Sitzung ist abgelaufen" (LoginCard liest den Parameter).

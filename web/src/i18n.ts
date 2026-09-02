@@ -1,27 +1,40 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 
-export type Lang = "de" | "en";
+import { BASE_LANG, LANG_BY_CODE, LANGS, istLang, langPrefix, type Lang } from "./langs";
+import { matchRoute } from "./public/routes";
+
+export type { Lang };
+export { LANG_BY_CODE, LANG_LIST, LANGS, istLang } from "./langs";
 
 export const LANG_KEY = "covey.lang";
 
-/* Startsprache. Zwei Aufrufer mit zwei Lagen:
+/* Startsprache. Zwei Lagen:
 
-   - Beim Vorrendern (web/prerender.mjs) gibt es weder window noch
-     localStorage; dort gibt der Aufrufer den Pfad mit.
-   - Im Browser hat der Pfad Vorrang vor der zuletzt gewählten Sprache: Wer
-     /en/… direkt aufruft oder aus der Suche kommt, soll Englisch sehen, auch
-     wenn hier einmal Deutsch gewählt wurde. Erst außerhalb der englischen
-     URLs zählt die gespeicherte Wahl. */
+   - Vor der Anmeldung entscheidet die Adresse: /fr/connexion ist eine Adresse,
+     die jemand teilen und verlinken kann, und der Proxy leitet sie getrennt
+     weiter. Wer sie aufruft, soll Französisch sehen, auch wenn hier einmal
+     Deutsch gewählt wurde.
+   - Sonst zählt die gespeicherte Wahl, und wo es keine gibt, die Sprache des
+     Browsers.
+
+   Bis #130 stand hier ein dritter Fall: eine vorgerenderte Seite musste beim
+   ersten Rendervorgang denselben Text treffen, den der Server geschrieben
+   hatte. Die Website ist ausgezogen, die Anwendung startet leer (main.tsx). */
 export function langFromPath(pathname: string): Lang | null {
-  return pathname === "/en" || pathname.startsWith("/en/") ? "en" : null;
-}
+  /* Zuerst die Adressen selbst, dann ihre Präfixe. Deutsch trägt keines
+     (langPrefix gibt "" zurück, langs.ts), und über das Präfix allein wäre
+     /anmelden für diese Funktion nie deutsch gewesen — die älteste Adresse
+     der Anwendung hätte als einzige nicht über ihre Sprache entschieden,
+     während der Reiter darüber schon „Anmelden — covey" sagte. */
+  const treffer = matchRoute(pathname);
+  if (treffer) return treffer.lang;
 
-/* Hat der Build diese Seite vorgerendert? Dann steht ihr Inhalt schon im HTML
-   und der erste Rendervorgang im Browser muss ihn treffen. */
-export function istVorgerendert(): boolean {
-  if (typeof document === "undefined") return false;
-  return document.getElementById("root")?.hasAttribute("data-prerendered") === true;
+  for (const lang of LANGS) {
+    const prefix = langPrefix(lang);
+    if (prefix && (pathname === prefix || pathname.startsWith(prefix + "/"))) return lang;
+  }
+  return null;
 }
 
 export function initialLang(pathname?: string): Lang {
@@ -30,25 +43,31 @@ export function initialLang(pathname?: string): Lang {
   const fromPath = langFromPath(path);
   if (fromPath) return fromPath;
 
-  /* Auf einer vorgerenderten Seite gilt, was der Server gerendert hat: alles
-     außerhalb von /en/… ist deutsch. Ohne diese Zeile rendert der Browser eines
-     Besuchers, der einmal auf Englisch umgeschaltet hat, die deutsche Seite
-     zuerst englisch — React findet den vorgerenderten Text nicht wieder und
-     wirft ihn samt Seite weg. Die gespeicherte Wahl kommt gleich danach wieder
-     zum Zug: auf der öffentlichen Website über die URL (PublicSite), in der
-     angemeldeten Oberfläche beim Aufbau der Shell (App.tsx). */
-  if (istVorgerendert()) return "de";
+  const gespeichert = gespeicherteSprache();
+  if (istLang(gespeichert)) return gespeichert;
 
-  /* Englisch ist die Basissprache der angemeldeten Oberfläche — wer Deutsch
-     will, wählt es einmal und bekommt es ab dann wieder. Die öffentliche
-     Website bleibt davon unberührt: Sie ist vorgerendert und entscheidet eine
-     Zeile höher über den Pfad. */
-  return gespeicherteSprache() === "de" ? "de" : "en";
+  return sprachePerBrowser() ?? BASE_LANG;
+}
+
+/* Wer nichts gewählt hat, bekommt, was sein Browser verlangt — solange wir die
+   Sprache haben. Die Kopfzeile eines Browsers ist eine Liste mit Regionen
+   ("de-AT", "pt-BR"); uns interessiert der Teil davor, denn unsere Kataloge
+   sind nach Sprache geschnitten, nicht nach Land. Bleibt nichts übrig, gilt
+   die Basissprache: eine Oberfläche in einer Sprache, die keiner gewählt hat,
+   wäre schlechter als eine in der, die alle lesen können. */
+function sprachePerBrowser(): Lang | null {
+  if (typeof navigator === "undefined") return null;
+  const wuensche = navigator.languages?.length ? navigator.languages : [navigator.language];
+  for (const wunsch of wuensche) {
+    const basis = (wunsch || "").toLowerCase().split("-")[0];
+    if (istLang(basis)) return basis;
+  }
+  return null;
 }
 
 /* Die Abfrage hängt an window, nicht an localStorage: Node 25 bringt ein
    globales localStorage mit, das ohne --experimental-webstorage keine Methoden
-   hat — die Prüfung „ist es definiert" ginge dort durch und das Vorrendern
+   hat — die Prüfung „ist es definiert" ginge dort durch und der Testlauf
    bräche. Der try/catch fängt außerdem den Browser, der Speicher verweigert
    (Privatmodus, geblockte Drittanbieter-Daten). */
 export function gespeicherteSprache(): string | null {
@@ -69,17 +88,24 @@ export function merkeSprache(lang: Lang) {
   }
 }
 
-/* Die Kataloge werden nachgeladen, nicht mitgeliefert. Zusammen sind sie
-   262 kB — ein Fünftel des Bündels, und die Hälfte davon in einer Sprache,
-   die dieser Besucher nicht liest. Als dynamischer Import wird jeder ein
-   eigenes Stück, und geladen wird das eine, das gebraucht wird (#122).
+/* Die Kataloge werden nachgeladen, nicht mitgeliefert. Zu zehnt sind sie über
+   ein Megabyte — ein Vielfaches des Bündels, und neun Zehntel davon in
+   Sprachen, die dieser Besucher nicht liest. Als dynamischer Import wird jeder
+   ein eigenes Stück, und geladen wird das eine, das gebraucht wird (#122).
 
-   Der Aufrufer wartet darauf, bevor er rendert: Eine vorgerenderte Seite
-   muss beim ersten Rendervorgang im Browser denselben Text erzeugen, den der
-   Server geschrieben hat — mit leerem Katalog stünden dort die Schlüssel. */
+   Der Aufrufer wartet darauf, bevor er rendert: mit leerem Katalog stünden auf
+   dem Schirm die Schlüssel statt der Sätze. */
 const kataloge: Record<Lang, () => Promise<{ default: Record<string, unknown> }>> = {
   de: () => import("./locales/de.json"),
   en: () => import("./locales/en.json"),
+  es: () => import("./locales/es.json"),
+  fr: () => import("./locales/fr.json"),
+  it: () => import("./locales/it.json"),
+  nl: () => import("./locales/nl.json"),
+  pl: () => import("./locales/pl.json"),
+  pt: () => import("./locales/pt.json"),
+  ja: () => import("./locales/ja.json"),
+  zh: () => import("./locales/zh.json"),
 };
 
 export async function ladeSprache(lang: Lang): Promise<void> {
@@ -88,15 +114,24 @@ export async function ladeSprache(lang: Lang): Promise<void> {
     i18n.addResourceBundle(lang, "translation", katalog, true, true);
   }
   if (i18n.language !== lang) await i18n.changeLanguage(lang);
+  setzeDokumentSprache(lang);
+}
+
+/* Das lang-Attribut am <html> ist keine Kosmetik: Vorleseprogramme wählen
+   danach ihre Aussprache, und der Browser seine Silbentrennung. Es steht im
+   Markup auf „de" und muss mitwandern, wenn die Sprache wechselt. */
+function setzeDokumentSprache(lang: Lang) {
+  if (typeof document === "undefined") return;
+  document.documentElement.setAttribute("lang", LANG_BY_CODE[lang].bcp47);
 }
 
 i18n.use(initReactI18next).init({
   resources: {},
   lng: initialLang(),
-  /* Beide Kataloge tragen dieselben Schlüssel (ein Test hält das fest), die
-     Ersatzsprache greift also nur bei einem Schlüssel, den keiner von beiden
+  /* Alle Kataloge tragen dieselben Schlüssel (ein Test hält das fest), die
+     Ersatzsprache greift also nur bei einem Schlüssel, den keiner von ihnen
      kennt — und dann steht er selbst da, geladen oder nicht. */
-  fallbackLng: "en",
+  fallbackLng: BASE_LANG,
   interpolation: { escapeValue: false },
 });
 

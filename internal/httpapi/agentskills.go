@@ -67,7 +67,7 @@ type skillInput struct {
 	Files       []skills.File `json:"files"`
 }
 
-// checked is spec() with the frontmatter check in front of it: a key Covey
+// checked is spec() with the frontmatter check in front of it: a key covey
 // does not keep is rejected instead of being dropped on save (see
 // skills.UnsupportedFrontmatterKeys). All write paths go through here.
 func (in skillInput) checked(agentID *uuid.UUID) (skills.Spec, error) {
@@ -77,7 +77,7 @@ func (in skillInput) checked(agentID *uuid.UUID) (skills.Spec, error) {
 		}
 		if keys := skills.UnsupportedFrontmatterKeys(f.Content); len(keys) > 0 {
 			return skills.Spec{}, fmt.Errorf(
-				"%w: %s frontmatter carries %s — Covey only stores name and description, everything else would be lost on save",
+				"%w: %s frontmatter carries %s — covey only stores name and description, everything else would be lost on save",
 				skills.ErrInvalid, skills.EntryFile, strings.Join(keys, ", "))
 		}
 	}
@@ -88,7 +88,7 @@ func (in skillInput) checked(agentID *uuid.UUID) (skills.Spec, error) {
 //
 // If the SKILL.md carries a YAML frontmatter — because someone pasted a
 // finished file or imported a bundle — it is cut off and fills in name and
-// description as far as the form fields stay empty. Covey keeps the
+// description as far as the form fields stay empty. covey keeps the
 // description as a column; were it in the file as well, the two could
 // contradict each other and nobody would know which one applies.
 func (in skillInput) spec(agentID *uuid.UUID) skills.Spec {

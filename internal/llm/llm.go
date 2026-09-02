@@ -6,7 +6,7 @@
 // department from the company description (spec/20).
 //
 // All three used to sit directly on internal/claudeapi, and that wired them to
-// one provider: an organisation running Covey on Codex has agents that work and
+// one provider: an organisation running covey on Codex has agents that work and
 // a control plane that cannot think. This package is the narrow port in front
 // of it, in the pattern the platform already uses for IdentityProvider and
 // SecretStore — interface here, implementations in subpackages

@@ -9,15 +9,24 @@
    Die englischen Slugs bleiben übersetzt statt präfigiert (/en/sign-in, nicht
    /en/anmelden). Sie stehen so in der Dokumentation, in Lesezeichen und in den
    Weiterleitungen des Proxys — eine Vereinheitlichung würde alte Adressen
-   brechen, ohne etwas zu gewinnen.
+   brechen, ohne etwas zu gewinnen. Die acht Sprachen, die später dazukamen,
+   folgen derselben Regel: Präfix plus ein Slug in ihrer eigenen Sprache. Wo
+   die Schrift nicht lateinisch ist (ja, zh), steht ein lateinischer Slug —
+   eine Adresse in Kana wäre im Browser eine Kette von Prozentzeichen, und
+   damit weder teilbar noch lesbar.
+
+   Deutsch trägt kein Präfix: /anmelden ist die älteste Adresse dieser
+   Anwendung und die, auf die alles zeigt, was vor den Sprachen da war.
 
    Titel stehen hier und nicht in den locales: Sie hängen an der Route, und der
    Anmeldebereich setzt sie, bevor i18n geladen ist. */
 
-export type Lang = "de" | "en";
-export type Localized = Record<Lang, string>;
+import { LANGS, type Lang } from "../langs";
 
-export const LANGS: Lang[] = ["de", "en"];
+export type { Lang };
+export { LANGS };
+
+export type Localized = Record<Lang, string>;
 
 export type PublicRoute = {
   /** Stabile Kennung; der Anmeldebereich hängt daran seine Element-Zuordnung. */
@@ -31,13 +40,57 @@ export type PublicRoute = {
 export const PUBLIC_ROUTES: PublicRoute[] = [
   {
     id: "anmelden",
-    path: { de: "/anmelden", en: "/en/sign-in" },
-    title: { de: "Anmelden — Covey", en: "Sign in — Covey" },
+    path: {
+      de: "/anmelden",
+      en: "/en/sign-in",
+      es: "/es/iniciar-sesion",
+      fr: "/fr/connexion",
+      it: "/it/accedi",
+      nl: "/nl/inloggen",
+      pl: "/pl/logowanie",
+      pt: "/pt/entrar",
+      ja: "/ja/login",
+      zh: "/zh/login",
+    },
+    title: {
+      de: "Anmelden — covey",
+      en: "Sign in — covey",
+      es: "Iniciar sesión — covey",
+      fr: "Connexion — covey",
+      it: "Accedi — covey",
+      nl: "Inloggen — covey",
+      pl: "Logowanie — covey",
+      pt: "Entrar — covey",
+      ja: "ログイン — covey",
+      zh: "登录 — covey",
+    },
   },
   {
     id: "registrieren",
-    path: { de: "/registrieren", en: "/en/sign-up" },
-    title: { de: "Registrieren — Covey", en: "Sign up — Covey" },
+    path: {
+      de: "/registrieren",
+      en: "/en/sign-up",
+      es: "/es/crear-cuenta",
+      fr: "/fr/inscription",
+      it: "/it/registrati",
+      nl: "/nl/registreren",
+      pl: "/pl/rejestracja",
+      pt: "/pt/criar-conta",
+      ja: "/ja/sign-up",
+      zh: "/zh/sign-up",
+    },
+    title: {
+      de: "Registrieren — covey",
+      en: "Sign up — covey",
+      es: "Crear cuenta — covey",
+      fr: "Inscription — covey",
+      it: "Registrati — covey",
+      nl: "Registreren — covey",
+      pl: "Rejestracja — covey",
+      pt: "Criar conta — covey",
+      ja: "新規登録 — covey",
+      zh: "注册 — covey",
+    },
   },
 ];
 

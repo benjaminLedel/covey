@@ -205,7 +205,7 @@ export default function Dashboard({ me }: { me: Principal }) {
             {(["working", "sleeping", "killed"] as const).map((st) => (
               <button
                 key={st}
-                className={`badge st-${st}`}
+                className={`badge state st-${st}`}
                 aria-pressed={states.includes(st)}
                 style={{
                   cursor: "pointer",
@@ -284,9 +284,9 @@ export default function Dashboard({ me }: { me: Principal }) {
             <span className="badge st-draft">{drafts.length}</span>
             <span className="secondary text-xs">{t("dashboard.applicationsHint")}</span>
           </div>
-          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))" }}>
+          <div className="register">
             {drafts.map((a) => (
-              <AgentCard
+              <AgentRow
                 key={a.id}
                 agent={a}
                 onHire={canManage(me.Role) ? setHiring : undefined}
@@ -321,9 +321,10 @@ export default function Dashboard({ me }: { me: Principal }) {
             </h2>
             <span className="secondary text-xs">{g.agents.length}</span>
           </div>
-          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))" }}>
+          <div className="register">
+            <RegisterKopf />
             {g.agents.map((a) => (
-              <AgentCard key={a.id} agent={a} />
+              <AgentRow key={a.id} agent={a} />
             ))}
           </div>
         </section>
@@ -379,7 +380,17 @@ function initialsOf(name: string): string {
  * Im Bewerbungsfeld bleibt das Badge weg (`labelled`): der Kasten heißt schon
  * „Bewerbungen", ein „Bewerbung" auf jeder Karte darin sagt nichts dazu und
  * kostet genau den Platz, an dem es klemmt. */
-function AgentCard({
+/* Eine Zeile im Register statt einer Karte im Raster.
+ *
+ * Eine Belegschaft ist eine Liste von Personen, und eine Liste liest man in
+ * Zeilen: Name unter Name, Zustand unter Zustand, alles in einer Flucht. Als
+ * Kachelfeld stand jeder Wert an einer anderen Stelle, und ab einem Dutzend
+ * Agenten musste das Auge jede Kachel einzeln absuchen.
+ *
+ * Die Spalten sind die eines Personalbogens: wer, welches Kürzel, worauf er
+ * läuft, was er kosten darf, wie er steht. Die Zustandsmarke ganz rechts
+ * steht bei allen an derselben Stelle — das ist der Punkt einer Flucht. */
+function AgentRow({
   agent,
   onHire,
   onReject,
@@ -393,27 +404,35 @@ function AgentCard({
   const { t } = useTranslation();
   const draft = isDraft(agent);
   return (
-    <Link to={`/agents/${agent.id}`} className="card agent-card no-underline">
-      <div className="flex items-start gap-2.5 mb-3">
-        <div className="avatar shrink-0">{initialsOf(agent.display_name)}</div>
-        <div className="min-w-0" style={{ flex: 1 }}>
-          <div className="font-medium text-sm agent-card-name">{agent.display_name}</div>
-          {/* Der Job-Titel ist das, wonach das Auge scannt — „wer im Support"
-              beantwortet „Software-Entwicklerin", nicht „engineer-1". Das
-              Kürzel bleibt darunter, weil es in Logs und Webhooks auftaucht. */}
-          {agent.job_title && (
-            <div className="secondary text-xs agent-card-name">{agent.job_title}</div>
-          )}
-          <div className="secondary text-xs mono agent-card-name" style={{ opacity: 0.7 }}>{agent.slug}</div>
-        </div>
-        {/* „Schläft" und „kommt nicht hoch" sahen gleich aus. Ein Agent, dessen
-            Weckversuche scheitern, bekommt deshalb sein eigenes Abzeichen —
-            und der Grund steht im Titel, statt in den Rohdaten der
-            Aufzeichnung zu warten (#139). */}
-        {!(draft && labelled) && (
-          agent.wake_trouble && !draft && !agent.killed ? (
+    <Link to={`/agents/${agent.id}`} className={`reg-row no-underline${draft ? " reg-row-draft" : ""}`}>
+      <div className="avatar shrink-0">{initialsOf(agent.display_name)}</div>
+      <div className="reg-wer min-w-0">
+        {/* Der Job-Titel ist das, wonach das Auge scannt — „wer im Support"
+            beantwortet „Software-Entwicklerin", nicht „engineer-1". */}
+        <div className="font-medium text-sm reg-name">{agent.display_name}</div>
+        {agent.job_title && <div className="secondary text-xs reg-name">{agent.job_title}</div>}
+      </div>
+      {/* Das Kürzel taucht in Logs und Webhooks auf und gehört deshalb ins
+          Register, aber in die stille Spalte. */}
+      <div className="reg-slug secondary text-xs mono">{agent.slug}</div>
+      <div className="reg-engine secondary text-xs mono">{agent.runtime}</div>
+      <div className="reg-budget secondary text-xs">
+        {agent.budget_usd > 0 ? fmtUSD(agent.budget_usd) : <span className="reg-leer">—</span>}
+      </div>
+      <div className="reg-stand">
+        {/* Ein Agent, der auf die Plattform wartet, sieht sonst aus wie einer,
+            der arbeitet. */}
+        {agent.phase ? (
+          <PhaseBadge phase={agent.phase} compact />
+        ) : (
+          !(draft && labelled) &&
+          /* „Schläft" und „kommt nicht hoch" sahen gleich aus. Ein Agent,
+             dessen Weckversuche scheitern, bekommt deshalb sein eigenes
+             Abzeichen — und der Grund steht im Titel, statt in den Rohdaten
+             der Aufzeichnung zu warten (#139). */
+          (agent.wake_trouble && !draft && !agent.killed ? (
             <span
-              className="badge shrink-0 st-wake-failed"
+              className="badge state st-wake-failed"
               title={t("agent.wakeFailedWhy", {
                 n: agent.wake_trouble.failures,
                 err: agent.wake_trouble.error ?? "",
@@ -422,50 +441,62 @@ function AgentCard({
               {t("status.wakeFailed")}
             </span>
           ) : (
-            <span
-              className={`badge shrink-0 ${draft ? "st-draft" : `st-${agent.killed ? "killed" : agent.status}`}`}
-            >
+            <span className={`badge state ${draft ? "st-draft" : `st-${agent.killed ? "killed" : agent.status}`}`}>
               {draft
                 ? t("dashboard.draftBadge")
                 : t(`status.${agent.killed ? "killed" : agent.status}`, agent.status)}
             </span>
-          )
+          ))
         )}
       </div>
-      <div className="secondary text-xs">
-        Engine: <span className="mono">{agent.runtime}</span>
-        {agent.budget_usd > 0 && <> · {t("dashboard.budget")} {fmtUSD(agent.budget_usd)}</>}
+      <div className="reg-tun">
+        {draft && (onHire || onReject) && (
+          <>
+            {onHire && (
+              <button
+                className="btn sm primary"
+                onClick={(e) => {
+                  e.preventDefault(); // die Zeile ist ein Link — der Knopf ist es nicht
+                  onHire(agent);
+                }}
+              >
+                {t("hire.action")}
+              </button>
+            )}
+            {onReject && (
+              <button
+                className="btn sm"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onReject(agent);
+                }}
+              >
+                {t("dashboard.reject")}
+              </button>
+            )}
+          </>
+        )}
       </div>
-      {/* Ein Agent, der auf die Plattform wartet, sieht auf der Übersicht sonst
-          aus wie einer, der arbeitet. */}
-      {agent.phase && <PhaseBadge phase={agent.phase} compact />}
-      {draft && (onHire || onReject) && (
-        <div className="flex gap-2 agent-card-actions">
-          {onHire && (
-            <button
-              className="btn sm primary"
-              onClick={(e) => {
-                e.preventDefault(); // die Karte ist ein Link — der Knopf ist es nicht
-                onHire(agent);
-              }}
-            >
-              {t("hire.action")}
-            </button>
-          )}
-          {onReject && (
-            <button
-              className="btn sm"
-              onClick={(e) => {
-                e.preventDefault();
-                onReject(agent);
-              }}
-            >
-              {t("dashboard.reject")}
-            </button>
-          )}
-        </div>
-      )}
     </Link>
+  );
+}
+
+/* Der Spaltenkopf des Registers. Er steht einmal je Abschnitt und benennt,
+   was in der Flucht darunter steht — ein Vordruck sagt, was in seine Felder
+   gehört. Bei den Bewerbungen entfällt er: dort sind es zwei Zeilen, und ein
+   Kopf über zwei Zeilen ist Beschriftung ohne Nutzen. */
+function RegisterKopf() {
+  const { t } = useTranslation();
+  return (
+    <div className="reg-kopf" aria-hidden>
+      <span />
+      <span>{t("dashboard.colWho")}</span>
+      <span>{t("dashboard.colSlug")}</span>
+      <span>{t("dashboard.colEngine")}</span>
+      <span>{t("dashboard.colBudget")}</span>
+      <span>{t("dashboard.colState")}</span>
+      <span />
+    </div>
   );
 }
 

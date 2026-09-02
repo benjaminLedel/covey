@@ -195,7 +195,7 @@ function EntryRow({ entry, me }: { entry: InboxEntry; me: Principal }) {
   }
   return (
     <button className="inbox-row" onClick={() => setOpen(true)}>
-      <span className={`badge st-${entry.status}`}>{t(`inbox.status.${entry.status}`, entry.status)}</span>
+      <span className={`badge state st-${entry.status}`}>{t(`inbox.status.${entry.status}`, entry.status)}</span>
       <span className="flex-1 min-w-0 truncate text-sm">{entry.title}</span>
       <span className="muted text-xs mono">{entry.agent_slug}</span>
       <span className="muted text-xs">{new Date(entry.created_at).toLocaleDateString(locale)}</span>

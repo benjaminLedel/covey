@@ -24,7 +24,7 @@ export default function NoOrganization({ me, onLogout }: { me: Principal; onLogo
       <div className="landing pub-signin">
         <div className="pub-signin-brand login-rise">
           <BirdMark size={52} />
-          <h1 className="login-wordmark">Covey</h1>
+          <h1 className="login-wordmark">covey</h1>
         </div>
         <div className="login-card login-rise" style={{ animationDelay: "0.16s" }}>
           <h2 className="login-card-title">{t("noOrg.title")}</h2>

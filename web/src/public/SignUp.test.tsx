@@ -5,7 +5,7 @@ import SignUp from "./SignUp";
 import { mockFetch, renderWithProviders, useGerman } from "../test/render";
 
 // Die Registrierungsseite hat drei Zustände, und der wichtigste ist der, in
-// dem sie NICHTS anbietet: Covey wird von Dritten selbst betrieben, und eine
+// dem sie NICHTS anbietet: covey wird von Dritten selbst betrieben, und eine
 // interne Installation nimmt keine Fremden auf. Ob registriert werden kann,
 // beantwortet der Server (signup-state) — die Seite entscheidet das nicht
 // selbst und rät es auch nicht (FR-002).
@@ -17,7 +17,7 @@ beforeEach(useGerman);
 
 describe("SignUp", () => {
   it("bietet ohne offene Registrierung kein Formular an", async () => {
-    mockFetch({ [STATE]: { mode: "off", site_name: "Covey" } });
+    mockFetch({ [STATE]: { mode: "off", site_name: "covey" } });
     renderWithProviders(<SignUp />);
 
     expect(await screen.findByText("Registrierung geschlossen")).toBeInTheDocument();
@@ -34,7 +34,7 @@ describe("SignUp", () => {
   });
 
   it("verlangt im Wartelisten-Modus einen Code", async () => {
-    mockFetch({ [STATE]: { mode: "waitlist", site_name: "Covey" } });
+    mockFetch({ [STATE]: { mode: "waitlist", site_name: "covey" } });
     renderWithProviders(<SignUp />);
 
     expect(await screen.findByLabelText("Wartelisten-Code")).toBeRequired();
@@ -43,7 +43,7 @@ describe("SignUp", () => {
   });
 
   it("fragt im offenen Modus nicht nach einem Code", async () => {
-    mockFetch({ [STATE]: { mode: "open", site_name: "Covey" } });
+    mockFetch({ [STATE]: { mode: "open", site_name: "covey" } });
     renderWithProviders(<SignUp />);
 
     expect(await screen.findByLabelText("E-Mail")).toBeInTheDocument();
@@ -52,7 +52,7 @@ describe("SignUp", () => {
 
   it("schickt Code, Name, Adresse und Passwort — und bestätigt danach per Mail", async () => {
     const { calls } = mockFetch({
-      [STATE]: { mode: "waitlist", site_name: "Covey" },
+      [STATE]: { mode: "waitlist", site_name: "covey" },
       [SIGNUP]: { ok: true, verification_sent: true },
     });
     renderWithProviders(<SignUp />);
@@ -76,7 +76,7 @@ describe("SignUp", () => {
     // Die Seite darf dann nicht auf eine Bestätigung verweisen, auf die
     // jemand sonst wartet, bis er aufgibt.
     mockFetch({
-      [STATE]: { mode: "waitlist", site_name: "Covey" },
+      [STATE]: { mode: "waitlist", site_name: "covey" },
       [SIGNUP]: { ok: true, verification_sent: false },
     });
     renderWithProviders(<SignUp />);
@@ -96,7 +96,7 @@ describe("SignUp", () => {
     // Ein verbrauchter Code und eine vergebene Adresse sind zwei verschiedene
     // Auskünfte; wer sie beide zu "hat nicht geklappt" einebnet, lässt den
     // Menschen raten.
-    mockFetch({ [STATE]: { mode: "waitlist", site_name: "Covey" } });
+    mockFetch({ [STATE]: { mode: "waitlist", site_name: "covey" } });
     renderWithProviders(<SignUp />);
 
     await screen.findByLabelText("Wartelisten-Code");

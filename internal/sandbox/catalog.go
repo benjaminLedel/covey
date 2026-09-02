@@ -25,7 +25,7 @@ import (
 // The catalogue is the same shape the plugin marketplace uses (spec/22): one
 // JSON file behind one URL, fetched with a cache, and it decides nothing on its
 // own. It carries what only the side that BUILDS the images knows — which image
-// belongs to which Covey version, pinned by digest.
+// belongs to which covey version, pinned by digest.
 //
 // The digest is the hinge here too. A tag can be moved; a digest cannot, so
 // `covey serve` of a given version always starts the exact image that was built
@@ -58,18 +58,18 @@ type Catalog struct {
 
 // CatalogEntry is one workplace. Name matches the profile in this catalogue
 // (`base`, `dev`) — a published workplace this build does not know is carried
-// along and offered, because a newer catalogue may name one that a later Covey
+// along and offered, because a newer catalogue may name one that a later covey
 // registers.
 type CatalogEntry struct {
 	Name        string `json:"name"`
 	Label       string `json:"label"`
 	Description string `json:"description"`
-	// Images: one per Covey version. Append-only, like the marketplace's
+	// Images: one per covey version. Append-only, like the marketplace's
 	// versions — a published entry is never edited, only superseded.
 	Images []CatalogImage `json:"images"`
 }
 
-// CatalogImage is the image for one Covey version.
+// CatalogImage is the image for one covey version.
 type CatalogImage struct {
 	// CoveyVersion is the release tag ("v0.4.0") or RollingVersion.
 	CoveyVersion string `json:"covey_version"`
@@ -93,7 +93,7 @@ type CatalogImage struct {
 	Platforms []string `json:"platforms,omitempty"`
 }
 
-// Find returns the image for a Covey version, or false.
+// Find returns the image for a covey version, or false.
 func (e CatalogEntry) Find(version string) (CatalogImage, bool) {
 	for _, img := range e.Images {
 		if img.CoveyVersion == version {

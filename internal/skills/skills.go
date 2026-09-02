@@ -102,7 +102,7 @@ type Full struct {
 }
 
 // Store is the data access layer. Not an interface with an alternative
-// implementation (unlike SecretStore/IdentityProvider): skills are Covey's own
+// implementation (unlike SecretStore/IdentityProvider): skills are covey's own
 // state, not a foreign system anyone would want to swap out.
 type Store struct{ pool *pgxpool.Pool }
 

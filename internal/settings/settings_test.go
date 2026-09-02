@@ -42,7 +42,7 @@ func TestPruefung(t *testing.T) {
 		{SignupOrgQuota, "3", true},
 		{SignupOrgQuota, "-1", false},
 		{SignupOrgQuota, "viele", false},
-		{SiteName, "Covey", true},
+		{SiteName, "covey", true},
 		{SiteName, "", false},
 	}
 	for _, f := range faelle {

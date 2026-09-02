@@ -50,7 +50,7 @@ type Docker struct {
 	// DockerBin overrides the CLI path (default "docker") — for tests.
 	DockerBin string
 	// EgressProxyURL routes the container's outbound HTTP(S) traffic through the
-	// Covey egress allowlist proxy (empty = no proxy). The value is the
+	// covey egress allowlist proxy (empty = no proxy). The value is the
 	// container-side URL (usually http://host.docker.internal:<port>).
 	// Cooperative ("proxy" mode): the control plane connection
 	// (host.docker.internal) and loopback bypass the proxy via NO_PROXY.
@@ -480,7 +480,7 @@ func buildHint(hints map[string]string, image string) string {
 	}
 	if hint != "" {
 		// Zwei Wege, weil es zwei Installationsarten gibt — und die zweite las
-		// bis hierher eine Anweisung, die sie nicht ausfuehren kann: Wer Covey
+		// bis hierher eine Anweisung, die sie nicht ausfuehren kann: Wer covey
 		// als Container betreibt, hat kein Repository und damit kein `make`.
 		// Fuer sie steht das fertige Image bereit, und die Variable weist es
 		// dem Profil zu. Der Bau bleibt zuerst genannt, weil er auch ohne Netz
@@ -666,7 +666,7 @@ const (
 // an internal network nobody joins.
 //
 // In the binary and not in the upgrade guide, on purpose: whoever installs
-// Covey from GitHub gets the tooling with it, and an upgrade step that has to
+// covey from GitHub gets the tooling with it, and an upgrade step that has to
 // be read and typed is one that is skipped.
 //
 // Best effort throughout. A network that still has a sandbox from before

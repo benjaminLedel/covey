@@ -74,7 +74,7 @@ func draftBlocked(w http.ResponseWriter, a agents.Agent) bool {
 //
 // The old form asked a person for a role, a remit, target systems and scopes —
 // four questions that presuppose knowing what the platform can do. Somebody
-// setting Covey up for the first time is precisely the person who does not know
+// setting covey up for the first time is precisely the person who does not know
 // that yet (spec/20).
 //
 // So the interface asks one question — what should the new colleague do? — and

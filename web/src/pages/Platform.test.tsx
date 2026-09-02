@@ -42,7 +42,7 @@ const CODES = [
 
 const EINSTELLUNGEN = [
   { key: "signup.mode", value: "off", default: "off" },
-  { key: "site.name", value: "Northgate Covey", default: "Covey" },
+  { key: "site.name", value: "Northgate covey", default: "covey" },
 ];
 
 const routen = {
@@ -81,7 +81,7 @@ describe("Plattform-Panel", () => {
     expect(await screen.findByText("signup.mode")).toBeInTheDocument();
     // Unverändert: nur "Vorgabe". Geändert: die Vorgabe, gegen die es sich
     // geändert hat — sonst weiß niemand, wohin zurück.
-    expect(screen.getByText("Vorgabe: Covey")).toBeInTheDocument();
+    expect(screen.getByText("Vorgabe: covey")).toBeInTheDocument();
   });
 
   it("hält den Klartext eines neuen Codes fest, bis er weggeklickt wird", async () => {

@@ -24,7 +24,7 @@ func testDist() fs.FS {
 	rohRouten, _ := json.Marshal(routen)
 
 	huelle := &fstest.MapFile{Data: []byte(
-		`<html lang="en"><head><title>Covey</title></head>` +
+		`<html lang="en"><head><title>covey</title></head>` +
 			`<body><div id="root"></div></body></html>`)}
 
 	return fstest.MapFS{

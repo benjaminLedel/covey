@@ -4,7 +4,7 @@
 //
 // Start: go run ./demo/faketeams (port 9998).
 //
-// Opposite direction (incoming message → wake Covey): since faketeams plays
+// Opposite direction (incoming message → wake covey): since faketeams plays
 // the reply side (Bot Connector), an incoming activity is sent via curl
 // directly to the messaging endpoint (leave COVEY_TEAMS_WEBHOOK_SECRET empty,
 // then the JWT check is off):
@@ -14,7 +14,7 @@
 //	    "type":"message","id":"a1","text":"Hallo Agent, siehe Anhang",
 //	    "serviceUrl":"http://localhost:9998","channelId":"msteams",
 //	    "from":{"id":"29:kunde","name":"Kunde"},
-//	    "recipient":{"id":"28:bot","name":"Covey"},
+//	    "recipient":{"id":"28:bot","name":"covey"},
 //	    "conversation":{"id":"19:conv1","conversationType":"personal","tenantId":"t1"},
 //	    "attachments":[{"contentType":"application/vnd.microsoft.teams.file.download.info",
 //	      "name":"notiz.txt","content":{"downloadUrl":"http://localhost:9998/files/notiz.txt"}}]}'

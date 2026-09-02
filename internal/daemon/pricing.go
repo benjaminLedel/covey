@@ -5,7 +5,7 @@ import "strings"
 // Pricing: turning token counts into a comparable figure where the engine
 // reports none.
 //
-// Claude Code computes a dollar amount itself and Covey books it unchanged.
+// Claude Code computes a dollar amount itself and covey books it unchanged.
 // Codex reports token counts and leaves the pricing to the caller (spec/19), so
 // "book what the engine reports" only holds for engines that report something.
 // What is needed for the rest is a lookup table, not a second cost model: it

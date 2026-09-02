@@ -1,4 +1,4 @@
-// Schmaler, typisierter Client für die Covey-API (Session-Cookie-Auth).
+// Schmaler, typisierter Client für die covey-API (Session-Cookie-Auth).
 
 export type Principal = {
   ID: string;
@@ -611,7 +611,7 @@ export type Organization = {
   /** Was dieses Unternehmen macht — Stammdaten, siehe spec/20. */
   description: string;
   /** Wo der Quelltext dieser Plattform liegt (spec/21): Zielsystem und
-   *  Projekt. Covey Doctor liest ihn dort und meldet dorthin.
+   *  Projekt. covey Doctor liest ihn dort und meldet dorthin.
    *  Leer = nicht eingerichtet, und dann steht davon auch nichts im Prompt. */
   platform_repo_system: string;
   platform_repo_project: string;
@@ -806,7 +806,7 @@ export type MarketplaceEntry = {
   icon?: string;
   version?: string;
   notes?: string;
-  // Ab dieser Covey-Fassung mitgeliefert — aktivieren statt installieren.
+  // Ab dieser covey-Fassung mitgeliefert — aktivieren statt installieren.
   builtin_since?: string;
   installed: boolean;
   installed_version?: string;
@@ -1113,7 +1113,7 @@ export type BuildInfo = {
   // Öffentliche Quelle dieses Binaries (AGPL-3.0). Kommt vom Server, damit ein
   // Fork seine eigene Adresse zeigt statt der des Ursprungs.
   source: string;
-  // Dieselbe Adresse als Zielsystem-Adresse: die Voreinstellung, an die Covey
+  // Dieselbe Adresse als Zielsystem-Adresse: die Voreinstellung, an die covey
   // Doctor meldet, solange die Organisation kein eigenes Repository nennt
   // (spec/21). Leer, wenn die Quelle auf keinem Plugin liegt, das auschecken
   // kann — dann gibt es keine Voreinstellung.
