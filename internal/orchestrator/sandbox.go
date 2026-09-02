@@ -3,6 +3,7 @@ package orchestrator
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -107,6 +108,16 @@ type HomeSyncer interface {
 // Optional, because a provider without a store has nothing to skip.
 type Discardable interface {
 	Discard(ctx context.Context) error
+}
+
+// StartBounded is a provider that knows how long a start may take. The
+// orchestrator asks so that the daemon token it mints BEFORE the start still
+// holds when the daemon finally dials: a first start on a fresh host pulls
+// gigabytes and materialises a home, and a token that expired in the meantime
+// yields a container whose daemon is refused with 401 — read as "check
+// COVEY_PUBLIC_URL", which it is not (#164).
+type StartBounded interface {
+	StartBound() time.Duration
 }
 
 // Placed is the optional half of a sandbox that knows which host it landed on.

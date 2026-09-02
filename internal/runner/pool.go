@@ -1349,6 +1349,10 @@ func (p *Pool) profiles(ctx context.Context) map[string]string {
 	return eff
 }
 
+// StartBound satisfies orchestrator.StartBounded: how long a start may take
+// here, so that a daemon token minted before it still holds afterwards (#164).
+func (p *Pool) StartBound() time.Duration { return p.startTimeout() }
+
 // startTimeout is the bound for one start: what the instance set, otherwise the
 // default. One place, so the two cannot drift.
 func (p *Pool) startTimeout() time.Duration {
