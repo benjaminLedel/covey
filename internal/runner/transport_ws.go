@@ -117,6 +117,12 @@ func RunNode(ctx context.Context, node *Node, controlURL, token string, backoff 
 	// is still being watched then has no one left to report to, and its
 	// `docker wait` would outlive the process that started it.
 	defer node.Close()
+	// A remote link can die without a FIN. The control plane notices within
+	// three beats; so does the node from here on, instead of a quarter of an
+	// hour later (#158).
+	if node.ReadSilence == 0 {
+		node.ReadSilence = Silence
+	}
 	for {
 		t, err := Dial(ctx, controlURL, token)
 		if err == nil {

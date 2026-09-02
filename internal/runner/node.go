@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -67,6 +68,16 @@ type Node struct {
 	// turn holds, per agent, the end of the line: the channel the message
 	// currently being worked on closes when it is done. See inOrder.
 	turn map[uuid.UUID]chan struct{}
+	// ReadSilence is how long this node tolerates hearing NOTHING from the
+	// control plane before it closes the connection and lets RunNode dial
+	// again. The control plane asks every connected host for its capacity once
+	// per beat, so silence for three beats is a dead link, not a quiet one —
+	// and without this the runner learned of a NAT-dropped connection only
+	// when the kernel gave up on its own writes, a quarter of an hour later,
+	// offline for the pool the whole time (#158). 0 = off, which is what the
+	// built-in runner runs with: its link is a channel pair, and closing it
+	// would end the one connection it gets.
+	ReadSilence time.Duration
 	// Restart replaces this process with the binary that now lies at its path.
 	// A field so that a test can watch instead of disappearing; nil = execSelf,
 	// which is what a runner does.
@@ -165,6 +176,11 @@ func (n *Node) Run(ctx context.Context, t Transport) error {
 	beat, stopBeat := context.WithCancel(ctx)
 	defer stopBeat()
 	go n.heartbeat(beat, t)
+	var heard atomic.Int64
+	heard.Store(time.Now().UnixNano())
+	if n.ReadSilence > 0 {
+		go n.readWatchdog(beat, t, &heard)
+	}
 	// The log goes up the same link. It shares the heartbeat's lifetime: what
 	// this runner said is worth having exactly as long as there is somebody to
 	// say it to.
@@ -178,7 +194,30 @@ func (n *Node) Run(ctx context.Context, t Transport) error {
 			}
 			return err
 		}
+		heard.Store(time.Now().UnixNano())
 		n.handle(ctx, t, msg)
+	}
+}
+
+// readWatchdog closes the transport when the control plane has said nothing
+// for ReadSilence — the mirror of the pool's watchdog, for the same half-open
+// link seen from the other end.
+func (n *Node) readWatchdog(ctx context.Context, t Transport, heard *atomic.Int64) {
+	ticker := time.NewTicker(n.ReadSilence / 3)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			quiet := time.Since(time.Unix(0, heard.Load()))
+			if quiet > n.ReadSilence {
+				n.Log.Warn("nothing heard from the control plane — closing the connection to dial again",
+					"silent_for", quiet.Round(time.Second))
+				_ = t.Close()
+				return
+			}
+		}
 	}
 }
 
