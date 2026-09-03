@@ -25,6 +25,7 @@ import (
 	_ "github.com/benjaminLedel/covey-plugin-pack/jira"
 	_ "github.com/benjaminLedel/covey-plugin-pack/nextcloud"
 	_ "github.com/benjaminLedel/covey-plugin-pack/salesforce"
+	_ "github.com/benjaminLedel/covey-plugin-pack/searchconsole"
 	_ "github.com/benjaminLedel/covey-plugin-pack/sharepoint"
 	_ "github.com/benjaminLedel/covey-plugin-pack/teams"
 )
