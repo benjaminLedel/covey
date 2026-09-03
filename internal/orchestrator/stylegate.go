@@ -136,7 +136,7 @@ func strictestStyleGate(gates []guardrails.Rule) (guardrails.Rule, guardrails.St
 }
 
 // freeText collects the string fields of an action's params that are long
-// enough to have a style, joined as paragraphs.
+// enough to have a style and are prose, joined as paragraphs.
 func freeText(params json.RawMessage, minWords int) string {
 	if len(params) == 0 {
 		return ""
@@ -150,7 +150,9 @@ func freeText(params json.RawMessage, minWords int) string {
 	walk = func(x any) {
 		switch t := x.(type) {
 		case string:
-			if style.WordCount(t) >= minWords {
+			// Long enough to have a style, and text at all: a shell command with
+			// sixty "words" is not measured.
+			if style.WordCount(t) >= minWords && style.IsProse(t) {
 				parts = append(parts, strings.TrimSpace(t))
 			}
 		case map[string]any:
