@@ -973,17 +973,22 @@
     "pause": "Pause",
     "activate": "Activate",
     "remove": "Remove",
+    "styleMode": "On findings",
+    "styleMinWords": "Min. words",
+    "styleModes": { "warn": "warn", "deny": "return to the agent", "approval": "approval" },
     "ruleTypes": {
       "deny_system": "System forbidden",
       "deny_action": "Action forbidden",
       "require_approval": "Approval required",
-      "budget_limit": "Budget cap"
+      "budget_limit": "Budget cap",
+      "style_gate": "Style gate"
     },
     "ruleHints": {
       "require_approval": "The action only runs after human approval — the agent is blocked and waits.",
       "deny_action": "The action is hard-refused and the agent is told the reason.",
       "deny_system": "The broker will not issue any credential for this system at all.",
-      "budget_limit": "If the agent exceeds the cost cap (USD), it is paused — fail-closed."
+      "budget_limit": "If the agent exceeds the cost cap (USD), it is paused — fail-closed.",
+      "style_gate": "The free text of the action is measured against the profile in the agent's TONE.md: anchors per paragraph, nominalisations, sentence shape, voice. Warn records the findings; return to the agent hands them back as the reason so it revises and retries (after two denials the text goes to approval); approval sends it to a human at once. Without a profile the rule records that it did not apply."
     },
     "scopeAgent": "Agent: {{name}}",
     "tester": {

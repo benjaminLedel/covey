@@ -21,7 +21,51 @@ const (
 	RuleDenyAction      = "deny_action"      // tool layer: action flatly forbidden
 	RuleRequireApproval = "require_approval" // approval gate: only with sign-off
 	RuleBudgetLimit     = "budget_limit"     // cost cap (params: {"usd": N})
+	RuleStyleGate       = "style_gate"       // text check against TONE.md (params: StyleGateParams)
 )
+
+// StyleGateParams configure a style_gate rule. Mode says what a finding does:
+// "warn" records it and lets the action pass, "deny" returns the findings to
+// the agent as the reason (it revises and retries; after MaxDenials the action
+// goes to the approval gate instead), "approval" goes there at once. Texts
+// shorter than MinWords are not measured; a one-line comment has no style.
+type StyleGateParams struct {
+	Mode       string `json:"mode"`
+	MinWords   int    `json:"min_words,omitempty"`
+	MaxDenials int    `json:"max_denials,omitempty"`
+}
+
+const (
+	StyleModeWarn     = "warn"
+	StyleModeDeny     = "deny"
+	StyleModeApproval = "approval"
+)
+
+// ParseStyleGate reads a rule's params with the defaults filled in.
+func ParseStyleGate(r Rule) (StyleGateParams, error) {
+	p := StyleGateParams{Mode: StyleModeWarn, MinWords: 60, MaxDenials: 2}
+	if len(r.Params) > 0 && string(r.Params) != "null" {
+		var in StyleGateParams
+		if err := json.Unmarshal(r.Params, &in); err != nil {
+			return p, errors.New("style_gate params: " + err.Error())
+		}
+		if in.Mode != "" {
+			p.Mode = in.Mode
+		}
+		if in.MinWords > 0 {
+			p.MinWords = in.MinWords
+		}
+		if in.MaxDenials > 0 {
+			p.MaxDenials = in.MaxDenials
+		}
+	}
+	switch p.Mode {
+	case StyleModeWarn, StyleModeDeny, StyleModeApproval:
+	default:
+		return p, errors.New("style_gate mode must be warn, deny or approval")
+	}
+	return p, nil
+}
 
 type Decision string
 
@@ -67,6 +111,13 @@ func Validate(r Rule) error {
 		}
 		if err := json.Unmarshal(r.Params, &p); err != nil || p.USD <= 0 {
 			return errors.New("budget_limit needs params.usd > 0")
+		}
+	case RuleStyleGate:
+		if strings.TrimSpace(r.Pattern) == "" {
+			return errors.New("pattern is required")
+		}
+		if _, err := ParseStyleGate(r); err != nil {
+			return err
 		}
 	default:
 		return errors.New("unknown rule_type: " + r.RuleType)
@@ -125,6 +176,27 @@ func Evaluate(rules []Rule, agentID uuid.UUID, subject string) Verdict {
 		return Verdict{Decision: RequireApproval, Rule: approval}
 	}
 	return Verdict{Decision: Allow}
+}
+
+// StyleGates returns the enabled style_gate rules that apply to an agent's
+// action, in list order. They do not take part in Evaluate: a style finding is
+// not a deny, it is a measurement the caller acts on by the rule's mode.
+func StyleGates(rules []Rule, agentID uuid.UUID, subject string) []Rule {
+	var out []Rule
+	for i := range rules {
+		r := &rules[i]
+		if !r.Enabled || r.RuleType != RuleStyleGate {
+			continue
+		}
+		if r.ScopeLevel == "agent" && (r.AgentID == nil || *r.AgentID != agentID) {
+			continue
+		}
+		if !matches(r.Pattern, subject) {
+			continue
+		}
+		out = append(out, *r)
+	}
+	return out
 }
 
 // BudgetLimit returns the tightest applicable cost cap (0 = none).

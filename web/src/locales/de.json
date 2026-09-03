@@ -973,17 +973,22 @@
     "pause": "Pausieren",
     "activate": "Aktivieren",
     "remove": "Entfernen",
+    "styleMode": "Bei Befunden",
+    "styleMinWords": "Mind. Wörter",
+    "styleModes": { "warn": "warnen", "deny": "an den Agenten zurück", "approval": "Freigabe" },
     "ruleTypes": {
       "deny_system": "System verboten",
       "deny_action": "Aktion verboten",
       "require_approval": "Freigabe-Pflicht",
-      "budget_limit": "Budget-Deckel"
+      "budget_limit": "Budget-Deckel",
+      "style_gate": "Stil-Gate"
     },
     "ruleHints": {
       "require_approval": "Die Aktion läuft erst nach menschlicher Freigabe — der Agent wird blocked und wartet.",
       "deny_action": "Die Aktion wird hart verweigert, der Agent bekommt den Grund mitgeteilt.",
       "deny_system": "Der Broker gibt für dieses System gar kein Credential erst heraus.",
-      "budget_limit": "Überschreitet der Agent den Kosten-Deckel (USD), wird er pausiert — fail-closed."
+      "budget_limit": "Überschreitet der Agent den Kosten-Deckel (USD), wird er pausiert — fail-closed.",
+      "style_gate": "Der Freitext der Aktion wird am Profil in der TONE.md des Agenten gemessen: Anker pro Absatz, Nominalisierungen, Satzform, Stimme. Warnen protokolliert die Befunde; an den Agenten zurück gibt sie als Grund zurück, der Agent überarbeitet und versucht es erneut (nach zwei Ablehnungen geht der Text in die Freigabe); Freigabe schickt ihn sofort an einen Menschen. Ohne Profil vermerkt die Regel, dass sie nicht angewandt wurde."
     },
     "scopeAgent": "Agent: {{name}}",
     "tester": {

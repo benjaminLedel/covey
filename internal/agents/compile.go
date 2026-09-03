@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"covey/internal/buildinfo"
+
+	"covey/internal/style"
 )
 
 // Order in which the config files are compiled into the system prompt.
@@ -548,7 +550,10 @@ func CompilePrompt(files map[string]string) string {
 	}
 	sort.Strings(rest)
 	for _, name := range rest {
-		b.WriteString(strings.TrimSpace(files[name]))
+		// A TONE.md may carry a style profile: the prose is for the model, the
+		// ```style-profile``` block (bands, corpus values, lexicon) is for the
+		// style gate and would only cost tokens here.
+		b.WriteString(style.StripProfileBlock(strings.TrimSpace(files[name])))
 		b.WriteString("\n\n")
 	}
 	b.WriteString(ProtocolInstructions)

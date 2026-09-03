@@ -84,6 +84,14 @@ func main() {
 			os.Exit(1)
 		}
 		return
+	// style measures text files against a profile; it needs neither database nor
+	// key and runs wherever the texts are.
+	case "style":
+		if err := runStyle(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
 	case "version", "--version", "-v":
 		fmt.Println("covey " + buildinfo.String())
 		// covey is a network service under AGPL-3.0: whoever offers a modified
