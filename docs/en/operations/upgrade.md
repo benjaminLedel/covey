@@ -121,7 +121,7 @@ profiles ([`spec/16`](../../../spec/16-runner.md), "Sandbox images per agent"):
 
 | Profile | Contents | For whom |
 |---|---|---|
-| `base` (`covey-sandbox:latest`) | coveyd, Node, git, chromium, ripgrep | support, mail, QA, research |
+| `base` (`covey-sandbox:latest`) | coveyd, Node, Python, git, chromium, ripgrep | support, mail, QA, research |
 | `dev` (`covey-sandbox-dev:latest`) | + PHP, JDK, `fvm`, `uv`, node-gyp toolchain | developer agents |
 
 **Migration 0052 puts every existing agent on `dev`** — deliberately, because
