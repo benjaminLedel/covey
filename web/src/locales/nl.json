@@ -973,17 +973,22 @@
     "pause": "Pauzeren",
     "activate": "Activeren",
     "remove": "Verwijderen",
+    "styleMode": "Bij bevindingen",
+    "styleMinWords": "Min. woorden",
+    "styleModes": {"warn": "waarschuwen", "deny": "terug naar de agent", "approval": "goedkeuring"},
     "ruleTypes": {
       "deny_system": "Systeem verboden",
       "deny_action": "Actie verboden",
       "require_approval": "Goedkeuring vereist",
-      "budget_limit": "Budgetplafond"
+      "budget_limit": "Budgetplafond",
+      "style_gate": "Stijlpoort"
     },
     "ruleHints": {
       "require_approval": "De actie loopt pas na goedkeuring door een mens — de agent is geblokkeerd en wacht.",
       "deny_action": "De actie wordt hard geweigerd en de agent krijgt de reden te horen.",
       "deny_system": "De broker geeft voor dit systeem in het geheel geen inloggegeven uit.",
-      "budget_limit": "Overschrijdt de agent het kostenplafond (USD), dan wordt hij gepauzeerd — fail-closed."
+      "budget_limit": "Overschrijdt de agent het kostenplafond (USD), dan wordt hij gepauzeerd — fail-closed.",
+      "style_gate": "De vrije tekst van de actie wordt gemeten tegen het profiel in de TONE.md van de agent: ankers per alinea, nominalisaties, zinsvorm, stem. Waarschuwen legt de bevindingen vast; terug naar de agent geeft ze als reden terug zodat hij herziet en opnieuw probeert (na twee afwijzingen gaat de tekst naar goedkeuring); goedkeuring stuurt hem meteen naar een mens. Zonder profiel noteert de regel dat hij niet is toegepast."
     },
     "scopeAgent": "Agent: {{name}}",
     "tester": {

@@ -27,7 +27,7 @@ Development workflow: `make dev-db && make bootstrap && make run` (see the READM
 - **Strings that come out of the program are not translated:** error messages, log lines, UI labels and config syntax a parser reads (the `HEARTBEAT.md` keys `alle:`/`täglich:`/`nur-wenn:`/`titel:`/`aufgabe:`). They stand verbatim, with an explanation beside them — a translated error message documents something that never appears.
 - **Existing German comments are not translated in one sweep**; whoever touches a place brings it along.
 - **README:** `README.md` is the English calling card. The German version sits beside it in `README.de.md`. Keep both in step when changing one — they are translations of each other, not separate documents.
-- **The interface is bilingual** (`web/src/locales/de.json`, `en.json`) — always maintain new UI text in both files.
+- **The interface has ten language catalogues** (`web/src/locales/*.json`: de, en, es, fr, it, nl, pl, pt, ja, zh). `web/src/locales/parity.test.ts` fails the `build-web` job as soon as a key is missing in any of them — new UI text goes into all ten, and `cd web && npm test` runs before a commit that touches the UI.
 - Spec documents link each other relatively (``[`04-…`](04-identity-secrets.md)``). Keep that linking consistent when changing things.
 - Every file in `spec/` has one clear area of responsibility (see the table in `spec/README.md`) — write content into the right file rather than duplicating it.
 

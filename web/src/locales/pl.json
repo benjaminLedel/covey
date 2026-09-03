@@ -973,17 +973,22 @@
     "pause": "Wstrzymaj",
     "activate": "Włącz",
     "remove": "Usuń",
+    "styleMode": "Przy ustaleniach",
+    "styleMinWords": "Min. słów",
+    "styleModes": {"warn": "ostrzeż", "deny": "zwróć agentowi", "approval": "zatwierdzenie"},
     "ruleTypes": {
       "deny_system": "System zabroniony",
       "deny_action": "Działanie zabronione",
       "require_approval": "Wymaga zatwierdzenia",
-      "budget_limit": "Limit budżetu"
+      "budget_limit": "Limit budżetu",
+      "style_gate": "Bramka stylu"
     },
     "ruleHints": {
       "require_approval": "Działanie wykona się dopiero po zgodzie człowieka — agent jest zablokowany i czeka.",
       "deny_action": "Działanie zostaje twardo odrzucone, a agent dowiaduje się dlaczego.",
       "deny_system": "Broker w ogóle nie wyda poświadczenia dla tego systemu.",
-      "budget_limit": "Gdy agent przekroczy limit kosztu (USD), zostaje wstrzymany — domyślnie zamknięty."
+      "budget_limit": "Gdy agent przekroczy limit kosztu (USD), zostaje wstrzymany — domyślnie zamknięty.",
+      "style_gate": "Wolny tekst akcji jest mierzony względem profilu w TONE.md agenta: kotwice na akapit, nominalizacje, budowa zdań, głos. Ostrzeż zapisuje ustalenia; zwróć agentowi przekazuje je jako powód, by poprawił i spróbował ponownie (po dwóch odmowach tekst trafia do zatwierdzenia); zatwierdzenie od razu kieruje go do człowieka. Bez profilu reguła odnotowuje, że nie została zastosowana."
     },
     "scopeAgent": "Agent: {{name}}",
     "tester": {

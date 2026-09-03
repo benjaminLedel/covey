@@ -973,17 +973,22 @@
     "pause": "Pôr em pausa",
     "activate": "Ativar",
     "remove": "Remover",
+    "styleMode": "Em caso de achados",
+    "styleMinWords": "Mín. palavras",
+    "styleModes": {"warn": "avisar", "deny": "devolver ao agente", "approval": "aprovação"},
     "ruleTypes": {
       "deny_system": "Sistema proibido",
       "deny_action": "Ação proibida",
       "require_approval": "Exige aprovação",
-      "budget_limit": "Teto de orçamento"
+      "budget_limit": "Teto de orçamento",
+      "style_gate": "Portão de estilo"
     },
     "ruleHints": {
       "require_approval": "A ação só corre depois da aprovação de uma pessoa — o agente fica bloqueado à espera.",
       "deny_action": "A ação é recusada sem apelo e o agente fica a saber porquê.",
       "deny_system": "O intermediário não emite credencial nenhuma para este sistema.",
-      "budget_limit": "Se o agente ultrapassar o teto de custo (USD), fica em pausa — fail-closed."
+      "budget_limit": "Se o agente ultrapassar o teto de custo (USD), fica em pausa — fail-closed.",
+      "style_gate": "O texto livre da ação é medido contra o perfil no TONE.md do agente: âncoras por parágrafo, nominalizações, forma das frases, voz. Avisar registra os achados; devolver ao agente os entrega como motivo para que revise e tente de novo (após duas recusas o texto vai para aprovação); aprovação o envia de imediato a uma pessoa. Sem perfil, a regra anota que não foi aplicada."
     },
     "scopeAgent": "Agente: {{name}}",
     "tester": {

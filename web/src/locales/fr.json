@@ -973,17 +973,22 @@
     "pause": "Mettre en pause",
     "activate": "Activer",
     "remove": "Retirer",
+    "styleMode": "En cas de constats",
+    "styleMinWords": "Mots min.",
+    "styleModes": {"warn": "avertir", "deny": "renvoyer à l'agent", "approval": "approbation"},
     "ruleTypes": {
       "deny_system": "Système interdit",
       "deny_action": "Action interdite",
       "require_approval": "Validation requise",
-      "budget_limit": "Plafond de budget"
+      "budget_limit": "Plafond de budget",
+      "style_gate": "Garde-fou de style"
     },
     "ruleHints": {
       "require_approval": "L'action ne s'exécute qu'après validation humaine — l'agent est bloqué et attend.",
       "deny_action": "L'action est refusée sans appel et l'agent en apprend la raison.",
       "deny_system": "Le courtier n'émettra aucun identifiant pour ce système, quel qu'il soit.",
-      "budget_limit": "Si l'agent dépasse le plafond de coût (USD), il est mis en pause — fail-closed."
+      "budget_limit": "Si l'agent dépasse le plafond de coût (USD), il est mis en pause — fail-closed.",
+      "style_gate": "Le texte libre de l'action est mesuré par rapport au profil du TONE.md de l'agent : ancres par paragraphe, nominalisations, forme des phrases, voix. Avertir enregistre les constats ; renvoyer à l'agent les lui remet comme motif pour qu'il révise et réessaie (après deux refus le texte passe en approbation) ; approbation l'envoie aussitôt à un humain. Sans profil, la règle note qu'elle ne s'est pas appliquée."
     },
     "scopeAgent": "Agent : {{name}}",
     "tester": {

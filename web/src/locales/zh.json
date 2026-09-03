@@ -973,17 +973,22 @@
     "pause": "暂停",
     "activate": "启用",
     "remove": "移除",
+    "styleMode": "发现问题时",
+    "styleMinWords": "最少字数",
+    "styleModes": {"warn": "警告", "deny": "退回代理", "approval": "审批"},
     "ruleTypes": {
       "deny_system": "禁止该系统",
       "deny_action": "禁止该动作",
       "require_approval": "需要审批",
-      "budget_limit": "预算上限"
+      "budget_limit": "预算上限",
+      "style_gate": "风格门"
     },
     "ruleHints": {
       "require_approval": "该动作要等人批准后才执行——智能体被拦住等待。",
       "deny_action": "该动作被直接拒绝，并把原因告诉智能体。",
       "deny_system": "代理层根本不会为这个系统签发任何凭据。",
-      "budget_limit": "智能体超过成本上限（美元）就会被暂停——默认拒绝。"
+      "budget_limit": "智能体超过成本上限（美元）就会被暂停——默认拒绝。",
+      "style_gate": "动作的自由文本将对照代理 TONE.md 中的配置文件进行测量：每段的锚点、名词化、句式、语气。「警告」记录发现；「退回代理」将发现作为理由退回，由代理修改后重试（两次拒绝后文本进入审批）；「审批」立即交给人处理。没有配置文件时，规则记录其未被应用。"
     },
     "scopeAgent": "智能体：{{name}}",
     "tester": {

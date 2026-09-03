@@ -973,17 +973,22 @@
     "pause": "Metti in pausa",
     "activate": "Attiva",
     "remove": "Rimuovi",
+    "styleMode": "In caso di rilievi",
+    "styleMinWords": "Parole min.",
+    "styleModes": {"warn": "avvisa", "deny": "restituisci all'agente", "approval": "approvazione"},
     "ruleTypes": {
       "deny_system": "Sistema vietato",
       "deny_action": "Azione vietata",
       "require_approval": "Serve approvazione",
-      "budget_limit": "Tetto di budget"
+      "budget_limit": "Tetto di budget",
+      "style_gate": "Controllo di stile"
     },
     "ruleHints": {
       "require_approval": "L'azione parte solo dopo l'approvazione di una persona: l'agente resta bloccato e attende.",
       "deny_action": "L'azione viene rifiutata seccamente e all'agente viene detto il motivo.",
       "deny_system": "Il broker non rilascerà alcuna credenziale per questo sistema.",
-      "budget_limit": "Se l'agente supera il tetto di costo (USD), viene messo in pausa — fail-closed."
+      "budget_limit": "Se l'agente supera il tetto di costo (USD), viene messo in pausa — fail-closed.",
+      "style_gate": "Il testo libero dell'azione viene misurato rispetto al profilo nel TONE.md dell'agente: ancore per paragrafo, nominalizzazioni, forma delle frasi, voce. Avvisa registra i rilievi; restituisci all'agente glieli consegna come motivo perché riveda e ritenti (dopo due rifiuti il testo passa all'approvazione); approvazione lo invia subito a una persona. Senza profilo la regola annota di non essersi applicata."
     },
     "scopeAgent": "Agente: {{name}}",
     "tester": {
