@@ -1,0 +1,2158 @@
+{
+ "generic_de": {
+  "text": "# Digitalisierung im Mittelstand\n\nDie Digitalisierung stellt für mittelständische Unternehmen eine zentrale Herausforderung dar, deren Bewältigung eine ganzheitliche Betrachtung der bestehenden Prozesse sowie eine nachhaltige Strategieentwicklung erfordert. Grundsätzlich ist die Umsetzung digitaler Transformationsprozesse ein vielschichtiges Unterfangen, das nicht nur technologische, sondern auch organisatorische und kulturelle Dimensionen umfasst.\n\nIn diesem Zusammenhang ist es entscheidend, dass die Implementierung entsprechender Maßnahmen unter Berücksichtigung der individuellen Rahmenbedingungen erfolgt. Die Optimierung der Wertschöpfungskette kann letztlich nur dann gelingen, wenn eine umfassende Analyse der Ausgangssituation vorgenommen wird und die daraus resultierenden Handlungsempfehlungen konsequent zur Anwendung kommen.\n\nDarüber hinaus spielt die Mitarbeiterqualifizierung eine wesentliche Rolle, da die erfolgreiche Nutzung digitaler Werkzeuge in hohem Maße von der Akzeptanz und Kompetenz der Beschäftigten abhängig ist. Es ist daher von großer Bedeutung, entsprechende Weiterbildungsangebote zu schaffen und eine Kultur der kontinuierlichen Verbesserung zu etablieren.\n",
+  "metrics": {
+   "language": "de",
+   "words": 130,
+   "sentences": 6,
+   "paragraphs": 3,
+   "headings": 1,
+   "code_blocks": 0,
+   "sent_len_mean": 21.67,
+   "sent_len_median": 21.5,
+   "sent_len_sd": 3.59,
+   "sent_len_cv": 0.166,
+   "sent_len_p90": 26.0,
+   "long_sent_share": 0.0,
+   "short_sent_share": 0.0,
+   "short_after_long_rate": 0.0,
+   "para_len_mean": 43.3,
+   "para_len_max": 44,
+   "long_para_share": 0.0,
+   "sentences_per_para": 2.0,
+   "nominalisation_rate": 13.077,
+   "long_word_rate": 21.538,
+   "copula_per_sentence": 0.833,
+   "stretch_verb_rate": 15.385,
+   "hedge_rate": 23.077,
+   "anchor_per_100_words": 0.0,
+   "para_without_anchor_share": 100.0,
+   "quote_rate": 0.0,
+   "example_rate": 0.0,
+   "subordinators_per_sentence": 0.333,
+   "commas_per_sentence": 1.17,
+   "max_commas_in_sentence": 2,
+   "deep_sent_share": 0.0,
+   "opener_repeat_share": 0.0,
+   "pronoun_opener_share": 50.0,
+   "question_rate": 0.0,
+   "du_per_1000": 0.0,
+   "sie_per_1000": 0.0,
+   "wir_per_1000": 0.0,
+   "ich_per_1000": 0.0,
+   "man_per_1000": 0.0,
+   "colon_per_1000": 0.0,
+   "semicolon_per_1000": 0.0,
+   "paren_per_1000": 0.0,
+   "exclam_per_1000": 0.0,
+   "dash_per_1000": 0.0,
+   "heading_colon_share": 0.0
+  },
+  "paragraphs": [
+   {
+    "index": 1,
+    "words": 43,
+    "sentences": 2,
+    "longest_sentence": 23,
+    "head": "Die Digitalisierung stellt für mittelständische Unternehmen eine zentrale",
+    "anchors": []
+   },
+   {
+    "index": 2,
+    "words": 43,
+    "sentences": 2,
+    "longest_sentence": 26,
+    "head": "In diesem Zusammenhang ist es entscheidend dass die",
+    "anchors": []
+   },
+   {
+    "index": 3,
+    "words": 44,
+    "sentences": 2,
+    "longest_sentence": 26,
+    "head": "Darüber hinaus spielt die Mitarbeiterqualifizierung eine wesentliche Rolle",
+    "anchors": []
+   }
+  ]
+ },
+ "concrete_de": {
+  "text": "# Was der Schreiner aus Lindau mit seinen Aufträgen macht\n\nThomas Kern hat 14 Mitarbeiter und bis 2023 jeden Auftrag auf Papier geführt. Ein Kunde rief an, jemand schrieb einen Zettel, der Zettel wanderte in die Werkstatt. Zwei von zehn Zetteln gingen verloren, sagt er. Nicht geschätzt, gezählt: Er hat drei Monate lang eine Strichliste geführt.\n\nHeute steht ein Tablet in der Werkstatt. Der Auftrag kommt als Karte an, mit Foto vom Aufmaß. Das ist die ganze Digitalisierung. Kein Berater, keine Strategie, ein Tablet für 300 Euro und eine Software für 29 Euro im Monat.\n\nWas hat sich geändert? Die verlorenen Aufträge sind weg. Der Meister sieht morgens, was heute dran ist, ohne in drei Ablagen zu suchen. Und Kern kann am Abend nachschauen, wie lange die Küche für Familie Brandl gedauert hat: 41 Stunden statt der kalkulierten 32. Das wusste er vorher nie.\n",
+  "metrics": {
+   "language": "de",
+   "words": 128,
+   "sentences": 13,
+   "paragraphs": 3,
+   "headings": 1,
+   "code_blocks": 0,
+   "sent_len_mean": 9.85,
+   "sent_len_median": 10,
+   "sent_len_sd": 4.5,
+   "sent_len_cv": 0.457,
+   "sent_len_p90": 14.8,
+   "long_sent_share": 0.0,
+   "short_sent_share": 46.154,
+   "short_after_long_rate": 0.0,
+   "para_len_mean": 42.7,
+   "para_len_max": 47,
+   "long_para_share": 0.0,
+   "sentences_per_para": 4.33,
+   "nominalisation_rate": 0.781,
+   "long_word_rate": 1.562,
+   "copula_per_sentence": 0.385,
+   "stretch_verb_rate": 0.0,
+   "hedge_rate": 0.0,
+   "anchor_per_100_words": 6.25,
+   "para_without_anchor_share": 0.0,
+   "quote_rate": 0.0,
+   "example_rate": 0.0,
+   "subordinators_per_sentence": 0.077,
+   "commas_per_sentence": 0.77,
+   "max_commas_in_sentence": 2,
+   "deep_sent_share": 0.0,
+   "opener_repeat_share": 0.0,
+   "pronoun_opener_share": 46.154,
+   "question_rate": 7.692,
+   "du_per_1000": 0.0,
+   "sie_per_1000": 0.0,
+   "wir_per_1000": 0.0,
+   "ich_per_1000": 0.0,
+   "man_per_1000": 0.0,
+   "colon_per_1000": 15.625,
+   "semicolon_per_1000": 0.0,
+   "paren_per_1000": 0.0,
+   "exclam_per_1000": 0.0,
+   "dash_per_1000": 0.0,
+   "heading_colon_share": 0.0
+  },
+  "paragraphs": [
+   {
+    "index": 1,
+    "words": 44,
+    "sentences": 4,
+    "longest_sentence": 14,
+    "head": "Thomas Kern hat Mitarbeiter und bis jeden Auftrag",
+    "anchors": [
+     [
+      "number",
+      "14"
+     ],
+     [
+      "number",
+      "2023"
+     ],
+     [
+      "name",
+      "Thomas Kern"
+     ]
+    ]
+   },
+   {
+    "index": 2,
+    "words": 37,
+    "sentences": 4,
+    "longest_sentence": 15,
+    "head": "Heute steht ein Tablet in der Werkstatt Der",
+    "anchors": [
+     [
+      "number",
+      "300"
+     ],
+     [
+      "number",
+      "29"
+     ]
+    ]
+   },
+   {
+    "index": 3,
+    "words": 47,
+    "sentences": 5,
+    "longest_sentence": 19,
+    "head": "Was hat sich geändert Die verlorenen Aufträge sind",
+    "anchors": [
+     [
+      "number",
+      "41"
+     ],
+     [
+      "number",
+      "32."
+     ],
+     [
+      "name",
+      "Familie Brandl"
+     ]
+    ]
+   }
+  ]
+ },
+ "beiblatt_de": {
+  "text": "---\ntitle: \"Beiblatt zur Interessenbekundung\"\nsubtitle: \"Markterkundung „KI-Tools für Lehrkräfte“ (§ 24 BVergG 2018) – Schriftliche Beantwortung der Fragen gemäß Kapitel A, Pkt. 3\"\nauthor: \"Digital Learning GmbH (Seven Education) – Produkt: Seven Assistant\"\ndate: \"Göttingen, 03.09.2026\"\nlang: de-AT\n---\n\n# Vorbemerkung\n\nSeven Assistant ist ein KI-Assistent für Lehrkräfte sowie Schülerinnen und Schüler, entwickelt und betrieben von der Digital Learning GmbH, Göttingen, einem Unternehmen der Seven-Education-Gruppe. Die Plattform wird von mehr als 100.000 Nutzenden im Bildungsbereich eingesetzt. Alle KI-Modelle werden ausschließlich auf eigener Infrastruktur in Deutschland betrieben, sodass keine Daten an externe KI-Anbieter übermittelt werden. Zur Seven-Education-Gruppe gehört auch die FoxEducation Services GmbH in Wien, Anbieterin von SchoolFox, über die Support und Betreuung in Österreich vor Ort erfolgen.\n\nDie nachfolgenden Antworten folgen der Nummerierung des Fragenkatalogs in Kapitel A, Pkt. 3.\n\n# 1. Leistungsinhalt und -umfang\n\n**1a. Eignung für Schultypen und Unterrichtsgegenstände.** Seven Assistant ist fachunabhängig konzipiert und für alle österreichischen Schultypen und Unterrichtsgegenstände gleichermaßen geeignet, von der Primarstufe über die Sekundarstufe 1 bis zur Sekundarstufe 2 einschließlich berufsbildender Schulen. Für Gegenstände mit besonderen Anforderungen stehen fachspezifische Schnittstellen zur Verfügung, etwa Wolfram Alpha für Mathematik und Naturwissenschaften sowie die Anbindung an Bildungsmediatheken mit Filterung nach Fach und Schulstufe.\n\n**1b. Altersgruppen.** Das Produkt wird ab der Primarstufe eingesetzt. Für Schülerinnen und Schüler steht ein eigener Schülermodus mit altersgerecht eingeschränktem Funktionsumfang zur Verfügung, den die Lehrkraft freischaltet und steuert (siehe 1e). Auf Lehrkraftseite gibt es keine Einschränkung nach Altersgruppe. Die Altersfreigabe „16+“ in den App-Stores ergibt sich ausschließlich aus der optionalen Websuche und betrifft nicht den betreuten Einsatz im Schülermodus.\n\n**1c. Österreichische Lehrpläne.** Die Hinterlegung der aktuellen österreichischen Lehrpläne ist für das vierte Quartal 2026 geplant und damit vor Beginn der Pilotphase 2027 verfügbar. Die Lehrpläne werden aus den amtlichen PDF-Dokumenten extrahiert und als Knowledge Graph modelliert, sodass die KI bei Unterrichtsplanung, Materialerstellung und Aufgabengenerierung Kompetenzen, Lehrstoff und Schulstufe gezielt referenzieren kann.\n\n**1d. Leistungskomponenten für Lehrkräfte.**\n\n- *Unterrichtsplanung:* Seven Assistant generiert vollständige Unterrichtsreihen und einzelne Stundenverläufe mit Phasen, Methoden, Sozialformen und Zeitplanung. Für heterogene Lerngruppen schlägt die KI unterschiedliche didaktische Zugänge und Differenzierungen vor. Der Export erfolgt als PDF oder als ZIP mit allen verknüpften Materialien.\n- *Unterrichtsgestaltung:* Arbeitsblätter werden aus Bausteinen wie Multiple Choice, Lückentext, Zuordnung, offenen Aufgaben und eingebetteten Medien aufgebaut. Interaktive H5P-Übungen wie Quiz, Lückentexte, Kreuzworträtsel und Drag & Drop entstehen direkt im Werkzeug. Darüber hinaus erzeugt die KI Präsentationen, Tafelbild-Skizzen, Illustrationen, Diagramme, Mindmaps, Zeitleisten sowie Audio für Diktate und Hörverstehen. Recherchen liefern Quellenangaben, eigene Dokumente in den Formaten PDF, Word und PowerPoint sowie Bilder können analysiert werden.\n- *Leistungsdokumentation und -feststellung:* Feedbackaufgaben mit definierten Bewertungskriterien bearbeiten Schülerinnen und Schüler online. Die KI erzeugt dazu in Sekunden ein kriterienbezogenes Feedback mit Punkten. Schriftliche Tests und Schularbeiten werden mit Erwartungshorizont und Punkteschema als Druckvorlage erstellt. Eine Verlaufsansicht zeigt die Leistungen pro Schülerin bzw. Schüler über mehrere Aufgaben und Versuche hinweg, die Bewertungen lassen sich als PDF exportieren.\n\n**1e. Leistungskomponenten für Schülerinnen und Schüler.**\n\n- *Nutzungsmöglichkeiten:* Schülerinnen und Schüler erhalten eigene Konten mit eigenem Verlauf. Typische Use-Cases sind das Bearbeiten von Aufgaben und Arbeitsblättern mit sofortigem Feedback, Abfragen und Üben („Frag mich ab“), Erklärungen auf dem eigenen Niveau, Schreibhilfe und angeleitete Recherche. Mehrfache Einreichungen zur Überarbeitung sind möglich und in ihrer Anzahl konfigurierbar. Alternativ können Aufgaben und Arbeitsblätter per Link oder QR-Code auch ohne Login bearbeitet werden. Die Lehrkraft entscheidet, welche Modi für die Schülerinnen und Schüler freigeschaltet sind.\n- *Kollaboration:* Eine gemeinsame Bearbeitung einer Aufgabe durch mehrere Schülerinnen und Schüler ist derzeit nicht vorgesehen. Lerngruppen werden über die Kursstruktur abgebildet (siehe 1f), und Lehrkräfte können geteilte Ordner in der Bibliothek zur Zusammenarbeit nutzen.\n- *Berechtigungen:* Die Schülernutzung kann zeitlich befristet und inhaltlich eingeschränkt werden. Die Lehrkraft legt fest, welche Werkzeuge und Modi im Schülermodus verfügbar sind, etwa ob die Websuche oder „Frag mich ab“ freigeschaltet ist.\n\n**1f. User-Management.** Die Organisation erfolgt in Kursen, etwa „8a Deutsch“, denen Lehrkräfte und Schülerinnen und Schüler zugeordnet werden. Pro Kurs sind Leistungsdaten, Einreichungen und Versuche über alle Aufgaben hinweg auswertbar. Auf Ebene der Schule steht Administratorinnen und Administratoren eine Verwaltung mit Rollen, Freigabe einzelner Funktionen je Rolle sowie Nutzungsauswertungen zur Verfügung.\n\n# 2. Jahrgangsübergreifende Anschlussfähigkeit und Produktwechsel\n\n**2a-i. Einsehbarkeit im Folgeschuljahr.** Leistungsdokumentationen sind an das Konto der Schülerin bzw. des Schülers gebunden und bleiben über Schuljahresgrenzen hinweg einsehbar.\n\n**2a-ii. Stabile Klassen und Gruppen.** Kurse bleiben als Einheit bestehen, auch wenn Lehrkräfte wechseln. Lehrkräfte können einem Kurs zugeordnet, entfernt oder ersetzt werden, ohne dass die Kursstruktur oder die darin enthaltenen Daten verändert werden.\n\n**2a-iii. Export bei Produktwechsel.** Stammdaten, individuelle Leistungsdaten, Unterrichtsplanungen und Unterrichtsmaterialien können vollständig und DSGVO-konform in maschinenlesbarer Form exportiert werden. Materialien liegen zusätzlich in offenen Formaten vor, darunter PDF, Word und H5P, sodass sie in anderen Systemen weiterverwendet werden können.\n\n# 3. Datenschutz und ethische Grundsätze\n\n**3a. Einhaltung der DSGVO.** Seven Assistant betreibt alle Komponenten einschließlich der KI-Modelle auf eigener Infrastruktur in ISO 27001 zertifizierten Rechenzentren der Hetzner Online GmbH in Deutschland. An externe KI-Anbieter wie OpenAI, Microsoft oder Google werden keine Daten übermittelt. Eingaben, Dokumente und Chats werden nicht für das Training von KI-Modellen verwendet, Tracking-Cookies werden nicht eingesetzt. Mit den Auftragsverarbeitern bestehen Verträge zur Auftragsverarbeitung, ein Standard-AVV für Schulen und Schulerhalter liegt vor. Nutzende können ihre Daten jederzeit vollständig exportieren und ihr Konto samt aller Daten unwiderruflich löschen.\n\n**3b. Schutz personenbezogener Daten.** Eingesetzte KI-Modelle sind die offen verfügbaren Modelle gpt-oss-120b, Gemma 4 und Qwen3, die vollständig selbst gehostet werden. Durch die eigene Modellinfrastruktur verlassen personenbezogene Daten zu keinem Zeitpunkt die Systeme der Digital Learning GmbH. Schülerinnen und Schüler können Aufgaben auch ohne eigenes Konto bearbeiten, sodass für viele Einsatzszenarien keine Schülerstammdaten erforderlich sind. Zugriffe sind rollenbasiert, und Administratorinnen und Administratoren können den Funktionsumfang je Rolle einschränken.\n\n**3c. Qualitätssicherung gegen diskriminierende Inhalte.** Guardrails wirken auf allen Ebenen der Verarbeitung: bei der Eingabe, in der Modellsteuerung und bei der Ausgabe, einschließlich der Bildgenerierung. Verstöße gegen die Guardrails werden protokolliert und sind für die Schuladministration im Dashboard einsehbar. Lehrkräfte können jede KI-Antwort neu generieren lassen und erhalten Hinweise, KI-Ergebnisse fachlich zu prüfen. Zusätzlich steht Lehrkräften ein Erkennungswerkzeug für KI-generierte Texte zur Verfügung.\n\n**3d. Kinder- und Jugendschutz.** Die Guardrails filtern Inhalte, die gegen Bestimmungen des Kinder- und Jugendschutzes verstoßen, darunter Pornographie, Gewalt und Suchtmittel. Das gilt für Texte ebenso wie für Bilder und die Websuche. Im Schülermodus legt die Lehrkraft zusätzlich fest, welche Werkzeuge überhaupt verfügbar sind. Seven Assistant erfüllt die Anforderungen des EU AI Act: Es handelt sich um kein Hochrisikosystem, und Transparenzhinweise sind umgesetzt. Organisationen können darüber hinaus eine verpflichtende KI-Schulung aktivieren, unter anderem zum EU AI Act, die jede nutzende Person vor der ersten Verwendung absolvieren muss.\n\n# 4. Produktrahmen und Preisgestaltung\n\n**4a. Leistungspakete.** Angeboten werden die Pakete Basic und Pro für einzelne Lehrkräfte sowie Schul- und Organisationslizenzen mit Administration, Kursverwaltung, Schülerkonten und Nutzungsauswertung. Für öffentliche Beschaffungen werden die Pakete individuell zugeschnitten, sodass auch ein modularer Bezug einzelner Komponenten möglich ist, zum Beispiel Lehrkraftlizenzen ohne Schülerkonten.\n\n**4b. Preisstaffeln für Großabnehmer.** Für Großabnehmer werden gestaffelte Preise nach Anzahl der Lehrkräfte angeboten. Die konkreten Staffeln stellt die Digital Learning GmbH im Markterkundungsgespräch vor.\n\n**4c. Erprobung.** Jede Lehrkraft kann Seven Assistant einen Monat lang kostenlos und unverbindlich mit vollem Funktionsumfang testen.\n\n**4d. Einschulung.** Im Preis enthalten sind integrierte KI-Schulungen innerhalb der Plattform, Webinare, Videoanleitungen sowie kontextbezogene Hilfestellungen und Beispielprompts direkt im Werkzeug.\n\n**4e. Usercommunity.** Es besteht eine öffentliche Wunschliste, über die Lehrkräfte Funktionen vorschlagen, kommentieren und priorisieren können. Der Austausch mit dem Produktteam fließt unmittelbar in die Weiterentwicklung ein.\n\n**4f. Supportstrukturen.** Support erfolgt per E-Mail und über das Kontaktformular in der Plattform sowie über die Hilfebereiche mit Anleitungen zu allen Werkzeugen. In Österreich steht mit der FoxEducation Services GmbH in Wien ein Support- und Betreuungsteam vor Ort zur Verfügung.\n\n**4g. Stornokonditionen.** Innerhalb der einmonatigen Testphase ist ein Ausstieg jederzeit kostenfrei möglich. Für die Pilotphase werden die Stornokonditionen für Lehrkräfte, deren Erwartungen das Produkt in der Praxis nicht erfüllt, gemeinsam mit der Auftraggeberin festgelegt. Ein unkomplizierter Wechsel innerhalb des Warenkorbs wird unterstützt.\n\n# 5. Abwicklung über das Bildungsportal\n\n**5a.** Das österreichische Bildungsportal ist der Digital Learning GmbH bekannt. Eine Abwicklung von Bestell- und Verrechnungsprozessen über das Bildungsportal als zentrale Drehscheibe ist möglich. Seven Assistant unterstützt beide Verfahren zur Integration und Single Sign-on in Organisationen. Die zentrale Kostenübernahme und Verrechnung über das Bildungsministerium beziehungsweise den OeAD erfolgt über die Reseller-Plattform der Digital Learning GmbH, in der alle teilnehmenden Schulen und Lehrkräfte zentral verwaltet werden.\n\n# 6. Nutzerstatistik\n\n**6a. Nutzungsstatistiken.** Erfasst werden unter anderem aktive Nutzende, Logins, Anzahl der Anfragen je Werkzeug, erstellte Materialien und Aufgaben, Einreichungen von Schülerinnen und Schülern sowie Guardrail-Ereignisse. Diese Statistiken können dem Bildungsministerium in aggregierter, datenschutzkonformer Form bereitgestellt werden.\n\n**6b. Dashboard.** Für die Schuladministration besteht bereits ein Dashboard mit Nutzungsdaten. Über die Reseller-Plattform können Nutzungsstatistiken aller angebundenen Schulen übergreifend angezeigt werden. Ein tagesaktuelles Dashboard für das Bildungsministerium mit Lehrkraft- und Schülernutzungsdaten kann auf dieser Basis bereitgestellt werden.\n\n# Ansprechpartner\n\nDigital Learning GmbH, Berliner Str. 4, 37073 Göttingen, Deutschland\nBenjamin Ledel, Geschäftsführer\nE-Mail: support@digitallearning.gmbh\n",
+  "metrics": {
+   "language": "de",
+   "words": 1349,
+   "sentences": 94,
+   "paragraphs": 32,
+   "headings": 8,
+   "code_blocks": 0,
+   "sent_len_mean": 14.35,
+   "sent_len_median": 14.0,
+   "sent_len_sd": 6.44,
+   "sent_len_cv": 0.449,
+   "sent_len_p90": 22.0,
+   "long_sent_share": 0.0,
+   "short_sent_share": 15.957,
+   "short_after_long_rate": 2.151,
+   "para_len_mean": 43.2,
+   "para_len_max": 87,
+   "long_para_share": 0.0,
+   "sentences_per_para": 2.94,
+   "nominalisation_rate": 5.782,
+   "long_word_rate": 16.16,
+   "copula_per_sentence": 0.585,
+   "stretch_verb_rate": 7.413,
+   "hedge_rate": 0.0,
+   "anchor_per_100_words": 9.34,
+   "para_without_anchor_share": 0.0,
+   "quote_rate": 2.965,
+   "example_rate": 2.965,
+   "subordinators_per_sentence": 0.213,
+   "commas_per_sentence": 0.9,
+   "max_commas_in_sentence": 5,
+   "deep_sent_share": 9.574,
+   "opener_repeat_share": 2.151,
+   "pronoun_opener_share": 25.532,
+   "question_rate": 0.0,
+   "du_per_1000": 0.0,
+   "sie_per_1000": 0.0,
+   "wir_per_1000": 0.0,
+   "ich_per_1000": 1.483,
+   "man_per_1000": 0.0,
+   "colon_per_1000": 6.672,
+   "semicolon_per_1000": 0.0,
+   "paren_per_1000": 2.224,
+   "exclam_per_1000": 0.0,
+   "dash_per_1000": 0.0,
+   "heading_colon_share": 0.0
+  },
+  "paragraphs": [
+   {
+    "index": 1,
+    "words": 75,
+    "sentences": 4,
+    "longest_sentence": 24,
+    "head": "Seven Assistant ist ein KI-Assistent für Lehrkräfte sowie",
+    "anchors": [
+     [
+      "number",
+      "100.000"
+     ],
+     [
+      "name",
+      "KI-Assistent"
+     ],
+     [
+      "name",
+      "GmbH"
+     ],
+     [
+      "name",
+      "KI-Modelle"
+     ],
+     [
+      "name",
+      "KI-Anbieter"
+     ],
+     [
+      "name",
+      "FoxEducation"
+     ],
+     [
+      "name",
+      "GmbH"
+     ],
+     [
+      "name",
+      "SchoolFox"
+     ],
+     [
+      "name",
+      "Seven Assistant"
+     ],
+     [
+      "name",
+      "Digital Learning"
+     ]
+    ]
+   },
+   {
+    "index": 2,
+    "words": 12,
+    "sentences": 1,
+    "longest_sentence": 12,
+    "head": "Die nachfolgenden Antworten folgen der Nummerierung des Fragenkatalogs",
+    "anchors": [
+     [
+      "number",
+      "3."
+     ]
+    ]
+   },
+   {
+    "index": 3,
+    "words": 60,
+    "sentences": 3,
+    "longest_sentence": 28,
+    "head": "a Eignung für Schultypen und Unterrichtsgegenstände Seven Assistant",
+    "anchors": [
+     [
+      "number",
+      "1"
+     ],
+     [
+      "number",
+      "1"
+     ],
+     [
+      "number",
+      "2"
+     ],
+     [
+      "example",
+      "etwa"
+     ],
+     [
+      "name",
+      "Seven Assistant"
+     ],
+     [
+      "name",
+      "Wolfram Alpha"
+     ]
+    ]
+   },
+   {
+    "index": 4,
+    "words": 59,
+    "sentences": 4,
+    "longest_sentence": 22,
+    "head": "b Altersgruppen Das Produkt wird ab der Primarstufe",
+    "anchors": [
+     [
+      "number",
+      "1"
+     ],
+     [
+      "number",
+      "1"
+     ],
+     [
+      "number",
+      "16"
+     ],
+     [
+      "quote",
+      "„16+“"
+     ]
+    ]
+   },
+   {
+    "index": 5,
+    "words": 50,
+    "sentences": 3,
+    "longest_sentence": 28,
+    "head": "c Österreichische Lehrpläne Die Hinterlegung der aktuellen österreichischen",
+    "anchors": [
+     [
+      "number",
+      "1"
+     ],
+     [
+      "number",
+      "2026"
+     ],
+     [
+      "number",
+      "2027"
+     ],
+     [
+      "name",
+      "PDF-Dokumenten"
+     ],
+     [
+      "name",
+      "KI"
+     ],
+     [
+      "name",
+      "Österreichische Lehrpläne"
+     ],
+     [
+      "name",
+      "Knowledge Graph"
+     ],
+     [
+      "name",
+      "Aufgabengenerierung Kompetenzen"
+     ]
+    ]
+   },
+   {
+    "index": 6,
+    "words": 4,
+    "sentences": 1,
+    "longest_sentence": 3,
+    "head": "d Leistungskomponenten für Lehrkräfte",
+    "anchors": [
+     [
+      "number",
+      "1"
+     ]
+    ]
+   },
+   {
+    "index": 7,
+    "words": 39,
+    "sentences": 3,
+    "longest_sentence": 15,
+    "head": "Unterrichtsplanung Seven Assistant generiert vollständige Unterrichtsreihen und einzelne",
+    "anchors": [
+     [
+      "name",
+      "KI"
+     ],
+     [
+      "name",
+      "PDF"
+     ],
+     [
+      "name",
+      "ZIP"
+     ],
+     [
+      "name",
+      "Seven Assistant"
+     ]
+    ]
+   },
+   {
+    "index": 8,
+    "words": 64,
+    "sentences": 4,
+    "longest_sentence": 17,
+    "head": "Unterrichtsgestaltung Arbeitsblätter werden aus Bausteinen wie Multiple Choice",
+    "anchors": [
+     [
+      "name",
+      "H5P-Übungen"
+     ],
+     [
+      "name",
+      "KI"
+     ],
+     [
+      "name",
+      "PDF"
+     ],
+     [
+      "name",
+      "PowerPoint"
+     ],
+     [
+      "name",
+      "Multiple Choice"
+     ]
+    ]
+   },
+   {
+    "index": 9,
+    "words": 57,
+    "sentences": 4,
+    "longest_sentence": 22,
+    "head": "Leistungsdokumentation und feststellung Feedbackaufgaben mit definierten Bewertungskriterien bearbeiten",
+    "anchors": [
+     [
+      "name",
+      "KI"
+     ],
+     [
+      "name",
+      "PDF"
+     ],
+     [
+      "name",
+      "Schriftliche Tests"
+     ]
+    ]
+   },
+   {
+    "index": 10,
+    "words": 6,
+    "sentences": 1,
+    "longest_sentence": 5,
+    "head": "e Leistungskomponenten für Schülerinnen und Schüler",
+    "anchors": [
+     [
+      "number",
+      "1"
+     ]
+    ]
+   },
+   {
+    "index": 11,
+    "words": 74,
+    "sentences": 5,
+    "longest_sentence": 27,
+    "head": "Nutzungsmöglichkeiten Schülerinnen und Schüler erhalten eigene Konten mit",
+    "anchors": [
+     [
+      "quote",
+      "„Frag mich ab“"
+     ],
+     [
+      "name",
+      "QR-Code"
+     ],
+     [
+      "name",
+      "Typische Use"
+     ],
+     [
+      "name",
+      "Mehrfache Einreichungen"
+     ]
+    ]
+   },
+   {
+    "index": 12,
+    "words": 34,
+    "sentences": 2,
+    "longest_sentence": 19,
+    "head": "Kollaboration Eine gemeinsame Bearbeitung einer Aufgabe durch mehrere",
+    "anchors": [
+     [
+      "number",
+      "1"
+     ]
+    ]
+   },
+   {
+    "index": 13,
+    "words": 32,
+    "sentences": 2,
+    "longest_sentence": 22,
+    "head": "Berechtigungen Die Schülernutzung kann zeitlich befristet und inhaltlich",
+    "anchors": [
+     [
+      "quote",
+      "„Frag mich ab“"
+     ],
+     [
+      "example",
+      "etwa"
+     ]
+    ]
+   },
+   {
+    "index": 14,
+    "words": 51,
+    "sentences": 3,
+    "longest_sentence": 21,
+    "head": "f User-Management Die Organisation erfolgt in Kursen etwa",
+    "anchors": [
+     [
+      "number",
+      "1"
+     ],
+     [
+      "number",
+      "8"
+     ],
+     [
+      "quote",
+      "„8a Deutsch“"
+     ],
+     [
+      "example",
+      "etwa"
+     ],
+     [
+      "name",
+      "Pro Kurs"
+     ]
+    ]
+   },
+   {
+    "index": 15,
+    "words": 21,
+    "sentences": 2,
+    "longest_sentence": 17,
+    "head": "a-i Einsehbarkeit im Folgeschuljahr Leistungsdokumentationen sind an das",
+    "anchors": [
+     [
+      "number",
+      "2"
+     ]
+    ]
+   },
+   {
+    "index": 16,
+    "words": 34,
+    "sentences": 3,
+    "longest_sentence": 20,
+    "head": "a-ii Stabile Klassen und Gruppen Kurse bleiben als",
+    "anchors": [
+     [
+      "number",
+      "2"
+     ],
+     [
+      "name",
+      "Stabile Klassen"
+     ]
+    ]
+   },
+   {
+    "index": 17,
+    "words": 40,
+    "sentences": 3,
+    "longest_sentence": 21,
+    "head": "a-iii Export bei Produktwechsel Stammdaten individuelle Leistungsdaten Unterrichtsplanungen",
+    "anchors": [
+     [
+      "number",
+      "2"
+     ],
+     [
+      "name",
+      "DSGVO-konform"
+     ],
+     [
+      "name",
+      "PDF"
+     ],
+     [
+      "name",
+      "H5P"
+     ]
+    ]
+   },
+   {
+    "index": 18,
+    "words": 83,
+    "sentences": 6,
+    "longest_sentence": 21,
+    "head": "a Einhaltung der DSGVO Seven Assistant betreibt alle",
+    "anchors": [
+     [
+      "number",
+      "3"
+     ],
+     [
+      "number",
+      "27001"
+     ],
+     [
+      "name",
+      "DSGVO"
+     ],
+     [
+      "name",
+      "KI-Modelle"
+     ],
+     [
+      "name",
+      "ISO"
+     ],
+     [
+      "name",
+      "GmbH"
+     ],
+     [
+      "name",
+      "KI-Anbieter"
+     ],
+     [
+      "name",
+      "OpenAI"
+     ],
+     [
+      "name",
+      "KI-Modellen"
+     ],
+     [
+      "name",
+      "AVV"
+     ],
+     [
+      "name",
+      "Seven Assistant"
+     ],
+     [
+      "name",
+      "Hetzner Online"
+     ]
+    ]
+   },
+   {
+    "index": 19,
+    "words": 68,
+    "sentences": 5,
+    "longest_sentence": 18,
+    "head": "b Schutz personenbezogener Daten Eingesetzte KI-Modelle sind die",
+    "anchors": [
+     [
+      "number",
+      "3"
+     ],
+     [
+      "number",
+      "120"
+     ],
+     [
+      "number",
+      "4"
+     ],
+     [
+      "name",
+      "KI-Modelle"
+     ],
+     [
+      "name",
+      "Qwen3"
+     ],
+     [
+      "name",
+      "GmbH"
+     ],
+     [
+      "name",
+      "Digital Learning"
+     ]
+    ]
+   },
+   {
+    "index": 20,
+    "words": 63,
+    "sentences": 5,
+    "longest_sentence": 20,
+    "head": "c Qualitätssicherung gegen diskriminierende Inhalte Guardrails wirken auf",
+    "anchors": [
+     [
+      "number",
+      "3"
+     ],
+     [
+      "name",
+      "KI-Antwort"
+     ],
+     [
+      "name",
+      "KI-Ergebnisse"
+     ],
+     [
+      "name",
+      "KI-generierte"
+     ]
+    ]
+   },
+   {
+    "index": 21,
+    "words": 87,
+    "sentences": 6,
+    "longest_sentence": 24,
+    "head": "d Kinder und Jugendschutz Die Guardrails filtern Inhalte",
+    "anchors": [
+     [
+      "number",
+      "3"
+     ],
+     [
+      "name",
+      "EU"
+     ],
+     [
+      "name",
+      "AI"
+     ],
+     [
+      "name",
+      "KI-Schulung"
+     ],
+     [
+      "name",
+      "EU"
+     ],
+     [
+      "name",
+      "AI"
+     ],
+     [
+      "name",
+      "Seven Assistant"
+     ]
+    ]
+   },
+   {
+    "index": 22,
+    "words": 44,
+    "sentences": 2,
+    "longest_sentence": 22,
+    "head": "a Leistungspakete Angeboten werden die Pakete Basic und",
+    "anchors": [
+     [
+      "number",
+      "4"
+     ],
+     [
+      "example",
+      "zum Beispiel"
+     ],
+     [
+      "name",
+      "Pakete Basic"
+     ],
+     [
+      "name",
+      "Beispiel Lehrkraftlizenzen"
+     ]
+    ]
+   },
+   {
+    "index": 23,
+    "words": 25,
+    "sentences": 3,
+    "longest_sentence": 11,
+    "head": "b Preisstaffeln für Großabnehmer Für Großabnehmer werden gestaffelte",
+    "anchors": [
+     [
+      "number",
+      "4"
+     ],
+     [
+      "name",
+      "GmbH"
+     ],
+     [
+      "name",
+      "Digital Learning"
+     ]
+    ]
+   },
+   {
+    "index": 24,
+    "words": 17,
+    "sentences": 1,
+    "longest_sentence": 15,
+    "head": "c Erprobung Jede Lehrkraft kann Seven Assistant einen",
+    "anchors": [
+     [
+      "number",
+      "4"
+     ],
+     [
+      "name",
+      "Seven Assistant"
+     ]
+    ]
+   },
+   {
+    "index": 25,
+    "words": 21,
+    "sentences": 1,
+    "longest_sentence": 19,
+    "head": "d Einschulung Im Preis enthalten sind integrierte KI-Schulungen",
+    "anchors": [
+     [
+      "number",
+      "4"
+     ],
+     [
+      "name",
+      "KI-Schulungen"
+     ]
+    ]
+   },
+   {
+    "index": 26,
+    "words": 27,
+    "sentences": 2,
+    "longest_sentence": 14,
+    "head": "e Usercommunity Es besteht eine öffentliche Wunschliste über",
+    "anchors": [
+     [
+      "number",
+      "4"
+     ],
+     [
+      "name",
+      "Lehrkräfte Funktionen"
+     ]
+    ]
+   },
+   {
+    "index": 27,
+    "words": 40,
+    "sentences": 2,
+    "longest_sentence": 20,
+    "head": "f Supportstrukturen Support erfolgt per E-Mail und über",
+    "anchors": [
+     [
+      "number",
+      "4"
+     ],
+     [
+      "name",
+      "FoxEducation"
+     ],
+     [
+      "name",
+      "GmbH"
+     ]
+    ]
+   },
+   {
+    "index": 28,
+    "words": 42,
+    "sentences": 3,
+    "longest_sentence": 22,
+    "head": "g Stornokonditionen Innerhalb der einmonatigen Testphase ist ein",
+    "anchors": [
+     [
+      "number",
+      "4"
+     ]
+    ]
+   },
+   {
+    "index": 29,
+    "words": 65,
+    "sentences": 4,
+    "longest_sentence": 29,
+    "head": "a Das österreichische Bildungsportal ist der Digital Learning",
+    "anchors": [
+     [
+      "number",
+      "5"
+     ],
+     [
+      "name",
+      "GmbH"
+     ],
+     [
+      "name",
+      "OeAD"
+     ],
+     [
+      "name",
+      "GmbH"
+     ],
+     [
+      "name",
+      "Digital Learning"
+     ],
+     [
+      "name",
+      "Seven Assistant"
+     ],
+     [
+      "name",
+      "Single Sign"
+     ],
+     [
+      "name",
+      "Digital Learning"
+     ]
+    ]
+   },
+   {
+    "index": 30,
+    "words": 36,
+    "sentences": 2,
+    "longest_sentence": 23,
+    "head": "a Nutzungsstatistiken Erfasst werden unter anderem aktive Nutzende",
+    "anchors": [
+     [
+      "number",
+      "6"
+     ]
+    ]
+   },
+   {
+    "index": 31,
+    "words": 38,
+    "sentences": 3,
+    "longest_sentence": 16,
+    "head": "b Dashboard Für die Schuladministration besteht bereits ein",
+    "anchors": [
+     [
+      "number",
+      "6"
+     ]
+    ]
+   },
+   {
+    "index": 32,
+    "words": 14,
+    "sentences": 1,
+    "longest_sentence": 14,
+    "head": "Digital Learning GmbH Berliner Str Göttingen Deutschland Benjamin",
+    "anchors": [
+     [
+      "url",
+      "support@digitallearning.gmbh"
+     ],
+     [
+      "number",
+      "4,"
+     ],
+     [
+      "number",
+      "37073"
+     ],
+     [
+      "name",
+      "GmbH"
+     ],
+     [
+      "name",
+      "Digital Learning"
+     ],
+     [
+      "name",
+      "Berliner Str"
+     ],
+     [
+      "name",
+      "Deutschland Benjamin Ledel"
+     ]
+    ]
+   }
+  ]
+ },
+ "readme_en": {
+  "text": "<div align=\"center\">\n\n<img src=\"web/public/icon-192.png\" alt=\"covey\" width=\"88\" />\n\n# covey\n\n**The IT and HR department for AI agents.**\n\nEvery agent gets its own sandbox, its own logins and its own backlog.<br/>\nYou hand out the work, set the limits, and read back what was done.\n\n[![covey.work](https://img.shields.io/badge/live-covey.work-cc7a5b)](https://covey.work)\n[![CI](https://github.com/benjaminLedel/covey/actions/workflows/ci.yml/badge.svg)](https://github.com/benjaminLedel/covey/actions/workflows/ci.yml)\n[![Release](https://img.shields.io/github/v/release/benjaminLedel/covey?color=1f883d)](https://github.com/benjaminLedel/covey/releases/latest)\n[![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](go.mod)\n[![Licence](https://img.shields.io/badge/licence-AGPL--3.0-336791)](LICENSE)\n\n**[covey.work](https://covey.work)** — a live instance, before you install anything\n\n[Deutsch](README.de.md) · **English**\n\n</div>\n\n---\n\n![A pass through covey](web/public/shots/tour.gif)\n\n<div align=\"center\">\n\n*Seventeen seconds through the platform: the workforce, an agent's backlog, the recording of a finished run, its wiki memory, the org chart, and what the whole thing costs.*\n\n</div>\n\n---\n\n## What covey is\n\ncovey is a self-hosted platform for running AI agents inside a company. You create an agent, give it access to the systems it needs, and it works through a backlog on its own. Everything it does is logged, and everything it costs is counted.\n\nThree examples of what an agent does here:\n\n- **Support** — watches a Zammad queue, answers what it can and escalates the rest.\n- **Development** — picks up a Jira ticket, checks out the repository, opens a merge request and links it back on the ticket.\n- **QA** — clicks through a web interface in a headless browser and files what breaks.\n\nAn agent sleeps until a webhook, a scheduled check or a person wakes it, so an idle agent costs nothing. What it is allowed to reach is decided by the platform, not by the agent's prompt. Its actions and screenshots go into a recording you can read afterwards, spend is broken down per agent and per model, and one button stops every agent in the organisation at once.\n\ncovey is built for organisations rather than for one person at a desk. Several people administer it — IT, team leads, security, controlling — permissions and guard rails are set centrally, and humans and agents appear in the same org chart.\n\n**Status:** covey is ready to use. [covey.work](https://covey.work) runs this repository's `main` and is redeployed on every push; releases are versioned, upgrades are documented, and an integration suite covers the whole path from wake to result.\n\n> **Codename.** A *covey* is a small flock that moves together — roughly what the platform does with agents.\n\n<a id=\"start-in-two-minutes\" name=\"start-in-two-minutes\"></a>\n\n## Two minutes to a running instance\n\n**No Go, no Node, no local Postgres.** Docker is all you need:\n\n```bash\ngit clone https://github.com/benjaminLedel/covey.git && cd covey\ncp .env.example .env\necho \"COVEY_MASTER_KEY=$(openssl rand -hex 32)\" >> .env\nmake sandbox-images-pull        # the prebuilt workplaces an agent runs in\ndocker compose up -d --build    # Postgres + covey\n```\n\nOpen **[http://localhost:8494](http://localhost:8494)** and log in with `admin@covey.local` / `covey-admin`.\n\nThe setup asks three things, and you can skip any of them: which engine to use and its credential (it is checked before it is stored), a few sentences about what your company does, and whether you want a **People department** — an agent that writes the configuration for other agents.\n\nFor your first agent, go to *New agent → brief* and describe the job in a few sentences. The People department turns that into a configuration you can read through and change before you hire it.\n\nWhat those five commands set up:\n\n- [`docker-compose.yml`](docker-compose.yml) brings Postgres (pgvector) and the covey binary with the admin UI embedded. Migrations run on start; `bootstrap` creates the organisation, the admin and a demo agent.\n- `make sandbox-images-pull` fetches the containers an agent works inside — `base` ([`Dockerfile.sandbox`](Dockerfile.sandbox): Claude Code, chromium, git, ripgrep), `dev` (plus PHP, a JDK and the version managers `fvm`/`uv`) the role workplaces `dev-flutter`, `dev-php` and `dev-web` for agents whose field is settled, and `dev-full` for an installation that would rather not split at all ([`docs/en/operations/workplaces.md`](docs/en/operations/workplaces.md)), for amd64 and arm64, built by [the project's own pipeline](.github/workflows/sandbox-images.yml). `SANDBOX_PROFILES=\"base dev-web\"` pulls only what you need; `make sandbox-images` builds them here instead.\n\nFull walkthrough including your first agent and a production checklist: [`docs/en/getting-started/quickstart.md`](docs/en/getting-started/quickstart.md).\n\n## What you get\n\n| | |\n|---|---|\n| 🧑‍💼 **An identity per agent** | Its own sandbox, home directory and credentials, and a place on the org chart next to the humans. |\n| 🧑‍🎓 **Hiring, not a config form** | Describe the job in a few sentences; the People department writes the configuration and asks back when the brief is thin. What comes out is a draft until a human hires it. |\n| 📥 **Backlog and wake sources** | Tasks as first-class objects. Agents wake on a webhook, a heartbeat or a nudge, then go back to sleep. |\n| 🔌 **Target systems as plugins** | Jira, Confluence, GitLab, GitHub, Zammad, Salesforce, Teams, SharePoint, Nextcloud, Kubernetes, email (IMAP/SMTP), headless browser, MCP. |\n| 🛡️ **Guard rails and approvals** | Enforced centrally, outside the runtime, fail-closed. Critical actions wait for a human. |\n| 🔑 **Secrets broker** | No long-lived secret ever enters a sandbox. Access is brokered per run, short-lived and scoped. |\n| 🧩 **Skills** | Procedures an agent loads only when they apply — the description stays in context, the instructions are read on demand. |\n| 🧠 **Wiki memory** | Linked Markdown pages with a pgvector index instead of flat snippets. Readable, and correctable by hand. |\n| 📂 **Workspace** | The agent's home directory in the browser: browse it, drop files in, edit one, pull a selection out as a ZIP. Works while the agent sleeps. |\n| 🎥 **Recording and kill switch** | Every run recorded including screenshots, cost per agent and model, one emergency stop for the whole organisation. |\n| 📦 **One binary** | Frontend and migrations compiled in. Copy it, run `covey serve` — no nginx, no separate frontend hosting. |\n\nNone of these target systems live in this repository. Each one is a separate Go module written against a [public SDK](https://github.com/benjaminLedel/covey-plugin-sdk). The ones covey ships with are in the [plugin pack](https://github.com/benjaminLedel/covey-plugin-pack); the others install at runtime from the [catalogue](https://github.com/benjaminLedel/covey-plugins), without rebuilding anything. Zammad, Kubernetes and the vulnerability databases run as WebAssembly modules from that catalogue, the same way a plugin you write would be installed. There is no privileged tier for the ones we wrote.\n\n## What it looks like\n\n![Agent overview](web/public/shots/agents.jpg)\n\n*An organisation's workforce at a glance — state, runtime and budget per agent, and the kill switch for all of them. Above them the **applications**: agents that have been drafted and are waiting to be hired.*\n\n| | |\n|---|---|\n| ![An agent's backlog](web/public/shots/backlog.jpg) | ![Org chart](web/public/shots/org.jpg) |\n| **Backlog** — tasks as first-class objects with freely configurable columns; cost, tokens and budget sit in the agent's header. | **Org chart** — humans and agents in the same structure on a zoomable canvas; department, reporting line and lead change in an edit mode, by select or drag & drop. |\n| ![An agent's memory](web/public/shots/memory.jpg) | ![Cost & tokens](web/public/shots/costs.jpg) |\n| **Memory** — what the agent has learned, readable and editable: add knowledge by hand or make it forget selectively. | **Cost & tokens** — spend over time, broken down by agent and model, for the whole organisation or a single agent. |\n\n## How it works\n\n```mermaid\nflowchart LR\n    UI[\"Admin UI / API\"] --> CP\n\n    subgraph CP[\"Control Plane — stateful, always on\"]\n        direction TB\n        SCHED[\"Scheduler · Backlog · Org chart\"]\n        GUARD[\"Guard rails · Secrets broker\"]\n        OBS[\"Recording · Cost · Alerts\"]\n    end\n\n    subgraph DP[\"Data Plane — ephemeral, persistent home\"]\n        direction TB\n        S1[\"Sandbox: coveyd + runtime\"]\n        S2[\"Sandbox: coveyd + runtime\"]\n    end\n\n    CP <-->|daemon protocol| DP\n    CP --> TS[\"Targets: Jira · Confluence · GitLab · GitHub · Zammad · Salesforce · Teams · SharePoint · Nextcloud · Kubernetes · Email · Browser · MCP\"]\n    CP --- DB[(\"PostgreSQL + pgvector\")]\n```\n\nThe **control plane** is always on and holds the state: scheduler, agent registry, backlog, identity and secrets broker, guard rails, observability. The **data plane** is a set of isolated sandboxes with a persistent home directory. A sandbox is disposable — if one is lost it is rebuilt from the config and the home.\n\nInside each sandbox a small **daemon** speaks a single protocol to the control plane, and an **adapter** starts the actual runtime, currently Claude Code. Because covey manages the sandbox and not the agent framework, replacing the runtime does not touch the rest of the system. Details in [`spec/01-architecture.md`](spec/01-architecture.md).\n\nMost parts of the system have a counterpart in an ordinary company:\n\n| In a company | On the platform |\n|---|---|\n| Identity / Active Directory | Agent identity (email optional) |\n| Workplace / PC | Isolated, persistent sandbox |\n| Onboarding / org chart | `SOUL.md` + org structure |\n| Workforce & departments | Org-owned agents, teams, cost centres |\n| HR / IT administration | Human roles + RBAC + SSO |\n| Password vault / PAM | Secrets broker (short-lived tokens) |\n| Task list / ticket | Backlog (first-class object) |\n| Operations manual / compliance | Central guard rails (platform-enforced) |\n| SIEM / EDR | Session recording + alerts + kill switch |\n\n**The stack:**\n\n- One Go binary. API and orchestration run in the same process.\n- A React + Tailwind + shadcn/ui frontend, compiled into that binary with `//go:embed`.\n- PostgreSQL for everything stateful: backlog, RBAC, the job queue (`SKIP LOCKED`), pub/sub (`LISTEN/NOTIFY`), memory (`pgvector`) and AES-GCM secret columns.\n- `builtin` implementations by default. Keycloak, Vault and Redis are supported, never required.\n\nDetails in [`spec/10-architecture-stack.md`](spec/10-architecture-stack.md).\n\n## Design principles\n\n1. **The organisation is the unit, not the user.**\n2. **The control plane is the product.** Sandboxes are commodity, runtimes are swappable.\n3. **Runtime-agnostic.** One daemon protocol plus thin adapters instead of framework lock-in.\n4. **Always reachable, compute only on demand.** Idle has to mean idle.\n5. **Config as code.** Agent behaviour versioned in Git, changed via PR and review — not via deploy.\n6. **Never put long-lived secrets in the sandbox.** Access is brokered at runtime, short-lived and scoped.\n7. **Guard rails central and platform-enforced.** Fail-closed, enforced outside the runtime.\n8. **Trust by design.** Recording, approvals and the kill switch are prerequisites, not add-ons.\n9. **Serial before parallel.** One agent, one task at a time; parallelism means more agents.\n10. **Batteries included, but swappable.** Every capability has a simple DB-backed default and a narrow interface for an external provider.\n\n<a id=\"install\" name=\"install\"></a>\n\n## Installing the binary\n\ncovey also runs without Docker Compose. The installer picks the binary for your OS and architecture from the [latest release](https://github.com/benjaminLedel/covey/releases/latest), **verifies its SHA-256 checksum** and puts it in `/usr/local/bin`:\n\n```bash\ncurl -sSL https://raw.githubusercontent.com/benjaminLedel/covey/main/installer/install.sh | sh\n```\n\nTo read it before running it:\n\n```bash\ncurl -sSLO https://raw.githubusercontent.com/benjaminLedel/covey/main/installer/install.sh\nless install.sh && sh install.sh\n```\n\nThere are two programs: the control plane (`covey`) and the runner (`covey-runner`), which runs sandboxes on behalf of a server. At a terminal the script asks which one you want; without a terminal it uses the default. You can also say it directly with `--server`, `--runner` or `--all`, pin a version with `--version v0.8.0`, or change the target directory with `--bin-dir ~/bin`.\n\n**Every running instance serves the same script for its own version:**\n\n```bash\ncurl -sSL https://covey.example/install.sh | sh\n```\n\nThis is how you add a runner. The instance knows its own version, so you get a runner that speaks the same protocol as the server it will register with. The binaries still come from the GitHub release; the instance decides the version, not the content.\n\nThis installs binaries only. The control plane still needs PostgreSQL (with pgvector) and Docker for the sandboxes; the script prints what is left, and [`docs/en/operations/deployment.md`](docs/en/operations/deployment.md) has the full path.\n\n## Documentation\n\nThe documentation lives under [`docs/`](docs/) and is the same text the website\nserves — one source, editable by pull request. English is that source\n(`docs/en/…`); where a German translation exists it sits under the same\nrelative path in `docs/de/…`, and [`docs/sections.yml`](docs/sections.yml)\nholds the reading order. The operating runbooks below are English only.\n\n| Document | Contents |\n|---|---|\n| [`docs/en/getting-started/quickstart.md`](docs/en/getting-started/quickstart.md) | Compose setup, first agent, production checklist |\n| [`docs/en/operations/deployment.md`](docs/en/operations/deployment.md) | CI pipeline, auto-deploy to a target host |\n| [`docs/en/operations/upgrade.md`](docs/en/operations/upgrade.md) | Upgrades that need more than a restart — what to build and back up beforehand |\n| [`docs/en/operations/api-keys.md`](docs/en/operations/api-keys.md) | API keys: driving covey from outside — what a key may do and what only the browser may |\n| [`docs/en/operations/runner.md`](docs/en/operations/runner.md) | Runners: sandboxes on more than one host, the home store, hard egress isolation |\n| [`docs/en/operations/workplaces.md`](docs/en/operations/workplaces.md) | Workplaces: which image an agent works in, the role images, a workplace of your own |\n| [`docs/en/integrations/zammad.md`](docs/en/integrations/zammad.md) | Zammad: API token, webhook + trigger, customer-visible replies |\n| [`docs/en/integrations/github.md`](docs/en/integrations/github.md) | GitHub: issues, pull requests, Actions, checkout inside the sandbox |\n| [`docs/en/integrations/gitlab.md`](docs/en/integrations/gitlab.md) | GitLab: issues, merge requests, checkout inside the sandbox |\n| [`docs/en/integrations/jira.md`](docs/en/integrations/jira.md) | Jira: the ticket beside the repository — Cloud and Data Center, the workflow, the heartbeat gate |\n| [`docs/en/integrations/confluence.md`](docs/en/integrations/confluence.md) | Confluence: documentation as context and as a place to write results |\n| [`docs/en/integrations/email.md`](docs/en/integrations/email.md) | An email mailbox as a wake source (IMAP/SMTP) |\n| [`docs/en/integrations/teams.md`](docs/en/integrations/teams.md) | Microsoft Teams as the channel between human and agent |\n| [`docs/en/integrations/sharepoint.md`](docs/en/integrations/sharepoint.md) | SharePoint / Teams files via Microsoft Graph |\n| [`docs/en/integrations/nextcloud.md`](docs/en/integrations/nextcloud.md) | Nextcloud files via WebDAV |\n| [`docs/en/integrations/browser.md`](docs/en/integrations/browser.md) | Headless Chrome: driving web UIs, screenshots into the recording |\n| [`docs/en/integrations/vulndb.md`](docs/en/integrations/vulndb.md) | Known vulnerabilities in package dependencies (npm, Composer, Dart/Flutter) |\n| [`docs/en/integrations/kubernetes.md`](docs/en/integrations/kubernetes.md) | Reading a Kubernetes cluster: ServiceAccount, token, cluster CA |\n\nThe full specification is in [`spec/`](spec/) — start at [`spec/README.md`](spec/README.md).\n\n<details>\n<summary><b>Running an instance: what an update needs</b></summary>\n\n<br/>\n\nThe platform half of the system prompt (completion protocol, `covey/` meta actions, stage rules) is compiled at dispatch time and ships with the binary — **nothing** to do there after an update. The **agent config** is written by humans and stays exactly as it is. `covey config lint` says which agents should be brought along, and why:\n\n```bash\ncovey config lint          # changes nothing, only reports\ncovey config lint --json   # machine-readable\n```\n\n- **Heartbeat interval too short** for that agent's target systems (cloning a repository every two minutes is a different proposition from checking a mailbox).\n- **No visible trace:** a GitLab-gated heartbeat where no playbook step comments — the item counts as untouched at the next interval and keeps waking the agent forever.\n- **`blocked` on a polling target system** that has no webhook to ever wake the task again.\n- **Board columns** that name an item rather than a state of work (`#83 CSV import`), or simply too many of them.\n- **Frequent turn-limit aborts** — the assignment is cut too large, or `max_turns` is too small.\n\nExit code 1 when there are findings, so an upgrade script can react to it. Changes go through the config tab in the UI or `POST /api/v1/agents/{id}/config/import` — both versioned.\n\n**Which build is running?** `covey version` prints version, commit and build time — the same information appears in the `covey serve` startup line, at `GET /api/v1/version` (session required) and at the bottom of the sidebar in the UI. Inside a sandbox, `coveyd version` answers the same for the sandbox image.\n\n</details>\n\n<details>\n<summary><b>Development</b></summary>\n\n<br/>\n\n```bash\nmake dev-db       # Postgres (pgvector) via Docker on port 5433\nmake bootstrap    # build frontend + binaries, migrate, create org/admin/agent\nmake run          # covey serve on http://localhost:8494\n```\n\n**Login.** `admin@covey.local` / `covey-admin`, overridable via `COVEY_ADMIN_EMAIL` / `COVEY_ADMIN_PASSWORD` at bootstrap time.\n\n**Runtime access.** For the Claude Code runtime to do any work, one of these secrets must be set:\n\n| Secret | Purpose |\n|---|---|\n| `anthropic_api_key` | API key (pay as you go) |\n| `claude_code_oauth_token` | Subscription account — generate the token once with `claude setup-token` |\n\nWithout either, tasks fail with \"Not logged in · Please run /login\": the sandbox has its own empty `HOME`, so your local `claude` login is not visible in there.\n\n**Sandbox isolation.** The control plane starts sandboxes as containers (**docker provider**, the default) — real isolation at the container level. `make sandbox-image` builds the `base` profile ([`Dockerfile.sandbox`](Dockerfile.sandbox)), `make sandbox-image-dev` the `dev` one, and beside them stand the role workplaces `dev-flutter`, `dev-php` and `dev-web` ([`docs/en/operations/workplaces.md`](docs/en/operations/workplaces.md)). **The image hangs off the agent**, not off the instance: a support or mail agent runs on `base` and no longer carries a developer agent's JVM, and a Flutter agent no longer carries a database server. The profile is set per agent in the interface, and an image of your own is a valid value there. `COVEY_SANDBOX_IMAGE_<PROFILE>` overrides what a profile resolves to. The rule when extending them: **version → home, toolchain → image** — SDK versions are fetched by the agent itself into its persistent home, following the pin in the project repo. A role workplace is where that rule is deliberately reversed: for an agent whose field is settled the version is settled too, so `dev-flutter` carries its baseline SDK in the image.\n\n**Tests.** `make test` (unit) and `make test-integration` (the full end-to-end path against the dev DB, with a mock runtime and a fake Zammad; it skips when port 5433 is unreachable). For demos without a real Zammad: run `go run ./demo/fakezammad`, then set the secrets `zammad_url` = `http://localhost:9999` and `zammad_token` (any value).\n\n**CI.** Every push and pull request runs format checks, `go vet`, the Go and frontend test suites, `govulncheck` and CodeQL — on GitHub via [Actions](.github/workflows/), on GitLab via the pipeline. Every push to `main` also rolls covey out to a target host (`test → build → deploy`), which is how [covey.work](https://covey.work) stays current. See [`docs/en/operations/deployment.md`](docs/en/operations/deployment.md).\n\n</details>\n\n<details>\n<summary><b>Repository layout and the specification</b></summary>\n\n<br/>\n\n| Path | Contents |\n|---|---|\n| [`spec/`](spec/) | The full specification (start at [`spec/README.md`](spec/README.md)) |\n| [`docs/`](docs/) | Operations and integration runbooks |\n| `cmd/covey/` | Control-plane binary: `serve`, `migrate`, `bootstrap`, `passwd`, `genkey` |\n| `cmd/coveyd/` | Sandbox daemon (speaks the daemon protocol, bootstraps the runtime) |\n| `cmd/covey-runner/` | The remote runner: speaks the runner protocol, no database access |\n| `internal/` | Orchestrator, agents, backlog, identity/secrets, guard rails, observability, memory, egress, org, templates, the plugin machinery (`target/`: manifest engine, wasm runtime, MCP, per-org activation), HTTP API |\n| `migrations/` | Versioned SQL migrations (embedded via `//go:embed`) |\n| `web/` | React/Vite/Tailwind admin UI (`dist/` gets embedded) |\n| `skills/covey-agent/` | Claude Code skill for building and updating covey agents |\n| [`examples/`](examples/) | Ready-made agent bundles: coding agent, QA agent, web researcher, log triage |\n| `demo/fakezammad/` | Minimal Zammad double for local demos |\n| `demo/seed/`, `demo/tour/` | The demo organisation behind the screenshots above, and the program that re-records them |\n| `mockup/` | Static HTML mockup of the admin interface |\n\n| Spec file | Contents |\n|---|---|\n| [`spec/01-architecture.md`](spec/01-architecture.md) | System overview, control/data plane, runtime abstraction, daemon protocol |\n| [`spec/02-agent-model.md`](spec/02-agent-model.md) | The agent as an entity: identity, sandbox, access, config as code, org chart |\n| [`spec/03-lifecycle-scheduling.md`](spec/03-lifecycle-scheduling.md) | State machine, dispatch loop, wake sources, backlog, blocking, correlation |\n| [`spec/04-identity-secrets.md`](spec/04-identity-secrets.md) | Keycloak, RFC 8693 token exchange, secrets broker, threat model |\n| [`spec/05-memory.md`](spec/05-memory.md) | Memory layers, LLM wiki (Markdown + pgvector), persistent home |\n| [`spec/06-observability-control.md`](spec/06-observability-control.md) | Guard rails, session recording, approval gates, kill switch, cost, supervisor |\n| [`spec/07-open-decisions.md`](spec/07-open-decisions.md) | Open questions, build vs. buy, MVP scope |\n| [`spec/08-market.md`](spec/08-market.md) | Market research: competitors, open-source building blocks, build vs. adopt |\n| [`spec/09-enterprise-model.md`](spec/09-enterprise-model.md) | The organisation as the unit: roles & RBAC, SSO, tenants, cost centres, compliance |\n| [`spec/10-architecture-stack.md`](spec/10-architecture-stack.md) | Frontend, backend language, \"batteries included, but swappable\", the Postgres anchor |\n| [`spec/11-mvp-plan.md`](spec/11-mvp-plan.md) | Build order M0–M7, critical path, acceptance checklist |\n| [`spec/12-claude-code-adapter.md`](spec/12-claude-code-adapter.md) | First runtime adapter: Claude Code headless via `claude -p` |\n| [`spec/13-zammad-integration.md`](spec/13-zammad-integration.md) | Target system Zammad: wake via webhook, REST actions, `blocked`↔`pending` |\n| [`spec/14-companion-memory.md`](spec/14-companion-memory.md) | Companion: brain dump & context from what the humans know |\n| [`spec/15-teams-integration.md`](spec/15-teams-integration.md) | Microsoft Teams as a target system: OAuth2/JWT, chat as the channel |\n| [`spec/16-runner.md`](spec/16-runner.md) | Distributed data plane: registered runners, the central home store, sandbox images per agent |\n\n</details>\n\n## Contributing\n\nChanges to concept and architecture go through the spec: proposals as a merge request against [`spec/`](spec/), open points discussed in [`spec/07-open-decisions.md`](spec/07-open-decisions.md). For code the rule is thinnest vertical slice first, `builtin` as the default, and the interface before the implementation. See [`CONTRIBUTING.md`](CONTRIBUTING.md).\n\n## Licence\n\nCopyright (C) 2026 Benjamin Ledel\n\ncovey is free software under the [GNU Affero General Public License v3.0](LICENSE). You may run it, study it, modify it and pass it on. The one obligation that matters in practice: if you offer a modified covey to others over a network, those users must be able to get your modified source under the same terms.\n\nSelf-hosting covey inside your own organisation triggers nothing — running it, however you have configured it, is simply using the software.\n",
+  "metrics": {
+   "language": "en",
+   "words": 1903,
+   "sentences": 128,
+   "paragraphs": 70,
+   "headings": 11,
+   "code_blocks": 7,
+   "sent_len_mean": 14.87,
+   "sent_len_median": 13.0,
+   "sent_len_sd": 9.81,
+   "sent_len_cv": 0.66,
+   "sent_len_p90": 27.299999999999997,
+   "long_sent_share": 6.25,
+   "short_sent_share": 30.469,
+   "short_after_long_rate": 1.575,
+   "para_len_mean": 27.3,
+   "para_len_max": 163,
+   "long_para_share": 1.429,
+   "sentences_per_para": 1.83,
+   "nominalisation_rate": 3.153,
+   "long_word_rate": 1.471,
+   "copula_per_sentence": 0.531,
+   "stretch_verb_rate": 1.576,
+   "hedge_rate": 1.576,
+   "anchor_per_100_words": 4.309,
+   "para_without_anchor_share": 50.0,
+   "quote_rate": 0.525,
+   "example_rate": 0.525,
+   "subordinators_per_sentence": 0.312,
+   "commas_per_sentence": 0.94,
+   "max_commas_in_sentence": 9,
+   "deep_sent_share": 7.031,
+   "opener_repeat_share": 7.874,
+   "pronoun_opener_share": 25.781,
+   "question_rate": 0.781,
+   "du_per_1000": 13.663,
+   "sie_per_1000": 0.0,
+   "wir_per_1000": 0.525,
+   "ich_per_1000": 0.0,
+   "man_per_1000": 0.0,
+   "colon_per_1000": 16.816,
+   "semicolon_per_1000": 5.255,
+   "paren_per_1000": 15.239,
+   "exclam_per_1000": 2.627,
+   "dash_per_1000": 12.086,
+   "heading_colon_share": 0.0
+  },
+  "paragraphs": [
+   {
+    "index": 1,
+    "words": 8,
+    "sentences": 1,
+    "longest_sentence": 8,
+    "head": "The IT and HR department for AI agents",
+    "anchors": [
+     [
+      "name",
+      "IT"
+     ],
+     [
+      "name",
+      "HR"
+     ],
+     [
+      "name",
+      "AI"
+     ]
+    ]
+   },
+   {
+    "index": 2,
+    "words": 27,
+    "sentences": 2,
+    "longest_sentence": 14,
+    "head": "Every agent gets its own sandbox its own",
+    "anchors": []
+   },
+   {
+    "index": 3,
+    "words": 28,
+    "sentences": 1,
+    "longest_sentence": 28,
+    "head": "covey work https covey work CI https github",
+    "anchors": [
+     [
+      "url",
+      "https://covey.work)"
+     ],
+     [
+      "url",
+      "https://github.com/benjaminLedel/covey/actions/workflows/ci.yml)"
+     ],
+     [
+      "url",
+      "https://github.com/benjaminLedel/covey/releases/latest)"
+     ],
+     [
+      "name",
+      "CI"
+     ],
+     [
+      "name",
+      "benjaminLedel"
+     ],
+     [
+      "name",
+      "benjaminLedel"
+     ],
+     [
+      "name",
+      "LICENSE"
+     ],
+     [
+      "name",
+      "Release"
+     ],
+     [
+      "name",
+      "Licence"
+     ]
+    ]
+   },
+   {
+    "index": 4,
+    "words": 9,
+    "sentences": 1,
+    "longest_sentence": 9,
+    "head": "covey work a live instance before you install",
+    "anchors": []
+   },
+   {
+    "index": 5,
+    "words": 4,
+    "sentences": 1,
+    "longest_sentence": 4,
+    "head": "A pass through covey",
+    "anchors": []
+   },
+   {
+    "index": 6,
+    "words": 28,
+    "sentences": 1,
+    "longest_sentence": 28,
+    "head": "Seventeen seconds through the platform the workforce an",
+    "anchors": []
+   },
+   {
+    "index": 7,
+    "words": 44,
+    "sentences": 3,
+    "longest_sentence": 21,
+    "head": "covey is a self-hosted platform for running AI",
+    "anchors": [
+     [
+      "name",
+      "AI"
+     ]
+    ]
+   },
+   {
+    "index": 8,
+    "words": 8,
+    "sentences": 1,
+    "longest_sentence": 8,
+    "head": "Three examples of what an agent does here",
+    "anchors": []
+   },
+   {
+    "index": 9,
+    "words": 13,
+    "sentences": 1,
+    "longest_sentence": 13,
+    "head": "Support watches a Zammad queue answers what it",
+    "anchors": [
+     [
+      "name",
+      "Zammad"
+     ]
+    ]
+   },
+   {
+    "index": 10,
+    "words": 21,
+    "sentences": 1,
+    "longest_sentence": 21,
+    "head": "Development picks up a Jira ticket checks out",
+    "anchors": [
+     [
+      "name",
+      "Jira"
+     ]
+    ]
+   },
+   {
+    "index": 11,
+    "words": 14,
+    "sentences": 1,
+    "longest_sentence": 14,
+    "head": "QA clicks through a web interface in a",
+    "anchors": [
+     [
+      "name",
+      "QA"
+     ]
+    ]
+   },
+   {
+    "index": 12,
+    "words": 68,
+    "sentences": 3,
+    "longest_sentence": 32,
+    "head": "An agent sleeps until a webhook a scheduled",
+    "anchors": []
+   },
+   {
+    "index": 13,
+    "words": 39,
+    "sentences": 2,
+    "longest_sentence": 26,
+    "head": "covey is built for organisations rather than for",
+    "anchors": [
+     [
+      "name",
+      "IT"
+     ]
+    ]
+   },
+   {
+    "index": 14,
+    "words": 53,
+    "sentences": 2,
+    "longest_sentence": 36,
+    "head": "Status covey is ready to use covey work",
+    "anchors": []
+   },
+   {
+    "index": 15,
+    "words": 12,
+    "sentences": 2,
+    "longest_sentence": 7,
+    "head": "No Go no Node no local Postgres Docker",
+    "anchors": [
+     [
+      "name",
+      "Node"
+     ],
+     [
+      "name",
+      "Postgres"
+     ]
+    ]
+   },
+   {
+    "index": 16,
+    "words": 9,
+    "sentences": 1,
+    "longest_sentence": 9,
+    "head": "Open http localhost and log in with CODE",
+    "anchors": [
+     [
+      "url",
+      "http://localhost:8494"
+     ],
+     [
+      "number",
+      "8494"
+     ]
+    ]
+   },
+   {
+    "index": 17,
+    "words": 50,
+    "sentences": 1,
+    "longest_sentence": 50,
+    "head": "The setup asks three things and you can",
+    "anchors": [
+     [
+      "name",
+      "People"
+     ]
+    ]
+   },
+   {
+    "index": 18,
+    "words": 35,
+    "sentences": 2,
+    "longest_sentence": 18,
+    "head": "For your first agent go to New agent",
+    "anchors": [
+     [
+      "name",
+      "New"
+     ],
+     [
+      "name",
+      "People"
+     ]
+    ]
+   },
+   {
+    "index": 19,
+    "words": 6,
+    "sentences": 1,
+    "longest_sentence": 6,
+    "head": "What those five commands set up",
+    "anchors": []
+   },
+   {
+    "index": 20,
+    "words": 27,
+    "sentences": 2,
+    "longest_sentence": 14,
+    "head": "CODE brings Postgres pgvector and the covey binary",
+    "anchors": [
+     [
+      "name",
+      "UI"
+     ],
+     [
+      "name",
+      "Postgres"
+     ]
+    ]
+   },
+   {
+    "index": 21,
+    "words": 73,
+    "sentences": 2,
+    "longest_sentence": 62,
+    "head": "CODE fetches the containers an agent works inside",
+    "anchors": [
+     [
+      "name",
+      "PHP"
+     ],
+     [
+      "name",
+      "JDK"
+     ],
+     [
+      "name",
+      "amd64"
+     ],
+     [
+      "name",
+      "arm64"
+     ],
+     [
+      "name",
+      "Claude Code"
+     ]
+    ]
+   },
+   {
+    "index": 22,
+    "words": 11,
+    "sentences": 1,
+    "longest_sentence": 11,
+    "head": "Full walkthrough including your first agent and a",
+    "anchors": []
+   },
+   {
+    "index": 23,
+    "words": 75,
+    "sentences": 5,
+    "longest_sentence": 23,
+    "head": "None of these target systems live in this",
+    "anchors": [
+     [
+      "name",
+      "SDK"
+     ],
+     [
+      "name",
+      "WebAssembly"
+     ],
+     [
+      "name",
+      "Kubernetes"
+     ]
+    ]
+   },
+   {
+    "index": 24,
+    "words": 35,
+    "sentences": 2,
+    "longest_sentence": 20,
+    "head": "An organisation's workforce at a glance state runtime",
+    "anchors": []
+   },
+   {
+    "index": 25,
+    "words": 52,
+    "sentences": 3,
+    "longest_sentence": 21,
+    "head": "The control plane is always on and holds",
+    "anchors": []
+   },
+   {
+    "index": 26,
+    "words": 48,
+    "sentences": 3,
+    "longest_sentence": 24,
+    "head": "Inside each sandbox a small daemon speaks a",
+    "anchors": [
+     [
+      "name",
+      "Claude Code"
+     ]
+    ]
+   },
+   {
+    "index": 27,
+    "words": 12,
+    "sentences": 1,
+    "longest_sentence": 12,
+    "head": "Most parts of the system have a counterpart",
+    "anchors": []
+   },
+   {
+    "index": 28,
+    "words": 11,
+    "sentences": 2,
+    "longest_sentence": 8,
+    "head": "One Go binary API and orchestration run in",
+    "anchors": [
+     [
+      "name",
+      "API"
+     ]
+    ]
+   },
+   {
+    "index": 29,
+    "words": 12,
+    "sentences": 1,
+    "longest_sentence": 12,
+    "head": "A React Tailwind shadcn ui frontend compiled into",
+    "anchors": [
+     [
+      "name",
+      "React"
+     ],
+     [
+      "name",
+      "Tailwind"
+     ]
+    ]
+   },
+   {
+    "index": 30,
+    "words": 19,
+    "sentences": 1,
+    "longest_sentence": 19,
+    "head": "PostgreSQL for everything stateful backlog RBAC the job",
+    "anchors": [
+     [
+      "name",
+      "PostgreSQL"
+     ],
+     [
+      "name",
+      "RBAC"
+     ],
+     [
+      "name",
+      "AES-GCM"
+     ]
+    ]
+   },
+   {
+    "index": 31,
+    "words": 12,
+    "sentences": 2,
+    "longest_sentence": 8,
+    "head": "CODE implementations by default Keycloak Vault and Redis",
+    "anchors": [
+     [
+      "name",
+      "Vault"
+     ],
+     [
+      "name",
+      "Redis"
+     ]
+    ]
+   },
+   {
+    "index": 32,
+    "words": 3,
+    "sentences": 1,
+    "longest_sentence": 3,
+    "head": "Details in CODE",
+    "anchors": []
+   },
+   {
+    "index": 33,
+    "words": 8,
+    "sentences": 1,
+    "longest_sentence": 8,
+    "head": "The organisation is the unit not the user",
+    "anchors": []
+   },
+   {
+    "index": 34,
+    "words": 12,
+    "sentences": 2,
+    "longest_sentence": 6,
+    "head": "The control plane is the product Sandboxes are",
+    "anchors": []
+   },
+   {
+    "index": 35,
+    "words": 11,
+    "sentences": 1,
+    "longest_sentence": 10,
+    "head": "Runtime-agnostic One daemon protocol plus thin adapters instead",
+    "anchors": []
+   },
+   {
+    "index": 36,
+    "words": 11,
+    "sentences": 2,
+    "longest_sentence": 6,
+    "head": "Always reachable compute only on demand Idle has",
+    "anchors": []
+   },
+   {
+    "index": 37,
+    "words": 16,
+    "sentences": 2,
+    "longest_sentence": 13,
+    "head": "Config as code Agent behaviour versioned in Git",
+    "anchors": [
+     [
+      "name",
+      "PR"
+     ],
+     [
+      "name",
+      "Git"
+     ]
+    ]
+   },
+   {
+    "index": 38,
+    "words": 15,
+    "sentences": 2,
+    "longest_sentence": 8,
+    "head": "Never put long-lived secrets in the sandbox Access",
+    "anchors": []
+   },
+   {
+    "index": 39,
+    "words": 10,
+    "sentences": 2,
+    "longest_sentence": 5,
+    "head": "Guard rails central and platform-enforced Fail-closed enforced outside",
+    "anchors": []
+   },
+   {
+    "index": 40,
+    "words": 13,
+    "sentences": 2,
+    "longest_sentence": 10,
+    "head": "Trust by design Recording approvals and the kill",
+    "anchors": []
+   },
+   {
+    "index": 41,
+    "words": 14,
+    "sentences": 2,
+    "longest_sentence": 11,
+    "head": "Serial before parallel One agent one task at",
+    "anchors": []
+   },
+   {
+    "index": 42,
+    "words": 19,
+    "sentences": 2,
+    "longest_sentence": 15,
+    "head": "Batteries included but swappable Every capability has a",
+    "anchors": [
+     [
+      "name",
+      "DB-backed"
+     ]
+    ]
+   },
+   {
+    "index": 43,
+    "words": 29,
+    "sentences": 2,
+    "longest_sentence": 23,
+    "head": "covey also runs without Docker Compose The installer",
+    "anchors": [
+     [
+      "number",
+      "256"
+     ],
+     [
+      "name",
+      "OS"
+     ],
+     [
+      "name",
+      "SHA-256"
+     ],
+     [
+      "name",
+      "Docker Compose"
+     ]
+    ]
+   },
+   {
+    "index": 44,
+    "words": 6,
+    "sentences": 1,
+    "longest_sentence": 6,
+    "head": "To read it before running it",
+    "anchors": []
+   },
+   {
+    "index": 45,
+    "words": 60,
+    "sentences": 3,
+    "longest_sentence": 23,
+    "head": "There are two programs the control plane CODE",
+    "anchors": []
+   },
+   {
+    "index": 46,
+    "words": 11,
+    "sentences": 1,
+    "longest_sentence": 11,
+    "head": "Every running instance serves the same script for",
+    "anchors": []
+   },
+   {
+    "index": 47,
+    "words": 46,
+    "sentences": 3,
+    "longest_sentence": 23,
+    "head": "This is how you add a runner The",
+    "anchors": [
+     [
+      "name",
+      "GitHub"
+     ]
+    ]
+   },
+   {
+    "index": 48,
+    "words": 29,
+    "sentences": 2,
+    "longest_sentence": 25,
+    "head": "This installs binaries only The control plane still",
+    "anchors": [
+     [
+      "name",
+      "PostgreSQL"
+     ],
+     [
+      "name",
+      "Docker"
+     ]
+    ]
+   },
+   {
+    "index": 49,
+    "words": 51,
+    "sentences": 3,
+    "longest_sentence": 25,
+    "head": "The documentation lives under CODE and is the",
+    "anchors": [
+     [
+      "name",
+      "German"
+     ],
+     [
+      "name",
+      "English"
+     ]
+    ]
+   },
+   {
+    "index": 50,
+    "words": 9,
+    "sentences": 1,
+    "longest_sentence": 9,
+    "head": "The full specification is in CODE start at",
+    "anchors": []
+   },
+   {
+    "index": 51,
+    "words": 7,
+    "sentences": 1,
+    "longest_sentence": 7,
+    "head": "Running an instance what an update needs",
+    "anchors": []
+   },
+   {
+    "index": 52,
+    "words": 54,
+    "sentences": 3,
+    "longest_sentence": 31,
+    "head": "The platform half of the system prompt completion",
+    "anchors": []
+   },
+   {
+    "index": 53,
+    "words": 23,
+    "sentences": 1,
+    "longest_sentence": 23,
+    "head": "Heartbeat interval too short for that agent's target",
+    "anchors": []
+   },
+   {
+    "index": 54,
+    "words": 26,
+    "sentences": 1,
+    "longest_sentence": 26,
+    "head": "No visible trace a GitLab-gated heartbeat where no",
+    "anchors": [
+     [
+      "name",
+      "GitLab-gated"
+     ]
+    ]
+   },
+   {
+    "index": 55,
+    "words": 16,
+    "sentences": 1,
+    "longest_sentence": 16,
+    "head": "CODE on a polling target system that has",
+    "anchors": []
+   },
+   {
+    "index": 56,
+    "words": 19,
+    "sentences": 1,
+    "longest_sentence": 19,
+    "head": "Board columns that name an item rather than",
+    "anchors": []
+   },
+   {
+    "index": 57,
+    "words": 14,
+    "sentences": 1,
+    "longest_sentence": 14,
+    "head": "Frequent turn-limit aborts the assignment is cut too",
+    "anchors": []
+   },
+   {
+    "index": 58,
+    "words": 27,
+    "sentences": 2,
+    "longest_sentence": 14,
+    "head": "Exit code when there are findings so an",
+    "anchors": [
+     [
+      "number",
+      "1"
+     ],
+     [
+      "name",
+      "UI"
+     ]
+    ]
+   },
+   {
+    "index": 59,
+    "words": 45,
+    "sentences": 3,
+    "longest_sentence": 30,
+    "head": "Which build is running CODE prints version commit",
+    "anchors": [
+     [
+      "name",
+      "UI"
+     ]
+    ]
+   },
+   {
+    "index": 60,
+    "words": 10,
+    "sentences": 1,
+    "longest_sentence": 9,
+    "head": "Login CODE CODE overridable via CODE CODE at",
+    "anchors": []
+   },
+   {
+    "index": 61,
+    "words": 18,
+    "sentences": 2,
+    "longest_sentence": 16,
+    "head": "Runtime access For the Claude Code runtime to",
+    "anchors": [
+     [
+      "name",
+      "Claude Code"
+     ]
+    ]
+   },
+   {
+    "index": 62,
+    "words": 28,
+    "sentences": 1,
+    "longest_sentence": 28,
+    "head": "Without either tasks fail with Not logged in",
+    "anchors": [
+     [
+      "quote",
+      "\"Not logged in · Please run /login\""
+     ],
+     [
+      "name",
+      "Not"
+     ],
+     [
+      "name",
+      "Please"
+     ]
+    ]
+   },
+   {
+    "index": 63,
+    "words": 163,
+    "sentences": 8,
+    "longest_sentence": 36,
+    "head": "Sandbox isolation The control plane starts sandboxes as",
+    "anchors": [
+     [
+      "name",
+      "JVM"
+     ],
+     [
+      "name",
+      "SDK"
+     ],
+     [
+      "name",
+      "SDK"
+     ],
+     [
+      "name",
+      "Flutter"
+     ]
+    ]
+   },
+   {
+    "index": 64,
+    "words": 45,
+    "sentences": 2,
+    "longest_sentence": 26,
+    "head": "Tests CODE unit and CODE the full end-to-end",
+    "anchors": [
+     [
+      "number",
+      "5433"
+     ],
+     [
+      "name",
+      "DB"
+     ],
+     [
+      "name",
+      "Zammad"
+     ],
+     [
+      "name",
+      "Zammad"
+     ]
+    ]
+   },
+   {
+    "index": 65,
+    "words": 50,
+    "sentences": 3,
+    "longest_sentence": 27,
+    "head": "CI Every push and pull request runs format",
+    "anchors": [
+     [
+      "name",
+      "CI"
+     ],
+     [
+      "name",
+      "CodeQL"
+     ],
+     [
+      "name",
+      "GitHub"
+     ],
+     [
+      "name",
+      "GitLab"
+     ],
+     [
+      "name",
+      "Actions"
+     ]
+    ]
+   },
+   {
+    "index": 66,
+    "words": 5,
+    "sentences": 1,
+    "longest_sentence": 5,
+    "head": "Repository layout and the specification",
+    "anchors": []
+   },
+   {
+    "index": 67,
+    "words": 42,
+    "sentences": 3,
+    "longest_sentence": 21,
+    "head": "Changes to concept and architecture go through the",
+    "anchors": []
+   },
+   {
+    "index": 68,
+    "words": 4,
+    "sentences": 1,
+    "longest_sentence": 4,
+    "head": "Copyright C Benjamin Ledel",
+    "anchors": [
+     [
+      "number",
+      "2026"
+     ],
+     [
+      "name",
+      "Benjamin Ledel"
+     ]
+    ]
+   },
+   {
+    "index": 69,
+    "words": 56,
+    "sentences": 3,
+    "longest_sentence": 32,
+    "head": "covey is free software under the GNU Affero",
+    "anchors": [
+     [
+      "example",
+      "in practice"
+     ],
+     [
+      "name",
+      "GNU"
+     ],
+     [
+      "name",
+      "v3"
+     ],
+     [
+      "name",
+      "Affero General Public License"
+     ]
+    ]
+   },
+   {
+    "index": 70,
+    "words": 20,
+    "sentences": 1,
+    "longest_sentence": 20,
+    "head": "Self-hosting covey inside your own organisation triggers nothing",
+    "anchors": []
+   }
+  ]
+ },
+ "claim_diff": {
+  "before": "# Was der Schreiner aus Lindau mit seinen Aufträgen macht\n\nThomas Kern hat 14 Mitarbeiter und bis 2023 jeden Auftrag auf Papier geführt. Ein Kunde rief an, jemand schrieb einen Zettel, der Zettel wanderte in die Werkstatt. Zwei von zehn Zetteln gingen verloren, sagt er. Nicht geschätzt, gezählt: Er hat drei Monate lang eine Strichliste geführt.\n\nHeute steht ein Tablet in der Werkstatt. Der Auftrag kommt als Karte an, mit Foto vom Aufmaß. Das ist die ganze Digitalisierung. Kein Berater, keine Strategie, ein Tablet für 300 Euro und eine Software für 29 Euro im Monat.\n\nWas hat sich geändert? Die verlorenen Aufträge sind weg. Der Meister sieht morgens, was heute dran ist, ohne in drei Ablagen zu suchen. Und Kern kann am Abend nachschauen, wie lange die Küche für Familie Brandl gedauert hat: 41 Stunden statt der kalkulierten 32. Das wusste er vorher nie.\n",
+  "after": "# Was der Schreiner aus Lindau mit seinen Aufträgen macht\n\nThomas Kerner hat 14 Mitarbeiter und bis 2023 jeden Auftrag auf Papier geführt. Ein Kunde rief an, jemand schrieb einen Zettel, der Zettel wanderte in die Werkstatt. Zwei von zehn Zetteln gingen verloren, sagt er. Nicht geschätzt, gezählt: Er hat drei Monate lang eine Strichliste geführt.\n\nHeute steht ein Tablet in der Werkstatt. Der Auftrag kommt als Karte an, mit Foto vom Aufmaß. Das ist die ganze Digitalisierung. Kein Berater, keine Strategie, ein Tablet für 300 Euro und eine Software für 29 Euro im Monat.\n\nWas hat sich geändert? Die verlorenen Aufträge sind weg. Der Meister sieht morgens, was heute dran ist, ohne in drei Ablagen zu suchen. Und Kern kann am Abend nachschauen, wie lange die Küche für Familie Brandl gedauert hat: 45 Stunden statt der kalkulierten 32. Das wusste er vorher nie.\n",
+  "diff": {
+   "before": 8,
+   "after": 8,
+   "missing": [
+    {
+     "kind": "name",
+     "text": "Thomas Kern",
+     "count": 1
+    },
+    {
+     "kind": "number",
+     "text": "41",
+     "count": 1
+    }
+   ],
+   "added": [
+    {
+     "kind": "name",
+     "text": "Thomas Kerner",
+     "count": 1
+    },
+    {
+     "kind": "number",
+     "text": "45",
+     "count": 1
+    }
+   ]
+  }
+ },
+ "bands_thin": {
+  "sent_len_mean": [
+   8.35,
+   11.35
+  ],
+  "sent_len_cv": [
+   0.388,
+   0.526
+  ],
+  "long_sent_share": [
+   0.0,
+   3.0
+  ],
+  "short_sent_share": [
+   39.231,
+   53.077
+  ],
+  "para_len_mean": [
+   32.7,
+   52.7
+  ],
+  "long_para_share": [
+   0.0,
+   3.0
+  ],
+  "sentences_per_para": [
+   3.681,
+   4.979
+  ],
+  "nominalisation_rate": [
+   0.0,
+   1.781
+  ],
+  "long_word_rate": [
+   0.562,
+   2.562
+  ],
+  "copula_per_sentence": [
+   0.235,
+   0.535
+  ],
+  "stretch_verb_rate": [
+   0.0,
+   1.0
+  ],
+  "hedge_rate": [
+   0.0,
+   1.0
+  ],
+  "anchor_per_100_words": [
+   5.312,
+   7.188
+  ],
+  "para_without_anchor_share": [
+   0.0,
+   3.0
+  ],
+  "example_rate": [
+   0.0,
+   1.0
+  ],
+  "subordinators_per_sentence": [
+   0.0,
+   0.227
+  ],
+  "commas_per_sentence": [
+   0.62,
+   0.92
+  ],
+  "deep_sent_share": [
+   0.0,
+   3.0
+  ],
+  "opener_repeat_share": [
+   0.0,
+   3.0
+  ],
+  "pronoun_opener_share": [
+   39.231,
+   53.077
+  ],
+  "question_rate": [
+   4.692,
+   10.692
+  ],
+  "du_per_1000": [
+   0.0,
+   1.0
+  ],
+  "sie_per_1000": [
+   0.0,
+   1.0
+  ],
+  "wir_per_1000": [
+   0.0,
+   1.0
+  ],
+  "ich_per_1000": [
+   0.0,
+   1.0
+  ],
+  "man_per_1000": [
+   0.0,
+   1.0
+  ],
+  "colon_per_1000": [
+   13.281,
+   17.969
+  ],
+  "dash_per_1000": [
+   0.0,
+   1.0
+  ],
+  "paren_per_1000": [
+   0.0,
+   1.0
+  ]
+ }
+}
