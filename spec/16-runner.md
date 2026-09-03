@@ -461,7 +461,7 @@ The image therefore belongs **on the agent** (D11 in [`07-open-decisions.md`](07
 
 | Profile | Contents | For whom |
 |---|---|---|
-| `base` | coveyd, Node, git, chromium, ripgrep | support, mail, QA, research |
+| `base` | coveyd, Node, Python, git, chromium, ripgrep | support, mail, QA, research |
 | `dev` | + PHP, JDK, `fvm`, `uv`, node-gyp | developer agents without a settled field |
 | `dev-flutter` | + Flutter SDK (in the image), `fvm`, JDK | Flutter agents |
 | `dev-php` | + PHP 8.2, Composer, MariaDB, node-gyp | PHP/Laravel agents |

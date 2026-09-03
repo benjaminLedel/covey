@@ -38,8 +38,16 @@ FROM node:26-slim
 # trotzdem da (#113): Der Agent leitet eine API-Antwort hindurch, bekommt
 # „command not found" und sucht den Fehler ab da bei sich — nachinstallieren
 # kann er nichts, er ist nicht root. Ein Megabyte gegen diese Sackgasse.
+#
+# python3 with venv and pip, for the same reason as jq (#186): skills and
+# small scripts are the everyday case, not the exception. The blog writer's
+# workplace answered `python3: command not found` to the style skill's scripts
+# and the agent spent its turns writing a Node port of them instead of the
+# post. A workplace that cannot run a twenty-line script is a desk without a
+# calculator; the agent cannot install one itself.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         git ca-certificates curl jq ripgrep unzip chromium \
+        python3 python3-venv python3-pip \
     && rm -rf /var/lib/apt/lists/*
 # Damit chromedp den Browser ohne Rätselraten findet.
 ENV COVEY_BROWSER_CHROME_PATH=/usr/bin/chromium
