@@ -278,7 +278,7 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 		return map[string]string{"status": "ok", "stage": in.Stage}
 	case "list_targets", "get_agent_config", "create_agent", "set_agent_config",
 		"work_record", "read_recording", "propose_agent_config", "write_review",
-		"start_services":
+		"start_services", "style_check", "style_apply":
 		// Die Meta-Actions an der Registry der Plattform: Entwerfen (spec/20)
 		// und Begutachten (spec/21). Alles wird in der Control Plane
 		// entschieden — Scope, Guard-Rails, Freigaben —, der Proxy trägt die
@@ -304,6 +304,13 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 			// Steuerebene nicht auflösbar, sie sieht nicht in die Sandbox.
 			Compose string   `json:"compose"`
 			Only    []string `json:"only"`
+			// Text as a platform service (style_check, style_apply): the draft
+			// travels as text, so that the platform measures it and the gate
+			// sees it — a file path would point into a sandbox nobody reads.
+			Text     string `json:"text"`
+			Material string `json:"material"`
+			MaxIter  int    `json:"max_iter"`
+			Language string `json:"language"`
 		}
 		_ = json.Unmarshal(params, &in)
 		resp, err := p.client.hiring(ctx, RequestHiring{
@@ -313,6 +320,7 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 			Task: in.Task, Days: in.Days, Title: in.Title, Rationale: in.Rationale,
 			Summary: in.Summary, Findings: in.Findings, Issues: in.Issues,
 			Compose: in.Compose, Only: in.Only,
+			Text: in.Text, Material: in.Material, MaxIter: in.MaxIter, Language: in.Language,
 		})
 		if err != nil {
 			return map[string]string{"status": "error", "error": err.Error()}
@@ -331,7 +339,8 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 			return map[string]string{"status": "error", "error": resp.Error}
 		}
 		audit, _ := json.Marshal(map[string]any{"action": "covey:" + action,
-			"agent": in.Agent, "slug": in.Slug, "display_name": in.DisplayName})
+			"agent": in.Agent, "slug": in.Slug, "display_name": in.DisplayName,
+			"text_chars": len(in.Text)})
 		_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
 		return map[string]any{"status": "ok", "data": resp.Data}
 

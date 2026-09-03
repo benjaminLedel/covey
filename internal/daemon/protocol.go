@@ -430,6 +430,16 @@ type RequestHiring struct {
 	// (propose_agent_config): file name → complete content.
 	Files map[string]string `json:"files,omitempty"`
 
+	// --- Text as a platform service (style_check, style_apply) ---
+
+	// Text is the draft to measure or revise; Material names the facts a
+	// revision may add; MaxIter caps the revision loop (0: the default);
+	// Language forces "de"/"en" instead of detecting it.
+	Text     string `json:"text,omitempty"`
+	Material string `json:"material,omitempty"`
+	MaxIter  int    `json:"max_iter,omitempty"`
+	Language string `json:"language,omitempty"`
+
 	// --- Review (spec/21), unlocked by `scope: agents:review` ---
 
 	// Task addresses one run (read_recording): the id of the backlog task,

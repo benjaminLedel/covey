@@ -81,6 +81,13 @@ var coveyOps = map[string]coveyOp{
 	// Agenten Kollegen entwerfen, und ein QA-Agent, der eine Datenbank braucht,
 	// hat damit nichts zu schaffen.
 	"start_services": {Subject: "covey:start_services", Scopes: []string{scopeServices}},
+
+	// Text as a platform service (styleservice.go): no scope, like the wiki.
+	// Measuring a text changes nothing; revising one costs the organisation's
+	// model credit and is recorded, and a guard rail on covey:style_apply can
+	// gate it where that matters.
+	"style_check": {Subject: "covey:style_check"},
+	"style_apply": {Subject: "covey:style_apply"},
 }
 
 // hiringSystem is the name of the access in ACCESS.md that unlocks these
@@ -168,7 +175,7 @@ func (o *Orchestrator) hiring(ctx context.Context, agent agents.Agent, taskID uu
 	// actions is a colleague or a judgement about one. The error names the whole
 	// line, scope included: whoever reads it is a human editing a config, and
 	// half a line is a second round trip.
-	if !o.mayUsecovey(ctx, agent, def.Scopes...) {
+	if len(def.Scopes) > 0 && !o.mayUsecovey(ctx, agent, def.Scopes...) {
 		return fail("%s", "this agent has no access to the platform's own system "+
 			"(`- system: "+hiringSystem+" scope: "+strings.Join(def.Scopes, "` or `")+"` in ACCESS.md)")
 	}
@@ -221,6 +228,10 @@ func (o *Orchestrator) hiring(ctx context.Context, agent agents.Agent, taskID uu
 		return o.reviewWrite(ctx, agent, taskID, req, ok, fail)
 	case "start_services":
 		return o.startServices(ctx, agent, taskID, req, ok, fail)
+	case "style_check":
+		return o.styleCheckAction(ctx, agent, req, ok, fail)
+	case "style_apply":
+		return o.styleApplyAction(ctx, agent, taskID, req, ok, fail)
 	}
 	return fail("unknown covey action %q", op)
 }

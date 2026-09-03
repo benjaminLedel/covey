@@ -28,6 +28,12 @@ const CoveyActionsDoc = `The platform's own actions — your board, your memory,
    your durable memory of linked pages. A page is a THING (customer, project, system,
    recurring problem), not a diary entry about a single case.
    org_chart {} — who else works here, and for what.
+   style_check {"text":"<draft>"} — the platform measures a text against your style profile
+   (anchors per paragraph, nominalisations, sentence shape, voice) and names the paragraphs
+   and metrics to fix. Use it before you file a draft; it needs nothing in your workplace.
+   style_apply {"text":"<draft>","material":"<facts it may add>","max_iter":3} — the platform
+   revises the named paragraphs with its model, measures again and hands back the best version
+   with what remains. Only facts in the text or the material go in; the rest stays as it was.
    create_task {"title":"...","body":"<assignment with all names>","agent":"<slug, optional>"} —
    a task of your own for the rest, or a delegation to a colleague. The assignment is a
    handover to somebody without your context.
