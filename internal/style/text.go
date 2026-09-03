@@ -254,6 +254,28 @@ func splitSentences(paragraph string) []string {
 	return out
 }
 
+// IsProse says whether a string is text at all: at least 85 % of its
+// non-space characters are letters or digits. Shell commands, JSON and code
+// sit far below that (quotes, slashes, pipes, braces); Markdown prose with
+// bold, links and lists sits well above. The first real run of the style gate
+// measured a jq pipeline as an eighty-word sentence.
+func IsProse(text string) bool {
+	letters, other := 0, 0
+	for _, r := range text {
+		switch {
+		case unicode.IsSpace(r):
+		case unicode.IsLetter(r) || unicode.IsDigit(r):
+			letters++
+		default:
+			other++
+		}
+	}
+	if letters == 0 {
+		return false
+	}
+	return float64(letters)/float64(letters+other) >= 0.85
+}
+
 // DetectLanguage says whether a text reads as German or English ("de"/"en").
 func DetectLanguage(text string) string {
 	prose, _, _ := stripMarkdown(text, false)
