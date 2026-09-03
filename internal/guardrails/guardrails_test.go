@@ -117,3 +117,34 @@ func TestBudgetLimitTightestWins(t *testing.T) {
 		t.Fatalf("no rule means no cap, got %v", got)
 	}
 }
+
+func TestStyleGateRules(t *testing.T) {
+	agent := uuid.New()
+	other := uuid.New()
+	rules := []Rule{
+		{ScopeLevel: "global", RuleType: RuleStyleGate, Pattern: "gitlab:comment*", Enabled: true, Params: json.RawMessage(`{"mode":"deny","min_words":40}`)},
+		{ScopeLevel: "agent", AgentID: &other, RuleType: RuleStyleGate, Pattern: "*", Enabled: true},
+		{ScopeLevel: "global", RuleType: RuleStyleGate, Pattern: "mail:*", Enabled: false},
+		{ScopeLevel: "global", RuleType: RuleRequireApproval, Pattern: "*", Enabled: true},
+	}
+	got := StyleGates(rules, agent, "gitlab:comment_mr")
+	if len(got) != 1 || got[0].Pattern != "gitlab:comment*" {
+		t.Fatalf("StyleGates: %+v", got)
+	}
+	p, err := ParseStyleGate(got[0])
+	if err != nil || p.Mode != StyleModeDeny || p.MinWords != 40 || p.MaxDenials != 2 {
+		t.Fatalf("params: %+v %v", p, err)
+	}
+	if v := Evaluate(rules, agent, "gitlab:comment_mr"); v.Decision != RequireApproval {
+		t.Fatalf("a style gate must not change Evaluate: %v", v.Decision)
+	}
+	if got := StyleGates(rules, agent, "mail:send"); len(got) != 0 {
+		t.Fatalf("disabled rule applied: %+v", got)
+	}
+	if err := Validate(Rule{ScopeLevel: "global", RuleType: RuleStyleGate, Pattern: "*", Params: json.RawMessage(`{"mode":"loud"}`)}); err == nil {
+		t.Fatal("unknown mode accepted")
+	}
+	if err := Validate(Rule{ScopeLevel: "global", RuleType: RuleStyleGate, Pattern: "*"}); err != nil {
+		t.Fatalf("defaults rejected: %v", err)
+	}
+}

@@ -91,7 +91,9 @@ export default function Guardrails({ me }: { me: Principal }) {
           <span className="mono text-sm flex-1" style={r.enabled ? undefined : { opacity: 0.45 }}>
             {r.rule_type === "budget_limit" && r.params?.usd
               ? `≤ ${fmtUSD(r.params.usd)}`
-              : r.pattern}
+              : r.rule_type === "style_gate"
+                ? `${r.pattern} · ${t(`guardrails.styleModes.${String(r.params?.mode ?? "warn")}`)}`
+                : r.pattern}
           </span>
           <span className="muted text-xs" title={r.agent_id ? agentName(r.agent_id) : undefined}>
             {r.scope_level === "agent"
@@ -131,9 +133,12 @@ function CreateRule({ agents }: { agents: Agent[] }) {
   const [ruleType, setRuleType] = useState("require_approval");
   const [pattern, setPattern] = useState("");
   const [usd, setUsd] = useState("");
+  const [styleMode, setStyleMode] = useState("warn");
+  const [minWords, setMinWords] = useState("60");
   const [agentID, setAgentID] = useState("");
   const [error, setError] = useState("");
   const isBudget = ruleType === "budget_limit";
+  const isStyle = ruleType === "style_gate";
   const mut = useMutation({
     mutationFn: () =>
       post("/guardrails", {
@@ -141,7 +146,11 @@ function CreateRule({ agents }: { agents: Agent[] }) {
         pattern: isBudget ? "*" : pattern,
         scope_level: agentID ? "agent" : "global",
         agent_id: agentID || undefined,
-        params: isBudget ? { usd: Number(usd) } : undefined,
+        params: isBudget
+          ? { usd: Number(usd) }
+          : isStyle
+            ? { mode: styleMode, min_words: Number(minWords) || 60 }
+            : undefined,
       }),
     onSuccess: () => {
       setPattern("");
@@ -167,6 +176,7 @@ function CreateRule({ agents }: { agents: Agent[] }) {
             <option value="deny_action">{t("guardrails.ruleTypes.deny_action")}</option>
             <option value="deny_system">{t("guardrails.ruleTypes.deny_system")}</option>
             <option value="budget_limit">{t("guardrails.ruleTypes.budget_limit")}</option>
+            <option value="style_gate">{t("guardrails.ruleTypes.style_gate")}</option>
           </select>
         </div>
         {isBudget ? (
@@ -194,6 +204,29 @@ function CreateRule({ agents }: { agents: Agent[] }) {
               required
             />
           </div>
+        )}
+        {isStyle && (
+          <>
+            <div className="min-w-44">
+              <label>{t("guardrails.styleMode")}</label>
+              <select value={styleMode} onChange={(e) => setStyleMode(e.target.value)}>
+                <option value="warn">{t("guardrails.styleModes.warn")}</option>
+                <option value="deny">{t("guardrails.styleModes.deny")}</option>
+                <option value="approval">{t("guardrails.styleModes.approval")}</option>
+              </select>
+            </div>
+            <div className="min-w-28">
+              <label>{t("guardrails.styleMinWords")}</label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={minWords}
+                onChange={(e) => setMinWords(e.target.value)}
+                className="mono"
+              />
+            </div>
+          </>
         )}
         <div className="min-w-44">
           <label>{t("guardrails.scope")}</label>

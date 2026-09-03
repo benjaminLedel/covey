@@ -172,8 +172,13 @@ type Orchestrator struct {
 	// task, and a state that changes only when a human acts does not need to be
 	// stated twice a minute — that would bury the recording of the run people
 	// are actually looking for.
-	noCredMu    sync.Mutex
-	noCredNoted map[uuid.UUID]time.Time
+	noCredMu sync.Mutex
+
+	// styleDenials counts, per task and action, how often the style gate sent a
+	// text back to the agent, so that a deny does not loop forever (stylegate.go).
+	styleMu      sync.Mutex
+	styleDenials map[string]int
+	noCredNoted  map[uuid.UUID]time.Time
 
 	events *Broadcaster
 
@@ -3255,6 +3260,11 @@ func (o *Orchestrator) decideAction(ctx context.Context, agent agents.Agent, tas
 			ApprovalID: v.ApprovalID, CorrelationKey: v.CorrelationKey}
 
 	default:
+		// A style gate applies only where nothing forbids or gates the action:
+		// a measurement on top of an allow, never a way around a deny.
+		if d := o.styleGate(ctx, agent, taskID, req, rules); d != nil {
+			return *d
+		}
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindApproval,
 			map[string]any{"action": req.Action, "decision": "auto-allow"})
 		return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "approved"}

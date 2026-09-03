@@ -24,6 +24,7 @@ Guard rails take effect exactly where the control plane and the daemon control t
 | **Approval queue** | Actions that are not forbidden but require approval (see below). |
 | **Rate & cost limits** | Frequency of actions, budget caps (see cost control). |
 | **Content filter** | Incoming/outgoing content: PII redaction, forbidden content classes. |
+| **Style gate** | Outgoing free text (a comment, an MR description, a mail) measured against the agent's `TONE.md` profile before the action runs (see below). |
 
 ### Types of guard rail
 
@@ -33,6 +34,7 @@ Guard rails take effect exactly where the control plane and the daemon control t
 - **Mandatory approvals** — actions that only run with a human sign-off.
 - **Rate/cost limits** — upper bounds per time window / per task / per agent.
 - **Content/PII rules** — redaction, classification, blocking of sensitive content.
+- **Style gate** — the free text of an action has to land inside the bands of the agent's style profile; findings warn, go back to the agent, or go to approval (see below).
 
 ### Scope & inheritance
 
@@ -43,6 +45,22 @@ Guard rails are **managed centrally** and take effect on three overlapping level
 3. **Per agent** — additional, narrower rules for an individual agent.
 
 Rules are **additive-restrictive**: a narrower level can tighten but never soften a global deny rule. The default is **fail-closed** — what is not allowed is forbidden; in doubt it is blocked or gated.
+
+### The style gate
+
+A `TONE.md` steers an agent's voice through the prompt, and like every prompt rule it is self-binding: nothing checks whether the text that leaves the sandbox follows it. Text that agents write for humans goes generic when the agent has nothing concrete at hand — nominalisations instead of verbs, hedges, no number, name or example in a paragraph — and a reader notices before any rule does.
+
+The style gate is a guard-rail type (`style_gate`) that measures the free text of an action before the action runs. Its pattern is the action (`gitlab:comment*`, `mail:*`); its params say what a finding does:
+
+| Mode | Effect |
+|---|---|
+| `warn` | The findings are recorded as a guard-rail event; the action passes. |
+| `deny` | The action is denied and the findings are the reason: which paragraphs (named by their first words), which metric, what band. The agent revises and retries — the revision loop of the covey-style skill with the agent's own runtime as the model, and no second model call in the control plane. After `max_denials` (default 2) on the same task and action the text goes to the approval gate with the findings attached, so a loop that does not converge ends with a human and not with the turn limit. |
+| `approval` | The text goes to the approval gate at once, findings attached for the reviewer. |
+
+What is measured comes from the ` ```style-profile ` block in the agent's `TONE.md` ([`02-agent-model.md`](02-agent-model.md)): bands per metric that an author's corpus set — anchors per paragraph, nominalisations and light-verb constructions, hedges, sentence and paragraph shape, clause depth, address, punctuation — plus absolute floors no reader gets through (a paragraph without any number, name, quote, example or link; a sentence over 35 words). The gate acts on a **HIGH** finding: a metric a full band width outside the author's band, or over an absolute floor. MEDIUM findings and the pointers to paragraphs travel with the reason as guidance for the revision; on their own they do not trigger — the house's own texts have paragraphs without an anchor too, and a gate that fires on everything is furniture. Texts under `min_words` (default 60) are not measured; a one-line comment has no style. When several rules match, `deny` beats `approval` beats `warn`, and the lower thresholds win.
+
+Two limits are deliberate. The gate is a measurement, not a security boundary: without a profile in the config it records that it did not apply and lets the action pass, and it sits only on the allow path — a deny or a mandatory approval from another rule is never softened by it. And the profile is produced outside the platform: the skill reads a corpus, measures it (`covey style stats --profile` does the same on the command line) and writes the voice; the platform only holds the agent to it.
 
 ### Administration
 

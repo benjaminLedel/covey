@@ -141,3 +141,17 @@ func TestTeamSectionSupervisor(t *testing.T) {
 		t.Fatalf("the note about merge requests to the manager is missing: %q", s)
 	}
 }
+
+func TestCompilePromptStripsStyleProfileBlock(t *testing.T) {
+	files := map[string]string{
+		"SOUL.md": "# Agent",
+		"TONE.md": "## Voice\n\n1. Kurze Sätze.\n\n```style-profile\n{\"schema\":\"covey-style/1\",\"bands\":{\"sent_len_mean\":[10,18]}}\n```\n",
+	}
+	p := CompilePrompt(files)
+	if !strings.Contains(p, "Kurze Sätze") {
+		t.Fatal("the voice has to reach the prompt")
+	}
+	if strings.Contains(p, "style-profile") || strings.Contains(p, "sent_len_mean") {
+		t.Fatal("the profile block must not be compiled into the prompt")
+	}
+}
