@@ -143,15 +143,18 @@ func TestTeamSectionSupervisor(t *testing.T) {
 }
 
 func TestCompilePromptStripsStyleProfileBlock(t *testing.T) {
+	block := "```style-profile\n{\"schema\":\"covey-style/1\",\"bands\":{\"sent_len_mean\":[10,18]}}\n```\n"
 	files := map[string]string{
-		"SOUL.md": "# Agent",
-		"TONE.md": "## Voice\n\n1. Kurze Sätze.\n\n```style-profile\n{\"schema\":\"covey-style/1\",\"bands\":{\"sent_len_mean\":[10,18]}}\n```\n",
+		// In SOUL.md (the fixed order) as well as in TONE.md (the rest): an agent
+		// without a TONE.md carries the block under SOUL.md's ## Tone.
+		"SOUL.md": "# Agent\n\n## Tone\n\nMeasured, not described.\n\n" + block + "\n" + block,
+		"TONE.md": "## Voice\n\n1. Kurze Sätze.\n\n" + block,
 	}
 	p := CompilePrompt(files)
-	if !strings.Contains(p, "Kurze Sätze") {
+	if !strings.Contains(p, "Kurze Sätze") || !strings.Contains(p, "Measured, not described") {
 		t.Fatal("the voice has to reach the prompt")
 	}
 	if strings.Contains(p, "style-profile") || strings.Contains(p, "sent_len_mean") {
-		t.Fatal("the profile block must not be compiled into the prompt")
+		t.Fatal("no profile block may be compiled into the prompt, from any file")
 	}
 }

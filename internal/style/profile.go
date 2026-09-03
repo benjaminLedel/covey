@@ -47,6 +47,39 @@ func ParseProfile(markdown string) (Profile, string, error) {
 	return p, strings.TrimSpace(markdown[:m[0]]), nil
 }
 
+// ParseProfiles reads every profile block of a Markdown file, in order. A
+// bilingual agent carries one block per language.
+func ParseProfiles(markdown string) []Profile {
+	var out []Profile
+	for _, m := range reProfileBlock.FindAllStringSubmatch(markdown, -1) {
+		var p Profile
+		if err := json.Unmarshal([]byte(m[1]), &p); err != nil {
+			continue
+		}
+		if p.Schema != "" && p.Schema != Schema {
+			continue
+		}
+		out = append(out, p)
+	}
+	return out
+}
+
+// PickProfile returns the profile whose language matches, or false. A profile
+// without a language counts for every text.
+func PickProfile(profiles []Profile, lang string) (Profile, bool) {
+	for _, p := range profiles {
+		if p.Language == lang {
+			return p, true
+		}
+	}
+	for _, p := range profiles {
+		if p.Language == "" {
+			return p, true
+		}
+	}
+	return Profile{}, false
+}
+
 // StripProfileBlock removes the ```style-profile``` block from a Markdown
 // file, for the prompt: the model reads the voice, the gate reads the numbers.
 func StripProfileBlock(markdown string) string {
