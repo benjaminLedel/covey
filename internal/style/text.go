@@ -254,6 +254,12 @@ func splitSentences(paragraph string) []string {
 	return out
 }
 
+// DetectLanguage says whether a text reads as German or English ("de"/"en").
+func DetectLanguage(text string) string {
+	prose, _, _ := stripMarkdown(text, false)
+	return detectLanguage(wordsOf(prose))
+}
+
 // detectLanguage counts stopwords of the first 4000 words.
 func detectLanguage(words []string) string {
 	if len(words) > 4000 {

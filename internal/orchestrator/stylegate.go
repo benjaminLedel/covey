@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/google/uuid"
@@ -55,9 +56,18 @@ func (o *Orchestrator) styleGate(ctx context.Context, agent agents.Agent, taskID
 			Data: map[string]string{"action": req.Action, "decision": decision, "rule": guardrails.RuleStyleGate}})
 	}
 
-	profile, ok := o.styleProfile(ctx, agent.ID)
-	if !ok {
+	profiles := o.styleProfiles(ctx, agent.ID)
+	if len(profiles) == 0 {
 		record("skipped", map[string]any{"reason": "no style profile in the agent's config (TONE.md)"})
+		return nil
+	}
+	// A bilingual agent carries one profile per language; the text says which
+	// one applies. A text in a language no profile covers is not measured
+	// against the wrong bands.
+	lang := style.DetectLanguage(text)
+	profile, ok := style.PickProfile(profiles, lang)
+	if !ok {
+		record("skipped", map[string]any{"reason": "no style profile for the text's language", "language": lang})
 		return nil
 	}
 	report := style.Check(text, &profile)
@@ -157,25 +167,25 @@ func freeText(params json.RawMessage, minWords int) string {
 	return strings.Join(parts, "\n\n")
 }
 
-// styleProfile reads the profile block from the agent's config: TONE.md first,
-// then any other Markdown file that carries one.
-func (o *Orchestrator) styleProfile(ctx context.Context, agentID uuid.UUID) (style.Profile, bool) {
+// styleProfiles collects the profile blocks of the agent's config: TONE.md
+// first, then every other Markdown file, in name order.
+func (o *Orchestrator) styleProfiles(ctx context.Context, agentID uuid.UUID) []style.Profile {
 	cfg, err := o.Registry.CurrentConfig(ctx, agentID)
 	if err != nil {
-		return style.Profile{}, false
+		return nil
 	}
-	if p, _, err := style.ParseProfile(cfg.Files["TONE.md"]); err == nil {
-		return p, true
-	}
-	for name, content := range cfg.Files {
-		if name == "TONE.md" || !strings.HasSuffix(name, ".md") {
-			continue
-		}
-		if p, _, err := style.ParseProfile(content); err == nil {
-			return p, true
+	out := style.ParseProfiles(cfg.Files["TONE.md"])
+	names := make([]string, 0, len(cfg.Files))
+	for name := range cfg.Files {
+		if name != "TONE.md" && strings.HasSuffix(name, ".md") {
+			names = append(names, name)
 		}
 	}
-	return style.Profile{}, false
+	sort.Strings(names)
+	for _, name := range names {
+		out = append(out, style.ParseProfiles(cfg.Files[name])...)
+	}
+	return out
 }
 
 // countStyleDenial counts the denials of one task's action and returns the

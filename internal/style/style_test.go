@@ -226,6 +226,27 @@ func TestProfileBlock(t *testing.T) {
 	}
 }
 
+func TestProfilesByLanguage(t *testing.T) {
+	de := "```style-profile\n{\"schema\":\"covey-style/1\",\"language\":\"de\",\"bands\":{\"commas_per_sentence\":[1.0,1.5]}}\n```"
+	en := "```style-profile\n{\"schema\":\"covey-style/1\",\"language\":\"en\",\"bands\":{\"commas_per_sentence\":[0.4,0.9]}}\n```"
+	ps := ParseProfiles("# Soul\n\n## Tone\n\n" + de + "\n\n" + en + "\n")
+	if len(ps) != 2 || ps[0].Language != "de" || ps[1].Language != "en" {
+		t.Fatalf("ParseProfiles: %+v", ps)
+	}
+	if p, ok := PickProfile(ps, DetectLanguage("The cat sat on the mat and it was fine, and the dog was not there.")); !ok || p.Language != "en" {
+		t.Errorf("English text should pick the English profile, got %+v %v", p, ok)
+	}
+	if p, ok := PickProfile(ps, DetectLanguage("Der Hund lag auf der Matte und die Katze war nicht da, und das war gut so.")); !ok || p.Language != "de" {
+		t.Errorf("German text should pick the German profile, got %+v %v", p, ok)
+	}
+	if _, ok := PickProfile(ps[:1], "en"); ok {
+		t.Error("no English profile: nothing to pick")
+	}
+	if p, ok := PickProfile([]Profile{{Language: ""}}, "en"); !ok || p.Language != "" {
+		t.Error("a profile without a language counts for every text")
+	}
+}
+
 func TestSegmentationEdges(t *testing.T) {
 	s := splitSentences("Das kostet z. B. 3.5 Euro am 3. Mai. Dr. Müller kam bzw. ging. Ende.")
 	if len(s) != 3 {

@@ -535,9 +535,12 @@ func CompilePrompt(files map[string]string) string {
 	// (spec/17-kpis.md).
 	seen := map[string]bool{"ACCESS.md": true, "TOOLS.md": true, "EGRESS.md": true,
 		"HEARTBEAT.md": true, "KPIS.md": true}
+	// A style profile block (bands, corpus values, lexicon for the style gate)
+	// may sit in any of these files; the model reads the prose around it, the
+	// block itself would only cost tokens here.
 	for _, name := range promptOrder {
 		if content, ok := files[name]; ok && strings.TrimSpace(content) != "" {
-			b.WriteString(strings.TrimSpace(content))
+			b.WriteString(style.StripProfileBlock(strings.TrimSpace(content)))
 			b.WriteString("\n\n")
 		}
 		seen[name] = true
@@ -550,9 +553,6 @@ func CompilePrompt(files map[string]string) string {
 	}
 	sort.Strings(rest)
 	for _, name := range rest {
-		// A TONE.md may carry a style profile: the prose is for the model, the
-		// ```style-profile``` block (bands, corpus values, lexicon) is for the
-		// style gate and would only cost tokens here.
 		b.WriteString(style.StripProfileBlock(strings.TrimSpace(files[name])))
 		b.WriteString("\n\n")
 	}
