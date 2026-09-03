@@ -33,11 +33,14 @@ var (
 	reTableLine   = regexp.MustCompile(`(?m)^\s*\|.*\|\s*$`)
 	reListMark    = regexp.MustCompile(`(?m)^\s*(?:[-*+]|\d+[.)])\s+`)
 	reQuoteMark   = regexp.MustCompile(`(?m)^\s*>\s?`)
-	reEmphasis    = []*regexp.Regexp{
-		regexp.MustCompile(`\*\*(\S(?:.*?\S)?)\*\*`),
-		regexp.MustCompile(`__(\S(?:.*?\S)?)__`),
-		regexp.MustCompile(`\*(\S(?:.*?\S)?)\*`),
-		regexp.MustCompile(`_(\S(?:.*?\S)?)_`),
+	// Emphasis: the shortest span from a marker to the same marker, starting
+	// and ending on a non-space. The lazy optional group (??) matters: with a
+	// greedy one, "a**.** b**.**" would be one span from the first to the last.
+	reEmphasis = []*regexp.Regexp{
+		regexp.MustCompile(`\*\*(\S(?:.*?\S)??)\*\*`),
+		regexp.MustCompile(`__(\S(?:.*?\S)??)__`),
+		regexp.MustCompile(`\*(\S(?:.*?\S)??)\*`),
+		regexp.MustCompile(`_(\S(?:.*?\S)??)_`),
 	}
 	reParaSplit   = regexp.MustCompile(`\n\s*\n`)
 	reSpaces      = regexp.MustCompile(`\s+`)

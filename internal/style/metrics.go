@@ -336,6 +336,11 @@ func Measure(text, lang string) Measurement {
 	return m
 }
 
+// WordCount is the number of words a text has for the purpose of the gate.
+func WordCount(s string) int {
+	return len(wordsOf(s))
+}
+
 func hasAnySuffix(w string, suffixes []string) bool {
 	for _, s := range suffixes {
 		if strings.HasSuffix(w, s) {

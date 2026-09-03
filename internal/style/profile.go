@@ -432,6 +432,51 @@ Rules, in order of precedence:
 4. Keep the register and the form of address of the text. Keep its language. Do not make it chattier, do not add rhetorical questions or exclamation marks, do not summarise at the end.
 5. Output the complete revised text and nothing else: no preamble, no explanation, no code fence around it. Preserve the Markdown structure.`
 
+// Render is the human-readable check: header, metrics outside their band,
+// where in the text, and the summary line.
+func Render(r Report, profile *Profile) string {
+	var b strings.Builder
+	src := "readability floors only"
+	if profile != nil {
+		src = fmt.Sprintf("profile (%d documents, %d words)", profile.Documents, profile.Words)
+	}
+	fmt.Fprintf(&b, "# Style check: %d words, %d sentences, %d paragraphs, %s, against %s\n\n",
+		r.Metrics.Words, r.Metrics.Sentences, r.Metrics.Paragraphs, r.Metrics.Language, src)
+	if len(r.Findings) == 0 && len(r.Paragraphs) == 0 {
+		b.WriteString("No findings. The draft sits inside every band and every paragraph holds an anchor.\n")
+		return b.String()
+	}
+	if len(r.Findings) > 0 {
+		b.WriteString("## Metrics outside the band\n")
+		for _, f := range r.Findings {
+			fmt.Fprintf(&b, "- %s: %s is %s (%s the band %s..%s)\n", f.Severity, f.Label, num(f.Value), f.Side, num(f.Band[0]), num(f.Band[1]))
+		}
+		b.WriteString("\n")
+	}
+	if len(r.Paragraphs) > 0 {
+		b.WriteString("## Where in the text\n")
+		for _, p := range r.Paragraphs {
+			fmt.Fprintf(&b, "- paragraph %d (\"%s…\"): %s\n", p.Paragraph, p.Head, p.Text)
+		}
+		b.WriteString("\n")
+	}
+	fmt.Fprintf(&b, "Summary: %s. Revise the listed paragraphs against the listed metrics; leave the rest alone.\n", Summary(r))
+	return b.String()
+}
+
+// HasHigh: at least one metric a full band width outside its band, or over an
+// absolute floor. That is what a gate acts on; MEDIUM findings and paragraph
+// pointers are guidance for the revision, not a trigger — an author's own
+// texts have paragraphs without an anchor too.
+func HasHigh(r Report) bool {
+	for _, f := range r.Findings {
+		if f.Severity == "HIGH" {
+			return true
+		}
+	}
+	return false
+}
+
 // Summary is the one-line count for logs and events.
 func Summary(r Report) string {
 	high, med := 0, 0

@@ -235,6 +235,10 @@ func TestSegmentationEdges(t *testing.T) {
 	if len(headings) != 1 || headings[0] != "Kopf: eins" || blocks != 1 || !contains(prose, "CODE") || !contains(prose, "link") || contains(prose, "http://x") {
 		t.Errorf("strip: %q %v %d", prose, headings, blocks)
 	}
+	prose, _, _ = stripMarkdown("Lernprozesses**.** Formatives Feedback. Bewertung werden**.** Ende.", false)
+	if contains(prose, "*") {
+		t.Errorf("two bold periods on one line must strip separately: %q", prose)
+	}
 	prose, _, _ = stripMarkdown("Intro text here.\n\n- erstens ein Punkt mit Text\n- zweitens ein Punkt mit Text\n- drittens ein Punkt mit Text\n", false)
 	if n := len(splitParagraphs(prose)); n != 4 {
 		t.Errorf("list items as paragraphs: %d", n)
