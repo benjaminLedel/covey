@@ -1,7 +1,7 @@
 ---
 slug: target-systems
 title: Target systems & plugins
-description: 'Zammad, Salesforce, Jira, Confluence, GitHub, GitLab, Teams, SharePoint, Nextcloud, email, browser and MCP: how covey connects agents to foreign systems through plugins.'
+description: 'Zammad, Salesforce, Jira, Confluence, GitHub, GitLab, Teams, SharePoint, Nextcloud, email, Search Console, browser and MCP: how covey connects agents to foreign systems through plugins.'
 faq:
   - q: Can I connect a system that has no plugin?
     a: 'Yes — fastest through an MCP server, whose tools the agent can then use. If you need wake events, scopes and actions in the recording, write a plugin: as a manifest (JSON, installable with no rebuild), as a WebAssembly module, or compiled in Go. The ones that ship sit in the plugin pack and are the template.'
@@ -25,6 +25,7 @@ An agent becomes useful when it works in the systems where the work already happ
 - **Email (IMAP/SMTP)** — a mailbox as a wake source, replies in-thread
 - **Microsoft Teams** — chat as the channel between human and agent
 - **SharePoint** via Microsoft Graph and **Nextcloud** via WebDAV — files
+- **Google Search Console** — what a search engine did with a page, as opposed to what the page claims about itself: which addresses are indexed, which canonical Google chose instead of the declared one, what people searched for before they arrived. Read-only but for submitting a sitemap, and the OAuth scope is picked per action — an agent with `scope: read` holds a token that cannot write
 - **Browser** — headless Chrome for interfaces without an API, with screenshots in the recording
 - **MCP** — any Model Context Protocol server as a source of tools
 - **Kubernetes** — a cluster read out: why a pod restarts, what it said before it died, where an Ingress points
