@@ -1,7 +1,7 @@
 ---
 slug: zielsysteme
 title: Zielsysteme & Plugins
-description: 'Zammad, Salesforce, Jira, Confluence, GitHub, GitLab, Teams, SharePoint, Nextcloud, E-Mail, Browser und MCP: Wie covey Agenten über Plugins an Fremdsysteme anbindet.'
+description: 'Zammad, Salesforce, Jira, Confluence, GitHub, GitLab, Teams, SharePoint, Nextcloud, E-Mail, Search Console, Browser und MCP: Wie covey Agenten über Plugins an Fremdsysteme anbindet.'
 faq:
   - q: Kann ich ein System anbinden, für das es kein Plugin gibt?
     a: 'Ja — am schnellsten über einen MCP-Server, dessen Werkzeuge der Agent dann nutzen kann. Wer Weckereignisse, Scopes und Aktionen im Recording braucht, schreibt ein Plugin: als Manifest (JSON, ohne Neubau installierbar), als WebAssembly-Modul oder kompiliert in Go. Die mitgelieferten liegen im Plugin-Pack und sind die Vorlage.'
@@ -25,6 +25,7 @@ Ein Agent wird nützlich, wenn er in den Systemen arbeitet, in denen ohnehin gea
 - **E-Mail (IMAP/SMTP)** — ein Postfach als Weckquelle, Antworten im Thread
 - **Microsoft Teams** — Chat als Kanal zwischen Mensch und Agent
 - **SharePoint** über Microsoft Graph und **Nextcloud** über WebDAV — Dateien
+- **Google Search Console** — was eine Suchmaschine mit einer Seite gemacht hat, im Unterschied zu dem, was die Seite über sich behauptet: welche Adressen indexiert sind, welchen Canonical Google statt des deklarierten gewählt hat, wonach jemand gesucht hat, bevor er ankam. Lesend bis auf das Einreichen einer Sitemap — und der OAuth-Bereich wird je Aktion gewählt, ein Agent mit `scope: read` hält einen Token, der nicht schreiben kann
 - **Browser** — headless Chrome für Oberflächen ohne API, mit Screenshots im Recording
 - **MCP** — beliebige Model-Context-Protocol-Server als Werkzeugquelle
 - **Kubernetes** — ein Cluster ausgelesen: warum ein Pod neu startet, was er vor seinem Tod gesagt hat, wohin ein Ingress zeigt
