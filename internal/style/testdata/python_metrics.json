@@ -20,6 +20,9 @@
    "para_len_max": 44,
    "long_para_share": 0.0,
    "sentences_per_para": 2.0,
+   "para_len_cv": 0.011,
+   "short_para_share": 100.0,
+   "linked_para_share": 0.0,
    "nominalisation_rate": 13.077,
    "long_word_rate": 21.538,
    "copula_per_sentence": 0.833,
@@ -96,6 +99,9 @@
    "para_len_max": 47,
    "long_para_share": 0.0,
    "sentences_per_para": 4.33,
+   "para_len_cv": 0.098,
+   "short_para_share": 0.0,
+   "linked_para_share": 0.0,
    "nominalisation_rate": 0.781,
    "long_word_rate": 1.562,
    "copula_per_sentence": 0.385,
@@ -207,6 +213,9 @@
    "para_len_max": 87,
    "long_para_share": 0.0,
    "sentences_per_para": 2.94,
+   "para_len_cv": 0.512,
+   "short_para_share": 40.625,
+   "linked_para_share": 0.0,
    "nominalisation_rate": 5.782,
    "long_word_rate": 16.16,
    "copula_per_sentence": 0.585,
@@ -1051,6 +1060,9 @@
    "para_len_max": 163,
    "long_para_share": 1.429,
    "sentences_per_para": 1.83,
+   "para_len_cv": 0.904,
+   "short_para_share": 80.0,
+   "linked_para_share": 5.797,
    "nominalisation_rate": 3.153,
    "long_word_rate": 1.471,
    "copula_per_sentence": 0.531,
@@ -2065,6 +2077,18 @@
   "sentences_per_para": [
    3.681,
    4.979
+  ],
+  "para_len_cv": [
+   0.048,
+   0.148
+  ],
+  "short_para_share": [
+   0.0,
+   3.0
+  ],
+  "linked_para_share": [
+   0.0,
+   3.0
   ],
   "nominalisation_rate": [
    0.0,

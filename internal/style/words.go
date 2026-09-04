@@ -113,6 +113,15 @@ mit nach vor für von zum zur über unter und oder aber auch wenn als wie was we
 sie wir ich ihr man the a an this these that those each every all many some no in on at by
 for from with to of and or but if as when it he she we they you i there here what who how why`)
 
+// Paragraph openers that link to the paragraph before: connectives and
+// demonstratives. A text whose paragraphs never open with one starts over at
+// every paragraph, however good the sentences are.
+var linkers = set(`deshalb darum daher deswegen also aber doch denn dazu dabei damit davon dafür
+dagegen danach dann das dies diese dieser dieses dort hier so sonst trotzdem dennoch
+außerdem zudem ebenso genau und weil wenn statt stattdessen
+so but because that this these those then therefore yet still also and instead which
+here there hence thus otherwise meanwhile however`)
+
 // Sentence openers that are articles or pronouns.
 var pronounOpeners = set(`der die das ein eine es ich wir sie er dies diese dieser dieses the a an
 it i we they he she this these there`)

@@ -92,7 +92,8 @@ func StripProfileBlock(markdown string) string {
 var direction = map[string]string{
 	"sent_len_mean": "both", "sent_len_cv": "low", "long_sent_share": "high",
 	"short_sent_share": "both", "para_len_mean": "both", "long_para_share": "high",
-	"sentences_per_para": "both", "nominalisation_rate": "high", "long_word_rate": "high",
+	"sentences_per_para": "both", "para_len_cv": "low", "short_para_share": "high", "linked_para_share": "low",
+	"nominalisation_rate": "high", "long_word_rate": "high",
 	"copula_per_sentence": "high", "stretch_verb_rate": "high", "hedge_rate": "high",
 	"anchor_per_100_words": "low", "para_without_anchor_share": "high", "example_rate": "low",
 	"subordinators_per_sentence": "high", "commas_per_sentence": "high", "deep_sent_share": "high",
@@ -110,6 +111,9 @@ var Label = map[string]string{
 	"para_len_mean":              "mean paragraph length (words)",
 	"long_para_share":            "paragraphs over 90 words (%)",
 	"sentences_per_para":         "sentences per paragraph",
+	"para_len_cv":                "paragraph length variation (sd/mean)",
+	"short_para_share":           "paragraphs of 2 sentences or fewer (%)",
+	"linked_para_share":          "paragraphs opening with a link to the one before (%)",
 	"nominalisation_rate":        "nominalisations per 100 words",
 	"long_word_rate":             "words of 12+ letters per 100 words",
 	"copula_per_sentence":        "copulas per sentence",
@@ -143,7 +147,7 @@ func minPad(key string, corpusValue float64) float64 {
 		return 3.0
 	case strings.HasSuffix(key, "_per_1000") || strings.HasSuffix(key, "_rate"):
 		return 1.0
-	case key == "sent_len_cv":
+	case strings.HasSuffix(key, "_cv"):
 		return 0.05
 	case key == "sent_len_mean":
 		return 1.5
