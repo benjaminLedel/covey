@@ -18,6 +18,20 @@ type Measurement struct {
 	Headings   int                `json:"headings"`
 	CodeBlocks int                `json:"code_blocks"`
 	Values     map[string]float64 `json:"values"`
+	// Evidence holds, for the list-based metrics, the phrases that were
+	// counted and how often: metric → phrase → count. A finding that names
+	// its phrases is revised; one that names a number is probed.
+	Evidence map[string]map[string]int `json:"evidence,omitempty"`
+}
+
+func (m *Measurement) note(metric, phrase string) {
+	if m.Evidence == nil {
+		m.Evidence = map[string]map[string]int{}
+	}
+	if m.Evidence[metric] == nil {
+		m.Evidence[metric] = map[string]int{}
+	}
+	m.Evidence[metric][strings.ToLower(strings.Join(strings.Fields(phrase), " "))]++
 }
 
 // ParagraphReport is one paragraph's detail for the findings.
@@ -222,6 +236,7 @@ func Measure(text, lang string) Measurement {
 		}
 		if hedgeWords[w] {
 			hedgeHits++
+			m.note("hedge_rate", w)
 		}
 	}
 	v["nominalisation_rate"] = per(float64(nominal), nWords, 100)
@@ -230,11 +245,17 @@ func Measure(text, lang string) Measurement {
 	proseLower := strings.ToLower(strings.Join(sentences, " "))
 	stretch := 0
 	for _, re := range stretchRegex {
-		stretch += len(re.FindAllStringIndex(proseLower, -1))
+		for _, hit := range re.FindAllString(proseLower, -1) {
+			stretch++
+			m.note("stretch_verb_rate", hit)
+		}
 	}
 	v["stretch_verb_rate"] = per(float64(stretch), nWords, 1000)
 	for _, re := range hedgePhrases {
-		hedgeHits += len(re.FindAllStringIndex(proseLower, -1))
+		for _, hit := range re.FindAllString(proseLower, -1) {
+			hedgeHits++
+			m.note("hedge_rate", hit)
+		}
 	}
 	v["hedge_rate"] = per(float64(hedgeHits), nWords, 1000)
 
