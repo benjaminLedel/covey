@@ -279,9 +279,16 @@ var floors = map[string]float64{
 	"deep_sent_share":           25.0,
 }
 
-func floorFindings(m Measurement) []Finding {
+// floorFindings applies the floors to the metrics the profile has no band
+// for. Where the author's corpus set a band, the band is the author's word:
+// a house that writes most paragraphs without an anchor is not corrected by
+// a floor that calls that a finding.
+func floorFindings(m Measurement, bands map[string][2]float64) []Finding {
 	var out []Finding
 	for _, key := range []string{"long_sent_share", "para_without_anchor_share", "nominalisation_rate", "deep_sent_share"} {
+		if _, hasBand := bands[key]; hasBand {
+			continue
+		}
 		limit := floors[key]
 		if v, ok := m.Values[key]; ok && v > limit {
 			out = append(out, Finding{Metric: key, Label: Label[key], Value: v, Band: [2]float64{0, limit},
@@ -304,7 +311,11 @@ type ParagraphFinding struct {
 	Text      string `json:"text"`
 }
 
-func paragraphFindings(text, lang string, profile *Profile) []ParagraphFinding {
+// paragraphFindings names the places to fix. Anchorless paragraphs are
+// pointed at only when the text as a whole has too many of them (anchorsOut):
+// otherwise the pointers contradict a profile that allows them, and a
+// finding the agent is told to ignore is noise beside the real ones.
+func paragraphFindings(text, lang string, profile *Profile, anchorsOut bool) []ParagraphFinding {
 	limit := paragraphLimit
 	if profile != nil {
 		if mean, ok := profile.Corpus["para_len_mean"]; ok && mean > 0 {
@@ -313,7 +324,7 @@ func paragraphFindings(text, lang string, profile *Profile) []ParagraphFinding {
 	}
 	var out []ParagraphFinding
 	for _, p := range Paragraphs(text, lang) {
-		if len(p.Anchors) == 0 {
+		if anchorsOut && len(p.Anchors) == 0 {
 			out = append(out, ParagraphFinding{p.Index, p.Head, "no_anchor",
 				"no number, name, example, quote or link: the paragraph asserts without holding on to anything"})
 		}
@@ -360,16 +371,21 @@ func Check(text string, profile *Profile) Report {
 	if profile != nil && m.Words > 0 {
 		findings = CheckAgainst(m, profile.Bands)
 	}
+	var bands map[string][2]float64
+	if profile != nil {
+		bands = profile.Bands
+	}
 	seen := map[string]bool{}
 	for _, f := range findings {
 		seen[f.Metric] = true
 	}
-	for _, f := range floorFindings(m) {
+	for _, f := range floorFindings(m, bands) {
 		if !seen[f.Metric] {
 			findings = append(findings, f)
+			seen[f.Metric] = true
 		}
 	}
-	paras := paragraphFindings(text, m.Language, profile)
+	paras := paragraphFindings(text, m.Language, profile, seen["para_without_anchor_share"])
 	r := Report{Metrics: m, Findings: findings, Paragraphs: paras}
 	r.Score = score(r)
 	return r

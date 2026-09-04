@@ -209,6 +209,42 @@ func TestCheckSeparatesGenericFromConcrete(t *testing.T) {
 	}
 }
 
+func TestFloorsAndAnchorPointersYieldToTheProfile(t *testing.T) {
+	fx := loadFixtures(t)
+	generic := fx.Texts["generic_de"].Text // 100 % anchorless paragraphs, 13 nominalisations per 100
+	// A house that writes most paragraphs without an anchor: the floor (50 %)
+	// must not overrule the band, and no paragraph is pointed at.
+	house := &Profile{Language: "de", Bands: map[string][2]float64{
+		"para_without_anchor_share": {57, 100}, "nominalisation_rate": {0, 20}}}
+	r := Check(generic, house)
+	for _, f := range r.Findings {
+		if f.Metric == "para_without_anchor_share" || f.Metric == "nominalisation_rate" {
+			t.Errorf("the band is the author's word, got %+v", f)
+		}
+	}
+	for _, p := range r.Paragraphs {
+		if p.Kind == "no_anchor" {
+			t.Fatalf("no anchor pointer when the profile allows anchorless paragraphs: %+v", p)
+		}
+	}
+	// Without a band the floor holds, and the pointers say where.
+	r = Check(generic, &Profile{Language: "de", Bands: map[string][2]float64{"sent_len_mean": {5, 40}}})
+	found := false
+	for _, f := range r.Findings {
+		if f.Metric == "para_without_anchor_share" && f.Severity == "HIGH" {
+			found = true
+		}
+	}
+	if !found || len(r.Paragraphs) != 3 {
+		t.Fatalf("floor and pointers expected without a band: %+v / %d pointers", r.Findings, len(r.Paragraphs))
+	}
+	// A band that the text exceeds: pointers name the paragraphs.
+	r = Check(generic, &Profile{Language: "de", Bands: map[string][2]float64{"para_without_anchor_share": {0, 25}}})
+	if len(r.Paragraphs) != 3 {
+		t.Fatalf("pointers expected when the share is outside the band, got %d", len(r.Paragraphs))
+	}
+}
+
 func TestProfileBlock(t *testing.T) {
 	md := "# Style\n\n## Voice\n\n1. Short.\n\n```style-profile\n{\"schema\":\"covey-style/1\",\"language\":\"de\",\"documents\":3,\"words\":100,\"bands\":{\"sent_len_mean\":[10,18]}}\n```\n"
 	p, prose, err := ParseProfile(md)
