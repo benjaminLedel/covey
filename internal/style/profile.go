@@ -229,6 +229,10 @@ type Finding struct {
 	Side     string     `json:"side"` // above | below
 	Distance float64    `json:"distance"`
 	Severity string     `json:"severity"` // HIGH | MEDIUM
+	// Evidence names the counted phrases for a list-based metric, most
+	// frequent first ("there is ×2"), so the revision changes places, not
+	// guesses.
+	Evidence []string `json:"evidence,omitempty"`
 }
 
 // CheckAgainst compares a measurement with bands, in the direction that
@@ -248,7 +252,9 @@ func CheckAgainst(m Measurement, bands map[string][2]float64) []Finding {
 		width := math.Max(hi-lo, minPad(key, (lo+hi)/2))
 		switch {
 		case v > hi && (dir == "high" || dir == "both"):
-			out = append(out, finding(key, v, band, "above", (v-hi)/width))
+			f := finding(key, v, band, "above", (v-hi)/width)
+			f.Evidence = evidence(m, key)
+			out = append(out, f)
 		case v < lo && (dir == "low" || dir == "both"):
 			out = append(out, finding(key, v, band, "below", (lo-v)/width))
 		}
@@ -262,6 +268,37 @@ func CheckAgainst(m Measurement, bands map[string][2]float64) []Finding {
 		}
 		return out[i].Metric < out[j].Metric
 	})
+	return out
+}
+
+// evidence lists a metric's counted phrases, most frequent first.
+func evidence(m Measurement, key string) []string {
+	counts := m.Evidence[key]
+	if len(counts) == 0 {
+		return nil
+	}
+	type pc struct {
+		phrase string
+		n      int
+	}
+	var ps []pc
+	for p, n := range counts {
+		ps = append(ps, pc{p, n})
+	}
+	sort.Slice(ps, func(i, j int) bool {
+		if ps[i].n != ps[j].n {
+			return ps[i].n > ps[j].n
+		}
+		return ps[i].phrase < ps[j].phrase
+	})
+	out := make([]string, 0, len(ps))
+	for _, p := range ps {
+		if p.n > 1 {
+			out = append(out, fmt.Sprintf("'%s' ×%d", p.phrase, p.n))
+		} else {
+			out = append(out, "'"+p.phrase+"'")
+		}
+	}
 	return out
 }
 
@@ -296,7 +333,7 @@ func floorFindings(m Measurement, bands map[string][2]float64) []Finding {
 		limit := floors[key]
 		if v, ok := m.Values[key]; ok && v > limit {
 			out = append(out, Finding{Metric: key, Label: Label[key], Value: v, Band: [2]float64{0, limit},
-				Side: "above", Distance: round((v-limit)/limit, 2), Severity: "HIGH"})
+				Side: "above", Distance: round((v-limit)/limit, 2), Severity: "HIGH", Evidence: evidence(m, key)})
 		}
 	}
 	return out
@@ -438,7 +475,11 @@ func FindingsText(r Report) string {
 	if len(r.Findings) > 0 {
 		b.WriteString("Whole text:\n")
 		for _, f := range r.Findings {
-			fmt.Fprintf(&b, "- %s: %s is %s, target %s..%s\n", f.Severity, f.Label, num(f.Value), num(f.Band[0]), num(f.Band[1]))
+			fmt.Fprintf(&b, "- %s: %s is %s, target %s..%s", f.Severity, f.Label, num(f.Value), num(f.Band[0]), num(f.Band[1]))
+			if len(f.Evidence) > 0 {
+				fmt.Fprintf(&b, ": %s", strings.Join(f.Evidence, ", "))
+			}
+			b.WriteString("\n")
 		}
 	}
 	if len(r.Paragraphs) > 0 {
@@ -502,7 +543,11 @@ func Render(r Report, profile *Profile) string {
 	if len(r.Findings) > 0 {
 		b.WriteString("## Metrics outside the band\n")
 		for _, f := range r.Findings {
-			fmt.Fprintf(&b, "- %s: %s is %s (%s the band %s..%s)\n", f.Severity, f.Label, num(f.Value), f.Side, num(f.Band[0]), num(f.Band[1]))
+			fmt.Fprintf(&b, "- %s: %s is %s (%s the band %s..%s)", f.Severity, f.Label, num(f.Value), f.Side, num(f.Band[0]), num(f.Band[1]))
+			if len(f.Evidence) > 0 {
+				fmt.Fprintf(&b, ": %s", strings.Join(f.Evidence, ", "))
+			}
+			b.WriteString("\n")
 		}
 		b.WriteString("\n")
 	}

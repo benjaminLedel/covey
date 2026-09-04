@@ -245,6 +245,29 @@ func TestFloorsAndAnchorPointersYieldToTheProfile(t *testing.T) {
 	}
 }
 
+func TestFindingsNameTheirPhrases(t *testing.T) {
+	fx := loadFixtures(t)
+	generic := fx.Texts["generic_de"].Text
+	r := Check(generic, &Profile{Language: "de", Bands: map[string][2]float64{"hedge_rate": {0, 2}, "stretch_verb_rate": {0, 2}}})
+	got := map[string]string{}
+	for _, f := range r.Findings {
+		got[f.Metric] = jsonOf(f.Evidence)
+	}
+	if !contains(got["hedge_rate"], "grundsätzlich") || !contains(got["hedge_rate"], "letztlich") {
+		t.Errorf("hedge evidence: %s", got["hedge_rate"])
+	}
+	if !contains(got["stretch_verb_rate"], "zur anwendung") {
+		t.Errorf("stretch-verb evidence: %s", got["stretch_verb_rate"])
+	}
+	if text := FindingsText(r); !contains(text, "'grundsätzlich'") {
+		t.Errorf("the revision order names the phrases: %s", text)
+	}
+	en := Measure("There is a cat. There is a dog. It is possible to see both.", "en")
+	if en.Evidence["stretch_verb_rate"]["there is"] != 2 {
+		t.Errorf("evidence counts: %v", en.Evidence)
+	}
+}
+
 func TestProfileBlock(t *testing.T) {
 	md := "# Style\n\n## Voice\n\n1. Short.\n\n```style-profile\n{\"schema\":\"covey-style/1\",\"language\":\"de\",\"documents\":3,\"words\":100,\"bands\":{\"sent_len_mean\":[10,18]}}\n```\n"
 	p, prose, err := ParseProfile(md)

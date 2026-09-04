@@ -80,13 +80,15 @@ func (o *Orchestrator) styleCheckAction(ctx context.Context, agent agents.Agent,
 		"profile":        sc.source,
 		"language":       sc.language,
 		"words":          report.Metrics.Words,
+		"metrics":        report.Metrics.Values,
 		"score":          report.Score,
 		"summary":        style.Summary(report),
 		"findings":       report.Findings,
 		"paragraphs":     report.Paragraphs,
 		"revision_order": style.RevisionOrder(text, report, req.Material),
 		"note": "Revise the named paragraphs against the named metrics and leave the rest alone; " +
-			"the finding is the instruction. HIGH findings are what the style gate acts on.",
+			"the finding is the instruction, and where it names phrases, those are the places. " +
+			"HIGH findings are what the style gate acts on.",
 	})
 }
 
