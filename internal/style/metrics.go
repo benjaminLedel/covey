@@ -186,6 +186,27 @@ func Measure(text, lang string) Measurement {
 	v["para_len_max"] = float64(maxPara)
 	v["long_para_share"] = per(float64(longPara), nPara, 100)
 	v["sentences_per_para"] = round(nSent/nPara, 2)
+	// Structure: a text can hit every mean and still have no spine. Monotone
+	// paragraph lengths, paragraphs of two sentences or fewer, and paragraphs
+	// that open without a link to the one before are the measurable symptoms.
+	if pm := fmean(plens); pm > 0 {
+		v["para_len_cv"] = round(pstdev(plens)/pm, 3)
+	} else {
+		v["para_len_cv"] = 0
+	}
+	shortParas, linked := 0, 0
+	for i, p := range paragraphs {
+		if len(splitSentences(p)) <= 2 {
+			shortParas++
+		}
+		if i > 0 {
+			if ws := wordsOf(p); len(ws) > 0 && linkers[strings.ToLower(ws[0])] {
+				linked++
+			}
+		}
+	}
+	v["short_para_share"] = per(float64(shortParas), nPara, 100)
+	v["linked_para_share"] = per(float64(linked), math.Max(nPara-1, 1), 100)
 
 	// Lexis: abstraction
 	nominal, longWords, copulaHits, hedgeHits := 0, 0, 0, 0
