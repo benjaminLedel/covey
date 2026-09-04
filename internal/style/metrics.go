@@ -125,6 +125,24 @@ func percentile(values []float64, q float64) float64 {
 }
 
 // Measure computes every metric of a text. lang forces the language; "" detects it.
+var (
+	antithesisTail = regexp.MustCompile(`,\s*(nicht|kein|keine|keinen|sondern|not|no|never|rather than),?\s([^.!?,;:]{1,60})[.!?]?\s*$`)
+	antithesisTurn = regexp.MustCompile(`\b(nicht|not)\b[^.!?]{0,30},\s*(sondern|but)\b`)
+	antithesisPair = regexp.MustCompile(`\b(kein|keine|keinen|no)\s\w+,\s*(kein|keine|keinen|no)\s\w+`)
+)
+
+// antithesisIn returns the antithesis a sentence closes on, or "" — the
+// matched clause, for the finding.
+func antithesisIn(sentence string) string {
+	s := strings.ToLower(strings.TrimSpace(sentence))
+	for _, re := range []*regexp.Regexp{antithesisTail, antithesisTurn, antithesisPair} {
+		if hit := re.FindString(s); hit != "" {
+			return strings.Join(strings.Fields(strings.Trim(hit, " ,.!?")), " ")
+		}
+	}
+	return ""
+}
+
 func Measure(text, lang string) Measurement {
 	prose, headings, codeBlocks := stripMarkdown(text, false)
 	paragraphs := splitParagraphs(prose)
@@ -328,6 +346,17 @@ func Measure(text, lang string) Measurement {
 	v["opener_repeat_share"] = per(float64(repeat), math.Max(nSent-1, 1), 100)
 	v["pronoun_opener_share"] = per(float64(pron), nSent, 100)
 	v["question_rate"] = per(float64(questions), nSent, 100)
+	// The antithesis closer: a sentence that ends on ", nicht Y" / ", kein Y" /
+	// ", not Y", or turns on "nicht X, sondern Y" / "no X, no Y". People write
+	// it once a page; a model closes every third paragraph with it.
+	anti := 0
+	for _, s := range sentences {
+		if hit := antithesisIn(s); hit != "" {
+			anti++
+			m.note("antithesis_rate", hit)
+		}
+	}
+	v["antithesis_rate"] = per(float64(anti), nWords, 1000)
 
 	// Address
 	counts := map[string]int{}

@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -265,6 +266,28 @@ func TestFindingsNameTheirPhrases(t *testing.T) {
 	en := Measure("There is a cat. There is a dog. It is possible to see both.", "en")
 	if en.Evidence["stretch_verb_rate"]["there is"] != 2 {
 		t.Errorf("evidence counts: %v", en.Evidence)
+	}
+}
+
+func TestAntithesisCloserIsCountedWithItsClause(t *testing.T) {
+	m := Measure("Das ist Zeit, kein Datenverlust. Sein Home ist sein Arbeitsplatz, kein Formular. "+
+		"Der Store sagt, wo ein Home jetzt ist, nicht, wo es am Donnerstag war. "+
+		"Die Frage wird genau so gestellt. Ein Volume liegt auf einer Maschine.", "de")
+	if n := m.Evidence["antithesis_rate"]; len(n) != 3 || n["kein datenverlust"] != 1 {
+		t.Errorf("three closers with their clauses, got %v", n)
+	}
+	en := Measure("That is time, not data loss. It is not the container that dies, but the machine. "+
+		"No whitelisting, no exclusion list. The store answers where a home is now.", "en")
+	if len(en.Evidence["antithesis_rate"]) != 3 {
+		t.Errorf("english closers: %v", en.Evidence)
+	}
+	if hit := antithesisIn("Wir haben, wie gesagt, nichts gefunden."); hit != "" {
+		t.Errorf("a parenthesis is not an antithesis: %q", hit)
+	}
+	r := Check(strings.Repeat("Das ist Zeit, kein Datenverlust. ", 12)+strings.Repeat("Ein Volume liegt auf einer Maschine. ", 30),
+		&Profile{Language: "de", Bands: map[string][2]float64{"antithesis_rate": {0, 2}}})
+	if !HasHigh(r) || len(r.Findings) == 0 || len(r.Findings[0].Evidence) == 0 {
+		t.Errorf("an antithesis every paragraph is a HIGH finding with evidence: %+v", r.Findings)
 	}
 }
 
