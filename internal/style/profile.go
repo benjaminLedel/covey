@@ -98,7 +98,8 @@ var direction = map[string]string{
 	"anchor_per_100_words": "low", "para_without_anchor_share": "high", "example_rate": "low",
 	"subordinators_per_sentence": "high", "commas_per_sentence": "high", "deep_sent_share": "high",
 	"opener_repeat_share": "high", "pronoun_opener_share": "both", "question_rate": "both",
-	"du_per_1000": "both", "sie_per_1000": "both", "wir_per_1000": "both", "ich_per_1000": "both",
+	"antithesis_rate": "high",
+	"du_per_1000":     "both", "sie_per_1000": "both", "wir_per_1000": "both", "ich_per_1000": "both",
 	"man_per_1000": "high", "colon_per_1000": "both", "dash_per_1000": "high", "paren_per_1000": "both",
 }
 
@@ -128,6 +129,7 @@ var Label = map[string]string{
 	"opener_repeat_share":        "consecutive sentences with the same first word (%)",
 	"pronoun_opener_share":       "sentences opening with article or pronoun (%)",
 	"question_rate":              "questions (%)",
+	"antithesis_rate":            "antithesis closers per 1000 words",
 	"du_per_1000":                "informal address per 1000 words",
 	"sie_per_1000":               "formal address per 1000 words",
 	"wir_per_1000":               "first person plural per 1000 words",
