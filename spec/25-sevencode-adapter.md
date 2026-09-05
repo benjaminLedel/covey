@@ -1,10 +1,18 @@
 # 25 — SevenCode adapter (a second harness on the gateway)
 
-SevenCode is a coding-agent CLI — a fork of [OpenCode](https://opencode.ai) maintained by Digital Learning GmbH, shipped as one bundled Node programme, and aimed at the educa AI API. `sevencode -p "…"` runs one task headless and prints the answer.
+SevenCode is a coding-agent CLI: one bundled Node programme, a German-language interface, aimed at the educa AI API. `sevencode -p "…"` runs one task headless and prints the answer.
 
 For covey it is the **fourth engine**, and the interesting part is not that there is a fourth. It is that this one sits in front of the **same gateway** [`educa-ai`](23-educa-adapter.md) already drives: educa-ai reaches educa through the Claude Code harness, SevenCode reaches it through a harness of its own. An organisation on educa therefore gets a choice of agent loop — different tool set, different session handling, different cost of a turn — rather than a second choice of endpoint, which [`18-runtimes-capacity.md`](18-runtimes-capacity.md) deliberately does not count as an engine.
 
-Status: **not verified against a binary.** The declaration is read from the CLI's own help output (`sevencode --help`, version 1.0.7), not guessed; the run through covey has not been done, and the parts that need knowledge the help does not give — the event schema, the session id, a system-prompt flag — are absent rather than invented. That is the rule [`19-codex-adapter.md`](19-codex-adapter.md) set, and it costs what it always costs: this engine carries fewer agents than it will once it is verified. What is missing, and the one command that establishes each item, is at the bottom.
+Status: **the flags are read, the run is not.** Every flag, environment variable and path below was read off an installed binary — `sevencode --version` answers `1.0.7` — while a run through covey has not been done, and the parts that need knowledge the help does not give (the event schema, the session id, a system-prompt flag) are absent rather than invented. That is the rule [`19-codex-adapter.md`](19-codex-adapter.md) set, and it costs what it always costs: this engine carries fewer agents than it will once it is verified. What is missing, and the one command that establishes each item, is at the bottom.
+
+## What this document rests on
+
+The CLI is not documented where covey could read it, so the **binary is the source of truth**: `--help` for the flag surface, the home directory for where it keeps a login and its sessions, the binary's own error text for the Node requirement. Nothing else is claimed, and no install URL appears in the descriptor's setup steps — an engine declaration built on somebody's description of the binary is exactly how adapters end up with flags the binary does not have.
+
+That is not a hypothetical here. An earlier revision of this document named a public repository as the origin and its install command as the setup step, on the strength of that repository's README. It was a different program with a different surface — a `run` subcommand, `--format json`, `--model provider/model`, install paths inherited from its upstream — and not one of those flags appears in the help output of the CLI covey is meant to drive. The attribution is gone; the measured flags stayed.
+
+A version bump is therefore a reason to read `--help` again rather than a reason to trust this page. `sevencode --version` belongs next to the sandbox image that carries the CLI.
 
 ## Why this is an engine at all
 

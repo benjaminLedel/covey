@@ -1,10 +1,16 @@
 // SevenCode — the fourth engine (spec/25-sevencode-adapter.md).
 //
-// SevenCode is a fork of OpenCode (MIT) maintained by Digital Learning GmbH,
-// shipped as one bundled Node CLI and aimed at the educa AI API. It matters to
-// covey for one reason: it is a second harness in front of the same gateway
-// educa-ai already drives (spec/23), so an organisation on educa gets a choice
-// of agent loop rather than a choice of endpoint.
+// SevenCode is a coding-agent CLI: one bundled Node programme, a German-language
+// interface, aimed at the educa AI API. It matters to covey for one reason: it
+// is a second harness in front of the same gateway educa-ai already drives
+// (spec/23), so an organisation on educa gets a choice of agent loop rather than
+// a choice of endpoint.
+//
+// Everything this file states about the CLI was read off the CLI itself —
+// `sevencode --version` and `sevencode --help` of version 1.0.7. No repository
+// was read and no download is named in the setup steps below, because neither
+// was verifiable from here; an engine declaration built on a third-party
+// description of the binary is how adapters end up with invented flags.
 //
 // STATUS: the declaration follows the CLI's own help output (`sevencode
 // --help`, version 1.0.7) — that part is read, not guessed. What is NOT
@@ -77,8 +83,8 @@ func init() {
 	RegisterRuntime(RuntimeDescriptor{
 		Name:  "sevencode",
 		Label: "SevenCode",
-		Description: "SevenCode headless (`sevencode -p`) — an OpenCode fork on an educa AI endpoint. " +
-			"Flags as documented, the run not yet verified against the binary; see spec/25.",
+		Description: "SevenCode headless (`sevencode -p`) — a coding-agent CLI on an educa AI endpoint. " +
+			"Flags as the CLI itself documents them, the run not yet verified; see spec/25.",
 		Credentials: []RuntimeCredential{
 			// The variable pair the CLI names for CI and containers: a token here
 			// and the endpoint from the environment. API token first, as with the
@@ -131,8 +137,9 @@ func init() {
 			{
 				Text: "Put the CLI into the sandbox image — it is not in the base image:",
 				Items: []string{
-					"`curl -fsSL https://sevencode.app/install | bash`, or pin the artefact into your own image",
+					"install it from the channel your organisation gets it from; covey names no download URL it has not verified",
 					"Node 22 or newer is required; the `node:26-slim` sandbox base satisfies it",
+					"record `sevencode --version` with the image — this declaration is read from 1.0.7, a new version is a reason to read `--help` again (spec/25)",
 					"Override the path with `COVEY_SEVENCODE_BIN` if the CLI is not on `PATH`",
 				},
 			},
