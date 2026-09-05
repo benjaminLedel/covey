@@ -143,62 +143,6 @@ func sha256Hex(b []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// An install that takes a minute has to say what it is doing while it does it.
-// The byte figures are half of it — "starting" was the whole answer for the image
-// pull too, until that learned to count — but the end is the other half: a phase
-// that never ends is worse than no phase, because it claims work that is already
-// finished. And a cache hit has to end too, in the same millisecond it started.
-func TestEnsureWatchedTellsWhereItGotTo(t *testing.T) {
-	dir := t.TempDir()
-	art := tarball(t, "")
-	path := filepath.Join(dir, "engine.tgz")
-	if err := os.WriteFile(path, art, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	r, _ := parseDoc(t, doc).Release("other", "")
-	r.URL = "file://" + path
-	r.Integrity = sha256Hex(art)
-	r.engine = "sevencode"
-	r.Version = "1.0.8"
-	store := &Store{Dir: filepath.Join(dir, "engines")}
-
-	var seen []Progress
-	if _, err := store.EnsureWatched(context.Background(), r,
-		func(p Progress) { seen = append(seen, p) }); err != nil {
-		t.Fatalf("install: %v", err)
-	}
-	if len(seen) < 2 {
-		t.Fatalf("an install of %d bytes reported %d times: %+v", len(art), len(seen), seen)
-	}
-	if !strings.Contains(seen[0].Detail, "sevencode") || !strings.Contains(seen[0].Detail, "1.0.8") {
-		t.Fatalf("the first report names what is being installed, got %q", seen[0].Detail)
-	}
-	if !seen[len(seen)-1].Done {
-		t.Fatalf("the last report has to end the phase: %+v", seen[len(seen)-1])
-	}
-	var bekannt bool
-	for _, p := range seen {
-		if p.Bytes == int64(len(art)) && p.BytesTotal == int64(len(art)) {
-			bekannt = true
-		}
-	}
-	if !bekannt {
-		t.Fatalf("no report carries the artefact's size on both sides (%d bytes): %+v", len(art), seen)
-	}
-
-	// The layer is there now. One report, ending at once — a step the display
-	// shows running for a second after it finished is a step nobody believes the
-	// next time.
-	seen = nil
-	if _, err := store.EnsureWatched(context.Background(), r,
-		func(p Progress) { seen = append(seen, p) }); err != nil {
-		t.Fatalf("second install: %v", err)
-	}
-	if len(seen) != 1 || !seen[0].Done {
-		t.Fatalf("a layer already standing is one ending report, got %+v", seen)
-	}
-}
-
 func TestStoreInstallsVerifiesAndMarks(t *testing.T) {
 	dir := t.TempDir()
 	art := tarball(t, "")

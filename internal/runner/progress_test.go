@@ -191,6 +191,76 @@ func warteAufFortschritt(t *testing.T, ctx context.Context, control Transport, p
 	}
 }
 
+// The store's own account of an install, beside the node's — the two ends of one
+// reporting path, so a change to either is read in one place. What it holds to:
+// an install that takes a minute says what it is doing while it does it (the byte
+// figures are why — "starting" was the whole answer for the image pull too, until
+// that learned to count), it ends (a phase that never ends is worse than none,
+// because it claims work that is already finished), and a cache hit ends too, in
+// the same millisecond it started.
+//
+// It reaches the store through a catalogue rather than a hand-built Release,
+// because the store's engine name lives on an unexported field: what a caller
+// outside the package can hold is what a catalogue hands it, and that is the
+// honest thing to test with.
+func TestEnsureWatchedTellsWhereItGotTo(t *testing.T) {
+	dir := t.TempDir()
+	art := engineTarball(t)
+	artPath := filepath.Join(dir, "engine.tgz")
+	if err := os.WriteFile(artPath, art, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(art)
+	catPath := filepath.Join(dir, "catalogue.json")
+	body := []byte(`{"schema":1,"engines":[{"name":"sevencode","versions":[` +
+		`{"version":"1.0.8","kind":"tarball","url":"file://` + artPath +
+		`","integrity":"sha256:` + hex.EncodeToString(sum[:]) + `"}]}]}`)
+	if err := os.WriteFile(catPath, body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r, ok := engines.NewSource("file://"+catPath, nil, nil).For(context.Background(), "sevencode", "")
+	if !ok {
+		t.Fatal("the catalogue names this engine")
+	}
+	store := &engines.Store{Dir: filepath.Join(dir, "engines")}
+
+	var seen []engines.Progress
+	if _, err := store.EnsureWatched(context.Background(), r,
+		func(p engines.Progress) { seen = append(seen, p) }); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	if len(seen) < 2 {
+		t.Fatalf("an install of %d bytes reported %d times: %+v", len(art), len(seen), seen)
+	}
+	if !strings.Contains(seen[0].Detail, "sevencode") || !strings.Contains(seen[0].Detail, "1.0.8") {
+		t.Fatalf("the first report names what is being installed, got %q", seen[0].Detail)
+	}
+	if !seen[len(seen)-1].Done {
+		t.Fatalf("the last report has to end the phase: %+v", seen[len(seen)-1])
+	}
+	var bekannt bool
+	for _, p := range seen {
+		if p.Bytes == int64(len(art)) && p.BytesTotal == int64(len(art)) {
+			bekannt = true
+		}
+	}
+	if !bekannt {
+		t.Fatalf("no report carries the artefact's size on both sides (%d bytes): %+v", len(art), seen)
+	}
+
+	// The layer stands now. One report, ending at once — a step the display shows
+	// running for a second after it finished is a step nobody believes the next
+	// time.
+	seen = nil
+	if _, err := store.EnsureWatched(context.Background(), r,
+		func(p engines.Progress) { seen = append(seen, p) }); err != nil {
+		t.Fatalf("second install: %v", err)
+	}
+	if len(seen) != 1 || !seen[0].Done {
+		t.Fatalf("a layer already standing is one ending report, got %+v", seen)
+	}
+}
+
 // The fourth phase of a start: an engine the catalogue names is not on this host
 // yet, and fetching it is the same kind of wait as pulling an image and the same
 // order of magnitude — a self-contained engine is a hundred and fifty megabytes.
