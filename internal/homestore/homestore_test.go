@@ -1197,3 +1197,92 @@ func TestAdoptMarksOnlyWhenItIsActuallyDone(t *testing.T) {
 		t.Errorf("the marker did not hold: %d entries", n)
 	}
 }
+
+// A wake materialises the same manifest onto the same disk every time. Where
+// one path on that disk is something a directory cannot be made of, mkdir says
+// "file exists" — and says it again at the next wake, and the one after, which
+// is how an agent came to sit eighteen hours in a wake_failed loop over a
+// leftover node_modules symlink while its backlog filled up (#197). The
+// materialisation has to clear the obstacle, the way the symlink branch always
+// has.
+func TestMaterializeClearsWhatBlocksADirectory(t *testing.T) {
+	ctx := context.Background()
+	blobs := newDir(t)
+	org := uuid.New()
+	home := t.TempDir()
+
+	write(t, home, "repos/app/node_modules/pkg/index.js", "export const x = 1")
+	write(t, home, "repos/app/package.json", "{}")
+	write(t, home, "tools/bin/build", "#!/bin/sh")
+
+	res, err := Sync(ctx, blobs, org, home, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := Load(ctx, blobs, org, res.ManifestHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The working copy as the runner left it. node_modules is a symlink into
+	// a vendor tree that is no longer there — that is what a `file:`
+	// dependency leaves behind — and a plain file stands where tools/bin
+	// belongs.
+	if err := os.RemoveAll(filepath.Join(home, "repos/app/node_modules")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("../../vendor-src/pkg", filepath.Join(home, "repos/app/node_modules")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(filepath.Join(home, "tools/bin")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, "tools/bin"), []byte("not a directory"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := Materialize(ctx, blobs, org, home, m); err != nil {
+		t.Fatalf("the materialisation stayed stuck on the obstacle: %v", err)
+	}
+
+	for path, want := range map[string]string{
+		"repos/app/node_modules/pkg/index.js": "export const x = 1",
+		"repos/app/package.json":              "{}",
+		"tools/bin/build":                     "#!/bin/sh",
+	} {
+		got, err := os.ReadFile(filepath.Join(home, path))
+		if err != nil {
+			t.Errorf("%s is missing after the restore: %v", path, err)
+			continue
+		}
+		if string(got) != want {
+			t.Errorf("%s came back changed", path)
+		}
+	}
+	if info, err := os.Lstat(filepath.Join(home, "repos/app/node_modules")); err != nil || !info.IsDir() {
+		t.Errorf("node_modules is still not the directory the manifest describes: %v", err)
+	}
+}
+
+// The right to remove is narrow on purpose. A symlink pointing at a real
+// directory is not an obstacle — MkdirAll walks straight through it — and
+// removing it would throw away what somebody put there.
+func TestClearBlockersLeavesALinkToADirectoryAlone(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "echt"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("echt", filepath.Join(root, "verweis")); err != nil {
+		t.Fatal(err)
+	}
+	if clearBlockers(root, filepath.Join(root, "verweis", "tief")) {
+		t.Error("something was removed although nothing was in the way")
+	}
+	if target, err := os.Readlink(filepath.Join(root, "verweis")); err != nil || target != "echt" {
+		t.Errorf("the link did not survive: %q, %v", target, err)
+	}
+	// And nothing above the root is ours to touch.
+	if clearBlockers(root, filepath.Join(filepath.Dir(root), "fremd")) {
+		t.Error("a path outside the home was cleared")
+	}
+}

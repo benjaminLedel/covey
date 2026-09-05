@@ -552,7 +552,7 @@ func MaterializeOwned(ctx context.Context, blobs BlobStore, orgID uuid.UUID, roo
 		wanted[e.Path] = true
 		switch {
 		case e.Dir:
-			if err := os.MkdirAll(target, e.Mode|0o700); err != nil {
+			if err := mkdirAllClearing(root, target, e.Mode|0o700); err != nil {
 				return res, err
 			}
 			owner.gehoert(target)
@@ -562,7 +562,7 @@ func MaterializeOwned(ctx context.Context, blobs BlobStore, orgID uuid.UUID, roo
 				continue
 			}
 			_ = os.Remove(target)
-			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			if err := mkdirAllClearing(root, filepath.Dir(target), 0o755); err != nil {
 				return res, err
 			}
 			if err := os.Symlink(e.Link, target); err != nil {
@@ -627,7 +627,7 @@ func MaterializeOwned(ctx context.Context, blobs BlobStore, orgID uuid.UUID, roo
 				mu.Unlock()
 				return
 			}
-			n, err := writeFile(ctx, blobs, orgID, target, e)
+			n, err := writeFile(ctx, blobs, orgID, root, target, e)
 			if err != nil {
 				// A block the store does not have any more cannot be produced
 				// by trying again — for this file the answer is final, for the
@@ -796,8 +796,58 @@ func updateInPlace(ctx context.Context, blobs BlobStore, orgID uuid.UUID, f *os.
 	return n, f.Sync()
 }
 
-func writeFile(ctx context.Context, blobs BlobStore, orgID uuid.UUID, target string, e Entry) (int64, error) {
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+// mkdirAllClearing is os.MkdirAll with one repair: where a path component is on
+// disk as something a directory cannot be made of — a leftover file, or a
+// symlink whose target is gone — mkdir answers "file exists", and since a wake
+// materialises the same manifest onto the same disk every time, it answers it
+// again on the next one. One stale node_modules symlink in a 23 GB home kept an
+// agent from waking for eighteen hours (#197): the backlog filled up, and the
+// prune that would have cleared the leftover sits at the end of the
+// materialisation, past the loop that returns the error.
+//
+// The link branch of the materialisation has always removed what stood in its
+// way. This gives the directory branch the same right, and no more than that:
+// only a non-directory goes, only below root, and only after MkdirAll has
+// actually failed. A symlink pointing at a real directory is left alone —
+// MkdirAll walks through it, so it was never the obstacle.
+func mkdirAllClearing(root, path string, mode os.FileMode) error {
+	err := os.MkdirAll(path, mode)
+	if err == nil {
+		return nil
+	}
+	if !clearBlockers(root, path) {
+		return err
+	}
+	return os.MkdirAll(path, mode)
+}
+
+// clearBlockers removes the components of path, from root downwards, that exist
+// but are not directories. Reports whether it removed anything — if it did not,
+// the caller's original error is the honest one to return.
+func clearBlockers(root, path string) bool {
+	rel, err := filepath.Rel(root, path)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return false
+	}
+	cleared := false
+	prefix := root
+	for _, part := range strings.Split(rel, string(filepath.Separator)) {
+		prefix = filepath.Join(prefix, part)
+		if _, err := os.Lstat(prefix); err != nil {
+			continue // not here yet; MkdirAll will make it
+		}
+		if info, err := os.Stat(prefix); err == nil && info.IsDir() {
+			continue // a directory, or a link to one
+		}
+		if os.Remove(prefix) == nil {
+			cleared = true
+		}
+	}
+	return cleared
+}
+
+func writeFile(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root, target string, e Entry) (int64, error) {
+	if err := mkdirAllClearing(root, filepath.Dir(target), 0o755); err != nil {
 		return 0, err
 	}
 	// A chunked file that is already here is repaired where it lies — only the
