@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"covey/internal/engines"
 	"covey/internal/sandbox"
 )
 
@@ -296,8 +295,13 @@ func FromEnv() (Config, error) {
 		SandboxImageEnv:    sandboxImageEnv(),
 		RunnerDownloadBase: getenv("COVEY_RUNNER_DOWNLOAD_BASE", ""),
 		SandboxCatalogURL:  getenv("COVEY_SANDBOX_CATALOG_URL", sandbox.DefaultCatalogURL()),
-		EngineCatalogURL:   getenv("COVEY_ENGINE_CATALOG_URL", engines.DefaultCatalogURL()),
-		HSTS:               getenv("COVEY_HSTS", "basic"),
+		// Off by default, unlike the workplace catalogue: that one publishes a
+		// document today, this one does not yet, and a default pointing at a
+		// missing file would put a failed fetch on every wake. The address to
+		// set is engines.DefaultCatalogURL(), and an installation with its own
+		// mirror sets its own.
+		EngineCatalogURL: getenv("COVEY_ENGINE_CATALOG_URL", ""),
+		HSTS:             getenv("COVEY_HSTS", "basic"),
 		// 0 lässt dem Pool seine eigene Vorgabe — eine zweite Zahl hier wäre
 		// eine zweite Wahrheit, und genau die hat heute zweimal zugebissen.
 		SandboxStartTimeout: getenvDuration("COVEY_SANDBOX_START_TIMEOUT", 0),
