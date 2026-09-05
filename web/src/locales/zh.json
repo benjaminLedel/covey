@@ -1741,6 +1741,8 @@
     "phase": {
       "image": "正在获取工位镜像",
       "imageDone": "工位镜像已获取",
+      "engine": "正在安装智能体引擎",
+      "engineDone": "智能体引擎已安装",
       "home": "正在布置工位",
       "homeDone": "工位就绪",
       "home_sync": "正在保存工位",

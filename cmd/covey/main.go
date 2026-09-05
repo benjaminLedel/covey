@@ -33,6 +33,7 @@ import (
 	"covey/internal/db"
 	"covey/internal/dream"
 	"covey/internal/egress"
+	"covey/internal/engines"
 	"covey/internal/guardrails"
 	"covey/internal/homestore"
 	"covey/internal/httpapi"
@@ -1257,6 +1258,10 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 			RunnerID: runnerID,
 			Image:    cfg.SandboxImage,
 			DataDir:  cfg.DataDir,
+			// The engine catalogue, and the directory its layers land in
+			// (spec/26). An empty URL leaves both inert.
+			Engines:     engines.NewSource(cfg.EngineCatalogURL, engines.FileCacheFor(cfg.DataDir), log),
+			EngineStore: &engines.Store{Dir: filepath.Join(cfg.DataDir, "engines"), Log: log},
 		}
 		if egressEnforced {
 			switch cfg.EgressIsolation {

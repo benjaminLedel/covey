@@ -1741,6 +1741,8 @@
     "phase": {
       "image": "obteniendo la imagen del puesto de trabajo",
       "imageDone": "imagen del puesto obtenida",
+      "engine": "instalando el motor",
+      "engineDone": "motor instalado",
       "home": "preparando el puesto de trabajo",
       "homeDone": "puesto de trabajo listo",
       "home_sync": "guardando el puesto de trabajo",

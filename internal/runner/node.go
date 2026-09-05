@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 
 	"covey/internal/buildinfo"
+	"covey/internal/engines"
 	"covey/internal/homestore"
 	"covey/internal/sandbox"
 )
@@ -748,6 +749,14 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 		n.ensureImage(ctx, t, spec.AgentID, image)
 	}
 
+	// An engine from the catalogue is installed by the provider inside the start
+	// (spec/26) — but it says how far it has got through this closure, so that a
+	// phase is reported by the component holding the transport, as the image
+	// pull's is.
+	if spec.Engine != "" {
+		spec.EngineWatch = n.engineWatch(ctx, t, spec.AgentID)
+	}
+
 	container, services, err := n.Docker.Start(ctx, spec)
 	if err != nil {
 		// Docker's own words. A wrapped "start failed" hides which of "no such
@@ -879,6 +888,51 @@ func (n *Node) ensureImage(ctx context.Context, t Transport, agentID uuid.UUID, 
 			Bytes: letzte.BytesTotal, BytesTotal: letzte.BytesTotal, Done: true,
 			MS: time.Since(pullBegan).Milliseconds(),
 		})
+	}
+}
+
+// engineWatch reports an engine install as a phase, the way ensureImage reports
+// an image pull: the opening report unthrottled, the byte reports throttled, and
+// the last word unthrottled again — a Done swallowed by a rate limiter would
+// leave a step that finished a second ago standing on the display as running.
+//
+// The opening report matters more than it looks. The gate drops everything
+// younger than half a second, and it starts counting the moment it is built — so
+// an install that is a cache hit, one that answers within that first half second,
+// would never be heard from at all. The store's first report is the one that
+// names the engine, and it goes out as it comes.
+//
+// The detail sticks, and so do the figures. A byte report carries no description
+// and the ending report no bytes, while a phase record is replaced whole rather
+// than merged — so without this the label under the bar would go blank every half
+// second, and the step would end claiming it had moved nothing.
+func (n *Node) engineWatch(ctx context.Context, t Transport, agentID uuid.UUID) func(engines.Progress) {
+	var detail string
+	var bytes, total int64
+	var first bool = true
+	began := time.Now()
+	melden := n.gate(ctx, t)
+	return func(pr engines.Progress) {
+		if pr.Detail != "" {
+			detail = pr.Detail
+		}
+		if pr.Bytes > 0 {
+			bytes = pr.Bytes
+		}
+		if pr.BytesTotal > 0 {
+			total = pr.BytesTotal
+		}
+		p := Progress{
+			AgentID: agentID, Phase: PhaseEngine, Detail: detail,
+			Bytes: bytes, BytesTotal: total,
+			MS: time.Since(began).Milliseconds(), Done: pr.Done,
+		}
+		if first || pr.Done {
+			first = false
+			n.say(ctx, t, p)
+			return
+		}
+		melden(p)
 	}
 }
 

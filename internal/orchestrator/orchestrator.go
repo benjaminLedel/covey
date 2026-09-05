@@ -1371,6 +1371,7 @@ func (o *Orchestrator) wake(ctx context.Context, agent agents.Agent) (DaemonLink
 		AgentID:     agent.ID,
 		OrgID:       agent.OrgID,
 		Image:       agent.SandboxImage,
+		Engine:      agent.Runtime,
 		RunnerTags:  agent.RunnerTags,
 		EgressToken: egressToken,
 		Env:         env,

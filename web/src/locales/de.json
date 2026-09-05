@@ -1741,6 +1741,8 @@
     "phase": {
       "image": "Arbeitsplatz-Image wird geholt",
       "imageDone": "Arbeitsplatz-Image geholt",
+      "engine": "Engine wird installiert",
+      "engineDone": "Engine installiert",
       "home": "Arbeitsplatz wird hergestellt",
       "homeDone": "Arbeitsplatz hergestellt",
       "home_sync": "Arbeitsplatz wird gesichert",

@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 
 	"covey/internal/buildinfo"
+	"covey/internal/engines"
 	"covey/internal/homestore"
 	"covey/internal/runner"
 )
@@ -214,6 +215,12 @@ func runRun(ctx context.Context, args []string, log *slog.Logger) error {
 		RunnerID: me.RunnerID,
 		Image:    firstOr(cfg.Images, "covey-sandbox:latest"),
 		DataDir:  cfg.WorkDir,
+		// The runner reads its catalogue from its own environment, not from a
+		// registration message: what a host installs is the host operator's
+		// decision, and the control plane does not push binaries at runners it
+		// does not own (spec/16, "Trust boundary").
+		Engines:     engines.NewSource(os.Getenv("COVEY_ENGINE_CATALOG_URL"), engines.FileCacheFor(cfg.WorkDir), log),
+		EngineStore: &engines.Store{Dir: filepath.Join(cfg.WorkDir, "engines"), Log: log},
 	}
 	node := runner.NewNode(me.RunnerID, me.OrgID, docker, log)
 	node.Tags = cfg.Tags
