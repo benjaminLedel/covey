@@ -427,6 +427,16 @@ type StartSandbox struct {
 	// whether the instance has renamed it — is known here. Empty = an image
 	// the catalogue does not know.
 	ImageHint string `json:"image_hint,omitempty"`
+	// Engine is the runtime name this sandbox will be asked to run
+	// (`claude-code`, `sevencode`). It travels for the same reason ImageHint
+	// does — only the control plane knows what the agent is configured with —
+	// and it is what lets the runner install the engine's binary on this host
+	// and mount it in, instead of every workplace image carrying every engine
+	// (spec/26). Empty = an older control plane, or an agent with no runtime:
+	// the image's own binary and the operator's variables then stand.
+	//
+	// Optional, so the protocol version stays where it is.
+	Engine string `json:"engine,omitempty"`
 	// Services run BESIDE this sandbox for as long as it lives: a database, a
 	// queue, whatever the project needs in order to be started at all. The
 	// runner brings them up on a network belonging to this sandbox, where each

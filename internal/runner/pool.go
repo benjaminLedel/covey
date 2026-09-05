@@ -1662,6 +1662,7 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 			SnapshotAt:  snapshotAt,
 			Excludes:    p.HomeExcludes,
 			ImageHint:   p.imageHints(ctx)[want.image],
+			Engine:      spec.Engine,
 			Services:    spec.Services,
 		}, timeout)
 		switch {

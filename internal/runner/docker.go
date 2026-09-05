@@ -17,6 +17,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"covey/internal/engines"
 	"covey/internal/sandbox"
 )
 
@@ -69,6 +70,13 @@ type Docker struct {
 	// is an enforcement point, not a database client (spec/16, "Trust
 	// boundary"). The runner token is added from EgressRunnerToken.
 	EgressProxyEnv map[string]string
+
+	// Engines and EngineStore carry the engine catalogue (spec/26): where an
+	// engine's binary comes from when the workplace image does not carry it.
+	// Both nil — or a catalogue with no URL — turns the mechanism off, and every
+	// start then runs on the image's own engine exactly as before this existed.
+	Engines     *engines.Source
+	EngineStore *engines.Store
 
 	// proxyFresh: whether this process has already renewed its proxy
 	// container. See ensureEgressProxy for why that is necessary.
@@ -231,6 +239,23 @@ func (p *Docker) Start(ctx context.Context, spec StartSandbox) (string, []sandbo
 				args = append(args, "-e", e)
 			}
 		}
+	}
+
+	// The engine the agent will be asked to run, when the catalogue says where
+	// it is: installed on this host, mounted read-only at a fixed path, and the
+	// variable the adapter reads pointed at that path (spec/26). Appended BEFORE
+	// the control plane's own variables, so an explicit value from over there
+	// still wins — the same order the workplace images use.
+	engineEnv, engineMount, engineErr := p.engineLayer(ctx, spec)
+	if engineErr != nil {
+		// Services came up for a sandbox that will not. Same cleanup as a failed
+		// docker run below does.
+		p.removeServices(context.WithoutCancel(ctx), spec.AgentID)
+		return "", nil, engineErr
+	}
+	args = append(args, engineMount...)
+	for _, e := range engineEnv {
+		args = append(args, "-e", e)
 	}
 
 	for k, v := range spec.Env {
