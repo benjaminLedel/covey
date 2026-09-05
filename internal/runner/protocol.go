@@ -21,6 +21,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"covey/internal/engines"
 	"covey/internal/sandbox"
 	"covey/internal/sandboxfs"
 )
@@ -179,6 +180,13 @@ const (
 	// PhaseHomeSynced: the working copy went into the store — written by the
 	// control plane, which is where the figures arrive.
 	PhaseHomeSynced = "home_synced"
+	// PhaseEngine: the agent's engine is not installed on this host yet and is
+	// being fetched from the catalogue (spec/26). Same kind of wait as
+	// PhaseImage and the same order of magnitude — a self-contained engine is a
+	// hundred and fifty megabytes — but a phase of its own, because the two have
+	// different remedies: one is pulled from a registry the organisation
+	// published, the other built or mirrored by whoever runs the host.
+	PhaseEngine = "engine"
 )
 
 // Update is an order to replace one's own binary. Version empty = the newest
@@ -437,6 +445,20 @@ type StartSandbox struct {
 	//
 	// Optional, so the protocol version stays where it is.
 	Engine string `json:"engine,omitempty"`
+	// EngineWatch is how the host reports the engine install while it runs.
+	//
+	// It is not part of the wire — `json:"-"`, and no control plane can set it.
+	// Two reasons, one of them a rule. The mechanical one: a function does not
+	// survive JSON. The other: the host path of a mounted layer must be decided
+	// by the host, so a field that would let the control plane name a directory
+	// to mount is not something this struct should ever carry. The install stays
+	// inside Start for the same kind of reason — a caller cannot forget a step
+	// that is not a step of its own, and forgetting it here would mean running on
+	// whatever binary the image happens to hold, which spec/26 rules out.
+	//
+	// The node fills it, so that the reporting of a phase stays with the node
+	// that owns the transport — exactly where the image pull's does.
+	EngineWatch func(engines.Progress) `json:"-"`
 	// Services run BESIDE this sandbox for as long as it lives: a database, a
 	// queue, whatever the project needs in order to be started at all. The
 	// runner brings them up on a network belonging to this sandbox, where each

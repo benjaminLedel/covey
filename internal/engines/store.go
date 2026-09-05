@@ -113,8 +113,29 @@ func (s *Store) Lookup(engine, version string) (Layer, bool) {
 // the layer. The returned Exec is a path ON THIS MACHINE; the caller decides
 // what the container sees, see ContainerEnv.
 func (s *Store) Ensure(ctx context.Context, r Release) (Layer, error) {
+	return s.EnsureWatched(ctx, r, nil)
+}
+
+// EnsureWatched is Ensure with a running account of what it does.
+//
+// The step is worth reporting because of its size rather than its rarity: a
+// self-contained engine is a hundred and fifty megabytes, and the first wake
+// after somebody names that engine is the one that waits for it. Without a word
+// during that minute the platform says "starting" — which is the answer it gave
+// before the image pull learned to count bytes, and the reason it learned.
+//
+// The layer already standing here reports Done at once: an install that is a
+// cache hit still has to end the phase, or the display shows a step running
+// that finished in a millisecond.
+func (s *Store) EnsureWatched(ctx context.Context, r Release, watch func(Progress)) (Layer, error) {
+	say := func(p Progress) {
+		if watch != nil {
+			watch(p)
+		}
+	}
 	if l, ok := s.Lookup(r.engine, r.Version); ok {
 		l.Release = r
+		say(Progress{Detail: l.Engine + " " + l.Version + " already on this host", Done: true})
 		return l, nil
 	}
 	if err := r.Valid(); err != nil {
@@ -132,12 +153,13 @@ func (s *Store) Ensure(ctx context.Context, r Release) (Layer, error) {
 	// failed install leaves no half an engine for the next start to trip over.
 	defer os.RemoveAll(tmp)
 
+	say(Progress{Detail: r.engine + " " + r.Version})
 	var exe string
 	switch r.Kind {
 	case KindTarball:
-		exe, err = s.installTarball(ctx, r, tmp)
+		exe, err = s.installTarball(ctx, r, tmp, say)
 	case KindNpm:
-		exe, err = s.installNpm(ctx, r, tmp)
+		exe, err = s.installNpm(ctx, r, tmp, say)
 	default:
 		err = fmt.Errorf("engines: unknown kind %q", r.Kind)
 	}
@@ -170,6 +192,7 @@ func (s *Store) Ensure(ctx context.Context, r Release) (Layer, error) {
 		return Layer{}, fmt.Errorf("engines: install layer: %w", err)
 	}
 	ex := filepath.Join(root, filepath.FromSlash(exe))
+	say(Progress{Detail: r.engine + " " + r.Version + " installed", Done: true})
 	if s.Log != nil {
 		s.Log.Info("engine layer installed", "engine", r.engine, "version", r.Version,
 			"kind", r.Kind, "path", ex)
@@ -179,8 +202,8 @@ func (s *Store) Ensure(ctx context.Context, r Release) (Layer, error) {
 }
 
 // installTarball fetches, verifies and unpacks a tar archive (.tar or .tgz).
-func (s *Store) installTarball(ctx context.Context, r Release, dst string) (string, error) {
-	body, err := fetchArtifact(ctx, s.HTTP, r.URL, s.cap())
+func (s *Store) installTarball(ctx context.Context, r Release, dst string, say func(Progress)) (string, error) {
+	body, err := fetchArtifact(ctx, s.HTTP, r.URL, s.cap(), say)
 	if err != nil {
 		return "", err
 	}
@@ -200,7 +223,7 @@ func (s *Store) installTarball(ctx context.Context, r Release, dst string) (stri
 // over a different build tomorrow than today, which is the whole property a
 // catalogue is for), and lifecycle scripts stay disabled unless the entry asks
 // for them — see Release.AllowScripts.
-func (s *Store) installNpm(ctx context.Context, r Release, dst string) (string, error) {
+func (s *Store) installNpm(ctx context.Context, r Release, dst string, say func(Progress)) (string, error) {
 	npm := s.Npm
 	if npm == "" {
 		npm = "npm"
@@ -210,6 +233,11 @@ func (s *Store) installNpm(ctx context.Context, r Release, dst string) (string, 
 			r.engine, r.Version, strings.Join(r.Requires, ", "), err)
 	}
 	target := r.Package + "@" + r.Version
+	// No byte figures here, and that is the honest answer rather than a missing
+	// detail: npm does not announce what it is about to download. The phase then
+	// runs with a duration and no bar — the same statement a home sync makes,
+	// where a scan finds out how much there is by walking it.
+	say(Progress{Detail: "npm install " + target})
 	args := []string{"install", "--global=false", "--no-save", "--no-audit", "--no-fund",
 		"--no-update-on-package-install", "--prefix", dst, target}
 	if !r.AllowScripts {

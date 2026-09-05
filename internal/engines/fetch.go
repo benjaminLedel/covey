@@ -20,9 +20,24 @@ import (
 // not become a second code path — a second code path is a second set of
 // behaviour, and the digest check below would be the first thing to fall out of
 // it.
-func fetchArtifact(ctx context.Context, httpc *http.Client, raw string, limit int64) ([]byte, error) {
+func fetchArtifact(ctx context.Context, httpc *http.Client, raw string, limit int64, watch func(Progress)) ([]byte, error) {
 	if strings.HasPrefix(raw, "file://") {
-		body, err := os.ReadFile(strings.TrimPrefix(raw, "file://"))
+		path := strings.TrimPrefix(raw, "file://")
+		// Opened rather than ReadFile, and for one reason: the reading below can
+		// say how far it has got. An air-gapped installation fetches its engines
+		// from a mounted path, and a hundred and fifty megabytes off that path is
+		// not instant either — a step that reports nothing looks like a hang
+		// whoever wrote it.
+		f, err := os.Open(path)
+		if err != nil {
+			return nil, fmt.Errorf("engines: artefact: %w", err)
+		}
+		defer f.Close()
+		var total int64
+		if st, err := f.Stat(); err == nil {
+			total = st.Size()
+		}
+		body, err := io.ReadAll(io.LimitReader(counted(f, total, watch), limit+1))
 		if err != nil {
 			return nil, fmt.Errorf("engines: artefact: %w", err)
 		}
@@ -51,7 +66,7 @@ func fetchArtifact(ctx context.Context, httpc *http.Client, raw string, limit in
 	}
 	// One byte past the cap: reading the limit exactly cannot tell a file that
 	// is exactly the cap from one that is longer.
-	body, err := io.ReadAll(io.LimitReader(res.Body, limit+1))
+	body, err := io.ReadAll(io.LimitReader(counted(res.Body, res.ContentLength, watch), limit+1))
 	if err != nil {
 		return nil, fmt.Errorf("engines: artefact %s: %w", raw, err)
 	}
@@ -59,6 +74,54 @@ func fetchArtifact(ctx context.Context, httpc *http.Client, raw string, limit in
 		return nil, fmt.Errorf("engines: artefact %s is over the %d byte cap", raw, limit)
 	}
 	return body, nil
+}
+
+// Progress is how far an install has got. Bytes are read so far, BytesTotal is
+// what the artefact announced — 0 when it announced nothing, which is the same
+// statement the runner's own phases make: an unknown end is not a zero end.
+//
+// Done is the last word of one install: from here the figures are a result and
+// no longer a snapshot.
+type Progress struct {
+	Detail     string
+	Bytes      int64
+	BytesTotal int64
+	Done       bool
+}
+
+// progressEvery is how often a download says something. It is the runner's own
+// figure by intent: a step that reports sixty times a second is a step nobody
+// reads, and the control plane drops anything younger than this anyway.
+const progressEvery = 500 * time.Millisecond
+
+// counted wraps a reader and reports the bytes going through it, at most once
+// per progressEvery. Total 0 is carried through to the watch, so a server that
+// sends no Content-Length shows a running figure without a false 0 %.
+func counted(r io.Reader, total int64, watch func(Progress)) io.Reader {
+	if watch == nil {
+		return r
+	}
+	return &countReader{r: r, total: total, watch: watch, next: time.Now().Add(progressEvery)}
+}
+
+type countReader struct {
+	r     io.Reader
+	total int64
+	got   int64
+	watch func(Progress)
+	next  time.Time
+}
+
+func (c *countReader) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	c.got += int64(n)
+	// The first report comes whatever the clock says — a step that stays silent
+	// until a timer fires looks stuck in exactly the window somebody is watching.
+	if err != nil || time.Now().After(c.next) {
+		c.next = time.Now().Add(progressEvery)
+		c.watch(Progress{Bytes: c.got, BytesTotal: c.total})
+	}
+	return n, err
 }
 
 // FileCache keeps the last good copy of the catalogue on the runner's disk.

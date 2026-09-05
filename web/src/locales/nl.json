@@ -1741,6 +1741,8 @@
     "phase": {
       "image": "de werkplek-image ophalen",
       "imageDone": "werkplek-image opgehaald",
+      "engine": "de agent-engine installeren",
+      "engineDone": "agent-engine geïnstalleerd",
       "home": "de werkplek inrichten",
       "homeDone": "werkplek klaar",
       "home_sync": "de werkplek veiligstellen",

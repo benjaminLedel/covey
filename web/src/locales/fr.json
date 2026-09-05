@@ -1741,6 +1741,8 @@
     "phase": {
       "image": "récupération de l'image du poste de travail",
       "imageDone": "image du poste récupérée",
+      "engine": "installation du moteur",
+      "engineDone": "moteur installé",
       "home": "aménagement du poste de travail",
       "homeDone": "poste de travail prêt",
       "home_sync": "sauvegarde du poste de travail",

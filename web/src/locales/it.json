@@ -1741,6 +1741,8 @@
     "phase": {
       "image": "recupero dell'immagine della postazione",
       "imageDone": "immagine della postazione recuperata",
+      "engine": "installazione del motore",
+      "engineDone": "motore installato",
       "home": "allestimento della postazione",
       "homeDone": "postazione pronta",
       "home_sync": "salvataggio della postazione",

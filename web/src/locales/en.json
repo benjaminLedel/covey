@@ -1741,6 +1741,8 @@
     "phase": {
       "image": "fetching the workplace image",
       "imageDone": "workplace image fetched",
+      "engine": "installing the engine",
+      "engineDone": "engine installed",
       "home": "laying out the workplace",
       "homeDone": "workplace ready",
       "home_sync": "saving the workplace",

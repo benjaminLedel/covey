@@ -2,14 +2,18 @@ package runner
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 
+	"covey/internal/engines"
 	"covey/internal/homestore"
 )
 
@@ -184,5 +188,70 @@ func warteAufFortschritt(t *testing.T, ctx context.Context, control Transport, p
 		if p.Phase == phase && p.Done == fertig {
 			return p
 		}
+	}
+}
+
+// The fourth phase of a start: an engine the catalogue names is not on this host
+// yet, and fetching it is the same kind of wait as pulling an image and the same
+// order of magnitude — a self-contained engine is a hundred and fifty megabytes.
+// It reports itself the way the pull does: once before it begins, because
+// afterwards nobody needs it, and once at the end with the figures.
+func TestEngineInstallReportsItsPhase(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	orgID, runnerID, agentID := uuid.New(), uuid.New(), uuid.New()
+
+	art := engineTarball(t)
+	artPath := filepath.Join(dir, "sevencode.tgz")
+	if err := os.WriteFile(artPath, art, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(art)
+	catPath := filepath.Join(dir, "engines.json")
+	body := []byte(`{"schema":1,"engines":[{"name":"sevencode","versions":[` +
+		`{"version":"1.0.8","kind":"tarball","url":"file://` + artPath +
+		`","integrity":"sha256:` + hex.EncodeToString(sum[:]) + `"}]}]}`)
+	if err := os.WriteFile(catPath, body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	node := NewNode(runnerID, orgID, &Docker{
+		RunnerID: runnerID, Image: "covey-sandbox:test", DataDir: dir,
+		DockerBin:   fortschrittsDocker(t, dir),
+		Engines:     engines.NewSource("file://"+catPath, nil, nil),
+		EngineStore: &engines.Store{Dir: filepath.Join(dir, "engines")},
+	}, quietLog())
+	t.Cleanup(node.Close)
+
+	control, nodeEnd := NewInProc()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go func() { _ = node.Run(ctx, nodeEnd) }()
+	if _, err := control.Receive(ctx); err != nil {
+		t.Fatalf("registration: %v", err)
+	}
+
+	start, err := encode(TypeStartSandbox, "1", StartSandbox{
+		AgentID: agentID, OrgID: orgID, Image: "covey/sandbox:latest", Engine: "sevencode",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := control.Send(ctx, start); err != nil {
+		t.Fatal(err)
+	}
+
+	begin := warteAufFortschritt(t, ctx, control, PhaseEngine, false)
+	if !strings.Contains(begin.Detail, "sevencode") || !strings.Contains(begin.Detail, "1.0.8") {
+		t.Fatalf("the opening report names the engine and version: %+v", begin)
+	}
+	end := warteAufFortschritt(t, ctx, control, PhaseEngine, true)
+	if end.BytesTotal != int64(len(art)) {
+		t.Fatalf("the closing report carries the artefact's %d bytes, got %d", len(art), end.BytesTotal)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "engines", "sevencode", "1.0.8", "bin", "sevencode")); err != nil {
+		t.Fatalf("the phase ended before the layer was there: %v", err)
 	}
 }
