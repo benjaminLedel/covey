@@ -284,6 +284,9 @@ func validate(key, value string) error {
 	if strings.HasPrefix(key, "mail.") {
 		return validateMail(key, value)
 	}
+	if strings.HasPrefix(key, "telemetry.") {
+		return validateTelemetry(key, value)
+	}
 	if strings.HasPrefix(key, NotifyClassPrefix) {
 		if value != On && value != Off {
 			return fmt.Errorf("%w: %s must be on or off", ErrInvalid, key)

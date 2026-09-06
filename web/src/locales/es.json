@@ -1893,7 +1893,11 @@
       "notify.decision": "Correos sobre decisiones pendientes, para todos en esta instalación. Apagado prevalece sobre el interruptor de cada cuenta.",
       "notify.task": "Correos sobre tareas terminadas, para todos en esta instalación. Apagado prevalece sobre el interruptor de cada cuenta.",
       "notify.cost": "Correos sobre dinero (un tope de presupuesto, la parada de emergencia), para todos en esta instalación. Apagado prevalece sobre el interruptor de cada cuenta.",
-      "notify.ops": "Correos sobre la propia plataforma (un runner desaparecido, una credencial rechazada), para todos en esta instalación. Apagado prevalece sobre el interruptor de cada cuenta."
+      "notify.ops": "Correos sobre la propia plataforma (un runner desaparecido, una credencial rechazada), para todos en esta instalación. Apagado prevalece sobre el interruptor de cada cuenta.",
+      "telemetry.mode": "¿Envía esta instalación cifras al proyecto una vez al día: versión, cuántas organizaciones, agentes y ejecuciones, qué runtimes y sistemas de destino se usan? Sin títulos, sin nombres, sin textos. Desactivado significa que nada sale de la máquina.",
+      "telemetry.id": "La identidad que esta instalación se dio a sí misma. Une las cifras de ayer con las de hoy y no dice nada sobre quién la opera.",
+      "telemetry.url": "Adónde van las cifras. Vacío desactiva el canal igual que telemetry.mode = off.",
+      "telemetry.key": "Clave opcional para una instalación que el proyecto conoce: sus informes de error van directos al tracker en lugar de a una cola."
     },
     "choice": {
       "signup.mode": {

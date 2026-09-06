@@ -192,6 +192,42 @@ The default is deliberately the **upstream** project and not the internal one: a
 
 **The discipline is that an issue costs a human's attention**, and an agent that files one per review turns the tracker into noise. Three rules, all of them prompt-level because they are judgement and not safety: it files when the same limit hit **more than one agent**, it adds evidence to an existing issue rather than opening a second one, and it names that evidence — which agents, which runs, what it cost. A report that says "the turn limit is too low" is worthless; one that says "eleven runs across three agents ended at the limit, $340, and in nine of them the work was nearly done" is a specification.
 
+### The channel to the project, for an installation with no seat of its own
+
+The account above is the shorter half of the problem. Most installations have
+no GitHub account for this and never will — and "no account" meant "no report",
+which is the state that produced #200 in the first place.
+
+So there is a second route, and the platform takes whichever exists: where no
+credential of this organisation's is stored **and the destination is the
+project's own repository**, the report goes to the project through
+`internal/telemetry`, and the receiving side files it under its own account.
+Three properties make that acceptable rather than a spam cannon:
+
+- **A person reads it first.** Reports from installations the project does not
+  know wait in a queue; only an installation that is explicitly trusted goes
+  straight through. Nothing reaches a public tracker unread.
+- **A filter in front of the queue.** Mentions are defused (an `@name` in an
+  issue writes to a stranger), images and raw HTML are refused, as are texts
+  too short to carry evidence — a queue full of advertising is as useless as a
+  tracker full of it.
+- **It applies only to the upstream destination.** An organisation that files
+  into its own GitLab never uses this route: its findings would otherwise land
+  in somebody else's tracker, which is the opposite of what that setting says.
+
+**Telemetry rides the same channel and the same switch.** Once a day an
+installation sends counts — version, how many organisations, agents and runs,
+which runtimes and target systems are switched on — and nothing else: no title,
+no slug, no text, no address. It is **on by default**, because an installation
+that has to be asked reports nothing and the project then has to guess which
+version anybody is running; and it is off in one move (`telemetry.mode`, an
+empty `telemetry.url`, or `COVEY_TELEMETRY=off`, which works before the first
+start). The assembly is one short function so that the promise can be checked
+by reading it, and the test beside it takes a real task title and a real agent
+slug out of a running instance and fails if either appears in what goes out.
+[`docs/en/operations/telemetry.md`](../docs/en/operations/telemetry.md) says
+the same thing for whoever runs an instance rather than reads the code.
+
 ### It reads the source too, and that is what makes the report worth reading
 
 An agent that may only *write* issues reports symptoms. Give it the platform's own repository to **read** and the same finding arrives as a diagnosis: not "runs die at the turn limit" but "runs die at the turn limit because there is no way to hand back a partial result — `covey/create_task` would be the way and refuses at `maxAgentTaskDepth`, which is exactly this case." The evidence for the first half is in the work record; the second half needs the code, and nobody else in the organisation is holding both.

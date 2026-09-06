@@ -103,11 +103,26 @@ type Options struct {
 	// platform keeps its news to itself, which is what every installation did
 	// before this existed and what a test stack does.
 	Notify *notify.Store
+	// Upstream is the channel to the project (internal/telemetry): the way a
+	// platform finding reaches the tracker on an installation that has no
+	// account on the forge of its own. nil = not wired, and covey/create_issue
+	// then files with the organisation's own account or says it cannot.
+	Upstream Upstream
 	// RuntimeTools is the runs' built-in tool scope (COVEY_RUNTIME_TOOLS).
 	// Empty → daemon.DefaultAllowedTools. The list decides not only what a run
 	// may use but what exists for it at all — see daemon.DefaultAllowedTools.
 	RuntimeTools []string
 	Log          *slog.Logger
+}
+
+// Upstream is the one thing the orchestrator asks of the channel to the
+// project. An interface, because the orchestrator has no business knowing how
+// that channel works — and because a test stack wires none.
+type Upstream interface {
+	// Bericht sends one platform finding. The address comes back where the
+	// other side filed it straight away; empty means it is waiting for a
+	// person there.
+	Bericht(ctx context.Context, agent, titel, text string) (string, error)
 }
 
 type Orchestrator struct {
@@ -2243,10 +2258,12 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 			agent.OrgID).Scan(&repoSystem, &repoProject); err == nil {
 			repoSystem, repoProject = agents.PlatformRepo(repoSystem, repoProject)
 			ref, istTag := buildinfo.Ref()
-			// Einreichen steht nur im Prompt, wenn es auch geht: die Aktion
-			// schreibt mit dem Konto der Organisation, und ohne hinterlegtes
-			// Token gaebe es sonst wieder eine Faehigkeit auf dem Papier.
-			canFile := false
+			// Einreichen steht nur im Prompt, wenn es auch geht — sonst gaebe
+			// es wieder eine Faehigkeit auf dem Papier. Zwei Wege fuehren
+			// hin: das eigene Konto der Organisation, oder der Kanal zum
+			// Projekt, wenn das Ziel dessen eigenes Repository ist
+			// (platformissue.go).
+			canFile := o.Upstream != nil && upstreamsRepo(repoSystem, repoProject)
 			if o.Secrets != nil && repoSystem != "" {
 				if tok, err := o.Secrets.Get(ctx, agent.OrgID, repoSystem+"_token"); err == nil && strings.TrimSpace(tok) != "" {
 					canFile = true

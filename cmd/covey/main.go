@@ -57,6 +57,7 @@ import (
 	"covey/internal/settings"
 	"covey/internal/skills"
 	targetstore "covey/internal/target/store"
+	"covey/internal/telemetry"
 	"covey/internal/templates"
 	"covey/internal/waitlist"
 	orgworkplaces "covey/internal/workplaces"
@@ -1487,6 +1488,16 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Pool: pool, Mail: mail.New(settingsStore), Settings: settingsStore,
 		SiteURL: cfg.SiteURL, Log: log,
 	}).Run(ctx)
+	// The channel back to the project (internal/telemetry): once a day a
+	// handful of counts, and the way a platform finding reaches the tracker on
+	// an installation that has no forge account of its own. ON unless
+	// switched off — the package says in full what goes out, and it is
+	// numbers and version strings.
+	telemetrySender := &telemetry.Sender{
+		Pool: pool, Settings: settingsStore, Log: log, Env: os.Getenv("COVEY_TELEMETRY"),
+	}
+	orch.Upstream = telemetrySender
+	go telemetrySender.Loop(ctx)
 	// Egress log retention: clear out old decisions periodically.
 	go func() {
 		t := time.NewTicker(6 * time.Hour)

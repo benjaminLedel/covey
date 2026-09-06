@@ -1893,7 +1893,11 @@
       "notify.decision": "Wiadomości o oczekujących decyzjach — dla wszystkich w tej instalacji. Wyłączone ma pierwszeństwo przed ustawieniem każdego konta.",
       "notify.task": "Wiadomości o zakończonych zadaniach — dla wszystkich w tej instalacji. Wyłączone ma pierwszeństwo przed ustawieniem każdego konta.",
       "notify.cost": "Wiadomości o pieniądzach — limit budżetu, wyłącznik awaryjny — dla wszystkich w tej instalacji. Wyłączone ma pierwszeństwo przed ustawieniem każdego konta.",
-      "notify.ops": "Wiadomości o samej platformie — runner, który zniknął, odrzucone poświadczenie — dla wszystkich w tej instalacji. Wyłączone ma pierwszeństwo przed ustawieniem każdego konta."
+      "notify.ops": "Wiadomości o samej platformie — runner, który zniknął, odrzucone poświadczenie — dla wszystkich w tej instalacji. Wyłączone ma pierwszeństwo przed ustawieniem każdego konta.",
+      "telemetry.mode": "Czy ta instalacja raz dziennie wysyła projektowi liczby: wersję, ile organizacji, agentów i przebiegów, jakie runtime'y i systemy docelowe są używane. Bez tytułów, bez nazw, bez tekstów. Wyłączone znaczy: nic nie opuszcza maszyny.",
+      "telemetry.id": "Identyfikator, który ta instalacja nadała sobie sama. Łączy wczorajsze liczby z dzisiejszymi i nie mówi nic o tym, kto ją prowadzi.",
+      "telemetry.url": "Dokąd trafiają liczby. Puste wyłącza kanał tak samo jak telemetry.mode = off.",
+      "telemetry.key": "Opcjonalny klucz dla instalacji, którą projekt zna — jej zgłoszenia błędów trafiają wtedy prosto do trackera zamiast do kolejki."
     },
     "choice": {
       "signup.mode": {

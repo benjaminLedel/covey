@@ -1893,7 +1893,11 @@
       "notify.decision": "Mails over wachtende beslissingen — voor iedereen op deze installatie. Uit gaat vóór de schakelaar van elk account.",
       "notify.task": "Mails over afgeronde taken — voor iedereen op deze installatie. Uit gaat vóór de schakelaar van elk account.",
       "notify.cost": "Mails over geld — een budgetplafond, de noodstop — voor iedereen op deze installatie. Uit gaat vóór de schakelaar van elk account.",
-      "notify.ops": "Mails over het platform zelf — een runner die wegviel, een geweigerde toegang — voor iedereen op deze installatie. Uit gaat vóór de schakelaar van elk account."
+      "notify.ops": "Mails over het platform zelf — een runner die wegviel, een geweigerde toegang — voor iedereen op deze installatie. Uit gaat vóór de schakelaar van elk account.",
+      "telemetry.mode": "Stuurt deze installatie eenmaal per dag cijfers naar het project: versie, hoeveel organisaties, agents en runs, welke runtimes en doelsystemen in gebruik zijn. Geen titels, geen namen, geen teksten. Uit betekent dat er niets van de machine af gaat.",
+      "telemetry.id": "De kenning die deze installatie zichzelf gaf. Ze verbindt de cijfers van gisteren met die van vandaag en zegt niets over wie haar beheert.",
+      "telemetry.url": "Waar de cijfers heen gaan. Leeg schakelt het kanaal net zo goed uit als telemetry.mode = off.",
+      "telemetry.key": "Optionele sleutel voor een installatie die het project kent — haar foutmeldingen gaan dan rechtstreeks de tracker in in plaats van in een wachtrij."
     },
     "choice": {
       "signup.mode": {
