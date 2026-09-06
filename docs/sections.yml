@@ -54,6 +54,7 @@ sections:
       - teams
       - vulndb
       - zammad
+      - zendesk
 
   - id: operations
     title: { de: Betrieb, en: Operations }

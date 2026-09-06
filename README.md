@@ -85,7 +85,7 @@ Full walkthrough including your first agent and a production checklist: [`docs/e
 | 🧑‍💼 **An identity per agent** | Its own sandbox, home directory and credentials, and a place on the org chart next to the humans. |
 | 🧑‍🎓 **Hiring, not a config form** | Describe the job in a few sentences; the People department writes the configuration and asks back when the brief is thin. What comes out is a draft until a human hires it. |
 | 📥 **Backlog and wake sources** | Tasks as first-class objects. Agents wake on a webhook, a heartbeat or a nudge, then go back to sleep. |
-| 🔌 **Target systems as plugins** | Jira, Confluence, GitLab, GitHub, Zammad, Salesforce, Teams, SharePoint, Nextcloud, Kubernetes, email (IMAP/SMTP), headless browser, MCP. |
+| 🔌 **Target systems as plugins** | Jira, Confluence, GitLab, GitHub, Zammad, Zendesk, Salesforce, Teams, SharePoint, Nextcloud, Kubernetes, email (IMAP/SMTP), headless browser, MCP. |
 | 🛡️ **Guard rails and approvals** | Enforced centrally, outside the runtime, fail-closed. Critical actions wait for a human. |
 | 🔑 **Secrets broker** | No long-lived secret ever enters a sandbox. Access is brokered per run, short-lived and scoped. |
 | 🧩 **Skills** | Procedures an agent loads only when they apply — the description stays in context, the instructions are read on demand. |
@@ -129,7 +129,7 @@ flowchart LR
     end
 
     CP <-->|daemon protocol| DP
-    CP --> TS["Targets: Jira · Confluence · GitLab · GitHub · Zammad · Salesforce · Teams · SharePoint · Nextcloud · Kubernetes · Email · Browser · MCP"]
+    CP --> TS["Targets: Jira · Confluence · GitLab · GitHub · Zammad · Zendesk · Salesforce · Teams · SharePoint · Nextcloud · Kubernetes · Email · Browser · MCP"]
     CP --- DB[("PostgreSQL + pgvector")]
 ```
 
@@ -219,6 +219,7 @@ holds the reading order. The operating runbooks below are English only.
 | [`docs/en/operations/runner.md`](docs/en/operations/runner.md) | Runners: sandboxes on more than one host, the home store, hard egress isolation |
 | [`docs/en/operations/workplaces.md`](docs/en/operations/workplaces.md) | Workplaces: which image an agent works in, the role images, a workplace of your own |
 | [`docs/en/integrations/zammad.md`](docs/en/integrations/zammad.md) | Zammad: API token, webhook + trigger, customer-visible replies |
+| [`docs/en/integrations/zendesk.md`](docs/en/integrations/zendesk.md) | Zendesk Support: the four credential forms, a signed webhook, the thread rebuilt from the audit trail |
 | [`docs/en/integrations/github.md`](docs/en/integrations/github.md) | GitHub: issues, pull requests, Actions, checkout inside the sandbox |
 | [`docs/en/integrations/gitlab.md`](docs/en/integrations/gitlab.md) | GitLab: issues, merge requests, checkout inside the sandbox |
 | [`docs/en/integrations/jira.md`](docs/en/integrations/jira.md) | Jira: the ticket beside the repository — Cloud and Data Center, the workflow, the heartbeat gate |
