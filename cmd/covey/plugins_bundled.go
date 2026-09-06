@@ -28,4 +28,5 @@ import (
 	_ "github.com/benjaminLedel/covey-plugin-pack/searchconsole"
 	_ "github.com/benjaminLedel/covey-plugin-pack/sharepoint"
 	_ "github.com/benjaminLedel/covey-plugin-pack/teams"
+	_ "github.com/benjaminLedel/covey-plugin-pack/zendesk"
 )
