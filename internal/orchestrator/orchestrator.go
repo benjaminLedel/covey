@@ -2920,9 +2920,21 @@ func (o *Orchestrator) createAgentTask(ctx context.Context, agent agents.Agent, 
 		if err != nil {
 			return fail(fmt.Sprintf("no agent %q in this organization", slug))
 		}
-		if found.Killed {
-			return fail(fmt.Sprintf("agent %q is paused — no delegation", slug))
-		}
+		// A paused colleague does NOT refuse the work — the task is created and
+		// waits. runAgent returns without doing anything while Killed is set, so
+		// the backlog is the right place for it: it is picked up when a human
+		// releases the agent, exactly as a task queued for an unhired one waits
+		// for the hiring.
+		//
+		// It used to be refused here, and that lost the work. The delegating
+		// colleague got an error it could do nothing with, nothing recorded that
+		// the work had been wanted, and a milestone needed a manual intervention
+		// per incident (#202). The pause is a decision about spending; it stops
+		// the paused agent from starting, and it has no business destroying
+		// somebody else's request.
+		//
+		// A draft is a different matter and stays refused: it has never been
+		// hired, so a delegation to it is a mistake rather than a delay.
 		if found.Draft() {
 			return fail(fmt.Sprintf("agent %q has not been hired yet — no delegation", slug))
 		}
@@ -2961,11 +2973,16 @@ func (o *Orchestrator) createAgentTask(ctx context.Context, agent agents.Agent, 
 	if err != nil {
 		return fail(err.Error())
 	}
-	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
-		map[string]string{"status": "task_created", "created_task": created.ID.String(),
-			"target_agent": targetAgent.Slug, "title": title})
+	fields := map[string]string{"status": "task_created", "created_task": created.ID.String(),
+		"target_agent": targetAgent.Slug, "title": title}
+	if targetAgent.Killed {
+		// Written down because the task then lies still for a reason that is not
+		// visible on it: whoever asks later why it waited finds the answer here.
+		fields["target_paused"] = "true"
+	}
+	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle, fields)
 	o.publishTask(created.ID, targetAgent)
-	if targetAgent.ID != agent.ID {
+	if targetAgent.ID != agent.ID && !targetAgent.Killed {
 		o.EnsureRunning(targetAgent.ID) // delegation wakes the colleague
 	}
 	return daemon.InjectCreateTask{RequestID: req.RequestID, OK: true,

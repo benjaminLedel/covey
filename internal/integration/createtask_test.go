@@ -265,3 +265,57 @@ func taskError(t *testing.T, s *stack, id uuid.UUID) string {
 	}
 	return *task.Error
 }
+
+// TestDelegationAnPausiertenKollegenWartet hält fest, was covey#202 ausgelöst
+// hat: eine Delegation an einen pausierten Kollegen wurde abgelehnt, und damit
+// war die Arbeit weg — der Absender bekam einen Fehler, mit dem er nichts
+// anfangen konnte, und niemand hielt fest, dass die Aufgabe gewollt war.
+//
+// Richtig ist: die Aufgabe entsteht und liegt. runAgent kehrt zurück, solange
+// Killed gesetzt ist, sie wird also nicht abgearbeitet — bis ein Mensch den
+// Kollegen freigibt. Genau das prüft der zweite Teil.
+func TestDelegationAnPausiertenKollegenWartet(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	sender := s.newSupportAgent("absender-pause")
+	colleague := s.newSupportAgent("pausierter-kollege")
+
+	if err := s.registry.SetKilled(ctx, colleague.ID, true); err != nil {
+		t.Fatal(err)
+	}
+
+	task, err := s.backlog.Create(ctx, s.orgID, sender.ID, "Geht an den Pausierten",
+		`[mock:action covey/create_task {"title":"Bitte später übernehmen","body":"Details","agent":"pausierter-kollege"}]
+[mock:result delegiert]`, "manual", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "task done", 20*time.Second, func() bool {
+		return s.taskState(task.ID) == backlog.StateDone
+	})
+
+	// Die Delegation ist angekommen, obwohl der Kollege pausiert ist.
+	delegated := childOf(t, s, colleague.ID, task.ID)
+	if delegated.AgentID != colleague.ID {
+		t.Fatalf("die delegierte Aufgabe gehört dem Kollegen")
+	}
+	if got := s.taskState(delegated.ID); got == backlog.StateDone {
+		t.Fatalf("ein pausierter Agent arbeitet nichts ab, Zustand war %q", got)
+	}
+
+	// Und sie bleibt liegen, statt still zu verschwinden.
+	time.Sleep(2 * time.Second)
+	if got := s.taskState(delegated.ID); got == backlog.StateDone {
+		t.Fatalf("die Aufgabe wurde trotz Pause abgearbeitet: %q", got)
+	}
+
+	// Nach der Freigabe läuft sie an — die Pause hat sie verzögert, nicht
+	// vernichtet.
+	if err := s.registry.SetKilled(ctx, colleague.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	s.orch.EnsureRunning(colleague.ID)
+	waitFor(t, "der freigegebene Kollege arbeitet sie ab", 30*time.Second, func() bool {
+		return s.taskState(delegated.ID) == backlog.StateDone
+	})
+}
