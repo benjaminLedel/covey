@@ -137,6 +137,13 @@ var manifest = []struct {
 		DescriptionDe: "Analysiert per E-Mail gemeldete Logs, prüft auf Duplikate, legt für relevante Befunde GitLab-Tickets an und übergibt echte Code-Bugs an einen Entwickler-Agenten.",
 	},
 	{
+		File:          "zendesk-support-agent.bundle.json",
+		Name:          "Support agent (Zendesk)",
+		Description:   "Works a Zendesk queue: takes up the tickets waiting for an answer, reads the whole thread before it writes (internal notes included — a colleague may already be waiting for something), looks at the file the customer attached, checks how the house answered this before, and then does exactly one thing — answer, ask the one missing question, or escalate with everything it established. Heartbeat intake, no Zendesk setup needed to try it.",
+		NameDe:        "Support-Agent (Zendesk)",
+		DescriptionDe: "Arbeitet eine Zendesk-Warteschlange: nimmt die Tickets auf, die auf eine Antwort warten, liest den ganzen Verlauf, bevor er schreibt (interne Notizen eingeschlossen — vielleicht wartet ein Kollege längst auf etwas), sieht sich die Datei an, die der Kunde angehängt hat, prüft, wie das Haus das früher beantwortet hat, und tut dann genau eines: antworten, die eine fehlende Frage stellen, oder mit allem Festgestellten eskalieren. Aufnahme per Heartbeat, ohne Einrichtung in Zendesk ausprobierbar.",
+	},
+	{
 		File:          "web-researcher.bundle.json",
 		Name:          "Web researcher (browser)",
 		Description:   "Researches questions on the open web with a real browser: searches, opens and reads sources, captures evidence as screenshots and delivers a concise, sourced answer.",

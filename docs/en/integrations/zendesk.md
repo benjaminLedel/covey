@@ -169,6 +169,11 @@ COVEY_ZENDESK_WEBHOOK_SECRET=<long-random-string>   # identical to the signing k
    earlier internal note appear in what it reads?
 5. `escalate`: did the ticket move to the escalation group *and* keep its tags?
 
+A ready-made agent that uses all of this:
+[`examples/zendesk-support-agent.bundle.json`](../../../examples/README.md) — a
+support agent that works the queue by heartbeat. It needs nothing but the two
+secrets from 2.2 and the target system enabled.
+
 ---
 
 ## 3. Which tickets the agent takes up

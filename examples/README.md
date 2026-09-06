@@ -24,6 +24,7 @@ optional.
 | `qa-agent.bundle.json` | `covey-qa` | QA/test: accept others' merge requests end to end as the reviewer — set the project up once per project and keep it, operate the application in the browser, support states and defects with screenshots, run the test suite as a job that outlives the run, and close a green acceptance with `approve_mr` + `merge_mr`. |
 | `delivery-lead.bundle.json` | `covey-lead` | Delivery lead: drive a GitLab milestone to its deadline — make tickets implementable (acceptance criteria, affected code locations), keep dependent tickets in order, dispatch work to the developers within a WIP limit, report the state, escalate open subject-matter questions to the human. |
 | `log-triage-agent.bundle.json` | `covey-logtriage` | Log triage: analyse logs reported by email, check for duplicates before filing (`list_issues search=…`, bundle occurrences onto the existing ticket), file tickets for relevant findings and hand real code bugs to a developer agent by `assignee`. |
+| `zendesk-support-agent.bundle.json` | `covey-support` | Support: work a Zendesk queue — take up the tickets whose newest public comment came from the customer, read the whole thread including the internal notes, look at the attachment rather than guessing from the text, check how the house answered this before (`search_tickets`, `list_requester_history`), then answer, ask the one missing question, or escalate with everything already established. The only template that needs no second system: one target system, two secrets. |
 | `web-researcher.bundle.json` | `covey-webresearch` | Web researcher: research questions on the open web with a real browser, capture evidence as screenshots and deliver a concise, sourced answer. |
 | `dependency-security-agent.bundle.json` | `covey-depsec` | Dependency security: scan the lock files of the projects in its register (`vulndb scan_lockfile`), assess every hit against the project — direct or transitive, which fix branch applies — and file traceable GitLab tickets with evidence after a mandatory duplicate check; hand the upgrade to a developer agent. |
 
@@ -137,6 +138,34 @@ fixed schedule, `täglich: 06:00`, not on a `nur-wenn` edge) — but a separate
 GitLab token is still the better choice, so that the security tickets are
 attributable and the second heartbeat (`nur-wenn: gitlab:issues:assigned`) only
 sees what really belongs to it.
+
+Additionally for the **Zendesk support agent** only:
+
+- Assign the secrets `zendesk_url` + `zendesk_token` and enable the `zendesk`
+  target system. That is the whole setup — no webhook, no trigger, nothing
+  configured inside Zendesk. The heartbeat's `nur-wenn: zendesk` asks the account
+  once whether anything is waiting, which is what makes this the cheapest
+  template to try out.
+- **Give it its own Zendesk user**, and prefer an OAuth client over the account's
+  API token. The reason is the same one the developer and QA agents have, in a
+  sharper form: the pre-check tells the agent's own answers from a customer's by
+  the writer's identity, and an API token can write as anybody in the account. A
+  credential shared with another integration makes the agent read that
+  integration's comments as its own — or its own as somebody else's, and then it
+  answers a ticket twice.
+- **Decide its reach before the first run.** `zendesk_url = https://acme.zendesk.com queue="Support L1"`
+  binds this agent to one group, and that is a ceiling rather than a default: it
+  does not see another group's ticket even by the id a customer quotes, and the
+  heartbeat inherits the boundary. Without it the agent works everything its user
+  can see, which on a Team plan is the whole account.
+- **A group to escalate into** (`COVEY_ZENDESK_ESCALATION_GROUP`) is worth
+  setting up before the agent runs. Without one, `escalate` writes its note and
+  tags the ticket but leaves it where it is — the handover then depends on
+  somebody reading the tag.
+- Everything else — the four credential forms, the difference between the
+  per-agent ceiling and the installation-wide `COVEY_ZENDESK_INTAKE_GROUPS`, and
+  the signed webhook for accounts that want the ticket picked up the moment it
+  arrives — is in [`docs/en/integrations/zendesk.md`](../docs/en/integrations/zendesk.md).
 
 Additionally for the **covey Doctor** only:
 

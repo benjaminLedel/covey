@@ -175,6 +175,11 @@ COVEY_ZENDESK_WEBHOOK_SECRET=<lang-zufaellige-zeichenkette>   # identisch mit de
 5. `escalate`: Ist das Ticket in die Eskalationsgruppe gewandert *und* haben seine
    Tags überlebt?
 
+Ein fertiger Agent, der das alles benutzt:
+[`examples/zendesk-support-agent.de.bundle.json`](../../../examples/README.md) —
+ein Support-Agent, der die Warteschlange per Heartbeat arbeitet. Er braucht
+nichts weiter als die beiden Secrets aus 2.2 und das aktivierte Zielsystem.
+
 ---
 
 ## 3. Welche Tickets der Agent aufnimmt
