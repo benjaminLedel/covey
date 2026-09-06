@@ -75,6 +75,12 @@ var coveyOps = map[string]coveyOp{
 	// Kollegen. Geprüft in reviewPropose, wo der Betroffene bekannt ist.
 	"propose_agent_config": {Subject: "covey:propose_agent_config", Scopes: []string{scopeReview, scopeWrite}},
 	"write_review":         {Subject: "covey:write_review", Scopes: []string{scopeReview}},
+	// Der Befund, der nicht diese Organisation angeht, sondern die Plattform
+	// selbst: er geht in den Tracker des Repositories, aus dem dieses Programm
+	// stammt (platformissue.go). Das Ziel ist Stammdatum, das Credential
+	// bleibt in der Steuerebene — deshalb reicht derselbe Scope, mit dem der
+	// Agent ohnehin begutachtet, und kein Sitz auf der fremden Forge.
+	"create_issue": {Subject: "covey:create_issue", Scopes: []string{scopeReview}},
 
 	// Die Dienste neben der eigenen Sandbox (spec/16). Eigener Scope, und das
 	// ist keine Sorgfalt um ihrer selbst willen: `agents:write` lässt einen
@@ -226,6 +232,8 @@ func (o *Orchestrator) hiring(ctx context.Context, agent agents.Agent, taskID uu
 		return o.reviewPropose(ctx, agent, taskID, req, ok, fail)
 	case "write_review":
 		return o.reviewWrite(ctx, agent, taskID, req, ok, fail)
+	case "create_issue":
+		return o.platformIssue(ctx, agent, taskID, req, ok, fail)
 	case "start_services":
 		return o.startServices(ctx, agent, taskID, req, ok, fail)
 	case "style_check":
@@ -443,6 +451,9 @@ func hiringParams(req daemon.RequestHiring) map[string]any {
 	add("job_title", req.JobTitle)
 	add("department", req.Department)
 	add("supervisor", req.Supervisor)
+	// The title travels so a guard rail can look at what is being filed or
+	// proposed, not only that something is.
+	add("title", req.Title)
 	if len(req.Files) > 0 {
 		out["files"] = sortedKeys(req.Files)
 	}

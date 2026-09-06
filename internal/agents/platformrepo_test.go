@@ -36,29 +36,67 @@ func TestPlatformRepoVoreinstellung(t *testing.T) {
 	}
 }
 
-// Der Abschnitt im Prompt haengt am Anker: Ein Agent, der den Default-Branch
-// liest, meldet gegen Code, den diese Instanz nicht ausfuehrt.
-func TestPlatformRepoDocAnker(t *testing.T) {
-	mitTag := PlatformRepoDoc("github", "benjaminLedel/covey", "v0.4.0", true)
-	if !strings.Contains(mitTag, "`ref: v0.4.0`") || !strings.Contains(mitTag, "release") {
-		t.Fatalf("der Tag soll als Auslieferung benannt werden:\n%s", mitTag)
+// The anchor carries the section: an agent reading the default branch reports
+// against code this instance does not execute. The anchor only matters where
+// the agent may read the source at all — hence mayRead=true here.
+func TestPlatformRepoDocAnchor(t *testing.T) {
+	withTag := PlatformRepoDoc("github", "benjaminLedel/covey", "v0.4.0", true, true, true)
+	if !strings.Contains(withTag, "`ref: v0.4.0`") || !strings.Contains(withTag, "release") {
+		t.Fatalf("the tag should be named as the shipped version:\n%s", withTag)
 	}
 
-	mitCommit := PlatformRepoDoc("github", "benjaminLedel/covey", "abc1234", false)
-	if !strings.Contains(mitCommit, "`ref: abc1234`") || !strings.Contains(mitCommit, "commit") {
-		t.Fatalf("ohne Tag bleibt der Commit der Anker:\n%s", mitCommit)
+	withCommit := PlatformRepoDoc("github", "benjaminLedel/covey", "abc1234", false, true, true)
+	if !strings.Contains(withCommit, "`ref: abc1234`") || !strings.Contains(withCommit, "commit") {
+		t.Fatalf("without a tag the commit stays the anchor:\n%s", withCommit)
 	}
 
-	// Ohne Provenance keine Behauptung: dann steht im Prompt, dass die
-	// Zuordnung fehlt — und nicht der Default-Branch als „laufender Stand".
-	ohne := PlatformRepoDoc("github", "benjaminLedel/covey", "", false)
-	if !strings.Contains(ohne, "default branch") || !strings.Contains(ohne, "no version information") {
-		t.Fatalf("ohne Anker fehlt die ehrliche Auskunft:\n%s", ohne)
+	// Without provenance no claim: the prompt then says the attribution is
+	// missing instead of passing the default branch off as "the running state".
+	without := PlatformRepoDoc("github", "benjaminLedel/covey", "", false, true, true)
+	if !strings.Contains(without, "default branch") || !strings.Contains(without, "no version information") {
+		t.Fatalf("without an anchor the honest answer is missing:\n%s", without)
 	}
 
-	// Keine Adresse, kein Abschnitt — sonst stuende im Prompt eine Faehigkeit,
-	// die der Broker gleich darauf abweist.
-	if PlatformRepoDoc("", "", "v0.4.0", true) != "" {
-		t.Fatal("ohne Adresse darf kein Abschnitt entstehen")
+	// No address, no section — otherwise the prompt would carry a capability
+	// the broker refuses right afterwards.
+	if PlatformRepoDoc("", "", "v0.4.0", true, true, true) != "" {
+		t.Fatal("without an address no section may be produced")
+	}
+}
+
+// Filing and reading hang on different conditions since covey#200: whoever may
+// review may file — the control plane writes the issue with the organisation's
+// own account — while reading the source still needs the target system in
+// ACCESS.md. An agent without that access must not read "check it out" in its
+// prompt, and must still be told how to file.
+func TestPlatformRepoDocFilesWithoutASeat(t *testing.T) {
+	without := PlatformRepoDoc("github", "benjaminLedel/covey", "v0.4.0", true, true, false)
+	if !strings.Contains(without, "covey/create_issue") {
+		t.Fatalf("filing works without a seat and has to stand there:\n%s", without)
+	}
+	if strings.Contains(without, "check it out") {
+		t.Fatalf("without access to the system nothing may promise a checkout:\n%s", without)
+	}
+	if !strings.Contains(without, "could not read the code") {
+		t.Fatalf("the report has to say what it could not see:\n%s", without)
+	}
+
+	with := PlatformRepoDoc("github", "benjaminLedel/covey", "v0.4.0", true, true, true)
+	if !strings.Contains(with, "covey/create_issue") || !strings.Contains(with, "check it out") {
+		t.Fatalf("with access both halves stand there:\n%s", with)
+	}
+
+	// Neither half: nothing at all. Without an account stored for the system
+	// the platform cannot file, and without the access line the agent cannot
+	// read — a section about a repository nobody can reach helps no one.
+	if PlatformRepoDoc("github", "benjaminLedel/covey", "v0.4.0", true, false, false) != "" {
+		t.Fatal("without filing and without reading no section may be produced")
+	}
+
+	// Filing off, reading on: the section stands, and it says plainly that
+	// nothing here files.
+	readOnly := PlatformRepoDoc("github", "benjaminLedel/covey", "v0.4.0", true, false, true)
+	if strings.Contains(readOnly, "covey/create_issue") || !strings.Contains(readOnly, "Nothing here files issues") {
+		t.Fatalf("without a stored account nothing may promise filing:\n%s", readOnly)
 	}
 }

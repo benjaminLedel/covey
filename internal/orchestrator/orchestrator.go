@@ -2220,28 +2220,41 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 		//     ihr eigenes Repository ein; wer die Schicht gar nicht will, setzt
 		//     das Zielsystem auf "-" (repoAus).
 		//  2. Der Agent darf begutachten (mayReview, siehe oben).
-		//  3. Er hat dieses Zielsystem WIRKLICH in seiner ACCESS.md.
 		//
-		// Ohne (3) stuende im Prompt „you may READ it — check it out and search
-		// it like any other repository", und der Broker wiese den Checkout
-		// gleich darauf ab: Faehigkeit durch Andeutung, dieselbe, die der
-		// Abschnitt darueber fuer das Entwerfen ausdruecklich vermeidet. Das
-		// Stammdatum allein ist die halbe Einrichtung — die andere Haelfte ist
-		// eine Zeile in der ACCESS.md von covey Doctor.
+		// Die dritte Bedingung galt frueher fuer den ganzen Abschnitt: der
+		// Agent musste das Zielsystem WIRKLICH in seiner ACCESS.md haben.
+		// Seit das Einreichen eine Plattform-Aktion ist (covey/create_issue,
+		// platformissue.go), traegt sie nur noch die eine Haelfte, die sie
+		// wirklich betrifft:
 		//
-		// Der Scope INNERHALB des Systems bleibt Sache dieser Zeile: welche
-		// Aktionen sie traegt, steht ohnehin im Zielsystem-Abschnitt des
-		// Prompts, der schon auf die Scopes des Agenten zugeschnitten ist.
+		//  - LESEN des Quelltextes braucht die Zeile in der ACCESS.md, denn
+		//    ausgecheckt wird mit dem Credential des Agenten. Ohne sie stuende
+		//    im Prompt „check it out and search it", und der Broker wiese den
+		//    Checkout gleich darauf ab — Faehigkeit durch Andeutung, dieselbe,
+		//    die der Abschnitt darueber fuer das Entwerfen vermeidet.
+		//  - EINREICHEN braucht sie nicht mehr. Die Steuerebene schreibt das
+		//    Issue mit dem Konto der Organisation; der Agent sieht kein Token
+		//    und waehlt kein Ziel. Genau das war die Sackgasse: das
+		//    mitgelieferte Playbook hiess einreichen, und der einzige Weg
+		//    dorthin war ein Zugang, den das Template nicht hatte (#200).
 		var repoSystem, repoProject string
 		if err := o.Pool.QueryRow(ctx,
 			"SELECT platform_repo_system, platform_repo_project FROM organizations WHERE id=$1",
 			agent.OrgID).Scan(&repoSystem, &repoProject); err == nil {
 			repoSystem, repoProject = agents.PlatformRepo(repoSystem, repoProject)
-			if grantedSystems[repoSystem] {
-				ref, istTag := buildinfo.Ref()
-				if section := agents.PlatformRepoDoc(repoSystem, repoProject, ref, istTag); section != "" {
-					compiled += "\n\n" + section
+			ref, istTag := buildinfo.Ref()
+			// Einreichen steht nur im Prompt, wenn es auch geht: die Aktion
+			// schreibt mit dem Konto der Organisation, und ohne hinterlegtes
+			// Token gaebe es sonst wieder eine Faehigkeit auf dem Papier.
+			canFile := false
+			if o.Secrets != nil && repoSystem != "" {
+				if tok, err := o.Secrets.Get(ctx, agent.OrgID, repoSystem+"_token"); err == nil && strings.TrimSpace(tok) != "" {
+					canFile = true
 				}
+			}
+			if section := agents.PlatformRepoDoc(repoSystem, repoProject, ref, istTag,
+				canFile, grantedSystems[repoSystem]); section != "" {
+				compiled += "\n\n" + section
 			}
 		}
 	}

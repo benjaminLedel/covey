@@ -170,15 +170,22 @@ Additionally for the **Zendesk support agent** only:
 Additionally for the **covey Doctor** only:
 
 - Its `ACCESS.md` carries one line, `- system: covey scope: agents:review`, and
-  that is everything it needs to read colleagues and propose configurations.
-  Nothing else has to be set up for the review cycle.
-- **Reading the platform's own source is two settings, and both are needed.**
-  Under *Organisation → Source of this platform* enter the target system and the
-  project covey itself lives in — and add **that same system to the agent's
-  `ACCESS.md`**, scoped to reading the code and filing issues. The master datum
-  alone is half the setup: without the access line the section stays out of the
-  agent's prompt entirely, because an agent that reads it may check out and then
-  runs into the broker's refusal.
+  that is everything it needs to read colleagues, propose configurations **and
+  file a platform bug**. Nothing else has to be set up for the review cycle.
+- **Filing needs one setting and one secret, and no access line.** Under
+  *Organisation → Source of this platform* enter the target system and the
+  project covey itself lives in (empty = the project this build comes from,
+  `-` = file nothing at all), and store that system's token as an organisation
+  secret (`github_token`, `gitlab_token`, …). `covey/create_issue` then writes
+  into that project from the control plane: the agent names a title and a body,
+  the platform files under the stored account. **Give it the token of an account
+  of its own** — a bot that may open issues and nothing else — because that
+  account's name is what appears under every report.
+- **Reading the source is the other half, and that one does need the access
+  line.** Add the same target system to the agent's `ACCESS.md` if it is to
+  check the code out; without it the prompt says plainly that it cannot read the
+  source and must report from the record alone. A checkout runs with the agent's
+  own credential, which is why filing and reading are separate here.
 - The system is deliberately not in the bundle: an instance on GitLab and one on
   GitHub need different lines, and a bundle that guessed would be wrong for half
   its readers.
