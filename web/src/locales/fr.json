@@ -1391,6 +1391,7 @@
       "secretSet": "{{env}} est défini — les appels entrants sont vérifiés par signature.",
       "secretMissing": "{{env}} n'est pas défini. Le point d'accès accepte les appels mais ne vérifie aucune signature — définissez-le avant la mise en service.",
       "probeHint": "Le test appelle le système cible en lecture seule avec les identifiants enregistrés et indique en tant que qui covey arrive.",
+      "probeAsAgent": "Le test s'effectue en tant que {{agent}} — l'identifiant propre à l'agent prime sur celui de l'organisation.",
       "probeBtn": "Tester la connexion",
       "probing": "Test en cours …",
       "probeOk": "Connecté en tant que {{identity}}",

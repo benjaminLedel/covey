@@ -1391,6 +1391,7 @@
       "secretSet": "{{env}} è impostato — le chiamate in arrivo vengono verificate nella firma.",
       "secretMissing": "{{env}} non è impostato. L'endpoint accetta le chiamate ma non verifica alcuna firma: impostalo prima di andare in produzione.",
       "probeHint": "La prova chiama il sistema di destinazione in sola lettura con le credenziali memorizzate e riferisce come chi arriva covey.",
+      "probeAsAgent": "Il test viene eseguito come {{agent}}: la credenziale propria dell'agente vale prima di quella dell'organizzazione.",
       "probeBtn": "Prova la connessione",
       "probing": "Prova in corso …",
       "probeOk": "Collegato come {{identity}}",

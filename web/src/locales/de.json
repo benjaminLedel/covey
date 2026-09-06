@@ -1391,6 +1391,7 @@
       "secretSet": "{{env}} ist gesetzt — eingehende Aufrufe werden signaturgeprüft.",
       "secretMissing": "{{env}} ist nicht gesetzt. Der Endpunkt nimmt Aufrufe an, prüft aber keine Signatur — vor dem produktiven Einsatz setzen.",
       "probeHint": "Der Test ruft das Zielsystem lesend mit den hinterlegten Zugangsdaten auf und sagt, als wer covey dort ankommt.",
+      "probeAsAgent": "Getestet wird als {{agent}} — ein eigenes Credential des Agenten zählt vor dem der Organisation.",
       "probeBtn": "Verbindung testen",
       "probing": "Testet …",
       "probeOk": "Verbunden als {{identity}}",

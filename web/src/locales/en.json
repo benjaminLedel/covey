@@ -1391,6 +1391,7 @@
       "secretSet": "{{env}} is set — incoming calls are signature-checked.",
       "secretMissing": "{{env}} is not set. The endpoint accepts calls but verifies no signature — set it before going live.",
       "probeHint": "The test calls the target system read-only with the stored credentials and reports who covey arrives as.",
+      "probeAsAgent": "Tested as {{agent}} — the agent's own credential counts before the organisation's.",
       "probeBtn": "Test connection",
       "probing": "Testing …",
       "probeOk": "Connected as {{identity}}",

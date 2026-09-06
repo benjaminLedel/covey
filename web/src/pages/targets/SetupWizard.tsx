@@ -87,8 +87,16 @@ export function TargetSetupWizard({ name, onClose }: { name: string; onClose: ()
     }
   };
 
+  // Getestet wird als der Agent, den der Zugriffsschritt gewählt hat: ein
+  // Credential, das einem Mitarbeiter gehört, sieht der Test sonst nicht und
+  // meldet einen Fehler, den es nicht gibt (#189). Ohne gewählten Agenten
+  // bleibt es die org-weite Prüfung.
   const probe = useMutation({
-    mutationFn: () => post<ProbeResult>(`/targets/${encodeURIComponent(name)}/probe`),
+    mutationFn: () =>
+      post<ProbeResult>(
+        `/targets/${encodeURIComponent(name)}/probe`,
+        agentId ? { agent_id: agentId } : undefined,
+      ),
   });
 
   const activate = useMutation({
@@ -191,6 +199,11 @@ export function TargetSetupWizard({ name, onClose }: { name: string; onClose: ()
         {current === "probe" && (
           <>
             <p className="text-xs secondary">{t("targets.wizard.probeHint")}</p>
+            {agent && (
+              <p className="text-xs secondary">
+                {t("targets.wizard.probeAsAgent", { agent: agent.display_name || agent.slug })}
+              </p>
+            )}
             <button className="btn sm primary" disabled={probe.isPending} onClick={() => probe.mutate()}>
               {probe.isPending ? t("targets.wizard.probing") : t("targets.wizard.probeBtn")}
             </button>

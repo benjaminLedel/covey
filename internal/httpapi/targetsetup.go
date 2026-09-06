@@ -231,6 +231,10 @@ func (s *Server) handleTargetProbe(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "unknown target system")
 		return
 	}
+	agentID, ok := s.probeAgent(w, r, p.OrgID)
+	if !ok {
+		return
+	}
 	inspector, inspects := target.Inspects(sys)
 	prober, probes := target.Probes(sys)
 	if !inspects && !probes {
@@ -240,13 +244,32 @@ func (s *Server) handleTargetProbe(w http.ResponseWriter, r *http.Request) {
 
 	d, _ := target.Describe(name)
 	var cred target.Credential
+	// ref addresses the value the test used, so the outcome is written beside
+	// the one a run would get — an agent's own where the test ran as an agent.
+	ref := secrets.Ref{OrgID: p.OrgID, Key: name + "_token"}
 	if !d.NoCredentials {
-		token, err := s.orgSecret(r.Context(), p.OrgID, name+"_token")
-		if err != nil {
-			writeJSON(w, http.StatusOK, probeResult{Error: "no " + name + "_token stored"})
-			return
+		var token string
+		if agentID != nil {
+			// Lookup names the value Resolve would hand this agent; Open reads
+			// it. "For this agent" in the error is the whole point: an
+			// organisation secret that reaches nobody is not stored for it.
+			st, err := s.Secrets.Lookup(r.Context(), p.OrgID, *agentID, ref.Key)
+			if err == nil {
+				ref = st.Ref
+				token, err = s.Secrets.Open(r.Context(), st.Ref)
+			}
+			if err != nil {
+				writeJSON(w, http.StatusOK, probeResult{Error: "no " + name + "_token stored for this agent"})
+				return
+			}
+		} else {
+			token, err = s.orgSecret(r.Context(), p.OrgID, ref.Key)
+			if err != nil {
+				writeJSON(w, http.StatusOK, probeResult{Error: "no " + name + "_token stored"})
+				return
+			}
 		}
-		base, err := s.orgSecret(r.Context(), p.OrgID, name+"_url")
+		base, err := s.probeSecret(r.Context(), p.OrgID, agentID, name+"_url")
 		if err != nil && !d.BaseURLOptional {
 			writeJSON(w, http.StatusOK, probeResult{Error: "no " + name + "_url stored"})
 			return
@@ -254,7 +277,7 @@ func (s *Server) handleTargetProbe(w http.ResponseWriter, r *http.Request) {
 		// The connection test uses the same trust anchor the runs will: a
 		// probe that trusts more than the action does would report a health
 		// the agent never gets to see.
-		ca, _ := s.orgSecret(r.Context(), p.OrgID, name+"_ca")
+		ca, _ := s.probeSecret(r.Context(), p.OrgID, agentID, name+"_ca")
 		cred = target.Credential{BaseURL: base, Token: token, CA: ca}
 	}
 
@@ -275,7 +298,7 @@ func (s *Server) handleTargetProbe(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			rec.Err, rec.Rejected = err.Error(), daemon.CredentialRejected(err)
 		}
-		_ = s.Secrets.RecordProbe(r.Context(), secrets.Ref{OrgID: p.OrgID, Key: name + "_token"}, rec)
+		_ = s.Secrets.RecordProbe(r.Context(), ref, rec)
 	}
 	if err != nil {
 		// Die Fehlermeldung des Zielsystems steht hier bewusst so, wie sie
@@ -291,4 +314,44 @@ func (s *Server) handleTargetProbe(w http.ResponseWriter, r *http.Request) {
 // Laufzeit auch nähme.
 func (s *Server) orgSecret(ctx context.Context, orgID uuid.UUID, key string) (string, error) {
 	return s.Secrets.Value(ctx, orgID, key, 0)
+}
+
+// probeAgent reads the agent the test is to run as: optional, named as
+// "agent_id" in the body. It reports the agent and whether the request may go
+// on — where it may not, the answer has already been written.
+//
+// The test could not name an agent at all until now, and read organisation
+// secrets only. For an agent-scoped credential — what the platform recommends
+// wherever a credential belongs to one employee, its own bot account, its own
+// mail — it therefore reported a fault that was not there (#189). An empty
+// body stays the organisation-wide test it always was.
+func (s *Server) probeAgent(w http.ResponseWriter, r *http.Request, orgID uuid.UUID) (*uuid.UUID, bool) {
+	var body struct {
+		AgentID string `json:"agent_id"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body) // no body, no agent
+	if body.AgentID == "" {
+		return nil, true
+	}
+	id, err := uuid.Parse(body.AgentID)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "agent_id is not an id")
+		return nil, false
+	}
+	a, err := s.Registry.Get(r.Context(), id)
+	if err != nil || a.OrgID != orgID {
+		writeErr(w, http.StatusNotFound, "unknown agent")
+		return nil, false
+	}
+	return &id, true
+}
+
+// probeSecret reads a value beside the token — as the named agent where one is
+// named, exactly as the dispatcher does (the agent's own before the
+// organisation's, and an organisation secret only where it is assigned).
+func (s *Server) probeSecret(ctx context.Context, orgID uuid.UUID, agentID *uuid.UUID, key string) (string, error) {
+	if agentID != nil {
+		return s.Secrets.Resolve(ctx, orgID, *agentID, key)
+	}
+	return s.orgSecret(ctx, orgID, key)
 }

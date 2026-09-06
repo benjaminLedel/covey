@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/benjaminLedel/covey-plugin-sdk/target"
+	"github.com/google/uuid"
 
 	"covey/internal/backlog"
 	"covey/internal/secrets"
@@ -256,4 +257,56 @@ func (s *stack) notificationCount(t *testing.T) int {
 		t.Fatal(err)
 	}
 	return n
+}
+
+// TestProbeSeesTheAgentsOwnCredential pins covey#189: the connection test read
+// organisation secrets and nothing else, so for a credential that belongs to
+// one agent — a service account, its own bot, its own mail, which is what the
+// platform recommends — it reported a fault that was not there.
+//
+// The test now runs as an agent when one is named, resolving exactly as the
+// dispatcher does. Without an agent it stays what it was.
+func TestProbeSeesTheAgentsOwnCredential(t *testing.T) {
+	resetLifetimeState()
+	s := newStack(t)
+	ctx := context.Background()
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	admin.expect(http.MethodPatch, "/api/v1/targets/lifetest", map[string]any{"enabled": true}, http.StatusOK)
+
+	agent := s.newSupportAgent("seo-1")
+	lifetimeState.Lock()
+	lifetimeState.valid["agent-token"] = time.Now().Add(90 * 24 * time.Hour)
+	lifetimeState.Unlock()
+	if err := s.secrets.PutAgent(ctx, s.orgID, agent.ID, "lifetest_token", "agent-token"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Without an agent the credential is not visible — there is no org-wide
+	// one, and that answer is correct.
+	out := admin.expect(http.MethodPost, "/api/v1/targets/lifetest/probe", nil, http.StatusOK)
+	if out["ok"] == true {
+		t.Fatalf("an agent's own credential is not an organisation's: %v", out)
+	}
+
+	// As the agent it is found, and the identity is the one the system saw.
+	out = admin.expect(http.MethodPost, "/api/v1/targets/lifetest/probe",
+		map[string]any{"agent_id": agent.ID.String()}, http.StatusOK)
+	if out["ok"] != true || out["identity"] != "bot" {
+		t.Fatalf("the test has to see the agent's own credential: %v", out)
+	}
+
+	// And what it saw is written beside the value the run would get, not
+	// beside an organisation row that does not exist.
+	st, err := s.secrets.Lookup(ctx, s.orgID, agent.ID, "lifetest_token")
+	if err != nil || st.AgentID == nil || st.ProbeIdentity != "bot" || st.ProbedAt == nil {
+		t.Fatalf("the outcome belongs on the agent's own row: %+v, %v", st, err)
+	}
+
+	// An agent that is not in this organisation is not a test subject.
+	other := admin.do(http.MethodPost, "/api/v1/targets/lifetest/probe",
+		map[string]any{"agent_id": uuid.New().String()})
+	other.Body.Close()
+	if other.StatusCode != http.StatusNotFound {
+		t.Fatalf("an unknown agent is a 404, got %d", other.StatusCode)
+	}
 }
