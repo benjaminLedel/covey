@@ -266,15 +266,15 @@ func taskError(t *testing.T, s *stack, id uuid.UUID) string {
 	return *task.Error
 }
 
-// TestDelegationAnPausiertenKollegenWartet hält fest, was covey#202 ausgelöst
-// hat: eine Delegation an einen pausierten Kollegen wurde abgelehnt, und damit
-// war die Arbeit weg — der Absender bekam einen Fehler, mit dem er nichts
-// anfangen konnte, und niemand hielt fest, dass die Aufgabe gewollt war.
+// TestDelegationToPausedColleagueWaits pins what triggered covey#202: a
+// delegation to a paused colleague was refused, and with that the work was gone
+// — the sender got an error it could do nothing with, and nothing recorded that
+// the task had been wanted.
 //
-// Richtig ist: die Aufgabe entsteht und liegt. runAgent kehrt zurück, solange
-// Killed gesetzt ist, sie wird also nicht abgearbeitet — bis ein Mensch den
-// Kollegen freigibt. Genau das prüft der zweite Teil.
-func TestDelegationAnPausiertenKollegenWartet(t *testing.T) {
+// Right is: the task is created and waits. runAgent returns while Killed is set,
+// so it is not worked off — until a human releases the colleague. That is what
+// the second half checks.
+func TestDelegationToPausedColleagueWaits(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
 	sender := s.newSupportAgent("absender-pause")
@@ -294,28 +294,27 @@ func TestDelegationAnPausiertenKollegenWartet(t *testing.T) {
 		return s.taskState(task.ID) == backlog.StateDone
 	})
 
-	// Die Delegation ist angekommen, obwohl der Kollege pausiert ist.
+	// The delegation arrived, even though the colleague is paused.
 	delegated := childOf(t, s, colleague.ID, task.ID)
 	if delegated.AgentID != colleague.ID {
-		t.Fatalf("die delegierte Aufgabe gehört dem Kollegen")
+		t.Fatalf("the delegated task must sit with the colleague")
 	}
 	if got := s.taskState(delegated.ID); got == backlog.StateDone {
-		t.Fatalf("ein pausierter Agent arbeitet nichts ab, Zustand war %q", got)
+		t.Fatalf("a paused agent works nothing off, state was %q", got)
 	}
 
-	// Und sie bleibt liegen, statt still zu verschwinden.
+	// And it stays put instead of quietly disappearing.
 	time.Sleep(2 * time.Second)
 	if got := s.taskState(delegated.ID); got == backlog.StateDone {
-		t.Fatalf("die Aufgabe wurde trotz Pause abgearbeitet: %q", got)
+		t.Fatalf("the task was worked off despite the pause: %q", got)
 	}
 
-	// Nach der Freigabe läuft sie an — die Pause hat sie verzögert, nicht
-	// vernichtet.
+	// After the release it starts — the pause delayed it, it did not destroy it.
 	if err := s.registry.SetKilled(ctx, colleague.ID, false); err != nil {
 		t.Fatal(err)
 	}
 	s.orch.EnsureRunning(colleague.ID)
-	waitFor(t, "der freigegebene Kollege arbeitet sie ab", 30*time.Second, func() bool {
+	waitFor(t, "the released colleague works it off", 30*time.Second, func() bool {
 		return s.taskState(delegated.ID) == backlog.StateDone
 	})
 }
