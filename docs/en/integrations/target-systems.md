@@ -1,7 +1,7 @@
 ---
 slug: target-systems
 title: Target systems & plugins
-description: 'Zammad, Salesforce, Jira, Confluence, GitHub, GitLab, Teams, SharePoint, Nextcloud, email, Search Console, browser and MCP: how covey connects agents to foreign systems through plugins.'
+description: 'Zammad, Zendesk, Salesforce, Jira, Confluence, GitHub, GitLab, Teams, SharePoint, Nextcloud, email, Search Console, browser and MCP: how covey connects agents to foreign systems through plugins.'
 faq:
   - q: Can I connect a system that has no plugin?
     a: 'Yes — fastest through an MCP server, whose tools the agent can then use. If you need wake events, scopes and actions in the recording, write a plugin: as a manifest (JSON, installable with no rebuild), as a WebAssembly module, or compiled in Go. The ones that ship sit in the plugin pack and are the template.'
@@ -18,6 +18,7 @@ An agent becomes useful when it works in the systems where the work already happ
 ## What ships with it
 
 - **Zammad** — triage tickets, add internal notes, reply externally; webhook as a wake source
+- **Zendesk Support** — the same job on the other helpdesk: the thread rebuilt from the audit trail so an older answer cannot be missed, the customer's screenshot in the sandbox, a reply as an internal note or an answer; heartbeat with a cheap pre-check, or a signed webhook
 - **Salesforce Service Cloud** — cases with their whole conversation; reply as a note, a portal comment or a mail
 - **GitHub** and **GitLab** — issues, pull and merge requests, pipelines, checkout inside the sandbox
 - **Jira** — the ticket beside the repository: search by JQL, take it on, move it through its workflow; Cloud and Data Center
