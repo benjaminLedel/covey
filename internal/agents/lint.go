@@ -539,10 +539,17 @@ func lintSkillRefs(s Subject) []Finding {
 		// HEADER says "Skill" while the rows carry only the names. Looking at
 		// single lines alone would miss exactly the shape the finding came from.
 		inSkillTable := false
-		for i, line := range strings.Split(s.Files[file], "\n") {
+		lines := strings.Split(s.Files[file], "\n")
+		for i, line := range lines {
 			row := strings.HasPrefix(strings.TrimSpace(line), "|")
 			says := strings.Contains(strings.ToLower(line), "skill")
 			switch {
+			case row && tableHeader(lines, i):
+				// A new table begins, and its header alone decides whether the
+				// rows underneath are skill names. Without this a second table
+				// following straight after a skill table would inherit the state
+				// and its names would be read as skills.
+				inSkillTable = says
 			case row && says:
 				inSkillTable = true
 			case !row:
@@ -569,6 +576,19 @@ func lintSkillRefs(s Subject) []Finding {
 		}
 	}
 	return out
+}
+
+// tableHeader says whether the line at i is the header of a markdown table —
+// recognised by the separator row that has to follow it ("|---|---|").
+func tableHeader(lines []string, i int) bool {
+	if i+1 >= len(lines) {
+		return false
+	}
+	next := strings.TrimSpace(lines[i+1])
+	if !strings.HasPrefix(next, "|") || !strings.Contains(next, "-") {
+		return false
+	}
+	return strings.Trim(next, "|-: \t") == ""
 }
 
 // joinSkills names what the agent does have — so that a typo is visible as one.
