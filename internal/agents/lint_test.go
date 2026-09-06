@@ -325,3 +325,76 @@ func TestLintHintPrefersActionsWithEffect(t *testing.T) {
 		t.Errorf("with two effectful actions a read action must not push in: %q", hint)
 	}
 }
+
+// TestSkillNotRegistered hält den Fall fest, der covey#203 ausgelöst hat: eine
+// Config schickt den Agenten zu einem Skill, den es nicht gibt. Der Lauf
+// scheitert daran nicht — er kostet nur jedes Mal einen Umweg, und genau
+// deshalb sieht es sonst niemand.
+func TestSkillNotRegistered(t *testing.T) {
+	s := Subject{
+		Slug: "tester-1",
+		Files: map[string]string{
+			"PLAYBOOKS.md": "# Playbooks\n\n| Situation | Skill |\n|---|---|\n" +
+				"| Ein MR wartet auf Abnahme | `mr-abnehmen` |\n| Eine Anwendung prüfen | `anwendung-durchklicken` |\n",
+			"HEARTBEAT.md": "- alle: 15m nur-wenn: gitlab:review titel: MRs testen aufgabe: Nimm jeden MR nach dem Skill `mr-abnehmen` ab.\n",
+		},
+		Skills: map[string]string{"anwendung-durchklicken": "# Durchklicken"},
+	}
+	f := Lint(s)
+	if !hasRule(f, "skill-not-registered") {
+		t.Fatalf("ein Verweis auf einen nicht registrierten Skill gehört gemeldet: %+v", f)
+	}
+	var treffer int
+	for _, x := range f {
+		if x.Rule != "skill-not-registered" {
+			continue
+		}
+		treffer++
+		if !strings.Contains(x.Message, "mr-abnehmen") {
+			t.Errorf("der Befund muss den Namen nennen: %q", x.Message)
+		}
+		if x.File != "PLAYBOOKS.md" || x.Line == 0 {
+			t.Errorf("Datei und Zeile fehlen: %q:%d", x.File, x.Line)
+		}
+		if !strings.Contains(x.Hint, "anwendung-durchklicken") {
+			t.Errorf("der Hinweis soll zeigen, was es stattdessen gibt: %q", x.Hint)
+		}
+	}
+	// Einmal je Name, nicht einmal je Fundstelle — sonst steht derselbe Befund
+	// vier Mal da, und vier Mal dasselbe liest niemand.
+	if treffer != 1 {
+		t.Fatalf("erwartet: ein Befund für mr-abnehmen, bekommen: %d", treffer)
+	}
+}
+
+// Der registrierte Skill wird nicht gemeldet, und ohne erhobene Skills schweigt
+// die Regel ganz: eine fehlende Tatsache ist kein Befund.
+func TestSkillRefsRuhigWennAllesStimmt(t *testing.T) {
+	config := map[string]string{
+		"PLAYBOOKS.md": "Zieh dir den Skill `mr-abnehmen`, statt zu raten.\n",
+	}
+	mit := Lint(Subject{Slug: "a", Files: config, Skills: map[string]string{"mr-abnehmen": "# x"}})
+	if hasRule(mit, "skill-not-registered") {
+		t.Errorf("ein vorhandener Skill ist kein Befund: %+v", mit)
+	}
+	ohne := Lint(Subject{Slug: "a", Files: config}) // Skills == nil: nicht erhoben
+	if hasRule(ohne, "skill-not-registered") {
+		t.Errorf("ohne erhobene Skills darf die Regel nichts sagen: %+v", ohne)
+	}
+}
+
+// Was wie ein Skill-Name aussieht, aber keiner ist, bleibt unbehelligt — sonst
+// meldet die Regel an guten Configs, und eine Regel, die nörgelt, wird ignoriert.
+func TestSkillRefsRaetNicht(t *testing.T) {
+	f := Lint(Subject{
+		Slug: "a",
+		Files: map[string]string{
+			"PLAYBOOKS.md": "Der Skill nutzt `covey/create_task` und liest `README.md`; ohne Backticks steht hier auch mr-abnehmen.\n" +
+				"Diese Zeile nennt `irgendwas-anderes`, sagt aber nichts von einem S-k-i-l-l.\n",
+		},
+		Skills: map[string]string{},
+	})
+	if hasRule(f, "skill-not-registered") {
+		t.Errorf("Aktionen, Dateinamen und Zeilen ohne das Wort Skill sind keine Verweise: %+v", f)
+	}
+}
