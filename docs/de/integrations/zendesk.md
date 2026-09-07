@@ -1,7 +1,7 @@
 ---
 slug: zendesk
 title: Zendesk Support
-description: 'Eine Zendesk-Warteschlange als covey-Wake-Quelle: die vier Credential-Formen, das Ticket als Arbeitseinheit, das Gespräch aus dem Audit-Trail neu aufgebaut, und was ein Agent zurückschreiben darf.'
+description: 'Eine Zendesk-Warteschlange als covey-Wake-Quelle: die Credential-Formen, das Ticket als Einheit, das Gespräch aus dem Audit-Trail und was ein Agent zurückschreiben darf.'
 ---
 
 Ein Runbook für eine **Zendesk-Support**-Warteschlange mit einem covey-Agenten.

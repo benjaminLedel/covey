@@ -1,7 +1,7 @@
 ---
 slug: zendesk
 title: Zendesk Support
-description: 'A Zendesk queue as a covey intake: the four credential forms, the ticket as the unit of work, the conversation rebuilt from the audit trail, and what an agent is allowed to write back.'
+description: 'A Zendesk queue as a covey intake: the credential forms, the ticket as the unit of work, the conversation rebuilt from the audit trail, and what an agent may write back.'
 ---
 
 A runbook for running a **Zendesk Support** queue with a covey agent. The plugin

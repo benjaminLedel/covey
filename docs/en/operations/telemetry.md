@@ -1,7 +1,7 @@
 ---
 slug: telemetry
 title: Telemetry, and the channel to the project
-description: 'What a covey installation sends to the project once a day, what it never sends, how to switch it off — and how a platform fault reaches the tracker from an installation that has no forge account of its own.'
+description: 'What a covey installation sends to the project once a day, what it never sends, and how to switch it off — plus the channel that carries a platform fault to the tracker.'
 faq:
   - q: Is telemetry on by default?
     a: 'Yes. One setting turns it off (Platform → Settings → telemetry.mode = off), an empty telemetry.url does the same, and COVEY_TELEMETRY=off in the environment wins over both — that one works before the first start.'
