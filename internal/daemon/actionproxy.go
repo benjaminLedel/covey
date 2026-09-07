@@ -278,7 +278,7 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 		return map[string]string{"status": "ok", "stage": in.Stage}
 	case "list_targets", "get_agent_config", "create_agent", "set_agent_config",
 		"work_record", "read_recording", "propose_agent_config", "write_review",
-		"start_services", "style_check", "style_apply":
+		"create_issue", "start_services", "style_check", "style_apply":
 		// Die Meta-Actions an der Registry der Plattform: Entwerfen (spec/20)
 		// und Begutachten (spec/21). Alles wird in der Control Plane
 		// entschieden — Scope, Guard-Rails, Freigaben —, der Proxy trägt die
@@ -296,6 +296,7 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 			Days        int               `json:"days"`
 			Title       string            `json:"title"`
 			Rationale   string            `json:"rationale"`
+			Body        string            `json:"body"`
 			Summary     string            `json:"summary"`
 			Findings    []ReviewNote      `json:"findings"`
 			Issues      []ReviewNote      `json:"issues"`
@@ -317,7 +318,7 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 			Op: action, TaskID: p.taskID, Agent: in.Agent, Slug: in.Slug,
 			DisplayName: in.DisplayName, Runtime: in.Runtime, JobTitle: in.JobTitle,
 			Department: in.Department, Supervisor: in.Supervisor, Files: in.Files,
-			Task: in.Task, Days: in.Days, Title: in.Title, Rationale: in.Rationale,
+			Task: in.Task, Days: in.Days, Title: in.Title, Rationale: in.Rationale, Body: in.Body,
 			Summary: in.Summary, Findings: in.Findings, Issues: in.Issues,
 			Compose: in.Compose, Only: in.Only,
 			Text: in.Text, Material: in.Material, MaxIter: in.MaxIter, Language: in.Language,

@@ -246,6 +246,16 @@ func (s *Server) handleUpdateOrg(w http.ResponseWriter, r *http.Request) {
 // handleGetOwnOrg — the signed-in human's own organisation: name and what it
 // does. Readable by every role (it is the context every agent works in),
 // writable through handleSetOwnOrgDescription.
+// ownOrg is the organisation as its own members see it, plus one thing that is
+// computed rather than stored: whether the platform can actually file an issue
+// against its own repository. Without a stored account it cannot, and a card
+// that showed the address alone would present a setup as finished that files
+// nothing (#200).
+type ownOrg struct {
+	org.Organization
+	PlatformRepoCanFile bool `json:"platform_repo_can_file"`
+}
+
 func (s *Server) handleGetOwnOrg(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	o, err := s.Org.GetOrg(r.Context(), p.OrgID)
@@ -253,7 +263,15 @@ func (s *Server) handleGetOwnOrg(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, o)
+	out := ownOrg{Organization: o}
+	if system, project := agents.PlatformRepo(o.PlatformRepoSystem, o.PlatformRepoProject); system != "" && project != "" {
+		// Only that one exists — never the value, and never through an
+		// endpoint that any member may call for more than a yes or no.
+		if token, err := s.Secrets.Get(r.Context(), p.OrgID, system+"_token"); err == nil && strings.TrimSpace(token) != "" {
+			out.PlatformRepoCanFile = true
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // handleSetOwnOrgDescription stores the company description without needing the

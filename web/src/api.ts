@@ -613,6 +613,9 @@ export type Organization = {
   /** Wo der Quelltext dieser Plattform liegt (spec/21): Zielsystem und
    *  Projekt. covey Doctor liest ihn dort und meldet dorthin.
    *  Leer = nicht eingerichtet, und dann steht davon auch nichts im Prompt. */
+  // Computed by the server: an account for the platform's repository is
+  // stored, so covey/create_issue can file. The address alone files nothing.
+  platform_repo_can_file?: boolean;
   platform_repo_system: string;
   platform_repo_project: string;
   fleet_killed: boolean;
