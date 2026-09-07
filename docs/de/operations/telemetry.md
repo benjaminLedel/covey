@@ -1,7 +1,7 @@
 ---
 slug: telemetrie
 title: Telemetrie und der Kanal zum Projekt
-description: 'Was eine covey-Installation einmal am Tag an das Projekt schickt, was sie nie schickt, wie man es abschaltet — und wie ein Plattformfehler in den Tracker kommt, wenn die Installation kein eigenes Forge-Konto hat.'
+description: 'Was eine covey-Installation einmal am Tag an das Projekt schickt, was sie nie schickt, wie man es abschaltet — und wie ein Plattformfehler in den Tracker kommt.'
 faq:
   - q: Ist Telemetrie standardmäßig an?
     a: 'Ja. Eine Einstellung schaltet sie ab (Plattform → Einstellungen → telemetry.mode = off), eine leere telemetry.url tut dasselbe, und COVEY_TELEMETRY=off in der Umgebung steht über beidem — das wirkt schon vor dem ersten Start.'
