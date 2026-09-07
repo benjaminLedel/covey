@@ -1,7 +1,7 @@
 ---
 slug: target-systems
 title: Target systems & plugins
-description: 'Zammad, Zendesk, Salesforce, Jira, Confluence, GitHub, GitLab, Teams, SharePoint, Nextcloud, email, Search Console, browser and MCP: how covey connects agents to foreign systems through plugins.'
+description: 'How covey connects agents to foreign systems through plugins: Zammad, Zendesk, Salesforce, Jira, GitHub, GitLab, Teams, email, browser and MCP.'
 faq:
   - q: Can I connect a system that has no plugin?
     a: 'Yes — fastest through an MCP server, whose tools the agent can then use. If you need wake events, scopes and actions in the recording, write a plugin: as a manifest (JSON, installable with no rebuild), as a WebAssembly module, or compiled in Go. The ones that ship sit in the plugin pack and are the template.'

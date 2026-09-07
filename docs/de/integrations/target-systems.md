@@ -1,7 +1,7 @@
 ---
 slug: zielsysteme
 title: Zielsysteme & Plugins
-description: 'Zammad, Zendesk, Salesforce, Jira, Confluence, GitHub, GitLab, Teams, SharePoint, Nextcloud, E-Mail, Search Console, Browser und MCP: Wie covey Agenten über Plugins an Fremdsysteme anbindet.'
+description: 'Wie covey Agenten über Plugins an Fremdsysteme anbindet: Zammad, Zendesk, Salesforce, Jira, GitHub, GitLab, Teams, E-Mail, Browser und MCP.'
 faq:
   - q: Kann ich ein System anbinden, für das es kein Plugin gibt?
     a: 'Ja — am schnellsten über einen MCP-Server, dessen Werkzeuge der Agent dann nutzen kann. Wer Weckereignisse, Scopes und Aktionen im Recording braucht, schreibt ein Plugin: als Manifest (JSON, ohne Neubau installierbar), als WebAssembly-Modul oder kompiliert in Go. Die mitgelieferten liegen im Plugin-Pack und sind die Vorlage.'
