@@ -48,6 +48,8 @@ The guiding metaphor from which the whole architecture follows: the platform is 
 | [`22-plugin-marketplace.md`](22-plugin-marketplace.md) | Target systems from a catalogue: the index repository next to third-party plugin repositories, one catalogue file behind one configurable URL, the digest as the trust anchor, publishing by pull request |
 | [`23-educa-adapter.md`](23-educa-adapter.md) | Third engine (verified): educa AI Core as a GATEWAY — the Claude Code harness on an Anthropic-compatible endpoint, two contracts on one token, why the harness's price is not inherited, and the input tokens the gateway loses while streaming |
 | [`24-voice.md`](24-voice.md) | Voice: an author's style as an organisation object an agent carries — profile, exemplars, style card and contrast list, where each acts (prompt, `style_apply`, gate), correction pairs, the build and its cost (design, #195) |
+| [`25-sevencode-adapter.md`](25-sevencode-adapter.md) | Fourth engine (unverified): SevenCode as a second harness on the educa gateway, credential as token and as login file, why `Resume` is false without a session id, and the four open points that close the gap |
+| [`26-engine-catalogue.md`](26-engine-catalogue.md) | Where a runtime binary comes from: the third catalogue, one layer per engine installed on the runner instead of one engine baked into every workplace image, the digest as the trust anchor, the operator's URL and never an agent's |
 
 ## Design principles
 

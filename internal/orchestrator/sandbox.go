@@ -37,6 +37,11 @@ type SandboxSpec struct {
 	RunnerTags []string
 	HomeDir    string
 	Env        map[string]string // COVEY_WS_URL, COVEY_DAEMON_TOKEN, …
+	// Engine is the runtime this agent works on (`claude-code`, `sevencode`).
+	// A provider that supplies engines itself needs it to know what to put in
+	// front of this sandbox; one whose image carries the engine ignores it
+	// (spec/26).
+	Engine string
 	// EgressToken is the per-sandbox token the sandbox uses to identify itself
 	// as this agent to the egress proxy (Proxy-Authorization). Empty = no
 	// egress enforcement for this sandbox.

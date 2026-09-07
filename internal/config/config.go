@@ -139,6 +139,11 @@ type Config struct {
 	// image belongs to which covey version, pinned by digest. Empty switches
 	// the catalogue off; then the compiled defaults and the environment stand.
 	SandboxCatalogURL string
+	// EngineCatalogURL is where the published engines are listed: which runtime
+	// binary to install on a host, pinned by digest (spec/26). Empty switches
+	// the mechanism off — then the workplace image carries the engine and the
+	// operator's own variable stands, which is the state before this existed.
+	EngineCatalogURL string
 	// HSTS: how far the HTTPS promise reaches — "basic" (this host),
 	// "subdomains", or "off" when the terminating proxy sets the header
 	// itself. Default basic; see httpapi.Server.HSTS for why (#132).
@@ -290,7 +295,13 @@ func FromEnv() (Config, error) {
 		SandboxImageEnv:    sandboxImageEnv(),
 		RunnerDownloadBase: getenv("COVEY_RUNNER_DOWNLOAD_BASE", ""),
 		SandboxCatalogURL:  getenv("COVEY_SANDBOX_CATALOG_URL", sandbox.DefaultCatalogURL()),
-		HSTS:               getenv("COVEY_HSTS", "basic"),
+		// Off by default, unlike the workplace catalogue: that one publishes a
+		// document today, this one does not yet, and a default pointing at a
+		// missing file would put a failed fetch on every wake. The address to
+		// set is engines.DefaultCatalogURL(), and an installation with its own
+		// mirror sets its own.
+		EngineCatalogURL: getenv("COVEY_ENGINE_CATALOG_URL", ""),
+		HSTS:             getenv("COVEY_HSTS", "basic"),
 		// 0 lässt dem Pool seine eigene Vorgabe — eine zweite Zahl hier wäre
 		// eine zweite Wahrheit, und genau die hat heute zweimal zugebissen.
 		SandboxStartTimeout: getenvDuration("COVEY_SANDBOX_START_TIMEOUT", 0),
