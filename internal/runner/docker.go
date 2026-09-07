@@ -17,6 +17,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"covey/internal/homestore"
 	"covey/internal/sandbox"
 )
 
@@ -136,6 +137,17 @@ func (p *Docker) homePath(agentID string) string {
 	return home
 }
 
+// adopt hands an existing home to its agent. Split out so the one condition in
+// front of it is readable: a home that this start has just created has nothing
+// inside to hand over, and walking it would only leave a marker behind on a
+// directory that never needed one.
+func adopt(bestand bool, home string) (int, bool) {
+	if !bestand {
+		return 0, false
+	}
+	return homestore.Adopt(home, homestore.Owner{UID: sandboxUID, GID: sandboxGID})
+}
+
 // Start brings up the sandbox and returns the container's name.
 // The second return value is what came up beside the sandbox — empty for an
 // agent that declared no services.
@@ -158,10 +170,35 @@ func (p *Docker) Start(ctx context.Context, spec StartSandbox) (string, []sandbo
 	// the agent cannot even enter. 0o755 keeps the directory traversable no
 	// matter which uid ends up owning it; secrets never live here regardless
 	// (spec/04), so the wider "other" read/traverse bit is not a new exposure.
+	// Whether it was already there decides whether there is anything to hand
+	// over below: a home this start creates is empty, and what is written into
+	// it afterwards is written with the owner already set.
+	_, bestand := os.Stat(home)
 	if err := os.MkdirAll(home, 0o755); err != nil {
 		return "", nil, err
 	}
 	_ = os.Chown(home, sandboxUID, sandboxGID)
+	// And everything IN it, once per home. The line above hands over the top
+	// directory; what lies underneath keeps whoever wrote it, and on a runner
+	// host that is root — the agent inside runs as 1001 and can then read its
+	// home and change nothing in it (#120).
+	//
+	// This is the one place every sandbox start passes, which is the whole
+	// reason it stands here. The handover used to sit on the branch that
+	// materialises a snapshot, and three ordinary paths never reach that
+	// branch: a working copy that prevails, a home that arrived on this host by
+	// other means, an installation without a home store. Those are exactly the
+	// homes that were still root-owned — seven of eleven working trees on one
+	// instance, an agent deleting its own test scaffolding to stay under its
+	// disk limit, and an `rm -rf` that removed the agent-owned half and left an
+	// incomplete checkout behind that looks intact (#170, #201).
+	//
+	// It costs one stat on a home that has been handed over.
+	if anzahl, repariert := adopt(bestand == nil, home); repariert {
+		// slog.Default(): the provider carries no logger of its own, and both
+		// binaries that start a sandbox set the default one at startup.
+		slog.Default().Info("home handed to its agent", "agent", spec.AgentID, "entries", anzahl)
+	}
 
 	name := containerName(spec.AgentID.String())
 	// Clear leftovers of a crashed predecessor sandbox — the name has to be free.
