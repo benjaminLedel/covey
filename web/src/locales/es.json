@@ -1391,6 +1391,7 @@
       "secretSet": "{{env}} está definido: las llamadas entrantes se comprueban por firma.",
       "secretMissing": "{{env}} no está definido. El extremo acepta llamadas pero no verifica ninguna firma: defínelo antes de ponerlo en producción.",
       "probeHint": "La prueba llama al sistema de destino solo en lectura con las credenciales guardadas e informa de quién parece ser covey al llegar.",
+      "probeAsAgent": "Se prueba como {{agent}}: la credencial propia del agente cuenta antes que la de la organización.",
       "probeBtn": "Probar la conexión",
       "probing": "Probando …",
       "probeOk": "Conectado como {{identity}}",

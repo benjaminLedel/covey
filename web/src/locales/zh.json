@@ -1391,6 +1391,7 @@
       "secretSet": "{{env}} 已设置——进来的调用会验证签名。",
       "secretMissing": "{{env}} 尚未设置。端点会接受调用，但不校验任何签名——上线前请先设置它。",
       "probeHint": "该测试用已保存的凭据以只读方式调用目标系统，并告诉你 covey 是以谁的身份抵达的。",
+      "probeAsAgent": "以 {{agent}} 的身份测试 — 代理自己的凭据优先于组织的凭据。",
       "probeBtn": "测试连接",
       "probing": "正在测试 …",
       "probeOk": "已以 {{identity}} 身份连接",

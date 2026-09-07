@@ -1391,6 +1391,7 @@
       "secretSet": "{{env}} is gezet — inkomende aanroepen worden op handtekening gecontroleerd.",
       "secretMissing": "{{env}} is niet gezet. Het endpoint accepteert aanroepen maar controleert geen handtekening — zet het voordat u live gaat.",
       "probeHint": "De test roept het doelsysteem alleen-lezen aan met de opgeslagen inloggegevens en meldt als wie covey daar aankomt.",
+      "probeAsAgent": "Er wordt getest als {{agent}} — de eigen inloggegevens van de agent gaan vóór die van de organisatie.",
       "probeBtn": "Verbinding testen",
       "probing": "Testen …",
       "probeOk": "Verbonden als {{identity}}",

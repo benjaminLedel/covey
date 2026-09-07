@@ -1391,6 +1391,7 @@
       "secretSet": "{{env}} está definido — as chamadas recebidas têm a assinatura verificada.",
       "secretMissing": "{{env}} não está definido. O ponto de acesso aceita chamadas mas não verifica assinatura nenhuma — defina-o antes de entrar em produção.",
       "probeHint": "O teste chama o sistema de destino só de leitura com as credenciais guardadas e diz como quem o covey lá chega.",
+      "probeAsAgent": "O teste é feito como {{agent}} — a credencial própria do agente vale antes da da organização.",
       "probeBtn": "Testar a ligação",
       "probing": "A testar …",
       "probeOk": "Ligado como {{identity}}",

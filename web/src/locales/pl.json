@@ -1391,6 +1391,7 @@
       "secretSet": "{{env}} jest ustawione — przychodzące wywołania mają sprawdzany podpis.",
       "secretMissing": "{{env}} nie jest ustawione. Punkt końcowy przyjmuje wywołania, ale nie sprawdza podpisu — ustaw to, zanim ruszysz produkcyjnie.",
       "probeHint": "Test odpytuje system docelowy tylko do odczytu przy użyciu zapisanych poświadczeń i informuje, jako kto covey się tam przedstawia.",
+      "probeAsAgent": "Test wykonywany jako {{agent}} — własne poświadczenie agenta liczy się przed poświadczeniem organizacji.",
       "probeBtn": "Sprawdź połączenie",
       "probing": "Sprawdzanie …",
       "probeOk": "Połączono jako {{identity}}",
