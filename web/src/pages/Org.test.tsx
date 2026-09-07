@@ -25,6 +25,10 @@ const org = {
   description: "",
   platform_repo_system: "gitlab",
   platform_repo_project: "gruppe/covey",
+  /* Seit die Plattform selbst einreicht (#200): ob ein Konto hinterlegt ist,
+     rechnet der Server aus. Ohne das Feld wird nichts gemeldet — und genau
+     das prüft der Test weiter unten. */
+  platform_repo_can_file: true,
 };
 
 const system = (access: boolean, enabled = true) => [
@@ -69,11 +73,13 @@ describe("Organigramm", () => {
 });
 
 describe("Quelltext dieser Plattform", () => {
-  it("sagt, wenn covey Doctor dort keinen Zugang hat", async () => {
+  it("sagt, wenn covey Doctor dort keinen Lesezugang hat", async () => {
     mockFetch(routen(true, false));
     renderWithProviders(<PlatformRepo />);
 
-    expect(await screen.findByText(/Wirkt noch nicht/)).toBeInTheDocument();
+    /* Eingereicht wird trotzdem — das geht über die Plattform. Die fehlende
+       Zeile kostet nur den Blick in den Quelltext. */
+    expect(await screen.findByText(/Wirkt halb/)).toBeInTheDocument();
     // Und den Weg dorthin, wo die fehlende Zeile hingehört.
     expect(screen.getByRole("link", { name: "covey Doctor" })).toHaveAttribute(
       "href",
@@ -87,6 +93,19 @@ describe("Quelltext dieser Plattform", () => {
 
     expect(await screen.findByText(/^Wirkt:/)).toBeInTheDocument();
     expect(screen.queryByText(/Wirkt noch nicht/)).not.toBeInTheDocument();
+  });
+
+  it("sagt, wenn kein Konto zum Einreichen hinterlegt ist", async () => {
+    /* Der Zustand, der elf Tage lang wie eine fertige Einrichtung aussah: die
+       Adresse steht da, und eingereicht wird trotzdem nichts (#200). */
+    mockFetch({
+      ...routen(true, true),
+      "/api/v1/org": { ...org, platform_repo_can_file: false },
+    });
+    renderWithProviders(<PlatformRepo />);
+
+    expect(await screen.findByText(/Es wird nichts eingereicht/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Secrets" })).toHaveAttribute("href", "/secrets");
   });
 
   it("sagt, wenn das Zielsystem der Organisation nicht mehr freigeschaltet ist", async () => {

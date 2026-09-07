@@ -1053,9 +1053,10 @@
       "project": "Projekt",
       "none": "— keines —",
       "projectPlaceholder": "z. B. 42 oder gruppe/covey",
-      "hint": "Wo covey selbst liegt: dort liest covey Doctor den Quelltext (auf die laufende Fassung gepinnt) und meldet dorthin seine Fehlerberichte. Voreingestellt ist das Projekt, aus dem diese Plattform stammt; wer seine Befunde im Haus behalten will, trägt ein eigenes angeschlossenes Zielsystem ein.",
-      "stateOk": "Wirkt: covey Doctor hat dort Zugang und bekommt den Abschnitt in seinen Prompt —",
-      "stateNoAccess": "Wirkt noch nicht: {{system}} steht nicht in der ACCESS.md von covey Doctor. Ohne diese Zeile bleibt der Abschnitt aus seinem Prompt, und den Checkout weist der Broker ab. Zu ergänzen bei",
+      "hint": "Wo covey selbst liegt: covey Doctor liest dort den Quelltext (auf den laufenden Stand gepinnt), und die Plattform reicht seine Fehlerberichte dort unter dem hinterlegten Konto ein. Voreinstellung ist das Projekt, aus dem diese Plattform stammt; wer Befunde im Haus behalten will, trägt ein eigenes, angeschlossenes Zielsystem ein.",
+      "stateOk": "Wirkt: covey Doctor reicht dort ein und darf den Quelltext lesen —",
+      "stateNoAccess": "Wirkt halb: {{system}} steht nicht in der ACCESS.md von covey Doctor. Eingereicht wird trotzdem, gelesen nicht — ohne den Quelltext meldet er Symptome statt Diagnosen. Ergänzen bei",
+      "stateNoAccount": "Es wird nichts eingereicht: für {{system}} ist kein Konto hinterlegt. Lege {{key}} als Secret der Organisation an — am besten den Token eines eigenen Bot-Kontos, unter dessen Namen die Meldungen erscheinen:",
       "stateDisabled": "Wirkt nicht: {{system}} ist für diese Organisation nicht freigeschaltet. Freizuschalten unter",
       "stateUnknownSystem": "Wirkt nicht: das Zielsystem „{{system}}“ gibt es hier nicht (mehr).",
       "isDefault": "Voreinstellung: das Projekt, aus dem diese Plattform stammt",
@@ -1391,6 +1392,7 @@
       "secretSet": "{{env}} ist gesetzt — eingehende Aufrufe werden signaturgeprüft.",
       "secretMissing": "{{env}} ist nicht gesetzt. Der Endpunkt nimmt Aufrufe an, prüft aber keine Signatur — vor dem produktiven Einsatz setzen.",
       "probeHint": "Der Test ruft das Zielsystem lesend mit den hinterlegten Zugangsdaten auf und sagt, als wer covey dort ankommt.",
+      "probeAsAgent": "Getestet wird als {{agent}} — ein eigenes Credential des Agenten zählt vor dem der Organisation.",
       "probeBtn": "Verbindung testen",
       "probing": "Testet …",
       "probeOk": "Verbunden als {{identity}}",
@@ -1894,7 +1896,11 @@
       "notify.decision": "Mails über wartende Entscheidungen — für alle auf dieser Installation. Aus übersteuert den Schalter jedes Kontos.",
       "notify.task": "Mails über beendete Aufgaben — für alle auf dieser Installation. Aus übersteuert den Schalter jedes Kontos.",
       "notify.cost": "Mails über Geld — ein Budgetdeckel, der Not-Aus — für alle auf dieser Installation. Aus übersteuert den Schalter jedes Kontos.",
-      "notify.ops": "Mails über die Plattform selbst — ein Runner, der weg ist, ein abgewiesener Zugang — für alle auf dieser Installation. Aus übersteuert den Schalter jedes Kontos."
+      "notify.ops": "Mails über die Plattform selbst — ein Runner, der weg ist, ein abgewiesener Zugang — für alle auf dieser Installation. Aus übersteuert den Schalter jedes Kontos.",
+      "telemetry.mode": "Schickt diese Installation einmal am Tag Zahlen an das Projekt: Version, Anzahl Organisationen, Agenten und Läufe, welche Runtimes und Zielsysteme laufen. Keine Titel, keine Namen, keine Texte. Aus heißt: nichts verlässt die Maschine.",
+      "telemetry.id": "Die Kennung, die sich diese Installation selbst gegeben hat. Sie verbindet die Zahlen von gestern mit denen von heute und sagt nichts darüber, wer sie betreibt.",
+      "telemetry.url": "Wohin die Zahlen gehen. Leer schaltet den Kanal genauso ab wie telemetry.mode = off.",
+      "telemetry.key": "Optionaler Schlüssel, wenn das Projekt diese Installation kennt — dann gehen ihre Fehlerberichte ohne Warteschlange in den Tracker."
     },
     "choice": {
       "signup.mode": {

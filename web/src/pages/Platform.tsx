@@ -125,6 +125,7 @@ const CHOICES: Record<string, string[]> = {
   "notify.task": ["on", "off"],
   "notify.cost": ["on", "off"],
   "notify.ops": ["on", "off"],
+  "telemetry.mode": ["on", "off"],
 };
 
 function SettingRow({ setting }: { setting: Setting }) {

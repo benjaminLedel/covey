@@ -538,3 +538,45 @@ func TestPlattformRepoStehtImPrompt(t *testing.T) {
 		t.Fatal("ohne agents:review gehoert der Abschnitt nicht in den Prompt")
 	}
 }
+
+// TestPlatformIssueFilingStandsWithoutTheAccessLine: since covey#200 the two
+// halves of that section hang on different conditions. Filing goes through the
+// control plane and needs only a stored account for the system; reading the
+// source still needs the target system in ACCESS.md, because a checkout runs
+// with the agent's own credential.
+//
+// The agent here has no gitlab line at all — and still has to learn how to file,
+// because that was the dead end: told to file, no way to do it.
+func TestPlatformIssueFilingStandsWithoutTheAccessLine(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	doctor := reviewAgent(t, s, "doctor", "agents:review")
+	admin.expect(http.MethodPatch, "/api/v1/org/platform-repo",
+		map[string]any{"system": "gitlab", "project": "covey/covey"}, http.StatusOK)
+
+	prompt := func(a agents.Agent) string {
+		_, out := laufLassen(t, s, a, "Prompt zeigen", "[mock:prompt]")
+		return out
+	}
+
+	// Without a stored account nothing is promised: the platform could not
+	// file, so the section says so instead of naming an action that fails.
+	if p := prompt(doctor); strings.Contains(p, "The platform you run on") {
+		t.Fatalf("ohne hinterlegtes Konto und ohne Lesezugang gehoert der Abschnitt nicht in den Prompt: %.400s", p)
+	}
+
+	if err := s.secrets.Put(ctx, s.orgID, "gitlab_token", "bot-token"); err != nil {
+		t.Fatal(err)
+	}
+	p := prompt(doctor)
+	if !strings.Contains(p, "The platform you run on") || !strings.Contains(p, "covey/create_issue") {
+		t.Fatalf("mit Konto gehoert das Einreichen in den Prompt: %.600s", p)
+	}
+	if strings.Contains(p, "check it out") {
+		t.Fatalf("ohne die ACCESS.md-Zeile darf nichts einen Checkout versprechen: %.600s", p)
+	}
+	if !strings.Contains(p, "could not read the code") {
+		t.Fatalf("und der Bericht soll sagen, was er nicht sehen konnte: %.600s", p)
+	}
+}

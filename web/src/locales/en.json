@@ -1053,9 +1053,10 @@
       "project": "Project",
       "none": "— none —",
       "projectPlaceholder": "e.g. 42 or group/covey",
-      "hint": "Where covey itself lives: covey Doctor reads the source there (pinned to the running version) and files its bug reports there. The default is the project this platform comes from; whoever wants to keep findings in-house enters an enabled target system of their own.",
-      "stateOk": "In effect: covey Doctor has access there and gets the section in its prompt —",
-      "stateNoAccess": "Not in effect yet: {{system}} is not in covey Doctor's ACCESS.md. Without that line the section stays out of its prompt, and the broker refuses the checkout. Add it at",
+      "hint": "Where covey itself lives: covey Doctor reads the source there (pinned to the running version), and the platform files its bug reports there under the stored account. The default is the project this platform comes from; whoever wants to keep findings in-house enters an enabled target system of their own.",
+      "stateOk": "In effect: covey Doctor files there and may read the source —",
+      "stateNoAccess": "Filing yes, reading no: {{system}} is not in covey Doctor's ACCESS.md. Without that line it reports what the record shows but cannot read the source alongside it. Add it at",
+      "stateNoAccount": "Nothing is filed: no account is stored for {{system}}. Add {{key}} as an organisation secret — preferably the token of a bot account of its own, whose name the reports will carry:",
       "stateDisabled": "Not in effect: {{system}} is not enabled for this organization. Enable it under",
       "stateUnknownSystem": "Not in effect: the target system \"{{system}}\" does not exist here (any more).",
       "isDefault": "default: the project this platform comes from",
@@ -1391,6 +1392,7 @@
       "secretSet": "{{env}} is set — incoming calls are signature-checked.",
       "secretMissing": "{{env}} is not set. The endpoint accepts calls but verifies no signature — set it before going live.",
       "probeHint": "The test calls the target system read-only with the stored credentials and reports who covey arrives as.",
+      "probeAsAgent": "Tested as {{agent}} — the agent's own credential counts before the organisation's.",
       "probeBtn": "Test connection",
       "probing": "Testing …",
       "probeOk": "Connected as {{identity}}",
@@ -1894,7 +1896,11 @@
       "notify.decision": "Mails about decisions that are waiting — for everybody on this installation. Off overrides every account's own switch.",
       "notify.task": "Mails about finished tasks — for everybody on this installation. Off overrides every account's own switch.",
       "notify.cost": "Mails about money — a budget cap, the emergency stop — for everybody on this installation. Off overrides every account's own switch.",
-      "notify.ops": "Mails about the platform itself — a runner that left, a refused credential — for everybody on this installation. Off overrides every account's own switch."
+      "notify.ops": "Mails about the platform itself — a runner that left, a refused credential — for everybody on this installation. Off overrides every account's own switch.",
+      "telemetry.mode": "Does this installation send counts to the project once a day: version, how many organizations, agents and runs, which runtimes and target systems are in use. No titles, no names, no texts. Off means nothing leaves the machine.",
+      "telemetry.id": "The identity this installation gave itself. It ties yesterday's counts to today's and says nothing about who runs it.",
+      "telemetry.url": "Where the counts go. Empty switches the channel off as surely as telemetry.mode = off.",
+      "telemetry.key": "Optional key for an installation the project knows — its bug reports then go straight into the tracker instead of a queue."
     },
     "choice": {
       "signup.mode": {

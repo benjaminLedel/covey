@@ -85,7 +85,7 @@ Vollständige Anleitung inklusive erstem Agenten und Produktions-Checkliste: [`d
 | 🧑‍💼 **Eine Identität je Agent** | Eine eigene Sandbox, ein eigenes Home und eigene Zugänge, dazu ein Platz im Organigramm neben den Menschen. |
 | 🧑‍🎓 **Einstellen statt Formular** | Die Aufgabe in ein paar Sätzen beschreiben; die Personalabteilung schreibt die Konfiguration und fragt nach, wenn die Ausschreibung zu dünn ist. Heraus kommt ein Entwurf — er arbeitet erst, wenn ein Mensch ihn einstellt. |
 | 📥 **Backlog und Wake-Quellen** | Aufgaben als First-Class-Objekte. Agenten wachen per Webhook, Heartbeat oder Zuruf auf und schlafen danach wieder. |
-| 🔌 **Zielsysteme als Plugins** | Jira, Confluence, GitLab, GitHub, Zammad, Salesforce, Teams, SharePoint, Nextcloud, Kubernetes, E-Mail (IMAP/SMTP), headless Browser, MCP. |
+| 🔌 **Zielsysteme als Plugins** | Jira, Confluence, GitLab, GitHub, Zammad, Zendesk, Salesforce, Teams, SharePoint, Nextcloud, Kubernetes, E-Mail (IMAP/SMTP), headless Browser, MCP. |
 | 🛡️ **Leitplanken und Freigaben** | Zentral erzwungen, außerhalb der Runtime, fail-closed. Kritische Aktionen warten auf einen Menschen. |
 | 🔑 **Secrets-Broker** | Kein langlebiges Secret gelangt je in eine Sandbox. Zugriff wird pro Lauf gebrokert, kurzlebig und gescopt. |
 | 🧩 **Skills** | Prozeduren, die ein Agent nur lädt, wenn sie greifen — die Beschreibung steht im Kontext, die Anleitung wird bei Bedarf gelesen. |
@@ -129,7 +129,7 @@ flowchart LR
     end
 
     CP <-->|Daemon-Protokoll| DP
-    CP --> TS["Zielsysteme: Jira · Confluence · GitLab · GitHub · Zammad · Salesforce · Teams · SharePoint · Nextcloud · Kubernetes · E-Mail · Browser · MCP"]
+    CP --> TS["Zielsysteme: Jira · Confluence · GitLab · GitHub · Zammad · Zendesk · Salesforce · Teams · SharePoint · Nextcloud · Kubernetes · E-Mail · Browser · MCP"]
     CP --- DB[("PostgreSQL + pgvector")]
 ```
 
@@ -209,7 +209,7 @@ Website ausliefert — eine Quelle, per Pull Request änderbar. Englisch ist die
 Quelle (`docs/en/…`); wo es eine deutsche Übersetzung gibt, steht sie unter
 demselben relativen Pfad in `docs/de/…`, und
 [`docs/sections.yml`](docs/sections.yml) hält die Lesereihenfolge. Die
-Betriebs-Runbooks unten gibt es nur auf Englisch.
+Runbooks unten sind auf Englisch, wo keine Übersetzung verlinkt ist.
 
 | Dokument | Inhalt |
 |---|---|
@@ -219,7 +219,9 @@ Betriebs-Runbooks unten gibt es nur auf Englisch.
 | [`docs/en/operations/api-keys.md`](docs/en/operations/api-keys.md) | API-Keys: covey von außen steuern — was ein Key darf und was nur der Browser darf |
 | [`docs/en/operations/runner.md`](docs/en/operations/runner.md) | Runner: Sandboxes auf mehreren Hosts, der Home-Store, harte Egress-Isolation |
 | [`docs/en/operations/workplaces.md`](docs/en/operations/workplaces.md) | Arbeitsplätze: in welchem Image ein Agent arbeitet, die Rollen-Images, ein eigener Arbeitsplatz |
+| [`docs/en/operations/telemetry.md`](docs/en/operations/telemetry.md) | Telemetrie: was eine Installation einmal am Tag an das Projekt schickt, was nie, und wie man es abschaltet |
 | [`docs/en/integrations/zammad.md`](docs/en/integrations/zammad.md) | Zammad: API-Token, Webhook + Trigger, kundensichtbare Antworten |
+| [`docs/de/integrations/zendesk.md`](docs/de/integrations/zendesk.md) | Zendesk Support: die vier Credential-Formen, signierter Webhook, der Thread aus dem Audit-Trail |
 | [`docs/en/integrations/github.md`](docs/en/integrations/github.md) | GitHub: Issues, Pull Requests, Actions, Checkout in der Sandbox |
 | [`docs/en/integrations/gitlab.md`](docs/en/integrations/gitlab.md) | GitLab: Issues, Merge Requests, Checkout in der Sandbox |
 | [`docs/en/integrations/jira.md`](docs/en/integrations/jira.md) | Jira: das Ticket neben dem Repository — Cloud und Data Center, der Workflow, das Heartbeat-Gate |

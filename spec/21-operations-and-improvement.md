@@ -173,7 +173,13 @@ What it changes about the agent's behaviour is the point: a wall it used to work
 
 The most valuable finding it makes is the one it cannot fix by editing a config: three agents died at the turn limit this week, and none of them was misconfigured — the platform has no way to hand back a partial result. That is a bug report, and this agent is the only entity in the organisation that saw all three.
 
-Nothing needs building for it: the `gitlab` and `github` plugins can `create_issue`, and the repository already keeps `feature-requests/` for exactly this genre. What it needs is a decision and a discipline.
+**Filing is an action of the platform, not of a target system** (`covey/create_issue`, [`internal/orchestrator/platformissue.go`](../internal/orchestrator/platformissue.go)). The agent brings a title and a body; the control plane brings the destination — the master datum below — and the credential, and calls the `create_issue` of whichever plugin the repository lives on. Three things follow from putting it there rather than in the agent's hands:
+
+- **No seat on the forge.** An agent that may review may file. It was the other way round for one release, and that was a dead end nobody could see from inside: the shipped covey Doctor template was told to file, its `ACCESS.md` granted the platform's own system and nothing else, and every platform finding ended in the same sentence — "found no way to file this" — and waited in an inbox (#200).
+- **The token never enters a sandbox.** It is an organisation secret read in the control plane, so it can be the token of a bot account that may open issues and nothing else — and that account's name is what stands under every report.
+- **The destination is not a parameter.** No run picks where a report about this platform goes.
+
+The platform refuses a second issue with the same title within a month, and records every one it files as an open item of kind `issue` — so the human sees what went out under their name without watching the tracker. Where no account is stored the action says so and names the review as the place the finding belongs meanwhile; the prompt says the same, because a capability on paper is worse than none.
 
 **The decision is which repository, and it is an organisation's to make — but it is not a question the platform has to ask.** covey knows where its own source lives: `buildinfo.SourceURL` is the address the AGPL puts in the footer anyway, and read as a target-system address (`buildinfo.SourceRepo`) it is the **default**: the project this instance was built from, on the plugin that can check it out. A fork changes the constant and takes its own tracker along instead of the origin's.
 
@@ -182,9 +188,45 @@ Two things stay the organisation's, and both are one setting (`organizations.pla
 - **Somewhere else.** An instance that files into its own GitLab keeps its findings in the house — an enabled target system plus a project, and that address wins over the default.
 - **Not at all.** `agents.RepoOff` (`-`) switches the layer off: no source, no issues. It needed a value of its own once the default arrived, because "nothing stored" had until then meant "off" and now means "the project this platform comes from".
 
-The default is deliberately the **upstream** project and not the internal one: an instance that reports nowhere reports nothing, and the tracker the finding belongs in is the one the code is maintained in. What keeps this from quietly publishing internals is not the setting but the gate below it — the section only exists when covey Doctor holds that target system in its `ACCESS.md`, and granting the platform's own repository to the agent is a decision somebody makes, not a default that happens.
+The default is deliberately the **upstream** project and not the internal one: an instance that reports nowhere reports nothing, and the tracker the finding belongs in is the one the code is maintained in. What keeps this from quietly publishing internals is the account: nothing is filed until somebody stores a credential for that system, which is the same act as deciding to report there. The section in the prompt follows that state exactly — no account, no mention of filing.
 
-**The discipline is that an issue costs a human's attention**, and an agent that files one per review turns the tracker into noise. Three rules, all of them prompt-level because they are judgement and not safety: it files when the same limit hit **more than one agent**, it looks for an existing issue first, and it names the evidence — which agents, which runs, what it cost. A report that says "the turn limit is too low" is worthless; one that says "eleven runs across three agents ended at the limit, $340, and in nine of them the work was nearly done" is a specification.
+**The discipline is that an issue costs a human's attention**, and an agent that files one per review turns the tracker into noise. Three rules, all of them prompt-level because they are judgement and not safety: it files when the same limit hit **more than one agent**, it adds evidence to an existing issue rather than opening a second one, and it names that evidence — which agents, which runs, what it cost. A report that says "the turn limit is too low" is worthless; one that says "eleven runs across three agents ended at the limit, $340, and in nine of them the work was nearly done" is a specification.
+
+### The channel to the project, for an installation with no seat of its own
+
+The account above is the shorter half of the problem. Most installations have
+no GitHub account for this and never will — and "no account" meant "no report",
+which is the state that produced #200 in the first place.
+
+So there is a second route, and the platform takes whichever exists: where no
+credential of this organisation's is stored **and the destination is the
+project's own repository**, the report goes to the project through
+`internal/telemetry`, and the receiving side files it under its own account.
+Three properties make that acceptable rather than a spam cannon:
+
+- **A person reads it first.** Reports from installations the project does not
+  know wait in a queue; only an installation that is explicitly trusted goes
+  straight through. Nothing reaches a public tracker unread.
+- **A filter in front of the queue.** Mentions are defused (an `@name` in an
+  issue writes to a stranger), images and raw HTML are refused, as are texts
+  too short to carry evidence — a queue full of advertising is as useless as a
+  tracker full of it.
+- **It applies only to the upstream destination.** An organisation that files
+  into its own GitLab never uses this route: its findings would otherwise land
+  in somebody else's tracker, which is the opposite of what that setting says.
+
+**Telemetry rides the same channel and the same switch.** Once a day an
+installation sends counts — version, how many organisations, agents and runs,
+which runtimes and target systems are switched on — and nothing else: no title,
+no slug, no text, no address. It is **on by default**, because an installation
+that has to be asked reports nothing and the project then has to guess which
+version anybody is running; and it is off in one move (`telemetry.mode`, an
+empty `telemetry.url`, or `COVEY_TELEMETRY=off`, which works before the first
+start). The assembly is one short function so that the promise can be checked
+by reading it, and the test beside it takes a real task title and a real agent
+slug out of a running instance and fails if either appears in what goes out.
+[`docs/en/operations/telemetry.md`](../docs/en/operations/telemetry.md) says
+the same thing for whoever runs an instance rather than reads the code.
 
 ### It reads the source too, and that is what makes the report worth reading
 
@@ -194,7 +236,7 @@ This is the point where the department's name earns itself. The three causes are
 
 Four things it needs, and none of them is new machinery:
 
-- **Read access, in the ordinary way.** An `ACCESS.md` entry on the same target system the issues go to, scoped to reading the code and searching issues. The checkout mechanism is the existing one, and the working copy counts against the agent's checkout budget like any other ([`internal/target/repos.go`](../internal/target/repos.go) — five kept per agent by default, least recently used dropped).
+- **Read access, in the ordinary way, and only for reading.** An `ACCESS.md` entry on the same target system the issues go to, scoped to reading the code. This is the half that still needs the line: a checkout runs with the agent's own credential, while filing goes through the control plane. An agent without it is told plainly in its prompt that it cannot read the source and must say so in the report. The checkout mechanism is the existing one, and the working copy counts against the agent's checkout budget like any other ([`internal/target/repos.go`](../internal/target/repos.go) — five kept per agent by default, least recently used dropped).
 - **Pinned to the state the instance is running.** `internal/buildinfo` carries version and commit, and the startup log and the interface's footer already show them. An agent reading `main` reports against code this instance does not execute — half of those findings are already fixed and the other half are not there yet, and both kinds cost a maintainer the same read. The anchor is available without asking anybody: `buildinfo.Ref` gives the **release tag** where this build sits exactly on one, otherwise the commit. The tag is the more useful of the two for whoever reads the report — it says which shipped version is affected, not just which line of history — and it has to be exact: `git describe` names every state behind a tag `v0.4.0-56-gea0485c`, and that is not a ref the repository knows.
 - **The same repository the issues go to**, from the same setting. An organisation on the internal GitLab reads the internal GitLab; without a setting, both halves are the project this platform comes from.
 - **A boundary: it reports, it does not fix.** Read access plus a language model invites the patch, and the patch is somebody else's job — the coding agent that already exists as a template (`examples/coding-agent.bundle.json`) picks the issue up. That is the org chart doing what an org chart is for, and it keeps this agent's output what it has been throughout: a proposal for a human, in the tracker where such proposals are decided.

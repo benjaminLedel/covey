@@ -696,12 +696,11 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 						len(res.Missing), strings.Join(cut(res.Missing, 5), ", ")),
 				})
 			}
-			// Homes that predate #120 belong to root all the way down. Handing
-			// one over walks it once and then leaves a marker — a home nobody
-			// has to repair twice.
-			if anzahl, repariert := homestore.Adopt(home, *besitzer); repariert {
-				n.Log.Info("home handed to its agent", "agent", spec.AgentID, "entries", anzahl)
-			}
+			// The handover of the whole tree used to stand here, and that was
+			// the fault: three ordinary paths never reach this branch, and
+			// they are the ones whose homes stayed root-owned (#170, #201).
+			// It now runs where every sandbox start passes — the provider,
+			// beside the chown of the home's top directory.
 			// Ab hier läuft gleich eine Sandbox darin: die Kopie gilt als
 			// verändert, bis ein Sync das Gegenteil festhält.
 			homestore.MarkInUse(home)

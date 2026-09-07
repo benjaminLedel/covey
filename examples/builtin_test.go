@@ -56,6 +56,7 @@ func TestBuiltinIDsStable(t *testing.T) {
 		"builtin:qa-agent":                  "",
 		"builtin:delivery-lead":             "",
 		"builtin:log-triage-agent":          "",
+		"builtin:zendesk-support-agent":     "",
 		"builtin:web-researcher":            "",
 		"builtin:dependency-security-agent": "",
 	}

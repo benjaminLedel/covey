@@ -1053,9 +1053,10 @@
       "project": "Proyecto",
       "none": "— ninguno —",
       "projectPlaceholder": "p. ej. 42 o grupo/covey",
-      "hint": "Donde vive covey: covey Doctor lee allí el código (fijado a la versión en marcha) y presenta allí sus informes de error. Por defecto es el proyecto del que procede esta plataforma; quien quiera dejar los hallazgos en casa indica un sistema de destino propio ya habilitado.",
-      "stateOk": "En vigor: covey Doctor tiene acceso allí y recibe la sección en su prompt —",
-      "stateNoAccess": "Todavía no en vigor: {{system}} no está en el ACCESS.md de covey Doctor. Sin esa línea la sección no entra en su prompt y el intermediario rechaza la copia de trabajo. Añádela en",
+      "hint": "Dónde vive covey: covey Doctor lee allí el código fuente (fijado a la versión en ejecución) y la plataforma presenta sus informes de error allí con la cuenta guardada. Por defecto es el proyecto del que procede esta plataforma; quien quiera mantener los hallazgos en casa indica un sistema de destino propio y conectado.",
+      "stateOk": "En vigor: covey Doctor presenta allí y puede leer el código fuente —",
+      "stateNoAccess": "Presenta sí, lee no: {{system}} no está en el ACCESS.md de covey Doctor. Sin esa línea informa de lo que muestra el registro, pero no puede leer el código fuente. Añádela en",
+      "stateNoAccount": "No se presenta nada: no hay ninguna cuenta guardada para {{system}}. Añade {{key}} como secreto de la organización, preferiblemente el token de una cuenta de bot propia, cuyo nombre llevarán los informes:",
       "stateDisabled": "No en vigor: {{system}} no está habilitado para esta organización. Habilítalo en",
       "stateUnknownSystem": "No en vigor: el sistema de destino \"{{system}}\" (ya) no existe aquí.",
       "isDefault": "por defecto: el proyecto del que procede esta plataforma",
@@ -1391,6 +1392,7 @@
       "secretSet": "{{env}} está definido: las llamadas entrantes se comprueban por firma.",
       "secretMissing": "{{env}} no está definido. El extremo acepta llamadas pero no verifica ninguna firma: defínelo antes de ponerlo en producción.",
       "probeHint": "La prueba llama al sistema de destino solo en lectura con las credenciales guardadas e informa de quién parece ser covey al llegar.",
+      "probeAsAgent": "Se prueba como {{agent}}: la credencial propia del agente cuenta antes que la de la organización.",
       "probeBtn": "Probar la conexión",
       "probing": "Probando …",
       "probeOk": "Conectado como {{identity}}",
@@ -1894,7 +1896,11 @@
       "notify.decision": "Correos sobre decisiones pendientes, para todos en esta instalación. Apagado prevalece sobre el interruptor de cada cuenta.",
       "notify.task": "Correos sobre tareas terminadas, para todos en esta instalación. Apagado prevalece sobre el interruptor de cada cuenta.",
       "notify.cost": "Correos sobre dinero (un tope de presupuesto, la parada de emergencia), para todos en esta instalación. Apagado prevalece sobre el interruptor de cada cuenta.",
-      "notify.ops": "Correos sobre la propia plataforma (un runner desaparecido, una credencial rechazada), para todos en esta instalación. Apagado prevalece sobre el interruptor de cada cuenta."
+      "notify.ops": "Correos sobre la propia plataforma (un runner desaparecido, una credencial rechazada), para todos en esta instalación. Apagado prevalece sobre el interruptor de cada cuenta.",
+      "telemetry.mode": "¿Envía esta instalación cifras al proyecto una vez al día: versión, cuántas organizaciones, agentes y ejecuciones, qué runtimes y sistemas de destino se usan? Sin títulos, sin nombres, sin textos. Desactivado significa que nada sale de la máquina.",
+      "telemetry.id": "La identidad que esta instalación se dio a sí misma. Une las cifras de ayer con las de hoy y no dice nada sobre quién la opera.",
+      "telemetry.url": "Adónde van las cifras. Vacío desactiva el canal igual que telemetry.mode = off.",
+      "telemetry.key": "Clave opcional para una instalación que el proyecto conoce: sus informes de error van directos al tracker en lugar de a una cola."
     },
     "choice": {
       "signup.mode": {

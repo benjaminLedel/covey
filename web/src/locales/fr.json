@@ -1053,9 +1053,10 @@
       "project": "Projet",
       "none": "— aucun —",
       "projectPlaceholder": "p. ex. 42 ou groupe/covey",
-      "hint": "Là où covey lui-même vit : covey Doctor y lit le code (figé sur la version en service) et y dépose ses rapports de bug. Par défaut, c'est le projet dont vient cette plateforme ; qui veut garder ses constats en interne indique un système cible activé qui lui appartient.",
-      "stateOk": "En vigueur : covey Doctor y a accès et reçoit la section dans son prompt —",
-      "stateNoAccess": "Pas encore en vigueur : {{system}} n'est pas dans l'ACCESS.md de covey Doctor. Sans cette ligne, la section reste hors de son prompt et le courtier refuse la copie de travail. Ajoutez-la dans",
+      "hint": "Où covey vit lui-même : covey Doctor y lit le code source (épinglé à la version en cours) et la plateforme y dépose ses rapports de bug sous le compte enregistré. Par défaut, c'est le projet dont cette plateforme provient ; qui veut garder ses constats en interne indique son propre système cible connecté.",
+      "stateOk": "En vigueur : covey Doctor dépose là-bas et peut lire le code source —",
+      "stateNoAccess": "Dépôt oui, lecture non : {{system}} ne figure pas dans l'ACCESS.md de covey Doctor. Sans cette ligne, il signale ce que montre le dossier mais ne peut pas lire le code source. À ajouter dans",
+      "stateNoAccount": "Rien n'est déposé : aucun compte n'est enregistré pour {{system}}. Ajoutez {{key}} comme secret de l'organisation — de préférence le jeton d'un compte robot dédié, dont le nom figurera sur les rapports :",
       "stateDisabled": "Pas en vigueur : {{system}} n'est pas activé pour cette organisation. Activez-le sous",
       "stateUnknownSystem": "Pas en vigueur : le système cible « {{system}} » n'existe (plus) ici.",
       "isDefault": "par défaut : le projet dont vient cette plateforme",
@@ -1391,6 +1392,7 @@
       "secretSet": "{{env}} est défini — les appels entrants sont vérifiés par signature.",
       "secretMissing": "{{env}} n'est pas défini. Le point d'accès accepte les appels mais ne vérifie aucune signature — définissez-le avant la mise en service.",
       "probeHint": "Le test appelle le système cible en lecture seule avec les identifiants enregistrés et indique en tant que qui covey arrive.",
+      "probeAsAgent": "Le test s'effectue en tant que {{agent}} — l'identifiant propre à l'agent prime sur celui de l'organisation.",
       "probeBtn": "Tester la connexion",
       "probing": "Test en cours …",
       "probeOk": "Connecté en tant que {{identity}}",
@@ -1894,7 +1896,11 @@
       "notify.decision": "Courriels sur les décisions en attente — pour tout le monde sur cette installation. Désactivé l'emporte sur le réglage de chaque compte.",
       "notify.task": "Courriels sur les tâches terminées — pour tout le monde sur cette installation. Désactivé l'emporte sur le réglage de chaque compte.",
       "notify.cost": "Courriels sur l'argent — un plafond budgétaire, l'arrêt d'urgence — pour tout le monde sur cette installation. Désactivé l'emporte sur le réglage de chaque compte.",
-      "notify.ops": "Courriels sur la plateforme elle-même — un runner disparu, un identifiant refusé — pour tout le monde sur cette installation. Désactivé l'emporte sur le réglage de chaque compte."
+      "notify.ops": "Courriels sur la plateforme elle-même — un runner disparu, un identifiant refusé — pour tout le monde sur cette installation. Désactivé l'emporte sur le réglage de chaque compte.",
+      "telemetry.mode": "Cette installation envoie-t-elle une fois par jour des chiffres au projet : version, nombre d'organisations, d'agents et d'exécutions, quels runtimes et systèmes cibles sont utilisés. Aucun titre, aucun nom, aucun texte. Désactivé signifie que rien ne quitte la machine.",
+      "telemetry.id": "L'identité que cette installation s'est donnée. Elle relie les chiffres d'hier à ceux d'aujourd'hui et ne dit rien de qui l'exploite.",
+      "telemetry.url": "Où vont les chiffres. Vide désactive le canal aussi sûrement que telemetry.mode = off.",
+      "telemetry.key": "Clé facultative pour une installation que le projet connaît — ses rapports de bug vont alors directement dans le tracker au lieu d'une file d'attente."
     },
     "choice": {
       "signup.mode": {

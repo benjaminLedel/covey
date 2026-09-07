@@ -106,10 +106,12 @@ function RepoZugang({
   doctor,
   system,
   systeme,
+  canFile,
 }: {
   doctor: Agent;
   system: string;
   systeme?: AgentSystem[] | null;
+  canFile: boolean;
 }) {
   const { t } = useTranslation();
   if (!systeme) return null; // noch nicht geladen — lieber nichts als eine Vermutung
@@ -117,6 +119,19 @@ function RepoZugang({
   const zumAgenten = (
     <Link to={`/agents/${doctor.id}?tab=config`}>{doctor.display_name}</Link>
   );
+
+  /* Einreichen und Lesen hängen an verschiedenen Dingen, seit die Plattform
+     selbst einreicht: das Konto in den Secrets trägt das Einreichen, die Zeile
+     in der ACCESS.md das Lesen. Ohne Konto wird nichts gemeldet — das ist der
+     Zustand, der elf Tage lang wie eine fertige Einrichtung aussah. */
+  if (!canFile) {
+    return (
+      <p className="warn-text text-xs" style={{ maxWidth: 640 }}>
+        {t("org.repo.stateNoAccount", { system, key: `${system}_token` })}{" "}
+        <Link to="/secrets">{t("nav.secrets")}</Link>
+      </p>
+    );
+  }
 
   if (!eintrag) {
     return (
@@ -315,7 +330,12 @@ export function PlatformRepo() {
             )}
           </p>
           {gilt && doctor && (
-            <RepoZugang doctor={doctor} system={gilt.system} systeme={systeme.data} />
+            <RepoZugang
+              doctor={doctor}
+              system={gilt.system}
+              systeme={systeme.data}
+              canFile={own.data.platform_repo_can_file === true}
+            />
           )}
         </>
       )}

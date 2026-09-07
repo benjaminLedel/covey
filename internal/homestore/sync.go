@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -552,7 +553,7 @@ func MaterializeOwned(ctx context.Context, blobs BlobStore, orgID uuid.UUID, roo
 		wanted[e.Path] = true
 		switch {
 		case e.Dir:
-			if err := os.MkdirAll(target, e.Mode|0o700); err != nil {
+			if err := mkdirAllClearing(root, target, e.Mode|0o700); err != nil {
 				return res, err
 			}
 			owner.gehoert(target)
@@ -562,7 +563,7 @@ func MaterializeOwned(ctx context.Context, blobs BlobStore, orgID uuid.UUID, roo
 				continue
 			}
 			_ = os.Remove(target)
-			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			if err := mkdirAllClearing(root, filepath.Dir(target), 0o755); err != nil {
 				return res, err
 			}
 			if err := os.Symlink(e.Link, target); err != nil {
@@ -627,7 +628,7 @@ func MaterializeOwned(ctx context.Context, blobs BlobStore, orgID uuid.UUID, roo
 				mu.Unlock()
 				return
 			}
-			n, err := writeFile(ctx, blobs, orgID, target, e)
+			n, err := writeFile(ctx, blobs, orgID, root, target, e)
 			if err != nil {
 				// A block the store does not have any more cannot be produced
 				// by trying again — for this file the answer is final, for the
@@ -796,8 +797,58 @@ func updateInPlace(ctx context.Context, blobs BlobStore, orgID uuid.UUID, f *os.
 	return n, f.Sync()
 }
 
-func writeFile(ctx context.Context, blobs BlobStore, orgID uuid.UUID, target string, e Entry) (int64, error) {
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+// mkdirAllClearing is os.MkdirAll with one repair: where a path component is on
+// disk as something a directory cannot be made of — a leftover file, or a
+// symlink whose target is gone — mkdir answers "file exists", and since a wake
+// materialises the same manifest onto the same disk every time, it answers it
+// again on the next one. One stale node_modules symlink in a 23 GB home kept an
+// agent from waking for eighteen hours (#197): the backlog filled up, and the
+// prune that would have cleared the leftover sits at the end of the
+// materialisation, past the loop that returns the error.
+//
+// The link branch of the materialisation has always removed what stood in its
+// way. This gives the directory branch the same right, and no more than that:
+// only a non-directory goes, only below root, and only after MkdirAll has
+// actually failed. A symlink pointing at a real directory is left alone —
+// MkdirAll walks through it, so it was never the obstacle.
+func mkdirAllClearing(root, path string, mode os.FileMode) error {
+	err := os.MkdirAll(path, mode)
+	if err == nil {
+		return nil
+	}
+	if !clearBlockers(root, path) {
+		return err
+	}
+	return os.MkdirAll(path, mode)
+}
+
+// clearBlockers removes the components of path, from root downwards, that exist
+// but are not directories. Reports whether it removed anything — if it did not,
+// the caller's original error is the honest one to return.
+func clearBlockers(root, path string) bool {
+	rel, err := filepath.Rel(root, path)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return false
+	}
+	cleared := false
+	prefix := root
+	for _, part := range strings.Split(rel, string(filepath.Separator)) {
+		prefix = filepath.Join(prefix, part)
+		if _, err := os.Lstat(prefix); err != nil {
+			continue // not here yet; MkdirAll will make it
+		}
+		if info, err := os.Stat(prefix); err == nil && info.IsDir() {
+			continue // a directory, or a link to one
+		}
+		if os.Remove(prefix) == nil {
+			cleared = true
+		}
+	}
+	return cleared
+}
+
+func writeFile(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root, target string, e Entry) (int64, error) {
+	if err := mkdirAllClearing(root, filepath.Dir(target), 0o755); err != nil {
 		return 0, err
 	}
 	// A chunked file that is already here is repaired where it lies — only the
@@ -932,25 +983,58 @@ func min(a, b int) int {
 // gelöscht. Die richtige Frage ist „hat seither jemand darin gearbeitet?".
 func stateFile(root string) string { return strings.TrimRight(root, "/\\") + ".snapshot" }
 
-// ownerFile marks that this home has been handed to its agent once.
+// ownerFile marks what happened the last time this home was handed to its
+// agent. Beside the home, like the snapshot mark, and for the same reason: in
+// it, it would be part of every snapshot.
 func ownerFile(root string) string { return strings.TrimRight(root, "/\\") + ".owned" }
+
+// The marker's two states, and its version.
+//
+// The version exists because the marker used to be written in a case where it
+// meant the opposite of what it says. Adopt counted the chowns that SUCCEEDED
+// and wrote the marker when that count was zero — so a run in which every
+// single chown failed, which is exactly the "cannot" case, recorded the home as
+// handed over and the real repair never happened (#170). Every marker from that
+// code carries "1"; a marker that is not the current version is read as absent,
+// and the walk runs once more on every home that carries one.
+const (
+	ownerMarkVersion = "2"
+	ownerDone        = ownerMarkVersion + " done"
+	// ownerGaveUp records the euid that could not chown, and is only read as a
+	// stop while the process still runs as that user. On a developer machine
+	// the runner is an ordinary user, no chown of theirs will ever succeed, and
+	// walking the whole home at every start for that is waste. The moment the
+	// process runs as somebody else — root in the deployment container — the
+	// note no longer applies to it and the walk runs.
+	ownerGaveUp = ownerMarkVersion + " gave-up uid="
+)
 
 // Adopt hands an existing home to its agent — once, and then never again.
 //
 // Homes materialised before #120 belong to root all the way down: the runner
 // wrote them, and the runner is root. The agent inside cannot delete a cache it
 // is asked to clean up, cannot repair a broken checkout, cannot do anything but
-// read. Walking the tree costs seconds for half a million files and is paid
-// once per home, which is why the marker matters more than the speed.
+// read. On a production instance that grew into seven of eleven working trees
+// under ~/repos belonging to root, an agent deleting its own test scaffolding
+// to stay under its disk limit, and — the expensive half — a partially
+// completed `rm -rf` leaving an incomplete checkout that looks intact (#201).
 //
-// Errors are counted, not returned. On a machine where the runner is not root
-// every chown fails and the home is already the right person's — refusing to
-// start there would be a fix that breaks the case it does not apply to.
+// Walking the tree costs seconds for half a million files and is paid once per
+// home, which is why the marker matters more than the speed. It is called from
+// the one place every sandbox start passes (internal/runner/docker.go), not
+// from the branch that materialises a snapshot: three ordinary paths never
+// reach that branch — a prevailing working copy, a home that arrived on the
+// host by other means, a home store that is not configured — and those are
+// precisely the homes most likely to be in a bad state.
+//
+// Errors are counted, not returned. What is counted is what STAYED WRONG:
+// whether the repair is done is a statement about the tree, not about how many
+// calls went through.
 func Adopt(root string, owner Owner) (int, bool) {
-	if _, err := os.Stat(ownerFile(root)); err == nil {
+	if adoptDone(root) {
 		return 0, false
 	}
-	var geaendert int
+	var geaendert, offen int
 	_ = filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil
@@ -965,16 +1049,45 @@ func Adopt(root string, owner Owner) (int, bool) {
 		}
 		if os.Lchown(p, owner.UID, owner.GID) == nil {
 			geaendert++
+		} else {
+			offen++
 		}
 		return nil
 	})
-	// The marker only goes down when there was nothing left to hand over.
-	// Otherwise a run that could not chown (not root) would mark the home as
-	// done and the real repair would never happen.
-	if geaendert == 0 {
-		_ = os.WriteFile(ownerFile(root), []byte("1"), 0o600)
+	switch {
+	case offen == 0:
+		// Nothing stayed wrong. That is the only state that ends the walk for
+		// good.
+		_ = os.WriteFile(ownerFile(root), []byte(ownerDone), 0o600)
+	case geaendert == 0:
+		// Not one entry could be handed over: this process cannot chown at all.
+		// Noted with the uid, so that the same process does not walk the whole
+		// home again at every start — and so that a process running as somebody
+		// else is not stopped by the note.
+		_ = os.WriteFile(ownerFile(root), []byte(fmt.Sprintf("%s%d", ownerGaveUp, os.Geteuid())), 0o600)
+	default:
+		// Some went, some did not. No marker: the rest is tried again at the
+		// next start, which is what a half-repaired home needs.
 	}
 	return geaendert, geaendert > 0
+}
+
+// adoptDone reads the marker beside the home and says whether the walk can be
+// skipped.
+func adoptDone(root string) bool {
+	raw, err := os.ReadFile(ownerFile(root))
+	if err != nil {
+		return false
+	}
+	mark := strings.TrimSpace(string(raw))
+	if mark == ownerDone {
+		return true
+	}
+	if uid, ok := strings.CutPrefix(mark, ownerGaveUp); ok {
+		return uid == strconv.Itoa(os.Geteuid())
+	}
+	// Anything else — an older version, a truncated file — is read as absent.
+	return false
 }
 
 // MarkSynced records that this working copy IS exactly this snapshot, and

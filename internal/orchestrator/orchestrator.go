@@ -103,11 +103,26 @@ type Options struct {
 	// platform keeps its news to itself, which is what every installation did
 	// before this existed and what a test stack does.
 	Notify *notify.Store
+	// Upstream is the channel to the project (internal/telemetry): the way a
+	// platform finding reaches the tracker on an installation that has no
+	// account on the forge of its own. nil = not wired, and covey/create_issue
+	// then files with the organisation's own account or says it cannot.
+	Upstream Upstream
 	// RuntimeTools is the runs' built-in tool scope (COVEY_RUNTIME_TOOLS).
 	// Empty → daemon.DefaultAllowedTools. The list decides not only what a run
 	// may use but what exists for it at all — see daemon.DefaultAllowedTools.
 	RuntimeTools []string
 	Log          *slog.Logger
+}
+
+// Upstream is the one thing the orchestrator asks of the channel to the
+// project. An interface, because the orchestrator has no business knowing how
+// that channel works — and because a test stack wires none.
+type Upstream interface {
+	// Bericht sends one platform finding. The address comes back where the
+	// other side filed it straight away; empty means it is waiting for a
+	// person there.
+	Bericht(ctx context.Context, agent, titel, text string) (string, error)
 }
 
 type Orchestrator struct {
@@ -2221,28 +2236,43 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 		//     ihr eigenes Repository ein; wer die Schicht gar nicht will, setzt
 		//     das Zielsystem auf "-" (repoAus).
 		//  2. Der Agent darf begutachten (mayReview, siehe oben).
-		//  3. Er hat dieses Zielsystem WIRKLICH in seiner ACCESS.md.
 		//
-		// Ohne (3) stuende im Prompt „you may READ it — check it out and search
-		// it like any other repository", und der Broker wiese den Checkout
-		// gleich darauf ab: Faehigkeit durch Andeutung, dieselbe, die der
-		// Abschnitt darueber fuer das Entwerfen ausdruecklich vermeidet. Das
-		// Stammdatum allein ist die halbe Einrichtung — die andere Haelfte ist
-		// eine Zeile in der ACCESS.md von covey Doctor.
+		// Die dritte Bedingung galt frueher fuer den ganzen Abschnitt: der
+		// Agent musste das Zielsystem WIRKLICH in seiner ACCESS.md haben.
+		// Seit das Einreichen eine Plattform-Aktion ist (covey/create_issue,
+		// platformissue.go), traegt sie nur noch die eine Haelfte, die sie
+		// wirklich betrifft:
 		//
-		// Der Scope INNERHALB des Systems bleibt Sache dieser Zeile: welche
-		// Aktionen sie traegt, steht ohnehin im Zielsystem-Abschnitt des
-		// Prompts, der schon auf die Scopes des Agenten zugeschnitten ist.
+		//  - LESEN des Quelltextes braucht die Zeile in der ACCESS.md, denn
+		//    ausgecheckt wird mit dem Credential des Agenten. Ohne sie stuende
+		//    im Prompt „check it out and search it", und der Broker wiese den
+		//    Checkout gleich darauf ab — Faehigkeit durch Andeutung, dieselbe,
+		//    die der Abschnitt darueber fuer das Entwerfen vermeidet.
+		//  - EINREICHEN braucht sie nicht mehr. Die Steuerebene schreibt das
+		//    Issue mit dem Konto der Organisation; der Agent sieht kein Token
+		//    und waehlt kein Ziel. Genau das war die Sackgasse: das
+		//    mitgelieferte Playbook hiess einreichen, und der einzige Weg
+		//    dorthin war ein Zugang, den das Template nicht hatte (#200).
 		var repoSystem, repoProject string
 		if err := o.Pool.QueryRow(ctx,
 			"SELECT platform_repo_system, platform_repo_project FROM organizations WHERE id=$1",
 			agent.OrgID).Scan(&repoSystem, &repoProject); err == nil {
 			repoSystem, repoProject = agents.PlatformRepo(repoSystem, repoProject)
-			if grantedSystems[repoSystem] {
-				ref, istTag := buildinfo.Ref()
-				if section := agents.PlatformRepoDoc(repoSystem, repoProject, ref, istTag); section != "" {
-					compiled += "\n\n" + section
+			ref, istTag := buildinfo.Ref()
+			// Einreichen steht nur im Prompt, wenn es auch geht — sonst gaebe
+			// es wieder eine Faehigkeit auf dem Papier. Zwei Wege fuehren
+			// hin: das eigene Konto der Organisation, oder der Kanal zum
+			// Projekt, wenn das Ziel dessen eigenes Repository ist
+			// (platformissue.go).
+			canFile := o.Upstream != nil && upstreamsRepo(repoSystem, repoProject)
+			if o.Secrets != nil && repoSystem != "" {
+				if tok, err := o.Secrets.Get(ctx, agent.OrgID, repoSystem+"_token"); err == nil && strings.TrimSpace(tok) != "" {
+					canFile = true
 				}
+			}
+			if section := agents.PlatformRepoDoc(repoSystem, repoProject, ref, istTag,
+				canFile, grantedSystems[repoSystem]); section != "" {
+				compiled += "\n\n" + section
 			}
 		}
 	}
@@ -2921,9 +2951,21 @@ func (o *Orchestrator) createAgentTask(ctx context.Context, agent agents.Agent, 
 		if err != nil {
 			return fail(fmt.Sprintf("no agent %q in this organization", slug))
 		}
-		if found.Killed {
-			return fail(fmt.Sprintf("agent %q is paused — no delegation", slug))
-		}
+		// A paused colleague does NOT refuse the work — the task is created and
+		// waits. runAgent returns without doing anything while Killed is set, so
+		// the backlog is the right place for it: it is picked up when a human
+		// releases the agent, exactly as a task queued for an unhired one waits
+		// for the hiring.
+		//
+		// It used to be refused here, and that lost the work. The delegating
+		// colleague got an error it could do nothing with, nothing recorded that
+		// the work had been wanted, and a milestone needed a manual intervention
+		// per incident (#202). The pause is a decision about spending; it stops
+		// the paused agent from starting, and it has no business destroying
+		// somebody else's request.
+		//
+		// A draft is a different matter and stays refused: it has never been
+		// hired, so a delegation to it is a mistake rather than a delay.
 		if found.Draft() {
 			return fail(fmt.Sprintf("agent %q has not been hired yet — no delegation", slug))
 		}
@@ -2962,11 +3004,16 @@ func (o *Orchestrator) createAgentTask(ctx context.Context, agent agents.Agent, 
 	if err != nil {
 		return fail(err.Error())
 	}
-	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
-		map[string]string{"status": "task_created", "created_task": created.ID.String(),
-			"target_agent": targetAgent.Slug, "title": title})
+	fields := map[string]string{"status": "task_created", "created_task": created.ID.String(),
+		"target_agent": targetAgent.Slug, "title": title}
+	if targetAgent.Killed {
+		// Written down because the task then lies still for a reason that is not
+		// visible on it: whoever asks later why it waited finds the answer here.
+		fields["target_paused"] = "true"
+	}
+	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle, fields)
 	o.publishTask(created.ID, targetAgent)
-	if targetAgent.ID != agent.ID {
+	if targetAgent.ID != agent.ID && !targetAgent.Killed {
 		o.EnsureRunning(targetAgent.ID) // delegation wakes the colleague
 	}
 	return daemon.InjectCreateTask{RequestID: req.RequestID, OK: true,

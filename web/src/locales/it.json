@@ -1053,9 +1053,10 @@
       "project": "Progetto",
       "none": "— nessuno —",
       "projectPlaceholder": "ad es. 42 oppure gruppo/covey",
-      "hint": "Dove vive covey stesso: covey Doctor vi legge il codice (fissato alla versione in esecuzione) e vi deposita le sue segnalazioni di bug. L'impostazione predefinita è il progetto da cui proviene questa piattaforma; chi vuole tenere i rilievi in casa indica un proprio sistema di destinazione abilitato.",
-      "stateOk": "In vigore: covey Doctor ha accesso lì e riceve la sezione nel suo prompt —",
-      "stateNoAccess": "Non ancora in vigore: {{system}} non è nell'ACCESS.md di covey Doctor. Senza quella riga la sezione resta fuori dal prompt e il broker rifiuta la copia di lavoro. Aggiungila in",
+      "hint": "Dove vive covey stesso: covey Doctor vi legge il codice sorgente (fissato alla versione in esecuzione) e la piattaforma vi apre le sue segnalazioni con l'account memorizzato. Per impostazione predefinita è il progetto da cui proviene questa piattaforma; chi vuole tenere in casa i risultati indica un proprio sistema di destinazione collegato.",
+      "stateOk": "In vigore: covey Doctor apre le segnalazioni lì e può leggere il codice sorgente —",
+      "stateNoAccess": "Apre sì, legge no: {{system}} non è nell'ACCESS.md di covey Doctor. Senza quella riga segnala ciò che risulta dal registro, ma non può leggere il codice sorgente. Aggiungila in",
+      "stateNoAccount": "Non viene aperto nulla: per {{system}} non è memorizzato alcun account. Aggiungi {{key}} come segreto dell'organizzazione, preferibilmente il token di un account bot dedicato, il cui nome comparirà sulle segnalazioni:",
       "stateDisabled": "Non in vigore: {{system}} non è abilitato per questa organizzazione. Abilitalo in",
       "stateUnknownSystem": "Non in vigore: il sistema di destinazione «{{system}}» qui non esiste (più).",
       "isDefault": "predefinito: il progetto da cui proviene questa piattaforma",
@@ -1391,6 +1392,7 @@
       "secretSet": "{{env}} è impostato — le chiamate in arrivo vengono verificate nella firma.",
       "secretMissing": "{{env}} non è impostato. L'endpoint accetta le chiamate ma non verifica alcuna firma: impostalo prima di andare in produzione.",
       "probeHint": "La prova chiama il sistema di destinazione in sola lettura con le credenziali memorizzate e riferisce come chi arriva covey.",
+      "probeAsAgent": "Il test viene eseguito come {{agent}}: la credenziale propria dell'agente vale prima di quella dell'organizzazione.",
       "probeBtn": "Prova la connessione",
       "probing": "Prova in corso …",
       "probeOk": "Collegato come {{identity}}",
@@ -1894,7 +1896,11 @@
       "notify.decision": "Mail sulle decisioni in attesa, per tutti su questa installazione. Spento prevale sull'interruttore di ogni account.",
       "notify.task": "Mail sui compiti conclusi, per tutti su questa installazione. Spento prevale sull'interruttore di ogni account.",
       "notify.cost": "Mail sul denaro — un tetto di budget, l'arresto d'emergenza — per tutti su questa installazione. Spento prevale sull'interruttore di ogni account.",
-      "notify.ops": "Mail sulla piattaforma stessa — un runner sparito, una credenziale rifiutata — per tutti su questa installazione. Spento prevale sull'interruttore di ogni account."
+      "notify.ops": "Mail sulla piattaforma stessa — un runner sparito, una credenziale rifiutata — per tutti su questa installazione. Spento prevale sull'interruttore di ogni account.",
+      "telemetry.mode": "Questa installazione invia una volta al giorno dei numeri al progetto: versione, quante organizzazioni, agenti ed esecuzioni, quali runtime e sistemi di destinazione sono in uso. Nessun titolo, nessun nome, nessun testo. Off significa che nulla lascia la macchina.",
+      "telemetry.id": "L'identità che questa installazione si è data. Collega i numeri di ieri a quelli di oggi e non dice nulla su chi la gestisce.",
+      "telemetry.url": "Dove vanno i numeri. Vuoto spegne il canale esattamente come telemetry.mode = off.",
+      "telemetry.key": "Chiave opzionale per un'installazione che il progetto conosce: le sue segnalazioni vanno direttamente nel tracker invece che in coda."
     },
     "choice": {
       "signup.mode": {

@@ -1173,9 +1173,8 @@ func TestMaterializeSurvivesAChownItMayNotDo(t *testing.T) {
 }
 
 // The one-off handover happens once. The marker is what makes it once, and it
-// is only written when there was nothing left to hand over — otherwise a run
-// that could not chown would mark the home as done and the real repair would
-// never happen.
+// is only written when nothing STAYED WRONG — otherwise a run that could not
+// chown would mark the home as done and the real repair would never happen.
 func TestAdoptMarksOnlyWhenItIsActuallyDone(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "datei.txt"), []byte("x"), 0o644); err != nil {
@@ -1188,12 +1187,165 @@ func TestAdoptMarksOnlyWhenItIsActuallyDone(t *testing.T) {
 	if n, repariert := Adopt(root, eigen); repariert || n != 0 {
 		t.Errorf("nothing had to change, yet %d entries were reported", n)
 	}
-	if _, err := os.Stat(ownerFile(root)); err != nil {
-		t.Error("a home that needed nothing was not marked, so it will be walked again on every wake")
+	if mark, err := os.ReadFile(ownerFile(root)); err != nil || string(mark) != ownerDone {
+		t.Errorf("a home that needed nothing has to be marked as done: %q, %v", mark, err)
 	}
 
 	// And a marked home is not walked again.
 	if n, _ := Adopt(root, eigen); n != 0 {
 		t.Errorf("the marker did not hold: %d entries", n)
+	}
+}
+
+// TestAdoptDoesNotMarkWhatItCouldNotHandOver pins the fault behind covey#170.
+//
+// Adopt counted the chowns that SUCCEEDED and wrote the marker when that count
+// was zero — so the run in which every chown failed, which is exactly the case
+// the comment above it said it was preventing, recorded the home as handed over.
+// The real repair then never happened, on any later start, with any later
+// process, however much root it had.
+//
+// Without root a chown to a foreign uid fails here, which is what makes this
+// testable at all as an ordinary user; as root the whole case does not arise
+// and the test says so instead of pretending.
+func TestAdoptDoesNotMarkWhatItCouldNotHandOver(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("as root every chown succeeds — this is the case of a process that cannot")
+	}
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "datei.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// A foreign owner: nothing here belongs to it, and nothing can be handed
+	// over to it either.
+	fremd := Owner{UID: os.Getuid() + 12345, GID: os.Getgid() + 12345}
+	if n, repariert := Adopt(root, fremd); repariert || n != 0 {
+		t.Errorf("nothing could be handed over, yet %d entries were reported", n)
+	}
+	mark, err := os.ReadFile(ownerFile(root))
+	if err != nil {
+		t.Fatal("a process that cannot chown has to note that, or it walks the whole home at every start")
+	}
+	if string(mark) == ownerDone {
+		t.Fatal("a home that could not be handed over must not be marked as done — that is #170")
+	}
+	if !strings.HasPrefix(string(mark), ownerGaveUp) {
+		t.Fatalf("the note has to say who gave up: %q", mark)
+	}
+
+	// And the note is only a stop for the process it came from. A marker from
+	// somebody else's uid does not keep root out of the repair.
+	if err := os.WriteFile(ownerFile(root), []byte(ownerGaveUp+"999999"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if adoptDone(root) {
+		t.Error("a note from another uid must not stop this process")
+	}
+
+	// A home that was handed over by halves — some entries the agent's, some
+	// root's, which is the state the production instance was in — carries no
+	// marker at all: nothing is written while anything stayed wrong, so the
+	// next start tries again.
+	if string(mark) == ownerDone {
+		t.Fatal("as long as anything stayed wrong the home is not done")
+	}
+
+	// A marker from the broken version means "gave up", not "done", and every
+	// home out there carries one. It has to be read as absent.
+	if err := os.WriteFile(ownerFile(root), []byte("1"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if adoptDone(root) {
+		t.Error("the old marker was written in the case it should have prevented — it must not hold")
+	}
+}
+
+// A wake materialises the same manifest onto the same disk every time. Where
+// one path on that disk is something a directory cannot be made of, mkdir says
+// "file exists" — and says it again at the next wake, and the one after, which
+// is how an agent came to sit eighteen hours in a wake_failed loop over a
+// leftover node_modules symlink while its backlog filled up (#197). The
+// materialisation has to clear the obstacle, the way the symlink branch always
+// has.
+func TestMaterializeClearsWhatBlocksADirectory(t *testing.T) {
+	ctx := context.Background()
+	blobs := newDir(t)
+	org := uuid.New()
+	home := t.TempDir()
+
+	write(t, home, "repos/app/node_modules/pkg/index.js", "export const x = 1")
+	write(t, home, "repos/app/package.json", "{}")
+	write(t, home, "tools/bin/build", "#!/bin/sh")
+
+	res, err := Sync(ctx, blobs, org, home, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := Load(ctx, blobs, org, res.ManifestHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The working copy as the runner left it. node_modules is a symlink into
+	// a vendor tree that is no longer there — that is what a `file:`
+	// dependency leaves behind — and a plain file stands where tools/bin
+	// belongs.
+	if err := os.RemoveAll(filepath.Join(home, "repos/app/node_modules")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("../../vendor-src/pkg", filepath.Join(home, "repos/app/node_modules")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(filepath.Join(home, "tools/bin")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, "tools/bin"), []byte("not a directory"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := Materialize(ctx, blobs, org, home, m); err != nil {
+		t.Fatalf("the materialisation stayed stuck on the obstacle: %v", err)
+	}
+
+	for path, want := range map[string]string{
+		"repos/app/node_modules/pkg/index.js": "export const x = 1",
+		"repos/app/package.json":              "{}",
+		"tools/bin/build":                     "#!/bin/sh",
+	} {
+		got, err := os.ReadFile(filepath.Join(home, path))
+		if err != nil {
+			t.Errorf("%s is missing after the restore: %v", path, err)
+			continue
+		}
+		if string(got) != want {
+			t.Errorf("%s came back changed", path)
+		}
+	}
+	if info, err := os.Lstat(filepath.Join(home, "repos/app/node_modules")); err != nil || !info.IsDir() {
+		t.Errorf("node_modules is still not the directory the manifest describes: %v", err)
+	}
+}
+
+// The right to remove is narrow on purpose. A symlink pointing at a real
+// directory is not an obstacle — MkdirAll walks straight through it — and
+// removing it would throw away what somebody put there.
+func TestClearBlockersLeavesALinkToADirectoryAlone(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "echt"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("echt", filepath.Join(root, "verweis")); err != nil {
+		t.Fatal(err)
+	}
+	if clearBlockers(root, filepath.Join(root, "verweis", "tief")) {
+		t.Error("something was removed although nothing was in the way")
+	}
+	if target, err := os.Readlink(filepath.Join(root, "verweis")); err != nil || target != "echt" {
+		t.Errorf("the link did not survive: %q, %v", target, err)
+	}
+	// And nothing above the root is ours to touch.
+	if clearBlockers(root, filepath.Join(filepath.Dir(root), "fremd")) {
+		t.Error("a path outside the home was cleared")
 	}
 }

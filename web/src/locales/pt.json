@@ -1053,9 +1053,10 @@
       "project": "Projeto",
       "none": "— nenhum —",
       "projectPlaceholder": "p. ex. 42 ou grupo/covey",
-      "hint": "Onde o próprio covey vive: o covey Doctor lê aí o código (fixado à versão em execução) e aí submete os seus relatórios de erro. Por omissão é o projeto de onde vem esta plataforma; quem quiser guardar os achados em casa indica um sistema de destino próprio já ativado.",
-      "stateOk": "Em vigor: o covey Doctor tem lá acesso e recebe a secção no seu prompt —",
-      "stateNoAccess": "Ainda não em vigor: {{system}} não está no ACCESS.md do covey Doctor. Sem essa linha a secção fica de fora do prompt e o intermediário recusa a cópia de trabalho. Acrescente-a em",
+      "hint": "Onde o próprio covey vive: o covey Doctor lê lá o código-fonte (fixado à versão em execução) e a plataforma regista lá os seus relatórios de erro com a conta guardada. Por omissão é o projeto de onde esta plataforma vem; quem quiser manter as conclusões em casa indica um sistema de destino próprio e ligado.",
+      "stateOk": "Em vigor: o covey Doctor regista lá e pode ler o código-fonte —",
+      "stateNoAccess": "Regista sim, lê não: {{system}} não consta do ACCESS.md do covey Doctor. Sem essa linha, relata o que o registo mostra, mas não pode ler o código-fonte. Acrescente em",
+      "stateNoAccount": "Nada é registado: não há nenhuma conta guardada para {{system}}. Adicione {{key}} como segredo da organização — de preferência o token de uma conta de bot própria, cujo nome constará dos relatórios:",
       "stateDisabled": "Não está em vigor: {{system}} não está ativado para esta organização. Ative-o em",
       "stateUnknownSystem": "Não está em vigor: o sistema de destino «{{system}}» (já) não existe aqui.",
       "isDefault": "por omissão: o projeto de onde vem esta plataforma",
@@ -1391,6 +1392,7 @@
       "secretSet": "{{env}} está definido — as chamadas recebidas têm a assinatura verificada.",
       "secretMissing": "{{env}} não está definido. O ponto de acesso aceita chamadas mas não verifica assinatura nenhuma — defina-o antes de entrar em produção.",
       "probeHint": "O teste chama o sistema de destino só de leitura com as credenciais guardadas e diz como quem o covey lá chega.",
+      "probeAsAgent": "O teste é feito como {{agent}} — a credencial própria do agente vale antes da da organização.",
       "probeBtn": "Testar a ligação",
       "probing": "A testar …",
       "probeOk": "Ligado como {{identity}}",
@@ -1894,7 +1896,11 @@
       "notify.decision": "E-mails sobre decisões pendentes — para todos nesta instalação. Desligado sobrepõe-se ao interruptor de cada conta.",
       "notify.task": "E-mails sobre tarefas concluídas — para todos nesta instalação. Desligado sobrepõe-se ao interruptor de cada conta.",
       "notify.cost": "E-mails sobre dinheiro — um limite de orçamento, a paragem de emergência — para todos nesta instalação. Desligado sobrepõe-se ao interruptor de cada conta.",
-      "notify.ops": "E-mails sobre a própria plataforma — um runner que desapareceu, uma credencial recusada — para todos nesta instalação. Desligado sobrepõe-se ao interruptor de cada conta."
+      "notify.ops": "E-mails sobre a própria plataforma — um runner que desapareceu, uma credencial recusada — para todos nesta instalação. Desligado sobrepõe-se ao interruptor de cada conta.",
+      "telemetry.mode": "Esta instalação envia uma vez por dia números ao projeto: versão, quantas organizações, agentes e execuções, que runtimes e sistemas de destino estão em uso. Sem títulos, sem nomes, sem textos. Desligado significa que nada sai da máquina.",
+      "telemetry.id": "A identidade que esta instalação deu a si própria. Liga os números de ontem aos de hoje e nada diz sobre quem a opera.",
+      "telemetry.url": "Para onde vão os números. Vazio desliga o canal tal como telemetry.mode = off.",
+      "telemetry.key": "Chave opcional para uma instalação que o projeto conhece — os seus relatórios de erro vão então direitos para o tracker em vez de uma fila."
     },
     "choice": {
       "signup.mode": {

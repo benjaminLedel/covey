@@ -320,6 +320,17 @@ Handing a file from the local block storage into the working copy must not be a 
 
 The right instrument is a copy-on-write clone (`clonefile` on APFS, `FICLONE` on btrfs and XFS) with a plain copy as the fallback. On a file system without reflink support the local block storage therefore costs real disk space a second time — which is why keeping blocks is a **setting with an LRU cap**, not an assumption. Two things bound the cost: only missing or changed files are ever materialised, so the full pass hits a fresh runner and nothing else, and a working copy that already matches the target snapshot is left completely untouched.
 
+### Whose the home is
+
+A home lies on the runner host and is mounted into the sandbox; the runner writes it and the runner is root, while the agent inside is uid 1001. Every file the runner puts there belongs to root unless somebody says otherwise, and an agent that may read its own home and change nothing in it is not a workplace but a display case. It shows up late and indirectly: the agent is asked to tidy up a cache it cannot delete, a checkout it cannot repair, an attachment it cannot write.
+
+Two mechanisms, and they are not interchangeable:
+
+- **What the platform writes, it writes with the owner set.** Materialising takes the agent's uid and applies it as it goes.
+- **What is already there gets handed over once.** A walk over the home at the start, and a marker beside it so the walk is paid once. This is the part that has to sit where **every** start passes — beside the chown of the home's top directory — and not on the branch that materialises a snapshot: a working copy that prevails, a home that arrived on the host by other means, an installation without a home store all skip that branch, and those were precisely the homes still owned by root (#170, #201).
+
+The marker records what happened rather than that something happened. Written when nothing stayed wrong; written as a note naming the uid when the process could not chown at all (a developer machine, where no chown of an ordinary user will ever succeed and walking the whole home at every start would be waste); not written while some entries went and others did not, because a half-handed home is exactly the one that has to be tried again.
+
 ### A cache for the mass, the only copy for the rest
 
 The store is called a "cache", and for 99 % of its content that is right: if it were lost, toolchains would be downloaded again and repos cloned again — annoying, not tragic. For the 48 MB it is **not** right. They exist nowhere else.

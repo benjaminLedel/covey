@@ -451,6 +451,11 @@ type RequestHiring struct {
 	// observation. The rationale is what a human reads before the diff.
 	Title     string `json:"title,omitempty"`
 	Rationale string `json:"rationale,omitempty"`
+	// Body is the text of a platform issue (create_issue) — the evidence a
+	// maintainer reads. Its own field rather than Rationale's second use: a
+	// proposal's rationale is read beside a diff, an issue's body stands
+	// alone, and the two are written differently.
+	Body string `json:"body,omitempty"`
 	// Summary is the review itself (write_review): the assessment a human
 	// reads on the employee profile.
 	Summary string `json:"summary,omitempty"`

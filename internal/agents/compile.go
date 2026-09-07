@@ -498,6 +498,12 @@ Three actions:
      Both become open items somebody has to tick off. One call per colleague,
      at the END of your review: the text and its consequences are one judgement.
 
+     A bug in the platform ITSELF is a case of its own: where the section "The
+     platform you run on" stands in this prompt, it says how to file it, and a
+     report filed that way records its own open item — it does not belong in
+     ` + "`issues`" + ` a second time. Where that section is missing, this is the place
+     for it: nothing else carries it out of the inbox.
+
 **Your proposal is not in effect.** It is stored as an inactive version; a
 human accepts it or declines it. That is the whole design, not a limitation to
 work around: nothing changes about a colleague on your say-so.
@@ -670,8 +676,14 @@ func PlatformRepo(system, project string) (string, string) {
 // the commit (buildinfo.Ref). The tag is the more useful of the two for whoever
 // reads the report: it says which shipped version is affected, not just which
 // line of history.
-func PlatformRepoDoc(system, project, ref string, refIsTag bool) string {
+func PlatformRepoDoc(system, project, ref string, refIsTag, mayFile, mayRead bool) string {
 	if strings.TrimSpace(system) == "" || strings.TrimSpace(project) == "" {
+		return ""
+	}
+	// Neither half: no section. An agent that can neither file nor read would
+	// otherwise be told about a repository it cannot reach — capability by
+	// suggestion, the thing this section is careful about everywhere else.
+	if !mayFile && !mayRead {
 		return ""
 	}
 	ref = strings.TrimSpace(ref)
@@ -687,11 +699,15 @@ func PlatformRepoDoc(system, project, ref string, refIsTag bool) string {
 		pinned = "the default branch — this instance carries no version information, " +
 			"so say in every report which state you read"
 	}
-	return `## The platform you run on
-
-covey's own source lives on ` + "`" + system + "`" + `, project ` + "`" + project + "`" + `. You may READ it —
-check it out and search it like any other repository — and you may file issues
-there. Nothing else.
+	// Zwei Haelften, und sie haengen an verschiedenen Bedingungen: einreichen
+	// darf, wer begutachtet (die Steuerebene schreibt mit dem Konto der
+	// Organisation), lesen nur, wer das Zielsystem in seiner ACCESS.md hat.
+	source := `**You cannot read the source from here.** Nobody has given this agent access to
+` + "`" + system + "`" + `, so report what the record proves — and say in the report that you
+could not read the code. A maintainer who knows that reads your evidence
+differently.`
+	if mayRead {
+		source = `**You may READ it** — check it out and search it like any other repository.
 
 **Check out ` + pinned + `.** Reading the default branch would have you report
 against code this instance does not execute.
@@ -701,13 +717,36 @@ worthless. One that says "eleven runs across three agents ended at the limit,
 $340, and in nine of them the work was nearly done — ` + "`covey/create_task`" + ` would
 be the way to hand back the partial result and refuses at ` + "`maxAgentTaskDepth`" + `"
 is a specification. The first half is in the work record; the second half is in
-the code.
+the code.`
+	}
+	filing := `**Nothing here files issues.** No account is stored for ` + "`" + system + "`" + `, so a
+platform fault belongs in your review as a finding, with the whole report in it.
+Say there that it could not be filed.`
+	if mayFile {
+		filing = `**Filing is an action of the platform, not of a target system:**
+
+   ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/covey/create_issue -d '{\"title\":\"…\",\"body\":\"… (Markdown)\"}'`" + `
+
+You need no seat on ` + "`" + system + "`" + ` for it and you never see a credential: you write
+the report, the platform files it under its own account into the project above,
+and the same report lands in the inbox so that a human sees what went out. The
+destination is master data — you do not choose where a report about this
+platform goes.`
+	}
+	return `## The platform you run on
+
+covey's own source lives on ` + "`" + system + "`" + `, project ` + "`" + project + "`" + `.
+
+` + filing + `
+
+` + source + `
 
 **An issue costs a human's attention.** Three rules:
 - File only when the same limit hit **more than one agent**. One agent that ran
   into something once is a task, not a platform fault.
-- **Look for an existing issue first.** Search the tracker before you write; add
-  your evidence to what is there rather than opening a second one.
+- **One report per fault.** The platform refuses a second issue with the same
+  title within a month; if what you have is more evidence for something already
+  filed, it belongs in that issue, not in a new one.
 - **Name the evidence**: which agents, which runs, what it cost.
 
 **You report, you do not fix.** No branch, no merge request, no patch. Somebody

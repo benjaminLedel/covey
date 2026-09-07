@@ -1053,9 +1053,10 @@
       "project": "Project",
       "none": "— geen —",
       "projectPlaceholder": "bijv. 42 of groep/covey",
-      "hint": "Waar covey zelf woont: covey Doctor leest daar de broncode (vastgezet op de draaiende versie) en dient daar zijn foutmeldingen in. Standaard is dat het project waar dit platform vandaan komt; wie bevindingen in eigen huis wil houden, geeft een eigen ingeschakeld doelsysteem op.",
-      "stateOk": "Van kracht: covey Doctor heeft daar toegang en krijgt de sectie in zijn prompt —",
-      "stateNoAccess": "Nog niet van kracht: {{system}} staat niet in de ACCESS.md van covey Doctor. Zonder die regel blijft de sectie uit zijn prompt en weigert de broker de werkkopie. Voeg hem toe bij",
+      "hint": "Waar covey zelf leeft: covey Doctor leest daar de broncode (vastgezet op de draaiende versie) en het platform dient zijn foutmeldingen daar in onder het opgeslagen account. Standaard is dat het project waar dit platform vandaan komt; wie bevindingen in huis wil houden, vult een eigen aangesloten doelsysteem in.",
+      "stateOk": "Van kracht: covey Doctor dient daar in en mag de broncode lezen —",
+      "stateNoAccess": "Indienen ja, lezen nee: {{system}} staat niet in de ACCESS.md van covey Doctor. Zonder die regel meldt hij wat het dossier laat zien, maar kan hij de broncode er niet bij lezen. Aanvullen bij",
+      "stateNoAccount": "Er wordt niets ingediend: voor {{system}} is geen account opgeslagen. Voeg {{key}} toe als organisatiegeheim — bij voorkeur het token van een eigen bot-account, wiens naam de meldingen dragen:",
       "stateDisabled": "Niet van kracht: {{system}} is voor deze organisatie niet ingeschakeld. Schakel het in onder",
       "stateUnknownSystem": "Niet van kracht: het doelsysteem “{{system}}” bestaat hier niet (meer).",
       "isDefault": "standaard: het project waar dit platform vandaan komt",
@@ -1391,6 +1392,7 @@
       "secretSet": "{{env}} is gezet — inkomende aanroepen worden op handtekening gecontroleerd.",
       "secretMissing": "{{env}} is niet gezet. Het endpoint accepteert aanroepen maar controleert geen handtekening — zet het voordat u live gaat.",
       "probeHint": "De test roept het doelsysteem alleen-lezen aan met de opgeslagen inloggegevens en meldt als wie covey daar aankomt.",
+      "probeAsAgent": "Er wordt getest als {{agent}} — de eigen inloggegevens van de agent gaan vóór die van de organisatie.",
       "probeBtn": "Verbinding testen",
       "probing": "Testen …",
       "probeOk": "Verbonden als {{identity}}",
@@ -1894,7 +1896,11 @@
       "notify.decision": "Mails over wachtende beslissingen — voor iedereen op deze installatie. Uit gaat vóór de schakelaar van elk account.",
       "notify.task": "Mails over afgeronde taken — voor iedereen op deze installatie. Uit gaat vóór de schakelaar van elk account.",
       "notify.cost": "Mails over geld — een budgetplafond, de noodstop — voor iedereen op deze installatie. Uit gaat vóór de schakelaar van elk account.",
-      "notify.ops": "Mails over het platform zelf — een runner die wegviel, een geweigerde toegang — voor iedereen op deze installatie. Uit gaat vóór de schakelaar van elk account."
+      "notify.ops": "Mails over het platform zelf — een runner die wegviel, een geweigerde toegang — voor iedereen op deze installatie. Uit gaat vóór de schakelaar van elk account.",
+      "telemetry.mode": "Stuurt deze installatie eenmaal per dag cijfers naar het project: versie, hoeveel organisaties, agents en runs, welke runtimes en doelsystemen in gebruik zijn. Geen titels, geen namen, geen teksten. Uit betekent dat er niets van de machine af gaat.",
+      "telemetry.id": "De kenning die deze installatie zichzelf gaf. Ze verbindt de cijfers van gisteren met die van vandaag en zegt niets over wie haar beheert.",
+      "telemetry.url": "Waar de cijfers heen gaan. Leeg schakelt het kanaal net zo goed uit als telemetry.mode = off.",
+      "telemetry.key": "Optionele sleutel voor een installatie die het project kent — haar foutmeldingen gaan dan rechtstreeks de tracker in in plaats van in een wachtrij."
     },
     "choice": {
       "signup.mode": {
