@@ -325,3 +325,91 @@ func TestLintHintPrefersActionsWithEffect(t *testing.T) {
 		t.Errorf("with two effectful actions a read action must not push in: %q", hint)
 	}
 }
+
+// TestSkillNotRegistered pins the case that triggered covey#203: a config sends
+// the agent to a skill that does not exist. The run does not fail over it — it
+// only costs a detour every time, and that is exactly why nobody else sees it.
+func TestSkillNotRegistered(t *testing.T) {
+	s := Subject{
+		Slug: "tester-1",
+		Files: map[string]string{
+			"PLAYBOOKS.md": "# Playbooks\n\n| Situation | Skill |\n|---|---|\n" +
+				"| Ein MR wartet auf Abnahme | `mr-abnehmen` |\n| Eine Anwendung prüfen | `anwendung-durchklicken` |\n",
+			"HEARTBEAT.md": "- alle: 15m nur-wenn: gitlab:review titel: MRs testen aufgabe: Nimm jeden MR nach dem Skill `mr-abnehmen` ab.\n",
+		},
+		Skills: map[string]string{"anwendung-durchklicken": "# Durchklicken"},
+	}
+	f := Lint(s)
+	if !hasRule(f, "skill-not-registered") {
+		t.Fatalf("a reference to an unregistered skill has to be reported: %+v", f)
+	}
+	var hits int
+	for _, x := range f {
+		if x.Rule != "skill-not-registered" {
+			continue
+		}
+		hits++
+		if !strings.Contains(x.Message, "mr-abnehmen") {
+			t.Errorf("the finding has to name the skill: %q", x.Message)
+		}
+		if x.File != "PLAYBOOKS.md" || x.Line == 0 {
+			t.Errorf("file and line are missing: %q:%d", x.File, x.Line)
+		}
+		if !strings.Contains(x.Hint, "anwendung-durchklicken") {
+			t.Errorf("the hint should show what there is instead: %q", x.Hint)
+		}
+	}
+	// Once per name, not once per occurrence — otherwise the same finding stands
+	// there four times, and four times the same is read by nobody.
+	if hits != 1 {
+		t.Fatalf("expected one finding for mr-abnehmen, got %d", hits)
+	}
+}
+
+// A registered skill is not reported, and without collected skills the rule
+// keeps quiet altogether: a missing fact is not a finding.
+func TestSkillRefsQuietWhenEverythingFits(t *testing.T) {
+	config := map[string]string{
+		"PLAYBOOKS.md": "Zieh dir den Skill `mr-abnehmen`, statt zu raten.\n",
+	}
+	with := Lint(Subject{Slug: "a", Files: config, Skills: map[string]string{"mr-abnehmen": "# x"}})
+	if hasRule(with, "skill-not-registered") {
+		t.Errorf("a skill that exists is not a finding: %+v", with)
+	}
+	without := Lint(Subject{Slug: "a", Files: config}) // Skills == nil: not collected
+	if hasRule(without, "skill-not-registered") {
+		t.Errorf("without collected skills the rule must say nothing: %+v", without)
+	}
+}
+
+// What looks like a skill name but is none stays untouched — otherwise the rule
+// reports on good configs, and a rule that nags gets ignored.
+func TestSkillRefsDoesNotGuess(t *testing.T) {
+	f := Lint(Subject{
+		Slug: "a",
+		Files: map[string]string{
+			"PLAYBOOKS.md": "Der Skill nutzt `covey/create_task` und liest `README.md`; ohne Backticks steht hier auch mr-abnehmen.\n" +
+				"Diese Zeile nennt `irgendwas-anderes`, sagt aber nichts von einem S-k-i-l-l.\n",
+		},
+		Skills: map[string]string{},
+	})
+	if hasRule(f, "skill-not-registered") {
+		t.Errorf("actions, file names and lines without the word skill are not references: %+v", f)
+	}
+}
+
+// A table that follows straight after the skill table must not inherit its
+// meaning: only a header that says "Skill" makes the names below it skills.
+func TestSkillRefsStopAtTheNextTable(t *testing.T) {
+	f := Lint(Subject{
+		Slug: "a",
+		Files: map[string]string{
+			"PLAYBOOKS.md": "| Situation | Skill |\n|---|---|\n| Ein MR wartet | `mr-abnehmen` |\n" +
+				"| System | Aktion |\n|---|---|\n| gitlab | `list-issues` |\n",
+		},
+		Skills: map[string]string{"mr-abnehmen": "# x"},
+	})
+	if hasRule(f, "skill-not-registered") {
+		t.Errorf("the second table names actions, not skills: %+v", f)
+	}
+}

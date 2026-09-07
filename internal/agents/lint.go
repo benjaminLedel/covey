@@ -124,6 +124,7 @@ func Lint(s Subject) []Finding {
 	out = append(out, lintTurnLimit(s)...)
 	out = append(out, lintDeadKPIs(s)...)
 	out = append(out, lintCredentials(s)...)
+	out = append(out, lintSkillRefs(s)...)
 
 	sort.SliceStable(out, func(i, j int) bool {
 		return out[i].Severity == SeverityWarn && out[j].Severity != SeverityWarn
@@ -501,6 +502,108 @@ func shortDur(d time.Duration) string {
 // pass the line number along (it is not in the persisted form either) — for a
 // finding that a human is supposed to look up it is worth it nonetheless.
 // Without a hit: 0, the output then only lacks the number.
+// skillRef finds the name in a reference like "Skill `mr-abnehmen`". Lower
+// case, digits and hyphens are what a skill name may consist of (see
+// internal/skills) — a token with a slash, a dot or a capital letter is
+// something else, an action or a file, and is not looked up.
+var skillRef = regexp.MustCompile("`([a-z0-9][a-z0-9-]{1,62})`")
+
+// lintSkillRefs reports a config that sends the agent to a skill which is not
+// registered.
+//
+// The failure it catches costs a turn per run and hides well: the runtime
+// answers "Unknown skill: x", the agent reconstructs the procedure from its
+// prompt, finishes the run cleanly — and does it again the next time. Seen on a
+// QA agent whose most frequent kind of task named a skill nobody had created;
+// it took three days and five reports before anyone looked (#203).
+//
+// How a wrong name gets in is worth knowing, because it is not carelessness:
+// a skill mentioned in prose reads exactly like a skill that exists. covey
+// Doctor proposed one into a colleague's PLAYBOOKS.md for that reason, and
+// wrote afterwards that a mention in flowing text is not a registration.
+//
+// The rule is deliberately narrow. It only looks at lines that say "skill"
+// themselves, and only at backticked names — everything else would guess. And
+// it stays silent when the caller collected no skills at all (Skills == nil),
+// because a missing fact is not a finding; a caller that knows of none is not
+// the same as an agent that has none.
+func lintSkillRefs(s Subject) []Finding {
+	if s.Skills == nil {
+		return nil
+	}
+	files := []string{"SOUL.md", "CAPABILITIES.md", "PLAYBOOKS.md", "HEARTBEAT.md"}
+	seen := map[string]bool{}
+	var out []Finding
+	for _, file := range files {
+		// inSkillTable: the shipped templates keep their skills in a table whose
+		// HEADER says "Skill" while the rows carry only the names. Looking at
+		// single lines alone would miss exactly the shape the finding came from.
+		inSkillTable := false
+		lines := strings.Split(s.Files[file], "\n")
+		for i, line := range lines {
+			row := strings.HasPrefix(strings.TrimSpace(line), "|")
+			says := strings.Contains(strings.ToLower(line), "skill")
+			switch {
+			case row && tableHeader(lines, i):
+				// A new table begins, and its header alone decides whether the
+				// rows underneath are skill names. Without this a second table
+				// following straight after a skill table would inherit the state
+				// and its names would be read as skills.
+				inSkillTable = says
+			case row && says:
+				inSkillTable = true
+			case !row:
+				inSkillTable = false
+			}
+			if !says && !inSkillTable {
+				continue
+			}
+			for _, m := range skillRef.FindAllStringSubmatch(line, -1) {
+				name := m[1]
+				if _, ok := s.Skills[name]; ok || seen[name] {
+					continue
+				}
+				seen[name] = true
+				out = append(out, Finding{
+					AgentSlug: s.Slug, Rule: "skill-not-registered", Severity: SeverityWarn,
+					File: file, Line: i + 1,
+					Message: fmt.Sprintf("the config sends the agent to the skill %q, and no skill of that name is registered for it", name),
+					Hint: fmt.Sprintf("Either create %q as a skill, or take the reference out. Until then the run answers "+
+						"\"Unknown skill\" and the agent works around it from the prompt — every time, without failing, "+
+						"so nothing shows it but the cost. Registered: %s", name, joinSkills(s.Skills)),
+				})
+			}
+		}
+	}
+	return out
+}
+
+// tableHeader says whether the line at i is the header of a markdown table —
+// recognised by the separator row that has to follow it ("|---|---|").
+func tableHeader(lines []string, i int) bool {
+	if i+1 >= len(lines) {
+		return false
+	}
+	next := strings.TrimSpace(lines[i+1])
+	if !strings.HasPrefix(next, "|") || !strings.Contains(next, "-") {
+		return false
+	}
+	return strings.Trim(next, "|-: \t") == ""
+}
+
+// joinSkills names what the agent does have — so that a typo is visible as one.
+func joinSkills(skills map[string]string) string {
+	if len(skills) == 0 {
+		return "none"
+	}
+	names := make([]string, 0, len(skills))
+	for n := range skills {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return strings.Join(names, ", ")
+}
+
 func heartbeatLine(content, name string) int {
 	if name == "" {
 		return 0

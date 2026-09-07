@@ -265,3 +265,56 @@ func taskError(t *testing.T, s *stack, id uuid.UUID) string {
 	}
 	return *task.Error
 }
+
+// TestDelegationToPausedColleagueWaits pins what triggered covey#202: a
+// delegation to a paused colleague was refused, and with that the work was gone
+// — the sender got an error it could do nothing with, and nothing recorded that
+// the task had been wanted.
+//
+// Right is: the task is created and waits. runAgent returns while Killed is set,
+// so it is not worked off — until a human releases the colleague. That is what
+// the second half checks.
+func TestDelegationToPausedColleagueWaits(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	sender := s.newSupportAgent("absender-pause")
+	colleague := s.newSupportAgent("pausierter-kollege")
+
+	if err := s.registry.SetKilled(ctx, colleague.ID, true); err != nil {
+		t.Fatal(err)
+	}
+
+	task, err := s.backlog.Create(ctx, s.orgID, sender.ID, "Geht an den Pausierten",
+		`[mock:action covey/create_task {"title":"Bitte später übernehmen","body":"Details","agent":"pausierter-kollege"}]
+[mock:result delegiert]`, "manual", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "task done", 20*time.Second, func() bool {
+		return s.taskState(task.ID) == backlog.StateDone
+	})
+
+	// The delegation arrived, even though the colleague is paused.
+	delegated := childOf(t, s, colleague.ID, task.ID)
+	if delegated.AgentID != colleague.ID {
+		t.Fatalf("the delegated task must sit with the colleague")
+	}
+	if got := s.taskState(delegated.ID); got == backlog.StateDone {
+		t.Fatalf("a paused agent works nothing off, state was %q", got)
+	}
+
+	// And it stays put instead of quietly disappearing.
+	time.Sleep(2 * time.Second)
+	if got := s.taskState(delegated.ID); got == backlog.StateDone {
+		t.Fatalf("the task was worked off despite the pause: %q", got)
+	}
+
+	// After the release it starts — the pause delayed it, it did not destroy it.
+	if err := s.registry.SetKilled(ctx, colleague.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	s.orch.EnsureRunning(colleague.ID)
+	waitFor(t, "the released colleague works it off", 30*time.Second, func() bool {
+		return s.taskState(delegated.ID) == backlog.StateDone
+	})
+}
