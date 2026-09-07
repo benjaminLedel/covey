@@ -102,6 +102,21 @@ describe("App ohne gültige Sitzung", () => {
     expect(screen.getByText(/Sitzung ist abgelaufen/)).toBeInTheDocument();
   });
 
+  it("lässt die Adressen aus einer Mail durch, statt sie zur Anmeldung zu schicken", async () => {
+    /* Der Fall, für den /reset und /verify gebaut wurden, war der einzige, in
+       dem sie nicht funktionierten: Wer sein Passwort vergessen hat, ist nicht
+       angemeldet. Die Weiterleitung griff vor ihnen und schickte ihn auf
+       /anmelden?weiter=%2Freset — dorthin, wo er gerade nicht weiterkommt, mit
+       dem Hinweis, seine Sitzung sei abgelaufen. Derselbe Weg traf den
+       Bestätigungslink aus der Registrierungsmail (#210). */
+    serverMitSitzung(() => false);
+    renderApp(<App />, "/reset");
+
+    expect(await screen.findByText("Passwort zurücksetzen")).toBeInTheDocument();
+    expect(screen.getByLabelText("E-Mail-Adresse")).toBeInTheDocument();
+    expect(screen.queryByText(/Sitzung ist abgelaufen/)).not.toBeInTheDocument();
+  });
+
   it("zeigt auf der Wurzel die Anmeldung, ohne von einer Sitzung zu reden", async () => {
     serverMitSitzung(() => false);
     renderApp(<App />, "/");
