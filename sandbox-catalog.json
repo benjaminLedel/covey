@@ -367,7 +367,7 @@
       "images": [
         {
           "covey_version": "main",
-          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:b4fe706b1ac5aea777d74dbecb6b389f04558bdfee69493bbbb3cb0867c9ea83",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:a1f5456a8376e6ab86e8b6deed57ff8bde986faa5de982a2b345a3b254997f43",
           "tag": "dev-full-latest",
           "platforms": [
             "linux/amd64",
@@ -404,5 +404,5 @@
       ]
     }
   ],
-  "generated_at": "2026-09-07T06:12:50Z"
+  "generated_at": "2026-09-07T06:13:27Z"
 }
