@@ -331,3 +331,62 @@ func TestMarkerRoundTrip(t *testing.T) {
 		t.Fatal("a broken marker must not read as an engine")
 	}
 }
+
+// symlinkTarball is an archive with one symlink in it, so the guard around
+// links can be exercised with the link's own name and target.
+func symlinkTarball(t *testing.T, name, target string) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+	if err := tw.WriteHeader(&tar.Header{Name: "bin/sevencode", Mode: 0o755,
+		Size: int64(len("#!/bin/sh\n")), Typeflag: tar.TypeReg}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tw.Write([]byte("#!/bin/sh\n")); err != nil {
+		t.Fatal(err)
+	}
+	if err := tw.WriteHeader(&tar.Header{Name: name, Linkname: target,
+		Mode: 0o777, Typeflag: tar.TypeSymlink}); err != nil {
+		t.Fatal(err)
+	}
+	tw.Close()
+	gz.Close()
+	return buf.Bytes()
+}
+
+// A link is the one entry in an archive that can point somewhere the archive
+// does not reach, and the layer it lands in is mounted into a sandbox. What
+// decides is where the link RESOLVES — against the directory it sits in, not
+// against the archive root — because "../lib/x" from bin/ is ordinary and the
+// same string from the top is a way out.
+func TestUnpackRefusesALinkOutOfTheLayer(t *testing.T) {
+	gut := []struct{ name, target string }{
+		{"bin/node", "sevencode"},
+		{"bin/current", "./sevencode"},
+	}
+	for _, f := range gut {
+		t.Run("ok "+f.name+"->"+f.target, func(t *testing.T) {
+			if err := unpack(symlinkTarball(t, f.name, f.target), t.TempDir()); err != nil {
+				t.Fatalf("a link inside the layer belongs in it: %v", err)
+			}
+		})
+	}
+
+	schlecht := []struct{ name, target string }{
+		{"bin/escape", "../../../etc/passwd"},
+		{"bin/absolute", "/etc/passwd"},
+		{"bin/sideways", "../../secrets"},
+	}
+	for _, f := range schlecht {
+		t.Run("refused "+f.target, func(t *testing.T) {
+			dst := t.TempDir()
+			if err := unpack(symlinkTarball(t, f.name, f.target), dst); err == nil {
+				t.Fatal("a link that leaves the layer has to be refused")
+			}
+			if _, err := os.Lstat(filepath.Join(dst, f.name)); err == nil {
+				t.Fatal("and it must not lie there afterwards")
+			}
+		})
+	}
+}

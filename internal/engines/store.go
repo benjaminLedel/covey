@@ -393,7 +393,17 @@ func unpack(body []byte, dst string) error {
 		case tar.TypeSymlink:
 			// A link whose target escapes the layer would be a way out written
 			// into the very directory that gets mounted into a sandbox.
+			//
+			// Two checks, and the second is the one that holds: the link's
+			// target is RESOLVED against the directory the link will sit in,
+			// and the result has to stay under dst. The first is the cheap
+			// refusal of the obvious cases; on its own it is a rule a reader
+			// has to reason about, and a scanner cannot follow it at all.
 			if filepath.IsAbs(h.Linkname) || strings.Contains(h.Linkname, "..") {
+				return fmt.Errorf("archive entry %q links out of the layer", h.Name)
+			}
+			resolved := filepath.Clean(filepath.Join(filepath.Dir(target), h.Linkname))
+			if resolved != dst && !strings.HasPrefix(resolved, dst+string(filepath.Separator)) {
 				return fmt.Errorf("archive entry %q links out of the layer", h.Name)
 			}
 			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
