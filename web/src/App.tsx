@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Navigate, useLocation } from "react-router";
 import { api, setUnauthorizedHandler, type Principal } from "./api";
 import { initialLang } from "./i18n";
-import { LANGS, PUBLIC_ROUTES, pathOf } from "./public/routes";
+import { LANGS, MAIL_LINK_PATHS, PUBLIC_ROUTES, pathOf } from "./public/routes";
 import SignedOut from "./public/SignedOut";
 
 /* Die angemeldete Oberfläche kommt aus einem eigenen Bündel — sie ist der
@@ -65,7 +65,21 @@ function Abgemeldet({
   ausDerOberflaeche?: boolean;
 }) {
   const { pathname, search } = useLocation();
-  const offen = PUBLIC_ROUTES.some((r) => LANGS.some((l) => r.path[l] === pathname));
+  /* Offen sind die Anmeldung und die Registrierung in jeder Sprache — UND die
+     beiden Adressen, auf die eine Mail zeigt (/verify, /reset).
+     
+     Die zweite Hälfte fehlte, und damit war der Fall, für den sie gebaut
+     wurden, der einzige, in dem sie nicht funktionierten: Wer sein Passwort
+     vergessen hat, ist nicht angemeldet. Er landete auf
+     /anmelden?weiter=%2Freset — also genau dort, wo er nicht weiterkommt,
+     mit dem Hinweis, seine Sitzung sei abgelaufen. Der Bestätigungslink aus
+     der Registrierungsmail traf dasselbe.
+     
+     SignedOut kennt beide Routen; erreicht wurden sie nie, weil hier vorher
+     umgeleitet wurde (#210). */
+  const offen =
+    PUBLIC_ROUTES.some((r) => LANGS.some((l) => r.path[l] === pathname)) ||
+    MAIL_LINK_PATHS.includes(pathname);
   if (!offen) {
     /* Die Sprache folgt der gespeicherten Wahl, sonst dem Browser — nicht dem
        Pfad, der bei App-Adressen keine trägt. */
