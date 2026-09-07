@@ -406,10 +406,20 @@ func unpack(body []byte, dst string) error {
 			if resolved != dst && !strings.HasPrefix(resolved, dst+string(filepath.Separator)) {
 				return fmt.Errorf("archive entry %q links out of the layer", h.Name)
 			}
+			// What gets written is computed from the checked path, not the
+			// string out of the header. The two are the same link — the same
+			// place, relative to the same directory — and the difference is
+			// that this one cannot be anything else: whatever the archive
+			// wrote, `ziel` is the way from here to a place under dst, or the
+			// entry was refused above.
+			ziel, err := filepath.Rel(filepath.Dir(target), resolved)
+			if err != nil || ziel == ".." || strings.HasPrefix(ziel, ".."+string(filepath.Separator)) {
+				return fmt.Errorf("archive entry %q links out of the layer", h.Name)
+			}
 			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 				return err
 			}
-			if err := os.Symlink(h.Linkname, target); err != nil {
+			if err := os.Symlink(ziel, target); err != nil {
 				return err
 			}
 		default:
