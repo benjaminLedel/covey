@@ -400,3 +400,41 @@ func TestNurDasEndeDerAusgabeReist(t *testing.T) {
 		t.Error("gekürzt wurde am falschen Ende — der Grund steht am Schluss")
 	}
 }
+
+// TestAdoptOnlyRunsForAHomeThatWasAlreadyThere pins where the handover sits
+// since covey#170/#201.
+//
+// It used to run on the branch that materialises a snapshot, and three
+// ordinary paths never reach that branch — a working copy that prevails, a
+// home that arrived on the host by other means, an installation without a home
+// store. Those are exactly the homes that stayed root-owned. It now runs where
+// every start passes.
+//
+// And it does NOT run for a home this start has just created: there is nothing
+// inside it to hand over, and the marker beside a directory that never needed
+// one is noise.
+func TestAdoptOnlyRunsForAHomeThatWasAlreadyThere(t *testing.T) {
+	dir := t.TempDir()
+	home := filepath.Join(dir, "home")
+
+	if n, repariert := adopt(false, home); n != 0 || repariert {
+		t.Errorf("a home that is being created has nothing to hand over: %d", n)
+	}
+	if _, err := os.Stat(home + ".owned"); err == nil {
+		t.Error("and it must not leave a marker beside a directory nobody walked")
+	}
+
+	if err := os.MkdirAll(filepath.Join(home, "repos", "app"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, "repos", "app", "datei.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	adopt(true, home)
+	// What the marker says depends on who is running this: as root everything
+	// is handed over ("done"), as an ordinary user nothing can be ("gave-up").
+	// Either way the walk happened, and that is what this pins.
+	if _, err := os.Stat(home + ".owned"); err != nil {
+		t.Error("a home that was already there has to be walked at the start")
+	}
+}

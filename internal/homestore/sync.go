@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -982,25 +983,58 @@ func min(a, b int) int {
 // gelöscht. Die richtige Frage ist „hat seither jemand darin gearbeitet?".
 func stateFile(root string) string { return strings.TrimRight(root, "/\\") + ".snapshot" }
 
-// ownerFile marks that this home has been handed to its agent once.
+// ownerFile marks what happened the last time this home was handed to its
+// agent. Beside the home, like the snapshot mark, and for the same reason: in
+// it, it would be part of every snapshot.
 func ownerFile(root string) string { return strings.TrimRight(root, "/\\") + ".owned" }
+
+// The marker's two states, and its version.
+//
+// The version exists because the marker used to be written in a case where it
+// meant the opposite of what it says. Adopt counted the chowns that SUCCEEDED
+// and wrote the marker when that count was zero — so a run in which every
+// single chown failed, which is exactly the "cannot" case, recorded the home as
+// handed over and the real repair never happened (#170). Every marker from that
+// code carries "1"; a marker that is not the current version is read as absent,
+// and the walk runs once more on every home that carries one.
+const (
+	ownerMarkVersion = "2"
+	ownerDone        = ownerMarkVersion + " done"
+	// ownerGaveUp records the euid that could not chown, and is only read as a
+	// stop while the process still runs as that user. On a developer machine
+	// the runner is an ordinary user, no chown of theirs will ever succeed, and
+	// walking the whole home at every start for that is waste. The moment the
+	// process runs as somebody else — root in the deployment container — the
+	// note no longer applies to it and the walk runs.
+	ownerGaveUp = ownerMarkVersion + " gave-up uid="
+)
 
 // Adopt hands an existing home to its agent — once, and then never again.
 //
 // Homes materialised before #120 belong to root all the way down: the runner
 // wrote them, and the runner is root. The agent inside cannot delete a cache it
 // is asked to clean up, cannot repair a broken checkout, cannot do anything but
-// read. Walking the tree costs seconds for half a million files and is paid
-// once per home, which is why the marker matters more than the speed.
+// read. On a production instance that grew into seven of eleven working trees
+// under ~/repos belonging to root, an agent deleting its own test scaffolding
+// to stay under its disk limit, and — the expensive half — a partially
+// completed `rm -rf` leaving an incomplete checkout that looks intact (#201).
 //
-// Errors are counted, not returned. On a machine where the runner is not root
-// every chown fails and the home is already the right person's — refusing to
-// start there would be a fix that breaks the case it does not apply to.
+// Walking the tree costs seconds for half a million files and is paid once per
+// home, which is why the marker matters more than the speed. It is called from
+// the one place every sandbox start passes (internal/runner/docker.go), not
+// from the branch that materialises a snapshot: three ordinary paths never
+// reach that branch — a prevailing working copy, a home that arrived on the
+// host by other means, a home store that is not configured — and those are
+// precisely the homes most likely to be in a bad state.
+//
+// Errors are counted, not returned. What is counted is what STAYED WRONG:
+// whether the repair is done is a statement about the tree, not about how many
+// calls went through.
 func Adopt(root string, owner Owner) (int, bool) {
-	if _, err := os.Stat(ownerFile(root)); err == nil {
+	if adoptDone(root) {
 		return 0, false
 	}
-	var geaendert int
+	var geaendert, offen int
 	_ = filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil
@@ -1015,16 +1049,45 @@ func Adopt(root string, owner Owner) (int, bool) {
 		}
 		if os.Lchown(p, owner.UID, owner.GID) == nil {
 			geaendert++
+		} else {
+			offen++
 		}
 		return nil
 	})
-	// The marker only goes down when there was nothing left to hand over.
-	// Otherwise a run that could not chown (not root) would mark the home as
-	// done and the real repair would never happen.
-	if geaendert == 0 {
-		_ = os.WriteFile(ownerFile(root), []byte("1"), 0o600)
+	switch {
+	case offen == 0:
+		// Nothing stayed wrong. That is the only state that ends the walk for
+		// good.
+		_ = os.WriteFile(ownerFile(root), []byte(ownerDone), 0o600)
+	case geaendert == 0:
+		// Not one entry could be handed over: this process cannot chown at all.
+		// Noted with the uid, so that the same process does not walk the whole
+		// home again at every start — and so that a process running as somebody
+		// else is not stopped by the note.
+		_ = os.WriteFile(ownerFile(root), []byte(fmt.Sprintf("%s%d", ownerGaveUp, os.Geteuid())), 0o600)
+	default:
+		// Some went, some did not. No marker: the rest is tried again at the
+		// next start, which is what a half-repaired home needs.
 	}
 	return geaendert, geaendert > 0
+}
+
+// adoptDone reads the marker beside the home and says whether the walk can be
+// skipped.
+func adoptDone(root string) bool {
+	raw, err := os.ReadFile(ownerFile(root))
+	if err != nil {
+		return false
+	}
+	mark := strings.TrimSpace(string(raw))
+	if mark == ownerDone {
+		return true
+	}
+	if uid, ok := strings.CutPrefix(mark, ownerGaveUp); ok {
+		return uid == strconv.Itoa(os.Geteuid())
+	}
+	// Anything else — an older version, a truncated file — is read as absent.
+	return false
 }
 
 // MarkSynced records that this working copy IS exactly this snapshot, and
