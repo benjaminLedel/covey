@@ -390,3 +390,32 @@ func TestUnpackRefusesALinkOutOfTheLayer(t *testing.T) {
 		})
 	}
 }
+
+// An artefact that is a plain tar rather than a .tgz has to unpack too — and
+// it did not: gzip.NewReader reads the magic before it decides, so the tar
+// reader got the bytes ten short and reported "invalid tar header", a broken
+// archive said about one that is fine. Found while writing the test above.
+//
+// The entry sits at the top of the archive on purpose: that is also the path
+// where the parent directory of an entry is the layer root itself.
+func TestUnpackReadsAPlainTar(t *testing.T) {
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	body := "#!/bin/sh\n"
+	if err := tw.WriteHeader(&tar.Header{Name: "sevencode", Mode: 0o755,
+		Size: int64(len(body)), Typeflag: tar.TypeReg}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tw.Write([]byte(body)); err != nil {
+		t.Fatal(err)
+	}
+	tw.Close()
+
+	dst := t.TempDir()
+	if err := unpack(buf.Bytes(), dst); err != nil {
+		t.Fatalf("a plain tar is an archive too: %v", err)
+	}
+	if b, err := os.ReadFile(filepath.Join(dst, "sevencode")); err != nil || string(b) != body {
+		t.Fatalf("the entry is not there or wrong: %v", err)
+	}
+}

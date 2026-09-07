@@ -344,11 +344,32 @@ func safeSegment(s string) string {
 // that would land outside dst is refused — this is the guard every untar needs
 // and the reason the archive is read here rather than handed to a shell.
 func unpack(body []byte, dst string) error {
-	read := io.Reader(bytes.NewReader(body))
-	gz, gzErr := gzip.NewReader(read)
-	if gzErr == nil {
+	if err := os.MkdirAll(dst, 0o755); err != nil {
+		return err
+	}
+	// Everything is written THROUGH this root. os.Root resolves each path
+	// inside the kernel and refuses anything that leaves it — a link included,
+	// and a link that is swapped in between the check and the write included
+	// too. That window is the reason this is not a check beside the write:
+	// internal/sandboxfs took the same step for the same reason, and the
+	// archive here is the one place where an attacker writes the paths.
+	root, err := os.OpenRoot(dst)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+
+	// Gzip or plain tar, and the rewind is the point: gzip.NewReader reads the
+	// magic before it decides, so a plain .tar handed on unchanged reaches the
+	// tar reader ten bytes short and dies as "invalid tar header" — a broken
+	// archive, said about one that is fine.
+	roh := bytes.NewReader(body)
+	read := io.Reader(roh)
+	if gz, err := gzip.NewReader(roh); err == nil {
 		defer gz.Close()
 		read = gz
+	} else if _, err := roh.Seek(0, io.SeekStart); err != nil {
+		return err
 	}
 	tr := tar.NewReader(read)
 	for {
@@ -359,31 +380,30 @@ func unpack(body []byte, dst string) error {
 		if err != nil {
 			return fmt.Errorf("not a readable tar archive: %w", err)
 		}
+		// Still refused here rather than left to the root: the message says
+		// which entry of which archive is at fault, and an entry that names
+		// itself ".." is a broken archive, not a path that happens to fail.
 		name := filepath.Clean(h.Name)
 		if name == "." || name == ".." || strings.HasPrefix(name, ".."+string(filepath.Separator)) ||
 			filepath.IsAbs(name) || strings.Contains(h.Name, "://") {
 			return fmt.Errorf("archive entry %q would land outside the layer", h.Name)
 		}
-		target := filepath.Join(dst, name)
-		if !strings.HasPrefix(target, dst+string(filepath.Separator)) {
-			return fmt.Errorf("archive entry %q would land outside the layer", h.Name)
-		}
 		switch h.Typeflag {
 		case tar.TypeDir:
-			if err := os.MkdirAll(target, 0o755); err != nil {
-				return err
+			if err := root.MkdirAll(name, 0o755); err != nil {
+				return fmt.Errorf("archive entry %q: %w", h.Name, err)
 			}
 		case tar.TypeReg:
 			mode := os.FileMode(h.Mode & 0o777)
 			if mode == 0 {
 				mode = 0o644
 			}
-			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-				return err
+			if err := root.MkdirAll(filepath.Dir(name), 0o755); err != nil {
+				return fmt.Errorf("archive entry %q: %w", h.Name, err)
 			}
-			f, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode)
+			f, err := root.OpenFile(name, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode)
 			if err != nil {
-				return err
+				return fmt.Errorf("archive entry %q: %w", h.Name, err)
 			}
 			if _, err := io.Copy(f, tr); err != nil {
 				f.Close()
@@ -392,35 +412,17 @@ func unpack(body []byte, dst string) error {
 			f.Close()
 		case tar.TypeSymlink:
 			// A link whose target escapes the layer would be a way out written
-			// into the very directory that gets mounted into a sandbox.
-			//
-			// Two checks, and the second is the one that holds: the link's
-			// target is RESOLVED against the directory the link will sit in,
-			// and the result has to stay under dst. The first is the cheap
-			// refusal of the obvious cases; on its own it is a rule a reader
-			// has to reason about, and a scanner cannot follow it at all.
+			// into the very directory that gets mounted into a sandbox. The
+			// obvious shapes are refused with a sentence somebody can read;
+			// what the root then still refuses is the rest.
 			if filepath.IsAbs(h.Linkname) || strings.Contains(h.Linkname, "..") {
 				return fmt.Errorf("archive entry %q links out of the layer", h.Name)
 			}
-			resolved := filepath.Clean(filepath.Join(filepath.Dir(target), h.Linkname))
-			if resolved != dst && !strings.HasPrefix(resolved, dst+string(filepath.Separator)) {
-				return fmt.Errorf("archive entry %q links out of the layer", h.Name)
+			if err := root.MkdirAll(filepath.Dir(name), 0o755); err != nil {
+				return fmt.Errorf("archive entry %q: %w", h.Name, err)
 			}
-			// What gets written is computed from the checked path, not the
-			// string out of the header. The two are the same link — the same
-			// place, relative to the same directory — and the difference is
-			// that this one cannot be anything else: whatever the archive
-			// wrote, `ziel` is the way from here to a place under dst, or the
-			// entry was refused above.
-			ziel, err := filepath.Rel(filepath.Dir(target), resolved)
-			if err != nil || ziel == ".." || strings.HasPrefix(ziel, ".."+string(filepath.Separator)) {
-				return fmt.Errorf("archive entry %q links out of the layer", h.Name)
-			}
-			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-				return err
-			}
-			if err := os.Symlink(ziel, target); err != nil {
-				return err
+			if err := root.Symlink(h.Linkname, name); err != nil {
+				return fmt.Errorf("archive entry %q links out of the layer: %w", h.Name, err)
 			}
 		default:
 			// Devices, FIFOs, hard links: nothing an agent runtime ships needs,
