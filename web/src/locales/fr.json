@@ -1894,7 +1894,11 @@
       "notify.decision": "Courriels sur les décisions en attente — pour tout le monde sur cette installation. Désactivé l'emporte sur le réglage de chaque compte.",
       "notify.task": "Courriels sur les tâches terminées — pour tout le monde sur cette installation. Désactivé l'emporte sur le réglage de chaque compte.",
       "notify.cost": "Courriels sur l'argent — un plafond budgétaire, l'arrêt d'urgence — pour tout le monde sur cette installation. Désactivé l'emporte sur le réglage de chaque compte.",
-      "notify.ops": "Courriels sur la plateforme elle-même — un runner disparu, un identifiant refusé — pour tout le monde sur cette installation. Désactivé l'emporte sur le réglage de chaque compte."
+      "notify.ops": "Courriels sur la plateforme elle-même — un runner disparu, un identifiant refusé — pour tout le monde sur cette installation. Désactivé l'emporte sur le réglage de chaque compte.",
+      "telemetry.mode": "Cette installation envoie-t-elle une fois par jour des chiffres au projet : version, nombre d'organisations, d'agents et d'exécutions, quels runtimes et systèmes cibles sont utilisés. Aucun titre, aucun nom, aucun texte. Désactivé signifie que rien ne quitte la machine.",
+      "telemetry.id": "L'identité que cette installation s'est donnée. Elle relie les chiffres d'hier à ceux d'aujourd'hui et ne dit rien de qui l'exploite.",
+      "telemetry.url": "Où vont les chiffres. Vide désactive le canal aussi sûrement que telemetry.mode = off.",
+      "telemetry.key": "Clé facultative pour une installation que le projet connaît — ses rapports de bug vont alors directement dans le tracker au lieu d'une file d'attente."
     },
     "choice": {
       "signup.mode": {

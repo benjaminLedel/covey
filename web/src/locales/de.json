@@ -1894,7 +1894,11 @@
       "notify.decision": "Mails über wartende Entscheidungen — für alle auf dieser Installation. Aus übersteuert den Schalter jedes Kontos.",
       "notify.task": "Mails über beendete Aufgaben — für alle auf dieser Installation. Aus übersteuert den Schalter jedes Kontos.",
       "notify.cost": "Mails über Geld — ein Budgetdeckel, der Not-Aus — für alle auf dieser Installation. Aus übersteuert den Schalter jedes Kontos.",
-      "notify.ops": "Mails über die Plattform selbst — ein Runner, der weg ist, ein abgewiesener Zugang — für alle auf dieser Installation. Aus übersteuert den Schalter jedes Kontos."
+      "notify.ops": "Mails über die Plattform selbst — ein Runner, der weg ist, ein abgewiesener Zugang — für alle auf dieser Installation. Aus übersteuert den Schalter jedes Kontos.",
+      "telemetry.mode": "Schickt diese Installation einmal am Tag Zahlen an das Projekt: Version, Anzahl Organisationen, Agenten und Läufe, welche Runtimes und Zielsysteme laufen. Keine Titel, keine Namen, keine Texte. Aus heißt: nichts verlässt die Maschine.",
+      "telemetry.id": "Die Kennung, die sich diese Installation selbst gegeben hat. Sie verbindet die Zahlen von gestern mit denen von heute und sagt nichts darüber, wer sie betreibt.",
+      "telemetry.url": "Wohin die Zahlen gehen. Leer schaltet den Kanal genauso ab wie telemetry.mode = off.",
+      "telemetry.key": "Optionaler Schlüssel, wenn das Projekt diese Installation kennt — dann gehen ihre Fehlerberichte ohne Warteschlange in den Tracker."
     },
     "choice": {
       "signup.mode": {

@@ -66,6 +66,7 @@ sections:
       - runner
       - workplaces
       - api-keys
+      - telemetry
 
   - id: companion
     title: { de: Companion, en: Companion }

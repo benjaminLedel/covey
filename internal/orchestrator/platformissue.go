@@ -70,11 +70,6 @@ func (o *Orchestrator) platformIssue(ctx context.Context, agent agents.Agent, ta
 		return fail("this organisation files no platform issues — no source repository is set " +
 			"under Organisation → source of this platform. Put the finding in your review instead")
 	}
-	sys, err := o.Targets.Definition(ctx, agent.OrgID, system)
-	if err != nil {
-		return fail("the platform's repository is on %q, and this organisation has not connected it", system)
-	}
-
 	// Duplicate protection over what the platform itself filed: the tracker is
 	// searched by the agent, this is the backstop.
 	if prev, found := o.recentPlatformIssue(ctx, agent.OrgID, title); found {
@@ -82,22 +77,55 @@ func (o *Orchestrator) platformIssue(ctx context.Context, agent agents.Agent, ta
 			"opening a second one", prev.CreatedAt.Format("2006-01-02"), issueLinkOr(prev, "see the inbox"))
 	}
 
+	var (
+		link string
+		res  any
+		weg  = "own account"
+	)
 	cred, reason := o.platformIssueCredential(ctx, agent.OrgID, system)
-	if reason != "" {
-		return fail("%s", reason)
-	}
+	switch {
+	case reason == "":
+		// The plugin is only needed on this path — the channel to the project
+		// files without one, and an installation that has not connected the
+		// forge at all must not be turned away here.
+		sys, err := o.Targets.Definition(ctx, agent.OrgID, system)
+		if err != nil {
+			return fail("the platform's repository is on %q, and this organisation has not connected it", system)
+		}
+		params, grund := issueParams(system, project, title, body+"\n\n"+issueFooter(agent))
+		if grund != "" {
+			return fail("%s", grund)
+		}
+		call, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		res, err = sys.Execute(call, "create_issue", params, cred)
+		if err != nil {
+			return fail("%s refused the issue: %v", system, err)
+		}
+		link = issueURL(res)
 
-	params, reason := issueParams(system, project, title, body+"\n\n"+issueFooter(agent))
-	if reason != "" {
+	case o.Upstream != nil && upstreamsRepo(system, project):
+		// No account of this installation's own — and the destination is the
+		// project's own repository. Then the report goes the way that needs no
+		// account at all: through the channel to the project, which files it
+		// under its own name (internal/telemetry). It waits for a person
+		// there unless this installation is known, so nothing reaches a public
+		// tracker unread.
+		//
+		// This is the case that made #200 what it was. An installation with no
+		// seat on GitHub had, until now, no way to report a platform fault at
+		// all — and "no way" meant the finding stayed in an inbox.
+		weg = "the project's channel"
+		var err error
+		link, err = o.Upstream.Bericht(ctx, agent.Slug, title, body)
+		if err != nil {
+			return fail("neither this organisation's own account nor the channel to the "+
+				"project could take the report (%v). %s", err, reason)
+		}
+
+	default:
 		return fail("%s", reason)
 	}
-	call, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	res, err := sys.Execute(call, "create_issue", params, cred)
-	if err != nil {
-		return fail("%s refused the issue: %v", system, err)
-	}
-	link := issueURL(res)
 
 	// The inbox keeps the counterpart: a report that already lies in the
 	// tracker, so that the human sees what was filed in their name without
@@ -116,12 +144,25 @@ func (o *Orchestrator) platformIssue(ctx context.Context, agent agents.Agent, ta
 	}
 	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
 		map[string]string{"status": "platform_issue_filed", "system": system,
-			"project": project, "title": title, "link": link})
+			"project": project, "title": title, "link": link, "route": weg})
 
+	hinweis := "Filed under the platform's own account, and recorded in the inbox for a human. " +
+		"You report, you do not fix."
+	if link == "" {
+		hinweis = "Passed on to the project and recorded in the inbox for a human. It is read " +
+			"there before it reaches the tracker, so there is no address yet. You report, you do not fix."
+	}
 	return ok(map[string]any{"filed": true, "system": system, "project": project,
-		"link": link, "result": res,
-		"note": "Filed under the platform's own account, and recorded in the inbox for a human. " +
-			"You report, you do not fix."})
+		"link": link, "result": res, "route": weg, "note": hinweis})
+}
+
+// upstreamsRepo says whether the destination is the project's own repository —
+// the one the channel to the project files into. An organisation that reports
+// into its own GitLab is not helped by it: its findings would land in a
+// stranger's tracker, which is the opposite of what the setting says.
+func upstreamsRepo(system, project string) bool {
+	s, p := buildinfo.SourceRepo()
+	return strings.EqualFold(system, s) && strings.EqualFold(project, p)
 }
 
 // platformRepo resolves the address that applies for this organisation: its own

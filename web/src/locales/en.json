@@ -1894,7 +1894,11 @@
       "notify.decision": "Mails about decisions that are waiting — for everybody on this installation. Off overrides every account's own switch.",
       "notify.task": "Mails about finished tasks — for everybody on this installation. Off overrides every account's own switch.",
       "notify.cost": "Mails about money — a budget cap, the emergency stop — for everybody on this installation. Off overrides every account's own switch.",
-      "notify.ops": "Mails about the platform itself — a runner that left, a refused credential — for everybody on this installation. Off overrides every account's own switch."
+      "notify.ops": "Mails about the platform itself — a runner that left, a refused credential — for everybody on this installation. Off overrides every account's own switch.",
+      "telemetry.mode": "Does this installation send counts to the project once a day: version, how many organizations, agents and runs, which runtimes and target systems are in use. No titles, no names, no texts. Off means nothing leaves the machine.",
+      "telemetry.id": "The identity this installation gave itself. It ties yesterday's counts to today's and says nothing about who runs it.",
+      "telemetry.url": "Where the counts go. Empty switches the channel off as surely as telemetry.mode = off.",
+      "telemetry.key": "Optional key for an installation the project knows — its bug reports then go straight into the tracker instead of a queue."
     },
     "choice": {
       "signup.mode": {

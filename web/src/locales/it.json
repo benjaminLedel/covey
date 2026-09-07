@@ -1894,7 +1894,11 @@
       "notify.decision": "Mail sulle decisioni in attesa, per tutti su questa installazione. Spento prevale sull'interruttore di ogni account.",
       "notify.task": "Mail sui compiti conclusi, per tutti su questa installazione. Spento prevale sull'interruttore di ogni account.",
       "notify.cost": "Mail sul denaro — un tetto di budget, l'arresto d'emergenza — per tutti su questa installazione. Spento prevale sull'interruttore di ogni account.",
-      "notify.ops": "Mail sulla piattaforma stessa — un runner sparito, una credenziale rifiutata — per tutti su questa installazione. Spento prevale sull'interruttore di ogni account."
+      "notify.ops": "Mail sulla piattaforma stessa — un runner sparito, una credenziale rifiutata — per tutti su questa installazione. Spento prevale sull'interruttore di ogni account.",
+      "telemetry.mode": "Questa installazione invia una volta al giorno dei numeri al progetto: versione, quante organizzazioni, agenti ed esecuzioni, quali runtime e sistemi di destinazione sono in uso. Nessun titolo, nessun nome, nessun testo. Off significa che nulla lascia la macchina.",
+      "telemetry.id": "L'identità che questa installazione si è data. Collega i numeri di ieri a quelli di oggi e non dice nulla su chi la gestisce.",
+      "telemetry.url": "Dove vanno i numeri. Vuoto spegne il canale esattamente come telemetry.mode = off.",
+      "telemetry.key": "Chiave opzionale per un'installazione che il progetto conosce: le sue segnalazioni vanno direttamente nel tracker invece che in coda."
     },
     "choice": {
       "signup.mode": {

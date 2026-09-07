@@ -191,3 +191,69 @@ func TestPlatformIssueSaysWhatIsMissing(t *testing.T) {
 		t.Fatal("and nothing may have been filed")
 	}
 }
+
+// kanalDouble stands in for the channel to the project: it records what an
+// installation without an account of its own would have sent upstream.
+type kanalDouble struct {
+	agent, titel, text string
+	link               string
+	err                error
+}
+
+func (k *kanalDouble) Bericht(_ context.Context, agent, titel, text string) (string, error) {
+	k.agent, k.titel, k.text = agent, titel, text
+	return k.link, k.err
+}
+
+// TestPlatformIssueGoesUpstreamWithoutAnAccount is the other half of covey#200:
+// an installation that has no seat on the forge at all. Until now that meant
+// no way to report a platform fault — and "no way" meant the finding stayed in
+// an inbox nobody read.
+//
+// Now it goes through the channel to the project, which files it under its own
+// name. Nothing about the destination is the agent's choice, and no credential
+// exists on this side to leak.
+func TestPlatformIssueGoesUpstreamWithoutAnAccount(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	kanal := &kanalDouble{}
+	s.orch.Upstream = kanal
+
+	// No platform-repo setting at all: then it is the project this build comes
+	// from, which is exactly the case the channel is for. And no token.
+	doctor := reviewAgent(t, s, "doctor-ohne-konto", "agents:review")
+	_, msg := laufLassen(t, s, doctor, "Befund melden",
+		`[mock:action covey/create_issue {"title":"Wake attempts never give up","body":"900 attempts in six hours, three agents."}]
+[mock:result gemeldet]`)
+	if strings.Contains(msg, "no ") && strings.Contains(msg, "_token") {
+		t.Fatalf("ohne eigenes Konto muss der Projektkanal einspringen: %s", msg)
+	}
+	if kanal.titel != "Wake attempts never give up" || kanal.agent != "doctor-ohne-konto" {
+		t.Fatalf("der Bericht muss mit Titel und Absender hinausgehen: %+v", kanal)
+	}
+	if !strings.Contains(kanal.text, "900 attempts") {
+		t.Fatalf("und mit seinen Belegen: %q", kanal.text)
+	}
+
+	// Auch ohne Adresse — er wartet dort auf einen Menschen — steht er im
+	// Posteingang, damit hier jemand sieht, was hinausging.
+	items, err := s.registry.ListImprovements(ctx, s.orgID, agents.ImprovementFilter{Kind: agents.KindIssue})
+	if err != nil || len(items) != 1 {
+		t.Fatalf("der Bericht gehoert auch hier in den Posteingang: %d, %v", len(items), err)
+	}
+}
+
+// Ein Kanal, der nichts annimmt, verschluckt den Befund nicht: der Agent
+// erfaehrt, dass er ihn in sein Review schreiben muss.
+func TestPlatformIssueSaysWhenNothingCanTakeIt(t *testing.T) {
+	s := newStack(t)
+	s.orch.Upstream = &kanalDouble{err: errors.New("kein Netz")}
+
+	doctor := reviewAgent(t, s, "doctor-ohne-weg", "agents:review")
+	_, msg := laufLassen(t, s, doctor, "Befund melden",
+		`[mock:action covey/create_issue {"title":"Etwas","body":"Belege, und zwar genug davon."}]
+[mock:result versucht]`)
+	if !strings.Contains(msg, "kein Netz") {
+		t.Fatalf("der Grund gehoert in die Antwort: %s", msg)
+	}
+}

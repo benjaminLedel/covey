@@ -219,6 +219,7 @@ Runbooks unten sind auf Englisch, wo keine Übersetzung verlinkt ist.
 | [`docs/en/operations/api-keys.md`](docs/en/operations/api-keys.md) | API-Keys: covey von außen steuern — was ein Key darf und was nur der Browser darf |
 | [`docs/en/operations/runner.md`](docs/en/operations/runner.md) | Runner: Sandboxes auf mehreren Hosts, der Home-Store, harte Egress-Isolation |
 | [`docs/en/operations/workplaces.md`](docs/en/operations/workplaces.md) | Arbeitsplätze: in welchem Image ein Agent arbeitet, die Rollen-Images, ein eigener Arbeitsplatz |
+| [`docs/en/operations/telemetry.md`](docs/en/operations/telemetry.md) | Telemetrie: was eine Installation einmal am Tag an das Projekt schickt, was nie, und wie man es abschaltet |
 | [`docs/en/integrations/zammad.md`](docs/en/integrations/zammad.md) | Zammad: API-Token, Webhook + Trigger, kundensichtbare Antworten |
 | [`docs/de/integrations/zendesk.md`](docs/de/integrations/zendesk.md) | Zendesk Support: die vier Credential-Formen, signierter Webhook, der Thread aus dem Audit-Trail |
 | [`docs/en/integrations/github.md`](docs/en/integrations/github.md) | GitHub: Issues, Pull Requests, Actions, Checkout in der Sandbox |

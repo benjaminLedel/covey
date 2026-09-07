@@ -1894,7 +1894,11 @@
       "notify.decision": "E-mails sobre decisões pendentes — para todos nesta instalação. Desligado sobrepõe-se ao interruptor de cada conta.",
       "notify.task": "E-mails sobre tarefas concluídas — para todos nesta instalação. Desligado sobrepõe-se ao interruptor de cada conta.",
       "notify.cost": "E-mails sobre dinheiro — um limite de orçamento, a paragem de emergência — para todos nesta instalação. Desligado sobrepõe-se ao interruptor de cada conta.",
-      "notify.ops": "E-mails sobre a própria plataforma — um runner que desapareceu, uma credencial recusada — para todos nesta instalação. Desligado sobrepõe-se ao interruptor de cada conta."
+      "notify.ops": "E-mails sobre a própria plataforma — um runner que desapareceu, uma credencial recusada — para todos nesta instalação. Desligado sobrepõe-se ao interruptor de cada conta.",
+      "telemetry.mode": "Esta instalação envia uma vez por dia números ao projeto: versão, quantas organizações, agentes e execuções, que runtimes e sistemas de destino estão em uso. Sem títulos, sem nomes, sem textos. Desligado significa que nada sai da máquina.",
+      "telemetry.id": "A identidade que esta instalação deu a si própria. Liga os números de ontem aos de hoje e nada diz sobre quem a opera.",
+      "telemetry.url": "Para onde vão os números. Vazio desliga o canal tal como telemetry.mode = off.",
+      "telemetry.key": "Chave opcional para uma instalação que o projeto conhece — os seus relatórios de erro vão então direitos para o tracker em vez de uma fila."
     },
     "choice": {
       "signup.mode": {
