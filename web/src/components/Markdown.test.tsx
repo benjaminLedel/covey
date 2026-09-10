@@ -57,3 +57,50 @@ describe("Links", () => {
     expect(container.textContent).toContain("weg");
   });
 });
+
+/* Tabellen kamen mit #225 dazu: Ein Agent, der Zahlen berichtet, schreibt eine
+   Tabelle, und ohne diesen Zweig stand sie als eine Reihe von Rohren im
+   Fließtext. */
+describe("Tabellen", () => {
+  const tabelle = [
+    "| Fenster | Klicks |",
+    "|---|---:|",
+    "| 08-11 … 08-24 | 1 |",
+    "| 08-25 … 09-07 | 4 |",
+  ].join("\n");
+
+  it("macht aus Kopfzeile, Trennzeile und Datenzeilen eine Tabelle", () => {
+    const { container } = render(<Markdown text={tabelle} />);
+    expect(container.querySelectorAll("thead th")).toHaveLength(2);
+    expect(container.querySelectorAll("tbody tr")).toHaveLength(2);
+    expect(container.querySelectorAll("tbody tr")[1].textContent).toContain("08-25");
+  });
+
+  it("übernimmt die Ausrichtung aus der Trennzeile", () => {
+    const { container } = render(<Markdown text={tabelle} />);
+    const zelle = container.querySelectorAll("tbody td")[1] as HTMLElement;
+    expect(zelle.style.textAlign).toBe("right");
+  });
+
+  it("lässt die Auszeichnung in den Zellen gelten", () => {
+    const { container } = render(
+      <Markdown text={"| a | b |\n|---|---|\n| **fett** | `code` |"} />,
+    );
+    expect(container.querySelector("tbody strong")?.textContent).toBe("fett");
+    expect(container.querySelector("tbody code")?.textContent).toBe("code");
+  });
+
+  it("trennt den Absatz davor von der Tabelle", () => {
+    // Ohne die Grenze im Absatz-Zweig verschluckt der Absatz die Kopfzeile,
+    // und die Trennzeile bleibt als Strichreihe stehen.
+    const { container } = render(<Markdown text={"Reichweite:\n" + tabelle} />);
+    expect(container.querySelector("p.md-p")?.textContent).toBe("Reichweite:");
+    expect(container.querySelector("table")).not.toBeNull();
+  });
+
+  it("lässt einen Absatz mit einem einzelnen Rohr in Ruhe", () => {
+    const { container } = render(<Markdown text={"a | b ist kein Tabellenkopf"} />);
+    expect(container.querySelector("table")).toBeNull();
+    expect(container.querySelector("p.md-p")?.textContent).toContain("a | b");
+  });
+});
