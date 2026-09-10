@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import i18n from "../i18n";
 import { type RecordingEvent, recordingBlobURL } from "../api";
 import { fmtBytes, fmtCount, fmtDelta, fmtUSD } from "../format";
+import { Markdown } from "./Markdown";
 
 // ActivityFeed: übersetzt das lückenlose Recording in eine erzählende
 // Aktivitätsansicht im Stil des Mockups — Turns mit der Stimme des Agenten
@@ -997,7 +998,9 @@ function FeedItems({ items }: { items: FeedItem[] }) {
                     {it.time}
                   </span>
                 </div>
-                <p className="voice">{truncate(it.text, 1200)}</p>
+                <div className="voice">
+                  <Markdown text={truncate(it.text, 1200)} />
+                </div>
               </div>
             );
           case "turn":
@@ -1007,10 +1010,15 @@ function FeedItems({ items }: { items: FeedItem[] }) {
                   <span className="turn-dot" />
                   <span className="lbl">{it.time}</span>
                 </div>
+                {/* Was der Agent geschrieben hat, ist Markdown — er schreibt
+                    Überschriften, Hervorhebungen und für Zahlen eine Tabelle.
+                    Als reiner Text stand die Auszeichnung roh im Absatz und
+                    die Zeilenstruktur fiel weg, weil HTML die Umbrüche
+                    zusammenlegt (#225). */}
                 {it.voice.map((v, j) => (
-                  <p key={j} className="voice">
-                    {v}
-                  </p>
+                  <div key={j} className="voice">
+                    <Markdown text={v} />
+                  </div>
                 ))}
                 {it.rows.map((r, j) =>
                   r.type === "tool" ? (

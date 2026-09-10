@@ -54,6 +54,38 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
   return nodes;
 }
 
+// Die Trennzeile einer Tabelle: |---|---:|:--:|. Sie ist das einzige sichere
+// Erkennungszeichen — ein Rohr allein steht auch mitten in einem Satz.
+const TABLE_SEP = /^\s*\|?(\s*:?-+:?\s*\|)+\s*:?-*:?\s*\|?\s*$/;
+
+// cells zerlegt eine Zeile in ihre Zellen. Führendes und schließendes Rohr sind
+// in GFM optional, deshalb fliegen sie vor dem Trennen weg — sonst stünde am
+// Anfang und Ende je eine leere Spalte.
+function cells(row: string): string[] {
+  return row.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map((c) => c.trim());
+}
+
+// alignments liest die Ausrichtung je Spalte aus der Trennzeile. Für einen
+// Zahlenbericht ist das kein Schmuck: rechtsbündige Zahlen vergleicht das Auge
+// stellenweise, linksbündige nicht.
+function alignments(sep: string): ("left" | "center" | "right" | undefined)[] {
+  return cells(sep).map((c) => {
+    const left = c.startsWith(":");
+    const right = c.endsWith(":");
+    if (left && right) return "center";
+    if (right) return "right";
+    if (left) return "left";
+    return undefined;
+  });
+}
+
+// isTableStart: diese Zeile ist die Kopfzeile UND die nächste die Trennzeile.
+// Beides zusammen, weil eine Kopfzeile ohne Trennzeile in GFM keine Tabelle
+// ist — und ein Absatz, der zufällig ein Rohr enthält, einer bleiben soll.
+function isTableStart(lines: string[], i: number): boolean {
+  return lines[i].includes("|") && i + 1 < lines.length && TABLE_SEP.test(lines[i + 1]);
+}
+
 // baseLevel: welche HTML-Ebene ein `#` bekommt.
 //
 // Der Vorgabewert 4 gilt für die Stellen, an denen dieser Renderer eine
@@ -123,6 +155,53 @@ export function Markdown({ text, baseLevel = 4 }: { text: string; baseLevel?: nu
       continue;
     }
 
+    // Tabelle: Kopfzeile, Trennzeile aus Strichen, Datenzeilen.
+    //
+    // Ohne diesen Zweig fiel eine Tabelle in den Absatz-Zweig und stand als
+    // eine Reihe von Rohren im Fließtext (#225). Sie ist keine Kür: sobald ein
+    // Agent Zahlen berichtet, greift er zur Tabelle — und genau dort wird die
+    // Ausgabe unlesbar, wo sie am meisten zu sagen hat.
+    if (isTableStart(lines, i)) {
+      const head = cells(lines[i]);
+      const align = alignments(lines[i + 1]);
+      i += 2;
+      const rows: string[][] = [];
+      while (i < lines.length && lines[i].includes("|") && lines[i].trim() !== "") {
+        rows.push(cells(lines[i]));
+        i++;
+      }
+      const k = key++;
+      blocks.push(
+        // Der Rahmen scrollt, nicht die Seite: eine breite Tabelle darf das
+        // Layout auf einem schmalen Fenster nicht auseinanderziehen.
+        <div key={k} className="md-table-wrap">
+          <table className="md-table">
+            <thead>
+              <tr>
+                {head.map((c, n) => (
+                  <th key={n} style={align[n] ? { textAlign: align[n] } : undefined}>
+                    {renderInline(c, `th${k}-${n}`)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, rn) => (
+                <tr key={rn}>
+                  {r.map((c, n) => (
+                    <td key={n} style={align[n] ? { textAlign: align[n] } : undefined}>
+                      {renderInline(c, `td${k}-${rn}-${n}`)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>,
+      );
+      continue;
+    }
+
     // Absatz: aufeinanderfolgende Nicht-Leerzeilen mit <br> verbinden.
     const para: string[] = [];
     while (
@@ -131,7 +210,8 @@ export function Markdown({ text, baseLevel = 4 }: { text: string; baseLevel?: nu
       !lines[i].trimStart().startsWith("```") &&
       !/^(#{1,3})\s+/.test(lines[i]) &&
       !/^\s*[-*]\s+/.test(lines[i]) &&
-      !/^\s*\d+\.\s+/.test(lines[i])
+      !/^\s*\d+\.\s+/.test(lines[i]) &&
+      !isTableStart(lines, i)
     ) {
       para.push(lines[i]);
       i++;

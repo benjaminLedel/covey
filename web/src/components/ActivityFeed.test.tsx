@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { buildFeed, phasenAnteil } from "./ActivityFeed";
+import { ActivityFeed, buildFeed, phasenAnteil } from "./ActivityFeed";
 import type { RecordingEvent } from "../api";
+import { renderWithProviders } from "../test/render";
 
 /* Der Verlauf ist der Beleg dafür, was ein Agent getan hat — und ein Beleg,
    der Nebengeräusche als Ereignisse ausgibt, belegt das Falsche. Die Runtime
@@ -223,5 +224,43 @@ describe("gescheiterte Phasen", () => {
     const schlecht = buildFeed([phase({ phase: "home_sync", done: true, error: "weg" })]);
     expect((gut.find((i) => i.kind === "phase") as { error?: string }).error).toBeUndefined();
     expect((schlecht.find((i) => i.kind === "phase") as { error?: string }).error).toBe("weg");
+  });
+});
+
+/* Was ein Agent schreibt, ist Markdown — und stand bis #225 roh im Absatz: die
+   Rauten der Überschriften, die Sterne der Hervorhebung, und eine Tabelle als
+   eine Reihe von Rohren in einer Zeile. Gerade der Bericht, der Zahlen bringt,
+   war dadurch der unleserlichste. */
+describe("Markdown in der Stimme des Agenten", () => {
+  const ergebnis = [
+    "## Reichweite",
+    "",
+    "Der Sprung ist **kein Verdienst**.",
+    "",
+    "| Fenster | Klicks |",
+    "|---|---:|",
+    "| 08-11 … 08-24 | 1 |",
+  ].join("\n");
+
+  it("rendert das Ergebnis eines Laufs statt die Auszeichnung zu zeigen", () => {
+    const { container } = renderWithProviders(
+      <ActivityFeed events={[ev({ type: "result", subtype: "success", result: ergebnis })]} />,
+    );
+    expect(container.querySelector(".act-result .md-h")?.textContent).toBe("Reichweite");
+    expect(container.querySelector(".act-result strong")?.textContent).toBe("kein Verdienst");
+    expect(container.querySelectorAll(".act-result tbody tr")).toHaveLength(1);
+    expect(container.textContent).not.toContain("## Reichweite");
+  });
+
+  it("rendert auch, was der Agent während des Laufs sagt", () => {
+    const { container } = renderWithProviders(
+      <ActivityFeed
+        events={[
+          ev({ type: "assistant", message: { content: [{ type: "text", text: ergebnis }] } }),
+        ]}
+      />,
+    );
+    expect(container.querySelector(".turn .voice .md-h")?.textContent).toBe("Reichweite");
+    expect(container.querySelector(".turn .voice table")).not.toBeNull();
   });
 });
