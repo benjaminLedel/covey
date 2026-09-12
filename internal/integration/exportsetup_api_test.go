@@ -202,3 +202,71 @@ func TestTargetSystemsOverTheAPI(t *testing.T) {
 	admin.expect(http.MethodPost, "/api/v1/targets/mcp", map[string]any{}, http.StatusBadRequest)
 	admin.expect(http.MethodDelete, "/api/v1/targets/gibtesnicht", nil, http.StatusNotFound)
 }
+
+// A bundle carries more than the config files: the board's columns, the guard
+// rails, the egress templates, the skills and the NAMES of the secrets. What
+// the import refuses is the interesting half — a bundle that does not fit must
+// not produce half an agent.
+func TestImportRefusesWhatDoesNotFit(t *testing.T) {
+	s := newStack(t)
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	agent := s.newSupportAgent("ausfuhr-agent")
+
+	base := admin.expect(http.MethodGet, "/api/v1/agents/"+agent.ID.String()+"/export", nil, http.StatusOK)
+
+	// Kind and version are the two things that say what this file IS. A
+	// mismatch is refused rather than read optimistically — half an agent from
+	// a bundle nobody can name is worse than no agent.
+	wrongKind := clone(base)
+	wrongKind["kind"] = "etwas-anderes"
+	admin.expect(http.MethodPost, "/api/v1/agents/import", wrongKind, http.StatusBadRequest)
+
+	wrongVersion := clone(base)
+	wrongVersion["version"] = 999
+	admin.expect(http.MethodPost, "/api/v1/agents/import", wrongVersion, http.StatusBadRequest)
+
+	noSlug := clone(base)
+	noSlug["agent"] = map[string]any{"display_name": "Ohne Slug"}
+	admin.expect(http.MethodPost, "/api/v1/agents/import", noSlug, http.StatusBadRequest)
+
+	// The slug the bundle names already exists here — the query parameter is
+	// how the same configuration is brought in a second time.
+	admin.expect(http.MethodPost, "/api/v1/agents/import", base, http.StatusConflict)
+	admin.expect(http.MethodPost, "/api/v1/agents/import?slug=ausfuhr-kopie", base, http.StatusCreated)
+
+	// TOOLS.md was merged into ACCESS.md. A bundle still carrying it is named
+	// rather than silently losing its tool allowlist.
+	withTools := clone(base)
+	files := map[string]any{"SOUL.md": "# X\n", "TOOLS.md": "- zammad: reply\n"}
+	withTools["files"] = files
+	withTools["agent"] = map[string]any{"slug": "mit-tools", "display_name": "Mit Tools"}
+	admin.expect(http.MethodPost, "/api/v1/agents/import", withTools, http.StatusBadRequest)
+
+	// An unreadable heartbeat is refused at the import, where somebody is
+	// looking — not at the first interval, where it would wake nothing and say
+	// nothing.
+	badBeat := clone(base)
+	badBeat["files"] = map[string]any{"SOUL.md": "# X\n", "HEARTBEAT.md": "alle: manchmal\n"}
+	badBeat["agent"] = map[string]any{"slug": "kaputter-takt", "display_name": "Kaputter Takt"}
+	admin.expect(http.MethodPost, "/api/v1/agents/import", badBeat, http.StatusBadRequest)
+
+	// An effort level the engine does not know, and a model it cannot route,
+	// are refused for the same reason: both would be stored and fail at the
+	// first wake.
+	badEffort := clone(base)
+	badEffort["agent"] = map[string]any{"slug": "falscher-aufwand", "display_name": "X",
+		"runtime": "mock", "effort": "gemächlich"}
+	admin.expect(http.MethodPost, "/api/v1/agents/import", badEffort, http.StatusBadRequest)
+
+	admin.expect(http.MethodPost, "/api/v1/agents/import", "kein bündel", http.StatusBadRequest)
+}
+
+// clone makes a shallow copy so a test can bend one field without disturbing
+// the bundle the others read.
+func clone(m map[string]any) map[string]any {
+	out := make(map[string]any, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}

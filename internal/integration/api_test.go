@@ -322,3 +322,16 @@ func TestGuardrailAdministration(t *testing.T) {
 	// Only security roles may toggle; the PATCH lacks the mandatory field → 400.
 	admin.expect(http.MethodPatch, "/api/v1/guardrails/"+ruleID, map[string]any{}, http.StatusBadRequest)
 }
+
+// doRaw sends a body verbatim — for the cases where the point is that it is
+// NOT what the handler expects.
+func (c *apiClient) doRaw(method, path, body string) *http.Response {
+	c.t.Helper()
+	req, _ := http.NewRequest(method, c.base+path, bytes.NewReader([]byte(body)))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		c.t.Fatal(err)
+	}
+	return resp
+}
