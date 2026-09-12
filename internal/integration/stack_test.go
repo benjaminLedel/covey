@@ -9,9 +9,9 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -72,7 +72,30 @@ import (
 	_ "github.com/benjaminLedel/covey-plugin-pack/zammad"
 )
 
-const adminDBURL = "postgres://covey:covey@localhost:5433/covey?sslmode=disable"
+// The test Postgres. `make dev-db` puts it on port 5433; a CI runner that
+// offers the database under a different host or port says so in
+// COVEY_TEST_DATABASE_URL. The per-test database is created beside the one
+// named here, so the DSN has to point at a database the user may connect to
+// and must carry the credentials for CREATE DATABASE.
+var adminDBURL = envOr("COVEY_TEST_DATABASE_URL", "postgres://covey:covey@localhost:5433/covey?sslmode=disable")
+
+func envOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
+// testDBURL is adminDBURL with the database name swapped for the throwaway one
+// a test works in.
+func testDBURL(dbName string) string {
+	u, err := url.Parse(adminDBURL)
+	if err != nil {
+		return adminDBURL
+	}
+	u.Path = "/" + dbName
+	return u.String()
+}
 
 // inprocProvider starts the daemon in-process instead of as a subprocess — the
 // connection still goes through the real WebSocket endpoint.
@@ -204,7 +227,7 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 
 	admin, err := db.Connect(ctx, adminDBURL)
 	if err != nil {
-		t.Skipf("no test Postgres at localhost:5433: %v", err)
+		t.Skipf("no test Postgres at %s: %v", adminDBURL, err)
 	}
 	dbName := "covey_test_" + strings.ReplaceAll(uuid.NewString(), "-", "")[:12]
 	if _, err := admin.Exec(ctx, "CREATE DATABASE "+dbName); err != nil {
@@ -215,7 +238,7 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 		admin.Close()
 	})
 
-	pool, err := db.Connect(ctx, fmt.Sprintf("postgres://covey:covey@localhost:5433/%s?sslmode=disable", dbName))
+	pool, err := db.Connect(ctx, testDBURL(dbName))
 	if err != nil {
 		t.Fatal(err)
 	}
