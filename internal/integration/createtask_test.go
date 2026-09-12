@@ -318,3 +318,183 @@ func TestDelegationToPausedColleagueWaits(t *testing.T) {
 		return s.taskState(delegated.ID) == backlog.StateDone
 	})
 }
+
+// idleRun is a task body the mock runtime finishes without doing anything. The
+// chains below are built link by link in the store, and every link wakes its
+// agent — an inert body keeps those runs from creating tasks of their own and
+// the chain from growing sideways while the test builds it.
+const idleRun = "[mock:result nichts zu tun]"
+
+// relayChain builds a chain of tasks as a relay produces it: every link carries
+// the origin of the station that created it and sits with the station that has
+// to act on it. It returns the last link.
+//
+// links alternate "who created it" / "whose desk it lands on"; the body of the
+// last link is what actually runs.
+func relayChain(t *testing.T, s *stack, root uuid.UUID, links []relayLink) backlog.Task {
+	t.Helper()
+	last, err := s.backlog.Get(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, l := range links {
+		body := idleRun
+		if i == len(links)-1 {
+			body = l.body
+		}
+		child, err := s.backlog.CreateChild(context.Background(), last.ID, backlog.ChildSpec{
+			AgentID: l.agentID, Title: l.title, Body: body, Origin: "agent:" + l.from,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		last = child
+	}
+	return last
+}
+
+type relayLink struct {
+	from    string    // the slug that created this link
+	agentID uuid.UUID // whose desk it lands on
+	title   string
+	body    string
+}
+
+// TestCreateTaskRelaySecondRound pins covey#227: a relay is not a
+// decomposition, and the depth brake must not treat it as one.
+//
+// Two stations pass one piece of work back and forth — writer hands over,
+// reviewer hands back, writer corrects and hands over again. The chain is three
+// agent-created links long at that point, and the old counter (which counted
+// the chain rather than who extended it) refused the reviewer's second
+// hand-back right here. Three drafts on a live instance stood still because of
+// it, each waiting for objections that were never delivered.
+func TestCreateTaskRelaySecondRound(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	writer := s.newSupportAgent("staffel-schreiber")
+	reviewer := s.newSupportAgent("staffel-pruefer")
+
+	handBack := `[mock:action covey/create_task {"title":"Rückgabe 2. Durchgang","body":"Einwände","agent":"staffel-schreiber"}]
+[mock:result zurückgegeben]`
+
+	root, err := s.backlog.Create(ctx, s.orgID, writer.ID, "Entwurf", idleRun, "manual", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second := relayChain(t, s, root.ID, []relayLink{
+		{from: "staffel-schreiber", agentID: reviewer.ID, title: "Übergabe"},
+		{from: "staffel-pruefer", agentID: writer.ID, title: "Rückgabe"},
+		{from: "staffel-schreiber", agentID: reviewer.ID, title: "Übergabe nach Korrektur", body: handBack},
+	})
+
+	waitFor(t, "second check terminal", 30*time.Second, func() bool {
+		st := s.taskState(second.ID)
+		return st == backlog.StateDone || st == backlog.StateFailed
+	})
+
+	back := childOf(t, s, writer.ID, second.ID)
+	if back.Title != "Rückgabe 2. Durchgang" {
+		t.Fatalf("the second hand-back must reach the writer, found %q", back.Title)
+	}
+	if msg := taskError(t, s, second.ID); strings.Contains(msg, "too deep") {
+		t.Fatalf("the relay must not run into the depth brake: %q", msg)
+	}
+}
+
+// TestCreateTaskRelayRoundLimit is the other half: the brake still closes. A
+// station that has handed the same chain on three times does not get a fourth —
+// otherwise two agents keep a piece of work moving between them until the
+// budget is empty, which is exactly what the depth brake exists against.
+func TestCreateTaskRelayRoundLimit(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	writer := s.newSupportAgent("runden-schreiber")
+	reviewer := s.newSupportAgent("runden-pruefer")
+
+	handBack := `[mock:action covey/create_task {"title":"Rückgabe vierte Runde","body":"noch ein Einwand","agent":"runden-schreiber"}]
+[mock:result versucht]`
+
+	root, err := s.backlog.Create(ctx, s.orgID, writer.ID, "Entwurf", idleRun, "manual", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var links []relayLink
+	for i := 1; i <= 3; i++ {
+		links = append(links,
+			relayLink{from: "runden-schreiber", agentID: reviewer.ID, title: "Übergabe " + strconv.Itoa(i)},
+			relayLink{from: "runden-pruefer", agentID: writer.ID, title: "Rückgabe " + strconv.Itoa(i)})
+	}
+	links = append(links, relayLink{from: "runden-schreiber", agentID: reviewer.ID,
+		title: "Übergabe vierte Runde", body: handBack})
+	last := relayChain(t, s, root.ID, links)
+
+	waitFor(t, "fourth round terminal", 30*time.Second, func() bool {
+		st := s.taskState(last.ID)
+		return st == backlog.StateDone || st == backlog.StateFailed
+	})
+
+	n, err := s.backlog.CountChildren(ctx, last.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("after three rounds nothing may be handed back, created: %d", n)
+	}
+	// And the reason says what to do instead — an agent that reads "do not
+	// decompose further" after a hand-back learns nothing it can act on.
+	if msg := taskError(t, s, last.ID); !strings.Contains(msg, "handed this chain on") {
+		t.Fatalf("the rejection must name the rounds, was %q", msg)
+	}
+}
+
+// TestCreateTaskRelayChainCeiling pins the backstop under the round count: with
+// enough stations every single one can stay below its own limit while the chain
+// grows on and on. The absolute length ends it.
+func TestCreateTaskRelayChainCeiling(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+
+	slugs := []string{"kette-a", "kette-b", "kette-c", "kette-d", "kette-e", "kette-f"}
+	ids := make(map[string]uuid.UUID, len(slugs))
+	for _, slug := range slugs {
+		ids[slug] = s.newSupportAgent(slug).ID
+	}
+	handOn := `[mock:action covey/create_task {"title":"Noch eine Station","body":"weiter","agent":"kette-a"}]
+[mock:result versucht]`
+
+	root, err := s.backlog.Create(ctx, s.orgID, ids["kette-a"], "Rundlauf", idleRun, "manual", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Twelve links, every station twice — none of them has handed it on three
+	// times, so the round count lets each of them through.
+	var links []relayLink
+	for round := 0; round < 2; round++ {
+		for i, slug := range slugs {
+			links = append(links, relayLink{
+				from:    slug,
+				agentID: ids[slugs[(i+1)%len(slugs)]],
+				title:   "Station " + slug + " " + strconv.Itoa(round),
+			})
+		}
+	}
+	links[len(links)-1].body = handOn
+	last := relayChain(t, s, root.ID, links)
+
+	waitFor(t, "last station terminal", 30*time.Second, func() bool {
+		st := s.taskState(last.ID)
+		return st == backlog.StateDone || st == backlog.StateFailed
+	})
+
+	n, err := s.backlog.CountChildren(ctx, last.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("the chain must end at the ceiling, created: %d", n)
+	}
+	if msg := taskError(t, s, last.ID); !strings.Contains(msg, "too long") {
+		t.Fatalf("the rejection must name the length, was %q", msg)
+	}
+}

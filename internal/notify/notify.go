@@ -64,6 +64,11 @@ const (
 	// KindCredential: a target system refused a stored credential, or will
 	// soon — the one kind of ops event an agent cannot get past on its own.
 	KindCredential = "credential"
+	// KindDelegationRefused: the loop brake closed on a hand-over between two
+	// agents (#228). The work has nowhere to go — the sender may not pass it
+	// on, and it is not the station that finishes it — so a human decides
+	// whether it goes on and where.
+	KindDelegationRefused = "delegation_refused"
 )
 
 // Defaults per class, applied while nobody has decided otherwise.

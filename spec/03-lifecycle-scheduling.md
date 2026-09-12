@@ -199,9 +199,14 @@ Every task created this way hangs via `parent_task_id` off the task it came from
 | Limit | Rule |
 |---|---|
 | Policy | Guard-rail subject `covey:create_task`, on delegation `covey:create_task:foreign` — separately governable, `denied`/`pending` as for any target-system action |
-| Depth | A chain of self-created tasks ends after `maxAgentTaskDepth` — no infinite decomposition |
+| Depth | How often **one** station may extend the same chain: after `maxAgentTaskDepth` it is over — no infinite decomposition |
+| Length | `maxAgentTaskChain` sits underneath as the backstop: however many stations pass the work around, the chain ends |
 | Width | A single run splits off at most `maxAgentTasksPerRun` tasks |
 | Duplicates | If an open task with the same title already exists at the target agent, no second one is created |
+
+**Depth is counted per station, not per chain.** A relay is not a decomposition: writer hands over, reviewer hands back, writer corrects, reviewer checks again — the chain gets one link longer at every step while nothing is being split up. Counted by length, the brake closed in the middle of the second round and every piece of work that needed more than one correction round died there, deterministically (#227). Counted per station, each side gets its rounds, and an endless ping-pong between two agents still runs into the brake — three rounds, then a human, the same rule the merge-request workflow follows. The two questions are different and need two counters: how long is this chain, and how often has *this* agent extended it.
+
+**A refused hand-over is reported.** The brake has to close somewhere, and when it closes on a *delegation* the work has nowhere to go: the sender may not pass it on and is not the station that finishes it. That is the one refusal an agent cannot resolve on its own, so it produces a notification (`decision` class) naming both stations and the task it stopped at. A refused **subtask** produces none — there the brake says "do it yourself", which is an instruction, not a dead end. Without this, a standstill is only visible to whoever reads recordings one by one (#228).
 
 Duplicate protection is the most important of the four: without it, a recurring run that creates the same task every time builds a queue that never empties — the same class of error as a heartbeat that triggers on the level instead of the edge.
 
