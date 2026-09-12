@@ -2908,10 +2908,25 @@ const (
 	// audit trail records who created it.
 	originAgentTask = "agent"
 
-	// maxAgentTaskDepth limits the chain of self-created tasks: a subtask may
-	// have subtasks, but not to arbitrary depth. Without this limit an agent
-	// decomposes its work recursively until the budget is empty.
+	// maxAgentTaskDepth limits how often ONE agent may extend the same chain: a
+	// subtask may have subtasks, but not to arbitrary depth. Without this limit
+	// an agent decomposes its work recursively until the budget is empty.
+	//
+	// Counted per station, not per chain (#227). A relay — writer hands over,
+	// reviewer hands back, writer corrects, reviewer checks again — makes the
+	// chain longer at every step without anybody decomposing anything. Counted
+	// by length it died deterministically in the middle of the second round;
+	// counted per station each side gets its three rounds, and an endless
+	// ping-pong still runs into the brake. Three rounds then a human is the
+	// rule the merge-request workflow already follows.
 	maxAgentTaskDepth = 3
+
+	// maxAgentTaskChain is the backstop underneath it: however many stations
+	// pass a piece of work around, the chain ends here. Without it a cycle
+	// across enough distinct agents could grow on and on, each of them staying
+	// under its own count. Wide enough for a four-station workflow to play its
+	// three rounds, narrow enough to stay a brake.
+	maxAgentTaskChain = 12
 
 	// maxAgentTasksPerRun limits the width: this many tasks a single run may
 	// spin off. An agent that needs more has not decomposed its work but copied
@@ -2927,7 +2942,10 @@ const (
 // Fail-closed in three directions, because an agent that can create tasks can
 // keep itself busy until the budget is empty:
 //
-//   - Depth (maxAgentTaskDepth) — no infinite decomposition.
+//   - Depth (maxAgentTaskDepth) — no infinite decomposition, counted per
+//     station: how often has THIS agent extended THIS chain.
+//   - Length (maxAgentTaskChain) — the backstop under it, for a relay across
+//     many stations.
 //   - Width (maxAgentTasksPerRun) — a run spins off a limited amount.
 //   - Duplicates — if an open task with the same title already exists at the
 //     target agent, no second one is created. That is exactly where loops fail
@@ -2972,12 +2990,33 @@ func (o *Orchestrator) createAgentTask(ctx context.Context, agent agents.Agent, 
 		targetAgent = found
 	}
 
-	depth, err := o.Backlog.AncestorsWithOrigin(ctx, taskID, originAgentTask+":")
+	delegation := targetAgent.ID != agent.ID
+	rounds, err := o.Backlog.AncestorsFromAgent(ctx, taskID, agent.Slug)
 	if err != nil {
 		return fail("origin chain cannot be checked")
 	}
-	if depth >= maxAgentTaskDepth {
-		return fail(fmt.Sprintf("task chain too deep (%d) — do not decompose further, finish or escalate instead", depth))
+	if rounds >= maxAgentTaskDepth {
+		// Two refusals, because they mean two different things. Whoever was
+		// decomposing keeps the work and finishes it; whoever was handing it
+		// back has to decide it or take it to a human, and "do not decompose
+		// further" would tell them nothing they can act on.
+		if delegation {
+			o.notifyDelegationRefused(ctx, agent, taskID, targetAgent, title)
+			return fail(fmt.Sprintf("task chain limit reached: you have handed this chain on %d times already — "+
+				"decide it or escalate to a human, do not pass it back again", rounds))
+		}
+		return fail(fmt.Sprintf("task chain too deep (%d) — do not decompose further, finish or escalate instead", rounds))
+	}
+	chain, err := o.Backlog.AncestorsWithOrigin(ctx, taskID, originAgentTask+":")
+	if err != nil {
+		return fail("origin chain cannot be checked")
+	}
+	if chain >= maxAgentTaskChain {
+		if delegation {
+			o.notifyDelegationRefused(ctx, agent, taskID, targetAgent, title)
+		}
+		return fail(fmt.Sprintf("task chain too long (%d) — this work has been passed around long enough, "+
+			"finish it or escalate to a human", chain))
 	}
 	children, err := o.Backlog.CountChildren(ctx, taskID)
 	if err != nil {

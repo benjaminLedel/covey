@@ -60,6 +60,28 @@ func (o *Orchestrator) notifyImprovement(ctx context.Context, item agents.Improv
 	})
 }
 
+// notifyDelegationRefused: an agent wanted to hand work to a colleague and the
+// chain brake closed. That is the one refusal an agent cannot work around —
+// it may not pass the work on, and it is not the station that finishes it.
+//
+// Only a DELEGATION is reported. A refused subtask means "do it yourself",
+// which is an instruction and not a dead end; a mail about one would be the
+// noise that makes people stop reading the rest.
+//
+// The subject is the task the agent was standing on, so the link leads to
+// where the work actually stopped.
+func (o *Orchestrator) notifyDelegationRefused(ctx context.Context, agent agents.Agent,
+	taskID uuid.UUID, target agents.Agent, title string) {
+	id := taskID
+	o.emit(ctx, notify.Event{
+		OrgID: agent.OrgID, AgentID: agent.ID,
+		Class: notify.ClassDecision, Kind: notify.KindDelegationRefused, SubjectID: &id,
+		Title: fmt.Sprintf("%s cannot hand %q to %s: the task chain has reached its limit — the work is standing still",
+			agent.DisplayName, title, target.DisplayName),
+		Link: "/agents/" + agent.ID.String(),
+	})
+}
+
 // NotifyTaskEnded is the backlog's OnComplete hook. It is a method rather than
 // a closure in main.go because it needs the agent's name, and the orchestrator
 // is what has the registry at hand.

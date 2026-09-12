@@ -222,6 +222,34 @@ func (s *Store) AncestorsWithOrigin(ctx context.Context, id uuid.UUID, originPre
 	return n, err
 }
 
+// AncestorsFromAgent counts how many tasks in the chain of a task (the task
+// itself included) were created by one particular agent — origin exactly
+// "agent:<slug>".
+//
+// This is the counter for the relay. AncestorsWithOrigin measures how LONG a
+// chain is; this one measures how often ONE station extended it, and the two
+// answer different questions. A handover back and forth between two agents
+// makes the chain longer at every step without anybody decomposing anything:
+// counted by length it hits the brake in the middle of the second round,
+// counted per station it gets the rounds it needs and still stops on an
+// endless ping-pong (#227).
+//
+// Matched exactly rather than by prefix: "agent:writer-1" is a prefix of
+// "agent:writer-10", and a slug that happens to extend another one would
+// otherwise inherit its rounds.
+func (s *Store) AncestorsFromAgent(ctx context.Context, id uuid.UUID, slug string) (int, error) {
+	var n int
+	err := s.pool.QueryRow(ctx, `
+		WITH RECURSIVE chain AS (
+			SELECT id, parent_task_id, origin FROM backlog_tasks WHERE id=$1
+			UNION ALL
+			SELECT t.id, t.parent_task_id, t.origin
+			FROM backlog_tasks t JOIN chain c ON t.id = c.parent_task_id
+		)
+		SELECT COUNT(*) FROM chain WHERE origin = $2`, id, "agent:"+slug).Scan(&n)
+	return n, err
+}
+
 // ChainStart is the moment the chain a task belongs to began: the created_at of
 // its oldest ancestor.
 //
