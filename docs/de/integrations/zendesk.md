@@ -73,10 +73,15 @@ Welche Auth-Form gilt, steht im Tokenwert selbst; das Plugin erkennt sie am Wert
 
 | Form | Wert | Anmerkung |
 |---|---|---|
-| API-Token | `<mail>/<token>` | Der einfache Fall. Das Plugin schickt Basic, braucht also die Adresse, der das Token gehört — ein nacktes Token wird abgelehnt statt geraten |
-| OAuth-Client | `client:<id>/<secret>` | Mintet ein Token bei Bedarf und erneuert es selbst. Für eine Installation, die laufen bleiben soll, die richtige Form |
-| OAuth-Refresh-Token | `refresh:<refresh-token>/<client-id>/<client-secret>` | Funktioniert, aber jedes Erneuern verbrennt den alten Wert, und zurückschreiben ins SecretStore kann das Plugin nicht — Abschnitt 6 |
-| Access-Token | `<token>` | Ein anderswo gemintetes Token, oder ein Test. Das Plugin benutzt es unverändert und erneuert es nie |
+| API-Token | `<mail>/token:<api-token>` | Der einfache Fall. `/token:` steht **wörtlich** da — daran erkennt das Plugin die Form, und Basic-Auth ist, was Zendesk dahinter erwartet. Die Adresse davor muss ein echter Agent sein |
+| OAuth-Client | `client:<client-id>:<client-secret>` | Mintet ein Token bei Bedarf und erneuert es selbst. Für eine Installation, die laufen bleiben soll, die richtige Form |
+| OAuth-Refresh-Token | `refresh:<client-id>:<client-secret>:<refresh-token>` | Funktioniert, aber jedes Erneuern verbrennt den alten Wert, und zurückschreiben ins SecretStore kann das Plugin nicht — Abschnitt 6 |
+| Access-Token | `<token>` | Was auf keine der Formen darüber passt, wird genommen, wie es dasteht: ein anderswo gemintetes Token, oder ein Test. Das Plugin erneuert es nie |
+
+**Die Trennzeichen sind Doppelpunkte, und zwar genau.** Ein Wert, dem sie
+fehlen, scheitert nicht laut — er fällt in die letzte Zeile, wird als
+Bearer-Token geschickt, und Zendesk antwortet `HTTP 401: invalid_token`. Die
+Meldung sagt, das Token sei falsch; falsch ist die Form.
 
 Ein Agent, der nur **eine** Gruppe betreuen soll, nennt sie in der URL:
 
@@ -163,6 +168,23 @@ Einstellung hier.
 COVEY_PUBLIC_URL=https://covey.example.com          # von Zendesk aus erreichbar, nicht localhost
 COVEY_ZENDESK_WEBHOOK_SECRET=<lang-zufaellige-zeichenkette>   # identisch mit dem Signing-Key
 ```
+
+### 2.5b Zwei Schritte, die der Assistent nicht für Sie geht
+
+Beides ist dieselbe Falle: Alles sieht fertig aus, und der erste Lauf bekommt
+nichts.
+
+- **Die Secrets dem Agenten zuweisen.** Der Einrichtungsassistent legt
+  `zendesk_url` und `zendesk_token` bei der **Organisation** ab, und ein
+  Org-Secret erreicht einen Agenten nur mit ausdrücklicher Zuweisung.
+  *Agent → Einstellungen → Secrets → Org-Secret zuweisen*, beide Werte. Ohne sie
+  sagt der Verbindungstest `no zendesk_token stored for this agent`, und ein Lauf
+  bekommt gar kein Credential.
+- **Den Egress für den Kontohost öffnen.** Die Zendesk-Aktionen laufen in der
+  Sandbox des Agenten, und der Proxy davor blockt fail-closed alles, was nicht
+  eingetragen ist. *Agent → Einstellungen → Egress → eigene Hosts*, dort
+  `<subdomain>.zendesk.com`. Ohne ihn stimmt das Credential, und jeder Aufruf
+  läuft trotzdem ins Leere.
 
 ### 2.6 Testen
 

@@ -72,10 +72,15 @@ the value itself:
 
 | Form | Value | Notes |
 |---|---|---|
-| API token | `<mail>/<token>` | The simple case. The plugin sends Basic, so it needs the address that owns the token — a bare token is refused rather than guessed at |
-| OAuth client | `client:<id>/<secret>` | Mints a token per need, refreshes on its own. For a long-lived installation this is the form to pick |
-| OAuth refresh token | `refresh:<refresh-token>/<client-id>/<client-secret>` | Works, but rotating burns the old value and the plugin cannot write back into the SecretStore — see section 6 |
-| Access token | `<token>` | A token minted elsewhere, or a test. The plugin uses it as-is and never refreshes it |
+| API token | `<email>/token:<api-token>` | The simple case. `/token:` is **literal** — it is what the plugin recognises the form by, and Basic auth is what Zendesk expects behind it. The address in front has to be a real agent |
+| OAuth client | `client:<client-id>:<client-secret>` | Mints a token per need, refreshes on its own. For a long-lived installation this is the form to pick |
+| OAuth refresh token | `refresh:<client-id>:<client-secret>:<refresh-token>` | Works, but rotating burns the old value and the plugin cannot write back into the SecretStore — see section 6 |
+| Access token | `<token>` | Anything the shapes above do not match is used as it stands: a token minted elsewhere, or a test. The plugin never refreshes it |
+
+**The separators are colons, and they are exact.** A value that misses them does
+not fail loudly — it falls into the last row and is sent as a bearer token, and
+Zendesk answers `HTTP 401: invalid_token`. That error says the token is wrong;
+what is wrong is the shape.
 
 An agent that is only to look after **one** group names it in the URL:
 
@@ -159,6 +164,22 @@ setting here.
 COVEY_PUBLIC_URL=https://covey.example.com          # reachable from Zendesk, not localhost
 COVEY_ZENDESK_WEBHOOK_SECRET=<long-random-string>   # identical to the signing key
 ```
+
+### 2.5b Two steps the wizard does not take for you
+
+Both are the same kind of trap: everything reads as done, and the first run gets
+nothing.
+
+- **Assign the secrets to the agent.** The setup assistant stores `zendesk_url`
+  and `zendesk_token` at the **organisation**, and an organisation secret reaches
+  an agent only on an explicit assignment. *Agent → Settings → Secrets → assign
+  org secret*, both values. Without it the connection test says
+  `no zendesk_token stored for this agent` and a run gets no credential at all.
+- **Open the egress for the account host.** The Zendesk actions run in the
+  agent's sandbox, and the proxy in front of it blocks fail-closed everything
+  that is not listed. *Agent → Settings → Egress → own hosts*, add
+  `<subdomain>.zendesk.com`. Without it the credential is right and every call
+  still ends nowhere.
 
 ### 2.6 Testing
 
