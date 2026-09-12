@@ -44,6 +44,7 @@ import (
 	runnerstore "covey/internal/runner/store"
 	"covey/internal/runtimes"
 	"covey/internal/sandbox"
+	"covey/internal/sandboxfs"
 	"covey/internal/secrets"
 	"covey/internal/settings"
 	"covey/internal/skills"
@@ -745,6 +746,25 @@ func mapErr(w http.ResponseWriter, err error) {
 		errors.Is(err, observability.ErrNotFound), errors.Is(err, secrets.ErrNotFound),
 		errors.Is(err, org.ErrNotFound), errors.Is(err, org.ErrDeptNotFound),
 		errors.Is(err, accounts.ErrNotFound), errors.Is(err, runnerstore.ErrNotFound),
+		// Every store's "not found" belongs here, and not in the handler that
+		// happens to call it. Three of these reached the client as a 500 with
+		// the store's own wording in the body, because no handler mapped them
+		// at all (egress, guardrails, runtimes); the rest were mapped in SOME
+		// handlers and not others — GET /templates/{id} answered 500 while the
+		// delete and the instantiate beside it answered 404 for the same
+		// sentinel. A rule that has to be repeated per call site is a rule
+		// that gets missed at the next one.
+		//
+		// The handlers that answer with a sentence of their own ("a bundled
+		// template cannot be deleted") return before this and keep it. What
+		// arrives here is the flat "not found" — which is also the right
+		// answer for "not yours", since the queries behind these are all
+		// org-scoped.
+		errors.Is(err, egress.ErrNotFound), errors.Is(err, guardrails.ErrNotFound),
+		errors.Is(err, runtimes.ErrNotFound), errors.Is(err, templates.ErrNotFound),
+		errors.Is(err, skills.ErrNotFound), errors.Is(err, workplaces.ErrNotFound),
+		errors.Is(err, targetstore.ErrNotFound), errors.Is(err, sandboxfs.ErrNotFound),
+		errors.Is(err, marketplace.ErrNotFound),
 		errors.Is(err, pgx.ErrNoRows):
 		writeErr(w, http.StatusNotFound, "not found")
 	case errors.Is(err, backlog.ErrInvalidTransition),
