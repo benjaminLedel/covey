@@ -320,3 +320,72 @@ func TestDoctorOnAFreshInstallation(t *testing.T) {
 		t.Error("the doctor said nothing at all")
 	}
 }
+
+// The home-store sweep deletes blocks nothing references any more. It previews
+// by default, because the thing it removes is the only copy of an agent's
+// working history.
+func TestHomeStoreCleanupSubcommand(t *testing.T) {
+	cfg := testConfig(t)
+	ctx := context.Background()
+	if err := runMigrate(ctx, cfg, nil, quiet()); err != nil {
+		t.Fatal(err)
+	}
+
+	out := captureStdout(t, func() {
+		if err := runHomeStore(ctx, cfg, []string{"cleanup"}, quiet()); err != nil {
+			t.Fatal(err)
+		}
+	})
+	// The preview says that it is one — otherwise somebody reads a list of
+	// blocks and believes they are gone.
+	if !strings.Contains(out, "preview") || !strings.Contains(out, "--apply") {
+		t.Errorf("the preview does not say it is one:\n%s", out)
+	}
+	if !strings.Contains(out, "home store:") {
+		t.Errorf("the sweep does not name where it looked:\n%s", out)
+	}
+
+	out = captureStdout(t, func() {
+		if err := runHomeStore(ctx, cfg, []string{"cleanup", "--apply"}, quiet()); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if strings.Contains(out, "preview") {
+		t.Errorf("--apply still called itself a preview:\n%s", out)
+	}
+	if !strings.Contains(out, "freed") {
+		t.Errorf("the applied sweep does not say what it freed:\n%s", out)
+	}
+
+	if err := runHomeStore(ctx, cfg, nil, quiet()); err == nil {
+		t.Error("home-store without a subcommand was accepted")
+	}
+	if err := runHomeStore(ctx, cfg, []string{"cleanup", "--force"}, quiet()); err == nil {
+		t.Error("an unknown option was accepted")
+	}
+
+	// With the home store switched off there is nothing to sweep, and saying
+	// so is better than sweeping a store nobody writes to.
+	off := cfg
+	off.HomeStore = false
+	if err := runHomeStore(ctx, off, []string{"cleanup"}, quiet()); err == nil {
+		t.Error("the sweep ran with the home store switched off")
+	}
+}
+
+func TestStoreBytes(t *testing.T) {
+	for _, tc := range []struct {
+		in   int64
+		want string
+	}{
+		{0, "0 B"}, {512, "512 B"},
+		{1024, "1.0 KB"}, {1536, "1.5 KB"},
+		{1 << 20, "1.0 MB"}, {1 << 30, "1.0 GB"}, {1 << 40, "1.0 TB"},
+		// Beyond the last unit it stays in it rather than inventing one.
+		{1 << 50, "1024.0 TB"},
+	} {
+		if got := storeBytes(tc.in); got != tc.want {
+			t.Errorf("storeBytes(%d) = %q, expected %q", tc.in, got, tc.want)
+		}
+	}
+}
