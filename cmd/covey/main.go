@@ -159,6 +159,7 @@ func usage() {
   covey egress-proxy      egress allowlist proxy (network isolation mode, in the container)
   covey config lint       check agent configs for known pitfalls (changes nothing)
   covey plugin lint <f>   check a target-system plugin file (manifest or MCP config)
+  covey style stats|check measure texts, or check one against a TONE.md profile
   covey settings [k v]    show the instance's settings, or set one (e.g. signup.mode waitlist)
   covey waitlist          list waitlist codes | new [-label L] [-uses N] [-days D] | revoke <hash>
   covey system-admin      list | add <email> | remove <email> — the instance level, not an org role
