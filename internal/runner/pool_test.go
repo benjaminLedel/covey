@@ -73,11 +73,11 @@ echo ok
 //
 // The order comes out right by itself: t.Cleanup runs last-registered-first, and
 // the TempDir's cleanup was registered before this one.
-func localNode(t *testing.T, runnerID, orgID uuid.UUID, dir string) *Node {
+func localNode(t *testing.T, runnerID, orgID uuid.UUID, dir, failOn string) *Node {
 	t.Helper()
 	node := NewNode(runnerID, orgID, &Docker{
 		RunnerID: runnerID, Image: "covey-sandbox:test", DataDir: dir,
-		DockerBin: fakeDockerBin(t, dir, "nothing"),
+		DockerBin: fakeDockerBin(t, dir, failOn),
 	}, quietLog())
 	t.Cleanup(node.Close)
 	return node
@@ -215,7 +215,7 @@ func TestPoolNeverAssignsAcrossOrganisations(t *testing.T) {
 	other := uuid.New()
 	p.EnsureLocal = func(ctx context.Context, orgID uuid.UUID) error {
 		id := uuid.New()
-		return p.AttachLocal(ctx, localNode(t, id, orgID, dir))
+		return p.AttachLocal(ctx, localNode(t, id, orgID, dir, "nothing"))
 	}
 	if _, err := p.Start(context.Background(), orchestrator.SandboxSpec{AgentID: uuid.New(), OrgID: other}); err != nil {
 		t.Fatalf("the new organisation should have got its built-in runner: %v", err)
@@ -237,9 +237,7 @@ func TestTheBuiltInRunnerLivesAsLongAsItsContext(t *testing.T) {
 	p := NewPool(quietLog())
 	life, end := context.WithCancel(context.Background())
 	id := uuid.New()
-	if err := p.AttachLocal(life, NewNode(id, org, &Docker{
-		RunnerID: id, Image: "covey-sandbox:test", DataDir: dir, DockerBin: fakeDockerBin(t, dir, "nothing"),
-	}, quietLog())); err != nil {
+	if err := p.AttachLocal(life, localNode(t, id, org, dir, "nothing")); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := p.pick(need{orgID: org}); err != nil {
@@ -272,7 +270,7 @@ func TestABuiltInRunnerStepsInWhenNothingIsConnected(t *testing.T) {
 	p.EnsureLocal = func(ctx context.Context, orgID uuid.UUID) error {
 		ensured++
 		id := uuid.New()
-		return p.AttachLocal(ctx, localNode(t, id, orgID, dir))
+		return p.AttachLocal(ctx, localNode(t, id, orgID, dir, "nothing"))
 	}
 	if _, err := p.Start(context.Background(), orchestrator.SandboxSpec{
 		AgentID: uuid.New(), OrgID: org, Image: "registry.example.com/team/dev:1",
@@ -296,9 +294,7 @@ func TestAStartThatFailsMovesToTheNextRunner(t *testing.T) {
 	p := NewPool(quietLog())
 	attach := func(dir, failOn string) uuid.UUID {
 		id := uuid.New()
-		if err := p.AttachLocal(context.Background(), NewNode(id, org, &Docker{
-			RunnerID: id, Image: "covey-sandbox:test", DataDir: dir, DockerBin: fakeDockerBin(t, dir, failOn),
-		}, quietLog())); err != nil {
+		if err := p.AttachLocal(context.Background(), localNode(t, id, org, dir, failOn)); err != nil {
 			t.Fatal(err)
 		}
 		return id
@@ -324,7 +320,7 @@ func TestTheFallbackStillRespectsTags(t *testing.T) {
 	p, _ := newLocalPool(t, dir, fakeDockerBin(t, dir, "nothing"), org)
 	p.EnsureLocal = func(ctx context.Context, orgID uuid.UUID) error {
 		id := uuid.New()
-		return p.AttachLocal(ctx, localNode(t, id, orgID, dir))
+		return p.AttachLocal(ctx, localNode(t, id, orgID, dir, "nothing"))
 	}
 	_, err := p.Start(context.Background(), orchestrator.SandboxSpec{
 		AgentID: uuid.New(), OrgID: org, RunnerTags: []string{"gpu"},
@@ -386,9 +382,7 @@ func TestTheOrderPrefersTheLastHostThenTheOneHoldingTheImage(t *testing.T) {
 	p := NewPool(quietLog())
 	attach := func(images []string) uuid.UUID {
 		id := uuid.New()
-		if err := p.AttachLocal(context.Background(), NewNode(id, org, &Docker{
-			RunnerID: id, Image: "covey-sandbox:test", DataDir: dir, DockerBin: fakeDockerBin(t, dir, "nothing"),
-		}, quietLog())); err != nil {
+		if err := p.AttachLocal(context.Background(), localNode(t, id, org, dir, "nothing")); err != nil {
 			t.Fatal(err)
 		}
 		p.SetCapabilities(id, nil, images, true)
@@ -593,9 +587,7 @@ func TestSchedulingNamesWhyNothingFits(t *testing.T) {
 	// An arm64 build host that holds only the base image — the case that
 	// catches people out after registering their first runner.
 	id := uuid.New()
-	node := NewNode(id, orgID, &Docker{
-		RunnerID: id, Image: "covey-sandbox:test", DataDir: dir, DockerBin: fakeDockerBin(t, dir, "nothing"),
-	}, quietLog())
+	node := localNode(t, id, orgID, dir, "nothing")
 	node.Tags = []string{"arm64"}
 	node.Images = []string{"covey-sandbox:test"}
 	if err := p.AttachLocal(ctx, node); err != nil {
@@ -655,10 +647,7 @@ func TestPoolCheckAsksTheRunnersAboutTheImagesInUse(t *testing.T) {
 		return map[string]int{"dev": 2}, nil // nobody on base
 	}
 	id := uuid.New()
-	node := NewNode(id, orgID, &Docker{
-		RunnerID: id, Image: "covey-sandbox:test", DataDir: dir,
-		DockerBin: fakeDockerBin(t, dir, "image"), // every image inspect fails
-	}, quietLog())
+	node := localNode(t, id, orgID, dir, "image") // every image inspect fails
 	if err := p.AttachLocal(ctx, node); err != nil {
 		t.Fatal(err)
 	}
@@ -681,10 +670,7 @@ func TestPoolCheckAsksTheRunnersAboutTheImagesInUse(t *testing.T) {
 	quiet.Profiles = map[string]string{sandbox.DefaultName(): "covey-sandbox:test"}
 	quietID := uuid.New()
 	quietDir := t.TempDir()
-	if err := quiet.AttachLocal(ctx, NewNode(quietID, orgID, &Docker{
-		RunnerID: quietID, Image: "covey-sandbox:test", DataDir: quietDir,
-		DockerBin: fakeDockerBin(t, quietDir, "nothing"),
-	}, quietLog())); err != nil {
+	if err := quiet.AttachLocal(ctx, localNode(t, quietID, orgID, quietDir, "nothing")); err != nil {
 		t.Fatal(err)
 	}
 	if problems := quiet.Check(ctx); len(problems) != 0 {
@@ -708,10 +694,7 @@ func TestCapacityReportsWhatTheRunnerCarries(t *testing.T) {
 	p.Profiles = map[string]string{sandbox.DefaultName(): "covey-sandbox:test"}
 	// The refresh runs at the heartbeat's tempo — at the speed of a test here.
 	p.HeartbeatEvery = 100 * time.Millisecond
-	node := NewNode(runnerID, orgID, &Docker{
-		RunnerID: runnerID, Image: "covey-sandbox:test", DataDir: dir,
-		DockerBin: fakeDockerBin(t, dir, "nothing"),
-	}, quietLog())
+	node := localNode(t, runnerID, orgID, dir, "nothing")
 	if err := p.AttachLocal(ctx, node); err != nil {
 		t.Fatal(err)
 	}
@@ -834,9 +817,7 @@ func TestHeartbeatKeepsARunnerAliveAndRefreshesLastSeen(t *testing.T) {
 	}
 
 	id := uuid.New()
-	node := NewNode(id, orgID, &Docker{
-		RunnerID: id, Image: "covey-sandbox:test", DataDir: dir, DockerBin: fakeDockerBin(t, dir, "nothing"),
-	}, quietLog())
+	node := localNode(t, id, orgID, dir, "nothing")
 	if err := p.AttachLocal(ctx, node); err != nil {
 		t.Fatal(err)
 	}
@@ -1098,7 +1079,7 @@ func TestARunnerThatDoesNotAnswerIsNoCandidate(t *testing.T) {
 	p.EnsureLocal = func(ctx context.Context, orgID uuid.UUID) error {
 		ensured++
 		id := uuid.New()
-		return p.AttachLocal(ctx, localNode(t, id, orgID, dir))
+		return p.AttachLocal(ctx, localNode(t, id, orgID, dir, "nothing"))
 	}
 	started := time.Now()
 	if _, err := p.Start(ctx, orchestrator.SandboxSpec{AgentID: uuid.New(), OrgID: org}); err != nil {
@@ -1170,9 +1151,7 @@ func TestAPauseSurvivesAReconnect(t *testing.T) {
 		return nil, nil, false, true, nil
 	}
 	id := uuid.New()
-	node := NewNode(id, org, &Docker{
-		RunnerID: id, Image: "covey-sandbox:test", DataDir: dir, DockerBin: fakeDockerBin(t, dir, "nothing"),
-	}, quietLog())
+	node := localNode(t, id, org, dir, "nothing")
 	t.Cleanup(node.Close)
 	if err := p.AttachLocal(ctx, node); err != nil {
 		t.Fatal(err)
@@ -1202,10 +1181,7 @@ func TestTheBuiltInRunnerIsTheLastCandidate(t *testing.T) {
 	// it stopped standing down.
 	builtinDir := t.TempDir()
 	builtinID := uuid.New()
-	if err := p.AttachLocal(ctx, NewNode(builtinID, org, &Docker{
-		RunnerID: builtinID, Image: "covey-sandbox:test", DataDir: builtinDir,
-		DockerBin: fakeDockerBin(t, builtinDir, "nothing"),
-	}, quietLog())); err != nil {
+	if err := p.AttachLocal(ctx, localNode(t, builtinID, org, builtinDir, "nothing")); err != nil {
 		t.Fatal(err)
 	}
 	// And a registered host beside it.
@@ -1214,10 +1190,7 @@ func TestTheBuiltInRunnerIsTheLastCandidate(t *testing.T) {
 	control, node := NewInProc()
 	defer control.Close()
 	go func() {
-		n := NewNode(remoteID, org, &Docker{
-			RunnerID: remoteID, Image: "covey-sandbox:test", DataDir: remoteDir,
-			DockerBin: fakeDockerBin(t, remoteDir, "nothing"),
-		}, quietLog())
+		n := localNode(t, remoteID, org, remoteDir, "nothing")
 		defer n.Close()
 		_ = n.Run(ctx, node)
 	}()
@@ -1323,10 +1296,7 @@ func TestAStartIsTakenBackFromAHostThatGoesDeaf(t *testing.T) {
 	// And the built-in one behind it, which is where the agent should end up.
 	dir := t.TempDir()
 	builtinID := uuid.New()
-	if err := p.AttachLocal(ctx, NewNode(builtinID, org, &Docker{
-		RunnerID: builtinID, Image: "covey-sandbox:test", DataDir: dir,
-		DockerBin: fakeDockerBin(t, dir, "nothing"),
-	}, quietLog())); err != nil {
+	if err := p.AttachLocal(ctx, localNode(t, builtinID, org, dir, "nothing")); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1382,10 +1352,7 @@ func TestAStartSaysWhatItIsWaitingFor(t *testing.T) {
 	// A docker whose `image inspect` fails: the image is not on this host, so
 	// the start has to announce the download.
 	runnerID := uuid.New()
-	node := NewNode(runnerID, org, &Docker{
-		RunnerID: runnerID, Image: "covey-sandbox:test", DataDir: dir,
-		DockerBin: fakeDockerBin(t, dir, "image"),
-	}, quietLog())
+	node := localNode(t, runnerID, org, dir, "image")
 	t.Cleanup(node.Close)
 	if err := p.AttachLocal(ctx, node); err != nil {
 		t.Fatal(err)
@@ -1427,9 +1394,7 @@ func TestAFullHostIsNoCandidate(t *testing.T) {
 	p := NewPool(quietLog())
 	attach := func() uuid.UUID {
 		id := uuid.New()
-		if err := p.AttachLocal(context.Background(), NewNode(id, org, &Docker{
-			RunnerID: id, Image: "covey-sandbox:test", DataDir: dir, DockerBin: fakeDockerBin(t, dir, "nothing"),
-		}, quietLog())); err != nil {
+		if err := p.AttachLocal(context.Background(), localNode(t, id, org, dir, "nothing")); err != nil {
 			t.Fatal(err)
 		}
 		return id
