@@ -321,3 +321,103 @@ func TestConfigAssistantWithoutACredential(t *testing.T) {
 	admin.expect(http.MethodPost, "/api/v1/agents/keine-uuid/config/assist",
 		map[string]any{}, http.StatusBadRequest)
 }
+
+// A bundle carries more than the config files, and the point of the import is
+// that all of it arrives: the board's columns, the guard rails, the egress
+// templates with their hosts, the skills in full — and the NAMES of the
+// secrets, never their values, because a bundle travels and a secret must not.
+func TestAFullBundleArrivesCompletely(t *testing.T) {
+	s := newStack(t)
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+
+	bundle := map[string]any{
+		"kind":    "covey.agent-config",
+		"version": 1,
+		"agent": map[string]any{
+			"slug": "voll-agent", "display_name": "Voll Ausgestattet",
+			"runtime": "mock", "max_turns": 25,
+		},
+		"files": map[string]any{
+			"SOUL.md":   "# Voll\n\n## Role\nAlles dabei.",
+			"ACCESS.md": "- system: zammad scope: read,write",
+		},
+		"stages": []any{
+			map[string]any{"name": "In Prüfung", "color": "#cc7a5b"},
+			map[string]any{"name": "Wartet", "color": "#6b675e"},
+		},
+		"guardrails": []any{
+			map[string]any{"rule_type": "deny_action", "pattern": "zammad:delete_ticket", "enabled": true},
+		},
+		"egress_templates": []any{
+			map[string]any{"name": "Zammad", "description": "das Ticketsystem", "hosts": []any{
+				map[string]any{"pattern": "zammad.example.test", "note": "API"},
+			}},
+		},
+		"skills": []any{
+			map[string]any{"name": "rueckfrage", "description": "wie man nachfragt", "origin": "agent",
+				"files": map[string]any{"SKILL.md": "---\nname: rueckfrage\ndescription: wie man nachfragt\n---\n\nFrag nach."}},
+		},
+		"secrets": map[string]any{"org_keys": []string{"zammad_token"}},
+	}
+
+	made := admin.expect(http.MethodPost, "/api/v1/agents/import", bundle, http.StatusCreated)
+	agent, _ := made["agent"].(map[string]any)
+	if agent == nil {
+		t.Fatalf("no agent came out: %v", made)
+	}
+	id, _ := agent["id"].(string)
+	if id == "" {
+		t.Fatalf("the imported agent has no id: %v", agent)
+	}
+
+	// A bundle naming a secret the instance does not have cannot assign it, and
+	// says so rather than producing an agent that fails at its first run for a
+	// reason nobody wrote down.
+	warnings, _ := made["warnings"].([]any)
+	if len(warnings) == 0 {
+		t.Error("the import reported nothing at all — the draft alone is worth a sentence")
+	}
+
+	stages := admin.expectList(http.MethodGet, "/api/v1/agents/"+id+"/stages", nil, http.StatusOK)
+	if len(stages) < 2 {
+		t.Errorf("the board's columns did not arrive: %v", stages)
+	}
+	rails := admin.expectList(http.MethodGet, "/api/v1/guardrails", nil, http.StatusOK)
+	if len(rails) == 0 {
+		t.Error("the guard rail did not arrive")
+	}
+	templates := admin.expectList(http.MethodGet, "/api/v1/egress/templates", nil, http.StatusOK)
+	if len(templates) == 0 {
+		t.Error("the egress template did not arrive")
+	}
+	skills := admin.expectList(http.MethodGet, "/api/v1/agents/"+id+"/skills", nil, http.StatusOK)
+	if len(skills) == 0 {
+		t.Error("the skill did not arrive")
+	}
+
+	// And what comes back out is the same bundle again: that is what makes it
+	// a way to pass a configuration on rather than a one-way export.
+	back := admin.expect(http.MethodGet, "/api/v1/agents/"+id+"/export", nil, http.StatusOK)
+	for _, part := range []string{"stages", "guardrails", "skills"} {
+		if back[part] == nil {
+			t.Errorf("the export dropped %q", part)
+		}
+	}
+	// The egress templates are the exception, and deliberately so: the export
+	// carries the ones ASSIGNED to this agent, not every template the
+	// organisation has. An import creates the template but assigns nothing —
+	// what an agent may reach is a decision somebody makes here, not one a
+	// bundle brings along.
+	tid, _ := templates[0]["id"].(string)
+	admin.expect(http.MethodPut, "/api/v1/agents/"+id+"/egress/templates/"+tid, nil, http.StatusOK)
+	withEgress := admin.expect(http.MethodGet, "/api/v1/agents/"+id+"/export", nil, http.StatusOK)
+	if withEgress["egress_templates"] == nil {
+		t.Error("an assigned egress template is still missing from the export")
+	}
+	// Never the values — only the names.
+	if secrets, ok := back["secrets"].(map[string]any); ok {
+		if _, leaked := secrets["values"]; leaked {
+			t.Error("the export carries secret values")
+		}
+	}
+}
