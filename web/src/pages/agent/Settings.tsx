@@ -121,8 +121,13 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
     mutationFn: (slug: string) => patch(`/agents/${agent.id}/slug`, { slug }),
     onSuccess: invalidate,
   });
+  // Die Antwort trägt eine Warnung, wenn die CLI der gewählten Engine hier
+  // nirgends zu finden ist (#221). Sie verweigert nichts — ein Image kann
+  // nachziehen — aber sie steht neben der Auswahl, statt erst als
+  // fehlgeschlagene Aufgabe aufzutauchen.
   const setRuntime = useMutation({
-    mutationFn: (runtime: string) => patch(`/agents/${agent.id}/runtime`, { runtime }),
+    mutationFn: (runtime: string) =>
+      patch<{ ok: boolean; warning?: string }>(`/agents/${agent.id}/runtime`, { runtime }),
     onSuccess: invalidate,
   });
   const setModel = useMutation({
@@ -314,6 +319,11 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
         </select>
         <span className="muted text-xs">{t("agent.settings.runtimeHint")}</span>
       </div>
+      {setRuntime.data?.warning && (
+        <p className="text-xs" style={{ color: "var(--warning, #b45309)", margin: "0 0 8px" }}>
+          {setRuntime.data.warning}
+        </p>
+      )}
       <div style={row}>
         <span className="text-sm">{t("agent.settings.model")}</span>
         {models.length > 0 ? (

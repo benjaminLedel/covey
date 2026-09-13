@@ -83,6 +83,15 @@ type FeedItem = { key: string } & (
 // stehen auf jeder Zeile, task nur auf der ERSTEN.
 export type SubAgentMark = { dir: string; run?: string; task?: string };
 
+// reasonSuffix hängt den Grund an eine Statuszeile — leer, wenn keiner
+// mitkam, damit der Text nicht auf einem Gedankenstrich endet. Der Grund
+// selbst ist Programmausgabe und wird nicht übersetzt; übersetzt wird nur,
+// wie er angesetzt wird (dieselbe Form wie bei der Credential-Zeile).
+export function reasonSuffix(reason: unknown): string {
+  const text = typeof reason === "string" ? reason.trim() : "";
+  return text ? i18n.t("activity.taskFailedReason", { reason: text }) : "";
+}
+
 // subAgentMark liest die Markierung aus einem Recording-Event. null = das
 // Event gehört zum äußeren Lauf.
 export function subAgentMark(e: RecordingEvent): SubAgentMark | null {
@@ -514,7 +523,17 @@ function buildItems(events: RecordingEvent[], nested: boolean): FeedItem[] {
         } else if (status === "task_done") {
           items.push({ key: k, kind: "gate", icon: "check", text: i18n.t("activity.taskDone"), time, tone: "ok" });
         } else if (status === "task_failed") {
-          items.push({ key: k, kind: "gate", icon: "x", text: i18n.t("activity.taskFailed"), time, tone: "danger" });
+          // Mit dem Grund, nicht nur mit dem Status: Ein „fehlgeschlagen" ohne
+          // Ursache schickt den Leser weitersuchen, und der Text stand vorher
+          // nur im error-Feld der Aufgabe (#221).
+          items.push({
+            key: k,
+            kind: "gate",
+            icon: "x",
+            text: i18n.t("activity.taskFailed", { reason: reasonSuffix(p.error) }),
+            time,
+            tone: "danger",
+          });
         } else if (status === "task_blocked") {
           items.push({
             key: k,

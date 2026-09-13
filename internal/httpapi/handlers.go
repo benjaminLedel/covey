@@ -14,6 +14,7 @@ import (
 	"covey/internal/agents"
 	"covey/internal/backlog"
 	"covey/internal/daemon"
+	"covey/internal/doctor"
 	"covey/internal/guardrails"
 	"covey/internal/identity"
 	"covey/internal/memory"
@@ -847,7 +848,18 @@ func (s *Server) handleSetRuntime(w http.ResponseWriter, r *http.Request) {
 	if getErr == nil {
 		s.reseatOnEngineChange(r.Context(), principalFrom(r).OrgID, a, in.Runtime)
 	}
-	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	// Warned, never refused: a CLI can catch up — a new image, a catalogue
+	// entry, a path on the host — and refusing here would force the ORDER to be
+	// right rather than the outcome. What must not happen again is silence: the
+	// engine was assigned, nothing said the binary was nowhere to be found, and
+	// the answer arrived as the first failed task (#221).
+	out := map[string]any{"ok": true}
+	if s.Config != nil {
+		if w := doctor.LookupEngineOrigin(r.Context(), *s.Config, s.Pool, in.Runtime).AssignmentWarning(); w != "" {
+			out["warning"] = w
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // reseatOnEngineChange moves an agent onto a seat of its engine, if the one it

@@ -2643,8 +2643,20 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 					"agent", agent.Slug, "task", taskID, "err", err)
 			}
 		}
-		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
-			map[string]string{"status": "task_" + d.Status})
+		// The reason travels with the status. It used to stand only in the
+		// task's `error` field, so the recording — the documented place to look
+		// when a run went wrong — showed `task_failed` and nothing beside it,
+		// and at a heartbeat agent that repeated itself silently every interval
+		// (#221). A status without a reason is the most expensive kind of
+		// event: it says keep looking, but not where.
+		//
+		// Capped, because the text comes from the run: the recording is read by
+		// a person, and the whole of a CLI's stderr belongs to the task.
+		fields := map[string]string{"status": "task_" + d.Status}
+		if reason := strings.TrimSpace(d.Error); reason != "" {
+			fields["error"] = truncateRunes(reason, lifecycleReasonRunes)
+		}
+		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle, fields)
 		o.publishTask(taskID, agent)
 		return true, nil
 
@@ -3138,6 +3150,12 @@ func (o *Orchestrator) brokerWiki(ctx context.Context, agent agents.Agent, req d
 		return fail("unknown wiki operation: " + req.Op)
 	}
 }
+
+// lifecycleReasonRunes caps the reason a lifecycle event carries. Long enough
+// for the sentence a failed run opens with — "executable file not found in
+// $PATH" and its like — and short enough that the recording stays a list of
+// events rather than a log file.
+const lifecycleReasonRunes = 500
 
 func truncateRunes(s string, n int) string {
 	r := []rune(s)

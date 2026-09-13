@@ -47,10 +47,12 @@ import (
 	"strings"
 )
 
-// sevencodeDefaultBinary is the CLI name; COVEY_SEVENCODE_BIN overrides it (the
-// idiom the other engines use, and what the test against a fake binary relies
-// on).
-const sevencodeDefaultBinary = "sevencode"
+// The CLI name and the variable that overrides it — the idiom the other engines
+// use, and what the test against a fake binary relies on.
+const (
+	sevencodeDefaultBinary = "sevencode"
+	sevencodeBinEnv        = "COVEY_SEVENCODE_BIN"
+)
 
 // sevencodeErrTail is how much of the CLI's stderr a failed run carries into the
 // task's error text. The first bytes, not the last: a CLI says what went wrong
@@ -69,7 +71,7 @@ type SevenCode struct {
 }
 
 func NewSevenCode() *SevenCode {
-	bin := strings.TrimSpace(os.Getenv("COVEY_SEVENCODE_BIN"))
+	bin := strings.TrimSpace(os.Getenv(sevencodeBinEnv))
 	if bin == "" {
 		bin = sevencodeDefaultBinary
 	}
@@ -98,6 +100,7 @@ func init() {
 			{Kind: CredSubscription, Label: "Account login",
 				Secret: "sevencode_credentials_json", Path: ".sevencode/credentials.json"},
 		},
+		CLI: RuntimeCLI{Name: sevencodeDefaultBinary, Env: sevencodeBinEnv},
 		Capabilities: RuntimeCapabilities{
 			// False until the session id can be read back — see the package
 			// comment. An engine that cannot resume carries agents that finish in

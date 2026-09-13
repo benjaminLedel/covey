@@ -21,8 +21,20 @@ type RuntimeDescriptor struct {
 	// every engine covers all of it, and the difference has to be visible when
 	// an agent is assigned rather than when the first run fails.
 	Capabilities RuntimeCapabilities `json:"capabilities"`
-	Setup        []SetupStep         `json:"setup"`
-	New          func() Runtime      `json:"-"` // factory of the implementation (daemon side)
+	// CLI is the command this engine runs in the sandbox, and the variable that
+	// names another path for it. Declared rather than derived, because neither
+	// half follows from the engine's name: `claude-code` runs `claude` and reads
+	// COVEY_CLAUDE_BIN, and `educa-ai` drives that same binary against another
+	// endpoint. The engine catalogue spells the variable out for the same reason
+	// (spec/26) — this is the daemon's side of the same fact.
+	//
+	// It is declared so that the question "will this engine even start here?"
+	// can be asked BEFORE the first task, which is where it used to be answered
+	// (#221). An empty Name means the engine needs no CLI — the mock — and then
+	// nothing is checked for it.
+	CLI   RuntimeCLI     `json:"cli"`
+	Setup []SetupStep    `json:"setup"`
+	New   func() Runtime `json:"-"` // factory of the implementation (daemon side)
 }
 
 // Credential kinds. Stable identifiers within an engine — a configured runtime
@@ -57,6 +69,17 @@ type RuntimeCredential struct {
 // It decides the honest unit of a limit: money where money is spent, the window
 // quota where it is not.
 func (c RuntimeCredential) Metered() bool { return c.Kind == CredAPIKey }
+
+// RuntimeCLI is the executable an engine needs in the sandbox.
+type RuntimeCLI struct {
+	// Name is the command as it is called when nothing overrides it ("claude").
+	// Empty = the engine needs no binary.
+	Name string `json:"name,omitempty"`
+	// Env is the variable that names a path instead — the one the runner sets
+	// when it materialises the engine from the catalogue, and the one an
+	// operator sets to point at their own build.
+	Env string `json:"env,omitempty"`
+}
 
 // RuntimeCapabilities are the declared properties of an engine.
 type RuntimeCapabilities struct {
@@ -173,6 +196,13 @@ func AcceptsModel(runtime, model string) bool {
 		return model == ""
 	}
 	return d.AcceptsModel(model)
+}
+
+// CLI returns what an engine needs in the sandbox: the command and the variable
+// that names another path for it. An engine this build does not register has
+// none — which is the honest answer, not a claim that it needs nothing.
+func CLI(runtime string) RuntimeCLI {
+	return runtimeRegistry[runtime].CLI
 }
 
 // EffortLevels returns the levels an engine accepts — by name, so the control

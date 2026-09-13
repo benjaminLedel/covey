@@ -29,10 +29,19 @@ type ClaudeCode struct {
 	CredentialHint func(raw string) string
 }
 
+// The CLI this adapter runs, and the variable that names another path for it.
+// One place, read by the constructor below and declared in the descriptor, so
+// that whoever asks the registry "what does this engine need in the sandbox?"
+// gets the same answer the run uses.
+const (
+	claudeDefaultBinary = "claude"
+	claudeBinEnv        = "COVEY_CLAUDE_BIN"
+)
+
 func NewClaudeCode() *ClaudeCode {
-	bin := os.Getenv("COVEY_CLAUDE_BIN")
+	bin := os.Getenv(claudeBinEnv)
 	if bin == "" {
-		bin = "claude"
+		bin = claudeDefaultBinary
 	}
 	return &ClaudeCode{Binary: bin}
 }
@@ -50,6 +59,7 @@ func init() {
 			{Kind: CredSubscription, Label: "Subscription",
 				Secret: "claude_code_oauth_token", EnvVar: "CLAUDE_CODE_OAUTH_TOKEN"},
 		},
+		CLI: RuntimeCLI{Name: claudeDefaultBinary, Env: claudeBinEnv},
 		Capabilities: RuntimeCapabilities{Resume: true, SkillsDir: ".claude/skills",
 			// The levels of `--effort`, in the binary's own spelling and order.
 			// They are declared here rather than in the HTTP layer so that an

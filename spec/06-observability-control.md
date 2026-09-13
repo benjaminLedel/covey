@@ -85,6 +85,8 @@ Complete recording of every agent activity, fed from the daemon's `event` messag
 
 Recording is the basis for audit, debugging, cost analysis and the supervisor evaluation. It is immutable and navigable in time per agent/task.
 
+**A state that ends a run carries its reason.** `task_failed` used to be recorded as the bare status, while the sentence that says what went wrong stood only in the task's `error` field — so whoever followed the documented path to the cause found the statement that there was one. A status without a reason is the most expensive kind of event: it says keep looking, but not where, and at a heartbeat agent it repeats itself every interval without anybody seeing more. The reason therefore travels in the same event, capped, because the recording is read by a person and the whole of a CLI's stderr belongs to the task.
+
 **Sub-runs stay distinguishable.** When an agent hands work to a sub-agent in the project checkout ([`12-claude-code-adapter.md`](12-claude-code-adapter.md)), that work lands under the same agent and task ID in the same recording — otherwise it would be neither billable nor auditable. So that you can nevertheless see **who** did what, those lines carry a marker with an identifier for the run, and the timeline collapses everything under one identifier into a single folded block: a header with the checkout, the assignment, the status and key figures (tool calls, turns, duration, cost), and the sub-agent's turns when expanded. Without that bracket its work would stand indistinguishably among the commissioning agent's own.
 
 ### How long the verbatim record is kept

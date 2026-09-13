@@ -30,10 +30,16 @@ type Codex struct {
 	Binary string
 }
 
+// The CLI and its override, in one place — see the pair in runtime_claudecode.go.
+const (
+	codexDefaultBinary = "codex"
+	codexBinEnv        = "COVEY_CODEX_BIN"
+)
+
 func NewCodex() *Codex {
-	bin := os.Getenv("COVEY_CODEX_BIN")
+	bin := os.Getenv(codexBinEnv)
 	if bin == "" {
-		bin = "codex"
+		bin = codexDefaultBinary
 	}
 	return &Codex{Binary: bin}
 }
@@ -58,6 +64,7 @@ func init() {
 			{Kind: CredSubscription, Label: "ChatGPT plan",
 				Secret: "codex_auth_json", Path: ".codex/auth.json"},
 		},
+		CLI: RuntimeCLI{Name: codexDefaultBinary, Env: codexBinEnv},
 		Capabilities: RuntimeCapabilities{
 			// Deliberately false until verified against the binary — see the
 			// package comment. An engine that cannot resume carries agents that

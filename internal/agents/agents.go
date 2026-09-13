@@ -479,6 +479,32 @@ func (r *Registry) SandboxImagesInUse(ctx context.Context) (map[string]int, erro
 	return out, rows.Err()
 }
 
+// EnginesInUse counts the agents per engine — the basis for the check "can this
+// engine even start on this host?" (#221). The engine is the agent's own field,
+// not the seat's: an agent without a seat still has an engine, and it is that
+// engine's CLI that has to exist before the first task.
+//
+// Drafts count, like the workplaces above: they are hired at some point, and
+// the binary has to be there then.
+func (r *Registry) EnginesInUse(ctx context.Context) (map[string]int, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT runtime, count(*) FROM agents WHERE NOT killed AND runtime <> '' GROUP BY runtime`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int{}
+	for rows.Next() {
+		var engine string
+		var n int
+		if err := rows.Scan(&engine, &n); err != nil {
+			return nil, err
+		}
+		out[engine] = n
+	}
+	return out, rows.Err()
+}
+
 // AgentsPerWorkplace names the agents per workplace instead of counting them —
 // the difference between "3 agents" and "which three".
 //
