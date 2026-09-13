@@ -1,6 +1,6 @@
 # 24 — Voice: an author's style as an object an agent carries
 
-**Status: design (issue #195). Slice 1 exists in the covey-style skill; slices 2 and 3 are open.**
+**Status: slice 2 is built (issue #195). Slice 1 exists in the covey-style skill; slice 3 (correction pairs) is open.**
 
 The style gate ([`06-observability-control.md`](06-observability-control.md)) holds an agent's outgoing text inside bands measured from a corpus. The bands say *how far* a text is from the corpus; they cannot make the text sound like the corpus's author. This document describes what does, and how it becomes an object in covey.
 
@@ -51,14 +51,20 @@ The build is deterministic apart from the card: the same corpus gives the same p
 
 The strongest signal for imitation is a pair: the agent's version of a text and the person's version of the same text. When a person edits an agent's text in a target system — a CMS post, a wiki page — covey stores the pair to the voice the agent carried. The next build shows the model the transformation directly, as before/after, which it learns better than from rules. A voice that collects pairs gets more exact with every correction, without anyone maintaining a corpus. The pairs stay in the organisation; they never leave it as training data.
 
-## In covey (slice 2)
+## In covey (slice 2, built)
 
-- `internal/voice` on top of `internal/style`: the build (`Build(corpus) → Voice`), exemplar selection, the contrast against the shipped reference, the card prompt through `llm.Resolve`.
-- Tables `voices` (organisation, name, language, version, released card) and `voice_documents` (the uploaded texts, per voice); a migration of their own.
-- The library page `Voices` beside Skills: upload, build with the cost shown, the card for release, versions.
-- The tone picker in the agent settings (noted on #183): choosing a voice writes `TONE.md` from `VOICE.md`; the file is versioned with the rest of the config, so a change of voice is a config version like any other ([`02`](02-agent-model.md)).
-- API: `/api/v1/voices`, `/api/v1/voices/{id}/build`, `/api/v1/voices/{id}/release`; RBAC as for skills.
+- `internal/voice` on top of `internal/style`: `Build(corpus, lang, reference) → Built` (profile, exemplars, contrast, notes), the card through `llm.Resolve`, and `Render(voice)` writing the `TONE.md`. The three measured artefacts are deterministic; only the card is a model call.
+- Tables `voices` and `voice_documents` (migration 0090), plus `agents.voice_id` — what ACTS is the file in the agent's config, the column says whose voice it is.
+- The library page *Voices* beside Skills: the corpus, the build with its notes, the card to correct and release, the passages, the contrast, and the rendered `TONE.md` behind a fold — because the four artefacts on their own do not say what actually reaches a prompt.
+- The picker in the agent settings: assigning writes `TONE.md` as a new config version, so a change of voice is reviewable and revertible where every other change to an agent is ([`02`](02-agent-model.md)). Taking a voice off clears the link and LEAVES the file: removing it would change how an agent writes as a side effect of a picker.
+- API: `/api/v1/voices` (+ `/documents`, `/build`, `/release`) and `PUT /api/v1/agents/{id}/voice`; RBAC as for skills, the release included — that is the moment a description of somebody's hand starts appearing in every prompt of every agent carrying the voice.
 - Ten locale catalogues for the UI text.
+
+Two things turned out differently from the design above, and both for the same reason — not claiming what was not measured:
+
+**The reference corpus is uploaded, not shipped.** The contrast list needs AI text to measure against, and a reference corpus nobody measured would be a number invented with a straight face. So a voice's corpus has two poles (`kind: author | reference`), the contrast appears once the second one exists, and until then the build says so in a note rather than showing an empty list. The organisation running writing agents has the honest reference: its own drafts.
+
+**A build without a model still produces three quarters.** An installation without a control-plane credential gets profile, exemplars and contrast, and a note saying why there is no card. A feature that refuses everything because one of its four parts needs a model would make the other three unreachable.
 
 ## Slice 1 (done in covey-style)
 

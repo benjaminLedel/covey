@@ -50,6 +50,7 @@ import (
 	"covey/internal/skills"
 	targetstore "covey/internal/target/store"
 	"covey/internal/templates"
+	"covey/internal/voice"
 	"covey/internal/waitlist"
 	"covey/internal/workplaces"
 )
@@ -98,6 +99,10 @@ type Server struct {
 	// nil = feature switched off; the skill routes then answer with 503
 	// (the same meaning as orchestrator.Options.Skills == nil).
 	Skills *skills.Store
+	// Voices is the organisation's style library (spec/24). nil = the feature
+	// is not configured on this instance, and the API says so rather than
+	// panicking.
+	Voices *voice.Store
 	Orch   *orchestrator.Orchestrator
 	WebFS  fs.FS // dist of the SPA; nil = API only
 	Log    *slog.Logger
@@ -593,6 +598,21 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /api/v1/skills/{id}/agents/{agentID}", s.rbac(manage, s.handleUnassignSkill))
 	mux.Handle("GET /api/v1/agents/{id}/skills", s.agentScoped(anyRole, s.handleAgentSkills))
 	mux.Handle("POST /api/v1/agents/{id}/skills", s.agentScoped(manage, s.handleCreateAgentSkill))
+
+	// Voices: the style library beside the skills (spec/24). Read for every
+	// role — a voice describes how to write, not a secret — changed by the
+	// manage roles, including the release: that is the moment a description of
+	// somebody's hand starts appearing in every prompt of every agent that
+	// carries it.
+	mux.Handle("GET /api/v1/voices", s.rbac(anyRole, s.handleListVoices))
+	mux.Handle("POST /api/v1/voices", s.rbac(manage, s.handleCreateVoice))
+	mux.Handle("GET /api/v1/voices/{id}", s.rbac(anyRole, s.handleGetVoice))
+	mux.Handle("DELETE /api/v1/voices/{id}", s.rbac(manage, s.handleDeleteVoice))
+	mux.Handle("POST /api/v1/voices/{id}/documents", s.rbac(manage, s.handleAddVoiceDocument))
+	mux.Handle("DELETE /api/v1/voices/{id}/documents/{docID}", s.rbac(manage, s.handleDeleteVoiceDocument))
+	mux.Handle("POST /api/v1/voices/{id}/build", s.rbac(manage, s.handleBuildVoice))
+	mux.Handle("POST /api/v1/voices/{id}/release", s.rbac(manage, s.handleReleaseVoiceCard))
+	mux.Handle("PUT /api/v1/agents/{id}/voice", s.agentScoped(manage, s.handleSetAgentVoice))
 
 	// Template library.
 	mux.Handle("GET /api/v1/templates", s.rbac(anyRole, s.handleListTemplates))

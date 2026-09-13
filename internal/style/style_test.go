@@ -389,3 +389,27 @@ func indexOf(s, sub string) int {
 	}
 	return -1
 }
+
+// BandValues keeps exactly the metrics a profile has bands for — a corpus value
+// without a band would be a number in the file that nothing reads. It moved
+// here from the CLI when the voice build became its second caller: one fact,
+// one place.
+func TestBandValues(t *testing.T) {
+	corpus := map[string]float64{"erfunden_metrik": 1}
+	var known string
+	for k := range Label {
+		known = k
+		break
+	}
+	if known == "" {
+		t.Skip("the style package declares no labelled metric")
+	}
+	corpus[known] = 2
+	got := BandValues(corpus)
+	if _, ok := got["erfunden_metrik"]; ok {
+		t.Error("a metric without a band was kept")
+	}
+	if got[known] != 2 {
+		t.Errorf("the labelled metric is missing: %v", got)
+	}
+}

@@ -83,10 +83,10 @@ type FeedItem = { key: string } & (
 // stehen auf jeder Zeile, task nur auf der ERSTEN.
 export type SubAgentMark = { dir: string; run?: string; task?: string };
 
-// reasonSuffix hängt den Grund an eine Statuszeile — leer, wenn keiner
-// mitkam, damit der Text nicht auf einem Gedankenstrich endet. Der Grund
-// selbst ist Programmausgabe und wird nicht übersetzt; übersetzt wird nur,
-// wie er angesetzt wird (dieselbe Form wie bei der Credential-Zeile).
+// reasonSuffix appends the reason to a status line — empty when none came
+// along, so the text does not end on a dash. The reason itself is program
+// output and is not translated; what is translated is only how it is attached
+// (the same shape the credential line uses).
 export function reasonSuffix(reason: unknown): string {
   const text = typeof reason === "string" ? reason.trim() : "";
   return text ? i18n.t("activity.taskFailedReason", { reason: text }) : "";
@@ -523,9 +523,9 @@ function buildItems(events: RecordingEvent[], nested: boolean): FeedItem[] {
         } else if (status === "task_done") {
           items.push({ key: k, kind: "gate", icon: "check", text: i18n.t("activity.taskDone"), time, tone: "ok" });
         } else if (status === "task_failed") {
-          // Mit dem Grund, nicht nur mit dem Status: Ein „fehlgeschlagen" ohne
-          // Ursache schickt den Leser weitersuchen, und der Text stand vorher
-          // nur im error-Feld der Aufgabe (#221).
+          // With the reason, not only the status: a "failed" without a cause
+          // sends the reader on looking, and the text used to stand only in
+          // the task's error field (#221).
           items.push({
             key: k,
             kind: "gate",

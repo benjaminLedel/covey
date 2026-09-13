@@ -41,6 +41,7 @@ const Inbox = lazy(() => import("./pages/Inbox"));
 const Guardrails = lazy(() => import("./pages/Guardrails"));
 const Secrets = lazy(() => import("./pages/Secrets"));
 const Skills = lazy(() => import("./pages/Skills"));
+const Voices = lazy(() => import("./pages/Voices"));
 const Administration = lazy(() => import("./pages/Administration"));
 const Platform = lazy(() => import("./pages/Platform"));
 const Org = lazy(() => import("./pages/Org"));
@@ -393,6 +394,7 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
           <NavItem to="/secrets" icon="key" label={t("nav.secrets")} />
           <NavItem to="/targets" icon="plug" label={t("nav.targets")} />
           <NavItem to="/skills" icon="book" label={t("nav.skills")} />
+          <NavItem to="/voices" icon="book" label={t("nav.voices")} />
           <NavItem to="/templates" icon="copy" label={t("nav.templates")} />
           <NavItem to="/infrastructure" icon="server" label={t("nav.infrastructure")} />
         </div>
@@ -504,6 +506,7 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
             <Route path="/agents/:id" element={<AgentPage me={me} />} />
             <Route path="/templates" element={<Templates me={me} />} />
             <Route path="/skills" element={<Skills me={me} />} />
+            <Route path="/voices" element={<Voices me={me} />} />
             <Route path="/org" element={<Org />} />
             <Route path="/costs" element={<Costs />} />
             <Route path="/people/:id" element={<PersonPage me={me} />} />
