@@ -139,6 +139,25 @@ type Placed interface {
 	Runner() (uuid.UUID, string)
 }
 
+// OnImage is the optional half of a sandbox that knows which image it is
+// actually running — the reference it was started with, and what that
+// reference resolved to on its host at that moment.
+//
+// It exists because the two can drift apart and nothing said so. A fixed
+// plugin was merged, the pack tagged, the instance deployed, and the agent went
+// on answering as before for half an hour: the target-system plugins run in the
+// SANDBOX, and a sandbox that keeps running keeps the image it started with
+// (#217). The agent page showed the control plane's version and commit, which
+// were right — the half that was wrong had nowhere to be shown.
+//
+// Optional like Placed beside it: a provider without images to speak of does
+// not implement it, and then nothing is claimed rather than something invented.
+type OnImage interface {
+	// Image names what this sandbox runs: the reference, and docker's identity
+	// for it (sha256:…). Either may be empty when the host could not be asked.
+	Image() (ref, id string)
+}
+
 // DataPlaneChecker is the optional self-check of a SandboxProvider: can it
 // start a sandbox at all, asked without starting one.
 //

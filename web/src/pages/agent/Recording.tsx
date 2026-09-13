@@ -41,7 +41,16 @@ export function Recording({
   // zusieht.
   const host = useQuery({
     queryKey: ["placement", agentId],
-    queryFn: () => api<{ runner_id?: string; runner_name?: string; live: boolean }>(`/agents/${agentId}/placement`),
+    queryFn: () =>
+      api<{
+        runner_id?: string;
+        runner_name?: string;
+        live: boolean;
+        image?: string;
+        image_id?: string;
+        image_now?: string;
+        outdated?: boolean;
+      }>(`/agents/${agentId}/placement`),
     refetchInterval: 5000,
   });
   return (
@@ -51,6 +60,15 @@ export function Recording({
           <span className="muted text-sm">
             {host.data.live ? t("agent.recording.runsOn") : t("agent.recording.ranOn")}{" "}
             <Link to={`/infrastructure/runners/${host.data.runner_id}`}>{host.data.runner_name}</Link>
+          </span>
+        )}
+        {/* Welches Image die laufende Sandbox tatsächlich benutzt. Die Seite
+            zeigte Version und Commit der CONTROL PLANE — und genau die stimmte,
+            während der Agent eine halbe Stunde lang mit dem Code von vorgestern
+            antwortete (#217). Ein Hinweis, kein Neustart. */}
+        {host.data?.outdated && (
+          <span className="text-sm" style={{ color: "var(--warning, #b45309)" }} title={host.data.image}>
+            {t("agent.recording.olderWorkplace")}
           </span>
         )}
         {taskFilter && (

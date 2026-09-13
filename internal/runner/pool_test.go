@@ -1758,3 +1758,43 @@ func TestEinWeckrufLoeschtNichtDieSitzungDesLetztenLaufs(t *testing.T) {
 		t.Errorf("der Schnappschuss wurde nicht materialisiert: %v", err)
 	}
 }
+
+// A sandbox that keeps running keeps the image it started with. Nothing said
+// which one that was, so a merged and deployed plugin fix looked like a fix
+// that did not work: the agent's page showed the CONTROL PLANE's version, which
+// was right, while the sandbox went on running the code of the day before
+// yesterday (#217).
+//
+// The host is the only one that can answer it — it is the one that ran
+// `docker run`, the same reason the services already report their image.
+func TestASandboxSaysWhichImageItIsRunning(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	org := uuid.New()
+	p, _ := newLocalPool(t, dir, fakeDockerBin(t, dir, "nothing"), org)
+
+	const want = "ghcr.io/benjaminledel/covey-sandbox@sha256:aaaaaaaa"
+	sb, err := p.Start(context.Background(), orchestrator.SandboxSpec{
+		AgentID: uuid.New(), OrgID: org, Image: want,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	onImage, ok := sb.(orchestrator.OnImage)
+	if !ok {
+		t.Fatal("a sandbox of the pool has to say which image it runs")
+	}
+	ref, id := onImage.Image()
+	if ref != want {
+		t.Errorf("ref = %q, expected the image the start was given", ref)
+	}
+	// What the reference resolved to on the host. The fake docker answers
+	// every inspect with the same word — what is being held here is that the
+	// host is asked at all, because the reference alone is not the answer when
+	// an instance names a tag of its own.
+	if id == "" {
+		t.Error("the host's own identity for the image is missing")
+	}
+}

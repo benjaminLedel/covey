@@ -1341,6 +1341,11 @@ export type Workplace = {
   kind?: "catalog" | "own";
   /** Wer hier arbeitet — benannt, nicht gezählt. */
   agents?: { id: string; slug: string; display_name: string }[];
+  /* Wer davon noch auf einem ÄLTEREN Image läuft: Eine Sandbox behält das
+     Image, mit dem sie gestartet ist, und ein warmer Agent startet nie wieder.
+     Ein Plugin-Fix erreicht ihn deshalb erst beim nächsten kalten Start —
+     sichtbar gemacht, nicht automatisch behoben (#217). */
+  stale?: { id: string; slug: string; display_name: string }[];
 };
 
 export const createWorkplace = (w: { name: string; label: string; description: string; image: string }) =>

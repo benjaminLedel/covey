@@ -1343,6 +1343,14 @@ func holdsImage(has []string, wanted string) bool {
 // The field is gone. "Nothing named" is a profile name, and `base` resolves
 // like every other: environment over catalogue over compiled default
 // (sandbox.Resolve) — one path, one answer.
+// ImageFor is what a start WOULD use for a workplace name right now — the same
+// resolution a wake performs, exported because the question is also asked
+// outside a start: an agent that keeps running keeps the image it started
+// with, and "what would it get today" is the other half of noticing that (#217).
+func (p *Pool) ImageFor(ctx context.Context, orgID uuid.UUID, want string) string {
+	return p.imageFor(ctx, orgID, want)
+}
+
 func (p *Pool) imageFor(ctx context.Context, orgID uuid.UUID, want string) string {
 	want = strings.TrimSpace(want)
 	if want == "" {
@@ -1686,6 +1694,7 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 					pool: p, runnerID: c.runnerID, builtin: c.builtin,
 					agentID: spec.AgentID, orgID: spec.OrgID,
 					services: res.Services,
+					image:    res.Image, imageID: res.ImageID,
 				}, nil
 			}
 		}
@@ -1729,7 +1738,15 @@ type poolSandbox struct {
 	// services is what the host reported it brought up, with the image each
 	// one actually started from.
 	services []sandbox.ServiceRun
+	// image and imageID are what THIS sandbox started from — the reference and
+	// what it resolved to on that host at that moment. Written once at the
+	// start and never again: that is the point of them (#217).
+	image, imageID string
 }
+
+// Image satisfies orchestrator.OnImage: what this sandbox is actually running.
+// Empty from a runner too old to say, and then nothing is claimed.
+func (s *poolSandbox) Image() (ref, id string) { return s.image, s.imageID }
 
 // reconnectGrace is how long a call on a sandbox waits for its host to come
 // back when the connection is down at that moment. Long enough to span a

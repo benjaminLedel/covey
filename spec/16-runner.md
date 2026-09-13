@@ -542,6 +542,16 @@ The catalogue URL defaults to what the project publishes and is derived from the
 
 What this removes is the class of failure, not one instance of it: a fresh installation needs no image name, an upgrade needs no second build, and "the image is missing" stops being a thing an operator has to fix by hand — the host pulls what the catalogue names.
 
+### A running sandbox keeps the image it started with
+
+The catalogue names the current image; a sandbox that is already up does not read it again. That is correct — a start is a start — but it is invisible, and invisible it cost half an hour twice in a row: a plugin fix was merged, the pack tagged, the instance deployed, and the agent answered exactly as before. The suspicion went to the fix. The fix was fine.
+
+Four things have to happen before such a change reaches an agent, and only the first two happen on their own: the image is built and the catalogue carries its digest; then the host has to **fetch** the image, and the agent's sandbox has to **start again**. A warm agent ([`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)) does neither for as long as it keeps running, so it works on the code of the day the sandbox came up, for arbitrarily long. Nothing said so: the agent's page showed version and commit of the **control plane**, which were right — the half that was wrong had nowhere to be shown.
+
+So the sandbox says which image it is running. The host that ran `docker run` reports the reference and what it resolved to (`SandboxResult.image`, `image_id`, the same way the services beside it already report theirs), the control plane holds it on the session, writes it into the recording beside the runner, and answers it at `GET /api/v1/agents/{id}/placement` together with what a start would use **today**. Where the two differ, the agent's page says so, and the workplace list names which of the agents working there are still on the older one.
+
+It says it and does nothing about it. An agent whose sandbox the platform pulls out from under it unasked is worse than an old digest — the decision belongs to a person, who was only missing the information.
+
 ## Services beside the sandbox
 
 A workplace was an image and nothing else. What a project needs **beyond** the image — a database to test against, a queue an application talks to — had no place, and so it ended up in one of two spots that both cost:

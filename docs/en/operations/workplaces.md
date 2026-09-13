@@ -107,6 +107,19 @@ An image that lies on no runner of the organisation is named before it hurts:
 it, and the agent's settings say it at the moment of choosing. A runner that
 does not have the image pulls it at the first wake — that is slow, not broken.
 
+### A new image reaches an agent at its next cold start
+
+A sandbox keeps the image it started with. A published image, a pulled host and
+a deployed control plane are therefore not enough for a change inside the image
+— the target-system plugins among them — to reach a running agent: the sandbox
+has to start again, and a warm agent never does on its own.
+
+Nothing restarts behind your back. What you get instead is the information: the
+agent's recording says *runs on an older workplace* while the two differ, and
+the workplace list names which of the agents working there are still on the
+older image. A restart of that agent is then a decision, made when it suits —
+not something to discover half an hour into suspecting a fix that was fine.
+
 ## A workplace of your own
 
 Anything the published ones do not cover is an **own workplace**: an image you

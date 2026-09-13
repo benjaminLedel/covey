@@ -523,7 +523,21 @@ type SandboxResult struct {
 	// Services are the ones that came up with this sandbox, with the image
 	// each one actually started from. Empty for an agent that declared none.
 	Services []sandbox.ServiceRun `json:"services,omitempty"`
-	Err      string               `json:"err,omitempty"`
+	// Image and ImageID are what the SANDBOX itself started from: the
+	// reference this host was given, and docker's identity for what that
+	// reference resolved to at that moment (sha256:…).
+	//
+	// They travel for the same reason the services' do — only the host that ran
+	// `docker run` knows it — and they answer a question the control plane
+	// could not: a sandbox that keeps running keeps the image it started with,
+	// so a fixed plugin can be merged, built, published and deployed while the
+	// agent goes on working with the code of the day before yesterday (#217).
+	// Both empty = an older runner, or a host that could not be asked; then
+	// nothing is claimed rather than the reference being passed off as a
+	// digest.
+	Image   string `json:"image,omitempty"`
+	ImageID string `json:"image_id,omitempty"`
+	Err     string `json:"err,omitempty"`
 }
 
 // SandboxExited reports a sandbox that ended without being asked to.
