@@ -3488,7 +3488,27 @@ func (o *Orchestrator) approvalGate(ctx context.Context, agent agents.Agent, tas
 // OnApprovalDecided closes the loop of the approval gate: the decision wakes
 // the task blocked on "approval:<id>" (wake-on-correlation).
 func (o *Orchestrator) OnApprovalDecided(ctx context.Context, appr observability.Approval) {
+	o.OnApprovalDecidedWithText(ctx, appr, "")
+}
+
+// OnApprovalDecidedWithText is the same with one addition: the reviewer did not
+// only approve, they rewrote the text.
+//
+// The correction has to travel to the agent, because the agent performs the
+// action — the control plane does not. Without this the approved text would be
+// the one the reviewer had just replaced, and the edit would exist only in the
+// voice's collection of pairs (spec/24) while the wrong version went out.
+//
+// It is quoted plainly and marked as verbatim. An instruction the agent has to
+// interpret ("take the reviewer's remarks into account") is how a rewritten
+// sentence turns back into the agent's own.
+func (o *Orchestrator) OnApprovalDecidedWithText(ctx context.Context, appr observability.Approval, corrected string) {
 	text := fmt.Sprintf("The approval for %q was granted. Perform the action again through the action proxy now and finish the task.", appr.Action)
+	if corrected != "" {
+		text = fmt.Sprintf("The approval for %q was granted, and the text was CHANGED by the reviewer. "+
+			"Perform the action again through the action proxy now, with exactly this text, verbatim, "+
+			"without rewriting it:\n\n%s", appr.Action, corrected)
+	}
 	if appr.Status == "denied" {
 		text = fmt.Sprintf("The approval for %q was DENIED. Do not perform the action; choose another way or escalate.", appr.Action)
 	}

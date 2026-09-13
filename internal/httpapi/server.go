@@ -612,6 +612,13 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /api/v1/voices/{id}/documents/{docID}", s.rbac(manage, s.handleDeleteVoiceDocument))
 	mux.Handle("POST /api/v1/voices/{id}/build", s.rbac(manage, s.handleBuildVoice))
 	mux.Handle("POST /api/v1/voices/{id}/release", s.rbac(manage, s.handleReleaseVoiceCard))
+	// The correction pairs (spec/24). The approval gate fills them by itself;
+	// the POST is the way in for the other source — a plugin that notices
+	// somebody editing a published text, which lives in the pack and must not
+	// need a change here to reach a voice.
+	mux.Handle("GET /api/v1/voices/{id}/corrections", s.rbac(anyRole, s.handleListVoiceCorrections))
+	mux.Handle("POST /api/v1/voices/{id}/corrections", s.rbac(manage, s.handleAddVoiceCorrection))
+	mux.Handle("DELETE /api/v1/voices/{id}/corrections/{correctionID}", s.rbac(manage, s.handleDeleteVoiceCorrection))
 	mux.Handle("PUT /api/v1/agents/{id}/voice", s.agentScoped(manage, s.handleSetAgentVoice))
 
 	// Template library.

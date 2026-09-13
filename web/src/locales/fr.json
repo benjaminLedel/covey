@@ -900,6 +900,8 @@
   "approvals": {
     "approve": "Valider",
     "deny": "Refuser",
+    "editHint": "Corriger ici valide cette version — et la paire (agent, vous) rejoint la voix de l'agent.",
+    "approveCorrected": "Valider corrigé",
     "title": "Validations",
     "pending": "{{count}} en attente",
     "noPending": "Rien n'attend de validation.",
@@ -1329,6 +1331,12 @@
     "contrastHint": "Mesuré contre les textes de référence. C'est la moitié la plus tranchante d'une voix — et elle n'existe qu'une fois un corpus de référence chargé.",
     "contrastValues": "cet auteur {{author}}, un modèle {{other}}",
     "tone": "Ce que l'agent reçoit réellement (TONE.md)",
+    "corrections": "Ce que les gens ont changé",
+    "correctionsHint": "Des paires : la version de l'agent et celle de la personne. Le matériau le plus fort d'une voix — une règle décrit la main, une paire la montre. Elles entrent dans la fiche de la prochaine construction.",
+    "correctionsEmpty": "Pas encore de corrections. Elles apparaissent quand quelqu'un réécrit un texte à la validation.",
+    "before": "l'agent",
+    "after": "la personne",
+    "correctionFrom": "{{source}}, {{when}}",
     "role": {
       "opening": "ouverture",
       "evidence": "preuve",

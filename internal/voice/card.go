@@ -36,7 +36,11 @@ const cardWords = 400
 // CardPrompt is what the model is asked. Exported so the same text can be read
 // in a test and in the interface — whoever releases a card should be able to
 // see what was asked for it.
-func CardPrompt(b Built, name string) string {
+//
+// pairs are the corrections a person made to this voice's texts. They go in
+// last and they are the strongest part of the prompt: a rule describes the
+// hand, a pair SHOWS it — the same passage before and after somebody fixed it.
+func CardPrompt(b Built, name string, pairs []Correction) string {
 	var sb strings.Builder
 	lang := b.Profile.Language
 	fmt.Fprintf(&sb, "Describe the hand of the author whose texts are measured below. "+
@@ -57,6 +61,16 @@ func CardPrompt(b Built, name string) string {
 	for _, line := range measurementLines(b.Profile) {
 		sb.WriteString("- " + line + "\n")
 	}
+	if len(pairs) > 0 {
+		sb.WriteString("\n## What a person changed about this agent's texts\n\n" +
+			"Each pair is the same passage twice: as it was written, and as a person rewrote it. " +
+			"They are the sharpest evidence here — describe the MOVE they have in common, not the " +
+			"individual edits, and only where you can see one.\n\n")
+		for i, p := range pairs {
+			fmt.Fprintf(&sb, "### Pair %d%s\n\nBefore:\n%s\n\nAfter:\n%s\n\n",
+				i+1, actionNote(p), p.Before, p.After)
+		}
+	}
 	if len(b.Contrast) > 0 {
 		sb.WriteString("\n## Where a model's text differs from this author\n\n" +
 			"These are the strongest half of the description — the \"never\" section rests on them:\n\n")
@@ -69,7 +83,7 @@ func CardPrompt(b Built, name string) string {
 
 // Card asks the organisation's model for the description. One call, no tools —
 // the shape internal/llm exists for.
-func Card(ctx context.Context, p llm.Provider, b Built, name string) (string, error) {
+func Card(ctx context.Context, p llm.Provider, b Built, name string, pairs []Correction) (string, error) {
 	if p == nil {
 		return "", llm.ErrNoCredential
 	}
@@ -78,7 +92,7 @@ func Card(ctx context.Context, p llm.Provider, b Built, name string) (string, er
 		MaxTokens: 2000,
 		System: "You describe an author's style from measured evidence. You quote rather than " +
 			"characterise, and you leave out what you cannot quote.",
-		Messages: []llm.Message{{Role: "user", Content: CardPrompt(b, name)}},
+		Messages: []llm.Message{{Role: "user", Content: CardPrompt(b, name, pairs)}},
 	})
 	if err != nil {
 		return "", err
@@ -108,6 +122,16 @@ func measurementLines(p style.Profile) []string {
 		out = append(out, fmt.Sprintf("%s: %.2f", name, p.Corpus[k]))
 	}
 	return out
+}
+
+// actionNote names the action a corrected text was going into, where there was
+// one. Register is not style: a correction on a mail says something different
+// from one on a commit message, and the model should be able to tell.
+func actionNote(p Correction) string {
+	if p.Action == "" {
+		return ""
+	}
+	return " (" + p.Action + ")"
 }
 
 func label(c Contrast) string {

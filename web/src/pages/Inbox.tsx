@@ -258,24 +258,51 @@ function ApprovalCard({
   const { t } = useTranslation();
   const qc = useQueryClient();
   const decide = useMutation({
-    mutationFn: (approve: boolean) => decideApproval(approval.id, approve),
+    mutationFn: ({ approve, text }: { approve: boolean; text?: string }) =>
+      decideApproval(approval.id, approve, text),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["inbox"] }),
   });
   const darf = canManage(me.Role) || me.Role === "security";
+  // The agent's own prose inside the parameters. Only a single passage can be
+  // corrected in place — with two, it would not be clear which one the reviewer
+  // rewrote, and a pair that names the wrong half teaches the wrong thing.
+  const original = loneProse(approval.params);
+  const [text, setText] = useState<string | null>(null);
+  const changed = text !== null && text.trim() !== "" && text.trim() !== original.trim();
 
   return (
     <div className="card mb-2">
       <CardHead entry={entry} kindLabel={t("inbox.type.approval")} kindClass="kind-approval" onCollapse={onCollapse} />
       <div className="muted text-xs mb-2">{t("inbox.agentWaiting")}</div>
-      <pre className="diff-body mb-2" style={{ padding: "6px 10px" }}>
-        {JSON.stringify(approval.params, null, 2)}
-      </pre>
+      {original && entry.pending && darf ? (
+        <>
+          {/* Correcting instead of only refusing. A reviewer who disliked one
+              sentence had to send the agent back to guess — and the pair that
+              falls out of an edit is what a voice learns from (spec/24). */}
+          <textarea
+            className="mb-1"
+            rows={Math.min(14, Math.max(4, original.split("\n").length + 2))}
+            style={{ width: "100%" }}
+            value={text ?? original}
+            onChange={(e) => setText(e.target.value)}
+          />
+          <div className="muted text-xs mb-2">{t("approvals.editHint")}</div>
+        </>
+      ) : (
+        <pre className="diff-body mb-2" style={{ padding: "6px 10px" }}>
+          {JSON.stringify(approval.params, null, 2)}
+        </pre>
+      )}
       {entry.pending && darf && (
         <div className="flex items-center gap-2">
-          <button className="btn sm primary" disabled={decide.isPending} onClick={() => decide.mutate(true)}>
-            {t("approvals.approve")}
+          <button
+            className="btn sm primary"
+            disabled={decide.isPending}
+            onClick={() => decide.mutate({ approve: true, text: changed ? (text as string) : undefined })}
+          >
+            {changed ? t("approvals.approveCorrected") : t("approvals.approve")}
           </button>
-          <button className="btn sm danger" disabled={decide.isPending} onClick={() => decide.mutate(false)}>
+          <button className="btn sm danger" disabled={decide.isPending} onClick={() => decide.mutate({ approve: false })}>
             {t("approvals.deny")}
           </button>
           {decide.isError && <span className="danger-text text-xs">{(decide.error as Error).message}</span>}
@@ -283,6 +310,25 @@ function ApprovalCard({
       )}
     </div>
   );
+}
+
+/* The one piece of prose in an action's parameters, or nothing.
+ *
+ * The server decides what counts as prose when it stores the pair; this is the
+ * conservative half of the same question — exactly one long string, so the
+ * field a reviewer edits is unambiguous. Everything else keeps the raw view. */
+function loneProse(params: unknown): string {
+  const found: string[] = [];
+  const walk = (x: unknown) => {
+    if (typeof x === "string") {
+      if (x.trim().split(/\s+/).length >= 20) found.push(x);
+      return;
+    }
+    if (Array.isArray(x)) return x.forEach(walk);
+    if (x && typeof x === "object") return Object.values(x).forEach(walk);
+  };
+  walk(params);
+  return found.length === 1 ? found[0] : "";
 }
 
 function ItemCard({

@@ -900,6 +900,8 @@
   "approvals": {
     "approve": "Aprovar",
     "deny": "Recusar",
+    "editHint": "Corrigir aqui aprova esta versão — e o par (agente, você) vai para a voz do agente.",
+    "approveCorrected": "Aprovar corrigido",
     "title": "Aprovações",
     "pending": "{{count}} pendentes",
     "noPending": "Nada à espera de aprovação.",
@@ -1329,6 +1331,12 @@
     "contrastHint": "Medido contra os textos de referência. É a metade mais afiada de uma voz — e só existe depois de carregado um corpus de referência.",
     "contrastValues": "este autor {{author}}, um modelo {{other}}",
     "tone": "O que o agente recebe realmente (TONE.md)",
+    "corrections": "O que as pessoas mudaram",
+    "correctionsHint": "Pares: a versão do agente e a da pessoa. O material mais forte de uma voz — uma regra descreve a mão, um par mostra-a. Entram na ficha da próxima construção.",
+    "correctionsEmpty": "Ainda sem correções. Surgem quando alguém reescreve um texto na aprovação.",
+    "before": "o agente",
+    "after": "a pessoa",
+    "correctionFrom": "{{source}}, {{when}}",
     "role": {
       "opening": "abertura",
       "evidence": "prova",

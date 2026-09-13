@@ -272,8 +272,25 @@ export type ImprovementItem = {
 export const decideImprovement = (id: string, accept: boolean, note: string) =>
   post<ImprovementItem>(`/improvements/${id}/decide`, { accept, note });
 
-export const decideApproval = (id: string, approve: boolean) =>
-  post<Approval>(`/approvals/${id}/decide`, { approve });
+/* Freigeben, und dabei den Text des Agenten korrigieren dürfen. Das Feld ist
+   zweierlei: Der Gate konnte bisher nur ja oder nein, also musste umschreiben,
+   wer einen Satz anders wollte — und das Paar aus beiden Fassungen ist das
+   stärkste Material, das eine Stimme sammeln kann (spec/24). */
+export const decideApproval = (id: string, approve: boolean, text?: string) =>
+  post<Approval>(`/approvals/${id}/decide`, text ? { approve, text } : { approve });
+
+export type VoiceCorrection = {
+  id: string;
+  agent_id?: string;
+  agent_slug?: string;
+  /** approval = am Freigabe-Gate korrigiert, target = im Zielsystem nachbearbeitet. */
+  source: string;
+  action?: string;
+  before: string;
+  after: string;
+  by?: string;
+  created_at: string;
+};
 
 // Eine Zeile des Posteingangs: Freigabe oder offener Punkt. Der Kopf ist für
 // beide gleich, damit serverseitig sortiert und geblättert werden kann; das

@@ -1,6 +1,6 @@
 # 24 — Voice: an author's style as an object an agent carries
 
-**Status: slice 2 is built (issue #195). Slice 1 exists in the covey-style skill; slice 3 (correction pairs) is open.**
+**Status: slices 2 and 3 are built (issue #195); slice 1 exists in the covey-style skill.** What is left of slice 3 is its second source — the plugins that notice an edit in a target system — and that lives in the plugin pack, not here.
 
 The style gate ([`06-observability-control.md`](06-observability-control.md)) holds an agent's outgoing text inside bands measured from a corpus. The bands say *how far* a text is from the corpus; they cannot make the text sound like the corpus's author. This document describes what does, and how it becomes an object in covey.
 
@@ -47,9 +47,23 @@ Cost: measuring is free; the card is one model call of a few thousand tokens. Th
 
 The build is deterministic apart from the card: the same corpus gives the same profile, exemplars and contrast list, so a rebuild after a metric change is safe and the card survives it.
 
-## Correction pairs (slice 3)
+## Correction pairs (slice 3, built)
 
-The strongest signal for imitation is a pair: the agent's version of a text and the person's version of the same text. When a person edits an agent's text in a target system — a CMS post, a wiki page — covey stores the pair to the voice the agent carried. The next build shows the model the transformation directly, as before/after, which it learns better than from rules. A voice that collects pairs gets more exact with every correction, without anyone maintaining a corpus. The pairs stay in the organisation; they never leave it as training data.
+The strongest signal for imitation is a pair: the agent's version of a text and the person's version of the same text. The next build shows the model the transformation directly, as before/after, which it learns better than from rules. A voice that collects pairs gets more exact with every correction, without anyone maintaining a corpus. The pairs stay in the organisation; they never leave it as training data.
+
+**Where the first pairs come from: the approval gate.** The design above named the target systems — somebody edits a published post — and that is the second source, not the first. The first is the moment covey already has both halves on one screen: an action waiting for approval. A reviewer could only say yes or no there, so whoever disliked one sentence had to refuse and send the agent back to guess. They can now rewrite the text and approve THAT, which is both the better gate and the pair.
+
+Three rules fall out of it, and each is a line in the code:
+
+- **A rewrite belongs to an approval, never to a refusal.** What is denied does not go out, so there is nothing to correct.
+- **An unchanged text is not a correction.** Otherwise every click would teach the voice that its own output is the standard.
+- **The corrected text travels to the AGENT.** The agent performs the action, not the control plane ([`03`](03-lifecycle-scheduling.md)): the wake carries the reviewer's version and asks for it verbatim. Without that the approved text would be the one the reviewer had just replaced, and the edit would live only in the collection.
+
+The agent's own half is found the way the style gate finds it (`style.ProseIn`) — one function for both, or one would eventually measure one text and store another.
+
+**The second source stays open, and deliberately so.** A plugin that notices somebody editing a published text posts the pair to `POST /api/v1/voices/{id}/corrections` with `source: target`. That endpoint exists; the plugin does not, and it belongs in the pack ([`22`](22-plugin-marketplace.md)) rather than here — a third party writing a CMS plugin has to be able to do the same thing without a change to covey.
+
+Storage is `voice_corrections` (migration 0091): the pair, the agent it came from, the action it was going into, and the source. The action is kept because register is not style — a correction on a mail says something different from one on a commit message. The pairs go into the card prompt of the next build, capped at the twenty newest, and stand on the voice's page where a person can throw out one that was made by accident.
 
 ## In covey (slice 2, built)
 

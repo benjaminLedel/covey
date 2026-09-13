@@ -900,6 +900,8 @@
   "approvals": {
     "approve": "批准",
     "deny": "拒绝",
+    "editHint": "在此修改即批准该版本——并且这一对（代理与你）会进入该代理的文风。",
+    "approveCorrected": "批准修改版",
     "title": "审批",
     "pending": "{{count}} 项待处理",
     "noPending": "没有等待审批的事项。",
@@ -1329,6 +1331,12 @@
     "contrastHint": "对照参考文本测量。这是文风更锋利的一半——只有上传了参考语料后才会出现。",
     "contrastValues": "该作者 {{author}}，模型 {{other}}",
     "tone": "代理实际拿到的内容 (TONE.md)",
+    "corrections": "人做过的修改",
+    "correctionsHint": "成对出现：代理的版本与人的版本。这是文风最有力的材料——规则描述笔法，成对的例子直接把它显示出来。它们会进入下一次构建的卡片。",
+    "correctionsEmpty": "还没有修改。当有人在审批处重写文本时就会出现。",
+    "before": "代理",
+    "after": "人",
+    "correctionFrom": "{{source}}，{{when}}",
     "role": {
       "opening": "开头",
       "evidence": "证据",

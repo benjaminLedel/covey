@@ -900,6 +900,8 @@
   "approvals": {
     "approve": "承認",
     "deny": "却下",
+    "editHint": "ここで修正すると、この版が承認され、対（エージェントとあなた）がそのエージェントのボイスに渡ります。",
+    "approveCorrected": "修正して承認",
     "title": "承認",
     "pending": "{{count}} 件が保留中",
     "noPending": "承認待ちのものはありません。",
@@ -1329,6 +1331,12 @@
     "contrastHint": "参照テキストに対して計測。ボイスの鋭い方の半分であり、参照コーパスをアップロードして初めて存在します。",
     "contrastValues": "この著者 {{author}}、モデル {{other}}",
     "tone": "エージェントが実際に受け取るもの (TONE.md)",
+    "corrections": "人が変えたところ",
+    "correctionsHint": "対になっています。エージェントの版と人の版です。ボイスが持つ最も強い材料で、規則は手つきを述べ、対はそれを見せます。次のビルドのカードに入ります。",
+    "correctionsEmpty": "まだ修正はありません。承認の場で誰かが文章を書き直すと現れます。",
+    "before": "エージェント",
+    "after": "人",
+    "correctionFrom": "{{source}}、{{when}}",
     "role": {
       "opening": "書き出し",
       "evidence": "根拠",

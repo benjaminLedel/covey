@@ -900,6 +900,8 @@
   "approvals": {
     "approve": "Goedkeuren",
     "deny": "Weigeren",
+    "editHint": "Hier corrigeren keurt deze versie goed — en het paar (agent, jij) gaat naar de stem van de agent.",
+    "approveCorrected": "Gecorrigeerd goedkeuren",
     "title": "Goedkeuringen",
     "pending": "{{count}} in afwachting",
     "noPending": "Er wacht niets op goedkeuring.",
@@ -1329,6 +1331,12 @@
     "contrastHint": "Gemeten tegen de referentieteksten. Dit is de scherpste helft van een stem — en ze bestaat pas zodra er een referentiecorpus is geüpload.",
     "contrastValues": "deze auteur {{author}}, een model {{other}}",
     "tone": "Wat de agent werkelijk krijgt (TONE.md)",
+    "corrections": "Wat mensen hebben veranderd",
+    "correctionsHint": "Paren: de versie van de agent en die van de mens. Het sterkste materiaal van een stem — een regel beschrijft de hand, een paar laat hem zien. Ze gaan mee in de kaart van de volgende build.",
+    "correctionsEmpty": "Nog geen correcties. Ze ontstaan wanneer iemand bij de goedkeuring een tekst herschrijft.",
+    "before": "de agent",
+    "after": "de mens",
+    "correctionFrom": "{{source}}, {{when}}",
     "role": {
       "opening": "opening",
       "evidence": "bewijs",
