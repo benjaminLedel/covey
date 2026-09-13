@@ -205,3 +205,48 @@ func TestProfilesLayerTheEnvironmentOverTheDefaults(t *testing.T) {
 		t.Errorf("the cache was bypassed: %q", again)
 	}
 }
+
+// The log level is set on ONE host, and the two refusals in front of it are
+// what keep an operator from switching a level on a machine that is not theirs
+// or not there.
+func TestSetLogLevelRefusalsAndRoundTrip(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	orgID := uuid.New()
+	p, runnerID := newLocalPool(t, dir, fakeDockerBin(t, dir, "nothing"), orgID)
+	ctx := context.Background()
+
+	// A level that is not one is refused before anything is sent: "verbose" on
+	// a host would be a setting that reads as applied and is not.
+	if _, err := p.SetLogLevel(ctx, orgID, runnerID, "verbose"); err == nil {
+		t.Error("an unknown log level was accepted")
+	}
+	// A host of another organisation, and one that is not connected.
+	if _, err := p.SetLogLevel(ctx, uuid.New(), runnerID, LogLevelDebug); err == nil {
+		t.Error("a host of a foreign organisation was addressed")
+	}
+	if _, err := p.SetLogLevel(ctx, orgID, uuid.New(), LogLevelDebug); err == nil {
+		t.Error("an unconnected host was addressed")
+	}
+
+	got, err := p.SetLogLevel(ctx, orgID, runnerID, LogLevelDebug)
+	if err != nil {
+		t.Fatalf("setting the level: %v", err)
+	}
+	if got != LogLevelDebug {
+		t.Errorf("the host reports the level %q", got)
+	}
+}
+
+// Stopping a stray asks the host the agent last worked on. With nobody
+// connected there is nothing to ask, and that is NOT an error: the container —
+// if there is one — is on a host that is away, and its own watcher reports the
+// death when it comes back.
+func TestStopStrayWithNobodyToAsk(t *testing.T) {
+	p := NewPool(quietLog())
+	if err := p.StopStray(context.Background(), uuid.New(), uuid.New()); err != nil {
+		t.Errorf("with no host connected: %v", err)
+	}
+}
