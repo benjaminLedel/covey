@@ -3,6 +3,7 @@ package integration
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -279,8 +280,16 @@ func TestSetupPeopleIsIdempotent(t *testing.T) {
 	s := newStack(t)
 	admin := login(t, s, "admin@test.local", "admin-passwort")
 
+	// The organisation describes itself first: what the company does is woven
+	// into the People department's own files, so the agent that writes
+	// configurations knows what it is writing them for.
+	admin.expect(http.MethodPost, "/api/v1/setup/org",
+		map[string]string{"name": "Brückenbau GmbH", "description": "Wir bauen Brücken."}, http.StatusOK)
+
+	// onboard: the department gets its own first assignment, so the setup ends
+	// with something to look at rather than an idle agent.
 	first := admin.expect(http.MethodPost, "/api/v1/setup/people",
-		map[string]any{"display_name": "Petra Personal", "slug": "people", "onboard": false}, http.StatusCreated)
+		map[string]any{"display_name": "Petra Personal", "slug": "people", "onboard": true}, http.StatusCreated)
 	made, _ := first["agent"].(map[string]any)
 	if made == nil {
 		t.Fatalf("no agent was hired: %v", first)
@@ -300,6 +309,38 @@ func TestSetupPeopleIsIdempotent(t *testing.T) {
 	state := admin.expect(http.MethodGet, "/api/v1/setup/state", nil, http.StatusOK)
 	if state == nil {
 		t.Fatal("the setup has no state")
+	}
+
+	id, _ := made["id"].(string)
+	if id == "" {
+		t.Fatalf("the hired department has no id: %v", made)
+	}
+	// The organisation's own words reached the agent's configuration — that is
+	// the point of asking for them before hiring it.
+	cfg := admin.expect(http.MethodGet, "/api/v1/agents/"+id+"/config", nil, http.StatusOK)
+	files, _ := cfg["files"].(map[string]any)
+	if files == nil {
+		t.Fatalf("the department has no configuration: %v", cfg)
+	}
+	var mentioned bool
+	for _, body := range files {
+		if text, _ := body.(string); strings.Contains(text, "Brücken") {
+			mentioned = true
+		}
+	}
+	if !mentioned {
+		t.Error("what the company does did not reach the People department's files")
+	}
+
+	// And it has work: the onboarding assignment.
+	backlog := admin.expectList(http.MethodGet, "/api/v1/agents/"+id+"/backlog", nil, http.StatusOK)
+	if len(backlog) == 0 {
+		t.Error("onboard: true hired an agent with nothing to do")
+	}
+
+	// It sits in a department of its own rather than loose in the chart.
+	if made["department_id"] == nil {
+		t.Errorf("the People department was hired without a department: %v", made)
 	}
 }
 
