@@ -173,3 +173,75 @@ func TestRecordingFiltersOverTheAPI(t *testing.T) {
 func itoa(n int64) string {
 	return strconv.FormatInt(n, 10)
 }
+
+// What a single credential of a seat has consumed. It is the figure the
+// capacity layer falls back to when the engine reports nothing of its own —
+// so a slot that ran must show up, and one that never did must not be
+// invented at zero.
+func TestRuntimeUsagePerCredential(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	agent := s.newSupportAgent("verbrauch-agent")
+	rt := uuid.New()
+
+	if err := s.obs.AddCost(ctx, agent.ID, nil, 1.00,
+		observability.Tokens{Input: 100, Output: 50, CacheRead: 400}, "m", rt, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.obs.AddCost(ctx, agent.ID, nil, 0.50,
+		observability.Tokens{Input: 10, Output: 5}, "m", rt, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.obs.AddCost(ctx, agent.ID, nil, 2.00,
+		observability.Tokens{Input: 20, Output: 10}, "m", rt, 1); err != nil {
+		t.Fatal(err)
+	}
+	// A run on no seat at all — the mock engine needs no credential — must not
+	// land under any slot.
+	if err := s.obs.AddCost(ctx, agent.ID, nil, 9.00,
+		observability.Tokens{Input: 1}, "m", uuid.Nil, -1); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := s.obs.RuntimeUsage(ctx, rt, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d slots, expected the two that ran: %+v", len(got), got)
+	}
+	if got[0].Ord != 0 || got[1].Ord != 1 {
+		t.Errorf("the slots are not in order: %+v", got)
+	}
+	if got[0].Runs != 2 || got[0].USD != 1.50 {
+		t.Errorf("slot 0 = %+v, expected two runs and 1.50", got[0])
+	}
+	// Every token kind counts towards what a window has been used for — a
+	// cache read is read capacity too.
+	if got[0].Tokens != 565 {
+		t.Errorf("slot 0 counted %d tokens, expected every kind", got[0].Tokens)
+	}
+
+	// A window that has already passed holds nothing, which is what makes the
+	// figure a WINDOW rather than a running total.
+	empty, err := s.obs.RuntimeUsage(ctx, rt, time.Nanosecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(empty) != 0 {
+		t.Errorf("a window of a nanosecond holds %+v", empty)
+	}
+}
+
+// The input side as a human means it: everything read, cached or not. The
+// three kinds are stored apart because they are priced apart, and this is the
+// one place they are added back together.
+func TestTotalInputAddsEveryKindOfRead(t *testing.T) {
+	tok := observability.Tokens{Input: 10, Output: 99, CacheRead: 100, CacheCreation: 1000}
+	if got := tok.TotalInput(); got != 1110 {
+		t.Errorf("TotalInput = %d, expected the three read kinds", got)
+	}
+	if got := (observability.Tokens{}).TotalInput(); got != 0 {
+		t.Errorf("TotalInput of nothing = %d", got)
+	}
+}
