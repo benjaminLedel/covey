@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -211,6 +212,28 @@ func mockKV(s, key string) string {
 	return strings.TrimSpace(v)
 }
 
+// mockActionBudget is how long the mock waits for an action to answer.
+//
+// Thirty seconds is far above what any scripted action needs — except one: the
+// browser plugin starts a real Chrome and loads a page, and on a loaded runner
+// that outgrows the budget. The run then fails with "Client.Timeout exceeded
+// while awaiting headers", which reads like a broken action rather than a slow
+// machine (#252).
+//
+// So it is stretched by COVEY_TEST_WAIT_FACTOR — the same lever the suite's own
+// waits use (#244). One screw for "this machine is slow", not two: the second
+// one is always the one nobody sets. Unset, or below 1, leaves the thirty
+// seconds standing, so a local run is unchanged.
+const mockActionBudget = 30 * time.Second
+
+func mockActionTimeout() time.Duration {
+	f, err := strconv.ParseFloat(os.Getenv("COVEY_TEST_WAIT_FACTOR"), 64)
+	if err != nil || f < 1 {
+		return mockActionBudget
+	}
+	return time.Duration(float64(mockActionBudget) * f)
+}
+
 func callActionProxy(ctx context.Context, port, path, params string) (string, []byte, error) {
 	if port == "" {
 		return "", nil, fmt.Errorf("no COVEY_ACTION_PORT set")
@@ -221,7 +244,7 @@ func callActionProxy(ctx context.Context, port, path, params string) (string, []
 		return "", nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
+	resp, err := (&http.Client{Timeout: mockActionTimeout()}).Do(req)
 	if err != nil {
 		return "", nil, err
 	}
