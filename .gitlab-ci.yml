@@ -146,6 +146,13 @@ test-go:
     # localhost — and on its own port 5432 rather than the 5433 that
     # `make dev-db` forwards locally.
     COVEY_TEST_DATABASE_URL: postgres://covey:covey@postgres:5432/covey?sslmode=disable
+    # Every wait in the integration suite was calibrated on a developer
+    # machine; a shared runner does the same work at a third of the speed —
+    # the same package took 227 s on one run and 560 s on the next (#244). The
+    # factor stretches those budgets here and nowhere else. It costs nothing
+    # while the tests pass: a wait returns when its condition holds, not when
+    # the timer runs out.
+    COVEY_TEST_WAIT_FACTOR: "3"
   cache:
     key: go-mod
     paths:

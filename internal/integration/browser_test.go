@@ -89,8 +89,16 @@ func TestBrowserPluginScreenshotRecording(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	waitFor(t, "browser task done", 40*time.Second, func() bool {
+	// A witness on the timeout: this test drives a real Chrome, so it is the
+	// one in the suite that can fail for a reason outside the code — a browser
+	// that would not start, a page that never answered. It did exactly that
+	// once on a CI runner (#244) and left nothing behind but the word
+	// "timeout". The recording holds what the agent actually managed.
+	waitForOr(t, "browser task done", 40*time.Second, func() bool {
 		return s.taskState(task.ID) == backlog.StateDone
+	}, func() string {
+		return fmt.Sprintf("task state %s; recording: %s",
+			s.taskState(task.ID), s.recordingSummary(agent.ID))
 	})
 
 	// Every action with ok=true in the recording.
