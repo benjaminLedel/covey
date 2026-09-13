@@ -270,3 +270,54 @@ func clone(m map[string]any) map[string]any {
 	}
 	return out
 }
+
+// The setup's third card hires the People department — the agent that writes
+// the configuration for other agents. It is idempotent, because the setup can
+// be walked through twice, and a second People department would be two agents
+// competing to write the same configs.
+func TestSetupPeopleIsIdempotent(t *testing.T) {
+	s := newStack(t)
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+
+	first := admin.expect(http.MethodPost, "/api/v1/setup/people",
+		map[string]any{"display_name": "Petra Personal", "slug": "people", "onboard": false}, http.StatusCreated)
+	made, _ := first["agent"].(map[string]any)
+	if made == nil {
+		t.Fatalf("no agent was hired: %v", first)
+	}
+	if existed, _ := first["existed"].(bool); existed {
+		t.Error("the first call reported an agent that was already there")
+	}
+
+	second := admin.expect(http.MethodPost, "/api/v1/setup/people",
+		map[string]any{"display_name": "Petra Personal", "slug": "people"}, http.StatusOK)
+	if existed, _ := second["existed"].(bool); !existed {
+		t.Errorf("a second People department was hired: %v", second)
+	}
+
+	// And the setup state now says so, which is what stops the card being
+	// offered again.
+	state := admin.expect(http.MethodGet, "/api/v1/setup/state", nil, http.StatusOK)
+	if state == nil {
+		t.Fatal("the setup has no state")
+	}
+}
+
+// The config assistant needs a model credential. Without one it says so with a
+// precondition rather than failing at the first request — the interface uses
+// exactly that to decide whether to offer the assistant at all.
+func TestConfigAssistantWithoutACredential(t *testing.T) {
+	s := newStack(t)
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	agent := s.newSupportAgent("berater-agent")
+
+	status := admin.expect(http.MethodGet, "/api/v1/assist/status", nil, http.StatusOK)
+	if available, _ := status["available"].(bool); available {
+		t.Error("the assistant reports itself available without a credential")
+	}
+
+	admin.expect(http.MethodPost, "/api/v1/agents/"+agent.ID.String()+"/config/assist",
+		map[string]any{"messages": []any{}}, http.StatusPreconditionFailed)
+	admin.expect(http.MethodPost, "/api/v1/agents/keine-uuid/config/assist",
+		map[string]any{}, http.StatusBadRequest)
+}
