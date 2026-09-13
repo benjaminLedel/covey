@@ -14,21 +14,21 @@ import (
 func TestFreeTextCollectsLongStringsOnly(t *testing.T) {
 	long := strings.Repeat("Ein Satz mit einigen Wörtern darin. ", 12)
 	params := json.RawMessage(`{"title":"Kurzer Titel","body":` + mustJSON(long) + `,"labels":["a","b"],"nested":{"note":` + mustJSON(long) + `}}`)
-	got := freeText(params, 60)
+	got := style.ProseIn(params, 60)
 	if strings.Count(got, "Ein Satz") != 24 || strings.Contains(got, "Kurzer Titel") {
 		t.Fatalf("freeText: %q", got[:80])
 	}
-	if freeText(json.RawMessage(`"not an object"`), 60) != "" || freeText(nil, 60) != "" {
+	if style.ProseIn(json.RawMessage(`"not an object"`), 60) != "" || style.ProseIn(nil, 60) != "" {
 		t.Fatal("short or empty params have no free text")
 	}
 	// A long shell command is not prose, however many "words" it has (the
 	// first real run measured this one as an eighty-word sentence).
 	cmd := `curl -sS -b /tmp/cms.jar https://covey.work/admin/api/beitraege | jq ".[] | select(.gruppe==\"d2cc2ba6-f74d-4fd7-840b-590b74599b99\") | {id: .id, titel: .titel, sprache: .sprache, entwurf: .entwurf}" && jq -n --rawfile md /tmp/en.md --arg titel "Why an agent never sees its own credentials" --arg gruppe "d2cc2ba6" '{titel: $titel, inhalt: $md, sprache: "en", gruppe: $gruppe, entwurf: true, beschreibung: "Short-lived tokens instead of stored secrets", slug: "why-an-agent-never-sees-its-own-credentials"}' > /tmp/en.json && curl -sS -b /tmp/cms.jar -X POST https://covey.work/admin/api/beitraege -H 'Content-Type: application/json' -d @/tmp/en.json`
-	if got := freeText(json.RawMessage(`{"cmd":`+mustJSON(cmd)+`}`), 60); got != "" {
+	if got := style.ProseIn(json.RawMessage(`{"cmd":`+mustJSON(cmd)+`}`), 60); got != "" {
 		t.Fatalf("a shell command must not be measured: %q", got[:60])
 	}
 	heredoc := "cat > /tmp/de.md <<'EOF'\n" + long + "\n\n## Warum das zählt\n\nEin **Token** mit [Ablauf](https://covey.work/docs/secrets) ist nach einer Stunde wertlos, ein gespeichertes Passwort nicht.\nEOF"
-	if got := freeText(json.RawMessage(`{"cmd":`+mustJSON(heredoc)+`}`), 60); got == "" {
+	if got := style.ProseIn(json.RawMessage(`{"cmd":`+mustJSON(heredoc)+`}`), 60); got == "" {
 		t.Fatal("a heredoc that writes Markdown prose is measured")
 	}
 }

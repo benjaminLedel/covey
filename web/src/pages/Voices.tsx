@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { api, del, post, type Principal, type Voice, type VoiceDetail } from "../api";
+import { api, del, post, type Principal, type Voice, type VoiceCorrection, type VoiceDetail } from "../api";
 
 const canEdit = (role: string) => role === "org_admin" || role === "agent_owner";
 
@@ -314,6 +314,8 @@ function VoiceDetailView({ id, editable }: { id: string; editable: boolean }) {
         </div>
       )}
 
+      <Corrections id={id} editable={editable} />
+
       {/* What the agent actually gets. The four parts on their own do not say
           what lands in the prompt — and that is the question somebody has in
           front of a voice. */}
@@ -323,6 +325,55 @@ function VoiceDetailView({ id, editable }: { id: string; editable: boolean }) {
           {v.tone}
         </pre>
       </details>
+    </div>
+  );
+}
+
+/* The pairs: what an agent wrote, and what a person made of it.
+ *
+ * They are listed rather than summarised, because a pair only says something
+ * when both halves stand beside each other — and because somebody has to be
+ * able to throw out a correction that was made by accident, before it teaches
+ * the voice for good. */
+function Corrections({ id, editable }: { id: string; editable: boolean }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const pairs = useQuery({
+    queryKey: ["voice-corrections", id],
+    queryFn: () => api<VoiceCorrection[]>(`/voices/${id}/corrections`),
+  });
+  const drop = useMutation({
+    mutationFn: (cid: string) => del(`/voices/${id}/corrections/${cid}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["voice-corrections", id] }),
+  });
+  const list = pairs.data ?? [];
+
+  return (
+    <div>
+      <div className="text-sm font-medium mb-1">{t("voices.corrections")}</div>
+      <p className="muted mb-2" style={{ maxWidth: 680 }}>
+        {t("voices.correctionsHint")}
+      </p>
+      {list.length === 0 && <p className="muted">{t("voices.correctionsEmpty")}</p>}
+      {list.map((c) => (
+        <div key={c.id} className="mb-3" style={{ maxWidth: 680 }}>
+          <div className="muted mb-1">
+            {t("voices.correctionFrom", { source: c.action || c.source, when: c.created_at.slice(0, 10) })}
+            {c.agent_slug ? ` · ${c.agent_slug}` : ""}
+            {editable && (
+              <button className="btn sm ml-2" onClick={() => drop.mutate(c.id)}>
+                {t("voices.delete")}
+              </button>
+            )}
+          </div>
+          <div className="muted">{t("voices.before")}</div>
+          <p className="mt-0 mb-1" style={{ opacity: 0.75 }}>
+            {c.before}
+          </p>
+          <div className="muted">{t("voices.after")}</div>
+          <p className="mt-0 mb-0">{c.after}</p>
+        </div>
+      ))}
     </div>
   );
 }

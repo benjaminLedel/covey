@@ -1582,6 +1582,15 @@ func (s *Server) handleDecideApproval(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	var in struct {
 		Approve *bool `json:"approve"`
+		// Text: the reviewer rewrote the agent's text and approves THAT.
+		//
+		// Two things at once, and the second is why it is here. The gate was
+		// yes-or-no, so a reviewer who disliked one sentence had to refuse and
+		// send the agent back to guess. And the pair that falls out of an edit —
+		// the agent's version beside the person's — is the strongest material a
+		// voice can collect (spec/24): a rule describes the hand, a pair shows
+		// it. Both halves are already on the screen at that moment.
+		Text string `json:"text"`
 	}
 	if err := readJSON(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid request")
@@ -1598,8 +1607,21 @@ func (s *Server) handleDecideApproval(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
-	// The decision wakes the blocked task (wake-on-correlation).
-	s.Orch.OnApprovalDecided(r.Context(), appr)
+	// A rewrite belongs to an approval, not to a refusal: what is denied does
+	// not go out, so there is nothing to correct.
+	corrected := ""
+	if *in.Approve {
+		if before := approvalText(appr); before != "" {
+			if after := strings.TrimSpace(in.Text); after != "" && after != before {
+				corrected = after
+				s.noteCorrection(r.Context(), appr, before, after, p.ID.String())
+			}
+		}
+	}
+	// The decision wakes the blocked task (wake-on-correlation), and carries the
+	// corrected text where there is one — the agent performs the action itself,
+	// so it has to be told what to perform it with.
+	s.Orch.OnApprovalDecidedWithText(r.Context(), appr, corrected)
 	writeJSON(w, http.StatusOK, appr)
 }
 

@@ -900,6 +900,8 @@
   "approvals": {
     "approve": "Approve",
     "deny": "Deny",
+    "editHint": "Correcting here approves this version — and the pair (agent, you) goes to the agent's voice.",
+    "approveCorrected": "Approve corrected",
     "title": "Approvals",
     "pending": "{{count}} pending",
     "noPending": "Nothing waiting for approval.",
@@ -1329,6 +1331,12 @@
     "contrastHint": "Measured against the reference texts. This is the sharpest half of a voice — and it only exists once a reference corpus has been uploaded.",
     "contrastValues": "this author {{author}}, a model {{other}}",
     "tone": "What the agent actually gets (TONE.md)",
+    "corrections": "What people changed",
+    "correctionsHint": "Pairs: the agent's version and the person's. The strongest material a voice has — a rule describes the hand, a pair shows it. They go into the next build's card.",
+    "correctionsEmpty": "No corrections yet. They appear when somebody rewrites a text at the approval gate.",
+    "before": "the agent",
+    "after": "the person",
+    "correctionFrom": "{{source}}, {{when}}",
     "role": {
       "opening": "opening",
       "evidence": "evidence",

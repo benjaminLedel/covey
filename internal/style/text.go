@@ -12,6 +12,7 @@
 package style
 
 import (
+	"encoding/json"
 	"regexp"
 	"strings"
 	"unicode"
@@ -55,6 +56,46 @@ var (
 // kept, the headings set aside (for the colon check) and the number of fenced
 // code blocks. Inline code becomes the token CODE for measuring (a path is not
 // a fourteen-letter word); keepInlineCode leaves it in place for reading.
+// ProseIn collects the string fields of an action's params that are long enough
+// to have a style and read as prose, joined as paragraphs.
+//
+// It lives here rather than in the gate that first needed it, because two
+// callers now ask the same question and have to get the same answer: the style
+// gate measures this text before an action runs, and the approval gate compares
+// it with what a reviewer rewrote (spec/24). A second implementation would
+// eventually measure one text and store another.
+func ProseIn(params json.RawMessage, minWords int) string {
+	if len(params) == 0 {
+		return ""
+	}
+	var v any
+	if err := json.Unmarshal(params, &v); err != nil {
+		return ""
+	}
+	var parts []string
+	var walk func(x any)
+	walk = func(x any) {
+		switch t := x.(type) {
+		case string:
+			// Long enough to have a style, and text at all: a shell command with
+			// sixty "words" is not measured.
+			if WordCount(t) >= minWords && IsProse(t) {
+				parts = append(parts, strings.TrimSpace(t))
+			}
+		case map[string]any:
+			for _, c := range t {
+				walk(c)
+			}
+		case []any:
+			for _, c := range t {
+				walk(c)
+			}
+		}
+	}
+	walk(v)
+	return strings.Join(parts, "\n\n")
+}
+
 func stripMarkdown(text string, keepInlineCode bool) (prose string, headings []string, codeBlocks int) {
 	text = strings.ReplaceAll(text, "\r\n", "\n")
 	text = reFrontMatter.ReplaceAllString(text, "")

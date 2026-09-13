@@ -41,7 +41,7 @@ func (o *Orchestrator) styleGate(ctx context.Context, agent agents.Agent, taskID
 		return nil
 	}
 	rule, params := strictestStyleGate(gates)
-	text := freeText(req.Params, params.MinWords)
+	text := style.ProseIn(req.Params, params.MinWords)
 	if text == "" {
 		return nil
 	}
@@ -133,40 +133,6 @@ func strictestStyleGate(gates []guardrails.Rule) (guardrails.Rule, guardrails.St
 		}
 	}
 	return best, bestP
-}
-
-// freeText collects the string fields of an action's params that are long
-// enough to have a style and are prose, joined as paragraphs.
-func freeText(params json.RawMessage, minWords int) string {
-	if len(params) == 0 {
-		return ""
-	}
-	var v any
-	if err := json.Unmarshal(params, &v); err != nil {
-		return ""
-	}
-	var parts []string
-	var walk func(x any)
-	walk = func(x any) {
-		switch t := x.(type) {
-		case string:
-			// Long enough to have a style, and text at all: a shell command with
-			// sixty "words" is not measured.
-			if style.WordCount(t) >= minWords && style.IsProse(t) {
-				parts = append(parts, strings.TrimSpace(t))
-			}
-		case map[string]any:
-			for _, c := range t {
-				walk(c)
-			}
-		case []any:
-			for _, c := range t {
-				walk(c)
-			}
-		}
-	}
-	walk(v)
-	return strings.Join(parts, "\n\n")
 }
 
 // styleProfiles collects the profile blocks of the agent's config: TONE.md

@@ -103,19 +103,25 @@ func TestBlockedLoopEndToEnd(t *testing.T) {
 
 	// Wiki ingest on the done step (spec/05): the insight lands as its own page
 	// or is appended to an existing one — hence Contains, not ==.
-	entries, err := s.mem.Query(ctx, agent.ID, "Login-Problem Ticket", 5)
-	if err != nil {
-		t.Fatal(err)
-	}
-	found := false
-	for _, e := range entries {
-		if strings.Contains(e.Content, "Ticket 42: Login-Problem, Browser erfragt") {
-			found = true
+	//
+	// Waited for rather than read once. The task is set to `done` BEFORE the
+	// insight is fed in (orchestrator.go: Complete, then Memory.Ingest some
+	// fifty lines later), and that order is right — the ingest must not hold up
+	// the completion, and a failure in it must not fail the task. So the state
+	// this test waited for is visible while the page is still on its way, and
+	// on a slow runner the gap is wide enough to lose (#256).
+	waitFor(t, "the insight is in the wiki", 15*time.Second, func() bool {
+		entries, err := s.mem.Query(ctx, agent.ID, "Login-Problem Ticket", 5)
+		if err != nil {
+			return false
 		}
-	}
-	if !found {
-		t.Fatalf("wiki page missing, got %+v", entries)
-	}
+		for _, e := range entries {
+			if strings.Contains(e.Content, "Ticket 42: Login-Problem, Browser erfragt") {
+				return true
+			}
+		}
+		return false
+	})
 
 	// A gapless recording: lifecycle + runtime + action + credential.
 	events, err := s.obs.Events(ctx, agent.ID, nil, 0, 500)

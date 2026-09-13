@@ -374,3 +374,135 @@ func orEmptyStrings(in []string) []string {
 	}
 	return in
 }
+
+// Correction is one pair: what the agent wrote, and what a person made of it.
+//
+// It is the strongest signal a voice can collect. A band says how far a text
+// is from a corpus and the card says what the author does; a pair shows the
+// transformation itself, which a model follows better than either.
+type Correction struct {
+	ID      uuid.UUID  `json:"id"`
+	VoiceID uuid.UUID  `json:"voice_id"`
+	AgentID *uuid.UUID `json:"agent_id,omitempty"`
+	// Source is where the pair came from — SourceApproval today, a target
+	// system later. A pair without its origin cannot be weighed: a reviewer at
+	// the gate and an editor in a CMS are correcting different things.
+	Source string `json:"source"`
+	Action string `json:"action,omitempty"`
+	Before string `json:"before"`
+	After  string `json:"after"`
+	// AgentSlug and By are for reading, filled by the query.
+	AgentSlug string    `json:"agent_slug,omitempty"`
+	By        string    `json:"by,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// Where a pair comes from.
+const (
+	// SourceApproval: a reviewer rewrote the text at the approval gate instead
+	// of only saying yes or no.
+	SourceApproval = "approval"
+	// SourceTarget: somebody edited the text where it was published. The
+	// plugins carry that half and post it here.
+	SourceTarget = "target"
+)
+
+// maxCorrectionBytes caps one side of a pair. A correction is a passage, not a
+// document — and both sides go into the card prompt of every build.
+const maxCorrectionBytes = 32 << 10
+
+// AddCorrection stores a pair. An unchanged text is not a correction and is
+// refused: a pair whose two halves are equal teaches nothing and would dilute
+// the ones that do.
+func (s *Store) AddCorrection(ctx context.Context, orgID, voiceID uuid.UUID, c Correction) (Correction, error) {
+	if _, err := s.Get(ctx, orgID, voiceID); err != nil {
+		return Correction{}, err
+	}
+	c.Before, c.After = strings.TrimSpace(c.Before), strings.TrimSpace(c.After)
+	if c.Before == "" || c.After == "" {
+		return Correction{}, fmt.Errorf("%w: a pair needs both halves", ErrInvalid)
+	}
+	if c.Before == c.After {
+		return Correction{}, fmt.Errorf("%w: the two halves are the same text — that is not a correction", ErrInvalid)
+	}
+	if len(c.Before) > maxCorrectionBytes || len(c.After) > maxCorrectionBytes {
+		return Correction{}, fmt.Errorf("%w: a pair is a passage, not a document (max %d bytes per side)",
+			ErrInvalid, maxCorrectionBytes)
+	}
+	switch c.Source {
+	case "":
+		c.Source = SourceApproval
+	case SourceApproval, SourceTarget:
+	default:
+		return Correction{}, fmt.Errorf("%w: unknown source %q", ErrInvalid, c.Source)
+	}
+	c.ID, c.VoiceID = uuid.New(), voiceID
+	var by any
+	if c.By != "" {
+		if id, err := uuid.Parse(c.By); err == nil {
+			by = id
+		}
+	}
+	err := s.pool.QueryRow(ctx, `INSERT INTO voice_corrections
+		(id, voice_id, agent_id, source, action, before_text, after_text, created_by)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING created_at`,
+		c.ID, voiceID, c.AgentID, c.Source, c.Action, c.Before, c.After, by).Scan(&c.CreatedAt)
+	return c, err
+}
+
+// Corrections are the pairs of a voice, newest first.
+func (s *Store) Corrections(ctx context.Context, voiceID uuid.UUID, limit int) ([]Correction, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	rows, err := s.pool.Query(ctx, `SELECT c.id, c.voice_id, c.agent_id, c.source, c.action,
+		c.before_text, c.after_text, c.created_at, COALESCE(a.slug,''), COALESCE(h.display_name,'')
+		FROM voice_corrections c
+		LEFT JOIN agents a ON a.id = c.agent_id
+		LEFT JOIN humans h ON h.id = c.created_by
+		WHERE c.voice_id=$1 ORDER BY c.created_at DESC LIMIT $2`, voiceID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Correction
+	for rows.Next() {
+		var c Correction
+		if err := rows.Scan(&c.ID, &c.VoiceID, &c.AgentID, &c.Source, &c.Action,
+			&c.Before, &c.After, &c.CreatedAt, &c.AgentSlug, &c.By); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// DeleteCorrection removes a pair — a correction somebody made by accident
+// would otherwise teach the voice for good.
+func (s *Store) DeleteCorrection(ctx context.Context, orgID, voiceID, id uuid.UUID) error {
+	if _, err := s.Get(ctx, orgID, voiceID); err != nil {
+		return err
+	}
+	tag, err := s.pool.Exec(ctx, `DELETE FROM voice_corrections WHERE voice_id=$1 AND id=$2`, voiceID, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// VoiceOfAgent is the voice an agent carries, for the moments where a pair
+// turns up and only the agent is known — the approval gate is one. false means
+// the agent carries none, and then there is nowhere to put the correction.
+func (s *Store) VoiceOfAgent(ctx context.Context, agentID uuid.UUID) (uuid.UUID, bool) {
+	var id *uuid.UUID
+	if err := s.pool.QueryRow(ctx, `SELECT voice_id FROM agents WHERE id=$1`, agentID).Scan(&id); err != nil {
+		return uuid.Nil, false
+	}
+	if id == nil {
+		return uuid.Nil, false
+	}
+	return *id, true
+}

@@ -900,6 +900,8 @@
   "approvals": {
     "approve": "Approva",
     "deny": "Nega",
+    "editHint": "Correggere qui approva questa versione — e la coppia (agente, tu) va alla voce dell'agente.",
+    "approveCorrected": "Approva corretto",
     "title": "Approvazioni",
     "pending": "{{count}} in attesa",
     "noPending": "Nulla in attesa di approvazione.",
@@ -1329,6 +1331,12 @@
     "contrastHint": "Misurato contro i testi di riferimento. È la metà più affilata di una voce — ed esiste solo dopo aver caricato un corpus di riferimento.",
     "contrastValues": "questo autore {{author}}, un modello {{other}}",
     "tone": "Ciò che l'agente riceve davvero (TONE.md)",
+    "corrections": "Cosa hanno cambiato le persone",
+    "correctionsHint": "Coppie: la versione dell'agente e quella della persona. Il materiale più forte di una voce — una regola descrive la mano, una coppia la mostra. Entrano nella scheda della prossima costruzione.",
+    "correctionsEmpty": "Ancora nessuna correzione. Compaiono quando qualcuno riscrive un testo all'approvazione.",
+    "before": "l'agente",
+    "after": "la persona",
+    "correctionFrom": "{{source}}, {{when}}",
     "role": {
       "opening": "apertura",
       "evidence": "prova",

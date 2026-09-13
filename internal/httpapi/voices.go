@@ -14,12 +14,16 @@ package httpapi
 // starts appearing in every prompt of every agent that carries it.
 
 import (
+	"context"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 
 	"covey/internal/llm"
+	"covey/internal/observability"
+	"covey/internal/style"
 	"covey/internal/voice"
 )
 
@@ -190,10 +194,17 @@ func (s *Server) handleBuildVoice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The corrections go into the card prompt: a pair shows the hand where a
+	// rule only describes it (spec/24). Best effort — a voice without pairs is
+	// the ordinary case, and a failure to read them must not lose the build.
+	pairs, err := store.Corrections(ctx, v.ID, 20)
+	if err != nil {
+		s.Log.Warn("voice: corrections not readable", "voice", v.ID, "err", err)
+	}
 	card := ""
 	if s.Secrets != nil {
 		if provider, err := llm.Resolve(ctx, s.Secrets, orgID); err == nil {
-			if card, err = voice.Card(ctx, provider, built, v.Name); err != nil {
+			if card, err = voice.Card(ctx, provider, built, v.Name, pairs); err != nil {
 				s.Log.Warn("voice: the card could not be written", "voice", v.ID, "err", err)
 				built.Notes = append(built.Notes,
 					"the card could not be written: "+err.Error()+" — the measured artefacts stand")
@@ -310,6 +321,118 @@ func (s *Server) handleSetAgentVoice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "voice": v.Name})
+}
+
+// handleListVoiceCorrections: the pairs of a voice, newest first.
+func (s *Server) handleListVoiceCorrections(w http.ResponseWriter, r *http.Request) {
+	store, v, ok := s.requireVoice(w, r)
+	if !ok {
+		return
+	}
+	list, err := store.Corrections(r.Context(), v.ID, 200)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	if list == nil {
+		list = []voice.Correction{}
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+// handleAddVoiceCorrection takes a pair from outside.
+//
+// The gate fills this by itself (see handleDecideApproval), and the endpoint
+// exists for the other half of spec/24: somebody edits a published text in a
+// target system, and the plugin that notices it posts the pair here. That half
+// lives in the plugin pack, which is exactly why it needs a way in that does
+// not require a change to covey.
+func (s *Server) handleAddVoiceCorrection(w http.ResponseWriter, r *http.Request) {
+	store, v, ok := s.requireVoice(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		Before  string `json:"before"`
+		After   string `json:"after"`
+		Action  string `json:"action"`
+		Source  string `json:"source"`
+		AgentID string `json:"agent_id"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "body not readable")
+		return
+	}
+	p := principalFrom(r)
+	c := voice.Correction{Before: in.Before, After: in.After, Action: in.Action,
+		Source: in.Source, By: p.ID.String()}
+	if in.AgentID != "" {
+		id, err := uuid.Parse(in.AgentID)
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, "invalid agent_id")
+			return
+		}
+		c.AgentID = &id
+	}
+	out, err := store.AddCorrection(r.Context(), p.OrgID, v.ID, c)
+	switch {
+	case errors.Is(err, voice.ErrInvalid):
+		writeErr(w, http.StatusBadRequest, err.Error())
+	case err != nil:
+		mapErr(w, err)
+	default:
+		writeJSON(w, http.StatusCreated, out)
+	}
+}
+
+func (s *Server) handleDeleteVoiceCorrection(w http.ResponseWriter, r *http.Request) {
+	store, v, ok := s.requireVoice(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("correctionID"))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid correction id")
+		return
+	}
+	if err := store.DeleteCorrection(r.Context(), principalFrom(r).OrgID, v.ID, id); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// approvalText is the agent's own text inside an approval — the prose the style
+// gate would have measured, found the same way so that the two cannot disagree.
+//
+// The floor of 20 words is deliberately below the gate's default: what a
+// reviewer bothers to rewrite is worth keeping as a pair even when it was too
+// short to be measured.
+func approvalText(appr observability.Approval) string {
+	return style.ProseIn(appr.Params, 20)
+}
+
+// noteCorrection stores what a reviewer changed about an agent's text, against
+// the voice that agent carries.
+//
+// Best effort by design: an agent without a voice has nowhere to put the pair,
+// and a correction that cannot be stored must not hold up the approval that was
+// the point of the click.
+func (s *Server) noteCorrection(ctx context.Context, appr observability.Approval, before, after, by string) {
+	if s.Voices == nil || strings.TrimSpace(before) == "" {
+		return
+	}
+	voiceID, ok := s.Voices.VoiceOfAgent(ctx, appr.AgentID)
+	if !ok {
+		return
+	}
+	agentID := appr.AgentID
+	if _, err := s.Voices.AddCorrection(ctx, appr.OrgID, voiceID, voice.Correction{
+		AgentID: &agentID, Source: voice.SourceApproval, Action: appr.Action,
+		Before: before, After: after, By: by,
+	}); err != nil && !errors.Is(err, voice.ErrInvalid) {
+		s.Log.Warn("voice: correction not stored", "approval", appr.ID, "err", err)
+	}
 }
 
 // requireVoice resolves {id} within the caller's organisation.

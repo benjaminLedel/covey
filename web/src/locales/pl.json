@@ -900,6 +900,8 @@
   "approvals": {
     "approve": "Zatwierdź",
     "deny": "Odmów",
+    "editHint": "Poprawka tutaj zatwierdza tę wersję — a para (agent, Ty) trafia do głosu agenta.",
+    "approveCorrected": "Zatwierdź poprawione",
     "title": "Zatwierdzenia",
     "pending": "{{count}} oczekujących",
     "noPending": "Nic nie czeka na zatwierdzenie.",
@@ -1329,6 +1331,12 @@
     "contrastHint": "Zmierzone wobec tekstów referencyjnych. To ostrzejsza połowa głosu — i istnieje dopiero po wgraniu korpusu referencyjnego.",
     "contrastValues": "ten autor {{author}}, model {{other}}",
     "tone": "Co agent naprawdę dostaje (TONE.md)",
+    "corrections": "Co zmienili ludzie",
+    "correctionsHint": "Pary: wersja agenta i wersja człowieka. Najmocniejszy materiał głosu — reguła opisuje rękę, para ją pokazuje. Trafiają do karty następnego builda.",
+    "correctionsEmpty": "Jeszcze brak poprawek. Powstają, gdy ktoś przepisze tekst przy zatwierdzaniu.",
+    "before": "agent",
+    "after": "człowiek",
+    "correctionFrom": "{{source}}, {{when}}",
     "role": {
       "opening": "otwarcie",
       "evidence": "dowód",

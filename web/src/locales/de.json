@@ -900,6 +900,8 @@
   "approvals": {
     "approve": "Freigeben",
     "deny": "Ablehnen",
+    "editHint": "Wer hier korrigiert, gibt diese Fassung frei — und das Paar (Agent, Sie) geht an die Stimme des Agenten.",
+    "approveCorrected": "Korrigiert freigeben",
     "title": "Freigaben",
     "pending": "{{count}} ausstehend",
     "noPending": "Nichts wartet auf Freigabe.",
@@ -1329,6 +1331,12 @@
     "contrastHint": "Gegen die Referenztexte gemessen. Das ist die schärfere Hälfte einer Stimme — und es gibt sie erst, wenn ein Referenzkorpus hochgeladen ist.",
     "contrastValues": "dieser Autor {{author}}, ein Modell {{other}}",
     "tone": "Was der Agent wirklich bekommt (TONE.md)",
+    "corrections": "Was Menschen geändert haben",
+    "correctionsHint": "Paare: die Fassung des Agenten und die des Menschen. Das stärkste Material einer Stimme — eine Regel beschreibt die Hand, ein Paar zeigt sie. Sie gehen in die Karte des nächsten Builds.",
+    "correctionsEmpty": "Noch keine Korrekturen. Sie entstehen, wenn jemand am Freigabe-Gate einen Text umschreibt.",
+    "before": "der Agent",
+    "after": "der Mensch",
+    "correctionFrom": "{{source}}, {{when}}",
     "role": {
       "opening": "Einstieg",
       "evidence": "Beleg",
