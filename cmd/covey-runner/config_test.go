@@ -422,3 +422,69 @@ func captureRunnerStdout(t *testing.T, f func()) string {
 	os.Stdout = old
 	return <-done
 }
+
+// On a host without systemd the installer does not refuse — the person in
+// front of it needs the text, not an error. That is the path every non-Linux
+// machine and every Linux with a different init system takes.
+func TestInstallServiceOnAHostWithoutSystemd(t *testing.T) {
+	if systemdPresent() {
+		t.Skip("this host runs systemd; the fallback cannot be reached here")
+	}
+	err := runInstallService(context.Background(), []string{"--config", "/etc/covey-runner/config.toml"}, quietLogger())
+	if err != nil {
+		t.Fatalf("the installer refused instead of printing the unit: %v", err)
+	}
+}
+
+// Removing a service that was never installed is not an error either: an
+// operator tidying up should not have to find out first whether there is
+// anything to tidy.
+func TestRemoveServiceWithNothingInstalled(t *testing.T) {
+	if _, err := os.Stat("/etc/systemd/system/covey-runner.service"); err == nil {
+		t.Skip("a unit is installed on this host")
+	}
+	out := captureRunnerStdout(t, func() {
+		if err := runRemoveService(context.Background(), nil, quietLogger()); err != nil {
+			t.Fatalf("removing nothing was an error: %v", err)
+		}
+	})
+	if !strings.Contains(out, "nothing to remove") {
+		t.Errorf("the answer does not say there was nothing there:\n%s", out)
+	}
+}
+
+// After a registration the next step stays visible even where the service
+// cannot be installed — that is the whole point of the branch.
+func TestInstallServiceAfterRegisterNamesTheNextStep(t *testing.T) {
+	out := captureRunnerStdout(t, func() {
+		installServiceAfterRegister(context.Background(), "/tmp/covey-runner.toml", quietLogger())
+	})
+	if !strings.Contains(out, "covey-runner run --config /tmp/covey-runner.toml") {
+		t.Errorf("the next step is not named:\n%s", out)
+	}
+}
+
+// A service user that does not exist is named as such. The alternative — a
+// chown that fails with a numeric error — would send the reader to the file
+// permissions instead of to the user they typed.
+func TestHandToUserNamesAnUnknownUser(t *testing.T) {
+	err := handToUser("ein-benutzer-den-es-nicht-gibt", filepath.Join(t.TempDir(), "config.toml"))
+	if err == nil {
+		t.Fatal("an unknown service user was accepted")
+	}
+	if !strings.Contains(err.Error(), "ein-benutzer-den-es-nicht-gibt") {
+		t.Errorf("the error does not name the user: %v", err)
+	}
+}
+
+// systemctl passes systemd's own complaint on unchanged — the message systemd
+// writes is more useful than any wrapping of it.
+func TestSystemctlCarriesTheComplaintOn(t *testing.T) {
+	err := systemctl(context.Background(), "gibtesnicht-als-unterbefehl")
+	if err == nil {
+		t.Skip("systemctl accepted an invented subcommand on this host")
+	}
+	if !strings.Contains(err.Error(), "gibtesnicht-als-unterbefehl") {
+		t.Errorf("the error does not name what was run: %v", err)
+	}
+}

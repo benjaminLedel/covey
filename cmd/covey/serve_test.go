@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"covey/internal/config"
 	"covey/internal/secrets/builtin"
 )
 
@@ -129,4 +130,128 @@ func waitForHTTP(t *testing.T, url string, within time.Duration) {
 		time.Sleep(50 * time.Millisecond)
 	}
 	t.Fatalf("%s did not answer within %s", url, within)
+}
+
+// The egress proxy is the sandbox's only way out in network-isolation mode,
+// and it runs as its own process inside the proxy container. Without the two
+// settings it needs it refuses to start rather than coming up with no
+// allowlist at all — a proxy that does not know what is allowed is not a
+// safeguard, it is a hole or a wall depending on which way it guesses.
+func TestEgressProxyNeedsControlPlaneAndToken(t *testing.T) {
+	for _, cfg := range []config.Config{
+		{},
+		{ControlURL: "http://127.0.0.1:1"},
+		{RunnerToken: "t"},
+	} {
+		err := runEgressProxy(context.Background(), cfg, quiet())
+		if err == nil {
+			t.Errorf("the proxy started with %+v", cfg)
+			continue
+		}
+		if !strings.Contains(err.Error(), "COVEY_CONTROL_URL") {
+			t.Errorf("the refusal does not name what is missing: %v", err)
+		}
+	}
+}
+
+// With both, it binds and serves until it is told to stop. It deliberately
+// does NOT check reachability at startup: in network mode the container joins
+// the bridge only after it has started, so the control plane is unreachable
+// for the first moments — the resolver retries and answers fail-closed until
+// then, which is the right answer for a proxy that does not know its list yet.
+func TestEgressProxyStartsWithoutTheControlPlaneAnswering(t *testing.T) {
+	cfg := config.Config{
+		ControlURL:      "http://127.0.0.1:1", // nothing there, on purpose
+		RunnerToken:     "t",
+		EgressProxyAddr: "127.0.0.1:0",
+		EgressAllow:     []string{"host.docker.internal"},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- runEgressProxy(ctx, cfg, quiet()) }()
+
+	// Give it a moment to bind, then take it down again.
+	time.Sleep(200 * time.Millisecond)
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("the proxy ended with %v — a cancelled context is a clean stop", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the proxy did not come down")
+	}
+}
+
+// A serve with the home store and egress enforcement on takes a different path
+// through the wiring than the default one: the blob store is opened, the
+// cooperative proxy is bound inside the process, and the sweep loop starts.
+func TestServeWithHomeStoreAndEgressEnforcement(t *testing.T) {
+	cfg := testConfig(t)
+	key, err := builtin.GenerateMasterKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.MasterKeyHex = key
+	cfg.ListenAddr = freePort(t)
+	cfg.PublicURL = "http://" + cfg.ListenAddr
+	cfg.BuiltinRunner = "off"
+	cfg.HomeStore = true
+	cfg.BlobStore = "builtin"
+	cfg.EgressEnforce = true
+	cfg.EgressIsolation = "proxy"
+	cfg.EgressProxyAddr = "127.0.0.1:0"
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- runServe(ctx, cfg, quiet()) }()
+
+	waitForHTTP(t, "http://"+cfg.ListenAddr+"/api/v1/public/signup-state", 20*time.Second)
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("serve ended with %v", err)
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatal("serve did not come down within 30 s")
+	}
+}
+
+// An object store nobody can reach is a WARNING, not an abort: everything that
+// is not a run works meanwhile, and a store that comes back in two minutes is
+// a normal case. What must not happen is a silent fall back to the directory —
+// homes would then be written where nothing looks for them.
+func TestServeWithAnUnreachableObjectStore(t *testing.T) {
+	cfg := testConfig(t)
+	key, err := builtin.GenerateMasterKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.MasterKeyHex = key
+	cfg.ListenAddr = freePort(t)
+	cfg.PublicURL = "http://" + cfg.ListenAddr
+	cfg.BuiltinRunner = "off"
+	cfg.HomeStore = true
+	cfg.BlobStore = "s3"
+	cfg.S3Endpoint = "http://127.0.0.1:1"
+	cfg.S3Bucket = "covey"
+	cfg.S3AccessKey = "k"
+	cfg.S3SecretKey = "s"
+	cfg.S3Region = "eu-central-1"
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- runServe(ctx, cfg, quiet()) }()
+
+	waitForHTTP(t, "http://"+cfg.ListenAddr+"/api/v1/public/signup-state", 40*time.Second)
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("serve ended with %v — an unreachable object store is a warning", err)
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatal("serve did not come down")
+	}
 }
