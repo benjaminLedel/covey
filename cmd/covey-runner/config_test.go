@@ -488,3 +488,47 @@ func TestSystemctlCarriesTheComplaintOn(t *testing.T) {
 		t.Errorf("the error does not name what was run: %v", err)
 	}
 }
+
+// `run` checks who it is before it opens the link, so a wrong token says so
+// here rather than as a WebSocket that closes without a reason. Against a
+// control plane that refuses the token it therefore ends with that refusal and
+// never gets as far as starting a node.
+func TestRunRunStopsAtAnInvalidToken(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/runner/v1/whoami" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	if err := writeConfig(path, config{URL: srv.URL, Token: "abgelaufen", WorkDir: dir}); err != nil {
+		t.Fatal(err)
+	}
+
+	err := runRun(context.Background(), []string{"--config", path}, quietLogger())
+	if err == nil {
+		t.Fatal("run started with a token the control plane refuses")
+	}
+	if !strings.Contains(err.Error(), "another instance") {
+		t.Errorf("the message does not explain the refusal: %v", err)
+	}
+}
+
+// verifyConnection is what register runs after writing the configuration: it
+// opens the runner link once and lets it go. Against a control plane that
+// answers HTTP but will not upgrade, it fails — which is the case it exists
+// for, and the two seconds it costs are the point.
+func TestVerifyConnectionAgainstAPlaneThatWillNotUpgrade(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	if err := verifyConnection(context.Background(), config{URL: srv.URL, Token: "t"}); err == nil {
+		t.Error("the check passed against a control plane that does not speak the protocol")
+	}
+}
