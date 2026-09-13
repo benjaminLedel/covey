@@ -517,3 +517,51 @@ func topN(counts map[string]int, n int) []wordCount {
 	}
 	return out
 }
+
+// The four below open the measurement up for the voice build
+// (internal/voice), which needs the paragraphs themselves and not only their
+// figures: an exemplar is a passage, not a number. They are thin exports of
+// what the measurement already does, so that a second implementation of "what
+// is a paragraph" cannot drift away from the one the gate measures with.
+
+// ParagraphTexts returns the prose paragraphs of a text, in order — markdown
+// stripped, code blocks out, exactly as Measure sees them.
+func ParagraphTexts(text string) []string {
+	prose, _, _ := stripMarkdown(text, false)
+	return splitParagraphs(prose)
+}
+
+// ClosesOnAntithesis reports whether a passage turns on the antithesis figure.
+// A paragraph that does is never an exemplar: it is the one habit the
+// measurements found in every AI corpus and in almost no human one.
+func ClosesOnAntithesis(passage string) bool {
+	for _, s := range splitSentences(passage) {
+		if antithesisIn(s) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// Anchors are the concrete things a passage holds on to: a number, a name, a
+// quote, an example, a link. What makes a paragraph worth showing to a model as
+// an example of the author's hand.
+func Anchors(passage, lang string) []Anchor {
+	if lang == "" {
+		lang = detectLanguage(wordsOf(passage))
+	}
+	return findAnchors(passage, lang)
+}
+
+// BandValues keeps the corpus values of the metrics that have a band — the
+// figures that belong beside a profile for orientation, without the two dozen
+// that nothing measures against.
+func BandValues(corpus map[string]float64) map[string]float64 {
+	out := map[string]float64{}
+	for k := range Label {
+		if v, ok := corpus[k]; ok {
+			out[k] = v
+		}
+	}
+	return out
+}

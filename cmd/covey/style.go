@@ -96,7 +96,7 @@ func runStyleStats(args []string) error {
 		lex := style.BuildLexicon(texts, 40)
 		lexJSON, _ := json.Marshal(lex)
 		p := style.Profile{Schema: style.Schema, Language: language, Documents: len(usable), Words: words,
-			Holdout: holdout, Bands: style.BandsFrom(usable, corpus), Corpus: pickBands(corpus), Lexicon: lexJSON}
+			Holdout: holdout, Bands: style.BandsFrom(usable, corpus), Corpus: style.BandValues(corpus), Lexicon: lexJSON}
 		out, err := json.MarshalIndent(p, "", " ")
 		if err != nil {
 			return err
@@ -244,17 +244,6 @@ func majorityLanguage(ms []style.Measurement) string {
 		return "en"
 	}
 	return "de"
-}
-
-// pickBands keeps the corpus values of the metrics that have bands.
-func pickBands(corpus map[string]float64) map[string]float64 {
-	out := map[string]float64{}
-	for k := range style.Label {
-		if v, ok := corpus[k]; ok {
-			out[k] = v
-		}
-	}
-	return out
 }
 
 var statsKeys = []string{"sent_len_mean", "sent_len_cv", "long_sent_share", "para_len_mean",

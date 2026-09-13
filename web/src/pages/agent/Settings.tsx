@@ -7,8 +7,10 @@ import {
   api,
   post,
   patch,
+  put,
   del,
   type Agent,
+  type Voice,
   type RuntimeInfo,
   type SandboxService,
   type Workplace,
@@ -128,6 +130,19 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
   const setRuntime = useMutation({
     mutationFn: (runtime: string) =>
       patch<{ ok: boolean; warning?: string }>(`/agents/${agent.id}/runtime`, { runtime }),
+    onSuccess: invalidate,
+  });
+  // Die Stimmen der Organisation (spec/24). Zuweisen schreibt die TONE.md in
+  // die Config des Agenten — eine Config-Version wie jede andere, nachlesbar
+  // und rücknehmbar an derselben Stelle wie der Rest.
+  const voices = useQuery({
+    queryKey: ["voices"],
+    queryFn: () => api<Voice[]>("/voices"),
+    retry: false,
+  });
+  const setVoice = useMutation({
+    mutationFn: (voiceID: string) =>
+      put<{ ok: boolean; note?: string }>(`/agents/${agent.id}/voice`, { voice_id: voiceID }),
     onSuccess: invalidate,
   });
   const setModel = useMutation({
@@ -403,6 +418,35 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
         />
         <span className="muted text-xs">{t("agent.settings.maxTurnsHint")}</span>
       </div>
+      {/* Die Stimme, in der dieser Agent schreibt. Nur gebaute stehen zur
+          Wahl: eine Stimme ohne Build hat nichts, was in eine TONE.md könnte. */}
+      <div style={row}>
+        <span className="text-sm">{t("agent.settings.voice")}</span>
+        <select
+          value={agent.voice_id ?? ""}
+          disabled={!editable || setVoice.isPending || !voices.isSuccess}
+          onChange={(e) => setVoice.mutate(e.target.value)}
+        >
+          <option value="">{t("agent.settings.voiceNone")}</option>
+          {(voices.data ?? [])
+            .filter((v) => v.version > 0)
+            .map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name}
+                {v.language ? ` (${v.language})` : ""}
+              </option>
+            ))}
+        </select>
+        <span className="muted text-xs">{t("agent.settings.voiceHint")}</span>
+      </div>
+      {setVoice.isError && (
+        <p className="text-xs" style={{ color: "var(--error)", margin: "0 0 8px" }}>
+          {(setVoice.error as Error).message}
+        </p>
+      )}
+      {setVoice.data?.note && (
+        <p className="text-xs muted" style={{ margin: "0 0 8px" }}>{setVoice.data.note}</p>
+      )}
     </div>
     <div className="card mb-4" style={{ maxWidth: 760, padding: "14px 18px 4px" }}>
       <div className="text-sm font-medium mb-1">{t("agent.settings.group.workplace")}</div>

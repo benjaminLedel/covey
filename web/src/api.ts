@@ -36,6 +36,9 @@ export type Agent = {
    *  können die beiden auseinanderlaufen — wer sie gleichsetzt, zeigt einen
    *  Zustand an, den es so nicht gibt. */
   runtime_id?: string;
+  /** Die Stimme, in der dieser Agent schreibt (spec/24). Fehlt = keine; was
+   *  wirkt, ist die TONE.md seiner Config — dies sagt, WESSEN Stimme das ist. */
+  voice_id?: string;
   model: string;
   effort: string; // "" = Runtime-Default, sonst low|medium|high|xhigh|max
   max_turns: number;
@@ -1346,6 +1349,45 @@ export type Workplace = {
      Ein Plugin-Fix erreicht ihn deshalb erst beim nächsten kalten Start —
      sichtbar gemacht, nicht automatisch behoben (#217). */
   stale?: { id: string; slug: string; display_name: string }[];
+};
+
+/* Stimmen: der Stil eines Autors als Objekt der Organisation (spec/24). Vier
+   Stücke — Profil (die Bänder, die das Style-Gate misst), Passagen (die im
+   Prompt stehen), Karte (die Beschreibung in Worten, von einem Modell
+   geschrieben und von einem Menschen freigegeben) und Kontrast (was der Autor
+   nie tut, gemessen gegen KI-Text). */
+export type VoiceExemplar = { role: string; text: string; from?: string };
+export type VoiceContrast = { metric: string; label: string; author: number; other: number };
+export type VoiceDocument = {
+  id: string;
+  name: string;
+  /** author = die Texte des Autors, reference = KI-Text, gegen den der Kontrast misst. */
+  kind: "author" | "reference";
+  words: number;
+  created_at: string;
+};
+export type Voice = {
+  id: string;
+  name: string;
+  language: string;
+  /** Zählt die BUILDS. 0 = noch nie gebaut, dann trägt sie niemand. */
+  version: number;
+  exemplars: VoiceExemplar[];
+  contrast: VoiceContrast[];
+  notes: string[];
+  /** Der Entwurf des letzten Builds; released_card ist, was wirkt. */
+  card: string;
+  released_card: string;
+  released_at?: string;
+  words: number;
+  documents: number;
+  built_at?: string;
+  agents?: { id: string; slug: string; display_name: string }[];
+};
+export type VoiceDetail = Voice & {
+  corpus: VoiceDocument[];
+  /** Die gerenderte TONE.md — was der Agent wirklich mitbekommt. */
+  tone: string;
 };
 
 export const createWorkplace = (w: { name: string; label: string; description: string; image: string }) =>

@@ -164,28 +164,6 @@ func TestMajorityLanguage(t *testing.T) {
 	}
 }
 
-// pickBands keeps exactly the metrics a profile has bands for — a corpus value
-// without a band would be a number in the file that nothing reads.
-func TestPickBands(t *testing.T) {
-	corpus := map[string]float64{"erfunden_metrik": 1}
-	var known string
-	for k := range style.Label {
-		known = k
-		break
-	}
-	if known == "" {
-		t.Skip("the style package declares no labelled metric")
-	}
-	corpus[known] = 2
-	got := pickBands(corpus)
-	if _, ok := got["erfunden_metrik"]; ok {
-		t.Error("a metric without a band was kept")
-	}
-	if got[known] != 2 {
-		t.Errorf("the labelled metric is missing: %v", got)
-	}
-}
-
 func TestTrimNum(t *testing.T) {
 	for _, tc := range []struct {
 		in   float64

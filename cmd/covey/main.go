@@ -60,6 +60,7 @@ import (
 	targetstore "covey/internal/target/store"
 	"covey/internal/telemetry"
 	"covey/internal/templates"
+	"covey/internal/voice"
 	"covey/internal/waitlist"
 	orgworkplaces "covey/internal/workplaces"
 	"covey/migrations"
@@ -949,6 +950,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	templateStore := templates.NewStore(pool)
 	auditStore := audit.NewStore(pool)
 	skillStore := skills.NewStore(pool)
+	voiceStore := voice.New(pool)
 
 	// Die veroeffentlichten Arbeitsplaetze (spec/16): welches Image zu welcher
 	// covey-Fassung gehoert, gepinnt auf den Digest. Mit demselben Cache wie
@@ -1430,6 +1432,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Mail:   mail.New(settingsStore),
 		Notify: notifyStore,
 		Skills: skillStore,
+		Voices: voiceStore,
 		Orch:   orch, WebFS: dist, Log: log,
 		WebhookSecrets: cfg.WebhookSecrets,
 		SessionTTL:     cfg.SessionTTL,

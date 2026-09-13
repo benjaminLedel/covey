@@ -51,6 +51,7 @@ import (
 	"covey/internal/skills"
 	targetstore "covey/internal/target/store"
 	"covey/internal/templates"
+	"covey/internal/voice"
 	"covey/internal/waitlist"
 	"covey/internal/workplaces"
 
@@ -170,6 +171,7 @@ type stack struct {
 	egress   *egress.Store
 	runners  *runnerstore.Store
 	skills   *skills.Store
+	voices   *voice.Store
 	reqlog   *reqlogstore.Store
 	// workplaces carries the organisation's own workplaces and the allowlist of
 	// images that may run beside a sandbox (spec/16).
@@ -290,6 +292,7 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 	s.egress = egress.NewStore(pool)
 	s.runners = runnerstore.NewStore(pool)
 	s.skills = skills.NewStore(pool)
+	s.voices = voice.New(pool)
 	s.workplaces = workplaces.New(pool)
 	// Request log as in production, but without reqlog.SetDefault: the sink is
 	// process-wide, and stacks running in parallel would push their entries at
@@ -352,7 +355,10 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 		// answer 503, and a test would be checking the wrong thing.
 		Notify:    notify.New(pool).WithSettings(s.settings),
 		Templates: s.templates, Dreams: s.dreams, Audit: s.audit,
-		Skills:      s.skills,
+		Skills: s.skills,
+		// The voice library (spec/24): without the store the endpoints answer
+		// 503, and the test would be checking the absence of a feature.
+		Voices:      s.voices,
 		EgressStore: s.egress,
 		Runners:     s.runners,
 		// The organisation's own workplaces and its service-image allowlist:

@@ -73,6 +73,11 @@ type Agent struct {
 	// assigned; Runtime then still names the engine, for the migration window
 	// and for agents created before the assignment existed.
 	RuntimeID *uuid.UUID `json:"runtime_id,omitempty"`
+	// VoiceID is the style this agent writes in (spec/24). nil = none. What
+	// ACTS is the TONE.md of its config; this says whose voice that is — for
+	// the picker, for a rebuild that wants to know whom it concerns, and for
+	// the correction pairs the voice collects later.
+	VoiceID *uuid.UUID `json:"voice_id,omitempty"`
 	// RecordingLevel is the optional agent override of the recording depth
 	// (spec/06); empty = inherits the org floor. It only ever tightens (max with
 	// the floor), enforced in the control plane.
@@ -160,13 +165,13 @@ type Registry struct {
 
 func NewRegistry(pool *pgxpool.Pool) *Registry { return &Registry{pool: pool} }
 
-const agentCols = "id, org_id, slug, display_name, runtime, model, effort, max_turns, status, owner_id, supervisor_id, department_id, job_title, identities, phone, responsibilities, custom, killed, budget_usd, runtime_id, webhook_token, COALESCE(recording_level,''), recording_retention_days, sandbox_image, runner_tags, services, warm_sandbox, hired_at, created_at, updated_at"
+const agentCols = "id, org_id, slug, display_name, runtime, model, effort, max_turns, status, owner_id, supervisor_id, department_id, job_title, identities, phone, responsibilities, custom, killed, budget_usd, runtime_id, voice_id, webhook_token, COALESCE(recording_level,''), recording_retention_days, sandbox_image, runner_tags, services, warm_sandbox, hired_at, created_at, updated_at"
 
 func scanAgent(row pgx.Row) (Agent, error) {
 	var a Agent
 	err := row.Scan(&a.ID, &a.OrgID, &a.Slug, &a.DisplayName, &a.Runtime, &a.Model, &a.Effort, &a.MaxTurns, &a.Status,
 		&a.OwnerID, &a.SupervisorID, &a.DepartmentID, &a.JobTitle, &a.Identities, &a.Phone, &a.Responsibilities, &a.Custom,
-		&a.Killed, &a.BudgetUSD, &a.RuntimeID, &a.WebhookToken, &a.RecordingLevel, &a.RecordingRetentionDays, &a.SandboxImage, &a.RunnerTags, &a.Services, &a.WarmSandbox, &a.HiredAt, &a.CreatedAt, &a.UpdatedAt)
+		&a.Killed, &a.BudgetUSD, &a.RuntimeID, &a.VoiceID, &a.WebhookToken, &a.RecordingLevel, &a.RecordingRetentionDays, &a.SandboxImage, &a.RunnerTags, &a.Services, &a.WarmSandbox, &a.HiredAt, &a.CreatedAt, &a.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return a, ErrNotFound
 	}
