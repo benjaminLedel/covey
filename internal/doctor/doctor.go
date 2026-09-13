@@ -118,6 +118,7 @@ func (d *doctor) check(ctx context.Context, pool *pgxpool.Pool) {
 	d.checkHomeStore(ctx, pool)
 	d.checkEgress(ctx)
 	d.checkRunners(ctx, pool)
+	d.checkEngines(ctx, pool)
 	d.checkAccounts(ctx, pool)
 }
 

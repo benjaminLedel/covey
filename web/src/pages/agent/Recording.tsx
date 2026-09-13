@@ -7,7 +7,7 @@ import {
   api,
   type RecordingEvent,
 } from "../../api";
-import { ActivityFeed, subAgentMark } from "../../components/ActivityFeed";
+import { ActivityFeed, reasonSuffix, subAgentMark } from "../../components/ActivityFeed";
 import { fmtBytes, fmtUSD } from "../../format";
 
 
@@ -106,6 +106,11 @@ function summarize(e: RecordingEvent): { text: string; mono?: boolean; muted?: b
   switch (e.kind) {
     case "lifecycle": {
       if (p.status === "task_done") return { text: i18n.t("activity.taskDone") };
+      // Der Grund steht im selben Ereignis (#221). Die Aufzeichnung ist der
+      // dokumentierte Weg zur Fehlersuche — sie muss ihn zeigen, sonst ist der
+      // Weg eine Sackgasse.
+      if (p.status === "task_failed")
+        return { text: i18n.t("activity.taskFailed", { reason: reasonSuffix(p.error) }), danger: true };
       // Wo ein Lauf stattfindet. Bei einer Maschine ist das keine Frage, ab
       // der zweiten ist es die erste — und die Antwort stand vorher nur im Log
       // des Prozesses, wenn überhaupt.

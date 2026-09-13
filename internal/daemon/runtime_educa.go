@@ -139,6 +139,10 @@ func init() {
 			{Kind: CredSubscription, Label: "Contract seat",
 				Secret: "educa_seat_token", EnvVar: "ANTHROPIC_AUTH_TOKEN"},
 		},
+		// The same binary claude-code runs, pointed at another endpoint — hence
+		// the same CLI declaration. An installation that puts the harness
+		// somewhere of its own sets ONE variable and both engines follow.
+		CLI: RuntimeCLI{Name: claudeDefaultBinary, Env: claudeBinEnv},
 		Capabilities: RuntimeCapabilities{
 			// The ids that were put to work, not the ones the instance lists.
 			// Each of these solved a real multi-step task through the harness —
