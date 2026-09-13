@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -258,5 +259,110 @@ func TestPrintStatsTableShortensLongNames(t *testing.T) {
 	}
 	if !strings.Contains(out, "ein-sehr-langer-da") {
 		t.Errorf("the name was not shortened to 18 characters:\n%s", out)
+	}
+}
+
+// `covey style stats --profile` is the documented way to produce the
+// ```style-profile``` block for a TONE.md (spec/06). What it writes is read
+// back by the style gate, so the block has to be a block the parser accepts —
+// a profile that only looks right is a gate that never applies.
+func TestStyleStatsWritesAProfileTheParserAccepts(t *testing.T) {
+	dir := t.TempDir()
+	for name, text := range corpus() {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(text), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	out := captureStdout(t, func() {
+		if err := runStyleStats([]string{dir, "--profile", "--lang", "de"}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if !strings.Contains(out, "```style-profile") {
+		t.Fatalf("no profile block was written:\n%s", out)
+	}
+	p, _, err := style.ParseProfile(out)
+	if err != nil {
+		t.Fatalf("the written profile does not parse: %v\n%s", err, out)
+	}
+	if p.Language != "de" {
+		t.Errorf("the profile names the language %q", p.Language)
+	}
+	if len(p.Bands) == 0 {
+		t.Error("the profile carries no bands — a gate with none applies to nothing")
+	}
+	if p.Documents == 0 {
+		t.Error("the profile says it was built from no documents")
+	}
+}
+
+// A document named as the holdout is left out of the profile it will later be
+// measured against — otherwise the corpus contains its own test.
+func TestStyleStatsHonoursTheHoldout(t *testing.T) {
+	dir := t.TempDir()
+	for name, text := range corpus() {
+		os.WriteFile(filepath.Join(dir, name), []byte(text), 0o600)
+	}
+	out := captureStdout(t, func() {
+		if err := runStyleStats([]string{dir, "--profile", "--holdout", "eins.md"}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	p, _, err := style.ParseProfile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var held bool
+	for _, h := range p.Holdout {
+		if h == "eins.md" {
+			held = true
+		}
+	}
+	if !held {
+		t.Errorf("the profile does not record the holdout: %v", p.Holdout)
+	}
+}
+
+// --json is the machine-readable form of the same measurement: per document
+// and the corpus, so a script can watch a number over time.
+func TestStyleStatsAsJSON(t *testing.T) {
+	dir := t.TempDir()
+	for name, text := range corpus() {
+		os.WriteFile(filepath.Join(dir, name), []byte(text), 0o600)
+	}
+	out := captureStdout(t, func() {
+		if err := runStyleStats([]string{dir, "--json"}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	var doc struct {
+		Documents []style.Measurement `json:"documents"`
+		Corpus    map[string]float64  `json:"corpus"`
+	}
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("--json is not readable JSON: %v\n%s", err, out)
+	}
+	if len(doc.Documents) == 0 || len(doc.Corpus) == 0 {
+		t.Errorf("--json carries %d documents and %d corpus values", len(doc.Documents), len(doc.Corpus))
+	}
+}
+
+// corpus is four texts long enough to be measured (the profile wants 150 words
+// per document before it counts one).
+func corpus() map[string]string {
+	para := func(seed string) string {
+		var b strings.Builder
+		for i := 0; i < 12; i++ {
+			b.WriteString(seed + " Der Kunde Meier meldete am Montag einen Ausfall der Schnittstelle, und die Ursache war ein Zertifikat, das am Sonntag abgelaufen war. ")
+			b.WriteString("Frau Zabel hat es am Dienstag erneuert, und seither läuft die Übertragung wieder. ")
+		}
+		return b.String()
+	}
+	return map[string]string{
+		"eins.md": "# Eins\n\n" + para("Erstens."),
+		"zwei.md": "# Zwei\n\n" + para("Zweitens."),
+		"drei.md": "# Drei\n\n" + para("Drittens."),
+		"vier.md": "# Vier\n\n" + para("Viertens."),
 	}
 }

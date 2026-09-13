@@ -190,3 +190,39 @@ func TestWasmNotesNameThePrivileges(t *testing.T) {
 		t.Error("a small module was reported as too large")
 	}
 }
+
+// An MCP config is the third kind the lint recognises, and the one where the
+// note matters most: the endpoint it names is what installing it opens the
+// organisation's egress to, so a reviewer has to see that before deciding.
+func TestPluginLintAcceptsAnMCPConfigAndNamesItsEndpoint(t *testing.T) {
+	path := write(t, "werkzeug.json",
+		`{"name":"hauswerkzeug","label":"Hauswerkzeug","url":"https://mcp.example.test/rpc"}`)
+
+	out := captureStdout(t, func() {
+		if err := runPlugin([]string{"lint", path}); err != nil {
+			t.Fatalf("a valid MCP config was rejected: %v", err)
+		}
+	})
+	if !strings.Contains(out, "mcp plugin") {
+		t.Errorf("the lint did not recognise it as MCP:\n%s", out)
+	}
+	if !strings.Contains(out, "https://mcp.example.test/rpc") {
+		t.Errorf("the endpoint is not named:\n%s", out)
+	}
+	if !strings.Contains(out, "opens the egress") {
+		t.Errorf("the note about the egress is missing:\n%s", out)
+	}
+}
+
+// A config that calls itself MCP and names no usable endpoint is refused: the
+// endpoint is the one thing such a plugin consists of.
+func TestPluginLintRefusesAnMCPConfigWithoutAUsableEndpoint(t *testing.T) {
+	for _, body := range []string{
+		`{"name":"ohne-schema","url":"mcp.example.test"}`,
+		`{"name":"Falsch Geschrieben","url":"https://mcp.example.test"}`,
+	} {
+		if err := runPlugin([]string{"lint", write(t, "x.json", body)}); err == nil {
+			t.Errorf("%s passed the lint", body)
+		}
+	}
+}
