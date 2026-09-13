@@ -34,11 +34,10 @@ Implementation: `internal/engines` (`catalogue.go`, `store.go`, `fetch.go`, `env
   "generated_at": "2026-09-05T09:00:00Z",
   "engines": [
     { "name": "sevencode", "versions": [
-      { "version": "1.0.7", "kind": "npm", "package": "sevencode",
+      { "version": "0.0.2", "kind": "npm", "package": "sevencode",
         "binary_env": "COVEY_SEVENCODE_BIN",
-        "env": ["SEVENCODE_DISABLE_AUTOUPDATE=1"],
         "requires": ["node>=22"],
-        "notes": "headless via -p --output-format stream-json --session-id" }
+        "notes": "headless via `run --format json`; the wrapper resolves its platform binary itself, so --ignore-scripts is enough" }
     ]},
     { "name": "claude-code", "versions": [
       { "version": "2.1.0", "kind": "npm", "package": "@anthropic-ai/claude-code",
@@ -80,7 +79,7 @@ Lowest to highest:
 
 So the catalogue takes an engine off the image without taking the last word away from the operator, in the same spirit as `COVEY_SANDBOX_IMAGE_<PROFILE>` outranking the workplace catalogue ([`16`](16-runners-and-workplaces.md)).
 
-**Silence is not failure.** The catalogue says nothing in four cases — no URL configured, the start names no engine, the catalogue does not list this engine, the operator named a path — and each leaves the old behaviour standing. What *is* a failure: the catalogue names this engine and the layer cannot be produced. Then the start fails and the task records why. Falling back to whatever binary the image happens to hold would record a run against version 1.0.7 while it ran on the 0.9 in the image — a wrong record, not a degraded one.
+**Silence is not failure.** The catalogue says nothing in four cases — no URL configured, the start names no engine, the catalogue does not list this engine, the operator named a path — and each leaves the old behaviour standing. What *is* a failure: the catalogue names this engine and the layer cannot be produced. Then the start fails and the task records why. Falling back to whatever binary the image happens to hold would record a run against the version the catalogue names while it ran on whatever the image holds — a wrong record, not a degraded one.
 
 ## Trust
 
