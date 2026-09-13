@@ -338,8 +338,13 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 		Skills:      s.skills,
 		EgressStore: s.egress,
 		Runners:     s.runners,
-		ReqLog:      s.reqlog,
-		Orch:        s.orch, Log: log,
+		// The organisation's own workplaces and its service-image allowlist:
+		// wired here because these endpoints are the only way either is
+		// administered, and an unwired store answers 503 to a test that meant
+		// to check what the store does.
+		OrgWorkplaces: s.workplaces,
+		ReqLog:        s.reqlog,
+		Orch:          s.orch, Log: log,
 		WebhookSecrets: map[string]string{"zammad": webhookSecret, "jira": webhookSecret},
 		SessionTTL:     time.Hour,
 	}

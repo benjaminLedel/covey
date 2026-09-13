@@ -139,3 +139,98 @@ func TestWorkplacesOverTheAPI(t *testing.T) {
 		}
 	}
 }
+
+// An organisation can bring a workplace of its own — an image an agent works
+// in that the published catalogue does not carry. The one rule that has to
+// hold is the name: a published name cannot be taken, because which image a
+// name means must not depend on who looks first.
+func TestOwnWorkplacesOverTheAPI(t *testing.T) {
+	s := newStack(t)
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+
+	before := admin.expectList(http.MethodGet, "/api/v1/workplaces", nil, http.StatusOK)
+	if len(before) == 0 {
+		t.Fatal("no workplace at all is offered")
+	}
+	var published string
+	for _, w := range before {
+		if name, _ := w["name"].(string); name != "" {
+			published = name
+			break
+		}
+	}
+
+	made := admin.expect(http.MethodPost, "/api/v1/workplaces", map[string]any{
+		"name": "hausbau", "label": "Hausbau", "description": "mit unserem Werkzeug",
+		"image": "registry.example/hausbau:1",
+	}, http.StatusCreated)
+	if made["name"] != "hausbau" {
+		t.Fatalf("the workplace was created as %v", made)
+	}
+
+	after := admin.expectList(http.MethodGet, "/api/v1/workplaces", nil, http.StatusOK)
+	if len(after) != len(before)+1 {
+		t.Errorf("the list holds %d workplaces, expected one more than %d", len(after), len(before))
+	}
+
+	// A published name cannot be claimed: the resolution prefers the published
+	// image, so an own workplace of that name would be an entry that never
+	// applies — refused where it is entered rather than discovered later.
+	if published != "" {
+		admin.expect(http.MethodPost, "/api/v1/workplaces",
+			map[string]any{"name": published, "image": "registry.example/andere:1"}, http.StatusConflict)
+	}
+	admin.expect(http.MethodPost, "/api/v1/workplaces",
+		map[string]any{"name": "ohne-bild"}, http.StatusBadRequest)
+
+	admin.expect(http.MethodDelete, "/api/v1/workplaces/hausbau", nil, http.StatusOK)
+	admin.expect(http.MethodDelete, "/api/v1/workplaces/gibtesnicht", nil, http.StatusNotFound)
+}
+
+// The service-image allowlist is the one thing standing between an image
+// reference in an agent's config and a container on a runner. It is
+// administered here, and the syntax is checked here rather than trusted.
+func TestServiceImageAllowlistOverTheAPI(t *testing.T) {
+	s := newStack(t)
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+
+	if list := admin.expectList(http.MethodGet, "/api/v1/service-images", nil, http.StatusOK); len(list) != 0 {
+		t.Errorf("a fresh organisation already allows service images: %v", list)
+	}
+
+	made := admin.expect(http.MethodPost, "/api/v1/service-images",
+		map[string]string{"pattern": "postgres:*", "note": "für Projektdatenbanken"}, http.StatusCreated)
+	id, _ := made["id"].(string)
+	if id == "" {
+		t.Fatalf("the pattern carries no id: %v", made)
+	}
+
+	// A pattern that cannot mean what its author thinks is refused where
+	// somebody is looking. `postgres*` would also match
+	// postgres-evil.example.com/backdoor, and nobody reading the list would
+	// see it — so the star has to follow a separator, and it has to stand at
+	// the end.
+	for _, bad := range []string{"postgres*", "post*gres:16", "mit leerzeichen", ""} {
+		admin.expect(http.MethodPost, "/api/v1/service-images",
+			map[string]string{"pattern": bad}, http.StatusBadRequest)
+	}
+
+	list := admin.expectList(http.MethodGet, "/api/v1/service-images", nil, http.StatusOK)
+	if len(list) != 1 {
+		t.Fatalf("the allowlist holds %d entries", len(list))
+	}
+
+	// And with the pattern in place a service the agent declares is accepted,
+	// where an image outside it is not.
+	agent := s.newSupportAgent("dienst-agent")
+	base := "/api/v1/agents/" + agent.ID.String() + "/services"
+	admin.expect(http.MethodPatch, base, map[string]any{
+		"services": []any{map[string]any{"name": "db", "image": "postgres:16"}},
+	}, http.StatusOK)
+	admin.expect(http.MethodPatch, base, map[string]any{
+		"services": []any{map[string]any{"name": "böse", "image": "attacker/backdoor:latest"}},
+	}, http.StatusBadRequest)
+
+	admin.expect(http.MethodDelete, "/api/v1/service-images/"+id, nil, http.StatusOK)
+	admin.expect(http.MethodDelete, "/api/v1/service-images/keine-uuid", nil, http.StatusBadRequest)
+}
