@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -484,10 +485,27 @@ func (f *fakeZammad) lastUpdate() map[string]any {
 	return f.updates[len(f.updates)-1]
 }
 
+// waitFactor stretches every wall-clock budget in this suite. The budgets were
+// written on a developer machine; a shared CI runner does the same work at a
+// third of the speed — the same package took 227 s on one run and 560 s on the
+// next, and the test that starts a real Chrome then lost a race it wins
+// everywhere else (#244).
+//
+// Stretching costs nothing while a test passes: waitFor returns the moment the
+// condition holds, not when the timer runs out. Only a genuine failure waits
+// longer. The default is 1, so a local `make test-integration` is unchanged.
+var waitFactor = func() float64 {
+	f, err := strconv.ParseFloat(os.Getenv("COVEY_TEST_WAIT_FACTOR"), 64)
+	if err != nil || f < 1 {
+		return 1
+	}
+	return f
+}()
+
 // waitFor polls a condition until it holds or the time limit is exceeded.
 func waitFor(t *testing.T, what string, timeout time.Duration, cond func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(timeout)
+	deadline := time.Now().Add(time.Duration(float64(timeout) * waitFactor))
 	for time.Now().Before(deadline) {
 		if cond() {
 			return
@@ -495,6 +513,55 @@ func waitFor(t *testing.T, what string, timeout time.Duration, cond func() bool)
 		time.Sleep(50 * time.Millisecond)
 	}
 	t.Fatalf("timeout: %s", what)
+}
+
+// waitForOr is waitFor with a witness. "timeout" alone says that something did
+// not happen, never what did — and on a CI runner nobody can attach a debugger
+// to, that difference is the whole diagnosis.
+func waitForOr(t *testing.T, what string, timeout time.Duration, cond func() bool, witness func() string) {
+	t.Helper()
+	deadline := time.Now().Add(time.Duration(float64(timeout) * waitFactor))
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("timeout: %s — %s", what, witness())
+}
+
+// recordingSummary renders an agent's recording in one line per event: what it
+// did, whether it worked, and the error if it did not.
+func (s *stack) recordingSummary(agentID uuid.UUID) string {
+	rows, err := s.pool.Query(context.Background(), `SELECT kind,
+		coalesce(payload->>'action', ''), coalesce(payload->>'ok', ''), coalesce(payload->>'error', '')
+		FROM recording_events WHERE agent_id=$1 ORDER BY id`, agentID)
+	if err != nil {
+		return "unreadable: " + err.Error()
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var kind, action, ok, errText string
+		if err := rows.Scan(&kind, &action, &ok, &errText); err != nil {
+			return "unreadable: " + err.Error()
+		}
+		line := kind
+		if action != "" {
+			line += " " + action
+		}
+		if ok != "" {
+			line += " ok=" + ok
+		}
+		if errText != "" {
+			line += " error=" + errText
+		}
+		out = append(out, line)
+	}
+	if len(out) == 0 {
+		return "no events at all"
+	}
+	return strings.Join(out, " | ")
 }
 
 func (s *stack) taskState(id uuid.UUID) string {
