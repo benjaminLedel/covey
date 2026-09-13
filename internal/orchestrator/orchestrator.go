@@ -391,6 +391,14 @@ type session struct {
 	// log window reaches.
 	runnerID   uuid.UUID
 	runnerName string
+	// And WHAT it is working in: the workplace image this sandbox started from
+	// and what that reference resolved to. Held for the same reason — the
+	// question is asked while the agent works — and answering it is the whole
+	// point: the image a running sandbox uses is fixed at its start, so an
+	// agent that never falls asleep keeps yesterday's plugins however often the
+	// control plane is deployed (#217).
+	image   string
+	imageID string
 	// The sandbox itself, so that an action can reach it while the run is
 	// going on. The agent's own request for services needs it: it comes in over
 	// the daemon link, in the middle of a run, and the only other route to the
@@ -970,6 +978,29 @@ func (o *Orchestrator) runWroteSignature(ctx context.Context, agentID uuid.UUID,
 	return false
 }
 
+// Workplace says WHAT an agent is working in right now: the image reference its
+// sandbox was started with and what that reference resolved to on its host.
+// ok=false: nothing of this agent is standing anywhere, so there is no running
+// image to name.
+//
+// The warm sandbox is included deliberately, because it is the case this
+// exists for: an agent that never falls asleep never starts again either, and
+// so it keeps the plugins of the day its sandbox came up (#217).
+func (o *Orchestrator) Workplace(agentID uuid.UUID) (ref, id string, ok bool) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if s := o.sessions[agentID]; s != nil && (s.image != "" || s.imageID != "") {
+		return s.image, s.imageID, true
+	}
+	if ws := o.warm[agentID]; ws != nil && ws.sandbox != nil {
+		if onImage, ok := ws.sandbox.(OnImage); ok {
+			ref, id := onImage.Image()
+			return ref, id, ref != "" || id != ""
+		}
+	}
+	return "", "", false
+}
+
 // Placement says where an agent is working right now — the host its sandbox
 // stands on, including the parked one of a warm agent, which is compute on a
 // machine as much as a running one is. ok=false: nothing of this agent is
@@ -1187,9 +1218,24 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 		o.mu.Lock()
 		s.runnerID, s.runnerName = id, label
 		o.mu.Unlock()
-		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindLifecycle, map[string]any{
-			"status": "sandbox", "runner": id.String(), "runner_name": label,
-		})
+		fields := map[string]any{"status": "sandbox", "runner": id.String(), "runner_name": label}
+		// And in which workplace. The recording is where somebody looks
+		// afterwards to ask which code actually ran — and "the deploy was at
+		// 14:02, this sandbox started at 11:40" is the whole answer to the half
+		// hour that went into suspecting the fix (#217).
+		if onImage, ok := sandbox.(OnImage); ok {
+			ref, imageID := onImage.Image()
+			o.mu.Lock()
+			s.image, s.imageID = ref, imageID
+			o.mu.Unlock()
+			if ref != "" {
+				fields["image"] = ref
+			}
+			if imageID != "" {
+				fields["image_id"] = imageID
+			}
+		}
+		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindLifecycle, fields)
 	}
 	// And what stands beside it. Held on the session as well as recorded,
 	// because a warm sandbox serves many jobs: the run that asks "which

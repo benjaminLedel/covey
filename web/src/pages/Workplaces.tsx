@@ -81,6 +81,16 @@ function Zeile({ w, me }: { w: Workplace; me: Principal }) {
         </span>
       </div>
 
+      {/* Und wer davon noch im alten Image steht. Neustarten tut das hier
+          niemand: Einem laufenden Agenten die Sandbox unter den Füßen
+          wegzuziehen ist schlimmer als ein alter Digest. Die Entscheidung
+          bleibt beim Menschen — ihm fehlte nur die Auskunft (#217). */}
+      {w.stale?.length ? (
+        <p className="text-xs mb-2" style={{ color: "var(--warning, #b45309)" }}>
+          {t("workplaces.stale", { agents: w.stale.map((a) => a.display_name).join(", ") })}
+        </p>
+      ) : null}
+
       <p className="muted text-xs mb-2" style={{ maxWidth: 720 }}>
         {w.description}
       </p>

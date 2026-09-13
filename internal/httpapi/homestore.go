@@ -302,6 +302,22 @@ type AgentPlacement struct {
 	// Live: it is standing there now. false with a runner named = that is
 	// where it last worked.
 	Live bool `json:"live"`
+	// Image is the workplace image the RUNNING sandbox started from, ImageID
+	// what that reference resolved to on its host. Only set while something is
+	// standing: a sandbox that is gone runs nothing.
+	Image   string `json:"image,omitempty"`
+	ImageID string `json:"image_id,omitempty"`
+	// ImageNow is what a start would use for this agent's workplace today.
+	// When it differs from Image, the sandbox is running on an older workplace
+	// — which is not a fault and not something to fix behind anybody's back: a
+	// running agent whose sandbox the platform pulls out from under it is worse
+	// than an old digest. But it has to be visible, because nothing else says
+	// it: a plugin fix reaches an agent only at its next cold start, and the
+	// page that showed version and commit of the CONTROL PLANE showed the half
+	// that was right (#217).
+	ImageNow string `json:"image_now,omitempty"`
+	// Outdated is that comparison, made where both halves are known.
+	Outdated bool `json:"outdated,omitempty"`
 }
 
 func (s *Server) handleAgentPlacement(w http.ResponseWriter, r *http.Request) {
@@ -312,9 +328,11 @@ func (s *Server) handleAgentPlacement(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.Orch != nil {
 		if runnerID, name, ok := s.Orch.Placement(id); ok {
-			writeJSON(w, http.StatusOK, AgentPlacement{
+			out := AgentPlacement{
 				RunnerID: runnerID.String(), RunnerName: runnerName(name, runnerID), Live: true,
-			})
+			}
+			s.fillWorkplace(r.Context(), id, &out)
+			writeJSON(w, http.StatusOK, out)
 			return
 		}
 	}
@@ -351,6 +369,35 @@ func (s *Server) handleAgentPlacement(w http.ResponseWriter, r *http.Request) {
 	// Nowhere yet — a fresh agent that has never woken. An empty answer rather
 	// than a guess.
 	writeJSON(w, http.StatusOK, AgentPlacement{})
+}
+
+// fillWorkplace adds what the running sandbox works IN, beside where it stands
+// — and what it would work in if it started now. Best effort throughout: an
+// older runner reports no image, and then nothing is claimed rather than the
+// configured reference being passed off as the running one.
+func (s *Server) fillWorkplace(ctx context.Context, agentID uuid.UUID, out *AgentPlacement) {
+	if s.Orch == nil {
+		return
+	}
+	ref, imageID, ok := s.Orch.Workplace(agentID)
+	if !ok {
+		return
+	}
+	out.Image, out.ImageID = ref, imageID
+	if s.RunnerPool == nil || s.Registry == nil {
+		return
+	}
+	a, err := s.Registry.Get(ctx, agentID)
+	if err != nil {
+		return
+	}
+	out.ImageNow = s.RunnerPool.ImageFor(ctx, a.OrgID, a.SandboxImage)
+	// Compared on the reference, not on the id: the published workplaces are
+	// pinned by digest, so a new image IS a new reference — and where an
+	// instance names a tag of its own, the reference stays put and there is
+	// nothing here to compare. Saying nothing then is the honest answer; the
+	// id is shown beside it for whoever wants to compare by hand.
+	out.Outdated = out.Image != "" && out.ImageNow != "" && out.Image != out.ImageNow
 }
 
 // runnerName falls back to the short id: a host somebody never named is still

@@ -973,8 +973,14 @@ func (n *Node) watchSandbox(ctx context.Context, t Transport, id string, spec St
 		"services", len(services), "ms", time.Since(startedAt).Milliseconds())
 	// The services travel back with the answer: only this host knows which
 	// image each one actually started from, and that is what a recording has to
-	// be able to say six months later.
-	n.reply(ctx, t, id, TypeSandboxStarted, SandboxResult{AgentID: spec.AgentID, Services: services})
+	// be able to say six months later. The sandbox's own image goes with them,
+	// and for the same reason: the reference alone does not say what it
+	// resolved to, and a running sandbox keeps that answer for as long as it
+	// lives (#217).
+	n.reply(ctx, t, id, TypeSandboxStarted, SandboxResult{
+		AgentID: spec.AgentID, Services: services,
+		Image: spec.Image, ImageID: n.Docker.imageIDOf(ctx, container),
+	})
 }
 
 // addServices brings services up beside a running sandbox.

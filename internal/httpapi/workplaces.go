@@ -54,6 +54,16 @@ type workplaceView struct {
 	// counted: whoever is about to change or delete a workplace wants to know
 	// whom it concerns.
 	Agents []agents.AgentRef `json:"agents,omitempty"`
+	// Stale names the agents of this organisation whose sandbox is RUNNING on
+	// a different image than the one above — the ones a new image has not
+	// reached yet, because a sandbox keeps the image it started with and a warm
+	// agent never starts again (#217). A subset of Agents, and empty in the
+	// ordinary case.
+	//
+	// Nothing here restarts anything. An agent whose sandbox the platform pulls
+	// out from under it is worse than an old digest; the decision stays with a
+	// person, who only needed the information.
+	Stale []agents.AgentRef `json:"stale,omitempty"`
 	// Provides is what the image says about itself: the same file the agent
 	// reads inside its sandbox (internal/sandbox/workplaces). Without it,
 	// "which workplace do I put this agent in" is answerable only by reading a
@@ -152,6 +162,20 @@ func (s *Server) handleListWorkplaces(w http.ResponseWriter, r *http.Request) {
 			Agents: byAgent[own.Name],
 		})
 		report = append(report, own.Image)
+	}
+
+	// Und wer von den Genannten noch auf einem aelteren Image laeuft. Gefragt
+	// wird die Sitzung, nicht die Datenbank: Was eine laufende Sandbox benutzt,
+	// steht nirgends geschrieben — es steht in ihr.
+	if s.Orch != nil {
+		for i := range out {
+			for _, ref := range out[i].Agents {
+				running, _, ok := s.Orch.Workplace(ref.ID)
+				if ok && running != "" && out[i].Image != "" && running != out[i].Image {
+					out[i].Stale = append(out[i].Stale, ref)
+				}
+			}
+		}
 	}
 
 	// Ob ein Image bereitliegt, beantwortet der Runner: Es liegt dort, wo die
