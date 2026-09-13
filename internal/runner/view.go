@@ -59,9 +59,7 @@ func (p *Pool) LiveFor(orgID uuid.UUID) map[uuid.UUID]Live {
 
 	out := make(map[uuid.UUID]Live, len(conns))
 	for _, c := range conns {
-		c.mu.Lock()
-		running := c.sandboxes
-		c.mu.Unlock()
+		running := c.sandboxCount()
 		tags, images := c.effective()
 		reportedTags, reportedImages := c.reported()
 		out[c.runnerID] = Live{
