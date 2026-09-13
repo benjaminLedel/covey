@@ -270,7 +270,26 @@ type conn struct {
 	maxSandboxes int
 	// sandboxes counts what is running here — the whole of the scheduling
 	// weight for now: no bin packing, no resource modelling.
+	//
+	// TWO SOURCES FEED IT, and that is the point of `starting` below: this
+	// pool counts a start it has just made, and the host's capacity report
+	// says what it actually carries. The report is the truth once a beat
+	// (#165); the pool's tally is the estimate in between.
 	sandboxes int
+	// starting is how many starts are in flight on this connection — sent, not
+	// yet counted.
+	//
+	// It exists because the two sources overlap. The host enters a sandbox in
+	// its own list BEFORE its answer reaches the pool, so a capacity report
+	// that lands in that window already contains the sandbox the pool is about
+	// to count — and the pool then counted it twice, which made a host with
+	// `max_sandboxes: 1` look full and took it out of scheduling until the next
+	// beat (#253).
+	//
+	// So a report is not applied while a start is in flight. Nothing is lost by
+	// waiting: the start counts itself, and the next beat sets the figure
+	// straight anyway.
+	starting int
 	// strays are the sandboxes this host reported at connect that the pool
 	// had not placed there, each closed when its stop has gone through. A
 	// start for the same agent waits for it, or the stop would land on the
@@ -286,6 +305,66 @@ type conn struct {
 	// between.
 	gone     chan struct{}
 	goneOnce sync.Once
+}
+
+// applyCapacity takes the host's word about itself.
+//
+// The host counts what it actually carries; the pool's own tally is a running
+// estimate between two reports and drifts — a stop that never reached the host,
+// a restart of either side. The report is the truth, once a beat (#165).
+//
+// Except while a start is in flight: the host lists a new sandbox before its
+// answer arrives here, so this report may already hold what the pool is about
+// to add, and applying it then counts that sandbox twice (#253). The figure is
+// not lost, only postponed by one beat.
+func (c *conn) applyCapacity(report CapacityReport) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.capacity = report
+	c.capacityAt = time.Now()
+	if c.starting == 0 {
+		c.sandboxes = report.Sandboxes
+	}
+}
+
+// sandboxCount is the figure the scheduler and the interface read. Named for
+// what it answers, because the field beside it (`running`) is a list of what a
+// host reported at connect and means something else.
+func (c *conn) sandboxCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.sandboxes
+}
+
+// startBegun marks a start as in flight on this connection: sent to the host,
+// not yet counted here. See the `starting` field for why the window matters.
+func (c *conn) startBegun() {
+	c.mu.Lock()
+	c.starting++
+	c.mu.Unlock()
+}
+
+// startCounted turns an in-flight start into a running sandbox. One step, under
+// one lock: a report landing between the two would see neither and set the
+// figure back.
+func (c *conn) startCounted() {
+	c.mu.Lock()
+	c.sandboxes++
+	if c.starting > 0 {
+		c.starting--
+	}
+	c.mu.Unlock()
+}
+
+// startGaveUp releases the marker of a start that produced no sandbox — a
+// refusal, a timeout, a host that went away. Without it one failed start would
+// freeze this host's figure at whatever it was.
+func (c *conn) startGaveUp() {
+	c.mu.Lock()
+	if c.starting > 0 {
+		c.starting--
+	}
+	c.mu.Unlock()
 }
 
 // end closes this connection out: every question still waiting on it is
@@ -1032,15 +1111,7 @@ func (c *conn) refreshCapacity(ctx context.Context) {
 	if err != nil {
 		return
 	}
-	c.mu.Lock()
-	c.capacity = report
-	c.capacityAt = time.Now()
-	// The host counts what it actually carries; the pool's own tally is a
-	// running estimate between two reports and drifts — a stop that never
-	// reached the host, a restart of either side. The report is the truth,
-	// once a beat (#165).
-	c.sandboxes = report.Sandboxes
-	c.mu.Unlock()
+	c.applyCapacity(report)
 
 	// Die Lücke, auf die ein geplantes Update wartet. Der Kapazitätsbericht ist
 	// dafür die verlässlichste Quelle: er zählt, was der Host WIRKLICH trägt,
@@ -1660,6 +1731,10 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 	// reports it, reconcile stops it as a stray (#155).
 	var last error
 	for i, c := range candidates {
+		// From here until this start is counted, a capacity report of this
+		// host must not overwrite the tally: it may already hold the sandbox
+		// being started (#253).
+		c.startBegun()
 		answer, err := c.askStart(ctx, StartSandbox{
 			AgentID:     spec.AgentID,
 			OrgID:       spec.OrgID,
@@ -1684,9 +1759,7 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 			case res.Err != "":
 				last = errors.New(res.Err)
 			default:
-				c.mu.Lock()
-				c.sandboxes++
-				c.mu.Unlock()
+				c.startCounted()
 				p.mu.Lock()
 				p.placed[spec.AgentID] = c.runnerID
 				p.mu.Unlock()
@@ -1698,6 +1771,7 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 				}, nil
 			}
 		}
+		c.startGaveUp()
 		if i+1 < len(candidates) {
 			p.Log.Warn("runner could not start the sandbox — asking the next one",
 				"runner", short(c.runnerID), "image", want.image, "err", last)

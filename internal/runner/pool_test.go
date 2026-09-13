@@ -1777,3 +1777,48 @@ func TestASandboxSaysWhichImageItIsRunning(t *testing.T) {
 		t.Error("the host's own identity for the image is missing")
 	}
 }
+
+// One start, counted once.
+//
+// Two sources feed a connection's sandbox figure: this pool counts a start it
+// has just made, and the host's capacity report says what it actually carries.
+// They overlap — the host enters the sandbox in its own list before its answer
+// reaches the pool — so a report that lands in that window already holds what
+// the pool is about to add. It was added anyway, and the host then looked like
+// it carried two (#253).
+//
+// That is not a cosmetic figure: atCapacity compares it against max_sandboxes,
+// so a host with a limit of one drops out of scheduling until the next beat
+// corrects it.
+func TestAStartIsCountedOnceEvenWhenTheReportIsQuicker(t *testing.T) {
+	c := &conn{}
+
+	// The pool has sent the start; the host already lists the sandbox.
+	c.startBegun()
+	c.applyCapacity(CapacityReport{Sandboxes: 1})
+	if got := c.sandboxCount(); got != 0 {
+		t.Fatalf("a report must not land while a start is in flight: %d", got)
+	}
+	// And now the answer arrives.
+	c.startCounted()
+	if got := c.sandboxCount(); got != 1 {
+		t.Fatalf("one start, one sandbox: %d", got)
+	}
+
+	// With nothing in flight the report is the truth again — that is the
+	// property #165 introduced, and it must survive this fix: a stop that never
+	// reached the host is corrected here and nowhere else.
+	c.applyCapacity(CapacityReport{Sandboxes: 5})
+	if got := c.sandboxCount(); got != 5 {
+		t.Fatalf("the host's own count has to win: %d", got)
+	}
+
+	// A start that produced nothing releases the window. Without that one
+	// refusal would freeze this host's figure for good.
+	c.startBegun()
+	c.startGaveUp()
+	c.applyCapacity(CapacityReport{Sandboxes: 2})
+	if got := c.sandboxCount(); got != 2 {
+		t.Fatalf("a given-up start must not block the report: %d", got)
+	}
+}
