@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"encoding/json"
 	"net/http"
 	"testing"
 )
@@ -63,4 +64,73 @@ func TestMCPPluginOverTheAPI(t *testing.T) {
 
 	admin.expect(http.MethodDelete, "/api/v1/targets/hauswerkzeug", nil, http.StatusOK)
 	admin.expect(http.MethodDelete, "/api/v1/targets/hauswerkzeug", nil, http.StatusNotFound)
+}
+
+// A manifest plugin is a JSON file an organisation uploads, and from then on
+// it is a target system like any other — that is the whole point of the plugin
+// machinery: no privileged tier for the ones we wrote.
+func TestManifestPluginOverTheAPI(t *testing.T) {
+	s := newStack(t)
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	agent := s.newSupportAgent("manifest-agent")
+
+	const manifest = `{
+	  "name": "hausticket",
+	  "label": "Hausticket",
+	  "category": "ticketing",
+	  "auth": {"header": "X-API-Key", "format": "{token}"},
+	  "scopes": ["read", "write"],
+	  "webhook": {"signature": "hmac-sha256", "id_field": "issue.id", "title_field": "issue.title"},
+	  "actions": {
+	    "get_issue": {"method": "GET", "path": "/issues/{issue_id}", "scope": "read", "doc": "reads one issue"},
+	    "comment": {"method": "POST", "path": "/issues/{issue_id}/comments", "scope": "write", "doc": "answers"}
+	  },
+	  "prompt_doc": "Available hausticket actions: get_issue, comment."
+	}`
+
+	made := admin.expect(http.MethodPost, "/api/v1/targets", json.RawMessage(manifest), http.StatusOK)
+	if made["name"] != "hausticket" || made["kind"] != "custom" {
+		t.Fatalf("the upload answered %v", made)
+	}
+
+	// A manifest that is not one is refused with the reason — an author gets
+	// the same sentence here as from `covey plugin lint`.
+	admin.expect(http.MethodPost, "/api/v1/targets", json.RawMessage(`{"name":"Falsch"}`), http.StatusBadRequest)
+
+	list := admin.expectList(http.MethodGet, "/api/v1/targets", nil, http.StatusOK)
+	var found bool
+	for _, tgt := range list {
+		if tgt["name"] == "hausticket" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("the uploaded plugin is not among the target systems: %v", list)
+	}
+
+	// The setup document is assembled from the manifest — what an operator has
+	// to enter to connect it.
+	admin.expect(http.MethodGet, "/api/v1/targets/hausticket/setup", nil, http.StatusOK)
+
+	// Switching it off takes it out of circulation without deleting it: the
+	// configuration stays, and the agents that name it stop reaching it.
+	admin.expect(http.MethodPatch, "/api/v1/targets/hausticket",
+		map[string]any{"enabled": false}, http.StatusOK)
+	admin.expect(http.MethodPatch, "/api/v1/targets/hausticket",
+		map[string]any{}, http.StatusBadRequest)
+	admin.expect(http.MethodPatch, "/api/v1/targets/hausticket",
+		map[string]any{"enabled": true}, http.StatusOK)
+
+	// Which of its actions an agent may use is narrowed per agent.
+	base := "/api/v1/agents/" + agent.ID.String() + "/tools/hausticket"
+	admin.expect(http.MethodPut, base, map[string]any{"tools": []string{"get_issue"}}, http.StatusOK)
+	resp := admin.do(http.MethodGet, base, nil)
+	var tools []string
+	json.NewDecoder(resp.Body).Decode(&tools)
+	resp.Body.Close()
+	if len(tools) != 1 || tools[0] != "get_issue" {
+		t.Errorf("the agent's tool list is %v", tools)
+	}
+
+	admin.expect(http.MethodDelete, "/api/v1/targets/hausticket", nil, http.StatusOK)
 }
