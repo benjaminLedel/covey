@@ -170,3 +170,19 @@ func contains(haystack, needle string) bool {
 	}
 	return false
 }
+
+// A used-up seat is parked for an hour, not for the window's nominal length:
+// the window ROLLS, so it frees up gradually, and being wrong costs one run
+// while the agent works on another seat. A rejected token is parked far longer,
+// because it does not recover at all.
+func TestTheTwoCooldownsAreDeliberatelyDifferent(t *testing.T) {
+	if cooldownSeatWindow >= cooldownRejected {
+		t.Error("a used-up seat is parked as long as a revoked token")
+	}
+	if cooldownRateLimit > cooldownRejected {
+		t.Error("a rate limit is parked longer than a revoked token")
+	}
+	if cooldownSeatWindow <= 0 || cooldownRateLimit <= 0 || cooldownRejected <= 0 {
+		t.Error("a cooldown of zero parks nothing")
+	}
+}

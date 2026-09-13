@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
+	"covey/internal/sandbox"
 )
 
 // Asking the hosts which images they hold is what the workplace page shows.
@@ -160,5 +162,46 @@ func TestDockerDataDirIsUsable(t *testing.T) {
 	d := &Docker{RunnerID: uuid.New(), Image: "covey-sandbox:test", DataDir: dir}
 	if d.DataDir != dir {
 		t.Errorf("DataDir = %q", d.DataDir)
+	}
+}
+
+// Which image a workplace name means comes from three layers: what was wired
+// in, what the environment overrides, and what the published catalogue says.
+// The order is deliberate and it is what keeps "which image does `dev` mean"
+// from depending on who looks first.
+func TestProfilesLayerTheEnvironmentOverTheDefaults(t *testing.T) {
+	ctx := context.Background()
+
+	// Nothing to layer: what was wired in stands. That is also what the tests
+	// build, and they should not need a catalogue.
+	bare := NewPool(quietLog())
+	bare.Profiles = map[string]string{"base": "wired:1"}
+	if got := bare.profiles(ctx)["base"]; got != "wired:1" {
+		t.Errorf("without a catalogue the wired image is %q", got)
+	}
+
+	// With an override, the compiled defaults are layered under it: the named
+	// profile takes the operator's image, and the ones they said nothing about
+	// keep theirs.
+	p := NewPool(quietLog())
+	p.EnvImages = map[string]string{sandbox.DefaultName(): "von-hand:1"}
+	eff := p.profiles(ctx)
+	if eff[sandbox.DefaultName()] != "von-hand:1" {
+		t.Errorf("the override did not win: %q", eff[sandbox.DefaultName()])
+	}
+	if len(eff) < len(sandbox.All()) {
+		t.Errorf("an override dropped the profiles it did not name: %d of %d", len(eff), len(sandbox.All()))
+	}
+	for name, image := range eff {
+		if image == "" {
+			t.Errorf("profile %q resolves to nothing", name)
+		}
+	}
+
+	// And the answer is cached for a minute: the catalogue sits behind a URL,
+	// and asking it on every wake would put a fetch in front of every start.
+	p.EnvImages = map[string]string{sandbox.DefaultName(): "spaeter:2"}
+	if again := p.profiles(ctx)[sandbox.DefaultName()]; again != "von-hand:1" {
+		t.Errorf("the cache was bypassed: %q", again)
 	}
 }
