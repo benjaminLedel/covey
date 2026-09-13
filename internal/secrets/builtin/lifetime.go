@@ -156,14 +156,18 @@ func (s *Store) MarkRejected(ctx context.Context, orgID, agentID uuid.UUID, key,
 		return secrets.Stored{}, false, err
 	}
 	news := st.RejectedAt == nil
-	now := time.Now()
-	_, err = s.pool.Exec(ctx, `UPDATE secrets SET rejected_at=COALESCE(rejected_at, $5), rejected_reason=$6
-		WHERE `+refWhere, refArgs(st.Ref, now, reason)...)
+	// Read the date back rather than returning the one handed in. Postgres
+	// holds microseconds and time.Now() carries nanoseconds, so what was
+	// stored and what was passed are the same instant only where the clock is
+	// coarse — on macOS they matched and on Linux they did not, which is how
+	// this survived until the pipeline got a database. A caller that keeps the
+	// returned value and later compares it against a read has to see the same
+	// moment.
+	err = s.pool.QueryRow(ctx, `UPDATE secrets SET rejected_at=COALESCE(rejected_at, $5), rejected_reason=$6
+		WHERE `+refWhere+` RETURNING rejected_at`,
+		refArgs(st.Ref, time.Now(), reason)...).Scan(&st.RejectedAt)
 	if err != nil {
 		return secrets.Stored{}, false, err
-	}
-	if news {
-		st.RejectedAt = &now
 	}
 	st.RejectedReason = reason
 	return st, news, nil
