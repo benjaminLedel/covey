@@ -125,7 +125,13 @@ func (s *Server) handleSignup(w http.ResponseWriter, r *http.Request) {
 	//
 	// The mailer's absence is not a bad request and not a permanent state, so
 	// it answers 503 with a sentence somebody can act on.
-	if s.Mail == nil || !s.Mail.Configured(r.Context()) {
+	//
+	// The configuration is read HERE, before the transaction below, and the
+	// send inside it uses what was read. Reading it there instead asked the
+	// same connection pool for a second connection while the transaction held
+	// the first, and six registrations at once wedged the pool for good (#241).
+	sender, err := mail.Prepare(r.Context(), s.Mail)
+	if s.Mail == nil || err != nil || !sender.Configured(r.Context()) {
 		writeErr(w, http.StatusServiceUnavailable,
 			"registration is currently unavailable — this installation cannot send mail")
 		return
@@ -160,7 +166,7 @@ func (s *Server) handleSignup(w http.ResponseWriter, r *http.Request) {
 			// has to repair by hand; this way a mail server that refuses takes
 			// the whole registration back with it. The price is one SMTP round
 			// trip inside a short transaction, and the sender has a timeout.
-			if err := s.Mail.Send(r.Context(), transactional(lang, "verify", site, in.DisplayName,
+			if err := sender.Send(r.Context(), transactional(lang, "verify", site, in.DisplayName,
 				base+"/verify?token="+url.QueryEscape(token), in.Email)); err != nil {
 				return fmt.Errorf("%w: %v", errMailFailed, err)
 			}

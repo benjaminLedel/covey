@@ -52,6 +52,42 @@ func (s *SMTP) Send(ctx context.Context, m Message) error {
 	return deliver(ctx, cfg, m)
 }
 
+// Prepare reads the configuration once and hands back a sender that needs
+// nothing but the network afterwards.
+//
+// It exists for one caller shape, and that shape deadlocked: a send from
+// INSIDE a database transaction. The transaction holds a pool connection, and
+// Send above reads the settings — which asks the SAME pool for a second one.
+// Under concurrency every connection ends up held by such a transaction, each
+// waiting for a connection the others hold, and nothing breaks the tie:
+// Postgres sees no deadlock, because the holder is merely idle in its
+// transaction, and Acquire has no deadline. The registration has exactly this
+// shape and keeps it on purpose — a mail server that refuses has to take the
+// whole registration back with it (#241).
+//
+// Per REQUEST rather than per send, so the property above still holds: an
+// administrator who corrects a typo in the host does not have to restart the
+// instance for it.
+func (s *SMTP) Prepare(ctx context.Context) (Sender, error) {
+	cfg, err := s.Settings.Mail(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return prepared{cfg: cfg}, nil
+}
+
+// prepared is a sender that carries its configuration instead of reading it.
+type prepared struct{ cfg settings.Mail }
+
+func (p prepared) Configured(context.Context) bool { return p.cfg.Configured() }
+
+func (p prepared) Send(ctx context.Context, m Message) error {
+	if !p.cfg.Configured() {
+		return ErrNotConfigured
+	}
+	return deliver(ctx, p.cfg, m)
+}
+
 func deliver(ctx context.Context, cfg settings.Mail, m Message) error {
 	to, err := address("recipient", m.To)
 	if err != nil {

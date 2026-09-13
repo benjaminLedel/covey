@@ -87,13 +87,29 @@ func envOr(key, fallback string) string {
 }
 
 // testDBURL is adminDBURL with the database name swapped for the throwaway one
-// a test works in.
+// a test works in — and with the connection pool pinned small.
+//
+// Small on purpose. pgx sizes the pool by the core count, so a developer
+// machine gets sixteen connections and a two-core server gets four, and a
+// whole class of fault is invisible at sixteen: code that holds a connection
+// and asks the same pool for a second one. A registration did exactly that —
+// a transaction, and a mail send inside it that read its settings from the
+// pool — and six at once wedged every connection with nothing to break the
+// tie (#241). It surfaced only once CI ran the suite on a two-core runner.
+//
+// Four is the floor a real instance has, not a number below anything anybody
+// runs. The whole suite passes at it and takes eight per cent longer, which is
+// a cheap price for making that class fail here rather than on somebody's
+// instance.
 func testDBURL(dbName string) string {
 	u, err := url.Parse(adminDBURL)
 	if err != nil {
 		return adminDBURL
 	}
 	u.Path = "/" + dbName
+	q := u.Query()
+	q.Set("pool_max_conns", "4")
+	u.RawQuery = q.Encode()
 	return u.String()
 }
 
