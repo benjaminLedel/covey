@@ -1033,7 +1033,13 @@ func TestARunnerThatDoesNotAnswerIsNoCandidate(t *testing.T) {
 
 	p := NewPool(quietLog())
 	p.Profiles = map[string]string{sandbox.DefaultName(): "covey-sandbox:test"}
-	p.StartTimeout = 5 * time.Second
+	// Generous on purpose, and it is the measurement: waiting the silent host
+	// out means waiting THIS long, and stepping in takes milliseconds. A
+	// timeout of five seconds would put the two within reach of each other,
+	// and a correct-but-slow start — a fork/exec of the fake docker on a
+	// machine running the rest of the suite — would then be indistinguishable
+	// from the fault (#234).
+	p.StartTimeout = 60 * time.Second
 	p.HeartbeatEvery = 50 * time.Millisecond
 	p.SilenceAfter = 250 * time.Millisecond
 
@@ -1087,8 +1093,12 @@ func TestARunnerThatDoesNotAnswerIsNoCandidate(t *testing.T) {
 	if ensured != 1 {
 		t.Errorf("EnsureLocal was called %d times", ensured)
 	}
-	if took := time.Since(started); took > p.StartTimeout {
-		t.Errorf("the wake waited out the silent host: %s", took)
+	// Not measured against StartTimeout itself: the question is which of the
+	// two paths ran, and they are three orders of magnitude apart. Anything
+	// inside this bound stepped in; anything that waited the host out sits at
+	// a minute.
+	if took := time.Since(started); took > 15*time.Second {
+		t.Errorf("the wake waited out the silent host: %s of %s", took, p.StartTimeout)
 	}
 }
 

@@ -40,8 +40,10 @@ var ErrNoContent = errors.New("no usable content")
 // worthless. Whatever does not fit ends up in "thema".
 var PageTypes = []string{"kunde", "projekt", "system", "person", "problem", "thema"}
 
-// NormalizeType maps a type designation onto the vocabulary. Unknown and empty
-// input yields "" — unassigned, a quality finding, not an error.
+// NormalizeType maps a type designation onto the vocabulary. Only EMPTY input
+// yields "" — unassigned, a quality finding, not an error. Anything unknown
+// becomes "thema", as the paragraph above says: the vocabulary is closed, and
+// a designation nobody planned for must not open a type of its own.
 func NormalizeType(t string) string {
 	t = strings.ToLower(strings.TrimSpace(t))
 	if t == "" {
@@ -71,11 +73,16 @@ func NormalizeType(t string) string {
 }
 
 // normalizeTags drops empty entries and duplicates and lowercases.
+//
+// Trimmed BEFORE the # is looked for, not after: with a leading space the #
+// is not a prefix, survives, and " #kunde" becomes a second tag beside
+// "kunde" — which is the one thing stripping it was for. Tags arrive
+// unfiltered from the request body and from the agent's covey/wiki_write.
 func normalizeTags(tags []string) []string {
 	seen := map[string]bool{}
 	out := []string{}
 	for _, t := range tags {
-		t = strings.ToLower(strings.TrimSpace(strings.TrimPrefix(t, "#")))
+		t = strings.ToLower(strings.TrimPrefix(strings.TrimSpace(t), "#"))
 		if t == "" || seen[t] {
 			continue
 		}

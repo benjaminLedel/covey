@@ -1,12 +1,16 @@
 package egress
 
 import (
+	"bufio"
 	"context"
+	"encoding/base64"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -151,5 +155,116 @@ func TestProxyPerAgentAllowDenyAndAuth(t *testing.T) {
 
 	if len(res.logs) < 2 {
 		t.Errorf("want logged decisions, got %v", res.logs)
+	}
+}
+
+// CONNECT is the path everything encrypted takes, which is nearly everything a
+// sandbox does: an HTTPS request reaches the proxy as CONNECT host:port, and
+// what the proxy decides there it decides blind — it sees the host and nothing
+// else. So the three answers have to be right at exactly that point.
+func TestProxyConnectAllowsDeniesAndDemandsCredentials(t *testing.T) {
+	// A plain TCP listener standing in for the far end: CONNECT does not care
+	// what speaks there, only that the tunnel carries bytes both ways.
+	upstream, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer upstream.Close()
+	go func() {
+		for {
+			c, err := upstream.Accept()
+			if err != nil {
+				return
+			}
+			go func() {
+				defer c.Close()
+				buf := make([]byte, 64)
+				n, err := c.Read(buf)
+				if err != nil {
+					return
+				}
+				_, _ = c.Write(append([]byte("echo:"), buf[:n]...))
+			}()
+		}
+	}()
+	upHost, upPort, _ := net.SplitHostPort(upstream.Addr().String())
+
+	res := &stubResolver{agent: uuid.New(), token: "s3cret", allow: NewAllowlist([]string{upHost})}
+	p := New(res, nil)
+	addr, err := p.Start("127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+
+	connect := func(auth, target string) (int, net.Conn) {
+		t.Helper()
+		conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req := "CONNECT " + target + " HTTP/1.1\r\nHost: " + target + "\r\n"
+		if auth != "" {
+			req += "Proxy-Authorization: Basic " +
+				base64.StdEncoding.EncodeToString([]byte(auth)) + "\r\n"
+		}
+		req += "\r\n"
+		if _, err := conn.Write([]byte(req)); err != nil {
+			t.Fatal(err)
+		}
+		br := bufio.NewReader(conn)
+		resp, err := http.ReadResponse(br, nil)
+		if err != nil {
+			conn.Close()
+			t.Fatal(err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			conn.Close()
+			return resp.StatusCode, nil
+		}
+		return resp.StatusCode, conn
+	}
+
+	// Allowed, and the tunnel really carries bytes: a 200 that tunnelled
+	// nothing would look identical from the status line.
+	code, conn := connect(res.agent.String()+":s3cret", upHost+":"+upPort)
+	if code != http.StatusOK || conn == nil {
+		t.Fatalf("an allowed CONNECT answered %d", code)
+	}
+	if _, err := conn.Write([]byte("hallo")); err != nil {
+		t.Fatal(err)
+	}
+	buf := make([]byte, 64)
+	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	n, err := conn.Read(buf)
+	conn.Close()
+	if err != nil {
+		t.Fatalf("the tunnel carried nothing back: %v", err)
+	}
+	if got := string(buf[:n]); got != "echo:hallo" {
+		t.Errorf("the tunnel delivered %q", got)
+	}
+
+	// A host that is not on the list: refused at the proxy, and the refusal is
+	// what the sandbox sees instead of a connection.
+	if code, _ := connect(res.agent.String()+":s3cret", "blocked.example.org:443"); code != http.StatusForbidden {
+		t.Errorf("a host off the list answered %d, expected 403", code)
+	}
+
+	// Without credentials the proxy does not even look at the host — an
+	// unauthenticated CONNECT must not be able to probe what is allowed.
+	if code, _ := connect("", upHost+":"+upPort); code != http.StatusProxyAuthRequired {
+		t.Errorf("CONNECT without credentials answered %d, expected 407", code)
+	}
+	if code, _ := connect(res.agent.String()+":falsch", upHost+":"+upPort); code != http.StatusProxyAuthRequired {
+		t.Errorf("CONNECT with a wrong token answered %d, expected 407", code)
+	}
+
+	// An allowed host that nothing answers on is a gateway error, not a
+	// tunnel — the sandbox learns the far end is down rather than hanging.
+	res.allow = NewAllowlist([]string{upHost, "127.0.0.1"})
+	if code, _ := connect(res.agent.String()+":s3cret", "127.0.0.1:1"); code != http.StatusBadGateway {
+		t.Errorf("an unreachable far end answered %d, expected 502", code)
 	}
 }

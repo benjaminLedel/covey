@@ -127,8 +127,25 @@ test-go:
   image: golang:1.26
   needs:
     - build-web
+  # Postgres beside the job, so that the integration suite RUNS. Without it
+  # the larger part of the tests skipped itself silently
+  # (internal/integration/stack_test.go skips when no database answers) and
+  # the coverage badge showed barely a third of what the suite actually
+  # covers. The pgvector image, because the migrations create the `vector`
+  # extension; the image's superuser, because every test creates a database
+  # of its own and throws it away afterwards.
+  services:
+    - name: pgvector/pgvector:pg16
+      alias: postgres
   variables:
     GOPATH: $CI_PROJECT_DIR/.go
+    POSTGRES_USER: covey
+    POSTGRES_PASSWORD: covey
+    POSTGRES_DB: covey
+    # In the docker executor the service answers under its alias, not under
+    # localhost — and on its own port 5432 rather than the 5433 that
+    # `make dev-db` forwards locally.
+    COVEY_TEST_DATABASE_URL: postgres://covey:covey@postgres:5432/covey?sslmode=disable
   cache:
     key: go-mod
     paths:

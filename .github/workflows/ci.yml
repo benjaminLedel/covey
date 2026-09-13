@@ -6,8 +6,9 @@
 # keinen einzigen grünen Haken.
 #
 # Diese Pipeline prüft dasselbe wie die GitLab-Seite, ohne Deploy: Format,
-# Vet, Tests, Frontend, Schwachstellen. Die Integrationstests überspringen
-# sich selbst, weil hier kein Postgres auf 5433 lauscht (siehe
+# Vet, Tests, Frontend, Schwachstellen. Postgres stands beside the Go job so
+# that the integration suite RUNS here instead of skipping itself — without a
+# database that job checks barely a third of what it claims to check (see
 # internal/integration/stack_test.go).
 name: CI
 
@@ -50,6 +51,24 @@ jobs:
   go:
     runs-on: ubuntu-latest
     needs: frontend
+    # The integration suite creates a database of its own per test and throws
+    # it away afterwards, so it needs a user allowed to CREATE DATABASE — the
+    # image's superuser is exactly that. The pgvector image, because the
+    # migrations create the `vector` extension.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: covey
+          POSTGRES_PASSWORD: covey
+          POSTGRES_DB: covey
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U covey"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - uses: actions/checkout@v4
       # check-latest: sonst nimmt setup-go die auf dem Runner-Image
@@ -73,7 +92,18 @@ jobs:
       - name: gofmt
         run: test -z "$(gofmt -l $(go list -f '{{.Dir}}' ./...) | tee /dev/stderr)"
       - run: go vet ./...
-      - run: go test ./...
+      # -coverpkg over our own package list: otherwise Go counts only what a
+      # test covers in its OWN package, and the integration suite — which
+      # drives half the server — would show as 0 %. The list comes from
+      # `go list` rather than the pattern `./...`, because the pattern also
+      # instruments pgx, chromedp and the rest of the module graph, which
+      # would make half the number somebody else's code.
+      - name: go test
+        env:
+          COVEY_TEST_DATABASE_URL: postgres://covey:covey@localhost:5433/covey?sslmode=disable
+        run: go test -coverprofile=coverage.out -coverpkg="$(go list ./... | paste -sd, -)" ./...
+      - name: Coverage
+        run: go tool cover -func=coverage.out | tail -1
 
   security:
     runs-on: ubuntu-latest

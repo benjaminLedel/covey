@@ -58,6 +58,31 @@ type Sender interface {
 	Configured(ctx context.Context) bool
 }
 
+// Preparer is the optional half of Sender: one that can read its configuration
+// now and hand back a sender needing nothing but the network afterwards.
+//
+// Optional so that the contract above stays as it is — every sender keeps
+// working, and only a caller that must not touch a database while sending asks
+// for this.
+type Preparer interface {
+	Prepare(ctx context.Context) (Sender, error)
+}
+
+// Prepare hands back a sender that will not read any configuration while it
+// sends. A sender that cannot prepare is returned unchanged: the guarantee is
+// an improvement where it is available, not a requirement.
+//
+// The one caller that needs it sends from inside a database transaction, where
+// reading the settings would ask the same connection pool for a second
+// connection and, under concurrency, never get one (#241).
+func Prepare(ctx context.Context, s Sender) (Sender, error) {
+	p, ok := s.(Preparer)
+	if !ok {
+		return s, nil
+	}
+	return p.Prepare(ctx)
+}
+
 // build serialises the message as RFC-5322 text: UTF-8 subject Q-encoded, body
 // quoted-printable. `from` is the rendered From header, `fromAddr` the bare
 // address it was built from — the Message-ID's domain comes from that one, not

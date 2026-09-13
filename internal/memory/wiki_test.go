@@ -141,3 +141,78 @@ func TestIsEpisodicTitle(t *testing.T) {
 		}
 	}
 }
+
+// The vocabulary is closed on purpose: the kanban columns showed that freely
+// invented labels proliferate within days and render the structure worthless.
+// So a synonym is caught rather than discarded, and anything that does not fit
+// lands in "thema" rather than opening a new type.
+func TestNormalizeType(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{"", ""},
+		{"   ", ""},
+		{"Kunde", "kunde"}, {" CLIENT ", "kunde"}, {"customer", "kunde"},
+		{"kollegin", "person"}, {"people", "person"}, {"Mitarbeiter", "person"},
+		{"repo", "projekt"}, {"Repository", "projekt"}, {"project", "projekt"},
+		{"werkzeug", "system"}, {"zielsystem", "system"}, {"service", "system"},
+		{"bug", "problem"}, {"lösung", "problem"}, {"runbook", "problem"},
+		{"topic", "thema"}, {"notiz", "thema"}, {"sonstiges", "thema"},
+		// Every member of the vocabulary maps to itself.
+		{"thema", "thema"}, {"problem", "problem"},
+		// Anything else lands in "thema" rather than becoming a new type.
+		{"eskalationsstufe", "thema"}, {"Quartalsbericht", "thema"},
+	} {
+		if got := NormalizeType(tc.in); got != tc.want {
+			t.Errorf("NormalizeType(%q) = %q, expected %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+// Only the empty input stays unassigned — that is a quality finding, not an
+// error, and it must stay distinguishable from "thema".
+func TestNormalizeTypeLeavesTheEmptyOneUnassigned(t *testing.T) {
+	if got := NormalizeType(""); got != "" {
+		t.Errorf("NormalizeType(\"\") = %q — an unassigned page must stay recognisable", got)
+	}
+}
+
+func TestEveryPageTypeIsItsOwnNormalForm(t *testing.T) {
+	for _, pt := range PageTypes {
+		if got := NormalizeType(pt); got != pt {
+			t.Errorf("NormalizeType(%q) = %q — a member of the vocabulary must map to itself", pt, got)
+		}
+	}
+}
+
+func TestNormalizeTags(t *testing.T) {
+	// " #Kunde " and "kunde" are the same tag: the # comes off AFTER the
+	// whitespace, or a stray space makes a second tag out of one.
+	got := normalizeTags([]string{" #Kunde ", "kunde", "", "  ", "#PROJEKT", "projekt", "neu"})
+	want := []string{"kunde", "projekt", "neu"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, expected %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("[%d] = %q, expected %q", i, got[i], want[i])
+		}
+	}
+	// The empty list stays a list and does not become nil — it is written to
+	// the database as it is.
+	if got := normalizeTags(nil); got == nil || len(got) != 0 {
+		t.Errorf("normalizeTags(nil) = %#v, expected an empty slice", got)
+	}
+}
+
+// NeedsRetitle is what the dream asks before it proposes a new title, and what
+// it asks again about the proposal — a proposal that would itself pass as a
+// diary entry is no fix.
+func TestNeedsRetitleIsTheEpisodicCheck(t *testing.T) {
+	for _, title := range []string{"Störung bei Meier am 30.07.2026", "Ticket #4711 erledigt"} {
+		if NeedsRetitle(title) != isEpisodicTitle(title) {
+			t.Errorf("NeedsRetitle and isEpisodicTitle disagree about %q", title)
+		}
+	}
+	if NeedsRetitle("Kunde Meier") {
+		t.Error("a title naming the entity was marked as needing a rename")
+	}
+}

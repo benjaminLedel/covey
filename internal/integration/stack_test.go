@@ -9,9 +9,9 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -72,7 +72,46 @@ import (
 	_ "github.com/benjaminLedel/covey-plugin-pack/zammad"
 )
 
-const adminDBURL = "postgres://covey:covey@localhost:5433/covey?sslmode=disable"
+// The test Postgres. `make dev-db` puts it on port 5433; a CI runner that
+// offers the database under a different host or port says so in
+// COVEY_TEST_DATABASE_URL. The per-test database is created beside the one
+// named here, so the DSN has to point at a database the user may connect to
+// and must carry the credentials for CREATE DATABASE.
+var adminDBURL = envOr("COVEY_TEST_DATABASE_URL", "postgres://covey:covey@localhost:5433/covey?sslmode=disable")
+
+func envOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
+// testDBURL is adminDBURL with the database name swapped for the throwaway one
+// a test works in — and with the connection pool pinned small.
+//
+// Small on purpose. pgx sizes the pool by the core count, so a developer
+// machine gets sixteen connections and a two-core server gets four, and a
+// whole class of fault is invisible at sixteen: code that holds a connection
+// and asks the same pool for a second one. A registration did exactly that —
+// a transaction, and a mail send inside it that read its settings from the
+// pool — and six at once wedged every connection with nothing to break the
+// tie (#241). It surfaced only once CI ran the suite on a two-core runner.
+//
+// Four is the floor a real instance has, not a number below anything anybody
+// runs. The whole suite passes at it and takes eight per cent longer, which is
+// a cheap price for making that class fail here rather than on somebody's
+// instance.
+func testDBURL(dbName string) string {
+	u, err := url.Parse(adminDBURL)
+	if err != nil {
+		return adminDBURL
+	}
+	u.Path = "/" + dbName
+	q := u.Query()
+	q.Set("pool_max_conns", "4")
+	u.RawQuery = q.Encode()
+	return u.String()
+}
 
 // inprocProvider starts the daemon in-process instead of as a subprocess — the
 // connection still goes through the real WebSocket endpoint.
@@ -204,7 +243,7 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 
 	admin, err := db.Connect(ctx, adminDBURL)
 	if err != nil {
-		t.Skipf("no test Postgres at localhost:5433: %v", err)
+		t.Skipf("no test Postgres at %s: %v", adminDBURL, err)
 	}
 	dbName := "covey_test_" + strings.ReplaceAll(uuid.NewString(), "-", "")[:12]
 	if _, err := admin.Exec(ctx, "CREATE DATABASE "+dbName); err != nil {
@@ -215,7 +254,7 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 		admin.Close()
 	})
 
-	pool, err := db.Connect(ctx, fmt.Sprintf("postgres://covey:covey@localhost:5433/%s?sslmode=disable", dbName))
+	pool, err := db.Connect(ctx, testDBURL(dbName))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -315,8 +354,13 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 		Skills:      s.skills,
 		EgressStore: s.egress,
 		Runners:     s.runners,
-		ReqLog:      s.reqlog,
-		Orch:        s.orch, Log: log,
+		// The organisation's own workplaces and its service-image allowlist:
+		// wired here because these endpoints are the only way either is
+		// administered, and an unwired store answers 503 to a test that meant
+		// to check what the store does.
+		OrgWorkplaces: s.workplaces,
+		ReqLog:        s.reqlog,
+		Orch:          s.orch, Log: log,
 		WebhookSecrets: map[string]string{"zammad": webhookSecret, "jira": webhookSecret},
 		SessionTTL:     time.Hour,
 	}

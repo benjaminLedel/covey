@@ -1,8 +1,10 @@
 package runtimes
 
 import (
+	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"covey/internal/daemon"
 )
@@ -101,5 +103,57 @@ func TestExhaustedCarriesTheMoment(t *testing.T) {
 	}
 	if got := e.Error(); !strings.Contains(got, "Claude team") {
 		t.Fatalf("the message has to name the runtime: %q", got)
+	}
+}
+
+// A cooldown that has run out is no cooldown. The boundary matters: parked is
+// what takes a credential out of the merit order, and an off-by-one there
+// either keeps a working seat parked or sends an agent into a wall.
+func TestCredentialParked(t *testing.T) {
+	now := time.Now()
+	if (Credential{}).parked(now) {
+		t.Error("a credential without a cooldown counts as parked")
+	}
+	future := now.Add(time.Minute)
+	if !(Credential{CooldownUntil: &future}).parked(now) {
+		t.Error("a running cooldown does not park the credential")
+	}
+	past := now.Add(-time.Minute)
+	if (Credential{CooldownUntil: &past}).parked(now) {
+		t.Error("an expired cooldown still parks the credential")
+	}
+	if (Credential{CooldownUntil: &now}).parked(now) {
+		t.Error("a cooldown ending exactly now still parks the credential")
+	}
+}
+
+// The message has to name the two things that disagree. A generic "wrong
+// credential" sends the reader to the token, and the fault is the assignment.
+func TestWrongEngineNamesBothSides(t *testing.T) {
+	err := &WrongEngine{Runtime: "Claude-Sitz 1", Seat: "claudecode", Agent: "educa-ai"}
+	msg := err.Error()
+	for _, want := range []string{"educa-ai", "Claude-Sitz 1", "claudecode"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("the message does not name %q: %s", want, msg)
+		}
+	}
+}
+
+// Exhausted is matched by errors.Is against the sentinel, so callers can react
+// to "no capacity" without knowing about the type.
+func TestExhaustedIsTheSentinel(t *testing.T) {
+	at := time.Date(2026, 9, 12, 3, 0, 0, 0, time.UTC)
+	err := &Exhausted{Runtime: "Sitz", Until: at}
+	if !errors.Is(err, ErrExhausted) {
+		t.Fatal("errors.Is does not recognise ErrExhausted")
+	}
+	if !strings.Contains(err.Error(), at.Format(time.RFC3339)) {
+		t.Errorf("the moment is missing from the message: %s", err.Error())
+	}
+	// Unknown moment: then the message says nothing about one rather than
+	// naming the zero time.
+	bare := (&Exhausted{Runtime: "Sitz"}).Error()
+	if strings.Contains(bare, "0001-01-01") || strings.Contains(bare, "free again") {
+		t.Errorf("an unknown moment was rendered anyway: %s", bare)
 	}
 }

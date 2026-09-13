@@ -1239,12 +1239,23 @@ func (s *Server) handleRecording(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
+	// A task_id that cannot be read is refused rather than dropped. Dropping it
+	// left taskID nil, nil means "no filter", and the caller then got the
+	// agent's WHOLE recording instead of the one run it named — the one failure
+	// mode a filter must not have, since too few would at least be visible. The
+	// egress log, which takes the same kind of query filter, already refuses.
 	var taskID *uuid.UUID
 	if t := r.URL.Query().Get("task_id"); t != "" {
-		if tid, err := uuid.Parse(t); err == nil {
-			taskID = &tid
+		tid, err := uuid.Parse(t)
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, "invalid task_id")
+			return
 		}
+		taskID = &tid
 	}
+	// ?after= is the other way round and stays so: an unreadable cursor yields
+	// 0, which means "from the beginning" — the honest reading of an absent
+	// one, and the live view polls with it.
 	after, _ := strconv.ParseInt(r.URL.Query().Get("after"), 10, 64)
 	events, err := s.Obs.Events(r.Context(), id, taskID, after, 500)
 	if err != nil {
