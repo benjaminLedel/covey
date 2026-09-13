@@ -11,6 +11,7 @@ Sie verteilen die Arbeit, setzen die Grenzen und lesen nach, was getan wurde.
 
 [![covey.work](https://img.shields.io/badge/live-covey.work-cc7a5b)](https://covey.work)
 [![CI](https://github.com/benjaminLedel/covey/actions/workflows/ci.yml/badge.svg)](https://github.com/benjaminLedel/covey/actions/workflows/ci.yml)
+[![Testabdeckung](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FbenjaminLedel%2Fcovey%2Fbadges%2Fcoverage.json)](https://github.com/benjaminLedel/covey/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/benjaminLedel/covey?color=1f883d)](https://github.com/benjaminLedel/covey/releases/latest)
 [![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](go.mod)
 [![Lizenz](https://img.shields.io/badge/Lizenz-AGPL--3.0-336791)](LICENSE)

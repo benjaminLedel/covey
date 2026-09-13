@@ -11,6 +11,7 @@ You hand out the work, set the limits, and read back what was done.
 
 [![covey.work](https://img.shields.io/badge/live-covey.work-cc7a5b)](https://covey.work)
 [![CI](https://github.com/benjaminLedel/covey/actions/workflows/ci.yml/badge.svg)](https://github.com/benjaminLedel/covey/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FbenjaminLedel%2Fcovey%2Fbadges%2Fcoverage.json)](https://github.com/benjaminLedel/covey/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/benjaminLedel/covey?color=1f883d)](https://github.com/benjaminLedel/covey/releases/latest)
 [![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](go.mod)
 [![Licence](https://img.shields.io/badge/licence-AGPL--3.0-336791)](LICENSE)

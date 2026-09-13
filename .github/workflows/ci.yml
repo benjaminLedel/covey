@@ -51,6 +51,8 @@ jobs:
   go:
     runs-on: ubuntu-latest
     needs: frontend
+    outputs:
+      coverage: ${{ steps.coverage.outputs.pct }}
     # The integration suite creates a database of its own per test and throws
     # it away afterwards, so it needs a user allowed to CREATE DATABASE — the
     # image's superuser is exactly that. The pgvector image, because the
@@ -109,8 +111,60 @@ jobs:
           # condition holds, not when the timer runs out.
           COVEY_TEST_WAIT_FACTOR: "3"
         run: go test -coverprofile=coverage.out -coverpkg="$(go list ./... | paste -sd, -)" ./...
+      # The total is the number the README shows. `go tool cover` prints it as
+      # the last line of its table; the awk cuts the percent sign off so the
+      # badge job gets something it can compare.
       - name: Coverage
-        run: go tool cover -func=coverage.out | tail -1
+        id: coverage
+        run: |
+          go tool cover -func=coverage.out | tail -1
+          pct=$(go tool cover -func=coverage.out | awk '/^total:/ {print substr($3, 1, length($3) - 1)}')
+          echo "pct=$pct" >> "$GITHUB_OUTPUT"
+
+  # The number the go job measured has to reach a place the README can point
+  # at: GitLab renders a coverage badge of its own, but that installation is
+  # private, and a log line inside a workflow run is not something a reader
+  # opens. shields.io draws a badge from an `endpoint` JSON, so one file on a
+  # public URL is the whole requirement.
+  #
+  # A job of its own, because this one holds `contents: write`: a token that
+  # can write to the repository must not sit beside a test run that executes
+  # code from a pull request. Here nothing but the two lines below runs, and
+  # only after a push to main.
+  badge:
+    runs-on: ubuntu-latest
+    needs: go
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    steps:
+      - name: Publish the coverage badge
+        env:
+          PCT: ${{ needs.go.outputs.coverage }}
+          TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test -n "$PCT"
+          color=$(awk -v p="$PCT" 'BEGIN {
+            if (p >= 90) print "brightgreen"
+            else if (p >= 75) print "green"
+            else if (p >= 65) print "yellow"
+            else if (p >= 50) print "orange"
+            else print "red"
+          }')
+          dir=$(mktemp -d)
+          printf '{"schemaVersion":1,"label":"coverage","message":"%s%%","color":"%s"}\n' \
+            "$PCT" "$color" > "$dir/coverage.json"
+          cd "$dir"
+          # An orphan branch carrying one file, force-pushed: it holds the
+          # current number and nothing else, so there is no history to keep and
+          # main stays free of a commit per merge.
+          git init -q -b badges
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add coverage.json
+          git commit -qm "coverage: $PCT%"
+          git push -qf "https://x-access-token:$TOKEN@github.com/$GITHUB_REPOSITORY.git" badges
 
   security:
     runs-on: ubuntu-latest
