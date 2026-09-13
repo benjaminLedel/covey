@@ -34,6 +34,11 @@ const CoveyActionsDoc = `The platform's own actions — your board, your memory,
    style_apply {"text":"<draft>","material":"<facts it may add>","max_iter":3} — the platform
    revises the named paragraphs with its model, measures again and hands back the best version
    with what remains. Only facts in the text or the material go in; the rest stays as it was.
+   correction {"before":"<what you published>","after":"<what stands there now>",
+   "where":"<gitlab:comment>","by":"<who changed it>"} — somebody rewrote a text of yours in
+   a target system. Report the pair: it is the sharpest thing your voice can learn from, far
+   better than a rule. Only a PERSON's edit counts — a colleague rewriting your text is a
+   handover, not a correction. A typo is not one either; say it only when the wording moved.
    create_task {"title":"...","body":"<assignment with all names>","agent":"<slug, optional>"} —
    a task of your own for the rest, or a delegation to a colleague. The assignment is a
    handover to somebody without your context.

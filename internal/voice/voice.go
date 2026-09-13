@@ -344,3 +344,78 @@ func Reference(docs []Document) map[string]float64 {
 	}
 	return style.Aggregate(ms)
 }
+
+// The threshold below which a change is not a correction.
+//
+// A voice learns from a pair, and a pair that differs by a comma teaches
+// nothing while costing room in every card prompt. The rule is two conditions,
+// both cheap to explain — which matters, because an agent gets this sentence
+// back as a refusal and has to be able to act on it:
+//
+//   - the corrected text has to be long enough to have a style at all,
+//   - and enough words have to have moved.
+//
+// Word-based rather than character-based on purpose: a typo fixed in a long
+// paragraph moves one word, and that is exactly the case this rejects.
+const (
+	minCorrectionWords = 20
+	// The hurdle is the LARGER of the two, and both are needed: three changed
+	// words in a short passage are a real edit, the same three in a page are a
+	// typo hunt. An absolute floor alone would let the page through; a share
+	// alone would let a single fixed word through in a short one.
+	minChangedWords = 3
+	minChangedShare = 0.05
+)
+
+// IsCorrection reports whether the step from before to after is worth keeping,
+// and says why not when it is not. The reason goes back to whoever offered the
+// pair, so it is written to be read by them.
+func IsCorrection(before, after string) (bool, string) {
+	before, after = strings.TrimSpace(before), strings.TrimSpace(after)
+	if before == "" || after == "" {
+		return false, "a pair needs both halves"
+	}
+	if before == after {
+		return false, "the two halves are the same text"
+	}
+	words := strings.Fields(after)
+	if len(words) < minCorrectionWords {
+		return false, fmt.Sprintf("the corrected text has %d words; below %d there is no style to learn from",
+			len(words), minCorrectionWords)
+	}
+	changed := changedWords(before, after)
+	longer := max(len(strings.Fields(before)), len(words))
+	needed := max(minChangedWords, int(minChangedShare*float64(longer)))
+	if changed < needed {
+		return false, fmt.Sprintf("%d of %d words differ, %d would be needed — that is a typo, not a correction",
+			changed, longer, needed)
+	}
+	return true, ""
+}
+
+// changedWords counts how many words the two texts do not have in common, as a
+// multiset: a moved sentence counts as unchanged, a rewritten one as changed.
+// Cheaper than an edit distance and closer to the question — what a voice
+// learns from is different WORDING, not a different order.
+func changedWords(before, after string) int {
+	count := func(s string) map[string]int {
+		m := map[string]int{}
+		for _, w := range strings.Fields(strings.ToLower(s)) {
+			m[strings.Trim(w, ".,;:!?\"'()[]„“”»«")]++
+		}
+		return m
+	}
+	a, b := count(before), count(after)
+	diff := 0
+	for w, n := range b {
+		if n > a[w] {
+			diff += n - a[w]
+		}
+	}
+	for w, n := range a {
+		if n > b[w] {
+			diff += n - b[w]
+		}
+	}
+	return diff
+}

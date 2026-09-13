@@ -440,6 +440,22 @@ type RequestHiring struct {
 	MaxIter  int    `json:"max_iter,omitempty"`
 	Language string `json:"language,omitempty"`
 
+	// --- Correction pairs (spec/24) ---
+
+	// Before and After are the two halves of a pair: what this agent published,
+	// and what stands there now after somebody edited it. Action names where it
+	// happened ("gitlab:comment"), By names WHO changed it.
+	//
+	// By is required and is not a formality. Only a person's edit is a
+	// correction; if a second agent rewrote the text, that is a handover, and
+	// storing it would teach the voice to imitate itself.
+	Before string `json:"before,omitempty"`
+	After  string `json:"after,omitempty"`
+	By     string `json:"by,omitempty"`
+	// Where the text stands. Named `where` on the wire because `action` is
+	// taken on this side of the protocol by the action proxy's own field.
+	Where string `json:"where,omitempty"`
+
 	// --- Review (spec/21), unlocked by `scope: agents:review` ---
 
 	// Task addresses one run (read_recording): the id of the backlog task,

@@ -278,7 +278,7 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 		return map[string]string{"status": "ok", "stage": in.Stage}
 	case "list_targets", "get_agent_config", "create_agent", "set_agent_config",
 		"work_record", "read_recording", "propose_agent_config", "write_review",
-		"create_issue", "start_services", "style_check", "style_apply":
+		"create_issue", "start_services", "style_check", "style_apply", "correction":
 		// Die Meta-Actions an der Registry der Plattform: Entwerfen (spec/20)
 		// und Begutachten (spec/21). Alles wird in der Control Plane
 		// entschieden — Scope, Guard-Rails, Freigaben —, der Proxy trägt die
@@ -312,6 +312,12 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 			Material string `json:"material"`
 			MaxIter  int    `json:"max_iter"`
 			Language string `json:"language"`
+			// The correction pair (spec/24): both halves, where the text
+			// stands, and who changed it.
+			Before string `json:"before"`
+			After  string `json:"after"`
+			By     string `json:"by"`
+			Where  string `json:"where"`
 		}
 		_ = json.Unmarshal(params, &in)
 		resp, err := p.client.hiring(ctx, RequestHiring{
@@ -322,6 +328,7 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 			Summary: in.Summary, Findings: in.Findings, Issues: in.Issues,
 			Compose: in.Compose, Only: in.Only,
 			Text: in.Text, Material: in.Material, MaxIter: in.MaxIter, Language: in.Language,
+			Before: in.Before, After: in.After, By: in.By, Where: in.Where,
 		})
 		if err != nil {
 			return map[string]string{"status": "error", "error": err.Error()}

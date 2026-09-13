@@ -1370,6 +1370,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Runtimes:       runtimeStore,
 		Targets:        targets,
 		Skills:         skillStore,
+		Voices:         voiceStore,
 		Egress:         egressStore,
 		Workplaces:     orgWorkplaces,
 		ReqLog:         reqLog,
