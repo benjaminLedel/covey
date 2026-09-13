@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"net/url"
 	"os"
@@ -388,4 +389,129 @@ func TestStoreBytes(t *testing.T) {
 			t.Errorf("storeBytes(%d) = %q, expected %q", tc.in, got, tc.want)
 		}
 	}
+}
+
+// withStdin replaces standard input for the duration of f — the way the
+// password reset is driven from a pipe.
+func withStdin(t *testing.T, input string, f func()) {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stdin
+	os.Stdin = r
+	go func() {
+		io.WriteString(w, input)
+		w.Close()
+	}()
+	defer func() { os.Stdin = old; r.Close() }()
+	f()
+}
+
+// The emergency reset is the way back in when nobody can sign in any more. It
+// works on the ACCOUNT, because whoever is locked out is locked out as a
+// person and not as the occupant of one seat — and it ends every session, so a
+// stolen cookie does not survive the reset that was made because of it.
+func TestPasswdResetsTheAccountAndEndsItsSessions(t *testing.T) {
+	cfg := testConfig(t)
+	ctx := context.Background()
+	if err := runBootstrap(ctx, cfg, quiet()); err != nil {
+		t.Fatal(err)
+	}
+
+	pool, err := db.Connect(ctx, cfg.DatabaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+
+	var accountID uuid.UUID
+	if err := pool.QueryRow(ctx, `SELECT id FROM accounts WHERE email='admin@covey.local'`).Scan(&accountID); err != nil {
+		t.Fatal(err)
+	}
+	var before string
+	if err := pool.QueryRow(ctx, `SELECT password_hash FROM accounts WHERE id=$1`, accountID).Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	// A session that exists at the moment of the reset.
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO http_sessions (token_hash, account_id, expires_at) VALUES ('abc', $1, now() + interval '1 day')`,
+		accountID); err != nil {
+		t.Fatal(err)
+	}
+
+	withStdin(t, "ein-neues-langes-passwort\n", func() {
+		if err := runPasswd(ctx, cfg, []string{" Admin@Covey.Local "}, quiet()); err != nil {
+			t.Fatalf("passwd: %v", err)
+		}
+	})
+
+	var after string
+	if err := pool.QueryRow(ctx, `SELECT password_hash FROM accounts WHERE id=$1`, accountID).Scan(&after); err != nil {
+		t.Fatal(err)
+	}
+	if after == before {
+		t.Error("the password was not changed")
+	}
+	var sessions int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM http_sessions WHERE account_id=$1`, accountID).Scan(&sessions); err != nil {
+		t.Fatal(err)
+	}
+	if sessions != 0 {
+		t.Errorf("%d sessions survived the reset", sessions)
+	}
+}
+
+// A password nobody could use is refused before anything is written — and an
+// address nobody has is named rather than silently doing nothing.
+func TestPasswdRefusals(t *testing.T) {
+	cfg := testConfig(t)
+	ctx := context.Background()
+	if err := runBootstrap(ctx, cfg, quiet()); err != nil {
+		t.Fatal(err)
+	}
+
+	withStdin(t, "kurz\n", func() {
+		err := runPasswd(ctx, cfg, []string{"admin@covey.local"}, quiet())
+		if err == nil {
+			t.Error("a password of four characters was accepted")
+		}
+	})
+	withStdin(t, "ein-langes-passwort\n", func() {
+		err := runPasswd(ctx, cfg, []string{"niemand@nirgends.test"}, quiet())
+		if err == nil {
+			t.Fatal("an address without an account was accepted")
+		}
+		if !strings.Contains(err.Error(), "niemand@nirgends.test") {
+			t.Errorf("the error does not name the address: %v", err)
+		}
+	})
+	if err := runPasswd(ctx, cfg, nil, quiet()); err == nil {
+		t.Error("passwd without an address was accepted")
+	}
+}
+
+// From a pipe the password is one line, and the line ending is not part of it.
+func TestReadNewPasswordFromAPipe(t *testing.T) {
+	withStdin(t, "mit-zeilenende\r\n", func() {
+		got, err := readNewPassword()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != "mit-zeilenende" {
+			t.Errorf("readNewPassword = %q", got)
+		}
+	})
+	// A pipe that ends without a newline still yields what was in it — the
+	// common case for `printf ... | covey passwd`.
+	withStdin(t, "ohne-zeilenende", func() {
+		got, err := readNewPassword()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != "ohne-zeilenende" {
+			t.Errorf("readNewPassword = %q", got)
+		}
+	})
 }

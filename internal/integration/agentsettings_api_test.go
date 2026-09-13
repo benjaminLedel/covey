@@ -152,3 +152,91 @@ func TestSecretEndpoints(t *testing.T) {
 	admin.expect(http.MethodDelete, "/api/v1/secrets/gibtesnicht", nil, http.StatusOK)
 	admin.expect(http.MethodGet, "/api/v1/agents/"+uuid.NewString()+"/secrets", nil, http.StatusNotFound)
 }
+
+// A secret's expiry is a date a PERSON knows — the token runs out at the end
+// of the month, and the platform should say so before the run does. It is
+// therefore taken in both the forms somebody types, and refused in the ones
+// nobody means.
+func TestSecretExpiryOverTheAPI(t *testing.T) {
+	s := newStack(t)
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	agent := s.newSupportAgent("ablauf-agent")
+
+	admin.expect(http.MethodPut, "/api/v1/secrets/gitlab_token",
+		map[string]string{"value": "glpat-x"}, http.StatusOK)
+
+	// A plain date and a full timestamp both work: one is what a person reads
+	// off a token page, the other what a machine writes.
+	admin.expect(http.MethodPatch, "/api/v1/secrets/gitlab_token",
+		map[string]any{"expires_at": "2026-12-31"}, http.StatusOK)
+	admin.expect(http.MethodPatch, "/api/v1/secrets/gitlab_token",
+		map[string]any{"expires_at": "2026-12-31T23:59:00Z"}, http.StatusOK)
+
+	// Clearing it: both spellings of "no longer known".
+	admin.expect(http.MethodPatch, "/api/v1/secrets/gitlab_token",
+		map[string]any{"expires_at": nil}, http.StatusOK)
+	admin.expect(http.MethodPatch, "/api/v1/secrets/gitlab_token",
+		map[string]any{"expires_at": ""}, http.StatusOK)
+
+	// A date nobody can mean is refused with the shape it wanted, rather than
+	// stored as a zero time that would read as "ran out in year one".
+	admin.expect(http.MethodPatch, "/api/v1/secrets/gitlab_token",
+		map[string]any{"expires_at": "31.12.2026"}, http.StatusBadRequest)
+	admin.expect(http.MethodPatch, "/api/v1/secrets/gitlab_token",
+		map[string]any{"expires_at": "bald"}, http.StatusBadRequest)
+
+	// A PATCH that changes nothing is a bad request: it would otherwise report
+	// success for an operation nobody asked for.
+	admin.expect(http.MethodPatch, "/api/v1/secrets/gitlab_token",
+		map[string]any{}, http.StatusBadRequest)
+
+	// The protection is one-way. Lifting it would mean disclosing the value
+	// after all, so the way back is delete and create anew.
+	admin.expect(http.MethodPatch, "/api/v1/secrets/gitlab_token",
+		map[string]any{"sensitive": true}, http.StatusOK)
+	admin.expect(http.MethodPatch, "/api/v1/secrets/gitlab_token",
+		map[string]any{"sensitive": false}, http.StatusConflict)
+
+	// The agent's own secrets take the same patches.
+	base := "/api/v1/agents/" + agent.ID.String() + "/secrets/eigenes"
+	admin.expect(http.MethodPut, base, map[string]string{"value": "nur-hier"}, http.StatusOK)
+	admin.expect(http.MethodPatch, base, map[string]any{"expires_at": "2027-01-31"}, http.StatusOK)
+	admin.expect(http.MethodPatch, base, map[string]any{"expires_at": "irgendwann"}, http.StatusBadRequest)
+	admin.expect(http.MethodPatch, base, map[string]any{"sensitive": false}, http.StatusConflict)
+	admin.expect(http.MethodPatch, base, map[string]any{}, http.StatusBadRequest)
+
+	// What the listing shows: names, and what is known about the value's life —
+	// never the value.
+	list := admin.expectList(http.MethodGet, "/api/v1/secrets", nil, http.StatusOK)
+	if len(list) == 0 {
+		t.Fatal("the secret is not in the listing")
+	}
+	for _, e := range list {
+		if v, _ := e["value"].(string); v != "" {
+			t.Error("the listing hands a secret's value out")
+		}
+	}
+}
+
+// The fleet view is the one page that answers "what is everybody doing right
+// now". On a fresh installation that is nobody, and it still has to answer.
+func TestFleetStatusOverTheAPI(t *testing.T) {
+	s := newStack(t)
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	agent := s.newSupportAgent("flotten-agent")
+
+	fleet := admin.expect(http.MethodGet, "/api/v1/fleet", nil, http.StatusOK)
+	if fleet == nil {
+		t.Fatal("the fleet view answered nothing")
+	}
+
+	// The kill switch is the whole organisation at once, and the fleet view is
+	// where it is read back.
+	admin.expect(http.MethodPost, "/api/v1/fleet/kill", map[string]any{"killed": true}, http.StatusOK)
+	after := admin.expect(http.MethodGet, "/api/v1/fleet", nil, http.StatusOK)
+	if killed, _ := after["fleet_killed"].(bool); !killed {
+		t.Errorf("the kill switch is not read back: %v", after)
+	}
+	admin.expect(http.MethodPost, "/api/v1/fleet/kill", map[string]any{"killed": false}, http.StatusOK)
+	_ = agent
+}
