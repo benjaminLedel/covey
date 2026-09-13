@@ -26,6 +26,7 @@ func TestTheAPIWhenTheDatabaseIsGone(t *testing.T) {
 	admin := login(t, s, "admin@test.local", "admin-passwort")
 	agent := s.newSupportAgent("waise")
 	a := "/api/v1/agents/" + agent.ID.String()
+	_, runnerToken := s.builtinToken(t, s.orgID)
 
 	// From here on nothing can read or write. The database is taken away
 	// UNDER the running server — its backends are terminated and it refuses
@@ -138,6 +139,40 @@ func TestTheAPIWhenTheDatabaseIsGone(t *testing.T) {
 		if resp.StatusCode < 400 {
 			t.Errorf("%s %s answered HTTP %d without a database: %s",
 				w.method, w.path, resp.StatusCode, truncate(string(raw), 120))
+		}
+	}
+
+	// The runner API is the data plane's own way in, and a runner that reaches
+	// a control plane without a database must be told so rather than handed an
+	// empty allowlist — which would read as "this agent may reach nothing" and
+	// is a different statement from "I cannot say".
+	for _, path := range []string{
+		"/api/runner/v1/whoami",
+		"/api/runner/v1/egress/allowlist?agent=" + agent.ID.String(),
+	} {
+		code, body := s.runnerGET(t, path, runnerToken)
+		if code < 400 {
+			t.Errorf("runner GET %s answered HTTP %d without a database: %s", path, code, truncate(string(body), 120))
+		}
+	}
+	if code, body := s.runnerPOST(t, "/api/runner/v1/register", "", map[string]any{"token": "x"}); code < 400 {
+		t.Errorf("runner register answered HTTP %d without a database: %s", code, truncate(string(body), 120))
+	}
+
+	// And the public endpoints, which are the ones a stranger reaches: they
+	// must not answer "this address is free" because the database is away.
+	for _, path := range []string{
+		"/api/v1/public/signup", "/api/v1/public/password-reset",
+		"/api/v1/public/verify/resend",
+	} {
+		resp := s.postJSON(t, path, map[string]any{
+			"email": "jemand@example.test", "display_name": "Jemand",
+			"password": "ein-langes-passwort",
+		})
+		code := resp.StatusCode
+		resp.Body.Close()
+		if code < 400 {
+			t.Errorf("public POST %s answered HTTP %d without a database", path, code)
 		}
 	}
 
