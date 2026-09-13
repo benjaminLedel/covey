@@ -61,6 +61,28 @@ echo ok
 	return path
 }
 
+// localNode is the node a test hands to EnsureLocal — and it is closed when the
+// test ends, which is the whole reason this helper exists.
+//
+// A node that keeps running keeps its watcher, and the watcher keeps running
+// `docker wait` — in a test the shell script from fakeDockerBin, which writes
+// its arguments into exactly the directory t.TempDir() is about to remove. The
+// removal then loses a race it cannot see: the file reappears between the
+// listing and the rmdir, and the test fails at cleanup with "directory not
+// empty" while every assertion in it passed (#250).
+//
+// The order comes out right by itself: t.Cleanup runs last-registered-first, and
+// the TempDir's cleanup was registered before this one.
+func localNode(t *testing.T, runnerID, orgID uuid.UUID, dir string) *Node {
+	t.Helper()
+	node := NewNode(runnerID, orgID, &Docker{
+		RunnerID: runnerID, Image: "covey-sandbox:test", DataDir: dir,
+		DockerBin: fakeDockerBin(t, dir, "nothing"),
+	}, quietLog())
+	t.Cleanup(node.Close)
+	return node
+}
+
 // newLocalPool wires a pool with a built-in runner — exactly the way the
 // control plane does on a normal installation.
 func newLocalPool(t *testing.T, dir, dockerBin string, orgID uuid.UUID) (*Pool, uuid.UUID) {
@@ -193,9 +215,7 @@ func TestPoolNeverAssignsAcrossOrganisations(t *testing.T) {
 	other := uuid.New()
 	p.EnsureLocal = func(ctx context.Context, orgID uuid.UUID) error {
 		id := uuid.New()
-		return p.AttachLocal(ctx, NewNode(id, orgID, &Docker{
-			RunnerID: id, Image: "covey-sandbox:test", DataDir: dir, DockerBin: fakeDockerBin(t, dir, "nothing"),
-		}, quietLog()))
+		return p.AttachLocal(ctx, localNode(t, id, orgID, dir))
 	}
 	if _, err := p.Start(context.Background(), orchestrator.SandboxSpec{AgentID: uuid.New(), OrgID: other}); err != nil {
 		t.Fatalf("the new organisation should have got its built-in runner: %v", err)
@@ -252,9 +272,7 @@ func TestABuiltInRunnerStepsInWhenNothingIsConnected(t *testing.T) {
 	p.EnsureLocal = func(ctx context.Context, orgID uuid.UUID) error {
 		ensured++
 		id := uuid.New()
-		return p.AttachLocal(ctx, NewNode(id, orgID, &Docker{
-			RunnerID: id, Image: "covey-sandbox:test", DataDir: dir, DockerBin: fakeDockerBin(t, dir, "nothing"),
-		}, quietLog()))
+		return p.AttachLocal(ctx, localNode(t, id, orgID, dir))
 	}
 	if _, err := p.Start(context.Background(), orchestrator.SandboxSpec{
 		AgentID: uuid.New(), OrgID: org, Image: "registry.example.com/team/dev:1",
@@ -306,9 +324,7 @@ func TestTheFallbackStillRespectsTags(t *testing.T) {
 	p, _ := newLocalPool(t, dir, fakeDockerBin(t, dir, "nothing"), org)
 	p.EnsureLocal = func(ctx context.Context, orgID uuid.UUID) error {
 		id := uuid.New()
-		return p.AttachLocal(ctx, NewNode(id, orgID, &Docker{
-			RunnerID: id, Image: "covey-sandbox:test", DataDir: dir, DockerBin: fakeDockerBin(t, dir, "nothing"),
-		}, quietLog()))
+		return p.AttachLocal(ctx, localNode(t, id, orgID, dir))
 	}
 	_, err := p.Start(context.Background(), orchestrator.SandboxSpec{
 		AgentID: uuid.New(), OrgID: org, RunnerTags: []string{"gpu"},
@@ -1082,9 +1098,7 @@ func TestARunnerThatDoesNotAnswerIsNoCandidate(t *testing.T) {
 	p.EnsureLocal = func(ctx context.Context, orgID uuid.UUID) error {
 		ensured++
 		id := uuid.New()
-		return p.AttachLocal(ctx, NewNode(id, orgID, &Docker{
-			RunnerID: id, Image: "covey-sandbox:test", DataDir: dir, DockerBin: fakeDockerBin(t, dir, "nothing"),
-		}, quietLog()))
+		return p.AttachLocal(ctx, localNode(t, id, orgID, dir))
 	}
 	started := time.Now()
 	if _, err := p.Start(ctx, orchestrator.SandboxSpec{AgentID: uuid.New(), OrgID: org}); err != nil {
