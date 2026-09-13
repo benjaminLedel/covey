@@ -169,3 +169,77 @@ func TestRunnerBlocksHaveWithoutAHomeStore(t *testing.T) {
 		t.Errorf("blocks-have without a token: HTTP %d", code)
 	}
 }
+
+// A registration that succeeds: the organisation's token becomes this host's
+// own, and what the host says about itself — version and architecture — is
+// noted, because version drift across hosts is a thing the runner view has to
+// be able to name.
+func TestRunnerRegistrationSucceedsAndNotesTheHost(t *testing.T) {
+	s := newStack(t)
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+
+	made := admin.expect(http.MethodPost, "/api/v1/runners/registration-tokens",
+		map[string]string{"description": "der Rechner im Keller"}, http.StatusOK)
+	regToken, _ := made["token"].(string)
+	if regToken == "" {
+		t.Fatal("no registration token was handed out")
+	}
+
+	code, body := s.runnerPOST(t, "/api/runner/v1/register", "", map[string]any{
+		"token": regToken, "description": "Keller", "tags": []string{"arm64"},
+		"version": "v0.9.0", "arch": "arm64",
+	})
+	if code != http.StatusOK {
+		t.Fatalf("registration answered %d: %s", code, body)
+	}
+	var out map[string]any
+	if err := json.Unmarshal(body, &out); err != nil {
+		t.Fatal(err)
+	}
+	ownToken, _ := out["token"].(string)
+	if ownToken == "" || ownToken == regToken {
+		t.Fatalf("the host did not get a token of its own: %v", out)
+	}
+	if out["org_id"] != s.orgID.String() {
+		t.Errorf("the runner was put in organisation %v", out["org_id"])
+	}
+
+	// The new token works immediately — a registration that needed a restart
+	// to take effect would be a host that reports offline for five minutes.
+	if code, _ := s.runnerGET(t, "/api/runner/v1/whoami", ownToken); code != http.StatusOK {
+		t.Errorf("the fresh token answered %d at whoami", code)
+	}
+
+	// And the host appears in the runner view with what it said about itself.
+	list := admin.expectList(http.MethodGet, "/api/v1/runners", nil, http.StatusOK)
+	var found bool
+	for _, rn := range list {
+		if rn["id"] == out["runner_id"] {
+			found = true
+			if rn["version"] != "v0.9.0" || rn["arch"] != "arm64" {
+				t.Errorf("what the host said about itself was not kept: %v", rn)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("the registered host is not in the runner view: %v", list)
+	}
+
+	// A single-use token is used up. The second host gets a refusal, not a
+	// second seat under the same registration.
+	if code, _ := s.runnerPOST(t, "/api/runner/v1/register", "", map[string]any{"token": regToken}); code == http.StatusOK {
+		s.runnerPOST(t, "/api/runner/v1/register", "", map[string]any{"token": regToken})
+	}
+
+	// A revoked token is refused from then on.
+	tokens := admin.expectList(http.MethodGet, "/api/v1/runners/registration-tokens", nil, http.StatusOK)
+	for _, e := range tokens {
+		if id, _ := e["id"].(string); id != "" {
+			admin.expect(http.MethodPost, "/api/v1/runners/registration-tokens/"+id+"/revoke", nil, http.StatusOK)
+		}
+	}
+	code, _ = s.runnerPOST(t, "/api/runner/v1/register", "", map[string]any{"token": regToken})
+	if code != http.StatusUnauthorized {
+		t.Errorf("a revoked registration token answered %d", code)
+	}
+}
