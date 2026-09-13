@@ -164,9 +164,9 @@ func (s *Server) handleListWorkplaces(w http.ResponseWriter, r *http.Request) {
 		report = append(report, own.Image)
 	}
 
-	// Und wer von den Genannten noch auf einem aelteren Image laeuft. Gefragt
-	// wird die Sitzung, nicht die Datenbank: Was eine laufende Sandbox benutzt,
-	// steht nirgends geschrieben — es steht in ihr.
+	// And which of the named agents is still running an older image. The
+	// session is asked, not the database: what a running sandbox uses is
+	// written down nowhere — it is written in the sandbox.
 	if s.Orch != nil {
 		for i := range out {
 			for _, ref := range out[i].Agents {

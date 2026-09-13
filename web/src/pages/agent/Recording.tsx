@@ -62,10 +62,10 @@ export function Recording({
             <Link to={`/infrastructure/runners/${host.data.runner_id}`}>{host.data.runner_name}</Link>
           </span>
         )}
-        {/* Welches Image die laufende Sandbox tatsächlich benutzt. Die Seite
-            zeigte Version und Commit der CONTROL PLANE — und genau die stimmte,
-            während der Agent eine halbe Stunde lang mit dem Code von vorgestern
-            antwortete (#217). Ein Hinweis, kein Neustart. */}
+        {/* Which image the running sandbox actually uses. The page showed
+            version and commit of the CONTROL PLANE — and those were right,
+            while the agent answered for half an hour with the code of the day
+            before yesterday (#217). A note, not a restart. */}
         {host.data?.outdated && (
           <span className="text-sm" style={{ color: "var(--warning, #b45309)" }} title={host.data.image}>
             {t("agent.recording.olderWorkplace")}
@@ -124,9 +124,9 @@ function summarize(e: RecordingEvent): { text: string; mono?: boolean; muted?: b
   switch (e.kind) {
     case "lifecycle": {
       if (p.status === "task_done") return { text: i18n.t("activity.taskDone") };
-      // Der Grund steht im selben Ereignis (#221). Die Aufzeichnung ist der
-      // dokumentierte Weg zur Fehlersuche — sie muss ihn zeigen, sonst ist der
-      // Weg eine Sackgasse.
+      // The reason travels in the same event (#221). The recording is the
+      // documented way to the cause — it has to show it, or the way is a dead
+      // end.
       if (p.status === "task_failed")
         return { text: i18n.t("activity.taskFailed", { reason: reasonSuffix(p.error) }), danger: true };
       // Wo ein Lauf stattfindet. Bei einer Maschine ist das keine Frage, ab

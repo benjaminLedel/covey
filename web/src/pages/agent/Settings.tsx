@@ -123,18 +123,17 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
     mutationFn: (slug: string) => patch(`/agents/${agent.id}/slug`, { slug }),
     onSuccess: invalidate,
   });
-  // Die Antwort trägt eine Warnung, wenn die CLI der gewählten Engine hier
-  // nirgends zu finden ist (#221). Sie verweigert nichts — ein Image kann
-  // nachziehen — aber sie steht neben der Auswahl, statt erst als
-  // fehlgeschlagene Aufgabe aufzutauchen.
+  // The answer carries a warning when the chosen engine's CLI is nowhere to be
+  // found here (#221). It refuses nothing — an image can catch up — but it
+  // stands beside the picker instead of turning up as a failed task.
   const setRuntime = useMutation({
     mutationFn: (runtime: string) =>
       patch<{ ok: boolean; warning?: string }>(`/agents/${agent.id}/runtime`, { runtime }),
     onSuccess: invalidate,
   });
-  // Die Stimmen der Organisation (spec/24). Zuweisen schreibt die TONE.md in
-  // die Config des Agenten — eine Config-Version wie jede andere, nachlesbar
-  // und rücknehmbar an derselben Stelle wie der Rest.
+  // The organisation's voices (spec/24). Assigning writes the TONE.md into the
+  // agent's config — a config version like any other, readable and revertible
+  // in the same place as the rest.
   const voices = useQuery({
     queryKey: ["voices"],
     queryFn: () => api<Voice[]>("/voices"),
@@ -418,8 +417,8 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
         />
         <span className="muted text-xs">{t("agent.settings.maxTurnsHint")}</span>
       </div>
-      {/* Die Stimme, in der dieser Agent schreibt. Nur gebaute stehen zur
-          Wahl: eine Stimme ohne Build hat nichts, was in eine TONE.md könnte. */}
+      {/* The voice this agent writes in. Only built ones can be chosen: a
+          voice without a build has nothing to put into a TONE.md. */}
       <div style={row}>
         <span className="text-sm">{t("agent.settings.voice")}</span>
         <select

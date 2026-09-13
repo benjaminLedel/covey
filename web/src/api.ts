@@ -36,8 +36,8 @@ export type Agent = {
    *  können die beiden auseinanderlaufen — wer sie gleichsetzt, zeigt einen
    *  Zustand an, den es so nicht gibt. */
   runtime_id?: string;
-  /** Die Stimme, in der dieser Agent schreibt (spec/24). Fehlt = keine; was
-   *  wirkt, ist die TONE.md seiner Config — dies sagt, WESSEN Stimme das ist. */
+  /** The voice this agent writes in (spec/24). Absent = none; what ACTS is the
+   *  TONE.md of its config — this says WHOSE voice that is. */
   voice_id?: string;
   model: string;
   effort: string; // "" = Runtime-Default, sonst low|medium|high|xhigh|max
@@ -1344,24 +1344,24 @@ export type Workplace = {
   kind?: "catalog" | "own";
   /** Wer hier arbeitet — benannt, nicht gezählt. */
   agents?: { id: string; slug: string; display_name: string }[];
-  /* Wer davon noch auf einem ÄLTEREN Image läuft: Eine Sandbox behält das
-     Image, mit dem sie gestartet ist, und ein warmer Agent startet nie wieder.
-     Ein Plugin-Fix erreicht ihn deshalb erst beim nächsten kalten Start —
-     sichtbar gemacht, nicht automatisch behoben (#217). */
+  /* Which of them still runs an OLDER image: a sandbox keeps the image it
+     started with, and a warm agent never starts again. A plugin fix therefore
+     reaches it only at the next cold start — made visible, not fixed behind
+     anybody's back (#217). */
   stale?: { id: string; slug: string; display_name: string }[];
 };
 
-/* Stimmen: der Stil eines Autors als Objekt der Organisation (spec/24). Vier
-   Stücke — Profil (die Bänder, die das Style-Gate misst), Passagen (die im
-   Prompt stehen), Karte (die Beschreibung in Worten, von einem Modell
-   geschrieben und von einem Menschen freigegeben) und Kontrast (was der Autor
-   nie tut, gemessen gegen KI-Text). */
+/* Voices: an author's style as an object of the organisation (spec/24). Four
+   parts — the profile (the bands the style gate measures), the passages (which
+   stand in the prompt), the card (the description in words, written by a model
+   and released by a person) and the contrast (what the author never does,
+   measured against AI text). */
 export type VoiceExemplar = { role: string; text: string; from?: string };
 export type VoiceContrast = { metric: string; label: string; author: number; other: number };
 export type VoiceDocument = {
   id: string;
   name: string;
-  /** author = die Texte des Autors, reference = KI-Text, gegen den der Kontrast misst. */
+  /** author = the author's own texts, reference = AI text the contrast is measured against. */
   kind: "author" | "reference";
   words: number;
   created_at: string;
@@ -1370,12 +1370,12 @@ export type Voice = {
   id: string;
   name: string;
   language: string;
-  /** Zählt die BUILDS. 0 = noch nie gebaut, dann trägt sie niemand. */
+  /** Counts the BUILDS. 0 = never built, and then nobody carries it. */
   version: number;
   exemplars: VoiceExemplar[];
   contrast: VoiceContrast[];
   notes: string[];
-  /** Der Entwurf des letzten Builds; released_card ist, was wirkt. */
+  /** The draft of the last build; released_card is what acts. */
   card: string;
   released_card: string;
   released_at?: string;
@@ -1386,7 +1386,7 @@ export type Voice = {
 };
 export type VoiceDetail = Voice & {
   corpus: VoiceDocument[];
-  /** Die gerenderte TONE.md — was der Agent wirklich mitbekommt. */
+  /** The rendered TONE.md — what the agent actually gets. */
   tone: string;
 };
 

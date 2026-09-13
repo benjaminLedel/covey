@@ -6,13 +6,13 @@ import { api, del, post, type Principal, type Voice, type VoiceDetail } from "..
 
 const canEdit = (role: string) => role === "org_admin" || role === "agent_owner";
 
-/* Die Stimmen — eine Bibliothek neben den Fähigkeiten, für das andere, was ein
-   Agent von der Organisation mitbekommt: wie geschrieben wird.
+/* The voices — a library beside the skills, for the other thing an agent gets
+   from its organisation: how to write.
 
-   Warum eine eigene Seite und nicht ein Feld am Agenten: Eine Stimme wird aus
-   hochgeladenen Texten GEBAUT, sie gilt für mehrere Agenten, und eines ihrer
-   vier Stücke schreibt ein Modell und ein Mensch gibt es frei. Das ist ein
-   Objekt mit einem Lebenslauf, kein Auswahlfeld (spec/24). */
+   Why a page of its own rather than a field on the agent: a voice is BUILT from
+   uploaded texts, it holds for several agents, and one of its four parts is
+   written by a model and released by a person. That is an object with a life,
+   not a picker (spec/24). */
 export default function Voices({ me }: { me: Principal }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -132,9 +132,9 @@ function VoiceCard({ voice, editable }: { voice: Voice; editable: boolean }) {
         {t("voices.builtFrom", { documents: voice.documents, words: voice.words })}
       </p>
 
-      {/* Was der Build über sich selbst zu sagen hat. Eine Bandbreite aus drei
-          Texten ist benutzbar — aber wer eine Meldung dagegen liest, soll
-          wissen, worauf sie ruht. */}
+      {/* What the build has to say about itself. Bands from three texts are
+          usable — but whoever reads a finding against them should know what
+          they rest on. */}
       {voice.notes?.map((n, i) => (
         <p key={i} className="text-xs" style={{ color: "var(--warning, #b45309)", margin: "0 0 4px" }}>
           {n}
@@ -252,9 +252,9 @@ function VoiceDetailView({ id, editable }: { id: string; editable: boolean }) {
         )}
       </div>
 
-      {/* Die Karte ist das einzige Stück, das ein Modell schreibt — und deshalb
-          das einzige, das ein Mensch freigibt. Sie steht danach im Prompt jedes
-          Laufs jedes Agenten, der die Stimme trägt. */}
+      {/* The card is the only part a model writes — and therefore the only one
+          a person releases. After that it stands in the prompt of every run of
+          every agent carrying this voice. */}
       <div>
         <div className="text-sm font-medium mb-1">{t("voices.card")}</div>
         <p className="muted mb-2" style={{ maxWidth: 680 }}>
@@ -314,9 +314,9 @@ function VoiceDetailView({ id, editable }: { id: string; editable: boolean }) {
         </div>
       )}
 
-      {/* Was der Agent tatsächlich bekommt. Die vier Stücke einzeln sagen
-          nicht, was im Prompt landet — und das ist die Frage, die man vor einer
-          Stimme hat. */}
+      {/* What the agent actually gets. The four parts on their own do not say
+          what lands in the prompt — and that is the question somebody has in
+          front of a voice. */}
       <details>
         <summary className="text-sm font-medium">{t("voices.tone")}</summary>
         <pre className="mono" style={{ whiteSpace: "pre-wrap", maxWidth: 680 }}>
