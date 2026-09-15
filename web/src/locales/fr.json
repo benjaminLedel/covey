@@ -1228,6 +1228,10 @@
       "limit": "Limite",
       "parked": "mise de côté jusqu'à {{until}}",
       "release": "libérer",
+      "paused": "en pause depuis {{since}}",
+      "pausedHint": "Retirée à la main : personne ne travaille dessus tant que quelqu'un ne la reprend pas. Les agents qui y étaient se sont déplacés et y reviendront ensuite.",
+      "pause": "mettre en pause",
+      "resume": "reprendre",
       "amount": "Plafond",
       "unit": "Unité",
       "unitUsd": "Dollars",
@@ -1238,7 +1242,8 @@
         "initial": "premier rattachement",
         "limit": "détourné — sa propre capacité était à la limite",
         "error": "détourné — sa propre capacité a été refusée",
-        "return": "de retour sur son poste d'origine"
+        "return": "de retour sur son poste d'origine",
+        "paused": "déplacé — sa propre capacité est en pause"
       }
     },
     "engines": {

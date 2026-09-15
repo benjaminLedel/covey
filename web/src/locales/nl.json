@@ -1228,6 +1228,10 @@
       "limit": "Limiet",
       "parked": "geparkeerd tot {{until}}",
       "release": "vrijgeven",
+      "paused": "gepauzeerd sinds {{since}}",
+      "pausedHint": "Met de hand uit roulatie genomen: niemand werkt erop tot iemand hervat. Agents die erop zaten zijn uitgeweken en keren daarna terug.",
+      "pause": "pauzeren",
+      "resume": "hervatten",
       "amount": "Plafond",
       "unit": "Eenheid",
       "unitUsd": "Dollars",
@@ -1238,7 +1242,8 @@
         "initial": "eerste toewijzing",
         "limit": "uitgeweken — de eigen capaciteit zat aan de limiet",
         "error": "uitgeweken — de eigen capaciteit werd geweigerd",
-        "return": "terug op de eigen werkplek"
+        "return": "terug op de eigen werkplek",
+        "paused": "uitgeweken — de eigen capaciteit is gepauzeerd"
       }
     },
     "engines": {

@@ -72,7 +72,15 @@ func (s *Store) Pick(ctx context.Context, orgID, agentID, runtimeID uuid.UUID, e
 			freeAt = t
 		}
 	}
+	paused := 0
 	for _, c := range rt.Credentials {
+		// Paused by hand: out of play, and without a moment it frees up — that
+		// is up to whoever paused it, and a guessed one would have the caller
+		// wake the agent for nothing.
+		if c.PausedAt != nil {
+			paused++
+			continue
+		}
 		if c.parked(now) {
 			note(*c.CooldownUntil)
 			continue
@@ -116,7 +124,8 @@ func (s *Store) Pick(ctx context.Context, orgID, agentID, runtimeID uuid.UUID, e
 		healthy = append(healthy, c)
 	}
 	if len(healthy) == 0 {
-		return Picked{}, &Exhausted{Runtime: rt.DisplayName, Until: freeAt}
+		return Picked{}, &Exhausted{Runtime: rt.DisplayName, Until: freeAt,
+			Paused: paused == len(rt.Credentials)}
 	}
 
 	resolve := func(c Credential) (Picked, error) {
@@ -178,10 +187,14 @@ func (s *Store) Pick(ctx context.Context, orgID, agentID, runtimeID uuid.UUID, e
 	if bound != nil {
 		// Why it moved is worth keeping apart: a credential used up by its
 		// limit is normal operation, one rejected by the provider is a fault
-		// somebody has to look at.
+		// somebody has to look at, and one paused by hand is nobody's fault.
 		reason = ReasonLimit
 		for _, c := range rt.Credentials {
-			if c.Ord == *bound && c.CooldownReason == ReasonError {
+			switch {
+			case c.Ord != *bound:
+			case c.PausedAt != nil:
+				reason = ReasonPaused
+			case c.CooldownReason == ReasonError:
 				reason = ReasonError
 			}
 		}

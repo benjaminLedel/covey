@@ -1228,6 +1228,10 @@
       "limit": "Limite",
       "parked": "posta de lado até {{until}}",
       "release": "libertar",
+      "paused": "em pausa desde {{since}}",
+      "pausedHint": "Retirada à mão: ninguém trabalha nela até alguém a retomar. Os agentes que lá estavam mudaram-se e voltam depois.",
+      "pause": "pausar",
+      "resume": "retomar",
       "amount": "Teto",
       "unit": "Unidade",
       "unitUsd": "Dólares",
@@ -1238,7 +1242,8 @@
         "initial": "primeira atribuição",
         "limit": "desviado — a sua própria capacidade estava no limite",
         "error": "desviado — a sua própria capacidade foi recusada",
-        "return": "de volta ao lugar de origem"
+        "return": "de volta ao lugar de origem",
+        "paused": "mudou-se — a própria capacidade está em pausa"
       }
     },
     "engines": {

@@ -766,6 +766,8 @@ export type RuntimeCredential = {
   label: string;
   cooldown_until?: string;
   cooldown_reason?: string;
+  /** Von Hand pausiert seit — hält, bis jemand fortsetzt. */
+  paused_at?: string;
   limit: SecretLimit;
   usage: { ord: number; usd: number; tokens: number; runs: number };
   window_secs: number;

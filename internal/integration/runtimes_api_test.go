@@ -115,6 +115,11 @@ func TestRuntimeCredentialsOverTheAPI(t *testing.T) {
 	// belongs to the platform.
 	admin.expect(http.MethodPatch, base+"0", map[string]any{"cooldown": false}, http.StatusOK)
 	admin.expect(http.MethodPatch, base+"0", map[string]any{"cooldown": true}, http.StatusBadRequest)
+	// A pause is the other half: a decision rather than a measurement, so it is
+	// set and lifted by hand, both ways (#260).
+	admin.expect(http.MethodPatch, base+"0", map[string]any{"paused": true}, http.StatusOK)
+	admin.expect(http.MethodPatch, base+"0", map[string]any{"paused": false}, http.StatusOK)
+	admin.expect(http.MethodPatch, base+"7", map[string]any{"paused": true}, http.StatusNotFound)
 	admin.expect(http.MethodPatch, base+"keine-zahl", map[string]any{"label": "x"}, http.StatusBadRequest)
 
 	admin.expect(http.MethodDelete, base+"1", nil, http.StatusOK)

@@ -163,6 +163,88 @@ func TestRuntimeDodgesAndReturns(t *testing.T) {
 	}
 }
 
+// TestRuntimePauseByHand: a paused credential is out of play until somebody
+// lifts the pause (#260). The agent on it moves and keeps it as its home seat;
+// the platform's own release does not lift it; and a runtime with nothing but
+// paused credentials refuses as exhausted, saying so, with no moment attached.
+func TestRuntimePauseByHand(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+
+	rt, _ := s.runtimes.Create(ctx, s.orgID, "claude-code", "Claude Team", "")
+	s.seat(t, rt.ID, daemon.CredSubscription, "claude_code_oauth_token", "sitz-a", "A")
+	s.seat(t, rt.ID, daemon.CredSubscription, "claude_code_oauth_token", "sitz-b", "B")
+	alice := s.newSupportAgent("alice")
+
+	home, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, "", noUsage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.runtimes.SetPaused(ctx, s.orgID, rt.ID, home.Ord, true); err != nil {
+		t.Fatal(err)
+	}
+	// Releasing a cooldown is the platform's lever and must not touch a pause —
+	// that is the whole reason the two are kept apart.
+	if err := s.runtimes.Cooldown(ctx, rt.ID, home.Ord, time.Time{}, ""); err != nil {
+		t.Fatal(err)
+	}
+	moved, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, "", noUsage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if moved.Ord == home.Ord {
+		t.Fatal("a paused credential must not be handed out")
+	}
+	b, _ := s.runtimes.Bindings(ctx, rt.ID)
+	if len(b) != 1 || b[0].Reason != runtimes.ReasonPaused ||
+		b[0].HomeOrd == nil || *b[0].HomeOrd != home.Ord {
+		t.Fatalf("the move must record the pause and keep the home seat: %+v", b)
+	}
+
+	// One paused, the other parked by the platform: the refusal carries the
+	// cooldown's moment and is not blamed on the pause.
+	until := time.Now().Add(time.Hour)
+	if err := s.runtimes.Cooldown(ctx, rt.ID, moved.Ord, until, runtimes.ReasonLimit); err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, "", noUsage)
+	var ex *runtimes.Exhausted
+	if !errors.As(err, &ex) || ex.Paused || ex.Until.IsZero() {
+		t.Fatalf("with one seat parked the refusal has to carry its moment: %v", err)
+	}
+
+	// Both paused: still ErrExhausted, so the wake is postponed — but it says
+	// why, and it invents no moment.
+	if err := s.runtimes.Cooldown(ctx, rt.ID, moved.Ord, time.Time{}, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.runtimes.SetPaused(ctx, s.orgID, rt.ID, moved.Ord, true); err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, "", noUsage)
+	if !errors.Is(err, runtimes.ErrExhausted) || !errors.As(err, &ex) || !ex.Paused || !ex.Until.IsZero() {
+		t.Fatalf("a runtime with every credential paused has to refuse as paused: %v", err)
+	}
+
+	// Resumed: back to the home seat.
+	for _, ord := range []int{home.Ord, moved.Ord} {
+		if err := s.runtimes.SetPaused(ctx, s.orgID, rt.ID, ord, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	back, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, "", noUsage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if back.Ord != home.Ord {
+		t.Fatalf("alice did not return to her home seat: %d instead of %d", back.Ord, home.Ord)
+	}
+
+	if err := s.runtimes.SetPaused(ctx, s.orgID, rt.ID, 99, true); !errors.Is(err, runtimes.ErrNotFound) {
+		t.Fatalf("pausing a credential that does not exist has to be not found: %v", err)
+	}
+}
+
 // TestRuntimeLimitAndExhaustion: the soft limit moves the agent onward, and
 // once every credential is used up the runtime refuses — with the moment it
 // frees up again, so the wake can be postponed instead of the run failing.

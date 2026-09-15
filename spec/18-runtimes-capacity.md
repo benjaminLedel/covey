@@ -53,7 +53,7 @@ Two decisions, at two different speeds, and they must not be collapsed:
 
 **Which runtime does this agent work on** is a human decision. It is commercial (whose budget), it is governance (the expensive contract is reserved for production agents; the QA fleet runs on a subscription), and it belongs next to the agent's other durable properties — visible, auditable, answerable from the org chart.
 
-**Which of that runtime's credentials does this run use** is the platform's decision, made per waking phase, and described in [`04-identity-secrets.md`](04-identity-secrets.md): sticky, because the engine caches its prompt prefix per credential and a value swapped at every wake throws that cache away; moved only when the value is parked or has used up its share; returning to its home seat when that becomes healthy again.
+**Which of that runtime's credentials does this run use** is the platform's decision, made per waking phase, and described in [`04-identity-secrets.md`](04-identity-secrets.md): sticky, because the engine caches its prompt prefix per credential and a value swapped at every wake throws that cache away; moved only when the value is parked, paused by hand, or has used up its share; returning to its home seat when that becomes healthy again.
 
 So: **the human chooses the pot, the platform chooses the token.** A runtime holding exactly one credential and no fallback is a legitimate configuration, but it is one where an agent simply stops when that credential is limited — the elasticity comes from the pool, and giving it up is a choice that should be made knowingly.
 
@@ -208,6 +208,8 @@ CREATE TABLE runtime_credentials (
     label             TEXT     NOT NULL DEFAULT '',    -- "subscription Ben"
     cooldown_until    TIMESTAMPTZ,
     cooldown_reason   TEXT     NOT NULL DEFAULT '',
+    paused_at         TIMESTAMPTZ,        -- set by hand, lifted by hand; not a
+                                          -- cooldown, which is the platform's
     limit_amount      NUMERIC(14,4) NOT NULL DEFAULT 0,
     limit_unit        TEXT     NOT NULL DEFAULT 'usd',
     limit_window_secs INTEGER  NOT NULL DEFAULT 0,
