@@ -30,6 +30,7 @@ import (
 	"covey/internal/daemon"
 	"covey/internal/egress"
 	"covey/internal/guardrails"
+	"covey/internal/homestore"
 	"covey/internal/identity"
 	"covey/internal/memory"
 	"covey/internal/notify"
@@ -98,9 +99,15 @@ type Options struct {
 	// a human at the "clean up" button. 0 → default.
 	BoardRetention time.Duration
 	ReadyTimeout   time.Duration
-	// TidyHomeAbove: ab dieser Größe wird ein Agent gebeten, sein Home
-	// aufzuräumen (siehe tidy.go). 0 oder kleiner = gar nicht.
+	// TidyHomeAbove: above this size an agent is asked to tidy its home (see
+	// tidy.go). Negative = not by size; 0 → default.
 	TidyHomeAbove int64
+	// TidyEntriesAbove: above this many entries directly in the home an agent
+	// is asked as well (#272). Negative = not by count; 0 → default.
+	TidyEntriesAbove int
+	// Blobs is the home store, read for the manifest the count comes from.
+	// nil = housekeeping asks by size only.
+	Blobs homestore.BlobStore
 	// StaleAfter: so lange darf ein Agent einen beschäftigten Zustand tragen,
 	// ohne dass eine Sitzung dahintersteht, bevor die Plattform ihn auflöst.
 	// 0 → Voreinstellung. Ein Knopf für Tests, kein Bedienelement.
@@ -223,11 +230,16 @@ func New(opts Options) *Orchestrator {
 		opts.BoardRetention = 24 * time.Hour
 	}
 	if opts.TidyHomeAbove == 0 {
-		// Fünf Gigabyte: auf der gemessenen Instanz trifft das genau den
-		// Agenten mit 19,1 GB und keinen der übrigen sieben (0 bis 1,3 GB).
-		// Eine Schwelle, die alle trifft, wird zur Gewohnheit und dann
-		// ignoriert.
+		// Five gigabytes: on the measured instance that hit exactly the agent
+		// with 19.1 GB and none of the other seven (0 to 1.3 GB). A threshold
+		// that hits everybody becomes a habit and is then ignored.
 		opts.TidyHomeAbove = 5 << 30
+	}
+	if opts.TidyEntriesAbove == 0 {
+		// 200 entries: on app.covey.work that hit the three homes that were a
+		// heap (322, 883, 1004) and none of the others (131 and below). A
+		// tidy developer home has a few dozen, most of them tool directories.
+		opts.TidyEntriesAbove = 200
 	}
 	if opts.StaleAfter == 0 {
 		// Großzügig: ein Weckruf setzt den Zustand, bevor die Sitzung steht,

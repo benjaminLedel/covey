@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -234,6 +235,63 @@ func (c *ClaudeCode) buildArgs(spec RunSpec) ([]string, string) {
 	return args, prompt
 }
 
+// runDir is the working directory of the `claude` process: WorkDir, or the home
+// without one.
+//
+// With one exception. Claude Code keeps a session's transcript per working
+// directory, and `--resume <id>` looks only in the directory of the cwd it is
+// started in. A task that went blocked while runs still started in the home
+// (before #271) has its session there; resuming it from its scratch directory
+// would find nothing and lose the thread. Such a resume starts where its session
+// lies.
+func runDir(spec RunSpec) string {
+	if spec.WorkDir == "" {
+		return spec.HomeDir
+	}
+	if spec.ResumeSessionID != "" &&
+		!hasSession(spec.HomeDir, spec.WorkDir, spec.ResumeSessionID) &&
+		hasSession(spec.HomeDir, spec.HomeDir, spec.ResumeSessionID) {
+		return spec.HomeDir
+	}
+	return spec.WorkDir
+}
+
+// hasSession reports whether Claude Code holds the transcript of session id for
+// runs started in cwd: ~/.claude/projects/<cwd>/<id>.jsonl, where <cwd> is the
+// path with every character that is not an ASCII letter or digit replaced by
+// "-". Both the path as given and its resolved form are tried, because the
+// process sees the resolved one (macOS: /var is /private/var).
+func hasSession(home, cwd, id string) bool {
+	if home == "" || cwd == "" || id == "" || strings.ContainsAny(id, `/\`) {
+		return false
+	}
+	candidates := []string{cwd}
+	if real, err := filepath.EvalSymlinks(cwd); err == nil && real != cwd {
+		candidates = append(candidates, real)
+	}
+	for _, c := range candidates {
+		path := filepath.Join(home, ".claude", "projects", claudeProjectKey(c), id+".jsonl")
+		if _, err := os.Stat(path); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+// claudeProjectKey replaces per character, not per byte: Claude Code does it on
+// a JavaScript string, where "ü" is one character and becomes one "-".
+func claudeProjectKey(cwd string) string {
+	var b strings.Builder
+	for _, ch := range cwd {
+		if ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || ch >= '0' && ch <= '9' {
+			b.WriteRune(ch)
+		} else {
+			b.WriteByte('-')
+		}
+	}
+	return b.String()
+}
+
 // stream starts a `claude` process, passes every stream-json line 1:1 into the
 // recording and collects the raw result from it.
 func (c *ClaudeCode) stream(ctx context.Context, spec RunSpec, args []string, onEvent func(kind string, payload json.RawMessage)) (outcome, error) {
@@ -242,10 +300,7 @@ func (c *ClaudeCode) stream(ctx context.Context, spec RunSpec, args []string, on
 	// .claude/agents, skills and commands relative to the cwd — that way a
 	// sub-run in the project checkout gets its harness while keeping the agent
 	// home.
-	cmd.Dir = spec.WorkDir
-	if cmd.Dir == "" {
-		cmd.Dir = spec.HomeDir
-	}
+	cmd.Dir = runDir(spec)
 	// Environment without the daemon's COVEY_* variables (see childEnv): the run
 	// gets only what the caller explicitly hands it — otherwise a hook or MCP
 	// server from the project would inherit the daemon token.

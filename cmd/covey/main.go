@@ -1380,9 +1380,13 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		TickInterval:   cfg.TickInterval,
 		BoardRetention: cfg.BoardRetention,
 		TidyHomeAbove:  cfg.TidyHomeAboveBytes,
-		RuntimeTools:   cfg.RuntimeTools,
-		Notify:         notifyStore,
-		Log:            log,
+		// The count comes from the manifest in the store; without a store
+		// (COVEY_HOME_STORE=false) blobs is nil and only the size asks.
+		TidyEntriesAbove: cfg.TidyHomeAboveEntries,
+		Blobs:            blobs,
+		RuntimeTools:     cfg.RuntimeTools,
+		Notify:           notifyStore,
+		Log:              log,
 	})
 	// A sandbox that dies is reported by the runner instead of being inferred
 	// from a ReadyTimeout minutes later — that is what watching the container

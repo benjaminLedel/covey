@@ -524,6 +524,13 @@ switch cost time instead of work.
   agent to tidy its own home — a backlog task with the figures in it, not a
   sweep. What is scratch and what is memory is known only by the agent that
   created it. `0` switches it off.
+- `COVEY_HOME_TIDY_ABOVE_ENTRIES=200` asks the same when that many entries lie
+  directly in the home, whatever their size. The count comes from the manifest
+  of the newest snapshot, so it needs the home store. `0` switches it off.
+- Every run starts in `~/scratch/<task-id>/`, and the prompt tells the agent that
+  interim files belong there. A task directory no run has entered for seven days
+  is removed at the start of the agent's next run — the only thing in a home the
+  platform removes on its own, because the agent was told before it wrote there.
 - The blocks live under `<COVEY_DATA_DIR>/blocks`. **This directory needs
   backup like the database.** 99 % of it would only have to be downloaded
   again; the rest exists nowhere else. It is a cache in its function, not in

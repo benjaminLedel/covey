@@ -175,11 +175,15 @@ type Config struct {
 	// COVEY_BOARD_RETENTION (default 24h); a negative duration disables the
 	// cleanup and lets the board grow.
 	BoardRetention time.Duration
-	// TidyHomeAboveBytes: ab dieser Home-Größe bittet die Plattform den
-	// Agenten, aufzuräumen (COVEY_HOME_TIDY_ABOVE_GB, 0 = gar nicht). Eine
-	// Bitte und kein Kehrbesen: was Kratzverzeichnis ist und was Gedächtnis,
-	// weiß nur der, der es angelegt hat.
+	// TidyHomeAboveBytes: above this home size the platform asks the agent to
+	// tidy up (COVEY_HOME_TIDY_ABOVE_GB, 0 = not by size). A request and not a
+	// sweep: what is scratch and what is memory only the one who made it knows.
+	// An explicit 0 arrives as -1 — see offWhenZero.
 	TidyHomeAboveBytes int64
+	// TidyHomeAboveEntries: above this many entries directly in the home the
+	// platform asks as well (COVEY_HOME_TIDY_ABOVE_ENTRIES, default 200, 0 = not
+	// by count). A home can be a heap without being large (#272).
+	TidyHomeAboveEntries int
 	// EgressEnforce enables the egress allowlist proxy (docker provider only):
 	// sandbox traffic then goes through a proxy that only lets allowlist hosts pass.
 	EgressEnforce bool
@@ -304,34 +308,35 @@ func FromEnv() (Config, error) {
 		HSTS:             getenv("COVEY_HSTS", "basic"),
 		// 0 lässt dem Pool seine eigene Vorgabe — eine zweite Zahl hier wäre
 		// eine zweite Wahrheit, und genau die hat heute zweimal zugebissen.
-		SandboxStartTimeout: getenvDuration("COVEY_SANDBOX_START_TIMEOUT", 0),
-		HomeStore:           getenvBool("COVEY_HOME_STORE", true),
-		HomeExcludes:        homeExcludes(os.Getenv("COVEY_HOME_EXCLUDES")),
-		BlobStore:           getenv("COVEY_BLOB_STORE", "builtin"),
-		S3Endpoint:          getenv("COVEY_S3_ENDPOINT", ""),
-		S3Bucket:            getenv("COVEY_S3_BUCKET", ""),
-		S3Prefix:            getenv("COVEY_S3_PREFIX", ""),
-		S3Region:            getenv("COVEY_S3_REGION", ""),
-		S3AccessKey:         getenv("COVEY_S3_ACCESS_KEY", ""),
-		S3SecretKey:         getenv("COVEY_S3_SECRET_KEY", ""),
-		S3PathStyle:         getenvBool("COVEY_S3_PATH_STYLE", true),
-		WebhookSecrets:      webhookSecretsFromEnv(),
-		TickInterval:        getenvDuration("COVEY_TICK_INTERVAL", 30*time.Second),
-		DreamAt:             getenv("COVEY_DREAM_AT", "03:00"),
-		SessionTTL:          getenvDuration("COVEY_SESSION_TTL", 7*24*time.Hour),
-		DaemonTokenTTL:      getenvDuration("COVEY_DAEMON_TOKEN_TTL", 15*time.Minute),
-		BoardRetention:      getenvDuration("COVEY_BOARD_RETENTION", 24*time.Hour),
-		TidyHomeAboveBytes:  int64(getenvInt("COVEY_HOME_TIDY_ABOVE_GB", 5)) << 30,
-		EgressEnforce:       getenvBool("COVEY_EGRESS_ENFORCE", false),
-		EgressAllow:         splitList(os.Getenv("COVEY_EGRESS_ALLOW")),
-		BuiltinRunner:       getenv("COVEY_BUILTIN_RUNNER", "auto"),
-		EgressIsolation:     getenv("COVEY_EGRESS_ISOLATION", "proxy"),
-		EgressProxyAddr:     getenv("COVEY_EGRESS_PROXY_ADDR", ":8888"),
-		ControlURL:          getenv("COVEY_CONTROL_URL", ""),
-		RunnerToken:         getenv("COVEY_RUNNER_TOKEN", ""),
-		WikiCleanup:         strings.TrimSpace(os.Getenv("COVEY_WIKI_CLEANUP")),
-		RuntimeTools:        splitList(os.Getenv("COVEY_RUNTIME_TOOLS")),
-		MarketplaceURL:      getenv("COVEY_MARKETPLACE_URL", DefaultMarketplaceURL),
+		SandboxStartTimeout:  getenvDuration("COVEY_SANDBOX_START_TIMEOUT", 0),
+		HomeStore:            getenvBool("COVEY_HOME_STORE", true),
+		HomeExcludes:         homeExcludes(os.Getenv("COVEY_HOME_EXCLUDES")),
+		BlobStore:            getenv("COVEY_BLOB_STORE", "builtin"),
+		S3Endpoint:           getenv("COVEY_S3_ENDPOINT", ""),
+		S3Bucket:             getenv("COVEY_S3_BUCKET", ""),
+		S3Prefix:             getenv("COVEY_S3_PREFIX", ""),
+		S3Region:             getenv("COVEY_S3_REGION", ""),
+		S3AccessKey:          getenv("COVEY_S3_ACCESS_KEY", ""),
+		S3SecretKey:          getenv("COVEY_S3_SECRET_KEY", ""),
+		S3PathStyle:          getenvBool("COVEY_S3_PATH_STYLE", true),
+		WebhookSecrets:       webhookSecretsFromEnv(),
+		TickInterval:         getenvDuration("COVEY_TICK_INTERVAL", 30*time.Second),
+		DreamAt:              getenv("COVEY_DREAM_AT", "03:00"),
+		SessionTTL:           getenvDuration("COVEY_SESSION_TTL", 7*24*time.Hour),
+		DaemonTokenTTL:       getenvDuration("COVEY_DAEMON_TOKEN_TTL", 15*time.Minute),
+		BoardRetention:       getenvDuration("COVEY_BOARD_RETENTION", 24*time.Hour),
+		TidyHomeAboveBytes:   offWhenZero(int64(getenvInt("COVEY_HOME_TIDY_ABOVE_GB", 5)) << 30),
+		TidyHomeAboveEntries: int(offWhenZero(int64(getenvInt("COVEY_HOME_TIDY_ABOVE_ENTRIES", 200)))),
+		EgressEnforce:        getenvBool("COVEY_EGRESS_ENFORCE", false),
+		EgressAllow:          splitList(os.Getenv("COVEY_EGRESS_ALLOW")),
+		BuiltinRunner:        getenv("COVEY_BUILTIN_RUNNER", "auto"),
+		EgressIsolation:      getenv("COVEY_EGRESS_ISOLATION", "proxy"),
+		EgressProxyAddr:      getenv("COVEY_EGRESS_PROXY_ADDR", ":8888"),
+		ControlURL:           getenv("COVEY_CONTROL_URL", ""),
+		RunnerToken:          getenv("COVEY_RUNNER_TOKEN", ""),
+		WikiCleanup:          strings.TrimSpace(os.Getenv("COVEY_WIKI_CLEANUP")),
+		RuntimeTools:         splitList(os.Getenv("COVEY_RUNTIME_TOOLS")),
+		MarketplaceURL:       getenv("COVEY_MARKETPLACE_URL", DefaultMarketplaceURL),
 
 		EmbeddingProvider: getenv("COVEY_EMBEDDING_PROVIDER", "builtin"),
 		EmbeddingModel:    strings.TrimSpace(os.Getenv("COVEY_EMBEDDING_MODEL")),
@@ -542,6 +547,16 @@ func parseTrustedProxies(raw string) ([]netip.Prefix, error) {
 // getenvInt liest eine ganze Zahl aus der Umgebung. Was nicht als Zahl lesbar
 // ist, zählt als nicht gesetzt: eine halb gelesene Einstellung („5g") wäre eine
 // stillschweigend andere als die gemeinte.
+// offWhenZero maps a threshold of 0 or below to -1. The orchestrator reads 0 as
+// "not set" and fills in its default, so a 0 passed through unchanged switched
+// nothing off: COVEY_HOME_TIDY_ABOVE_GB=0 kept asking above 5 GB (#273).
+func offWhenZero(n int64) int64 {
+	if n <= 0 {
+		return -1
+	}
+	return n
+}
+
 func getenvInt(key string, fallback int) int {
 	v := strings.TrimSpace(os.Getenv(key))
 	if v == "" {

@@ -599,15 +599,25 @@ func (c *Client) runTask(ctx context.Context, task AssignTask) {
 		return
 	}
 
+	// Every task works in a directory of its own, and the ones no run has
+	// entered for a week go (scratch.go, #271). Removed before the run rather
+	// than after: a run that is killed never reaches its end.
+	scratch := scratchDir(c.homeDir, task.TaskID)
+	if n, err := sweepScratch(c.homeDir, time.Now(), scratch); err != nil {
+		c.log.Warn("scratch directories of past tasks not all removed", "removed", n, "err", err)
+	} else if n > 0 {
+		c.log.Info("scratch directories of past tasks removed", "count", n)
+	}
+
 	spec := RunSpec{
 		TaskID: task.TaskID,
 		Title:  task.Title,
 		Body:   task.Body,
-		// Der Arbeitsplatz hängt hinten an, nicht in der Konfiguration des
-		// Agenten: Was das Image mitbringt, weiß nur das Image — die
-		// Steuerebene kennt es nicht einmal dem Namen nach, wenn jemand ein
-		// eigenes einträgt. Siehe workplace.go.
-		SystemPrompt:    withWorkplace(cfg.SystemPrompt),
+		// Workplace and scratch directory are appended here, not compiled into
+		// the agent's configuration: what the image brings along only the image
+		// knows, and where the run starts only the daemon that starts it. See
+		// workplace.go and scratch.go.
+		SystemPrompt:    withScratch(withWorkplace(cfg.SystemPrompt), scratch),
 		Model:           cfg.Model,
 		Effort:          cfg.Effort,
 		MemoryContext:   task.MemoryContext,
@@ -617,6 +627,7 @@ func (c *Client) runTask(ctx context.Context, task AssignTask) {
 		ResumeSessionID: task.ResumeSessionID,
 		ResumeInput:     task.ResumeInput,
 		HomeDir:         c.homeDir,
+		WorkDir:         scratch,
 		Env:             env,
 		// The action proxy as an MCP server: with it the runtime calls a target
 		// action as a typed tool instead of assembling a curl in the shell

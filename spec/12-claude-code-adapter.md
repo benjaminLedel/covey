@@ -90,7 +90,7 @@ As **defence in depth**, `--allowedTools` (and `--permission-mode`) is neverthel
 
 ## Sub-run in the project checkout
 
-A run starts in the **agent home** (`/home/agent`) — that is where `~/.claude`, the wiki working copy and the dependency caches live. A project's source code, by contrast, lands under `~/repos/<project>-<ref>/` ([`13-zammad-integration.md`](13-zammad-integration.md) describes the pattern for target systems; the GitLab plugin's `checkout` action unpacks the archive there). Claude Code, however, looks for project memory (`CLAUDE.md`), `.claude/agents`, skills and commands **relative to the working directory** — from the home an agent sees none of it.
+A run starts in the **task's scratch directory** (`/home/agent/scratch/<task-id>`, [`16-runner.md`](16-runner.md), "Where a run's files go") with `HOME` at the **agent home** (`/home/agent`) — that is where `~/.claude`, the wiki working copy and the dependency caches live. A resume whose session was recorded in the home before scratch directories existed starts in the home, because `--resume` looks for the transcript under the working directory. A project's source code, by contrast, lands under `~/repos/<project>-<ref>/` ([`13-zammad-integration.md`](13-zammad-integration.md) describes the pattern for target systems; the GitLab plugin's `checkout` action unpacks the archive there). Claude Code, however, looks for project memory (`CLAUDE.md`), `.claude/agents`, skills and commands **relative to the working directory** — from the home an agent sees none of it.
 
 That costs twice over: the agent re-derives the project structure on every heartbeat run (a fresh process, a capped turn budget), and the project's conventions do not affect the result.
 
@@ -100,7 +100,7 @@ The division of roles is the core:
 
 | | Outer run | Sub-run |
 |---|---|---|
-| Working directory | agent home | project checkout |
+| Working directory | `~/scratch/<task-id>` | project checkout |
 | Prompt | the compiled agent config (`SOUL.md` …) | the project's harness + a terse assignment frame |
 | Target systems | through the action proxy | **none** — no `COVEY_ACTION_PORT` |
 | Task | triage, communication, `commit`, merge request, memory | understand, change, build, test |

@@ -275,6 +275,20 @@ The table shows two things. First: **almost nothing in it is unique.** The 4 GB 
 
 From this follows what does **not** work: a list. Neither a positive list ("save `work/` and `uploads/`") nor a negative one ("discard what the image profile knows as a cache") survives contact with an agent that creates itself a directory `analysis/` tomorrow. Every list is a rule that can be wrong, and its error costs work that has already been paid for.
 
+### Where a run's files go
+
+"Its home is its workplace, not a form" held for what the store syncs, and it turned out not to hold for where the files land. A run started in the home root, and the platform's own prompt had the agent write parameter files by relative path, so every ticket left its interim files directly in `~`. Three weeks of a developer agent produced 806 entries there — `shot-*`, `suite-*`, `harness-*`, `gegenprobe-*` by the dozen (#271). The root is where a person opens the file browser and where the agent looks first in its next run; a heap there is read by nobody.
+
+So **every task gets a directory of its own, `~/scratch/<task-id>/`, and its runs start in it.** `HOME` stays the home, so `~/.claude`, the wiki working copy and the caches are where they were. The daemon appends a paragraph to the prompt that names the directory, the way it appends the workplace: only the daemon that starts the run there can truthfully say so. A resumed task comes back to the same directory. Claude Code keeps a session's transcript per working directory, so a task that went `blocked` before this existed is resumed from the home, where its session lies.
+
+A task directory **no run has entered for seven days is removed** at the start of the next run. That is a sweep, and the next section explains why the platform otherwise asks instead of sweeping. The difference is the order: here the agent was told what the directory is for before it wrote the first file, so whatever lies under `~/scratch/<task-id>` was put there as scratch. Only names that are task ids are touched — a directory the agent named itself, a file, a symlink stay. A home materialised on another runner gets fresh directory times, so the sweep then waits longer, never less.
+
+### Asking for a tidy-up
+
+What lies outside `~/scratch` the platform does not remove. `239-fix-backup` is a copy from a ticket in August, and the only one who knows that is the agent; an automatic broom over things nobody has understood is how memory gets lost. The platform measures, names and **asks**: once a day, an agent whose newest snapshot lies above a threshold gets the backlog task "Arbeitsplatz aufräumen", with the figures that make it worth doing and the limit that it does not touch what it cannot name. One open task at a time.
+
+Two thresholds, because there are two kinds of mess. **Size** (`COVEY_HOME_TIDY_ABOVE_GB`, 5 GB) — two self-installed JDKs and a hand-unpacked database server in a 19 GB home, paid for with 34 s of checking at every wake and 140 s of writing back after every run. **Entries directly in the home** (`COVEY_HOME_TIDY_ABOVE_ENTRIES`, 200), counted from the snapshot's manifest — a heap costs no gigabytes and was invisible to the size (#272). The task names what was measured: for size it sends the agent after what is large, for a heap it lists the most frequent name prefixes. On the instance the second threshold was set against, it caught the three homes that were a heap (322, 883 and 1004 entries) and none of the others (131 and below).
+
 ### The central home store
 
 **Decided: after every job the home is synced as a whole into a central store and materialised from there on wake.** No whitelisting, no negative list, no check whether a checkout is clean — the home goes in completely and comes out completely. The question "what is valuable?" is thereby never asked in the first place.

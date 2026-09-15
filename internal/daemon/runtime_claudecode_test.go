@@ -213,6 +213,71 @@ EOF`)
 	}
 }
 
+// A task that went blocked while runs still started in the home has its
+// session there. Resuming it from its scratch directory would make Claude Code
+// look in the wrong project directory and lose the thread (#271).
+func TestClaudeCodeAdapterResumeStartsWhereTheSessionLies(t *testing.T) {
+	bin, home := fakeClaude(t, `
+printf '%s\n' "$PWD" > "$HOME/cwd.txt"
+cat <<'EOF'
+{"type":"result","subtype":"success","session_id":"sess-old","result":"fertig"}
+EOF`)
+	scratch := filepath.Join(home, "scratch", "25456bd1-83f7-487f-a7d2-2aa2f1a8dcea")
+	if err := os.MkdirAll(scratch, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	session := func(cwd, id string) {
+		dir := filepath.Join(home, ".claude", "projects", claudeProjectKey(cwd))
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, id+".jsonl"), []byte("{}\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run := func(id string) string {
+		t.Helper()
+		adapter := &ClaudeCode{Binary: bin}
+		if _, err := adapter.Run(context.Background(), RunSpec{
+			TaskID: "t", Title: "x", HomeDir: home, WorkDir: scratch,
+			ResumeSessionID: id, ResumeInput: "weiter",
+		}, func(string, json.RawMessage) {}); err != nil {
+			t.Fatal(err)
+		}
+		got, _ := os.ReadFile(filepath.Join(home, "cwd.txt"))
+		return strings.TrimSpace(string(got))
+	}
+
+	session(home, "sess-old")
+	if cwd := run("sess-old"); strings.Contains(cwd, "scratch") {
+		t.Fatalf("a session recorded in the home must be resumed from the home, ran in %q", cwd)
+	}
+
+	session(scratch, "sess-new")
+	if cwd := run("sess-new"); !strings.HasSuffix(cwd, filepath.Base(scratch)) {
+		t.Fatalf("a session recorded in the scratch directory must stay there, ran in %q", cwd)
+	}
+
+	// Found nowhere: WorkDir, as for any run. Falling back to the home on a
+	// guess would bring the heap back.
+	if cwd := run("sess-unknown"); !strings.HasSuffix(cwd, filepath.Base(scratch)) {
+		t.Fatalf("an unknown session must start in WorkDir, ran in %q", cwd)
+	}
+}
+
+func TestClaudeProjectKey(t *testing.T) {
+	for in, want := range map[string]string{
+		"/home/agent":                    "-home-agent",
+		"/home/agent/scratch/a1-b2":      "-home-agent-scratch-a1-b2",
+		"/Users/x/Documents/Fun.Projekt": "-Users-x-Documents-Fun-Projekt",
+		"/home/agent/prüfung_1":          "-home-agent-pr-fung-1",
+	} {
+		if got := claudeProjectKey(in); got != want {
+			t.Fatalf("claudeProjectKey(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 // The cached input side is the point of the billing: input_tokens counts only
 // what did NOT come out of the prompt cache. With Claude Code that is a handful
 // of tokens against millions of cache reads — a run booked without the two

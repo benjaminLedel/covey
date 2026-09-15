@@ -216,6 +216,12 @@ What it costs, so nothing is a surprise:
   agent to tidy its own home — a backlog task with the figures in it, not a
   sweep. What is scratch and what is memory is known only by the agent that
   created it. `0` switches it off.
+- `COVEY_HOME_TIDY_ABOVE_ENTRIES=200` asks the same when that many entries lie
+  directly in the home, whatever their size. `0` switches it off.
+- From this version on a run starts in `~/scratch/<task-id>/` instead of the
+  home root. Task directories no run has entered for seven days are removed;
+  nothing outside `~/scratch` is touched, and the heap an agent built before the
+  upgrade stays until the housekeeping task asks it to tidy.
 
 Retention (the last *N* per agent, a maximum age) is set under **Runners**, with
 a preview before anything is removed.
