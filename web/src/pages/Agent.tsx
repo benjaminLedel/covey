@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, useParams, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
-import { ApiError, api, post, isDraft, type Agent, type Principal } from "../api";
+import { api, post, isDraft, isNotFound, type Agent, type Principal } from "../api";
 import { AgentFiles } from "../components/AgentFiles";
 import { PhaseBadge } from "../components/PhaseBadge";
 import { AgentHome } from "../components/AgentHome";
@@ -44,8 +44,6 @@ const MOVED: Partial<Record<TabKey, [TabKey, string, string]>> = {
   workspace: ["dateien", "dir", ""],
   files: ["dateien", "dir", ""],
 };
-
-const isNotFound = (err: unknown) => err instanceof ApiError && err.status === 404;
 
 export default function AgentPage({ me }: { me: Principal }) {
   const { t } = useTranslation();

@@ -1215,6 +1215,10 @@ export class ApiError extends Error {
   }
 }
 
+/** A 404 from the API. On a detail page it means: not in the organisation this
+ *  session works in — which a retry does not change (#263). */
+export const isNotFound = (err: unknown) => err instanceof ApiError && err.status === 404;
+
 /* Was passieren soll, wenn der Server eine Anfrage mit 401 abweist: die
    Sitzung ist abgelaufen (oder anderswo beendet worden). Das ist kein Fehler
    EINER Seite, sondern das Ende der ganzen Oberfläche — deshalb hängt die
