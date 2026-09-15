@@ -271,6 +271,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/auth/me/profile", s.auth(s.handleMyProfile))
 	mux.Handle("GET /api/v1/auth/sessions", s.auth(s.handleListSessions))
 	mux.Handle("DELETE /api/v1/auth/sessions", s.auth(s.handleRevokeOtherSessions))
+	// The seats of this login and the switch between them (#262). auth, not
+	// rbac: a session without an organisation must be able to enter one.
+	mux.Handle("GET /api/v1/auth/memberships", s.auth(s.handleMemberships))
+	mux.Handle("POST /api/v1/auth/switch-org", s.auth(s.sessionOnly(s.handleSwitchOrg)))
 	// The notification switches hang on auth and not on rbac: they belong to
 	// the person, and a person without a seat still gets mail (#169).
 	mux.Handle("GET /api/v1/auth/notifications", s.auth(s.handleGetNotificationPrefs))
@@ -641,6 +645,11 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/platform/orgs", s.platformAdmin(s.handleCreateOrg))
 	mux.Handle("PATCH /api/v1/platform/orgs/{id}", s.platformAdmin(s.handleUpdateOrg))
 	mux.Handle("DELETE /api/v1/platform/orgs/{id}", s.platformAdmin(s.handleDeleteOrg))
+	// Seats handed out by the instance: one account in several organisations
+	// (#262). Addressed by account, because that is the row the operator sees.
+	mux.Handle("POST /api/v1/platform/orgs/{id}/members", s.platformAdmin(s.handleAddOrgMember))
+	mux.Handle("PATCH /api/v1/platform/orgs/{id}/members/{account}", s.platformAdmin(s.handleUpdateOrgMember))
+	mux.Handle("DELETE /api/v1/platform/orgs/{id}/members/{account}", s.platformAdmin(s.handleRemoveOrgMember))
 	// Der Rest der Instanz-Verwaltung: die Anmeldungen selbst, die Schalter
 	// der Installation und die Wartelisten-Codes (internal/httpapi/platform.go).
 	mux.Handle("GET /api/v1/platform/accounts", s.platformAdmin(s.handleListAccounts))
@@ -796,6 +805,7 @@ func mapErr(w http.ResponseWriter, err error) {
 		writeErr(w, http.StatusNotFound, "not found")
 	case errors.Is(err, backlog.ErrInvalidTransition),
 		errors.Is(err, org.ErrLastAdmin), errors.Is(err, org.ErrEmailTaken),
+		errors.Is(err, org.ErrAlreadyMember),
 		errors.Is(err, accounts.ErrLastSystemAdmin), errors.Is(err, org.ErrManagerCycle):
 		writeErr(w, http.StatusConflict, err.Error())
 	default:

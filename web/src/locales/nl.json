@@ -59,6 +59,7 @@
     }
   },
   "nav": {
+    "orgSwitch": "Organisatie",
     "agents": "Agenten",
     "templates": "Sjablonen",
     "org": "Organigram",
@@ -263,6 +264,7 @@
     "demoLogin": "Demo-login (beheerder)"
   },
   "noOrg": {
+    "pick": "U hebt een plek in deze organisaties:",
     "title": "Nog geen organisatie",
     "text": "{{email}} is ingelogd maar hoort bij geen enkele organisatie. Aansluiten bij een organisatie of er zelf een oprichten volgt als volgende stap; tot dan kunnen alleen de beheerders van uw organisatie u binnenlaten.",
     "signOut": "Uitloggen"
@@ -1931,6 +1933,9 @@
     "tabDiagnostics": "Diagnostiek"
   },
   "platform": {
+    "seatAddPick": "Toevoegen aan een organisatie…",
+    "seatAdd": "Toevoegen",
+    "seatRemove": "Verwijderen",
     "title": "Platform",
     "subtitle": "Deze installatie",
     "tabOrgs": "Organisaties",

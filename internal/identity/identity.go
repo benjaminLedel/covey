@@ -79,6 +79,9 @@ type Provider interface {
 	VerifyAgentToken(ctx context.Context, token, audience string) (agentID uuid.UUID, err error)
 	// AuthenticateHuman checks login credentials against the user records.
 	AuthenticateHuman(ctx context.Context, creds Credentials) (Principal, error)
+	// Memberships lists the seats of an account, oldest first — the
+	// organisations one login may switch between.
+	Memberships(ctx context.Context, accountID uuid.UUID) ([]Membership, error)
 }
 
 // Human roles (RBAC, spec/09-enterprise-model.md). They belong to the SEAT —

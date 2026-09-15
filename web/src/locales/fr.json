@@ -59,6 +59,7 @@
     }
   },
   "nav": {
+    "orgSwitch": "Organisation",
     "agents": "Agents",
     "templates": "Modèles",
     "org": "Organigramme",
@@ -263,6 +264,7 @@
     "demoLogin": "Connexion de démonstration (admin)"
   },
   "noOrg": {
+    "pick": "Vous avez une place dans ces organisations :",
     "title": "Pas encore d'organisation",
     "text": "{{email}} est connecté mais n'appartient à aucune organisation. Rejoindre une organisation ou fonder la vôtre est l'étape suivante ; d'ici là, seuls les administrateurs de votre organisation peuvent vous faire entrer.",
     "signOut": "Se déconnecter"
@@ -1931,6 +1933,9 @@
     "tabDiagnostics": "Diagnostic"
   },
   "platform": {
+    "seatAddPick": "Ajouter à une organisation…",
+    "seatAdd": "Ajouter",
+    "seatRemove": "Retirer",
     "title": "Plateforme",
     "subtitle": "Cette installation",
     "tabOrgs": "Organisations",

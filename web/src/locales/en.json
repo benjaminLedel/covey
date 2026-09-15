@@ -59,6 +59,7 @@
     }
   },
   "nav": {
+    "orgSwitch": "Organization",
     "agents": "Agents",
     "templates": "Templates",
     "org": "Org Chart",
@@ -263,6 +264,7 @@
     "demoLogin": "Demo Login (Admin)"
   },
   "noOrg": {
+    "pick": "You have a seat in these organisations:",
     "title": "No organisation yet",
     "text": "{{email}} is signed in but belongs to no organisation. Joining one or founding your own follows as the next step; until then only your organisation's administrators can let you in.",
     "signOut": "Sign out"
@@ -1931,6 +1933,9 @@
     "tabDiagnostics": "Diagnostics"
   },
   "platform": {
+    "seatAddPick": "Add to an organization…",
+    "seatAdd": "Add",
+    "seatRemove": "Remove",
     "title": "Platform",
     "subtitle": "This installation",
     "tabOrgs": "Organizations",

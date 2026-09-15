@@ -652,6 +652,14 @@ export type Seat = {
   role: string;
 };
 
+/** A seat of the signed-in account — where the org switcher can lead (#262). */
+export type Membership = {
+  human_id: string;
+  org_id: string;
+  org_name: string;
+  role: string;
+};
+
 /** Eine Anmeldung dieser Installation. Die Ebene `platform_role` gehört der
  *  Instanz, die Rollen in `seats` gehören je einer Organisation — das ist
  *  derselbe Unterschied wie zwischen Principal.PlatformRole und Principal.Role. */

@@ -59,6 +59,7 @@
     }
   },
   "nav": {
+    "orgSwitch": "Organización",
     "agents": "Agentes",
     "templates": "Plantillas",
     "org": "Organigrama",
@@ -263,6 +264,7 @@
     "demoLogin": "Acceso de demostración (admin)"
   },
   "noOrg": {
+    "pick": "Tiene un puesto en estas organizaciones:",
     "title": "Todavía sin organización",
     "text": "{{email}} ha iniciado sesión pero no pertenece a ninguna organización. Unirse a una o fundar la propia es el siguiente paso; hasta entonces, solo los administradores de tu organización pueden darte entrada.",
     "signOut": "Cerrar sesión"
@@ -1931,6 +1933,9 @@
     "tabDiagnostics": "Diagnóstico"
   },
   "platform": {
+    "seatAddPick": "Añadir a una organización…",
+    "seatAdd": "Añadir",
+    "seatRemove": "Quitar",
     "title": "Plataforma",
     "subtitle": "Esta instalación",
     "tabOrgs": "Organizaciones",
