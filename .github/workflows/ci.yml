@@ -89,6 +89,17 @@ jobs:
         with:
           name: web-dist
           path: web/dist
+      # The settings the GitLab job passes to its service: no crash safety for
+      # databases that live a few seconds. A service container here takes no
+      # command line, so they are set on the running server instead — all
+      # three take effect on a reload.
+      - name: postgres without fsync
+        run: >-
+          docker exec ${{ job.services.postgres.id }} psql -U covey -d covey
+          -c "ALTER SYSTEM SET fsync = off"
+          -c "ALTER SYSTEM SET synchronous_commit = off"
+          -c "ALTER SYSTEM SET full_page_writes = off"
+          -c "SELECT pg_reload_conf()"
       # Formatierung ist eine Bedingung, keine Geschmacksfrage: unformatierter
       # Code macht jeden späteren Diff größer als die Änderung.
       - name: gofmt

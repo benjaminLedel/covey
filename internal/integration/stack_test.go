@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"covey/internal/accounts"
@@ -235,6 +236,58 @@ type stackOpts struct {
 	staleAfter time.Duration
 }
 
+// tmpl is the migrated database every test database is copied from.
+//
+// A test database used to be an empty one plus every migration: about 300 ms
+// on a developer machine, a good deal more on a shared runner, and paid once
+// per test — several hundred times a run. CREATE DATABASE … TEMPLATE copies a
+// migrated one in about 20 ms. The template is built once per test process, on
+// first use, and TestMain drops it. Its name is unique per process, because
+// `go test ./...` runs other packages against the same server at the same time.
+var tmpl struct {
+	once sync.Once
+	name string
+	err  error
+}
+
+func migratedTemplate(ctx context.Context, admin *pgxpool.Pool) (string, error) {
+	tmpl.once.Do(func() {
+		name := "covey_tpl_" + strings.ReplaceAll(uuid.NewString(), "-", "")[:12]
+		if _, err := admin.Exec(ctx, "CREATE DATABASE "+name); err != nil {
+			tmpl.err = err
+			return
+		}
+		// Named before it is migrated, so that TestMain drops a half-built one
+		// as well.
+		tmpl.name = name
+		pool, err := db.Connect(ctx, testDBURL(name))
+		if err != nil {
+			tmpl.err = err
+			return
+		}
+		_, tmpl.err = db.MigrateUp(ctx, pool, migrations.FS)
+		pool.Close()
+	})
+	return tmpl.name, tmpl.err
+}
+
+// copyTemplate creates dbName as a copy of the template. Postgres refuses while
+// a session is still connected to the template (SQLSTATE 55006), and the
+// backends of a pool that was just closed take a moment to go — so that one
+// refusal is retried for a few seconds, and every other error returns at once.
+func copyTemplate(ctx context.Context, admin *pgxpool.Pool, dbName, tpl string) error {
+	var err error
+	for range 50 {
+		_, err = admin.Exec(ctx, "CREATE DATABASE "+dbName+" TEMPLATE "+tpl)
+		var pgErr *pgconn.PgError
+		if !errors.As(err, &pgErr) || pgErr.Code != "55006" {
+			return err
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return err
+}
+
 func newStack(t *testing.T) *stack {
 	t.Helper()
 	return newStackWith(t, stackOpts{})
@@ -248,8 +301,12 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 	if err != nil {
 		t.Skipf("no test Postgres at %s: %v", adminDBURL, err)
 	}
+	tpl, err := migratedTemplate(ctx, admin)
+	if err != nil {
+		t.Fatalf("building the migrated template database: %v", err)
+	}
 	dbName := "covey_test_" + strings.ReplaceAll(uuid.NewString(), "-", "")[:12]
-	if _, err := admin.Exec(ctx, "CREATE DATABASE "+dbName); err != nil {
+	if err := copyTemplate(ctx, admin, dbName, tpl); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
@@ -262,9 +319,6 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	if _, err := db.MigrateUp(ctx, pool, migrations.FS); err != nil {
-		t.Fatal(err)
-	}
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
 	idp, err := identbuiltin.New(pool)

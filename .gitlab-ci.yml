@@ -137,6 +137,11 @@ test-go:
   services:
     - name: pgvector/pgvector:pg16
       alias: postgres
+      # No crash safety for databases that live a few seconds. Every test
+      # creates one and drops it again; fsync, full-page writes and a
+      # synchronous commit per statement protect data nobody will ever read
+      # back, on the slowest disk this pipeline has.
+      command: ["postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"]
   variables:
     GOPATH: $CI_PROJECT_DIR/.go
     POSTGRES_USER: covey
