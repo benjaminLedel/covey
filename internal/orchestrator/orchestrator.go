@@ -1143,8 +1143,15 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 	if errors.Is(credErr, runtimes.ErrExhausted) {
 		payload := map[string]any{"system": "anthropic", "granted": false, "reason": "pool exhausted"}
 		var pe *runtimes.Exhausted
-		if errors.As(credErr, &pe) && !pe.Until.IsZero() {
-			payload["free_at"] = pe.Until
+		if errors.As(credErr, &pe) {
+			switch {
+			case pe.Paused:
+				// Nothing frees up by waiting — a person paused every
+				// credential. Said, so the event does not read like a limit.
+				payload["reason"] = "every credential paused"
+			case !pe.Until.IsZero():
+				payload["free_at"] = pe.Until
+			}
 		}
 		// Deliberately CHOSEN fields rather than the error object. Nothing that
 		// reaches here carries a secret value — the store's errors name the

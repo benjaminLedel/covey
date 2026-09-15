@@ -1228,6 +1228,10 @@
       "limit": "Límite",
       "parked": "aparcada hasta {{until}}",
       "release": "liberar",
+      "paused": "en pausa desde {{since}}",
+      "pausedHint": "Retirada a mano: nadie trabaja con ella hasta que alguien la reanude. Los agentes que estaban en ella se han movido y volverán después.",
+      "pause": "pausar",
+      "resume": "reanudar",
       "amount": "Tope",
       "unit": "Unidad",
       "unitUsd": "Dólares",
@@ -1238,7 +1242,8 @@
         "initial": "primera asignación",
         "limit": "desviado — su propia capacidad estaba en el límite",
         "error": "desviado — su propia capacidad fue rechazada",
-        "return": "de vuelta en su puesto de origen"
+        "return": "de vuelta en su puesto de origen",
+        "paused": "se ha movido: su propia capacidad está en pausa"
       }
     },
     "engines": {

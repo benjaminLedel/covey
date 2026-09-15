@@ -1,0 +1,12 @@
+-- A credential taken out of play by hand (#260).
+--
+-- Not a cooldown with a date far in the future. A cooldown is the platform's
+-- measurement: it has an end, the next rejection overwrites it, lifting a limit
+-- clears it, and "release" in the interface removes it. A pause is somebody's
+-- decision — the person on that subscription needs the quota this week, the
+-- contract is being cancelled, the token is about to be rotated — and it holds
+-- until somebody takes it back. Two states with two owners get two columns.
+--
+-- NULL = in play. The timestamp says since when, which is what the interface
+-- shows next to it.
+ALTER TABLE runtime_credentials ADD COLUMN paused_at TIMESTAMPTZ;

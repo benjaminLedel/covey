@@ -246,6 +246,9 @@ func (s *Server) handlePatchRuntimeCredential(w http.ResponseWriter, r *http.Req
 		// hand ("the token works again, try it"), but setting one belongs to
 		// the platform — a cooldown claims a measurement.
 		Cooldown *bool `json:"cooldown"`
+		// Paused is the other half: a decision, not a measurement, so it is set
+		// and lifted only here (#260).
+		Paused *bool `json:"paused"`
 	}
 	if err := readJSON(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid body")
@@ -277,6 +280,12 @@ func (s *Server) handlePatchRuntimeCredential(w http.ResponseWriter, r *http.Req
 			return
 		}
 		if err := s.Runtimes.Cooldown(r.Context(), id, ord, time.Time{}, ""); err != nil {
+			mapErr(w, err)
+			return
+		}
+	}
+	if in.Paused != nil {
+		if err := s.Runtimes.SetPaused(r.Context(), p.OrgID, id, ord, *in.Paused); err != nil {
 			mapErr(w, err)
 			return
 		}

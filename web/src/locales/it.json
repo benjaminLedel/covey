@@ -1228,6 +1228,10 @@
       "limit": "Limite",
       "parked": "in sosta fino a {{until}}",
       "release": "libera",
+      "paused": "in pausa dal {{since}}",
+      "pausedHint": "Tolta dal gioco a mano: nessuno ci lavora finché qualcuno non la riprende. Gli agenti che la usavano si sono spostati e poi torneranno.",
+      "pause": "metti in pausa",
+      "resume": "riprendi",
       "amount": "Tetto",
       "unit": "Unità",
       "unitUsd": "Dollari",
@@ -1238,7 +1242,8 @@
         "initial": "prima assegnazione",
         "limit": "deviato — la sua capacità era al limite",
         "error": "deviato — la sua capacità è stata rifiutata",
-        "return": "di nuovo sulla postazione di casa"
+        "return": "di nuovo sulla postazione di casa",
+        "paused": "spostato — la propria capacità è in pausa"
       }
     },
     "engines": {

@@ -1228,6 +1228,10 @@
       "limit": "Limit",
       "parked": "geparkt bis {{until}}",
       "release": "freigeben",
+      "paused": "pausiert seit {{since}}",
+      "pausedHint": "Von Hand aus dem Spiel genommen: Niemand arbeitet darauf, bis jemand fortsetzt. Wer darauf saß, ist ausgewichen und kehrt danach zurück.",
+      "pause": "pausieren",
+      "resume": "fortsetzen",
       "amount": "Höchstwert",
       "unit": "Einheit",
       "unitUsd": "Dollar",
@@ -1238,7 +1242,8 @@
         "initial": "erste Zuordnung",
         "limit": "ausgewichen — die eigene Kapazität war im Limit",
         "error": "ausgewichen — die eigene Kapazität wurde abgewiesen",
-        "return": "zurück auf dem Stammplatz"
+        "return": "zurück auf dem Stammplatz",
+        "paused": "ausgewichen — die eigene Kapazität ist pausiert"
       }
     },
     "engines": {

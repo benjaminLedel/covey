@@ -289,8 +289,15 @@ function CredentialRow({
     mutationFn: () => patch<{ ok: boolean }>(path, { cooldown: false }),
     onSuccess: onChanged,
   });
+  // Pausieren ist eine Entscheidung, kein Messwert: sie hält, bis jemand sie
+  // zurücknimmt — anders als der Cooldown, den die Plattform setzt (#260).
+  const setPaused = useMutation({
+    mutationFn: (paused: boolean) => patch<{ ok: boolean }>(path, { paused }),
+    onSuccess: onChanged,
+  });
   const remove = useMutation({ mutationFn: () => del(path), onSuccess: onChanged });
 
+  const paused = !!c.paused_at;
   const parked = !!c.cooldown_until && new Date(c.cooldown_until) > new Date();
   const used = c.limit.unit === "tokens" ? c.usage.tokens : c.usage.usd;
   const share = c.limit.window_secs > 0 && c.limit.amount > 0 ? Math.min(1, used / c.limit.amount) : 0;
@@ -309,6 +316,11 @@ function CredentialRow({
           {c.secret_slot > 0 ? `#${c.secret_slot}` : ""}
         </span>
         <span className="flex-1">{c.label || t("runtimes.instances.unnamed", { ord: c.ord })}</span>
+        {paused && (
+          <span className="badge st-blocked" title={t("runtimes.instances.pausedHint")}>
+            {t("runtimes.instances.paused", { since: new Date(c.paused_at!).toLocaleString() })}
+          </span>
+        )}
         {parked && (
           <span className="badge st-blocked" title={c.cooldown_reason}>
             {t("runtimes.instances.parked", { until: new Date(c.cooldown_until!).toLocaleString() })}
@@ -326,6 +338,14 @@ function CredentialRow({
                 {t("runtimes.instances.release")}
               </button>
             )}
+            <button
+              className="btn sm"
+              disabled={setPaused.isPending}
+              title={paused ? undefined : t("runtimes.instances.pausedHint")}
+              onClick={() => setPaused.mutate(!paused)}
+            >
+              {t(paused ? "runtimes.instances.resume" : "runtimes.instances.pause")}
+            </button>
             <button className="btn sm" onClick={() => setEditing(!editing)}>
               {t("runtimes.instances.limit")}
             </button>

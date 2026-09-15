@@ -106,7 +106,7 @@ func (s *Store) Get(ctx context.Context, orgID, id uuid.UUID) (Runtime, error) {
 
 func (s *Store) credentials(ctx context.Context, runtimeID uuid.UUID) ([]Credential, error) {
 	rows, err := s.pool.Query(ctx, `SELECT ord, kind, secret_key, secret_slot, label,
-			cooldown_until, cooldown_reason, limit_amount, limit_unit, limit_window_secs
+			cooldown_until, cooldown_reason, paused_at, limit_amount, limit_unit, limit_window_secs
 		FROM runtime_credentials WHERE runtime_id=$1 ORDER BY ord`, runtimeID)
 	if err != nil {
 		return nil, err
@@ -116,7 +116,7 @@ func (s *Store) credentials(ctx context.Context, runtimeID uuid.UUID) ([]Credent
 	for rows.Next() {
 		var c Credential
 		if err := rows.Scan(&c.Ord, &c.Kind, &c.SecretKey, &c.SecretSlot, &c.Label,
-			&c.CooldownUntil, &c.CooldownReason,
+			&c.CooldownUntil, &c.CooldownReason, &c.PausedAt,
 			&c.Limit.Amount, &c.Limit.Unit, &c.Limit.WindowSecs); err != nil {
 			return nil, err
 		}
@@ -263,6 +263,32 @@ func (s *Store) SetLabel(ctx context.Context, orgID, runtimeID uuid.UUID, ord in
 	tag, err := s.pool.Exec(ctx,
 		"UPDATE runtime_credentials SET label=$3 WHERE runtime_id=$1 AND ord=$2",
 		runtimeID, ord, label)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// SetPaused takes a credential out of play by hand, or puts it back (#260).
+//
+// Deliberately not a cooldown: that one is the platform's, has an end, and is
+// overwritten by the next rejection or lifted by a changed limit. A pause holds
+// until somebody lifts it. Pausing an already paused credential keeps the
+// moment it was first paused — "since when" is what the interface shows.
+//
+// The bindings stay untouched: an agent on a paused credential moves at its
+// next choice and keeps it as its home seat, so it returns once resumed.
+func (s *Store) SetPaused(ctx context.Context, orgID, runtimeID uuid.UUID, ord int, paused bool) error {
+	if _, err := s.Get(ctx, orgID, runtimeID); err != nil {
+		return err
+	}
+	tag, err := s.pool.Exec(ctx, `UPDATE runtime_credentials
+		SET paused_at = CASE WHEN $3::boolean THEN COALESCE(paused_at, now()) END
+		WHERE runtime_id=$1 AND ord=$2`,
+		runtimeID, ord, paused)
 	if err != nil {
 		return err
 	}

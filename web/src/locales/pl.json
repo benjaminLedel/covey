@@ -1228,6 +1228,10 @@
       "limit": "Limit",
       "parked": "odstawione do {{until}}",
       "release": "zwolnij",
+      "paused": "wstrzymane od {{since}}",
+      "pausedHint": "Wyłączone ręcznie: nikt na nim nie pracuje, dopóki ktoś go nie wznowi. Agenci, którzy na nim siedzieli, przenieśli się i potem wrócą.",
+      "pause": "wstrzymaj",
+      "resume": "wznów",
       "amount": "Limit",
       "unit": "Jednostka",
       "unitUsd": "Dolary",
@@ -1238,7 +1242,8 @@
         "initial": "pierwsze przypisanie",
         "limit": "przekierowany — własna zdolność była na limicie",
         "error": "przekierowany — własna zdolność została odrzucona",
-        "return": "z powrotem na swoim stanowisku"
+        "return": "z powrotem na swoim stanowisku",
+        "paused": "przeniesiony — własna pojemność jest wstrzymana"
       }
     },
     "engines": {

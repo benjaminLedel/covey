@@ -50,9 +50,16 @@ func (e *WrongEngine) Error() string {
 type Exhausted struct {
 	Runtime string
 	Until   time.Time
+	// Paused: every credential of the runtime was taken out of play by hand.
+	// Still ErrExhausted — the wake is postponed, not failed — but the message
+	// must not read like a rate limit, because nothing will lift it by waiting.
+	Paused bool
 }
 
 func (e *Exhausted) Error() string {
+	if e.Paused {
+		return fmt.Sprintf("runtime %q: %v (every credential is paused)", e.Runtime, ErrExhausted)
+	}
 	if e.Until.IsZero() {
 		return fmt.Sprintf("runtime %q: %v", e.Runtime, ErrExhausted)
 	}
@@ -97,7 +104,11 @@ type Credential struct {
 	Label          string     `json:"label"`
 	CooldownUntil  *time.Time `json:"cooldown_until,omitempty"`
 	CooldownReason string     `json:"cooldown_reason,omitempty"`
-	Limit          Limit      `json:"limit"`
+	// PausedAt is set while somebody has taken the credential out of play by
+	// hand. Apart from the cooldown on purpose: that one is the platform's
+	// measurement and ends by itself, this one is a decision and does not.
+	PausedAt *time.Time `json:"paused_at,omitempty"`
+	Limit    Limit      `json:"limit"`
 }
 
 func (c Credential) parked(now time.Time) bool {
@@ -118,6 +129,7 @@ const (
 	ReasonInitial = "initial"
 	ReasonLimit   = "limit"  // dodged: the previous credential was at its limit
 	ReasonError   = "error"  // dodged: the target system rejected it
+	ReasonPaused  = "paused" // dodged: somebody paused the previous credential by hand
 	ReasonReturn  = "return" // returned to its home seat
 )
 

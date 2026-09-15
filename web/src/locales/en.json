@@ -1228,6 +1228,10 @@
       "limit": "Limit",
       "parked": "parked until {{until}}",
       "release": "release",
+      "paused": "paused since {{since}}",
+      "pausedHint": "Taken out of play by hand: nobody works on it until somebody resumes it. Agents that sat on it have moved and return afterwards.",
+      "pause": "pause",
+      "resume": "resume",
       "amount": "Cap",
       "unit": "Unit",
       "unitUsd": "Dollars",
@@ -1238,7 +1242,8 @@
         "initial": "first assignment",
         "limit": "dodged — its own capacity was at the limit",
         "error": "dodged — its own capacity was rejected",
-        "return": "back on its home seat"
+        "return": "back on its home seat",
+        "paused": "moved — its own capacity is paused"
       }
     },
     "engines": {
