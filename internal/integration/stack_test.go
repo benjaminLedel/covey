@@ -326,6 +326,7 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 		Rails: s.rails, Secrets: secretStore, Runtimes: s.runtimes, Identity: idp, Memory: s.mem,
 		Targets:        s.targets,
 		Skills:         s.skills,
+		Voices:         s.voices,
 		Workplaces:     s.workplaces,
 		ReqLog:         s.reqlog,
 		Notify:         notify.New(pool).WithSettings(s.settings),

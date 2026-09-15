@@ -185,7 +185,16 @@ test-go:
     # wäre der schlechtere von zwei Fehlern. `set -o pipefail` würde das lösen —
     # und die dash kennt es nicht, also risse die Zeile den Job, sobald der
     # Runner keine bash wählt. Die Umleitung braucht beides nicht.
-    - if ! go test -coverprofile=coverage.out -coverpkg="$(go list ./... | paste -sd, -)" ./... > test.log 2>&1; then cat test.log; exit 1; fi
+    #
+    # -timeout ist eine SICHERUNG, kein Budget. Ohne Angabe schneidet `go test`
+    # ein Paket nach zehn Minuten ab, und diese Voreinstellung weiß nichts über
+    # die Maschine: Seit #239 die Datenbank mitbringt, LÄUFT die
+    # Integrationssuite hier wirklich — auf GitHub in 592 s, acht Sekunden
+    # unter dem Beil, und auf diesem Läufer, der dieselbe Arbeit mit etwa einem
+    # Drittel der Geschwindigkeit tut, darüber. Fünf rote Pipelines und zwei
+    # Tage ohne Deploy gingen darauf (#258), ohne dass es jemand sah: GitHub
+    # war grün.
+    - if ! go test -timeout 45m -coverprofile=coverage.out -coverpkg="$(go list ./... | paste -sd, -)" ./... > test.log 2>&1; then cat test.log; exit 1; fi
     - cat test.log
     # Gesamt-Prozentwert für den GitLab-Coverage-Badge (siehe coverage-Regex unten).
     - go tool cover -func=coverage.out | tee coverage.txt

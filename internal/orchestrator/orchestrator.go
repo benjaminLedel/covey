@@ -41,6 +41,7 @@ import (
 	"covey/internal/secrets"
 	"covey/internal/skills"
 	targetstore "covey/internal/target/store"
+	"covey/internal/voice"
 	"covey/internal/workplaces"
 	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
@@ -67,7 +68,12 @@ type Options struct {
 	Memory   *memory.Store
 	// Skills are the agents' skills (library + agent-owned). nil = feature
 	// switched off; runs then get no skills materialized.
-	Skills  *skills.Store
+	Skills *skills.Store
+	// Voices is the style library (spec/24). The orchestrator needs it for one
+	// thing: an agent reporting that a person rewrote its published text files
+	// the pair against the voice it carries. nil = the feature is not wired,
+	// and the action then says so rather thanfailing silently.
+	Voices  *voice.Store
 	Targets *targetstore.Store
 	Egress  *egress.Store
 	// Workplaces holds what an organisation brings along itself — its own

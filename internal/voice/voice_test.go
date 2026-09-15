@@ -260,3 +260,50 @@ func TestAddressMetricsAreMeasuredAndNotBanded(t *testing.T) {
 		t.Error("the address figures still belong in the corpus values")
 	}
 }
+
+// What counts as a correction, and what is only a comma. The threshold is not
+// taste: a pair that differs by one word teaches nothing and costs room in
+// every card prompt of every build.
+func TestWhatCountsAsACorrection(t *testing.T) {
+	lang := "Die Migration verzögert sich um zwei Wochen, weil die Datenbank auf dem alten " +
+		"Server liegt und erst umgezogen werden muss. Wir nennen den neuen Termin am Freitag."
+	tests := []struct {
+		name       string
+		before     string
+		after      string
+		want       bool
+		wantReason string
+	}{
+		{"a real rewrite", lang,
+			"Die Migration dauert zwei Wochen länger. Der Grund liegt in der Datenbank auf dem " +
+				"alten Server, die zuerst umziehen muss. Am Freitag steht der neue Termin.", true, ""},
+		{"the same text", lang, lang, false, "same text"},
+		{"one half missing", lang, "", false, "both halves"},
+		{"a typo in a long text", lang,
+			strings.Replace(lang, "Datenbank", "Datenbanken", 1), false, "typo"},
+		{"too short to have a style", "Kurz und knapp.", "Knapp und kurz.", false, "no style"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, reason := IsCorrection(tc.before, tc.after)
+			if got != tc.want {
+				t.Fatalf("IsCorrection = %v (%s), expected %v", got, reason, tc.want)
+			}
+			if !got && !strings.Contains(reason, tc.wantReason) {
+				t.Errorf("the refusal has to say what to do differently: %q", reason)
+			}
+		})
+	}
+}
+
+// A reordered sentence is not a rewrite. The count is over words, not over
+// positions, because what a voice learns from is different WORDING.
+func TestMovingASentenceIsNotAChange(t *testing.T) {
+	a := "Der Scan dauerte elf Minuten. Die Lösung waren Blöcke statt Dateien. " +
+		"Danach lag dieselbe Operation bei achtzehn Sekunden, und der Agent merkte nichts davon."
+	b := "Die Lösung waren Blöcke statt Dateien. Der Scan dauerte elf Minuten. " +
+		"Danach lag dieselbe Operation bei achtzehn Sekunden, und der Agent merkte nichts davon."
+	if got, reason := IsCorrection(a, b); got {
+		t.Errorf("a reordered text is not a correction (%q)", reason)
+	}
+}

@@ -94,6 +94,13 @@ var coveyOps = map[string]coveyOp{
 	// gate it where that matters.
 	"style_check": {Subject: "covey:style_check"},
 	"style_apply": {Subject: "covey:style_apply"},
+
+	// The correction pair an agent brings back from a target system (spec/24).
+	// No scope, like the wiki: reporting that a person rewrote your text is not
+	// a privilege. Its own subject all the same — the pair steers how every
+	// agent on that voice writes, so an organisation has to be able to gate it
+	// without gating the rest.
+	"correction": {Subject: "covey:correction"},
 }
 
 // hiringSystem is the name of the access in ACCESS.md that unlocks these
@@ -240,6 +247,8 @@ func (o *Orchestrator) hiring(ctx context.Context, agent agents.Agent, taskID uu
 		return o.styleCheckAction(ctx, agent, req, ok, fail)
 	case "style_apply":
 		return o.styleApplyAction(ctx, agent, taskID, req, ok, fail)
+	case "correction":
+		return o.correctionAction(ctx, agent, taskID, req, ok, fail)
 	}
 	return fail("unknown covey action %q", op)
 }

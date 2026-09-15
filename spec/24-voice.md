@@ -1,6 +1,6 @@
 # 24 — Voice: an author's style as an object an agent carries
 
-**Status: slices 2 and 3 are built (issue #195); slice 1 exists in the covey-style skill.** What is left of slice 3 is its second source — the plugins that notice an edit in a target system — and that lives in the plugin pack, not here.
+**Status: slices 1 to 3 are built.** Slice 1 lives in the covey-style skill, slices 2 and 3 in covey (#195, #257).
 
 The style gate ([`06-observability-control.md`](06-observability-control.md)) holds an agent's outgoing text inside bands measured from a corpus. The bands say *how far* a text is from the corpus; they cannot make the text sound like the corpus's author. This document describes what does, and how it becomes an object in covey.
 
@@ -61,7 +61,17 @@ Three rules fall out of it, and each is a line in the code:
 
 The agent's own half is found the way the style gate finds it (`style.ProseIn`) — one function for both, or one would eventually measure one text and store another.
 
-**The second source stays open, and deliberately so.** A plugin that notices somebody editing a published text posts the pair to `POST /api/v1/voices/{id}/corrections` with `source: target`. That endpoint exists; the plugin does not, and it belongs in the pack ([`22`](22-plugin-marketplace.md)) rather than here — a third party writing a CMS plugin has to be able to do the same thing without a change to covey.
+**The second source: the agent brings the pair back.** The design assumed a plugin would notice the edit and hand the pair over. It cannot, and the reason is a property of the plugin contract rather than a gap in it: `target.System` is `Name`/`ActionSubject`/`Execute`/`PromptDoc`, `Execute` answers the AGENT, and neither the SDK nor the pack knows `COVEY_ACTION_PORT`. A plugin gets its own target system's credential and nothing else ([`04`](04-identity-secrets.md)), and that should stay so — it is not worth loosening to move a pair.
+
+The agent is the only party on both sides: it can read what stands there now (every plugin has `get_ticket`, `get_page`, `get_note`, `get_message` or their like) and it can speak to the platform. So it files the pair itself, with `covey/correction` — one action beside `remember` and `style_check`, with its own guard-rail subject because a pair steers how every agent on that voice writes.
+
+Three rules sit in that action, and each answers a way it could be wrong:
+
+- **Who changed it is required, and a colleague is refused.** Only a person's edit is a correction; a second agent rewriting the text is a handover, and a voice that learns from it learns to imitate itself. covey checks the name against its own agents rather than trusting the label.
+- **A typo is not a correction.** The corrected text has to be long enough to have a style (20 words), and enough words have to have moved: the larger of three words and five percent of the longer text. Word-based, so a reordered sentence counts as unchanged — what a voice learns from is different wording, not a different order.
+- **It is the agent's word, and it is treated as such.** The same answer the wiki gives to the same weakness: every pair is in the recording, the subject can be gated, and a person can throw one out on the voice's page.
+
+`POST /api/v1/voices/{id}/corrections` stays as the way in for anything outside a run — a script, an import, a person with the pair in front of them.
 
 Storage is `voice_corrections` (migration 0091): the pair, the agent it came from, the action it was going into, and the source. The action is kept because register is not style — a correction on a mail says something different from one on a commit message. The pairs go into the card prompt of the next build, capped at the twenty newest, and stand on the voice's page where a person can throw out one that was made by accident.
 

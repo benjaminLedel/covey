@@ -101,6 +101,14 @@ jobs:
       # instruments pgx, chromedp and the rest of the module graph, which
       # would make half the number somebody else's code.
       - name: go test
+      # -timeout is a FUSE, not a budget. go test cuts a package off after ten
+      # minutes when nothing says otherwise, and that default knows nothing
+      # about the machine it runs on: the integration package took 592 s here
+      # in one run — eight seconds under the axe — and on the GitLab runner,
+      # which does the same work at about a third of the speed, it went over
+      # and took five pipelines and two days of deploys with it (#258). A
+      # generous fuse still catches a genuine hang; a tight one catches a slow
+      # afternoon.
         env:
           COVEY_TEST_DATABASE_URL: postgres://covey:covey@localhost:5433/covey?sslmode=disable
           # Every wait in the integration suite was calibrated on a developer
@@ -110,7 +118,7 @@ jobs:
           # and costs nothing while the tests pass: a wait returns when its
           # condition holds, not when the timer runs out.
           COVEY_TEST_WAIT_FACTOR: "3"
-        run: go test -coverprofile=coverage.out -coverpkg="$(go list ./... | paste -sd, -)" ./...
+        run: go test -timeout 45m -coverprofile=coverage.out -coverpkg="$(go list ./... | paste -sd, -)" ./...
       # The total is the number the README shows. `go tool cover` prints it as
       # the last line of its table; the awk cuts the percent sign off so the
       # badge job gets something it can compare.
