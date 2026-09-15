@@ -535,8 +535,10 @@ func TestPlatformDiagnosticsAnswerInTheBrowser(t *testing.T) {
 		}
 	}
 	// Only meaningful where Docker answers at all; without it the check reports
-	// the daemon instead, which is the honest order.
-	if !missing && by["docker"] != "" {
+	// the daemon instead, which is the honest order. Both answers fill
+	// by["docker"] — "reachable" or "no daemon reachable" — so the test asks for
+	// the first one, not for any (#267).
+	if !missing && by["docker"] == "reachable" {
 		t.Errorf("the image in use was not checked: %+v", by)
 	}
 	// The home store's backup obligation is named rather than assumed known.
