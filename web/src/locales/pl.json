@@ -59,6 +59,7 @@
     }
   },
   "nav": {
+    "orgSwitch": "Organizacja",
     "agents": "Agenci",
     "templates": "Szablony",
     "org": "Schemat organizacyjny",
@@ -263,6 +264,7 @@
     "demoLogin": "Logowanie demo (admin)"
   },
   "noOrg": {
+    "pick": "Masz miejsce w tych organizacjach:",
     "title": "Jeszcze bez organizacji",
     "text": "{{email}} jest zalogowany, ale nie należy do żadnej organizacji. Dołączenie do organizacji albo założenie własnej to kolejny krok; do tego czasu wpuścić Cię mogą tylko administratorzy Twojej organizacji.",
     "signOut": "Wyloguj"
@@ -1931,6 +1933,9 @@
     "tabDiagnostics": "Diagnostyka"
   },
   "platform": {
+    "seatAddPick": "Dodaj do organizacji…",
+    "seatAdd": "Dodaj",
+    "seatRemove": "Usuń",
     "title": "Platforma",
     "subtitle": "Ta instalacja",
     "tabOrgs": "Organizacje",

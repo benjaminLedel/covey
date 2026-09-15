@@ -62,16 +62,41 @@ describe("Plattform-Panel", () => {
     renderWithProviders(<Platform me={systemadmin} />, { route: "/platform/accounts", path: "/platform/*" });
 
     expect(await screen.findByText("Betreiberin")).toBeInTheDocument();
-    // Die Organisations-Rolle steht am Sitz …
-    expect(screen.getByText(/Northgate \(Org-Admin\)/)).toBeInTheDocument();
-    // … die Instanz-Ebene daneben, als eigenes Feld.
+    // Die Instanz-Ebene steht in der Zeile des Kontos …
     const ebenen = screen.getAllByRole("combobox");
     expect((ebenen[0] as HTMLSelectElement).value).toBe("system_admin");
+    // … die Organisations-Rolle darunter, am Sitz, als eigenes Feld (#262).
+    expect(screen.getByText("Northgate")).toBeInTheDocument();
+    expect((ebenen[1] as HTMLSelectElement).value).toBe("org_admin");
 
     // Ein Konto ohne Sitz ist kein Fehler, sondern der Zustand nach einer
     // Selbstregistrierung — und muss als solcher lesbar sein.
     expect(screen.getByText("in keiner Organisation")).toBeInTheDocument();
     expect(screen.getByText("nie angemeldet")).toBeInTheDocument();
+  });
+
+  it("gibt einem Konto einen Sitz in einer weiteren Organisation (#262)", async () => {
+    const orgs = [
+      { id: "22222222-2222-2222-2222-222222222222", name: "Northgate" },
+      { id: "55555555-5555-5555-5555-555555555555", name: "Southfield" },
+    ];
+    const { calls } = mockFetch({
+      ...routen,
+      "/api/v1/platform/orgs": orgs,
+      "POST /api/v1/platform/orgs/55555555-5555-5555-5555-555555555555/members": {},
+    });
+    renderWithProviders(<Platform me={systemadmin} />, { route: "/platform/accounts", path: "/platform/*" });
+
+    expect(await screen.findByText("Betreiberin")).toBeInTheDocument();
+    // Angeboten wird nur, wo das Konto noch keinen Sitz hat: der Betreiberin
+    // fehlt Southfield, dem neuen Konto fehlen beide.
+    const auswahl = await screen.findAllByDisplayValue("Einer Organisation hinzufügen …");
+    expect(auswahl).toHaveLength(2);
+    expect(Array.from((auswahl[0] as HTMLSelectElement).options).map((o) => o.text)).not.toContain("Northgate");
+
+    await userEvent.selectOptions(auswahl[1], "55555555-5555-5555-5555-555555555555");
+    await userEvent.click(screen.getAllByRole("button", { name: "Hinzufügen" })[1]);
+    expect(calls).toContain("POST /api/v1/platform/orgs/55555555-5555-5555-5555-555555555555/members");
   });
 
   it("zeigt geänderte Schalter samt ihrer Vorgabe", async () => {

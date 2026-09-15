@@ -59,6 +59,7 @@
     }
   },
   "nav": {
+    "orgSwitch": "Organisation",
     "agents": "Agenten",
     "templates": "Vorlagen",
     "org": "Organigramm",
@@ -263,6 +264,7 @@
     "demoLogin": "Demo-Login (Admin)"
   },
   "noOrg": {
+    "pick": "Sie haben einen Sitz in diesen Organisationen:",
     "title": "Noch keine Organisation",
     "text": "{{email}} ist angemeldet, gehört aber zu keiner Organisation. Beitreten oder eine eigene gründen kommt als nächster Schritt; bis dahin kann hier niemand für Sie etwas freischalten außer der Administration Ihrer Organisation.",
     "signOut": "Abmelden"
@@ -1931,6 +1933,9 @@
     "tabDiagnostics": "Diagnose"
   },
   "platform": {
+    "seatAddPick": "Einer Organisation hinzufügen …",
+    "seatAdd": "Hinzufügen",
+    "seatRemove": "Entfernen",
     "title": "Plattform",
     "subtitle": "Diese Installation",
     "tabOrgs": "Organisationen",

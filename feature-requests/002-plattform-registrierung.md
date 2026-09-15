@@ -596,7 +596,10 @@ working.
 > own language catalogues, embedded through package `web`, so all ten
 > languages carry them and the parity test covers them.
 >
-> P5 (joining, org switcher) and P6 (quotas) are open, and notification mails
+> P5 is half built: an account holds seats in several organisations, the
+> system admin hands them out and takes them back under *Platform → Accounts*,
+> and the app shell switches between them (#262). Joining — invitations, join
+> requests, domain matching — and P6 (quotas) are open, and notification mails
 > are #169.
 
 - **P1 — accounts and sessions.** Migrations 0052/0053, backfill, identity and

@@ -59,6 +59,7 @@
     }
   },
   "nav": {
+    "orgSwitch": "组织",
     "agents": "智能体",
     "templates": "模板",
     "org": "组织架构",
@@ -263,6 +264,7 @@
     "demoLogin": "演示登录（管理员）"
   },
   "noOrg": {
+    "pick": "您属于以下组织:",
     "title": "尚未加入组织",
     "text": "{{email}} 已登录，但不属于任何组织。下一步是加入一个组织或创建自己的组织；在此之前，只有你所在组织的管理员能放你进来。",
     "signOut": "退出登录"
@@ -1931,6 +1933,9 @@
     "tabDiagnostics": "诊断"
   },
   "platform": {
+    "seatAddPick": "添加到组织…",
+    "seatAdd": "添加",
+    "seatRemove": "移除",
     "title": "平台",
     "subtitle": "这套安装",
     "tabOrgs": "组织",

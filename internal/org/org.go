@@ -27,6 +27,9 @@ var (
 	// ErrManagerCycle keeps the org chart acyclic: nobody can (transitively)
 	// report to themselves.
 	ErrManagerCycle = errors.New("manager relation would form a cycle")
+	// ErrAlreadyMember: an account holds at most one seat per organization
+	// (humans_account_per_org, migration 0059).
+	ErrAlreadyMember = errors.New("the account already has a seat in this organization")
 )
 
 type Organization struct {
@@ -216,6 +219,40 @@ func (s *Store) CreateHuman(ctx context.Context, orgID uuid.UUID, email, display
 	return h, tx.Commit(ctx)
 }
 
+// AddMember gives an existing account a seat in an organisation — how the
+// instance administration puts one person into a second organisation (#262).
+//
+// Unlike CreateHuman it never creates a login: the account exists, and neither
+// its password nor its address is anything to decide here. Name and address
+// are copied from the account; the profile starts empty and is the new
+// organisation's to fill in. An unknown account or organisation is ErrNotFound.
+func (s *Store) AddMember(ctx context.Context, orgID, accountID uuid.UUID, role string) (Human, error) {
+	h := Human{ID: uuid.New(), OrgID: orgID, Role: role,
+		Profile: Profile{Identities: map[string]string{}, Custom: map[string]string{}}}
+	err := s.pool.QueryRow(ctx, `INSERT INTO humans (id, org_id, account_id, email, display_name, password_hash, role)
+		SELECT $1, o.id, a.id, a.email, COALESCE(NULLIF(a.display_name, ''), a.email), a.password_hash, $4
+		FROM accounts a, organizations o WHERE o.id=$2 AND a.id=$3
+		RETURNING email, display_name, created_at`, h.ID, orgID, accountID, role).
+		Scan(&h.Email, &h.DisplayName, &h.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Human{}, ErrNotFound
+	}
+	if isUniqueViolation(err) {
+		return Human{}, ErrAlreadyMember
+	}
+	return h, err
+}
+
+// SeatOf returns the id of the seat an account holds in an organisation.
+func (s *Store) SeatOf(ctx context.Context, orgID, accountID uuid.UUID) (uuid.UUID, error) {
+	var id uuid.UUID
+	err := s.pool.QueryRow(ctx, `SELECT id FROM humans WHERE org_id=$1 AND account_id=$2`, orgID, accountID).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, ErrNotFound
+	}
+	return id, err
+}
+
 // UpdateHuman changes name, role and/or password. On a password change all of
 // the user's sessions are revoked. Runs in a transaction so that the last-admin
 // check does not race.
@@ -333,7 +370,18 @@ func (s *Store) DeleteHuman(ctx context.Context, orgID, id uuid.UUID) error {
 	if _, err := tx.Exec(ctx, `UPDATE agents SET supervisor_id=NULL WHERE supervisor_id=$1 AND org_id=$2`, id, orgID); err != nil {
 		return err
 	}
-	// Sessions go away with it via ON DELETE CASCADE.
+	// A session working from this seat moves to the account's next seat, or to
+	// none. The foreign key would delete it (ON DELETE CASCADE): with one seat
+	// per account that was the same as signing out, with several it signs
+	// somebody out of every organisation because they left one (#262). Without
+	// a seat left the session stays valid and lands where a sign-in would, on
+	// the "no organisation" page. API keys are bound to the seat and do go.
+	if _, err := tx.Exec(ctx, `UPDATE http_sessions s SET human_id = (
+			SELECT h.id FROM humans h WHERE h.account_id = s.account_id AND h.id <> $1
+			ORDER BY h.created_at LIMIT 1)
+		WHERE s.human_id = $1`, id); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(ctx, `DELETE FROM humans WHERE id=$1`, id); err != nil {
 		return err
 	}

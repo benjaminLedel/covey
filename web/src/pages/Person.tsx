@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "react-router";
+import { Link, Navigate, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
-import { api, type Human, type OrgChart, type Principal } from "../api";
+import { api, isNotFound, type Human, type OrgChart, type Principal } from "../api";
 import AccountSettings from "../components/AccountSettings";
 import { Avatar, PersonLink } from "../components/person";
 import ProfileForm from "../components/ProfileForm";
@@ -9,10 +9,19 @@ import ProfileForm from "../components/ProfileForm";
 export default function PersonPage({ me }: { me: Principal }) {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
-  const person = useQuery({ queryKey: ["human", id], queryFn: () => api<Human>(`/org/humans/${id}`) });
+  const person = useQuery({
+    queryKey: ["human", id],
+    queryFn: () => api<Human>(`/org/humans/${id}`),
+    // A 404 does not change on a second try; everything else keeps the default one retry.
+    retry: (failures, err) => !isNotFound(err) && failures < 1,
+  });
   const chart = useQuery({ queryKey: ["orgchart"], queryFn: () => api<OrgChart>("/org/chart") });
 
   if (person.isLoading) return null;
+  /* Not in the organisation this session works in — the same dead end as on
+     the agent page, reached the same ways: signing in again (?weiter=) into
+     another seat, or /profile with the id of the previous one (#263). */
+  if (isNotFound(person.error)) return <Navigate to="/" replace />;
   if (person.isError || !person.data) return <p className="danger-text">{t("person.notFound")}</p>;
   const h = person.data;
 

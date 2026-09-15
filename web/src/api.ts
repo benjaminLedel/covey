@@ -652,6 +652,14 @@ export type Seat = {
   role: string;
 };
 
+/** A seat of the signed-in account — where the org switcher can lead (#262). */
+export type Membership = {
+  human_id: string;
+  org_id: string;
+  org_name: string;
+  role: string;
+};
+
 /** Eine Anmeldung dieser Installation. Die Ebene `platform_role` gehört der
  *  Instanz, die Rollen in `seats` gehören je einer Organisation — das ist
  *  derselbe Unterschied wie zwischen Principal.PlatformRole und Principal.Role. */
@@ -1206,6 +1214,10 @@ export class ApiError extends Error {
     this.status = status;
   }
 }
+
+/** A 404 from the API. On a detail page it means: not in the organisation this
+ *  session works in — which a retry does not change (#263). */
+export const isNotFound = (err: unknown) => err instanceof ApiError && err.status === 404;
 
 /* Was passieren soll, wenn der Server eine Anfrage mit 401 abweist: die
    Sitzung ist abgelaufen (oder anderswo beendet worden). Das ist kein Fehler

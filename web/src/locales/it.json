@@ -59,6 +59,7 @@
     }
   },
   "nav": {
+    "orgSwitch": "Organizzazione",
     "agents": "Agenti",
     "templates": "Modelli",
     "org": "Organigramma",
@@ -263,6 +264,7 @@
     "demoLogin": "Accesso demo (admin)"
   },
   "noOrg": {
+    "pick": "Hai un posto in queste organizzazioni:",
     "title": "Ancora nessuna organizzazione",
     "text": "{{email}} ha effettuato l'accesso ma non appartiene ad alcuna organizzazione. Entrare in una o fondarne una propria è il passo successivo; fino ad allora solo gli amministratori della tua organizzazione possono farti entrare.",
     "signOut": "Esci"
@@ -1931,6 +1933,9 @@
     "tabDiagnostics": "Diagnostica"
   },
   "platform": {
+    "seatAddPick": "Aggiungi a un’organizzazione…",
+    "seatAdd": "Aggiungi",
+    "seatRemove": "Rimuovi",
     "title": "Piattaforma",
     "subtitle": "Questa installazione",
     "tabOrgs": "Organizzazioni",

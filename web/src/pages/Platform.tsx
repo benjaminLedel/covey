@@ -34,26 +34,59 @@ export default function Platform({ me }: { me: Principal }) {
 function Accounts({ me }: { me: Principal }) {
   const { t } = useTranslation();
   const accounts = useQuery({ queryKey: ["platform", "accounts"], queryFn: () => api<Account[]>("/platform/accounts") });
+  const orgs = useQuery({ queryKey: ["orgs"], queryFn: () => api<Organization[]>("/platform/orgs") });
 
   return (
     <div>
       <PlatformHeader />
       <p className="muted text-xs mb-4" style={{ maxWidth: 640 }}>{t("platform.accountsDesc")}</p>
       {(accounts.data ?? []).map((a) => (
-        <AccountRow key={a.id} account={a} isSelf={a.id === me.AccountID} />
+        <AccountRow key={a.id} account={a} isSelf={a.id === me.AccountID} orgs={orgs.data ?? []} />
       ))}
       {accounts.data?.length === 0 && <p className="muted text-xs">{t("platform.noAccounts")}</p>}
     </div>
   );
 }
 
-function AccountRow({ account, isSelf }: { account: Account; isSelf: boolean }) {
+/* The roles a seat can carry — the same set the API accepts (validRoles). */
+const ORG_ROLES = ["org_admin", "agent_owner", "security", "auditor", "controlling"];
+
+function AccountRow({ account, isSelf, orgs }: { account: Account; isSelf: boolean; orgs: Organization[] }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const setRole = useMutation({
     mutationFn: (platform_role: string) => patch(`/platform/accounts/${account.id}`, { platform_role }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["platform", "accounts"] }),
   });
+
+  /* Seats (#262). The counts on the organisations page change with them, and
+     one's own seats are also what the org switcher and the session show. */
+  const seatsChanged = () => {
+    void qc.invalidateQueries({ queryKey: ["platform", "accounts"] });
+    void qc.invalidateQueries({ queryKey: ["orgs"] });
+    if (isSelf) {
+      void qc.invalidateQueries({ queryKey: ["memberships"] });
+      void qc.invalidateQueries({ queryKey: ["me"] });
+    }
+  };
+  const seat = useMutation({
+    mutationFn: (op: { org: string; role?: string }) =>
+      op.role
+        ? patch(`/platform/orgs/${op.org}/members/${account.id}`, { role: op.role })
+        : del(`/platform/orgs/${op.org}/members/${account.id}`),
+    onSuccess: seatsChanged,
+  });
+  const [addOrg, setAddOrg] = useState("");
+  const [addRole, setAddRole] = useState("agent_owner");
+  const add = useMutation({
+    mutationFn: () => post(`/platform/orgs/${addOrg}/members`, { account_id: account.id, role: addRole }),
+    onSuccess: () => {
+      setAddOrg("");
+      seatsChanged();
+    },
+  });
+  const free = orgs.filter((o) => !account.seats.some((s) => s.org_id === o.id));
+  const seatError = (seat.error ?? add.error) as Error | null;
 
   return (
     <div className="card mb-2" style={{ padding: "11px 15px" }}>
@@ -65,11 +98,7 @@ function AccountRow({ account, isSelf }: { account: Account; isSelf: boolean }) 
             {!account.email_verified_at && <span className="badge ml-2">{t("platform.unverified")}</span>}
           </div>
           <div className="muted text-xs mono">{account.email}</div>
-          <div className="muted text-xs">
-            {account.seats.length === 0
-              ? t("platform.noSeat")
-              : account.seats.map((s) => `${s.org_name} (${t(`role.${s.role}`, s.role)})`).join(" · ")}
-          </div>
+          {account.seats.length === 0 && <div className="muted text-xs">{t("platform.noSeat")}</div>}
         </div>
         <div className="muted text-xs" style={{ minWidth: 130 }}>
           {account.last_login_at
@@ -88,6 +117,51 @@ function AccountRow({ account, isSelf }: { account: Account; isSelf: boolean }) 
       </div>
       {setRole.isError && (
         <p className="text-xs mt-2" style={{ color: "var(--text-danger)" }}>{(setRole.error as Error).message}</p>
+      )}
+      {(account.seats.length > 0 || free.length > 0) && (
+        <div className="mt-2" style={{ display: "grid", gap: 6 }}>
+          {account.seats.map((s) => (
+            <div key={s.org_id} className="flex items-center gap-3 flex-wrap text-xs">
+              <span className="flex-1 min-w-44">{s.org_name}</span>
+              <select
+                value={s.role}
+                onChange={(e) => seat.mutate({ org: s.org_id, role: e.target.value })}
+                disabled={seat.isPending}
+                style={{ width: 170 }}
+              >
+                {ORG_ROLES.map((r) => (
+                  <option key={r} value={r}>{t(`role.${r}`, r)}</option>
+                ))}
+              </select>
+              <button className="btn sm danger" onClick={() => seat.mutate({ org: s.org_id })} disabled={seat.isPending}>
+                {t("platform.seatRemove")}
+              </button>
+            </div>
+          ))}
+          {free.length > 0 && (
+            <form
+              className="flex items-center gap-3 flex-wrap text-xs"
+              onSubmit={(e) => {
+                e.preventDefault();
+                add.mutate();
+              }}
+            >
+              <select value={addOrg} onChange={(e) => setAddOrg(e.target.value)} className="flex-1 min-w-44">
+                <option value="">{t("platform.seatAddPick")}</option>
+                {free.map((o) => (
+                  <option key={o.id} value={o.id}>{o.name}</option>
+                ))}
+              </select>
+              <select value={addRole} onChange={(e) => setAddRole(e.target.value)} style={{ width: 170 }}>
+                {ORG_ROLES.map((r) => (
+                  <option key={r} value={r}>{t(`role.${r}`, r)}</option>
+                ))}
+              </select>
+              <button className="btn sm" disabled={!addOrg || add.isPending}>{t("platform.seatAdd")}</button>
+            </form>
+          )}
+          {seatError && <p className="text-xs m-0" style={{ color: "var(--text-danger)" }}>{seatError.message}</p>}
+        </div>
       )}
     </div>
   );

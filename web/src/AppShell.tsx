@@ -30,6 +30,7 @@ import i18n, { initialLang, ladeSprache } from "./i18n";
 import HelpDrawer from "./components/HelpDrawer";
 import GitHubLink from "./components/GitHubLink";
 import LangPicker from "./components/LangPicker";
+import { useMemberships, useSwitchOrg } from "./components/OrgSwitcher";
 import ThemeSwitch from "./components/ThemeSwitch";
 
 /* Das Aussehen der Oberfläche kommt mit ihr, nicht vor ihr — siehe app.css. */
@@ -280,6 +281,14 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
   const [helpOpen, setHelpOpen] = useState(false);
   const [userMenu, setUserMenu] = useState(false);
 
+  /* With more than one seat the footer names the organisation and the menu
+     offers the others (#262). With one, both would answer a question nobody
+     asked. */
+  const memberships = useMemberships();
+  const seats = memberships.data ?? [];
+  const switchOrg = useSwitchOrg(onLogout);
+  const activeOrg = seats.length > 1 ? seats.find((m) => m.org_id === me.OrgID) : undefined;
+
   /* Die Sprachwahl der Oberfläche ist eine persönliche Einstellung und steht
      im localStorage. Der Anmeldebereich richtet sich nach der Adresse, die
      angemeldete Oberfläche nach der Wahl — hier wird sie nachgeholt, sobald
@@ -450,7 +459,10 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
                 <span className="avatar">{initials(me.DisplayName)}</span>
                 <span className="min-w-0">
                   <span className="nm truncate block">{me.DisplayName}</span>
-                  <span className="rl block truncate">{t(`role.${me.Role}`, me.Role)}</span>
+                  <span className="rl block truncate">
+                    {t(`role.${me.Role}`, me.Role)}
+                    {activeOrg && ` · ${activeOrg.org_name}`}
+                  </span>
                 </span>
               </NavLink>
               <button
@@ -466,6 +478,27 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
                 <>
                   <div className="foot-menu-backdrop" onClick={() => setUserMenu(false)} />
                   <div className="foot-menu">
+                    {seats.length > 1 && (
+                      <>
+                        <div className="foot-menu-sec">{t("nav.orgSwitch")}</div>
+                        {seats.map((m) => {
+                          const active = m.org_id === me.OrgID;
+                          return (
+                            <button
+                              key={m.org_id}
+                              onClick={() => { setUserMenu(false); switchOrg.mutate(m.org_id); }}
+                              disabled={active || switchOrg.isPending}
+                              aria-current={active ? "true" : undefined}
+                              style={active ? { fontWeight: 600 } : undefined}
+                            >
+                              <NavIcon name="box" />
+                              <span className="truncate">{m.org_name}</span>
+                            </button>
+                          );
+                        })}
+                        <div className="sep" />
+                      </>
+                    )}
                     <div className="foot-menu-sec">{t("theme.label")}</div>
                     <ThemeSwitch />
                     <div className="sep" />

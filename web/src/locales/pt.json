@@ -59,6 +59,7 @@
     }
   },
   "nav": {
+    "orgSwitch": "Organização",
     "agents": "Agentes",
     "templates": "Modelos",
     "org": "Organograma",
@@ -263,6 +264,7 @@
     "demoLogin": "Entrada de demonstração (admin)"
   },
   "noOrg": {
+    "pick": "Tem um lugar nestas organizações:",
     "title": "Ainda sem organização",
     "text": "{{email}} tem sessão iniciada mas não pertence a nenhuma organização. Juntar-se a uma ou fundar a sua é o passo seguinte; até lá, só os administradores da sua organização o podem deixar entrar.",
     "signOut": "Terminar sessão"
@@ -1931,6 +1933,9 @@
     "tabDiagnostics": "Diagnóstico"
   },
   "platform": {
+    "seatAddPick": "Adicionar a uma organização…",
+    "seatAdd": "Adicionar",
+    "seatRemove": "Remover",
     "title": "Plataforma",
     "subtitle": "Esta instalação",
     "tabOrgs": "Organizações",

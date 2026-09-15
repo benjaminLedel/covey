@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter, Route, Routes } from "react-router";
 import AgentPage from "./Agent";
 import { mockFetch, renderWithProviders, testPrincipal, useGerman } from "../test/render";
 
@@ -197,6 +199,30 @@ describe("Unbekannte und englische Reiter-Namen", () => {
 // Das Recording behauptete „noch keine Aufzeichnung", solange die Abfrage lief
 // — bei einem Agenten mit 178 Läufen liest man das als Befund und sucht an der
 // falschen Stelle weiter.
+describe("Agent in einer anderen Organisation", () => {
+  // After signing in again, ?weiter= brings back /agents/<id> — and the new
+  // session may work in another organisation, where the agent answers 404
+  // (#263). The page must lead somewhere, and without retrying first.
+  it("führt bei 404 zur Startseite, ohne erneut zu fragen", async () => {
+    const { calls } = mockFetch({});
+    // The client's own default retries on purpose: the page has to override it.
+    const qc = new QueryClient({ defaultOptions: { queries: { gcTime: 0 } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={[`/agents/${AGENT_ID}`]}>
+          <Routes>
+            <Route path="/agents/:id" element={<AgentPage me={testPrincipal()} />} />
+            <Route path="/" element={<p>Startseite</p>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("Startseite")).toBeInTheDocument();
+    expect(calls.filter((c) => c === `GET /api/v1/agents/${AGENT_ID}`)).toHaveLength(1);
+  });
+});
+
 describe("Ladezustand ist kein Befund", () => {
   it("zeigt beim Recording erst den Ladehinweis, dann die Leermeldung", async () => {
     zeigeAgent(`/agents/${AGENT_ID}?tab=recording`);

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"covey/internal/identity"
@@ -88,6 +89,25 @@ func (st sessionStore) Renew(ctx context.Context, tokenHash string, expires time
 		"UPDATE http_sessions SET expires_at=$2 WHERE token_hash=$1 AND expires_at > now()",
 		tokenHash, expires)
 	return err
+}
+
+// SwitchSeat makes another seat of the account the active one for this session
+// — the org switcher (#262). The seat is looked up by account AND organisation
+// in the same statement: a session moves only to a seat its own account holds,
+// whatever organisation id the request names. No such seat is pgx.ErrNoRows,
+// which the handler answers as "not found".
+func (st sessionStore) SwitchSeat(ctx context.Context, tokenHash string, accountID, orgID uuid.UUID) error {
+	tag, err := st.pool.Exec(ctx, `UPDATE http_sessions s SET human_id = h.id
+		FROM humans h
+		WHERE s.token_hash = $1 AND s.account_id = $2 AND s.expires_at > now()
+		  AND h.account_id = $2 AND h.org_id = $3`, tokenHash, accountID, orgID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
 }
 
 // Delete ends a single session (sign-out).
