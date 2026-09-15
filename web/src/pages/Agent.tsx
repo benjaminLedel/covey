@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useParams, useSearchParams } from "react-router";
+import { Link, Navigate, useParams, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
-import { api, post, isDraft, type Agent, type Principal } from "../api";
+import { ApiError, api, post, isDraft, type Agent, type Principal } from "../api";
 import { AgentFiles } from "../components/AgentFiles";
 import { PhaseBadge } from "../components/PhaseBadge";
 import { AgentHome } from "../components/AgentHome";
@@ -45,11 +45,18 @@ const MOVED: Partial<Record<TabKey, [TabKey, string, string]>> = {
   files: ["dateien", "dir", ""],
 };
 
+const isNotFound = (err: unknown) => err instanceof ApiError && err.status === 404;
+
 export default function AgentPage({ me }: { me: Principal }) {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
-  const agent = useQuery({ queryKey: ["agent", id], queryFn: () => api<Agent>(`/agents/${id}`) });
+  const agent = useQuery({
+    queryKey: ["agent", id],
+    queryFn: () => api<Agent>(`/agents/${id}`),
+    // A 404 does not change on a second try; everything else keeps the default one retry.
+    retry: (failures, err) => !isNotFound(err) && failures < 1,
+  });
   // Tab-Zustand lebt in der URL (?tab=…) — echte Navigation: teilbare Links,
   // Browser-Vor/Zurück. Der memory-Tab führt zusätzlich ?page=<slug> mit.
   const [sp, setSp] = useSearchParams();
@@ -105,6 +112,12 @@ export default function AgentPage({ me }: { me: Principal }) {
   });
 
   if (agent.isLoading) return null;
+  /* Not found means: not in the organisation this session works in. Most often
+     after signing in again — ?weiter= brings back the old address, and the new
+     session starts in the account's oldest seat — or after following a link
+     into another organisation. A sentence with nothing to click is a dead end;
+     the start page is not. */
+  if (isNotFound(agent.error)) return <Navigate to="/" replace />;
   if (agent.isError || !agent.data) return <p className="danger-text">{t("agent.notFound")}</p>;
   const a = agent.data;
 
