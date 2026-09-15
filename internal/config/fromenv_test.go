@@ -51,6 +51,9 @@ func TestFromEnvWithoutAnyVariable(t *testing.T) {
 	if c.TidyHomeAboveBytes != 5<<30 {
 		t.Errorf("TidyHomeAboveBytes = %d, expected 5 GiB", c.TidyHomeAboveBytes)
 	}
+	if c.TidyHomeAboveEntries != 200 {
+		t.Errorf("TidyHomeAboveEntries = %d, expected 200", c.TidyHomeAboveEntries)
+	}
 	if !c.HomeStore || !c.RequestLog || !c.RequestLogBodies || !c.S3PathStyle {
 		t.Error("a boolean that defaults to true came out false")
 	}
@@ -64,6 +67,30 @@ func TestFromEnvWithoutAnyVariable(t *testing.T) {
 	}
 	if len(c.SandboxImageEnv) != 0 {
 		t.Errorf("without an environment there are no overrides, got %v", c.SandboxImageEnv)
+	}
+}
+
+// The documented off-switch has to arrive as one. The orchestrator fills in its
+// default for 0, so a 0 passed through kept asking above 5 GB (#273).
+func TestTidyThresholdsSwitchOffAtZero(t *testing.T) {
+	clearCoveyEnv(t)
+	t.Setenv("COVEY_HOME_TIDY_ABOVE_GB", "0")
+	t.Setenv("COVEY_HOME_TIDY_ABOVE_ENTRIES", "0")
+	c, err := FromEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.TidyHomeAboveBytes >= 0 || c.TidyHomeAboveEntries >= 0 {
+		t.Errorf("0 must arrive as off (negative), got %d bytes, %d entries",
+			c.TidyHomeAboveBytes, c.TidyHomeAboveEntries)
+	}
+	t.Setenv("COVEY_HOME_TIDY_ABOVE_GB", "20")
+	t.Setenv("COVEY_HOME_TIDY_ABOVE_ENTRIES", "500")
+	if c, err = FromEnv(); err != nil {
+		t.Fatal(err)
+	}
+	if c.TidyHomeAboveBytes != 20<<30 || c.TidyHomeAboveEntries != 500 {
+		t.Errorf("got %d bytes, %d entries", c.TidyHomeAboveBytes, c.TidyHomeAboveEntries)
 	}
 }
 

@@ -2,11 +2,16 @@ package integration
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+
+	"covey/internal/homestore"
 )
 
 /* Ein Home wächst nur, und nichts hat einen Agenten je gebeten, seinen eigenen
@@ -70,6 +75,84 @@ func TestEinGewachsenesHomeBekommtEineAufraeumAufgabe(t *testing.T) {
 	}
 	if n != 1 {
 		t.Fatalf("%d Aufräum-Aufgaben — die Entdopplung greift nicht", n)
+	}
+}
+
+// A home can be a heap without being large: 806 entries directly in one
+// developer home, and the size never pointed at them (#272). The count comes
+// from the manifest the store already holds.
+func TestAScatteredHomeIsAskedEvenWhenSmall(t *testing.T) {
+	ctx := context.Background()
+	s := newStackWith(t, stackOpts{})
+	blobs, err := homestore.NewDir(filepath.Join(t.TempDir(), "blocks"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.orch.Blobs = blobs
+
+	snapshot := func(agentID uuid.UUID, fill func(home string)) {
+		t.Helper()
+		home := t.TempDir()
+		fill(home)
+		res, err := homestore.Sync(ctx, blobs, s.orgID, home, homestore.Excludes{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.pool.Exec(ctx, `INSERT INTO home_snapshots
+			(id, org_id, agent_id, manifest_hash, total_size, blocks_up, bytes_up, duration_ms, reason)
+			VALUES ($1,$2,$3,$4,$5,1,1,900,'job')`,
+			uuid.New(), s.orgID, agentID, res.ManifestHash, res.TotalSize); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write := func(path string) {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(path), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	heap := s.newSupportAgent("haufen")
+	snapshot(heap.ID, func(home string) {
+		for i := 0; i < 220; i++ {
+			write(filepath.Join(home, fmt.Sprintf("shot-%d.png", i)))
+		}
+		write(filepath.Join(home, "repos", "p40", "README.md"))
+	})
+	// The counter-check: the same number of files one level down is a
+	// checkout, not a heap.
+	tidy := s.newSupportAgent("ordentlich")
+	snapshot(tidy.ID, func(home string) {
+		for i := 0; i < 220; i++ {
+			write(filepath.Join(home, "repos", "p40", fmt.Sprintf("shot-%d.png", i)))
+		}
+	})
+
+	s.orch.AskForTidying(ctx)
+
+	body := ""
+	tasks, _ := s.backlog.ListByAgent(ctx, heap.ID, false)
+	for _, a := range tasks {
+		if strings.Contains(a.Title, "aufräumen") {
+			body = a.Body
+		}
+	}
+	if body == "" {
+		t.Fatalf("a home with 221 entries in its root was not asked (%d tasks)", len(tasks))
+	}
+	for _, want := range []string{"Einträge direkt in ~: 221", "`shot*`: 220", "~/scratch/"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("%q missing from the assignment:\n%s", want, body)
+		}
+	}
+
+	tasks, _ = s.backlog.ListByAgent(ctx, tidy.ID, false)
+	for _, a := range tasks {
+		if strings.Contains(a.Title, "aufräumen") {
+			t.Fatalf("a home with one entry in its root was asked:\n%s", a.Body)
+		}
 	}
 }
 
