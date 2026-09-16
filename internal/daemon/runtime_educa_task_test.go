@@ -29,6 +29,11 @@ import (
 // under it, a fix, and a re-run to prove it. The check afterwards is deliberately
 // hostile — the test file must be UNCHANGED, because deleting the test is the
 // cheapest way to make it pass.
+//
+// runtime_sevencode_task_test.go runs the same task on the second harness in
+// front of this gateway (spec/25), so the two are comparable; it carries this
+// fixture a second time on purpose — keep the two in step or the comparison is
+// between two different tasks.
 func TestEducaLiveRealisticTask(t *testing.T) {
 	token := strings.TrimSpace(os.Getenv("COVEY_EDUCA_TOKEN"))
 	if token == "" {
