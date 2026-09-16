@@ -1696,6 +1696,7 @@
       "expired": "Verlopen",
       "revoke": "Intrekken",
       "revokeConfirm": "Deze sleutel intrekken? Wat hem gebruikt, stopt onmiddellijk met werken.",
+      "orgOnly": "Geldt alleen in {{org}} — de sleutel draagt de zetel waaruit hij is aangemaakt.",
       "limits": "Een sleutel kan geen tweede sleutel maken en geen wachtwoord wijzigen — beide vragen de aanmelding in de browser, zodat een zoekgeraakte sleutel zich niet kan ingraven."
     },
     "notify": {

@@ -1696,6 +1696,7 @@
       "expired": "Caducada",
       "revoke": "Revocar",
       "revokeConfirm": "¿Revocar esta clave? Lo que la use dejará de funcionar de inmediato.",
+      "orgOnly": "Solo sirve en {{org}}: la clave lleva el puesto desde el que se creó.",
       "limits": "Una clave no puede acuñar otra ni cambiar una contraseña: ambas cosas requieren el inicio de sesión en el navegador, para que una clave extraviada no pueda atrincherarse."
     },
     "notify": {

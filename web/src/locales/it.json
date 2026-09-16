@@ -1696,6 +1696,7 @@
       "expired": "Scaduta",
       "revoke": "Revoca",
       "revokeConfirm": "Revocare questa chiave? Tutto ciò che la usa smette subito di funzionare.",
+      "orgOnly": "Vale solo in {{org}} — la chiave porta la postazione da cui è stata creata.",
       "limits": "Una chiave non può crearne una seconda né cambiare una password — per entrambe le cose serve l'accesso dal browser, così che una chiave finita in mani sbagliate non possa radicarsi."
     },
     "notify": {
