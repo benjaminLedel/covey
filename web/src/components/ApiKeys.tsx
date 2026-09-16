@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, del, post } from "../api";
+import { useMemberships } from "./OrgSwitcher";
 
 type ApiKey = {
   id: string;
@@ -10,6 +11,10 @@ type ApiKey = {
   created_at: string;
   last_used_at: string | null;
   expires_at: string | null;
+  /* The organisation the key works in. Absent from the answer that creates
+     one: there it is the organisation on screen (#277). */
+  org_id?: string;
+  org_name?: string;
 };
 
 type CreatedKey = ApiKey & { token: string };
@@ -29,6 +34,13 @@ export default function ApiKeys() {
   const [error, setError] = useState("");
 
   const keys = useQuery({ queryKey: ["api-keys"], queryFn: () => api<ApiKey[]>("/auth/api-keys") });
+
+  /* A key is bound to the seat it was minted for, and this list spans all of
+     them. Named only where it can differ: with a single seat the same
+     organisation on every row is noise, and the shell's switcher draws the
+     line in the same place (seats.length > 1). */
+  const seats = useMemberships().data ?? [];
+  const showOrg = seats.length > 1;
 
   const create = useMutation({
     mutationFn: () =>
@@ -118,6 +130,11 @@ export default function ApiKeys() {
         <div key={k.id} className="flex items-center gap-3 text-xs py-2" style={{ borderTop: i > 0 ? "0.5px solid var(--border)" : "none" }}>
           <span className="font-medium">{k.name}</span>
           <span className="mono muted">{k.prefix}…</span>
+          {showOrg && k.org_name && (
+            <span className="chip" title={t("account.apiKeys.orgOnly", { org: k.org_name })}>
+              {k.org_name}
+            </span>
+          )}
           <span className="muted">{t("account.apiKeys.createdAt", { date: fmt(k.created_at) })}</span>
           <span className="muted">
             {k.last_used_at ? t("account.apiKeys.lastUsed", { date: fmt(k.last_used_at) }) : t("account.apiKeys.neverUsed")}

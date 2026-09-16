@@ -1696,6 +1696,7 @@
       "expired": "Wygasł",
       "revoke": "Unieważnij",
       "revokeConfirm": "Unieważnić ten klucz? Wszystko, co go używa, natychmiast przestanie działać.",
+      "orgOnly": "Działa tylko w {{org}} — klucz nosi stanowisko, z którego został utworzony.",
       "limits": "Klucz nie utworzy drugiego klucza ani nie zmieni hasła — jedno i drugie wymaga logowania w przeglądarce, żeby zgubiony klucz nie mógł się okopać."
     },
     "notify": {

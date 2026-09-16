@@ -1696,6 +1696,7 @@
       "expired": "Expirada",
       "revoke": "Revogar",
       "revokeConfirm": "Revogar esta chave? Tudo o que a usa deixa de funcionar de imediato.",
+      "orgOnly": "Vale apenas em {{org}} — a chave carrega o posto a partir do qual foi criada.",
       "limits": "Uma chave não pode criar uma segunda nem alterar uma palavra-passe — ambas as coisas exigem a entrada pelo browser, para que uma chave extraviada não se possa entrincheirar."
     },
     "notify": {

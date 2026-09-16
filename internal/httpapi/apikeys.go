@@ -63,6 +63,18 @@ type APIKey struct {
 	CreatedAt  time.Time  `json:"created_at"`
 	LastUsedAt *time.Time `json:"last_used_at"`
 	ExpiresAt  *time.Time `json:"expires_at"`
+
+	// The seat the key was minted for. A key is bound to ONE organisation
+	// (Principal joins humans on human_id), and since an account can hold
+	// seats in several of them (#262) the listing has to say which — the name
+	// is otherwise the only thing telling two keys apart, and a name is what
+	// somebody typed, not what the key can reach.
+	//
+	// Filled by List, empty in the answer that creates a key: there the
+	// organisation is the one the operator is looking at, and the list behind
+	// the card re-fetches anyway. omitempty rather than a second lookup path.
+	OrgID   uuid.UUID `json:"org_id,omitempty"`
+	OrgName string    `json:"org_name,omitempty"`
 }
 
 // newAPIKeyToken mints a token: the prefix plus 32 random bytes, url-safe so
@@ -127,9 +139,18 @@ func (st apiKeyStore) Principal(ctx context.Context, tokenHash string) (identity
 // List returns an account's keys, newest first — per ACCOUNT, like the session
 // list: it answers "what can act in my name", and that is a question about the
 // person, not about one of their organisations.
+//
+// And precisely because it spans the organisations, each row carries the one it
+// belongs to. The two joins cannot lose a key: api_keys.human_id is NOT NULL
+// with ON DELETE CASCADE (migration 0077), so a seat that goes takes its keys
+// with it and every remaining row has both a seat and an organisation.
 func (st apiKeyStore) List(ctx context.Context, accountID uuid.UUID) ([]APIKey, error) {
-	rows, err := st.pool.Query(ctx, `SELECT id, name, prefix, created_at, last_used_at, expires_at
-		FROM api_keys WHERE account_id=$1 ORDER BY created_at DESC`, accountID)
+	rows, err := st.pool.Query(ctx, `SELECT k.id, k.name, k.prefix, k.created_at,
+			k.last_used_at, k.expires_at, h.org_id, o.name
+		FROM api_keys k
+		JOIN humans h ON h.id = k.human_id
+		JOIN organizations o ON o.id = h.org_id
+		WHERE k.account_id=$1 ORDER BY k.created_at DESC`, accountID)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +158,8 @@ func (st apiKeyStore) List(ctx context.Context, accountID uuid.UUID) ([]APIKey, 
 	out := []APIKey{}
 	for rows.Next() {
 		var k APIKey
-		if err := rows.Scan(&k.ID, &k.Name, &k.Prefix, &k.CreatedAt, &k.LastUsedAt, &k.ExpiresAt); err != nil {
+		if err := rows.Scan(&k.ID, &k.Name, &k.Prefix, &k.CreatedAt, &k.LastUsedAt,
+			&k.ExpiresAt, &k.OrgID, &k.OrgName); err != nil {
 			return nil, err
 		}
 		out = append(out, k)
