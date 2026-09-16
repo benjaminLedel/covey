@@ -47,13 +47,24 @@ type EngineOrigin struct {
 	// Version and Kind are the catalogue's answer, when it has one.
 	Version string
 	Kind    string
+	// AuthEnv names the variable the release asks for to fetch its artefact, and
+	// AuthSet says whether THIS host has it. A release behind a login whose token
+	// is missing is not a degraded install but one that cannot produce the layer
+	// at all, and the state ends by setting the variable.
+	AuthEnv string
+	AuthSet bool
 }
 
 // Settled reports whether the CLI's origin is known rather than assumed: the
 // engine needs none, an operator named a path, or the catalogue names a release.
 // False means the workplace image has to carry it, and nobody here can check.
 func (o EngineOrigin) Settled() bool {
-	return !o.Known || o.Binary == "" || o.Path != "" || o.Version != ""
+	if !o.Known || o.Binary == "" || o.Path != "" {
+		return true
+	}
+	// A release only settles the question while its artefact can be fetched; a
+	// login that cannot be answered leaves the start to fail on the runner.
+	return o.Version != "" && (o.AuthEnv == "" || o.AuthSet)
 }
 
 // Detail is the one line that says where the binary comes from.
@@ -66,7 +77,15 @@ func (o EngineOrigin) Detail() string {
 	case o.Path != "":
 		return o.Env + " names " + o.Path + " on this host"
 	case o.Version != "":
-		return "catalogue release " + o.Version + " (" + o.Kind + ") — the runner installs it before the sandbox starts"
+		detail := "catalogue release " + o.Version + " (" + o.Kind + ") — the runner installs it before the sandbox starts"
+		if o.AuthEnv != "" {
+			if o.AuthSet {
+				detail += ", with the token from " + o.AuthEnv
+			} else {
+				detail += ", but its artefact sits behind a login and " + o.AuthEnv + " is not set on this host"
+			}
+		}
+		return detail
 	default:
 		return "neither the engine catalogue nor " + o.Env + " names it, so the workplace image has to carry `" + o.Binary + "`"
 	}
@@ -103,6 +122,15 @@ func EngineOrigins(ctx context.Context, cfg config.Config, pool *pgxpool.Pool, l
 		if o.Path == "" && source.Enabled() {
 			if r, ok := source.For(ctx, engine, ""); ok {
 				o.Version, o.Kind = r.Version, r.Kind
+				// Which host the variable has to be on is decided by who fetches
+				// the artefact — the runner, not this process. Saying "not set"
+				// from a machine that is not the runner would be a finding nobody
+				// can act on, so this is only said when the doctor's own host is
+				// the one that downloads.
+				o.AuthEnv = strings.TrimSpace(r.AuthEnv)
+				if o.AuthEnv != "" {
+					o.AuthSet = strings.TrimSpace(os.Getenv(o.AuthEnv)) != ""
+				}
 			}
 		}
 		out[engine] = o
@@ -126,6 +154,15 @@ func (o EngineOrigin) AssignmentWarning() string {
 		return "this installation does not know the engine " + o.Engine + " — its runs cannot start until a build that carries it is deployed"
 	case o.Settled():
 		return ""
+	case o.Version != "" && o.AuthEnv != "" && !o.AuthSet:
+		// Its own sentence, not the "the image has to carry it" one: the catalogue
+		// does name this engine and the image is not the answer. Both ways out are
+		// named, because both are real and a finding that can only end one way
+		// quietly becomes permanent.
+		return "the engine " + o.Engine + " runs on catalogue release " + o.Version +
+			", whose artefact sits behind a login, and " + o.AuthEnv + " is not set on this host. " +
+			"The runner cannot download it, so the task fails before the sandbox starts — set the " +
+			"variable on the runner, or move this agent onto an engine the image carries."
 	default:
 		return "the engine " + o.Engine + " needs the CLI `" + o.Binary + "` in the sandbox. " +
 			"Neither the engine catalogue nor " + o.Env + " names it here, so the workplace image has to carry it — " +
