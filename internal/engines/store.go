@@ -203,7 +203,7 @@ func (s *Store) EnsureWatched(ctx context.Context, r Release, watch func(Progres
 
 // installTarball fetches, verifies and unpacks a tar archive (.tar or .tgz).
 func (s *Store) installTarball(ctx context.Context, r Release, dst string, say func(Progress)) (string, error) {
-	body, err := fetchArtifact(ctx, s.HTTP, r.URL, s.cap(), say)
+	body, err := fetchArtifact(ctx, s.HTTP, r, s.cap(), say)
 	if err != nil {
 		return "", err
 	}

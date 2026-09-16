@@ -20,7 +20,8 @@ import (
 // not become a second code path — a second code path is a second set of
 // behaviour, and the digest check below would be the first thing to fall out of
 // it.
-func fetchArtifact(ctx context.Context, httpc *http.Client, raw string, limit int64, watch func(Progress)) ([]byte, error) {
+func fetchArtifact(ctx context.Context, httpc *http.Client, r Release, limit int64, watch func(Progress)) ([]byte, error) {
+	raw := strings.TrimSpace(r.URL)
 	if strings.HasPrefix(raw, "file://") {
 		path := strings.TrimPrefix(raw, "file://")
 		// Opened rather than ReadFile, and for one reason: the reading below can
@@ -55,6 +56,24 @@ func fetchArtifact(ctx context.Context, httpc *http.Client, raw string, limit in
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, raw, nil)
 	if err != nil {
 		return nil, fmt.Errorf("engines: artefact request: %w", err)
+	}
+	// A release may sit behind a login: a package registry on the organisation's
+	// own source host answers 401 to a plain GET, and an engine kept off the
+	// public is one of those. What the entry names is the VARIABLE holding the
+	// token, read from this host's environment — so the document can sit wherever
+	// a document sits and no credential ever arrives in a fetched file. The token
+	// opens the door and nothing else: the digest is still what decides whether a
+	// layer is trusted, so a stolen token cannot substitute an engine.
+	header, env := strings.TrimSpace(r.AuthHeader), strings.TrimSpace(r.AuthEnv)
+	if header != "" && env != "" {
+		token := strings.TrimSpace(os.Getenv(env))
+		if token == "" {
+			// Refused here rather than by an anonymous GET that is known to fail,
+			// and the reason names the variable: this state ends by setting it,
+			// which is what a permanent warning would not.
+			return nil, fmt.Errorf("engines: artefact %s needs the %s header, and the variable holding it (%s) is not set on this host", raw, header, env)
+		}
+		req.Header.Set(header, token)
 	}
 	res, err := httpc.Do(req)
 	if err != nil {

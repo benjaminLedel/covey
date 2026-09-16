@@ -120,6 +120,14 @@ type Release struct {
 	// npm kind cannot be installed without node anyway; the field exists so the
 	// reason says which requirement was not met rather than exiting 127.
 	Requires []string `json:"requires,omitempty"`
+	// AuthHeader and AuthEnv together say that the artefact sits behind a login:
+	// the header to send, and the NAME of the variable on the runner host that
+	// holds the token. A name and never a value — the document has to be safe to
+	// publish on its own, and a credential inside a fetched file is a credential
+	// shipped to everyone who can read the catalogue. The token opens the door;
+	// the digest above is still what decides whether a layer may run.
+	AuthHeader string `json:"auth_header,omitempty"`
+	AuthEnv    string `json:"auth_env,omitempty"`
 	// Notes are for the human reading the catalogue screen: what this release
 	// is, what it costs, what to watch.
 	Notes string `json:"notes,omitempty"`
@@ -142,14 +150,51 @@ func (r Release) Valid() error {
 		if strings.TrimSpace(r.URL) == "" || strings.TrimSpace(r.Integrity) == "" {
 			return fmt.Errorf("a tarball needs a URL and an integrity — one without the other is not a pin")
 		}
+		// An artefact may sit behind a login, but only as a reference: the entry
+		// names the header and the VARIABLE holding its token, never the token. A
+		// credential inside the document would be shipped to everyone who can read
+		// the catalogue, which is the one thing about this mechanism that is not a
+		// trade-off. Half a pair is refused because half a pair does nothing, and
+		// an entry that does nothing is discovered at the first wake rather than at
+		// the parse that could have said so.
+		header, env := strings.TrimSpace(r.AuthHeader), strings.TrimSpace(r.AuthEnv)
+		if (header == "") != (env == "") {
+			return fmt.Errorf("%s %s names %s without %s — the header and the variable that holds its token come as a pair", r.engine, r.Version, "auth_header", "auth_env")
+		}
+		if env != "" && !isEnvName(env) {
+			return fmt.Errorf("%s %s has %s %q, which is not the name of a variable", r.engine, r.Version, "auth_env", env)
+		}
 	case KindNpm:
 		if strings.TrimSpace(r.Package) == "" {
 			return fmt.Errorf("an npm release without a package name cannot be installed")
+		}
+		// The npm kind is installed by the package manager, not fetched here, so a
+		// header declared on it would be read by nothing — an inert flag is worse
+		// than a missing one, because it says the installation is protected when it
+		// is not. A private registry is the `registry` field's decision.
+		if strings.TrimSpace(r.AuthHeader) != "" || strings.TrimSpace(r.AuthEnv) != "" {
+			return fmt.Errorf("%s %s is installed by the package manager, so %s would be read by nothing", r.engine, r.Version, "auth_header")
 		}
 	default:
 		return fmt.Errorf("unknown kind %q (known: %s, %s)", r.Kind, KindTarball, KindNpm)
 	}
 	return nil
+}
+
+// isEnvName accepts what the host's environment can actually be asked for. The
+// test is small and deliberate: a path or a URL in this field means somebody
+// wrote the secret itself where the name of a secret belongs, and refusing it at
+// the parse is the one moment at which that can still be said quietly.
+func isEnvName(s string) bool {
+	for i, r := range s {
+		switch {
+		case r >= 'A' && r <= 'Z', r >= 'a' && r <= 'z', r == '_':
+		case r >= '0' && r <= '9' && i > 0:
+		default:
+			return false
+		}
+	}
+	return s != ""
 }
 
 // Executable is the path of the CLI inside a layer root. The default follows the

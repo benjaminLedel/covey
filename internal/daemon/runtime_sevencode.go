@@ -1,60 +1,68 @@
 // SevenCode — the fourth engine (spec/25-sevencode-adapter.md).
 //
-// SevenCode is a coding-agent CLI aimed at the educa AI API. It matters to
-// covey for one reason: it is a second harness in front of the same gateway
-// educa-ai already drives (spec/23), so an organisation on educa gets a choice
-// of agent loop rather than a choice of endpoint.
+// SevenCode is a coding-agent CLI for the educa AI API. It matters to covey for
+// one reason: it is a second harness in front of the same gateway educa-ai
+// already drives (spec/23), so an organisation on educa gets a choice of agent
+// loop rather than a choice of endpoint.
 //
-// EVERYTHING HERE WAS READ OFF THE BINARY, and the version matters: the npm
-// package `sevencode` published **0.0.2** (13.09.2026), and its command surface
-// is **opencode's** — the help prints `opencode …`, the wrapper honours
-// `OPENCODE_BIN_PATH`, the config lives under `~/.config/opencode`, and every
-// environment variable it reads is `OPENCODE_*`. The npm version and the source
-// project's `package.json` (1.0.16) are two different countings; `--version` is
-// the one an installation can check.
+// TWO PROGRAMS ANSWER TO THIS NAME, and the adapter has to say which one it
+// drives. The npm package `sevencode` is stuck at 0.0.2 and speaks opencode's
+// surface — `run --format json`, `--session`, `OPENCODE_*`, a config under
+// ~/.config/opencode. The harness covey runs is built from the educa group's own
+// repository, counts 1.0.x, and shares almost nothing with it: the prompt is the
+// value of `-p`, permissions are a mode chosen on the command line, and the
+// endpoint is a variable rather than a provider entry. The previous draft of
+// this file drove the first while meaning the second.
 //
-// This adapter's first draft rested on a `--help` of a "1.0.7" whose flags the
-// shipped CLI does not have: `-p` for the prompt (in `run` that is
-// `--password`), `--auto`, `--json`, `--resume`. That is exactly the failure
-// spec/19 warned about — an adapter against an invented flag fails in the fleet
-// rather than at the build — and it is why what follows names how it was
-// measured, not where it was read.
+// Neither program refuses an argument it does not know — the parse loop has no
+// fall-through for unknown flags — so getting this wrong does not fail. It runs
+// something else, or nothing, and exits 0. That is the failure spec/19 warns of
+// ("a run that completes is not a run that works") arriving from the side where
+// nothing looks wrong, and it is why every flag below names where in the source
+// it was read.
 //
-// Measured against a local OpenAI-compatible double, so a real run without
-// model cost:
+// Read off 1.0.x, against the source of the CLI that ships:
 //
-//   - The run is `sevencode run <message> --format json`. One JSON line per
-//     event, common envelope `{type, timestamp, sessionID, part}`; the emitter
-//     in the binary knows exactly five types: `step_start`, `text`,
-//     `reasoning` (only with `--thinking`), `tool_use`, `step_finish`, plus
-//     `error` for a session error.
-//   - EVERY event carries the session id, and `run --session <id>` continues
-//     that session — checked against the double, which received the earlier
-//     turns with the second run. So this engine RESUMES, and the restriction
-//     that an agent on it must not block (spec/03) falls away.
-//   - `step_finish` carries `cost` and `tokens{total,input,output,reasoning,
-//     cache{read,write}}`. So a run is measured rather than unpriced.
-//   - `permission.asked` is answered by `run` itself with "auto-rejecting".
-//     Without a permission setting the agent may therefore do nothing at all —
-//     no bash, no edit. `OPENCODE_PERMISSION` is merged into the config by the
-//     CLI, and that is what replaces the `--auto` this adapter used to invent.
+//   - The run is `sevencode --json -p <text>`. `--json` writes the session's own
+//     event stream, one JSON object per line, unchanged
+//     (src/headless.ts:115). There is no `run` subcommand: a bare argument that
+//     is not a flag is the prompt (src/index.ts:156), and `-p` takes it as a
+//     value (src/index.ts:90).
+//   - Permissions are decided ONCE, by the mode flag (src/index.ts:133-142), and
+//     in a run with no terminal nobody is asked afterwards. Which is why a mode
+//     has to be named: with the asking mode the CLI rejects a write call itself,
+//     and an agent that cannot edit looks like an agent that cannot work rather
+//     than one that was not allowed to.
+//   - `usage` is per turn and not cumulative (src/core/types.ts:149), so the
+//     figures are summed. There is no cost field anywhere in the stream: the CLI
+//     counts tokens and leaves the price to whoever sold them, exactly as educa
+//     does (spec/23) — so Prices() stays empty and a seat on this engine is
+//     booked in tokens.
+//   - `done` names what ended the run: `model` means it was finished, `turns`
+//     and `truncated` mean it was cut off with work left (src/core/types.ts:409).
+//     Nothing else in the stream says that, and the limit itself cannot be set —
+//     there is no flag for it. What covey can do is not call a cut-off run a
+//     completed one.
+//   - NO SESSION IS NAMED IN THE STREAM. `--resume` with an id the CLI has never
+//     seen is accepted and then writes nothing, exiting 0 (src/index.ts:411) — a
+//     resume that found nothing would otherwise be recorded as a run that
+//     finished. So the session comes from where the CLI keeps it
+//     (`<home>/.sevencode/projects/<slug>/<id>.jsonl`, src/config/paths.ts:15),
+//     and a resumed run whose session is not there is refused before the child
+//     starts.
 //
-// What is still NOT settled, and is left absent rather than guessed:
+// What this engine does NOT have, left absent rather than guessed:
 //
-//   - NO SYSTEM-PROMPT FLAG. The compiled agent config goes in front of the
-//     task in the one message, as before. There IS a measured route to a real
-//     system turn — an agent definition under `.opencode/agent/<name>.md`
-//     replaces the CLI's own system prompt — but it hangs off the config
-//     directory, and which of the two owns that directory is the question
-//     spec/25 has to answer before covey starts writing files there.
-//   - NO EFFORT LEVELS. `--variant` is the lever, and the help says its values
-//     are the provider's ("high, max, minimal"). A list this engine cannot
-//     name is not declared here, because a level that is wrong for the
-//     instance's provider is a run-time error rather than a choice.
-//   - NO ENDPOINT VARIABLE. The CLI reads none; where the model sits is part
-//     of the provider entry in its configuration, which belongs to the
-//     operator. covey therefore delivers the token and says which variable the
-//     configuration should reference — it does not invent a base URL.
+//   - NO SYSTEM-PROMPT FLAG. The compiled config goes in front of the task in the
+//     one message. A file does the job — `<home>/.sevencode/AGENTS.md` is read as
+//     instructions for every project (src/config/paths.ts:72) — but that is the
+//     operator's file too, and who owns it is a question for spec/25 rather than
+//     a directory covey should write into.
+//   - NO TURN LIMIT, NO TOOL SCOPE. `RunSpec.MaxTurns` and `AllowedTools` are
+//     inert here. The CLI has no flag for either; what it has is the mode, which
+//     is one step coarser.
+//   - NO EFFORT LEVER AND NO MODEL LIST. `--model` is the only one of the three,
+//     and which models exist belongs to the instance behind it (spec/23).
 package daemon
 
 import (
@@ -64,6 +72,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -79,19 +88,109 @@ const (
 // before it says anything else.
 const sevencodeErrTail = 8 << 10
 
-// sevencodePermission is what the run may do inside its sandbox, handed to the
-// CLI as `OPENCODE_PERMISSION` and merged into whatever the configuration says.
+// sevencodeMode is the autonomy the run is started with. `--auto` is the CLI's
+// own default and the only mode that does something in a run with no terminal:
+// every call is checked, nothing waits for a person who is not there.
 //
-// It has to be set, because the alternative is not "ask somebody" but "no":
-// `run` answers a permission request itself, with a rejection. An agent whose
-// bash tool is refused looks like an agent that cannot work rather than one
-// that was not allowed to.
+// Naming it rather than relying on the default is deliberate. The alternatives
+// fail in opposite directions — the asking modes produce a run that cannot write
+// anything, and the mode that skips checking reaches past what the broker and the
+// egress point allowed. A run's autonomy should not depend on which of them the
+// CLI happens to prefer in a later version.
 //
-// Allowing it here is not a hole in the guard rails. What an agent may reach
-// outside its sandbox is decided by the broker, the egress point and the policy
-// engine (spec/06) — all of them outside the runtime, which is the whole reason
-// covey does not leave that question to a CLI's own prompt.
-const sevencodePermission = `{"bash":"allow","edit":"allow","webfetch":"allow"}`
+// This is not a hole in the guard rails. What an agent may reach outside its
+// sandbox is decided by the broker, the egress point and the policy engine
+// (spec/06) — all of them outside the runtime, which is why covey does not leave
+// that question to a CLI's own prompt.
+const sevencodeMode = "--auto"
+
+// The three variables a run needs that are not the credential.
+const (
+	// Where the CLI keeps its login, its sessions and its instructions. Left
+	// unset that is `$HOME/.sevencode` (src/config/paths.ts:42) — so the pin
+	// states the dependence rather than leaving it to a default: the agent home
+	// is the one directory that survives a sandbox, and a session history that
+	// did not land there would be gone at the next wake, taking the resume with
+	// it.
+	sevencodeHomeFormat = "SEVENCODE_HOME=%s/.sevencode"
+	// The CLI speaks its interface language, taken from the machine's locale.
+	// Without this the transcript carries CLI prose in whatever language the
+	// sandbox image happened to carry — and the image is UTF-8 POSIX by
+	// convention, which is how a German CLI text ends up in an English record.
+	sevencodeLangEnv = "SEVENCODE_LANG=en"
+	// The CLI replaces its own file on a timer, from the instance it was built
+	// for (src/core/update.ts:375). It has to be told not to: the engine layer is
+	// mounted read-only and pinned by digest, and a harness that updates itself
+	// is a harness that silently stops being the one the run was recorded
+	// against. There is no way to stop it from outside — the flag is covey's only
+	// means, and the read-only mount would turn the attempt into a failure the
+	// run never sees.
+	sevencodeNoSelfUpdate = "SEVENCODE_NO_AUTO_UPDATE=1"
+)
+
+// sevencodeSessions lists the session files of this agent's home. The CLI keeps
+// them as `<home>/.sevencode/projects/<project>/<file>.jsonl`
+// (src/config/paths.ts:15), the project directory named after the work directory
+// by a rule of its own. The glob stops one level short of that rule on purpose:
+// the question covey has to answer is "does this agent own this session", and
+// answering it without repeating a derivation it does not own means the answer
+// does not change when the CLI renames its directories and does not break when an
+// agent's work directory moves between two wakes. The scope stays one agent's
+// home either way — the session of another agent is never found here.
+func sevencodeSessions(homeDir string) []string {
+	if homeDir == "" {
+		return nil
+	}
+	files, err := filepath.Glob(filepath.Join(homeDir, ".sevencode", "projects", "*", "*.jsonl"))
+	if err != nil {
+		return nil
+	}
+	return files
+}
+
+// sevencodeHasSession reports whether the CLI knows this session. The question
+// has to be asked of the store rather than of the run, because the run answers
+// "unknown id" with success and silence.
+func sevencodeHasSession(spec RunSpec, id string) bool {
+	if id == "" {
+		return false
+	}
+	for _, f := range sevencodeSessions(spec.HomeDir) {
+		if sevencodeSessionID(filepath.Base(f)) == id {
+			return true
+		}
+	}
+	return false
+}
+
+// sevencodeLatestSession is the session the CLI wrote most recently, and the only
+// answer there is to "which session did this run use" — the stream does not say.
+// One run is one session, so the freshest file is the run's own: a session the
+// run continued was appended to, and a session it created is new.
+func sevencodeLatestSession(spec RunSpec) string {
+	var id string
+	var when int64
+	for _, f := range sevencodeSessions(spec.HomeDir) {
+		info, err := os.Stat(f)
+		if err != nil {
+			continue
+		}
+		if n := info.ModTime().UnixNano(); n > when {
+			when, id = n, sevencodeSessionID(filepath.Base(f))
+		}
+	}
+	return id
+}
+
+// sevencodeSessionID reads the id out of the file name. The CLI puts it there
+// (src/core/session-store.ts:286), and it is the only form the id ever takes.
+func sevencodeSessionID(name string) string {
+	name = strings.TrimSuffix(name, ".jsonl")
+	if i := strings.LastIndex(name, "-"); i >= 0 {
+		return name[i+1:]
+	}
+	return name
+}
 
 type SevenCode struct {
 	// Binary is the CLI path.
@@ -110,105 +209,85 @@ func init() {
 	RegisterRuntime(RuntimeDescriptor{
 		Name:  "sevencode",
 		Label: "SevenCode",
-		Description: "SevenCode headless (`sevencode run --format json`) — a coding-agent CLI on an educa AI endpoint. " +
-			"Flags, events and session handling read off version 0.0.2; see spec/25.",
+		Description: "SevenCode headless (`sevencode --json -p …) — a coding-agent CLI on an educa AI endpoint. " +
+			"Flags, events and session handling read off the 1.0 line; see spec/25.",
 		Credentials: []RuntimeCredential{
-			// The token the provider entry in the CLI's configuration
-			// references as `{env:SEVENCODE_API_KEY}`. The name is covey's, not
-			// the CLI's — it reads no credential variable of its own — and the
-			// setup step below says where it is referenced.
+			// The token, read from the run's environment. The endpoint is the
+			// other half of the pair and is not covey's to name: where the
+			// model sits is the operator's decision, and a base URL invented
+			// here would send a brokered token somewhere nobody authorised
+			// (spec/04). It arrives with the engine's own configuration
+			// (spec/26) — see the setup step that names it.
 			{Kind: CredAPIKey, Label: "API token",
 				Secret: "sevencode_api_token", EnvVar: "SEVENCODE_API_KEY"},
-			// `sevencode auth login` writes its credentials into the data
-			// directory. This is the delivery form spec/19 introduced for
-			// Codex: the value is a FILE, written before the run and removed
-			// after it, because a login left in the agent home would be a
-			// long-lived secret (spec/04). The path is the CLI's own
-			// (`<data>/auth.json`, and without XDG_DATA_HOME the data
-			// directory is `$HOME/.local/share/opencode`).
-			{Kind: CredSubscription, Label: "Account login",
-				Secret: "sevencode_credentials_json", Path: ".local/share/opencode/auth.json"},
 		},
 		CLI: RuntimeCLI{Name: sevencodeDefaultBinary, Env: sevencodeBinEnv},
 		Capabilities: RuntimeCapabilities{
-			// Measured: every event names the session, and `run --session <id>`
-			// continues it with its history. So this engine can carry an agent
-			// that waits for an answer (spec/03).
+			// The CLI continues a session it has stored, so an agent on this
+			// engine can wait for an answer (spec/03). The id cannot come from
+			// the stream — see the package comment.
 			Resume: true,
-			// Measured: a skill under `<dir>/.opencode/skill/<name>/SKILL.md` is
-			// found — the description of the CLI's `skill` tool named it back.
-			SkillsDir: ".opencode/skill",
-			// `--variant` exists, its values belong to the provider. See the
-			// package comment: a list this engine cannot name is not declared.
+			// `<home>/.sevencode/skills/<name>/SKILL.md` is the layout the CLI
+			// reads (src/config/paths.ts:12), and it is the same one the other
+			// engines are given: relative to the home, which is what the
+			// materialiser writes into.
+			SkillsDir: ".sevencode/skills",
+			// No effort lever: `--model` is the only lever this CLI has.
 			EffortLevels: nil,
 			// No model list. The CLI sits in front of one gateway whose model
 			// list is that instance's to publish (spec/23), so an unset model
-			// passes through to the CLI's own default instead of being pinned
+			// passes through to the CLI's own default rather than being pinned
 			// here.
 			Models: nil,
 		},
 		New: func() Runtime { return NewSevenCode() },
 		Setup: []SetupStep{
 			{
-				Text: "Obtain a credential — one of the two variants:",
+				Text: "Obtain an API token for the educa AI instance. Billed per contract.",
+			},
+			{
+				Text: "Say where the instance is. The CLI reads both halves of the access from the environment, and covey names only the token:",
 				Items: []string{
-					"API token for the educa AI instance. Billed per contract.",
-					"Account login: run `sevencode auth login` on a machine and take the resulting `auth.json` from the CLI's data directory.",
+					"SEVENCODE_API_BASE — the instance to work against. The operator's decision, carried by the engine's configuration (spec/26) or the host.",
+					"SEVENCODE_API_KEY — the token, brokered per run.",
 				},
 			},
 			{
-				Text: "Store it under `Secrets` — key depending on the variant:",
+				Text: "Get the CLI — one of the two:",
 				Items: []string{
-					"API token → key `sevencode_api_token`",
-					"Account login → key `sevencode_credentials_json` (the whole file contents)",
+					"An engine catalogue: the CLI arrives on a read-only layer of its own, no image rebuild (spec/26).",
+					"Or point COVEY_SEVENCODE_BIN at a standing install.",
 				},
 			},
 			{
-				Text: "Put the CLI into the sandbox image, or into the engine catalogue (spec/26) — it is not in the base image:",
+				Text: "Check which of the two you got — `sevencode --version`:",
 				Items: []string{
-					"`npm install -g sevencode`; the package brings its platform binary as an optional dependency, so `--ignore-scripts` is enough",
-					"Node 22 or newer is required; the `node:26-slim` sandbox base satisfies it",
-					"record `sevencode --version` with the image — this declaration is read from 0.0.2, and a new version is a reason to read `--help` again (spec/25)",
-					"Override the path with `COVEY_SEVENCODE_BIN` if the CLI is not on `PATH`",
+					"a version of the 1.0 line — this is the one",
+					"`0.0.x` — that is the npm build, a different program with the same name; it speaks `run --format json` and would run something else entirely (spec/25)",
 				},
 			},
-			{
-				Text: "Configure the provider in the CLI's own configuration — where the model sits is your decision, and covey invents no endpoint:",
-				Items: []string{
-					"an entry under `provider` in `~/.config/opencode/opencode.json` of the agent home, with your endpoint under `options.baseURL`",
-					"`\"apiKey\": \"{env:SEVENCODE_API_KEY}\"` — that is the variable covey brokers the token into, per run",
-					"allow the host of that endpoint in the egress allowlist, or the sandbox reaches no model",
-				},
-			},
-			{Text: "Create a `Runtime` with the engine `sevencode`, add the credential and set this agent's runtime to it."},
 		},
 	})
 }
 
-// Prices is empty ON PURPOSE, following spec/23: what a token costs on an educa
-// instance follows from a contract, not from a published list, and a guessed
-// figure would look like a measurement. The run does report a `cost` of its own
-// — whatever the CLI's provider entry says a token costs — and that figure is
-// taken as it comes rather than being priced a second time here.
+// Prices is empty on purpose. The CLI reports no cost for anything it does —
+// there is no money field in its event stream at all — and an instance's price is
+// its own to publish. What a run of this engine brings back is tokens, and those
+// are booked instead (spec/13, spec/23).
 func (SevenCode) Prices() PriceList { return PriceList{} }
 
 func (s *SevenCode) Name() string { return "sevencode" }
 
-// taskPrompt builds the message the run is given. The CLI has no flag for a
-// system prompt — `--help` names none — so the compiled agent config (SOUL.md
-// plus the protocol instructions, spec/12) goes in front of the task text, in
-// the same message. That is a weaker position than a system turn: what the
-// protocol demands of the run — above all the closing `COVEY_STATUS` line — is
-// asked of the model as part of the request. The measured way out is in the
-// package comment, and it is an open point in spec/25, not a gap nobody saw.
+// taskPrompt puts the compiled config and the memory in front of the task, in the
+// one message the CLI takes. See the package comment: there is no flag for a
+// system prompt, and the file that would do it is the operator's.
 func (s *SevenCode) taskPrompt(spec RunSpec) string {
+	task := spec.Title + "\n\n" + spec.Body
 	if spec.ResumeSessionID != "" {
-		// A resumed run speaks into a session that already carries the config
-		// and the task. Repeating them would be a second brief on top of the
-		// first, and the CLI keeps the history itself (measured).
+		// A resumed run speaks into a session that already carries the config,
+		// so repeating it would say it twice.
 		return spec.ResumeInput
 	}
-	task := spec.Title + "\n\n" + spec.Body
 	head := spec.SystemPrompt
 	if spec.MemoryContext != "" {
 		if head != "" {
@@ -222,74 +301,67 @@ func (s *SevenCode) taskPrompt(spec RunSpec) string {
 	return head + "\n\n---\n\n" + task
 }
 
-// buildArgs is the flag set, and every entry is one the CLI documents in its own
-// `run --help`. The message is positional and goes LAST, so nothing after it can
-// be read as an option.
+// buildArgs is the flag set, every entry read from the parse loop of the CLI that
+// ships (src/index.ts:89-156).
+//
+// The order is the part that carries weight. `-p` takes the prompt as its value
+// and the loop has no branch for an argument it does not recognise, so the flags
+// go first and the prompt arrives last, in the one position where it cannot be
+// read as an option and no option can be read as part of it.
 func (s *SevenCode) buildArgs(spec RunSpec) []string {
-	args := []string{"run", "--format", "json"}
+	args := []string{"--json", sevencodeMode}
 	if spec.ResumeSessionID != "" {
-		args = append(args, "--session", spec.ResumeSessionID)
+		args = append(args, "--resume", spec.ResumeSessionID)
 	}
 	if spec.Model != "" {
 		args = append(args, "--model", spec.Model)
 	}
-	// The reasoning lever, under the provider's own name. covey only passes on
-	// what somebody entered — see the package comment on why no list is
-	// declared here.
-	if spec.Effort != "" {
-		args = append(args, "--variant", spec.Effort)
-	}
-	return append(args, s.taskPrompt(spec))
+	return append(args, "-p", s.taskPrompt(spec))
 }
 
-// sevencodeEvent is one line of `--format json`. Only the fields this adapter
-// acts on are named; the whole line goes into the recording either way.
+// sevencodeEvent is one line of `--json`. Only the fields this adapter acts on
+// are named; the whole line reaches the recording either way.
 type sevencodeEvent struct {
-	Type      string `json:"type"`
-	SessionID string `json:"sessionID"`
-	Part      struct {
-		Type   string  `json:"type"`
-		Text   string  `json:"text"`
-		Tool   string  `json:"tool"`
-		Reason string  `json:"reason"`
-		Cost   float64 `json:"cost"`
-		Tokens struct {
-			Input  int64 `json:"input"`
-			Output int64 `json:"output"`
-			Cache  struct {
-				Read  int64 `json:"read"`
-				Write int64 `json:"write"`
-			} `json:"cache"`
-		} `json:"tokens"`
-		State struct {
-			Status string `json:"status"`
-			Error  string `json:"error"`
-		} `json:"state"`
-	} `json:"part"`
-	Error struct {
-		Name string `json:"name"`
-		Data struct {
-			Message string `json:"message"`
-		} `json:"data"`
-	} `json:"error"`
+	Type string `json:"type"`
+	// Text is the body of a text_delta — and of a thinking_delta, whose text is
+	// in the recording but is not the answer.
+	Text string `json:"text"`
+	// Usage are the figures of ONE turn. They are summed, not taken.
+	Usage struct {
+		InputTokens     int64 `json:"inputTokens"`
+		OutputTokens    int64 `json:"outputTokens"`
+		ReasoningTokens int64 `json:"reasoningTokens"`
+	} `json:"usage"`
+	// Message is what an error line says.
+	Message string `json:"message"`
+	// StoppedBy and Turns are what `done` amounts to.
+	StoppedBy string `json:"stoppedBy"`
+	Turns     int    `json:"turns"`
 }
 
 // sevencodeOutcome is what one run's event stream amounted to.
 type sevencodeOutcome struct {
-	sessionID string
 	text      strings.Builder
 	errors    []string
-	cost      float64
 	in, out   int64
-	cacheR    int64
-	cacheW    int64
-	sawFinish bool
+	turns     int
+	stoppedBy string
+	sawDone   bool
 	waitErr   error
 	stderr    string
 }
 
-// Run drives `sevencode run --format json`.
+// Run drives `sevencode --json -p <text>`.
 func (s *SevenCode) Run(ctx context.Context, spec RunSpec, onEvent func(kind string, payload json.RawMessage)) (RunResult, error) {
+	// A session the CLI has never seen is not a run without history — it is a
+	// run that does not happen, and the CLI reports it as a success with an empty
+	// answer. Asking the store is the only way to know that before the fact.
+	if spec.ResumeSessionID != "" && !sevencodeHasSession(spec, spec.ResumeSessionID) {
+		return RunResult{Status: "failed", Error: fmt.Sprintf(
+			"sevencode has no session %s in this agent home — the run would end without an answer",
+			spec.ResumeSessionID)}, nil
+	}
+
 	out, err := s.stream(ctx, spec, onEvent)
 	if err != nil {
 		return RunResult{Status: "failed"}, err
@@ -299,24 +371,24 @@ func (s *SevenCode) Run(ctx context.Context, spec RunSpec, onEvent func(kind str
 	}
 
 	res := RunResult{
-		Status:              "failed",
-		Model:               spec.Model,
-		SessionID:           out.sessionID,
-		CostUSD:             out.cost,
-		InputTokens:         out.in,
-		OutputTokens:        out.out,
-		CacheReadTokens:     out.cacheR,
-		CacheCreationTokens: out.cacheW,
+		Status:       "failed",
+		Model:        spec.Model,
+		SessionID:    spec.ResumeSessionID,
+		InputTokens:  out.in,
+		OutputTokens: out.out,
+	}
+	if res.SessionID == "" {
+		res.SessionID = sevencodeLatestSession(spec)
 	}
 
-	// A session error is the CLI's own way of saying the run did not happen —
-	// no credential, no model, an endpoint that refused. It beats the exit code,
+	// An error line is the CLI's own way of saying the run did not happen — no
+	// credential, no model, an endpoint that refused. It beats the exit code,
 	// because it carries a sentence and the exit code carries a number.
 	if len(out.errors) > 0 {
 		res.Error = strings.Join(out.errors, "; ")
 		return res, nil
 	}
-	if out.waitErr != nil && !out.sawFinish {
+	if out.waitErr != nil && !out.sawDone {
 		msg := strings.TrimSpace(out.stderr)
 		if msg == "" {
 			res.Error = fmt.Sprintf("sevencode could not be run (%v) — is the CLI in the sandbox image?", out.waitErr)
@@ -325,35 +397,52 @@ func (s *SevenCode) Run(ctx context.Context, spec RunSpec, onEvent func(kind str
 		res.Error = fmt.Sprintf("sevencode exit: %v — %s", out.waitErr, msg)
 		return res, nil
 	}
+	// A run the turn limit or a truncation cut off said so, and saying it is the
+	// difference between an agent that could not finish and one that would not
+	// (src/core/types.ts:409). The limit itself cannot be set on this engine, so
+	// what covey has left is not to write a cut-off run into the record as a
+	// completed one.
+	if out.sawDone && out.stoppedBy != "" && out.stoppedBy != "model" {
+		res.Error = fmt.Sprintf("sevencode stopped after %d turns (%s) — the task was not finished",
+			out.turns, out.stoppedBy)
+		return res, nil
+	}
 	applyStatus(&res, out.text.String())
 	return res, nil
 }
 
-// stream starts the CLI and reads its events. Every line reaches the recording
-// as it came, exactly as with Claude Code: what the adapter does not understand
+// stream starts the CLI and reads its events. Every line reaches the recording as
+// it came, exactly as with the other engines: what the adapter does not understand
 // is still what a person reads afterwards.
 func (s *SevenCode) stream(ctx context.Context, spec RunSpec,
 	onEvent func(kind string, payload json.RawMessage)) (sevencodeOutcome, error) {
 	var out sevencodeOutcome
 
 	cmd := exec.CommandContext(ctx, s.Binary, s.buildArgs(spec)...)
-	// Working directory and home stay separate, as with the other engines: the
-	// CLI reads its configuration and its skills relative to the cwd, while HOME
-	// has to keep pointing at the persistent agent home.
+	// Working directory and home stay separate, as with every other engine: the
+	// CLI reads its configuration relative to the directory it started in, while
+	// HOME has to keep pointing at the persistent agent home.
 	cmd.Dir = spec.WorkDir
 	if cmd.Dir == "" {
 		cmd.Dir = spec.HomeDir
 	}
-	// Without the daemon's COVEY_* variables (see childEnv) — the run gets only
-	// what the caller hands it. The brokered credential arrives through
+	// Without the daemon's own COVEY_* variables (see childEnv) — the run gets
+	// only what the caller hands it. The brokered credential arrives through
 	// spec.Env, and since os/exec keeps the LAST assignment of a duplicated
-	// variable, anything appended below would override it: so the permission
-	// setting goes in, the token does not.
+	// variable, anything appended below would override it: so the three below go
+	// in, the token does not.
+	//
+	// The environment is not inherited beyond that. The CLI reads a `.env` in the
+	// directory it works in even when told to ignore its configuration
+	// (src/config.ts:30), and the work directory is where an agent's own files
+	// sit — so the endpoint has to be handed rather than left to whatever the
+	// workspace happens to contain.
 	cmd.Env = childEnv(spec.Env...)
 	if spec.HomeDir != "" {
-		cmd.Env = append(cmd.Env, "HOME="+spec.HomeDir)
+		cmd.Env = append(cmd.Env, "HOME="+spec.HomeDir,
+			fmt.Sprintf(sevencodeHomeFormat, spec.HomeDir))
 	}
-	cmd.Env = append(cmd.Env, "OPENCODE_PERMISSION="+sevencodePermission)
+	cmd.Env = append(cmd.Env, sevencodeLangEnv, sevencodeNoSelfUpdate)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -381,39 +470,31 @@ func (s *SevenCode) stream(ctx context.Context, spec RunSpec,
 			// and a CLI is allowed to say something on its way past.
 			continue
 		}
-		if ev.SessionID != "" {
-			out.sessionID = ev.SessionID
-		}
 		switch ev.Type {
-		case "text":
-			// The parts arrive finished (the emitter waits for `time.end`), so
-			// they are appended rather than replaced: a run that says something
-			// in two turns has two of them, and the status line may sit in the
-			// last.
-			if ev.Part.Text != "" {
-				if out.text.Len() > 0 {
-					out.text.WriteString("\n")
-				}
-				out.text.WriteString(ev.Part.Text)
+		case "text_delta":
+			// Deltas, appended. A run that says something in two turns has two
+			// of them, and the status line may sit in the last one.
+			if ev.Text != "" {
+				out.text.WriteString(ev.Text)
 			}
-		// `tool_use` needs no case of its own: it is in the recording like
-		// every other line, and a tool call that failed is not a run that
-		// failed — the model usually goes on and tries something else.
-		case "step_finish":
-			out.sawFinish = true
-			out.cost += ev.Part.Cost
-			out.in += ev.Part.Tokens.Input
-			out.out += ev.Part.Tokens.Output
-			out.cacheR += ev.Part.Tokens.Cache.Read
-			out.cacheW += ev.Part.Tokens.Cache.Write
+		case "usage":
+			// Per turn, so the run is their sum. What the CLI counts apart as
+			// reasoning tokens has no place in a RunResult and stays in the
+			// recording, where the line that carried it stands.
+			out.in += ev.Usage.InputTokens
+			out.out += ev.Usage.OutputTokens
+		// `tool_start` and its result need no case of their own: they are in the
+		// recording like every other line, and a tool call that was refused is
+		// not a run that failed — the model usually goes on and tries something
+		// else.
 		case "error":
-			msg := strings.TrimSpace(ev.Error.Data.Message)
-			if msg == "" {
-				msg = strings.TrimSpace(ev.Error.Name)
-			}
-			if msg != "" {
+			if msg := strings.TrimSpace(ev.Message); msg != "" {
 				out.errors = append(out.errors, msg)
 			}
+		case "done":
+			out.sawDone = true
+			out.turns = ev.Turns
+			out.stoppedBy = ev.StoppedBy
 		}
 	}
 	out.waitErr = cmd.Wait()
