@@ -1,25 +1,25 @@
-# Dependabot-Konfiguration für den GitHub-Spiegel (die CI selbst läuft auf
-# GitLab). covey wird von Dritten aus GitHub installiert — offene Advisories
-# sind dort sichtbar, also sollen Updates auch dort auflaufen.
+# Dependabot configuration for the GitHub mirror (the CI itself runs on GitLab).
+# Third parties install covey from GitHub — open advisories are visible there, so
+# updates should arrive there too.
 #
-# Drei Ökosysteme an drei Orten: das Frontend unter web/ (npm), das Go-Modul in
-# der Repo-Wurzel und die Basis-Images der Dockerfiles. Wöchentlich, damit es
-# Signal bleibt und nicht zum Rauschen wird.
+# Three ecosystems at three places: the frontend under web/ (npm), the Go module
+# in the repo root, and the base images of the Dockerfiles. Weekly, so it stays
+# signal and does not turn into noise.
 version: 2
 updates:
-  # Frontend: package.json/package-lock.json liegen unter web/.
+  # Frontend: package.json/package-lock.json sit under web/.
   - package-ecosystem: "npm"
     directory: "/web"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
     groups:
-      # Ein PR je Woche für die harmlosen Sprünge; Majors kommen einzeln —
-      # sie sind eigene Arbeit (siehe den React-19-Schritt).
+      # One PR per week for the harmless jumps; majors come on their own —
+      # they are work of their own (see the React-19 step).
       minor-und-patch:
         update-types: ["minor", "patch"]
 
-  # Control Plane und Daemon: ein Go-Modul in der Repo-Wurzel.
+  # Control plane and daemon: one Go module in the repo root.
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
@@ -29,7 +29,7 @@ updates:
       minor-und-patch:
         update-types: ["minor", "patch"]
 
-  # Basis-Images der Dockerfiles (Endimage, Sandbox, Egress-Proxy).
+  # Base images of the Dockerfiles (final image, sandbox, egress proxy).
   - package-ecosystem: "docker"
     directory: "/"
     schedule:

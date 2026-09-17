@@ -6,17 +6,17 @@ import { usePublicLang } from "./lang";
 import { pathOf } from "./routes";
 import { resendVerification, verifyAddress } from "./signupState";
 
-/* Die Adresse bestätigen (/verify?token=…) — das Ziel des Links aus der
-   Registrierungsmail (#168).
+/* Confirm the address (/verify?token=…) — the target of the link from the
+   sign-up mail (#168).
 
-   Der Pfad trägt keine Sprache, anders als /anmelden und /registrieren. Er
-   steht in einer Mail, die Monate im Postfach liegen kann, und muss auch dann
-   noch stimmen, wenn jemand die Sprache inzwischen gewechselt hat. Was hier
-   übersetzt wird, ist der Text, nicht die Adresse.
+   The path carries no language, unlike /anmelden and /registrieren. It
+   stands in a mail that can sit in the inbox for months, and must still be
+   right when someone has switched the language in the meantime. What is
+   translated here is the text, not the address.
 
-   Bestätigt wird beim Laden, ohne Knopf: Wer den Link geöffnet hat, hat schon
-   zugestimmt — ein „Jetzt bestätigen" wäre eine zweite Frage nach derselben
-   Sache. */
+   Confirmed on load, without a button: whoever opened the link has already
+   agreed — a `confirm now` button would be a second question
+   about the same thing. */
 export default function Verify({ onLogin }: { onLogin: () => void }) {
   const { t } = useTranslation();
   const lang = usePublicLang();
@@ -27,9 +27,9 @@ export default function Verify({ onLogin }: { onLogin: () => void }) {
   const [email, setEmail] = useState("");
   const [resent, setResent] = useState(false);
   const [busy, setBusy] = useState(false);
-  /* React 18 führt Effekte im Strict Mode zweimal aus. Der zweite Aufruf
-     träfe auf einen verbrauchten Token und meldete „Link ungültig" — für
-     einen Link, der gerade funktioniert hat. */
+  /* React 18 runs effects twice in Strict Mode. The second call would hit
+     a used-up token and report `Dieser Link gilt nicht mehr` —
+     for a link that just worked. */
   const gestartet = useRef(false);
 
   useEffect(() => {
@@ -42,8 +42,8 @@ export default function Verify({ onLogin }: { onLogin: () => void }) {
     verifyAddress(token)
       .then(() => {
         setState("ok");
-        /* Die Sitzung steht schon (der Server hat sie mit der Bestätigung
-           gesetzt) — die Anwendung muss sie nur noch bemerken. */
+        /* The session already stands (the server set it with the
+           confirmation) — the application only has to notice it. */
         onLogin();
       })
       .catch(() => setState("failed"));
@@ -82,9 +82,9 @@ export default function Verify({ onLogin }: { onLogin: () => void }) {
     try {
       await resendVerification(email.trim(), lang);
     } catch {
-      /* Auch der Fehlerfall führt hierher: die Antwort verrät ohnehin nicht,
-         ob es diese Adresse gibt, und ein Unterschied in der Anzeige wäre
-         genau die Auskunft, die der Endpunkt vermeidet. */
+      /* The error case leads here too: the answer does not reveal whether this
+         address exists in the first place, and a difference in the display
+         would be exactly the report the endpoint avoids. */
     } finally {
       setResent(true);
       setBusy(false);

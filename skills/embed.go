@@ -1,8 +1,8 @@
-// Package skills bettet die mitgelieferten Claude-Code-Skills ins Binary ein,
-// damit eine laufende covey-Instanz sie zum Download anbieten kann — auch für
-// Nutzer ohne Git-Zugriff. Quelle der Wahrheit sind die Dateien hier unter
-// skills/<name>/; die Kopie unter .claude/skills/<name>/ (für Claude Code im
-// Repo selbst) wird von `make build` daraus synchronisiert.
+// Package skills embeds the bundled Claude Code skills into the binary, so a
+// running covey instance can offer them for download, including to users
+// without Git access. The files here under skills/<name>/ are the source of
+// truth; `make build` syncs the copy under .claude/skills/<name>/ (for Claude
+// Code inside the repo itself) from them.
 package skills
 
 import "embed"

@@ -3,18 +3,18 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, type AuditEntry } from "../api";
 
-// Aufsicht → Audit: was MENSCHEN an der Plattform getan haben.
+// Supervision → Audit: what PEOPLE have done on the platform.
 //
-// Das Gegenstück zum Recording, das die Agenten zeigt. Beide Hälften zusammen
-// ergeben erst Nachvollziehbarkeit: Ohne diese hier könnte jemand eine
-// Guard-Rail löschen, den Agenten arbeiten lassen und die Regel wieder
-// anlegen — im Recording stünde ein tadelloser Lauf.
+// The counterpart to the recording, which shows the agents. Only both halves
+// together give accountability: without this one, someone could delete a
+// guard rail, let the agent work and create the rule again — the
+// recording would show a flawless run.
 //
-// Bewusst ohne Request-Inhalte: In ihnen stünden Secret-Werte. Festgehalten
-// ist, wer wann was angefasst hat.
-/** `embedded` lässt den eigenen Seitenkopf weg — das Administrations-Panel
- *  bringt seinen eigenen mit. Die Zahl der Einträge bleibt: sie ist keine
- *  Überschrift, sondern das Ergebnis der Abfrage. */
+// Deliberately without request bodies: they would hold secret values. What is
+// kept is who touched what when.
+/** `embedded` drops the own page header — the administration panel
+ *  brings its own. The entry count stays: it is not a
+ *  heading, but the result of the query. */
 export default function Audit({ embedded }: { embedded?: boolean }) {
   const { t } = useTranslation();
   const [nurFehlschlaege, setNurFehlschlaege] = useState(false);
@@ -37,9 +37,9 @@ export default function Audit({ embedded }: { embedded?: boolean }) {
     <div>
       <div className="flex items-center gap-3 mb-1 flex-wrap">
         {!embedded && <h1 className="text-[22px]">{t("audit.title")}</h1>}
-        {/* Waehrend die Abfrage laeuft, stand hier „0 Eintraege" — bei einer
-            Audit-Spur die denkbar schlechteste Falschaussage: ihr Fehlen sieht
-            aus wie „nichts ist passiert". */}
+        {/* While the query ran, this read "0 entries" — for an audit
+            trail the worst conceivable false statement: its absence looks
+            like "nothing happened". */}
         <span className="muted text-sm">
           {spur.isLoading ? t("common.loading") : t("audit.count", { count: eintraege.length })}
         </span>

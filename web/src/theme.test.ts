@@ -1,9 +1,9 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { THEME_KEY, gespeichertesTheme, initTheme, merkeTheme, wendeThemeAn } from "./theme";
 
-/* Die Farben selbst gehören dem Stylesheet (light-dark() in styles.css) und
-   sind hier nicht prüfbar — jsdom rechnet sie nicht aus. Prüfbar ist der
-   Schalter davor: Was wird gemerkt, und was steht danach am Wurzelelement. */
+/* The colors themselves belong to the stylesheet (light-dark() in styles.css)
+   and are not testable here — jsdom does not compute them. Testable is the
+   switch before them: what gets stored, and what then stands on the root element. */
 
 describe("theme", () => {
   beforeEach(() => {
@@ -31,8 +31,8 @@ describe("theme", () => {
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
     wendeThemeAn("light");
     expect(document.documentElement.getAttribute("data-theme")).toBe("light");
-    // „System" heißt: kein Attribut — dann entscheidet color-scheme im
-    // Stylesheet, und ein Wechsel der Systemeinstellung schlägt weiter durch.
+    // "system" means: no attribute — then color-scheme in the stylesheet
+    // decides, and a change of the system setting keeps breaking through.
     wendeThemeAn("system");
     expect(document.documentElement.hasAttribute("data-theme")).toBe(false);
   });

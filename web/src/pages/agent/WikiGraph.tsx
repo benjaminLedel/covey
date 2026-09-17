@@ -8,10 +8,10 @@ import { beobachteTheme } from "../../theme";
 export type GraphNode = { page: MemoryEntry; x: number; y: number; vx: number; vy: number; r: number; deg: number };
 export type GraphEdge = { a: GraphNode; b: GraphNode };
 
-// forceLayout ist eine kleine Kräfte-Simulation (Abstoßung zwischen allen
-// Knoten, Federn entlang der Verweise, sanfte Mitte). Dependency-frei und in
-// einem Rutsch gerechnet — bei ein paar hundert Seiten reicht das, und es
-// erspart eine Graph-Bibliothek im Bundle.
+// forceLayout is a small force simulation (repulsion between all
+// nodes, springs along the references, gentle centering). Dependency-free and
+// computed in one pass — for a few hundred pages that suffices, and it
+// spares the bundle a graph library.
 function forceLayout(nodes: GraphNode[], edges: GraphEdge[], w: number, h: number, iters: number) {
   nodes.forEach((n, i) => {
     const a = (i / Math.max(nodes.length, 1)) * Math.PI * 2;
@@ -84,9 +84,9 @@ export function buildGraph(pages: MemoryEntry[]) {
   return { nodes, edges };
 }
 
-// WikiGraph zeichnet die Verlinkung — die Struktur, die als Liste unsichtbar
-// bleibt. Canvas statt SVG: bei mehreren hundert Knoten ist das der Unterschied
-// zwischen flüssig und zäh.
+// WikiGraph draws the linking — the structure that as a list stays
+// invisible. Canvas instead of SVG: with several hundred nodes that is the
+// difference between smooth and sluggish.
 export function WikiGraph({
   pages,
   current,
@@ -185,10 +185,10 @@ export function WikiGraph({
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, [draw]);
-  /* Die Farben stehen im Bild, nicht im Stylesheet: Wechselt das
-     Erscheinungsbild, muss der Graph neu gezeichnet werden — sonst bleiben die
-     Linien der alten Fassung stehen (im Dunkeln also unsichtbar). Das Modell
-     bleibt, nur die Farben werden neu gelesen. */
+  /* The colors live in the drawing, not in the stylesheet: when the theme
+     changes, the graph must be redrawn — otherwise the lines of the old
+     version stay standing (in the dark, then invisible). The model
+     stays, only the colors are read anew. */
   useEffect(() => beobachteTheme(draw), [draw]);
 
   const pick = (ev: React.MouseEvent<HTMLCanvasElement>): GraphNode | null => {
@@ -248,6 +248,6 @@ export function WikiGraph({
   );
 }
 
-// Die Vorgangs-Präfixe, die die Control Plane in wiki_log.summary schreibt
-// (internal/memory). Geschlossene Liste, exakt abgeglichen — eine Regel wie
-// "alles bis zum ersten Doppelpunkt" schnitte mitten in Titel hinein, die
+// The operation prefixes that the control plane writes into wiki_log.summary
+// (internal/memory). Closed list, matched exactly — a rule like
+// "everything up to the first colon" would cut right into titles that

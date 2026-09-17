@@ -57,9 +57,9 @@ const (
 	TypeRequestSkills     = "request_skills"
 	TypeRequestCreateTask = "request_create_task"
 	TypeRequestHiring     = "request_hiring"
-	// TypeRequestTool/TypeInjectTool: die Bitte um ein Werkzeug. Ein Agent, dem
-	// ein Paket fehlt, ist nirgends root und kann sich nichts nachinstallieren
-	// — ohne diesen Weg baut er apt in seinem Home nach (spec/16, #106).
+	// TypeRequestTool/TypeInjectTool: the request for a tool. An agent that is
+	// missing a package is root nowhere and cannot install anything for itself
+	// — without this route it rebuilds apt in its own home (spec/16, #106).
 	TypeRequestTool = "request_tool"
 	TypeInjectTool  = "inject_tool"
 	// #nosec G101 — the name of a message kind, not a secret.
@@ -354,20 +354,20 @@ type RequestCreateTask struct {
 	Priority  int    `json:"priority,omitempty"`
 }
 
-// RequestTool/InjectTool sind die Meta-Action covey/request_tool: „mir fehlt
-// X, hier ist die Aufgabe, an der es mir gefehlt hat".
+// RequestTool/InjectTool are the meta action covey/request_tool: "I am missing
+// X, here is the task I was working on when it was missing".
 //
-// Sie löst nichts, sie meldet. Entschieden wird von einem Menschen, und was
-// daraus wird, ist eine Zeile im Dockerfile eines Profils — für alle Agenten
-// darin, nicht für dieses eine Home.
+// It solves nothing, it reports. A human decides, and what comes of
+// it is a line in the Dockerfile of a profile — for every agent in it,
+// not for this one home.
 type RequestTool struct {
 	RequestID string `json:"request_id"`
 	TaskID    string `json:"task_id,omitempty"`
-	// Tool ist, was fehlt: ein Paketname, ein Binärname, so genau wie der
-	// Agent es weiß.
+	// Tool is what is missing: a package name, a binary name, as precise as the
+	// agent knows it.
 	Tool string `json:"tool"`
-	// Why ist der Beleg: der Befehl, der daran gescheitert ist, und wofür er
-	// gebraucht wurde. Ohne ihn ist die Bitte nicht zu entscheiden.
+	// Why is the evidence: the command that failed on it, and what it was needed
+	// for. Without it the request cannot be decided.
 	Why string `json:"why"`
 }
 
@@ -375,8 +375,8 @@ type InjectTool struct {
 	RequestID string `json:"request_id"`
 	OK        bool   `json:"ok"`
 	Error     string `json:"error,omitempty"`
-	// ID ist der offene Punkt, der daraus wurde — damit der Agent ihn nennen
-	// kann, statt beim nächsten Lauf dieselbe Bitte noch einmal zu stellen.
+	// ID is the open point that came of it — so the agent can name it instead of
+	// making the same request again on the next run.
 	ID string `json:"id,omitempty"`
 }
 

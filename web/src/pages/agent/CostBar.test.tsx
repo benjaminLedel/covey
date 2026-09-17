@@ -3,11 +3,11 @@ import { screen } from "@testing-library/react";
 import { CostBar } from "./CostBar";
 import { mockFetch, renderWithProviders, useGerman } from "../../test/render";
 
-/* Die meistgelesene Zahlenzeile der Oberfläche steht über jedem Agenten — und
-   schrieb ihre Zahlen als einzige selbst. Auf einer produktiven Instanz stand
-   dort „2817.0738 $" und daneben „2,499,833,356 / 22,246,900": vier
-   Nachkommastellen auf einem vierstelligen Betrag, und Tokens mit englischen
-   Kommas, die niemand als zweieinhalb Milliarden liest. */
+/* The most read line of numbers in the interface stands above every agent — and
+   it was the only one writing its numbers itself. On a productive instance it
+   said `2817.0738 $` there and next to it `2,499,833,356 / 22,246,900`: four
+   decimal places on a four-figure amount, and tokens with English
+   commas that nobody reads as two and a half billion. */
 
 const kosten = {
   "/api/v1/agents/a1/cost": {
@@ -26,9 +26,9 @@ describe("CostBar", () => {
     mockFetch(kosten);
     renderWithProviders(<CostBar agentId="a1" budget={540} />);
 
-    // Ein vierstelliger Betrag braucht keine Zehntelcent, aber Tausenderpunkte.
+    // A four-figure amount needs no tenth of a cent, but thousands separators.
     expect(await screen.findByText("2.817 $")).toBeInTheDocument();
-    // Und ein Budget die zwei Stellen, die es trägt.
+    // And a budget the two digits it carries.
     expect(screen.getByText("540,00 $")).toBeInTheDocument();
   });
 
@@ -37,11 +37,11 @@ describe("CostBar", () => {
     mockFetch(kosten);
     renderWithProviders(<CostBar agentId="a1" budget={0} />);
 
-    // 178.000 Eingabe + 2,4 Mrd gelesener Cache + 99,7 Mio erzeugter Cache.
-    // „2500 M" stünde da ohne die Milliarden-Stufe — und das zählt man wieder
-    // ziffernweise nach.
+    // 178.000 input + 2,4 bn cache read + 99,7 M cache created.
+    // `2500 M` would stand there without the billion step — and that is counted
+    // out digit by digit again.
     expect(await screen.findByText("2,5 Mrd / 22,2 M")).toBeInTheDocument();
-    // Die genaue Zahl bleibt erreichbar, für den, der eine Rechnung prüft.
+    // The exact number stays reachable, for whoever checks an invoice.
     expect(screen.getByTitle("2.499.833.401 / 22.246.900")).toBeInTheDocument();
   });
 });

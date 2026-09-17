@@ -9,15 +9,15 @@ import { ProfileFieldsSettings } from "./Organizations";
 import Users from "./Users";
 import { fmtUSD } from "../format";
 
-// Das Administrations-Panel: DIESE Organisation, nicht die Installation.
+// The administration panel: THIS organisation, not the installation.
 //
-// Die Trennlinie zum Plattform-Panel ist eine Frage, keine Rollenliste: gilt
-// das nur für den Mandanten, in dem ich gerade arbeite? Dann steht es hier —
-// und die Rolle, die es öffnet, vergibt die Organisation selbst (org_admin).
+// The dividing line to the platform panel is a question, not a role list: does
+// this apply only to the tenant I am working in right now? Then it stands here —
+// and the role that opens it is granted by the organisation itself (org_admin).
 //
-// Bewusst schlank. Secrets, Zielsysteme, Skills, Vorlagen, Runtimes,
-// Guard-Rails und Egress bleiben in der Hauptnavigation: das ist tägliche
-// Arbeit an der Belegschaft und keine Verwaltung der Organisation.
+// Deliberately lean. Secrets, target systems, skills, templates, runtimes,
+// guard rails and egress stay in the main navigation: that is daily work on
+// the workforce, not administration of the organisation.
 export default function Administration({ me }: { me: Principal }) {
   return (
     <Routes>
@@ -60,13 +60,13 @@ function Header() {
   );
 }
 
-/* Die Stammdaten der Organisation.
+/* The organisation's master data.
  *
- * Dieselben Karten stehen auch am Org-Chart, und das ist Absicht: der
- * Beschreibungstext gehört dorthin, wo man ihn beim Lesen des Organigramms vor
- * Augen hat. Hier stehen sie, weil jemand, der die Organisation verwaltet, sie
- * dort sucht. Ein Speicher, zwei Wege — dieselbe Komponente, kein zweiter
- * Editor (dasselbe Muster wie ACCESS.md als Textansicht auf den UI-Store). */
+ * The same cards also stand on the org chart, and that is deliberate: the
+ * description text belongs where you have it in sight while reading the org
+ * chart. They stand here because someone who administers the organisation
+ * looks for them there. One store, two ways in — the same component, no second
+ * editor (same pattern as ACCESS.md as a text view onto the UI store). */
 function Profile() {
   const { t } = useTranslation();
   return (
@@ -92,11 +92,11 @@ function Members({ me }: { me: Principal }) {
   );
 }
 
-/* Die Diagnose fragt, was ein Neustart hier anträfe und welche Agenten-Configs
-   nach einem Upgrade nachziehen müssen. Beides beantwortet org_admin — dieselbe
-   Rolle, die dieses Panel öffnet, und deshalb steht es hier auch. In der
-   Hauptnavigation bleibt es zusätzlich: Wer nach einem Upgrade nachsieht, sucht
-   es dort, wo er im Alltag entlanggeht (dasselbe Muster wie beim Audit). */
+/* The diagnostics ask what a restart would change here and which agent configs
+   have to catch up after an upgrade. org_admin answers both — the same role
+   that opens this panel, which is why it stands here too. It additionally
+   stays in the main navigation: whoever checks after an upgrade looks for
+   it where they walk day to day (same pattern as with the audit). */
 function DiagnosticsTab({ me }: { me: Principal }) {
   return (
     <div>
@@ -115,13 +115,13 @@ function AuditTab() {
   );
 }
 
-/* Was diese Organisation verbraucht.
+/* What this organisation consumes.
  *
- * Die Kontingente aus FR-002 P6 gibt es noch nicht — was es gibt, sind die
- * Zahlen, gegen die sie einmal geprüft werden. Sie hier zu zeigen ist kein
- * Platzhalter: "wie viele Agenten laufen, was haben sie gekostet" ist die
- * Frage, die ein Org-Admin am Monatsende hat, und sie stand bisher über drei
- * Seiten verteilt. */
+ * The quotas from FR-002 P6 do not exist yet — what does exist are the
+ * numbers they will one day be checked against. Showing them here is no
+ * placeholder: "how many agents are running, what did they cost" is the
+ * question an org admin has at month's end, and it stood spread over three
+ * pages so far. */
 function Usage() {
   const { t } = useTranslation();
   const agents = useQuery({ queryKey: ["agents"], queryFn: () => api<Agent[]>("/agents") });
@@ -131,9 +131,9 @@ function Usage() {
     queryFn: () => api<OrgCostReport>("/cost/org?days=30"),
   });
 
-  // "Nicht schlafend" ist die ehrlichste Definition von beschäftigt, die die
-  // Statusspalte hergibt: triggered, triage, working. killed zählt nicht mit —
-  // ein gestoppter Agent verbraucht nichts.
+  // "Not sleeping" is the most honest definition of busy the status column
+  // yields: triggered, triage, working. killed does not count — a stopped
+  // agent consumes nothing.
   const beschaeftigt = (agents.data ?? []).filter(
     (a) => a.status !== "sleeping" && a.status !== "killed",
   ).length;

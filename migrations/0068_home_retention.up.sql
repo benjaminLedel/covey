@@ -1,21 +1,21 @@
--- Aufbewahrung im Home-Store, und was ein Sync gekostet hat (spec/16,
--- "Retention" und "Interface").
+-- Retention in the home store, and what a sync cost (spec/16,
+-- "Retention" and "Interface").
 --
--- Ein Speicher, der im Hintergrund still waechst und dessen Inhalt niemand
--- sieht, ist ein Betriebsrisiko — man merkt ihn, wenn die Platte voll ist.
--- Deshalb gehoeren beide Regeln in die Oberflaeche und nicht nur in eine
--- Umgebungsvariable.
+-- A store that grows quietly in the background and whose contents nobody
+-- sees is an operational risk — you notice it when the disk is full.
+-- That is why both rules belong in the interface, not only in an
+-- environment variable.
 --
--- Der juengste Snapshot jedes Agenten bleibt immer, auch wenn beide Regeln ihn
--- fassen wuerden: eine Aufbewahrung, die einem Agenten sein letztes Home nimmt,
--- ist ein Loeschbefehl auf Umwegen. Das steht im Code (ApplyRetention), nicht
--- als CHECK hier — es ist eine Regel ueber das Ergebnis, nicht ueber die Werte.
+-- The newest snapshot of every agent always stays, even if both rules would
+-- catch it: a retention that leaves an agent without a last home is a delete
+-- command by detour. That stands in the code (ApplyRetention), not
+-- as a CHECK here — it is a rule about the result, not about the values.
 ALTER TABLE organizations
-    -- Wie viele Snapshots je Agent bleiben. 0 = keine Grenze nach Anzahl.
+    -- How many snapshots to keep per agent. 0 = no limit by count.
     ADD COLUMN home_retention_keep INTEGER NOT NULL DEFAULT 10,
-    -- Hoechstalter in Tagen. 0 = keine Grenze nach Alter.
+    -- Maximum age in days. 0 = no limit by age.
     ADD COLUMN home_retention_days INTEGER NOT NULL DEFAULT 30;
 
--- Wie lange der Sync gelaufen ist. Die Zahl beantwortet die einzige Frage, die
--- man an den Schlafpfad hat: ob er teuer ist.
+-- How long the sync ran. The number answers the only question one has
+-- about the sleep path: whether it is expensive.
 ALTER TABLE home_snapshots ADD COLUMN duration_ms INTEGER NOT NULL DEFAULT 0;

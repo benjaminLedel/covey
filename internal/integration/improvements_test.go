@@ -9,9 +9,9 @@ import (
 	"covey/internal/agents"
 )
 
-// vorschlag legt einen Vorschlag an, wie ihn später die Aktion
-// covey/propose_agent_config schreibt: der Absender ist ein Agent, die
-// Basisversion setzt die Plattform.
+// vorschlag files a proposal the way the action covey/propose_agent_config
+// writes it later: the sender is an agent, the platform sets the base
+// version.
 func vorschlag(t *testing.T, s *stack, ziel, autor agents.Agent, files map[string]string) agents.ImprovementItem {
 	t.Helper()
 	item, err := s.registry.CreateImprovement(context.Background(), agents.ImprovementItem{
@@ -27,10 +27,10 @@ func vorschlag(t *testing.T, s *stack, ziel, autor agents.Agent, files map[strin
 	return item
 }
 
-// TestVorschlagLiegtUndLaeuftNicht ist die Eigenschaft, auf der spec/21 steht:
-// covey Doctor schlägt vor, er entscheidet nicht. Ein offener
-// Vorschlag erreicht den bewerteten Agenten auf keinem Weg — er ist keine
-// Version, also gibt es keinen Zusammenbau, in den er geraten könnte.
+// TestVorschlagLiegtUndLaeuftNicht is the property spec/21 rests on:
+// covey Doctor proposes, it does not decide. An open
+// proposal reaches the reviewed agent by no route — it is not a
+// version, so there is no assembly it could end up in.
 func TestVorschlagLiegtUndLaeuftNicht(t *testing.T) {
 	s := newStack(t)
 	admin := login(t, s, "admin@test.local", "admin-passwort")
@@ -44,7 +44,7 @@ func TestVorschlagLiegtUndLaeuftNicht(t *testing.T) {
 		t.Fatalf("die Basisversion schreibt die Plattform: %d", item.BaseVersion)
 	}
 
-	// Die laufende Config kennt ihn nicht — weder als Datei noch im Prompt.
+	// The running config does not know it — neither as a file nor in the prompt.
 	cfg := admin.expect(http.MethodGet, "/api/v1/agents/"+ziel.ID.String()+"/config", nil, http.StatusOK)
 	if v := cfg["version"].(float64); v != 1 {
 		t.Fatalf("ein Vorschlag darf keine Version erzeugen: %v", v)
@@ -57,7 +57,7 @@ func TestVorschlagLiegtUndLaeuftNicht(t *testing.T) {
 		t.Fatal("ein offener Vorschlag darf nicht im Systemprompt landen")
 	}
 
-	// Die Liste zeigt ihn, mit Diff und ohne Konflikt.
+	// The list shows it, with a diff and without a conflict.
 	list := admin.expectList(http.MethodGet, "/api/v1/improvements?status=pending", nil, http.StatusOK)
 	if len(list) != 1 {
 		t.Fatalf("genau ein offener Punkt erwartet: %v", list)
@@ -77,8 +77,8 @@ func TestVorschlagLiegtUndLaeuftNicht(t *testing.T) {
 		t.Fatalf("vor der Annahme gibt es die Datei nicht: %v", diff[0])
 	}
 
-	// Annehmen: eine neue Version auf dem normalen Schreibweg, mit dem
-	// Menschen als Urheber — und die vorher unangetasteten Dateien stehen noch.
+	// Accept: a new version over the normal write path, with the
+	// human as author — and the previously untouched files are still there.
 	decided := admin.expect(http.MethodPost, "/api/v1/improvements/"+item.ID.String()+"/decide",
 		map[string]any{"accept": true, "note": "Gute Beobachtung."}, http.StatusOK)
 	if decided["status"] != "accepted" || decided["applied_version"].(float64) != 2 {
@@ -93,16 +93,16 @@ func TestVorschlagLiegtUndLaeuftNicht(t *testing.T) {
 		t.Fatalf("gemergt, nicht ersetzt — die SOUL.md muss stehen bleiben: %v", files)
 	}
 
-	// Entschieden wird einmal. Der zweite Klick ist kein zweiter Beschluss.
+	// A decision is taken once. The second click is not a second decision.
 	admin.expect(http.MethodPost, "/api/v1/improvements/"+item.ID.String()+"/decide",
 		map[string]any{"accept": true}, http.StatusConflict)
 }
 
-// TestVorschlagAufAccessBrauchtSecurity: die Tiefe entscheidet, wer annehmen
-// darf. ACCESS.md und EGRESS.md sind die Textansicht auf Zustand, dessen
-// Schreibweg bei org_admin/security liegt (spec/02) — ein Review-Dialog,
-// der alles durchlässt, weil der Vorschlag harmlos aussah, verschöbe die
-// Zugriffsentscheidung zu dem, der zuerst geklickt hat.
+// TestVorschlagAufAccessBrauchtSecurity: the depth decides who may accept.
+// ACCESS.md and EGRESS.md are the text view of state whose write path
+// sits with org_admin/security (spec/02) — a review dialog
+// that lets everything through because the proposal looked harmless would move
+// the access decision to whoever clicked first.
 func TestVorschlagAufAccessBrauchtSecurity(t *testing.T) {
 	s := newStack(t)
 	s.mitglied(t, "owner@test.local", "Teamleiter", "agent_owner", "owner-passwort")
@@ -124,31 +124,31 @@ func TestVorschlagAufAccessBrauchtSecurity(t *testing.T) {
 		}
 	}
 
-	// Der Teamleiter darf den Playbook-Vorschlag annehmen.
+	// The team lead may accept the playbook proposal.
 	owner.expect(http.MethodPost, "/api/v1/improvements/"+harmlos.ID.String()+"/decide",
 		map[string]any{"accept": true}, http.StatusOK)
-	// Den, der den Zugang weitet, nicht.
+	// Not the one that widens access.
 	owner.expect(http.MethodPost, "/api/v1/improvements/"+weitend.ID.String()+"/decide",
 		map[string]any{"accept": true}, http.StatusForbidden)
-	// Ablehnen darf er ihn: das nimmt nichts weg.
+	// Rejecting it he may do: that takes nothing away.
 	abgelehnt := owner.expect(http.MethodPost, "/api/v1/improvements/"+weitend.ID.String()+"/decide",
 		map[string]any{"accept": false, "note": "Nicht nötig."}, http.StatusOK)
 	if abgelehnt["status"] != "rejected" || abgelehnt["decision_note"] != "Nicht nötig." {
 		t.Fatalf("der Grund der Ablehnung muss stehen bleiben: %v", abgelehnt)
 	}
 
-	// Und der abgelehnte Vorschlag bleibt lesbar — er ist das Nützlichste,
-	// was jemand liest, der covey Doctor selbst überprüft.
+	// And the rejected proposal stays readable — it is the most useful thing
+	// for someone who audits covey Doctor themselves to read.
 	rejected := admin.expectList(http.MethodGet, "/api/v1/improvements?status=rejected", nil, http.StatusOK)
 	if len(rejected) != 1 {
 		t.Fatalf("abgelehnte Punkte bleiben stehen: %v", rejected)
 	}
 }
 
-// TestVorschlagUeberschreibtKeineFremdeÄnderung: ein Vorschlag ist ein Diff
-// gegen eine Basis. Wird dieselbe Datei zwischenzeitlich von Hand geändert,
-// wird er nicht still angewandt — derselbe Konflikt wie bei einem Pull
-// Request. Eine Änderung an einer ANDEREN Datei macht ihn nur veraltet.
+// TestVorschlagUeberschreibtKeineFremdeÄnderung: a proposal is a diff
+// against a base. If the same file is changed by hand in the meantime,
+// it is not applied silently — the same conflict as on a pull
+// request. A change to a DIFFERENT file only makes it stale.
 func TestVorschlagUeberschreibtKeineFremdeÄnderung(t *testing.T) {
 	s := newStack(t)
 	admin := login(t, s, "admin@test.local", "admin-passwort")
@@ -158,7 +158,7 @@ func TestVorschlagUeberschreibtKeineFremdeÄnderung(t *testing.T) {
 	item := vorschlag(t, s, ziel, autor, map[string]string{"SOUL.md": "# Support\n\nGeschaerft."})
 	nebenbei := vorschlag(t, s, ziel, autor, map[string]string{"PLAYBOOKS.md": "## Vorgehen\n\nErst lesen."})
 
-	// Ein Mensch bearbeitet die SOUL.md.
+	// A human edits the SOUL.md.
 	admin.expect(http.MethodPut, "/api/v1/agents/"+ziel.ID.String()+"/config",
 		map[string]any{"files": map[string]string{
 			"SOUL.md":   "# Support-Agent\n\nVon Hand geändert.",
@@ -179,14 +179,14 @@ func TestVorschlagUeberschreibtKeineFremdeÄnderung(t *testing.T) {
 
 	admin.expect(http.MethodPost, "/api/v1/improvements/"+item.ID.String()+"/decide",
 		map[string]any{"accept": true}, http.StatusConflict)
-	// Der veraltete, aber konfliktfreie Vorschlag geht durch.
+	// The stale but conflict-free proposal goes through.
 	admin.expect(http.MethodPost, "/api/v1/improvements/"+nebenbei.ID.String()+"/decide",
 		map[string]any{"accept": true}, http.StatusOK)
 }
 
-// TestSelbstvorschlagLiegtWieJederAndere: ein Agent darf seine EIGENE Config
-// vorschlagen — das ist der offene Punkt aus spec/20, und er ist ungefährlich,
-// weil von hier nichts läuft. Bis ein Mensch ihn annimmt, ändert er nichts.
+// TestSelbstvorschlagLiegtWieJederAndere: an agent may propose its OWN config
+// — that is the open item from spec/20, and it is harmless,
+// because nothing runs from here. Until a human accepts it, it changes nothing.
 func TestSelbstvorschlagLiegtWieJederAndere(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -220,22 +220,22 @@ func TestSelbstvorschlagLiegtWieJederAndere(t *testing.T) {
 	}
 }
 
-// TestAnnahmeLaesstDenZugangInRuhe: die Annahme eines Vorschlags darf NUR das
-// ändern, was im Vorschlag steht.
+// TestAnnahmeLaesstDenZugangInRuhe: accepting a proposal may change ONLY what
+// the proposal contains.
 //
-// ACCESS.md und EGRESS.md stehen zwar in jeder Config-Version, sind dort aber
-// nicht der laufende Stand: der Tools-Reiter schreibt die Werkzeug-Zuweisung,
-// ohne eine Version anzulegen. Ging der Schnappschuss ungefiltert in den
-// Schreib-Durchgriff, hob die Annahme eines Vorschlags zu PLAYBOOKS.md die
-// Einschränkung wieder auf, die jemand über die Oberfläche gesetzt hatte — aus
-// "nur get_ticket" wurde wieder "alle Werkzeuge", ohne dass es jemand sah.
+// ACCESS.md and EGRESS.md do stand in every config version, but there they are
+// not the live state: the tools tab writes the tool assignment
+// without creating a version. If the snapshot went unfiltered into the
+// write-through, accepting a proposal about PLAYBOOKS.md lifted the
+// restriction someone had set over the UI again — from
+// "get_ticket only" back to "all tools", without anyone seeing it.
 func TestAnnahmeLaesstDenZugangInRuhe(t *testing.T) {
 	s := newStack(t)
 	admin := login(t, s, "admin@test.local", "admin-passwort")
 	ziel := s.newSupportAgent("kollege")
 	autor := s.newSupportAgent("betrieb")
 
-	// Die Einschränkung kommt über den Tools-Reiter — ohne Config-Version.
+	// The restriction comes over the tools tab — without a config version.
 	admin.expect(http.MethodPut, "/api/v1/agents/"+ziel.ID.String()+"/tools/zammad",
 		map[string]any{"tools": []string{"get_ticket"}}, http.StatusOK)
 
@@ -252,7 +252,7 @@ func TestAnnahmeLaesstDenZugangInRuhe(t *testing.T) {
 		t.Fatalf("Vorbedingung: genau ein erlaubtes Werkzeug erwartet, %d gefunden", n)
 	}
 
-	// Ein Vorschlag, der den Zugang gar nicht berührt.
+	// A proposal that does not touch access at all.
 	item := vorschlag(t, s, ziel, autor, map[string]string{"PLAYBOOKS.md": "## Vorgehen\n\nErst lesen."})
 	admin.expect(http.MethodPost, "/api/v1/improvements/"+item.ID.String()+"/decide",
 		map[string]any{"accept": true}, http.StatusOK)
@@ -262,14 +262,14 @@ func TestAnnahmeLaesstDenZugangInRuhe(t *testing.T) {
 	}
 }
 
-// TestAngenommenerVorschlagIstNichtVeraltet: „veraltet" und „in Konflikt" sind
-// Fragen an einen OFFENEN Vorschlag.
+// TestAngenommenerVorschlagIstNichtVeraltet: "stale" and "in conflict" are
+// questions about an OPEN proposal.
 //
-// Nach der Annahme enthält die laufende Version genau die Dateien des
-// Vorschlags — der Vergleich gegen seine Basisversion meldet also zuverlässig
-// eine Änderung, und zwar an den Dateien, die die Annahme selbst geschrieben
-// hat. Im Archiv stand so hinter jeder erfolgreichen Annahme ein roter
-// Konflikt-Hinweis.
+// After the accept, the running version holds exactly the files of the
+// proposal — so the comparison against its base version reliably reports
+// a change, and precisely on the files the accept itself
+// wrote. That way the archive showed a red conflict
+// note behind every successful accept.
 func TestAngenommenerVorschlagIstNichtVeraltet(t *testing.T) {
 	s := newStack(t)
 	admin := login(t, s, "admin@test.local", "admin-passwort")
@@ -292,18 +292,18 @@ func TestAngenommenerVorschlagIstNichtVeraltet(t *testing.T) {
 	}
 }
 
-// TestDoctorBehaeltSeinenNamen: covey Doctor heißt auf jeder Instanz
-// „covey Doctor" — der Name gehört der Plattform, nicht der Organisation.
+// TestDoctorBehaeltSeinenNamen: covey Doctor is called "covey Doctor" on
+// every instance — the name belongs to the platform, not the organisation.
 //
-// Er darf jeden Kollegen lesen und für ihn Änderungen vorschlagen. Wer ihm
-// einen unauffälligen Namen gäbe, hätte einen Agenten mit genau diesen Rechten,
-// den im Org-Chart niemand als solchen erkennt — deshalb steht die Sperre im
-// Server und nicht im Eingabefeld.
+// It may read every colleague and propose changes for them. Someone who gave
+// it an unremarkable name would have an agent with exactly these rights,
+// which nobody in the org chart recognises as such — so the block sits in the
+// server and not in the input field.
 func TestDoctorBehaeltSeinenNamen(t *testing.T) {
 	s := newStack(t)
 	admin := login(t, s, "admin@test.local", "admin-passwort")
 
-	// Schon beim Anlegen: der reservierte Slug bringt den Namen mit.
+	// Already at creation: the reserved slug brings the name with it.
 	doctor, err := s.registry.Create(t.Context(), s.orgID, agents.DoctorSlug, "Karl Heinz", "mock", &s.adminID)
 	if err != nil {
 		t.Fatal(err)
@@ -317,12 +317,12 @@ func TestDoctorBehaeltSeinenNamen(t *testing.T) {
 	admin.expect(http.MethodPatch, "/api/v1/agents/"+doctor.ID.String()+"/slug",
 		map[string]any{"slug": "karl-heinz"}, http.StatusConflict)
 
-	// Auf denselben Namen umbenennen bleibt erlaubt — sonst wäre jeder
-	// idempotente Aufruf ein Fehler.
+	// Renaming to the same name stays allowed — otherwise every
+	// idempotent call would be an error.
 	admin.expect(http.MethodPatch, "/api/v1/agents/"+doctor.ID.String()+"/name",
 		map[string]any{"display_name": agents.DoctorName}, http.StatusOK)
 
-	// Jeder andere Agent bleibt frei benennbar.
+	// Every other agent stays freely nameable.
 	normal := s.newSupportAgent("kollege")
 	admin.expect(http.MethodPatch, "/api/v1/agents/"+normal.ID.String()+"/name",
 		map[string]any{"display_name": "Karl Heinz"}, http.StatusOK)

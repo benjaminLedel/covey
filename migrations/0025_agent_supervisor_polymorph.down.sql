@@ -1,5 +1,5 @@
--- Stellt die Fremdschlüssel-Bindung auf humans wieder her. Agent→Agent-
--- Zuordnungen können dabei nicht bestehen bleiben und werden zuvor gelöst.
+-- Restores the foreign-key binding to humans. Agent→agent
+-- assignments cannot survive this and are released beforehand.
 UPDATE agents SET supervisor_id = NULL
 WHERE supervisor_id IS NOT NULL
   AND supervisor_id NOT IN (SELECT id FROM humans);

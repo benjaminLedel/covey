@@ -7,13 +7,13 @@ import {
 } from "../../api";
 import { exact, fmtCount, fmtUSD } from "../../format";
 
-// CostBar ist die meistgelesene Zahlenzeile der Oberfläche — sie steht über
-// jedem Agenten. Sie schrieb ihre Zahlen lange selbst: vier Nachkommastellen
-// auf einem vierstelligen Betrag und Tokens mit englischen Kommas, während
-// daneben auf derselben Seite „61,74 $ / Stück" in der vereinbarten Form stand.
+// CostBar is the most read line of numbers in the interface — it stands above
+// every agent. It wrote its numbers itself for a long time: four decimal
+// places on a four-figure amount and tokens with English commas, while on the
+// same page next to it `61,74 $ / Stück` stood in the agreed form.
 //
-// Die gekürzte Zahl ist zum Überfliegen; wer eine Rechnung prüft, braucht die
-// Ziffern und findet sie im Tooltip daneben (exact).
+// The shortened number is for skimming; whoever checks an invoice needs the
+// digits and finds them in the tooltip next to it (exact).
 export function CostBar({ agentId, budget }: { agentId: string; budget: number }) {
   const { t } = useTranslation();
   const cost = useQuery({

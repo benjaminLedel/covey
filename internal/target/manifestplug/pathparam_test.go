@@ -10,19 +10,19 @@ import (
 	"testing"
 )
 
-// Der Pfad einer Manifest-Aktion ist die Grenze, auf die die Aktion gescopt
-// ist — die Guard-Rail regelt `system:action`, und der Manifest-Autor hat
-// entschieden, welchen Endpunkt das erreicht. Ein Parameter, der unescaped
-// eingesetzt wird, bricht aus dieser Grenze aus.
+// The path of a manifest action is the boundary the action is scoped to — the
+// guard-rail governs `system:action`, and the manifest author decided which
+// endpoint that reaches. A parameter inserted unescaped breaks out of this
+// boundary.
 //
-// Die Werte kommen vom Agenten, und nach dem eigenen Bedrohungsmodell
-// (spec/04) ist der keine vertrauenswürdige Quelle: ein prompt-injizierter
-// Agent ist genau der Fall, für den das hier steht.
+// The values come from the agent, and by our own threat model
+// (spec/04) that is no trusted source: a prompt-injected agent is exactly the
+// case this stands for.
 func TestManifestPfadParameterBrichtNichtAus(t *testing.T) {
 	var gotRaw string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// RequestURI, nicht URL.Path: der Server normalisiert Punkt-Segmente
-		// sonst weg, und dann prüfte der Test die Normalisierung statt den Fix.
+		// RequestURI, not URL.Path: the server otherwise normalises dot segments
+		// away, and then the test would check the normalisation instead of the fix.
 		gotRaw = r.RequestURI
 		json.NewEncoder(w).Encode(map[string]any{"ok": true})
 	}))
@@ -47,9 +47,9 @@ func TestManifestPfadParameterBrichtNichtAus(t *testing.T) {
 	})
 
 	t.Run("ein reines Punkt-Segment wird abgelehnt", func(t *testing.T) {
-		// url.PathEscape allein hilft hier nicht: Punkte werden nicht kodiert,
-		// und ein Segment, das nur aus ".." besteht, verschiebt die Anfrage
-		// auch ohne eigenen Schrägstrich eine Ebene nach oben.
+		// url.PathEscape alone does not help here: dots are not encoded,
+		// and a segment made only of ".." moves the request
+		// one level up even without a slash of its own.
 		for _, wert := range []string{`".."`, `"."`} {
 			if _, err := sys.Execute(context.Background(), "get_issue",
 				[]byte(`{"issue_id":`+wert+`}`), cred); err == nil {
@@ -65,8 +65,8 @@ func TestManifestPfadParameterBrichtNichtAus(t *testing.T) {
 		}
 	})
 
-	// Der Normalfall muss unberührt bleiben — ein Fix, der gewöhnliche Werte
-	// kaputt macht, wird wieder ausgebaut.
+	// The normal case must stay untouched — a fix that breaks ordinary values
+	// gets taken back out.
 	t.Run("gewöhnliche Werte gehen unverändert durch", func(t *testing.T) {
 		gotRaw = ""
 		if _, err := sys.Execute(context.Background(), "get_issue",

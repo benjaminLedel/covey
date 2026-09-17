@@ -39,53 +39,53 @@ import (
 	"covey/internal/observability"
 )
 
-// coveyOp ist eine Meta-Action: ihr Guard-Rail-Subjekt, die Scopes, von denen
-// EINER genügt, und ob sie immer einen Menschen fragt.
+// coveyOp is a meta action: its guard-rail subject, the scopes of which
+// ONE is enough, and whether it always asks a human.
 type coveyOp struct {
 	Subject string
 	Scopes  []string
-	// AlwaysApprove: die Aktion legt jedes Mal eine Freigabe an, auch ohne
-	// Guard-Rail-Regel. Genau eine hat das — covey:read_recording, und dort ist
-	// es die Regel selbst und keine Voreinstellung: „er liest Fakten. Ein
-	// Gespräch ist nur über eine Freigabe erreichbar, ein Lauf auf einmal"
-	// (spec/21). Eine Organisation kann das Subjekt zusätzlich ganz verbieten;
-	// lockerer als hier geht es nicht.
+	// AlwaysApprove: the action creates an approval every time, even without a
+	// guard-rail rule. Exactly one has it — covey:read_recording, and there it
+	// is the rule itself and not a default setting: "he reads facts. A
+	// conversation is reachable only through an approval, one run at a time"
+	// (spec/21). An organisation can forbid the subject outright as well;
+	// looser than this is not possible.
 	AlwaysApprove bool
 }
 
-// coveyOps sind die Ops und ihre Subjekte. Alles, was ein Agent gegenüber der
-// Plattform selbst tun darf, steht hier — was fehlt, kann nicht aufgerufen
-// werden, und deshalb fehlt das Einstellen (spec/20) wie das Entlassen
-// (spec/21). Nicht verboten: nicht vorhanden, damit es nichts zu vergessen
-// gibt.
+// coveyOps are the ops and their subjects. Everything an agent may do towards
+// the platform itself stands here — what is missing cannot be called, and that
+// is why setting up (spec/20) is missing like dismissing
+// (spec/21). Not forbidden: not present, so that there is nothing
+// to forget.
 var coveyOps = map[string]coveyOp{
 	"list_targets":     {Subject: "covey:list_targets", Scopes: []string{scopeWrite}},
 	"create_agent":     {Subject: "covey:create_agent", Scopes: []string{scopeWrite}},
 	"set_agent_config": {Subject: "covey:set_agent_config", Scopes: []string{scopeWrite}},
-	// Die Config eines Kollegen zu LESEN brauchen beide Seiten: wer entwirft,
-	// um den Hausstil zu treffen, und wer begutachtet, um zu wissen, worüber er
-	// urteilt (spec/21).
+	// To READ a colleague's config both sides are needed: whoever drafts, to hit
+	// the house style, and whoever reviews, to know what he
+	// judges (spec/21).
 	"get_agent_config": {Subject: "covey:get_agent_config", Scopes: []string{scopeWrite, scopeReview}},
 
 	"work_record":    {Subject: "covey:work_record", Scopes: []string{scopeReview}},
 	"read_recording": {Subject: "covey:read_recording", Scopes: []string{scopeReview}, AlwaysApprove: true},
-	// Der Vorschlag trägt beide Scopes, aber nicht dieselbe Reichweite:
-	// `agents:write` erreicht damit NUR die eigene Konfiguration (spec/20, der
-	// Selbstvorschlag nach dem Self-Onboarding), `agents:review` auch die eines
-	// Kollegen. Geprüft in reviewPropose, wo der Betroffene bekannt ist.
+	// The proposal carries both scopes, but not the same reach: `agents:write`
+	// reaches with it ONLY the agent's own configuration (spec/20, the
+	// self-proposal after the self-onboarding), `agents:review` also that of a
+	// colleague. Checked in reviewPropose, where the one concerned is known.
 	"propose_agent_config": {Subject: "covey:propose_agent_config", Scopes: []string{scopeReview, scopeWrite}},
 	"write_review":         {Subject: "covey:write_review", Scopes: []string{scopeReview}},
-	// Der Befund, der nicht diese Organisation angeht, sondern die Plattform
-	// selbst: er geht in den Tracker des Repositories, aus dem dieses Programm
-	// stammt (platformissue.go). Das Ziel ist Stammdatum, das Credential
-	// bleibt in der Steuerebene — deshalb reicht derselbe Scope, mit dem der
-	// Agent ohnehin begutachtet, und kein Sitz auf der fremden Forge.
+	// The finding that does not concern this organisation but the platform
+	// itself: it goes into the tracker of the repository this program comes
+	// from (platformissue.go). The target is master data, the credential
+	// stays in the control plane — which is why the same scope with which the
+	// agent reviews anyway is enough, and no seat on the foreign forge.
 	"create_issue": {Subject: "covey:create_issue", Scopes: []string{scopeReview}},
 
-	// Die Dienste neben der eigenen Sandbox (spec/16). Eigener Scope, und das
-	// ist keine Sorgfalt um ihrer selbst willen: `agents:write` lässt einen
-	// Agenten Kollegen entwerfen, und ein QA-Agent, der eine Datenbank braucht,
-	// hat damit nichts zu schaffen.
+	// The services next to one's own sandbox (spec/16). Own scope, and that is
+	// no caution for its own sake: `agents:write` lets an agent draft
+	// colleagues, and a QA agent that needs a database has nothing to do
+	// with that.
 	"start_services": {Subject: "covey:start_services", Scopes: []string{scopeServices}},
 
 	// Text as a platform service (styleservice.go): no scope, like the wiki.
@@ -108,31 +108,31 @@ var coveyOps = map[string]coveyOp{
 // config uses, so the entry says what it does.
 const hiringSystem = "covey"
 
-// Die beiden Scopes dieses Systems — und sie sind ERNST, nicht Zierde. Ein
-// Scope, der in einer ACCESS.md steht, wie eine Grenze gelesen wird und keine
-// ist, ist schlimmer als gar keiner: er lässt die Zeile schmaler aussehen, als
-// sie ist, und das hier ist die Zeile, deren Ausgabe andere Agenten sind.
+// scopeWrite and scopeReview are the two scopes of this system — and they are
+// SERIOUS, not decoration. A scope that stands in an ACCESS.md, is read as a
+// boundary and is not one, is worse than no scope at all: it makes the line
+// look narrower than it is, and this is the line whose output is other agents.
 //
-// scopeWrite stellt ein (entwirft), scopeReview liest und schlägt vor. Ein
-// Agent darf beide halten; die Personalabteilung und covey Doctor tun
-// es bewusst nicht — keiner von beiden kann mit den Zugängen des anderen
-// dessen Arbeit machen (spec/21).
+// scopeWrite sets up (drafts), scopeReview reads and proposes. One
+// agent may hold both; the HR department and covey Doctor deliberately do
+// not — neither of them can do the other's work with the other's
+// accesses (spec/21).
 const (
 	scopeWrite  = "agents:write"
 	scopeReview = "agents:review"
-	// scopeServices erlaubt einem Agenten, die Dienste seines Projekts neben
-	// seiner Sandbox hochzufahren (spec/16). Er wählt dabei keine Images: er
-	// wählt unter denen, die die Organisation erlaubt hat. Das Privileg ist die
-	// Allowlist zu erweitern, nicht eine Referenz zu nennen.
+	// scopeServices lets an agent bring up the services of its project next to
+	// its sandbox (spec/16). It chooses no images: it
+	// chooses among the ones the organisation has allowed. The privilege is to
+	// extend the allowlist, not to name a reference.
 	scopeServices = "services:write"
-	// hiringScope bleibt als Name stehen, wo der Entwurfs-Pfad ihn nennt.
+	// hiringScope stays as a name where the drafting path names it.
 	hiringScope = scopeWrite
 )
 
-// mayUsecovey: hat dieser Agent das eigene System der Plattform in seiner
-// ACCESS.md, mit einem der Scopes, die die Aktion trägt? Fail-closed — ein
-// Zugang, der sich nicht lesen lässt, ist keiner, und ein Eintrag ohne den
-// Scope ebenfalls nicht.
+// mayUsecovey: does this agent have the platform's own system in its
+// ACCESS.md, with one of the scopes the action carries? Fail-closed — an
+// access that cannot be read is none, and neither is an entry without the
+// scope.
 func (o *Orchestrator) mayUsecovey(ctx context.Context, agent agents.Agent, scopes ...string) bool {
 	accesses, err := o.Registry.Accesses(ctx, agent.ID)
 	if err != nil {
@@ -153,10 +153,10 @@ func (o *Orchestrator) mayUsecovey(ctx context.Context, agent agents.Agent, scop
 	return false
 }
 
-// mayDraftAgents/mayReviewAgents sind die beiden Fragen, die auch der Prompt
-// stellt: der Abschnitt folgt dem Scope. Ein Agent, der in seinem Prompt von
-// create_agent liest und dann abgewiesen wird, ist genau die
-// Fähigkeit-durch-Andeutung, gegen die diese Datei gebaut ist.
+// mayDraftAgents/mayReviewAgents are the two questions that the prompt also
+// asks: the section follows the scope. An agent that reads about
+// create_agent in its prompt and is then turned away is exactly the
+// ability-by-insinuation that this file is built against.
 func (o *Orchestrator) mayDraftAgents(ctx context.Context, agent agents.Agent) bool {
 	return o.mayUsecovey(ctx, agent, scopeWrite)
 }
@@ -196,21 +196,21 @@ func (o *Orchestrator) hiring(ctx context.Context, agent agents.Agent, taskID uu
 	// is a colleague or an assessment of one, and that has to be governable
 	// centrally rather than in a prompt.
 	//
-	// create_task geht denselben Weg an einer anderen Stelle — der Action-Proxy
-	// fragt dafür checkAction (Subjekt `covey:create_task`, beim Delegieren
-	// `covey:create_task:foreign`), was in decideAction landet. Wer hier nach
-	// railsAllow sucht, findet es dort nicht und hält die Prüfung für
-	// vergessen; sie ist es nicht.
+	// create_task takes the same path at another place — the action proxy asks
+	// checkAction for it (subject `covey:create_task`, when delegating
+	// `covey:create_task:foreign`), which lands in decideAction. Whoever looks
+	// for railsAllow here does not find it there and takes the check for
+	// forgotten; it is not.
 	//
-	// Drei Ausgänge, nicht zwei. Steht die Regel auf require_approval — oder
-	// fragt die Aktion ohnehin immer —, ist die Aktion NICHT ausgeführt: der
-	// Agent bekommt den Korrelationsschlüssel, seine Aufgabe geht blocked, und
-	// nach der Entscheidung eines Menschen wiederholt er sie (spec/21).
+	// Three outcomes, not two. If the rule stands on require_approval — or the
+	// action asks in any case —, the action was NOT carried out: the
+	// agent gets the correlation key, his task goes blocked, and
+	// after a human decides he repeats it (spec/21).
 	params := hiringParams(req)
 	if def.AlwaysApprove {
-		// Die Freigabe wird an DIESEN Lauf gebunden: eine erteilte Freigabe ist
-		// die Antwort auf „darf er dieses Gespräch lesen", nicht auf „darf er
-		// Gespräche lesen".
+		// The approval is bound to THIS run: an approval that was granted is
+		// the answer to "may he read this conversation", not to "may he
+		// read conversations".
 		params["binding"] = strings.TrimSpace(req.Task)
 	}
 	verdict := o.railsAllow(ctx, agent, taskID, def.Subject, params, def.AlwaysApprove)
@@ -442,10 +442,10 @@ func (o *Orchestrator) hiringSetConfig(ctx context.Context, agent agents.Agent, 
 	return ok(map[string]any{"agent": target.Slug, "written": written, "config": sortedKeys(files)})
 }
 
-// hiringParams ist das, was in der Freigabe steht — was ein Mensch lesen muss,
-// um zu entscheiden. Bewusst nicht die ganze Anfrage: die Dateien einer Config
-// sind seitenlang und gehören nicht in eine Zeile im Posteingang. Ihre NAMEN
-// beantworten die Frage schon („er will die SOUL.md umschreiben").
+// hiringParams is what stands in the approval — what a human has to read to
+// decide. Deliberately not the whole request: the files of a config run for
+// pages and do not belong in one line in the inbox. Their NAMES answer the
+// question already ("he wants to rewrite SOUL.md").
 func hiringParams(req daemon.RequestHiring) map[string]any {
 	out := map[string]any{"op": req.Op}
 	add := func(key, value string) {
@@ -516,8 +516,8 @@ func (o *Orchestrator) findHuman(ctx context.Context, orgID uuid.UUID, who strin
 	return id, err
 }
 
-// railsVerdict ist, was die Guard-Rails zu einer Meta-Action sagen. Drei
-// Ausgänge statt zwei: erlaubt, verboten — und „ein Mensch entscheidet".
+// railsVerdict is what the guard rails say about a meta action. Three
+// outcomes instead of two: allowed, forbidden — and "a human decides".
 type railsVerdict struct {
 	Allowed        bool
 	Reason         string
@@ -529,23 +529,23 @@ type railsVerdict struct {
 // railsAllow applies the org-wide guard rails to a meta action. Fail-closed:
 // rules that cannot be read forbid, they do not wave through.
 //
-// Eine require_approval-Regel legt eine Freigabe an und meldet Pending — sie
-// verbietet NICHT mehr. Der alte Satz („requires an approval and cannot be
-// performed unattended") war der bequeme Ausweg: die Meta-Actions kannten den
-// Freigabe-Pfad nicht, den die Zielsystem-Aktionen seit dem MVP gehen. Eine
-// Leitplanke, die für eine Klasse von Aktionen still zu einem Verbot wird,
-// sagt über sich selbst die Unwahrheit — wer sie setzt, meint „jemand schaut
-// drauf" und bekommt „geht nicht" (spec/21).
+// A require_approval rule creates an approval and reports Pending — it
+// does NOT forbid any more. The old sentence ("requires an approval and cannot
+// be performed unattended") was the convenient way out: the meta actions did
+// not know the approval path that the target-system actions have taken since
+// the MVP. A guard rail that silently turns into a prohibition for one class
+// of actions tells an untruth about itself — whoever sets it means "someone
+// looks at it" and gets "not possible" (spec/21).
 //
-// Die Parameter gehen in die Freigabe: was ein Mensch entscheiden soll, muss
-// er lesen können — welcher Agent, welche Datei, welcher Lauf.
+// The parameters go into the approval: what a human is to decide, he must be
+// able to read — which agent, which file, which run.
 func (o *Orchestrator) railsAllow(ctx context.Context, agent agents.Agent, taskID uuid.UUID,
 	subject string, params map[string]any, alwaysApprove bool) railsVerdict {
 
 	frage := func() railsVerdict {
-		// Die Bindung MUSS vor dem Marshalling in die Parameter: verbraucht wird
-		// über `params->>'binding'`, also steht eine Bindung, die nur als
-		// Argument mitgeht, beim Verbrauch nicht zur Verfügung.
+		// The binding MUST go into the parameters before the marshalling: it is
+		// consumed via `params->>'binding'`, so a binding that only travels as
+		// an argument is not available when it is consumed.
 		binding := bindingOf(params)
 		params["binding"] = binding
 		raw, err := json.Marshal(params)
@@ -582,31 +582,31 @@ func (o *Orchestrator) railsAllow(ctx context.Context, agent agents.Agent, taskI
 	case guardrails.RequireApproval:
 		return frage()
 	}
-	// Erlaubt — und trotzdem gefragt, wenn die Aktion es immer tut. EIN Gate
-	// und nicht zwei: sonst erzeugte eine require_approval-Regel auf derselben
-	// Aktion zwei Freigaben hintereinander für einen Handgriff.
+	// Allowed — and asked all the same when the action always does. ONE gate
+	// and not two: otherwise a require_approval rule on the same action would
+	// create two approvals in a row for one move.
 	if alwaysApprove {
 		return frage()
 	}
 	return railsVerdict{Allowed: true}
 }
 
-// bindingOf schnürt eine Freigabe auf das fest, was der Mensch GELESEN hat.
+// bindingOf ties an approval to exactly what the human has READ.
 //
-// Bisher stand hier nur ein explizit gesetzter Wert, und den setzte genau eine
-// Aktion (read_recording). Für alle anderen blieb die Bindung leer, und leer
-// heißt beim Verbrauch: die Freigabe gilt der AKTION. Solange eine
-// require_approval-Regel auf einer Meta-Action hart ablehnte, war das folgenlos.
-// Seit sie parkt und der Agent die Aktion nach der Entscheidung WIEDERHOLT, ist
-// es eine Lücke: er wiederholt sie nicht zwingend mit denselben Parametern. Wer
-// `{op: create_agent, slug: "helper"}` freigegeben hat, hat
-// `{op: create_agent, slug: "backdoor"}` nicht freigegeben — die alte Bedingung
-// (agent + action) sah zwischen beiden keinen Unterschied.
+// Until now only an explicitly set value stood here, and exactly one action
+// set it (read_recording). For all the others the binding stayed empty, and
+// empty means at consumption: the approval counts for the ACTION. As long as a
+// require_approval rule on a meta action refused flatly, that had no
+// consequences. Since it parks and the agent REPEATS the action after the
+// decision, it is a gap: he does not necessarily repeat it with the same
+// parameters. Whoever approved `{op: create_agent, slug: "helper"}` has not
+// approved `{op: create_agent, slug: "backdoor"}` — the old condition (agent
+// + action) saw no difference between the two.
 //
-// Also bindet jede Freigabe an einen Fingerabdruck genau der Parameter, die in
-// ihr stehen und die die Oberfläche anzeigt. Ein explizit gesetzter Wert (der
-// Lauf bei read_recording) bleibt davor erhalten, damit die Bindung dort
-// lesbar bleibt und zusätzlich den Rest abdeckt.
+// So every approval binds to a fingerprint of exactly the parameters that stand
+// in it and that the UI shows. An explicitly set value (the run at
+// read_recording) stays kept in front of it, so that the binding there stays
+// readable and covers the rest on top.
 func bindingOf(params map[string]any) string {
 	fields := make(map[string]any, len(params))
 	for k, v := range params {
@@ -614,10 +614,10 @@ func bindingOf(params map[string]any) string {
 			fields[k] = v
 		}
 	}
-	// json.Marshal sortiert Map-Schlüssel, der Fingerabdruck ist also stabil
-	// über zwei Läufe hinweg. fmt %v tut dasselbe und trägt den Fall, in dem
-	// sich ein Parameter nicht serialisieren lässt — ein leerer Rückgabewert
-	// wäre hier der gefährliche Ausgang, nicht der bequeme.
+	// json.Marshal sorts map keys, so the fingerprint is stable across two
+	// runs. fmt %v does the same and carries the case in which a parameter
+	// cannot be serialised — an empty return value would here be the dangerous
+	// outcome, not the convenient one.
 	raw, err := json.Marshal(fields)
 	if err != nil {
 		raw = []byte(fmt.Sprintf("%v", fields))

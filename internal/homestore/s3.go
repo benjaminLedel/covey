@@ -135,13 +135,13 @@ func (s *S3) Has(ctx context.Context, orgID uuid.UUID, hash string) (bool, error
 	}
 }
 
-// s3AskWorkers: wie viele HEAD-Anfragen gleichzeitig unterwegs sein dürfen.
+// s3AskWorkers: how many HEAD requests may be on the way at the same time.
 //
-// S3 kennt keine Bündelfrage — es gibt kein HEAD für viele Schlüssel. Der
-// einzige Hebel ist also, nicht hintereinander zu fragen. Sechzehn ist die
-// Zahl, die ein Sync eines gewachsenen Homes von Stunden auf Minuten bringt,
-// ohne dass ein Bucket sie als Sturm liest; wer mehr will, hat ein anderes
-// Problem als diese Konstante.
+// S3 knows no bulk question — there is no HEAD for many keys. So the only
+// lever is not asking one after another. Sixteen is the number that brings
+// a sync of a grown home from hours down to minutes without a bucket
+// reading it as a storm; whoever wants more has a different problem
+// than this constant.
 const s3AskWorkers = 16
 
 // HasMany satisfies BulkAsker for a bucket: sixteen questions at a time

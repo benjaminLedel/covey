@@ -3,10 +3,10 @@ import { screen } from "@testing-library/react";
 import Administration from "./Administration";
 import { mockFetch, renderWithProviders, testPrincipal, useGerman } from "../test/render";
 
-// Das Administrations-Panel verwaltet DIESE Organisation. Der Test hält die
-// Grenze zum Plattform-Panel fest, und zwar an der Stelle, an der man sie
-// merkt: die Zahlen sind die der eigenen Organisation, und der Kopf sagt,
-// welche das ist.
+// The administration panel manages THIS organisation. The test pins the
+// boundary to the platform panel, and does so where you notice it: the
+// numbers are those of your own organisation, and the header says which
+// one that is.
 
 const ORG = {
   id: "22222222-2222-2222-2222-222222222222",
@@ -47,8 +47,8 @@ describe("Administrations-Panel", () => {
     mockFetch(routen);
     renderWithProviders(<Administration me={testPrincipal()} />, { route: "/administration", path: "/administration/*" });
 
-    // Zweimal: im Kopf des Panels und auf der Stammdaten-Karte, die es mit dem
-    // Organigramm teilt.
+    // Twice: in the panel header and on the master-data card it shares with
+    // the org chart.
     expect(await screen.findAllByText("Northgate Systems")).toHaveLength(2);
     expect(screen.getByRole("heading", { name: "Administration" })).toBeInTheDocument();
   });
@@ -57,12 +57,12 @@ describe("Administrations-Panel", () => {
     mockFetch(routen);
     renderWithProviders(<Administration me={testPrincipal()} />, { route: "/administration/usage", path: "/administration/*" });
 
-    // 3 Agenten, davon einer arbeitend: schlafend zählt nicht, gestoppt auch
-    // nicht — ein Notaus-Agent verbraucht nichts.
+    // 3 agents, one of them working: sleeping does not count, killed neither —
+    // a killed agent consumes nothing.
     //
-    // Der Betrag steht in der Schreibweise, die die ganze Oberfläche benutzt
-    // (fmtUSD): Zeichen hinter der Zahl. Hier stand „$12.50", und diese Seite
-    // war damit eine von drei Schreibweisen für dieselbe Sorte Zahl.
+    // The amount is in the notation the whole UI uses (fmtUSD): symbol after
+    // the number. This used to read `$12.50`, and the page was thus one of
+    // three notations for the same kind of number.
     expect(await screen.findByText("12,50 $")).toBeInTheDocument();
     const werte = document.querySelectorAll(".stat .v");
     expect([...werte].map((e) => e.textContent)).toEqual(["2", "3", "1", "12,50 $"]);
@@ -73,8 +73,8 @@ describe("Administrations-Panel", () => {
     renderWithProviders(<Administration me={testPrincipal()} />, { route: "/administration/members", path: "/administration/*" });
 
     expect(await screen.findByText("Mara")).toBeInTheDocument();
-    // Genau eine h1: die des Panels. Die eingebettete Seite bringt keine
-    // zweite mit.
+    // Exactly one h1: the panel's. The embedded page brings no
+    // second one.
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
   });
 });

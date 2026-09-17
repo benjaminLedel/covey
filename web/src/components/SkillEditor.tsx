@@ -3,16 +3,16 @@ import { useTranslation } from "react-i18next";
 import { Modal } from "./Modal";
 import { SKILL_ENTRY, type Skill, type SkillFile } from "../api";
 
-// Der Editor für einen Skill — dasselbe Formular für Bibliothek und Agent,
-// zum Anlegen wie zum Ändern.
+// The editor for a skill — the same form for library and agent,
+// for creating as for changing.
 //
-// Zwei Dinge sind hier bewusst so und nicht anders:
+// Two things here are deliberately this way and not the other:
 //
-//   - Der Name ist beim Ändern gesperrt. Er ist der Verzeichnisname im
-//     Agenten-Home und damit der /slash-command, auf den andere Texte
-//     verweisen; die API lehnt ein Umbenennen entsprechend ab (409).
-//   - SKILL.md lässt sich nicht entfernen. Ohne sie erkennt die Runtime das
-//     Verzeichnis nicht als Skill — der Agent bekäme still gar nichts.
+//   - The name is locked when changing. It is the directory name in
+//     the agent home and thereby the /slash-command that other texts
+//     refer to; the API rejects a rename accordingly (409).
+//   - SKILL.md cannot be removed. Without it the runtime does not know the
+//     directory as a skill — the agent would silently get nothing at all.
 export type SkillDraft = { name: string; description: string; files: SkillFile[] };
 
 export function SkillEditor({
@@ -23,7 +23,7 @@ export function SkillEditor({
   onSave,
   onClose,
 }: {
-  /** Vorhandener Skill zum Ändern; fehlt er, wird einer angelegt. */
+  /** Existing skill to change; if it is missing, one is created. */
   skill?: Skill;
   title: string;
   saving: boolean;

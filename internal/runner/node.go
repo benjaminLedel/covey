@@ -330,10 +330,10 @@ func (n *Node) handle(ctx context.Context, t Transport, msg Message) {
 			n.reply(ctx, t, msg.ID, TypePullResult, PullResult{Err: err.Error()})
 			return
 		}
-		// In seinem eigenen Goroutine und ohne das Abbruch-Signal der
-		// Verbindung: Ein Image sind mehrere Gigabyte, und ein Runner, der
-		// währenddessen keine Sandbox mehr startet, hätte das Warten nur
-		// verschoben.
+		// In its own goroutine and without the connection's abort signal: an image
+		// is several gigabytes, and a runner that meanwhile starts no more
+		// sandboxes would only have
+		// postponed the waiting.
 		go func(req PullImage) {
 			out, err := n.Docker.Pull(context.WithoutCancel(ctx), req.Image)
 			res := PullResult{Image: req.Image}
@@ -516,9 +516,9 @@ func (n *Node) sync(ctx context.Context, t Transport, id string, req SyncHome) {
 	home, _, _ := n.Docker.AgentHome(req.AgentID)
 	began := time.Now()
 	n.Log.Debug("home sync started", "agent", req.AgentID, "path", home)
-	// Gesagt, bevor es passiert: das Zurückschreiben eines gewachsenen Homes
-	// dauert Minuten, und wer in dieser Zeit auf die Aufzeichnung sieht, soll
-	// den Vorgang finden statt eine Lücke.
+	// Said before it happens: writing back a grown home takes minutes, and
+	// anyone looking at the record in that time should find the process
+	// instead of a gap.
 	n.say(ctx, t, Progress{AgentID: req.AgentID, Phase: PhaseHomeSync})
 	res, err := homestore.SyncWatched(ctx, n.Blobs, req.OrgID, home, req.Excludes,
 		n.ticker(ctx, t, req.AgentID, PhaseHomeSync, began, 0))
@@ -527,11 +527,11 @@ func (n *Node) sync(ctx context.Context, t Transport, id string, req SyncHome) {
 		n.reply(ctx, t, id, TypeHomeSynced, HomeSynced{AgentID: req.AgentID, Err: err.Error()})
 		return
 	}
-	// Ab hier steht die Arbeitskopie auf diesem Schnappschuss — das ist die
-	// Auskunft, die der nächste Weckruf braucht, um räumen zu dürfen.
+	// From here the working copy stands on this snapshot — this is the
+	// information the next wake needs in order to be allowed to clear it away.
 	homestore.MarkSynced(home, res.ManifestHash)
-	// Die Schlussmeldung der Phase: ab hier sind die Zahlen ein Ergebnis und
-	// kein Zwischenstand mehr.
+	// The phase's closing report: from here the numbers are a result and no
+	// longer an interim state.
 	n.say(ctx, t, Progress{
 		AgentID: req.AgentID, Phase: PhaseHomeSync, Bytes: res.BytesUp,
 		MS: time.Since(began).Milliseconds(), Done: true,
@@ -656,15 +656,15 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 					"wanted", short8(spec.Snapshot), "using", short8(hash), "back", i)
 			}
 
-			// Räumen darf nur, wer weiß, dass diese Kopie unverändert der
-			// Schnappschuss ist — also seit dem letzten gelungenen Sync keine
-			// Sandbox darin gearbeitet hat. Sonst trägt sie Arbeit, die der
-			// Schnappschuss nicht kennt, und die zu löschen hieße, das
-			// Gedächtnis eines unfertigen Laufs wegzuwerfen: die
-			// Sitzungstranskripte liegen im Home, und die Fortsetzung eines am
-			// Turn-Limit abgebrochenen Laufs will genau sie fortsetzen.
-			// Eine Datei zu viel kostet Platz, eine gelöschte kostet Arbeit,
-			// die niemand zurückholt.
+			// Only whoever knows this copy is the snapshot unchanged may clear it —
+			// so, since the last successful sync, no sandbox has worked inside it.
+			// Otherwise it carries work the snapshot does not know, and deleting it
+			// would mean throwing away the memory of an unfinished run: the session
+			// transcripts lie in the home, and the continuation of a run aborted at
+			// the turn limit wants to carry on exactly those.
+			// One file too many costs space,
+			// one deleted costs work
+			// that no one can take back.
 			stand := homestore.SyncedHash(home)
 			raeumen := stand != "" && stand == hash
 			var res homestore.MaterializeResult
@@ -701,8 +701,8 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 			// they are the ones whose homes stayed root-owned (#170, #201).
 			// It now runs where every sandbox start passes — the provider,
 			// beside the chown of the home's top directory.
-			// Ab hier läuft gleich eine Sandbox darin: die Kopie gilt als
-			// verändert, bis ein Sync das Gegenteil festhält.
+			// From here a sandbox will soon run in it: the copy counts as
+			// changed until a sync records the opposite.
 			homestore.MarkInUse(home)
 			n.Log.Info("home materialised", "agent", spec.AgentID,
 				"bytes_in", res.BytesIn, "ms", time.Since(began).Milliseconds())
@@ -1245,7 +1245,7 @@ func (n *Node) capacity() CapacityReport {
 		TotalBytes: total, FreeBytes: free, WorkDir: work}
 }
 
-// short8 kürzt einen Hash auf das, was in eine Logzeile gehört.
+// short8 trims a hash to what belongs in a log line.
 func short8(h string) string {
 	if len(h) > 8 {
 		return h[:8]

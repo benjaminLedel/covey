@@ -11,14 +11,14 @@ import (
 	"covey/internal/guardrails"
 )
 
-// TestMetaActionWartetAufFreigabe: eine require_approval-Regel auf einer
-// Meta-Action hält den Agenten an, statt ihn abzuweisen.
+// TestMetaActionWartetAufFreigabe: a require_approval rule on a meta-action
+// holds the agent waiting, instead of rejecting it.
 //
-// Vorher lehnte dieser Zweig hart ab — „requires an approval and cannot be
-// performed unattended". Das ist eine Leitplanke, die für eine Klasse von
-// Aktionen still zu einem Verbot wird: wer die Regel setzt, meint „jemand
-// schaut drauf" und bekommt „geht nicht" (spec/21). Der Test hält den ganzen
-// Weg fest: blockieren, im Posteingang erscheinen, freigeben, wiederholen.
+// Before, this branch refused hard — `requires an approval and cannot be
+// performed unattended`. That is a guard rail that quietly turns into a ban
+// for a class of actions: whoever sets the rule means "someone looks at
+// this" and gets "not possible" (spec/21). The test holds the whole
+// path: block, show up in the inbox, approve, repeat.
 func TestMetaActionWartetAufFreigabe(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -48,7 +48,7 @@ func TestMetaActionWartetAufFreigabe(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// 1. Die Aufgabe wartet — sie ist nicht fehlgeschlagen.
+	// 1. The task waits — it did not fail.
 	waitFor(t, "the task waits for the approval", 30*time.Second, func() bool {
 		return s.taskState(task.ID) == backlog.StateBlocked
 	})
@@ -56,8 +56,8 @@ func TestMetaActionWartetAufFreigabe(t *testing.T) {
 		t.Fatal("solange niemand entschieden hat, darf der Kollege nicht existieren")
 	}
 
-	// 2. Im Posteingang steht, WAS entschieden werden soll — mit den
-	//    Parametern, sonst entscheidet ein Mensch über eine Zeichenkette.
+	// 2. The inbox says WHAT is to be decided — with the
+	//    parameters, otherwise a human decides over a string.
 	page := getInbox(t, admin, "?status=open&type=approval")
 	if page.Total != 1 || page.Items[0].Title != "covey:create_agent" {
 		t.Fatalf("die Meta-Action gehoert in den Posteingang: %+v", page)
@@ -71,7 +71,7 @@ func TestMetaActionWartetAufFreigabe(t *testing.T) {
 		t.Fatalf("die Freigabe muss tragen, worueber entschieden wird: %v", params)
 	}
 
-	// 3. Freigeben weckt die Aufgabe, der Agent wiederholt die Aktion.
+	// 3. Approving wakes the task, the agent repeats the action.
 	admin.expect(http.MethodPost, "/api/v1/approvals/"+approvals[0]["id"].(string)+"/decide",
 		map[string]any{"approve": true}, http.StatusOK)
 	waitFor(t, "the task finishes after the approval", 30*time.Second, func() bool {
@@ -84,8 +84,8 @@ func TestMetaActionWartetAufFreigabe(t *testing.T) {
 		t.Fatal("was ein Agent anlegt, bleibt ein Entwurf — die Freigabe stellt niemanden ein")
 	}
 
-	// 4. Und die Freigabe ist verbraucht: eine Antwort auf eine Handlung, keine
-	//    Lizenz auf die Aktion.
+	// 4. And the approval is spent: an answer to one act, not a
+	//    licence for the action.
 	var used bool
 	if err := s.pool.QueryRow(ctx, "SELECT used FROM approvals WHERE id=$1",
 		approvals[0]["id"].(string)).Scan(&used); err != nil {
@@ -96,13 +96,13 @@ func TestMetaActionWartetAufFreigabe(t *testing.T) {
 	}
 }
 
-// TestMetaActionAbgelehnteFreigabe: auch die Ablehnung erreicht den Agenten,
-// und die Aktion hat nicht stattgefunden.
+// TestMetaActionAbgelehnteFreigabe: the rejection also reaches the agent,
+// and the action did not take place.
 //
-// Was der Agent DANACH tut, ist seine Sache — der Prompt sagt ihm, er soll die
-// Aktion nicht wiederholen. Die Mock-Runtime kann das nicht wissen und
-// wiederholt stumpf; geprüft wird deshalb, was die Plattform verantwortet: die
-// Entscheidung kommt an, und ohne sie ist nichts passiert.
+// What the agent does AFTERWARDS is its own affair — the prompt tells it not
+// to repeat the action. The mock runtime cannot know that and repeats
+// blindly; what is checked is therefore what the platform is answerable for:
+// the decision arrives, and without it nothing happened.
 func TestMetaActionAbgelehnteFreigabe(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -142,9 +142,9 @@ func TestMetaActionAbgelehnteFreigabe(t *testing.T) {
 	admin.expect(http.MethodPost, "/api/v1/approvals/"+approvals[0]["id"].(string)+"/decide",
 		map[string]any{"approve": false}, http.StatusOK)
 
-	// Die Entscheidung weckt die Aufgabe — sie geht ueber den
-	// Korrelationsschluessel zurueck in den Backlog, mit der Ablehnung als
-	// Wiederaufnahme-Text.
+	// The decision wakes the task — it goes back into the
+	// backlog via the correlation key, with the denial as the
+	// resumption text.
 	waitFor(t, "the denial wakes the task", 30*time.Second, func() bool {
 		trs, err := s.backlog.Transitions(ctx, task.ID)
 		if err != nil {
@@ -162,8 +162,8 @@ func TestMetaActionAbgelehnteFreigabe(t *testing.T) {
 	}
 }
 
-// TestMetaActionOhneRegelUnveraendert: ohne require_approval bleibt alles, wie
-// es war — die Leitplanke bezahlt sich nicht mit einem Dialog pro Entwurf.
+// TestMetaActionOhneRegelUnveraendert: without require_approval everything stays as
+// it was — the guard rail does not pay for itself with a dialog per draft.
 func TestMetaActionOhneRegelUnveraendert(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()

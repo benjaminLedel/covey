@@ -89,16 +89,16 @@ func SyncWatched(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root str
 	var cachedSize int64
 	cachedIndex := 0
 
-	// Gefragt wird gebündelt, hochgeladen einzeln. Der Grund ist der Weg: bei
-	// einem Store hinter dem Netz war "kennst du diesen Block?" bisher eine
-	// Anfrage pro Block, nacheinander — bei einem gewachsenen Home sechsstellig
-	// oft, bevor auch nur ein neues Byte hochging. Ein 16,9-GB-Home mit 150.000
-	// Dateien kam damit nicht mehr durch.
+	// Asked in bundles, uploaded one by one. The reason is the way it travels:
+	// for a store behind the network, "do you know this block?" used to be one
+	// request per block, one after another — for a grown home hundreds of
+	// thousands of times before a single new byte went up. A 16.9 GB home with
+	// 150,000 files no longer got through that way.
 	//
-	// Der Puffer hält die Blöcke, bis genug beisammen ist, um EINE Frage zu
-	// stellen. Begrenzt wird er nach Bytes und nicht nach Anzahl, weil beides
-	// vorkommt: hunderttausend winzige Dateien und ein paar große. Was schon im
-	// Store liegt, wird verworfen, ohne je die Leitung gesehen zu haben.
+	// The buffer holds the blocks until enough are together to ask ONE
+	// question. It is bounded by bytes and not by count, because both happen:
+	// a hundred thousand tiny files and a few large ones. What already lies in
+	// the store is dropped without ever having seen the wire.
 	buf := make([]pendingBlock, 0, askBatch)
 	bufBytes := 0
 	// The scan runs ahead of the upload: a full batch is handed to the
@@ -136,10 +136,10 @@ func SyncWatched(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root str
 	}
 
 	manifest, err := scanCached(root, excludes, cache, func(hash string, data []byte) error {
-		// Je gelesenem Block, nicht je hochgeladenem: bei einem Home, das sich
-		// kaum geändert hat, ist das Durchsehen die Arbeit — jeder Block wird
-		// gelesen und gehasht, und in den Store geht am Ende nichts. Ein
-		// Lebenszeichen, das am Hochladen hinge, schwiege dann durchgehend.
+		// Per block read, not per block uploaded: for a home that hardly
+		// changed, looking through it is the work — every block is read and
+		// hashed, and in the end nothing goes into the store. A heartbeat that
+		// hung on the uploading would stay silent the whole time.
 		if watch != nil {
 			watch(len(seen), bytesUp.Load())
 		}
@@ -168,8 +168,8 @@ func SyncWatched(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root str
 		// caches that are byte-for-byte identical on every developer home stop
 		// costing anything after the first agent.
 		//
-		// Die Kopie ist nötig: Scan gibt seinen Lesepuffer weiter und
-		// überschreibt ihn beim nächsten Block.
+		// The copy is needed: Scan hands on its read buffer and overwrites it
+		// at the next block.
 		cp := make([]byte, len(data))
 		copy(cp, data)
 		buf = append(buf, pendingBlock{hash: hash, data: cp})
@@ -966,21 +966,21 @@ func min(a, b int) int {
 	return b
 }
 
-// Woher eine Arbeitskopie weiß, ob sie noch der Schnappschuss ist, für den sie
-// sich hält: neben ihr liegt eine Marke mit dem Manifest-Hash des letzten
-// erfolgreichen Syncs. NEBEN ihr, nicht darin — im Home wäre sie Teil jedes
-// Schnappschusses und änderte ihn bei jedem Sync.
+// Where a working copy knows whether it is still the snapshot it takes itself
+// for: beside it lies a marker with the manifest hash of the last successful
+// sync. BESIDE it, not inside — in the home it would be part of every snapshot
+// and change it on every sync.
 //
-// Entscheidend ist, WANN sie verschwindet: sobald eine Sandbox startet. Ab dann
-// kann in der Kopie alles Mögliche entstehen, und niemand weiß mehr, ob sie
-// noch dem Schnappschuss entspricht. Erst ein gelungener Sync setzt sie wieder.
+// What decides is WHEN it disappears: as soon as a sandbox starts. From then on
+// anything may appear in the copy, and nobody knows any more whether it still
+// matches the snapshot. Only a sync that got through sets it again.
 //
-// Genau daran hing der Fall, der eine Produktivinstanz Tagesarbeit gekostet
-// hat: dort stand die Kopie formal auf demselben Schnappschuss wie der Store —
-// der letzte erfolgreiche Sync lag Stunden zurück —, und trotzdem trug sie die
-// Sitzungstranskripte dreier Läufe, deren Syncs nicht durchkamen. Die Frage
-// „steht sie auf diesem Stand?" hätte mit Ja geantwortet und die Transkripte
-// gelöscht. Die richtige Frage ist „hat seither jemand darin gearbeitet?".
+// The case that cost a production instance a day's work hung on exactly this:
+// there the copy formally stood on the same snapshot as the store — the last
+// successful sync lay hours back — and still it carried the session
+// transcripts of three runs whose syncs did not get through. The question "does
+// it stand on this state?" would have answered yes and deleted the
+// transcripts. The right question is "has anyone worked in it since?".
 func stateFile(root string) string { return strings.TrimRight(root, "/\\") + ".snapshot" }
 
 // ownerFile marks what happened the last time this home was handed to its

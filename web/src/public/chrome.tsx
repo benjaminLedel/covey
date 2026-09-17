@@ -1,18 +1,18 @@
 import { useEffect, useRef } from "react";
 
-/* Geteilte Bausteine: die Wortmarke, der Hintergrund des Anmeldebereichs und
-   die Symbole der Oberfläche.
+/* Shared building blocks: the wordmark, the background of the sign-in area and
+   the symbols of the interface.
 
-   Bis #130 war das die Möblierung einer Website — Hero-Org-Chart, rotierendes
-   Wort, Scroll-Reveals. Was davon zu den Seiten gehörte, ist mit ihnen in das
-   eigene Repository der Website gezogen; hier steht, was die Anwendung selbst
-   noch braucht. */
+   Up to #130 this was the furniture of a website — hero org chart, rotating
+   word, scroll reveals. What of it belonged to the pages moved with them into
+   the own repository of the website; here stands what the application itself
+   still needs. */
 
-/* Das Signet kommt aus der gemeinsamen Komponente — bis #131 zeichnete
-   dieser Bereich eine eigene Fassung mit eigenem Farbverlauf. */
+/* The mark comes from the shared component — up to #131 this area drew
+   its own version with its own colour gradient. */
 export { BirdMark } from "../components/BirdMark";
 
-/* Ein einzelner Vogel-Glyph für den Hintergrund-Schwarm. */
+/* A single bird glyph for the background swarm. */
 export function Bird({
   top,
   left,
@@ -36,11 +36,11 @@ export function Bird({
   );
 }
 
-/* Lebender Schwarm (Boids) auf Canvas: Kohäsion, Ausrichtung, Abstand —
-   und sanftes Ausweichen vor dem Mauszeiger. Läuft nicht bei
+/* Living swarm (boids) on canvas: cohesion, alignment, distance —
+   and soft yielding to the mouse pointer. Does not run at
    prefers-reduced-motion. */
-// Der Ref-Typ trägt seit React 19 das null aus useRef(null) mit — der Body
-// prüft es ohnehin ab, bevor er auf das Canvas geht.
+// Since React 19 the ref type carries the null from useRef(null) — the body
+// checks it anyway before it goes to the canvas.
 export function useBoids(ref: React.RefObject<HTMLCanvasElement | null>) {
   useEffect(() => {
     const canvas = ref.current;
@@ -148,8 +148,8 @@ export function useBoids(ref: React.RefObject<HTMLCanvasElement | null>) {
   }, [ref]);
 }
 
-/* Fixer Hintergrund für alle öffentlichen Seiten: Aurora + Boid-Schwarm +
-   ruhende Vogel-Glyphen. Einmal im PublicSite gemountet, seitenübergreifend. */
+/* Fixed background for all public pages: aurora + boid swarm +
+   resting bird glyphs. Mounted once in PublicSite, across all pages. */
 export function PublicBackground() {
   const boidsRef = useRef<HTMLCanvasElement>(null);
   useBoids(boidsRef);

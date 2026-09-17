@@ -9,24 +9,24 @@ export { LANG_BY_CODE, LANG_LIST, LANGS, istLang } from "./langs";
 
 export const LANG_KEY = "covey.lang";
 
-/* Startsprache. Zwei Lagen:
+/* Start language. Two cases:
 
-   - Vor der Anmeldung entscheidet die Adresse: /fr/connexion ist eine Adresse,
-     die jemand teilen und verlinken kann, und der Proxy leitet sie getrennt
-     weiter. Wer sie aufruft, soll Französisch sehen, auch wenn hier einmal
-     Deutsch gewählt wurde.
-   - Sonst zählt die gespeicherte Wahl, und wo es keine gibt, die Sprache des
-     Browsers.
+   - Before sign-in the address decides: /fr/connexion is an address that
+     someone can share and link to, and the proxy forwards it separately.
+     Whoever opens it should see French, even if German was chosen here
+     once.
+   - Otherwise the stored choice counts, and where there is none, the
+     language of the browser.
 
-   Bis #130 stand hier ein dritter Fall: eine vorgerenderte Seite musste beim
-   ersten Rendervorgang denselben Text treffen, den der Server geschrieben
-   hatte. Die Website ist ausgezogen, die Anwendung startet leer (main.tsx). */
+   Until #130 a third case stood here: a prerendered page had to hit the same
+   text on the first render pass that the server had written. The website
+   moved out, the application starts empty (main.tsx). */
 export function langFromPath(pathname: string): Lang | null {
-  /* Zuerst die Adressen selbst, dann ihre Präfixe. Deutsch trägt keines
-     (langPrefix gibt "" zurück, langs.ts), und über das Präfix allein wäre
-     /anmelden für diese Funktion nie deutsch gewesen — die älteste Adresse
-     der Anwendung hätte als einzige nicht über ihre Sprache entschieden,
-     während der Reiter darüber schon „Anmelden — covey" sagte. */
+  /* First the addresses themselves, then their prefixes. German carries none
+     (langPrefix returns "", langs.ts), and by the prefix alone /anmelden would
+     never have been German for this function — the oldest address of the
+     application would have been the only one not to decide its own language,
+     while the tab above it already said `Anmelden — covey`. */
   const treffer = matchRoute(pathname);
   if (treffer) return treffer.lang;
 
@@ -49,12 +49,12 @@ export function initialLang(pathname?: string): Lang {
   return sprachePerBrowser() ?? BASE_LANG;
 }
 
-/* Wer nichts gewählt hat, bekommt, was sein Browser verlangt — solange wir die
-   Sprache haben. Die Kopfzeile eines Browsers ist eine Liste mit Regionen
-   ("de-AT", "pt-BR"); uns interessiert der Teil davor, denn unsere Kataloge
-   sind nach Sprache geschnitten, nicht nach Land. Bleibt nichts übrig, gilt
-   die Basissprache: eine Oberfläche in einer Sprache, die keiner gewählt hat,
-   wäre schlechter als eine in der, die alle lesen können. */
+/* Whoever chose nothing gets what their browser asks for — as long as we have
+   the language. The header of a browser is a list with regions ("de-AT",
+   "pt-BR"); the part before the dash is what interests us, because our
+   catalogues are cut by language, not by country. If nothing is left, the base
+   language applies: an interface in a language that nobody chose would be
+   worse than one in a language that everyone can read. */
 function sprachePerBrowser(): Lang | null {
   if (typeof navigator === "undefined") return null;
   const wuensche = navigator.languages?.length ? navigator.languages : [navigator.language];
@@ -65,11 +65,11 @@ function sprachePerBrowser(): Lang | null {
   return null;
 }
 
-/* Die Abfrage hängt an window, nicht an localStorage: Node 25 bringt ein
-   globales localStorage mit, das ohne --experimental-webstorage keine Methoden
-   hat — die Prüfung „ist es definiert" ginge dort durch und der Testlauf
-   bräche. Der try/catch fängt außerdem den Browser, der Speicher verweigert
-   (Privatmodus, geblockte Drittanbieter-Daten). */
+/* The query hangs on window, not on localStorage: Node 25 ships a global
+   localStorage with no methods without --experimental-webstorage — the check
+   "is it defined" would pass there and the test run would break. The
+   try/catch also catches the browser that refuses storage (private mode,
+   blocked third-party data). */
 export function gespeicherteSprache(): string | null {
   if (typeof window === "undefined") return null;
   try {
@@ -84,17 +84,17 @@ export function merkeSprache(lang: Lang) {
   try {
     window.localStorage.setItem(LANG_KEY, lang);
   } catch {
-    /* Ohne Speicher bleibt die Wahl auf diese Sitzung beschränkt. */
+    /* Without storage the choice stays limited to this session. */
   }
 }
 
-/* Die Kataloge werden nachgeladen, nicht mitgeliefert. Zu zehnt sind sie über
-   ein Megabyte — ein Vielfaches des Bündels, und neun Zehntel davon in
-   Sprachen, die dieser Besucher nicht liest. Als dynamischer Import wird jeder
-   ein eigenes Stück, und geladen wird das eine, das gebraucht wird (#122).
+/* The catalogues are loaded afterwards, not shipped along. All ten of them are
+   over a megabyte — a multiple of the bundle, and nine tenths of that in
+   languages this visitor does not read. As a dynamic import each becomes its
+   own chunk, and loaded is the one that is needed (#122).
 
-   Der Aufrufer wartet darauf, bevor er rendert: mit leerem Katalog stünden auf
-   dem Schirm die Schlüssel statt der Sätze. */
+   The caller waits for it before it renders: with an empty catalogue the
+   screen would show the keys instead of the sentences. */
 const kataloge: Record<Lang, () => Promise<{ default: Record<string, unknown> }>> = {
   de: () => import("./locales/de.json"),
   en: () => import("./locales/en.json"),
@@ -117,9 +117,9 @@ export async function ladeSprache(lang: Lang): Promise<void> {
   setzeDokumentSprache(lang);
 }
 
-/* Das lang-Attribut am <html> ist keine Kosmetik: Vorleseprogramme wählen
-   danach ihre Aussprache, und der Browser seine Silbentrennung. Es steht im
-   Markup auf „de" und muss mitwandern, wenn die Sprache wechselt. */
+/* The lang attribute on <html> is no cosmetics: screen readers pick their
+   pronunciation by it, and the browser its hyphenation. It stands "de" in the
+   markup and has to travel along when the language changes. */
 function setzeDokumentSprache(lang: Lang) {
   if (typeof document === "undefined") return;
   document.documentElement.setAttribute("lang", LANG_BY_CODE[lang].bcp47);
@@ -128,9 +128,9 @@ function setzeDokumentSprache(lang: Lang) {
 i18n.use(initReactI18next).init({
   resources: {},
   lng: initialLang(),
-  /* Alle Kataloge tragen dieselben Schlüssel (ein Test hält das fest), die
-     Ersatzsprache greift also nur bei einem Schlüssel, den keiner von ihnen
-     kennt — und dann steht er selbst da, geladen oder nicht. */
+  /* All catalogues carry the same keys (a test covers that), so the fallback
+     language only kicks in for a key that none of them knows — and then that
+     key itself stands there, loaded or not. */
   fallbackLng: BASE_LANG,
   interpolation: { escapeValue: false },
 });

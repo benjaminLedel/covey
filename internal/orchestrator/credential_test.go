@@ -60,9 +60,9 @@ func TestRejectionCooldown(t *testing.T) {
 			if c.want == 0 && reason != "" {
 				t.Fatalf("no cooldown, but reason %q", reason)
 			}
-			// Der Grund unterscheidet Normalbetrieb von Stoerung: ein
-			// aufgebrauchtes Fenster ist erwartbar, ein abgewiesenes Token
-			// muss sich jemand ansehen.
+			// The reason is what separates normal operation from a fault: an
+			// exhausted window is expected, a rejected token is something
+			// somebody has to look at.
 			if c.want != 0 && reason != c.reason {
 				t.Fatalf("reason %q, expected %q", reason, c.reason)
 			}

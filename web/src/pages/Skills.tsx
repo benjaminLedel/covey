@@ -6,10 +6,10 @@ import { SkillEditor, type SkillDraft } from "../components/SkillEditor";
 
 const canEdit = (role: string) => role === "org_admin" || role === "agent_owner";
 
-// Die Org-Bibliothek: Fähigkeiten, die jeder Agent bekommen KANN, aber nur nach
-// ausdrücklicher Verlinkung bekommt. Deshalb steht an jedem Eintrag, wer ihn
-// hat — ein Skill ohne Verlinkung erreicht niemanden und kostet trotzdem
-// Pflege.
+// The org library: skills every agent CAN get, but only gets after an
+// explicit link. That is why every entry says who has it — a skill without a
+// link reaches nobody and still costs
+// upkeep.
 export default function Skills({ me }: { me: Principal }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -76,13 +76,13 @@ function SkillCard({ skill, agents, editable }: { skill: Skill; agents: Agent[];
   const assigned = skill.assigned_to ?? [];
   const inval = () => qc.invalidateQueries({ queryKey: ["skills"] });
 
-  // Zum Ändern braucht es die Dateien — die Liste liefert sie nicht mit.
+  // Editing needs the files — the list does not deliver them along.
   //
-  // gcTime/staleTime 0 und refetchOnMount sind hier kein Feintuning, sondern
-  // Schutz vor Datenverlust: Der Editor übernimmt seinen Anfangszustand beim
-  // Einhängen, und PUT ersetzt den Dateisatz vollständig. Käme der Stand aus
-  // dem Cache, überschriebe ein Speichern die Änderung, die inzwischen jemand
-  // anderes gemacht hat — ohne dass irgendwo ein Konflikt sichtbar würde.
+  // gcTime/staleTime 0 and refetchOnMount are no fine-tuning here, but
+  // protection against data loss: the editor takes over its initial state on
+  // mount, and PUT replaces the file set completely. If the state came from
+  // the cache, a save would overwrite the change someone else made in the
+  // meantime — without a conflict becoming visible anywhere.
   const full = useQuery({
     queryKey: ["skill", skill.id],
     queryFn: () => api<Skill>(`/skills/${skill.id}`),
@@ -133,8 +133,8 @@ function SkillCard({ skill, agents, editable }: { skill: Skill; agents: Agent[];
           </>
         )}
       </div>
-      {/* Fehlgeschlagene Aktionen müssen sichtbar sein: Ohne Meldung sieht ein
-          wirkungsloser Klick genauso aus wie ein erfolgreicher. */}
+      {/* Failed actions must be visible: without a message an
+          ineffective click looks the same as a successful one. */}
       {(remove.isError || unassign.isError || assign.isError) && (
         <p className="danger-text text-xs mt-1 mb-0">
           {((remove.error ?? unassign.error ?? assign.error) as Error).message}
@@ -178,9 +178,9 @@ function SkillCard({ skill, agents, editable }: { skill: Skill; agents: Agent[];
         )}
       </div>
 
-      {/* Erst öffnen, wenn der frische Stand da ist: Der Editor übernimmt
-          seinen Anfangszustand beim Einhängen, ein Nachladen käme nicht mehr
-          an — und Speichern würde den echten Inhalt überschreiben. */}
+      {/* Open only once the fresh state is there: the editor takes over
+          its initial state on mount, a later reload would not reach
+          it — and saving would overwrite the real content. */}
       {editing && full.isFetching && <span className="muted text-xs">{t("skills.loading")}</span>}
       {editing && full.data && !full.isFetching && (
         <SkillEditor

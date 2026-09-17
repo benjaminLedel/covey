@@ -7,11 +7,11 @@ import (
 	"testing"
 )
 
-/* Ein Agent stand in einer Werkstatt und bekam nicht gesagt, was darin steht.
-   In einem Home lagen `tools/jdk`, `tools/jdk21` und `tools/flutter` — 2,7 GB
-   Werkzeuge, die das Image seit Wochen mitbringt (#102). Das Home wird nach
-   jedem Lauf zurückgeschrieben; die Doppelung kostet nicht einmal, sondern
-   immer. */
+/* An agent stood in a workshop and was not told what stands in it.
+   In one home lay `tools/jdk`, `tools/jdk21` and `tools/flutter` — 2.7 GB
+   of tools that the image has shipped for weeks (#102). The home is written
+   back after every run; the duplication costs not once, but
+   always. */
 
 func schreibeArbeitsplatz(t *testing.T, inhalt string) string {
 	t.Helper()
@@ -37,16 +37,16 @@ func TestDerArbeitsplatzNenntSeineWerkzeuge(t *testing.T) {
 			t.Fatalf("%q fehlt in der Beschreibung:\n%s", muss, text)
 		}
 	}
-	// Die Versionsmanager stehen sortiert — sonst sähe derselbe Arbeitsplatz
-	// bei jedem Lauf anders aus, und ein Prompt, der sich ohne Grund ändert,
-	// wirft den Cache der Runtime weg.
+	// The version managers stand sorted — otherwise the same workplace would
+	// look different on every run, and a prompt that changes without a reason
+	// throws away the cache of the runtime.
 	if strings.Index(text, "fvm:") > strings.Index(text, "uv:") {
 		t.Fatalf("die Versionsmanager stehen unsortiert:\n%s", text)
 	}
 }
 
-// Ein fremdes Image bringt keine Beschreibung mit. Dann sagt der Prompt dazu
-// nichts — statt etwas zu behaupten, was nicht stimmt.
+// A foreign image brings no description along. Then the prompt says nothing
+// about it — instead of claiming something that is not true.
 func TestOhneBeschreibungBleibtDerPromptWieErWar(t *testing.T) {
 	if got := readWorkplace(filepath.Join(t.TempDir(), "gibtsnicht.json")); got != "" {
 		t.Fatalf("aus dem Nichts wurde %q", got)
@@ -59,8 +59,8 @@ func TestOhneBeschreibungBleibtDerPromptWieErWar(t *testing.T) {
 	}
 }
 
-// Angehängt, nicht ersetzt: Die Konfiguration des Agenten (SOUL, Playbooks)
-// steht vorne, der Arbeitsplatz dahinter.
+// Appended, not replaced: the configuration of the agent (SOUL, playbooks)
+// stands in front, the workplace behind it.
 func TestDerArbeitsplatzHaengtHintenAn(t *testing.T) {
 	alt := workplaceSource
 	workplaceSource = func() string { return "## Your workplace (dev)\n\n- php 8.2" }
@@ -74,8 +74,8 @@ func TestDerArbeitsplatzHaengtHintenAn(t *testing.T) {
 		t.Fatalf("der Arbeitsplatz fehlt:\n%s", got)
 	}
 
-	// Und ohne Konfiguration steht er allein da, statt mit zwei Leerzeilen zu
-	// beginnen.
+	// And without configuration it stands there alone, instead of
+	// starting with two blank lines.
 	if got := withWorkplace(""); !strings.HasPrefix(got, "## Your workplace") {
 		t.Fatalf("ohne Prompt beginnt es mit Leerraum: %q", got)
 	}

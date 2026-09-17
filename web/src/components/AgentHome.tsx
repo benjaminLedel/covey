@@ -3,18 +3,18 @@ import { useTranslation } from "react-i18next";
 import { api, post, type Agent } from "../api";
 import { fmtBytes } from "../format";
 
-// Das Home im Home-Store (spec/16, „Interface"). Die interessante Zahl ist
-// nicht die Größe, sondern die Differenz: ein 7-GB-Home, von dem vielleicht
-// 200 MB nur dieser Agent hält. Das erste kostet beim Verlust Zeit, das zweite
-// Arbeit.
+// The home in the home store (spec/16, "Interface"). The interesting number is
+// not the size but the difference: a 7 GB home of which this agent alone may
+// hold 200 MB. Losing the first costs time, losing the second
+// costs work.
 
 type HomeView = {
   enabled: boolean;
   latest?: Snapshot;
-  // Ein Versuch, der KEINEN Schnappschuss ergeben hat und jünger ist als der
-  // letzte, der einen ergab. Ohne ihn zeigte diese Ansicht den letzten
-  // geglückten Stand — wahr und nutzlos, während seither jeder Versuch
-  // scheiterte.
+  // An attempt that yielded NO snapshot and is newer than the last one that
+  // yielded one. Without it this view showed the last good state — true and
+  // useless, because every attempt since then
+  // failed.
   last_failure?: { at: string; error: string; reason?: string };
   runner_name?: string;
   runner_kind?: string;
@@ -63,9 +63,9 @@ export function AgentHome({ agent, canWrite }: { agent: Agent; canWrite: boolean
     <div className="card p-4 flex flex-col gap-2" style={{ marginTop: 16 }}>
       <h3 className="text-[15px]">{t("agent.home.title")}</h3>
 
-      {/* Zuerst, und in Warnfarbe: was hier steht, entwertet alle Zahlen
-          darunter. Der Schnappschuss stimmt, aber er ist nicht der Stand des
-          Arbeitsplatzes. */}
+      {/* First, and in warning colour: what stands here devalues every number
+          below it. The snapshot is right, but it is not the state of the
+          workplace. */}
       {home.data.last_failure && (
         <p className="text-xs danger-text">
           {t("agent.home.syncFailed", {
@@ -80,8 +80,8 @@ export function AgentHome({ agent, canWrite }: { agent: Agent; canWrite: boolean
       {latest && (
         <>
           <div className="text-xs flex flex-col gap-1">
-            {/* Die Differenz ist die eigentliche Aussage — und sie braucht
-                den Satz daneben, sonst sind es zwei Zahlen ohne Bedeutung. */}
+            {/* The difference is the real statement — it needs the sentence
+                beside it, else the two numbers mean nothing. */}
             <div>
               {t("agent.home.size", {
                 total: fmtBytes(home.data.total_bytes),
@@ -109,8 +109,8 @@ export function AgentHome({ agent, canWrite }: { agent: Agent; canWrite: boolean
             )}
           </div>
 
-          {/* Beantwortet „warum ist dieses Home so groß?" ohne Shell — und
-              zeigt zugleich die Kandidaten für einen Ausschluss. */}
+          {/* Answers "why is this home so large?" without a shell — and
+              shows the candidates for an exclusion at the same time. */}
           {home.data.top_dirs?.length ? (
             <table className="tbl text-xs">
               <tbody>

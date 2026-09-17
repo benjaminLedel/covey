@@ -952,10 +952,10 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	skillStore := skills.NewStore(pool)
 	voiceStore := voice.New(pool)
 
-	// Die veroeffentlichten Arbeitsplaetze (spec/16): welches Image zu welcher
-	// covey-Fassung gehoert, gepinnt auf den Digest. Mit demselben Cache wie
-	// der Plugin-Katalog — der Stand ueberlebt den Neustart, und faellt der
-	// Server dahinter aus, gilt der letzte gueltige weiter.
+	// The published workplaces (spec/16): which image belongs to which covey
+	// release, pinned by digest. With the same cache as the plugin catalogue —
+	// the state survives a restart, and if the server behind it goes down, the
+	// last valid one keeps applying.
 	workplaces := sandbox.NewSource(cfg.SandboxCatalogURL, marketplace.NewPgCache(pool), log)
 
 	// Egress enforcement can only be enforced with real network isolation (docker).
@@ -981,8 +981,8 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	runnerPool.Profiles = cfg.SandboxImages
 	runnerPool.EnvImages = cfg.SandboxImageEnv
 	runnerPool.Catalog = workplaces
-	// Und die Arbeitsplätze, die eine Organisation selbst mitgebracht hat: Ein
-	// Agent trägt auch dort nur einen Namen, und aufgelöst wird er hier.
+	// And the workplaces an organisation brought itself: there too an agent
+	// only carries a name, and it is resolved here.
 	orgWorkplaces := orgworkplaces.New(pool)
 	runnerPool.OrgImages = func(ctx context.Context, orgID uuid.UUID) map[string]string {
 		m, err := orgWorkplaces.Images(ctx, orgID)
@@ -1071,11 +1071,11 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 			}
 			return *snap.RunnerID, true
 		}
-		// Ein Sync, der NICHT stattgefunden hat, gehört in dieselbe Zeile wie
-		// einer, der stattgefunden hat. Vorher stand er nur im Debug-Log des
-		// Runners: die Oberfläche zeigte weiter den letzten geglückten
-		// Schnappschuss, und dass seither nichts mehr gesichert wurde, sah
-		// wochenlang niemand.
+		// A sync that did NOT happen belongs on the same line as
+		// one that did. Before, it only stood in the runner's debug
+		// log: the interface kept showing the last successful
+		// snapshot, and that nothing had been secured since then,
+		// nobody saw for weeks.
 		runnerPool.SnapshotFailed = func(ctx context.Context, agentID, runnerID uuid.UUID, reason, msg string) {
 			agent, err := registry.Get(ctx, agentID)
 			if err != nil {
@@ -1202,9 +1202,9 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		return rn.LogLevel
 	}
 	runnerPool.Capabilities = runnerStore.Capabilities
-	// Ein Update, das an einer laufenden Sandbox scheiterte, bleibt als Wunsch
-	// an der Runner-Zeile stehen; der Pool holt ihn sich, sobald der Host nichts
-	// mehr trägt, und streicht ihn, wenn er erfüllt ist.
+	// An update that failed against a running sandbox stays on the runner row
+	// as a wish; the pool picks it up once the host carries nothing anymore,
+	// and strikes it once it is fulfilled.
 	runnerPool.PlannedUpdate = runnerStore.PlannedUpdate
 	runnerPool.PlannedUpdateDone = func(ctx context.Context, runnerID uuid.UUID, version string) {
 		if err := runnerStore.PlanUpdate(ctx, runnerID, ""); err != nil {
@@ -1426,9 +1426,9 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Org: org.NewStore(pool), Targets: targets, Templates: templateStore,
 		Marketplace: func() *marketplace.Client {
 			m := marketplace.New(cfg.MarketplaceURL)
-			// Der Katalog ueberlebt damit den Neustart: die erste Store-Seite
-			// nach dem Start wartet nicht auf einen fremden Server, und faellt
-			// der gerade aus, zeigt sie den letzten gueltigen Stand statt nichts.
+			// The catalogue survives a restart this way: the first store page
+			// after startup does not wait on a foreign server, and if that one is
+			// down right now, the page shows the last valid state instead of nothing.
 			m.Store, m.Log = marketplace.NewPgCache(pool), log
 			return m
 		}(),

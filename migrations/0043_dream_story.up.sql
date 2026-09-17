@@ -1,13 +1,13 @@
--- Die Traumerzählung: zwei, drei Sätze darüber, wovon der Agent geträumt hat,
--- passend zu dem, was er tatsächlich am Gedächtnis geändert hat.
+-- The dream story: two, three sentences about what the agent dreamed of,
+-- matching what it actually changed in memory.
 --
--- Bewusst Zierrat, und bewusst getrennt von den Handlungen: dream_actions ist
--- das Protokoll und die Wahrheit — wer wissen will, was passiert ist, liest
--- dort. Die Erzählung ist die Zusammenfassung, die jemand freiwillig liest.
--- Sie steht in der UI abgesetzt und darf nie an die Stelle des Protokolls
--- treten.
+-- Deliberate ornament, and deliberately separate from the actions:
+-- dream_actions is the record and the truth — whoever wants to know what
+-- happened reads it there. The story is the summary somebody reads
+-- voluntarily. It stands set apart in the UI and must never take the place
+-- of the record.
 --
--- Leer, wenn ein Traum nichts getan hat: eine erfundene Geschichte über eine
--- Nacht, in der nichts geschah, wäre genau die Sorte Text, die man einmal
--- amüsant und danach nur noch lästig findet.
+-- Empty when a dream did nothing: an invented story about a night in which
+-- nothing happened is exactly the kind of text somebody finds amusing once
+-- and afterwards only annoying.
 ALTER TABLE dreams ADD COLUMN story TEXT NOT NULL DEFAULT '';

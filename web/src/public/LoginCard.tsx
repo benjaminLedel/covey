@@ -9,15 +9,15 @@ import { useSignupState } from "./signupState";
 const DEMO_EMAIL = "admin@covey.local";
 const DEMO_PASSWORD = "covey-admin";
 
-/* Der Hostname steht beim Vorrendern nicht fest und darf die erste Darstellung
-   im Browser nicht verändern — sonst weicht sie vom vorgerenderten HTML ab und
-   React verwirft es. Deshalb erst nach der Hydration nachreichen. */
+/* The hostname is not fixed while prerendering and must not change the first
+   render in the browser — otherwise it deviates from the prerendered HTML and
+   React discards it. That is why it is only filled in after hydration. */
 const localHost = () =>
   typeof window !== "undefined" &&
   ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
 
-/* Die Anmelde-Karte — auf der Home-Seite im Hero, außerdem unter /anmelden.
-   Aus der früheren pages/Login.tsx herausgelöst. */
+/* The login card — in the hero on the home page, and also under `/anmelden`.
+   Lifted out of the earlier pages/Login.tsx. */
 export default function LoginCard({ onLogin }: { onLogin: () => void }) {
   const { t } = useTranslation();
   const [email, setEmail] = useState("");
@@ -26,12 +26,12 @@ export default function LoginCard({ onLogin }: { onLogin: () => void }) {
   const [busy, setBusy] = useState(false);
   const [isLocal, setIsLocal] = useState(false);
   const lang = usePublicLang();
-  /* Der Verweis auf die Registrierung erscheint nur, wenn diese Installation
-     sie überhaupt annimmt — sonst führte er zu einem „geschlossen" (FR-002). */
+  /* The link to registration only appears when this installation accepts it at
+     all — otherwise it led to a closed signup (FR-002). */
   const { state: signupState } = useSignupState();
-  /* ?weiter= setzt nur die Weiterleitung aus der Oberfläche (App.tsx), wenn
-     eine Sitzung abgelaufen ist. Ohne einen Satz dazu sieht es aus, als hätte
-     die Anwendung einen zufällig hinausgeworfen. */
+  /* `?weiter=` sets the redirect from the interface (App.tsx) only when a
+     session expired. Without a line about it, it looks as if the application
+     had thrown someone out at random. */
   const { search } = useLocation();
   const abgelaufen = new URLSearchParams(search).has("weiter");
 
@@ -104,10 +104,10 @@ export default function LoginCard({ onLogin }: { onLogin: () => void }) {
           </button>
         </>
       )}
-      {/* Der Weg zurück, wenn das Passwort weg ist. Er steht unabhängig von
-          signup.mode da: eine geschlossene Installation hat trotzdem Konten,
-          und wer seins vergisst, ist kein Fremder, der eingelassen werden
-          will — er ist schon drin (#168). */}
+      {/* The way back when the password is gone. It stands regardless of
+          `signup.mode`: a closed installation still has accounts, and whoever
+          forgets theirs is not a stranger who wants to be let in — they are
+          already inside (#168). */}
       <p className="login-alt">
         <Link to="/reset">{t("public.reset.forgot")}</Link>
       </p>

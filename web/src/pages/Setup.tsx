@@ -6,17 +6,17 @@ import { useTranslation } from "react-i18next";
 import { api, post, type Agent, type RuntimeInfo, type SetupState } from "../api";
 import i18n from "../i18n";
 
-/* Die Einrichtung: der Zugang zuerst, dann darf der Zugang arbeiten.
+/* Setup: the access first, then the access may work.
  *
- * Drei Karten, jede überspringbar. Das ist verantwortbar, weil alles hier auch
- * von Hand geht — Secrets-/Runtime-Seite, Vorlagenbibliothek, das
- * Anlege-Formular. Die Karten kaufen keine Exklusivität, sondern die
- * Reihenfolge: ohne Credential kann nichts von dem laufen, was die Oberfläche
- * anbietet, und mit einem lässt sich das meiste FÜR jemanden erledigen statt
- * VON ihm.
+ * Three cards, each skippable. That is defensible because everything here also
+ * goes by hand — the secrets/runtime pages, the template library, the
+ * creation form. The cards buy no exclusivity, but the order: without a
+ * credential none of what the surface offers can run, and with one most
+ * things can be done FOR someone
+ * instead OF by them.
  *
- * Erledigte Karten bleiben sichtbar und abgehakt. Wer zurückkommt, soll sehen,
- * was steht — nicht raten müssen, ob er schon hier war. spec/20. */
+ * Done cards stay visible and ticked. Whoever comes back should see what
+ * stands — not guess whether they were here before. spec/20. */
 export default function Setup() {
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -29,10 +29,10 @@ export default function Setup() {
 
   return (
     <div className="setup-page">
-      {/* Die Kopfleiste liegt auf derselben Spalte wie die Karten: die Marke
-          steht über deren linker Kante, der Ausgang über der rechten. Vorher
-          lief sie über die volle Breite, und der Knopf schwebte weit rechts
-          ohne Bezug zu irgendetwas. */}
+      {/* The header sits on the same column as the cards: the mark stands over
+          their left edge, the exit over the right. Before it ran the full
+          width, and the button floated far right without reference to
+          anything. */}
       <header className="setup-head">
         <div className="setup-head-in">
           <span className="brand">
@@ -41,8 +41,8 @@ export default function Setup() {
           </span>
           <span className="ml-auto" />
           <span className="secondary text-xs">{t("setup.progress", { done, total: 3 })}</span>
-          {/* Der Weg heraus, immer sichtbar: überspringbar heißt, dass man es
-              sieht — nicht, dass man es erraten muss. */}
+          {/* The way out, always visible: skippable means that you
+              see it — not that you have to guess it. */}
           <Link className="btn sm" to="/">
             {done === 3 ? t("setup.finish") : t("setup.later")}
           </Link>
@@ -89,10 +89,10 @@ function Card({
   );
 }
 
-// --- Karte 1: Motor und Zugang -------------------------------------------
+// --- Card 1: engine and access -------------------------------------------
 //
-// Die Felder kommen aus der Engine-Deklaration, nicht aus einer Liste hier:
-// eine neue Engine bringt ihren Einrichtungsschritt selbst mit.
+// The fields come from the engine declaration, not from a list here:
+// a new engine brings its own setup step.
 
 function EngineCard({ state, onDone }: { state: SetupState; onDone: () => void }) {
   const { t } = useTranslation();
@@ -173,7 +173,7 @@ function EngineCard({ state, onDone }: { state: SetupState; onDone: () => void }
   );
 }
 
-// --- Karte 2: Was macht dieses Unternehmen -------------------------------
+// --- Card 2: what this organisation does ---------------------------------
 
 function OrgCard({ state, onDone }: { state: SetupState; onDone: () => void }) {
   const { t } = useTranslation();
@@ -217,7 +217,7 @@ function OrgCard({ state, onDone }: { state: SetupState; onDone: () => void }) {
   );
 }
 
-// --- Karte 3: Die Personalabteilung --------------------------------------
+// --- Card 3: the people department ----------------------------------------
 
 function PeopleCard({ state, onDone }: { state: SetupState; onDone: () => void }) {
   const { t } = useTranslation();

@@ -197,35 +197,35 @@ func (r *Registry) CreateDraft(ctx context.Context, orgID uuid.UUID, slug, displ
 // the same question as create() answers.
 const DefaultRuntime = "claude-code"
 
-// covey Doctor trägt einen festen Namen.
+// covey Doctor carries a fixed name.
 //
-// Er ist kein Kollege, den eine Organisation sich ausdenkt, sondern die
-// Plattform, die sich selbst betrachtet (spec/21) — dieselbe Rolle, die
-// `covey doctor` vor einem Upgrade einnimmt. Ein Agent, der jeden Kollegen
-// beurteilen und für ihn Änderungen vorschlagen darf, soll überall gleich
-// heißen: wer in einem fremden Recording „covey Doctor" liest, weiß, was das
-// war, ohne die ACCESS.md nachzuschlagen. Deshalb Name und Slug reserviert und
-// gegen Umbenennen gesperrt — ein umbenannter Doctor wäre ein Agent mit den
-// Rechten des Doctors und dem Namen eines Kollegen.
+// He is not a colleague an organisation invents, but the platform looking at
+// itself (spec/21) — the same role `covey doctor` takes before an upgrade. An
+// agent that may judge every colleague and may propose changes for them should
+// be called the same everywhere: whoever reads "covey Doctor" in a foreign
+// recording knows what that was, without looking up the ACCESS.md. That is
+// why name and slug are reserved and locked against renaming — a renamed
+// Doctor would be an agent with the Doctor's rights and the name of a
+// colleague.
 const (
 	DoctorSlug = "covey-doctor"
 	DoctorName = "covey Doctor"
 )
 
-// IsDoctor erkennt covey Doctor am reservierten Slug. Der Slug ist
-// der Anker und nicht der Anzeigename, weil er eindeutig je Organisation ist —
-// und er ist mitgesperrt, sonst wäre das Umbenennen des Slugs der Umweg um die
-// Namenssperre.
+// IsDoctor recognises covey Doctor by the reserved slug. The slug is
+// the anchor and not the display name, because it is unique per organisation —
+// and it is locked along with the name, otherwise renaming the slug would be
+// the detour around the name lock.
 func IsDoctor(a Agent) bool { return a.Slug == DoctorSlug }
 
 func (r *Registry) create(ctx context.Context, orgID uuid.UUID, slug, displayName, runtime string, ownerID *uuid.UUID, draft bool) (Agent, error) {
 	if runtime == "" {
 		runtime = DefaultRuntime
 	}
-	// Der reservierte Slug bringt den Namen mit — hier und nicht im Handler,
-	// damit jeder Weg ihn erbt: Oberfläche, Bundle-Import, Entwurf. Sonst hinge
-	// die feste Identität daran, welchen Weg jemand genommen hat, und die
-	// Sperre gegen Umbenennen fände beim Import schon einen falschen Namen vor.
+	// The reserved slug brings the name with it — here and not in the handler,
+	// so that every path inherits it: interface, bundle import, draft. Otherwise
+	// the fixed identity would hang on which path someone took, and the lock
+	// against renaming would already find a wrong name at the import.
 	if slug == DoctorSlug {
 		displayName = DoctorName
 	}
@@ -819,11 +819,11 @@ func (r *Registry) SaveConfig(ctx context.Context, agentID uuid.UUID, files map[
 		return ConfigVersion{}, err
 	}
 	for _, acc := range accesses {
-		// Ohne Scope ist die leere Liste, nicht NULL. `- system: zammad` ohne
-		// `scope:` ist eine Zeile, die ein Mensch schreibt — sie bedeutet „kein
-		// Scope vergeben" und muss sich speichern lassen. Vorher ging sie als
-		// NULL in eine NOT-NULL-Spalte, und der Mensch bekam beim Speichern der
-		// Config einen SQLSTATE-Fehler statt eines Agenten ohne Zugriff.
+		// Without scope it is the empty list, not NULL. `- system: zammad` without
+		// `scope:` is a line a human writes — it means "no scope granted" and has
+		// to be saveable. Before, it went as NULL into a NOT-NULL column, and the
+		// human got a SQLSTATE error when saving the config instead of an agent
+		// without access.
 		scopes := acc.Scopes
 		if scopes == nil {
 			scopes = []string{}

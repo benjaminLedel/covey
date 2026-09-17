@@ -1,34 +1,34 @@
--- Audit-Spur für Verwaltungshandlungen von MENSCHEN.
+-- Audit trail for admin actions taken by PEOPLE.
 --
--- Was Agenten tun, steht im Recording (recording_events) — lückenlos, seit dem
--- MVP. Was Menschen an der Plattform tun, stand nirgends: Secrets hinterlegen,
--- Guard-Rails löschen, Rollen ändern, den Notaus auslösen, das
--- Recording-Level senken. Ausgerechnet die letzten beiden sind die Handgriffe,
--- die jemand vor einer Übertretung machen würde.
+-- What agents do stands in the recording (recording_events) — complete, since
+-- the MVP. What people do to the platform stood nowhere: filing secrets,
+-- deleting guard rails, changing roles, pulling the emergency stop, lowering
+-- the recording level. The last two are exactly the moves somebody would make
+-- before an overstep.
 --
--- Bewusst eine eigene Tabelle statt recording_events: Dort hängt jede Zeile an
--- einem Agenten (agent_id NOT NULL), Verwaltungshandlungen haben aber oft
--- keinen — eine Rollenänderung oder ein neues Secret betrifft die Organisation.
+-- Deliberately its own table instead of recording_events: there every row hangs
+-- on an agent (agent_id NOT NULL), while admin actions often have none — a role
+-- change or a new secret concerns the organisation.
 --
--- Bewusst OHNE Request-Bodies: In ihnen stünden Secret-Werte und Passwörter.
--- Festgehalten wird, WER WANN WAS ANGEFASST hat (Methode, Pfad, Ergebnis) —
--- nicht der Inhalt. Der Pfad trägt die IDs, damit bleibt „wer hat Guard-Rail X
--- gelöscht" beantwortbar.
+-- Deliberately WITHOUT request bodies: they would hold secret values and
+-- passwords. What is kept is WHO TOUCHED WHAT WHEN (method, path, outcome) —
+-- not the content. The path carries the ids, which keeps "who deleted guard
+-- rail X" answerable.
 CREATE TABLE audit_log (
     id          BIGSERIAL PRIMARY KEY,
     org_id      UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    -- Der Handelnde. NULL, wenn das Konto später gelöscht wird — die Handlung
-    -- bleibt trotzdem stehen, mit der E-Mail als Gedächtnisstütze.
+    -- Who acted. NULL when the account is deleted later — the action stays on
+    -- regardless, with the e-mail as an aid to memory.
     actor_id    UUID REFERENCES humans(id) ON DELETE SET NULL,
     actor_email TEXT NOT NULL DEFAULT '',
     actor_role  TEXT NOT NULL DEFAULT '',
     method      TEXT NOT NULL,
     path        TEXT NOT NULL,
     status      INTEGER NOT NULL,
-    -- Die Client-IP, soweit erkennbar (hinter einem Proxy dessen Adresse).
+    -- The client IP, as far as it can be told (behind a proxy, that proxy's address).
     client_ip   TEXT NOT NULL DEFAULT '',
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Die Abfrage der Ansicht: neueste Einträge einer Organisation.
+-- The query the view uses: newest entries of one organisation.
 CREATE INDEX idx_audit_org_time ON audit_log (org_id, id DESC);

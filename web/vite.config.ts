@@ -4,13 +4,13 @@ import tailwindcss from "@tailwindcss/vite";
 
 import { APP_ROUTE_PREFIXES, LANGS, MAIL_LINK_PATHS, PUBLIC_ROUTES } from "./src/public/routes";
 
-/* Die Routenliste für den Go-Handler. Er muss unterscheiden können, was zur
-   Oberfläche gehört (und auf die Hülle fällt) und was ein Tippfehler ist (und
-   eine 404 verdient) — kennen tut die Adressen aber der Browser-Code.
+/* The route list for the Go handler. It has to tell apart what belongs to the
+   UI (and falls back to the shell) from what is a typo (and deserves a 404),
+   but the browser code is the one that knows the addresses.
 
-   Deshalb schreibt der Build sie mit: eine Quelle in src/public/routes.ts,
-   zwei Verbraucher. Vor #130 kam die Datei aus prerender.mjs und hieß
-   seo.json; sie trug damals auch die Liste fürs Vorrendern. */
+   So the build writes it out: one source in src/public/routes.ts, two
+   consumers. Before #130 the file came from prerender.mjs and was called
+   seo.json; back then it also carried the list for pre-rendering. */
 function appRouten() {
   return {
     name: "covey-app-routes",
@@ -34,8 +34,8 @@ function appRouten() {
   };
 }
 
-// Dev: Vite-Dev-Server proxyt /api zum Go-Binary; Prod: dist/ wird via
-// //go:embed ins Binary gebacken (spec/10).
+// Dev: the Vite dev server proxies /api to the Go binary; prod: dist/ is
+// baked into the binary via //go:embed (spec/10).
 export default defineConfig({
   plugins: [react(), tailwindcss(), appRouten()],
   server: {
@@ -44,13 +44,13 @@ export default defineConfig({
     },
   },
   build: { outDir: "dist" },
-  // Tests laufen im selben Werkzeug wie der Build — damit gilt für sie
-  // dieselbe Auflösung von Importen und Aliassen wie für die Anwendung und
-  // nicht die einer zweiten, danebenstehenden Konfiguration.
+  // Tests run in the same tool as the build, so the same resolution of
+  // imports and aliases applies to them as to the application, and not the
+  // one of a second configuration sitting beside it.
   test: {
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
-    // Der Rest von web/ ist Anwendungscode; Tests liegen neben ihrem Gegenstück.
+    // The rest of web/ is application code; tests sit beside their counterpart.
     include: ["src/**/*.test.{ts,tsx}"],
   },
 });

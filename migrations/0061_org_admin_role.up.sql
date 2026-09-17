@@ -1,20 +1,20 @@
--- Die oberste Organisations-Rolle heisst org_admin, nicht platform_admin.
+-- The top organisation role is called org_admin, not platform_admin.
 --
--- Seit 0058 gibt es zwei Ebenen: accounts.platform_role ist die Instanz
--- (user | system_admin), humans.role ist der Sitz in einer Organisation. Dass
--- die oberste Org-Rolle weiterhin 'platform_admin' hiess, hat beide Ebenen im
--- selben Wort zusammengezogen — die Oberflaeche zeigte "Plattform-Admin" fuer
--- etwas, das mit der Plattform nichts zu tun hat und das sich jede
--- Organisation selbst vergibt (FR-003, Befund F).
+-- Since 0058 there are two tiers: accounts.platform_role is the instance
+-- (user | system_admin), humans.role is the seat in an organisation. That the
+-- top org role was still called 'platform_admin' collapsed both tiers into
+-- the same word — the UI showed "Plattform-Admin" for something that has
+-- nothing to do with the platform and that every organisation grants itself
+-- (FR-003, finding F).
 --
--- Ab hier gehoert das Wort "Plattform" der Instanz, "org" der Organisation.
+-- From here on, the word "platform" belongs to the instance, "org" to the organisation.
 
--- Der alte Wert bleibt eine Release lang erlaubt. Nicht fuer die Daten — die
--- werden gleich umgeschrieben — sondern fuer den Fall, dass waehrend eines
--- rollenden Deploys noch ein altes Binary schreibt: dessen INSERT soll an
--- einer Rollenpruefung scheitern koennen, nicht an einem CHECK, der die
--- Transaktion zerreisst. Die Lesekante normalisiert den Wert
--- (identity.NormalizeRole); eine spaetere Migration wirft ihn aus dem CHECK.
+-- The old value stays allowed for one release. Not for the data — that
+-- is rewritten right below — but for the case where an old binary still
+-- writes during a rolling deploy: its INSERT should be able to fail a role
+-- check, not a CHECK that tears the transaction apart. The read side
+-- normalises the value (identity.NormalizeRole); a later migration drops it
+-- from the CHECK.
 ALTER TABLE humans DROP CONSTRAINT humans_role_check;
 ALTER TABLE humans ADD CONSTRAINT humans_role_check
     CHECK (role IN ('org_admin','agent_owner','security','auditor','controlling',

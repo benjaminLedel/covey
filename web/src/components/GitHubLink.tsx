@@ -1,18 +1,18 @@
 import { useTranslation } from "react-i18next";
 
-/* Der Weg zum Quelltext — auf der Anmeldeseite oben neben der Sprachwahl, im
-   Fußmenü der Oberfläche als Zeile.
+/* The way to the source — on the sign-in page at the top next to the language picker, in
+   the footer menu of the UI as a row.
 
-   Zwei Gründe, und der erste ist keine Werbung: covey läuft als Netzwerkdienst
-   unter der AGPL-3.0, und wer den Dienst angeboten bekommt, hat Anspruch auf
-   den Quelltext. Die Anmeldeseite ist die Stelle, an der die meisten dem
-   Dienst begegnen. Der zweite Grund ist der Stern: ein quelloffenes Projekt
-   wird darüber gefunden, und wer covey benutzt, ist die Person, die ihn
-   vergeben kann.
+   Two reasons, and the first is no advertising: covey runs as a network service
+   under AGPL-3.0, and whoever is offered the service is entitled to the source
+   code. The sign-in page is the place where most people meet
+   the service. The second reason is the star: an open-source project
+   is found through it, and whoever uses covey is the person who can
+   give it.
 
-   Die Adresse kommt vom Server (buildinfo.SourceURL), nicht aus diesem Code —
-   eine Installation, die geforkt wurde, zeigt so ihre eigene und nicht die
-   des Ursprungs. Ohne Adresse rendert die Komponente nichts. */
+   The address comes from the server (buildinfo.SourceURL), not from this code —
+   an installation that was forked shows its own this way, and not the
+   original one. Without an address the component renders nothing. */
 
 function OctoIcon() {
   return (
@@ -45,9 +45,9 @@ export default function GitHubLink({
     >
       <OctoIcon />
       <span className="nm">{t("github.star")}</span>
-      {/* Der Stern steht als Zeichen daneben, nicht als Zahl: eine Zahl käme
-          von GitHub, und dafür müsste diese Seite bei jedem Aufruf dorthin
-          telefonieren — auf einer internen Installation ins Leere. */}
+      {/* The star stands as a sign beside it, not as a number: a number would
+          come from GitHub, and for that this page would have to phone there on
+          every call — into the void on an internal installation. */}
       <span className="star" aria-hidden="true">
         ★
       </span>

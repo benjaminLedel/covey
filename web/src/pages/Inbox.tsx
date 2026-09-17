@@ -17,24 +17,24 @@ import { Markdown } from "../components/Markdown";
 import { collapse, diffLines } from "../diff";
 import { canManage } from "./agent/roles";
 
-/* Der Posteingang: alles, was auf die Entscheidung eines Menschen wartet.
+/* The inbox: everything that waits for the decision of a human.
 
-   Zwei Sorten liegen hier zusammen, weil sie dieselbe Handbewegung brauchen
-   und nicht, weil sie dasselbe wären:
+   Two kinds sit here together because they need the same hand movement, not
+   because they would be the same thing:
 
-   - Die FREIGABE (spec/06) — eine Guard-Rail hat mitten in einer Aktion
-     angeschlagen, die Aufgabe steht still, der Agent WARTET.
-   - Der OFFENE PUNKT (spec/21) — ein Review ist fertig, nichts blockiert.
-     Annehmen schreibt eine Config-Version, Ablehnen behält den Grund.
+   - The APPROVAL (spec/06) — a guard rail tripped in the middle of an action,
+     the task stands still, the agent WAITS.
+   - The OPEN POINT (spec/21) — a review is finished, nothing blocks.
+     Accepting writes a config version, rejecting keeps the reason.
 
-   Oben steht deshalb ein Arbeitsvorrat und keine Chronik: was offen ist,
-   Freigaben zuerst, das Älteste oben. Darunter die Vorgänge nach Sorte
-   gruppiert, mit Filter und nachladbar — dorthin schaut man, wenn man etwas
-   sucht, nicht wenn man etwas abarbeitet. */
+   On top therefore sits a work queue and not a chronicle: what is open,
+   approvals first, the oldest on top. Below the records grouped by kind,
+   with a filter and reloadable — that is where you look when you search for
+   something, not when you work things off. */
 
-// tool_request: die Bitte um ein fehlendes Werkzeug (#106). Wie ein Befund —
-// kein Diff, ein Mensch entscheidet —, aber mit eigenem Namen, weil die Liste
-// „was fehlt der Belegschaft an ihren Arbeitsplätzen" für sich gelesen wird.
+// tool_request: the request for a missing tool (#106). Like a finding — no
+// diff, a human decides —, but with its own name, because the list "what the
+// staff is missing at its workplaces" is read on its own.
 const TYPES = ["approval", "proposal", "finding", "issue", "tool_request"] as const;
 type EntryType = (typeof TYPES)[number];
 
@@ -49,9 +49,9 @@ export default function Inbox({ me }: { me: Principal }) {
 
   const scope = { mine: mine ? "1" : undefined, agent: agent || undefined };
 
-  // Der Arbeitsvorrat. Eigene Abfrage und nicht ein Filter über der Liste
-  // darunter: er ist nach Dringlichkeit sortiert, die Liste nach dem, was der
-  // Suchende eingestellt hat.
+  // The work queue. Its own query and not a filter over the list below:
+  // it is sorted by urgency, the list by what
+  // the searcher has set.
   const head = useQuery({
     queryKey: ["inbox", "todo", scope, headLimit],
     queryFn: () => inbox({ ...scope, status: "open", sort: "urgent", limit: headLimit }),
@@ -135,9 +135,9 @@ export default function Inbox({ me }: { me: Principal }) {
   );
 }
 
-// TypeGroup ist eine Sorte in der Auflistung — eigene Abfrage, eigene Seite.
-// Nachgeladen wird serverseitig: die Zahl neben der Überschrift ist der
-// Bestand, nicht das, was gerade heruntergeladen wurde.
+// TypeGroup is one kind in the listing — own query, own page.
+// Refetching happens server-side: the number next to the heading is the
+// total, not what was just downloaded.
 function TypeGroup({
   type,
   me,
@@ -178,9 +178,9 @@ function TypeGroup({
   );
 }
 
-// EntryRow ist die schmale Zeile der Auflistung. Sie klappt zur ganzen Karte
-// auf — was man sucht, findet man in der Zeile; was man entscheiden will,
-// braucht den Diff darunter.
+// EntryRow is the narrow row of the listing. It opens into the full card —
+// what you search for you find in the row; what you want to decide
+// needs the diff below it.
 function EntryRow({ entry, me }: { entry: InboxEntry; me: Principal }) {
   const { t, i18n } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -211,7 +211,7 @@ function EntryCard({ entry, me, onCollapse }: { entry: InboxEntry; me: Principal
   return null;
 }
 
-// CardHead ist die gemeinsame Kopfzeile beider Sorten: woher, um wen, wann.
+// CardHead is the shared header line of both kinds: where from, about whom, when.
 function CardHead({
   entry,
   kindLabel,
@@ -242,8 +242,8 @@ function CardHead({
   );
 }
 
-// ApprovalCard: hier wartet ein Agent. Deshalb steht die Aktion mit ihren
-// Parametern da und nicht eine Zusammenfassung — freigegeben wird genau das.
+// ApprovalCard: here an agent waits. That is why the action stands here with
+// its parameters and not a summary — exactly this is what gets approved.
 function ApprovalCard({
   entry,
   approval,
@@ -352,8 +352,8 @@ function ItemCard({
   });
 
   const konflikt = (item.conflicts?.length ?? 0) > 0;
-  // Wer entscheiden darf: die Tiefe des Vorschlags bestimmt es, nicht der
-  // Klick. Fasst er ACCESS.md oder EGRESS.md an, entscheidet Security.
+  // Who may decide: the depth of the proposal decides it, not the
+  // click. If it touches ACCESS.md or EGRESS.md, security decides.
   const darfEntscheiden = canManage(me.Role) || me.Role === "security";
   const darfAnnehmen =
     darfEntscheiden &&
@@ -378,8 +378,8 @@ function ItemCard({
         </div>
       )}
 
-      {/* Beim Issue steht, wo der Bericht schon liegt — sonst muss ihn jeder
-          Leser suchen. */}
+      {/* For the issue it says where the report already sits — otherwise every
+          reader has to search for it. */}
       {item.link && (
         <a className="text-xs" href={item.link} target="_blank" rel="noreferrer">
           {item.link}
@@ -438,8 +438,8 @@ function ItemCard({
   );
 }
 
-// FileDiff zeigt die geänderte Datei zeilenweise gegen den LAUFENDEN Stand —
-// beurteilt wird die Änderung, die durch das Annehmen entsteht.
+// FileDiff shows the changed file line by line against the RUNNING state —
+// what gets judged is the change that accepting produces.
 function FileDiff({ file, before, after }: { file: string; before: string; after: string }) {
   const { t } = useTranslation();
   const chunks = collapse(diffLines(before, after));

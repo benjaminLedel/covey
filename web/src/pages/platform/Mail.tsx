@@ -4,17 +4,17 @@ import { useTranslation } from "react-i18next";
 import { api, post, put, type Setting } from "../../api";
 import PlatformHeader from "./Header";
 
-/** Der Mailversand dieser Installation (#167).
+/** Mail delivery of this installation (#167).
  *
- *  Eine eigene Seite und nicht eine Zeile in der Schalterliste, wegen des
- *  Knopfes: eine falsche Mail-Einstellung merkt sonst als Erster, wessen
- *  Bestätigungslink nie ankommt — und genau diese Person kann es niemandem
- *  melden, denn dafür bräuchte sie ein Konto.
+ *  Its own page and not one row in the switch list, because of the button:
+ *  a wrong mail setting is noticed first by whoever never gets their
+ *  confirmation link — and that very person can tell no one, since for that
+ *  they would need an account.
  *
- *  Die Testmail nimmt DENSELBEN Weg wie eine echte (derselbe Sender, dieselben
- *  gespeicherten Einstellungen), und sie sendet den GESPEICHERTEN Stand, nicht
- *  das ungespeicherte Formular: erst sichern, dann prüfen, damit das Bewiesene
- *  das Laufende ist. Deshalb ist der Knopf gesperrt, solange etwas offen ist. */
+ *  The test mail takes the SAME route as a real one (same sender, the same
+ *  stored settings), and it sends the STORED state, not the unsaved form:
+ *  save first, then check, so that what is proven is what is current. That is
+ *  why the button stays locked while anything is still open. */
 
 const FIELDS = [
   { key: "mail.smtp_host", type: "text", placeholder: "mail.example.com" },
@@ -36,9 +36,9 @@ export default function Mail() {
   const byKey = Object.fromEntries((settings.data ?? []).map((s) => [s.key, s]));
 
   const [draft, setDraft] = useState<Record<string, string>>({});
-  // Der Server ist die Wahrheit: nach jedem Speichern und bei jedem Neuladen
-  // gilt wieder, was dort steht. Ohne das zeigte das Formular nach einem
-  // fehlgeschlagenen PUT weiter den Wunsch statt des Zustands.
+  // The server is the truth: after every save and on every reload what stands
+  // there applies again. Without this the form kept showing the wish instead
+  // of the state after a failed PUT.
   useEffect(() => {
     if (!settings.data) return;
     const next: Record<string, string> = {};
@@ -53,8 +53,8 @@ export default function Mail() {
 
   const save = useMutation({
     mutationFn: async () => {
-      // Nacheinander, nicht parallel: schlägt ein Wert fehl, soll die Meldung
-      // zu ihm gehören und nicht die einer Sammelanfrage sein.
+      // One after another, not in parallel: if a value fails, the message
+      // should belong to it and not to one bulk request.
       for (const f of changed) await put(`/platform/settings/${f.key}`, { value: draft[f.key] ?? "" });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["platform", "settings"] }),
@@ -130,9 +130,9 @@ export default function Mail() {
         {save.isError && (
           <p className="text-xs mt-2" style={{ color: "var(--text-danger)" }}>{(save.error as Error).message}</p>
         )}
-        {/* Der SMTP-Fehler wortwörtlich: „535 5.7.8 authentication failed“
-            schickt jemanden zum Passwort, „connection refused“ zum Port —
-            jeder Satz, den wir an seine Stelle setzten, wäre ungenauer. */}
+        {/* The SMTP error verbatim: `535 5.7.8 authentication failed` sends
+            someone to the password, `connection refused` to the port — every
+            sentence we put in its place would be less exact. */}
         {test.isError && (
           <p className="text-xs mt-2 mono" style={{ color: "var(--text-danger)" }}>{(test.error as Error).message}</p>
         )}

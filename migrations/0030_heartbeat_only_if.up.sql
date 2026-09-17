@@ -1,5 +1,5 @@
--- Heartbeats: optionale Feuer-Bedingung nur-wenn: <system>. Vor dem Anlegen
--- der Backlog-Aufgabe fragt die Control Plane das Zielsystem-Plugin, ob
--- Arbeit vorliegt (z. B. ungelesene Mails per IMAP) — liegt keine vor,
--- entfällt der Lauf und damit der (teure) Agenten-Wake. Leer = immer feuern.
+-- Heartbeats: optional fire condition nur-wenn: <system>. Before the backlog
+-- task is created the control plane asks the target system plugin whether
+-- there is any work (e.g. unread mail over IMAP) — if there is none,
+-- the run falls away and with it the (expensive) agent wake. Empty = fire always.
 ALTER TABLE agent_heartbeats ADD COLUMN only_if TEXT NOT NULL DEFAULT '';

@@ -14,17 +14,17 @@ import (
 	"covey/internal/sandbox"
 )
 
-/* Der Agent fährt hoch, was sein Projekt braucht (spec/16, #121).
+/* The agent brings up what its project needs (spec/16, #121).
 
-   Das ist die Hälfte, die aus dem Mechanismus etwas Brauchbares macht: Eine
-   getippte Deklaration setzt voraus, dass jemand VOR dem Lauf wusste, welche
-   Datenbank dieses Projekt will. Für einen QA-Agenten, der Merge Requests in
-   mehreren Projekten abnimmt, stimmt das ab dem zweiten Projekt nicht mehr —
-   und die Antwort stand die ganze Zeit im Repository.
+   That is the half that makes something usable out of the mechanism: a
+   typed-up declaration presupposes that someone KNEW BEFORE the run which
+   database this project wants. For a QA agent that signs off merge requests in
+   several projects, that stops being true from the second project on —
+   and the answer was standing in the repository the whole time.
 
-   Geprüft wird der ganze Weg: Der Agent schickt den Inhalt der Datei, die
-   Steuerebene liest die Teilmenge, fragt die Allowlist der Organisation und
-   lässt den Host hochfahren, was übrig bleibt. */
+   The whole path is checked: the agent sends the content of the file, the
+   control plane reads the subset, asks the organisation's allowlist and
+   has the host bring up what is left. */
 
 const composeFile = `services:
   app:
@@ -79,7 +79,7 @@ func TestTheAgentBringsUpItsProjectsServices(t *testing.T) {
 	}, &s.adminID); err != nil {
 		t.Fatal(err)
 	}
-	// Die Organisation erlaubt Postgres — und sonst nichts.
+	// The organisation permits Postgres — and nothing else.
 	if _, err := s.workplaces.AddServicePattern(ctx, s.orgID, "postgres:*", ""); err != nil {
 		t.Fatal(err)
 	}
@@ -123,13 +123,13 @@ func TestTheAgentBringsUpItsProjectsServices(t *testing.T) {
 		t.Fatalf("the event is not readable: %v\n%s", err, payload)
 	}
 
-	// Die Datenbank läuft — unter dem Namen, den die Compose-Datei ihr gibt.
+	// The database runs — under the name that the compose file gives it.
 	if len(got.Services) != 1 || got.Services[0].Name != "db" || got.Services[0].Image != "postgres:16" {
 		t.Fatalf("the database did not come up: %+v", got.Services)
 	}
-	// Das fremde Image nicht, und das steht als Ablehnung da statt still zu
-	// verschwinden: Ein Agent, der nicht weiß, dass etwas fehlt, meldet den
-	// falschen Befund.
+	// The foreign image does not, and that stands there as a refusal instead of
+	// vanishing quietly: an agent that does not know that something is missing
+	// reports the wrong finding.
 	if len(got.Refused) != 1 || got.Refused[0].Name != "forbidden" {
 		t.Fatalf("the image outside the allowlist was not refused: %+v", got.Refused)
 	}
@@ -138,9 +138,9 @@ func TestTheAgentBringsUpItsProjectsServices(t *testing.T) {
 	}
 }
 
-// Ohne den Scope existiert die Aktion für den Agenten nicht — und er liest auch
-// nichts darüber. Eine angedeutete Fähigkeit, die dann abgewiesen wird, ist die
-// schlechteste Sorte (spec/20).
+// TestWithoutTheScopeTheAgentNeitherReadsNorCallsIt: without the scope the action
+// does not exist for the agent — and it reads nothing about it either. A
+// hinted capability that is then refused is the worst kind (spec/20).
 func TestWithoutTheScopeTheAgentNeitherReadsNorCallsIt(t *testing.T) {
 	ctx := context.Background()
 	s := newStack(t)
@@ -174,8 +174,8 @@ func TestWithoutTheScopeTheAgentNeitherReadsNorCallsIt(t *testing.T) {
 	if strings.Contains(result, "start_services") && !strings.Contains(result, "covey") {
 		t.Fatalf("an agent without the scope read about the action:\n%s", kürzen(result))
 	}
-	// Und die Aktion selbst wird abgewiesen — mit der Zeile, die sie
-	// freischalten würde, denn wer das liest, ist ein Mensch an einer Config.
+	// And the action itself is rejected — with the line that would unlock
+	// it, because whoever reads this is a person at a config.
 	events, _ := s.obs.Events(ctx, agent.ID, &task.ID, 0, 500)
 	for _, e := range events {
 		if e.Kind == observability.KindService {

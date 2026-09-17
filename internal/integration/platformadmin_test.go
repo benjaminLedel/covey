@@ -9,18 +9,18 @@ import (
 	"covey/internal/settings"
 )
 
-// Das Plattform-Panel: Konten, Schalter der Installation, Wartelisten-Codes.
+// The platform panel: accounts, installation settings, waitlist codes.
 //
-// Alle drei hingen bisher an der Kommandozeile oder an gar nichts — die Stores
-// gab es seit FR-002 P3/P4, eine Adresse dafür nicht. Diese Tests halten fest,
-// was sie jetzt beantworten und wem sie überhaupt antworten.
+// All three hung on the command line or on nothing at all — the stores have
+// existed since FR-002 P3/P4, an address for them has not. These tests hold what
+// they answer now, and who gets an answer at all.
 
 func TestPlattformVerwaltungNurFuerSystemadmin(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
 	admin := login(t, s, "admin@test.local", "admin-passwort")
 
-	// Als org_admin: es gibt diese Verwaltung nicht.
+	// As org_admin: this admin API does not exist.
 	for _, pfad := range []string{
 		"/api/v1/platform/accounts",
 		"/api/v1/platform/settings",
@@ -37,8 +37,8 @@ func TestPlattformVerwaltungNurFuerSystemadmin(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Konten: eines, mit genau einem Sitz — und die Rolle daran ist die des
-	// Sitzes, nicht die der Instanz.
+	// Accounts: one, with exactly one seat — and the role on it is the seat's,
+	// not the instance's.
 	konten := admin.expectList(http.MethodGet, "/api/v1/platform/accounts", nil, http.StatusOK)
 	if len(konten) != 1 {
 		t.Fatalf("%d Konten, erwartet 1", len(konten))
@@ -54,14 +54,14 @@ func TestPlattformVerwaltungNurFuerSystemadmin(t *testing.T) {
 	if konten[0]["platform_role"] != accounts.RoleSystemAdmin {
 		t.Errorf("platform_role = %v, erwartet system_admin", konten[0]["platform_role"])
 	}
-	// Die Anmeldung hat last_login_at gesetzt — die Spalte gab es seit 0058,
-	// geschrieben hat sie niemand.
+	// The login set last_login_at — the column existed since 0058, nobody had
+	// written to it.
 	if konten[0]["last_login_at"] == nil {
 		t.Error("last_login_at ist leer, obwohl dieses Konto sich gerade angemeldet hat")
 	}
 
-	// Die eigene Ebene abzugeben geht nicht, solange niemand sonst sie hat:
-	// der Weg zurück führte über die Shell des Servers.
+	// Giving up one's own tier does not work while nobody else holds it: the
+	// way back would run over the server's shell.
 	id := konten[0]["id"].(string)
 	admin.expect(http.MethodPatch, "/api/v1/platform/accounts/"+id,
 		map[string]string{"platform_role": "user"}, http.StatusConflict)
@@ -85,11 +85,11 @@ func TestSystemEinstellungenUeberDieApi(t *testing.T) {
 		}
 	}
 
-	// Gültig, ungültig, unbekannt: drei Antworten, nicht eine.
+	// Valid, invalid, unknown: three answers, not one.
 	//
-	// Der gültige Wert braucht seit #167 einen nachgewiesenen Mailversand —
-	// eine Instanz ohne ihn nähme Konten auf, deren Bestätigungslink nie
-	// abginge. Was der Nachweis wert ist, prüft mail_test.go.
+	// Since #167 the valid value needs proven mail delivery — an instance
+	// without it would admit accounts whose confirmation link never
+	// went out. What the proof is worth, mail_test.go checks.
 	s.proveMailer(t)
 	admin.expect(http.MethodPut, "/api/v1/platform/settings/"+settings.SignupMode,
 		map[string]string{"value": settings.ModeWaitlist}, http.StatusOK)
@@ -98,7 +98,7 @@ func TestSystemEinstellungenUeberDieApi(t *testing.T) {
 	admin.expect(http.MethodPut, "/api/v1/platform/settings/signup.mod",
 		map[string]string{"value": "off"}, http.StatusNotFound)
 
-	// Und der Schalter wirkt: die öffentliche Seite gibt jetzt Auskunft.
+	// And the flag takes effect: the public page now reports it.
 	oeffentlich := admin.expect(http.MethodGet, "/api/v1/public/signup-state", nil, http.StatusOK)
 	if oeffentlich["mode"] != settings.ModeWaitlist {
 		t.Errorf("öffentlicher Zustand = %v, erwartet waitlist", oeffentlich["mode"])
@@ -113,7 +113,7 @@ func TestWartelistenCodesUeberDieApi(t *testing.T) {
 	}
 	admin := login(t, s, "admin@test.local", "admin-passwort")
 
-	// Der Klartext existiert genau einmal — in dieser Antwort.
+	// The plaintext exists exactly once — in this response.
 	erzeugt := admin.expect(http.MethodPost, "/api/v1/platform/waitlist-codes",
 		map[string]any{"label": "Konferenz X", "max_uses": 3}, http.StatusCreated)
 	if erzeugt["code"] == nil || erzeugt["code"] == "" {
@@ -127,14 +127,14 @@ func TestWartelistenCodesUeberDieApi(t *testing.T) {
 	if liste[0]["label"] != "Konferenz X" {
 		t.Errorf("Label = %v", liste[0]["label"])
 	}
-	// Die Liste trägt den Hash, nicht den Code.
+	// The list carries the hash, not the code.
 	hash, _ := liste[0]["hash"].(string)
 	if hash == "" || hash == erzeugt["code"] {
 		t.Fatalf("Liste zeigt %q — das darf nicht der Klartext sein", hash)
 	}
 
-	// Zurückziehen löscht nicht, es schließt: wer ihn eingelöst hat, bleibt
-	// sichtbar.
+	// Revoking does not delete, it closes: whoever redeemed it stays
+	// visible.
 	admin.expect(http.MethodDelete, "/api/v1/platform/waitlist-codes/"+hash[:16], nil, http.StatusOK)
 	liste = admin.expectList(http.MethodGet, "/api/v1/platform/waitlist-codes", nil, http.StatusOK)
 	if len(liste) != 1 || liste[0]["revoked_at"] == nil {

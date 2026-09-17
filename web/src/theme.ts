@@ -1,16 +1,16 @@
-/* Erscheinungsbild: hell, dunkel oder das, was das Betriebssystem sagt.
+/* Appearance: light, dark or what the operating system says.
 
-   Die Farben selbst stehen im Stylesheet — jedes Token trägt dort beide
-   Fassungen nebeneinander (`light-dark()` in src/styles.css), und ohne weiteres
-   Zutun folgt die Oberfläche der Systemeinstellung. Dieses Modul setzt nur den
-   Schalter für den Fall, dass jemand ausdrücklich widerspricht: ein
-   `data-theme`-Attribut am Wurzelelement, das `color-scheme` festnagelt.
+   The colors themselves stand in the stylesheet — every token carries both
+   variants side by side there (`light-dark()` in src/styles.css), and the
+   interface follows the system setting without further help. This module only
+   sets the switch for the case where someone explicitly disagrees: a
+   `data-theme` attribute on the root element that pins `color-scheme`.
 
-   Warum kein Skript im <head>, das vor dem ersten Bild die Farbe setzt: Es
-   bräuchte keins. Die Voreinstellung „System" kommt aus dem Stylesheet, ist
-   also schon im ersten Rendervorgang richtig — und die eigene CSP erlaubt
-   ohnehin kein Inline-Skript. Nur wer ausdrücklich gegen sein System wählt,
-   sieht beim Laden kurz die Systemfassung. */
+   Why no script in <head> that sets the color before the first paint: none is
+   needed. The "System" default comes from the stylesheet, so it is already
+   right in the first render pass — and our own CSP allows no inline script
+   anyway. Only whoever explicitly chooses against their system briefly sees
+   the system variant while loading. */
 
 export type Theme = "system" | "light" | "dark";
 
@@ -22,10 +22,10 @@ function istTheme(wert: string | null): wert is Theme {
   return wert === "system" || wert === "light" || wert === "dark";
 }
 
-/* Die Abfrage hängt an window, nicht an localStorage — wie bei der Sprachwahl
-   (siehe i18n.ts): Node bringt ein globales localStorage ohne Methoden mit, an
-   dem das Vorrendern sonst zerbräche. Der try/catch fängt den Browser, der
-   Speicher verweigert (Privatmodus, geblockte Drittanbieter-Daten). */
+/* The query hangs on window, not on localStorage — as with the language choice
+   (see i18n.ts): Node brings a global localStorage without methods, on which
+   the prerender would otherwise break. The try/catch covers the browser that
+   refuses storage (private mode, blocked third-party data). */
 export function gespeichertesTheme(): Theme {
   if (typeof window === "undefined") return "system";
   try {
@@ -41,13 +41,13 @@ export function merkeTheme(theme: Theme) {
   try {
     window.localStorage.setItem(THEME_KEY, theme);
   } catch {
-    /* Ohne Speicher bleibt die Wahl auf diese Sitzung beschränkt. */
+    /* Without storage the choice stays confined to this session. */
   }
 }
 
-/* „system" heißt: kein Attribut. Dann greift `color-scheme: light dark` aus dem
-   Stylesheet und der Browser entscheidet nach der Systemeinstellung — auch
-   wenn sie sich während der Sitzung ändert. */
+/* "system" means: no attribute. Then `color-scheme: light dark` from the
+   stylesheet takes hold and the browser decides by the system setting — also
+   when it changes during the session. */
 export function wendeThemeAn(theme: Theme) {
   if (typeof document === "undefined") return;
   const wurzel = document.documentElement;
@@ -55,19 +55,19 @@ export function wendeThemeAn(theme: Theme) {
   else wurzel.setAttribute("data-theme", theme);
 }
 
-/* Beim Start einmal anwenden, was gespeichert ist. */
+/* On startup apply once what is stored. */
 export function initTheme(): Theme {
   const theme = gespeichertesTheme();
   wendeThemeAn(theme);
   return theme;
 }
 
-/* Wer selbst zeichnet, statt CSS zeichnen zu lassen, muss den Wechsel
-   mitbekommen: Ein Canvas hat die Farben beim Zeichnen aus den Tokens gelesen
-   und behält sie, bis er neu zeichnet — in der falschen Fassung heißt das
-   dunkle Linien auf dunklem Grund. Zwei Quellen lösen ihn aus: die
-   ausdrückliche Wahl (data-theme am Wurzelelement) und, solange „System"
-   gilt, die Systemeinstellung. Gibt eine Funktion zum Abbestellen zurück. */
+/* Whoever draws themselves instead of letting CSS draw has to notice the
+   change: a canvas read its colors from the tokens while drawing and keeps
+   them until it draws again — in the wrong variant that means dark lines on a
+   dark ground. Two sources trigger it: the explicit choice (data-theme on the
+   root element) and, while "System" holds, the system setting. Returns a
+   function to unsubscribe. */
 export function beobachteTheme(beiWechsel: () => void): () => void {
   if (typeof window === "undefined") return () => {};
 

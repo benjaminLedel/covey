@@ -183,7 +183,7 @@ func TestHeartbeatManualFire(t *testing.T) {
 }
 
 // TestHeartbeatSignatureSurvivesAFailedRun covers the standstill that stopped a
-// QA agent on covey.work: the signature the nur-wenn check fired on is
+// QA agent on covey.work: the signature the `nur-wenn` check fired on is
 // remembered at DISPATCH. If that run then ends without a result, the state
 // counts as seen anyway — and as long as nothing changes in the target system,
 // no further heartbeat fires. The agent has consumed its own alarm clock without

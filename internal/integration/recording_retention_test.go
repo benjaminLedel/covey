@@ -56,7 +56,7 @@ func TestNurDerVerlaufVerfaellt(t *testing.T) {
 	s := newStack(t)
 	agent := s.newSupportAgent("verfall-agent")
 	schreibeVerlaufUndAktion(t, s, agent.ID)
-	altern(t, s, agent.ID, 400) // älter als die Vorgabe von 365 Tagen
+	altern(t, s, agent.ID, 400) // older than the default of 365 days
 
 	n, err := s.obs.CleanupRecordings(ctx)
 	if err != nil {
@@ -105,16 +105,16 @@ func TestAgentDarfNurVerlaengern(t *testing.T) {
 	altern(t, s, kurz.ID, 100)
 	altern(t, s, lang.ID, 100)
 
-	// Die Organisation hält 90 Tage.
+	// The organisation keeps 90 days.
 	if err := s.obs.SetOrgRecordingRetention(ctx, s.orgID, 90); err != nil {
 		t.Fatal(err)
 	}
-	// Der eine will kürzer (30) — das darf nichts bewirken.
+	// One of them wants shorter (30) — that must not do anything.
 	dreissig := 30
 	if err := s.registry.SetRecordingRetention(ctx, kurz.ID, &dreissig); err != nil {
 		t.Fatal(err)
 	}
-	// Der andere will länger (365) — das gilt.
+	// The other wants longer (365) — that one applies.
 	dreihundert := 365
 	if err := s.registry.SetRecordingRetention(ctx, lang.ID, &dreihundert); err != nil {
 		t.Fatal(err)
@@ -123,11 +123,11 @@ func TestAgentDarfNurVerlaengern(t *testing.T) {
 	if _, err := s.obs.CleanupRecordings(ctx); err != nil {
 		t.Fatal(err)
 	}
-	// 100 Tage alt, Organisation hält 90: weg — die 30 des Agenten verkürzen nicht.
+	// 100 days old, organisation keeps 90: gone — the agent's 30 do not shorten.
 	if got := zaehle(t, s, kurz.ID, "runtime"); got != 0 {
 		t.Errorf("an agent must not undercut the organisation: %d left", got)
 	}
-	// 100 Tage alt, Agent hält 365: bleibt.
+	// 100 days old, agent keeps 365: stays.
 	if got := zaehle(t, s, lang.ID, "runtime"); got != 1 {
 		t.Errorf("the agent's longer window has to apply: %d", got)
 	}
@@ -152,7 +152,7 @@ func TestNullBedeutetUnbegrenzt(t *testing.T) {
 		t.Errorf("0 has to mean forever, not immediately: %d", got)
 	}
 
-	// Und dieselbe Bedeutung am Agenten, unter einer Organisation mit Frist.
+	// And the same meaning at the agent, under an organisation with a deadline.
 	if err := s.obs.SetOrgRecordingRetention(ctx, s.orgID, 30); err != nil {
 		t.Fatal(err)
 	}

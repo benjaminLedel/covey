@@ -1,9 +1,9 @@
-# Egress-Proxy-Image für den harten Isolationsmodus (COVEY_EGRESS_ISOLATION=network).
-# Bauen: `make egress-image`. Die Control Plane startet daraus einen Proxy-
-# Container, der auf dem internen Sandbox-Netz als EINZIGER Ausgang sitzt und
-# nur Allowlist-Hosts durchlässt (Allowlist aus DB + ENV, live nachgeladen).
+# Egress proxy image for the hard isolation mode (COVEY_EGRESS_ISOLATION=network).
+# Build: `make egress-image`. The control plane starts a proxy container from
+# it that sits as the ONLY exit on the internal sandbox network and passes
+# allowlist hosts only (allowlist from DB + ENV, reloaded live).
 FROM golang:1.27 AS build
-# Herkunft des Binaries (internal/buildinfo), analog Dockerfile.
+# Provenance of the binary (internal/buildinfo), as in Dockerfile.
 ARG VERSION=dev
 ARG COMMIT=
 ARG DATE=
@@ -14,13 +14,13 @@ COPY cmd/covey ./cmd/covey
 COPY internal ./internal
 COPY migrations ./migrations
 COPY web ./web
-# examples/ und skills/ hängen an //go:embed (Agenten-Vorlagen bzw. der zum
-# Download angebotene Claude-Code-Skill). Der Proxy nutzt beides nie, aber es
-# ist dasselbe Binary — ohne die Verzeichnisse kompiliert es nicht.
+# examples/ and skills/ hang off //go:embed (the agent templates and the Claude
+# Code skill offered for download). The proxy never uses either, but it is the
+# same binary — without those directories it does not compile.
 COPY examples ./examples
 COPY skills ./skills
-# Der Proxy-Container liefert die SPA nie aus; ein Placeholder-dist genügt, damit
-# die //go:embed all:dist-Direktive des web-Pakets baut (kein npm-Build nötig).
+# The proxy container never serves the SPA; a placeholder dist is enough for the
+# //go:embed all:dist directive of the web package to build (no npm build needed).
 RUN mkdir -p web/dist && [ -e web/dist/index.html ] || echo "egress-proxy" > web/dist/index.html
 RUN CGO_ENABLED=0 go build -ldflags "\
         -X covey/internal/buildinfo.version=$VERSION \

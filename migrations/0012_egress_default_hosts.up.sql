@@ -1,8 +1,8 @@
--- Basis-Allowlist pro Organisation: Hosts, die JEDER Agent der Org erreichen
--- darf — bisher als Code-Default fest verdrahtet (api.anthropic.com), jetzt
--- konfigurierbar über die UI. Bestehende Orgs werden mit dem bisherigen
--- Default geseedet, damit sich das Verhalten durch die Migration nicht ändert;
--- neue Orgs seedet die Org-Anlage.
+-- Base allowlist per organisation: hosts that EVERY agent of the org may
+-- reach — until now hardwired as a code default (api.anthropic.com), now
+-- configurable in the UI. Existing orgs are seeded with the previous
+-- default so that the migration does not change behavior;
+-- new orgs are seeded by org creation.
 CREATE TABLE egress_default_hosts (
     id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     org_id  UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,

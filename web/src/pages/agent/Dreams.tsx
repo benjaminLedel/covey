@@ -10,9 +10,9 @@ import {
 
 const LOG_PREFIXES = ["neue Seite: ", "ergänzt: ", "gelöscht: ", "bearbeitet: "];
 
-// logDetail entscheidet, ob die Zusammenfassung neben der Seite noch etwas
-// beiträgt. Meist lautet sie "<Vorgang>: <Seitentitel>" — dann steht dasselbe
-// zweimal in einer Zeile, und genau das machte das Protokoll unlesbar.
+// logDetail decides whether the summary adds anything beyond the page name.
+// Usually it reads `<Vorgang>: <Seitentitel>` — then the same stands twice
+// in one line, and that is exactly what made the log unreadable.
 export function logDetail(summary: string, pageName: string): string {
   let s = (summary ?? "").trim();
   for (const p of LOG_PREFIXES) {
@@ -30,11 +30,11 @@ export function logDetail(summary: string, pageName: string): string {
   return s;
 }
 
-// ── Träume ────────────────────────────────────────────────────────────────
-// Der Agent räumt sein Gedächtnis nachts auf: verschmelzen, umbenennen. Dieser
-// Reiter zeigt, was dabei herauskam — nicht "Wartung gelaufen", sondern welche
-// Seite, von welchem Titel auf welchen, und warum. Jede Umbenennung lässt sich
-// einzeln zurücknehmen; der Traum schreibt schließlich, während niemand zusieht.
+// ── Dreams ────────────────────────────────────────────────────────────────
+// The agent tidies up its memory at night: merges, renames. This tab shows what
+// came of it — not "maintenance ran", but which page, from which title to which,
+// and why. Every rename can be undone one by one; the dream writes while
+// nobody is watching.
 export function Dreams({ agentId, canManage }: { agentId: string; canManage: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -52,8 +52,8 @@ export function Dreams({ agentId, canManage }: { agentId: string; canManage: boo
   const current = list.find((d) => d.status === "running");
   useEffect(() => setPolling(!!current), [current]);
 
-  // Sekundenzeiger: ein Traum ohne sichtbar laufende Uhr sieht nach einer
-  // halben Minute aus wie ein hängender Knopf.
+  // Second hand: a dream without a visibly running clock looks, after half a
+  // minute, like a stuck button.
   const [tick, setTick] = useState(0);
   useEffect(() => {
     if (!current) return;
@@ -161,8 +161,8 @@ export function Dreams({ agentId, canManage }: { agentId: string; canManage: boo
               )}
             </div>
             {d.status === "error" && d.error && <p className="danger-text text-xs">{d.error}</p>}
-            {/* Die Erzählung ist erfunden — das Protokoll darunter ist es nicht.
-                Deshalb sichtbar abgesetzt und als Traum ausgewiesen. */}
+            {/* The narrative is invented — the log below it is not. That is why
+                it is set apart visibly and labelled as a dream. */}
             {d.story && (
               <p className="dream-story">
                 <span className="mark" aria-hidden="true">

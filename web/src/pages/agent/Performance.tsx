@@ -2,27 +2,27 @@ import { useQuery } from "@tanstack/react-query";
 import { api, type IndicatorReport } from "../../api";
 import { PriceList } from "../../components/PriceList";
 
-/** Die Leistungsseite des Mitarbeiters — direkt unter der Kostenleiste, weil
- *  beide dieselbe Frage von zwei Seiten beantworten: was kostet dieser
- *  Mitarbeiter, und was liefert er.
+/** The employee's performance page — directly below the cost bar, because both
+ *  answer the same question from two sides: what does this employee cost, and
+ *  what does it deliver.
  *
- *  Bewusst in der kompakten Darstellung und ohne eigene Überschrift: die
- *  Agentenseite trägt darunter die Reiter (Backlog, Recording, Speicher …), und
- *  die sind der eigentliche Inhalt. Ein Block, der sie aus dem sichtbaren
- *  Bereich schiebt, schadet mehr, als die Zahlen nützen — sie sollen im
- *  Vorbeigehen lesbar sein, nicht die Seite übernehmen.
+ *  Deliberately in the compact display and without its own heading: the agent
+ *  page carries the tabs below it (Backlog, Recording, Memory …), and they are
+ *  the actual content. A block that pushes them out of the visible area harms
+ *  more than the numbers help — they should be readable in passing, not take
+ *  over the page.
  *
- *  Ohne Kennzahlen in der KPIS.md blendet sich die Zeile ganz aus: ein leerer
- *  Kasten auf jeder Agentenseite wäre Rauschen, und der Hinweis, wie man
- *  Kennzahlen anlegt, steht auf der Kostenseite. */
+ *  Without metrics in KPIS.md the row hides itself entirely: an empty box on
+ *  every agent page would be noise, and the note on how to define metrics
+ *  stands on the cost page. */
 export function Performance({ agentId }: { agentId: string }) {
   const rep = useQuery({
     queryKey: ["cost", "indicators", agentId, 30],
     queryFn: () => api<IndicatorReport>(`/agents/${agentId}/cost/indicators?days=30`),
-    // Die Kennzahlen EINES Agenten folgen der Arbeitsakte (spec/21):
-    // Controlling bekommt hier eine 403. Kein Wiederholen und kein Fehlertext —
-    // eine Rolle, die etwas nicht sehen darf, soll es nicht als kaputt
-    // angezeigt bekommen, sondern gar nicht.
+    // The metrics of ONE agent follow the work record (spec/21): controlling
+    // gets a 403 here. No retry and no error text — a role that may not see
+    // something should not be shown it as broken, but should be shown
+    // nothing at all.
     retry: false,
   });
   const data = rep.data;

@@ -1,27 +1,27 @@
--- Die Einstellungen der Installation selbst — eine Zeile je Einstellung.
+-- The settings of the installation itself — one row per setting.
 --
--- Warum in der Datenbank und nicht in der Umgebung: Covey wird von Dritten
--- selbst betrieben (README). Eine Einstellung, die es nur als ENV gibt, kann
--- nur aendern, wer die Unit-Datei bearbeiten und den Prozess neu starten darf
--- — auf einer betriebenen Instanz ist das niemand, der gerade wach ist. Was
--- ein Administrator bedient, gehoert deshalb ins Produkt; in der Umgebung
--- bleibt nur, was noetig ist, um ueberhaupt an diese Tabelle zu kommen
--- (COVEY_DATABASE_URL, COVEY_MASTER_KEY, Adresse, Sandbox-Provider).
+-- Why in the database and not in the environment: Covey is self-hosted by
+-- third parties (README). A setting that exists only as ENV can only be
+-- changed by whoever may edit the unit file and restart the process — on a
+-- hosted instance that is nobody who is awake right now. What an
+-- administrator operates belongs into the product; the environment keeps only
+-- what is needed to reach this table at all
+-- (COVEY_DATABASE_URL, COVEY_MASTER_KEY, address, sandbox provider).
 --
--- Eine Zeile je Schluessel statt einer breiten Tabelle: ein neuer Schalter ist
--- dann eine Zeile und keine Migration. Fehlt die Zeile, gilt die im Code
--- hinterlegte Vorgabe — eine frische Datenbank braucht also keine Aussaat, und
--- eine bestehende Installation bekommt beim Upgrade genau das, was der Code
--- sagt (signup.mode = off).
+-- One row per key instead of a wide table: a new switch is then a row and
+-- not a migration. If the row is missing, the default held in the code applies
+-- — a fresh database therefore needs no seeding, and an existing installation
+-- gets on upgrade exactly what the code says
+-- (signup.mode = off).
 --
--- nonce/ciphertext tragen die geheimen Werte (das SMTP-Passwort), versiegelt
--- mit demselben AES-GCM-Verfahren wie die Secrets. Sie bleiben leer, solange
--- nur Klartext-Einstellungen gesetzt sind.
+-- nonce/ciphertext carry the secret values (the SMTP password), sealed with
+-- the same AES-GCM scheme as the secrets. They stay empty as long as only
+-- plaintext settings are set.
 --
--- Die Nummer springt von 0050 auf 0057, weil 0051-0056 in den offenen Zweigen
--- (Runner, Aufgaben-Wiederholung) vergeben sind. Eine Luecke ist harmlos, eine
--- doppelte Nummer nicht: die zweite gilt als laengst angewandt und wird still
--- uebersprungen — die Tabelle entsteht dann nie.
+-- The number jumps from 0050 to 0057, because 0051-0056 are taken in the open
+-- branches (runner, task repetition). A gap is harmless, a duplicate number is
+-- not: the second one counts as long applied and is skipped silently — the
+-- table is then never created.
 --
 -- feature-requests/002-plattform-registrierung.md
 CREATE TABLE system_settings (

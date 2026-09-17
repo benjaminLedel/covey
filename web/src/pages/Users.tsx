@@ -5,9 +5,9 @@ import { useTranslation } from "react-i18next";
 import { api, del, patch, post, ROLES, type Human, type Principal } from "../api";
 import { Avatar, PersonLink } from "../components/person";
 
-/** `embedded` lässt den eigenen Seitenkopf weg — im Administrations-Panel
- *  steht darüber schon einer, und zwei Überschriften übereinander sind eine zu
- *  viel. */
+/** `embedded` leaves the own page head out — in the administration panel
+ *  one already stands above, and two headings stacked are one
+ *  too many. */
 export default function Users({ me, embedded }: { me: Principal; embedded?: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();

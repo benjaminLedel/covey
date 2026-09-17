@@ -16,11 +16,11 @@ import {
 
 const canEdit = (role: string) => role === "org_admin" || role === "security";
 
-/* Vorschläge, keine Liste: das Muster ist frei, und was hier steht, ist das,
-   was jemand am häufigsten meint. `covey:*` deckt die Meta-Aktionen ab — das,
-   was ein Agent an der Plattform SELBST tut (Kollegen entwerfen, deren Config
-   lesen). Sie kennen seit spec/21 denselben Freigabe-Weg wie eine
-   Zielsystem-Aktion, und ohne einen Vorschlag hier fände sie niemand. */
+/* Suggestions, not a list: the pattern is free, and what stands here is
+   what someone means most often. `covey:*` covers the meta actions — what
+   an agent does to the platform ITSELF (drafting colleagues, reading their
+   config). Since spec/21 they know the same approval path as a target
+   system action, and without a suggestion here nobody would find them. */
 const patternSuggestions = [
   "zammad:reply_external",
   "zammad:*",

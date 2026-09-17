@@ -10,18 +10,18 @@ import pt from "./pt.json";
 import ja from "./ja.json";
 import zh from "./zh.json";
 
-/* Alle Kataloge tragen dieselben Schlüssel.
+/* All catalogues carry the same keys.
 
-   Das ist die Regel aus CLAUDE.md („neue UI-Texte immer in beiden Dateien
-   pflegen") — und seit die Kataloge einzeln nachgeladen werden (i18n.ts),
-   hängt mehr daran als Ordnung: Vorher fing die Ersatzsprache einen
-   vergessenen deutschen Schlüssel mit dem englischen Text auf, weil beide
-   Kataloge im Bündel lagen. Jetzt liegt nur einer davon im Browser, und was
-   fehlt, steht als Schlüssel auf dem Schirm.
+   This is the rule from CLAUDE.md ("always maintain new UI texts in both
+   files") — and since the catalogues are loaded one by one (i18n.ts),
+   more rides on it than tidiness: before, the fallback language caught a
+   forgotten German key with the English text, because both
+   catalogues sat in the bundle. Now only one sits in the browser, and what
+   is missing shows on screen as the key itself.
 
-   Aus zwei Katalogen sind zehn geworden. Englisch ist das Maß: Es ist die
-   Basissprache (i18n.ts), und ein Schlüssel, den nur eine Übersetzung kennt,
-   ist einer, den niemand liest. */
+   Two catalogues became ten. English is the measure: it is the
+   base language (i18n.ts), and a key that only one translation knows is
+   one that nobody reads. */
 function schluessel(obj: unknown, praefix = ""): string[] {
   if (typeof obj !== "object" || obj === null) return [praefix];
   return Object.entries(obj).flatMap(([k, v]) =>
@@ -50,10 +50,10 @@ describe("Die Sprachkataloge", () => {
     expect([...inEn].filter((k) => !drin.has(k)).sort()).toEqual([]);
   });
 
-  /* Ein Platzhalter, der bei der Übersetzung verloren geht, ist ein Satz mit
-     einem Loch: „{{count}} Einträge" wird zu „Einträge". Der Test fängt die
-     Richtung, die weh tut — ein zusätzlicher Platzhalter wäre nur leer, ein
-     fehlender verschluckt die Zahl. */
+  /* A placeholder lost in translation is a sentence with
+     a hole: `{{count}} Einträge` becomes `Einträge`. The test catches the
+     direction that hurts — an extra placeholder would only be empty, a
+     missing one swallows the number. */
   const platzhalter = (s: unknown) => new Set(String(s).match(/\{\{\w+\}\}/g) ?? []);
   const enWerte = new Map(
     schluessel(en).map((k) => [k, k.split(".").reduce<any>((o, t) => o?.[t], en)]),

@@ -209,7 +209,7 @@ func TestRoutenlisteAusDemEchtenBuild(t *testing.T) {
 		{"/registrieren", http.StatusOK},
 		{"/agents", http.StatusOK},
 		{"/agents/7f3e", http.StatusOK},
-		// Was einmal die Website war, gibt es hier nicht mehr.
+		// What used to be the website is not here any more.
 		{"/funktion", http.StatusNotFound},
 		{"/en/how-it-works", http.StatusNotFound},
 		{"/docs/was-ist-covey", http.StatusNotFound},

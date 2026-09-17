@@ -5,10 +5,10 @@ import (
 	"testing"
 )
 
-// Eine erteilte Freigabe ist die Antwort auf die Parameter, die ein Mensch
-// gelesen hat — nicht auf die Aktion. Seit require_approval eine Meta-Action
-// parken lässt und der Agent sie danach WIEDERHOLT, entscheidet allein die
-// Bindung darüber, ob er sie mit denselben Parametern wiederholen muss.
+// An approved grant is the answer to the parameters a human read — not to
+// the action. Since require_approval lets a meta-action park, and the agent
+// REPEATS it afterwards, only the binding decides whether it has to repeat
+// it with the same parameters.
 func TestBindingUnterscheidetParameter(t *testing.T) {
 	freigegeben := map[string]any{"op": "create_agent", "slug": "helper", "display_name": "Helper"}
 	andere := map[string]any{"op": "create_agent", "slug": "backdoor", "display_name": "Helper"}
@@ -16,16 +16,16 @@ func TestBindingUnterscheidetParameter(t *testing.T) {
 	if bindingOf(freigegeben) == bindingOf(andere) {
 		t.Fatal("ein anderer slug muss eine andere Bindung ergeben — sonst ist die Freigabe fuer den einen die Eintrittskarte fuer den anderen")
 	}
-	// Dieselben Parameter zweimal: der Verbrauch findet die Freigabe nur, wenn
-	// die Bindung stabil ist. Reihenfolge im Literal darf keine Rolle spielen.
+	// The same parameters twice: consuming finds the grant only when the
+	// binding is stable. Order in the literal must not matter.
 	wieder := map[string]any{"display_name": "Helper", "slug": "helper", "op": "create_agent"}
 	if bindingOf(freigegeben) != bindingOf(wieder) {
 		t.Fatal("gleiche Parameter muessen dieselbe Bindung ergeben, sonst wird keine Freigabe je verbraucht")
 	}
 }
 
-// Auch die Dateiliste zählt: set_agent_config mit anderen Dateien ist eine
-// andere Handlung, selbst wenn Agent und Aktion gleich bleiben.
+// The file list counts too: set_agent_config with other files is a different
+// action, even when agent and action stay the same.
 func TestBindingUmfasstDateien(t *testing.T) {
 	a := map[string]any{"op": "set_agent_config", "agent": "kollege", "files": []string{"SOUL.md"}}
 	b := map[string]any{"op": "set_agent_config", "agent": "kollege", "files": []string{"SOUL.md", "ACCESS.md"}}
@@ -34,9 +34,9 @@ func TestBindingUmfasstDateien(t *testing.T) {
 	}
 }
 
-// read_recording setzt seine Bindung selbst (den gelesenen Lauf). Die bleibt
-// vorne lesbar stehen, der Fingerabdruck kommt dahinter — sonst wäre die
-// Bindung im Freigabe-Dialog eine Zeichenkette ohne Aussage.
+// read_recording sets its own binding (the run it read). That stays readable
+// up front, the fingerprint comes behind it — otherwise the binding in the
+// approval dialog would be a string with no statement.
 func TestBindingBehaeltDenLaufVorn(t *testing.T) {
 	lauf := "3f1d9c02-0000-4000-8000-000000000001"
 	got := bindingOf(map[string]any{"op": "read_recording", "agent": "kollege", "binding": lauf})
@@ -48,8 +48,8 @@ func TestBindingBehaeltDenLaufVorn(t *testing.T) {
 	}
 }
 
-// Ohne Bindung wäre die Freigabe eine Lizenz auf die Aktion. Der leere String
-// ist deshalb kein zulässiges Ergebnis, auch nicht für leere Parameter.
+// Without a binding the grant would be a licence on the action. The empty
+// string is therefore not an allowed result, not even for empty parameters.
 func TestBindingIstNieLeer(t *testing.T) {
 	if got := bindingOf(map[string]any{}); got == "" {
 		t.Fatal("eine leere Bindung liesse die Freigabe fuer jede Wiederholung gelten")

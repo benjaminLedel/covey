@@ -3,12 +3,12 @@ import { ActivityFeed, buildFeed, phasenAnteil } from "./ActivityFeed";
 import type { RecordingEvent } from "../api";
 import { renderWithProviders } from "../test/render";
 
-/* Der Verlauf ist der Beleg dafür, was ein Agent getan hat — und ein Beleg,
-   der Nebengeräusche als Ereignisse ausgibt, belegt das Falsche. Die Runtime
-   schickt unter `system` dreierlei: den Sitzungsstart, ihren Token-Zähler und
-   den Zustand ihrer Hintergrundaufgaben. In einem gemessenen Lauf waren von
-   192 system-Zeilen zwei ein `init`; der Verlauf zeigte 192 Sitzungsstarts.
-   Diese Tests halten die Unterscheidung fest. */
+/* The feed is the evidence for what an agent has done — and evidence that
+   emits noise as events proves the wrong thing. The runtime sends three
+   things under `system`: the session start, its token counter and the state
+   of its background tasks. In one measured run two of 192 system lines were
+   an `init`; the feed showed 192 session starts. These tests hold the
+   distinction down. */
 
 let nextID = 1;
 const ev = (payload: unknown, kind = "runtime"): RecordingEvent => ({
@@ -33,7 +33,7 @@ describe("system-Ereignisse", () => {
     ]);
     const started = texts(items).filter((t) => t.includes("Session started"));
     expect(started).toHaveLength(1);
-    // Der Token-Zähler und die Zustandsspiegel tauchen gar nicht auf.
+    // The token counter and the state mirrors do not show up at all.
     expect(texts(items)).toHaveLength(1);
   });
 
@@ -69,7 +69,7 @@ describe("tool_progress", () => {
         elapsed_time_seconds: 300,
       }),
     ]);
-    // Kein eigenes Ereignis — und schon gar keine JSON-Zeile.
+    // No event of its own — and certainly no JSON line.
     expect(texts(items)).toHaveLength(0);
     const turn = items.find((i) => i.kind === "turn") as { rows: any[] };
     expect(turn.rows[0].call.elapsedSeconds).toBe(300);
@@ -113,11 +113,11 @@ describe("unbekannte Runtime-Ereignisse", () => {
   });
 });
 
-/* Vor dem ersten Zug eines Agenten liegen auf einem frischen Host zwei
-   Vorgänge, die zusammen eine Dreiviertelstunde dauern können: das Image holen
-   und den Arbeitsplatz herstellen. Hinten dran hängt das Sichern. Die Plattform
-   meldet sie im Fünfzehn-Sekunden-Takt — als Ereignisse gelesen wären das
-   sechzig Zeilen für einen Vorgang. Es ist EINE Zeile, die sich ändert. */
+/* Before an agent's first move, two operations sit on a fresh host that
+   together can take forty-five minutes: pulling the image and building the
+   workspace. The backup hangs on behind them. The platform reports them every
+   fifteen seconds — read as events that would be sixty lines for one
+   operation. It is ONE line that changes. */
 describe("Phasen der Plattform", () => {
   const phase = (p: Record<string, unknown>) => ev({ status: "preparing", ...p }, "lifecycle");
   const phasen = (items: ReturnType<typeof buildFeed>) => items.filter((i) => i.kind === "phase");
@@ -134,8 +134,8 @@ describe("Phasen der Plattform", () => {
   });
 
   it("hält die Anfangsmeldung fest, statt sie zu überschreiben", () => {
-    // Die erste Meldung trägt das Image und keine Zahlen, die zweite Zahlen und
-    // (bei einem Sync) kein Detail. Beides gehört in dieselbe Zeile.
+    // The first report carries the image and no numbers, the second numbers and
+    // (for a sync) no detail. Both belong in the same line.
     const items = buildFeed([
       phase({ phase: "image", detail: "ghcr.io/covey/sandbox:main" }),
       phase({ phase: "image", bytes: 5, bytes_total: 10 }),
@@ -154,8 +154,8 @@ describe("Phasen der Plattform", () => {
     expect(p[0]).toMatchObject({ done: true, bytes: 2_500, ms: 22_000 });
   });
 
-  // Zwei Vorgänge nacheinander sind zwei Zeilen — ein abgeschlossener Sync
-  // nimmt den nächsten nicht mehr in sich auf.
+  // Two operations one after the other are two lines — a completed sync does
+  // not absorb the next one into itself.
   it("beginnt nach dem Abschluss eine neue Zeile", () => {
     const items = buildFeed([
       phase({ phase: "home_sync" }),
@@ -165,8 +165,8 @@ describe("Phasen der Plattform", () => {
     expect(phasen(items)).toHaveLength(2);
   });
 
-  // Verschiedene Phasen laufen nicht ineinander, auch wenn sie sich zeitlich
-  // überschneiden — Image holen und Home herstellen sind zwei Wartezeiten.
+  // Different phases do not run into one another, even when they overlap in
+  // time — pulling the image and building the home are two waits.
   it("hält verschiedene Phasen auseinander", () => {
     const items = buildFeed([
       phase({ phase: "home", count: 100, count_total: 9_870 }),
@@ -186,25 +186,25 @@ describe("Phasen der Plattform", () => {
   });
 });
 
-/* Wenn die Plattform einen Zustand auflöst, hinter dem nichts mehr steht (#83),
-   muss das im Verlauf stehen. Sonst schläft der Agent „einfach so", und die
-   Stunde davor, in der er auf „arbeitet" stand, bleibt unerklärt. */
+/* When the platform reconciles a state behind which nothing is left (#83),
+   that has to show in the feed. Otherwise the agent goes quiet for no reason
+   and the hour before, in which it read "working", stays unexplained. */
 describe("aufgelöste Zustände", () => {
   it("nennt den Zustand, der aufgelöst wurde", () => {
     const items = buildFeed([ev({ status: "stale", was: "working" }, "lifecycle")]);
     const gate = items.find((i) => i.kind === "gate") as { text: string; tone: string } | undefined;
-    // Die übrigen Prüfungen dieser Datei lesen die englischen Texte; hier
-    // ebenso, statt für eine Zeile die Sprache umzustellen.
+    // The other assertions in this file read the English texts; same here,
+    // rather than switching the language for a single line.
     expect(gate?.text).toContain("reconciled");
     expect(gate?.text).toContain("working");
     expect(gate?.tone).toBe("warn");
   });
 });
 
-/* Ein Sync, der scheitert, hinterließ eine Zeile im Debug-Log des Runners und
-   sonst nichts (#72). Die Oberfläche zeigte weiter den letzten geglückten
-   Schnappschuss — wahr und nutzlos, während seither jeder Versuch scheiterte.
-   Im Verlauf ist der Fehlschlag jetzt eine Zeile wie jede andere. */
+/* A sync that failed left one line in the runner's debug log and nothing
+   else (#72). The UI kept showing the last successful snapshot — true and
+   useless while every attempt since then failed. In the feed the failure is
+   now a line like any other. */
 describe("gescheiterte Phasen", () => {
   const phase = (p: Record<string, unknown>) => ev({ status: "preparing", ...p }, "lifecycle");
 
@@ -218,7 +218,7 @@ describe("gescheiterte Phasen", () => {
     expect(p[0].error).toContain("413");
   });
 
-  // Ein Fehlschlag darf nicht als Erfolg durchgehen, nur weil er „fertig" sagt.
+  // A failure may not pass as success only because it reports "done".
   it("hält Fehlschlag und Abschluss auseinander", () => {
     const gut = buildFeed([phase({ phase: "home_sync", done: true, bytes: 42 })]);
     const schlecht = buildFeed([phase({ phase: "home_sync", done: true, error: "weg" })]);
@@ -227,10 +227,10 @@ describe("gescheiterte Phasen", () => {
   });
 });
 
-/* Was ein Agent schreibt, ist Markdown — und stand bis #225 roh im Absatz: die
-   Rauten der Überschriften, die Sterne der Hervorhebung, und eine Tabelle als
-   eine Reihe von Rohren in einer Zeile. Gerade der Bericht, der Zahlen bringt,
-   war dadurch der unleserlichste. */
+/* What an agent writes is Markdown — and up to #225 it stood raw in the
+   paragraph: the hashes of the headings, the stars of the emphasis, and a
+   table as a row of pipes in one line. The report that brings numbers was
+   the least readable of all because of it. */
 describe("Markdown in der Stimme des Agenten", () => {
   const ergebnis = [
     "## Reichweite",

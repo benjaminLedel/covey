@@ -6,11 +6,11 @@ import (
 	"covey/internal/runner"
 )
 
-// Ob ein Host abgelehnt hat, WEIL er Sandboxen trägt, entscheidet, ob aus der
-// Absage ein Plan wird. Das Feld ist die Auskunft; der Satz ist der Rückfall
-// für einen Runner, der von vor dem Feld stammt — und genau der ist der
-// Regelfall dieser Funktion: ein Host, der gerade nicht aktualisiert werden
-// kann, läuft seit einer Weile auf dem alten Binary.
+// Whether a host refused because it CARRIES sandboxes decides whether the
+// refusal becomes a plan. The field is the information; the sentence is the
+// fallback for a runner that predates the field — and that one is
+// exactly the regular case here: a host that cannot be updated right
+// now has been running on the old binary for a while.
 func TestBeschaeftigtErkennenAuchOhneDasNeueFeld(t *testing.T) {
 	faelle := []struct {
 		name string

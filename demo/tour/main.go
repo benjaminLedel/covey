@@ -1,15 +1,15 @@
-// demo-tour fährt die Oberfläche einer covey-Instanz einmal ab und legt von
-// jeder Station ein Bild ab: die Screenshots für das README und die Einzelbilder
-// für das Demo-GIF.
+// demo-tour drives through the interface of a covey instance once and writes
+// an image at each stop: the screenshots for the README and the frames for
+// the demo GIF.
 //
-// Warum als Programm und nicht von Hand: die Bilder im README veralten mit jeder
-// Änderung an der Oberfläche, und von Hand geschossene Bilder sind jedes Mal
-// anders ausgeschnitten, anders gescrollt, anders breit. Hier steht der
-// Ausschnitt im Code — nach einer UI-Änderung einmal laufen lassen und alle
-// Bilder stimmen wieder überein.
+// Why a program and not by hand: the images in the README go stale with
+// every change to the interface, and hand-shot images are cropped
+// differently, scrolled differently, a different width every time. Here the
+// crop stands in the code — after a UI change run it once and all images
+// agree again.
 //
-// Gedacht ist es für die Demo-Instanz aus demo/seed, nicht für eine Instanz mit
-// echten Daten: was hier aufgenommen wird, landet öffentlich im README.
+// It is meant for the demo instance from demo/seed, not for an instance with
+// real data: what is captured here ends up publicly in the README.
 //
 //	go run ./demo/tour -url http://localhost:8495 -out /tmp/tour
 //	python3 demo/tour/build.py /tmp/tour        # Bilder + GIF ins Repo
@@ -29,17 +29,17 @@ import (
 	"github.com/chromedp/chromedp"
 )
 
-// Eine Station der Tour. Entweder eine Adresse (nav) oder ein Klick auf einen
-// Reiter (tab) — die Reiter der Agentenseite stehen nicht in der URL.
+// One stop of the tour. Either an address (nav) or a click on a tab
+// (tab) — the tabs of the agent page do not stand in the URL.
 type stop struct {
-	name     string // Dateiname ohne Endung; zugleich der Name im README
-	nav      string // Pfad, leer = auf der Seite bleiben
-	tab      string // Beschriftung des zu klickenden Reiters
-	click    string // XPath, auf den vor der Aufnahme geklickt wird
-	wait     string // Selektor, der da sein muss, bevor geschossen wird
-	scroll   int    // Pixel, um die vor der Aufnahme gescrollt wird
-	holdMS   int    // wie lange das Bild im GIF stehen bleibt
-	inREADME bool   // wird als JPEG unter web/public/shots/ gebraucht
+	name     string // filename without extension; also the name in the README
+	nav      string // path, empty = stay on the page
+	tab      string // label of the tab to click
+	click    string // XPath to click before the capture
+	wait     string // selector that must be present before the shot
+	scroll   int    // pixels to scroll before the capture
+	holdMS   int    // how long the image stays in the GIF
+	inREADME bool   // needed as a JPEG under web/public/shots/
 }
 
 func main() {
@@ -73,8 +73,8 @@ func run(base, out, lang string, width, height int) error {
 	ctx, cancelTimeout := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancelTimeout()
 
-	// Anmelden über den Demo-Knopf, den die Anmeldekarte auf localhost zeigt —
-	// so steht in diesem Programm kein Passwort.
+	// Sign in through the demo button the sign-in card shows on localhost —
+	// that way no password stands in this program.
 	log.Printf("anmelden an %s", base)
 	if err := chromedp.Run(ctx,
 		chromedp.EmulateViewport(int64(width), int64(height)),
@@ -86,9 +86,9 @@ func run(base, out, lang string, width, height int) error {
 		return fmt.Errorf("anmelden: %w", err)
 	}
 
-	// Sprache festlegen und die Erste-Schritte-Liste ausblenden: sie richtet
-	// sich an eine frische Instanz und erzählt im Screenshot die falsche
-	// Geschichte.
+	// Set the language and hide the first-steps list: it is
+	// aimed at a fresh instance and tells the wrong story in the
+	// screenshot.
 	if err := chromedp.Run(ctx,
 		chromedp.Evaluate(fmt.Sprintf(`localStorage.setItem("covey.lang", %q);`+
 			`localStorage.setItem("covey.onboarding.dismissed", "1")`, lang), nil),
@@ -103,8 +103,8 @@ func run(base, out, lang string, width, height int) error {
 		return err
 	}
 
-	// Die Reiter tragen übersetzte Beschriftungen — angeklickt wird, was in
-	// der eingestellten Sprache dasteht (web/src/locales/*.json).
+	// The tabs carry translated labels — what gets clicked is what stands in
+	// the set language (web/src/locales/*.json).
 	tabMemory := "Memory"
 	if lang == "de" {
 		tabMemory = "Gedächtnis"
@@ -112,12 +112,12 @@ func run(base, out, lang string, width, height int) error {
 
 	stops := []stop{
 		{name: "agents", nav: "/", wait: `a[href^="/agents/"]`, holdMS: 2600, inREADME: true},
-		// Das Board steht unter dem Formular "Neue Aufgabe" — ohne Scrollen
-		// zeigt das Bild ein leeres Eingabefeld statt der Arbeit.
+		// The board stands below the "New task" form — without scrolling the
+		// image shows an empty input field instead of the work.
 		{name: "backlog", nav: "/agents/" + adaID, wait: `.kanban`, scroll: 105, holdMS: 2800, inREADME: true},
 		{name: "recording", tab: "Recording", wait: `.card`, holdMS: 3000},
-		// Eine Seite aufschlagen: der Lesebereich ist sonst leer, und gerade er
-		// zeigt, dass das Gedächtnis lesbarer Text ist und keine Vektorsuppe.
+		// Open a page: otherwise the reading area is empty, and it is exactly
+		// that area which shows the memory is readable text and not vector soup.
 		{name: "memory", tab: tabMemory, click: `//*[contains(text(), 'Known issue')]`,
 			wait: `.wiki-group`, holdMS: 2800, inREADME: true},
 		{name: "org", nav: "/org", wait: `.org-legend`, holdMS: 2800, inREADME: true},
@@ -151,8 +151,8 @@ func run(base, out, lang string, width, height int) error {
 			actions = append(actions, chromedp.Evaluate(
 				fmt.Sprintf(`window.scrollTo({top: %d})`, st.scroll), nil))
 		}
-		// Ruhen lassen: Diagramme animieren beim Aufbau, und ein Bild mitten
-		// in der Animation sieht aus wie ein Darstellungsfehler.
+		// Let it settle: charts animate while building, and an image in the
+		// middle of the animation looks like a rendering fault.
 		actions = append(actions, chromedp.Sleep(1600*time.Millisecond))
 
 		var buf []byte
@@ -177,8 +177,8 @@ func run(base, out, lang string, width, height int) error {
 	return os.WriteFile(filepath.Join(out, "tour.json"), manifest, 0o644)
 }
 
-// agentID sucht die Kennung eines Agenten über seinen slug — die Kennungen sind
-// bei jedem Seed neu, im Code stehen darf also nur der slug.
+// agentID looks up an agent's identifier via its slug — the identifiers are
+// new with every seed, so only the slug may stand in code.
 func agentID(ctx context.Context, slug string) (string, error) {
 	var id string
 	err := chromedp.Run(ctx, chromedp.Evaluate(fmt.Sprintf(`

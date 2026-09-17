@@ -1,8 +1,8 @@
--- Bisher konnte ein Agent nur an einen Menschen berichten: agents.supervisor_id
--- trug einen Fremdschlüssel auf humans(id) (Migration 0006). Damit sich Agenten
--- auch anderen Agenten unterordnen lassen, wird diese FK-Bindung gelöst.
--- supervisor_id verweist nun polymorph auf einen Menschen ODER einen Agenten
--- derselben Organisation. Die referenzielle Integrität beim Löschen wird
--- stattdessen in der Anwendung gepflegt (agents.Delete und org.DeleteHuman
--- setzen verweisende supervisor_id auf NULL).
+-- Until now an agent could only report to a human: agents.supervisor_id
+-- carried a foreign key on humans(id) (migration 0006). So that agents can
+-- also be subordinate to other agents, this FK binding is dropped.
+-- supervisor_id now points polymorphically at a human OR an agent
+-- of the same organisation. Referential integrity on delete is
+-- maintained in the application instead (agents.Delete and org.DeleteHuman
+-- set referencing supervisor_id to NULL).
 ALTER TABLE agents DROP CONSTRAINT IF EXISTS agents_supervisor_id_fkey;

@@ -1,28 +1,28 @@
--- Wie oft ist dieser Aufgabe hintereinander die Sandbox weggebrochen?
+-- How many times in a row this task has lost its sandbox.
 --
--- Reisst die Daemon-Verbindung mitten im Lauf ab (Docker unter Ressourcendruck,
--- Netzwerk-Blip, gekillter Container), dann ist das ein Infrastruktur-Ereignis
--- und kein Urteil ueber die Arbeit des Agenten — die Aufgabe wird deshalb neu
--- eingereiht statt terminal auf failed gesetzt.
+-- When the daemon connection breaks mid-run (Docker under resource pressure, a
+-- network blip, a killed container), that is an infrastructure event and no
+-- verdict on the agent's work — so the task is requeued instead of being set
+-- to failed terminally.
 --
--- Bei einem *sporadischen* Abbruch ist das richtig. Bei einem
--- *reproduzierbaren* nicht: kaputtes Sandbox-Image nach einem Deploy, OOM beim
--- Container-Start, eine Agent-Config, die den Container zuverlaessig reisst.
--- Dann laeuft open -> ClaimNext -> Sandbox stirbt -> open dauerhaft im Kreis,
--- jede Runde mit einem vollen Sandbox-Start, und nichts im System zeigt an,
--- dass hier etwas feststeckt statt zu arbeiten.
+-- For a *sporadic* abort that is right. For a *reproducible* one it is not:
+-- broken sandbox image after a deploy, OOM at container start, an agent config
+-- that reliably breaks the container. The loop then runs open -> ClaimNext ->
+-- sandbox dies -> open forever, every round with a full sandbox start, and
+-- nothing in the system shows that something here is stuck instead of
+-- working.
 --
--- Dieser Zaehler ist die Obergrenze dagegen. Er steht an der AUFGABE und nicht
--- im Prozessspeicher, weil ein Neustart der Control Plane einer der Faelle ist,
--- die die Abbrueche ausloesen: ein In-Memory-Zaehler waere danach wieder bei
--- null und die Schleife liefe weiter.
+-- This counter is the ceiling against that. It sits on the TASK and not in
+-- process memory, because a restart of the control plane is one of the cases
+-- that trigger the aborts: an in-memory counter would be back at zero after it
+-- and the loop would keep running.
 --
--- Zurueckgesetzt wird er, sobald ein Lauf aus einem ANDEREN Grund endet als dem
--- Verbindungsabbruch (Reopen nach Budget-Stopp, Block, Retry von Hand) — sonst
--- wuerde eine langlebige Aufgabe ueber Wochen an aufaddierten Einzel-Blips
--- scheitern statt an einer echten Serie. "Hintereinander" ist der Punkt.
+-- It resets as soon as a run ends for a DIFFERENT reason than the connection
+-- break (reopen after budget stop, block, manual retry) — otherwise a
+-- long-lived task would fail over weeks on accumulated single blips instead of
+-- on a real series. "In a row" is the point.
 --
--- Kein Index: gelesen wird die Spalte nur zusammen mit der Zeile, die der
--- Dispatcher ohnehin schon in der Hand hat.
+-- No index: the column is only read together with the row the dispatcher
+-- already has in hand anyway.
 ALTER TABLE backlog_tasks
     ADD COLUMN daemon_retries INT NOT NULL DEFAULT 0;

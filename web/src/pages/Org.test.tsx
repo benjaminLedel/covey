@@ -3,11 +3,11 @@ import { screen } from "@testing-library/react";
 import Org, { PlatformRepo } from "./Org";
 import { mockFetch, renderWithProviders, useGerman } from "../test/render";
 
-/* Die Karte „Quelltext dieser Plattform" ist eine Einstellung für genau einen
-   Leser: covey Doctor. Was sie vorher nicht zeigte, war beides — ob es diesen
-   Leser überhaupt gibt, und ob die Einstellung bei ihm ankommt. Das
-   Stammdatum allein ist die halbe Einrichtung; die andere Hälfte ist eine
-   Zeile in seiner ACCESS.md, und die stand nur als Satz im Formular. */
+/* The card "source code of this platform" is a setting for exactly one
+   reader: covey Doctor. What it did not show before was both things — whether
+   this reader exists at all, and whether the setting reaches him. The master
+   data alone is half of the setup; the other half is a line in his ACCESS.md,
+   and that stood only as a sentence in the form. */
 
 const DOCTOR = "dddddddd-dddd-dddd-dddd-dddddddddddd";
 
@@ -25,9 +25,9 @@ const org = {
   description: "",
   platform_repo_system: "gitlab",
   platform_repo_project: "gruppe/covey",
-  /* Seit die Plattform selbst einreicht (#200): ob ein Konto hinterlegt ist,
-     rechnet der Server aus. Ohne das Feld wird nichts gemeldet — und genau
-     das prüft der Test weiter unten. */
+  /* Since the platform files itself (#200): whether an account is on file is
+     computed by the server. Without the field nothing gets reported — and that
+     is exactly what the test further below checks. */
   platform_repo_can_file: true,
 };
 
@@ -35,8 +35,8 @@ const system = (access: boolean, enabled = true) => [
   { name: "gitlab", label: "GitLab", kind: "builtin", enabled, access },
 ];
 
-/* Die Voreinstellung kommt vom Server (buildinfo), nicht aus der Oberfläche —
-   ein Fork trägt damit sein eigenes Projekt. */
+/* The default comes from the server (buildinfo), not from the interface —
+   a fork therefore carries its own project with it. */
 const build = {
   version: "v0.4.0",
   commit: "abc1234",
@@ -60,12 +60,12 @@ beforeEach(useGerman);
 
 describe("Organigramm", () => {
   it("bleibt stehen, wenn das Chart nicht geladen werden kann", async () => {
-    /* Eine 401 auf /org/chart (abgelaufene Sitzung) hat die Seite zerlegt: die
-       Abfrage stand zwischen Fehlversuch und Wiederholung auf „pending, aber
-       nicht unterwegs", und das `chart.data!` dahinter warf eine Ausnahme —
-       React verwirft dann den ganzen Baum, und im Browser stand eine weisse
-       Seite statt der Anmeldung. */
-    mockFetch({}); // alles unbeantwortet → 404
+    /* A 401 on /org/chart (expired session) took the page apart: the query
+       stood between failed attempt and retry at "pending, but not in flight",
+       and the `chart.data!` behind it threw an exception — React then discards
+       the whole tree, and the browser showed a blank page instead of the
+       sign-in. */
+    mockFetch({}); // nothing answered → 404
     renderWithProviders(<Org />);
 
     expect(await screen.findByText("Org-Chart konnte nicht geladen werden.")).toBeInTheDocument();
@@ -77,10 +77,10 @@ describe("Quelltext dieser Plattform", () => {
     mockFetch(routen(true, false));
     renderWithProviders(<PlatformRepo />);
 
-    /* Eingereicht wird trotzdem — das geht über die Plattform. Die fehlende
-       Zeile kostet nur den Blick in den Quelltext. */
+    /* Filing still happens — that goes over the platform. The missing line
+       only costs the look into the source code. */
     expect(await screen.findByText(/Wirkt halb/)).toBeInTheDocument();
-    // Und den Weg dorthin, wo die fehlende Zeile hingehört.
+    // And the way there, where the missing line belongs.
     expect(screen.getByRole("link", { name: "covey Doctor" })).toHaveAttribute(
       "href",
       `/agents/${DOCTOR}?tab=config`,
@@ -96,8 +96,8 @@ describe("Quelltext dieser Plattform", () => {
   });
 
   it("sagt, wenn kein Konto zum Einreichen hinterlegt ist", async () => {
-    /* Der Zustand, der elf Tage lang wie eine fertige Einrichtung aussah: die
-       Adresse steht da, und eingereicht wird trotzdem nichts (#200). */
+    /* The state that looked for eleven days like a finished setup: the address
+       stands there, and nothing still gets filed (#200). */
     mockFetch({
       ...routen(true, true),
       "/api/v1/org": { ...org, platform_repo_can_file: false },
@@ -116,10 +116,10 @@ describe("Quelltext dieser Plattform", () => {
   });
 
   it("zeigt ohne eigenes Repository das Projekt, aus dem die Plattform stammt", async () => {
-    /* Die Karte fragte nach etwas, das die Plattform über sich selbst weiß:
-       Ihr Quelltext liegt da, wo sie herkommt (buildinfo.SourceURL). Ohne
-       Eintrag steht deshalb die Voreinstellung da — nicht „nicht
-       eingerichtet". */
+    /* The card asked about something the platform knows about itself: its
+       source code lies where it comes from (buildinfo.SourceURL). Without an
+       entry the default therefore stands there — not "not
+       set up". */
     mockFetch({
       ...routen(true, true),
       "/api/v1/org": { ...org, platform_repo_system: "", platform_repo_project: "" },
@@ -131,8 +131,8 @@ describe("Quelltext dieser Plattform", () => {
 
     expect(await screen.findByText("benjaminLedel/covey")).toBeInTheDocument();
     expect(screen.getByText(/Voreinstellung/)).toBeInTheDocument();
-    // Und der Zustand prüft gegen das voreingestellte System, nicht gegen ein
-    // gespeichertes: hier hat covey Doctor Zugang zu github.
+    // And the state checks against the preset system, not against a
+    // stored one: here covey Doctor has access to github.
     expect(await screen.findByText(/^Wirkt:/)).toBeInTheDocument();
   });
 

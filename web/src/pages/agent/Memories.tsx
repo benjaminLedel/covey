@@ -22,12 +22,12 @@ import { WIKI_SORTS, WIKI_SORT_KEY, WIKI_TYPES, WikiBody, WikiSort, linkContext,
 export function Memories({ agentId, canManage }: { agentId: string; canManage: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  // Offene Wiki-Seite lebt in der URL (?page=<slug>) — deep-linkbar, Browser-Zurück.
+  // Open wiki page lives in the URL (?page=<slug>) — deep-linkable, browser Back.
   const [sp, setSp] = useSearchParams();
-  // Vier Sichten auf dasselbe Gedaechtnis: die Seiten, ihr Graph, das Protokoll
-  // der Schreibvorgaenge — und die Traeume, in denen der Agent aufraeumt. Als
-  // eigener Reiter stand "Traeume" gleichrangig neben "Gedaechtnis", obwohl es
-  // nichts anderes zeigt als dessen Pflege.
+  // Four views of the same memory: the pages, their graph, the log of the write
+  // operations — and the dreams in which the agent tidies up. As its own tab
+  // "Traeume" stood as an equal next to "Gedaechtnis", although it shows
+  // nothing but that memory's upkeep.
   const [view, setView] = useState<"pages" | "graph" | "log" | "dreams">(
     sp.get("view") === "dreams" ? "dreams" : "pages",
   );
@@ -43,14 +43,14 @@ export function Memories({ agentId, canManage }: { agentId: string; canManage: b
       },
       { replace: false },
     );
-  // Semantische Suche (spec/05, pgvector): Eingabe entprellt, dann Backend ?q=.
+  // Semantic search (spec/05, pgvector): debounce the input, then backend ?q=.
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
   useEffect(() => {
     const h = setTimeout(() => setDebounced(query.trim()), 250);
     return () => clearTimeout(h);
   }, [query]);
-  // Volle Seitenliste — trägt Link-Auflösung (has), Backlinks, Baum und Graph.
+  // Full page list — carries link resolution (has), backlinks, tree and graph.
   const mems = useQuery({
     queryKey: ["memories", agentId],
     queryFn: () => api<MemoryEntry[] | null>(`/agents/${agentId}/memories`),
@@ -65,8 +65,8 @@ export function Memories({ agentId, canManage }: { agentId: string; canManage: b
     queryFn: () => api<WikiLogEntry[] | null>(`/agents/${agentId}/wiki/log`),
     enabled: view === "log",
   });
-  // Qualitätsbefunde (spec/05): was am Wiki verwahrlost, soll man sehen, ohne
-  // es selbst nachzuzählen.
+  // Quality findings (spec/05): what is going stale in the wiki, one should see
+  // it without counting it up oneself.
   const health = useQuery({
     queryKey: ["wiki-health", agentId],
     queryFn: () => api<WikiHealth>(`/agents/${agentId}/wiki/health`),
@@ -128,8 +128,8 @@ export function Memories({ agentId, canManage }: { agentId: string; canManage: b
 
   const bySlug = useMemo(() => new Map(list.map((p) => [p.slug, p])), [list]);
 
-  // Protokoll nach Tagen gruppieren: 25 Zeitstempel untereinander liest niemand,
-  // drei Tagesblöcke mit Uhrzeiten schon.
+  // Group the log by days: nobody reads 25 timestamps one under the other,
+  // three day-blocks with clock times one does.
   const logDays = useMemo(() => {
     const today = new Date().toDateString();
     const yest = new Date(Date.now() - 86400000).toDateString();
@@ -165,9 +165,9 @@ export function Memories({ agentId, canManage }: { agentId: string; canManage: b
   );
   const searching = debounced.length > 0;
 
-  // Nachbarschaft der offenen Seite (sie selbst, ihre Ziele, ihre Rückverweise).
-  // Memoisiert, weil der Graph bei neuer Array-Identität sein Layout verwirft
-  // und die Simulation neu rechnet.
+  // Neighborhood of the open page (itself, its targets, its backlinks).
+  // Memoized because the graph discards its layout on a new array identity
+  // and recomputes the simulation.
   const localPages = useMemo(() => {
     if (!current) return [];
     const names = new Set<string>([current.slug]);
@@ -176,8 +176,8 @@ export function Memories({ agentId, canManage }: { agentId: string; canManage: b
     return list.filter((p) => names.has(p.slug));
   }, [current, backlinks, list, bySlug]);
 
-  // Verwaist = kein lebender Verweis hinein oder hinaus. Wird im Baum gedämpft
-  // dargestellt; die Zahl steht in der Qualitätsleiste.
+  // Orphan = no live link in or out. Shown damped in the tree;
+  // the number stands in the quality bar.
   const orphanSlugs = useMemo(() => {
     const inbound = new Set<string>();
     list.forEach((p) => (p.links ?? []).forEach((l) => bySlug.has(l) && inbound.add(l)));
@@ -186,10 +186,10 @@ export function Memories({ agentId, canManage }: { agentId: string; canManage: b
     );
   }, [list, bySlug]);
 
-  // Grad einer Seite im Wiki-Graph — das einzige Relevanzsignal, das es gibt:
-  // Zugriffe werden nirgends gezählt. Eingehende Verweise wiegen doppelt, denn
-  // eine Seite, auf die andere zeigen, ist ein Knotenpunkt; eine, die nur selbst
-  // viel verlinkt, ist bloß geschwätzig. Tote Verweise zählen nicht mit.
+  // Degree of a page in the wiki graph — the only relevance signal there is:
+  // accesses are counted nowhere. Inbound links count double, because
+  // a page others point to is a hub; one that merely links
+  // out a lot is just chatty. Dead links do not count.
   const degree = useMemo(() => {
     const d = new Map<string, number>();
     list.forEach((p) => d.set(p.slug, 0));
@@ -203,8 +203,8 @@ export function Memories({ agentId, canManage }: { agentId: string; canManage: b
     return d;
   }, [list, bySlug]);
 
-  // Vergleicher für eine Baumebene. Gleichstand fällt immer auf „zuletzt
-  // geändert" zurück — sonst wandern Seiten bei jedem Rendern umher.
+  // Comparator for one tree level. Ties always fall back to "last
+  // changed" — otherwise pages wander about on every render.
   const sortPages = useCallback(
     (a: MemoryEntry, b: MemoryEntry) => {
       if (sort === "title") return (a.title || a.slug).localeCompare(b.title || b.slug, locale);
@@ -217,7 +217,7 @@ export function Memories({ agentId, canManage }: { agentId: string; canManage: b
     [sort, degree, locale],
   );
 
-  // Auf einen Befund gefilterte Seitenmenge.
+  // Set of pages filtered to a single finding.
   const filtered = useMemo(() => {
     if (!filter) return null;
     const slugs = new Set((health.data?.findings ?? []).filter((f) => f.kind === filter).map((f) => f.slug));
@@ -243,8 +243,8 @@ export function Memories({ agentId, canManage }: { agentId: string; canManage: b
     [list, filtered],
   );
 
-  // ── Baum: erste Ebene ist der Seitentyp, darunter die Seiten; eine Seite
-  // lässt sich aufklappen und zeigt dann, worauf sie verweist. ────────────────
+  // ── Tree: first level is the page type, below it the pages; a page
+  // expands and then shows what it links to. ──────────────────────────────────
   const treeRow = (p: MemoryEntry, child: boolean) => {
     const kids = (p.links ?? [])
       .map((l) => bySlug.get(l))
@@ -270,8 +270,8 @@ export function Memories({ agentId, canManage }: { agentId: string; canManage: b
           >
             {kids.length > 0 && !child ? (isOpen ? "▾" : "▸") : "·"}
           </button>
-          {/* Der Tooltip zeigte nur den Inhalt — bei einem abgeschnittenen Titel
-              ist aber der Titel das, was fehlt. Erst er, dann der Auszug. */}
+          {/* The tooltip showed only the content — for a truncated title
+              it is the title that is missing. That first, then the excerpt. */}
           <button
             type="button"
             className="lbl"
@@ -280,8 +280,8 @@ export function Memories({ agentId, canManage }: { agentId: string; canManage: b
           >
             {p.title || p.slug}
           </button>
-          {/* Nach Relevanz sortiert steht dort der Grad — eine Reihenfolge ohne
-              sichtbaren Grund liest sich als Zufall. Sonst: ausgehende Verweise. */}
+          {/* Sorted by relevance this shows the degree — an order without a
+              visible reason reads as chance. Otherwise: outgoing links. */}
           {sort === "relevance"
             ? (degree.get(p.slug) ?? 0) > 0 && (
                 <span className="cnt" title={t("agent.memory.sortDegreeHelp")}>
@@ -310,7 +310,7 @@ export function Memories({ agentId, canManage }: { agentId: string; canManage: b
     );
   });
 
-  // ── Qualitätsleiste ────────────────────────────────────────────────────────
+  // ── Quality bar ────────────────────────────────────────────────────────────
   const h = health.data;
   type QualityItem = { kind: WikiFinding["kind"]; n: number; label: string; help: string };
   const quality: QualityItem[] = h
@@ -346,7 +346,7 @@ export function Memories({ agentId, canManage }: { agentId: string; canManage: b
         <span className="flex-1" />
       </div>
 
-      {/* Qualitätsbefunde: Zahlen, die zugleich Filter sind. */}
+      {/* Quality findings: numbers that double as filters. */}
       {h && list.length > 0 && view !== "dreams" && (
         <div className="wiki-quality mb-3">
           <span className="muted text-[11px] uppercase tracking-wide">{t("agent.memory.quality")}</span>
@@ -386,13 +386,13 @@ export function Memories({ agentId, canManage }: { agentId: string; canManage: b
               <div className="wiki-log-day-h">{day.label}</div>
               <div className="card" style={{ padding: "2px 14px" }}>
                 {day.rows.map((l) => {
-                  // Seiten beim Namen nennen, wo es sie noch gibt — der rohe Slug
-                  // ist bis zu 64 Zeichen lang und sagt weniger als der Titel.
+                  // Name pages by name where they still exist — the raw slug
+                  // is up to 64 characters long and says less than the title.
                   const page = l.page_slug ? bySlug.get(l.page_slug) : undefined;
                   const name = page?.title || page?.slug || l.page_slug || "";
                   const extra = logDetail(l.summary, name);
-                  // Gibt es die Seite nicht mehr, ist ihr Slug kryptisch und bis
-                  // 64 Zeichen lang; dann trägt der Satz aus dem Protokoll mehr.
+                  // If the page is gone, its slug is cryptic and up to
+                  // 64 characters long; then the sentence from the log carries more.
                   const primary = page ? name : extra || name;
                   const detail = page ? extra : "";
                   return (
@@ -446,14 +446,14 @@ export function Memories({ agentId, canManage }: { agentId: string; canManage: b
           </div>
         </div>
       ) : (
-        // ── Arbeitsfläche: Baum | Seite | Kontext ──────────────────────────────
+        // ── Workspace: tree | page | context ─────────────────────────────────
         <div className="wiki-panes">
           <div className="card wiki-pane" style={{ padding: "10px 12px" }}>
             <div className="wiki-search mb-2">
               <input type="search" placeholder={t("agent.memory.searchPlaceholder")} value={query} onChange={(e) => setQuery(e.target.value)} />
             </div>
-            {/* Sortierung je Ebene. Bei der Suche ohne Wirkung — dort ordnet die
-                semantische Ähnlichkeit, und die soll nichts überstimmen. */}
+            {/* Sorting per level. Without effect during search — there the
+                semantic similarity orders, and nothing should outvote it. */}
             {!searching && list.length > 0 && (
               <div className="wiki-sort mb-1">
                 <select value={sort} onChange={(e) => changeSort(e.target.value as WikiSort)} aria-label={t("agent.memory.sortLabel")}>

@@ -9,7 +9,7 @@ import (
 	"covey/internal/agents"
 )
 
-// inboxPage ist die Antwort des Posteingangs, so weit der Test sie liest.
+// inboxPage is the inbox response, as far as the test reads it.
 type inboxPage struct {
 	Items []struct {
 		Type    string `json:"type"`
@@ -36,10 +36,10 @@ func getInbox(t *testing.T, c *apiClient, query string) inboxPage {
 	return page
 }
 
-// TestPosteingangSortiertNachDringlichkeit: eine Liste, zwei Sorten — und die
-// Reihenfolge trägt den Unterschied. Bei einer Freigabe steht eine Aufgabe
-// still, bei einem offenen Punkt wartet niemand; deshalb steht die Freigabe
-// oben, auch wenn sie später kam.
+// TestPosteingangSortiertNachDringlichkeit: one list, two kinds — and the
+// order carries the difference. An approval halts a task, for an open
+// item nobody waits; that is why the approval stands
+// on top, even when it came later.
 func TestPosteingangSortiertNachDringlichkeit(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -47,7 +47,7 @@ func TestPosteingangSortiertNachDringlichkeit(t *testing.T) {
 	ziel := s.newSupportAgent("kollege")
 	autor := s.newSupportAgent("betrieb")
 
-	// Zuerst der Vorschlag, danach die Freigabe.
+	// First the proposal, then the approval.
 	vorschlag(t, s, ziel, autor, map[string]string{"PLAYBOOKS.md": "## Vorgehen\n\nErst lesen."})
 	appr, err := s.obs.CreateApproval(ctx, s.orgID, ziel.ID, nil, "zammad:reply_external",
 		map[string]any{"ticket": 4711})
@@ -66,7 +66,7 @@ func TestPosteingangSortiertNachDringlichkeit(t *testing.T) {
 		t.Fatalf("danach der Vorschlag: %+v", page.Items)
 	}
 
-	// Nach Sorte gefiltert liefert jede Gruppe ihren eigenen Bestand.
+	// Filtered by kind, each group returns its own whole set.
 	if g := getInbox(t, admin, "?type=approval"); g.Total != 1 || g.Items[0].Type != "approval" {
 		t.Fatalf("Gruppe Freigaben: %+v", g)
 	}
@@ -74,8 +74,8 @@ func TestPosteingangSortiertNachDringlichkeit(t *testing.T) {
 		t.Fatalf("Gruppe Vorschlaege: %+v", g)
 	}
 
-	// Geblättert wird serverseitig: eine Seite, und die Zahl daneben bleibt der
-	// Bestand — sonst wüsste „mehr laden" nicht, dass es noch etwas gibt.
+	// Paging is server-side: one page, and the number beside it stays the whole
+	// set — otherwise "load more" would not know that something is left.
 	seite := getInbox(t, admin, "?limit=1")
 	if len(seite.Items) != 1 || seite.Total != 2 {
 		t.Fatalf("limit schneidet die Seite, nicht den Bestand: %+v", seite)
@@ -86,10 +86,10 @@ func TestPosteingangSortiertNachDringlichkeit(t *testing.T) {
 	}
 }
 
-// TestPosteingangControllingSiehtKeineArbeitsakte: Controlling darf Freigaben
-// lesen (das tat es immer) und die Bewertung eines Kollegen nicht — ein
-// Kostenblatt sagt, was ausgegeben wurde, ein Vorschlag sagt, wie jemand
-// gearbeitet hat (spec/21).
+// TestPosteingangControllingSiehtKeineArbeitsakte: Controlling may read approvals
+// (it always could) but not the assessment of a colleague — a
+// cost sheet says what was spent, a proposal says how someone
+// worked (spec/21).
 func TestPosteingangControllingSiehtKeineArbeitsakte(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -111,13 +111,13 @@ func TestPosteingangControllingSiehtKeineArbeitsakte(t *testing.T) {
 	if page.Total != 1 || page.Items[0].Type != "approval" {
 		t.Fatalf("Controlling sieht nur die Freigabe: %+v", page)
 	}
-	// Und auch nicht auf dem direkten Weg.
+	// Nor over the direct route.
 	controlling.expect(http.MethodGet, "/api/v1/improvements", nil, http.StatusForbidden)
 }
 
-// TestPosteingangEntscheidungVerschwindetAusDemVorrat: entschieden heisst weg
-// vom Stapel und trotzdem auffindbar — die Auflistung nach Sorte ist das
-// Archiv, der Vorrat oben nicht.
+// TestPosteingangEntscheidungVerschwindetAusDemVorrat: decided means off
+// the pile and still findable — the listing by kind is the
+// archive, the pile on top is not.
 func TestPosteingangEntscheidungVerschwindetAusDemVorrat(t *testing.T) {
 	s := newStack(t)
 	admin := login(t, s, "admin@test.local", "admin-passwort")

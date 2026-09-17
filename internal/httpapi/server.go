@@ -315,9 +315,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/agents/{id}/export", s.agentScoped(append(manage, identity.RoleSecurity), s.handleExportAgent))
 	mux.Handle("GET /api/v1/agents/{id}/diagnostics", s.agentScoped(append(manage, identity.RoleSecurity), s.handleAgentDiagnostics))
 	mux.Handle("GET /api/v1/agents/{id}/lint", s.agentScoped(append(manage, identity.RoleSecurity), s.handleAgentLint))
-	// Die Arbeitsakte (workrecord.go, spec/21). Sie folgt den Recordings und
-	// nicht den Kostenzahlen: eine Summe sagt, was ausgegeben wurde, eine Akte
-	// sagt, wie jemand gearbeitet hat.
+	// The work record (workrecord.go, spec/21). It follows the recordings and
+	// not the cost figures: a sum says what was spent, a record
+	// says how someone worked.
 	mux.Handle("GET /api/v1/agents/{id}/work-record", s.agentScoped(workRecordRoles(), s.handleWorkRecord))
 	mux.Handle("GET /api/v1/agents/{id}/reviews", s.agentScoped(workRecordRoles(), s.handleAgentReviews))
 	// The workplace: the persistent home as a file tree (files.go). Security
@@ -381,12 +381,12 @@ func (s *Server) Handler() http.Handler {
 	// The workplaces from the catalogue (spec/16) — readable for everyone who
 	// may look at an agent, because that is where they are chosen.
 	mux.Handle("GET /api/v1/workplaces", s.rbac(anyRole, s.handleListWorkplaces))
-	// Das Image herholen, bevor der erste Agent darauf wartet. Wer Agenten
-	// verwaltet, darf das — es beschafft, was die Instanz ohnehin startet, und
-	// aendert an keiner Konfiguration etwas.
+	// Fetch the image before the first agent waits on it. Whoever manages
+	// agents may do that — it procures what the instance starts anyway, and
+	// changes nothing in the configuration.
 	mux.Handle("POST /api/v1/workplaces/{name}/pull", s.rbac(manage, s.handlePullWorkplace))
-	// Ein eigenes Image anmelden — einmal, mit Namen und Beschreibung, statt
-	// als freier Text an jedem Agenten (spec/16).
+	// Register an own image — once, with name and description, instead of
+	// free text on every agent (spec/16).
 	mux.Handle("POST /api/v1/workplaces", s.rbac(manage, s.handleCreateWorkplace))
 	mux.Handle("DELETE /api/v1/workplaces/{name}", s.rbac(manage, s.handleDeleteWorkplace))
 	// Which images may run BESIDE a sandbox as services (spec/16). Under
@@ -424,9 +424,9 @@ func (s *Server) Handler() http.Handler {
 	// RoleOrgAdmin was called before migration 0061 — so the rename, not a
 	// change of who may ask.
 	mux.Handle("GET /api/v1/platform/doctor", s.rbac([]string{identity.RoleOrgAdmin}, s.handleDoctor))
-	// Die Bestaetigung, dass der Blockspeicher in der Sicherung liegt. Nicht
-	// pruefbar, nur festzuhalten — und genau deshalb ein eigener Schritt, den
-	// ein Mensch geht (siehe handleConfirmHomeStoreBackup).
+	// The confirmation that the block store lies in the backup. Not
+	// checkable, only to record — and for that very reason its own step, which
+	// a human takes (see handleConfirmHomeStoreBackup).
 	mux.Handle("POST /api/v1/platform/doctor/home-store-backup",
 		s.rbac([]string{identity.RoleOrgAdmin}, s.handleConfirmHomeStoreBackup))
 	mux.Handle("GET /api/v1/platform/lint", s.rbac(append(manage, identity.RoleSecurity), s.handleOrgLint))
@@ -453,8 +453,8 @@ func (s *Server) Handler() http.Handler {
 	// context every agent works in (spec/20).
 	mux.Handle("GET /api/v1/org", s.rbac(anyRole, s.handleGetOwnOrg))
 	mux.Handle("PATCH /api/v1/org/description", s.rbac(manage, s.handleSetOwnOrgDescription))
-	// Wo der Quelltext dieser Plattform liegt (spec/21). Stammdaten wie die
-	// Unternehmensbeschreibung — wer sie pflegt, pflegt auch das.
+	// Where the source code of this platform lies (spec/21). Master data like the
+	// company description — whoever maintains it maintains this too.
 	mux.Handle("PATCH /api/v1/org/platform-repo", s.rbac(manage, s.handleSetPlatformRepo))
 	mux.Handle("GET /api/v1/org/chart", s.rbac(anyRole, s.handleOrgChart))
 	mux.Handle("GET /api/v1/org/humans/{id}", s.rbac(anyRole, s.handleGetHuman))
@@ -499,9 +499,9 @@ func (s *Server) Handler() http.Handler {
 	// The price list: delivery next to the cost, same scope, same period
 	// (spec/17-kpis.md).
 	mux.Handle("GET /api/v1/cost/indicators", s.rbac(anyRole, s.handleOrgIndicators))
-	// Die Kennzahlen EINES Agenten sind der Kennzahlen-Abschnitt der Akte —
-	// dieselbe Grenze. Die org-weite Preisliste daneben bleibt offen: sie
-	// gruppiert ueber Kennzahl-Schluessel, nicht ueber Personen (spec/17).
+	// The indicators of ONE agent are the indicator section of the record —
+	// the same boundary. The org-wide price list beside it stays open: it
+	// groups by indicator key, not by person (spec/17).
 	mux.Handle("GET /api/v1/agents/{id}/cost/indicators", s.agentScoped(workRecordRoles(), s.handleAgentIndicators))
 	mux.Handle("GET /api/v1/agents/{id}/memories", s.agentScoped(anyRole, s.handleMemories))
 	mux.Handle("POST /api/v1/agents/{id}/memories", s.agentScoped(manage, s.handleCreateMemory))
@@ -532,15 +532,15 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/approvals", s.rbac(anyRole, s.handleListApprovals))
 	mux.Handle("POST /api/v1/approvals/{id}/decide", s.rbac(append(manage, identity.RoleSecurity), s.handleDecideApproval))
 
-	// Der Posteingang (inbox.go): Freigaben und offene Punkte in EINER Liste,
-	// sortier-, filter- und blätterbar. Alle Rollen dürfen ihn abrufen —
-	// Controlling bekommt daraus nur die Freigaben, die Arbeitsakten-Seite
-	// filtert der Handler heraus.
+	// The inbox (inbox.go): approvals and open points in ONE list,
+	// sortable, filterable and scrollable. Every role may fetch it —
+	// controlling gets only the approvals from it, the work record page
+	// the handler filters out.
 	mux.Handle("GET /api/v1/inbox", s.rbac(anyRole, s.handleInbox))
 
-	// Die offenen Punkte aus dem Betrieb (improvements.go, spec/21): Vorschlag,
-	// Befund, Issue. Lesen darf, wen es angeht — Controlling fehlt bewusst,
-	// entschieden wird wie bei den Freigaben.
+	// The open points from operations (improvements.go, spec/21): proposal,
+	// finding, issue. Whoever it concerns may read — controlling is missing on
+	// purpose, what is decided is decided as with the approvals.
 	mux.Handle("GET /api/v1/improvements", s.rbac(improvementReadRoles(), s.handleListImprovements))
 	mux.Handle("GET /api/v1/improvements/{id}", s.rbac(improvementReadRoles(), s.handleGetImprovement))
 	mux.Handle("POST /api/v1/improvements/{id}/decide",
@@ -638,9 +638,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/users", s.rbac(adminOnly, s.handleCreateUser))
 	mux.Handle("PATCH /api/v1/users/{id}", s.rbac(adminOnly, s.handleUpdateUser))
 	mux.Handle("DELETE /api/v1/users/{id}", s.rbac(adminOnly, s.handleDeleteUser))
-	// Die Mandanten gehören der Instanz, nicht einer Organisation: system_admin
-	// statt org_admin (FR-003, Befund F). Die alten Adressen unter /orgs
-	// gibt es nicht mehr — sie waren für jede Organisation erreichbar.
+	// The tenants belong to the instance, not to an organisation: system_admin
+	// instead of org_admin (FR-003, finding F). The old addresses under /orgs
+	// are gone — they were reachable for every organisation.
 	mux.Handle("GET /api/v1/platform/orgs", s.platformAdmin(s.handleListOrgs))
 	mux.Handle("POST /api/v1/platform/orgs", s.platformAdmin(s.handleCreateOrg))
 	mux.Handle("PATCH /api/v1/platform/orgs/{id}", s.platformAdmin(s.handleUpdateOrg))
@@ -650,8 +650,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/platform/orgs/{id}/members", s.platformAdmin(s.handleAddOrgMember))
 	mux.Handle("PATCH /api/v1/platform/orgs/{id}/members/{account}", s.platformAdmin(s.handleUpdateOrgMember))
 	mux.Handle("DELETE /api/v1/platform/orgs/{id}/members/{account}", s.platformAdmin(s.handleRemoveOrgMember))
-	// Der Rest der Instanz-Verwaltung: die Anmeldungen selbst, die Schalter
-	// der Installation und die Wartelisten-Codes (internal/httpapi/platform.go).
+	// The rest of instance administration: the accounts themselves, the switches
+	// of the installation and the waitlist codes (internal/httpapi/platform.go).
 	mux.Handle("GET /api/v1/platform/accounts", s.platformAdmin(s.handleListAccounts))
 	mux.Handle("PATCH /api/v1/platform/accounts/{id}", s.platformAdmin(s.handleSetAccountPlatformRole))
 	mux.Handle("GET /api/v1/platform/settings", s.platformAdmin(s.handleListSettings))

@@ -8,10 +8,10 @@ import (
 	"testing"
 )
 
-/* Der Bild-Abruf ist die längste Wartezeit, die die Plattform hat, und war die
-   stillste: `docker run` holt ein fehlendes Image selbst, mehrere Gigabyte, und
-   sagt bis zum Ende nichts. Die Zahlen dafür stehen in dockers eigenen
-   Fortschrittszeilen — hier wird gelesen, ob wir sie auch herausholen. */
+/* The image pull is the longest wait the platform has, and was the
+   quietest one: `docker run` fetches a missing image by itself, several gigabytes,
+   and says nothing until the end. The numbers for it stand in docker's own
+   progress lines — here we read whether we get them out as well. */
 
 func TestFortschrittszeilenLesen(t *testing.T) {
 	faelle := []struct {
@@ -24,8 +24,8 @@ func TestFortschrittszeilenLesen(t *testing.T) {
 		{"a1b2c3d4: Downloading [====>      ]  1.2GB/3.4GB", "a1b2c3d4", 1_200_000_000, 3_400_000_000, true},
 		{"ff00ee11: Extracting [==========>]  45.5MB/45.5MB", "ff00ee11", 45_500_000, 45_500_000, true},
 		{"abc: Downloading [>          ]  512B/1.5kB", "abc", 512, 1500, true},
-		// Kein Fortschritt, sondern Prosa — und darf nicht als Null gezählt
-		// werden, sonst schrumpft die Summe mitten im Abruf.
+		// Not progress but prose — and must not be counted as zero, or the
+		// sum shrinks in the middle of the pull.
 		{"a1b2c3d4: Pull complete", "", 0, 0, false},
 		{"latest: Pulling from covey/sandbox", "", 0, 0, false},
 		{"Status: Downloaded newer image for covey/sandbox:latest", "", 0, 0, false},
@@ -45,9 +45,9 @@ func TestFortschrittszeilenLesen(t *testing.T) {
 	}
 }
 
-// Mehrere Schichten laufen gleichzeitig; was der Mensch sehen will, ist das
-// Bild, nicht die Schicht. Also die Summe — und zwar mit dem jeweils neuesten
-// Stand jeder Schicht, nicht mit ihrer Summe über die Zeit.
+// Several layers run at the same time; what the human wants to see is the
+// image, not the layer. So the sum — and that with the newest
+// state of each layer, not with their sum over time.
 func TestPullMeldetDieSummeUeberDieSchichten(t *testing.T) {
 	skript := `#!/bin/sh
 echo "latest: Pulling from covey/sandbox"
@@ -75,7 +75,7 @@ echo "Status: Downloaded newer image for covey/sandbox:latest"
 	if meldungen != 3 {
 		t.Fatalf("%d Meldungen, erwartet 3 (nur die Fortschrittszeilen)", meldungen)
 	}
-	// 500 MB von aaaa + 200 MB von bbbb, von 1 GB + 2 GB.
+	// 500 MB from aaaa + 200 MB from bbbb, of 1 GB + 2 GB.
 	if letzte.Bytes != 700_000_000 || letzte.Total != 3_000_000_000 {
 		t.Fatalf("Summe %d/%d, erwartet 700000000/3000000000", letzte.Bytes, letzte.Total)
 	}
@@ -84,9 +84,9 @@ echo "Status: Downloaded newer image for covey/sandbox:latest"
 	}
 }
 
-// Ein fehlgeschlagener Abruf gibt seinen Grund heraus: keine Zugangsdaten für
-// eine private Registry, ein Tippfehler in der Referenz, keine Route zum Host —
-// drei verschiedene Menschen, die das angeht.
+// A failed pull gives out its reason: no credentials for
+// a private registry, a typo in the reference, no route to the host —
+// three different humans that this concerns.
 func TestPullGibtDenGrundHeraus(t *testing.T) {
 	skript := "#!/bin/sh\necho 'Error response from daemon: pull access denied' >&2\nexit 1\n"
 	bin := filepath.Join(t.TempDir(), "docker")

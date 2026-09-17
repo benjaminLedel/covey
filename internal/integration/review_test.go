@@ -16,7 +16,7 @@ import (
 	"covey/internal/buildinfo"
 )
 
-// reviewAgent legt einen Agenten mit dem angegebenen covey-Scope an.
+// reviewAgent creates an agent with the given covey scope.
 func reviewAgent(t *testing.T, s *stack, slug, scope string) agents.Agent {
 	t.Helper()
 	ctx := context.Background()
@@ -37,8 +37,8 @@ func reviewAgent(t *testing.T, s *stack, slug, scope string) agents.Agent {
 	return a
 }
 
-// laufLassen gibt dem Agenten eine Aufgabe und wartet, bis sie fertig ist —
-// mit dem Ergebnis bzw. der Fehlermeldung als Rückgabe.
+// laufLassen gives the agent a task and waits until it is done —
+// returning the result or the error message.
 func laufLassen(t *testing.T, s *stack, agent agents.Agent, titel, body string) (backlog.Task, string) {
 	t.Helper()
 	ctx := context.Background()
@@ -63,10 +63,10 @@ func laufLassen(t *testing.T, s *stack, agent agents.Agent, titel, body string) 
 	return got, ""
 }
 
-// TestReviewScopeTrenntDieBeidenHaelften: `agents:review` schaltet Lesen und
-// Vorschlagen frei und NICHT das Entwerfen; `agents:write` umgekehrt. Die
-// Personalabteilung stellt ein, covey Doctor liest und schlägt vor,
-// und keiner von beiden kann mit den Zugängen des anderen dessen Arbeit machen
+// TestReviewScopeTrenntDieBeidenHaelften: `agents:review` unlocks reading and
+// proposing and NOT the drafting; `agents:write` the other way round. HR
+// hires, covey Doctor reads and proposes, and
+// neither of the two can do the other's work with the other's access
 // (spec/21).
 func TestReviewScopeTrenntDieBeidenHaelften(t *testing.T) {
 	s := newStack(t)
@@ -74,12 +74,12 @@ func TestReviewScopeTrenntDieBeidenHaelften(t *testing.T) {
 	personal := reviewAgent(t, s, "personal", "agents:write")
 	reviewAgent(t, s, "kollege", "")
 
-	// covey Doctor darf lesen …
+	// covey Doctor may read …
 	if _, msg := laufLassen(t, s, betrieb, "Akte lesen",
 		`[mock:action covey/work_record {"agent":"kollege","days":30}]`); strings.Contains(msg, "no access") {
 		t.Fatalf("agents:review muss die Arbeitsakte freischalten: %s", msg)
 	}
-	// … und nicht entwerfen.
+	// … and not draft.
 	if _, msg := laufLassen(t, s, betrieb, "Entwerfen versuchen",
 		`[mock:action covey/create_agent {"display_name":"Heimlich","slug":"heimlich","runtime":"mock"}]`); !strings.Contains(msg, "agents:write") {
 		t.Fatalf("agents:review darf nicht entwerfen duerfen: %s", msg)
@@ -88,14 +88,14 @@ func TestReviewScopeTrenntDieBeidenHaelften(t *testing.T) {
 		t.Fatal("und es darf auch kein Entwurf entstanden sein")
 	}
 
-	// Die Personalabteilung umgekehrt: entwerfen ja, Arbeitsakte nein.
+	// HR the other way round: drafting yes, work record no.
 	if _, msg := laufLassen(t, s, personal, "Akte lesen versuchen",
 		`[mock:action covey/work_record {"agent":"kollege"}]`); !strings.Contains(msg, "agents:review") {
 		t.Fatalf("agents:write darf keine Arbeitsakte lesen: %s", msg)
 	}
 
-	// Die Config eines Kollegen zu LESEN brauchen beide Seiten — wer entwirft,
-	// fuer den Hausstil, wer begutachtet, um zu wissen, worueber er urteilt.
+	// Both sides need to READ a colleague's config — whoever drafts, for the
+	// house style, whoever reviews, to know what he is judging.
 	for _, a := range []agents.Agent{betrieb, personal} {
 		if _, msg := laufLassen(t, s, a, "Config lesen",
 			`[mock:action covey/get_agent_config {"agent":"kollege"}]`); strings.Contains(msg, "no access") {
@@ -104,13 +104,13 @@ func TestReviewScopeTrenntDieBeidenHaelften(t *testing.T) {
 	}
 }
 
-// TestReviewLiestDieEigenenZahlenNicht: die eine Hälfte von Regel 2, die
-// stehen bleibt. Der Grund ist derselbe, aus dem die KPIS.md nicht in den
-// Systemprompt kompiliert wird: wer weiß, woran er gemessen wird, arbeitet auf
-// das Maß hin statt auf die Sache.
+// TestReviewLiestDieEigenenZahlenNicht: the one half of rule 2 that
+// stays. The reason is the same one KPIS.md is not compiled into the
+// system prompt for: whoever knows what he is measured on works towards
+// the measure instead of the thing.
 //
-// Der VORSCHLAG an sich selbst ist dagegen offen — von dort läuft nichts, ein
-// Mensch entscheidet ihn ohnehin (spec/20, der offene Punkt).
+// The PROPOSAL about himself is open instead — nothing runs from there, a
+// human decides it anyway (spec/20, the open point).
 func TestReviewLiestDieEigenenZahlenNicht(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -136,10 +136,10 @@ func TestReviewLiestDieEigenenZahlenNicht(t *testing.T) {
 	}
 }
 
-// TestSelbstvorschlagBrauchtKeinenReviewScope: der offene Punkt aus spec/20.
-// Wer entwerfen darf, darf nach seinem Self-Onboarding die EIGENE Konfiguration
-// vorschlagen — und nur die. Für die eines Kollegen braucht es den zweiten
-// Scope, sonst wäre die Trennung über die Hintertür aufgehoben.
+// TestSelbstvorschlagBrauchtKeinenReviewScope: the open point from spec/20.
+// Whoever may draft may, after his self-onboarding, propose his OWN config
+// — and only that one. For a colleague's it takes the second
+// scope, otherwise the separation would be undone through the back door.
 func TestSelbstvorschlagBrauchtKeinenReviewScope(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -164,9 +164,9 @@ func TestSelbstvorschlagBrauchtKeinenReviewScope(t *testing.T) {
 	}
 }
 
-// TestReviewVorschlagLaeuftNicht: propose_agent_config schreibt eine inaktive
-// Version. Regel 4 aus spec/20 bleibt unangetastet — die neue Aktion ist
-// strikt schwächer als set_agent_config, nicht dessen Erweiterung.
+// TestReviewVorschlagLaeuftNicht: propose_agent_config writes an inactive
+// version. Rule 4 from spec/20 stands untouched — the new action is
+// strictly weaker than set_agent_config, not an extension of it.
 func TestReviewVorschlagLaeuftNicht(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -181,8 +181,8 @@ func TestReviewVorschlagLaeuftNicht(t *testing.T) {
 		t.Fatalf("der Vorschlag sollte durchgehen: %v", task.State)
 	}
 
-	// Die laufende Config des Kollegen ist unveraendert — es gibt von hier
-	// keinen Weg zu einer Config, die laeuft.
+	// The colleague's running config is unchanged — from here there is
+	// no path to a config that runs.
 	cfg, err := s.registry.CurrentConfig(ctx, kollege.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -191,7 +191,7 @@ func TestReviewVorschlagLaeuftNicht(t *testing.T) {
 		t.Fatalf("ein Vorschlag darf keine Version erzeugen: v%d %v", cfg.Version, sortedFileNames(cfg.Files))
 	}
 
-	// Er liegt im Posteingang, mit Absender, Betroffenem und Begruendung.
+	// It lies in the inbox, with author, subject and rationale.
 	page := getInbox(t, admin, "?status=open&type=proposal")
 	if page.Total != 1 {
 		t.Fatalf("der Vorschlag gehoert in den Posteingang: %+v", page)
@@ -204,29 +204,29 @@ func TestReviewVorschlagLaeuftNicht(t *testing.T) {
 	if !strings.Contains(it["rationale"].(string), "Turn-Limit") {
 		t.Fatalf("die Begruendung gehoert dazu: %v", it["rationale"])
 	}
-	// Herkunft: aus welcher Aufgabe er kam, schreibt die Plattform.
+	// Origin: which task it came from is written by the platform.
 	if it["task_id"] != task.ID.String() {
 		t.Fatalf("die Herkunft muss die Aufgabe sein, aus der er kam: %v", it["task_id"])
 	}
 
-	// Ohne Begruendung geht es nicht — ein Vorschlag ohne die Beobachtung
-	// dahinter ist einer, ueber den ein Mensch nicht entscheiden kann.
+	// It does not go without a rationale — a proposal without the observation
+	// behind it is one a human cannot decide on.
 	if _, msg := laufLassen(t, s, betrieb, "Ohne Begruendung",
 		`[mock:action covey/propose_agent_config {"agent":"kollege","title":"Einfach so","files":{"SOUL.md":"# Anders"}}]`); !strings.Contains(msg, "rationale") {
 		t.Fatalf("ohne Begruendung muss der Vorschlag abgelehnt werden: %s", msg)
 	}
 
-	// Und er kann keinem Kollegen das System der Plattform verschaffen: sonst
-	// waere der Weg um Regel 2 herum ein angenommener Vorschlag.
+	// And it cannot hand the platform's system to a colleague: otherwise
+	// the way around rule 2 would be an accepted proposal.
 	if _, msg := laufLassen(t, s, betrieb, "Selbstvermehrung",
 		`[mock:action covey/propose_agent_config {"agent":"kollege","title":"Mehr Zugang","rationale":"Weil.","files":{"ACCESS.md":"- system: covey scope: agents:write"}}]`); !strings.Contains(msg, "`covey`") {
 		t.Fatalf("ein Vorschlag darf das eigene System nicht weiterreichen: %s", msg)
 	}
 }
 
-// TestReviewRecordingNurMitFreigabe: er liest Fakten. Ein Gespräch ist nur über
-// eine Freigabe erreichbar, ein Lauf auf einmal — und die Freigabe ist an genau
-// diesen Lauf gebunden (spec/21, Regel 3).
+// TestReviewRecordingNurMitFreigabe: it reads facts. A conversation is reachable only over
+// an approval, one run at a time — and the approval is bound to exactly
+// this run (spec/21, rule 3).
 func TestReviewRecordingNurMitFreigabe(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -234,7 +234,7 @@ func TestReviewRecordingNurMitFreigabe(t *testing.T) {
 	betrieb := reviewAgent(t, s, "betrieb", "agents:review")
 	kollege := reviewAgent(t, s, "kollege", "")
 
-	// Zwei Läufe beim Kollegen, damit die Bindung prüfbar ist.
+	// Two runs at the colleague, so the binding is checkable.
 	laufA, _ := laufLassen(t, s, kollege, "Lauf A", "[mock:result A fertig.]")
 	laufB, _ := laufLassen(t, s, kollege, "Lauf B", "[mock:result B fertig.]")
 
@@ -244,16 +244,16 @@ func TestReviewRecordingNurMitFreigabe(t *testing.T) {
 		t.Fatalf("das Lesen eines Gespraechs muss auf einen Menschen warten: %v", task.State)
 	}
 
-	// Der Mensch sieht, WELCHEN Lauf er freigibt.
+	// The human sees WHICH run he approves.
 	approvals := admin.expectList(http.MethodGet, "/api/v1/approvals?status=pending", nil, http.StatusOK)
 	if len(approvals) != 1 || approvals[0]["action"] != "covey:read_recording" {
 		t.Fatalf("genau eine Freigabe fuer das Lesen erwartet: %v", approvals)
 	}
 	params := approvals[0]["params"].(map[string]any)
 	binding, _ := params["binding"].(string)
-	// Die Bindung nennt den Lauf — und trägt dahinter den Fingerabdruck der
-	// übrigen Parameter, damit die Freigabe nicht nur an DIESEN Lauf, sondern
-	// an genau diese Anfrage gebunden ist (bindingOf in hiring.go).
+	// The binding names the run — and carries the fingerprint of the
+	// remaining parameters behind it, so the approval is bound not only to THIS run, but
+	// to exactly this request (bindingOf in hiring.go).
 	if params["agent"] != "kollege" || !strings.HasPrefix(binding, laufA.ID.String()+":") {
 		t.Fatalf("die Freigabe muss den Lauf benennen: %v", params)
 	}
@@ -263,8 +263,8 @@ func TestReviewRecordingNurMitFreigabe(t *testing.T) {
 	admin.expect(http.MethodPost, "/api/v1/approvals/"+approvals[0]["id"].(string)+"/decide",
 		map[string]any{"approve": true}, http.StatusOK)
 
-	// Nach der Freigabe kommt das Recording — und das Lesen selbst steht im
-	// Recording des LESENDEN.
+	// After the approval the recording comes — and the reading itself stands in
+	// the recording of the READER.
 	waitFor(t, "the reading happens after the approval", 40*time.Second, func() bool {
 		var n int
 		s.pool.QueryRow(ctx, `SELECT count(*) FROM recording_events
@@ -282,8 +282,8 @@ func TestReviewRecordingNurMitFreigabe(t *testing.T) {
 		t.Fatal("der freigegebene Lauf muss auch Ereignisse geliefert haben")
 	}
 
-	// Die Freigabe war fuer Lauf A. Lauf B fragt neu — sie ist keine Lizenz
-	// auf die Aktion, sondern die Antwort auf eine Frage.
+	// The approval was for run A. Run B asks again — it is no licence
+	// on the action, but the answer to a question.
 	zweite, _ := laufLassen(t, s, betrieb, "Lauf B lesen",
 		`[mock:action covey/read_recording {"agent":"kollege","task":"`+laufB.ID.String()+`"}]`)
 	if zweite.State != backlog.StateBlocked {
@@ -296,9 +296,9 @@ func TestReviewRecordingNurMitFreigabe(t *testing.T) {
 	}
 }
 
-// TestReviewPromptFolgtDemScope: der Abschnitt steht im Prompt dessen, der den
-// Scope hat — und in keinem anderen. Ein Agent, der von einer Aktion liest und
-// dann abgewiesen wird, ist Fähigkeit durch Andeutung (spec/20).
+// TestReviewPromptFolgtDemScope: the section stands in the prompt of whoever has the
+// scope — and in no other. An agent that reads about an action and
+// is then dismissed is ability by hint (spec/20).
 func TestReviewPromptFolgtDemScope(t *testing.T) {
 	s := newStack(t)
 	betrieb := reviewAgent(t, s, "betrieb", "agents:review")
@@ -324,15 +324,15 @@ func TestReviewPromptFolgtDemScope(t *testing.T) {
 	}
 }
 
-// TestCoveyDoctorBundle nimmt das ausgelieferte Bundle den Weg, den ein
-// Mensch es nehmen lässt: Import über die API, und danach muss es das können,
-// wofür es gebaut ist.
+// TestCoveyDoctorBundle takes the shipped bundle the way a
+// human would have it take: import over the API, and afterwards it must be able to do
+// what it was built for.
 //
-// Der Test steht hier und nicht bei den Vorlagen, weil er das Zusammenspiel
-// prüft und nicht die Datei: der Scope in der ACCESS.md schaltet genau die drei
-// Aktionen frei, der Prompt-Abschnitt folgt ihm, und der Review-Zyklus ist
-// wöchentlich — jede dieser drei Eigenschaften ist anderswo entschieden und
-// hier zusammen sichtbar.
+// The test stands here and not with the templates because it checks the interplay
+// and not the file: the scope in the ACCESS.md unlocks exactly the three
+// actions, the prompt section follows it, and the review cycle is
+// weekly — every one of these three properties is decided elsewhere and
+// here visible together.
 func TestCoveyDoctorBundle(t *testing.T) {
 	s := newStack(t)
 	admin := login(t, s, "admin@test.local", "admin-passwort")
@@ -350,15 +350,15 @@ func TestCoveyDoctorBundle(t *testing.T) {
 	imported := admin.expect(http.MethodPost, "/api/v1/agents/import?slug=betrieb",
 		bundle, http.StatusCreated)
 	id := imported["agent"].(map[string]any)["id"].(string)
-	// Das Bundle liefert claude-code aus; der Test hat keine Engine dafuer.
+	// The bundle ships claude-code; the test has no engine for it.
 	admin.expect(http.MethodPatch, "/api/v1/agents/"+id+"/runtime",
 		map[string]any{"runtime": "mock"}, http.StatusOK)
 
-	// Ein Import erzeugt einen Entwurf — auch dieser. Eingestellt wird von
-	// einem Menschen (spec/20).
+	// An import creates a draft — this one too. Hiring is done by
+	// a human (spec/20).
 	admin.expect(http.MethodPost, "/api/v1/agents/"+id+"/hire", nil, http.StatusOK)
 
-	// Der Takt: woechentlich, ein Auftrag je Zyklus und nicht einer je Kollege.
+	// The cadence: weekly, one task per cycle and not one per colleague.
 	hbs := admin.expectList(http.MethodGet, "/api/v1/agents/"+id+"/heartbeats", nil, http.StatusOK)
 	var zyklus map[string]any
 	for _, hb := range hbs {
@@ -377,25 +377,25 @@ func TestCoveyDoctorBundle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Und er kann, wofuer er gebaut ist: lesen und vorschlagen.
+	// And it can do what it was built for: read and propose.
 	if task, msg := laufLassen(t, s, agent, "Akte lesen",
 		`[mock:action covey/work_record {"agent":"kollege"}]`); task.State != backlog.StateDone {
 		t.Fatalf("das Bundle muss die Arbeitsakte lesen koennen: %v %s", task.State, msg)
 	}
-	// Aber nicht entwerfen — der Scope traegt die andere Haelfte nicht.
+	// But not draft — the scope does not carry the other half.
 	if _, msg := laufLassen(t, s, agent, "Entwerfen versuchen",
 		`[mock:action covey/create_agent {"display_name":"X","slug":"x","runtime":"mock"}]`); !strings.Contains(msg, "agents:write") {
 		t.Fatalf("das Bundle darf nicht entwerfen koennen: %s", msg)
 	}
 }
 
-// TestReviewLandetAufDemProfil ist der Lauf, wie spec/21 ihn beschreibt: Akte
-// lesen, Ursache bestimmen, und dann das Review schreiben — datiert, auf der
-// Seite des Kollegen, mit den Punkten daneben, die nur ein Mensch erledigen
-// kann.
+// TestReviewLandetAufDemProfil is the run as spec/21 describes it: read the
+// record, determine the cause, and then write the review — dated, on the
+// colleague's page, with the points beside it that only a human
+// can do.
 //
-// Der Test haelt vor allem die Trennung fest: das Review wartet auf niemanden
-// und steht deshalb NICHT im Posteingang; der Befund und das Issue schon.
+// The test holds above all the separation: the review waits for no one
+// and therefore stands NOT in the inbox; the finding and the issue do.
 func TestReviewLandetAufDemProfil(t *testing.T) {
 	s := newStack(t)
 	admin := login(t, s, "admin@test.local", "admin-passwort")
@@ -412,7 +412,7 @@ func TestReviewLandetAufDemProfil(t *testing.T) {
 		t.Fatalf("das Review sollte durchgehen: %v %s", task.State, msg)
 	}
 
-	// Auf dem Profil des KOLLEGEN, datiert, mit Zeitraum und Herkunft.
+	// On the COLLEAGUE's profile, dated, with period and origin.
 	revs := admin.expectList(http.MethodGet,
 		"/api/v1/agents/"+kollege.ID.String()+"/reviews", nil, http.StatusOK)
 	if len(revs) != 1 {
@@ -427,13 +427,13 @@ func TestReviewLandetAufDemProfil(t *testing.T) {
 	if revs[0]["period_from"] == nil || revs[0]["period_to"] == nil {
 		t.Fatalf("ohne Zeitraum ist „elf Abbrueche\" keine Aussage: %v", revs[0])
 	}
-	// Und beim SCHREIBER steht keines — es ist eine Aussage ueber den anderen.
+	// And none stands at the WRITER — it is a statement about the other.
 	if own := admin.expectList(http.MethodGet,
 		"/api/v1/agents/"+betrieb.ID.String()+"/reviews", nil, http.StatusOK); len(own) != 0 {
 		t.Fatalf("das Review gehoert dem Beurteilten, nicht dem Autor: %v", own)
 	}
 
-	// Der Befund und das Issue warten auf einen Menschen — das Review nicht.
+	// The finding and the issue wait for a human — the review does not.
 	page := getInbox(t, admin, "?status=open")
 	if page.Total != 2 {
 		t.Fatalf("Befund und Issue gehoeren in den Posteingang, das Review nicht: %+v", page)
@@ -450,31 +450,31 @@ func TestReviewLandetAufDemProfil(t *testing.T) {
 		t.Fatalf("beim Issue gehoert die Adresse dazu: %v", items)
 	}
 
-	// Ohne Text kein Review: ein Kollege mit drei Vorschlaegen und ohne
-	// Beurteilung ist ein Diff ohne Diagnose.
+	// No text, no review: a colleague with three proposals and without
+	// an assessment is a diff without a diagnosis.
 	if _, msg := laufLassen(t, s, betrieb, "Review ohne Text",
 		`[mock:action covey/write_review {"agent":"kollege"}]`); !strings.Contains(msg, "summary") {
 		t.Fatalf("ohne summary muss es abgelehnt werden: %s", msg)
 	}
 
-	// Und der beurteilte Agent erreicht es auf keinem Weg: es gibt keine
-	// Aktion, die Reviews liest.
+	// And the assessed agent reaches it by no path: there is no
+	// action that reads reviews.
 	if _, msg := laufLassen(t, s, betrieb, "Reviews lesen versuchen",
 		`[mock:action covey/read_reviews {"agent":"kollege"}]`); !strings.Contains(msg, "unknown covey action") {
 		t.Fatalf("es darf keine Aktion geben, die Reviews liest: %s", msg)
 	}
 }
 
-// TestPlattformRepoStehtImPrompt: die dritte Schicht (spec/21).
+// TestPlattformRepoStehtImPrompt: the third layer (spec/21).
 //
-// Ein Agent, der nur Issues SCHREIBEN darf, meldet Symptome. Mit Lesezugriff
-// auf den Quelltext wird aus demselben Befund eine Diagnose — aber nur, wenn er
-// den Stand liest, der auch laeuft. Der Test haelt drei Dinge fest: dass die
-// Adresse aus der Konfiguration der Organisation kommt und nicht aus dem
-// Modell, dass der Prompt auf den laufenden Commit zeigt, und dass der
-// Abschnitt eine ZWEITE Bedingung hat — das Zielsystem muss in der ACCESS.md
-// des Agenten stehen. Ohne sie laese er im Prompt „check it out" und liefe beim
-// Checkout in die Abweisung des Brokers: Faehigkeit durch Andeutung.
+// An agent who may only WRITE issues reports symptoms. With read access
+// to the source the same finding becomes a diagnosis — but only if he
+// reads the state that is also running. The test holds three things: that the
+// address comes from the organisation's configuration and not from the
+// model, that the prompt points at the running commit, and that the
+// section has a SECOND condition — the target system must stand in the agent's
+// ACCESS.md. Without it he would read „check it out" in the prompt and at the
+// checkout run into the broker's dismissal: ability by hint.
 func TestPlattformRepoStehtImPrompt(t *testing.T) {
 	s := newStack(t)
 	admin := login(t, s, "admin@test.local", "admin-passwort")
@@ -486,32 +486,32 @@ func TestPlattformRepoStehtImPrompt(t *testing.T) {
 		return out
 	}
 
-	// Ohne Eintrag steht davon nichts im Prompt — niemand liest ueber ein
-	// Repository, das niemand angeschlossen hat.
+	// Without an entry none of this stands in the prompt — nobody reads about a
+	// repository nobody connected.
 	if p := prompt(betrieb); strings.Contains(p, "The platform you run on") {
 		t.Fatal("ohne Konfiguration darf der Abschnitt nicht erscheinen")
 	}
 
-	// Halbe Adressen werden abgewiesen: eine halbe Adresse im Prompt ist
-	// schlimmer als keine.
+	// Half addresses are dismissed: a half address in the prompt is
+	// worse than none.
 	admin.expect(http.MethodPatch, "/api/v1/org/platform-repo",
 		map[string]any{"system": "gitlab"}, http.StatusBadRequest)
-	// Und ein Zielsystem, das die Organisation nicht angeschlossen hat, auch.
+	// And a target system the organisation did not connect, likewise.
 	admin.expect(http.MethodPatch, "/api/v1/org/platform-repo",
 		map[string]any{"system": "erfunden", "project": "x/y"}, http.StatusBadRequest)
 
 	admin.expect(http.MethodPatch, "/api/v1/org/platform-repo",
 		map[string]any{"system": "gitlab", "project": "covey/covey"}, http.StatusOK)
 
-	// Das Stammdatum allein reicht NICHT. covey Doctor hat GitLab
-	// nicht in seiner ACCESS.md, also stuende im Prompt ein Repository, das der
-	// Broker ihm gleich darauf verweigert.
+	// The master data alone is NOT enough. covey Doctor does not have GitLab
+	// in his ACCESS.md, so the prompt would name a repository that the
+	// broker refuses him right after.
 	if p := prompt(betrieb); strings.Contains(p, "The platform you run on") {
 		t.Fatal("ohne Zugang in der ACCESS.md gehoert der Abschnitt nicht in den Prompt")
 	}
 
-	// Die zweite Haelfte der Einrichtung: derselbe Zugang wie fuer jedes andere
-	// Repository auch, als gewoehnliche Zeile in der ACCESS.md.
+	// The second half of the setup: the same access as for every other
+	// repository, as an ordinary line in the ACCESS.md.
 	if _, err := s.registry.SaveConfig(context.Background(), betrieb.ID, map[string]string{
 		"SOUL.md":   "# betrieb\n\n## Rolle\nTest.",
 		"ACCESS.md": "- system: covey scope: agents:review\n- system: gitlab",
@@ -526,14 +526,14 @@ func TestPlattformRepoStehtImPrompt(t *testing.T) {
 	if c := buildinfo.Get().Commit; c != "" && !strings.Contains(p, c) {
 		t.Fatalf("der Prompt muss auf den laufenden Commit zeigen (%s)", c)
 	}
-	// Er berichtet, er repariert nicht — die Grenze steht im Prompt und nicht
-	// nur im Playbook des Bundles.
+	// It reports, it does not repair — the boundary stands in the prompt and not
+	// only in the bundle's playbook.
 	if !strings.Contains(p, "you do not fix") {
 		t.Fatal("die Grenze „melden statt reparieren\" gehoert in den Abschnitt")
 	}
 
-	// Ein Kollege ohne Review-Scope liest davon nichts: die dritte Schicht
-	// gehoert zu dieser Rolle und nicht zu jedem, der GitLab hat.
+	// A colleague without the review scope reads none of it: the third layer
+	// belongs to this role and not to everyone who has GitLab.
 	if p := prompt(andere); strings.Contains(p, "The platform you run on") {
 		t.Fatal("ohne agents:review gehoert der Abschnitt nicht in den Prompt")
 	}

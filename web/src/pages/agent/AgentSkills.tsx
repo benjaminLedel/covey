@@ -21,10 +21,10 @@ export function AgentSkills({ agentId, canManage }: { agentId: string; canManage
   const library = useQuery({ queryKey: ["skills"], queryFn: () => api<Skill[]>("/skills"), retry: false });
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  // Zum Ändern den frischen Stand holen statt den Eintrag aus der Liste: Der
-  // Editor übernimmt seinen Anfangszustand beim Einhängen und PUT ersetzt den
-  // Dateisatz vollständig — aus einer veralteten Liste heraus gespeichert,
-  // verschwände die Änderung, die inzwischen jemand anderes gemacht hat.
+  // To change it, fetch the current state instead of the entry from the list: the
+  // editor takes its initial state when it mounts and PUT replaces the file set
+  // completely — saved out of a stale list, the change someone else made in the
+  // meantime would be gone.
   const editing = useQuery({
     queryKey: ["skill", editingId],
     queryFn: () => api<Skill>(`/skills/${editingId}`),
@@ -135,7 +135,7 @@ export function AgentSkills({ agentId, canManage }: { agentId: string; canManage
         </div>
       ))}
       {resolved.length === 0 && <p className="muted mb-3">{t("agent.skills.none")}</p>}
-      {/* Ein wirkungsloser Klick sieht ohne Meldung aus wie ein erfolgreicher. */}
+      {/* An ineffective click, without a message, looks like a successful one. */}
       {(remove.isError || unlink.isError) && (
         <p className="danger-text text-xs mb-2">{((remove.error ?? unlink.error) as Error).message}</p>
       )}
@@ -180,5 +180,5 @@ export function AgentSkills({ agentId, canManage }: { agentId: string; canManage
   );
 }
 
-// Inline-Parser für einen Text-Abschnitt: löst [[Wikilinks]] in klickbare
-// Links auf (rot & inert, wenn die Zielseite fehlt — Wiki-Konvention) und
+// Inline parser for a text section: resolves [[Wikilinks]] into clickable
+// links (red & inert when the target page is missing — wiki convention) and

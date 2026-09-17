@@ -1,4 +1,4 @@
-// Schmaler, typisierter Client für die covey-API (Session-Cookie-Auth).
+// Narrow, typed client for the covey API (session-cookie auth).
 
 export type Principal = {
   ID: string;
@@ -6,20 +6,20 @@ export type Principal = {
   Email: string;
   DisplayName: string;
   Role: string;
-  /* Das Konto hinter der Anmeldung — eine Person, über Organisationen hinweg. */
+  /* The account behind the login — a person, across organisations. */
   AccountID: string;
-  /* Die Instanz-Ebene: "user" oder "system_admin". Ausdrücklich KEINE
-     Organisations-Rolle — org_admin vergibt jede Organisation an sich
-     selbst, das hier niemand (FR-003, Befund F). */
+  /* The instance level: "user" or "system_admin". Deliberately NOT an
+     organisation role — org_admin grants every organisation to itself,
+     nobody here does (FR-003, finding F). */
   PlatformRole: string;
 };
 
-/** Verwaltet diese Person die Installation selbst? */
+/** Does this person manage the installation itself? */
 export const istSystemAdmin = (me: Principal) => me.PlatformRole === "system_admin";
 
-// Ein Dienst neben der Sandbox (spec/16). Bewusst schmal: kein Port nach
-// draußen, kein Volume, kein Build — das sind die Teile einer Compose-Datei,
-// die nur auf dem eigenen Rechner Sinn ergeben.
+// A service beside the sandbox (spec/16). Deliberately narrow: no port to the
+// outside, no volume, no build — those are the parts of a Compose file that
+// only make sense on one's own machine.
 export type SandboxService = {
   name: string;
   image: string;
@@ -31,39 +31,39 @@ export type Agent = {
   slug: string;
   display_name: string;
   runtime: string;
-  /** runtime_id: der Sitz, auf dem der Agent wirklich arbeitet. Fehlt =
-   *  keiner zugewiesen. Getrennt von `runtime` (der ENGINE), und genau darum
-   *  können die beiden auseinanderlaufen — wer sie gleichsetzt, zeigt einen
-   *  Zustand an, den es so nicht gibt. */
+  /** runtime_id: the seat where the agent really works. Absent =
+   *  none assigned. Kept apart from `runtime` (the ENGINE), and that is exactly
+   *  why the two can diverge — whoever equates them reports a state that
+   *  does not exist. */
   runtime_id?: string;
   /** The voice this agent writes in (spec/24). Absent = none; what ACTS is the
    *  TONE.md of its config — this says WHOSE voice that is. */
   voice_id?: string;
   model: string;
-  effort: string; // "" = Runtime-Default, sonst low|medium|high|xhigh|max
+  effort: string; // "" = runtime default, otherwise low|medium|high|xhigh|max
   max_turns: number;
   recording_level: string; // "" = inherits the org floor, otherwise minimal|standard|full
   // How long this agent's verbatim run is kept (spec/06). null/undefined =
   // inherits the organisation; a number only ever EXTENDS it, never shortens.
   // 0 = keep forever.
   recording_retention_days?: number | null;
-  // Der Arbeitsplatz: Profilname (base, dev) oder ein eigenes Image;
-  // leer = Voreinstellung der Instanz (spec/16).
+  // The workstation: profile name (base, dev) or its own image;
+  // empty = instance default (spec/16).
   sandbox_image: string;
-  // Welche Fähigkeiten der Host haben muss (arm64, gpu, ein Runner im Netz des
-  // Zielsystems). Leer = jeder Runner der Organisation (spec/16).
+  // Which capabilities the host must have (arm64, gpu, a runner in the network
+  // of the target system). Empty = any runner of the organisation (spec/16).
   runner_tags?: string[];
-  // Was neben der Sandbox läuft, solange sie läuft: die Datenbank, die eine
-  // Testsuite braucht, die Queue, mit der eine Anwendung spricht. Jeder Dienst
-  // ist unter seinem Namen erreichbar (`db:5432`) — die Hälfte eines
-  // Arbeitsplatzes, die kein Image tragen kann (spec/16).
+  // What runs beside the sandbox while it runs: the database a test suite
+  // needs, the queue an application talks to. Every service is reachable under
+  // its own name (`db:5432`) — the half of a workstation that can carry
+  // no image (spec/16).
   services?: SandboxService[];
-  warm_sandbox: boolean; // hält die Sandbox zwischen Wach-Phasen live (opt-in)
+  warm_sandbox: boolean; // keeps the sandbox alive between wake phases (opt-in)
   status: string;
   supervisor_id?: string;
   department_id?: string;
-  // Mitarbeiter-Profil — dieselben Felder wie bei Human (Agenten sind
-  // Mitarbeiter): Funktion, Kontakt, Plattform-Kennungen, konfigurierbare Felder.
+  // Employee profile — the same fields as for Human (agents are
+  // employees): role, contact, platform identifiers, configurable fields.
   job_title: string;
   identities: Record<string, string>;
   phone: string;
@@ -71,30 +71,30 @@ export type Agent = {
   custom: Record<string, string>;
   killed: boolean;
   budget_usd: number;
-  // Der erste Arbeitstag. Fehlt er, ist der Agent ein Entwurf: angelegt,
-  // konfigurierbar, aber nicht dispatcht — kein Heartbeat, kein scharfer
-  // Webhook, keine Sandbox, keine Kosten (spec/20).
+  // The first day of work. Without it the agent is a draft: created,
+  // configurable, but not dispatched — no heartbeat, no live
+  // webhook, no sandbox, no cost (spec/20).
   hired_at?: string;
   created_at: string;
-  // Worauf der Agent in DIESEM Moment wartet, falls die Plattform gerade etwas
-  // für ihn tut: ein Image holen, seinen Arbeitsplatz herstellen oder ihn
-  // zurückschreiben. Fehlt = er wartet auf nichts. Live-Zustand aus der
-  // Datenebene, in keiner Tabelle — nach einem Neustart der Kontrollebene
-  // passiert nichts mehr, worauf sich das beziehen könnte.
+  // What the agent is waiting for at THIS moment, if the platform is doing
+  // something for it: fetching an image, restoring its workstation or writing
+  // it back. Absent = it waits for nothing. Live state from the data
+  // plane, in no table — after a control plane restart nothing is left
+  // that this could refer to.
   phase?: AgentPhase;
-  // Gesetzt, wenn dieser Agent gerade NICHT aufwachen kann: wie oft es
-  // scheiterte, was zuletzt dagegen sprach, wann der nächste Versuch fällig
-  // ist. Fehlt = er schläft, weil nichts zu tun ist.
+  // Set when this agent currently CANNOT wake: how often it
+  // failed, what last spoke against it, when the next attempt is due.
+  // Absent = it sleeps because there is nothing to do.
   //
-  // Ohne dieses Feld hatte die Oberfläche ein Wort für zwei Zustände: Ein
-  // Agent, der 900-mal am Aufwachen gescheitert war, stand als „schläft"
-  // neben sieben gesunden Kollegen (#139).
+  // Without this field the UI had one word for two states: an
+  // agent that had failed to wake 900 times stood as "sleeping"
+  // beside seven healthy colleagues (#139).
   wake_trouble?: WakeTrouble;
 };
 
-/** Warum ein Agent nicht aufwacht. Live-Zustand der Kontrollebene wie `phase`
- *  — nach einem Neustart wird sofort wieder versucht, und dann ist das hier
- *  wieder leer. */
+/** Why an agent does not wake. Live state of the control plane like `phase`
+ *  — after a restart the attempt resumes right away, and then this
+ *  is empty again. */
 export type WakeTrouble = {
   failures: number;
   error?: string;
@@ -102,10 +102,10 @@ export type WakeTrouble = {
   until: string;
 };
 
-/** Eine laufende Phase der Plattform. Die beiden Gesamtzahlen sind getrennt,
- *  weil ein Image Bytes zählt und ein Arbeitsplatz Dateien — ein Balken, der
- *  raten muss, welche er bekommen hat, zeigt „3,4 GB von 9.870". 0/fehlend =
- *  die Phase kennt ihr eigenes Ende nicht. */
+/** A running phase of the platform. The two totals are separate,
+ *  because an image counts bytes and a workstation files — a bar that
+ *  has to guess which it got shows "3.4 GB of 9,870". 0/absent =
+ *  the phase does not know its own end. */
 export type AgentPhase = {
   phase: string;
   detail?: string;
@@ -118,10 +118,10 @@ export type AgentPhase = {
   runner?: string;
 };
 
-/** Entwurf: angelegt, aber noch nicht eingestellt. */
+/** Draft: created, but not hired yet. */
 export const isDraft = (a: Agent) => !a.hired_at;
 
-/** Einstellen — der eine Weg aus dem Entwurf, und ihn geht ein Mensch. */
+/** Hire — the one way out of the draft, and a human takes it. */
 export const hireAgent = (id: string) => post<Agent>(`/agents/${id}/hire`);
 
 export type Task = {
@@ -137,16 +137,16 @@ export type Task = {
   result?: string;
   error?: string;
   stage_id?: string;
-  // Aufgabe, aus der diese hervorging: Teilaufgabe/Delegation (origin
-  // "agent:<slug>") oder Fortsetzung eines am Turn-Limit abgebrochenen Laufs
+  // The task this one came from: subtask/delegation (origin
+  // "agent:<slug>") or continuation of a run aborted at the turn limit
   // (origin "continuation:<id>").
   parent_task_id?: string;
   archived_at?: string;
   created_at: string;
   updated_at: string;
-  // Was der Lauf dieser Aufgabe gekostet hat, in USD, und aus wie vielen
-  // Kostenbuchungen (Turns) er sich zusammensetzt. Fehlt, solange die Aufgabe
-  // nichts gekostet hat — das ist nicht 0,00 $, sondern „noch nicht gelaufen".
+  // What the run of this task cost, in USD, and how many cost
+  // entries (turns) it is made of. Absent while the task has cost
+  // nothing — that is not $0.00, but "not run yet".
   cost_usd?: number;
   cost_entries?: number;
 };
@@ -157,14 +157,14 @@ export type Stage = {
   name: string;
   position: number;
   color: string;
-  // 'agent'-Spalten legt der Agent selbst an; sie verschwinden automatisch,
-  // sobald sie leer sind. 'human'-Spalten bleiben stehen.
+  // 'agent' columns the agent creates itself; they disappear automatically
+  // as soon as they are empty. 'human' columns stay.
   created_by: string;
   created_at: string;
 };
 
-// TaskNote ist eine proaktive Notiz des Agenten an einer Aufgabe
-// (Zwischenstände, Befunde) — GET /tasks/{id}/notes.
+// TaskNote is a proactive note by the agent on a task
+// (state of play, findings) — GET /tasks/{id}/notes.
 export type TaskNote = {
   id: string;
   task_id: string;
@@ -175,31 +175,31 @@ export type TaskNote = {
 
 export type ConfigVersion = {
   version: number;
-  // ACCESS.md und EGRESS.md rendert der Server live aus den UI-Stores
-  // (Tools/Egress); Speichern schreibt sie dorthin zurück — eine Quelle.
+  // ACCESS.md and EGRESS.md the server renders live from the UI stores
+  // (Tools/Egress); saving writes them back there — one source.
   files: Record<string, string>;
   compiled_prompt: string;
   created_at: string;
 };
 
-// Monitoring-Sicht auf einen HEARTBEAT.md-Eintrag: Zeitplan, letzter und
-// nächster Lauf (Serverzeit-Semantik, ISO-Timestamps), pending = Aufgabe des
-// letzten Laufs noch nicht terminal (dann wird nicht neu gefeuert).
+// Monitoring view of a HEARTBEAT.md entry: schedule, last and next
+// run (server-time semantics, ISO timestamps), pending = task of the
+// last run not terminal yet (then nothing fires anew).
 export type HeartbeatStatus = {
   name: string;
   task: string;
   every_seconds?: number;
   daily_at?: string;
   only_if?: string;
-  source?: string; // "config" (HEARTBEAT.md) | "system" (Plattform-Default, z.B. Wiki-Pflege)
+  source?: string; // "config" (HEARTBEAT.md) | "system" (platform default, e.g. wiki upkeep)
   last_fired_at: string;
   next_run: string;
   pending: boolean;
 };
 
-// Optionaler generischer Webhook-Trigger des Agenten (Wake-Quelle Event):
-// POST auf die URL legt eine Backlog-Aufgabe an und weckt den Agenten.
-// Nur für Manager-Rollen abrufbar — das Token ist das Geheimnis.
+// Optional generic webhook trigger of the agent (wake source event):
+// a POST to the URL creates a backlog task and wakes the agent.
+// Only retrievable by manager roles — the token is the secret.
 export type AgentWebhook = {
   enabled: boolean;
   token?: string;
@@ -215,8 +215,8 @@ export type RecordingEvent = {
   created_at: string;
 };
 
-// recordingBlobURL zeigt auf ein Recording-Artefakt (z. B. Screenshot). Same-
-// origin, deshalb trägt ein <img> das Session-Cookie automatisch mit.
+// recordingBlobURL points at a recording artifact (e.g. a screenshot). Same-
+// origin, which is why an <img> carries the session cookie along.
 export const recordingBlobURL = (id: string) => `/api/v1/recordings/blobs/${id}`;
 
 export type Approval = {
@@ -229,10 +229,10 @@ export type Approval = {
   requested_at: string;
 };
 
-// Ein offener Punkt aus dem Betrieb (spec/21). Drei Sorten, eine Liste, weil
-// alle drei denselben Menschen brauchen: der Vorschlag mit Diff, der Befund
-// ohne einen (den Auftrag eines Kollegen kann nur der Mensch ändern, der ihn
-// verantwortet) und das Issue, das schon im Tracker liegt.
+// An open item from operations (spec/21). Three kinds, one list, because
+// all three need the same human: the proposal with a diff, the finding
+// without one (the mandate of a colleague can only be changed by the human
+// who is accountable for it) and the issue that already lies in the tracker.
 export type ImprovementItem = {
   id: string;
   agent_id: string;
@@ -249,33 +249,33 @@ export type ImprovementItem = {
   decision_note: string;
   applied_version: number;
   created_at: string;
-  // Vom Server angereichert:
+  // Enriched by the server:
   agent_slug: string;
   agent_name: string;
   agent_owner_id?: string;
   author_slug?: string;
   author_name?: string;
   current_version: number;
-  // Gegen eine ältere Version geschrieben. Für sich noch kein Hinderungsgrund.
+  // Written against an older version. By itself not yet a reason against it.
   stale: boolean;
-  // Dateien, die seit der Basis von jemand anderem geändert wurden. Solange
-  // die Liste nicht leer ist, wird der Vorschlag nicht angenommen.
+  // Files that someone else changed since the base. As long as this list
+  // is not empty, the proposal is not accepted.
   conflicts?: string[];
-  // Fasst ACCESS.md oder EGRESS.md an — dann entscheidet org_admin oder
-  // security, nicht der Teamleiter, dem der Agent gehört (spec/02).
+  // Touches ACCESS.md or EGRESS.md — then org_admin or security decides,
+  // not the team lead the agent belongs to (spec/02).
   needs_security: boolean;
   diff?: { file: string; before: string; after: string }[];
-  // Nur beim Issue: wo der Bericht schon liegt.
+  // Only for the issue: where the report already lies.
   link?: string;
 };
 
 export const decideImprovement = (id: string, accept: boolean, note: string) =>
   post<ImprovementItem>(`/improvements/${id}/decide`, { accept, note });
 
-/* Freigeben, und dabei den Text des Agenten korrigieren dürfen. Das Feld ist
-   zweierlei: Der Gate konnte bisher nur ja oder nein, also musste umschreiben,
-   wer einen Satz anders wollte — und das Paar aus beiden Fassungen ist das
-   stärkste Material, das eine Stimme sammeln kann (spec/24). */
+/* Approve, and be allowed to correct the agent's text while doing it. The
+   field is two things: the gate could so far only say yes or no, so whoever
+   wanted a sentence differently had to rewrite it — and the pair of both
+   versions is the strongest material a voice can gather (spec/24). */
 export const decideApproval = (id: string, approve: boolean, text?: string) =>
   post<Approval>(`/approvals/${id}/decide`, text ? { approve, text } : { approve });
 
@@ -283,7 +283,7 @@ export type VoiceCorrection = {
   id: string;
   agent_id?: string;
   agent_slug?: string;
-  /** approval = am Freigabe-Gate korrigiert, target = im Zielsystem nachbearbeitet. */
+  /** approval = corrected at the approval gate, target = reworked in the target system. */
   source: string;
   action?: string;
   before: string;
@@ -292,9 +292,9 @@ export type VoiceCorrection = {
   created_at: string;
 };
 
-// Eine Zeile des Posteingangs: Freigabe oder offener Punkt. Der Kopf ist für
-// beide gleich, damit serverseitig sortiert und geblättert werden kann; das
-// Sortenspezifische hängt unverändert darunter.
+// A row of the inbox: an approval or an open item. The header is the same for
+// both, so that sorting and paging can happen server-side; what is specific
+// to the kind hangs unchanged below it.
 export type InboxEntry = {
   type: "approval" | "proposal" | "finding" | "issue";
   id: string;
@@ -313,9 +313,9 @@ export type InboxEntry = {
 
 export type InboxPage = {
   items: InboxEntry[];
-  /** Alle Zeilen, auf die die Filter passen — daran hängt „mehr laden". */
+  /** All rows that the filters match — "load more" hangs on this. */
   total: number;
-  /** Die offenen unter denselben Filtern, ohne den Statusfilter (Zähler). */
+  /** The open ones under the same filters, without the status filter (counter). */
   pending: number;
 };
 
@@ -338,8 +338,8 @@ export type Guardrail = {
   created_at: string;
 };
 
-// Ergebnis des Regel-Testers (POST /guardrails/test): trocken ausgewertet,
-// nichts wird ausgeführt.
+// Result of the rule tester (POST /guardrails/test): evaluated dry,
+// nothing is executed.
 export type GuardrailVerdict = {
   subject: string;
   decision: "allow" | "deny" | "require_approval";
@@ -386,11 +386,11 @@ export type ModelCost = Tokens & {
   entries: number;
 };
 
-/** Was EIN Lauf gekostet hat (observability.RunCost). Die Aggregate sagen, wie
- *  teuer der Tag war — diese Liste sagt, welcher Lauf ihn teuer gemacht hat.
- *  `actions` ist die Spalte neben dem Geld: ein Lauf mit actions=0 hat nichts
- *  außerhalb seiner selbst verändert, sieht in jeder Summe aber aus wie einer,
- *  der drei Fehler behoben hat. */
+/** What ONE run cost (observability.RunCost). The aggregates say how
+ *  expensive the day was — this list says which run made it expensive.
+ *  `actions` is the column beside the money: a run with actions=0 changed
+ *  nothing outside itself, yet in every total it looks like one that
+ *  fixed three bugs. */
 export type RunCost = Tokens & {
   task_id: string;
   agent_id: string;
@@ -412,9 +412,9 @@ export type OrgCostReport = Tokens & {
   series: CostBucket[] | null;
   agents: AgentCost[] | null;
   models: ModelCost[] | null;
-  /** Aufschlüsselung pro Pool-Wert — leer, solange kein Schlüssel mehrere
-   *  Werte trägt. Läufe von vor den Pools tragen keine Zuordnung und fehlen
-   *  hier; sie zählen weiter in die Summen. */
+  /** Breakdown per pool value — empty while no key carries several
+   *  values. Runs from before the pools carry no assignment and are missing
+   *  here; they keep counting into the totals. */
   credentials: CredentialCost[] | null;
 };
 
@@ -426,13 +426,13 @@ export type CredentialCost = Tokens & {
   entries: number;
 };
 
-/** Eine Zeile der Preisliste (spec/17-kpis.md): wie oft die Kennzahl im
- *  Zeitraum zählte und was eine Einheit davon gekostet hat.
+/** One row of the price list (spec/17-kpis.md): how often the indicator
+ *  counted in the period and what one unit of it cost.
  *
- *  unit_usd fehlt unter einer Mindestmenge — ein Stückpreis aus drei
- *  Ereignissen ist Rauschen und stünde als Zahl gleichberechtigt neben einem
- *  aus dreihundert. Die Spalte darf man NICHT aufsummieren: jede Zeile teilt
- *  die vollen Kosten durch die Anzahl ihrer eigenen Kennzahl. */
+ *  unit_usd is absent below a minimum quantity — a unit price from three
+ *  events is noise and would stand as a number on equal footing with one
+ *  from three hundred. The column must NOT be summed: each row divides
+ *  the full cost by the count of its own indicator. */
 export type IndicatorResult = {
   key: string;
   title: string;
@@ -443,49 +443,49 @@ export type IndicatorResult = {
   period?: string;
   count: number;
   unit_usd?: number;
-  /** Objekte, die ein ZWEITER Lauf nochmal anfassen musste — die
-   *  Nacharbeitsquote. Nur mit `je:` messbar; ohne Objekt-Identität bleibt sie
-   *  0 und wird ausgeblendet, statt eine nie gemessene Qualität zu behaupten. */
+  /** Objects that a SECOND run had to touch again — the
+   *  rework rate. Only measurable with `je:`; without object identity it stays
+   *  0 and is hidden, instead of claiming a quality that was never measured. */
   returned?: number;
-  /** Dieselben Zahlen für den gleich langen Zeitraum davor — der Trend.
-   *  Bewusst die Rohwerte statt einer fertigen Prozentzahl: die Richtung ist
-   *  nicht für beide dieselbe Nachricht. Ein sinkender Stückpreis ist eine
-   *  Verbesserung; doppelt so viele Tickets können doppelte Leistung oder
-   *  doppelter Posteingang sein. */
+  /** The same numbers for the equally long period before — the trend.
+   *  Deliberately the raw values instead of a finished percentage: the direction
+   *  is not the same message for both. A falling unit price is an improvement;
+   *  twice as many tickets can be twice the work or twice
+   *  the inbox. */
   prev_count: number;
   prev_unit_usd?: number;
-  /** Der Verlauf über den Zeitraum in festen Abschnitten (Sparkline). Mit
-   *  `je:` summieren sich die Abschnitte NICHT zur Gesamtzahl — dasselbe
-   *  Objekt in zwei Abschnitten zählt in beiden. */
+  /** The course over the period in fixed sections (sparkline). With
+   *  `je:` the sections do NOT sum to the total — the same
+   *  object in two sections counts in both. */
   series?: number[];
 };
 
-/** Die Zahlen, die den Preis qualifizieren. Ein Preis sagt, was ein Ergebnis
- *  gekostet hat, nicht ob es taugte. */
+/** The numbers that qualify the price. A price says what a result cost,
+ *  not whether it was any good. */
 export type Quality = {
-  /** Von Menschen entschiedene Approval-Gates und davon abgelehnte — die
-   *  einzige Zahl hier, die kein Proxy ist. */
+  /** Approval gates decided by humans and of those rejected — the
+   *  only number here that is not a proxy. */
   decided: number;
   denied: number;
-  /** Median der Zeit vom eingehenden Ereignis bis zur ersten Aktion des Laufs.
-   *  Median, nicht Mittelwert: ein einzelner Hänger darf das Bild nicht
-   *  färben. */
+  /** Median of the time from the incoming event to the first action of the run.
+   *  Median, not mean: a single hang may not colour the
+   *  picture. */
   response_seconds?: number;
 };
 
 export type IndicatorReport = {
   indicators: IndicatorResult[] | null;
-  /** Läufe, die ohne Ergebnis endeten — die Gegenzahl, ohne die die
-   *  Preisliste Drückebergerei belohnt. */
+  /** Runs that ended without a result — the counter-figure without which the
+   *  price list rewards shirking. */
   failed: number;
-  /** Der Nenner hinter jedem Preis, damit die Zahlen prüfbar sind. */
+  /** The denominator behind every price, so the numbers stay checkable. */
   total_usd: number;
   quality: Quality;
 };
 
-/** Ein Befund des Config-Lints (internal/agents/lint.go). Warnungen mit
- *  Kontext, keine harten Fehler: eine 2-Minuten-Frequenz ist für ein Postfach
- *  in Ordnung und für einen Repo-Klon ruinös. */
+/** A finding of the config lint (internal/agents/lint.go). Warnings with
+ *  context, no hard errors: a 2-minute frequency is fine for a mailbox and
+ *  ruinous for a repo clone. */
 export type LintFinding = {
   agent_slug: string;
   rule: string;
@@ -496,9 +496,9 @@ export type LintFinding = {
   hint: string;
 };
 
-// Die Arbeitsakte eines Kollegen (spec/21): acht Abschnitte aus acht benannten
-// Quellen. Kein Freitext eines Agenten oder eines Zielsystems — mit einer
-// Ausnahme, den Aufgabentiteln, die aus der Weck-Quelle stammen können.
+// The work record of a colleague (spec/21): eight sections from eight named
+// sources. No free text of an agent or a target system — with one
+// exception, the task titles, which can come from the wake source.
 export type WorkRecordCount = { key: string; count: number };
 
 export type WorkRecord = {
@@ -528,14 +528,14 @@ export type WorkRecord = {
   friction: { approvals: WorkRecordCount[]; denied: WorkRecordCount[]; proposals: WorkRecordCount[] };
   findings: LintFinding[];
   stuck: { id: string; title: string; correlation_key: string; question?: string; blocked_since: string }[];
-  // Was gekürzt wurde. Eine Akte, die still bei 200 Aufgaben aufhört, liest
-  // sich wie eine vollständige.
+  // What was cut. A record that silently stops at 200 tasks reads
+  // like a complete one.
   notes?: string[];
 };
 
-// Ein Review: was der Betrieb über einen Kollegen geschrieben hat, datiert
-// (spec/21). Es wartet auf nichts — anders als ein offener Punkt braucht es
-// keine Entscheidung, sondern einen Leser.
+// A review: what operations wrote about a colleague, dated
+// (spec/21). It waits for nothing — unlike an open item it needs
+// no decision, only a reader.
 export type AgentReview = {
   id: string;
   agent_id: string;
@@ -555,19 +555,19 @@ export type Human = {
   role: string;
   manager_id?: string;
   department_id?: string;
-  // Mitarbeiter-Profil: Funktion, Kontakt, Zuständigkeiten und die
-  // Plattform-Kennungen (generisch: system → kennung, z. B. {"gitlab": "maxm"}).
+  // Employee profile: role, contact, responsibilities and the
+  // platform identifiers (generic: system → kennung, e.g. {"gitlab": "maxm"}).
   job_title: string;
   identities: Record<string, string>;
   phone: string;
   responsibilities: string;
-  // Werte der org-weit konfigurierbaren Profilfelder (key → wert).
+  // Values of the org-wide configurable profile fields (key → value).
   custom: Record<string, string>;
   created_at: string;
 };
 
-// Leitung einer Abteilung: ein Mensch oder ein Agent — eine Abteilung kann
-// mehrere Leitungen haben, eine Leitung mehrere Abteilungen.
+// Lead of a department: a human or an agent — a department can
+// have several leads, a lead several departments.
 export type DeptLead = { kind: "human" | "agent"; id: string };
 
 export type Department = {
@@ -575,12 +575,12 @@ export type Department = {
   org_id: string;
   name: string;
   description: string;
-  color: string; // Hex-Akzentfarbe, leer = Standard
+  color: string; // hex accent colour, empty = default
   leads: DeptLead[];
   created_at: string;
 };
 
-// Definition eines org-weit konfigurierbaren Profilfelds (Organisationen-Seite).
+// Definition of an org-wide configurable profile field (organisations page).
 export type ProfileField = {
   id: string;
   key: string;
@@ -588,7 +588,7 @@ export type ProfileField = {
   created_at: string;
 };
 
-// Org-Chart (spec/02, spec/09): Menschen & Agenten samt Vorgesetzten-Beziehungen.
+// Org chart (spec/02, spec/09): humans & agents with their supervisor relations.
 export type OrgChart = {
   humans: Human[];
   agents: Agent[];
@@ -628,11 +628,11 @@ export const setHumanManager = (humanId: string, managerId: string | null) =>
 export type Organization = {
   id: string;
   name: string;
-  /** Was dieses Unternehmen macht — Stammdaten, siehe spec/20. */
+  /** What this company does — master data, see spec/20. */
   description: string;
-  /** Wo der Quelltext dieser Plattform liegt (spec/21): Zielsystem und
-   *  Projekt. covey Doctor liest ihn dort und meldet dorthin.
-   *  Leer = nicht eingerichtet, und dann steht davon auch nichts im Prompt. */
+  /** Where the source of this platform lies (spec/21): target system and
+   *  project. covey Doctor reads it there and reports there.
+   *  Empty = not set up, and then nothing about it is in the prompt either. */
   // Computed by the server: an account for the platform's repository is
   // stored, so covey/create_issue can file. The address alone files nothing.
   platform_repo_can_file?: boolean;
@@ -644,8 +644,8 @@ export type Organization = {
   created_at: string;
 };
 
-/** Ein Sitz, wie ihn die Instanz-Verwaltung sieht: in welcher Organisation,
- *  in welcher Rolle. */
+/** A seat as the instance management sees it: in which organisation,
+ *  in which role. */
 export type Seat = {
   org_id: string;
   org_name: string;
@@ -660,9 +660,9 @@ export type Membership = {
   role: string;
 };
 
-/** Eine Anmeldung dieser Installation. Die Ebene `platform_role` gehört der
- *  Instanz, die Rollen in `seats` gehören je einer Organisation — das ist
- *  derselbe Unterschied wie zwischen Principal.PlatformRole und Principal.Role. */
+/** A login of this installation. The level `platform_role` belongs to the
+ *  instance, the roles in `seats` belong each to one organisation — that is
+ *  the same difference as between Principal.PlatformRole and Principal.Role. */
 export type Account = {
   id: string;
   email: string;
@@ -674,25 +674,25 @@ export type Account = {
   seats: Seat[];
 };
 
-/** Ein Schalter der Installation samt seines Vorgabewerts. Der Vorgabewert
- *  kommt mit, damit die Oberfläche "unverändert" zeigen kann, ohne eine zweite
- *  Kopie derselben Tabelle zu führen. */
+/** A flag of the installation together with its default value. The default
+ *  comes along so the UI can show "unchanged" without keeping a second
+ *  copy of the same table. */
 export type Setting = {
   key: string;
   value: string;
   default: string;
-  /** Ein geheimer Schalter (das SMTP-Passwort): `value` ist dann immer leer,
-   *  und `set` sagt das Einzige, was die Aussenwelt erfahren darf — ob einer
-   *  hinterlegt ist. */
+  /** A secret flag (the SMTP password): `value` is then always empty,
+   *  and `set` says the only thing the outside may learn — whether one
+   *  is stored. */
   secret?: boolean;
   set?: boolean;
-  /** Schreibt die Installation ueber sich selbst (das Ergebnis der Testmail).
-   *  Wird angezeigt, nicht angeboten. */
+  /** The installation writes about itself (the result of the test mail).
+   *  Shown, not offered. */
   read_only?: boolean;
 };
 
-/** Ein Wartelisten-Code — ohne Klartext, den gibt es nur im Moment der
- *  Erzeugung. */
+/** A waitlist code — without plaintext, that one exists only in the moment of
+ *  creation. */
 export type WaitlistCode = {
   hash: string;
   label: string;
@@ -710,9 +710,9 @@ export type SetupStep = {
   items?: string[];
 };
 
-/** Eine Engine: der Code, der die LLM-Schleife fährt. Sie deklariert, welche
- *  Credentials sie kennt und wie sie sie braucht — und was sie kann. */
-/** Der Zustand der Einrichtung (spec/20): was steht, und was zu wählen ist. */
+/** An engine: the code that drives the LLM loop. It declares which
+ *  credentials it knows and how it needs them — and what it can do. */
+/** The state of the setup (spec/20): what stands, and what is to be chosen. */
 export type SetupState = {
   engine_done: boolean;
   org_done: boolean;
@@ -721,7 +721,7 @@ export type SetupState = {
   engines: RuntimeInfo[];
   org_name: string;
   org_description: string;
-  /** Kann die Control Plane die Personalabteilung personalisieren (Stufe 2)? */
+  /** Can the control plane personalise the HR department (stage 2)? */
   llm_available: boolean;
 };
 
@@ -730,19 +730,19 @@ export type RuntimeInfo = {
   label: string;
   description: string;
   credentials: EngineCredential[];
-  /** effort_levels: die Denkaufwand-Stufen dieser Engine, aufsteigend.
-   *  Fehlt/leer = die Engine kennt den Regler nicht — dann wird er auch nicht
-   *  angeboten. */
-  /** models: die Modell-Ids, die diese Engine wirklich fährt. Fehlt das Feld,
-   *  ist es NICHT deklariert (Engine vor einem einzelnen Anbieter) — dann bleibt
-   *  das Modell ein Freitext. Ist es da, ist es zugleich die Aussage, dass die
-   *  Engine keinen Default hat. */
+  /** effort_levels: the reasoning-effort levels of this engine, ascending.
+   *  Missing/empty = the engine does not know the knob — then it is not
+   *  offered either. */
+  /** models: the model ids this engine really drives. If the field is missing,
+   *  it is NOT declared (engine in front of a single provider) — then the model
+   *  stays free text. If it is there, it is at the same time the statement
+   *  that the engine has no default. */
   capabilities: { resume: boolean; skills_dir?: string; effort_levels?: string[]; models?: string[] };
   setup: SetupStep[];
 };
 
-/** Genau eines von env_var und path ist gesetzt: die einen Engines nehmen ihr
- *  Credential als Umgebungsvariable, die anderen als Datei (spec/19). */
+/** Exactly one of env_var and path is set: some engines take their
+ *  credential as an environment variable, others as a file (spec/19). */
 export type EngineCredential = {
   kind: "api_key" | "subscription";
   label: string;
@@ -751,8 +751,8 @@ export type EngineCredential = {
   path?: string;
 };
 
-/** Eine Runtime ist ein benannter Arbeitsplatz: Engine plus die Kapazität, sie
- *  zu betreiben. Agenten werden ihr zugewiesen (spec/18). */
+/** A runtime is a named workstation: engine plus the capacity to
+ *  operate it. Agents are assigned to it (spec/18). */
 export type RuntimeInstance = {
   id: string;
   engine: string;
@@ -760,12 +760,12 @@ export type RuntimeInstance = {
   model: string;
   creds: RuntimeCredential[];
   bindings: RuntimeBinding[];
-  /** Ob die Engine eine Sitzung fortsetzen kann. Ohne das trägt sie keinen
-   *  Agenten, der auf eine Antwort wartet. */
+  /** Whether the engine can continue a session. Without that it carries no
+   *  agent that waits for an answer. */
   can_carry_blocking: boolean;
 };
 
-/** ord IST die Merit Order: erst die bezahlten Sitze, dann metered Kapazität. */
+/** ord IS the merit order: first the paid seats, then metered capacity. */
 export type RuntimeCredential = {
   ord: number;
   kind: "api_key" | "subscription";
@@ -774,16 +774,16 @@ export type RuntimeCredential = {
   label: string;
   cooldown_until?: string;
   cooldown_reason?: string;
-  /** Von Hand pausiert seit — hält, bis jemand fortsetzt. */
+  /** Paused by hand since — holds until someone resumes. */
   paused_at?: string;
   limit: SecretLimit;
   usage: { ord: number; usd: number; tokens: number; runs: number };
   window_secs: number;
-  /** true = jedes Token kostet Geld; false = ein Kontingent, das ohnehin
-   *  bezahlt ist. Entscheidet, was die Zahlen bedeuten. */
+  /** true = every token costs money; false = a quota that is paid
+   *  for anyway. Decides what the numbers mean. */
   metered: boolean;
-  /** Die Zahl des ANBIETERS, wo die Engine sie erfragen kann — eine Messung
-   *  statt unserer Hochrechnung. Prozente 0..100, negativ = nicht gemeldet. */
+  /** The number of the PROVIDER, where the engine can ask it — a measurement
+   *  instead of our extrapolation. Percent 0..100, negative = not reported. */
   reported?: {
     window_percent: number;
     week_percent: number;
@@ -801,36 +801,36 @@ export type RuntimeBinding = {
   bound_at: string;
 };
 
-// Zielsystem-Plugin: kompiliertes Built-in (Registry), hochgeladenes
-// JSON-Manifest (kind=custom) oder angebundener MCP-Server (kind=mcp),
-// pro Organisation aktivierbar.
+// Target-system plugin: compiled built-in (registry), uploaded
+// JSON manifest (kind=custom) or attached MCP server (kind=mcp),
+// enableable per organisation.
 export type TargetPlugin = {
   name: string;
   label: string;
   description: string;
   kind: "builtin" | "custom" | "mcp" | "wasm";
-  // Kategorie fürs Store-Filter — vom Plugin selbst deklariert (siehe
-  // internal/target: CategoryTicketing …), leer/unbekannt = "other".
+  // Category for the store filter — declared by the plugin itself (see
+  // internal/target: CategoryTicketing …), empty/unknown = "other".
   category?: string;
   enabled: boolean;
   manifest?: { url?: string; tools?: MCPTool[]; auth?: { header?: string; format?: string } };
   updated_at?: string;
   setup_doc?: string;
-  // Die Scopes, die das Plugin in ACCESS.md versteht — die Oberfläche bietet
-  // genau diese an, statt jemanden ein Wort tippen zu lassen, das dann still
-  // ignoriert wird. Leer bei Manifest-/MCP-Plugins.
+  // The scopes the plugin understands in ACCESS.md — the UI offers
+  // exactly these, instead of letting someone type a word that is then quietly
+  // ignored. Empty for manifest/MCP plugins.
   scopes?: string[];
-  // Woher das Plugin kam, wenn es aus einem Katalog installiert wurde
-  // (spec/22). Leer = von Hand hochgeladen oder mitgeliefert.
+  // Where the plugin came from when it was installed from a catalogue
+  // (spec/22). Empty = uploaded by hand or shipped.
   source?: string;
   source_version?: string;
   source_digest?: string;
 };
 
-// Ein Eintrag im Plugin-Katalog (GET /marketplace). Der Katalog liegt hinter
-// einer konfigurierbaren URL; was hier steht, ist der Eintrag plus das, was nur
-// diese Instanz weiß — ob er installiert ist und ob eine andere Version
-// bereitliegt.
+// An entry in the plugin catalogue (GET /marketplace). The catalogue sits behind
+// a configurable URL; what stands here is the entry plus what only
+// this instance knows — whether it is installed and whether another version
+// is ready.
 export type MarketplaceEntry = {
   name: string;
   label: string;
@@ -841,18 +841,18 @@ export type MarketplaceEntry = {
   homepage: string;
   license: string;
   deprecated?: string;
-  // Das Signet, eingebettet als data:-URI. Nie eine Adresse auf einem fremden
-  // Server: ein Bild von dort wäre ein Zählpixel, das bei jedem Aufruf der
-  // Store-Seite feuert. Die API lässt nur data:image/svg+xml|png|webp durch.
+  // The badge, embedded as a data:-URI. Never an address on a foreign
+  // server: an image from there would be a tracking pixel that fires on every
+  // call of the store page. The API admits only data:image/svg+xml|png|webp.
   icon?: string;
   version?: string;
   notes?: string;
-  // Ab dieser covey-Fassung mitgeliefert — aktivieren statt installieren.
+  // Shipped from this covey version on — enable instead of install.
   builtin_since?: string;
   installed: boolean;
   installed_version?: string;
   update_available: boolean;
-  // Der Name ist hier schon belegt, aber nicht aus diesem Katalog.
+  // The name is already taken here, but not from this catalogue.
   installed_elsewhere?: boolean;
 };
 
@@ -861,15 +861,15 @@ export type MarketplaceView = {
   source?: string;
   fetched_at?: string;
   entries: MarketplaceEntry[];
-  // Steht NEBEN den Einträgen, nicht statt ihrer: ein nicht erreichbarer
-  // Katalog leert die Seite nicht, sieht aber auch nicht gesund aus.
+  // Stands BESIDE the entries, not instead of them: an unreachable
+  // catalogue does not empty the page, but does not look healthy either.
   error?: string;
 };
 
-// Ein Zielsystem aus der Sicht eines Agenten (GET /agents/{id}/systems):
-// Plugin, Zugang aus ACCESS.md und die Aktionen im Wortlaut seines Prompts.
-// access=false heißt: der Broker verweigert dem Agenten hier jede Anfrage,
-// egal ob das Plugin für die Organisation aktiviert ist.
+// A target system as an agent sees it (GET /agents/{id}/systems):
+// plugin, access from ACCESS.md and the actions in the wording of its prompt.
+// access=false means: the broker refuses the agent every request here,
+// no matter whether the plugin is enabled for the organisation.
 export type AgentSystem = {
   name: string;
   label: string;
@@ -879,21 +879,21 @@ export type AgentSystem = {
   enabled: boolean;
   access: boolean;
   scopes?: string[];
-  /** Werkzeug-Allowlist des Agenten (nur MCP); leer = alle. */
+  /** Tool allowlist of the agent (MCP only); empty = all. */
   tools?: string[];
-  /** Aktionsliste, wie sie im System-Prompt steht. */
+  /** Action list as it stands in the system prompt. */
   doc?: string;
 };
 
-// Ein vom MCP-Server angebotenes Werkzeug (aus tools/list entdeckt).
+// A tool offered by the MCP server (discovered from tools/list).
 export type MCPTool = {
   name: string;
   description?: string;
   input_schema?: unknown;
 };
 
-// Egress: per-Agent-Allowlist über wiederverwendbare Templates + eigene Hosts,
-// plus Monitoring. defaults sind fest erlaubt (Code/ENV).
+// Egress: per-agent allowlist over reusable templates + own hosts,
+// plus monitoring. defaults are always allowed (code/ENV).
 export type EgressHost = { id: string; pattern: string; note: string };
 
 export type EgressTemplate = {
@@ -905,12 +905,12 @@ export type EgressTemplate = {
   created_at: string;
 };
 
-// Status: Enforcement-Flag, konfigurierbare Basis-Allowlist der Org (gilt für
-// alle Agenten) und nur per Config änderbare ENV-Zusätze.
+// Status: enforcement flag, configurable base allowlist of the org (applies to
+// alle Agenten) and ENV additions only changeable per config.
 export type EgressStatus = { enforced: boolean; defaults: EgressHost[]; env: string[] };
 
-// Built-in-Katalog: kuratierte Host-Sets aus dem Code, per Klick als
-// org-eigenes Template übernehmbar.
+// Built-in catalogue: curated host sets from the code, one click to take
+// them over as an org's own template.
 export type EgressBuiltin = {
   slug: string;
   name: string;
@@ -938,9 +938,9 @@ export type EgressLogEntry = {
   created_at: string;
 };
 
-// Request-Log (Plattform → Requests): die HTTP-Requests an den Rändern —
-// eingehende Webhooks ("in") und ausgehende Zielsystem-Aufrufe ("out").
-// Bodies sind gekappt und redigiert und kommen erst im Detail-Abruf mit.
+// Request log (platform → Requests): the HTTP requests at the edges —
+// incoming webhooks ("in") and outgoing target-system calls ("out").
+// Bodies are cut short and redacted and only come along in the detail fetch.
 export type RequestLogEntry = {
   id: number;
   created_at: string;
@@ -971,8 +971,8 @@ export type RequestLogPage = {
   entries: RequestLogEntry[];
 };
 
-// Eine Wiki-Seite (spec/05): title + body (content) + [[wikilinks]]. content
-// trägt weiter den Body (Rückwärtskompatibilität der manuellen Pflege).
+// A wiki page (spec/05): title + body (content) + [[wikilinks]]. content
+// still carries the body (backwards compatibility of manual upkeep).
 export type MemoryEntry = {
   id: string;
   slug: string;
@@ -980,14 +980,14 @@ export type MemoryEntry = {
   content: string;
   links?: string[];
   source?: string;
-  type?: string; // kunde | projekt | system | person | problem | thema; leer = nicht eingeordnet
+  type?: string; // kunde | projekt | system | person | problem | thema; empty = unclassified
   tags?: string[];
   score?: number;
   created_at: string;
   updated_at: string;
 };
 
-// Ein Qualitätsbefund über das Wiki eines Agenten (spec/05).
+// A quality finding about the wiki of an agent (spec/05).
 export type WikiFinding = {
   kind: "orphan" | "dead_link" | "untyped" | "episodic" | "duplicate" | "stub";
   slug: string;
@@ -997,7 +997,7 @@ export type WikiFinding = {
   related?: string[];
 };
 
-// Kennzahlen plus Befunde — die Qualitätssicht auf ein Wiki.
+// Metrics plus findings — the quality view on a wiki.
 export type WikiHealth = {
   pages: number;
   links: number;
@@ -1010,8 +1010,8 @@ export type WikiHealth = {
   findings: WikiFinding[];
 };
 
-// Was ein Agent im Traum mit einer Seite gemacht hat (spec/05). `before` trägt
-// den Zustand davor — daran hängt das Rückgängigmachen.
+// What an agent did to a page in the dream (spec/05). `before` carries
+// the state before — undoing hangs on it.
 export type DreamAction = {
   id: string;
   kind: "retitle" | "merge";
@@ -1022,8 +1022,8 @@ export type DreamAction = {
   undone_at?: string;
 };
 
-// Ein Traum: der nächtliche (oder von Hand angestoßene) Aufräumlauf des
-// Gedächtnisses, samt allem, was er getan hat.
+// A dream: the nightly (or hand-triggered) tidy-up run of the
+// memory, with everything it did.
 export type Dream = {
   id: string;
   agent_id: string;
@@ -1033,14 +1033,14 @@ export type Dream = {
   phase?: string;
   looked_at: number;
   skipped: number;
-  // Traumerzählung — Zierrat neben dem Protokoll, nicht an dessen Stelle.
+  // Dream narrative — decoration beside the protocol, not in its place.
   story?: string;
   started_at: string;
   finished_at?: string;
   actions: DreamAction[];
 };
 
-// Ein Eintrag des Wiki-Protokolls (log.md-Äquivalent, spec/05).
+// An entry of the wiki log (log.md equivalent, spec/05).
 export type WikiLogEntry = {
   id: number;
   op: string; // ingest | write | merge | delete
@@ -1049,10 +1049,10 @@ export type WikiLogEntry = {
   created_at: string;
 };
 
-// Secret-Vorschau: per Default eine einsehbare Variable — value trägt den
-// vollen Klartext. Bei sensitive=true bleibt der Wert write-only, prefix
-// zeigt nur die ersten Zeichen. agent_ids sind die expliziten Zuweisungen
-// eines Org-Secrets — leer heißt: erreicht keinen Agenten.
+// Secret preview: by default a viewable variable — value carries the
+// full plaintext. With sensitive=true the value stays write-only, prefix
+// shows only the first characters. agent_ids are the explicit assignments
+// of an org secret — empty means: reaches no agent.
 export type SecretPreview = {
   key: string;
   prefix: string;
@@ -1062,10 +1062,10 @@ export type SecretPreview = {
   values: SecretPoolValue[];
 } & SecretLifetime;
 
-// Was die Plattform über einen Wert weiß, über den Wert hinaus (#176): wann
-// das Zielsystem ihn nicht mehr annimmt, ob es ihn schon abgewiesen hat, was
-// der letzte Verbindungstest gesehen hat. Alles optional — ein Wert, über den
-// nichts bekannt ist, trägt nichts.
+// What the platform knows about a value, beyond the value itself (#176): when
+// the target system stops accepting it, whether it already turned it away, what
+// the last connection test saw. All optional — a value nothing is
+// known about carries nothing.
 export type SecretLifetime = {
   expires_at?: string;
   rejected_at?: string;
@@ -1078,9 +1078,9 @@ export type SecretLifetime = {
   warned_at?: string;
 };
 
-// Ein Schlüssel darf mehrere Werte tragen (spec/04): mehrere Abo-Sitze, mehrere
-// Bot-Konten. Welcher Agent auf welchem sitzt, entscheidet die Auswahl in der
-// Control Plane — klebrig, bis der Wert erschöpft oder abgewiesen ist.
+// A key may carry several values (spec/04): several subscription seats, several
+// bot accounts. Which agent sits on which one is decided by the selection in
+// the control plane — sticky, until the value is exhausted or rejected.
 export type SecretPoolValue = {
   slot: number;
   label: string;
@@ -1093,7 +1093,7 @@ export type SecretPoolValue = {
   updated_at: string;
 } & SecretLifetime;
 
-// window_secs = 0 heißt: kein Limit. amount ist je nach unit Geld oder Tokens.
+// window_secs = 0 means: no limit. amount is money or tokens depending on unit.
 export type SecretLimit = {
   amount: number;
   unit: "usd" | "tokens";
@@ -1115,20 +1115,20 @@ export type SecretPool = {
   }[];
 };
 
-// Ein Live-Check bekannter Credentials direkt nach dem Speichern.
+// A live check of known credentials right after saving.
 export type SecretCheck = {
   checked: boolean;
   valid: boolean;
   hint?: string;
 };
 
-// Ein Skill ist eine Fähigkeit des Agenten: ein Verzeichnis mit SKILL.md und
-// beliebigem Beiwerk. Nur description steht dauerhaft im Kontext jedes Laufs,
-// der Rest wird geladen, wenn die Runtime den Skill zieht.
+// A skill is an ability of the agent: a directory with SKILL.md and
+// whatever else belongs. Only description stays permanently in the context of
+// every run, the rest is loaded when the runtime pulls the skill.
 //
-// agent_id leer = Skill der Org-Bibliothek; assigned_to sind dann die Agenten,
-// denen er verlinkt ist (leer heißt: er erreicht niemanden). origin liefert die
-// Agenten-Sicht mit: "agent" (gehört ihm) oder "library" (verlinkt).
+// agent_id empty = skill of the org library; assigned_to are then the agents
+// it is linked to (empty means: it reaches nobody). origin delivers the
+// agent's view: "agent" (belongs to it) or "library" (linked).
 export type SkillFile = { path: string; content: string };
 export type Skill = {
   id: string;
@@ -1153,27 +1153,27 @@ export type AgentTemplate = {
   created_by?: string;
   created_at: string;
   updated_at: string;
-  /** Mitgelieferte, schreibgeschützte Vorlage (fest ins Binary eingebettet). */
+  /** Shipped, read-only template (embedded into the binary). */
   builtin?: boolean;
 };
 
-// Herkunft des laufenden Binaries (GET /version, internal/buildinfo): welcher
-// Stand läuft hier? Der Fuß der Sidebar zeigt sie — nach einem Deploy die
-// erste Frage. built_at ist RFC3339 (UTC), commit/built_at können leer sein,
-// wenn ein Build ohne Git-Kontext lief.
+// Origin of the running binary (GET /version, internal/buildinfo): which
+// build runs here? The foot of the sidebar shows it — after a deploy the
+// first question. built_at is RFC3339 (UTC), commit/built_at can be empty
+// when a build ran without git context.
 export type BuildInfo = {
   version: string;
   commit: string;
   built_at: string;
   dirty: boolean;
   go: string;
-  // Öffentliche Quelle dieses Binaries (AGPL-3.0). Kommt vom Server, damit ein
-  // Fork seine eigene Adresse zeigt statt der des Ursprungs.
+  // Public source of this binary (AGPL-3.0). Comes from the server so a
+  // fork shows its own address instead of that of the origin.
   source: string;
-  // Dieselbe Adresse als Zielsystem-Adresse: die Voreinstellung, an die covey
-  // Doctor meldet, solange die Organisation kein eigenes Repository nennt
-  // (spec/21). Leer, wenn die Quelle auf keinem Plugin liegt, das auschecken
-  // kann — dann gibt es keine Voreinstellung.
+  // The same address as a target-system address: the default that covey
+  // Doctor reports to as long as the organisation names no repository of its
+  // own (spec/21). Empty when the source lies on no plugin that can check
+  // out — then there is no default.
   source_system?: string;
   source_project?: string;
 };
@@ -1181,21 +1181,21 @@ export type BuildInfo = {
 export const buildInfo = () => api<BuildInfo>("/version");
 
 
-// Erste Schritte: der Zustand der Organisation, nicht ein Fortschritt, den
-// sich die Oberfläche merkt (GET /onboarding). done=true → die Checkliste hat
-// nichts mehr zu sagen und verschwindet.
+// First steps: the state of the organisation, not a progress the UI
+// remembers (GET /onboarding). done=true → the checklist has
+// nothing left to say and disappears.
 export type OnboardingState = {
   steps: Array<{ key: string; done: boolean }>;
   done: boolean;
-  // Was zwischen der Plattform und einer laufenden Sandbox steht (fehlender
-  // Docker-Socket, ungebautes Sandbox-Image). Kein Schritt der Liste: hier
-  // klickt niemand ein fehlendes Image weg, die Meldungen kommen fertig
-  // formuliert vom Server und richten sich an den Betreiber.
+  // What stands between the platform and a running sandbox (missing
+  // docker socket, sandbox image not built). Not a step of the list: here
+  // nobody ticks away a missing image, the messages come finished
+  // worded from the server and address the operator.
   data_plane?: { ready: boolean; problems?: string[] };
 };
 
-// Ein Eintrag der Audit-Spur (GET /audit): wer wann was an der Plattform
-// angefasst hat. Ohne Request-Inhalte — darin stünden Secret-Werte.
+// An entry of the audit trail (GET /audit): who when touched what on the
+// platform. Without request contents — those would hold secret values.
 export type AuditEntry = {
   id: number;
   actor_email: string;
@@ -1219,12 +1219,12 @@ export class ApiError extends Error {
  *  session works in — which a retry does not change (#263). */
 export const isNotFound = (err: unknown) => err instanceof ApiError && err.status === 404;
 
-/* Was passieren soll, wenn der Server eine Anfrage mit 401 abweist: die
-   Sitzung ist abgelaufen (oder anderswo beendet worden). Das ist kein Fehler
-   EINER Seite, sondern das Ende der ganzen Oberfläche — deshalb hängt die
-   Reaktion nicht an der aufrufenden Komponente, sondern hier an einer Stelle.
-   App.tsx meldet sich an und schaltet auf die Anmeldung um. Ohne das blieb die
-   Hülle stehen und füllte sich mit Fehlermeldungen. */
+/* What is to happen when the server rejects a request with 401: the
+   session expired (or was ended elsewhere). That is not an error of ONE
+   page, but the end of the whole UI — which is why the reaction
+   does not hang on the calling component but here in one place.
+   App.tsx logs out and switches to the login. Without this the shell
+   stayed and filled itself with error messages. */
 let abgelaufenMelden: (() => void) | null = null;
 
 export function setUnauthorizedHandler(fn: (() => void) | null) {
@@ -1232,30 +1232,30 @@ export function setUnauthorizedHandler(fn: (() => void) | null) {
 }
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  // Bei FormData setzt der Browser den Content-Type selbst — samt der
-  // multipart-Grenze, die wir gar nicht kennen. Ihn zu überschreiben machte
-  // den Upload unlesbar.
+  // With FormData the browser sets the Content-Type itself — including the
+  // multipart boundary, which we do not even know. Overwriting it made
+  // the upload unreadable.
   const isForm = init?.body instanceof FormData;
   const res = await fetch(`/api/v1${path}`, {
     headers: isForm ? undefined : { "Content-Type": "application/json" },
     ...init,
   });
   if (!res.ok) {
-    /* Die Endpunkte unter /auth/ sind ausgenommen: dort ist die 401 die
-       normale Antwort ("nicht angemeldet", "falsches Passwort") und wird von
-       der Anmeldung selbst behandelt — ein globaler Abbruch würde die
-       Anmeldemaske gegen sich selbst richten. */
+    /* The endpoints under /auth/ are excepted: there the 401 is the
+       normal answer ("not signed in", "wrong password") and is handled by
+       the login itself — a global abort would turn the login mask
+       against itself. */
     if (res.status === 401 && !path.startsWith("/auth/")) abgelaufenMelden?.();
     let msg = res.statusText;
     try {
       const body = await res.json();
       if (body.error) msg = body.error;
     } catch {
-      /* kein JSON */
+      /* not JSON */
     }
     throw new ApiError(res.status, msg);
   }
-  // 204/leerer Body (z. B. DELETE-Endpunkte): res.json() würde werfen.
+  // 204/empty body (e.g. DELETE endpoints): res.json() would throw.
   if (res.status === 204) return undefined as T;
   return res.json();
 }
@@ -1270,43 +1270,43 @@ export const del = <T>(path: string) => api<T>(path, { method: "DELETE" });
 export const upload = <T>(path: string, form: FormData) =>
   api<T>(path, { method: "POST", body: form });
 
-// --- Arbeitsplatz: das persistente Home eines Agenten als Dateibaum ---
+// --- Workstation: the persistent home of an agent as a file tree ---
 
-// Wie eine Datei zu zeigen ist. Der Server entscheidet das an einer Stelle
-// (internal/sandboxfs) — die Oberfläche wählt danach nur noch die Darstellung.
+// How a file is to be shown. The server decides this in one place
+// (internal/sandboxfs) — the UI then only picks the rendering.
 export type PreviewKind = "text" | "markdown" | "image" | "pdf" | "csv" | "binary";
 
 export type FileEntry = {
   name: string;
-  /** Pfad relativ zum Home, „/" als Trenner. */
+  /** Path relative to the home, "/" as separator. */
   path: string;
   is_dir: boolean;
   size: number;
   mode: string;
   mod_time: string;
-  /** Ziel, wenn der Eintrag ein Symlink ist. */
+  /** Target, when the entry is a symlink. */
   symlink?: string;
-  /** Der Link zeigt aus dem Home heraus — sichtbar, aber nicht zu öffnen. */
+  /** The link points out of the home — visible, but not openable. */
   outside?: boolean;
-  /** Vorschau-Art nach Dateiname; leer = erst beim Öffnen entscheidbar. */
+  /** Preview kind by file name; empty = only decidable when opened. */
   preview?: PreviewKind;
 };
 
 export type FileListing = {
-  // read_only: das Home wird aus dem letzten Snapshot gelesen, weil sein Runner
-  // nicht verbunden ist (spec/16). Schreiben ist dann abgelehnt.
+  // read_only: the home is read from the last snapshot because its runner
+  // is not connected (spec/16). Writing is refused then.
   read_only?: boolean;
   read_only_reason?: string;
   path: string;
-  /** false = das Home wurde noch nie angelegt (Agent nie geweckt). */
+  /** false = the home was never created (agent never woken). */
   exists: boolean;
   truncated: boolean;
   entries: FileEntry[];
 };
 
-/** Wieviel Platz das Home des Agenten belegt — und welche Arbeitskopien ihn
- *  fressen. Vorher hat das nichts gemessen: Checkouts stapeln sich im
- *  persistenten Home, bis ein Lauf am vollen Overlay stirbt. */
+/** How much space the home of the agent takes — and which working copies
+ *  eat it. Nothing measured this before: checkouts pile up in the
+ *  persistent home until a run dies on a full overlay. */
 export type FilesUsage = {
   exists: boolean;
   total_bytes: number;
@@ -1322,14 +1322,14 @@ export type FileContent = {
   mod_time: string;
   binary: boolean;
   truncated: boolean;
-  /** text/markdown/csv tragen content; image/pdf kommen über den preview-Endpunkt. */
+  /** text/markdown/csv carry content; image/pdf come over the preview endpoint. */
   preview: PreviewKind;
   content: string;
 };
 
-// Ein Arbeitsplatz aus dem Katalog des Servers (spec/16): das Image, in dem ein
-// Agent arbeitet, plus das, was nur die Instanz dazu weiß — welches Image dahinter
-// liegt, woher die Adresse stammt und ob sie schon auf einem Runner liegt.
+// A workplace from the catalogue of the server (spec/16): the image in which an
+// agent works, plus what only the instance knows about it — which image lies
+// behind it, where the address comes from and whether it already sits on a runner.
 export type WorkplaceProvides = {
   profile: string;
   summary: string;
@@ -1342,38 +1342,38 @@ export type Workplace = {
   name: string;
   label: string;
   description: string;
-  /** Die Adresse, die tatsächlich gestartet wird; aus dem Katalog auf den Digest gepinnt. */
+  /** The address that is actually started; pinned to the digest from the catalogue. */
   image: string;
-  /** Der Name, unter dem dasselbe Image veröffentlicht wurde ("base-v0.4.0"). */
+  /** The name under which the same image was published ("base-v0.4.0"). */
   tag?: string;
   platforms?: string[];
   build: string;
   dockerfile: string;
   default?: boolean;
-  // available fehlt, wenn niemand gefragt werden konnte — das ist etwas
-  // anderes als „nicht da" und darf nicht so aussehen.
+  // available is missing when nobody could be asked — that is something
+  // else than "not there" and must not look like it.
   available?: boolean;
   in_use: number;
-  /* Woher die Adresse stammt: aus dem veröffentlichten Katalog, aus einer
-     Umgebungsvariable dieser Instanz, oder aus der kompilierten
-     Voreinstellung. Ohne diese Angabe müsste jemand zwischen drei Quellen
-     raten, wenn ein Image nicht das ist, was er erwartet hat. */
+  /* Where the address comes from: from the published catalogue, from an
+     environment variable of this instance, or from the compiled-in
+     default. Without this someone would have to guess between three sources
+     when an image is not what they expected. */
   source?: "catalog" | "env" | "builtin";
-  /* Was das Image über sich selbst sagt — dieselbe Datei, die der Agent in
-     seiner Sandbox liest. Ohne sie ist „welchen Arbeitsplatz gebe ich diesem
-     Agenten" nur durch Lesen eines Dockerfiles zu beantworten, und ein Agent,
-     der seine Werkzeuge nicht sieht, holt sie ein zweites Mal (#102). Fehlt bei
-     einem eigenen Arbeitsplatz: dort hat die Organisation das Image benannt,
-     und was darin ist, weiß die Plattform nicht. */
+  /* What the image says about itself — the same file the agent reads in
+     its sandbox. Without it, "which workplace do I give this agent"
+     is only answerable by reading a Dockerfile, and an agent that does not
+     see its tools fetches them a second time (#102). Missing for an own
+     workplace: there the organisation named the image,
+     and what is in it, the platform does not know. */
   provides?: WorkplaceProvides;
-  /* Was das Holen dieses Images zuletzt gekostet hat — gemessen (die Phase
-     `image` aus der Aufzeichnung), nicht geschätzt. Fehlt, solange es niemand
-     auf einem bekannten Host geholt hat; das ist etwas anderes als „kostet
-     nichts". */
+  /* What fetching this image last cost — measured (the phase
+     `image` from the recording), not estimated. Absent as long as nobody
+     fetched it on a known host; that is something else than "costs
+     nothing". */
   last_pull?: { bytes?: number; ms?: number; at: string };
-  /** Aus dem Katalog des Projekts oder von dieser Organisation mitgebracht. */
+  /** Brought in from the catalogue of the project or of this organisation. */
   kind?: "catalog" | "own";
-  /** Wer hier arbeitet — benannt, nicht gezählt. */
+  /** Who works here — named, not counted. */
   agents?: { id: string; slug: string; display_name: string }[];
   /* Which of them still runs an OLDER image: a sandbox keeps the image it
      started with, and a warm agent never starts again. A plugin fix therefore
@@ -1425,9 +1425,9 @@ export const createWorkplace = (w: { name: string; label: string; description: s
   post<Workplace>("/workplaces", w);
 export const deleteWorkplace = (name: string) => del<{ ok: boolean }>(`/workplaces/${name}`);
 
-// Welche Images neben einer Sandbox laufen dürfen (spec/16). Die Liste gehört
-// der Organisation: Ein Image zu NENNEN ist nicht das Privileg, die Liste zu
-// erweitern ist es.
+// Which images may run beside a sandbox (spec/16). The list belongs
+// to the organisation: NAMING an image is not the privilege, extending the
+// list is.
 export type ServiceImagePattern = {
   id: string;
   pattern: string;
@@ -1439,7 +1439,7 @@ export const addServiceImage = (pattern: string, note: string) =>
   post<ServiceImagePattern>("/service-images", { pattern, note });
 export const deleteServiceImage = (id: string) => del<{ ok: boolean }>(`/service-images/${id}`);
 
-// KI-Assistent zum Anpassen von Agenten (Config-Copilot, FR-001).
+// AI assistant for adjusting agents (config copilot, FR-001).
 export type AssistMessage = { role: "user" | "assistant"; content: string };
 export type AssistProposal = { file: string; content: string };
 export type AssistReply = { reply: string; proposals: AssistProposal[] };
@@ -1449,10 +1449,10 @@ export const assistStatus = () =>
 export const configAssist = (agentId: string, messages: AssistMessage[], files: Record<string, string>) =>
   post<AssistReply>(`/agents/${agentId}/config/assist`, { messages, files });
 
-/* Die Rollen in Anzeigereihenfolge. Die Beschriftung steht NICHT hier, sondern
-   in den Sprachdateien unter role.<rolle> — eine Liste deutscher Beschriftungen
-   an dieser Stelle war der Grund, warum die englische Oberfläche
-   "Plattform-Admin" anzeigte — heute heißt die oberste Org-Rolle org_admin. */
+/* The roles in display order. The label stands NOT here, but in the language
+   files under role.<role> — a list of German labels at this place was the
+   reason why the English UI showed "Plattform-Admin" — today the top org role
+   is called org_admin. */
 export const ROLES = [
   "org_admin",
   "agent_owner",

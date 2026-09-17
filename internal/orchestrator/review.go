@@ -1,48 +1,48 @@
 package orchestrator
 
-// Review: die Meta-Actions, mit denen ein Agent einen Kollegen liest und für
-// ihn eine Änderung vorschlägt (spec/21-operations-and-improvement.md).
+// Review: the meta-actions that let an agent read a colleague and propose a
+// change for him (spec/21-operations-and-improvement.md).
 //
-// Die andere Hälfte von hiring.go, und bewusst mit einem eigenen Scope:
-// `- system: covey scope: agents:review`. Er schaltet diese drei Aktionen frei
-// und NICHT das Entwerfen; `agents:write` schaltet das Entwerfen frei und nicht
-// diese. Ein Agent darf beide halten — die Personalabteilung und der
-// covey Doctor tun es nicht, und deshalb kann keiner von beiden mit den
-// Zugängen des anderen dessen Arbeit machen.
+// The other half of hiring.go, deliberately with its own scope:
+// `- system: covey scope: agents:review`. It frees these three actions and
+// NOT the designing; `agents:write` frees the designing and not these. An
+// agent may hold both — the HR department and the covey Doctor do not, and
+// therefore neither of the two can do the other's work with the other's
+// access.
 //
-// Fünf Regeln tragen sie, alle fünf hier durchgesetzt und nicht im Prompt:
+// Five rules hold them up, all five enforced here and not in the prompt:
 //
-//  1. ER SCHLÄGT VOR, ER SETZT NICHT IN KRAFT. propose_agent_config schreibt
-//     eine inaktive Version. Es gibt von hier keinen Weg zu einer laufenden
-//     Config — für keine Datei. Regel 4 aus spec/20 bleibt unangetastet:
-//     set_agent_config wird nicht geweitet, die neue Aktion ist strikt
-//     schwächer. Ein kompromittierter covey Doctor erzeugt eine
-//     Warteschlange schlechter Vorschläge, die ein Mensch ablehnt — ein
-//     Ärgernis, kein Vorfall.
-//  2. ER LIEST SEINE EIGENEN ZAHLEN NICHT. work_record erreicht den Aufrufer
-//     nicht. Das ist derselbe Grund, aus dem die KPIS.md nicht in den
-//     Systemprompt kompiliert wird (internal/agents/kpi.go): wer weiß, woran
-//     er gemessen wird, arbeitet auf das Maß hin statt auf die Sache.
+//  1. HE PROPOSES, HE DOES NOT PUT IN FORCE. propose_agent_config
+//     writes an inactive version. There is no path from here to a
+//     running config — for no file. Rule 4 from spec/20 stays
+//     untouched: set_agent_config is not widened, the new action is
+//     strictly weaker. A compromised covey Doctor produces a queue of
+//     bad proposals that a human rejects — an annoyance, not an
+//     incident.
+//  2. HE DOES NOT READ HIS OWN NUMBERS. work_record does not reach the
+//     caller. That is the same reason KPIS.md is not compiled into the
+//     system prompt (internal/agents/kpi.go): whoever knows what he is
+//     measured on works toward the measure instead of the thing.
 //
-//     Der VORSCHLAG an sich selbst ist dagegen erlaubt — eine bewusste
-//     Abweichung von der ersten Fassung der Regel. Der Grund, der sie trug,
-//     trägt hier nicht: nichts von hier läuft, ein Mensch nimmt jeden
-//     Vorschlag an oder lehnt ihn ab. Damit ist auch der offene Punkt aus
-//     spec/20 geschlossen — die Personalabteilung darf nach ihrem
-//     Self-Onboarding ihre eigene Konfiguration vorschlagen. Mit
-//     `agents:write` allein aber NUR die eigene: für die eines Kollegen
-//     braucht es `agents:review`, sonst wäre der zweite Scope umgangen.
-//  3. ER LIEST FAKTEN. Die Arbeitsakte ist, was die Control Plane selbst
-//     aufgeschrieben hat. Ein Gespräch — ein Recording — ist nur über eine
-//     Freigabe erreichbar, ein Lauf auf einmal, und die Freigabe ist an genau
-//     diesen Lauf gebunden.
-//  4. NICHTS SONST ÜBER EINEN KOLLEGEN ist erreichbar: nicht seine Secrets,
-//     nicht seine Guard-Rails, nicht seine Runtime, nicht sein Budget, nicht
-//     sein Notaus. Es gibt keine Aktion dafür.
-//  5. ES GIBT KEIN `fire`. Keine verbotene — eine fehlende, damit es nichts zu
-//     vergessen gibt. Dieser Agent darf sagen, dass ein Kollege nicht
-//     funktioniert. Das Arbeitsverhältnis zu beenden ist die Handlung eines
-//     Menschen, so wie es der Beginn ist.
+//     Proposing to yourself is allowed by contrast — a deliberate
+//     departure from the first version of the rule. The reason that
+//     carried it does not carry here: nothing from here runs, a human
+//     accepts or rejects every proposal. That also closes the open
+//     point from spec/20 — the HR department may propose its own
+//     configuration after its self-onboarding. With `agents:write`
+//     alone, though, ONLY its own: for a colleague's it takes
+//     `agents:review`, otherwise the second scope would be bypassed.
+//  3. HE READS FACTS. The work record is what the Control Plane itself
+//     wrote down. A conversation — a recording — is reachable only
+//     through an approval, one run at a time, and the approval is tied
+//     to exactly this run.
+//  4. NOTHING ELSE ABOUT A COLLEAGUE is reachable: not his secrets, not
+//     his guard rails, not his runtime, not his budget, not his
+//     emergency stop. There is no action for it.
+//  5. THERE IS NO `fire`. Not a forbidden one — a missing one, so there
+//     is nothing to forget. This agent may say that a colleague is not
+//     working. Ending the employment is the act of a human, just as its
+//     beginning is.
 
 import (
 	"context"
@@ -58,15 +58,15 @@ import (
 	"covey/internal/workrecord"
 )
 
-// maxRecordingEvents begrenzt, was EIN Lauf zurückgibt. Ein Recording ist der
-// teure Teil der Akte, und ein Lauf, der über diese Grenze geht, ist selbst
-// schon der Befund.
+// maxRecordingEvents limits what ONE run returns. A recording is the
+// expensive part of the work record, and a run that goes over this limit
+// is itself the finding.
 const maxRecordingEvents = 400
 
-// reviewTarget löst den Agenten auf, um den es geht — innerhalb der eigenen
-// Organisation. allowSelf trennt die beiden Hälften von Regel 2: die eigene
-// Arbeitsakte bleibt zu (er soll seine Zahlen nicht kennen), der eigene
-// Vorschlag ist offen (ein Mensch entscheidet ihn ohnehin).
+// reviewTarget resolves the agent this is about — within one's own
+// organisation. allowSelf separates the two halves of rule 2: one's own
+// work record stays closed (he should not know his numbers), one's own
+// proposal is open (a human decides it either way).
 func (o *Orchestrator) reviewTarget(ctx context.Context, agent agents.Agent, slug string,
 	allowSelf bool) (agents.Agent, string) {
 
@@ -85,8 +85,8 @@ func (o *Orchestrator) reviewTarget(ctx context.Context, agent agents.Agent, slu
 	return other, ""
 }
 
-// reviewWorkRecord gibt die Arbeitsakte eines Kollegen heraus: Fakten, die die
-// Control Plane selbst aufgeschrieben hat, je Agent und Zeitraum.
+// reviewWorkRecord hands out the work record of a colleague: facts the
+// Control Plane itself wrote down, per agent and period.
 func (o *Orchestrator) reviewWorkRecord(ctx context.Context, agent agents.Agent, req daemon.RequestHiring,
 	ok func(any) daemon.InjectHiring, fail func(string, ...any) daemon.InjectHiring) daemon.InjectHiring {
 
@@ -109,14 +109,14 @@ func (o *Orchestrator) reviewWorkRecord(ctx context.Context, agent agents.Agent,
 	return ok(rec)
 }
 
-// reviewReadRecording gibt EINEN Lauf im Wortlaut heraus — und nur, nachdem
-// ein Mensch zugestimmt hat.
+// reviewReadRecording gives out ONE run in so many words — and only after a
+// human has agreed.
 //
-// Die Freigabe entsteht schon vor dieser Funktion (hiring.go, AlwaysApprove);
-// wer hier ankommt, hat sie. Was bleibt, ist die Prüfung, dass der Lauf zu dem
-// Kollegen gehört, für den gefragt wurde: die Freigabe nennt einen Agenten und
-// eine Aufgabe, und beides muss zusammenpassen, sonst hat ein Mensch etwas
-// anderes freigegeben, als er gelesen hat.
+// The approval comes into being before this function (hiring.go,
+// AlwaysApprove); whoever gets here has it. What is left is the check that
+// the run belongs to the colleague who was asked about: the approval names
+// an agent and a task, and both have to match, otherwise a human approved
+// something other than what he read.
 func (o *Orchestrator) reviewReadRecording(ctx context.Context, agent agents.Agent, taskID uuid.UUID,
 	req daemon.RequestHiring,
 	ok func(any) daemon.InjectHiring, fail func(string, ...any) daemon.InjectHiring) daemon.InjectHiring {
@@ -138,18 +138,18 @@ func (o *Orchestrator) reviewReadRecording(ctx context.Context, agent agents.Age
 	if err != nil {
 		return fail("recording not readable: %v", err)
 	}
-	// Das Lesen selbst gehört ins Recording des LESENDEN — und zwar von der
-	// Control Plane geschrieben, nicht vom Sandbox-Proxy. Wer die Akte eines
-	// von covey Doctor liest, muss sehen, in welche Gespräche er geschaut
-	// hat; sonst prüft man ihn an dem, was er geschrieben hat, ohne zu wissen,
-	// was er gelesen hat. Als Lifecycle-Ereignis wie bei den Entwurfs-Aktionen:
-	// die Aktion selbst schreibt der Proxy, die Herkunft schreibt die Plattform.
+	// The reading itself belongs in the recording of the READER — and written
+	// by the Control Plane, not by the sandbox proxy. Whoever reads the work
+	// record of a covey Doctor must see which conversations he looked into;
+	// otherwise you judge him on what he wrote without knowing what he
+	// read. As a lifecycle event like the design actions: the proxy writes
+	// the action itself, the platform writes the provenance.
 	//
-	// Der Eintrag hängt an der EIGENEN Aufgabe (taskID), nicht am gelesenen Lauf
-	// (readID): Obs.Events filtert immer über agent_id UND task_id, ein Eintrag
-	// unter fremder Aufgabe wäre also im Recording des Lesenden unsichtbar — und
-	// der Verweis führte in einen Lauf, der ihm nicht gehört. Welcher Lauf
-	// gelesen wurde, steht daneben in "run".
+	// The entry hangs on ONE'S OWN task (taskID), not on the run that was
+	// read (readID): Obs.Events always filters by agent_id AND task_id, so an
+	// entry under a foreign task would be invisible in the reader's recording
+	// — and the reference would lead into a run that does not belong to him.
+	// Which run was read stands next to it in "run".
 	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
 		map[string]string{"status": "recording_read", "about_agent": other.ID.String(),
 			"slug": other.Slug, "run": readID.String(),
@@ -165,8 +165,8 @@ func (o *Orchestrator) reviewReadRecording(ctx context.Context, agent agents.Age
 	return ok(out)
 }
 
-// reviewPropose schreibt einen Vorschlag: eine gespeicherte Config-Version, die
-// NICHT in Kraft ist. Ein Mensch nimmt sie an, oder sie bleibt liegen.
+// reviewPropose writes a proposal: a stored config version that is NOT in
+// effect. A human accepts it, or it stays where it is.
 func (o *Orchestrator) reviewPropose(ctx context.Context, agent agents.Agent, taskID uuid.UUID,
 	req daemon.RequestHiring, ok func(any) daemon.InjectHiring,
 	fail func(string, ...any) daemon.InjectHiring) daemon.InjectHiring {
@@ -175,11 +175,11 @@ func (o *Orchestrator) reviewPropose(ctx context.Context, agent agents.Agent, ta
 	if reason != "" {
 		return fail("%s", reason)
 	}
-	// Der Selbstvorschlag ist die eine Ausnahme, die `agents:write` allein
-	// trägt (spec/20): wer entwirft, darf nach seinem Self-Onboarding seine
-	// eigene Konfiguration vorschlagen. Für die eines KOLLEGEN braucht es den
-	// Review-Scope — sonst hätte die Personalabteilung sich über die
-	// Hintertür genau die Reichweite geholt, die zwei Scopes verhindern sollen.
+	// The self-proposal is the one exception that `agents:write` alone
+	// carries (spec/20): whoever designs may, after his self-onboarding,
+	// propose his own configuration. For a colleague's it takes the
+	// review scope — otherwise the HR department would have fetched,
+	// through the back door, exactly the reach two scopes should prevent.
 	if other.ID != agent.ID && !o.mayUsecovey(ctx, agent, scopeReview) {
 		return fail("%s", "with `scope: "+scopeWrite+"` you may propose only your OWN "+
 			"configuration — proposing for a colleague needs `scope: "+scopeReview+"`")
@@ -195,9 +195,9 @@ func (o *Orchestrator) reviewPropose(ctx context.Context, agent agents.Agent, ta
 		return fail("rationale is missing — a proposal without the observation behind it " +
 			"is one a human cannot decide on")
 	}
-	// Regel 2 aus spec/20 gilt auch hier: ein Vorschlag darf keinem Kollegen
-	// das eigene System der Plattform verschaffen. Sonst wäre der Weg um Regel
-	// 2 herum ein angenommener Vorschlag.
+	// Rule 2 from spec/20 applies here too: a proposal may not give a
+	// colleague the platform's own system. Otherwise the way around rule
+	// 2 would be an accepted proposal.
 	if acc, ok := req.Files["ACCESS.md"]; ok {
 		for _, a := range agents.ParseAccess(acc) {
 			if a.System == hiringSystem {
@@ -216,8 +216,8 @@ func (o *Orchestrator) reviewPropose(ctx context.Context, agent agents.Agent, ta
 		return fail("%v", err)
 	}
 	o.notifyImprovement(ctx, item)
-	// Herkunft schreibt die Plattform, nicht das Modell: aus welcher Aufgabe
-	// ein Vorschlag kam, steht hier und nicht in einer Meldung.
+	// Provenance is written by the platform, not the model: which task a
+	// proposal came from stands here and not in a message.
 	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
 		map[string]string{"status": "config_proposed", "about_agent": other.ID.String(),
 			"slug": other.Slug, "proposal": item.ID.String()})
@@ -229,17 +229,17 @@ func (o *Orchestrator) reviewPropose(ctx context.Context, agent agents.Agent, ta
 	})
 }
 
-// reviewWrite hält die Beurteilung fest — und mit ihr die Punkte, die aus ihr
-// hervorgingen und die nur ein Mensch erledigen kann.
+// reviewWrite records the assessment — and with it the points that came out
+// of it and that only a human can carry out.
 //
-// EIN Aufruf für beides, weil es ein Urteil ist: der Text sagt, was er gesehen
-// hat, der Befund sagt, wer es beheben muss, das Issue sagt, wo es schon liegt.
-// In zwei Aufrufen zerfiele das in einen Bericht ohne Folgen und Folgen ohne
-// Bericht — und zwischen den beiden kann ein Lauf am Turn-Limit enden.
+// ONE call for both, because it is one judgement: the text says what it saw,
+// the finding says who has to fix it, the issue says where it already lies.
+// In two calls this falls apart into a report without consequences and
+// consequences without one — between the two a run can end at the turn limit.
 //
-// Das Review wartet auf nichts. Es geht nicht in den Vorrat der offenen
-// Punkte, sondern auf die Seite des Kollegen; die Befunde und Issues gehen in
-// beides, denn sie brauchen jemanden.
+// The review waits for nothing. It does not go into the stock of open
+// points, but onto the colleague's page; the findings and issues go into
+// both, because they need someone.
 func (o *Orchestrator) reviewWrite(ctx context.Context, agent agents.Agent, taskID uuid.UUID,
 	req daemon.RequestHiring, ok func(any) daemon.InjectHiring,
 	fail func(string, ...any) daemon.InjectHiring) daemon.InjectHiring {
@@ -265,8 +265,8 @@ func (o *Orchestrator) reviewWrite(ctx context.Context, agent agents.Agent, task
 		return fail("%v", err)
 	}
 
-	// Befunde und Issues als offene Punkte. Ein Befund, den niemand abhaken
-	// muss, ist eine Nachricht — und Nachrichten gehen unter (spec/21).
+	// Findings and issues as open points. A finding nobody has to tick off
+	// is a message — and messages get lost (spec/21).
 	angelegt := 0
 	for _, spec := range []struct {
 		kind  string
@@ -301,14 +301,14 @@ func (o *Orchestrator) reviewWrite(ctx context.Context, agent agents.Agent, task
 	})
 }
 
-// lintSkills gibt dem Config-Lint der Arbeitsakte die Skills des Agenten.
-// Ohne sie prüfte er eine halbe Config: Verfahren, die aus der PLAYBOOKS.md in
-// einen Skill gewandert sind, wären unsichtbar, und Regeln wie „wer arbeitet,
-// kommentiert" schlügen falsch an — eine Prüfung, die gute Configs anmeckert,
-// wird ignoriert.
+// lintSkills gives the config lint of the work record the agent's skills.
+// Without them it would check half a config: procedures that moved out of
+// PLAYBOOKS.md into a skill would be invisible, and rules like "whoever
+// works, comments" would fire wrongly — a check that nags good configs
+// gets ignored.
 //
-// nil, wenn die Instanz ohne Skill-Store läuft; die Regeln, die sie brauchen,
-// fallen dann weg.
+// nil when the instance runs without a skill store; the rules that need
+// them then fall away.
 func (o *Orchestrator) lintSkills() agents.SkillLookup {
 	if o.Skills == nil {
 		return nil

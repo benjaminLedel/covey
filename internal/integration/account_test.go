@@ -11,13 +11,13 @@ import (
 	identbuiltin "covey/internal/identity/builtin"
 )
 
-// P1: die Anmeldung hängt am Konto, die Organisation an der Mitgliedschaft
-// (FR-002). Was diese Tests festhalten, ist der Zustand, den es vorher nicht
-// geben KONNTE — angemeldet, aber ohne Sitz — und die Mehrfach-Mitgliedschaft,
-// die vorher die globale Unique-Regel auf humans.email verhindert hat.
+// P1: the login hangs on the account, the organisation on the membership
+// (FR-002). What these tests pin down is the state that could not exist
+// BEFORE — signed in, but without a seat — and the multiple membership,
+// which the global unique rule on humans.email had prevented until then.
 
-// Ein Konto ohne Mitgliedschaft meldet sich an. Es sieht dann nichts, aber es
-// fliegt auch nicht auf die Anmeldemaske zurück: die API sagt, was fehlt.
+// An account without a membership signs in. It then sees nothing, but it is
+// also not thrown back onto the login mask: the API says what is missing.
 func TestKontoOhneOrganisation(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -30,8 +30,8 @@ func TestKontoOhneOrganisation(t *testing.T) {
 
 	c := login(t, s, "heimatlos@example.de", "hinreichend-lang")
 
-	// Wer bin ich: beantwortbar ohne Organisation, sonst wüsste die Oberfläche
-	// nicht einmal, wen sie vor sich hat.
+	// Who am I: answerable without an organisation, otherwise the interface
+	// would not even know who it has in front of it.
 	me := c.expect(http.MethodGet, "/api/v1/auth/me", nil, http.StatusOK)
 	if me["Email"] != "heimatlos@example.de" {
 		t.Errorf("/auth/me liefert %v", me["Email"])
@@ -40,9 +40,9 @@ func TestKontoOhneOrganisation(t *testing.T) {
 		t.Errorf("OrgID = %v, erwartet die leere UUID", me["OrgID"])
 	}
 
-	// Alles Org-gebundene antwortet mit einer eigenen, maschinenlesbaren
-	// Auskunft — nicht mit 403 (das läse die Oberfläche als "falsches
-	// Passwort") und nicht mit 401 (das würfe die Sitzung weg).
+	// Everything tied to an organisation answers with its own, machine-readable
+	// information — not with 403 (the interface would read that as "wrong
+	// password") and not with 401 (that would throw the session away).
 	resp := c.do(http.MethodGet, "/api/v1/agents", nil)
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusConflict {
@@ -55,13 +55,13 @@ func TestKontoOhneOrganisation(t *testing.T) {
 	}
 }
 
-// Dieselbe Person in zwei Organisationen — genau das, was die globale
-// Unique-Regel auf humans.email bisher ausgeschlossen hat.
+// The same person in two organisations — exactly what the global
+// unique rule on humans.email had ruled out until now.
 func TestEinKontoZweiOrganisationen(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
 
-	// Zweite Organisation, und der Admin des Stacks bekommt dort einen Sitz.
+	// Second organisation, and the admin of the stack gets a seat there.
 	var zweiteOrg uuid.UUID = uuid.New()
 	if _, err := s.pool.Exec(ctx, `INSERT INTO organizations (id, name) VALUES ($1,'Zweite GmbH')`, zweiteOrg); err != nil {
 		t.Fatal(err)
@@ -77,8 +77,8 @@ func TestEinKontoZweiOrganisationen(t *testing.T) {
 		t.Fatalf("zweiter Sitz für dasselbe Konto abgelehnt: %v", err)
 	}
 
-	// Ein Passwort, zwei Sitze — und die Anmeldung landet reproduzierbar auf
-	// dem ältesten, nicht auf dem, den die Datenbank zufällig zuerst liefert.
+	// One password, two seats — and the login lands reproducibly on
+	// the oldest one, not on the one the database happens to return first.
 	c := login(t, s, "admin@test.local", "admin-passwort")
 	me := c.expect(http.MethodGet, "/api/v1/auth/me", nil, http.StatusOK)
 	if me["OrgID"] != s.orgID.String() {
@@ -88,16 +88,16 @@ func TestEinKontoZweiOrganisationen(t *testing.T) {
 		t.Errorf("Rolle = %v — die Rolle hängt am Sitz, nicht am Konto", me["Role"])
 	}
 
-	// Und die Sitzungen zählen je Konto: eine Person, eine Liste, egal in
-	// welcher Organisation sie gerade arbeitet.
+	// And the sessions are counted per account: one person, one list, no matter
+	// in which organisation they are currently working.
 	sitzungen := c.expectList(http.MethodGet, "/api/v1/auth/sessions", nil, http.StatusOK)
 	if len(sitzungen) != 1 {
 		t.Errorf("%d Sitzungen, erwartet 1", len(sitzungen))
 	}
 }
 
-// Das Passwort gehört dem Konto: wer es ändert, wird überall abgemeldet — auch
-// im Browser, der in einer anderen Organisation offen ist.
+// The password belongs to the account: whoever changes it is signed out
+// everywhere — also in the browser that is open in another organisation.
 func TestPasswortwechselBeendetAlleSitzungen(t *testing.T) {
 	s := newStack(t)
 
@@ -113,6 +113,6 @@ func TestPasswortwechselBeendetAlleSitzungen(t *testing.T) {
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("alte Sitzung antwortet %d, erwartet 401", resp.StatusCode)
 	}
-	// Und das neue Passwort gilt — es steht am Konto, nicht am Sitz.
+	// And the new password is valid — it stands on the account, not on the seat.
 	login(t, s, "admin@test.local", "noch-viel-laenger")
 }

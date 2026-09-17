@@ -7,16 +7,16 @@ import (
 	"testing"
 )
 
-// Das Home ist ein Host-Verzeichnis, das schreibbar in die Sandbox gemountet
-// wird (orchestrator/sandbox_docker.go). Der Agent hat darin per `dev exec`
-// eine Shell — er kann also Symlinks anlegen, die aus dem Home hinauszeigen.
-// Diese Tests halten fest, dass keine Operation ihnen folgt: sonst liest oder
-// schreibt der Datei-Browser eines Admins auf dem HOST außerhalb des Homes.
+// The home is a host directory mounted into the sandbox as writable
+// (orchestrator/sandbox_docker.go). The agent has a shell in it via `dev exec`
+// — so it can create symlinks that point out of the home. These tests pin down
+// that no operation follows them: otherwise the file browser of an admin reads
+// or writes on the HOST outside the home.
 //
-// Sie prüfen Verhalten, nicht Implementierung — deshalb gelten sie unverändert
-// für die alte Prüfung (resolve/ensureInside) wie für os.Root.
+// They check behaviour, not implementation — which is why they hold unchanged
+// for the old check (resolve/ensureInside) as for os.Root.
 
-// aufbau legt ein Home mit einem Geheimnis daneben an und gibt beides zurück.
+// aufbau creates a home with a secret next to it and returns both.
 func aufbau(t *testing.T) (fs *FS, home, geheimnis string) {
 	t.Helper()
 	basis := t.TempDir()
@@ -24,7 +24,7 @@ func aufbau(t *testing.T) (fs *FS, home, geheimnis string) {
 	if err := os.MkdirAll(filepath.Join(home, "unterordner"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	// Liegt NEBEN dem Home, nicht darin — genau das darf nie erreichbar werden.
+	// Sits NEXT TO the home, not inside it — exactly what must never be reachable.
 	geheimnis = filepath.Join(basis, "geheim.txt")
 	if err := os.WriteFile(geheimnis, []byte("streng geheim"), 0o600); err != nil {
 		t.Fatal(err)
@@ -43,7 +43,7 @@ func link(t *testing.T, ziel, ort string) {
 	}
 }
 
-// Ein Symlink auf eine Datei außerhalb darf nicht lesbar sein.
+// A symlink to a file outside must not be readable.
 func TestKeinLesenDurchSymlink(t *testing.T) {
 	fs, home, geheimnis := aufbau(t)
 	link(t, geheimnis, filepath.Join(home, "raus.txt"))
@@ -57,8 +57,8 @@ func TestKeinLesenDurchSymlink(t *testing.T) {
 	}
 }
 
-// Ein Symlink auf ein Verzeichnis außerhalb darf nicht auflistbar sein — und
-// vor allem darf man nicht DURCH ihn hindurch tiefer greifen.
+// A symlink to a directory outside must not be listable — and above all one
+// must not reach deeper THROUGH it.
 func TestKeinDurchgriffDurchVerzeichnis(t *testing.T) {
 	fs, home, geheimnis := aufbau(t)
 	link(t, filepath.Dir(geheimnis), filepath.Join(home, "aussen"))
@@ -66,15 +66,15 @@ func TestKeinDurchgriffDurchVerzeichnis(t *testing.T) {
 	if _, err := fs.List("aussen"); err == nil {
 		t.Error("List folgte dem Verzeichnis-Link")
 	}
-	// Der eigentliche Angriff: der Link ist nur die Brücke, das Ziel liegt
-	// dahinter.
+	// The actual attack: the link is only the bridge, the target lies
+	// behind it.
 	if datei, err := fs.Read("aussen/geheim.txt"); err == nil {
 		t.Fatalf("Read griff durch den Link hindurch: %q", datei.Content)
 	}
 }
 
-// Schreiben durch einen Link hinaus wäre der schlimmere Fall: der Agent würde
-// den Admin dazu bringen, eine Host-Datei zu überschreiben.
+// Writing out through a link would be the worse case: the agent would get the
+// admin to overwrite a host file.
 func TestKeinSchreibenDurchSymlink(t *testing.T) {
 	fs, home, geheimnis := aufbau(t)
 	link(t, filepath.Dir(geheimnis), filepath.Join(home, "aussen"))
@@ -91,8 +91,8 @@ func TestKeinSchreibenDurchSymlink(t *testing.T) {
 	}
 }
 
-// Löschen und Verschieben dürfen den Link ebenfalls nicht als Weg benutzen.
-// Der Link SELBST darf weg — das ist ein Eintrag im Home.
+// Deleting and moving must not use the link as a way out either.
+// The link ITSELF may go — that is an entry inside the home.
 func TestKeinLoeschenUndVerschiebenNachAussen(t *testing.T) {
 	fs, home, geheimnis := aufbau(t)
 	link(t, filepath.Dir(geheimnis), filepath.Join(home, "aussen"))
@@ -112,7 +112,7 @@ func TestKeinLoeschenUndVerschiebenNachAussen(t *testing.T) {
 	}
 }
 
-// Ein Archiv darf keine Dateien von außerhalb einpacken.
+// An archive must not pack files from outside.
 func TestZipPacktNichtNachAussen(t *testing.T) {
 	fs, home, geheimnis := aufbau(t)
 	link(t, geheimnis, filepath.Join(home, "unterordner", "raus.txt"))
@@ -128,7 +128,7 @@ func TestZipPacktNichtNachAussen(t *testing.T) {
 	}
 }
 
-// Textuelle Traversal-Versuche fallen schon beim Normalisieren weg.
+// Textual traversal attempts fall away already at normalisation.
 func TestTextuelleTraversalWirdNormalisiert(t *testing.T) {
 	fs, _, _ := aufbau(t)
 	for _, p := range []string{"../geheim.txt", "unterordner/../../geheim.txt", "/../geheim.txt"} {
@@ -138,10 +138,10 @@ func TestTextuelleTraversalWirdNormalisiert(t *testing.T) {
 	}
 }
 
-// Ein RELATIVER Link innerhalb des Homes muss benutzbar bleiben — das ist die
-// Form, die Toolchains tatsächlich anlegen (`.claude/skills -> ../.agents/skills`,
-// node_modules/.bin). Ein Fix, der die mit abräumt, macht den Datei-Browser
-// unbrauchbar.
+// A RELATIVE link inside the home must stay usable — that is the form
+// toolchains actually create (`.claude/skills -> ../.agents/skills`,
+// node_modules/.bin). A fix that sweeps those away too makes the file browser
+// useless.
 func TestRelativerLinkInnerhalbBleibtBenutzbar(t *testing.T) {
 	fs, home, _ := aufbau(t)
 	if err := os.WriteFile(filepath.Join(home, "unterordner", "echt.txt"), []byte("hallo"), 0o644); err != nil {
@@ -156,7 +156,7 @@ func TestRelativerLinkInnerhalbBleibtBenutzbar(t *testing.T) {
 	if datei.Content != "hallo" {
 		t.Errorf("Inhalt = %q", datei.Content)
 	}
-	// Auch über mehrere Ebenen mit ..
+	// Also across several levels with ..
 	if err := os.MkdirAll(filepath.Join(home, "a", "b"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -166,11 +166,11 @@ func TestRelativerLinkInnerhalbBleibtBenutzbar(t *testing.T) {
 	}
 }
 
-// ABSOLUTE Links werden nicht verfolgt, auch wenn ihr Ziel im Home läge.
-// Das ist eine Eigenschaft von os.Root und in dieser Umgebung folgenlos: was in
-// der Sandbox absolut verlinkt wird, zeigt auf /home/agent/... — einen Pfad,
-// den es auf dem Host gar nicht gibt. Solche Links waren schon vorher tot, der
-// Eintrag bleibt sichtbar und wird als „außerhalb" markiert.
+// ABSOLUTE links are not followed, even when their target would lie in the
+// home. That is a property of os.Root and has no consequence in this
+// environment: whatever is linked absolutely in the sandbox points at
+// /home/agent/... — a path the host does not have at all. Such links were dead
+// before, the entry stays visible and is marked as outside.
 func TestAbsoluterLinkWirdNichtVerfolgt(t *testing.T) {
 	fs, home, _ := aufbau(t)
 	if err := os.WriteFile(filepath.Join(home, "unterordner", "echt.txt"), []byte("hallo"), 0o644); err != nil {
@@ -181,8 +181,8 @@ func TestAbsoluterLinkWirdNichtVerfolgt(t *testing.T) {
 	if _, err := fs.Read("absolut.txt"); err == nil {
 		t.Error("einem absoluten Link wurde gefolgt")
 	}
-	// Sichtbar bleiben muss er trotzdem — sonst sucht ein Admin eine Datei,
-	// die im Verzeichnis liegt und in der Liste fehlt.
+	// It still has to stay visible — otherwise an admin looks for a file
+	// that lies in the directory and is missing from the list.
 	listing, err := fs.List("")
 	if err != nil {
 		t.Fatal(err)

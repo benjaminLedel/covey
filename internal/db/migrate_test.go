@@ -8,10 +8,10 @@ import (
 	"covey/migrations"
 )
 
-// Zwei Branches vergeben parallel dieselbe Nummer. Bisher fraß loadMigrations
-// das still: beide Dateien landeten auf demselben migration-Struct, die
-// alphabetisch spätere überschrieb die SQL der früheren, verbucht wurde eine
-// Version — und die verlorene Migration lief nie. Das darf nicht laden.
+// TestLoadMigrationsRejectsDuplicateVersion: two branches hand out the same
+// number in parallel. Until now loadMigrations ate that silently — both files
+// on the same migration struct, the later one overwriting the earlier's SQL,
+// one version booked — and the lost migration never ran. That must not load.
 func TestLoadMigrationsRejectsDuplicateVersion(t *testing.T) {
 	fsys := fstest.MapFS{
 		"0051_a.up.sql":                 {Data: []byte("SELECT 1")},
@@ -29,8 +29,8 @@ func TestLoadMigrationsRejectsDuplicateVersion(t *testing.T) {
 	}
 }
 
-// Der Normalfall bleibt: up/down desselben Namens gehören zusammen, und die
-// Reihenfolge ist die der Nummern, nicht die des Verzeichnisses.
+// TestLoadMigrationsPairsAndSorts keeps the normal case: up/down of the same
+// name pair up, and the order is that of the numbers, not of the directory.
 func TestLoadMigrationsPairsAndSorts(t *testing.T) {
 	fsys := fstest.MapFS{
 		"0002_b.up.sql":   {Data: []byte("up 2")},
@@ -52,9 +52,9 @@ func TestLoadMigrationsPairsAndSorts(t *testing.T) {
 	}
 }
 
-// Die eingebetteten Migrationen des Repos selbst: keine doppelte Nummer, jede
-// mit up.sql. Der Test, der eine Nummernkollision im Merge auffliegen lässt,
-// bevor sie eine Instanz beim Start trifft.
+// TestEmbeddedMigrationsLoad checks the repo's own embedded migrations: no
+// duplicate number, each with an up.sql. The test that lets a number collision
+// in a merge surface before it hits an instance at startup.
 func TestEmbeddedMigrationsLoad(t *testing.T) {
 	ms, err := loadMigrations(migrations.FS)
 	if err != nil {

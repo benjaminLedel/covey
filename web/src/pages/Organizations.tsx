@@ -4,11 +4,11 @@ import { useTranslation } from "react-i18next";
 import { api, del, patch, post, type Organization, type Principal, type ProfileField } from "../api";
 import PlatformHeader from "./platform/Header";
 
-// Die Mandantenliste — Startseite des Plattform-Panels (Platform.tsx).
+// The tenant list — start page of the platform panel (Platform.tsx).
 //
-// Die Profilfelder standen hier einmal darunter. Sie sind aber Stammdaten EINER
-// Organisation und keine Sache der Instanz; sie stehen jetzt im
-// Administrations-Panel unter "Profil".
+// The profile fields once stood below this. They are master data of ONE
+// organisation and no matter of the instance; they now stand in the
+// administration panel under `Profil`.
 export default function Organizations({ me }: { me: Principal }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -41,7 +41,7 @@ export default function Organizations({ me }: { me: Principal }) {
   );
 }
 
-/** Die Profilfelder einer Organisation — eingebunden vom Administrations-Panel. */
+/** The profile fields of an organisation — included by the administration panel. */
 export function ProfileFieldsSettings() {
   const { t } = useTranslation();
   const qc = useQueryClient();

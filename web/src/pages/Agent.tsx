@@ -18,11 +18,11 @@ import { Backlog } from "./agent/Backlog";
 import { Recording } from "./agent/Recording";
 import { Memories } from "./agent/Memories";
 
-// Die gueltigen Werte von ?tab=. Die zweite Gruppe ist zusammengelegt, als URL
-// aber weiterhin gueltig: geteilte Links und Lesezeichen sollen nicht ins Leere
-// laufen, sondern dort landen, wo der Inhalt jetzt wohnt (siehe MOVED unten).
-// Dazu die englischen Namen der deutschen Slugs — wer "workspace" oder
-// "settings" tippt, meint den Arbeitsplatz bzw. die Einstellungen.
+// The valid values of ?tab=. The second group is merged, but as a URL still
+// valid: shared links and bookmarks should not run into empty space, but
+// land where the content now lives (see MOVED below).
+// Plus the English names of the German slugs — whoever types "workspace" or
+// "settings" means the workspace or the settings.
 const TABS = [
   "backlog", "recording", "akte", "memory", "dateien", "werkzeuge", "einstellungen",
   "heartbeat", "tools", "skills", "webhook", "config", "secrets", "egress", "dreams",
@@ -30,7 +30,7 @@ const TABS = [
 ] as const;
 type TabKey = (typeof TABS)[number];
 
-// MOVED: alter Reiter → [neuer Reiter, Parametername, Wert].
+// MOVED: old tab → [new tab, parameter name, value].
 const MOVED: Partial<Record<TabKey, [TabKey, string, string]>> = {
   heartbeat: ["einstellungen", "sub", "heartbeat"],
   webhook: ["einstellungen", "sub", "webhook"],
@@ -55,13 +55,13 @@ export default function AgentPage({ me }: { me: Principal }) {
     // A 404 does not change on a second try; everything else keeps the default one retry.
     retry: (failures, err) => !isNotFound(err) && failures < 1,
   });
-  // Tab-Zustand lebt in der URL (?tab=…) — echte Navigation: teilbare Links,
-  // Browser-Vor/Zurück. Der memory-Tab führt zusätzlich ?page=<slug> mit.
+  // Tab state lives in the URL (?tab=…) — real navigation: shareable links,
+  // browser forward/back. The memory tab additionally carries ?page=<slug>.
   const [sp, setSp] = useSearchParams();
-  // Nur bekannte Reiter zaehlen. Vorher fiel jeder unbekannte Wert durch das
-  // `|| "backlog"` hindurch — es greift nur bei null und "" —, und ?tab=workspace
-  // zeigte eine leere Seite statt des Arbeitsplatzes. Ein Link, den jemand von
-  // Hand tippt oder aus einer aelteren Fassung mitbringt, soll irgendwo landen.
+  // Only known tabs count. Before, every unknown value fell through the
+  // `|| "backlog"` — it only fires on null and "" —, and ?tab=workspace
+  // showed an empty page instead of the workspace. A link someone types by
+  // hand or brings along from an older version should land somewhere.
   const tab = (TABS as readonly string[]).includes(sp.get("tab") ?? "")
     ? (sp.get("tab") as TabKey)
     : "backlog";
@@ -70,10 +70,10 @@ export default function AgentPage({ me }: { me: Principal }) {
       (prev) => {
         const n = new URLSearchParams(prev);
         n.set("tab", key);
-        n.delete("sub"); // Unterpunkt gehoert dem Reiter, den man verlaesst
-        if (key !== "memory") n.delete("page"); // Wiki-Seite nur im memory-Tab
+        n.delete("sub"); // the sub-item belongs to the tab you are leaving
+        if (key !== "memory") n.delete("page"); // wiki page only in the memory tab
         if (key !== "dateien") {
-          n.delete("dir"); // Ordner und Datei nur im Arbeitsplatz-Tab
+          n.delete("dir"); // folder and file only in the workspace tab
           n.delete("file");
         }
         return n;
@@ -83,9 +83,9 @@ export default function AgentPage({ me }: { me: Principal }) {
   const [recTask, setRecTask] = useState<{ id: string; title: string } | null>(null);
   const [hiring, setHiring] = useState(false);
 
-  // Was man einmal einrichtet, wohnt unter den Einstellungen; was zusammen
-  // gehoert, unter einem Reiter. Alte Links landen am neuen Ort statt auf dem
-  // Backlog — geteilte Links und Lesezeichen sollen nicht ins Leere laufen.
+  // What you set up once lives under the settings; what belongs together
+  // lives under one tab. Old links land at the new place instead of on the
+  // backlog — shared links and bookmarks should not run into empty space.
   useEffect(() => {
     const to = MOVED[tab];
     if (!to) return;
@@ -133,9 +133,9 @@ export default function AgentPage({ me }: { me: Principal }) {
         {isDraft(a) ? (
           <span className="badge state st-draft">{t("dashboard.draftBadge")}</span>
         ) : a.wake_trouble && !a.killed ? (
-          /* Nicht „schläft": Dieser Agent versucht aufzuwachen und kann nicht.
-             Der Grund gehört neben den Zustand — ein Fehler, den nur die
-             Rohdaten der Aufzeichnung kennen, wird nicht gelesen (#139). */
+          /* Not `schläft`: this agent is trying to wake up and cannot.
+             The reason belongs next to the state — an error that only the
+             raw recording data knows will not be read (#139). */
           <span
             className="badge state st-wake-failed"
             title={t("agent.wakeFailedWhy", { n: a.wake_trouble.failures, err: a.wake_trouble.error ?? "" })}
@@ -150,17 +150,17 @@ export default function AgentPage({ me }: { me: Principal }) {
         {(a.status === "working" || a.status === "triage" || a.status === "triggered") && (
           <span className="live-dot" title={t("agent.sandbox")} />
         )}
-        {/* Der Status sagt „triggered"; worauf der Agent dabei wartet, sagt
-            erst die Phase — und auf einem frischen Host ist das die längste
-            Wartezeit, die die Plattform hat. */}
+        {/* The status says `triggered`; what the agent is waiting for
+            only the phase tells — and on a fresh host that is the longest
+            wait the platform has. */}
         {a.phase && <PhaseBadge phase={a.phase} />}
         <span className="muted text-xs mono">
           runtime: {a.runtime}
           {a.model && ` · ${a.model}`}
         </span>
         <span className="ml-auto" />
-        {/* Ein Entwurf hat keinen ersten Tag — „wecken" wäre der falsche Knopf
-            an der Stelle, an der „einstellen" steht. */}
+        {/* A draft has no first day — `wecken` would be the wrong button
+            where `einstellen` stands. */}
         {canManage(me.Role) && !isDraft(a) && (
           <button className="btn sm" onClick={() => act.mutate("wake")}>
             {t("agent.wake")}
@@ -171,8 +171,8 @@ export default function AgentPage({ me }: { me: Principal }) {
             {t("hire.action")}
           </button>
         )}
-        {/* Kill-Switch nur für einen, der laufen kann. Einen Entwurf zu stoppen
-            ist keine Handlung — er hat nicht angefangen. */}
+        {/* Kill switch only for one that can run. Stopping a draft
+            is not an action — it has not started. */}
         {canKill(me.Role) && !isDraft(a) &&
           (a.killed ? (
             <button className="btn sm" onClick={() => act.mutate("resume")}>
@@ -214,11 +214,11 @@ export default function AgentPage({ me }: { me: Principal }) {
             ["einstellungen", t("agent.tabs.settings")],
           ] as const
         )
-          // Der Arbeitsplatz zeigt, was im Home des Agenten liegt — das sehen
-          // nur seine Verwalter und Security, nicht jede Rolle. Die Arbeitsakte
-          // folgt derselben Ueberlegung eine Stufe weiter (spec/21): eine
-          // Kostensumme sagt, was ausgegeben wurde, eine Akte sagt, wie jemand
-          // gearbeitet hat — Controlling sieht sie nicht.
+          // The workspace shows what lies in the agent's home — only its
+          // managers and security see that, not every role. The work record
+          // follows the same thought one step further (spec/21): a
+          // cost total says what was spent, a record says how someone
+          // worked — controlling does not see it.
           .filter(([key]) => key !== "dateien" || canFiles(me.Role))
           .filter(([key]) => key !== "akte" || canRecord(me.Role))
           .map(([key, label]) => (
@@ -260,8 +260,8 @@ export default function AgentPage({ me }: { me: Principal }) {
       {tab === "dateien" && canFiles(me.Role) && (
         <>
           <AgentFiles agent={a} canWrite={canManage(me.Role)} />
-          {/* Der Home-Store neben dem Dateibrowser (spec/16): was das Home
-              wiegt, wovon nur dieser Agent es hält, und die Snapshots. */}
+          {/* The home store next to the file browser (spec/16): what the home
+              weighs, that only this agent holds it, and the snapshots. */}
           <AgentHome agent={a} canWrite={canManage(me.Role)} />
         </>
       )}
@@ -285,6 +285,6 @@ export default function AgentPage({ me }: { me: Principal }) {
   );
 }
 
-// Werkzeuge buendeln, womit der Agent arbeitet: was er in den angebundenen
-// Zielsystemen tun kann, welche MCP-Werkzeuge er davon nutzen darf und welche
-// Skills er zieht. Als drei getrennte Reiter stand die Frage „was kann der
+// Tools bundle what the agent works with: what it can do in the attached
+// target systems, which of these MCP tools it may use and which
+// Skills it pulls. As three separate tabs the question "what can the

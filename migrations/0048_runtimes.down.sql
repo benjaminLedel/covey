@@ -1,7 +1,7 @@
--- Zurueck auf den Pool unter dem Secret-Schluessel. Die Politik-Spalten kommen
--- wieder, die Werte darin gehen verloren: welche Runtime welchen Deckel gesetzt
--- hatte, laesst sich auf Schluesselebene nicht abbilden, sobald zwei Runtimes
--- denselben Schluessel benutzen. Das ist der Preis des Rueckwegs.
+-- Back to the pool under the secret key. The policy columns come
+-- back, the values in them are lost: which runtime had set which
+-- ceiling cannot be mapped at key level, once two runtimes use the
+-- same key. That is the price of the way back.
 ALTER TABLE secrets
     ADD COLUMN label             TEXT NOT NULL DEFAULT '',
     ADD COLUMN cooldown_until    TIMESTAMPTZ,

@@ -5,18 +5,18 @@ import { Link } from "react-router";
 import { api, post, type Agent, type OrgChart, type Task, type TaskNote } from "../../api";
 import i18n from "../../i18n";
 
-/* Die Ausschreibung: ein Formular, das in einer Aufgabe endet.
+/* The job posting: a form that ends in a task.
  *
- * Statt vier Fragen, die voraussetzen, dass man die Plattform kennt, eine
- * einzige — was soll die neue Kollegin tun? — plus die zwei Angaben, die ein
- * Mensch sicher beantworten kann. Die Antwort geht als Auftrag an die
- * Personalabteilung.
+ * Instead of four questions that assume you know the platform, a single
+ * one — what should the new colleague do? — plus the two details a
+ * person can answer with certainty. The answer goes as an assignment to the
+ * HR department.
  *
- * Danach zeigt diese Ansicht nicht „wird angelegt …", sondern das laufende
- * Einstellungsgespräch: Zustand, Notizen, und die Rückfrage, wenn die
- * Ausschreibung zu dünn war. Genau dafür ist es eine Aufgabe und kein
- * synchroner Aufruf — Fragen, Antworten und Fortsetzen haben hier schon ein
- * Zuhause. spec/20. */
+ * Afterwards this view does not show "creating …", but the ongoing
+ * interview: state, notes, and the follow-up question when the
+ * posting was too thin. That is exactly why it is a task and not a synchronous
+ * call — questions, answers and resuming already have a
+ * home here. spec/20. */
 
 type BriefResult = { task: Task; agent: Agent; waiting_for_hire: boolean };
 type BriefStatus = { task: Task; notes: TaskNote[] | null; drafts: Agent[] };
@@ -97,20 +97,20 @@ export function Brief({ onBack, onOpen }: { onBack: () => void; onOpen: (a: Agen
   );
 }
 
-/* Das Einstellungsgespräch, während es läuft. Gepollt statt gestreamt: die
-   Ansicht ist offen, solange jemand hinschaut, und ein Poll alle drei Sekunden
-   ist billiger als eine zweite Streaming-Naht für einen Dialog, der Minuten
-   dauert. */
+/* The interview while it is running. Polled instead of streamed: the
+   view is open as long as someone is watching, and a poll every three seconds
+   is cheaper than a second streaming seam for a dialog that takes
+   minutes. */
 function BriefProgress({ result, onOpen }: { result: BriefResult; onOpen: (a: Agent) => void }) {
   const { t } = useTranslation();
   const status = useQuery({
     queryKey: ["brief", result.task.id],
     queryFn: () => api<BriefStatus>(`/hiring/brief/${result.task.id}`),
     refetchInterval: q => {
-      // Wartet der Auftrag auf die Einstellung, passiert hier nichts mehr:
-      // ein Entwurf wird nicht dispatcht, und was das ändert, ist ein Mensch
-      // an einer anderen Stelle der Oberfläche. Alle drei Sekunden nachzusehen
-      // wäre ein Poll, der per Konstruktion nie etwas findet.
+      // If the task waits for the hire, nothing more happens here:
+      // a draft is not dispatched, and what changes it is a person at another
+      // spot in the interface. Looking again every three seconds
+      // would be a poll that by construction never finds anything.
       if (result.waiting_for_hire) return false;
       const s = (q.state.data as BriefStatus | undefined)?.task.state;
       return s === "done" || s === "failed" || s === "cancelled" ? false : 3000;

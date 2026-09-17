@@ -11,16 +11,16 @@ import (
 	"github.com/google/uuid"
 )
 
-/* Zwei Fehler, ein Vorfall (#96). Ein Agent war um 14:32:21 fertig; im selben
-   Moment beginnt der Runner, sein Home in den Store zu schreiben — und trägt
-   dabei keine Sandbox mehr. Das eingeplante Update sah die Lücke, ersetzte das
-   Binary und startete den Runner in den laufenden Sync hinein. Der
-   Schnappschuss bewegte sich nie. Und die Kontrollebene wartete danach bis
-   15:02 auf eine Antwort, die niemand mehr senden konnte. */
+/* Two faults, one incident (#96). An agent finished at 14:32:21; in the same
+   moment the runner began writing its home into the store — and carried no
+   sandbox any more. The planned update saw the gap, replaced the binary and
+   restarted the runner into the running sync. The snapshot never moved. And
+   the control plane waited afterwards until 15:02 for an answer that no
+   one could send any more. */
 
-// registriereFalschenRunner baut eine Verbindung von Hand: die Steuerebene an
-// dem einen Ende, ein stummes Gegenüber am anderen. Stumm ist der Punkt — es
-// geht darum, was passiert, wenn keine Antwort kommt.
+// registriereFalschenRunner builds a connection by hand: the control plane at
+// one end, a silent counterpart at the other. Silent is the point — it is
+// about what happens when no answer comes.
 func registriereFalschenRunner(t *testing.T, p *Pool, orgID uuid.UUID) (Transport, uuid.UUID, chan error) {
 	t.Helper()
 	control, nodeEnd := NewInProc()
@@ -48,7 +48,7 @@ func registriereFalschenRunner(t *testing.T, p *Pool, orgID uuid.UUID) (Transpor
 	return nodeEnd, runnerID, fertig
 }
 
-// warteAufTyp holt Nachrichten ab, bis die gesuchte dabei ist.
+// warteAufTyp pulls messages until the wanted one is among them.
 func warteAufTyp(t *testing.T, end Transport, typ string) Message {
 	t.Helper()
 	frist, abbrechen := context.WithTimeout(context.Background(), 5*time.Second)
@@ -76,10 +76,10 @@ func warteBis(t *testing.T, frist time.Duration, ok func() bool) {
 	t.Fatal("die Bedingung trat nicht ein")
 }
 
-// Eine offene Frage, deren Verbindung abreißt, wird sofort beantwortet — mit
-// der Tatsache, dass es nichts mehr zu warten gibt. Vorher lief sie in ihren
-// eigenen Zeitablauf: bei einem Home-Sync dreißig Minuten, in denen die
-// Oberfläche „sichert Arbeitsplatz" sagte und nichts geschah.
+// An open question whose connection breaks is answered at once — with the
+// fact that there is nothing left to wait for. Before, it ran into its own
+// timeout: thirty minutes on a home-sync, during which the UI said it was
+// securing the workplace and nothing happened.
 func TestEineOffeneFrageStirbtMitIhrerVerbindung(t *testing.T) {
 	p := NewPool(quietLog())
 	orgID := uuid.New()
@@ -91,17 +91,17 @@ func TestEineOffeneFrageStirbtMitIhrerVerbindung(t *testing.T) {
 
 	antwort := make(chan error, 1)
 	go func() {
-		// Dreißig Minuten — die Frist eines Home-Syncs.
+		// Thirty minutes — the deadline of a home-sync.
 		_, err := c.ask(context.Background(), TypeSyncHome,
 			SyncHome{AgentID: uuid.New(), OrgID: orgID}, 30*time.Minute)
 		antwort <- err
 	}()
-	// Erst abholen, was gesendet wurde: dass ein Wartender eingetragen ist,
-	// heißt noch nicht, dass die Frage auf der Leitung war — und eine Frage,
-	// die nie hinausging, scheitert ohnehin sofort. Der Fall aus #96 ist der
-	// andere: sie ging hinaus, und niemand kam mit einer Antwort zurück.
-	// Gezielt auf DIESE Frage: auf der Leitung liegen auch Herzschlag und
-	// Kapazitätsfrage, und eine davon abzuholen sagt nichts über den Sync.
+	// First fetch what was sent: that a waiter is registered does not yet mean
+	// the question was on the wire — and a question that never went out fails
+	// right away anyway. The case from #96 is the other one: it went out, and
+	// no one came back with an answer. Aimed at THIS question: on the wire lie
+	// also heartbeat and the capacity question, and fetching one of those says
+	// nothing about the sync.
 	warteAufTyp(t, nodeEnd, TypeSyncHome)
 
 	_ = nodeEnd.Close()
@@ -116,9 +116,9 @@ func TestEineOffeneFrageStirbtMitIhrerVerbindung(t *testing.T) {
 	}
 }
 
-// „Leerlaufend" ist nicht „trägt keine Sandbox". Solange die Steuerebene auf
-// eine Antwort wartet, tut der Host etwas — und ein Home zu schreiben ist das
-// Wertvollste, was er tut.
+// "Idle" is not "carries no sandbox". As long as the control plane waits for
+// an answer, the host is doing something — and writing a home is the most
+// valuable thing it does.
 func TestEinHostMitOffenerFrageGiltNichtAlsLeerlaufend(t *testing.T) {
 	p := NewPool(quietLog())
 	orgID := uuid.New()
@@ -132,14 +132,14 @@ func TestEinHostMitOffenerFrageGiltNichtAlsLeerlaufend(t *testing.T) {
 	c := p.conns[runnerID]
 	p.mu.Unlock()
 
-	// Ein Sync ist unterwegs …
+	// A sync is under way …
 	go func() {
 		_, _ = c.ask(context.Background(), TypeSyncHome,
 			SyncHome{AgentID: uuid.New(), OrgID: orgID}, time.Minute)
 	}()
 	warteBis(t, 3*time.Second, func() bool { return c.pending() > 0 })
 
-	// … und der Host meldet dabei null Sandboxen. Genau die Lage aus #96.
+	// … and the host reports zero sandboxes while it runs. Exactly the case from #96.
 	ctx := context.Background()
 	warteAufTyp(t, nodeEnd, TypeSyncHome)
 	go antworteAufKapazitaet(nodeEnd, CapacityReport{Sandboxes: 0, FreeBytes: 1 << 30})
@@ -150,10 +150,10 @@ func TestEinHostMitOffenerFrageGiltNichtAlsLeerlaufend(t *testing.T) {
 	}
 }
 
-// Die Gegenprobe, und sie ist die wichtigere Hälfte: ein Wächter, der nie
-// durchlässt, hat den Fehler nicht behoben, sondern die Funktion abgeschaltet.
-// Ein Host, der nichts trägt und auf nichts antworten muss, ist leerlaufend —
-// und dann läuft das eingeplante Update auch.
+// The counter-test, and it is the more important half: a guard that never
+// lets anything through has not fixed the fault but switched off the function.
+// A host that carries nothing and has nothing to answer for is idle — and
+// then the planned update runs too.
 func TestEinWirklichLeerlaufenderHostBekommtSeinUpdate(t *testing.T) {
 	p := NewPool(quietLog())
 	orgID := uuid.New()
@@ -163,7 +163,7 @@ func TestEinWirklichLeerlaufenderHostBekommtSeinUpdate(t *testing.T) {
 		case gefragt <- struct{}{}:
 		default:
 		}
-		return "", nil // kein Plan hinterlegt — gefragt wurde trotzdem
+		return "", nil // no plan on file — it was asked anyway
 	}
 	nodeEnd, runnerID, _ := registriereFalschenRunner(t, p, orgID)
 	p.mu.Lock()
@@ -171,9 +171,9 @@ func TestEinWirklichLeerlaufenderHostBekommtSeinUpdate(t *testing.T) {
 	p.mu.Unlock()
 
 	ctx := context.Background()
-	// Durchgehend antworten, nicht einmal: der Pool fragt von sich aus nach
-	// Kapazität, und wer nur die erste Frage beantwortet, beantwortet unter
-	// Umständen die falsche — die des Wächters, nicht die des Tests.
+	// Answer throughout, not once: the pool asks for capacity on its own, and
+	// one who answers only the first question may answer the wrong one — the
+	// guard's, not the test's.
 	go antworteAufKapazitaet(nodeEnd, CapacityReport{Sandboxes: 0, FreeBytes: 1 << 30})
 	c.refreshCapacity(ctx)
 
@@ -184,10 +184,10 @@ func TestEinWirklichLeerlaufenderHostBekommtSeinUpdate(t *testing.T) {
 	}
 }
 
-// antworteAufKapazitaet spielt den Host, der jede Kapazitätsfrage beantwortet,
-// bis die Verbindung endet. Ohne t.Fatalf: aus einer Nebenläufigkeit heraus ist
-// das nicht erlaubt, und ausbleiben kann eine Antwort ohnehin nur so, dass der
-// Wartende in seine eigene Frist läuft.
+// antworteAufKapazitaet plays the host that answers every capacity question
+// until the connection ends. Without t.Fatalf: from a goroutine that is not
+// allowed, and a missing answer can only show up as the waiter running into
+// its own deadline.
 func antworteAufKapazitaet(end Transport, bericht CapacityReport) {
 	ctx := context.Background()
 	for {
@@ -208,16 +208,16 @@ func antworteAufKapazitaet(end Transport, bericht CapacityReport) {
 	}
 }
 
-// Und die Seite, die es wirklich weiß: der Host selbst lehnt ab, solange er an
-// einer Arbeitskopie schreibt. Die Steuerebene sieht nur Sandboxen; der Runner
-// sieht seine Warteschlange.
+// And the side that really knows: the host itself refuses as long as it is
+// writing to a working copy. The control plane only sees sandboxes; the
+// runner sees its queue.
 func TestDerHostLehntEinUpdateWaehrendEinesSyncsAb(t *testing.T) {
 	dir := t.TempDir()
 	runnerID, orgID, agentID := uuid.New(), uuid.New(), uuid.New()
 	node := NewNode(runnerID, orgID, &Docker{RunnerID: runnerID, DataDir: dir}, quietLog())
 	t.Cleanup(node.Close)
 
-	// Eine Arbeitskopie-Aufgabe in der Warteschlange, die nicht fertig wird.
+	// A working-copy task in the queue that never finishes.
 	laeuft := make(chan struct{})
 	node.inOrder(agentID, func() { <-laeuft })
 	defer close(laeuft)
@@ -234,7 +234,7 @@ func TestDerHostLehntEinUpdateWaehrendEinesSyncsAb(t *testing.T) {
 	if res.Err == "" {
 		t.Fatal("die Ablehnung nennt keinen Grund — sie steht in der Oberfläche")
 	}
-	// Und er hat nichts angefasst: kein Binary, kein Neustart.
+	// And it has touched nothing: no binary, no restart.
 	if res.Restarting {
 		t.Fatal("der Host startet trotz Ablehnung neu")
 	}

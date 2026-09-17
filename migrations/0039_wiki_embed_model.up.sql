@@ -1,12 +1,12 @@
--- Fingerabdruck des Embedding-Modells je Wiki-Seite (spec/05).
+-- Fingerprint of the embedding model per wiki page (spec/05).
 --
--- Vektoren verschiedener Modelle sind untereinander nicht vergleichbar: eine
--- Kosinus-Ähnlichkeit zwischen einem Hash-Vektor und einem API-Vektor ist eine
--- Zufallszahl. Suche, Ingest-Zuordnung und Konsolidierung filtern deshalb auf
--- das aktuell konfigurierte Modell, und ReembedStale zieht die übrigen Seiten
--- im Hintergrund nach.
+-- Vectors of different models are not comparable to one another: a cosine
+-- similarity between a hash vector and an API vector is a random number.
+-- Search, ingest assignment and consolidation therefore filter on the
+-- currently configured model, and ReembedStale pulls the remaining pages
+-- along in the background.
 --
--- Bestand: alles, was es bisher gibt, stammt vom Built-in-Hash-Embedder.
+-- Existing stock: everything there is so far comes from the built-in hash embedder.
 ALTER TABLE wiki_pages ADD COLUMN embed_model TEXT NOT NULL DEFAULT '';
 UPDATE wiki_pages SET embed_model = 'builtin-hash:256';
 

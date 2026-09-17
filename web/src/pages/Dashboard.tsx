@@ -13,19 +13,19 @@ import { Onboarding } from "../components/Onboarding";
 import { HireDialog } from "../components/HireDialog";
 import { fmtBytes } from "../format";
 
-/* Die Belegschaft nach Abteilungen, und eine Suche darüber.
+/* The workforce by department, and a search over it.
  *
- * Die Übersicht war eine Kachelwand in Anlegereihenfolge. Das trägt, solange
- * man alle kennt; ab etwa einem Dutzend ist die Frage nicht mehr „wer ist da",
- * sondern „wer im Support" und „wo ist Brunhilde". Beides beantwortet dieselbe
- * Ordnung, die das Organigramm schon hat — sie stand nur nicht in der Liste.
+ * The overview was a wall of tiles in filing order. That holds while you
+ * know them all; from about a dozen on, the question is no longer "who is
+ * here" but "who in support" and "where is Brunhilde". Both are answered by
+ * the order the org chart already has — it was only not in the list.
  *
- * Die Suche lebt in der URL (?q=…): geteilte Links und der Zurück-Knopf sollen
- * funktionieren, wie überall sonst in dieser Oberfläche auch. */
+ * The search lives in the URL (?q=…): shared links and the back button
+ * should work as they do everywhere else in this UI. */
 
-// matches sucht dort, wo jemand suchen würde: Name, Rolle, Kürzel, Zustand —
-// und der Name der Abteilung, damit „support" auch die findet, die dort
-// arbeiten, ohne dass es in ihrem eigenen Namen steht.
+// matches looks where someone would look: name, role, slug, state — and
+// the department name, so that "support" also finds those who work there
+// without it standing in their own name.
 export function matches(a: Agent, deptName: string, q: string, states: string[] = []): boolean {
   if (states.length && !states.includes(stateOf(a))) return false;
   const needle = q.trim().toLowerCase();
@@ -35,17 +35,17 @@ export function matches(a: Agent, deptName: string, q: string, states: string[] 
     .some((v) => String(v).toLowerCase().includes(needle));
 }
 
-// stateOf fasst zusammen, was die Karte als Abzeichen zeigt. Die Plattform
-// kennt fünf Zustände, aber „geweckt" und „triage" sind Sekunden auf dem Weg
-// ins Arbeiten — als eigene Filter wären es Knöpfe, die fast nie etwas finden.
+// stateOf sums up what the badge on the row shows. The platform knows five
+// states, but "triggered" and "triage" are seconds on the way to working —
+// as their own filters they would be buttons that almost never match.
 export function stateOf(a: Agent): "working" | "sleeping" | "killed" {
   if (a.killed) return "killed";
   if (a.status === "sleeping") return "sleeping";
   return "working";
 }
 
-// Wer läuft, steht oben. Sonst entscheidet die Anlagereihenfolge, und die ist
-// für niemanden eine Auskunft.
+// Whoever runs stands on top. Otherwise the filing order decides, and that
+// tells no one anything.
 const RANK: Record<string, number> = { working: 0, triggered: 1, triage: 2, sleeping: 3, killed: 4 };
 function byBusy(a: Agent, b: Agent): number {
   const ra = a.killed ? RANK.killed : (RANK[a.status] ?? 3);
@@ -56,11 +56,11 @@ function byBusy(a: Agent, b: Agent): number {
 
 export type Group = { id: string | null; name: string; color: string; agents: Agent[] };
 
-// groupByDepartment ordnet die Belegschaft so, wie das Organigramm sie ordnet:
-// Abteilungen alphabetisch, „ohne Abteilung" zuletzt — nicht weil es unwichtig
-// wäre, sondern weil es kein Ort ist, an dem jemand sucht. Leere Gruppen
-// entfallen: bei aktiver Suche ist eine Abteilungsüberschrift ohne Treffer
-// genau die Zeile, die den Blick kostet.
+// groupByDepartment orders the workforce the way the org chart orders it:
+// departments alphabetically, "no department" last — not because it is
+// unimportant, but because it is no place where someone searches. Empty
+// groups fall away: with an active search a department heading without hits
+// is exactly the line that costs a second glance.
 export function groupByDepartment(
   agents: Agent[],
   departments: Department[],
@@ -113,10 +113,10 @@ export default function Dashboard({ me }: { me: Principal }) {
   const toggleState = (st: string) =>
     setParam("status", (states.includes(st) ? states.filter((x) => x !== st) : [...states, st]).join(","));
 
-  // „/" springt ins Suchfeld, Esc räumt es weg — bei einer Suche, die man
-  // mehrmals am Tag benutzt, ist der Griff zur Maus die Bewegung, die man
-  // spart. Nicht, während jemand woanders tippt: sonst frisst die Seite das
-  // Zeichen aus einem anderen Feld.
+  // "/" jumps into the search field, Esc clears it — for a search you use
+  // several times a day, reaching for the mouse is the movement you save.
+  // Not while someone is typing elsewhere: otherwise the page eats the
+  // character out of another field.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const inField = ["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement)?.tagName ?? "");
@@ -141,10 +141,10 @@ export default function Dashboard({ me }: { me: Principal }) {
   const [hiring, setHiring] = useState<Agent | null>(null);
   const [rejecting, setRejecting] = useState<Agent | null>(null);
 
-  // Ablehnen heißt löschen, und das ist hier verantwortbar: der Entwurf hat nie
-  // gearbeitet, es gibt keinen Lauf, keine Kosten und keine Spur, die jemand
-  // später bräuchte. Die Ausschreibung, aus der er hervorging, bleibt als
-  // Aufgabe stehen — dort steht auch die Begründung.
+  // Rejecting means deleting, and that is defensible here: the draft never
+  // worked, there is no run, no cost and no trace anyone would need later.
+  // The brief it came from stays behind as a task — the reason is written
+  // down there too.
   const reject = useMutation({
     mutationFn: (id: string) => del<{ ok: boolean }>(`/agents/${id}`),
     onSuccess: () => {
@@ -173,10 +173,10 @@ export default function Dashboard({ me }: { me: Principal }) {
     <div>
       <div className="flex items-center gap-3 mb-4">
         <h1 className="text-[22px]">{t("dashboard.title")}</h1>
-        {/* Die Suche auf Augenhöhe mit der Überschrift, mittig zwischen ihr und
-            den Knöpfen: eine eigene Zeile darunter kostete Höhe für nichts. Die
-            Zählung „2 in der Organisation" stand daneben und beantwortete eine
-            Frage, die niemand hat — was zählt, steht an den Abteilungen. */}
+        {/* The search at eye level with the heading, centred between it and
+            the buttons: a row of its own below cost height for nothing. The
+            count "2 in the organisation" stood beside it and answered a
+            question nobody has — what counts stands at the departments. */}
         {all.length > 0 && (
           <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <div className="agent-search">
@@ -199,9 +199,9 @@ export default function Dashboard({ me }: { me: Principal }) {
               )}
               <kbd className="secondary text-xs" title={t("dashboard.searchShortcut")}>/</kbd>
             </div>
-            {/* Die Chips hinter dem Feld statt darunter: eine zweite Zeile
-                schob die Belegschaft nach unten, und beides zusammen ist eine
-                Aussage — wonach suche ich, und wovon. */}
+            {/* The chips behind the field instead of below it: a second row
+                pushed the workforce down, and both together are one
+                statement — what I search for, and out of what. */}
             {(["working", "sleeping", "killed"] as const).map((st) => (
               <button
                 key={st}
@@ -243,9 +243,9 @@ export default function Dashboard({ me }: { me: Principal }) {
 
       <Onboarding me={me} />
 
-      {/* Der Füllstand des Home-Stores. Ein Speicher, der still im Hintergrund
-          wächst, ist ein Betriebsrisiko — man merkt ihn, wenn die Platte voll
-          ist. Deshalb hier, und mit einer Warnung davor statt danach. */}
+      {/* The fill level of the home store. A store that grows quietly in the
+          background is an operational risk — you notice it when the disk is
+          full. Hence here, and with the warning before it instead of after. */}
       <StoreLevel />
 
       {fleetKilled && (
@@ -273,10 +273,10 @@ export default function Dashboard({ me }: { me: Principal }) {
         </div>
       )}
 
-      {/* Bewerbungen zuerst und in einem eigenen Feld: ein Agent, der noch
-          nicht eingestellt ist, arbeitet nicht — zwischen den anderen stünde er
-          da wie ein Kollege und wäre doch keiner. Die Trennung ist deshalb
-          nicht Dekoration, sondern die Aussage. */}
+      {/* Applications first and in a field of their own: an agent not yet
+          hired does not work — among the others it would stand there like a
+          colleague and still be none. The separation is therefore not
+          decoration, but the statement. */}
       {drafts.length > 0 && (
         <section className="applications mb-5">
           <div className="flex items-baseline gap-2 mb-2">
@@ -308,8 +308,8 @@ export default function Dashboard({ me }: { me: Principal }) {
       {groups.map((g) => (
         <section key={g.id ?? "ohne"} className="mb-5">
           <div className="flex items-baseline gap-2 mb-2">
-            {/* Die Abteilungsfarbe ist dieselbe wie im Organigramm — zwei
-                Ansichten derselben Ordnung sollen auch gleich aussehen. */}
+            {/* The department colour is the same as in the org chart — two
+                views of the same order should look the same as well. */}
             {g.color && (
               <span
                 aria-hidden
@@ -358,9 +358,9 @@ export default function Dashboard({ me }: { me: Principal }) {
   );
 }
 
-/* Die Initialen: nur Buchstaben und Ziffern.
-   Sonst wird aus „QA-Agent (GitLab)" ein Kreis mit „Q(" — die Klammer ist der
-   erste Buchstabe des zweiten Wortes. */
+/* The initials: letters and digits only.
+   Otherwise "QA-Agent (GitLab)" becomes a circle reading "Q(" — the
+   bracket is the first character of the second word. */
 function initialsOf(name: string): string {
   return name
     .split(/[\s-]+/)
@@ -371,25 +371,25 @@ function initialsOf(name: string): string {
     .toUpperCase();
 }
 
-/* Eine Agentenkarte.
+/* An agent card.
  *
- * Der Zustand steht rechts oben, der Name links — und der Name darf umbrechen,
- * ohne dem Zustand den Platz zu nehmen: `min-w-0` am Textblock, `shrink-0` am
- * Badge. Ohne das schob ein zweizeiliger Name das Badge in die Überschrift.
+ * The state sits top right, the name left — the name may wrap without
+ * taking the state's space: `min-w-0` on the text block, `shrink-0` on the
+ * badge. Without that a two-line name pushed the badge into the heading.
  *
- * Im Bewerbungsfeld bleibt das Badge weg (`labelled`): der Kasten heißt schon
- * „Bewerbungen", ein „Bewerbung" auf jeder Karte darin sagt nichts dazu und
- * kostet genau den Platz, an dem es klemmt. */
-/* Eine Zeile im Register statt einer Karte im Raster.
+ * In the applications field the badge stays out (`labelled`): the box is
+ * already called "applications", an "application" on every card in it says
+ * nothing on top and costs exactly the space where it jams. */
+/* A row in the register instead of a card in the grid.
  *
- * Eine Belegschaft ist eine Liste von Personen, und eine Liste liest man in
- * Zeilen: Name unter Name, Zustand unter Zustand, alles in einer Flucht. Als
- * Kachelfeld stand jeder Wert an einer anderen Stelle, und ab einem Dutzend
- * Agenten musste das Auge jede Kachel einzeln absuchen.
+ * A workforce is a list of people, and a list you read in rows: name under
+ * name, state under state, everything in one alignment. As a tile field
+ * every value stood at a different place, and from a dozen agents on the
+ * eye had to search every tile by itself.
  *
- * Die Spalten sind die eines Personalbogens: wer, welches Kürzel, worauf er
- * läuft, was er kosten darf, wie er steht. Die Zustandsmarke ganz rechts
- * steht bei allen an derselben Stelle — das ist der Punkt einer Flucht. */
+ * The columns are those of a personnel record: who, which slug, what it
+ * runs on, what it may cost, how it stands. The state marker at the far
+ * right stands at the same place for all — that is the point of an alignment. */
 function AgentRow({
   agent,
   onHire,
@@ -407,29 +407,29 @@ function AgentRow({
     <Link to={`/agents/${agent.id}`} className={`reg-row no-underline${draft ? " reg-row-draft" : ""}`}>
       <div className="avatar shrink-0">{initialsOf(agent.display_name)}</div>
       <div className="reg-wer min-w-0">
-        {/* Der Job-Titel ist das, wonach das Auge scannt — „wer im Support"
-            beantwortet „Software-Entwicklerin", nicht „engineer-1". */}
+        {/* The job title is what the eye scans — "who in support" is
+            answered by "software developer", not by `engineer-1`. */}
         <div className="font-medium text-sm reg-name">{agent.display_name}</div>
         {agent.job_title && <div className="secondary text-xs reg-name">{agent.job_title}</div>}
       </div>
-      {/* Das Kürzel taucht in Logs und Webhooks auf und gehört deshalb ins
-          Register, aber in die stille Spalte. */}
+      {/* The slug turns up in logs and webhooks, so it belongs in the
+          register, but in the quiet column. */}
       <div className="reg-slug secondary text-xs mono">{agent.slug}</div>
       <div className="reg-engine secondary text-xs mono">{agent.runtime}</div>
       <div className="reg-budget secondary text-xs">
         {agent.budget_usd > 0 ? fmtUSD(agent.budget_usd) : <span className="reg-leer">—</span>}
       </div>
       <div className="reg-stand">
-        {/* Ein Agent, der auf die Plattform wartet, sieht sonst aus wie einer,
-            der arbeitet. */}
+        {/* An agent waiting for the platform otherwise looks like one
+            that is working. */}
         {agent.phase ? (
           <PhaseBadge phase={agent.phase} compact />
         ) : (
           !(draft && labelled) &&
-          /* „Schläft" und „kommt nicht hoch" sahen gleich aus. Ein Agent,
-             dessen Weckversuche scheitern, bekommt deshalb sein eigenes
-             Abzeichen — und der Grund steht im Titel, statt in den Rohdaten
-             der Aufzeichnung zu warten (#139). */
+          /* "Sleeping" and "does not come up" looked the same. An agent
+             whose wake attempts fail therefore gets its own badge — and the
+             reason stands in the title, instead of waiting in the raw data
+             of the work record (#139). */
           (agent.wake_trouble && !draft && !agent.killed ? (
             <span
               className="badge state st-wake-failed"
@@ -456,7 +456,7 @@ function AgentRow({
               <button
                 className="btn sm primary"
                 onClick={(e) => {
-                  e.preventDefault(); // die Zeile ist ein Link — der Knopf ist es nicht
+                  e.preventDefault(); // the row is a link — the button is not
                   onHire(agent);
                 }}
               >
@@ -481,10 +481,10 @@ function AgentRow({
   );
 }
 
-/* Der Spaltenkopf des Registers. Er steht einmal je Abschnitt und benennt,
-   was in der Flucht darunter steht — ein Vordruck sagt, was in seine Felder
-   gehört. Bei den Bewerbungen entfällt er: dort sind es zwei Zeilen, und ein
-   Kopf über zwei Zeilen ist Beschriftung ohne Nutzen. */
+/* The column head of the register. It stands once per section and names
+   what is in the alignment below it — a form says what belongs in its
+   fields. For the applications it falls away: there are two rows there, and
+   a head over two rows is a label without use. */
 function RegisterKopf() {
   const { t } = useTranslation();
   return (
@@ -501,13 +501,13 @@ function RegisterKopf() {
 }
 
 // ---------------------------------------------------------------------------
-// Anlege-Modal mit vier Pfaden: Ausschreibung · Vorlage · Manuell · Import
+// Create modal with four paths: brief · template · manual · import
 //
-// Die Ausschreibung steht vorn und ist der Vorgabeweg: sie stellt die eine
-// Frage, die jemand beantworten kann, ohne die Plattform zu kennen. Der
-// manuelle Weg bleibt vollständig daneben — als Weg für den, der genau weiß,
-// was er will, und als Rückfalltür, wenn die Personalabteilung nicht arbeiten
-// kann (spec/20).
+// The brief stands first and is the default path: it asks the one question
+// someone can answer without knowing the platform. The manual path stays in
+// full beside it — as the path for whoever knows exactly what they want,
+// and as an emergency exit for when the HR department cannot work
+// (spec/20).
 // ---------------------------------------------------------------------------
 
 type CreatePath = "choose" | "brief" | "template" | "manual" | "import";
@@ -918,16 +918,16 @@ function BackLink({ onBack, label }: { onBack: () => void; label?: string }) {
   );
 }
 
-// StoreLevel wird laut, bevor der Platz knapp wird — und schweigt sonst. Eine
-// Zeile, die bei jedem Besuch dasteht und nie etwas verlangt, ist Möbelstück:
-// nach zwei Wochen liest man sie nicht mehr, und die Warnung daneben auch nicht.
-// Deshalb ist der Füllstand ohne Anlass unter Administration → Runner zu Hause,
-// dort, wo der Aufräumen-Knopf steht.
+// StoreLevel makes noise before space runs tight — and is silent otherwise.
+// A line that stands there on every visit and never asks for anything is
+// furniture: after two weeks you stop reading it, and the warning beside it
+// too. Without cause, the fill level belongs under Administration → Runner,
+// where the cleanup button stands.
 //
-// Das Kriterium ist bewusst keine Prozentzahl. "90 % voll" sind auf 2 TB noch
-// 200 GB und auf 40 GB noch vier — die Zahl sagt nichts darüber, ob es reicht.
-// Die ehrliche Frage ist, ob der nächste Sync landen kann, und das größte Home
-// ist die beste Annäherung daran.
+// The criterion is deliberately no percentage. "90 % full" is still 200 GB
+// on 2 TB and still four on 40 GB — the number says nothing about whether
+// it is enough. The honest question is whether the next sync can land, and
+// the largest home is the closest approach to that.
 function StoreLevel() {
   const { t } = useTranslation();
   const store = useQuery({
@@ -943,8 +943,8 @@ function StoreLevel() {
       }>("/platform/home-store"),
   });
   const d = store.data;
-  // Kein Objektspeicher-Fall (total_bytes = 0: die Blöcke liegen dann nicht auf
-  // unserer Platte) und kein Fall ohne ein einziges Home.
+  // Not an object-storage case (total_bytes = 0: the blocks then do not lie
+  // on our disk) and not a case without a single home.
   if (!d?.enabled || d.total_bytes <= 0 || d.largest_home_bytes <= 0) return null;
 
   const eng = d.free_bytes < d.largest_home_bytes;

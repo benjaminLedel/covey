@@ -1,3 +1,3 @@
--- Kein struktureller Rollback nötig: die gesäten Aktivierungs-Zeilen sind
--- auch unter der alten Default-Aktiv-Semantik gültig.
+-- No structural rollback needed: the seeded activation rows stay
+-- valid under the old default-active semantics too.
 SELECT 1;

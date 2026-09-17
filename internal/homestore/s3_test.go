@@ -31,11 +31,11 @@ type fakeS3 struct {
 	// pageSize forces paging, so the continuation token is exercised rather
 	// than assumed.
 	pageSize int
-	// parallel/maxParallel zählen überlappende Anfragen — womit ein Test
-	// belegen kann, dass nebenläufig gefragt wird und wie weit.
+	// parallel/maxParallel count overlapping requests — which lets a test
+	// prove that questions go out concurrently, and how far.
 	parallel    int
 	maxParallel int
-	// headFails lässt jede HEAD-Anfrage scheitern.
+	// headFails makes every HEAD request fail.
 	headFails bool
 }
 
@@ -63,7 +63,7 @@ func (f *fakeS3) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		scheitern := f.headFails
 		f.mu.Unlock()
-		// Kurz halten, damit sich die Anfragen überhaupt überschneiden können.
+		// Hold briefly, so the requests can overlap at all.
 		time.Sleep(5 * time.Millisecond)
 		defer func() {
 			f.mu.Lock()
@@ -487,17 +487,17 @@ func TestRunnerStoreRefusesDeletingAndListing(t *testing.T) {
 	}
 }
 
-// Bei S3 ist jede Frage eine signierte HEAD-Anfrage über das Netz. Ein Home mit
-// hunderttausend Dateien fragt so oft, bevor sein erstes neues Byte reist —
-// hintereinander sind das Stunden, und ein Sync hat dreißig Minuten. Eine
-// Bündelfrage gibt es bei S3 nicht, also ist Nebenläufigkeit der einzige Hebel.
+// With S3 every question is a signed HEAD request over the network. A home
+// with a hundred thousand files asks that often before its first new byte
+// travels — one after another that is hours, and a sync has thirty minutes.
+// S3 has no bulk question, so concurrency is the only lever.
 func TestS3FragtNebenlaeufigUndAntwortetVollstaendig(t *testing.T) {
 	ctx := context.Background()
 	f, store := newFakeS3(t, 0)
 	org := uuid.New()
 
-	// Blöcke sind inhaltsadressiert: der Schlüssel IST der Hash des Inhalts,
-	// und der Store prüft das — wie ein echter Bucket.
+	// Blocks are content-addressed: the key IS the hash of the content, and
+	// the store checks that — like a real bucket.
 	vorhanden := map[string]bool{}
 	var hashes []string
 	for i := 0; i < 50; i++ {
@@ -512,8 +512,8 @@ func TestS3FragtNebenlaeufigUndAntwortetVollstaendig(t *testing.T) {
 		}
 	}
 
-	// Gleichzeitigkeit messen: der Fake zählt mit, wie viele Anfragen sich
-	// überschneiden.
+	// Measure concurrency: the fake keeps count of how many requests
+	// overlap.
 	f.mu.Lock()
 	f.parallel, f.maxParallel = 0, 0
 	f.mu.Unlock()
@@ -538,10 +538,10 @@ func TestS3FragtNebenlaeufigUndAntwortetVollstaendig(t *testing.T) {
 	}
 }
 
-// Ein Fehler beendet die Frage, und zwar mit Fehler: eine halb beantwortete
-// Frage ließe einen Sync glauben, Blöcke seien vorhanden, die niemand bestätigt
-// hat — und ein Schnappschuss, der auf einen fehlenden Block zeigt, ist
-// schlimmer als ein Sync, der laut scheitert.
+// An error ends the question, and ends it with an error: a half-answered
+// question would let a sync believe blocks are present that nobody confirmed —
+// and a snapshot pointing at a missing block is worse than a sync that fails
+// loudly.
 func TestS3EinFehlerBeendetDieBuendelfrage(t *testing.T) {
 	ctx := context.Background()
 	f, store := newFakeS3(t, 0)

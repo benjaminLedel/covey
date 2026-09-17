@@ -71,13 +71,13 @@ func TestBuildHintOnlyForOwnImages(t *testing.T) {
 	}
 }
 
-// Das fertige Image. Es ist die Antwort auf „woher nehme ich das?", die keine
-// Maschine mit mehreren Gigabyte Bauzeit voraussetzt — und die einzige, die
-// eine Container-Installation ueberhaupt ausfuehren kann.
+// The finished image. It is the answer to "where do I take this from?" that
+// does not require a machine with several gigabytes of build time — and the
+// only one a container installation can carry out at all.
 //
-// Die Adresse muss zu dem passen, was der Workflow veroeffentlicht
-// (.github/workflows/sandbox-images.yml): ein Package, Varianten als
-// Tag-Praefix. Zwei Stellen, eine Namensregel — deshalb steht sie hier fest.
+// The address has to match what the workflow publishes
+// (.github/workflows/sandbox-images.yml): one package, variants as a tag
+// prefix. Two places, one naming rule — that is why it is fixed here.
 func TestPublicImage(t *testing.T) {
 	if got := PublicImage("dev"); got != "ghcr.io/benjaminledel/covey-sandbox:dev-latest" {
 		t.Fatalf("PublicImage(dev) = %q", got)
@@ -85,11 +85,11 @@ func TestPublicImage(t *testing.T) {
 	if got := PublicImage("base"); got != "ghcr.io/benjaminledel/covey-sandbox:base-latest" {
 		t.Fatalf("PublicImage(base) = %q", got)
 	}
-	// Kein Profil, keine Adresse — eine erfundene waere schlimmer als keine.
+	// No profile, no address — an invented one would be worse than none.
 	if got := PublicImage("gibt-es-nicht"); got != "" {
 		t.Fatalf("unbekanntes Profil: %q", got)
 	}
-	// Ueber die Image-Referenz gefragt, auch wenn die Instanz sie umbenannt hat.
+	// Asked by image reference, even when the instance renamed it.
 	if got := PublicImageFor(map[string]string{"dev": "our-dev:1"}, "our-dev:1"); got == "" {
 		t.Fatal("PublicImageFor findet das umbenannte Profil nicht")
 	}
@@ -98,22 +98,22 @@ func TestPublicImage(t *testing.T) {
 	}
 }
 
-// Die andere Haelfte der Antwort. Eine Installation als Container hat kein
-// Repository und kann kein `make` ausfuehren — fuer sie ist die Variable der
-// ganze Weg, und ohne sie las die Meldung wie eine Anweisung ins Leere.
+// The other half of the answer. An installation as a container has no
+// repository and cannot run `make` — for it the variable is the whole way, and
+// without it the message read like an instruction into the void.
 func TestEnvVarForImage(t *testing.T) {
 	dev, _ := Get("dev")
 	if got := EnvVarFor(nil, dev.Image); got != "COVEY_SANDBOX_IMAGE_DEV" {
 		t.Errorf("EnvVarFor(%q) = %q", dev.Image, got)
 	}
-	// Auch fuer ein umbenanntes Image: gemeldet wird das umbenannte, und die
-	// Variable ist trotzdem die des Profils.
+	// Also for a renamed image: the renamed one is what gets reported, and the
+	// variable is still the one of the profile.
 	if got := EnvVarFor(map[string]string{"dev": "our-dev:1"}, "our-dev:1"); got != "COVEY_SANDBOX_IMAGE_DEV" {
 		t.Errorf("EnvVarFor(umbenannt) = %q", got)
 	}
-	// Ein fremdes Image gehoert zu keinem Profil — dort gibt es nichts zu
-	// ueberschreiben, und eine Variable zu nennen behauptete einen Regler, der
-	// nicht passt.
+	// A foreign image belongs to no profile — there is nothing to
+	// override there, and naming a variable would claim a knob
+	// that does not fit.
 	if got := EnvVarFor(nil, "registry.example.com/team/sandbox:2026-08"); got != "" {
 		t.Errorf("fremdes Image darf keine Variable nennen: %q", got)
 	}
@@ -348,11 +348,11 @@ func dockerfileKette(datei string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		// Ohne Kommentare: Ein Werkzeug, das nur in einer Begründung steht,
-		// ist nicht im Image. Genau daran wäre dieser Test bei seinem eigenen
-		// Anlass vorbeigelaufen — der Kommentar über der apt-Zeile nennt jq,
-		// und ein Test, der Prosa für eine Installation hält, sagt nie wieder
-		// etwas.
+		// Without comments: a tool that only stands in a justification is
+		// not in the image. Exactly there this test would have run past its
+		// own occasion — the comment above the apt line names jq, and a
+		// test that takes prose for an installation never says anything
+		// again.
 		for _, zeile := range strings.Split(string(roh), "\n") {
 			if strings.HasPrefix(strings.TrimSpace(zeile), "#") {
 				continue

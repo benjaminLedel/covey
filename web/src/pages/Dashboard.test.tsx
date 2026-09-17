@@ -2,11 +2,11 @@ import { describe, it, expect } from "vitest";
 import { groupByDepartment, matches, stateOf } from "./Dashboard";
 import type { Agent, Department } from "../api";
 
-/* Die Übersicht war eine Kachelwand in Anlegereihenfolge. Ab etwa einem Dutzend
-   Agenten ist die Frage nicht mehr „wer ist da", sondern „wer im Support" und
-   „wo ist Brunhilde" — und beides beantwortet die Ordnung, die das Organigramm
-   längst hat. Die Sortierung und die Suche sind reine Funktionen, damit genau
-   das prüfbar ist, wonach jemand sucht. */
+/* The overview used to be a wall of tiles in filing order. From about a dozen
+   agents on, the question is no longer "who is here" but "who in support" and
+   "where is Brunhilde" — and the order the org chart already has answers both.
+   The sorting and the search are pure functions, so that exactly what someone
+   searches for is what can be checked. */
 
 const agent = (over: Partial<Agent>): Agent =>
   ({
@@ -42,16 +42,16 @@ describe("groupByDepartment", () => {
     expect(groups.find((g) => g.name === "Support")?.color).toBe("#abc");
   });
 
-  // Eine Abteilungsüberschrift ohne Treffer ist bei aktiver Suche genau die
-  // Zeile, die den Blick kostet.
+  // A department heading without a hit is, while searching, exactly the
+  // line that costs attention.
   it("drops groups that have no hit", () => {
     const groups = groupByDepartment(staff, [support, dev], "egon");
     expect(groups).toHaveLength(1);
     expect(groups[0].name).toBe("Entwicklung");
   });
 
-  // Wer „support" tippt, meint die Abteilung — auch wenn das Wort im Namen der
-  // Person nicht vorkommt.
+  // Whoever types "support" means the department — even when the word does
+  // not appear in the person's name.
   it("finds people by their department", () => {
     const groups = groupByDepartment(staff, [support, dev], "support");
     expect(groups.map((g) => g.agents.map((a) => a.slug))).toEqual([["wanda"]]);
@@ -65,8 +65,8 @@ describe("Zustandsfilter und Reihenfolge", () => {
     agent({ slug: "gestoppt", display_name: "Karl Kalt", status: "sleeping", killed: true }),
   ];
 
-  // Wer läuft, steht oben. Sonst entscheidet die Anlagereihenfolge, und die
-  // ist für niemanden eine Auskunft.
+  // Whoever runs stands on top. Otherwise the filing order decides, and
+  // that tells nobody anything.
   it("sorts the busy ones first, the stopped ones last", () => {
     const [g] = groupByDepartment(staff, [], "");
     expect(g.agents.map((a) => a.slug)).toEqual(["arbeiter", "schlaefer", "gestoppt"]);
@@ -78,8 +78,8 @@ describe("Zustandsfilter und Reihenfolge", () => {
     expect(groupByDepartment(staff, [], "anna", ["sleeping"])).toHaveLength(0);
   });
 
-  // Ein gestoppter Agent trägt weiter seinen letzten Zustand — das Abzeichen
-  // zeigt trotzdem „gestoppt", und der Filter muss dasselbe meinen.
+  // A stopped agent still carries its last status — the badge shows
+  // "stopped" all the same, and the filter has to mean the same thing.
   it("a stopped agent is stopped, whatever its status says", () => {
     expect(stateOf(staff[2])).toBe("killed");
     const [g] = groupByDepartment(staff, [], "", ["killed"]);

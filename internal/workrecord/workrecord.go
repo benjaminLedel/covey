@@ -1,39 +1,39 @@
-// Package workrecord baut die Arbeitsakte eines Kollegen zusammen: Fakten, die
-// die Control Plane selbst aufgeschrieben hat, je Agent und Zeitraum
+// Package workrecord assembles the work record of a colleague: facts that the
+// control plane itself wrote down, per agent and time range
 // (spec/21-operations-and-improvement.md).
 //
-// Warum nicht einfach die Recordings hergeben, wenn jemand wissen will, wie ein
-// Agent arbeitet — der naheliegende Weg ist in drei Punkten gleichzeitig
-// falsch: Recordings tragen Ticket- und Mail-Inhalte anderer Abteilungen, ein
-// Leser wäre damit ein Exfiltrations-Pfad durch das ganze Org-Chart; Text aus
-// einem Zielsystem, der den Agenten erreicht, der Konfigurationen vorschlägt,
-// ist der Injection-Pfad aus spec/04 auf das wertvollste Ziel der Plattform
-// gerichtet; und ein Monat Recordings passt zu keinem vernünftigen Preis in ein
-// Kontextfenster.
+// Why not just hand out the recordings when someone wants to know how an
+// agent works — the obvious way is wrong on three counts at once:
+// recordings carry ticket and mail content of other departments, a
+// reader would thereby be an exfiltration path through the whole org chart; text
+// from a target system that reaches the agent who proposes configurations is the
+// injection path from spec/04 aimed at the most valuable target of the platform;
+// and a month of recordings fits no reasonable price into a context
+// window.
 //
-// Also: Fakten. Was gezählt wurde, nicht was gesagt wurde. Mit ZWEI ehrlichen
-// Ausnahmen, und beide sind eine Zeile statt eines Verlaufs:
+// So: facts. What was counted, not what was said. With TWO honest exceptions,
+// and both are one line instead of a history:
 //
-//   - Die AUFGABENTITEL. Die kommen häufig aus der Weck-Quelle und können damit
-//     einen Ticket-Betreff tragen.
-//   - Die FRAGE einer hängenden Aufgabe (StuckTask.Question). Die schreibt der
-//     beurteilte Agent selbst in seiner covey/block-Direktive, und er zitiert
-//     darin regelmäßig, worauf er wartet — also auch Text aus einem Zielsystem.
+//   - The TASK TITLES. These often come from the wake source and can therefore
+//     carry a ticket subject.
+//   - The QUESTION of a stuck task (StuckTask.Question). The assessed agent
+//     writes it himself in his covey/block directive, and in it he regularly
+//     quotes what he is waiting for — so also text from a target system.
 //
-// Beide bleiben drin, weil die Akte ohne sie nicht lesbar ist: „wartet auf ein
-// Ereignis" ist eine Beobachtung, „wartet darauf, ob der Kunde zurückkommt" ist
-// ein Befund. Und beide werden HIER benannt statt später entdeckt — eine Akte,
-// die „nur Fakten" verspricht und zwei Freitext-Felder führt, wird genau an der
-// Stelle geglaubt, an der man sie prüfen müsste.
+// Both stay in, because the record is unreadable without them: "waiting for an
+// event" is an observation, "waiting to see whether the customer comes back" is
+// a finding. And both are named HERE instead of discovered later — a record
+// that promises "only facts" while carrying two free-text fields is believed
+// exactly where one would have to check it.
 //
-// Der Rest der Absicherung liegt nicht hier: dass dieser Text den Leser nicht
-// steuert, steht als Anweisung in ReviewDoc (internal/agents/compile.go) — und
-// dahinter die Zusage, die das Ganze trägt, nämlich dass ein Vorschlag nicht
-// läuft, sondern von einem Menschen unterschrieben wird.
+// The rest of the protection lies elsewhere: that this text does not steer the
+// reader stands as an instruction in ReviewDoc (internal/agents/compile.go) —
+// and behind it the promise that carries the whole thing, namely that a proposal
+// does not run, but is signed by a human.
 //
-// Das Paket steht bewusst neben httpapi und nicht darin: dieselbe Akte liest
-// später covey Doctor über covey/work_record, und der sitzt im
-// Orchestrator.
+// The package stands deliberately next to httpapi and not inside it: the same
+// record is later read by covey Doctor over covey/work_record, and that sits in
+// the orchestrator.
 package workrecord
 
 import (
@@ -49,9 +49,9 @@ import (
 	"covey/internal/observability"
 )
 
-// Record ist die Akte. Acht Abschnitte, jeder aus einer benannten Quelle. Nur
-// zwei Felder darin sind Freitext: Aufgabentitel und StuckTask.Question — siehe
-// den Paketkopf, dort stehen sie mit ihrer Herkunft.
+// Record is the work record. Eight sections, each from a named source. Only two
+// fields in it are free text: task titles and StuckTask.Question — see the
+// package head, that is where they stand with their origin.
 type Record struct {
 	AgentID     uuid.UUID `json:"agent_id"`
 	Slug        string    `json:"slug"`
@@ -69,26 +69,26 @@ type Record struct {
 	Findings   []agents.Finding `json:"findings"`
 	Stuck      []StuckTask      `json:"stuck"`
 
-	// Notes benennt, was gekürzt wurde. Eine Akte, die still bei 200 Aufgaben
-	// aufhört, liest sich wie eine vollständige.
+	// Notes names what was cut short. A record that silently stops at 200 tasks
+	// reads like a complete one.
 	Notes []string `json:"notes,omitempty"`
 }
 
-// Count ist eine Zeile „Bezeichnung → Anzahl".
+// Count is a line "label → count".
 type Count struct {
 	Key   string `json:"key"`
 	Count int    `json:"count"`
 }
 
-// Throughput: was hereinkam und was daraus wurde.
+// Throughput: what came in and what became of it.
 type Throughput struct {
 	ByState  []Count    `json:"by_state"`
 	ByOrigin []Count    `json:"by_origin"`
 	Tasks    []TaskLine `json:"tasks"`
 }
 
-// TaskLine ist eine Aufgabe als eine Zeile — mit dem Titel, der die eine
-// ehrliche Ausnahme dieses Pakets ist.
+// TaskLine is one task as one line — with the title, which is the one honest
+// exception of this package.
 type TaskLine struct {
 	ID         uuid.UUID  `json:"id"`
 	Title      string     `json:"title"`
@@ -99,72 +99,72 @@ type TaskLine struct {
 	CostUSD    float64    `json:"cost_usd"`
 }
 
-// ActionCount: welche Aktionen ausgeführt wurden, gelungen und gescheitert.
+// ActionCount: which actions were executed, succeeded and failed.
 type ActionCount struct {
 	Action string `json:"action"`
 	OK     int    `json:"ok"`
 	Failed int    `json:"failed"`
 }
 
-// Indicator ist eine Zählregel des Agenten aus seiner KPIS.md, ausgewertet.
+// Indicator is a counting rule of the agent from his KPIS.md, evaluated.
 //
-// Bewusst ohne Verlauf und ohne Trend, anders als die Preisliste der
-// Oberfläche (internal/httpapi/indicators.go): hier wird gelesen, nicht
-// verglichen — und eine Sparkline in einer Akte ist eine Zahlenreihe, die
-// niemand nachrechnen kann.
+// Deliberately without history and without trend, unlike the price list of the
+// UI (internal/httpapi/indicators.go): here one reads, one does not compare —
+// and a sparkline in a record is a series of numbers that nobody can
+// recompute.
 type Indicator struct {
 	Key    string `json:"key"`
 	Title  string `json:"title"`
 	Goal   int    `json:"goal,omitempty"`
 	Period string `json:"period,omitempty"`
 	Count  int64  `json:"count"`
-	// UnitUSD fehlt, solange zu wenig gezählt wurde: ein Stückpreis aus zwei
-	// Datenpunkten ist Rauschen, und die Plattform gibt ihn deshalb gar nicht
-	// erst heraus (observability.UnitCost).
+	// UnitUSD is missing while too little was counted: a unit price from two
+	// data points is noise, and the platform therefore does not release it at
+	// all (observability.UnitCost).
 	UnitUSD *float64 `json:"unit_usd,omitempty"`
 }
 
 type Cost struct {
 	TotalUSD float64 `json:"total_usd"`
-	// Tasks ist die Zahl der Aufgaben mit Kosten — der Nenner hinter dem
-	// Durchschnitt, damit er nachrechenbar ist statt geglaubt.
+	// Tasks is the number of tasks with costs — the denominator behind the
+	// average, so that it is recomputable instead of believed.
 	Tasks      int     `json:"tasks"`
 	PerTaskUSD float64 `json:"per_task_usd"`
 }
 
-// Friction: wo der Agent angehalten wurde, und wo er selbst abgelehnt wurde.
+// Friction: where the agent was stopped, and where he himself was rejected.
 type Friction struct {
-	// Approvals sind die Freigaben, die seine Aktionen ausgelöst haben, nach
-	// Ausgang.
+	// Approvals are the approvals that his actions triggered, by
+	// outcome.
 	Approvals []Count `json:"approvals"`
-	// Denied sind die Versuche, etwas Verbotenes zu tun, nach Aktion.
+	// Denied are the attempts to do something forbidden, by action.
 	Denied []Count `json:"denied"`
-	// Proposals sind die offenen Punkte, die DIESER Agent geschrieben hat,
-	// nach Ausgang. Die Ablehnungsquote auf die eigenen Vorschläge ist die
-	// Zahl, die sagt, ob covey Doctor etwas taugt — und sie steht in
-	// seiner eigenen Akte wie bei jedem anderen auch (spec/21).
+	// Proposals are the open items that THIS agent wrote, by outcome. The
+	// rejection rate on one's own proposals is the number that says whether
+	// covey Doctor is any good — and it stands in his own record as it does
+	// for everyone else (spec/21).
 	Proposals []Count `json:"proposals"`
 }
 
-// StuckTask ist die Fehlerform, die niemand sieht, weil nichts fehlschlägt:
-// eine Aufgabe wartet auf ein Ereignis, das nie kommt.
+// StuckTask is the failure mode nobody sees because nothing fails: a task waits
+// for an event that never comes.
 type StuckTask struct {
 	ID             uuid.UUID `json:"id"`
 	Title          string    `json:"title"`
 	CorrelationKey string    `json:"correlation_key"`
-	// Question ist der Text des Agenten selbst aus seiner covey/block-Direktive
-	// — eines der beiden Freitext-Felder der Akte (Paketkopf).
+	// Question is the agent's own text from his covey/block directive — one of
+	// the two free-text fields of the record (package head).
 	Question     string    `json:"question,omitempty"`
 	BlockedSince time.Time `json:"blocked_since"`
 }
 
-// maxTaskLines begrenzt die Zeilen-Liste. Was darüber liegt, steht in den
-// Zählungen — und in Notes, damit die Kürzung nicht wie Vollständigkeit
-// aussieht.
+// maxTaskLines bounds the list of lines. What lies above it stands in
+// the counts — and in Notes, so that the
+// cut does not look like completeness.
 const maxTaskLines = 200
 
-// Builder hält, was die Akte braucht. Skills darf nil sein: die Lint-Regeln,
-// die Skills lesen, fallen dann weg.
+// Builder holds what the record needs. Skills may be nil: the lint rules that
+// read skills then fall away.
 type Builder struct {
 	Pool     *pgxpool.Pool
 	Registry *agents.Registry
@@ -172,7 +172,7 @@ type Builder struct {
 	Skills   agents.SkillLookup
 }
 
-// Build stellt die Akte für einen Agenten und einen Zeitraum zusammen.
+// Build assembles the record for one agent and one time range.
 func (b *Builder) Build(ctx context.Context, agentID uuid.UUID, since time.Time) (Record, error) {
 	agent, err := b.Registry.Get(ctx, agentID)
 	if err != nil {
@@ -209,9 +209,9 @@ func (b *Builder) Build(ctx context.Context, agentID uuid.UUID, since time.Time)
 	return rec, nil
 }
 
-// throughput liest die Aufgaben des Zeitraums: Zählungen über alles, Zeilen für
-// die neuesten. Die Kosten fallen dabei mit ab — sie hängen an denselben
-// Aufgaben, und zwei Durchgänge über dieselbe Menge wären zwei Wahrheiten.
+// throughput reads the tasks of the time range: counts over everything, lines
+// for the newest ones. The costs come out along the way — they hang on the same
+// tasks, and two passes over the same set would be two truths.
 func (b *Builder) throughput(ctx context.Context, agentID uuid.UUID, since time.Time) (Throughput, Cost, error) {
 	var tp Throughput
 	var cost Cost
@@ -223,9 +223,9 @@ func (b *Builder) throughput(ctx context.Context, agentID uuid.UUID, since time.
 	}
 	tp.ByState = byState
 
-	// Die Herkunft wird am Doppelpunkt abgeschnitten: `agent:qa` und
-	// `continuation:<uuid>` sind Klassen, keine Einzelwerte — sonst hätte die
-	// Gruppierung so viele Zeilen wie Fortsetzungen.
+	// The origin is cut at the colon: `agent:qa` and
+	// `continuation:<uuid>` are classes, not single values — otherwise the
+	// grouping would have as many rows as there are continuations.
 	byOrigin, err := b.counts(ctx, `SELECT split_part(origin, ':', 1), count(*) FROM backlog_tasks
 		WHERE agent_id=$1 AND created_at >= $2 GROUP BY 1 ORDER BY 2 DESC`, agentID, since)
 	if err != nil {
@@ -255,7 +255,7 @@ func (b *Builder) throughput(ctx context.Context, agentID uuid.UUID, since time.
 		return tp, cost, err
 	}
 
-	// Die Kosten über den GANZEN Zeitraum, nicht über die gezeigten Zeilen.
+	// The costs over the WHOLE period, not over the rows shown.
 	if err := b.Pool.QueryRow(ctx, `SELECT COALESCE(sum(usd),0), count(DISTINCT task_id)
 		FROM cost_entries WHERE agent_id=$1 AND created_at >= $2`, agentID, since).
 		Scan(&cost.TotalUSD, &cost.Tasks); err != nil {
@@ -267,9 +267,9 @@ func (b *Builder) throughput(ctx context.Context, agentID uuid.UUID, since time.
 	return tp, cost, nil
 }
 
-// aborts beantwortet „warum endeten Läufe" mit den vier Gründen, die es gibt:
-// Turn-Limit, Fehler, Budget, Notaus. Alles aus dem Recording, das die Control
-// Plane selbst geschrieben hat.
+// aborts answers "why did runs end" with the four reasons there are: turn
+// limit, error, budget, kill switch. All from the recording that the control
+// plane itself wrote.
 func (b *Builder) aborts(ctx context.Context, agentID uuid.UUID, since time.Time) ([]Count, error) {
 	return b.counts(ctx, `SELECT
 			CASE
@@ -287,9 +287,9 @@ func (b *Builder) aborts(ctx context.Context, agentID uuid.UUID, since time.Time
 		GROUP BY 1 ORDER BY 2 DESC`, agentID, since)
 }
 
-// work zählt die ausgeführten Aktionen, getrennt nach gelungen und gescheitert.
-// Die Trennung ist der Punkt: zwanzig Versuche und null Erfolge sehen in einer
-// Summe aus wie Betrieb.
+// work counts the executed actions, split into succeeded and failed. The split
+// is the point: twenty attempts and zero successes look like operation in a
+// total.
 func (b *Builder) work(ctx context.Context, agentID uuid.UUID, since time.Time) ([]ActionCount, error) {
 	rows, err := b.Pool.Query(ctx, `SELECT payload->>'action',
 			count(*) FILTER (WHERE payload->>'ok' = 'true'),
@@ -312,11 +312,11 @@ func (b *Builder) work(ctx context.Context, agentID uuid.UUID, since time.Time) 
 	return out, rows.Err()
 }
 
-// indicators wertet die Zählregeln des Agenten aus seiner eigenen KPIS.md aus.
+// indicators evaluates the counting rules of the agent from his own KPIS.md.
 //
-// Ein Parse-Fehler kostet die Akte nicht: eine Config, die vor dem Parser
-// gespeichert wurde, soll keine leere Seite erzeugen. Sie taucht dafür in den
-// Notes auf.
+// A parse error does not cost the record: a config that was saved before the
+// parser should not produce an empty page. It shows up in the Notes
+// instead.
 func (b *Builder) indicators(ctx context.Context, agent agents.Agent, since time.Time, totalUSD float64) ([]Indicator, error) {
 	cfg, err := b.Registry.CurrentConfig(ctx, agent.ID)
 	if err != nil {
@@ -357,7 +357,7 @@ func (b *Builder) friction(ctx context.Context, agentID uuid.UUID, since time.Ti
 		GROUP BY 1 ORDER BY 2 DESC`, agentID, observability.KindGuardrail, since); err != nil {
 		return f, err
 	}
-	// Die eigenen Vorschläge — geschrieben VON diesem Agenten, nicht über ihn.
+	// The agent's own proposals — written BY this agent, not about him.
 	if f.Proposals, err = b.counts(ctx, `SELECT status, count(*) FROM improvement_items
 		WHERE author_agent_id=$1 AND created_at >= $2 GROUP BY 1 ORDER BY 2 DESC`, agentID, since); err != nil {
 		return f, err
@@ -365,14 +365,14 @@ func (b *Builder) friction(ctx context.Context, agentID uuid.UUID, since time.Ti
 	return f, nil
 }
 
-// stuck sind die blockierten Aufgaben — bewusst OHNE Zeitfenster. Eine Aufgabe,
-// die seit drei Monaten auf ein Ereignis wartet, das nie kommt, ist genau der
-// Befund, den ein Zeitraum verstecken würde.
+// stuck are the blocked tasks — deliberately WITHOUT a time window. A task that
+// has waited three months for an event that never comes is exactly the finding
+// that a time window would hide.
 func (b *Builder) stuck(ctx context.Context, agentID uuid.UUID) ([]StuckTask, error) {
-	// Die Frage, mit der der Agent stehen geblieben ist, steht nicht an der
-	// Aufgabe, sondern in der Notiz des Uebergangs — dort schreibt Block() sie
-	// hin. Sie gehoert dazu: „wartet auf ein Ereignis" ist eine Beobachtung,
-	// „wartet darauf, ob der Kunde zurueckkommt" ist ein Befund.
+	// The question the agent got stuck with does not stand on the task but in
+	// the note of the transition — that is where Block() writes it. It belongs
+	// here: "waiting for an event" is an observation, "waiting to see whether
+	// the customer comes back" is a finding.
 	rows, err := b.Pool.Query(ctx, `SELECT t.id, t.title, COALESCE(t.correlation_key,''),
 			COALESCE((SELECT tr.note FROM task_transitions tr
 			          WHERE tr.task_id = t.id AND tr.to_state='blocked'
@@ -396,10 +396,10 @@ func (b *Builder) stuck(ctx context.Context, agentID uuid.UUID) ([]StuckTask, er
 	return out, rows.Err()
 }
 
-// findings sind die stehenden Befunde des Config-Lints — was die mechanischen
-// Regeln über diese Config ohnehin schon sagen. Sie kosten nichts und stehen
-// bisher nur auf der Agentenseite; in der Akte beantworten sie die erste der
-// drei Ursachen, bevor jemand sie von Hand sucht.
+// findings are the standing findings of the config lint — what the mechanical
+// rules already say about this config anyway. They cost nothing and so far
+// stand only on the agent's page; in the record they answer the first of the
+// three causes before someone looks for them by hand.
 func (b *Builder) findings(ctx context.Context, agent agents.Agent) []agents.Finding {
 	subjects, err := agents.LintSubjects(ctx, b.Pool, agent.OrgID, b.Skills)
 	if err != nil {
@@ -414,7 +414,7 @@ func (b *Builder) findings(ctx context.Context, agent agents.Agent) []agents.Fin
 	return out
 }
 
-// counts ist die immer gleiche Form „Schlüssel, Anzahl".
+// counts is the always same shape "key, count".
 func (b *Builder) counts(ctx context.Context, sql string, args ...any) ([]Count, error) {
 	rows, err := b.Pool.Query(ctx, sql, args...)
 	if err != nil {

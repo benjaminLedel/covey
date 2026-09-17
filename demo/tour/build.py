@@ -23,8 +23,8 @@ from PIL import Image
 REPO = Path(__file__).resolve().parents[2]
 SHOTS = REPO / "web" / "public" / "shots"
 
-# Breite des GIFs. 1280 wäre schärfer, aber ein README-GIF wird auf einer
-# Verbindung geladen, über die niemand nachdenken sollte.
+# Width of the GIF. 1280 would be sharper, but a README GIF loads over a
+# connection nobody should have to think about.
 GIF_WIDTH = 900
 JPEG_QUALITY = 82
 
@@ -34,7 +34,7 @@ def build(src: Path, suffix: str = "") -> None:
     frames = manifest["frames"]
     SHOTS.mkdir(parents=True, exist_ok=True)
 
-    # --- Screenshots fürs README ---
+    # --- Screenshots for the README ---
     for f in frames:
         if not f["in_readme"]:
             continue
@@ -49,8 +49,8 @@ def build(src: Path, suffix: str = "") -> None:
         img = Image.open(src / f["file"]).convert("RGB")
         h = round(img.height * GIF_WIDTH / img.width)
         img = img.resize((GIF_WIDTH, h), Image.LANCZOS)
-        # Eine gemeinsame Palette für alle Bilder: quantisiert man jedes für
-        # sich, flackern die Farbverläufe der Oberfläche von Bild zu Bild.
+        # One shared palette for all images: quantized on its own, each image
+        # makes the gradients of the UI flicker from frame to frame.
         images.append(img)
         durations.append(f["hold_ms"])
 

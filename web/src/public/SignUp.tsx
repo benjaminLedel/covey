@@ -7,16 +7,16 @@ import { usePublicLang } from "./lang";
 import { pathOf } from "./routes";
 import { signup, useSignupState } from "./signupState";
 
-/* Registrieren (/registrieren, /en/sign-up) — der Weg ins Produkt für alle,
-   die keine Installation haben.
+/* Sign up (/registrieren, /en/sign-up) — the way into the product for all
+   who have no installation.
 
-   Der Wartelisten-Code ist das erste Tor und steht deshalb oben, nicht unten:
-   ohne ihn ist das Formular sinnlos, und wer keinen hat, soll das lesen, bevor
-   er ein Passwort ausdenkt (FR-002).
+   The waitlist code is the first gate, so it stands at the top and not at
+   the bottom: without it the form is pointless, and whoever has none should
+   read that before thinking up a password (FR-002).
 
-   Eine Organisation wird hier NICHT gewählt. Das Konto entsteht zuerst, die
-   Zugehörigkeit danach — beitreten oder selbst gründen entscheidet sich nach
-   der Bestätigung der E-Mail, im angemeldeten Zustand. */
+   An organisation is NOT chosen here. The account comes first, the
+   membership after — joining or founding one yourself is decided after the
+   e-mail is confirmed, in the signed-in state. */
 
 const MIN_PASSWORT = 8;
 
@@ -31,7 +31,7 @@ export default function SignUp() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  /* null = noch nicht abgeschickt; sonst: ob eine Bestätigung unterwegs ist. */
+  /* null = not submitted yet; otherwise: whether a confirmation is on its way. */
   const [fertig, setFertig] = useState<boolean | null>(null);
 
   const absenden = async (e: React.FormEvent) => {
@@ -48,9 +48,9 @@ export default function SignUp() {
       });
       setFertig(res.verification_sent);
     } catch (err) {
-      /* Die Fehlermeldung des Servers ist die genauere: sie unterscheidet den
-         verbrauchten Code vom unbekannten und die vergebene Adresse von der
-         ungültigen. Nur wenn keine kommt, steht hier ein eigener Satz. */
+      /* The error message of the server is the more exact one: it tells the
+         used-up code apart from the unknown one and the taken address from the
+         invalid one. Only when none comes does this hold its own sentence. */
       setError(err instanceof ApiError && err.message ? err.message : t("public.signup.error"));
     } finally {
       setBusy(false);
@@ -73,8 +73,8 @@ export default function SignUp() {
     </div>
   );
 
-  /* Solange die Antwort aussteht, steht hier nichts. Ein Formular, das gleich
-     wieder verschwinden kann, ist schlimmer als ein Moment Ruhe. */
+  /* While the answer is outstanding this holds nothing. A form that can
+     vanish again right away is worse than one moment of quiet. */
   if (loading) return rahmen(null);
 
   if (state.mode === "off") {
@@ -93,8 +93,8 @@ export default function SignUp() {
   }
 
   if (fertig !== null) {
-    /* Zwei Abschlüsse, weil zwei verschiedene Dinge passiert sind. Wer keine
-       Mail bekommt, darf nicht auf eine warten. */
+    /* Two endings, because two different things happened. Whoever gets no
+       mail must not be left waiting for one. */
     const zweig = fertig ? "done" : "created";
     return rahmen(
       <div className="login-card login-rise" style={{ animationDelay: "0.24s" }}>

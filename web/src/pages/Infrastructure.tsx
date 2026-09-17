@@ -6,28 +6,28 @@ import RunnerDetail from "./RunnerDetail";
 import Runtimes from "./Runtimes";
 import Workplaces from "./Workplaces";
 
-/* Womit, worin, wo.
+/* With what, in what, where.
  *
- * Drei Seiten standen nebeneinander in der Navigation und beantworteten
- * dieselbe Frage in drei Teilen: Die Runtime ist, womit ein Agent denkt; der
- * Arbeitsplatz das Image, worin er arbeitet; der Runner die Maschine, auf der
- * das startet. Wer eines davon einrichtet, hat fast immer eine Frage an die
- * anderen beiden — „läuft mein dev-Image auf dem Runner, der die GPU hat" ist
- * eine Frage über alle drei, und sie war über drei Menüpunkte verteilt.
+ * Three pages stood next to each other in the navigation and answered the
+ * same question in three parts: the runtime is what an agent thinks with; the
+ * workplace the image it works in; the runner the machine where that starts.
+ * Whoever sets up one of them almost always has a question for the other
+ * two — "does my dev-image run on the runner that has the GPU" is a question
+ * over all three, and it was spread over three menu entries.
  *
- * Die Reihenfolge der Reiter ist die Erzählung: erst der Kopf, dann der
- * Schreibtisch, dann das Gebäude.
+ * The order of the tabs is the story: first the head, then the desk, then the
+ * building.
  *
- * Die alten Adressen bleiben gültig — verlinkt und gebookmarkt wurde alles
- * drei (siehe App.tsx). */
+ * The old addresses stay valid — all three were linked and bookmarked
+ * (see App.tsx). */
 export default function Infrastructure({ me }: { me: Principal }) {
   return (
     <Routes>
       <Route index element={<Tab me={me} which="runtimes" />} />
       <Route path="workplaces" element={<Tab me={me} which="workplaces" />} />
       <Route path="runners" element={<Tab me={me} which="runners" />} />
-      {/* Der Host selbst hat eine eigene Seite: was er kann, ist eine
-          Entscheidung mit Begründung, und die passt nicht in eine Spalte. */}
+      {/* The host itself has its own page: what it can do is a decision with
+          a reason, and that does not fit into a column. */}
       <Route path="runners/:id" element={<RunnerDetail me={me} />} />
     </Routes>
   );
@@ -52,8 +52,8 @@ function Tab({ me, which }: { me: Principal; which: "runtimes" | "workplaces" | 
           {t("infra.tabRunners")}
         </NavLink>
       </nav>
-      {/* Die drei Seiten bleiben, was sie waren — sie bringen ihre eigene
-          Überschrift mit, die hier die Zeile unter dem Reiter füllt. */}
+      {/* The three pages stay what they were — they bring their own heading,
+          which here fills the line under the tab. */}
       {which === "runtimes" && <Runtimes me={me} embedded />}
       {which === "workplaces" && <Workplaces me={me} embedded />}
       {which === "runners" && <Runners me={me} embedded />}

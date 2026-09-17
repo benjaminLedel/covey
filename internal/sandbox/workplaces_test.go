@@ -2,16 +2,16 @@ package sandbox
 
 import "testing"
 
-/* Die Beschreibung liegt einmal im Repository und wird an zwei Stellen
-   gebraucht: in den Images (COPY … /etc/covey/workplace.json) und in der
-   Oberfläche. Zwei getrennte Listen wären in einem Monat zwei verschiedene
-   Wahrheiten — dieser Test hält fest, dass es eine ist. */
+/* The description stands once in the repository and is needed in two places:
+   in the images (COPY … /etc/covey/workplace.json) and in the UI. Two separate
+   lists would be two different truths within a month — this test pins that it
+   is one. */
 
 func TestJedesAusgelieferteProfilBeschreibtSich(t *testing.T) {
-	// Die Liste kommt aus der Registrierung und nicht von Hand: Ein Profil, das
-	// jemand hinzufuegt und nicht beschreibt, stellt seinen Agenten wieder ohne
-	// Auskunft in die Werkstatt — und ein von Hand gepflegter Testfall haette
-	// genau das nicht gemerkt (#112).
+	// The list comes from the registry and not by hand: a profile that someone
+	// adds and does not describe puts its agent back in the workshop without an
+	// answer — and a test case maintained by hand would have missed exactly that
+	// (#112).
 	if len(All()) < 2 {
 		t.Fatal("die Registrierung ist leer — dann prueft dieser Test nichts")
 	}
@@ -27,8 +27,8 @@ func TestJedesAusgelieferteProfilBeschreibtSich(t *testing.T) {
 		if doc.Summary == "" || len(doc.Tools) == 0 {
 			t.Fatalf("%s beschreibt sich leer: %+v", profil, doc)
 		}
-		// Der Satz, der die Werkzeug-Anfrage überhaupt erst auslöst: Wer nicht
-		// weiß, dass er kein root hat, baut sich apt nach (#106).
+		// The sentence that triggers the tool enquiry in the first place: who
+		// does not know that it has no root retrofits apt (#106).
 		var sagtEsRootlos bool
 		for _, n := range doc.Notes {
 			if len(n) > 0 && (contains(n, "root") || contains(n, "apt")) {
@@ -41,8 +41,8 @@ func TestJedesAusgelieferteProfilBeschreibtSich(t *testing.T) {
 	}
 }
 
-// Ein eigenes Image ist kein Profil — dann ist die ehrliche Antwort, dass die
-// Plattform es nicht weiß, statt eine fremde Beschreibung zu zeigen.
+// An own image is not a profile — then the honest answer is that the platform
+// does not know, instead of showing somebody else's description.
 func TestEinFremdesImageHatKeineBeschreibung(t *testing.T) {
 	if _, ok := Workplace("ghcr.io/jemand/eigenes:latest"); ok {
 		t.Fatal("für ein fremdes Image wurde etwas behauptet")

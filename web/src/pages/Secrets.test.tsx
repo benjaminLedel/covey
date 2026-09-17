@@ -4,10 +4,10 @@ import userEvent from "@testing-library/user-event";
 import Secrets from "./Secrets";
 import { mockFetch, renderWithProviders, testPrincipal, useGerman } from "../test/render";
 
-// Die Secrets-Seite verwaltet WERTE — verschlüsselt, org-gebunden, mehrere je
-// Schlüssel. Was mit ihnen geschieht (wer darauf sitzt, was sie verbrauchen
-// dürfen) steht bei den Arbeitsplätzen; diese Trennung ist das, was die Tests
-// hier festhalten.
+// The secrets page manages VALUES — encrypted, org-bound, several per
+// key. What happens with them (who sits on them, what they may consume)
+// stands with the workstations; this separation is what the tests
+// here pin down.
 
 const AGENT_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 const agents = [{ id: AGENT_ID, slug: "alice", display_name: "Alice Beispiel" }];
@@ -45,15 +45,15 @@ describe("Secrets — mehrere Werte je Schlüssel", () => {
     mockFetch(routen);
     renderWithProviders(<Secrets me={testPrincipal()} />);
 
-    // Der Normalfall bleibt leise: ein Wert, eingeklappt.
+    // The normal case stays quiet: one value, collapsed.
     expect(await screen.findByRole("button", { name: /1 Wert$/ })).toBeInTheDocument();
-    // Mehrere zeigen sich von selbst — sonst müsste man erst suchen, was man hat.
+    // Several show on their own — else you would have to search for what you have.
     expect(await screen.findByRole("button", { name: /2 Werte$/ })).toBeInTheDocument();
   });
 
   it("verweist für Auslastung und Sitzbelegung auf die Arbeitsplätze", async () => {
-    // Die Trennung soll der Nutzer nicht raten müssen: die Seite sagt selbst,
-    // wo das Übrige steht.
+    // The user should not have to guess the separation: the page says
+    // itself where the rest stands.
     mockFetch(routen);
     renderWithProviders(<Secrets me={testPrincipal()} />);
     expect(await screen.findByText(/Arbeitsplätzen/)).toBeInTheDocument();

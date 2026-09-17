@@ -2,14 +2,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { LANG_KEY, initialLang, langFromPath } from "./i18n";
 import { PUBLIC_ROUTES } from "./public/routes";
 
-/* Welche Sprache jemand zu sehen bekommt.
+/* Which language a person gets to see.
 
-   Die Regel steht an einer Stelle (initialLang): die Adresse, sonst die
-   gespeicherte Wahl, sonst der Browser, sonst die Basissprache. Beide Fehler,
-   die dieser Test festhält, waren Abweichungen davon — eine im Pfad, eine in
-   der angemeldeten Oberfläche — und beide waren unsichtbar, weil in der
-   Entwicklung „en" gespeichert ist und dann jede Reihenfolge dasselbe
-   ergibt. */
+   The rule stands in one place (initialLang): the address, else the saved
+   choice, else the browser, else the base language. Both bugs this test holds
+   were deviations from it — one in the path, one in the signed-in UI — and
+   both were invisible, because in development `en` is stored and then every
+   order gives the same
+   result. */
 
 function browserSpricht(...sprachen: string[]) {
   vi.stubGlobal("navigator", { ...window.navigator, languages: sprachen, language: sprachen[0] });
@@ -21,10 +21,10 @@ afterEach(() => {
 });
 
 describe("langFromPath", () => {
-  /* Jede offene Adresse trägt ihre Sprache — auch die deutschen, die kein
-      Präfix haben. Über das Präfix allein war /anmelden nie deutsch: der
-      Reiter sagte „Anmelden — covey", der Text darunter richtete sich nach
-      dem Browser. */
+  /* Every public address carries its language — including the German ones that
+      have no prefix. Over the prefix alone /anmelden was never German: the tab
+      said `Anmelden — covey`, the text below it
+      followed the browser. */
   for (const route of PUBLIC_ROUTES) {
     for (const [lang, pfad] of Object.entries(route.path)) {
       it(`erkennt ${pfad} als ${lang}`, () => {
@@ -55,9 +55,9 @@ describe("initialLang", () => {
     expect(initialLang("/")).toBe("pl");
   });
 
-  /* Der Fall der angemeldeten Oberfläche: sie fragt mit „/" und ohne
-     gespeicherte Wahl. Stand dort ein festes „en", kippte sie gleich nach der
-     Anmeldung von der Sprache, in der die Anmeldeseite gerade noch stand. */
+  /* The case of the signed-in UI: it asks with `/` and without a saved choice.
+     If a fixed `en` stood there, it tipped right after the sign-in out of the
+     language the sign-in page had just been standing in. */
   it("nimmt ohne gespeicherte Wahl die Sprache des Browsers", () => {
     browserSpricht("fr-FR", "en-US");
     expect(initialLang("/")).toBe("fr");

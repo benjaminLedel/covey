@@ -11,14 +11,14 @@ import (
 	"covey/internal/backlog"
 )
 
-/* Ein Agent stand in einer Werkstatt und bekam nicht gesagt, was darin steht.
-   In einem Home lagen `tools/jdk`, `tools/jdk21` und `tools/flutter` — 2,7 GB
-   Werkzeuge, die das Image seit Wochen mitbringt, und das Home wird nach jedem
-   Lauf zurückgeschrieben (#102).
+/* An agent stood in a workshop and was not told what stands in it. In one
+   home lay `tools/jdk`, `tools/jdk21` and `tools/flutter` — 2.7 GB of tools
+   the image has brought along for weeks, and the home is written back after
+   every run (#102).
 
-   Geprüft wird hier der ganze Weg: die Datei liegt im Image, der Daemon liest
-   sie in der Sandbox und hängt sie an den Systemprompt — nicht die Steuerebene,
-   die das Image nicht einmal dem Namen nach kennen muss. */
+   Checked here is the whole path: the file lies in the image, the daemon
+   reads it in the sandbox and appends it to the system prompt — not the
+   control plane, which need not know the image even by name. */
 
 func TestDerLaufKenntSeinenArbeitsplatz(t *testing.T) {
 	beschreibung := filepath.Join(t.TempDir(), "workplace.json")
@@ -31,8 +31,8 @@ func TestDerLaufKenntSeinenArbeitsplatz(t *testing.T) {
 	}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	// Im Betrieb liegt sie unter /etc/covey/workplace.json IM Image; der
-	// eingebaute Daemon dieses Stapels liest denselben Pfad aus der Umgebung.
+	// In operation it lies under /etc/covey/workplace.json IN the image; the
+	// built-in daemon of this stack reads the same path from the environment.
 	t.Setenv("COVEY_WORKPLACE_FILE", beschreibung)
 
 	ctx := context.Background()
@@ -60,8 +60,8 @@ func TestDerLaufKenntSeinenArbeitsplatz(t *testing.T) {
 			t.Fatalf("%q steht nicht im Prompt des Laufs:\n%s", muss, kürzen(prompt))
 		}
 	}
-	// Und die Konfiguration des Agenten steht weiterhin darin — angehängt,
-	// nicht ersetzt.
+	// And the configuration of the agent still stands in it — appended, not
+	// replaced.
 	if !strings.Contains(prompt, agent.DisplayName) {
 		t.Fatalf("die Konfiguration des Agenten fehlt:\n%s", kürzen(prompt))
 	}

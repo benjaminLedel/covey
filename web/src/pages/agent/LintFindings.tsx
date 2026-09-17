@@ -2,17 +2,17 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, type LintFinding } from "../../api";
 
-// Der Config-Lint auf der Agentenseite.
+// The config lint on the agent page.
 //
-// Es gab ihn als `covey config lint` — und damit praktisch nicht: die Regel zu
-// häufigen Turn-Limit-Abbrüchen hätte den Zustand eines QA-Agenten am ersten
-// Tag beschrieben (22 von 23 Fehlschlägen am Limit, 300 $ verbrannt, kein
-// einziger Merge Request durchgetestet), und niemand hat es gesehen, weil
-// niemand auf Verdacht ein Unterkommando aufruft. Wer nach einem Agenten sieht,
-// weil etwas mit ihm nicht stimmt, sieht auf seine Seite.
+// It existed as `covey config lint` — and thus practically not: the rule on
+// frequent turn-limit aborts would have described the state of a QA agent on
+// its first day (22 of 23 failures at the limit, $300 burned, not a single
+// merge request tested through), and nobody saw it, because nobody invokes a
+// subcommand on a hunch. Whoever checks on an agent because something is wrong
+// with it, looks at its page.
 //
-// Bewusst über der Reiterleiste und nicht in einem eigenen Tab: ein Befund, den
-// man erst aufklappen muss, ist einer, den man nicht liest.
+// Deliberately above the tab bar, not in its own tab: a finding you first have
+// to unfold is a finding you do not read.
 export function LintFindings({ agentId }: { agentId: string }) {
   const { t } = useTranslation();
   const lint = useQuery({

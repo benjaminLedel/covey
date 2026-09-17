@@ -1,20 +1,20 @@
 package httpapi
 
-// Die Arbeitsakte auf dem Mitarbeiter-Profil (spec/21).
+// The work record on the employee profile (spec/21).
 //
-// Sie wird hier zuerst für MENSCHEN gebaut und erst danach für den
-// covey Doctor, der sie über covey/work_record liest. Das ist keine
-// Reihenfolge aus Bequemlichkeit: was ein Mensch auf einer Seite nicht lesen
-// kann, kann er in einer Agenten-Antwort auch nicht überprüfen — und die
-// Antwort auf „warum liefert dieser Agent nicht" ist die erste, die jemand
-// nachrechnen können muss.
+// It is built here for PEOPLE first and only after that for the
+// covey Doctor, which reads it over covey/work_record. That order is no
+// matter of convenience: what a person cannot read on a page, they cannot
+// verify in an agent's answer either — and the answer to "why is this
+// agent not delivering" is the first one somebody must be able to
+// recompute.
 //
-// WER SIE LESEN DARF, ist hier entschieden und nicht geerbt. spec/17 sagt,
-// Leistungsdaten je Agent sind empfindlicher als eine Kostensumme; die Akte
-// folgt deshalb den RECORDINGS, nicht den Kostenzahlen: org_admin,
-// security, der Verwalter des Agenten und der Auditor lesend. Controlling
-// fehlt. „Wer die Rechnung sehen darf, darf auch das sehen" wäre die Antwort,
-// die die Funktion in jedem Betrieb mit Betriebsrat unbenutzbar macht.
+// WHO MAY READ IT is decided here and not inherited. spec/17 says
+// performance data per agent is more sensitive than a cost total; the record
+// therefore follows the RECORDINGS, not the cost figures: org_admin,
+// security, the agent's owner and the auditor may read. Controlling
+// is missing. "whoever may see the bill may also see this" would be the
+// answer that makes the feature unusable in any company with a works council.
 
 import (
 	"net/http"
@@ -23,9 +23,9 @@ import (
 	"covey/internal/workrecord"
 )
 
-// workRecordRoles: dieselbe Grenze für die Akte und für die Kennzahlen eines
-// einzelnen Agenten — sie aus der Akte zu lesen ist dieselbe Handlung wie die
-// Akte zu lesen (spec/21, und damit die offene Frage aus spec/17).
+// workRecordRoles: the same boundary for the record and for the metrics of a
+// single agent — reading them from the record is the same act as reading
+// the record (spec/21, and with it the open question from spec/17).
 func workRecordRoles() []string {
 	return []string{identity.RoleOrgAdmin, identity.RoleAgentOwner,
 		identity.RoleSecurity, identity.RoleAuditor}
@@ -42,22 +42,22 @@ func (s *Server) handleWorkRecord(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, rec)
 }
 
-// workRecords baut den Sammler bei jedem Aufruf neu — er hält keinen Zustand,
-// nur Zeiger auf die Stores, die der Server ohnehin trägt.
+// workRecords builds the collector anew on every call — it holds no state,
+// only pointers to the stores the server carries anyway.
 func (s *Server) workRecords() *workrecord.Builder {
 	return &workrecord.Builder{
 		Pool: s.Pool, Registry: s.Registry, Obs: s.Obs, Skills: s.lintSkills(),
 	}
 }
 
-// handleAgentReviews ist die Historie auf dem Mitarbeiter-Profil: was der
-// Betrieb ueber diesen Kollegen geschrieben hat, datiert, neueste zuerst.
+// handleAgentReviews is the history on the employee profile: what the
+// operation has written about this colleague, dated, newest first.
 //
-// Dieselbe Rollengrenze wie die Arbeitsakte — ein Review ist die Akte in
-// Worten. Und bewusst nur ein LESE-Pfad fuer Menschen: es gibt keine Aktion,
-// mit der ein Agent Reviews abruft. Ein offener Vorschlag und eine Beurteilung
-// erreichen den beurteilten Agenten auf keinem Weg, und das bleibt so, weil
-// der Weg fehlt und nicht, weil eine Regel ihn verbietet.
+// The same role boundary as the work record — a review is the record in
+// words. And deliberately a READ-only path for people: there is no action
+// with which an agent retrieves reviews. An open suggestion and an assessment
+// reach the assessed agent by no route, and that stays so because
+// the route is missing, not because a rule forbids it.
 func (s *Server) handleAgentReviews(w http.ResponseWriter, r *http.Request) {
 	agent := agentFrom(r)
 	list, err := s.Registry.Reviews(r.Context(), agent.ID, 20)

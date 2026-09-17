@@ -94,11 +94,11 @@ func NewSystem(c Config) *System {
 
 func (s *System) Name() string { return s.Cfg.Name }
 
-// Kein target.Webhooker: ein MCP-Server ist keine Ereignisquelle. Die
-// Schnittstelle war frueher Pflicht und wurde deshalb erfuellt — VerifyWebhook
-// gab dabei true zurueck, nahm also jeden unsignierten Aufruf an, um ihn danach
-// in ParseWebhook abzulehnen. Weggelassen antwortet der Router fail-closed mit
-// 404, und die Einrichtung zeigt keinen Webhook-Schritt.
+// No target.Webhooker: an MCP server is no event source. The interface used to
+// be mandatory and was therefore implemented — VerifyWebhook
+// returned true, so it accepted every unsigned call only to reject it later
+// in ParseWebhook. Left out, the router answers fail-closed with
+// 404, and the setup shows no webhook step.
 
 // ActionSubject maps tool calls onto the guard-rail subject <name>:<tool>.
 func (s *System) ActionSubject(action string, params json.RawMessage) string {

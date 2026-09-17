@@ -3,15 +3,15 @@ import { post, type Principal } from "../api";
 import { useMemberships, useSwitchOrg } from "../components/OrgSwitcher";
 import { BirdMark } from "../public/chrome";
 
-/* Angemeldet, aber ohne Organisation.
+/* Signed in, but without an organisation.
 
-   Diesen Zustand konnte es früher nicht geben: die Anmeldung WAR die
-   Mitgliedschaft. Seit die Anmeldung am Konto hängt (FR-002, P1), entsteht ein
-   Konto bei der Selbstregistrierung, bevor irgendeine Organisation es kennt.
+   This state could not exist before: signing in WAS the membership. Since
+   sign-in is tied to the account (FR-002, P1), self-registration creates an
+   account before any organisation knows about it.
 
-   Die Seite sagt genau das und nichts darüber hinaus. Beitreten und Gründen
-   kommen als eigener Schritt (P5); bis dahin wäre ein Knopf, der beides
-   verspricht, eine Zusage, die niemand einlöst.
+   The page says exactly that and nothing beyond it. Joining and founding
+   come as their own step (P5); until then a button that promises both would
+   be a pledge nobody redeems.
 
    One case does have somewhere to go (#262): the account holds seats, but the
    session has none active — the operator added a seat after this sign-in, or

@@ -577,8 +577,8 @@ func TestWorkplacesComeFromTheCatalogue(t *testing.T) {
 	ctx := context.Background()
 	c := login(t, s, "admin@test.local", "admin-passwort")
 
-	// Was die Instanz ausdruecklich benannt hat — die eine der drei Quellen,
-	// die ein Mensch gesetzt hat, und deshalb die, die gewinnt (spec/16).
+	// What the instance named expressly — the one of the three sources that a
+	// human set, and therefore the one that wins (spec/16).
 	s.srv.Config = &config.Config{
 		SandboxImage:    "covey-sandbox:test",
 		SandboxImageEnv: map[string]string{"base": "covey-sandbox:test", "dev": "eigenes-dev:2026"},
@@ -624,17 +624,17 @@ func TestWorkplacesComeFromTheCatalogue(t *testing.T) {
 	if list[dev].Image != "eigenes-dev:2026" {
 		t.Errorf("the instance's image did not come through: %q", list[dev].Image)
 	}
-	// Und woher es kommt, steht dabei: sonst muesste jemand zwischen
-	// Umgebung, Katalog und Voreinstellung raten, wenn ein Image nicht das
-	// ist, was er erwartet hat.
+	// And where it comes from stands with it: otherwise someone would have to
+	// guess between environment, catalogue and setting, when an image is not
+	// what he expected.
 	if list[dev].Source != "env" {
 		t.Errorf("dev source = %q, expected env", list[dev].Source)
 	}
 	if list[dev].Build == "" {
 		t.Error("a profile without a build command leaves whoever reads it looking")
 	}
-	// Benannt statt gezählt: Wer einen Arbeitsplatz ändern oder löschen will,
-	// fragt nicht nach der Anzahl, sondern danach, wen es angeht.
+	// Named instead of counted: whoever wants to change or delete a workplace
+	// does not ask for the count, but for whom it affects.
 	if len(list[dev].Agents) != 1 {
 		t.Errorf("dev: %d agents, expected 1", len(list[dev].Agents))
 	}

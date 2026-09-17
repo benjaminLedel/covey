@@ -5,9 +5,9 @@ import { Link } from "react-router";
 import { api, patch, post, type Principal } from "../api";
 import { fmtBytes } from "../format";
 
-// Die Runner-Ansicht (spec/16, Stufe 5). Ab dem dritten Runner ist sie das,
-// was den Betrieb bedienbar macht: welche Hosts es gibt, welcher gerade traegt,
-// und wo der Platz knapp wird — bevor er alle ist, nicht danach.
+// The runners view (spec/16, stage 5). From the third runner on it is what
+// makes operation workable: which hosts exist, which one carries right now,
+// and where space runs low — before it is gone, not after.
 
 type RunnerView = {
   id: string;
@@ -36,9 +36,9 @@ type RunnerView = {
     sandboxes: number;
     max_sandboxes?: number;
     outdated: boolean;
-    // Die Leitung steht, der Host sagt nichts. Er bekommt in diesem Zustand
-    // keine neuen Sandboxen — und „verbunden" neben einem Agenten, der nicht
-    // startet, schickt jeden in die falsche Richtung.
+    // The line stands, the host says nothing. In this state it gets no
+    // new sandboxes — and "connected" beside an agent that does not
+    // start sends everyone in the wrong direction.
     unresponsive?: boolean;
   };
   capacity?: {
@@ -46,9 +46,9 @@ type RunnerView = {
     total_bytes: number;
     free_bytes: number;
     work_dir?: string;
-    // Wann die Zahl entstanden ist. Der Server fragt den Host im Hintergrund;
-    // was hier steht, ist das zuletzt Gehoerte — und ein Host, der gerade ein
-    // Image zieht, antwortet minutenlang nicht.
+    // When the number came to be. The server asks the host in the background;
+    // what stands here is the last thing heard — and a host that is pulling
+    // an image does not answer for minutes.
     measured_at?: string;
   };
 };
@@ -69,15 +69,15 @@ type CleanupView = {
 
 
 
-/* embedded: siehe Runtimes — der Reiter trägt die Überschrift. */
+/* embedded: see Runtimes — the tab carries the heading. */
 export default function Runners({ me, embedded = false }: { me: Principal; embedded?: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  /* Dieselben Rollen wie im Server (httpapi: manage). Hier stand
-     "platform_admin" — die oberste Org-Rolle heisst seit Migration 0061
-     org_admin, und weil sie niemand mehr traegt, war die Antwort immer nein:
-     Die Karte zum Registrieren eines Runners war damit fuer alle weg, auch
-     fuer die, die den Endpunkt dahinter benutzen duerfen. */
+  /* The same roles as in the server (httpapi: manage). This used to say
+     "platform_admin" — the top org role has been called org_admin since
+     migration 0061, and since no one carries it anymore, the answer was
+     always no: the card for registering a runner was gone for everyone,
+     also for those allowed to use the endpoint behind it. */
   const manage = me.Role === "org_admin" || me.Role === "agent_owner";
   const [token, setToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -86,16 +86,16 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
   const runners = useQuery({
     queryKey: ["runners"],
     queryFn: () => api<RunnerView[]>("/runners"),
-    // Der Live-Teil (verbunden, laufende Sandboxen, freier Platz) ist nur so
-    // lange wahr, wie die Verbindung steht — deshalb nachladen statt einmal
-    // holen.
+    // The live part (connected, running sandboxes, free space) is only true
+    // as long as the connection stands — hence refetch instead of fetching
+    // once.
     refetchInterval: 10_000,
   });
-  // Was zwischen den Runnern dieser Organisation und einer laufenden Sandbox
-  // steht. Die Pruefung gab es vorher schon — sie lief beim Start ins Log und
-  // in die Onboarding-Ansicht, die verschwindet, sobald die fuenf Schritte
-  // erledigt sind. Genau deshalb meldete eine seit Wochen laufende Instanz
-  // nichts, als ihre Datenebene ausfiel.
+  // What stands between this organisation's runners and a running sandbox.
+  // The check existed before — it ran at startup into the log and into
+  // the onboarding view, which disappears once the five steps are done.
+  // That is exactly why an instance that had run for weeks reported
+  // nothing when its data plane went down.
   const health = useQuery({
     queryKey: ["runner-health"],
     queryFn: () => api<{ ready: boolean; problems: string[] }>("/runners/health"),
@@ -106,8 +106,8 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
     queryFn: () => api<StoreView>("/platform/home-store"),
   });
 
-  // Pausieren aus der Zeile heraus. Dieselbe Route wie auf der Detailseite —
-  // es ist dieselbe Entscheidung, nur naeher dran.
+  // Pause from the row. Same route as on the detail page —
+  // it is the same decision, just closer by.
   const setPaused = useMutation({
     mutationFn: (v: { id: string; paused: boolean }) => patch(`/runners/${v.id}`, { paused: v.paused }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["runners"] }),
@@ -189,10 +189,10 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
                     {r.capacity?.work_dir && <div className="muted text-xs mono">{r.capacity.work_dir}</div>}
                   </td>
                   <td>
-                    {/* Pausiert steht vor allem anderen: Es ist der einzige
-                        Zustand, den jemand GEWOLLT hat, und „verbunden" neben
-                        einem Agenten, der nicht läuft, schickt in die falsche
-                        Richtung. */}
+                    {/* Paused stands before everything else: it is the only
+                        state someone WANTED, and "connected" beside
+                        an agent that is not running sends you in the wrong
+                        direction. */}
                     {r.paused_at ? (
                       <>
                         <span className="pill mut">{t("runners.paused")}</span>
@@ -216,10 +216,10 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
                         <span className="pill mut" title={t("runners.offlineHint")}>
                           {t("runners.offline")}
                         </span>
-                        {/* Bei einem Runner, der weg ist, ist „seit wann" die
-                            eigentliche Auskunft — ein Wartungsfenster liest
-                            sich anders als ein Host, der seit Tagen nicht mehr
-                            gesehen wurde. */}
+                        {/* For a runner that is gone, "since when" is the
+                            actual information — a maintenance window reads
+                            differently from a host not seen
+                            for days. */}
                         {r.last_seen_at && (
                           <div className="muted text-xs" style={{ marginTop: 2 }}>
                             {t("runners.lastSeen", { when: ago(r.last_seen_at, t) })}
@@ -227,8 +227,8 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
                         )}
                       </>
                     )}
-                    {/* Versionsversatz wird benannt, nicht bloss geduldet:
-                        Runner und Server werden getrennt ausgeliefert. */}
+                    {/* Version drift is named, not merely tolerated:
+                        runner and server are shipped separately. */}
                     {r.live?.outdated && (
                       <span className="pill err" style={{ marginLeft: 6 }}>
                         {t("runners.outdated")}
@@ -241,10 +241,10 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
                       <div className="muted mono">{r.live.images.join(", ")}</div>
                     ) : null}
                   </td>
-                  {/* Die laufenden Sandboxen weiss die Verbindung selbst und
-                      genau; die Platte ist das, was der Host zuletzt gemeldet
-                      hat. Deshalb hier nicht mehr die Zahl aus dem
-                      Platten-Bericht: die waere einen Takt alt. */}
+                  {/* The running sandboxes the connection knows first-hand and
+                      exactly; the disk is what the host last reported.
+                      Hence not the number from the disk
+                      report here: that would be one beat old. */}
                   <td>
                     {r.live
                       ? r.live.max_sandboxes
@@ -256,10 +256,10 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
                     {r.capacity && r.capacity.total_bytes > 0 ? (
                       <>
                         <DiskBar free={r.capacity.free_bytes} total={r.capacity.total_bytes} />
-                        {/* Erst wenn die Zahl merklich alt ist, wird ihr Alter
-                            zur Auskunft: ein Host, der seit zwanzig Minuten
-                            nichts sagt, hat vielleicht laengst weniger Platz.
-                            Solange sie frisch ist, waere die Zeile Rauschen. */}
+                        {/* Only once the number is noticeably old does its age
+                            become information: a host that has said
+                            nothing for twenty minutes may long since have less space.
+                            While it is fresh, the line would be noise. */}
                         {stale(r.capacity.measured_at) && (
                           <div className="muted text-xs" style={{ marginTop: 2 }}>
                             {t("runners.diskAsOf", { when: ago(r.capacity.measured_at!, t) })}
@@ -272,20 +272,20 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
                   </td>
                   <td className="text-xs mono">{r.live?.version || r.version || "—"}</td>
                   <td className="text-right">
-                    {/* Der Name ist auch ein Link, aber ein Link in einer
-                        Tabellenzelle sieht aus wie Text: „Bearbeiten" steht
-                        dort, wo bei jeder anderen Zeile die Handlung steht.
-                        Der eingebaute Runner hat sie auch — Name, Tags und
-                        Arbeitsplätze gelten für ihn genauso; was ihm fehlt,
-                        ist das Löschen. */}
+                    {/* The name is also a link, but a link in a
+                        table cell looks like text: "Edit" stands
+                        where every other row has its action.
+                        The built-in runner has it too — name, tags, and
+                        workplaces apply to it just the same; what it lacks
+                        is deletion. */}
                     {manage && (
                       <div className="flex gap-2 justify-end">
-                        {/* Pausieren ist die Handlung, die man von der
-                            Uebersicht aus will: Man sieht hier, welcher Host
-                            traegt und welcher klemmt, und der Griff dazu darf
-                            nicht eine Seite weiter liegen. Alles andere —
-                            Namen, Tags, Arbeitsplaetze — braucht Platz fuer
-                            einen Satz daneben und bleibt drueben. */}
+                        {/* Pause is the action you want from the
+                            overview: you see here which host
+                            carries and which sticks, and the handle for it must
+                            not sit one page further away. Everything else —
+                            names, tags, workplaces — needs room for
+                            a sentence beside it and stays above. */}
                         <button
                           className="btn-ghost text-xs"
                           disabled={setPaused.isPending}
@@ -317,10 +317,10 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
           </div>
           {token && (
             <div className="flex flex-col gap-2" style={{ marginTop: 4 }}>
-              {/* Einmal im Klartext, danach nur noch als Hash — deshalb zum
-                  Kopieren und nicht zum Abtippen. Der Befehl ist so gebaut,
-                  dass er sich einfügen lässt: kein Platzhalter, den jemand
-                  versehentlich mit überträgt. */}
+              {/* Once in plaintext, afterwards only as a hash — hence for
+                  copying and not for typing. The command is built so
+                  that it can be pasted: no placeholder someone
+                  accidentally carries along. */}
               <p className="text-xs">{t("runners.tokenOnce")}</p>
               <pre className="console">
                 {registerCommand(token)
@@ -395,13 +395,13 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
               multiple of what the store occupies, because the toolchain caches
               are byte-for-byte identical on every developer home and therefore
               lie there once. Without this line the store is a
-              Verzeichnis, das aus unsichtbaren Gruenden waechst. */}
+              directory that grows for invisible reasons. */}
           {store.data.logical_bytes > 0 && store.data.bytes > 0 && (
             <div className="text-sm">
-              {/* Unter 1,1× ist „x-mal kleiner" albern — und der Speicher liegt
-                  sogar leicht darueber, weil die Manifeste selbst Bloecke sind.
-                  Dann sagt der Satz, wann die Ersparnis kommt, statt eine zu
-                  behaupten, die es nicht gibt. */}
+              {/* Below 1.1×, "x times smaller" is silly — and the store even
+                  sits slightly above that, because the manifests themselves
+                  are blocks. Then the sentence says when the saving arrives,
+                  instead of claiming one that does not exist. */}
               {store.data.logical_bytes / store.data.bytes >= 1.1
                 ? t("runners.storeDedup", {
                     logical: fmtBytes(store.data.logical_bytes),
@@ -452,18 +452,18 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
   );
 }
 
-// registerCommand ist, was auf dem neuen Host laufen muss — als Ganzes zum
-// Einfügen, und zwar ab dem Punkt, an dem dieser Host wirklich steht: ohne
-// covey-runner. Der Befehl, der ein Binary voraussetzt, das es dort nicht gibt,
-// ist einer, nach dem man erst noch suchen muss.
+// registerCommand is what has to run on the new host — to paste as a whole,
+// and from the point where this host truly stands: without
+// covey-runner. A command that presupposes a binary that is not there is
+// one you first still have to go looking for.
 //
-// Das Installationsskript kommt von dieser Instanz und bringt die zu ihr
-// passende Version mit (spec/16, „Protokollversion") — deshalb die eigene
-// Adresse und nicht die von GitHub.
+// The install script comes from this instance and brings the version that
+// matches it (spec/16, "protocol version") — hence its own address
+// and not GitHub's.
 //
-// Ohne Beschreibung und Tags: beides ist optional, und ein Platzhalter im
-// Befehl ist etwas, das jemand mitkopiert und dann sucht, warum sein Runner
-// „…" heißt.
+// Without description and tags: both are optional, and a placeholder in the
+// command is something someone copies along and then wonders why their
+// runner is called "…".
 type RegistrationToken = {
   id: string;
   description: string;
@@ -481,12 +481,12 @@ function registerCommand(token: string): string {
   ].join("\n");
 }
 
-// ago ist „vor …" in grober Koernung. Genauer waere unnuetz: bei einem Runner,
-// der weg ist, entscheidet die Groessenordnung — Minuten sind ein Neustart,
-// Tage sind ein Host, um den sich niemand mehr kuemmert.
-// stale: Ab wann das Alter einer Zahl selbst eine Auskunft ist. Der Server
-// fragt im Takt des Heartbeats (30s) nach; zwei Minuten ohne neue Zahl heisst,
-// dass der Host nicht antwortet — und nicht, dass die Seite langsam ist.
+// ago is "X ago" in coarse rounding. Finer would be useless: for a runner
+// that is gone, the order of magnitude decides — minutes are a restart,
+// days are a host no one takes care of anymore.
+// stale: from which point a number's age is itself information. The server
+// asks again on the heartbeat cadence (30s); two minutes without a new
+// number means the host is not answering — not that the page is slow.
 function stale(iso?: string): boolean {
   if (!iso) return false;
   return Date.now() - new Date(iso).getTime() > 120_000;
@@ -500,8 +500,8 @@ function ago(iso: string, t: (k: string, o?: Record<string, unknown>) => string)
   return t("runners.agoDays", { count: Math.round(seconds / 86400) });
 }
 
-// DiskBar zeigt den Fuellstand des Dateisystems, auf dem die Arbeitskopien
-// liegen — genau die Zahl, die entscheidet, ob das naechste Home noch passt.
+// DiskBar shows the fill level of the filesystem the working copies live
+// on — exactly the number that decides whether the next home still fits.
 function DiskBar({ free, total }: { free: number; total: number }) {
   const { t } = useTranslation();
   const used = total - free;

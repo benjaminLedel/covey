@@ -14,8 +14,8 @@ import (
 	"covey/internal/waitlist"
 )
 
-// postJSON spricht die Instanz OHNE Sitzung an — der einzige Weg, der hier
-// zählt: wer sich registriert, hat noch kein Konto und kein Cookie.
+// postJSON addresses the instance WITHOUT a session — the only way that counts
+// here: whoever registers has no account and no cookie yet.
 func (s *stack) postJSON(t *testing.T, path string, body any) *http.Response {
 	t.Helper()
 	raw, _ := json.Marshal(body)
@@ -28,12 +28,12 @@ func (s *stack) postJSON(t *testing.T, path string, body any) *http.Response {
 	return res
 }
 
-// Selbstregistrierung über einen Wartelisten-Code (FR-002, P4).
+// Self-registration via a waitlist code (FR-002, P4).
 //
-// Der eigentliche Gegenstand ist nicht das Formular, sondern die Buchung: Konto
-// und Einlösung entstehen in EINER Transaktion. Ein Code, der für ein nie
-// entstandenes Konto verbraucht wurde, ist eine verlorene Nutzung; ein Konto
-// aus einem schon verbrauchten Code ist ein Tor, das nicht gehalten hat.
+// The actual subject is not the form but the booking: account and redemption
+// come into being in ONE transaction. A code spent for an account that never
+// came into being is a lost use; an account from an already spent code is a
+// gate that did not hold.
 
 func TestRegistrierungMitCode(t *testing.T) {
 	s := newStack(t)
@@ -41,8 +41,8 @@ func TestRegistrierungMitCode(t *testing.T) {
 	settingsStore := s.settings
 	codes := waitlist.New(s.pool)
 
-	// Geschlossen ist der Auslieferungszustand: der Endpunkt gibt es dann für
-	// die Außenwelt nicht.
+	// Closed is the shipping state: the endpoint then does not exist for the
+	// outside world.
 	res := s.postJSON(t, "/api/v1/public/signup", map[string]any{
 		"code": "COVEY-4K7MQ-P2D9X", "email": "erika@example.de",
 		"display_name": "Erika", "password": "hinreichend-lang",
@@ -57,7 +57,7 @@ func TestRegistrierungMitCode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Ohne gültigen Code kommt niemand durch.
+	// Without a valid code nobody gets through.
 	res = s.postJSON(t, "/api/v1/public/signup", map[string]any{
 		"code": "COVEY-4K7MQ-P2D9X", "email": "erika@example.de",
 		"display_name": "Erika", "password": "hinreichend-lang",
@@ -88,13 +88,13 @@ func TestRegistrierungMitCode(t *testing.T) {
 	if acc.DisplayName != "Erika Musterfrau" {
 		t.Errorf("Name = %q", acc.DisplayName)
 	}
-	// Die Adresse ist NICHT bestätigt: dafür ist die Mail da, die gerade
-	// hinausging (#168). Was der Link damit macht, steht in verify_test.go.
+	// The address is NOT confirmed: that is what the mail that just went out is
+	// for (#168). What the link does with it stands in verify_test.go.
 	if acc.Verified() {
 		t.Error("Adresse gilt als bestätigt, obwohl sie niemand bestätigt hat")
 	}
-	// Die Organisation wird hier NICHT gewählt: das Konto steht für sich, bis
-	// sein Inhaber beitritt oder gründet.
+	// The organisation is NOT chosen here: the account stands for itself, until
+	// its owner joins or founds one.
 	var humans int
 	if err := s.pool.QueryRow(ctx, "SELECT count(*) FROM humans WHERE email=$1", "erika@example.de").Scan(&humans); err != nil {
 		t.Fatal(err)
@@ -103,7 +103,7 @@ func TestRegistrierungMitCode(t *testing.T) {
 		t.Errorf("Registrierung hat %d Mitgliedschaften angelegt — erwartet 0", humans)
 	}
 
-	// Derselbe Code ein zweites Mal: verbraucht.
+	// The same code a second time: spent.
 	res = s.postJSON(t, "/api/v1/public/signup", map[string]any{
 		"code": code, "email": "otto@example.de",
 		"display_name": "Otto", "password": "hinreichend-lang",
@@ -113,8 +113,8 @@ func TestRegistrierungMitCode(t *testing.T) {
 	}
 	res.Body.Close()
 
-	// Dieselbe Adresse ein zweites Mal: das erfährt, wer registriert — sonst
-	// wartet er auf eine Mail, die nie kommt.
+	// The same address a second time: that is what whoever registers learns —
+	// otherwise he waits for a mail that never comes.
 	code2, err := codes.Create(ctx, waitlist.Options{MaxUses: 1})
 	if err != nil {
 		t.Fatal(err)
@@ -128,8 +128,8 @@ func TestRegistrierungMitCode(t *testing.T) {
 	}
 	res.Body.Close()
 
-	// Und der Code aus dem gescheiterten Versuch ist NICHT verbraucht: die
-	// Transaktion ist zurückgerollt.
+	// And the code from the failed attempt is NOT spent: the transaction was
+	// rolled back.
 	liste, err := codes.List(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -141,8 +141,8 @@ func TestRegistrierungMitCode(t *testing.T) {
 	}
 }
 
-// Der Fall, für den die Transaktion da ist: zwei Anfragen in derselben
-// Sekunde, ein Code mit einer Nutzung. Genau eine darf durchkommen.
+// The case the transaction is there for: two requests in the same second, one
+// code with one use. Exactly one may get through.
 func TestEinmalCodeHaeltGleichzeitigkeitStand(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -185,8 +185,8 @@ func TestEinmalCodeHaeltGleichzeitigkeitStand(t *testing.T) {
 		t.Fatalf("%d von %d Anfragen kamen durch — ein Einmal-Code darf genau einmal gelten (%v)", erfolge, versuche, ergebnis)
 	}
 
-	// Gezählt werden nur die Konten aus dieser Registrierung — der Stack bringt
-	// das Admin-Konto mit, und ein Test, der das mitzählt, misst den Stack.
+	// Only the accounts from this registration are counted — the stack brings
+	// the admin account along, and a test that counts it too measures the stack.
 	var konten int
 	if err := s.pool.QueryRow(ctx,
 		"SELECT count(*) FROM accounts WHERE email LIKE '%@example.de'").Scan(&konten); err != nil {
@@ -201,8 +201,8 @@ func adresse(i int) string {
 	return string(rune('a'+i)) + "@example.de"
 }
 
-// Ein abgelaufener Code gilt nicht mehr, und ein zurückgezogener sofort nicht
-// mehr — beides sagt der Server verschieden, weil es verschiedene Auswege gibt.
+// An expired code is no longer valid, and a revoked one immediately so — the
+// server says both differently, because there are different ways out.
 func TestAbgelaufenUndZurueckgezogen(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()

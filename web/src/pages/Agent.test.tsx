@@ -6,11 +6,11 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import AgentPage from "./Agent";
 import { mockFetch, renderWithProviders, testPrincipal, useGerman } from "../test/render";
 
-// Charakterisierungstests der Agenten-Seite: Sie halten fest, was die Seite
-// HEUTE tut — Reiter, Rollen-Sichtbarkeit, Umleitungen alter Links —, damit
-// die Aufteilung der 3790-Zeilen-Datei ein reines Verschieben bleiben kann.
-// Sie prüfen die Naht (welcher Reiter zeigt welchen Bereich, welcher Endpunkt
-// wird gerufen), nicht die Innereien der einzelnen Bereiche.
+// Characterisation tests for the agent page: they pin down what the page
+// does TODAY — tabs, role visibility, redirects of old links — so that
+// splitting the 3790-line file can remain a pure move.
+// They check the seam (which tab shows which area, which endpoint
+// is called), not the innards of the individual areas.
 
 const AGENT_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 
@@ -34,8 +34,8 @@ const agent = {
   created_at: "2026-01-01T00:00:00Z",
 };
 
-// Die Seite zieht beim Rendern mehrere Ressourcen; alles, was nicht Gegenstand
-// des jeweiligen Tests ist, wird leer beantwortet.
+// The page pulls several resources while rendering; everything that is not the
+// subject of the respective test is answered with an empty result.
 const basisRouten = {
   [`/api/v1/agents/${AGENT_ID}`]: agent,
   [`/api/v1/agents/${AGENT_ID}/cost`]: {
@@ -90,7 +90,7 @@ describe("Reiter der Agenten-Seite", () => {
     for (const label of erwartet) {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
     }
-    // Kein siebter Reiter: Heartbeat, Config, Secrets & Co. sind Unterpunkte.
+    // No seventh tab: Heartbeat, Config, Secrets & Co. are sub-items.
     for (const weg of ["Heartbeat", "Config", "Secrets", "Egress", "Webhook", "Skills"]) {
       expect(screen.queryByRole("button", { name: weg })).not.toBeInTheDocument();
     }
@@ -102,7 +102,7 @@ describe("Reiter der Agenten-Seite", () => {
     await screen.findByRole("heading", { name: "Test-Agent" });
 
     await nutzer.click(screen.getByRole("button", { name: "Tools & Skills" }));
-    // Das Untermenü des Reiters erscheint.
+    // The tab's submenu appears.
     expect(await screen.findByRole("tab", { name: "Zielsysteme" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "MCP-Werkzeuge" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Skills" })).toBeInTheDocument();
@@ -124,7 +124,7 @@ describe("Rollen", () => {
     zeigeAgent(`/agents/${AGENT_ID}`, "auditor");
     await screen.findByRole("heading", { name: "Test-Agent" });
     expect(screen.queryByRole("button", { name: "Dateien" })).not.toBeInTheDocument();
-    // Die übrigen Reiter bleiben.
+    // The remaining tabs stay.
     expect(screen.getByRole("button", { name: "Backlog" })).toBeInTheDocument();
   });
 
@@ -135,8 +135,8 @@ describe("Rollen", () => {
   });
 });
 
-// Geteilte Links und Lesezeichen auf die alten Reiter dürfen nicht ins Leere
-// laufen — die Umleitung ist Verhalten, kein Detail.
+// Shared links and bookmarks to the old tabs must not run into empty
+// space — the redirect is behaviour, not a detail.
 describe("Umleitung alter Reiter-Links", () => {
   const fälle: Array<[string, string]> = [
     ["heartbeat", "Heartbeat"],
@@ -167,10 +167,10 @@ describe("Umleitung alter Reiter-Links", () => {
   }
 });
 
-// Ein unbekannter ?tab=-Wert fiel vorher durch das `|| "backlog"` hindurch —
-// es greift nur bei null und leer —, und die Seite rendete unter der
-// Reiterleiste nichts. Ein von Hand getippter oder aus einer älteren Fassung
-// mitgebrachter Link soll irgendwo landen.
+// An unknown ?tab= value used to fall through the `|| "backlog"` —
+// it only fires on null and empty —, and the page rendered nothing below
+// the tab bar. A link typed by hand or brought over from an older
+// version should land somewhere.
 describe("Unbekannte und englische Reiter-Namen", () => {
   it("?tab=quatsch zeigt das Backlog statt einer leeren Seite", async () => {
     zeigeAgent(`/agents/${AGENT_ID}?tab=quatsch`);
@@ -178,8 +178,8 @@ describe("Unbekannte und englische Reiter-Namen", () => {
     expect(await screen.findByPlaceholderText("Titel")).toBeInTheDocument();
   });
 
-  // Die englischen Namen der deutschen Slugs: wer „workspace" oder „settings"
-  // tippt, meint die Dateien bzw. die Einstellungen.
+  // The English names of the German slugs: whoever types `workspace` or
+  // `settings` means the files or the settings.
   for (const englisch of ["workspace", "files"]) {
     it(`?tab=${englisch} oeffnet die Dateien`, async () => {
       const { netz } = zeigeAgent(`/agents/${AGENT_ID}?tab=${englisch}`);
@@ -196,9 +196,9 @@ describe("Unbekannte und englische Reiter-Namen", () => {
   });
 });
 
-// Das Recording behauptete „noch keine Aufzeichnung", solange die Abfrage lief
-// — bei einem Agenten mit 178 Läufen liest man das als Befund und sucht an der
-// falschen Stelle weiter.
+// The recording claimed `noch keine Aufzeichnung` while the query was still
+// running — for an agent with 178 runs you read that as a finding and keep
+// looking in the wrong place.
 describe("Agent in einer anderen Organisation", () => {
   // After signing in again, ?weiter= brings back /agents/<id> — and the new
   // session may work in another organisation, where the agent answers 404

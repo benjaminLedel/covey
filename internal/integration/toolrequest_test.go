@@ -10,14 +10,14 @@ import (
 	"covey/internal/backlog"
 )
 
-/* Ein Agent, dem ein Paket fehlt, hatte keinen Weg, das zu sagen: nirgends
-   root, kein apt, und der Arbeitsplatz steht fest, bis jemand ein Image neu
-   baut. Was er stattdessen tat, lag in seinem Home — ~/aptroot mit
-   sources.list, aufgelösten Paket-URIs und entpackten .debs, zuletzt geändert
-   am Tag der Beobachtung (#106).
+/* An agent that is missing a package had no way to say so: nowhere root, no
+   apt, and the workplace stands fixed until somebody rebuilds an image.
+   What it did instead lay in its home — ~/aptroot with sources.list,
+   resolved package URIs and unpacked .debs, last changed on the day of the
+   observation (#106).
 
-   Geprüft wird der ganze Weg: die Aktion in der Sandbox, die Meldung über das
-   Protokoll, der offene Punkt im Posteingang. */
+   Checked is the whole path: the action in the sandbox, the report over the
+   protocol, the open item in the inbox. */
 
 func TestEineWerkzeugBitteLandetImPosteingang(t *testing.T) {
 	ctx := context.Background()
@@ -47,13 +47,13 @@ func TestEineWerkzeugBitteLandetImPosteingang(t *testing.T) {
 		if !strings.Contains(p.Title, "php8.2-redis") {
 			t.Fatalf("der Titel nennt das Werkzeug nicht: %q", p.Title)
 		}
-		// Der Beleg gehört dazu: ohne den Befehl, an dem es gefehlt hat, ist
-		// die Bitte nicht zu entscheiden.
+		// The evidence belongs with it: without the command where the thing
+		// was missing, the request cannot be decided.
 		if !strings.Contains(p.Rationale, "Class Redis not found") {
 			t.Fatalf("der Beleg fehlt: %q", p.Rationale)
 		}
-		// Und der Arbeitsplatz, denn die Antwort ist eine Zeile in SEINEM
-		// Dockerfile — ein Werkzeug im falschen Profil wiegt für alle anderen mit.
+		// And the workplace, because the answer is a line in ITS Dockerfile
+		// — a tool in the wrong profile weighs on all the others as well.
 		if !strings.Contains(p.Rationale, "Arbeitsplatz") {
 			t.Fatalf("der Arbeitsplatz fehlt im Beleg: %q", p.Rationale)
 		}
@@ -68,15 +68,15 @@ func TestEineWerkzeugBitteLandetImPosteingang(t *testing.T) {
 		t.Fatalf("keine Werkzeug-Bitte angelegt (%d offene Punkte)", len(punkte))
 	}
 
-	// Und der Lauf ist trotzdem durchgelaufen: Die Plattform beschafft nichts,
-	// sie meldet — der Agent arbeitet mit dem, was da ist.
+	// And the run went through all the same: the platform procures nothing,
+	// it reports — the agent works with what is there.
 	got, _ := s.backlog.Get(ctx, task.ID)
 	if got.Result == nil || !strings.Contains(*got.Result, "gemeldet") {
 		t.Fatalf("der Lauf endete nicht normal: %+v", got.Result)
 	}
 }
 
-// Ohne Werkzeugnamen ist es keine Bitte, sondern ein Missverständnis.
+// Without a tool name this is not a request, but a misunderstanding.
 func TestEineBitteOhneWerkzeugWirdAbgelehnt(t *testing.T) {
 	ctx := context.Background()
 	s := newStack(t)

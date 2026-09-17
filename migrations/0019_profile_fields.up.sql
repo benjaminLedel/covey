@@ -1,12 +1,12 @@
--- Konfigurierbare Profilfelder: jede Organisation definiert selbst, welche
--- zusätzlichen Felder ein Mitarbeiter-Profil hat (z. B. Standort, Abteilung,
--- Slack-Handle). Die Definition liegt hier, die Werte pro Person in
--- humans.custom (key → wert) — neue Felder brauchen keinen Schema-Change.
+-- Configurable profile fields: each organisation defines itself which
+-- extra fields an employee profile has (e.g. location, department,
+-- Slack handle). The definition lives here, the values per person in
+-- humans.custom (key → value) — new fields need no schema change.
 CREATE TABLE profile_fields (
     id         UUID PRIMARY KEY,
     org_id     UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    key        TEXT NOT NULL, -- slug, aus dem Label abgeleitet; Schlüssel in humans.custom
-    label      TEXT NOT NULL, -- Anzeigename in UI und Team-Verzeichnis
+    key        TEXT NOT NULL, -- slug, derived from the label; key in humans.custom
+    label      TEXT NOT NULL, -- display name in UI and team directory
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (org_id, key)
 );

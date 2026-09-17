@@ -342,8 +342,8 @@ func TestSweepKeepsWhatAnotherSnapshotStillNeeds(t *testing.T) {
 	}
 
 	// The old snapshot goes; the new one stays.
-	// Ohne Schonfrist: dieser Test fragt, WAS gelöscht wird, nicht wann
-	// (SweepList mit 0). Die Schonfrist selbst prüft
+	// No grace period: this test asks WHAT is deleted, not when
+	// (SweepList with 0). The grace period itself is checked by
 	// TestSweepSparesBlocksASyncMayStillBeWriting.
 	all, err := blobs.List(ctx, org)
 	if err != nil {
@@ -447,24 +447,24 @@ func TestSweepKeepsTheChunksOfALargeManifest(t *testing.T) {
 	}
 }
 
-// Jede Datei eines Homes wird gechunkt — das Manifest selbst ging bisher als
-// EIN Objekt weg, egal wie groß. Bei einem gewachsenen Home sind das
-// hunderttausende Einträge mit Pfad und 64-Zeichen-Hash, also zweistellige
-// Megabytes in einem PUT. Über einen entfernten Runner ist das eine
-// HTTP-Anfrage, und sie starb an der Größenbegrenzung dessen, was vor der
-// Steuerebene steht: das Home war dauerhaft nicht sicherbar, während jedes
-// kleine Home funktionierte und die Installation gesund aussehen ließ.
+// Every file of a home is chunked — the manifest itself used to go as ONE
+// object, however large. For a grown home that is hundreds of thousands of
+// entries with path and 64-character hash, so tens of megabytes in one PUT.
+// Over a remote runner that is one HTTP request, and it died on the size
+// limit of whatever stands in front of the control plane: the home could not
+// be backed up at all, while every small home worked and made the installation
+// look healthy.
 //
-// Geprüft wird am Manifest selbst und nicht an einem Home aus zwanzigtausend
-// Dateien: die Stückelung hängt an der GRÖSSE des Manifests, nicht daran, wie
-// sie zustande kam — und ein Test, der dafür ein halbes Dateisystem anlegt,
-// kostet auf einem ausgelasteten Runner Minuten, die nichts belegen.
+// Tested on the manifest itself and not on a home of twenty thousand files:
+// the chunking hangs on the SIZE of the manifest, not on how it came about —
+// and a test that builds half a filesystem for it costs minutes on a busy
+// runner that prove nothing.
 func TestEinGrossesManifestReistInStuecken(t *testing.T) {
 	ctx := context.Background()
 	org := uuid.New()
 	limit := &limitedBlobs{Dir: newDir(t), max: chunkSize}
 
-	// Ein Manifest über der Blockgröße: 40.000 Einträge mit Pfad und Hash.
+	// A manifest above the block size: 40,000 entries with path and hash.
 	m := Manifest{}
 	for i := 0; i < 40000; i++ {
 		m.Entries = append(m.Entries, Entry{
@@ -493,7 +493,7 @@ func TestEinGrossesManifestReistInStuecken(t *testing.T) {
 		t.Errorf("ein Objekt von %d Bytes ging weg — mehr als ein Block tragen darf", limit.largest)
 	}
 
-	// Und es kommt vollständig zurück.
+	// And it comes back in full.
 	zurueck, err := Load(ctx, limit, org, hash)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -503,9 +503,9 @@ func TestEinGrossesManifestReistInStuecken(t *testing.T) {
 	}
 }
 
-// Ein Schnappschuss aus der Zeit vor der Stückelung liegt als ganzes Manifest
-// im Store. Er muss weiter laden — sonst kostet die Änderung genau das, was sie
-// verhindern soll.
+// A snapshot from before the chunking lies in the store as a whole manifest.
+// It must still load — otherwise the change costs exactly what it was meant to
+// prevent.
 func TestEinAltesManifestLaedtWeiterhin(t *testing.T) {
 	ctx := context.Background()
 	blobs := newDir(t)
@@ -517,7 +517,7 @@ func TestEinAltesManifestLaedtWeiterhin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Klein genug: es liegt unverändert als Manifest da, kein Index davor.
+	// Small enough: it lies there unchanged as a manifest, no index in front.
 	raw, err := fetch(ctx, blobs, org, res.ManifestHash)
 	if err != nil {
 		t.Fatal(err)
@@ -530,8 +530,8 @@ func TestEinAltesManifestLaedtWeiterhin(t *testing.T) {
 	}
 }
 
-// limitedBlobs ist der Store mit der Grenze, die in der Wirklichkeit vor ihm
-// steht: ein Proxy bzw. die Steuerebene nehmen keine beliebig großen Objekte an.
+// limitedBlobs is the store with the limit that in reality stands in front of
+// it: a proxy or the control plane does not take objects of arbitrary size.
 type limitedBlobs struct {
 	*Dir
 	max     int
@@ -552,18 +552,18 @@ func (l *limitedBlobs) Put(ctx context.Context, orgID uuid.UUID, hash string, r 
 	return l.Dir.Put(ctx, orgID, hash, bytes.NewReader(data))
 }
 
-// Ein zweiter Weckruf auf demselben Host darf nichts kosten — das ist die
-// Zusage, auf der die Runner-Affinität steht. Sie galt nur für kleine Dateien:
-// alles über wholeFileLimit galt als verändert und wurde JEDES Mal neu geholt.
-// Auf einer Produktivinstanz waren das 8,3 GB und elf Minuten pro Weckruf,
-// bevor der Agent seinen ersten Turn machte.
+// A second wake on the same host may cost nothing — that is the promise the
+// runner affinity stands on. It held only for small files: everything above
+// wholeFileLimit counted as changed and was fetched back EVERY time. On a
+// production instance that was 8.3 GB and eleven minutes per wake, before the
+// agent made its first turn.
 func TestEineGrosseDateiWirdNichtBeiJedemWeckrufNeuGeholt(t *testing.T) {
 	ctx := context.Background()
 	blobs := newDir(t)
 	org := uuid.New()
 	home := t.TempDir()
 
-	// Eine Datei über wholeFileLimit (also gechunkt) und eine knapp darunter.
+	// One file above wholeFileLimit (so chunked) and one just below it.
 	write(t, home, "sdk/flutter.tar", strings.Repeat("SDK", 4*1024*1024))
 	write(t, home, "mittel.bin", strings.Repeat("m", 6*1024*1024))
 	write(t, home, "klein.txt", "kurz")
@@ -577,8 +577,8 @@ func TestEineGrosseDateiWirdNichtBeiJedemWeckrufNeuGeholt(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Dieselbe Arbeitskopie noch einmal auf denselben Stand bringen: es ist
-	// nichts zu tun, und es darf nichts über die Leitung gehen.
+	// Bringing the same working copy to the same state again: there is nothing
+	// to do, and nothing may go over the wire.
 	second, err := Materialize(ctx, blobs, org, home, m)
 	if err != nil {
 		t.Fatal(err)
@@ -594,8 +594,8 @@ func TestEineGrosseDateiWirdNichtBeiJedemWeckrufNeuGeholt(t *testing.T) {
 	}
 }
 
-// Und die Gegenrichtung: eine große Datei, die sich WIRKLICH geändert hat, muss
-// erkannt werden — sonst wäre die Ersparnis mit falschen Daten bezahlt.
+// And the other direction: a large file that REALLY changed has to be
+// detected — otherwise the saving would be paid for with wrong data.
 func TestEineVeraenderteGrosseDateiWirdErkannt(t *testing.T) {
 	ctx := context.Background()
 	blobs := newDir(t)
@@ -612,7 +612,7 @@ func TestEineVeraenderteGrosseDateiWirdErkannt(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Gleiche Länge, anderer Inhalt — die Größe allein verrät es nicht.
+	// Same length, different content — the size alone does not give it away.
 	write(t, home, "gross.bin", strings.Repeat("a", 5*1024*1024)+strings.Repeat("b", 5*1024*1024))
 	back, err := Materialize(ctx, blobs, org, home, m)
 	if err != nil {
@@ -630,23 +630,23 @@ func TestEineVeraenderteGrosseDateiWirdErkannt(t *testing.T) {
 	}
 }
 
-// Ein gewachsenes Transkript ist der Fall, für den feste Blöcke überhaupt
-// gewählt wurden: ein Anhängen lässt jeden vorherigen Chunk byteweise gleich,
-// an derselben Stelle. Eingelöst wurde das nicht — writeFile holte jeden Block
-// aus dem Store, auch die, die lokal schon danebenlagen.
+// A grown transcript is the case fixed blocks were chosen for in the first
+// place: an append leaves every earlier chunk byte-for-byte the same, at the
+// same place. That was never delivered — writeFile fetched every block from
+// the store, including those that already lay beside it locally.
 func TestBeimAnhaengenReistNurDasNeueStueck(t *testing.T) {
 	ctx := context.Background()
 	blobs := newDir(t)
 	org := uuid.New()
 	home := t.TempDir()
 
-	// 12 MiB: gechunkt in 3 Stücke.
+	// 12 MiB: chunked into 3 pieces.
 	write(t, home, ".claude/transkript.jsonl", strings.Repeat("z", 12*1024*1024))
 	if _, err := Sync(ctx, blobs, org, home, nil); err != nil {
 		t.Fatal(err)
 	}
 
-	// Angehängt: die ersten drei Chunks bleiben, ein vierter kommt dazu.
+	// Appended: the first three chunks stay, a fourth is added.
 	write(t, home, ".claude/transkript.jsonl", strings.Repeat("z", 12*1024*1024)+strings.Repeat("neu", 100))
 	res, err := Sync(ctx, blobs, org, home, nil)
 	if err != nil {
@@ -657,14 +657,14 @@ func TestBeimAnhaengenReistNurDasNeueStueck(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Die Arbeitskopie steht auf dem ALTEN Stand — wie auf einem Runner, der
-	// den Agenten zuletzt vor dem Anhängen getragen hat.
+	// The working copy stands at the OLD state — as on a runner that last
+	// carried the agent before the append.
 	write(t, home, ".claude/transkript.jsonl", strings.Repeat("z", 12*1024*1024))
 	back, err := Materialize(ctx, blobs, org, home, m)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Nur das letzte, kurze Stück darf über die Leitung — nicht die 12 MiB davor.
+	// Only the last, short piece may go over the wire — not the 12 MiB before it.
 	if back.BytesIn > chunkSize {
 		t.Errorf("%d Bytes geholt, obwohl nur ein Stück angehängt wurde", back.BytesIn)
 	}
@@ -677,14 +677,14 @@ func TestBeimAnhaengenReistNurDasNeueStueck(t *testing.T) {
 	}
 }
 
-// Eine gewachsene Datei wurde bisher vollständig neu geschrieben, auch wenn nur
-// ein Stück fehlte: der Weg über temporäre Datei plus rename kopiert alles.
-// Auf einem Home von Gigabyte ist das die lokale Hälfte derselben
-// Verschwendung, die die Wiederverwendung der Chunks von der Leitung nimmt.
+// A grown file used to be rewritten in full even when only one piece was
+// missing: the route through a temporary file plus rename copies everything.
+// On a home of gigabytes that is the local half of the same waste that
+// reusing the chunks takes off the wire.
 //
-// Nachgewiesen über einen harten Link: wird die Datei an Ort und Stelle
-// ausgebessert, sieht der Link den neuen Inhalt — beim rename bliebe er auf dem
-// alten Stand zurück.
+// Proved through a hard link: if the file is patched in place, the
+// link sees the new content — with a rename it would stay at the
+// old state.
 func TestEineGewachseneDateiWirdAnOrtUndStelleAusgebessert(t *testing.T) {
 	ctx := context.Background()
 	blobs := newDir(t)
@@ -702,10 +702,10 @@ func TestEineGewachseneDateiWirdAnOrtUndStelleAusgebessert(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Arbeitskopie auf dem alten Stand, plus ein harter Link darauf.
+	// Working copy at the old state, plus a hard link to it.
 	write(t, home, "transkript.jsonl", strings.Repeat("z", 12*1024*1024))
-	// Neben dem Home, nicht darin: was der Schnappschuss nicht kennt, räumt
-	// Materialize aus dem Home weg — zu Recht.
+	// Beside the home, not inside it: whatever the snapshot does not know,
+	// Materialize clears out of the home — rightly.
 	link := filepath.Join(t.TempDir(), "derselbe-inode")
 	if err := os.Link(pfad, link); err != nil {
 		t.Skipf("harte Links nicht verfügbar: %v", err)
@@ -721,7 +721,7 @@ func TestEineGewachseneDateiWirdAnOrtUndStelleAusgebessert(t *testing.T) {
 	if !strings.HasSuffix(string(raw), "ENDE") {
 		t.Error("die Datei wurde ersetzt statt ausgebessert — der Link zeigt noch den alten Stand")
 	}
-	// Und der Inhalt stimmt vollständig.
+	// And the content is correct in full.
 	direkt, err := os.ReadFile(pfad)
 	if err != nil {
 		t.Fatal(err)
@@ -731,7 +731,7 @@ func TestEineGewachseneDateiWirdAnOrtUndStelleAusgebessert(t *testing.T) {
 	}
 }
 
-// Und die Datei, die KÜRZER geworden ist, behält keinen Rest.
+// And the file that became SHORTER keeps no leftover.
 func TestEineGeschrumpfteDateiBehaeltKeinenRest(t *testing.T) {
 	ctx := context.Background()
 	blobs := newDir(t)
@@ -747,7 +747,7 @@ func TestEineGeschrumpfteDateiBehaeltKeinenRest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Lokal ist sie länger als der Schnappschuss.
+	// Locally it is longer than the snapshot.
 	write(t, home, "gross.bin", strings.Repeat("a", 9*1024*1024)+strings.Repeat("b", 5*1024*1024))
 	if _, err := Materialize(ctx, blobs, org, home, m); err != nil {
 		t.Fatal(err)
@@ -761,14 +761,14 @@ func TestEineGeschrumpfteDateiBehaeltKeinenRest(t *testing.T) {
 	}
 }
 
-// Der Fall, der auf einer Produktivinstanz jede lange Aufgabe zweimal scheitern
-// ließ: Der Sync kam stundenlang nicht durch, also war der jüngste
-// Schnappschuss alt. Jeder Weckruf materialisierte ihn — und löschte dabei
-// alles, was er nicht kannte, unter anderem die Sitzungstranskripte der Läufe
-// seither (Claude Code legt sie im Home ab). Die Fortsetzung, die genau diese
-// Sitzung fortsetzen wollte, fand nichts: "No conversation found with session
-// ID …". Die Plattform hatte das Gedächtnis ihres eigenen unfertigen Laufs
-// gelöscht und dann dem Resume die Schuld gegeben.
+// The case that made every long task fail twice on a production instance: the
+// sync did not get through for hours, so the newest snapshot was old. Every
+// wake materialised it — and deleted everything it did not know along the way,
+// among them the session transcripts of the runs since (Claude Code puts them
+// in the home). The continuation that wanted to resume exactly this session
+// found nothing: "No conversation found with session
+// ID …". The platform had deleted the memory of its own unfinished run and
+// then blamed the resume.
 func TestEinAlterSchnappschussLoeschtNeuereArbeitNicht(t *testing.T) {
 	ctx := context.Background()
 	blobs := newDir(t)
@@ -785,27 +785,27 @@ func TestEinAlterSchnappschussLoeschtNeuereArbeitNicht(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Der Agent hat seither gearbeitet: eine Sitzung liegt im Home, und der
-	// Sync dieses Standes ist NICHT durchgekommen.
+	// The agent worked since: a session lies in the home, and the sync of
+	// this state did NOT get through.
 	write(t, home, ".claude/projects/covey/sitzung-e4090cda.jsonl", `{"turn":1}`)
 
-	// Weckruf mit dem alten Schnappschuss, und die Kopie steht nicht auf ihm.
+	// Wake with the old snapshot, and the copy does not stand on it.
 	if _, err := MaterializeInto(ctx, blobs, org, home, m, false); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(home, ".claude/projects/covey/sitzung-e4090cda.jsonl")); err != nil {
 		t.Fatal("das Sitzungstranskript wurde gelöscht — die Fortsetzung findet nichts mehr")
 	}
-	// Was der Schnappschuss beschreibt, steht trotzdem da.
+	// What the snapshot describes stands there all the same.
 	if _, err := os.Stat(filepath.Join(home, "SOUL.md")); err != nil {
 		t.Fatal("der Schnappschuss wurde nicht materialisiert")
 	}
 }
 
-// Und die Gegenrichtung, damit das Räumen nicht stillschweigend abgeschafft
-// wird: steht die Kopie auf genau diesem Schnappschuss, ist alles Übrige ein
-// Überbleibsel und muss weg — sonst wäre die Kopie nicht der Stand, den sie
-// vorgibt zu sein.
+// And the other direction, so that clearing is not quietly abolished:
+// if the copy stands on exactly this snapshot, everything else is a
+// leftover and has to go — otherwise the copy is not the state it
+// claims to be.
 func TestAufDemEigenenSchnappschussWirdWeiterGeraeumt(t *testing.T) {
 	ctx := context.Background()
 	blobs := newDir(t)
@@ -831,9 +831,9 @@ func TestAufDemEigenenSchnappschussWirdWeiterGeraeumt(t *testing.T) {
 	}
 }
 
-// Die Marke ist die Auskunft, an der die Entscheidung hängt — und sie liegt
-// NEBEN der Arbeitskopie: im Home wäre sie Teil jedes Schnappschusses und
-// änderte ihn bei jedem Sync.
+// The marker is the information the decision hangs on — and it lies BESIDE
+// the working copy: inside the home it would be part of every snapshot and
+// change it on every sync.
 func TestDieMarkeLiegtNebenDemHomeUndNichtDarin(t *testing.T) {
 	home := filepath.Join(t.TempDir(), "agent-home")
 	if err := os.MkdirAll(home, 0o755); err != nil {
@@ -855,8 +855,8 @@ func TestDieMarkeLiegtNebenDemHomeUndNichtDarin(t *testing.T) {
 	}
 }
 
-// einzelStore kann NICHT bündeln — wie die Verzeichnis-Variante auf derselben
-// Platte, die davon auch nichts hätte.
+// einzelStore can NOT bundle — like the directory variant on the same disk,
+// which would gain nothing from it either.
 type einzelStore struct {
 	*Dir
 	einzeln int
@@ -867,8 +867,8 @@ func (z *einzelStore) Has(ctx context.Context, orgID uuid.UUID, hash string) (bo
 	return z.Dir.Has(ctx, orgID, hash)
 }
 
-// buendelStore kann es — wie der Store hinter dem Netz, für den die Bündelung
-// gebaut ist.
+// buendelStore can — like the store behind the network, which the bundling
+// was built for.
 type buendelStore struct {
 	einzelStore
 	gebuendelt int
@@ -887,11 +887,11 @@ func (z *buendelStore) HasMany(ctx context.Context, orgID uuid.UUID, hashes []st
 	return out, nil
 }
 
-// Ein Sync fragt für JEDEN Block, ob der Store ihn schon kennt. Bei einem
-// gewachsenen Home sind das sechsstellig viele Fragen, und hinter einem Netz
-// war jede davon eine eigene Anfrage: ein 16,9-GB-Home mit 150.000 Dateien kam
-// nicht mehr innerhalb der halben Stunde durch, die die Steuerebene einem Sync
-// gibt.
+// A sync asks for EVERY block whether the store already knows it. For a
+// grown home that is hundreds of thousands of questions, and behind a
+// network each one was a request of its own: a 16.9 GB home with
+// 150,000 files did not get through within the half hour the
+// control plane gives a sync.
 func TestDieFrageNachBekanntenBloeckenWirdGebuendelt(t *testing.T) {
 	ctx := context.Background()
 	org := uuid.New()
@@ -904,11 +904,11 @@ func TestDieFrageNachBekanntenBloeckenWirdGebuendelt(t *testing.T) {
 	if _, err := Sync(ctx, z, org, home, nil); err != nil {
 		t.Fatal(err)
 	}
-	// Eine Einzelfrage bleibt: die nach dem Manifest selbst.
+	// One single question stays: the one about the manifest itself.
 	if z.einzeln > 1 {
 		t.Errorf("%d Einzelfragen, obwohl der Store bündeln kann", z.einzeln)
 	}
-	// 1500 Dateien, 512 pro Bündel: drei Fragen plus die für das Manifest.
+	// 1500 files, 512 per bundle: three questions plus the one for the manifest.
 	if z.gebuendelt > 6 {
 		t.Errorf("%d Bündelfragen für 1500 Blöcke — das ist nicht gebündelt", z.gebuendelt)
 	}
@@ -917,9 +917,9 @@ func TestDieFrageNachBekanntenBloeckenWirdGebuendelt(t *testing.T) {
 	}
 }
 
-// Ein Store, der das Bündeln nicht kann — die Verzeichnis-Variante auf
-// derselben Platte hat nichts davon —, wird weiter einzeln gefragt. Das war
-// vorher richtig und bleibt es.
+// A store that cannot bundle — the directory variant on the same disk gains
+// nothing from it — is still asked one by one. That was right before and
+// stays right.
 func TestOhneBuendelfrageWirdWeiterEinzelnGefragt(t *testing.T) {
 	ctx := context.Background()
 	org := uuid.New()
@@ -937,7 +937,7 @@ func TestOhneBuendelfrageWirdWeiterEinzelnGefragt(t *testing.T) {
 	}
 }
 
-// Und das Ergebnis bleibt dasselbe: was fehlt, reist; was da ist, nicht.
+// And the result stays the same: what is missing travels; what is there, not.
 func TestGebuendeltReistTrotzdemNurWasFehlt(t *testing.T) {
 	ctx := context.Background()
 	org := uuid.New()
@@ -953,7 +953,7 @@ func TestGebuendeltReistTrotzdemNurWasFehlt(t *testing.T) {
 	if erst.Blocks < 600 {
 		t.Fatalf("der erste Sync hat nur %d Blöcke abgelegt", erst.Blocks)
 	}
-	// Unverändertes Home: es darf nichts mehr hochgehen.
+	// Unchanged home: nothing may go up any more.
 	zweit, err := Sync(ctx, z, org, home, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -961,7 +961,7 @@ func TestGebuendeltReistTrotzdemNurWasFehlt(t *testing.T) {
 	if zweit.BytesUp != 0 || zweit.Blocks != 0 {
 		t.Errorf("der zweite Sync lud %d Bytes in %d Blöcken hoch", zweit.BytesUp, zweit.Blocks)
 	}
-	// Und der Schnappschuss ist derselbe.
+	// And the snapshot is the same one.
 	if erst.ManifestHash != zweit.ManifestHash {
 		t.Error("zwei Syncs desselben Standes ergeben verschiedene Schnappschüsse")
 	}

@@ -14,13 +14,13 @@ import (
 	"covey/internal/skills"
 )
 
-// Die Befunde A–E aus FR-003: fünf Stellen, an denen die Organisationsgrenze
-// nicht hielt. Jeder Test versucht genau das, was vorher ging.
+// Findings A-E from FR-003: five places where the organisation boundary
+// did not hold. Each test tries exactly what used to work.
 //
-// Der Aufbau ist immer derselbe: eine zweite Organisation mit einem eigenen
-// Agenten, und dann der Griff aus der ersten hinüber.
+// The setup is always the same: a second organisation with an agent of its
+// own, and then the reach over from the first one.
 
-// nachbar legt eine zweite Organisation samt Agent an und gibt beides zurück.
+// nachbar creates a second organisation together with an agent and returns both.
 func nachbar(t *testing.T, s *stack) (uuid.UUID, agents.Agent) {
 	t.Helper()
 	ctx := context.Background()
@@ -35,9 +35,9 @@ func nachbar(t *testing.T, s *stack) (uuid.UUID, agents.Agent) {
 	return orgID, a
 }
 
-// A: Der Ereignis-Bus verteilte jedes Ereignis an jede offene Verbindung —
-// Agenten- und Aufgaben-IDs, Status, Aktionsnamen, Leitplanken-Entscheidungen,
-// live und ohne dass eine ID zu raten war.
+// A: the event bus delivered every event to every open connection —
+// agent and task IDs, status, action names, guard rail decisions,
+// live, and without any ID having to be guessed.
 func TestEreignisseBleibenInDerOrganisation(t *testing.T) {
 	s := newStack(t)
 	fremdeOrg, fremderAgent := nachbar(t, s)
@@ -67,15 +67,15 @@ func TestEreignisseBleibenInDerOrganisation(t *testing.T) {
 		t.Errorf("fremdes Ereignis durchgereicht: %+v", ev)
 	default:
 	}
-	// Ein Konto ohne Mitgliedschaft hört nichts, statt alles.
+	// An account without a membership hears nothing, rather than everything.
 	select {
 	case ev := <-ohneOrg:
 		t.Errorf("Abo ohne Organisation bekommt Ereignisse: %+v", ev)
 	default:
 	}
 
-	// Fail-closed: eine Veröffentlichung ohne Organisation erreicht niemanden,
-	// statt alle — sonst wäre eine vergessene Zeile wieder ein Leck.
+	// Fail-closed: a publication without an organisation reaches nobody,
+	// not everyone — otherwise one forgotten line would be a leak again.
 	s.orch.Events().Publish(orchestrator.Event{Type: "task", AgentID: fremderAgent.ID.String()})
 	select {
 	case ev := <-eigene:
@@ -86,9 +86,9 @@ func TestEreignisseBleibenInDerOrganisation(t *testing.T) {
 	}
 }
 
-// B: Der Webhook löste den Agenten per Slug über Organisationen hinweg auf —
-// der ÄLTESTE gewann. Zwei Mandanten mit einem "support" hätten die Post des
-// jeweils anderen bekommen.
+// B: the webhook resolved the agent by slug across organisations —
+// the OLDEST won. Two tenants with a "support" would have received the
+// other one's mail.
 func TestWebhookLiefertNichtInDieFalscheOrganisation(t *testing.T) {
 	s := newStack(t)
 	eigener := s.newSupportAgent("support")
@@ -98,14 +98,14 @@ func TestWebhookLiefertNichtInDieFalscheOrganisation(t *testing.T) {
 		t.Fatal("Aufbau kaputt")
 	}
 
-	// Mehrdeutig: der Server stellt lieber nicht zu, als falsch zuzustellen.
+	// Ambiguous: the server prefers not delivering at all over delivering wrong.
 	resp := s.postJSON(t, "/api/webhooks/zammad/support", map[string]any{"ticket": map[string]any{"id": 1}})
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("mehrdeutiger Slug ergibt %d, erwartet 404", resp.StatusCode)
 	}
 
-	// Über die ID bleibt jeder erreichbar — sie ist instanzweit eindeutig.
+	// By ID everyone stays reachable — it is unique across the instance.
 	_, err := s.registry.FindBySlug(context.Background(), "support")
 	if err != agents.ErrAmbiguousSlug {
 		t.Errorf("FindBySlug liefert %v, erwartet ErrAmbiguousSlug", err)
@@ -115,15 +115,15 @@ func TestWebhookLiefertNichtInDieFalscheOrganisation(t *testing.T) {
 	}
 }
 
-// C: dream-actions/{id}/undo kannte die Organisation nicht — ein Schreibzugriff
-// über die Grenze.
+// C: dream-actions/{id}/undo did not know the organisation — a write access
+// across the boundary.
 func TestTraumRuecknahmeBleibtInDerOrganisation(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
 	_, fremderAgent := nachbar(t, s)
 
-	// Die Seite, um die es geht — sonst scheitert die Rücknahme daran, dass es
-	// nichts umzubenennen gibt, und der Test prüfte die falsche Sache.
+	// The page this is about — otherwise the undo fails because there is
+	// nothing to rename, and the test would check the wrong thing.
 	if _, err := s.mem.Write(ctx, fremderAgent.ID, memory.PageInput{
 		Slug: "fremde-seite", Title: "Neuer Titel",
 		Body: "Was der Nachbar aufgeschrieben hat.", Source: "agent",
@@ -131,7 +131,7 @@ func TestTraumRuecknahmeBleibtInDerOrganisation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Ein Traum mit einer rücknehmbaren Aktion beim Nachbarn.
+	// A dream with an undoable action at the neighbour.
 	traumID := uuid.New()
 	if _, err := s.pool.Exec(ctx, `INSERT INTO dreams (id, agent_id, status, started_at)
 		VALUES ($1,$2,'done',now())`, traumID, fremderAgent.ID); err != nil {
@@ -147,15 +147,15 @@ func TestTraumRuecknahmeBleibtInDerOrganisation(t *testing.T) {
 	if err := store.Undo(ctx, s.orgID, aktionID); err == nil {
 		t.Error("die fremde Traum-Aktion liess sich zurücknehmen")
 	}
-	// Die eigene Organisation kommt an ihre eigene heran — die Prüfung sperrt
-	// nicht einfach alles.
+	// The own organisation still reaches its own — the check does not block
+	// everything.
 	if err := store.Undo(ctx, fremderAgent.OrgID, aktionID); err != nil {
 		t.Errorf("die eigene Aktion muss zurücknehmbar bleiben: %v", err)
 	}
 }
 
-// D: skills.Assign prüfte die Fähigkeit, aber nicht den Agenten — damit liess
-// sich einem fremden Agenten Text in den Prompt legen.
+// D: skills.Assign checked the skill but not the agent — that allowed putting
+// text into the prompt of a foreign agent.
 func TestSkillZuweisungPruefstDenAgenten(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -173,15 +173,15 @@ func TestSkillZuweisungPruefstDenAgenten(t *testing.T) {
 	if err := store.Assign(ctx, s.orgID, eigene.ID, fremderAgent.ID); err == nil {
 		t.Error("eigene Fähigkeit liess sich einem fremden Agenten anhängen")
 	}
-	// Der eigene Agent bleibt zuweisbar.
+	// The own agent stays assignable.
 	eigenerAgent := s.newSupportAgent("eigener")
 	if err := store.Assign(ctx, s.orgID, eigene.ID, eigenerAgent.ID); err != nil {
 		t.Errorf("die eigene Zuweisung muss weiter gehen: %v", err)
 	}
 }
 
-// E: Die Egress-Vorlage wurde ungeprüft angehängt — man sah die Freigabeliste
-// einer fremden Organisation und bekam sie selbst frei.
+// E: the egress template was attached unchecked — you saw the allowlist of
+// a foreign organisation and got it released for yourself.
 func TestEgressVorlageBleibtInDerOrganisation(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -210,7 +210,7 @@ func TestEgressVorlageBleibtInDerOrganisation(t *testing.T) {
 		}
 	}
 
-	// Die eigene Vorlage geht weiter.
+	// The own template keeps working.
 	eigeneVorlage, err := s.egress.CreateTemplate(ctx, s.orgID, "Eigene Liste", "")
 	if err != nil {
 		t.Fatal(err)

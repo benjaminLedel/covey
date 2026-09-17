@@ -66,10 +66,10 @@ export function AgentTooling({
   );
 }
 
-// AgentSystems beantwortet „was kann dieser Agent in den angebundenen
-// Zielsystemen tun?" — mit den Aktionen im Wortlaut seines System-Prompts.
-// Genau diesen Text liest der Agent; eine geglättete Zweitfassung wäre eine
-// zweite Wahrheit, die irgendwann von der ersten abweicht.
+// AgentSystems answers "what can this agent do in the attached target
+// systems?" — with the actions in the wording of its system prompt.
+// Exactly this text is what the agent reads; a smoothed second version would
+// be a second truth that at some point deviates from the first.
 function AgentSystems({ agentId }: { agentId: string }) {
   const { t } = useTranslation();
   const systems = useQuery({
@@ -117,11 +117,11 @@ function AgentSystems({ agentId }: { agentId: string }) {
   );
 }
 
-// actionNames zieht die Aktionsnamen aus einer Prompt-Doku: die Plugins
-// schreiben sie durchgehend als `name {"param":…}`. Eine Heuristik auf dem
-// Prompt-Text statt eines zweiten, gepflegten Feldes im Plugin — der Prompt
-// ist das, was der Agent wirklich liest, und darf nicht auseinanderlaufen.
-// Findet sie nichts, bleibt es beim Volltext; falsch ist dann nichts.
+// actionNames pulls the action names out of a prompt doc: the plugins
+// write them throughout as `name {"param":…}`. A heuristic on the
+// prompt text instead of a second, maintained field in the plugin — the prompt
+// is what the agent really reads, and must not drift apart.
+// If it finds nothing, the full text stays; nothing is wrong then.
 function actionNames(doc: string): string[] {
   const out: string[] = [];
   for (const m of doc.matchAll(/(?:^|[\s,(])([a-z][a-z0-9_]{2,})\s*\{/g)) {
@@ -164,8 +164,8 @@ function SystemCard({ system }: { system: AgentSystem }) {
               ))}
             </div>
           )}
-          {/* Zugeklappt der Wortlaut aus dem System-Prompt: die Chips sagen,
-              WAS geht, der Text sagt WIE — mit Parametern und Arbeitsweise. */}
+          {/* Folded, the wording from the system prompt: the chips say WHAT
+              goes, the text says HOW — with parameters and working style. */}
           <details className="rec-details">
             <summary className="rec-summary text-xs">{t("agent.tooling.showDoc")}</summary>
             <pre
@@ -185,9 +185,9 @@ function SystemCard({ system }: { system: AgentSystem }) {
   );
 }
 
-// Die Einstellungen buendeln alles, was man einmal einrichtet und dann in Ruhe
-// laesst: Stammdaten, Heartbeat, der Webhook-Auslöser, die Config-Dateien und
-// die Zugangsdaten. Als eigene Reiter waren das fuenf von zwoelf — nebeneinander
+// The settings bundle everything one sets up once and then leaves alone:
+// master data, heartbeat, the webhook trigger, the config files and the
+// credentials. As own tabs that would be five of twelve — side by side
 function AgentTools({ agentId, canEdit }: { agentId: string; canEdit: boolean }) {
   const { t } = useTranslation();
   const targets = useQuery({

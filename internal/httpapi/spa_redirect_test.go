@@ -7,14 +7,14 @@ import (
 	"testing/fstest"
 )
 
-// Der Trailing-Slash-Redirect baut sein Ziel aus dem Anfragepfad. Bleibt der
-// nicht lokal, ist es ein Open Redirect: `//evil.com/` würde zu `//evil.com`,
-// und das liest ein Browser als protokoll-relative Adresse auf einen fremden
-// Host.
+// TestSPARedirectBleibtLokal: the trailing-slash redirect builds its target from
+// the request path. If that does not stay local, it is an open redirect:
+// `//evil.com/` would become `//evil.com`, and a browser reads that as a
+// protocol-relative address on a foreign host.
 //
-// In Produktion normalisiert der ServeMux das vorher weg — aber das ist eine
-// Eigenschaft der Montage, nicht des Handlers. Der Test greift deshalb den
-// Handler DIREKT an, sonst prüfte er den Mux statt den Fix.
+// In production the ServeMux normalizes this away beforehand — but that is a
+// property of the wiring, not of the handler. The test therefore attacks the
+// handler DIRECTLY, otherwise it would check the Mux instead of the fix.
 func TestSPARedirectBleibtLokal(t *testing.T) {
 	s := &Server{WebFS: fstest.MapFS{
 		"index.html": &fstest.MapFile{Data: []byte("<html></html>")},
@@ -35,8 +35,8 @@ func TestSPARedirectBleibtLokal(t *testing.T) {
 		}
 	})
 
-	// Der eigentliche Zweck des Redirects muss erhalten bleiben: /funktion/ und
-	// /funktion sind sonst zwei Adressen mit demselben Inhalt.
+	// The actual purpose of the redirect must survive: otherwise /funktion/ and
+	// /funktion are two addresses with the same content.
 	t.Run("lokaler Pfad wird weiter umgeleitet", func(t *testing.T) {
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/funktion/", nil))

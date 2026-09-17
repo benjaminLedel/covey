@@ -7,9 +7,9 @@ import (
 	"covey/internal/buildinfo"
 )
 
-// Wohin covey Doctor meldet, wenn niemand es ihm gesagt hat: in das Projekt,
-// aus dem dieses Programm stammt. Die Adresse stand vorher als Frage in den
-// Stammdaten — dabei weiss die Plattform sie ueber sich selbst (spec/21).
+// Where covey Doctor reports when nobody has told it: the project this
+// program comes from. The address used to stand as a question in the master
+// data — yet the platform knows it about itself (spec/21).
 func TestPlatformRepoVoreinstellung(t *testing.T) {
 	standardSystem, standardProjekt := buildinfo.SourceRepo()
 	if standardSystem == "" || standardProjekt == "" {

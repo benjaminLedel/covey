@@ -13,17 +13,17 @@ import (
 	"covey/internal/backlog"
 )
 
-// TestArbeitsakteZaehltWasPassiertIst: die Akte ist eine Abfrage über das, was
-// die Control Plane selbst aufgeschrieben hat — nicht über das, was ein Agent
-// berichtet. Der Test lässt echte Läufe laufen und prüft, dass jeder Abschnitt
-// aus seiner benannten Quelle kommt (spec/21).
+// TestArbeitsakteZaehltWasPassiertIst: the record is a query over what the
+// control plane wrote down itself — not over what an agent reports. The test
+// lets real runs run and checks that every section comes from its named
+// source (spec/21).
 func TestArbeitsakteZaehltWasPassiertIst(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
 	admin := login(t, s, "admin@test.local", "admin-passwort")
 	agent := s.newSupportAgent("kollege")
 
-	// Eine Kennzahl, damit der Abschnitt etwas zu zeigen hat.
+	// One indicator, so the section has something to show.
 	if _, err := s.registry.SaveConfig(ctx, agent.ID, map[string]string{
 		"SOUL.md":   "# Support-Agent\n\n## Rolle\nSupport.",
 		"ACCESS.md": "- system: zammad scope: read,write",
@@ -32,7 +32,7 @@ func TestArbeitsakteZaehltWasPassiertIst(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Ein Lauf, der durchgeht, und einer, der am Turn-Limit endet.
+	// One run that goes through, and one that ends at the turn limit.
 	erledigt, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Geht durch", "[mock:result Fertig.]", "manual", 3)
 	if err != nil {
 		t.Fatal(err)
@@ -60,15 +60,15 @@ func TestArbeitsakteZaehltWasPassiertIst(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Durchsatz: nach Zustand und nach Herkunft, und die Aufgabenzeilen mit
-	// ihren Titeln — die eine ehrliche Ausnahme der Akte.
+	// Throughput: by state and by origin, and the task rows with their titles
+	// — the one honest exception the record makes.
 	tp := rec["throughput"].(map[string]any)
 	if len(tp["by_state"].([]any)) == 0 || len(tp["by_origin"].([]any)) == 0 {
 		t.Fatalf("Durchsatz nach Zustand und Herkunft erwartet: %v", tp)
 	}
-	// Beide Aufgaben stehen da — der Lauf am Limit mehrfach, weil jede
-	// Fortsetzung eine eigene Aufgabe ist. Genau das soll sichtbar sein: drei
-	// Zeilen mit demselben Titel sind der Befund.
+	// Both tasks stand there — the run at the limit several times, because
+	// every continuation is its own task. That is what should be visible:
+	// three rows with the same title are the finding.
 	gesehen := map[string]int{}
 	for _, raw := range tp["tasks"].([]any) {
 		gesehen[raw.(map[string]any)["title"].(string)]++
@@ -77,8 +77,8 @@ func TestArbeitsakteZaehltWasPassiertIst(t *testing.T) {
 		t.Fatalf("beide Aufgaben gehoeren in die Akte: %v", gesehen)
 	}
 
-	// Abbrüche: der Lauf am Turn-Limit steht mit seinem Grund da, und nicht
-	// als anonymer Fehlschlag — das ist der Befund, um den es geht.
+	// Aborts: the run at the turn limit stands with its reason, and not as an
+	// anonymous failure — that is the finding at issue.
 	var amLimitGezaehlt bool
 	for _, raw := range rec["aborts"].([]any) {
 		c := raw.(map[string]any)
@@ -90,22 +90,22 @@ func TestArbeitsakteZaehltWasPassiertIst(t *testing.T) {
 		t.Fatalf("der Lauf am Turn-Limit muss als max_turns gezaehlt sein: %v", rec["aborts"])
 	}
 
-	// Kosten: sie kommen aus cost_entries und nicht aus einer Meldung.
+	// Cost: it comes from cost_entries and not from a report.
 	cost := rec["cost"].(map[string]any)
 	if cost["total_usd"].(float64) <= 0 || cost["tasks"].(float64) <= 0 {
 		t.Fatalf("die Laeufe haben etwas gekostet: %v", cost)
 	}
 
-	// Kennzahlen: die eigene Zählregel des Agenten, mit ihrem Ziel.
+	// Indicators: the agent's own counting rule, with its goal.
 	inds := rec["indicators"].([]any)
 	if len(inds) != 1 || inds[0].(map[string]any)["goal"].(float64) != 5 {
 		t.Fatalf("die Kennzahl aus der KPIS.md mit ihrem Ziel erwartet: %v", inds)
 	}
 }
 
-// TestArbeitsakteZeigtHaengendeAufgaben: die Fehlerform, die niemand sieht,
-// weil nichts fehlschlägt — bewusst ohne Zeitfenster, denn eine Aufgabe, die
-// seit Monaten wartet, ist genau der Befund, den ein Zeitraum verstecken würde.
+// TestArbeitsakteZeigtHaengendeAufgaben: the failure shape nobody sees
+// because nothing fails — deliberately without a time window, for a task that
+// has waited for months is exactly the finding a period would hide.
 func TestArbeitsakteZeigtHaengendeAufgaben(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -133,10 +133,10 @@ func TestArbeitsakteZeigtHaengendeAufgaben(t *testing.T) {
 	}
 }
 
-// TestArbeitsakteFolgtDenRecordings: wer sie lesen darf, ist hier entschieden
-// und nicht geerbt. Controlling darf Kostensummen sehen und die Akte nicht —
-// „wer die Rechnung sehen darf, darf auch das sehen" wäre die Antwort, die die
-// Funktion in jedem Betrieb mit Betriebsrat unbenutzbar macht (spec/21).
+// TestArbeitsakteFolgtDenRecordings: who may read it is decided here and not
+// inherited. Controlling may see cost totals and not the record — "whoever
+// may see the bill may also see this" would be the answer that makes the
+// function unusable in any firm with a works council (spec/21).
 func TestArbeitsakteFolgtDenRecordings(t *testing.T) {
 	s := newStack(t)
 	for _, rolle := range []string{"controlling", "auditor"} {
@@ -150,19 +150,19 @@ func TestArbeitsakteFolgtDenRecordings(t *testing.T) {
 	login(t, s, "controlling@test.local", "controlling-passwort").
 		expect(http.MethodGet, pfad, nil, http.StatusForbidden)
 
-	// Und die Kennzahlen EINES Agenten erben dieselbe Grenze: sie aus der Akte
-	// zu lesen ist dieselbe Handlung wie die Akte zu lesen. Die org-weite
-	// Preisliste bleibt offen — sie gruppiert ueber Kennzahlen, nicht ueber
-	// Personen.
+	// And the indicators of ONE agent inherit the same boundary: reading
+	// them from the record is the same act as reading the record. The
+	// org-wide price list stays open — it groups over indicators, not over
+	// persons.
 	login(t, s, "controlling@test.local", "controlling-passwort").
 		expect(http.MethodGet, "/api/v1/agents/"+agent.ID.String()+"/cost/indicators", nil, http.StatusForbidden)
 	login(t, s, "controlling@test.local", "controlling-passwort").
 		expect(http.MethodGet, "/api/v1/cost/indicators", nil, http.StatusOK)
 }
 
-// TestArbeitsakteZaehltEigeneVorschlaege: wer covey Doctor überprüfen
-// will, liest seine Ablehnungsquote — und die steht in seiner eigenen Akte wie
-// bei jedem anderen auch (spec/21, „wer prüft den Prüfer").
+// TestArbeitsakteZaehltEigeneVorschlaege: whoever wants to check covey Doctor
+// reads its rejection rate — and that stands in its own record as it does for
+// anyone else (spec/21, "who checks the checker").
 func TestArbeitsakteZaehltEigeneVorschlaege(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -198,7 +198,7 @@ func TestArbeitsakteZaehltEigeneVorschlaege(t *testing.T) {
 		t.Fatalf("die eigenen Vorschlaege gehoeren in die Akte ihres Absenders: %v", gezaehlt)
 	}
 
-	// Und beim BEWERTETEN Kollegen stehen sie nicht als seine eigenen.
+	// And at the colleague being RATED they do not stand as his own.
 	resp2 := admin.do(http.MethodGet, "/api/v1/agents/"+ziel.ID.String()+"/work-record", nil)
 	defer resp2.Body.Close()
 	var beimZiel map[string]any

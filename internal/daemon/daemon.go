@@ -483,8 +483,8 @@ func (c *Client) createTask(ctx context.Context, req RequestCreateTask) (InjectC
 	return DecodePayload[InjectCreateTask](msg)
 }
 
-// requestTool meldet ein fehlendes Werkzeug an die Steuerebene. Sie beschafft
-// es nicht — sie schreibt es dorthin, wo ein Mensch es sieht.
+// requestTool reports a missing tool to the control plane. It does not fetch
+// it — it writes it where a human sees it.
 func (c *Client) requestTool(ctx context.Context, req RequestTool) (InjectTool, error) {
 	req.RequestID = uuid.NewString()
 	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -753,14 +753,14 @@ func safeCredentialPath(p string) bool {
 	return true
 }
 
-// workplaceSource ist die Naht für Tests: im Betrieb die Datei im Image, im
-// Test das, was der Test sagt. Ohne sie müsste ein Test den einmaligen Lesecache
-// zurückdrehen, und ein Cache, den Tests zurückdrehen, ist keiner.
+// workplaceSource is the seam for tests: in operation the file in the image, in
+// a test whatever the test says. Without it a test would have to roll back the
+// read-once cache, and a cache that tests roll back is not one.
 var workplaceSource = WorkplaceContext
 
-// withWorkplace hängt die Selbstbeschreibung des Images an den Systemprompt.
-// Ohne Beschreibung bleibt der Prompt, wie er war — ein fremdes Image soll
-// nicht schlechter dastehen, sondern nur weniger sagen.
+// withWorkplace appends the self-description of the image to the system prompt.
+// Without a description the prompt stays as it was — a foreign image should not
+// look worse, it should only say less.
 func withWorkplace(prompt string) string {
 	w := workplaceSource()
 	if w == "" {

@@ -17,15 +17,15 @@ import (
 	"covey/internal/homestore"
 )
 
-/* Zwei Vorgänge machen den Großteil der Wartezeit vor dem ersten Zug eines
-   Agenten aus: das Bild holen und das Home herstellen. Ein dritter, das
-   Zurückschreiben, hängt hinten dran. Alle drei haben früher nichts von sich
-   gesagt, solange sie liefen — gemeldet wurde erst das Ergebnis, und bei einem
-   Runner, der mittendrin neu startete, gar nichts. Hier steht, dass sie sich
-   melden. */
+/* Two operations account for most of the waiting before an agent's first
+   move: pulling the image and building the home. A third, writing it back,
+   trails behind it. All three used to stay silent while they ran — only the
+   result was reported, and for a runner that restarted midway, not even
+   that. What follows is here to say that they do
+   report. */
 
-// fortschrittsDocker: ein Docker, das kein Bild hat und beim Holen die Zeilen
-// schreibt, die ein echtes docker pull schreibt.
+// fortschrittsDocker: a Docker with no image that prints, while pulling, the
+// lines a real docker pull prints.
 func fortschrittsDocker(t *testing.T, dir string) string {
 	t.Helper()
 	pfad := filepath.Join(dir, "docker")
@@ -76,8 +76,8 @@ func TestDerBildAbrufMeldetSichVorherUndNachher(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Zwei Meldungen: „ich hole jetzt" (bevor es passiert — hinterher braucht
-	// es niemand mehr) und „ich habe geholt", mit der Größe.
+	// Two reports: "fetching now" (before it happens — afterwards nobody needs
+	// it) and "fetched", with the size.
 	anfang := warteAufFortschritt(t, ctx, control, PhaseImage, false)
 	if anfang.Detail != "covey/sandbox:latest" {
 		t.Fatalf("die Anfangsmeldung nennt das Bild nicht: %+v", anfang)
@@ -106,7 +106,7 @@ func TestDasZurueckschreibenMeldetSichVorherUndNachher(t *testing.T) {
 	node.Blobs = blobs
 	t.Cleanup(node.Close)
 
-	// Ein Home mit Inhalt, sonst hat der Sync nichts zu tun.
+	// A home with content, otherwise the sync has nothing to do.
 	home, _, _ := docker.AgentHome(agentID)
 	if err := os.MkdirAll(home, 0o755); err != nil {
 		t.Fatal(err)
@@ -138,9 +138,9 @@ func TestDasZurueckschreibenMeldetSichVorherUndNachher(t *testing.T) {
 	}
 }
 
-// Ein Vorgang, der jede Datei meldet, füllt die Aufzeichnung mit sich selbst.
-// Gedrosselt heißt: höchstens eine Meldung je progressEvery, egal wie oft der
-// Vorgang etwas zu sagen hätte.
+// An operation that reports every file fills the record with itself.
+// Throttled means: at most one report per progressEvery, regardless of how
+// the operation would have something to say.
 func TestFortschrittWirdGedrosselt(t *testing.T) {
 	orgID, runnerID := uuid.New(), uuid.New()
 	node := NewNode(runnerID, orgID, &Docker{RunnerID: runnerID, DataDir: t.TempDir()}, quietLog())
@@ -154,7 +154,7 @@ func TestFortschrittWirdGedrosselt(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		melden(Progress{AgentID: uuid.New(), Phase: PhaseHome, Count: int64(i)})
 	}
-	// Der InProc-Transport puffert; was durchkam, steht sofort bereit.
+	// The InProc transport buffers; whatever got through is ready right away.
 	kurz, abbrechen := context.WithTimeout(ctx, 200*time.Millisecond)
 	defer abbrechen()
 	var durch int

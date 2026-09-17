@@ -9,17 +9,17 @@ import {
 } from "../../api";
 import { fmtDelta } from "../../format";
 
-// Der Zeitplan in der Zeit des Lesers.
+// The schedule in the reader's time.
 //
-// daily_at ist eine nackte Uhrzeit in der Zeitzone des Servers, next_run ein
-// absoluter Zeitpunkt. Die Karte zeigte beides nebeneinander — „taeglich um
-// 03:00" und daneben „(Do 05:00)" —, und darueber stand, die Zeiten seien
-// Serverzeit. Zwei Uhrzeiten fuer denselben Lauf, eine Ueberschrift, die nur
-// fuer eine davon stimmt: das liest sich wie ein Fehler in der Planung.
+// daily_at is a bare clock time in the server's timezone, next_run an absolute
+// point in time. The card showed both side by side — `taeglich um 03:00` and
+// next to it `(Do 05:00)` —, and above it stood that the times were server
+// time. Two clock times for the same run, a heading that only holds for one
+// of them: that reads like an error in the plan.
 //
-// Weil next_run derselbe Lauf ist, nur absolut, laesst sich die Ortszeit daraus
-// ableiten. Der Serverwert bleibt als title erhalten — wer ihn braucht (er
-// steht so in HEARTBEAT.md), findet ihn dort.
+// Because next_run is the same run, just absolute, the local time can be
+// derived from it. The server value stays on as title — whoever needs it (it
+// stands like that in HEARTBEAT.md), finds it there.
 function scheduleLabel(hb: HeartbeatStatus): string {
   if (hb.every_seconds) return i18n.t("agent.heartbeat.schedule_interval", { delta: fmtDelta(hb.every_seconds * 1000) });
   const locale = i18n.language === "de" ? "de-DE" : "en-US";
@@ -169,11 +169,11 @@ function HeartbeatCard({
       <p className="muted text-xs mb-2" style={{ maxWidth: 680 }}>
         {hb.task}
       </p>
-      {/* Bei einem gestoppten Agenten feuert der Scheduler NICHT (die Abfrage
-          in orchestrator.go filtert `WHERE NOT a.killed`). Die Karte behauptete
-          trotzdem „ueberfaellig — der naechste Tick legt die Aufgabe an", also
-          Arbeit, die nicht stattfindet. Wer nach einem stillstehenden Agenten
-          sieht, liest das als „laeuft ja" und sucht woanders weiter. */}
+      {/* For a stopped agent the scheduler does NOT fire (the query
+          in orchestrator.go filters `WHERE NOT a.killed`). The card still
+          claimed "overdue — the next tick will create the task", thus
+          work that will not happen. Whoever checks on a stalled agent
+          reads that as "it is running" and looks elsewhere for the cause. */}
       <p className="text-xs font-medium mb-2">
         {killed
           ? t("agent.heartbeat.pausedWhileStopped")
@@ -217,11 +217,11 @@ export function Heartbeats({
       <p className="muted text-xs mb-3" style={{ maxWidth: 680 }}>
         {t("agent.heartbeat.desc")}
       </p>
-      {/* Waehrend die Abfrage laeuft, wurde bisher null gerendert — der
-          Direktaufruf von ?tab=einstellungen&sub=heartbeat zeigte damit eine
-          leere Seite, und erst ein Klick auf einen anderen Unterpunkt und
-          zurueck brachte den Inhalt. Ein Ladezustand sieht nicht aus wie ein
-          Fehler; nichts zu rendern schon. */}
+      {/* While the query was running, null was rendered — calling
+          ?tab=einstellungen&sub=heartbeat directly thus showed an
+          empty page, and only a click to another sub-item and
+          back brought the content. A loading state does not look like an
+          error; rendering nothing does. */}
       {hbs.isLoading && <p className="muted text-sm">{t("common.loading")}</p>}
       {!hbs.isLoading && list.length === 0 && (
         <div className="kc-empty">

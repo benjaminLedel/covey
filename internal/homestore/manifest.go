@@ -125,20 +125,20 @@ func (e Excludes) skip(rel string) bool {
 		}
 		switch {
 		case strings.ContainsAny(pattern, "*?["):
-			// Ein Muster auf dem Dateinamen, in jeder Tiefe. Ein kaputtes
-			// Muster (filepath.Match meldet einen Fehler) schließt nichts aus:
-			// im Zweifel sichern.
+			// A pattern on the file name, at any depth. A broken pattern
+			// (filepath.Match reports an error) excludes nothing: in case of
+			// doubt, back up.
 			if ok, err := filepath.Match(pattern, base); err == nil && ok {
 				return true
 			}
 		case strings.Contains(pattern, "/"):
-			// Ein Pfad ab der Wurzel des Homes, mit allem darunter.
+			// A path from the root of the home, with everything under it.
 			if rel == pattern || strings.HasPrefix(rel, pattern+"/") {
 				return true
 			}
 		default:
-			// Ein Name, wo immer er steht — und alles darunter, weil ein
-			// ausgeschlossenes Verzeichnis seinen Inhalt mitnimmt.
+			// A name, wherever it stands — and everything under it, because an
+			// excluded directory takes its content along.
 			for _, seg := range segmente {
 				if seg == pattern {
 					return true

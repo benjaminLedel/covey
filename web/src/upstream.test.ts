@@ -20,13 +20,13 @@ describe("vorbefüllter Issue-Link", () => {
     expect(q.get("issue[description]")).toBe("B");
   });
 
-  // Lieber kein Knopf als einer, der ins Leere führt.
+  // Rather no button than one that leads nowhere.
   it("liefert nichts, wo es kein Ziel gibt", () => {
     expect(upstreamIssueURL({ repo: {}, title: "T", body: "B" })).toBeNull();
     expect(upstreamIssueURL({ repo: { system: "github" }, title: "T", body: "B" })).toBeNull();
-    // "-" ist in der Plattform das ausdrückliche „meldet nirgendwohin".
+    // "-" is the platform's explicit "reports nowhere".
     expect(upstreamIssueURL({ repo: { system: "github", project: "-" }, title: "T", body: "B" })).toBeNull();
-    // Ein System, dessen Formular wir nicht kennen.
+    // A system whose form we do not know.
     expect(upstreamIssueURL({ repo: { system: "jira", project: "X" }, title: "T", body: "B" })).toBeNull();
   });
 

@@ -21,9 +21,9 @@ const katalog = `{
   ]
 }`
 
-// Der Katalog beantwortet die Frage, die vorher jede Installation selbst
-// beantworten musste: welches Image zu DIESER Fassung gehoert. Gepinnt auf den
-// Digest, weil ein Tag verschiebbar ist und ein verschiebbarer Zeiger kein Pin.
+// The catalogue answers the question every installation had to answer for
+// itself before: which image belongs to THIS build. Pinned on the digest,
+// because a tag is movable and a movable pointer is not a pin.
 func TestKatalogLiefertImagesDerLaufendenFassung(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -33,7 +33,7 @@ func TestKatalogLiefertImagesDerLaufendenFassung(t *testing.T) {
 
 	s := NewSource(srv.URL, nil, nil)
 	images := s.Images(context.Background())
-	// Der Testbinary sitzt auf keinem Release-Tag — also der rollende Eintrag.
+	// The test binary sits on no release tag — hence the rolling entry.
 	if got := images["base"]; got != "ghcr.io/x/covey-sandbox@sha256:aaa" {
 		t.Fatalf("base = %q", got)
 	}
@@ -42,8 +42,8 @@ func TestKatalogLiefertImagesDerLaufendenFassung(t *testing.T) {
 	}
 }
 
-// Kein Katalog konfiguriert: Dann gilt, was vorher galt. Ein Katalog ist eine
-// Quelle mehr, keine Voraussetzung.
+// No catalogue configured: then what held before holds. A catalogue is one
+// source more, not a requirement.
 func TestOhneKatalogBleibtAllesWieVorher(t *testing.T) {
 	var s *Source
 	if s.Enabled() {
@@ -54,9 +54,9 @@ func TestOhneKatalogBleibtAllesWieVorher(t *testing.T) {
 	}
 }
 
-// Die Reihenfolge ist die Aussage: Wer eine Umgebungsvariable gesetzt hat, hat
-// das letzte Wort — ein Katalog, der sie ueberstimmen koennte, liesse eine
-// fremde Datei entscheiden, was auf einem fremden Host laeuft.
+// The order is the statement: whoever set an environment variable has the last
+// word — a catalogue that could overrule it would let a foreign file decide
+// what runs on a foreign host.
 func TestReihenfolgeUmgebungKatalogVoreinstellung(t *testing.T) {
 	standard := Images(nil)
 	katalog := map[string]string{"base": "ghcr.io/x@sha256:aaa", "dev": "ghcr.io/x@sha256:ccc"}
@@ -69,15 +69,15 @@ func TestReihenfolgeUmgebungKatalogVoreinstellung(t *testing.T) {
 	if got["dev"] != "meins:1" {
 		t.Fatalf("die Umgebung soll den Katalog schlagen: %q", got["dev"])
 	}
-	// Und ohne beides bleibt die kompilierte Voreinstellung stehen.
+	// And without either, the compiled default stays standing.
 	if leer := Resolve(nil, nil); leer["base"] != standard["base"] {
 		t.Fatalf("ohne Quellen die Voreinstellung: %q", leer["base"])
 	}
 }
 
-// Woher der Katalog kommt, steht nicht in der Oberflaeche und nicht in einer
-// Konstanten neben der Adresse des Quelltexts, sondern wird daraus abgeleitet:
-// Ein Fork traegt damit seinen eigenen.
+// Where the catalogue comes from is not in the interface and not in a constant
+// beside the address of the source text, but derived from it: a fork thus
+// carries its own.
 func TestVoreingestellteKatalogAdresse(t *testing.T) {
 	want := "https://raw.githubusercontent.com/benjaminLedel/covey/catalog/sandbox-catalog.json"
 	if got := DefaultCatalogURL(); got != want {
@@ -85,9 +85,9 @@ func TestVoreingestellteKatalogAdresse(t *testing.T) {
 	}
 }
 
-// Der Unterschied, an dem jeder Rat haengt: Ein Name ohne Registry existiert
-// nur auf der Maschine, die ihn gebaut hat — dort heisst „nicht da" bauen. Eine
-// veroeffentlichte Adresse holt `docker run` selbst.
+// The difference every piece of advice hangs on: a name without a registry
+// exists only on the machine that built it — there "not there" means build. A
+// published address `docker run` fetches itself.
 func TestPullable(t *testing.T) {
 	ziehbar := []string{
 		"ghcr.io/benjaminledel/covey-sandbox@sha256:abc",
@@ -108,13 +108,13 @@ func TestPullable(t *testing.T) {
 	}
 }
 
-// Ein Release verschiebt den Schlüssel, unter dem gesucht wird: dieselbe
-// Instanz fragte gestern nach `main` und heute nach `v0.8.0`. Ist die
-// Katalog-Kopie älter als das Release, gibt es darauf keine Antwort — und der
-// Rückfall auf den einkompilierten Namen (`covey-sandbox:latest`) ist auf einem
-// Server der schlechteste verfügbare: ein Name, den es dort nachweislich nicht
-// gibt, gewählt anstelle eines Bildes, das es nachweislich gibt. Auf einer
-// Produktivinstanz stand damit eine Stunde lang die ganze Datenebene.
+// A release moves the key that is searched for: the same instance asked
+// yesterday for `main` and today for `v0.8.0`. If the catalogue copy is older
+// than the release, it holds no answer — and the fallback to the compiled-in
+// name (`covey-sandbox:latest`) is on a server the worst available: a name that
+// demonstrably does not exist there, chosen over an image that demonstrably
+// does. On a production instance the entire data plane stood still for an
+// hour because of it.
 func TestOhneEintragFuerDieseFassungGiltDerRollendeEintrag(t *testing.T) {
 	e := CatalogEntry{Name: "dev", Images: []CatalogImage{
 		{CoveyVersion: RollingVersion, Ref: "ghcr.io/x/covey-sandbox@sha256:rollend"},
@@ -125,15 +125,15 @@ func TestOhneEintragFuerDieseFassungGiltDerRollendeEintrag(t *testing.T) {
 	if !ok || img.Ref != "ghcr.io/x/covey-sandbox@sha256:rollend" {
 		t.Errorf("eine unbekannte Fassung muss den rollenden Eintrag bekommen, bekam %q (%v)", img.Ref, ok)
 	}
-	// Die eigene Fassung schlägt den rollenden Eintrag weiterhin.
+	// The build's own version still beats the rolling entry.
 	if img, ok := e.ForBuild("v0.7.0"); !ok || img.Ref != "ghcr.io/x/covey-sandbox@sha256:alt" {
 		t.Errorf("die eigene Fassung muss vorgehen, bekam %q", img.Ref)
 	}
 }
 
-// Ein Katalog ohne rollenden Eintrag kann nicht helfen — dann bleibt es beim
-// einkompilierten Namen, und das ist richtig so: eine Maschine ohne Katalog ist
-// meistens die, die ihre Bilder selbst baut.
+// A catalogue without a rolling entry cannot help — then it stays at the
+// compiled-in name, and that is right: a machine without a catalogue is mostly
+// the one that builds its images itself.
 func TestOhneRollendenEintragBleibtEsBeiDerVoreinstellung(t *testing.T) {
 	e := CatalogEntry{Name: "dev", Images: []CatalogImage{
 		{CoveyVersion: "v0.7.0", Ref: "ghcr.io/x/covey-sandbox@sha256:alt"},
@@ -143,8 +143,8 @@ func TestOhneRollendenEintragBleibtEsBeiDerVoreinstellung(t *testing.T) {
 	}
 }
 
-// Und der Rückfall greift durch den ganzen Weg: was die Instanz auflöst, ist
-// ein veröffentlichtes Bild und kein lokaler Bauname.
+// And the fallback holds all the way through: what the instance resolves is a
+// published image, not a local build name.
 func TestDerRueckfallGehtDurchBisZurAufloesung(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -152,8 +152,8 @@ func TestDerRueckfallGehtDurchBisZurAufloesung(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	// Der Katalog kennt nur `main` und `v0.4.0`; diese Fassung steht auf
-	// keinem der beiden.
+	// The catalogue knows only `main` and `v0.4.0`; this build sits on
+	// neither of the two.
 	s := NewSource(srv.URL, nil, nil)
 	images := s.Images(context.Background())
 	aufgeloest := Resolve(nil, images)

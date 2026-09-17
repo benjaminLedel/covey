@@ -152,7 +152,7 @@ function TemplateCard({
   );
 }
 
-// Bevorzugte Lesereihenfolge der Config-Dateien (Rest alphabetisch dahinter).
+// Preferred reading order of the config files (the rest alphabetical behind).
 const FILE_ORDER = [
   "SOUL.md",
   "CAPABILITIES.md",
@@ -172,9 +172,9 @@ function orderedFileNames(files: Record<string, string>): string[] {
   });
 }
 
-// PreviewModal zeigt das Bundle einer Vorlage read-only an: Agenten-Eckdaten
-// plus die enthaltenen Config-Dateien (umschaltbar), damit man vor dem Anlegen
-// sieht, was die Vorlage mitbringt.
+// PreviewModal shows the bundle of a template read-only: agent details
+// plus the config files it contains (switchable), so you see before creating
+// what the template brings along.
 function PreviewModal({
   template,
   canManage,

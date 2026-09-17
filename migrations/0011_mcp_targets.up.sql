@@ -1,10 +1,10 @@
--- MCP-Server als dritter Zielsystem-Plugin-Typ (kind='mcp'). Die Config (URL,
--- Auth, entdeckte Tool-Liste) liegt wie beim Manifest in der Spalte manifest
--- (JSONB) — der Broker holt das Token zur Laufzeit aus dem SecretStore, nie
--- aus dieser Zeile.
+-- MCP servers as a third target system plugin type (kind='mcp'). The config (URL,
+-- auth, discovered tool list) lies in the manifest column like the manifest
+-- (JSONB) — the broker fetches the token at runtime from the SecretStore, never
+-- from this row.
 --
--- Die CHECK-Constraints aus 0008 sind inline/auto-benannt. Statt Namen zu
--- raten, entfernen wir alle CHECKs der Tabelle und legen sie benannt neu an.
+-- The CHECK constraints from 0008 are inline/auto-named. Instead of guessing
+-- names, we drop all CHECKs of the table and recreate them under names.
 DO $$
 DECLARE c text;
 BEGIN
@@ -18,14 +18,14 @@ END $$;
 ALTER TABLE target_plugins ADD CONSTRAINT target_plugins_kind_check
     CHECK (kind IN ('builtin', 'custom', 'mcp'));
 
--- custom und mcp brauchen ihre Definition in manifest; builtin darf leer bleiben.
+-- custom and mcp need their definition in manifest; builtin may stay empty.
 ALTER TABLE target_plugins ADD CONSTRAINT target_plugins_manifest_check
     CHECK (kind = 'builtin' OR manifest IS NOT NULL);
 
--- Per-Agent-Tool-Zuweisung: welche Tools eines Zielsystems ein Agent nutzen
--- darf. KEINE Zeile für (agent, system) = alle Tools erlaubt (rückwärts-
--- kompatibel, fail-open pro System). Existiert mindestens eine Zeile, gilt die
--- Zuweisung als Allowlist — nur gelistete Tools sind erlaubt (fail-closed).
+-- Per-agent tool assignment: which tools of a target system an agent may
+-- use. NO row for (agent, system) = all tools allowed (backward-
+-- compatible, fail-open per system). If at least one row exists, the
+-- assignment is an allowlist — only listed tools are allowed (fail-closed).
 CREATE TABLE agent_target_tools (
     agent_id   UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
     system     TEXT NOT NULL,

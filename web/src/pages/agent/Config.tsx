@@ -61,8 +61,8 @@ export function Config({
     },
   });
 
-  // Bundle-Import: überschreibt NUR die Config dieses Agenten aus einer
-  // Bundle-JSON (Stammdaten, Secrets, Guard-Rails etc. bleiben unangetastet).
+  // Bundle import: overwrites ONLY the config of this agent from a bundle
+  // JSON (master data, secrets, guard rails and the rest stay untouched).
   const importRef = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState("");
   const importCfg = useMutation({
@@ -202,10 +202,10 @@ export function Config({
   );
 }
 
-// ConfigAssistant ist der KI-Assistent zum Anpassen von Agenten (FR-001).
-// Er erscheint nur, wenn org-weit ein Claude-Credential hinterlegt ist. Seine
-// Vorschläge werden in den Config-Draft übernommen (onApply) — wirksam werden
-// sie erst durch bewusstes Speichern einer neuen Version.
+// ConfigAssistant is the AI assistant for adjusting agents (FR-001). It
+// appears only when a Claude credential is on file org-wide. Its proposals are
+// taken into the config draft (onApply) — they take effect only through
+// deliberately saving a new version.
 type AssistTurn = { role: "user" | "assistant"; content: string; proposals?: AssistProposal[] };
 
 function ConfigAssistant({
@@ -233,7 +233,7 @@ function ConfigAssistant({
       setTurns((prev) => [...prev, { role: "assistant", content: res.reply, proposals: res.proposals }]),
   });
 
-  if (!status.data?.available) return null; // Gating: kein Claude-Credential → keine UI.
+  if (!status.data?.available) return null; // Gating: no Claude credential → no UI.
 
   const send = () => {
     const text = input.trim();

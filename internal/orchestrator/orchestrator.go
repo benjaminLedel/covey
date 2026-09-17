@@ -108,9 +108,9 @@ type Options struct {
 	// Blobs is the home store, read for the manifest the count comes from.
 	// nil = housekeeping asks by size only.
 	Blobs homestore.BlobStore
-	// StaleAfter: so lange darf ein Agent einen beschäftigten Zustand tragen,
-	// ohne dass eine Sitzung dahintersteht, bevor die Plattform ihn auflöst.
-	// 0 → Voreinstellung. Ein Knopf für Tests, kein Bedienelement.
+	// StaleAfter: how long an agent may carry a busy state without a session
+	// behind it, before the platform dissolves him. 0 → default. A knob for
+	// tests, not a control.
 	StaleAfter time.Duration
 	// Notify records what a person should be told about (#169). nil = the
 	// platform keeps its news to itself, which is what every installation did
@@ -142,12 +142,12 @@ type Orchestrator struct {
 	Options
 
 	mu sync.Mutex
-	// laufend zählt, was der Orchestrator an eigenen Nebenläufigkeiten gestartet
-	// hat: die Sitzungen der Agenten und seine Dauerschleifen. Ohne sie heißt
-	// „abgebrochen" nur, dass das Signal gesetzt ist — und wer danach aufräumt,
-	// räumt unter noch laufender Arbeit weg. Im Test war das ein Verzeichnis,
-	// das gelöscht wurde, während eine Sitzung hineinschrieb; im Betrieb ist es
-	// ein Sandbox-Abbau, der beim Beenden des Prozesses abgeschnitten wird.
+	// laufend counts what the orchestrator started of its own concurrency: the
+	// sessions of the agents and his endless loops. Without them "cancelled"
+	// only means that the signal is set — and whoever tidies up afterwards
+	// tidies away under work that is still running. In the test that was a
+	// directory deleted while a session wrote into it; in operation it is a
+	// sandbox teardown cut off when the process exits.
 	laufend  sync.WaitGroup
 	sessions map[uuid.UUID]*session
 	waiting  map[uuid.UUID]chan DaemonLink
@@ -156,22 +156,22 @@ type Orchestrator struct {
 	// or OOM-killed container costs the full ReadyTimeout and produces a
 	// message about a daemon that never had a chance to connect.
 	dying map[uuid.UUID]chan string
-	// wakeFehler hält fest, welcher Agent gerade NICHT aufwachen kann, und
-	// verzögert den nächsten Versuch.
+	// wakeFehler records which agent currently can NOT wake up, and delays
+	// the next attempt.
 	//
-	// Ohne das versucht der Scheduler es alle dreißig Sekunden weiter, für
-	// immer. Auf covey.work waren das rund 900 Fehlversuche in sechseinhalb
-	// Stunden — jeder mit einem Runner-Platz, vier Zeilen Aufzeichnung und
-	// keiner Aussicht auf ein anderes Ergebnis: Was einen Weckversuch
-	// scheitern lässt (ein verlorener Block, ein fehlendes Image, ein Host,
-	// der nicht antwortet), ändert sich nicht dadurch, dass man dreißig
-	// Sekunden wartet.
+	// Without this the scheduler keeps trying every thirty seconds,
+	// forever. On covey.work that was around 900 failed attempts in
+	// six and a half hours — each with a runner slot, four lines of
+	// recording and no prospect of a different result: what makes a
+	// wake attempt fail (a lost block, a missing image, a host that
+	// does not answer) does not change through waiting thirty
+	// seconds.
 	//
-	// Im Speicher und nicht in der Datenbank: Ein Neustart der Control Plane
-	// ist genau der Moment, in dem sich etwas geändert haben KANN — ein
-	// Deploy, eine neue Fassung, eine reparierte Einstellung. Dann soll sofort
-	// wieder versucht werden, nicht erst nach Ablauf einer gespeicherten
-	// Sperre.
+	// In memory and not in the database: a restart of the control plane is
+	// exactly the moment when something may have changed — a deploy, a new
+	// version, a repaired setting. Then the attempt should be made again at
+	// once, not only after a stored block has
+	// expired.
 	wakeFehler map[uuid.UUID]*WakeTrouble
 	// baseCtx is the control plane's lifecycle, set by Run. Sessions hang off it
 	// instead of context.Background(): on shutdown, running runs should be
@@ -183,10 +183,10 @@ type Orchestrator struct {
 	// agent sleeps (link open, container keeps running). The next wake takes them
 	// over instead of starting cold.
 	warm map[uuid.UUID]*warmSession
-	// verwaist merkt sich, seit wann ein beschäftigter Zustand ohne Sitzung
-	// dasteht. Im Speicher und nicht in der Datenbank: nach einem Neustart der
-	// Steuerebene ist ohnehin JEDE Sitzung weg, und dann soll die Frist neu
-	// laufen statt sofort abzulaufen.
+	// verwaist remembers since when a busy state stands there without a
+	// session. In memory and not in the database: after a restart of the
+	// control plane EVERY session is gone anyway, and then the deadline should
+	// run anew instead of expiring right away.
 	verwaist map[uuid.UUID]time.Time
 	// lastWarmSync: when this agent's parked home last went into the store.
 	// Guarded by mu, like warm itself.
@@ -242,10 +242,10 @@ func New(opts Options) *Orchestrator {
 		opts.TidyEntriesAbove = 200
 	}
 	if opts.StaleAfter == 0 {
-		// Großzügig: ein Weckruf setzt den Zustand, bevor die Sitzung steht,
-		// und ein Sandbox-Start darf auf einem frischen Host eine
-		// Dreiviertelstunde dauern. Aufgelöst wird erst, was auch nach dieser
-		// Zeit noch niemanden hinter sich hat.
+		// Generously: a wake sets the state before the session stands, and a
+		// sandbox start may take three quarters of an hour on a fresh host.
+		// Dissolved only is what still has nobody behind it after
+		// this time.
 		opts.StaleAfter = 5 * time.Minute
 	}
 	if len(opts.RuntimeTools) == 0 {
@@ -531,24 +531,24 @@ func (o *Orchestrator) tick(ctx context.Context) {
 	o.reconcileStuck(ctx)
 }
 
-// reconcileStuck löst Zustände auf, hinter denen nichts mehr steht.
+// reconcileStuck dissolves states that nothing stands behind anymore.
 //
-// Der Anlass: ein Agent stand um 08:02 auf `working`, seine letzte Aufgabe war
-// um 06:35 fertig, sein Backlog leer, und auf dem Host lief weiter ein
-// Container. Zwischen „letzte Aufgabe fertig" und „Sandbox unten" hängt keine
-// Frist, die den ganzen Vorgang umfasst — jeder Schritt hat eine, der Ablauf
-// als solcher nicht. Und ein Neustart der Steuerebene heilt es nicht, im
-// Gegenteil: die Sitzungen liegen im Speicher, der Zustand in der Datenbank,
-// und niemand vergleicht die beiden. Danach trägt der Agent einen Zustand, den
-// keine Sitzung deckt — derselbe Anblick, zweite Ursache.
+// The occasion: an agent stood at 08:02 on `working`, his last task finished
+// at 06:35, his backlog empty, and on the host a container kept running.
+// Between "last task done" and "sandbox down" no deadline hangs that covers
+// the whole process — every step has one, the sequence as such does not. And
+// a restart of the control plane does not heal it, on the contrary: the
+// sessions lie in memory, the state in the database, and nobody compares the
+// two. Afterward the agent carries a state that no session covers — the same
+// sight, a second cause.
 //
-// Was hier passiert, ist bewusst das Mildeste, das den Zustand wieder wahr
-// macht: schlafen legen, in die Aufzeichnung schreiben, und den Container
-// stoppen lassen, falls die Datenebene das anbietet. Nicht behoben wird damit
-// die Ursache — die ist unbekannt —, aber der Agent kommt ohne Neustart der
-// Plattform aus dem Zustand heraus, und das Ereignis sagt, dass es passiert
-// ist. Ein Vorgang, den niemand beenden kann, ist kein Zustand, sondern ein
-// Ausfall.
+// What happens here is deliberately the mildest thing that makes the state
+// true again: put to sleep, write into the record, and let the container stop
+// if the data plane offers that. Not fixed by this is the cause — it is
+// unknown — but the agent comes out of the state without a restart of the
+// platform, and the event says that it happened. A process that nobody
+// can end is not a state, but
+// an outage.
 func (o *Orchestrator) reconcileStuck(ctx context.Context) {
 	rows, err := o.Pool.Query(ctx, `SELECT id, org_id, status FROM agents
 		WHERE hired_at IS NOT NULL AND status = ANY($1)`,
@@ -583,9 +583,9 @@ func (o *Orchestrator) reconcileStuck(ctx context.Context) {
 		}
 		seit, gesehen := o.verwaist[k.id]
 		if !gesehen {
-			// Erst einmal nur merken: zwischen „Zustand gesetzt" und „Sitzung
-			// eingetragen" liegt ein Augenblick, und den soll niemand als
-			// Ausfall lesen.
+			// Only note it first: between "state set" and "session entered" lies a
+			// moment, and nobody should read that as
+			// an outage.
 			o.verwaist[k.id] = jetzt
 			o.mu.Unlock()
 			continue
@@ -605,8 +605,8 @@ func (o *Orchestrator) reconcileStuck(ctx context.Context) {
 		if err != nil {
 			continue
 		}
-		// Der Reihe nach: erst der Container, dann der Zustand. Andersherum
-		// stünde einen Augenblick lang „schläft" über einer laufenden Sandbox.
+		// In order: first the container, then the state. The other way round
+		// "sleeping" would stand over a running sandbox for a moment.
 		o.evictWarm(ctx, k.id, true)
 		if stopper, ok := o.Provider.(StrayStopper); ok {
 			if err := stopper.StopStray(ctx, k.id, k.orgID); err != nil {
@@ -812,10 +812,10 @@ func (o *Orchestrator) system(ctx context.Context, orgID uuid.UUID, name string)
 
 func (o *Orchestrator) heartbeatHasWork(ctx context.Context, agentID, orgID uuid.UUID, condition string) (bool, string) {
 	system, kind, _ := strings.Cut(condition, ":")
-	// Über den Store, nicht über die kompilierte Registry: ein Manifest-Plugin
-	// steht dort nicht, kann die Frage aber beantworten, wenn seine Datei einen
-	// poll:-Block hat. Vorher fiel jedes nur-wenn: auf ein Katalog-Plugin in den
-	// Fail-open-Zweig und der Heartbeat feuerte immer.
+	// Through the store, not through the compiled registry: a manifest plugin
+	// does not stand there, but it can answer the question when its file has
+	// a `poll:` block. Before, every `nur-wenn:` fell back onto a catalogue
+	// plugin into the fail-open branch and the heartbeat fired always.
 	sys, err := o.system(ctx, orgID, system)
 	if err != nil {
 		o.Log.Warn("nur-wenn: unknown target system — firing anyway", "system", system, "err", err)
@@ -2256,10 +2256,10 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	// the agent's current ACCESS.md, not the state at the time the config was
 	// compiled.
 	var actionTools []daemon.ActionTool
-	// Welche Zielsysteme dieser Agent wirklich erreicht — DocsForAgent ist auf
-	// beiden Seiten fail-closed (von der Organisation aktiviert UND in der
-	// ACCESS.md des Agenten). Der Plattform-Repo-Abschnitt weiter unten haengt
-	// daran.
+	// Which target systems this agent really reaches — DocsForAgent is
+	// fail-closed on both sides (enabled by the organization AND in the
+	// agent's ACCESS.md). The platform repo section further down hangs
+	// on it.
 	grantedSystems := map[string]bool{}
 	if o.Targets != nil {
 		if docs, err := o.Targets.DocsForAgent(ctx, agent.OrgID, agent.ID); err == nil {
@@ -2283,57 +2283,57 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	if mayDraft {
 		compiled += "\n\n" + agents.HiringDoc
 	}
-	// Und dasselbe fuer die andere Haelfte: `scope: agents:review` schaltet das
-	// Lesen und Vorschlagen frei (spec/21). Zwei Scopes, zwei Abschnitte — wer
-	// nur begutachten darf, liest nichts ueber das Entwerfen und umgekehrt.
-	// Und dasselbe für die Dienste: Wer `scope: services:write` trägt, liest,
-	// wie er die Compose-Datei seines Projekts hochfährt — und wer ihn nicht
-	// trägt, liest nichts davon. Eine Fähigkeit anzudeuten, die dann abgewiesen
-	// wird, ist die schlechteste Sorte (spec/20).
+	// And the same for the other half: `scope: agents:review` frees the reading
+	// and the proposing (spec/21). Two scopes, two sections — whoever may only
+	// review reads nothing about designing and the other way round.
+	// And the same for the services: whoever carries `scope: services:write`
+	// reads how to bring up his project's compose file — and whoever does not
+	// carry it reads nothing of it. To hint at a capability that is then
+	// refused is the worst kind (spec/20).
 	if o.mayStartServices(ctx, agent) {
 		compiled += "\n\n" + agents.ServicesDoc
 	}
 	mayReview := o.mayReviewAgents(ctx, agent)
 	if mayReview {
 		compiled += "\n\n" + agents.ReviewDoc
-		// Die dritte Schicht: der eigene Quelltext, gepinnt auf den Stand, den
-		// diese Instanz laeuft (spec/21). Drei Bedingungen, und die dritte ist
-		// die, die beim ersten Bau fehlte:
+		// The third layer: one's own source, pinned to the state this instance
+		// runs (spec/21). Three conditions, and the third is the one that was
+		// missing at the first build:
 		//
-		//  1. Es gibt eine Adresse. Voreinstellung ist das Projekt, aus dem
-		//     dieses Programm stammt (buildinfo.SourceRepo) — die Plattform
-		//     weiss, wo ihr Quelltext liegt, und hat nie danach fragen muessen.
-		//     Eine Organisation, die ihre Befunde im Haus behalten will, traegt
-		//     ihr eigenes Repository ein; wer die Schicht gar nicht will, setzt
-		//     das Zielsystem auf "-" (repoAus).
-		//  2. Der Agent darf begutachten (mayReview, siehe oben).
+		//  1. There is an address. The default is the project this program
+		//     comes from (buildinfo.SourceRepo) — the platform knows where its
+		//     source lies and never had to ask. An organization that wants to
+		//     keep its findings in-house enters its own repository; whoever
+		//     does not want the layer at all sets the target system
+		//     to "-" (repoAus).
+		//  2. The agent may review (mayReview, see above).
 		//
-		// Die dritte Bedingung galt frueher fuer den ganzen Abschnitt: der
-		// Agent musste das Zielsystem WIRKLICH in seiner ACCESS.md haben.
-		// Seit das Einreichen eine Plattform-Aktion ist (covey/create_issue,
-		// platformissue.go), traegt sie nur noch die eine Haelfte, die sie
-		// wirklich betrifft:
+		// The third condition used to hold for the whole section: the agent had
+		// to have the target system REALLY in his ACCESS.md. Since filing
+		// became a platform action (covey/create_issue, platformissue.go), it
+		// now carries only the one half that
+		// the change really concerns:
 		//
-		//  - LESEN des Quelltextes braucht die Zeile in der ACCESS.md, denn
-		//    ausgecheckt wird mit dem Credential des Agenten. Ohne sie stuende
-		//    im Prompt „check it out and search it", und der Broker wiese den
-		//    Checkout gleich darauf ab — Faehigkeit durch Andeutung, dieselbe,
-		//    die der Abschnitt darueber fuer das Entwerfen vermeidet.
-		//  - EINREICHEN braucht sie nicht mehr. Die Steuerebene schreibt das
-		//    Issue mit dem Konto der Organisation; der Agent sieht kein Token
-		//    und waehlt kein Ziel. Genau das war die Sackgasse: das
-		//    mitgelieferte Playbook hiess einreichen, und der einzige Weg
-		//    dorthin war ein Zugang, den das Template nicht hatte (#200).
+		//  - READING the source needs the line in the ACCESS.md, because the
+		//    checkout happens with the agent's credential. Without it the
+		//    prompt would say "check it out and search it", and the broker
+		//    would refuse the checkout right after — capability by suggestion,
+		//    the same the section above avoids for designing.
+		//  - FILING does not need it any more. The control plane writes the
+		//    issue with the organization's account; the agent sees no token
+		//    and chooses no target. That exactly was the dead end: the
+		//    playbook that came along was called filing, and the only way
+		//    there was an access the template did not have (#200).
 		var repoSystem, repoProject string
 		if err := o.Pool.QueryRow(ctx,
 			"SELECT platform_repo_system, platform_repo_project FROM organizations WHERE id=$1",
 			agent.OrgID).Scan(&repoSystem, &repoProject); err == nil {
 			repoSystem, repoProject = agents.PlatformRepo(repoSystem, repoProject)
 			ref, istTag := buildinfo.Ref()
-			// Einreichen steht nur im Prompt, wenn es auch geht — sonst gaebe
-			// es wieder eine Faehigkeit auf dem Papier. Zwei Wege fuehren
-			// hin: das eigene Konto der Organisation, oder der Kanal zum
-			// Projekt, wenn das Ziel dessen eigenes Repository ist
+			// Filing only stands in the prompt when it also works — otherwise
+			// there would again be a capability on paper. Two ways lead
+			// there: the organization's own account, or the channel to the
+			// project, when the target is that project's own repository
 			// (platformissue.go).
 			canFile := o.Upstream != nil && upstreamsRepo(repoSystem, repoProject)
 			if o.Secrets != nil && repoSystem != "" {
@@ -3447,41 +3447,41 @@ func (o *Orchestrator) decideAction(ctx context.Context, agent agents.Agent, tas
 	}
 }
 
-// gateVerdict ist die Antwort des Freigabe-Gates: entweder lag eine erteilte,
-// unverbrauchte Freigabe vor (Approved) — oder es wurde eine angelegt, und die
-// Aufgabe muss auf einen Menschen warten (CorrelationKey).
+// gateVerdict is the answer of the approval gate: either a granted, unused
+// approval stood there (Approved) — or one was created, and the task has to
+// wait for a human (CorrelationKey).
 type gateVerdict struct {
 	Approved       bool
 	ApprovalID     string
 	CorrelationKey string
-	// Error steht, wenn die Freigabe gar nicht erst angelegt werden konnte.
-	// Fail-closed: der Aufrufer verbietet dann.
+	// Error stands when the approval could not even be created.
+	// Fail-closed: the caller then forbids.
 	Error string
 }
 
-// approvalGate ist der require_approval-Zweig der Guard-Rails.
+// approvalGate is the require_approval branch of the guard rails.
 //
-// Bewusst herausgelöst und nicht beim Zielsystem-Pfad gelassen: dieselbe
-// Mechanik trägt die Meta-Actions der Plattform (spec/21). Dort lehnte eine
-// require_approval-Regel bisher hart ab — „requires an approval and cannot be
-// performed unattended". Das ist eine Leitplanke, die für eine Klasse von
-// Aktionen still zu einem Verbot wird, und damit eine Governance-Oberfläche,
-// die über sich selbst die Unwahrheit sagt: wer die Regel setzt, meint
-// „jemand schaut drauf" und bekommt „geht nicht".
+// Deliberately extracted and not left at the target-system path: the same
+// mechanics carry the platform's meta-actions (spec/21). There a
+// require_approval rule refused hard until now — "requires an approval and
+// cannot be performed unattended". That is a guard rail that for a class of
+// actions goes quiet into a prohibition, and thereby a governance surface
+// that tells untruths about itself: whoever sets the rule means "someone
+// looks at it" and gets "does not work".
 //
-// Die Freigabe ist EINMALIG verbrauchbar (approvals.used). Eine erteilte
-// Freigabe ist die Antwort auf eine Handlung, keine Lizenz auf die Aktion.
-// binding schnürt eine Freigabe auf EINEN Gegenstand fest (leer = auf die
-// Aktion). Die Meta-Actions setzen es ausnahmslos (bindingOf in hiring.go): eine
-// erteilte Freigabe ist die Antwort auf die Parameter, die ein Mensch gelesen
-// hat, und nicht auf die Aktion als solche — sonst wäre die Freigabe für Lauf A
-// die Eintrittskarte für Lauf B, und die für `slug: "helper"` die für
-// `slug: "backdoor"`. Nur der Zielsystem-Pfad kommt noch mit leerem binding
-// hierher; dort ist die Aktion selbst der Gegenstand.
+// The approval is consumable ONCE (approvals.used). A granted approval is the
+// answer to a deed, not a licence on the action. binding latches an approval
+// onto ONE object (empty = onto the action). The meta-actions set it without
+// exception (bindingOf in hiring.go): a granted approval is the answer to the
+// parameters a human read, and not to the action as such — otherwise the
+// approval for run A would be the ticket for run B, and the one for
+// `slug: "helper"` the one for `slug: "backdoor"`. Only the target-system
+// path still comes here with an empty binding; there the action itself is the
+// object.
 func (o *Orchestrator) approvalGate(ctx context.Context, agent agents.Agent, taskID uuid.UUID,
 	action string, params json.RawMessage, binding string) gateVerdict {
 
-	// Eine unverbrauchte Freigabe für genau diese Aktion? Dann verbrauchen.
+	// An unused approval for exactly this action? Then consume it.
 	var approvalID uuid.UUID
 	err := o.Pool.QueryRow(ctx, `UPDATE approvals SET used=TRUE
 		WHERE id = (SELECT id FROM approvals
@@ -3658,15 +3658,15 @@ func (o *Orchestrator) shutdown() {
 		ws.teardown()
 	}
 
-	// Und jetzt warten, bis die abgebrochene Arbeit auch wirklich aufgehört
-	// hat. Abbrechen ist ein Signal; eine Sitzung merkt es erst, wenn sie
-	// wieder an ihrem Kontext vorbeikommt, und schreibt bis dahin weiter — in
-	// das Home des Agenten, in die Aufzeichnung, in die Datenbank.
+	// And now wait until the cancelled work really stopped. Cancelling is a
+	// signal; a session only notices it when it comes past its context again,
+	// and writes on until then — into the agent's home, into the record, into
+	// the database.
 	//
-	// Mit Frist, denn das Warten darf nicht das neue Hängen sein: eine Sitzung,
-	// die in einem Netzaufruf ohne eigene Frist steckt, hielte sonst das
-	// Herunterfahren der ganzen Plattform auf. Wer die Frist reißt, steht im
-	// Log — das ist die Auskunft, mit der man ihn beim nächsten Mal findet.
+	// With a deadline, because the waiting must not become the new hanging: a
+	// session stuck in a network call without its own deadline would otherwise
+	// hold the shutdown of the whole platform up. Whoever breaks the deadline
+	// stands in the log — that is how you find him next time.
 	fertig := make(chan struct{})
 	go func() {
 		o.laufend.Wait()
@@ -3680,14 +3680,14 @@ func (o *Orchestrator) shutdown() {
 	}
 }
 
-// shutdownGrace: so lange wartet das Herunterfahren auf die eigene, bereits
-// abgebrochene Arbeit. Großzügig genug für einen Abbau, der noch einen
-// Container stoppt, und kurz genug, dass ein Deploy nicht daran hängen bleibt.
+// shutdownGrace: how long the shutdown waits for its own, already cancelled
+// work. Generous enough for a teardown that still stops a container, and short
+// enough that a deploy does not get stuck on it.
 const shutdownGrace = 30 * time.Second
 
-// nebenlaeufig startet etwas, worauf das Herunterfahren wartet. Jede
-// Nebenläufigkeit des Orchestrators geht hier durch — eine, die daran vorbei
-// gestartet wird, ist genau die, die niemand mehr einholt.
+// nebenlaeufig starts something the shutdown waits for. Every concurrency of
+// the orchestrator goes through here — one started past it is exactly the one
+// nobody catches any more.
 func (o *Orchestrator) nebenlaeufig(f func()) {
 	o.laufend.Add(1)
 	go func() {

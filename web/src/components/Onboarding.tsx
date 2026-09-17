@@ -4,23 +4,23 @@ import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { api, type OnboardingState, type Principal } from "../api";
 
-// Die ersten Schritte zum ersten arbeitenden Agenten — als Checkliste über den
-// echten Zustand der Organisation, nicht als geklickte Tour.
+// The first steps to the first working agent — as a checklist over the real
+// state of the organisation, not as a clicked tour.
 //
-// Eine Tour erzählt, was zu tun ist, und erzählt es weiter, wenn man es längst
-// getan hat; zeigt sie auf einen Knopf, den es nach dem nächsten Umbau nicht
-// mehr gibt, wird sie zur Falle. Diese Liste fragt den Server, was tatsächlich
-// da ist. Jeder Haken ist eine Tatsache, und ist alles erledigt, verschwindet
-// sie von selbst — dauerhaft, ohne dass jemand sie wegklicken muss.
+// A tour tells what to do and keeps telling it when one has long done it; if it
+// points at a button the next rebuild dropped, it becomes a trap. This list
+// asks the server what is really there. Each tick is a fact, and when all is
+// done it disappears by itself — permanently, with nobody having to click it
+// away.
 //
-// Sie erscheint nur für Rollen, die die Schritte auch ausführen können: Wer
-// weder Agenten anlegen noch Secrets hinterlegen darf, bekommt keine Liste mit
-// Aufgaben, die er nicht erledigen kann.
+// It shows only for roles that can carry out the steps: whoever may neither
+// create agents nor store secrets gets no list of tasks that they cannot
+// finish.
 
 const STEPS: Array<{ key: string; to: string }> = [
-  // Der Zugang führt auf die Einrichtung, nicht mehr auf die Secrets-Seite:
-  // dort wird der Wert geprüft, der Arbeitsplatz drumherum entsteht mit, und
-  // die beiden nächsten Fragen stehen gleich daneben (spec/20).
+  // The entry leads to the setup, no longer to the secrets page: the value is
+  // checked there, the workspace around it comes with it, and the next two
+  // questions stand right beside it (spec/20).
   { key: "credential", to: "/setup" },
   { key: "agent", to: "/" },
   { key: "config", to: "/" },
@@ -41,15 +41,15 @@ export function Onboarding({ me }: { me: Principal }) {
     queryFn: () => api<OnboardingState>("/onboarding"),
     enabled: mayAct && !dismissed,
     retry: false,
-    // Der Zustand ändert sich, während man die Liste abarbeitet — beim
-    // Zurückkommen auf die Übersicht soll der Haken da sein.
+    // The state changes while one works through the list — coming back to
+    // the overview the tick should be there.
     staleTime: 0,
     refetchOnMount: "always",
   });
 
-  // Eine kaputte Data Plane hält die Karte sichtbar, auch wenn die Liste
-  // durch ist: Wer alle Haken hat und trotzdem keinen Lauf zustande bringt,
-  // soll den Grund dort finden, wo er den Weg begonnen hat.
+  // A broken data plane keeps the card visible, even when the list is
+  // through: whoever has every tick and still gets no run going should find
+  // the reason where they started the way.
   const problems = state.data?.data_plane?.problems ?? [];
   if (!mayAct || dismissed || !state.data) return null;
   if (state.data.done && problems.length === 0) return null;
@@ -93,8 +93,8 @@ export function Onboarding({ me }: { me: Principal }) {
         {STEPS.map(({ key, to }) => {
           const step = state.data!.steps.find((s) => s.key === key);
           const isDone = step?.done ?? false;
-          // Der offene Schritt ist der erste, der noch fehlt — nur er bekommt
-          // den Link. Alles davor ist erledigt, alles danach setzt ihn voraus.
+          // The open step is the first one still missing — only it gets the
+          // link. Everything before is done, everything after assumes it.
           const isNext = !isDone && state.data!.steps.find((s) => !s.done)?.key === key;
           return (
             <li key={key} className={isDone ? "done" : isNext ? "next" : ""}>

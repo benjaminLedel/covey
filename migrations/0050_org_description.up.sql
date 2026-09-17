@@ -1,12 +1,12 @@
--- Was macht diese Organisation eigentlich.
+-- What does this organisation actually do.
 --
--- Drei bis fuenf Saetze, im Setup gefragt und danach unter Organisationen
--- pflegbar. Bewusst Stammdaten und kein Setup-Prompt: dieselben Saetze
--- beantworten dieselbe Frage an mehreren Stellen — in der Config neu
--- entworfener Agenten, in jeder Ausschreibung an die Personalabteilung und im
--- Systemprompt des Config-Copiloten, der bis heute den Agenten kennt, seine
--- Zielsysteme und seine Leitplanken, aber nicht die Firma, fuer die er
--- schreibt. Einmal gesagt statt in jedem Prompt wiederholt.
+-- Three to five sentences, asked in setup and editable afterwards under
+-- organisations. Deliberately master data and not a setup prompt: the same
+-- sentences answer the same question in several places — in the config of
+-- newly drafted agents, in every requisition to the HR department and in the
+-- system prompt of the config copilot, which so far knows the agent, its
+-- target systems and its guard rails, but not the company it writes
+-- for. Said once instead of repeated in every prompt.
 --
 -- spec/20-hiring-and-setup.md, spec/09-enterprise-model.md.
 ALTER TABLE organizations ADD COLUMN description TEXT NOT NULL DEFAULT '';

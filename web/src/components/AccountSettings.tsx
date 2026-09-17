@@ -6,14 +6,14 @@ import ApiKeys from "./ApiKeys";
 
 type Session = { created_at: string; expires_at: string; current: boolean };
 
-/* Die vier Klassen aus internal/notify. Sie stehen hier als Reihenfolge —
-   welche es gibt, entscheidet der Server, und was er nicht kennt, kommt in
-   seiner Antwort nicht vor. */
+/* The four classes from internal/notify. They stand here as an ordering —
+   which ones exist the server decides, and what it does not know does not
+   appear in its response. */
 const NOTIFY_CLASSES = ["decision", "task", "cost", "ops"] as const;
 
-/* Die Antwort von /auth/notifications: die eigenen Schalter, und die Klassen,
-   die die Installation für alle abgeschaltet hat (#180) — die stehen hier
-   ausgegraut, statt einen Schalter anzubieten, der nichts bewirkt. */
+/* The response from /auth/notifications: one's own switches, and the classes
+   that the installation has switched off for everyone (#180) — those stand
+   here greyed out, instead of offering a switch that does nothing. */
 type NotifyPrefs = { prefs: Record<string, boolean>; disabled: string[] };
 
 export default function AccountSettings({ me }: { me: Principal }) {
@@ -30,17 +30,17 @@ export default function AccountSettings({ me }: { me: Principal }) {
     queryFn: () => api<Session[]>("/auth/sessions"),
   });
 
-  /* Welche Mails diese Person bekommt (#169). Der Server antwortet mit den
-     WIRKSAMEN Werten, Vorgaben eingerechnet — die Oberfläche trägt also keine
-     zweite Kopie davon, was „standardmäßig an" heißt. */
+  /* Which mails this person receives (#169). The server answers with the
+     EFFECTIVE values, defaults factored in — so the interface carries no
+     second copy of what "on by default" means. */
   const notify = useQuery({
     queryKey: ["notifications"],
     queryFn: () => api<NotifyPrefs>("/auth/notifications"),
   });
   const setNotify = useMutation({
-    /* Nur der eine geänderte Schalter geht hin: zwei offene Browser würden
-       sich sonst gegenseitig Antworten überschreiben, nach denen sie gar nicht
-       gefragt wurden. */
+    /* Only the one switch that changed goes over: two open browsers would
+       otherwise overwrite each other's responses, which they had not
+       even asked for. */
     mutationFn: (change: Record<string, boolean>) =>
       put<NotifyPrefs>("/auth/notifications", change),
     onSuccess: (prefs) => qc.setQueryData(["notifications"], prefs),

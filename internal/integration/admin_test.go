@@ -47,9 +47,9 @@ func TestUserAndOrgAdmin(t *testing.T) {
 	// RBAC: the new agent_owner must not see the administration.
 	owner := login(t, s, "owner@test.local", "owner-passwort")
 	owner.expect(http.MethodGet, "/api/v1/users", nil, http.StatusForbidden)
-	// Die Mandantenverwaltung ist keine Frage der Organisations-Rolle mehr:
-	// sie liegt auf der Instanz-Ebene und antwortet allen anderen mit 404
-	// (FR-003, Befund F). Auch dem org_admin — siehe platform_test.go.
+	// The tenant administration is no longer a question of the organisation's role:
+	// it sits on the instance level and answers everyone else with 404
+	// (FR-003, finding F). Also the org_admin — see platform_test.go.
 	owner.expect(http.MethodGet, "/api/v1/platform/orgs", nil, http.StatusNotFound)
 
 	// A role change takes effect immediately (auth reads the role fresh per request).
@@ -83,9 +83,9 @@ func TestUserAndOrgAdmin(t *testing.T) {
 
 	// --- Tenants ---
 
-	// Ab hier verwaltet der Admin die INSTANZ, nicht mehr nur seine
-	// Organisation. Die Ebene wird ausserhalb der HTTP-Schicht vergeben —
-	// ein Endpunkt dafuer waere aus einer Organisation heraus erreichbar.
+	// From here on the admin manages the INSTANCE, not just its own
+	// organisation. The level is granted outside the HTTP layer —
+	// an endpoint for it would be reachable from within an organisation.
 	if err := accounts.New(s.pool).SetPlatformRole(t.Context(), "admin@test.local", accounts.RoleSystemAdmin); err != nil {
 		t.Fatal(err)
 	}

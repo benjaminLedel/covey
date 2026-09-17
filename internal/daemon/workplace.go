@@ -8,23 +8,23 @@ import (
 	"strings"
 )
 
-// Der Arbeitsplatz beschreibt sich selbst.
+// Workplace describes itself.
 //
-// Ein Agent wurde bisher in eine Werkstatt gestellt und bekam nicht gesagt, was
-// darin steht. Er fand es durch Versuchen heraus, und wo Versuchen teuer ist,
-// baute er sich lieber eigenes: In einem Home lagen `tools/jdk`, `tools/jdk21`
-// und `tools/flutter` — 2,7 GB Werkzeuge, die das Image seit dem 10. August
-// mitbringt. Sein Home wird nach jedem Lauf zurückgeschrieben; die Doppelung
-// kostet also nicht einmal, sondern immer.
+// An agent was put into a workshop and was not told what stands in it. It
+// found out by trying, and where trying is expensive it built its own
+// instead: one home held `tools/jdk`, `tools/jdk21` and `tools/flutter` —
+// 2.7 GB of tools that the image has shipped since 10 August. Its home is
+// written back after every run; the duplication costs not once, but
+// every time.
 //
-// Die Beschreibung liegt IM Image (sandbox/workplaces/<profil>.json, dorthin
-// kopiert), und gelesen wird sie hier, in der Sandbox. Kein Protokollfeld, kein
-// Weg über die Steuerebene: Was das Image kann, weiß das Image.
+// The description lives IN the image (sandbox/workplaces/<profile>.json, copied
+// there), and it is read here, in the sandbox. No protocol field, no way over
+// the control plane: what the image can do, the image knows.
 const workplacePath = "/etc/covey/workplace.json"
 
-// Workplace ist die kuratierte Auskunft — von Hand geschrieben, nicht aus einer
-// Paketliste erzeugt. Eine erzeugte Liste wäre vollständig und würde nicht
-// gelesen; hier steht, worauf man sich verlassen kann.
+// Workplace is the curated answer — written by hand, not generated from a
+// package list. A generated list would be complete and would not be
+// read; here stands what can be relied on.
 type Workplace struct {
 	Profile string `json:"profile"`
 	Summary string `json:"summary"`
@@ -33,23 +33,23 @@ type Workplace struct {
 		Version string `json:"version,omitempty"`
 		Note    string `json:"note,omitempty"`
 	} `json:"tools"`
-	// SDKDirs sind die Versionsmanager und der Ort, an dem sie ihre SDKs
-	// ablegen. Sie sind der Grund, warum ein Agent nichts selbst holen muss —
-	// und der Ort, an dem er nachsieht, was schon da ist.
+	// SDKDirs are the version managers and the place where they keep their
+	// SDKs. They are the reason an agent does not have to fetch anything
+	// itself — and the place where it looks up what is already there.
 	SDKDirs map[string]string `json:"sdk_dirs,omitempty"`
 	Notes   []string          `json:"notes,omitempty"`
 }
 
-// WorkplaceContext ist der Absatz, der an den Systemprompt gehängt wird — leer,
-// wenn das Image keine Beschreibung mitbringt (ein fremdes Image, ein älteres,
-// ein selbst gebautes). Nichts zu sagen ist besser als etwas zu behaupten.
+// WorkplaceContext is the paragraph appended to the system prompt — empty
+// when the image brings no description (a foreign image, an older one, a
+// self-built one). Saying nothing is better than claiming something.
 //
-// Ohne Cache, und das ist eine Entscheidung: Im Betrieb ist coveyd ein eigener
-// Prozess je Sandbox, ein einmaliges Lesen wäre also richtig — im
-// Integrationsstapel läuft derselbe Daemon in einem Prozess mit allem anderen,
-// und ein prozessweiter Cache machte den ersten Lauf zur Wahrheit für alle
-// folgenden. Eine kleine Datei je Aufgabenstart ist der billigere Preis als ein
-// Zustand, der zwischen Tests hindurchleckt.
+// No cache, and that is a decision: in operation coveyd is one process
+// per sandbox, so reading once would be right — in the
+// integration stack the same daemon runs in one process with everything else,
+// and a process-wide cache would make the first run the truth for all
+// following ones. One small file per task start is the cheaper price than a
+// state that leaks between tests.
 func WorkplaceContext() string {
 	return readWorkplace(workplacePathFromEnv())
 }
@@ -62,7 +62,7 @@ func workplacePathFromEnv() string {
 }
 
 func readWorkplace(path string) string {
-	raw, err := os.ReadFile(path) // #nosec G304 -- fester Pfad im Image, Test-Override über Env
+	raw, err := os.ReadFile(path) // #nosec G304 -- fixed path in the image, test override via Env
 	if err != nil {
 		return ""
 	}
@@ -73,9 +73,9 @@ func readWorkplace(path string) string {
 	return w.Render()
 }
 
-// Render macht aus der Beschreibung den Absatz, den ein Agent liest. Kurz
-// gehalten: Er steht in JEDEM Lauf im Systemprompt, und was dort zu lang ist,
-// verdrängt anderes.
+// Render turns the description into the paragraph that an agent reads. Kept
+// short: it stands in the system prompt in EVERY run, and what is too long
+// there pushes other things out.
 func (w Workplace) Render() string {
 	if w.Profile == "" && len(w.Tools) == 0 {
 		return ""

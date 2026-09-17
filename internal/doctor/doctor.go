@@ -257,10 +257,10 @@ func (d *doctor) checkImages(ctx context.Context, pool *pgxpool.Pool) {
 			d.ok("image "+image, fmt.Sprintf("present, %d agent(s)", byImage[image]))
 			continue
 		}
-		// Ein veröffentlichtes Image ist kein Hindernis: Der Host zieht es beim
-		// ersten Wecken. Es steht trotzdem hier, weil `covey doctor` vor einem
-		// Neustart gelesen wird und „der erste Lauf dauert länger und braucht
-		// Netz" eine Auskunft ist, die man dann haben will.
+		// A published image is no obstacle: the host pulls it on the first wake.
+		// It still stands here because `covey doctor` is read before a restart,
+		// and "the first run takes longer and needs network" is a piece of
+		// information you want to have then.
 		if sandbox.Pullable(image) {
 			d.problem("image "+image,
 				fmt.Sprintf("not on this host yet, %d agent(s) work in it", byImage[image]),
@@ -307,11 +307,11 @@ func (d *doctor) checkHomeStore(ctx context.Context, pool *pgxpool.Pool) {
 		} else {
 			detail += ", still empty"
 		}
-		// Bestätigt oder nicht — das ist der Unterschied zwischen einem
-		// Hinweis, der endet, und einem, der zum Möbel wird. Prüfen kann die
-		// Plattform es nicht: In ein fremdes Backup sieht sie nicht hinein. Sie
-		// kann nur festhalten, dass jemand die Pflicht übernommen hat, und
-		// wann.
+		// Confirmed or not — that is the difference between a hint that ends and
+		// one that turns into a fixture. The platform cannot check this: it does
+		// not see into someone else's backup. It can only record that somebody
+		// took on the duty, and
+		// when.
 		var bestaetigt string
 		_ = pool.QueryRow(ctx,
 			`SELECT value FROM system_settings WHERE key=$1`, settings.HomeStoreBackup).Scan(&bestaetigt)

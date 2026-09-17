@@ -1,9 +1,9 @@
--- Heartbeats: wiederkehrende Aufgaben aus HEARTBEAT.md, materialisiert je
--- Agent (analog system_accesses aus ACCESS.md). Die Control Plane legt fällige
--- Einträge als Backlog-Aufgabe (origin='heartbeat') an. Genau eine der beiden
--- Zeitplan-Formen ist gesetzt: every_seconds (alle:) oder daily_at (täglich:,
--- Serverzeit). last_fired_at startet bei now(): ein frisch gespeicherter
--- Heartbeat feuert erst nach Ablauf seines Intervalls, nicht sofort.
+-- Heartbeats: recurring tasks from HEARTBEAT.md, materialized per
+-- agent (analogous to system_accesses from ACCESS.md). The control plane creates due
+-- entries as a backlog task (origin='heartbeat'). Exactly one of the two
+-- schedule forms is set: every_seconds (alle:) or daily_at (täglich:,
+-- server time). last_fired_at starts at now(): a freshly stored
+-- heartbeat fires only after its interval has passed, not right away.
 CREATE TABLE agent_heartbeats (
     agent_id      UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
     name          TEXT NOT NULL,

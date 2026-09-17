@@ -1,7 +1,7 @@
--- Zielsystem-Plugins pro Organisation: Aktivierung von Built-ins und
--- hochgeladene Manifest-Plugins (kind=custom, Manifest als JSONB).
--- Built-ins ohne Zeile gelten als aktiviert (Bestandsschutz: eine bereits
--- laufende Zammad-Anbindung bleibt nach dem Update aktiv).
+-- Target system plugins per organisation: activation of built-ins and
+-- uploaded manifest plugins (kind=custom, manifest as JSONB).
+-- Built-ins without a row count as enabled (grandfathering: a Zammad
+-- connection already running stays active after the update).
 CREATE TABLE target_plugins (
     org_id     UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     name       TEXT NOT NULL,

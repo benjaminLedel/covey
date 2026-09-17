@@ -6,12 +6,12 @@ import (
 	"time"
 )
 
-/* Abbrechen ist ein Signal, kein Abwarten. Wer danach aufräumt — ein Test sein
-   Verzeichnis, ein Deploy seine Container —, räumt sonst unter noch laufender
-   Arbeit weg. Gemessen: „TempDir RemoveAll cleanup: directory not empty" bei
-   einem Test, dessen eigene Prüfungen alle gehalten hatten. */
+/* Cancellation is a signal, not a wait. Whoever cleans up after it — a
+   test its directory, a deploy its containers — otherwise cleans away work
+   that is still running. Measured in a test whose own checks had all
+   held: `TempDir RemoveAll cleanup: directory not empty`. */
 
-// Run kehrt erst zurück, wenn die eigene Nebenläufigkeit aufgehört hat.
+// Run returns only once its own concurrency has stopped.
 func TestRunWartetAufSeineNebenlaeufigkeit(t *testing.T) {
 	o := &Orchestrator{}
 	losgelassen := make(chan struct{})
@@ -42,9 +42,9 @@ func TestRunWartetAufSeineNebenlaeufigkeit(t *testing.T) {
 	}
 }
 
-// Und es wartet nicht ewig: eine Sitzung, die ihren Abbruch nicht bemerkt,
-// darf nicht das Herunterfahren der ganzen Plattform aufhalten. Die Frist ist
-// die Grenze zwischen „sauber beenden" und „hängen".
+// And it does not wait forever: a session that does not notice its
+// cancellation must not hold up the shutdown of the whole platform. The
+// deadline is the line between ending cleanly and hanging.
 func TestDasHerunterfahrenHatEineFrist(t *testing.T) {
 	if shutdownGrace > time.Minute {
 		t.Fatalf("die Frist ist %s — so lange hält kein Deploy still", shutdownGrace)
@@ -54,8 +54,8 @@ func TestDasHerunterfahrenHatEineFrist(t *testing.T) {
 	}
 }
 
-// Der Helfer ist der einzige Weg hinein: was daran vorbei gestartet wird,
-// holt niemand mehr ein. Hier wird nur festgehalten, dass er zählt.
+// The helper is the only way in: whatever starts past it, nobody collects
+// it any more. This only records that it counts.
 func TestJedeNebenlaeufigkeitWirdGezaehlt(t *testing.T) {
 	o := &Orchestrator{}
 	ctx, abbrechen := context.WithCancel(context.Background())

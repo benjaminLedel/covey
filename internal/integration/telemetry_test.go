@@ -14,15 +14,15 @@ import (
 	"covey/internal/telemetry"
 )
 
-// TestTelemetrieSchicktNurZahlen ist die Zusage, die in der Dokumentation
-// steht, als Test: Was diese Installation einmal am Tag hinausschickt, sind
-// Zahlen und Versionen — kein Aufgabentitel, kein Agenten-Slug, kein Text,
-// keine Adresse.
+// TestTelemetrieSchicktNurZahlen is the promise that stands in
+// the documentation, as a test: what this installation sends out
+// once a day are numbers and versions — no task title, no agent
+// slug, no text, no address.
 //
-// Der Test ist absichtlich stur formuliert: Er nimmt den Titel einer echten
-// Aufgabe und den Slug eines echten Agenten aus dieser Instanz und sucht sie
-// im gesendeten Koerper. Wer spaeter ein Feld hinzufuegt, das mehr traegt als
-// eine Zahl, faellt hier auf und nicht bei einem Kunden.
+// The test is deliberately formulated stubbornly: it takes the title of a
+// real task and the slug of a real agent from this instance and looks for
+// them in the sent body. Whoever later adds a field that carries more than a
+// number trips here and not at a customer's.
 func TestTelemetrieSchicktNurZahlen(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -74,7 +74,7 @@ func TestTelemetrieSchicktNurZahlen(t *testing.T) {
 		}
 	}
 
-	// Und jetzt die eigentliche Zusage.
+	// And now the actual promise.
 	for _, verboten := range []string{
 		"geheimer-slug",
 		"Ein Titel, der niemanden etwas angeht",
@@ -86,7 +86,7 @@ func TestTelemetrieSchicktNurZahlen(t *testing.T) {
 		}
 	}
 
-	// Aus heisst aus: kein zweiter Versuch, keine halbe Menge.
+	// Off means off: no second attempt, no half amount.
 	if err := s.settings.Set(ctx, settings.TelemetryMode, settings.Off, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -97,8 +97,8 @@ func TestTelemetrieSchicktNurZahlen(t *testing.T) {
 	default:
 	}
 
-	// Und die zweite Art, sie abzuschalten: die Umgebung, fuer den, der die
-	// Oberflaeche gar nicht erst starten will.
+	// And the second way to switch it off: the environment, for whoever does
+	// not want to start the interface at all.
 	if err := s.settings.Set(ctx, settings.TelemetryMode, settings.On, nil); err != nil {
 		t.Fatal(err)
 	}

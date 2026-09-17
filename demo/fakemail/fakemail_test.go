@@ -39,7 +39,7 @@ func TestRoundtripWithEmailPlugin(t *testing.T) {
 		return res
 	}
 
-	// Kunde speist eine Anfrage per HTTP ein.
+	// The customer feeds a request in over HTTP.
 	body, _ := json.Marshal(map[string]any{
 		"from": "kunde@covey.demo", "to": []string{"agent@covey.demo"},
 		"subject": "VPN geht nicht", "body": "Seit heute früh keine Verbindung.",
@@ -58,7 +58,7 @@ func TestRoundtripWithEmailPlugin(t *testing.T) {
 	}
 	run(agentCred, "reply", fmt.Sprintf(`{"uid":%d,"body":"Wir schauen sofort drauf."}`, unread[0].UID))
 
-	// Die Antwort liegt im Kunden-Postfach …
+	// The answer lies in the customer mailbox …
 	kundeCred := cred("kunde@covey.demo", "kunde-pw")
 	kundeInbox := run(kundeCred, "list_unread", `{}`).([]email.MessageSummary)
 	if len(kundeInbox) != 1 || kundeInbox[0].Subject != "Re: VPN geht nicht" {

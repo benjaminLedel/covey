@@ -11,19 +11,19 @@ import (
 	identbuiltin "covey/internal/identity/builtin"
 )
 
-// P2: die Instanz-Ebene (FR-003, Befund F).
+// P2: the instance level (FR-003, finding F).
 //
-// Die Mandantenverwaltung hing bis hierher an org_admin — einer Rolle,
-// die JEDE Organisation an sich selbst vergibt. Auf einer Instanz mit mehreren
-// Mandanten hiess das: der erste Selbstregistrierte kann die anderen löschen.
-// Diese Tests halten fest, dass die Grenze jetzt woanders verläuft.
+// Tenant management hung on org_admin up to here — a role
+// that EVERY organisation grants to itself. On an instance with several
+// tenants that meant: the first self-registered one can delete the others.
+// These tests record that the boundary now runs somewhere else.
 
 func TestMandantenverwaltungNurFuerSystemadmin(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
 
-	// Der Admin des Stacks ist org_admin seiner Organisation — und sonst
-	// nichts. Für ihn gibt es die Verwaltung der Instanz nicht.
+	// The admin of the stack is org_admin of its organisation — and otherwise
+	// nothing. For him, managing the instance does not exist.
 	admin := login(t, s, "admin@test.local", "admin-passwort")
 	for _, fall := range []struct {
 		methode, pfad string
@@ -33,28 +33,28 @@ func TestMandantenverwaltungNurFuerSystemadmin(t *testing.T) {
 	} {
 		resp := admin.do(fall.methode, fall.pfad, map[string]string{"name": "Fremde GmbH"})
 		resp.Body.Close()
-		// 404 statt 403: ob es diese Verwaltung überhaupt gibt, geht niemanden
-		// etwas an, der nicht dazugehört.
+		// 404 instead of 403: whether this management exists at all is nobody's
+		// business who does not belong to it.
 		if resp.StatusCode != http.StatusNotFound {
 			t.Errorf("%s %s als org_admin ergibt %d, erwartet 404",
 				fall.methode, fall.pfad, resp.StatusCode)
 		}
 	}
 
-	// Die alten Adressen gibt es nicht mehr — sie waren für jede Organisation
-	// erreichbar.
+	// The old addresses no longer exist — they were reachable for every
+	// organisation.
 	resp := admin.do(http.MethodGet, "/api/v1/orgs", nil)
 	resp.Body.Close()
 	if resp.StatusCode == http.StatusOK {
 		t.Error("/api/v1/orgs antwortet noch — die Route war der Befund")
 	}
 
-	// Erhoben wird die Ebene nur ausserhalb der HTTP-Schicht.
+	// The level is raised only outside the HTTP layer.
 	if err := accounts.New(s.pool).SetPlatformRole(ctx, "admin@test.local", accounts.RoleSystemAdmin); err != nil {
 		t.Fatal(err)
 	}
-	// Die laufende Sitzung liest die Rolle bei jeder Anfrage neu — kein
-	// Neuanmelden nötig, und ein Entzug wirkt ebenso sofort.
+	// The running session reads the role again on every request — no
+	// re-login needed, and a revocation takes effect just as immediately.
 	liste := admin.expectList(http.MethodGet, "/api/v1/platform/orgs", nil, http.StatusOK)
 	if len(liste) != 1 {
 		t.Errorf("%d Organisationen, erwartet 1", len(liste))
@@ -70,9 +70,9 @@ func TestMandantenverwaltungNurFuerSystemadmin(t *testing.T) {
 	}
 }
 
-// Wer die Installation verwaltet, muss nicht Mitglied eines ihrer Mandanten
-// sein. Die Middleware hängt deshalb an auth und nicht an rbac — sonst
-// bekäme genau diese Person ein "no_organization" zu sehen.
+// Whoever manages the installation does not have to be a member of one of its
+// tenants. The middleware therefore hangs on auth and not on rbac — otherwise
+// exactly this person would be shown a "no_organization".
 func TestSystemadminOhneOrganisation(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -90,8 +90,8 @@ func TestSystemadminOhneOrganisation(t *testing.T) {
 		t.Errorf("%d Organisationen, erwartet 1", len(liste))
 	}
 
-	// Umgekehrt gilt die Ebene nicht nach unten: die Instanz zu verwalten ist
-	// nicht dasselbe wie in einer Organisation zu arbeiten.
+	// In reverse the level does not reach downwards: managing the instance is
+	// not the same as working inside an organisation.
 	resp := betreiber.do(http.MethodGet, "/api/v1/agents", nil)
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusConflict {

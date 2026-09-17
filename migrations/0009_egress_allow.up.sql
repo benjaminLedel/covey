@@ -1,8 +1,8 @@
--- Egress-Allowlist: die über die Oberfläche gepflegten Ziel-Hosts, zu denen
--- Sandboxen ausgehend verbinden dürfen (zusätzlich zu den fest im Code
--- erlaubten Anthropic-Hosts). Plattform-global: der Egress-Proxy ist ein
--- einziger Prozess und kann Verbindungen nicht pro Organisation trennen.
--- Muster: exakter Host ("helpdesk.example.com") oder Wildcard ("*.example.com").
+-- Egress allowlist: the target hosts maintained in the UI that sandboxes may
+-- connect to outbound (in addition to the Anthropic hosts allowed in code
+-- outright). Platform-global: the egress proxy is a single process and
+-- cannot separate connections per organisation.
+-- Patterns: exact host ("helpdesk.example.com") or wildcard ("*.example.com").
 CREATE TABLE egress_allow (
     id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     pattern    TEXT NOT NULL UNIQUE,

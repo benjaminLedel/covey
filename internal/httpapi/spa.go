@@ -93,9 +93,9 @@ func (s *Server) spaHandler(dist fs.FS) http.Handler {
 			return
 		}
 
-		/* Bis #130 stand hier eine vorgerenderte 404-Seite je Sprache. Ohne
-		   Website gibt es sie nicht mehr, und für eine Anwendung, die nichts
-		   indexieren lässt, reicht die schlichte Antwort des Servers. */
+		/* Until #130 there stood a pre-rendered 404 page per language here. Without
+		   the website they no longer exist, and for an application that lets
+		   nothing be indexed, the plain answer of the server is enough. */
 		http.NotFound(w, r)
 	})
 }

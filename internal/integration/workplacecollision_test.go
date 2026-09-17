@@ -12,26 +12,26 @@ import (
 )
 
 /*
-Der eine Zusammenstoss, den ein Upgrade still erzeugen kann.
+The one collision that an upgrade can produce silently.
 
-	Ein veroeffentlichter Profilname schlaegt beim Aufloesen den gleichnamigen
-	eigenen Arbeitsplatz (runner.Pool.imageFor), und das ist Absicht: Welches
-	Image ein Name meint, darf nicht davon abhaengen, wer zuerst nachsieht.
-	Anlegen laesst sich ein solcher Name deshalb gar nicht erst.
+	A published profile name beats the own workplace of the same name when
+	it resolves (runner.Pool.imageFor), and that is intended: which image a
+	name means must not depend on who looks first. Such a name therefore
+	cannot be created in the first place.
 
-	Was sich nicht verbieten laesst, ist die andere Richtung: ein Name, den
-	jemand letzten Monat vergeben hat und den das Projekt diesen Monat
-	veroeffentlicht. Seit es die Rollen-Arbeitsplaetze gibt (#112), ist das kein
-	gedachter Fall mehr. Der Agent startet dann ein anderes Image als das
-	eingetragene — und niemand sagt es ihm. `covey doctor` sagt es.
+	What cannot be forbidden is the other direction: a name that someone
+	gave last month and that the project publishes this month. Since the
+	role workplaces exist (#112), that is no longer a hypothetical case.
+	The agent then starts a different image than the registered one — and
+	nobody tells it. `covey doctor` does.
 */
 func TestEinEigenerNameDenDasProjektSpaeterVeroeffentlicht(t *testing.T) {
 	s := newStack(t)
 	store := workplaces.New(s.pool)
 
-	// Ueber den Store und nicht ueber die API: Die API weist den Namen ab, und
-	// genau so entsteht der Fall auch in Wirklichkeit — er war frei, als er
-	// vergeben wurde.
+	// Through the store and not through the API: the API rejects the name, and
+	// that is exactly how the case arises in reality too — it was free when it
+	// was given out.
 	if _, err := store.Create(t.Context(), s.orgID, uuid.Nil, workplaces.Workplace{
 		Name: "dev-flutter", Label: "Unser Flutter",
 		Image: "registry.example.com/team/eigenes:1",
@@ -49,8 +49,8 @@ func TestEinEigenerNameDenDasProjektSpaeterVeroeffentlicht(t *testing.T) {
 		if f.OK {
 			t.Errorf("der Zusammenstoss wird als in Ordnung gemeldet: %+v", f)
 		}
-		// Beide Images muessen dastehen, sonst ist die Meldung eine Behauptung
-		// ohne Nachweis: das gestartete und das gemeinte.
+		// Both images have to stand there, otherwise the message is an
+		// assertion without proof: the started one and the intended one.
 		if !strings.Contains(f.Detail, "registry.example.com/team/eigenes:1") {
 			t.Errorf("das eigene Image fehlt in der Meldung: %q", f.Detail)
 		}

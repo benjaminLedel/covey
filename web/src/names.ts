@@ -1,10 +1,10 @@
-// Namen für Agenten.
+// Names for agents.
 //
-// Der Generator selbst wohnt seit spec/20 im Binary (internal/agents/names.go):
-// die Setup-Strecke und die Personalabteilung brauchen ihn serverseitig, und
-// zwei Pools, die auseinanderdriften, wären schlechter als ein Fetch. Hier
-// bleibt der Würfel-Aufruf — und `slugify`, weil das Feld beim Tippen live
-// mitläuft und dafür kein Netzwerk befragt werden darf.
+// The generator itself has lived in the binary since spec/20
+// (internal/agents/names.go): the setup flow and the department need it
+// server-side, and two pools drifting apart would be worse than a fetch. What
+// stays here is the roll call — and `slugify`, because the field runs live
+// while typing and may not query the network for that.
 
 import { api } from "./api";
 import i18n from "./i18n";
@@ -12,16 +12,16 @@ import i18n from "./i18n";
 export type RolledName = { name: string; slug: string };
 
 /**
- * Würfelt einen Agentennamen in der aktuellen UI-Sprache.
- * ~40% Fantasie-Namen („Wuselbert Wibbelzahn" / „Bumblewick Snickerpip"),
- * sonst bodenständig („Renate Büroklammer" / „Reg of Clipboard").
+ * Rolls an agent name in the current UI language.
+ * ~40% invented names (`Wuselbert Wibbelzahn` / "Bumblewick Snickerpip"),
+ * otherwise down-to-earth (`Renate Büroklammer` / "Reg of Clipboard").
  */
 export function rollAgentName(lang: string = i18n.language ?? "de"): Promise<RolledName> {
   return api<RolledName>(`/names/roll?lang=${encodeURIComponent(lang)}`);
 }
 
-// Muss mit agents.Slugify im Binary übereinstimmen — der Server würfelt den
-// Slug zum gewürfelten Namen, diese Fassung füllt ihn beim Tippen.
+// Must match agents.Slugify in the binary — the server rolls the slug to the
+// rolled name, this version fills it while typing.
 export function slugify(name: string): string {
   return name
     .toLowerCase()

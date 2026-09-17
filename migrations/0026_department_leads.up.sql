@@ -1,6 +1,6 @@
--- Leitung einer Abteilung: ein oder mehrere Mitglieder, denen die Abteilung
--- untersteht. Eine Leitung ist entweder ein Mensch ODER ein Agent; ein Mitglied
--- kann mehrere Abteilungen leiten, ohne ihnen anzugehören.
+-- Lead of a department: one or more members that the department
+-- is under. A lead is either a human OR an agent; a member
+-- can lead several departments without belonging to them.
 CREATE TABLE department_leads (
     department_id UUID NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
     human_id      UUID REFERENCES humans(id) ON DELETE CASCADE,

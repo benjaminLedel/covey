@@ -7,13 +7,13 @@ import { usePublicLang } from "./lang";
 import { pathOf } from "./routes";
 import { confirmPasswordReset, requestPasswordReset } from "./signupState";
 
-/* Passwort zurücksetzen (/reset, /reset?token=…) — eine Seite mit zwei
-   Zuständen, weil es zwei Schritte desselben Vorgangs sind: die Mail anfordern
-   und, aus der Mail heraus, ein neues Passwort setzen (#168).
+/* Password reset (`/reset`, `/reset?token=…`) — one page with two states,
+   because these are two steps of the same process: requesting the mail and,
+   from inside the mail, setting a new password (#168).
 
-   Ohne Token steht hier das Formular für die Anfrage. Seine Antwort ist immer
-   dieselbe — ob zu der Adresse ein Konto gehört, sagt sie nicht, sonst wäre
-   dieser Endpunkt eine Auskunft darüber, wer hier arbeitet. */
+   Without a token the request form stands here. Its answer is always the
+   same: whether an account belongs to the address it never says — otherwise
+   this endpoint would be a report on who works here. */
 
 const MIN_PASSWORT = 8;
 
@@ -54,9 +54,9 @@ export default function Reset() {
       await requestPasswordReset(email.trim(), lang);
       setSent(true);
     } catch (err) {
-      /* Nur das, was nichts über die Adresse verrät, kommt hier an: ein
-         fehlender Mailversand (503) oder zu viele Versuche (429). Beides sind
-         Zustände der Installation, keine Auskunft über ein Konto. */
+      /* Only what says nothing about the address gets here: a missing mail
+         delivery (503) or too many attempts (429). Both are states of the
+         installation, not information about an account. */
       setError(err instanceof ApiError && err.message ? err.message : t("public.reset.error"));
     } finally {
       setBusy(false);

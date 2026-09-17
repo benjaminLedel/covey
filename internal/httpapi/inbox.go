@@ -1,25 +1,25 @@
 package httpapi
 
-// Der Posteingang: alles, was auf die Entscheidung eines Menschen wartet.
+// The inbox: everything that waits for the decision of a human.
 //
-// Zwei Dinge landeten hier zusammen, die verschieden sind und dieselbe
-// Handbewegung brauchen:
+// Two things landed here together that are different and need the same hand
+// movement:
 //
-//   - Die FREIGABE (spec/06). Eine Guard-Rail hat mitten in einer Aktion
-//     angeschlagen, die Aufgabe steht `blocked`, der AGENT WARTET. Freigeben
-//     weckt ihn, Ablehnen auch — nur ohne die Aktion.
-//   - Der OFFENE PUNKT (spec/21). Ein Review ist fertig, nichts blockiert.
-//     Annehmen schreibt eine Config-Version, Ablehnen behält den Grund.
+//   - The APPROVAL (spec/06). A guard rail tripped in the middle of an
+//     action, the task stands `blocked`, the AGENT WAITS. Approving wakes
+//     him, rejecting does too — only without the action.
+//   - The OPEN POINT (spec/21). A review is finished, nothing blocks.
+//     Accepting writes a config version, rejecting keeps the reason.
 //
-// Zusammengelegt wird die ANSICHT, nicht das Objekt: unterschiedliche Rollen
-// (Controlling darf Freigaben lesen, Arbeitsakten nicht), unterschiedliche
-// Verben, unterschiedliche Dringlichkeit. Deshalb eine Abfrage über beide
-// Tabellen für Reihenfolge, Filter und Seiten — und die Entscheidung bleibt
-// auf den beiden Endpunkten, die sie schon hatten.
+// What is merged is the VIEW, not the object: different roles (controlling
+// may read approvals, work records not), different verbs, different
+// urgency. That is why one query runs over both tables for the order, the
+// filter and the paging — and the decision stays on the two endpoints that
+// already had it.
 //
-// Die Sortierung `urgent` ist der Grund, warum das eine Abfrage sein muss und
-// nicht zwei Listen nebeneinander: oben steht, was am längsten wartet, und
-// eine blockierte Aufgabe wartet teurer als ein Vorschlag.
+// The sort `urgent` is the reason this has to be one query and not two lists
+// side by side: at the top stands what waits the longest, and a blocked task
+// waits more expensively than a proposal.
 
 import (
 	"fmt"
@@ -35,9 +35,9 @@ import (
 	"covey/internal/observability"
 )
 
-// inboxEntry ist eine Zeile der Liste. Der Kopf ist für beide Sorten gleich,
-// damit sortiert und geblättert werden kann; das Sortenspezifische hängt
-// unverändert darunter — die Oberfläche kennt beide Typen ohnehin.
+// inboxEntry is one row of the list. The head is the same for both kinds so
+// that sorting and paging can work over them; the kind-specific part hangs
+// unchanged underneath — the surface knows both types anyway.
 type inboxEntry struct {
 	Type      string     `json:"type"` // approval | proposal | finding | issue
 	ID        uuid.UUID  `json:"id"`
@@ -57,22 +57,22 @@ type inboxEntry struct {
 
 type inboxPage struct {
 	Items []inboxEntry `json:"items"`
-	// Total sind alle Zeilen, auf die die Filter passen (ohne limit/offset) —
-	// die Zahl, aus der „mehr laden" weiß, ob es noch etwas gibt.
+	// Total is all rows that the filters match (without limit/offset) — the
+	// number from which "load more" knows whether there is anything left.
 	Total int `json:"total"`
-	// Pending zählt die offenen Zeilen unter denselben Filtern OHNE den
-	// Statusfilter: der Zähler an der Navigation soll nicht davon abhängen,
-	// was gerade angezeigt wird.
+	// Pending counts the open rows under the same filters WITHOUT the status
+	// filter: the counter at the navigation should not depend on what is
+	// currently on screen.
 	Pending int `json:"pending"`
 }
 
-// inboxSorts ist die Weißliste. Eine Sortierung aus dem Query-String direkt in
-// ein ORDER BY zu schreiben wäre die Injektion, die man sich sonst über Jahre
-// spart.
+// inboxSorts is the allowlist. Writing a sort from the query string straight
+// into an ORDER BY would be the injection that you otherwise spend years
+// not meeting.
 var inboxSorts = map[string]string{
-	// Die Voreinstellung des Entscheidungs-Kopfes: offen vor entschieden,
-	// Freigaben vor allem anderen (dort wartet ein Agent), dann das Älteste
-	// zuerst — was am längsten liegt, kostet am meisten.
+	// The default of the decision head: open before decided, approvals before
+	// everything else (an agent waits there), then the oldest first — what has
+	// lain longest costs the most.
 	"urgent": `ORDER BY (status <> 'pending'), (type <> 'approval'), created_at ASC`,
 	"newest": `ORDER BY created_at DESC`,
 	"oldest": `ORDER BY created_at ASC`,
@@ -106,9 +106,9 @@ func (s *Server) handleInbox(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Controlling sieht die Arbeitsakten-Seite nicht (spec/21): ein
-	// Kostenblatt sagt, was ausgegeben wurde, ein Vorschlag sagt, wie jemand
-	// gearbeitet hat. Die Freigaben bleiben ihm.
+	// Controlling does not see the work-record side (spec/21): a cost sheet
+	// says what was spent, a proposal says how someone worked. The approvals
+	// stay with him.
 	seeItems := p.Role != identity.RoleControlling
 
 	args := []any{p.OrgID, seeItems, typ, status, agentIDs}
@@ -164,9 +164,9 @@ func (s *Server) handleInbox(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, page)
 }
 
-// inboxAgentFilter wertet `agent` und `mine` aus. nil = keine Einschränkung;
-// die leere (nicht-nil) Liste heißt „keiner" und liefert nichts — der
-// Unterschied trägt die Sicht dessen, der keinen Agenten besitzt.
+// inboxAgentFilter evaluates `agent` and `mine`. nil = no restriction; the
+// empty (non-nil) list means "none" and returns nothing — the difference
+// carries the view of the one who owns no agent.
 func (s *Server) inboxAgentFilter(w http.ResponseWriter, r *http.Request) ([]uuid.UUID, bool) {
 	p := principalFrom(r)
 	q := r.URL.Query()
@@ -176,8 +176,8 @@ func (s *Server) inboxAgentFilter(w http.ResponseWriter, r *http.Request) ([]uui
 			writeErr(w, http.StatusBadRequest, "invalid agent id")
 			return nil, false
 		}
-		// Fremde Organisation: keine Auskunft, auch nicht darüber, dass es den
-		// Agenten gibt.
+		// Foreign organisation: no information, not even that the agent
+		// exists.
 		a, err := s.Registry.Get(r.Context(), id)
 		if err != nil || a.OrgID != p.OrgID {
 			writeErr(w, http.StatusNotFound, "agent not found")
@@ -202,8 +202,8 @@ func (s *Server) inboxAgentFilter(w http.ResponseWriter, r *http.Request) ([]uui
 	return ids, true
 }
 
-// hydrateInbox lädt das Sortenspezifische für die Zeilen DIESER Seite nach:
-// eine Abfrage je Sorte statt einer je Zeile.
+// hydrateInbox loads the kind-specific part for the rows of THIS page: one
+// query per kind instead of one per row.
 func (s *Server) hydrateInbox(r *http.Request, entries []inboxEntry) {
 	ctx := r.Context()
 	p := principalFrom(r)
@@ -219,9 +219,9 @@ func (s *Server) hydrateInbox(r *http.Request, entries []inboxEntry) {
 
 	approvals := map[uuid.UUID]observability.Approval{}
 	for _, id := range approvalIDs {
-		// Der Store kennt die Einzelabfrage bereits mit Org-Prüfung; bei
-		// höchstens 200 Zeilen je Seite ist das die kleinere Änderung als ein
-		// zweiter Lesepfad neben ihr.
+		// The store already knows the single query with an org check; with at
+		// most 200 rows per page this is the smaller change than a second read
+		// path beside it.
 		if a, err := s.Obs.GetApproval(ctx, p.OrgID, id); err == nil {
 			approvals[id] = a
 		}
@@ -240,7 +240,7 @@ func (s *Server) hydrateInbox(r *http.Request, entries []inboxEntry) {
 		}
 	}
 
-	// Die Namen der Kollegen einmal je Agent.
+	// The names of the colleagues, once per agent.
 	names := map[uuid.UUID]agents.Agent{}
 	for i := range entries {
 		e := &entries[i]

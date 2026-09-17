@@ -7,9 +7,9 @@ import (
 	"github.com/google/uuid"
 )
 
-/* Phases ist die Antwort auf „worauf wartet dieser Agent gerade". Sie muss drei
-   Dinge können: die Zahlen mitführen, den Beginn festhalten und rechtzeitig
-   aufhören, etwas zu behaupten. */
+/* Phases is the answer to "what is this agent waiting for right now". It must
+   do three things: carry the numbers, hold on to the start and stop
+   claiming something in time. */
 
 func TestDiePhaseHaeltIhrenBeginn(t *testing.T) {
 	p := NewPhases()
@@ -27,8 +27,8 @@ func TestDiePhaseHaeltIhrenBeginn(t *testing.T) {
 	if !ok {
 		t.Fatal("die laufende Phase fehlt")
 	}
-	// Die Dauer ist das, was ein Mensch zuerst liest. Bei jedem Lebenszeichen
-	// neu zu beginnen ließe jede Wartezeit frisch aussehen.
+	// The duration is what a person reads first. Starting it anew at every sign
+	// of life would let every wait look fresh.
 	if !zweite.Since.Equal(erste.Since) {
 		t.Fatalf("der Beginn wanderte mit: %v → %v", erste.Since, zweite.Since)
 	}
@@ -40,8 +40,8 @@ func TestDiePhaseHaeltIhrenBeginn(t *testing.T) {
 	}
 }
 
-// Eine neue Phase beginnt neu: Image holen und Home herstellen sind zwei
-// Wartezeiten, keine fortgesetzte.
+// A new phase begins anew: fetching the image and building the home are two
+// waits, not one continued.
 func TestEineAnderePhaseBeginntNeu(t *testing.T) {
 	p := NewPhases()
 	agent := uuid.New()
@@ -65,9 +65,9 @@ func TestDieSchlussmeldungBeendetDieAnzeige(t *testing.T) {
 	}
 }
 
-// Ein Host, der mitten in einer Phase verschwindet, hinterlässt sonst einen
-// Balken, der für immer steht — und ein Balken, der stillsteht, ist schlimmer
-// als keiner, weil er etwas behauptet.
+// A host that disappears in the middle of a phase otherwise leaves a bar
+// that stands forever — and a bar that stands still is worse
+// than none, because it claims something.
 func TestEinePhaseOhneLebenszeichenVerfaellt(t *testing.T) {
 	p := NewPhases()
 	agent := uuid.New()
@@ -82,8 +82,8 @@ func TestEinePhaseOhneLebenszeichenVerfaellt(t *testing.T) {
 	if _, ok := p.Of(agent); ok {
 		t.Fatal("eine Phase ohne Lebenszeichen gilt weiter als laufend")
 	}
-	// Und All räumt sie weg — eine Karte, die nur wächst, ist in einem Prozess
-	// mit Monaten Laufzeit ein Leck.
+	// And All clears them away too — a map that only grows is a leak in a
+	// process with months of uptime.
 	if len(p.All()) != 0 {
 		t.Fatal("All gibt die verfallene Phase heraus")
 	}
@@ -105,8 +105,8 @@ func TestClearBeendetDieAnzeige(t *testing.T) {
 	}
 }
 
-// Ein nil-Tracker ist erlaubt: wer einen Pool von Hand baut, verliert die
-// Live-Anzeige und sonst nichts.
+// A nil tracker is allowed: whoever builds a pool by hand loses the live
+// display and nothing else.
 func TestOhneTrackerFaelltNichtsUm(t *testing.T) {
 	var p *Phases
 	p.Note(uuid.New(), Progress{AgentID: uuid.New(), Phase: PhaseHome})

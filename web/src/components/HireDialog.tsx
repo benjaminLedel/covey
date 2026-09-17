@@ -4,16 +4,16 @@ import { api, hireAgent, type Agent, type AgentSystem, type OrgChart } from "../
 import { Modal } from "./Modal";
 import { fmtUSD } from "../format";
 
-/* Einstellen — der eine Weg aus dem Entwurf.
+/* Hire — the one way out of the draft.
  *
- * Bewusst keine Rückfrage („Wirklich einstellen?"), sondern eine
- * Zusammenfassung: Rolle, angefragte Zielsysteme mit Scopes, Vorgesetzter,
- * Runtime, Budgetdeckel. Das ist der einzige Punkt im ganzen Ablauf, an dem
- * ein Mensch die Verantwortung für einen neuen Mitarbeiter übernimmt — also
- * sieht er auch aus wie eine Entscheidung und nicht wie ein Schalter.
+ * Deliberately no confirmation ("Hire for real?"), but a
+ * summary: role, requested target systems with scopes, supervisor,
+ * runtime, budget cap. This is the only point in the whole flow where
+ * a human takes on the responsibility for a new employee — so
+ * it also looks like a decision and not like a switch.
  *
- * Was hier steht, ist genau das, was danach wirksam wird: ein Zugang ohne
- * Freigabe steht als „beantragt" da und nicht als erledigt. */
+ * What stands here is exactly what takes effect afterwards: an access without
+ * approval stands as "requested" and not as done. */
 export function HireDialog({
   agent,
   onClose,

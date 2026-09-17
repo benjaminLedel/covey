@@ -1,19 +1,19 @@
 import type { ReactNode } from "react";
 
-// Kleine Logos/Symbole für Engines — das Gegenstück zu TargetIcon, nur für die
-// andere Achse: TargetIcon zeigt, WORAN ein Agent arbeitet, EngineIcon, WOMIT.
-// Bewusst als Inline-SVG, wie dort: die SPA wird per //go:embed ins Binary
-// gezogen und darf keine externen Assets nachladen.
+// Small logos/glyphs for engines — the counterpart to TargetIcon, only on the
+// other axis: TargetIcon shows WHAT an agent works on, EngineIcon WITH WHAT.
+// Deliberately inline SVG, like there: the SPA is pulled into the binary via
+// //go:embed and must not load external assets.
 //
-// Hier steht KEINE Engine-Liste, die etwas gaten würde — nur eine
-// Darstellungs-Zuordnung. Eine Engine ohne eigenes Signet bekommt das
-// generische Symbol, ein Logo ist die Kür.
+// No engine list that would gate anything stands here — only a
+// presentation mapping. An engine without its own mark gets the generic
+// glyph, a logo is the extra.
 //
-// Herkunft der Pfade:
-//   - Claude: Simple Icons (CC0), unverändert übernommen, in der Markenfarbe.
-//   - OpenAI: aus simple-icons@9 — spätere Versionen führen die Marke nicht
-//     mehr. Steht hier ausschließlich zur Kennzeichnung der Engine.
-// Beide sind gefüllt: sie sollen als Logo lesbar sein, nicht als Symbol.
+// Origin of the paths:
+//   - Claude: Simple Icons (CC0), taken unchanged, in the brand color.
+//   - OpenAI: from simple-icons@9 — later versions no longer carry the
+//     brand. Stands here solely to label the engine.
+// Both are filled: they should read as a logo, not as a glyph.
 const brandMarks: Record<string, { title: string; node: ReactNode }> = {
   "claude-code": {
     title: "Claude",
@@ -24,9 +24,9 @@ const brandMarks: Record<string, { title: string; node: ReactNode }> = {
       />
     ),
   },
-  // OpenAI führt sein Signet schwarz auf hell bzw. weiß auf dunkel — eine feste
-  // Markenfarbe gibt es dafür nicht. Deshalb currentColor, aus demselben Grund
-  // wie beim Octocat in TargetIcon: sonst verschwindet es im dunklen Thema.
+  // OpenAI shows its mark black on light, white on dark — there is no fixed
+  // brand color for it. Hence currentColor, for the same reason as
+  // the Octocat in TargetIcon: otherwise it disappears in the dark theme.
   codex: {
     title: "OpenAI",
     node: (
@@ -38,8 +38,8 @@ const brandMarks: Record<string, { title: string; node: ReactNode }> = {
   },
 };
 
-// Fallback in der Bildsprache der Oberfläche: Strich, 1.7, runde Enden,
-// currentColor — für jede Engine ohne eigenes Signet.
+// Fallback in the visual language of the UI: stroke, 1.7, round ends,
+// currentColor — for every engine without its own mark.
 const genericGlyph = (
   <>
     <path d="M4.3 6.4c0-1 .8-1.8 1.8-1.8h11.8c1 0 1.8.8 1.8 1.8v11.2c0 1-.8 1.8-1.8 1.8H6.1a1.8 1.8 0 0 1-1.8-1.8V6.4Z" />
@@ -49,16 +49,16 @@ const genericGlyph = (
 );
 
 export type EngineIconProps = {
-  /** Engine-Name aus der Registry ("claude-code", "codex"). */
+  /** Engine name from the registry ("claude-code", "codex"). */
   name: string;
-  /** Kantenlänge in px. */
+  /** Edge length in px. */
   size?: number;
   className?: string;
 };
 
 /**
- * Logo bzw. Symbol einer Engine. Rein dekorativ (aria-hidden) — der Name steht
- * im Markup immer daneben.
+ * Logo or glyph of an engine. Purely decorative (aria-hidden) — the name always
+ * stands next to it in the markup.
  */
 export function EngineIcon({ name, size = 18, className }: EngineIconProps) {
   const brand = brandMarks[name];

@@ -148,12 +148,12 @@ var Builtins = []BuiltinTemplate{
 			{Pattern: "osv.dev", Note: "the advisory pages linked from the findings"},
 			{Pattern: "api.github.com", Note: "GitHub Advisory Database (public, 60 requests/hour without a token)"},
 			{Pattern: "services.nvd.nist.gov", Note: "NVD CVE API for the CVSS vector — 5 requests/30 s without a key"},
-			// Die Registries stehen auch in den Ökosystem-Templates (npm,
-			// composer, dart-flutter). Hier stehen sie erneut, weil ein
-			// Security-Agent NICHT baut: er braucht die Metadaten, um die
-			// nächste sichere Version zu bestimmen, aber keine der übrigen
-			// Hosts jener Templates. Doppelte Muster über Templates hinweg
-			// sind eine Vereinigungsmenge, kein Konflikt.
+			// The registries also stand in the ecosystem templates (npm,
+			// composer, dart-flutter). They stand here again because a
+			// security agent does NOT build: it needs the metadata to work out
+			// the next safe version, but none of the other hosts of those
+			// templates. Duplicate patterns across templates are a union, not
+			// a conflict.
 			{Pattern: "registry.npmjs.org", Note: "npm metadata and the advisory endpoint of npm audit"},
 			{Pattern: "packagist.org", Note: "the security advisories composer audit reads"},
 			{Pattern: "repo.packagist.org", Note: "Composer metadata (p2/…) for the next safe version"},

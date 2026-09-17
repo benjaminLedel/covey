@@ -6,32 +6,32 @@ import (
 	"time"
 )
 
-/* Ein Agent stand um 08:02 auf `working`: letzte Aufgabe um 06:35 fertig,
-   Backlog leer, auf dem Host lief weiter ein Container (#83). Zwischen „letzte
-   Aufgabe fertig" und „Sandbox unten" hängt keine Frist, die den ganzen Vorgang
-   umfasst — jeder Schritt hat eine, der Ablauf als solcher nicht. Und ein
-   Neustart der Steuerebene heilt es nicht: die Sitzungen liegen im Speicher,
-   der Zustand in der Datenbank, und niemand vergleicht die beiden.
+/* An agent stood on `working` at 08:02: last task done at 06:35, backlog empty,
+   a container still running on the host (#83). Between "last task done" and
+   "sandbox down" no deadline hangs that covers the whole process — every step
+   has one, the sequence as a whole does not. And a restart of the control plane
+   does not heal it: the sessions lie in memory, the state in the database, and
+   nobody compares the two.
 
-   Die Ursache ist unbekannt. Was hier festgehalten wird, ist das, was die
-   Plattform trotzdem können muss: aus einem Zustand herauskommen, den niemand
-   mehr trägt — ohne dass jemand sie neu startet. */
+   The cause is unknown. What is recorded here is what the platform must be able
+   to do anyway: get out of a state that nobody carries any more — without
+   anyone restarting it. */
 
 func TestEinZustandOhneSitzungLoestSichAuf(t *testing.T) {
 	ctx := context.Background()
 	s := newStackWith(t, stackOpts{staleAfter: time.Second})
 	agent := s.newSupportAgent("verwaist")
 
-	// Der Zustand aus dem Vorfall, von Hand hergestellt: die Datenbank sagt
-	// „arbeitet", im Orchestrator läuft nichts.
+	// The state from the incident, produced by hand: the database says `working`,
+	// nothing runs in the orchestrator.
 	if _, err := s.pool.Exec(ctx, `UPDATE agents SET status='working' WHERE id=$1`, agent.ID); err != nil {
 		t.Fatal(err)
 	}
 
-	// Nicht beim ersten Hinsehen: zwischen „Zustand gesetzt" und „Sitzung
-	// eingetragen" liegt ein Augenblick, und den darf niemand als Ausfall
-	// lesen. Die Frist steht in diesem Stapel auf einer Sekunde, der Tick auf
-	// 300 ms — nach einer halben Sekunde ist also gesehen, aber nicht gehandelt.
+	// Not on the first look: between "state set" and "session registered" lies a
+	// moment, and nobody may read that as an outage. The deadline stands at one
+	// second in this stack, the tick at 300 ms — so after half a second it is
+	// seen, but not acted on.
 	time.Sleep(500 * time.Millisecond)
 	if st := s.agentStatus(agent.ID); st != "working" {
 		t.Fatalf("nach einer halben Sekunde schon %q — die Frist wird nicht abgewartet", st)
@@ -41,9 +41,9 @@ func TestEinZustandOhneSitzungLoestSichAuf(t *testing.T) {
 		return s.agentStatus(agent.ID) == "sleeping"
 	})
 
-	// Und es steht in der Aufzeichnung. Ohne diese Zeile sähe hinterher
-	// niemand, dass die Plattform etwas aufgelöst hat — der Agent hätte
-	// „einfach so" geschlafen, und die Stunde davor bliebe unerklärt.
+	// And it stands in the recording. Without this line nobody would see
+	// afterwards that the platform resolved something — the agent would have
+	// slept "just like that", and the hour before would stay unexplained.
 	var n int
 	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM recording_events
 		WHERE agent_id=$1 AND kind='lifecycle' AND payload->>'status'='stale'
@@ -55,16 +55,16 @@ func TestEinZustandOhneSitzungLoestSichAuf(t *testing.T) {
 	}
 }
 
-// Die Gegenprobe, und sie ist die wichtigere: ein Agent, der WIRKLICH arbeitet,
-// darf davon nichts merken. Ein Wächter, der laufende Läufe abräumt, ist
-// schlimmer als der Fehler, gegen den er antritt.
+// The counter-check, and it is the more important one: an agent that REALLY
+// works may notice nothing of it. A guard that clears running runs is worse than
+// the error it is meant against.
 func TestEinLaufenderAgentWirdNichtAufgeloest(t *testing.T) {
 	ctx := context.Background()
 	s := newStackWith(t, stackOpts{staleAfter: time.Second})
 	agent := s.newSupportAgent("laeuft-wirklich")
 
-	// Eine Aufgabe, die den Agenten beschäftigt hält, während der Wächter
-	// mehrfach vorbeikommt (Tick alle 300 ms, Frist 1 s).
+	// A task that keeps the agent busy while the guard comes past several times
+	// (tick every 300 ms, deadline 1 s).
 	task, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Etwas, das dauert",
 		"[mock:sleep 4s][mock:result fertig]", "manual", 3)
 	if err != nil {
@@ -75,7 +75,7 @@ func TestEinLaufenderAgentWirdNichtAufgeloest(t *testing.T) {
 		return st == "working" || st == "triage"
 	})
 
-	// Über die Frist hinaus beschäftigt bleiben und dann normal fertig werden.
+	// Stay busy past the deadline and then finish normally.
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
 		if st := s.agentStatus(agent.ID); st == "sleeping" {

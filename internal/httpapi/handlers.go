@@ -58,15 +58,15 @@ func (s *Server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// agentWithPhase hängt an einen Agenten, worauf er in diesem Moment wartet: ein
-// Bild wird geholt, ein Home hergestellt, ein Home zurückgeschrieben.
+// agentWithPhase attaches to an agent what it is waiting for in this moment: an
+// image being pulled, a home being created, a home being written back.
 //
-// Das gehört nicht in agents.Agent — der Agent ist ein Datensatz, die Phase ist
-// Live-Zustand aus der Datenebene und steht in keiner Tabelle. Zusammengeführt
-// wird erst für die Ansicht, eingebettet, damit der Agent im JSON flach bleibt.
+// That does not belong in agents.Agent — the agent is a record, the phase is
+// live state from the data plane and stands in no table. They are merged only
+// for the view, embedded so that the agent stays flat in the JSON.
 //
-// Ein Zeiger, weil „gerade nichts" nicht dasselbe ist wie eine Phase mit leeren
-// Feldern: der Normalfall ist, dass ein Agent auf nichts wartet.
+// A pointer, because "nothing right now" is not the same as a phase with empty
+// fields: the normal case is that an agent waits for nothing.
 type agentWithPhase struct {
 	agents.Agent
 	Phase *runner.Phase `json:"phase,omitempty"`
@@ -80,8 +80,8 @@ type agentWithPhase struct {
 	Wake *orchestrator.WakeTrouble `json:"wake_trouble,omitempty"`
 }
 
-// phases: was die Hosts gerade tun, oder nichts, wenn diese Installation keinen
-// Pool hat (die Tests hängen den Server ohne Datenebene ein).
+// phases: what the hosts are doing right now, or nothing when this installation
+// has no pool (the tests wire the server in without a data plane).
 func (s *Server) phases() map[uuid.UUID]runner.Phase {
 	if s.RunnerPool == nil {
 		return nil
@@ -100,10 +100,10 @@ func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "slug and display_name are required")
 		return
 	}
-	// Als Entwurf (spec/20). „Später fertig machen" hat hier bis eben einen
-	// halb konfigurierten Agenten hinterlassen, der bereits scharf war — und das
-	// ist genau der Weg, auf dem die wenigste Konfiguration entsteht: ein Slug,
-	// ein Name, sonst nichts. Erst das Einstellen macht daraus einen Kollegen.
+	// As a draft (spec/20). "Finish it later" left behind an agent that was
+	// half configured and already live — and that is exactly the path along
+	// which the least configuration happens: a slug, a name, nothing else.
+	// Only setting it up makes it a colleague.
 	a, err := s.Registry.CreateDraft(r.Context(), p.OrgID, in.Slug, in.DisplayName, in.Runtime, &p.ID)
 	if err != nil {
 		mapErr(w, err)
@@ -361,14 +361,14 @@ func (s *Server) handleBacklog(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// taskWithCost hängt an eine Backlog-Aufgabe, was ihr Lauf gekostet hat. Die
-// Zahl gehört nicht in backlog.Task — der Backlog weiß nichts von Kosten, das
-// ist die Observability. Sie wird hier erst für die Ansicht zusammengeführt,
-// eingebettet, damit die Aufgabe im JSON flach bleibt.
+// taskWithCost attaches to a backlog task what its run cost. The number does
+// not belong in backlog.Task — the backlog knows nothing of costs, that is the
+// observability. It is merged here only for the view, embedded so that the task
+// stays flat in the JSON.
 //
-// CostUSD ist ein Zeiger: eine Aufgabe, die noch nicht gelaufen ist, hat keine
-// Kosten — und das ist nicht 0,00 $, sondern „noch nichts". Die Oberfläche
-// blendet das Feld dann aus, statt eine Null zu behaupten.
+// CostUSD is a pointer: a task that has not run yet has no costs — and that is
+// not $0.00 but "nothing yet". The interface then hides the field instead of
+// claiming a zero.
 type taskWithCost struct {
 	backlog.Task
 	CostUSD     *float64 `json:"cost_usd,omitempty"`
@@ -679,22 +679,22 @@ func (s *Server) handleListRuntimes(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleRename changes an agent's display name. The slug stays stable.
-// checkDoctorIdentity hält Name und Slug von covey Doctor fest und gibt
-// die Meldung für einen 409 zurück (leer = in Ordnung).
+// checkDoctorIdentity holds the name and the slug of covey Doctor fixed and
+// returns the message for a 409 (empty = fine).
 //
-// Zentral erzwungen und nicht in der Oberfläche: ein deaktiviertes Eingabefeld
-// ist eine Bitte, keine Leitplanke. Es geht nicht um Ästhetik — der Doctor darf
-// jeden Kollegen lesen und für ihn Änderungen vorschlagen, und wer ihm einen
-// unauffälligen Namen gäbe, hätte einen Agenten mit diesen Rechten, den im
-// Org-Chart niemand als solchen erkennt.
+// Enforced centrally and not in the interface: a disabled input field is a
+// request, not a guard rail. It is not about aesthetics — the doctor may read
+// every colleague and propose changes for them, and whoever gave it an
+// inconspicuous name would have an agent with these rights that nobody in the
+// org chart recognises as one.
 //
-// Leere Argumente heißen „wird nicht geändert" — so kann jeder der beiden
-// Endpunkte dieselbe Prüfung mit seinem einen Feld aufrufen.
+// Empty arguments mean "not being changed" — that way each of the two
+// endpoints can call the same check with its one field.
 func (s *Server) checkDoctorIdentity(ctx context.Context, id uuid.UUID, name, slug string) string {
 	a, err := s.Registry.Get(ctx, id)
 	if err != nil || !agents.IsDoctor(a) {
-		// Kein Doctor (oder nicht lesbar) — dann entscheidet der Endpunkt wie
-		// bisher, inklusive seiner eigenen Fehlerbehandlung.
+		// Not a doctor (or not readable) — then the endpoint decides as it
+		// did before, including its own error handling.
 		return ""
 	}
 	if name != "" && name != agents.DoctorName {
@@ -814,37 +814,37 @@ func (s *Server) handleSetRuntime(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
-	// Der Denkaufwand gehört der Engine, nicht dem Agenten: `xhigh` ist eine
-	// Claude-Code-Stufe. Wer die Engine wechselt, nimmt die Stufe nicht mit —
-	// sie stünde sonst weiter im Profil, ohne dass sie noch jemand liest.
-	// Zurück auf den Default der neuen Engine, still, aber nicht heimlich: das
-	// Feld zeigt danach sichtbar „leer = Runtime-Default".
+	// The effort belongs to the engine, not to the agent: `xhigh` is a
+	// Claude Code level. Whoever changes the engine does not take the level
+	// along — otherwise it would still stand in the profile without anyone
+	// reading it anymore. Back to the default of the new engine, quietly but
+	// not secretly: the field then visibly shows "empty = runtime default".
 	a, getErr := s.Registry.Get(r.Context(), id)
 	if getErr == nil && !daemon.AcceptsEffort(in.Runtime, a.Effort) {
 		if err := s.Registry.SetEffort(r.Context(), id, ""); err != nil {
 			s.Log.Warn("effort reset on runtime change", "agent", id, "err", err)
 		}
 	}
-	// Dasselbe für das Modell, und aus demselben Grund: `claude-sonnet-5` ist
-	// kein Modell, das ein Gateway routen muss. Wer die Engine wechselt, nimmt
-	// die Modellwahl nur mit, wenn die neue Engine sie kennt.
+	// The same for the model, and for the same reason: `claude-sonnet-5` is
+	// not a model that a gateway has to route. Whoever changes the engine
+	// keeps the model choice only when the new engine knows it.
 	if getErr == nil && !daemon.AcceptsModel(in.Runtime, a.Model) {
 		if err := s.Registry.SetModel(r.Context(), id, ""); err != nil {
 			s.Log.Warn("model reset on runtime change", "agent", id, "err", err)
 		}
 	}
-	// Und der SITZ, der von den dreien am meisten wiegt: er trägt die
-	// Zugangsdaten. Blieb er stehen, bekam der Agent den Zugang einer FREMDEN
-	// Engine gebrokert — unter deren Variable, mit deren Secret — und die neue
-	// Engine meldete „nicht angemeldet", was auf das Token zeigt statt auf die
-	// Zuweisung.
+	// And the SEAT, the one of the three that weighs the most: it carries the
+	// credentials. Left standing, the agent got the access of a FOREIGN engine
+	// brokered — under its variable, with its secret — and the new engine
+	// reported "not logged in", which points at the token instead of at the
+	// assignment.
 	//
-	// Umgezogen wird nur, wenn der Sitz wirklich nicht mehr passt. Wer bewusst
-	// auf dem zweiten Sitz derselben Engine sitzt, bleibt dort — sonst würde
-	// jedes Speichern der Engine eine Wahl zurücknehmen, die jemand getroffen
-	// hat. Und weil die Prüfung am Sitz hängt und nicht daran, ob sich der Wert
-	// geändert hat, repariert ein erneutes Speichern einen Agenten, der schon
-	// im falschen Sitz sitzt.
+	// The move only happens when the seat really does not fit anymore. Whoever
+	// sits on the second seat of the same engine on purpose stays there —
+	// otherwise saving the engine would undo a choice somebody had made. And
+	// because the check hangs on the seat and not on whether the value
+	// changed, saving again repairs an agent that already sits in the wrong
+	// seat.
 	if getErr == nil {
 		s.reseatOnEngineChange(r.Context(), principalFrom(r).OrgID, a, in.Runtime)
 	}
