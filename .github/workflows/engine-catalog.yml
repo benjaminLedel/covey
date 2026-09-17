@@ -39,13 +39,21 @@ jobs:
         # one that gets edited is always the one nobody reads.
         run: |
           set -eu
+          # Out of the way before anything touches a branch: the file this job
+          # carries lives in the tree the switch leaves behind.
+          cp internal/engines/engine-catalog.json "$RUNNER_TEMP/engine-catalog.json"
           git fetch -q --depth=1 origin catalog || true
           if git rev-parse --verify --quiet origin/catalog >/dev/null 2>&1; then
             git checkout -q -b catalog origin/catalog
           else
             git checkout -q --orphan catalog
+            # An orphan starts with the tree it was created from, so without this
+            # the first commit would carry the whole repository onto a branch
+            # whose whole point is to serve one file. The index only — the working
+            # tree is of no further interest here.
+            git rm -q -r --cached --ignore-unmatch -- .
           fi
-          cp internal/engines/engine-catalog.json engine-catalog.json
+          cp "$RUNNER_TEMP/engine-catalog.json" engine-catalog.json
           git add engine-catalog.json
           # The commit is what publishes. Without a change there is nothing to
           # publish, and an empty commit on every hand trigger would only make
