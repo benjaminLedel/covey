@@ -90,6 +90,28 @@ type marker struct {
 	InstalledAt time.Time `json:"installed_at"`
 }
 
+// sandboxReadable opens a layer directory to the party that has to run the
+// engine.
+//
+// The runner writes the layer as itself; the sandbox runs as another user (`USER
+// agent` in the image), and the layer reaches it as a bind mount. os.MkdirTemp
+// creates 0700 and the rename below publishes exactly that mode, so a layer can
+// be fetched, digest-checked and installed while nobody but the runner may walk
+// into it — the fork answers `permission denied` on a binary that is itself 0755,
+// and nothing on the way there says that the file and the directory above it
+// disagree. Only the traversal bits are asked for: a store somebody has tightened
+// on purpose is left alone as long as the sandbox can enter it.
+func sandboxReadable(dir string) error {
+	st, err := os.Stat(dir)
+	if err != nil {
+		return err
+	}
+	if st.Mode().Perm()&0o055 == 0o055 {
+		return nil
+	}
+	return os.Chmod(dir, 0o755)
+}
+
 // Lookup returns an installed layer without going to the network. This is the
 // path a start takes when the engine is already there — the common case, and it
 // must not depend on a catalogue host being reachable.
@@ -104,6 +126,14 @@ func (s *Store) Lookup(engine, version string) (Layer, bool) {
 		// Marker says one thing, the file system says another: treat it as not
 		// installed rather than as installed-and-broken. Ensure will redo it.
 		return Layer{}, false
+	}
+	// A layer installed by an earlier build stands closed on every host that ever
+	// tried one, and an update that fixes the mode for new installs leaves those
+	// hosts failing forever — a cache nobody can explain. So the bits are put
+	// right here as well, on the path every start takes.
+	if err := sandboxReadable(root); err != nil && s.Log != nil {
+		s.Log.Warn("engine layer could not be opened for the sandbox",
+			"engine", engine, "version", version, "path", root, "err", err)
 	}
 	return Layer{Engine: engine, Version: version, Root: root, Exec: ex, RelExec: m.Executable,
 		Kind: m.Kind, InstalledAt: m.InstalledAt}, true
@@ -164,6 +194,12 @@ func (s *Store) EnsureWatched(ctx context.Context, r Release, auth Auth, watch f
 	// Whatever happens below, the temporary directory does not survive it: a
 	// failed install leaves no half an engine for the next start to trip over.
 	defer os.RemoveAll(tmp)
+	// The mode before the content, because the rename below publishes this
+	// directory as it stands: 0700 the way os.MkdirTemp creates it would be an
+	// engine the sandbox cannot walk into — see sandboxReadable.
+	if err := sandboxReadable(tmp); err != nil {
+		return Layer{}, fmt.Errorf("engines: layer directory: %w", err)
+	}
 
 	say(Progress{Detail: r.engine + " " + r.Version})
 	var exe string
