@@ -43,12 +43,15 @@ import (
 // one is refused rather than guessed at, as with the other two catalogues.
 const CatalogSchema = 1
 
-// Kinds an entry may name. Two, because those are the two shapes an agent
-// runtime actually ships in: a tarball the publisher hosts, or a package in an
-// npm registry.
+// Kinds an entry may name. Three, because those are the three shapes an agent
+// runtime ships in: a tarball the publisher hosts, a package in an npm
+// registry, or one file the publisher serves by itself — which is how a CLI
+// that is a single Node bundle arrives, and the shape that needs no archive
+// around it and no second home of ours (see #288).
 const (
 	KindTarball = "tarball"
 	KindNpm     = "npm"
+	KindFile    = "file"
 )
 
 // Catalog is the document behind the URL.
@@ -76,17 +79,19 @@ type Release struct {
 	// directory the layer lands in and the figure a run is recorded against —
 	// which engine version produced an answer is part of the answer's evidence.
 	Version string `json:"version"`
-	// Kind selects the fetch: KindTarball needs URL+Integrity, KindNpm needs
+	// Kind selects the fetch: KindTarball and KindFile need URL+Integrity (the
+	// first is unpacked, the second written as it arrives), KindNpm needs
 	// Package (+Version) and runs with lifecycle scripts disabled.
 	Kind string `json:"kind"`
 
-	// URL of the artefact for KindTarball. Signed URLs are fine — the fetch is
-	// one plain GET — but the integrity below is what makes the artefact known.
+	// URL of the artefact for KindTarball and KindFile. Signed URLs are fine —
+	// the fetch is one plain GET — but the integrity below is what makes the
+	// artefact known.
 	URL string `json:"url,omitempty"`
-	// Integrity is hex sha256 over the artefact bytes for KindTarball, and over
-	// the packed tarball of the npm package for KindNpm where the publisher
-	// supplies it. Required for a tarball: without it this would be "download
-	// whatever is behind this URL today", which is not a pin.
+	// Integrity is hex sha256 over the artefact bytes for KindTarball and
+	// KindFile, and over the packed tarball of the npm package for KindNpm where
+	// the publisher supplies it. Required for both fetched kinds: without it this
+	// would be "download whatever is behind this URL today", which is not a pin.
 	Integrity string `json:"integrity,omitempty"`
 	// Package and Registry for KindNpm. Registry defaults to the public one; an
 	// installation on a private registry sets its own catalogue and with it its
@@ -146,9 +151,12 @@ func (r Release) Valid() error {
 		return fmt.Errorf("a release without a version cannot be pinned")
 	}
 	switch r.Kind {
-	case KindTarball:
+	case KindTarball, KindFile:
+		// Both are fetched by this process and pinned by a digest. The npm kind
+		// is installed by the package manager, which reads its own credentials —
+		// see its case below, where a header would be read by nothing.
 		if strings.TrimSpace(r.URL) == "" || strings.TrimSpace(r.Integrity) == "" {
-			return fmt.Errorf("a tarball needs a URL and an integrity — one without the other is not a pin")
+			return fmt.Errorf("a %s needs a URL and an integrity — one without the other is not a pin", r.Kind)
 		}
 		// An artefact may sit behind a login, but only as a reference: the entry
 		// names the header and the VARIABLE holding its token, never the token. A
@@ -176,7 +184,7 @@ func (r Release) Valid() error {
 			return fmt.Errorf("%s %s is installed by the package manager, so %s would be read by nothing", r.engine, r.Version, "auth_header")
 		}
 	default:
-		return fmt.Errorf("unknown kind %q (known: %s, %s)", r.Kind, KindTarball, KindNpm)
+		return fmt.Errorf("unknown kind %q (known: %s, %s, %s)", r.Kind, KindTarball, KindFile, KindNpm)
 	}
 	return nil
 }

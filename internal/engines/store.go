@@ -158,6 +158,8 @@ func (s *Store) EnsureWatched(ctx context.Context, r Release, watch func(Progres
 	switch r.Kind {
 	case KindTarball:
 		exe, err = s.installTarball(ctx, r, tmp, say)
+	case KindFile:
+		exe, err = s.installFile(ctx, r, tmp, say)
 	case KindNpm:
 		exe, err = s.installNpm(ctx, r, tmp, say)
 	default:
@@ -214,6 +216,62 @@ func (s *Store) installTarball(ctx context.Context, r Release, dst string, say f
 		return "", fmt.Errorf("engines: %s %s: %w", r.engine, r.Version, err)
 	}
 	return r.innerExecutable(), nil
+}
+
+// installFile lays one artefact down as it arrives: fetch, verify, write it at
+// its path inside the layer, executable.
+//
+// No unpacking and no archive, because that is the point: a publisher who ships
+// one file (a single Node bundle is the case this came up for) should be
+// referenceable by that file and not have to be repacked by somebody. Repacking
+// is where a pin goes stale — it puts a byte sequence of ours, not the
+// publisher's, under the digest.
+//
+// The bytes are already verified here, so the only thing left to distrust is the
+// path the entry names. It lands in a directory that is bind-mounted into
+// someone else's sandbox, so it is read as what it is allowed to be: a path
+// inside the layer. `binary` is otherwise a hint with no consequences (a tarball
+// answers with its own executable), which is exactly why it cannot be taken
+// literally here.
+func (s *Store) installFile(ctx context.Context, r Release, dst string, say func(Progress)) (string, error) {
+	body, err := fetchArtifact(ctx, s.HTTP, r, s.cap(), say)
+	if err != nil {
+		return "", err
+	}
+	if err := Verify(body, r.Integrity); err != nil {
+		return "", fmt.Errorf("engines: %s %s: %w", r.engine, r.Version, err)
+	}
+	exe := r.innerExecutable()
+	if exe == "" {
+		// The same default Executable documents for the other kinds: a file lands
+		// under bin/ as well, so an entry that names no binary is answered the
+		// same way by the two places that have to agree.
+		exe = "bin/" + safeSegment(r.engine)
+	}
+	where := filepath.Join(dst, filepath.FromSlash(exe))
+	// filepath.Clean resolves ".." without leaving the root it is given, so an
+	// entry that names ../escape is written beside the layer rather than at it —
+	// and the comparison is what says so, in the entry's own words.
+	cleaned := filepath.Clean(filepath.Join(dst, "x", filepath.FromSlash(exe)))
+	if !strings.HasPrefix(cleaned, filepath.Join(dst, "x")+string(os.PathSeparator)) {
+		return "", fmt.Errorf("engines: %s %s: binary %q leads out of the layer",
+			r.engine, r.Version, r.innerExecutable())
+	}
+	if err := os.MkdirAll(filepath.Dir(where), 0o755); err != nil {
+		return "", fmt.Errorf("engines: %s %s: %w", r.engine, r.Version, err)
+	}
+	if err := os.WriteFile(where, body, 0o755); err != nil {
+		return "", fmt.Errorf("engines: %s %s: %w", r.engine, r.Version, err)
+	}
+	// A chmod of its own, not the mode WriteFile was given: that one goes through
+	// the umask, and a runner started by a service manager with a restrictive one
+	// would leave the file executable by nobody but the runner — while the sandbox
+	// that has to run it is a different user. An unpacked tarball sets its modes
+	// explicitly for the same reason.
+	if err := os.Chmod(where, 0o755); err != nil {
+		return "", fmt.Errorf("engines: %s %s: %w", r.engine, r.Version, err)
+	}
+	return filepath.ToSlash(exe), nil
 }
 
 // installNpm installs one exact version into a prefix of its own.

@@ -34,13 +34,13 @@ Implementation: `internal/engines` (`catalogue.go`, `store.go`, `fetch.go`, `env
   "generated_at": "2026-09-05T09:00:00Z",
   "engines": [
     { "name": "sevencode", "versions": [
-      { "version": "1.0.27", "kind": "tarball",
-        "url": "https://gitlab.example.org/api/v4/projects/7/packages/generic/sevencode/1.0.27/sevencode-1.0.27.tgz",
+      { "version": "1.0.27", "kind": "file",
+        "url": "https://cli.example.org/api/v1/cli/latest",
         "integrity": "sha256:26b78c035e543ac7222d81da3143ae76de1bef55ccce676107adbd4e364870f2",
         "binary": "bin/sevencode", "binary_env": "COVEY_SEVENCODE_BIN",
-        "auth_header": "PRIVATE-TOKEN", "auth_env": "COVEY_SEVENCODE_ARTIFACT_TOKEN",
+        "auth_header": "Authorization", "auth_env": "COVEY_SEVENCODE_DOWNLOAD_TOKEN",
         "requires": ["node>=22.13"],
-        "notes": "headless via `-p … --json`; one bundle, so one artefact per release covers every platform. Its source is not public, so the artefact sits behind a login: the entry names the header and the VARIABLE holding the token, never the token. The document stays publishable and the digest remains what decides whether a layer may run." }
+        "notes": "headless via `-p … --json`; the CLI is one Node bundle and is served as that one file, so the kind is `file` and `binary` says where the runner writes it. Its source is not public, so the artefact sits behind a login: the entry names the header and the VARIABLE holding the token, never the token. The document stays publishable and the digest remains what decides whether a layer may run. `latest` is a mutable address, which is why the version and the digest stand beside it — a new release is a new entry, not an edit." }
     ]},
     { "name": "claude-code", "versions": [
       { "version": "2.1.0", "kind": "npm", "package": "@anthropic-ai/claude-code",
@@ -49,9 +49,11 @@ Implementation: `internal/engines` (`catalogue.go`, `store.go`, `fetch.go`, `env
   ]}
 ```
 
-`name` is the runtime name as the daemon registry knows it ([`01`](01-architecture.md)). An entry a build does not register is carried and ignored, never refused — a newer catalogue must not break an older covey. `versions` is append-only, newest last; the last entry is what an unpinned instance gets. A release is `kind: npm` (`package`, optional `registry`) or `kind: tarball` (`url` **plus** `integrity`), and says which variable the adapter reads (`binary_env`, convention `COVEY_<NAME>_BIN` — spelled out because `claude-code` reads `COVEY_CLAUDE_BIN` and nothing derives one from the other).
+`name` is the runtime name as the daemon registry knows it ([`01`](01-architecture.md)). An entry a build does not register is carried and ignored, never refused — a newer catalogue must not break an older covey. `versions` is append-only, newest last; the last entry is what an unpinned instance gets. A release is `kind: npm` (`package`, optional `registry`), `kind: tarball` (`url` **plus** `integrity`) or `kind: file` (`url` **plus** `integrity`, and `binary` says where it goes). The third kind is there because a CLI that is one Node bundle is served as one file, and wrapping it in an archive of our own would put a byte sequence we produced under the digest instead of the publisher's ([`#288`](https://github.com/benjaminLedel/covey/issues/288)). Every kind says which variable the adapter reads (`binary_env`, convention `COVEY_<NAME>_BIN` — spelled out because `claude-code` reads `COVEY_CLAUDE_BIN` and nothing derives one from the other).
 
-A document that describes something nothing can install is refused at parse: a tarball without `integrity`, an npm release without `package`, a release without a version, an unknown kind.
+An artefact behind a login is named, never opened, by the document: `auth_header` and `auth_env` say which header to send and which variable on this host holds its value. Half a pair is refused, and so is the pair on `kind: npm` — that kind is installed by the package manager, which would read a header by nothing.
+
+A document that describes something nothing can install is refused at parse: a fetched kind without `integrity`, an npm release without `package`, a release without a version, an unknown kind.
 
 ## Where a layer lives, and how it gets in
 
@@ -59,13 +61,13 @@ The layer sits on the **runner**, at `<DataDir>/engines/<engine>/<version>/`, an
 
 The path reaches the adapter the way it already did: the runner sets the adapter's own environment variable (`COVEY_SEVENCODE_BIN`, `COVEY_CLAUDE_BIN`, …) on the container. No protocol field for a binary path, no adapter change — the adapters have read that variable from the start, which is the only reason this was a small change and not a new seam. The protocol does carry one new optional field, `StartSandbox.engine`, for the same reason `image_hint` does: only the control plane knows what the agent is configured with, and a runner must be told what to install before it can install it. One further field, `EngineWatch`, is explicitly not part of the wire (`json:"-"`): it is the host's own progress callback, set by the node before it calls `Start`. A function could not survive JSON anyway, but the field is marked for the reason beside it — anything that would let the control plane name a host directory to mount is not something this struct should carry, and the install therefore stays inside `Start` rather than becoming a step a caller could skip.
 
-A layer is written to a temporary directory and renamed into place; the marker file (`.covey-engine.json`, storing engine, version, kind, digest and the executable **relative to the layer**) is written last. A directory without a marker is a crashed install, not an engine. A tarball is unpacked with a traversal guard — these bytes come off a network and into a directory that is mounted into someone else's sandbox — and an entry that links or writes outside the layer refuses the whole archive.
+A layer is written to a temporary directory and renamed into place; the marker file (`.covey-engine.json`, storing engine, version, kind, digest and the executable **relative to the layer**) is written last. A directory without a marker is a crashed install, not an engine. A tarball is unpacked with a traversal guard — these bytes come off a network and into a directory that is mounted into someone else's sandbox — and an entry that links or writes outside the layer refuses the whole archive. A `file` release needs the same thought at the one place it can be wrong: `binary` names where the bytes are written, and unlike the other kinds nothing else reads that field literally (a tarball answers with its own executable), so an entry naming `../escape` is refused rather than written one directory up.
 
 **Install on first use, not at boot.** An engine nobody uses must not appear on every host, and a boot-time install turns a catalogue host's outage into a host that will not start. The install happens at the one moment its result is needed — the sandbox start — which is also the moment a failure can be attached to the run that needs the reason.
 
 ## Digest
 
-`integrity` is hex sha256 over the artefact bytes, required for `kind: tarball`, verified before anything is unpacked. A mismatch names both sides — the promised digest and the one computed — because "it did not match" sends an operator to compare two values by hand.
+`integrity` is hex sha256 over the artefact bytes, required for both fetched kinds (`tarball` and `file`), verified before anything is unpacked or written. A mismatch names both sides — the promised digest and the one computed — because "it did not match" sends an operator to compare two values by hand.
 
 `kind: npm` pins the exact version in the install request and then **reads back** the version that actually landed (`package.json`); a registry that answers a pinned request with something else fails the start rather than being believed. A publisher who wants a digest for an npm release puts the registry's tarball integrity in the same field.
 
