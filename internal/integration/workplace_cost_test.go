@@ -8,10 +8,10 @@ import (
 	"time"
 )
 
-/* Die Wahl eines Arbeitsplatzes war eine ohne Preisschild: Auf einer gemessenen
-   Instanz trugen fünf von acht Agenten eine Compiler-Kette, um Wiki-Seiten zu
-   schreiben (#104). Seit die Phasen sichtbar sind, misst die Plattform, was ein
-   Abruf kostet — diese Zahl gehört dorthin, wo jemand wählt. */
+/* The choice of a workplace was one without a price tag: on a measured
+   instance five of eight agents carried a compiler chain in order to write
+   wiki pages (#104). Since the phases are visible, the platform measures
+   what a pull costs — this number belongs where somebody chooses. */
 
 func TestDerArbeitsplatzNenntWasSeinAbrufGekostetHat(t *testing.T) {
 	ctx := context.Background()
@@ -56,15 +56,15 @@ func TestDerArbeitsplatzNenntWasSeinAbrufGekostetHat(t *testing.T) {
 		return out
 	}
 
-	// Ohne gemessenen Abruf steht dort nichts — das ist etwas anderes als
-	// „kostet nichts" und darf nicht so aussehen.
+	// Without a measured pull nothing stands there — that is something other
+	// than "costs nothing" and must not look like it.
 	if got := lies(); len(got) != 0 {
 		t.Fatalf("ohne Messung wurde etwas behauptet: %+v", got)
 	}
 
-	// Ein abgeschlossener Bild-Abruf, wie ihn der Runner meldet und die
-	// Steuerebene aufschreibt (cmd/covey: runnerPool.Progress).
-	// Das Bild des base-Profils — dasselbe, das die Liste oben ausweist.
+	// A finished image pull, as the runner reports it and the control plane
+	// writes it down (cmd/covey: runnerPool.Progress).
+	// The image of the base profile — the same one the list above shows.
 	const image = "covey-sandbox:latest"
 	payload, _ := json.Marshal(map[string]any{
 		"status": "preparing", "phase": "image", "done": true,

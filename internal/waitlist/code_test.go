@@ -5,9 +5,9 @@ import (
 	"testing"
 )
 
-// Ein Code reist über Kanäle, die Zeichen verfälschen: vorgelesen am Telefon,
-// abgetippt aus einer Mail, kleingeschrieben eingeworfen. Die Normalisierung
-// ist deshalb kein Komfort, sondern der Grund für die Wahl des Alphabets.
+// A code travels through channels that corrupt characters: read out over the
+// phone, typed off a mail, thrown in lowercased. Normalisation is therefore no
+// comfort, but the reason for the choice of alphabet.
 func TestNormalizeVerzeiht(t *testing.T) {
 	code, err := NewCode()
 	if err != nil {
@@ -19,11 +19,11 @@ func TestNormalizeVerzeiht(t *testing.T) {
 	}
 
 	varianten := []string{
-		strings.ToLower(code),                // kleingeschrieben
-		strings.ReplaceAll(code, "-", ""),    // ohne Bindestriche
-		strings.ReplaceAll(code, "-", " "),   // mit Leerzeichen
-		" " + code + " ",                     // mit Rand
-		strings.TrimPrefix(code, Prefix+"-"), // ohne Präfix
+		strings.ToLower(code),                // lowercased
+		strings.ReplaceAll(code, "-", ""),    // without hyphens
+		strings.ReplaceAll(code, "-", " "),   // with spaces
+		" " + code + " ",                     // with padding
+		strings.TrimPrefix(code, Prefix+"-"), // without prefix
 	}
 	for _, v := range varianten {
 		got, ok := Normalize(v)
@@ -33,8 +33,8 @@ func TestNormalizeVerzeiht(t *testing.T) {
 	}
 }
 
-// Crockford bildet die klassischen Verwechslungen ab: O ist eine Null, I und L
-// sind Einsen. Wer das falsch liest, kommt trotzdem an.
+// Crockford maps the classic confusions: O is a zero, I and L
+// are ones. Whoever reads it wrong still gets through.
 func TestVerwechslungenWerdenAbgebildet(t *testing.T) {
 	kanonisch, ok := Normalize("COVEY-0123456789")
 	if !ok {
@@ -51,7 +51,7 @@ func TestVerwechslungenWerdenAbgebildet(t *testing.T) {
 	}
 }
 
-// Was kein Code sein kann, wird abgelehnt, bevor die Datenbank gefragt wird.
+// What cannot be a code is rejected before the database is asked.
 func TestNormalizeLehntAb(t *testing.T) {
 	for _, s := range []string{"", "COVEY", "COVEY-KURZ", "COVEY-4K7MQ-P2D9XZZZ", "COVEY-4K7MQ-P2D9U", "COVEY-4K7MQ-P2D9!"} {
 		if _, ok := Normalize(s); ok {
@@ -60,8 +60,8 @@ func TestNormalizeLehntAb(t *testing.T) {
 	}
 }
 
-// Zwei Codes hintereinander dürfen nicht derselbe sein — und das Präfix macht
-// sie erkennbar, ohne Teil des Geheimnisses zu sein.
+// Two codes in a row must not be the same — and the prefix makes
+// them recognisable without being part of the secret.
 func TestNewCodeFormat(t *testing.T) {
 	gesehen := map[string]bool{}
 	for i := 0; i < 50; i++ {
@@ -103,11 +103,11 @@ func TestMatchesPattern(t *testing.T) {
 		want           bool
 	}{
 		{"erika@firma.de", "@firma.de", true},
-		// Absichtlich eng: eine Unterdomain ist nicht dieselbe Domain, und ein
-		// Tor sollte schmal sein. Wer sub.firma.de braucht, nennt sie.
+		// Deliberately narrow: a subdomain is not the same domain, and a
+		// gate should be narrow. Whoever needs sub.firma.de names it.
 		{"erika@sub.firma.de", "@firma.de", false},
 		{"erika@fremd.de", "@firma.de", false},
-		// Das "@" verankert das Muster — sonst käme auch boesefirma.de durch.
+		// The "@" anchors the pattern — otherwise boesefirma.de would come through too.
 		{"erika@boesefirma.de", "@firma.de", false},
 		{"erika@firma.de", "erika@firma.de", true},
 		{"ERIKA@Firma.de", " @firma.de ", true},

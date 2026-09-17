@@ -252,11 +252,11 @@ func Pullable(ref string) bool {
 	name, _, _ := strings.Cut(ref, "@") // Digest ab
 	first, rest, hatSlash := strings.Cut(name, "/")
 	if !hatSlash {
-		// Kein Schrägstrich: ein lokaler Name (covey-sandbox:latest) oder ein
-		// offizielles Hub-Image (postgres:16). Der Unterschied ist von außen
-		// nicht zu sehen, und die vorsichtige Antwort ist die richtige: Wer
-		// hier "ziehbar" sagt, verschluckt den Bau-Hinweis für genau den Fall,
-		// für den er gedacht ist.
+		// No slash: a local name (covey-sandbox:latest) or an
+		// official Hub image (postgres:16). The difference cannot be seen from
+		// the outside, and the cautious answer is the right one: whoever says
+		// "pullable" here swallows the build hint for exactly the case it
+		// is meant for.
 		return false
 	}
 	_ = rest

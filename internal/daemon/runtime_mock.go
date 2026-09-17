@@ -44,9 +44,9 @@ func init() {
 		// No credentials: the mock needs none, and NeedsCredential() derives
 		// from that rather than being declared a second time.
 		//
-		// Der Mock steht für Claude Code ein und deklariert deshalb dieselben
-		// Effort-Stufen — sonst liefe der Effort-Pfad im Test an einer Engine
-		// vorbei, die ihn gar nicht anbietet.
+		// The mock stands in for Claude Code and therefore declares the same
+		// effort levels — otherwise the effort path in tests would run past an
+		// engine that does not offer it at all.
 		Capabilities: RuntimeCapabilities{Resume: true, SkillsDir: ".claude/skills",
 			EffortLevels: []string{"low", "medium", "high", "xhigh", "max"}},
 		New: func() Runtime { return Mock{} },
@@ -58,10 +58,10 @@ func init() {
 	})
 }
 
-// Das Argument darf EINE Ebene eckiger Klammern tragen — sonst könnte kein
-// Aufruf ein JSON-Array übergeben, und die Direktive bräche mitten im
-// Parameter ab. Über ein nacktes `]` kommt die Gruppe weiterhin nicht hinweg,
-// zwei Direktiven in einer Zeile bleiben also getrennt.
+// The argument may carry ONE level of square brackets — otherwise no call
+// could pass a JSON array, and the directive would break off in the middle of
+// the parameter. A bare `]` still gets the group no further, so two directives
+// on one line stay separate.
 var mockDirective = regexp.MustCompile(
 	`\[mock:(action|block|fail|result|memory|sleep|maxturns-always|maxturns|prompt)\s*((?:[^\[\]]|\[[^\]]*\])*)\]`)
 

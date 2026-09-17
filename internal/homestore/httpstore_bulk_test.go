@@ -10,9 +10,9 @@ import (
 	"github.com/google/uuid"
 )
 
-// Die Bündelfrage ist der Unterschied zwischen einem Home, das synchronisiert
-// wird, und einem, das es nicht mehr schafft: sechsstellig viele Runden über
-// die Leitung werden zu dreistellig vielen.
+// The bulk question is the difference between a home that gets synced and one
+// that no longer manages it: hundreds of thousands of round trips over the
+// wire become hundreds.
 func TestDieBuendelfrageGehtAlsEineAnfrageRaus(t *testing.T) {
 	var anfragen int
 	var bekommen []string
@@ -28,7 +28,7 @@ func TestDieBuendelfrageGehtAlsEineAnfrageRaus(t *testing.T) {
 		}
 		_ = json.NewDecoder(r.Body).Decode(&in)
 		bekommen = in.Hashes
-		// Nur der zweite ist bekannt.
+		// Only the second one is known.
 		_ = json.NewEncoder(w).Encode(map[string]any{"have": []string{in.Hashes[1]}})
 	}))
 	defer srv.Close()
@@ -49,14 +49,14 @@ func TestDieBuendelfrageGehtAlsEineAnfrageRaus(t *testing.T) {
 	}
 }
 
-// Eine Steuerebene von vor der Bündelfrage kennt die Route nicht. Dann wird
-// einzeln gefragt — ein langsamer Sync ist besser als ein falscher.
+// A control plane from before the bulk question does not know the route. Then
+// it asks one by one — a slow sync is better than a wrong one.
 func TestGegenEineAeltereSteuerebeneWirdEinzelnGefragt(t *testing.T) {
 	var kopfanfragen int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/api/runner/v1/blocks-have":
-			w.WriteHeader(http.StatusNotFound) // Route gibt es hier nicht
+			w.WriteHeader(http.StatusNotFound) // the route does not exist here
 		case r.Method == http.MethodHead:
 			kopfanfragen++
 			if r.URL.Path == "/api/runner/v1/blocks/bbb" {

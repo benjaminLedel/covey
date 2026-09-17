@@ -32,7 +32,7 @@ describe("collapse", () => {
 
     const skips = chunks.filter((c) => c.kind === "skip");
     expect(skips.length).toBe(2);
-    // Nichts geht verloren: gezeigte Zeilen plus übersprungene ergeben den Diff.
+    // Nothing is lost: shown lines plus skipped ones make up the diff.
     const shown = chunks.filter((c) => c.kind !== "skip").length;
     const hidden = skips.reduce((n, c) => n + (c as { skipped: number }).skipped, 0);
     expect(shown + hidden).toBe(diffLines(before, after).length);

@@ -2,8 +2,8 @@ package buildinfo
 
 import "testing"
 
-// Die Quelle als Zielsystem-Adresse: Was in der Fusszeile als Link steht, ist
-// dieselbe Angabe, die covey Doctor als Voreinstellung ausliest (spec/21).
+// The source as a target-system address: what stands as the link in the
+// footer is the same detail that covey Doctor reads as its default (spec/21).
 func TestSourceRepo(t *testing.T) {
 	system, project := SourceRepo()
 	if system != "github" || project != "benjaminLedel/covey" {
@@ -11,9 +11,9 @@ func TestSourceRepo(t *testing.T) {
 	}
 }
 
-// Der Anker eines Berichts. `git describe` liefert bei jedem Stand hinter dem
-// Tag etwas wie „v0.4.0-56-gea0485c" — ein Name, den es im Repository nicht
-// gibt und der als ref ins Leere liefe. Dann zaehlt der Commit.
+// The anchor of a report. `git describe` returns something like
+// "v0.4.0-56-gea0485c" at every state behind the tag — a name the repository
+// does not have and that would run empty as a ref. Then the commit counts.
 func TestRefTagOderCommit(t *testing.T) {
 	faelle := []struct {
 		name      string
@@ -29,8 +29,8 @@ func TestRefTagOderCommit(t *testing.T) {
 	}
 	for _, f := range faelle {
 		t.Run(f.name, func(t *testing.T) {
-			// Get ist eine OnceValue über das laufende Binary; der Test setzt
-			// sie für seinen Lauf und stellt sie danach zurück.
+			// Get is a OnceValue over the running binary; the test sets it for
+			// its run and restores it afterwards.
 			alt := Get
 			Get = func() Info { return f.info }
 			defer func() { Get = alt }()

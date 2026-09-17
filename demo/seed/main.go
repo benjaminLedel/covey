@@ -1,21 +1,21 @@
-// demo-seed füllt eine FRISCH gebootstrappte covey-Instanz mit einem
-// glaubwürdigen englischen Beispiel-Datensatz: eine Organisation mit drei
-// Abteilungen, fünf Menschen, sieben Agenten, gefüllten Backlogs, Wiki-
-// Gedächtnis, Kostenhistorie und einer vollständigen Aufzeichnung eines Laufs.
+// demo-seed fills a FRESHLY bootstrapped covey instance with a credible
+// English example dataset: an organisation with three departments, five
+// people, seven agents, filled backlogs, wiki memory, cost history and a
+// complete recording of a run.
 //
-// Wofür: die Screenshots und das Demo-GIF im README (siehe demo/tour) brauchen
-// eine Organisation, die aussieht wie eine echte. Ein frischer Bootstrap zeigt
-// einen einzigen Agenten ohne Arbeit — das ist die Wahrheit über eine leere
-// Instanz, aber kein Bild, an dem man erkennt, was die Plattform tut.
+// What for: the screenshots and the demo GIF in the README (see demo/tour)
+// need an organisation that looks like a real one. A fresh bootstrap shows a
+// single agent without work — that is the truth about an empty instance, but
+// not a picture that shows what the platform does.
 //
-// Wo es geht, laufen die Daten durch die echten Stores (Registry, Backlog,
-// Memory, Org) — die kennen die Invarianten. Direktes SQL bleibt für das, wofür
-// es keinen Schreibweg gibt, weil normalerweise die Control Plane es schreibt:
-// Agenten-Status, Kosteneinträge, Recording-Ereignisse, rückdatierte Zeiten.
+// Wherever possible, the data goes through the real stores (Registry,
+// Backlog, Memory, Org) — they know the invariants. Direct SQL stays for
+// what has no write path, because normally the control plane writes it:
+// agent status, cost entries, recording events, backdated times.
 //
-// NIEMALS gegen eine Instanz laufen lassen, an der etwas liegt: das Programm
-// legt Daten an und verweigert den Dienst nur bei offensichtlich benutzten
-// Instanzen. Gedacht ist es für eine Wegwerf-Datenbank.
+// NEVER run it against an instance something depends on: the program
+// creates data and refuses the service only for obviously used instances.
+// It is meant for a throwaway database.
 //
 //	go run ./demo/seed -database postgres://covey:covey@localhost:5434/covey?sslmode=disable
 package main
@@ -57,29 +57,29 @@ func envOr(key, def string) string {
 	return def
 }
 
-// Die Besetzung. Menschen und Agenten tragen dieselben Namen wie das Org-Chart
-// auf der öffentlichen Website (web/src/public/chrome.tsx) — wer von dort
-// kommt, erkennt die Organisation im Screenshot wieder.
+// The cast. People and agents carry the same names as the org chart on the
+// public website (web/src/public/chrome.tsx) — whoever comes from there
+// recognises the organisation in the screenshot.
 
 type person struct {
 	email, name, role, jobTitle, dept string
-	managerOf                         []string // E-Mails der direkt Unterstellten
+	managerOf                         []string // emails of the direct reports
 }
 
 type agentSpec struct {
 	slug, name, jobTitle, dept string
 	model                      string
-	// Nur schlafend, geweckt oder gestoppt: einen Agenten auf "working" zu
-	// setzen hielte nicht, weil die Control Plane einen arbeitenden Agenten
-	// ohne lebende Sandbox-Sitzung zu Recht wieder schlafen legt.
+	// Only sleeping, woken or stopped: setting an agent to "working" would
+	// not hold, because the control plane rightly puts a working agent
+	// without a live sandbox session back to sleep.
 	status string // sleeping | triggered | killed
 	killed bool
-	// draft: angelegt, aber noch nicht eingestellt — im Bild das Feld
-	// "Bewerbungen" (spec/20). Ein Entwurf hat keinen Status, der etwas
-	// bedeutet: er wird nicht dispatcht.
+	// draft: created, but not hired yet — in the picture the "Applications"
+	// field (spec/20). A draft has no status that means anything: it is not
+	// dispatched.
 	draft            bool
 	budget           float64
-	supervisor       string // E-Mail eines Menschen ODER slug eines Agenten
+	supervisor       string // email of a human OR slug of an agent
 	systems          []string
 	responsibilities string
 	soul             string
@@ -228,9 +228,9 @@ responsibility nobody assigned. What you do not know, you ask about.
 ## Limits
 You hire nobody. That is a human decision, and there is no action for it.`,
 	},
-	// Zwei Bewerbungen: entworfen, noch nicht eingestellt. Sie stehen im Bild
-	// oben in ihrem eigenen Feld und arbeiten nicht — deshalb auch kein Budget
-	// und kein Status, der etwas verspricht.
+	// Two applications: drafted, not hired yet. In the picture they stand at
+	// the top in their own field and do not work — hence also no budget and
+	// no status that promises anything.
 	{
 		slug: "tamsin", name: "Tamsin Vogel", jobTitle: "Release Notes", dept: "Engineering",
 		model: "claude-sonnet-5", status: "sleeping", draft: true, supervisor: "priya.raman@northgate.example",
@@ -279,9 +279,9 @@ func run(ctx context.Context, dbURL string, force bool) error {
 		return fmt.Errorf("keine Organisation gefunden — erst `covey bootstrap` laufen lassen: %w", err)
 	}
 
-	// Schutz vor dem teuersten Fehler: den Seed gegen eine benutzte Instanz
-	// laufen zu lassen. Eine frisch gebootstrappte hat genau den einen
-	// Demo-Agenten und keine Aufzeichnungen.
+	// Protection against the most expensive mistake: running the seed against
+	// a used instance. A freshly bootstrapped one has exactly the one demo
+	// agent and no recordings.
 	var agentCount, eventCount int
 	if err := pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM agents), (SELECT count(*) FROM recording_events)`).
 		Scan(&agentCount, &eventCount); err != nil {
@@ -292,9 +292,9 @@ func run(ctx context.Context, dbURL string, force bool) error {
 			"gegen eine frische Datenbank laufen lassen oder -force setzen", agentCount, eventCount)
 	}
 
-	// Wiederholbar: was ein früherer Lauf angelegt hat, fliegt zuerst raus.
-	// Agenten und Abteilungen hängen per ON DELETE CASCADE an ihren Aufgaben,
-	// Kosten, Aufzeichnungen und Wiki-Seiten — die gehen mit.
+	// Repeatable: what an earlier run created is thrown out first. Agents and
+	// departments hang off their tasks, costs, recordings and wiki pages via
+	// ON DELETE CASCADE — those go along.
 	if _, err := pool.Exec(ctx, `DELETE FROM agents WHERE org_id=$1`, orgID); err != nil {
 		return err
 	}
@@ -309,22 +309,22 @@ func run(ctx context.Context, dbURL string, force bool) error {
 	tasks := backlog.NewStore(pool)
 	orgStore := org.NewStore(pool)
 	mem := memory.NewStore(pool, memory.HashEmbedder{})
-	// #nosec G404 — Streuung für Demo-Zahlen, keine Sicherheitsentscheidung.
-	// Der feste Seed ist hier der Zweck: derselbe Seed, dieselben Zahlen, damit
-	// die README-Bilder bei jedem Lauf denselben Datensatz zeigen.
+	// #nosec G404 — spread for demo numbers, not a security decision.
+	// The fixed seed is the purpose here: same seed, same numbers, so the
+	// README images show the same dataset on every run.
 	rnd := rand.New(rand.NewSource(20260804))
 
-	// Name UND Beschreibung: die Beschreibung ist Stammdaten (spec/20) und geht
-	// in jede Ausschreibung ein — eine Demo-Organisation, die sich nicht
-	// beschreibt, zeigt im Org-Chart einen leeren Kasten.
+	// Name AND description: the description is master data (spec/20) and goes
+	// into every brief — a demo organisation that does not describe itself
+	// shows an empty box in the org chart.
 	if _, err := pool.Exec(ctx, `UPDATE organizations SET name='Northgate Systems',
 		description='We run the order and billing platform for mid-sized retailers: about 200 customers in Europe, self-service portal, support in three languages. Our customers care about two things — that an order is never lost, and that somebody answers within a day.'
 		WHERE id=$1`, orgID); err != nil {
 		return err
 	}
 
-	// Der Bootstrap-Admin wird zur Chefin — ein Org-Chart, in dem oben
-	// "Platform Admin" steht, sieht aus wie eine Testinstallation.
+	// The bootstrap admin becomes the boss — an org chart that reads
+	// "Platform Admin" at the top looks like a test installation.
 	var adminID uuid.UUID
 	if err := pool.QueryRow(ctx, `SELECT id FROM humans WHERE org_id=$1 AND role='org_admin'
 		ORDER BY created_at LIMIT 1`, orgID).Scan(&adminID); err != nil {
@@ -336,7 +336,7 @@ func run(ctx context.Context, dbURL string, force bool) error {
 		return err
 	}
 
-	// --- Abteilungen ---
+	// --- Departments ---
 	depts := map[string]uuid.UUID{}
 	for _, d := range []struct{ name, desc, color string }{
 		{"Customer Support", "Tickets, mailbox, everything the customer sees.", "#cc7a5b"},
@@ -350,10 +350,10 @@ func run(ctx context.Context, dbURL string, force bool) error {
 		depts[d.name] = dept.ID
 	}
 
-	// --- Menschen ---
-	// Kein anmeldbares Passwort: diese Konten sind Kulisse für das Org-Chart,
-	// niemand soll sich mit ihnen einloggen können. Ein ungültiger Hash
-	// scheitert in der Verifikation, ohne dass NOT NULL verletzt wird.
+	// --- People ---
+	// No login-capable password: these accounts are scenery for the org
+	// chart, nobody should be able to log in with them. An invalid hash
+	// fails verification without violating NOT NULL.
 	const noLogin = "x-demo-account-no-login"
 	humans := map[string]uuid.UUID{}
 	opsDept := depts["Operations"]
@@ -378,9 +378,9 @@ func run(ctx context.Context, dbURL string, force bool) error {
 		}
 	}
 
-	// --- Agenten ---
-	// Der Demo-Agent aus dem Bootstrap ist beim Aufräumen mit weggefallen; hier
-	// entsteht die ganze Belegschaft neu.
+	// --- Agents ---
+	// The demo agent from the bootstrap went with the cleanup; the whole
+	// workforce is created anew here.
 	agentIDs := map[string]uuid.UUID{}
 	for _, spec := range agentSpecs {
 		owner := humans[ownerFor(spec)]
@@ -426,10 +426,10 @@ func run(ctx context.Context, dbURL string, force bool) error {
 				return err
 			}
 		}
-		// Status und Einstellungsdatum schreibt sonst die Control Plane.
-		// Status, Kill-Schalter und Alter schreibt sonst die Control Plane. Das
-		// Einstellungsdatum eines eingestellten Agenten wandert mit dem Alter
-		// mit — sonst waere jeder seit heute im Haus.
+		// Otherwise the control plane writes status and hire date.
+		// Otherwise the control plane writes status, kill switch and age. A
+		// hired agent's hire date moves along with the age — otherwise
+		// everyone would have joined today.
 		if _, err := pool.Exec(ctx, `UPDATE agents SET status=$2, killed=$3,
 			created_at=now() - make_interval(days => $4),
 			hired_at = CASE WHEN hired_at IS NULL THEN NULL
@@ -440,8 +440,8 @@ func run(ctx context.Context, dbURL string, force bool) error {
 		}
 	}
 
-	// Vorgesetzte erst danach: ein Agent kann einem Agenten unterstellt sein,
-	// der zum Zeitpunkt seiner Anlage noch nicht existierte.
+	// Supervisors only afterwards: an agent can report to an agent that did
+	// not exist yet at the time it was created.
 	for _, spec := range agentSpecs {
 		var supervisorID uuid.UUID
 		if spec.supervisor == "admin" {
@@ -469,7 +469,7 @@ func run(ctx context.Context, dbURL string, force bool) error {
 		return err
 	}
 
-	// --- Wiki-Gedächtnis ---
+	// --- Wiki memory ---
 	for _, p := range adaWiki {
 		if _, err := mem.Write(ctx, agentIDs["ada"], p); err != nil {
 			return fmt.Errorf("Wiki-Seite %s: %w", p.Slug, err)
@@ -481,12 +481,12 @@ func run(ctx context.Context, dbURL string, force bool) error {
 		}
 	}
 
-	// --- Kostenhistorie ---
+	// --- Cost history ---
 	if err := seedCosts(ctx, pool, agentIDs, rnd); err != nil {
 		return err
 	}
 
-	// --- Aufzeichnung eines abgeschlossenen Laufs ---
+	// --- Recording of a completed run ---
 	if err := seedRecording(ctx, pool, orgID, agentIDs["ada"]); err != nil {
 		return err
 	}
@@ -495,7 +495,7 @@ func run(ctx context.Context, dbURL string, force bool) error {
 	return nil
 }
 
-// ownerFor bestimmt, wem ein Agent gehört: der Abteilungsleitung.
+// ownerFor determines who an agent belongs to: the department lead.
 func ownerFor(spec agentSpec) string {
 	switch spec.dept {
 	case "Customer Support":
@@ -537,7 +537,7 @@ blocker; %s.
 }
 
 func heartbeatFor(spec agentSpec) string {
-	// Ein Eintrag ist EINE Zeile — alle Schlüssel nebeneinander (ParseHeartbeat).
+	// One entry is ONE line — all keys side by side (ParseHeartbeat).
 	const head = "# Heartbeat\n\nWhen this agent wakes up on its own.\n\n"
 	switch spec.slug {
 	case "otto":
@@ -558,7 +558,7 @@ type boardTask struct {
 	origin      string
 	ageHours    int
 	result      string
-	question    string // nur für blocked
+	question    string // only for blocked
 }
 
 type board struct {
@@ -566,11 +566,11 @@ type board struct {
 	tasks  []boardTask
 }
 
-// Kein Task steht auf "open". Das ist kein Zufall: eine laufende Instanz würde
-// jede offene Aufgabe sofort einem Agenten zuteilen (ClaimNext), Sandbox hoch,
-// Lauf gestartet — der Demo-Datensatz wäre nach zehn Sekunden ein anderer.
-// Deshalb ist die Momentaufnahme eine Organisation mitten in der Arbeit, und
-// die Spaltennamen sagen dasselbe wie die Zustände.
+// No task stands as "open". That is no accident: a running instance would
+// assign every open task to an agent immediately (ClaimNext), sandbox up,
+// run started — the demo dataset would be a different one after ten
+// seconds. That is why the snapshot is an organisation in the middle of
+// work, and the column names say the same as the states.
 
 var adaBoard = board{
 	stages: []string{"Triage", "Answering", "Waiting on customer", "Done"},
@@ -648,8 +648,8 @@ func seedBoard(ctx context.Context, pool *pgxpool.Pool, tasks *backlog.Store, or
 		if err != nil {
 			return fmt.Errorf("Aufgabe %q: %w", t.title, err)
 		}
-		// Zustand, Spalte und Alter setzt sonst der Dispatcher im Lauf der
-		// Arbeit — hier direkt, weil kein Agent läuft.
+		// State, column and age are otherwise set by the dispatcher over the
+		// course of the work — here directly, because no agent is running.
 		stageID := stageIDs[t.stage]
 		if _, err := pool.Exec(ctx, `UPDATE backlog_tasks
 			SET state=$2, stage_id=$3, result=NULLIF($4,''),
@@ -679,10 +679,10 @@ func maxInt(a, b int) int {
 	return b
 }
 
-// --- Wiki-Gedächtnis ---
-// Die Seiten verlinken sich gegenseitig über [[wikilinks]] — daraus baut die
-// Oberfläche den Graphen und die Rückverweise. Ohne Verlinkung sähe das
-// Gedächtnis aus wie eine Schnipselsammlung, und genau das ist es nicht mehr.
+// --- Wiki memory ---
+// The pages link to each other via [[wikilinks]] — the interface builds the
+// graph and the backlinks from that. Without linking the memory would look
+// like a collection of snippets, and that is exactly what it no longer is.
 
 var adaWiki = []memory.PageInput{
 	{Slug: "refund-policy", Title: "Refund policy", Type: "thema", Source: "manual",
@@ -753,11 +753,11 @@ Add a new numbered pair instead, even for a typo in a comment.`},
 Fixed in !309 by pinning the clock. See [[repo-layout]] for where the fixtures live.`},
 }
 
-// --- Kosten ---
+// --- Costs ---
 
 func seedCosts(ctx context.Context, pool *pgxpool.Pool, agentIDs map[string]uuid.UUID, rnd *rand.Rand) error {
-	// Vierzehn Tage Verlauf. Die Beträge sind so gewählt, dass die Kurve
-	// atmet — ein glatter Verlauf sieht erfunden aus, weil er es dann ist.
+	// Fourteen days of history. The amounts are chosen so the curve
+	// breathes — a smooth history looks invented, because then it is.
 	activity := map[string]float64{
 		"ada": 1.0, "kilo": 0.85, "nova": 0.5, "vera": 0.45,
 		"iris": 0.3, "otto": 0.25, "felix": 0.15,
@@ -771,21 +771,21 @@ func seedCosts(ctx context.Context, pool *pgxpool.Pool, agentIDs map[string]uuid
 		weight := activity[slug]
 		model := models[slug]
 		for day := 13; day >= 0; day-- {
-			// Am Wochenende passiert weniger — die Instanz soll aussehen, als
-			// hinge sie an einer Organisation, die Wochenenden hat.
+			// Less happens on the weekend — the instance should look as if it
+			// hung off an organisation that has weekends.
 			d := time.Now().AddDate(0, 0, -day)
 			factor := weight
 			if d.Weekday() == time.Saturday || d.Weekday() == time.Sunday {
 				factor *= 0.2
 			}
 			if slug == "felix" && day < 6 {
-				factor = 0 // gestoppt, seit der Audit läuft
+				factor = 0 // stopped, since the audit runs
 			}
 			runs := int(float64(2+rnd.Intn(5)) * factor)
 			for i := 0; i < runs; i++ {
-				// Grössenordnung eines echten Laufs: ein Agent, der ein Ticket
-				// von Anfang bis Ende bearbeitet, liest sehr viel mehr als er
-				// schreibt — und kostet ein bis drei Dollar, nicht Cent.
+				// Order of magnitude of a real run: an agent that works a ticket
+				// from start to end reads far more than it writes — and costs
+				// one to three dollars, not cents.
 				in := 60000 + rnd.Intn(340000)
 				out := 2000 + rnd.Intn(13000)
 				usd := float64(in)/1e6*3 + float64(out)/1e6*15
@@ -804,10 +804,10 @@ func seedCosts(ctx context.Context, pool *pgxpool.Pool, agentIDs map[string]uuid
 	return nil
 }
 
-// --- Aufzeichnung ---
-// Ein vollständiger Lauf im Format, das der Claude-Code-Adapter liefert
-// (spec/12): Ereignisse wecken, Zugang brokern, Turns mit Werkzeugaufrufen,
-// Freigabe, Abschluss. Die Aktivitätsansicht baut daraus ihre Erzählung.
+// --- Recording ---
+// A complete run in the format the Claude Code adapter delivers (spec/12):
+// wake events, access brokering, turns with tool calls, approval,
+// completion. The activity view builds its narrative from these.
 
 func seedRecording(ctx context.Context, pool *pgxpool.Pool, orgID, agentID uuid.UUID) error {
 	var taskID uuid.UUID
@@ -885,8 +885,8 @@ func seedRecording(ctx context.Context, pool *pgxpool.Pool, orgID, agentID uuid.
 		{"lifecycle", map[string]any{"status": "sleeping"}},
 	}
 
-	// Die Ereignisse liegen im Abstand weniger Sekunden, der Lauf selbst rund
-	// zwei Tage zurück — passend zum Task, an dem er hängt.
+	// The events lie seconds apart, the run itself around two days back —
+	// matching the task it hangs on.
 	for i, e := range events {
 		payload, err := json.Marshal(e.payload)
 		if err != nil {

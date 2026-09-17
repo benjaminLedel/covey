@@ -5,19 +5,19 @@ import (
 	"encoding/json"
 )
 
-// Die Selbstbeschreibungen der Arbeitsplätze — dieselben Dateien, die in die
-// Images kopiert werden (Dockerfile.sandbox, Dockerfile.sandbox.dev).
+// The self-descriptions of the workplaces — the same files that are copied
+// into the images (Dockerfile.sandbox, Dockerfile.sandbox.dev).
 //
-// Eine Datei, zwei Verbraucher: der Agent liest sie zur Laufzeit in seiner
-// Sandbox (internal/daemon/workplace.go), die Oberfläche zeigt sie beim
-// Auswählen eines Arbeitsplatzes. Zwei getrennte Listen wären in einem Monat
-// zwei verschiedene Wahrheiten.
+// One file, two consumers: the agent reads it at runtime in its
+// sandbox (internal/daemon/workplace.go), the UI shows it when a
+// workplace is selected. Two separate lists would be two different
+// truths within a month.
 //
 //go:embed workplaces/*.json
 var workplaceFS embed.FS
 
-// WorkplaceDoc ist die Beschreibung, wie die Oberfläche sie ausgibt. Bewusst
-// dieselben Feldnamen wie im Image gelesen wird — es ist dieselbe Datei.
+// WorkplaceDoc is the description as the UI outputs it. Deliberately the same
+// field names as are read in the image — it is the same file.
 type WorkplaceDoc struct {
 	Profile string `json:"profile"`
 	Summary string `json:"summary"`
@@ -30,9 +30,9 @@ type WorkplaceDoc struct {
 	Notes   []string          `json:"notes,omitempty"`
 }
 
-// Workplace liefert die Beschreibung eines Profils. Für ein eigenes Image
-// (kein Profil, sondern eine Referenz) gibt es keine — dann ist die ehrliche
-// Antwort, dass die Plattform es nicht weiß.
+// Workplace returns the description of a profile. For an own image (not a
+// profile, but a reference) there is none — then the honest answer is that the
+// platform does not know.
 func Workplace(profile string) (WorkplaceDoc, bool) {
 	raw, err := workplaceFS.ReadFile("workplaces/" + profile + ".json")
 	if err != nil {

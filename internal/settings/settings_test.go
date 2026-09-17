@@ -6,9 +6,9 @@ import (
 	"testing"
 )
 
-// Ohne Verbindung liefert der Store die Vorgaben. Das ist kein Testkniff,
-// sondern der Zustand jeder frischen Datenbank: gesät wird nichts, es gilt,
-// was im Code steht.
+// Without a connection the store returns the defaults. That is no trick of the
+// test, but the state of every fresh database: nothing is seeded, what stands
+// in the code applies.
 func TestVorgabenOhneDatenbank(t *testing.T) {
 	var s *Store
 	v, err := s.Get(context.Background(), SignupMode)
@@ -27,8 +27,8 @@ func TestUnbekannterSchluessel(t *testing.T) {
 	}
 }
 
-// Die Prüfung sitzt im Store und nicht im Handler — sonst könnten CLI und API
-// verschiedener Meinung darüber sein, was ein gültiger Wert ist.
+// The check sits in the store and not in the handler — otherwise CLI and API
+// could disagree about what a valid value is.
 func TestPruefung(t *testing.T) {
 	faelle := []struct {
 		key, value string

@@ -7,10 +7,10 @@ import (
 	"testing"
 )
 
-// Ob eine Installation Registrierungen annimmt, ist die eine Frage, die die
-// öffentliche Website ohne Sitzung stellt — und die einzige richtige Antwort
-// im Zweifel ist "nein". Ohne Einstellungs-Store (Tests, ältere Montage) darf
-// daraus kein offenes Formular werden.
+// Whether an installation accepts registrations is the one question the
+// public website asks without a session — and the only right answer
+// when in doubt is "no". Without a settings store (tests, older
+// wiring) that must not turn into an open form.
 func TestSignupStateOhneStoreIstGeschlossen(t *testing.T) {
 	s := &Server{} // Settings == nil
 	rec := httptest.NewRecorder()
@@ -26,13 +26,13 @@ func TestSignupStateOhneStoreIstGeschlossen(t *testing.T) {
 	if got.Mode != "off" {
 		t.Errorf("mode=%q, erwartet \"off\" — fail-closed", got.Mode)
 	}
-	// Der Name steht auf der Registrierungsseite und später in den Mails; leer
-	// wäre dort eine Lücke im Satz.
+	// The name stands on the registration page and later in the mails; empty
+	// would be a hole in the sentence there.
 	if got.SiteName == "" {
 		t.Error("site_name ist leer")
 	}
-	// Wer die Registrierung schließt, will sie jetzt geschlossen haben und
-	// nicht, wenn die TTL eines Proxys abgelaufen ist.
+	// Whoever closes registration wants it closed now and
+	// not once a proxy's TTL has run out.
 	if cc := rec.Header().Get("Cache-Control"); cc != "no-store" {
 		t.Errorf("Cache-Control=%q, erwartet no-store", cc)
 	}

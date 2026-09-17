@@ -12,16 +12,16 @@ import (
 	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
-// Der Marktplatz: der Katalog, den die Instanz liest, und das Installieren
-// daraus (spec/22).
+// The marketplace: the catalogue the instance reads, and installing
+// from it (spec/22).
 //
-// Die Aufteilung folgt den zwei Verwaltungsbereichen. WELCHER Katalog
-// konfiguriert ist, entscheidet die Instanz (COVEY_MARKETPLACE_URL) — eine
-// Organisation kann ihn nicht umbiegen. Was sie daraus installiert, entscheidet
-// sie selbst, mit denselben Rechten wie beim Hochladen von Hand.
+// The split follows the two areas of control. WHICH catalogue is
+// configured the instance decides (COVEY_MARKETPLACE_URL) — an
+// organisation cannot bend that. What it installs from it it decides
+// itself, with the same rights as when uploading by hand.
 
-// marketplaceEntry ist ein Katalog-Eintrag, angereichert um das, was nur diese
-// Instanz weiß: ob er installiert ist und ob eine neuere Version bereitliegt.
+// marketplaceEntry is a catalogue entry, enriched with what only this
+// instance knows: whether it is installed and whether a newer version awaits.
 type marketplaceEntry struct {
 	Name        string `json:"name"`
 	Label       string `json:"label"`
@@ -32,29 +32,29 @@ type marketplaceEntry struct {
 	Homepage    string `json:"homepage"`
 	License     string `json:"license"`
 	Deprecated  string `json:"deprecated,omitempty"`
-	// Icon ist das eingebettete Signet (data:-URI) — vom Katalog geliefert,
-	// hier auf die erlaubten Formen geprüft. Was nicht durchkommt, fehlt
-	// einfach; die Karte fällt dann auf ihr Kategorie-Symbol zurück.
+	// Icon is the embedded badge (data:-URI) — delivered by the catalogue,
+	// checked here against the allowed forms. What does not pass is simply
+	// absent; the card then falls back to its category symbol.
 	Icon string `json:"icon,omitempty"`
-	// Version ist die neueste veröffentlichte Version (leer bei builtin).
+	// Version is the newest published version (empty for builtin).
 	Version string `json:"version,omitempty"`
 	Notes   string `json:"notes,omitempty"`
-	// BuiltinSince: ab dieser covey-Fassung mitgeliefert — aktivieren statt
-	// installieren.
+	// BuiltinSince: shipped along since this covey release — activate instead
+	// of install.
 	BuiltinSince string `json:"builtin_since,omitempty"`
-	// Kein Endpoint-Feld: bei kind=mcp steht der Host IM Artefakt, nicht im
-	// Katalog — die Karte könnte ihn nur zeigen, wenn die Instanz jedes
-	// gelistete Artefakt im Voraus holte. Sichtbar wird er nach dem
-	// Installieren in der Detailansicht, und weil ein installiertes Plugin
-	// abgeschaltet ankommt, erreicht bis dahin nichts diesen Host.
+	// No endpoint field: with kind=mcp the host sits IN the artefact, not in
+	// the catalogue — the card could only show it if the instance fetched
+	// every listed artefact up front. It becomes visible after the
+	// install, in the detail view, and because an installed plugin
+	// arrives switched off, nothing reaches this host until then.
 
-	// Installiert in DIESER Organisation:
+	// Installed in THIS organisation:
 	Installed        bool   `json:"installed"`
 	InstalledVersion string `json:"installed_version,omitempty"`
 	UpdateAvailable  bool   `json:"update_available"`
-	// InstalledElsewhere: der Name ist hier belegt, aber nicht aus diesem
-	// Katalog (von Hand hochgeladen oder ein Built-in). Installieren würde
-	// überschreiben — das muss vorher sichtbar sein.
+	// InstalledElsewhere: the name is taken here, but not from this
+	// catalogue (uploaded by hand or a built-in). Installing would
+	// overwrite — that has to be visible beforehand.
 	InstalledElsewhere bool `json:"installed_elsewhere,omitempty"`
 }
 
@@ -63,9 +63,9 @@ type marketplaceResponse struct {
 	Source  string             `json:"source,omitempty"`
 	Fetched *time.Time         `json:"fetched_at,omitempty"`
 	Entries []marketplaceEntry `json:"entries"`
-	// Error steht neben den Einträgen, nicht statt ihrer: ein nicht
-	// erreichbarer Katalog darf die Seite nicht leeren, aber auch nicht gesund
-	// aussehen.
+	// Error stands beside the entries, not instead of them: a catalogue that
+	// is unreachable may not empty the page, but it may not
+	// look healthy either.
 	Error string `json:"error,omitempty"`
 }
 
@@ -86,8 +86,8 @@ func (s *Server) handleMarketplace(w http.ResponseWriter, r *http.Request) {
 		source  string
 	}{}
 	for _, pl := range installed {
-		// Ein Built-in ohne Zeile taucht in List trotzdem auf; es ist nicht
-		// "installiert", sondern vorhanden. Nur echte Zeilen zählen hier.
+		// A built-in without a row does show up in List; it is not
+		// "installed", but present. Only real rows count here.
 		if pl.Kind == "builtin" && pl.Source == "" {
 			continue
 		}
@@ -124,9 +124,9 @@ func (s *Server) handleMarketplace(w http.ResponseWriter, r *http.Request) {
 			if row.source != "" {
 				entry.Installed = true
 				entry.InstalledVersion = row.version
-				// Ein Update ist eine ANDERE Version, nicht eine größere:
-				// Versionsvergleich hieße Semver-Ordnung raten, und ein
-				// zurückgezogener Stand ist ebenso eine Änderung wie ein neuer.
+				// An update is a DIFFERENT version, not a larger one: comparing
+				// versions would mean guessing Semver order, and a withdrawn
+				// build is as much a change as a new one.
 				entry.UpdateAvailable = entry.Version != "" && entry.Version != row.version
 			} else {
 				entry.InstalledElsewhere = true
@@ -140,10 +140,10 @@ func (s *Server) handleMarketplace(w http.ResponseWriter, r *http.Request) {
 }
 
 type installRequest struct {
-	// Version ist optional; leer = die neueste des Eintrags. Angegeben
-	// installiert sie genau die — ein Downgrade ist damit möglich, und das ist
-	// beabsichtigt: die Version, die lief, ist der erste Ausweg, wenn eine neue
-	// nicht tut.
+	// Version is optional; empty = the newest of the entry. Given, it
+	// installs exactly that — a downgrade is possible this way, and that is
+	// intended: the version that ran is the first way out when a new one
+	// does not.
 	Version string `json:"version"`
 }
 
@@ -170,8 +170,8 @@ func (s *Server) handleMarketplaceInstall(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if entry.Kind == "builtin" {
-		// Ein kompiliertes Plugin lässt sich nicht installieren; es ist da oder
-		// nicht. Der Katalog führt es nur, damit man es findet.
+		// A compiled plugin cannot be installed; it is there or it is
+		// not. The catalogue lists it only so that one can find it.
 		writeErr(w, http.StatusBadRequest,
 			"this plugin ships with covey — activate it instead of installing it")
 		return
@@ -209,9 +209,9 @@ func (s *Server) handleMarketplaceInstall(w http.ResponseWriter, r *http.Request
 
 	raw, err := s.Marketplace.Artifact(r.Context(), version, entry.Kind)
 	if err != nil {
-		// Der Digest-Fehler ist der einzige, der hier wirklich zählt: das
-		// Artefakt ist nicht mehr das, worauf der Eintrag zeigt. Er gehört
-		// unverkürzt an den Menschen, der auf "installieren" gedrückt hat.
+		// The digest error is the only one that really counts here: the
+		// artefact is no longer the one the entry points at. It belongs, in
+		// full, to the person who pressed "install".
 		status := http.StatusBadGateway
 		if errors.Is(err, marketplace.ErrDigest) {
 			status = http.StatusConflict
@@ -226,10 +226,10 @@ func (s *Server) handleMarketplaceInstall(w http.ResponseWriter, r *http.Request
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	// Die Audit-Spur (Middleware) hält fest, WER das war; was genau
-	// hereingekommen ist, steht dauerhaft in der Zeile (source/version/digest).
-	// Der Log-Eintrag hier ist für den Betreiber, der zuschaut, während es
-	// passiert.
+	// The audit trail (middleware) records WHO this was; what exactly
+	// came in stands permanently in the row (source/version/digest).
+	// The log entry here is for the operator who is watching while it
+	// happens.
 	s.Log.Info("plugin installed from catalogue", "name", stored, "kind", entry.Kind,
 		"version", version.Version, "publisher", entry.Publisher,
 		"source", s.Marketplace.URL, "digest", version.SHA256)

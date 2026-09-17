@@ -1,24 +1,24 @@
--- Woher ein Plugin kam, gehoert in die Zeile.
+-- Where a plugin came from belongs in the row.
 --
--- Ein Manifest-Plugin war bisher immer dasselbe: jemand hat eine Datei
--- hochgeladen. Kommt es aus einem Katalog, sind drei Fragen offen, die die
--- Zeile heute nicht beantworten kann: aus welchem Katalog, welche Version, und
--- welchen Digest hat die Instanz beim Installieren geprueft.
+-- A manifest plugin was always the same thing until now: somebody uploaded a
+-- file. When it comes from a catalogue, three questions stay open that the
+-- row cannot answer today: which catalogue, which version, and
+-- which digest the instance checked when it installed.
 --
--- Ohne diese drei gibt es kein Update (man wuesste nicht, welche Version
--- installiert ist), keinen Herkunftsnachweis (fuer den Betreiber, der wissen
--- will, was aus dem Netz in seine Organisation gelaufen ist) und keinen
--- Rueckruf (fuer den zurueckgezogenen Eintrag, den man wiederfinden will).
+-- Without these three there is no update (one would not know which version
+-- is installed), no provenance (for the operator who wants to know
+-- what came out of the net into their organisation) and no
+-- recall (for the withdrawn entry one wants to find again).
 --
--- NULL in source heisst: von Hand hochgeladen. Das bleibt der Normalfall und
--- der Bestandsschutz — vorhandene Zeilen sind genau das.
+-- NULL in source means: uploaded by hand. That stays the normal case and
+-- the grandfathering — existing rows are exactly that.
 ALTER TABLE target_plugins
     ADD COLUMN source         TEXT,
     ADD COLUMN source_version TEXT,
     ADD COLUMN source_digest  TEXT;
 
--- Ein Katalog-Plugin ist entweder vollstaendig belegt oder gar nicht: eine
--- Herkunft ohne Version oder ohne Digest waere ein Beleg, der nichts belegt.
+-- A catalogue plugin is either fully populated or not at all: a
+-- provenance with no version or no digest is a proof that proves nothing.
 ALTER TABLE target_plugins ADD CONSTRAINT target_plugins_provenance_check
     CHECK (
         (source IS NULL AND source_version IS NULL AND source_digest IS NULL)

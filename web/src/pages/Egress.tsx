@@ -9,9 +9,9 @@ import {
 import { AddHostForm, EgressLogTable, HostChips } from "../components/EgressBits";
 import { ConfirmDialog, Modal } from "../components/Modal";
 
-// Egress-Bereich mit Subseiten: Übersicht (Status + Monitoring) und Templates
-// (Liste + Detailseite je Template). Die Zuweisung geschieht pro Agent im
-// Egress-Reiter der Agenten-Seite; der Proxy erzwingt die effektive Allowlist
+// Egress area with subpages: overview (status + monitoring) and templates
+// (list + a detail page per template). The assignment happens per agent in
+// the egress tab of the agent page; the proxy enforces the effective allowlist
 // fail-closed.
 export default function Egress({ me }: { me: Principal }) {
   const canEdit = me.Role === "org_admin" || me.Role === "security";
@@ -167,9 +167,9 @@ function DefaultsCard({ status, canEdit }: { status: EgressStatus; canEdit: bool
   const qc = useQueryClient();
   const invalidate = () => qc.invalidateQueries({ queryKey: ["egress"] });
   const delHost = useMutation({ mutationFn: (id: string) => del(`/egress/defaults/${id}`), onSuccess: invalidate });
-  // Auf Host-Grenze prüfen, nicht auf Endung: "boese-anthropic.com" ist ein
-  // fremder Host und darf den Hinweis auf die fehlende LLM-Freigabe nicht
-  // verschlucken. Muster können ein Wildcard-Präfix und einen Port tragen.
+  // Check on the host boundary, not on the suffix: "boese-anthropic.com" is a
+  // foreign host and must not swallow the hint about the missing LLM
+  // approval. Patterns can carry a wildcard prefix and a port.
   const isAnthropic = (pattern: string) => {
     const host = pattern.trim().toLowerCase().replace(/^\*\./, "").split(":")[0];
     return host === "anthropic.com" || host.endsWith(".anthropic.com");

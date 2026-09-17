@@ -207,9 +207,9 @@ func TestARunnerTooOldToUpdateItselfSaysSoAtOnce(t *testing.T) {
 	}
 }
 
-// Die Absage bekommt ein Feld und nicht nur einen Satz: die Steuerebene macht
-// aus ihr einen Plan, und etwas an einer Zeichenkette festzumachen, die jemand
-// umformulieren darf, hört irgendwann still auf zu funktionieren.
+// The refusal gets a field and not only a sentence: the control plane makes a
+// plan out of it, and tying something to a string that someone is
+// allowed to reword stops working silently at some point.
 func TestEineBeschaeftigteAbsageSagtDasAuchImFeld(t *testing.T) {
 	dir := t.TempDir()
 	node := NewNode(uuid.New(), uuid.New(), &Docker{DataDir: dir}, quietLog())
@@ -223,9 +223,9 @@ func TestEineBeschaeftigteAbsageSagtDasAuchImFeld(t *testing.T) {
 	}
 }
 
-// Ein vorgemerktes Update wartet auf die Lücke — und der Kapazitätsbericht ist
-// die Stelle, an der die Lücke sichtbar wird. Ohne das blieb das Warten am
-// Menschen hängen: drücken, abgelehnt, später nochmal.
+// A planned update waits for the gap — and the capacity report is the place
+// where the gap becomes visible. Without it the waiting stayed with the
+// human: press, refused, later again.
 func TestEinVorgemerktesUpdateLaeuftInDerLuecke(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("das Docker-Double ist ein Shell-Skript")
@@ -243,8 +243,8 @@ func TestEinVorgemerktesUpdateLaeuftInDerLuecke(t *testing.T) {
 		erledigtMit = version
 	}
 
-	// Eine Verbindung, die sich für die gewünschte Fassung hält: dann ist der
-	// Wunsch erfüllt, ohne dass irgendetwas ersetzt werden muss.
+	// A connection that holds itself for the wanted version: then the wish is
+	// fulfilled without anything having to be replaced.
 	c := &conn{pool: p, runnerID: runnerID, orgID: orgID, version: "v9.9.9"}
 	c.runPlannedUpdate(context.Background())
 	if gefragt != 1 {
@@ -255,8 +255,8 @@ func TestEinVorgemerktesUpdateLaeuftInDerLuecke(t *testing.T) {
 	}
 }
 
-// Nach einem Versuch wird nicht sofort wieder losgelaufen: sonst liefe ein
-// Update, das an einem kaputten Download scheitert, alle dreißig Sekunden neu.
+// After one attempt it does not run again right away: otherwise an update
+// that fails on a broken download would start over every thirty seconds.
 func TestNachEinemVersuchWirdNichtSofortWiederGefragt(t *testing.T) {
 	p := NewPool(quietLog())
 	var gefragt int
@@ -272,8 +272,8 @@ func TestNachEinemVersuchWirdNichtSofortWiederGefragt(t *testing.T) {
 	}
 }
 
-// Ohne Plan passiert nichts, und der eingebaute Runner wird gar nicht erst
-// gefragt: er wird mit der Steuerebene aktualisiert.
+// Without a plan nothing happens, and the built-in runner is not even
+// asked: it is updated together with the control plane.
 func TestOhnePlanUndBeimEingebautenPassiertNichts(t *testing.T) {
 	p := NewPool(quietLog())
 	var gefragt int
@@ -293,11 +293,11 @@ func TestOhnePlanUndBeimEingebautenPassiertNichts(t *testing.T) {
 	}
 }
 
-/* Ein Host, der sein eigenes Binary gebaut hat, trägt den Namen des Tags, auf
-   dem sein Baum steht — und ist trotzdem etwas anderes. Auf covey.work lief
-   „v0.7.2 (45c9c48-dirty)", während v0.7.2 die neueste Veröffentlichung war:
-   Der Vergleich sagte „schon aktuell", der Knopf meldete Erfolg, ersetzt wurde
-   nichts. Tagelang, und niemand sah, warum der Host zurückblieb. */
+/* A host that built its own binary carries the name of the tag its tree sits
+   on — and is still something else. On covey.work ran
+   "v0.7.2 (45c9c48-dirty)", while v0.7.2 was the newest release:
+   the comparison said "already current", the button reported success, replaced
+   was nothing. For days, and nobody saw why the host stayed behind. */
 
 func TestEinSchmutzigerBauGiltNichtAlsDieVeroeffentlichung(t *testing.T) {
 	if runtime.GOOS == "windows" {
@@ -333,9 +333,9 @@ func TestEinSchmutzigerBauGiltNichtAlsDieVeroeffentlichung(t *testing.T) {
 	}
 }
 
-// Die Gegenprobe, und sie ist die wichtigere: ein sauberer Bau auf derselben
-// Fassung wird NICHT ersetzt. Sonst lüde jeder Knopfdruck dieselben Megabyte
-// noch einmal und startete den Host ohne Grund neu.
+// The counter-test, and it is the more important one: a clean build on the same
+// version is NOT replaced. Otherwise every button press would load the same
+// megabytes again and restart the host without a reason.
 func TestEinSauberesBinaryAufDerselbenFassungBleibtLiegen(t *testing.T) {
 	dir := t.TempDir()
 	exe := filepath.Join(dir, "covey-runner")
@@ -353,8 +353,8 @@ func TestEinSauberesBinaryAufDerselbenFassungBleibtLiegen(t *testing.T) {
 	node.Restart = func() error { t.Fatal("es wurde neu gestartet"); return nil }
 	node.executable = func() (string, error) { return exe, nil }
 
-	// Ohne BaseURL: Würde er etwas holen wollen, liefe er ins Netz und
-	// scheiterte — hier soll er gar nicht erst losgehen.
+	// Without BaseURL: if it wanted to fetch something, it would run into the
+	// net and fail — here it should not set off in the first place.
 	res := node.updateSelf(context.Background(), Update{Version: "v0.7.2"})
 	if res.Restarting || res.Err != "" {
 		t.Fatalf("er hat angefasst, was schon stimmte: %+v", res)

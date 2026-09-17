@@ -28,9 +28,9 @@ func (s *Server) handleTargetWebhook(w http.ResponseWriter, r *http.Request) {
 	ref := r.PathValue("agent")
 	agent, err := s.findWebhookAgent(r, ref)
 	if errors.Is(err, agents.ErrAmbiguousSlug) {
-		// Lieber gar nicht zustellen als falsch: die Nachricht landete sonst
-		// bei irgendeinem gleichnamigen Agenten einer fremden Organisation
-		// (FR-003, Befund B).
+		// Rather deliver nothing than to the wrong recipient: otherwise the
+		// message would land with some namesake agent in a foreign
+		// organisation (FR-003, finding B).
 		writeErr(w, http.StatusNotFound,
 			"the slug "+ref+" exists in several organisations — address the webhook by the agent id instead")
 		return

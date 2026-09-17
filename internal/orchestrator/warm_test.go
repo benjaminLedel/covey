@@ -261,7 +261,7 @@ func TestSandboxWithoutStoreIsNoError(t *testing.T) {
 	o.syncParkedHome(id, sandbox, o.parkWarm(id, newFakeLink(), sandbox))
 }
 
-// discardingSandbox kann beides und schreibt mit, was verlangt wurde.
+// discardingSandbox can do both and records what was asked for.
 type discardingSandbox struct {
 	syncingSandbox
 	discards atomic.Int32
@@ -273,12 +273,12 @@ func (d *discardingSandbox) Discard(context.Context) error {
 	return nil
 }
 
-// Ein Start, der nie ein Lauf wurde — Container sofort tot, oder der Daemon
-// meldet sich nie —, darf sein Home nicht zurückschreiben. Es ist Byte für Byte
-// das, was Minuten zuvor hineinmaterialisiert wurde; der Sync ist ein voller
-// Scan für ein identisches Ergebnis. Auf einer Produktivinstanz gemessen: elf
-// Minuten Home hinein, Container unter einer Sekunde tot, dann eine halbe
-// Stunde Scannen, bevor das Scheitern überhaupt aufgezeichnet war.
+// A start that never became a run — container dead at once, or the daemon
+// never reports in — must not write its home back. It is byte for byte what
+// was materialised into it minutes before; the sync is a full scan for an
+// identical result. Measured on a production instance: eleven minutes of
+// home in, container dead under a second, then half an hour of scanning
+// before the failure was recorded at all.
 func TestEinToterStartSchreibtDasHomeNichtZurueck(t *testing.T) {
 	sandbox := &discardingSandbox{}
 	discard(context.Background(), sandbox)
@@ -294,8 +294,8 @@ func TestEinToterStartSchreibtDasHomeNichtZurueck(t *testing.T) {
 	}
 }
 
-// Ein Provider, der den Unterschied nicht kennt, bekommt den gewöhnlichen
-// Stopp — verloren ist dann nur die Zeit, nicht die Arbeit.
+// A provider that does not know the difference gets the ordinary stop —
+// lost then is only the time, not the work.
 func TestOhneDiscardBleibtEsBeimStopp(t *testing.T) {
 	sandbox := &fakeSandbox{}
 	discard(context.Background(), sandbox)

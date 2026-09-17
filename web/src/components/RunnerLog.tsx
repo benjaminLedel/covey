@@ -12,17 +12,17 @@ type LogLine = {
   agent_id?: string;
 };
 
-/* Was ein Host sagt, dort wo der Host verwaltet wird.
+/* What a host says, where the host is managed.
  *
- * Vorher sagte er es seinem eigenen stderr — unter systemd also ins journald
- * einer Maschine, auf die jemand eine Shell haben muss. Fuer ausgerechnet die
- * Komponente, die absichtlich auf einer fremden Maschine steht, war das der
- * falsche Ort.
+ * Before, it said it to its own stderr — under systemd that means the
+ * journald of a machine on which someone has to have a shell. For exactly
+ * the component that deliberately stands on a foreign machine, that was the
+ * wrong place.
  *
- * Zwei Pegel, und sie sind nicht dasselbe: Was der Runner SCHICKT, entscheidet
- * der Schalter oben (er reist ueber das Protokoll). Was hier ANGEZEIGT wird,
- * entscheidet der Filter daneben. Die beiden zu verwechseln ist der Weg,
- * einen Host auf debug zu stellen und trotzdem nichts zu sehen. */
+ * Two levels, and they are not the same: what the runner SENDS is decided by
+ * the switch above (it travels over the protocol). What is SHOWN here is
+ * decided by the filter next to it. Confusing the two is the way to
+ * put a host on debug and still see nothing. */
 export default function RunnerLog({
   runnerId,
   level,
@@ -42,13 +42,13 @@ export default function RunnerLog({
   const [show, setShow] = useState<"info" | "debug">("info");
   const [search, setSearch] = useState("");
   const [note, setNote] = useState("");
-  // Zeilen ueber EINEN Start gehoeren zusammen. Der Filter sitzt an der Zeile
-  // selbst, weil man ihn dort braucht — nicht in einem Feld, in das man eine
-  // UUID abtippt.
+  // Lines about ONE start belong together. The filter sits on the row
+  // itself, because that is where you need it — not in a field into which you
+  // type a UUID.
   const [agent, setAgent] = useState<string | null>(null);
-  // Mehr zeigen statt blaettern: ein Log liest man von oben nach unten und
-  // hoert auf, wenn man gefunden hat, was man sucht. Seiten mit Vor und
-  // Zurueck waeren hier ein Bedienelement fuer einen Weg, den niemand geht.
+  // Show more instead of paging: you read a log from top to bottom and stop
+  // when you have found what you are looking for. Pages with forward and
+  // back would here be a control for a path nobody takes.
   const [limit, setLimit] = useState(200);
 
   const params = new URLSearchParams({ level: show, limit: String(limit) });
@@ -65,9 +65,9 @@ export default function RunnerLog({
     mutationFn: (next: string) =>
       post<{ level: string; applied: boolean; error?: string }>(`/runners/${runnerId}/log-level`, { level: next }),
     onSuccess: (res) => {
-      // Gespeichert, aber nicht zugestellt, ist ein eigener Zustand: Ein
-      // Host, der gerade weg ist, uebernimmt es bei der naechsten Verbindung.
-      // Das zu verschweigen liest sich wie „erledigt".
+      // Saved but not delivered is a state of its own: a host that is
+      // currently gone takes it over on the next connection.
+      // Keeping that quiet reads as "done".
       setNote(res.applied ? "" : t("runners.log.levelPending", { error: res.error ?? "" }));
       qc.invalidateQueries({ queryKey: ["runners"] });
     },
@@ -145,9 +145,9 @@ export default function RunnerLog({
       {lines.length > 0 && (
         <div className="rlog mono">
           {lines.map((l, i) => {
-            // Die Liste ist neueste zuerst; der Tageswechsel gehoert deshalb
-            // VOR die erste Zeile des jeweiligen Tages, also dort, wo sich das
-            // Datum gegenueber der vorherigen Zeile aendert.
+            // The list is newest first; the day change therefore belongs
+            // BEFORE the first line of the respective day, that is where the
+            // date changes compared to the previous line.
             const showDay = i === 0 || day(l.ts) !== day(lines[i - 1].ts);
             return (
               <div key={l.id}>

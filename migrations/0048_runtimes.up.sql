@@ -1,68 +1,68 @@
--- Die Runtime als Vertrag: Engine plus die Kapazität, sie zu betreiben.
+-- The runtime as a contract: the engine plus the capacity to run it.
 --
--- Bisher stand in agents.runtime ein Framework-Name ("claude-code"), und das
--- Credential wurde ueber eine hartkodierte Namenskonvention gesucht
--- (anthropic_api_key, dann claude_code_oauth_token). Das traegt genau so lange,
--- wie es einen Anbieter und ein Konto gibt.
+-- So far agents.runtime held a framework name ("claude-code"), and the
+-- credential was found by a hard-coded naming convention
+-- (anthropic_api_key, then claude_code_oauth_token). That holds exactly as long
+-- as there is one provider and one account.
 --
--- Sobald eine Organisation mehrere Vertraege haelt — drei Abo-Sitze und einen
--- API-Key, spaeter dazu ChatGPT —, ist "welche Runtime" keine technische
--- Eigenschaft mehr, sondern eine kaufmaennische: auf wessen Vertrag arbeitet
--- dieser Mitarbeiter. Das ist eine Entscheidung, die ein Mensch trifft und die
--- im Org-Chart beantwortbar sein muss. Details in spec/18-runtimes-capacity.md.
+-- Once an organisation holds several contracts — three subscription seats and
+-- an API key, later ChatGPT too —, "which runtime" is no longer a technical
+-- property but a commercial one: whose contract does this employee work on.
+-- That is a decision a human makes, and one the org chart has to be able to
+-- answer. Details in spec/18-runtimes-capacity.md.
 
--- WAS fuer ein Arbeitsplatz.
+-- WHAT kind of workplace.
 --
--- org_id NOT NULL: eine Runtime traegt Credentials, und ein Credential ueber
--- Mandanten hinweg waere ein Kanal zwischen ihnen — dieselbe Begruendung, mit
--- der in spec/16 ein Runner genau eine Covey-Instanz bedient. Der Speicher hatte
--- das ohnehin entschieden: die AES-GCM-AAD bindet jeden Ciphertext an seine
--- Organisation (D13).
+-- org_id NOT NULL: a runtime carries credentials, and a credential across
+-- tenants would be a channel between them — the same reason spec/16 gives
+-- for one runner serving exactly one Covey instance. The store had decided
+-- this anyway: the AES-GCM AAD binds every ciphertext to its
+-- organisation (D13).
 CREATE TABLE runtimes (
     id           UUID PRIMARY KEY,
     org_id       UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     engine       TEXT NOT NULL,
     display_name TEXT NOT NULL,
-    -- Das Modell gehoert dem Vertrag, nicht dem Agenten: ein Abo-Sitz kann sich
-    -- das grosse Modell leisten, wo ein metered Key es nicht kann. Leer = die
-    -- Voreinstellung der Engine.
+    -- The model belongs to the contract, not to the agent: a subscription seat
+    -- can afford the big model where a metered key cannot. Empty = the engine's
+    -- default.
     model        TEXT NOT NULL DEFAULT '',
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_runtimes_org ON runtimes (org_id, display_name);
 
--- WOMIT er arbeitet. ord IST die Merit Order.
+-- WHAT it works with. ord IS the merit order.
 --
--- Die beiden Kapazitaetsarten ziehen gegeneinander: ein Abo ist bezahlt, unge-
--- nutztes Kontingent ist verbranntes Geld, man will es voll fahren. Ein API-Key
--- kostet pro Token, man will ihn leer lassen. Gleichverteilung ueber beide
--- liefert das Schlechteste aus beidem. Richtig ist eine Merit Order wie beim
--- Kraftwerkseinsatz — und sie ist hier schlicht die Reihenfolge, die jemand
--- aufgeschrieben hat, keine versteckte Heuristik.
+-- The two kinds of capacity pull against each other: a subscription is paid
+-- for, unused quota is burnt money, you want to run it full. An API key
+-- costs per token, you want to leave it empty. An even split across both
+-- delivers the worst of both. Right is a merit order like power-plant
+-- dispatch — and here it is plainly the order someone wrote down, not a
+-- hidden heuristic.
 --
--- kind ist der Name aus der Credential-Deklaration der Engine (api_key,
--- subscription). Daraus weiss die Engine, ob der Wert als ENV-Variable oder als
--- Datei ankommt und ob metered oder quota gilt.
+-- kind is the name from the credential declaration of the engine (api_key,
+-- subscription). From it the engine knows whether the value arrives as an
+-- ENV variable or as a file, and whether metered or quota applies.
 CREATE TABLE runtime_credentials (
     runtime_id        UUID     NOT NULL REFERENCES runtimes(id) ON DELETE CASCADE,
     ord               SMALLINT NOT NULL,
     kind              TEXT     NOT NULL,
-    -- Zeiger in den Secret-Store. Der Wert selbst bleibt dort: dort liegen
-    -- Verschluesselung, AAD und die Sensibel-Regel, und die ein zweites Mal zu
-    -- haben waere der teuerste Weg zu demselben Ergebnis.
+    -- Pointer into the secret store. The value itself stays there: encryption,
+    -- AAD and the `sensitive` rule live there, and holding them a second time
+    -- would be the most expensive route to the same result.
     secret_key        TEXT     NOT NULL,
     secret_slot       SMALLINT NOT NULL DEFAULT 0,
     label             TEXT     NOT NULL DEFAULT '',
-    -- Zustand: NULL = gesund und waehlbar. Gesetzt wird es aus zwei Richtungen —
-    -- vom weichen Limit unten und vom harten Signal (die API hat den Wert
-    -- tatsaechlich abgewiesen).
+    -- State: NULL = healthy and selectable. It is set from two directions — the
+    -- soft limit below and the hard signal (the API actually rejected the
+    -- value).
     cooldown_until    TIMESTAMPTZ,
     cooldown_reason   TEXT     NOT NULL DEFAULT '',
-    -- Der Deckel in einem rollierenden Fenster. Seit die Engine ihre Auslastung
-    -- melden kann, raet das Feld nicht mehr die Decke des Anbieters, sondern
-    -- deckelt sie politisch ("diese Gruppe darf hoechstens 60 % des Sitzes").
-    -- limit_window_secs = 0 heisst: kein Limit.
+    -- The cap in a rolling window. Since engines can report their utilisation,
+    -- the field no longer guesses the provider's ceiling, it caps it
+    -- politically ("this group may use at most 60 % of the seat").
+    -- limit_window_secs = 0 means: no limit.
     limit_amount      NUMERIC(14,4) NOT NULL DEFAULT 0,
     limit_unit        TEXT          NOT NULL DEFAULT 'usd',
     limit_window_secs INTEGER       NOT NULL DEFAULT 0,
@@ -70,17 +70,17 @@ CREATE TABLE runtime_credentials (
     CONSTRAINT runtime_credentials_unit_chk CHECK (limit_unit IN ('usd', 'tokens'))
 );
 
--- WER sitzt auf welchem Credential.
+-- WHO sits on which credential.
 --
--- Bewusst gespeichert und nicht gerechnet (etwa hash(agent_id) % anzahl): beim
--- Hinzufuegen eines weiteren Tokens wuerfelt eine Modulo-Auswahl ALLE Agenten
--- neu durch, und weil die Engine den Prompt-Praefix pro Credential cached, waere
--- auf einen Schlag jeder Cache kalt — als Nebenwirkung einer Ergaenzung, die
--- niemandem wehtun sollte.
+-- Deliberately stored and not computed (say hash(agent_id) % count): when
+-- another token is added, a modulo choice re-rolls ALL agents, and because
+-- the engine caches the prompt prefix per credential, every cache would go
+-- cold at one stroke — a side effect of an addition that should hurt
+-- nobody.
 --
--- home_ord ist der Stammplatz: gesetzt, solange der Agent ausgewichen ist. Damit
--- ist die Rueckkehr gezielt moeglich, sobald der Stammplatz wieder gesund ist,
--- statt bei jeder Auswahl neu zu verteilen.
+-- home_ord is the home seat: set while the agent has moved away from it. That
+-- makes the return deliberate as soon as the home seat is healthy again,
+-- instead of redistributing on every choice.
 CREATE TABLE runtime_bindings (
     runtime_id UUID     NOT NULL REFERENCES runtimes(id) ON DELETE CASCADE,
     agent_id   UUID     NOT NULL REFERENCES agents(id)   ON DELETE CASCADE,
@@ -93,11 +93,11 @@ CREATE TABLE runtime_bindings (
 
 ALTER TABLE agents ADD COLUMN runtime_id UUID REFERENCES runtimes(id) ON DELETE SET NULL;
 
--- Die Kostenzuordnung wandert eine Ebene hoch: nicht mehr auf (Schluessel,
--- Slot), sondern auf (Runtime, Credential). Der Altbestand behaelt seine alten
--- Spalten und bleibt hier NULL — aus welchem Vertrag ein vergangener Lauf
--- bezahlt wurde, laesst sich nicht rekonstruieren, und eine erfundene Zuordnung
--- waere schlimmer als eine fehlende.
+-- Cost attribution moves one level up: no longer on (key, slot), but on
+-- (runtime, credential). The existing stock keeps its old columns and stays
+-- NULL here — from which contract a past run was paid cannot be
+-- reconstructed, and an invented attribution would be worse than a missing
+-- one.
 ALTER TABLE cost_entries
     ADD COLUMN runtime_id     UUID,
     ADD COLUMN credential_ord SMALLINT;
@@ -106,11 +106,11 @@ CREATE INDEX idx_cost_runtime_cred
     WHERE runtime_id IS NOT NULL;
 
 -- ---------------------------------------------------------------------------
--- Bestandsdaten ueberfuehren.
+-- Migrate the existing data.
 --
--- Fuer jede Organisation und jede Engine, die dort tatsaechlich benutzt wird,
--- entsteht eine Runtime. Ihr Name ist der Engine-Name; wer mehrere Vertraege
--- trennen will, legt danach weitere an und weist um.
+-- For every organisation and every engine actually used there, one runtime
+-- is created. Its name is the engine name; whoever wants to keep several
+-- contracts apart creates more afterwards and reassigns.
 INSERT INTO runtimes (id, org_id, engine, display_name)
 SELECT gen_random_uuid(), a.org_id, a.runtime, a.runtime
 FROM agents a
@@ -119,9 +119,9 @@ GROUP BY a.org_id, a.runtime;
 UPDATE agents a SET runtime_id = r.id
 FROM runtimes r WHERE r.org_id = a.org_id AND r.engine = a.runtime;
 
--- Die bekannten LLM-Schluessel werden zu Credentials der passenden Runtime, in
--- der Reihenfolge der bisherigen Vorrangregel (API-Key vor Abo-Token). Cooldown,
--- Limit und Label wandern unveraendert mit.
+-- The known LLM keys become credentials of the matching runtime, in the
+-- order of the previous precedence rule (API key before subscription token).
+-- Cooldown, limit and label move along unchanged.
 INSERT INTO runtime_credentials
     (runtime_id, ord, kind, secret_key, secret_slot, label,
      cooldown_until, cooldown_reason, limit_amount, limit_unit, limit_window_secs)
@@ -135,8 +135,8 @@ FROM secrets s
 JOIN runtimes r ON r.org_id = s.org_id AND r.engine = 'claude-code'
 WHERE s.agent_id IS NULL AND s.key IN ('anthropic_api_key', 'claude_code_oauth_token');
 
--- Die Sitzbelegung wandert mit, damit niemand seinen Platz durch die Migration
--- verliert und alle Prompt-Caches auf einmal kalt werden.
+-- The seat occupancy moves along too, so that nobody loses their place
+-- through the migration and all prompt caches go cold at once.
 INSERT INTO runtime_bindings (runtime_id, agent_id, ord, home_ord, reason, bound_at)
 SELECT rc.runtime_id, b.agent_id, rc.ord, home.ord, b.reason, b.bound_at
 FROM secret_bindings b
@@ -148,16 +148,16 @@ LEFT JOIN runtime_credentials home
 ON CONFLICT DO NOTHING;
 
 -- ---------------------------------------------------------------------------
--- Und was aus secrets wird: Speicher, sonst nichts.
+-- And what becomes of secrets: a store, nothing else.
 --
--- Von allem, was der Pool an die Tabelle gehaengt hat, bleibt genau eine Spalte
--- — slot. Dass ein Schluessel mehrere Werte tragen kann, ist eine
--- Speicheraussage und gehoert neben Verschluesselung, AAD und Sensibel-Regel.
--- Die Auswahl darunter (Klebrigkeit, Cooldown, Limits) ist Kapazitaetspolitik
--- und wohnt jetzt oben. Man sah der alten Platzierung die zu tiefe Ebene an: die
--- Auswahl bekam eine Verbrauchsfunktion gereicht, weil der Store die Daten fuer
--- seine eigene Entscheidung nicht hatte, und ihr Cooldown wurde von einem
--- LLM-API-Fehler ausgeloest, von dem ein Secret-Store nichts wissen sollte.
+-- Of everything the pool hung on the table, exactly one column remains
+-- — slot. That one key can carry several values is a statement about
+-- storage and belongs next to encryption, AAD and the `sensitive` rule.
+-- The choice among them (stickiness, cooldown, limits) is capacity
+-- policy and now lives above. The old placement showed its wrong level: the
+-- choice was handed a consumption function because the store did not have the
+-- data for its own decision, and its cooldown was triggered by an LLM API
+-- error that a secret store should know nothing about.
 DROP TABLE secret_bindings;
 ALTER TABLE secrets DROP CONSTRAINT secrets_limit_unit_chk;
 ALTER TABLE secrets

@@ -1,4 +1,4 @@
-// Package migrations bettet die versionierten SQL-Migrationen ins Binary ein.
+// Package migrations embeds the versioned SQL migrations into the binary.
 package migrations
 
 import "embed"

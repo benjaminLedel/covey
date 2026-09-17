@@ -1,18 +1,18 @@
-/* Auf den beiden offenen Seiten entscheidet die Adresse über die Sprache, in
-   der angemeldeten Oberfläche die persönliche Einstellung. Der Grund ist
-   geblieben, auch wenn die Website ausgezogen ist (#130): /anmelden und
-   /en/sign-in sind zwei Adressen, die jemand teilen und verlinken kann — und
-   die der Proxy vor der Anwendung getrennt weiterleitet. */
+/* On the two public pages the address decides the language; in the signed-in
+   UI it is the personal setting. The reason outlived the website moving out
+   (#130): /anmelden and /en/sign-in are two addresses that someone can share
+   and link — and that the proxy forwards separately, ahead of the
+   application. */
 
 import { useLocation } from "react-router";
 import { initialLang } from "../i18n";
 import type { Lang } from "./routes";
 
-/* Der Pfad hat Vorrang; wo keiner eine Sprache trägt (die Weiterleitung von
-   „/" auf die Anmeldung), zählt die gespeicherte Wahl und danach der Browser
-   — dieselbe Reihenfolge wie beim Start (i18n.ts). Vor den zehn Sprachen
-   stand hier ein festes „de": mit nur zwei Katalogen war das die eine
-   Alternative zu /en/…, mit zehn wäre es eine Behauptung. */
+/* The path has priority; where none carries a language (the redirect from `/`
+   to the sign-in page), the stored choice counts and then the browser — the
+   same order as at startup (i18n.ts). Before the ten languages there stood a
+   fixed `"de"` here: with two catalogues only that was the one alternative to
+   /en/…, with ten it would be a claim. */
 export function usePublicLang(): Lang {
   const { pathname } = useLocation();
   return initialLang(pathname);

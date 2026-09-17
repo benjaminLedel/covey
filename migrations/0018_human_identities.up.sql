@@ -1,7 +1,7 @@
--- Plattform-Kennungen generisch: statt einer Spalte pro Zielsystem
--- (gitlab_username) eine JSONB-Map system → kennung ("identities").
--- Zielsysteme sind Plugins ohne hartkodierte Liste — die Profile der
--- Mitarbeiter folgen demselben Prinzip: neue Plattform, kein Schema-Change.
+-- Platform identifiers generically: instead of one column per target system
+-- (gitlab_username) a JSONB map system → identifier ("identities").
+-- Target systems are plugins without a hard-coded list — the profiles of the
+-- employees follow the same principle: new platform, no schema change.
 ALTER TABLE humans ADD COLUMN identities JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 UPDATE humans SET identities = jsonb_build_object('gitlab', gitlab_username)

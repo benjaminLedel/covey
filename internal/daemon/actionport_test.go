@@ -7,16 +7,16 @@ import (
 	"testing"
 )
 
-/* Der Aufruf, den jeder kompilierte Prompt lehrt, ist
+/* The call that every compiled prompt teaches is
    `curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/<system>/<action>`.
-   Er muss in der Shell funktionieren, die ein Agent über `dev exec`/`dev start`
-   startet — und er darf dort NICHT funktionieren, wo hermetisch gearbeitet
-   wird. Beide Hälften hängen an derselben Stelle, deshalb stehen sie hier
-   nebeneinander. */
+   It has to work in the shell an agent starts via `dev exec`/`dev start` —
+   and it must not work where work is done hermetically. Both halves hang
+   on the same spot, which is why they stand here
+   side by side. */
 
-// Das dev-Plugin startet seine Shell so: exec.Command ohne eigenes Env, also
-// erbt sie das Environment des Daemon-Prozesses. Wenn der die Portnummer nicht
-// trägt, geht der Aufruf des Agenten an Port 80 und verschwindet.
+// The dev plugin starts its shell like this: exec.Command without its own env, so
+// it inherits the environment of the daemon process. If that does not carry the
+// port number, the agent's call goes to port 80 and disappears.
 func TestEineShellDesDaemonsErbtDenActionPort(t *testing.T) {
 	t.Setenv("COVEY_ACTION_PORT", "43117")
 
@@ -29,10 +29,10 @@ func TestEineShellDesDaemonsErbtDenActionPort(t *testing.T) {
 	}
 }
 
-// Die Gegenprobe, und der Grund, warum das Setzen im Prozess-Environment
-// gefahrlos ist: Kinder der Runtime bekommen ihr Environment über childEnv, und
-// das entfernt JEDE COVEY_*-Variable. Was ein Lauf braucht, kommt ausdrücklich
-// dazu — nicht durch Erben.
+// The counter-check, and the reason why setting it in the process environment
+// is safe: children of the runtime get their environment via childEnv, and
+// that removes EVERY COVEY_* variable. What a run needs is added
+// expressly — not by inheriting.
 func TestChildEnvHaeltCoveyVariablenDraussen(t *testing.T) {
 	t.Setenv("COVEY_ACTION_PORT", "43117")
 	t.Setenv("COVEY_DAEMON_TOKEN", "geheim")
@@ -44,11 +44,11 @@ func TestChildEnvHaeltCoveyVariablenDraussen(t *testing.T) {
 			t.Errorf("childEnv reicht eine Plattform-Variable durch: %s", strings.SplitN(kv, "=", 2)[0])
 		}
 	}
-	// Was nicht COVEY_ heißt, bleibt: sonst stünde ein Sub-Lauf ohne PATH da.
+	// What is not named COVEY_ stays: otherwise a sub-run would stand without PATH.
 	if !hasPrefix(env, "PATH=") {
 		t.Error("childEnv verliert das übrige Environment")
 	}
-	// Und was ein Lauf ausdrücklich mitbekommt, ist da.
+	// And what a run is expressly given is there.
 	if !hasPrefix(childEnv("COVEY_ACTION_PORT=43117"), "COVEY_ACTION_PORT=43117") {
 		t.Error("childEnv nimmt die ausdrücklich übergebene Variable nicht auf")
 	}

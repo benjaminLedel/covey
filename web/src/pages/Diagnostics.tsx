@@ -3,12 +3,12 @@ import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { api, post, type Principal } from "../api";
 
-// Plattform-Diagnose: was ein Neustart hier anträfe, und welche Agenten-Configs
-// nach einem Upgrade nachziehen müssen.
+// Platform diagnostics: what a restart would check here, and which agent
+// configs have to catch up after an upgrade.
 //
-// Beides gab es nur als Unterbefehl — also nur für den, der eine Shell auf dem
-// Host hat. Der Config-Lint hat die Lektion zuerst gelernt: eine Prüfung, die
-// niemand aufruft, ist eine, die es faktisch nicht gibt.
+// Both existed only as a subcommand — so only for whoever has a shell on
+// the host. The config lint learned the lesson first: a check that nobody
+// calls is one that effectively does not exist.
 
 type Finding = {
   ok: boolean;
@@ -34,19 +34,19 @@ type AgentFindings = {
   findings: LintFinding[];
 };
 
-/* embedded: unter dem Reiter der Verwaltung trägt die Seite ihre Überschrift
-   nicht selbst — dieselbe Regel wie beim Audit. */
+/* embedded: under the administration tab the page does not carry its own
+   heading — the same rule as for the audit. */
 export default function Diagnostics({ me, embedded = false }: { me: Principal; embedded?: boolean }) {
   const { t } = useTranslation();
-  // org_admin: der alte Name platform_admin ist seit 0061 keiner mehr.
+  // org_admin: the old name platform_admin has not been one since 0061.
   const isAdmin = me.Role === "org_admin";
 
   const qc = useQueryClient();
-  /* Die eine Zeile, die die Plattform nicht selbst erledigen kann: Ob der
-     Blockspeicher in der Sicherung liegt, sieht sie nicht — sie kann nur
-     festhalten, dass jemand die Pflicht übernommen hat. Ohne diesen Schritt
-     stünde der Hinweis für immer da, und ein Hinweis ohne Ende wird nicht mehr
-     gelesen — auch der daneben nicht. */
+  /* The one line the platform cannot handle itself: whether the block
+     storage sits in the backup it cannot see — it can only record that
+     someone took the duty on. Without this step the notice would stand
+     there forever, and a notice without an end is no longer read — the
+     one beside it either. */
   const bestaetigen = useMutation({
     mutationFn: (confirmed: boolean) =>
       post<{ confirmed_at: string }>("/platform/doctor/home-store-backup", { confirmed }),
@@ -90,8 +90,8 @@ export default function Diagnostics({ me, embedded = false }: { me: Principal; e
                   {doctor.data.findings.map((f) => (
                     <tr key={f.what}>
                       <td style={{ width: 24 }}>
-                        {/* Blockierend, Hinweis, in Ordnung — drei Zustände, und
-                            der mittlere ist der häufigste. */}
+                        {/* Blocking, note, all right — three states, and
+                            the middle one is the most common. */}
                         <span
                           title={f.blocking ? t("diagnostics.markBlocking") : f.ok ? t("diagnostics.markOk") : t("diagnostics.markNote")}
                           style={{

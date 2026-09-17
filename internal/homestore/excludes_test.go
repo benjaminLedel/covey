@@ -2,10 +2,10 @@ package homestore
 
 import "testing"
 
-/* Die Ausschlussliste verglich Präfixe ab der Wurzel des Homes — und traf damit
-   genau die Fälle nicht, um die es geht: `__pycache__` liegt tief in einem
-   Projekt, nie daneben, und `*.pyc` war überhaupt kein Muster, sondern ein
-   Dateiname mit einem Stern darin (#103). */
+/* The exclude list compared prefixes from the root of the home — and hit
+   exactly the cases it was not about: `__pycache__` sits deep in a
+   project, never beside one, and `*.pyc` was no pattern at all, but a
+   file name with a star in it (#103). */
 
 func TestAusschlussKenntPfadeNamenUndMuster(t *testing.T) {
 	e := Excludes{"repos/scratch", "__pycache__", "*.pyc", "aptroot/debs"}
@@ -34,8 +34,8 @@ func TestAusschlussKenntPfadeNamenUndMuster(t *testing.T) {
 	}
 }
 
-// Ein kaputtes Muster schließt nichts aus. Im Zweifel sichern: eine Datei zu
-// viel kostet Platz, eine fehlende kostet Arbeit, die niemand zurückholt.
+// A broken pattern excludes nothing. When in doubt, secure: one file too
+// many costs space, a missing one costs work nobody takes back.
 func TestEinKaputtesMusterSchliesstNichtsAus(t *testing.T) {
 	kaputt := Excludes{"[unvollständig"}
 	if kaputt.skip("datei.txt") {
@@ -43,8 +43,8 @@ func TestEinKaputtesMusterSchliesstNichtsAus(t *testing.T) {
 	}
 }
 
-// Ohne Liste bleibt alles drin — das ist die Lage, in der eine Installation
-// steht, die COVEY_HOME_EXCLUDES auf „none" gesetzt hat.
+// Without a list everything stays in — that is the situation an installation
+// is in that set COVEY_HOME_EXCLUDES to "none".
 func TestOhneListeBleibtAllesDrin(t *testing.T) {
 	leer, keine := Excludes{}, Excludes(nil)
 	if leer.skip("__pycache__") || keine.skip("egal.pyc") {

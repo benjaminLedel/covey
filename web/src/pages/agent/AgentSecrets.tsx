@@ -194,10 +194,10 @@ export function AgentSecrets({ agentId }: { agentId: string }) {
   );
 }
 
-// AgentSkills zeigt, was der Agent wirklich an Fähigkeiten hat: seine eigenen
-// plus die ihm aus der Bibliothek verlinkten. Genau diese Auflösung
-// materialisiert der Daemon vor jedem Lauf nach <home>/.claude/skills/.
+// AgentSkills shows what skills the agent really has: its own plus the ones
+// linked to it from the library. Exactly this resolution is what the daemon
+// materialises before every run under <home>/.claude/skills/.
 //
-// Bei Namensgleichheit gewinnt der agent-eigene Skill; der verdeckte
-// Bibliotheks-Eintrag taucht deshalb in der oberen Liste nicht auf, wohl aber
-// unten bei den Verlinkungen — sonst wüsste niemand, warum das Verlinken nichts
+// On a name clash the agent's own skill wins; the hidden library entry does not
+// appear in the upper list, but does appear below with the links — otherwise
+// nobody would know why linking does nothing

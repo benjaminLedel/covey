@@ -1,15 +1,15 @@
--- Wer eine Instanz-Sache aendert, ist ein Konto — kein Sitz.
+-- Whoever changes an instance matter is an account — not a seat.
 --
--- system_settings.updated_by und waitlist_codes.created_by zeigen seit 0057
--- bzw. 0058 auf humans. Das war richtig, solange jeder Administrator in genau
--- einer Organisation sass. Seit die Instanz-Ebene ausdruecklich KEINE
--- Mitgliedschaft voraussetzt (platformAdmin haengt an auth, nicht an rbac),
--- ist es falsch: der Betreiber ohne Sitz hat keine humans-Zeile, die dort
--- stehen koennte. Sein Schalterwechsel wuerde entweder mit einem
--- Fremdschluesselfehler abbrechen oder als "von niemandem" gebucht.
+-- system_settings.updated_by and waitlist_codes.created_by have pointed at
+-- humans since 0057 and 0058 respectively. That was right as long as every
+-- administrator sat in exactly one organisation. Since the instance tier
+-- expressly does NOT require membership (platformAdmin hangs on auth, not on
+-- rbac), it is wrong: the operator without a seat has no humans row that
+-- could stand there. His toggle change would either abort with a foreign key
+-- error or be booked as "by nobody".
 --
--- Beides sind Autorenspalten, keine Rechte — sie beantworten "wer war das",
--- und die Antwort ist der Mensch hinter der Anmeldung.
+-- Both are author columns, not permissions — they answer "who was that",
+-- and the answer is the human behind the login.
 
 ALTER TABLE system_settings DROP CONSTRAINT system_settings_updated_by_fkey;
 UPDATE system_settings s SET updated_by = h.account_id

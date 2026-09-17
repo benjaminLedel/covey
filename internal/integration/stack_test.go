@@ -60,10 +60,10 @@ import (
 	_ "github.com/benjaminLedel/covey-plugin-pack/confluence"
 	_ "github.com/benjaminLedel/covey-plugin-pack/dev"
 	_ "github.com/benjaminLedel/covey-plugin-pack/email"
-	// gitlab ist im Testbinary registriert, weil die Organisation es als
-	// Zielsystem aktiviert — und weil target/store Zeilen fuer Plugins
-	// verwirft, die dieses Binary nicht einkompiliert hat. Ohne den Import
-	// waere die Aktivierung in newStack eine Zeile ohne Wirkung.
+	// gitlab is registered in the test binary because the organisation activates
+	// it as a target system — and because target/store discards rows for plugins
+	// that this binary did not compile in. Without the import the activation in
+	// newStack would be a line without effect.
 	_ "covey/internal/target/mcp"
 	"covey/migrations"
 	_ "github.com/benjaminLedel/covey-plugin-pack/gitlab"
@@ -434,15 +434,15 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 	orchCtx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
 
-	// Abbrechen UND abwarten. Die Reihenfolge der Eintragung ist hier die
-	// umgekehrte der Ausführung: t.Cleanup läuft zuletzt-zuerst, also wird das
-	// Warten ZUERST eingetragen, damit es NACH dem cancel läuft — und vor dem
-	// Löschen des Verzeichnisses, das t.TempDir() weiter oben eingetragen hat
-	// (das läuft als allerletztes).
+	// Cancel AND wait. The order of registration here is the reverse of the
+	// order of execution: t.Cleanup runs last-first, so the waiting is registered
+	// FIRST, so that it runs AFTER the cancel — and before the directory is
+	// deleted, which t.TempDir() registered further up (that runs as the very
+	// last thing).
 	//
-	// Ohne das Warten löschte der Test sein Home-Verzeichnis, während eine
-	// Sitzung noch hineinschrieb: "TempDir RemoveAll cleanup: directory not
-	// empty", bei einem Test, dessen eigene Prüfungen alle gehalten hatten.
+	// Without the waiting the test deleted its home directory while a session was
+	// still writing into it: "TempDir RemoveAll cleanup: directory not
+	// empty", on a test whose own checks had all held.
 	orchFertig := make(chan struct{})
 	t.Cleanup(func() {
 		select {
@@ -647,9 +647,9 @@ func signWebhook(body []byte) string {
 	return "sha1=" + hex.EncodeToString(mac.Sum(nil))
 }
 
-// mitglied legt einen Sitz samt Login an. Seit P1 gehoeren beide zusammen: ein
-// Mensch ohne Konto koennte sich nicht anmelden, und genau das haben die Tests
-// vorher unbemerkt gebaut.
+// mitglied creates a seat along with a login. Since P1 both belong together: a
+// human without an account could not log in, and that is exactly what the tests
+// built before, unnoticed.
 func (s *stack) mitglied(t *testing.T, email, name, rolle, passwort string) uuid.UUID {
 	t.Helper()
 	hash, err := identbuiltin.HashPassword(passwort)
@@ -673,10 +673,10 @@ func (s *stack) mitglied(t *testing.T, email, name, rolle, passwort string) uuid
 	return id
 }
 
-// alsSystemadmin erhebt den Stack-Admin auf die Instanz-Ebene. Nötig überall
-// dort, wo ein Test eine ZWEITE Organisation braucht, um Isolation zu prüfen:
-// Mandanten anzulegen ist seit P2 keine Frage der Organisations-Rolle mehr
-// (FR-003, Befund F).
+// alsSystemadmin raises the stack admin to the instance level. Needed wherever
+// a test needs a SECOND organisation to check isolation: creating
+// tenants has not been a question of the organisation role
+// since P2 (FR-003, finding F).
 func (s *stack) alsSystemadmin(t *testing.T) {
 	t.Helper()
 	if err := accounts.New(s.pool).SetPlatformRole(context.Background(),

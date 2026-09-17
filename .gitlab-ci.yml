@@ -1,34 +1,34 @@
-# GitLab CI für covey.
+# GitLab CI for covey.
 #
 # Pipeline: test → build → deploy.
-# - test:  govulncheck (Abhängigkeiten gegen die Go-Schwachstellendatenbank),
-#          Frontend-Tests + Build (web/dist muss für //go:embed existieren),
-#          dann gofmt-Prüfung, go vet und go test.
-#          go test läuft mit -coverprofile: GitLab bekommt den Gesamt-Prozentwert
-#          als Badge (coverage-Regex) und einen Cobertura-Report für die
-#          MR-Diff-Coverage-Anzeige.
-#          Die Integrationstests skippen automatisch, weil in der CI kein Postgres
-#          auf localhost:5433 erreichbar ist (siehe internal/integration/stack_test.go).
-# - build: Docker-Image aus dem Multi-Stage-Dockerfile via docker:dind bauen
-#          und in die GitLab Container Registry pushen ($CI_REGISTRY_IMAGE).
+# - test:  govulncheck (dependencies against the Go vulnerability database),
+#          frontend tests + build (web/dist must exist for //go:embed),
+#          then the gofmt check, go vet and go test.
+#          go test runs with -coverprofile: GitLab gets the overall percentage
+#          as a badge (coverage regex) and a Cobertura report for the
+#          MR diff coverage view.
+#          The integration tests skip automatically, because no Postgres is
+#          reachable on localhost:5433 in CI (see internal/integration/stack_test.go).
+# - build: build the Docker image from the multi-stage Dockerfile via docker:dind
+#          and push it to the GitLab Container Registry ($CI_REGISTRY_IMAGE).
 #
-# Tags: jeder Push auf einen Branch → :$CI_COMMIT_SHORT_SHA,
-#       Default-Branch zusätzlich → :latest,
-#       Git-Tags zusätzlich → :$CI_COMMIT_TAG.
+# Tags: every push to a branch → :$CI_COMMIT_SHORT_SHA,
+#       default branch additionally → :latest,
+#       Git tags additionally → :$CI_COMMIT_TAG.
 #
-# dind läuft ohne TLS (DOCKER_TLS_CERTDIR="") auf tcp://docker:2375 — dieselbe
-# Konfiguration, die im feeval-Projekt auf demselben Runner funktioniert.
+# dind runs without TLS (DOCKER_TLS_CERTDIR="") on tcp://docker:2375 -- the same
+# configuration that works in the feeval project on the same runner.
 #
-# - deploy: Nach jedem main-Push das gerade gebaute Image (auf den Commit-Tag
-#           :$CI_COMMIT_SHORT_SHA gepinnt) auf dem Zielhost ausrollen. Läuft auf
-#           einem Shell-Runner AM Host (Tag `covey-deploy`): kopiert
-#           docker-compose.deploy.yml in den Deploy-Ordner und startet
-#           `docker compose pull && up -d`. Secrets liegen in einer persistenten
-#           `.env` im Deploy-Ordner (einmalig erzeugt, nie überschrieben).
+# - deploy: after every push to main, roll out the image just built (pinned to
+#           the commit tag :$CI_COMMIT_SHORT_SHA) on the target host. Runs on a
+#           shell runner ON the host (tag `covey-deploy`): copies
+#           docker-compose.deploy.yml into the deploy folder and starts
+#           `docker compose pull && up -d`. Secrets live in a persistent
+#           `.env` in the deploy folder (created once, never overwritten).
 
 workflow:
   rules:
-    # Keine doppelten Pipelines: bei offenem MR nur die MR-Pipeline.
+    # No duplicate pipelines: with an open MR, only the MR pipeline.
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_OPEN_MERGE_REQUESTS'
       when: never
@@ -65,39 +65,39 @@ security:
     paths:
       - .go/pkg/mod/
   script:
-    # Version gepinnt statt @latest: Ein Werkzeug, das bei jedem Lauf frisch
-    # aus dem Netz gezogen wird, ist selbst ein Einfallstor — ein
-    # kompromittiertes Release liefe ungefragt in der Pipeline, mit Zugriff auf
-    # deren Umgebung. Pinnen kostet ein Dependabot-Update im Quartal.
-    # govulncheck prüft die Abhängigkeiten gegen die Go-Schwachstellendatenbank
-    # — und zwar auf ERREICHBARKEIT: Es meldet nur, was der eigene Code
-    # tatsächlich aufruft. Deshalb praktisch ohne Fehlalarme, deshalb als
-    # harter Schritt und nicht als Bericht, den niemand liest.
-    # (Ein Fund in einem Modul, das wir nur einbinden aber nie aufrufen, lässt
-    # den Job bewusst grün — sonst wäre er nach der ersten Woche abgeschaltet.)
+    # Version pinned instead of @latest: a tool pulled fresh off the net on every
+    # run is itself an entry point -- a compromised release would run in the
+    # pipeline unasked, with access to its environment. Pinning costs one
+    # Dependabot update per quarter.
+    # govulncheck checks the dependencies against the Go vulnerability database
+    # -- and for REACHABILITY: it reports only what our own code actually
+    # calls. Hence almost no false positives, hence a hard step and not a report
+    # nobody reads.
+    # (A finding in a module we only import but never call deliberately leaves
+    # the job green -- otherwise it would be switched off after the first week.)
     - go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
-    # gosec ergaenzt govulncheck: Das eine kennt bekannte Luecken in
-    # ABHAENGIGKEITEN, das andere sucht Muster im EIGENEN Code.
+    # gosec complements govulncheck: one knows known gaps in
+    # DEPENDENCIES, the other looks for patterns in OUR OWN code.
     #
-    # Bewusst mit einer ausdruecklichen Regel-LISTE statt „alles ausser…":
-    # Ungefiltert meldet gosec hier 120 Befunde, und die Masse davon ist der
-    # Zweck dieses Programms — der dev-Plugin FUEHRT Shell-Befehle aus (G204),
-    # der Arbeitsplatz LIEST Dateien nach Pfad (G304), die Sandbox-Homes
-    # brauchen ihre Rechte (G301). Ein Job, der 120 Zeilen ausspuckt, wird nach
-    # zwei Wochen weggeklickt. Diese Liste enthaelt die Regeln, auf die wir
-    # tatsaechlich reagieren; eine neue kommt dazu, wenn sie sich als
-    # aussagekraeftig erweist.
+    # Deliberately with an explicit rule LIST instead of "everything except":
+    # unfiltered gosec reports 120 findings here, and most of them are the
+    # purpose of this program -- the dev plugin RUNS shell commands (G204),
+    # the workplace READS files by path (G304), the sandbox homes
+    # need their permissions (G301). A job that spits out 120 lines gets
+    # dismissed after two weeks.
+    # This list holds the rules we actually react to; a new one joins when
+    # it proves to say something.
     #
-    # Stand: 0 Befunde. Wird das rot, ist es ernst gemeint.
+    # As of now: 0 findings. If this goes red, it is serious.
     #
-    # -exclude-dir=.go ist hier keine Kosmetik, sondern Pflicht: GOPATH zeigt
-    # oben auf $CI_PROJECT_DIR/.go, damit GitLab den Modul-Cache zwischen
-    # Laeufen behalten kann (Cache-Pfade muessen im Projektverzeichnis
-    # liegen). gosec loest ./... aber ueber das Dateisystem auf, nicht ueber
-    # `go list` — und lief damit durch jede fremde Abhaengigkeit unter
-    # .go/pkg/mod: 6167 Dateien, 2,7 Mio. Zeilen, 320 Befunde, keiner davon
-    # im eigenen Code, dafuer 15 Minuten Laufzeit und Exit 1. Dieselbe Falle,
-    # gegen die die gofmt-Zeile in test-go sich schon mit `go list` wehrt.
+    # -exclude-dir=.go is not cosmetics here, it is required: GOPATH points
+    # above at $CI_PROJECT_DIR/.go so that GitLab can keep the module cache
+    # between runs (cache paths have to lie inside the project
+    # directory). But gosec resolves ./... through the filesystem, not through
+    # `go list` -- and so walked through every foreign dependency under
+    # .go/pkg/mod: 6167 files, 2.7M lines, 320 findings, none of them
+    # in our own code, in exchange 15 minutes of runtime and exit 1. The same
+    # trap that the gofmt line in test-go already wards itself off with `go list`.
     - go run github.com/securego/gosec/v2/cmd/gosec@v2.22.9 -quiet -exclude-dir=.go -include=G101,G102,G106,G107,G112,G114,G201,G202,G203,G303,G305,G401,G402,G403,G404,G501,G502,G503,G504,G601 ./...
 
 build-web:
@@ -112,9 +112,9 @@ build-web:
   script:
     - cd web
     - npm ci
-    # Erst die Tests, dann der Build: Ein Bundle, das gebaut wird, obwohl die
-    # Oberfläche nachweislich kaputt ist, kostet nur Zeit und verschleiert den
-    # Befund. `npm run build` fährt ohnehin `tsc -b` mit.
+    # Tests first, then the build: a bundle that gets built although the UI is
+    # provably broken only costs time and hides the finding. `npm run build`
+    # runs `tsc -b` anyway.
     - npm test
     - npm run build
   artifacts:
@@ -163,59 +163,59 @@ test-go:
     paths:
       - .go/pkg/mod/
   script:
-    # Formatierung ist keine Geschmacksfrage: unformatierter Code macht jeden
-    # späteren Diff größer als die Änderung, die er transportiert. gofmt -l
-    # nennt die Abweichler (tee zeigt sie im Job-Log), test -z lässt den Job
-    # scheitern, sobald die Liste nicht leer ist. Die Pfade kommen aus
-    # `go list`, damit nicht der Modul-Cache unter $GOPATH mitgeprüft wird.
+    # Formatting is not a matter of taste: unformatted code makes every later
+    # diff bigger than the change it carries. gofmt -l names the offenders
+    # (tee shows them in the job log), test -z fails the job as soon as the list
+    # is not empty. The paths come from `go list` so that the module cache under
+    # $GOPATH is not checked along with them.
     - test -z "$(gofmt -l $(go list -f '{{.Dir}}' ./...) | tee /dev/stderr)"
     - go vet ./...
-    # Coverage über alle Pakete messen: -coverpkg zählt auch Zeilen, die aus
-    # Tests anderer Pakete heraus abgedeckt werden (sonst nur paket-lokal).
+    # Measure coverage across all packages: -coverpkg also counts lines covered
+    # from the tests of other packages (otherwise only package-local).
     #
-    # Die Paketliste kommt aus `go list` statt als Muster `./...`: Als Muster
-    # instrumentierte -coverpkg auch die Abhängigkeiten mit. Im Profil landeten
-    # 673 Dateien, davon nur 119 aus covey/ — der Rest chromedp, pgx und
-    # Konsorten. Das druecke den Badge auf 14,3 %, waehrend der eigene Code
-    # tatsaechlich bei ~29 % liegt. Eine Kennzahl, die zur Haelfte fremden
-    # Code misst, taugt nicht als Trend.
-    # Die Ausgabe wird mitgeschrieben, weil ein gescheiterter Job sonst nichts
-    # hinterlässt, was man lesen könnte: coverage.txt und coverage.xml entstehen
-    # in Schritten NACH dieser Zeile, ein roter Lauf erreicht sie also nie. Als
-    # auf main ein Test flatterte, war hinterher nicht mehr feststellbar,
-    # welcher — der Trace ist der einzige Ort, an dem es stand.
+    # The package list comes from `go list` instead of the pattern `./...`: as a
+    # pattern, -coverpkg also instrumented the dependencies. The profile ended up
+    # with 673 files, only 119 of them from covey/ — the rest chromedp, pgx and
+    # company. That pushed the badge down to 14.3 % while our own code
+    # actually sits at ~29 %. A metric that measures foreign code for half of it
+    # is no use as a trend.
+    # The output is written along, because a failed job otherwise leaves nothing
+    # readable behind: coverage.txt and coverage.xml are produced in steps AFTER
+    # this line, so a red run never reaches them. When a test went flaky on
+    # main, it was no longer possible to tell afterwards which one — the trace is
+    # the only place where it stood.
     #
-    # Geschrieben wird in die Datei, nicht durch eine Pipe: `... | tee` gäbe den
-    # Ausgang von tee zurück und ein roter Test käme als grüner Job heraus. Das
-    # wäre der schlechtere von zwei Fehlern. `set -o pipefail` würde das lösen —
-    # und die dash kennt es nicht, also risse die Zeile den Job, sobald der
-    # Runner keine bash wählt. Die Umleitung braucht beides nicht.
+    # Written to a file, not through a pipe: `... | tee` would return the exit
+    # code of tee and a red test would come out as a green job. That would be
+    # the worse of the two errors.
+    # `set -o pipefail` would solve it -- and dash does not know it, so the
+    # line would drop the job as soon as the runner does not pick bash. The
+    # redirection needs neither.
     #
-    # -timeout ist eine SICHERUNG, kein Budget. Ohne Angabe schneidet `go test`
-    # ein Paket nach zehn Minuten ab, und diese Voreinstellung weiß nichts über
-    # die Maschine: Seit #239 die Datenbank mitbringt, LÄUFT die
-    # Integrationssuite hier wirklich — auf GitHub in 592 s, acht Sekunden
-    # unter dem Beil, und auf diesem Läufer, der dieselbe Arbeit mit etwa einem
-    # Drittel der Geschwindigkeit tut, darüber. Fünf rote Pipelines und zwei
-    # Tage ohne Deploy gingen darauf (#258), ohne dass es jemand sah: GitHub
-    # war grün.
+    # -timeout is a SAFETY NET, not a budget. Without it `go test` cuts a
+    # package off after ten minutes, and that default knows nothing about
+    # the machine: since #239 brings its own database, the integration
+    # suite REALLY runs here -- 592 s on GitHub, eight seconds under the axe, and
+    # on this runner, which does the same work at about a third of the speed,
+    # above it. Five red pipelines and two days without deploy went by (#258),
+    # without anyone seeing it: GitHub was green.
     - if ! go test -timeout 45m -coverprofile=coverage.out -coverpkg="$(go list ./... | paste -sd, -)" ./... > test.log 2>&1; then cat test.log; exit 1; fi
     - cat test.log
-    # Gesamt-Prozentwert für den GitLab-Coverage-Badge (siehe coverage-Regex unten).
+    # Overall percentage for the GitLab coverage badge (see coverage regex below).
     - go tool cover -func=coverage.out | tee coverage.txt
-    # Cobertura-Report für die MR-Diff-Coverage-Anzeige in GitLab.
-    # v1.5.0 statt v1.3.0: Letzteres zieht golang.org/x/tools v0.8.0 mit, und
-    # das laesst sich mit Go 1.26 nicht mehr uebersetzen ("invalid array
-    # length -delta * delta"). Der Job scheiterte deshalb an dieser letzten
-    # Zeile — nach gruenen Tests, weshalb GitLab den Coverage-Wert noch anzeigte.
+    # Cobertura report for the MR diff coverage view in GitLab.
+    # v1.5.0 instead of v1.3.0: the latter pulls golang.org/x/tools v0.8.0 along,
+    # and that cannot be compiled with Go 1.26 any more ("invalid array
+    # length -delta * delta"). The job failed at this last line because of it --
+    # after green tests, which is why GitLab still showed the coverage value.
     - go run github.com/boumenot/gocover-cobertura@v1.5.0 < coverage.out > coverage.xml
-  # GitLab liest den Gesamt-Coverage aus der Ausgabe von `go tool cover -func`
-  # (letzte Zeile "total: … 42.7%") und zeigt ihn als Badge/Trend an.
+  # GitLab reads the overall coverage from the output of `go tool cover -func`
+  # (last line "total: … 42.7%") and shows it as a badge/trend.
   coverage: '/^total:\s+\(statements\)\s+(\d+(?:\.\d+)?)%/'
   artifacts:
-    # when: always — der Fehlschlag ist der einzige Fall, in dem jemand das
-    # Testprotokoll sucht, und die Voreinstellung (on_success) wirft es genau
-    # dann weg.
+    # when: always -- the failure is the only case in which somebody
+    # looks for the test log, and the default (on_success) throws it
+    # away exactly then.
     when: always
     reports:
       coverage_report:
@@ -235,11 +235,11 @@ build-image:
     - test-go
   variables:
     DOCKER_BUILDKIT: "1"
-    # dind ohne TLS: leeres CERTDIR => Daemon lauscht auf tcp://docker:2375
-    # (plain), DOCKER_HOST zeigt den Client explizit dorthin. Ohne diese zwei
-    # Zeilen liegt der Daemon (mit TLS-CERTDIR) auf 2376, der Client defaultet
-    # aber auf 2375 => "Cannot connect to the Docker daemon at tcp://docker:2375".
-    # Erprobt im feeval-Projekt auf demselben Runner.
+    # dind without TLS: empty CERTDIR => daemon listens on tcp://docker:2375
+    # (plain), DOCKER_HOST points the client there explicitly. Without these two
+    # lines the daemon (with TLS CERTDIR) sits on 2376, but the client defaults
+    # to 2375 => "Cannot connect to the Docker daemon at tcp://docker:2375".
+    # Proven in the feeval project on the same runner.
     DOCKER_TLS_CERTDIR: ""
     DOCKER_HOST: tcp://docker:2375
     PUSH_IMAGE: "true"
@@ -247,8 +247,8 @@ build-image:
     - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
   script:
     - docker pull "$CI_REGISTRY_IMAGE:latest" || true
-    # Herkunft ins Binary schreiben (internal/buildinfo): im Image gibt es kein
-    # .git, also reicht die CI Tag/Commit/Bauzeit als Build-Args durch.
+    # Write the origin into the binary (internal/buildinfo): the image has no
+    # .git, so the CI tag/commit/build time pass through as build args.
     - docker build
         --cache-from "$CI_REGISTRY_IMAGE:latest"
         --build-arg BUILDKIT_INLINE_CACHE=1
@@ -274,33 +274,33 @@ build-image:
         docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG"
       fi
   rules:
-    # Auf MRs nur bauen (Smoke-Test), nicht pushen — dort fehlt oft das Registry-Recht.
+    # On MRs only build (smoke test), not push -- registry permission is often missing.
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       variables:
         PUSH_IMAGE: "false"
     - if: '$CI_COMMIT_BRANCH || $CI_COMMIT_TAG'
 
-# Die Sandbox-Images baut diese Pipeline NICHT mehr.
+# This pipeline does NOT build the sandbox images any more.
 #
-# Sie entstanden hier fuer die private Registry, und der Deploy pinnte die
-# Instanz per Umgebungsvariable darauf. Das kostete zwei Jobs und rund zwanzig
-# Minuten je Lauf — und es schloss jeden Host aus, der die Zugangsdaten zu
-# dieser Registry nicht hat. Genau das fiel mit dem ersten eigenen Runner auf:
-# `denied: access forbidden` beim Vorab-Holen des dev-Arbeitsplatzes.
+# They were created here for the private registry, and the deploy pinned the
+# instance to it via an environment variable. That cost two jobs and around
+# twenty minutes per run -- and it excluded every host that does not have the
+# credentials to this registry. That is exactly what surfaced with the first
+# own runner: `denied: access forbidden` while pulling the dev workplace ahead.
 #
-# Gebaut und veroeffentlicht werden sie in .github/workflows/sandbox-images.yml
-# — bei jedem Push auf main und zu jedem Tag, oeffentlich auf ghcr, im Katalog
-# per Digest gepinnt (spec/16). main geht auf beide Remotes, der
-# Katalog-Eintrag `main` verfolgt also dieselben Commits.
+# They are built and published in .github/workflows/sandbox-images.yml
+# -- on every push to main and for every tag, public on ghcr, pinned in the
+# catalogue by digest (spec/16). main goes to both remotes, so the
+# catalogue entry `main` tracks the same commits.
 
-# Rollt das gerade gebaute Image auf dem Zielhost aus. Voraussetzung: ein
-# GitLab-Runner mit Executor `shell` läuft AUF dem Zielhost und ist mit dem Tag
-# `covey-deploy` registriert; Docker + Compose-Plugin sind dort installiert.
+# Rolls out the image that was just built on the target host. Requirement: a
+# GitLab runner with the `shell` executor runs ON the target host and is
+# registered with the tag `covey-deploy`; Docker + the Compose plugin are installed there.
 #
-# Konfigurierbar über CI/CD-Variablen (Settings → CI/CD → Variables):
-#   DEPLOY_DIR         Zielordner auf dem Host (Default /opt/covey)
-#   COVEY_PUBLIC_URL   öffentliche URL (nur beim ERSTEN Deploy in die .env
-#                      geschrieben; danach dort pflegen)
+# Configurable through CI/CD variables (Settings → CI/CD → Variables):
+#   DEPLOY_DIR         target folder on the host (default /opt/covey)
+#   COVEY_PUBLIC_URL   public URL (written into the .env only on the FIRST
+#                      deploy; maintain it there afterwards)
 deploy:
   stage: deploy
   # Explicitly NOT interruptible, against the default above. This job stops the
@@ -318,11 +318,11 @@ deploy:
     GIT_STRATEGY: fetch
   script:
     - mkdir -p "$DEPLOY_DIR"
-    # Compose-Datei ist versionierte Config → bei jedem Deploy aktualisieren.
+    # The Compose file is versioned config → update it on every deploy.
     - cp docker-compose.deploy.yml "$DEPLOY_DIR/docker-compose.yml"
-    # Secrets liegen in einer persistenten .env im Deploy-Ordner. Beim ersten
-    # Deploy einmalig erzeugen (Master-Key + Passwörter zufällig), danach NIE
-    # anfassen — ein Master-Key-Wechsel macht alle hinterlegten Secrets unlesbar.
+    # Secrets live in a persistent .env in the deploy folder. Create it once on
+    # the first deploy (master key + passwords random), afterwards NEVER
+    # touch it -- a master key change makes all stored secrets unreadable.
     - |
       if [ ! -f "$DEPLOY_DIR/.env" ]; then
         echo "Kein .env in $DEPLOY_DIR — erzeuge einmalig frische Konfiguration."
@@ -337,36 +337,36 @@ deploy:
         echo "WICHTIG: $DEPLOY_DIR/.env sichern — enthält den Master-Key. Admin-Passwort steht dort."
       fi
     - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
-    # Alte Images wegräumen, BEVOR das neue gezogen wird. Der Host trägt das
-    # covey-Image je Deploy und dazu die Arbeitsplatz-Images aus dem Katalog
-    # (mit Chromium über 2 GB) — ohne Aufräumen läuft die Platte voll und der
-    # Pull scheitert mit "no space left on device" (so geschehen bei Pipeline
+    # Clear old images away, BEFORE the new one is pulled. The host carries the
+    # covey image per deploy plus the workplace images from the catalogue
+    # (over 2 GB with Chromium) -- without clearing, the disk runs full and the
+    # pull fails with "no space left on device" (as happened in pipeline
     # 539).
     #
-    # `until=24h` lässt alles von heute stehen: das gerade laufende Image, die
-    # Rollback-Ziele der letzten Deploys und vor allem das aktuelle
-    # Sandbox-Image, das an KEINEM laufenden Container hängt (Sandboxen sind
-    # ephemer) und von `prune -a` sonst mitgenommen würde. Volumes werden nie
-    # angefasst — dort liegt die Datenbank.
+    # `until=24h` leaves everything of today standing: the image just running,
+    # the rollback targets of the recent deploys and above all the current
+    # sandbox image, which hangs on NO running container (sandboxes are
+    # ephemeral) and would otherwise be taken along by `prune -a`. Volumes are
+    # never touched -- the database lies there.
     - docker system df || true
     - docker image prune -af --filter "until=24h" || true
     - docker system df || true
-    # Image auf den unveränderlichen Commit-Tag pinnen ("spezieller Tag").
+    # Pin the image to the immutable commit tag ("special tag").
     - export COVEY_IMAGE="$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
-    # Die Arbeitsplatz-Images pinnt dieser Job NICHT mehr. Sie kommen aus dem
-    # veroeffentlichten Katalog (spec/16), je covey-Version per Digest,
-    # oeffentlich auf ghcr — und ein Runner holt sich, was ihm fehlt. Vorher
-    # zog der Deploy sie vor, weil der covey-Container keine Zugangsdaten zur
-    # privaten Registry hat; mit dem ersten eigenen Runner wurde daraus ein
-    # Ausschluss, denn der Host hat sie ebenso wenig und soll sie nicht
-    # bekommen. Ein oeffentliches Image loest beides.
+    # This job does NOT pin the workplace images any more. They come from the
+    # published catalogue (spec/16), per covey version by digest,
+    # public on ghcr -- and a runner pulls what it lacks. Before, the deploy
+    # pulled them up front, because the covey container has no credentials for
+    # the private registry; with the first own runner that turned into an
+    # exclusion, since the host does not have them either and should not get
+    # them. A public image resolves both.
     - echo "Deploye $COVEY_IMAGE nach $DEPLOY_DIR (Arbeitsplaetze aus dem Katalog)"
     - cd "$DEPLOY_DIR"
-    # Die aktuellen Image-Tags zusätzlich in der .env persistieren: nur so
-    # funktionieren manuelle Compose-Befehle auf dem Host (z. B.
-    # `docker compose run --rm covey passwd …`) ohne exportierte Variablen.
-    # Die Secrets in der .env bleiben unberührt; beim CI-Lauf selbst gewinnt
-    # weiterhin die Shell-Umgebung über die .env-Interpolation.
+    # Also persist the current image tags in the .env: only that way do manual
+    # compose commands on the host (e.g.
+    # `docker compose run --rm covey passwd …`) work without exported variables.
+    # The secrets in the .env stay untouched; during the CI run itself
+    # the shell environment still wins over the .env interpolation.
     - |
       for var in COVEY_IMAGE; do
         val=$(printenv "$var")
@@ -376,22 +376,22 @@ deploy:
           echo "$var=$val" >> .env
         fi
       done
-      # Und die Arbeitsplatz-Zeilen frueherer Deploys AKTIV entfernen: eine
-      # gesetzte Variable schlaegt den Katalog, eine vergessene Zeile in der
-      # .env waere also der Deploy von gestern, der den von heute ueberstimmt.
+      # And remove the workplace lines of earlier deploys ACTIVELY: a set
+      # variable beats the catalogue, so a forgotten line in the
+      # .env would be yesterday's deploy overriding today's.
       sed -i "/^COVEY_SANDBOX_IMAGE=/d;/^COVEY_SANDBOX_IMAGE_DEV=/d" .env
-    # Sicherung, BEVOR hochgefahren wird — denn `up -d` lässt die Migrationen
-    # laufen, und das ist der eine Moment, in dem man eine gewollt hätte.
+    # Backup, BEFORE starting up -- because `up -d` runs the migrations,
+    # and that is the one moment in which one would have wanted to have one.
     #
-    # Zwei Dinge, und beide sind nötig: Die Datenbank kennt die Manifeste der
-    # Home-Schnappschüsse, die Blöcke unter data/blocks kennen ihren Inhalt. Wer
-    # nur eines sichert, hat nach einem Plattenschaden entweder ein Verzeichnis
-    # ohne Zuordnung oder eine Zuordnung ohne Inhalt. Gemessen an einem echten
-    # Entwickler-Home: 7 GB, davon 48 MB, die es sonst nirgends gibt (spec/16).
+    # Two things, and both are needed: the database knows the manifests of the
+    # home snapshots, the blocks under data/blocks know their content. Whoever
+    # backs up only one has, after a disk failure, either a directory without an
+    # assignment or an assignment without content. Measured on a real
+    # developer home: 7 GB, of which 48 MB exist nowhere else (spec/16).
     #
-    # Best effort und ausdrücklich nicht blockierend: Ein Deploy, der an seiner
-    # eigenen Sicherung scheitert, lässt eine Instanz auf einem Stand stehen,
-    # den niemand wollte. Was schiefging, steht im Job-Log.
+    # Best effort and explicitly not blocking: a deploy that fails at its own
+    # backup leaves an instance at a state nobody wanted. What went wrong stands
+    # in the job log.
     - |
       set +e
       backups="$DEPLOY_DIR/backups"
@@ -416,13 +416,13 @@ deploy:
         # this shell redirects — that keeps the file owned by the runner, like
         # the database dump beside it.
         #
-        # busybox statt des Sandbox-Images: Das stand hier, weil es ohnehin
-        # gezogen wurde. Seit die Arbeitsplaetze aus dem Katalog kommen, liegt
-        # es nicht mehr zwangslaeufig auf dem Host — und eine Sicherung soll
-        # nicht an einem mehrere Gigabyte grossen Download haengen. busybox
-        # bringt tar mit und wiegt zwei Megabyte.
+        # busybox instead of the sandbox image: this stood here because that
+        # image was pulled anyway. Since the workplaces come from the
+        # catalogue, it no longer sits on the host by necessity — and a backup
+        # should not hang on a download of several gigabytes. busybox brings
+        # tar and weighs two megabytes.
         #
-        # --user 0:0 ist tragend: das Blockverzeichnis gehoert root und ist 700.
+        # --user 0:0 carries weight: the block directory belongs to root and is 700.
         echo "Sichere Blockspeicher nach $backups/blocks-$stamp.tar.gz"
         docker run --rm --user 0:0 --entrypoint tar \
           -v "$blocks:/blocks:ro" busybox:1.36 \
@@ -438,14 +438,14 @@ deploy:
           echo "Blocksicherung: $(du -h "$backups/blocks-$stamp.tar.gz" | cut -f1)"
         fi
       fi
-      # Drei Stände je Art. Mehr wäre eine Aufbewahrung, die sich niemand
-      # ausgesucht hat, auf einer Platte, die auch die Sandbox-Images trägt.
+      # Three copies per kind. More would be a retention nobody chose, on a
+      # disk that also carries the sandbox images.
       ls -1t "$backups"/db-*.sql.gz 2>/dev/null | tail -n +4 | xargs -r rm -f
       ls -1t "$backups"/blocks-*.tar.gz 2>/dev/null | tail -n +4 | xargs -r rm -f
       df -h "$backups" | tail -1
       set -e
-    # COVEY_IMAGE kommt aus der Shell-Umgebung (überschreibt .env-Interpolation),
-    # alle Secrets liest Compose automatisch aus der .env im Ordner.
+    # COVEY_IMAGE comes from the shell environment (overwrites .env interpolation),
+    # Compose reads every secret from the .env in the folder automatically.
     - docker compose pull
     - docker compose up -d --remove-orphans
     - docker compose ps

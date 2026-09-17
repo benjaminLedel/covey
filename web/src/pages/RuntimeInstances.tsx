@@ -15,16 +15,16 @@ import {
   type SecretPreview,
 } from "../api";
 
-// Die Arbeitsplätze: Engine plus Kapazität, benannt und zuweisbar (spec/18).
+// The workstations: engine plus capacity, named and assignable (spec/18).
 //
-// Die Karte beantwortet drei Fragen in dieser Reihenfolge, weil sie in dieser
-// Reihenfolge gestellt werden: worauf arbeitet dieser Vertrag, wie voll ist er,
-// und wer sitzt darauf.
+// The card answers three questions in this order, because they are asked in
+// that order: what does this contract work on, how full is it,
+// and who sits on it.
 
-// Beträge und Anzahlen kommen aus format.ts — dieselbe Schreibweise wie auf der
-// Kostenseite und am Backlog. Diese Datei hatte ihre eigene Fassung („$12.30"
-// mit Zeichen vorn, Tokens als rohe Zahl), und zwei Schreibweisen für dieselbe
-// Sorte Zahl sind eine Frage zu viel für jeden, der beide Seiten offen hat.
+// Amounts and counts come from format.ts — the same notation as on the cost
+// page and in the backlog. This file had its own version (`$12.30` with
+// the sign in front, tokens as a raw number), and two notations for the same
+// kind of number are one question too many for anyone with both sides open.
 const fmtAmount = (n: number, unit: string) => (unit === "tokens" ? fmtCount(n) : fmtUSD(n));
 const fmtWindow = (secs: number) => (secs % 86400 === 0 ? `${secs / 86400} d` : `${Math.round(secs / 3600)} h`);
 
@@ -155,15 +155,15 @@ function RuntimeCard({
 
   const name = (id: string) => agents.find((a) => a.id === id)?.display_name ?? id.slice(0, 8);
   const seats = (ord: number) => rt.bindings.filter((b) => b.ord === ord);
-  /* Wer hier WIRKLICH sitzt — aus der Zuweisung, nicht aus der Engine
-     abgeleitet. Die alte Ableitung (`a.runtime === rt.engine`) zeigte den
-     gewollten Zustand statt des gespeicherten: ein Agent, dessen Engine
-     gewechselt wurde, während sein Sitz stehen blieb, erschien hier als
-     eingerichtet — und bekam beim Lauf den Zugang der fremden Engine. */
+  /* Who really sits here — from the assignment, not derived from the
+     engine. The old derivation (`a.runtime === rt.engine`) showed the
+     intended state instead of the stored one: an agent whose engine was
+     changed while its seat stayed put showed up here as set up — and got
+     the foreign engine's access at run time. */
   const assigned = agents.filter((a) => a.runtime_id === rt.id);
-  /* Und die Gegenprobe, die es vorher nicht gab: Agenten, die diese Engine
-     fahren, aber woanders sitzen. Das ist genau der Zustand, den die alte
-     Liste stillschweigend als in Ordnung ausgab. */
+  /* And the reverse check that did not exist before: agents running this
+     engine but sitting elsewhere. That is exactly the state the old list
+     silently passed as fine. */
   const stray = agents.filter((a) => a.runtime === rt.engine && a.runtime_id !== rt.id);
 
   return (
@@ -172,8 +172,8 @@ function RuntimeCard({
         <span className="font-medium">{rt.display_name}</span>
         <span className="mono text-xs muted">{engine?.label ?? rt.engine}</span>
         {rt.model && <span className="badge st-triage">{rt.model}</span>}
-        {/* Eine Engine ohne Resume trägt keinen Agenten, der auf eine Antwort
-            wartet — das gehört an die Zuweisung, nicht in eine Fußnote. */}
+        {/* An engine without resume does not carry an agent that is waiting
+            for an answer — that belongs at the assignment, not a footnote. */}
         {!rt.can_carry_blocking && (
           <span className="badge st-blocked" title={t("runtimes.instances.noResumeHint")}>
             {t("runtimes.instances.noResume")}
@@ -238,9 +238,9 @@ function RuntimeCard({
         ))}
       </div>
 
-      {/* Der Widerspruch bekommt eine Zeile und einen Knopf, statt unsichtbar
-          zu bleiben: hier fährt jemand diese Engine, sitzt aber auf einem
-          fremden Sitz — und bekommt damit dessen Zugangsdaten. */}
+      {/* The contradiction gets a line and a button, instead of staying
+          invisible: someone here runs this engine but sits on a
+          foreign seat — and so gets that seat's credentials. */}
       {stray.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap mt-2 text-xs">
           <span className="badge st-blocked">{t("runtimes.instances.strayLabel")}</span>
@@ -289,8 +289,8 @@ function CredentialRow({
     mutationFn: () => patch<{ ok: boolean }>(path, { cooldown: false }),
     onSuccess: onChanged,
   });
-  // Pausieren ist eine Entscheidung, kein Messwert: sie hält, bis jemand sie
-  // zurücknimmt — anders als der Cooldown, den die Plattform setzt (#260).
+  // Pausing is a decision, not a measurement: it holds until someone takes
+  // it back — unlike the cooldown the platform sets (#260).
   const setPaused = useMutation({
     mutationFn: (paused: boolean) => patch<{ ok: boolean }>(path, { paused }),
     onSuccess: onChanged,
@@ -301,8 +301,8 @@ function CredentialRow({
   const parked = !!c.cooldown_until && new Date(c.cooldown_until) > new Date();
   const used = c.limit.unit === "tokens" ? c.usage.tokens : c.usage.usd;
   const share = c.limit.window_secs > 0 && c.limit.amount > 0 ? Math.min(1, used / c.limit.amount) : 0;
-  // Die gemeldete Zahl schlägt unsere Hochrechnung — aber sie wird anders
-  // beschriftet, weil die eine eine Messung ist und die andere ein Schluss.
+  // The reported number beats our estimate — but it is labelled differently,
+  // because one is a measurement and the other an inference.
   const reported = c.reported && c.reported.window_percent >= 0 ? c.reported : undefined;
 
   return (
@@ -361,7 +361,7 @@ function CredentialRow({
         )}
       </div>
 
-      {/* Zuerst die gemeldete Zahl, wenn es sie gibt: sie kommt vom Anbieter. */}
+      {/* Reported number first, when there is one: it comes from the provider. */}
       {reported && (
         <div className="flex items-center gap-2 mt-1">
           <div style={{ flex: 1, height: 5, background: "var(--border)", borderRadius: 3 }}>
@@ -426,8 +426,8 @@ function CredentialRow({
         )}
       </div>
 
-      {/* Was die Geldzahl bedeutet, hängt an der Kapazitätsart — das steht
-          dabei, statt es dem Leser zu überlassen (spec/17). */}
+      {/* What the money number means hangs on the capacity kind — that stands
+          there, instead of leaving it to the reader (spec/17). */}
       {!c.metered && c.usage.usd > 0 && (
         <p className="muted m-0 mt-1" style={{ fontSize: 11 }}>
           {t("runtimes.instances.notionalHint")}
@@ -459,8 +459,8 @@ function AddCredential({
   const [slot, setSlot] = useState(0);
   const [label, setLabel] = useState("");
 
-  // Der Schlüssel folgt aus der Deklaration der Engine — er ist nicht frei
-  // wählbar, sonst stünde da ein Wert, den nichts einzuspielen weiß.
+  // The key follows from the engine's declaration — it is not freely
+  // choosable, else a value stands there that nothing knows how to load.
   const secret = secrets.find((s) => s.key === declared?.secret);
   const values = secret?.values ?? [];
 
@@ -538,8 +538,8 @@ function LimitForm({
 }) {
   const { t } = useTranslation();
   const [amount, setAmount] = useState(String(limit.amount || ""));
-  // Die ehrliche Einheit folgt aus der Kapazitätsart: Geld, wo Geld ausgegeben
-  // wird; das Fenster-Kontingent, wo es das nicht wird.
+  // The honest unit follows from the capacity kind: money where money is
+  // spent; the window quota where it is not.
   const [unit, setUnit] = useState<SecretLimit["unit"]>(limit.unit || (metered ? "usd" : "tokens"));
   const [hours, setHours] = useState(String(limit.window_secs ? limit.window_secs / 3600 : 5));
 

@@ -2,12 +2,12 @@ import { useTranslation } from "react-i18next";
 import { type IndicatorReport } from "../api";
 import { fmtDelta, fmtUSD } from "../format";
 
-/** Sparkline: der Verlauf als kleine Fläche, ohne Achsen und ohne Zahlen.
+/** Sparkline: the trend as a small area, without axes and without numbers.
  *
- *  Sie beantwortet eine Frage, die die Gesamtzahl verschweigt: ob 25 Reviews
- *  gleichmäßig über vier Wochen entstanden oder an einem einzigen Nachmittag.
- *  Bewusst ohne Beschriftung — wer den genauen Verlauf braucht, geht auf die
- *  Kostenseite; hier zählt die Form. */
+ *  It answers a question the total keeps silent on: whether 25 reviews grew
+ *  evenly across four weeks or on a single afternoon. Deliberately without
+ *  labels — whoever needs the exact trend goes to the costs page; what
+ *  counts here is the shape. */
 function Spark({ data, width = 54, height = 14 }: { data?: number[]; width?: number; height?: number }) {
   if (!data || data.length < 2) return null;
   const max = Math.max(...data);
@@ -28,16 +28,16 @@ function Spark({ data, width = 54, height = 14 }: { data?: number[]; width?: num
   );
 }
 
-/** Die Veränderung gegenüber dem gleich langen Zeitraum davor.
+/** The change against the preceding period of the same length.
  *
- *  `gutWennKleiner` färbt ein — und nur dort, wo die Richtung eindeutig ist.
- *  Beim Stückpreis ist sie das (billiger ist besser), bei der Anzahl nicht:
- *  doppelt so viele Tickets können doppelte Leistung oder doppelter
- *  Posteingang sein, und das entscheidet nicht die Oberfläche.
+ *  `gutWennKleiner` colours it — and only where the direction is unambiguous.
+ *  For the unit price it is (cheaper is better), for the count it is not:
+ *  twice as many tickets can be twice the work or twice the
+ *  inbox, and that is not for the UI to decide.
  *
- *  Ohne Vorwert (die Kennzahl ist neu, oder der Preis lag unter der
- *  Mindestmenge) gibt es keinen Trend — und keine 100 %, die nur bedeuten
- *  würde, dass vorher nichts da war. */
+ *  Without a previous value (the indicator is new, or the price fell below
+ *  the minimum quantity) there is no trend — and no 100 %, which would only
+ *  mean that there was nothing before. */
 function Delta({ now, prev, gutWennKleiner = false }: { now?: number; prev?: number; gutWennKleiner?: boolean }) {
   if (now === undefined || prev === undefined || prev <= 0) return null;
   const pct = Math.round(((now - prev) / prev) * 100);
@@ -54,27 +54,27 @@ function Delta({ now, prev, gutWennKleiner = false }: { now?: number; prev?: num
   );
 }
 
-/** Die Preisliste: was die Belegschaft geliefert hat, und was eine Einheit
- *  davon gekostet hat.
+/** The price list: what the workforce delivered, and what one unit of it
+ *  cost.
  *
- *  Die Anzahl steht neben dem Preis und wird nie von ihm ersetzt: „3,20 $ pro
- *  Ticket" sagt nichts darüber, ob der Agent fünf Tickets bearbeitet hat oder
- *  fünfhundert. Unter der Mindestmenge liefert der Server gar keinen Preis —
- *  dann steht dort nur die Rohzahl.
+ *  The count stands next to the price and is never replaced by it: "$3.20 per
+ *  ticket" says nothing about whether the agent handled five tickets or five
+ *  hundred. Below the minimum quantity the server returns no price at all —
+ *  then only the raw number stands there.
  *
- *  Die gescheiterten Läufe stehen im selben Block, ohne Preis. Sie sind keine
- *  Leistung, die man einkauft, aber ohne sie liest man die Preise falsch: wer
- *  jeden schweren Fall abgibt, hat auf dem Rest hervorragende Stückkosten.
+ *  The failed runs stand in the same block, without a price. They are not
+ *  work that you buy, but without them the prices read wrong: whoever hands
+ *  off every hard case has excellent unit costs across the rest.
  *
- *  compact schaltet auf die Leisten-Darstellung um: dieselben Zahlen, aber als
- *  Felder nebeneinander statt als Balkenliste.
+ *  compact switches to the strip display: the same numbers, but as fields
+ *  side by side instead of a list of bars.
  *
- *  Der Grund ist die Breite. Auf der Kostenseite steht die Liste in einer
- *  schmalen Rasterspalte, dort ordnen die Balken die Kennzahlen der Größe nach.
- *  Auf der Agentenseite läuft dieselbe Karte über die volle Fensterbreite —
- *  daraus werden meterlange Balken, die den eigentlichen Inhalt der Seite (die
- *  Reiter) aus dem Bild schieben. Gleiche Komponente, damit die beiden Ansichten
- *  dieselbe Lesart behalten; nur das Layout unterscheidet sich. */
+ *  The reason is width. On the costs page the list stands in a narrow grid
+ *  column, there the bars order the indicators by size. On the agent page the
+ *  same card runs across the full window width — that makes metre-long bars
+ *  which push the actual content of the page (the tabs) out of view. Same
+ *  component, so that both views keep the same reading; only the layout
+ *  differs. */
 export function PriceList({ rep, compact = false }: { rep?: IndicatorReport; compact?: boolean }) {
   const { t } = useTranslation();
   const rows = rep?.indicators ?? [];
@@ -92,11 +92,11 @@ export function PriceList({ rep, compact = false }: { rep?: IndicatorReport; com
             <span style={{ display: "flex", gap: 10, whiteSpace: "nowrap", alignItems: "center" }}>
               <span style={{ fontWeight: 600 }}>{r.count}</span>
               <Delta now={r.count} prev={r.prev_count} />
-              {/* Drei Fälle, und sie bedeuten Verschiedenes: ein Preis; zu
-                  wenige Ereignisse für einen belastbaren Preis; oder gar keine
-                  Ereignisse. „Zu wenige" bei null zu schreiben behauptete, es
-                  gäbe welche — und verdeckte genau den Fall, den der Lint auf
-                  der Agentenseite meldet. */}
+              {/* Three cases, and they mean different things: a price; too
+                  few events for a trustworthy price; or no events at
+                  all. Writing "too few" at zero would assert that there were
+                  some — and hide exactly the case the lint reports on the
+                  agent page. */}
               {r.unit_usd !== undefined ? (
                 <>
                   <span className="muted">{t("costs.indicators.perUnit", { price: fmtUSD(r.unit_usd) })}</span>
@@ -111,18 +111,18 @@ export function PriceList({ rep, compact = false }: { rep?: IndicatorReport; com
               )}
             </span>
           </div>
-          {/* Balken und Kurve nebeneinander, weil sie Verschiedenes sagen: der
-              Balken vergleicht die Kennzahlen untereinander, die Kurve zeigt
-              den Verlauf dieser einen über den Zeitraum. */}
+          {/* Bar and curve side by side, because they say different
+              things: the bar compares the indicators with each other, the
+              curve shows the trend of this one across the period. */}
           <div className="flex items-center" style={{ gap: 8 }}>
             <div style={{ flex: 1, height: 8, background: "var(--surface-1)", borderRadius: 4, overflow: "hidden" }}>
               <div style={{ width: `${(r.count / max) * 100}%`, height: "100%", background: "var(--text-accent)", borderRadius: 4 }} />
             </div>
             <Spark data={r.series} width={48} height={12} />
           </div>
-          {/* Die Nacharbeitsquote steht in derselben Zeile wie ihre Kennzahl:
-              ein Preis, dessen Qualitätszahl woanders liegt, wird allein
-              zitiert. */}
+          {/* The rework rate stands in the same line as its indicator:
+              a price whose quality number lies elsewhere gets
+              quoted on its own. */}
           {r.count > 0 && (r.returned ?? 0) > 0 && (
             <div className="muted text-xs" style={{ marginTop: 2 }} title={t("costs.indicators.returnedHint")}>
               {t("costs.indicators.returned", { pct: Math.round(((r.returned ?? 0) / r.count) * 100) })}
@@ -157,22 +157,22 @@ export function PriceList({ rep, compact = false }: { rep?: IndicatorReport; com
 }
 
 
-/** Die Leisten-Darstellung: ein Feld je Kennzahl, im Muster der Kostenleiste
- *  darüber (kleines Label, fetter Wert, Beiwerk klein darunter). Umbricht bei
- *  vielen Kennzahlen, statt in die Breite zu laufen.
+/** The strip display: one field per indicator, in the pattern of the cost
+ *  strip above it (small label, bold value, adjunct small below). Wraps when
+ *  there are many indicators, instead of running wide.
  *
- *  Die Gegenzahlen stehen am Ende derselben Leiste und nicht in einem eigenen
- *  Kasten: wer die Preise liest, soll ohne einen zweiten Blick sehen, wie viele
- *  Läufe nichts ergaben. */
+ *  The counter-numbers stand at the end of the same strip and not in a box of
+ *  their own: whoever reads the prices should see, without a second look, how
+ *  many runs produced nothing. */
 function PriceStrip({ rep, rows }: { rep: IndicatorReport; rows: NonNullable<IndicatorReport["indicators"]> }) {
   const { t } = useTranslation();
   return (
     <div className="card flex flex-wrap text-sm" style={{ gap: "10px 32px", alignItems: "flex-start" }}>
-      {/* Der Zeitraum steht VORNE, weil er alles dahinter beschriftet: direkt
-          darüber liegt die Kostenleiste mit den GESAMTkosten des Agenten, und
-          30-Tage-Zahlen ohne Kontext daneben laden zur Verwechslung ein.
-          Rechtsbündig am Ende rutschte er beim Umbruch allein in eine zweite
-          Zeile und machte die Leiste um ein Drittel höher. */}
+      {/* The period stands FIRST because it labels everything behind it:
+          directly above lies the cost strip with the agent's TOTAL costs, and
+          30-day figures without context beside it invite confusion.
+          Right-aligned at the end it slipped alone into a second line when
+          wrapping and made the strip a third taller. */}
       <div style={{ minWidth: 96 }}>
         <div className="muted text-xs">{t("costs.indicators.period")}</div>
         <div className="muted">{t("agent.performance.window")}</div>

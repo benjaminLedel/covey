@@ -9,11 +9,11 @@ import (
 	"github.com/google/uuid"
 )
 
-// Ein Sync, der nichts hochzuladen hat, ist trotzdem Arbeit: jeder Block wird
-// gelesen und gehasht. Genau dieser Fall — ein gewachsenes Home, das sich kaum
-// geändert hat — hat auf einer produktiven Instanz eine Viertelstunde gedauert
-// und dabei nichts von sich gesagt. Das Lebenszeichen darf also nicht daran
-// hängen, dass etwas über die Leitung geht.
+// A sync that has nothing to upload is still work: every block is read and
+// hashed. Exactly this case — a grown home that changed hardly at all —
+// took a quarter of an hour on a production instance and said nothing of
+// itself while it ran. The heartbeat may therefore not hang on something
+// going over the wire.
 func TestDasLebenszeichenHaengtNichtAmHochladen(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
@@ -35,7 +35,7 @@ func TestDasLebenszeichenHaengtNichtAmHochladen(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Zweiter Durchlauf: alles liegt schon im Store, es geht kein Byte hoch.
+	// Second run: everything is already in the store, not a byte goes up.
 	var meldungen int
 	res, err := SyncWatched(ctx, blobs, org, home, Excludes{}, func(gesehen int, bytesUp int64) {
 		meldungen++

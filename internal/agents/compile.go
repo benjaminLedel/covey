@@ -698,15 +698,15 @@ func PlatformRepoDoc(system, project, ref string, refIsTag, mayFile, mayRead boo
 			"and the version every report names"
 	}
 	if ref == "" {
-		// Ohne Provenance (Build ohne -ldflags) gibt es keinen Anker. Dann
-		// ehrlich sagen, dass die Zuordnung fehlt, statt den Default-Branch als
-		// „den laufenden Stand" auszugeben.
+		// Without provenance (build without -ldflags) there is no anchor. Then
+		// say honestly that the assignment is missing, instead of passing the
+		// default branch off as "the running state".
 		pinned = "the default branch — this instance carries no version information, " +
 			"so say in every report which state you read"
 	}
-	// Zwei Haelften, und sie haengen an verschiedenen Bedingungen: einreichen
-	// darf, wer begutachtet (die Steuerebene schreibt mit dem Konto der
-	// Organisation), lesen nur, wer das Zielsystem in seiner ACCESS.md hat.
+	// Two halves, and they hang on different conditions: filing is allowed to
+	// whoever reviews (the control plane writes with the organisation's
+	// account), reading only to whoever has the target system in their ACCESS.md.
 	source := `**You cannot read the source from here.** Nobody has given this agent access to
 ` + "`" + system + "`" + `, so report what the record proves — and say in the report that you
 could not read the code. A maintainer who knows that reads your evidence

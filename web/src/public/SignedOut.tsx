@@ -1,11 +1,11 @@
-/* Was ein Abgemeldeter von dieser Anwendung sieht: die Anmeldung und, wenn die
-   Installation sie offen hat, die Registrierung. Sonst nichts.
+/* What a signed-out visitor sees of this application: the sign-in and, when the
+   installation has it open, the sign-up. Nothing else.
 
-   Bis #130 stand hier PublicSite — die ganze öffentliche Website mit Routing
-   über acht Seiten, Kopfdaten, Vorrendern und einer Fußzeile. Sie ist mit #129
-   in ein eigenes Repository und auf einen eigenen Host gezogen. Damit fällt
-   auch die Sonderregel weg, die „/" für zwei Dinge zugleich hielt: Auf der
-   Adresse der Anwendung ist „/" die Anmeldung, und sonst gar nichts. */
+   Up to #130 this was PublicSite — the whole public website with routing over
+   eight pages, head data, prerendering and a footer. With #129 it moved into
+   its own repository and onto its own host. That also drops the special rule
+   that held `/` for two things at once: at the application address `/` is
+   the sign-in, and otherwise nothing. */
 
 import { useEffect } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
@@ -22,7 +22,7 @@ import { usePublicLang } from "./lang";
 import { useSignupState } from "./signupState";
 import { LANGS, PUBLIC_ROUTES, matchRoute, pathOf, type Lang } from "./routes";
 
-/* Die Anmeldeseite: Wortmarke, ein Satz, die Karte. */
+/* The sign-in page: wordmark, one line, the card. */
 function AnmeldenPage({ onLogin }: { onLogin: () => void }) {
   const { t } = useTranslation();
   return (
@@ -42,10 +42,10 @@ function AnmeldenPage({ onLogin }: { onLogin: () => void }) {
   );
 }
 
-/* Der Titel im Reiter. Head.tsx hat ihn früher mitsamt Canonical, hreflang und
-   strukturierten Daten gesetzt — davon bleibt hier nur der Titel: Was nicht
-   indexiert wird (robots.txt sperrt diese Adresse), braucht keine Kopfdaten,
-   aber ein offener Reiter soll trotzdem sagen, was er zeigt. */
+/* The title in the tab. Head.tsx used to set it together with canonical, hreflang
+   and structured data — of that only the title stays here: what is not
+   indexed (robots.txt blocks this address) needs no head data, but an open
+   tab should still say what it shows. */
 function useTitel(pathname: string) {
   useEffect(() => {
     const treffer = matchRoute(pathname);
@@ -57,13 +57,13 @@ export default function SignedOut({ onLogin }: { onLogin: () => void }) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const lang = usePublicLang();
-  /* Dieselbe Abfrage, die die Anmelde-Karte ohnehin stellt (TanStack cacht
-     sie nicht, aber der Hook hält sie pro Seite) — hier für die Adresse des
-     Quelltexts. */
+  /* The same query the sign-in card makes anyway (TanStack does not cache
+     it, but the hook keeps it per page) — here for the address of the
+     source code. */
   const { state: installation } = useSignupState();
   useTitel(pathname);
 
-  // Die Sprache folgt der Adresse (siehe lang.ts).
+  // The language follows the address (see lang.ts).
   useEffect(() => {
     if (i18n.language !== lang) void ladeSprache(lang);
   }, [lang]);
@@ -73,16 +73,16 @@ export default function SignedOut({ onLogin }: { onLogin: () => void }) {
     registrieren: <SignUp />,
   };
 
-  /* Alles andere gehört zur Anmeldung. Die Sprache dafür kommt aus der
-     gespeicherten Wahl (oder der des Browsers), nicht aus dem Pfad — eine
-     App-Adresse trägt keine. */
+  /* Everything else belongs to the sign-in. Its language comes from the
+     stored choice (or the browser's), not from the path — an app address
+     carries none. */
   const ziel = pathOf("anmelden", initialLang("/"));
 
-  /* Die Sprachwahl wechselt hier die Adresse, nicht nur den Katalog: Vor der
-     Anmeldung ist die Sprache Teil der URL (routes.ts), und wer /fr/connexion
-     im Reiter stehen hat, soll sie teilen können. Der Effekt oben lädt den
-     Katalog dann von selbst nach — eine Stelle, an der die Sprache gesetzt
-     wird, nicht zwei. */
+  /* The language picker changes the address here, not just the catalogue: before
+     the sign-in the language is part of the URL (routes.ts), and whoever has
+     /fr/connexion in the tab should be able to share it. The effect above
+     fetches the catalogue by itself — one place where the language is set,
+     not two. */
   const wechsleSprache = (neu: Lang) => {
     const treffer = matchRoute(pathname);
     navigate(pathOf(treffer?.route.id ?? "anmelden", neu));
@@ -102,7 +102,7 @@ export default function SignedOut({ onLogin }: { onLogin: () => void }) {
               <Route key={`${route.id}-${l}`} path={route.path[l]} element={elemente[route.id]} />
             )),
           )}
-          {/* Ohne Sprache im Pfad, weil sie aus einer Mail kommen (routes.ts). */}
+          {/* No language in the path — they come from a mail (routes.ts). */}
           <Route path="/verify" element={<Verify onLogin={onLogin} />} />
           <Route path="/reset" element={<Reset />} />
           <Route path="*" element={<Navigate to={ziel} replace />} />

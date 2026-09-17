@@ -1,14 +1,14 @@
 import { Fragment, type ReactNode } from "react";
 
-// Kleiner, abhängigkeitsfreier Markdown-Renderer für die Assistent-Bubbles
-// (FR-001). Deckt das ab, was das Modell typischerweise liefert: Überschriften,
-// Listen, Codeblöcke, Inline-Code, fett/kursiv und Links. Bewusst KEIN
-// dangerouslySetInnerHTML — es wird zu React-Elementen geparst, sodass React
-// jeden Text automatisch escaped (kein HTML-Injection-Vektor aus der LLM-Antwort).
+// Small dependency-free Markdown renderer for the assistant bubbles (FR-001).
+// Covers what the model typically delivers: headings, lists, code blocks,
+// inline code, bold/italic and links. Deliberately no dangerouslySetInnerHTML
+// — it parses into React elements, so React escapes every text by itself (no
+// HTML injection vector out of the LLM answer).
 
-// renderInline parst Inline-Auszeichnung: `code`, **fett**, *kursiv*/_kursiv_,
-// [text](url). Reihenfolge über eine gemeinsame Regex; Text dazwischen bleibt
-// unverändert (und wird von React escaped).
+// renderInline parses inline markup: `code`, **bold**, *italic*/_italic_,
+// [text](url). Order comes from one shared regex; the text in between stays
+// as it is (and React escapes it).
 const INLINE = /(`[^`]+`)|(\*\*[^*]+\*\*)|(\*[^*]+\*|_[^_]+_)|(\[[^\]]+\]\([^)]+\))/g;
 
 function renderInline(text: string, keyPrefix: string): ReactNode[] {
@@ -31,18 +31,18 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
       const link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(tok);
       const label = link?.[1] ?? tok;
       const href = link?.[2] ?? "";
-      // Nur sichere Schemata verlinken; sonst als Text belassen.
+      // Only link safe schemes; otherwise leave it as text.
       if (/^(https?:|mailto:)/i.test(href)) {
         nodes.push(
           <a key={key} href={href} target="_blank" rel="noopener noreferrer">{label}</a>,
         );
       } else if (/^\/(?!\/)/.test(href)) {
-        // Absolut-relative Adresse auf dieser Instanz (/docs/…). Ohne diesen
-        // Zweig blieb jeder interne Verweis stummer Text — die Docs konnten
-        // sich nicht untereinander verlinken, weder für Leser noch für
-        // Suchmaschinen. Kein target="_blank": das eigene Haus öffnet man
-        // nicht in einem neuen Fenster. Das (?!\/) hält "//fremde.example"
-        // draußen, das protokollrelativ nach außen führt.
+        // Root-relative address on this instance (/docs/…). Without this
+        // branch every internal link stayed silent text — the docs could not
+        // link to each other, neither for readers nor for search engines. No
+        // target="_blank": one does not open one's own house in a new window.
+        // The (?!\/) keeps "//fremde.example" out, which leads outside as
+        // protocol-relative.
         nodes.push(<a key={key} href={href}>{label}</a>);
       } else {
         nodes.push(label);
@@ -54,20 +54,20 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
   return nodes;
 }
 
-// Die Trennzeile einer Tabelle: |---|---:|:--:|. Sie ist das einzige sichere
-// Erkennungszeichen — ein Rohr allein steht auch mitten in einem Satz.
+// The separator row of a table: |---|---:|:--:|. It is the only reliable
+// sign — a pipe on its own also stands in the middle of a sentence.
 const TABLE_SEP = /^\s*\|?(\s*:?-+:?\s*\|)+\s*:?-*:?\s*\|?\s*$/;
 
-// cells zerlegt eine Zeile in ihre Zellen. Führendes und schließendes Rohr sind
-// in GFM optional, deshalb fliegen sie vor dem Trennen weg — sonst stünde am
-// Anfang und Ende je eine leere Spalte.
+// cells splits a row into its cells. Leading and trailing pipe are optional
+// in GFM, so they go away before the split — otherwise there would stand an
+// empty column at the start and at the end.
 function cells(row: string): string[] {
   return row.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map((c) => c.trim());
 }
 
-// alignments liest die Ausrichtung je Spalte aus der Trennzeile. Für einen
-// Zahlenbericht ist das kein Schmuck: rechtsbündige Zahlen vergleicht das Auge
-// stellenweise, linksbündige nicht.
+// alignments reads the alignment per column from the separator row. For a
+// number report this is no decoration: right-aligned numbers the eye compares
+// piecewise, left-aligned ones not.
 function alignments(sep: string): ("left" | "center" | "right" | undefined)[] {
   return cells(sep).map((c) => {
     const left = c.startsWith(":");
@@ -79,25 +79,25 @@ function alignments(sep: string): ("left" | "center" | "right" | undefined)[] {
   });
 }
 
-// isTableStart: diese Zeile ist die Kopfzeile UND die nächste die Trennzeile.
-// Beides zusammen, weil eine Kopfzeile ohne Trennzeile in GFM keine Tabelle
-// ist — und ein Absatz, der zufällig ein Rohr enthält, einer bleiben soll.
+// isTableStart: this row is the header row AND the next one the separator row.
+// Both together, because a header row without a separator row is no table in
+// GFM — and a paragraph that happens to hold a pipe should stay one.
 function isTableStart(lines: string[], i: number): boolean {
   return lines[i].includes("|") && i + 1 < lines.length && TABLE_SEP.test(lines[i + 1]);
 }
 
-// baseLevel: welche HTML-Ebene ein `#` bekommt.
+// baseLevel: which HTML level a `#` gets.
 //
-// Der Vorgabewert 4 gilt für die Stellen, an denen dieser Renderer eine
-// Antwort INNERHALB einer Seite darstellt — Assistent-Bubbles, Dateivorschau,
-// Wiki-Ausschnitte. Dort wäre ein h1 gelogen: die Seite hat ihre Überschrift
-// schon, und ein zweites h1 im Dokument ist für Screenreader wie für
-// Suchmaschinen eine falsche Aussage über den Aufbau.
+// The default of 4 holds for the places where this renderer shows an answer
+// INSIDE a page — assistant bubbles, file preview, wiki excerpts. An h1 there
+// would lie: the page already has its heading, and a second h1 in the document
+// is a false claim about the structure, for screen readers as for search
+// engines.
 //
-// Wo der Markdown-Text DIE Seite ist — der Docs-Bereich der Website —, ist
-// genau das Gegenteil richtig, und dort steht baseLevel={1}. Vorher rendete
-// auch dort jedes `#` als h4, und keine einzige Docs-Seite hatte eine
-// Hauptüberschrift.
+// Where the Markdown text IS the page — the docs area of the website — the
+// exact opposite is right, and there baseLevel={1} stands. Before, every
+// `#` rendered as h4 there as well, and not a single docs page came with a
+// main heading.
 export function Markdown({ text, baseLevel = 4 }: { text: string; baseLevel?: number }) {
   const lines = text.replace(/\r\n/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
@@ -107,10 +107,10 @@ export function Markdown({ text, baseLevel = 4 }: { text: string; baseLevel?: nu
   while (i < lines.length) {
     const line = lines[i];
 
-    // Leere Zeile → Blocktrenner.
+    // Empty line → block separator.
     if (line.trim() === "") { i++; continue; }
 
-    // Codeblock ```…```
+    // Code block ```…```
     if (line.trimStart().startsWith("```")) {
       const buf: string[] = [];
       i++;
@@ -118,27 +118,27 @@ export function Markdown({ text, baseLevel = 4 }: { text: string; baseLevel?: nu
         buf.push(lines[i]);
         i++;
       }
-      i++; // schließendes ``` überspringen
+      i++; // skip the closing ```
       blocks.push(
         <pre key={key++} className="md-pre"><code>{buf.join("\n")}</code></pre>,
       );
       continue;
     }
 
-    // Überschrift # / ## / ###
+    // Heading # / ## / ###
     const h = /^(#{1,3})\s+(.*)$/.exec(line);
     if (h) {
       const content = renderInline(h[2], `h${key}`);
-      // h1..h6 — tiefer geht HTML nicht, und eine vierte Ebene braucht der
-      // Renderer nicht zu können.
+      // h1..h6 — HTML goes no deeper, and the renderer need not be able to
+      // do a fourth level.
       const level = Math.min(baseLevel + h[1].length - 1, 6);
       const Tag = `h${level}` as "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
       blocks.push(<Tag key={key++} className="md-h">{content}</Tag>);
-      i++; // Zeile konsumieren — sonst Endlosschleife bei Überschriften
+      i++; // consume the line — otherwise an endless loop on headings
       continue;
     }
 
-    // Ungeordnete Liste (-, *) bzw. geordnete Liste (1.)
+    // Unordered list (-, *) or ordered list (1.)
     const isUl = /^\s*[-*]\s+/.test(line);
     const isOl = /^\s*\d+\.\s+/.test(line);
     if (isUl || isOl) {
@@ -155,12 +155,12 @@ export function Markdown({ text, baseLevel = 4 }: { text: string; baseLevel?: nu
       continue;
     }
 
-    // Tabelle: Kopfzeile, Trennzeile aus Strichen, Datenzeilen.
+    // Table: header row, separator row of dashes, data rows.
     //
-    // Ohne diesen Zweig fiel eine Tabelle in den Absatz-Zweig und stand als
-    // eine Reihe von Rohren im Fließtext (#225). Sie ist keine Kür: sobald ein
-    // Agent Zahlen berichtet, greift er zur Tabelle — und genau dort wird die
-    // Ausgabe unlesbar, wo sie am meisten zu sagen hat.
+    // Without this branch a table fell into the paragraph branch and stood as
+    // a row of pipes in the running text (#225). It is no extra credit: when
+    // an agent reports numbers it reaches for the table — and exactly there
+    // the output turns unreadable, where it has the most to say.
     if (isTableStart(lines, i)) {
       const head = cells(lines[i]);
       const align = alignments(lines[i + 1]);
@@ -172,8 +172,8 @@ export function Markdown({ text, baseLevel = 4 }: { text: string; baseLevel?: nu
       }
       const k = key++;
       blocks.push(
-        // Der Rahmen scrollt, nicht die Seite: eine breite Tabelle darf das
-        // Layout auf einem schmalen Fenster nicht auseinanderziehen.
+        // The frame scrolls, not the page: a wide table must not pull the
+        // layout apart on a narrow window.
         <div key={k} className="md-table-wrap">
           <table className="md-table">
             <thead>
@@ -202,7 +202,7 @@ export function Markdown({ text, baseLevel = 4 }: { text: string; baseLevel?: nu
       continue;
     }
 
-    // Absatz: aufeinanderfolgende Nicht-Leerzeilen mit <br> verbinden.
+    // Paragraph: join consecutive non-empty lines with <br>.
     const para: string[] = [];
     while (
       i < lines.length &&

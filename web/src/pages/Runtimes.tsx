@@ -37,9 +37,9 @@ function Steps({ steps }: { steps: SetupStep[] }) {
   );
 }
 
-/* embedded: die Seite steht unter einem Reiter, der die Überschrift schon
-   trägt (siehe Infrastructure.tsx). Zwei Überschriften übereinander sagen
-   nicht doppelt so viel. */
+/* embedded: the page sits under a tab that already carries the heading
+   (see Infrastructure.tsx). Two headings stacked do not say twice as
+   much. */
 export default function Runtimes({ me, embedded = false }: { me: Principal; embedded?: boolean }) {
   const { t } = useTranslation();
   const [openInfo, setOpenInfo] = useState<string | null>(null);

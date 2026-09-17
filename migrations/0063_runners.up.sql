@@ -1,44 +1,44 @@
--- Der Runner: der Ort, an dem eine Sandbox tatsaechlich laeuft.
+-- The runner: the place where a sandbox actually runs.
 --
--- Bisher startete die Control Plane Sandboxen direkt ueber die lokale
--- Docker-CLI, und der Egress-Proxy las seine Allowlist selbst aus Postgres.
--- Beides traegt genau so lange, wie Control Plane und Rechenlast auf derselben
--- Maschine sitzen. Spaetestens auf einem fremden Host hiesse es, die
--- Postgres-Zugangsdaten an jede Maschine zu verteilen — der Proxy ist aber ein
--- Durchsetzungspunkt, kein Datenbank-Client. Details in spec/16-runner.md.
+-- Until now the control plane started sandboxes directly via the local
+-- Docker CLI, and the egress proxy read its allowlist from Postgres itself.
+-- Both hold exactly as long as the control plane and the compute load sit on
+-- the same machine. On a foreign host it would at the latest mean handing the
+-- Postgres credentials to every machine — but the proxy is an enforcement
+-- point, not a database client. Details in spec/16-runner.md.
 --
--- Diese Migration legt nur die Identitaet an, gegen die sich der Proxy
--- authentifiziert. Das Protokoll, die Zuteilung und der ferne Runner kommen
--- spaeter (Stufen 2 und 4 der Baureihenfolge in spec/16).
+-- This migration only creates the identity against which the proxy
+-- authenticates. The protocol, the assignment and the remote runner come
+-- later (stages 2 and 4 of the build order in spec/16).
 
--- org_id NOT NULL: ein Runner haelt Homes und Daemon-Tokens, und beides ist
--- Eigentum genau eines Mandanten. Geteilter Blockspeicher zwischen zwei
--- Organisationen waere ein Kanal zwischen ihnen — dieselbe Begruendung, mit der
--- runtimes.org_id NOT NULL ist (0048).
+-- org_id NOT NULL: a runner holds homes and daemon tokens, and both are the
+-- property of exactly one tenant. Shared block storage between two
+-- organisations would be a channel between them — the same reason
+-- runtimes.org_id is NOT NULL (0048).
 CREATE TABLE runners (
     id           UUID PRIMARY KEY,
     org_id       UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    -- builtin: laeuft im covey-serve-Prozess, wird von der Plattform selbst
-    -- angelegt und tritt ab, sobald die Organisation einen eigenen
-    -- registriert. remote: per Registrierungs-Token hinzugekommen.
+    -- builtin: runs in the covey-serve process, is created by the platform
+    -- itself and steps down as soon as the organisation registers one of
+    -- its own. remote: added by a registration token.
     kind         TEXT NOT NULL CHECK (kind IN ('builtin', 'remote')),
-    -- Leer beim eingebauten: sein Name ist ein UI-Text und gehoert in die
-    -- Uebersetzungsdateien, nicht in die Datenbank.
+    -- Empty for the builtin one: its name is a UI text and belongs in the
+    -- translation files, not in the database.
     name         TEXT NOT NULL DEFAULT '',
-    -- Nur der Hash. Beim eingebauten Runner wird das Token bei jedem Start neu
-    -- gewuerfelt und liegt ausschliesslich im Prozess — ein langlebiges
-    -- Geheimnis waere hier nichts wert, weil es niemand ausserhalb braucht.
+    -- Only the hash. For the builtin runner the token is redrawn at every
+    -- start and lives exclusively in the process — a long-lived secret would
+    -- be worth nothing here, because nobody outside needs it.
     token_hash   TEXT NOT NULL DEFAULT '',
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     last_seen_at TIMESTAMPTZ
 );
 
--- Hoechstens ein eingebauter je Organisation; registrierte duerfen viele sein.
+-- At most one builtin per organisation; registered ones may be many.
 CREATE UNIQUE INDEX idx_runners_builtin ON runners (org_id) WHERE kind = 'builtin';
 CREATE INDEX idx_runners_org ON runners (org_id, kind);
 
--- Bestandsorganisationen bekommen ihren eingebauten Runner sofort, damit der
--- Proxy nach dem Upgrade eine Identitaet hat. Der Token-Hash bleibt leer und
--- wird beim naechsten Start gesetzt.
+-- Existing organisations get their builtin runner right away, so that the
+-- proxy has an identity after the upgrade. The token hash stays empty and
+-- is set at the next start.
 INSERT INTO runners (id, org_id, kind)
 SELECT gen_random_uuid(), o.id, 'builtin' FROM organizations o;

@@ -312,9 +312,9 @@ func TestNetworkIsolationRoutesEverythingThroughTheProxy(t *testing.T) {
 	}
 }
 
-// waitDockerBin ist ein docker-Ersatz für den Sterbefall: `wait` liefert den
-// Exit-Code aus einer Datei, `logs` die letzte Ausgabe des Containers — und
-// `rm` schreibt mit, dass aufgeräumt wurde.
+// waitDockerBin is a docker stand-in for the death case: `wait` returns the
+// exit code from a file, `logs` the container's last output — and `rm` notes
+// down that cleanup happened.
 func waitDockerBin(t *testing.T, dir, code, containerLog string) string {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, "code"), []byte(code+"\n"), 0o644); err != nil {
@@ -338,10 +338,10 @@ esac
 	return path
 }
 
-// Eine Sandbox, die beim Start stirbt, nahm ihre Ausgabe bisher mit: der
-// Container lief mit --rm und war weg, bevor irgendwer nachsehen konnte. In der
-// Aufzeichnung stand „exit 1" und sonst nichts — die Meldung, die einen
-// Menschen auf den Host schickt, wo der Container nicht mehr existiert.
+// TestDerTodEinerSandboxTraegtIhreLetztenWorte covers a sandbox that dies at the
+// start: it used to take its output along — the container ran with --rm and
+// was gone before anyone could look. The record said `exit 1` and nothing
+// else — a message sending a human to the host, where the container is gone.
 func TestDerTodEinerSandboxTraegtIhreLetztenWorte(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("das Docker-Double ist ein Shell-Skript")
@@ -357,14 +357,14 @@ func TestDerTodEinerSandboxTraegtIhreLetztenWorte(t *testing.T) {
 	if !strings.Contains(reason, "connection refused") {
 		t.Errorf("die letzte Ausgabe des Containers fehlt: %q", reason)
 	}
-	// Gelesen wird vor dem Entfernen — und entfernt wird, weil ohne --rm sonst
-	// der Name für den nächsten Weckruf belegt bliebe.
+	// Read before removal — and removal happens, because without --rm the name
+	// would stay taken for the next wake.
 	if _, err := os.Stat(filepath.Join(dir, "removed")); err != nil {
 		t.Error("der Container wurde nach dem Lesen nicht entfernt")
 	}
 }
 
-// Ein stiller Container bekommt keinen Satz angedichtet.
+// TestEinStillerTodBleibtStill invents no sentence for a silent container.
 func TestEinStillerTodBleibtStill(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("das Docker-Double ist ein Shell-Skript")
@@ -376,14 +376,14 @@ func TestEinStillerTodBleibtStill(t *testing.T) {
 	if strings.Contains(reason, "last output") {
 		t.Errorf("ohne Ausgabe darf keine behauptet werden: %q", reason)
 	}
-	// Der OOM-Verdacht bleibt, er ist die halbe Diagnose.
+	// The OOM suspicion stays, it is half the diagnosis.
 	if !strings.Contains(reason, "out of memory") {
 		t.Errorf("exit 137 sollte den OOM-Verdacht nennen: %q", reason)
 	}
 }
 
-// Ein Container, der minutenlang geredet hat, darf die Aufzeichnung nicht
-// fluten — aber das ENDE muss durch, dort steht der Grund.
+// TestNurDasEndeDerAusgabeReist keeps a container that talked for minutes from
+// flooding the record — but the END must come through, the reason stands there.
 func TestNurDasEndeDerAusgabeReist(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("das Docker-Double ist ein Shell-Skript")

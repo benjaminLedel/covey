@@ -1,42 +1,42 @@
--- Das Konto ueber der Mitgliedschaft, und die Codes, mit denen es entsteht.
+-- The account above the membership, and the codes that create it.
 --
--- Bis hierher war Anmeldung gleich Mitgliedschaft: eine Zeile in humans traegt
--- E-Mail, Passwort, Organisation und Rolle zugleich. Das schliesst aus, dass
--- eine Person in zwei Organisationen arbeitet — und es schliesst aus, dass eine
--- Person ueberhaupt existiert, bevor ihre Organisation es tut. Genau das
--- braucht die Selbstregistrierung: erst das Konto, dann Beitritt oder
--- Gruendung.
+-- Up to here login was the same as membership: one row in humans carries
+-- e-mail, password, organisation and role all at once. That rules out that a
+-- person works in two organisations — and it rules out that a person exists at
+-- all before their organisation does. Exactly that is what self-registration
+-- needs: first the account, then joining or
+-- founding.
 --
--- humans bleibt deshalb, was es ist — der Sitz in einer Organisation, auf den
--- zehn Fremdschluessel zeigen. Darueber liegt accounts, die Anmeldung. Verknuepft
--- werden beide, wenn die Sitzung auf das Konto umgestellt wird (P1 in FR-002);
--- bis dahin steht accounts fuer sich, und die Registrierung fuellt es.
+-- humans therefore stays what it is — the seat in an organisation, to which
+-- ten foreign keys point. Above it lies accounts, the login. The two are joined
+-- when the session is moved onto the account (P1 in FR-002); until then
+-- accounts stands on its own, and registration fills it.
 --
 -- feature-requests/002-plattform-registrierung.md
 CREATE TABLE accounts (
     id                UUID PRIMARY KEY,
-    email             TEXT NOT NULL UNIQUE, -- immer kleingeschrieben abgelegt
+    email             TEXT NOT NULL UNIQUE, -- always stored lowercase
     password_hash     TEXT NOT NULL,
     display_name      TEXT NOT NULL DEFAULT '',
-    -- NULL = noch nicht bestaetigt. Solange kein Mailversand eingerichtet ist,
-    -- setzt die Registrierung den Zeitpunkt sofort: eine Bestaetigung, die
-    -- niemand verschicken kann, waere ein Konto, das niemand je benutzt.
+    -- NULL = not confirmed yet. As long as no mail delivery is configured,
+    -- registration sets the timestamp right away: a confirmation that no
+    -- one can send would be an account that nobody ever uses.
     email_verified_at TIMESTAMPTZ,
-    -- Die Instanz-Ebene, ausdruecklich keine Organisations-Rolle: platform_admin
-    -- vergibt jede Organisation an sich selbst, system_admin niemand.
+    -- The instance level, explicitly no organisation role: platform_admin
+    -- grants every organisation to itself, system_admin nobody.
     platform_role     TEXT NOT NULL DEFAULT 'user'
                       CHECK (platform_role IN ('user','system_admin')),
     created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
     last_login_at     TIMESTAMPTZ
 );
 
--- Der Wartelisten-Code. Abgelegt wird nur sein Hash, wie bei den Sitzungen:
--- wer die Datenbank liest, bekommt daraus keine gueltigen Codes. Der Klartext
--- existiert genau einmal, im Moment der Erzeugung.
+-- The waitlist code. Only its hash is stored, as with the sessions: whoever
+-- reads the database gets no valid codes from it. The plaintext exists exactly
+-- once, in the moment of creation.
 --
--- Was am Code haengt, steht nicht im Code, sondern hier: wie oft er gilt, bis
--- wann, und ob er in eine bestimmte Organisation fuehrt (dann tritt sein
--- Inhaber bei, statt zu gruenden) oder nur fuer eine E-Mail-Domain gilt.
+-- What hangs on the code is stated not in code but here: how often it is
+-- valid, until when, and whether it leads into a specific organisation (then
+-- its holder joins instead of founding) or only applies to one e-mail domain.
 CREATE TABLE waitlist_codes (
     code_hash     TEXT PRIMARY KEY,
     label         TEXT NOT NULL DEFAULT '',   -- "Konferenz X", "Pilotkunde Y"
@@ -44,15 +44,15 @@ CREATE TABLE waitlist_codes (
     used_count    INTEGER NOT NULL DEFAULT 0,
     expires_at    TIMESTAMPTZ,
     org_id        UUID REFERENCES organizations(id) ON DELETE CASCADE,
-    email_pattern TEXT NOT NULL DEFAULT '',   -- z. B. "@firma.de"
+    email_pattern TEXT NOT NULL DEFAULT '',   -- e.g. "@firma.de"
     created_by    UUID REFERENCES humans(id) ON DELETE SET NULL,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     revoked_at    TIMESTAMPTZ,
     CHECK (max_uses > 0)
 );
 
--- Wer welchen Code eingeloest hat. Der Primaerschluessel verhindert nebenbei,
--- dass dasselbe Konto denselben Code zweimal verbraucht.
+-- Who redeemed which code. The primary key also keeps, beside that, the same
+-- account from spending the same code twice.
 CREATE TABLE waitlist_redemptions (
     code_hash   TEXT NOT NULL REFERENCES waitlist_codes(code_hash) ON DELETE CASCADE,
     account_id  UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,

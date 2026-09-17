@@ -235,16 +235,16 @@ func TestPlatformIssueGoesUpstreamWithoutAnAccount(t *testing.T) {
 		t.Fatalf("und mit seinen Belegen: %q", kanal.text)
 	}
 
-	// Auch ohne Adresse — er wartet dort auf einen Menschen — steht er im
-	// Posteingang, damit hier jemand sieht, was hinausging.
+	// Even without an address — it waits there for a human — it stands in the
+	// inbox, so that someone here sees what went out.
 	items, err := s.registry.ListImprovements(ctx, s.orgID, agents.ImprovementFilter{Kind: agents.KindIssue})
 	if err != nil || len(items) != 1 {
 		t.Fatalf("der Bericht gehoert auch hier in den Posteingang: %d, %v", len(items), err)
 	}
 }
 
-// Ein Kanal, der nichts annimmt, verschluckt den Befund nicht: der Agent
-// erfaehrt, dass er ihn in sein Review schreiben muss.
+// A channel that accepts nothing does not swallow the finding: the agent
+// learns that it has to write the finding into its review.
 func TestPlatformIssueSaysWhenNothingCanTakeIt(t *testing.T) {
 	s := newStack(t)
 	s.orch.Upstream = &kanalDouble{err: errors.New("kein Netz")}

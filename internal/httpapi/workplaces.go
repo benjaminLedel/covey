@@ -73,20 +73,20 @@ type workplaceView struct {
 	// Empty for an own workplace: there the organisation named the image, and
 	// what is in it, the platform does not know.
 	Provides *sandbox.WorkplaceDoc `json:"provides,omitempty"`
-	// LastPull ist, was das Holen dieses Images zuletzt gekostet hat —
-	// gemessen, nicht geschätzt (die Phase `image` aus der Aufzeichnung).
+	// LastPull is what fetching this image cost the last time — measured, not
+	// estimated (the `image` phase from the work record).
 	//
-	// Es steht hier, weil die Wahl eines Arbeitsplatzes sonst eine Wahl ohne
-	// Preisschild ist: Auf einer gemessenen Instanz trugen fünf von acht
-	// Agenten eine Compiler-Kette, um Wiki-Seiten zu schreiben. Nichts sagte
-	// ihnen, was das beim ersten Start auf einem frischen Host bedeutet.
+	// It stands here because choosing a workplace would else be a choice
+	// without a price tag: on a measured instance five of eight agents carried
+	// a compiler chain to write wiki pages. Nothing told them what that means
+	// for the first start on a fresh host.
 	//
-	// Fehlt, solange niemand dieses Image auf einem Host geholt hat, den diese
-	// Instanz kennt — das ist etwas anderes als „kostet nichts".
+	// Missing as long as nobody has fetched this image onto a host this
+	// instance knows — that is something else than "costs nothing".
 	LastPull *pullCost `json:"last_pull,omitempty"`
 }
 
-// pullCost ist ein gemessener Abruf: wie viel, wie lange, wann.
+// pullCost is a measured fetch: how much, how long, when.
 type pullCost struct {
 	Bytes int64     `json:"bytes,omitempty"`
 	MS    int64     `json:"ms,omitempty"`
@@ -96,10 +96,10 @@ type pullCost struct {
 func (s *Server) handleListWorkplaces(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 
-	// Dieselbe Reihenfolge, die auch die Sandbox startet: Umgebung, dann der
-	// veroeffentlichte Katalog, dann die kompilierte Voreinstellung. Die
-	// Ansicht soll zeigen, was gilt — nicht, was in einer der drei Quellen
-	// steht.
+	// The same order that the sandbox also starts with: the environment, then
+	// the published catalogue, then the compiled default. The view is to show
+	// what holds — not what stands in one of the three
+	// sources.
 	var env, catalogue map[string]string
 	if s.Config != nil {
 		env = s.Config.SandboxImageEnv
@@ -178,8 +178,8 @@ func (s *Server) handleListWorkplaces(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Ob ein Image bereitliegt, beantwortet der Runner: Es liegt dort, wo die
-	// Sandbox startet, nicht dort, wo die Control Plane laeuft.
+	// Whether an image lies ready is answered by the runner: it lies where the
+	// sandbox starts, not where the control plane runs.
 	if s.RunnerPool != nil {
 		present := s.RunnerPool.WorkplaceImages(r.Context(), p.OrgID, report)
 		for i := range out {
@@ -210,9 +210,9 @@ func (s *Server) handleCreateWorkplace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := strings.ToLower(strings.TrimSpace(in.Name))
-	// Ein Name aus dem Katalog ist vergeben, auch wenn diese Organisation ihn
-	// noch nie benutzt hat: Sonst haette ein Agent auf `dev` zwei Bedeutungen,
-	// und welche gilt, entschiede die Reihenfolge einer Schleife.
+	// A name from the catalogue is taken, even when this organisation never
+	// used it: else an agent would have two meanings for `dev`, and which one
+	// holds would be decided by the order of a loop.
 	if _, ok := sandbox.Get(name); ok {
 		writeErr(w, http.StatusConflict, "the name "+name+" belongs to a published workplace")
 		return
@@ -243,8 +243,8 @@ func (s *Server) handleDeleteWorkplace(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, workplaces.ErrNotFound):
 		writeErr(w, http.StatusNotFound, "not found")
 	case errors.Is(err, workplaces.ErrInUse):
-		// Loeschen wuerde die Agenten auf einen Namen zeigen lassen, hinter dem
-		// nichts mehr steht — auffallen wuerde es beim naechsten Wecken.
+		// Deleting would leave the agents pointing at a name behind which
+		// nothing stands any more — it would only be noticed on the next wake.
 		writeErr(w, http.StatusConflict, err.Error())
 	case err != nil:
 		mapErr(w, err)
@@ -288,12 +288,12 @@ func (s *Server) handlePullWorkplace(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// pullKosten liest aus der Aufzeichnung, was das Holen eines Images zuletzt
-// gekostet hat: je Image der jüngste abgeschlossene Bild-Abruf.
+// pullKosten reads from the work record what fetching an image cost the last
+// time: per image the most recent completed image fetch.
 //
-// Aus der Aufzeichnung und nicht aus einer eigenen Tabelle: die Ereignisse
-// liegen ohnehin dort, je Agent und dauerhaft, und eine zweite Ablage für
-// dieselbe Tatsache wäre eine weitere, die auseinanderlaufen kann.
+// From the work record and not from a table of its own: the events lie there
+// anyway, per agent and permanent, and a second store for the same fact would
+// be another one that can drift apart.
 func (s *Server) pullKosten(ctx context.Context, orgID uuid.UUID) map[string]*pullCost {
 	rows, err := s.Pool.Query(ctx, `SELECT DISTINCT ON (payload->>'detail')
 			payload->>'detail', coalesce((payload->>'bytes')::bigint,0),

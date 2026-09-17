@@ -11,15 +11,15 @@ import (
 	"covey/internal/sandbox"
 )
 
-// Wo das Image eines Arbeitsplatzes liegt, kommt aus einem Katalog — derselben
-// Form, in der die Plugins kommen (spec/22): eine Datei hinter einer URL,
-// gepinnt auf den Digest.
+// Where the image of a workplace lives comes from a catalogue — the same
+// form the plugins come in (spec/22): a file behind a URL, pinned to the
+// digest.
 //
-// Der Test haelt die Reihenfolge fest, die die ganze Sache traegt: Was die
-// Instanz ausdruecklich gesetzt hat, gewinnt; darunter der Katalog; darunter
-// die kompilierte Voreinstellung. Ein Katalog, der eine gesetzte Adresse
-// ueberstimmen koennte, liesse eine fremde Datei entscheiden, was auf einem
-// fremden Host laeuft.
+// The test holds the order that carries the whole thing: what the instance
+// has expressly set wins; below that the catalogue; below that the
+// compiled default. A catalogue that could overrule an address the
+// instance set itself would let a foreign file decide what runs on a
+// foreign host.
 func TestArbeitsplaetzeAusDemKatalog(t *testing.T) {
 	s := newStack(t)
 	c := login(t, s, "admin@test.local", "admin-passwort")
@@ -36,7 +36,7 @@ func TestArbeitsplaetzeAusDemKatalog(t *testing.T) {
 	defer katalog.Close()
 
 	s.srv.Workplaces = sandbox.NewSource(katalog.URL, nil, nil)
-	// Nur fuer `dev` hat diese Instanz selbst etwas gesagt.
+	// Only for `dev` did this instance itself say something.
 	s.srv.Config = &config.Config{
 		SandboxImage:    "covey-sandbox:test",
 		SandboxImageEnv: map[string]string{"dev": "eigenes-dev:2026"},
@@ -69,8 +69,8 @@ func TestArbeitsplaetzeAusDemKatalog(t *testing.T) {
 	}
 }
 
-// Ohne Katalog bleibt alles, wie es war. Ein Katalog ist eine Quelle mehr und
-// keine Voraussetzung — eine Installation ohne Netz soll nichts vermissen.
+// Without a catalogue everything stays as it was. A catalogue is one more
+// source and no precondition — an installation without network misses nothing.
 func TestOhneKatalogGeltenVoreinstellungUndUmgebung(t *testing.T) {
 	s := newStack(t)
 	c := login(t, s, "admin@test.local", "admin-passwort")

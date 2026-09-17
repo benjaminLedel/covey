@@ -625,14 +625,14 @@ func (s *Store) RuntimeUsage(ctx context.Context, runtimeID uuid.UUID, window ti
 	return out, rows.Err()
 }
 
-// CostByTasks liefert die Kosten einer Menge von Aufgaben in einem Rutsch —
-// task_id → Summe. Gedacht für Listenansichten (das Backlog), die neben jeder
-// Aufgabe zeigen wollen, was sie gekostet hat: einzeln abgefragt wäre das eine
-// Query pro Karte.
+// CostByTasks returns the costs of a set of tasks in one go — task_id → sum.
+// Meant for list views (the backlog), which want to show beside each task what
+// it cost: asked one by one,
+// that is a query per card.
 //
-// Aufgaben ohne Kosten fehlen in der Map. Das ist der ehrliche Zustand und
-// nicht dasselbe wie 0,00 $: eine Aufgabe, die noch wartet, hat noch nichts
-// gekostet — eine, die lief und nichts kostete, gibt es praktisch nicht.
+// Tasks without costs are absent from the map. That is the honest state and
+// not the same as $0.00: a task that still waits has not cost anything yet —
+// one that ran and cost nothing hardly exists in practice.
 func (s *Store) CostByTasks(ctx context.Context, taskIDs []uuid.UUID) (map[uuid.UUID]TaskCost, error) {
 	out := map[uuid.UUID]TaskCost{}
 	if len(taskIDs) == 0 {

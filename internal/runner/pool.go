@@ -712,8 +712,8 @@ func union(a, b []string) []string {
 }
 
 func (p *Pool) detach(c *conn) {
-	// Zuerst: wer noch auf eine Antwort wartet, wartet ab jetzt vergeblich und
-	// soll das sofort erfahren statt in einer halben Stunde.
+	// First: whoever still waits for an answer waits in vain from here on and
+	// should learn that at once, not in half an hour.
 	c.end()
 	p.mu.Lock()
 	if p.conns[c.runnerID] == c {
@@ -1113,32 +1113,32 @@ func (c *conn) refreshCapacity(ctx context.Context) {
 	}
 	c.applyCapacity(report)
 
-	// Die Lücke, auf die ein geplantes Update wartet. Der Kapazitätsbericht ist
-	// dafür die verlässlichste Quelle: er zählt, was der Host WIRKLICH trägt,
-	// und nicht, was die Steuerebene glaubt.
+	// The gap a planned update waits for. The capacity report is
+	// the most reliable source for it: it counts what the host REALLY carries,
+	// and not what the control plane believes.
 	//
-	// Er zählt allerdings nur Sandboxen. Ein Host, der keine trägt, kann gerade
-	// ein Home schreiben — genau das war der Fall, in dem ein eingeplantes
-	// Update einen laufenden Sync abgeschnitten hat: die Sandbox war seit einer
-	// Sekunde weg, der Sync lief noch elf Minuten. Was noch offen ist, weiß die
-	// Verbindung selbst.
+	// It counts only sandboxes, though. A host that carries none may be writing
+	// a home right now — that was exactly the case in which a planned
+	// update cut short a running sync: the sandbox had been gone for a
+	// second, the sync still ran for eleven minutes. What is still open, the
+	// connection itself knows.
 	if report.Sandboxes == 0 && c.pending() == 0 {
 		c.runPlannedUpdate(ctx)
 	}
 }
 
-// plannedRetry: so lange wird nach einem missglückten Versuch nicht erneut
-// gefragt. Ohne diese Bremse liefe ein Update, das an einem kaputten Download
-// scheitert, alle dreißig Sekunden wieder los.
+// plannedRetry: how long a failed attempt goes unanswered. Without this
+// brake an update that fails on a broken download would set off again
+// every thirty seconds.
 const plannedRetry = 5 * time.Minute
 
-// runPlannedUpdate führt aus, was für diesen Host vorgemerkt ist — jetzt, wo er
-// nichts trägt.
+// runPlannedUpdate carries out what was earmarked for this host — now that it
+// carries nothing.
 //
-// Der Plan bleibt stehen, solange er nicht erfüllt ist: ein Versuch, der an
-// einem Download scheitert, ist kein Grund, den Wunsch zu vergessen. Erfüllt
-// ist er, wenn der Host auf der gewünschten Fassung läuft — auch wenn ihn
-// jemand von Hand dorthin gebracht hat.
+// The plan stays in place as long as it is not fulfilled: an attempt that fails
+// on a download is no reason to forget the wish. It is fulfilled
+// when the host runs the wanted version — even if someone brought
+// it there by hand.
 func (c *conn) runPlannedUpdate(ctx context.Context) {
 	p := c.pool
 	if p.PlannedUpdate == nil || c.builtin {
@@ -1162,8 +1162,8 @@ func (c *conn) runPlannedUpdate(ctx context.Context) {
 	// its name is the tag its tree stands on, its binary is something else
 	// (#161).
 	if tag, dirty := versionTag(version); tag == want && !dirty {
-		// Schon da — dann war der Plan die Wirklichkeit, und der Wunsch ist
-		// erfüllt, ohne dass jemand etwas ersetzen musste.
+		// Already there — then the plan was reality, and the wish is
+		// fulfilled without anyone having to replace anything.
 		if p.PlannedUpdateDone != nil {
 			p.PlannedUpdateDone(ctx, c.runnerID, want)
 		}
@@ -1175,7 +1175,7 @@ func (c *conn) runPlannedUpdate(ctx context.Context) {
 	case err != nil:
 		p.Log.Warn("planned update did not run", "runner", short(c.runnerID), "err", err)
 	case res.Busy:
-		// Zwischen Bericht und Auftrag ist ein Lauf gestartet. Der Plan bleibt.
+		// A run started between the report and the order. The plan stays.
 		p.Log.Info("host became busy again — the update stays planned", "runner", short(c.runnerID))
 	case res.Err != "":
 		p.Log.Warn("planned update failed", "runner", short(c.runnerID), "err", res.Err)
@@ -1304,9 +1304,9 @@ func (c *conn) ask(ctx context.Context, msgType string, payload any, timeout tim
 	case answer := <-ch:
 		return answer, nil
 	case <-c.gone:
-		// Die Verbindung ist weg. Ein Neuaufbau ist der Beweis, dass das, was
-		// die alte tat, vorbei ist — hier auf den eigenen Zeitablauf zu warten
-		// hieße, eine halbe Stunde lang auf niemanden zu warten.
+		// The connection is gone. A rebuild is the proof that what
+		// the old one was doing is over — waiting here for our own timeout
+		// would mean waiting on nobody for half an hour.
 		return Message{}, fmt.Errorf("%w: runner %s while waiting for %s",
 			ErrRunnerGone, c.runnerID, msgType)
 	case <-ctx.Done():
@@ -1430,16 +1430,16 @@ func (p *Pool) imageFor(ctx context.Context, orgID uuid.UUID, want string) strin
 	if img, ok := p.profiles(ctx)[want]; ok && img != "" {
 		return img
 	}
-	// Ein Arbeitsplatz dieser Organisation. Nach dem Katalog gefragt, weil ein
-	// veroeffentlichter Name nicht ueberschrieben werden kann — welcher
-	// gemeint ist, darf nicht davon abhaengen, wer zuerst nachsieht.
+	// A workplace of this organisation. Asked of the catalogue because a
+	// published name cannot be overwritten — which one
+	// is meant must not depend on who looks first.
 	if orgID != uuid.Nil && p.OrgImages != nil {
 		if img, ok := p.OrgImages(ctx, orgID)[want]; ok && img != "" {
 			return img
 		}
 	}
-	// Instanzweit gefragt (Bereitschaftspruefung): dann ohne Mandant, aber die
-	// Namen sind dieselben.
+	// Asked instance-wide (readiness check): then without a tenant, but the
+	// names are the same.
 	if orgID == uuid.Nil && p.AllOrgImages != nil {
 		if img, ok := p.AllOrgImages(ctx)[want]; ok && img != "" {
 			return img
@@ -2132,8 +2132,8 @@ func (p *Pool) syncHomeReason(ctx context.Context, c *conn, agentID, orgID uuid.
 	return nil
 }
 
-// saySyncFailed meldet einen Sync, der nicht stattgefunden hat — dorthin, wo
-// ein Mensch hinsieht. Das Log allein hat wochenlang niemanden erreicht.
+// saySyncFailed reports a sync that did not take place — where a person looks.
+// The log alone reached nobody for weeks.
 func (p *Pool) saySyncFailed(ctx context.Context, agentID, runnerID uuid.UUID, reason, msg string) {
 	if p.SnapshotFailed == nil {
 		return

@@ -1,7 +1,7 @@
 DROP TABLE IF EXISTS agent_target_tools;
 
--- CHECKs auf den Stand von 0008 zurücksetzen (nur builtin|custom, custom
--- braucht manifest). mcp-Zeilen müssen vorher entfernt sein.
+-- Reset the CHECKs to the state of 0008 (only builtin|custom, custom
+-- needs manifest). mcp rows must be removed beforehand.
 DO $$
 DECLARE c text;
 BEGIN

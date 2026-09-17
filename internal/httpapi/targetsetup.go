@@ -16,39 +16,39 @@ import (
 	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
-// Einrichtung eines Zielsystems — der Zustand, den der Assistent führt.
+// Setup of a target system — the state that the assistant drives.
 //
-// Bisher stand die Einrichtung als Fließtext in SetupDoc, und jeder Schritt
-// darin führte woandershin: Secrets auf die eine Seite, ACCESS.md in den
-// Config-Editor des Agenten, die Webhook-URL musste man sich aus der
-// öffentlichen Adresse und einem Agenten-Slug selbst zusammensetzen. Ob es am
-// Ende zusammenpasste, zeigte sich beim ersten Lauf.
+// Until now setup stood as running text in SetupDoc, and each step in it led
+// somewhere else: secrets to one side, ACCESS.md into the agent's config
+// editor, the webhook URL one had to compose oneself from the public address
+// and an agent slug. Whether it all fitted at the end showed itself on the
+// first run.
 //
-// Dieser Endpunkt beantwortet dieselben Fragen als Zustand statt als Prosa:
-// Welche Zugangsdaten braucht das Plugin und liegen sie? Welche Scopes kennt
-// es? Nimmt es Webhooks an, und wie lautet die Adresse dann konkret? Welcher
-// Agent hat es schon in seiner ACCESS.md? Der Prosa-Teil bleibt — aber nur für
-// das, was im FREMDEN System zu tun ist, denn das kann diese Oberfläche nicht
-// für jemanden erledigen.
+// This endpoint answers the same questions as state instead of prose: which
+// credentials does the plugin need and are they present? Which scopes does it
+// know? Does it accept webhooks, and what does the address read then? Which
+// agent already has it in its ACCESS.md? The prose part stays — but only for
+// what is to be done in the FOREIGN system, since this surface cannot do that
+// for someone.
 
 type setupCredential struct {
 	Key  string `json:"key"`
 	Kind string `json:"kind"` // "url" | "token"
-	// Stored: ein Wert liegt org-weit vor. Nicht der Wert selbst — der ist
-	// write-only und bleibt es auch für einen Assistenten.
+	// Stored: a value exists org-wide. Not the value itself — that is
+	// write-only and stays that way for an assistant too.
 	Stored bool `json:"stored"`
-	// Optional: das Plugin arbeitet auch ohne diesen Wert.
+	// Optional: the plugin also works without this value.
 	Optional bool `json:"optional"`
 }
 
 type setupWebhook struct {
 	Supported bool `json:"supported"`
-	// URL mit der echten öffentlichen Adresse; <agent-slug> bleibt als
-	// Platzhalter stehen, bis der Assistent den Agenten kennt.
+	// URL with the real public address; <agent-slug> stays as a placeholder
+	// until the assistant knows the agent.
 	URL string `json:"url,omitempty"`
-	// SecretEnv ist die Prozess-Variable mit dem HMAC-Geheimnis, SecretSet
-	// sagt, ob sie gesetzt ist. Ohne sie nimmt der Endpunkt zwar an, aber
-	// ungeprüft — und das sollte man sehen, bevor man es produktiv nutzt.
+	// SecretEnv is the process variable holding the HMAC secret, SecretSet
+	// says whether it is set. Without it the endpoint does accept, but
+	// unchecked — and one should see that before using it in production.
 	SecretEnv string `json:"secret_env,omitempty"`
 	SecretSet bool   `json:"secret_set"`
 }
@@ -57,7 +57,7 @@ type setupAgent struct {
 	ID          uuid.UUID `json:"id"`
 	Slug        string    `json:"slug"`
 	DisplayName string    `json:"display_name"`
-	// Access: der Agent hat das System in seiner ACCESS.md.
+	// Access: the agent has the system in its ACCESS.md.
 	Access bool     `json:"access"`
 	Scopes []string `json:"scopes,omitempty"`
 }
@@ -69,9 +69,9 @@ type setupState struct {
 	Credentials []setupCredential `json:"credentials"`
 	Scopes      []string          `json:"scopes,omitempty"`
 	Webhook     setupWebhook      `json:"webhook"`
-	// Probe: das Plugin kann eine Verbindung prüfen. Wo es das nicht kann,
-	// überspringt der Assistent den Schritt sichtbar, statt ein Häkchen zu
-	// setzen, für das er keinen Beleg hat.
+	// Probe: the plugin can check a connection. Where it cannot, the assistant
+	// skips the step visibly, instead of setting a checkmark for which it has
+	// no evidence.
 	Probe    bool         `json:"probe"`
 	Agents   []setupAgent `json:"agents"`
 	SetupDoc string       `json:"setup_doc,omitempty"`
@@ -107,23 +107,23 @@ func (s *Server) handleTargetSetup(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "unknown target system")
 		return
 	}
-	// Die Flags (welche Zugangsdaten, welche Scopes) stehen im Descriptor des
-	// kompilierten Plugins. Manifest- und MCP-Plugins haben keinen — dort
-	// bleiben die Felder leer, und der Assistent zeigt entsprechend weniger.
+	// The flags (which credentials, which scopes) stand in the descriptor of
+	// the compiled plugin. Manifest and MCP plugins have none — there the
+	// fields stay empty, and the assistant shows correspondingly less.
 	plugin, _ := target.Describe(name)
 	state.Scopes = plugin.Scopes
-	// Ein Manifest-Plugin hat keinen Descriptor, aber sein Scope-Vokabular
-	// steht in der Datei — sonst böte der Assistent für Katalog-Plugins gar
-	// keine Scopes an und jedes Wort in ACCESS.md wäre geraten.
+	// A manifest plugin has no descriptor, but its scope vocabulary stands in
+	// the file — otherwise the assistant would offer no scopes at all for
+	// catalogue plugins and every word in ACCESS.md would be guesswork.
 	if len(state.Scopes) == 0 && kind == "custom" {
 		if m, err := manifestplug.Parse(definition); err == nil {
 			state.Scopes = m.Scopes
 		}
 	}
 
-	// Welche Zugangsdaten das Plugin braucht, steht in seinen Flags — die
-	// Namenskonvention <system>_url/<system>_token ist dieselbe, die der
-	// Broker zur Laufzeit auflöst.
+	// Which credentials the plugin needs stands in its flags — the naming
+	// convention <system>_url/<system>_token is the same one the broker
+	// resolves at run time.
 	if !plugin.NoCredentials {
 		keys, err := s.Secrets.Keys(r.Context(), p.OrgID)
 		if err != nil {
@@ -149,13 +149,13 @@ func (s *Server) handleTargetSetup(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// Webhook: Ob ein Plugin welche annimmt, steht nicht in einer Liste,
-	// sondern in dem, was es implementiert (target.Webhooker). Deshalb wird
-	// hier gefragt und nicht nachgeschlagen.
-	// Definition statt target.Get: ein Manifest-Plugin steht nicht in der
-	// kompilierten Registry, kann aber genauso einen Webhook annehmen und seine
-	// Verbindung testen — es sagt das nur in seiner Datei statt in seinem
-	// Methodensatz. target.Probes fragt beides zusammen.
+	// Webhook: whether a plugin accepts any does not stand in a list, but in
+	// what it implements (target.Webhooker). Hence it is asked here, not looked
+	// up.
+	// Definition instead of target.Get: a manifest plugin is not in the
+	// compiled registry, yet it may just as well accept a webhook and test its
+	// connection — it only says so in its file instead of its method set.
+	// target.Probes asks both together.
 	if sys, err := s.Targets.Definition(r.Context(), p.OrgID, name); err == nil {
 		if _, isHook := sys.(target.Webhooker); isHook {
 			env := "COVEY_" + strings.ToUpper(name) + "_WEBHOOK_SECRET"
@@ -169,8 +169,8 @@ func (s *Server) handleTargetSetup(w http.ResponseWriter, r *http.Request) {
 		_, state.Probe = target.Probes(sys)
 	}
 
-	// Wer hat das System schon? Die Antwort steht in der ACCESS.md der
-	// Agenten, also dort, wo sie auch gilt.
+	// Who already has the system? The answer stands in the ACCESS.md of the
+	// agents, that is where it holds too.
 	agentList, err := s.Registry.List(r.Context(), p.OrgID)
 	if err != nil {
 		mapErr(w, err)
@@ -189,12 +189,12 @@ func (s *Server) handleTargetSetup(w http.ResponseWriter, r *http.Request) {
 		}
 		state.Agents = append(state.Agents, entry)
 	}
-	// Leere Listen sind leere Listen und nicht null. Das Feld heisst
-	// `credentials` ohne omitempty, die Oberflaeche liest es als Array — ein
-	// nil-Slice wird in JSON aber zu null, und `null.length` beendet die
-	// Einrichtung mit einem TypeError, bevor sie etwas anzeigt. Getroffen hat
-	// es genau die Systeme, die keine Zugangsdaten brauchen (browser, dev):
-	// dort haengt an der Fallunterscheidung oben nie ein append.
+	// Empty lists are empty lists and not null. The field is called
+	// `credentials` without omitempty, the surface reads it as an array — a
+	// nil slice does become null in JSON, and `null.length` ends the setup
+	// with a TypeError before it displays anything. It hit exactly the systems
+	// that need no credentials (browser, dev): there no append ever hangs on
+	// the case distinction above.
 	if state.Credentials == nil {
 		state.Credentials = []setupCredential{}
 	}
@@ -205,12 +205,12 @@ func (s *Server) handleTargetSetup(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, state)
 }
 
-// handleTargetProbe stellt die eine Frage, die "gespeichert" von "funktioniert"
-// unterscheidet: Antwortet das System auf die hinterlegten Zugangsdaten, und
-// als wen.
+// handleTargetProbe asks the one question that tells "saved" from
+// "works": does the system answer to the stored credentials, and as
+// whom.
 //
-// Der Aufruf ist lesend und läuft in der Control Plane — das Token verlässt
-// sie dabei nicht Richtung Sandbox.
+// The call is read-only and runs in the control plane — the token does not
+// leave it toward the sandbox on the way.
 type probeResult struct {
 	OK       bool   `json:"ok"`
 	Identity string `json:"identity,omitempty"`
@@ -301,17 +301,17 @@ func (s *Server) handleTargetProbe(w http.ResponseWriter, r *http.Request) {
 		_ = s.Secrets.RecordProbe(r.Context(), ref, rec)
 	}
 	if err != nil {
-		// Die Fehlermeldung des Zielsystems steht hier bewusst so, wie sie
-		// kam: "HTTP 401" ist für den, der gerade einen Token eingesetzt hat,
-		// die brauchbarste Auskunft, die es gibt.
+		// The target system's error message stands here deliberately as it
+		// arrived: "HTTP 401" is the most useful answer there is for whoever
+		// just put a token in.
 		writeJSON(w, http.StatusOK, probeResult{Error: err.Error()})
 		return
 	}
 	writeJSON(w, http.StatusOK, probeResult{OK: true, Identity: info.Identity, ExpiresAt: info.ExpiresAt, Rotatable: info.Rotatable})
 }
 
-// orgSecret liest einen org-weiten Wert (Slot 0) — den, den der Broker zur
-// Laufzeit auch nähme.
+// orgSecret reads an org-wide value (slot 0) — the one the broker would also
+// take at run time.
 func (s *Server) orgSecret(ctx context.Context, orgID uuid.UUID, key string) (string, error) {
 	return s.Secrets.Value(ctx, orgID, key, 0)
 }

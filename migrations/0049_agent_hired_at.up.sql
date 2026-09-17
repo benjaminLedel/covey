@@ -1,22 +1,22 @@
--- Der Entwurf: ein Agent, den es gibt, den aber noch niemand eingestellt hat.
+-- The draft: an agent that exists, that nobody has hired yet.
 --
--- Technisch haette der Kill-Switch gereicht — ein toter Agent laeuft ebenfalls
--- nicht. Er wuerde aber zwei verschiedene Tatsachen in dasselbe Feld legen:
--- "der wurde gestoppt" und "der hat noch nicht angefangen". Und das Einstellen
--- ist keine Fahne, sondern ein Zeitpunkt: er steht spaeter im Mitarbeiterprofil
--- neben dem eines Menschen. Details in spec/20-hiring-and-setup.md.
+-- Technically the kill switch would have been enough — a dead agent does not
+-- run either. But it would put two different facts in the same field: "this
+-- one was stopped" and "this one has not started yet". And hiring is not a
+-- flag, but a point in time: it will later stand in the employee profile
+-- next to that of a human. Details in spec/20-hiring-and-setup.md.
 --
--- NULL = Entwurf: wird nicht dispatcht, kein Heartbeat, kein scharfer Webhook,
--- keine Sandbox, keine Kosten. Aufgaben duerfen trotzdem im Backlog liegen und
--- warten auf den ersten Tag.
+-- NULL = draft: not dispatched, no heartbeat, no live webhook, no
+-- sandbox, no costs. Tasks may still lie in the backlog and wait for the
+-- first day.
 ALTER TABLE agents ADD COLUMN hired_at TIMESTAMPTZ;
 
--- Niemand wacht als Entwurf auf: alles, was es heute gibt, arbeitet seit seiner
--- Anlage.
+-- Nobody wakes up as a draft: everything that exists today has been working
+-- since it was created.
 UPDATE agents SET hired_at = created_at;
 
--- Kein Index auf dieser Spalte. Jede Abfrage, die ueber sie filtert — der Tick,
--- die Heartbeats, das Team-Verzeichnis — sucht `hired_at IS NOT NULL`, und das
--- trifft so gut wie jede Zeile: ein Index darauf wird nicht benutzt. Der
--- umgekehrte Teilindex (IS NULL) faende die Entwuerfe schnell, aber danach
--- fragt niemand in SQL — die Oberflaeche sortiert die Liste im Browser.
+-- No index on this column. Every query that filters on it — the tick, the
+-- heartbeats, the team directory — looks for `hired_at IS NOT NULL`, and that
+-- matches practically every row: an index on it is not used. The reverse
+-- partial index (IS NULL) would find the drafts quickly, but nobody asks for
+-- that in SQL — the interface sorts the list in the browser.

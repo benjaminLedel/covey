@@ -12,13 +12,13 @@ import (
 	"github.com/google/uuid"
 )
 
-/* Die Arbeitsplatz-Ansicht zeigte den letzten geglückten Schnappschuss — wahr
-   und nutzlos, während seither jeder Versuch scheiterte. Auf einer produktiven
-   Instanz war das wochenlang so und kostete einen 39-Minuten-Lauf (#72).
+/* The workplace view showed the last successful snapshot — true and useless
+   while every attempt since then failed. On a productive instance that stood
+   for weeks and cost a 39-minute run (#72).
 
-   Geprüft wird hier die Auskunft, nicht der Fehlschlag selbst: dass ein
-   fehlgeschlagener Versuch überhaupt aufgeschrieben wird, steht im Runner-Test
-   daneben. Hier zählt, was ein Mensch danach sieht. */
+   Checked here is the report, not the failure itself: that a failed attempt
+   gets written down at all stands in the Runner test next door. What counts
+   here is what a person sees afterwards. */
 
 func TestDieArbeitsplatzAnsichtSagtWennSeitherNichtsGesichertWurde(t *testing.T) {
 	if runtime.GOOS == "windows" {
@@ -76,14 +76,14 @@ func TestDieArbeitsplatzAnsichtSagtWennSeitherNichtsGesichertWurde(t *testing.T)
 		t.Fatalf("es ist nichts schiefgegangen und es steht trotzdem etwas da: %+v", view.LastFailure)
 	}
 
-	// Ein Fehlschlag NACH dem Schnappschuss — so, wie ihn die Steuerebene
-	// aufschreibt (cmd/covey: SnapshotFailed).
+	// A failure AFTER the snapshot — the way the control plane writes it
+	// down (cmd/covey: SnapshotFailed).
 	schreibeFehlschlag(t, s, agent.ID, agent.OrgID, "block 78a279df: 413 Request Entity Too Large",
-		// Kurz NACH dem Schnappschuss, nicht in der Zukunft: der zweite
-		// Schnappschuss unten entsteht gleich und muss ihn überholen können.
-		// Eine Millisekunde, und danach wird gewartet — der ganze Test läuft in
-		// zehn Millisekunden ab, und mit zehn Millisekunden Vorsprung entstand
-		// der zweite Schnappschuss VOR dem Fehlschlag, den er überholen sollte.
+		// Just AFTER the snapshot, not in the future: the second snapshot
+		// below is created shortly and must be able to overtake it. One
+		// millisecond, and then the loop waits — the whole test runs through
+		// in ten milliseconds, and with ten milliseconds of lead the second
+		// snapshot came to be BEFORE the failure it should overtake.
 		view.Latest.CreatedAt.Add(time.Millisecond))
 
 	view = lies()
@@ -94,11 +94,11 @@ func TestDieArbeitsplatzAnsichtSagtWennSeitherNichtsGesichertWurde(t *testing.T)
 		t.Fatalf("die Auskunft ist unvollständig: %+v", view.LastFailure)
 	}
 
-	// Und er verschwindet wieder, sobald ein neuer Schnappschuss ihn überholt:
-	// „es hat seither geklappt" ist eine Auskunft, die niemand suchen muss.
+	// And it disappears again as soon as a new snapshot overtakes it: "it
+	// worked since then" is a report nobody has to go looking for.
 	//
-	// Abwarten, bis die Uhr über dem Fehlschlag steht: sonst prüft der Test
-	// nicht das Überholen, sondern die Geschwindigkeit der Maschine.
+	// Wait until the clock stands above the failure: otherwise the test
+	// checks the speed of the machine, not the overtaking.
 	for time.Now().Before(view.LastFailure.At.Add(2 * time.Millisecond)) {
 		time.Sleep(time.Millisecond)
 	}

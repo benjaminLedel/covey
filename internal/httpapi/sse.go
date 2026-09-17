@@ -19,9 +19,9 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	// Die Verbindung gehört einer Organisation — sie bekommt nur deren
-	// Ereignisse (FR-003, Befund A). Ein Konto ohne Mitgliedschaft abonniert
-	// die leere UUID und hört damit nichts, statt alles.
+	// The connection belongs to one organisation — it gets only that one's
+	// events (FR-003, finding A). An account without membership subscribes to
+	// the empty UUID and thus hears nothing, instead of everything.
 	ch, cancel := s.Orch.Events().Subscribe(principalFrom(r).OrgID)
 	defer cancel()
 

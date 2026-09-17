@@ -1,17 +1,17 @@
-# Die Ordnung des Doku-Bereichs — Reihenfolge der Abschnitte, Reihenfolge der
-# Seiten darin, und wie ein Abschnitt in der Navigation heißt.
+# The order of the docs area: order of the sections, order of the pages inside
+# them, and what a section is called in the navigation.
 #
-# Warum hier und nicht aus dem Dateisystem: eine alphabetische Reihenfolge
-# stellt "Architektur" vor "Was ist covey?", und die Doku hat eine Leserichtung.
-# Die Titel der Abschnitte stehen ebenfalls hier, weil sie zu keiner Seite
-# gehören — sie sind Überschriften der Navigation.
+# Why here and not from the file system: an alphabetical order puts "Architektur"
+# before "Was ist covey?", and the docs have a reading direction. The titles of
+# the sections stand here too, because they belong to no page — they are headings
+# of the navigation.
 #
-# Der Rest steht in den Seiten selbst: Adresse, Titel, Description und FAQ im
-# Frontmatter jeder Datei (docs/en/… ist die Quelle, docs/de/… die Übersetzung
-# unter demselben relativen Pfad).
+# The rest stands in the pages themselves: address, title, description and FAQ in
+# the frontmatter of each file (docs/en/… is the source, docs/de/… the
+# translation under the same relative path).
 #
-# Eine Seite, die hier fehlt, wird nicht ausgeliefert — der Test in
-# web/src/public/docs/docs.test.ts sagt es.
+# A page that is missing here is not served — the test in
+# web/src/public/docs/docs.test.ts says that.
 
 sections:
   - id: introduction
@@ -36,8 +36,8 @@ sections:
       - identity-and-secrets
       - backlog-and-lifecycle
 
-  # Die Übersicht steht vorn, die Rezepte danach alphabetisch: wer ein
-  # bestimmtes Zielsystem sucht, sucht es unter seinem Namen.
+  # The overview stands first, the recipes after it alphabetically: whoever
+  # looks for a target system looks for it under its name.
   - id: integrations
     title: { de: Integrationen, en: Integrations }
     pages:

@@ -31,10 +31,10 @@ import (
 	"covey/internal/memory"
 )
 
-// Das Modell steht nicht mehr hier: der Traum fragt nach der besten Stufe
-// (llm.TierBest), und der Provider weiß, welches Modell das ist. Die Aufgaben
-// sind kurz, verlangen aber ein Urteil darüber, was hinter einer Notiz
-// eigentlich steckt — dafür die beste Stufe und nicht die schnelle.
+// The model no longer stands here: the dream asks for the best tier
+// (llm.TierBest), and the provider knows which model that is. The tasks are
+// short, but they demand a judgement about what actually lies behind a note —
+// for that the best tier and not the fast one.
 
 // MaxTokens generously: from Opus 5 on, the limit caps thinking *and* answer.
 const MaxTokens = 16000
@@ -209,14 +209,14 @@ func (s *Store) List(ctx context.Context, agentID uuid.UUID, limit int) ([]Dream
 
 // Undo reverts a single action. Only renames are reversible — separating
 // merged pages again would mean guessing the content.
-// Undo nimmt eine Traum-Aktion zurueck. Die Organisation steht im Argument und
-// nicht bloss im Aufrufer: die Aktion haengt ueber dream → agent an einer
-// Organisation, und ohne den Vergleich konnte jede manage-Rolle jeder
-// Organisation eine Wiki-Seite einer fremden umbenennen (FR-003, Befund C).
+// Undo takes a dream action back. The organisation stands in the argument and
+// not merely in the caller: the action hangs off an organisation via dream →
+// agent, and without the comparison any manage role of any organisation could
+// rename a wiki page of a foreign one (FR-003, finding C).
 //
-// Sie steht in der ABFRAGE und nicht als Prüfung davor, weil eine fremde
-// Aktion so gar nicht erst gefunden wird — "nicht gefunden" ist auch die
-// richtige Auskunft: dass es sie anderswo gibt, geht den Fragenden nichts an.
+// It stands in the QUERY and not as a check in front of it, because a foreign
+// action is then not even found — "not found" is also the right answer: that it
+// exists somewhere else is none of the asker's business.
 func (s *Store) Undo(ctx context.Context, orgID, actionID uuid.UUID) error {
 	var kind, slug, before string
 	var agentID uuid.UUID

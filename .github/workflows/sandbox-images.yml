@@ -1,22 +1,22 @@
-# Die Sandbox-Images, öffentlich gebaut und veröffentlicht.
+# The sandbox images, built and published in public.
 #
-# Warum hier und nicht in der GitLab-Seite: Die interne Pipeline baut sie in
-# eine private Registry, an die kein Dritter kommt. Wer covey von GitHub
-# installiert, stand bis hierher vor einem `make sandbox-images` — Images mit
-# chromium, JDK, PHP und einem Flutter-SDK, mehrere Gigabyte Bauzeit auf der
-# eigenen Maschine, und beim Upgrade wieder. Eine Container-Installation hat dafür nicht einmal
-# ein Repository. Betriebswerkzeug gehört ins Produkt, und ein fertiges Image
-# ist hier das Produkt.
+# Why here and not on the GitLab side: the internal pipeline builds them into a
+# private registry no third party reaches. Whoever installs covey from GitHub
+# stood, up to here, in front of a `make sandbox-images` — images with
+# chromium, JDK, PHP and a Flutter SDK, several gigabytes of build time on the
+# own machine, and again on the upgrade. A container installation does not even
+# have a repository for that. Operating tooling belongs in the product, and a
+# finished image is the product here.
 #
-# EIN Package, die Varianten als Tag-Präfix (`base-…`, `dev-…`, `dev-flutter-…`)
-# statt ein Package je Arbeitsplatz: Sie werden zusammen gebaut, zusammen
-# versioniert und zusammen gezogen — und eine Sichtbarkeit, die man einmal auf
-# öffentlich stellt, ist eine weniger, die man vergessen kann. Das gilt umso
-# mehr, seit es fünf davon sind.
+# ONE package, the variants as tag prefix (`base-…`, `dev-…`,
+# `dev-flutter-…`) instead of one package per workplace: they are built
+# together, versioned together and pulled together — and a visibility
+# once set to public is one less to forget. That holds all the more
+# since there are five of them.
 #
-# Zwei Architekturen auf je eigenem Runner statt per QEMU: Die Images
-# installieren chromium, ein JDK und PHP über apt. Emuliert dauert das Stunden;
-# GitHub stellt für öffentliche Repositories arm64-Runner bereit.
+# Two architectures on one runner each instead of via QEMU: the images install
+# chromium, a JDK and PHP over apt. Emulated that takes hours; GitHub provides
+# arm64 runners for public repositories.
 name: Sandbox images
 
 on:
@@ -33,9 +33,9 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  # Stufe 1: base je Architektur, gepusht per DIGEST und ohne Tag. Der Tag
-  # entsteht erst in der Manifest-Stufe — sonst überschriebe die zweite
-  # Architektur die erste, statt sich zu ihr zu gesellen.
+  # Stage 1: base per architecture, pushed by DIGEST and without a tag. The tag
+  # only comes to be in the manifest stage — otherwise the second architecture
+  # would overwrite the first instead of joining it.
   base:
     strategy:
       fail-fast: false
@@ -51,7 +51,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # für `git describe`, siehe unten
+          fetch-depth: 0 # for `git describe`, see below
       - id: meta
         run: |
           set -eu
@@ -74,15 +74,15 @@ jobs:
           context: .
           file: Dockerfile.sandbox
           platforms: ${{ matrix.platform }}
-          # Die Herkunft des coveyd im Image — `coveyd version` beantwortet
-          # damit im Container, welcher Stand darin liegt.
+          # Where the coveyd in the image comes from — `coveyd version` answers
+          # from inside the container which build stands in it.
           build-args: |
             VERSION=${{ steps.meta.outputs.version }}
             COMMIT=${{ github.sha }}
             DATE=${{ steps.meta.outputs.date }}
-          # Der Cache liegt an der Registry und nicht am Runner: Der nächste
-          # Lauf zieht die Layer, die sich nicht geändert haben, statt chromium
-          # noch einmal zu installieren.
+          # The cache lies at the registry and not at the runner: the next run
+          # pulls the layers that did not change, instead of installing chromium
+          # once more.
           cache-from: type=registry,ref=${{ steps.meta.outputs.image }}:base-cache-${{ matrix.arch }}
           cache-to: type=registry,ref=${{ steps.meta.outputs.image }}:base-cache-${{ matrix.arch }},mode=max
           outputs: type=image,name=${{ steps.meta.outputs.image }},push-by-digest=true,name-canonical=true,push=true
@@ -124,11 +124,11 @@ jobs:
           else
             tags="base-latest base-$(echo "$GITHUB_SHA" | cut -c1-12)"
           fi
-          # Eine Architektur, ein Digest: Steht hier eine andere Zahl, ist
-          # etwas eingesammelt worden, das nicht zu diesem Profil gehört —
-          # genau so entstand das Tag mit sechzehn Einträgen (#116). Lieber
-          # laut scheitern als ein Manifest veröffentlichen, aus dem sich jeder
-          # Host etwas anderes zieht.
+          # One architecture, one digest: if a different number stands here,
+          # something was collected that does not belong to this profile — that
+          # is exactly how the tag with sixteen entries came about (#116). Better
+          # to fail loudly than to publish a manifest from which every host
+          # pulls something different.
           n=$(ls -1 /tmp/digests | wc -l)
           if [ "$n" -ne 2 ]; then
             echo "expected 2 digests (amd64, arm64), found $n:" >&2
@@ -196,12 +196,12 @@ jobs:
           touch "/tmp/digests/${DIGEST#sha256:}"
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
-      # Der doppelte Bindestrich trennt, und das ist keine Kosmetik: Mit
-      # `digests-dev-amd64` zog das Manifest von `dev` per `digests-dev-*` auch
-      # die Digests von `dev-flutter`, `dev-php`, `dev-web` und `dev-full` an
-      # sich — ein Tag mit sechzehn Einträgen, aus dem sich jeder Host irgendein
-      # Rollen-Image zog (#116). Ein Profilname kann Bindestriche enthalten, ein
-      # DOPPELTER kommt darin nicht vor.
+      # The double hyphen separates, and that is no cosmetic: with
+      # `digests-dev-amd64` the manifest of `dev` pulled, via `digests-dev-*`, also
+      # the digests of `dev-flutter`, `dev-php`, `dev-web` and `dev-full` to
+      # itself — a tag with sixteen entries, from which every host grabbed some
+      # role image (#116). A profile name can contain hyphens, a DOUBLE one does
+      # not occur in it.
       - uses: actions/upload-artifact@v4
         with:
           name: digests--${{ matrix.profile }}--${{ matrix.arch }}
@@ -236,11 +236,11 @@ jobs:
           else
             tags="$PROFILE-latest $PROFILE-$(echo "$GITHUB_SHA" | cut -c1-12)"
           fi
-          # Eine Architektur, ein Digest: Steht hier eine andere Zahl, ist
-          # etwas eingesammelt worden, das nicht zu diesem Profil gehört —
-          # genau so entstand das Tag mit sechzehn Einträgen (#116). Lieber
-          # laut scheitern als ein Manifest veröffentlichen, aus dem sich jeder
-          # Host etwas anderes zieht.
+          # One architecture, one digest: if a different number stands here,
+          # something was collected that does not belong to this profile — that
+          # is exactly how the tag with sixteen entries came about (#116). Better
+          # to fail loudly than to publish a manifest from which every host
+          # pulls something different.
           n=$(ls -1 /tmp/digests | wc -l)
           if [ "$n" -ne 2 ]; then
             echo "expected 2 digests (amd64, arm64), found $n:" >&2
@@ -348,11 +348,11 @@ jobs:
           else
             tags="$PROFILE-latest $PROFILE-$(echo "$GITHUB_SHA" | cut -c1-12)"
           fi
-          # Eine Architektur, ein Digest: Steht hier eine andere Zahl, ist
-          # etwas eingesammelt worden, das nicht zu diesem Profil gehört —
-          # genau so entstand das Tag mit sechzehn Einträgen (#116). Lieber
-          # laut scheitern als ein Manifest veröffentlichen, aus dem sich jeder
-          # Host etwas anderes zieht.
+          # One architecture, one digest: if a different number stands here,
+          # something was collected that does not belong to this profile — that
+          # is exactly how the tag with sixteen entries came about (#116). Better
+          # to fail loudly than to publish a manifest from which every host
+          # pulls something different.
           n=$(ls -1 /tmp/digests | wc -l)
           if [ "$n" -ne 2 ]; then
             echo "expected 2 digests (amd64, arm64), found $n:" >&2
@@ -367,22 +367,22 @@ jobs:
           done
           docker buildx imagetools inspect "${image}:${PROFILE}-latest"
 
-  # Der Katalog: welches Image zu welcher covey-Fassung gehört, gepinnt auf den
-  # Digest (spec/16). Er entsteht HIER, weil nur diese Seite die Digests kennt —
-  # eine Instanz soll nicht raten und nicht konfiguriert werden müssen.
+  # The catalogue: which image belongs to which covey release, pinned on the
+  # digest (spec/16). It comes to be HERE, because only this side knows the
+  # digests — an instance should not have to guess and should not have to be configured.
   #
-  # Auf einem eigenen Branch statt in main: Die Datei ändert sich bei jedem
-  # Bau, und ein Bot, der dafür in den Hauptzweig committet, macht dessen
-  # Historie unlesbar. `catalog` ist ein verwaister Branch — kein Quelltext,
-  # eine Datei, ausgeliefert über raw.githubusercontent.
-  # Der Katalog: welches Image zu welcher covey-Fassung gehört, gepinnt auf den
-  # Digest (spec/16). Er entsteht HIER, weil nur diese Seite die Digests kennt —
-  # eine Instanz soll nicht raten und nicht konfiguriert werden müssen.
+  # On a branch of its own instead of in main: the file changes with every
+  # build, and a bot that commits for that into the main branch makes its
+  # history unreadable. `catalog` is an orphaned branch — no source code,
+  # one file, served over raw.githubusercontent.
+  # The catalogue: which image belongs to which covey release, pinned on the
+  # digest (spec/16). It comes to be HERE, because only this side knows the
+  # digests — an instance should not have to guess and should not have to be configured.
   #
-  # Auf einem eigenen Branch statt in main: Die Datei ändert sich bei jedem
-  # Bau, und ein Bot, der dafür in den Hauptzweig committet, macht dessen
-  # Historie unlesbar. `catalog` trägt keinen Quelltext, nur diese eine Datei,
-  # ausgeliefert über raw.githubusercontent.
+  # On a branch of its own instead of in main: the file changes with every
+  # build, and a bot that commits for that into the main branch makes its
+  # history unreadable. `catalog` carries no source code, only this one file,
+  # served over raw.githubusercontent.
   catalog:
     needs: [base-manifest, layer-manifest, full-manifest]
     runs-on: ubuntu-latest
@@ -400,16 +400,16 @@ jobs:
         run: |
           set -eu
           image=$(echo "$REGISTRY/$GITHUB_REPOSITORY-sandbox" | tr 'A-Z' 'a-z')
-          # Zwei Namen für denselben Stand, und sie sind NICHT dasselbe:
+          # Two names for the same build, and they are NOT the same:
           #
-          #   version  die covey-Fassung, unter der eine Instanz ihren Eintrag
-          #            sucht — der Release-Tag, sonst "main"
+          #   version  the covey release under which an instance looks for its
+          #            entry — the release tag, otherwise "main"
           #            (sandbox.CatalogVersion()).
-          #   imgtag   der Tag, unter dem das Image veröffentlicht wurde — der
-          #            Release-Tag, sonst "latest" (siehe base-manifest oben).
+          #   imgtag   the tag under which the image was published — the
+          #            release tag, otherwise "latest" (see base-manifest above).
           #
-          # Sie gleichzusetzen hat diesen Job im ersten Lauf zerlegt: Er suchte
-          # `base-main`, und das gibt es nicht.
+          # Equating the two tore this job apart on its first run: it looked for
+          # `base-main`, and that does not exist.
           if [ "$GITHUB_REF_TYPE" = "tag" ]; then
             version="$GITHUB_REF_NAME"
             imgtag="$GITHUB_REF_NAME"
@@ -418,13 +418,13 @@ jobs:
             imgtag="latest"
           fi
 
-          # Der Digest der Manifest-LISTE, nicht der einer Architektur: Ein
-          # Host, der ihn zieht, bekommt die Architektur, auf der er steht.
+          # The digest of the manifest LIST, not of one architecture: a host
+          # that pulls it gets the architecture it stands on.
           #
-          # Die Reihenfolge ist die des Katalogs in internal/sandbox: base, die
-          # Vereinigung, dann die Rollen. Wer hier ein Profil hinzufuegt, fuegt
-          # es dort ebenfalls hinzu — sonst veroeffentlicht dieser Lauf ein
-          # Image, das keine Instanz kennt.
+          # The order is the one of the catalogue in internal/sandbox: base, the
+          # union, then the roles. Whoever adds a profile here adds it there too —
+          # otherwise this run publishes an
+          # image no instance knows.
           profiles="base dev dev-flutter dev-php dev-web dev-full"
           digests=""
           for p in $profiles; do
@@ -432,9 +432,9 @@ jobs:
             digests="$digests $p=$d"
           done
 
-          # Ein eigenes Verzeichnis: Dieser Branch hat mit dem Quelltext nichts
-          # zu tun, und ein Checkout, in dem beides liegt, verwechselt das früher
-          # oder später.
+          # A directory of its own: this branch has nothing to do with the source
+          # code, and a checkout holding both mixes that up sooner
+          # or later.
           work=$(mktemp -d)
           cd "$work"
           git init -q
@@ -445,9 +445,9 @@ jobs:
             git checkout -q -b catalog
           fi
 
-          # Bestehende Einträge anderer Fassungen bleiben stehen: Eine
-          # Installation auf v0.4.0 muss ihren Eintrag noch finden, nachdem
-          # v0.5.0 erschienen ist.
+          # Existing entries of other releases stay in place: an
+          # installation on v0.4.0 must still find its entry after
+          # v0.5.0 has appeared.
           python3 - "$version" "$imgtag" "$image" "$digests" <<'PY'
           import json, sys, datetime
           version, imgtag, image, digestliste = sys.argv[1:5]
@@ -458,11 +458,11 @@ jobs:
           except FileNotFoundError:
               cat = {"schema": 1, "workplaces": []}
 
-          # Kurzfassung der Beschreibung aus internal/sandbox/profiles.go. Sie
-          # steht hier ein zweites Mal, weil der Katalog Instanzen erreicht, die
-          # diesen Stand nicht compiliert haben — ein Profil, das eine aeltere
-          # covey nicht kennt, wird trotzdem angeboten und braucht dafuer einen
-          # Satz, der sagt, was darin liegt.
+          # Short form of the description from internal/sandbox/profiles.go. It
+          # stands here a second time because the catalogue reaches instances that
+          # did not compile this build — a profile an older
+          # covey does not know is offered all the same and needs for that a
+          # sentence saying what lies in it.
           beschreibung = {
               "base": "Node, git, chromium, ripgrep — enough for support, mail, QA and research agents.",
               "dev": "Everything from base plus PHP, JDK, fvm, uv and the node-gyp toolchain — the union, for an agent whose field is not settled.",
@@ -490,8 +490,8 @@ jobs:
               e["images"] = sorted(images, key=lambda i: i["covey_version"] != "main")
           cat["schema"] = 1
           cat["generated_at"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-          # Bestehende Eintraege anderer Profile bleiben stehen, auch wenn
-          # dieser Lauf sie nicht gebaut hat.
+          # Existing entries of other profiles stay in place, even when
+          # this run did not build them.
           cat["workplaces"] = [eintraege[n] for n in reihenfolge] + [
               e for n, e in eintraege.items() if n not in reihenfolge]
           with open(pfad, "w") as f:

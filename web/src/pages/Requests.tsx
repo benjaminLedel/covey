@@ -4,11 +4,11 @@ import { useTranslation } from "react-i18next";
 import { api, del, type Agent, type Principal, type RequestLogEntry, type RequestLogPage } from "../api";
 import { ConfirmDialog } from "../components/Modal";
 
-// Plattform → Requests: das Request-Log (spec/06). Es zeigt, was auf der
-// Leitung stand — der Bot-Connector-Call nach Teams, die Antwort des
-// Zielsystems, der eingehende Webhook, der an der Signaturprüfung scheiterte.
-// Das Recording sagt, WAS ein Agent tat; hier steht, WIE es über die
-// Schnittstelle ging. Diagnose-Daten, deshalb mit eigener kurzer Retention.
+// Platform → Requests: the request log (spec/06). It shows what went over
+// the wire — the bot-connector call to Teams, the target system's response,
+// the incoming webhook that failed the signature check. The recording says
+// WHAT an agent did; here is HOW it went over the interface. Diagnostic
+// data, hence its own short retention.
 export default function Requests({ me }: { me: Principal }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -197,8 +197,8 @@ export default function Requests({ me }: { me: Principal }) {
   );
 }
 
-// Detail zeigt einen Eintrag samt (gekappten, redigierten) Bodies — erst hier
-// werden sie geladen, damit die Liste schlank bleibt.
+// Detail shows one entry including its (truncated, redacted) bodies — they
+// are loaded only here, so the list stays lean.
 function Detail({ id, onClose }: { id: number; onClose: () => void }) {
   const { t } = useTranslation();
   const entry = useQuery({
@@ -272,8 +272,8 @@ function badgeClass(e: RequestLogEntry): string {
   return "st-done";
 }
 
-// shortenURL kürzt den Host weg, wenn der Pfad das Interessante ist — die
-// vollständige URL steht im title und im Detail.
+// shortenURL drops the host when the path is the interesting part — the
+// full URL is in the `title` and in the detail.
 function shortenURL(url: string): string {
   try {
     const u = new URL(url);

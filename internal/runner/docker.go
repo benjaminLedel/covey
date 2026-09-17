@@ -478,13 +478,13 @@ func (p *Docker) Check(ctx context.Context, req Check) ([]string, map[string]boo
 		if err == nil {
 			continue
 		}
-		// Ein veröffentlichtes Image ist nicht abwesend, es liegt nur noch
-		// nicht hier: `docker run` holt es beim ersten Wecken selbst. Das als
-		// „Data Plane nicht bereit" zu melden, sagt einer frischen
-		// Installation, sie sei kaputt — und riete ihr zu einem Bau, den sie
-		// nicht braucht und in einem Container nicht ausführen kann. Dass es
-		// noch nicht da ist, steht ohnehin an der Auswahl des Arbeitsplatzes
-		// (Workplaces meldet es je Image).
+		// A published image is not absent, it is merely not here yet:
+		// `docker run` fetches it itself on the first wake. Reporting that
+		// as `Data Plane nicht bereit` tells a fresh installation it is
+		// broken — and advises it to a build it neither needs nor, inside a
+		// container, can run. That it is not here yet is already said at
+		// the choice of workplace
+		// (Workplaces reports it per image).
 		if sandbox.Pullable(image) {
 			continue
 		}
@@ -545,12 +545,12 @@ func buildHint(hints map[string]string, image string) string {
 		hint = sandbox.BuildHint(nil, image)
 	}
 	if hint != "" {
-		// Zwei Wege, weil es zwei Installationsarten gibt — und die zweite las
-		// bis hierher eine Anweisung, die sie nicht ausfuehren kann: Wer covey
-		// als Container betreibt, hat kein Repository und damit kein `make`.
-		// Fuer sie steht das fertige Image bereit, und die Variable weist es
-		// dem Profil zu. Der Bau bleibt zuerst genannt, weil er auch ohne Netz
-		// und ohne Vertrauen in eine fremde Registry auskommt.
+		// Two paths, because there are two install types — and the second was
+		// left with an instruction it cannot run: whoever runs covey as a
+		// container has no repository and thus no `make`. For them the
+		// finished image stands ready, and the variable assigns it to the
+		// profile. The build stays named first, because it works without a
+		// network and without trust in a foreign registry.
 		if env, ready := sandbox.EnvVarFor(nil, image), sandbox.PublicImageFor(nil, image); env != "" && ready != "" {
 			return "build it once: `" + hint + "` — or take the published image: `" +
 				env + "=" + ready + "`, then restart"

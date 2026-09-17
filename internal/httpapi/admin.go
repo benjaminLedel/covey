@@ -296,15 +296,15 @@ func (s *Server) handleSetOwnOrgDescription(w http.ResponseWriter, r *http.Reque
 // handleSetPlatformRepo stores where this platform's own source lives
 // (spec/21): the target system and the project on it.
 //
-// Konfiguration und keine Entscheidung des Agenten. Eine Instanz, die gegen
-// den oeffentlichen GitHub-Spiegel laeuft, haette sonst einen Agenten, der
-// Issues dorthin schreibt, wo die Welt mitliest; eine Instanz, die in ihr
-// eigenes GitLab meldet, behaelt sie im Haus. Das entscheidet die
-// Organisation, einmal, und nicht ein Modell je Lauf.
+// Configuration and not a decision of the agent. An instance running against
+// the public GitHub mirror would otherwise have an agent writing issues where
+// the world reads along; an instance reporting into its own GitLab keeps them
+// in the house. The organisation decides this, once, and not a model per
+// run.
 //
-// Drei Zustaende, seit die Voreinstellung da ist (agents.PlatformRepo):
-// leer = das Projekt, aus dem dieses Programm stammt; ein Zielsystem plus
-// Projekt = das eigene Repository; agents.RepoOff = gar nicht.
+// Three states, since the default came along (agents.PlatformRepo): empty =
+// the project this program comes from; a target system plus project = the own
+// repository; agents.RepoOff = none at all.
 func (s *Server) handleSetPlatformRepo(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	var in struct {
@@ -317,8 +317,8 @@ func (s *Server) handleSetPlatformRepo(w http.ResponseWriter, r *http.Request) {
 	}
 	system := strings.ToLower(strings.TrimSpace(in.System))
 	project := strings.TrimSpace(in.Project)
-	// "Aus" traegt kein Projekt — und braucht auch keine Pruefung gegen die
-	// angeschlossenen Zielsysteme, weil es keins benennt.
+	// "Off" carries no project — and needs no check against the connected
+	// target systems either, because it names none.
 	if system == agents.RepoOff {
 		if err := s.Org.SetPlatformRepo(r.Context(), p.OrgID, system, ""); err != nil {
 			mapErr(w, err)
@@ -327,15 +327,15 @@ func (s *Server) handleSetPlatformRepo(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 		return
 	}
-	// Beides oder nichts: ein System ohne Projekt ist eine halbe Adresse, und
-	// eine halbe Adresse im Prompt ist schlimmer als keine.
+	// Both or nothing: a system without a project is half an address, and
+	// half an address in the prompt is worse than none.
 	if (system == "") != (project == "") {
 		writeErr(w, http.StatusBadRequest, "system and project belong together — set both, or clear both")
 		return
 	}
-	// Nur ein Zielsystem, das diese Organisation wirklich angeschlossen hat.
-	// Sonst stuende im Prompt eine Adresse auf einem System, fuer das es kein
-	// Credential gibt — und der Agent liefe erst beim Checkout dagegen.
+	// Only a target system this organisation really connected. Otherwise the
+	// prompt would carry an address on a system that has no credential for it
+	// — and the agent would only run into it at checkout.
 	if system != "" && s.Targets != nil {
 		plugins, err := s.Targets.List(r.Context(), p.OrgID)
 		if err != nil {

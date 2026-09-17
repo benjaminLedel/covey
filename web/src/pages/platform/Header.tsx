@@ -1,12 +1,12 @@
 import { useTranslation } from "react-i18next";
 import { NavLink } from "react-router";
 
-/** Kopf und Unternavigation des Plattform-Panels.
+/** PlatformHeader is the header and sub-navigation of the platform panel.
  *
- *  Steht in einer eigenen Datei, weil ihn zwei Seiten brauchen, die
- *  auseinander hervorgehen: Platform.tsx rendert die Mandantenliste aus
- *  Organizations.tsx als Startseite. Läge der Kopf in einer der beiden,
- *  importierten sie einander im Kreis. */
+ *  It stands in its own file because two pages need it that come out of each
+ *  other: Platform.tsx renders the tenant list from Organizations.tsx as its
+ *  start page. Were the header in either of the two, they would import each
+ *  other in a circle. */
 export default function PlatformHeader() {
   const { t } = useTranslation();
   return (

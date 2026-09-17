@@ -1,17 +1,17 @@
-// Zeilenweiser Diff für die Vorschläge von covey Doctor (spec/21).
+// Line-wise diff for the suggestions of covey Doctor (spec/21).
 //
-// Bewusst keine Abhängigkeit: was hier gebraucht wird, ist der Vergleich
-// zweier Markdown-Dateien von ein paar Dutzend Zeilen, und dafür eine Bibliothek
-// ins Bundle zu ziehen wäre teurer als die zwanzig Zeilen darunter.
+// Deliberately no dependency: what is needed here is the comparison of two
+// Markdown files of a few dozen lines, and pulling a library into the bundle
+// for that would cost more than the twenty lines below.
 
 export type DiffLine = { kind: "same" | "add" | "del"; text: string };
 
-// Ab dieser Größe wird nicht mehr Zeile für Zeile verglichen: die LCS-Tabelle
-// ist O(n·m), und eine Config-Datei mit tausend Zeilen ist ohnehin keine, die
-// jemand als Diff liest. Dann steht der alte Block gegen den neuen.
+// Above this size lines are no longer compared one by one: the LCS table is
+// O(n·m), and a config file with a thousand lines is not one that someone
+// reads as a diff anyway. Then the old block stands against the new one.
 const MAX_LINES = 600;
 
-/** diffLines vergleicht zwei Texte zeilenweise (längste gemeinsame Teilfolge). */
+/** diffLines compares two texts line by line (longest common subsequence). */
 export function diffLines(before: string, after: string): DiffLine[] {
   const a = before === "" ? [] : before.split("\n");
   const b = after === "" ? [] : after.split("\n");
@@ -22,7 +22,7 @@ export function diffLines(before: string, after: string): DiffLine[] {
     ];
   }
 
-  // lcs[i][j] = Länge der längsten gemeinsamen Teilfolge von a[i…] und b[j…].
+  // lcs[i][j] = length of the longest common subsequence of a[i…] and b[j…].
   const lcs: number[][] = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
   for (let i = a.length - 1; i >= 0; i--) {
     for (let j = b.length - 1; j >= 0; j--) {
@@ -50,10 +50,10 @@ export function diffLines(before: string, after: string): DiffLine[] {
 }
 
 /**
- * collapse kürzt lange unveränderte Strecken auf `context` Zeilen an jedem
- * Rand einer Änderung ein. Was dazwischen wegfällt, wird als eine Zeile mit
- * `skipped` gemeldet — sonst liest man in einer 200-Zeilen-PLAYBOOKS.md drei
- * geänderte Zeilen nicht mehr.
+ * collapse shortens long unchanged stretches to `context` lines at each
+ * edge of a change. What falls away in between is reported as one line with
+ * `skipped` — otherwise three changed lines in a 200-line PLAYBOOKS.md can no
+ * longer be read.
  */
 export type DiffChunk = DiffLine | { kind: "skip"; skipped: number };
 

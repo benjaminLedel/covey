@@ -1,16 +1,16 @@
 import { describe, it, expect } from "vitest";
 import { ROLES } from "../api";
 
-/* Eine Rolle, die es nicht gibt, ist in einer Bedingung nicht falsch — sie ist
-   still. `me.Role === "platform_admin"` war jahrelang eine korrekte Zeile;
-   seit Migration 0061 heißt die oberste Org-Rolle org_admin, und die Zeile
-   sagte ab da immer nein. Sichtbar wurde das an einer Karte, die verschwand:
-   die Registrierung eines Runners war für alle weg, auch für die, die den
-   Endpunkt dahinter benutzen dürfen.
+/* A role that does not exist is not wrong in a condition — it is silent.
+   `me.Role === "platform_admin"` was a correct line for years; since
+   migration 0061 the top-level org role is called org_admin, and from then on
+   the line always said no. What it showed up in was a card that disappeared:
+   registering a runner was gone for everyone, including those who may use the
+   endpoint behind it.
 
-   Ein Compiler fängt das nicht — es ist ein Zeichenkettenvergleich. Also holt
-   dieser Test die Zeichenketten aus dem Quelltext und hält sie gegen die eine
-   Liste, die es gibt. */
+   A compiler does not catch this — it is a string comparison. So this test
+   pulls the strings out of the source code and holds them against the one
+   list that exists. */
 
 const quellen = import.meta.glob("../**/*.{ts,tsx}", {
   query: "?raw",
@@ -18,14 +18,14 @@ const quellen = import.meta.glob("../**/*.{ts,tsx}", {
   eager: true,
 }) as Record<string, string>;
 
-/* Die Formen, in denen die Oberfläche eine Plattform-Rolle prüft: `me.Role`,
-   ein anderes `.Role`, und die `canEdit(role)`-Helfer, die es in fast jeder
-   Seite gibt.
+/* The forms in which the UI checks a platform role: `me.Role`, another
+   `.Role`, and the `canEdit(role)` helpers that exist in almost every page.
 
-   Bewusst NICHT jedes `role ===`: Ein Chat-Verlauf hat auch Rollen ("user",
-   "assistant"), und ein Test, der die anhält, wird nach dem zweiten Fehlalarm
-   abgeschaltet. Deshalb nur der Vergleich gegen einen Wert, der wie eine
-   Plattform-Rolle aussieht — mit Unterstrich oder aus der Liste. */
+   Deliberately NOT every `role ===`: a chat transcript also has roles ("user",
+   "assistant"), and a test that holds those gets switched off after the
+   second false alarm. Hence only the comparison against a value
+   that looks like a platform role — with an underscore
+   or from the list. */
 const ROLLENVERGLEICH =
   /(?:me\.Role|\.Role|\brole)\s*[!=]==?\s*"([a-z]+_[a-z_]+|security|auditor|controlling)"/g;
 

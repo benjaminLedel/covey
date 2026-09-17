@@ -109,17 +109,17 @@ func (n *Node) updateSelf(ctx context.Context, req Update) UpdateResult {
 		version = v
 	}
 	res.To = version
-	// Schon da — aber nur, wenn der Name auch für dasselbe Binary steht.
+	// Already there — but only if the name also stands for the same binary.
 	//
-	// Ein von Hand gebauter Runner trägt den Namen des Tags, auf dem sein Baum
-	// steht, und ist trotzdem etwas anderes: auf covey.work lief
-	// „v0.7.2 (45c9c48-dirty)", während v0.7.2 die neueste Veröffentlichung
-	// war. Der Vergleich sagte „schon aktuell", der Knopf meldete Erfolg, und
-	// ersetzt wurde nichts — tagelang, ohne dass jemand sah, warum der Host
-	// hinter der Steuerebene zurückblieb.
+	// A hand-built runner carries the name of the tag its tree sits on, and is
+	// still something else: on covey.work ran
+	// "v0.7.2 (45c9c48-dirty)", while v0.7.2 was the newest release.
+	// The comparison said "already current", the button reported success, and
+	// nothing was replaced — for days, without anyone seeing why the host
+	// stayed behind the control plane.
 	//
-	// Wer aktualisiert, will das veröffentlichte Binary. Ein schmutziger Baum
-	// ist der Beweis, dass das laufende nicht dieses ist.
+	// Whoever updates wants the published binary. A dirty tree is the proof
+	// that the running one is not this one.
 	if version == from && !info.Dirty {
 		// An answer, not a failure: whoever presses the button on a host that
 		// is already current should read that, and nothing should be replaced.

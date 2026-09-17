@@ -1,65 +1,65 @@
--- Der Vorschlag: eine gespeicherte Config-Version, die NICHT in Kraft ist.
+-- The proposal: a stored config version that is NOT in force.
 --
--- agent_config_versions nummeriert pro Agent und behandelt die höchste Nummer
--- als die Wahrheit — es gibt dort keine Version, die daliegt und nicht läuft.
--- Genau die braucht der Betriebsingenieur (spec/21): er liest die Arbeitsakte
--- eines Kollegen und schlägt eine Änderung vor, wirksam wird sie erst, wenn
--- ein Mensch sie annimmt. Deshalb steht ein Vorschlag in einer eigenen Tabelle
--- und nicht mit einem Flag in der Versionsfolge: was dort steht, läuft.
+-- agent_config_versions numbers per agent and treats the highest number as the
+-- truth — there is no version there that lies around without running. That is
+-- exactly what the operations engineer needs (spec/21): it reads the work
+-- record of a colleague and proposes a change, which only takes effect once a
+-- human accepts it. That is why a proposal stands in its own table and not
+-- with a flag in the version sequence: what stands there, runs.
 --
--- Bewusst eine Tabelle für DREI Ergebnisse und nicht nur für den Vorschlag.
--- Ein Review endet in einer von drei Diagnosen (spec/21): die Config ist
--- falsch -> ein Vorschlag mit Diff; der Auftrag ist falsch -> ein Befund an den
--- Menschen, der ihn verantwortet, ohne Diff; die Plattform ist falsch -> ein
--- Issue, das schon im Tracker liegt. Alle drei brauchen dieselbe Person und
--- denselben Posteingang. Die Plattform kennt keine Nachricht an einen
--- Menschen, und eine für dieses Feature zu erfinden hieße, einen zweiten,
--- schlechteren Posteingang neben den zu stellen, den es ohnehin geben muss.
+-- Deliberately one table for THREE outcomes and not just for the proposal.
+-- A review ends in one of three diagnoses (spec/21): the config is
+-- wrong -> a proposal with a diff; the assignment is wrong -> a finding to
+-- the human who owns it, without a diff; the platform is wrong -> an
+-- issue that already lies in the tracker. All three need the same person
+-- and the same inbox. The platform has no message to a human, and to
+-- invent one for this feature would mean placing a second, worse inbox
+-- beside the one that has to exist anyway.
 CREATE TABLE improvement_items (
     id            UUID PRIMARY KEY,
     org_id        UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    -- Der Kollege, um den es geht. Nicht der Absender: der steht in
-    -- author_agent_id, und die beiden dürfen nie derselbe sein (spec/21,
-    -- „er begutachtet sich nicht selbst").
+    -- The colleague this is about. Not the sender: that stands in
+    -- author_agent_id, and the two may never be the same one (spec/21,
+    -- "it does not review itself").
     agent_id      UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
     kind          TEXT NOT NULL CHECK (kind IN ('proposal','finding','issue')),
     title         TEXT NOT NULL,
-    -- Die Begründung: warum, aus welcher Beobachtung. Das ist der Text, den
-    -- ein Mensch liest, bevor er den Diff liest.
+    -- The justification: why, from which observation. This is the text a
+    -- human reads before they read the diff.
     rationale     TEXT NOT NULL DEFAULT '',
 
-    -- Nur beim Vorschlag: die inaktive Version.
-    -- base_version ist die Version, GEGEN die geschrieben wurde. Sie macht den
-    -- Vorschlag zu einem Diff mit Basis — wird der Agent zwischenzeitlich von
-    -- Hand geändert, überschreibt eine Annahme diese Änderung nicht still,
-    -- sondern zeigt den Konflikt an. Derselbe Fall wie bei einem Pull Request,
-    -- und dieselbe Antwort. 0 = kein Vorschlag.
+    -- Only for a proposal: the inactive version.
+    -- base_version is the version written AGAINST. It turns the proposal into
+    -- a diff with a base — if the agent is changed by hand in the meantime, an
+    -- acceptance does not silently overwrite that change, it
+    -- shows the conflict. The same case as with a pull request,
+    -- and the same answer. 0 = no proposal.
     base_version  INTEGER NOT NULL DEFAULT 0,
-    -- Nur die Dateien, die der Vorschlag ÄNDERT — nicht der ganze Satz.
-    -- Angenommen wird gemergt, nie ersetzt: was hier fehlt, bleibt stehen.
+    -- Only the files the proposal CHANGES — not the whole set.
+    -- Acceptance merges, never replaces: what is missing here stays.
     files         JSONB NOT NULL DEFAULT '{}'::jsonb,
 
-    -- Herkunft, von der Plattform geschrieben und nicht vom Modell gemeldet.
-    -- NULL beim author = ein Mensch hat den Punkt angelegt.
+    -- Provenance, written by the platform and not reported by the model.
+    -- NULL on the author = a human created the item.
     author_agent_id UUID REFERENCES agents(id) ON DELETE SET NULL,
     task_id         UUID REFERENCES backlog_tasks(id) ON DELETE SET NULL,
 
-    -- Die Entscheidung. Ein abgelehnter Vorschlag bleibt stehen, mitsamt dem
-    -- Grund: er ist das Nützlichste, was jemand lesen kann, der den
-    -- Betriebsingenieur selbst überprüfen will.
+    -- The decision. A rejected proposal stays, along with the
+    -- reason: it is the most useful thing someone can read who wants to review
+    -- the operations engineer themselves.
     status        TEXT NOT NULL DEFAULT 'pending'
                   CHECK (status IN ('pending','accepted','rejected')),
     decided_by    UUID REFERENCES humans(id) ON DELETE SET NULL,
     decided_at    TIMESTAMPTZ,
     decision_note TEXT NOT NULL DEFAULT '',
-    -- Die Version, die aus der Annahme hervorging (0 = keine). Sie entsteht auf
-    -- dem normalen Schreibweg, mit dem Menschen als created_by.
+    -- The version that came out of the acceptance (0 = none). It is created on
+    -- the normal write path, with the human as created_by.
     applied_version INTEGER NOT NULL DEFAULT 0,
 
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Die Abfrage der Liste: offene Punkte einer Organisation, neueste zuerst.
+-- The query of the list: open items of an organisation, newest first.
 CREATE INDEX idx_improvement_org_status ON improvement_items (org_id, status, created_at DESC);
--- Und die zweite Ansicht: was liegt zu diesem Kollegen an (Mitarbeiter-Profil).
+-- And the second view: what is pending for this colleague (employee profile).
 CREATE INDEX idx_improvement_agent ON improvement_items (agent_id, created_at DESC);

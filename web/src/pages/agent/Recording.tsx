@@ -31,14 +31,14 @@ export function Recording({
     refetchInterval: 5000,
   });
   const list = events.data ?? [];
-  // Wo dieser Agent arbeitet. Ab der zweiten Maschine ist das die erste Frage
-  // vor einem Lauf, der sich seltsam verhalten hat — und die einzige Antwort,
-  // die man nicht aus dem Rest des Logs herauslesen kann.
+  // Where this agent works. From the second machine on this is the first
+  // question before a run that behaved
+  // strangely — and the only answer you cannot read out of the rest of the
+  // log.
   //
-  // Gefragt statt aus den Ereignissen gelesen: Die Zeile „Sandbox auf X" steht
-  // zwar im Verlauf, faellt bei einem gespraechigen Lauf aber aus dem Fenster
-  // der neuesten 500 Ereignisse — also genau bei dem Lauf, dem gerade jemand
-  // zusieht.
+  // Asked rather than read from the events: the `Sandbox auf X` line is in
+  // the record, but a talkative run drops it out of the window for the newest
+  // 500 events — so exactly for the run someone is watching right now.
   const host = useQuery({
     queryKey: ["placement", agentId],
     queryFn: () =>
@@ -98,10 +98,10 @@ export function Recording({
         </div>
       </div>
       <div className="card">
-        {/* Solange die Abfrage laeuft, ist die Liste leer — und „noch keine
-            Aufzeichnung" ist dann eine Falschaussage, die aussieht wie ein
-            Befund. Bei einem Agenten mit 178 Laeufen liest man sie als Fehler
-            und sucht an der falschen Stelle. */}
+        {/* While the query runs the list is empty — and "no recording yet"
+            is then a false claim that looks like a finding. For an agent
+            with 178 runs you read it as an error and search at the wrong
+            place. */}
         {events.isLoading && <p className="muted m-0">{t("common.loading")}</p>}
         {!events.isLoading && list.length === 0 && (
           <p className="muted m-0">
@@ -129,12 +129,12 @@ function summarize(e: RecordingEvent): { text: string; mono?: boolean; muted?: b
       // end.
       if (p.status === "task_failed")
         return { text: i18n.t("activity.taskFailed", { reason: reasonSuffix(p.error) }), danger: true };
-      // Wo ein Lauf stattfindet. Bei einer Maschine ist das keine Frage, ab
-      // der zweiten ist es die erste — und die Antwort stand vorher nur im Log
-      // des Prozesses, wenn überhaupt.
-      // Was der Host tut, waehrend ein Start dauert. Ohne diese Zeilen sind
-      // zehn Minuten Bild-Download und zehn Minuten Haenger dasselbe Bild:
-      // „triggered" und sonst nichts.
+      // Where a run takes place. With one machine that is no question, from
+      // the second on it is the first — and the answer stood before only in
+      // the log of the process, if at all.
+      // What the host does while a start takes long. Without these lines ten
+      // minutes of image download and ten minutes of hang are one picture:
+      // `triggered` and nothing else.
       if (p.status === "preparing") {
         const size = p.bytes ? ` · ${fmtBytes(Number(p.bytes))}` : "";
         const took = p.ms ? ` · ${Math.round(Number(p.ms) / 1000)}s` : "";
@@ -245,8 +245,8 @@ function RecordingItem({ event }: { event: RecordingEvent }) {
   const s = summarize(event);
   const raw = typeof event.payload === "string" ? event.payload : JSON.stringify(event.payload, null, 2);
   const locale = i18n.language === "de" ? "de-DE" : "en-US";
-  // Rohansicht und erzählende Ansicht müssen dasselbe sagen: Gehört die Zeile
-  // zu einem Sub-Lauf, steht das hier als Badge — dort als eigener Block.
+  // Raw view and narrative view must say the same thing: if the line belongs
+  // to a sub-run, that stands here as a badge — there as its own block.
   const sub = subAgentMark(event);
   return (
     <div className="timeline-item">

@@ -1,24 +1,24 @@
 package agents
 
-// Der offene Punkt: was ein Review hinterlässt, und was ein Mensch damit tut
+// The open point: what a review leaves behind, and what a human does with it
 // (spec/21-operations-and-improvement.md).
 //
-// Der Kern ist die Config-Version, die GESPEICHERT und NICHT IN KRAFT ist. Bis
-// hierher kannte die Plattform nur die eine Ordnung: agent_config_versions
-// nummeriert pro Agent, die höchste Nummer läuft. Ein Vorschlag ist eine
-// Zeile, die in dieser Folge nicht mitzählt — er trägt den Agenten, gegen
-// welche Version er geschrieben wurde, die Dateien, die er ändert, die
-// Aufgabe, aus der er kam, und einen Status. Angenommen wird er über den
-// normalen Schreibweg, mit dem Menschen als Urheber.
+// The core is the config version that is SAVED and NOT IN EFFECT. Until this
+// point the platform only knew one order: agent_config_versions numbers per
+// agent, and the highest number runs. A proposal is a row that does not count
+// in that sequence — it carries the agent, the version it was written
+// against, the files it changes, the task it came from, and a status. It is
+// accepted through the normal write path, the one that attributes it to a
+// human as the author.
 //
-// Zwei Eigenschaften fallen dabei ab, und beide sind gewollt:
+// Two properties fall out of this, and both are intended:
 //
-//   - Ein Vorschlag ist ein Diff gegen eine Basis. Wird der Agent zwischen dem
-//     Schreiben und dem Annehmen von Hand geändert, darf die Annahme diese
-//     Änderung nicht still überschreiben (ProposalConflicts).
-//   - Ein Vorschlag läuft nicht. Ein kompromittierter covey Doctor
-//     erzeugt eine Warteschlange schlechter Vorschläge, die ein Mensch
-//     ablehnt — ein Ärgernis, kein Vorfall.
+//   - A proposal is a diff against a base. If the agent is edited by hand
+//     between the write and the acceptance, the acceptance must not silently
+//     overwrite that change (ProposalConflicts).
+//   - A proposal does not run. A compromised covey Doctor produces a
+//     queue of bad proposals that a human rejects — an annoyance, not an
+//     incident.
 
 import (
 	"context"
@@ -33,23 +33,23 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// Die drei Ergebnisse eines Reviews. Sie liegen in einer Tabelle und in einer
-// Liste, weil sie denselben Menschen brauchen: die Config ist falsch, der
-// Auftrag ist falsch, die Plattform ist falsch (spec/21).
+// The three outcomes of a review. They sit in one table and one list,
+// because they need the same human: the config is wrong, the assignment is
+// wrong, the platform is wrong (spec/21).
 const (
-	// KindProposal trägt einen Diff und wird durch Annahme zu einer Version.
+	// KindProposal carries a diff and becomes a version once accepted.
 	KindProposal = "proposal"
-	// KindFinding hat keinen Diff: den Auftrag eines Kollegen kann die
-	// Plattform nicht umschreiben, das kann nur der Mensch, der ihn
-	// verantwortet.
+	// KindFinding has no diff: the platform cannot rewrite a
+	// colleague's assignment, only the human responsible for it
+	// can do that.
 	KindFinding = "finding"
-	// KindIssue ist ein Bericht, der schon im Tracker liegt — hier steht er,
-	// damit der Mensch ihn sieht, nicht damit er ihn ausführt.
+	// KindIssue is a report that already lies in the tracker — it stands here
+	// so the human sees it, not so they carry it out.
 	KindIssue = "issue"
-	// KindToolRequest ist die Bitte um ein Werkzeug: Dem Agenten fehlt ein
-	// Paket, und er ist nirgends root. Ohne diesen Weg baute er sich apt im
-	// eigenen Home nach — unreproduzierbar, unaufgeschrieben, und bei jedem
-	// Sync mitgetragen. Wie ein Befund: kein Diff, ein Mensch entscheidet.
+	// KindToolRequest is the request for a tool: the agent lacks a package and
+	// is nowhere root. Without this path it rebuilt apt inside its own home —
+	// unreproducible, unrecorded, and carried along by every sync. Like a
+	// finding: no diff, a human decides.
 	KindToolRequest = "tool_request"
 )
 
@@ -60,16 +60,16 @@ const (
 )
 
 var (
-	// ErrProposalEmpty: ein Vorschlag ohne Dateien ist kein Vorschlag.
+	// ErrProposalEmpty: a proposal without files is not a proposal.
 	ErrProposalEmpty = errors.New("a proposal has to change at least one file")
-	// ErrNotPending: entschieden wird einmal. Der zweite Klick ist kein
-	// zweiter Beschluss.
+	// ErrNotPending: the decision is made once. The second click is not a
+	// second decision.
 	ErrNotPending = errors.New("this item has already been decided")
-	// ErrProposalConflict: die Basis ist unter dem Vorschlag weggewandert.
+	// ErrProposalConflict: the base has moved out from under the proposal.
 	ErrProposalConflict = errors.New("the proposal conflicts with the current configuration")
 )
 
-// ImprovementItem ist ein offener Punkt zu einem Kollegen.
+// ImprovementItem is an open point about a colleague.
 type ImprovementItem struct {
 	ID        uuid.UUID `json:"id"`
 	OrgID     uuid.UUID `json:"org_id"`
@@ -77,18 +77,18 @@ type ImprovementItem struct {
 	Kind      string    `json:"kind"`
 	Title     string    `json:"title"`
 	Rationale string    `json:"rationale"`
-	// Link ist die Adresse eines Issues, das schon im Tracker liegt (nur bei
-	// KindIssue). Ein Bericht ohne den Link dorthin zwingt jeden Leser zur
-	// Suche.
+	// Link is the address of an issue that already lies in the tracker (only
+	// with KindIssue). A report without the link back there forces every
+	// reader to search.
 	Link string `json:"link,omitempty"`
-	// BaseVersion ist die Config-Version, gegen die geschrieben wurde
-	// (0 = keine/kein Vorschlag). Von der Plattform gesetzt, nicht gemeldet.
+	// BaseVersion is the config version the proposal was written against
+	// (0 = none / not a proposal). Set by the platform, not reported in.
 	BaseVersion int `json:"base_version"`
-	// Files sind NUR die geänderten Dateien. Beim Annehmen wird gemergt,
-	// nie ersetzt — dieselbe Semantik wie bei set_agent_config, und aus
-	// demselben Grund: nichts hier muss eine Datei löschen können.
+	// Files are ONLY the changed files. Acceptance merges, never replaces —
+	// the same semantics as set_agent_config, and for the same
+	// reason: nothing here has to be able to delete a file.
 	Files map[string]string `json:"files"`
-	// AuthorAgentID ist der Absender; nil = ein Mensch hat den Punkt angelegt.
+	// AuthorAgentID is the sender; nil = a human created the point.
 	AuthorAgentID  *uuid.UUID `json:"author_agent_id,omitempty"`
 	TaskID         *uuid.UUID `json:"task_id,omitempty"`
 	Status         string     `json:"status"`
@@ -99,29 +99,29 @@ type ImprovementItem struct {
 	CreatedAt      time.Time  `json:"created_at"`
 }
 
-// ImprovementFilter grenzt die Liste ein. Der Nullwert heißt „alles".
+// ImprovementFilter narrows the list. The zero value means "everything".
 type ImprovementFilter struct {
 	Status string
 	Kind   string
-	// AgentIDs schränkt auf bestimmte Kollegen ein. nil = keine
-	// Einschränkung; die LEERE (nicht-nil) Liste heißt „keiner" und liefert
-	// nichts — der Unterschied trägt die Sicht des Agent-Owners, der keinen
-	// Agenten besitzt.
+	// AgentIDs restricts to particular colleagues. nil = no
+	// restriction; the EMPTY (non-nil) list means "none" and returns
+	// nothing — the difference carries the view of the agent owner who owns no
+	// agent.
 	AgentIDs []uuid.UUID
 }
 
-// CreateImprovement legt einen offenen Punkt an. Die Herkunft schreibt die
-// Plattform: die Basisversion wird hier gelesen und nicht übergeben — ein
-// Modell, das seine eigene Basis benennen darf, kann einen Konflikt
-// wegdefinieren.
+// CreateImprovement creates an open point. The platform writes the
+// provenance: the base version is read here, not passed in — a model that
+// may name its own base can define away a
+// conflict.
 //
-// Bewusst OHNE Prüfung, ob ein Agent über sich selbst schreibt. Ein Vorschlag
-// an sich selbst ist erlaubt und war der Sinn der ganzen Übung: die
-// Personalabteilung darf nach ihrem Self-Onboarding ihre eigene Konfiguration
-// vorschlagen (spec/20), und was daran gefährlich wäre — dass ein Agent sich
-// nachts selbst umschreibt — kann hier nicht passieren, weil nichts von hier
-// läuft. Ein Mensch nimmt an, oder es bleibt liegen. Wer das darf, entscheidet
-// der Scope, und der wohnt im Orchestrator.
+// Deliberately WITHOUT a check for whether an agent writes about itself. A
+// proposal to itself is allowed and was the point of the whole exercise: the
+// People department may propose its own configuration after its
+// self-onboarding (spec/20), and what would be dangerous about it — an agent
+// rewriting itself at night — cannot happen here, because nothing from here
+// runs. A human accepts it, or it stays. The scope decides who may do
+// that, and the scope lives in the orchestrator.
 func (r *Registry) CreateImprovement(ctx context.Context, item ImprovementItem) (ImprovementItem, error) {
 	target, err := r.Get(ctx, item.AgentID)
 	if err != nil {
@@ -145,8 +145,8 @@ func (r *Registry) CreateImprovement(ctx context.Context, item ImprovementItem) 
 			return item, err
 		}
 	case KindFinding, KindIssue, KindToolRequest:
-		// Ohne Diff: der Befund ist der Text, der Punkt bleibt offen, bis ein
-		// Mensch ihn schließt.
+		// No diff: the finding is the text, the point stays open until a
+		// human closes it.
 		item.Files = nil
 		item.BaseVersion = 0
 	default:
@@ -189,8 +189,8 @@ func scanImprovement(row pgx.Row) (ImprovementItem, error) {
 	return it, nil
 }
 
-// ListImprovements liefert die offenen (und entschiedenen) Punkte einer
-// Organisation, neueste zuerst.
+// ListImprovements returns the open (and decided) points of an
+// organisation, newest first.
 func (r *Registry) ListImprovements(ctx context.Context, orgID uuid.UUID, f ImprovementFilter) ([]ImprovementItem, error) {
 	if f.AgentIDs != nil && len(f.AgentIDs) == 0 {
 		return []ImprovementItem{}, nil
@@ -216,7 +216,7 @@ func (r *Registry) ListImprovements(ctx context.Context, orgID uuid.UUID, f Impr
 	return out, rows.Err()
 }
 
-// GetImprovement liest einen Punkt.
+// GetImprovement reads one point.
 func (r *Registry) GetImprovement(ctx context.Context, id uuid.UUID) (ImprovementItem, error) {
 	it, err := scanImprovement(r.pool.QueryRow(ctx,
 		`SELECT `+improvementCols+` FROM improvement_items WHERE id=$1`, id))
@@ -226,9 +226,9 @@ func (r *Registry) GetImprovement(ctx context.Context, id uuid.UUID) (Improvemen
 	return it, err
 }
 
-// DecideImprovement hält die Entscheidung fest. Das UPDATE ist gegen
-// status='pending' geführt: zwei Menschen, die gleichzeitig auf annehmen
-// klicken, erzeugen eine Version und einen Fehler, nicht zwei Versionen.
+// DecideImprovement records the decision. The UPDATE is issued against
+// status='pending': two humans who click accept at the same time produce one
+// version and one error, not two versions.
 func (r *Registry) DecideImprovement(ctx context.Context, id uuid.UUID, status string,
 	by uuid.UUID, note string, appliedVersion int) (ImprovementItem, error) {
 
@@ -237,8 +237,8 @@ func (r *Registry) DecideImprovement(ctx context.Context, id uuid.UUID, status s
 		WHERE id=$1 AND status='pending'
 		RETURNING `+improvementCols, id, status, by, note, appliedVersion))
 	if errors.Is(err, pgx.ErrNoRows) {
-		// Entweder es gibt ihn nicht, oder er ist schon entschieden — die
-		// zweite Lesart ist die häufigere, also fragen wir nach.
+		// Either it does not exist, or it is already decided — the second
+		// reading is the more common one, so we ask again.
 		if _, gerr := r.GetImprovement(ctx, id); gerr == nil {
 			return it, ErrNotPending
 		}
@@ -247,19 +247,19 @@ func (r *Registry) DecideImprovement(ctx context.Context, id uuid.UUID, status s
 	return it, err
 }
 
-// --- Die reine Rechnerei: mergen, vergleichen, Konflikte finden ---
+// --- The pure computation: merging, comparing, finding conflicts ---
 
-// RestrictedConfigFiles sind die Dateien, deren Schreibweg spec/02 bei
-// org_admin/security reserviert: ACCESS.md und EGRESS.md sind die
-// Textansicht auf Zustand, den sonst nur diese Rollen ändern dürfen. Ein
-// Vorschlag erbt diese Grenze, statt sie zu umgehen — ein Review-Dialog, der
-// alles durchlässt, weil der VORSCHLAG harmlos war, verschöbe die
-// Zugriffsentscheidung von der Security zu dem, der zuerst geklickt hat.
+// RestrictedConfigFiles are the files whose write path spec/02 reserves for
+// org_admin/security: ACCESS.md and EGRESS.md are the text view of state
+// that otherwise only these roles may change. A proposal inherits this
+// boundary instead of bypassing it — a review dialog that lets everything
+// through because the PROPOSAL was harmless would move the access decision
+// from security to whoever clicked first.
 var RestrictedConfigFiles = []string{"ACCESS.md", "EGRESS.md"}
 
-// MergeConfig legt die geänderten Dateien auf den bestehenden Satz. Gemergt
-// und nicht ersetzt: was der Vorschlag nicht anfasst, bleibt stehen. Wer eine
-// Datei loswerden will, schreibt sie leer.
+// MergeConfig lays the changed files over the existing set. Merged and not
+// replaced: what the proposal does not touch stays. Whoever wants to get rid
+// of a file writes it empty.
 func MergeConfig(current, changes map[string]string) map[string]string {
 	out := make(map[string]string, len(current)+len(changes))
 	for name, content := range current {
@@ -271,10 +271,10 @@ func MergeConfig(current, changes map[string]string) map[string]string {
 	return out
 }
 
-// ChangedFiles sind die Dateien, die der Vorschlag gegenüber dem aktuellen
-// Stand wirklich ändert. Ein Vorschlag, der eine Datei unverändert
-// mitschickt, ändert sie nicht — das entscheidet mit darüber, wer ihn
-// annehmen darf.
+// ChangedFiles are the files the proposal really changes compared to the
+// current state. A proposal that sends a file along unchanged does not
+// change it — this partly decides who may accept
+// it.
 func ChangedFiles(current, changes map[string]string) []string {
 	var out []string
 	for name, content := range changes {
@@ -286,15 +286,15 @@ func ChangedFiles(current, changes map[string]string) []string {
 	return out
 }
 
-// RestrictedChanges beantwortet die Frage der Annahme-Oberfläche: fasst
-// dieser Vorschlag ACCESS.md oder EGRESS.md an? Wenn ja, darf ihn der
-// Teamleiter, dem der Agent gehört, nicht annehmen.
+// RestrictedChanges answers the acceptance UI's question: does this
+// proposal touch ACCESS.md or EGRESS.md? If so, the team leader who owns the
+// agent may not accept it.
 //
-// Bewusst „berührt" und nicht „würde etwas umschalten": der Schreibweg für
-// Config prüft heute, ob sich Tools oder Egress-Ziele tatsächlich ändern —
-// eine Zeile `scope:` mehr in ACCESS.md fällt da nicht auf, weitet den Zugang
-// aber sehr wohl. spec/21 sagt, die Oberfläche liest die DATEIEN des
-// Vorschlags. Genau das tut sie hier.
+// Deliberately "touches" and not "would switch something": the config write
+// path today checks whether tools or egress targets actually change — one
+// more `scope:` line in ACCESS.md does not register there, yet it does widen
+// access. spec/21 says the UI reads the FILES of the
+// proposal. That is exactly what it does here.
 func RestrictedChanges(current, changes map[string]string) []string {
 	var out []string
 	for _, name := range RestrictedConfigFiles {
@@ -309,13 +309,13 @@ func RestrictedChanges(current, changes map[string]string) []string {
 	return out
 }
 
-// ProposalConflicts sind die Dateien, die der Vorschlag ändert und die sich
-// seit seiner Basis unter ihm verändert haben.
+// ProposalConflicts are the files the proposal changes and that have changed
+// under it since its base.
 //
-// Der Unterschied zu „veraltet" trägt die Bedienbarkeit: dass jemand
-// zwischenzeitlich die KPIS.md bearbeitet hat, macht einen Vorschlag zur
-// SOUL.md nicht falsch. Erst wenn dieselbe Datei angefasst wurde, würde die
-// Annahme eine fremde Änderung überschreiben — und nur dann steht sie still.
+// The difference to "stale" carries the usability: that somebody edited
+// KPIS.md in the meantime does not make a proposal to the SOUL.md wrong.
+// Only when the same file was touched would the acceptance overwrite a
+// foreign change — and only then does it stop.
 func ProposalConflicts(base, current, changes map[string]string) []string {
 	var out []string
 	for name := range changes {
@@ -334,19 +334,19 @@ func nonNilFiles(m map[string]string) map[string]string {
 	return m
 }
 
-// --- Das Review: die Beurteilung selbst, datiert ---
+// --- The review: the assessment itself, dated ---
 
-// Review ist, was der Betrieb ueber einen Kollegen geschrieben hat. Es wartet
-// auf nichts — anders als ein offener Punkt braucht es keine Entscheidung,
-// sondern nur einen Leser. Deshalb steht es in einer eigenen Tabelle und nicht
-// im Posteingang: was dort liegt, soll weggehen, wenn jemand entschieden hat.
+// Review is what the operation has written about a colleague. It waits for
+// nothing — unlike an open point it needs no decision, only a reader. That
+// is why it sits in its own table and not in the inbox: what lies there is
+// meant to disappear once someone has decided.
 //
-// Es erreicht den BEURTEILTEN Agenten auf keinem Weg, und das ist strukturell
-// und keine Regel (spec/21): der Prompt traegt nur die aktive Config-Version,
-// diese Zeilen sind keine; das Gedaechtnis eines Agenten ist auf ihn selbst
-// gescopet, ein Kollege kann also nicht hineinschreiben; und es gibt keine
-// Aktion, die Reviews liest. Wer eine baut, macht aus drei Eigenschaften eine
-// Richtlinie — und Richtlinien vergisst man.
+// It reaches the REVIEWED agent by no path, and that is structural and not a
+// rule (spec/21): the prompt carries only the active config version, these
+// rows are not one; an agent's memory is scoped to itself, so a colleague
+// cannot write into it; and there is no action that reads reviews. Whoever
+// builds one turns three properties into a policy — and policies get
+// forgotten.
 type Review struct {
 	ID            uuid.UUID  `json:"id"`
 	OrgID         uuid.UUID  `json:"org_id"`
@@ -359,7 +359,7 @@ type Review struct {
 	CreatedAt     time.Time  `json:"created_at"`
 }
 
-// CreateReview haelt eine Beurteilung fest.
+// CreateReview records an assessment.
 func (r *Registry) CreateReview(ctx context.Context, rev Review) (Review, error) {
 	target, err := r.Get(ctx, rev.AgentID)
 	if err != nil {
@@ -380,7 +380,7 @@ func (r *Registry) CreateReview(ctx context.Context, rev Review) (Review, error)
 	return rev, err
 }
 
-// Reviews liefert die Historie eines Kollegen, neueste zuerst.
+// Reviews returns the history of a colleague, newest first.
 func (r *Registry) Reviews(ctx context.Context, agentID uuid.UUID, limit int) ([]Review, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 20
@@ -404,9 +404,9 @@ func (r *Registry) Reviews(ctx context.Context, agentID uuid.UUID, limit int) ([
 	return out, rows.Err()
 }
 
-// LastReviewedAt sagt, wann ein Kollege zuletzt beurteilt wurde (Nullzeit =
-// noch nie). Das ist die Zahl, aus der sich ergibt, wer als Naechstes faellig
-// ist — und sie steht hier, damit der Zyklus sie nicht raten muss.
+// LastReviewedAt says when a colleague was last assessed (zero time = never).
+// This is the number from which it follows who is due next — and it stands
+// here so the cycle does not have to guess it.
 func (r *Registry) LastReviewedAt(ctx context.Context, agentID uuid.UUID) (time.Time, error) {
 	var at *time.Time
 	if err := r.pool.QueryRow(ctx,

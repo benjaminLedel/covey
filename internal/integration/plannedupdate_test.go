@@ -8,14 +8,14 @@ import (
 	runnerstore "covey/internal/runner/store"
 )
 
-// Ein Update wird abgelehnt, solange der Host Sandboxen trägt — und bis hierher
-// blieb das Warten am Menschen hängen: drücken, abgelehnt, später nochmal. Auf
-// einer Produktivinstanz hat das zwei Stunden gekostet, während ausgerechnet
-// der Agent, dessen Sandbox blockierte, an dem Fehler litt, den das Update
-// behebt.
+// An update is refused as long as the host carries sandboxes — and up to here
+// the waiting stayed with the human: press, refused, try again later. On
+// a production instance that cost two hours, while precisely
+// the agent whose sandbox blocked suffered from the fault that the update
+// fixes.
 //
-// Der Wunsch gehört deshalb an die Zeile des Runners, nicht in den Kopf des
-// Operators — und er muss einen Neustart der Steuerebene überleben.
+// The wish therefore belongs on the row of the runner, not in the head of the
+// operator — and it has to survive a restart of the control plane.
 func TestEinGeplantesUpdateStehtAnDerRunnerZeile(t *testing.T) {
 	s := newStack(t)
 	c := login(t, s, "admin@test.local", "admin-passwort")
@@ -27,7 +27,7 @@ func TestEinGeplantesUpdateStehtAnDerRunnerZeile(t *testing.T) {
 		t.Fatalf("Runner: %v", err)
 	}
 
-	// Vormerken, wie es die Steuerebene tut, wenn ein Host beschäftigt ist.
+	// Note it down, as the control plane does when a host is busy.
 	if err := s.runners.PlanUpdate(ctx, runnerID, "v9.9.9"); err != nil {
 		t.Fatalf("PlanUpdate: %v", err)
 	}
@@ -36,7 +36,7 @@ func TestEinGeplantesUpdateStehtAnDerRunnerZeile(t *testing.T) {
 		t.Fatalf("der Plan wurde nicht gespeichert: %q (%v)", geplant, err)
 	}
 
-	// Und er ist dort sichtbar, wo der Runner verwaltet wird.
+	// And it is visible where the runner is managed.
 	liste := c.expectList(http.MethodGet, "/api/v1/runners", nil, http.StatusOK)
 	var gefunden bool
 	for _, r := range liste {
@@ -54,9 +54,9 @@ func TestEinGeplantesUpdateStehtAnDerRunnerZeile(t *testing.T) {
 		t.Fatal("der Runner steht nicht in der Liste")
 	}
 
-	// Zurücknehmen können muss man es auch — über eine eigene Route, weil eine
-	// leere Version beim Update „die neueste" heißt und ein Feld nicht beides
-	// bedeuten kann.
+	// It has to be withdrawable too — over its own route, because an
+	// empty version on an update means "the newest" and one field cannot
+	// mean both.
 	c.expect(http.MethodDelete, "/api/v1/runners/"+runnerID.String()+"/update", nil, http.StatusOK)
 	geplant, err = s.runners.PlannedUpdate(ctx, runnerID)
 	if err != nil || geplant != "" {

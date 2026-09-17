@@ -10,13 +10,13 @@ import Organizations from "./Organizations";
 import PlatformHeader from "./platform/Header";
 import Mail from "./platform/Mail";
 
-// Das Plattform-Panel: die Installation, nicht eine Organisation darin.
+// The platform panel: the installation, not an organisation inside it.
 //
-// Vier Seiten, und die Trennlinie zum Administrations-Panel ist immer
-// dieselbe Frage: gilt das für ALLE Mandanten oder nur für den, in dem ich
-// gerade arbeite? Mandanten, Konten, Schalter und Wartelisten-Codes gelten für
-// alle — deshalb stehen sie hier und hinter s.platformAdmin, nicht hinter einer
-// Organisations-Rolle (FR-003, Befund F).
+// Four pages, and the dividing line to the administration panel is always the
+// same question: does this apply to ALL tenants or only to the one I am
+// working in right now? Tenants, accounts, flags and waitlist codes apply to
+// all — that is why they stand here and behind s.platformAdmin, not behind an
+// organisation role (FR-003, finding F).
 export default function Platform({ me }: { me: Principal }) {
   return (
     <Routes>
@@ -29,7 +29,7 @@ export default function Platform({ me }: { me: Principal }) {
   );
 }
 
-// --- Konten ---
+// --- Accounts ---
 
 function Accounts({ me }: { me: Principal }) {
   const { t } = useTranslation();
@@ -167,7 +167,7 @@ function AccountRow({ account, isSelf, orgs }: { account: Account; isSelf: boole
   );
 }
 
-// --- Schalter der Installation ---
+// --- Flags of the installation ---
 
 function Settings() {
   const { t } = useTranslation();
@@ -177,9 +177,9 @@ function Settings() {
     <div>
       <PlatformHeader />
       <p className="muted text-xs mb-4" style={{ maxWidth: 640 }}>{t("platform.settingsDesc")}</p>
-      {/* mail.* hat eine eigene Seite: sieben Felder, die nur zusammen einen
-          Sinn ergeben, plus den Knopf, der sie beweist. Hier stuenden sie als
-          sieben unabhaengige Zeilen — und das Passwort als achte. */}
+      {/* mail.* has a page of its own: seven fields that only make sense
+          together, plus the flag that proves them. Here they would stand as
+          seven independent lines — and the password as an eighth. */}
       {(settings.data ?? [])
         .filter((s) => !s.key.startsWith("mail."))
         .map((s) => (
@@ -189,10 +189,10 @@ function Settings() {
   );
 }
 
-/** Die Auswahlwerte, die ein Schalter kennt. Steht hier und nicht im Backend,
- *  weil es eine Frage der Darstellung ist: die API prüft dieselben Werte noch
- *  einmal (settings.validate), sonst wäre ein Aufruf ohne Oberfläche
- *  ungeprüft. */
+/** The choice values a flag knows. Stands here and not in the backend,
+ *  because it is a matter of presentation: the API checks the same values
+ *  once more (settings.validate), otherwise a call without a surface would
+ *  go unchecked. */
 const CHOICES: Record<string, string[]> = {
   "signup.mode": ["off", "waitlist", "open"],
   "notify.decision": ["on", "off"],
@@ -232,8 +232,8 @@ function SettingRow({ setting }: { setting: Setting }) {
           >
             {choices.map((c) => (
               <option key={c} value={c}>
-                {/* Ein Wert, den mehrere Schalter teilen (an/aus), hat seinen
-                    Text einmal unter platform.choice und nicht je Schalter. */}
+                {/* A value that several flags share (on/off) has its text once
+                    under platform.choice and not per flag. */}
                 {t([`platform.choice.${setting.key}.${c}`, `platform.choice.${c}`], c)}
               </option>
             ))}
@@ -263,7 +263,7 @@ function SettingRow({ setting }: { setting: Setting }) {
   );
 }
 
-// --- Wartelisten-Codes ---
+// --- Waitlist codes ---
 
 function Waitlist() {
   const { t } = useTranslation();
@@ -292,9 +292,9 @@ function CreateCode({ orgs, onDone }: { orgs: Organization[]; onDone: () => void
   const [orgID, setOrgID] = useState("");
   const [pattern, setPattern] = useState("");
   const [expires, setExpires] = useState("");
-  /* Der erzeugte Code steht genau einmal hier — die Datenbank kennt nur seinen
-     Hash. Deshalb bleibt er stehen, bis jemand ihn wegklickt, statt nach dem
-     nächsten Rendern zu verschwinden. */
+  /* The generated code stands exactly once here — the database only knows its
+     hash. That is why it stays until someone clicks it away, instead of
+     vanishing after the next render. */
   const [plaintext, setPlaintext] = useState("");
 
   const mut = useMutation({
@@ -304,7 +304,7 @@ function CreateCode({ orgs, onDone }: { orgs: Organization[]; onDone: () => void
         max_uses: maxUses,
         org_id: orgID,
         email_pattern: pattern,
-        // Ein Datum ohne Uhrzeit gilt bis zum Ende des Tages.
+        // A date without a time is valid until the end of the day.
         expires_at: expires ? new Date(`${expires}T23:59:59`).toISOString() : "",
       }),
     onSuccess: (data) => {

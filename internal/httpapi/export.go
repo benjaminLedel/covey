@@ -463,13 +463,13 @@ func (s *Server) handleImportConfig(w http.ResponseWriter, r *http.Request) {
 	for _, warn := range warnings {
 		s.Log.Warn("skill import", "agent", id, "note", warn)
 	}
-	// Dieser Endpunkt schreibt die KONFIGURATION eines bestehenden Agenten —
-	// Dateien und Skills. Die Stammdaten daneben (Engine, Modell, Denkaufwand,
-	// Turn-Limit) gehören den jeweiligen PATCH-Routen und werden hier bewusst
-	// nicht angefasst: ein Config-Import soll nicht nebenbei die Engine
-	// umstellen. Ein Bundle trägt sie trotzdem, weil `agents/import` sie
-	// braucht — also sagen wir, dass sie liegen bleiben, statt sie still zu
-	// schlucken.
+	// This endpoint writes the CONFIGURATION of an existing agent — files
+	// and skills. The master data next to it (engine, model, effort, turn
+	// limit) belong to the respective PATCH routes and are deliberately
+	// left alone here: a config import should not switch the engine on the
+	// side. A bundle still carries them, because `agents/import` needs them
+	// — so we say that they stay as they are instead of swallowing them
+	// silently.
 	var ignored []string
 	if b.Agent.Model != "" {
 		ignored = append(ignored, "model")
@@ -536,11 +536,11 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "HEARTBEAT.md: "+err.Error())
 		return
 	}
-	// Der Denkaufwand wird hier geprüft und nicht erst beim Setzen: eine
-	// Vertippung im Bundle ist sonst ein Agent, der sauber importiert und dann
-	// bei JEDEM Lauf am Runtime-Flag stirbt — mit einem Fehler, der nach
-	// Infrastruktur aussieht und nach Bundle-Tippfehler nicht. Gegen die Engine
-	// geprüft, auf der er landen wird, nicht gegen eine feste Liste.
+	// The effort is checked here and not only when it is set: a typo in the
+	// bundle otherwise yields an agent that imports cleanly and then dies on
+	// EVERY run at the runtime flag — with an error that looks like
+	// infrastructure and not like a bundle typo. Checked against the engine
+	// it will land on, not against a fixed list.
 	b.Agent.Effort = strings.TrimSpace(b.Agent.Effort)
 	importRuntime := b.Agent.Runtime
 	if importRuntime == "" {

@@ -128,9 +128,9 @@ func (c *Client) runSubAgent(ctx context.Context, taskID string, req target.SubA
 		Body:         task,
 		SystemPrompt: subAgentPrompt,
 		Model:        model,
-		// Der Denkaufwand wird geerbt wie das Modell. Der Sub-Lauf macht die
-		// eigentliche Repo-Arbeit — fiele er auf den Runtime-Default zurück,
-		// dächte ausgerechnet der arbeitende Lauf flacher als der delegierende.
+		// The thinking effort is inherited like the model. The sub-run does the
+		// actual repo work — were it to fall back to the runtime default, the
+		// working run would think flatter than the delegating one.
 		Effort:       cfg.Effort,
 		AllowedTools: cfg.AllowedTools,
 		MaxTurns:     turns,

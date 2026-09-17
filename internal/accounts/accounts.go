@@ -96,14 +96,14 @@ func (s *Store) Register(ctx context.Context, reg Registration,
 	}
 	defer tx.Rollback(ctx)
 
-	// Eine Adresse, die schon einen SITZ hat, darf sich nicht selbst
-	// registrieren. Sonst wählte ein Fremder das Passwort zu einer bestehenden
-	// Mitgliedschaft: bis das Konto mit dem Sitz verknüpft ist (P1), fiele das
-	// nicht auf — danach hinge sein Passwort an deren Organisation.
+	// An address that already has a SEAT may not register itself. Otherwise a
+	// stranger would pick the password to an existing membership: until the
+	// account is linked to the seat (P1), that would not be noticed — afterwards
+	// its password would hang on their organisation.
 	//
-	// Die Prüfung sitzt hier und nicht im Handler, weil sie in dieselbe
-	// Transaktion gehört wie das Anlegen: zwischen Prüfen und Einfügen darf
-	// kein anderer Vorgang liegen.
+	// The check sits here and not in the handler because it belongs into the
+	// same transaction as the creation: no other operation may lie between
+	// checking and inserting.
 	var seat bool
 	if err := tx.QueryRow(ctx,
 		`SELECT EXISTS (SELECT 1 FROM humans WHERE lower(email)=$1)`, email).Scan(&seat); err != nil {

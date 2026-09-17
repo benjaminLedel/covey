@@ -1,23 +1,23 @@
-# Release-Pipeline: Tag `v*` → gebaute Binaries als GitHub Release.
+# Release pipeline: tag `v*` → built binaries as a GitHub Release.
 #
-# Warum GitHub und nicht die GitLab-Seite: Die GitLab-Pipeline deployt die
-# eigene Instanz (covey.work) und schiebt Images in eine private Registry —
-# beides für Dritte unerreichbar. Wer covey installieren will, holt es von
-# GitHub, und dafür braucht es dort veröffentlichte Artefakte. Betriebs- und
-# Installationswerkzeug gehört ins Produkt, nicht in die interne CI.
+# Why GitHub and not the GitLab side: the GitLab pipeline deploys the
+# own instance (covey.work) and pushes images into a private registry —
+# both unreachable for third parties. Whoever wants to install covey fetches it
+# from GitHub, and for that it takes artefacts published there. Operating and
+# installation tooling belongs in the product, not in the internal CI.
 #
-# `installer/install.sh` lädt genau die Dateien, die hier entstehen. Wer das
-# Namensschema der Archive ändert, muss das Skript mitändern — es gibt keine
-# dritte Stelle, die vermittelt. Dieselbe Datei liefert auch jede laufende
-# Instanz unter /install.sh aus (sie ist ins Binary eingebettet).
+# `installer/install.sh` downloads exactly the files that come out of here.
+# Whoever changes the archive naming scheme has to change the script along with
+# it — there is no third place that mediates. The same file is also served by
+# every running instance under /install.sh (it is embedded into the binary).
 name: Release
 
 on:
   push:
     tags: ["v*"]
-  # Manuell auslösbar, um die Pipeline ohne Tag zu proben. Ohne Tag entsteht
-  # kein Release, nur die Artefakte am Lauf — sonst wäre ein Probelauf eine
-  # Veröffentlichung.
+  # Triggerable by hand to rehearse the pipeline without a tag. Without a tag
+  # no release comes to be, only the artefacts on the run — otherwise a rehearsal
+  # would be a publication.
   workflow_dispatch:
 
 permissions:
@@ -29,8 +29,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # Für `git describe` und damit für eine sprechende Version, wenn der
-          # Lauf ohne Tag von Hand angestoßen wird.
+          # For `git describe` and thereby for a speaking version, when the
+          # run is started by hand without a tag.
           fetch-depth: 0
 
       - uses: actions/setup-node@v4
@@ -40,14 +40,14 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
         working-directory: web
-      # Ohne web/dist scheitert der Go-Build: //go:embed zieht das Frontend
-      # ins Binary. Ein Release ohne Oberfläche gibt es nicht.
+      # Without web/dist the Go build fails: //go:embed pulls the frontend
+      # into the binary. There is no release without an interface.
       - run: npm run build
         working-directory: web
 
-      # check-latest (siehe ci.yml): Ein Release soll mit dem neuesten Patch der
-      # Reihe gebaut werden, nicht mit dem, der zufällig auf dem Runner-Image
-      # liegt — die Standard-Library wird mit ins Binary gelinkt.
+      # check-latest (see ci.yml): a release should be built with the latest patch
+      # of the series, not with whatever happens to lie on the runner image —
+      # the standard library is linked into the binary as well.
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26"
@@ -69,12 +69,12 @@ jobs:
             echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           } >> "$GITHUB_OUTPUT"
 
-      # Cross-Build ohne CGO — dasselbe Binary läuft auf jeder Distribution,
-      # unabhängig von deren libc. Genau das macht die Installation per Skript
-      # überhaupt erst so einfach.
+      # Cross-build without CGO — the same binary runs on every distribution,
+      # independent of their libc. That is exactly what makes the installation per
+      # script easy in the first place.
       #
-      # darwin ist dabei, weil covey lokal auf macOS entwickelt und
-      # ausprobiert wird; die Sandbox-Provider brauchen dort trotzdem Docker.
+      # darwin is along because covey is developed and tried out locally on
+      # macOS; the sandbox providers still need Docker there.
       - name: Bauen
         env:
           VERSION: ${{ steps.meta.outputs.version }}
@@ -87,10 +87,10 @@ jobs:
             -X covey/internal/buildinfo.version=${VERSION} \
             -X covey/internal/buildinfo.commit=${COMMIT} \
             -X covey/internal/buildinfo.date=${DATE}"
-          # Ein Archiv je Programm, nicht eines mit allem darin. Sie gehören auf
-          # verschiedene Maschinen: covey auf den Server, coveyd ausschließlich
-          # IN die Sandbox. Wer beides in denselben Suchpfad legt, hat ein
-          # Binary installiert, das dort nie läuft.
+          # One archive per program, not one with everything in it. They belong on
+          # different machines: covey on the server, coveyd exclusively
+          # IN the sandbox. Whoever puts both in the same search path has a
+          # binary installed that never runs there.
           for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
             os="${target%/*}"; arch="${target#*/}"
             work="$(mktemp -d)"
@@ -100,11 +100,11 @@ jobs:
             rm -rf "$work"
           done
 
-          # covey-runner für dieselben Plattformen wie covey: Er läuft auf einem
-          # fremden Host, und welches System das ist, entscheidet nicht diese
-          # Zeile. install.sh bietet ihn als Komponente an (--runner) und bildet
-          # den Archivnamen aus dem Binärnamen — ohne diesen Block läuft der
-          # Installer in einen 404 für ein Programm, das er anbietet.
+          # covey-runner for the same platforms as covey: it runs on a
+          # foreign host, and which system that is is not decided by this
+          # line. install.sh offers it as a component (--runner) and forms
+          # the archive name from the binary name — without this block the
+          # installer runs into a 404 for a program it offers.
           for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
             os="${target%/*}"; arch="${target#*/}"
             work="$(mktemp -d)"
@@ -114,10 +114,10 @@ jobs:
             rm -rf "$work"
           done
 
-          # coveyd nur für Linux: Es läuft nur im Sandbox-Container, und der ist
-          # immer Linux. Beigelegt für alle, die ein eigenes Sandbox-Image bauen
-          # wollen, ohne die Go-Toolchain dafür zu brauchen — Dockerfile.sandbox
-          # selbst baut es weiterhin aus dem Quelltext.
+          # coveyd only for Linux: it runs only in the sandbox container, and that
+          # is always Linux. Included for everyone who wants to build their own sandbox image
+          # without needing the Go toolchain for it — Dockerfile.sandbox
+          # itself keeps building it from source.
           for arch in amd64 arm64; do
             work="$(mktemp -d)"
             CGO_ENABLED=0 GOOS=linux GOARCH="$arch" \
@@ -126,15 +126,15 @@ jobs:
             rm -rf "$work"
           done
 
-      # Eine Prüfsumme je Archiv, in einer Datei. install.sh lädt sie und
-      # vergleicht, bevor es irgendetwas auspackt — ohne diesen Schritt wäre
-      # `curl | sh` genau das, wovor zu Recht gewarnt wird.
+      # One checksum per archive, in one file. install.sh downloads it and
+      # compares before it unpacks anything — without this step
+      # `curl | sh` would be exactly what people rightly warn about.
       - name: Prüfsummen
         run: |
           set -eu
           cd dist
-          # Ohne "./"-Präfix: install.sh sucht die Zeile über den blanken
-          # Dateinamen, und ein Präfix wäre eine Stolperfalle ohne Nutzen.
+          # Without the "./" prefix: install.sh looks for the line by the bare
+          # filename, and a prefix would be a tripping hazard without use.
           sha256sum ./*.tar.gz | sed 's| \./| |' > SHA256SUMS
           cat SHA256SUMS
 
@@ -144,25 +144,25 @@ jobs:
           path: dist/
           retention-days: 7
 
-      # Nur bei einem echten Tag. Ein Probelauf via workflow_dispatch endet
-      # oben mit den Artefakten.
+      # Only on a real tag. A rehearsal via workflow_dispatch ends
+      # above with the artefacts.
       - name: Veröffentlichen
         if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
-          # Das Release kann schon da sein: Wer einen Tag schiebt und die
-          # Beschreibung von Hand schreibt, ist schneller als dieser Lauf — er
-          # baut vorher zehn Archive. Vorher scheiterte der Schritt dann an
-          # "already exists", und das Release blieb OHNE Artefakte stehen. Das
-          # ist der schlechtere von zwei Fehlern: ein rotes Häkchen sieht man,
-          # ein Release ohne Archive nicht — installer/install.sh lädt genau
-          # diese Dateien und läuft sonst in einen 404.
+          # The release can already be there: whoever pushes a tag and writes the
+          # description by hand is faster than this run — it builds ten archives
+          # beforehand. Before, the step failed on
+          # "already exists", and the release stayed standing WITHOUT artefacts. That
+          # is the worse of two errors: a red checkmark one sees,
+          # a release without archives one does not — installer/install.sh downloads
+          # exactly these files and otherwise runs into a 404.
           #
-          # Also: existiert es, bekommt es die Archive und behält seinen Text.
-          # Eine von Hand geschriebene Beschreibung ist mehr wert als die
-          # generierte, und dieser Lauf weiß nicht, welche davorstand.
+          # So: if it exists, it gets the archives and keeps its text.
+          # A description written by hand is worth more than the
+          # generated one, and this run does not know which stood before.
           if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
             echo "Release ${GITHUB_REF_NAME} existiert — hänge die Artefakte an."
             gh release upload "${GITHUB_REF_NAME}" dist/* --clobber

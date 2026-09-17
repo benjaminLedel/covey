@@ -3,12 +3,12 @@ import i18n from "../i18n";
 import { anteil, dauer, phaseZahlen } from "./PhaseBadge";
 import type { AgentPhase } from "../api";
 
-/* Die Phasenanzeige beantwortet eine Frage, auf die der Status keine Antwort
-   hat: „triggered" steht auf einem frischen Host eine Dreiviertelstunde lang da
-   und sagt in dieser Zeit nichts über das Image, das gerade geholt wird. */
+/* The phase readout answers a question the status has no answer to: `triggered`
+   sits on a fresh host for three quarters of an hour and in that time says
+   nothing about the image that is currently being pulled. */
 
-// Die Trenner folgen der Sprache; ein Test, der sie nicht festlegt, prüft die
-// Umgebung statt der Anzeige.
+// The separators follow the language; a test that does not pin them checks the
+// environment instead of the readout.
 beforeEach(async () => {
   await i18n.changeLanguage("de");
 });
@@ -29,15 +29,15 @@ describe("Anteil", () => {
     expect(anteil(ph({ phase: "home", count: 4_935, count_total: 9_870 }))).toBeCloseTo(0.5);
   });
 
-  // Ein Sync weiß erst hinterher, wie viel es war. Ein Balken, der eine Zahl
-  // behauptet, die niemand hat, ist schlimmer als keiner.
+  // A sync only knows afterwards how much it was. A bar that asserts a number
+  // nobody has is worse than no bar.
   it("bleibt ohne Gesamtgröße ohne Länge", () => {
     expect(anteil(ph({ phase: "home_sync", count: 400, bytes: 12_000 }))).toBeUndefined();
   });
 
-  // Docker meldet die Gesamtgröße erst nach und nach — solange nicht jede
-  // Schicht begonnen hat, kann die Summe die vermeintliche Gesamtgröße
-  // übersteigen. 130 % wäre eine Anzeige, die niemand mehr glaubt.
+  // Docker reports the total size only gradually — as long as not every layer
+  // has started, the sum can exceed the supposed total. 130 % would be a
+  // readout that nobody believes any more.
   it("geht nicht über voll hinaus", () => {
     expect(anteil(ph({ bytes: 13, bytes_total: 10 }))).toBe(1);
   });
@@ -58,9 +58,9 @@ describe("Zahlen", () => {
   const t = (k: string, o?: Record<string, unknown>) =>
     k === "activity.phase.filesOf" ? `${o?.count} von ${o?.total} Dateien` : `${o?.count} Dateien`;
 
-  // fmtBytes rechnet in Zweierpotenzen — dieselbe Einheit wie überall sonst in
-  // der Oberfläche. Docker schreibt dezimal; das ist ein Unterschied von sieben
-  // Prozent und wird hier nicht heimlich für eine Anzeige umgestellt.
+  // fmtBytes computes in powers of two — the same unit as everywhere else in
+  // the UI. Docker writes decimal; that is a difference of seven percent and
+  // is not quietly switched here to make a readout work.
   it("nennt beide Zahlen, wo es beide gibt", () => {
     expect(phaseZahlen(ph({ bytes: 1_200_000_000, bytes_total: 2_400_000_000 }), t)).toBe("1.1 GB / 2.2 GB");
   });

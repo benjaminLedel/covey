@@ -98,10 +98,10 @@ var manifest = []struct {
 		DescriptionDe: "Die Personalabteilung der Organisation: macht aus ein paar Sätzen darüber, was jemand tun soll, einen vollständigen Agenten — Charakter, Zuständigkeit, Verfahren, Zugänge, Platz im Org-Chart — und legt ihn als Entwurf hin, den ein Mensch einstellt. Wird beim Setup eingerichtet; hier für alle, die das übersprungen haben.",
 	},
 	{
-		// Der Dateiname bleibt, obwohl der Agent covey Doctor heisst: aus ihm
-		// entsteht der Key `builtin:improvement-engineer`, und der ist ein
-		// stabiler Link-Anker — TestBuiltinIDsStable haelt ihn ausdruecklich
-		// fest, weil bestehende Instanziierungs-Links sonst brechen.
+		// The file name stays although the agent is called covey Doctor: from it
+		// the key `builtin:improvement-engineer` is made, and that is a stable
+		// link anchor — TestBuiltinIDsStable pins it down expressly, because
+		// existing instantiation links would break otherwise.
 		File:          "improvement-engineer.bundle.json",
 		Name:          "covey Doctor (reviews colleagues)",
 		Description:   "Reads what a colleague actually did — throughput, aborts with their reason, cost, stuck tasks — works out whether the configuration, the assignment or the platform is at fault, and proposes a change a human accepts. Weekly, one task per cycle. Needs `scope: agents:review`; give it read access to covey's own repository (Org chart → this platform's source) and its findings become diagnoses instead of symptoms.",

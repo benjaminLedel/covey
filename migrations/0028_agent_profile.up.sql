@@ -1,8 +1,8 @@
--- Agenten-Profil: dieselben Profilfelder wie bei den Menschen (0017–0019).
--- Agenten sind Mitarbeiter (spec/02) — Funktion, Kontakt, Plattform-Kennungen
--- und die org-weit konfigurierbaren Felder (profile_fields → custom) gelten
--- für sie genauso. Die Werte erscheinen im Org-Chart und sind für andere
--- Agenten über die covey/org_chart-Aktion abfragbar.
+-- Agent profile: the same profile fields as for people (0017–0019).
+-- Agents are employees (spec/02) — function, contact, platform identifiers
+-- and the org-wide configurable fields (profile_fields → custom) apply
+-- to them in the same way. The values appear in the org chart and are
+-- queryable by other agents via the covey/org_chart action.
 ALTER TABLE agents
     ADD COLUMN job_title        TEXT NOT NULL DEFAULT '',
     ADD COLUMN identities       JSONB NOT NULL DEFAULT '{}'::jsonb,

@@ -39,8 +39,8 @@ export function AgentSettings({
 }) {
   const { t } = useTranslation();
   const [sp, setSp] = useSearchParams();
-  // Der Unterpunkt steht in der URL: teilbare Links auf die Config eines
-  // Agenten waren vorher moeglich und sollen es bleiben.
+  // The sub-item stands in the URL: shareable links to the config of an
+  // agent were possible before and should stay that way.
   const subs = [
     ["allgemein", t("agent.settings.subGeneral"), true],
     ["heartbeat", t("agent.tabs.heartbeat"), true],
@@ -64,10 +64,10 @@ export function AgentSettings({
 
   return (
     <div className="settings-panes">
-      {/* Seitlich statt oben: die Einstellungen sind vier eigenstaendige Bereiche
-          mit langen Formularen, keine Ansichten derselben Sache. Ein Menue an
-          der Seite bleibt beim Scrollen sichtbar und nimmt dem Inhalt nichts
-          von der Hoehe. */}
+      {/* Sideways instead of on top: the settings are four independent areas
+          with long forms, not views of the same thing. A menu at the side
+          stays visible while scrolling and takes nothing from the height
+          of the content. */}
       <nav className="settings-nav" role="tablist">
         {subs
           .filter(([, , allowed]) => allowed)
@@ -181,19 +181,19 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
     mutationFn: (services: SandboxService[]) => patch(`/agents/${agent.id}/services`, { services }),
     onSuccess: invalidate,
   });
-  // Die Arbeitsplätze kommen aus dem Katalog des Servers (internal/sandbox),
-  // nicht aus einer Liste hier: eine zweite Liste ist die, in der das dritte
-  // Profil fehlt. Die Oberfläche steuert nur bei, was der Server nicht wissen
-  // kann — Übersetzungen, und dass „eigenes Image" auch eine Antwort ist.
+  // The workplaces come from the catalogue of the server (internal/sandbox),
+  // not from a list here: a second list is the one missing the third profile.
+  // The UI only adds what the server cannot know — translations, and that
+  // "own image" is also an answer.
   const workplaces = useQuery({
     queryKey: ["workplaces"],
     queryFn: () => api<Workplace[]>("/workplaces"),
   });
   const profiles = workplaces.data ?? [];
-  // Ob der Agent auf einem Profil sitzt oder auf einem selbst gebauten Image:
-  // beides steht im selben Feld, und die Auswahl muss das auseinanderhalten.
-  // Solange der Katalog noch lädt, gilt jeder Wert als Profil — sonst springt
-  // das Feld für einen Wimpernschlag auf „eigenes Image".
+  // Whether the agent sits on a profile or on a self-built image: both stand
+  // in the same field, and the selection has to tell them apart. As long as
+  // the catalogue is still loading, every value counts as a profile —
+  // otherwise the field jumps to "own image" for the blink of an eye.
   const knownProfile =
     agent.sandbox_image === "" ||
     !workplaces.isSuccess ||
@@ -216,22 +216,22 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
   );
 
   const rtList = runtimes.data ?? [];
-  // Die Denkaufwand-Stufen kommen von der Engine, nicht aus dieser Datei: eine
-  // Engine ohne den Regler soll ihn auch nicht angeboten bekommen. Solange die
-  // Runtime-Liste noch lädt, zeigen wir die Zeile nur, wenn der Agent bereits
-  // eine Stufe gesetzt hat — sonst blitzt sie auf und verschwindet wieder.
+  // The effort levels come from the engine, not from this file: an engine
+  // without the knob should not be offered one. As long as the runtime list
+  // is still loading, we show the row only if the agent already has a level
+  // set — otherwise it flashes up and disappears again.
   const effortLevels = rtList.find((rt) => rt.name === agent.runtime)?.capabilities.effort_levels ?? [];
-  /* Modelle, die die Engine wirklich fährt. Leer heißt NICHT „keine", sondern
-     „nicht deklariert" — vor einem einzelnen Anbieter gehört die Liste dem
-     Anbieter, und dann bleibt es das Freitextfeld wie bisher. Deklariert eine
-     Engine ihre Ids (ein Gateway tut das), wird daraus eine Auswahl: ein
-     Freitextfeld böte dort Modelle an, die die Instanz zwar listet, aber nicht
-     fährt — und es gibt keinen Default, auf den man zurückfallen könnte. */
+  /* The models the engine actually runs. Empty does NOT mean "none", but
+     "not declared" — in front of a single provider the list belongs to the
+     provider, and then it stays the free-text field as before. If an engine
+     declares its ids (a gateway does that), this becomes a selection: a
+     free-text field would offer models there that the instance lists but does
+     not run — and there is no default to fall back onto. */
   const models = rtList.find((rt) => rt.name === agent.runtime)?.capabilities.models ?? [];
-  // covey Doctor heisst ueberall gleich: Name und Slug gehoeren der
-  // Plattform, nicht der Organisation. Die Sperre steht im Server (409) — hier
-  // steht sie nur sichtbar davor, damit niemand gegen ein Feld tippt, dessen
-  // Antwort schon feststeht.
+  // covey Doctor is named the same everywhere: name and slug belong to the
+  // platform, not to the organisation. The block sits in the server (409) —
+  // here it only sits visibly in front, so nobody types into a field whose
+  // answer is already fixed.
   const isDoctor = agent.slug === "covey-doctor";
   const showEffort = effortLevels.length > 0 || !!agent.effort;
   const row: CSSProperties = {
@@ -350,9 +350,9 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
             }}
             className="mono"
           >
-            {/* Der erste Eintrag IST der Default — die leere Auswahl ist damit
-                keine Lücke, sondern eine Aussage: „was die Engine selbst
-                nimmt". Sie steht deshalb oben und nennt das Modell mit. */}
+            {/* The first entry IS the default — the empty selection is no
+                gap, but a statement: "what the engine takes itself". It
+                stands on top for that, and names the model too. */}
             <option value="">{t("agent.settings.modelDefault", { model: models[0] })}</option>
             {models.map((m) => (
               <option key={m} value={m}>
@@ -452,16 +452,16 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
       <p className="muted text-xs mt-0 mb-2">{t("agent.settings.group.workplaceHint")}</p>
       <div style={row}>
         <span className="text-sm">{t("agent.settings.sandboxImage")}</span>
-        {/* Ein eigenes Image der Organisation ist ein gültiger Wert (spec/16),
-            deshalb bleibt neben der Auswahl ein Textfeld: die Liste kennt die
-            Profile, nicht alles, was jemand selbst baut. */}
+        {/* An own image of the organisation is a valid value (spec/16),
+            that is why a text field stays beside the selection: the list knows
+            the profiles, not everything someone builds themselves. */}
         <div className="flex items-center gap-2">
-          {/* Solange der Katalog lädt, fehlt dem Feld die Option des Agenten —
-              der Browser zeigt dann die erste an, also „Voreinstellung der
-              Instanz" für einen Agenten, der auf `dev` sitzt. Gesperrt, bis die
-              Liste da ist: das ist das einzige Fenster, in dem die Anzeige
-              etwas anderes behauptet als der Datenstand, und ein Feld, das in
-              diesem Moment eine Änderung annähme, schriebe sie auch weg. */}
+          {/* While the catalogue loads, the field lacks the agent's option —
+              the browser shows the first one, so "instance default" for an
+              agent that sits on `dev`. Locked until the list is there: this
+              is the only window where the display claims something other than
+              the data state, and a field that would accept a change in this
+              moment would also write it away. */}
           <select
             value={agent.sandbox_image}
             disabled={!editable || setSandboxImage.isPending || !workplaces.isSuccess}
@@ -475,29 +475,29 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
                 {profileLabel(t, p)}
               </option>
             ))}
-            {/* Ein Wert, den die Liste nicht kennt: ein eigenes Image von
-                früher, als es hier noch ein Textfeld gab. Er bleibt wählbar,
-                solange er gesetzt ist — sonst schriebe das Feld ihn beim
-                nächsten Blick still weg. */}
+            {/* A value the list does not know: an own image from
+                earlier, when this was still a text field. It stays selectable
+                as long as it is set — otherwise the field would quietly write
+                it away the next time someone looks at it. */}
             {!knownProfile && agent.sandbox_image !== "" && (
               <option value={agent.sandbox_image}>{agent.sandbox_image}</option>
             )}
           </select>
         </div>
-        {/* Das Raster hat drei Zellen je Zeile — Warnung und Erklärung teilen
-            sich deshalb die dritte, statt die Zeile umbrechen zu lassen. */}
+        {/* The grid has three cells per row — warning and explanation
+            therefore share the third, instead of breaking the row. */}
         <span className="text-xs flex flex-col gap-1">
-          {/* Ein Arbeitsplatz, dessen Image auf keinem Runner liegt, ist
-              wählbar — er weckt dann aber nichts. Das gehört an die Auswahl und
-              nicht in die Aufzeichnung des ersten Laufs, der daran scheitert. */}
+          {/* A workplace whose image lies on no runner is selectable —
+              it then wakes nothing, though. That belongs at the selection,
+              not in the record of the first run that fails on it. */}
           {(() => {
             const chosen = profiles.find((p) => p.name === (agent.sandbox_image || defaultProfile(profiles)));
             if (!chosen || chosen.available !== false) return null;
-            /* Ein Image aus dem Katalog fehlt nicht, es liegt nur noch nicht
-               hier: Es ist veröffentlicht und auf den Digest gepinnt, also
-               zieht der Runner es beim ersten Wecken. Zum Bauen zu raten wäre
-               ein Rat, den man nicht braucht — und auf einer
-               Container-Installation einer, den man nicht befolgen kann. */
+            /* An image from the catalogue is not missing, it is only not
+               here yet: it is published and pinned to the digest, so the
+               runner pulls it at the first wake. To recommend building would
+               be a recommendation nobody needs — and on a container
+               installation one that cannot be followed. */
             if (chosen.source === "catalog") {
               return <span className="muted">{t("agent.settings.sandboxImagePulls")}</span>;
             }
@@ -507,18 +507,18 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
               </span>
             );
           })()}
-          {/* Welches Image der gewählte Arbeitsplatz tatsächlich ist, und
-              woher die Adresse kommt. Beim Katalog ist sie auf den Digest
-              gepinnt und darum lang — sie steht trotzdem da: sie ist das
-              Einzige, woran man sieht, dass zwei Instanzen dasselbe starten. */}
+          {/* Which image the chosen workplace actually is, and
+              where the address comes from. At the catalogue it is pinned to
+              the digest and therefore long — it stands there anyway: it is
+              the only thing that shows two instances start the same. */}
           {(() => {
             const chosen = profiles.find((p) => p.name === (agent.sandbox_image || defaultProfile(profiles)));
             if (!chosen?.image) return null;
             return (
               <span className="muted">
-                {/* Der Tag ist der lesbare Name; der Digest, der tatsächlich
-                    startet, steht im title — sechzig Zeichen gehören nicht in
-                    eine Zeile, die man im Vorbeigehen liest. */}
+                {/* The tag is the readable name; the digest that actually
+                    starts stands in title — sixty characters do not belong
+                    in a line you read while walking past. */}
                 <span className="mono" title={chosen.image}>
                   {chosen.tag || chosen.image}
                 </span>
@@ -548,9 +548,9 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
       <div style={{ ...row, alignItems: "start" }}>
         <span className="text-sm" style={{ paddingTop: 6 }}>{t("agent.settings.services")}</span>
         <ServicesEditor
-          /* Neu montiert, sobald der Server einen anderen Stand liefert — wie
-             die Runner-Tags daneben. Ein Entwurf, der eine fremde Änderung
-             überlebt, ist der, der sie überschreibt. */
+          /* Remounted as soon as the server delivers another state — like
+             the runner tags next to it. A draft that survives a foreign
+             change is the one that overwrites it. */
           key={JSON.stringify(agent.services ?? [])}
           services={agent.services ?? []}
           editable={editable && !setServices.isPending}
@@ -691,22 +691,22 @@ function defaultProfile(profiles: Workplace[]): string {
   return profiles.find((p) => p.default)?.name ?? "";
 }
 
-// Der Katalog liefert seine Beschreibung englisch, wie die Zielsystem-Plugins
-// auch. Wo die Oberfläche eine Übersetzung hat, nimmt sie die — und ein morgen
-// hinzugefügtes Profil ist trotzdem lesbar, ohne die Sprachdateien anzufassen.
+// The catalogue delivers its description in English, like the target
+// system plugins. Where the UI has a translation it takes that —
+// and a profile added tomorrow stays readable without the language files.
 function profileLabel(t: TFunction, p: Workplace): string {
   const translated = t(`agent.settings.sandboxProfile.${p.name}`, { defaultValue: "" });
   return translated || `${p.label} — ${p.description}`;
 }
 
-/* Die Dienste neben der Sandbox (spec/16).
+/* The services beside the sandbox (spec/16).
 
-   Ein Textfeld mit `name=image` je Zeile wäre billiger gewesen, und genau
-   deshalb steht hier keins: Der Name wird ein Hostname auf einem geteilten
-   Runner, und ein Tippfehler darin fällt nicht als Fehler auf, sondern als
-   Datenbank, die nicht antwortet. Drei getrennte Felder zeigen, dass es drei
-   verschiedene Dinge sind — und der Server prüft sie noch einmal, denn diese
-   Oberfläche ist nicht der einzige Weg zu ihm. */
+   A text field with `name=image` per line would have been cheaper, and that
+   is exactly why there is none here: the name becomes a hostname on a shared
+   runner, and a typo in it does not stand out as an error, but as a
+   database that does not answer. Three separate fields show that they are
+   three different things — and the server checks them again, because this
+   UI is not the only way to it. */
 function ServicesEditor({
   services,
   editable,
@@ -736,9 +736,9 @@ function ServicesEditor({
   };
   const change = (i: number, patchOne: Partial<SandboxService>) =>
     setDraft(draft.map((s, j) => (i === j ? { ...s, ...patchOne } : s)));
-  // Gespeichert wird die ganze Liste, nicht das einzelne Feld: Ein Dienst ohne
-  // Image ist keine halbe Zeile, sondern ein unfertiger Entwurf — der bleibt
-  // hier stehen, bis er vollständig ist.
+  // Saved is the whole list, not the single field: a service without an
+  // image is not a half line, but an unfinished draft — it stays here
+  // until it is complete.
   const save = (next: SandboxService[]) => {
     const clean = next.filter((s) => s.name.trim() && s.image.trim());
     if (JSON.stringify(clean) !== JSON.stringify(services)) onSave(clean);

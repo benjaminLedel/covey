@@ -4,10 +4,10 @@ import userEvent from "@testing-library/user-event";
 import Platform from "./Platform";
 import { mockFetch, renderWithProviders, testPrincipal, useGerman } from "../test/render";
 
-// Das Plattform-Panel verwaltet die INSTALLATION. Was diese Tests festhalten,
-// ist vor allem die Grenze, die dabei sichtbar bleiben muss: die Ebene rechts
-// gehört der Instanz, die Rolle am Sitz einer Organisation — dieselbe
-// Unterscheidung, die FR-003 Befund F erzwungen hat.
+// The platform panel manages the INSTALLATION. What these tests hold down is
+// above all the boundary that has to stay visible here: the level on the
+// right belongs to the instance, the role to the seat of an organisation —
+// the same distinction that FR-003 finding F forced.
 
 const KONTEN = [
   {
@@ -62,15 +62,15 @@ describe("Plattform-Panel", () => {
     renderWithProviders(<Platform me={systemadmin} />, { route: "/platform/accounts", path: "/platform/*" });
 
     expect(await screen.findByText("Betreiberin")).toBeInTheDocument();
-    // Die Instanz-Ebene steht in der Zeile des Kontos …
+    // The instance level stands in the row of the account …
     const ebenen = screen.getAllByRole("combobox");
     expect((ebenen[0] as HTMLSelectElement).value).toBe("system_admin");
-    // … die Organisations-Rolle darunter, am Sitz, als eigenes Feld (#262).
+    // … the organisation role below it, at the seat, as a field of its own (#262).
     expect(screen.getByText("Northgate")).toBeInTheDocument();
     expect((ebenen[1] as HTMLSelectElement).value).toBe("org_admin");
 
-    // Ein Konto ohne Sitz ist kein Fehler, sondern der Zustand nach einer
-    // Selbstregistrierung — und muss als solcher lesbar sein.
+    // An account without a seat is not an error, but the state after someone
+    // registered themselves — and it has to be readable as such.
     expect(screen.getByText("in keiner Organisation")).toBeInTheDocument();
     expect(screen.getByText("nie angemeldet")).toBeInTheDocument();
   });
@@ -88,8 +88,8 @@ describe("Plattform-Panel", () => {
     renderWithProviders(<Platform me={systemadmin} />, { route: "/platform/accounts", path: "/platform/*" });
 
     expect(await screen.findByText("Betreiberin")).toBeInTheDocument();
-    // Angeboten wird nur, wo das Konto noch keinen Sitz hat: der Betreiberin
-    // fehlt Southfield, dem neuen Konto fehlen beide.
+    // Offered only where the account has no seat yet: the operator is missing
+    // Southfield, the new account is missing both.
     const auswahl = await screen.findAllByDisplayValue("Einer Organisation hinzufügen …");
     expect(auswahl).toHaveLength(2);
     expect(Array.from((auswahl[0] as HTMLSelectElement).options).map((o) => o.text)).not.toContain("Northgate");
@@ -104,8 +104,8 @@ describe("Plattform-Panel", () => {
     renderWithProviders(<Platform me={systemadmin} />, { route: "/platform/settings", path: "/platform/*" });
 
     expect(await screen.findByText("signup.mode")).toBeInTheDocument();
-    // Unverändert: nur "Vorgabe". Geändert: die Vorgabe, gegen die es sich
-    // geändert hat — sonst weiß niemand, wohin zurück.
+    // Unchanged: only "default". Changed: the default it changed away from —
+    // otherwise nobody knows where to go back to.
     expect(screen.getByText("Vorgabe: covey")).toBeInTheDocument();
   });
 
@@ -119,8 +119,8 @@ describe("Plattform-Panel", () => {
     await userEvent.type(screen.getByPlaceholderText("Konferenz X, Pilotkunde Y"), "Pilot");
     await userEvent.click(screen.getByRole("button", { name: "Code erzeugen" }));
 
-    // Der Klartext existiert genau einmal. Verschwände er beim nächsten
-    // Rendern, wäre der Code verloren.
+    // The plaintext exists exactly once. If it vanished on the next render,
+    // the code would be lost.
     expect(await screen.findByText("COVEY-4K7MQ-P2D9X")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Verstanden" }));
     expect(screen.queryByText("COVEY-4K7MQ-P2D9X")).not.toBeInTheDocument();

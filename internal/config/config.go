@@ -306,8 +306,8 @@ func FromEnv() (Config, error) {
 		// mirror sets its own.
 		EngineCatalogURL: getenv("COVEY_ENGINE_CATALOG_URL", ""),
 		HSTS:             getenv("COVEY_HSTS", "basic"),
-		// 0 lässt dem Pool seine eigene Vorgabe — eine zweite Zahl hier wäre
-		// eine zweite Wahrheit, und genau die hat heute zweimal zugebissen.
+		// 0 leaves the pool its own default — a second number here would be a
+		// second truth, and exactly that has bitten twice today.
 		SandboxStartTimeout:  getenvDuration("COVEY_SANDBOX_START_TIMEOUT", 0),
 		HomeStore:            getenvBool("COVEY_HOME_STORE", true),
 		HomeExcludes:         homeExcludes(os.Getenv("COVEY_HOME_EXCLUDES")),
@@ -544,9 +544,9 @@ func parseTrustedProxies(raw string) ([]netip.Prefix, error) {
 	return out, nil
 }
 
-// getenvInt liest eine ganze Zahl aus der Umgebung. Was nicht als Zahl lesbar
-// ist, zählt als nicht gesetzt: eine halb gelesene Einstellung („5g") wäre eine
-// stillschweigend andere als die gemeinte.
+// getenvInt reads an integer from the environment. What is not readable as a
+// number counts as unset: a half-read setting ("5g") would silently be a
+// different one than the intended.
 // offWhenZero maps a threshold of 0 or below to -1. The orchestrator reads 0 as
 // "not set" and fills in its default, so a 0 passed through unchanged switched
 // nothing off: COVEY_HOME_TIDY_ABOVE_GB=0 kept asking above 5 GB (#273).
@@ -607,21 +607,21 @@ func sandboxImageEnv() map[string]string {
 	return overrides
 }
 
-// DefaultHomeExcludes ist die Schrott-Klasse: Pfade, die nichts als das
-// Werkzeug wiederherstellt, das sie ohnehin liest. Sie herauszulassen kostet
-// nichts — weder eine Wiederherstellung noch eine Entscheidung.
+// DefaultHomeExcludes is the junk class: paths that restore nothing but the
+// tool that reads them anyway. Leaving them out costs nothing — neither a
+// restore nor a decision.
 //
-// Bewusst NICHT darin: die Paket-Caches (.npm, .gradle, .pub-cache, .composer).
-// Sie herauszulassen spart Speicher und Scan-Zeit und kostet einen erneuten
-// Download auf dem nächsten Host. Für einen Agenten, der immer auf demselben
-// Runner landet, ist das ein schlechter Tausch; für einen, der wandert, ein
-// guter. Das ist eine Entscheidung je Installation, und dafür gibt es die
-// Variable — eine Voreinstellung, die sie fällt, wäre eine Vermutung über
-// fremde Betriebsbedingungen.
+// Deliberately NOT in it: the package caches (.npm, .gradle, .pub-cache,
+// .composer). Leaving them out saves storage and scan time and costs a
+// renewed download on the next host. For an agent that always lands on the
+// same runner that is a bad trade; for one that wanders, a good one. That is
+// a decision per installation, and for that there is the variable — a default
+// that makes the decision would be a guess about someone else's operating
+// conditions.
 //
-// Der gemessene Anlass: ein Home mit 19,1 GB, darin __pycache__, .dartServer
-// und ein von Hand nachgebauter apt-Baum, bei jedem Weckruf durchgesehen und
-// nach jedem Lauf zurückgeschrieben (34 s prüfen, 140 s sichern).
+// The measured trigger: a home of 19.1 GB, inside it __pycache__, .dartServer
+// and a hand-built apt tree, scanned on every wake and written back after
+// every run (34 s to check, 140 s to store).
 var DefaultHomeExcludes = []string{
 	"__pycache__",
 	".dartServer",
@@ -631,17 +631,17 @@ var DefaultHomeExcludes = []string{
 	"*.tmp",
 	"aptroot/debs",
 	"aptroot/lists",
-	// Das Datenverzeichnis der Testdatenbank (siehe Dockerfile.sandbox.dev):
-	// Kratzarbeit per Definition. Es mitzusichern hieße, eine Sorte Ballast
-	// gegen eine andere zu tauschen.
+	// The data directory of the test database (see Dockerfile.sandbox.dev):
+	// scratch work by definition. Backing it up too would mean trading one
+	// kind of ballast for another.
 	".local/share/mariadb",
 }
 
-// homeExcludes liest die Einstellung: leer = die Voreinstellung, "none" = gar
-// keine (alles wird gesichert), sonst genau das, was dasteht.
+// homeExcludes reads the setting: empty = the default, "none" = none
+// at all (everything is stored), otherwise exactly what stands there.
 //
-// „none" braucht es, weil eine leere Variable jetzt nicht mehr „nichts
-// ausschließen" heißt — wer die alte Lage will, muss sie sagen können.
+// "none" is needed because an empty variable no longer means "exclude
+// nothing" — whoever wants the old state has to be able to say it.
 func homeExcludes(v string) []string {
 	list := splitList(v)
 	if len(list) == 0 {

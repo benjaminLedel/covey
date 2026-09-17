@@ -18,11 +18,11 @@ import { PriceList } from "../components/PriceList";
 
 // --- Formatierung -----------------------------------------------------------
 
-// Die Zahlenformatierung liegt in format.ts — eine für die ganze Oberfläche.
-// Vorher hatte diese Seite ihre eigene, und daneben standen rohe
-// toLocaleString-Zahlen: „3.05 M" und „147952885" auf demselben Schirm.
+// Number formatting lives in format.ts — one for the whole interface.
+// This page used to have its own, and next to it stood raw
+// toLocaleString numbers: "3.05 M" and "147952885" on the same screen.
 
-// Buckets werden je nach Granularität unterschiedlich beschriftet.
+// Buckets are labelled differently depending on the granularity.
 function fmtPeriod(iso: string, bucket: string, locale: string): string {
   const d = new Date(iso);
   switch (bucket) {
@@ -60,7 +60,7 @@ function CostChart({
   const padB = 46;
   const plotH = H - padT - padB;
 
-  // Balkenbreite skaliert mit der Anzahl; bei vielen Buckets scrollt die Karte.
+  // Bar width scales with the count; with many buckets the chart scrolls.
   const n = data.length;
   const slot = n <= 1 ? 120 : Math.max(26, Math.min(72, Math.round(900 / n)));
   const W = padL + padR + n * slot;
@@ -70,7 +70,7 @@ function CostChart({
     metric === "cost" ? b.total_usd : totalInput(b) + b.output_tokens;
   const max = Math.max(1e-9, ...data.map(valueOf));
 
-  // „schöne" Obergrenze für die Y-Achse.
+  // "Nice" upper bound for the Y axis.
   const niceMax = (() => {
     const raw = max;
     const mag = Math.pow(10, Math.floor(Math.log10(raw)));
@@ -126,9 +126,9 @@ function CostChart({
               </g>
             );
           }
-          // Tokens: gestapelt input (unten) + output (oben). Eingabe heißt hier
-          // ALLES, was das Modell gelesen hat — der Cache-Anteil ist der
-          // Löwenanteil und stand vorher in keinem Balken.
+          // Tokens: stacked input (bottom) + output (top). Input here means
+          // EVERYTHING the model read — the cache share is the lion's
+          // share and was in no bar before.
           const inH = ((totalInput(b) / niceMax) * plotH) || 0;
           const outH = ((b.output_tokens / niceMax) * plotH) || 0;
           const inY = padT + plotH - inH;
@@ -144,7 +144,7 @@ function CostChart({
         {/* X-Achse */}
         <line x1={padL} x2={W - padR} y1={padT + plotH} y2={padT + plotH} stroke="var(--border-strong)" strokeWidth={1} />
         {data.map((b, i) => {
-          // Labels ausdünnen, damit sie nicht überlappen.
+          // Thin out the labels so they do not overlap.
           const every = Math.ceil(n / Math.max(1, Math.floor((W - padL - padR) / 70)));
           if (i % every !== 0 && i !== n - 1) return null;
           const cx = padL + i * slot + slot / 2;
@@ -154,7 +154,7 @@ function CostChart({
             </text>
           );
         })}
-        {/* Hover-Führungslinie */}
+        {/* Hover guide line */}
         {hb && <line x1={hx} x2={hx} y1={padT} y2={padT + plotH} stroke="var(--border-strong)" strokeWidth={1} strokeDasharray="3 3" />}
       </svg>
 
@@ -255,7 +255,7 @@ function Seg<T extends string | number>({
   );
 }
 
-// --- Aufschlüsselungs-Balken (pro Agent / pro Modell) -----------------------
+// --- Breakdown bars (per agent / per model) --------------------------------
 
 function BreakdownBar({ label, value, max, display, to }: { label: string; value: number; max: number; display: string; to?: string }) {
   const pct = max > 0 ? (value / max) * 100 : 0;
@@ -282,12 +282,12 @@ const RANGES: { v: number; bucket: string }[] = [
   { v: 90, bucket: "week" },
 ];
 
-/** Die Kostenarten nebeneinander. Sie stehen hier, weil die USD-Zahl allein die
- *  wichtigste Beobachtung verdeckt: das Gewicht liegt fast vollständig auf der
- *  gecachten Eingabeseite, nicht auf dem, was die Agenten schreiben. Gemessen
- *  auf covey.work: 112 Mio Cache-Read gegen 3,2 Mio Output in 24 Stunden — der
- *  Prompt wird in jedem Turn neu gelesen. Wer das nicht sieht, optimiert die
- *  Ausgabelänge und wundert sich, dass nichts passiert. */
+/** The cost categories side by side. They stand here because the USD number
+ *  alone hides the key observation: the weight lies almost entirely on the
+ *  cached input side, not on what the agents write. Measured on covey.work:
+ *  112M cache read against 3.2M output in 24 hours — the prompt is read anew
+ *  in every turn. Whoever misses that optimizes the output length and
+ *  wonders why nothing happens. */
 function TokenMix({ tokens, locale }: { tokens: Tokens; locale: string }) {
   const { t } = useTranslation();
   const parts = [
@@ -320,9 +320,9 @@ function TokenMix({ tokens, locale }: { tokens: Tokens; locale: string }) {
   );
 }
 
-/** Die teuersten Läufe. Beantwortet die Frage, die die Aggregate offenlassen:
- *  WELCHER Lauf hat das Geld verbrannt. Ein Lauf ohne Aktionen ist eigens
- *  markiert — er hat gelesen, nachgedacht und sich wieder schlafen gelegt. */
+/** The most expensive runs. Answers the question the aggregates leave open:
+ *  WHICH run burned the money. A run without actions is marked on purpose —
+ *  it read, thought and went back to sleep. */
 function ExpensiveRuns({ runs, locale }: { runs: RunCost[]; locale: string }) {
   const { t } = useTranslation();
   if (runs.length === 0) return <div className="muted text-sm">{t("costs.empty")}</div>;
@@ -398,7 +398,7 @@ export default function Costs() {
     refetchInterval: 30000,
   });
 
-  // Die teuersten Läufe des Zeitraums — org-weit oder für den gewählten Agenten.
+  // The most expensive runs of the period — org-wide or for the chosen agent.
   const runs = useQuery({
     queryKey: ["cost", "runs", scope, days],
     queryFn: () =>
@@ -408,9 +408,9 @@ export default function Costs() {
     refetchInterval: 30000,
   });
 
-  // Die Preisliste hängt am selben Scope und Zeitraum wie alles andere auf
-  // dieser Seite — Leistung ist kein zweites Thema neben den Kosten, sondern
-  // die andere Hälfte desselben.
+  // The price list hangs on the same scope and period as everything else on
+  // this page — performance is no second topic next to the costs, but the
+  // other half of the same one.
   const indicators = useQuery({
     queryKey: ["cost", "indicators", scope, days],
     queryFn: () =>
@@ -418,15 +418,15 @@ export default function Costs() {
         scope === "org" ? `/cost/indicators?days=${days}` : `/agents/${scope}/cost/indicators?days=${days}`,
       ),
     refetchInterval: 30000,
-    // Die Kennzahlen EINES Agenten folgen der Arbeitsakte (spec/21):
-    // Controlling bekommt darauf eine 403. Ohne retry:false wären das drei
-    // Wiederholungen alle 30 Sekunden für eine Antwort, die sich nicht ändert.
-    // Performance.tsx macht es an derselben Route genauso.
+    // The metrics of ONE agent follow the work record (spec/21): controlling
+    // gets a 403 on it. Without retry:false that would be three retries
+    // every 30 seconds for an answer that does not change.
+    // Performance.tsx does the same on the same route.
     retry: false,
   });
-  // Eine Rolle, die etwas nicht sehen darf, soll es nicht als leeren Kasten
-  // angezeigt bekommen: leer heißt „es gibt keine Kennzahlen", und das ist eine
-  // andere Aussage als „du siehst sie nicht".
+  // A role that may not see something should not get it as an empty box:
+  // empty means "there are no metrics", and that is a different statement
+  // than "you do not see them".
   const indicatorsForbidden = indicators.error instanceof ApiError && indicators.error.status === 403;
 
   const setRange = (v: number) => {
@@ -439,7 +439,7 @@ export default function Costs() {
   const rep = org.data;
   const series: CostBucket[] = isOrg ? rep?.series ?? [] : agentSeries.data ?? [];
 
-  // Kennzahlen fürs aktuelle Scope.
+  // Metrics for the current scope.
   const totals = useMemo(() => {
     const cached = (t: Tokens) => t.cache_read_tokens + t.cache_creation_tokens;
     if (isOrg && rep) {
@@ -457,8 +457,8 @@ export default function Costs() {
     );
   }, [isOrg, rep, series]);
 
-  // Die Kostenarten fürs aktuelle Scope: org-weit direkt aus dem Report, für
-  // einen Agenten aus seiner Zeitreihe aufsummiert.
+  // The cost categories for the current scope: org-wide straight from the
+  // report, for an agent summed up from its time series.
   const mix: Tokens = useMemo(() => {
     if (isOrg && rep) return rep;
     return series.reduce<Tokens>(
@@ -547,7 +547,7 @@ export default function Costs() {
         <CostChart data={series} metric={metric} bucket={bucket} locale={locale} />
       </div>
 
-      {/* Preisliste + Kostenarten + teuerste Läufe: gelten für jedes Scope */}
+      {/* Price list + cost types + priciest runs: they hold for every scope */}
       <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" }}>
         <div className="card">
           <div style={{ fontWeight: 600, marginBottom: 4 }}>{t("costs.indicators.title")}</div>
@@ -570,7 +570,7 @@ export default function Costs() {
         </div>
       </div>
 
-      {/* Aufschlüsselung nur org-weit */}
+      {/* Breakdown only org-wide */}
       {isOrg && (
         <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" }}>
           <div className="card">
@@ -600,9 +600,9 @@ export default function Costs() {
               />
             ))}
           </div>
-          {/* Pro Credential — nur wenn überhaupt etwas zugeordnet ist. Bei
-              einem Schlüssel mit einem Wert sagt die Karte nichts, was die
-              Gesamtsumme nicht schon sagt. */}
+          {/* Per credential — only when something is assigned at all. For a
+              single key the card says nothing that the
+              total does not say already. */}
           {(rep?.credentials ?? []).length > 0 && (
             <div className="card">
               <div style={{ fontWeight: 600, marginBottom: 12 }}>{t("costs.byCredential")}</div>

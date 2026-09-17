@@ -10,27 +10,27 @@ import (
 	"covey/internal/daemon"
 )
 
-// toolRequest nimmt die Bitte um ein Werkzeug entgegen (covey/request_tool).
+// toolRequest takes the request for a tool (covey/request_tool).
 //
-// Ein Agent, dem ein Paket fehlt, hatte keinen Weg, das zu sagen. Er ist
-// nirgends root, apt ist nicht für ihn, und der Arbeitsplatz steht fest, bis
-// jemand ein Image neu baut. Was er stattdessen tat, lag in seinem Home:
-// ~/aptroot mit sources.list, aufgelösten Paket-URIs und entpackten .debs —
-// unreproduzierbar, unaufgeschrieben, und bei jedem Sync mitgetragen.
+// An agent that lacks a package had no way to say so. It is root nowhere,
+// apt is not for it, and the workspace stands until someone rebuilds the
+// image. What it did instead sat in its home: ~/aptroot with sources.list,
+// resolved package URIs and unpacked .debs — unreproducible, unrecorded,
+// and carried along on every sync.
 //
-// Die Plattform beschafft hier nichts. Sie schreibt die Bitte dorthin, wo ein
-// Mensch sie sieht, mit dem Beleg daneben: an welcher Aufgabe es gefehlt hat.
-// Entschieden wird von dem, der das Dockerfile verantwortet, und die Antwort
-// gilt dann für alle Agenten des Profils statt für dieses eine Home.
+// The platform fetches nothing here. It writes the request where a human
+// sees it, with the evidence beside it: which task it was missing for. The
+// decision is made by whoever owns the Dockerfile, and the answer then
+// holds for every agent of the profile instead of this one home.
 func (o *Orchestrator) toolRequest(ctx context.Context, agent agents.Agent, taskID uuid.UUID, req daemon.RequestTool) daemon.InjectTool {
 	fail := func(msg string) daemon.InjectTool {
 		return daemon.InjectTool{RequestID: req.RequestID, OK: false, Error: msg}
 	}
-	// Der Proxy prüft das schon (actionproxy.go), und trotzdem steht es hier:
-	// Diese Funktion hängt an einer Protokollnachricht, und eine Nachricht kann
-	// von etwas anderem kommen als von dem Weg, den wir uns gedacht haben. Ein
-	// offener Punkt mit dem Titel „Werkzeug fehlt: " wäre für niemanden zu
-	// entscheiden.
+	// The proxy already checks this (actionproxy.go), and it stands here all
+	// the same: this function hangs off a protocol message, and a message can
+	// come from something other than the path we had in mind. An open item
+	// titled `Werkzeug fehlt: ` is a decision nobody could reach from
+	// the list alone.
 	werkzeug := strings.TrimSpace(req.Tool)
 	if werkzeug == "" {
 		return fail("tool missing")
@@ -43,7 +43,7 @@ func (o *Orchestrator) toolRequest(ctx context.Context, agent agents.Agent, task
 		OrgID:   agent.OrgID,
 		AgentID: agent.ID,
 		Kind:    agents.KindToolRequest,
-		// Der Titel ist die Liste, die ein Betreuer überfliegt: Was fehlt, wem.
+		// The title is the list a maintainer skims: what is missing, for whom.
 		Title:         "Werkzeug fehlt: " + werkzeug,
 		Rationale:     belegen(agent, req),
 		AuthorAgentID: &agent.ID,
@@ -62,10 +62,10 @@ func (o *Orchestrator) toolRequest(ctx context.Context, agent agents.Agent, task
 	return daemon.InjectTool{RequestID: req.RequestID, OK: true, ID: angelegt.ID.String()}
 }
 
-// belegen schreibt die Begründung so, dass sie ohne den Agenten lesbar bleibt:
-// wer, in welchem Arbeitsplatz, wofür. Der Arbeitsplatz gehört dazu, weil die
-// Antwort eine Zeile in SEINEM Dockerfile ist — und ein Werkzeug, das im
-// falschen Profil landet, wiegt für alle anderen mit.
+// belegen writes the rationale so that it stays readable without the agent:
+// who, in which workspace, for what. The workspace belongs in it, because the
+// answer is a line in ITS Dockerfile — and a tool that lands in the wrong
+// profile weighs on all the others.
 func belegen(agent agents.Agent, req daemon.RequestTool) string {
 	var b strings.Builder
 	b.WriteString(strings.TrimSpace(req.Why))

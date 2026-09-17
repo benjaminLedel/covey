@@ -1,15 +1,15 @@
--- Der zuletzt gueltige Katalog, damit ein Neustart ihn nicht vergisst.
+-- The last valid catalogue, so that a restart does not forget it.
 --
--- Bisher lag er nur im Speicher des Prozesses. Das trug den laufenden Betrieb,
--- hatte aber zwei Loecher: nach einem Neustart ist der Cache leer, und wenn der
--- fremde Server in genau diesem Moment nicht antwortet, ist die Store-Seite
--- leer statt veraltet — obwohl die Instanz den Katalog seit Wochen kennt. Und
--- der allererste Aufruf nach dem Start wartet auf einen Server, der irgendwo im
--- Internet steht.
+-- Until now it only sat in the memory of the process. That carried running
+-- operation, but had two holes: after a restart the cache is empty, and when
+-- the foreign server does not answer at exactly that moment, the store page is
+-- empty instead of stale — even though the instance has known the catalogue for
+-- weeks. And the very first call after a start waits for a server standing
+-- somewhere on the internet.
 --
--- Der Cache haengt an der URL, nicht an der Organisation: welcher Katalog gilt,
--- entscheidet die Instanz (COVEY_MARKETPLACE_URL). Zeigt jemand die Instanz
--- woanders hin, entsteht eine zweite Zeile, und die alte verfaellt einfach.
+-- The cache hangs off the URL, not off the organisation: which catalogue
+-- applies is decided by the instance (COVEY_MARKETPLACE_URL). If someone points
+-- the instance elsewhere, a second row appears and the old one decays on its own.
 CREATE TABLE marketplace_cache (
     url        TEXT PRIMARY KEY,
     body       BYTEA NOT NULL,

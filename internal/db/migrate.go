@@ -58,13 +58,13 @@ func loadMigrations(fsys fs.FS) ([]migration, error) {
 			m = &migration{version: version, name: base}
 			byVersion[version] = m
 		}
-		// Zwei verschiedene Migrationen unter derselben Nummer — das passiert,
-		// sobald zwei Branches parallel dieselbe Nummer vergeben. Bisher gewann
-		// still die alphabetisch spätere Datei: ihre SQL überschrieb die der
-		// anderen, verbucht wurde aber nur eine Version, und die verlorene
-		// Migration lief nie. Der Schaden zeigt sich erst als fehlende Spalte
-		// im laufenden Betrieb. Fail-closed: lieber startet die Control Plane
-		// gar nicht, als dass sie mit halbem Schema startet.
+		// Two different migrations under the same number — that happens as soon as
+		// two branches assign the same number in parallel. Until now the
+		// alphabetically later file silently won: its SQL overwrote the other's,
+		// only one version was recorded, and the lost migration never ran. The
+		// damage shows up only as a missing column in live operation.
+		// Fail-closed: better that the control plane does not start at all than
+		// that it starts with half a schema.
 		if m.name != base {
 			a, b := m.name, base
 			if a > b {
@@ -135,12 +135,12 @@ func MigrateUp(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS) (applied int
 		version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())`); err != nil {
 		return 0, err
 	}
-	// Angewendete Versionen EINZELN führen, nicht als Wasserstandsmarke. Ein
-	// `version <= MAX(applied)` überspringt jede Migration, die unterhalb des
-	// höchsten bereits angewendeten Standes nachrutscht — und genau das passiert
-	// beim Mergen: zwei Branches vergeben ihre Nummern gegen dasselbe main, der
-	// zweite merged mit der kleineren. Übersprungen wurde sie still und für
-	// immer, denn beim nächsten Start ist die Marke unverändert hoch.
+	// Keep the applied versions INDIVIDUALLY, not as a water mark. A
+	// `version <= MAX(applied)` skips every migration that slides in below the
+	// highest version already applied — and that is exactly what happens on a
+	// merge: two branches hand out their numbers against the same main, the
+	// second merges with the smaller one. Skipped silently and forever, because
+	// on the next start the mark is unchanged and still as high.
 	seen := map[int]bool{}
 	rows, err := conn.Query(ctx, "SELECT version FROM schema_migrations")
 	if err != nil {

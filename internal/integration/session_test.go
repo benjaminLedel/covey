@@ -7,21 +7,21 @@ import (
 	"time"
 )
 
-// Die Sitzung gleitet mit: Wer arbeitet, wird nicht mitten in der Arbeit
-// abgemeldet. Nur eine ungenutzte Sitzung läuft ab.
+// The session slides along: whoever works is not logged out in the middle of
+// the work. Only an unused session expires.
 //
-// Vorher zählte die Lebensdauer ab der Anmeldung — nach zwölf Stunden war
-// Schluss, egal ob jemand gerade tippte. Der Test schiebt das Ende künstlich in
-// die zweite Hälfte des Fensters (dort und erst dort erneuert die Middleware,
-// damit nicht jede Anfrage schreibt) und prüft, dass eine normale Anfrage es
-// wieder nach hinten setzt.
+// Before, the lifetime counted from the login — after twelve hours it was
+// over, whether someone was typing or not. The test pushes the end artificially
+// into the second half of the window (there and only there the middleware
+// renews, so that not every request writes) and checks that a normal request
+// moves it back again.
 func TestSitzungGleitetMit(t *testing.T) {
 	s := newStack(t)
 	c := login(t, s, "admin@test.local", "admin-passwort")
 	ctx := context.Background()
 
-	// Die Sitzung ist gleich abgelaufen — noch gültig, aber in der zweiten
-	// Hälfte des TTL-Fensters (der Stack setzt SessionTTL auf eine Stunde).
+	// The session expires right away — still valid, but in the second half of
+	// the TTL window (the stack sets SessionTTL to one hour).
 	knapp := time.Now().Add(5 * time.Minute)
 	if _, err := s.pool.Exec(ctx, "UPDATE http_sessions SET expires_at=$1", knapp); err != nil {
 		t.Fatalf("expires_at setzen: %v", err)
@@ -41,8 +41,8 @@ func TestSitzungGleitetMit(t *testing.T) {
 		t.Fatalf("die Sitzung wurde nicht verlängert: %s (vorher %s)", neu, knapp)
 	}
 
-	// Und der Server schickt die neue Frist auch an den Browser — eine nur in
-	// der Datenbank verlängerte Sitzung würfe das Cookie trotzdem weg.
+	// And the server also sends the new deadline to the browser — a session
+	// renewed only in the database would still throw the cookie away.
 	var gesetzt bool
 	for _, ck := range resp.Cookies() {
 		if ck.Name == "covey_session" && ck.MaxAge > 0 {
@@ -54,9 +54,9 @@ func TestSitzungGleitetMit(t *testing.T) {
 	}
 }
 
-// Eine abgelaufene Sitzung wird nicht wiederbelebt: Die Erneuerung verlängert
-// nur, was gilt. Ohne die Bedingung im UPDATE könnte ein alter Cookie eine
-// längst tote Sitzung zurückholen.
+// An expired session is not revived: the renewal only extends what is valid.
+// Without the condition in the UPDATE an old cookie could bring back a session
+// that has long been dead.
 func TestAbgelaufeneSitzungBleibtTot(t *testing.T) {
 	s := newStack(t)
 	c := login(t, s, "admin@test.local", "admin-passwort")

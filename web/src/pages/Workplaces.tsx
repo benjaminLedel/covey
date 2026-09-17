@@ -17,20 +17,20 @@ import {
 import { ConfirmDialog } from "../components/Modal";
 import { fmtBytes, fmtDelta } from "../format";
 
-/* Die Arbeitsplätze — dieselbe Ansicht, die es für Zielsysteme gibt, für das
-   andere Ding, das eine Organisation anschließt: das Image, in dem ein Agent
-   arbeitet.
+/* The workplaces — the same view that exists for target systems, for the
+   other thing an organisation attaches: the image in which an agent
+   works.
 
-   Sie hat sie vorher nur als Zeile in einem Auswahlfeld am Agenten gesehen, und
-   damit ließ sich keine der Fragen beantworten, die man an einen Arbeitsplatz
-   hat: Welches Image ist das, woher kommt es, liegt es hier, und wie viele
-   Kollegen arbeiten darin. Vier Antworten, die es nur zusammen tun. */
+   She has only ever seen them as a row in a dropdown on the agent, and that
+   answers none of the questions you ask of a workplace: which image is this,
+   where does it come from, does it live here, and how many colleagues work
+   in it. Four answers that only work together. */
 
 const darfHolen = (role: string) => role === "org_admin" || role === "security";
 
-/* Der Digest ist der Pin und deshalb sechzig Zeichen lang. Gezeigt wird der
-   Anfang: genug, um zwei Instanzen zu vergleichen, kurz genug, um in einer
-   Zeile zu stehen. Vollständig steht er im title. */
+/* The digest is the pin and therefore sixty characters long. Shown is the
+   start: enough to compare two instances, short enough to stand in one
+   line. In full it stands in the title. */
 function kurzerDigest(image: string): string {
   const i = image.indexOf("@sha256:");
   if (i < 0) return "";
@@ -58,10 +58,10 @@ function Zeile({ w, me }: { w: Workplace; me: Principal }) {
           {w.label}
         </h2>
         {w.default && <span className="pill">{t("workplaces.default")}</span>}
-        {/* „Vorhanden" beantwortet der Runner, nicht die Control Plane: Ein
-            Image liegt dort, wo die Sandbox startet. Fehlt die Antwort, hat
-            niemand gefragt werden können — das ist etwas anderes als „nicht
-            da" und steht deshalb auch anders da. */}
+        {/* "Present" is answered by the runner, not the control plane: an
+            image sits where the sandbox starts. When the answer is missing,
+            nobody could have been asked — that is something else than
+            "absent" and therefore also reads differently. */}
         {w.available === true && <span className="pill ok">{t("workplaces.present")}</span>}
         {w.available === false && <span className="pill">{t("workplaces.absent")}</span>}
         <span className="muted text-xs ml-auto">
@@ -95,17 +95,17 @@ function Zeile({ w, me }: { w: Workplace; me: Principal }) {
         {w.description}
       </p>
 
-      {/* Was drin ist — dieselbe Auskunft, die der Agent in seiner Sandbox
-          liest. „Welchen Arbeitsplatz gebe ich ihm" war sonst nur durch Lesen
-          eines Dockerfiles zu beantworten. */}
+      {/* What is in it — the same information the agent reads in its sandbox.
+          "Which workplace do I give it" was otherwise only answered by reading
+          a Dockerfile. */}
       {w.provides && <Enthaelt provides={w.provides} />}
 
       <div className="text-xs flex flex-col gap-1" style={{ maxWidth: 720 }}>
         <div className="flex items-baseline gap-2 flex-wrap">
           <span className="muted">{t("workplaces.image")}</span>
-          {/* Der Tag ist der Name, unter dem das Image veröffentlicht wurde —
-              das, was man mit einer Release-Notiz vergleicht. Der Digest
-              daneben ist, was tatsächlich startet. */}
+          {/* The tag is the name under which the image was published — the one
+              you compare against a release note. The digest beside it is what
+              actually starts. */}
           <span className="mono">{w.tag || w.image}</span>
           {kurzerDigest(w.image) && (
             <span className="muted mono" title={w.image}>
@@ -114,9 +114,9 @@ function Zeile({ w, me }: { w: Workplace; me: Principal }) {
           )}
           {w.platforms?.length ? <span className="muted">· {w.platforms.join(", ")}</span> : null}
         </div>
-        {/* Was das Holen zuletzt gekostet hat. Die Wahl eines Arbeitsplatzes
-            war sonst eine ohne Preisschild — und beim ersten Start auf einem
-            frischen Host ist genau das die längste Wartezeit, die es gibt. */}
+        {/* What the pull last cost. Choosing a workplace used to be a choice
+            without a price tag — and on the first start on a fresh host this
+            is exactly the longest wait there is. */}
         {w.last_pull && (
           <div className="muted">
             {t("workplaces.lastPull", {
@@ -134,9 +134,9 @@ function Zeile({ w, me }: { w: Workplace; me: Principal }) {
 
       {w.available === false && (
         <div className="flex items-center gap-2 mt-3">
-          {/* Holen geht nur, was auch zu holen ist. Ein selbst gebautes Image
-              trägt einen Namen, den keine Registry kennt — dort ist der Bau
-              die Antwort, und die steht daneben. */}
+          {/* Only pull what can actually be pulled. A self-built image
+              carries a name no registry knows — there the build is the answer,
+              and it stands next to it. */}
           {w.image.includes("/") ? (
             <>
               <button
@@ -198,7 +198,7 @@ function Zeile({ w, me }: { w: Workplace; me: Principal }) {
   );
 }
 
-/* embedded: siehe Runtimes — der Reiter trägt die Überschrift. */
+/* embedded: see Runtimes — the tab carries the heading. */
 export default function Workplaces({ me, embedded = false }: { me: Principal; embedded?: boolean }) {
   const { t } = useTranslation();
   const list = useQuery({
@@ -229,17 +229,17 @@ export default function Workplaces({ me, embedded = false }: { me: Principal; em
   );
 }
 
-/* Welche Images neben einer Sandbox laufen dürfen.
+/* Which images may run next to a sandbox.
 
-   Steht auf dieser Seite und nicht am Agenten, weil es keine Eigenschaft eines
-   Agenten ist: Ein Dienst-Image ist die Entscheidung, welcher fremde Code auf
-   dem Runner läuft, und die trifft die Organisation einmal. Am Agenten steht
-   danach nur noch, WELCHES der erlaubten er nimmt — und ab Stufe 2 nimmt er es
-   aus der Compose-Datei des Projekts, ohne dass jemand es tippt.
+   Stands on this page and not on the agent, because it is no property of an
+   agent: a service image is the decision over which foreign code runs on the
+   runner, and the organisation makes that once. On the agent there afterwards
+   only stands WHICH of the permitted ones it takes — and from level 2 it takes
+   it from the project's compose file without anyone typing it.
 
-   Leer heißt: kein Dienst. Das ist die richtige Voreinstellung für eine frische
-   Installation und die falsche für ein Upgrade — deshalb hat die Migration
-   übernommen, was Agenten bereits deklariert hatten. */
+   Empty means: no service. That is the right setting for a fresh
+   installation and the wrong one for an upgrade — which is why the migration
+   took over what agents had already declared. */
 function Dienstimages() {
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -320,11 +320,11 @@ function Dienstimages() {
   );
 }
 
-/* Ein eigenes Image anmelden. Es steht hier und nicht als freies Textfeld am
-   Agenten: Dort war es unsichtbar (in keiner Übersicht), unbeschrieben (eine
-   Registry-Adresse sagt nicht, wozu sie da ist) und ein Tippfehler fiel erst
-   beim Wecken auf. Einmal angelegt, wird es danach ausgewählt wie jedes
-   andere. */
+/* Registering an image of its own. It stands here and not as a free text field
+   on the agent: there it was invisible (in no overview), undescribed (a
+   registry address does not say what it is for) and a typo only came to light
+   at the wake. Once created, it is then selected like every
+   other. */
 function Anlegen() {
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -405,9 +405,9 @@ function Anlegen() {
   );
 }
 
-// Enthaelt zeigt die Selbstbeschreibung des Images: aufklappbar, weil die Liste
-// beim Überfliegen der Arbeitsplätze stört und genau dann gebraucht wird, wenn
-// jemand einen auswählt.
+// Enthaelt shows the self-description of the image: expandable, because the list
+// disturbs while you skim the workplaces and is needed exactly when someone
+// selects one.
 function Enthaelt({ provides }: { provides: WorkplaceProvides }) {
   const { t } = useTranslation();
   const sdks = Object.entries(provides.sdk_dirs ?? {});

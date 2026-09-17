@@ -71,19 +71,19 @@ export function CompanyDescription({ variant = "card" }: { variant?: "card" | "h
   );
 }
 
-/* Wo der Quelltext dieser Plattform liegt (spec/21).
+/* Where the source code of this platform lives (spec/21).
  *
- * covey Doctor macht den wertvollsten Befund dort, wo er ihn nicht
- * durch eine Config beheben kann — und er ist der Einzige in der Organisation,
- * der ihn bei mehreren Kollegen gleichzeitig gesehen hat. Damit daraus eine
- * Diagnose statt eines Symptoms wird, liest er den Quelltext; damit der Bericht
- * ankommt, meldet er ins selbe Repository.
+ * covey Doctor makes its most valuable finding where a config cannot fix it
+ * — and it is the only one in the organisation that has seen it in several
+ * colleagues at once. So that this becomes a diagnosis instead of a symptom,
+ * it reads the source code; so that the report arrives, it files into the
+ * same repository.
  *
- * WELCHES, entscheidet die Organisation. Eine Instanz gegen den öffentlichen
- * GitHub-Spiegel hätte sonst einen Agenten, der Issues dorthin schreibt, wo die
- * Welt mitliest. Deshalb steht das hier bei den Stammdaten und nicht in einem
- * Prompt. Leer heißt: die dritte Schicht gibt es nicht, und im Prompt steht
- * davon auch nichts.
+ * WHICH repository is decided by the organisation. An instance against the
+ * public GitHub mirror would otherwise have an agent that writes issues where
+ * the whole world reads along. That is why this stands with the master data
+ * and not in a prompt. Empty means: there is no third layer, and the prompt
+ * says nothing of it either.
  *
  * The card lives under Verwaltung → Organisation, beside the company
  * description and the recording settings — the surface for settings, the
@@ -93,15 +93,15 @@ export function CompanyDescription({ variant = "card" }: { variant?: "card" | "h
  * a setting in the wrong place either way (#178). The component stays in
  * this file because the Administration page imports it from here.
  *
- * Und sie war die halbe Einrichtung: ohne eine Zeile in der ACCESS.md von covey
- * Doctor bleibt der Abschnitt aus seinem Prompt, und davon stand nichts auf der
- * Karte, sondern im Kleingedruckten des Formulars. Wer speicherte, sah nicht,
- * ob es gewirkt hat. Jetzt steht der Zustand da, wo das Ergebnis steht
- * (RepoZugang). */
+ * And it was half of the setup: without a line in the ACCESS.md of
+ * covey Doctor the section stays out of his prompt, and nothing of that
+ * stood on the card, but in the small print of the form. Whoever saved
+ * did not see whether it had worked. Now the state stands where the
+ * result stands (RepoZugang). */
 
-/* Ob die Einstellung überhaupt wirkt — gelesen aus derselben Quelle, aus der
-   der Prompt entsteht: `access` ist die Zeile in der ACCESS.md von covey
-   Doctor, `enabled` die Freigabe des Plugins für die Organisation. */
+/* Whether the setting works at all — read from the same source the prompt is
+   built from: `access` is the line in the ACCESS.md of covey Doctor,
+   `enabled` the release of the plugin for the organisation. */
 function RepoZugang({
   doctor,
   system,
@@ -114,16 +114,16 @@ function RepoZugang({
   canFile: boolean;
 }) {
   const { t } = useTranslation();
-  if (!systeme) return null; // noch nicht geladen — lieber nichts als eine Vermutung
+  if (!systeme) return null; // not loaded yet — rather nothing than a guess
   const eintrag = systeme.find((s) => s.name === system);
   const zumAgenten = (
     <Link to={`/agents/${doctor.id}?tab=config`}>{doctor.display_name}</Link>
   );
 
-  /* Einreichen und Lesen hängen an verschiedenen Dingen, seit die Plattform
-     selbst einreicht: das Konto in den Secrets trägt das Einreichen, die Zeile
-     in der ACCESS.md das Lesen. Ohne Konto wird nichts gemeldet — das ist der
-     Zustand, der elf Tage lang wie eine fertige Einrichtung aussah. */
+  /* Filing and reading hang on different things, since the platform files by
+     itself: the account in the secrets carries the filing, the line in the
+     ACCESS.md the reading. Without an account nothing is reported — that is
+     the state that looked like a finished setup for eleven days. */
   if (!canFile) {
     return (
       <p className="warn-text text-xs" style={{ maxWidth: 640 }}>
@@ -163,16 +163,16 @@ function RepoZugang({
   );
 }
 
-/* „Aus" — dasselbe Zeichen wie agents.RepoOff im Backend. Es brauchte einen
-   eigenen Wert, seit es die Voreinstellung gibt: „leer" hieß früher „gar
-   nicht" und heißt jetzt „das Projekt, aus dem dieses Programm stammt". */
+/* "Off" — the same character as agents.RepoOff in the backend. It needed a
+   value of its own, since the default exists: "empty" used to mean "not at
+   all" and now means "the project this program comes from". */
 const REPO_AUS = "-";
 
-// Die Aufzeichnung: wie tief mitgeschrieben wird, und wie lange der wörtliche
-// Verlauf bleibt (spec/06). Beides org-weit, beides am Agenten überschreibbar —
-// die Tiefe nur nach oben, die Frist nur nach länger. Ein Agent, der seine
-// eigene Spur kürzen könnte, wäre genau die Lücke, die eine org-weite
-// Einstellung schließen soll.
+// The recording: how deep things are written along, and how long the verbatim
+// history stays (spec/06). Both org-wide, both overridable on the agent — the
+// depth only upward, the deadline only longer. An agent that could shorten its
+// own trail would be exactly the gap that an org-wide setting is meant to
+// close.
 export function RecordingSettings() {
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -238,20 +238,20 @@ export function PlatformRepo() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const own = useQuery({ queryKey: ["own-org"], queryFn: () => api<Organization>("/org") });
-  /* Woher dieses Programm kommt — die Voreinstellung. Sie steht nicht in der
-     Oberfläche, sondern kommt vom Server (buildinfo), damit ein Fork sein
-     eigenes Projekt trägt und nicht das des Ursprungs. */
+  /* Where this program comes from — the default. It does not stand in the
+     surface, but comes from the server (buildinfo), so that a fork carries its
+     own project and not that of the origin. */
   const build = useQuery({ queryKey: ["build"], queryFn: buildInfo, staleTime: Infinity });
   const targets = useQuery({
     queryKey: ["targets"],
     queryFn: () => api<{ name: string; label: string; enabled: boolean }[] | null>("/targets"),
   });
-  /* Derselbe Schlüssel wie auf der Seite ringsum: die Abfrage läuft nicht ein
-     zweites Mal, die Karte liest nur mit. */
+  /* The same key as on the page around it: the query does not run a second
+     time, the card only reads along. */
   const chart = useQuery({ queryKey: ["orgchart"], queryFn: () => api<OrgChart>("/org/chart") });
   const doctor = (chart.data?.agents ?? []).find((a) => a.slug === "covey-doctor");
-  /* Was covey Doctor an Zugängen HAT — dieselbe Quelle, aus der sein Prompt
-     entsteht (access = eine Zeile in seiner ACCESS.md). */
+  /* What accesses covey Doctor HAS — the same source his prompt is built from
+     (access = a line in his ACCESS.md). */
   const systeme = useQuery({
     queryKey: ["agent-systems", doctor?.id],
     queryFn: () => api<AgentSystem[] | null>(`/agents/${doctor!.id}/systems`),
@@ -263,8 +263,8 @@ export function PlatformRepo() {
   const [error, setError] = useState("");
 
   const save = useMutation({
-    /* Voreinstellung und „aus" tragen kein Projekt — was im Feld stand, bevor
-       jemand das Zielsystem gewechselt hat, wird nicht mitgespeichert. */
+    /* Default and "off" carry no project — what stood in the field before
+       someone switched the target system is not saved along. */
     mutationFn: () =>
       patch<{ ok: boolean }>("/org/platform-repo", {
         system,
@@ -278,14 +278,14 @@ export function PlatformRepo() {
     onError: (e: Error) => setError(e.message),
   });
 
-  /* Am Organigramm ohne covey Doctor: keine Karte. Wer ihn einstellt, findet
-     sie mit ihm vor — in den Stammdaten steht sie ohnehin. */
+  /* On the org chart without covey Doctor: no card. Whoever hires him finds
+     it there with him — in the master data it stands anyway. */
   if (!own.data) return null;
 
-  /* Dieselbe Auflösung wie im Backend (agents.PlatformRepo): eigenes
-     Repository, sonst das Projekt dieser Plattform, außer es ist abgeschaltet.
-     Zwei Stellen, eine Regel — die Karte soll zeigen, was gilt, nicht was
-     gespeichert ist. */
+  /* The same resolution as in the backend (agents.PlatformRepo): own
+     repository, otherwise the project of this platform, unless it is switched
+     off. Two places, one rule — the card should show what applies, not what
+     is stored. */
   const eigenes = own.data.platform_repo_system && own.data.platform_repo_project;
   const aus = own.data.platform_repo_system === REPO_AUS;
   const gilt = aus
@@ -296,8 +296,8 @@ export function PlatformRepo() {
         ? { system: build.data.source_system, project: build.data.source_project }
         : null;
 
-  // Nur angeschlossene Zielsysteme: eine Adresse auf einem System ohne
-  // Credential liefe erst beim Checkout ins Leere.
+  // Only connected target systems: an address on a system without a
+  // credential would only come to nothing at the checkout.
   const wahl = (targets.data ?? []).filter((x) => x.enabled);
 
   const start = () => {
@@ -345,9 +345,9 @@ export function PlatformRepo() {
             <div>
               <label>{t("org.repo.system")}</label>
               <select value={system} onChange={(e) => setSystem(e.target.value)}>
-                {/* Die Voreinstellung steht als erste Wahl und mit Namen da —
-                    „— keines —" beschrieb einen Zustand, den es nicht mehr
-                    gibt. */}
+                {/* The default stands as the first choice and by name —
+                    "— none —" described a state that does not exist
+                    anymore. */}
                 <option value="">
                   {build.data?.source_project
                     ? t("org.repo.defaultOption", { project: build.data.source_project })
@@ -359,8 +359,8 @@ export function PlatformRepo() {
                 <option value={REPO_AUS}>{t("org.repo.offOption")}</option>
               </select>
             </div>
-            {/* Ein Projekt gehört nur zu einem selbst gewählten Zielsystem: die
-                Voreinstellung bringt ihres mit, „aus" braucht keins. */}
+            {/* A project belongs only to a chosen target system: the default
+                brings its own, "off" needs none. */}
             {system !== "" && system !== REPO_AUS && (
               <div className="flex-1 min-w-52">
                 <label>{t("org.repo.project")}</label>
@@ -398,14 +398,14 @@ export default function Org() {
   const own = useQuery({ queryKey: ["own-org"], queryFn: () => api<Organization>("/org") });
 
   if (chart.isError) return <p className="danger-text">{t("org.loadError")}</p>;
-  /* Nicht isLoading: das ist nur der ERSTE Ladevorgang. Zwischen einem
-     fehlgeschlagenen Versuch und dem Wiederholungsversuch steht die Abfrage auf
-     „pending, aber gerade nicht unterwegs" — isLoading false, isError noch
-     false, data undefined. Das Ausrufezeichen dahinter hat die Seite in genau
-     diesem Moment zerlegt: eine 401 auf /org/chart (abgelaufene Sitzung), und
-     statt der Anmeldung kam eine weisse Seite, weil React den Baum bei der
-     Ausnahme abwirft. Auf die Daten prüfen, nicht auf einen Zustand, der sie
-     bloß meistens mitbringt. */
+  /* Not isLoading: that is only the FIRST load. Between a failed attempt and
+     the retry the query stands on "pending, but not on the road right now" —
+     isLoading false, isError still false, data undefined. The exclamation
+     mark behind it took the page apart in exactly this moment: a 401 on
+     /org/chart (expired session), and instead of the login came a white
+     page, because React throws the tree away on the exception. Check the
+     data, not a state that merely brings them
+     along most of the time. */
   if (!chart.data) return null;
 
   return (

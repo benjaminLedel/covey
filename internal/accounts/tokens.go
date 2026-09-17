@@ -71,12 +71,12 @@ func IssueTokenIn(ctx context.Context, q execer, accountID uuid.UUID, purpose st
 		return "", err
 	}
 	token := base64.RawURLEncoding.EncodeToString(buf)
-	// Die Frist rechnet die Datenbank, nicht dieser Prozess: geprüft wird sie
-	// in redeem gegen das dortige now(). Kämen Ablauf und Vergleich aus zwei
-	// Uhren, entschiede über die Lebensdauer eines Links die Differenz
-	// zwischen ihnen — bei einer Datenbank auf einem anderen Rechner ist die
-	// nicht null, und ein um Minuten nachgehender Server verlängerte jedes
-	// Passwort-Reset stillschweigend. Eine Uhr, eine Antwort.
+	// The deadline is computed by the database, not this process: it is checked
+	// in redeem against the now() there. If expiry and comparison came from two
+	// clocks, the difference between them would decide the lifetime of a link —
+	// with a database on another machine that is not zero, and a server running
+	// minutes behind would silently extend every password reset. One
+	// clock, one answer.
 	_, err := q.Exec(ctx,
 		`INSERT INTO account_tokens (token_hash, account_id, purpose, expires_at)
 		 VALUES ($1,$2,$3, now() + make_interval(secs => $4))`,

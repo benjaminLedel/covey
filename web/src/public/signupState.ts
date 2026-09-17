@@ -1,38 +1,38 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 
-/* Ob diese Installation Registrierungen annimmt — die eine Frage, die sowohl
-   die Registrierungsseite als auch die Anmelde-Karte stellen müssen.
+/* Whether this installation accepts registrations — the one question that both
+   the signup page and the sign-in card must ask.
 
-   Warum überhaupt gefragt wird: covey wird von Dritten selbst betrieben
-   (README). Auf einer internen Installation gibt es keine Selbstregistrierung,
-   und dann darf die Oberfläche sie auch nicht anbieten — ein Knopf, der zu
-   einem "geschlossen" führt, ist eine Einladung, die keine ist. Die Antwort
-   kommt deshalb vom Server und nicht aus dem Build (FR-002). */
+   Why it is asked at all: covey is self-hosted by third parties (README). On
+   an internal installation there is no self-registration, and then the UI may
+   not offer it either — a button that leads to a "closed" is an invitation
+   that is none. The answer therefore comes from the server and not from the
+   build (FR-002). */
 
 export type SignupMode = "off" | "waitlist" | "open";
 
 export type SignupState = {
   mode: SignupMode;
-  /* Wie sich diese Installation nennt — steht auf der Seite und später in den
-     Mails. */
+  /* What this installation calls itself — stands on the page and later in the
+     mails. */
   site_name: string;
-  /* Die öffentliche Quelle dieses Programms (buildinfo.SourceURL). Sie kommt
-     ohne Sitzung mit, weil die Pflicht aus der AGPL ohne Sitzung gilt — und
-     weil der Stern auf GitHub von Leuten kommt, die vor der Anmeldung
-     stehen. Ein Fork zeigt hier seine eigene Adresse. */
+  /* The public source of this program (buildinfo.SourceURL). It comes without
+     a session because the duty from the AGPL applies without one — and
+     because the star on GitHub comes from people standing in front of the
+     sign-in page. A fork shows its own address here. */
   source: string;
 };
 
-/* Geschlossen ist die sichere Antwort: Solange der Endpunkt fehlt (ältere
-   Installation) oder nicht antwortet, bietet die Oberfläche nichts an. */
+/* Closed is the safe answer: as long as the endpoint is missing (older
+   installation) or does not answer, the UI offers nothing. */
 const GESCHLOSSEN: SignupState = { mode: "off", site_name: "covey", source: "" };
 
 export function useSignupState(): { state: SignupState; loading: boolean } {
-  /* Beim Vorrendern (prerender.mjs) läuft kein Effekt, die Seite entsteht also
-     im Ladezustand — und genau so rendert der Browser sie zuerst. Würde hier
-     schon "geschlossen" stehen, wiche die erste Darstellung vom vorgerenderten
-     HTML ab und React verwürfe es (dieselbe Überlegung wie in LoginCard). */
+  /* During prerendering (prerender.mjs) no effect runs, so the page is made
+     in the loading state — and that is how the browser renders it first. If
+     this already said "closed", the first paint would differ from the
+     prerendered HTML and React would discard it (same as in LoginCard). */
   const [state, setState] = useState<SignupState>(GESCHLOSSEN);
   const [loading, setLoading] = useState(true);
 
@@ -50,27 +50,27 @@ export function useSignupState(): { state: SignupState; loading: boolean } {
   return { state, loading };
 }
 
-/* Registrierung anstoßen. Der Code wird zusammen mit den Daten geprüft — es
-   gibt bewusst keinen eigenen Endpunkt, der bloß die Gültigkeit eines Codes
-   bestätigt (FR-002, D3): der wäre ein Orakel zum Durchprobieren. */
+/* Start a registration. The code is checked together with the data — there is
+   deliberately no endpoint of its own that merely confirms that a code is
+   valid (FR-002, D3): that would be an oracle for trying codes through. */
 export type SignupInput = {
   code: string;
   email: string;
   display_name: string;
   password: string;
-  /* Die Sprache der Registrierungsseite. Sie geht mit, weil die Mail sie
-     braucht: der Server kennt die Wahl des Browsers sonst nicht, und eine
-     Bestätigung auf Englisch an jemanden, der gerade auf Polnisch registriert
-     hat, ist ein Bruch mitten im Vorgang. */
+  /* The language of the signup page. It goes along because the mail needs it:
+     the server does not otherwise know the browser's choice, and a
+     confirmation in English to someone who has just registered in Polish is a
+     break in the middle of the process. */
   lang: string;
 };
 
 export type SignupResult = {
   ok: boolean;
-  /* Ob eine Bestätigungsmail unterwegs ist. Das entscheidet der Server, nicht
-     die Seite: solange kein Mailversand eingerichtet ist, gilt die Adresse
-     sofort als bestätigt — und dann wäre "wir haben Ihnen geschrieben" eine
-     Auskunft über eine Mail, die es nicht gibt. */
+  /* Whether a confirmation mail is on its way. The server decides this, not
+     the page: as long as no mail sending is set up, the address counts as
+     confirmed at once — and then "we wrote to you" would be a statement about
+     a mail that does not exist. */
   verification_sent: boolean;
 };
 
@@ -80,11 +80,11 @@ export const signup = (input: SignupInput) =>
     body: JSON.stringify(input),
   });
 
-/* Bestätigung und Passwort-Zurücksetzung (#168).
+/* Confirmation and password reset (#168).
 
-   Alle vier Endpunkte antworten absichtlich gleichförmig: „angenommen" heißt
-   nicht „diese Adresse gibt es". Wer eine Antwort auswerten wollte, um
-   herauszufinden, wer hier ein Konto hat, erfährt aus ihr nichts. */
+   All four endpoints answer deliberately uniform: "accepted" does not mean
+   "this address exists". Someone who wanted to read an answer to find out who
+   has an account here learns nothing from it. */
 
 export const verifyAddress = (token: string) =>
   api<{ ok: boolean; email: string }>("/public/verify", {

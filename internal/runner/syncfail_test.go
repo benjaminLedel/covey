@@ -8,10 +8,10 @@ import (
 	"github.com/google/uuid"
 )
 
-/* Ein Home-Sync, der scheitert, hinterließ eine Zeile im Debug-Log des Runners
-   und sonst nichts. Die Oberfläche zeigte weiter den letzten geglückten
-   Schnappschuss — wahr und nutzlos: auf einer produktiven Instanz war das
-   wochenlang so, und es kostete einen 39-Minuten-Lauf (#72). */
+/* A home sync that failed left a line in the runner's debug log and
+   nothing else. The UI kept showing the last successful snapshot — true
+   and useless: on a production instance it stayed that way for weeks, and it
+   cost a 39-minute run (#72). */
 
 func TestEinGescheiterterSyncWirdGemeldet(t *testing.T) {
 	p := NewPool(quietLog())
@@ -28,12 +28,12 @@ func TestEinGescheiterterSyncWirdGemeldet(t *testing.T) {
 	c := p.conns[runnerID]
 	p.mu.Unlock()
 
-	// Der Host antwortet mit einem Fehlschlag — genau die Form, die der
-	// Runner bei einem 413 des Reverse-Proxy schickt.
-	// Gezielt auf den Sync warten: auf der Leitung liegen auch Herzschlag und
-	// Kapazitätsfrage, und wer die erstbeste Nachricht nimmt, beantwortet die
-	// falsche — der Host gilt dann als still und wird nach 90 Sekunden
-	// abgehängt, was einen ganz anderen Fehlschlag ergibt.
+	// The host answers with a failure — exactly the form that the
+	// runner sends on a 413 from the reverse proxy.
+	// Wait for the sync specifically: heartbeat and the capacity question lie
+	// on the line too, and whoever takes the first message that arrives answers
+	// the wrong one — the host then counts as silent and is dropped after 90
+	// seconds, which yields a quite different failure.
 	go func() {
 		ctx, abbrechen := context.WithTimeout(context.Background(), 20*time.Second)
 		defer abbrechen()
@@ -68,8 +68,8 @@ func TestEinGescheiterterSyncWirdGemeldet(t *testing.T) {
 	}
 }
 
-// Auch der andere Weg in den Fehlschlag: der Host verschwindet mitten im Sync.
-// Ohne Meldung sähe man hinterher nur einen Schnappschuss, der stehen blieb.
+// The other way into the failure as well: the host vanishes mid-sync.
+// Without a report all one sees afterwards is a snapshot that stayed put.
 func TestAuchEinVerschwundenerHostWirdGemeldet(t *testing.T) {
 	p := NewPool(quietLog())
 	orgID, agentID := uuid.New(), uuid.New()
@@ -102,9 +102,9 @@ func TestAuchEinVerschwundenerHostWirdGemeldet(t *testing.T) {
 	}
 }
 
-// warteAufTypOhneTest ist warteAufTyp für eine Nebenläufigkeit: t.Fatalf ist
-// dort nicht erlaubt, und ausbleiben kann die Nachricht nur so, dass der
-// wartende Test in seine eigene Frist läuft.
+// warteAufTypOhneTest is warteAufTyp for a goroutine: t.Fatalf is
+// not allowed there, and the message can only stay out in a way that lets the
+// waiting test run into its own deadline.
 func warteAufTypOhneTest(end Transport, typ string) {
 	ctx, abbrechen := context.WithTimeout(context.Background(), 10*time.Second)
 	defer abbrechen()

@@ -1,10 +1,10 @@
--- Covey Grundschema: Organisation, Menschen (RBAC), Agenten, Config, Backlog,
--- Recording, Kosten, Secrets, Guard-Rails, Approvals, Webhook-Idempotenz.
+-- Covey base schema: organisation, humans (RBAC), agents, config, backlog,
+-- recording, costs, secret store, guard rails, approvals, webhook idempotency.
 
 CREATE TABLE organizations (
     id          UUID PRIMARY KEY,
     name        TEXT NOT NULL,
-    fleet_killed BOOLEAN NOT NULL DEFAULT FALSE, -- flottenweiter Kill-Switch
+    fleet_killed BOOLEAN NOT NULL DEFAULT FALSE, -- fleet-wide kill switch
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -34,15 +34,15 @@ CREATE TABLE agents (
     status        TEXT NOT NULL DEFAULT 'sleeping'
                   CHECK (status IN ('sleeping','triggered','triage','working','killed')),
     owner_id      UUID REFERENCES humans(id) ON DELETE SET NULL,
-    supervisor    TEXT NOT NULL DEFAULT '', -- Org-Chart: an wen eskaliert wird
+    supervisor    TEXT NOT NULL DEFAULT '', -- Org chart: who to escalate to
     killed        BOOLEAN NOT NULL DEFAULT FALSE,
-    budget_usd    NUMERIC(12,4) NOT NULL DEFAULT 0, -- 0 = kein Deckel
+    budget_usd    NUMERIC(12,4) NOT NULL DEFAULT 0, -- 0 = no cap
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (org_id, slug)
 );
 
--- Config-as-Code: jede Änderung ist eine neue Version (Audit gratis).
+-- Config-as-Code: every change is a new version (audit for free).
 CREATE TABLE agent_config_versions (
     id              UUID PRIMARY KEY,
     agent_id        UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
@@ -54,7 +54,7 @@ CREATE TABLE agent_config_versions (
     UNIQUE (agent_id, version)
 );
 
--- Zugänge aus ACCESS.md, materialisiert für den Broker (Referenzen, nie Secrets).
+-- Accesses from ACCESS.md, materialized for the broker (references, never secrets).
 CREATE TABLE system_accesses (
     agent_id  UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
     system    TEXT NOT NULL,
@@ -70,11 +70,11 @@ CREATE TABLE backlog_tasks (
     body               TEXT NOT NULL DEFAULT '',
     state              TEXT NOT NULL DEFAULT 'open'
                        CHECK (state IN ('open','in_progress','blocked','done','failed','cancelled')),
-    priority           INTEGER NOT NULL DEFAULT 5, -- kleiner = wichtiger
+    priority           INTEGER NOT NULL DEFAULT 5, -- lower = more important
     origin             TEXT NOT NULL DEFAULT 'manual', -- manual | webhook:zammad | schedule | agent:<id>
-    correlation_key    TEXT,          -- gesetzt, solange state='blocked'
-    runtime_session_id TEXT,          -- Claude-Code session_id für --resume
-    resume_input       TEXT,          -- Eingabe für die Wiederaufnahme (z. B. Kundenantwort)
+    correlation_key    TEXT,          -- set while state='blocked'
+    runtime_session_id TEXT,          -- Claude-Code session_id for --resume
+    resume_input       TEXT,          -- input for the resume (e.g. the customer reply)
     result             TEXT,
     error              TEXT,
     created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -92,7 +92,7 @@ CREATE TABLE task_transitions (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Session-Recording: unveränderlich, append-only.
+-- Session recording: immutable, append-only.
 CREATE TABLE recording_events (
     id         BIGSERIAL PRIMARY KEY,
     org_id     UUID NOT NULL,
@@ -117,7 +117,7 @@ CREATE TABLE cost_entries (
 );
 CREATE INDEX idx_cost_agent ON cost_entries (agent_id, created_at);
 
--- Built-in SecretStore: AES-GCM-verschlüsselte Werte, Master-Key aus ENV.
+-- Built-in secret store: AES-GCM encrypted values, master key from ENV.
 CREATE TABLE secrets (
     org_id     UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     key        TEXT NOT NULL,
@@ -127,14 +127,14 @@ CREATE TABLE secrets (
     PRIMARY KEY (org_id, key)
 );
 
--- Guard-Rails: zentral, versionierbar, additiv-restriktiv, fail-closed.
+-- Guard rails: central, versioned, additively restrictive, fail-closed.
 CREATE TABLE guardrails (
     id          UUID PRIMARY KEY,
     org_id      UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     scope_level TEXT NOT NULL CHECK (scope_level IN ('global','team','agent')),
-    agent_id    UUID REFERENCES agents(id) ON DELETE CASCADE, -- nur bei scope_level='agent'
+    agent_id    UUID REFERENCES agents(id) ON DELETE CASCADE, -- only when scope_level='agent'
     rule_type   TEXT NOT NULL CHECK (rule_type IN ('deny_system','deny_action','require_approval','budget_limit')),
-    pattern     TEXT NOT NULL, -- System-/Action-Muster, z. B. 'zammad:reply_external' oder 'mail:*'
+    pattern     TEXT NOT NULL, -- system/action pattern, e.g. 'zammad:reply_external' or 'mail:*'
     params      JSONB NOT NULL DEFAULT '{}',
     enabled     BOOLEAN NOT NULL DEFAULT TRUE,
     created_by  UUID REFERENCES humans(id) ON DELETE SET NULL,
@@ -149,14 +149,14 @@ CREATE TABLE approvals (
     action       TEXT NOT NULL,
     params       JSONB NOT NULL DEFAULT '{}',
     status       TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','denied','expired')),
-    used         BOOLEAN NOT NULL DEFAULT FALSE, -- erteilte Freigabe einmalig konsumierbar
+    used         BOOLEAN NOT NULL DEFAULT FALSE, -- a granted approval is consumable once
     requested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     decided_at   TIMESTAMPTZ,
     decided_by   UUID REFERENCES humans(id) ON DELETE SET NULL
 );
 CREATE INDEX idx_approvals_pending ON approvals (org_id, status, requested_at);
 
--- Idempotenz für eingehende Webhooks (Zammad wiederholt bis zu 4×).
+-- Idempotency for incoming webhooks (Zammad repeats up to 4×).
 CREATE TABLE webhook_events (
     dedup_key   TEXT PRIMARY KEY,
     source      TEXT NOT NULL,

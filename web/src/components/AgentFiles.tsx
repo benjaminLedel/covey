@@ -18,21 +18,21 @@ import { fmtBytes } from "../format";
 import { Markdown } from "./Markdown";
 import { Modal, ConfirmDialog } from "./Modal";
 
-// Der Arbeitsplatz des Agenten: sein persistentes Home als Dateibaum. Es ist
-// die Antwort auf „was liegt bei dem eigentlich rum?" — bisher nur über eine
-// Shell auf dem Host zu bekommen. Lesen, hochladen, ändern, löschen; das Home
-// überlebt die Sandbox, der Browser funktioniert deshalb auch am schlafenden
-// Agenten.
+// The agent's workstation: its persistent home as a file tree. It is
+// the answer to "what does this one have lying around?" — until now only reachable
+// through a shell on the host. Read, upload, edit, delete; the home
+// outlives the sandbox, the browser therefore also works on a sleeping
+// agent.
 //
-// Der aktuelle Ordner und die geöffnete Datei stehen in der URL (?dir=&file=),
-// wie überall in dieser Ansicht: ein Link auf eine Datei im Home eines Agenten
-// ist etwas, das man verschickt.
+// The current folder and the open file stand in the URL (?dir=&file=),
+// as everywhere in this view: a link to a file in an agent's home
+// is something you send to someone.
 
 const q = (s: string) => encodeURIComponent(s);
 
-// Ein hineingezogener Ordner ist im Browser kein File, sondern ein
-// FileSystemEntry-Baum, den man selbst ablaufen muss. Ohne das käme beim
-// Ziehen eines Ordners genau nichts an — dataTransfer.files ist dann leer.
+// A folder dragged in is not a File in the browser but a
+// FileSystemEntry tree that you have to walk yourself. Without this, dragging a
+// folder arrives as exactly nothing — dataTransfer.files is empty then.
 type DTEntry = {
   isFile: boolean;
   isDirectory: boolean;
@@ -49,8 +49,8 @@ async function walkDropEntry(entry: DTEntry, prefix: string): Promise<Array<{ fi
   if (!entry.isDirectory) return [];
   const reader = entry.createReader();
   const out: Array<{ file: File; path: string }> = [];
-  // readEntries liefert je Aufruf nur einen Teil (Chrome: 100) — bis zur
-  // leeren Antwort weiterlesen, sonst fehlt beim großen Ordner der Rest.
+  // readEntries returns only part of them per call (Chrome: 100) — read on until
+  // the empty answer, otherwise the large folder is missing the rest.
   for (;;) {
     const batch = await new Promise<DTEntry[]>((res, rej) => reader.readEntries(res, rej));
     if (batch.length === 0) break;
@@ -68,12 +68,12 @@ async function filesFromDrop(dt: DataTransfer): Promise<Array<{ file: File; path
     const nested = await Promise.all(entries.map((e) => walkDropEntry(e, "")));
     return nested.flat();
   }
-  // Browser ohne webkitGetAsEntry: wenigstens die flachen Dateien.
+  // Browsers without webkitGetAsEntry: at least the flat files.
   return Array.from(dt.files).map((file) => ({ file, path: file.name }));
 }
 
-// Symbole im Strichstil der übrigen UI. Ein Ordner sieht anders aus als ein
-// Bild — das erspart es, jede Zeile zu lesen, um die Liste zu überfliegen.
+// Icons in the line style of the rest of the UI. A folder looks different than an
+// image — that spares you reading every row to skim the list.
 const GLYPHS: Record<string, string> = {
   dir: "M3 6a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6z",
   file: "M6 3h7l5 5v13H6V3zm7 0v5h5",
@@ -92,17 +92,17 @@ function FileGlyph({ entry }: { entry: FileEntry }) {
   );
 }
 
-// Die Platzanzeige. Der Grund, dass es sie gibt: das persistente Home ist
-// Absicht (Caches überleben, der nächste Lauf startet warm), aber niemand
-// konnte die Folge sehen. Ein QA-Agent hat sich selbst ins Wiki geschrieben,
-// dass sein 40-G-Overlay durch Alt-Checkouts vollläuft — kurz darauf endete ein
-// Lauf mit „claude exit: signal: killed". Die Information gab es, nur nicht hier.
+// The space gauge. The reason it exists: the persistent home is
+// deliberate (caches survive, the next run starts warm), but nobody
+// could see the consequence. A QA agent wrote into its own wiki
+// that its 40 G overlay was filling up through old checkouts — shortly after, a
+// run ended with `claude exit: signal: killed`. The information existed, just not here.
 function DiskGauge({ usage, onOpenRepos }: { usage?: FilesUsage; onOpenRepos: () => void }) {
   const { t } = useTranslation();
   if (!usage?.exists || usage.total_bytes <= 0) return null;
   const used = usage.total_bytes - usage.free_bytes;
   const pct = Math.min(100, Math.round((used / usage.total_bytes) * 100));
-  // Ab 85 % wird es eng: ein npm install oder ein Checkout braucht Luft.
+  // From 85 % it gets tight: an npm install or a checkout needs headroom.
   const tight = pct >= 85;
   const top = usage.checkouts.slice(0, 3);
   return (
@@ -156,7 +156,7 @@ export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolea
         const n = new URLSearchParams(prev);
         if (value === null || value === "") n.delete(key);
         else n.set(key, value);
-        if (key === "dir") n.delete("file"); // Ordnerwechsel schließt die Datei
+        if (key === "dir") n.delete("file"); // a folder change closes the file
         return n;
       },
       { replace: false },
@@ -181,8 +181,8 @@ export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolea
   const [error, setError] = useState<string | null>(null);
   const [prompting, setPrompting] = useState<null | { kind: "mkdir" | "newfile" | "rename"; entry?: FileEntry }>(null);
   const [confirming, setConfirming] = useState<FileEntry | null>(null);
-  // Auswahl fürs Sammel-Herunterladen. Sie hängt am Ordner: wer weiterklickt,
-  // nimmt sie nicht versehentlich mit.
+  // Selection for the bulk download. It hangs on the folder: whoever clicks
+  // onward does not take it along by accident.
   const [selected, setSelected] = useState<Set<string>>(new Set());
   useEffect(() => setSelected(new Set()), [dir]);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -201,11 +201,11 @@ export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolea
     }
   };
 
-  // uploadFiles nimmt Dateien samt ihrem relativen Pfad: der dritte Parameter
-  // von append() ist der Dateiname im Upload, und der darf hier Ordner
-  // enthalten. So kommt ein hineingezogener Ordner drüben genauso wieder an,
-  // statt als Haufen loser Dateien. Der Server setzt den Pfad zusammen und
-  // normalisiert ihn — aus dem Home führt auch so keiner hinaus.
+  // uploadFiles takes files along with their relative path: the third parameter
+  // of append() is the filename in the upload, and here it may contain folders.
+  // That way a dragged folder arrives on the other side the same way,
+  // instead of as a pile of loose files. The server puts the path together and
+  // normalizes it — this way none of it leads out of the home either.
   const uploadFiles = (files: Array<{ file: File; path: string }>) => {
     if (files.length === 0) return;
     const form = new FormData();
@@ -216,8 +216,8 @@ export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolea
     );
   };
 
-  // Aus einem <input> kommen Dateien flach — außer bei einem Ordner-Upload,
-  // dann trägt webkitRelativePath die Struktur.
+  // Out of an <input> files come flat — except for a folder upload,
+  // then webkitRelativePath carries the structure.
   const uploadPicked = (list: FileList) =>
     uploadFiles(
       Array.from(list).map((file) => ({
@@ -248,9 +248,9 @@ export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolea
       n.has(path) ? n.delete(path) : n.add(path);
       return n;
     });
-  // Mehrere Pfade in einer URL: derselbe Parameter mehrfach — so liest ihn der
-  // Handler als Liste, ohne ein eigenes Trennzeichen zu erfinden, das in einem
-  // Dateinamen vorkommen könnte.
+  // Several paths in one URL: the same parameter repeatedly — that is how the
+  // handler reads it as a list, without inventing a separator of its own that
+  // could occur in a filename.
   const zipURL = (paths: string[]) =>
     `/api/v1/agents/${agent.id}/files/zip?` + paths.map((p) => `path=${q(p)}`).join("&");
 
@@ -271,8 +271,8 @@ export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolea
 
       <DiskGauge usage={usage.data} onOpenRepos={() => setParam("dir", "repos")} />
 
-      {/* Pfadleiste und Werkzeuge in einer Zeile: der Ort, an dem man ist, und
-          was man dort tun kann, gehören zusammen. */}
+      {/* Path bar and tools in one row: where you are and
+          what you can do there belong together. */}
       <div className="card mb-3 flex items-center gap-2 flex-wrap" style={{ padding: "9px 14px" }}>
         <nav className="flex items-center gap-1 text-sm min-w-0" aria-label={t("agent.files.breadcrumb")}>
           <button className="btn sm" style={{ border: "none" }} onClick={() => setParam("dir", "")}>
@@ -315,14 +315,14 @@ export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolea
                 e.target.value = "";
               }}
             />
-            {/* webkitdirectory ist kein Standard-Attribut, React reicht es aber
-                durch — ohne es gibt es keinen Ordner-Upload über den Dialog. */}
+            {/* webkitdirectory is no standard attribute, but React passes it
+                through — without it there is no folder upload via the dialog. */}
             <input
               ref={dirInput}
               type="file"
               multiple
               hidden
-              // @ts-expect-error — nicht im React-Typ, von allen Browsern unterstützt
+              // @ts-expect-error — not in the React type, supported by all browsers
               webkitdirectory=""
               onChange={(e) => {
                 if (e.target.files) uploadPicked(e.target.files);
@@ -370,9 +370,9 @@ export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolea
           if (!canWrite) return;
           e.preventDefault();
           setDropping(false);
-          // filesFromDrop greift die Items noch vor seinem ersten await ab —
-          // danach räumt der Browser die DataTransfer-Liste ab, die daraus
-          // gewonnenen Entry-Objekte bleiben aber gültig.
+          // filesFromDrop grabs the items before its first await —
+          // after that the browser clears away the DataTransfer list, the
+          // entry objects gained from it stay valid though.
           filesFromDrop(e.dataTransfer).then(uploadFiles);
         }}
       >
@@ -381,8 +381,8 @@ export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolea
             {(listing.error as Error).message}
           </p>
         )}
-        {/* Aus dem Snapshot gelesen, weil der Runner nicht verbunden ist: das
-            gehört vor den Upload-Versuch, nicht in die Fehlermeldung danach. */}
+        {/* Read from the snapshot because the runner is not connected: this
+            belongs before the upload attempt, not in the error after it. */}
         {listing.data?.read_only && (
           <p className="muted text-xs" style={{ padding: "10px 14px" }} title={listing.data.read_only_reason}>
             {t("agent.settings.filesReadOnly")}
@@ -445,8 +445,8 @@ export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolea
                   <td className="muted text-xs">{new Date(e.mod_time).toLocaleString()}</td>
                   <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                     {!e.outside && (
-                      // Ein Ordner kommt als Archiv, eine Datei roh — beides
-                      // unter demselben Knopf, weil es dieselbe Absicht ist.
+                      // A folder comes as an archive, a file raw — both
+                      // under the same button, because it is the same intent.
                       <a
                         className="btn sm"
                         href={
@@ -541,12 +541,12 @@ export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolea
   );
 }
 
-// FileViewer zeigt eine Datei — jede Art so, wie man sie ansehen will:
-// Markdown gerendert, Bilder als Bild, PDF eingebettet, Tabellen als Tabelle,
-// alles andere im Editor. Wo es einen Quelltext gibt, ist er einen Klick
-// entfernt und bleibt bearbeitbar; die Vorschau ersetzt den Editor nicht,
-// sondern steht davor. Binäres bleibt zu — im Textfeld würde es zu Müll, und
-// beim Speichern zu kaputtem Müll.
+// FileViewer shows a file — every kind the way you want to look at it:
+// Markdown rendered, images as image, PDF embedded, tables as table,
+// everything else in the editor. Where there is a source text, it is one click
+// away and stays editable; the preview does not replace the editor,
+// it stands in front of it. Binary stays closed — in the text field it would
+// become garbage, and on saving broken garbage.
 function FileViewer({
   agentId,
   path,
@@ -570,7 +570,7 @@ function FileViewer({
     refetchOnMount: "always",
   });
   const [draft, setDraft] = useState<string | null>(null);
-  // Quelltext statt Vorschau — die Wahl gilt fürs Fenster, nicht für die Datei.
+  // Source instead of preview — the choice is for the window, not for the file.
   const [source, setSource] = useState(false);
   useEffect(() => {
     setDraft(null);
@@ -590,8 +590,8 @@ function FileViewer({
   const editable = canWrite && d && !d.binary && !d.truncated;
   const value = draft ?? d?.content ?? "";
   const dirty = draft !== null && draft !== d?.content;
-  // Gerendert werden kann, was Text ist und eine eigene Darstellung hat. Ein
-  // angefangener Edit zieht die Vorschau mit: man will sehen, was man tippt.
+  // Renderable is what is text and has a display of its own. An
+  // started edit pulls the preview along: you want to see what you type.
   const renderable = d?.preview === "markdown" || d?.preview === "csv";
   const showPreview = renderable && !source;
   const previewURL = `/api/v1/agents/${agentId}/files/preview?path=${q(path)}`;
@@ -648,8 +648,8 @@ function FileViewer({
                 maxHeight: "60vh",
                 display: "block",
                 margin: "0 auto",
-                // Karierter Grund: sonst ist bei einem transparenten PNG nicht
-                // zu sehen, wo das Bild aufhört und die Seite anfängt.
+                // Checkered ground: otherwise with a transparent PNG you cannot
+                // see where the image ends and the page begins.
                 background:
                   "repeating-conic-gradient(var(--surface-1) 0% 25%, transparent 0% 50%) 50% / 16px 16px",
               }}
@@ -691,12 +691,12 @@ function FileViewer({
   );
 }
 
-// CsvTable zeigt eine Tabellendatei als Tabelle. Der Parser kann, was das
-// Format wirklich braucht: Trennzeichen nach Endung, Anführungszeichen mit
-// verdoppelten Quotes und Trennern im Feld. Zeilenumbrüche INNERHALB eines
-// Feldes kann er nicht — dafür gibt es den Quelltext, und die Tabelle sagt es
-// nicht, weil sie es gar nicht erst falsch darstellt: solche Zeilen enden
-// sichtbar als eigene Zeile.
+// CsvTable shows a table file as a table. The parser can do what the
+// format really needs: separator by extension, quotes with doubled
+// quotes and separators inside the field. Line breaks INSIDE a
+// field it cannot do — that is what the source text is for, and the table does not
+// say so, because it does not represent them wrongly in the first place: such lines
+// end visibly as their own row.
 const CSV_MAX_ROWS = 200;
 
 function parseDelimited(text: string, sep: string): string[][] {
@@ -768,7 +768,7 @@ function CsvTable({ text, path }: { text: string; path: string }) {
   );
 }
 
-// Ein Name, mehr nicht — für „neuer Ordner", „neue Datei" und „umbenennen".
+// A name, nothing more — for "new folder", "new file" and "rename".
 function NameDialog({
   title,
   label,

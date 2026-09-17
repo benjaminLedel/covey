@@ -3,8 +3,8 @@ ALTER TABLE cost_entries DROP COLUMN secret_key, DROP COLUMN secret_slot;
 
 DROP TABLE secret_bindings;
 
--- Zurück auf einen Wert je Schlüssel: alles jenseits von Slot 0 fällt weg, sonst
--- ließen sich die eindeutigen Indizes aus 0007 nicht wieder aufbauen.
+-- Back to one value per key: everything beyond slot 0 falls away, otherwise
+-- the unique indexes from 0007 could not be rebuilt.
 DELETE FROM secrets WHERE slot <> 0;
 
 DROP INDEX uq_secrets_org;

@@ -5,16 +5,16 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, patch, post, del, type Principal } from "../api";
 import RunnerLog from "../components/RunnerLog";
 
-/* Die Detailseite eines Hosts.
+/* A host's detail page.
  *
- * Die Felder standen vorher in der Tabellenzeile, und das war der falsche Ort:
- * Was ein Runner kann, ist eine Entscheidung mit Begründung — ein Tag schließt
- * Agenten aus, eine Arbeitsplatz-Liste sagt etwas über Kosten. Beides braucht
- * einen Satz daneben, und ein Satz passt nicht in eine Spalte neben Auslastung
- * und Plattenplatz.
+ * The fields used to sit in the table row, and that was the wrong place:
+ * what a runner can do is a decision with a rationale — a tag excludes
+ * agents, a workplace list says something about cost. Both need a
+ * sentence beside them, and a sentence does not fit in a column next to
+ * load and disk space.
  *
- * Die Übersicht bleibt die Übersicht: welche Hosts es gibt, welcher trägt, wo
- * der Platz knapp wird. Wer etwas ändern will, klickt auf den Namen. */
+ * The overview stays the overview: which hosts exist, which one carries,
+ * where space runs tight. Whoever wants to change something clicks the name. */
 
 type RunnerView = {
   id: string;
@@ -80,8 +80,8 @@ export default function RunnerDetail({ me }: { me: Principal }) {
   const r = (runners.data ?? []).find((x) => x.id === id);
 
   const [error, setError] = useState("");
-  // Arbeitsplätze zum Vorabholen: was diese Organisation kennt, plus ein
-  // Freitextfeld für eine Referenz, die in keinem Katalog steht.
+  // Workplaces to pre-pull: what this organisation knows, plus a free-text
+  // field for a reference that stands in no catalogue.
   const workplaces = useQuery({
     queryKey: ["workplaces"],
     queryFn: () => api<{ name: string; label: string; image: string }[]>("/workplaces"),
@@ -97,17 +97,17 @@ export default function RunnerDetail({ me }: { me: Principal }) {
     },
     onError: (e) => setPullResult({ image: "", ok: false, error: String((e as Error)?.message) }),
   });
-  // „Aktualisieren" ist eine Handlung mit Ergebnis, kein Schalter: Der Host
-  // laedt sein neues Binary, sagt was daraus wurde, und geht dann kurz weg.
+  // "Update" is an action with a result, not a switch: the host pulls its
+  // new binary, reports what came of it, and then goes away briefly.
   const [updateResult, setUpdateResult] = useState<{
     ok: boolean;
     error?: string;
     from?: string;
     to?: string;
     restarting?: boolean;
-    // planned: Der Host trug gerade Sandboxen. Das ist kein Fehlschlag,
-    // sondern ein „nicht jetzt" — die Steuerebene holt es in der nächsten
-    // Lücke nach.
+    // planned: The host was carrying sandboxes. That is not a failure,
+    // but a "not now" — the control plane catches up in the next
+    // gap.
     planned?: boolean;
   } | null>(null);
   const update = useMutation({
@@ -139,17 +139,17 @@ export default function RunnerDetail({ me }: { me: Principal }) {
 
   const connected = !!r.live?.connected;
 
-  /* Fuenf Bereiche statt neun Karten untereinander.
+  /* Five areas instead of nine cards stacked.
    *
-   * Die Seite war eine Rolle: Identitaet, Tags, Images, Vorabholen,
-   * Aktualisieren, Pausieren, Log, Zustand, Entfernen — und wer nachsehen
-   * wollte, was der Host gerade sagt, scrollte an allem vorbei, was er heute
-   * nicht aendern will. Das Menue ist dasselbe wie in den Agenten-
-   * Einstellungen (settings-panes/settings-nav), damit niemand zwei Muster
-   * fuer dieselbe Sache lernen muss.
+   * The page was a scroll: identity, tags, images, pre-pull, update,
+   * pause, log, state, remove — and whoever wanted to see what the host
+   * is saying right now scrolled past everything they do not want to
+   * change today. The menu is the same as in the agent
+   * settings (settings-panes/settings-nav), so no one has to learn two
+   * patterns for the same thing.
    *
-   * Der Unterpunkt steht in der URL: ein Link auf das Log eines Hosts ist
-   * genau das, was man in einen Chat wirft, wenn etwas klemmt. */
+   * The sub-item stands in the URL: a link to a host's log is exactly
+   * what you drop into a chat when something sticks. */
   const subs = [
     ["identity", t("runners.detail.subIdentity"), true],
     ["workplaces", t("runners.detail.subWorkplaces"), true],
@@ -157,9 +157,9 @@ export default function RunnerDetail({ me }: { me: Principal }) {
     ["state", t("runners.detail.subState"), true],
     ["maintenance", t("runners.detail.subMaintenance"), manage],
   ] as const;
-  // Der Zustand steht weiter unten: Version, Architektur und Protokoll aendern
-  // sich fast nie, und was von ihnen taeglich interessiert, steht schon in der
-  // Uebersichtstabelle. Oben gehoert hin, was man aendert oder liest.
+  // State sits further down: version, architecture and protocol change
+  // almost never, and whatever of them interests daily already stands in
+  // the overview table. Up top belongs what you change or read.
   const wanted = sp.get("sub") ?? "identity";
   const sub = subs.some(([k, , allowed]) => k === wanted && allowed) ? wanted : "identity";
   const setSub = (key: string) =>
@@ -225,8 +225,8 @@ export default function RunnerDetail({ me }: { me: Principal }) {
               <h2 className="text-[15px]">{t("runners.detail.state")}</h2>
               <Row label={t("runners.colVersion")} value={r.live?.version || r.version || "—"} />
               <Row label={t("runners.detail.arch")} value={r.live?.arch || r.arch || "—"} />
-              {/* Die Zeile kennt das Protokoll erst, wenn der Runner sich einmal
-                  gemeldet hat — beim eingebauten steht es nur in der Verbindung. */}
+              {/* The row knows the protocol only once the runner has reported
+                  in — for the built-in it stands only in the connection. */}
               <Row
                 label={t("runners.detail.protocol")}
                 value={String(r.live?.protocol || r.protocol || "—")}
@@ -235,9 +235,9 @@ export default function RunnerDetail({ me }: { me: Principal }) {
                 label={t("runners.detail.sandboxes")}
                 value={(() => {
                   const running = r.live?.sandboxes ?? r.capacity?.sandboxes ?? 0;
-                  // Der Host sagt sein Limit selbst — es steht in seiner Konfiguration
-                  // und nicht hier. „3 von 4" beantwortet die Frage, die man an dieser
-                  // Zeile stellt; „3" beantwortet sie nur halb.
+                  // The host reports its own limit — it stands in its configuration
+                  // and not here. "3 of 4" answers the question you ask of this
+                  // row; "3" answers it only halfway.
                   const max = r.live?.max_sandboxes ?? r.capacity?.max_sandboxes ?? 0;
                   return max > 0 ? t("runners.detail.sandboxesOf", { running, max }) : String(running);
                 })()}
@@ -365,9 +365,9 @@ export default function RunnerDetail({ me }: { me: Principal }) {
               runnerId={r.id}
               level={r.log_level || "info"}
               connected={connected}
-              // Ein Host, dessen Build das Log noch nicht schickt, schweigt nicht —
-              // er kann nicht. Das zu unterscheiden ist der Unterschied zwischen
-              // „nichts los" und „du siehst hier nie etwas".
+              // A host whose build does not ship logs yet is not silent —
+              // it cannot. Telling them apart is the difference between
+              // "nothing going on" and "you never see anything here".
               ships={!connected || (r.live?.features ?? []).includes("log_shipping")}
               manage={manage}
             />
@@ -410,9 +410,9 @@ export default function RunnerDetail({ me }: { me: Principal }) {
 
               <div className="card rd-card">
                 <h2 className="text-[15px]">{t("runners.detail.pauseTitle")}</h2>
-                {/* Der Text ist zustandsabhängig, weil die Frage es ist: „Was passiert,
-                    wenn ich das drücke" ist bei einem pausierten Host eine andere als
-                    bei einem laufenden. */}
+                {/* The text depends on state because the question is: "what happens
+                    when I press this" is a different one for a paused host than
+                    for a running one. */}
                 <p className="muted text-xs">
                   {r.paused_at ? t("runners.detail.pausedHint") : t("runners.detail.pauseHint")}
                 </p>
@@ -451,14 +451,14 @@ export default function RunnerDetail({ me }: { me: Principal }) {
   );
 }
 
-/* Ein Feld, das beim Verlassen speichert — dieselbe Mechanik wie in den
- * Agenten-Einstellungen, damit niemand einen Speichern-Knopf sucht, den es an
- * der anderen Stelle nicht gibt.
+/* A field that saves on leaving — the same mechanism as in the agent
+ * settings, so no one searches for a save button that does not exist
+ * at the other place.
  *
- * Aufbau bewusst wie überall sonst: <label> über dem Feld, nicht daneben.
- * `label { display: block }` steht ungeschichtet in styles.css und schlägt
- * jede Tailwind-Display-Utility — ein className="flex" auf einem <label> tut
- * hier nichts, und das sieht man erst im Browser. */
+ * Layout deliberately as everywhere else: <label> above the field, not beside.
+ * `label { display: block }` stands unlayered in styles.css and beats
+ * every Tailwind display utility — a className="flex" on a <label> does
+ * nothing here, and you only see that in the browser. */
 function Field({
   label,
   value,
@@ -492,8 +492,8 @@ function Field({
   );
 }
 
-// Was der Host über sich meldet, steht neben dem, was jemand zugewiesen hat —
-// klein und ruhig: es ist eine Auskunft, kein Eingabefeld.
+// What the host reports about itself stands next to what someone assigned —
+// small and quiet: it is information, not an input field.
 function Reported({ label, value }: { label: string; value: string }) {
   return (
     <div className="rd-reported">

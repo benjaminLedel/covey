@@ -1,29 +1,29 @@
 import type { ReactNode } from "react";
 
-// Kleine Logos/Symbole für Zielsysteme. Bewusst als Inline-SVG: die SPA wird
-// per //go:embed ins Binary gezogen und darf keine externen Assets nachladen.
+// Small logos/symbols for target systems. Deliberately inline SVG: the SPA is
+// pulled into the binary via //go:embed and may not load external assets.
 //
-// Die Auflösung ist gestuft und fällt immer weich zurück — hier steht KEINE
-// Plugin-Liste, die etwas gaten würde, nur eine Darstellungs-Zuordnung:
-//   1. Plugin-Name  (Built-ins, "gitlab" → Tanuki)
-//   2. Plugin-Art   ("mcp", "custom")
-//   3. Kategorie    ("ticketing" → Ticket)
-//   4. generisch    (Baustein)
-// Ein neues Plugin bekommt so ohne Änderung hier ein passendes Kategorie-
-// Symbol; ein eigenes Logo ist die Kür, nicht die Pflicht.
+// Resolution is tiered and always falls back softly. This is not a plugin list
+// that gates anything, only a presentation mapping:
+//   1. plugin name  (built-ins, "gitlab" → Tanuki)
+//   2. plugin kind  ("mcp", "custom")
+//   3. category     ("ticketing" → ticket)
+//   4. generic      (building block)
+// A new plugin thus gets a matching category symbol with no change here; a
+// logo of its own is a bonus, not a requirement.
 
-// Marken-Signets. Herkunft der Pfade:
+// Brand marks. Origin of the paths:
 //   - GitHub, GitLab, Nextcloud, Microsoft Teams, Microsoft SharePoint: Simple Icons
-//     (CC0), unverändert übernommen. Die beiden Microsoft-Signets stammen aus
-//     simple-icons@9 — spätere Versionen führen die Microsoft-Marken nicht
-//     mehr; sie stehen hier nur zur Kennzeichnung des jeweiligen Zielsystems.
-//   - Google Chrome: nachgezeichnet in den Markenfarben, weil das Signet
-//     mehrfarbig ist und Simple Icons nur eine einfarbige Silhouette führt.
-// Alle sind gefüllt — sie sollen als Logo lesbar sein, nicht als Symbol.
+//     (CC0), taken over unchanged. The two Microsoft marks come from
+//     simple-icons@9 — later versions no longer carry the Microsoft brands;
+//     they are here only to identify the respective target system.
+//   - Google Chrome: redrawn in the brand colours, because the mark is
+//     multicoloured and Simple Icons only lists a single-colour silhouette.
+// All are filled — they should read as logos, not as symbols.
 const brandMarks: Record<string, { title: string; node: ReactNode }> = {
-  // GitHub führt sein Signet als Schwarz-auf-Weiß bzw. Weiß-auf-Schwarz — eine
-  // feste Markenfarbe gibt es nicht. Deshalb currentColor: nur so bleibt der
-  // Octocat im dunklen Thema sichtbar, statt auf dunklem Grund zu verschwinden.
+  // GitHub ships its mark as black-on-white or white-on-black — there is no
+  // fixed brand colour. Hence `currentColor`: only that keeps the Octocat
+  // visible in the dark theme, instead of vanishing on a dark background.
   github: {
     title: "GitHub",
     node: (
@@ -69,9 +69,9 @@ const brandMarks: Record<string, { title: string; node: ReactNode }> = {
       />
     ),
   },
-  // Chrome: die drei Kreissektoren (rot oben, grün links, gelb rechts),
-  // darüber der weiße Ring und der blaue Kern — in dieser Reihenfolge
-  // gezeichnet, die späteren Formen decken die früheren ab.
+  // Chrome: the three circle sectors (red on top, green left, yellow right),
+  // above them the white ring and the blue core — drawn in this order,
+  // the later shapes cover the earlier ones.
   browser: {
     title: "Google Chrome",
     node: (
@@ -86,9 +86,9 @@ const brandMarks: Record<string, { title: string; node: ReactNode }> = {
   },
 };
 
-// Symbole in der Bildsprache der Oberfläche: Strich, 1.7, runde Enden,
-// currentColor. Für Systeme, deren Logo markenrechtlich nicht frei ist
-// (Microsoft, Zammad), und für alles Generische.
+// Symbols in the visual language of the UI: stroke, 1.7, round caps,
+// `currentColor`. For systems whose logo is not trademark-free
+// (Microsoft, Zammad), and for anything generic.
 const glyphs: Record<string, ReactNode> = {
   ticket: (
     <>
@@ -150,7 +150,7 @@ const glyphs: Record<string, ReactNode> = {
   ),
 };
 
-// Kategorie → Symbol. Die Kategorien kommen aus der API (target.Category…).
+// Category → symbol. The categories come from the API (target.Category…).
 const byCategory: Record<string, string> = {
   ticketing: "ticket",
   code: "code",
@@ -160,7 +160,7 @@ const byCategory: Record<string, string> = {
   dev: "terminal",
 };
 
-// Built-ins mit eigenem Symbol, wo kein Signet vorliegt.
+// Built-ins with their own symbol, where no brand mark exists.
 const byName: Record<string, string> = {
   zammad: "ticket",
   email: "envelope",
@@ -177,14 +177,14 @@ export type TargetIconProps = {
   name: string;
   kind?: string;
   category?: string;
-  /** Kantenlänge in px. */
+  /** Edge length in px. */
   size?: number;
   className?: string;
 };
 
 /**
- * Logo bzw. Symbol eines Zielsystems. Rein dekorativ (aria-hidden) — der
- * Name steht im Markup immer daneben.
+ * Logo or symbol of a target system. Purely decorative (aria-hidden) — the
+ * name always stands next to it in the markup.
  */
 export function TargetIcon({ name, kind, category, size = 18, className }: TargetIconProps) {
   const brand = brandMarks[name];
@@ -221,7 +221,7 @@ export function TargetIcon({ name, kind, category, size = 18, className }: Targe
   );
 }
 
-/** Ob für dieses Zielsystem ein echtes Marken-Logo vorliegt. */
+/** Whether a real brand logo exists for this target system. */
 export function hasBrandMark(name: string): boolean {
   return name in brandMarks;
 }

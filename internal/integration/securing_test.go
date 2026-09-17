@@ -8,16 +8,16 @@ import (
 	"covey/internal/backlog"
 )
 
-// Zwischen „die letzte Aufgabe ist fertig" und „die Sandbox ist weg" passiert
-// noch etwas: der Container geht runter und das Home wird in den Store
-// geschrieben. Bei einem kleinen Home ist das eine Sekunde, bei einem
-// gewachsenen eine halbe Minute — und der Agent stand die ganze Zeit auf
-// `working`, während in seinem Backlog nichts mehr in Arbeit war.
+// Between "the last task is done" and "the sandbox is gone" something still
+// happens: the container goes down and the home is written into the store.
+// For a small home that is a second, for a grown one half a minute — and the
+// agent stood on `working` the whole time, while nothing in its backlog was
+// in progress anymore.
 //
-// Der Status ist das, was Oberfläche, Org-Chart und Mensch als „ist der gerade
-// beschäftigt" lesen. Ihn für die Hausarbeit der Plattform mit „arbeitet" zu
-// beantworten, verdeckt genau den Moment, in dem jemand wissen wollte, was los
-// ist.
+// The status is what the interface, the org chart and the human read as "is it
+// busy right now". Answering it with `working` for the platform's housekeeping
+// hides exactly the moment in which someone wanted to know what was going
+// on.
 func TestDerAgentSagtWennDiePlattformSeinHomeSichert(t *testing.T) {
 	ctx := context.Background()
 	s := newStack(t)
@@ -32,8 +32,8 @@ func TestDerAgentSagtWennDiePlattformSeinHomeSichert(t *testing.T) {
 		return s.taskState(task.ID) == backlog.StateDone
 	})
 
-	// Der Statuswechsel steht in der Aufzeichnung — dort liest ihn auch der
-	// Mensch, der wissen will, warum sein Agent noch beschäftigt aussieht.
+	// The status change stands in the recording — that is where the human who
+	// wants to know why his agent still looks busy reads it too.
 	waitFor(t, "der Sicherungs-Status fehlt in der Aufzeichnung", 20*time.Second, func() bool {
 		var n int
 		if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM recording_events
@@ -44,7 +44,7 @@ func TestDerAgentSagtWennDiePlattformSeinHomeSichert(t *testing.T) {
 		return n > 0
 	})
 
-	// Und er bleibt nicht darin hängen: danach schläft der Agent.
+	// And it does not stay stuck in there: after that the agent sleeps.
 	waitFor(t, "der Agent kommt nicht zur Ruhe", 20*time.Second, func() bool {
 		return s.agentStatus(agent.ID) == "sleeping"
 	})

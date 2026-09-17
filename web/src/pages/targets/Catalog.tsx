@@ -5,8 +5,8 @@ import { api, del, post, type MarketplaceEntry, type MarketplaceView } from "../
 import { TargetIcon } from "../../components/TargetIcon";
 import { ConfirmDialog } from "../../components/Modal";
 
-// Dieselben Bezeichnungen wie im Store — eine Art heisst nicht an zwei
-// Stellen verschieden.
+// The same labels as in the store — one kind is not called differently in two
+// places.
 const kindKey: Record<MarketplaceEntry["kind"], string> = {
   builtin: "targets.kindBuiltin",
   custom: "targets.kindCustom",
@@ -14,17 +14,17 @@ const kindKey: Record<MarketplaceEntry["kind"], string> = {
   wasm: "targets.kindWasm",
 };
 
-// Der Plugin-Katalog: Zielsysteme, die nicht mitgeliefert werden, sondern aus
-// einem Index kommen (spec/22).
+// The plugin catalogue: target systems that do not ship with the platform but
+// come from an index (spec/22).
 //
-// Zwei Dinge stehen hier bewusst sichtbar auf jeder Karte, weil man sie nicht
-// im Nachhinein erfragen kann: WER das Plugin veröffentlicht und WOHER es
-// kommt. Ein Plugin, dessen Herkunft man nicht prüfen kann, sollte niemand
-// installieren.
+// Two things stand deliberately visible on every card here, because they
+// cannot be asked for afterwards: WHO publishes the plugin and WHERE it
+// comes from. No one should install a plugin whose origin cannot be
+// checked.
 //
-// Installiert wird immer nur auf Klick. Es gibt keinen Auto-Update-Pfad, und
-// das ist keine fehlende Bequemlichkeit: ein Katalog, der Fassungen von selbst
-// nachzöge, wäre eine Lieferketten-Hintertür in jede Organisation gleichzeitig.
+// Installing always happens only on a click. There is no auto-update path,
+// and that is not a missing convenience: a catalogue that pulled versions in
+// on its own would be a supply-chain backdoor into every organisation at once.
 
 function hostOf(url?: string): string {
   if (!url) return "";
@@ -98,8 +98,8 @@ export function CatalogTab({ canEdit, query }: { canEdit: boolean; query: string
 
   return (
     <div>
-      {/* Herkunft und Alter des Katalogs gehören sichtbar an den Anfang: was
-          hier steht, kommt von einem fremden Server. */}
+      {/* Origin and age of the catalogue belong visibly at the top: what
+          stands here comes from someone else's server. */}
       <div className="tgt-bar" style={{ alignItems: "baseline" }}>
         <span className="muted text-xs">
           {t("catalog.source")}{" "}
@@ -134,9 +134,9 @@ export function CatalogTab({ canEdit, query }: { canEdit: boolean; query: string
         <p className="muted text-sm">{t("catalog.empty")}</p>
       )}
 
-      {/* Deinstallieren nimmt das Plugin aus DIESER Organisation — der Eintrag
-          im Katalog bleibt, und die Zugangsdaten bleiben auch: die gehören dem
-          Zielsystem, nicht dem Plugin. */}
+      {/* Uninstalling takes the plugin out of THIS organisation — the entry in
+          the catalogue stays, and so do the credentials: those belong to the
+          target system, not to the plugin. */}
       {confirmRemove && (
         <ConfirmDialog
           title={t("catalog.removeTitle", { name: confirmRemove.label || confirmRemove.name })}
@@ -174,10 +174,10 @@ function CatalogCard({
     <article className="card tgt-card">
       <div className="tgt-head">
         <span className={`tgt-mark${e.icon ? " brand" : ` k-${e.kind}`}`} aria-hidden="true">
-          {/* Das Signet kommt eingebettet aus dem Katalog (data:-URI, von der
-              API auf erlaubte Bildformen geprüft). Fehlt es oder taugt es
-              nicht, zeichnet TargetIcon das Kategorie-Symbol — eine Karte ohne
-              Bild gibt es nicht. */}
+          {/* The badge comes embedded from the catalogue (data:-URI, checked
+              by the API for allowed image kinds). Missing or unusable,
+              `TargetIcon` draws the category symbol — a card without an image
+              does not exist. */}
           {e.icon ? (
             <img src={e.icon} alt="" width={17} height={17} style={{ display: "block" }} />
           ) : (
@@ -208,9 +208,9 @@ function CatalogCard({
 
       <div className="tgt-foot">
         {builtin ? (
-          // Ein kompiliertes Plugin lässt sich nicht installieren; der Katalog
-          // führt es, damit man es findet, statt raten zu müssen, welcher der
-          // drei Arten es angehört.
+          // A compiled plugin cannot be installed; the catalogue lists it so
+          // that one finds it, instead of having to guess which of the three
+          // kinds it belongs to.
           <span className="tgt-kind">{t("catalog.shipped")}</span>
         ) : e.installed ? (
           e.update_available ? (
@@ -245,9 +245,9 @@ function CatalogCard({
         )}
       </div>
 
-      {/* Der Digest-Fehlschlag ist der einzige Fehler, der hier wirklich zählt:
-          das Artefakt ist nicht mehr das, worauf der Eintrag zeigt. Er gehört
-          unverkürzt an den Menschen, der geklickt hat. */}
+      {/* The digest failure is the only error that really counts here: the
+          artifact is no longer what the entry points at. It belongs unshort-
+          ened to the person who clicked. */}
       {error && <p className="danger-text text-[11px] mt-2 mono">{error}</p>}
 
       {!builtin && !e.installed && (

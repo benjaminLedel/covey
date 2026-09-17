@@ -1,7 +1,7 @@
--- Aufzeichnungstiefe (Recording-Profil, spec/06): der Org-Boden gilt für alle
--- Agenten (Security/Compliance), der Agent-Override kann nur TIEFER (nie unter
--- den Boden). Stufen: minimal < standard < full (full = inkl. Screenshots).
+-- Recording depth (recording profile, spec/06): the org floor applies to all
+-- agents (security/compliance), the agent override can only go DEEPER (never below
+-- the floor). Levels: minimal < standard < full (full = incl. screenshots).
 ALTER TABLE organizations ADD COLUMN recording_level text NOT NULL DEFAULT 'standard';
 
--- NULL = erbt den Org-Boden; ein gesetzter Wert verschärft (effektiv = max).
+-- NULL = inherits the org floor; a set value tightens it (effective = max).
 ALTER TABLE agents ADD COLUMN recording_level text;

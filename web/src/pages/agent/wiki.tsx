@@ -39,9 +39,9 @@ export function wikiInline(
   return out;
 }
 
-// Rendert einen Seiten-Body als leichtes Markdown (Überschriften #/##/###,
-// Aufzählungen -/*, Absätze) mit klickbaren [[Wikilinks]] — eine echte
-// Wiki-Seite statt Rohtext.
+// Renders a page body as light Markdown (headings #/##/###,
+// lists -/*, paragraphs) with clickable [[Wikilinks]] — a real
+// wiki page instead of raw text.
 export function WikiBody({ text, has, onNav }: { text: string; has: (slug: string) => boolean; onNav: (slug: string) => void }) {
   const { t } = useTranslation();
   const missing = t("agent.memory.missing");
@@ -77,7 +77,7 @@ export function WikiBody({ text, has, onNav }: { text: string; has: (slug: strin
   return <div className="wiki-body voice text-[14.5px]">{blocks}</div>;
 }
 
-// Kurzvorschau für die Index-Liste: Markup entfernen, [[slug]] → slug.
+// Short preview for the index list: strip markup, [[slug]] → slug.
 export function wikiPreview(text: string): string {
   return text
     .replace(/\[\[([^\]]+)\]\]/g, "$1")
@@ -87,18 +87,18 @@ export function wikiPreview(text: string): string {
     .slice(0, 120);
 }
 
-// Reihenfolge der Seitentypen im Baum (spec/05). Leerer Typ kommt zuletzt: die
-// nicht eingeordneten Seiten sind ein Rest, kein Anfang.
+// Order of page types in the tree (spec/05). Empty type comes last: the
+// unclassified pages are a remainder, not a beginning.
 export const WIKI_TYPES = ["kunde", "projekt", "system", "person", "problem", "thema", ""] as const;
 
-// Sortierung innerhalb einer Baumebene. Die Wahl steht im localStorage — wer
-// nach Relevanz arbeitet, will das nicht bei jedem Seitenaufruf neu einstellen.
+// Sorting within one tree level. The choice lives in localStorage — anyone
+// who works by relevance does not want to set it again on every page visit.
 export type WikiSort = "recent" | "relevance" | "title";
 export const WIKI_SORT_KEY = "covey.wiki.sort";
 export const WIKI_SORTS: WikiSort[] = ["recent", "relevance", "title"];
 
-// linkContext zieht den Satz heraus, in dem eine Seite auf eine andere verweist.
-// Ein Backlink ohne diesen Satz zwingt zum Klicken, nur um zu sehen, warum.
+// linkContext pulls out the sentence in which one page links to another.
+// A backlink without that sentence forces a click just to see why.
 export function linkContext(body: string, slug: string): string {
   const re = new RegExp("[^.\\n]*\\[\\[" + slug.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\]\\][^.\\n]*");
   const m = re.exec(body);

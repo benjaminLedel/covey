@@ -1,10 +1,10 @@
--- Zielsystem-Aktivierung wird opt-in (fail-closed): bisher galten kompilierte
--- Built-ins ohne Zeile als aktiviert — dadurch wirkten GitLab/Zammad überall
--- wie Standard (Aktionen, Webhooks, Profilfeld-Kennungen). Ab jetzt zählt nur
--- eine explizite Zeile mit enabled=TRUE. Bestandsschutz als Daten statt als
--- Code-Default: bestehende Organisationen bekommen ihre bisher implizit
--- aktiven Built-ins als explizite Aktivierung; wer deaktiviert hatte, behält
--- seine Zeile (ON CONFLICT DO NOTHING).
+-- Target system activation becomes opt-in (fail-closed): until now compiled
+-- built-ins without a row counted as enabled — that made GitLab/Zammad act
+-- like standard everywhere (actions, webhooks, profile-field identifiers). From
+-- now on only an explicit row with enabled=TRUE counts. Grandfathering as data instead of a
+-- code default: existing organisations get their previously implicit
+-- built-ins as an explicit activation; whoever had disabled one keeps
+-- its row (ON CONFLICT DO NOTHING).
 INSERT INTO target_plugins (org_id, name, kind, enabled)
 SELECT o.id, b.name, 'builtin', TRUE
 FROM organizations o

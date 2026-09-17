@@ -8,16 +8,16 @@ import { api } from "./api";
 import { merkeSprache } from "./i18n";
 import { useGerman, testPrincipal } from "./test/render";
 
-/* Was passiert, wenn die Sitzung endet.
+/* What happens when the session ends.
 
-   Zwei Wege führen dorthin, und beide endeten vorher im Nichts: Wer die Seite
-   neu lud, landete unter seiner App-Adresse auf der 404 der öffentlichen
-   Website (die /agents/… nicht kennt); wer weiterklickte, blieb in einer
-   Hülle sitzen, die sich mit Fehlermeldungen füllte. Beide sollen auf der
-   Anmeldung enden — mit dem Weg zurück im Gepäck. */
+   Two paths lead there and both ended in nothing before: whoever reloaded the
+   page landed on the 404 of the public website under their app address (which
+   does not know /agents/…); whoever clicked on stayed in a shell that filled
+   with error messages. Both should end at the
+   login, carrying the way back. */
 
-// App rendert eigene Routen; das Gerüst aus test/render.tsx hängt sie unter
-// eine Splat-Route und verschöbe damit die Pfade. Deshalb hier direkt.
+// App renders its own routes; the scaffold from test/render.tsx hangs them
+// under a splat route and would shift the paths. So directly here.
 function renderApp(ui: ReactElement, route: string) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0, staleTime: 0 } },
@@ -29,9 +29,9 @@ function renderApp(ui: ReactElement, route: string) {
   );
 }
 
-/* Ein Server, der die Sitzung erst kennt und dann nicht mehr. Alles außer
-   /auth/me ist Beiwerk — die Shell fragt beim Aufbau einiges ab, was für
-   diese Prüfung nichts trägt. */
+/* A server that knows the session and then does not. Everything except
+   /auth/me is beside the point, the shell asks for a number of things while it
+   builds that carry nothing here. */
 function serverMitSitzung(angemeldet: () => boolean) {
   vi.stubGlobal(
     "fetch",
@@ -45,8 +45,8 @@ function serverMitSitzung(angemeldet: () => boolean) {
           headers: { "Content-Type": "application/json" },
         });
       }
-      // Zwei Abfragen der Hülle rechnen mit einem Objekt statt einer Liste:
-      // die Einrichtungs-Checkliste und die Bauzeile im Fuß.
+      // Two queries of the shell expect an object instead of a list: the setup
+      // checklist and the build line in the footer.
       const leer = url.includes("/onboarding")
         ? { steps: [], done: true }
         : url.includes("/version")
@@ -63,7 +63,7 @@ function serverMitSitzung(angemeldet: () => boolean) {
 beforeEach(() => {
   useGerman();
   merkeSprache("de");
-  // Die Shell öffnet einen Ereignisstrom; jsdom kennt EventSource nicht.
+  // The shell opens an event stream; jsdom does not know EventSource.
   vi.stubGlobal(
     "EventSource",
     class {
@@ -71,9 +71,9 @@ beforeEach(() => {
       addEventListener() {}
     },
   );
-  /* Die öffentliche Website bringt ihren eigenen Hintergrund mit (Canvas,
-     Scroll-Reveals). In jsdom gibt es beides nicht — ohne Attrappen stirbt
-     die Anmeldeseite an ihrer Dekoration, bevor der Test sie sieht. */
+  /* The public website brings its own background (canvas, scroll reveals).
+     jsdom has neither; without stand-ins the login page dies on its
+     decoration before the test sees it. */
   vi.stubGlobal(
     "IntersectionObserver",
     class {
@@ -95,20 +95,20 @@ describe("App ohne gültige Sitzung", () => {
     serverMitSitzung(() => false);
     renderApp(<App />, "/agents/1234");
 
-    // Nicht die 404 der öffentlichen Website, sondern die Anmeldemaske …
+    // Not the 404 of the public website, but the login form …
     expect(await screen.findByLabelText("Passwort")).toBeInTheDocument();
-    // … und ein Satz dazu, warum man wieder hier steht (der ?weiter=-Parameter
-    // aus der Weiterleitung trägt ihn).
+    // … and a sentence why one stands here again (the ?weiter= parameter from
+    // the redirect carries it).
     expect(screen.getByText(/Sitzung ist abgelaufen/)).toBeInTheDocument();
   });
 
   it("lässt die Adressen aus einer Mail durch, statt sie zur Anmeldung zu schicken", async () => {
-    /* Der Fall, für den /reset und /verify gebaut wurden, war der einzige, in
-       dem sie nicht funktionierten: Wer sein Passwort vergessen hat, ist nicht
-       angemeldet. Die Weiterleitung griff vor ihnen und schickte ihn auf
-       /anmelden?weiter=%2Freset — dorthin, wo er gerade nicht weiterkommt, mit
-       dem Hinweis, seine Sitzung sei abgelaufen. Derselbe Weg traf den
-       Bestätigungslink aus der Registrierungsmail (#210). */
+    /* The case /reset and /verify were built for was the one case where they
+       did not work: someone who forgot their password is not signed in. The
+       redirect reached before them and sent them to /anmelden?weiter=%2Freset,
+       which is where they cannot get further, with the notice that their
+       session had expired. The same path hit the confirmation link from the
+       signup mail (#210). */
     serverMitSitzung(() => false);
     renderApp(<App />, "/reset");
 
@@ -121,9 +121,9 @@ describe("App ohne gültige Sitzung", () => {
     serverMitSitzung(() => false);
     renderApp(<App />, "/");
 
-    /* Seit die Website ausgezogen ist (#130), ist „/" hier die Anmeldung und
-       nichts sonst. Wer noch nie angemeldet war, soll deshalb auch nicht
-       lesen, seine Sitzung sei abgelaufen. */
+    /* Since the website moved out (#130), "/" here is the login and nothing
+       else. Whoever was never signed in should therefore not read that their
+       session expired. */
     expect(await screen.findByLabelText("Passwort")).toBeInTheDocument();
     expect(screen.queryByText(/Sitzung ist abgelaufen/)).not.toBeInTheDocument();
   });
@@ -135,11 +135,11 @@ describe("App bei ablaufender Sitzung", () => {
     serverMitSitzung(() => angemeldet);
     renderApp(<App />, "/inbox");
 
-    // Angemeldet: die Hülle steht (die Navigation ist ihr sichtbarster Teil).
+    // Signed in: the shell stands (the navigation is its most visible part).
     expect(await screen.findByText("Agenten")).toBeInTheDocument();
 
-    // Die Sitzung endet serverseitig — die nächste Anfrage der Oberfläche
-    // bringt es ans Licht.
+    // The session ends on the server side; the next request of the UI brings
+    // it to light.
     angemeldet = false;
     await api("/agents").catch(() => {});
 
@@ -148,15 +148,15 @@ describe("App bei ablaufender Sitzung", () => {
   });
 
   it("landet auch von der Übersicht aus auf der Anmeldung", async () => {
-    /* Wem die Sitzung auf der Übersicht wegläuft, der soll die Anmeldung
-       sehen und lesen, warum er wieder davorsteht — auch von „/" aus, wo ein
-       Erstbesucher den Satz gerade nicht bekommt. */
+    /* Whoever loses the session on the dashboard should see the login and read
+       why they stand in front of it again, also from "/", where a first
+       visitor does not get the sentence just now. */
     let angemeldet = true;
     serverMitSitzung(() => angemeldet);
     renderApp(<App />, "/");
 
-    // Auf der Übersicht steht „Agenten" zweimal: in der Navigation und als
-    // Überschrift.
+    // On the dashboard `Agenten` stands twice: in the navigation and as a
+    // heading.
     expect((await screen.findAllByText("Agenten")).length).toBeGreaterThan(0);
 
     angemeldet = false;

@@ -1,29 +1,29 @@
--- Request-Log: die HTTP-Requests an den Rändern der Plattform (spec/06).
+-- Request log: the HTTP requests at the edges of the platform (spec/06).
 --
--- Das Recording (recording_events) hält fest, WAS ein Agent getan hat — welche
--- Aktion mit welchen Params und ob sie glückte. Was auf der Leitung stand,
--- steht dort nicht: der Bot-Connector-Call nach Teams, die Antwort des
--- Zielsystems, der eingehende Webhook, der an der Signaturprüfung scheiterte.
--- Genau das braucht man beim Anbinden eines Zielsystems.
+-- The recording (recording_events) captures WHAT an agent did — which
+-- action with which params and whether it succeeded. What stood on the wire
+-- is not in there: the bot connector call to Teams, the reply of the target
+-- system, the incoming webhook that failed the signature check. That is
+-- exactly what you need when hooking up a target system.
 --
--- Deshalb eine eigene, flache Tabelle statt eines weiteren Event-Kinds:
--- eigenes Retention-Fenster (Requests sind Diagnose-Daten, kein Audit-Trail),
--- eigene Indizes und keine Aufblähung der Agenten-Timeline.
+-- Hence its own flat table instead of yet another event kind: its own
+-- retention window (requests are diagnostic data, not an audit trail), its
+-- own indexes and no bloat of the agent timeline.
 --
--- org_id/agent_id/task_id sind NULLbar: ein eingehender Webhook wird auch dann
--- protokolliert, wenn er abgelehnt wird, bevor ein Agent aufgelöst ist —
--- gerade dieser Fall ist der interessante.
+-- org_id/agent_id/task_id are nullable: an incoming webhook is logged even
+-- when it is rejected before an agent is resolved — that very case is the
+-- interesting one.
 CREATE TABLE request_log (
     id          bigserial PRIMARY KEY,
     created_at  timestamptz NOT NULL DEFAULT now(),
     org_id      uuid,
     agent_id    uuid,
     task_id     uuid,
-    -- direction: 'in'  = Covey hat den Request empfangen (Webhook, Trigger)
-    --            'out' = Covey hat den Request gestellt (Zielsystem-API)
+    -- direction: 'in'  = Covey received the request (webhook, trigger)
+    --            'out' = Covey made the request (target-system API)
     direction   text   NOT NULL,
-    -- system: Zielsystem-Name des Plugins ('teams', 'zammad', …); leer, wenn
-    -- der Request keinem Plugin zuzuordnen ist.
+    -- system: target-system name of the plugin ('teams', 'zammad', …); empty
+    -- when the request cannot be assigned to a plugin.
     system      text   NOT NULL DEFAULT '',
     method      text   NOT NULL DEFAULT '',
     url         text   NOT NULL DEFAULT '',
@@ -31,15 +31,15 @@ CREATE TABLE request_log (
     duration_ms bigint NOT NULL DEFAULT 0,
     req_bytes   bigint NOT NULL DEFAULT 0,
     resp_bytes  bigint NOT NULL DEFAULT 0,
-    -- Bodies sind gekappt (erste ~8 KiB) und redigiert (Tokens, Passwörter).
+    -- Bodies are truncated (first ~8 KiB) and redacted (tokens, passwords).
     req_body    text   NOT NULL DEFAULT '',
     resp_body   text   NOT NULL DEFAULT '',
     error       text   NOT NULL DEFAULT '',
     remote      text   NOT NULL DEFAULT ''
 );
 
--- Die Liste liest immer „neueste zuerst", optional nach System/Richtung
--- gefiltert; das Pruning läuft über das Alter.
+-- The list always reads "newest first", optionally filtered by
+-- system/direction; the pruning runs on the age.
 CREATE INDEX request_log_id_desc_idx ON request_log (id DESC);
 CREATE INDEX request_log_system_idx ON request_log (system, id DESC);
 CREATE INDEX request_log_created_idx ON request_log (created_at);

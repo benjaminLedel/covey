@@ -1,9 +1,9 @@
--- Welchen Runner ein Agent braucht (spec/16, "Scheduling").
+-- Which runner an agent needs (spec/16, "Scheduling").
 --
--- Tags sind die Faehigkeitsaussage des Hosts: arm64, gpu, ein Runner im Netz
--- des Zielsystems. Ein Agent, der eine davon braucht, nennt sie — und bekommt
--- nur Runner, die alle nennen. Die andere Richtung gilt nicht: ein Runner darf
--- mehr tragen, als von ihm verlangt wird.
+-- Tags are the host's capability claim: arm64, gpu, a runner on the network
+-- of the target system. An agent that needs one of them names them — and gets
+-- only runners that name them all. The other direction does not hold: a runner
+-- may carry more than is asked of it.
 --
--- Leer ist der Normalfall und heisst "jeder Runner der Organisation".
+-- Empty is the normal case and means "any runner in the organisation".
 ALTER TABLE agents ADD COLUMN runner_tags TEXT[] NOT NULL DEFAULT '{}';

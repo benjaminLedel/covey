@@ -1,14 +1,14 @@
--- Egress v2: Allowlist pro Agent statt plattform-global.
--- Aufbau: wiederverwendbare Templates (Host-Sets) werden Agenten zugewiesen;
--- dazu agent-eigene Einzel-Hosts. Effektive Allowlist eines Agenten =
--- Anthropic-Default (Code) + Hosts aller zugewiesenen Templates + eigene Hosts.
--- Dazu ein Entscheidungs-Log (erlaubt/blockiert) und ein per-Sandbox-Token,
--- über das der Proxy den anfragenden Agenten identifiziert.
+-- Egress v2: allowlist per agent instead of platform-global.
+-- Setup: reusable templates (host sets) are assigned to agents;
+-- plus the agent's own individual hosts. An agent's effective allowlist =
+-- Anthropic default (code) + hosts of all assigned templates + own hosts.
+-- Plus a decision log (allowed/blocked) and a per-sandbox token,
+-- through which the proxy identifies the requesting agent.
 
--- Die globale v1-Tabelle entfällt (frisch eingeführt, keine Nutzdaten).
+-- The global v1 table is dropped (introduced fresh, no user data).
 DROP TABLE IF EXISTS egress_allow;
 
--- Wiederverwendbares Host-Set, org-scoped.
+-- Reusable host set, org-scoped.
 CREATE TABLE egress_templates (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     org_id      UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -18,7 +18,7 @@ CREATE TABLE egress_templates (
     UNIQUE (org_id, name)
 );
 
--- Hosts eines Templates. Muster: exakter Host oder "*.suffix".
+-- Hosts of a template. Patterns: exact host or "*.suffix".
 CREATE TABLE egress_template_hosts (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     template_id UUID NOT NULL REFERENCES egress_templates(id) ON DELETE CASCADE,
@@ -27,14 +27,14 @@ CREATE TABLE egress_template_hosts (
     UNIQUE (template_id, pattern)
 );
 
--- Zuweisung Template -> Agent.
+-- Assignment template -> agent.
 CREATE TABLE agent_egress_templates (
     agent_id    UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
     template_id UUID NOT NULL REFERENCES egress_templates(id) ON DELETE CASCADE,
     PRIMARY KEY (agent_id, template_id)
 );
 
--- Agent-eigene Einzel-Hosts (zusätzlich zu Templates).
+-- Agent's own individual hosts (on top of templates).
 CREATE TABLE agent_egress_hosts (
     id       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     agent_id UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
@@ -43,16 +43,16 @@ CREATE TABLE agent_egress_hosts (
     UNIQUE (agent_id, pattern)
 );
 
--- Per-Sandbox-Egress-Token: Der Proxy identifiziert den anfragenden Agenten
--- über die Proxy-Authorization (Nutzer=agent_id, Passwort=Token). Wird beim
--- Sandbox-Start neu gesetzt (rotiert); nur der Hash wird gespeichert.
+-- Per-sandbox egress token: the proxy identifies the requesting agent
+-- via Proxy-Authorization (user=agent_id, password=token). Set anew at
+-- sandbox start (rotated); only the hash is stored.
 CREATE TABLE agent_egress_tokens (
     agent_id   UUID PRIMARY KEY REFERENCES agents(id) ON DELETE CASCADE,
     token_hash TEXT NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Entscheidungs-Log: jede Egress-Entscheidung (erlaubt + blockiert).
+-- Decision log: every egress decision (allowed + blocked).
 CREATE TABLE egress_log (
     id         BIGSERIAL PRIMARY KEY,
     agent_id   UUID REFERENCES agents(id) ON DELETE CASCADE,

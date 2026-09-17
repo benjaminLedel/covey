@@ -501,33 +501,33 @@ func TestImageForResolvesProfilesAndOwnImages(t *testing.T) {
 // Runner and server are delivered separately, so different versions inevitably
 // meet. A refusal has to name which side is behind — a runner that quietly
 // fails to connect costs an evening of searching.
-// Der Fall, den covey.work an dem Tag zeigte, an dem es seine Arbeitsplätze aus
-// dem Katalog nahm: Ein Agent ohne benannten Arbeitsplatz landete auf dem
-// einkompilierten `covey-sandbox:latest`, weil dafür ein zweites Feld zuständig
-// war, das beim Prozessstart gefüllt wird — vor dem ersten Katalogabruf. Der
-// Standard ist ein Profilname, keine zweite Quelle.
+// The case covey.work showed the day it took its workplaces out of
+// the catalogue: an agent without a named workplace landed on the
+// compiled-in `covey-sandbox:latest`, because a second field was in charge
+// of that, one filled at process start — before the first catalogue fetch. The
+// default is a profile name, not a second source.
 func TestTheDefaultWorkplaceIsTheBaseProfile(t *testing.T) {
 	p := &Pool{Profiles: map[string]string{sandbox.DefaultName(): "ghcr.io/example/covey-sandbox@sha256:abc"}}
 	if got := p.imageFor(t.Context(), uuid.Nil, ""); got != "ghcr.io/example/covey-sandbox@sha256:abc" {
 		t.Errorf("imageFor(\"\") = %q, erwartet das Bild des Standardprofils", got)
 	}
-	// Und derselbe Name ausgeschrieben ergibt dasselbe — sonst hinge es davon
-	// ab, ob jemand das Feld ausfüllt.
+	// And the same name written out gives the same result — otherwise it would
+	// depend on whether someone fills the field in.
 	if got := p.imageFor(t.Context(), uuid.Nil, sandbox.DefaultName()); got != "ghcr.io/example/covey-sandbox@sha256:abc" {
 		t.Errorf("imageFor(%q) = %q", sandbox.DefaultName(), got)
 	}
 }
 
-// Der Zeitausfall begrenzt einen LANGSAMEN Start, nicht einen toten Runner —
-// für den ist der Herzschlag zuständig. Deshalb ist die Vorgabe großzügig: Der
-// erste Start auf einem Host ohne das Image ist ein Download von mehreren
-// Gigabyte, und auf covey.work scheiterte er an zwei Minuten.
+// The timeout bounds a SLOW start, not a dead runner —
+// the heartbeat is responsible for that. Hence the default is generous: the
+// first start on a host without the image is a download of several
+// gigabytes, and on covey.work it failed at two minutes.
 func TestTheStartTimeoutIsGenerousByDefaultAndSettable(t *testing.T) {
 	if defaultStartTimeout < 30*time.Minute {
 		t.Errorf("defaultStartTimeout = %s — zu knapp für einen Kaltstart mit Pull", defaultStartTimeout)
 	}
-	// Und die Instanz darf ihn setzen: 0 heißt „nimm die Vorgabe", damit es
-	// nicht zwei Zahlen gibt, die auseinanderlaufen können.
+	// And the instance may set it: 0 means "take the default", so that there
+	// are not two numbers that can drift apart.
 	p := &Pool{}
 	if got := p.startTimeout(); got != defaultStartTimeout {
 		t.Errorf("ohne Wert = %s, erwartet die Vorgabe", got)
@@ -1539,15 +1539,15 @@ func TestAParkedSandboxSyncsItsHomeWithoutStopping(t *testing.T) {
 	}
 }
 
-// Die Runner-Affinität steht auf einem Satz aus spec/16: „prefer the one the
-// agent last ran on — its working copy is warm there". Für kleine Homes stimmte
-// er, für die teuren nicht: alles über wholeFileLimit galt als verändert und
-// wurde bei JEDEM Weckruf neu geholt. Auf einer Produktivinstanz waren das
-// 8,3 GB und elf Minuten, bevor der Agent seinen ersten Turn machte.
+// Runner affinity rests on a sentence from spec/16: "prefer the one the
+// agent last ran on — its working copy is warm there". It held for small homes,
+// not for the expensive ones: everything above wholeFileLimit counted as changed and
+// was fetched anew on EVERY wake. On a production instance that was
+// 8.3 GB and eleven minutes before the agent made its first turn.
 //
-// Dieser Test geht den echten Weg — Pool → Protokoll → Node → Store — und misst
-// das, was der Runner selbst meldet: die Bytes, die beim Materialisieren
-// hereinkamen.
+// This test takes the real path — Pool → protocol → Node → Store — and measures
+// what the runner itself reports: the bytes that came in during
+// materialisation.
 func TestDerZweiteWeckrufAufDemselbenHostHoltNichts(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("das Docker-Double ist ein Shell-Skript")
@@ -1593,8 +1593,8 @@ func TestDerZweiteWeckrufAufDemselbenHostHoltNichts(t *testing.T) {
 		t.Fatalf("erster Start: %v", err)
 	}
 
-	// Was ein Agent in seinem Home ansammelt: eine große Datei (gechunkt, weit
-	// über wholeFileLimit) neben kleinen.
+	// What an agent accumulates in its home: one large file (chunked, far
+	// above wholeFileLimit) next to small ones.
 	home, _, _ := docker.AgentHome(agentID)
 	if err := os.MkdirAll(home, 0o755); err != nil {
 		t.Fatal(err)
@@ -1613,11 +1613,11 @@ func TestDerZweiteWeckrufAufDemselbenHostHoltNichts(t *testing.T) {
 	}
 	_ = sb.(orchestrator.Discardable).Discard(ctx)
 
-	// Zweiter Weckruf auf demselben Host: die Arbeitskopie liegt noch da.
-	// Festgehalten wird beides — was über die Leitung kam UND ob die Datei
-	// überhaupt angefasst wurde. Die zwei hängen nicht zusammen: fiele die
-	// Erkennung aus, spräche die Wiederverwendung der lokalen Stücke die
-	// Leitung frei, und die Datei würde trotzdem neu geschrieben.
+	// Second wake on the same host: the working copy is still there.
+	// Both are recorded — what came over the wire AND whether the file
+	// was touched at all. The two do not belong together: if detection
+	// failed, reusing the local pieces would spare the
+	// wire, and the file would be rewritten anyway.
 	vorher, err := os.Stat(filepath.Join(home, "sdk.tar"))
 	if err != nil {
 		t.Fatal(err)
@@ -1645,21 +1645,21 @@ func TestDerZweiteWeckrufAufDemselbenHostHoltNichts(t *testing.T) {
 	if !nachher.ModTime().Equal(vorher.ModTime()) {
 		t.Error("die unveränderte Datei wurde neu geschrieben — erkannt wurde sie nicht")
 	}
-	// Und das Home steht trotzdem vollständig da.
+	// And the home still stands there complete.
 	raw, err := os.ReadFile(filepath.Join(home, "sdk.tar"))
 	if err != nil || len(raw) != 15*1024*1024 {
 		t.Errorf("die große Datei fehlt oder ist unvollständig (%d Bytes, %v)", len(raw), err)
 	}
 }
 
-// Die Kette, die einer Produktivinstanz einen Vormittag gekostet hat: Der Sync
-// eines großen Homes kam nicht durch, der jüngste Schnappschuss war Stunden
-// alt, und jeder Weckruf materialisierte ihn — samt Löschen dessen, was er
-// nicht kannte. Darunter die Sitzungstranskripte der Läufe seither, die Claude
-// Code im Home ablegt. Die Fortsetzung eines am Turn-Limit abgebrochenen Laufs
-// wollte genau diese Sitzung fortsetzen und fand nichts:
-// "No conversation found with session ID …". Zweimal an einem Vormittag,
-// jedesmal ein ganzer teurer Lauf umsonst.
+// The chain that cost a production instance a morning: the sync
+// of a large home did not get through, the newest snapshot was hours
+// old, and every wake materialised it — including deleting what it
+// did not know. Among them the session transcripts of the runs since, which Claude
+// Code stores in the home. The continuation of a run aborted at the turn limit
+// wanted to continue exactly this session and found nothing:
+// "No conversation found with session ID …". Twice in one morning,
+// each time a whole expensive run for nothing.
 func TestEinWeckrufLoeschtNichtDieSitzungDesLetztenLaufs(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("das Docker-Double ist ein Shell-Skript")
@@ -1694,7 +1694,7 @@ func TestEinWeckrufLoeschtNichtDieSitzungDesLetztenLaufs(t *testing.T) {
 	spec := orchestrator.SandboxSpec{AgentID: agentID, OrgID: orgID,
 		Env: map[string]string{"COVEY_DAEMON_TOKEN": "tok"}}
 
-	// Erster Lauf: der Agent hat etwas im Home, und der Sync kommt durch.
+	// First run: the agent has something in the home, and the sync gets through.
 	sb, err := p.Start(ctx, spec)
 	if err != nil {
 		t.Fatalf("erster Start: %v", err)
@@ -1711,8 +1711,8 @@ func TestEinWeckrufLoeschtNichtDieSitzungDesLetztenLaufs(t *testing.T) {
 	}
 	_ = sb.(orchestrator.Discardable).Discard(ctx)
 
-	// Zweiter Lauf: er arbeitet, legt seine Sitzung ab — und sein Sync kommt
-	// NICHT durch (auf der Instanz: Zeitüberschreitung bei 150.000 Dateien).
+	// Second run: it works, stores its session — and its sync does
+	// NOT get through (on the instance: timeout at 150,000 files).
 	if _, err := p.Start(ctx, spec); err != nil {
 		t.Fatalf("zweiter Start: %v", err)
 	}
@@ -1724,15 +1724,15 @@ func TestEinWeckrufLoeschtNichtDieSitzungDesLetztenLaufs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Dritter Weckruf — mit dem alten Schnappschuss, denn ein neuerer existiert
-	// nicht. Die Sitzung muss ihn überleben, sonst scheitert die Fortsetzung.
+	// Third wake — with the old snapshot, since a newer one does not
+	// exist. The session has to survive it, otherwise the continuation fails.
 	if _, err := p.Start(ctx, spec); err != nil {
 		t.Fatalf("dritter Start: %v", err)
 	}
 	if _, err := os.Stat(sitzung); err != nil {
 		t.Fatal("das Sitzungstranskript wurde gelöscht — die Fortsetzung findet nichts mehr")
 	}
-	// Und was der Schnappschuss beschreibt, steht weiterhin da.
+	// And what the snapshot describes is still there.
 	if _, err := os.Stat(filepath.Join(home, "SOUL.md")); err != nil {
 		t.Errorf("der Schnappschuss wurde nicht materialisiert: %v", err)
 	}

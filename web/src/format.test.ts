@@ -2,15 +2,15 @@ import { beforeEach, describe, expect, it } from "vitest";
 import i18n from "./i18n";
 import { exact, fmtBytes, fmtCount, fmtDelta, fmtUSD } from "./format";
 
-/* Der Anlass stand auf der Kostenseite: 147952885 gelesene Cache-Tokens. Das
-   liest niemand als hundertachtundvierzig Millionen — das zählt man ziffernweise
-   nach. Daneben zeigte dieselbe Seite „3.05 M", weil die Kostenansicht ihren
-   eigenen Formatierer hatte, und der Gesamtbetrag stand als „2746 $" da. Drei
-   Schreibweisen für dieselbe Sorte Zahl. */
+/* The reason stood on the cost side: 147952885 read cache tokens. Nobody reads
+   that as a hundred forty-eight million — you count it through digit by digit.
+   Next to it the same page showed `3.05 M`, because the cost view had its own
+   formatter, and the total stood there as `2746 $`. Three spellings for the
+   same kind of number. */
 
-// Die Trenner folgen der Sprache der Oberfläche (siehe format.ts), also muss
-// jeder Test sagen, in welcher er läuft. Vorher hing das Ergebnis daran, was
-// die Umgebung zuletzt gesetzt hatte.
+// The separators follow the language of the UI (see format.ts), so every test
+// has to say which one it runs in. Before, the result hung on what the
+// environment had last been set to.
 beforeEach(async () => {
   await i18n.changeLanguage("de");
 });
@@ -30,29 +30,29 @@ describe("fmtCount", () => {
     expect(fmtCount(147_952_885)).toBe("148 M");
   });
 
-  // Über der Million hört M auf zu helfen: „2500 M" zählt man wieder
-  // ziffernweise nach. Der gemessene Anlass stand über einem Agenten auf
-  // covey.work — 2.499.833.356 Eingabe-Tokens.
+  // Above a million M stops helping: `2500 M` you count through digit by
+  // digit again. The measured reason stood above an agent on covey.work —
+  // `2.499.833.356` input tokens.
   it("hat eine Stufe für Milliarden, und die kennt die Sprache", async () => {
     const i18n = (await import("./i18n")).default;
     await i18n.changeLanguage("de");
     expect(fmtCount(2_499_833_356)).toBe("2,5 Mrd");
     expect(fmtCount(999_999_999)).toBe("1000 M");
     await i18n.changeLanguage("en");
-    // „2,5 B" läse sich im Deutschen als Byte, „2.5 Mrd" im Englischen als
-    // nichts — das eine Zeichen dieser Datei, das die Sprache kennen muss.
+    // `2,5 B` would read as bytes in German, `2.5 Mrd` as nothing in English —
+    // the one character of this file that has to know the language.
     expect(fmtCount(2_499_833_356)).toBe("2.5 B");
     await i18n.changeLanguage("de");
   });
 
-  // Eine Nachkommastelle sagt bei 12,3 k etwas und bei 148,0 M nichts.
+  // One decimal digit says something at 12,3 k and nothing at 148,0 M.
   it("hängt keine Null an, die nichts trägt", () => {
     expect(fmtCount(148_000_000)).toBe("148 M");
     expect(fmtCount(20_000)).toBe("20 k");
   });
 
-  // Die kurze Zahl ist zum Überfliegen; wer eine Rechnung prüft, braucht die
-  // Ziffern — und findet sie im Tooltip daneben.
+  // The short number is for skimming; whoever checks a bill needs the digits —
+  // and finds them in the tooltip next to it.
   it("hat eine Langfassung für den Tooltip", () => {
     expect(exact(147_952_885)).toBe("147.952.885");
     expect(exact(842)).toBe("842");
@@ -60,10 +60,10 @@ describe("fmtCount", () => {
 });
 
 describe("fmtUSD", () => {
-  // Ein einzelner Lauf kostet oft Bruchteile eines Cents. Auf zwei Stellen
-  // gerundet stünde auf einer ganzen Seite 0,00 $.
-  // Auf Deutsch mit Komma — hier stand einmal „12.30 $" neben „2.746 $", und
-  // derselbe Punkt hieß in zwei Zeilen zweierlei.
+  // A single run often costs fractions of a cent. Rounded to two digits a
+  // whole page would read 0,00 $.
+  // With a comma in German — once `12.30 $` stood here next to `2.746 $`, and
+  // the same point meant two things in two lines.
   it("behält die Stellen, die ein Betrag noch trägt", () => {
     expect(fmtUSD(0.0042)).toBe("0,0042 $");
     expect(fmtUSD(12.3)).toBe("12,30 $");
@@ -76,14 +76,14 @@ describe("fmtUSD", () => {
   });
 });
 
-/* Die beiden anderen Formatierer standen schon da und bleiben, wie sie sind —
-   hier nur festgehalten, damit „einheitlich" nachprüfbar ist und nicht
-   behauptet. */
+/* The other two formatters stood there already and stay as they are — held
+   down here only so that consistency is checkable and not
+   claimed. */
 describe("die übrigen Formatierer", () => {
   it("fmtBytes bleibt bei der gröbsten Einheit, die noch beschreibt", () => {
     expect(fmtBytes(812)).toBe("812 B");
-    // Unter zehn Einheiten mit Nachkommastelle, darüber ohne — dieselbe Regel
-    // wie bei fmtCount, nur älter.
+    // Below ten units with a decimal digit, above without — the same rule as
+    // in fmtCount, only older.
     expect(fmtBytes(5_000)).toBe("4.9 kB");
     expect(fmtBytes(14_500)).toBe("14 kB");
   });
@@ -94,9 +94,9 @@ describe("die übrigen Formatierer", () => {
   });
 });
 
-/* Dieselben Zahlen auf der englischen Oberfläche. Der Anlass stand im Kopf
-   eines Agenten auf covey.work: „2.847 $" — auf Deutsch zweitausendachthundert,
-   auf Englisch zwei Dollar fünfundachtzig. Dieselbe Zeichenkette, zwei Zahlen. */
+/* The same numbers on the English UI. The reason stood in the head of an agent
+   on covey.work: `2.847 $` — in German two thousand eight hundred, in English
+   two dollars fifty-five. The same string, two numbers. */
 describe("englische Schreibweise", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
@@ -111,8 +111,8 @@ describe("englische Schreibweise", () => {
     expect(fmtCount(2_499_833_356)).toBe("2.5 B");
   });
 
-  // Die beiden hängen aneinander: „1.234,5" gegen „1,234.5" — wer nur einen
-  // umstellt, erzeugt eine Schreibweise, die in keiner Sprache richtig ist.
+  // The two hang together: `1.234,5` against `1,234.5` — whoever changes only
+  // one produces a spelling that is right in neither language.
   it("mischt die beiden nie", () => {
     expect(fmtCount(9999)).toBe("9,999");
     expect(fmtUSD(1_234_567)).toBe("1,234,567 $");

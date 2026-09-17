@@ -14,9 +14,9 @@ const kindKey: Record<TargetPlugin["kind"], string> = {
   wasm: "targets.kindWasm",
 };
 
-// Kachelchen vor dem Namen: Logo bzw. Kategorie-Symbol des Zielsystems.
-// Trägt es ein echtes Marken-Signet, bleibt die Kachel neutral, damit die
-// Markenfarbe wirkt; sonst färbt sie wie bisher nach Plugin-Art.
+// Small tile before the name: logo or category symbol of the target system.
+// If it carries a real brand mark the tile stays neutral so the
+// brand colour can work; otherwise it colours as before by plugin kind.
 function TargetMark({ plugin: p, lg }: { plugin: TargetPlugin; lg?: boolean }) {
   const brand = hasBrandMark(p.name);
   const cls = `tgt-mark${lg ? " lg" : ""}${brand ? " brand" : ` k-${p.kind}`}`;
@@ -55,15 +55,15 @@ const exampleManifest = `{
   "prompt_doc": "Verfügbare helpdesk-Aktionen: get_issue {\\"issue_id\\":N}, comment {\\"issue_id\\":N,\\"text\\":\\"...\\"}."
 }`;
 
-// Reihenfolge der Kategorie-Chips; alles Unbekannte landet hinten unter
-// "other". Welche Chips erscheinen, entscheiden die Daten — hier steht nur
-// die Sortierung, keine Plugin-Liste.
+// Order of the category chips; anything unknown lands at the back under
+// "other". Which chips appear the data decides — only the sorting stands
+// here, no plugin list.
 const catOrder = ["ticketing", "code", "communication", "files", "web", "dev", "other"];
 const catLabelKey = (c: string) => (catOrder.includes(c) ? `targets.cat.${c}` : "targets.cat.other");
 
-// "available" = was diese Instanz hat (aktivierbar), "active" = eingeschaltet,
-// "store" = der Katalog, aus dem installiert wird. Der Store ist die Auslage,
-// nicht das Regal — deshalb traegt der Katalog den Namen.
+// "available" = what this instance has (activatable), "active" = switched on,
+// "store" = the catalogue that installs from. The store is the display,
+// not the shelf — that is why the catalogue carries the name.
 type Tab = "available" | "active" | "store";
 
 export default function Targets({ me }: { me: Principal }) {
@@ -109,7 +109,7 @@ export default function Targets({ me }: { me: Principal }) {
   const list = targets.data ?? [];
   const activeCount = list.filter((p) => p.enabled).length;
 
-  // Kategorien samt Anzahl aus den Daten ableiten, in fester Reihenfolge.
+  // Derive categories with their counts from the data, in a fixed order.
   const cats = useMemo(() => {
     const counts = new Map<string, number>();
     for (const p of list) {

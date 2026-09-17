@@ -6,18 +6,18 @@ import { api, type AgentReview, type WorkRecord as Record } from "../../api";
 import { fmtUSD } from "../../format";
 import { Markdown } from "../../components/Markdown";
 
-/* Die Arbeitsakte (spec/21).
+/* The work record (spec/21).
 
-   Acht Abschnitte aus acht benannten Quellen — nichts davon ist Freitext eines
-   Agenten oder eines Zielsystems, mit einer Ausnahme: den Aufgabentiteln. Die
-   kommen häufig aus der Weck-Quelle und können einen Ticket-Betreff tragen.
-   Ohne sie ist die Akte nicht lesbar, deshalb stehen sie hier — benannt statt
-   später entdeckt.
+   Eight sections from eight named sources — none of this is free text of an
+   agent or of a target system, with one exception: the task titles. Those often
+   come from the wake source and can carry a ticket subject. Without them the
+   record is not readable, which is why they stand here — named rather than
+   discovered later.
 
-   Der Zweck ist eine Frage: WARUM liefert dieser Kollege nicht. Drei Ursachen
-   kommen in Betracht — seine Konfiguration, sein Auftrag, oder die Plattform
-   unter ihm —, und die Abschnitte sind so sortiert, dass man sie in dieser
-   Reihenfolge ausschließen kann. */
+   The purpose is a question: WHY does this colleague not deliver. Three
+   causes are candidates — their configuration, their assignment, or the
+   platform beneath them —, and the sections are ordered so they can be ruled
+   out in this order. */
 
 const PERIODS = [7, 30, 90] as const;
 
@@ -170,9 +170,9 @@ export function WorkRecord({ agentId }: { agentId: string }) {
   );
 }
 
-// Section trägt neben dem Titel die QUELLE. Das ist keine Zierde: eine Zahl,
-// von der man nicht weiß, woher sie kommt, wird geglaubt oder ignoriert — und
-// beides ist falsch.
+// Section carries the SOURCE alongside the title. That is no ornament: a number
+// whose origin you do not know gets believed or ignored — and
+// both are wrong.
 function Section({ title, source, children }: { title: string; source: string; children: React.ReactNode }) {
   return (
     <div className="card">
@@ -207,13 +207,13 @@ function FrictionList({ label, rows }: { label: string; rows: { key: string; cou
   );
 }
 
-/* Die Beurteilungen, neueste zuerst — die Seite, die jemand öffnet, wenn er
-   wissen will, was mit einem Agenten los ist. Über den Zahlen und nicht
-   darunter: die Zahlen sind der Beleg, der Text ist die Aussage.
+/* The reviews, newest first — the page someone opens when they want to
+   know what is going on with an agent. Above the numbers and not below
+   them: the numbers are the proof, the text is the statement.
 
-   Der beurteilte Agent sieht das hier nie. Das ist keine Einstellung, sondern
-   eine Folge: sein Prompt trägt nur die aktive Config-Version, sein Gedächtnis
-   ist auf ihn selbst gescopet, und es gibt keine Aktion, die Reviews liest. */
+   The agent under review never sees this here. That is not a setting but a
+   consequence: its prompt carries only the active config version, its memory
+   is scoped to itself, and there is no action that reads reviews. */
 function Reviews({ agentId }: { agentId: string }) {
   const { t, i18n } = useTranslation();
   const [alle, setAlle] = useState(false);

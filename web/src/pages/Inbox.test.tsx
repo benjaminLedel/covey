@@ -5,10 +5,10 @@ import Inbox from "./Inbox";
 import { mockFetch, renderWithProviders, testPrincipal, useGerman } from "../test/render";
 import type { ImprovementItem, InboxEntry } from "../api";
 
-/* Der Posteingang trägt zwei Sorten, die sich nicht gleich anfühlen dürfen:
-   bei einer Freigabe wartet ein Agent, bei einem offenen Punkt wartet niemand.
-   Was die Tests festhalten, ist genau das — die Reihenfolge oben, die Trennung
-   unten und die Rollengrenze, die an den Dateien eines Vorschlags hängt. */
+/* The inbox carries two kinds that must not feel the same: at an approval an
+   agent waits, at an open point nobody waits. What the tests pin down is
+   exactly that — the order on top, the separation below and the role boundary
+   that hangs on the files of a proposal. */
 
 const vorschlag: ImprovementItem = {
   id: "11111111-0000-0000-0000-000000000001",
@@ -63,8 +63,8 @@ const eintragFreigabe = (): InboxEntry => ({
   },
 });
 
-// Der Server liefert je Abfrage eine Seite. Der Test antwortet nach dem
-// type-Parameter, damit die Gruppen unten dasselbe zeigen wie in echt.
+// The server serves one page per query. The test answers by the `type`
+// parameter, so the groups below show the same as in real usage.
 const seiten = (items: InboxEntry[]) => {
   const von = (typ?: string) => {
     const gefiltert = typ ? items.filter((i) => i.type === typ) : items;
@@ -84,12 +84,12 @@ describe("Posteingang", () => {
   beforeEach(() => useGerman());
 
   it("stellt oben, was zu entscheiden ist — die Freigabe zuerst", async () => {
-    // Die Reihenfolge kommt vom Server (sort=urgent); der Test hält fest, dass
-    // die Seite sie nicht wieder umsortiert.
+    // The order comes from the server (sort=urgent); the test records that
+    // the page does not sort it again.
     mockFetch(seiten([eintragFreigabe(), eintragVorschlag()]));
     renderWithProviders(<Inbox me={testPrincipal()} />);
 
-    // Der Kopf ist statisch — gewartet wird auf die Karten, nicht auf ihn.
+    // The header is static — what gets awaited are the cards, not it.
     await waitFor(() => expect(document.querySelectorAll(".card").length).toBe(2));
     const karten = document.querySelectorAll(".card");
     expect(within(karten[0] as HTMLElement).getByText("Freigabe")).toBeInTheDocument();
@@ -108,10 +108,10 @@ describe("Posteingang", () => {
     renderWithProviders(<Inbox me={testPrincipal()} />);
 
     await screen.findByText("Alle Vorgänge");
-    // Je Sorte eine Überschrift mit der Zahl aus dem Bestand des Servers.
+    // One heading per kind with the count from the server's total.
     expect(await screen.findByRole("heading", { name: /Freigabe \(1\)/ })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: /Vorschlag \(1\)/ })).toBeInTheDocument();
-    // Und keine leere Gruppe.
+    // And no empty group.
     expect(screen.queryByRole("heading", { name: /Befund/ })).not.toBeInTheDocument();
   });
 
@@ -121,7 +121,7 @@ describe("Posteingang", () => {
 
     expect(await screen.findByText(/Security entscheidet/)).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Annehmen" })[0]).toBeDisabled();
-    // Ablehnen nimmt nichts weg und bleibt offen.
+    // Rejecting takes nothing away and stays available.
     expect(screen.getAllByRole("button", { name: "Ablehnen" })[0]).toBeEnabled();
   });
 
@@ -160,7 +160,7 @@ describe("Posteingang", () => {
     renderWithProviders(<Inbox me={testPrincipal("controlling")} />);
 
     expect(await screen.findByRole("heading", { name: /Freigabe \(1\)/ })).toBeInTheDocument();
-    // Die Sorten der Arbeitsakte werden gar nicht erst abgefragt.
+    // The kinds of the work record are not queried at all.
     expect(screen.queryByRole("heading", { name: /Vorschlag/ })).not.toBeInTheDocument();
   });
 });

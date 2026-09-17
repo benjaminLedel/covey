@@ -4,19 +4,19 @@ import { useTranslation } from "react-i18next";
 import i18n, { LANG_BY_CODE, LANG_LIST, istLang, ladeSprache, merkeSprache } from "../i18n";
 import type { Lang } from "../langs";
 
-/* Die Sprachwahl — dieselbe Steuerung an zwei Orten: oben auf der
-   Anmeldeseite (`pill`) und im Fußmenü der angemeldeten Oberfläche (`menu`).
-   Wie beim Erscheinungsbild (ThemeSwitch) steht die Wahl an beiden Stellen in
-   derselben Komponente, damit sie nicht auseinanderläuft.
+/* The language picker — the same control in two places: at the top of the
+   sign-in page (`pill`) and in the footer menu of the signed-in UI (`menu`).
+   As with the appearance (ThemeSwitch) the choice stands in both places in
+   the same component, so it does not drift apart.
 
-   Bis zehn Sprachen war es ein Knopf, der zwischen Deutsch und Englisch
-   umschaltete. Ein Umschalter kann zwei Zustände; ab dem dritten muss man
-   sehen können, was es gibt, und darunter das Eigene finden — auch dann, wenn
-   die Oberfläche gerade in einer Sprache steht, die man nicht liest. Deshalb
-   Flagge und Eigenname nebeneinander, nicht ein Kürzel. */
+   Up to ten languages it was a button that switched between German and
+   English. A toggle has two states; from the third one must be able to
+   see what exists, and find one's own among them — even when
+   the UI stands in a language one does not read. Hence
+   the flag and the native name side by side, not an abbreviation. */
 
-/* Derselbe Globus wie in der Navigation (NavIcon "globe") — der Eintrag soll
-   aussehen wie die Zeilen darunter, nicht wie ein Fremdkörper. */
+/* The same globe as in the navigation (NavIcon "globe") — the entry should
+   look like the rows below it, not like a foreign body. */
 function NavGlobe() {
   return (
     <svg className="ic" viewBox="0 0 24 24" aria-hidden="true">
@@ -39,9 +39,9 @@ export default function LangPicker({
   onSelect,
 }: {
   variant?: "pill" | "menu";
-  /* Vor der Anmeldung hängt die Sprache an der Adresse (/fr/connexion), also
-     wechselt dort die Seite mit — der Aufrufer sagt, wohin. Ohne Angabe
-     genügt es, den Katalog zu tauschen und die Wahl zu merken. */
+  /* Before sign-in the language hangs on the address (/fr/connexion), so there
+     the page changes with it — the caller says where to. Without a given
+     callback it is enough to swap the catalogue and remember the choice. */
   onSelect?: (lang: Lang) => void;
 }) {
   const { t } = useTranslation();
@@ -50,8 +50,8 @@ export default function LangPicker({
   const aktuell: Lang = istLang(i18n.language) ? i18n.language : "en";
   const info = LANG_BY_CODE[aktuell];
 
-  // Escape schließt die Liste — dieselbe Erwartung wie bei jedem anderen
-  // Aufklappmenü, und der einzige Weg heraus für jemanden ohne Maus.
+  // Escape closes the list — the same expectation as for every other
+  // dropdown menu, and the only way out for someone without a mouse.
   useEffect(() => {
     if (!offen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -68,12 +68,12 @@ export default function LangPicker({
     else void ladeSprache(lang);
   };
 
-  /* Zehn Sprachen sind zehn Zeilen, und im Fußmenü stünden sie neben vier
-     anderen Einträgen — die Sprachwahl wäre dann der lauteste Teil eines
-     Menüs, in dem sie das seltenste Anliegen ist. Sie steht dort deshalb als
-     eine Zeile, die sagt, was gerade gilt, und die Liste erst auf Wunsch
-     ausklappt. Oben auf der Anmeldeseite ist es dieselbe Überlegung: dort
-     soll nichts die Karte verdecken, bevor jemand fragt. */
+  /* Ten languages are ten rows, and in the footer menu they would stand beside four
+     other entries — the language picker would then be the loudest part of a
+     menu in which it is the rarest concern. It therefore stands there as
+     a row that says what currently applies, and expands the list only on
+     request. At the top of the sign-in page it is the same consideration: there
+     nothing is to cover the card before someone asks. */
   const liste = (
     <div className="lang-pick-list" role="listbox" aria-label={t("lang.label")}>
       {LANG_LIST.map((l) => (

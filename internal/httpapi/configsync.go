@@ -29,21 +29,21 @@ import (
 // that only security roles may change through the UI (tools, egress).
 var errNeedsSecurityRole = errors.New("only org_admin or security may change tool assignment and egress")
 
-// overlayLiveFiles macht aus einer gespeicherten Config-Version den Stand, der
-// WIRKLICH LÄUFT: ACCESS.md und EGRESS.md werden aus den Stores gerendert und
-// überschreiben den Schnappschuss.
+// overlayLiveFiles turns a stored config version into the state that REALLY
+// RUNS: ACCESS.md and EGRESS.md are rendered out of the stores and overwrite
+// the snapshot.
 //
-// Die beiden Dateien sind im Schnappschuss nicht maßgeblich. PUT
-// /agents/{id}/tools/{system} und die Egress-Routen ändern die Zuweisung, ohne
-// eine Config-Version zu schreiben — die Version bleibt also auf dem Text
-// stehen, der beim letzten Text-Edit galt. Wer den laufenden Stand meint und
-// den Schnappschuss liest, vergleicht gegen eine Datei, die niemand ausführt;
-// wer sie dann auch noch zurückschreibt, hebt die Einschränkung auf, die
-// jemand über die Oberfläche gesetzt hat.
+// The two files are not authoritative in the snapshot. PUT
+// /agents/{id}/tools/{system} and the egress routes change the assignment
+// without writing a config version — so the version stays on the text that was
+// valid at the last text edit. Whoever means the running state and reads
+// the snapshot compares against a file nobody executes; whoever then
+// writes it back undoes the restriction that somebody set through the
+// interface.
 //
-// Fehler beim Rendern lassen die Datei stehen, wie sie war, und werden geloggt
-// — dieselbe Wahl wie in handleGetConfig: eine fehlende Berechtigungsansicht
-// ist besser als gar keine Antwort.
+// Errors while rendering leave the file as it was and are logged — the same
+// choice as in handleGetConfig: a missing permission view is better than no
+// answer at all.
 func (s *Server) overlayLiveFiles(ctx context.Context, orgID, agentID uuid.UUID, files map[string]string) {
 	if files == nil {
 		return

@@ -4,11 +4,11 @@ import userEvent from "@testing-library/user-event";
 import SignUp from "./SignUp";
 import { mockFetch, renderWithProviders, useGerman } from "../test/render";
 
-// Die Registrierungsseite hat drei Zustände, und der wichtigste ist der, in
-// dem sie NICHTS anbietet: covey wird von Dritten selbst betrieben, und eine
-// interne Installation nimmt keine Fremden auf. Ob registriert werden kann,
-// beantwortet der Server (signup-state) — die Seite entscheidet das nicht
-// selbst und rät es auch nicht (FR-002).
+// The sign-up page has three states, and the most important is the one where
+// it offers NOTHING: covey is self-hosted by third parties, and an internal
+// installation takes in no strangers. Whether sign-up is possible is
+// answered by the server (signup-state) — the page does not decide that
+// itself and does not guess it either (FR-002).
 
 const STATE = "/api/v1/public/signup-state";
 const SIGNUP = "POST /api/v1/public/signup";
@@ -25,8 +25,8 @@ describe("SignUp", () => {
   });
 
   it("bleibt geschlossen, wenn es den Endpunkt gar nicht gibt", async () => {
-    // Ältere Installation: /public/signup-state antwortet mit 404. Fail-closed
-    // heißt hier, dass daraus kein Formular wird.
+    // Older installation: /public/signup-state answers with 404. Fail-closed
+    // here means that no form comes out of it.
     mockFetch({});
     renderWithProviders(<SignUp />);
 
@@ -65,16 +65,16 @@ describe("SignUp", () => {
     await userEvent.click(screen.getByRole("button", { name: "Konto anlegen" }));
 
     await waitFor(() => expect(calls).toContain("POST /api/v1/public/signup"));
-    // Kein Sprung in die Anwendung: Das Konto ist erst nach der Bestätigung
-    // eines, und die Seite sagt genau das, samt der Adresse, an die sie ging.
+    // No jump into the application: the account is one only after the
+    // confirmation, and the page says that, with the address the mail went to.
     expect(await screen.findByText("Fast geschafft")).toBeInTheDocument();
     expect(screen.getByText(/erika@example\.de/)).toBeInTheDocument();
   });
 
   it("verspricht keine Mail, wenn keine verschickt wurde", async () => {
-    // Ohne eingerichteten Mailversand gilt die Adresse sofort als bestätigt.
-    // Die Seite darf dann nicht auf eine Bestätigung verweisen, auf die
-    // jemand sonst wartet, bis er aufgibt.
+    // Without mail delivery set up the address counts as confirmed right away.
+    // The page must not then point at a confirmation that someone would
+    // otherwise wait for until they give up.
     mockFetch({
       [STATE]: { mode: "waitlist", site_name: "covey" },
       [SIGNUP]: { ok: true, verification_sent: false },
@@ -93,9 +93,9 @@ describe("SignUp", () => {
   });
 
   it("zeigt die Begründung des Servers, statt sie zu verallgemeinern", async () => {
-    // Ein verbrauchter Code und eine vergebene Adresse sind zwei verschiedene
-    // Auskünfte; wer sie beide zu "hat nicht geklappt" einebnet, lässt den
-    // Menschen raten.
+    // A used-up code and a taken address are two different pieces of
+    // information; whoever flattens both into "did not work" leaves the
+    // person guessing.
     mockFetch({ [STATE]: { mode: "waitlist", site_name: "covey" } });
     renderWithProviders(<SignUp />);
 

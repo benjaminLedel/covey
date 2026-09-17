@@ -1,12 +1,12 @@
--- Seitentyp und Tags (spec/05): Das Wiki-Modell verlangt "eine Seite pro
--- Entität — Kunde, Projekt, Kollege, System, wiederkehrendes Problem". Bisher
--- trug keine Seite diese Information: das Frontmatter kannte nur `title`, alles
--- andere verwarf der Home-Sync. Ohne Typ bleibt das Wiki eine flache Liste, in
--- der sich weder navigieren noch erkennen lässt, ob ein Agent Entitätsseiten
--- pflegt oder Tagebuch führt.
+-- Page type and tags (spec/05): the wiki model asks for "one page per
+-- entity — customer, project, colleague, system, recurring problem". So far
+-- no page carried this information: the frontmatter knew only `title`, the
+-- home sync threw everything else away. Without a type the wiki stays a flat
+-- list, in which neither navigation nor the question of whether an agent
+-- maintains entity pages or keeps a diary is answerable.
 --
--- Leerer Typ heißt "nicht zugeordnet" und ist ein Qualitätsbefund, kein Fehler:
--- Bestandsseiten haben ihn, bis jemand (Agent oder Mensch) sie einsortiert.
+-- An empty type means "not assigned" and is a quality finding, not an error:
+-- existing pages have it until someone (agent or human) files them.
 ALTER TABLE wiki_pages ADD COLUMN type TEXT NOT NULL DEFAULT '';
 ALTER TABLE wiki_pages ADD COLUMN tags TEXT[] NOT NULL DEFAULT '{}';
 

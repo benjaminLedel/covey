@@ -4,21 +4,21 @@ import { useTranslation } from "react-i18next";
 import { api, patch, post, put, type ConfigVersion } from "../../api";
 import { Modal } from "../../components/Modal";
 
-/* Der Einrichtungs-Assistent eines Zielsystems.
+/* The setup assistant of a target system.
  *
- * Vorher war das Aktivieren ein Schalter und der Rest ein Textblock, dessen
- * Schritte auf drei Seiten und ein fremdes System verteilt waren. Der
- * Assistent macht daraus eine Reihenfolge und erledigt darin alles, was in
- * dieser Oberfläche erledigt werden kann: Secrets hinterlegen, den Agenten
- * zuweisen, die Webhook-Adresse fertig zusammensetzen, die Verbindung prüfen.
+ *  Activating used to be a switch and the rest a block of text whose steps
+ *  were spread over three pages and a foreign system. The assistant makes one
+ *  order out of that and does in it everything this interface can do: store
+ *  secrets, assign the agent, put the webhook address together, check the
+ *  connection.
  *
- * Was im FREMDEN System zu tun ist — einen Token erzeugen, einen Trigger
- * anlegen —, bleibt Prosa. Das kann diese Oberfläche nicht für jemanden tun,
- * und so zu tun als ob wäre die schlechtere Hilfe.
+ *  What is to be done in the FOREIGN system — generating a token, creating a
+ *  trigger — stays prose. This interface cannot do that for someone, and
+ *  pretending otherwise would be the worse kind of help.
  *
- * Jeder Schritt kennt seinen eigenen Zustand aus dem Server (GET
- * /targets/{name}/setup) und nicht aus dem Klickverlauf: Wer die Hälfte schon
- * von Hand eingerichtet hat, findet sie abgehakt vor. */
+ *  Every step knows its own state from the server (GET
+ *  /targets/{name}/setup) and not from the click history: whoever set up half
+ *  of it by hand finds it ticked off. */
 
 type SetupCredential = { key: string; kind: string; stored: boolean; optional: boolean };
 type SetupAgent = { id: string; slug: string; display_name: string; access: boolean; scopes?: string[] };
@@ -50,14 +50,14 @@ export function TargetSetupWizard({ name, onClose }: { name: string; onClose: ()
   });
   const s = setup.data;
 
-  // Welche Schritte diese Einrichtung überhaupt hat, entscheidet das Plugin.
-  // Ein System ohne Webhook bekommt keinen Webhook-Schritt — eine leere Seite
-  // mit "trifft nicht zu" ist ein Schritt, den man liest, ohne etwas davon zu
-  // haben.
-  /* Listen aus dem Server werden defensiv gelesen. Ein leeres Array kommt als
-     `null` zurueck, sobald jemand serverseitig ein `omitempty` setzt oder ein
-     nil-Slice durchreicht — und `null.length` beendet hier nicht den Schritt,
-     sondern den ganzen Assistenten mit einem TypeError im Render. */
+  // Which steps this setup has at all is decided by the plugin. A system
+  // without a webhook gets no webhook step — an empty page with "not
+  // applicable" is a step one reads, and reads it without getting
+  // anything from it.
+  /* Lists from the server are read defensively. An empty array comes back as
+     `null` as soon as someone sets an `omitempty` server-side or passes a nil
+     slice through — and `null.length` does not end the step here, but the
+     whole assistant, with a TypeError in the render. */
   const credentials = s?.credentials ?? [];
 
   const steps = useMemo<StepKey[]>(() => {
@@ -87,10 +87,10 @@ export function TargetSetupWizard({ name, onClose }: { name: string; onClose: ()
     }
   };
 
-  // Getestet wird als der Agent, den der Zugriffsschritt gewählt hat: ein
-  // Credential, das einem Mitarbeiter gehört, sieht der Test sonst nicht und
-  // meldet einen Fehler, den es nicht gibt (#189). Ohne gewählten Agenten
-  // bleibt es die org-weite Prüfung.
+  // The test runs as the agent the access step chose: a credential that
+  // belongs to an employee the test would otherwise not see and would report
+  // an error that does not exist (#189). Without a chosen agent it stays the
+  // org-wide check.
   const probe = useMutation({
     mutationFn: () =>
       post<ProbeResult>(
@@ -226,8 +226,8 @@ export function TargetSetupWizard({ name, onClose }: { name: string; onClose: ()
           </>
         )}
 
-        {/* Der Prosa-Teil steht bei jedem Schritt außer dem Webhook-Schritt am
-            Fuß — dort trägt ihn der Schritt selbst. */}
+        {/* The prose part stands at the foot of every step except the webhook
+            one — there the step carries it itself. */}
         {s.setup_doc && current !== "webhook" && (
           <details className="tgt-doc-details">
             <summary>{t("targets.wizard.docSummary")}</summary>
@@ -296,9 +296,9 @@ function CredentialStep({
   );
 }
 
-/* Der Zugriffs-Schritt schreibt die ACCESS.md des gewählten Agenten — mit
-   sichtbarem Vorher/Nachher. Config-as-Code bleibt Config-as-Code: Es entsteht
-   eine neue Version wie bei jeder Änderung im Editor, nur ohne den Umweg. */
+/* The access step writes the ACCESS.md of the chosen agent — with a visible
+   before/after. Config-as-code stays config-as-code: a new version is created
+   as with any change in the editor, only without the detour. */
 function AccessStep({
   system,
   agents,
@@ -328,9 +328,9 @@ function AccessStep({
   });
 
   const before = cfg.data?.files["ACCESS.md"] ?? "";
-  // Eine bestehende Zeile für dasselbe System wird ersetzt, nicht verdoppelt —
-  // sonst gewönne je nach Parser die erste oder die letzte, und niemand sähe
-  // es der Datei an.
+  // An existing line for the same system is replaced, not duplicated —
+  // otherwise, depending on the parser, the first or the last one wins, and
+  // nobody would see it in the file.
   const after = useMemo(() => {
     const kept = before
       .split("\n")

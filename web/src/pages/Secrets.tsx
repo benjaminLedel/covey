@@ -158,10 +158,10 @@ function SecretCard({ secret, agents, canEdit }: { secret: SecretPreview; agents
 // fortnight the lint and the daily check use (#176).
 const WARN_AHEAD_MS = 14 * 24 * 3600 * 1000;
 
-// Das Leben eines Werts: abgewiesen, abgelaufen, läuft bald ab, zuletzt
-// geprüft — und das Datum, das ein Mensch einträgt, wo das Zielsystem es
-// nicht selbst sagt (Jira Cloud). Nichts davon steht, solange nichts bekannt
-// ist: ein Wert ohne Befund trägt keine Zeile.
+// The life of a value: rejected, expired, expiring soon, last checked —
+// and the date a person enters where the target system does not say it
+// itself (Jira Cloud). None of this stands while nothing is known:
+// a value without a finding carries no line.
 export function SecretLifetimeLine({
   life,
   path,
@@ -250,12 +250,12 @@ export function SecretLifetimeLine({
   );
 }
 
-// Die Werte eines Schlüssels.
+// The values of a key.
 //
-// Eingeklappt, solange es nur einen gibt — das ist der Normalfall, und eine
-// Liste mit einem Eintrag ist keine Liste. Was mit den Werten GESCHIEHT (wer
-// darauf sitzt, was sie verbrauchen dürfen) steht bei den Arbeitsplätzen: hier
-// ist nur der Speicher (spec/18).
+// Collapsed while there is only one — that is the normal case, and a
+// list with a single entry is no list. What HAPPENS with the values (who
+// sits on them, what they may consume) stands with the workstations: here
+// only the store lives (spec/18).
 function Pool({ secret, canEdit }: { secret: SecretPreview; canEdit: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -349,8 +349,8 @@ function Pool({ secret, canEdit }: { secret: SecretPreview; canEdit: boolean }) 
 }
 
 
-// SecretValue zeigt Variablen im Klartext, sensible Secrets nur als
-// Präfix + Maske.
+// SecretValue shows variables in plaintext, sensitive secrets only as
+// prefix + mask.
 export function SecretValue({ secret }: { secret: SecretPreview }) {
   if (!secret.sensitive && secret.value !== undefined) {
     return <span className="mono text-xs">{secret.value}</span>;

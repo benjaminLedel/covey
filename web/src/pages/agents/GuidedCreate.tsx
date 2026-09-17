@@ -14,22 +14,22 @@ import {
 } from "../../api";
 import { rollAgentName, slugify } from "../../names";
 
-/* Einen Agenten anlegen, als Onboarding gedacht.
+/* Create an agent, meant as an onboarding.
  *
- * Das Formular davor fragte Anzeigename, Slug und Runtime — und hörte auf.
- * Was der Agent TUN können soll, kam nirgends vor: keine Rolle, kein
- * Zielsystem, kein Vorgesetzter. Danach stand man auf der Agentenseite vor
- * leeren Tabs und musste selbst herausfinden, was von den sechs
- * Konfigurationsdateien jetzt wichtig ist.
+ * The form before this one asked for display name, slug and runtime — and
+ * then stopped. What the agent should be able to DO appeared nowhere: no role,
+ * no target system, no supervisor. Afterward you stood on the agent page in
+ * front of empty tabs and had to work out for yourself which of the six
+ * config files now matters.
  *
- * Der Ablauf hier stellt stattdessen die vier Fragen, die ein Onboarding
- * stellt — wer ist das, was ist sein Auftrag, was darf er, wer ist für ihn
- * zuständig — und schreibt die Antworten dorthin, wo die Plattform sie liest.
- * Jede Frage sagt dazu, wo sie später auftaucht: dass der Slug in der
- * Webhook-Adresse steht, sieht man dem Feld sonst nicht an.
+ * The flow here instead asks the four questions an onboarding
+ * asks — who is this, what is their assignment, what may they do, who is
+ * responsible for them — and writes the answers where the platform reads them.
+ * Each question also says where it shows up later: that the slug sits in the
+ * webhook URL is not visible from the field otherwise.
  *
- * Übersprungen werden darf alles außer dem Namen. Ein halb ausgefüllter Agent
- * ist besser als ein Assistent, der jemanden nicht weiterlässt. */
+ * Everything except the name can be skipped. A half-filled agent is
+ * better than an assistant that will not let someone continue. */
 
 type Step = "who" | "job" | "may" | "org";
 const STEPS: Step[] = ["who", "job", "may", "org"];
@@ -58,9 +58,9 @@ export function GuidedCreate({ onBack, onDone }: { onBack: () => void; onDone: (
         display_name: name.trim(),
         runtime,
       });
-      // Die Konfiguration in einem Zug: Was der Ablauf erfragt hat, steht
-      // danach in denselben Dateien, die auch der Editor zeigt — es gibt
-      // keinen zweiten, verborgenen Ort für dieselbe Aussage.
+      // The configuration in one pass: what the flow asked for then stands
+      // in the same files the editor shows too — there is no
+      // second, hidden place for the same statement.
       const files: Record<string, string> = {};
       if (role.trim()) {
         files["SOUL.md"] = `# ${name.trim()}\n\n## Rolle\n${role.trim()}\n`;
@@ -275,9 +275,9 @@ export function GuidedCreate({ onBack, onDone }: { onBack: () => void; onDone: (
   );
 }
 
-/* Ein Feld mit dem Satz darunter, der sagt, wo der Wert später auftaucht.
-   Das ist der eigentliche Unterschied zum alten Formular: Die Felder waren
-   dieselben, nur wusste niemand, was sie bedeuten. */
+/* A field with the sentence under it that says where the value shows up
+   later. That is the actual difference to the old form: the fields were
+   the same, only nobody knew what they meant. */
 function Field({
   label,
   hint,

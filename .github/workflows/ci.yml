@@ -1,12 +1,12 @@
-# GitHub-Pipeline für covey.
+# GitHub pipeline for covey.
 #
-# Das Repository liegt auf GitLab (dort läuft die vollständige Pipeline samt
-# Deploy) UND auf GitHub — dort ist es das öffentliche Gesicht des Projekts.
-# Auf GitHub lief bisher gar nichts: Wer das Repository dort ansieht, sah
-# keinen einzigen grünen Haken.
+# The repository sits on GitLab (there the full pipeline runs, including
+# deploy) AND on GitHub — there it is the public face of the project.
+# On GitHub nothing ran at all so far: whoever looks at the repository there saw
+# not a single green checkmark.
 #
-# Diese Pipeline prüft dasselbe wie die GitLab-Seite, ohne Deploy: Format,
-# Vet, Tests, Frontend, Schwachstellen. Postgres stands beside the Go job so
+# This pipeline checks the same as the GitLab side, without deploy: format,
+# vet, tests, frontend, vulnerabilities. Postgres stands beside the Go job so
 # that the integration suite RUNS here instead of skipping itself — without a
 # database that job checks barely a third of what it claims to check (see
 # internal/integration/stack_test.go).
@@ -16,8 +16,8 @@ on:
   push:
     branches: [main]
   pull_request:
-  # Wöchentlich, damit ein NEU bekannt gewordener Schwachstellen-Eintrag
-  # auffällt, ohne dass jemand etwas pusht.
+  # Weekly, so that a vulnerability entry that only became known NEWLY
+  # is noticed without anyone pushing something.
   schedule:
     - cron: "17 6 * * 1"
 
@@ -40,8 +40,8 @@ jobs:
         working-directory: web
       - run: npm run build
         working-directory: web
-      # Das Go-Binary bettet web/dist per //go:embed ein — ohne dieses
-      # Artefakt scheitert der Go-Job am Build, nicht am Code.
+      # The Go binary embeds web/dist via //go:embed — without this
+      # artefact the Go job fails at the build, not at the code.
       - uses: actions/upload-artifact@v4
         with:
           name: web-dist
@@ -73,13 +73,13 @@ jobs:
           --health-retries 20
     steps:
       - uses: actions/checkout@v4
-      # check-latest: sonst nimmt setup-go die auf dem Runner-Image
-      # vorinstallierte Fassung, sobald sie zur Reihe "1.26" passt — und die ist
-      # nach jedem Patch-Release eine hinterher. Der Lauf faellt dann an etwas,
-      # das nicht im Quelltext steht: govulncheck meldet die Standard-Library
-      # des Build-Toolchains (go1.26.5 → fuenf Befunde, alle "Fixed in
-      # go1.26.6"). Die golang:1.26-Images der GitLab-Seite holen den neuesten
-      # Patch von sich aus; hier muss man es sagen.
+      # check-latest: otherwise setup-go takes the version preinstalled on
+      # the runner image as soon as it fits the "1.26" series — and that one
+      # lags by one after every patch release. The run then fails on something
+      # that is not in the source: govulncheck reports the standard library of
+      # the build toolchain (go1.26.5 → five findings, all "Fixed in
+      # go1.26.6"). The golang:1.26 images on the GitLab side pull the newest
+      # patch on their own; here it has to be said.
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26"
@@ -100,8 +100,8 @@ jobs:
           -c "ALTER SYSTEM SET synchronous_commit = off"
           -c "ALTER SYSTEM SET full_page_writes = off"
           -c "SELECT pg_reload_conf()"
-      # Formatierung ist eine Bedingung, keine Geschmacksfrage: unformatierter
-      # Code macht jeden späteren Diff größer als die Änderung.
+      # Formatting is a condition, not a matter of taste: unformatted
+      # code makes every later diff larger than the change.
       - name: gofmt
         run: test -z "$(gofmt -l $(go list -f '{{.Dir}}' ./...) | tee /dev/stderr)"
       - run: go vet ./...
@@ -190,8 +190,8 @@ jobs:
     needs: frontend
     steps:
       - uses: actions/checkout@v4
-      # check-latest wie oben — hier trägt es die Last: govulncheck prüft die
-      # Standard-Library des Toolchains mit, mit dem dieser Job baut.
+      # check-latest as above — here it carries the weight: govulncheck also
+      # checks the standard library of the toolchain this job builds with.
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26"
@@ -201,23 +201,23 @@ jobs:
         with:
           name: web-dist
           path: web/dist
-      # govulncheck meldet nur, was der eigene Code tatsächlich AUFRUFT —
-      # deshalb praktisch ohne Fehlalarme und deshalb als harter Schritt.
-      # Version gepinnt: Ein Werkzeug, das bei jedem Lauf frisch aus dem Netz
-      # kommt, ist selbst ein Einfallstor.
+      # govulncheck reports only what the own code actually CALLS — which is why
+      # it is nearly free of false alarms and why it stands as a hard step.
+      # Version pinned: a tool that comes fresh off the network at every run is
+      # itself an entry point.
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
-      # gosec ergänzt govulncheck: Das eine kennt bekannte Lücken in
-      # ABHÄNGIGKEITEN, das andere sucht Muster im EIGENEN Code. Mit einer
-      # ausdrücklichen Regel-Liste statt „alles außer…" — ungefiltert meldet
-      # gosec hier 120 Befunde, und die Masse davon ist der Zweck dieses
-      # Programms (der dev-Plugin FÜHRT Shell-Befehle aus, der Arbeitsplatz
-      # LIEST Dateien nach Pfad). Ein Job, der 120 Zeilen ausspuckt, wird
-      # weggeklickt.
-      # -exclude-dir=.go greift hier ins Leere (GOPATH liegt unter ~/go, also
-      # ausserhalb des Arbeitsverzeichnisses) — steht aber bewusst gleichlautend
-      # zur GitLab-Seite, wo genau das den Job 15 Minuten lang durch den
-      # Modul-Cache laufen liess. Beide Pipelines pruefen dasselbe, also auch
-      # mit denselben Flags.
+      # gosec complements govulncheck: the one knows known gaps in
+      # DEPENDENCIES, the other looks for patterns in the OWN code. With
+      # an explicit rule list instead of "everything except…" — unfiltered,
+      # gosec reports 120 findings here, and most of them are the purpose
+      # of this program (the dev plugin EXECUTES shell commands, the
+      # workplace READS files by path). A job that spits out 120 lines
+      # gets clicked away.
+      # -exclude-dir=.go comes up empty here (GOPATH sits under ~/go, so
+      # outside the working directory) — but stands deliberately worded
+      # the same as the GitLab side, where exactly that let the job walk
+      # through the module cache for 15 minutes. Both pipelines check the
+      # same thing, so with the same flags too.
       - name: gosec
         run: go run github.com/securego/gosec/v2/cmd/gosec@v2.22.9 -quiet -exclude-dir=.go -include=G101,G102,G106,G107,G112,G114,G201,G202,G203,G303,G305,G401,G402,G403,G404,G501,G502,G503,G504,G601 ./...

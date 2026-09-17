@@ -283,18 +283,18 @@ func TestAgentSystemsView(t *testing.T) {
 	}
 }
 
-// TestKeinPhantomWebhook: ein Zielsystem, das keine Webhooks annimmt, darf auch
-// keinen anbieten.
+// TestKeinPhantomWebhook: a target system that accepts no webhooks must not
+// offer one either.
 //
-// Die Fähigkeit wird daran erkannt, was ein Plugin implementiert
-// (target.Webhooker) — und vier Plugins erfüllten die Schnittstelle mit
-// ablehnenden Rümpfen, statt sie wegzulassen. Der Einrichtungs-Assistent baute
-// daraufhin einen Webhook-Schritt: mit einer Adresse zum Kopieren, die ins
-// Leere zeigt, und dem Hinweis, man möge COVEY_BROWSER_WEBHOOK_SECRET setzen —
-// eine Anweisung, die niemand befolgen kann, weil es den Eingang nicht gibt.
+// The capability is recognized by what a plugin implements
+// (target.Webhooker) — and four plugins filled the interface with refusing
+// stubs instead of leaving it out. The setup assistant then built a webhook
+// step: with an address to copy that points into the void, and the hint to
+// set COVEY_BROWSER_WEBHOOK_SECRET — an instruction nobody can follow,
+// because the endpoint does not exist.
 //
-// Geprüft wird an beiden Enden, denn es ist dieselbe Aussage: der Assistent
-// zeigt den Schritt nicht, und der Router weist den Aufruf fail-closed ab.
+// Checked at both ends, because it is the same statement: the assistant does
+// not show the step, and the router rejects the call fail-closed.
 func TestKeinPhantomWebhook(t *testing.T) {
 	s := newStack(t)
 	admin := login(t, s, "admin@test.local", "admin-passwort")
@@ -316,26 +316,26 @@ func TestKeinPhantomWebhook(t *testing.T) {
 		}
 	}
 
-	// Die Gegenprobe: wer wirklich einen Eingang hat, behält ihn.
+	// The counter-check: whoever really has an endpoint keeps it.
 	state := admin.expect(http.MethodGet, "/api/v1/targets/zammad/setup", nil, http.StatusOK)
 	if hook, _ := state["webhook"].(map[string]any); hook["supported"] != true {
 		t.Fatal("zammad hat einen Webhook-Eingang — der muss in der Einrichtung stehen")
 	}
 }
 
-// TestEinrichtungOhneZugangsdaten: der Assistent eines Systems ohne
-// Zugangsdaten muss sich öffnen lassen.
+// TestEinrichtungOhneZugangsdaten: the assistant of a system without
+// credentials has to open.
 //
-// `credentials` ist im JSON ein Array ohne omitempty, und die Oberfläche liest
-// es als Array. Ein nil-Slice wird dort aber zu `null`, und `null.length` in
-// einem useMemo beendet nicht den Schritt, sondern den ganzen Assistenten mit
-// einem TypeError — sichtbar als leerer Bildschirm beim Klick auf „Einrichten".
-// Getroffen hat es genau die Systeme, die keine Secrets brauchen.
+// `credentials` is an array without omitempty in the JSON, and the interface
+// reads it as an array. A nil slice becomes `null` there, though, and
+// `null.length` in a useMemo ends not the step but the whole assistant with a
+// TypeError — visible as an empty screen on the click of "Set up". It hit
+// exactly the systems that need no secrets.
 func TestEinrichtungOhneZugangsdaten(t *testing.T) {
 	s := newStack(t)
 	admin := login(t, s, "admin@test.local", "admin-passwort")
 
-	// browser und dev sind die beiden Systeme mit NoCredentials.
+	// browser and dev are the two systems with NoCredentials.
 	for _, system := range []string{"browser", "dev", "zammad"} {
 		state := admin.expect(http.MethodGet, "/api/v1/targets/"+system+"/setup", nil, http.StatusOK)
 		for _, feld := range []string{"credentials", "agents"} {

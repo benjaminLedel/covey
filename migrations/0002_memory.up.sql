@@ -1,4 +1,4 @@
--- M7: episodisches Gedächtnis über pgvector.
+-- M7: episodic memory over pgvector.
 CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE memories (

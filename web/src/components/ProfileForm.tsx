@@ -4,8 +4,8 @@ import { useTranslation } from "react-i18next";
 import { api, patch, type Human, type ProfileField } from "../api";
 import IdentityFields from "./IdentityFields";
 
-// Die Profilfelder, die Menschen und Agenten teilen — das Formular bedient
-// beide (PATCH /users/{id}, /auth/me bzw. /agents/{id}/profile).
+// The profile fields that humans and agents share — the form serves both
+// (`PATCH /users/{id}`, `/auth/me` and `/agents/{id}/profile`).
 export type ProfileData = Pick<Human, "id" | "job_title" | "identities" | "phone" | "responsibilities" | "custom">;
 
 export default function ProfileForm({

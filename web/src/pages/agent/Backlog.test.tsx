@@ -4,11 +4,11 @@ import userEvent from "@testing-library/user-event";
 import { Backlog } from "./Backlog";
 import { mockFetch, renderWithProviders, useGerman } from "../../test/render";
 
-// Ein Agent ohne Schreibzugang zum Tracker der Plattform ist der Normalfall —
-// Issues anzulegen ist ein Schreibzugriff unter einer Identität, und die gehört
-// nicht in eine Sandbox. Was der Agent aufschreibt, muss also von einem
-// Menschen gemeldet werden, und die Notiz ist die Stelle, an der er es liest.
-// Der Link nimmt ihm das Abtippen ab, nicht die Entscheidung.
+// An agent without write access to the tracker of the platform is the normal
+// case — creating issues is a write access under an identity, and that does
+// not belong in a sandbox. What the agent writes down must therefore be
+// reported by a human, and the note is the place where they read it. The link
+// takes the typing off them, not the decision.
 
 const ORG = {
   id: "org-1",
@@ -76,21 +76,21 @@ describe("Befund aus einer Aufgaben-Notiz melden", () => {
     const url = new URL(link.href);
     expect(url.origin + url.pathname).toBe("https://github.com/benjaminLedel/covey/issues/new");
     expect(url.searchParams.get("title")).toBe(TASK.title);
-    // Der Rumpf trägt den Befund UND seine Herkunft: wer ihn aufgeschrieben
-    // hat und welcher Stand lief — ohne das kostet die Meldung den Maintainer
-    // eine Rückfrage.
+    // The body carries the finding AND its origin: who wrote it down and which
+    // build ran — without that the report costs the maintainer a round of
+    // questions.
     const body = url.searchParams.get("body")!;
     expect(body).toContain(NOTE.content);
     expect(body).toContain("covey-doctor");
     expect(body).toContain("abc1234");
-    // Nichts wird von selbst verschickt.
+    // Nothing is sent by itself.
     expect(link.target).toBe("_blank");
     expect(link.rel).toContain("noopener");
   });
 
-  // Die Adresse ist NICHT verhandelbar: was die Organisation für ihre eigenen
-  // Vorgänge einträgt, ist ihr Repository — ein Fehler der Plattform gehört
-  // dorthin, wo die Plattform gepflegt wird.
+  // The address is NOT negotiable: what the organisation enters for its own
+  // processes is its repository — a bug of the platform belongs where the
+  // platform is maintained.
   it("zeigt auch dann auf das Hauptprojekt, wenn die Organisation ein eigenes Repo führt", async () => {
     mockFetch(routen({ ...ORG, platform_repo_system: "gitlab", platform_repo_project: "intern/covey" }));
     renderWithProviders(<Backlog agentId="a1" canManage onShowRecording={() => {}} />);
@@ -101,8 +101,8 @@ describe("Befund aus einer Aufgaben-Notiz melden", () => {
     expect(link.href).not.toContain("intern/covey");
   });
 
-  // Ein Binary ohne bekannte Herkunft (eigener Build ohne die Konstante) hat
-  // kein Ziel — dann gehört auch kein Knopf dorthin.
+  // A binary without a known origin (own build without the constant) has no
+  // target — then no button belongs there either.
   it("zeigt keinen Link, wo die Herkunft unbekannt ist", async () => {
     mockFetch({ ...routen(), "/api/v1/version": { ...BUILD, source_system: "", source_project: "" } });
     renderWithProviders(<Backlog agentId="a1" canManage onShowRecording={() => {}} />);

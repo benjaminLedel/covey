@@ -24,9 +24,9 @@ export function Backlog({
   onShowRecording,
 }: {
   agentId: string;
-  // Woran die Plattform gerade für diesen Agenten arbeitet. Es hängt am
-  // Agenten, gezeigt wird es an der Aufgabe, die läuft: wer auf die Aufgabe
-  // sieht, wartet auf genau diesen Vorgang.
+  // What the platform is currently working on for this agent. It hangs on the
+  // agent, shown at the task that runs: whoever looks at the task is waiting
+  // for exactly this process.
   phase?: AgentPhase;
   canManage: boolean;
   onShowRecording: (taskId: string, title: string) => void;
@@ -434,10 +434,10 @@ function relTime(iso: string): string {
   return new Date(iso).toLocaleDateString(locale);
 }
 
-// originLabel macht die Herkunft lesbar. Zwei Formen tragen eine ID bzw. einen
-// Slug im Text: "continuation:<task-id>" (Fortsetzung eines am Turn-Limit
-// abgebrochenen Laufs) und "agent:<slug>" (der Agent hat die Aufgabe selbst
-// angelegt oder sie wurde ihm delegiert). Alles andere bleibt, wie es ist.
+// originLabel makes the origin readable. Two forms carry an ID or a slug in the
+// text: "continuation:<task-id>" (continuation of a run aborted at the turn
+// limit) and "agent:<slug>" (the agent created the task itself or it was
+// delegated to it). Everything else stays as it is.
 function originLabel(origin: string): string {
   if (origin.startsWith("continuation:")) return i18n.t("agent.backlog.originContinuation");
   if (origin.startsWith("agent:")) return i18n.t("agent.backlog.originAgent", { slug: origin.slice(6) });
@@ -480,12 +480,12 @@ function TaskCard({
     queryFn: () => api<TaskNote[]>(`/tasks/${task.id}/notes`),
     enabled: open,
   });
-  // Wohin ein Plattform-Befund gemeldet wird: immer in das Projekt, aus dem
-  // dieses Binary stammt (buildinfo.SourceRepo). NICHT in das Repository, das
-  // die Organisation für covey Doctor eingetragen hat — das ist die Adresse,
-  // an der sie ihre eigenen Vorgänge führt, und ein Fehler der Plattform
-  // gehört dorthin, wo die Plattform gepflegt wird. Ein Fork trägt seine
-  // eigene Adresse in der Konstante und zeigt damit auf seinen Tracker.
+  // Where a platform finding is reported to: always into the project this binary
+  // comes from (buildinfo.SourceRepo). NOT into the repository the organisation
+  // entered for covey Doctor — that is the address where they conduct their own
+  // processes, and a bug of the platform belongs where the platform is
+  // maintained. A fork carries its own address in the constant and so points at
+  // its tracker.
   const build = useQuery({
     queryKey: ["build-info"],
     queryFn: buildInfo,
@@ -531,9 +531,9 @@ function TaskCard({
         {archived && <span className="muted text-[11px] shrink-0">{t("agent.backlog.archived")}</span>}
         <span className="kc-prio">P{task.priority}</span>
       </div>
-      {/* Läuft die Aufgabe und tut die Plattform gerade etwas dafür, steht es
-          hier: „in Arbeit" allein erklärt keine Viertelstunde, in der das
-          Image geholt wird. */}
+      {/* If the task is running and the platform is doing something for it
+          right now, it stands here: "in progress" alone does not explain a
+          quarter hour in which the image is being fetched. */}
       {phase && task.state === "in_progress" && (
         <div className="kc-phase">
           <PhaseBadge phase={phase} compact />
@@ -586,9 +586,9 @@ function TaskCard({
             <div className="mt-2 mb-2">
               <div className="muted text-xs mb-1">{t("agent.backlog.agentNotes")}</div>
               {notes.data!.map((n) => {
-                // Der vorbefüllte Link, nicht der Versand: der Mensch sieht das
-                // Formular, liest gegen und meldet unter seinem Namen. Ohne
-                // eingerichtetes Ziel steht hier nichts.
+                // The prefilled link, not the sending: the human sees the form,
+                // reads it against and reports under their own name. Without a
+                // set up target there is nothing here.
                 const href = upstreamIssueURL({
                   repo,
                   title: task.title,

@@ -187,10 +187,10 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 	case "create_task":
 		return p.createTask(ctx, params)
 	case "request_tool":
-		// Die Bitte um ein Werkzeug. Jeder Agent darf sie stellen — sie liegt
-		// deshalb hier und nicht bei den Meta-Actions der Registry, die einen
-		// Scope brauchen: Ein Mitarbeiter, der Software braucht, stellt einen
-		// Antrag, und dafür braucht er keine Personalbefugnis.
+		// The request for a tool. Every agent may make it — that is why it sits
+		// here and not with the meta actions of the registry, which need a
+		// scope: an employee who needs software files an application, and for
+		// that it needs no personnel clearance.
 		var in struct {
 			Tool string `json:"tool"`
 			Why  string `json:"why"`
@@ -279,10 +279,10 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 	case "list_targets", "get_agent_config", "create_agent", "set_agent_config",
 		"work_record", "read_recording", "propose_agent_config", "write_review",
 		"create_issue", "start_services", "style_check", "style_apply", "correction":
-		// Die Meta-Actions an der Registry der Plattform: Entwerfen (spec/20)
-		// und Begutachten (spec/21). Alles wird in der Control Plane
-		// entschieden — Scope, Guard-Rails, Freigaben —, der Proxy trägt die
-		// Anfrage nur hinüber.
+		// The meta actions at the registry of the platform: drafting (spec/20)
+		// and reviewing (spec/21). Everything is decided in the control
+		// plane — scope, guard rails, approvals —, the proxy only carries the
+		// request over.
 		var in struct {
 			Agent       string            `json:"agent"`
 			Slug        string            `json:"slug"`
@@ -300,9 +300,9 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 			Summary     string            `json:"summary"`
 			Findings    []ReviewNote      `json:"findings"`
 			Issues      []ReviewNote      `json:"issues"`
-			// Die Compose-Datei des Projekts (spec/16): Der Agent liest sie in
-			// seinem Checkout und schickt den INHALT — der Pfad wäre für die
-			// Steuerebene nicht auflösbar, sie sieht nicht in die Sandbox.
+			// The compose file of the project (spec/16): the agent reads it in its
+			// checkout and sends the CONTENT — the path would not be resolvable
+			// for the control plane, it does not look into the sandbox.
 			Compose string   `json:"compose"`
 			Only    []string `json:"only"`
 			// Text as a platform service (style_check, style_apply): the draft
@@ -333,9 +333,9 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 		if err != nil {
 			return map[string]string{"status": "error", "error": err.Error()}
 		}
-		// Vor der OK-Prüfung: die Aktion ist nicht fehlgeschlagen, sie hat
-		// nicht stattgefunden. Dieselbe Antwort wie bei einer Zielsystem-
-		// Aktion, damit die Runtime nur EIN Muster kennen muss.
+		// Before the OK check: the action did not fail, it did not take place.
+		// The same answer as for a target-system action, so that the runtime
+		// only has to know ONE pattern.
 		if resp.Pending {
 			return map[string]string{
 				"status":          "pending_approval",

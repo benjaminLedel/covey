@@ -1,29 +1,29 @@
-# covey — Produktions-Compose für das automatische Deployment.
+# covey — production compose for the automatic deployment.
 #
-# Im Unterschied zu docker-compose.yml (baut das Image lokal, für lokales
-# Ausprobieren) zieht diese Datei ein *fertiges* Image aus der Registry, pro
-# Deploy auf einen konkreten, unveränderlichen Tag gepinnt:
+# Unlike docker-compose.yml (builds the image locally, for trying things out
+# locally) this file pulls a *finished* image from the registry, pinned per
+# deploy to one concrete, immutable tag:
 #
 #   COVEY_IMAGE=registry.lapco.legal/private_bl/covey:<commit-sha>
 #
-# Der GitLab-Deploy-Job (siehe .gitlab-ci.yml, Job `deploy`) kopiert diese Datei
-# in den Deploy-Ordner auf dem Host, setzt COVEY_IMAGE auf den Tag des gerade
-# gebauten Commits und startet `docker compose pull && up -d`.
+# The GitLab deploy job (see .gitlab-ci.yml, job `deploy`) copies this file into
+# the deploy folder on the host, sets COVEY_IMAGE to the tag of the commit just
+# built, and starts `docker compose pull && up -d`.
 #
-# Secrets (Master-Key, Passwörter, öffentliche URL) liegen NICHT hier, sondern
-# in einer persistenten `.env` im selben Ordner. Diese `.env` wird beim ersten
-# Deploy einmalig erzeugt und danach NIE wieder überschrieben — der Master-Key
-# ver-/entschlüsselt alle hinterlegten Secrets, ein Wechsel würde sie unlesbar
-# machen. Deshalb: `.env` sichern.
+# Secrets (master key, passwords, public URL) do NOT live here but in a
+# persistent `.env` in the same folder. That `.env` is created once on the first
+# deploy and never overwritten again afterwards — the master key encrypts and
+# decrypts every stored secret, changing it would render them unreadable.
+# Therefore: back up `.env`.
 #
-# Sandboxen laufen als Sibling-Container (docker-SandboxProvider): der
-# covey-Container bekommt den Docker-Socket des Hosts und startet pro Wake
-# einen Container aus dem Arbeitsplatz-Image des Agenten (aus dem öffentlichen
-# Katalog, siehe unten). Damit die `-v`-Pfade der
-# Sandbox-Homes für den Host-Daemon stimmen, ist das Datenverzeichnis ein
-# Bind-Mount unter IDENTISCHEM Pfad auf Host und im Container (COVEY_DATA_DIR,
-# Default /opt/covey/data) — ein benanntes Volume wäre für `docker run -v`
-# vom Container aus nicht adressierbar.
+# Sandboxes run as sibling containers (docker SandboxProvider): the
+# covey container gets the host's Docker socket and starts one container
+# per wake from the agent's workplace image (from the public catalogue,
+# see below). So that the `-v` paths of the sandbox homes match for the
+# host daemon, the data directory is a bind mount under the IDENTICAL
+# path on host and in the container (COVEY_DATA_DIR, default
+# /opt/covey/data) — a named volume would not be addressable for
+# `docker run -v` from inside the container.
 
 x-covey-base: &covey-base
   image: ${COVEY_IMAGE:?COVEY_IMAGE muss gesetzt sein, z. B. registry/…/covey:<sha>}
@@ -36,42 +36,42 @@ x-covey-base: &covey-base
     COVEY_ADMIN_EMAIL: ${COVEY_ADMIN_EMAIL:-admin@covey.local}
     COVEY_ADMIN_PASSWORD: ${COVEY_ADMIN_PASSWORD:?in .env setzen}
     COVEY_SANDBOX_PROVIDER: docker
-    # Welches Image hinter einem Arbeitsplatz steht, sagt der VERÖFFENTLICHTE
-    # Katalog (spec/16): eine JSON-Datei neben dem Quelltext, je covey-Version
-    # per Digest gepinnt, öffentlich auf ghcr. Deshalb steht hier nichts.
+    # Which image stands behind a workplace is said by the PUBLISHED catalogue
+    # (spec/16): one JSON file beside the source, pinned per covey version by
+    # digest, public on ghcr. So nothing stands here.
     #
-    # Vorher standen hier zwei Zeilen mit privaten Registry-Referenzen, vom
-    # Deploy auf den Commit gepinnt — und eine gesetzte Variable schlägt den
-    # Katalog. Das ging, solange die einzige Maschine der Deploy-Host war. Mit
-    # dem ersten eigenen Runner ging es nicht mehr: Der Host bekam
-    # `denied: access forbidden`, weil er die Zugangsdaten zur privaten
-    # Registry nicht hat und nie bekommen sollte.
+    # Before, two lines with private registry references stood here, pinned
+    # to the deployed commit — and a set variable beats the catalogue. That
+    # worked as long as the deploy host was the only machine. With the first
+    # own runner it stopped working: the host got `denied: access forbidden`
+    # because it does not have the credentials to the private registry and
+    # should never get them.
     #
-    # Wer doch ein eigenes Image fahren will — ein Fork, eine Installation ohne
-    # Internet — setzt COVEY_SANDBOX_IMAGE (Profil `base`) bzw.
-    # COVEY_SANDBOX_IMAGE_<PROFIL> in der `.env`, Bindestriche als Unterstriche:
-    # COVEY_SANDBOX_IMAGE_DEV, COVEY_SANDBOX_IMAGE_DEV_FLUTTER. Die Variable
-    # gewinnt weiterhin; sie ist nur nicht mehr die Vorgabe.
-    # Wiki-Pflege (spec/05): legt jedem Agenten täglich einen Aufräum-Task an
-    # (Duplikate zusammenführen, tote [[Verweise]] korrigieren). Der zentrale
-    # Konsolidierungs-Pass arbeitet rein über Embedding-Ähnlichkeit und fasst
-    # damit nur Beinahe-Identisches an — das inhaltliche Aufräumen leistet erst
-    # dieser Heartbeat. Kostet pro Agent einen LLM-Lauf pro Tag; leer = aus.
+    # Whoever does want to run their own image — a fork, an installation without
+    # internet — sets COVEY_SANDBOX_IMAGE (profile `base`) or
+    # COVEY_SANDBOX_IMAGE_<PROFILE> in the `.env`, hyphens as underscores:
+    # COVEY_SANDBOX_IMAGE_DEV, COVEY_SANDBOX_IMAGE_DEV_FLUTTER. The variable
+    # still wins; it is only no longer the default.
+    # Wiki upkeep (spec/05): files each agent a tidying task daily (merge
+    # duplicates, repair dead [[links]]). The central consolidation pass works
+    # purely on embedding similarity and therefore only touches near-identical
+    # pages — the tidying by content is what this heartbeat adds. Costs one LLM
+    # run per agent per day; empty = off.
     COVEY_WIKI_CLEANUP: ${COVEY_WIKI_CLEANUP:-03:00}
-    # Embedding hinter der Wiki-Suche. Der Default `builtin` misst nur
-    # Wortüberlappung — damit findet ein Agent seine eigene Seite nicht wieder,
-    # sobald er anders formuliert. Zwei Wege zu semantischem Retrieval, beide
-    # über die `.env`:
+    # Embedding behind the wiki search. The default `builtin` only measures
+    # word overlap — that way an agent does not find its own page again once
+    # it phrased things differently. Two ways to semantic retrieval, both
+    # through the `.env`:
     #
-    #   selbst betreiben (empfohlen — die Wiki-Inhalte verlassen das Haus nicht):
+    #   run it yourself (recommended — the wiki content stays in the house):
     #     COMPOSE_PROFILES=embeddings
     #     COVEY_EMBEDDING_PROVIDER=ollama
     #
-    #   fremder Dienst:
-    #     COVEY_EMBEDDING_PROVIDER=voyage   (oder openai)
+    #   foreign service:
+    #     COVEY_EMBEDDING_PROVIDER=voyage   (or openai)
     #     COVEY_EMBEDDING_API_KEY=…
     #
-    # Der Bestand wird beim nächsten Start automatisch neu eingebettet.
+    # The existing stock is re-embedded automatically on the next start.
     COVEY_EMBEDDING_PROVIDER: ${COVEY_EMBEDDING_PROVIDER:-builtin}
     COVEY_EMBEDDING_MODEL: ${COVEY_EMBEDDING_MODEL:-}
     COVEY_EMBEDDING_API_KEY: ${COVEY_EMBEDDING_API_KEY:-}
@@ -95,8 +95,8 @@ services:
       retries: 15
     restart: unless-stopped
 
-  # Einmaliger Init pro Deploy: Organisation + Admin + Demo-Agent (idempotent).
-  # Beendet sich danach; blockiert den Start von `covey` bis erfolgreich durch.
+  # One init per deploy: organisation + admin + demo agent (idempotent).
+  # Ends afterwards; blocks `covey` from starting until it has run through.
   bootstrap:
     <<: *covey-base
     command: ["bootstrap"]
@@ -105,8 +105,8 @@ services:
       db:
         condition: service_healthy
 
-  # Control Plane: API + Orchestrator + eingebettete Admin-UI. Migrationen
-  # laufen beim `serve`-Start automatisch (Advisory-Lock).
+  # Control plane: API + orchestrator + embedded admin UI. Migrations run
+  # automatically at `serve` start (advisory lock).
   covey:
     <<: *covey-base
     command: ["serve"]
@@ -117,20 +117,20 @@ services:
         condition: service_completed_successfully
     ports:
       - "${COVEY_PORT:-8494}:8494"
-    # YAML-Merge ersetzt Listen komplett — deshalb hier beide Mounts explizit:
-    # Datenverzeichnis (wie Base) plus Docker-Socket für den Sandbox-Provider.
+    # A YAML merge replaces lists entirely — which is why both mounts are spelled
+    # out here: data directory (as in the base) plus Docker socket for the sandbox provider.
     volumes:
       - ${COVEY_DATA_DIR:-/opt/covey/data}:${COVEY_DATA_DIR:-/opt/covey/data}
       - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
 
-  # Selbstgehostetes Embedding für das Wiki-Gedächtnis (spec/05). Aus, solange
-  # `COMPOSE_PROFILES=embeddings` nicht in der .env steht — wer einen fremden
-  # Dienst nutzt oder beim Built-in bleibt, bekommt diesen Container nicht.
+  # Self-hosted embedding for the wiki memory (spec/05). Off as long as
+  # `COMPOSE_PROFILES=embeddings` is not in the .env — whoever uses a foreign
+  # service or stays with the built-in does not get this container.
   #
-  # Default-Modell ist EmbeddingGemma (308M): mehrsprachig, läuft auf CPU und
-  # ist Matryoshka-trainiert, liefert also die vom Schema erwarteten 256
-  # Dimensionen. Kein Schlüssel, kein Egress zu Dritten.
+  # The default model is EmbeddingGemma (308M): multilingual, runs on CPU and is
+  # Matryoshka-trained, so it delivers the 256 dimensions the schema expects. No
+  # key, no egress to third parties.
   embeddings:
     image: ollama/ollama:latest
     profiles: ["embeddings"]
@@ -138,9 +138,9 @@ services:
       - covey-ollama:/root/.ollama
     restart: unless-stopped
 
-  # Einmaliger Modell-Pull pro Deploy (idempotent — liegt das Modell schon im
-  # Volume, kehrt der Job sofort zurück). Ollama zieht ein fehlendes Modell
-  # beim Embedding-Aufruf NICHT selbst nach, deshalb dieser Schritt.
+  # One model pull per deploy (idempotent — if the model already lies in the
+  # volume, the job returns right away). Ollama does NOT pull a missing model
+  # itself on an embedding call, which is why this step exists.
   embeddings-init:
     image: ollama/ollama:latest
     profiles: ["embeddings"]

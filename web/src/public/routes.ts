@@ -1,25 +1,25 @@
-/* Die zwei Adressen, die diese Anwendung ohne Anmeldung kennt, und die
-   Präfixe der angemeldeten Oberfläche.
+/* The two addresses this application serves without a sign-in, and the
+   prefixes of the signed-in UI.
 
-   Bis #130 stand an dieser Stelle die Landkarte einer ganzen Website: Titel,
-   Description, Canonical, hreflang, die Liste fürs Vorrendern und die Vorlage
-   für sitemap.xml. Die Website liegt seit #129 in einem eigenen Repository und
-   auf einem eigenen Host; das Binary trägt nur noch, was zur Anwendung gehört.
+   Until #130 this place held the map of a whole website: titles, description,
+   canonical, hreflang, the prerender list and the template for sitemap.xml.
+   The website has lived in its own repository, on its own host, since #129;
+   the binary carries only what still belongs to the application.
 
-   Die englischen Slugs bleiben übersetzt statt präfigiert (/en/sign-in, nicht
-   /en/anmelden). Sie stehen so in der Dokumentation, in Lesezeichen und in den
-   Weiterleitungen des Proxys — eine Vereinheitlichung würde alte Adressen
-   brechen, ohne etwas zu gewinnen. Die acht Sprachen, die später dazukamen,
-   folgen derselben Regel: Präfix plus ein Slug in ihrer eigenen Sprache. Wo
-   die Schrift nicht lateinisch ist (ja, zh), steht ein lateinischer Slug —
-   eine Adresse in Kana wäre im Browser eine Kette von Prozentzeichen, und
-   damit weder teilbar noch lesbar.
+   The English slugs stay translated rather than prefixed (/en/sign-in, not
+   /en/anmelden). They stand like that in the documentation, in bookmarks and
+   in the redirects of the proxy — unifying them would break old addresses
+   without gaining anything. The eight languages that came later follow the
+   same rule: prefix plus a slug in their own language. Where the script is
+   not Latin (ja, zh) a Latin slug stands — an address in kana would be a
+   chain of percent signs in the browser, with that neither shareable
+   nor readable.
 
-   Deutsch trägt kein Präfix: /anmelden ist die älteste Adresse dieser
-   Anwendung und die, auf die alles zeigt, was vor den Sprachen da war.
+   German carries no prefix: /anmelden is the oldest address of this
+   application and the one that everything from before the languages points at.
 
-   Titel stehen hier und nicht in den locales: Sie hängen an der Route, und der
-   Anmeldebereich setzt sie, bevor i18n geladen ist. */
+   Titles stand here and not in the locales: they hang on the route, and the
+   sign-in area sets them before i18n is loaded. */
 
 import { LANGS, type Lang } from "../langs";
 
@@ -29,11 +29,11 @@ export { LANGS };
 export type Localized = Record<Lang, string>;
 
 export type PublicRoute = {
-  /** Stabile Kennung; der Anmeldebereich hängt daran seine Element-Zuordnung. */
+  /** Stable identifier; the sign-in area hangs its element mapping off it. */
   id: "anmelden" | "registrieren";
-  /** Pfad je Sprache. */
+  /** Path per language. */
   path: Localized;
-  /** Was im Reiter steht. */
+  /** What stands in the browser tab. */
   title: Localized;
 };
 
@@ -94,25 +94,25 @@ export const PUBLIC_ROUTES: PublicRoute[] = [
   },
 ];
 
-/* Die zwei Adressen, die aus einer Mail heraus angesteuert werden (#168).
+/* The two addresses that are clicked out of a mail (#168).
 
-   Sie tragen bewusst KEINE Sprache: sie stehen in einer Mail, die Monate im
-   Postfach liegen kann, und ein Link muss auch dann noch stimmen, wenn jemand
-   die Sprache inzwischen gewechselt hat. Übersetzt wird der Text auf der
-   Seite, nicht ihre Adresse.
+   They deliberately carry NO language: they sit in a mail that can lie in the
+   mailbox for months, and a link has to be right even once someone has
+   switched the language in the meantime. The text on the page is translated,
+   not their address.
 
-   Der Go-Handler braucht sie in derselben Liste wie die übrigen offenen Pfade
-   (vite.config.ts schreibt app-routes.json) — sonst antwortet ein Aufruf des
-   Bestätigungslinks mit 404 statt mit der Oberfläche. */
+   The Go handler needs them in the same list as the other public paths
+   (vite.config.ts writes app-routes.json) — otherwise a call of the
+   confirmation link answers with 404 instead of with the UI. */
 export const MAIL_LINK_PATHS = ["/verify", "/reset"];
 
-/** Der Pfad einer Route in der gewünschten Sprache; unbekannt → die Anmeldung. */
+/** Path of a route in the wanted language; unknown → the sign-in page. */
 export function pathOf(id: string, lang: Lang): string {
   const route = PUBLIC_ROUTES.find((r) => r.id === id);
   return route ? route.path[lang] : PUBLIC_ROUTES[0].path[lang];
 }
 
-/** Welche Route eine Adresse ist — für den Titel im Reiter. */
+/** Which route an address is — for the title in the browser tab. */
 export function matchRoute(pathname: string): { route: PublicRoute; lang: Lang } | null {
   const clean = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
   for (const route of PUBLIC_ROUTES) {
@@ -123,11 +123,11 @@ export function matchRoute(pathname: string): { route: PublicRoute; lang: Lang }
   return null;
 }
 
-/* Die Pfad-Präfixe der angemeldeten Oberfläche. Der Go-Handler
-   (internal/httpapi/spa.go) braucht sie, um zwei Dinge auseinanderzuhalten,
-   die gleich aussehen: eine App-Route, die auf die SPA fallen muss, und ein
-   Tippfehler, der eine ehrliche 404 verdient. Deckungsgleich mit den Routen in
-   App.tsx — App.test.tsx hält beides zusammen. */
+/* The path prefixes of the signed-in UI. The Go handler
+   (internal/httpapi/spa.go) needs them to tell apart two things that look the
+   same: an app route that has to fall through to the SPA, and a typo that
+   deserves an honest 404. Matching the routes in
+   App.tsx — App.test.tsx holds the two together. */
 export const APP_ROUTE_PREFIXES = [
   "/administration",
   "/agents",

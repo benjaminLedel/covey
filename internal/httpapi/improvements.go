@@ -1,21 +1,21 @@
 package httpapi
 
-// Die Liste der offenen Punkte — und damit der Kanal (spec/21).
+// The list of open points — and thereby the channel (spec/21).
 //
-// Ein Review endet in einer von drei Diagnosen, und alle drei brauchen einen
-// Menschen: der Vorschlag mit seinem Diff, der Befund ohne einen, das schon
-// eingereichte Issue. Die Versuchung wäre, einen Weg zu bauen, jemandem etwas
-// zu SAGEN — die Plattform kennt keine Nachricht an einen Menschen, und eine
-// hier zu erfinden hieße, einen zweiten, schlechteren Posteingang neben den
-// zu stellen, den es für das Annehmen ohnehin geben muss. Also ist die
-// Annahme-Oberfläche der Kanal: ein Befund, den nur ein Mensch bearbeiten
-// kann, ist dann keine Nachricht, die untergehen kann, sondern ein offener
-// Punkt, der offen bleibt.
+// A review ends in one of three diagnoses, and all three of them need a
+// human: the proposal with its diff, the finding without one, and the
+// issue that was already submitted. The temptation would be to build a
+// way to SAY something to somebody — the platform knows no message to a
+// human, and to invent one here would mean putting a second, worse inbox
+// beside the one that must exist for the accepting anyway. So the
+// acceptance interface is the channel: a finding that only a human can
+// edit is then not a message that can get lost, but an open point that
+// stays open.
 //
-// Angelegt werden die Punkte hier NICHT. Ein Mensch, der eine Config ändern
-// will, ändert sie — er braucht keinen Vorschlag an sich selbst. Der
-// Schreibweg gehört dem Agenten (covey/propose_agent_config, spätere
-// Scheibe); diese Datei ist das andere Ende.
+// The points are NOT created here. A human who wants to change a config
+// changes it — he needs no proposal to himself. The write path belongs
+// to the agent (covey/propose_agent_config, a later slice); this file is
+// the other end.
 
 import (
 	"errors"
@@ -28,19 +28,19 @@ import (
 	"covey/internal/identity"
 )
 
-// fileDiff ist eine geänderte Datei, wie die Oberfläche sie zeigt: vorher
-// der laufende Stand, nachher der vorgeschlagene. Bewusst gegen den LAUFENDEN
-// Stand und nicht gegen die Basis des Vorschlags — was ein Mensch beurteilt,
-// ist die Änderung, die durch sein Klicken entsteht.
+// fileDiff is a changed file as the interface shows it: before the running
+// state, after the proposed one. Deliberately against the RUNNING state and
+// not against the base of the proposal — what a human judges is the change
+// that his clicking creates.
 type fileDiff struct {
 	File   string `json:"file"`
 	Before string `json:"before"`
 	After  string `json:"after"`
 }
 
-// improvementView ist der Punkt plus alles, was die Oberfläche sonst
-// nachfragen müsste: um wen es geht, wer ihn geschrieben hat, ob die Basis
-// weggewandert ist und wer ihn annehmen darf.
+// improvementView is the point plus everything else the interface would
+// otherwise have to ask for: whom it is about, who wrote it, whether the
+// base drifted away and who may accept it.
 type improvementView struct {
 	agents.ImprovementItem
 	AgentSlug    string     `json:"agent_slug"`
@@ -48,26 +48,26 @@ type improvementView struct {
 	AgentOwnerID *uuid.UUID `json:"agent_owner_id,omitempty"`
 	AuthorSlug   string     `json:"author_slug,omitempty"`
 	AuthorName   string     `json:"author_name,omitempty"`
-	// CurrentVersion ist die Version, die gerade läuft. Stale sagt, dass der
-	// Vorschlag gegen eine ältere geschrieben wurde — das allein macht ihn
-	// nicht falsch, es ist eine Warnung.
+	// CurrentVersion is the version that runs right now. Stale says that the
+	// proposal was written against an older one — that alone does not make it
+	// wrong, it is a warning.
 	CurrentVersion int  `json:"current_version"`
 	Stale          bool `json:"stale"`
-	// Conflicts sind die Dateien, die seit der Basis von jemand anderem
-	// geändert wurden. Solange die Liste nicht leer ist, wird der Vorschlag
-	// nicht angenommen — sonst überschriebe die Annahme still eine fremde
-	// Änderung.
+	// Conflicts are the files that someone else has changed since the base.
+	// While the list is not empty, the proposal is not accepted — otherwise
+	// the acceptance would silently overwrite a foreign
+	// change.
 	Conflicts []string `json:"conflicts,omitempty"`
-	// NeedsSecurity: der Vorschlag fasst ACCESS.md oder EGRESS.md an. Dann
-	// entscheidet nicht der Teamleiter, dem der Agent gehört, sondern
-	// org_admin/security (spec/02, spec/21).
+	// NeedsSecurity: the proposal touches ACCESS.md or EGRESS.md. Then it is
+	// not the team lead who owns the agent that decides, but org_admin/security
+	// (spec/02, spec/21).
 	NeedsSecurity bool       `json:"needs_security"`
 	Diff          []fileDiff `json:"diff,omitempty"`
 }
 
-// improvementRoles dürfen die Liste LESEN. Controlling fehlt bewusst: ein
-// Kostenblatt sagt, was ausgegeben wurde, ein Vorschlag sagt, wie jemand
-// gearbeitet hat — dieselbe Grenze, die spec/21 für die Arbeitsakte zieht.
+// improvementRoles may READ the list. Controlling is missing deliberately: a
+// cost sheet says what was spent, a proposal says how somebody worked — the
+// same boundary that spec/21 draws for the work record.
 func improvementReadRoles() []string {
 	return []string{identity.RoleOrgAdmin, identity.RoleAgentOwner,
 		identity.RoleSecurity, identity.RoleAuditor}
@@ -79,10 +79,10 @@ func (s *Server) handleListImprovements(w http.ResponseWriter, r *http.Request) 
 		Status: strings.TrimSpace(r.URL.Query().Get("status")),
 		Kind:   strings.TrimSpace(r.URL.Query().Get("kind")),
 	}
-	// „Liste pro Agent-Owner": mine=1 zeigt nur die Punkte zu den Kollegen,
-	// die dem Anfragenden gehören. Serverseitig gefiltert und nicht in der
-	// Oberfläche — eine leere Liste soll leer ankommen und nicht ausgeblendet
-	// werden.
+	// "List per agent owner": mine=1 shows only the points about the
+	// colleagues that belong to the requester. Filtered server-side and not
+	// in the interface — an empty list should arrive empty and not be
+	// hidden.
 	if r.URL.Query().Get("mine") == "1" {
 		owned, err := s.Registry.List(r.Context(), p.OrgID)
 		if err != nil {
@@ -114,8 +114,8 @@ func (s *Server) handleGetImprovement(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, views[0])
 }
 
-// improvementFromPath liest den Punkt aus der URL und prüft die Organisation.
-// Fremd und nicht vorhanden sind dieselbe Antwort.
+// improvementFromPath reads the item from the URL and checks the organisation.
+// Foreign and not present are the same answer.
 func (s *Server) improvementFromPath(w http.ResponseWriter, r *http.Request) (agents.ImprovementItem, bool) {
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
@@ -130,9 +130,9 @@ func (s *Server) improvementFromPath(w http.ResponseWriter, r *http.Request) (ag
 	return item, true
 }
 
-// improvementViews reichert die Punkte an. Die Configs werden pro Agent EINMAL
-// gelesen, nicht pro Punkt: eine offene Liste enthält typischerweise mehrere
-// Punkte zu wenigen Kollegen.
+// improvementViews enriches the items. The configs are read ONCE per agent, not
+// per item: an open list typically holds several
+// items about a few colleagues.
 func (s *Server) improvementViews(r *http.Request, items []agents.ImprovementItem) []improvementView {
 	ctx := r.Context()
 	agentCache := map[uuid.UUID]agents.Agent{}
@@ -181,12 +181,12 @@ func (s *Server) improvementViews(r *http.Request, items []agents.ImprovementIte
 		for _, name := range agents.ChangedFiles(cur.Files, item.Files) {
 			v.Diff = append(v.Diff, fileDiff{File: name, Before: cur.Files[name], After: item.Files[name]})
 		}
-		// Veraltet und in Konflikt sind Fragen an einen OFFENEN Vorschlag. Für
-		// einen angenommenen sind sie nicht nur überflüssig, sondern verkehrt:
-		// die laufende Version enthält danach genau seine Dateien, also meldet
-		// der Vergleich zuverlässig „zwischenzeitlich geändert" — und zwar für
-		// die Dateien, die die Annahme selbst geschrieben hat. Im Archiv stand
-		// so hinter jeder erfolgreichen Annahme ein roter Konflikt.
+		// Outdated and in conflict are questions to an OPEN proposal. For an
+		// accepted one they are not only superfluous but wrong:
+		// the running version then contains exactly its files, so the
+		// comparison reliably reports "changed in the meantime" — and precisely
+		// for the files the acceptance itself wrote. In the archive, behind
+		// every successful acceptance, a red conflict stood.
 		if item.Status == agents.ImprovementPending {
 			v.Stale = item.BaseVersion != cur.Version
 			if v.Stale {
@@ -198,10 +198,10 @@ func (s *Server) improvementViews(r *http.Request, items []agents.ImprovementIte
 	return out
 }
 
-// proposalConflicts vergleicht die Basis des Vorschlags mit dem laufenden
-// Stand. Ist die Basisversion nicht mehr da (gelöscht, oder es gab nie eine),
-// gilt der leere Satz als Basis — dann sind genau die Dateien in Konflikt, die
-// heute schon Inhalt haben.
+// proposalConflicts compares the basis of the proposal with the running
+// state. If the base version is no longer there (deleted, or there never was one),
+// the empty set counts as the basis — then exactly those files are in conflict that
+// already hold content today.
 func (s *Server) proposalConflicts(r *http.Request, item agents.ImprovementItem, cur agents.ConfigVersion) []string {
 	base := map[string]string{}
 	if item.BaseVersion > 0 {
@@ -212,13 +212,13 @@ func (s *Server) proposalConflicts(r *http.Request, item agents.ImprovementItem,
 	return agents.ProposalConflicts(base, cur.Files, item.Files)
 }
 
-// handleDecideImprovement ist die eine Handlung dieser Oberfläche: annehmen
-// oder ablehnen, beides von einem Menschen.
+// handleDecideImprovement is the one action of this interface: accept
+// or reject, both by a human.
 //
-// Annehmen heißt beim Vorschlag: mergen und über den NORMALEN Schreibweg als
-// neue Version speichern, mit dem Menschen als Urheber. Es gibt keinen zweiten
-// Weg in eine laufende Config, und deshalb auch keine Stelle, an der ein
-// Vorschlag etwas könnte, was ein Mensch nicht könnte.
+// Accept means, for the proposal: merge and save over the NORMAL write path as
+// a new version, with the human as author. There is no second
+// path into a running config, and therefore no place either where a
+// proposal could do something a human could not.
 func (s *Server) handleDecideImprovement(w http.ResponseWriter, r *http.Request) {
 	item, ok := s.improvementFromPath(w, r)
 	if !ok {
@@ -238,15 +238,15 @@ func (s *Server) handleDecideImprovement(w http.ResponseWriter, r *http.Request)
 	}
 	p := principalFrom(r)
 
-	// Ablehnen kostet nichts und nimmt nichts weg: das darf jeder, der die
-	// Liste bedienen darf. Der Grund bleibt stehen — ein abgelehnter Vorschlag
-	// ist das Nützlichste, was jemand lesen kann, der covey Doctor
-	// selbst überprüfen will.
+	// Rejecting costs nothing and takes nothing away: that is allowed to anyone
+	// who may operate the list. The reason stays on record — a rejected proposal
+	// is the most useful thing someone can read who wants to check
+	// covey Doctor themselves.
 	if !in.Accept {
 		s.finishImprovement(w, r, item.ID, agents.ImprovementRejected, in.Note, 0)
 		return
 	}
-	// Befund und Issue haben keinen Diff — sie werden abgehakt, nicht anwendet.
+	// Finding and issue have no diff — they are ticked off, not applied.
 	if item.Kind != agents.KindProposal {
 		s.finishImprovement(w, r, item.ID, agents.ImprovementAccepted, in.Note, 0)
 		return
@@ -260,18 +260,18 @@ func (s *Server) handleDecideImprovement(w http.ResponseWriter, r *http.Request)
 	if cur.Files == nil {
 		cur.Files = map[string]string{}
 	}
-	// Konflikt vor Rolle: ein Vorschlag, dessen Basis weggewandert ist, wird
-	// gar nicht erst zur Rollenfrage. Er wird neu geschrieben oder verworfen —
-	// dieselbe Antwort, die ein Pull Request darauf gibt.
+	// Conflict before role: a proposal whose basis wandered away does not
+	// even reach the role question. It is rewritten or discarded —
+	// the same answer a pull request gives to that.
 	if conflicts := s.proposalConflicts(r, item, cur); len(conflicts) > 0 {
 		writeErr(w, http.StatusConflict,
 			"the configuration has changed since this proposal was written ("+
 				strings.Join(conflicts, ", ")+") — it has to be rewritten or discarded")
 		return
 	}
-	// Die Rollengrenze aus spec/02, geerbt statt umgangen: wer ACCESS.md oder
-	// EGRESS.md ändert, weitet den Zugang eines Kollegen. Das entscheidet
-	// nicht, wer zuerst geklickt hat.
+	// The role boundary from spec/02, inherited rather than bypassed: whoever changes
+	// ACCESS.md or EGRESS.md widens a colleague's access. That is not decided
+	// by who clicked first.
 	if restricted := agents.RestrictedChanges(cur.Files, item.Files); len(restricted) > 0 {
 		if p.Role != identity.RoleOrgAdmin && p.Role != identity.RoleSecurity {
 			writeErr(w, http.StatusForbidden,
@@ -282,22 +282,22 @@ func (s *Server) handleDecideImprovement(w http.ResponseWriter, r *http.Request)
 	}
 
 	merged := agents.MergeConfig(cur.Files, item.Files)
-	// Der Schreib-Durchgriff darf NUR anfassen, was der Vorschlag wirklich
-	// ändert.
+	// The write-through may touch ONLY what the proposal really
+	// changes.
 	//
-	// ACCESS.md und EGRESS.md stehen zwar im Schnappschuss, sind dort aber
-	// nicht maßgeblich: der Tools-Reiter und die Egress-Routen ändern die
-	// Zuweisung, ohne eine Config-Version zu schreiben. Ginge der Schnappschuss
-	// so in prepareConfigWrite, riefe dessen apply() SetAgentTools mit der
-	// veralteten Liste — und die Annahme eines Vorschlags zu PLAYBOOKS.md hübe
-	// die Werkzeug-Einschränkung auf, die jemand über die Oberfläche gesetzt
-	// hat. Für einen agent_owner wäre dieselbe Ursache ein 403 auf einen
-	// Vorschlag, der den Zugang gar nicht berührt.
+	// ACCESS.md and EGRESS.md do stand in the snapshot, but are not
+	// authoritative there: the tools tab and the egress routes change the
+	// assignment without writing a config version. If the snapshot went into
+	// prepareConfigWrite as is, its apply() would call SetAgentTools with the
+	// stale list — and accepting a proposal about PLAYBOOKS.md would lift
+	// the tool restriction someone set through the interface.
+	// For an agent_owner the same cause would be a 403 on a
+	// proposal that does not touch access at all.
 	//
-	// prepareConfigApply lässt einen Bereich in Ruhe, wenn seine Datei fehlt
-	// ("omitted EGRESS.md means no change"). Also fehlt sie dort — gespeichert
-	// wird die Version trotzdem vollständig, damit der Schnappschuss keine
-	// Lücke bekommt.
+	// prepareConfigApply leaves an area alone when its file is missing
+	// ("omitted EGRESS.md means no change"). So it is missing there — saved
+	// the version is complete all the same, so the snapshot does not get a
+	// gap.
 	writeThrough := make(map[string]string, len(merged))
 	for k, v := range merged {
 		writeThrough[k] = v
@@ -325,9 +325,9 @@ func (s *Server) handleDecideImprovement(w http.ResponseWriter, r *http.Request)
 	s.finishImprovement(w, r, item.ID, agents.ImprovementAccepted, in.Note, cv.Version)
 }
 
-// finishImprovement hält die Entscheidung fest. Das UPDATE ist gegen
-// „pending" geführt; klicken zwei Menschen gleichzeitig, gewinnt einer und
-// der andere bekommt 409 statt einer zweiten Entscheidung.
+// finishImprovement records the decision. The UPDATE runs against
+// "pending"; if two people click at the same time, one wins and
+// the other gets 409 instead of a second decision.
 func (s *Server) finishImprovement(w http.ResponseWriter, r *http.Request, id uuid.UUID,
 	status, note string, appliedVersion int) {
 

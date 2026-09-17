@@ -6,11 +6,11 @@ import { vi } from "vitest";
 import i18n from "../i18n";
 import type { Principal } from "../api";
 
-// Gemeinsames Gerüst für Komponenten-Tests: dieselben Provider wie die
-// Anwendung (Query-Cache, Router, i18n), nur mit kurzen Zügeln — kein Retry,
-// kein Cache über Testgrenzen hinweg. Ohne das wiederholt TanStack Query
-// fehlgeschlagene Anfragen und ein Test wartet Sekunden auf einen Fehler, den
-// er längst erwartet.
+// Shared scaffolding for component tests: the same providers as the app
+// (query cache, router, i18n), only on a short leash — no retries, no cache
+// across test boundaries. Without this TanStack Query retries failed
+// requests, and a test waits seconds for an error it has long been
+// expecting.
 export function renderWithProviders(
   ui: ReactElement,
   opts: { route?: string; path?: string } = {},
@@ -37,9 +37,9 @@ export function renderWithProviders(
   };
 }
 
-// Die Oberfläche ist zweisprachig; Tests prüfen gegen die deutschen Texte.
-// Ohne diese Festlegung hinge das Ergebnis daran, was zuletzt im localStorage
-// stand — ein Test, der von der Sprache des Entwicklers abhängt, ist keiner.
+// The UI is bilingual; tests assert against the German texts. Without this
+// pin the result would depend on what localStorage held last — a test that
+// depends on the developer's language is not one.
 export function useGerman() {
   i18n.changeLanguage("de");
 }
@@ -51,14 +51,14 @@ export const testPrincipal = (role = "org_admin", platformRole = "user"): Princi
   DisplayName: "Test Admin",
   Role: role,
   AccountID: "33333333-3333-3333-3333-333333333333",
-  // Voreinstellung ist bewusst "user": die Instanz-Ebene ist die Ausnahme,
-  // nicht der Normalfall — ein Test, der sie braucht, sagt es (FR-003).
+  // Default is deliberately "user": the instance level is the exception, not
+  // the norm — a test that needs it says so (FR-003).
   PlatformRole: platformRole,
 });
 
-// mockFetch beantwortet Anfragen nach Pfadmuster. Der Test sagt, was der
-// Server liefert; alles Unbeantwortete wird laut (404 + gemerkt), damit ein
-// vergessener Endpunkt auffällt, statt still als leere Liste durchzugehen.
+// mockFetch answers requests by path pattern. The test says what the server
+// returns; anything unanswered is loud (404 + recorded), so a forgotten
+// endpoint stands out instead of passing quietly as an empty list.
 export function mockFetch(routes: Record<string, unknown>) {
   const unmatched: string[] = [];
   const calls: string[] = [];
@@ -70,10 +70,10 @@ export function mockFetch(routes: Record<string, unknown>) {
     for (const [pattern, body] of Object.entries(routes)) {
       const [pMethod, pPath] = pattern.includes(" ") ? pattern.split(" ") : ["GET", pattern];
       if (method !== pMethod) continue;
-      // Pfad ohne Query vergleichen. Ein Muster MIT "?" prüft die Query mit —
-      // als Präfix, weil der Aufrufer weitere Parameter anhängt (Sortierung,
-      // Seitengröße). Muster mit Query gehören deshalb VOR das ohne: die erste
-      // Übereinstimmung gewinnt.
+      // Compare the path without its query. A pattern WITH "?" checks the query
+      // too — as a prefix, because the caller appends more parameters
+      // (sorting, page size). Patterns with a query therefore belong BEFORE the
+      // one without: the first match wins.
       const target = pPath.includes("?") ? url : url.split("?")[0];
       if (target === pPath || target.endsWith(pPath) || (pPath.includes("?") && url.includes(pPath))) {
         return new Response(JSON.stringify(body), {

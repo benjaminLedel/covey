@@ -1,12 +1,12 @@
-# CodeQL: die statische Analyse von GitHub, für Go und das TypeScript-Frontend.
+# CodeQL: the static analysis of GitHub, for Go and the TypeScript
+# frontend.
 #
-# Sie ergänzt govulncheck, statt es zu ersetzen: govulncheck kennt bekannte
-# Schwachstellen in ABHÄNGIGKEITEN, CodeQL sucht Muster im EIGENEN Code —
-# ungeprüfte Eingaben, Pfad-Manipulation, fehlende Fehlerbehandlung.
+# It complements govulncheck instead of replacing it: govulncheck knows
+# known vulnerabilities in DEPENDENCIES, CodeQL looks for patterns in OWN
+# code — unvalidated input, path manipulation, missing error handling.
 #
-# Läuft auf Pull Requests und wöchentlich: Die Regelsätze werden
-# weiterentwickelt, ein Lauf auf unverändertem Code findet später womöglich
-# mehr als heute.
+# Runs on pull requests and weekly: the rule sets keep developing, a run
+# over unchanged code may find more later than it finds today.
 name: CodeQL
 
 on:
@@ -32,8 +32,8 @@ jobs:
       - uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
-      # Go muss übersetzt werden, damit CodeQL den Datenfluss sieht — und
-      # dafür braucht //go:embed ein vorhandenes web/dist.
+      # Go has to be compiled so that CodeQL sees the data flow — and for that
+      # //go:embed needs an existing web/dist.
       - name: web/dist bereitstellen
         if: matrix.language == 'go'
         run: mkdir -p web/dist && echo '<!doctype html><title>ci</title>' > web/dist/index.html

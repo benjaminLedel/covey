@@ -1,21 +1,21 @@
--- Die vierte Sorte offener Punkt: die Werkzeug-Bitte.
+-- The fourth kind of open item: the tool request.
 --
--- Ein Agent, dem ein Paket fehlt, hatte keinen Weg, das zu sagen. Er ist
--- nirgends root, apt ist nicht für ihn, und der Arbeitsplatz steht fest, bis
--- jemand ein Image neu baut. Was er stattdessen tat, lag in seinem Home:
--- ~/aptroot mit sources.list, aufgelösten Paket-URIs und entpackten .debs,
--- zuletzt geändert am Tag der Beobachtung. Kein Nachmittag Improvisation,
--- sondern das stehende Verfahren.
+-- An agent missing a package had no way to say so. It is root nowhere, apt
+-- does not run for it, and the workplace stands still until somebody
+-- rebuilds an image. What it did instead sat in its home: ~/aptroot with
+-- sources.list, resolved package URIs and unpacked .debs, last changed on
+-- the day of the observation. Not one afternoon of improvisation but the
+-- standing procedure.
 --
--- Das ist die Plattform, die an ihrer eigenen Metapher scheitert: Covey ist die
--- IT-Abteilung dieser Mitarbeiter, und ein Mitarbeiter, der ein Werkzeug
--- braucht, stellt einen Antrag. Weil es keinen Schalter gab, baute er es im
--- Keller — schlecht, wiederholt und für alle unsichtbar.
+-- The platform failed its own metaphor here. Covey is the IT department of
+-- these employees, and an employee who needs a tool files a request. Because
+-- there was no switch for it, it built one in the basement: badly, repeatedly,
+-- invisible to everyone.
 --
--- Warum hier und nicht in einer eigenen Tabelle: Es ist derselbe Vorgang wie
--- ein Befund (spec/21) — kein Diff, ein Mensch entscheidet, der Grund einer
--- Ablehnung bleibt stehen. Dieselbe Person, derselbe Posteingang, dieselben
--- Verben. Eine zweite Tabelle wäre ein zweiter, schlechterer Posteingang.
+-- Why here and not in a table of its own: it is the same process as a finding
+-- (spec/21), no diff, a person decides, the reason for a rejection stays
+-- standing. The same person, the same inbox, the same verbs. A second table
+-- would be a second, worse inbox.
 ALTER TABLE improvement_items DROP CONSTRAINT improvement_items_kind_check;
 ALTER TABLE improvement_items ADD CONSTRAINT improvement_items_kind_check
     CHECK (kind IN ('proposal','finding','issue','tool_request'));

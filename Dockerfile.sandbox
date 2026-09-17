@@ -1,17 +1,17 @@
-# Sandbox-Image, Profil `base`: coveyd + Claude-Code-Runtime und das Werkzeug,
-# das jeder Agent braucht — Support, Mail, QA, Recherche.
-# Bauen: `make sandbox-image`. Die Control Plane startet daraus pro Wake einen
-# Container; das persistente Agenten-Home wird nach /home/agent gemountet.
+# Sandbox image, profile `base`: coveyd + the Claude Code runtime and the tooling
+# every agent needs — support, mail, QA, research.
+# Build: `make sandbox-image`. The control plane starts a container from it per
+# wake; the persistent agent home is mounted at /home/agent.
 #
-# Was hier NICHT drin ist, steht in Dockerfile.sandbox.dev: PHP, JDK, fvm, uv
-# und die native Build-Toolchain. Der Schnitt geht bewusst nicht an Sprachen
-# entlang, sondern an Rollen — ein Entwickler-Agent arbeitet legitim an einem
-# PHP- UND einem Flutter-Projekt, und ein Mail-Agent an keinem von beiden
-# (spec/16-runner.md, „Sandbox images per agent").
+# What is NOT in here stands in Dockerfile.sandbox.dev: PHP, JDK, fvm, uv and
+# the native build toolchain. The cut is deliberately not along languages but
+# along roles — a developer agent works legitimately on a PHP AND a Flutter
+# project, and a mail agent on neither (spec/16-runner.md, "Sandbox images per
+# agent").
 FROM golang:1.27 AS build
-# Herkunft des Binaries (internal/buildinfo) — `coveyd version` im Container
-# beantwortet, welcher Stand im Sandbox-Image liegt. Werte reicht der Aufrufer
-# durch (make sandbox-image / CI); ohne Build-Args bleibt es "dev".
+# Provenance of the binary (internal/buildinfo). `coveyd version` inside the
+# container answers which state the sandbox image carries. The caller passes the
+# values through (make sandbox-image / CI); without build args it stays "dev".
 ARG VERSION=dev
 ARG COMMIT=
 ARG DATE=
@@ -26,18 +26,18 @@ RUN CGO_ENABLED=0 go build -ldflags "\
         -X covey/internal/buildinfo.date=$DATE" -o /coveyd ./cmd/coveyd
 
 FROM node:26-slim
-# Werkzeuge, die die Runtime in der Praxis braucht: git für Repos,
-# ca-certificates + curl für HTTPS auf gebrokerte Zielsysteme, ripgrep für die
-# Suche, unzip für ZIP-Archive (z. B. Mail-Anhänge, die der Agent in seine
-# Sandbox lädt — als Nicht-Root kann er nichts nachinstallieren), chromium für
-# das browser-Plugin (headless Chrome via chromedp; die nötigen Fonts/Libs
-# zieht das chromium-Paket mit).
+# Tools the runtime needs in practice: git for repos, ca-certificates + curl for
+# HTTPS onto brokered target systems, ripgrep for search, unzip for ZIP archives
+# (e.g. mail attachments the agent downloads into its sandbox — as non-root it
+# cannot install anything afterwards), chromium for the browser plugin (headless
+# Chrome via chromedp; the chromium package pulls the required fonts/libs).
 #
-# jq, weil die Arbeitsplatz-Beschreibung es dem Agenten zusagt und weil jedes
-# gebrokerte Zielsystem mit JSON antwortet. Es fehlte, und die Zusage stand
-# trotzdem da (#113): Der Agent leitet eine API-Antwort hindurch, bekommt
-# „command not found" und sucht den Fehler ab da bei sich — nachinstallieren
-# kann er nichts, er ist nicht root. Ein Megabyte gegen diese Sackgasse.
+# jq, because the workplace description promises it to the agent and because every
+# brokered target system answers with JSON. It was missing and the promise stood
+# there anyway (#113): the agent pipes an API response through, gets
+# `command not found` and starts looking for the fault in itself from there — it
+# cannot install anything afterwards, it is not root. One megabyte against that
+# dead end.
 #
 # python3 with venv and pip, for the same reason as jq (#186): skills and
 # small scripts are the everyday case, not the exception. The blog writer's
@@ -49,49 +49,49 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         git ca-certificates curl jq ripgrep unzip chromium \
         python3 python3-venv python3-pip \
     && rm -rf /var/lib/apt/lists/*
-# Damit chromedp den Browser ohne Rätselraten findet.
+# So that chromedp finds the browser without guessing.
 ENV COVEY_BROWSER_CHROME_PATH=/usr/bin/chromium
 
-# Browser-Testrunner auf das vorhandene chromium zeigen. Playwright und
-# Puppeteer laden sonst beim ersten Lauf ihren eigenen Browser aus einem CDN —
-# das steht in keiner Egress-Allowlist und läuft fail-closed ins Leere, während
-# der Agent auf einen Download wartet, der nie kommt. Der Systembrowser ist nicht
-# dieselbe Revision, gegen die der Runner gepinnt ist; für das Durchklicken einer
-# Oberfläche reicht er, für einen pixelgenauen Snapshot-Vergleich nicht.
+# Point the browser test runners at the chromium that is there. Otherwise
+# Playwright and Puppeteer download their own browser from a CDN on the first
+# run — that is on no egress allowlist and runs fail-closed into nothing while
+# the agent waits for a download that never comes. The system browser is not the
+# revision the runner is pinned against; for clicking through a UI it is enough,
+# for a pixel-exact snapshot comparison it is not.
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
     PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium \
     PUPPETEER_SKIP_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
-# UTF-8 als Sandbox-Locale. Ohne das läuft der Container im POSIX-Default:
-# grep/sed/sort/wc/tr sehen dann Bytes statt Zeichen, unzip verstümmelt
-# Dateinamen mit Umlauten, und der Agent lernt aus den kaputten Rückgaben, dass
-# er deutschen Text lieber nach ASCII umschreibt („ue" statt „ü"). C.UTF-8 ist
-# in glibc ab Debian bookworm eingebaut — kein locales-Paket nötig.
+# UTF-8 as the sandbox locale. Without it the container runs in the POSIX
+# default: grep/sed/sort/wc/tr see bytes instead of characters, unzip mangles
+# filenames with umlauts, and the agent learns from the broken returns that it
+# should rewrite German text to ASCII ("ue" instead of "ü"). C.UTF-8 is built
+# into glibc since Debian bookworm — no locales package needed.
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 RUN npm install -g @anthropic-ai/claude-code
-# Erst NACH der Runtime-Installation: npm-Pakete, die der AGENT global
-# installiert, gehören ins Home. Das Standard-Prefix /usr/local gehört root, der
-# Container läuft als agent — `npm i -g` scheitert dort mit EACCES. Ein Prefix im
-# Home behebt das und überlebt den Lauf, weil das Home als einziges Verzeichnis
-# persistent ist (sandbox_docker.go). Diese Zeile darf nicht nach oben wandern:
-# stünde sie vor dem Befehl darüber, läge die Runtime selbst im Home — und wäre
-# zur Laufzeit vom gemounteten Home maskiert, also weg.
+# Only AFTER the runtime installation: npm packages the AGENT installs globally
+# belong in the home. The default prefix /usr/local belongs to root, the
+# container runs as agent — `npm i -g` fails there with EACCES. A prefix in the
+# home solves that and survives the run, because the home is the only persistent
+# directory (sandbox_docker.go). This line must not move up: if it stood before
+# the command above, the runtime itself would lie in the home and be masked by
+# the mounted home at runtime, that is, gone.
 ENV NPM_CONFIG_PREFIX=/home/agent/.npm-global
-# Was der Agent sich selbst ins Home installiert, liegt nicht im Standard-PATH.
-# Der übliche Ausweg — der Installer ergänzt die .bashrc — greift hier nicht,
-# weil das gemountete Home die Shell-Dateien aus dem Image maskiert.
+# What the agent installs into its own home is not on the standard PATH. The
+# usual way out — the installer appends to .bashrc — does not work here, because
+# the mounted home masks the shell files from the image.
 ENV PATH=/home/agent/.npm-global/bin:/home/agent/.local/bin:${PATH}
 
-# Nicht-root: Claude Code verweigert --dangerously-skip-permissions als root,
-# und die Sandbox soll auch im Container kein Root-Prozess sein.
+# Non-root: Claude Code refuses --dangerously-skip-permissions as root, and the
+# sandbox should not be a root process inside the container either.
 RUN useradd --create-home --uid 1001 agent
 COPY --from=build /coveyd /usr/local/bin/coveyd
 
-# Die Selbstbeschreibung des Arbeitsplatzes. Sie liegt im Repository (eine
-# Datei, zwei Verbraucher: dieses Image und die Oberfläche), und coveyd hängt
-# sie im Lauf an den Systemprompt — sonst sucht ein Agent Werkzeuge, die er
-# schon hat, und lädt sie ein zweites Mal in sein Home (siehe
+# The self-description of the workplace. It lies in the repository (one
+# file, two consumers: this image and the UI), and coveyd attaches it to the
+# system prompt during the run — otherwise an agent looks for tools it
+# already has and downloads them a second time into its home (see
 # internal/daemon/workplace.go).
 COPY internal/sandbox/workplaces/base.json /etc/covey/workplace.json
 

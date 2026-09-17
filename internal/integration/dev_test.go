@@ -90,15 +90,15 @@ func TestDevPluginSandboxComputer(t *testing.T) {
 	}
 }
 
-// Der Aufruf, den jeder kompilierte Prompt lehrt, lautet
+// The call that every compiled prompt teaches is
 // `curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/<system>/<action>`.
-// In der Shell aus `dev exec` war die Variable leer — die Anfrage ging an Port
-// 80 und verschwand, und der Fehler las sich wie ein Netzproblem statt wie eine
-// fehlende Variable. Ein QA-Agent hat daran mehrere Turns verloren, weil seine
-// Warteschleife nie irgendwo angefragt hat.
+// In the shell from `dev exec` the variable was empty — the request went to port
+// 80 and vanished, and the error read like a network problem instead of a
+// missing variable. A QA agent lost several turns on it because its
+// polling loop never asked anywhere.
 //
-// Dieser Test geht den Weg des Agenten: Aufgabe → Runtime → dev/exec → Shell.
-// Was dort ankommt, ist die Portnummer des Action-Proxies dieses Laufs.
+// This test takes the agent's path: task → runtime → dev/exec → shell.
+// What arrives there is the port number of this run's action proxy.
 func TestDieShellAusDevExecErreichtDenActionProxy(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -116,8 +116,8 @@ func TestDieShellAusDevExecErreichtDenActionProxy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Die Shell schreibt, was sie sieht, ins Home — die Aufzeichnung hält von
-	// einer Aktion nur ok/Aktion/Parameter fest, nicht ihre Ausgabe.
+	// The shell writes what it sees into the home — the recording keeps only
+	// ok/action/parameters of an action, not its output.
 	task, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Action-Port prüfen",
 		`[mock:action dev/exec {"cmd":"echo \"port=[$COVEY_ACTION_PORT]\" > port.txt"}]`+
 			` [mock:result geprüft]`, "manual", 3)

@@ -14,22 +14,22 @@ import (
 	"covey/internal/homestore"
 )
 
-/* Ein Home wächst nur, und nichts hat einen Agenten je gebeten, seinen eigenen
-   Schreibtisch aufzuräumen. Gemessen: 19,1 GB, davon 18,8 GB, die kein anderer
-   teilt — zwei selbst installierte JDKs, ein von Hand entpackter Datenbank-
-   server, Kratzverzeichnisse aus Tickets vom August. Der Preis steht in den
-   Phasen: 34 s Prüfen bei jedem Weckruf, 140 s Zurückschreiben nach jedem Lauf
-   (#103).
+/* A home only grows, and nothing ever asked an agent to tidy up its own
+   desk. Measured: 19.1 GB, of which 18.8 GB nobody else shares — two JDKs
+   installed by itself, a database server unpacked by hand, scratch
+   directories from tickets of August. The price stands in the phases: 34 s of
+   checking at every wake, 140 s of writing back
+   after every run (#103).
 
-   Gebeten wird der Agent, nicht gekehrt wird für ihn: `239-fix-backup` ist eine
-   Kopie aus einem Ticket, und das weiß nur er. */
+   The agent is asked, nothing is swept for it: `239-fix-backup` is a copy
+   from a ticket, and only it knows that. */
 
 func TestEinGewachsenesHomeBekommtEineAufraeumAufgabe(t *testing.T) {
 	ctx := context.Background()
 	s := newStackWith(t, stackOpts{})
 	agent := s.newSupportAgent("gewachsen")
 
-	// Ein Schnappschuss über der Schwelle (5 GB), wie ihn ein Sync schreibt.
+	// A snapshot above the threshold (5 GB), the way a sync writes it.
 	if _, err := s.pool.Exec(ctx, `INSERT INTO home_snapshots
 		(id, org_id, agent_id, manifest_hash, total_size, blocks_up, bytes_up, duration_ms, reason)
 		VALUES ($1,$2,$3,'abc',$4,293,425796824,139964,'job')`,
@@ -49,12 +49,12 @@ func TestEinGewachsenesHomeBekommtEineAufraeumAufgabe(t *testing.T) {
 			continue
 		}
 		gefunden = true
-		// Die Zahlen gehören hinein: ohne sie räumt er auf, was leicht zu
-		// finden ist, statt was groß ist.
+		// The numbers belong in it: without them he tidies what is easy to
+		// find instead of what is large.
 		if !strings.Contains(a.Body, "19.0 GB") {
 			t.Fatalf("die Größe fehlt im Auftrag:\n%s", a.Body)
 		}
-		// Und die Grenze: ein Home ist ein Gedächtnis, kein Zwischenspeicher.
+		// And the boundary: a home is a memory, not a cache.
 		if !strings.Contains(a.Body, "Gedächtnis") {
 			t.Fatalf("der Auftrag nennt die Grenze nicht:\n%s", a.Body)
 		}
@@ -63,8 +63,8 @@ func TestEinGewachsenesHomeBekommtEineAufraeumAufgabe(t *testing.T) {
 		t.Fatalf("keine Aufräum-Aufgabe angelegt (%d Aufgaben)", len(aufgaben))
 	}
 
-	// Zweimal fragen heißt nicht zwei Aufgaben: solange eine offen steht,
-	// kommt keine weitere.
+	// Asking twice does not mean two tasks: as long as one stands open, no
+	// further one comes.
 	s.orch.AskForTidying(ctx)
 	aufgaben, _ = s.backlog.ListByAgent(ctx, agent.ID, false)
 	var n int
@@ -156,8 +156,8 @@ func TestAScatteredHomeIsAskedEvenWhenSmall(t *testing.T) {
 	}
 }
 
-// Die Gegenprobe: ein kleines Home wird in Ruhe gelassen. Eine Schwelle, die
-// alle trifft, wird zur Gewohnheit und dann ignoriert.
+// TestEinKleinesHomeWirdInRuheGelassen: the counter-check — a small home is
+// left alone. A threshold that hits everybody becomes a habit, then ignored.
 func TestEinKleinesHomeWirdInRuheGelassen(t *testing.T) {
 	ctx := context.Background()
 	s := newStackWith(t, stackOpts{})

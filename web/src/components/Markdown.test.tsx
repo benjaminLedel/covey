@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { Markdown } from "./Markdown";
 
-/* Der Renderer trägt zwei Rollen, die nichts miteinander zu tun haben: Er
-   stellt die Antwort eines Modells INNERHALB einer Seite dar, und er ist im
-   Docs-Bereich die Seite selbst. Was in der einen Rolle richtig ist, ist in
-   der anderen falsch — deshalb steht beides hier nebeneinander. */
+/* The renderer carries two roles that have nothing to do with each other: it
+   renders a model's answer WITHIN a page, and in the
+   docs area it is the page itself. What is right in one role is
+   wrong in the other — which is why both stand here side by side. */
 
 describe("Überschriften-Ebene", () => {
   it("bleibt im Standardfall bei h4 — die umgebende Seite hat ihr h1 schon", () => {
@@ -46,9 +46,9 @@ describe("Links", () => {
   });
 
   it("verlinkt nichts, was kein sicheres Schema hat", () => {
-    // javascript: als Adresse ist der klassische Weg, aus einer Modellantwort
-    // heraus Code auszuführen. Und //fremde.example sieht relativ aus, führt
-    // aber protokollrelativ nach außen — beides bleibt Text.
+    // javascript: as an address is the classic way to run code
+    // out of a model answer. And //fremde.example looks relative, but leads
+    // outward protocol-relative — both stay text.
     const { container } = render(
       <Markdown text={"[klick](javascript:alert(1)) [weg](//fremde.example/x)"} />,
     );
@@ -58,9 +58,9 @@ describe("Links", () => {
   });
 });
 
-/* Tabellen kamen mit #225 dazu: Ein Agent, der Zahlen berichtet, schreibt eine
-   Tabelle, und ohne diesen Zweig stand sie als eine Reihe von Rohren im
-   Fließtext. */
+/* Tables came in with #225: an agent that reports numbers writes a
+   table, and without this branch it stood as a row of pipes in the
+   running text. */
 describe("Tabellen", () => {
   const tabelle = [
     "| Fenster | Klicks |",
@@ -91,8 +91,8 @@ describe("Tabellen", () => {
   });
 
   it("trennt den Absatz davor von der Tabelle", () => {
-    // Ohne die Grenze im Absatz-Zweig verschluckt der Absatz die Kopfzeile,
-    // und die Trennzeile bleibt als Strichreihe stehen.
+    // Without the boundary in the paragraph branch the paragraph swallows the header row,
+    // and the separator row stays standing as a row of dashes.
     const { container } = render(<Markdown text={"Reichweite:\n" + tabelle} />);
     expect(container.querySelector("p.md-p")?.textContent).toBe("Reichweite:");
     expect(container.querySelector("table")).not.toBeNull();

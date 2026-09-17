@@ -1,16 +1,16 @@
--- Aufgaben-Verwandtschaft: Eine Aufgabe kann aus einer anderen hervorgehen.
--- Zwei Fälle nutzen das:
+-- Task kinship: a task can arise out of another one.
+-- Two cases use this:
 --
---   * Fortsetzung — ein Lauf endete am Turn-Limit (max_turns) ohne Ergebnis.
---     Statt den nächsten Heartbeat bei null anfangen zu lassen, entsteht eine
---     Folgeaufgabe mit dem Übergabe-Stand als Auftrag und der Runtime-Session
---     des abgebrochenen Laufs zum Wiederaufsetzen.
---   * Teilaufgabe — der Agent zerlegt seine Arbeit selbst (covey/create_task).
+--   * Continuation — a run ended at the turn limit (max_turns) without a result.
+--     Instead of letting the next heartbeat start from scratch, a
+--     follow-up task comes into being with the handover state as its assignment and
+--     the runtime session of the aborted run to resume on.
+--   * Subtask — the agent breaks its work down itself (covey/create_task).
 --
--- Die Kette trägt den Loop-Schutz: über parent_task_id ist die Tiefe zählbar,
--- und eine Fortsetzungs-Kette bricht ab, statt endlos weiterzulaufen.
--- ON DELETE SET NULL: eine gelöschte Ursprungsaufgabe verwaist ihre Kinder,
--- löscht sie aber nicht — die Arbeit bleibt sichtbar.
+-- The chain carries the loop guard: via parent_task_id the depth is countable,
+-- and a continuation chain breaks off instead of running on endlessly.
+-- ON DELETE SET NULL: a deleted origin task orphans its children,
+-- does not delete them — the work stays visible.
 ALTER TABLE backlog_tasks
     ADD COLUMN parent_task_id UUID REFERENCES backlog_tasks(id) ON DELETE SET NULL;
 

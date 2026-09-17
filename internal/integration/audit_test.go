@@ -137,8 +137,8 @@ func TestAuditSpurRollenUndOrgGrenze(t *testing.T) {
 		login(t, s, email, "passwort-1234").expect(http.MethodGet, "/api/v1/audit", nil, http.StatusForbidden)
 	}
 
-	// Another organization, another trail. Angelegt wird sie auf der
-	// Instanz-Ebene — eine Organisation legt keine zweite an (FR-003, F).
+	// Another organization, another trail. It is created on the
+	// instance level — an organisation does not create a second one (FR-003, F).
 	if err := accounts.New(s.pool).SetPlatformRole(t.Context(), "admin@test.local", accounts.RoleSystemAdmin); err != nil {
 		t.Fatal(err)
 	}

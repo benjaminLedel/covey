@@ -258,9 +258,9 @@ type AgentEgress struct {
 
 func (s *Store) AgentConfig(ctx context.Context, agentID uuid.UUID) (AgentEgress, error) {
 	out := AgentEgress{TemplateIDs: []uuid.UUID{}, Hosts: []Host{}}
-	// Auch die Anzeige geht ueber die Organisation: eine Alt-Zuweisung auf eine
-	// fremde Vorlage soll nicht als angehakte Vorlage erscheinen, die es hier
-	// gar nicht gibt (FR-003, Befund E).
+	// The display side also goes through the organisation: a stale assignment to
+	// a foreign template must not appear as a ticked template that does not exist
+	// here at all (FR-003, finding E).
 	trows, err := s.pool.Query(ctx, `SELECT at.template_id FROM agent_egress_templates at
 		  JOIN egress_templates t ON t.id=at.template_id
 		  JOIN agents a ON a.id=at.agent_id AND a.org_id=t.org_id
@@ -295,15 +295,15 @@ func (s *Store) AgentConfig(ctx context.Context, agentID uuid.UUID) (AgentEgress
 }
 
 // SetAgentTemplate assigns a template or removes the assignment.
-// SetAgentTemplate haengt eine Vorlage an einen Agenten oder loest sie wieder.
+// SetAgentTemplate hangs a template on an agent or detaches it again.
 //
-// Die Vorlage wird gegen die Organisation DES AGENTEN geprueft. Vorher wurde
-// sie ungeprueft eingetragen: der Agent war durch agentScoped gedeckt, die
-// Vorlage nicht. Damit liess sich die Freigabeliste einer fremden Organisation
-// an den eigenen Agenten haengen — man sah, welche Hosts ein anderer Mandant
-// erlaubt, und bekam sie obendrein selbst frei (FR-003, Befund E). Die
-// Schwester-Funktion eine Bildschirmseite weiter oben macht es seit jeher
-// richtig.
+// The template is checked against the organisation OF THE AGENT.
+// Before, it was entered without a check: the agent was
+// covered by agentScoped, the template was not. That let you hang
+// the allow-list of a foreign organisation onto your own agent — you
+// saw which hosts another tenant permits and got them released for
+// yourself on top (FR-003, finding E). The sister function one
+// screen above has always done it right.
 func (s *Store) SetAgentTemplate(ctx context.Context, agentID, templateID uuid.UUID, assigned bool) error {
 	if assigned {
 		tag, err := s.pool.Exec(ctx,
@@ -316,8 +316,8 @@ func (s *Store) SetAgentTemplate(ctx context.Context, agentID, templateID uuid.U
 			return err
 		}
 		if tag.RowsAffected() == 0 {
-			// Entweder gibt es die Vorlage in dieser Organisation nicht — oder
-			// sie haengt bereits. Nur der erste Fall ist einer.
+			// Either the template does not exist in this organisation — or it is
+			// already attached. Only the first case is one.
 			var vorhanden bool
 			if err := s.pool.QueryRow(ctx, `SELECT EXISTS (
 				SELECT 1 FROM agent_egress_templates WHERE agent_id=$1 AND template_id=$2)`,
@@ -406,9 +406,9 @@ func (s *Store) DeleteDefaultHost(ctx context.Context, orgID, hostID uuid.UUID) 
 // allowlist + the hosts of all assigned templates + agent-owned hosts. Only the
 // environment additions (COVEY_EGRESS_ALLOW) are added on top in the proxy.
 func (s *Store) EffectiveAllowlist(ctx context.Context, agentID uuid.UUID) ([]string, error) {
-	// Der Verbund geht ueber die Organisation des Agenten: eine Zuweisung aus
-	// der Zeit vor der Pruefung (Befund E) darf keine fremden Hosts mehr
-	// freigeben — die Liste heilt sich damit von selbst.
+	// The join goes over the agent's organisation: an assignment from the time
+	// before the check (finding E) must no longer release foreign hosts — the
+	// list thus heals itself.
 	rows, err := s.pool.Query(ctx, `
 		SELECT th.pattern FROM agent_egress_templates at
 		  JOIN egress_template_hosts th ON th.template_id=at.template_id

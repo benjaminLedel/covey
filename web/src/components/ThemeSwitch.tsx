@@ -2,23 +2,23 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { THEMES, gespeichertesTheme, merkeTheme, wendeThemeAn, type Theme } from "../theme";
 
-/* Umschalter fürs Erscheinungsbild — dieselbe Steuerung an zwei Orten: im
-   Fußmenü der angemeldeten Oberfläche (`seg`) und in der Kopfzeile der
-   öffentlichen Website (`pill`, neben der Sprachwahl).
+/* Switch for the appearance — the same control in two places: in the
+   footer menu of the signed-in UI (`seg`) and in the header of the
+   public website (`pill`, next to the language picker).
 
-   Drei Möglichkeiten nebeneinander statt eines Knopfes, der durchschaltet: Man
-   soll sehen können, was gerade gilt, ohne es auszuprobieren — und „System"
-   ist eine eigene Wahl, kein dritter Zustand zwischen hell und dunkel. */
+   Three options side by side instead of one button that cycles: you should be
+   able to see which one applies without trying it out — and `System`
+   is a choice of its own, not a third state between light and dark. */
 
 const icons: Record<Theme, ReactNode> = {
-  // Bildschirm: die Einstellung des Betriebssystems.
+  // Screen: the setting of the operating system.
   system: (
     <>
       <rect x="3" y="4" width="18" height="12" rx="2" />
       <path d="M9 20h6M12 16v4" />
     </>
   ),
-  // Sonne: hell, unabhängig vom System.
+  // Sun: light, independent of the system.
   light: (
     <>
       <circle cx="12" cy="12" r="4.2" />
@@ -39,11 +39,11 @@ function ThemeIcon({ name }: { name: Theme }) {
 export default function ThemeSwitch({ variant = "seg" }: { variant?: "seg" | "pill" }) {
   const { t } = useTranslation();
 
-  /* Die gespeicherte Wahl kommt erst nach dem ersten Rendervorgang zum Zug:
-     Auf den vorgerenderten Seiten muss dieser das ausgelieferte Markup treffen,
-     und localStorage kennt der Server nicht (siehe entry-server.tsx). Die
-     Farben selbst hängen nicht daran — sie stehen im Stylesheet und folgen bis
-     dahin dem Betriebssystem. */
+  /* The stored choice only takes effect after the first render: on the
+     prerendered pages it has to hit the markup that was served, and the
+     server does not know localStorage (see entry-server.tsx). The
+     colours themselves do not depend on it — they stand in the stylesheet,
+     and until then follow the operating system. */
   const [theme, setTheme] = useState<Theme>("system");
   useEffect(() => setTheme(gespeichertesTheme()), []);
 

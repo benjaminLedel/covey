@@ -62,7 +62,7 @@ type Manifest struct {
 	// after the colon (`nur-wenn: <system>:<kind>`); the entry under "" applies
 	// without one.
 	//
-	// Without this block every nur-wenn: on the system fires unconditionally
+	// Without this block every `nur-wenn:` on the system fires unconditionally
 	// (fail-open) — the plugin cannot answer the question, and an unanswerable
 	// condition must not leave work lying around.
 	Poll map[string]ManifestPoll `json:"poll,omitempty"`

@@ -1,16 +1,16 @@
-/* Die angemeldete Oberfläche: das Seitenmenü, der Rahmen und die Seiten
-   dahinter.
+/* The signed-in interface: the side menu, the frame and the pages
+   behind it.
 
-   Sie steht in einer eigenen Datei, weil sie ein eigenes Bündel sein soll.
-   Vorher hing alles an App.tsx, und App.tsx hängt an der öffentlichen
-   Website — wer die Startseite aufrief, lud Übersicht, Backlog, Guardrails,
-   Secrets, Org-Chart und Audit-Spur gleich mit: 1,17 MB, davon knapp die
-   Hälfte auf dieser Seite ungenutzt. Ein Besucher soll die Werbeseite
-   bezahlen, nicht die Anwendung (#122).
+   It stands in its own file because it is meant to be its own bundle.
+   Before, everything hung on App.tsx, and App.tsx hangs on the public
+   website — whoever called the start page loaded overview, backlog, guardrails,
+   secrets, org chart and audit trail along with it: 1,17 MB, of which close to
+   half goes unused on this page. A visitor should pay for the marketing
+   page, not the application (#122).
 
-   Die Seiten hinter der Anmeldung werden noch einmal einzeln nachgeladen.
-   Wer die Übersicht öffnet, braucht die Plattformverwaltung nicht — und wer
-   sie nie öffnet, nie. */
+   The pages behind the sign-in are loaded once more, each on its own.
+   Whoever opens the overview does not need the platform administration — and
+   whoever never opens it, never. */
 
 import { Suspense, lazy, useEffect, useState, type JSX } from "react";
 import { BirdMark } from "./components/BirdMark";
@@ -33,7 +33,7 @@ import LangPicker from "./components/LangPicker";
 import { useMemberships, useSwitchOrg } from "./components/OrgSwitcher";
 import ThemeSwitch from "./components/ThemeSwitch";
 
-/* Das Aussehen der Oberfläche kommt mit ihr, nicht vor ihr — siehe app.css. */
+/* The look of the interface comes with it, not before it — see app.css. */
 import "./app.css";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -56,7 +56,7 @@ const Templates = lazy(() => import("./pages/Templates"));
 const Setup = lazy(() => import("./pages/Setup"));
 const Costs = lazy(() => import("./pages/Costs"));
 
-// Icon-Pfade aus mockup/covey-ui-mockup.html — die Nav übernimmt die Design-Sprache des Mockups.
+// Icon paths from mockup/covey-ui-mockup.html — the nav takes over the design language of the mockup.
 const icons: Record<string, JSX.Element> = {
   checklist: (
     <>
@@ -171,14 +171,14 @@ const icons: Record<string, JSX.Element> = {
     </>
   ),
   chevron: <path d="M9 6l6 6l-6 6" />,
-  // Audit: ein Klemmbrett — die Liste dessen, was Menschen getan haben.
+  // Audit: a clipboard — the list of what people have done.
   clipboard: (
     <>
       <rect x="5" y="4" width="14" height="17" rx="2" />
       <path d="M9 4V3h6v1M8.5 10h7M8.5 14h7M8.5 18h4" />
     </>
   ),
-  // Request-Log: zwei Pfeile, rein und raus.
+  // Request log: two arrows, in and out.
   exchange: (
     <>
       <path d="M4 8h14l-3.5-3.5M20 16H6l3.5 3.5" />
@@ -217,7 +217,7 @@ function NavItem({ to, icon, label, end, count }: { to: string; icon: string; la
   );
 }
 
-// Monogramm aus dem Anzeigenamen: erste Buchstaben der ersten zwei Wörter.
+// Monogram from the display name: first letters of the first two words.
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";
@@ -225,16 +225,16 @@ function initials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-// Fuß der Hauptspalte: welcher Stand läuft hier. Nach einem Deploy die erste
-// Frage — Version, Commit und Bauzeit kommen aus dem Binary selbst
-// (internal/buildinfo). Bewusst nicht in der Sidebar: die bleibt der
-// Navigation vorbehalten. Die vollen Angaben stehen im Tooltip.
+// Foot of the main column: which build runs here. After a deploy the first
+// question — version, commit and build time come from the binary itself
+// (internal/buildinfo). Deliberately not in the sidebar: that stays
+// reserved for the navigation. The full details stand in the tooltip.
 function BuildLine() {
   const { t, i18n } = useTranslation();
   const q = useQuery({
     queryKey: ["version"],
     queryFn: buildInfo,
-    staleTime: Infinity, // ändert sich nur mit einem Neustart des Servers
+    staleTime: Infinity, // changes only with a restart of the server
     retry: false,
   });
   const b = q.data;
@@ -257,9 +257,9 @@ function BuildLine() {
     <div className="main-build" title={title}>
       {short}
       {valid && <span className="bt"> · {built.toLocaleString(i18n.language, fmt)}</span>}
-      {/* covey läuft als Netzwerkdienst unter AGPL-3.0. Der Quelltext-Link
-          steht hier, weil genau das die Pflicht ist, die ein Betreiber sonst
-          übersieht — und weil er von jeder Seite aus erreichbar sein soll. */}
+      {/* covey runs as a network service under AGPL-3.0. The source link
+          stands here because that is exactly the duty an operator otherwise
+          overlooks — and because it should be reachable from every page. */}
       {b.source && (
         <div className="bt">
           <a className="build-src" href={b.source} target="_blank" rel="noopener noreferrer">
@@ -273,9 +273,9 @@ function BuildLine() {
 
 export default function AppShell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
   const { t } = useTranslation();
-  /* Dieselbe Abfrage wie in der Bauzeile im Fuß — TanStack liefert sie aus
-     dem Cache, der Server wird nicht zweimal gefragt. Gebraucht wird davon
-     hier nur die Adresse des Quelltexts. */
+  /* The same query as in the build line in the foot — TanStack serves it from
+     the cache, the server is not asked twice. All this needs from it
+     here is the address of the source text. */
   const build = useQuery({ queryKey: ["version"], queryFn: buildInfo, staleTime: Infinity, retry: false });
   const location = useLocation();
   const [helpOpen, setHelpOpen] = useState(false);
@@ -289,27 +289,27 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
   const switchOrg = useSwitchOrg(onLogout);
   const activeOrg = seats.length > 1 ? seats.find((m) => m.org_id === me.OrgID) : undefined;
 
-  /* Die Sprachwahl der Oberfläche ist eine persönliche Einstellung und steht
-     im localStorage. Der Anmeldebereich richtet sich nach der Adresse, die
-     angemeldete Oberfläche nach der Wahl — hier wird sie nachgeholt, sobald
-     die Oberfläche übernimmt.
+  /* The language choice of the interface is a personal setting and stands
+     in localStorage. The sign-in area follows the address, the
+     signed-in interface follows the choice — here it is caught up as soon as
+     the interface takes over.
 
-     Es ist dieselbe Entscheidung wie beim Start (initialLang in i18n.ts), und
-     sie steht deshalb an einer Stelle: gespeicherte Wahl, sonst die Sprache
-     des Browsers, sonst die Basissprache. Stand hier ein festes „en", kippte
-     die Oberfläche jedem, der ohne gespeicherte Wahl hereinkommt, gleich nach
-     der Anmeldung von der Sprache seines Browsers auf Englisch — die
-     Anmeldeseite hatte ihn bereits in seiner eigenen begrüßt.
+     It is the same decision as at startup (initialLang in i18n.ts), and
+     that is why it stands in one place: saved choice, otherwise the language
+     of the browser, otherwise the base language. If a fixed "en" stood here, the
+     interface would tip anyone who comes in without a saved choice, right after
+     the sign-in, from the language of their browser to English — the
+     sign-in page had already greeted them in their own.
 
-     Der Pfad ist hier „/" und nicht der echte: eine App-Adresse trägt keine
-     Sprache, und die des Anmeldebereichs ist nach der Anmeldung vorbei. */
+     The path is "/" here and not the real one: an app address carries no
+     language, and that of the sign-in area is over with the sign-in. */
   useEffect(() => {
     const gewaehlt = initialLang("/");
     if (i18n.language !== gewaehlt) void ladeSprache(gewaehlt);
   }, []);
 
-  // Verwaltung ist selten gebraucht — standardmäßig eingeklappt, Zustand wird
-  // gemerkt; auf einer Verwaltungsseite ist die Gruppe immer offen.
+  // Administration is needed rarely — collapsed by default, the state is
+  // remembered; on an administration page the group is always open.
   const inPlatform = ["/administration", "/platform"].some((p) => location.pathname.startsWith(p));
   const [platformOpen, setPlatformOpen] = useState(() => localStorage.getItem("covey.nav.platform") === "1");
   const togglePlatform = () => {
@@ -319,7 +319,7 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
   };
   const showPlatform = platformOpen || inPlatform;
 
-  // "?" öffnet die Hilfe von überall — außer beim Tippen in Formularfeldern.
+  // "?" opens the help from anywhere — except while typing in form fields.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
@@ -333,11 +333,11 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  /* Ein Zaehler fuer beides. Freigaben und offene Punkte sind verschiedene
-     Dinge (dort wartet ein Agent, hier wartet niemand) — aber sie brauchen
-     dieselbe Person, und zwei Zahlen nebeneinander sind eine Frage mehr, die
-     jemand beim Vorbeigehen beantworten muesste. Die Trennung steht auf der
-     Seite, wo sie hingehoert. */
+  /* One counter for both. Approvals and open points are different
+     things (there an agent waits, here nobody does) — but they need
+     the same person, and two numbers side by side are one more question that
+     someone would have to answer while walking past. The separation stands on the
+     page, where it belongs. */
   const inboxCount = useQuery({
     queryKey: ["inbox", "count"],
     queryFn: () => inbox({ status: "open", limit: 1 }),
@@ -345,14 +345,14 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
   });
   const pending = inboxCount.data?.pending ?? 0;
 
-  /* Die Einrichtung steht nur im Menue, solange sie etwas zu tun hat.
-     Ein Punkt, der dauerhaft bleibt und dauerhaft erledigt ist, wird zu
-     Moebel — dieselbe Ueberlegung wie bei der Checkliste auf der
-     Agenten-Uebersicht, die von selbst verschwindet. Verloren geht nichts:
-     die Unternehmensbeschreibung liegt danach im Org-Chart, der Zugang unter
-     Secrets und Runtimes, und /setup bleibt erreichbar, wer es tippt.
-     Wer nicht einrichten darf, bekommt vom Endpunkt eine 403 — und damit
-     den Punkt gar nicht erst zu sehen. */
+  /* Setup stands in the menu only as long as it has something to do.
+     A point that stays permanently and is permanently done turns into
+     furniture — the same reasoning as with the checklist on the
+     agent overview, which disappears on its own. Nothing is lost:
+     the organisation description then lies in the org chart, the access under
+     Secrets and Runtimes, and /setup stays reachable for whoever types it.
+     Whoever may not set up gets a 403 from the endpoint — and so
+     does not see the point in the first place. */
   const setup = useQuery({
     queryKey: ["setup"],
     queryFn: () => api<SetupState>("/setup/state"),
@@ -366,12 +366,12 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
     onLogout();
   };
 
-  /* Die Einrichtung laeuft ohne die Huelle: kein Seitenmenue, kein Hilfe-Regal,
-     nichts, was nebenher ruft. Das ist keine Kosmetik — die drei Karten sind
-     das Einzige, was jemand beim ersten Mal tun soll, und eine Navigation, die
-     schon dreizehn andere Orte anbietet, laedt genau dazu ein, sie
-     wegzuklicken. Der Weg heraus steht deshalb sichtbar oben rechts: die
-     Einrichtung ist ueberspringbar, aber sie soll nicht nebenbei passieren. */
+  /* Setup runs without the shell: no side menu, no help shelf,
+     nothing that calls on the side. That is no cosmetics — the three cards are
+     the only thing someone should do the first time, and a navigation that
+     already offers thirteen other places invites exactly to
+     click them away. The way out therefore stands visibly top right: the
+     setup can be skipped, but it should not happen in passing. */
   if (location.pathname === "/setup") {
     return (
       <Suspense fallback={null}>
@@ -387,10 +387,10 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
           <BirdMark size={26} />
           covey
         </div>
-        {/* Die Navigation ist gewachsen — die Reihenfolge bildete ab, wann
-            etwas dazukam, nicht wann man es braucht. Jetzt nach dem Alltag
-            sortiert: oben, was man taeglich oeffnet; darunter, was man einmal
-            einrichtet; dann die Aufsicht. */}
+        {/* The navigation grew — the order showed when something was added,
+            not when it is needed. Now sorted by the everyday: on top what
+            opens daily; below what is set up once; then the
+            oversight. */}
         <div className="nav-group">
           <NavItem to="/" end icon="robot" label={t("nav.agents")} />
           <NavItem to="/inbox" icon="bell" label={t("nav.inbox")} count={pending} />
@@ -411,13 +411,13 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
         <div className="nav-group">
           <NavItem to="/guardrails" icon="shield" label={t("nav.guardrails")} />
           <NavItem to="/egress" icon="globe" label={t("nav.egress")} />
-          {/* Das Request-Log liest nur, wer es auch abrufen darf (die API
-              laesst org_admin und security durch) — sonst zeigte das
-              Menue einen Weg, der in einer 403 endet. Vorher stand es im
-              Admin-Block und blieb Security damit verborgen. */}
-          {/* Die Audit-Spur geht die an, die sie prüfen: Org-Admin,
-              Security, Auditor. Agent-Owner und Controlling stehen selbst
-              darin. */}
+          {/* Only those who may fetch the request log should read it (the API
+              lets `org_admin` and `security` through) — otherwise the menu
+              showed a path that ends in a 403. It used to sit in the
+              admin block, which hid it from security. */}
+          {/* The audit trail is for those who review it: org admin,
+              security, auditor. Agent owners and controlling stand
+              in it themselves. */}
           {["org_admin", "security", "auditor"].includes(me.Role) && (
             <NavItem to="/audit" icon="clipboard" label={t("nav.audit")} />
           )}
@@ -427,12 +427,12 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
 
         </div>
         <div className="mt-auto">
-          {/* Zwei Bereiche, zwei Reichweiten — und zwei verschiedene Ebenen,
-              die sie öffnen. Die Administration verwaltet DIESE Organisation
-              und gehört deshalb der Rolle, die die Organisation selbst
-              vergibt. Die Plattform verwaltet die Installation und hängt am
-              Konto, wo keine Organisation sie sich selbst geben kann
-              (FR-003, Befund F). */}
+          {/* Two areas, two scopes — and two different levels that open
+              them. Administration manages THIS organisation, so it belongs to
+              the role the organisation grants itself. The platform
+              manages the installation and hangs on the account, where no
+              organisation can hand it out
+              (FR-003, finding F). */}
           {(me.Role === "org_admin" || istSystemAdmin(me)) && (
             <>
               <button className={`nav-sec toggle ${showPlatform ? "open" : ""}`} onClick={togglePlatform} disabled={inPlatform}>
@@ -451,8 +451,8 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
               )}
             </>
           )}
-          {/* Fuß: eine Zeile — Nutzer (Link zum Profil) + ⋯-Menü mit
-              Sprache, Hilfe und Abmelden. */}
+          {/* Footer: one row — user (link to the profile) + ⋯ menu with
+              language, help and log out. */}
           <div className="side-foot">
             <div className="suser-row">
               <NavLink to="/profile" className="suser" title={t("nav.profile")}>
@@ -522,17 +522,17 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
         </div>
       </aside>
       <main className="flex-1 min-w-0 flex flex-col">
-        {/* Volle Breite. Ein harter Deckel von 1080px stammte aus der Zeit, als
-            hier vor allem Formulare standen; inzwischen sind es Boards, Tabellen
-            und die dreispaltige Wiki-Fläche, denen der Platz fehlt — auf einem
-            breiten Schirm blieb rechts ein Drittel leer. Lesebreite ist damit
-            Sache der Inhalte, die sie brauchen (siehe .measure in styles.css),
-            nicht des Rahmens. */}
+        {/* Full width. A hard cap of 1080px came from the time when this was
+            mostly forms; by now it is boards, tables and the three-column wiki
+            area that lack the room — on a wide screen a third stayed empty on
+            the right. Reading width is therefore the business of the content
+            that needs it (see `.measure` in styles.css), not of the
+            frame. */}
         <div key={location.pathname} className="fade flex-1" style={{ padding: "22px 26px 60px" }}>
-          {/* Jede Seite ist ein eigenes Bündel und kommt erst, wenn sie
-              aufgerufen wird. Kein Platzhalter: Der Rahmen steht schon, und
-              ein Spinner für zweihundert Millisekunden ist ein Flackern, kein
-              Hinweis. */}
+          {/* Every page is its own bundle and arrives only when it is
+              called for. No placeholder: the frame already stands, and a
+              spinner for two hundred milliseconds is a flicker, not a
+              signal. */}
           <Suspense fallback={null}>
           <Routes>
             <Route path="/" element={<Dashboard me={me} />} />
@@ -545,15 +545,15 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
             <Route path="/people/:id" element={<PersonPage me={me} />} />
             <Route path="/profile" element={<Navigate to={`/people/${me.ID}`} replace />} />
             <Route path="/inbox" element={<Inbox me={me} />} />
-            {/* Die alten Adressen bleiben gueltig: verlinkt wurde beides. */}
+            {/* The old addresses stay valid: both were linked to. */}
             <Route path="/approvals" element={<Navigate to="/inbox" replace />} />
             <Route path="/improvements" element={<Navigate to="/inbox" replace />} />
             <Route path="/guardrails" element={<Guardrails me={me} />} />
             <Route path="/secrets" element={<Secrets me={me} />} />
-            {/* Die zwei Verwaltungsbereiche. Sie unterscheiden sich nicht im
-                Umfang, sondern in der Reichweite: /administration verwaltet die
-                Organisation, in der diese Sitzung gerade arbeitet,
-                /platform die Installation mit allen ihren Mandanten. */}
+            {/* The two administration areas. They differ not in the duties
+                but in the reach: `/administration` manages the organisation
+                this session is currently working in,
+                `/platform` the installation with all its tenants. */}
             <Route
               path="/administration/*"
               element={me.Role === "org_admin" ? <Administration me={me} /> : <Navigate to="/" replace />}
@@ -562,22 +562,22 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
               path="/platform/*"
               element={istSystemAdmin(me) ? <Platform me={me} /> : <Navigate to="/" replace />}
             />
-            {/* Die alten Adressen bleiben gültig — verlinkt und gebookmarkt
-                wurde beides. */}
+            {/* The old addresses stay valid — both were linked to and
+                bookmarked. */}
             <Route path="/users" element={<Navigate to="/administration/members" replace />} />
             <Route path="/orgs" element={<Navigate to="/platform" replace />} />
             <Route path="/infrastructure/*" element={<Infrastructure me={me} />} />
-            {/* Die alten Adressen bleiben gültig: verlinkt und gebookmarkt
-                wurde alles drei, und ein Lesezeichen, das ins Leere führt, ist
-                die schlechteste Art, eine Umstrukturierung zu bemerken. */}
+            {/* The old addresses stay valid: all three were linked to and
+                bookmarked, and a bookmark that leads nowhere is the worst way
+                to notice a restructure. */}
             <Route path="/runtimes" element={<Navigate to="/infrastructure" replace />} />
             <Route path="/workplaces" element={<Navigate to="/infrastructure/workplaces" replace />} />
             <Route path="/requests" element={<Requests me={me} />} />
             <Route path="/runners" element={<Navigate to="/infrastructure/runners" replace />} />
-            {/* Die Diagnose steht in der Verwaltung (Reiter „Diagnose"). Die
-                alte Adresse bleibt gültig: Sie ist in Runbooks verlinkt, und
-                ein totes Lesezeichen ist die schlechteste Art, eine
-                Umstrukturierung zu bemerken. */}
+            {/* Diagnostics sits in administration (the "Diagnostics" tab). The
+                old address stays valid: it is linked in runbooks, and
+                a dead bookmark is the worst way to notice a
+                restructure. */}
             <Route path="/diagnostics" element={<Navigate to="/administration/diagnostics" replace />} />
             <Route path="/audit" element={<Audit />} />
             <Route path="/targets" element={<Targets me={me} />} />
