@@ -70,6 +70,31 @@ func TestFromEnvWithoutAnyVariable(t *testing.T) {
 	}
 }
 
+// The engine catalogue arrives with the source this was built from, the same way
+// the workplace catalogue does: an instance reads the document of the project it
+// runs, a fork that publishes its own engines carries its own, and a set variable
+// wins over both. The empty default this had until a document stood behind the
+// address did more than keep the mechanism off here — it kept it off for every
+// installation that never heard of it.
+func TestEngineCatalogueDefaultsToTheProjectDocument(t *testing.T) {
+	clearCoveyEnv(t)
+	c, err := FromEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "https://raw.githubusercontent.com/benjaminLedel/covey/catalog/engine-catalog.json"
+	if c.EngineCatalogURL != want {
+		t.Fatalf("EngineCatalogURL = %q, expected %q", c.EngineCatalogURL, want)
+	}
+	t.Setenv("COVEY_ENGINE_CATALOG_URL", "file:///srv/engines.json")
+	if c, err = FromEnv(); err != nil {
+		t.Fatal(err)
+	}
+	if c.EngineCatalogURL != "file:///srv/engines.json" {
+		t.Fatalf("the set variable did not win: %q", c.EngineCatalogURL)
+	}
+}
+
 // The documented off-switch has to arrive as one. The orchestrator fills in its
 // default for 0, so a 0 passed through kept asking above 5 GB (#273).
 func TestTidyThresholdsSwitchOffAtZero(t *testing.T) {

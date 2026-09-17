@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"covey/internal/engines"
 	"covey/internal/sandbox"
 )
 
@@ -140,9 +141,13 @@ type Config struct {
 	// the catalogue off; then the compiled defaults and the environment stand.
 	SandboxCatalogURL string
 	// EngineCatalogURL is where the published engines are listed: which runtime
-	// binary to install on a host, pinned by digest (spec/26). Empty switches
-	// the mechanism off — then the workplace image carries the engine and the
-	// operator's own variable stands, which is the state before this existed.
+	// binary to install on a host, pinned by digest (spec/26). Default is the
+	// project's own document, derived from the source address. An empty result
+	// there (a source outside GitHub) switches the mechanism off — then the
+	// workplace image carries the engine and the operator's own variable stands,
+	// which is the state before this existed. Whoever wants none on a GitHub
+	// build points the variable at a document that names nothing; a `file://`
+	// address is one case with the http ones and reaches no network.
 	EngineCatalogURL string
 	// HSTS: how far the HTTPS promise reaches — "basic" (this host),
 	// "subdomains", or "off" when the terminating proxy sets the header
@@ -299,12 +304,14 @@ func FromEnv() (Config, error) {
 		SandboxImageEnv:    sandboxImageEnv(),
 		RunnerDownloadBase: getenv("COVEY_RUNNER_DOWNLOAD_BASE", ""),
 		SandboxCatalogURL:  getenv("COVEY_SANDBOX_CATALOG_URL", sandbox.DefaultCatalogURL()),
-		// Off by default, unlike the workplace catalogue: that one publishes a
-		// document today, this one does not yet, and a default pointing at a
-		// missing file would put a failed fetch on every wake. The address to
-		// set is engines.DefaultCatalogURL(), and an installation with its own
-		// mirror sets its own.
-		EngineCatalogURL: getenv("COVEY_ENGINE_CATALOG_URL", ""),
+		// The same idiom as the workplace catalogue above: derived from the
+		// source address, so whoever publishes their own engines carries their
+		// own catalogue, and an empty result (a source outside GitHub) switches
+		// the mechanism off — the state before this existed. What used to argue
+		// for the empty default, that no document stood behind the address, is
+		// answered by publishing one; a missing document is the quiet case the
+		// fetch already has, not a wake that fails.
+		EngineCatalogURL: getenv("COVEY_ENGINE_CATALOG_URL", engines.DefaultCatalogURL()),
 		HSTS:             getenv("COVEY_HSTS", "basic"),
 		// 0 leaves the pool its own default — a second number here would be a
 		// second truth, and exactly that has bitten twice today.

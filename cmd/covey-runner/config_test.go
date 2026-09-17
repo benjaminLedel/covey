@@ -15,6 +15,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
+	"covey/internal/engines"
 )
 
 // The config is what `register` leaves behind and `run` picks up. A round trip
@@ -530,5 +532,21 @@ func TestVerifyConnectionAgainstAPlaneThatWillNotUpgrade(t *testing.T) {
 
 	if err := verifyConnection(context.Background(), config{URL: srv.URL, Token: "t"}); err == nil {
 		t.Error("the check passed against a control plane that does not speak the protocol")
+	}
+}
+
+// What a host installs stays the host operator's decision. Where the host says
+// nothing, though, the project's published document stands — the same address the
+// control plane reads, so one published file reaches both sides of the seam
+// instead of leaving one of them behind (spec/26).
+func TestEngineCatalogueFallsBackToThePublishedDocument(t *testing.T) {
+	t.Setenv("COVEY_ENGINE_CATALOG_URL", "")
+	if got := engineCatalogURL(); got != engines.DefaultCatalogURL() {
+		t.Fatalf("without the variable: %q, expected the published %q",
+			got, engines.DefaultCatalogURL())
+	}
+	t.Setenv("COVEY_ENGINE_CATALOG_URL", " https://mine.example/catalog.json ")
+	if got := engineCatalogURL(); got != "https://mine.example/catalog.json" {
+		t.Fatalf("the set variable did not win: %q", got)
 	}
 }

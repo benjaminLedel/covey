@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "generated_at": "2026-09-17T13:20:00Z",
+  "engines": [
+    {
+      "name": "sevencode",
+      "versions": [
+        {
+          "version": "1.0.27",
+          "kind": "tarball",
+          "url": "https://gitlab.lapco.legal/api/v4/projects/private_bl%2Fcovey/packages/generic/sevencode/1.0.27/sevencode-1.0.27.tgz",
+          "integrity": "sha256:fc5fe958d4bb9db02269c0e3d978cc578ebec9bbb8e0ab4c4becd9590b905496",
+          "binary": "bin/sevencode",
+          "binary_env": "COVEY_SEVENCODE_BIN",
+          "auth_header": "PRIVATE-TOKEN",
+          "auth_env": "COVEY_SEVENCODE_ARTIFACT_TOKEN",
+          "requires": ["node>=22.13"],
+          "env": ["SEVENCODE_API_BASE=https://sevencode.app"],
+          "notes": "SevenCode 1.0.27 — one Node bundle (3 475 382 bytes, sha256 91311f19a31f80196e36e32bcd217e745048ecf33d08f0bca61b3e70aedec5d1), so one artefact serves every platform; the layer is executable by the file mode it carries. Not the npm build of the same name, which speaks a different surface (spec/25). The artefact sits behind a login and the digest decides whether it may run: a token opens the door, it does not vouch for the bytes. Whoever has no token for this GitLab points COVEY_ENGINE_CATALOG_URL at a catalogue of their own — the engine is then an image question, as it was before this document."
+        }
+      ]
+    }
+  ]
+}

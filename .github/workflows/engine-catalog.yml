@@ -1,0 +1,60 @@
+# Publish the engine catalogue: the document that says which runtime binary
+# belongs to which version, pinned on the digest (spec/26).
+#
+# Why a copy job and no generator: the sandbox catalogue is *computed* — only CI
+# knows the digests of the images it built, so that file comes to be in the
+# pipeline that builds them. An engine release is the other case. Whether a
+# version of a CLI is one this platform vouches for is a decision a person makes,
+# and the digest is measured, not derived. So the document lives in main beside
+# the code that reads it, changes by review like any other config-as-code, and
+# this job does the one thing a branch of its own needs: carry the file across.
+#
+# `catalog` is that branch — an orphan carrying the published documents, served
+# over raw.githubusercontent, and the address `engines.DefaultCatalogURL()`
+# derives from the source repository. An instance therefore reads a document that
+# was reviewed here, without being configured for it.
+name: Engine catalogue
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - internal/engines/engine-catalog.json
+      - .github/workflows/engine-catalog.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Carry it to the branch that is served
+        # What the document has to satisfy is checked where it is reviewed: the
+        # parse the runner applies runs over this file in test-go (see
+        # TestShippedCatalogueIsInstallable), so this job copies a file rather
+        # than judging it. A second rule here would be a second truth, and the
+        # one that gets edited is always the one nobody reads.
+        run: |
+          set -eu
+          git fetch -q --depth=1 origin catalog || true
+          if git rev-parse --verify --quiet origin/catalog >/dev/null 2>&1; then
+            git checkout -q -b catalog origin/catalog
+          else
+            git checkout -q --orphan catalog
+          fi
+          cp internal/engines/engine-catalog.json engine-catalog.json
+          git add engine-catalog.json
+          # The commit is what publishes. Without a change there is nothing to
+          # publish, and an empty commit on every hand trigger would only make
+          # the branch history longer.
+          if git diff --cached --quiet; then
+            echo "engine-catalog.json unchanged, nothing to publish"
+            exit 0
+          fi
+          git -c user.name="covey-ci" -c user.email="ci@covey.invalid" \
+            commit -q -m "Publish the engine catalogue ($(git rev-parse --short HEAD))"
+          git push -q origin catalog
+

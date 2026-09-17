@@ -218,8 +218,10 @@ func runRun(ctx context.Context, args []string, log *slog.Logger) error {
 		// The runner reads its catalogue from its own environment, not from a
 		// registration message: what a host installs is the host operator's
 		// decision, and the control plane does not push binaries at runners it
-		// does not own (spec/16, "Trust boundary").
-		Engines:     engines.NewSource(os.Getenv("COVEY_ENGINE_CATALOG_URL"), engines.FileCacheFor(cfg.WorkDir), log),
+		// does not own (spec/16, "Trust boundary"). Where the host says nothing,
+		// the project's published document stands — the same address the control
+		// plane reads, so one file reaches both sides of the seam.
+		Engines:     engines.NewSource(engineCatalogURL(), engines.FileCacheFor(cfg.WorkDir), log),
 		EngineStore: &engines.Store{Dir: filepath.Join(cfg.WorkDir, "engines"), Log: log},
 	}
 	node := runner.NewNode(me.RunnerID, me.OrgID, docker, log)
@@ -328,6 +330,18 @@ func parseList(value string) []string {
 		}
 	}
 	return out
+}
+
+// engineCatalogURL is the document this host consults for engine binaries: the
+// variable when it names one, the project's published catalogue otherwise. A
+// build whose source is not on GitHub gets an empty string from there and
+// installs nothing — the workplace image then carries the engine, and that is
+// the state this host was in before the catalogue existed (spec/26).
+func engineCatalogURL() string {
+	if v := strings.TrimSpace(os.Getenv("COVEY_ENGINE_CATALOG_URL")); v != "" {
+		return v
+	}
+	return engines.DefaultCatalogURL()
 }
 
 func firstOr(items []string, fallback string) string {
