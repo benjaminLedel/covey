@@ -157,7 +157,7 @@ func TestStoreInstallsVerifiesAndMarks(t *testing.T) {
 	r.Version = "1.0.8"
 
 	store := &Store{Dir: filepath.Join(dir, "engines")}
-	l, err := store.Ensure(context.Background(), r)
+	l, err := store.Ensure(context.Background(), r, Auth{})
 	if err != nil {
 		t.Fatalf("install: %v", err)
 	}
@@ -170,7 +170,7 @@ func TestStoreInstallsVerifiesAndMarks(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(l.Root, markerFile)); err != nil {
 		t.Fatal("a layer without a marker is a crashed install, not an engine")
 	}
-	again, err := store.Ensure(context.Background(), r)
+	again, err := store.Ensure(context.Background(), r, Auth{})
 	if err != nil || again.Root != l.Root {
 		t.Fatalf("an installed layer is not fetched twice: %v", err)
 	}
@@ -192,7 +192,7 @@ func TestStoreInstallsVerifiesAndMarks(t *testing.T) {
 	bad := r
 	bad.Version = "2.0.0"
 	bad.Integrity = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
-	if _, err := store.Ensure(context.Background(), bad); err == nil ||
+	if _, err := store.Ensure(context.Background(), bad, Auth{}); err == nil ||
 		!strings.Contains(err.Error(), "integrity mismatch") {
 		t.Fatalf("an artefact that is not what was promised: %v", err)
 	}
@@ -210,7 +210,7 @@ func TestStoreInstallsVerifiesAndMarks(t *testing.T) {
 	ev.Version = "3.0.0"
 	ev.URL = "file://" + evilPath
 	ev.Integrity = sha256Hex(evil)
-	if _, err := store.Ensure(context.Background(), ev); err == nil ||
+	if _, err := store.Ensure(context.Background(), ev, Auth{}); err == nil ||
 		!strings.Contains(err.Error(), "outside the layer") {
 		t.Fatalf("a traversal entry must be refused: %v", err)
 	}

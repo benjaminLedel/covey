@@ -66,7 +66,7 @@ func (p *Docker) engineLayer(ctx context.Context, spec StartSandbox) (env, mount
 	if v := strings.TrimSpace(os.Getenv(r.BinaryEnvName(spec.Engine))); v != "" {
 		return nil, nil, nil
 	}
-	layer, err := p.EngineStore.EnsureWatched(ctx, r, spec.EngineWatch)
+	layer, err := p.EngineStore.EnsureWatched(ctx, r, engines.Auth{Secret: spec.EngineAuth}, spec.EngineWatch)
 	if err != nil {
 		return nil, nil, fmt.Errorf("engine %s: %w", spec.Engine, err)
 	}

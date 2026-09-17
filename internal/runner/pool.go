@@ -1746,7 +1746,11 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 			Excludes:    p.HomeExcludes,
 			ImageHint:   p.imageHints(ctx)[want.image],
 			Engine:      spec.Engine,
-			Services:    spec.Services,
+			// What opens this engine's artefact, for this one start and no longer
+			// (#289). It travels the way EgressToken above does: in the request,
+			// into nobody's store.
+			EngineAuth: spec.EngineAuth,
+			Services:   spec.Services,
 		}, timeout)
 		switch {
 		case err != nil:

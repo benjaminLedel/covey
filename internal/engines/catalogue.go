@@ -125,13 +125,19 @@ type Release struct {
 	// npm kind cannot be installed without node anyway; the field exists so the
 	// reason says which requirement was not met rather than exiting 127.
 	Requires []string `json:"requires,omitempty"`
-	// AuthHeader and AuthEnv together say that the artefact sits behind a login:
-	// the header to send, and the NAME of the variable on the runner host that
-	// holds the token. A name and never a value — the document has to be safe to
-	// publish on its own, and a credential inside a fetched file is a credential
-	// shipped to everyone who can read the catalogue. The token opens the door;
-	// the digest above is still what decides whether a layer may run.
+	// AuthHeader says that the artefact sits behind a login and which header
+	// opens it. Where the value comes from is the other half, and an entry names
+	// it: AuthSecret is the NAME of a secret the organisation holds for the agent
+	// whose engine this is — brokered for the one install that needs it, the way
+	// every other credential of this platform arrives (spec/04) — and AuthEnv is
+	// the fallback for a host that holds a token of its own, a mirror with
+	// nothing in covey behind it. A name and never a value, either way: the
+	// document has to be safe to publish on its own, and a credential inside a
+	// fetched file is a credential shipped to everyone who can read the
+	// catalogue. The token opens the door; the digest above is still what decides
+	// whether a layer may run.
 	AuthHeader string `json:"auth_header,omitempty"`
+	AuthSecret string `json:"auth_secret,omitempty"`
 	AuthEnv    string `json:"auth_env,omitempty"`
 	// Notes are for the human reading the catalogue screen: what this release
 	// is, what it costs, what to watch.
@@ -159,15 +165,22 @@ func (r Release) Valid() error {
 			return fmt.Errorf("a %s needs a URL and an integrity — one without the other is not a pin", r.Kind)
 		}
 		// An artefact may sit behind a login, but only as a reference: the entry
-		// names the header and the VARIABLE holding its token, never the token. A
-		// credential inside the document would be shipped to everyone who can read
-		// the catalogue, which is the one thing about this mechanism that is not a
-		// trade-off. Half a pair is refused because half a pair does nothing, and
-		// an entry that does nothing is discovered at the first wake rather than at
-		// the parse that could have said so.
-		header, env := strings.TrimSpace(r.AuthHeader), strings.TrimSpace(r.AuthEnv)
-		if (header == "") != (env == "") {
-			return fmt.Errorf("%s %s names %s without %s — the header and the variable that holds its token come as a pair", r.engine, r.Version, "auth_header", "auth_env")
+		// names the header and what holds its token, never the token. A credential
+		// inside the document would be shipped to everyone who can read the
+		// catalogue, which is the one thing about this mechanism that is not a
+		// trade-off. A header without a place to read from, and a place to read
+		// from without a header, both do nothing — and an entry that does nothing
+		// is discovered at the first wake rather than at the parse that could have
+		// said so.
+		header, secretName, env := strings.TrimSpace(r.AuthHeader), strings.TrimSpace(r.AuthSecret), strings.TrimSpace(r.AuthEnv)
+		if header != "" && secretName == "" && env == "" {
+			return fmt.Errorf("%s %s names %s without %s or %s — the header needs a secret name or a variable to read its token from", r.engine, r.Version, "auth_header", "auth_secret", "auth_env")
+		}
+		if header == "" && (secretName != "" || env != "") {
+			return fmt.Errorf("%s %s names where its token sits but no %s to send it in", r.engine, r.Version, "auth_header")
+		}
+		if secretName != "" && !isSecretName(secretName) {
+			return fmt.Errorf("%s %s has %s %q, which is not the name of a secret", r.engine, r.Version, "auth_secret", secretName)
 		}
 		if env != "" && !isEnvName(env) {
 			return fmt.Errorf("%s %s has %s %q, which is not the name of a variable", r.engine, r.Version, "auth_env", env)
@@ -180,7 +193,7 @@ func (r Release) Valid() error {
 		// header declared on it would be read by nothing — an inert flag is worse
 		// than a missing one, because it says the installation is protected when it
 		// is not. A private registry is the `registry` field's decision.
-		if strings.TrimSpace(r.AuthHeader) != "" || strings.TrimSpace(r.AuthEnv) != "" {
+		if strings.TrimSpace(r.AuthHeader) != "" || strings.TrimSpace(r.AuthEnv) != "" || strings.TrimSpace(r.AuthSecret) != "" {
 			return fmt.Errorf("%s %s is installed by the package manager, so %s would be read by nothing", r.engine, r.Version, "auth_header")
 		}
 	default:
@@ -203,6 +216,38 @@ func isEnvName(s string) bool {
 		}
 	}
 	return s != ""
+}
+
+// isSecretName accepts what the secret store can be asked for: a key of this
+// organisation, the same shape a `{secret:…}` reference in a configuration
+// carries (`sevencode_api_token`). Letters, digits and `_ - .`, starting with a
+// letter. The test is small and deliberate for the same reason isEnvName's is:
+// a path, a URL or a value with a space in it means somebody wrote the token
+// itself where the name of a secret belongs, and refusing it at the parse is
+// the one moment at which that can still be said quietly.
+func isSecretName(s string) bool {
+	if s == "" || !(s[0] >= 'a' && s[0] <= 'z' || s[0] >= 'A' && s[0] <= 'Z') {
+		return false
+	}
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9',
+			r == '_', r == '-', r == '.':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// SecretName is the name of the organisation's secret that opens this artefact,
+// or empty when the entry does not name one (an artefact that needs a host
+// variable instead, or none at all).
+func (r Release) SecretName() string { return strings.TrimSpace(r.AuthSecret) }
+
+// Authenticated says whether this artefact sits behind a login at all.
+func (r Release) Authenticated() bool {
+	return strings.TrimSpace(r.AuthHeader) != ""
 }
 
 // Executable is the path of the CLI inside a layer root. The default follows the

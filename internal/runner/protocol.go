@@ -445,6 +445,16 @@ type StartSandbox struct {
 	//
 	// Optional, so the protocol version stays where it is.
 	Engine string `json:"engine,omitempty"`
+	// EngineAuth is the value that opens the engine's artefact when the catalogue
+	// entry says it sits behind a login: the agent's secret, resolved by the
+	// control plane for this one start (spec/26, #289). It travels the way
+	// EgressToken does — one request, never stored, never logged, never written
+	// into a layer — and it is what keeps a credential off every runner host for
+	// something the organisation already holds in covey. Empty = nothing offered:
+	// an artefact on the public, an entry that names a host variable instead, or
+	// an older control plane. The digest is checked either way, so this value
+	// opens a door and decides nothing.
+	EngineAuth string `json:"engine_auth,omitempty"`
 	// EngineWatch is how the host reports the engine install while it runs.
 	//
 	// It is not part of the wire — `json:"-"`, and no control plane can set it.

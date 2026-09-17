@@ -225,7 +225,7 @@ func TestEnsureWatchedTellsWhereItGotTo(t *testing.T) {
 	store := &engines.Store{Dir: filepath.Join(dir, "engines")}
 
 	var seen []engines.Progress
-	if _, err := store.EnsureWatched(context.Background(), r,
+	if _, err := store.EnsureWatched(context.Background(), r, engines.Auth{},
 		func(p engines.Progress) { seen = append(seen, p) }); err != nil {
 		t.Fatalf("install: %v", err)
 	}
@@ -252,7 +252,7 @@ func TestEnsureWatchedTellsWhereItGotTo(t *testing.T) {
 	// running for a second after it finished is a step nobody believes the next
 	// time.
 	seen = nil
-	if _, err := store.EnsureWatched(context.Background(), r,
+	if _, err := store.EnsureWatched(context.Background(), r, engines.Auth{},
 		func(p engines.Progress) { seen = append(seen, p) }); err != nil {
 		t.Fatalf("second install: %v", err)
 	}

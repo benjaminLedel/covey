@@ -29,6 +29,7 @@ import (
 	"covey/internal/buildinfo"
 	"covey/internal/daemon"
 	"covey/internal/egress"
+	"covey/internal/engines"
 	"covey/internal/guardrails"
 	"covey/internal/homestore"
 	"covey/internal/identity"
@@ -83,6 +84,11 @@ type Options struct {
 	// the state of a stack wired without it (the integration harness); the
 	// production wiring always sets it.
 	Workplaces *workplaces.Store
+	// Engines is the engine catalogue (spec/26). This side asks it one question:
+	// whether the artefact of the engine an agent is about to run sits behind a
+	// login, and which secret of this organisation opens it. nil = no catalogue
+	// wired, and the start then offers nothing of its own.
+	Engines *engines.Source
 	// ReqLog records the HTTP requests of the target-system plugins (diagnosis,
 	// spec/06). nil = request log switched off; the sandbox's events are then
 	// discarded.
@@ -1458,6 +1464,7 @@ func (o *Orchestrator) wake(ctx context.Context, agent agents.Agent) (DaemonLink
 		OrgID:       agent.OrgID,
 		Image:       agent.SandboxImage,
 		Engine:      agent.Runtime,
+		EngineAuth:  o.engineDownloadSecret(ctx, agent),
 		RunnerTags:  agent.RunnerTags,
 		EgressToken: egressToken,
 		Env:         env,
@@ -3364,6 +3371,40 @@ func (o *Orchestrator) brokerSecret(ctx context.Context, agent agents.Agent, req
 	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential,
 		map[string]any{"system": "secret:" + req.Key, "granted": true})
 	return daemon.InjectSecret{RequestID: req.RequestID, Key: req.Key, Granted: true, Value: value}
+}
+
+// engineDownloadSecret answers one question for the start of a sandbox: what
+// opens the artefact of the engine this agent runs on. The catalogue entry names
+// a secret (spec/26 `auth_secret`); the value is looked up with the same
+// precedence every other brokered secret follows — the agent's own before an
+// org-wide one assigned to it — and travels with the single start request that
+// needs it.
+//
+// An empty answer is not a failure and records nothing: most engines are
+// installed from the public, some entries name a host variable instead of a
+// secret, and an installation without a catalogue wired has nothing to ask. The
+// refusal, if there is one, belongs to the download and names what it looked for
+// — a record here would say the same thing twice and bury the one line that
+// tells an operator which secret to set.
+//
+// What this deliberately is not: a place where the orchestrator decides whether
+// the agent may have this. That decision is the same one the daemon's
+// secret_request makes below, and it is ACCESS.md's and the agent's assignment's
+// to make — here the secret opens the download of bytes the catalogue already
+// pinned by digest, so a value in the wrong hands buys a 401 and nothing else.
+func (o *Orchestrator) engineDownloadSecret(ctx context.Context, agent agents.Agent) string {
+	if o.Engines == nil || agent.Runtime == "" {
+		return ""
+	}
+	r, ok := o.Engines.For(ctx, agent.Runtime, "")
+	if !ok || r.SecretName() == "" {
+		return ""
+	}
+	value, err := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, r.SecretName())
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(value)
 }
 
 // brokerTarget passes the definition of a manifest plugin into the sandbox —

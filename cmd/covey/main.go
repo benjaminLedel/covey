@@ -1367,12 +1367,18 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	orch := orchestrator.New(orchestrator.Options{
 		Pool: pool, Registry: registry, Backlog: backlogStore, Obs: obs,
 		Rails: rails, Secrets: secretStore, Identity: idp, Memory: mem,
-		Runtimes:       runtimeStore,
-		Targets:        targets,
-		Skills:         skillStore,
-		Voices:         voiceStore,
-		Egress:         egressStore,
-		Workplaces:     orgWorkplaces,
+		Runtimes:   runtimeStore,
+		Targets:    targets,
+		Skills:     skillStore,
+		Voices:     voiceStore,
+		Egress:     egressStore,
+		Workplaces: orgWorkplaces,
+		// The same catalogue the data plane reads, for one question on this side:
+		// which secret of the organisation opens the artefact of the engine an
+		// agent is about to run (#289). Its own Source over the same URL and the
+		// same file cache — the bytes are fetched once, only the parsed document
+		// is held twice.
+		Engines:        engines.NewSource(cfg.EngineCatalogURL, engines.FileCacheFor(cfg.DataDir), log),
 		ReqLog:         reqLog,
 		Provider:       provider,
 		PublicWSURL:    wsURL,

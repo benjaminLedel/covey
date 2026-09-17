@@ -494,6 +494,16 @@ It needs Docker on its host and a way out to the control plane. That is all.
   receives that agent's daemon and egress tokens, so it *can* impersonate every
   agent it hosts — the same trust level as a CI runner that sees job tokens. A
   runner is not a way of bringing in untrusted compute capacity.
+- **An engine behind a login is opened by the agent, not by the host.** Some
+  engine artefacts are not on the public. The catalogue entry then names a
+  secret of the organisation, the control plane reads its value for the agent
+  whose engine this is, and the value travels with the one `start_sandbox` that
+  downloads the engine — read by nobody on the way, stored by no one at the end,
+  not in the layer directory, not in the runner's environment. So the token goes
+  into covey, as every other credential does, and a runner host needs nothing
+  beside its own registration token. `COVEY_SEVENCODE_DOWNLOAD_TOKEN` remains as
+  the second way for a host that holds a token of its own; the secret is tried
+  first, so an old export on one machine never shadows what was configured.
 
 A runner belongs to exactly one organisation, inherited from the registration
 token and unchangeable. Whoever wants to serve two starts two processes.

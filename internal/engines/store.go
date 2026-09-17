@@ -109,11 +109,20 @@ func (s *Store) Lookup(engine, version string) (Layer, bool) {
 		Kind: m.Kind, InstalledAt: m.InstalledAt}, true
 }
 
+// Auth is what may be offered for one install: the value of the secret the entry
+// names, resolved by whoever holds the organisation's secrets. It travels with
+// the call and is never stored — not in the layer, not in its marker, not in a
+// log line. A zero Auth is the ordinary case: an artefact on the public needs
+// nothing, and one behind a login says so rather than asking anonymously.
+type Auth struct {
+	Secret string
+}
+
 // Ensure installs the release if it is not standing there already, and returns
 // the layer. The returned Exec is a path ON THIS MACHINE; the caller decides
 // what the container sees, see ContainerEnv.
-func (s *Store) Ensure(ctx context.Context, r Release) (Layer, error) {
-	return s.EnsureWatched(ctx, r, nil)
+func (s *Store) Ensure(ctx context.Context, r Release, auth Auth) (Layer, error) {
+	return s.EnsureWatched(ctx, r, auth, nil)
 }
 
 // EnsureWatched is Ensure with a running account of what it does.
@@ -127,12 +136,15 @@ func (s *Store) Ensure(ctx context.Context, r Release) (Layer, error) {
 // The layer already standing here reports Done at once: an install that is a
 // cache hit still has to end the phase, or the display shows a step running
 // that finished in a millisecond.
-func (s *Store) EnsureWatched(ctx context.Context, r Release, watch func(Progress)) (Layer, error) {
+func (s *Store) EnsureWatched(ctx context.Context, r Release, auth Auth, watch func(Progress)) (Layer, error) {
 	say := func(p Progress) {
 		if watch != nil {
 			watch(p)
 		}
 	}
+	// The cache is consulted before the credential is asked for, so a host that
+	// has the layer already does not need one: the second wake of an agent whose
+	// organisation later moves the token elsewhere still starts.
 	if l, ok := s.Lookup(r.engine, r.Version); ok {
 		l.Release = r
 		say(Progress{Detail: l.Engine + " " + l.Version + " already on this host", Done: true})
@@ -157,9 +169,9 @@ func (s *Store) EnsureWatched(ctx context.Context, r Release, watch func(Progres
 	var exe string
 	switch r.Kind {
 	case KindTarball:
-		exe, err = s.installTarball(ctx, r, tmp, say)
+		exe, err = s.installTarball(ctx, r, tmp, auth, say)
 	case KindFile:
-		exe, err = s.installFile(ctx, r, tmp, say)
+		exe, err = s.installFile(ctx, r, tmp, auth, say)
 	case KindNpm:
 		exe, err = s.installNpm(ctx, r, tmp, say)
 	default:
@@ -204,8 +216,8 @@ func (s *Store) EnsureWatched(ctx context.Context, r Release, watch func(Progres
 }
 
 // installTarball fetches, verifies and unpacks a tar archive (.tar or .tgz).
-func (s *Store) installTarball(ctx context.Context, r Release, dst string, say func(Progress)) (string, error) {
-	body, err := fetchArtifact(ctx, s.HTTP, r, s.cap(), say)
+func (s *Store) installTarball(ctx context.Context, r Release, dst string, auth Auth, say func(Progress)) (string, error) {
+	body, err := fetchArtifact(ctx, s.HTTP, r, s.cap(), say, auth)
 	if err != nil {
 		return "", err
 	}
@@ -233,8 +245,8 @@ func (s *Store) installTarball(ctx context.Context, r Release, dst string, say f
 // inside the layer. `binary` is otherwise a hint with no consequences (a tarball
 // answers with its own executable), which is exactly why it cannot be taken
 // literally here.
-func (s *Store) installFile(ctx context.Context, r Release, dst string, say func(Progress)) (string, error) {
-	body, err := fetchArtifact(ctx, s.HTTP, r, s.cap(), say)
+func (s *Store) installFile(ctx context.Context, r Release, dst string, auth Auth, say func(Progress)) (string, error) {
+	body, err := fetchArtifact(ctx, s.HTTP, r, s.cap(), say, auth)
 	if err != nil {
 		return "", err
 	}

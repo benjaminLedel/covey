@@ -855,8 +855,20 @@ func (s *Server) handleSetRuntime(w http.ResponseWriter, r *http.Request) {
 	// the answer arrived as the first failed task (#221).
 	out := map[string]any{"ok": true}
 	if s.Config != nil {
-		if w := doctor.LookupEngineOrigin(r.Context(), *s.Config, s.Pool, in.Runtime).AssignmentWarning(); w != "" {
+		origin := doctor.LookupEngineOrigin(r.Context(), *s.Config, s.Pool, in.Runtime)
+		switch w := origin.AssignmentWarning(); {
+		case w != "":
 			out["warning"] = w
+		case getErr == nil && origin.AuthSecret != "":
+			// The artefact opens with a secret of this organisation (#289), and
+			// this is the only side that can answer whether the agent has it: the
+			// runner host cannot see the store, and the doctor deliberately does
+			// not read it. Asked once, at the moment the engine is assigned, and
+			// answered by naming the key — naming it is what setting it takes.
+			if _, err := s.Secrets.Resolve(r.Context(), a.OrgID, a.ID, origin.AuthSecret); errors.Is(err, secrets.ErrNotFound) {
+				out["warning"] = "the engine " + in.Runtime + " runs on a release whose artefact sits behind a login, which the secret " +
+					origin.AuthSecret + " opens — and this agent has no such secret. Set it, or the runner cannot download the engine and the first task fails before the sandbox starts."
+			}
 		}
 	}
 	writeJSON(w, http.StatusOK, out)

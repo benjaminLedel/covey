@@ -20,7 +20,7 @@ import (
 // not become a second code path — a second code path is a second set of
 // behaviour, and the digest check below would be the first thing to fall out of
 // it.
-func fetchArtifact(ctx context.Context, httpc *http.Client, r Release, limit int64, watch func(Progress)) ([]byte, error) {
+func fetchArtifact(ctx context.Context, httpc *http.Client, r Release, limit int64, watch func(Progress), auth Auth) ([]byte, error) {
 	raw := strings.TrimSpace(r.URL)
 	if strings.HasPrefix(raw, "file://") {
 		path := strings.TrimPrefix(raw, "file://")
@@ -59,19 +59,33 @@ func fetchArtifact(ctx context.Context, httpc *http.Client, r Release, limit int
 	}
 	// A release may sit behind a login: a package registry on the organisation's
 	// own source host answers 401 to a plain GET, and an engine kept off the
-	// public is one of those. What the entry names is the VARIABLE holding the
-	// token, read from this host's environment — so the document can sit wherever
-	// a document sits and no credential ever arrives in a fetched file. The token
-	// opens the door and nothing else: the digest is still what decides whether a
-	// layer is trusted, so a stolen token cannot substitute an engine.
-	header, env := strings.TrimSpace(r.AuthHeader), strings.TrimSpace(r.AuthEnv)
-	if header != "" && env != "" {
-		token := strings.TrimSpace(os.Getenv(env))
+	// public is one of those. The entry names the header and where its token
+	// sits — never the token, so the document can sit wherever a document sits.
+	// The secret of the organisation comes first because that is the credential
+	// somebody actually configured; the host variable is the fallback for a host
+	// that holds a token of its own, and reading it only when the secret is empty
+	// is what keeps the configured one from being shadowed by an old export.
+	// The token opens the door and nothing else: the digest is still what decides
+	// whether a layer is trusted, so a stolen token cannot substitute an engine.
+	header := strings.TrimSpace(r.AuthHeader)
+	if header != "" {
+		token := strings.TrimSpace(auth.Secret)
+		if token == "" && r.AuthEnv != "" {
+			token = strings.TrimSpace(os.Getenv(r.AuthEnv))
+		}
 		if token == "" {
 			// Refused here rather than by an anonymous GET that is known to fail,
-			// and the reason names the variable: this state ends by setting it,
-			// which is what a permanent warning would not.
-			return nil, fmt.Errorf("engines: artefact %s needs the %s header, and the variable holding it (%s) is not set on this host", raw, header, env)
+			// and the reason names every place it looked, with the word that ends
+			// the search there: this state ends by setting one of them, which is
+			// what a permanent warning would not.
+			var places []string
+			if r.AuthSecret != "" {
+				places = append(places, "the secret it names ("+r.SecretName()+") is not set for this agent")
+			}
+			if r.AuthEnv != "" {
+				places = append(places, "the variable holding it ("+r.AuthEnv+") is not set on this host")
+			}
+			return nil, fmt.Errorf("engines: artefact %s needs the %s header, and %s", raw, header, strings.Join(places, "; and "))
 		}
 		req.Header.Set(header, token)
 	}

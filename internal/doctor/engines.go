@@ -53,6 +53,13 @@ type EngineOrigin struct {
 	// at all, and the state ends by setting the variable.
 	AuthEnv string
 	AuthSet bool
+	// AuthSecret names the secret of the organisation that opens the artefact,
+	// when the entry asks for one instead of a host variable (#289). A name and
+	// nothing more: the value sits in the secret store, which this call does not
+	// read, and an agent's secret is not this host's to report on. What is said
+	// about it is therefore what the entry asks for, never whether it stands — a
+	// check that cannot be answered from here would be furniture.
+	AuthSecret string
 }
 
 // Settled reports whether the CLI's origin is known rather than assumed: the
@@ -63,8 +70,10 @@ func (o EngineOrigin) Settled() bool {
 		return true
 	}
 	// A release only settles the question while its artefact can be fetched; a
-	// login that cannot be answered leaves the start to fail on the runner.
-	return o.Version != "" && (o.AuthEnv == "" || o.AuthSet)
+	// login that cannot be answered leaves the start to fail on the runner. A
+	// secret of the organisation is not judged here at all (#289): it is resolved
+	// per agent at the start, on a machine that is not this one.
+	return o.Version != "" && (o.AuthEnv == "" || o.AuthSet || o.AuthSecret != "")
 }
 
 // Detail is the one line that says where the binary comes from.
@@ -78,7 +87,12 @@ func (o EngineOrigin) Detail() string {
 		return o.Env + " names " + o.Path + " on this host"
 	case o.Version != "":
 		detail := "catalogue release " + o.Version + " (" + o.Kind + ") — the runner installs it before the sandbox starts"
-		if o.AuthEnv != "" {
+		switch {
+		case o.AuthSecret != "":
+			// The name, not a verdict: the value belongs to an agent and is read
+			// at the start, on a machine that is not this one.
+			detail += ", behind a login that the agent's secret " + o.AuthSecret + " opens"
+		case o.AuthEnv != "":
 			if o.AuthSet {
 				detail += ", with the token from " + o.AuthEnv
 			} else {
@@ -131,6 +145,10 @@ func EngineOrigins(ctx context.Context, cfg config.Config, pool *pgxpool.Pool, l
 				if o.AuthEnv != "" {
 					o.AuthSet = strings.TrimSpace(os.Getenv(o.AuthEnv)) != ""
 				}
+				// A secret the organisation holds is asked for by name and
+				// resolved per agent at the start (#289) — nothing this loop can
+				// or should check for it.
+				o.AuthSecret = r.SecretName()
 			}
 		}
 		out[engine] = o

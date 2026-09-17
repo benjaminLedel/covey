@@ -66,3 +66,33 @@ func TestShippedCatalogueIsInstallable(t *testing.T) {
 		}
 	}
 }
+
+// One claim about the published document is worth naming on its own, because it
+// is what an engine behind a login comes down to: the entry names a secret of the
+// organisation (`sevencode_api_token`), which is resolved for the agent whose
+// engine this is and carried to the one install that needs it (#289). An entry
+// that names only a host variable is installable exclusively on a machine someone
+// logged a token into — the state the issue was filed against, invisible from the
+// interface, and quietly permanent because nothing here has to say so.
+func TestShippedSevencodeNamesTheAgentsSecret(t *testing.T) {
+	body, err := os.ReadFile("engine-catalog.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cat := parseDoc(t, string(body))
+	r, ok := cat.Release("sevencode", "")
+	if !ok {
+		t.Fatal("the document that is published has to carry the engine the adapter drives")
+	}
+	if r.AuthSecret != "sevencode_api_token" {
+		t.Errorf("the entry has to name the secret that opens it, got %q", r.AuthSecret)
+	}
+	if r.AuthHeader != "Authorization" {
+		t.Errorf("and the header its value goes into, got %q", r.AuthHeader)
+	}
+	// The fallback stays, but as the second way and not the first: a mirror with
+	// nothing in covey behind it still has a door.
+	if r.AuthEnv != "COVEY_SEVENCODE_DOWNLOAD_TOKEN" {
+		t.Errorf("the host's own variable should remain as the fallback, got %q", r.AuthEnv)
+	}
+}

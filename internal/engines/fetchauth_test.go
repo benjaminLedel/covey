@@ -24,7 +24,7 @@ func TestFetchSendsTheHeaderTheEntryNames(t *testing.T) {
 	}
 
 	t.Setenv("COVEY_TEST_ARTIFACT_TOKEN", "glpt-abc")
-	body, err := fetchArtifact(t.Context(), srv.Client(), release(), 1<<20, nil)
+	body, err := fetchArtifact(t.Context(), srv.Client(), release(), 1<<20, nil, Auth{})
 	if err != nil {
 		t.Fatalf("fetch: %v", err)
 	}
@@ -49,7 +49,7 @@ func TestFetchSendsTheHeaderTheEntryNames(t *testing.T) {
 	// A different variable, never set: what is under test is the missing one, and
 	// `t.Setenv` holds for the whole test rather than for the block around it.
 	r2.AuthEnv = "COVEY_TEST_MISSING_TOKEN"
-	_, err = fetchArtifact(t.Context(), srv2.Client(), r2, 1<<20, nil)
+	_, err = fetchArtifact(t.Context(), srv2.Client(), r2, 1<<20, nil, Auth{})
 	if err == nil || !strings.Contains(err.Error(), "COVEY_TEST_MISSING_TOKEN") {
 		t.Errorf("the reason should name the variable that is missing: %v", err)
 	}

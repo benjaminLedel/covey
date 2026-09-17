@@ -42,6 +42,13 @@ type SandboxSpec struct {
 	// front of this sandbox; one whose image carries the engine ignores it
 	// (spec/26).
 	Engine string
+	// EngineAuth opens the engine's artefact when the catalogue says it sits
+	// behind a login: this agent's secret for it, resolved for this one start
+	// (#289). The provider hands it to whoever downloads the engine and stores
+	// nothing of it — the same shape EgressToken below has, for the same reason:
+	// a credential the organisation already holds should not have to be
+	// replicated onto every host that could carry this agent.
+	EngineAuth string
 	// EgressToken is the per-sandbox token the sandbox uses to identify itself
 	// as this agent to the egress proxy (Proxy-Authorization). Empty = no
 	// egress enforcement for this sandbox.

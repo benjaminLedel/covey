@@ -35,7 +35,7 @@ func TestStoreInstallsOneFile(t *testing.T) {
 	rel := fileRelease(t, dir, body, "bin/tool-file")
 	rel.engine = "tool-file"
 
-	layer, err := store.Ensure(context.Background(), rel)
+	layer, err := store.Ensure(context.Background(), rel, Auth{})
 	if err != nil {
 		t.Fatalf("Ensure: %v", err)
 	}
@@ -76,7 +76,7 @@ func TestFileRefusesABinaryOutOfTheLayer(t *testing.T) {
 	rel := fileRelease(t, dir, oneFile(), "../../escape")
 	rel.engine = "tool-escape"
 
-	if _, err := store.Ensure(context.Background(), rel); err == nil {
+	if _, err := store.Ensure(context.Background(), rel, Auth{}); err == nil {
 		t.Fatal("a binary outside the layer was accepted")
 	} else if !strings.Contains(err.Error(), "out of the layer") {
 		t.Errorf("refused, but not as an escape: %v", err)
@@ -104,7 +104,7 @@ func TestFileFetchesBehindALoginWithTheNamedHeader(t *testing.T) {
 		AuthHeader: "Authorization", AuthEnv: "COVEY_TEST_FILE_TOKEN"}
 	rel.engine = "tool-login"
 
-	if _, err := store.Ensure(context.Background(), rel); err != nil {
+	if _, err := store.Ensure(context.Background(), rel, Auth{}); err != nil {
 		t.Fatalf("a file behind a login did not install: %v", err)
 	}
 	if auth != "Bearer sc-test" {
