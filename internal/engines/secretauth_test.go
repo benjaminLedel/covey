@@ -76,7 +76,32 @@ func TestSecretOfTheOrganisationOpensTheArtefact(t *testing.T) {
 		}
 	}
 	// Not one line more than that: the document is public, the value is not.
-	if strings.Contains(err.Error(), "sc-organ") {
+	if strings.Contains(strings.ToLower(err.Error()), "sc-organ") {
 		t.Errorf("a refusal that quotes the token turns a log line into a credential: %v", err)
+	}
+}
+
+// What a secret field holds is the token the vendor handed out — `sc_…`, `glpat…`
+// — and `Authorization` is the one header that insists on a scheme in front of
+// it. Sent verbatim that answers 401, and the wake blames the catalogue while
+// the state is one missing word (#289). So the scheme is completed for that
+// header, and only when the value brings none of its own.
+func TestATokenWithoutASchemeIsNotSentBare(t *testing.T) {
+	cases := []struct {
+		name, header, stored, want string
+	}{
+		{"bare token", "Authorization", "sc_KPD1kg", "Bearer sc_KPD1kg"},
+		{"scheme already there", "Authorization", "Bearer sc_KPD1kg", "Bearer sc_KPD1kg"},
+		{"another scheme, kept", "Authorization", "Token abc.123", "Token abc.123"},
+		{"basic, kept", "Authorization", "Basic Zm9vOmJhcg==", "Basic Zm9vOmJhcg=="},
+		// A registry's own header carries no scheme by design — adding one there
+		// would be the same mistake in the other direction.
+		{"registry header untouched", "PRIVATE-TOKEN", "glpat-abc", "glpat-abc"},
+		{"api-key header untouched", "X-Api-Key", "abc def", "abc def"},
+	}
+	for _, c := range cases {
+		if got := authHeaderValue(c.header, c.stored); got != c.want {
+			t.Errorf("%s: %q in front of %q, want %q", c.name, got, c.header, c.want)
+		}
 	}
 }

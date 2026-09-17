@@ -13,6 +13,28 @@ import (
 	"time"
 )
 
+// authHeaderValue puts the value in front of the header name the endpoint
+// expects it in.
+//
+// `Authorization` is the one header that insists on a scheme before the token,
+// and `sc_…` is what a token looks like when somebody stores it: the prefix is
+// part of the secret the vendor issued, `Bearer ` is not. Sent verbatim, that
+// value answers 401, and the wake then blames the catalogue — while the state is
+// one missing word, in a field whose prompt says nothing about it. So the scheme
+// is completed here for that one header, and only when the value brings none:
+// `Bearer x`, `Token x` and `Basic x` go out exactly as they stand, and every
+// other header (a `PRIVATE-TOKEN` of a registry, an API-key header) is never
+// touched.
+func authHeaderValue(header, value string) string {
+	if !strings.EqualFold(header, "Authorization") {
+		return value
+	}
+	if i := strings.IndexByte(value, ' '); i > 0 {
+		return value // carries a scheme already, however it is spelled
+	}
+	return "Bearer " + value
+}
+
 // fetchArtifact reads one artefact behind one URL, capped.
 //
 // file:// is supported for the same reason the other catalogues support it: an
@@ -87,7 +109,7 @@ func fetchArtifact(ctx context.Context, httpc *http.Client, r Release, limit int
 			}
 			return nil, fmt.Errorf("engines: artefact %s needs the %s header, and %s", raw, header, strings.Join(places, "; and "))
 		}
-		req.Header.Set(header, token)
+		req.Header.Set(header, authHeaderValue(header, token))
 	}
 	res, err := httpc.Do(req)
 	if err != nil {

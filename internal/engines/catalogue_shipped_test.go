@@ -69,11 +69,17 @@ func TestShippedCatalogueIsInstallable(t *testing.T) {
 
 // One claim about the published document is worth naming on its own, because it
 // is what an engine behind a login comes down to: the entry names a secret of the
-// organisation (`sevencode_api_token`), which is resolved for the agent whose
-// engine this is and carried to the one install that needs it (#289). An entry
-// that names only a host variable is installable exclusively on a machine someone
-// logged a token into — the state the issue was filed against, invisible from the
-// interface, and quietly permanent because nothing here has to say so.
+// organisation, which is resolved for the agent whose engine this is and carried
+// to the one install that needs it (#289). An entry that names only a host
+// variable is installable exclusively on a machine someone logged a token into —
+// the state the issue was filed against, invisible from the interface, and
+// quietly permanent because nothing here has to say so.
+//
+// Which key it names is the other half of the claim, and it was wrong once:
+// `sevencode_api_token` is the engine's own runtime key, the one the daemon hands
+// to the sandbox as `SEVENCODE_API_KEY`. Pointing the download at it would have
+// made one credential serve two jobs — rotated for the runtime, dead for the
+// download, and the artefact then fails with a 401 that reads like a bad token.
 func TestShippedSevencodeNamesTheAgentsSecret(t *testing.T) {
 	body, err := os.ReadFile("engine-catalog.json")
 	if err != nil {
@@ -84,15 +90,19 @@ func TestShippedSevencodeNamesTheAgentsSecret(t *testing.T) {
 	if !ok {
 		t.Fatal("the document that is published has to carry the engine the adapter drives")
 	}
-	if r.AuthSecret != "sevencode_api_token" {
-		t.Errorf("the entry has to name the secret that opens it, got %q", r.AuthSecret)
+	if r.AuthSecret != "COVEY_SEVENCODE_DOWNLOAD_TOKEN" {
+		t.Errorf("the entry has to name the download credential, got %q", r.AuthSecret)
+	}
+	if r.AuthSecret == "sevencode_api_token" {
+		t.Error("that key is the engine's runtime key, which the sandbox gets as SEVENCODE_API_KEY")
 	}
 	if r.AuthHeader != "Authorization" {
 		t.Errorf("and the header its value goes into, got %q", r.AuthHeader)
 	}
-	// The fallback stays, but as the second way and not the first: a mirror with
-	// nothing in covey behind it still has a door.
-	if r.AuthEnv != "COVEY_SEVENCODE_DOWNLOAD_TOKEN" {
-		t.Errorf("the host's own variable should remain as the fallback, got %q", r.AuthEnv)
+	// The host variable keeps the same name as the secret: one credential, two
+	// doors — the store for an organisation that keeps it in covey, the host for a
+	// mirror that has nothing in covey behind it.
+	if r.AuthEnv != r.AuthSecret {
+		t.Errorf("one credential should not answer to two names: %q vs %q", r.AuthSecret, r.AuthEnv)
 	}
 }

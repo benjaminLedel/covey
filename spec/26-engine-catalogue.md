@@ -38,7 +38,7 @@ Implementation: `internal/engines` (`catalogue.go`, `store.go`, `fetch.go`, `env
         "url": "https://cli.example.org/api/v1/cli/latest",
         "integrity": "sha256:26b78c035e543ac7222d81da3143ae76de1bef55ccce676107adbd4e364870f2",
         "binary": "bin/sevencode", "binary_env": "COVEY_SEVENCODE_BIN",
-        "auth_header": "Authorization", "auth_secret": "sevencode_api_token",
+        "auth_header": "Authorization", "auth_secret": "COVEY_SEVENCODE_DOWNLOAD_TOKEN",
         "auth_env": "COVEY_SEVENCODE_DOWNLOAD_TOKEN",
         "requires": ["node>=22.13"],
         "notes": "headless via `-p … --json`; the CLI is one Node bundle and is served as that one file, so the kind is `file` and `binary` says where the runner writes it. Its source is not public, so the artefact sits behind a login: the entry names the header and where its token comes from — a secret of the organisation, or a variable on the host — never the token. The document stays publishable and the digest remains what decides whether a layer may run. `latest` is a mutable address, which is why the version and the digest stand beside it — a new release is a new entry, not an edit." }
@@ -58,6 +58,8 @@ An artefact behind a login is named, never opened, by the document. `auth_header
 - **`auth_env`** names a variable on the host that runs the runner. This is the way for a mirror or a registry whose token belongs to the machine rather than to an agent, and it stays as the fallback: an organisation that has put nothing into covey still has a door. It is read only when no secret answered, so a configured value is never shadowed by an old export.
 
 A name, in both cases, and never a value — the document remains something that can be published on its own. Which of the two a start uses is invisible to the catalogue: `Settled()` is true when either is present, and what the secret of an agent really is cannot be seen from the host a runner runs on. The refusal of an artefact that cannot be opened therefore names **both** places a token could come from, in the order it looked; an operator who reads "not set on this host" on a machine where the token was never meant to sit stops reading there. Half a pair is refused at parse, and so is either reference on `kind: npm` — that kind is installed by the package manager, which would read a header by nothing.
+
+One more thing happens to the value on the way out, because `Authorization` is the one header that insists on a scheme in front of the token: `authHeaderValue` supplies `Bearer` when the value brings no scheme of its own. That is not generosity but arithmetic — the token a vendor hands out is `sc_…`, the prefix belongs to the secret, the word in front does not, and whatever lands in a secret field looks like the thing the vendor gave. Sent verbatim it answers 401, and the wake then blames the catalogue while the state is one missing word. A value that carries a scheme (`Bearer x`, `Token x`, `Basic x`) goes out byte for byte as stored, and no other header is touched at all: a registry's `PRIVATE-TOKEN` carries none by design, and completing one there would be the same mistake in the other direction.
 
 Whether the agent actually has the secret is answered where agent and store are both in reach, not on the data plane: assigning an engine resolves the named key once through the same store the start will use, and a missing one comes back as a warning beside the assignment, naming the key. Nothing refuses it — a secret can be set a minute later, and the agent can be moved back.
 
