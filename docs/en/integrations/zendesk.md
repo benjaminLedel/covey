@@ -116,17 +116,29 @@ aufgabe: Check the open tickets (list_tickets) for ones waiting for an answer,
   read the conversation (list_messages) and reply.
 ```
 
-`nur-wenn: zendesk` asks one question — *does a ticket in scope wait for us?* It
-costs one list read plus one read per ticket that could be waiting, at most
-`COVEY_ZENDESK_PROBE_TICKETS` of them (default 10). The list is read **without a
-status filter** — the endpoint takes exactly one, and "waiting for us" means new,
-open, pending and hold together, so filtering client-side costs one call instead of
-four and lands on the same tickets. A ticket whose newest public comment came from
-our own identity does not count: an agent that has answered is not called back to
-the same ticket by its own answer. A customer reply produces a new public comment,
-so it is woken again. The check also returns a fingerprint of *what* is waiting, so
-an agent that read a ticket and decided to write nothing is not started again a
-minute later by the same state.
+`nur-wenn: zendesk` asks what it can answer in one call — *which tickets are open
+in this agent's scope, and what state were they in?* The list is read **without a
+status filter**, at most `COVEY_ZENDESK_PROBE_TICKETS` rows of it (default 10,
+newest activity first): the endpoint takes exactly one status, and "still running"
+means new, open, pending and hold together, so filtering client-side costs one call
+instead of four and lands on the same tickets.
+
+The check returns a fingerprint of that picture, and the heartbeat fires when the
+picture **changes** — a ticket arrives, somebody comments, a status moves. While
+the queue stands still it stays quiet, so an agent that read a ticket and decided
+to write nothing is not started again a minute later by the same state; the control
+plane's watermark tells the agent's own writes from foreign ones.
+
+What the gate deliberately does not claim is to know which of the open tickets is
+news. No Zendesk field answers that, and the author of the newest comment does not
+either: where an account takes its mail in through a shared support address, the
+customer's own words arrive under a staff identity. That judgement belongs to the
+agent, which reads the ticket before it says anything about it.
+
+The rows of `list_tickets` say **which** tickets — id, subject, status, tags,
+dates — not what the customer wrote. The text is one `get_ticket` away, for the two
+or three an agent actually takes on; a list that carries every first mail grows past
+what a runtime hands to a model in one piece.
 
 **By webhook**, if a ticket is to be picked up the moment it arrives. In the
 Admin Center (*Apps and extensions → Trigger and automation webhooks*):

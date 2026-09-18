@@ -117,18 +117,30 @@ aufgabe: Check the open tickets (list_tickets) for ones waiting for an answer,
   read the conversation (list_messages) and reply.
 ```
 
-`nur-wenn: zendesk` stellt eine Frage — *wartet in meinem Bereich ein Ticket auf
-uns?* Sie kostet einen Listenlesen plus ein Lesen pro Ticket, das warten könnte,
-höchstens `COVEY_ZENDESK_PROBE_TICKETS` viele (Standard 10). Die Liste wird **ohne
-Statusfilter** gelesen — der Endpunkt nimmt genau einen, und „wartet auf uns" sind
-new, open, pending und hold zusammen; clientseitig zu filtern kostet einen Aufruf
-statt vier und landet auf denselben Tickets. Ein Ticket, dessen letzter öffentlicher
-Kommentar von unserer eigenen Identität stammt, zählt nicht: Ein Agent, der
-geantwortet hat, wird durch seine eigene Antwort nicht an dasselbe Ticket zurückgeholt.
-Eine Kundenantwort erzeugt einen neuen öffentlichen Kommentar, also wird er wieder
-geweckt. Die Prüfung gibt außerdem einen Fingerprint davon zurück, *was* wartet — ein
-Agent, der ein Ticket gelesen hat und beschließt, nichts zu schreiben, wird eine
-Minute später nicht durch denselben Stand erneut gestartet.
+`nur-wenn: zendesk` fragt, was sich in einem Aufruf beantworten lässt — *welche
+Tickets stehen in meinem Bereich offen, und in welchem Stand waren sie?* Die Liste
+wird **ohne Statusfilter** gelesen, höchstens `COVEY_ZENDESK_PROBE_TICKETS` Zeilen
+davon (Standard 10, neueste Aktivität zuerst): Der Endpunkt nimmt genau einen
+Status, und „noch in Arbeit" sind new, open, pending und hold zusammen; clientseitig
+zu filtern kostet einen Aufruf statt vier und landet auf denselben Tickets.
+
+Zurück kommt ein Fingerprint dieses Bildes, und der Herzschlag feuert, wenn sich das
+Bild **ändert** — ein Ticket kommt herein, jemand kommentiert, ein Status wandert.
+Solange die Warteschlange stillsteht, bleibt er still: Ein Agent, der ein Ticket
+gelesen und beschlossen hat, nichts zu schreiben, wird eine Minute später nicht durch
+denselben Stand erneut gestartet; die eigenen Schreibzugriffe trennt die Wasserstandsmarke
+der Control Plane von den fremden.
+
+Was die Vorprüfung ausdrücklich nicht behauptet, ist zu wissen, welches der offenen
+Tickets neu ist. Kein Zendesk-Feld beantwortet das, und der Autor des jüngsten
+Kommentars auch nicht: Wo ein Konto seine Post über eine gemeinsame Support-Adresse
+hereinnimmt, kommen die Worte des Kunden unter einer Mitarbeiter-Identität an. Dieses
+Urteil gehört dem Agenten, der das Ticket liest, bevor er etwas dazu sagt.
+
+Die Zeilen von `list_tickets` sagen, **welche** Tickets — id, Betreff, Status, Tags,
+Daten — nicht, was der Kunde geschrieben hat. Der Text ist ein `get_ticket` entfernt,
+für die zwei, drei Tickets, die ein Agent wirklich annimmt; eine Liste, die jede erste
+Mail mitträgt, wächst über das hinaus, was eine Runtime einem Modell am Stück reicht.
 
 **Per Webhook**, wenn ein Ticket sofort aufgenommen werden soll. Im Admin Center
 (*Apps and extensions → Trigger and automation webhooks*):
