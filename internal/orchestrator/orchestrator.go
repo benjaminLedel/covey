@@ -3401,7 +3401,25 @@ func (o *Orchestrator) engineDownloadSecret(ctx context.Context, agent agents.Ag
 		return ""
 	}
 	value, err := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, r.SecretName())
-	if err != nil {
+	if err != nil || strings.TrimSpace(value) == "" {
+		// A named secret that does not arrive is exactly as rare as it is
+		// unexplainable from the outside — the field case behind issue #293
+		// refused for two hours while the secret stood in the store, assigned,
+		// and nothing said why. The download refuses too, but its sentence
+		// names the places it looked, never what this side found; one entry
+		// here says store or seal or empty, and the search ends at the first
+		// reading. An unassigned secret lands here too: naming it is what the
+		// assignment screen cannot see from its own side.
+		if o.Obs != nil {
+			why := "empty"
+			if err != nil {
+				why = err.Error()
+			}
+			_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindLifecycle, map[string]any{
+				"status": "engine_auth_unavailable", "engine": agent.Runtime,
+				"secret": r.SecretName(), "reason": why,
+			})
+		}
 		return ""
 	}
 	return strings.TrimSpace(value)
