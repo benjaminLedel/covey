@@ -2366,6 +2366,17 @@
     "auftrag": "Opdracht",
     "anhaengen": "Bestand toevoegen",
     "anhangEntfernen": "{{name}} verwijderen",
-    "anhangZeile": "Bijlage op de werkplek: {{pfade}}"
+    "anhangZeile": "Bijlage op de werkplek: {{pfade}}",
+    "laeuftGerade": "Nu bezig",
+    "ueberblickLaeuft": "{{count}} processen lopen.",
+    "schritt": {
+      "runtime": "denkt na",
+      "tool_use": "gebruikt een hulpmiddel",
+      "credential": "haalt toegang op",
+      "approval": "wacht op goedkeuring",
+      "guardrail": "bij een regel",
+      "lifecycle": "wisselt van toestand",
+      "action": "werkt in het doelsysteem"
+    }
   }
 }

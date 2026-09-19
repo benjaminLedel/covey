@@ -2366,6 +2366,17 @@
     "auftrag": "Work order",
     "anhaengen": "Attach a file",
     "anhangEntfernen": "Remove {{name}}",
-    "anhangZeile": "Attached in the workplace: {{pfade}}"
+    "anhangZeile": "Attached in the workplace: {{pfade}}",
+    "laeuftGerade": "Running now",
+    "ueberblickLaeuft": "{{count}} processes are running.",
+    "schritt": {
+      "runtime": "is thinking",
+      "tool_use": "is using a tool",
+      "credential": "is fetching access",
+      "approval": "waits for approval",
+      "guardrail": "at a rule",
+      "lifecycle": "changes state",
+      "action": "works in a target system"
+    }
   }
 }

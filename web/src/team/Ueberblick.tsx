@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { api, inbox, type Agent, type InboxEntry, type Principal } from "../api";
+import { useEffect, useState } from "react";
+import { api, inbox, type Agent, type InboxEntry, type Laufend, type Principal } from "../api";
 import Gesicht from "../components/Gesicht";
 
 /* Der Überblick — die Seite, auf der jeder landet.
@@ -38,10 +39,21 @@ export default function Ueberblick({ me }: { me: Principal }) {
     queryFn: () => api<Agent[] | null>("/agents"),
     staleTime: 60_000,
   });
+  /* Was gerade läuft. Zehn Sekunden, wie der Verlauf: Diese Zeile ist der
+     Grund, warum die Seite nicht nur beim Öffnen etwas sagt. */
+  const laufend = useQuery({
+    queryKey: ["org-running"],
+    queryFn: () => api<Laufend[] | null>("/org/running"),
+    refetchInterval: 10_000,
+  });
 
   const items = (offen.data?.items ?? []).slice(0, 12);
   const alle = (agents.data ?? []).filter((a) => a.status !== "applicant");
-  const arbeiten = alle.filter((a) => !a.killed && a.status !== "sleeping");
+  const laeuft = laufend.data ?? [];
+  /* „Arbeitet" heißt: hat einen laufenden Vorgang. Der Status allein sagte
+     nur, dass der Agent wach ist — und ein wacher Agent ohne Aufgabe ist
+     keine Auskunft, sondern ein Zustand. */
+  const arbeiten = alle.filter((a) => !a.killed && a.status !== "sleeping" && !laeuft.some((l) => l.agent_id === a.id));
   /* Wenn nichts wartet und niemand arbeitet, sind die Kollegen selbst der
      Inhalt — die ersten acht, damit die Seite nicht zur zweiten Liste wird. */
   const vorschlag = alle.slice(0, 8);
@@ -55,9 +67,11 @@ export default function Ueberblick({ me }: { me: Principal }) {
         <p className="tm-leise">
           {items.length > 0
             ? t("team.wartetLead", { count: offen.data?.pending ?? items.length })
-            : arbeiten.length > 0
-              ? t("team.ueberblickArbeiten", { count: arbeiten.length })
-              : t("team.wartetNichts")}
+            : laeuft.length > 0
+              ? t("team.ueberblickLaeuft", { count: laeuft.length })
+              : arbeiten.length > 0
+                ? t("team.ueberblickArbeiten", { count: arbeiten.length })
+                : t("team.wartetNichts")}
         </p>
       </header>
 
@@ -86,6 +100,32 @@ export default function Ueberblick({ me }: { me: Principal }) {
         </section>
       )}
 
+      {/* Woran gerade gearbeitet wird — mit Vorgang, Dauer und dem zuletzt
+          aufgezeichneten Schritt. Die einzige Zeile dieser Seite, die sich
+          ändert, während man sie ansieht. */}
+      {laeuft.length > 0 && (
+        <section className="tm-block">
+          <h2>{t("team.laeuftGerade")}</h2>
+          <ul className="tm-laeuft">
+            {laeuft.map((l) => (
+              <li key={l.task_id}>
+                <Link to={`/team/${l.agent_id}`} className="tm-laeuft-zeile">
+                  <Gesicht schluessel={l.agent_slug} zustand="working" groesse={30} />
+                  <span className="tm-laeuft-wer">
+                    <span className="tm-laeuft-titel">{l.title}</span>
+                    <span className="tm-laeuft-unten">
+                      {l.agent_name}
+                      {l.step && <> · {t(`team.schritt.${l.step}`, l.step)}</>}
+                    </span>
+                  </span>
+                  <Dauer seit={l.since} />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {arbeiten.length > 0 && (
         <section className="tm-block">
           <h2>{t("team.arbeitenJetzt")}</h2>
@@ -101,7 +141,7 @@ export default function Ueberblick({ me }: { me: Principal }) {
         </section>
       )}
 
-      {items.length === 0 && arbeiten.length === 0 && vorschlag.length > 0 && (
+      {items.length === 0 && arbeiten.length === 0 && laeuft.length === 0 && vorschlag.length > 0 && (
         <section className="tm-block">
           <h2>{t("team.kollegen")}</h2>
           <p className="tm-leise tm-block-lead">{t("team.ueberblickStill")}</p>
@@ -121,5 +161,26 @@ export default function Ueberblick({ me }: { me: Principal }) {
         </section>
       )}
     </div>
+  );
+}
+
+/* Die Dauer zählt im Browser weiter.
+ *
+ * Vom Server käme sie als Zahl, die in dem Moment falsch ist, in dem sie
+ * ankommt — und eine Dauer, die erst beim nächsten Abruf springt, sagt das
+ * Gegenteil dessen, was sie zeigen soll: dass hier gerade etwas passiert. */
+function Dauer({ seit }: { seit: string }) {
+  const [jetzt, setJetzt] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setJetzt(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const s = Math.max(0, Math.floor((jetzt - new Date(seit).getTime()) / 1000));
+  const text =
+    s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
+  return (
+    <time className="tm-laeuft-dauer" dateTime={seit}>
+      {text}
+    </time>
   );
 }

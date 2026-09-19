@@ -2366,6 +2366,17 @@
     "auftrag": "Zlecenie",
     "anhaengen": "Załącz plik",
     "anhangEntfernen": "Usuń {{name}}",
-    "anhangZeile": "Załącznik na stanowisku pracy: {{pfade}}"
+    "anhangZeile": "Załącznik na stanowisku pracy: {{pfade}}",
+    "laeuftGerade": "W toku",
+    "ueberblickLaeuft": "Trwa {{count}} spraw.",
+    "schritt": {
+      "runtime": "myśli",
+      "tool_use": "używa narzędzia",
+      "credential": "pobiera dostęp",
+      "approval": "czeka na zgodę",
+      "guardrail": "przy regule",
+      "lifecycle": "zmienia stan",
+      "action": "pracuje w systemie docelowym"
+    }
   }
 }

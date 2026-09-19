@@ -2366,6 +2366,17 @@
     "auftrag": "Incarico",
     "anhaengen": "Allegare un file",
     "anhangEntfernen": "Rimuovere {{name}}",
-    "anhangZeile": "Allegato nella postazione: {{pfade}}"
+    "anhangZeile": "Allegato nella postazione: {{pfade}}",
+    "laeuftGerade": "In corso",
+    "ueberblickLaeuft": "{{count}} processi in corso.",
+    "schritt": {
+      "runtime": "sta pensando",
+      "tool_use": "usa uno strumento",
+      "credential": "prende un accesso",
+      "approval": "attende approvazione",
+      "guardrail": "su una regola",
+      "lifecycle": "cambia stato",
+      "action": "lavora nel sistema di destinazione"
+    }
   }
 }

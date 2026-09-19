@@ -3129,3 +3129,42 @@
 /* Die Antwort des Agenten ohne Aufgabe: dieselbe Blase wie seine Notizen,
    damit nicht zwei Formen dasselbe sagen. */
 .tm-blase.k-answer .tm-blase-text { background: var(--surface-0); }
+
+/* ── Was gerade läuft ──────────────────────────────────────────────────
+   Die einzige Zeile des Überblicks, die sich ändert, während man sie
+   ansieht: Vorgang, wer daran sitzt, der zuletzt aufgezeichnete Schritt,
+   und eine Dauer, die im Browser weiterzählt. */
+.tm-laeuft { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.tm-laeuft-zeile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-0);
+  text-decoration: none;
+  color: var(--text-primary);
+}
+.tm-laeuft-zeile:hover { border-color: var(--border-strong); }
+.tm-laeuft-wer { flex: 1; min-width: 0; }
+.tm-laeuft-titel {
+  display: block;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tm-laeuft-unten { display: block; font-size: 12px; color: var(--text-muted); }
+/* Die Dauer in Ziffern gleicher Breite: Sie ändert sich jede Sekunde, und
+   springende Zahlen sind Unruhe ohne Auskunft. */
+.tm-laeuft-dauer {
+  flex: none;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--bg-wait);
+  color: var(--text-wait);
+}

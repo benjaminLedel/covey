@@ -2366,6 +2366,17 @@
     "auftrag": "工单",
     "anhaengen": "附加文件",
     "anhangEntfernen": "移除 {{name}}",
-    "anhangZeile": "工作环境中的附件：{{pfade}}"
+    "anhangZeile": "工作环境中的附件：{{pfade}}",
+    "laeuftGerade": "正在进行",
+    "ueberblickLaeuft": "{{count}} 项正在进行。",
+    "schritt": {
+      "runtime": "正在思考",
+      "tool_use": "正在使用工具",
+      "credential": "正在获取访问",
+      "approval": "等待审批",
+      "guardrail": "在规则前",
+      "lifecycle": "状态变更",
+      "action": "在目标系统中工作"
+    }
   }
 }

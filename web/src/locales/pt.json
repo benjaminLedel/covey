@@ -2366,6 +2366,17 @@
     "auftrag": "Encomenda",
     "anhaengen": "Anexar ficheiro",
     "anhangEntfernen": "Remover {{name}}",
-    "anhangZeile": "Anexo no posto de trabalho: {{pfade}}"
+    "anhangZeile": "Anexo no posto de trabalho: {{pfade}}",
+    "laeuftGerade": "A decorrer",
+    "ueberblickLaeuft": "{{count}} processos a decorrer.",
+    "schritt": {
+      "runtime": "está a pensar",
+      "tool_use": "usa uma ferramenta",
+      "credential": "obtém um acesso",
+      "approval": "aguarda aprovação",
+      "guardrail": "numa regra",
+      "lifecycle": "muda de estado",
+      "action": "trabalha no sistema de destino"
+    }
   }
 }

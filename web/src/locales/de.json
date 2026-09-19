@@ -2366,6 +2366,17 @@
     "auftrag": "Auftrag",
     "anhaengen": "Datei anhängen",
     "anhangEntfernen": "{{name}} entfernen",
-    "anhangZeile": "Anhang im Arbeitsplatz: {{pfade}}"
+    "anhangZeile": "Anhang im Arbeitsplatz: {{pfade}}",
+    "laeuftGerade": "Läuft gerade",
+    "ueberblickLaeuft": "{{count}} Vorgänge laufen gerade.",
+    "schritt": {
+      "runtime": "denkt nach",
+      "tool_use": "benutzt ein Werkzeug",
+      "credential": "holt einen Zugang",
+      "approval": "wartet auf Freigabe",
+      "guardrail": "an einer Regel",
+      "lifecycle": "wechselt den Zustand",
+      "action": "arbeitet im Zielsystem"
+    }
   }
 }

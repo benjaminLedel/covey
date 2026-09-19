@@ -2366,6 +2366,17 @@
     "auftrag": "Ordre",
     "anhaengen": "Joindre un fichier",
     "anhangEntfernen": "Retirer {{name}}",
-    "anhangZeile": "Joint dans le poste de travail : {{pfade}}"
+    "anhangZeile": "Joint dans le poste de travail : {{pfade}}",
+    "laeuftGerade": "En cours",
+    "ueberblickLaeuft": "{{count}} traitements en cours.",
+    "schritt": {
+      "runtime": "réfléchit",
+      "tool_use": "utilise un outil",
+      "credential": "récupère un accès",
+      "approval": "attend une autorisation",
+      "guardrail": "sur une règle",
+      "lifecycle": "change d'état",
+      "action": "travaille dans le système cible"
+    }
   }
 }

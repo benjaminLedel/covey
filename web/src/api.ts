@@ -188,6 +188,20 @@ export type ChatEntry = {
 
 /* Eine Reaktion auf einen Vorgang, schon gruppiert: welches Zeichen, wie oft,
    ob ich selbst dabei bin, und die ersten drei Verfasser für den Tooltip. */
+/* Eine Aufgabe, die gerade abgearbeitet wird — die einzige Zeile des
+   Überblicks, die sich ändert, während man sie ansieht. */
+export type Laufend = {
+  task_id: string;
+  title: string;
+  agent_id: string;
+  agent_name: string;
+  agent_slug: string;
+  /** Zeitpunkt; die Dauer zählt die Oberfläche selbst weiter. */
+  since: string;
+  /** Art des letzten aufgezeichneten Schritts, nicht sein Inhalt. */
+  step?: string;
+};
+
 export type ChatMark = { emoji: string; count: number; mine: boolean; who: string[] };
 
 export type TaskNote = {

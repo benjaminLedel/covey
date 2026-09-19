@@ -2366,6 +2366,17 @@
     "auftrag": "依頼",
     "anhaengen": "ファイルを添付",
     "anhangEntfernen": "{{name}} を外す",
-    "anhangZeile": "作業環境内の添付：{{pfade}}"
+    "anhangZeile": "作業環境内の添付：{{pfade}}",
+    "laeuftGerade": "進行中",
+    "ueberblickLaeuft": "{{count}} 件が進行中です。",
+    "schritt": {
+      "runtime": "考えています",
+      "tool_use": "ツールを使っています",
+      "credential": "アクセスを取得中",
+      "approval": "承認待ち",
+      "guardrail": "ルールの前で",
+      "lifecycle": "状態が変わります",
+      "action": "対象システムで作業中"
+    }
   }
 }

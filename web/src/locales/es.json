@@ -2366,6 +2366,17 @@
     "auftrag": "Encargo",
     "anhaengen": "Adjuntar archivo",
     "anhangEntfernen": "Quitar {{name}}",
-    "anhangZeile": "Adjunto en el puesto de trabajo: {{pfade}}"
+    "anhangZeile": "Adjunto en el puesto de trabajo: {{pfade}}",
+    "laeuftGerade": "En curso",
+    "ueberblickLaeuft": "{{count}} procesos en curso.",
+    "schritt": {
+      "runtime": "está pensando",
+      "tool_use": "usa una herramienta",
+      "credential": "obtiene un acceso",
+      "approval": "espera aprobación",
+      "guardrail": "en una regla",
+      "lifecycle": "cambia de estado",
+      "action": "trabaja en el sistema de destino"
+    }
   }
 }

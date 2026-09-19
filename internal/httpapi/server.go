@@ -446,6 +446,10 @@ func (s *Server) Handler() http.Handler {
 	/* Der Schalter für die Triage: lesen darf jede Rolle (die Oberfläche
 	   erklärt damit, warum eine Nachricht eine Aufgabe wurde), stellen nur,
 	   wer die Organisation führt. */
+	/* Was gerade läuft — die Zeile des Überblicks, die sich von allein
+	   ändert. Jede Rolle darf sie sehen: Sie sagt, dass etwas geschieht, und
+	   nicht, was darin steht. */
+	mux.Handle("GET /api/v1/org/running", s.rbac(anyRole, s.handleRunning))
 	mux.Handle("GET /api/v1/org/chat-triage", s.rbac(anyRole, s.handleGetTriage))
 	mux.Handle("PATCH /api/v1/org/chat-triage", s.rbac(manage, s.handleSetTriage))
 	mux.Handle("GET /api/v1/org/recording-level", s.rbac(anyRole, s.handleGetOrgRecording))
