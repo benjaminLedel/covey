@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/netip"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,8 +26,8 @@ import (
 	"covey/internal/agents"
 	"covey/internal/audit"
 	"covey/internal/backlog"
-	"covey/internal/chat"
 	"covey/internal/buildinfo"
+	"covey/internal/chat"
 	"covey/internal/config"
 	"covey/internal/dream"
 	"covey/internal/egress"
@@ -95,6 +96,11 @@ type Server struct {
 	// instance cannot send, which every caller has to handle: registration
 	// refuses rather than creating an account nobody can confirm.
 	Mail mail.Sender
+	// gesehenZuletzt remembers, per process, when a seat was last written to
+	// humans.last_seen_at — the in-process half of the presence throttle
+	// (#315). Not configuration and not state anybody may read: a cache whose
+	// loss costs one extra statement.
+	gesehenZuletzt sync.Map
 	// Notify records what a person should be told about by mail (#169).
 	// nil = the installation keeps its news to itself; the preference
 	// endpoints then answer with an empty set instead of failing.
@@ -450,6 +456,9 @@ func (s *Server) Handler() http.Handler {
 	   ändert. Jede Rolle darf sie sehen: Sie sagt, dass etwas geschieht, und
 	   nicht, was darin steht. */
 	mux.Handle("GET /api/v1/org/running", s.rbac(anyRole, s.handleRunning))
+	// Wer ist da (#315). Dieselbe Sichtbarkeit wie „was läuft": Anwesenheit ist
+	// eine Auskunft über die Belegschaft, keine über einen einzelnen Menschen.
+	mux.Handle("GET /api/v1/org/presence", s.rbac(anyRole, s.handlePresence))
 	mux.Handle("GET /api/v1/org/chat-triage", s.rbac(anyRole, s.handleGetTriage))
 	mux.Handle("PATCH /api/v1/org/chat-triage", s.rbac(manage, s.handleSetTriage))
 	mux.Handle("GET /api/v1/org/recording-level", s.rbac(anyRole, s.handleGetOrgRecording))
@@ -891,6 +900,11 @@ func (s *Server) auth(next http.HandlerFunc) http.Handler {
 				s.setSessionCookie(w, cookie.Value, int(s.SessionTTL.Seconds()))
 			}
 		}
+		// And note that somebody is here (#315). Same reasoning as the sliding
+		// session one line up: the interface polls, so writing on every request
+		// would be several writes per second per person for a value whose
+		// resolution is minutes.
+		s.gesehen(r.Context(), p.ID)
 		// Report the actor back to the audit middleware on top of that: it sits
 		// further out and does not see the context we create here.
 		if h, ok := r.Context().Value(akteurKey).(*akteurHalter); ok {
@@ -898,6 +912,34 @@ func (s *Server) auth(next http.HandlerFunc) http.Handler {
 		}
 		next(w, r.WithContext(context.WithValue(r.Context(), principalKey, p)))
 	})
+}
+
+// gesehen records presence for a seat, at most once a minute per seat and per
+// process.
+//
+// Two throttles, and both are needed. The one here keeps the statement from
+// being sent at all; the one in the SQL (org.Store.Gesehen) keeps two processes
+// behind a load balancer from writing twice. Without the first, a polling
+// interface sends a pointless statement several times a second; without the
+// second, two replicas each think they are the only one.
+//
+// A failure is dropped on purpose. Presence is the least important thing this
+// request does, and refusing to serve a page because a timestamp could not be
+// written would be the wrong trade every time.
+func (s *Server) gesehen(ctx context.Context, humanID uuid.UUID) {
+	if humanID == uuid.Nil {
+		return
+	}
+	jetzt := time.Now()
+	if letzte, ok := s.gesehenZuletzt.Load(humanID); ok {
+		if jetzt.Sub(letzte.(time.Time)) < time.Minute {
+			return
+		}
+	}
+	s.gesehenZuletzt.Store(humanID, jetzt)
+	if s.Org != nil {
+		_ = s.Org.Gesehen(ctx, humanID)
+	}
 }
 
 // bearerToken reads an "Authorization: Bearer covey_…" header. The prefix is

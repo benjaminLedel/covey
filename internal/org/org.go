@@ -64,7 +64,17 @@ type Human struct {
 	// DepartmentID assigns the human to a department; nil = none.
 	DepartmentID *uuid.UUID `json:"department_id,omitempty"`
 	Profile
-	CreatedAt time.Time `json:"created_at"`
+	// LastSeenAt is when a request last arrived on this seat (#315). nil means
+	// never seen — which is NOT the same as away, and no surface may conflate
+	// the two: a seat nobody has used yet looks different from one that was
+	// used this morning.
+	//
+	// A timestamp and not a flag, deliberately: "online" as a boolean has to be
+	// cleared by something, and whatever fails to clear it leaves somebody
+	// permanently present who went home on Friday. This says when the platform
+	// last saw a person; what still counts as present is the reader's decision.
+	LastSeenAt *time.Time `json:"last_seen_at,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
 }
 
 // Profile is the employee master data beyond login and RBAC: role, contact and
@@ -143,11 +153,60 @@ func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool}
 }
 
+// --- Presence (#315) ---
+
+// Anwesenheit is one seat and when the platform last saw it.
+type Anwesenheit struct {
+	HumanID    uuid.UUID `json:"id"`
+	LastSeenAt time.Time `json:"last_seen_at"`
+}
+
+// GesehenSchwelle: how old a sighting may be and still count as present. Five
+// minutes is long enough to survive a coffee and short enough that a closed
+// laptop stops claiming somebody is there.
+const GesehenSchwelle = 5 * time.Minute
+
+// Gesehen records that a request arrived on this seat.
+//
+// The condition in the statement is the whole point: the interface polls, so
+// without it this would be several writes per second per person for a value
+// whose resolution is minutes. With it, the statement runs every time and
+// matches nothing almost every time — a primary-key lookup, and no write.
+// The caller throttles on top of that so the statement is not even sent
+// (httpapi.Server.gesehen).
+func (s *Store) Gesehen(ctx context.Context, humanID uuid.UUID) error {
+	_, err := s.pool.Exec(ctx, `UPDATE humans SET last_seen_at = now()
+		WHERE id = $1 AND (last_seen_at IS NULL OR last_seen_at < now() - interval '1 minute')`, humanID)
+	return err
+}
+
+// Anwesende returns everybody in the organisation who has been seen at all,
+// with the moment they were seen. Deliberately NOT a filtered list of "who is
+// online": the threshold belongs to the reader, and a surface that wants to
+// show "away since 14:02" needs the timestamp, not a verdict.
+func (s *Store) Anwesende(ctx context.Context, orgID uuid.UUID) ([]Anwesenheit, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT id, last_seen_at FROM humans WHERE org_id=$1 AND last_seen_at IS NOT NULL`, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	list := []Anwesenheit{}
+	for rows.Next() {
+		var a Anwesenheit
+		if err := rows.Scan(&a.HumanID, &a.LastSeenAt); err != nil {
+			return nil, err
+		}
+		list = append(list, a)
+	}
+	return list, rows.Err()
+}
+
 // --- Humans (org-scoped) ---
 
 func (s *Store) ListHumans(ctx context.Context, orgID uuid.UUID) ([]Human, error) {
 	rows, err := s.pool.Query(ctx, `SELECT id, org_id, email, display_name, role, manager_id,
-			department_id, job_title, identities, phone, responsibilities, custom, created_at
+			department_id, job_title, identities, phone, responsibilities, custom, last_seen_at, created_at
 		FROM humans WHERE org_id=$1 ORDER BY created_at`, orgID)
 	if err != nil {
 		return nil, err
@@ -159,10 +218,11 @@ func (s *Store) ListHumans(ctx context.Context, orgID uuid.UUID) ([]Human, error
 func (s *Store) GetHuman(ctx context.Context, orgID, id uuid.UUID) (Human, error) {
 	var h Human
 	err := s.pool.QueryRow(ctx, `SELECT id, org_id, email, display_name, role, manager_id,
-			department_id, job_title, identities, phone, responsibilities, custom, created_at
+			department_id, job_title, identities, phone, responsibilities, custom, last_seen_at, created_at
 		FROM humans WHERE id=$1 AND org_id=$2`, id, orgID).
 		Scan(&h.ID, &h.OrgID, &h.Email, &h.DisplayName, &h.Role, &h.ManagerID,
-			&h.DepartmentID, &h.JobTitle, &h.Identities, &h.Phone, &h.Responsibilities, &h.Custom, &h.CreatedAt)
+			&h.DepartmentID, &h.JobTitle, &h.Identities, &h.Phone, &h.Responsibilities, &h.Custom,
+			&h.LastSeenAt, &h.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Human{}, ErrNotFound
 	}
@@ -560,7 +620,8 @@ func scanHumans(rows pgx.Rows) ([]Human, error) {
 	for rows.Next() {
 		var h Human
 		if err := rows.Scan(&h.ID, &h.OrgID, &h.Email, &h.DisplayName, &h.Role, &h.ManagerID,
-			&h.DepartmentID, &h.JobTitle, &h.Identities, &h.Phone, &h.Responsibilities, &h.Custom, &h.CreatedAt); err != nil {
+			&h.DepartmentID, &h.JobTitle, &h.Identities, &h.Phone, &h.Responsibilities, &h.Custom,
+			&h.LastSeenAt, &h.CreatedAt); err != nil {
 			return nil, err
 		}
 		list = append(list, h)

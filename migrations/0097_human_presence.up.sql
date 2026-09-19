@@ -1,0 +1,17 @@
+-- Presence for people.
+--
+-- The platform knows whether an agent is awake and says so on every surface.
+-- About the people it knew nothing: humans carried the seat, the department and
+-- the profile, http_sessions carried the login, and nowhere was it written down
+-- that somebody had been here a minute ago.
+--
+-- A TIMESTAMPTZ and not a boolean, on purpose. "online" as a flag has to be
+-- cleared by something, and whatever fails to clear it leaves a person
+-- permanently present who went home on Friday. A timestamp cannot lie in that
+-- direction: it says when the platform last saw somebody, and each surface
+-- decides for itself what still counts as present.
+--
+-- NULL means: never seen since this column exists. That is not the same as
+-- "away", and the interface must not conflate them — a seat that has never been
+-- used looks different from one that was used this morning.
+ALTER TABLE humans ADD COLUMN last_seen_at TIMESTAMPTZ;

@@ -627,6 +627,10 @@ export type Human = {
   responsibilities: string;
   // Values of the org-wide configurable profile fields (key → value).
   custom: Record<string, string>;
+  /* Wann zuletzt ein Aufruf auf diesem Sitz ankam (#315). Fehlt = noch nie
+     gesehen — und das ist NICHT dasselbe wie „weg": Ein Sitz, den niemand
+     benutzt hat, sieht anders aus als einer, der heute Morgen benutzt wurde. */
+  last_seen_at?: string;
   created_at: string;
 };
 
@@ -1525,3 +1529,19 @@ export const ROLES = [
   "controlling",
 ] as const;
 
+
+/* Wer gerade da ist (#315, GET /org/presence).
+ *
+ * Zurück kommt der ZEITPUNKT und kein Urteil: Ob fünf Minuten noch „da"
+ * heißen, entscheidet die Fläche. Das Büro setzt jemanden an den Schreibtisch
+ * oder lässt ihn leer; ein Gespräch schreibt „zuletzt gesehen um 14:02". Ein
+ * Wahrheitswert vom Server könnte beides nicht. */
+export type Anwesenheit = { id: string; last_seen_at: string };
+
+/** Wie alt eine Sichtung sein darf und noch als anwesend zählt. Lang genug für
+ *  einen Kaffee, kurz genug, dass ein zugeklappter Rechner aufhört zu
+ *  behaupten, jemand sei da. */
+export const ANWESEND_MS = 5 * 60 * 1000;
+
+export const istAnwesend = (gesehen?: string) =>
+  !!gesehen && Date.now() - new Date(gesehen).getTime() < ANWESEND_MS;
