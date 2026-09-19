@@ -3138,6 +3138,13 @@
 }
 
 
+/* Der Blick folgt weich, aber nicht träge: Ein Auge, das hinterherzieht,
+   sieht aus wie ein Auge, das nachdenkt — und das tut es hier nicht. */
+.gesicht-blick { transition: transform 260ms cubic-bezier(0.22, 0.61, 0.36, 1); }
+@media (prefers-reduced-motion: reduce) {
+  .gesicht-blick { transition: none; transform: none !important; }
+}
+
 /* Abgeschickt, noch nicht bestätigt. Blass, aber lesbar — und ohne Spinner:
    Der gewöhnliche Fall dauert Millisekunden, und ein Rädchen, das so kurz
    erscheint, ist ein Zucken. */
@@ -3156,6 +3163,7 @@
 .bu { display: flex; flex-direction: column; gap: 14px; }
 
 .bu-flaeche {
+  position: relative; /* die Karte am Platz liegt darin */
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
@@ -3245,6 +3253,17 @@
 /* Nur wer herumläuft, läuft auch weich: Ein Gesicht, das beim Einlaufen der
    Liste über den Raum gleitet, wäre Bewegung ohne Aussage. */
 .bu-wer.geht { transition: transform 1.5s cubic-bezier(0.4, 0, 0.3, 1); }
+/* Wer gewählt ist, steht vorn und ein wenig größer — dasselbe, was ein Mensch
+   tut, wenn man ihn anspricht. Ein Rahmen wäre hier ein Kasten um ein
+   Gesicht. */
+.bu-wer.gewaehlt { z-index: 3; }
+.bu-wer.gewaehlt .gesicht { transform: scale(1.14); }
+.bu-wer.gewaehlt .bu-name { color: var(--text-accent); font-weight: 600; }
+.bu-wer .gesicht { transition: transform 140ms ease-out; }
+.bu-wer:hover .gesicht { transform: scale(1.09); }
+@media (prefers-reduced-motion: reduce) {
+  .bu-wer .gesicht { transition: none; }
+}
 .bu-wer:hover .bu-name { color: var(--text-primary); }
 .bu-wer.gestoppt { opacity: 0.45; }
 .bu-name {
@@ -3290,3 +3309,125 @@
   .bu-wer.geht { transition: none; }
   .bu-platz.belegt { animation: none; }
 }
+
+/* Die Gedankenblase: der letzte aufgezeichnete Schritt, über dem Kopf dessen,
+   der ihn gerade tut. Sie steht über dem Raster und darf über den Raum
+   hinausragen — ein Gedanke hält sich nicht an Zimmerwände. */
+.bu-denkt {
+  position: absolute;
+  bottom: calc(100% - 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  max-width: 108px;
+  padding: 2px 7px;
+  border-radius: 9px 9px 9px 2px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: 10.5px;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  animation: bu-denkt-auf 240ms ease-out both;
+}
+@keyframes bu-denkt-auf {
+  from { opacity: 0; transform: translate(-50%, 4px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+.bu-wer { position: absolute; }
+.bu-raum { overflow: visible; }
+
+/* Die Karte am Platz. Sie liegt über dem Grundriss, nicht daneben: Wer auf
+   einen Kollegen klickt, will nicht, dass die Seite umspringt. */
+.bu-karte {
+  position: absolute;
+  z-index: 10;
+  width: 264px;
+  transform: translateX(-50%);
+  padding: 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  box-shadow: 0 10px 28px light-dark(rgba(0, 0, 0, 0.14), rgba(0, 0, 0, 0.55));
+  animation: bu-karte-auf 160ms ease-out both;
+}
+@keyframes bu-karte-auf {
+  from { opacity: 0; transform: translate(-50%, -6px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+.bu-karte:focus { outline: none; }
+.bu-karte-kopf { display: flex; align-items: center; gap: 9px; }
+.bu-karte-wer { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.bu-karte-wer strong { font-size: 14px; font-weight: 600; }
+.bu-karte-rolle {
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bu-karte-zu {
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.bu-karte-zu:hover { color: var(--text-primary); background: var(--tint-weak); }
+.bu-karte-lage { display: flex; flex-direction: column; gap: 2px; padding: 9px 0 10px; }
+.bu-karte-titel { font-size: 13px; line-height: 1.4; }
+.bu-karte-unten { font-size: 12px; color: var(--text-muted); }
+
+/* Etwas sagen, ohne das Büro zu verlassen. Dasselbe Tor wie im Verlauf —
+   dieselbe Adresse, dieselbe Triage, nur ohne die Antwort daneben. */
+.bu-karte-sagen { display: flex; gap: 6px; }
+.bu-karte-sagen input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-0);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+}
+.bu-karte-sagen input:focus { border-color: var(--text-accent); outline: none; }
+.bu-karte-sagen button {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 999px;
+  background: var(--text-accent);
+  color: var(--surface-2);
+  font-size: 14px;
+  cursor: pointer;
+}
+.bu-karte-sagen button:disabled { opacity: 0.4; cursor: default; }
+.bu-karte-ab { padding: 7px 0 0; font-size: 12px; color: var(--text-accent); }
+.bu-karte-hin {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 7px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-0);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.bu-karte-hin:hover { border-color: var(--border-strong); background: var(--tint-weak); }
+
+@media (prefers-reduced-motion: reduce) {
+  .bu-karte, .bu-denkt { animation: none; }
+}
+

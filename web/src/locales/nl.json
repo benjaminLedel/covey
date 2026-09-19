@@ -2382,6 +2382,11 @@
       "guardrail": "bij een regel",
       "lifecycle": "wisselt van toestand",
       "action": "werkt in het doelsysteem"
-    }
+    },
+    "schlaeft": "slaapt",
+    "bereit": "niets te doen",
+    "angenommen": "Aangenomen — het antwoord staat in het gesprek.",
+    "gespraech": "Gesprek openen",
+    "senden": "Versturen"
   }
 }

@@ -2382,6 +2382,11 @@
       "guardrail": "przy regule",
       "lifecycle": "zmienia stan",
       "action": "pracuje w systemie docelowym"
-    }
+    },
+    "schlaeft": "śpi",
+    "bereit": "nic do zrobienia",
+    "angenommen": "Przyjęto — odpowiedź jest w rozmowie.",
+    "gespraech": "Otwórz rozmowę",
+    "senden": "Wyślij"
   }
 }

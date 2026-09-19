@@ -2382,6 +2382,11 @@
       "guardrail": "ルールの前で",
       "lifecycle": "状態が変わります",
       "action": "対象システムで作業中"
-    }
+    },
+    "schlaeft": "休止中",
+    "bereit": "待機中",
+    "angenommen": "受け付けました。返答は会話に表示されます。",
+    "gespraech": "会話を開く",
+    "senden": "送信"
   }
 }

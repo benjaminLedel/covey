@@ -2382,6 +2382,11 @@
       "guardrail": "sur une règle",
       "lifecycle": "change d'état",
       "action": "travaille dans le système cible"
-    }
+    },
+    "schlaeft": "dort",
+    "bereit": "rien à faire",
+    "angenommen": "Accepté — la réponse est dans la conversation.",
+    "gespraech": "Ouvrir la conversation",
+    "senden": "Envoyer"
   }
 }

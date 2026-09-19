@@ -2382,6 +2382,11 @@
       "guardrail": "在规则前",
       "lifecycle": "状态变更",
       "action": "在目标系统中工作"
-    }
+    },
+    "schlaeft": "休眠中",
+    "bereit": "暂无任务",
+    "angenommen": "已接收，回复会出现在对话里。",
+    "gespraech": "打开对话",
+    "senden": "发送"
   }
 }

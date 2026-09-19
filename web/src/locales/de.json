@@ -2382,6 +2382,11 @@
       "guardrail": "an einer Regel",
       "lifecycle": "wechselt den Zustand",
       "action": "arbeitet im Zielsystem"
-    }
+    },
+    "schlaeft": "schläft",
+    "bereit": "nichts zu tun",
+    "angenommen": "Angenommen — die Antwort steht im Gespräch.",
+    "gespraech": "Gespräch öffnen",
+    "senden": "Senden"
   }
 }

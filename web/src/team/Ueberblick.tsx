@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { useEffect, useState } from "react";
 import { api, inbox, type Agent, type Department, type InboxEntry, type Laufend, type Principal } from "../api";
 import Gesicht from "../components/Gesicht";
 import Buero from "./Buero";
+import Dauer from "../components/Dauer";
 
 /* Der Überblick — die Seite, auf der jeder landet.
  *
@@ -121,7 +121,7 @@ export default function Ueberblick({ me }: { me: Principal }) {
                       {l.step && <> · {t(`team.schritt.${l.step}`, l.step)}</>}
                     </span>
                   </span>
-                  <Dauer seit={l.since} />
+                  <Dauer seit={l.since} className="tm-laeuft-dauer" />
                 </Link>
               </li>
             ))}
@@ -141,30 +141,10 @@ export default function Ueberblick({ me }: { me: Principal }) {
           departments={abteilungen.data ?? []}
           laufend={laeuft}
           wartetBei={new Set((offen.data?.items ?? []).map((e) => e.agent_id))}
+          me={me}
         />
       </section>
 
     </div>
-  );
-}
-
-/* Die Dauer zählt im Browser weiter.
- *
- * Vom Server käme sie als Zahl, die in dem Moment falsch ist, in dem sie
- * ankommt — und eine Dauer, die erst beim nächsten Abruf springt, sagt das
- * Gegenteil dessen, was sie zeigen soll: dass hier gerade etwas passiert. */
-function Dauer({ seit }: { seit: string }) {
-  const [jetzt, setJetzt] = useState(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setJetzt(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
-  const s = Math.max(0, Math.floor((jetzt - new Date(seit).getTime()) / 1000));
-  const text =
-    s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
-  return (
-    <time className="tm-laeuft-dauer" dateTime={seit}>
-      {text}
-    </time>
   );
 }
