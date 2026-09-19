@@ -2214,11 +2214,16 @@
    Was bleibt, ist der Unterschied im INHALT: dort dreizehn Ziele, hier die
    Kollegen — und rechts kein gepolstertes Blatt, sondern ein Verlauf, der
    selbst scrollt und sein Eingabefeld unten festhält. */
-/* Schmaler als in der Konsole: Dort stehen dreizehn Ziele mit Beschriftung,
-   hier Namen und ein Gesicht — und rechts daneben liegt ein Gespräch, das
-   jede Spalte Breite gebrauchen kann. */
+/* Genauso breit wie in der Konsole, und das ist der Punkt (#313): Die Spalte
+   war hier 208px und dort 232px, also sprang beim Wechsel der Schale die
+   ganze Inhaltsfläche um 24 Pixel zur Seite — die Überschrift, die erste
+   Spalte jeder Tabelle, der Grundriss. Gedacht war die Verschmälerung als
+   Geschenk an das Gespräch rechts daneben; messbar war davon nichts, und
+   bezahlt hat es die Liste, für die die Spalte da ist: Bei 208px endeten
+   genau die Namen in drei Punkten, die sie zeigen soll.
+
+   Der Schalter wechselt den INHALT der Spalte, nicht den Rahmen darum. */
 .tm-sidebar {
-  width: 208px;
   /* Die Liste dazwischen wächst und scrollt, damit der Fuß unten stehen
      bleibt: In der Konsole tut das eine `mt-auto`-Gruppe, hier die Liste
      selbst — sie ist das Einzige, was beliebig lang wird. */
