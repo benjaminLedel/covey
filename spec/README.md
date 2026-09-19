@@ -51,6 +51,7 @@ The guiding metaphor from which the whole architecture follows: the platform is 
 | [`25-sevencode-adapter.md`](25-sevencode-adapter.md) | Fourth engine (unverified): SevenCode as a second harness on the educa gateway, credential as token and as login file, why `Resume` is false without a session id, and the four open points that close the gap |
 | [`26-engine-catalogue.md`](26-engine-catalogue.md) | Where a runtime binary comes from: the third catalogue, one layer per engine installed on the runner instead of one engine baked into every workplace image, the digest as the trust anchor, the operator's URL and never an agent's |
 | [`27-mobile-app.md`](27-mobile-app.md) | The mobile app (specification): the chat and the open points where the person is, why the self-hosted instance is the hardest constraint, the device badge the API still owes it, push without content, and what the app must never do |
+| [`28-team-surface.md`](28-team-surface.md) | The team surface (first slice built, the rest specified): the org chart as the directory rather than a second editor, humans in the conversation and how they are reached without a backlog, group conversations as an envelope that owns no work, and the account-scoped reads several organisations at once would need — with the rule that reading crosses the boundary and writing never does |
 
 ## Design principles
 
