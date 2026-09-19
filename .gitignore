@@ -36,3 +36,7 @@ praesentationen/~$*
 
 # Review scratch of an external tool — per-working-copy output, not project state
 .impeccable/
+
+# Python bytecode of the demo scripts — build output, not project state
+__pycache__/
+*.pyc
