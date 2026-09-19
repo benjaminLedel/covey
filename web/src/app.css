@@ -460,7 +460,11 @@
   font-variant-numeric: tabular-nums;
   cursor: default;
 }
-.main-build .bt { opacity: 0.75; }
+/* Keine Deckkraft auf einer Schriftfarbe, die schon die leiseste ist: 0,75
+   auf --text-muted ergab 3,4:1 bei 10,5px, und Lighthouse hat genau diese
+   zwei Zeilen als einzigen Kontrastfehler der Oberfläche gemeldet. Leise
+   wird sie durch Größe und Stellung, nicht durch Verdünnung. */
+.main-build .bt { color: var(--text-muted); }
 /* Der Quelltext-Link (AGPL) tritt bewusst zurück: Er muss auffindbar sein,
    nicht auffallen. Erst beim Überfahren nimmt er die Textfarbe an. */
 .main-build .build-src { color: inherit; text-decoration: none; }
@@ -2196,4 +2200,373 @@
   font-size: 11.5px;
   color: var(--text-muted);
   word-break: break-word;
+}
+
+/* ── Der Workspace ──────────────────────────────────────────────────────
+   Die zweite Schale: die Oberfläche dessen, der MIT der Belegschaft
+   arbeitet. Sie teilt sich mit der Konsole die Tokens und sonst nichts —
+   eigene Kopfzeile, eigene Liste, eigener Grund.
+
+   Die drei Flächen folgen der Logik des Hauses: surface-1 ist die
+   eingedrückte Fläche (die Liste links, wie die Seitenleiste drüben),
+   surface-2 die erhabene (der Verlauf), surface-0 der Grund dazwischen. */
+.ws {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  background: var(--surface-0);
+}
+
+.ws-top {
+  flex: none;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 0 16px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+.ws-marke {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+/* Der Schalter zwischen den Schalen. Eine Pille mit zwei Hälften, die
+   aktive gefüllt — dieselbe Form in beiden Schalen, damit die Bewegung an
+   derselben Stelle liegt und gleich aussieht. */
+.ws-schalter,
+.shell-schalter {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border-radius: 999px;
+  background: var(--tint-weak);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  line-height: 1;
+}
+.ws-schalter-an,
+.ws-schalter-aus,
+.shell-schalter-an,
+.shell-schalter-aus {
+  padding: 6px 13px;
+  border-radius: 999px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.ws-schalter-an,
+.shell-schalter-an {
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-weight: 500;
+  box-shadow: 0 1px 2px var(--shadow-xs);
+}
+.ws-schalter-aus,
+.shell-schalter-aus {
+  color: var(--text-secondary);
+}
+.ws-schalter-aus:hover,
+.shell-schalter-aus:hover {
+  color: var(--text-primary);
+}
+/* In der Konsole sitzt der Schalter unter der Wortmarke und über der
+   Navigation; er bekommt dort den Rand der Leiste. */
+.shell-schalter {
+  margin: 4px 14px 14px;
+  align-self: stretch;
+}
+.shell-schalter-an,
+.shell-schalter-aus {
+  flex: 1;
+  text-align: center;
+}
+
+.ws-top-rechts {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* Die Sprachwahl ist auf den öffentlichen Seiten fest in der Ecke verankert
+   (styles.css, .lang-pick.pill). In dieser Kopfzeile steht sie in der Reihe,
+   sonst schwebt sie über dem, was rechts von ihr liegt. */
+.ws-top .lang-pick.pill { position: static; }
+.ws-ich {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: var(--bg-accent);
+  color: var(--text-accent);
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.ws-abmelden {
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 6px 10px;
+  border-radius: var(--radius);
+}
+.ws-abmelden:hover { color: var(--text-primary); background: var(--tint-weak); }
+
+.ws-raum {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+}
+
+/* ── Die Liste links ──────────────────────────────────────────────────── */
+.ws-liste {
+  overflow-y: auto;
+  padding: 10px 8px 24px;
+  background: var(--surface-1);
+  border-right: 1px solid var(--border);
+}
+.ws-leise { color: var(--text-muted); font-size: 13px; padding: 6px 10px; }
+
+/* Was wartet steht ganz oben und ist der Grund, warum es diese Oberfläche
+   gibt. Der Punkt davor ist gefüllt, solange etwas offen ist — und er trägt
+   eine Zahl daneben, weil ein Punkt allein eine Farbe ist und keine Aussage. */
+.ws-wartet {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 11px;
+  margin-bottom: 14px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.ws-wartet:hover { background: var(--tint-weak); }
+.ws-wartet.on { background: var(--bg-accent); color: var(--text-accent); }
+.ws-wartet-punkt {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-muted);
+}
+.ws-wartet-punkt[data-offen="true"] {
+  background: var(--text-warning);
+  border-color: var(--text-warning);
+}
+.ws-zahl {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--bg-warning);
+  color: var(--text-warning);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.ws-gruppe { margin-bottom: 14px; }
+.ws-gruppe-kopf {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 11px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+/* Die Farbe der Abteilung, so wie das Organigramm sie führt. Sie steht als
+   Punkt und nie allein: daneben der Name. */
+.ws-dept-punkt { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+
+.ws-kollege {
+  display: block;
+  padding: 7px 11px;
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: var(--text-primary);
+}
+.ws-kollege:hover { background: var(--tint-weak); }
+.ws-kollege.on { background: var(--bg-accent); }
+.ws-kollege.on .ws-kollege-name { color: var(--text-accent); }
+.ws-kollege-name { display: block; font-size: 14px; }
+.ws-kollege-rolle {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Der Verlauf ──────────────────────────────────────────────────────── */
+.ws-haupt { min-width: 0; display: flex; flex-direction: column; background: var(--surface-2); }
+.ws-thread { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.ws-thread-kopf {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+}
+.ws-thread-kopf h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+.ws-thread-kopf p { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+.ws-thread-verwaltung { margin-left: auto; font-size: 13px; color: var(--text-accent); text-decoration: none; }
+.ws-thread-verwaltung:hover { text-decoration: underline; }
+
+.ws-verlauf {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Die Trennlinie je Vorgang. Ohne sie liest sich ein Verlauf, in dem Chat,
+   Webhook und Takt nebeneinander stehen, als ein einziges durcheinander
+   geredetes Gespräch. */
+.ws-vorgang {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 0 2px;
+}
+.ws-vorgang-linie { flex: 1; height: 1px; background: var(--border); }
+.ws-vorgang-titel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  max-width: 46ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-vorgang-titel:hover { color: var(--text-primary); text-decoration: underline; }
+.ws-vorgang-quelle { font-size: 11px; color: var(--text-muted); }
+
+.ws-blase { max-width: min(70ch, 78%); }
+.ws-blase.ich { align-self: flex-end; }
+.ws-blase.er { align-self: flex-start; }
+.ws-blase-kopf { font-size: 11.5px; color: var(--text-muted); margin-bottom: 4px; }
+.ws-blase.ich .ws-blase-kopf { text-align: right; }
+.ws-blase-text {
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.55;
+  background: var(--surface-0);
+  border: 1px solid var(--border);
+}
+/* Die eigene Nachricht trägt den Lehm-Ton der Marke — die einzige Fläche
+   dieser Oberfläche, die eine Farbe hat, weil sie die einzige ist, die
+   „von mir" sagen muss. */
+.ws-blase.ich .ws-blase-text {
+  background: var(--bg-accent);
+  border-color: transparent;
+}
+/* Die Frage ist der Moment, um den es geht: der Agent steht still. */
+.ws-blase.k-question .ws-blase-text {
+  background: var(--bg-warning);
+  border-color: var(--warning-ring);
+}
+.ws-blase.k-result .ws-blase-text {
+  background: var(--bg-success);
+  border-color: var(--success-ring);
+}
+.ws-blase.k-error .ws-blase-text {
+  border-color: var(--border-danger);
+  background: var(--danger-tint);
+}
+.ws-blase-text p + p { margin-top: 8px; }
+.ws-blase-text pre, .ws-blase-text code { font-size: 12.5px; }
+
+.ws-antwort { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.ws-antwort textarea { width: 100%; resize: vertical; }
+.ws-antwort-knoepfe { display: flex; gap: 8px; }
+
+.ws-eingabe {
+  flex: none;
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  padding: 14px 24px 18px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.ws-eingabe textarea { flex: 1; resize: vertical; }
+.ws-fehler { padding: 0 24px 12px; color: var(--text-danger); font-size: 13px; }
+
+.ws-leer { margin: auto; text-align: center; max-width: 42ch; }
+.ws-leer p { font-size: 15px; }
+.ws-leer .ws-leise { margin-top: 6px; }
+
+/* ── Was wartet ───────────────────────────────────────────────────────── */
+.ws-wartet-seite { padding: 28px 28px 40px; overflow-y: auto; }
+.ws-wartet-kopf { margin-bottom: 20px; }
+.ws-wartet-kopf h1 { font-size: 21px; font-weight: 600; letter-spacing: -0.015em; }
+.ws-wartet-kopf .ws-leise { padding: 4px 0 0; }
+.ws-wartet-liste { list-style: none; max-width: 92ch; }
+.ws-wartet-liste li + li { border-top: 1px solid var(--border); }
+.ws-wartet-zeile {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 10px;
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: var(--text-primary);
+}
+.ws-wartet-zeile:hover { background: var(--tint-weak); }
+.ws-art {
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 500;
+  background: var(--bg-pro);
+  color: var(--text-pro);
+  white-space: nowrap;
+}
+/* Eine Freigabe hält einen Agenten an — sie trägt deshalb die Warnfarbe,
+   die übrigen Arten bleiben neutral. */
+.ws-art.a-approval { background: var(--bg-warning); color: var(--text-warning); }
+.ws-wartet-titel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.ws-wartet-wer { font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
+.ws-wartet-zeile time { font-size: 12px; white-space: nowrap; }
+.ws-wartet-alle { display: inline-block; margin-top: 18px; font-size: 13px; color: var(--text-accent); }
+
+/* Schmale Fenster: die Liste legt sich über den Verlauf, statt ihn auf
+   40 Zeichen zu quetschen. */
+@media (max-width: 860px) {
+  .ws-raum { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .ws-liste {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+    padding: 8px;
+  }
+  .ws-gruppe { display: flex; gap: 6px; margin: 0; }
+  .ws-gruppe-kopf { display: none; }
+  .ws-wartet { margin: 0; white-space: nowrap; }
+  .ws-kollege { white-space: nowrap; }
+  .ws-kollege-rolle { display: none; }
+  .ws-blase { max-width: 88%; }
 }

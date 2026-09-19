@@ -86,8 +86,7 @@
     "administrationSection": "Beheer",
     "administration": "Organisatie",
     "approvals": "Goedkeuringen",
-    "infrastructure": "Infrastructuur",
-    "chat": "Chat"
+    "infrastructure": "Infrastructuur"
   },
   "costs": {
     "title": "Kosten en tokens",
@@ -2318,6 +2317,30 @@
       "question": "Vraag",
       "result": "Resultaat",
       "error": "Mislukt"
+    }
+  },
+  "workspace": {
+    "workspace": "Werkruimte",
+    "verwaltung": "Beheer",
+    "schalterAria": "Wisselen tussen werkruimte en beheer",
+    "kollegen": "Collega's",
+    "wartet": "Wacht op u",
+    "wartetTitel": "Goedendag, {{name}}",
+    "wartetLead": "{{count}} punten wachten op een beslissing.",
+    "wartetNichts": "Er wacht niets. Het personeel werkt of slaapt.",
+    "ohneAbteilung": "Zonder afdeling",
+    "imAdmin": "In beheer openen",
+    "abbrechen": "Annuleren",
+    "quelle": "uit {{quelle}}",
+    "leerTitel": "Nog niets met {{name}} besproken.",
+    "leerText": "Schrijf hieronder wat er moet gebeuren — daar wordt een taak van.",
+    "alleOffenen": "Alle open punten in de inbox",
+    "art": {
+      "approval": "Goedkeuring",
+      "proposal": "Voorstel",
+      "finding": "Bevinding",
+      "issue": "Melding",
+      "tool_request": "Aanvraag"
     }
   }
 }

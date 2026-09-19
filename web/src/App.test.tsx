@@ -149,11 +149,12 @@ describe("App bei ablaufender Sitzung", () => {
 
   it("landet auch von der Übersicht aus auf der Anmeldung", async () => {
     /* Whoever loses the session on the dashboard should see the login and read
-       why they stand in front of it again, also from "/", where a first
-       visitor does not get the sentence just now. */
+       why they stand in front of it again, also from the agent list, where a
+       first visitor does not get the sentence just now. The list moved from
+       "/" to "/agents" when the workspace took the root. */
     let angemeldet = true;
     serverMitSitzung(() => angemeldet);
-    renderApp(<App />, "/");
+    renderApp(<App />, "/agents");
 
     // On the dashboard `Agenten` stands twice: in the navigation and as a
     // heading.

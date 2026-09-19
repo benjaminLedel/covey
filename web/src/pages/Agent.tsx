@@ -115,14 +115,14 @@ export default function AgentPage({ me }: { me: Principal }) {
      session starts in the account's oldest seat — or after following a link
      into another organisation. A sentence with nothing to click is a dead end;
      the start page is not. */
-  if (isNotFound(agent.error)) return <Navigate to="/" replace />;
+  if (isNotFound(agent.error)) return <Navigate to="/agents" replace />;
   if (agent.isError || !agent.data) return <p className="danger-text">{t("agent.notFound")}</p>;
   const a = agent.data;
 
   return (
     <div>
       <div className="text-sm secondary mb-3">
-        <Link to="/" style={{ color: "inherit" }}>
+        <Link to="/agents" style={{ color: "inherit" }}>
           {t("agent.breadcrumb")}
         </Link>{" "}
         / <b style={{ color: "var(--text-primary)", fontWeight: 500 }}>{a.display_name}</b>

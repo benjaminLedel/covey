@@ -1,6 +1,6 @@
 # 27 — The mobile app: the chat where the person is
 
-**Status: specification, nothing built.** What it builds on exists: the chat is in covey (#298 — `internal/httpapi/chat.go`, `web/src/pages/Chat.tsx`). This document is written for the developers who build the app, and it says what they may rely on, what they have to ask for, and what the app must never do.
+**Status: specification, nothing built.** What it builds on exists: the chat is in covey (#298 — `internal/httpapi/chat.go`, `web/src/workspace/`). This document is written for the developers who build the app, and it says what they may rely on, what they have to ask for, and what the app must never do.
 
 ## Why an app
 
@@ -9,6 +9,8 @@ The chat made handing work over possible. It did not make the way back work. The
 The cost of that is measurable in the object: a task in `blocked` costs nothing to hold and everything to hold too long. The agent has done the work up to the question; until the answer comes, its context is parked and its sandbox is gone. Every hour there is an hour in which the ticket it came from ages.
 
 So the app has exactly one job: **carry the question to the person and the answer back**. Everything else it does is in service of that.
+
+The web has the same split since #298: the workspace is its own shell there, not a page in the console — same three surfaces, same rule about what belongs in neither. The app inherits that division rather than inventing one.
 
 ## What the app is
 

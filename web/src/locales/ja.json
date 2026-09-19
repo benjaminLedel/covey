@@ -86,8 +86,7 @@
     "administrationSection": "管理",
     "administration": "組織",
     "approvals": "承認",
-    "infrastructure": "インフラ",
-    "chat": "チャット"
+    "infrastructure": "インフラ"
   },
   "costs": {
     "title": "コストとトークン",
@@ -2318,6 +2317,30 @@
       "question": "質問",
       "result": "結果",
       "error": "失敗"
+    }
+  },
+  "workspace": {
+    "workspace": "ワークスペース",
+    "verwaltung": "管理",
+    "schalterAria": "ワークスペースと管理を切り替える",
+    "kollegen": "同僚",
+    "wartet": "お待ちしています",
+    "wartetTitel": "こんにちは、{{name}} さん",
+    "wartetLead": "{{count}} 件が判断を待っています。",
+    "wartetNichts": "待っているものはありません。みな働いているか眠っています。",
+    "ohneAbteilung": "部署なし",
+    "imAdmin": "管理画面で開く",
+    "abbrechen": "取り消す",
+    "quelle": "{{quelle}} から",
+    "leerTitel": "{{name}} とはまだ何も話していません。",
+    "leerText": "何をしてほしいか下に書いてください。タスクになります。",
+    "alleOffenen": "受信箱の未処理をすべて見る",
+    "art": {
+      "approval": "承認",
+      "proposal": "提案",
+      "finding": "指摘",
+      "issue": "報告",
+      "tool_request": "申請"
     }
   }
 }

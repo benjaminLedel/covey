@@ -86,8 +86,7 @@
     "administrationSection": "Administration",
     "administration": "Organization",
     "approvals": "Approvals",
-    "infrastructure": "Infrastructure",
-    "chat": "Chat"
+    "infrastructure": "Infrastructure"
   },
   "costs": {
     "title": "Cost & Tokens",
@@ -2318,6 +2317,30 @@
       "question": "Question",
       "result": "Result",
       "error": "Failed"
+    }
+  },
+  "workspace": {
+    "workspace": "Workspace",
+    "verwaltung": "Admin",
+    "schalterAria": "Switch between workspace and admin",
+    "kollegen": "Colleagues",
+    "wartet": "Waiting for you",
+    "wartetTitel": "Hello, {{name}}",
+    "wartetLead": "{{count}} points are waiting for a decision.",
+    "wartetNichts": "Nothing is waiting. The workforce is working or asleep.",
+    "ohneAbteilung": "No department",
+    "imAdmin": "Open in admin",
+    "abbrechen": "Cancel",
+    "quelle": "from {{quelle}}",
+    "leerTitel": "Nothing discussed with {{name}} yet.",
+    "leerText": "Write what needs doing below — it becomes a task.",
+    "alleOffenen": "All open points in the inbox",
+    "art": {
+      "approval": "Approval",
+      "proposal": "Proposal",
+      "finding": "Finding",
+      "issue": "Issue",
+      "tool_request": "Request"
     }
   }
 }

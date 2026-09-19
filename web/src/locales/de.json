@@ -86,8 +86,7 @@
     "administrationSection": "Verwaltung",
     "administration": "Administration",
     "approvals": "Freigaben",
-    "infrastructure": "Infrastruktur",
-    "chat": "Chat"
+    "infrastructure": "Infrastruktur"
   },
   "costs": {
     "title": "Kosten & Token",
@@ -2318,6 +2317,30 @@
       "question": "Frage",
       "result": "Ergebnis",
       "error": "Fehlgeschlagen"
+    }
+  },
+  "workspace": {
+    "workspace": "Workspace",
+    "verwaltung": "Verwaltung",
+    "schalterAria": "Zwischen Workspace und Verwaltung wechseln",
+    "kollegen": "Kollegen",
+    "wartet": "Wartet auf Sie",
+    "wartetTitel": "Guten Tag, {{name}}",
+    "wartetLead": "{{count}} Punkte warten auf eine Entscheidung.",
+    "wartetNichts": "Nichts wartet. Die Belegschaft arbeitet oder schläft.",
+    "ohneAbteilung": "Ohne Abteilung",
+    "imAdmin": "In der Verwaltung öffnen",
+    "abbrechen": "Abbrechen",
+    "quelle": "aus {{quelle}}",
+    "leerTitel": "Noch nichts mit {{name}} besprochen.",
+    "leerText": "Schreiben Sie unten, was zu tun ist — daraus wird eine Aufgabe.",
+    "alleOffenen": "Alle offenen Punkte im Posteingang",
+    "art": {
+      "approval": "Freigabe",
+      "proposal": "Vorschlag",
+      "finding": "Befund",
+      "issue": "Meldung",
+      "tool_request": "Antrag"
     }
   }
 }

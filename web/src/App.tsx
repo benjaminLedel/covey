@@ -11,7 +11,20 @@ import SignedOut from "./public/SignedOut";
    website (#122). No placeholder: nothing stood here anyway while
    /auth/me ran. */
 const AppShell = lazy(() => import("./AppShell"));
+const Workspace = lazy(() => import("./workspace/Workspace"));
 const NoOrganization = lazy(() => import("./pages/NoOrganization"));
+
+/* Zwei Schalen, und welche gilt, entscheidet die Adresse.
+ *
+ * Der Workspace ist die Oberfläche dessen, der MIT der Belegschaft arbeitet:
+ * Verläufe, offene Fragen, ein Eingabefeld. Die Konsole ist die Oberfläche
+ * dessen, der sie BAUT: Konfiguration, Zugänge, Guard-Rails, Kosten. Beide
+ * teilen sich weder Navigation noch Grund — ein Reiter zwischen dreizehn
+ * anderen hätte behauptet, das sei dieselbe Arbeit.
+ *
+ * Die Wurzel gehört dem Workspace, weil dort jeder landet. Die Agentenliste,
+ * die früher hier stand, steht unter /agents. */
+const imWorkspace = (pfad: string) => pfad === "/" || pfad.startsWith("/w/");
 
 // useLiveEvents keeps the UI current over SSE: every server event invalidates
 // the queries it touches, and TanStack Query refetches just those.
@@ -166,7 +179,11 @@ export default function App() {
   if (weiter) return <Navigate to={weiter} replace />;
   return (
     <Suspense fallback={null}>
-      <AppShell me={me.data!} onLogout={() => me.refetch()} />
+      {imWorkspace(location.pathname) ? (
+        <Workspace me={me.data!} onLogout={() => me.refetch()} />
+      ) : (
+        <AppShell me={me.data!} onLogout={() => me.refetch()} />
+      )}
     </Suspense>
   );
 }

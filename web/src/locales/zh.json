@@ -86,8 +86,7 @@
     "administrationSection": "管理",
     "administration": "组织",
     "approvals": "审批",
-    "infrastructure": "基础设施",
-    "chat": "聊天"
+    "infrastructure": "基础设施"
   },
   "costs": {
     "title": "成本与令牌",
@@ -2318,6 +2317,30 @@
       "question": "问题",
       "result": "结果",
       "error": "失败"
+    }
+  },
+  "workspace": {
+    "workspace": "工作区",
+    "verwaltung": "管理",
+    "schalterAria": "在工作区与管理之间切换",
+    "kollegen": "同事",
+    "wartet": "等着您",
+    "wartetTitel": "您好，{{name}}",
+    "wartetLead": "有 {{count}} 项等待决定。",
+    "wartetNichts": "没有等待的事项。同事们在工作或休眠。",
+    "ohneAbteilung": "无部门",
+    "imAdmin": "在管理中打开",
+    "abbrechen": "取消",
+    "quelle": "来自 {{quelle}}",
+    "leerTitel": "还没有和 {{name}} 谈过。",
+    "leerText": "在下面写下要做的事，它会成为一个任务。",
+    "alleOffenen": "查看收件箱中所有未处理事项",
+    "art": {
+      "approval": "审批",
+      "proposal": "建议",
+      "finding": "发现",
+      "issue": "报告",
+      "tool_request": "申请"
     }
   }
 }

@@ -22,7 +22,7 @@ describe("Person in einer anderen Organisation", () => {
         <MemoryRouter initialEntries={[`/people/${HUMAN_ID}`]}>
           <Routes>
             <Route path="/people/:id" element={<PersonPage me={testPrincipal()} />} />
-            <Route path="/" element={<p>Startseite</p>} />
+            <Route path="/agents" element={<p>Startseite</p>} />
           </Routes>
         </MemoryRouter>
       </QueryClientProvider>,

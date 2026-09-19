@@ -15,7 +15,7 @@
 import { Suspense, lazy, useEffect, useState, type JSX } from "react";
 import { BirdMark } from "./components/BirdMark";
 import { useQuery } from "@tanstack/react-query";
-import { NavLink, Navigate, Route, Routes, useLocation } from "react-router";
+import { Link, NavLink, Navigate, Route, Routes, useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
 import {
   api,
@@ -39,7 +39,6 @@ import "./app.css";
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const AgentPage = lazy(() => import("./pages/Agent"));
 const Inbox = lazy(() => import("./pages/Inbox"));
-const Chat = lazy(() => import("./pages/Chat"));
 const Guardrails = lazy(() => import("./pages/Guardrails"));
 const Secrets = lazy(() => import("./pages/Secrets"));
 const Skills = lazy(() => import("./pages/Skills"));
@@ -394,16 +393,23 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
           <BirdMark size={26} />
           covey
         </div>
+        {/* Der Weg zurück in den Workspace. Er steht oben und nicht in einem
+            Menü, weil er das Gegenstück zum Schalter dort ist: zwei Schalen,
+            eine Bewegung zwischen ihnen. */}
+        <nav className="shell-schalter" aria-label={t("workspace.schalterAria")}>
+          <Link to="/" className="shell-schalter-aus">
+            {t("workspace.workspace")}
+          </Link>
+          <span className="shell-schalter-an" aria-current="page">
+            {t("workspace.verwaltung")}
+          </span>
+        </nav>
         {/* The navigation grew — the order showed when something was added,
             not when it is needed. Now sorted by the everyday: on top what
             opens daily; below what is set up once; then the
             oversight. */}
         <div className="nav-group">
-          <NavItem to="/" end icon="robot" label={t("nav.agents")} />
-          {/* Der Chat steht bei den Agenten und nicht unter „Einrichtung“:
-              Er ist die Sicht dessen, der MIT einem Agenten arbeitet, nicht
-              die dessen, der ihn baut (#298). */}
-          <NavItem to="/chat" icon="chat" label={t("nav.chat")} />
+          <NavItem to="/agents" end icon="robot" label={t("nav.agents")} />
           <NavItem to="/inbox" icon="bell" label={t("nav.inbox")} count={pending} />
           <NavItem to="/costs" icon="chart" label={t("nav.costs")} />
           <NavItem to="/org" icon="sitemap" label={t("nav.org")} />
@@ -546,7 +552,7 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
               signal. */}
           <Suspense fallback={null}>
           <Routes>
-            <Route path="/" element={<Dashboard me={me} />} />
+            <Route path="/agents" element={<Dashboard me={me} />} />
             <Route path="/agents/:id" element={<AgentPage me={me} />} />
             <Route path="/templates" element={<Templates me={me} />} />
             <Route path="/skills" element={<Skills me={me} />} />
@@ -556,7 +562,6 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
             <Route path="/people/:id" element={<PersonPage me={me} />} />
             <Route path="/profile" element={<Navigate to={`/people/${me.ID}`} replace />} />
             <Route path="/inbox" element={<Inbox me={me} />} />
-            <Route path="/chat" element={<Chat me={me} />} />
             {/* The old addresses stay valid: both were linked to. */}
             <Route path="/approvals" element={<Navigate to="/inbox" replace />} />
             <Route path="/improvements" element={<Navigate to="/inbox" replace />} />
@@ -568,11 +573,11 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
                 `/platform` the installation with all its tenants. */}
             <Route
               path="/administration/*"
-              element={me.Role === "org_admin" ? <Administration me={me} /> : <Navigate to="/" replace />}
+              element={me.Role === "org_admin" ? <Administration me={me} /> : <Navigate to="/agents" replace />}
             />
             <Route
               path="/platform/*"
-              element={istSystemAdmin(me) ? <Platform me={me} /> : <Navigate to="/" replace />}
+              element={istSystemAdmin(me) ? <Platform me={me} /> : <Navigate to="/agents" replace />}
             />
             {/* The old addresses stay valid — both were linked to and
                 bookmarked. */}
@@ -594,7 +599,7 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
             <Route path="/audit" element={<Audit />} />
             <Route path="/targets" element={<Targets me={me} />} />
             <Route path="/egress/*" element={<Egress me={me} />} />
-            <Route path="*" element={<Navigate to="/" />} />
+            <Route path="*" element={<Navigate to="/agents" />} />
           </Routes>
           </Suspense>
         </div>

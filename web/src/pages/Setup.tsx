@@ -43,7 +43,7 @@ export default function Setup() {
           <span className="secondary text-xs">{t("setup.progress", { done, total: 3 })}</span>
           {/* The way out, always visible: skippable means that you
               see it — not that you have to guess it. */}
-          <Link className="btn sm" to="/">
+          <Link className="btn sm" to="/agents">
             {done === 3 ? t("setup.finish") : t("setup.later")}
           </Link>
         </div>

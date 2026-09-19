@@ -86,8 +86,7 @@
     "administrationSection": "Administracja",
     "administration": "Organizacja",
     "approvals": "Zatwierdzenia",
-    "infrastructure": "Infrastruktura",
-    "chat": "Czat"
+    "infrastructure": "Infrastruktura"
   },
   "costs": {
     "title": "Koszty i tokeny",
@@ -2318,6 +2317,30 @@
       "question": "Pytanie",
       "result": "Wynik",
       "error": "Niepowodzenie"
+    }
+  },
+  "workspace": {
+    "workspace": "Przestrzeń",
+    "verwaltung": "Administracja",
+    "schalterAria": "Przełączanie między przestrzenią pracy a administracją",
+    "kollegen": "Koledzy",
+    "wartet": "Czeka na Państwa",
+    "wartetTitel": "Dzień dobry, {{name}}",
+    "wartetLead": "{{count}} punktów czeka na decyzję.",
+    "wartetNichts": "Nic nie czeka. Personel pracuje albo śpi.",
+    "ohneAbteilung": "Bez działu",
+    "imAdmin": "Otwórz w administracji",
+    "abbrechen": "Anuluj",
+    "quelle": "z {{quelle}}",
+    "leerTitel": "Jeszcze nic nie omówiono z {{name}}.",
+    "leerText": "Proszę napisać poniżej, co jest do zrobienia — powstanie z tego zadanie.",
+    "alleOffenen": "Wszystkie otwarte punkty w skrzynce",
+    "art": {
+      "approval": "Zgoda",
+      "proposal": "Propozycja",
+      "finding": "Ustalenie",
+      "issue": "Zgłoszenie",
+      "tool_request": "Wniosek"
     }
   }
 }

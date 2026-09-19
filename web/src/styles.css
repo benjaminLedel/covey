@@ -58,21 +58,22 @@ picture { display: contents; }
   --text-muted: light-dark(#67676d, #8a8a90);
   --border: light-dark(rgba(0, 0, 0, 0.11), rgba(255, 255, 255, 0.13));
   --border-strong: light-dark(rgba(0, 0, 0, 0.2), rgba(255, 255, 255, 0.24));
-  /* One colour, one job — and the job is not "state".
-     
-     Every state already carries a drawn SHAPE (see the state marks further
-     down): filled runs, hollow rests, dashed is undecided, a bar is held up,
-     a cross has ended. Once the form says it, a colour beside it only
-     repeats — so the state palette is neutral and the marks do the work.
-     That also settles the accessibility question the old palette had, where
-     hue was the sole carrier.
+  /* The three message colours of the website, and the rule that they never
+     work alone.
 
-     The single exception is red, and it earns its place: working, sleeping
-     and waiting are equivalent states somebody may scan past, a dead agent
-     is not. Red here means "this ended against its purpose", nowhere else.
+     This reverses an earlier decision, so the reasoning for it stays: the
+     state palette used to be neutral grey, on the grounds that every state
+     already carries a drawn SHAPE (filled runs, hollow rests, dashed is
+     undecided, a bar is held up, a cross has ended) and a colour beside the
+     form only repeats it. The form does still carry the meaning — that is
+     what keeps this accessible, and no state is EVER signalled by hue alone.
+     But grey on grey made a workforce of forty agents read as one grey list,
+     and the product's own website has carried green, amber and red for
+     messages all along. Two palettes for one product was one too many.
 
-     Measured: badge text 9.1:1 light and 7.2:1 dark against its own ground,
-     red 6.0:1 or better everywhere. */
+     Taken from covey-web's DESIGN.md, measured against every ground they
+     appear on: green 5.7 to 8.9:1, amber 5.1 to 8.4:1, red 6.9 to 7.8:1.
+     The tinted grounds hold their own text at 5.1:1 or better. */
   /* The one colour, and it is the brand's own. Clay marks action and
      activity — the primary button, a link, the active navigation point, an
      agent that is working. Nothing else. The signet keeps #cc7a5b as the
@@ -81,10 +82,13 @@ picture { display: contents; }
      website, so the product has one mark and not two. */
   --bg-accent: light-dark(#f6ece6, #2c1d15);
   --text-accent: light-dark(#a4522c, #e0906f);
-  --bg-warning: light-dark(#e6e6e6, #2a2a2d);
-  --text-warning: light-dark(#3a3a3e, #b8b8bd);
-  --bg-success: light-dark(#e6e6e6, #2a2a2d);
-  --text-success: light-dark(#3a3a3e, #b8b8bd);
+  --bg-warning: light-dark(#f5eede, #2a2113);
+  --text-warning: light-dark(#8a5a00, #e0a33a);
+  --bg-success: light-dark(#e7f1ec, #16241d);
+  --text-success: light-dark(#0e6b45, #4ec98a);
+  /* „pro" bleibt neutral: Es ist keine Meldung, sondern eine Gattung
+     (ausgelöst, Triage, MCP). Eine vierte Farbe wäre die, die die Website
+     nicht hat. */
   --bg-pro: light-dark(#e6e6e6, #2a2a2d);
   --text-pro: light-dark(#3a3a3e, #b8b8bd);
   --text-danger: light-dark(#9d2427, #ef8d84);
@@ -124,6 +128,8 @@ picture { display: contents; }
   --accent-tint: color-mix(in srgb, var(--text-accent) 12%, transparent);
   --accent-ring: color-mix(in srgb, var(--text-accent) 30%, transparent);
   --danger-tint: color-mix(in srgb, var(--text-danger) 9%, transparent);
+  --warning-ring: color-mix(in srgb, var(--text-warning) 34%, transparent);
+  --success-ring: color-mix(in srgb, var(--text-success) 30%, transparent);
 
   --radius: 8px;
   --sans: "Inter", ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;

@@ -21,7 +21,7 @@ export default function PersonPage({ me }: { me: Principal }) {
   /* Not in the organisation this session works in — the same dead end as on
      the agent page, reached the same ways: signing in again (?weiter=) into
      another seat, or /profile with the id of the previous one (#263). */
-  if (isNotFound(person.error)) return <Navigate to="/" replace />;
+  if (isNotFound(person.error)) return <Navigate to="/agents" replace />;
   if (person.isError || !person.data) return <p className="danger-text">{t("person.notFound")}</p>;
   const h = person.data;
 

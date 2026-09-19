@@ -212,7 +212,7 @@ describe("Agent in einer anderen Organisation", () => {
         <MemoryRouter initialEntries={[`/agents/${AGENT_ID}`]}>
           <Routes>
             <Route path="/agents/:id" element={<AgentPage me={testPrincipal()} />} />
-            <Route path="/" element={<p>Startseite</p>} />
+            <Route path="/agents" element={<p>Startseite</p>} />
           </Routes>
         </MemoryRouter>
       </QueryClientProvider>,

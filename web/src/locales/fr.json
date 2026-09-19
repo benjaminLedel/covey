@@ -86,8 +86,7 @@
     "administrationSection": "Administration",
     "administration": "Organisation",
     "approvals": "Validations",
-    "infrastructure": "Infrastructure",
-    "chat": "Chat"
+    "infrastructure": "Infrastructure"
   },
   "costs": {
     "title": "Coût et jetons",
@@ -2318,6 +2317,30 @@
       "question": "Question",
       "result": "Résultat",
       "error": "Échec"
+    }
+  },
+  "workspace": {
+    "workspace": "Espace",
+    "verwaltung": "Administration",
+    "schalterAria": "Basculer entre l'espace de travail et l'administration",
+    "kollegen": "Collègues",
+    "wartet": "Vous attend",
+    "wartetTitel": "Bonjour, {{name}}",
+    "wartetLead": "{{count}} points attendent une décision.",
+    "wartetNichts": "Rien n'attend. L'équipe travaille ou dort.",
+    "ohneAbteilung": "Sans service",
+    "imAdmin": "Ouvrir dans l'administration",
+    "abbrechen": "Annuler",
+    "quelle": "de {{quelle}}",
+    "leerTitel": "Rien n'a encore été discuté avec {{name}}.",
+    "leerText": "Écrivez ci-dessous ce qu'il y a à faire — cela devient une tâche.",
+    "alleOffenen": "Tous les points ouverts dans la boîte",
+    "art": {
+      "approval": "Autorisation",
+      "proposal": "Proposition",
+      "finding": "Constat",
+      "issue": "Signalement",
+      "tool_request": "Demande"
     }
   }
 }
