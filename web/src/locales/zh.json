@@ -2387,6 +2387,11 @@
     "bereit": "暂无任务",
     "angenommen": "已接收，回复会出现在对话里。",
     "gespraech": "打开对话",
-    "senden": "发送"
+    "senden": "发送",
+    "hintergrund": "后台进行中",
+    "hintergrundLeer": "当前没有进行中的任务。",
+    "imGespraechSuchen": "在与 {{name}} 的对话中搜索",
+    "imGespraechLead": "搜索这段对话里的消息、备注、提问和结果。",
+    "sucheMarkieren": "选择同事"
   }
 }

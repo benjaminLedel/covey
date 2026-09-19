@@ -1,9 +1,11 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router";
-import { api, post, upload, type Agent, type ChatEntry, type ChatMark, type Principal, type Verlauf } from "../api";
+import { Link, useNavigate, useSearchParams } from "react-router";
+import { api, post, upload, type Agent, type ChatEntry, type ChatMark, type Laufend, type Principal, type Verlauf } from "../api";
 import { Markdown } from "../components/Markdown";
+import Dauer from "../components/Dauer";
+import { useSucheOeffnen } from "../components/Suche";
 import { canManage } from "../pages/agent/roles";
 import Gesicht from "../components/Gesicht";
 import { NavIcon } from "../components/navicons";
@@ -77,8 +79,10 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
   const [text, setText] = useState("");
   const [antwortAuf, setAntwortAuf] = useState<string | null>(null);
   const [antwort, setAntwort] = useState("");
-  const [suche, setSuche] = useState("");
-  const [sucheOffen, setSucheOffen] = useState(false);
+  const [vorgaengeOffen, setVorgaengeOffen] = useState(false);
+  const sucheOeffnen = useSucheOeffnen();
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
   const [anhaenge, setAnhaenge] = useState<File[]>([]);
   const dateiwahl = useRef<HTMLInputElement>(null);
   const ende = useRef<HTMLDivElement>(null);
@@ -97,14 +101,18 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
   });
 
   const alle = thread.data?.entries ?? [];
+  const entries = alle;
   const marken = thread.data?.marks ?? {};
-  /* Die Suche filtert, was geladen ist — die letzten zwanzig Vorgänge. Was
-     älter ist, liegt im Backlog und wird dort gesucht; der Verweis daneben
-     sagt das, statt so zu tun, als sei dies eine Volltextsuche. */
-  const begriff = suche.trim().toLowerCase();
-  const entries = begriff
-    ? alle.filter((e) => (e.text + " " + e.task_title).toLowerCase().includes(begriff))
-    : alle;
+  const vorgaenge = thread.data?.tasks ?? [];
+  /* Der Schritt kommt aus derselben Abfrage, die der Grundriss macht — die
+     Schale hält sie ohnehin warm. Ihn ein zweites Mal vom Server zu holen
+     hieße, ihn ein zweites Mal zu bezahlen. */
+  const laufendeVorgaenge = useQuery({
+    queryKey: ["org-running"],
+    queryFn: () => api<Laufend[] | null>("/org/running"),
+    refetchInterval: 10_000,
+  });
+  const schrittZu = new Map((laufendeVorgaenge.data ?? []).map((l) => [l.task_id, l]));
   const darfSchreiben = canManage(me.Role);
   /* „Denkt nach" hat zwei Quellen, und beide braucht es.
    
@@ -120,7 +128,7 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
      Dazu die alte Ableitung: Ein Lauf, der wirklich arbeitet, ist auch
      „tippen" — nur ist er es jetzt zusätzlich und nicht mehr ersatzweise. */
   const laeuft = alle.length > 0 && alle[alle.length - 1].task_state === "in_progress";
-  const tippt = !begriff && (thread.data?.pending || laeuft);
+  const tippt = thread.data?.pending || laeuft;
 
   /* Ein Anhang ist kein Bild neben der Nachricht, sondern eine Datei im
      Arbeitsplatz des Agenten: Dort kann er sie öffnen, und nur dort nützt sie
@@ -194,9 +202,51 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
     },
   });
 
+  /* Ans Ende — außer, es wurde an eine Stelle gesprungen. Zwei Effekte, die
+     gleichzeitig scrollen, enden dort, wo der zweite aufhört, und das wäre
+     verlässlich der falsche Ort. */
+  const springt = useRef(false);
   useEffect(() => {
+    if (springt.current) return;
     ende.current?.scrollIntoView?.({ block: "end" });
   }, [entries.length]);
+
+  const [blitz, setBlitz] = useState<string | null>(null);
+  /* Hinspringen: an den Vorgang, nicht an die Zeile. Die Zeilen eines
+     Vorgangs gehören zusammen, und wer eine Notiz sucht, will sehen, wozu sie
+     gehört.
+   
+     Was nicht im Fenster liegt, gibt es hier nicht: Die Suche reicht über
+     zweihundert Vorgänge, der Verlauf zeigt zwanzig. Dann führt der Sprung in
+     die Verwaltung, wo auch der älteste Vorgang noch steht — eine Sackgasse
+     wäre die einzige Antwort, die nicht in Frage kommt. */
+  const hinspringen = (gruppe: string) => {
+    const el = document.querySelector(`[data-gruppe="${CSS.escape(gruppe)}"]`);
+    if (!el) {
+      navigate(`/agents/${agentId}?task=${gruppe}`);
+      return;
+    }
+    springt.current = true;
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    setBlitz(gruppe);
+    setTimeout(() => {
+      setBlitz(null);
+      springt.current = false;
+    }, 2400);
+  };
+
+  /* ?zu= kommt aus der Suche. Einmal ausgeführt, verschwindet es aus der
+     Adresse: Ein Neuladen soll nicht wieder springen, und die Adresse eines
+     Gesprächs ist das Gespräch, nicht die Stelle, über die man hineinkam. */
+  useEffect(() => {
+    const zu = params.get("zu");
+    if (!zu || thread.isLoading) return;
+    hinspringen(zu);
+    const rest = new URLSearchParams(params);
+    rest.delete("zu");
+    setParams(rest, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params, thread.isLoading]);
 
   /* Reagieren. Die Antwort interessiert nicht — der Verlauf wird ohnehin neu
      geholt, und er ist die Wahrheit. */
@@ -222,32 +272,32 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
             eines Verlaufs gehört dem, mit dem man spricht, und nicht den
             Werkzeugen. Das Feld klappt erst auf, wenn jemand sucht. */}
         <div className="tm-thread-werkzeuge">
-          {sucheOffen ? (
-            <input
-              autoFocus
-              type="search"
-              value={suche}
-              onChange={(e) => setSuche(e.target.value)}
-              onBlur={() => !suche && setSucheOffen(false)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  setSuche("");
-                  setSucheOffen(false);
-                }
-              }}
-              placeholder={t("team.imVerlaufSuchen")}
-              aria-label={t("team.imVerlaufSuchen")}
-            />
-          ) : (
-            <button
-              className="tm-werkzeug"
-              onClick={() => setSucheOffen(true)}
-              title={t("team.imVerlaufSuchen")}
-              aria-label={t("team.imVerlaufSuchen")}
-            >
-              <NavIcon name="search" />
-            </button>
-          )}
+          {/* Die Hintergrundvorgänge. Sie sind das, was nach einer Nachricht
+              weitergeht, ohne dass etwas gesagt wird — und genau deshalb
+              waren sie unsichtbar: Der Verlauf zeigt, was gesagt wurde, und
+              ein Lauf, der seit einer Stunde arbeitet, hat seit einer Stunde
+              nichts gesagt (#308). */}
+          <button
+            className={`tm-werkzeug tm-vorgaenge${vorgaenge.length > 0 ? " hat" : ""}${vorgaengeOffen ? " auf" : ""}`}
+            onClick={() => setVorgaengeOffen((v) => !v)}
+            title={t("team.hintergrund")}
+            aria-label={t("team.hintergrund")}
+            aria-expanded={vorgaengeOffen}
+          >
+            <NavIcon name="checklist" />
+            {vorgaenge.length > 0 && <span className="tm-vorgaenge-zahl">{vorgaenge.length}</span>}
+          </button>
+          {/* Eine Lupe, nicht zwei: Sie macht die große Suche auf, schon auf
+              diesen Kollegen markiert. Vorher hatte der Verlauf sein eigenes
+              Feld, und dieselbe Frage hatte zwei Orte. */}
+          <button
+            className="tm-werkzeug"
+            onClick={() => agent.data && sucheOeffnen(agent.data)}
+            title={t("team.imVerlaufSuchen")}
+            aria-label={t("team.imVerlaufSuchen")}
+          >
+            <NavIcon name="search" />
+          </button>
           {/* Der eine Weg von hier in die Konsole: an dem Agenten, den man
               gerade vor sich hat. */}
           <Link
@@ -261,20 +311,51 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
         </div>
       </header>
 
+      {vorgaengeOffen && (
+        <section className="tm-vorgaenge-flaeche" aria-label={t("team.hintergrund")}>
+          {vorgaenge.length === 0 ? (
+            <p className="tm-leise">{t("team.hintergrundLeer")}</p>
+          ) : (
+            <ul>
+              {vorgaenge.map((v) => {
+                const l = schrittZu.get(v.id);
+                return (
+                  <li key={v.id}>
+                    <button
+                      className="tm-hg"
+                      onClick={() => {
+                        setVorgaengeOffen(false);
+                        hinspringen(v.id);
+                      }}
+                    >
+                      <span className={`tm-art z-${v.state}`}>{t(`status.${v.state}`, v.state)}</span>
+                      <span className="tm-hg-titel">{v.title}</span>
+                      <span className="tm-hg-unten">
+                        {l?.step && <>{t(`team.schritt.${l.step}`, l.step)} · </>}
+                        {t("team.quelle", { quelle: v.origin })}
+                      </span>
+                      {l ? (
+                        <Dauer seit={l.since} className="tm-hg-dauer" />
+                      ) : (
+                        <time className="tm-hg-dauer" dateTime={v.updated_at}>
+                          {new Date(v.updated_at).toLocaleDateString()}
+                        </time>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
+
       <div className="tm-verlauf">
         {thread.isLoading && <p className="tm-leise">{t("common.loading")}</p>}
-        {!thread.isLoading && entries.length === 0 && !begriff && (
+        {!thread.isLoading && entries.length === 0 && (
           <div className="tm-leer">
             <p>{t("team.leerTitel", { name: agent.data?.display_name ?? "" })}</p>
             <p className="tm-leise">{t("team.leerText")}</p>
-          </div>
-        )}
-        {!thread.isLoading && entries.length === 0 && begriff && (
-          <div className="tm-leer">
-            <p>{t("team.nichtsGefunden")}</p>
-            <Link to={`/agents/${agentId}?q=${encodeURIComponent(suche.trim())}`} className="tm-thread-verwaltung">
-              {t("team.imBacklogSuchen")}
-            </Link>
           </div>
         )}
 
@@ -296,6 +377,17 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
           return (
             <Fragment key={`${e.task_id}-${e.kind}-${i}`}>
               {datum && <div className="tm-tag">{datum === "gestern" ? t("team.gestern") : datum}</div>}
+              {/* Der Anker: die Stelle, an die ein Treffer der Suche und ein
+                  Klick in der Vorgangsleiste springen. Er ist unsichtbar, bis
+                  er getroffen wird — dann blitzt er einmal auf, damit man
+                  sieht, wo man gelandet ist, statt es zu suchen. */}
+              {neuerVorgang && (
+                <span
+                  className={`tm-anker${blitz === gruppe(e) ? " blitzt" : ""}`}
+                  data-gruppe={gruppe(e)}
+                  aria-hidden="true"
+                />
+              )}
               {/* Der Trenner führt einen Vorgang ein, dessen Kopf man sonst
                   nicht sähe. Eine Nachricht ist ihr eigener Kopf, ein Auftrag
                   auch — dort wiederholte die Linie nur, was direkt darunter

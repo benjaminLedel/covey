@@ -12,7 +12,7 @@
    Whoever opens the overview does not need the platform administration — and
    whoever never opens it, never. */
 
-import { Suspense, lazy, useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState, useCallback } from "react";
 import { BirdMark } from "./components/BirdMark";
 import { useQuery } from "@tanstack/react-query";
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from "react-router";
@@ -184,7 +184,15 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
      Die beiden Abfragen teilen sich den Cache mit den Seiten, die sie
      ohnehin brauchen — die Schale fragt den Server deshalb nicht öfter. */
   const [sucheOffen, setSucheOffen] = useState(false);
-  useSucheKuerzel(() => setSucheOffen(true));
+  /* Der markierte Kollege. Er liegt in der Schale und nicht in der
+     Überblendung, weil die Überblendung nicht gerendert wird, solange sie zu
+     ist — und der Verlauf sie genau so aufmacht: markiert. */
+  const [sucheFokus, setSucheFokus] = useState<Agent | null>(null);
+  const sucheOeffnen = useCallback((a?: Agent) => {
+    setSucheFokus(a ?? null);
+    setSucheOffen(true);
+  }, []);
+  useSucheKuerzel(() => sucheOeffnen());
   const agenten = useQuery({
     queryKey: ["agents"],
     queryFn: () => api<Agent[] | null>("/agents"),
@@ -235,7 +243,7 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
           covey
           <button
             className="brand-suche"
-            onClick={() => setSucheOffen(true)}
+            onClick={() => sucheOeffnen()}
             title={`${t("team.suche")} (⌘K)`}
             aria-label={t("team.suche")}
           >
@@ -396,6 +404,8 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
         departments={abteilungen.data ?? []}
         wartetBei={wartetBei}
         pfad={(a) => `/agents/${a.id}`}
+        fokus={sucheFokus}
+        onFokus={setSucheFokus}
       />
       <HelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>

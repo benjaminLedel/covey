@@ -2387,6 +2387,11 @@
     "bereit": "niets te doen",
     "angenommen": "Aangenomen — het antwoord staat in het gesprek.",
     "gespraech": "Gesprek openen",
-    "senden": "Versturen"
+    "senden": "Versturen",
+    "hintergrund": "Draait op de achtergrond",
+    "hintergrundLeer": "Er loopt niets.",
+    "imGespraechSuchen": "Zoeken in het gesprek met {{name}}",
+    "imGespraechLead": "Doorzoekt de berichten, notities, vragen en resultaten van dit gesprek.",
+    "sucheMarkieren": "collega kiezen"
   }
 }

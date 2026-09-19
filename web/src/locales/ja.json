@@ -2387,6 +2387,11 @@
     "bereit": "待機中",
     "angenommen": "受け付けました。返答は会話に表示されます。",
     "gespraech": "会話を開く",
-    "senden": "送信"
+    "senden": "送信",
+    "hintergrund": "バックグラウンドで進行中",
+    "hintergrundLeer": "進行中のものはありません。",
+    "imGespraechSuchen": "{{name}} との会話を検索",
+    "imGespraechLead": "この会話のメッセージ、メモ、質問、結果を検索します。",
+    "sucheMarkieren": "相手を選ぶ"
   }
 }

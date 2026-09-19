@@ -2387,6 +2387,11 @@
     "bereit": "nada para fazer",
     "angenommen": "Aceite — a resposta está na conversa.",
     "gespraech": "Abrir a conversa",
-    "senden": "Enviar"
+    "senden": "Enviar",
+    "hintergrund": "A decorrer em segundo plano",
+    "hintergrundLeer": "Nada em curso.",
+    "imGespraechSuchen": "Procurar na conversa com {{name}}",
+    "imGespraechLead": "Procura nas mensagens, notas, perguntas e resultados desta conversa.",
+    "sucheMarkieren": "escolher colega"
   }
 }

@@ -188,10 +188,24 @@ export type ChatEntry = {
   unterwegs?: boolean;
 };
 
+/** Ein Vorgang, der im Hintergrund weiterläuft, während das Gespräch steht. */
+export type Hintergrundvorgang = {
+  id: string;
+  title: string;
+  state: string;
+  origin: string;
+  created_at: string;
+  updated_at: string;
+};
+
 /** Der Verlauf, wie ihn `/agents/{id}/thread` liefert. */
 export type Verlauf = {
   entries: ChatEntry[];
   marks: Record<string, ChatMark[]>;
+  /* Was noch läuft. Es steht nicht in den Einträgen: Dort steht, was gesagt
+     wurde, und ein Lauf, der seit einer Stunde arbeitet, hat seit einer
+     Stunde nichts gesagt. */
+  tasks?: Hintergrundvorgang[];
   /* Eine angenommene Nachricht wartet noch auf ihre Entscheidung. Das ist das
      einzige, was kein Eintrag ist, sondern der Zustand zwischen zweien. */
   pending?: boolean;

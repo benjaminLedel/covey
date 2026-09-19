@@ -2387,6 +2387,11 @@
     "bereit": "nic do zrobienia",
     "angenommen": "Przyjęto — odpowiedź jest w rozmowie.",
     "gespraech": "Otwórz rozmowę",
-    "senden": "Wyślij"
+    "senden": "Wyślij",
+    "hintergrund": "Działa w tle",
+    "hintergrundLeer": "Nic nie jest w toku.",
+    "imGespraechSuchen": "Szukaj w rozmowie z {{name}}",
+    "imGespraechLead": "Przeszukuje wiadomości, notatki, pytania i wyniki tej rozmowy.",
+    "sucheMarkieren": "wybierz osobę"
   }
 }

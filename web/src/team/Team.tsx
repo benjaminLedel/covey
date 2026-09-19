@@ -1,4 +1,4 @@
-import { Suspense, lazy, useState } from "react";
+import { Suspense, lazy, useCallback, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link, NavLink, Navigate, Route, Routes, useParams } from "react-router";
@@ -7,7 +7,7 @@ import { BirdMark } from "../components/BirdMark";
 import HelpDrawer from "../components/HelpDrawer";
 import ShellFoot from "../components/ShellFoot";
 import Gesicht from "../components/Gesicht";
-import Suche, { useSucheKuerzel } from "../components/Suche";
+import Suche, { SucheProvider, useSucheKuerzel } from "../components/Suche";
 import { NavIcon } from "../components/navicons";
 
 /* Die Stilvorlage der angemeldeten Oberfläche. Sie hing bisher allein an der
@@ -70,7 +70,15 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
      benutzt, und es nahm der Liste die Zeile, die sie zum Atmen braucht.
      Jetzt: die Lupe neben der Wortmarke, ⌘K und der Schrägstrich. */
   const [sucheOffen, setSucheOffen] = useState(false);
-  useSucheKuerzel(() => setSucheOffen(true));
+  /* Der markierte Kollege. Er liegt in der Schale und nicht in der
+     Überblendung, weil die Überblendung nicht gerendert wird, solange sie zu
+     ist — und der Verlauf sie genau so aufmacht: markiert. */
+  const [sucheFokus, setSucheFokus] = useState<Agent | null>(null);
+  const sucheOeffnen = useCallback((a?: Agent) => {
+    setSucheFokus(a ?? null);
+    setSucheOffen(true);
+  }, []);
+  useSucheKuerzel(() => sucheOeffnen());
 
   const liste = (agents.data ?? []).filter(eingestellt);
   const depts = abteilungen.data ?? [];
@@ -93,6 +101,7 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
   const offen = wartend.data?.pending ?? 0;
 
   return (
+    <SucheProvider value={sucheOeffnen}>
     <div className="flex min-h-screen">
       <aside className="sidebar tm-sidebar">
         <div className="brand">
@@ -102,7 +111,7 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
               nicht zur Liste darunter. */}
           <button
             className="brand-suche"
-            onClick={() => setSucheOffen(true)}
+            onClick={() => sucheOeffnen()}
             title={`${t("team.suche")} (⌘K)`}
             aria-label={t("team.suche")}
           >
@@ -184,9 +193,12 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
         departments={depts}
         wartetBei={wartetBei}
         pfad={(a) => `/team/${a.id}`}
+        fokus={sucheFokus}
+        onFokus={setSucheFokus}
       />
       <HelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
+    </SucheProvider>
   );
 }
 

@@ -2387,6 +2387,11 @@
     "bereit": "rien à faire",
     "angenommen": "Accepté — la réponse est dans la conversation.",
     "gespraech": "Ouvrir la conversation",
-    "senden": "Envoyer"
+    "senden": "Envoyer",
+    "hintergrund": "En arrière-plan",
+    "hintergrundLeer": "Rien n'est en cours.",
+    "imGespraechSuchen": "Chercher dans la conversation avec {{name}}",
+    "imGespraechLead": "Cherche dans les messages, notes, questions et résultats de cette conversation.",
+    "sucheMarkieren": "choisir un collègue"
   }
 }

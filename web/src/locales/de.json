@@ -2387,6 +2387,11 @@
     "bereit": "nichts zu tun",
     "angenommen": "Angenommen — die Antwort steht im Gespräch.",
     "gespraech": "Gespräch öffnen",
-    "senden": "Senden"
+    "senden": "Senden",
+    "hintergrund": "Läuft im Hintergrund",
+    "hintergrundLeer": "Nichts läuft gerade.",
+    "imGespraechSuchen": "Im Gespräch mit {{name}} suchen",
+    "imGespraechLead": "Durchsucht Nachrichten, Notizen, Fragen und Ergebnisse dieses Gesprächs.",
+    "sucheMarkieren": "Kollegen markieren"
   }
 }

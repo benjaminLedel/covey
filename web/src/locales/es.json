@@ -2387,6 +2387,11 @@
     "bereit": "sin tareas",
     "angenommen": "Aceptado: la respuesta está en la conversación.",
     "gespraech": "Abrir la conversación",
-    "senden": "Enviar"
+    "senden": "Enviar",
+    "hintergrund": "En segundo plano",
+    "hintergrundLeer": "No hay nada en curso.",
+    "imGespraechSuchen": "Buscar en la conversación con {{name}}",
+    "imGespraechLead": "Busca en los mensajes, notas, preguntas y resultados de esta conversación.",
+    "sucheMarkieren": "elegir colega"
   }
 }

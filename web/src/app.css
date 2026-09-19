@@ -2845,6 +2845,11 @@
   backdrop-filter: blur(2px);
   display: flex;
   justify-content: center;
+  /* Oben ansetzen, nicht strecken. Ohne das zog der Schleier die Überblendung
+     auf ihre volle Höhe (align-items: stretch, gedeckelt von max-height), und
+     sie stand immer 70 vh hoch da — bei vierzig Kollegen fiel es niemandem
+     auf, bei drei Fundstellen ist der halbe Kasten leer. */
+  align-items: flex-start;
   /* Nicht mittig, sondern im oberen Drittel: Die Ergebnisse wachsen nach
      unten, und eine Liste, die von der Bildschirmmitte aus wächst, schiebt
      ihren eigenen Anfang nach oben weg. */
@@ -3431,3 +3436,173 @@
   .bu-karte, .bu-denkt { animation: none; }
 }
 
+
+/* ── Hintergrundvorgänge, Gesprächssuche, Sprungmarken ───────────────────
+ *
+ * Drei Dinge, die zusammengehören: was läuft, wie man es wiederfindet, und
+ * wo man landet.
+ */
+
+/* Das Symbol in der Kopfzeile trägt die Zahl. Eine Zahl ohne Symbol wäre
+   eine Kennziffer, ein Symbol ohne Zahl eine Schaltfläche, die nichts sagt. */
+.tm-vorgaenge { position: relative; }
+.tm-vorgaenge.hat .ic { color: var(--text-accent); }
+.tm-vorgaenge.auf { background: var(--tint-weak); }
+.tm-vorgaenge-zahl {
+  position: absolute;
+  top: 1px;
+  right: 0;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--text-accent);
+  color: var(--surface-2);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 15px;
+  text-align: center;
+}
+
+.tm-vorgaenge-flaeche {
+  flex: 0 0 auto;
+  max-height: 44vh;
+  overflow-y: auto;
+  padding: 10px 18px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-1);
+}
+.tm-vorgaenge-flaeche ul { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.tm-hg {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "art titel dauer" "art unten dauer";
+  align-items: center;
+  gap: 2px 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tm-hg:hover { background: var(--surface-2); }
+.tm-hg .tm-art { grid-area: art; }
+.tm-hg-titel {
+  grid-area: titel;
+  font-size: 13.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tm-hg-unten {
+  grid-area: unten;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tm-hg-dauer { grid-area: dauer; font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+/* Drei Zustände, drei Bedeutungen: läuft, wartet auf mich, liegt bereit. */
+.tm-art.z-in_progress { background: var(--bg-accent); color: var(--text-accent); }
+.tm-art.z-blocked { background: var(--bg-wait); color: var(--text-wait); }
+.tm-art.z-open { background: var(--bg-pro); color: var(--text-pro); }
+
+/* Der markierte Kollege in der Suche. Er sieht aus wie ein Empfänger in einem
+   Mailfeld, weil er sich genauso verhält: Rücktaste nimmt ihn wieder ab. */
+.suche-marke {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 3px 4px 3px 6px;
+  border-radius: 999px;
+  background: var(--bg-accent);
+  color: var(--text-accent);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.suche-marke button {
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: 15px;
+  line-height: 1;
+  padding: 0 3px;
+  cursor: pointer;
+  opacity: 0.7;
+}
+.suche-marke button:hover { opacity: 1; }
+
+/* Eine Fundstelle ist ein Satz, kein Kollege: eine Zeile, die Art davor, das
+   Datum dahinter. */
+/* Eine Fundstelle ist dreispaltig — Art, Satz, Datum — und nicht wie eine
+   Kollegenzeile gereiht: Der Satz ist zwei Zeilen hoch, und in einer Reihe
+   säße das Datum dann auf seiner Mitte. */
+.suche-zeile.satz {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+}
+.suche-art {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg-pro);
+  color: var(--text-pro);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.suche-art.k-question { background: var(--bg-wait); color: var(--text-wait); }
+.suche-art.k-error { background: var(--danger-tint); color: var(--text-danger); }
+.suche-art.k-answer { background: var(--bg-accent); color: var(--text-accent); }
+.suche-fund { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.suche-worin {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.suche-satz {
+  font-size: 13.5px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.suche-wann { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.suche-weiter {
+  display: block;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--text-accent);
+  text-decoration: none;
+}
+.suche-weiter:hover { text-decoration: underline; }
+
+/* Der Anker. Unsichtbar, bis er getroffen wird — dann eine Linie, die einmal
+   aufleuchtet und wieder geht. Scroll-margin, damit die Stelle nicht unter
+   der Kopfzeile landet. */
+.tm-anker { display: block; height: 0; scroll-margin-top: 90px; }
+.tm-anker.blitzt {
+  height: 2px;
+  margin: 6px 0;
+  border-radius: 2px;
+  background: var(--text-accent);
+  animation: tm-anker-blitz 2.4s ease-out forwards;
+}
+@keyframes tm-anker-blitz {
+  0% { opacity: 0; }
+  12% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tm-anker.blitzt { animation: none; opacity: 1; }
+}
