@@ -66,6 +66,22 @@ type chatEntry struct {
 	At        time.Time  `json:"at"`
 }
 
+/*
+offenerVorgang ist ein Hintergrundvorgang, wie die Leiste ihn zeigt: was er
+
+	ist, wo er steht, woher er kam und seit wann er sich nicht mehr gerührt
+	hat. Der Schritt kommt nicht von hier — den hat die Schale schon aus
+	`/org/running`, und ihn zweimal zu holen hieße, ihn zweimal zu bezahlen.
+*/
+type offenerVorgang struct {
+	ID      uuid.UUID `json:"id"`
+	Title   string    `json:"title"`
+	State   string    `json:"state"`
+	Origin  string    `json:"origin"`
+	Created time.Time `json:"created_at"`
+	Updated time.Time `json:"updated_at"`
+}
+
 // chatMark is one emoji on one task, already grouped: wie oft, und ob ich
 // selbst dabei bin. Die Oberfläche braucht beides und sonst nichts.
 type chatMark struct {
@@ -85,6 +101,12 @@ type chatThread struct {
 	   Einträgen. Der Ereignisstrom meldet es sofort; hier steht es, damit es
 	   ein Neuladen der Seite übersteht. */
 	Pending bool `json:"pending"`
+	/* Was im Hintergrund läuft: die Vorgänge dieses Agenten, die noch nicht
+	   fertig sind. Sie stehen NICHT in den Einträgen — dort steht, was gesagt
+	   wurde, und ein Vorgang, der seit einer Stunde läuft, hat seit einer
+	   Stunde nichts gesagt. Genau deshalb braucht er eine eigene Anzeige
+	   (#308). */
+	Tasks []offenerVorgang `json:"tasks"`
 	/* Reaktionen je Aufgabe. Sie hängen an der Aufgabe und nicht am Eintrag
 	   (internal/backlog/reactions.go) — die Oberfläche zeigt sie deshalb am
 	   ersten Eintrag eines Vorgangs. */
@@ -100,6 +122,32 @@ const threadTasks = 20
 // Aufgaben, weil eine beantwortete Nachricht keine Aufgabe erzeugt — ein
 // Verlauf kann also aus deutlich mehr Zeilen als Vorgängen bestehen.
 const threadMessages = 40
+
+/* sucheTasks und sucheMessages: das Fenster, wenn gesucht wird.
+ *
+ * Zehnmal so weit wie das des Verlaufs. Weiter nicht: Wer über hundert
+ * Vorgänge hinaus sucht, sucht im Backlog, und der Verweis daneben führt
+ * dorthin — eine Volltextsuche über die ganze Geschichte eines Agenten ist
+ * eine andere Sache als das Durchsehen eines Gesprächs. */
+const (
+	sucheTasks    = 200
+	sucheMessages = 400
+)
+
+/*
+suchbegriff macht aus der Eingabe ein Muster, das nur das findet, wonach
+
+	gefragt wurde. Ein Prozentzeichen ist in ILIKE „alles", und wer nach „50 %"
+	sucht, bekäme sonst den halben Verlauf.
+*/
+func suchbegriff(roh string) string {
+	q := strings.TrimSpace(roh)
+	if q == "" {
+		return ""
+	}
+	r := strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`)
+	return r.Replace(q)
+}
 
 // handleThread assembles the conversation with one agent.
 func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
@@ -121,6 +169,16 @@ func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 
 	   Das Archiv bleibt draußen: Was jemand weggelegt hat, ist nicht mehr
 	   Teil des Gesprächs. */
+	/* ?q= sucht im Gespräch statt es zu zeigen.
+
+	   Gefiltert wird AUSSEN, über dem fertigen Verlauf: Ein Treffer ist eine
+	   Zeile, die jemand gesagt oder der Lauf hinterlassen hat, und welche der
+	   sechs Quellen sie hergab, ist dem Suchenden gleich. Drinnen zu filtern
+	   hieße, dieselbe Bedingung sechsmal zu schreiben und beim siebten Zweig
+	   zu vergessen.
+
+	   Dafür reicht das Fenster weiter zurück: Wer sucht, sucht das, was er
+	   nicht mehr sieht. */
 	const q = `WITH t AS (
 		SELECT id, title, body, state, origin, result, error, created_at, updated_at
 		FROM backlog_tasks
@@ -130,10 +188,10 @@ func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 		SELECT id, author, text, task_id, created_at
 		FROM chat_messages WHERE agent_id=$1
 		ORDER BY created_at DESC LIMIT $3
-	)
-	SELECT CASE WHEN m.author = 'agent' THEN 'answer' ELSE 'message' END,
-	       m.id, m.task_id, coalesce(bt.title, ''), coalesce(bt.state, ''),
-	       m.author, m.text, m.created_at
+	), alles AS (
+	SELECT CASE WHEN m.author = 'agent' THEN 'answer' ELSE 'message' END AS kind,
+	       m.id AS eid, m.task_id AS tid, coalesce(bt.title, '') AS titel, coalesce(bt.state, '') AS zustand,
+	       m.author AS wer, m.text AS text, m.created_at AS wann
 	       FROM m LEFT JOIN backlog_tasks bt ON bt.id = m.task_id
 	UNION ALL
 	SELECT 'message', t.id, t.id, t.title, t.state, t.origin,
@@ -158,9 +216,18 @@ func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 	UNION ALL
 	SELECT 'error', t.id, t.id, t.title, t.state, 'agent', t.error, t.updated_at
 	       FROM t WHERE t.state='failed' AND coalesce(t.error,'') <> ''
-	ORDER BY 8`
+	)
+	SELECT kind, eid, tid, titel, zustand, wer, text, wann FROM alles
+	 WHERE $4 = '' OR text ILIKE '%' || $4 || '%' ESCAPE '\'
+	                OR titel ILIKE '%' || $4 || '%' ESCAPE '\'
+	 ORDER BY wann`
 
-	rows, err := s.Pool.Query(r.Context(), q, id, threadTasks, threadMessages)
+	begriff := suchbegriff(r.URL.Query().Get("q"))
+	aufgaben, nachrichten := threadTasks, threadMessages
+	if begriff != "" {
+		aufgaben, nachrichten = sucheTasks, sucheMessages
+	}
+	rows, err := s.Pool.Query(r.Context(), q, id, aufgaben, nachrichten, begriff)
 	if err != nil {
 		mapErr(w, err)
 		return
@@ -191,7 +258,23 @@ func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	/* Bei einer Suche bleibt es bei den Treffern. Reaktionen, der Denkzustand
+	   und die Hintergrundvorgänge gehören zum Gespräch, nicht zu einer Liste
+	   von Fundstellen — und drei Abfragen, die niemand ansieht, sind drei
+	   Abfragen zu viel auf einem Weg, der bei jedem Tastendruck läuft. */
+	if begriff != "" {
+		out.Tasks = []offenerVorgang{}
+		out.Marks = map[string][]chatMark{}
+		writeJSON(w, http.StatusOK, out)
+		return
+	}
+
 	out.Marks, err = s.marksOf(r, out.Entries)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	out.Tasks, err = s.offeneVorgaenge(r.Context(), id)
 	if err != nil {
 		mapErr(w, err)
 		return
@@ -204,6 +287,40 @@ func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+/*
+offeneVorgaenge sind die Vorgänge, die noch laufen — das, was nach einer
+
+	Nachricht im Hintergrund weitergeht.
+
+*
+* Alle, nicht nur die aus diesem Gespräch: Was ein Kollege sonst noch auf dem
+* Tisch hat, ist der Grund, warum er auf das hier noch nicht gekommen ist. Die
+* Herkunft steht daneben, damit man das eigene wiedererkennt.
+*/
+func (s *Server) offeneVorgaenge(ctx context.Context, agentID uuid.UUID) ([]offenerVorgang, error) {
+	rows, err := s.Pool.Query(ctx,
+		`SELECT id, title, state, origin, created_at, updated_at
+		   FROM backlog_tasks
+		  WHERE agent_id=$1 AND archived_at IS NULL
+		    AND state IN ('open','in_progress','blocked')
+		  ORDER BY CASE state WHEN 'in_progress' THEN 0 WHEN 'blocked' THEN 1 ELSE 2 END,
+		           created_at
+		  LIMIT $2`, agentID, threadTasks)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []offenerVorgang{}
+	for rows.Next() {
+		var v offenerVorgang
+		if err := rows.Scan(&v.ID, &v.Title, &v.State, &v.Origin, &v.Created, &v.Updated); err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
 }
 
 // marksOf collects the reactions of every task in the thread and groups them
@@ -593,8 +710,9 @@ func (s *Server) triagieren(ctx context.Context, orgID, agentID uuid.UUID, text 
 		return aufgabe, nil
 	}
 	liste, nach := s.offeneAufgaben(ctx, agentID)
+	fertig := s.fertigeAufgaben(ctx, agentID)
 
-	e, err := chat.Triagieren(ctx, provider, s.rolleVon(ctx, agentID), liste, verlauf, text)
+	e, err := chat.Triagieren(ctx, provider, s.rolleVon(ctx, agentID), liste, fertig, verlauf, text)
 	if err != nil {
 		s.Log.Warn("triage failed — the message becomes a task", "agent", agentID, "err", err)
 		return aufgabe, nil
@@ -640,6 +758,59 @@ func (s *Server) offeneAufgaben(ctx context.Context, agentID uuid.UUID) ([]chat.
 	}
 	return liste, nach
 }
+
+/*
+fertigeAufgaben ist der zweite Teil des eigenen Blicks: was zuletzt fertig
+
+	wurde, und was dabei herauskam.
+
+*
+* Nur so lässt sich „ist das gestern rausgegangen?" beantworten, statt dafür
+* eine Aufgabe zu eröffnen — der Satz, an dem spec/28 die ganze Triage
+* aufhängt. Die Ergebnisse sind das Teuerste an diesem Prompt, deshalb sind es
+* wenige und gekürzte.
+*
+* Das Archiv bleibt draußen: Was jemand weggelegt hat, ist aus dem Gespräch
+* heraus — dieselbe Grenze wie im Verlauf.
+*/
+func (s *Server) fertigeAufgaben(ctx context.Context, agentID uuid.UUID) []chat.Fertig {
+	rows, err := s.Pool.Query(ctx,
+		`SELECT title, state, coalesce(result,''), coalesce(error,''), updated_at
+		   FROM backlog_tasks
+		  WHERE agent_id=$1 AND state IN ('done','failed') AND archived_at IS NULL
+		  ORDER BY updated_at DESC LIMIT $2`, agentID, triageFertig)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	var out []chat.Fertig
+	for rows.Next() {
+		var f chat.Fertig
+		var ergebnis, fehler string
+		var wann time.Time
+		if err := rows.Scan(&f.Titel, &f.Ausgang, &ergebnis, &fehler, &wann); err != nil {
+			return out
+		}
+		f.Alter = alter(wann)
+		f.Ergebnis = ergebnis
+		if f.Ausgang == backlog.StateFailed && fehler != "" {
+			f.Ergebnis = fehler
+		}
+		out = append(out, f)
+	}
+	/* Umgedreht: Der Prompt liest sich von alt nach neu, wie das Gespräch
+	   darüber. Die Abfrage musste andersherum sortieren, um die jüngsten zu
+	   bekommen. */
+	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
+		out[i], out[j] = out[j], out[i]
+	}
+	return out
+}
+
+// triageFertig: wie viele abgeschlossene Vorgänge mitkommen. Fünf sind der
+// letzte Arbeitstag eines Agenten; mehr wäre ein Bericht, und ein Bericht
+// gehört in den Backlog, nicht in einen Prompt, der bei jeder Nachricht läuft.
+const triageFertig = 5
 
 // triageAufgaben: wie viele offene Vorgänge der Zug zu sehen bekommt. Ein
 // Agent mit zweihundert offenen Aufgaben hat ein anderes Problem als die

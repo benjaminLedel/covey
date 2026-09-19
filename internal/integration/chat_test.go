@@ -450,3 +450,74 @@ func wartenAuf(t *testing.T, was string, erfuellt func() bool) {
 	}
 	t.Fatalf("timed out waiting for: %s", was)
 }
+
+/*
+TestThreadCarriesItsSearchAndItsBackgroundWork prüft die zwei Auskünfte, die
+
+	der Verlauf seit #308/#309 zusätzlich gibt.
+
+*
+* Beide sind aus demselben Grund nötig: Der Verlauf zeigt, was GESAGT wurde,
+* und ein Vorgang, der seit einer Stunde läuft, hat seit einer Stunde nichts
+* gesagt. Er braucht deshalb eine eigene Anzeige — und einen Weg, ihn
+* wiederzufinden, wenn er aus dem Fenster gelaufen ist.
+*/
+func TestThreadCarriesItsSearchAndItsBackgroundWork(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	agent := s.newSupportAgent("chat-suche")
+	if err := s.registry.SetKilled(ctx, agent.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	base := "/api/v1/agents/" + agent.ID.String()
+
+	admin.expect(http.MethodPost, base+"/messages",
+		map[string]any{"text": "Bitte die Rechnung von Globex prüfen"}, http.StatusCreated)
+	admin.expect(http.MethodPost, base+"/messages",
+		map[string]any{"text": "Und den Urlaubsantrag von Meyer freigeben"}, http.StatusCreated)
+
+	/* 1. Die Hintergrundvorgänge. Beide Aufgaben stehen offen, also zählt der
+	   Verlauf zwei — unabhängig davon, dass keine von ihnen im Gespräch
+	   etwas gesagt hat. */
+	verlauf := admin.expect(http.MethodGet, base+"/thread", nil, http.StatusOK)
+	vorgaenge, _ := verlauf["tasks"].([]any)
+	if len(vorgaenge) != 2 {
+		t.Fatalf("both open tasks belong in the background list: %v", verlauf["tasks"])
+	}
+
+	/* 2. Die Suche im Gespräch. Sie findet die Nachricht, nicht das ganze
+	   Gespräch — und sie findet sie über den Text wie über den Titel des
+	   Vorgangs, zu dem sie wurde. */
+	treffer := admin.expect(http.MethodGet, base+"/thread?q=Globex", nil, http.StatusOK)
+	eintraege, _ := treffer["entries"].([]any)
+	if len(eintraege) == 0 {
+		t.Fatal("the search finds nothing at all")
+	}
+	for _, roh := range eintraege {
+		e, _ := roh.(map[string]any)
+		text, _ := e["text"].(string)
+		titel, _ := e["task_title"].(string)
+		if !strings.Contains(text, "Globex") && !strings.Contains(titel, "Globex") {
+			t.Fatalf("a hit that carries the term in neither its text nor its task: %v", e)
+		}
+	}
+	if andere := admin.expect(http.MethodGet, base+"/thread?q=Meyer", nil, http.StatusOK); len(andere["entries"].([]any)) == 0 {
+		t.Fatal("the second message is not findable")
+	}
+
+	/* 3. Ein Prozentzeichen ist kein Platzhalter. Wer nach „%" sucht, sucht
+	   das Zeichen — nicht alles. Ohne das Ausmaskieren wäre jede Suche mit
+	   einem Prozentzeichen darin die Anzeige des ganzen Verlaufs, und das
+	   sähe aus wie ein Treffer. */
+	alles := admin.expect(http.MethodGet, base+"/thread?q=%25", nil, http.StatusOK)
+	if len(alles["entries"].([]any)) != 0 {
+		t.Fatalf("%% matched as a wildcard: %d entries", len(alles["entries"].([]any)))
+	}
+
+	/* 4. Eine Suche liefert Fundstellen, nicht das Gespräch: Reaktionen und
+	   der Denkzustand bleiben draußen, und die Hintergrundvorgänge auch. */
+	if len(treffer["tasks"].([]any)) != 0 {
+		t.Error("a list of hits carries no background work")
+	}
+}

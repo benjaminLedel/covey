@@ -73,6 +73,23 @@ type Offen struct {
 	Alter  string
 }
 
+/* Fertig ist ein abgeschlossener Vorgang — mit dem, was dabei herauskam.
+ *
+ * Ohne diese Liste konnte der Zug auf „ist das gestern rausgegangen?" nur
+ * raten oder eine Aufgabe eröffnen, und genau dieser Satz steht in spec/28 als
+ * das Beispiel, für das die Triage überhaupt gebaut wurde. Wer nur die offenen
+ * Vorgänge sieht, weiß, was noch zu tun ist, und nichts davon, was getan
+ * wurde.
+ *
+ * Das Ergebnis ist gekürzt: Ein Lauf kann zwanzig Zeilen hinterlassen, und
+ * fünf davon reichen, um zu sagen, ob es geklappt hat. */
+type Fertig struct {
+	Titel    string
+	Ausgang  string // done | failed
+	Alter    string
+	Ergebnis string
+}
+
 // TriageMaxTokens: die Antwort ist ein kurzes JSON-Objekt. Wer hier viel
 // Platz gibt, bekommt einen Aufsatz und zahlt dafür.
 const TriageMaxTokens = 700
@@ -85,7 +102,7 @@ A person wrote a message to this agent. Decide what kind of thing it is, and ans
 {"action":"note","task":"ab12","text":"…"}     — this belongs to a task you already have
 {"action":"task","title":"…","body":"…"}       — this is new work
 
-Choose "answer" when the message is a question about what was already said in this thread or about your own open tasks (they are listed below), a thank-you, a greeting, an acknowledgement, or a clarification you can give without looking anything up.
+Choose "answer" when the message is a question about what was already said in this thread, about your own open tasks or about one you recently finished (both are listed below, the finished ones with their outcome), a thank-you, a greeting, an acknowledgement, or a clarification you can give without looking anything up. "Did that go out yesterday?" is an answer when the task is in that list — say what it says, and say when it is not there.
 
 Choose "note" when the message adds to, corrects or asks about one specific task you already have. Use the short id from the list. Your text is written onto that task, and if it was waiting for an answer this releases it. Do not open a second task for the same thing.
 
@@ -93,14 +110,14 @@ Choose "task" when doing it would need any of: a target system (ticketing, repos
 
 You can see your own backlog and write to it, and that is all. You have NO target system, NO credentials, NO files, NO commands, NO search and NO memory beyond what stands below. Never claim to have done, checked, sent or looked at anything outside this list. If answering would require any of that, it is a task.
 
-For "answer": write in the agent's voice, in the language of the message, at most three sentences. A bare emoji (1–3 characters) is a valid answer when the message only needs acknowledging.
+For "answer": write in the agent's voice, in the language of the message, at most three sentences. A bare emoji (1–3 characters) is a valid answer when the message only needs acknowledging. Answer from the lists above and from this thread, never from memory of anything else: if a task is not in them, say that you cannot see it rather than guessing what became of it.
 For "note": the text is what the run should know, in one or two sentences.
 For "task": the title is one line in the imperative, the body carries what the person said and any context from the thread that the run will need.`
 
 // Triagieren führt den Zug aus. Der Fehlerfall ist bewusst weich: Wer nicht
 // entscheiden kann, eröffnet eine Aufgabe — das ist das Verhalten, das immer
 // funktioniert, und der Aufrufer muss dafür nichts wissen.
-func Triagieren(ctx context.Context, p llm.Provider, rolle string, offen []Offen, verlauf []Message, nachricht string) (Entscheidung, error) {
+func Triagieren(ctx context.Context, p llm.Provider, rolle string, offen []Offen, fertig []Fertig, verlauf []Message, nachricht string) (Entscheidung, error) {
 	var b strings.Builder
 	if rolle != "" {
 		b.WriteString("The agent's role:\n")
@@ -117,6 +134,20 @@ func Triagieren(ctx context.Context, p llm.Provider, rolle string, offen []Offen
 		b.WriteString("\n")
 	} else {
 		b.WriteString("You have no open tasks.\n\n")
+	}
+	/* Und was schon erledigt ist. Es steht NACH den offenen Vorgängen, weil
+	   eine Notiz immer an einen offenen geht — die kurzen Kennungen stehen
+	   oben, und hier unten gibt es keine, an die man schreiben könnte. */
+	if len(fertig) > 0 {
+		b.WriteString("Recently finished, oldest last:\n")
+		for _, f := range fertig {
+			fmt.Fprintf(&b, "  %s — %s, %s", kuerzen(f.Titel, 120), f.Ausgang, f.Alter)
+			if f.Ergebnis != "" {
+				fmt.Fprintf(&b, "\n    outcome: %s", kuerzen(einzeilig(f.Ergebnis), 400))
+			}
+			b.WriteString("\n")
+		}
+		b.WriteString("\n")
 	}
 	if len(verlauf) > 0 {
 		b.WriteString("The conversation so far, oldest first:\n")
@@ -180,6 +211,13 @@ func lesen(roh string) (Entscheidung, error) {
 		return Entscheidung{}, fmt.Errorf("triage: unknown action %q", e.Aktion)
 	}
 	return e, nil
+}
+
+// einzeilig macht aus dem Ergebnis eines Laufs eine Zeile. Ein Prompt, in dem
+// ein fremder Text eigene Absätze und Aufzählungen mitbringt, liest sich für
+// das Modell wie eine zweite Anweisung.
+func einzeilig(s string) string {
+	return strings.Join(strings.Fields(s), " ")
 }
 
 func kuerzen(s string, n int) string {
