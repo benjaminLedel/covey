@@ -3197,8 +3197,8 @@
   --bu-boden: light-dark(#fafafb, #1d1d21);
   --bu-flur: light-dark(#e4e4e8, #131317);
   --bu-gemein: light-dark(#e9edf1, #202429);
-  --bu-tisch: light-dark(#c6c6cd, #33333a);
-  --bu-tisch-hell: light-dark(#dcdce2, #3e3e46);
+  --bu-tisch: light-dark(#c39b72, #4a3826);
+  --bu-tisch-hell: light-dark(#dcb994, #5c4632);
   --bu-kante: light-dark(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.7));
   --bu-schirm: light-dark(#8e8e97, #121215);
   --bu-linie: light-dark(rgba(0, 0, 0, 0.5), rgba(255, 255, 255, 0.42));
@@ -3208,20 +3208,50 @@
   --bu-gruen: light-dark(#3f7a5e, #6fbd97);
 }
 
-/* Möbel tragen den Ton ihrer Abteilung, zur Zeichnung hin gemischt: Farbe
-   bindet hier etwas (Möbel gehören zu einem Zimmer, das Zimmer zu einer
-   Abteilung), statt etwas zu behaupten. Pflanzen bleiben grün — eine Pflanze
-   in Abteilungsblau wäre ein Scherz, den niemand gemacht hat. */
-/* Gemischt wird gegen einen DECKENDEN Ton. Der erste Anlauf mischte gegen
-   `--bu-linie`, und das ist ein halbtransparentes Schwarz: Was dabei
-   herauskommt, ist eine halbtransparente Trübung, und bei 55 % Deckkraft
-   darüber blieb von der Abteilungsfarbe nichts übrig. */
-.bu-einrichtung { --bu-deko: color-mix(in oklab, var(--bu-ton, var(--text-muted)) 78%, var(--text-muted)); }
-.bu-einrichtung .bu-riss-stueck { opacity: 0.72; }
-.bu-riss-stueck.r-pflanze,
-.bu-riss-stueck.r-monstera { stroke: var(--bu-gruen); opacity: 0.5; }
-.bu-einrichtung .bu-riss-stueck.r-pflanze,
-.bu-einrichtung .bu-riss-stueck.r-monstera { opacity: 0.58; }
+/* ── Die Materialien ──────────────────────────────────────────────────────
+   Jeder Pfad eines Möbelstücks sagt, woraus er ist (buero/risse.tsx), und die
+   Farbe kommt von hier. Damit lässt sich der ganze Bau in einem Zug heller,
+   dunkler oder stiller stellen, ohne dreiunddreißig Zeichnungen anzufassen —
+   und ein Aktenschrank sieht nicht aus wie ein Serverschrank.
+
+   Die Töne sind gedeckt und nicht gesättigt. Fünfzig Möbelstücke auf einem
+   Grundriss sind viele kleine Flächen; in voller Sättigung wäre das ein
+   Setzkasten, und der Ton der Tätigkeit — das Einzige hier, was eine Auskunft
+   trägt — ginge darin unter. */
+.bu {
+  --m-holz: light-dark(#b98a5e, #8a6340);
+  --m-metall: light-dark(#9fa8b4, #6a7480);
+  --m-papier: light-dark(#fdfdfd, #c9c9cf);
+  --m-dunkel: light-dark(#4a4f57, #14161a);
+  --m-laub: light-dark(#4e9268, #57a377);
+  --m-topf: light-dark(#c8794f, #a8613e);
+  --m-kork: light-dark(#d8b487, #8f7350);
+  --m-rot: light-dark(#c0483c, #c45a4d);
+  --m-warm: light-dark(#e0b356, #c99a3f);
+  --m-glas: light-dark(#8fb6c9, #5d8497);
+}
+.bu-riss-stueck .m-holz { fill: var(--m-holz); stroke: color-mix(in oklab, var(--m-holz) 58%, #000); }
+.bu-riss-stueck .m-metall { fill: var(--m-metall); stroke: color-mix(in oklab, var(--m-metall) 60%, #000); }
+.bu-riss-stueck .m-papier { fill: var(--m-papier); stroke: color-mix(in oklab, var(--m-papier) 52%, #000); }
+.bu-riss-stueck .m-dunkel { fill: var(--m-dunkel); stroke: var(--m-dunkel); }
+.bu-riss-stueck .m-laub { fill: var(--m-laub); stroke: color-mix(in oklab, var(--m-laub) 60%, #000); }
+.bu-riss-stueck .m-topf { fill: var(--m-topf); stroke: color-mix(in oklab, var(--m-topf) 60%, #000); }
+.bu-riss-stueck .m-kork { fill: var(--m-kork); stroke: color-mix(in oklab, var(--m-kork) 58%, #000); }
+.bu-riss-stueck .m-rot { fill: var(--m-rot); stroke: color-mix(in oklab, var(--m-rot) 60%, #000); }
+.bu-riss-stueck .m-warm { fill: var(--m-warm); stroke: color-mix(in oklab, var(--m-warm) 58%, #000); }
+.bu-riss-stueck .m-glas { fill: var(--m-glas); stroke: color-mix(in oklab, var(--m-glas) 58%, #000); }
+/* Polster und Bezug tragen den Ton der Abteilung — der eine Ort, an dem Farbe
+   im Grundriss etwas BINDET statt etwas zu behaupten: Möbel gehören zu einem
+   Zimmer, und das Zimmer gehört zu einer Abteilung. Ohne gesetzte
+   Abteilungsfarbe bleibt es ein Grau. */
+.bu-riss-stueck .m-polster {
+  fill: color-mix(in oklab, var(--bu-ton, var(--text-muted)) 50%, var(--surface-2));
+  stroke: color-mix(in oklab, var(--bu-ton, var(--text-muted)) 68%, #000);
+}
+.bu-riss-stueck .m-stoff {
+  fill: color-mix(in oklab, var(--bu-ton, var(--text-muted)) 44%, var(--surface-2));
+  stroke: none;
+}
 
 /* Schmaler als der Bau? Dann wird gescrollt — ein Grundriss, der umbricht,
    ist kein Grundriss. Der Plan richtet sich allerdings nach der gemessenen
@@ -3277,16 +3307,12 @@
   stroke-width: 1.1;
   stroke-linecap: round;
   stroke-linejoin: round;
-  opacity: 0.55;
+  stroke-width: 0.9;
+  opacity: 0.9;
   pointer-events: none;
 }
-/* Ein Möbelstück hat eine Fläche, keine bloße Kante: Ein Sofa als reiner
-   Umriss ist ein Rechteck mit einem Strich darin. Die Füllung ist derselbe
-   Ton, nur sehr verdünnt — das reicht, damit die Stücke als Körper lesen und
-   sich gegen den Boden absetzen. */
-.bu-riss-stueck .voll { fill: color-mix(in oklab, var(--bu-deko) 26%, transparent); }
-.bu-riss-stueck.r-pflanze .voll,
-.bu-riss-stueck.r-monstera .voll { fill: color-mix(in oklab, var(--bu-gruen) 24%, transparent); }
+/* Was kein Material nennt, bleibt eine Kante: Fugen, Griffe, Kabel, der
+   Schwanz der Katze. */
 .bu-riss-knopf {
   position: absolute;
   z-index: 1;

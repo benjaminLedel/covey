@@ -1,9 +1,20 @@
-/* Das Beiwerk, gezeichnet.
+/* Das Beiwerk, gezeichnet — und aus Material.
  *
- * Jedes Möbelstück ist ein Pfad in seinem eigenen kleinen Raster. Gezeichnet
- * und nicht aus einer Schrift geliehen: Ein Zeichen aus dem Unicode-Vorrat
- * trägt die Strichstärke SEINER Schrift, nicht die dieses Plans, und in einer
- * Reihe mit gezeichneten Türschwüngen fällt das sofort auf.
+ * Jedes Möbelstück ist eine Handvoll Pfade in seinem eigenen kleinen Raster,
+ * und jeder Pfad sagt, WORAUS er ist: Holz, Metall, Stoff, Papier, Laub,
+ * Glas. Die Farbe kommt dann aus einer Palette und nicht aus der Zeichnung,
+ * und damit lässt sich der ganze Bau in einem Zug heller, dunkler oder
+ * stiller stellen, ohne dreiunddreißig Zeichnungen anzufassen.
+ *
+ * WARUM NICHT EIN ICON-PAKET. Zwei Gründe, und der zweite wiegt schwerer.
+ * Der erste ist der Rechtsstand: Freie Stufen wie die von Flaticon verlangen
+ * sichtbare Namensnennung und beschränken die Weitergabe in Produkten, die
+ * andere installieren — und covey wird von Dritten geklont und ausgeliefert.
+ * Sauber einbettbar wären Lucide (ISC) oder Phosphor (MIT). Aber: Ein
+ * Grundriss ist eine DRAUFSICHT, und Icon-Sätze sind Seitenansichten. Ein
+ * Stuhl von vorn neben einem Türschwung verrät den Bruch sofort; aus der
+ * Zeichnung würde eine Karte mit Symbolen. Also von oben und selbst
+ * gezeichnet — dafür in Farbe.
  *
  * NICHTS HIER TRÄGT AUSKUNFT. Das ist keine Nachlässigkeit, sondern die
  * Bedingung: Ein Aktenschrank, aus dem sich etwas ablesen ließe, das in
@@ -47,110 +58,180 @@ export type Art =
   | "blatt"
   | "vogel";
 
-/* `voll` nennt die Pfade, die eine Fläche sind und keine Kante — sie bekommen
-   eine Füllung aus demselben Ton. Reine Umrisse lasen sich als Drahtmodell:
-   Ein Sofa ohne Sitzfläche ist ein Rechteck mit einer Linie darin. */
-type Bild = { vb: string; d: string[]; voll?: number[] };
+/* Die Materialien. Mehr braucht ein Büro nicht, und weniger hieße, dass ein
+   Aktenschrank aussieht wie ein Serverschrank. `stoff` und `polster` tragen
+   den Ton der Abteilung — das ist der eine Ort, an dem Farbe im Grundriss
+   etwas BINDET statt etwas zu behaupten: Polster gehören zu einem Zimmer,
+   und das Zimmer gehört zu einer Abteilung. */
+type Material =
+  | "holz"
+  | "metall"
+  | "stoff"
+  | "polster"
+  | "papier"
+  | "dunkel"
+  | "laub"
+  | "topf"
+  | "kork"
+  | "rot"
+  | "warm"
+  | "glas";
+
+/** Ein Pfad und das, woraus er ist. Ohne Material bleibt er eine reine Kante. */
+type P = [d: string, m?: Material];
+type Bild = { vb: string; d: P[] };
 
 const BILDER: Record<Art, Bild> = {
   /* Eine Topfpflanze von oben: Stiel, zwei Blätter, Topf. */
   pflanze: {
     vb: "0 0 24 30",
     d: [
-      "M12 22V13",
-      "M12 15c-5-1-7-5-6.5-9C9 6.5 11.5 10 12 15Z",
-      "M12 17c5-1.5 6.5-5.5 6-9.5-3.5.5-6 4-6 9.5Z",
-      "M7 22h10l-1.2 6.5a1 1 0 0 1-1 .5H9.2a1 1 0 0 1-1-.5Z",
+      ["M12 22V13"],
+      ["M12 15c-5-1-7-5-6.5-9C9 6.5 11.5 10 12 15Z", "laub"],
+      ["M12 17c5-1.5 6.5-5.5 6-9.5-3.5.5-6 4-6 9.5Z", "laub"],
+      ["M7 22h10l-1.2 6.5a1 1 0 0 1-1 .5H9.2a1 1 0 0 1-1-.5Z", "topf"],
     ],
-    voll: [1, 2, 3],
   },
   /* Die große: ein runder Topf und drei Blätter, die darüber hinausragen. */
   monstera: {
     vb: "0 0 26 26",
     d: [
-      "M17 17.5a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z",
-      "M12.5 13.5c-1.5-4-5-6-9-5 .5 4.5 4 7 9 5Z",
-      "M13.5 13c2.5-3.5 2.5-7.5 0-10.5-2.5 3-2.5 7 0 10.5Z",
-      "M14 14.5c4-.5 7-3.5 7.5-7.5-4 .5-7 3.5-7.5 7.5Z",
+      ["M12.5 13.5c-1.5-4-5-6-9-5 .5 4.5 4 7 9 5Z", "laub"],
+      ["M13.5 13c2.5-3.5 2.5-7.5 0-10.5-2.5 3-2.5 7 0 10.5Z", "laub"],
+      ["M14 14.5c4-.5 7-3.5 7.5-7.5-4 .5-7 3.5-7.5 7.5Z", "laub"],
+      ["M17 17.5a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z", "topf"],
     ],
-    voll: [0, 1, 2, 3],
   },
-  schrank: { vb: "0 0 34 13", d: ["M.6 .6h32.8v11.8H.6Z", "M17 .6v11.8", "M8 7h4", "M22 7h4"], voll: [0] },
+  schrank: {
+    vb: "0 0 34 13",
+    d: [["M.6 .6h32.8v11.8H.6Z", "holz"], ["M17 .6v11.8"], ["M8 7h4", "metall"], ["M22 7h4", "metall"]],
+  },
   /* Ein Regal: Fächer, und in zweien stehen Ordner. */
   regal: {
     vb: "0 0 40 12",
     d: [
-      "M.6 .6h38.8v10.8H.6Z",
-      "M13.7 .6v10.8",
-      "M26.3 .6v10.8",
-      "M3 3.4v5.6M5 3.4v5.6M7 3.4v5.6",
-      "M29 3.4v5.6M31 3.4v5.6",
+      ["M.6 .6h38.8v10.8H.6Z", "holz"],
+      ["M13.7 .6v10.8"],
+      ["M26.3 .6v10.8"],
+      ["M2.4 3h1.6v6H2.4Z", "rot"],
+      ["M4.6 3h1.6v6H4.6Z", "warm"],
+      ["M6.8 3h1.6v6H6.8Z", "glas"],
+      ["M28.4 3h1.6v6h-1.6Z", "warm"],
+      ["M30.6 3h1.6v6h-1.6Z", "rot"],
     ],
-    voll: [0],
   },
   server: {
     vb: "0 0 16 31",
-    d: ["M.7 .7h14.6v29.6H.7Z", "M3 5h10", "M3 10h10", "M3 15h10", "M3 20h10", "M3 25h10"],
-    voll: [0],
+    d: [
+      ["M.7 .7h14.6v29.6H.7Z", "metall"],
+      ["M2.6 4h10.8v2.6H2.6Z", "dunkel"],
+      ["M2.6 9h10.8v2.6H2.6Z", "dunkel"],
+      ["M2.6 14h10.8v2.6H2.6Z", "dunkel"],
+      ["M2.6 19h10.8v2.6H2.6Z", "dunkel"],
+      ["M2.6 24h10.8v2.6H2.6Z", "dunkel"],
+    ],
   },
   pinnwand: {
     vb: "0 0 34 8",
-    d: ["M.7 .7h32.6v6.6H.7Z", "M6 4h.01", "M14 2.6h.01", "M21 5h.01", "M28 3.4h.01"],
-    voll: [0],
+    d: [
+      ["M.7 .7h32.6v6.6H.7Z", "kork"],
+      ["M4.4 2h3.6v3.4H4.4Z", "papier"],
+      ["M11.4 1.8h4.4v4H11.4Z", "papier"],
+      ["M19 2.4h3.4v3H19Z", "papier"],
+      ["M25.6 1.8h4.4v4h-4.4Z", "papier"],
+    ],
   },
-  whiteboard: { vb: "0 0 45 8", d: ["M.7 .7h43.6v6.6H.7Z", "M6 4h16", "M6 5.8h9"], voll: [0] },
-  uhr: { vb: "0 0 24 14", d: ["M12 1.2a5.8 5.8 0 1 1 0 11.6 5.8 5.8 0 0 1 0-11.6Z", "M12 4v3l2.4 1.6"], voll: [0] },
+  whiteboard: { vb: "0 0 45 8", d: [["M.7 .7h43.6v6.6H.7Z", "papier"], ["M6 4h16"], ["M6 5.8h9"]] },
+  uhr: {
+    vb: "0 0 24 14",
+    d: [["M12 1.2a5.8 5.8 0 1 1 0 11.6 5.8 5.8 0 0 1 0-11.6Z", "papier"], ["M12 4v3l2.4 1.6", "dunkel"]],
+  },
   sofa: {
     vb: "0 0 44 24",
     d: [
-      "M2 7a4.4 4.4 0 0 1 4.4-4.4h31.2A4.4 4.4 0 0 1 42 7v12.6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2Z",
-      "M2 8.6h40",
-      "M22 8.6v13",
+      ["M2 7a4.4 4.4 0 0 1 4.4-4.4h31.2A4.4 4.4 0 0 1 42 7v12.6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2Z", "polster"],
+      ["M3.6 8.6h16.8v11.4H3.6Z", "stoff"],
+      ["M23.6 8.6h16.8v11.4H23.6Z", "stoff"],
     ],
-    voll: [0],
   },
   sessel: {
     vb: "0 0 22 22",
-    d: ["M2 7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v10.6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2Z", "M2 8.4h20"],
-    voll: [0],
+    d: [
+      ["M2 7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v10.6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2Z", "polster"],
+      ["M3.6 8.4h14.8v9.6H3.6Z", "stoff"],
+    ],
   },
   teppich: {
     vb: "0 0 70 46",
     d: [
-      "M3 .7h64a2.3 2.3 0 0 1 2.3 2.3v40a2.3 2.3 0 0 1-2.3 2.3H3A2.3 2.3 0 0 1 .7 43V3A2.3 2.3 0 0 1 3 .7Z",
-      "M5.5 5.5h59v34h-59Z",
+      ["M3 .7h64a2.3 2.3 0 0 1 2.3 2.3v40a2.3 2.3 0 0 1-2.3 2.3H3A2.3 2.3 0 0 1 .7 43V3A2.3 2.3 0 0 1 3 .7Z", "stoff"],
+      ["M5.5 5.5h59v34h-59Z"],
     ],
   },
-  telefon: { vb: "0 0 12 9", d: ["M.7 1.7h10.6v6.6H.7Z", "M2.6 .8c1.4-.8 4.4-.8 5.8 0"], voll: [0] },
-  zweitschirm: { vb: "0 0 14 7", d: ["M.7 .7h12.6v5.6H.7Z"], voll: [0] },
-  lampe: { vb: "0 0 12 12", d: ["M6 11V5", "M2.4 5 6 .9 9.6 5Z", "M3 11.4h6"], voll: [1] },
-  papierkorb: { vb: "0 0 10 10", d: ["M1.4 1.6h7.2l-.9 7a1 1 0 0 1-1 .8H3.3a1 1 0 0 1-1-.8Z"], voll: [0] },
-  tasse: { vb: "0 0 14 12", d: ["M2 3h8v5a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2Z", "M10 4.5h1.5a1.5 1.5 0 0 1 0 3H10"], voll: [0] },
-  mappe: { vb: "0 0 14 11", d: ["M4 1.5h9v6.5", "M1.5 2.5h10v7.5h-10Z"], voll: [1] },
-  drucker: { vb: "0 0 24 18", d: ["M6 0h12v4H6Z", "M2 4h20v9H2Z", "M6 13h12v5H6Z", "M18 7h2"], voll: [1] },
-  spender: { vb: "0 0 18 21", d: ["M4 6h10v12a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3Z", "M5 0h8l-1 6H6Z"], voll: [0, 1] },
-  garderobe: { vb: "0 0 30 7", d: ["M1 2h28", "M5 2v4.4", "M12 2v4.4", "M19 2v4.4", "M26 2v4.4"] },
-  giesskanne: { vb: "0 0 16 12", d: ["M2 4h7v6a1.6 1.6 0 0 1-1.6 1.6H3.6A1.6 1.6 0 0 1 2 10Z", "M9 5.4 15 2", "M3.4 4V2.4h4.2V4"] },
+  telefon: { vb: "0 0 12 9", d: [["M.7 1.7h10.6v6.6H.7Z", "dunkel"], ["M2.6 .8c1.4-.8 4.4-.8 5.8 0", "metall"]] },
+  zweitschirm: { vb: "0 0 14 7", d: [["M.7 .7h12.6v5.6H.7Z", "dunkel"]] },
+  lampe: { vb: "0 0 12 12", d: [["M6 11V5", "metall"], ["M2.4 5 6 .9 9.6 5Z", "warm"], ["M3 11.4h6", "metall"]] },
+  papierkorb: { vb: "0 0 10 10", d: [["M1.4 1.6h7.2l-.9 7a1 1 0 0 1-1 .8H3.3a1 1 0 0 1-1-.8Z", "metall"]] },
+  tasse: {
+    vb: "0 0 14 12",
+    d: [["M2 3h8v5a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2Z", "papier"], ["M10 4.5h1.5a1.5 1.5 0 0 1 0 3H10"], ["M3.4 4.2h5.2v1.6H3.4Z", "topf"]],
+  },
+  mappe: { vb: "0 0 14 11", d: [["M4 1.5h9v6.5", "warm"], ["M1.5 2.5h10v7.5h-10Z", "rot"]] },
+  drucker: {
+    vb: "0 0 24 18",
+    d: [["M6 0h12v4H6Z", "papier"], ["M2 4h20v9H2Z", "metall"], ["M6 13h12v5H6Z", "dunkel"], ["M17.4 6.4h2.8v2.2h-2.8Z", "rot"]],
+  },
+  spender: { vb: "0 0 18 21", d: [["M5 0h8l-1 6H6Z", "glas"], ["M4 6h10v12a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3Z", "metall"]] },
+  garderobe: {
+    vb: "0 0 30 7",
+    d: [["M1 2h28", "metall"], ["M5 2v4.4", "metall"], ["M12 2v4.4", "metall"], ["M19 2v4.4", "metall"], ["M26 2v4.4", "metall"]],
+  },
+  giesskanne: {
+    vb: "0 0 16 12",
+    d: [["M2 4h7v6a1.6 1.6 0 0 1-1.6 1.6H3.6A1.6 1.6 0 0 1 2 10Z", "metall"], ["M9 5.4 15 2"], ["M3.4 4V2.4h4.2V4"]],
+  },
   /* Der Feuerlöscher an der Flurwand — in einem Plan steht er immer irgendwo,
      und man sieht ihn erst, wenn man ihn sucht. */
-  feuerloescher: { vb: "0 0 9 14", d: ["M1.6 3.4h5.8v9.2a1 1 0 0 1-1 1H2.6a1 1 0 0 1-1-1Z", "M3.2 3.4V1.4h2.6v2", "M7.4 5.4h1.2"], voll: [0] },
-  flipchart: { vb: "0 0 22 16", d: ["M2.6 .7h16.8v9.6H2.6Z", "M11 10.3v5", "M4 15.3 11 10.3l7 5", "M6 4h8", "M6 6.6h5"], voll: [0] },
-  kaffeemaschine: { vb: "0 0 14 16", d: ["M1.6 .7h10.8v6.6H1.6Z", "M3.6 7.3v4.4h6.8V7.3", "M2 15.3h10", "M5 11.7v3.6", "M9 11.7v3.6"], voll: [0] },
-  stehlampe: { vb: "0 0 14 16", d: ["M3.4 5 7 .9 10.6 5Z", "M7 5v9.4", "M3.6 15.3h6.8"], voll: [0] },
-  bild: { vb: "0 0 18 13", d: ["M.7 .7h16.6v11.6H.7Z", "M3.4 9.4 7 5.4l2.6 2.8L12 6l2.6 3.4Z"], voll: [0, 1] },
+  feuerloescher: {
+    vb: "0 0 9 14",
+    d: [["M1.6 3.4h5.8v9.2a1 1 0 0 1-1 1H2.6a1 1 0 0 1-1-1Z", "rot"], ["M3.2 3.4V1.4h2.6v2", "dunkel"], ["M7.4 5.4h1.2"]],
+  },
+  flipchart: {
+    vb: "0 0 22 16",
+    d: [["M2.6 .7h16.8v9.6H2.6Z", "papier"], ["M11 10.3v5", "metall"], ["M4 15.3 11 10.3l7 5", "metall"], ["M6 4h8"], ["M6 6.6h5"]],
+  },
+  kaffeemaschine: {
+    vb: "0 0 14 16",
+    d: [["M1.6 .7h10.8v6.6H1.6Z", "dunkel"], ["M3.6 7.3h6.8v4.4H3.6Z", "glas"], ["M2 15.3h10", "metall"], ["M5 11.7v3.6"], ["M9 11.7v3.6"]],
+  },
+  stehlampe: { vb: "0 0 14 16", d: [["M3.4 5 7 .9 10.6 5Z", "warm"], ["M7 5v9.4", "metall"], ["M3.6 15.3h6.8", "metall"]] },
+  bild: {
+    vb: "0 0 18 13",
+    d: [["M.7 .7h16.6v11.6H.7Z", "holz"], ["M2.6 2.6h12.8v7.8H2.6Z", "glas"], ["M3.4 9.4 7 5.4l2.6 2.8L12 6l2.6 3.4Z", "laub"]],
+  },
   /* Die Tastatur: der Strich, an dem man einen Schreibtisch erkennt. */
-  tastatur: { vb: "0 0 22 6", d: ["M.7 .7h20.6v4.6H.7Z", "M4 3h14"], voll: [0] },
+  tastatur: { vb: "0 0 22 6", d: [["M.7 .7h20.6v4.6H.7Z", "dunkel"]] },
   /* Die Katze von oben: Rücken, zwei Ohren, ein Schwanz. */
   katze: {
     vb: "0 0 22 26",
-    d: ["M11 7a5 7 0 0 1 0 14 5 7 0 0 1 0-14Z", "M7.5 8.5 6 4.5l3.5 2Z", "M14.5 8.5 16 4.5l-3.5 2Z", "M11 21c0 4 3 5 6 4"],
-    voll: [0, 1, 2],
+    d: [
+      ["M11 7a5 7 0 0 1 0 14 5 7 0 0 1 0-14Z", "warm"],
+      ["M7.5 8.5 6 4.5l3.5 2Z", "warm"],
+      ["M14.5 8.5 16 4.5l-3.5 2Z", "warm"],
+      ["M11 21c0 4 3 5 6 4"],
+    ],
   },
-  flieger: { vb: "0 0 22 12", d: ["M0 6 22 0l-8 12-3-5Z", "M11 7 22 0"], voll: [0] },
-  paket: { vb: "0 0 18 18", d: ["M1 3.4h16v13.2H1Z", "M9 3.4v13.2", "M1 8.2h16"], voll: [0] },
-  kuchen: { vb: "0 0 22 20", d: ["M11 3.4a7.6 7.6 0 1 1 0 15.2 7.6 7.6 0 0 1 0-15.2Z", "M11 11 17 7.6", "M11 11v7.6", "M11 3.4V.8"], voll: [0] },
-  blatt: { vb: "0 0 10 13", d: ["M.7 .7h8.6v11.6H.7Z", "M2.6 4h4.8", "M2.6 6.4h4.8", "M2.6 8.8h3"], voll: [0] },
-  vogel: { vb: "0 0 13 12", d: ["M3 6a3 3 0 0 1 6 0c0 2-1.5 3.4-3 3.4S3 8 3 6Z", "M9 5.2 12 4", "M3.4 5 .6 3.4", "M6 9.4v1.6"], voll: [0] },
+  flieger: { vb: "0 0 22 12", d: [["M0 6 22 0l-8 12-3-5Z", "papier"], ["M11 7 22 0"]] },
+  paket: { vb: "0 0 18 18", d: [["M1 3.4h16v13.2H1Z", "topf"], ["M9 3.4v13.2", "warm"], ["M1 8.2h16", "warm"]] },
+  kuchen: {
+    vb: "0 0 22 20",
+    d: [["M11 3.4a7.6 7.6 0 1 1 0 15.2 7.6 7.6 0 0 1 0-15.2Z", "papier"], ["M11 11 17 7.6"], ["M11 11v7.6"], ["M11 3.4V.8", "rot"]],
+  },
+  blatt: { vb: "0 0 10 13", d: [["M.7 .7h8.6v11.6H.7Z", "papier"], ["M2.6 4h4.8"], ["M2.6 6.4h4.8"], ["M2.6 8.8h3"]] },
+  vogel: {
+    vb: "0 0 13 12",
+    d: [["M3 6a3 3 0 0 1 6 0c0 2-1.5 3.4-3 3.4S3 8 3 6Z", "glas"], ["M9 5.2 12 4", "warm"], ["M3.4 5 .6 3.4"], ["M6 9.4v1.6"]],
+  },
 };
 
 /** Die Maße, in denen ein Stück gezeichnet wird — ohne sie steht jedes an vier Orten. */
@@ -208,7 +289,7 @@ export default function Riss({
     height: hoehe,
     style: { left: x, top: y },
   };
-  const inhalt = bild.d.map((d, i) => <path key={i} d={d} className={bild.voll?.includes(i) ? "voll" : undefined} />);
+  const inhalt = bild.d.map(([d, m], i) => <path key={i} d={d} className={m ? `m-${m}` : undefined} />);
 
   /* Anklickbar ist genau ein Stück — die Pflanze. Dann muss es auch ein
      Knopf sein: Ein <svg> mit einem Klickhörer erreicht die Tastatur nicht. */
