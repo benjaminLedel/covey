@@ -86,12 +86,14 @@ export function erschaffeLeben(
     gaeste: () => void;
     /** Alle Wachen sehen einen Moment lang in die Mitte. */
     aufmerksam: () => void;
+    /** Eine Pflanze wartet jetzt auf Wasser (oder wartet nicht mehr). */
+    durst: () => void;
   },
 ) {
   const figuren = new Map<string, Figur>();
   let gaeste: Gast[] = [];
   let naechsteId = 1;
-  const durstig: { id: string; punkt: Punkt }[] = [];
+  const durstig: { id: string; punkt: Punkt; seit: number }[] = [];
 
   const raumVon = (f: Figur) => plan.raeume[f.ri];
   const gemIndex = (art: "besprechung" | "teekueche") =>
@@ -472,22 +474,40 @@ export function erschaffeLeben(
     haken.gaeste();
   }
 
-  /** Eine Pflanze anklicken: Sie merkt sich den Durst, bis jemand Zeit hat. */
+  /* Eine Pflanze anklicken.
+   *
+   * Der erste Anlauf tat nichts, sobald gerade niemand frei war — und weil
+   * die meisten Kollegen die meiste Zeit schlafen, war genau das der
+   * Normalfall. Jetzt merkt sich die Pflanze den Durst, der Nächste, der
+   * nichts zu tun hat, geht hin, und wenn nach drei Sekunden niemand
+   * gekommen ist, war es eben Ihre Gießkanne. Einen Schlafenden dafür zu
+   * wecken wäre eine Lüge über seinen Zustand; eine Pflanze, die auf einen
+   * Klick nicht reagiert, ist ein kaputter Knopf. */
   function giessen(id: string, punkt: Punkt) {
     if (durstig.some((d) => d.id === id)) return;
-    durstig.push({ id, punkt });
+    durstig.push({ id, punkt, seit: 0 });
+    haken.durst();
     giessdienst();
   }
-  function giessdienst() {
+  function giessdienst(dt = 0) {
     if (!durstig.length) return;
-    const frei = freieHand();
-    if (!frei.length) return;
     const d = durstig[0];
+    const frei = freieHand();
+    if (!frei.length) {
+      d.seit += dt * 1000;
+      if (d.seit > 3000) {
+        durstig.shift();
+        haken.gegossen(d.id);
+        haken.durst();
+      }
+      return;
+    }
     const zi = raumAn(plan, d.punkt);
     const f = frei
       .map((k) => ({ k, s: Math.hypot(k.pos.x - d.punkt.x, k.pos.y - d.punkt.y) }))
       .sort((a, b) => a.s - b.s)[0].k;
     durstig.shift();
+    haken.durst();
     f.giesst = d.id;
     f.route = weg(plan, f.pos, { x: d.punkt.x + 26, y: d.punkt.y }, zi);
     f.pause = 3600;
@@ -522,10 +542,10 @@ export function erschaffeLeben(
     }
     if (geaendert) haken.gaeste();
 
+    giessdienst(dt);
     seit += dt * 1000;
     if (seit < 1000) return;
     seit = 0;
-    giessdienst();
     holerSchicken();
     for (const [name, p] of Object.entries(HAEUFIG)) if (Math.random() < p) ausloesen(name as Ereignis);
   }

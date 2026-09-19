@@ -131,19 +131,21 @@ const zimmerHoehe = (n: number) =>
 
 /** Was in ein Zimmer gestellt wird. Siehe `ausstattungFuer`. */
 export type Ausstattung = {
-  wand: ("pinnwand" | "whiteboard" | "server" | "regal" | "uhr" | "schrank")[];
+  wand: ("pinnwand" | "whiteboard" | "server" | "regal" | "uhr" | "schrank" | "bild")[];
   ecke: "sofa" | "sessel" | "regal" | "schrank";
   tisch: "telefon" | "zweitschirm" | "lampe" | null;
+  /** Was in der Sitzecke noch steht, wenn Platz dafür ist. */
+  neben: "stehlampe" | "flipchart" | "papierkorb";
 };
 
 const AUSSTATTUNGEN: Record<string, Ausstattung> = {
-  support: { wand: ["pinnwand", "uhr"], ecke: "sofa", tisch: "telefon" },
-  technik: { wand: ["whiteboard", "server"], ecke: "sessel", tisch: "zweitschirm" },
-  betrieb: { wand: ["server", "uhr"], ecke: "regal", tisch: "zweitschirm" },
-  akten: { wand: ["schrank", "schrank"], ecke: "regal", tisch: "lampe" },
-  werkstatt: { wand: ["whiteboard", "regal"], ecke: "sessel", tisch: "zweitschirm" },
-  aufenthalt: { wand: ["pinnwand"], ecke: "sofa", tisch: "lampe" },
-  buero: { wand: ["pinnwand", "uhr"], ecke: "regal", tisch: "lampe" },
+  support: { wand: ["pinnwand", "uhr"], ecke: "sofa", tisch: "telefon", neben: "stehlampe" },
+  technik: { wand: ["whiteboard", "server"], ecke: "sessel", tisch: "zweitschirm", neben: "flipchart" },
+  betrieb: { wand: ["server", "uhr"], ecke: "regal", tisch: "zweitschirm", neben: "papierkorb" },
+  akten: { wand: ["schrank", "schrank"], ecke: "regal", tisch: "lampe", neben: "papierkorb" },
+  werkstatt: { wand: ["whiteboard", "regal"], ecke: "sessel", tisch: "zweitschirm", neben: "flipchart" },
+  aufenthalt: { wand: ["bild", "pinnwand"], ecke: "sofa", tisch: "lampe", neben: "stehlampe" },
+  buero: { wand: ["pinnwand", "bild"], ecke: "regal", tisch: "lampe", neben: "stehlampe" },
 };
 
 /* Abteilungen heißen in covey, wie die Organisation sie nennt — eine feste

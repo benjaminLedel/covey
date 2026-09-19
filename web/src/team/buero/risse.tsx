@@ -34,6 +34,12 @@ export type Art =
   | "spender"
   | "garderobe"
   | "giesskanne"
+  | "feuerloescher"
+  | "flipchart"
+  | "kaffeemaschine"
+  | "stehlampe"
+  | "bild"
+  | "tastatur"
   | "katze"
   | "flieger"
   | "paket"
@@ -115,6 +121,15 @@ const BILDER: Record<Art, Bild> = {
   spender: { vb: "0 0 18 21", d: ["M4 6h10v12a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3Z", "M5 0h8l-1 6H6Z"] },
   garderobe: { vb: "0 0 30 7", d: ["M1 2h28", "M5 2v4.4", "M12 2v4.4", "M19 2v4.4", "M26 2v4.4"] },
   giesskanne: { vb: "0 0 16 12", d: ["M2 4h7v6a1.6 1.6 0 0 1-1.6 1.6H3.6A1.6 1.6 0 0 1 2 10Z", "M9 5.4 15 2", "M3.4 4V2.4h4.2V4"] },
+  /* Der Feuerlöscher an der Flurwand — in einem Plan steht er immer irgendwo,
+     und man sieht ihn erst, wenn man ihn sucht. */
+  feuerloescher: { vb: "0 0 9 14", d: ["M1.6 3.4h5.8v9.2a1 1 0 0 1-1 1H2.6a1 1 0 0 1-1-1Z", "M3.2 3.4V1.4h2.6v2", "M7.4 5.4h1.2"] },
+  flipchart: { vb: "0 0 22 16", d: ["M2.6 .7h16.8v9.6H2.6Z", "M11 10.3v5", "M4 15.3 11 10.3l7 5", "M6 4h8", "M6 6.6h5"] },
+  kaffeemaschine: { vb: "0 0 14 16", d: ["M1.6 .7h10.8v6.6H1.6Z", "M3.6 7.3v4.4h6.8V7.3", "M2 15.3h10", "M5 11.7v3.6", "M9 11.7v3.6"] },
+  stehlampe: { vb: "0 0 14 16", d: ["M3.4 5 7 .9 10.6 5Z", "M7 5v9.4", "M3.6 15.3h6.8"] },
+  bild: { vb: "0 0 18 13", d: ["M.7 .7h16.6v11.6H.7Z", "M3.4 9.4 7 5.4l2.6 2.8L12 6l2.6 3.4Z"] },
+  /* Die Tastatur: der Strich, an dem man einen Schreibtisch erkennt. */
+  tastatur: { vb: "0 0 22 6", d: ["M.7 .7h20.6v4.6H.7Z", "M4 3h14"] },
   /* Die Katze von oben: Rücken, zwei Ohren, ein Schwanz. */
   katze: {
     vb: "0 0 22 26",
@@ -144,6 +159,12 @@ export const MASS: Partial<Record<Art, [number, number]>> = {
   zweitschirm: [14, 7],
   lampe: [12, 12],
   papierkorb: [10, 10],
+  feuerloescher: [9, 14],
+  flipchart: [22, 16],
+  kaffeemaschine: [14, 16],
+  stehlampe: [14, 16],
+  bild: [18, 13],
+  tastatur: [22, 6],
 };
 
 export default function Riss({

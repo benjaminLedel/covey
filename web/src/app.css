@@ -3188,18 +3188,40 @@
      durch Lage und Haarlinie, nicht durch Farbton; die einzige Farbe, die der
      Grundriss trägt, ist der Ton der Tätigkeit. Ein Boden, der selbst eine
      Meinung hat, nimmt ihm die seine. */
-  --bu-mauer: light-dark(#9a9aa2, #3a3a41);
-  --bu-mauer-riss: light-dark(#7f7f88, #4b4b53);
-  --bu-boden: light-dark(#e7e7ea, #17171a);
-  --bu-flur: light-dark(#dcdce0, #101013);
-  --bu-gemein: light-dark(#dfe2e6, #1b1e22);
-  --bu-tisch: light-dark(#ccccd2, #2b2b30);
-  --bu-tisch-hell: light-dark(#dedee3, #35353b);
-  --bu-kante: light-dark(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.6));
-  --bu-schirm: light-dark(#a2a2a9, #19191c);
-  --bu-linie: light-dark(rgba(0, 0, 0, 0.34), rgba(255, 255, 255, 0.3));
-  --bu-deko: light-dark(rgba(0, 0, 0, 0.3), rgba(255, 255, 255, 0.22));
+  /* Der Abstand zwischen Mauerwerk und Boden ist der Kontrast des ganzen
+     Plans. Zu eng gesetzt liest sich alles als ein Grau, und weder die Wand
+     noch der Flur noch der Tisch treten hervor — deshalb ist die Mauer jetzt
+     deutlich dunkler und der Zimmerboden nahezu weiß. */
+  --bu-mauer: light-dark(#7c7c86, #45454e);
+  --bu-mauer-riss: light-dark(#5e5e68, #5a5a64);
+  --bu-boden: light-dark(#fafafb, #1d1d21);
+  --bu-flur: light-dark(#e4e4e8, #131317);
+  --bu-gemein: light-dark(#e9edf1, #202429);
+  --bu-tisch: light-dark(#c6c6cd, #33333a);
+  --bu-tisch-hell: light-dark(#dcdce2, #3e3e46);
+  --bu-kante: light-dark(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.7));
+  --bu-schirm: light-dark(#8e8e97, #121215);
+  --bu-linie: light-dark(rgba(0, 0, 0, 0.5), rgba(255, 255, 255, 0.42));
+  /* Der Grundton des Beiwerks. Ein Zimmer setzt ihn auf den Ton seiner
+     Abteilung um (`.bu-einrichtung`); ohne Abteilungsfarbe bleibt er grau. */
+  --bu-deko: light-dark(rgba(0, 0, 0, 0.42), rgba(255, 255, 255, 0.34));
+  --bu-gruen: light-dark(#3f7a5e, #6fbd97);
 }
+
+/* Möbel tragen den Ton ihrer Abteilung, zur Zeichnung hin gemischt: Farbe
+   bindet hier etwas (Möbel gehören zu einem Zimmer, das Zimmer zu einer
+   Abteilung), statt etwas zu behaupten. Pflanzen bleiben grün — eine Pflanze
+   in Abteilungsblau wäre ein Scherz, den niemand gemacht hat. */
+/* Gemischt wird gegen einen DECKENDEN Ton. Der erste Anlauf mischte gegen
+   `--bu-linie`, und das ist ein halbtransparentes Schwarz: Was dabei
+   herauskommt, ist eine halbtransparente Trübung, und bei 55 % Deckkraft
+   darüber blieb von der Abteilungsfarbe nichts übrig. */
+.bu-einrichtung { --bu-deko: color-mix(in oklab, var(--bu-ton, var(--text-muted)) 78%, var(--text-muted)); }
+.bu-einrichtung .bu-riss-stueck { opacity: 0.72; }
+.bu-riss-stueck.r-pflanze,
+.bu-riss-stueck.r-monstera { stroke: var(--bu-gruen); opacity: 0.5; }
+.bu-einrichtung .bu-riss-stueck.r-pflanze,
+.bu-einrichtung .bu-riss-stueck.r-monstera { opacity: 0.58; }
 
 /* Schmaler als der Bau? Dann wird gescrollt — ein Grundriss, der umbricht,
    ist kein Grundriss. Der Plan richtet sich allerdings nach der gemessenen
@@ -3227,7 +3249,7 @@
 .bu-boden.flur { background: var(--bu-flur); }
 .bu-boden.gemein { background: var(--bu-gemein); }
 /* Hier arbeitet jemand. Quer über die Seite lesbar — das ist der ganze Zweck. */
-.bu-boden.hell { background: color-mix(in srgb, var(--bg-accent) 94%, var(--bu-boden)); }
+.bu-boden.hell { background: var(--bg-accent); }
 /* Hier schlafen alle. Kein Grau-in-Grau, sondern eine Spur tiefer im Boden:
    Das Zimmer steht noch da, es ist nur zu. */
 .bu-boden.leer { background: color-mix(in srgb, var(--bu-flur) 60%, var(--bu-boden)); }
@@ -3241,6 +3263,7 @@
 .bu-riss path { fill: none; stroke: var(--bu-linie); stroke-width: 1; }
 .bu-riss .blatt { stroke-width: 1.6; }
 .bu-riss .moebel { stroke: var(--bu-kante); }
+.bu-riss .moebel .tastatur { opacity: 0.6; }
 .bu-riss .fenster { stroke-width: 1.4; }
 
 /* Das Beiwerk. Alles an einer Farbe, und das ist Absicht: Beiwerk, das ins
@@ -3254,7 +3277,7 @@
   stroke-width: 1.1;
   stroke-linecap: round;
   stroke-linejoin: round;
-  opacity: 0.34;
+  opacity: 0.55;
   pointer-events: none;
 }
 .bu-riss-knopf {
@@ -3339,8 +3362,8 @@
   background: linear-gradient(180deg, var(--bu-tisch-hell) 0%, var(--bu-tisch) 64%);
   box-shadow:
     inset 0 1px 0 var(--inset-highlight),
-    0 3px 0 -1px var(--bu-kante),
-    0 6px 8px -5px var(--shadow-md);
+    0 2px 0 -1px var(--bu-kante),
+    0 5px 7px -4px var(--shadow-md);
 }
 .bu-tisch.rund { border-radius: 999px; }
 .bu-stuhl {

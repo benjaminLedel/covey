@@ -164,6 +164,7 @@ export default function Buero({
         }),
       gegossen: (p: string) => setGegossen((alt) => new Set(alt).add(p)),
       gaeste: () => setGaesteTakt((n) => n + 1),
+      durst: () => setGaesteTakt((n) => n + 1),
       aufmerksam: () => {
         leben.current?.hinsehen();
         setAufmerksam(true);
@@ -480,10 +481,24 @@ function Zeichnung({ plan }: { plan: Plan }) {
         ))}
         {/* Der Tresen, und die Bänke, die sich zwei Plätze teilen. */}
         <path className="moebel" d={`M${plan.quer.x + 14} ${plan.tresen.y} h${plan.quer.w - 28}`} />
+        {/* Die Schreibtische. Eine gefüllte Platte allein war auf dem hellen
+            Boden kaum zu erkennen — in einem Plan wird Mobiliar umrissen.
+            Dazu der Bildschirm am hinteren Rand und die Tastatur davor: die
+            zwei Striche, an denen ein Rechteck zu einem Arbeitsplatz wird.
+            Und die gemeinsame Rückkante, wo zwei Plätze eine Bank bilden. */}
         {plan.raeume.map((r) =>
-          r.sitze.map((p, i) =>
-            i % 2 === 1 ? <path key={`${r.id}-${i}`} className="moebel" d={`M${p.x - SITZ_B / 2 + 7} ${p.y + 18} v21`} /> : null,
-          ),
+          r.sitze.map((p, i) => {
+            const x = p.x - SITZ_B / 2 + 7;
+            const y = p.y + 18;
+            const w = SITZ_B - 14;
+            return (
+              <g key={`${r.id}-${i}`} className="moebel">
+                <path d={`M${x + 0.5} ${y + 0.5}h${w - 1}v20h${-(w - 1)}Z`} />
+                <path className="tastatur" d={`M${x + 12} ${y + 15}h${w - 24}`} />
+                {i % 2 === 1 && <path d={`M${x} ${y} v21`} />}
+              </g>
+            );
+          }),
         )}
         {plan.raeume
           .filter((r) => r.gem === "besprechung")
@@ -567,6 +582,7 @@ function Ausstattungen({
         <span key={i}>
           <Riss art="drucker" x={plan.quer.x + plan.quer.w + 70} y={f.y + f.h - 22} w={22} h={17} />
           <Riss art="spender" x={plan.breite - AUSSEN - 46} y={f.y + 5} w={15} h={18} />
+          <Riss art="feuerloescher" x={plan.quer.x + plan.quer.w + 24} y={f.y + 4} />
           {i % 2 === 0 && topf(`flur-${i}`, plan.breite - AUSSEN - 96, f.y + f.h - 32, "monstera")}
         </span>
       ))}
@@ -576,6 +592,12 @@ function Ausstattungen({
   );
 }
 
+/* Die Einrichtung eines Zimmers trägt den Ton seiner Abteilung — denselben,
+   der als Punkt neben dem Namen steht. Das ist der eine Ort, an dem Farbe im
+   Grundriss etwas bindet, statt etwas zu behaupten: Möbel gehören zu einem
+   Zimmer, und das Zimmer gehört zu einer Abteilung. Gemischt wird zum Ton der
+   Zeichnung hin, damit es ein Plan bleibt und kein Bilderbuch; ohne gesetzte
+   Abteilungsfarbe bleibt alles grau. */
 function Arbeitszimmer({ raum: r, topf }: { raum: Raum; topf: TopfBauer }) {
   const h = streu(r.name);
   const e = ausstattungFuer(r.name);
@@ -603,6 +625,7 @@ function Arbeitszimmer({ raum: r, topf }: { raum: Raum; topf: TopfBauer }) {
       stuecke.push(<Riss key="tep" art="teppich" x={mx - 35} y={p.y - 8} w={70} h={46} />);
       stuecke.push(<Riss key="eck" art={e.ecke} x={mx - sw / 2} y={p.y + 2} w={sw} h={sh} />);
       stuecke.push(topf(`${r.id}-ecke`, mx + 26, p.y - 4, "monstera"));
+      stuecke.push(<Riss key="neb" art={e.neben} x={mx - 42} y={p.y - 2} />);
     } else {
       stuecke.push(topf(`${r.id}-luecke`, mx - 11, p.y - 6, "pflanze"));
     }
@@ -621,6 +644,7 @@ function Arbeitszimmer({ raum: r, topf }: { raum: Raum; topf: TopfBauer }) {
     stuecke.push(<Riss key="tep2" art="teppich" x={mx - 35} y={my} w={70} h={46} />);
     stuecke.push(<Riss key="eck2" art={e.ecke} x={mx - sw / 2} y={my + 10} w={sw} h={sh} />);
     stuecke.push(topf(`${r.id}-lounge`, mx + 44, my + 6, "monstera"));
+    stuecke.push(<Riss key="neb2" art={e.neben} x={mx - 58} y={my + 8} />);
   } else if ((h >> 3) % 3 !== 0 && rest2 > 40) {
     stuecke.push(topf(`${r.id}-ecke2`, h % 2 ? r.x + r.w - 34 : r.x + 12, r.y + r.h - 36, "monstera"));
   }
@@ -636,7 +660,11 @@ function Arbeitszimmer({ raum: r, topf }: { raum: Raum; topf: TopfBauer }) {
       stuecke.push(<Riss key={`d${i}`} art={e.tisch} x={p.x + SITZ_B / 2 - w - 12} y={p.y + (e.tisch === "lampe" ? 12 : 24)} w={w} h={hh} />);
     }
   });
-  return <>{stuecke}</>;
+  return (
+    <span className="bu-einrichtung" style={r.farbe ? ({ ["--bu-ton" as string]: r.farbe } as React.CSSProperties) : undefined}>
+      {stuecke}
+    </span>
+  );
 }
 
 function Gemeinschaft({ raum: r, topf }: { raum: Raum; topf: TopfBauer }) {
@@ -657,6 +685,7 @@ function Gemeinschaft({ raum: r, topf }: { raum: Raum; topf: TopfBauer }) {
             />
           )),
         )}
+        <Riss art="flipchart" x={r.x + 16} y={r.y + r.h - 40} />
         {topf(`${r.id}-p`, r.x + r.w - 34, r.y + r.h - 36, "monstera")}
       </>
     );
@@ -664,6 +693,7 @@ function Gemeinschaft({ raum: r, topf }: { raum: Raum; topf: TopfBauer }) {
   return (
     <>
       <div className="bu-tisch" style={{ left: r.x + PAD, top: r.y + SCHILD_H + 8, width: r.w - PAD * 2, height: 16 }} />
+      <Riss art="kaffeemaschine" x={r.x + PAD + 8} y={r.y + SCHILD_H + 10} />
       <div className="bu-tisch rund" style={{ left: cx - 21, top: cy + 8, width: 42, height: 28 }} />
       {[-1, 1].map((s) => (
         <div key={s} className="bu-stuhl" style={{ left: cx - 7 + s * 29, top: cy + 19 }} />
