@@ -2203,61 +2203,34 @@
 }
 
 /* ── Der Workspace ──────────────────────────────────────────────────────
-   Die zweite Schale: die Oberfläche dessen, der MIT der Belegschaft
-   arbeitet. Sie teilt sich mit der Konsole die Tokens und sonst nichts —
-   eigene Kopfzeile, eigene Liste, eigener Grund.
+   Die zweite Schale — und derselbe Bau wie die Konsole: eine linke Spalte
+   (.sidebar), rechts der Inhalt. Sie hatte zuerst einen eigenen Querbalken
+   oben; das waren zwei Grundgerüste für eine Anwendung, und beim Wechsel der
+   Schale sprangen die Bedienelemente von oben nach links.
 
-   Die drei Flächen folgen der Logik des Hauses: surface-1 ist die
-   eingedrückte Fläche (die Liste links, wie die Seitenleiste drüben),
-   surface-2 die erhabene (der Verlauf), surface-0 der Grund dazwischen. */
-.ws {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  height: 100dvh;
-  background: var(--surface-0);
+   Was bleibt, ist der Unterschied im INHALT: dort dreizehn Ziele, hier die
+   Kollegen — und rechts kein gepolstertes Blatt, sondern ein Verlauf, der
+   selbst scrollt und sein Eingabefeld unten festhält. */
+.ws-sidebar {
+  /* Die Liste dazwischen wächst und scrollt, damit der Fuß unten stehen
+     bleibt: In der Konsole tut das eine `mt-auto`-Gruppe, hier die Liste
+     selbst — sie ist das Einzige, was beliebig lang wird. */
+  overflow: hidden;
 }
 
-/* Die Kopfzeile steht auf dem Grund, nicht auf der erhabenen Fläche. Das ist
-   keine Geschmacksfrage, sondern die Bedingung dafür, dass der Schalter
-   darin funktioniert: Grund (surface-0) → Gleis (surface-1) → Schieber
-   (surface-2) ist eine Leiter, die in beiden Erscheinungsbildern in dieselbe
-   Richtung zeigt. */
-.ws-top {
-  flex: none;
-  height: 56px;
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  padding: 0 16px;
-  background: var(--surface-0);
-  border-bottom: 1px solid var(--border);
-}
-.ws-marke {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  font-weight: 600;
-  font-size: 15px;
-  letter-spacing: -0.01em;
-  color: var(--text-primary);
-  text-decoration: none;
-}
+/* Der Schalter zwischen den Schalen. Er steht in beiden an derselben Stelle
+   — unter der Wortmarke, über der Navigation — und sieht in beiden gleich
+   aus; das ist seine Aufgabe.
 
-/* Der Schalter zwischen den Schalen. Eine Pille mit zwei Hälften, die
-   aktive gefüllt — dieselbe Form in beiden Schalen, damit die Bewegung an
-   derselben Stelle liegt und gleich aussieht. */
-/* Der Schalter zwischen den Schalen.
-   
    Das Gleis ist die EINGEDRÜCKTE Fläche (surface-1), der Schieber die
-   erhabene (surface-2) — in dieser Reihenfolge, weil eine Lasur hier nicht
+   erhabene (surface-2), in dieser Reihenfolge, weil eine Lasur hier nicht
    trägt: Eine Tönung aus Schwarz liegt im Hellen unter dem Grund und im
    Dunkeln darüber. Mit --tint-weak als Gleis las sich der Schalter im
-   Dunkelmodus deshalb verkehrt herum: Das aktive Segment hatte exakt die
-   Farbe der Kopfzeile, und das inaktive Gleis lag heller davor. */
-.ws-schalter,
+   Dunkelmodus verkehrt herum — das aktive Segment hatte die Farbe seiner
+   Umgebung, und das inaktive Gleis lag heller davor. */
 .shell-schalter {
-  display: inline-flex;
+  display: flex;
+  margin: 2px 0 14px;
   padding: 2px;
   gap: 2px;
   border-radius: 999px;
@@ -2266,16 +2239,15 @@
   font-size: 13px;
   line-height: 1;
 }
-.ws-schalter-an,
-.ws-schalter-aus,
 .shell-schalter-an,
 .shell-schalter-aus {
-  padding: 6px 13px;
+  flex: 1;
+  padding: 6px 12px;
   border-radius: 999px;
+  text-align: center;
   text-decoration: none;
   white-space: nowrap;
 }
-.ws-schalter-an,
 .shell-schalter-an {
   background: var(--surface-2);
   color: var(--text-primary);
@@ -2285,70 +2257,16 @@
      beginnt. Der Schatten allein tut das im Dunkeln nicht. */
   box-shadow: 0 0 0 0.5px var(--border-strong), 0 1px 2px var(--shadow-xs);
 }
-.ws-schalter-aus,
-.shell-schalter-aus {
-  color: var(--text-secondary);
-}
-.ws-schalter-aus:hover,
-.shell-schalter-aus:hover {
-  color: var(--text-primary);
-}
-/* In der Konsole sitzt der Schalter unter der Wortmarke und über der
-   Navigation; er bekommt dort den Rand der Leiste. */
-.shell-schalter {
-  margin: 4px 14px 14px;
-  align-self: stretch;
-}
-.shell-schalter-an,
-.shell-schalter-aus {
-  flex: 1;
-  text-align: center;
-}
+.shell-schalter-aus { color: var(--text-secondary); }
+.shell-schalter-aus:hover { color: var(--text-primary); background: var(--tint-weak); }
 
-.ws-top-rechts {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-/* Die Sprachwahl ist auf den öffentlichen Seiten fest in der Ecke verankert
-   (styles.css, .lang-pick.pill). In dieser Kopfzeile steht sie in der Reihe,
-   sonst schwebt sie über dem, was rechts von ihr liegt. */
-.ws-top .lang-pick.pill { position: static; }
-.ws-ich {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 999px;
-  background: var(--bg-accent);
-  color: var(--text-accent);
-  font-size: 11px;
-  font-weight: 600;
-  text-decoration: none;
-}
-.ws-abmelden {
-  font-size: 13px;
-  color: var(--text-secondary);
-  padding: 6px 10px;
-  border-radius: var(--radius);
-}
-.ws-abmelden:hover { color: var(--text-primary); background: var(--tint-weak); }
-
-.ws-raum {
+/* ── Die Liste links ──────────────────────────────────────────────────── *//* ── Die Liste links ──────────────────────────────────────────────────── */
+.ws-liste {
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: 264px minmax(0, 1fr);
-}
-
-/* ── Die Liste links ──────────────────────────────────────────────────── */
-.ws-liste {
   overflow-y: auto;
-  padding: 10px 8px 24px;
-  background: var(--surface-1);
-  border-right: 1px solid var(--border);
+  margin: 0 -6px;
+  padding: 0 6px;
 }
 .ws-leise { color: var(--text-muted); font-size: 13px; padding: 6px 10px; }
 
@@ -2393,7 +2311,7 @@
 
 /* Suchen. Bei vierzig Kollegen in acht Abteilungen ist Scrollen keine
    Navigation mehr. */
-.ws-suche { padding: 0 3px 10px; }
+.ws-suche { padding: 0 0 10px; }
 .ws-suche input {
   width: 100%;
   padding: 7px 11px;
@@ -2453,7 +2371,15 @@
 }
 
 /* ── Der Verlauf ──────────────────────────────────────────────────────── */
-.ws-haupt { min-width: 0; display: flex; flex-direction: column; background: var(--surface-2); }
+.ws-haupt {
+  flex: 1;
+  min-width: 0;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-2);
+}
 .ws-thread { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .ws-thread-kopf {
   flex: none;
@@ -2625,22 +2551,9 @@
 .ws-wartet-zeile time { font-size: 12px; white-space: nowrap; }
 .ws-wartet-alle { display: inline-block; margin-top: 18px; font-size: 13px; color: var(--text-accent); }
 
-/* Schmale Fenster: die Liste legt sich über den Verlauf, statt ihn auf
-   40 Zeichen zu quetschen. */
+/* Schmale Fenster: Die Spalte bleibt stehen, wie sie in der Konsole stehen
+   bleibt — zwei Schalen, ein Verhalten. Nur die Blase gibt nach. */
 @media (max-width: 860px) {
-  .ws-raum { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
-  .ws-liste {
-    display: flex;
-    gap: 6px;
-    overflow-x: auto;
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
-    padding: 8px;
-  }
-  .ws-gruppe { display: flex; gap: 6px; margin: 0; }
-  .ws-gruppe-kopf { display: none; }
-  .ws-wartet { margin: 0; white-space: nowrap; }
-  .ws-kollege { white-space: nowrap; }
-  .ws-kollege-rolle { display: none; }
   .ws-blase { max-width: 88%; }
+  .ws-thread-werkzeuge input { width: 130px; }
 }

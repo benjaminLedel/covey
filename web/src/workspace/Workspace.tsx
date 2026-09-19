@@ -2,10 +2,10 @@ import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link, NavLink, Navigate, Route, Routes, useParams } from "react-router";
-import { api, inbox, post, type Agent, type Department, type Principal } from "../api";
+import { api, inbox, type Agent, type Department, type Principal } from "../api";
 import { BirdMark } from "../components/BirdMark";
-import LangPicker from "../components/LangPicker";
-import ThemeSwitch from "../components/ThemeSwitch";
+import HelpDrawer from "../components/HelpDrawer";
+import ShellFoot from "../components/ShellFoot";
 
 /* Die Stilvorlage der angemeldeten Oberfläche. Sie hing bisher allein an der
    Konsole; seit es zwei Schalen gibt, braucht jede sie — wer über die Wurzel
@@ -17,14 +17,14 @@ const Wartet = lazy(() => import("./Wartet"));
 
 /* Der Workspace: die Oberfläche dessen, der MIT der Belegschaft arbeitet.
  *
- * Er ist keine Seite in der Konsole, sondern eine eigene Schale — eigene
- * Kopfzeile, eigene Navigation, eigener Grund. Das ist der Punkt: Die Konsole
- * ist die Sicht dessen, der die Belegschaft BAUT (Konfiguration, Secrets,
- * Guard-Rails, Kosten), und wer nur Arbeit übergeben will, hat mit keiner
- * dieser Fragen etwas zu tun. Ein Reiter zwischen dreizehn anderen sagt das
- * Gegenteil.
+ * Er ist keine Seite in der Konsole, sondern eine eigene Schale — aber
+ * derselbe Bau: eine linke Spalte mit Wortmarke, Schalter, Navigation und
+ * Fuß, rechts der Inhalt. Kein Querbalken. Der erste Entwurf hatte einen, und
+ * das war ein Stilbruch: zwei Grundgerüste für eine Anwendung, und wer die
+ * Schale wechselte, sah die Bedienelemente von oben nach links springen.
  *
- * Gewechselt wird oben, und dabei wechselt die ganze Ansicht.
+ * Was hier anders ist als in der Konsole, ist der INHALT der Spalte — dort
+ * dreizehn Ziele, hier die Kollegen —, nicht ihre Form.
  */
 
 /** Ein Agent, der Arbeit annehmen kann. Ein Bewerber ist ein Entwurf. */
@@ -32,6 +32,7 @@ const eingestellt = (a: Agent) => a.status !== "applicant";
 
 export default function Workspace({ me, onLogout }: { me: Principal; onLogout: () => void }) {
   const { t } = useTranslation();
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const agents = useQuery({
     queryKey: ["agents"],
@@ -96,66 +97,42 @@ export default function Workspace({ me, onLogout }: { me: Principal; onLogout: (
 
   const offen = wartend.data?.pending ?? 0;
 
-  const abmelden = async () => {
-    await post("/auth/logout");
-    onLogout();
-  };
-
   return (
-    <div className="ws">
-      <header className="ws-top">
-        <Link to="/" className="ws-marke" aria-label="covey">
-          <BirdMark size={22} />
-          <span>covey</span>
-        </Link>
+    <div className="flex min-h-screen">
+      <aside className="sidebar ws-sidebar">
+        <div className="brand">
+          <BirdMark size={26} />
+          covey
+        </div>
 
-        {/* Der Schalter. Er steht in der Mitte und nicht in einem Menü:
-            Er ist die wichtigste Bewegung dieser Kopfzeile. */}
-        <nav className="ws-schalter" aria-label={t("workspace.schalterAria")}>
-          <span className="ws-schalter-an" aria-current="page">
+        {/* Derselbe Schalter wie in der Konsole, an derselben Stelle. */}
+        <nav className="shell-schalter" aria-label={t("workspace.schalterAria")}>
+          <span className="shell-schalter-an" aria-current="page">
             {t("workspace.workspace")}
           </span>
-          <Link to="/agents" className="ws-schalter-aus">
+          <Link to="/agents" className="shell-schalter-aus">
             {t("workspace.verwaltung")}
           </Link>
         </nav>
 
-        <div className="ws-top-rechts">
-          {/* Die Pillen-Fassung: in einer Kopfzeile von 56px hat die
-              segmentierte mit drei Beschriftungen keinen Platz. */}
-          <ThemeSwitch variant="pill" />
-          <LangPicker />
-          {/* Wer nur hier arbeitet, muss sich auch hier abmelden können —
-              der Weg über die Konsole wäre einer durch eine Tür, die diese
-              Person gar nicht benutzt. */}
-          <Link to={`/people/${me.ID}`} className="ws-ich" title={me.DisplayName || me.Email}>
-            {(me.DisplayName || me.Email).slice(0, 2).toUpperCase()}
-          </Link>
-          <button className="ws-abmelden" onClick={abmelden}>
-            {t("nav.logout")}
-          </button>
+        <div className="ws-suche">
+          <input
+            ref={suchfeld}
+            type="search"
+            value={suche}
+            onChange={(e) => setSuche(e.target.value)}
+            onKeyDown={(e) => e.key === "Escape" && setSuche("")}
+            placeholder={t("workspace.suche")}
+            aria-label={t("workspace.suche")}
+          />
         </div>
-      </header>
 
-      <div className="ws-raum">
         <nav className="ws-liste" aria-label={t("workspace.kollegen")}>
           <NavLink to="/" end className={({ isActive }) => `ws-wartet ${isActive ? "on" : ""}`}>
             <span className="ws-wartet-punkt" data-offen={offen > 0} aria-hidden="true" />
             {t("workspace.wartet")}
             {offen > 0 && <span className="ws-zahl">{offen}</span>}
           </NavLink>
-
-          <div className="ws-suche">
-            <input
-              ref={suchfeld}
-              type="search"
-              value={suche}
-              onChange={(e) => setSuche(e.target.value)}
-              onKeyDown={(e) => e.key === "Escape" && setSuche("")}
-              placeholder={t("workspace.suche")}
-              aria-label={t("workspace.suche")}
-            />
-          </div>
 
           {agents.isLoading && <p className="ws-leise">{t("common.loading")}</p>}
           {!agents.isLoading && liste.length === 0 && (
@@ -187,16 +164,20 @@ export default function Workspace({ me, onLogout }: { me: Principal; onLogout: (
           ))}
         </nav>
 
-        <main className="ws-haupt">
-          <Suspense fallback={null}>
-            <Routes>
-              <Route path="/" element={<Wartet me={me} />} />
-              <Route path="/w/:id" element={<ThreadRoute me={me} />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Suspense>
-        </main>
-      </div>
+        <ShellFoot me={me} onLogout={onLogout} onHelp={() => setHelpOpen(true)} />
+      </aside>
+
+      <main className="ws-haupt">
+        <Suspense fallback={null}>
+          <Routes>
+            <Route path="/" element={<Wartet me={me} />} />
+            <Route path="/w/:id" element={<ThreadRoute me={me} />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
+      </main>
+
+      <HelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );
 }
