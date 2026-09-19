@@ -11,6 +11,7 @@ import {
   AUSSEN,
   INNEN,
   PAD,
+  PAD_OBEN,
   PX_JE_METER,
   SCHILD_H,
   SCHWUNG,
@@ -19,6 +20,7 @@ import {
   TUER_B,
   ausstattungFuer,
   bauplan,
+  podBreite,
   streu,
   type Gruppe,
   type Plan,
@@ -86,17 +88,30 @@ export default function Buero({
 
   const ruhig = useMemo(() => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false, []);
 
-  /* Die Abteilungen in fester Reihenfolge — ein Büro, in dem die Zimmer von
-     Besuch zu Besuch wandern, ist kein Büro. */
+  /* Der Bau hängt an dem, was ihn WIRKLICH verändert: wer hier arbeitet, in
+     welcher Abteilung, und wie breit das Fenster ist. Nicht daran, ob die
+     Schale gerade ein neues Array gebaut hat.
+     
+     Das ist kein Feinschliff, sondern der Unterschied zwischen einem Büro und
+     einem Flackern: Die Startseite fragt alle zehn Sekunden nach laufenden
+     Vorgängen und rendert dabei neu, und die Liste der Kollegen ist bei jedem
+     Rendern ein anderes Array. An dessen Identität gehängt, wurde der
+     Grundriss alle zehn Sekunden neu gebaut — mit ihm das Leben darin. Jede
+     Figur sprang an ihren Platz zurück, und eine Pflanze, die auf Wasser
+     wartete, hatte ihren Durst vergessen, bevor jemand bei ihr ankam. */
+  const kern = agents.map((a) => `${a.id}:${a.department_id ?? ""}:${a.slug}`).join("|");
+  const abtKern = departments.map((d) => `${d.id}:${d.name}:${d.color}`).join("|");
+  const ohneName = t("team.ohneAbteilung");
   const gruppen = useMemo<Gruppe[]>(() => {
     const ohne = agents.filter((a) => !departments.some((d) => d.id === a.department_id));
     return [
       ...departments
         .map((d) => ({ id: d.id, name: d.name, farbe: d.color, leute: agents.filter((a) => a.department_id === d.id) }))
         .filter((g) => g.leute.length > 0),
-      ...(ohne.length > 0 ? [{ id: "ohne", name: t("team.ohneAbteilung"), farbe: "", leute: ohne }] : []),
+      ...(ohne.length > 0 ? [{ id: "ohne", name: ohneName, farbe: "", leute: ohne }] : []),
     ];
-  }, [agents, departments, t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kern, abtKern, ohneName]);
 
   /* Die Breite gibt das Fenster vor, und der Plan richtet sich danach. Ohne
      das Messen stünde hier eine geratene Zahl, und bei jedem zweiten
@@ -114,9 +129,11 @@ export default function Buero({
     return () => beobachter.disconnect();
   }, [breite]);
 
+  const besprechungName = t("team.raumBesprechung");
+  const teekuecheName = t("team.raumTeekueche");
   const plan = useMemo(
-    () => bauplan(gruppen, breite, { besprechung: t("team.raumBesprechung"), teekueche: t("team.raumTeekueche") }),
-    [gruppen, breite, t],
+    () => bauplan(gruppen, breite, { besprechung: besprechungName, teekueche: teekuecheName }),
+    [gruppen, breite, besprechungName, teekuecheName],
   );
 
   /* Zustand aus den Daten. „arbeitet" heißt: hat einen laufenden Vorgang —
@@ -189,7 +206,8 @@ export default function Buero({
       r.leute.map((a, i) => ({ id: a.id, slug: a.slug, ri, i, sitz: r.sitze[i], zustand: zustandVon(a) })),
     );
     leben.current?.uebernehmen(stand);
-  }, [plan, zustandVon, agents]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan, zustandVon, kern]);
 
   /* Der Taktgeber. Bei „weniger Bewegung" läuft er gar nicht: Dann sitzt
      jeder an seinem Platz, das Licht bleibt an — die Auskunft bleibt, nur
@@ -604,12 +622,18 @@ function Arbeitszimmer({ raum: r, topf }: { raum: Raum; topf: TopfBauer }) {
   const stuecke: JSX.Element[] = [];
 
   /* An der Wand gegenüber der Tür — die einzige, an der etwas hängen kann,
-     ohne im Weg zu stehen. */
-  e.wand.forEach((art, i) => {
+     ohne im Weg zu stehen. Und nur, was FLACH ist: In der Draufsicht hängt
+     ein Bild sechs Pixel tief an der Wand, ein Serverschrank steht dreißig
+     tief auf dem Boden. Der stand vorher mitten in der ersten Reihe. */
+  const wandY = r.obenDrueber ? r.y + SCHILD_H + 2 : r.y + r.h - 3;
+  const wandPlatz = PAD_OBEN - 6;
+  const stehend: typeof e.wand = [];
+  const haengend = e.wand.filter((art) => (MASS[art]![1] <= wandPlatz ? true : (stehend.push(art), false)));
+  haengend.forEach((art, i) => {
     const [w, hh] = MASS[art]!;
-    const x = r.x + 26 + (i * (r.w - 70)) / Math.max(1, e.wand.length);
-    if (x + w > r.x + r.w - 14) return;
-    stuecke.push(<Riss key={`w${i}`} art={art} x={x} y={r.obenDrueber ? r.y + SCHILD_H + 1 : r.y + r.h - 1 - hh} w={w} h={hh} />);
+    const x = r.x + 24 + (i * (r.w - 66)) / Math.max(1, haengend.length);
+    if (x + w > r.x + r.w - 12) return;
+    stuecke.push(<Riss key={`w${i}`} art={art} x={x} y={r.obenDrueber ? wandY : wandY - hh} w={w} h={hh} />);
   });
 
   /* In der Lücke, die die letzte Reihe ohnehin lässt: die Sitzecke. Das ist
@@ -635,7 +659,7 @@ function Arbeitszimmer({ raum: r, topf }: { raum: Raum; topf: TopfBauer }) {
      so viel Boden wie die mit dreizehn. Dieser Rest bleibt nicht leer — er
      wird die Sitzecke. Ein Zimmer, in dem nichts steht, sieht aus, als fehle
      etwas, und genau das soll es nicht. */
-  const unten = r.y + SCHILD_H + PAD + Math.max(0, r.zeilen - 1) * SITZ_H + 32 + 46;
+  const unten = r.y + SCHILD_H + PAD_OBEN + Math.max(0, r.zeilen - 1) * SITZ_H + 32 + 46;
   const rest2 = r.y + r.h - unten;
   if (rest2 > 76 && r.w > 150) {
     const [sw, sh] = MASS[e.ecke]!;
@@ -648,7 +672,25 @@ function Arbeitszimmer({ raum: r, topf }: { raum: Raum; topf: TopfBauer }) {
   } else if ((h >> 3) % 3 !== 0 && rest2 > 40) {
     stuecke.push(topf(`${r.id}-ecke2`, h % 2 ? r.x + r.w - 34 : r.x + 12, r.y + r.h - 36, "monstera"));
   }
-  stuecke.push(<Riss key="korb" art="papierkorb" x={r.x + r.w - 24} y={r.y + SCHILD_H + 8} w={10} h={10} />);
+  /* Der Papierkorb in die freie Ecke, nicht in die erste Reihe. */
+  stuecke.push(<Riss key="korb" art="papierkorb" x={r.x + 14} y={r.y + r.h - 22} w={10} h={10} />);
+  /* Was auf dem Boden steht statt an der Wand zu hängen, kommt in den
+     Seitenstreifen, den das mittig stehende Raster ohnehin frei lässt. */
+  const seite = (r.w - podBreite(r.spalten)) / 2;
+  stehend.forEach((art, i) => {
+    const [w, hh] = MASS[art]!;
+    if (seite < w + 10) return;
+    stuecke.push(
+      <Riss
+        key={`st${i}`}
+        art={art}
+        x={i % 2 ? r.x + r.w - seite / 2 - w / 2 : r.x + seite / 2 - w / 2}
+        y={r.y + SCHILD_H + PAD_OBEN + 6 + i * (hh + 8)}
+        w={w}
+        h={hh}
+      />,
+    );
+  });
 
   /* Auf den Tischen: Mappen überall, dazu das, was zur Abteilung gehört. */
   r.leute.forEach((a, i) => {

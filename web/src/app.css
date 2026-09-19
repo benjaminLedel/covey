@@ -3280,6 +3280,13 @@
   opacity: 0.55;
   pointer-events: none;
 }
+/* Ein Möbelstück hat eine Fläche, keine bloße Kante: Ein Sofa als reiner
+   Umriss ist ein Rechteck mit einem Strich darin. Die Füllung ist derselbe
+   Ton, nur sehr verdünnt — das reicht, damit die Stücke als Körper lesen und
+   sich gegen den Boden absetzen. */
+.bu-riss-stueck .voll { fill: color-mix(in oklab, var(--bu-deko) 26%, transparent); }
+.bu-riss-stueck.r-pflanze .voll,
+.bu-riss-stueck.r-monstera .voll { fill: color-mix(in oklab, var(--bu-gruen) 24%, transparent); }
 .bu-riss-knopf {
   position: absolute;
   z-index: 1;

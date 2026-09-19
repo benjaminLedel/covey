@@ -86,7 +86,11 @@ export type Plan = {
 export const SITZ_B = 70;
 export const SITZ_H = 88;
 export const POD_LUFT = 16;
+/* Oben mehr Luft als unten: An der Wand gegenüber der Tür hängt etwas, und
+   zwischen Schild und erster Kopfreihe blieben vorher vierzehn Pixel — jedes
+   Möbelstück ragte in die erste Reihe. */
 export const PAD = 13;
+export const PAD_OBEN = 26;
 /* Zwei Zeilen: der Name und darunter Nummer und Fläche. Auf einer Zeile
    nebeneinander schreibt eine lange Abteilung die Nummer zu — und die Nummer
    ist die eine Angabe, die den Plan als Plan ausweist. */
@@ -127,7 +131,7 @@ export const podBreite = (spalten: number) =>
 
 const zimmerBreite = (n: number) => Math.max(136, podBreite(spaltenFuer(n)) + PAD * 2);
 const zimmerHoehe = (n: number) =>
-  SCHILD_H + PAD * 2 + (Math.ceil(n / spaltenFuer(n)) - 1) * SITZ_H + REIHE_REST + 32;
+  SCHILD_H + PAD_OBEN + PAD + (Math.ceil(n / spaltenFuer(n)) - 1) * SITZ_H + REIHE_REST + 32;
 
 /** Was in ein Zimmer gestellt wird. Siehe `ausstattungFuer`. */
 export type Ausstattung = {
@@ -180,7 +184,7 @@ function sitze(x: number, y: number, w: number, spalten: number, anzahl: number)
     const pod = Math.floor(sp / 2);
     return {
       x: basis + pod * (2 * SITZ_B + POD_LUFT) + (sp % 2) * SITZ_B + SITZ_B / 2,
-      y: y + SCHILD_H + PAD + Math.floor(i / spalten) * SITZ_H + 32,
+      y: y + SCHILD_H + PAD_OBEN + Math.floor(i / spalten) * SITZ_H + 32,
     };
   });
 }
@@ -196,7 +200,7 @@ function gaengeVon(r: Omit<Raum, "gaenge" | "treffpunkte">): Punkt[] {
   for (let p = 1; p < Math.ceil(r.spalten / 2); p++)
     xs.push(basis + p * (2 * SITZ_B + POD_LUFT) - POD_LUFT / 2);
   const ys: number[] = [];
-  for (let z = 0; z < r.zeilen; z++) ys.push(r.y + SCHILD_H + PAD + z * SITZ_H + 32);
+  for (let z = 0; z < r.zeilen; z++) ys.push(r.y + SCHILD_H + PAD_OBEN + z * SITZ_H + 32);
   ys.push(r.y + r.h - 24);
   const punkte: Punkt[] = [];
   for (const x of xs) for (const y of ys) punkte.push({ x, y });
