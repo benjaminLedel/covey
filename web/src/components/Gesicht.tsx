@@ -71,6 +71,7 @@ export default function Gesicht({
   zustand = "working",
   groesse = 26,
   blick,
+  blickRef,
 }: {
   /** Das Kürzel des Agenten — daraus entsteht das Gesicht. */
   schluessel: string;
@@ -82,6 +83,11 @@ export default function Gesicht({
      Umsehen, und ein Gesicht in einer Liste hat keinen Grund, jemandem
      hinterherzusehen. */
   blick?: { x: number; y: number };
+  /* Derselbe Blick, nur nicht über React: Im Büro ändert er sich mit jedem
+     Bild — für siebzig Gesichter wäre das siebzig Abgleiche je Bild, nur um
+     zwei Pixel zu verschieben. Wer diesen Haken setzt, bekommt die Gruppe und
+     schreibt ihr `transform` selbst (team/Buero.tsx). */
+  blickRef?: (g: SVGGElement | null) => void;
 }) {
   const g = useMemo(() => {
     const h = hash(schluessel);
@@ -155,6 +161,7 @@ export default function Gesicht({
               Sekunde überschreibt. */}
           <g
             className="gesicht-blick"
+            ref={blickRef}
             style={blick ? { transform: `translate(${blick.x}px, ${blick.y}px)` } : undefined}
           >
             <g className="gesicht-augen">

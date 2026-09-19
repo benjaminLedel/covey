@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type JSX } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
@@ -6,6 +6,26 @@ import { post, type Agent, type Department, type Laufend, type Principal } from 
 import { canManage } from "../pages/agent/roles";
 import Gesicht from "../components/Gesicht";
 import Dauer from "../components/Dauer";
+import Riss, { MASS, type Art } from "./buero/risse";
+import {
+  AUSSEN,
+  INNEN,
+  PAD,
+  PX_JE_METER,
+  SCHILD_H,
+  SCHWUNG,
+  SITZ_B,
+  SITZ_H,
+  TUER_B,
+  ausstattungFuer,
+  bauplan,
+  streu,
+  type Gruppe,
+  type Plan,
+  type Punkt,
+  type Raum,
+} from "./buero/plan";
+import { erschaffeLeben, type Leben, type Zustand } from "./buero/leben";
 
 /* Das Büro: die Belegschaft als Grundriss.
  *
@@ -16,114 +36,37 @@ import Dauer from "../components/Dauer";
  * sondern dieselbe Auskunft in einer Form, die man mit einem Blick liest
  * statt in vier Zeilen.
  *
+ * DER PLAN WIRD GERECHNET (buero/plan.ts). Es gibt keine Vorlage: Wie viele
+ * Plätze ein Zimmer nebeneinander hat, wie tief es wird, wie viele Zimmer in
+ * eine Zeile passen und ob es einen zweiten Flur braucht, folgt aus der
+ * Kopfzahl. Acht Kollegen ergeben ein Haus mit einem Flur, hundertvierzig
+ * eines mit dreien und einem Quergang, der sie verbindet.
+ *
+ * DIE WAND IST DIE MASSE. Die ganze Fläche ist Mauerwerk, und was Raum ist,
+ * wird ausgespart. Umgekehrt — helle Kästen mit einem Rahmen — treffen zwei
+ * Rahmen nebeneinander als doppelte Linie aufeinander, die es in keinem Haus
+ * gibt, und aus dem Grundriss wird ein Diagramm.
+ *
+ * DAS LICHT IST DER ZUSTAND. Der Bildschirm am Platz ist dunkel, solange
+ * nichts läuft, und hell, sobald etwas läuft; sein Schein fällt auf Tisch und
+ * Boden, und ein Zimmer mit einem hellen Tisch darin ist ein helles Zimmer.
+ * Damit beantwortet ein Blick über die Seite die Frage, für die man vorher
+ * vierzig Tische einzeln lesen musste.
+ *
+ * WAS AUSKUNFT TRÄGT und was nur Atmosphäre ist, steht in buero/leben.ts —
+ * und die Trennung ist nicht Geschmack, sondern Bedingung. Eine Bewegung, aus
+ * der sich etwas ablesen ließe, das in keiner Aufzeichnung steht, wäre eine
+ * Lüge mit Charme.
+ *
  * Warum kein <canvas>: Die Gesichter gibt es schon als SVG-Komponente, mit
  * Zuständen, Animationen und Erscheinungsbild. Auf eine Leinwand gemalt wären
- * sie ein zweites Mal gebaut — und ein Klick auf einen Kollegen wäre
- * Mathematik statt eines Links. Mit Transformationen bewegt sich hier
- * genauso viel, und die Tastatur kommt überall hin.
- *
- * Wer wo steht:
- *
- *   am eigenen Platz     — schlafend (mit zzz) oder arbeitend
- *   am Tresen vorn       — wartet auf eine Entscheidung von Ihnen
- *   zwischen den Plätzen — wach, aber ohne Vorgang: sie laufen herum
- *
- * DAS LICHT IST DER ZUSTAND. Ein Büro sagt einem von der Tür aus, wo
- * gearbeitet wird, weil dort die Lampen an sind. Hier war dieselbe Auskunft
- * vierzig einzelne Lesungen: jeder Tisch trug einen blassen Rahmen, und die
- * Räume sahen alle gleich aus. Jetzt trägt der Bildschirm am Platz das Licht,
- * es fällt auf den Boden davor, und ein Raum mit einem hellen Tisch darin ist
- * ein heller Raum — quer über die Seite lesbar (#312).
- *
- * Und was man damit TUN kann, ist der eigentliche Punkt: Die Wachen sehen dem
- * Zeiger nach, wer arbeitet, hat eine Gedankenblase mit seinem letzten
- * Schritt, und ein Klick öffnet die Karte am Platz — mit einem Eingabefeld
- * darin. Man geht zu jemandem hin und sagt etwas, ohne das Büro zu verlassen.
+ * sie ein zweites Mal gebaut, ein Klick auf einen Kollegen wäre Mathematik
+ * statt eines Knopfes, und die Tastatur käme nirgends hin. Bewegt wird
+ * ausschließlich mit `transform`, ein Schreibzugriff je Figur und Bild.
  */
-
-/** Ein Platz im Raster eines Abteilungsraums. */
-type Platz = { x: number; y: number };
-
-/* Breiter als zuvor (78), und der Grund steht in der Liste darunter: Bei
-   siebzig Pixeln endete jeder zweite Name in drei Punkten — „Infra-Wäch…",
-   „Postmorte…". Ein Grundriss, auf dem man die Kollegen nicht lesen kann,
-   spart Platz an der einzigen Stelle, die ihn braucht. */
-const PLATZ_B = 88;
-const PLATZ_H = 92;
-/* Was ein einzelner Platz wirklich hoch ist: Kopf, Tisch, Name. Die 92 oben
-   sind der Abstand ZWISCHEN zwei Reihen; die letzte Reihe braucht ihn nicht,
-   und ohne diese Unterscheidung stand unter jedem Zimmer eine Handbreit
-   nichts. */
-const PLATZ_INHALT = 70;
-const RASTER_OBEN = 42;
-const RAUM_UNTEN = 12;
-const SPALTEN = 3;
 
 /** Wie weit die Augen ausschlagen, im Raster des Gesichts (24 breit). */
 const BLICK_WEITE = 1.25;
-
-/* Eine kleine, stabile Streuung aus dem Kürzel: Wer herumläuft, soll nicht
-   im Gleichschritt mit den anderen laufen. */
-function streu(text: string, n: number) {
-  let h = 2166136261;
-  for (let i = 0; i < text.length; i++) {
-    h ^= text.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return Math.abs(h) % n;
-}
-
-type Raum = {
-  id: string;
-  name: string;
-  color: string;
-  leute: Agent[];
-  rasterB: number;
-  rasterH: number;
-  plaetze: Map<string, Platz>;
-  /** Der erste freie Platz der letzten Reihe — dort steht die Pflanze. */
-  luecke: Platz | null;
-};
-
-/* Wohin die Wachen treten.
- *
- * Der Regelfall ist ein Schritt zur Seite, alle paar Sekunden, um den eigenen
- * Platz herum — ein Büro, in dem alle ständig rennen, ist ein
- * Bildschirmschoner.
- *
- * Dazu kommt das Zusammenstehen: Alle drei Takte gehen zwei Wache, deren
- * Plätze nebeneinander liegen, aufeinander zu und stehen eine Weile
- * beieinander. Das ist AUSDRÜCKLICH kein Ereignis, das covey kennt — es steht
- * in keiner Aufzeichnung und behauptet kein Gespräch. Es ist der Unterschied
- * zwischen einem Raum und einem Wartezimmer, in dem alle einzeln an ihrem
- * Stuhl kleben, und es bewegt nur die, die ohnehin nichts zu tun haben.
- */
-function wanderung(raum: Raum, frei: Agent[], takt: number): Map<string, Platz> {
-  const versatz = new Map<string, Platz>();
-  for (const a of frei) {
-    versatz.set(a.id, {
-      x: [0, 15, -13, 8][(streu(a.slug, 4) + takt) % 4],
-      y: [0, -9, 11, -4][(streu(a.slug + "y", 4) + takt) % 4],
-    });
-  }
-  if (takt % 3 !== 1 || frei.length < 2) return versatz;
-
-  const i = streu(raum.id + "|" + takt, frei.length);
-  const j = (i + 1 + streu(raum.id + "~" + takt, frei.length - 1)) % frei.length;
-  if (i === j) return versatz;
-  const a = frei[i];
-  const b = frei[j];
-  const pa = raum.plaetze.get(a.id)!;
-  const pb = raum.plaetze.get(b.id)!;
-  /* Nur, wer nebeneinander sitzt: Zwei, die quer durch den Raum
-     aufeinander zulaufen, sehen aus, als sei der Grundriss kaputt. */
-  if (Math.hypot(pb.x - pa.x, pb.y - pa.y) > PLATZ_B * 1.6) return versatz;
-  const mx = (pa.x + pb.x) / 2;
-  const my = (pa.y + pb.y) / 2;
-  versatz.set(a.id, { x: mx - pa.x - 14, y: my - pa.y });
-  versatz.set(b.id, { x: mx - pb.x + 14, y: my - pb.y });
-  return versatz;
-}
 
 export default function Buero({
   agents,
@@ -141,94 +84,167 @@ export default function Buero({
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  /* Die Räume: eine Abteilung, ein Raster. Die Reihenfolge ist die der
-     Abteilungen, damit der Grundriss von Besuch zu Besuch derselbe bleibt —
-     ein Büro, in dem die Zimmer wandern, ist kein Büro. */
-  const raeume = useMemo<Raum[]>(() => {
+  const ruhig = useMemo(() => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false, []);
+
+  /* Die Abteilungen in fester Reihenfolge — ein Büro, in dem die Zimmer von
+     Besuch zu Besuch wandern, ist kein Büro. */
+  const gruppen = useMemo<Gruppe[]>(() => {
     const ohne = agents.filter((a) => !departments.some((d) => d.id === a.department_id));
-    const gruppen = [
+    return [
       ...departments
-        .map((d) => ({ id: d.id, name: d.name, color: d.color, leute: agents.filter((a) => a.department_id === d.id) }))
+        .map((d) => ({ id: d.id, name: d.name, farbe: d.color, leute: agents.filter((a) => a.department_id === d.id) }))
         .filter((g) => g.leute.length > 0),
-      ...(ohne.length > 0 ? [{ id: "", name: t("team.ohneAbteilung"), color: "", leute: ohne }] : []),
+      ...(ohne.length > 0 ? [{ id: "ohne", name: t("team.ohneAbteilung"), farbe: "", leute: ohne }] : []),
     ];
-    return gruppen.map((g) => {
-      const spalten = Math.min(SPALTEN, Math.max(1, g.leute.length));
-      const zeilen = Math.ceil(g.leute.length / spalten);
-      const rest = g.leute.length % spalten;
-      return {
-        ...g,
-        rasterB: spalten * PLATZ_B,
-        rasterH: (zeilen - 1) * PLATZ_H + PLATZ_INHALT,
-        plaetze: new Map<string, Platz>(
-          g.leute.map((a, i) => [a.id, { x: (i % spalten) * PLATZ_B, y: Math.floor(i / spalten) * PLATZ_H }]),
-        ),
-        /* Geht die letzte Reihe nicht auf, bleibt eine Lücke. Sie stand
-           vorher leer; jetzt steht die Pflanze darin. Das ist der Platz, den
-           der Grundriss ohnehin hat — Beiwerk, das keinen neuen Raum
-           kostet. */
-        luecke: rest === 0 ? null : { x: rest * PLATZ_B, y: (zeilen - 1) * PLATZ_H },
-      };
-    });
   }, [agents, departments, t]);
 
-  /* Das Herumlaufen. Wer wach ist und keinen Vorgang hat, tritt alle paar
-     Sekunden einen Schritt zur Seite. */
-  const [takt, setTakt] = useState(0);
-  const ruhig = useRef(false);
-  useEffect(() => {
-    ruhig.current = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-    if (ruhig.current) return;
-    const id = setInterval(() => setTakt((n) => n + 1), 5200);
-    return () => clearInterval(id);
-  }, []);
-
-  /* Wo jeder steht, in Koordinaten der Fläche.
-   *
-   * Einmal nach dem Zeichnen gemessen und dann gemerkt: Beim Zeigen wäre ein
-   * getBoundingClientRect() je Kollege und je Mausbewegung ein Layout pro
-   * Bild — bei siebzig Kollegen ist das der Unterschied zwischen einer
-   * Bewegung und einem Ruckeln. Das Wandern verschiebt jemanden um höchstens
-   * fünfzehn Pixel; für eine Blickrichtung ist das nichts. */
-  const flaeche = useRef<HTMLDivElement>(null);
-  const [zentren, setZentren] = useState<Map<string, Platz>>(new Map());
+  /* Die Breite gibt das Fenster vor, und der Plan richtet sich danach. Ohne
+     das Messen stünde hier eine geratene Zahl, und bei jedem zweiten
+     Bildschirm ragte der Bau heraus oder ließe eine Spalte leer. */
+  const huelle = useRef<HTMLDivElement>(null);
+  const [breite, setBreite] = useState(1024);
   useLayoutEffect(() => {
     const messen = () => {
-      const f = flaeche.current;
-      if (!f) return;
-      const fr = f.getBoundingClientRect();
-      const m = new Map<string, Platz>();
-      f.querySelectorAll<HTMLElement>("[data-wer]").forEach((el) => {
-        const r = el.getBoundingClientRect();
-        m.set(el.dataset.wer!, { x: r.left - fr.left + r.width / 2, y: r.top - fr.top + 16 });
-      });
-      setZentren(m);
+      const w = huelle.current?.clientWidth;
+      if (w && Math.abs(w - breite) > 8) setBreite(w);
     };
     messen();
     const beobachter = new ResizeObserver(messen);
-    if (flaeche.current) beobachter.observe(flaeche.current);
+    if (huelle.current) beobachter.observe(huelle.current);
     return () => beobachter.disconnect();
-  }, [raeume]);
+  }, [breite]);
+
+  const plan = useMemo(
+    () => bauplan(gruppen, breite, { besprechung: t("team.raumBesprechung"), teekueche: t("team.raumTeekueche") }),
+    [gruppen, breite, t],
+  );
+
+  /* Zustand aus den Daten. „arbeitet" heißt: hat einen laufenden Vorgang —
+     der Status allein sagte nur, dass der Agent wach ist, und ein wacher
+     Agent ohne Aufgabe ist keine Auskunft, sondern ein Zustand. */
+  const laufendVon = useMemo(() => new Map(laufend.map((l) => [l.agent_id, l])), [laufend]);
+  const zustandVon = useCallback(
+    (a: Agent): Zustand =>
+      a.killed
+        ? "gestoppt"
+        : wartetBei.has(a.id)
+          ? "wartet"
+          : laufendVon.has(a.id)
+            ? "arbeitet"
+            : a.status === "sleeping"
+              ? "schlaeft"
+              : "frei",
+    [laufendVon, wartetBei],
+  );
+
+  const [gewaehlt, setGewaehlt] = useState<string | null>(null);
+  const [karteAn, setKarteAn] = useState<Punkt | null>(null);
+  const [tassen, setTassen] = useState<ReadonlySet<string>>(new Set());
+  const [gegossen, setGegossen] = useState<ReadonlySet<string>>(new Set());
+  const [gaesteTakt, setGaesteTakt] = useState(0);
+  const [aufmerksam, setAufmerksam] = useState(false);
+
+  /* ── Das Leben ──────────────────────────────────────────────────────────
+     Die Simulation lebt in einem Ref, nicht im Zustand: Siebzig Figuren je
+     Bild durch React zu schicken hieße siebzig Abgleiche je Bild. React
+     zeichnet den Bau und die Knöpfe; bewegt wird über `transform`. */
+  const leben = useRef<Leben | null>(null);
+  const knoepfe = useRef(new Map<string, HTMLButtonElement>());
+  const blicke = useRef(new Map<string, SVGGElement>());
+  const gastRefs = useRef(new Map<number, HTMLElement>());
+
+  const haken = useMemo(
+    () => ({
+      tasse: (id: string, da: boolean) =>
+        setTassen((alt) => {
+          const neu = new Set(alt);
+          if (da) neu.add(id);
+          else neu.delete(id);
+          return neu;
+        }),
+      gegossen: (p: string) => setGegossen((alt) => new Set(alt).add(p)),
+      gaeste: () => setGaesteTakt((n) => n + 1),
+      aufmerksam: () => {
+        leben.current?.hinsehen();
+        setAufmerksam(true);
+        window.setTimeout(() => setAufmerksam(false), 2600);
+      },
+    }),
+    [],
+  );
+
+  /* Der Plan kann sich ändern (neue Kollegen, andere Breite). Dann wird das
+     Leben neu aufgesetzt — die Geometrie darunter ist eine andere. */
+  const planRef = useRef<Plan | null>(null);
+  if (planRef.current !== plan) {
+    planRef.current = plan;
+    leben.current = erschaffeLeben(plan, haken);
+  }
+  useEffect(() => setGaesteTakt((n) => n + 1), [plan]);
+
+  /* Zustände übernehmen, Positionen behalten. */
+  useEffect(() => {
+    const stand = plan.raeume.flatMap((r, ri) =>
+      r.leute.map((a, i) => ({ id: a.id, slug: a.slug, ri, i, sitz: r.sitze[i], zustand: zustandVon(a) })),
+    );
+    leben.current?.uebernehmen(stand);
+  }, [plan, zustandVon, agents]);
+
+  /* Der Taktgeber. Bei „weniger Bewegung" läuft er gar nicht: Dann sitzt
+     jeder an seinem Platz, das Licht bleibt an — die Auskunft bleibt, nur
+     die Bewegung geht. */
+  useEffect(() => {
+    if (ruhig) return;
+    let laeuft = true;
+    let letzte = 0;
+    const bild = (t0: number) => {
+      if (!laeuft) return;
+      const dt = Math.min(64, t0 - letzte) / 1000;
+      letzte = t0;
+      const l = leben.current;
+      if (l) {
+        l.tick(dt);
+        for (const f of l.figuren.values()) {
+          const el = knoepfe.current.get(f.id);
+          if (!el) continue;
+          const bob = f.geht ? Math.sin(f.phase * 0.16) * 1.6 : 0;
+          el.style.transform = `translate3d(${f.pos.x}px, ${f.pos.y + bob}px, 0)`;
+          el.classList.toggle("geht", f.geht);
+          const b = blicke.current.get(f.id);
+          if (b) b.style.transform = `translate(${f.blick.x * BLICK_WEITE}px, ${f.blick.y * BLICK_WEITE}px)`;
+        }
+        for (const g of l.gast()) {
+          if (g.art !== "katze") continue;
+          const el = gastRefs.current.get(g.id);
+          if (el) el.style.transform = `translate3d(${g.pos.x}px, ${g.pos.y}px, 0)`;
+        }
+      }
+      requestAnimationFrame(bild);
+    };
+    const id = requestAnimationFrame((t0) => {
+      letzte = t0;
+      requestAnimationFrame(bild);
+    });
+    return () => {
+      laeuft = false;
+      cancelAnimationFrame(id);
+    };
+  }, [ruhig, plan]);
 
   /* Der Zeiger, entkoppelt vom Ereignis: Mausbewegungen kommen häufiger als
-     Bilder, und jedes davon zu einem Zustand zu machen hieße, mehrfach je
-     Bild zu zeichnen. */
-  const [zeiger, setZeiger] = useState<Platz | null>(null);
-  const wartend = useRef<Platz | null>(null);
+     Bilder, und jede davon zu verarbeiten hieße, mehrfach je Bild zu rechnen. */
   const gemeldet = useRef(false);
   const aufZeiger = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (ruhig.current) return;
-    const fr = e.currentTarget.getBoundingClientRect();
-    wartend.current = { x: e.clientX - fr.left, y: e.clientY - fr.top };
-    if (gemeldet.current) return;
+    if (ruhig || gemeldet.current) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const p = { x: e.clientX - r.left, y: e.clientY - r.top };
     gemeldet.current = true;
     requestAnimationFrame(() => {
       gemeldet.current = false;
-      setZeiger(wartend.current);
+      leben.current?.zeiger(p);
     });
   };
 
-  const [gewaehlt, setGewaehlt] = useState<string | null>(null);
   useEffect(() => {
     if (!gewaehlt) return;
     const zu = (e: KeyboardEvent) => {
@@ -238,215 +254,459 @@ export default function Buero({
     return () => window.removeEventListener("keydown", zu);
   }, [gewaehlt]);
 
-  const laufendVon = new Map(laufend.map((l) => [l.agent_id, l]));
-  const gewaehlterAgent = agents.find((a) => a.id === gewaehlt);
-  const gewaehltesZentrum = gewaehlt ? zentren.get(gewaehlt) : undefined;
+  useEffect(() => {
+    leben.current?.waehlen(gewaehlt);
+  }, [gewaehlt]);
 
-  /* Die Blickrichtung: normiert, damit ein Kollege am anderen Ende des Büros
-     genauso hinsieht wie einer daneben — es geht um die Richtung, nicht um
-     die Entfernung. */
-  const blickAuf = (id: string) => {
-    const z = zentren.get(id);
-    if (!zeiger || !z) return undefined;
-    const dx = zeiger.x - z.x;
-    const dy = zeiger.y - z.y;
-    const laenge = Math.hypot(dx, dy);
-    if (laenge < 1) return undefined;
-    return { x: (dx / laenge) * BLICK_WEITE, y: (dy / laenge) * BLICK_WEITE };
+  /* Wer „covey" tippt, bekommt die ganze Belegschaft zu Gesicht. Die Augen
+     können das ohnehin — sie folgen sonst dem Zeiger; hier bekommen alle für
+     einen Moment dieselbe Richtung. */
+  useEffect(() => {
+    if (ruhig) return;
+    let getippt = "";
+    const horchen = (e: KeyboardEvent) => {
+      const z = e.target as HTMLElement | null;
+      if (e.key.length !== 1 || (z && /^(INPUT|TEXTAREA)$/.test(z.tagName)) || z?.isContentEditable) return;
+      getippt = (getippt + e.key.toLowerCase()).slice(-5);
+      if (getippt !== "covey") return;
+      getippt = "";
+      leben.current?.ausloesen("aufmerksam");
+    };
+    window.addEventListener("keydown", horchen);
+    return () => window.removeEventListener("keydown", horchen);
+  }, [ruhig]);
+
+  const gewaehlterAgent = agents.find((a) => a.id === gewaehlt);
+  const anwaehlen = (a: Agent) => {
+    if (gewaehlt === a.id) {
+      setGewaehlt(null);
+      return;
+    }
+    const f = leben.current?.figuren.get(a.id);
+    setKarteAn(f ? { ...f.pos } : null);
+    setGewaehlt(a.id);
   };
 
+  void gaesteTakt; // die Gästeliste ist ein Ref; der Takt löst das Neuzeichnen aus
+  const gaeste = leben.current?.gast() ?? [];
+
+  if (!plan.raeume.some((r) => r.leute.length)) return null;
+
   return (
-    <div className="bu">
-      {/* Der Tresen: hier stehen die, die auf eine Entscheidung warten. Er
-          liegt vorn, weil das die einzige Gruppe ist, die etwas von Ihnen
-          will. */}
-      <BuTresen
-        leute={agents.filter((a) => wartetBei.has(a.id))}
-        gewaehlt={gewaehlt}
-        onWaehlen={setGewaehlt}
-        blickAuf={blickAuf}
-      />
-
-      <div
-        className="bu-flaeche"
-        ref={flaeche}
-        onPointerMove={aufZeiger}
-        onPointerLeave={() => setZeiger(null)}
-        /* Ein Klick auf den Boden schließt die Karte. Die Karte selbst hält
-           ihn auf (stopPropagation) — sonst schlösse sie sich, während man in
-           ihr Feld tippt. */
-        onPointerDown={() => setGewaehlt(null)}
-      >
-        <div className="bu-zimmer">
-        {raeume.map((raum, ri) => {
-          /* Zwei Auskünfte, die der Raum als Ganzes trägt: Brennt hier Licht
-             (arbeitet jemand), und ist hier alles zu (schlafen alle). Der
-             dritte Fall — wach, aber ohne Vorgang — ist der Normalfall und
-             braucht keine Markierung. */
-          const arbeiten = raum.leute.some((a) => laufendVon.has(a.id));
-          const alleSchlafen = raum.leute.every((a) => a.status === "sleeping" || a.killed);
-          /* Wer wach ist, nichts zu tun hat und nicht vorn am Tresen steht.
-             Nur die wandern. */
-          const frei = ruhig.current
-            ? []
-            : raum.leute.filter(
-                (a) => !laufendVon.has(a.id) && !wartetBei.has(a.id) && a.status !== "sleeping" && !a.killed,
-              );
-          const versatz = wanderung(raum, frei, takt);
-          return (
-            <section
-              key={raum.id || "ohne"}
-              className={`bu-raum${arbeiten ? " hell" : ""}${alleSchlafen ? " dunkel" : ""}`}
-              style={{
-                /* Die Breite gibt die Spalte vor, nicht der Inhalt; das
-                   Raster steht mittig darin (app.css, .bu-zimmer). */
-                ["--i" as string]: ri,
-                minHeight: RASTER_OBEN + raum.rasterH + RAUM_UNTEN,
-              }}
-              aria-label={raum.name}
-            >
-              <h3 className="bu-raum-name">
-                {raum.color && <span className="bu-punkt" style={{ background: raum.color }} aria-hidden="true" />}
-                {raum.name}
-              </h3>
-
-              <div className="bu-raster" style={{ width: raum.rasterB, height: raum.rasterH }}>
-                {/* Die Pflanze in der Lücke der letzten Reihe. Sie steht für
-                    nichts — sie ist der Teil des Raums, der kein Zustand ist,
-                    und ohne ihn ist ein Zimmer ein Diagramm. */}
-                {raum.luecke && <BuPflanze am={raum.luecke} />}
-                {/* Die Plätze stehen fest und bleiben stehen, auch wenn
-                    niemand an ihnen sitzt. Ein leerer Schreibtisch ist eine
-                    Auskunft: der Kollege ist vorn am Tresen oder läuft
-                    herum. */}
-                {raum.leute.map((a) => {
-                  const platz = raum.plaetze.get(a.id)!;
-                  const laeuft = laufendVon.get(a.id);
-                  return (
-                    <span
-                      key={`p-${a.id}`}
-                      className={`bu-platz${laeuft ? " belegt" : ""}`}
-                      style={{ transform: `translate(${platz.x}px, ${platz.y}px)` }}
-                      aria-hidden="true"
-                    >
-                      {/* Auf dem Tisch. Die Tasse steht, wo gearbeitet wird;
-                          die Mappe liegt dort, wo sie immer liegt. */}
-                      {laeuft && <BuTasse />}
-                      {streu(a.slug + "#", 3) === 0 && <BuMappe />}
-                    </span>
-                  );
-                })}
-
-                {raum.leute.map((a) => {
-                  const platz = raum.plaetze.get(a.id)!;
-                  if (wartetBei.has(a.id)) return null; // steht vorn am Tresen
-                  const laeuft = laufendVon.get(a.id);
-                  const schlaeft = a.status === "sleeping";
-                  const tot = a.killed;
-                  const geht = versatz.get(a.id);
-                  return (
-                    <button
-                      key={a.id}
-                      data-wer={a.id}
-                      className={`bu-wer${laeuft ? " arbeitet" : ""}${tot ? " gestoppt" : ""}${geht ? " geht" : ""}${gewaehlt === a.id ? " gewaehlt" : ""}`}
-                      style={{
-                        transform: `translate(${platz.x + (geht?.x ?? 0)}px, ${platz.y + (geht?.y ?? 0)}px)`,
-                        /* Alle traten auf denselben Takt. Ein Raum, in dem
-                           sich sieben Leute im selben Augenblick bewegen, ist
-                           eine Marschkolonne; mit einer Verzögerung je Person
-                           wird daraus ein Rascheln. */
-                        ["--zoegern" as string]: geht ? `${streu(a.slug + "!", 12) * 0.12}s` : "0s",
-                      }}
-                      onClick={() => setGewaehlt(gewaehlt === a.id ? null : a.id)}
-                      aria-expanded={gewaehlt === a.id}
-                      title={laeuft ? `${a.display_name}: ${laeuft.title}` : a.display_name}
-                    >
-                      {/* Die Gedankenblase: der zuletzt aufgezeichnete
-                          Schritt, über dem Kopf dessen, der ihn gerade tut.
-                          Der Schlüssel ist der Schritt selbst — so läuft das
-                          Aufziehen erneut, wenn sich der Schritt ändert, und
-                          der Wechsel ist zu sehen statt nur zu lesen. */}
-                      {laeuft?.step && (
-                        <span key={laeuft.step} className="bu-denkt">
-                          {t(`team.schritt.${laeuft.step}`, laeuft.step)}
-                        </span>
-                      )}
-                      <span className="bu-kopf">
-                        <Gesicht
-                          schluessel={a.slug}
-                          zustand={tot ? "killed" : schlaeft ? "sleeping" : "working"}
-                          groesse={30}
-                          blick={schlaeft || tot ? undefined : blickAuf(a.id)}
-                        />
-                      </span>
-                      <span className="bu-name">{a.display_name.split(/\s+/)[0]}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-          );
-        })}
-        </div>
-
-        {gewaehlterAgent && gewaehltesZentrum && (
-          <BuKarte
-            agent={gewaehlterAgent}
-            laeuft={laufendVon.get(gewaehlterAgent.id)}
-            wartet={wartetBei.has(gewaehlterAgent.id)}
-            am={gewaehltesZentrum}
-            breite={flaeche.current?.clientWidth ?? 0}
-            me={me}
-            onOeffnen={() => navigate(`/team/${gewaehlterAgent.id}`)}
-            onSchliessen={() => setGewaehlt(null)}
+    <div className="bu" ref={huelle}>
+      <div className="bu-rahmen">
+        <div
+          className={`bu-bau${ruhig ? " ruht" : ""}${aufmerksam ? " aufmerksam" : ""}`}
+          style={{ width: plan.breite, height: plan.hoehe }}
+          onPointerMove={aufZeiger}
+          onPointerLeave={() => leben.current?.zeiger(null)}
+          /* Ein Klick auf den Boden schließt die Karte. Die Karte selbst hält
+             ihn auf — sonst schlösse sie sich, während man in ihr Feld tippt. */
+          onPointerDown={() => setGewaehlt(null)}
+        >
+          <Boeden plan={plan} laufendVon={laufendVon} />
+          <Zeichnung plan={plan} />
+          <Ausstattungen
+            plan={plan}
+            gegossen={gegossen}
+            durstig={(id) => !!leben.current?.istDurstig(id)}
+            onGiessen={(id, p) => leben.current?.giessen(id, p)}
           />
-        )}
-      </div>
+          <Arbeitsplaetze plan={plan} laufendVon={laufendVon} tassen={tassen} />
 
+          {plan.raeume.map((r) =>
+            r.leute.map((a, i) => {
+              const laeuft = laufendVon.get(a.id);
+              const zustand = zustandVon(a);
+              return (
+                <button
+                  key={a.id}
+                  ref={(el) => {
+                    if (el) knoepfe.current.set(a.id, el);
+                    else knoepfe.current.delete(a.id);
+                  }}
+                  data-wer={a.id}
+                  className={`bu-wer${laeuft ? " arbeitet" : ""}${zustand === "gestoppt" ? " gestoppt" : ""}${gewaehlt === a.id ? " gewaehlt" : ""}`}
+                  style={{ transform: `translate3d(${r.sitze[i].x}px, ${r.sitze[i].y}px, 0)` }}
+                  onClick={() => anwaehlen(a)}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  aria-expanded={gewaehlt === a.id}
+                  title={laeuft ? `${a.display_name}: ${laeuft.title}` : a.display_name}
+                >
+                  {/* Die Gedankenblase: der zuletzt aufgezeichnete Schritt,
+                      über dem Kopf dessen, der ihn gerade tut. Der Schlüssel
+                      ist der Schritt selbst — so läuft das Aufziehen erneut,
+                      wenn er sich ändert, und der Wechsel ist zu sehen statt
+                      nur zu lesen. */}
+                  {laeuft?.step && (
+                    <span key={laeuft.step} className="bu-denkt">
+                      {t(`team.schritt.${laeuft.step}`, laeuft.step)}
+                    </span>
+                  )}
+                  {zustand === "wartet" && !laeuft?.step && <span className="bu-denkt warten">{t("team.wartet")}</span>}
+                  <span className="bu-kopf">
+                    <Gesicht
+                      schluessel={a.slug}
+                      zustand={zustand === "gestoppt" ? "killed" : zustand === "schlaeft" ? "sleeping" : "working"}
+                      groesse={30}
+                      blickRef={(g) => {
+                        if (g) blicke.current.set(a.id, g);
+                        else blicke.current.delete(a.id);
+                      }}
+                    />
+                  </span>
+                  <span className="bu-name">{a.display_name.split(/\s+/)[0]}</span>
+                </button>
+              );
+            }),
+          )}
+
+          {/* Was selten vorbeikommt. Nichts davon trägt Auskunft. */}
+          {gaeste.map((g) => {
+            if (g.art === "katze")
+              return (
+                <span
+                  key={g.id}
+                  className="bu-katze"
+                  ref={(el) => {
+                    if (el) gastRefs.current.set(g.id, el);
+                    else gastRefs.current.delete(g.id);
+                  }}
+                  style={{ transform: `translate3d(${g.pos.x}px, ${g.pos.y}px, 0)` }}
+                >
+                  <Riss art="katze" x={0} y={0} w={22} h={26} />
+                </span>
+              );
+            if (g.art === "flieger")
+              return (
+                <span key={g.id} className="bu-flieger" style={{ left: g.pos.x, top: g.pos.y, ["--weit" as string]: `${g.weit}px` }}>
+                  <Riss art="flieger" x={0} y={0} w={22} h={12} />
+                </span>
+              );
+            const masse = g.art === "blatt" ? [9, 12] : g.art === "kuchen" ? [22, 20] : [13, 12];
+            return <Riss key={g.id} art={g.art} x={g.pos.x} y={g.pos.y} w={masse[0]} h={masse[1]} className={`bu-gast g-${g.art}`} />;
+          })}
+
+          {gewaehlterAgent && karteAn && (
+            <BuKarte
+              agent={gewaehlterAgent}
+              laeuft={laufendVon.get(gewaehlterAgent.id)}
+              wartet={wartetBei.has(gewaehlterAgent.id)}
+              am={karteAn}
+              breite={plan.breite}
+              me={me}
+              onOeffnen={() => navigate(`/team/${gewaehlterAgent.id}`)}
+              onSchliessen={() => setGewaehlt(null)}
+            />
+          )}
+        </div>
+      </div>
       <p className="bu-legende">{t("team.bueroLegende")}</p>
     </div>
   );
 }
 
-/* Das Beiwerk. Drei kleine Zeichnungen, gemalt und nicht aus einer Schrift
-   geliehen — ein Zeichen aus dem Unicode-Vorrat trägt die Strichstärke seiner
-   Schrift und nicht die dieser Oberfläche. Sie stehen alle an --bu-deko, der
-   einzigen Farbe, die sie haben dürfen: Beiwerk, das ins Auge fällt, ist
-   Beiwerk zu viel. */
-
-function BuPflanze({ am }: { am: Platz }) {
+/* ── Die Böden ─────────────────────────────────────────────────────────────
+   Die Fläche darunter ist Mauerwerk; hier wird ausgespart. Der Flur ist eine
+   Spur dunkler als die Zimmer — er wird begangen. */
+function Boeden({ plan, laufendVon }: { plan: Plan; laufendVon: Map<string, Laufend> }) {
   return (
-    <svg
-      className="bu-pflanze"
-      style={{ transform: `translate(${am.x}px, ${am.y}px)` }}
-      viewBox="0 0 24 30"
-      width="24"
-      height="30"
-      aria-hidden="true"
-    >
-      <path d="M12 22V13" />
-      <path d="M12 15c-5-1-7-5-6.5-9C9 6.5 11.5 10 12 15Z" />
-      <path d="M12 17c5-1.5 6.5-5.5 6-9.5-3.5.5-6 4-6 9.5Z" />
-      <path className="bu-topf" d="M7 22h10l-1.2 6.5a1 1 0 0 1-1 .5H9.2a1 1 0 0 1-1-.5Z" />
-    </svg>
+    <>
+      <div className="bu-boden flur" style={{ left: plan.quer.x, top: AUSSEN, width: plan.quer.w, height: plan.hoehe - AUSSEN * 2 }} />
+      {plan.flure.map((f, i) => (
+        <div key={i} className="bu-boden flur" style={{ left: plan.quer.x, top: f.y, width: plan.breite - plan.quer.x - AUSSEN, height: f.h }} />
+      ))}
+      {plan.raeume.map((r) => {
+        const arbeitet = r.leute.some((a) => laufendVon.has(a.id));
+        const leer = !arbeitet && r.leute.length > 0 && r.leute.every((a) => a.killed || a.status === "sleeping");
+        return (
+          <div
+            key={r.id}
+            className={`bu-boden${r.gem ? " gemein" : ""}${arbeitet ? " hell" : ""}${leer ? " leer" : ""}`}
+            style={{ left: r.x, top: r.y, width: r.w, height: r.h }}
+            aria-label={r.name}
+          />
+        );
+      })}
+      {/* Die Schwellen: an dieser Stelle ist die Wand nicht da. */}
+      {plan.raeume.map((r) => (
+        <div
+          key={`s-${r.id}`}
+          className="bu-schwelle"
+          style={{ left: r.tuerX - TUER_B / 2, top: r.obenDrueber ? r.wand : r.wand - INNEN, width: TUER_B, height: INNEN }}
+        />
+      ))}
+      <div className="bu-schwelle" style={{ left: 0, top: plan.eingang.y, width: AUSSEN, height: plan.eingang.hoehe }} />
+      {plan.fenster.map((f, i) => (
+        <span key={i}>
+          <div className="bu-schwelle" style={{ left: f.x, top: 0, width: f.w, height: AUSSEN }} />
+          <div className="bu-schwelle" style={{ left: f.x + 24, top: plan.hoehe - AUSSEN, width: f.w * 0.72, height: AUSSEN }} />
+        </span>
+      ))}
+    </>
   );
 }
 
-function BuTasse() {
+/* ── Der Riss ──────────────────────────────────────────────────────────────
+   Türschwünge, Brüstungen, Möbelkanten — die gezeichneten Linien über dem
+   Bau. Der Türschwung ist das Zeichen, an dem ein Grundriss als Grundriss
+   gelesen wird, und er sagt nebenbei, wohin die Tür aufgeht. */
+function Zeichnung({ plan }: { plan: Plan }) {
+  const { t } = useTranslation();
+  const ey = plan.eingang.y;
+  const eb = plan.eingang.hoehe - 4;
   return (
-    <svg className="bu-tasse" viewBox="0 0 14 12" width="14" height="12" aria-hidden="true">
-      <path d="M2 3h8v5a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2Z" />
-      <path d="M10 4.5h1.5a1.5 1.5 0 0 1 0 3H10" />
-    </svg>
+    <>
+      <svg className="bu-riss" viewBox={`0 0 ${plan.breite} ${plan.hoehe}`} aria-hidden="true">
+        {plan.raeume.map((r) => {
+          const x = r.tuerX - TUER_B / 2;
+          const s = SCHWUNG * r.ri;
+          return (
+            <g key={`t-${r.id}`}>
+              <path className="blatt" d={`M${x} ${r.wand} v${s}`} />
+              <path d={`M${x} ${r.wand + s} A${SCHWUNG} ${SCHWUNG} 0 0 ${r.obenDrueber ? 0 : 1} ${x + SCHWUNG} ${r.wand}`} />
+            </g>
+          );
+        })}
+        {/* Der Eingang, mit eigenem Schwung nach innen. */}
+        <path className="blatt" d={`M${AUSSEN} ${ey} v${eb}`} />
+        <path d={`M${AUSSEN} ${ey + eb} A${eb} ${eb} 0 0 0 ${AUSSEN + eb} ${ey}`} />
+        {/* Fenster: eine Brüstungslinie im Mauerwerk, keine aufgemalte Scheibe. */}
+        {plan.fenster.map((f, i) => (
+          <g key={i}>
+            <path className="fenster" d={`M${f.x} ${AUSSEN / 2} h${f.w}`} />
+            <path className="fenster" d={`M${f.x + 24} ${plan.hoehe - AUSSEN / 2} h${f.w * 0.72}`} />
+          </g>
+        ))}
+        {/* Der Tresen, und die Bänke, die sich zwei Plätze teilen. */}
+        <path className="moebel" d={`M${plan.quer.x + 14} ${plan.tresen.y} h${plan.quer.w - 28}`} />
+        {plan.raeume.map((r) =>
+          r.sitze.map((p, i) =>
+            i % 2 === 1 ? <path key={`${r.id}-${i}`} className="moebel" d={`M${p.x - SITZ_B / 2 + 7} ${p.y + 18} v21`} /> : null,
+          ),
+        )}
+        {plan.raeume
+          .filter((r) => r.gem === "besprechung")
+          .map((r) => <path key="wb" className="moebel" d={`M${r.x + 24} ${r.y + SCHILD_H + 6} h${Math.min(90, r.w - 48)}`} />)}
+      </svg>
+
+      <span className="bu-schild eingang" style={{ left: AUSSEN + 12, top: ey + plan.eingang.hoehe + 8 }}>
+        {t("team.raumEingang")}
+      </span>
+      <span className="bu-schild mitte" style={{ left: plan.quer.mitte, top: plan.tresen.y - 17 }}>
+        {t("team.raumTresen")}
+      </span>
+      {plan.raeume.map((r) => (
+        <span key={`n-${r.id}`}>
+          {/* Der Name bekommt genau die Breite, die ihm neben der Nummer
+              bleibt — sonst schreibt eine lange Abteilung sie zu, und der
+              Plan verliert die eine Angabe, die ihn als Plan ausweist. */}
+          <h3
+            className={`bu-schild${r.gem ? " mitte" : ""}`}
+            style={
+              r.gem
+                ? { left: r.x + r.w / 2, top: r.y + 8, maxWidth: r.w - 24 }
+                : { left: r.x + PAD, top: r.y + 6, maxWidth: r.w - PAD * 2 }
+            }
+          >
+            {r.farbe && <span className="bu-punkt" style={{ background: r.farbe }} aria-hidden="true" />}
+            {r.name}
+          </h3>
+          {!r.gem && (
+            /* Nummer und Fläche UNTER dem Namen, wie auf einem gezeichneten
+               Plan. Der Maßstab steht in plan.ts: 38 Pixel je Meter. */
+            <span className="bu-nummer" style={{ left: r.x + PAD + 11, top: r.y + 19 }}>
+              {r.flur + 1}.{String(r.nr).padStart(2, "0")} · {Math.round((r.w * r.h) / (PX_JE_METER * PX_JE_METER))} m²
+            </span>
+          )}
+        </span>
+      ))}
+    </>
   );
 }
 
-function BuMappe() {
+type TopfBauer = (id: string, x: number, y: number, art: Art) => JSX.Element;
+
+/* ── Die Einrichtung ───────────────────────────────────────────────────────
+   Was in einem Zimmer steht, außer Tischen. Aus dem Namen der Abteilung
+   gerechnet — dasselbe Zimmer, dieselben Möbel, jedes Mal (plan.ts,
+   `ausstattungFuer`). Nichts davon trägt Auskunft. */
+function Ausstattungen({
+  plan,
+  gegossen,
+  durstig,
+  onGiessen,
+}: {
+  plan: Plan;
+  gegossen: ReadonlySet<string>;
+  durstig: (id: string) => boolean;
+  onGiessen: (id: string, p: Punkt) => void;
+}) {
+  const { t } = useTranslation();
+  const topf: TopfBauer = (id, x, y, art) => {
+    const [w, h] = MASS[art]!;
+    return (
+      <span key={id} className={`bu-topf${gegossen.has(id) ? " blueht" : ""}${durstig(id) ? " durstig" : ""}`}>
+        <Riss art={art} x={x} y={y} w={w} h={h} onClick={() => onGiessen(id, { x: x + w / 2, y: y + h })} titel={t("team.giessen")} />
+        {gegossen.has(id) && <span className="bu-bluete" style={{ left: x + w / 2 - 3, top: y + h * 0.2 }} aria-hidden="true" />}
+      </span>
+    );
+  };
+
   return (
-    <svg className="bu-mappe" viewBox="0 0 14 11" width="14" height="11" aria-hidden="true">
-      <rect x="1.5" y="2.5" width="10" height="7.5" rx="1" />
-      <path d="M4 1.5h9a1 1 0 0 1 1 1V8" />
-    </svg>
+    <>
+      {/* Empfang: Garderobe, Tresen, Bank, eine große Pflanze. Ein Vorraum, in
+          dem nichts steht, ist kein Vorraum, sondern eine Lücke im Plan. */}
+      <Riss art="garderobe" x={plan.quer.x + 16} y={plan.eingang.y - 22} w={plan.quer.w - 32} h={7} />
+      <div className="bu-tisch" style={{ left: plan.quer.x + 14, top: plan.tresen.y, width: plan.quer.w - 28, height: 12 }} />
+      <div className="bu-tisch" style={{ left: plan.quer.x + 22, top: plan.tresen.y + 206, width: plan.quer.w - 44, height: 11 }} />
+      {topf("empfang", plan.quer.mitte - 13, plan.hoehe - AUSSEN - 44, "monstera")}
+
+      {/* Im Flur: Drucker und Wasserspender, an der Wand, wo man vorbeigeht. */}
+      {plan.flure.map((f, i) => (
+        <span key={i}>
+          <Riss art="drucker" x={plan.quer.x + plan.quer.w + 70} y={f.y + f.h - 22} w={22} h={17} />
+          <Riss art="spender" x={plan.breite - AUSSEN - 46} y={f.y + 5} w={15} h={18} />
+          {i % 2 === 0 && topf(`flur-${i}`, plan.breite - AUSSEN - 96, f.y + f.h - 32, "monstera")}
+        </span>
+      ))}
+
+      {plan.raeume.map((r) => (r.gem ? <Gemeinschaft key={r.id} raum={r} topf={topf} /> : <Arbeitszimmer key={r.id} raum={r} topf={topf} />))}
+    </>
+  );
+}
+
+function Arbeitszimmer({ raum: r, topf }: { raum: Raum; topf: TopfBauer }) {
+  const h = streu(r.name);
+  const e = ausstattungFuer(r.name);
+  const stuecke: JSX.Element[] = [];
+
+  /* An der Wand gegenüber der Tür — die einzige, an der etwas hängen kann,
+     ohne im Weg zu stehen. */
+  e.wand.forEach((art, i) => {
+    const [w, hh] = MASS[art]!;
+    const x = r.x + 26 + (i * (r.w - 70)) / Math.max(1, e.wand.length);
+    if (x + w > r.x + r.w - 14) return;
+    stuecke.push(<Riss key={`w${i}`} art={art} x={x} y={r.obenDrueber ? r.y + SCHILD_H + 1 : r.y + r.h - 1 - hh} w={w} h={hh} />);
+  });
+
+  /* In der Lücke, die die letzte Reihe ohnehin lässt: die Sitzecke. Das ist
+     der Platz, den der Grundriss schon hat — Ausstattung, die keinen neuen
+     Raum kostet. */
+  const rest = r.leute.length % r.spalten;
+  if (rest !== 0 && r.sitze.length) {
+    const p = r.sitze[r.sitze.length - 1];
+    const frei = (r.spalten - rest) * SITZ_B;
+    const mx = p.x + SITZ_B / 2 + frei / 2;
+    if (frei >= 130) {
+      const [sw, sh] = MASS[e.ecke]!;
+      stuecke.push(<Riss key="tep" art="teppich" x={mx - 35} y={p.y - 8} w={70} h={46} />);
+      stuecke.push(<Riss key="eck" art={e.ecke} x={mx - sw / 2} y={p.y + 2} w={sw} h={sh} />);
+      stuecke.push(topf(`${r.id}-ecke`, mx + 26, p.y - 4, "monstera"));
+    } else {
+      stuecke.push(topf(`${r.id}-luecke`, mx - 11, p.y - 6, "pflanze"));
+    }
+  }
+  /* Und wenn das Zimmer tiefer ist, als seine Reihen brauchen: Alle Zimmer
+     eines Bandes sind gleich tief, also hat die Abteilung mit einem Kollegen
+     so viel Boden wie die mit dreizehn. Dieser Rest bleibt nicht leer — er
+     wird die Sitzecke. Ein Zimmer, in dem nichts steht, sieht aus, als fehle
+     etwas, und genau das soll es nicht. */
+  const unten = r.y + SCHILD_H + PAD + Math.max(0, r.zeilen - 1) * SITZ_H + 32 + 46;
+  const rest2 = r.y + r.h - unten;
+  if (rest2 > 76 && r.w > 150) {
+    const [sw, sh] = MASS[e.ecke]!;
+    const mx = r.x + r.w / 2;
+    const my = unten + 10;
+    stuecke.push(<Riss key="tep2" art="teppich" x={mx - 35} y={my} w={70} h={46} />);
+    stuecke.push(<Riss key="eck2" art={e.ecke} x={mx - sw / 2} y={my + 10} w={sw} h={sh} />);
+    stuecke.push(topf(`${r.id}-lounge`, mx + 44, my + 6, "monstera"));
+  } else if ((h >> 3) % 3 !== 0 && rest2 > 40) {
+    stuecke.push(topf(`${r.id}-ecke2`, h % 2 ? r.x + r.w - 34 : r.x + 12, r.y + r.h - 36, "monstera"));
+  }
+  stuecke.push(<Riss key="korb" art="papierkorb" x={r.x + r.w - 24} y={r.y + SCHILD_H + 8} w={10} h={10} />);
+
+  /* Auf den Tischen: Mappen überall, dazu das, was zur Abteilung gehört. */
+  r.leute.forEach((a, i) => {
+    const hs = streu(a.slug + "#");
+    const p = r.sitze[i];
+    if (hs % 3 === 0) stuecke.push(<Riss key={`m${i}`} art="mappe" x={p.x - SITZ_B / 2 + 12} y={p.y + 22} w={13} h={10} />);
+    if (e.tisch && (hs >> 2) % 5 < 3) {
+      const [w, hh] = MASS[e.tisch]!;
+      stuecke.push(<Riss key={`d${i}`} art={e.tisch} x={p.x + SITZ_B / 2 - w - 12} y={p.y + (e.tisch === "lampe" ? 12 : 24)} w={w} h={hh} />);
+    }
+  });
+  return <>{stuecke}</>;
+}
+
+function Gemeinschaft({ raum: r, topf }: { raum: Raum; topf: TopfBauer }) {
+  const cx = r.x + r.w / 2;
+  const cy = r.y + SCHILD_H + (r.h - SCHILD_H) / 2;
+  if (r.gem === "besprechung") {
+    const tw = Math.min(r.w - PAD * 4, 118);
+    const th = 44;
+    return (
+      <>
+        <div className="bu-tisch rund" style={{ left: cx - tw / 2, top: cy - th / 2, width: tw, height: th }} />
+        {[0, 1, 2].map((i) =>
+          [-1, 1].map((s) => (
+            <div
+              key={`${i}${s}`}
+              className="bu-stuhl"
+              style={{ left: cx - tw / 2 + 22 + (i * (tw - 44)) / 2 - 7, top: cy + s * (th / 2 + 7) - 2 }}
+            />
+          )),
+        )}
+        {topf(`${r.id}-p`, r.x + r.w - 34, r.y + r.h - 36, "monstera")}
+      </>
+    );
+  }
+  return (
+    <>
+      <div className="bu-tisch" style={{ left: r.x + PAD, top: r.y + SCHILD_H + 8, width: r.w - PAD * 2, height: 16 }} />
+      <div className="bu-tisch rund" style={{ left: cx - 21, top: cy + 8, width: 42, height: 28 }} />
+      {[-1, 1].map((s) => (
+        <div key={s} className="bu-stuhl" style={{ left: cx - 7 + s * 29, top: cy + 19 }} />
+      ))}
+      {topf(`${r.id}-p`, r.x + r.w - 34, r.y + r.h - 36, "monstera")}
+    </>
+  );
+}
+
+/* ── Die Arbeitsplätze ─────────────────────────────────────────────────────
+   Der Schreibtisch mit dem Bildschirm darauf. Der Bildschirm ist der Träger
+   des Zustands: dunkel, solange nichts läuft; hell, sobald etwas läuft, und
+   dann fällt sein Schein auf Tisch und Boden. Der leere Stuhl daneben ist
+   die zweite Auskunft — der Kollege ist nicht am Platz. */
+function Arbeitsplaetze({
+  plan,
+  laufendVon,
+  tassen,
+}: {
+  plan: Plan;
+  laufendVon: Map<string, Laufend>;
+  tassen: ReadonlySet<string>;
+}) {
+  return (
+    <>
+      {plan.raeume.map((r) =>
+        r.leute.map((a, i) => {
+          const p = r.sitze[i];
+          return (
+            <span key={a.id}>
+              <span
+                className={`bu-platz${laufendVon.has(a.id) ? " belegt" : ""}`}
+                style={{ left: p.x - SITZ_B / 2 + 7, top: p.y + 18, width: SITZ_B - 14, height: 21 }}
+                aria-hidden="true"
+              >
+                {tassen.has(a.id) && <Riss art="tasse" x={0} y={0} w={12} h={10} className="bu-tasse" />}
+              </span>
+              <span className="bu-stuhl" style={{ left: p.x - 7, top: p.y - 14 }} aria-hidden="true" />
+            </span>
+          );
+        }),
+      )}
+    </>
   );
 }
 
@@ -455,7 +715,8 @@ function BuMappe() {
  * Sie ersetzt den Sprung in den Verlauf nicht, sie kommt ihm zuvor: In neun
  * von zehn Fällen will man wissen, woran jemand sitzt, und in dem zehnten
  * will man ihm einen Satz sagen. Beides hier zu haben heißt, dass das Büro
- * eine Arbeitsfläche ist und nicht ein Bild davon.
+ * eine Arbeitsfläche ist und nicht ein Bild davon. Wer angesprochen wird,
+ * bleibt übrigens stehen — das tut ein Mensch auch.
  *
  * Das Eingabefeld ist dasselbe Tor wie im Verlauf — dieselbe Adresse,
  * dieselbe Triage. Es antwortet nur nicht: Was der Kollege sagt, steht im
@@ -474,7 +735,7 @@ function BuKarte({
   agent: Agent;
   laeuft?: Laufend;
   wartet: boolean;
-  am: Platz;
+  am: Punkt;
   breite: number;
   me: Principal;
   onOeffnen: () => void;
@@ -517,7 +778,11 @@ function BuKarte({
       onPointerDown={(e) => e.stopPropagation()}
     >
       <header className="bu-karte-kopf">
-        <Gesicht schluessel={agent.slug} zustand={agent.killed ? "killed" : agent.status === "sleeping" ? "sleeping" : "working"} groesse={28} />
+        <Gesicht
+          schluessel={agent.slug}
+          zustand={agent.killed ? "killed" : agent.status === "sleeping" ? "sleeping" : "working"}
+          groesse={28}
+        />
         <span className="bu-karte-wer">
           <strong>{agent.display_name}</strong>
           <span className="bu-karte-rolle">{agent.job_title || agent.slug}</span>
@@ -574,45 +839,6 @@ function BuKarte({
       <button className="bu-karte-hin" onClick={onOeffnen}>
         {t("team.gespraech")}
       </button>
-    </div>
-  );
-}
-
-/* Der Tresen. Eine eigene Reihe, weil „wartet auf Sie" die einzige Gruppe
-   ist, die nicht nur Zustand, sondern Aufforderung ist. */
-function BuTresen({
-  leute,
-  gewaehlt,
-  onWaehlen,
-  blickAuf,
-}: {
-  leute: Agent[];
-  gewaehlt: string | null;
-  onWaehlen: (id: string | null) => void;
-  blickAuf: (id: string) => { x: number; y: number } | undefined;
-}) {
-  const { t } = useTranslation();
-  if (leute.length === 0) return null;
-  return (
-    <div className="bu-tresen">
-      <span className="bu-tresen-schild">{t("team.wartet")}</span>
-      <div className="bu-tresen-leute">
-        {leute.map((a) => (
-          <button
-            key={a.id}
-            data-wer={a.id}
-            className={`bu-wer am-tresen${gewaehlt === a.id ? " gewaehlt" : ""}`}
-            onClick={() => onWaehlen(gewaehlt === a.id ? null : a.id)}
-            aria-expanded={gewaehlt === a.id}
-            title={a.display_name}
-          >
-            <span className="bu-kopf">
-              <Gesicht schluessel={a.slug} zustand="working" groesse={30} blick={blickAuf(a.id)} />
-            </span>
-            <span className="bu-name">{a.display_name.split(/\s+/)[0]}</span>
-          </button>
-        ))}
-      </div>
     </div>
   );
 }
