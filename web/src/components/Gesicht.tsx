@@ -31,17 +31,28 @@ import { useMemo } from "react";
 
 export type Zustand = "working" | "sleeping" | "killed";
 
-/* Sechs Farbpaare, kräftig genug, um zwei Kollegen nebeneinander zu
+/* Sechs Farbpaare, gerade kräftig genug, um zwei Kollegen nebeneinander zu
    unterscheiden, und dunkel genug, dass die Augen darauf stehen. Sie sind
    fest und nicht aus dem Hash gewürfelt: Eine frei gerechnete Farbe landet
-   irgendwann auf Neongelb, und dann steht das Auge auf nichts. */
+   irgendwann auf Neongelb, und dann steht das Auge auf nichts.
+   
+   Sie waren einmal deutlich bunter — sechs kräftige Töne, die einzeln gut
+   aussahen. Im Büro stehen aber fünfzig davon gleichzeitig auf einer Fläche,
+   und dort wurde daraus eine Tüte Bonbons: sechs Farbfamilien ohne
+   Verwandtschaft, jede so laut wie die nächste, auf einem Grund, der genau
+   neutral sein will. Jetzt liegen alle sechs auf EINER Helligkeit und EINER
+   Sättigung und unterscheiden sich nur in der Richtung des Tons — nah genug
+   beieinander, dass fünfzig Köpfe eine Belegschaft ergeben, weit genug
+   auseinander, dass zwei nebeneinander zwei bleiben. Berechnet in oklch
+   (L 0.52 / C 0.05 hell, L 0.74 / C 0.055 dunkel), damit „gleich hell" auch
+   für das Auge gilt und nicht nur für die Zahl. */
 const TOENE = [
-  { h: "#2f6f5e", d: "#4fb99a" },
-  { h: "#3a5b96", d: "#7fa6e8" },
-  { h: "#8f3f18", d: "#e89a76" },
-  { h: "#6b4a86", d: "#b394d8" },
-  { h: "#8a6a12", d: "#d8b04a" },
-  { h: "#96384f", d: "#e58ca0" },
+  { h: "#497367", d: "#86b7a9" },
+  { h: "#566b86", d: "#94adce" },
+  { h: "#826051", d: "#c9a18f" },
+  { h: "#6f6280", d: "#b3a3c7" },
+  { h: "#6d6b49", d: "#b0ad85" },
+  { h: "#835d62", d: "#cb9da3" },
 ];
 
 /* Ein kleiner, stabiler Hash über das Kürzel. Kein Zufall: Derselbe Agent

@@ -3160,47 +3160,127 @@
  * Der Grundriss der Belegschaft. Räume sind Abteilungen, Plätze sind
  * Schreibtische, und wer nichts zu tun hat, läuft dazwischen herum.
  *
+ * DAS LICHT IST DER ZUSTAND (#312). Der Bildschirm am Platz ist dunkel,
+ * solange nichts läuft, und hell, sobald etwas läuft; sein Schein fällt auf
+ * den Tisch und den Boden davor, und ein Raum mit einem hellen Tisch darin
+ * ist ein heller Raum. Damit beantwortet ein Blick über die Seite die Frage,
+ * für die man vorher vierzig Tische einzeln lesen musste.
+ *
  * Die Plätze liegen fest und bleiben liegen, auch wenn niemand an ihnen
  * sitzt — ein leerer Tisch sagt, dass der Kollege vorn am Tresen steht.
- * Bewegt wird nur mit `transform`: Das läuft auf dem Compositor, kostet kein
- * Layout und bleibt auch bei vierzig Kollegen ruhig.
+ * Bewegt wird nur mit `transform` und `opacity`: Das läuft auf dem
+ * Compositor, kostet kein Layout und bleibt auch bei siebzig Kollegen ruhig.
  */
-.bu { display: flex; flex-direction: column; gap: 14px; }
+.bu {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 
+  /* Die Stoffe dieses Raums. Sie stehen hier und nicht als rohe Werte in den
+     Regeln darunter: Ein Büro, dessen Tischplatte an vier Stellen steht, hat
+     irgendwann vier Tischplatten.
+
+     Und sie sind GRAU. Der erste Anlauf gab dem Boden einen warmen Ton und
+     den Tischen Holz — ein Büro eben. Auf der Seite war das ein beiger
+     Untergrund unter weißen Zimmern unter fünfzig bunten Köpfen, also drei
+     Farbfamilien, die nichts miteinander zu tun haben. Der Grund dieses
+     Produkts ist genau neutral und trennt durch Lage und Haarlinie, nicht
+     durch Farbton; die einzige Farbe, die der Grundriss trägt, ist der Ton
+     der Tätigkeit. Ein Boden, der selbst eine Meinung hat, nimmt ihm die
+     seine. */
+  --bu-boden: light-dark(#e1e1e3, #0d0d0f);
+  --bu-fuge: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.04));
+  --bu-tisch: light-dark(#d6d6d9, #26262a);
+  --bu-tisch-hell: light-dark(#e4e4e6, #303035);
+  --bu-kante: light-dark(rgba(0, 0, 0, 0.14), rgba(0, 0, 0, 0.5));
+  --bu-schirm: light-dark(#a9a9af, #171719);
+  --bu-deko: light-dark(rgba(0, 0, 0, 0.32), rgba(255, 255, 255, 0.22));
+}
+
+/* Der Boden. Vorher lag hier Millimeterpapier: zwei Raster im Abstand von
+   34px, quer über die ganze Breite, auch dort, wo gar kein Zimmer stand. Ein
+   Boden hat Fugen, keine Kästchen — größere Teilung, halbe Stärke, und ein
+   Lichtfall von oben, damit die Fläche eine Richtung hat. */
 .bu-flaeche {
   position: relative; /* die Karte am Platz liegt darin */
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
   padding: 16px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background:
-    /* Der Boden. Ein Raster, so schwach, dass man es erst sieht, wenn man
-       es sucht — es soll Fläche sein, kein Millimeterpapier. */
-    repeating-linear-gradient(0deg, var(--border) 0 1px, transparent 1px 34px),
-    repeating-linear-gradient(90deg, var(--border) 0 1px, transparent 1px 34px),
-    var(--surface-1);
-  background-blend-mode: normal;
+    radial-gradient(120% 70% at 50% -10%, var(--inset-highlight) 0%, transparent 55%),
+    repeating-linear-gradient(0deg, var(--bu-fuge) 0 1px, transparent 1px 58px),
+    repeating-linear-gradient(90deg, var(--bu-fuge) 0 1px, transparent 1px 58px),
+    var(--bu-boden);
+  box-shadow: inset 0 -34px 40px -34px var(--scrim-weak);
+}
+
+/* Wie die Zimmer stehen. Vorher war es eine umbrechende Reihe aus
+   inhaltsbreiten Karten, und der größte zusammenhängende Bereich der Seite
+   war der Rest der letzten Zeile — leer (#312). Eine Reihe gleich hoher
+   Zimmer war die falsche Antwort darauf: Dann hat die Abteilung mit vier
+   Kollegen so viel Boden wie die mit dreizehn, und die Hälfte davon ist
+   nichts.
+   
+   Also Spalten statt Zeilen. Jedes Zimmer behält seine eigene Höhe, die
+   Spalte füllt sich von oben, und was übrig bleibt, ist der Rest EINER
+   Spalte statt der Rest jeder Zeile. Die Spaltenbreite trägt drei Plätze;
+   darunter setzt der Browser von selbst eine Spalte weniger. */
+.bu-zimmer {
+  columns: 300px;
+  column-gap: 12px;
 }
 
 .bu-raum {
   position: relative;
-  flex: 0 0 auto;
-  /* Breit genug für den Namen: Ein Raum mit einem Kollegen ist schmaler als
-     das Wort „Geschäftsführung", und ein Schild, das aus seinem Zimmer
-     herausragt, steht im Nachbarzimmer. */
-  min-width: 172px;
+  width: 100%;
+  margin: 0 0 12px;
+  break-inside: avoid;
+  padding: 0 0 4px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
-  background: var(--surface-0);
-  box-shadow: 0 1px 2px light-dark(rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.35));
+  background: linear-gradient(180deg, var(--surface-2) 0%, var(--surface-0) 100%);
+  box-shadow: 0 1px 2px var(--shadow-xs);
+  overflow: visible;
+  /* Licht an, Licht aus: derselbe Übergang wie am Tisch, damit das Zimmer
+     und der Schreibtisch darin dasselbe tun. */
+  transition:
+    background 700ms ease,
+    border-color 700ms ease,
+    box-shadow 700ms ease;
 }
+/* Hier läuft etwas. Das Zimmer ist warm beleuchtet, und das Licht kommt von
+   den Tischen — deshalb liegt der Schein unten, nicht oben. */
+.bu-raum.hell {
+  border-color: var(--accent-ring);
+  background: linear-gradient(180deg, var(--surface-2) 0%, var(--bg-accent) 220%);
+  box-shadow:
+    0 1px 2px var(--shadow-xs),
+    0 0 0 1px var(--accent-tint);
+}
+/* Hier schlafen alle. Kein Grau-in-Grau, sondern eine Spur tiefer im Boden:
+   Das Zimmer steht noch da, es ist nur zu. */
+.bu-raum.dunkel {
+  background: var(--surface-0);
+  box-shadow: inset 0 1px 3px var(--shadow-xs);
+}
+
+/* Beim Betreten zieht der Grundriss auf, Zimmer für Zimmer. Gestaffelt, aber
+   gedeckelt: Bei zehn Abteilungen sind das 400ms bis zum letzten Zimmer, und
+   länger darf ein Aufbau nicht dauern, den man jeden Morgen sieht. */
+.bu-raum {
+  animation: bu-raum-auf 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(min(var(--i, 0), 9) * 45ms);
+}
+@keyframes bu-raum-auf {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .bu-raum-name {
   position: absolute;
-  top: 8px;
-  left: 12px;
-  right: 12px;
+  top: 9px;
+  left: 14px;
+  right: 14px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3212,38 +3292,118 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-muted);
+  transition: color 700ms ease;
 }
-.bu-punkt { width: 7px; height: 7px; border-radius: 999px; }
+.bu-raum.hell .bu-raum-name { color: var(--text-accent); }
+.bu-punkt { width: 7px; height: 7px; border-radius: 999px; flex: none; }
 
-/* Der Schreibtisch: eine Platte, von oben gesehen. */
+/* Das Raster der Plätze, mittig im Zimmer: Das Zimmer darf wachsen, die
+   Tische stehen trotzdem in der Mitte und nicht links an der Wand. */
+.bu-raster { position: relative; margin: 42px auto 0; }
+
+/* Der Schreibtisch, von oben und ein wenig von vorn.
+ *
+ * Vorher war er eine graue Pille mit Haarlinie — also genau die Form, die
+ * ein Ladeplatzhalter hat, vierzigmal untereinander. Die halbe Seite las
+ * sich als Skelett einer Seite, die noch lädt. Jetzt hat er eine Platte mit
+ * Maserungsverlauf, eine Vorderkante und etwas darauf. */
 .bu-platz {
   position: absolute;
   top: 0;
   left: 0;
-  width: 58px;
-  height: 17px;
-  margin: 33px 0 0 6px;
-  border-radius: 3px;
-  background: light-dark(#ddd6d0, #2a2622);
-  border: 1px solid var(--border);
+  width: 66px;
+  height: 22px;
+  margin: 34px 0 0 11px;
+  border-radius: 2px 2px 4px 4px;
+  background: linear-gradient(180deg, var(--bu-tisch-hell) 0%, var(--bu-tisch) 62%, var(--bu-tisch) 100%);
+  box-shadow:
+    inset 0 1px 0 var(--inset-highlight),
+    0 1px 0 var(--bu-kante),
+    0 3px 5px -3px var(--shadow-sm);
 }
-/* Belegt heißt: hier läuft gerade ein Vorgang. Der einzige Ort, an dem
-   dieses Büro Farbe trägt — und er trägt sie, weil dort etwas geschieht. */
-.bu-platz.belegt {
-  background: var(--bg-accent);
-  border-color: var(--text-accent);
-  animation: bu-lampe 2.6s ease-in-out infinite;
+
+/* Der Bildschirm, von hinten gesehen: ein Riegel an der hinteren Tischkante.
+   Er ist der Träger des Zustands — dunkel, solange nichts läuft. */
+.bu-platz::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 3px;
+  width: 24px;
+  height: 6px;
+  transform: translateX(-50%);
+  border-radius: 1.5px;
+  background: var(--bu-schirm);
+  transition: background 600ms ease, box-shadow 600ms ease;
 }
-@keyframes bu-lampe {
-  0%, 100% { box-shadow: 0 0 0 0 transparent; }
-  50% { box-shadow: 0 0 10px 1px light-dark(rgba(143, 63, 24, 0.35), rgba(240, 161, 132, 0.3)); }
+/* Der Lichtkegel auf Tisch und Boden. Er liegt UNTER dem Tisch (z-index -1),
+   damit er den Tisch umspielt und nicht überdeckt, und er ist der Grund,
+   warum man ein arbeitendes Zimmer von der anderen Seite der Seite sieht. */
+.bu-platz::after {
+  content: "";
+  position: absolute;
+  inset: -22px -20px -26px;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(50% 50% at 50% 36%, var(--accent-ring) 0%, var(--accent-tint) 42%, transparent 72%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Belegt heißt: hier läuft gerade ein Vorgang. Der Bildschirm geht an, der
+   Schein kommt hoch — und atmet danach langsam weiter, weil ein Licht, das
+   still steht, in einem Raum voller schlafender Kollegen nicht auffällt. */
+.bu-platz.belegt::before {
+  background: var(--text-accent);
+  box-shadow: 0 0 7px 1px var(--accent-ring);
+}
+.bu-platz.belegt::after {
+  animation:
+    bu-licht-an 900ms cubic-bezier(0.16, 1, 0.3, 1) both,
+    bu-licht-atmen 4.6s 900ms ease-in-out infinite;
+}
+@keyframes bu-licht-an {
+  from { opacity: 0; transform: scale(0.82); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes bu-licht-atmen {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.62; transform: scale(0.95); }
+}
+
+/* Auf dem Tisch. Die Tasse steht am belegten Platz, die Mappe liegt auf
+   einem von dreien — beides trägt keine Auskunft und soll auch keine
+   vortäuschen: Es ist das, was einen Raum von einem Diagramm unterscheidet. */
+.bu-tasse,
+.bu-mappe,
+.bu-pflanze {
+  position: absolute;
+  fill: none;
+  stroke: var(--bu-deko);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.bu-tasse { right: 5px; top: 7px; opacity: 0.8; }
+.bu-mappe { left: 6px; top: 10px; opacity: 0.42; }
+
+/* Die Pflanze steht in der Lücke, die die letzte Reihe ohnehin lässt — sie
+   kostet keinen Raum, sie füllt den, der schon da war. Blass genug, dass man
+   sie erst bemerkt, wenn man nicht gerade etwas sucht. */
+.bu-pflanze {
+  top: 16px;
+  left: 32px;
+  z-index: 0;
+  opacity: 0.3;
+  stroke-width: 1.1;
 }
 
 .bu-wer {
   position: absolute;
   top: 0;
   left: 0;
-  width: 70px;
+  width: 88px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -3255,22 +3415,55 @@
   cursor: pointer;
   text-align: center;
 }
+/* Der Schatten unter dem Kopf. Ohne ihn schwebt jeder Kollege einen
+   Millimeter über seinem Tisch, und ein Raum, in dem nichts aufliegt, hat
+   keinen Boden. */
+.bu-wer::after {
+  content: "";
+  position: absolute;
+  top: 28px;
+  left: 50%;
+  width: 26px;
+  height: 7px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: var(--scrim-weak);
+  filter: blur(3px);
+  opacity: 0.55;
+  pointer-events: none;
+}
+.bu-wer.gestoppt::after { opacity: 0.2; }
+
 /* Nur wer herumläuft, läuft auch weich: Ein Gesicht, das beim Einlaufen der
-   Liste über den Raum gleitet, wäre Bewegung ohne Aussage. */
-.bu-wer.geht { transition: transform 1.5s cubic-bezier(0.4, 0, 0.3, 1); }
+   Liste über den Raum gleitet, wäre Bewegung ohne Aussage. Die Verzögerung
+   je Person kommt aus dem Kürzel — vorher traten alle im selben Augenblick,
+   und sieben Leute, die gleichzeitig einen Schritt zur Seite machen, sind
+   eine Marschkolonne. */
+.bu-wer.geht {
+  transition: transform 1.7s cubic-bezier(0.37, 0, 0.28, 1);
+  transition-delay: var(--zoegern, 0s);
+}
 /* Wer gewählt ist, steht vorn und ein wenig größer — dasselbe, was ein Mensch
    tut, wenn man ihn anspricht. Ein Rahmen wäre hier ein Kasten um ein
    Gesicht. */
 .bu-wer.gewaehlt { z-index: 3; }
-.bu-wer.gewaehlt .gesicht { transform: scale(1.14); }
-.bu-wer.gewaehlt .bu-name { color: var(--text-accent); font-weight: 600; }
-.bu-wer .gesicht { transition: transform 140ms ease-out; }
-.bu-wer:hover .gesicht { transform: scale(1.09); }
-@media (prefers-reduced-motion: reduce) {
-  .bu-wer .gesicht { transition: none; }
+.bu-kopf {
+  display: block;
+  transition: transform 160ms cubic-bezier(0.16, 1, 0.3, 1);
 }
+.bu-wer.gewaehlt .bu-kopf { transform: translateY(-3px) scale(1.16); }
+.bu-wer.gewaehlt .bu-name { color: var(--text-accent); font-weight: 600; }
+.bu-wer:hover .bu-kopf { transform: translateY(-2px) scale(1.1); }
+.bu-wer:focus-visible { outline: 2px solid var(--text-accent); outline-offset: 2px; }
 .bu-wer:hover .bu-name { color: var(--text-primary); }
 .bu-wer.gestoppt { opacity: 0.45; }
+
+/* Wer angesprochen ist, bekommt den Raum: Die übrigen Zimmer treten zurück,
+   solange eine Karte offen steht. Kein Schleier über der Seite — nur die
+   Zimmer, in denen gerade nichts zu entscheiden ist. */
+.bu-raum { transition: opacity 240ms ease, background 700ms ease, border-color 700ms ease, box-shadow 700ms ease; }
+.bu-flaeche:has(.bu-raum .bu-wer.gewaehlt) .bu-raum:not(:has(.bu-wer.gewaehlt)) { opacity: 0.55; }
+
 .bu-name {
   margin-top: 23px; /* unter der Tischplatte */
   max-width: 100%;
@@ -3306,14 +3499,10 @@
   width: 62px;
   padding: 2px 0;
 }
+.bu-wer.am-tresen::after { display: none; }
 .bu-wer.am-tresen .bu-name { margin-top: 2px; }
 
 .bu-legende { font-size: 12px; color: var(--text-muted); }
-
-@media (prefers-reduced-motion: reduce) {
-  .bu-wer.geht { transition: none; }
-  .bu-platz.belegt { animation: none; }
-}
 
 /* Die Gedankenblase: der letzte aufgezeichnete Schritt, über dem Kopf dessen,
    der ihn gerade tut. Sie steht über dem Raster und darf über den Raum
@@ -3324,7 +3513,7 @@
   left: 50%;
   transform: translateX(-50%);
   z-index: 4;
-  max-width: 108px;
+  max-width: 116px;
   padding: 2px 7px;
   border-radius: 9px 9px 9px 2px;
   border: 1px solid var(--border);
@@ -3336,14 +3525,24 @@
   overflow: hidden;
   text-overflow: ellipsis;
   pointer-events: none;
-  animation: bu-denkt-auf 240ms ease-out both;
+  box-shadow: 0 2px 6px -2px var(--shadow-sm);
+  animation: bu-denkt-auf 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 @keyframes bu-denkt-auf {
-  from { opacity: 0; transform: translate(-50%, 4px); }
-  to { opacity: 1; transform: translate(-50%, 0); }
+  from { opacity: 0; transform: translate(-50%, 5px) scale(0.94); }
+  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
 }
-.bu-wer { position: absolute; }
-.bu-raum { overflow: visible; }
+
+/* Weniger Bewegung heißt weniger, nicht nichts: Was das Licht SAGT — hier
+   läuft etwas — bleibt stehen, es hört nur auf zu atmen. Die Zimmer stehen
+   sofort da, statt aufzuziehen, und niemand wandert mehr. */
+@media (prefers-reduced-motion: reduce) {
+  .bu-wer.geht { transition: none; }
+  .bu-raum { animation: none; }
+  .bu-platz.belegt::after { animation: none; opacity: 1; }
+  .bu-kopf { transition: none; }
+}
+
 
 /* Die Karte am Platz. Sie liegt über dem Grundriss, nicht daneben: Wer auf
    einen Kollegen klickt, will nicht, dass die Seite umspringt. */

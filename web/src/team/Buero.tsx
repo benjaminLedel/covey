@@ -28,6 +28,13 @@ import Dauer from "../components/Dauer";
  *   am Tresen vorn       — wartet auf eine Entscheidung von Ihnen
  *   zwischen den Plätzen — wach, aber ohne Vorgang: sie laufen herum
  *
+ * DAS LICHT IST DER ZUSTAND. Ein Büro sagt einem von der Tür aus, wo
+ * gearbeitet wird, weil dort die Lampen an sind. Hier war dieselbe Auskunft
+ * vierzig einzelne Lesungen: jeder Tisch trug einen blassen Rahmen, und die
+ * Räume sahen alle gleich aus. Jetzt trägt der Bildschirm am Platz das Licht,
+ * es fällt auf den Boden davor, und ein Raum mit einem hellen Tisch darin ist
+ * ein heller Raum — quer über die Seite lesbar (#312).
+ *
  * Und was man damit TUN kann, ist der eigentliche Punkt: Die Wachen sehen dem
  * Zeiger nach, wer arbeitet, hat eine Gedankenblase mit seinem letzten
  * Schritt, und ein Klick öffnet die Karte am Platz — mit einem Eingabefeld
@@ -37,10 +44,20 @@ import Dauer from "../components/Dauer";
 /** Ein Platz im Raster eines Abteilungsraums. */
 type Platz = { x: number; y: number };
 
-const PLATZ_B = 78;
-const PLATZ_H = 84;
-const RAUM_PAD = 16;
-const SPALTEN = 4;
+/* Breiter als zuvor (78), und der Grund steht in der Liste darunter: Bei
+   siebzig Pixeln endete jeder zweite Name in drei Punkten — „Infra-Wäch…",
+   „Postmorte…". Ein Grundriss, auf dem man die Kollegen nicht lesen kann,
+   spart Platz an der einzigen Stelle, die ihn braucht. */
+const PLATZ_B = 88;
+const PLATZ_H = 92;
+/* Was ein einzelner Platz wirklich hoch ist: Kopf, Tisch, Name. Die 92 oben
+   sind der Abstand ZWISCHEN zwei Reihen; die letzte Reihe braucht ihn nicht,
+   und ohne diese Unterscheidung stand unter jedem Zimmer eine Handbreit
+   nichts. */
+const PLATZ_INHALT = 70;
+const RASTER_OBEN = 42;
+const RAUM_UNTEN = 12;
+const SPALTEN = 3;
 
 /** Wie weit die Augen ausschlagen, im Raster des Gesichts (24 breit). */
 const BLICK_WEITE = 1.25;
@@ -54,6 +71,58 @@ function streu(text: string, n: number) {
     h = Math.imul(h, 16777619);
   }
   return Math.abs(h) % n;
+}
+
+type Raum = {
+  id: string;
+  name: string;
+  color: string;
+  leute: Agent[];
+  rasterB: number;
+  rasterH: number;
+  plaetze: Map<string, Platz>;
+  /** Der erste freie Platz der letzten Reihe — dort steht die Pflanze. */
+  luecke: Platz | null;
+};
+
+/* Wohin die Wachen treten.
+ *
+ * Der Regelfall ist ein Schritt zur Seite, alle paar Sekunden, um den eigenen
+ * Platz herum — ein Büro, in dem alle ständig rennen, ist ein
+ * Bildschirmschoner.
+ *
+ * Dazu kommt das Zusammenstehen: Alle drei Takte gehen zwei Wache, deren
+ * Plätze nebeneinander liegen, aufeinander zu und stehen eine Weile
+ * beieinander. Das ist AUSDRÜCKLICH kein Ereignis, das covey kennt — es steht
+ * in keiner Aufzeichnung und behauptet kein Gespräch. Es ist der Unterschied
+ * zwischen einem Raum und einem Wartezimmer, in dem alle einzeln an ihrem
+ * Stuhl kleben, und es bewegt nur die, die ohnehin nichts zu tun haben.
+ */
+function wanderung(raum: Raum, frei: Agent[], takt: number): Map<string, Platz> {
+  const versatz = new Map<string, Platz>();
+  for (const a of frei) {
+    versatz.set(a.id, {
+      x: [0, 15, -13, 8][(streu(a.slug, 4) + takt) % 4],
+      y: [0, -9, 11, -4][(streu(a.slug + "y", 4) + takt) % 4],
+    });
+  }
+  if (takt % 3 !== 1 || frei.length < 2) return versatz;
+
+  const i = streu(raum.id + "|" + takt, frei.length);
+  const j = (i + 1 + streu(raum.id + "~" + takt, frei.length - 1)) % frei.length;
+  if (i === j) return versatz;
+  const a = frei[i];
+  const b = frei[j];
+  const pa = raum.plaetze.get(a.id)!;
+  const pb = raum.plaetze.get(b.id)!;
+  /* Nur, wer nebeneinander sitzt: Zwei, die quer durch den Raum
+     aufeinander zulaufen, sehen aus, als sei der Grundriss kaputt. */
+  if (Math.hypot(pb.x - pa.x, pb.y - pa.y) > PLATZ_B * 1.6) return versatz;
+  const mx = (pa.x + pb.x) / 2;
+  const my = (pa.y + pb.y) / 2;
+  versatz.set(a.id, { x: mx - pa.x - 14, y: my - pa.y });
+  versatz.set(b.id, { x: mx - pb.x + 14, y: my - pb.y });
+  return versatz;
 }
 
 export default function Buero({
@@ -75,7 +144,7 @@ export default function Buero({
   /* Die Räume: eine Abteilung, ein Raster. Die Reihenfolge ist die der
      Abteilungen, damit der Grundriss von Besuch zu Besuch derselbe bleibt —
      ein Büro, in dem die Zimmer wandern, ist kein Büro. */
-  const raeume = useMemo(() => {
+  const raeume = useMemo<Raum[]>(() => {
     const ohne = agents.filter((a) => !departments.some((d) => d.id === a.department_id));
     const gruppen = [
       ...departments
@@ -86,24 +155,25 @@ export default function Buero({
     return gruppen.map((g) => {
       const spalten = Math.min(SPALTEN, Math.max(1, g.leute.length));
       const zeilen = Math.ceil(g.leute.length / spalten);
+      const rest = g.leute.length % spalten;
       return {
         ...g,
-        spalten,
-        breite: spalten * PLATZ_B + RAUM_PAD * 2,
-        hoehe: zeilen * PLATZ_H + RAUM_PAD * 2 + 22,
+        rasterB: spalten * PLATZ_B,
+        rasterH: (zeilen - 1) * PLATZ_H + PLATZ_INHALT,
         plaetze: new Map<string, Platz>(
-          g.leute.map((a, i) => [
-            a.id,
-            { x: RAUM_PAD + (i % spalten) * PLATZ_B, y: RAUM_PAD + 22 + Math.floor(i / spalten) * PLATZ_H },
-          ]),
+          g.leute.map((a, i) => [a.id, { x: (i % spalten) * PLATZ_B, y: Math.floor(i / spalten) * PLATZ_H }]),
         ),
+        /* Geht die letzte Reihe nicht auf, bleibt eine Lücke. Sie stand
+           vorher leer; jetzt steht die Pflanze darin. Das ist der Platz, den
+           der Grundriss ohnehin hat — Beiwerk, das keinen neuen Raum
+           kostet. */
+        luecke: rest === 0 ? null : { x: rest * PLATZ_B, y: (zeilen - 1) * PLATZ_H },
       };
     });
   }, [agents, departments, t]);
 
   /* Das Herumlaufen. Wer wach ist und keinen Vorgang hat, tritt alle paar
-     Sekunden einen Schritt zur Seite — nicht mehr: Ein Büro, in dem alle
-     ständig rennen, ist ein Bildschirmschoner. */
+     Sekunden einen Schritt zur Seite. */
   const [takt, setTakt] = useState(0);
   const ruhig = useRef(false);
   useEffect(() => {
@@ -207,74 +277,117 @@ export default function Buero({
            ihr Feld tippt. */
         onPointerDown={() => setGewaehlt(null)}
       >
-        {raeume.map((raum) => (
-          <section
-            key={raum.id || "ohne"}
-            className="bu-raum"
-            style={{ width: raum.breite, height: raum.hoehe }}
-            aria-label={raum.name}
-          >
-            <h3 className="bu-raum-name">
-              {raum.color && <span className="bu-punkt" style={{ background: raum.color }} aria-hidden="true" />}
-              {raum.name}
-            </h3>
-
-            {/* Die Plätze stehen fest und bleiben stehen, auch wenn niemand
-                an ihnen sitzt. Ein leerer Schreibtisch ist eine Auskunft:
-                der Kollege ist vorn am Tresen oder läuft herum. */}
-            {raum.leute.map((a) => {
-              const platz = raum.plaetze.get(a.id)!;
-              const laeuft = laufendVon.get(a.id);
-              return (
-                <span
-                  key={`p-${a.id}`}
-                  className={`bu-platz${laeuft ? " belegt" : ""}`}
-                  style={{ transform: `translate(${platz.x}px, ${platz.y}px)` }}
-                  aria-hidden="true"
-                />
+        <div className="bu-zimmer">
+        {raeume.map((raum, ri) => {
+          /* Zwei Auskünfte, die der Raum als Ganzes trägt: Brennt hier Licht
+             (arbeitet jemand), und ist hier alles zu (schlafen alle). Der
+             dritte Fall — wach, aber ohne Vorgang — ist der Normalfall und
+             braucht keine Markierung. */
+          const arbeiten = raum.leute.some((a) => laufendVon.has(a.id));
+          const alleSchlafen = raum.leute.every((a) => a.status === "sleeping" || a.killed);
+          /* Wer wach ist, nichts zu tun hat und nicht vorn am Tresen steht.
+             Nur die wandern. */
+          const frei = ruhig.current
+            ? []
+            : raum.leute.filter(
+                (a) => !laufendVon.has(a.id) && !wartetBei.has(a.id) && a.status !== "sleeping" && !a.killed,
               );
-            })}
+          const versatz = wanderung(raum, frei, takt);
+          return (
+            <section
+              key={raum.id || "ohne"}
+              className={`bu-raum${arbeiten ? " hell" : ""}${alleSchlafen ? " dunkel" : ""}`}
+              style={{
+                /* Die Breite gibt die Spalte vor, nicht der Inhalt; das
+                   Raster steht mittig darin (app.css, .bu-zimmer). */
+                ["--i" as string]: ri,
+                minHeight: RASTER_OBEN + raum.rasterH + RAUM_UNTEN,
+              }}
+              aria-label={raum.name}
+            >
+              <h3 className="bu-raum-name">
+                {raum.color && <span className="bu-punkt" style={{ background: raum.color }} aria-hidden="true" />}
+                {raum.name}
+              </h3>
 
-            {raum.leute.map((a) => {
-              const platz = raum.plaetze.get(a.id)!;
-              if (wartetBei.has(a.id)) return null; // steht vorn am Tresen
-              const laeuft = laufendVon.get(a.id);
-              const schlaeft = a.status === "sleeping";
-              const tot = a.killed;
-              /* Wer arbeitet oder schläft, sitzt still. Wer wach ist und
-                 nichts zu tun hat, wandert um seinen Platz herum. */
-              const wandert = !laeuft && !schlaeft && !tot && !ruhig.current;
-              const dx = wandert ? [0, 15, -13, 8][(streu(a.slug, 4) + takt) % 4] : 0;
-              const dy = wandert ? [0, -9, 11, -4][(streu(a.slug + "y", 4) + takt) % 4] : 0;
-              return (
-                <button
-                  key={a.id}
-                  data-wer={a.id}
-                  className={`bu-wer${laeuft ? " arbeitet" : ""}${tot ? " gestoppt" : ""}${wandert ? " geht" : ""}${gewaehlt === a.id ? " gewaehlt" : ""}`}
-                  style={{ transform: `translate(${platz.x + dx}px, ${platz.y + dy}px)` }}
-                  onClick={() => setGewaehlt(gewaehlt === a.id ? null : a.id)}
-                  aria-expanded={gewaehlt === a.id}
-                  title={laeuft ? `${a.display_name}: ${laeuft.title}` : a.display_name}
-                >
-                  {/* Die Gedankenblase: der zuletzt aufgezeichnete Schritt,
-                      über dem Kopf dessen, der ihn gerade tut. Sie steht nur
-                      bei einem laufenden Vorgang — sonst wäre sie eine
-                      Sprechblase ohne Satz. */}
-                  {laeuft?.step && (
-                    <span className="bu-denkt">{t(`team.schritt.${laeuft.step}`, laeuft.step)}</span>
-                  )}
-                  <Gesicht
-                    schluessel={a.slug}
-                    zustand={tot ? "killed" : schlaeft ? "sleeping" : "working"}
-                    groesse={30}
-                    blick={schlaeft || tot ? undefined : blickAuf(a.id)}
-                  />
-                  <span className="bu-name">{a.display_name.split(/\s+/)[0]}</span>
-                </button>
-              );
-            })}
-          </section>
-        ))}
+              <div className="bu-raster" style={{ width: raum.rasterB, height: raum.rasterH }}>
+                {/* Die Pflanze in der Lücke der letzten Reihe. Sie steht für
+                    nichts — sie ist der Teil des Raums, der kein Zustand ist,
+                    und ohne ihn ist ein Zimmer ein Diagramm. */}
+                {raum.luecke && <BuPflanze am={raum.luecke} />}
+                {/* Die Plätze stehen fest und bleiben stehen, auch wenn
+                    niemand an ihnen sitzt. Ein leerer Schreibtisch ist eine
+                    Auskunft: der Kollege ist vorn am Tresen oder läuft
+                    herum. */}
+                {raum.leute.map((a) => {
+                  const platz = raum.plaetze.get(a.id)!;
+                  const laeuft = laufendVon.get(a.id);
+                  return (
+                    <span
+                      key={`p-${a.id}`}
+                      className={`bu-platz${laeuft ? " belegt" : ""}`}
+                      style={{ transform: `translate(${platz.x}px, ${platz.y}px)` }}
+                      aria-hidden="true"
+                    >
+                      {/* Auf dem Tisch. Die Tasse steht, wo gearbeitet wird;
+                          die Mappe liegt dort, wo sie immer liegt. */}
+                      {laeuft && <BuTasse />}
+                      {streu(a.slug + "#", 3) === 0 && <BuMappe />}
+                    </span>
+                  );
+                })}
+
+                {raum.leute.map((a) => {
+                  const platz = raum.plaetze.get(a.id)!;
+                  if (wartetBei.has(a.id)) return null; // steht vorn am Tresen
+                  const laeuft = laufendVon.get(a.id);
+                  const schlaeft = a.status === "sleeping";
+                  const tot = a.killed;
+                  const geht = versatz.get(a.id);
+                  return (
+                    <button
+                      key={a.id}
+                      data-wer={a.id}
+                      className={`bu-wer${laeuft ? " arbeitet" : ""}${tot ? " gestoppt" : ""}${geht ? " geht" : ""}${gewaehlt === a.id ? " gewaehlt" : ""}`}
+                      style={{
+                        transform: `translate(${platz.x + (geht?.x ?? 0)}px, ${platz.y + (geht?.y ?? 0)}px)`,
+                        /* Alle traten auf denselben Takt. Ein Raum, in dem
+                           sich sieben Leute im selben Augenblick bewegen, ist
+                           eine Marschkolonne; mit einer Verzögerung je Person
+                           wird daraus ein Rascheln. */
+                        ["--zoegern" as string]: geht ? `${streu(a.slug + "!", 12) * 0.12}s` : "0s",
+                      }}
+                      onClick={() => setGewaehlt(gewaehlt === a.id ? null : a.id)}
+                      aria-expanded={gewaehlt === a.id}
+                      title={laeuft ? `${a.display_name}: ${laeuft.title}` : a.display_name}
+                    >
+                      {/* Die Gedankenblase: der zuletzt aufgezeichnete
+                          Schritt, über dem Kopf dessen, der ihn gerade tut.
+                          Der Schlüssel ist der Schritt selbst — so läuft das
+                          Aufziehen erneut, wenn sich der Schritt ändert, und
+                          der Wechsel ist zu sehen statt nur zu lesen. */}
+                      {laeuft?.step && (
+                        <span key={laeuft.step} className="bu-denkt">
+                          {t(`team.schritt.${laeuft.step}`, laeuft.step)}
+                        </span>
+                      )}
+                      <span className="bu-kopf">
+                        <Gesicht
+                          schluessel={a.slug}
+                          zustand={tot ? "killed" : schlaeft ? "sleeping" : "working"}
+                          groesse={30}
+                          blick={schlaeft || tot ? undefined : blickAuf(a.id)}
+                        />
+                      </span>
+                      <span className="bu-name">{a.display_name.split(/\s+/)[0]}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })}
+        </div>
 
         {gewaehlterAgent && gewaehltesZentrum && (
           <BuKarte
@@ -292,6 +405,48 @@ export default function Buero({
 
       <p className="bu-legende">{t("team.bueroLegende")}</p>
     </div>
+  );
+}
+
+/* Das Beiwerk. Drei kleine Zeichnungen, gemalt und nicht aus einer Schrift
+   geliehen — ein Zeichen aus dem Unicode-Vorrat trägt die Strichstärke seiner
+   Schrift und nicht die dieser Oberfläche. Sie stehen alle an --bu-deko, der
+   einzigen Farbe, die sie haben dürfen: Beiwerk, das ins Auge fällt, ist
+   Beiwerk zu viel. */
+
+function BuPflanze({ am }: { am: Platz }) {
+  return (
+    <svg
+      className="bu-pflanze"
+      style={{ transform: `translate(${am.x}px, ${am.y}px)` }}
+      viewBox="0 0 24 30"
+      width="24"
+      height="30"
+      aria-hidden="true"
+    >
+      <path d="M12 22V13" />
+      <path d="M12 15c-5-1-7-5-6.5-9C9 6.5 11.5 10 12 15Z" />
+      <path d="M12 17c5-1.5 6.5-5.5 6-9.5-3.5.5-6 4-6 9.5Z" />
+      <path className="bu-topf" d="M7 22h10l-1.2 6.5a1 1 0 0 1-1 .5H9.2a1 1 0 0 1-1-.5Z" />
+    </svg>
+  );
+}
+
+function BuTasse() {
+  return (
+    <svg className="bu-tasse" viewBox="0 0 14 12" width="14" height="12" aria-hidden="true">
+      <path d="M2 3h8v5a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2Z" />
+      <path d="M10 4.5h1.5a1.5 1.5 0 0 1 0 3H10" />
+    </svg>
+  );
+}
+
+function BuMappe() {
+  return (
+    <svg className="bu-mappe" viewBox="0 0 14 11" width="14" height="11" aria-hidden="true">
+      <rect x="1.5" y="2.5" width="10" height="7.5" rx="1" />
+      <path d="M4 1.5h9a1 1 0 0 1 1 1V8" />
+    </svg>
   );
 }
 
@@ -451,7 +606,9 @@ function BuTresen({
             aria-expanded={gewaehlt === a.id}
             title={a.display_name}
           >
-            <Gesicht schluessel={a.slug} zustand="working" groesse={30} blick={blickAuf(a.id)} />
+            <span className="bu-kopf">
+              <Gesicht schluessel={a.slug} zustand="working" groesse={30} blick={blickAuf(a.id)} />
+            </span>
             <span className="bu-name">{a.display_name.split(/\s+/)[0]}</span>
           </button>
         ))}
