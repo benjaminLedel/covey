@@ -2,8 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { useEffect, useState } from "react";
-import { api, inbox, type Agent, type InboxEntry, type Laufend, type Principal } from "../api";
+import { api, inbox, type Agent, type Department, type InboxEntry, type Laufend, type Principal } from "../api";
 import Gesicht from "../components/Gesicht";
+import Buero from "./Buero";
 
 /* Der Überblick — die Seite, auf der jeder landet.
  *
@@ -41,6 +42,11 @@ export default function Ueberblick({ me }: { me: Principal }) {
   });
   /* Was gerade läuft. Zehn Sekunden, wie der Verlauf: Diese Zeile ist der
      Grund, warum die Seite nicht nur beim Öffnen etwas sagt. */
+  const abteilungen = useQuery({
+    queryKey: ["departments"],
+    queryFn: () => api<Department[] | null>("/departments"),
+    staleTime: 300_000,
+  });
   const laufend = useQuery({
     queryKey: ["org-running"],
     queryFn: () => api<Laufend[] | null>("/org/running"),
@@ -54,9 +60,6 @@ export default function Ueberblick({ me }: { me: Principal }) {
      nur, dass der Agent wach ist — und ein wacher Agent ohne Aufgabe ist
      keine Auskunft, sondern ein Zustand. */
   const arbeiten = alle.filter((a) => !a.killed && a.status !== "sleeping" && !laeuft.some((l) => l.agent_id === a.id));
-  /* Wenn nichts wartet und niemand arbeitet, sind die Kollegen selbst der
-     Inhalt — die ersten acht, damit die Seite nicht zur zweiten Liste wird. */
-  const vorschlag = alle.slice(0, 8);
 
   const name = (me.DisplayName || me.Email).split(/\s+/)[0];
 
@@ -126,40 +129,19 @@ export default function Ueberblick({ me }: { me: Principal }) {
         </section>
       )}
 
-      {arbeiten.length > 0 && (
-        <section className="tm-block">
-          <h2>{t("team.arbeitenJetzt")}</h2>
-          <div className="tm-riege">
-            {arbeiten.map((a) => (
-              <Link key={a.id} to={`/team/${a.id}`} className="tm-riege-wer">
-                <Gesicht schluessel={a.slug} zustand="working" groesse={34} />
-                <span className="tm-riege-name">{a.display_name}</span>
-                <span className="tm-riege-rolle">{a.job_title || a.slug}</span>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
+      {/* Der Grundriss. Er zeigt dieselbe Auskunft wie die Listen darüber,
+          nur als Raum — und er ist der Teil dieser Seite, den man ansieht,
+          weil sich etwas bewegt, und nicht, weil man etwas sucht. */}
+      <section className="tm-block tm-block-weit">
+        <h2>{t("team.buero")}</h2>
+        <Buero
+          agents={alle}
+          departments={abteilungen.data ?? []}
+          laufend={laeuft}
+          wartetBei={new Set((offen.data?.items ?? []).map((e) => e.agent_id))}
+        />
+      </section>
 
-      {items.length === 0 && arbeiten.length === 0 && laeuft.length === 0 && vorschlag.length > 0 && (
-        <section className="tm-block">
-          <h2>{t("team.kollegen")}</h2>
-          <p className="tm-leise tm-block-lead">{t("team.ueberblickStill")}</p>
-          <div className="tm-riege">
-            {vorschlag.map((a) => (
-              <Link key={a.id} to={`/team/${a.id}`} className="tm-riege-wer">
-                <Gesicht
-                  schluessel={a.slug}
-                  zustand={a.killed ? "killed" : a.status === "sleeping" ? "sleeping" : "working"}
-                  groesse={34}
-                />
-                <span className="tm-riege-name">{a.display_name}</span>
-                <span className="tm-riege-rolle">{a.job_title || a.slug}</span>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 }
