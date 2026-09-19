@@ -86,7 +86,8 @@
     "administrationSection": "Administración",
     "administration": "Organización",
     "approvals": "Aprobaciones",
-    "infrastructure": "Infraestructura"
+    "infrastructure": "Infraestructura",
+    "chat": "Chat"
   },
   "costs": {
     "title": "Coste y tokens",
@@ -984,7 +985,11 @@
     "remove": "Quitar",
     "styleMode": "Ante hallazgos",
     "styleMinWords": "Mín. palabras",
-    "styleModes": {"warn": "avisar", "deny": "devolver al agente", "approval": "aprobación"},
+    "styleModes": {
+      "warn": "avisar",
+      "deny": "devolver al agente",
+      "approval": "aprobación"
+    },
     "ruleTypes": {
       "deny_system": "Sistema prohibido",
       "deny_action": "Acción prohibida",
@@ -2294,6 +2299,25 @@
         "intro": "La plataforma informa:"
       },
       "footer": "Puede desactivar estos correos en los ajustes de su cuenta: {{link}}"
+    }
+  },
+  "chat": {
+    "title": "Chat",
+    "lead": "Un mensaje se convierte en una tarea. Si un agente espera una respuesta, el mensaje lo despierta.",
+    "agents": "Agentes",
+    "noAgents": "Todavía no hay nadie contratado.",
+    "empty": "Aún no se ha hablado de nada. Escriba lo que hay que hacer.",
+    "answering": "Respuesta a: {{title}}",
+    "placeholder": "¿Qué hay que hacer?",
+    "placeholderAnswer": "Responder …",
+    "readOnly": "Su rol puede leer, pero no escribir.",
+    "send": "Enviar",
+    "answer": "Responder",
+    "kind": {
+      "note": "Situación",
+      "question": "Pregunta",
+      "result": "Resultado",
+      "error": "Fallida"
     }
   }
 }

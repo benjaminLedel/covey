@@ -39,6 +39,7 @@ import "./app.css";
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const AgentPage = lazy(() => import("./pages/Agent"));
 const Inbox = lazy(() => import("./pages/Inbox"));
+const Chat = lazy(() => import("./pages/Chat"));
 const Guardrails = lazy(() => import("./pages/Guardrails"));
 const Secrets = lazy(() => import("./pages/Secrets"));
 const Skills = lazy(() => import("./pages/Skills"));
@@ -63,6 +64,12 @@ const icons: Record<string, JSX.Element> = {
       <rect x="4" y="4" width="16" height="16" rx="2" />
       <path d="M8 9.5l1.6 1.6L12.5 8" />
       <path d="M8 15.5h8" />
+    </>
+  ),
+  chat: (
+    <>
+      <path d="M20 12.5a7.5 7.5 0 0 1-7.5 7.5H8l-4 3v-4.3A7.5 7.5 0 1 1 20 12.5z" />
+      <path d="M8.5 11.5h7M8.5 15h4" />
     </>
   ),
   robot: (
@@ -393,6 +400,10 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
             oversight. */}
         <div className="nav-group">
           <NavItem to="/" end icon="robot" label={t("nav.agents")} />
+          {/* Der Chat steht bei den Agenten und nicht unter „Einrichtung“:
+              Er ist die Sicht dessen, der MIT einem Agenten arbeitet, nicht
+              die dessen, der ihn baut (#298). */}
+          <NavItem to="/chat" icon="chat" label={t("nav.chat")} />
           <NavItem to="/inbox" icon="bell" label={t("nav.inbox")} count={pending} />
           <NavItem to="/costs" icon="chart" label={t("nav.costs")} />
           <NavItem to="/org" icon="sitemap" label={t("nav.org")} />
@@ -545,6 +556,7 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
             <Route path="/people/:id" element={<PersonPage me={me} />} />
             <Route path="/profile" element={<Navigate to={`/people/${me.ID}`} replace />} />
             <Route path="/inbox" element={<Inbox me={me} />} />
+            <Route path="/chat" element={<Chat me={me} />} />
             {/* The old addresses stay valid: both were linked to. */}
             <Route path="/approvals" element={<Navigate to="/inbox" replace />} />
             <Route path="/improvements" element={<Navigate to="/inbox" replace />} />

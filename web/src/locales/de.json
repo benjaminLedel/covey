@@ -86,7 +86,8 @@
     "administrationSection": "Verwaltung",
     "administration": "Administration",
     "approvals": "Freigaben",
-    "infrastructure": "Infrastruktur"
+    "infrastructure": "Infrastruktur",
+    "chat": "Chat"
   },
   "costs": {
     "title": "Kosten & Token",
@@ -984,7 +985,11 @@
     "remove": "Entfernen",
     "styleMode": "Bei Befunden",
     "styleMinWords": "Mind. Wörter",
-    "styleModes": { "warn": "warnen", "deny": "an den Agenten zurück", "approval": "Freigabe" },
+    "styleModes": {
+      "warn": "warnen",
+      "deny": "an den Agenten zurück",
+      "approval": "Freigabe"
+    },
     "ruleTypes": {
       "deny_system": "System verboten",
       "deny_action": "Aktion verboten",
@@ -2294,6 +2299,25 @@
         "intro": "Die Plattform meldet:"
       },
       "footer": "Diese Mails schalten Sie in Ihren Kontoeinstellungen ab: {{link}}"
+    }
+  },
+  "chat": {
+    "title": "Chat",
+    "lead": "Eine Nachricht wird zu einer Aufgabe. Wartet ein Agent auf eine Antwort, weckt sie ihn.",
+    "agents": "Agenten",
+    "noAgents": "Noch niemand eingestellt.",
+    "empty": "Noch nichts besprochen. Schreiben Sie, was zu tun ist.",
+    "answering": "Antwort auf: {{title}}",
+    "placeholder": "Was soll erledigt werden?",
+    "placeholderAnswer": "Antworten …",
+    "readOnly": "Ihre Rolle darf mitlesen, aber nicht schreiben.",
+    "send": "Senden",
+    "answer": "Antworten",
+    "kind": {
+      "note": "Zwischenstand",
+      "question": "Frage",
+      "result": "Ergebnis",
+      "error": "Fehlgeschlagen"
     }
   }
 }

@@ -348,6 +348,13 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/agents/{id}/heartbeats/{name}/fire", s.agentScoped(manage, s.handleFireHeartbeat))
 	mux.Handle("GET /api/v1/agents/{id}/backlog", s.agentScoped(anyRole, s.handleBacklog))
 	mux.Handle("POST /api/v1/agents/{id}/tasks", s.agentScoped(manage, s.handleCreateTask))
+
+	// The chat (#298): a door into the backlog for somebody who only wants to
+	// hand over work. Reading is open to every role — it shows nothing that
+	// the agent page does not show; writing needs the same permission as
+	// creating a task by hand, because that is what it does.
+	mux.Handle("GET /api/v1/agents/{id}/thread", s.agentScoped(anyRole, s.handleThread))
+	mux.Handle("POST /api/v1/agents/{id}/messages", s.agentScoped(manage, s.handleChatMessage))
 	mux.Handle("POST /api/v1/agents/{id}/wake", s.agentScoped(manage, s.handleWake))
 	// Hiring: the one way out of the draft state, and only a human walks it
 	// (hiring.go, spec/20).
@@ -520,6 +527,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/tasks/{id}/stage", s.taskScoped(manage, s.handleMoveTask))
 	mux.Handle("GET /api/v1/tasks/{id}/transitions", s.taskScoped(anyRole, s.handleTransitions))
 	mux.Handle("GET /api/v1/tasks/{id}/notes", s.taskScoped(anyRole, s.handleTaskNotes))
+	mux.Handle("POST /api/v1/tasks/{id}/reply", s.taskScoped(manage, s.handleTaskReply))
 
 	// Custom stages (kanban overlay, per agent).
 	mux.Handle("GET /api/v1/agents/{id}/stages", s.agentScoped(anyRole, s.handleListStages))

@@ -714,6 +714,27 @@ func (s *Store) CorrelateWake(ctx context.Context, correlationKey, resumeInput s
 	return t, nil
 }
 
+// Answer is the blocked→open edge for a HUMAN reply. It is CorrelateWake
+// addressed by task instead of by correlation key: a person does not know the
+// key and does not have to — they answer the task they are looking at.
+//
+// The text becomes the resume input, the priority goes to the front, the agent
+// is woken. Everything that follows is the same path a correlated event takes;
+// there is deliberately no second way to resume a parked task.
+//
+// A task that is not blocked comes back as ErrInvalidTransition. That is the
+// answer, not a failure: nobody was waiting, and the caller decides what to
+// make of it.
+func (s *Store) Answer(ctx context.Context, id uuid.UUID, who, resumeInput string) (Task, error) {
+	t, err := s.transition(ctx, id, StateOpen, "answered by "+who,
+		"resume_input=$3, priority=1", resumeInput)
+	if err != nil {
+		return Task{}, err
+	}
+	s.notify(ctx, t.AgentID)
+	return t, nil
+}
+
 // InOrg answers whether a task belongs to this organization. The answer is
 // deliberately a boolean and not a task: the caller (the taskScoped middleware)
 // only wants to check the boundary, not the data.

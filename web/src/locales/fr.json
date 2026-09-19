@@ -86,7 +86,8 @@
     "administrationSection": "Administration",
     "administration": "Organisation",
     "approvals": "Validations",
-    "infrastructure": "Infrastructure"
+    "infrastructure": "Infrastructure",
+    "chat": "Chat"
   },
   "costs": {
     "title": "Coût et jetons",
@@ -984,7 +985,11 @@
     "remove": "Retirer",
     "styleMode": "En cas de constats",
     "styleMinWords": "Mots min.",
-    "styleModes": {"warn": "avertir", "deny": "renvoyer à l'agent", "approval": "approbation"},
+    "styleModes": {
+      "warn": "avertir",
+      "deny": "renvoyer à l'agent",
+      "approval": "approbation"
+    },
     "ruleTypes": {
       "deny_system": "Système interdit",
       "deny_action": "Action interdite",
@@ -2294,6 +2299,25 @@
         "intro": "La plateforme signale :"
       },
       "footer": "Vous pouvez désactiver ces messages dans les paramètres de votre compte : {{link}}"
+    }
+  },
+  "chat": {
+    "title": "Chat",
+    "lead": "Un message devient une tâche. Si un agent attend une réponse, le message le réveille.",
+    "agents": "Agents",
+    "noAgents": "Personne n'a encore été recruté.",
+    "empty": "Rien n'a encore été dit. Écrivez ce qu'il y a à faire.",
+    "answering": "Réponse à : {{title}}",
+    "placeholder": "Qu'y a-t-il à faire ?",
+    "placeholderAnswer": "Répondre …",
+    "readOnly": "Votre rôle peut lire, mais pas écrire.",
+    "send": "Envoyer",
+    "answer": "Répondre",
+    "kind": {
+      "note": "État des lieux",
+      "question": "Question",
+      "result": "Résultat",
+      "error": "Échec"
     }
   }
 }

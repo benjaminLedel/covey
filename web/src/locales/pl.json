@@ -86,7 +86,8 @@
     "administrationSection": "Administracja",
     "administration": "Organizacja",
     "approvals": "Zatwierdzenia",
-    "infrastructure": "Infrastruktura"
+    "infrastructure": "Infrastruktura",
+    "chat": "Czat"
   },
   "costs": {
     "title": "Koszty i tokeny",
@@ -984,7 +985,11 @@
     "remove": "Usuń",
     "styleMode": "Przy ustaleniach",
     "styleMinWords": "Min. słów",
-    "styleModes": {"warn": "ostrzeż", "deny": "zwróć agentowi", "approval": "zatwierdzenie"},
+    "styleModes": {
+      "warn": "ostrzeż",
+      "deny": "zwróć agentowi",
+      "approval": "zatwierdzenie"
+    },
     "ruleTypes": {
       "deny_system": "System zabroniony",
       "deny_action": "Działanie zabronione",
@@ -2294,6 +2299,25 @@
         "intro": "Platforma zgłasza:"
       },
       "footer": "Te wiadomości wyłączysz w ustawieniach konta: {{link}}"
+    }
+  },
+  "chat": {
+    "title": "Czat",
+    "lead": "Wiadomość staje się zadaniem. Jeśli agent czeka na odpowiedź, wiadomość go budzi.",
+    "agents": "Agenci",
+    "noAgents": "Nikt jeszcze nie został zatrudniony.",
+    "empty": "Nic jeszcze nie ustalono. Proszę napisać, co jest do zrobienia.",
+    "answering": "Odpowiedź na: {{title}}",
+    "placeholder": "Co jest do zrobienia?",
+    "placeholderAnswer": "Odpowiedz …",
+    "readOnly": "Pańska rola może czytać, ale nie pisać.",
+    "send": "Wyślij",
+    "answer": "Odpowiedz",
+    "kind": {
+      "note": "Stan prac",
+      "question": "Pytanie",
+      "result": "Wynik",
+      "error": "Niepowodzenie"
     }
   }
 }

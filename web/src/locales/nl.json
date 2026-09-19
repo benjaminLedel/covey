@@ -86,7 +86,8 @@
     "administrationSection": "Beheer",
     "administration": "Organisatie",
     "approvals": "Goedkeuringen",
-    "infrastructure": "Infrastructuur"
+    "infrastructure": "Infrastructuur",
+    "chat": "Chat"
   },
   "costs": {
     "title": "Kosten en tokens",
@@ -984,7 +985,11 @@
     "remove": "Verwijderen",
     "styleMode": "Bij bevindingen",
     "styleMinWords": "Min. woorden",
-    "styleModes": {"warn": "waarschuwen", "deny": "terug naar de agent", "approval": "goedkeuring"},
+    "styleModes": {
+      "warn": "waarschuwen",
+      "deny": "terug naar de agent",
+      "approval": "goedkeuring"
+    },
     "ruleTypes": {
       "deny_system": "Systeem verboden",
       "deny_action": "Actie verboden",
@@ -2294,6 +2299,25 @@
         "intro": "Het platform meldt:"
       },
       "footer": "U schakelt deze mails uit in uw accountinstellingen: {{link}}"
+    }
+  },
+  "chat": {
+    "title": "Chat",
+    "lead": "Een bericht wordt een taak. Wacht een agent op antwoord, dan wekt het bericht hem.",
+    "agents": "Agenten",
+    "noAgents": "Nog niemand aangenomen.",
+    "empty": "Nog niets besproken. Schrijf wat er moet gebeuren.",
+    "answering": "Antwoord op: {{title}}",
+    "placeholder": "Wat moet er gebeuren?",
+    "placeholderAnswer": "Antwoorden …",
+    "readOnly": "Uw rol mag meelezen, maar niet schrijven.",
+    "send": "Versturen",
+    "answer": "Antwoorden",
+    "kind": {
+      "note": "Tussenstand",
+      "question": "Vraag",
+      "result": "Resultaat",
+      "error": "Mislukt"
     }
   }
 }

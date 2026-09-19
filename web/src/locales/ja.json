@@ -86,7 +86,8 @@
     "administrationSection": "管理",
     "administration": "組織",
     "approvals": "承認",
-    "infrastructure": "インフラ"
+    "infrastructure": "インフラ",
+    "chat": "チャット"
   },
   "costs": {
     "title": "コストとトークン",
@@ -984,7 +985,11 @@
     "remove": "削除",
     "styleMode": "所見がある場合",
     "styleMinWords": "最小語数",
-    "styleModes": {"warn": "警告", "deny": "エージェントに返す", "approval": "承認"},
+    "styleModes": {
+      "warn": "警告",
+      "deny": "エージェントに返す",
+      "approval": "承認"
+    },
     "ruleTypes": {
       "deny_system": "システムを禁止",
       "deny_action": "操作を禁止",
@@ -2294,6 +2299,25 @@
         "intro": "プラットフォームからの報告:"
       },
       "footer": "これらのメールはアカウント設定で止められます: {{link}}"
+    }
+  },
+  "chat": {
+    "title": "チャット",
+    "lead": "メッセージはタスクになります。エージェントが返事を待っていれば、メッセージが起こします。",
+    "agents": "エージェント",
+    "noAgents": "まだ誰も採用していません。",
+    "empty": "まだ何も話していません。何をしてほしいか書いてください。",
+    "answering": "返信先： {{title}}",
+    "placeholder": "何をしてほしいですか。",
+    "placeholderAnswer": "返信する …",
+    "readOnly": "この役割は読むことはできますが、書くことはできません。",
+    "send": "送信",
+    "answer": "返信",
+    "kind": {
+      "note": "途中経過",
+      "question": "質問",
+      "result": "結果",
+      "error": "失敗"
     }
   }
 }

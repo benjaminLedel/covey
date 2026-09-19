@@ -86,7 +86,8 @@
     "administrationSection": "管理",
     "administration": "组织",
     "approvals": "审批",
-    "infrastructure": "基础设施"
+    "infrastructure": "基础设施",
+    "chat": "聊天"
   },
   "costs": {
     "title": "成本与令牌",
@@ -984,7 +985,11 @@
     "remove": "移除",
     "styleMode": "发现问题时",
     "styleMinWords": "最少字数",
-    "styleModes": {"warn": "警告", "deny": "退回代理", "approval": "审批"},
+    "styleModes": {
+      "warn": "警告",
+      "deny": "退回代理",
+      "approval": "审批"
+    },
     "ruleTypes": {
       "deny_system": "禁止该系统",
       "deny_action": "禁止该动作",
@@ -2294,6 +2299,25 @@
         "intro": "平台报告："
       },
       "footer": "您可以在账户设置中关闭这些邮件：{{link}}"
+    }
+  },
+  "chat": {
+    "title": "聊天",
+    "lead": "一条消息就是一个任务。如果代理正在等待答复，这条消息会把它唤醒。",
+    "agents": "代理",
+    "noAgents": "还没有雇用任何人。",
+    "empty": "还没有谈过什么。写下要做的事。",
+    "answering": "回复：{{title}}",
+    "placeholder": "要做什么？",
+    "placeholderAnswer": "回复 …",
+    "readOnly": "您的角色可以查看，但不能撰写。",
+    "send": "发送",
+    "answer": "回复",
+    "kind": {
+      "note": "进展",
+      "question": "问题",
+      "result": "结果",
+      "error": "失败"
     }
   }
 }

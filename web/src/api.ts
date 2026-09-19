@@ -165,6 +165,24 @@ export type Stage = {
 
 // TaskNote is a proactive note by the agent on a task
 // (state of play, findings) — GET /tasks/{id}/notes.
+/* One line of a chat thread (GET /agents/{id}/thread).
+
+   It is a VIEW over task, note and transition — the server assembles it
+   (internal/httpapi/chat.go), because composed here it would be two requests
+   per task. `author` carries the origin of a message ("chat:a@b") or the
+   author of a note ("agent", "human:a@b"); from that the surface decides left
+   or right, and nothing else. */
+export type ChatEntry = {
+  kind: "message" | "note" | "question" | "result" | "error";
+  task_id: string;
+  task_title: string;
+  /** The state of the task the entry belongs to — "blocked" means it waits. */
+  task_state: string;
+  author: string;
+  text: string;
+  at: string;
+};
+
 export type TaskNote = {
   id: string;
   task_id: string;

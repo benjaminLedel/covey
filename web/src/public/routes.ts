@@ -133,6 +133,7 @@ export const APP_ROUTE_PREFIXES = [
   "/agents",
   "/approvals",
   "/audit",
+  "/chat",
   "/costs",
   "/egress",
   "/guardrails",

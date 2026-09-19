@@ -86,7 +86,8 @@
     "administrationSection": "Administration",
     "administration": "Organization",
     "approvals": "Approvals",
-    "infrastructure": "Infrastructure"
+    "infrastructure": "Infrastructure",
+    "chat": "Chat"
   },
   "costs": {
     "title": "Cost & Tokens",
@@ -984,7 +985,11 @@
     "remove": "Remove",
     "styleMode": "On findings",
     "styleMinWords": "Min. words",
-    "styleModes": { "warn": "warn", "deny": "return to the agent", "approval": "approval" },
+    "styleModes": {
+      "warn": "warn",
+      "deny": "return to the agent",
+      "approval": "approval"
+    },
     "ruleTypes": {
       "deny_system": "System forbidden",
       "deny_action": "Action forbidden",
@@ -2294,6 +2299,25 @@
         "intro": "The platform reports:"
       },
       "footer": "You can switch these mails off in your account settings: {{link}}"
+    }
+  },
+  "chat": {
+    "title": "Chat",
+    "lead": "A message becomes a task. If an agent is waiting for an answer, the message wakes it.",
+    "agents": "Agents",
+    "noAgents": "Nobody hired yet.",
+    "empty": "Nothing said yet. Write what needs doing.",
+    "answering": "Answering: {{title}}",
+    "placeholder": "What needs doing?",
+    "placeholderAnswer": "Answer …",
+    "readOnly": "Your role may read along, but not write.",
+    "send": "Send",
+    "answer": "Answer",
+    "kind": {
+      "note": "State of play",
+      "question": "Question",
+      "result": "Result",
+      "error": "Failed"
     }
   }
 }
