@@ -183,6 +183,10 @@ export type ChatEntry = {
   at: string;
 };
 
+/* Eine Reaktion auf einen Vorgang, schon gruppiert: welches Zeichen, wie oft,
+   ob ich selbst dabei bin, und die ersten drei Verfasser für den Tooltip. */
+export type ChatMark = { emoji: string; count: number; mine: boolean; who: string[] };
+
 export type TaskNote = {
   id: string;
   task_id: string;

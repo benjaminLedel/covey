@@ -528,6 +528,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/tasks/{id}/transitions", s.taskScoped(anyRole, s.handleTransitions))
 	mux.Handle("GET /api/v1/tasks/{id}/notes", s.taskScoped(anyRole, s.handleTaskNotes))
 	mux.Handle("POST /api/v1/tasks/{id}/reply", s.taskScoped(manage, s.handleTaskReply))
+	/* Reagieren darf jede Rolle: Ein Zeichen an einem Vorgang ändert nichts
+	   an ihm, und wer mitlesen darf, darf auch sagen, dass er es gelesen
+	   hat. */
+	mux.Handle("POST /api/v1/tasks/{id}/reactions", s.taskScoped(anyRole, s.handleReact))
 
 	// Custom stages (kanban overlay, per agent).
 	mux.Handle("GET /api/v1/agents/{id}/stages", s.agentScoped(anyRole, s.handleListStages))

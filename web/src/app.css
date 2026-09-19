@@ -2844,3 +2844,80 @@
   color: var(--text-secondary);
 }
 .suche-feld kbd { flex: none; }
+
+/* ── Reaktionen an einem Vorgang ───────────────────────────────────────
+   Sie hängen an der Aufgabe (internal/backlog/reactions.go) und stehen
+   deshalb unter dem Trenner, der den Vorgang eröffnet — nicht unter jeder
+   Zeile: Ein Verlauf, unter dessen jeder Zeile Zeichen stehen, ist ein
+   Verlauf aus Zeichen. */
+.tm-marken { display: flex; flex-wrap: wrap; gap: 6px; align-self: center; margin: -4px 0 2px; }
+.tm-marke {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-0);
+  font-size: 13px;
+  line-height: 1.2;
+}
+.tm-marke:hover:not(:disabled) { border-color: var(--border-strong); }
+/* Die eigene Marke trägt den Akzent: „ich war das" ist die einzige Auskunft,
+   die eine Reaktion über den Leser selbst gibt. */
+.tm-marke.meine { background: var(--bg-accent); border-color: var(--accent-ring); }
+.tm-marke-zahl { font-size: 11.5px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.tm-marke-plus { color: var(--text-muted); font-size: 14px; padding: 3px 10px; }
+.tm-marke-wahl { position: relative; }
+.tm-marke-hinter { position: fixed; inset: 0; z-index: 30; }
+.tm-marke-liste {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  translate: -50% 0;
+  z-index: 31;
+  display: flex;
+  gap: 2px;
+  padding: 5px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  box-shadow: 0 10px 28px -10px var(--shadow-md);
+}
+.tm-marke-liste button {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  font-size: 16px;
+  line-height: 1;
+}
+.tm-marke-liste button:hover { background: var(--tint); }
+
+/* ── „arbeitet gerade" ─────────────────────────────────────────────────
+   Drei Punkte in der Blase des Agenten, solange seine jüngste Aufgabe
+   läuft. Die Auskunft kommt aus dem Zustand der Aufgabe, nicht aus einer
+   Vermutung darüber, ob gerade jemand tippt. */
+.tm-tippt-blase {
+  display: inline-flex;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--surface-0);
+  border: 1px solid var(--border);
+}
+.tm-tippt-blase span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  animation: tm-tippt 1.25s infinite ease-in-out;
+}
+.tm-tippt-blase span:nth-child(2) { animation-delay: 0.16s; }
+.tm-tippt-blase span:nth-child(3) { animation-delay: 0.32s; }
+@keyframes tm-tippt {
+  0%, 62%, 100% { transform: translateY(0); opacity: 0.45; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tm-tippt-blase span { animation: none; opacity: 0.8; }
+}

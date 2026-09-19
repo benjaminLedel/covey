@@ -54,8 +54,23 @@ type chatEntry struct {
 	At        time.Time `json:"at"`
 }
 
+// chatMark is one emoji on one task, already grouped: wie oft, und ob ich
+// selbst dabei bin. Die Oberfläche braucht beides und sonst nichts.
+type chatMark struct {
+	Emoji string `json:"emoji"`
+	Count int    `json:"count"`
+	Mine  bool   `json:"mine"`
+	/* Wer — gekürzt auf die ersten drei, für den Tooltip. Eine Liste von
+	   vierzig Namen im Verlauf liest niemand. */
+	Who []string `json:"who"`
+}
+
 type chatThread struct {
 	Entries []chatEntry `json:"entries"`
+	/* Reaktionen je Aufgabe. Sie hängen an der Aufgabe und nicht am Eintrag
+	   (internal/backlog/reactions.go) — die Oberfläche zeigt sie deshalb am
+	   ersten Eintrag eines Vorgangs. */
+	Marks map[string][]chatMark `json:"marks"`
 }
 
 // threadTasks is how far back a thread reaches. Whoever wants more than the
@@ -130,7 +145,85 @@ func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, rows.Err())
 		return
 	}
+
+	out.Marks, err = s.marksOf(r, out.Entries)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// marksOf collects the reactions of every task in the thread and groups them
+// the way the surface reads them.
+func (s *Server) marksOf(r *http.Request, entries []chatEntry) (map[string][]chatMark, error) {
+	gesehen := map[uuid.UUID]bool{}
+	ids := make([]uuid.UUID, 0, len(entries))
+	for _, e := range entries {
+		if !gesehen[e.TaskID] {
+			gesehen[e.TaskID] = true
+			ids = append(ids, e.TaskID)
+		}
+	}
+	roh, err := s.Backlog.ReactionsByTasks(r.Context(), ids)
+	if err != nil {
+		return nil, err
+	}
+	ich := "human:" + principalFrom(r).Email
+	out := map[string][]chatMark{}
+	for id, liste := range roh {
+		/* Die Reihenfolge ist die des ersten Auftretens, nicht die der
+		   Häufigkeit: Eine Zeile, die beim Zählen umspringt, liest sich wie
+		   ein Fehler. */
+		pos := map[string]int{}
+		for _, r := range liste {
+			i, da := pos[r.Emoji]
+			if !da {
+				pos[r.Emoji] = len(out[id.String()])
+				out[id.String()] = append(out[id.String()], chatMark{Emoji: r.Emoji})
+				i = pos[r.Emoji]
+			}
+			m := &out[id.String()][i]
+			m.Count++
+			if r.Author == ich {
+				m.Mine = true
+			}
+			if len(m.Who) < 3 {
+				m.Who = append(m.Who, r.Author)
+			}
+		}
+	}
+	return out, nil
+}
+
+// handleReact toggles one reaction on one task.
+func (s *Server) handleReact(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var in struct {
+		Emoji string `json:"emoji"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid body: expected {\"emoji\": \"…\"}")
+		return
+	}
+	/* Ein Zeichen, nicht ein Satz. Die Grenze steht hier und nicht in der
+	   Oberfläche: Ein zweiter Client wüsste nichts von ihr, und „Reaktion"
+	   wäre dann ein Feld für Fließtext mit anderem Namen. */
+	emoji := strings.TrimSpace(in.Emoji)
+	if emoji == "" || len([]rune(emoji)) > 3 {
+		writeErr(w, http.StatusBadRequest, "emoji is required and must be at most 3 characters")
+		return
+	}
+	gesetzt, err := s.Backlog.React(r.Context(), id, emoji, "human:"+principalFrom(r).Email)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"set": gesetzt})
 }
 
 // chatTitle is the line the backlog shows for a message somebody typed.

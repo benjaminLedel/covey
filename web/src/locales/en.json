@@ -2348,6 +2348,8 @@
     "imBacklogSuchen": "Search the whole backlog",
     "gestern": "Yesterday",
     "sucheBlaettern": "navigate",
-    "sucheOeffnen": "open"
+    "sucheOeffnen": "open",
+    "reagieren": "React",
+    "arbeitetGerade": "is working on it"
   }
 }

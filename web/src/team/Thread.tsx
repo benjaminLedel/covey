@@ -2,7 +2,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { api, post, type Agent, type ChatEntry, type Principal } from "../api";
+import { api, post, type Agent, type ChatEntry, type ChatMark, type Principal } from "../api";
 import { Markdown } from "../components/Markdown";
 import { canManage } from "../pages/agent/roles";
 import Gesicht from "../components/Gesicht";
@@ -73,13 +73,14 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
   });
   const thread = useQuery({
     queryKey: ["thread", agentId],
-    queryFn: () => api<{ entries: ChatEntry[] }>(`/agents/${agentId}/thread`),
+    queryFn: () => api<{ entries: ChatEntry[]; marks: Record<string, ChatMark[]> }>(`/agents/${agentId}/thread`),
     /* Zehn Sekunden: Der Agent antwortet, während jemand auf die Seite sieht,
        und einen Push dafür gibt es nicht. */
     refetchInterval: 10_000,
   });
 
   const alle = thread.data?.entries ?? [];
+  const marken = thread.data?.marks ?? {};
   /* Die Suche filtert, was geladen ist — die letzten zwanzig Vorgänge. Was
      älter ist, liegt im Backlog und wird dort gesucht; der Verweis daneben
      sagt das, statt so zu tun, als sei dies eine Volltextsuche. */
@@ -88,6 +89,8 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
     ? alle.filter((e) => (e.text + " " + e.task_title).toLowerCase().includes(begriff))
     : alle;
   const darfSchreiben = canManage(me.Role);
+  /* Tippt: Die jüngste Aufgabe des Verlaufs steht auf `in_progress`. */
+  const tippt = !begriff && alle.length > 0 && alle[alle.length - 1].task_state === "in_progress";
 
   const neu = useMutation({
     mutationFn: (nachricht: string) => post(`/agents/${agentId}/messages`, { text: nachricht }),
@@ -111,6 +114,14 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
   useEffect(() => {
     ende.current?.scrollIntoView?.({ block: "end" });
   }, [entries.length]);
+
+  /* Reagieren. Die Antwort interessiert nicht — der Verlauf wird ohnehin neu
+     geholt, und er ist die Wahrheit. */
+  const reagieren = useMutation({
+    mutationFn: ({ taskId, emoji }: { taskId: string; emoji: string }) =>
+      post(`/tasks/${taskId}/reactions`, { emoji }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["thread", agentId] }),
+  });
 
   const abschicken = () => {
     const n = text.trim();
@@ -183,6 +194,17 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
                 </div>
               )}
 
+              {/* Die Reaktionen stehen am Vorgang, weil sie dort hängen — und
+                  weil ein Zeichen unter jeder einzelnen Zeile ein Verlauf
+                  wäre, der aus Zeichen besteht. */}
+              {neuerVorgang && (
+                <Marken
+                  marken={marken[e.task_id] ?? []}
+                  darf={darfSchreiben}
+                  aufKlick={(emoji) => reagieren.mutate({ taskId: e.task_id, emoji })}
+                />
+              )}
+
               <article className={`tm-blase ${vonMir(e) ? "ich" : "er"} k-${e.kind}`}>
                 {/* Auf der Seite des Agenten steht sein Gesicht, und zwar nur
                     beim ersten Eintrag einer Folge: Fünf Gesichter
@@ -246,6 +268,21 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
             </Fragment>
           );
         })}
+        {/* Der Agent arbeitet gerade an dem, was zuletzt im Verlauf steht —
+            das sagt die Aufgabe selbst, es ist keine Vermutung. Drei Punkte
+            sind dafür die Form, die jeder schon kennt. */}
+        {tippt && (
+          <article className="tm-blase er tm-tippt">
+            <span className="tm-blase-wer" aria-hidden="true">
+              <Gesicht schluessel={agent.data?.slug ?? "?"} groesse={26} />
+            </span>
+            <div className="tm-blase-inhalt">
+              <div className="tm-tippt-blase" aria-label={t("team.arbeitetGerade")}>
+                <span /> <span /> <span />
+              </div>
+            </div>
+          </article>
+        )}
         <div ref={ende} />
       </div>
 
@@ -271,6 +308,78 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
       </div>
       {(neu.isError || beantworten.isError) && (
         <p className="tm-fehler">{String(neu.error ?? beantworten.error)}</p>
+      )}
+    </div>
+  );
+}
+
+/* Die Reaktionen eines Vorgangs — und der eine Knopf, der eine hinzufügt.
+ *
+ * Sechs Zeichen, nicht die ganze Tastatur: Eine Auswahl, die alles anbietet,
+ * verlangt eine Entscheidung; sechs verlangen einen Klick. Die sechs sind
+ * die, die in einem Arbeitsverlauf etwas bedeuten — gesehen, verstanden,
+ * gut, dringend, unklar, danke — und nicht die, die am häufigsten benutzt
+ * werden.
+ */
+const ZEICHEN = ["\u{1F440}", "\u{1F44D}", "\u{1F389}", "\u{1F525}", "\u{1F914}", "\u{1F64F}"];
+
+function Marken({
+  marken,
+  darf,
+  aufKlick,
+}: {
+  marken: ChatMark[];
+  darf: boolean;
+  aufKlick: (emoji: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [offen, setOffen] = useState(false);
+  if (marken.length === 0 && !darf) return null;
+  return (
+    <div className="tm-marken">
+      {marken.map((m) => (
+        <button
+          key={m.emoji}
+          className={`tm-marke ${m.mine ? "meine" : ""}`}
+          onClick={() => darf && aufKlick(m.emoji)}
+          disabled={!darf}
+          title={m.who.map((w) => w.split(":").slice(1).join(":") || w).join(", ")}
+        >
+          <span aria-hidden="true">{m.emoji}</span>
+          {m.count > 1 && <span className="tm-marke-zahl">{m.count}</span>}
+        </button>
+      ))}
+      {darf && (
+        <div className="tm-marke-wahl">
+          <button
+            className="tm-marke tm-marke-plus"
+            onClick={() => setOffen((v) => !v)}
+            aria-expanded={offen}
+            aria-label={t("team.reagieren")}
+            title={t("team.reagieren")}
+          >
+            +
+          </button>
+          {offen && (
+            <>
+              <div className="tm-marke-hinter" onClick={() => setOffen(false)} />
+              <div className="tm-marke-liste" role="menu">
+                {ZEICHEN.map((z) => (
+                  <button
+                    key={z}
+                    role="menuitem"
+                    onClick={() => {
+                      setOffen(false);
+                      aufKlick(z);
+                    }}
+                  >
+                    {z}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       )}
     </div>
   );

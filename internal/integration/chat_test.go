@@ -7,6 +7,8 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/google/uuid"
+
 	"covey/internal/backlog"
 )
 
@@ -223,4 +225,94 @@ func TestABodyNobodyCanReadSaysSo(t *testing.T) {
 	if leer["error"] != "text is required" {
 		t.Fatalf("an empty message deserves its own sentence: %v", leer)
 	}
+}
+
+// TestAReactionIsAToggleAndBelongsToTheTask holds the two decisions behind
+// reactions: the same click takes the mark back, and the mark hangs on the
+// TASK, not on a line of the thread — a thread's lines are derived, and only
+// the task has an identifier that is the same tomorrow.
+func TestAReactionIsAToggleAndBelongsToTheTask(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	agent := s.newSupportAgent("marken")
+	if err := s.registry.SetKilled(ctx, agent.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	base := "/api/v1/agents/" + agent.ID.String()
+
+	created := admin.expect(http.MethodPost, base+"/messages",
+		map[string]any{"text": "Bitte den Mahnlauf prüfen"}, http.StatusCreated)
+	taskID := created["id"].(string)
+	pfad := "/api/v1/tasks/" + taskID + "/reactions"
+
+	// Setzen, und im Verlauf steht es.
+	if got := admin.expect(http.MethodPost, pfad, map[string]any{"emoji": "👀"}, http.StatusOK)["set"]; got != true {
+		t.Fatalf("the first click sets the mark: %v", got)
+	}
+	marken := func() []any {
+		t.Helper()
+		thread := admin.expect(http.MethodGet, base+"/thread", nil, http.StatusOK)
+		alle, _ := thread["marks"].(map[string]any)
+		liste, _ := alle[taskID].([]any)
+		return liste
+	}
+	if len(marken()) != 1 {
+		t.Fatalf("the mark belongs in the thread: %v", marken())
+	}
+	erste := marken()[0].(map[string]any)
+	if erste["emoji"] != "👀" || erste["count"] != float64(1) || erste["mine"] != true {
+		t.Fatalf("grouped mark: %v", erste)
+	}
+
+	// Derselbe Klick nimmt sie zurück — kein zweiter Endpunkt dafür.
+	if got := admin.expect(http.MethodPost, pfad, map[string]any{"emoji": "👀"}, http.StatusOK)["set"]; got != false {
+		t.Fatalf("the second click takes it back: %v", got)
+	}
+	if len(marken()) != 0 {
+		t.Fatalf("after taking it back nothing stands there: %v", marken())
+	}
+
+	// Zwei Verfasser, ein Zeichen: eine Marke, zweimal gezählt.
+	if _, err := s.backlog.React(ctx, mussUUID(t, taskID), "👍", "agent"); err != nil {
+		t.Fatal(err)
+	}
+	admin.expect(http.MethodPost, pfad, map[string]any{"emoji": "👍"}, http.StatusOK)
+	if m := marken()[0].(map[string]any); m["count"] != float64(2) || m["mine"] != true {
+		t.Fatalf("two authors, one mark: %v", m)
+	}
+
+	// Ein Satz ist keine Reaktion.
+	admin.expect(http.MethodPost, pfad, map[string]any{"emoji": "sieht gut aus"}, http.StatusBadRequest)
+
+	// Und die Platte, die der Agent beim Annehmen setzt, ist kein Umschalter:
+	// ein zweiter Lauf derselben Aufgabe darf sie nicht wieder entfernen.
+	id := mussUUID(t, taskID)
+	for i := 0; i < 2; i++ {
+		if err := s.backlog.MarkReaction(ctx, id, "🎉", "agent"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	roh, err := s.backlog.ReactionsByTasks(ctx, []uuid.UUID{id})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var feiern int
+	for _, r := range roh[id] {
+		if r.Emoji == "🎉" {
+			feiern++
+		}
+	}
+	if feiern != 1 {
+		t.Fatalf("marking twice stays one mark, got %d", feiern)
+	}
+}
+
+func mussUUID(t *testing.T, s string) uuid.UUID {
+	t.Helper()
+	id, err := uuid.Parse(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
 }

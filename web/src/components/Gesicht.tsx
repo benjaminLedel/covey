@@ -69,12 +69,17 @@ export default function Gesicht({
     const h = hash(schluessel);
     return {
       ton: TOENE[h % TOENE.length],
-      /* Zwei Züge, die sich unterscheiden lassen, ohne ein Gesicht zu
-         karikieren: wie weit die Augen auseinanderstehen und wie hoch sie
-         sitzen. Mehr Varianz braucht es nicht — sechs Farben mal neun
-         Augenstellungen sind vierundfünfzig unterscheidbare Kollegen. */
-      abstand: 3.6 + (h % 3) * 0.9,
-      hoehe: 11.4 + (Math.floor(h / 3) % 3) * 0.9,
+      /* Fünf Züge, die sich unterscheiden lassen, ohne ein Gesicht zu
+         karikieren: Augenabstand, Augenhöhe, Augengröße, Mundbreite und die
+         Rundung des Kopfes. Mit sechs Farben sind das 6·3·3·2·2·3 = 648
+         unterscheidbare Kollegen — mehr, als eine Organisation je hat, und
+         alle aus demselben Bauplan. Jede Zahl kommt aus einer anderen
+         Stelle des Hashes, sonst wandern zwei Züge im Gleichschritt. */
+      abstand: 3.4 + (h % 3) * 0.95,
+      hoehe: 11.2 + (Math.floor(h / 3) % 3) * 0.95,
+      augenR: 1.75 + (Math.floor(h / 11) % 2) * 0.35,
+      mund: 4.4 + (Math.floor(h / 23) % 2) * 1.6,
+      rundung: 6 + (Math.floor(h / 47) % 3) * 1.6,
       /* Damit nicht alle gleichzeitig blinzeln. */
       takt: (h % 7) * 0.9,
     };
@@ -95,24 +100,24 @@ export default function Gesicht({
     >
       {/* Der Kopf: ein weiches Quadrat, keine Kugel — eine Kugel neben einer
           Kugel neben einer Kugel liest sich als Aufzählungszeichen. */}
-      <rect className="gesicht-kopf" x="1.5" y="1.5" width="21" height="21" rx="7.5" />
+      <rect className="gesicht-kopf" x="1.5" y="1.5" width="21" height="21" rx={g.rundung} />
       {schlaeft || tot ? (
         <>
-          <path className="gesicht-lid" d={`M${12 - g.abstand - 1.6} ${augeY} h3.2`} />
-          <path className="gesicht-lid" d={`M${12 + g.abstand - 1.6} ${augeY} h3.2`} />
+          <path className="gesicht-lid" d={`M${12 - g.abstand - g.augenR} ${augeY} h${g.augenR * 2}`} />
+          <path className="gesicht-lid" d={`M${12 + g.abstand - g.augenR} ${augeY} h${g.augenR * 2}`} />
           {/* Der schlafende Mund: ein kleines o, das mit dem Atem geht. */}
           <circle className="gesicht-mund-o" cx="12" cy={augeY + 5} r="1.15" />
         </>
       ) : (
         <>
           <g className="gesicht-augen">
-            <circle cx={12 - g.abstand} cy={augeY} r="1.95" />
-            <circle cx={12 + g.abstand} cy={augeY} r="1.95" />
+            <circle cx={12 - g.abstand} cy={augeY} r={g.augenR} />
+            <circle cx={12 + g.abstand} cy={augeY} r={g.augenR} />
           </g>
           {/* Der arbeitende Mund: ein Strich, der sich beim Nachdenken
               verkürzt. Kein Bogen — ein Bogen wäre ein Lächeln, und ein
               lächelnder Agent behauptet etwas über seine Laune. */}
-          <path className="gesicht-mund" d={`M9.4 ${augeY + 5} h5.2`} />
+          <path className="gesicht-mund" d={`M${12 - g.mund / 2} ${augeY + 5} h${g.mund}`} />
         </>
       )}
       {/* Drei z steigen auf, versetzt, und nur beim Schlafen. Sie liegen

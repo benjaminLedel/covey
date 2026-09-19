@@ -1352,6 +1352,13 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 		if err != nil {
 			return err
 		}
+		/* Der Agent hat den Vorgang angenommen, und im Verlauf soll man das
+		   sehen, bevor irgendein Ergebnis da ist — dieselbe Geste wie unter
+		   Menschen, die ein Ticket an sich ziehen. Best effort: Ein Zeichen,
+		   das nicht gesetzt werden konnte, darf keinen Lauf verhindern. */
+		if err := o.Backlog.MarkReaction(ctx, task.ID, "\U0001F440", "agent"); err != nil {
+			o.Log.Warn("reaction on pickup not set", "task", task.ID, "err", err)
+		}
 		if err := o.processTask(ctx, agent, link, task, s); err != nil {
 			if ctx.Err() != nil {
 				return ctx.Err()
