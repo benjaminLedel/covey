@@ -59,11 +59,18 @@ export default function Gesicht({
   schluessel,
   zustand = "working",
   groesse = 26,
+  blick,
 }: {
   /** Das Kürzel des Agenten — daraus entsteht das Gesicht. */
   schluessel: string;
   zustand?: Zustand;
   groesse?: number;
+  /* Wohin geschaut wird, in Einheiten des Rasters (24 breit), etwa ±1,2.
+     Gesetzt wird es dort, wo es einen Grund dafür gibt — im Büro folgen die
+     Wachen dem Zeiger. Ohne diesen Wert bleibt das Gesicht bei seinem eigenen
+     Umsehen, und ein Gesicht in einer Liste hat keinen Grund, jemandem
+     hinterherzusehen. */
+  blick?: { x: number; y: number };
 }) {
   const g = useMemo(() => {
     const h = hash(schluessel);
@@ -103,16 +110,46 @@ export default function Gesicht({
       <rect className="gesicht-kopf" x="1.5" y="1.5" width="21" height="21" rx={g.rundung} />
       {schlaeft || tot ? (
         <>
-          <path className="gesicht-lid" d={`M${12 - g.abstand - g.augenR} ${augeY} h${g.augenR * 2}`} />
-          <path className="gesicht-lid" d={`M${12 + g.abstand - g.augenR} ${augeY} h${g.augenR * 2}`} />
+          {/* Zwei geschlossene Zustände, zwei Formen — und das ist kein
+              Feinschliff, sondern der Unterschied zwischen „schläft" und
+              „ist aus". Vorher waren beide ein waagerechter Strich, und ein
+              Strich liest sich nicht als geschlossenes Auge, sondern als ein
+              fehlendes: „ist da ein Bug?" ist genau die Frage, die ein
+              Gesicht nicht auslösen darf.
+   
+              Der Schlaf bekommt deshalb den Bogen eines gesenkten Lids, der
+              gestoppte Agent behält den Strich. Der Bogen ist das, was ein
+              Mensch als zugefallenes Auge erkennt; der Strich daneben ist
+              dann eindeutig etwas anderes — und die drei z darüber haben es
+              nicht mehr allein zu tragen. */}
+          {[12 - g.abstand, 12 + g.abstand].map((x) =>
+            schlaeft ? (
+              <path
+                key={x}
+                className="gesicht-lid"
+                d={`M${x - g.augenR} ${augeY - 0.4} Q${x} ${augeY + 1.5} ${x + g.augenR} ${augeY - 0.4}`}
+              />
+            ) : (
+              <path key={x} className="gesicht-lid" d={`M${x - g.augenR} ${augeY} h${g.augenR * 2}`} />
+            ),
+          )}
           {/* Der schlafende Mund: ein kleines o, das mit dem Atem geht. */}
           <circle className="gesicht-mund-o" cx="12" cy={augeY + 5} r="1.15" />
         </>
       ) : (
         <>
-          <g className="gesicht-augen">
-            <circle cx={12 - g.abstand} cy={augeY} r={g.augenR} />
-            <circle cx={12 + g.abstand} cy={augeY} r={g.augenR} />
+          {/* Zwei Gruppen übereinander, und das mit Absicht: Die äußere trägt
+              den Blick, die innere das eigene Umsehen (app.css). Beides auf
+              derselben Gruppe hieße, dass die Animation den Blick jede
+              Sekunde überschreibt. */}
+          <g
+            className="gesicht-blick"
+            style={blick ? { transform: `translate(${blick.x}px, ${blick.y}px)` } : undefined}
+          >
+            <g className="gesicht-augen">
+              <circle cx={12 - g.abstand} cy={augeY} r={g.augenR} />
+              <circle cx={12 + g.abstand} cy={augeY} r={g.augenR} />
+            </g>
           </g>
           {/* Der arbeitende Mund: ein Strich, der sich beim Nachdenken
               verkürzt. Kein Bogen — ein Bogen wäre ein Lächeln, und ein
