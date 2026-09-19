@@ -28,7 +28,10 @@
   white-space: nowrap;
 }
 .st-triggered, .st-triage { background: var(--bg-pro); color: var(--text-pro); }
-.st-blocked, .st-pending, .st-in_progress { background: var(--bg-warning); color: var(--text-warning); }
+/* Alle drei warten auf jemanden: die geparkte Aufgabe auf eine Antwort, die
+   Freigabe auf eine Entscheidung, der laufende Vorgang auf sein Ende. Sie
+   tragen deshalb die Warte-Farbe und nicht die der Warnung. */
+.st-blocked, .st-pending, .st-in_progress { background: var(--bg-wait); color: var(--text-wait); }
 .st-done, .st-approved { background: var(--bg-success); color: var(--text-success); }
 .st-killed, .st-failed, .st-denied { background: transparent; color: var(--text-danger); border: 0.5px solid var(--border-danger); }
 .st-open { background: var(--surface-1); color: var(--text-secondary); border: 0.5px dashed var(--clay); }
@@ -2294,16 +2297,16 @@
   border: 1.5px solid var(--text-muted);
 }
 .ws-wartet-punkt[data-offen="true"] {
-  background: var(--text-warning);
-  border-color: var(--text-warning);
+  background: var(--text-wait);
+  border-color: var(--text-wait);
 }
 .ws-zahl {
   margin-left: auto;
   min-width: 20px;
   padding: 1px 6px;
   border-radius: 999px;
-  background: var(--bg-warning);
-  color: var(--text-warning);
+  background: var(--bg-wait);
+  color: var(--text-wait);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   text-align: center;
@@ -2341,25 +2344,53 @@
 .ws-dept-punkt { width: 7px; height: 7px; border-radius: 50%; flex: none; }
 
 .ws-kollege {
-  display: block;
-  padding: 7px 11px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 11px;
   border-radius: var(--radius);
   text-decoration: none;
   color: var(--text-primary);
 }
+/* Das Zeichen trägt die Farbe der Abteilung in seinem Ring; ohne eine
+   bekommt es den getönten Grund und die Akzentfarbe (siehe Workspace.tsx,
+   warum der Ring und nicht die Fläche). */
+.ws-kollege-zeichen {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--bg-accent);
+  color: var(--text-accent);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.ws-kollege-text { min-width: 0; }
 .ws-kollege:hover { background: var(--tint-weak); }
 .ws-kollege.on { background: var(--bg-accent); }
 .ws-kollege.on .ws-kollege-name { color: var(--text-accent); }
-.ws-kollege-name { display: flex; align-items: center; gap: 7px; font-size: 14px; }
+/* Der Name kürzt, statt umzubrechen: Eine Liste, in der eine Zeile zwei Zeilen
+   hoch ist und die nächste eine, hat keinen Rhythmus mehr — und „Incident-
+   Erstresponder" ist kein Sonderfall, sondern der Normalfall in einem
+   Organigramm mit deutschen Rollennamen. */
+.ws-kollege-name { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 14px; }
+.ws-kollege-wort { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Wer wartet, trägt die Marke am Namen. Sie ist ein Punkt in der Warnfarbe —
    und weil eine Farbe allein keine Aussage ist, trägt sie einen Titel und ein
    Label für alles, was nicht sieht. */
 .ws-kollege-wartet {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   flex: none;
   border-radius: 50%;
-  background: var(--text-warning);
+  background: var(--text-wait);
+  /* Der Ring hebt den Punkt von jedem Grund ab, auf dem die Zeile liegen
+     kann — auch von der getönten Fläche der ausgewählten Zeile. */
+  box-shadow: 0 0 0 2px var(--surface-1);
 }
 .ws-kollege-rolle {
   display: block;
@@ -2482,8 +2513,8 @@
 }
 /* Die Frage ist der Moment, um den es geht: der Agent steht still. */
 .ws-blase.k-question .ws-blase-text {
-  background: var(--bg-warning);
-  border-color: var(--warning-ring);
+  background: var(--bg-wait);
+  border-color: var(--wait-ring);
 }
 .ws-blase.k-result .ws-blase-text {
   background: var(--bg-success);
@@ -2543,9 +2574,14 @@
   color: var(--text-pro);
   white-space: nowrap;
 }
-/* Eine Freigabe hält einen Agenten an — sie trägt deshalb die Warnfarbe,
-   die übrigen Arten bleiben neutral. */
-.ws-art.a-approval { background: var(--bg-warning); color: var(--text-warning); }
+/* Drei Bedeutungen, drei Farben, der Rest neutral: Eine Freigabe hält einen
+   Agenten an (warten), eine Meldung sagt, dass etwas schiefging (halt), ein
+   Vorschlag will angenommen werden (die Farbe der Handlung). Befund und
+   Antrag bleiben grau — eine vierte und fünfte Farbe wäre das Leitsystem,
+   das auf der Website schon einmal als Regenbogen gescheitert ist. */
+.ws-art.a-approval { background: var(--bg-wait); color: var(--text-wait); }
+.ws-art.a-issue { background: var(--danger-tint); color: var(--text-danger); }
+.ws-art.a-proposal { background: var(--bg-accent); color: var(--text-accent); }
 .ws-wartet-titel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
 .ws-wartet-wer { font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
 .ws-wartet-zeile time { font-size: 12px; white-space: nowrap; }

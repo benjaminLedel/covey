@@ -80,8 +80,28 @@ picture { display: contents; }
      picture mark; this is its deeper, text-capable cut, because #cc7a5b
      carries white at only 3.2:1 and cannot hold a button. Same value on the
      website, so the product has one mark and not two. */
-  --bg-accent: light-dark(#f6ece6, #2c1d15);
-  --text-accent: light-dark(#a4522c, #e0906f);
+  /* Der Lehm, tiefer gefasst und ohne Creme.
+     
+     Die vorige Fassung (#a4522c auf #f6ece6) war die des Kanons der Website,
+     und in der Anwendung las sie sich als Papierton: Jede getönte Fläche
+     bekam einen Beigestich, und beige war auf der Website selbst schon
+     einmal verworfen worden. Der Ton ist jetzt satter und die Tönung
+     neutraler — dieselbe Marke, weniger Kaffee. Gemessen 6,1 bis 9,3:1. */
+  --bg-accent: light-dark(#f2e8e4, #2b1a12);
+  --text-accent: light-dark(#8f3f18, #f0a184);
+  /* Warten ist keine Warnung, und beide brauchen deshalb ihre eigene Farbe.
+     
+     Solange es nur eine gab, trug Bernstein beides: den parkenden Agenten,
+     der auf eine Antwort wartet, und die Zahl, die nicht zählt. Zwei
+     Bedeutungen an einem Ton, und im Verlauf stand die wartende Frage in
+     demselben Warmton wie die eigene Nachricht daneben — zwei warme Flächen,
+     die um dieselbe Aufmerksamkeit warben.
+     
+     Warten ist jetzt kühl: die einzige kalte Farbe der Oberfläche, und damit
+     die, die aus dem Warmton heraussticht, ohne zu alarmieren. Bernstein
+     bleibt der echten Warnung. Gemessen 6,9 bis 9,8:1. */
+  --bg-wait: light-dark(#eceff3, #1c2330);
+  --text-wait: light-dark(#37506e, #9dbbe0);
   --bg-warning: light-dark(#f5eede, #2a2113);
   --text-warning: light-dark(#8a5a00, #e0a33a);
   --bg-success: light-dark(#e7f1ec, #16241d);
@@ -129,6 +149,7 @@ picture { display: contents; }
   --accent-ring: color-mix(in srgb, var(--text-accent) 30%, transparent);
   --danger-tint: color-mix(in srgb, var(--text-danger) 9%, transparent);
   --warning-ring: color-mix(in srgb, var(--text-warning) 34%, transparent);
+  --wait-ring: color-mix(in srgb, var(--text-wait) 34%, transparent);
   --success-ring: color-mix(in srgb, var(--text-success) 30%, transparent);
 
   --radius: 8px;

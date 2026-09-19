@@ -30,6 +30,34 @@ const Wartet = lazy(() => import("./Wartet"));
 /** Ein Agent, der Arbeit annehmen kann. Ein Bewerber ist ein Entwurf. */
 const eingestellt = (a: Agent) => a.status !== "applicant";
 
+/** Das Monogramm: die Anfangsbuchstaben der ersten beiden Wörter. */
+const monogramm = (name: string) => {
+  const teile = name.trim().split(/\s+/).filter(Boolean);
+  if (teile.length === 0) return "?";
+  if (teile.length === 1) return teile[0].slice(0, 2).toUpperCase();
+  return (teile[0][0] + teile[teile.length - 1][0]).toUpperCase();
+};
+
+/* Die Abteilungsfarbe liegt im RING des Zeichens, nicht unter der Schrift.
+   
+   Zwei Fassungen davor sind daran gescheitert, und beide messbar: Gefüllt
+   hielt weder Weiß noch Tinte die 4,5:1 — die Farbe wählt eine Organisation
+   selbst, sie kann jeder Wert sein, und Lighthouse hat das an einem Petrol
+   der Demodaten gemeldet. Als Tönung bei 22 % war der Kontrast in Ordnung und
+   die Farbe verschwunden; bei mehr Prozent kippt es im Dunkelmodus, wo ein
+   heller Firmenton die Fläche aufhellt, auf der die helle Schrift steht.
+   
+   Im Ring gilt keins von beidem: Er steht neben der Schrift, nicht unter ihr,
+   trägt den Ton ungemischt, und die Bedeutung hängt ohnehin nicht an ihm —
+   die Überschrift der Gruppe nennt die Abteilung beim Namen. */
+const abteilungsTon = (farbe: string) =>
+  farbe
+    ? {
+        boxShadow: `inset 0 0 0 2px ${farbe}`,
+        background: `color-mix(in srgb, ${farbe} 12%, transparent)`,
+      }
+    : undefined;
+
 export default function Workspace({ me, onLogout }: { me: Principal; onLogout: () => void }) {
   const { t } = useTranslation();
   const [helpOpen, setHelpOpen] = useState(false);
@@ -151,13 +179,26 @@ export default function Workspace({ me, onLogout }: { me: Principal; onLogout: (
                   to={`/w/${a.id}`}
                   className={({ isActive }) => `ws-kollege ${isActive ? "on" : ""}`}
                 >
-                  <span className="ws-kollege-name">
-                    {a.display_name}
-                    {wartetBei.has(a.id) && (
-                      <span className="ws-kollege-wartet" title={t("workspace.wartet")} aria-label={t("workspace.wartet")} />
-                    )}
+                  {/* Das Zeichen trägt die Farbe der Abteilung. Sie ist das
+                      Einzige an dieser Liste, was aus der Organisation selbst
+                      kommt — und sie sagt auf einen Blick, wer zu wem
+                      gehört, auch wenn die Überschrift weggescrollt ist. */}
+                  <span
+                    className="ws-kollege-zeichen"
+                    aria-hidden="true"
+                    style={abteilungsTon(g.color)}
+                  >
+                    {monogramm(a.display_name)}
                   </span>
-                  <span className="ws-kollege-rolle">{a.job_title || a.slug}</span>
+                  <span className="ws-kollege-text">
+                    <span className="ws-kollege-name">
+                      <span className="ws-kollege-wort">{a.display_name}</span>
+                      {wartetBei.has(a.id) && (
+                        <span className="ws-kollege-wartet" title={t("workspace.wartet")} aria-label={t("workspace.wartet")} />
+                      )}
+                    </span>
+                    <span className="ws-kollege-rolle">{a.job_title || a.slug}</span>
+                  </span>
                 </NavLink>
               ))}
             </section>
