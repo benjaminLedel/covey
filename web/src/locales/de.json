@@ -2346,6 +2346,8 @@
     "nichtsGefunden": "Nichts gefunden.",
     "imVerlaufSuchen": "Im Verlauf suchen",
     "imBacklogSuchen": "Im ganzen Backlog suchen",
-    "gestern": "Gestern"
+    "gestern": "Gestern",
+    "sucheBlaettern": "blättern",
+    "sucheOeffnen": "öffnen"
   }
 }

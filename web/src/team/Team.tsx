@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link, NavLink, Navigate, Route, Routes, useParams } from "react-router";
@@ -7,6 +7,8 @@ import { BirdMark } from "../components/BirdMark";
 import HelpDrawer from "../components/HelpDrawer";
 import ShellFoot from "../components/ShellFoot";
 import Gesicht from "../components/Gesicht";
+import Suche, { useSucheKuerzel } from "../components/Suche";
+import { NavIcon } from "../components/navicons";
 
 /* Die Stilvorlage der angemeldeten Oberfläche. Sie hing bisher allein an der
    Konsole; seit es zwei Schalen gibt, braucht jede sie — wer über die Wurzel
@@ -64,29 +66,13 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
   });
   const wartetBei = new Set((wartend.data?.items ?? []).map((e) => e.agent_id));
 
-  /* Suchen. Bei vierzig Kollegen in acht Abteilungen ist Scrollen keine
-     Navigation mehr. Der Schrägstrich springt ins Feld — dieselbe Taste wie
-     in der Agentenliste der Konsole. */
-  const [suche, setSuche] = useState("");
-  const suchfeld = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    const taste = (e: KeyboardEvent) => {
-      const ziel = e.target as HTMLElement | null;
-      const tippt = ziel && /^(INPUT|TEXTAREA)$/.test(ziel.tagName);
-      if (e.key === "/" && !tippt) {
-        e.preventDefault();
-        suchfeld.current?.focus();
-      }
-    };
-    window.addEventListener("keydown", taste);
-    return () => window.removeEventListener("keydown", taste);
-  }, []);
+  /* Suchen. Ein Feld links oben war ein Möbelstück — immer da, selten
+     benutzt, und es nahm der Liste die Zeile, die sie zum Atmen braucht.
+     Jetzt: die Lupe neben der Wortmarke, ⌘K und der Schrägstrich. */
+  const [sucheOffen, setSucheOffen] = useState(false);
+  useSucheKuerzel(() => setSucheOffen(true));
 
-  const begriff = suche.trim().toLowerCase();
-  const passt = (a: Agent) =>
-    !begriff ||
-    [a.display_name, a.job_title, a.slug].some((f) => (f ?? "").toLowerCase().includes(begriff));
-  const liste = (agents.data ?? []).filter(eingestellt).filter(passt);
+  const liste = (agents.data ?? []).filter(eingestellt);
   const depts = abteilungen.data ?? [];
 
   /* Nach Abteilung gruppiert, wie eine Kanalliste. Wer keine hat, steht unten
@@ -112,6 +98,16 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
         <div className="brand">
           <BirdMark size={26} />
           covey
+          {/* Auf Höhe der Wortmarke, weil die Suche zur Schale gehört und
+              nicht zur Liste darunter. */}
+          <button
+            className="brand-suche"
+            onClick={() => setSucheOffen(true)}
+            title={`${t("team.suche")} (⌘K)`}
+            aria-label={t("team.suche")}
+          >
+            <NavIcon name="search" />
+          </button>
         </div>
 
         {/* Derselbe Schalter wie in der Konsole, an derselben Stelle. */}
@@ -124,18 +120,6 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
           </Link>
         </nav>
 
-        <div className="tm-suche">
-          <input
-            ref={suchfeld}
-            type="search"
-            value={suche}
-            onChange={(e) => setSuche(e.target.value)}
-            onKeyDown={(e) => e.key === "Escape" && setSuche("")}
-            placeholder={t("team.suche")}
-            aria-label={t("team.suche")}
-          />
-        </div>
-
         <nav className="tm-liste" aria-label={t("team.kollegen")}>
           <NavLink to="/" end className={({ isActive }) => `tm-wartet ${isActive ? "on" : ""}`}>
             <span className="tm-wartet-punkt" data-offen={offen > 0} aria-hidden="true" />
@@ -144,9 +128,7 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
           </NavLink>
 
           {agents.isLoading && <p className="tm-leise">{t("common.loading")}</p>}
-          {!agents.isLoading && liste.length === 0 && (
-            <p className="tm-leise">{begriff ? t("team.nichtsGefunden") : t("chat.noAgents")}</p>
-          )}
+          {!agents.isLoading && liste.length === 0 && <p className="tm-leise">{t("chat.noAgents")}</p>}
 
           {gruppen.map((g) => (
             <section key={g.id || "ohne"} className="tm-gruppe">
@@ -195,6 +177,14 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
         </Suspense>
       </main>
 
+      <Suche
+        offen={sucheOffen}
+        onClose={() => setSucheOffen(false)}
+        agents={agents.data ?? []}
+        departments={depts}
+        wartetBei={wartetBei}
+        pfad={(a) => `/team/${a.id}`}
+      />
       <HelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );

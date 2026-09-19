@@ -2346,6 +2346,8 @@
     "nichtsGefunden": "Nada encontrado.",
     "imVerlaufSuchen": "Procurar na conversa",
     "imBacklogSuchen": "Procurar em todo o backlog",
-    "gestern": "Ontem"
+    "gestern": "Ontem",
+    "sucheBlaettern": "navegar",
+    "sucheOeffnen": "abrir"
   }
 }

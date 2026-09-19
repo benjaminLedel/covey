@@ -22,6 +22,12 @@ const icons: Record<string, JSX.Element> = {
       <path d="M8.5 11.5h7M8.5 15h4" />
     </>
   ),
+  search: (
+    <>
+      <circle cx="10.5" cy="10.5" r="6" />
+      <path d="M15 15l5 5" />
+    </>
+  ),
   robot: (
     <>
       <rect x="5" y="8" width="14" height="11" rx="2" />

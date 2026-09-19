@@ -2346,6 +2346,8 @@
     "nichtsGefunden": "見つかりませんでした。",
     "imVerlaufSuchen": "この履歴を検索",
     "imBacklogSuchen": "バックログ全体を検索",
-    "gestern": "昨日"
+    "gestern": "昨日",
+    "sucheBlaettern": "移動",
+    "sucheOeffnen": "開く"
   }
 }

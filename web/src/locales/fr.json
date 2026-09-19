@@ -2346,6 +2346,8 @@
     "nichtsGefunden": "Rien trouvé.",
     "imVerlaufSuchen": "Rechercher dans le fil",
     "imBacklogSuchen": "Rechercher dans tout le backlog",
-    "gestern": "Hier"
+    "gestern": "Hier",
+    "sucheBlaettern": "naviguer",
+    "sucheOeffnen": "ouvrir"
   }
 }

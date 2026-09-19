@@ -2312,21 +2312,6 @@
   text-align: center;
 }
 
-/* Suchen. Bei vierzig Kollegen in acht Abteilungen ist Scrollen keine
-   Navigation mehr. */
-.tm-suche { padding: 0 0 10px; }
-.tm-suche input {
-  width: 100%;
-  padding: 7px 11px;
-  font-size: 13px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  color: var(--text-primary);
-}
-.tm-suche input::placeholder { color: var(--text-muted); }
-.tm-suche input:focus-visible { border-color: var(--accent-ring); }
-
 .tm-gruppe { margin-bottom: 14px; }
 .tm-gruppe-kopf {
   display: flex;
@@ -2599,14 +2584,30 @@
    seinen eigenen Takt (--takt aus der Komponente), damit nicht vierzig
    Kollegen im Gleichschritt blinzeln. Wer weniger Bewegung verlangt,
    bekommt ein Gesicht, das ruhig dasitzt — das ist ganz unten geregelt. */
-.gesicht { flex: none; display: block; }
+/* Das SVG darf überlaufen: Die z beim Schlafen steigen über den Kopf hinaus,
+   und ein Raster, das sie beschneidet, schneidet genau die Bewegung weg. */
+.gesicht { flex: none; display: block; overflow: visible; }
 .gesicht-kopf { fill: light-dark(var(--ton), var(--ton-dunkel)); }
 .gesicht-augen circle { fill: light-dark(#ffffff, #12100f); }
-.gesicht-lid {
+.gesicht-lid,
+.gesicht-mund {
   stroke: light-dark(#ffffff, #12100f);
   stroke-width: 1.9;
   stroke-linecap: round;
   fill: none;
+}
+.gesicht-mund-o {
+  fill: none;
+  stroke: light-dark(#ffffff, #12100f);
+  stroke-width: 1.5;
+}
+/* Die z tragen die Farbe des Kopfes, nicht die der Augen: Sie stehen neben
+   ihm auf dem Grund der Seite, nicht auf ihm. */
+.gesicht-zzz text {
+  fill: light-dark(var(--ton), var(--ton-dunkel));
+  font-size: 7px;
+  font-weight: 700;
+  font-family: var(--sans);
 }
 
 /* Arbeitet: der Kopf atmet, die Augen sehen sich um, und ab und zu wird
@@ -2618,34 +2619,62 @@
   transform-origin: center;
 }
 @keyframes gesicht-atmen {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
+  0%, 100% { transform: scale(1) translateY(0); }
+  50% { transform: scale(1.085) translateY(-0.35px); }
 }
 .gesicht.z-working .gesicht-augen {
   animation: gesicht-blick 5.3s var(--takt, 0s) infinite ease-in-out;
   transform-origin: center;
 }
 @keyframes gesicht-blick {
-  0%, 22% { transform: translate(0, 0); }
-  30%, 44% { transform: translate(1.5px, -0.4px); }
-  52%, 66% { transform: translate(0, 0); }
-  74%, 86% { transform: translate(-1.5px, 0.3px); }
-  94%, 100% { transform: translate(0, 0); }
+  0%, 18% { transform: translate(0, 0); }
+  26%, 40% { transform: translate(2.6px, -0.7px); }
+  48%, 58% { transform: translate(0, 0.5px); }
+  66%, 82% { transform: translate(-2.6px, 0.5px); }
+  90%, 100% { transform: translate(0, 0); }
 }
 .gesicht.z-working .gesicht-augen circle {
   animation: gesicht-blinzeln 7.1s calc(var(--takt, 0s) + 1.5s) infinite;
   transform-origin: center;
 }
 @keyframes gesicht-blinzeln {
-  0%, 93%, 100% { transform: scaleY(1); }
-  95.5%, 96.5% { transform: scaleY(0.12); }
+  0%, 62%, 100% { transform: scaleY(1); }
+  64.5%, 65.5% { transform: scaleY(0.1); }
+  /* Zweimal blinzeln kurz hintereinander — einmal alle sieben Sekunden
+     sieht aus wie ein Aussetzer, zweimal wie ein Lebewesen. */
+  93%, 100% { transform: scaleY(1); }
+  95%, 96% { transform: scaleY(0.1); }
 }
 
-/* Schläft: der Kopf atmet weiter, nur langsamer und ohne Blick. Ein Agent,
-   der schläft, ist nicht tot — er wartet auf sein Ereignis. */
-.gesicht.z-sleeping .gesicht-kopf {
-  animation: gesicht-atmen 7.4s var(--takt, 0s) infinite ease-in-out;
+.gesicht.z-working .gesicht-mund {
+  animation: gesicht-mund 5.3s var(--takt, 0s) infinite ease-in-out;
   transform-origin: center;
+}
+@keyframes gesicht-mund {
+  0%, 24% { transform: scaleX(1); }
+  32%, 46% { transform: scaleX(0.6); }
+  54%, 100% { transform: scaleX(1); }
+}
+
+/* Schläft: der Kopf atmet weiter, langsamer und tiefer, der Mund geht mit,
+   und darüber steigen drei z auf. Ein Agent, der schläft, ist nicht tot —
+   er wartet auf sein Ereignis, und das soll man ihm ansehen. */
+.gesicht.z-sleeping .gesicht-kopf,
+.gesicht.z-sleeping .gesicht-mund-o {
+  animation: gesicht-atmen 5.2s var(--takt, 0s) infinite ease-in-out;
+  transform-origin: center;
+}
+.gesicht-zzz text {
+  opacity: 0;
+  animation: gesicht-zzz 4.2s var(--takt, 0s) infinite ease-out;
+}
+.gesicht-zzz .z2 { animation-delay: calc(var(--takt, 0s) + 0.5s); }
+.gesicht-zzz .z3 { animation-delay: calc(var(--takt, 0s) + 1s); }
+@keyframes gesicht-zzz {
+  0% { opacity: 0; transform: translate(0, 2px) scale(0.7); }
+  25% { opacity: 0.95; }
+  55% { opacity: 0.85; }
+  100% { opacity: 0; transform: translate(3px, -6px) scale(1.15); }
 }
 
 /* Gestoppt: kein Ton mehr. Das Gesicht bleibt, es ist nur nicht mehr da. */
@@ -2654,10 +2683,164 @@
 @media (prefers-reduced-motion: reduce) {
   .gesicht .gesicht-kopf,
   .gesicht .gesicht-augen,
-  .gesicht .gesicht-augen circle { animation: none; }
+  .gesicht .gesicht-augen circle,
+  .gesicht .gesicht-mund,
+  .gesicht .gesicht-mund-o { animation: none; }
+  /* Die z bleiben stehen, statt zu verschwinden: Sie sind die einzige
+     Stelle, an der die Bewegung selbst die Auskunft war. */
+  .gesicht-zzz text { animation: none; opacity: 0.9; }
 }
 
 /* Der Platzhalter um ein Gesicht — er hält dieselbe Grundfläche wie das
    Monogramm daneben, damit eine Liste aus Menschen und Agenten nicht
    springt. */
 .avatar-gesicht { display: inline-flex; align-items: center; justify-content: center; flex: none; }
+
+/* ── Die Suche als Überblendung ────────────────────────────────────────
+   Die Lupe sitzt auf Höhe der Wortmarke, die Suche selbst legt sich über
+   die ganze Seite. Warum nicht als Feld in der Spalte: siehe Suche.tsx. */
+.brand-suche {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+}
+.brand-suche:hover { background: var(--tint); color: var(--text-primary); }
+/* Die Strichfassung steht sonst nur an `.nav-item .ic` — ein Symbol
+   außerhalb der Navigation bekam damit die Vorgabe des Browsers und stand
+   als gefüllter Klecks da. */
+.brand-suche .ic {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.suche-schleier {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: var(--scrim);
+  backdrop-filter: blur(2px);
+  display: flex;
+  justify-content: center;
+  /* Nicht mittig, sondern im oberen Drittel: Die Ergebnisse wachsen nach
+     unten, und eine Liste, die von der Bildschirmmitte aus wächst, schiebt
+     ihren eigenen Anfang nach oben weg. */
+  padding: 12vh 20px 20px;
+  animation: suche-auf 0.14s ease-out;
+}
+@keyframes suche-auf { from { opacity: 0; } to { opacity: 1; } }
+
+.suche {
+  width: min(620px, 100%);
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  box-shadow: 0 24px 60px -12px var(--shadow-lg);
+  overflow: hidden;
+  animation: suche-rein 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes suche-rein {
+  from { opacity: 0; transform: translateY(-8px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+
+.suche-feld {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.suche-feld .ic {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--text-muted);
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.suche-feld input {
+  flex: 1;
+  border: 0;
+  background: none;
+  font-size: 16px;
+  color: var(--text-primary);
+  outline: none;
+}
+.suche-feld input::placeholder { color: var(--text-muted); }
+
+.suche-treffer { overflow-y: auto; padding: 6px; }
+.suche-leer { padding: 22px 12px; text-align: center; color: var(--text-muted); font-size: 14px; }
+.suche-zeile {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  text-align: left;
+}
+/* Gewählt wird eine Zeile durch ihre Fläche, nicht durch einen Rahmen: Bei
+   Tastaturnavigation wandert die Auswahl schnell, und ein Rahmen, der
+   mitspringt, flackert. */
+.suche-zeile.on { background: var(--tint); }
+.suche-wer { min-width: 0; flex: 1; }
+.suche-name { display: block; font-size: 14px; color: var(--text-primary); }
+.suche-rolle {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.suche-abteilung { font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+.suche-wartet {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg-wait);
+  color: var(--text-wait);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.suche-fuss {
+  flex: none;
+  display: flex;
+  gap: 18px;
+  padding: 9px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-0);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.suche kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  font-family: inherit;
+  font-size: 11px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+.suche-feld kbd { flex: none; }

@@ -13,14 +13,20 @@ import { useMemo } from "react";
  *
  * Und es zeigt den Zustand, den die Liste sonst nur als Wort trägt:
  *
- *   arbeitet  — die Augen wandern, ganz langsam
- *   schläft   — die Augen sind zwei Striche
- *   gestoppt  — die Augen sind zu, das Gesicht ist entsättigt
+ *   arbeitet  — der Kopf atmet, die Augen sehen sich um, es wird geblinzelt,
+ *               und der Mund ist ein konzentrierter Strich
+ *   schläft   — die Augen sind zu, der Mund ein kleines o, und darüber
+ *               steigen drei z auf
+ *   gestoppt  — alles steht still und ist entsättigt
  *
- * Die Bewegung ist so klein, dass sie beim Lesen nicht stört, und sie steht
- * still, sobald das Betriebssystem weniger Bewegung verlangt (app.css,
- * prefers-reduced-motion). Ein Gesicht, das zappelt, ist kein Kollege,
- * sondern ein Werbebanner.
+ * Der MUND war zuerst nicht da, und das war eine Entscheidung: Ein Mund trägt
+ * Gefühl, und ein Produkt, dessen Ton nüchtern ist, will von seiner Software
+ * keine Stimmung vorgeführt bekommen. Er ist trotzdem gekommen, weil er der
+ * beste Träger des Zustands ist, den es gibt — aber als Strich, nicht als
+ * Lächeln: Er sagt „konzentriert" und „schläft", nicht „freut sich".
+ *
+ * Alles steht still, sobald das Betriebssystem weniger Bewegung verlangt
+ * (app.css, prefers-reduced-motion).
  */
 
 export type Zustand = "working" | "sleeping" | "killed";
@@ -92,13 +98,30 @@ export default function Gesicht({
       <rect className="gesicht-kopf" x="1.5" y="1.5" width="21" height="21" rx="7.5" />
       {schlaeft || tot ? (
         <>
-          <path className="gesicht-lid" d={`M${12 - g.abstand - 1.5} ${augeY} h3`} />
-          <path className="gesicht-lid" d={`M${12 + g.abstand - 1.5} ${augeY} h3`} />
+          <path className="gesicht-lid" d={`M${12 - g.abstand - 1.6} ${augeY} h3.2`} />
+          <path className="gesicht-lid" d={`M${12 + g.abstand - 1.6} ${augeY} h3.2`} />
+          {/* Der schlafende Mund: ein kleines o, das mit dem Atem geht. */}
+          <circle className="gesicht-mund-o" cx="12" cy={augeY + 5} r="1.15" />
         </>
       ) : (
-        <g className="gesicht-augen">
-          <circle cx={12 - g.abstand} cy={augeY} r="1.85" />
-          <circle cx={12 + g.abstand} cy={augeY} r="1.85" />
+        <>
+          <g className="gesicht-augen">
+            <circle cx={12 - g.abstand} cy={augeY} r="1.95" />
+            <circle cx={12 + g.abstand} cy={augeY} r="1.95" />
+          </g>
+          {/* Der arbeitende Mund: ein Strich, der sich beim Nachdenken
+              verkürzt. Kein Bogen — ein Bogen wäre ein Lächeln, und ein
+              lächelnder Agent behauptet etwas über seine Laune. */}
+          <path className="gesicht-mund" d={`M9.4 ${augeY + 5} h5.2`} />
+        </>
+      )}
+      {/* Drei z steigen auf, versetzt, und nur beim Schlafen. Sie liegen
+          außerhalb des Rasters — das SVG darf dafür überlaufen (app.css). */}
+      {schlaeft && (
+        <g className="gesicht-zzz" aria-hidden="true">
+          <text x="19" y="6" className="z1">z</text>
+          <text x="21.5" y="1.5" className="z2">z</text>
+          <text x="24" y="-2.5" className="z3">z</text>
         </g>
       )}
     </svg>

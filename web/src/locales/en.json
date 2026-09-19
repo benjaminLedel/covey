@@ -2346,6 +2346,8 @@
     "nichtsGefunden": "Nothing found.",
     "imVerlaufSuchen": "Search the thread",
     "imBacklogSuchen": "Search the whole backlog",
-    "gestern": "Yesterday"
+    "gestern": "Yesterday",
+    "sucheBlaettern": "navigate",
+    "sucheOeffnen": "open"
   }
 }
