@@ -455,6 +455,18 @@ func syncStage(ctx context.Context, tx pgx.Tx, taskID uuid.UUID, newState string
 
 // transition performs a validated state transition including its history entry.
 func (s *Store) transition(ctx context.Context, id uuid.UUID, to, note string, set string, args ...any) (Task, error) {
+	return s.transitionFrom(ctx, id, "", to, note, set, args...)
+}
+
+// transitionFrom is transition with a guard on the state it starts from.
+//
+// It exists for the edge where "the state machine allows it" and "it is right
+// here" come apart. `open` is reachable from four states — in_progress, blocked,
+// failed and cancelled — because four different callers need it. A caller that
+// means exactly one of them has to say so, or it silently gets the other three:
+// an answer meant for a parked task would restart a running one, and the run
+// that was already going would lose its result at `open → done`.
+func (s *Store) transitionFrom(ctx context.Context, id uuid.UUID, from, to, note string, set string, args ...any) (Task, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return Task{}, err
@@ -464,6 +476,11 @@ func (s *Store) transition(ctx context.Context, id uuid.UUID, to, note string, s
 	t, err := scanTask(tx.QueryRow(ctx, "SELECT "+taskCols+" FROM backlog_tasks WHERE id=$1 FOR UPDATE", id))
 	if err != nil {
 		return Task{}, err
+	}
+	// The guard is inside the transaction, behind the FOR UPDATE: checked
+	// outside, the state could change between the look and the write.
+	if from != "" && t.State != from {
+		return Task{}, fmt.Errorf("%w: %s → %s (expected %s)", ErrInvalidTransition, t.State, to, from)
 	}
 	if !transitionAllowed(t.State, to) {
 		return Task{}, fmt.Errorf("%w: %s → %s", ErrInvalidTransition, t.State, to)
@@ -725,8 +742,14 @@ func (s *Store) CorrelateWake(ctx context.Context, correlationKey, resumeInput s
 // A task that is not blocked comes back as ErrInvalidTransition. That is the
 // answer, not a failure: nobody was waiting, and the caller decides what to
 // make of it.
+//
+// The guard on `blocked` is the load-bearing part, not decoration. Without it
+// the same call would also take a task that is RUNNING back to `open` — the
+// dispatcher would pick it up a second time, and the run already in flight
+// would lose its result when it reports done against a task that no longer
+// stands in progress.
 func (s *Store) Answer(ctx context.Context, id uuid.UUID, who, resumeInput string) (Task, error) {
-	t, err := s.transition(ctx, id, StateOpen, "answered by "+who,
+	t, err := s.transitionFrom(ctx, id, StateBlocked, StateOpen, "answered by "+who,
 		"resume_input=$3, priority=1", resumeInput)
 	if err != nil {
 		return Task{}, err

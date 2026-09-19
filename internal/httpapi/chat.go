@@ -136,18 +136,49 @@ func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 // chatTitle is the line the backlog shows for a message somebody typed.
 //
 // A task has a title, a chat message has none — so the first line becomes it
-// and the whole text stays in the body. Cutting at a word boundary and not at
-// the character keeps a board from filling up with halved words.
+// and the whole text stays in the body. Cutting at a word boundary and not in
+// the middle of a word keeps a board from filling up with halved words.
+//
+// The cut counts CHARACTERS, not bytes. Cut by bytes, a message in Japanese or
+// Chinese — no spaces, three bytes per character — is severed inside a
+// character, and the half character that is left is not valid UTF-8: Postgres
+// refuses the insert (22021), the API answers 500, and the message is gone.
+// This interface ships in ten languages, two of which hit that on an ordinary
+// sentence.
 func chatTitle(text string) string {
 	first := strings.TrimSpace(strings.SplitN(text, "\n", 2)[0])
-	if len(first) <= 80 {
+	zeichen := []rune(first)
+	if len(zeichen) <= 80 {
 		return first
 	}
-	cut := first[:80]
-	if i := strings.LastIndex(cut, " "); i > 40 {
+	cut := string(zeichen[:80])
+	// The word boundary is a bonus, not the rule: a language that does not
+	// separate words with spaces simply does not get one, and the cut stays
+	// valid because it was made on characters.
+	if i := strings.LastIndex(cut, " "); i > len(cut)/2 {
 		cut = cut[:i]
 	}
 	return cut + "…"
+}
+
+// chatText reads the one field both writes take, and keeps two failures apart
+// that used to answer the same sentence: a body that is not valid JSON (or
+// carries a field nobody reads) is a different mistake from an empty message,
+// and a client sending {"message": …} deserves to be told which one it made.
+func chatText(w http.ResponseWriter, r *http.Request) (string, bool) {
+	var in struct {
+		Text string `json:"text"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid body: expected {\"text\": \"…\"}")
+		return "", false
+	}
+	text := strings.TrimSpace(in.Text)
+	if text == "" {
+		writeErr(w, http.StatusBadRequest, "text is required")
+		return "", false
+	}
+	return text, true
 }
 
 // handleChatMessage turns a message into a task.
@@ -158,15 +189,8 @@ func (s *Server) handleChatMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := principalFrom(r)
-	var in struct {
-		Text string `json:"text"`
-	}
-	text := ""
-	if err := readJSON(r, &in); err == nil {
-		text = strings.TrimSpace(in.Text)
-	}
-	if text == "" {
-		writeErr(w, http.StatusBadRequest, "text is required")
+	text, ok := chatText(w, r)
+	if !ok {
 		return
 	}
 	// origin says where the work came from, and the chat is one more origin
@@ -203,15 +227,8 @@ func (s *Server) handleTaskReply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := principalFrom(r)
-	var in struct {
-		Text string `json:"text"`
-	}
-	text := ""
-	if err := readJSON(r, &in); err == nil {
-		text = strings.TrimSpace(in.Text)
-	}
-	if text == "" {
-		writeErr(w, http.StatusBadRequest, "text is required")
+	text, ok := chatText(w, r)
+	if !ok {
 		return
 	}
 
