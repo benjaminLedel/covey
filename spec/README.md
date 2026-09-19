@@ -50,6 +50,7 @@ The guiding metaphor from which the whole architecture follows: the platform is 
 | [`24-voice.md`](24-voice.md) | Voice: an author's style as an organisation object an agent carries — profile, exemplars, style card and contrast list, where each acts (prompt, `style_apply`, gate), correction pairs, the build and its cost (design, #195) |
 | [`25-sevencode-adapter.md`](25-sevencode-adapter.md) | Fourth engine (unverified): SevenCode as a second harness on the educa gateway, credential as token and as login file, why `Resume` is false without a session id, and the four open points that close the gap |
 | [`26-engine-catalogue.md`](26-engine-catalogue.md) | Where a runtime binary comes from: the third catalogue, one layer per engine installed on the runner instead of one engine baked into every workplace image, the digest as the trust anchor, the operator's URL and never an agent's |
+| [`27-mobile-app.md`](27-mobile-app.md) | The mobile app (specification): the chat and the open points where the person is, why the self-hosted instance is the hardest constraint, the device badge the API still owes it, push without content, and what the app must never do |
 
 ## Design principles
 
