@@ -2319,10 +2319,10 @@
       "error": "Mislukt"
     }
   },
-  "workspace": {
-    "workspace": "Werkruimte",
+  "team": {
+    "workspace": "Team",
     "verwaltung": "Beheer",
-    "schalterAria": "Wisselen tussen werkruimte en beheer",
+    "schalterAria": "Wisselen tussen team en beheer",
     "kollegen": "Collega's",
     "wartet": "Wacht op u",
     "wartetTitel": "Goedendag, {{name}}",

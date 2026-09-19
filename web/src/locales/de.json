@@ -2319,10 +2319,10 @@
       "error": "Fehlgeschlagen"
     }
   },
-  "workspace": {
-    "workspace": "Workspace",
+  "team": {
+    "workspace": "Team",
     "verwaltung": "Verwaltung",
-    "schalterAria": "Zwischen Workspace und Verwaltung wechseln",
+    "schalterAria": "Zwischen Team und Verwaltung wechseln",
     "kollegen": "Kollegen",
     "wartet": "Wartet auf Sie",
     "wartetTitel": "Guten Tag, {{name}}",

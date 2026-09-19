@@ -2319,10 +2319,10 @@
       "error": "Fallida"
     }
   },
-  "workspace": {
-    "workspace": "Espacio",
+  "team": {
+    "workspace": "Equipo",
     "verwaltung": "Administración",
-    "schalterAria": "Cambiar entre el espacio de trabajo y la administración",
+    "schalterAria": "Cambiar entre equipo y administración",
     "kollegen": "Colegas",
     "wartet": "Le espera",
     "wartetTitel": "Hola, {{name}}",

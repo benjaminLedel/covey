@@ -2319,10 +2319,10 @@
       "error": "Échec"
     }
   },
-  "workspace": {
-    "workspace": "Espace",
+  "team": {
+    "workspace": "Équipe",
     "verwaltung": "Administration",
-    "schalterAria": "Basculer entre l'espace de travail et l'administration",
+    "schalterAria": "Basculer entre l'équipe et l'administration",
     "kollegen": "Collègues",
     "wartet": "Vous attend",
     "wartetTitel": "Bonjour, {{name}}",

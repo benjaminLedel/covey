@@ -2319,10 +2319,10 @@
       "error": "失敗"
     }
   },
-  "workspace": {
-    "workspace": "ワークスペース",
+  "team": {
+    "workspace": "チーム",
     "verwaltung": "管理",
-    "schalterAria": "ワークスペースと管理を切り替える",
+    "schalterAria": "チームと管理を切り替える",
     "kollegen": "同僚",
     "wartet": "お待ちしています",
     "wartetTitel": "こんにちは、{{name}} さん",

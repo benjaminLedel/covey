@@ -5,6 +5,7 @@ import { Link } from "react-router";
 import { api, post, type Agent, type ChatEntry, type Principal } from "../api";
 import { Markdown } from "../components/Markdown";
 import { canManage } from "../pages/agent/roles";
+import Gesicht from "../components/Gesicht";
 
 /* Der Verlauf mit einem Agenten.
  *
@@ -25,7 +26,15 @@ import { canManage } from "../pages/agent/roles";
  *    Vorgänge, jeder mit Anfang und Ende.
  */
 
-const vomMenschen = (e: ChatEntry) => e.kind === "message" || e.author.startsWith("human:");
+/* Wer spricht — und das entscheidet die HERKUNFT, nicht die Art des Eintrags.
+   
+   Vorher stand jede Aufgabe rechts, weil `message` als „von mir" galt. Ein
+   Agent bekommt seine Arbeit aber auch aus einem Webhook, einem Takt oder von
+   einem Kollegen; das alles stand damit auf der Seite des Lesers, der es nie
+   geschrieben hatte — und ein Trainingslauf von vierzig Zeilen sah aus wie
+   eine Nachricht, die man selbst getippt hat. */
+const vonMir = (e: ChatEntry) =>
+  e.author.startsWith("chat:") || e.author.startsWith("manual:") || e.author.startsWith("human:");
 
 /** Die Person hinter einer Herkunft oder einem Verfasser ("chat:a@b" → "a@b"). */
 const wer = (author: string) => author.split(":").slice(1).join(":") || author;
@@ -109,77 +118,92 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
   };
 
   return (
-    <div className="ws-thread">
-      <header className="ws-thread-kopf">
+    <div className="tm-thread">
+      <header className="tm-thread-kopf">
         <div>
           <h1>{agent.data?.display_name ?? "…"}</h1>
           <p>{agent.data?.job_title || agent.data?.slug}</p>
         </div>
-        <div className="ws-thread-werkzeuge">
+        <div className="tm-thread-werkzeuge">
           <input
             type="search"
             value={suche}
             onChange={(e) => setSuche(e.target.value)}
             onKeyDown={(e) => e.key === "Escape" && setSuche("")}
-            placeholder={t("workspace.imVerlaufSuchen")}
-            aria-label={t("workspace.imVerlaufSuchen")}
+            placeholder={t("team.imVerlaufSuchen")}
+            aria-label={t("team.imVerlaufSuchen")}
           />
           {/* Der eine Weg von hier in die Konsole: an dem Agenten, den man
               gerade vor sich hat. */}
-          <Link to={`/agents/${agentId}`} className="ws-thread-verwaltung">
-            {t("workspace.imAdmin")}
+          <Link to={`/agents/${agentId}`} className="tm-thread-verwaltung">
+            {t("team.imAdmin")}
           </Link>
         </div>
       </header>
 
-      <div className="ws-verlauf">
-        {thread.isLoading && <p className="ws-leise">{t("common.loading")}</p>}
+      <div className="tm-verlauf">
+        {thread.isLoading && <p className="tm-leise">{t("common.loading")}</p>}
         {!thread.isLoading && entries.length === 0 && !begriff && (
-          <div className="ws-leer">
-            <p>{t("workspace.leerTitel", { name: agent.data?.display_name ?? "" })}</p>
-            <p className="ws-leise">{t("workspace.leerText")}</p>
+          <div className="tm-leer">
+            <p>{t("team.leerTitel", { name: agent.data?.display_name ?? "" })}</p>
+            <p className="tm-leise">{t("team.leerText")}</p>
           </div>
         )}
         {!thread.isLoading && entries.length === 0 && begriff && (
-          <div className="ws-leer">
-            <p>{t("workspace.nichtsGefunden")}</p>
-            <Link to={`/agents/${agentId}?q=${encodeURIComponent(suche.trim())}`} className="ws-thread-verwaltung">
-              {t("workspace.imBacklogSuchen")}
+          <div className="tm-leer">
+            <p>{t("team.nichtsGefunden")}</p>
+            <Link to={`/agents/${agentId}?q=${encodeURIComponent(suche.trim())}`} className="tm-thread-verwaltung">
+              {t("team.imBacklogSuchen")}
             </Link>
           </div>
         )}
 
         {entries.map((e, i) => {
           const neuerVorgang = i === 0 || entries[i - 1].task_id !== e.task_id;
+          /* Erster Eintrag einer Folge desselben Sprechers: nur er trägt das
+             Gesicht. */
+          const erstesDerFolge = neuerVorgang || vonMir(entries[i - 1]) !== vonMir(e);
+          /* Kam die Arbeit nicht aus dem Chat, sagt die Zeile, woher: „aus
+             zammad" ist eine Auskunft, „Nachricht" wäre eine Behauptung. */
+          const herkunftName = herkunft(e.author) || t("chat.kind.message", "");
           const neuerTag = i === 0 || tag(entries[i - 1].at) !== tag(e.at);
           const datum = neuerTag ? tagName(e.at, i18n.language) : null;
           const quelle = e.kind === "message" ? herkunft(e.author) : "";
           return (
             <Fragment key={`${e.task_id}-${e.kind}-${i}`}>
-              {datum && <div className="ws-tag">{datum === "gestern" ? t("workspace.gestern") : datum}</div>}
+              {datum && <div className="tm-tag">{datum === "gestern" ? t("team.gestern") : datum}</div>}
               {neuerVorgang && (
-                <div className="ws-vorgang">
-                  <span className="ws-vorgang-linie" aria-hidden="true" />
-                  <Link to={`/agents/${agentId}?task=${e.task_id}`} className="ws-vorgang-titel">
+                <div className="tm-vorgang">
+                  <span className="tm-vorgang-linie" aria-hidden="true" />
+                  <Link to={`/agents/${agentId}?task=${e.task_id}`} className="tm-vorgang-titel">
                     {e.task_title}
                   </Link>
-                  {quelle && <span className="ws-vorgang-quelle">{t("workspace.quelle", { quelle })}</span>}
-                  <span className="ws-vorgang-linie" aria-hidden="true" />
+                  {quelle && <span className="tm-vorgang-quelle">{t("team.quelle", { quelle })}</span>}
+                  <span className="tm-vorgang-linie" aria-hidden="true" />
                 </div>
               )}
 
-              <article className={`ws-blase ${vomMenschen(e) ? "ich" : "er"} k-${e.kind}`}>
-                <div className="ws-blase-kopf">
-                  {vomMenschen(e) ? wer(e.author) : t(`chat.kind.${e.kind}`)}
+              <article className={`tm-blase ${vonMir(e) ? "ich" : "er"} k-${e.kind}`}>
+                {/* Auf der Seite des Agenten steht sein Gesicht, und zwar nur
+                    beim ersten Eintrag einer Folge: Fünf Gesichter
+                    untereinander sind eine Bilderreihe, keine Unterhaltung. */}
+                {!vonMir(e) && (
+                  <span className="tm-blase-wer" aria-hidden="true">
+                    {erstesDerFolge && <Gesicht schluessel={agent.data?.slug ?? "?"} groesse={26} />}
+                  </span>
+                )}
+                <div className="tm-blase-inhalt">
+                <div className="tm-blase-kopf">
+                  {vonMir(e) ? wer(e.author) : e.kind === "message" ? herkunftName : t(`chat.kind.${e.kind}`)}
                   <time dateTime={e.at}>{uhr(e.at, i18n.language)}</time>
                 </div>
-                <div className="ws-blase-text">
+                <div className="tm-blase-text">
                   <Markdown text={e.text} />
                 </div>
 
                 {/* Die offene Frage trägt ihre Antwort selbst. */}
                 {e.kind === "question" && e.task_state === "blocked" && darfSchreiben && (
-                  <div className="ws-antwort">
+                  <div className="tm-antwort">
                     {antwortAuf === e.task_id ? (
                       <>
                         <textarea
@@ -197,7 +221,7 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
                           aria-label={t("chat.placeholderAnswer")}
                           placeholder={t("chat.placeholderAnswer")}
                         />
-                        <div className="ws-antwort-knoepfe">
+                        <div className="tm-antwort-knoepfe">
                           <button
                             className="btn primary sm"
                             disabled={!antwort.trim() || beantworten.isPending}
@@ -206,7 +230,7 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
                             {t("chat.answer")}
                           </button>
                           <button className="btn sm" onClick={() => setAntwortAuf(null)}>
-                            {t("workspace.abbrechen")}
+                            {t("team.abbrechen")}
                           </button>
                         </div>
                       </>
@@ -217,6 +241,7 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
                     )}
                   </div>
                 )}
+                </div>
               </article>
             </Fragment>
           );
@@ -225,7 +250,7 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
       </div>
 
       {/* Das Feld unten legt immer eine neue Aufgabe an — nie eine Antwort. */}
-      <div className="ws-eingabe">
+      <div className="tm-eingabe">
         <textarea
           rows={2}
           value={text}
@@ -245,7 +270,7 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
         </button>
       </div>
       {(neu.isError || beantworten.isError) && (
-        <p className="ws-fehler">{String(neu.error ?? beantworten.error)}</p>
+        <p className="tm-fehler">{String(neu.error ?? beantworten.error)}</p>
       )}
     </div>
   );

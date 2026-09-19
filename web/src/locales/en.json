@@ -2319,10 +2319,10 @@
       "error": "Failed"
     }
   },
-  "workspace": {
-    "workspace": "Workspace",
+  "team": {
+    "workspace": "Team",
     "verwaltung": "Admin",
-    "schalterAria": "Switch between workspace and admin",
+    "schalterAria": "Switch between team and admin",
     "kollegen": "Colleagues",
     "wartet": "Waiting for you",
     "wartetTitel": "Hello, {{name}}",

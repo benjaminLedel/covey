@@ -2319,10 +2319,10 @@
       "error": "Niepowodzenie"
     }
   },
-  "workspace": {
-    "workspace": "Przestrzeń",
+  "team": {
+    "workspace": "Zespół",
     "verwaltung": "Administracja",
-    "schalterAria": "Przełączanie między przestrzenią pracy a administracją",
+    "schalterAria": "Przełączanie między zespołem a administracją",
     "kollegen": "Koledzy",
     "wartet": "Czeka na Państwa",
     "wartetTitel": "Dzień dobry, {{name}}",

@@ -2214,7 +2214,7 @@
    Was bleibt, ist der Unterschied im INHALT: dort dreizehn Ziele, hier die
    Kollegen — und rechts kein gepolstertes Blatt, sondern ein Verlauf, der
    selbst scrollt und sein Eingabefeld unten festhält. */
-.ws-sidebar {
+.tm-sidebar {
   /* Die Liste dazwischen wächst und scrollt, damit der Fuß unten stehen
      bleibt: In der Konsole tut das eine `mt-auto`-Gruppe, hier die Liste
      selbst — sie ist das Einzige, was beliebig lang wird. */
@@ -2264,19 +2264,19 @@
 .shell-schalter-aus:hover { color: var(--text-primary); background: var(--tint-weak); }
 
 /* ── Die Liste links ──────────────────────────────────────────────────── *//* ── Die Liste links ──────────────────────────────────────────────────── */
-.ws-liste {
+.tm-liste {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   margin: 0 -6px;
   padding: 0 6px;
 }
-.ws-leise { color: var(--text-muted); font-size: 13px; padding: 6px 10px; }
+.tm-leise { color: var(--text-muted); font-size: 13px; padding: 6px 10px; }
 
 /* Was wartet steht ganz oben und ist der Grund, warum es diese Oberfläche
    gibt. Der Punkt davor ist gefüllt, solange etwas offen ist — und er trägt
    eine Zahl daneben, weil ein Punkt allein eine Farbe ist und keine Aussage. */
-.ws-wartet {
+.tm-wartet {
   display: flex;
   align-items: center;
   gap: 9px;
@@ -2288,19 +2288,19 @@
   color: var(--text-primary);
   text-decoration: none;
 }
-.ws-wartet:hover { background: var(--tint-weak); }
-.ws-wartet.on { background: var(--bg-accent); color: var(--text-accent); }
-.ws-wartet-punkt {
+.tm-wartet:hover { background: var(--tint-weak); }
+.tm-wartet.on { background: var(--bg-accent); color: var(--text-accent); }
+.tm-wartet-punkt {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   border: 1.5px solid var(--text-muted);
 }
-.ws-wartet-punkt[data-offen="true"] {
+.tm-wartet-punkt[data-offen="true"] {
   background: var(--text-wait);
   border-color: var(--text-wait);
 }
-.ws-zahl {
+.tm-zahl {
   margin-left: auto;
   min-width: 20px;
   padding: 1px 6px;
@@ -2314,8 +2314,8 @@
 
 /* Suchen. Bei vierzig Kollegen in acht Abteilungen ist Scrollen keine
    Navigation mehr. */
-.ws-suche { padding: 0 0 10px; }
-.ws-suche input {
+.tm-suche { padding: 0 0 10px; }
+.tm-suche input {
   width: 100%;
   padding: 7px 11px;
   font-size: 13px;
@@ -2324,11 +2324,11 @@
   background: var(--surface-2);
   color: var(--text-primary);
 }
-.ws-suche input::placeholder { color: var(--text-muted); }
-.ws-suche input:focus-visible { border-color: var(--accent-ring); }
+.tm-suche input::placeholder { color: var(--text-muted); }
+.tm-suche input:focus-visible { border-color: var(--accent-ring); }
 
-.ws-gruppe { margin-bottom: 14px; }
-.ws-gruppe-kopf {
+.tm-gruppe { margin-bottom: 14px; }
+.tm-gruppe-kopf {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -2341,9 +2341,9 @@
 }
 /* Die Farbe der Abteilung, so wie das Organigramm sie führt. Sie steht als
    Punkt und nie allein: daneben der Name. */
-.ws-dept-punkt { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.tm-dept-punkt { width: 9px; height: 9px; border-radius: 3px; flex: none; }
 
-.ws-kollege {
+.tm-kollege {
   display: flex;
   align-items: center;
   gap: 9px;
@@ -2355,34 +2355,21 @@
 /* Das Zeichen trägt die Farbe der Abteilung in seinem Ring; ohne eine
    bekommt es den getönten Grund und die Akzentfarbe (siehe Workspace.tsx,
    warum der Ring und nicht die Fläche). */
-.ws-kollege-zeichen {
-  flex: none;
-  width: 26px;
-  height: 26px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  background: var(--bg-accent);
-  color: var(--text-accent);
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-.ws-kollege-text { min-width: 0; }
-.ws-kollege:hover { background: var(--tint-weak); }
-.ws-kollege.on { background: var(--bg-accent); }
-.ws-kollege.on .ws-kollege-name { color: var(--text-accent); }
+.tm-kollege-zeichen { flex: none; display: inline-flex; }
+.tm-kollege-text { min-width: 0; }
+.tm-kollege:hover { background: var(--tint-weak); }
+.tm-kollege.on { background: var(--bg-accent); }
+.tm-kollege.on .tm-kollege-name { color: var(--text-accent); }
 /* Der Name kürzt, statt umzubrechen: Eine Liste, in der eine Zeile zwei Zeilen
    hoch ist und die nächste eine, hat keinen Rhythmus mehr — und „Incident-
    Erstresponder" ist kein Sonderfall, sondern der Normalfall in einem
    Organigramm mit deutschen Rollennamen. */
-.ws-kollege-name { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 14px; }
-.ws-kollege-wort { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm-kollege-name { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 14px; }
+.tm-kollege-wort { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Wer wartet, trägt die Marke am Namen. Sie ist ein Punkt in der Warnfarbe —
    und weil eine Farbe allein keine Aussage ist, trägt sie einen Titel und ein
    Label für alles, was nicht sieht. */
-.ws-kollege-wartet {
+.tm-kollege-wartet {
   width: 8px;
   height: 8px;
   flex: none;
@@ -2392,7 +2379,7 @@
      kann — auch von der getönten Fläche der ausgewählten Zeile. */
   box-shadow: 0 0 0 2px var(--surface-1);
 }
-.ws-kollege-rolle {
+.tm-kollege-rolle {
   display: block;
   font-size: 12px;
   color: var(--text-muted);
@@ -2402,7 +2389,7 @@
 }
 
 /* ── Der Verlauf ──────────────────────────────────────────────────────── */
-.ws-haupt {
+.tm-haupt {
   flex: 1;
   min-width: 0;
   height: 100vh;
@@ -2411,8 +2398,8 @@
   flex-direction: column;
   background: var(--surface-2);
 }
-.ws-thread { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.ws-thread-kopf {
+.tm-thread { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.tm-thread-kopf {
   flex: none;
   display: flex;
   align-items: baseline;
@@ -2420,10 +2407,10 @@
   padding: 16px 24px;
   border-bottom: 1px solid var(--border);
 }
-.ws-thread-kopf h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
-.ws-thread-kopf p { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
-.ws-thread-werkzeuge { margin-left: auto; display: flex; align-items: center; gap: 14px; }
-.ws-thread-werkzeuge input {
+.tm-thread-kopf h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+.tm-thread-kopf p { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+.tm-thread-werkzeuge { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+.tm-thread-werkzeuge input {
   width: 200px;
   padding: 6px 11px;
   font-size: 13px;
@@ -2432,11 +2419,11 @@
   background: var(--surface-0);
   color: var(--text-primary);
 }
-.ws-thread-werkzeuge input::placeholder { color: var(--text-muted); }
-.ws-thread-verwaltung { font-size: 13px; color: var(--text-accent); text-decoration: none; white-space: nowrap; }
-.ws-thread-verwaltung:hover { text-decoration: underline; }
+.tm-thread-werkzeuge input::placeholder { color: var(--text-muted); }
+.tm-thread-verwaltung { font-size: 13px; color: var(--text-accent); text-decoration: none; white-space: nowrap; }
+.tm-thread-verwaltung:hover { text-decoration: underline; }
 
-.ws-verlauf {
+.tm-verlauf {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -2449,14 +2436,14 @@
 /* Die Trennlinie je Vorgang. Ohne sie liest sich ein Verlauf, in dem Chat,
    Webhook und Takt nebeneinander stehen, als ein einziges durcheinander
    geredetes Gespräch. */
-.ws-vorgang {
+.tm-vorgang {
   display: flex;
   align-items: center;
   gap: 12px;
   margin: 14px 0 2px;
 }
-.ws-vorgang-linie { flex: 1; height: 1px; background: var(--border); }
-.ws-vorgang-titel {
+.tm-vorgang-linie { flex: 1; height: 1px; background: var(--border); }
+.tm-vorgang-titel {
   font-size: 12px;
   font-weight: 500;
   color: var(--text-secondary);
@@ -2466,15 +2453,19 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.ws-vorgang-titel:hover { color: var(--text-primary); text-decoration: underline; }
-.ws-vorgang-quelle { font-size: 11px; color: var(--text-muted); }
+.tm-vorgang-titel:hover { color: var(--text-primary); text-decoration: underline; }
+.tm-vorgang-quelle { font-size: 11px; color: var(--text-muted); }
 
-.ws-blase { max-width: min(70ch, 78%); }
-.ws-blase.ich { align-self: flex-end; }
-.ws-blase.er { align-self: flex-start; }
+.tm-blase { max-width: min(70ch, 78%); display: flex; gap: 10px; align-items: flex-start; }
+.tm-blase.ich { align-self: flex-end; }
+.tm-blase.er { align-self: flex-start; }
+/* Die Spalte für das Gesicht steht auch dort, wo keins gezeichnet wird:
+   Sonst rutschen die Folgeeinträge eines Sprechers unter sein Gesicht. */
+.tm-blase-wer { flex: none; width: 26px; }
+.tm-blase-inhalt { min-width: 0; }
 /* Verfasser und Uhrzeit. Die Uhrzeit steht an jedem Eintrag — ein Verlauf
    ohne sie ist eine Liste von Sätzen —, das Datum nur beim Wechsel. */
-.ws-blase-kopf {
+.tm-blase-kopf {
   display: flex;
   align-items: baseline;
   gap: 8px;
@@ -2482,12 +2473,12 @@
   color: var(--text-muted);
   margin-bottom: 4px;
 }
-.ws-blase-kopf time { font-variant-numeric: tabular-nums; }
-.ws-blase.ich .ws-blase-kopf { justify-content: flex-end; }
+.tm-blase-kopf time { font-variant-numeric: tabular-nums; }
+.tm-blase.ich .tm-blase-kopf { justify-content: flex-end; }
 
 /* Der Tagestrenner. Er steht mittig und ohne Linie: Die Linien gehören den
    Vorgängen, und zwei Arten Trennung in einer Spalte sind eine zu viel. */
-.ws-tag {
+.tm-tag {
   align-self: center;
   margin: 10px 0 2px;
   padding: 2px 12px;
@@ -2496,7 +2487,7 @@
   font-size: 11.5px;
   color: var(--text-secondary);
 }
-.ws-blase-text {
+.tm-blase-text {
   padding: 10px 14px;
   border-radius: 14px;
   font-size: 14px;
@@ -2504,34 +2495,40 @@
   background: var(--surface-0);
   border: 1px solid var(--border);
 }
-/* Die eigene Nachricht trägt den Lehm-Ton der Marke — die einzige Fläche
-   dieser Oberfläche, die eine Farbe hat, weil sie die einzige ist, die
-   „von mir" sagen muss. */
-.ws-blase.ich .ws-blase-text {
-  background: var(--bg-accent);
+/* Die eigene Nachricht ist GEFÜLLT, nicht getönt.
+   
+   Eine Tönung war die lehmigste Fläche der Oberfläche und zugleich die
+   größte; gefüllt mit Tinte trägt dieselbe Blase den höchsten Kontrast, den
+   die Palette hat (16,9:1), und die Marke bleibt dort, wo sie hingehört —
+   im Signet und an den Verweisen. Dasselbe Prinzip wie beim Hauptknopf:
+   Was handelt, wird mit Tinte gefüllt, nicht mit Farbe. */
+.tm-blase.ich .tm-blase-text {
+  background: var(--accent-solid);
   border-color: transparent;
+  color: var(--on-accent);
 }
+.tm-blase.ich .tm-blase-text a { color: inherit; text-decoration: underline; }
 /* Die Frage ist der Moment, um den es geht: der Agent steht still. */
-.ws-blase.k-question .ws-blase-text {
+.tm-blase.k-question .tm-blase-text {
   background: var(--bg-wait);
   border-color: var(--wait-ring);
 }
-.ws-blase.k-result .ws-blase-text {
+.tm-blase.k-result .tm-blase-text {
   background: var(--bg-success);
   border-color: var(--success-ring);
 }
-.ws-blase.k-error .ws-blase-text {
+.tm-blase.k-error .tm-blase-text {
   border-color: var(--border-danger);
   background: var(--danger-tint);
 }
-.ws-blase-text p + p { margin-top: 8px; }
-.ws-blase-text pre, .ws-blase-text code { font-size: 12.5px; }
+.tm-blase-text p + p { margin-top: 8px; }
+.tm-blase-text pre, .tm-blase-text code { font-size: 12.5px; }
 
-.ws-antwort { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
-.ws-antwort textarea { width: 100%; resize: vertical; }
-.ws-antwort-knoepfe { display: flex; gap: 8px; }
+.tm-antwort { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.tm-antwort textarea { width: 100%; resize: vertical; }
+.tm-antwort-knoepfe { display: flex; gap: 8px; }
 
-.ws-eingabe {
+.tm-eingabe {
   flex: none;
   display: flex;
   gap: 10px;
@@ -2540,21 +2537,21 @@
   border-top: 1px solid var(--border);
   background: var(--surface-2);
 }
-.ws-eingabe textarea { flex: 1; resize: vertical; }
-.ws-fehler { padding: 0 24px 12px; color: var(--text-danger); font-size: 13px; }
+.tm-eingabe textarea { flex: 1; resize: vertical; }
+.tm-fehler { padding: 0 24px 12px; color: var(--text-danger); font-size: 13px; }
 
-.ws-leer { margin: auto; text-align: center; max-width: 42ch; }
-.ws-leer p { font-size: 15px; }
-.ws-leer .ws-leise { margin-top: 6px; }
+.tm-leer { margin: auto; text-align: center; max-width: 42ch; }
+.tm-leer p { font-size: 15px; }
+.tm-leer .tm-leise { margin-top: 6px; }
 
 /* ── Was wartet ───────────────────────────────────────────────────────── */
-.ws-wartet-seite { padding: 28px 28px 40px; overflow-y: auto; }
-.ws-wartet-kopf { margin-bottom: 20px; }
-.ws-wartet-kopf h1 { font-size: 21px; font-weight: 600; letter-spacing: -0.015em; }
-.ws-wartet-kopf .ws-leise { padding: 4px 0 0; }
-.ws-wartet-liste { list-style: none; max-width: 92ch; }
-.ws-wartet-liste li + li { border-top: 1px solid var(--border); }
-.ws-wartet-zeile {
+.tm-wartet-seite { padding: 28px 28px 40px; overflow-y: auto; }
+.tm-wartet-kopf { margin-bottom: 20px; }
+.tm-wartet-kopf h1 { font-size: 21px; font-weight: 600; letter-spacing: -0.015em; }
+.tm-wartet-kopf .tm-leise { padding: 4px 0 0; }
+.tm-wartet-liste { list-style: none; max-width: 92ch; }
+.tm-wartet-liste li + li { border-top: 1px solid var(--border); }
+.tm-wartet-zeile {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
@@ -2564,8 +2561,8 @@
   text-decoration: none;
   color: var(--text-primary);
 }
-.ws-wartet-zeile:hover { background: var(--tint-weak); }
-.ws-art {
+.tm-wartet-zeile:hover { background: var(--tint-weak); }
+.tm-art {
   padding: 2px 9px;
   border-radius: 999px;
   font-size: 11.5px;
@@ -2579,17 +2576,88 @@
    Vorschlag will angenommen werden (die Farbe der Handlung). Befund und
    Antrag bleiben grau — eine vierte und fünfte Farbe wäre das Leitsystem,
    das auf der Website schon einmal als Regenbogen gescheitert ist. */
-.ws-art.a-approval { background: var(--bg-wait); color: var(--text-wait); }
-.ws-art.a-issue { background: var(--danger-tint); color: var(--text-danger); }
-.ws-art.a-proposal { background: var(--bg-accent); color: var(--text-accent); }
-.ws-wartet-titel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
-.ws-wartet-wer { font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
-.ws-wartet-zeile time { font-size: 12px; white-space: nowrap; }
-.ws-wartet-alle { display: inline-block; margin-top: 18px; font-size: 13px; color: var(--text-accent); }
+.tm-art.a-approval { background: var(--bg-wait); color: var(--text-wait); }
+.tm-art.a-issue { background: var(--danger-tint); color: var(--text-danger); }
+.tm-art.a-proposal { background: var(--bg-accent); color: var(--text-accent); }
+.tm-wartet-titel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.tm-wartet-wer { font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
+.tm-wartet-zeile time { font-size: 12px; white-space: nowrap; }
+.tm-wartet-alle { display: inline-block; margin-top: 18px; font-size: 13px; color: var(--text-accent); }
 
 /* Schmale Fenster: Die Spalte bleibt stehen, wie sie in der Konsole stehen
    bleibt — zwei Schalen, ein Verhalten. Nur die Blase gibt nach. */
 @media (max-width: 860px) {
-  .ws-blase { max-width: 88%; }
-  .ws-thread-werkzeuge input { width: 130px; }
+  .tm-blase { max-width: 88%; }
+  .tm-thread-werkzeuge input { width: 130px; }
 }
+
+/* ── Das Gesicht eines Agenten ─────────────────────────────────────────
+   Gezeichnet in team/Gesicht.tsx; hier steht nur, wie es sich verhält.
+
+   Die Bewegung ist bewusst klein: Die Augen wandern um einen halben Pixel,
+   das Lid schließt sich für einen Wimpernschlag, und jedes Gesicht hat
+   seinen eigenen Takt (--takt aus der Komponente), damit nicht vierzig
+   Kollegen im Gleichschritt blinzeln. Wer weniger Bewegung verlangt,
+   bekommt ein Gesicht, das ruhig dasitzt — das ist ganz unten geregelt. */
+.gesicht { flex: none; display: block; }
+.gesicht-kopf { fill: light-dark(var(--ton), var(--ton-dunkel)); }
+.gesicht-augen circle { fill: light-dark(#ffffff, #12100f); }
+.gesicht-lid {
+  stroke: light-dark(#ffffff, #12100f);
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  fill: none;
+}
+
+/* Arbeitet: der Kopf atmet, die Augen sehen sich um, und ab und zu wird
+   geblinzelt. Drei Bewegungen mit drei Dauern, die sich nicht zu einem Takt
+   addieren — ein Gesicht, das im Metrum nickt, ist eine Maschine, und das ist
+   das Gegenteil dessen, was diese Liste zeigen soll. */
+.gesicht.z-working .gesicht-kopf {
+  animation: gesicht-atmen 3.7s var(--takt, 0s) infinite ease-in-out;
+  transform-origin: center;
+}
+@keyframes gesicht-atmen {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+.gesicht.z-working .gesicht-augen {
+  animation: gesicht-blick 5.3s var(--takt, 0s) infinite ease-in-out;
+  transform-origin: center;
+}
+@keyframes gesicht-blick {
+  0%, 22% { transform: translate(0, 0); }
+  30%, 44% { transform: translate(1.5px, -0.4px); }
+  52%, 66% { transform: translate(0, 0); }
+  74%, 86% { transform: translate(-1.5px, 0.3px); }
+  94%, 100% { transform: translate(0, 0); }
+}
+.gesicht.z-working .gesicht-augen circle {
+  animation: gesicht-blinzeln 7.1s calc(var(--takt, 0s) + 1.5s) infinite;
+  transform-origin: center;
+}
+@keyframes gesicht-blinzeln {
+  0%, 93%, 100% { transform: scaleY(1); }
+  95.5%, 96.5% { transform: scaleY(0.12); }
+}
+
+/* Schläft: der Kopf atmet weiter, nur langsamer und ohne Blick. Ein Agent,
+   der schläft, ist nicht tot — er wartet auf sein Ereignis. */
+.gesicht.z-sleeping .gesicht-kopf {
+  animation: gesicht-atmen 7.4s var(--takt, 0s) infinite ease-in-out;
+  transform-origin: center;
+}
+
+/* Gestoppt: kein Ton mehr. Das Gesicht bleibt, es ist nur nicht mehr da. */
+.gesicht.z-killed { filter: grayscale(1); opacity: 0.55; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gesicht .gesicht-kopf,
+  .gesicht .gesicht-augen,
+  .gesicht .gesicht-augen circle { animation: none; }
+}
+
+/* Der Platzhalter um ein Gesicht — er hält dieselbe Grundfläche wie das
+   Monogramm daneben, damit eine Liste aus Menschen und Agenten nicht
+   springt. */
+.avatar-gesicht { display: inline-flex; align-items: center; justify-content: center; flex: none; }

@@ -50,14 +50,23 @@ picture { display: contents; }
      hover, a resting badge), while surface-2 is the raised one (the card,
      the form sheet). Measured 4.65:1 or better for every text and mark
      against all three. */
-  --surface-0: light-dark(#f5f5f5, #131313);
-  --surface-1: light-dark(#ebebeb, #0e0e0e);
-  --surface-2: light-dark(#ffffff, #1c1c1e);
-  --text-primary: light-dark(#1d1d1f, #f2f2f3);
-  --text-secondary: light-dark(#55555a, #a6a6ab);
-  --text-muted: light-dark(#67676d, #8a8a90);
-  --border: light-dark(rgba(0, 0, 0, 0.11), rgba(255, 255, 255, 0.13));
-  --border-strong: light-dark(rgba(0, 0, 0, 0.2), rgba(255, 255, 255, 0.24));
+  /* Eine Stufe mehr Kontrast, überall.
+     
+     Die vorige Fassung bestand die Prüfung und sah trotzdem flau aus: Die
+     leiseste Schriftstufe lag bei 4,71:1 — knapp über der Grenze, also
+     genau dort, wo „besteht" und „liest sich gut" auseinandergehen —, und
+     die drei Flächen unterschieden sich um den Faktor 1,09, was auf einem
+     durchschnittlichen Bildschirm keine Trennung mehr ist. Jetzt: keine
+     Schriftstufe unter 5,4:1, die Haarlinie deutlich sichtbar, und der
+     Abstand zwischen Grund und Blatt um die Hälfte größer. */
+  --surface-0: light-dark(#f2f2f2, #121214);
+  --surface-1: light-dark(#e6e6e6, #0b0b0c);
+  --surface-2: light-dark(#ffffff, #1f1f22);
+  --text-primary: light-dark(#16161a, #f4f4f5);
+  --text-secondary: light-dark(#48484e, #b4b4ba);
+  --text-muted: light-dark(#5a5a60, #9b9ba1);
+  --border: light-dark(rgba(0, 0, 0, 0.16), rgba(255, 255, 255, 0.2));
+  --border-strong: light-dark(rgba(0, 0, 0, 0.28), rgba(255, 255, 255, 0.34));
   /* The three message colours of the website, and the rule that they never
      work alone.
 

@@ -214,12 +214,12 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
         {/* Der Weg zurück in den Workspace. Er steht oben und nicht in einem
             Menü, weil er das Gegenstück zum Schalter dort ist: zwei Schalen,
             eine Bewegung zwischen ihnen. */}
-        <nav className="shell-schalter" aria-label={t("workspace.schalterAria")}>
+        <nav className="shell-schalter" aria-label={t("team.schalterAria")}>
           <Link to="/" className="shell-schalter-aus">
-            {t("workspace.workspace")}
+            {t("team.workspace")}
           </Link>
           <span className="shell-schalter-an" aria-current="page">
-            {t("workspace.verwaltung")}
+            {t("team.verwaltung")}
           </span>
         </nav>
         {/* The navigation grew — the order showed when something was added,

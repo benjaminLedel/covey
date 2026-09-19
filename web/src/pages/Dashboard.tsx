@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
+import { Avatar } from "../components/person";
 import { api, post, del, ApiError, isDraft, type Agent, type AgentTemplate, type Department, type Principal } from "../api";
 import { rollAgentName, slugify } from "../names";
 import { fmtUSD } from "../format";
@@ -358,18 +359,6 @@ export default function Dashboard({ me }: { me: Principal }) {
   );
 }
 
-/* The initials: letters and digits only.
-   Otherwise "QA-Agent (GitLab)" becomes a circle reading "Q(" — the
-   bracket is the first character of the second word. */
-function initialsOf(name: string): string {
-  return name
-    .split(/[\s-]+/)
-    .map((w) => w.replace(/[^\p{L}\p{N}]/gu, "")[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-}
 
 /* An agent card.
  *
@@ -405,7 +394,9 @@ function AgentRow({
   const draft = isDraft(agent);
   return (
     <Link to={`/agents/${agent.id}`} className={`reg-row no-underline${draft ? " reg-row-draft" : ""}`}>
-      <div className="avatar shrink-0">{initialsOf(agent.display_name)}</div>
+      {/* Dasselbe Gesicht wie im Team und im Organigramm — es wird aus dem
+          Kürzel gerechnet, also ist es überall dasselbe. */}
+      <Avatar name={agent.display_name} slug={agent.slug} zustand={stateOf(agent)} size={34} />
       <div className="reg-wer min-w-0">
         {/* The job title is what the eye scans — "who in support" is
             answered by "software developer", not by `engineer-1`. */}

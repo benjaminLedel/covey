@@ -6,6 +6,7 @@ import { api, inbox, type Agent, type Department, type Principal } from "../api"
 import { BirdMark } from "../components/BirdMark";
 import HelpDrawer from "../components/HelpDrawer";
 import ShellFoot from "../components/ShellFoot";
+import Gesicht from "../components/Gesicht";
 
 /* Die Stilvorlage der angemeldeten Oberfläche. Sie hing bisher allein an der
    Konsole; seit es zwei Schalen gibt, braucht jede sie — wer über die Wurzel
@@ -30,35 +31,15 @@ const Wartet = lazy(() => import("./Wartet"));
 /** Ein Agent, der Arbeit annehmen kann. Ein Bewerber ist ein Entwurf. */
 const eingestellt = (a: Agent) => a.status !== "applicant";
 
-/** Das Monogramm: die Anfangsbuchstaben der ersten beiden Wörter. */
-const monogramm = (name: string) => {
-  const teile = name.trim().split(/\s+/).filter(Boolean);
-  if (teile.length === 0) return "?";
-  if (teile.length === 1) return teile[0].slice(0, 2).toUpperCase();
-  return (teile[0][0] + teile[teile.length - 1][0]).toUpperCase();
-};
+/** Der Zustand, den das Gesicht zeigt — dieselbe Ableitung wie im Dashboard. */
+const zustandVon = (a: Agent) => (a.killed ? "killed" : a.status === "sleeping" ? "sleeping" : "working");
 
-/* Die Abteilungsfarbe liegt im RING des Zeichens, nicht unter der Schrift.
-   
-   Zwei Fassungen davor sind daran gescheitert, und beide messbar: Gefüllt
-   hielt weder Weiß noch Tinte die 4,5:1 — die Farbe wählt eine Organisation
-   selbst, sie kann jeder Wert sein, und Lighthouse hat das an einem Petrol
-   der Demodaten gemeldet. Als Tönung bei 22 % war der Kontrast in Ordnung und
-   die Farbe verschwunden; bei mehr Prozent kippt es im Dunkelmodus, wo ein
-   heller Firmenton die Fläche aufhellt, auf der die helle Schrift steht.
-   
-   Im Ring gilt keins von beidem: Er steht neben der Schrift, nicht unter ihr,
-   trägt den Ton ungemischt, und die Bedeutung hängt ohnehin nicht an ihm —
-   die Überschrift der Gruppe nennt die Abteilung beim Namen. */
-const abteilungsTon = (farbe: string) =>
-  farbe
-    ? {
-        boxShadow: `inset 0 0 0 2px ${farbe}`,
-        background: `color-mix(in srgb, ${farbe} 12%, transparent)`,
-      }
-    : undefined;
+/* Die Abteilungsfarbe steht am Kopf der Gruppe und nicht noch einmal am
+   einzelnen Kollegen: Seit jeder ein Gesicht hat, trägt das Zeichen schon
+   eine Farbe, und zwei Farbträger an einem Zeichen sind einer zu viel — der
+   Ring hat das Gesicht eingerahmt, statt es zu zeigen. */
 
-export default function Workspace({ me, onLogout }: { me: Principal; onLogout: () => void }) {
+export default function Team({ me, onLogout }: { me: Principal; onLogout: () => void }) {
   const { t } = useTranslation();
   const [helpOpen, setHelpOpen] = useState(false);
 
@@ -117,7 +98,7 @@ export default function Workspace({ me, onLogout }: { me: Principal; onLogout: (
       .filter((g) => g.mitglieder.length > 0),
     {
       id: "",
-      name: t("workspace.ohneAbteilung"),
+      name: t("team.ohneAbteilung"),
       color: "",
       mitglieder: liste.filter((a) => !a.department_id || !depts.some((d) => d.id === a.department_id)),
     },
@@ -127,77 +108,73 @@ export default function Workspace({ me, onLogout }: { me: Principal; onLogout: (
 
   return (
     <div className="flex min-h-screen">
-      <aside className="sidebar ws-sidebar">
+      <aside className="sidebar tm-sidebar">
         <div className="brand">
           <BirdMark size={26} />
           covey
         </div>
 
         {/* Derselbe Schalter wie in der Konsole, an derselben Stelle. */}
-        <nav className="shell-schalter" aria-label={t("workspace.schalterAria")}>
+        <nav className="shell-schalter" aria-label={t("team.schalterAria")}>
           <span className="shell-schalter-an" aria-current="page">
-            {t("workspace.workspace")}
+            {t("team.workspace")}
           </span>
           <Link to="/agents" className="shell-schalter-aus">
-            {t("workspace.verwaltung")}
+            {t("team.verwaltung")}
           </Link>
         </nav>
 
-        <div className="ws-suche">
+        <div className="tm-suche">
           <input
             ref={suchfeld}
             type="search"
             value={suche}
             onChange={(e) => setSuche(e.target.value)}
             onKeyDown={(e) => e.key === "Escape" && setSuche("")}
-            placeholder={t("workspace.suche")}
-            aria-label={t("workspace.suche")}
+            placeholder={t("team.suche")}
+            aria-label={t("team.suche")}
           />
         </div>
 
-        <nav className="ws-liste" aria-label={t("workspace.kollegen")}>
-          <NavLink to="/" end className={({ isActive }) => `ws-wartet ${isActive ? "on" : ""}`}>
-            <span className="ws-wartet-punkt" data-offen={offen > 0} aria-hidden="true" />
-            {t("workspace.wartet")}
-            {offen > 0 && <span className="ws-zahl">{offen}</span>}
+        <nav className="tm-liste" aria-label={t("team.kollegen")}>
+          <NavLink to="/" end className={({ isActive }) => `tm-wartet ${isActive ? "on" : ""}`}>
+            <span className="tm-wartet-punkt" data-offen={offen > 0} aria-hidden="true" />
+            {t("team.wartet")}
+            {offen > 0 && <span className="tm-zahl">{offen}</span>}
           </NavLink>
 
-          {agents.isLoading && <p className="ws-leise">{t("common.loading")}</p>}
+          {agents.isLoading && <p className="tm-leise">{t("common.loading")}</p>}
           {!agents.isLoading && liste.length === 0 && (
-            <p className="ws-leise">{begriff ? t("workspace.nichtsGefunden") : t("chat.noAgents")}</p>
+            <p className="tm-leise">{begriff ? t("team.nichtsGefunden") : t("chat.noAgents")}</p>
           )}
 
           {gruppen.map((g) => (
-            <section key={g.id || "ohne"} className="ws-gruppe">
-              <h2 className="ws-gruppe-kopf">
-                {g.color && <span className="ws-dept-punkt" style={{ background: g.color }} aria-hidden="true" />}
+            <section key={g.id || "ohne"} className="tm-gruppe">
+              <h2 className="tm-gruppe-kopf">
+                {g.color && <span className="tm-dept-punkt" style={{ background: g.color }} aria-hidden="true" />}
                 {g.name}
               </h2>
               {g.mitglieder.map((a) => (
                 <NavLink
                   key={a.id}
-                  to={`/w/${a.id}`}
-                  className={({ isActive }) => `ws-kollege ${isActive ? "on" : ""}`}
+                  to={`/team/${a.id}`}
+                  className={({ isActive }) => `tm-kollege ${isActive ? "on" : ""}`}
                 >
-                  {/* Das Zeichen trägt die Farbe der Abteilung. Sie ist das
-                      Einzige an dieser Liste, was aus der Organisation selbst
-                      kommt — und sie sagt auf einen Blick, wer zu wem
-                      gehört, auch wenn die Überschrift weggescrollt ist. */}
-                  <span
-                    className="ws-kollege-zeichen"
-                    aria-hidden="true"
-                    style={abteilungsTon(g.color)}
-                  >
-                    {monogramm(a.display_name)}
+                  {/* Das Gesicht macht den Kollegen unterscheidbar, bevor man
+                      den Namen liest, und zeigt seinen Zustand. Der Ring
+                      darum trägt die Farbe der Abteilung — das Einzige an
+                      dieser Liste, was aus der Organisation selbst kommt. */}
+                  <span className="tm-kollege-zeichen">
+                    <Gesicht schluessel={a.slug} zustand={zustandVon(a)} groesse={22} />
                   </span>
-                  <span className="ws-kollege-text">
-                    <span className="ws-kollege-name">
-                      <span className="ws-kollege-wort">{a.display_name}</span>
+                  <span className="tm-kollege-text">
+                    <span className="tm-kollege-name">
+                      <span className="tm-kollege-wort">{a.display_name}</span>
                       {wartetBei.has(a.id) && (
-                        <span className="ws-kollege-wartet" title={t("workspace.wartet")} aria-label={t("workspace.wartet")} />
+                        <span className="tm-kollege-wartet" title={t("team.wartet")} aria-label={t("team.wartet")} />
                       )}
                     </span>
-                    <span className="ws-kollege-rolle">{a.job_title || a.slug}</span>
+                    <span className="tm-kollege-rolle">{a.job_title || a.slug}</span>
                   </span>
                 </NavLink>
               ))}
@@ -208,11 +185,11 @@ export default function Workspace({ me, onLogout }: { me: Principal; onLogout: (
         <ShellFoot me={me} onLogout={onLogout} onHelp={() => setHelpOpen(true)} />
       </aside>
 
-      <main className="ws-haupt">
+      <main className="tm-haupt">
         <Suspense fallback={null}>
           <Routes>
             <Route path="/" element={<Wartet me={me} />} />
-            <Route path="/w/:id" element={<ThreadRoute me={me} />} />
+            <Route path="/team/:id" element={<ThreadRoute me={me} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>

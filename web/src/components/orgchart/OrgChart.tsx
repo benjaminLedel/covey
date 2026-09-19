@@ -708,7 +708,13 @@ function MemberCard({ node, editing, depts, members, dragging, canDrop, onDragSt
       <div className="orgc-row">
         {editing && <span className="orgc-grip" title={t("org.chart.grip")}><Ico d={IC.grip} size={16} /></span>}
         <Link to={isAgent ? `/agents/${m.id}` : `/people/${m.id}`} className="orgc-who" draggable={false} title={t("org.openProfile")} aria-label={`${name}: ${t("org.openProfile")}`}>
-          <Avatar name={name} size={30} human={!isAgent} />
+          <Avatar
+            name={name}
+            size={30}
+            human={!isAgent}
+            slug={isAgent ? m.agent.slug : undefined}
+            zustand={isAgent ? (m.agent.killed ? "killed" : m.agent.status === "sleeping" ? "sleeping" : "working") : undefined}
+          />
           <span className="orgc-text">
             <span className="orgc-nm">{name}</span>
             <span className={`orgc-rl${isAgent && !role ? " mono" : ""}`}>

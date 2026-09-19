@@ -28,24 +28,24 @@ export default function Wartet({ me }: { me: Principal }) {
   const items = offen.data?.items ?? [];
 
   return (
-    <div className="ws-wartet-seite">
-      <header className="ws-wartet-kopf">
-        <h1>{t("workspace.wartetTitel", { name: me.DisplayName || me.Email })}</h1>
-        <p className="ws-leise">
-          {items.length === 0 ? t("workspace.wartetNichts") : t("workspace.wartetLead", { count: items.length })}
+    <div className="tm-wartet-seite">
+      <header className="tm-wartet-kopf">
+        <h1>{t("team.wartetTitel", { name: me.DisplayName || me.Email })}</h1>
+        <p className="tm-leise">
+          {items.length === 0 ? t("team.wartetNichts") : t("team.wartetLead", { count: items.length })}
         </p>
       </header>
 
-      {offen.isLoading && <p className="ws-leise">{t("common.loading")}</p>}
+      {offen.isLoading && <p className="tm-leise">{t("common.loading")}</p>}
 
-      <ul className="ws-wartet-liste">
+      <ul className="tm-wartet-liste">
         {items.map((e: InboxEntry) => (
           <li key={`${e.type}-${e.id}`}>
-            <Link to={e.type === "approval" ? "/inbox" : `/w/${e.agent_id}`} className="ws-wartet-zeile">
-              <span className={`ws-art a-${e.type}`}>{t(`workspace.art.${e.type}`)}</span>
-              <span className="ws-wartet-titel">{e.title}</span>
-              <span className="ws-wartet-wer">{e.agent_name}</span>
-              <time className="ws-leise" dateTime={e.created_at}>
+            <Link to={e.type === "approval" ? "/inbox" : `/team/${e.agent_id}`} className="tm-wartet-zeile">
+              <span className={`tm-art a-${e.type}`}>{t(`team.art.${e.type}`)}</span>
+              <span className="tm-wartet-titel">{e.title}</span>
+              <span className="tm-wartet-wer">{e.agent_name}</span>
+              <time className="tm-leise" dateTime={e.created_at}>
                 {new Date(e.created_at).toLocaleString()}
               </time>
             </Link>
@@ -54,8 +54,8 @@ export default function Wartet({ me }: { me: Principal }) {
       </ul>
 
       {items.length > 0 && (
-        <Link to="/inbox" className="ws-wartet-alle">
-          {t("workspace.alleOffenen")}
+        <Link to="/inbox" className="tm-wartet-alle">
+          {t("team.alleOffenen")}
         </Link>
       )}
     </div>

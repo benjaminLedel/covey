@@ -1,7 +1,7 @@
 /* Die Piktogramme der Navigation und das Monogramm.
  *
  * Sie standen in AppShell.tsx, solange es eine Schale gab. Mit der zweiten
- * (workspace/) brauchten beide dasselbe, und ein Export aus AppShell heraus
+ * (team/) brauchten beide dasselbe, und ein Export aus AppShell heraus
  * wäre ein Ring geworden: Die Fußzeile, die AppShell benutzt, hätte AppShell
  * importiert. Also liegen sie hier, und beide Schalen holen sie sich.
  */

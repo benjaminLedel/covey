@@ -2319,10 +2319,10 @@
       "error": "失败"
     }
   },
-  "workspace": {
-    "workspace": "工作区",
+  "team": {
+    "workspace": "团队",
     "verwaltung": "管理",
-    "schalterAria": "在工作区与管理之间切换",
+    "schalterAria": "在团队与管理之间切换",
     "kollegen": "同事",
     "wartet": "等着您",
     "wartetTitel": "您好，{{name}}",

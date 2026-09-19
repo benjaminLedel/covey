@@ -2319,10 +2319,10 @@
       "error": "Fallito"
     }
   },
-  "workspace": {
-    "workspace": "Spazio",
+  "team": {
+    "workspace": "Squadra",
     "verwaltung": "Amministrazione",
-    "schalterAria": "Passare tra spazio di lavoro e amministrazione",
+    "schalterAria": "Passare tra squadra e amministrazione",
     "kollegen": "Colleghi",
     "wartet": "In attesa di lei",
     "wartetTitel": "Buongiorno, {{name}}",
