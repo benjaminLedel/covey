@@ -35,3 +35,22 @@ func TestLesen(t *testing.T) {
 		})
 	}
 }
+
+// TestLesenKennt die drei Aktionen — und lehnt die Notiz ohne Ziel ab. Eine
+// Notiz ohne Aufgabe wäre ein Text, der nirgends landet, und genau das darf
+// bei einer Nachricht nie passieren.
+func TestLesenNotiz(t *testing.T) {
+	e, err := lesen(`{"action":"note","task":"ab12","text":"Der Kunde hat nachgereicht."}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.Aktion != AktionNotiz || e.Aufgabe != "ab12" {
+		t.Fatalf("note: %+v", e)
+	}
+	if _, err := lesen(`{"action":"note","text":"ohne Ziel"}`); err == nil {
+		t.Fatal("a note without a task must not pass")
+	}
+	if _, err := lesen(`{"action":"note","task":"ab12"}`); err == nil {
+		t.Fatal("a note without text must not pass")
+	}
+}

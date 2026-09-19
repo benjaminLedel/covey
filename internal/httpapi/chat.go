@@ -25,6 +25,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -332,7 +333,36 @@ func (s *Server) handleChatMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	entscheidung := s.triagieren(r.Context(), p.OrgID, id, text)
+	entscheidung, offen := s.triagieren(r.Context(), p.OrgID, id, text)
+
+	/* Die Notiz an eine laufende Aufgabe: Statt eines zweiten Vorgangs für
+	   dieselbe Sache bekommt der bestehende, was dazugekommen ist — und wenn
+	   er auf eine Antwort wartete, weckt ihn das über denselben Weg wie eine
+	   Antwort von Hand. */
+	if entscheidung.Aktion == chat.AktionNotiz {
+		if ziel, ok := offen[entscheidung.Aufgabe]; ok {
+			if _, err := s.Backlog.AddNote(r.Context(), ziel, "human:"+p.Email, entscheidung.Text); err != nil {
+				mapErr(w, err)
+				return
+			}
+			geweckt := false
+			if _, err := s.Backlog.Answer(r.Context(), ziel, p.Email, entscheidung.Text); err == nil {
+				geweckt = true
+			}
+			if err := s.Chat.LinkTask(r.Context(), msg.ID, ziel); err != nil {
+				mapErr(w, err)
+				return
+			}
+			msg.TaskID = &ziel
+			writeJSON(w, http.StatusCreated, map[string]any{"message": msg, "noted": true, "woken": geweckt})
+			return
+		}
+		/* Eine Kennung, die es nicht gibt: Das Modell hat sich eine ausgedacht,
+		   und dann ist es eine neue Aufgabe — nie eine stillschweigend
+		   verworfene Nachricht. */
+		entscheidung = chat.Entscheidung{Aktion: chat.AktionAufgabe}
+	}
+
 	if entscheidung.Aktion == chat.AktionAntwort {
 		if _, err := s.Chat.Add(r.Context(), p.OrgID, id, "agent", entscheidung.Text); err != nil {
 			mapErr(w, err)
@@ -372,28 +402,85 @@ func (s *Server) handleChatMessage(w http.ResponseWriter, r *http.Request) {
 // with a model that answered nonsense gets the behaviour it had before #302,
 // and nobody has to be told about it. The one thing that must never happen is
 // that a message disappears because a model was not available.
-func (s *Server) triagieren(ctx context.Context, orgID, agentID uuid.UUID, text string) chat.Entscheidung {
+func (s *Server) triagieren(ctx context.Context, orgID, agentID uuid.UUID, text string) (chat.Entscheidung, map[string]uuid.UUID) {
 	aufgabe := chat.Entscheidung{Aktion: chat.AktionAufgabe}
 
 	mode, err := s.Chat.Mode(ctx, orgID)
 	if err != nil || mode != chat.TriageOn {
-		return aufgabe
+		return aufgabe, nil
 	}
 	provider, err := llm.Resolve(ctx, s.Secrets, orgID)
 	if err != nil {
-		return aufgabe
+		return aufgabe, nil
 	}
 	verlauf, err := s.Chat.Recent(ctx, agentID, triageKontext)
 	if err != nil {
-		return aufgabe
+		return aufgabe, nil
 	}
+	liste, nach := s.offeneAufgaben(ctx, agentID)
 
-	e, err := chat.Triagieren(ctx, provider, s.rolleVon(ctx, agentID), verlauf, text)
+	e, err := chat.Triagieren(ctx, provider, s.rolleVon(ctx, agentID), liste, verlauf, text)
 	if err != nil {
 		s.Log.Warn("triage failed — the message becomes a task", "agent", agentID, "err", err)
-		return aufgabe
+		return aufgabe, nil
 	}
-	return e
+	return e, nach
+}
+
+// offeneAufgaben ist der Blick des Agenten auf seinen eigenen Backlog: was
+// noch läuft, knapp genug, dass es in einen Prompt passt.
+//
+// Die kurze Kennung sind die ersten vier Zeichen der UUID. Sie ist keine
+// Adresse, sondern ein Griff für diesen einen Zug — deshalb kommt die
+// Zuordnung zurück und wird nicht aus dem Text wieder aufgelöst: Was das
+// Modell sagt, wird nie zu einer Kennung, die irgendwo hinzeigt, die es sich
+// nicht selbst hat zeigen lassen.
+func (s *Server) offeneAufgaben(ctx context.Context, agentID uuid.UUID) ([]chat.Offen, map[string]uuid.UUID) {
+	tasks, err := s.Backlog.ListByAgent(ctx, agentID, false)
+	if err != nil {
+		return nil, nil
+	}
+	liste := make([]chat.Offen, 0, len(tasks))
+	nach := map[string]uuid.UUID{}
+	for _, t := range tasks {
+		switch t.State {
+		case backlog.StateOpen, backlog.StateInProgress, backlog.StateBlocked:
+		default:
+			continue
+		}
+		kurz := t.ID.String()[:4]
+		if _, doppelt := nach[kurz]; doppelt {
+			continue
+		}
+		nach[kurz] = t.ID
+		liste = append(liste, chat.Offen{
+			Kurz:   kurz,
+			Titel:  t.Title,
+			Status: t.State,
+			Alter:  alter(t.CreatedAt),
+		})
+		if len(liste) >= triageAufgaben {
+			break
+		}
+	}
+	return liste, nach
+}
+
+// triageAufgaben: wie viele offene Vorgänge der Zug zu sehen bekommt. Ein
+// Agent mit zweihundert offenen Aufgaben hat ein anderes Problem als die
+// Frage, ob diese Nachricht dazugehört.
+const triageAufgaben = 25
+
+func alter(t time.Time) string {
+	d := time.Since(t)
+	switch {
+	case d < time.Hour:
+		return fmt.Sprintf("%d min old", int(d.Minutes()))
+	case d < 48*time.Hour:
+		return fmt.Sprintf("%d h old", int(d.Hours()))
+	default:
+		return fmt.Sprintf("%d days old", int(d.Hours()/24))
+	}
 }
 
 // triageKontext: wie viele frühere Nachrichten der Zug zu sehen bekommt. Mehr

@@ -2363,6 +2363,9 @@
     "arbeitenJetzt": "Teraz pracują",
     "ueberblickArbeiten": "Pracuje {{count}}. Nic nie czeka na decyzję.",
     "ueberblickStill": "Teraz jest spokojnie. Proszę napisać komuś, co jest do zrobienia.",
-    "auftrag": "Zlecenie"
+    "auftrag": "Zlecenie",
+    "anhaengen": "Załącz plik",
+    "anhangEntfernen": "Usuń {{name}}",
+    "anhangZeile": "Załącznik na stanowisku pracy: {{pfade}}"
   }
 }

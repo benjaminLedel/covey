@@ -17,13 +17,22 @@ import (
  *
  * Was dieser Zug NICHT hat, ist die eigentliche Aussage:
  *
- *   keine Werkzeuge, keine Zielsysteme, keine Zugangsdaten.
+ *   keine Zielsysteme, keine Zugangsdaten, keine Sandbox.
  *
- * Er liest das Gespräch und erzeugt Text. Alles, wofür er mehr bräuchte, ist
- * genau der Grund, stattdessen eine Aufgabe zu eröffnen — und das ist keine
- * Einschränkung, die man später lockert, sondern die Grenze, die diesen Weg
- * überhaupt zulässig macht. Ein billiger Pfad darf nicht der billige Weg an
- * den Guard-Rails vorbei werden (spec/28, Abschnitt 5).
+ * Kein Ticketsystem, kein Repository, kein Postfach, keine Datei, kein
+ * Kommando. Alles, wofür er das bräuchte, ist genau der Grund, stattdessen
+ * eine Aufgabe zu eröffnen — und das ist keine Einschränkung, die man später
+ * lockert, sondern die Grenze, die diesen Weg überhaupt zulässig macht. Ein
+ * billiger Pfad darf nicht der billige Weg an den Guard-Rails vorbei werden
+ * (spec/28, Abschnitt 5).
+ *
+ * WAS er hat, ist der eigene Backlog: Er sieht die offenen Aufgaben dieses
+ * Agenten und kann in sie schreiben. Das ist kein Widerspruch zur Grenze,
+ * sondern ihre andere Seite — der Backlog ist coveys eigenes Objekt, kein
+ * fremdes System. Ihn zu lesen braucht keine Zugangsdaten und verlässt das
+ * Haus nicht, und ohne ihn kann der Agent auf „woran arbeitest du gerade?"
+ * nur raten. Darum drei Möglichkeiten statt zwei: antworten, an eine
+ * bestehende Aufgabe schreiben, oder eine neue eröffnen.
  */
 
 // Aktion ist, was mit einer Nachricht geschehen soll.
@@ -34,6 +43,10 @@ const (
 	AktionAntwort Aktion = "answer"
 	// AktionAufgabe: das ist Arbeit — der gewöhnliche Backlog-Vorgang.
 	AktionAufgabe Aktion = "task"
+	// AktionNotiz: das gehört zu etwas, das schon läuft. Statt einer zweiten
+	// Aufgabe für denselben Vorgang bekommt die bestehende eine Notiz — und
+	// wenn sie auf eine Antwort wartet, weckt sie das.
+	AktionNotiz Aktion = "note"
 )
 
 // Entscheidung ist, was die Triage zurückgibt.
@@ -46,6 +59,18 @@ type Entscheidung struct {
 	// Bei einer Aufgabe: Titel und Rumpf, wie der Agent sie formuliert.
 	Titel string `json:"title"`
 	Rumpf string `json:"body"`
+	// Bei einer Notiz: welche der offenen Aufgaben gemeint ist, mit der
+	// kurzen Kennung aus der Liste, die dem Zug gezeigt wurde.
+	Aufgabe string `json:"task"`
+}
+
+// Offen ist eine Aufgabe, wie der Zug sie zu sehen bekommt: knapp, und ohne
+// alles, was er nicht braucht, um sie wiederzuerkennen.
+type Offen struct {
+	Kurz   string
+	Titel  string
+	Status string
+	Alter  string
 }
 
 // TriageMaxTokens: die Antwort ist ein kurzes JSON-Objekt. Wer hier viel
@@ -56,27 +81,42 @@ const triageSystem = `You are the triage step of an AI agent inside covey, a pla
 
 A person wrote a message to this agent. Decide what kind of thing it is, and answer with ONE JSON object and nothing else:
 
-{"action":"answer","text":"…"}      — you can settle it right here, from the conversation alone
-{"action":"task","title":"…","body":"…"}  — this is work
+{"action":"answer","text":"…"}                 — you can settle it right here
+{"action":"note","task":"ab12","text":"…"}     — this belongs to a task you already have
+{"action":"task","title":"…","body":"…"}       — this is new work
 
-Choose "answer" when the message is a question about what was already said in this thread, a thank-you, a greeting, an acknowledgement, or a clarification you can give without looking anything up.
+Choose "answer" when the message is a question about what was already said in this thread or about your own open tasks (they are listed below), a thank-you, a greeting, an acknowledgement, or a clarification you can give without looking anything up.
+
+Choose "note" when the message adds to, corrects or asks about one specific task you already have. Use the short id from the list. Your text is written onto that task, and if it was waiting for an answer this releases it. Do not open a second task for the same thing.
 
 Choose "task" when doing it would need any of: a target system (ticketing, repository, mailbox, calendar), a file, a command, a search outside this conversation, a decision with consequences, or more than a moment of work. When in doubt choose "task" — an unnecessary task costs a run, a wrongly answered job costs the work itself.
 
-You have NO tools, NO access to any system, and NO memory beyond the messages below. Never claim to have done, checked, sent or looked at anything. If answering would require any of that, it is a task.
+You can see your own backlog and write to it, and that is all. You have NO target system, NO credentials, NO files, NO commands, NO search and NO memory beyond what stands below. Never claim to have done, checked, sent or looked at anything outside this list. If answering would require any of that, it is a task.
 
 For "answer": write in the agent's voice, in the language of the message, at most three sentences. A bare emoji (1–3 characters) is a valid answer when the message only needs acknowledging.
+For "note": the text is what the run should know, in one or two sentences.
 For "task": the title is one line in the imperative, the body carries what the person said and any context from the thread that the run will need.`
 
 // Triagieren führt den Zug aus. Der Fehlerfall ist bewusst weich: Wer nicht
 // entscheiden kann, eröffnet eine Aufgabe — das ist das Verhalten, das immer
 // funktioniert, und der Aufrufer muss dafür nichts wissen.
-func Triagieren(ctx context.Context, p llm.Provider, rolle string, verlauf []Message, nachricht string) (Entscheidung, error) {
+func Triagieren(ctx context.Context, p llm.Provider, rolle string, offen []Offen, verlauf []Message, nachricht string) (Entscheidung, error) {
 	var b strings.Builder
 	if rolle != "" {
 		b.WriteString("The agent's role:\n")
 		b.WriteString(rolle)
 		b.WriteString("\n\n")
+	}
+	/* Der eigene Backlog. Er steht vor dem Gespräch, weil er der Zustand ist
+	   und das Gespräch nur die Bewegung darauf. */
+	if len(offen) > 0 {
+		b.WriteString("Your open tasks:\n")
+		for _, o := range offen {
+			fmt.Fprintf(&b, "  [%s] %s — %s, %s\n", o.Kurz, kuerzen(o.Titel, 120), o.Status, o.Alter)
+		}
+		b.WriteString("\n")
+	} else {
+		b.WriteString("You have no open tasks.\n\n")
 	}
 	if len(verlauf) > 0 {
 		b.WriteString("The conversation so far, oldest first:\n")
@@ -131,6 +171,10 @@ func lesen(roh string) (Entscheidung, error) {
 	case AktionAufgabe:
 		if strings.TrimSpace(e.Titel) == "" {
 			return Entscheidung{}, fmt.Errorf("triage: task without title")
+		}
+	case AktionNotiz:
+		if strings.TrimSpace(e.Aufgabe) == "" || strings.TrimSpace(e.Text) == "" {
+			return Entscheidung{}, fmt.Errorf("triage: note without task or text")
 		}
 	default:
 		return Entscheidung{}, fmt.Errorf("triage: unknown action %q", e.Aktion)

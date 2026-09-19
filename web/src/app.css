@@ -2214,7 +2214,11 @@
    Was bleibt, ist der Unterschied im INHALT: dort dreizehn Ziele, hier die
    Kollegen — und rechts kein gepolstertes Blatt, sondern ein Verlauf, der
    selbst scrollt und sein Eingabefeld unten festhält. */
+/* Schmaler als in der Konsole: Dort stehen dreizehn Ziele mit Beschriftung,
+   hier Namen und ein Gesicht — und rechts daneben liegt ein Gespräch, das
+   jede Spalte Breite gebrauchen kann. */
 .tm-sidebar {
+  width: 208px;
   /* Die Liste dazwischen wächst und scrollt, damit der Fuß unten stehen
      bleibt: In der Konsole tut das eine `mt-auto`-Gruppe, hier die Liste
      selbst — sie ist das Einzige, was beliebig lang wird. */
@@ -2533,16 +2537,92 @@
 .tm-antwort textarea { width: 100%; resize: vertical; }
 .tm-antwort-knoepfe { display: flex; gap: 8px; }
 
+/* Der Eingabebereich ist ein Feld, kein Formular: ein gerundeter Kasten, in
+   dem Büroklammer, Text und Senden nebeneinander liegen. Vorher standen ein
+   Kasten und ein Knopf nebeneinander, und der Knopf sah aus wie das Ende
+   eines Dialogs statt wie das Ende eines Satzes. */
 .tm-eingabe {
   flex: none;
-  display: flex;
-  gap: 10px;
-  align-items: flex-end;
-  padding: 14px 24px 18px;
+  padding: 12px 24px 18px;
   border-top: 1px solid var(--border);
   background: var(--surface-2);
 }
-.tm-eingabe textarea { flex: 1; resize: vertical; }
+.tm-eingabe-reihe {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 5px 5px 5px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 16px;
+  background: var(--surface-0);
+  transition: border-color 0.15s;
+}
+.tm-eingabe-reihe:focus-within { border-color: var(--accent-ring); }
+.tm-eingabe-reihe textarea {
+  flex: 1;
+  min-height: 34px;
+  max-height: 40vh;
+  padding: 7px 2px;
+  border: 0;
+  background: none;
+  resize: none;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  outline: none;
+  field-sizing: content;
+}
+.tm-eingabe-reihe textarea::placeholder { color: var(--text-muted); }
+.tm-eingabe-knopf,
+.tm-eingabe-senden {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+}
+.tm-eingabe-knopf { color: var(--text-muted); }
+.tm-eingabe-knopf:hover:not(:disabled) { background: var(--tint); color: var(--text-primary); }
+/* Senden ist gefüllt: die eine Handlung dieses Kastens. */
+.tm-eingabe-senden { background: var(--accent-solid); color: var(--on-accent); }
+.tm-eingabe-senden:disabled { background: var(--tint); color: var(--text-muted); }
+.tm-eingabe-knopf .ic,
+.tm-eingabe-senden .ic {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Was mitgeschickt wird, steht über dem Feld — als Liste, die man wieder
+   leeren kann, bevor sie im Arbeitsplatz des Agenten liegt. */
+.tm-anhaenge { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.tm-anhang {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 260px;
+  padding: 4px 6px 4px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-0);
+  font-size: 12.5px;
+}
+.tm-anhang .ic { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.9; color: var(--text-muted); }
+.tm-anhang-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm-anhang button {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  color: var(--text-muted);
+  line-height: 1;
+}
+.tm-anhang button:hover { background: var(--tint); color: var(--text-primary); }
 .tm-fehler { padding: 0 24px 12px; color: var(--text-danger); font-size: 13px; }
 
 .tm-leer { margin: auto; text-align: center; max-width: 42ch; }

@@ -83,9 +83,16 @@ write a config. Off is the default, and off means today's behaviour exactly.
 The limits are the point, not a detail, because the turn runs **outside the
 sandbox**:
 
-- no tools, no target systems, no credentials — it reads the conversation and
-  produces text; everything it would need beyond that is the reason to open a
-  task instead
+- no target systems, no credentials, no sandbox — no ticketing, no repository,
+  no mailbox, no file, no command. Everything it would need beyond that is the
+  reason to open a task instead
+- **but its own backlog, read and write.** That is the other side of the same
+  line, not an exception to it: the backlog is covey's own object, reading it
+  needs no credential and leaves nothing, and without it the agent can only
+  guess at "what are you working on?". So there are three moves, not two —
+  answer, write onto a task that already exists, or open a new one. The short
+  id a note refers to is one the turn was shown; what the model says never
+  becomes an identifier pointing at something it was not handed
 - its output is text or a task, nothing else: no config change, no wake, no
   approval decided
 - it is recorded and counted like any other run ([`06`](06-observability-control.md))

@@ -2,7 +2,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { api, post, type Agent, type ChatEntry, type ChatMark, type Principal } from "../api";
+import { api, post, upload, type Agent, type ChatEntry, type ChatMark, type Principal } from "../api";
 import { Markdown } from "../components/Markdown";
 import { canManage } from "../pages/agent/roles";
 import Gesicht from "../components/Gesicht";
@@ -34,6 +34,11 @@ import { NavIcon } from "../components/navicons";
    einem Kollegen; das alles stand damit auf der Seite des Lesers, der es nie
    geschrieben hatte — und ein Trainingslauf von vierzig Zeilen sah aus wie
    eine Nachricht, die man selbst getippt hat. */
+/* Wohin ein Anhang im Arbeitsplatz des Agenten landet. Ein eigener Ordner,
+   damit das, was von außen hereingereicht wurde, nicht zwischen dem liegt,
+   was der Agent selbst angelegt hat. */
+const ANHANG_ORDNER = "eingang";
+
 const vonMir = (e: ChatEntry) =>
   e.author.startsWith("chat:") || e.author.startsWith("manual:") || e.author.startsWith("human:");
 
@@ -74,6 +79,8 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
   const [antwort, setAntwort] = useState("");
   const [suche, setSuche] = useState("");
   const [sucheOffen, setSucheOffen] = useState(false);
+  const [anhaenge, setAnhaenge] = useState<File[]>([]);
+  const dateiwahl = useRef<HTMLInputElement>(null);
   const ende = useRef<HTMLDivElement>(null);
 
   const agent = useQuery({
@@ -101,10 +108,26 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
   /* Tippt: Die jüngste Aufgabe des Verlaufs steht auf `in_progress`. */
   const tippt = !begriff && alle.length > 0 && alle[alle.length - 1].task_state === "in_progress";
 
+  /* Ein Anhang ist kein Bild neben der Nachricht, sondern eine Datei im
+     Arbeitsplatz des Agenten: Dort kann er sie öffnen, und nur dort nützt sie
+     ihm. Hochgeladen wird deshalb in sein Heimverzeichnis unter `eingang/`,
+     und die Nachricht sagt, was wo liegt — ein Verweis, den auch der Lauf
+     später noch findet. */
   const neu = useMutation({
-    mutationFn: (nachricht: string) => post(`/agents/${agentId}/messages`, { text: nachricht }),
+    mutationFn: async (nachricht: string) => {
+      let voll = nachricht;
+      if (anhaenge.length > 0) {
+        const form = new FormData();
+        for (const f of anhaenge) form.append("file", f, f.name);
+        await upload(`/agents/${agentId}/files/upload?path=${encodeURIComponent(ANHANG_ORDNER)}`, form);
+        const pfade = anhaenge.map((f) => `${ANHANG_ORDNER}/${f.name}`).join(", ");
+        voll = `${nachricht}\n\n(${t("team.anhangZeile", { pfade })})`;
+      }
+      return post(`/agents/${agentId}/messages`, { text: voll });
+    },
     onSuccess: () => {
       setText("");
+      setAnhaenge([]);
       qc.invalidateQueries({ queryKey: ["thread", agentId] });
     },
   });
@@ -134,7 +157,7 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
 
   const abschicken = () => {
     const n = text.trim();
-    if (n && !neu.isPending) neu.mutate(n);
+    if ((n || anhaenge.length > 0) && !neu.isPending) neu.mutate(n);
   };
 
   return (
@@ -343,25 +366,70 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
         <div ref={ende} />
       </div>
 
-      {/* Das Feld unten legt immer eine neue Aufgabe an — nie eine Antwort. */}
+      {/* Das Feld unten richtet sich immer an den Agenten — nie an eine
+          wartende Frage; die beantwortet man an ihr selbst. */}
       <div className="tm-eingabe">
-        <textarea
-          rows={2}
-          value={text}
-          onChange={(ev) => setText(ev.target.value)}
-          onKeyDown={(ev) => {
-            if (ev.key === "Enter" && !ev.shiftKey) {
-              ev.preventDefault();
-              abschicken();
-            }
-          }}
-          disabled={!darfSchreiben}
-          placeholder={darfSchreiben ? t("chat.placeholder") : t("chat.readOnly")}
-          aria-label={t("chat.placeholder")}
-        />
-        <button className="btn primary" onClick={abschicken} disabled={!darfSchreiben || !text.trim() || neu.isPending}>
-          {t("chat.send")}
-        </button>
+        {anhaenge.length > 0 && (
+          <div className="tm-anhaenge">
+            {anhaenge.map((f, i) => (
+              <span key={`${f.name}-${i}`} className="tm-anhang">
+                <NavIcon name="clip" />
+                <span className="tm-anhang-name">{f.name}</span>
+                <button
+                  onClick={() => setAnhaenge((a) => a.filter((_, j) => j !== i))}
+                  aria-label={t("team.anhangEntfernen", { name: f.name })}
+                  title={t("team.anhangEntfernen", { name: f.name })}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="tm-eingabe-reihe">
+          <input
+            ref={dateiwahl}
+            type="file"
+            multiple
+            hidden
+            onChange={(ev) => {
+              setAnhaenge((a) => [...a, ...Array.from(ev.target.files ?? [])]);
+              ev.target.value = "";
+            }}
+          />
+          <button
+            className="tm-eingabe-knopf"
+            onClick={() => dateiwahl.current?.click()}
+            disabled={!darfSchreiben}
+            title={t("team.anhaengen")}
+            aria-label={t("team.anhaengen")}
+          >
+            <NavIcon name="clip" />
+          </button>
+          <textarea
+            rows={1}
+            value={text}
+            onChange={(ev) => setText(ev.target.value)}
+            onKeyDown={(ev) => {
+              if (ev.key === "Enter" && !ev.shiftKey) {
+                ev.preventDefault();
+                abschicken();
+              }
+            }}
+            disabled={!darfSchreiben}
+            placeholder={darfSchreiben ? t("chat.placeholder") : t("chat.readOnly")}
+            aria-label={t("chat.placeholder")}
+          />
+          <button
+            className="tm-eingabe-senden"
+            onClick={abschicken}
+            disabled={!darfSchreiben || (!text.trim() && anhaenge.length === 0) || neu.isPending}
+            title={t("chat.send")}
+            aria-label={t("chat.send")}
+          >
+            <NavIcon name="arrowUp" />
+          </button>
+        </div>
       </div>
       {(neu.isError || beantworten.isError) && (
         <p className="tm-fehler">{String(neu.error ?? beantworten.error)}</p>

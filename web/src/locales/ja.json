@@ -2363,6 +2363,9 @@
     "arbeitenJetzt": "作業中",
     "ueberblickArbeiten": "{{count}} 名が作業中です。判断を待つものはありません。",
     "ueberblickStill": "いまは静かです。誰かに用件を書いてみてください。",
-    "auftrag": "依頼"
+    "auftrag": "依頼",
+    "anhaengen": "ファイルを添付",
+    "anhangEntfernen": "{{name}} を外す",
+    "anhangZeile": "作業環境内の添付：{{pfade}}"
   }
 }

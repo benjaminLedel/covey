@@ -2363,6 +2363,9 @@
     "arbeitenJetzt": "Nu aan het werk",
     "ueberblickArbeiten": "{{count}} zijn aan het werk. Niets vraagt om een beslissing.",
     "ueberblickStill": "Het is rustig. Schrijf iemand wat er moet gebeuren.",
-    "auftrag": "Opdracht"
+    "auftrag": "Opdracht",
+    "anhaengen": "Bestand toevoegen",
+    "anhangEntfernen": "{{name}} verwijderen",
+    "anhangZeile": "Bijlage op de werkplek: {{pfade}}"
   }
 }

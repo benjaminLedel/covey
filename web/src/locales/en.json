@@ -2363,6 +2363,9 @@
     "arbeitenJetzt": "Working now",
     "ueberblickArbeiten": "{{count}} are working. Nothing needs a decision.",
     "ueberblickStill": "It is quiet. Write to somebody about what needs doing.",
-    "auftrag": "Work order"
+    "auftrag": "Work order",
+    "anhaengen": "Attach a file",
+    "anhangEntfernen": "Remove {{name}}",
+    "anhangZeile": "Attached in the workplace: {{pfade}}"
   }
 }

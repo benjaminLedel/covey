@@ -2363,6 +2363,9 @@
     "arbeitenJetzt": "Au travail",
     "ueberblickArbeiten": "{{count}} travaillent. Rien n'attend de décision.",
     "ueberblickStill": "C'est calme. Écrivez à quelqu'un ce qu'il y a à faire.",
-    "auftrag": "Ordre"
+    "auftrag": "Ordre",
+    "anhaengen": "Joindre un fichier",
+    "anhangEntfernen": "Retirer {{name}}",
+    "anhangZeile": "Joint dans le poste de travail : {{pfade}}"
   }
 }

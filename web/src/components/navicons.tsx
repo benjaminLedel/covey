@@ -22,6 +22,15 @@ const icons: Record<string, JSX.Element> = {
       <path d="M8.5 11.5h7M8.5 15h4" />
     </>
   ),
+  clip: (
+    <path d="M18 8.5L10.2 16.3a3.1 3.1 0 0 1-4.4-4.4L14 3.7a2 2 0 0 1 2.8 2.8l-8.2 8.2a0.9 0.9 0 0 1-1.3-1.3L15 5.7" />
+  ),
+  arrowUp: (
+    <>
+      <path d="M12 19V6" />
+      <path d="M6 12l6-6 6 6" />
+    </>
+  ),
   cog: (
     <>
       <circle cx="12" cy="12" r="3.2" />

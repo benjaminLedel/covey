@@ -2363,6 +2363,9 @@
     "arbeitenJetzt": "Trabajando ahora",
     "ueberblickArbeiten": "{{count}} están trabajando. Nada requiere una decisión.",
     "ueberblickStill": "Ahora hay calma. Escriba a alguien lo que hay que hacer.",
-    "auftrag": "Encargo"
+    "auftrag": "Encargo",
+    "anhaengen": "Adjuntar archivo",
+    "anhangEntfernen": "Quitar {{name}}",
+    "anhangZeile": "Adjunto en el puesto de trabajo: {{pfade}}"
   }
 }

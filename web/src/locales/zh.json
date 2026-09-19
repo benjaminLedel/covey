@@ -2363,6 +2363,9 @@
     "arbeitenJetzt": "正在工作",
     "ueberblickArbeiten": "{{count}} 位正在工作。没有需要决定的事。",
     "ueberblickStill": "现在很安静。给谁写点要做的事吧。",
-    "auftrag": "工单"
+    "auftrag": "工单",
+    "anhaengen": "附加文件",
+    "anhangEntfernen": "移除 {{name}}",
+    "anhangZeile": "工作环境中的附件：{{pfade}}"
   }
 }

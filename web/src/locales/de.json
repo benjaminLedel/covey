@@ -2363,6 +2363,9 @@
     "arbeitenJetzt": "Arbeitet gerade",
     "ueberblickArbeiten": "{{count}} arbeiten gerade. Nichts braucht eine Entscheidung.",
     "ueberblickStill": "Gerade ist es still. Schreiben Sie jemandem, was zu tun ist.",
-    "auftrag": "Auftrag"
+    "auftrag": "Auftrag",
+    "anhaengen": "Datei anhängen",
+    "anhangEntfernen": "{{name}} entfernen",
+    "anhangZeile": "Anhang im Arbeitsplatz: {{pfade}}"
   }
 }

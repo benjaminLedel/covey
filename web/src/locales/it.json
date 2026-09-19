@@ -2363,6 +2363,9 @@
     "arbeitenJetzt": "Al lavoro",
     "ueberblickArbeiten": "{{count}} stanno lavorando. Nulla richiede una decisione.",
     "ueberblickStill": "Ora è tranquillo. Scriva a qualcuno che cosa c'è da fare.",
-    "auftrag": "Incarico"
+    "auftrag": "Incarico",
+    "anhaengen": "Allegare un file",
+    "anhangEntfernen": "Rimuovere {{name}}",
+    "anhangZeile": "Allegato nella postazione: {{pfade}}"
   }
 }
