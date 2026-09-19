@@ -2350,6 +2350,10 @@
     "sucheBlaettern": "blättern",
     "sucheOeffnen": "öffnen",
     "reagieren": "Reagieren",
-    "arbeitetGerade": "arbeitet gerade daran"
+    "arbeitetGerade": "arbeitet gerade daran",
+    "ueberblick": "Überblick",
+    "arbeitenJetzt": "Arbeitet gerade",
+    "ueberblickArbeiten": "{{count}} arbeiten gerade. Nichts braucht eine Entscheidung.",
+    "ueberblickStill": "Gerade ist es still. Schreiben Sie jemandem, was zu tun ist."
   }
 }

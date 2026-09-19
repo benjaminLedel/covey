@@ -16,7 +16,7 @@ import { NavIcon } from "../components/navicons";
 import "../app.css";
 
 const Thread = lazy(() => import("./Thread"));
-const Wartet = lazy(() => import("./Wartet"));
+const Ueberblick = lazy(() => import("./Ueberblick"));
 
 /* Der Workspace: die Oberfläche dessen, der MIT der Belegschaft arbeitet.
  *
@@ -123,7 +123,7 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
         <nav className="tm-liste" aria-label={t("team.kollegen")}>
           <NavLink to="/" end className={({ isActive }) => `tm-wartet ${isActive ? "on" : ""}`}>
             <span className="tm-wartet-punkt" data-offen={offen > 0} aria-hidden="true" />
-            {t("team.wartet")}
+            {t("team.ueberblick")}
             {offen > 0 && <span className="tm-zahl">{offen}</span>}
           </NavLink>
 
@@ -170,7 +170,7 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
       <main className="tm-haupt">
         <Suspense fallback={null}>
           <Routes>
-            <Route path="/" element={<Wartet me={me} />} />
+            <Route path="/" element={<Ueberblick me={me} />} />
             <Route path="/team/:id" element={<ThreadRoute me={me} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

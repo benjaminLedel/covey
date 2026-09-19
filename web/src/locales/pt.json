@@ -2350,6 +2350,10 @@
     "sucheBlaettern": "navegar",
     "sucheOeffnen": "abrir",
     "reagieren": "Reagir",
-    "arbeitetGerade": "está a trabalhar nisso"
+    "arbeitetGerade": "está a trabalhar nisso",
+    "ueberblick": "Visão geral",
+    "arbeitenJetzt": "A trabalhar agora",
+    "ueberblickArbeiten": "{{count}} estão a trabalhar. Nada precisa de decisão.",
+    "ueberblickStill": "Está calmo. Escreva a alguém o que há a fazer."
   }
 }

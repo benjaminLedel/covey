@@ -2350,6 +2350,10 @@
     "sucheBlaettern": "navegar",
     "sucheOeffnen": "abrir",
     "reagieren": "Reaccionar",
-    "arbeitetGerade": "está trabajando en ello"
+    "arbeitetGerade": "está trabajando en ello",
+    "ueberblick": "Resumen",
+    "arbeitenJetzt": "Trabajando ahora",
+    "ueberblickArbeiten": "{{count}} están trabajando. Nada requiere una decisión.",
+    "ueberblickStill": "Ahora hay calma. Escriba a alguien lo que hay que hacer."
   }
 }

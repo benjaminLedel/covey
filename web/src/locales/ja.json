@@ -2350,6 +2350,10 @@
     "sucheBlaettern": "移動",
     "sucheOeffnen": "開く",
     "reagieren": "リアクション",
-    "arbeitetGerade": "作業中です"
+    "arbeitetGerade": "作業中です",
+    "ueberblick": "概要",
+    "arbeitenJetzt": "作業中",
+    "ueberblickArbeiten": "{{count}} 名が作業中です。判断を待つものはありません。",
+    "ueberblickStill": "いまは静かです。誰かに用件を書いてみてください。"
   }
 }

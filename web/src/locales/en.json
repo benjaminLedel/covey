@@ -2350,6 +2350,10 @@
     "sucheBlaettern": "navigate",
     "sucheOeffnen": "open",
     "reagieren": "React",
-    "arbeitetGerade": "is working on it"
+    "arbeitetGerade": "is working on it",
+    "ueberblick": "Overview",
+    "arbeitenJetzt": "Working now",
+    "ueberblickArbeiten": "{{count}} are working. Nothing needs a decision.",
+    "ueberblickStill": "It is quiet. Write to somebody about what needs doing."
   }
 }

@@ -2350,6 +2350,10 @@
     "sucheBlaettern": "naviguer",
     "sucheOeffnen": "ouvrir",
     "reagieren": "Réagir",
-    "arbeitetGerade": "y travaille"
+    "arbeitetGerade": "y travaille",
+    "ueberblick": "Vue d'ensemble",
+    "arbeitenJetzt": "Au travail",
+    "ueberblickArbeiten": "{{count}} travaillent. Rien n'attend de décision.",
+    "ueberblickStill": "C'est calme. Écrivez à quelqu'un ce qu'il y a à faire."
   }
 }

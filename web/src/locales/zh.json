@@ -2350,6 +2350,10 @@
     "sucheBlaettern": "浏览",
     "sucheOeffnen": "打开",
     "reagieren": "回应",
-    "arbeitetGerade": "正在处理"
+    "arbeitetGerade": "正在处理",
+    "ueberblick": "概览",
+    "arbeitenJetzt": "正在工作",
+    "ueberblickArbeiten": "{{count}} 位正在工作。没有需要决定的事。",
+    "ueberblickStill": "现在很安静。给谁写点要做的事吧。"
   }
 }

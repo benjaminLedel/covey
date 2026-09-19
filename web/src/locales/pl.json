@@ -2350,6 +2350,10 @@
     "sucheBlaettern": "przewijaj",
     "sucheOeffnen": "otwórz",
     "reagieren": "Zareaguj",
-    "arbeitetGerade": "właśnie nad tym pracuje"
+    "arbeitetGerade": "właśnie nad tym pracuje",
+    "ueberblick": "Przegląd",
+    "arbeitenJetzt": "Teraz pracują",
+    "ueberblickArbeiten": "Pracuje {{count}}. Nic nie czeka na decyzję.",
+    "ueberblickStill": "Teraz jest spokojnie. Proszę napisać komuś, co jest do zrobienia."
   }
 }

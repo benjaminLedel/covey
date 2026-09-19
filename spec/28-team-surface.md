@@ -1,6 +1,6 @@
 # 28 — The team surface: the day's working view
 
-**Status: the first slice is built** (#298 — the shell, the thread, the reply at the question, the search). This document describes what it becomes, and it exists because the next four steps all pull on the same joint: what the team surface is allowed to show.
+**Status: the first slice is built** (#298 — the shell, the thread, the reply at the question, the search, reactions). Section 5 is specified and open as #302. This document describes what it becomes, and it exists because the next four steps all pull on the same joint: what the team surface is allowed to show.
 
 The console is the view of somebody who *builds* a workforce. The team surface is the view of somebody who *works with* one, and that is a different question about scope at every turn — which is why it needs writing down once instead of being decided four times.
 
@@ -58,6 +58,45 @@ So the team surface needs **account-scoped reads**: a small set of endpoints tha
 What it costs: `GET /agents`, `GET /departments` and `GET /inbox` need account-scoped twins, and the audit trail has to record which seat a read came from. What it buys: the surface stops being a per-tenant console and becomes what the name says.
 
 **Open:** whether the console follows. The recommendation is no — administration happens inside one organisation, and a fleet-wide admin view is a different product with a different threat model.
+
+## 5. A message is not automatically a task
+
+Today every message becomes a backlog task. That is right for "check the
+Globex invoice" and absurd for "did that go out yesterday?" — the second gets
+an isolated sandbox, a runtime seat and a line in the cost list in order to
+answer one sentence. It is also slow in the direction that matters: a
+colleague answers in four seconds, ours opens a ticket.
+
+The message should be handed to the agent, and **the agent decides what kind
+of thing it is**: answer in the thread, acknowledge with a mark, or open the
+task. Whether "look at the invoice" is a question or a job depends on the
+agent's role, and the agent is the thing that knows its role — so this is not
+a rule in the interface.
+
+**It needs an engine of its own, configured per organisation** (#302). Not
+the agent's runtime: that is a sandbox plus a seat plus a wake, which is the
+machinery the triage exists to avoid paying for. It is a cheap turn inside
+the control plane, and covey already has that shape — `internal/httpapi/assist.go`
+uses the organisation's credential server-side, without a sandbox, to help
+write a config. Off is the default, and off means today's behaviour exactly.
+
+The limits are the point, not a detail, because the turn runs **outside the
+sandbox**:
+
+- no tools, no target systems, no credentials — it reads the conversation and
+  produces text; everything it would need beyond that is the reason to open a
+  task instead
+- its output is text or a task, nothing else: no config change, no wake, no
+  approval decided
+- it is recorded and counted like any other run ([`06`](06-observability-control.md))
+- the guard rails on what an agent says hold for a direct answer exactly as
+  they hold for a ticket reply — a cheap path must not become the cheap way
+  around them
+
+The open decisions are in the issue; the load-bearing one is what the answer
+is allowed to know. The recommendation is: the role and the thread, not the
+wiki memory. An answer that needs the memory is an answer that should have
+been a task.
 
 ## What the surface must not become
 

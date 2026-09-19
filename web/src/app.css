@@ -2529,12 +2529,58 @@
 .tm-leer p { font-size: 15px; }
 .tm-leer .tm-leise { margin-top: 6px; }
 
-/* ── Was wartet ───────────────────────────────────────────────────────── */
-.tm-wartet-seite { padding: 28px 28px 40px; overflow-y: auto; }
-.tm-wartet-kopf { margin-bottom: 20px; }
-.tm-wartet-kopf h1 { font-size: 21px; font-weight: 600; letter-spacing: -0.015em; }
-.tm-wartet-kopf .tm-leise { padding: 4px 0 0; }
-.tm-wartet-liste { list-style: none; max-width: 92ch; }
+/* ── Der Überblick ────────────────────────────────────────────────────
+   Die Seite, auf der jeder landet. Drei Blöcke, jeder darf fehlen — siehe
+   team/Ueberblick.tsx, warum sie nicht mehr nur zeigt, was wartet. */
+.tm-ueberblick { padding: 30px 28px 48px; overflow-y: auto; }
+.tm-ueberblick-kopf { margin-bottom: 26px; }
+.tm-ueberblick-kopf h1 { font-size: 23px; font-weight: 600; letter-spacing: -0.02em; }
+.tm-ueberblick-kopf .tm-leise { padding: 5px 0 0; font-size: 14px; }
+.tm-block { margin-bottom: 34px; max-width: 92ch; }
+.tm-block h2 {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+.tm-block-lead { padding: 0 0 12px; }
+
+/* Wer gerade arbeitet — eine Riege Gesichter, und sie ist der Beweis, dass
+   hier etwas passiert, auch wenn niemand etwas will. */
+.tm-riege { display: flex; flex-wrap: wrap; gap: 10px; }
+.tm-riege-wer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  width: 104px;
+  padding: 12px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-0);
+  text-decoration: none;
+  text-align: center;
+}
+.tm-riege-wer:hover { border-color: var(--border-strong); }
+.tm-riege-name {
+  font-size: 13px;
+  color: var(--text-primary);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tm-riege-rolle {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tm-wartet-liste { list-style: none; }
 .tm-wartet-liste li + li { border-top: 1px solid var(--border); }
 .tm-wartet-zeile {
   display: grid;
