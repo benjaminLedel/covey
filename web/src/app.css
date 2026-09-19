@@ -2394,18 +2394,38 @@
 }
 .tm-thread-kopf h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
 .tm-thread-kopf p { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
-.tm-thread-werkzeuge { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+/* Die Kopfzeile gehört dem, mit dem man spricht — die Werkzeuge stehen als
+   zwei Symbole daneben, nicht als Feld und Satz. */
+.tm-thread-werkzeuge { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.tm-werkzeug {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius);
+  color: var(--text-muted);
+}
+.tm-werkzeug:hover { background: var(--tint); color: var(--text-primary); }
+.tm-werkzeug .ic {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .tm-thread-werkzeuge input {
-  width: 200px;
-  padding: 6px 11px;
+  width: 220px;
+  padding: 7px 11px;
   font-size: 13px;
   border-radius: var(--radius);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   background: var(--surface-0);
   color: var(--text-primary);
 }
 .tm-thread-werkzeuge input::placeholder { color: var(--text-muted); }
-.tm-thread-verwaltung { font-size: 13px; color: var(--text-accent); text-decoration: none; white-space: nowrap; }
 .tm-thread-verwaltung:hover { text-decoration: underline; }
 
 .tm-verlauf {
@@ -2896,7 +2916,12 @@
    deshalb unter dem Trenner, der den Vorgang eröffnet — nicht unter jeder
    Zeile: Ein Verlauf, unter dessen jeder Zeile Zeichen stehen, ist ein
    Verlauf aus Zeichen. */
-.tm-marken { display: flex; flex-wrap: wrap; gap: 6px; align-self: center; margin: -4px 0 2px; }
+/* Sie stehen unter der Nachricht, zu der sie gehören, und auf deren Seite —
+   mittig unter dem Trenner gehörten sie zu allem und zu nichts. */
+.tm-marken { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.tm-blase.ich .tm-marken { justify-content: flex-end; }
+/* Die Marken teilen die Breite der Blase, nicht die der Spalte daneben. */
+.tm-blase-inhalt > .tm-marken { width: 100%; }
 .tm-marke {
   display: inline-flex;
   align-items: center;
@@ -2967,3 +2992,60 @@
 @media (prefers-reduced-motion: reduce) {
   .tm-tippt-blase span { animation: none; opacity: 0.8; }
 }
+
+/* ── Ein Auftrag von woanders ──────────────────────────────────────────
+   Arbeit, die aus einem Webhook, einem Takt oder einem Trainingslauf kam.
+   Sie stand als Blase auf der Seite des Agenten und sah damit aus, als
+   hätte er vierzig Zeilen Anweisung gesagt — dabei ist es das, was ihm
+   gesagt wurde. Jetzt eine Notiz am Rand, zugeklappt, mit der Quelle davor. */
+.tm-auftrag {
+  align-self: center;
+  width: min(72ch, 92%);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-0);
+}
+.tm-auftrag summary {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  list-style: none;
+}
+.tm-auftrag summary::-webkit-details-marker { display: none; }
+.tm-auftrag summary::before {
+  content: "›";
+  color: var(--text-muted);
+  transition: rotate 0.15s ease;
+}
+.tm-auftrag[open] summary::before { rotate: 90deg; }
+.tm-auftrag-quelle {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--tint);
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.tm-auftrag-titel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+.tm-auftrag summary time { font-size: 11.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.tm-auftrag-text {
+  padding: 0 14px 12px 30px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+/* Die Antwort des Agenten ohne Aufgabe: dieselbe Blase wie seine Notizen,
+   damit nicht zwei Formen dasselbe sagen. */
+.tm-blase.k-answer .tm-blase-text { background: var(--surface-0); }

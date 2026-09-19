@@ -1138,6 +1138,14 @@
       "zoomFit": "Fit to view",
       "zoomIn": "Zoom in",
       "zoomOut": "Zoom out"
+    },
+    "triage": {
+      "title": "Answer or task",
+      "hint": "Off: every message in the team becomes a task. On: the agent decides whether to answer directly or make work of it — one short turn in the control plane, without a sandbox, without target systems, without credentials.",
+      "off": "Off — every message becomes a task",
+      "on": "On — the agent decides",
+      "noCredential": "This needs a control-plane credential for the organisation.",
+      "cost": "Every message then costs one short model call."
     }
   },
   "orgs": {
@@ -2354,6 +2362,7 @@
     "ueberblick": "Overview",
     "arbeitenJetzt": "Working now",
     "ueberblickArbeiten": "{{count}} are working. Nothing needs a decision.",
-    "ueberblickStill": "It is quiet. Write to somebody about what needs doing."
+    "ueberblickStill": "It is quiet. Write to somebody about what needs doing.",
+    "auftrag": "Work order"
   }
 }

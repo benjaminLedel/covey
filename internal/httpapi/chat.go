@@ -23,6 +23,7 @@ package httpapi
 // target state.
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -30,7 +31,10 @@ import (
 
 	"github.com/google/uuid"
 
+	"covey/internal/agents"
 	"covey/internal/backlog"
+	"covey/internal/chat"
+	"covey/internal/llm"
 )
 
 // chatEntry is one line of the thread. The kinds:
@@ -45,13 +49,19 @@ import (
 // author of a note ("agent", "human:someone@example.org"); the surface only
 // has to decide left or right from it.
 type chatEntry struct {
-	Kind      string    `json:"kind"`
-	TaskID    uuid.UUID `json:"task_id"`
-	TaskTitle string    `json:"task_title"`
-	TaskState string    `json:"task_state"`
-	Author    string    `json:"author"`
-	Text      string    `json:"text"`
-	At        time.Time `json:"at"`
+	Kind string `json:"kind"`
+	/* Die eigene Kennung des Eintrags — die Aufgabe, wenn es eine gibt, sonst
+	   die Nachricht. Die Oberfläche gruppiert danach. */
+	ID uuid.UUID `json:"id"`
+	/* Die Aufgabe, falls daraus Arbeit wurde. Fehlt bei einer Nachricht, die
+	   der Agent einfach beantwortet hat — und das ist der ganze Punkt von
+	   #302: Nicht jede Zeile hat einen Vorgang. */
+	TaskID    *uuid.UUID `json:"task_id,omitempty"`
+	TaskTitle string     `json:"task_title"`
+	TaskState string     `json:"task_state"`
+	Author    string     `json:"author"`
+	Text      string     `json:"text"`
+	At        time.Time  `json:"at"`
 }
 
 // chatMark is one emoji on one task, already grouped: wie oft, und ob ich
@@ -78,6 +88,11 @@ type chatThread struct {
 // has the search for that.
 const threadTasks = 20
 
+// threadMessages: wie viele Nachrichten dazukommen. Doppelt so viele wie
+// Aufgaben, weil eine beantwortete Nachricht keine Aufgabe erzeugt — ein
+// Verlauf kann also aus deutlich mehr Zeilen als Vorgängen bestehen.
+const threadMessages = 40
+
 // handleThread assembles the conversation with one agent.
 func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
@@ -86,36 +101,54 @@ func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The archive stays out: what somebody filed away is not part of the
-	// conversation any more.
+	/* Der Verlauf hat zwei Quellen, seit eine Nachricht nicht mehr
+	   zwangsläufig eine Aufgabe ist (#302):
+
+	     die NACHRICHTEN  — was gesagt wurde, samt der Antworten des Agenten
+	     die AUFGABEN     — was daraus wurde, mit Notizen, Fragen, Ergebnis
+
+	   Eine Aufgabe, zu der eine Nachricht gehört, steuert ihre Zeile nicht
+	   selbst bei; sonst stünde dieselbe Bitte zweimal da — einmal als das,
+	   was jemand schrieb, und einmal als das, was daraus wurde.
+
+	   Das Archiv bleibt draußen: Was jemand weggelegt hat, ist nicht mehr
+	   Teil des Gesprächs. */
 	const q = `WITH t AS (
 		SELECT id, title, body, state, origin, result, error, created_at, updated_at
 		FROM backlog_tasks
 		WHERE agent_id=$1 AND archived_at IS NULL
 		ORDER BY created_at DESC LIMIT $2
+	), m AS (
+		SELECT id, author, text, task_id, created_at
+		FROM chat_messages WHERE agent_id=$1
+		ORDER BY created_at DESC LIMIT $3
 	)
-	SELECT 'message', t.id, t.title, t.state, t.origin,
-	       -- The body, not title plus body: a chat message IS its body, and its
-	       -- first line was made the title. Glued together, every message
-	       -- typed here would stand twice.
+	SELECT CASE WHEN m.author = 'agent' THEN 'answer' ELSE 'message' END,
+	       m.id, m.task_id, coalesce(bt.title, ''), coalesce(bt.state, ''),
+	       m.author, m.text, m.created_at
+	       FROM m LEFT JOIN backlog_tasks bt ON bt.id = m.task_id
+	UNION ALL
+	SELECT 'message', t.id, t.id, t.title, t.state, t.origin,
+	       -- Der Rumpf, nicht Titel plus Rumpf: Die erste Zeile IST der Titel.
 	       CASE WHEN coalesce(t.body,'')='' THEN t.title ELSE t.body END,
 	       t.created_at FROM t
+	       WHERE NOT EXISTS (SELECT 1 FROM m WHERE m.task_id = t.id)
 	UNION ALL
-	SELECT 'note', n.task_id, t.title, t.state, n.author, n.content, n.created_at
+	SELECT 'note', n.task_id, n.task_id, t.title, t.state, n.author, n.content, n.created_at
 	       FROM task_notes n JOIN t ON t.id = n.task_id
 	UNION ALL
-	SELECT 'question', tr.task_id, t.title, t.state, 'agent', tr.note, tr.created_at
+	SELECT 'question', tr.task_id, tr.task_id, t.title, t.state, 'agent', tr.note, tr.created_at
 	       FROM task_transitions tr JOIN t ON t.id = tr.task_id
 	       WHERE tr.to_state='blocked'
 	UNION ALL
-	SELECT 'result', t.id, t.title, t.state, 'agent', t.result, t.updated_at
+	SELECT 'result', t.id, t.id, t.title, t.state, 'agent', t.result, t.updated_at
 	       FROM t WHERE t.state='done' AND coalesce(t.result,'') <> ''
 	UNION ALL
-	SELECT 'error', t.id, t.title, t.state, 'agent', t.error, t.updated_at
+	SELECT 'error', t.id, t.id, t.title, t.state, 'agent', t.error, t.updated_at
 	       FROM t WHERE t.state='failed' AND coalesce(t.error,'') <> ''
-	ORDER BY 7`
+	ORDER BY 8`
 
-	rows, err := s.Pool.Query(r.Context(), q, id, threadTasks)
+	rows, err := s.Pool.Query(r.Context(), q, id, threadTasks, threadMessages)
 	if err != nil {
 		mapErr(w, err)
 		return
@@ -125,7 +158,7 @@ func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 	out := chatThread{Entries: []chatEntry{}}
 	for rows.Next() {
 		var e chatEntry
-		if err := rows.Scan(&e.Kind, &e.TaskID, &e.TaskTitle, &e.TaskState,
+		if err := rows.Scan(&e.Kind, &e.ID, &e.TaskID, &e.TaskTitle, &e.TaskState,
 			&e.Author, &e.Text, &e.At); err != nil {
 			mapErr(w, err)
 			return
@@ -160,10 +193,11 @@ func (s *Server) marksOf(r *http.Request, entries []chatEntry) (map[string][]cha
 	gesehen := map[uuid.UUID]bool{}
 	ids := make([]uuid.UUID, 0, len(entries))
 	for _, e := range entries {
-		if !gesehen[e.TaskID] {
-			gesehen[e.TaskID] = true
-			ids = append(ids, e.TaskID)
+		if e.TaskID == nil || gesehen[*e.TaskID] {
+			continue
 		}
+		gesehen[*e.TaskID] = true
+		ids = append(ids, *e.TaskID)
 	}
 	roh, err := s.Backlog.ReactionsByTasks(r.Context(), ids)
 	if err != nil {
@@ -274,7 +308,12 @@ func chatText(w http.ResponseWriter, r *http.Request) (string, bool) {
 	return text, true
 }
 
-// handleChatMessage turns a message into a task.
+// handleChatMessage takes a message and lets the agent decide what it is.
+//
+// The message is written down first, always — before any model has seen it
+// and whatever the triage decides afterwards. What somebody said is a fact;
+// what is made of it is a judgement, and a judgement that fails must not
+// swallow the fact.
 func (s *Server) handleChatMessage(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
@@ -286,15 +325,137 @@ func (s *Server) handleChatMessage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	// origin says where the work came from, and the chat is one more origin
-	// beside manual, schedule and webhook:… — not a new kind of task.
-	t, err := s.Backlog.Create(r.Context(), p.OrgID, id, chatTitle(text), text, "chat:"+p.Email, 0)
+
+	msg, err := s.Chat.Add(r.Context(), p.OrgID, id, "chat:"+p.Email, text)
 	if err != nil {
 		mapErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, t)
+
+	entscheidung := s.triagieren(r.Context(), p.OrgID, id, text)
+	if entscheidung.Aktion == chat.AktionAntwort {
+		if _, err := s.Chat.Add(r.Context(), p.OrgID, id, "agent", entscheidung.Text); err != nil {
+			mapErr(w, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]any{"message": msg, "answered": true})
+		return
+	}
+
+	/* origin sagt, woher die Arbeit kam, und der Chat ist eine Herkunft neben
+	   manual, schedule und webhook:… — keine neue Art Aufgabe. */
+	titel, rumpf := entscheidung.Titel, entscheidung.Rumpf
+	if titel == "" {
+		titel, rumpf = chatTitle(text), text
+	}
+	t, err := s.Backlog.Create(r.Context(), p.OrgID, id, titel, rumpf, "chat:"+p.Email, 0)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	if err := s.Chat.LinkTask(r.Context(), msg.ID, t.ID); err != nil {
+		mapErr(w, err)
+		return
+	}
+	/* Die zurückgegebene Nachricht trägt die Verknüpfung mit: Sie wurde
+	   geschrieben, bevor die Aufgabe existierte, und eine Antwort, die den
+	   Stand von vor zwei Zeilen zeigt, ist eine Antwort, der man nicht
+	   glauben kann. */
+	msg.TaskID = &t.ID
+	writeJSON(w, http.StatusCreated, map[string]any{"message": msg, "task": t, "answered": false})
 }
+
+// triagieren runs the turn — or says "task" without asking anybody.
+//
+// Every failure lands on the same answer: open the task. An organisation
+// without the switch, without a credential, without a reachable provider, or
+// with a model that answered nonsense gets the behaviour it had before #302,
+// and nobody has to be told about it. The one thing that must never happen is
+// that a message disappears because a model was not available.
+func (s *Server) triagieren(ctx context.Context, orgID, agentID uuid.UUID, text string) chat.Entscheidung {
+	aufgabe := chat.Entscheidung{Aktion: chat.AktionAufgabe}
+
+	mode, err := s.Chat.Mode(ctx, orgID)
+	if err != nil || mode != chat.TriageOn {
+		return aufgabe
+	}
+	provider, err := llm.Resolve(ctx, s.Secrets, orgID)
+	if err != nil {
+		return aufgabe
+	}
+	verlauf, err := s.Chat.Recent(ctx, agentID, triageKontext)
+	if err != nil {
+		return aufgabe
+	}
+
+	e, err := chat.Triagieren(ctx, provider, s.rolleVon(ctx, agentID), verlauf, text)
+	if err != nil {
+		s.Log.Warn("triage failed — the message becomes a task", "agent", agentID, "err", err)
+		return aufgabe
+	}
+	return e
+}
+
+// triageKontext: wie viele frühere Nachrichten der Zug zu sehen bekommt. Mehr
+// kostet Tokens bei jedem „danke"; weniger, und eine Rückfrage steht ohne
+// das, worauf sie sich bezieht.
+const triageKontext = 12
+
+// rolleVon holt die kurze Selbstbeschreibung des Agenten — Anzeigename und
+// Stellenbezeichnung, mehr nicht. Die vollständige Konfiguration gehört in
+// den Lauf und nicht in einen Zug, der nur einordnen soll.
+func (s *Server) rolleVon(ctx context.Context, agentID uuid.UUID) string {
+	a, err := s.Registry.Get(ctx, agentID)
+	if err != nil {
+		return ""
+	}
+	return beschreibung(a)
+}
+
+func beschreibung(a agents.Agent) string {
+	teile := []string{a.DisplayName}
+	if a.JobTitle != "" {
+		teile = append(teile, a.JobTitle)
+	}
+	if a.Responsibilities != "" {
+		teile = append(teile, a.Responsibilities)
+	}
+	return strings.Join(teile, " — ")
+}
+
+// handleGetTriage says whether this organisation lets its agents decide.
+func (s *Server) handleGetTriage(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	mode, err := s.Chat.Mode(r.Context(), p.OrgID)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	/* `available` sagt, ob es überhaupt ginge: Ohne Zugangsdaten in der
+	   Control Plane bleibt der Schalter ein Schalter ohne Wirkung, und die
+	   Oberfläche soll das sagen dürfen, statt ihn anzubieten. */
+	writeJSON(w, http.StatusOK, map[string]any{
+		"mode":      string(mode),
+		"available": llm.Available(r.Context(), s.Secrets, p.OrgID),
+	})
+}
+
+func (s *Server) handleSetTriage(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	var in struct {
+		Mode string `json:"mode"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid body: expected {\"mode\": \"on|off\"}")
+		return
+	}
+	if err := s.Chat.SetMode(r.Context(), p.OrgID, chat.TriageMode(in.Mode)); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"mode": in.Mode})
+}
+
 
 // chatReply is what comes back from a reply: the note always, the task only
 // when the reply actually woke somebody.

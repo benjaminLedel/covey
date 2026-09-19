@@ -1138,6 +1138,14 @@
       "zoomFit": "Ajustar à vista",
       "zoomIn": "Ampliar",
       "zoomOut": "Reduzir"
+    },
+    "triage": {
+      "title": "Responder ou tarefa",
+      "hint": "Desligado: cada mensagem na equipa torna-se uma tarefa. Ligado: o agente decide se responde ou se faz dela trabalho — um turno curto no plano de controlo, sem sandbox, sem sistemas de destino, sem credenciais.",
+      "off": "Desligado — cada mensagem é uma tarefa",
+      "on": "Ligado — decide o agente",
+      "noCredential": "Para isso a organização precisa de credenciais do plano de controlo.",
+      "cost": "Cada mensagem custa então uma chamada curta ao modelo."
     }
   },
   "orgs": {
@@ -2354,6 +2362,7 @@
     "ueberblick": "Visão geral",
     "arbeitenJetzt": "A trabalhar agora",
     "ueberblickArbeiten": "{{count}} estão a trabalhar. Nada precisa de decisão.",
-    "ueberblickStill": "Está calmo. Escreva a alguém o que há a fazer."
+    "ueberblickStill": "Está calmo. Escreva a alguém o que há a fazer.",
+    "auftrag": "Encomenda"
   }
 }

@@ -25,6 +25,7 @@ import (
 	"covey/internal/agents"
 	"covey/internal/audit"
 	"covey/internal/backlog"
+	"covey/internal/chat"
 	"covey/internal/buildinfo"
 	"covey/internal/config"
 	"covey/internal/dream"
@@ -59,6 +60,9 @@ type Server struct {
 	Pool     *pgxpool.Pool
 	Registry *agents.Registry
 	Backlog  *backlog.Store
+	/* Das Gespräch. Es liegt neben dem Backlog und nicht darin: Der Backlog
+	   ist das Hauptbuch, das Gespräch der Umschlag (internal/chat). */
+	Chat     *chat.Store
 	Obs      *observability.Store
 	Rails    *guardrails.Store
 	Secrets  secrets.Store
@@ -439,6 +443,11 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/platform/lint", s.rbac(append(manage, identity.RoleSecurity), s.handleOrgLint))
 	mux.Handle("GET /api/v1/platform/home-store", s.rbac(anyRole, s.handleGetStore))
 	mux.Handle("POST /api/v1/platform/home-store/cleanup", s.rbac(manage, s.handleCleanupStore))
+	/* Der Schalter für die Triage: lesen darf jede Rolle (die Oberfläche
+	   erklärt damit, warum eine Nachricht eine Aufgabe wurde), stellen nur,
+	   wer die Organisation führt. */
+	mux.Handle("GET /api/v1/org/chat-triage", s.rbac(anyRole, s.handleGetTriage))
+	mux.Handle("PATCH /api/v1/org/chat-triage", s.rbac(manage, s.handleSetTriage))
 	mux.Handle("GET /api/v1/org/recording-level", s.rbac(anyRole, s.handleGetOrgRecording))
 	mux.Handle("PATCH /api/v1/org/recording-level", s.rbac(securityRoles, s.handleSetOrgRecording))
 	mux.Handle("PATCH /api/v1/org/recording-retention", s.rbac(securityRoles, s.handleSetOrgRecordingRetention))

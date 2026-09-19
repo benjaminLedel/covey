@@ -173,8 +173,11 @@ export type Stage = {
    author of a note ("agent", "human:a@b"); from that the surface decides left
    or right, and nothing else. */
 export type ChatEntry = {
-  kind: "message" | "note" | "question" | "result" | "error";
-  task_id: string;
+  kind: "message" | "answer" | "note" | "question" | "result" | "error";
+  /** Die eigene Kennung: die Aufgabe, wenn es eine gibt, sonst die Nachricht. */
+  id: string;
+  /** Fehlt, wenn der Agent die Nachricht einfach beantwortet hat (#302). */
+  task_id?: string;
   task_title: string;
   /** The state of the task the entry belongs to — "blocked" means it waits. */
   task_state: string;

@@ -1138,6 +1138,14 @@
       "zoomFit": "Ajustar a la vista",
       "zoomIn": "Acercar",
       "zoomOut": "Alejar"
+    },
+    "triage": {
+      "title": "Responder o tarea",
+      "hint": "Desactivado: cada mensaje del equipo se convierte en una tarea. Activado: el agente decide si responde o crea trabajo — un turno breve en el plano de control, sin sandbox, sin sistemas de destino, sin credenciales.",
+      "off": "Desactivado — cada mensaje es una tarea",
+      "on": "Activado — decide el agente",
+      "noCredential": "Para ello la organización necesita credenciales del plano de control.",
+      "cost": "Cada mensaje cuesta entonces una llamada corta al modelo."
     }
   },
   "orgs": {
@@ -2354,6 +2362,7 @@
     "ueberblick": "Resumen",
     "arbeitenJetzt": "Trabajando ahora",
     "ueberblickArbeiten": "{{count}} están trabajando. Nada requiere una decisión.",
-    "ueberblickStill": "Ahora hay calma. Escriba a alguien lo que hay que hacer."
+    "ueberblickStill": "Ahora hay calma. Escriba a alguien lo que hay que hacer.",
+    "auftrag": "Encargo"
   }
 }

@@ -28,6 +28,7 @@ import (
 	"covey/internal/agents"
 	"covey/internal/audit"
 	"covey/internal/backlog"
+	"covey/internal/chat"
 	"covey/internal/buildinfo"
 	"covey/internal/config"
 	"covey/internal/db"
@@ -1428,6 +1429,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		BaseCtx: ctx,
 		Audit:   auditStore,
 		Pool:    pool, Registry: registry, Backlog: backlogStore, Obs: obs,
+		Chat:  chat.New(pool),
 		Rails: rails, Secrets: secretStore, Runtimes: runtimeStore, Identity: idp, Memory: mem, Dreams: dreams,
 		Org: org.NewStore(pool), Targets: targets, Templates: templateStore,
 		Marketplace: func() *marketplace.Client {

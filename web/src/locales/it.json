@@ -1138,6 +1138,14 @@
       "zoomFit": "Adatta alla vista",
       "zoomIn": "Ingrandisci",
       "zoomOut": "Riduci"
+    },
+    "triage": {
+      "title": "Rispondere o compito",
+      "hint": "Spento: ogni messaggio nella squadra diventa un compito. Acceso: l'agente decide se rispondere o farne lavoro — un turno breve nel piano di controllo, senza sandbox, senza sistemi di destinazione, senza credenziali.",
+      "off": "Spento — ogni messaggio è un compito",
+      "on": "Acceso — decide l'agente",
+      "noCredential": "Per questo l'organizzazione ha bisogno di credenziali per il piano di controllo.",
+      "cost": "Ogni messaggio costa allora una breve chiamata al modello."
     }
   },
   "orgs": {
@@ -2354,6 +2362,7 @@
     "ueberblick": "Panoramica",
     "arbeitenJetzt": "Al lavoro",
     "ueberblickArbeiten": "{{count}} stanno lavorando. Nulla richiede una decisione.",
-    "ueberblickStill": "Ora è tranquillo. Scriva a qualcuno che cosa c'è da fare."
+    "ueberblickStill": "Ora è tranquillo. Scriva a qualcuno che cosa c'è da fare.",
+    "auftrag": "Incarico"
   }
 }

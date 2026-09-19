@@ -168,6 +168,52 @@ function RepoZugang({
    all" and now means "the project this program comes from". */
 const REPO_AUS = "-";
 
+/* Der Schalter, der entscheidet, ob eine Nachricht im Team zwangsläufig eine
+ * Aufgabe wird (#302).
+ *
+ * Er steht hier bei den organisationsweiten Einstellungen und nicht am
+ * einzelnen Agenten: Was ein Zug in der Control Plane kosten darf und ob es
+ * ihn überhaupt gibt, ist eine Entscheidung der Organisation, nicht eine je
+ * Kollege. Ohne Zugangsdaten in der Control Plane bleibt er ein Schalter ohne
+ * Wirkung — dann sagt die Zeile das, statt ihn anzubieten.
+ */
+export function TriageSettings() {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const triage = useQuery({
+    queryKey: ["org-triage"],
+    queryFn: () => api<{ mode: string; available: boolean }>("/org/chat-triage"),
+  });
+  const setMode = useMutation({
+    mutationFn: (mode: string) => patch<{ mode: string }>("/org/chat-triage", { mode }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["org-triage"] }),
+  });
+
+  if (!triage.data) return null;
+  const an = triage.data.mode === "on";
+
+  return (
+    <div className="card mb-4">
+      <h2 className="text-sm mb-1" style={{ fontWeight: 600 }}>{t("org.triage.title")}</h2>
+      <p className="muted text-xs mt-0 mb-2" style={{ maxWidth: 640 }}>{t("org.triage.hint")}</p>
+
+      <div className="flex items-center gap-3 flex-wrap">
+        <select
+          key={`triage:${triage.data.mode}`}
+          defaultValue={triage.data.mode}
+          disabled={setMode.isPending || !triage.data.available}
+          onChange={(e) => setMode.mutate(e.target.value)}
+        >
+          <option value="off">{t("org.triage.off")}</option>
+          <option value="on">{t("org.triage.on")}</option>
+        </select>
+        {!triage.data.available && <span className="muted text-xs">{t("org.triage.noCredential")}</span>}
+        {triage.data.available && an && <span className="muted text-xs">{t("org.triage.cost")}</span>}
+      </div>
+    </div>
+  );
+}
+
 // The recording: how deep things are written along, and how long the verbatim
 // history stays (spec/06). Both org-wide, both overridable on the agent — the
 // depth only upward, the deadline only longer. An agent that could shorten its

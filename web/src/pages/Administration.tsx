@@ -4,7 +4,7 @@ import { NavLink, Route, Routes } from "react-router";
 import { api, type Agent, type Human, type OrgCostReport, type Organization, type Principal } from "../api";
 import Audit from "./Audit";
 import Diagnostics from "./Diagnostics";
-import { CompanyDescription, PlatformRepo, RecordingSettings } from "./Org";
+import { CompanyDescription, PlatformRepo, RecordingSettings, TriageSettings } from "./Org";
 import { ProfileFieldsSettings } from "./Organizations";
 import Users from "./Users";
 import { fmtUSD } from "../format";
@@ -76,6 +76,8 @@ function Profile() {
         {t("administration.profileDesc")}
       </p>
       <CompanyDescription />
+      <TriageSettings />
+      <TriageSettings />
       <RecordingSettings />
       <PlatformRepo />
       <ProfileFieldsSettings />

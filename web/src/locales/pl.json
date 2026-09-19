@@ -1138,6 +1138,14 @@
       "zoomFit": "Dopasuj do widoku",
       "zoomIn": "Powiększ",
       "zoomOut": "Pomniejsz"
+    },
+    "triage": {
+      "title": "Odpowiedź albo zadanie",
+      "hint": "Wyłączone: każda wiadomość w zespole staje się zadaniem. Włączone: agent decyduje, czy odpowiedzieć, czy zrobić z tego pracę — krótka tura w warstwie sterowania, bez piaskownicy, bez systemów docelowych, bez danych dostępowych.",
+      "off": "Wyłączone — każda wiadomość to zadanie",
+      "on": "Włączone — decyduje agent",
+      "noCredential": "Organizacja potrzebuje do tego danych dostępowych warstwy sterowania.",
+      "cost": "Każda wiadomość kosztuje wtedy krótkie wywołanie modelu."
     }
   },
   "orgs": {
@@ -2354,6 +2362,7 @@
     "ueberblick": "Przegląd",
     "arbeitenJetzt": "Teraz pracują",
     "ueberblickArbeiten": "Pracuje {{count}}. Nic nie czeka na decyzję.",
-    "ueberblickStill": "Teraz jest spokojnie. Proszę napisać komuś, co jest do zrobienia."
+    "ueberblickStill": "Teraz jest spokojnie. Proszę napisać komuś, co jest do zrobienia.",
+    "auftrag": "Zlecenie"
   }
 }

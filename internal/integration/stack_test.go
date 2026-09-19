@@ -27,6 +27,7 @@ import (
 	"covey/internal/agents"
 	"covey/internal/audit"
 	"covey/internal/backlog"
+	"covey/internal/chat"
 	"covey/internal/daemon"
 	"covey/internal/db"
 	"covey/internal/dream"
@@ -397,6 +398,9 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 
 	srv := &httpapi.Server{
 		Pool: pool, Registry: s.registry, Backlog: s.backlog, Obs: s.obs,
+		/* Das Gespräch. Ohne ihn läuft der Chat-Endpunkt in ein nil, und der
+		   Test bekommt ein EOF statt einer Antwort. */
+		Chat:  chat.New(pool),
 		Rails: s.rails, Secrets: secretStore, Runtimes: s.runtimes, Identity: idp, Memory: s.mem,
 		Org: org.NewStore(pool), Targets: s.targets,
 		// Self-registration (FR-002): the public endpoints answer 404 without

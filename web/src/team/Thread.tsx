@@ -6,6 +6,7 @@ import { api, post, type Agent, type ChatEntry, type ChatMark, type Principal } 
 import { Markdown } from "../components/Markdown";
 import { canManage } from "../pages/agent/roles";
 import Gesicht from "../components/Gesicht";
+import { NavIcon } from "../components/navicons";
 
 /* Der Verlauf mit einem Agenten.
  *
@@ -36,6 +37,13 @@ import Gesicht from "../components/Gesicht";
 const vonMir = (e: ChatEntry) =>
   e.author.startsWith("chat:") || e.author.startsWith("manual:") || e.author.startsWith("human:");
 
+/* Ein AUFTRAG ist Arbeit, die von woanders kam: ein Webhook, ein Takt, ein
+   Trainingslauf, ein Kollege. Er stand bis hierher auf der Seite des Agenten
+   und sah damit aus, als hätte der Agent vierzig Zeilen Anweisung gesagt —
+   dabei ist es das, was ihm gesagt wurde. Er bekommt deshalb keine Blase,
+   sondern die Form einer Notiz am Rand: mittig, leise, mit der Quelle davor. */
+const istAuftrag = (e: ChatEntry) => e.kind === "message" && !vonMir(e);
+
 /** Die Person hinter einer Herkunft oder einem Verfasser ("chat:a@b" → "a@b"). */
 const wer = (author: string) => author.split(":").slice(1).join(":") || author;
 
@@ -65,6 +73,7 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
   const [antwortAuf, setAntwortAuf] = useState<string | null>(null);
   const [antwort, setAntwort] = useState("");
   const [suche, setSuche] = useState("");
+  const [sucheOffen, setSucheOffen] = useState(false);
   const ende = useRef<HTMLDivElement>(null);
 
   const agent = useQuery({
@@ -135,19 +144,45 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
           <h1>{agent.data?.display_name ?? "…"}</h1>
           <p>{agent.data?.job_title || agent.data?.slug}</p>
         </div>
+        {/* Zwei Symbole statt eines Feldes und eines Satzes: Die Kopfzeile
+            eines Verlaufs gehört dem, mit dem man spricht, und nicht den
+            Werkzeugen. Das Feld klappt erst auf, wenn jemand sucht. */}
         <div className="tm-thread-werkzeuge">
-          <input
-            type="search"
-            value={suche}
-            onChange={(e) => setSuche(e.target.value)}
-            onKeyDown={(e) => e.key === "Escape" && setSuche("")}
-            placeholder={t("team.imVerlaufSuchen")}
-            aria-label={t("team.imVerlaufSuchen")}
-          />
+          {sucheOffen ? (
+            <input
+              autoFocus
+              type="search"
+              value={suche}
+              onChange={(e) => setSuche(e.target.value)}
+              onBlur={() => !suche && setSucheOffen(false)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setSuche("");
+                  setSucheOffen(false);
+                }
+              }}
+              placeholder={t("team.imVerlaufSuchen")}
+              aria-label={t("team.imVerlaufSuchen")}
+            />
+          ) : (
+            <button
+              className="tm-werkzeug"
+              onClick={() => setSucheOffen(true)}
+              title={t("team.imVerlaufSuchen")}
+              aria-label={t("team.imVerlaufSuchen")}
+            >
+              <NavIcon name="search" />
+            </button>
+          )}
           {/* Der eine Weg von hier in die Konsole: an dem Agenten, den man
               gerade vor sich hat. */}
-          <Link to={`/agents/${agentId}`} className="tm-thread-verwaltung">
-            {t("team.imAdmin")}
+          <Link
+            to={`/agents/${agentId}`}
+            className="tm-werkzeug"
+            title={t("team.imAdmin")}
+            aria-label={t("team.imAdmin")}
+          >
+            <NavIcon name="cog" />
           </Link>
         </div>
       </header>
@@ -170,7 +205,11 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
         )}
 
         {entries.map((e, i) => {
-          const neuerVorgang = i === 0 || entries[i - 1].task_id !== e.task_id;
+          /* Die Nachricht und die Aufgabe, die aus ihr wurde, gehören
+             zusammen — sonst zählt dieselbe Bitte als zwei Gruppen und der
+             Trenner fällt zwischen sie. */
+          const gruppe = (x: ChatEntry) => x.task_id ?? x.id;
+          const neuerVorgang = i === 0 || gruppe(entries[i - 1]) !== gruppe(e);
           /* Erster Eintrag einer Folge desselben Sprechers: nur er trägt das
              Gesicht. */
           const erstesDerFolge = neuerVorgang || vonMir(entries[i - 1]) !== vonMir(e);
@@ -183,28 +222,34 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
           return (
             <Fragment key={`${e.task_id}-${e.kind}-${i}`}>
               {datum && <div className="tm-tag">{datum === "gestern" ? t("team.gestern") : datum}</div>}
-              {neuerVorgang && (
+              {/* Der Trenner führt einen Vorgang ein, dessen Kopf man sonst
+                  nicht sähe. Eine Nachricht ist ihr eigener Kopf, ein Auftrag
+                  auch — dort wiederholte die Linie nur, was direkt darunter
+                  steht. Und eine beantwortete Nachricht hat gar keinen
+                  Vorgang; eine Linie darüber wäre die Behauptung, es sei
+                  Arbeit gewesen. */}
+              {neuerVorgang && e.task_id && e.kind !== "message" && (
                 <div className="tm-vorgang">
                   <span className="tm-vorgang-linie" aria-hidden="true" />
                   <Link to={`/agents/${agentId}?task=${e.task_id}`} className="tm-vorgang-titel">
                     {e.task_title}
                   </Link>
-                  {quelle && <span className="tm-vorgang-quelle">{t("team.quelle", { quelle })}</span>}
                   <span className="tm-vorgang-linie" aria-hidden="true" />
                 </div>
               )}
 
-              {/* Die Reaktionen stehen am Vorgang, weil sie dort hängen — und
-                  weil ein Zeichen unter jeder einzelnen Zeile ein Verlauf
-                  wäre, der aus Zeichen besteht. */}
-              {neuerVorgang && (
-                <Marken
-                  marken={marken[e.task_id] ?? []}
-                  darf={darfSchreiben}
-                  aufKlick={(emoji) => reagieren.mutate({ taskId: e.task_id, emoji })}
-                />
-              )}
-
+              {istAuftrag(e) ? (
+                <details className="tm-auftrag">
+                  <summary>
+                    <span className="tm-auftrag-quelle">{quelle || t("team.auftrag")}</span>
+                    <span className="tm-auftrag-titel">{e.task_title}</span>
+                    <time dateTime={e.at}>{uhr(e.at, i18n.language)}</time>
+                  </summary>
+                  <div className="tm-auftrag-text">
+                    <Markdown text={e.text} />
+                  </div>
+                </details>
+              ) : (
               <article className={`tm-blase ${vonMir(e) ? "ich" : "er"} k-${e.kind}`}>
                 {/* Auf der Seite des Agenten steht sein Gesicht, und zwar nur
                     beim ersten Eintrag einer Folge: Fünf Gesichter
@@ -224,7 +269,7 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
                 </div>
 
                 {/* Die offene Frage trägt ihre Antwort selbst. */}
-                {e.kind === "question" && e.task_state === "blocked" && darfSchreiben && (
+                {e.kind === "question" && e.task_state === "blocked" && darfSchreiben && e.task_id && (
                   <div className="tm-antwort">
                     {antwortAuf === e.task_id ? (
                       <>
@@ -236,7 +281,7 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
                           onKeyDown={(ev) => {
                             if (ev.key === "Enter" && !ev.shiftKey) {
                               ev.preventDefault();
-                              if (antwort.trim()) beantworten.mutate({ taskId: e.task_id, text: antwort.trim() });
+                              if (antwort.trim()) beantworten.mutate({ taskId: e.task_id!, text: antwort.trim() });
                             }
                             if (ev.key === "Escape") setAntwortAuf(null);
                           }}
@@ -247,7 +292,7 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
                           <button
                             className="btn primary sm"
                             disabled={!antwort.trim() || beantworten.isPending}
-                            onClick={() => beantworten.mutate({ taskId: e.task_id, text: antwort.trim() })}
+                            onClick={() => beantworten.mutate({ taskId: e.task_id!, text: antwort.trim() })}
                           >
                             {t("chat.answer")}
                           </button>
@@ -257,14 +302,26 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
                         </div>
                       </>
                     ) : (
-                      <button className="btn sm" onClick={() => setAntwortAuf(e.task_id)}>
+                      <button className="btn sm" onClick={() => setAntwortAuf(e.task_id!)}>
                         {t("chat.answer")}
                       </button>
                     )}
                   </div>
                 )}
+                {/* Die Reaktionen hängen an der AUFGABE und stehen deshalb
+                    nur am Kopf ihrer Gruppe — an jedem Eintrag gezeigt,
+                    stünde dasselbe Zeichen drei-, viermal untereinander und
+                    sähe aus wie vier Reaktionen. */}
+                {neuerVorgang && e.task_id && marken[e.task_id] && (
+                  <Marken
+                    marken={marken[e.task_id]}
+                    darf={darfSchreiben}
+                    aufKlick={(emoji) => reagieren.mutate({ taskId: e.task_id!, emoji })}
+                  />
+                )}
                 </div>
               </article>
+              )}
             </Fragment>
           );
         })}

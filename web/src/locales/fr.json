@@ -1138,6 +1138,14 @@
       "zoomFit": "Ajuster à la vue",
       "zoomIn": "Agrandir",
       "zoomOut": "Réduire"
+    },
+    "triage": {
+      "title": "Répondre ou tâche",
+      "hint": "Désactivé : chaque message de l'équipe devient une tâche. Activé : l'agent décide s'il répond ou s'il en fait du travail — un tour court dans le plan de contrôle, sans bac à sable, sans systèmes cibles, sans identifiants.",
+      "off": "Désactivé — chaque message devient une tâche",
+      "on": "Activé — l'agent décide",
+      "noCredential": "Cela demande des identifiants du plan de contrôle pour l'organisation.",
+      "cost": "Chaque message coûte alors un appel de modèle court."
     }
   },
   "orgs": {
@@ -2354,6 +2362,7 @@
     "ueberblick": "Vue d'ensemble",
     "arbeitenJetzt": "Au travail",
     "ueberblickArbeiten": "{{count}} travaillent. Rien n'attend de décision.",
-    "ueberblickStill": "C'est calme. Écrivez à quelqu'un ce qu'il y a à faire."
+    "ueberblickStill": "C'est calme. Écrivez à quelqu'un ce qu'il y a à faire.",
+    "auftrag": "Ordre"
   }
 }

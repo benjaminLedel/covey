@@ -1138,6 +1138,14 @@
       "zoomFit": "Einpassen",
       "zoomIn": "Vergrößern",
       "zoomOut": "Verkleinern"
+    },
+    "triage": {
+      "title": "Antworten oder Aufgabe",
+      "hint": "Aus: Jede Nachricht im Team wird eine Aufgabe. An: Der Agent entscheidet, ob er direkt antwortet oder Arbeit daraus macht — ein kurzer Zug in der Control Plane, ohne Sandbox, ohne Zielsysteme, ohne Zugangsdaten.",
+      "off": "Aus — jede Nachricht wird eine Aufgabe",
+      "on": "An — der Agent entscheidet",
+      "noCredential": "Dafür braucht die Organisation Zugangsdaten für die Control Plane.",
+      "cost": "Jede Nachricht kostet damit einen kurzen Modellaufruf."
     }
   },
   "orgs": {
@@ -2354,6 +2362,7 @@
     "ueberblick": "Überblick",
     "arbeitenJetzt": "Arbeitet gerade",
     "ueberblickArbeiten": "{{count}} arbeiten gerade. Nichts braucht eine Entscheidung.",
-    "ueberblickStill": "Gerade ist es still. Schreiben Sie jemandem, was zu tun ist."
+    "ueberblickStill": "Gerade ist es still. Schreiben Sie jemandem, was zu tun ist.",
+    "auftrag": "Auftrag"
   }
 }

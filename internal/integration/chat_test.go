@@ -33,17 +33,30 @@ func TestChatIsADoorIntoTheBacklog(t *testing.T) {
 	admin := login(t, s, "admin@test.local", "admin-passwort")
 	base := "/api/v1/agents/" + agent.ID.String()
 
-	// 1. The message becomes a task. The first line is the title, the whole
-	//    text stays in the body, and the origin says where it came from.
+	/* 1. Die Nachricht wird geschrieben, und ohne Triage wird eine Aufgabe
+	      daraus: erste Zeile als Titel, der ganze Text als Rumpf, die Herkunft
+	      sagt, woher er kam. Die Antwort trägt beides — die Nachricht ist das
+	      Gesagte, die Aufgabe das Daraus-Gewordene (#302). */
 	msg := "Bitte die Rechnung von Globex prüfen\nSie liegt seit gestern im Postfach."
 	created := admin.expect(http.MethodPost, base+"/messages", map[string]any{"text": msg}, http.StatusCreated)
-	if got := created["title"]; got != "Bitte die Rechnung von Globex prüfen" {
+	if created["answered"] != false {
+		t.Fatalf("without triage nothing is answered: %v", created["answered"])
+	}
+	nachricht, _ := created["message"].(map[string]any)
+	if nachricht["text"] != msg || nachricht["author"] != "chat:admin@test.local" {
+		t.Fatalf("the message as it was said: %v", nachricht)
+	}
+	aufgabe, _ := created["task"].(map[string]any)
+	if got := aufgabe["title"]; got != "Bitte die Rechnung von Globex prüfen" {
 		t.Fatalf("title: %v", got)
 	}
-	if got := created["origin"]; got != "chat:admin@test.local" {
+	if got := aufgabe["origin"]; got != "chat:admin@test.local" {
 		t.Fatalf("origin: %v", got)
 	}
-	taskID := created["id"].(string)
+	taskID := aufgabe["id"].(string)
+	if nachricht["task_id"] != taskID {
+		t.Fatalf("the message has to point at the task it became: %v", nachricht["task_id"])
+	}
 
 	// An empty message is not an empty task.
 	admin.expect(http.MethodPost, base+"/messages", map[string]any{"text": "   "}, http.StatusBadRequest)
@@ -196,7 +209,8 @@ func TestAMessageInAScriptWithoutSpacesSurvivesItsTitle(t *testing.T) {
 	created := admin.expect(http.MethodPost, "/api/v1/agents/"+agent.ID.String()+"/messages",
 		map[string]any{"text": lang}, http.StatusCreated)
 
-	titel, _ := created["title"].(string)
+	aufgabe, _ := created["task"].(map[string]any)
+	titel, _ := aufgabe["title"].(string)
 	if !utf8.ValidString(titel) {
 		t.Fatalf("the title is not valid UTF-8: %q", titel)
 	}
@@ -204,7 +218,7 @@ func TestAMessageInAScriptWithoutSpacesSurvivesItsTitle(t *testing.T) {
 		t.Fatalf("the title was not shortened: %d characters", n)
 	}
 	// The body keeps the whole message — only the title is cut.
-	if created["body"] != lang {
+	if aufgabe["body"] != lang {
 		t.Fatal("the body must carry the message unabridged")
 	}
 }
@@ -243,7 +257,7 @@ func TestAReactionIsAToggleAndBelongsToTheTask(t *testing.T) {
 
 	created := admin.expect(http.MethodPost, base+"/messages",
 		map[string]any{"text": "Bitte den Mahnlauf prüfen"}, http.StatusCreated)
-	taskID := created["id"].(string)
+	taskID := created["task"].(map[string]any)["id"].(string)
 	pfad := "/api/v1/tasks/" + taskID + "/reactions"
 
 	// Setzen, und im Verlauf steht es.
