@@ -134,6 +134,17 @@ func TestRecordingFiltersOverTheAPI(t *testing.T) {
 	waitFor(t, "task done", 15*time.Second, func() bool {
 		return s.taskState(task.ID) == "done"
 	})
+	/* Und dann noch, bis der Agent wieder schläft.
+   
+	   Die fertige Aufgabe ist nicht das letzte, was aufgezeichnet wird: Danach
+	   legt sich der Agent hin, und das ist ein `lifecycle`-Ereignis. Wer den
+	   Verlauf im Augenblick des `done` abfragt, bekommt ihn manchmal ohne
+	   diese letzte Zeile — und `?after=` findet sie dann als eine, die es
+	   nicht geben dürfte. Der Test hat damit einen Wettlauf gemessen, keinen
+	   Vertrag; unter Last verlor er ihn. */
+	waitFor(t, "agent asleep again", 15*time.Second, func() bool {
+		return s.agentStatus(agent.ID) == "sleeping"
+	})
 
 	all := admin.expectList(http.MethodGet, base, nil, http.StatusOK)
 	if len(all) == 0 {
