@@ -36,6 +36,7 @@ import (
 	"covey/internal/backlog"
 	"covey/internal/chat"
 	"covey/internal/llm"
+	"covey/internal/orchestrator"
 )
 
 // chatEntry is one line of the thread. The kinds:
@@ -78,6 +79,12 @@ type chatMark struct {
 
 type chatThread struct {
 	Entries []chatEntry `json:"entries"`
+	/* Denkt gerade nach: Es liegt eine angenommene Nachricht vor, für die die
+	   Triage noch keine Entscheidung hat. Das ist das eine, was NICHT im
+	   Verlauf steht — es ist kein Eintrag, sondern ein Zustand zwischen zwei
+	   Einträgen. Der Ereignisstrom meldet es sofort; hier steht es, damit es
+	   ein Neuladen der Seite übersteht. */
+	Pending bool `json:"pending"`
 	/* Reaktionen je Aufgabe. Sie hängen an der Aufgabe und nicht am Eintrag
 	   (internal/backlog/reactions.go) — die Oberfläche zeigt sie deshalb am
 	   ersten Eintrag eines Vorgangs. */
@@ -137,6 +144,10 @@ func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 	UNION ALL
 	SELECT 'note', n.task_id, n.task_id, t.title, t.state, n.author, n.content, n.created_at
 	       FROM task_notes n JOIN t ON t.id = n.task_id
+	       -- Die Notiz der Triage ist Maschinerie, nicht Gespräch: Sie trägt
+	       -- die Nachricht an den laufenden Vorgang weiter, und die Nachricht
+	       -- selbst steht zwei Zeilen darüber.
+	       WHERE n.author NOT LIKE 'triage:%'
 	UNION ALL
 	SELECT 'question', tr.task_id, tr.task_id, t.title, t.state, 'agent', tr.note, tr.created_at
 	       FROM task_transitions tr JOIN t ON t.id = tr.task_id
@@ -182,6 +193,13 @@ func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 
 	out.Marks, err = s.marksOf(r, out.Entries)
 	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	/* Eine Zeile über einem Teilindex, der im Normalbetrieb leer ist. */
+	if err := s.Pool.QueryRow(r.Context(),
+		`SELECT EXISTS(SELECT 1 FROM chat_messages WHERE agent_id=$1 AND triage_state='pending')`,
+		id).Scan(&out.Pending); err != nil {
 		mapErr(w, err)
 		return
 	}
@@ -315,6 +333,24 @@ func chatText(w http.ResponseWriter, r *http.Request) (string, bool) {
 // and whatever the triage decides afterwards. What somebody said is a fact;
 // what is made of it is a judgement, and a judgement that fails must not
 // swallow the fact.
+/* handleChatMessage nimmt eine Nachricht an — und wartet nicht auf die
+  Entscheidung.
+*
+* Vorher lief der Modell-Zug im Request. Das war die bequeme Form und die
+* falsche: Wer abschickte, sah Sekunden lang ein stehendes Eingabefeld und
+* nicht einmal die eigene Nachricht, und die Verbindung musste so lange
+* offen bleiben, wie das Modell brauchte. Ein Chat, in dem das Absenden
+* hängt, ist kein Chat, sondern ein Formular.
+*
+* Jetzt: Die Nachricht wird geschrieben, der Request ist fertig (202), und
+* die Entscheidung fällt daneben. Was dabei herauskommt, kommt über den
+* Ereignisstrom zurück, über den die Oberfläche ohnehin schon hört
+* (`/api/v1/events`, sse.go) — dieselbe Leitung, die Aufgaben und Läufe
+* meldet, meldet nun auch, dass der Kollege nachdenkt.
+*
+* Ohne Triage bleibt alles, wie es war: Da ist nichts zu warten — eine
+* Aufgabe anzulegen kostet eine Einfügung —, und der Aufrufer bekommt sie
+* wie bisher in derselben Antwort. */
 func (s *Server) handleChatMessage(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
@@ -327,72 +363,211 @@ func (s *Server) handleChatMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg, err := s.Chat.Add(r.Context(), p.OrgID, id, "chat:"+p.Email, text)
+	/* Ob es überhaupt etwas zu entscheiden gibt, steht an der Organisation.
+	   Die Frage kostet eine Zeile und entscheidet, ob diese Nachricht mit
+	   einer Schuld geschrieben wird. */
+	mode, err := s.Chat.Mode(r.Context(), p.OrgID)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	triage := mode == chat.TriageOn
+
+	msg, err := s.Chat.Add(r.Context(), p.OrgID, id, "chat:"+p.Email, text, triage)
 	if err != nil {
 		mapErr(w, err)
 		return
 	}
 
-	entscheidung, offen := s.triagieren(r.Context(), p.OrgID, id, text)
+	if !triage {
+		t, err := s.aufgabeAusNachricht(r.Context(), p.OrgID, id, msg, chat.Entscheidung{}, text, p.Email)
+		if err != nil {
+			mapErr(w, err)
+			return
+		}
+		msg.TaskID = &t.ID
+		writeJSON(w, http.StatusCreated, map[string]any{"message": msg, "task": t, "answered": false})
+		return
+	}
 
+	/* Angenommen. Der Zug läuft daneben, mit einem Kontext, der nicht am
+	   Request hängt: Dessen Kontext wird abgebrochen, sobald die Antwort
+	   geschrieben ist, und ein Zug, den das Abschicken der Antwort abbricht,
+	   liefe nie zu Ende. */
+	go s.triageLauf(p.OrgID, id, msg, text, p.Email)
+
+	s.chatEreignis(p.OrgID, id, "thinking", nil)
+	writeJSON(w, http.StatusAccepted, map[string]any{"message": msg, "pending": true})
+}
+
+// triageLaufFrist: so lange darf ein Zug dauern. Ein Modell, das länger
+// braucht, hat nicht geantwortet — und die Nachricht wird zur Aufgabe, was
+// ohnehin die Antwort auf jeden Fehler ist.
+const triageLaufFrist = 90 * time.Second
+
+/* triageLauf ist der Zug außerhalb des Requests.
+ *
+ * Er endet IMMER mit einem Zustand an der Nachricht und einem Ereignis —
+ * auch beim Absturz eines Modells, auch bei einem Fehler in der Datenbank.
+ * Was er nicht darf, ist still enden: Eine angenommene Nachricht, zu der nie
+ * etwas kommt, ist schlimmer als eine überflüssige Aufgabe.
+ */
+func (s *Server) triageLauf(orgID, agentID uuid.UUID, msg chat.Message, text, email string) {
+	ctx, abbrechen := context.WithTimeout(context.Background(), triageLaufFrist)
+	defer abbrechen()
+
+	entscheidung, offen := s.triagieren(ctx, orgID, agentID, text)
+	zustand, daten, err := s.entscheidungAnwenden(ctx, orgID, agentID, msg, entscheidung, offen, text, email)
+	if err != nil {
+		s.Log.Error("chat triage could not be applied", "agent", agentID, "message", msg.ID, "err", err)
+		if err := s.Chat.Erledigt(ctx, msg.ID, chat.StateFailed); err != nil {
+			s.Log.Warn("chat message stays pending", "message", msg.ID, "err", err)
+		}
+		s.chatEreignis(orgID, agentID, "failed", nil)
+		return
+	}
+	if err := s.Chat.Erledigt(ctx, msg.ID, chat.StateDone); err != nil {
+		s.Log.Warn("chat message stays pending", "message", msg.ID, "err", err)
+	}
+	s.chatEreignis(orgID, agentID, zustand, daten)
+}
+
+/*
+entscheidungAnwenden führt aus, was die Triage beschlossen hat, und gibt
+
+	zurück, was daraus geworden ist. Ein Fehler hier ist ein echter Fehler —
+	die weiche Behandlung („im Zweifel eine Aufgabe") sitzt eine Ebene tiefer
+	in triagieren(), wo sie hingehört.
+*/
+func (s *Server) entscheidungAnwenden(
+	ctx context.Context,
+	orgID, agentID uuid.UUID,
+	msg chat.Message,
+	entscheidung chat.Entscheidung,
+	offen map[string]uuid.UUID,
+	text, email string,
+) (string, map[string]string, error) {
 	/* Die Notiz an eine laufende Aufgabe: Statt eines zweiten Vorgangs für
 	   dieselbe Sache bekommt der bestehende, was dazugekommen ist — und wenn
 	   er auf eine Antwort wartete, weckt ihn das über denselben Weg wie eine
 	   Antwort von Hand. */
 	if entscheidung.Aktion == chat.AktionNotiz {
-		if ziel, ok := offen[entscheidung.Aufgabe]; ok {
-			if _, err := s.Backlog.AddNote(r.Context(), ziel, "human:"+p.Email, entscheidung.Text); err != nil {
-				mapErr(w, err)
-				return
+		ziel, bekannt := offen[entscheidung.Aufgabe]
+		if !bekannt {
+			/* Eine Kennung, die es nicht gibt: Das Modell hat sich eine
+			   ausgedacht, und dann ist es eine neue Aufgabe — nie eine
+			   stillschweigend verworfene Nachricht. */
+			entscheidung = chat.Entscheidung{Aktion: chat.AktionAufgabe}
+		} else {
+			/* `triage:` und nicht `human:`: Die Notiz ist das, was der Zug aus
+			   der Nachricht gemacht hat, damit der Lauf sie versteht — nicht
+			   das, was jemand gesagt hat. Das Gesagte steht schon als
+			   Nachricht im Verlauf, und beides nebeneinander läse sich wie
+			   dieselbe Bitte zweimal, einmal davon in fremden Worten. Am
+			   Vorgang bleibt die Notiz, wo sie hingehört; aus dem Gespräch
+			   hält sie sich heraus (handleThread). */
+			if _, err := s.Backlog.AddNote(ctx, ziel, "triage:"+email, entscheidung.Text); err != nil {
+				return "", nil, err
 			}
-			geweckt := false
-			if _, err := s.Backlog.Answer(r.Context(), ziel, p.Email, entscheidung.Text); err == nil {
-				geweckt = true
+			geweckt := "false"
+			if _, err := s.Backlog.Answer(ctx, ziel, email, entscheidung.Text); err == nil {
+				geweckt = "true"
 			}
-			if err := s.Chat.LinkTask(r.Context(), msg.ID, ziel); err != nil {
-				mapErr(w, err)
-				return
+			if err := s.Chat.LinkTask(ctx, msg.ID, ziel); err != nil {
+				return "", nil, err
 			}
-			msg.TaskID = &ziel
-			writeJSON(w, http.StatusCreated, map[string]any{"message": msg, "noted": true, "woken": geweckt})
-			return
+			return "noted", map[string]string{"task_id": ziel.String(), "woken": geweckt}, nil
 		}
-		/* Eine Kennung, die es nicht gibt: Das Modell hat sich eine ausgedacht,
-		   und dann ist es eine neue Aufgabe — nie eine stillschweigend
-		   verworfene Nachricht. */
-		entscheidung = chat.Entscheidung{Aktion: chat.AktionAufgabe}
 	}
 
 	if entscheidung.Aktion == chat.AktionAntwort {
-		if _, err := s.Chat.Add(r.Context(), p.OrgID, id, "agent", entscheidung.Text); err != nil {
-			mapErr(w, err)
-			return
+		if _, err := s.Chat.Add(ctx, orgID, agentID, "agent", entscheidung.Text, false); err != nil {
+			return "", nil, err
 		}
-		writeJSON(w, http.StatusCreated, map[string]any{"message": msg, "answered": true})
-		return
+		return "answered", nil, nil
 	}
 
-	/* origin sagt, woher die Arbeit kam, und der Chat ist eine Herkunft neben
-	   manual, schedule und webhook:… — keine neue Art Aufgabe. */
+	t, err := s.aufgabeAusNachricht(ctx, orgID, agentID, msg, entscheidung, text, email)
+	if err != nil {
+		return "", nil, err
+	}
+	return "task", map[string]string{"task_id": t.ID.String()}, nil
+}
+
+/*
+aufgabeAusNachricht legt den Vorgang an und hängt die Nachricht daran.
+
+	`origin` sagt, woher die Arbeit kam, und der Chat ist eine Herkunft neben
+	manual, schedule und webhook:… — keine neue Art Aufgabe.
+*/
+func (s *Server) aufgabeAusNachricht(
+	ctx context.Context,
+	orgID, agentID uuid.UUID,
+	msg chat.Message,
+	entscheidung chat.Entscheidung,
+	text, email string,
+) (backlog.Task, error) {
 	titel, rumpf := entscheidung.Titel, entscheidung.Rumpf
 	if titel == "" {
 		titel, rumpf = chatTitle(text), text
 	}
-	t, err := s.Backlog.Create(r.Context(), p.OrgID, id, titel, rumpf, "chat:"+p.Email, 0)
+	t, err := s.Backlog.Create(ctx, orgID, agentID, titel, rumpf, "chat:"+email, 0)
 	if err != nil {
-		mapErr(w, err)
+		return backlog.Task{}, err
+	}
+	if err := s.Chat.LinkTask(ctx, msg.ID, t.ID); err != nil {
+		return backlog.Task{}, err
+	}
+	return t, nil
+}
+
+/* chatEreignis meldet, was mit dem Verlauf geschehen ist.
+ *
+ * Es ist dieselbe Leitung, über die Aufgaben, Läufe und Freigaben kommen, und
+ * sie ist bereits je Organisation abgegrenzt (broadcast.go). Die Oberfläche
+ * braucht daraufhin nur den Verlauf neu zu holen — was genau geschehen ist,
+ * steht in ihm, nicht im Ereignis. `state` ist trotzdem dabei, weil eine
+ * Sache NICHT im Verlauf steht: dass gerade nachgedacht wird. */
+func (s *Server) chatEreignis(orgID, agentID uuid.UUID, zustand string, daten map[string]string) {
+	if s.Orch == nil {
 		return
 	}
-	if err := s.Chat.LinkTask(r.Context(), msg.ID, t.ID); err != nil {
-		mapErr(w, err)
+	d := map[string]string{"state": zustand}
+	for k, v := range daten {
+		d[k] = v
+	}
+	s.Orch.Events().Publish(orchestrator.Event{
+		Type:    "chat",
+		AgentID: agentID.String(),
+		OrgID:   orgID,
+		Data:    d,
+	})
+}
+
+/* NachholenOffeneTriage holt nach, was ein Neustart unterbrochen hat.
+ *
+ * Eine Nachricht wird angenommen und dann entschieden; dazwischen liegt ein
+ * Zug, der Sekunden dauert. Stirbt die Control Plane in diesem Fenster, stünde
+ * die Nachricht für immer auf `pending` — angenommen, aber ohne Antwort und
+ * ohne Aufgabe. Das ist genau der Verlust, den die Warteschlange verhindern
+ * soll, also wird beim Hochfahren aufgeräumt.
+ *
+ * Es wird nicht in einer Schleife gepollt: Der gewöhnliche Weg ist die
+ * Goroutine aus dem Request, und dies hier ist das Netz darunter. */
+func (s *Server) NachholenOffeneTriage(ctx context.Context) {
+	if s.Chat == nil {
 		return
 	}
-	/* Die zurückgegebene Nachricht trägt die Verknüpfung mit: Sie wurde
-	   geschrieben, bevor die Aufgabe existierte, und eine Antwort, die den
-	   Stand von vor zwei Zeilen zeigt, ist eine Antwort, der man nicht
-	   glauben kann. */
-	msg.TaskID = &t.ID
-	writeJSON(w, http.StatusCreated, map[string]any{"message": msg, "task": t, "answered": false})
+	offen, err := s.Chat.Liegengeblieben(ctx, 50)
+	if err != nil {
+		s.Log.Warn("could not look for unfinished chat triage", "err", err)
+		return
+	}
+	for _, m := range offen {
+		s.Log.Info("finishing chat triage left over from a restart", "message", m.ID, "agent", m.AgentID)
+		email := strings.TrimPrefix(m.Author, "chat:")
+		go s.triageLauf(m.OrgID, m.AgentID, m, m.Text, email)
+	}
 }
 
 // triagieren runs the turn — or says "task" without asking anybody.
@@ -542,7 +717,6 @@ func (s *Server) handleSetTriage(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"mode": in.Mode})
 }
-
 
 // chatReply is what comes back from a reply: the note always, the task only
 // when the reply actually woke somebody.

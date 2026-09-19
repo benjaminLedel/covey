@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -34,9 +35,9 @@ func TestChatIsADoorIntoTheBacklog(t *testing.T) {
 	base := "/api/v1/agents/" + agent.ID.String()
 
 	/* 1. Die Nachricht wird geschrieben, und ohne Triage wird eine Aufgabe
-	      daraus: erste Zeile als Titel, der ganze Text als Rumpf, die Herkunft
-	      sagt, woher er kam. Die Antwort trägt beides — die Nachricht ist das
-	      Gesagte, die Aufgabe das Daraus-Gewordene (#302). */
+	   daraus: erste Zeile als Titel, der ganze Text als Rumpf, die Herkunft
+	   sagt, woher er kam. Die Antwort trägt beides — die Nachricht ist das
+	   Gesagte, die Aufgabe das Daraus-Gewordene (#302). */
 	msg := "Bitte die Rechnung von Globex prüfen\nSie liegt seit gestern im Postfach."
 	created := admin.expect(http.MethodPost, base+"/messages", map[string]any{"text": msg}, http.StatusCreated)
 	if created["answered"] != false {
@@ -329,4 +330,123 @@ func mussUUID(t *testing.T, s string) uuid.UUID {
 		t.Fatal(err)
 	}
 	return id
+}
+
+/*
+TestChatAcceptsWithoutWaitingForTheTriage prüft die Form, die #304 gebracht
+
+	hat: Das Abschicken wartet nicht auf das Modell.
+
+*
+* Es gibt in diesem Stapel keinen Anbieter, und genau das macht den Test
+* scharf: Die Triage ist eingeschaltet, sie scheitert an der fehlenden
+* Zugangsdatei, und trotzdem muss dabei ALLES stimmen — 202 sofort, die
+* Nachricht steht schon im Verlauf, `pending` sagt, dass noch etwas kommt,
+* und kurz darauf ist aus ihr eine Aufgabe geworden. Eine Nachricht darf nie
+* verschwinden, auch nicht, wenn nichts antwortet.
+*/
+func TestChatAcceptsWithoutWaitingForTheTriage(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	agent := s.newSupportAgent("chat-async")
+	if err := s.registry.SetKilled(ctx, agent.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	base := "/api/v1/agents/" + agent.ID.String()
+
+	admin.expect(http.MethodPatch, "/api/v1/org/chat-triage", map[string]any{"mode": "on"}, http.StatusOK)
+
+	angenommen := admin.expect(http.MethodPost, base+"/messages",
+		map[string]any{"text": "Bitte die Rechnung von Globex prüfen"}, http.StatusAccepted)
+	if angenommen["pending"] != true {
+		t.Fatalf("an accepted message says that a decision is still owed: %v", angenommen)
+	}
+	if angenommen["task"] != nil {
+		t.Fatalf("the task does not exist yet — claiming it does is the old, blocking shape: %v", angenommen["task"])
+	}
+	nachricht, _ := angenommen["message"].(map[string]any)
+	if nachricht["text"] != "Bitte die Rechnung von Globex prüfen" {
+		t.Fatalf("the message is written before the decision: %v", nachricht)
+	}
+
+	/* Und dann kommt die Entscheidung nach. Ohne Anbieter ist sie „Aufgabe" —
+	   das Verhalten von vor der Triage, das jeder Fehlerfall wiederherstellt. */
+	wartenAuf(t, "the message becomes a task", func() bool {
+		tasks, err := s.backlog.ListByAgent(ctx, agent.ID, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(tasks) == 1 && tasks[0].Origin == "chat:admin@test.local"
+	})
+
+	/* Der Verlauf sagt am Ende nicht mehr, dass etwas aussteht. Solange er es
+	   sagt, steht in der Oberfläche die Blase „denkt nach" — und eine, die
+	   nicht wieder verschwindet, ist schlimmer als gar keine. */
+	wartenAuf(t, "the thread stops saying that something is pending", func() bool {
+		verlauf := admin.expect(http.MethodGet, base+"/thread", nil, http.StatusOK)
+		return verlauf["pending"] == false
+	})
+}
+
+/* TestChatTriageSurvivesARestart prüft das Netz unter der Goroutine.
+ *
+ * Die Nachricht ist angenommen, der Zug läuft daneben — stirbt die Control
+ * Plane dazwischen, stünde sie für immer auf `pending`: angenommen, aber ohne
+ * Antwort und ohne Aufgabe. Genau dafür steht der Zustand in der Datenbank
+ * und nicht in einer Goroutine.
+ *
+ * Der Neustart wird hier nachgestellt, indem eine Nachricht von Hand als
+ * `pending` eingetragen und dann das Aufräumen aufgerufen wird — das ist
+ * derselbe Weg, den `covey serve` beim Hochfahren geht.
+ */
+func TestChatTriageSurvivesARestart(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	agent := s.newSupportAgent("chat-restart")
+	if err := s.registry.SetKilled(ctx, agent.ID, true); err != nil {
+		t.Fatal(err)
+	}
+
+	id := uuid.New()
+	if _, err := s.pool.Exec(ctx,
+		`INSERT INTO chat_messages (id, org_id, agent_id, author, text, triage_state)
+		 VALUES ($1,$2,$3,'chat:admin@test.local','Die Wartung von morgen absagen','pending')`,
+		id, s.orgID, agent.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	s.srv.NachholenOffeneTriage(ctx)
+
+	wartenAuf(t, "the left-over message becomes a task", func() bool {
+		tasks, err := s.backlog.ListByAgent(ctx, agent.ID, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(tasks) == 1 && tasks[0].Title == "Die Wartung von morgen absagen"
+	})
+
+	/* Und sie hängt an der Nachricht: Der Verlauf zeigt das Gesagte und das
+	   Daraus-Gewordene als eine Zeile, nicht als zwei. */
+	var taskID *uuid.UUID
+	if err := s.pool.QueryRow(ctx, `SELECT task_id FROM chat_messages WHERE id=$1`, id).Scan(&taskID); err != nil {
+		t.Fatal(err)
+	}
+	if taskID == nil {
+		t.Fatal("the caught-up message has to point at the task it became")
+	}
+}
+
+// wartenAuf pollt eine Bedingung, die eine Goroutine erfüllt. Zwei Sekunden
+// sind großzügig für eine Einfügung und knapp genug, dass ein Fehlschlag den
+// Lauf nicht aufhält.
+func wartenAuf(t *testing.T, was string, erfuellt func() bool) {
+	t.Helper()
+	for i := 0; i < 200; i++ {
+		if erfuellt() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for: %s", was)
 }

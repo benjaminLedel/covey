@@ -3138,6 +3138,11 @@
 }
 
 
+/* Abgeschickt, noch nicht bestätigt. Blass, aber lesbar — und ohne Spinner:
+   Der gewöhnliche Fall dauert Millisekunden, und ein Rädchen, das so kurz
+   erscheint, ist ein Zucken. */
+.tm-blase.unterwegs { opacity: 0.6; }
+
 /* ── Das Büro ────────────────────────────────────────────────────────────
  *
  * Der Grundriss der Belegschaft. Räume sind Abteilungen, Plätze sind

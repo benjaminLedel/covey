@@ -41,8 +41,14 @@ function useLiveEvents(enabled: boolean) {
       qc.invalidateQueries({ queryKey: ["inbox"] });
       qc.invalidateQueries({ queryKey: ["cost"] });
       qc.invalidateQueries({ queryKey: ["memories"] });
+      /* Der Verlauf und der Grundriss hängen an denselben Ereignissen. Sie
+         standen bis zuletzt auf einem Zehn-Sekunden-Takt, weil es für sie
+         keinen Push gab — den gibt es jetzt (chat.go), und ein Takt, der
+         daneben weiterläuft, wäre nur noch das Netz darunter. */
+      qc.invalidateQueries({ queryKey: ["thread"] });
+      qc.invalidateQueries({ queryKey: ["org-running"] });
     };
-    for (const t of ["agent_status", "task", "recording", "approval", "guardrail"]) {
+    for (const t of ["agent_status", "task", "recording", "approval", "guardrail", "chat"]) {
       es.addEventListener(t, invalidate);
     }
     /* A broken event stream can have two causes: the server was restarted

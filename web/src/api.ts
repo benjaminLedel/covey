@@ -184,6 +184,17 @@ export type ChatEntry = {
   author: string;
   text: string;
   at: string;
+  /** Nur im Browser gesetzt: abgeschickt, vom Server noch nicht bestätigt. */
+  unterwegs?: boolean;
+};
+
+/** Der Verlauf, wie ihn `/agents/{id}/thread` liefert. */
+export type Verlauf = {
+  entries: ChatEntry[];
+  marks: Record<string, ChatMark[]>;
+  /* Eine angenommene Nachricht wartet noch auf ihre Entscheidung. Das ist das
+     einzige, was kein Eintrag ist, sondern der Zustand zwischen zweien. */
+  pending?: boolean;
 };
 
 /* Eine Reaktion auf einen Vorgang, schon gruppiert: welches Zeichen, wie oft,

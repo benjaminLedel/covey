@@ -2,7 +2,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { api, post, upload, type Agent, type ChatEntry, type ChatMark, type Principal } from "../api";
+import { api, post, upload, type Agent, type ChatEntry, type ChatMark, type Principal, type Verlauf } from "../api";
 import { Markdown } from "../components/Markdown";
 import { canManage } from "../pages/agent/roles";
 import Gesicht from "../components/Gesicht";
@@ -89,10 +89,11 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
   });
   const thread = useQuery({
     queryKey: ["thread", agentId],
-    queryFn: () => api<{ entries: ChatEntry[]; marks: Record<string, ChatMark[]> }>(`/agents/${agentId}/thread`),
-    /* Zehn Sekunden: Der Agent antwortet, während jemand auf die Seite sieht,
-       und einen Push dafür gibt es nicht. */
-    refetchInterval: 10_000,
+    queryFn: () => api<Verlauf>(`/agents/${agentId}/thread`),
+    /* Der Push kommt über den Ereignisstrom (App.tsx, chat.go). Die halbe
+       Minute daneben ist kein Takt mehr, sondern das Netz darunter: für die
+       Verbindung, die abgerissen ist, ohne es zu melden. */
+    refetchInterval: 30_000,
   });
 
   const alle = thread.data?.entries ?? [];
@@ -105,8 +106,21 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
     ? alle.filter((e) => (e.text + " " + e.task_title).toLowerCase().includes(begriff))
     : alle;
   const darfSchreiben = canManage(me.Role);
-  /* Tippt: Die jüngste Aufgabe des Verlaufs steht auf `in_progress`. */
-  const tippt = !begriff && alle.length > 0 && alle[alle.length - 1].task_state === "in_progress";
+  /* „Denkt nach" hat zwei Quellen, und beide braucht es.
+   
+     Der Server weiß es: Eine angenommene Nachricht ohne Entscheidung steht
+     als `pending` im Verlauf — das übersteht ein Neuladen und gilt auch für
+     jemand anderen, der demselben Agenten zusieht.
+   
+     Der Browser weiß es früher: zwischen dem Klick auf Senden und der Antwort
+     des Servers liegt noch ein Weg, und in dieser Zeit soll die Blase schon
+     stehen. Eine Blase, die eine halbe Sekunde zu spät kommt, sieht aus wie
+     eine Oberfläche, die nicht mitbekommen hat, dass man etwas getan hat.
+   
+     Dazu die alte Ableitung: Ein Lauf, der wirklich arbeitet, ist auch
+     „tippen" — nur ist er es jetzt zusätzlich und nicht mehr ersatzweise. */
+  const laeuft = alle.length > 0 && alle[alle.length - 1].task_state === "in_progress";
+  const tippt = !begriff && (thread.data?.pending || laeuft);
 
   /* Ein Anhang ist kein Bild neben der Nachricht, sondern eine Datei im
      Arbeitsplatz des Agenten: Dort kann er sie öffnen, und nur dort nützt sie
@@ -125,11 +139,48 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
       }
       return post(`/agents/${agentId}/messages`, { text: voll });
     },
-    onSuccess: () => {
+    /* Die eigene Nachricht steht im Verlauf, bevor der Server sie bestätigt
+       hat. Das ist keine Beschönigung: Sie IST abgeschickt, und ob ein Chat
+       sich anfühlt wie ein Chat, entscheidet sich genau hier — an dem
+       Augenblick zwischen dem Tippen und dem Sehen.
+   
+       Scheitert das Abschicken, wird der vorherige Stand zurückgelegt und der
+       Text steht wieder im Feld: nichts verschwindet stillschweigend. */
+    onMutate: async (nachricht: string) => {
+      await qc.cancelQueries({ queryKey: ["thread", agentId] });
+      const vorher = qc.getQueryData<Verlauf>(["thread", agentId]);
+      const anhangZeile =
+        anhaenge.length > 0
+          ? `\n\n(${t("team.anhangZeile", { pfade: anhaenge.map((f) => `${ANHANG_ORDNER}/${f.name}`).join(", ") })})`
+          : "";
+      qc.setQueryData<Verlauf>(["thread", agentId], (alt) => ({
+        entries: [
+          ...(alt?.entries ?? []),
+          {
+            kind: "message",
+            id: `unterwegs-${Date.now()}`,
+            task_title: "",
+            task_state: "",
+            author: `chat:${me.Email}`,
+            text: nachricht + anhangZeile,
+            at: new Date().toISOString(),
+            unterwegs: true,
+          } as ChatEntry,
+        ],
+        marks: alt?.marks ?? {},
+        pending: true,
+      }));
       setText("");
       setAnhaenge([]);
-      qc.invalidateQueries({ queryKey: ["thread", agentId] });
+      return { vorher, nachricht };
     },
+    onError: (_fehler, _nachricht, ctx) => {
+      if (ctx?.vorher) qc.setQueryData(["thread", agentId], ctx.vorher);
+      if (ctx?.nachricht) setText(ctx.nachricht);
+    },
+    /* In jedem Fall neu holen: Die eingefügte Zeile ist eine Behauptung, der
+       Verlauf vom Server ist die Wahrheit. */
+    onSettled: () => qc.invalidateQueries({ queryKey: ["thread", agentId] }),
   });
 
   const beantworten = useMutation({
@@ -273,7 +324,7 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
                   </div>
                 </details>
               ) : (
-              <article className={`tm-blase ${vonMir(e) ? "ich" : "er"} k-${e.kind}`}>
+              <article className={`tm-blase ${vonMir(e) ? "ich" : "er"} k-${e.kind}${e.unterwegs ? " unterwegs" : ""}`}>
                 {/* Auf der Seite des Agenten steht sein Gesicht, und zwar nur
                     beim ersten Eintrag einer Folge: Fünf Gesichter
                     untereinander sind eine Bilderreihe, keine Unterhaltung. */}

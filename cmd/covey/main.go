@@ -1510,6 +1510,11 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Pool: pool, Mail: mail.New(settingsStore), Settings: settingsStore,
 		SiteURL: cfg.SiteURL, Log: log,
 	}).Run(ctx)
+	// Was ein Neustart mitten in einer Triage unterbrochen hat: Eine
+	// angenommene Chat-Nachricht ohne Entscheidung bekommt sie jetzt nach.
+	// Einmal beim Hochfahren, nicht in einer Schleife — der gewöhnliche Weg
+	// ist die Goroutine aus dem Request, dies ist das Netz darunter.
+	go srv.NachholenOffeneTriage(ctx)
 	// The channel back to the project (internal/telemetry): once a day a
 	// handful of counts, and the way a platform finding reaches the tracker on
 	// an installation that has no forge account of its own. ON unless

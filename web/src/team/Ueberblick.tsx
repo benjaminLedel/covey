@@ -131,9 +131,11 @@ export default function Ueberblick({ me }: { me: Principal }) {
 
       {/* Der Grundriss. Er zeigt dieselbe Auskunft wie die Listen darüber,
           nur als Raum — und er ist der Teil dieser Seite, den man ansieht,
-          weil sich etwas bewegt, und nicht, weil man etwas sucht. */}
+          weil sich etwas bewegt, und nicht, weil man etwas sucht.
+
+          Ohne Überschrift: Die Seite heißt „Büro", und ein Grundriss mit
+          „Das Büro" darüber sagte dasselbe ein zweites Mal. */}
       <section className="tm-block tm-block-weit">
-        <h2>{t("team.buero")}</h2>
         <Buero
           agents={alle}
           departments={abteilungen.data ?? []}
