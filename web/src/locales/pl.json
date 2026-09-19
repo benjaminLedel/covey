@@ -2341,6 +2341,11 @@
       "finding": "Ustalenie",
       "issue": "Zgłoszenie",
       "tool_request": "Wniosek"
-    }
+    },
+    "suche": "Szukaj kolegów",
+    "nichtsGefunden": "Nic nie znaleziono.",
+    "imVerlaufSuchen": "Szukaj w rozmowie",
+    "imBacklogSuchen": "Szukaj w całym backlogu",
+    "gestern": "Wczoraj"
   }
 }

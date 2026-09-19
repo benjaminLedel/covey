@@ -2341,6 +2341,11 @@
       "finding": "Constat",
       "issue": "Signalement",
       "tool_request": "Demande"
-    }
+    },
+    "suche": "Rechercher un collègue",
+    "nichtsGefunden": "Rien trouvé.",
+    "imVerlaufSuchen": "Rechercher dans le fil",
+    "imBacklogSuchen": "Rechercher dans tout le backlog",
+    "gestern": "Hier"
   }
 }

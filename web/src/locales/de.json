@@ -2341,6 +2341,11 @@
       "finding": "Befund",
       "issue": "Meldung",
       "tool_request": "Antrag"
-    }
+    },
+    "suche": "Kollegen suchen",
+    "nichtsGefunden": "Nichts gefunden.",
+    "imVerlaufSuchen": "Im Verlauf suchen",
+    "imBacklogSuchen": "Im ganzen Backlog suchen",
+    "gestern": "Gestern"
   }
 }

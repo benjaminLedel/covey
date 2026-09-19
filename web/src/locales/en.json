@@ -2341,6 +2341,11 @@
       "finding": "Finding",
       "issue": "Issue",
       "tool_request": "Request"
-    }
+    },
+    "suche": "Search colleagues",
+    "nichtsGefunden": "Nothing found.",
+    "imVerlaufSuchen": "Search the thread",
+    "imBacklogSuchen": "Search the whole backlog",
+    "gestern": "Yesterday"
   }
 }

@@ -2341,6 +2341,11 @@
       "finding": "发现",
       "issue": "报告",
       "tool_request": "申请"
-    }
+    },
+    "suche": "搜索同事",
+    "nichtsGefunden": "没有找到。",
+    "imVerlaufSuchen": "在对话中搜索",
+    "imBacklogSuchen": "搜索整个待办列表",
+    "gestern": "昨天"
   }
 }

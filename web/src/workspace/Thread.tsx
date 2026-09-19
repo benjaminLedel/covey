@@ -33,12 +33,29 @@ const wer = (author: string) => author.split(":").slice(1).join(":") || author;
 /** Woher die Arbeit kam, wenn nicht aus dem Chat: webhook:zammad → zammad. */
 const herkunft = (author: string) => (author.startsWith("chat:") ? "" : author.split(":")[0]);
 
+/* Ein Verlauf ohne Uhrzeiten ist eine Liste von Sätzen. Die Uhrzeit steht an
+   jedem Eintrag, das Datum nur dort, wo es sich ändert — sonst liest man
+   dreißigmal denselben Tag. */
+const uhr = (iso: string, lang: string) =>
+  new Date(iso).toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" });
+const tag = (iso: string) => new Date(iso).toDateString();
+const tagName = (iso: string, lang: string) => {
+  const d = new Date(iso);
+  const heute = new Date();
+  const gestern = new Date(heute);
+  gestern.setDate(heute.getDate() - 1);
+  if (d.toDateString() === heute.toDateString()) return null; // „heute" steht nicht dran
+  if (d.toDateString() === gestern.toDateString()) return "gestern";
+  return d.toLocaleDateString(lang, { day: "numeric", month: "long", year: "numeric" });
+};
+
 export default function Thread({ agentId, me }: { agentId: string; me: Principal }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const [text, setText] = useState("");
   const [antwortAuf, setAntwortAuf] = useState<string | null>(null);
   const [antwort, setAntwort] = useState("");
+  const [suche, setSuche] = useState("");
   const ende = useRef<HTMLDivElement>(null);
 
   const agent = useQuery({
@@ -53,7 +70,14 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
     refetchInterval: 10_000,
   });
 
-  const entries = thread.data?.entries ?? [];
+  const alle = thread.data?.entries ?? [];
+  /* Die Suche filtert, was geladen ist — die letzten zwanzig Vorgänge. Was
+     älter ist, liegt im Backlog und wird dort gesucht; der Verweis daneben
+     sagt das, statt so zu tun, als sei dies eine Volltextsuche. */
+  const begriff = suche.trim().toLowerCase();
+  const entries = begriff
+    ? alle.filter((e) => (e.text + " " + e.task_title).toLowerCase().includes(begriff))
+    : alle;
   const darfSchreiben = canManage(me.Role);
 
   const neu = useMutation({
@@ -91,27 +115,48 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
           <h1>{agent.data?.display_name ?? "…"}</h1>
           <p>{agent.data?.job_title || agent.data?.slug}</p>
         </div>
-        {/* Der eine Weg von hier in die Konsole: an dem Agenten, den man
-            gerade vor sich hat. */}
-        <Link to={`/agents/${agentId}`} className="ws-thread-verwaltung">
-          {t("workspace.imAdmin")}
-        </Link>
+        <div className="ws-thread-werkzeuge">
+          <input
+            type="search"
+            value={suche}
+            onChange={(e) => setSuche(e.target.value)}
+            onKeyDown={(e) => e.key === "Escape" && setSuche("")}
+            placeholder={t("workspace.imVerlaufSuchen")}
+            aria-label={t("workspace.imVerlaufSuchen")}
+          />
+          {/* Der eine Weg von hier in die Konsole: an dem Agenten, den man
+              gerade vor sich hat. */}
+          <Link to={`/agents/${agentId}`} className="ws-thread-verwaltung">
+            {t("workspace.imAdmin")}
+          </Link>
+        </div>
       </header>
 
       <div className="ws-verlauf">
         {thread.isLoading && <p className="ws-leise">{t("common.loading")}</p>}
-        {!thread.isLoading && entries.length === 0 && (
+        {!thread.isLoading && entries.length === 0 && !begriff && (
           <div className="ws-leer">
             <p>{t("workspace.leerTitel", { name: agent.data?.display_name ?? "" })}</p>
             <p className="ws-leise">{t("workspace.leerText")}</p>
           </div>
         )}
+        {!thread.isLoading && entries.length === 0 && begriff && (
+          <div className="ws-leer">
+            <p>{t("workspace.nichtsGefunden")}</p>
+            <Link to={`/agents/${agentId}?q=${encodeURIComponent(suche.trim())}`} className="ws-thread-verwaltung">
+              {t("workspace.imBacklogSuchen")}
+            </Link>
+          </div>
+        )}
 
         {entries.map((e, i) => {
           const neuerVorgang = i === 0 || entries[i - 1].task_id !== e.task_id;
+          const neuerTag = i === 0 || tag(entries[i - 1].at) !== tag(e.at);
+          const datum = neuerTag ? tagName(e.at, i18n.language) : null;
           const quelle = e.kind === "message" ? herkunft(e.author) : "";
           return (
             <Fragment key={`${e.task_id}-${e.kind}-${i}`}>
+              {datum && <div className="ws-tag">{datum === "gestern" ? t("workspace.gestern") : datum}</div>}
               {neuerVorgang && (
                 <div className="ws-vorgang">
                   <span className="ws-vorgang-linie" aria-hidden="true" />
@@ -126,6 +171,7 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
               <article className={`ws-blase ${vomMenschen(e) ? "ich" : "er"} k-${e.kind}`}>
                 <div className="ws-blase-kopf">
                   {vomMenschen(e) ? wer(e.author) : t(`chat.kind.${e.kind}`)}
+                  <time dateTime={e.at}>{uhr(e.at, i18n.language)}</time>
                 </div>
                 <div className="ws-blase-text">
                   <Markdown text={e.text} />

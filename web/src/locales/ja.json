@@ -2341,6 +2341,11 @@
       "finding": "指摘",
       "issue": "報告",
       "tool_request": "申請"
-    }
+    },
+    "suche": "同僚を検索",
+    "nichtsGefunden": "見つかりませんでした。",
+    "imVerlaufSuchen": "この履歴を検索",
+    "imBacklogSuchen": "バックログ全体を検索",
+    "gestern": "昨日"
   }
 }

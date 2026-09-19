@@ -2341,6 +2341,11 @@
       "finding": "Rilievo",
       "issue": "Segnalazione",
       "tool_request": "Richiesta"
-    }
+    },
+    "suche": "Cerca colleghi",
+    "nichtsGefunden": "Nessun risultato.",
+    "imVerlaufSuchen": "Cerca nella conversazione",
+    "imBacklogSuchen": "Cerca in tutto il backlog",
+    "gestern": "Ieri"
   }
 }

@@ -2341,6 +2341,11 @@
       "finding": "Constatação",
       "issue": "Aviso",
       "tool_request": "Pedido"
-    }
+    },
+    "suche": "Procurar colegas",
+    "nichtsGefunden": "Nada encontrado.",
+    "imVerlaufSuchen": "Procurar na conversa",
+    "imBacklogSuchen": "Procurar em todo o backlog",
+    "gestern": "Ontem"
   }
 }

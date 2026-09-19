@@ -2341,6 +2341,11 @@
       "finding": "Bevinding",
       "issue": "Melding",
       "tool_request": "Aanvraag"
-    }
+    },
+    "suche": "Collega's zoeken",
+    "nichtsGefunden": "Niets gevonden.",
+    "imVerlaufSuchen": "In het gesprek zoeken",
+    "imBacklogSuchen": "In de hele backlog zoeken",
+    "gestern": "Gisteren"
   }
 }

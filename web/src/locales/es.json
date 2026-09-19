@@ -2341,6 +2341,11 @@
       "finding": "Hallazgo",
       "issue": "Aviso",
       "tool_request": "Solicitud"
-    }
+    },
+    "suche": "Buscar colegas",
+    "nichtsGefunden": "No se encontró nada.",
+    "imVerlaufSuchen": "Buscar en la conversación",
+    "imBacklogSuchen": "Buscar en todo el backlog",
+    "gestern": "Ayer"
   }
 }

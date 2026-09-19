@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link, NavLink, Navigate, Route, Routes, useParams } from "react-router";
@@ -43,16 +43,40 @@ export default function Workspace({ me, onLogout }: { me: Principal; onLogout: (
     queryFn: () => api<Department[] | null>("/departments"),
     staleTime: 300_000,
   });
-  /* Nur die Zahl, nicht die Liste: Was wartet, steht auf seiner eigenen
-     Seite. Hier hängt sie an der Zeile ganz oben und sagt, ob sich der Klick
-     lohnt. */
+  /* Die offenen Punkte — für die Zahl oben UND für die Marke am einzelnen
+     Kollegen. Eine Liste, zwei Verwendungen: Ohne die Marke müsste man die
+     Seite „Wartet auf Sie" öffnen, um zu erfahren, WER wartet, und das ist
+     die Frage, die man beim Blick auf eine Kollegenliste hat. */
   const wartend = useQuery({
-    queryKey: ["inbox", "zahl"],
-    queryFn: () => inbox({ status: "open", limit: 1 }),
+    queryKey: ["inbox", "workspace-liste"],
+    queryFn: () => inbox({ status: "open", limit: 100 }),
     refetchInterval: 30_000,
   });
+  const wartetBei = new Set((wartend.data?.items ?? []).map((e) => e.agent_id));
 
-  const liste = (agents.data ?? []).filter(eingestellt);
+  /* Suchen. Bei vierzig Kollegen in acht Abteilungen ist Scrollen keine
+     Navigation mehr. Der Schrägstrich springt ins Feld — dieselbe Taste wie
+     in der Agentenliste der Konsole. */
+  const [suche, setSuche] = useState("");
+  const suchfeld = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const taste = (e: KeyboardEvent) => {
+      const ziel = e.target as HTMLElement | null;
+      const tippt = ziel && /^(INPUT|TEXTAREA)$/.test(ziel.tagName);
+      if (e.key === "/" && !tippt) {
+        e.preventDefault();
+        suchfeld.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", taste);
+    return () => window.removeEventListener("keydown", taste);
+  }, []);
+
+  const begriff = suche.trim().toLowerCase();
+  const passt = (a: Agent) =>
+    !begriff ||
+    [a.display_name, a.job_title, a.slug].some((f) => (f ?? "").toLowerCase().includes(begriff));
+  const liste = (agents.data ?? []).filter(eingestellt).filter(passt);
   const depts = abteilungen.data ?? [];
 
   /* Nach Abteilung gruppiert, wie eine Kanalliste. Wer keine hat, steht unten
@@ -121,8 +145,22 @@ export default function Workspace({ me, onLogout }: { me: Principal; onLogout: (
             {offen > 0 && <span className="ws-zahl">{offen}</span>}
           </NavLink>
 
+          <div className="ws-suche">
+            <input
+              ref={suchfeld}
+              type="search"
+              value={suche}
+              onChange={(e) => setSuche(e.target.value)}
+              onKeyDown={(e) => e.key === "Escape" && setSuche("")}
+              placeholder={t("workspace.suche")}
+              aria-label={t("workspace.suche")}
+            />
+          </div>
+
           {agents.isLoading && <p className="ws-leise">{t("common.loading")}</p>}
-          {!agents.isLoading && liste.length === 0 && <p className="ws-leise">{t("chat.noAgents")}</p>}
+          {!agents.isLoading && liste.length === 0 && (
+            <p className="ws-leise">{begriff ? t("workspace.nichtsGefunden") : t("chat.noAgents")}</p>
+          )}
 
           {gruppen.map((g) => (
             <section key={g.id || "ohne"} className="ws-gruppe">
@@ -136,7 +174,12 @@ export default function Workspace({ me, onLogout }: { me: Principal; onLogout: (
                   to={`/w/${a.id}`}
                   className={({ isActive }) => `ws-kollege ${isActive ? "on" : ""}`}
                 >
-                  <span className="ws-kollege-name">{a.display_name}</span>
+                  <span className="ws-kollege-name">
+                    {a.display_name}
+                    {wartetBei.has(a.id) && (
+                      <span className="ws-kollege-wartet" title={t("workspace.wartet")} aria-label={t("workspace.wartet")} />
+                    )}
+                  </span>
                   <span className="ws-kollege-rolle">{a.job_title || a.slug}</span>
                 </NavLink>
               ))}
