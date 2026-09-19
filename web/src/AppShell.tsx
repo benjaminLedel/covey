@@ -22,6 +22,8 @@ import {
   buildInfo,
   inbox,
   istSystemAdmin,
+  type Agent,
+  type Department,
   type Principal,
   type SetupState,
 } from "./api";
@@ -29,6 +31,7 @@ import i18n, { initialLang, ladeSprache } from "./i18n";
 import HelpDrawer from "./components/HelpDrawer";
 import { NavIcon } from "./components/navicons";
 import ShellFoot from "./components/ShellFoot";
+import Suche, { useSucheKuerzel } from "./components/Suche";
 
 /* The look of the interface comes with it, not before it — see app.css. */
 import "./app.css";
@@ -167,12 +170,32 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
      the same person, and two numbers side by side are one more question that
      someone would have to answer while walking past. The separation stands on the
      page, where it belongs. */
+  /* Einhundert statt einer: Die Zahl an der Navigation kommt aus `pending`
+     und hinge auch an einer einzigen Zeile, aber die Suche will wissen, WER
+     wartet — und dafür braucht sie die Liste. Eine Abfrage für beides. */
   const inboxCount = useQuery({
     queryKey: ["inbox", "count"],
-    queryFn: () => inbox({ status: "open", limit: 1 }),
+    queryFn: () => inbox({ status: "open", limit: 100 }),
     refetchInterval: 15000,
   });
   const pending = inboxCount.data?.pending ?? 0;
+
+  /* Dieselbe Suche wie im Team, nur führt sie hier auf die Agentenseite.
+     Die beiden Abfragen teilen sich den Cache mit den Seiten, die sie
+     ohnehin brauchen — die Schale fragt den Server deshalb nicht öfter. */
+  const [sucheOffen, setSucheOffen] = useState(false);
+  useSucheKuerzel(() => setSucheOffen(true));
+  const agenten = useQuery({
+    queryKey: ["agents"],
+    queryFn: () => api<Agent[] | null>("/agents"),
+    staleTime: 60_000,
+  });
+  const abteilungen = useQuery({
+    queryKey: ["departments"],
+    queryFn: () => api<Department[] | null>("/departments"),
+    staleTime: 300_000,
+  });
+  const wartetBei = new Set((inboxCount.data?.items ?? []).map((e) => e.agent_id));
 
   /* Setup stands in the menu only as long as it has something to do.
      A point that stays permanently and is permanently done turns into
@@ -210,6 +233,14 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
         <div className="brand">
           <BirdMark size={26} />
           covey
+          <button
+            className="brand-suche"
+            onClick={() => setSucheOffen(true)}
+            title={`${t("team.suche")} (⌘K)`}
+            aria-label={t("team.suche")}
+          >
+            <NavIcon name="search" />
+          </button>
         </div>
         {/* Der Weg zurück in den Workspace. Er steht oben und nicht in einem
             Menü, weil er das Gegenstück zum Schalter dort ist: zwei Schalen,
@@ -358,6 +389,14 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
         </div>
         <BuildLine />
       </main>
+      <Suche
+        offen={sucheOffen}
+        onClose={() => setSucheOffen(false)}
+        agents={agenten.data ?? []}
+        departments={abteilungen.data ?? []}
+        wartetBei={wartetBei}
+        pfad={(a) => `/agents/${a.id}`}
+      />
       <HelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );
