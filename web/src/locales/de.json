@@ -1696,6 +1696,10 @@
       "expired": "Abgelaufen",
       "revoke": "Widerrufen",
       "revokeConfirm": "Diesen Schlüssel widerrufen? Was ihn benutzt, hört sofort auf zu funktionieren.",
+      "rotate": "Rotieren",
+      "rotateConfirm": "Diesen Schlüssel rotieren? Er bekommt ein neues Token mit gleichem Namen und gleicher Laufzeit; das alte Token hört sofort auf zu funktionieren.",
+      "rotated": "Neues Token für „{{name}}“ — das alte funktioniert nicht mehr. Jetzt notieren, es wird nie wieder angezeigt.",
+      "cancel": "Abbrechen",
       "orgOnly": "Gilt nur in {{org}} — der Schlüssel trägt den Sitz, aus dem er erzeugt wurde.",
       "limits": "Ein Schlüssel darf keinen zweiten erzeugen und kein Passwort ändern — beides braucht die Anmeldung im Browser, damit ein abhandengekommener Schlüssel sich nicht selbst verewigen kann."
     },

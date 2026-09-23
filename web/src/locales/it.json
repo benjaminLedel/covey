@@ -1696,6 +1696,10 @@
       "expired": "Scaduta",
       "revoke": "Revoca",
       "revokeConfirm": "Revocare questa chiave? Tutto ciò che la usa smette subito di funzionare.",
+      "rotate": "Ruota",
+      "rotateConfirm": "Ruotare questa chiave? Riceve un nuovo token con lo stesso nome e la stessa durata; il vecchio token smette di funzionare subito.",
+      "rotated": "Nuovo token per “{{name}}”: il vecchio non funziona più. Annotalo ora, non verrà mostrato mai più.",
+      "cancel": "Annulla",
       "orgOnly": "Vale solo in {{org}} — la chiave porta la postazione da cui è stata creata.",
       "limits": "Una chiave non può crearne una seconda né cambiare una password — per entrambe le cose serve l'accesso dal browser, così che una chiave finita in mani sbagliate non possa radicarsi."
     },

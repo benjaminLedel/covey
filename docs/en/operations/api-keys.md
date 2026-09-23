@@ -1,7 +1,7 @@
 ---
 slug: api-keys
 title: API keys
-description: 'Driving covey from outside: issuing an API key, the Bearer header, what a key is allowed to do and how to revoke it.'
+description: 'Driving covey from outside: issuing an API key, the Bearer header, what a key is allowed to do, how to rotate it and how to revoke it.'
 ---
 
 Everything the interface does, it does through `/api/v1/…`. This runbook is
@@ -82,14 +82,36 @@ with that seat.
 |---|---|---|
 | Read, write, everything the role permits | yes | yes |
 | Change the display name | yes | yes |
-| **Create or revoke an API key** | yes | **403** |
+| **Create, rotate or revoke an API key** | yes | **403** |
 | **Change the password** | yes | **403** |
 
 The reason is one sentence long: a credential that goes astray must not be able
 to entrench itself. Minting a second key and locking the owner out are exactly
 the two moves an attacker makes first, and both of them need the password.
 
-## 5. Revoking
+## 5. Rotating
+
+*Account → API keys → Rotate.* The key gets a new token; everything that
+identifies it stays — the name, the seat, and the lifetime (a ninety-day key
+comes out of this as a ninety-day key, counted from now, even if it had already
+expired). The old token stops working in the same transaction, so there is no
+moment with two live tokens for one purpose. The new token appears once, in the
+same card as a freshly created one; then it is copied into every place the old
+one was, and that is the whole procedure.
+
+Rotate when a token has been somewhere it should not have been — a chat, a
+log, a repository — or on a schedule, so that a key which does leak is worth
+less. Doing it by hand (create a second key, copy, revoke the first) leaves the
+name to be retyped, the expiry to be recomputed and, for a while, two keys with
+the same purpose in the list; rotation is that sequence with nothing left to
+get wrong.
+
+Over the API: `POST /api/v1/auth/api-keys/{id}/rotate`, session only — a key
+cannot rotate itself, for the same reason it cannot mint another one. An
+optional body `{"expires_in_days": n}` sets a new lifetime (`0` = never)
+instead of keeping the old one.
+
+## 6. Revoking
 
 *Account → API keys → Revoke.* It takes effect on the next request — there is
 no cache in front of it. The row is removed; who did what stays in the audit
@@ -99,17 +121,17 @@ Revoke a key when you no longer know what uses it. The list shows **last used**
 for exactly that decision: a key that has not been used in three months is
 either dead or a spare set of house keys under the mat.
 
-## 6. Typical failure patterns
+## 7. Typical failure patterns
 
 | Symptom | Cause | Remedy |
 |---|---|---|
 | `401 not signed in` | The header is missing or misspelled. Only `Authorization: Bearer covey_…` counts — the prefix is part of the check. | Send the token unabridged, including `covey_`. |
 | `401 api key invalid or expired` | Revoked, expired, or the seat is gone (removed from the organisation). | Create a new key. The answer is deliberately the same for all three: whoever probes must not be able to tell them apart. |
-| `403 an API key cannot do this` | You are trying to mint/revoke a key or change a password with a key. | Do it in the browser — see section 4. |
+| `403 an API key cannot do this` | You are trying to mint, rotate or revoke a key or change a password with a key. | Do it in the browser — see section 4. |
 | `403 role … has no rights here` | The seat's role does not cover this route. | Not a key problem: the same call fails in the browser. |
 | `409 no_organization` | The account has no seat. | Join an organisation; a key without a seat cannot exist. |
 
-## 7. Where the key must not end up
+## 8. Where the key must not end up
 
 - Not in a repository, not in a `docker-compose.yml`, not in a CI variable that
   is readable by everyone with access to the pipeline.

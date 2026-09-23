@@ -154,3 +154,71 @@ func TestAPIKeyLaeuftAb(t *testing.T) {
 		t.Fatalf("an expired key still authenticates: HTTP %d", resp.StatusCode)
 	}
 }
+
+// Rotation exchanges the token behind a key and nothing else that identifies
+// it: same name, same seat, same lifetime — and the old token stops in the
+// same transaction. That is what makes it more than create-plus-revoke by
+// hand: nothing has to be retyped, and there is no moment with two live
+// tokens for one purpose.
+func TestAPIKeyRotiert(t *testing.T) {
+	s := newStack(t)
+	c := login(t, s, "admin@test.local", "admin-passwort")
+	oldToken, oldID := createKey(t, c, "Pipeline", 30)
+
+	// Age the key so that "same lifetime" is distinguishable from "same
+	// expiry": rotated on day 20 of 30, the new key has 30 days from now.
+	if _, err := s.pool.Exec(context.Background(),
+		"UPDATE api_keys SET created_at = created_at - interval '20 days', expires_at = expires_at - interval '20 days'"); err != nil {
+		t.Fatalf("age the key: %v", err)
+	}
+
+	out := c.expect(http.MethodPost, "/api/v1/auth/api-keys/"+oldID+"/rotate", nil, http.StatusCreated)
+	newToken, _ := out["token"].(string)
+	newID, _ := out["id"].(string)
+	if newToken == "" || newToken == oldToken {
+		t.Fatalf("rotation did not hand out a new token: %v", out)
+	}
+	if name, _ := out["name"].(string); name != "Pipeline" {
+		t.Fatalf("rotation lost the name: %q", name)
+	}
+
+	// The old token is dead, the new one works — and the list has one key,
+	// not two.
+	resp := bearer(t, s, oldToken, http.MethodGet, "/api/v1/agents", nil)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("the old token still authenticates after rotation: HTTP %d", resp.StatusCode)
+	}
+	resp = bearer(t, s, newToken, http.MethodGet, "/api/v1/agents", nil)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the new token does not authenticate: HTTP %d", resp.StatusCode)
+	}
+	keys := c.expectList(http.MethodGet, "/api/v1/auth/api-keys", nil, http.StatusOK)
+	if len(keys) != 1 || keys[0]["id"] != newID {
+		t.Fatalf("expected exactly the rotated key in the list, got %v", keys)
+	}
+
+	// Same lifetime, counted from now: thirty days, not the ten that were left.
+	var daysLeft float64
+	if err := s.pool.QueryRow(context.Background(),
+		"SELECT EXTRACT(EPOCH FROM (expires_at - now()))/86400 FROM api_keys WHERE id=$1", newID).Scan(&daysLeft); err != nil {
+		t.Fatalf("read expiry: %v", err)
+	}
+	if daysLeft < 29.9 || daysLeft > 30.1 {
+		t.Fatalf("the rotated key should have its full 30-day term again, has %.2f days", daysLeft)
+	}
+
+	// Rotation is a session move: a key must not be able to give itself a
+	// new token — that is the one thing revocation has to be able to end.
+	resp = bearer(t, s, newToken, http.MethodPost, "/api/v1/auth/api-keys/"+newID+"/rotate", nil)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("a key rotated itself: HTTP %d, expected 403", resp.StatusCode)
+	}
+
+	// Somebody else's id rotates nothing.
+	s.mitglied(t, "other@test.local", "Other", "auditor", "other-passwort")
+	other := login(t, s, "other@test.local", "other-passwort")
+	other.expect(http.MethodPost, "/api/v1/auth/api-keys/"+newID+"/rotate", nil, http.StatusNotFound)
+}

@@ -1696,6 +1696,10 @@
       "expired": "Wygasł",
       "revoke": "Unieważnij",
       "revokeConfirm": "Unieważnić ten klucz? Wszystko, co go używa, natychmiast przestanie działać.",
+      "rotate": "Rotuj",
+      "rotateConfirm": "Rotować ten klucz? Otrzyma nowy token z tą samą nazwą i tym samym okresem ważności; stary token natychmiast przestanie działać.",
+      "rotated": "Nowy token dla „{{name}}” — stary przestał działać. Zapisz go teraz, nie zostanie pokazany ponownie.",
+      "cancel": "Anuluj",
       "orgOnly": "Działa tylko w {{org}} — klucz nosi stanowisko, z którego został utworzony.",
       "limits": "Klucz nie utworzy drugiego klucza ani nie zmieni hasła — jedno i drugie wymaga logowania w przeglądarce, żeby zgubiony klucz nie mógł się okopać."
     },
