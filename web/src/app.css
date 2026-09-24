@@ -3160,294 +3160,131 @@
    erscheint, ist ein Zucken. */
 .tm-blase.unterwegs { opacity: 0.6; }
 
-/* ── Das Büro ────────────────────────────────────────────────────────────
+/* ── The office ──────────────────────────────────────────────────────────
  *
- * Der Grundriss der Belegschaft, gezeichnet wie ein Plan und nicht wie ein
- * Diagramm. Die Geometrie steht in team/buero/plan.ts, das Verhalten in
- * team/buero/leben.ts; hier stehen nur die Stoffe.
- *
- * DIE WAND IST DIE MASSE. Die ganze Fläche des Baus ist Mauerwerk, und was
- * Raum ist, wird als hellerer Boden darauf ausgespart. Damit treffen sich
- * alle Wände von selbst, Außen- und Innenwand unterscheiden sich nur in der
- * Dicke, und es gibt keinen Fall, in dem zwei Rahmen nebeneinander eine
- * doppelte Linie ergeben, die es in keinem Haus gibt.
- *
- * Bewegt wird ausschließlich mit `transform` und `opacity`: Das läuft auf dem
- * Compositor, kostet kein Layout und bleibt auch bei siebzig Kollegen ruhig.
+ * The house is a WebGL scene (team/buero/szene.ts); the people, the signs and
+ * the card are an HTML overlay positioned from the camera every frame. Moved
+ * with `transform` only: that runs on the compositor, costs no layout and
+ * stays calm with seventy colleagues. The colours of the house itself live in
+ * buero/mal.ts, not here — a CSS token cannot reach into a canvas.
  */
-.bu {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.bu { display: flex; flex-direction: column; gap: 10px; }
 
-  /* Die Stoffe dieses Hauses. Sie stehen hier und nicht als rohe Werte in den
-     Regeln darunter: Ein Büro, dessen Tischplatte an vier Stellen steht, hat
-     irgendwann vier Tischplatten.
-
-     Und sie sind GRAU. Der Grund dieses Produkts ist genau neutral und trennt
-     durch Lage und Haarlinie, nicht durch Farbton; die einzige Farbe, die der
-     Grundriss trägt, ist der Ton der Tätigkeit. Ein Boden, der selbst eine
-     Meinung hat, nimmt ihm die seine. */
-  /* Der Abstand zwischen Mauerwerk und Boden ist der Kontrast des ganzen
-     Plans. Zu eng gesetzt liest sich alles als ein Grau, und weder die Wand
-     noch der Flur noch der Tisch treten hervor — deshalb ist die Mauer jetzt
-     deutlich dunkler und der Zimmerboden nahezu weiß. */
-  --bu-mauer: light-dark(#7c7c86, #45454e);
-  --bu-mauer-riss: light-dark(#5e5e68, #5a5a64);
-  --bu-boden: light-dark(#fafafb, #1d1d21);
-  --bu-flur: light-dark(#e4e4e8, #131317);
-  --bu-gemein: light-dark(#e9edf1, #202429);
-  --bu-tisch: light-dark(#c39b72, #4a3826);
-  --bu-tisch-hell: light-dark(#dcb994, #5c4632);
-  --bu-kante: light-dark(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.7));
-  --bu-schirm: light-dark(#8e8e97, #121215);
-  --bu-linie: light-dark(rgba(0, 0, 0, 0.5), rgba(255, 255, 255, 0.42));
-  /* Der Grundton des Beiwerks. Ein Zimmer setzt ihn auf den Ton seiner
-     Abteilung um (`.bu-einrichtung`); ohne Abteilungsfarbe bleibt er grau. */
-  --bu-deko: light-dark(rgba(0, 0, 0, 0.42), rgba(255, 255, 255, 0.34));
-  --bu-gruen: light-dark(#3f7a5e, #6fbd97);
-}
-
-/* ── Die Materialien ──────────────────────────────────────────────────────
-   Jeder Pfad eines Möbelstücks sagt, woraus er ist (buero/risse.tsx), und die
-   Farbe kommt von hier. Damit lässt sich der ganze Bau in einem Zug heller,
-   dunkler oder stiller stellen, ohne dreiunddreißig Zeichnungen anzufassen —
-   und ein Aktenschrank sieht nicht aus wie ein Serverschrank.
-
-   Die Töne sind gedeckt und nicht gesättigt. Fünfzig Möbelstücke auf einem
-   Grundriss sind viele kleine Flächen; in voller Sättigung wäre das ein
-   Setzkasten, und der Ton der Tätigkeit — das Einzige hier, was eine Auskunft
-   trägt — ginge darin unter. */
-.bu {
-  --m-holz: light-dark(#b98a5e, #8a6340);
-  --m-metall: light-dark(#9fa8b4, #6a7480);
-  --m-papier: light-dark(#fdfdfd, #c9c9cf);
-  --m-dunkel: light-dark(#4a4f57, #14161a);
-  --m-laub: light-dark(#4e9268, #57a377);
-  --m-topf: light-dark(#c8794f, #a8613e);
-  --m-kork: light-dark(#d8b487, #8f7350);
-  --m-rot: light-dark(#c0483c, #c45a4d);
-  --m-warm: light-dark(#e0b356, #c99a3f);
-  --m-glas: light-dark(#8fb6c9, #5d8497);
-}
-.bu-riss-stueck .m-holz { fill: var(--m-holz); stroke: color-mix(in oklab, var(--m-holz) 58%, #000); }
-.bu-riss-stueck .m-metall { fill: var(--m-metall); stroke: color-mix(in oklab, var(--m-metall) 60%, #000); }
-.bu-riss-stueck .m-papier { fill: var(--m-papier); stroke: color-mix(in oklab, var(--m-papier) 52%, #000); }
-.bu-riss-stueck .m-dunkel { fill: var(--m-dunkel); stroke: var(--m-dunkel); }
-.bu-riss-stueck .m-laub { fill: var(--m-laub); stroke: color-mix(in oklab, var(--m-laub) 60%, #000); }
-.bu-riss-stueck .m-topf { fill: var(--m-topf); stroke: color-mix(in oklab, var(--m-topf) 60%, #000); }
-.bu-riss-stueck .m-kork { fill: var(--m-kork); stroke: color-mix(in oklab, var(--m-kork) 58%, #000); }
-.bu-riss-stueck .m-rot { fill: var(--m-rot); stroke: color-mix(in oklab, var(--m-rot) 60%, #000); }
-.bu-riss-stueck .m-warm { fill: var(--m-warm); stroke: color-mix(in oklab, var(--m-warm) 58%, #000); }
-.bu-riss-stueck .m-glas { fill: var(--m-glas); stroke: color-mix(in oklab, var(--m-glas) 58%, #000); }
-/* Polster und Bezug tragen den Ton der Abteilung — der eine Ort, an dem Farbe
-   im Grundriss etwas BINDET statt etwas zu behaupten: Möbel gehören zu einem
-   Zimmer, und das Zimmer gehört zu einer Abteilung. Ohne gesetzte
-   Abteilungsfarbe bleibt es ein Grau. */
-.bu-riss-stueck .m-polster {
-  fill: color-mix(in oklab, var(--bu-ton, var(--text-muted)) 50%, var(--surface-2));
-  stroke: color-mix(in oklab, var(--bu-ton, var(--text-muted)) 68%, #000);
-}
-.bu-riss-stueck .m-stoff {
-  fill: color-mix(in oklab, var(--bu-ton, var(--text-muted)) 44%, var(--surface-2));
-  stroke: none;
-}
-
-/* Schmaler als der Bau? Dann wird gescrollt — ein Grundriss, der umbricht,
-   ist kein Grundriss. Der Plan richtet sich allerdings nach der gemessenen
-   Breite, also ist das der Ausnahmefall (sehr schmale Fenster). */
-.bu-rahmen { overflow-x: auto; padding-bottom: 4px; }
-
-.bu-bau {
+/* The stage: 16:10, the height follows the width. `touch-action: none` so
+   that dragging pans the office and not the page. */
+.bu-buehne {
   position: relative;
-  background: var(--bu-mauer);
-  border-radius: 3px;
-  box-shadow: 0 1px 2px var(--shadow-sm), 0 10px 26px -18px var(--shadow-md);
-}
-
-.bu-boden {
-  position: absolute;
-  background: var(--bu-boden);
-  /* Die Wand wirft in den Raum. Keine Isometrie — nur die eine Lichtrichtung,
-     die eine Draufsicht von einem Diagramm unterscheidet. */
-  box-shadow:
-    inset 0 3px 5px -3px var(--scrim-weak),
-    inset 3px 0 5px -3px var(--scrim-weak),
-    inset -3px 0 5px -3px var(--scrim-weak);
-  transition: background 700ms ease;
-}
-.bu-boden.flur { background: var(--bu-flur); }
-.bu-boden.gemein { background: var(--bu-gemein); }
-/* Hier arbeitet jemand. Quer über die Seite lesbar — das ist der ganze Zweck. */
-.bu-boden.hell { background: var(--bg-accent); }
-/* Hier schlafen alle. Kein Grau-in-Grau, sondern eine Spur tiefer im Boden:
-   Das Zimmer steht noch da, es ist nur zu. */
-.bu-boden.leer { background: color-mix(in srgb, var(--bu-flur) 60%, var(--bu-boden)); }
-
-/* Die Schwelle: an dieser Stelle ist die Wand nicht da. */
-.bu-schwelle { position: absolute; background: var(--bu-flur); z-index: 2; }
-
-/* Der Riss: Türschwünge, Brüstungen, Möbelkanten. Der Türschwung ist das
-   Zeichen, an dem ein Grundriss als Grundriss gelesen wird. */
-.bu-riss { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
-.bu-riss path { fill: none; stroke: var(--bu-linie); stroke-width: 1; }
-.bu-riss .blatt { stroke-width: 1.6; }
-.bu-riss .moebel { stroke: var(--bu-kante); }
-.bu-riss .moebel .tastatur { opacity: 0.6; }
-.bu-riss .fenster { stroke-width: 1.4; }
-
-/* Das Beiwerk. Alles an einer Farbe, und das ist Absicht: Beiwerk, das ins
-   Auge fällt, ist Beiwerk zu viel. */
-.bu-riss-stueck {
-  position: absolute;
-  z-index: 1;
-  overflow: visible;
-  fill: none;
-  stroke: var(--bu-deko);
-  stroke-width: 1.1;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 0.9;
-  opacity: 0.9;
-  pointer-events: none;
-}
-/* Was kein Material nennt, bleibt eine Kante: Fugen, Griffe, Kabel, der
-   Schwanz der Katze. */
-.bu-riss-knopf {
-  position: absolute;
-  z-index: 1;
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: pointer;
-  line-height: 0;
-}
-.bu-riss-knopf .bu-riss-stueck { position: static; }
-.bu-riss-knopf:hover .bu-riss-stueck { opacity: 0.62; }
-.bu-riss-knopf:focus-visible { outline: 2px solid var(--text-accent); outline-offset: 2px; border-radius: 3px; }
-.bu-nur-lesegeraet {
-  position: absolute;
-  width: 1px;
-  height: 1px;
+  aspect-ratio: 16 / 10;
+  min-height: 320px;
+  border-radius: var(--radius);
   overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
+  background: light-dark(#e6e8e0, #17191a);
+  box-shadow: inset 0 0 0 1px var(--border), 0 1px 2px var(--shadow-sm), 0 10px 26px -18px var(--shadow-md);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
+.bu-buehne.schiebt { cursor: grabbing; }
+.bu-buehne canvas { display: block; width: 100%; height: 100%; }
 
-/* Eine Pflanze, die auf Wasser wartet, und eine, die es bekommen hat. Das
-   Blühen bleibt — es ist das einzige Beiwerk, das sich merkt, dass jemand
-   hingesehen hat. */
-.bu-topf.durstig .bu-riss-stueck { stroke: var(--text-accent); animation: bu-durst 1.5s ease-in-out infinite; }
-@keyframes bu-durst { 0%, 100% { opacity: 0.38; } 50% { opacity: 0.85; } }
-.bu-bluete {
-  position: absolute;
-  z-index: 2;
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--text-accent);
-  opacity: 0.95;
-  pointer-events: none;
-  animation: bu-bluehen 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-@keyframes bu-bluehen { from { opacity: 0; transform: scale(0.2); } to { opacity: 0.95; transform: scale(1); } }
+/* The overlay lets every pointer event through to the stage except on the
+   things that are buttons themselves. */
+.bu-leute { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.bu-leute > * { pointer-events: auto; }
+.bu-masten { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.bu-masten path { fill: none; stroke: var(--text-muted); stroke-width: 1; opacity: 0.55; }
 
-/* ── Schilder ──────────────────────────────────────────────────────────── */
-.bu-schild {
+/* The sign of a room: it floats above the room on a mast, pushed aside where
+   two would overlap (team/Buero.tsx). */
+.bu-schild-3d {
   position: absolute;
-  z-index: 3;
-  margin: 0;
+  left: 0;
+  top: 0;
+  z-index: 4;
+  transform: translate(-50%, -100%);
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-size: 10px;
+  gap: 6px;
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-2) 92%, transparent);
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--text-primary);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  transition: color 700ms ease;
-}
-.bu-schild.mitte { transform: translateX(-50%); }
-.bu-schild.eingang { color: var(--text-secondary); }
-.bu-punkt { width: 6px; height: 6px; border-radius: 999px; flex: none; }
-/* Nummer und Fläche, wie auf einem gezeichneten Plan: der Maßstab steht in
-   plan.ts, und ein Plan ohne Maßstab ist eine Zeichnung. */
-.bu-nummer {
-  position: absolute;
-  z-index: 3;
-  font-size: 9px;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-  opacity: 0.6;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
-/* ── Möbel ─────────────────────────────────────────────────────────────── */
-.bu-tisch,
-.bu-platz {
-  position: absolute;
-  z-index: 1;
-  border-radius: 1px;
-  background: linear-gradient(180deg, var(--bu-tisch-hell) 0%, var(--bu-tisch) 64%);
-  box-shadow:
-    inset 0 1px 0 var(--inset-highlight),
-    0 2px 0 -1px var(--bu-kante),
-    0 5px 7px -4px var(--shadow-md);
-}
-.bu-tisch.rund { border-radius: 999px; }
-.bu-stuhl {
-  position: absolute;
-  z-index: 1;
-  width: 14px;
-  height: 5px;
-  border-radius: 3px 3px 1px 1px;
-  background: var(--bu-mauer-riss);
-  opacity: 0.3;
-  transition: opacity 400ms ease;
-}
-
-/* Der Bildschirm am Platz: der Träger des Zustands. Dunkel, solange nichts
-   läuft. */
-.bu-platz::before {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 3px;
-  width: 20px;
-  height: 6px;
-  transform: translateX(-50%);
-  border-radius: 1.5px;
-  background: var(--bu-schirm);
-  transition: background 600ms ease, box-shadow 600ms ease;
-}
-/* Der Lichtkegel auf Tisch und Boden. Er liegt UNTER der Platte, damit er sie
-   umspielt statt sie zu überdecken — und er ist der Grund, warum man ein
-   arbeitendes Zimmer von der anderen Seite der Seite sieht. */
-.bu-platz::after {
-  content: "";
-  position: absolute;
-  inset: -20px -18px -24px;
-  z-index: -1;
-  border-radius: 50%;
-  opacity: 0;
   pointer-events: none;
-  background: radial-gradient(50% 50% at 50% 36%, var(--accent-ring) 0%, var(--accent-tint) 44%, transparent 72%);
+  box-shadow: 0 1px 3px var(--shadow-sm);
 }
-.bu-platz.belegt::before { background: var(--text-accent); box-shadow: 0 0 7px 1px var(--accent-ring); }
-/* Das Licht geht an und atmet danach weiter: Ein Licht, das still steht, fällt
-   in einem Raum voller schlafender Kollegen nicht auf. */
-.bu-platz.belegt::after {
-  animation:
-    bu-licht-an 900ms cubic-bezier(0.16, 1, 0.3, 1) both,
-    bu-licht-atmen 4.6s 900ms ease-in-out infinite;
+.bu-schild-3d .punkt { width: 7px; height: 7px; border-radius: 999px; flex: none; }
+.bu-schild-3d .klein { font-weight: 400; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+/* The controls: the visible promise that the handles exist. */
+.bu-steuer {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
 }
-@keyframes bu-licht-an { from { opacity: 0; transform: scale(0.82); } to { opacity: 1; transform: scale(1); } }
-@keyframes bu-licht-atmen { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(0.95); } }
-.bu-platz .bu-tasse { position: absolute; left: auto; right: 4px; top: 5px; opacity: 0.8; }
+.bu-steuer button {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 1px 3px var(--shadow-sm);
+}
+.bu-steuer button:hover { background: var(--surface-2); color: var(--text-primary); }
+.bu-steuer button:active { transform: translateY(1px); }
+.bu-steuer button:focus-visible { outline: 2px solid var(--text-accent); outline-offset: 2px; }
+
+.bu-fuss { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.bu-legende { margin: 0; font-size: 12px; color: var(--text-muted); }
+.bu-dichte { display: flex; align-items: center; gap: 4px; }
+.bu-dichte-marke { margin-right: 4px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+.bu-dichte button {
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.bu-dichte button:hover { color: var(--text-primary); }
+.bu-dichte button[aria-pressed="true"] { background: var(--text-accent); border-color: var(--text-accent); color: var(--surface-2); }
+
+/* The card hangs above the head of the colleague it belongs to and follows
+   the camera; the wrapper is positioned by the frame loop, the card itself
+   only centres on it. */
+.bu-karte-huelle { position: absolute; left: 0; top: 0; z-index: 10; }
+
+/* What rarely passes by: the sketches from the flat plan, hovering over the
+   scene. Nothing of it carries information. */
+.bu-gast { position: absolute; left: 0; top: 0; z-index: 6; pointer-events: none; }
+.bu-gast .bu-riss-stueck { position: static; }
+.bu-gast.g-katze { margin-left: -11px; margin-top: -13px; }
+.bu-gast.g-katze .bu-riss-stueck { stroke: var(--text-secondary); stroke-width: 1.2; opacity: 0.75; }
+.bu-gast.g-kuchen { margin-left: -11px; margin-top: -10px; }
+.bu-gast.g-kuchen .bu-riss-stueck { stroke: var(--text-accent); opacity: 0.7; }
+.bu-gast.g-vogel { margin-left: -6px; margin-top: -6px; opacity: 0.6; animation: bu-huepfen 1.1s ease-in-out infinite; }
+@keyframes bu-huepfen { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-2.5px); } 60% { transform: translateY(0); } }
+.bu-gast.g-flieger { margin-left: -11px; margin-top: -6px; opacity: 0.6; }
+.bu-gast.g-flieger .bu-riss-stueck { stroke: var(--text-muted); }
+.bu-riss-stueck { display: block; overflow: visible; }
+.bu-riss-stueck path { fill: none; stroke: var(--text-secondary); stroke-width: 1; stroke-linejoin: round; stroke-linecap: round; }
+.bu-riss-stueck .m-papier { fill: var(--surface-2); }
 
 /* ── Die Figur ─────────────────────────────────────────────────────────── */
 .bu-wer {
@@ -3509,8 +3346,6 @@
    sonst wie eine Beschriftung, die verrutscht ist. */
 .bu-wer.geht .bu-name { opacity: 0.5; }
 /* Auf „covey" sehen alle Wachen einen Moment lang zur Mitte. */
-.bu-bau.aufmerksam .bu-wer:not(.gestoppt) .bu-kopf { animation: bu-aufmerken 2.6s ease-in-out; }
-@keyframes bu-aufmerken { 0%, 100% { transform: translateY(0); } 14%, 80% { transform: translateY(-3px); } }
 
 /* Die Gedankenblase: der letzte aufgezeichnete Schritt, über dem Kopf dessen,
    der ihn gerade tut. Sie darf über die Zimmerwand hinausragen — ein Gedanke
@@ -3542,36 +3377,6 @@
 @keyframes bu-denkt-auf {
   from { opacity: 0; transform: translate(-50%, 5px) scale(0.94); }
   to { opacity: 1; transform: translate(-50%, 0) scale(1); }
-}
-
-/* ── Was selten vorbeikommt ────────────────────────────────────────────── */
-.bu-katze { position: absolute; left: 0; top: 0; z-index: 6; margin-left: -11px; margin-top: -13px; }
-.bu-katze .bu-riss-stueck { position: static; stroke: var(--text-secondary); stroke-width: 1.2; opacity: 0.7; }
-.bu-gast.g-blatt { opacity: 0.4; animation: bu-ausgabe 700ms cubic-bezier(0.16, 1, 0.3, 1) both; }
-@keyframes bu-ausgabe { from { opacity: 0; transform: translateY(5px); } to { opacity: 0.4; transform: translateY(0); } }
-.bu-gast.g-kuchen { stroke: var(--text-accent); opacity: 0.55; }
-.bu-gast.g-vogel { opacity: 0.5; animation: bu-huepfen 1.1s ease-in-out infinite; }
-@keyframes bu-huepfen { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-2.5px); } 60% { transform: translateY(0); } }
-.bu-flieger { position: absolute; z-index: 7; pointer-events: none; animation: bu-segeln 5.2s cubic-bezier(0.3, 0.05, 0.5, 1) forwards; }
-.bu-flieger .bu-riss-stueck { position: static; stroke: var(--text-muted); opacity: 0.55; }
-@keyframes bu-segeln {
-  0% { transform: translate(0, 0) rotate(-6deg); opacity: 0; }
-  12% { opacity: 1; }
-  100% { transform: translate(var(--weit), 26px) rotate(14deg); opacity: 0; }
-}
-
-.bu-legende { font-size: 12px; color: var(--text-muted); }
-
-/* Weniger Bewegung heißt weniger, nicht nichts: Was das Licht SAGT — hier
-   läuft etwas — bleibt stehen, es hört nur auf zu atmen. Niemand läuft, und
-   was selten vorbeikommt, kommt gar nicht (team/Buero.tsx hält den Taktgeber
-   dann an). */
-@media (prefers-reduced-motion: reduce) {
-  .bu-kopf { transition: none; }
-  .bu-platz.belegt::after { animation: none; opacity: 1; }
-  .bu-denkt, .bu-bluete, .bu-gast, .bu-flieger { animation: none; }
-  .bu-topf.durstig .bu-riss-stueck { animation: none; opacity: 0.7; }
-  .bu-bau.aufmerksam .bu-wer .bu-kopf { animation: none; }
 }
 
 

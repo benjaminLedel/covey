@@ -1,171 +1,282 @@
-import { flurAn, raumAn, streu, weg, type Plan, type Punkt } from "./plan";
+import { freiNahe, istFrei, laufZufall, wegImRaum, type LaufFelder } from "./laufweg";
+import { hash } from "./mathe";
+import { raumAn, weg } from "./plan";
+import type { Gemein, Plan, Punkt, Zustand } from "./typen";
 
-/* Was die Kollegen im Büro tun.
+export type { Zustand } from "./typen";
+
+/* What the colleagues do in the office.
  *
- * Diese Datei kennt keine Pixel-Klassen und kein React — sie führt Buch über
- * Positionen und rechnet je Bild einen Schritt weiter. Wer sie liest, soll
- * das Verhalten verstehen können, ohne die Darstellung zu kennen; wer die
- * Darstellung ändert, soll das Verhalten nicht anfassen müssen.
+ * This file knows no scene, no DOM and no React — it keeps the books on
+ * positions and computes one step further per frame. Whoever reads it should
+ * understand the behaviour without knowing the rendering; whoever changes the
+ * rendering should not have to touch the behaviour. Positions are plan
+ * coordinates in centimetres.
  *
- * DIE TRENNUNG, die alles andere trägt:
+ * THE SEPARATION that carries everything else:
  *
- *   Auskunft   — Zustand (schläft, arbeitet, wartet, gestoppt), der Weg zum
- *                Tresen, der leere Stuhl. Kommt aus den Daten, immer.
- *   Atmosphäre — Aufstehen, Herumgehen, Zusammenstehen, der Gang in die
- *                Teeküche, die Katze, der Kuchen, der Vogel. Kommt von hier
- *                und behauptet NICHTS, was in einer Aufzeichnung stünde.
+ *   Information — the state (asleep, working, waiting, stopped), the walk to
+ *                 the front desk, the empty chair. Comes from the data, always.
+ *   Atmosphere  — getting up, walking about, standing together, the trip to
+ *                 the kitchen, the cat, the cake, the bird. Comes from here and
+ *                 claims NOTHING that would be in a recording.
  *
- * Eine Bewegung, aus der sich etwas ablesen ließe, das nirgends aufgezeichnet
- * ist, wäre eine Lüge mit Charme. Deshalb wacht hier niemand von selbst auf,
- * beginnt niemand von selbst einen Vorgang, und geht niemand von selbst an
- * den Tresen.
+ * A movement from which one could read something that is recorded nowhere
+ * would be a lie with charm. That is why nobody here wakes up on their own,
+ * nobody starts a task on their own, and nobody goes to the front desk on
+ * their own: `zustandSetzen` is the only way into "wartet", and it is called
+ * with what the data says.
+ *
+ * Paths inside rooms go around the furniture that was actually built (the
+ * grids from ./laufweg); on the corridors they follow the centre lines of the
+ * plan. After every rebuild of the scene the grids are new — `felderSetzen` —
+ * and the figures keep where they are and where they were going.
  */
-
-export type Zustand = "schlaeft" | "arbeitet" | "frei" | "wartet" | "gestoppt";
 
 export type Figur = {
   id: string;
   slug: string;
-  /** Index des Heimatzimmers und des eigenen Platzes darin. */
+  /** Index of the home room and of the own seat in it. */
   ri: number;
   i: number;
   sitz: Punkt;
   pos: Punkt;
   zustand: Zustand;
+  /** The current step from the data ("braucht eine Entscheidung"), if any. */
+  schritt?: string | null;
   route: Punkt[];
-  /** Millisekunden, bis der nächste Einfall kommt. */
+  /** Milliseconds until the next idea comes. */
   pause: number;
-  /** Schrittgeschwindigkeit in Pixeln je Sekunde, aus dem Kürzel. */
+  /** Walking speed in cm per second, from the slug. */
   tempo: number;
   phase: number;
   geht: boolean;
-  /** Steht noch ein Rückweg aus? */
+  /** Is a way back home still due? */
   heimkehr: boolean;
-  /** Angeklickt: Wer angesprochen wird, bleibt stehen. */
+  /** Clicked: whoever is being spoken to stops. */
   angesprochen: boolean;
+  /** The plant this figure is on the way to water. */
   giesst: string | null;
+  /** Fetching a printout. The plan has no printer any more, so this stays
+   *  false; it is kept so the rendering's shape does not change (see Gast). */
   holt: boolean;
   tasseHolen: boolean;
   hatTasse: boolean;
-  /** Blickrichtung, −1 … 1, wird von der Darstellung gelesen. */
+  /** Gaze direction, −1 … 1, read by the rendering. */
   blick: Punkt;
 };
 
-/** Was sich sonst noch im Bau bewegt — alles selten, alles bedeutungslos. */
+/** What else moves in the building — all of it rare, all of it meaningless.
+ *
+ *  Dropped from the flat office: the printout ("blatt") and whoever fetched
+ *  it — the new plan has no printer to put it on. The bird no longer sits on
+ *  a window from the plan (the plan has no windows any more; the scene draws
+ *  them): it lands on the outer wall of a room in the top row. */
 export type Gast =
   | { art: "katze"; id: number; pos: Punkt; route: Punkt[]; ruht: number; zi: number; schub: number }
-  | { art: "blatt"; id: number; pos: Punkt; flur: number }
   | { art: "kuchen"; id: number; pos: Punkt; bis: number }
   | { art: "vogel"; id: number; pos: Punkt; bis: number }
   | { art: "flieger"; id: number; pos: Punkt; weit: number; bis: number };
 
-export type Ereignis = "katze" | "besprechung" | "flieger" | "drucker" | "kuchen" | "vogel" | "aufmerksam";
+export type Ereignis = "katze" | "besprechung" | "flieger" | "kuchen" | "vogel" | "aufmerksam";
 
-export type Leben = ReturnType<typeof erschaffeLeben>;
+/** Who waters a clicked plant: a colleague who has nothing to do, or — if
+ *  nobody is free — the visitor's own watering can. */
+export type Giesser = "kollege" | "selbst";
 
-/* Wie oft etwas Seltenes passiert, je Sekunde. Die Zahlen sind mit Absicht
-   klein: Was jede Minute geschieht, ist keine Entdeckung mehr, sondern
-   Ausstattung — und Ausstattung, die sich bewegt, ist Unruhe. */
-const HAEUFIG = {
+/** What the rendering wants to hear about. All optional. */
+export type Haken = {
+  /** A cup is (or no longer is) on this colleague's desk. */
+  tasse?: (id: string, da: boolean) => void;
+  /** This plant is watered — it blooms from now on. */
+  gegossen?: (pflanze: string, wer: Giesser) => void;
+  /** The guest list changed; the rendering has to redraw. */
+  gaeste?: () => void;
+  /** A plant now waits for water (or no longer does). */
+  durst?: () => void;
+  /** All awake colleagues look to the middle for a moment. */
+  aufmerksam?: () => void;
+};
+
+export type Kollege = { id: string; slug: string; ri: number; i: number; zustand: Zustand; schritt?: string | null };
+
+export type Leben = {
+  figuren: Figur[];
+  /** Live list: mutated in place, never replaced. */
+  gaeste: Gast[];
+  tick(dtSekunden: number): void;
+  /** From the data. A change re-routes: waiting → the queue at the front
+   *  desk; any other state than "frei" → back to the seat. */
+  zustandSetzen(id: string, zustand: Zustand, schritt?: string | null): void;
+  /** With `an`: this one is (no longer) spoken to. Without: the selection —
+   *  exactly this one is spoken to, everyone else released (null: nobody). */
+  ansprechen(id: string | null, an?: boolean): void;
+  /** A click on a plant. "kollege": someone free is on the way now.
+   *  "selbst": nobody is free right now — the plant waits up to three seconds
+   *  for someone to become free, then it is the visitor's can. Either way
+   *  `haken.gegossen` says when and by whom it was watered. */
+  giessen(pflanzeId: string, punkt: Punkt): Giesser;
+  istDurstig(pflanzeId: string): boolean;
+  /** After a rebuild the grids are new; figures keep pos and route. */
+  felderSetzen(felder: LaufFelder): void;
+  /** The pointer: the awake ones look after it while they stand. */
+  blickAuf(zeiger: Punkt | null): void;
+  /** All awake ones look to the middle — the easter egg for the word "covey". */
+  hinsehen(): void;
+  ausloesen(e: Ereignis): void;
+};
+
+/* How often something rare happens, per second. The numbers are small on
+   purpose: what happens every minute is no discovery any more but fittings —
+   and fittings that move are unrest. */
+const HAEUFIG: Partial<Record<Ereignis, number>> = {
   katze: 0.0022,
   besprechung: 0.0018,
   flieger: 0.0012,
-  drucker: 0.0025,
   kuchen: 0.00035,
   vogel: 0.0016,
 };
 
+/** How long a clicked plant waits for a free colleague before the visitor's
+ *  own can does it. */
+const GIESS_GEDULD = 3000;
+/** Two standing figures closer than this (cm) step apart. */
+const ABSTAND = 30;
+
 export function erschaffeLeben(
   plan: Plan,
-  haken: {
-    /** Eine Tasse steht (oder steht nicht mehr) auf dem Tisch dieses Kollegen. */
-    tasse: (id: string, da: boolean) => void;
-    /** Diese Pflanze ist gegossen — sie blüht von jetzt an. */
-    gegossen: (pflanze: string) => void;
-    /** Die Gästeliste hat sich geändert; die Darstellung muss neu zeichnen. */
-    gaeste: () => void;
-    /** Alle Wachen sehen einen Moment lang in die Mitte. */
-    aufmerksam: () => void;
-    /** Eine Pflanze wartet jetzt auf Wasser (oder wartet nicht mehr). */
-    durst: () => void;
-  },
-) {
-  const figuren = new Map<string, Figur>();
-  let gaeste: Gast[] = [];
+  felder: LaufFelder,
+  kollegen: Kollege[],
+  ruhig: boolean,
+  haken: Haken = {},
+): Leben {
+  let raster = felder;
+  const imRaum = (ri: number, von: Punkt, ziel: Punkt) => wegImRaum(raster, ri, von, ziel);
+  const route = (von: Punkt, ziel: Punkt, zielRaum: number | null) => weg(plan, von, ziel, zielRaum, imRaum);
+
+  const figuren: Figur[] = [];
+  const gaeste: Gast[] = [];
   let naechsteId = 1;
   const durstig: { id: string; punkt: Punkt; seit: number }[] = [];
+  /** The queue at the front desk, in order of arrival. */
+  const schlange: string[] = [];
 
-  const raumVon = (f: Figur) => plan.raeume[f.ri];
-  const gemIndex = (art: "besprechung" | "teekueche") =>
-    plan.raeume.findIndex((r) => r.gem === art);
+  const gaesteGeaendert = () => haken.gaeste?.();
+  const zufall = <T>(liste: readonly T[]): T => liste[Math.floor(Math.random() * liste.length)];
 
-  /* ── Übernahme aus den Daten ────────────────────────────────────────────
-     Positionen bleiben erhalten, Zustände kommen von außen. Wer neu ist,
-     beginnt an seinem Platz; wer verschwunden ist, verschwindet. */
-  function uebernehmen(
-    stand: { id: string; slug: string; ri: number; i: number; sitz: Punkt; zustand: Zustand }[],
-  ) {
-    const gesehen = new Set<string>();
-    for (const s of stand) {
-      gesehen.add(s.id);
-      const alt = figuren.get(s.id);
-      if (!alt) {
-        figuren.set(s.id, {
-          ...s,
-          pos: { ...s.sitz },
-          route: [],
-          pause: 1200 + (streu(s.slug) % 6000),
-          tempo: 30 + (streu(s.slug + "v") % 14),
-          phase: streu(s.slug) % 100,
-          geht: false,
-          heimkehr: false,
-          angesprochen: false,
-          giesst: null,
-          holt: false,
-          tasseHolen: false,
-          hatTasse: false,
-          blick: { x: 0, y: 0 },
-        });
-        continue;
-      }
-      /* Der Platz kann sich verschoben haben (neuer Kollege, neuer Plan).
-         Dann rückt auch die Figur nach, aber ohne zu springen: Sie geht. */
-      const umgezogen = alt.ri !== s.ri || alt.i !== s.i;
-      alt.ri = s.ri;
-      alt.i = s.i;
-      alt.sitz = s.sitz;
-      alt.slug = s.slug;
-      if (umgezogen) alt.pos = { ...s.sitz };
-
-      if (alt.zustand !== s.zustand) {
-        const vorher = alt.zustand;
-        alt.zustand = s.zustand;
-        alt.angesprochen = false;
-        if (s.zustand === "wartet") {
-          /* Wer nicht weiterkommt, geht wirklich nach vorn. */
-          const belegt = [...figuren.values()].filter((x) => x !== alt && x.zustand === "wartet").length;
-          const ziel = plan.tresen.plaetze[Math.min(belegt, plan.tresen.plaetze.length - 1)];
-          alt.route = weg(plan, alt.pos, ziel, null);
-          alt.heimkehr = false;
-        } else if (vorher === "wartet" || s.zustand === "arbeitet" || s.zustand === "schlaeft") {
-          /* Zurück an den Platz — jeder Zustand außer „frei" gehört dorthin. */
-          alt.route = weg(plan, alt.pos, { ...alt.sitz }, alt.ri);
-          alt.heimkehr = false;
-          alt.giesst = null;
-          alt.holt = false;
-        }
-        if (s.zustand === "arbeitet" && alt.hatTasse) {
-          alt.hatTasse = false;
-          haken.tasse(alt.id, false);
-        }
-      }
+  /* With reduced motion nobody walks: a route is taken in one step. The
+     information stays — whoever waits still stands at the front desk. */
+  function losschicken(f: Figur, weg: Punkt[]) {
+    f.route = weg;
+    if (ruhig && weg.length) {
+      f.pos = { ...weg[weg.length - 1] };
+      f.route = [];
     }
-    for (const id of [...figuren.keys()]) if (!gesehen.has(id)) figuren.delete(id);
   }
 
-  /* ── Der Schritt ────────────────────────────────────────────────────────── */
+  const heimweg = (f: Figur) => route(f.pos, { ...f.sitz }, f.ri);
+
+  function warteplatz(id: string): Punkt {
+    const n = Math.max(0, schlange.indexOf(id));
+    const plaetze = plan.tresen.plaetze;
+    if (!plaetze.length) return { x: plan.quer.mitte, y: plan.tresen.y + 90 };
+    return { ...plaetze[Math.min(n, plaetze.length - 1)] };
+  }
+
+  /* ── From the data ──────────────────────────────────────────────────────
+     Whoever starts out waiting stands in the queue already; everybody else at
+     the seat. Nobody walks in on the first frame. */
+  for (const k of kollegen) {
+    const s = plan.raeume[k.ri]?.sitze[k.i];
+    if (!s) continue;
+    const f: Figur = {
+      id: k.id,
+      slug: k.slug,
+      ri: k.ri,
+      i: k.i,
+      sitz: { x: s.x, y: s.y },
+      pos: { x: s.x, y: s.y },
+      zustand: k.zustand,
+      schritt: k.schritt ?? null,
+      route: [],
+      pause: 1200 + (hash(k.slug) % 6000),
+      tempo: 42 + (hash(k.slug + "v") % 18),
+      phase: hash(k.slug) % 100,
+      geht: false,
+      heimkehr: false,
+      angesprochen: false,
+      giesst: null,
+      holt: false,
+      tasseHolen: false,
+      hatTasse: false,
+      blick: { x: 0, y: 0 },
+    };
+    if (k.zustand === "wartet") {
+      schlange.push(f.id);
+      f.pos = warteplatz(f.id);
+    }
+    figuren.push(f);
+  }
+
+  /* Whoever stands behind someone who left moves up. */
+  function aufruecken() {
+    for (const id of schlange) {
+      const f = figuren.find((x) => x.id === id);
+      if (!f) continue;
+      const ziel = warteplatz(id);
+      const jetzt = f.route.length ? f.route[f.route.length - 1] : f.pos;
+      if (Math.hypot(jetzt.x - ziel.x, jetzt.y - ziel.y) < 1) continue;
+      losschicken(f, route(f.pos, ziel, null));
+    }
+  }
+
+  function zustandSetzen(id: string, zustand: Zustand, schritt?: string | null) {
+    const f = figuren.find((x) => x.id === id);
+    if (!f) return;
+    if (schritt !== undefined) f.schritt = schritt;
+    if (f.zustand === zustand) return;
+    const vorher = f.zustand;
+    f.zustand = zustand;
+    f.angesprochen = false;
+    f.heimkehr = false;
+    f.giesst = null;
+    f.holt = false;
+    f.tasseHolen = false;
+    if (zustand === "wartet") {
+      /* Whoever cannot go on really walks to the front: out of the door,
+         along the corridor, into the queue. */
+      if (!schlange.includes(id)) schlange.push(id);
+      losschicken(f, route(f.pos, warteplatz(id), null));
+    } else {
+      if (vorher === "wartet") {
+        schlange.splice(schlange.indexOf(id), 1);
+        aufruecken();
+      }
+      if (zustand === "frei") {
+        /* A task ended: the colleague stays awake and will get up shortly. */
+        f.pause = 400;
+        if (vorher === "wartet") losschicken(f, heimweg(f));
+      } else {
+        /* Every state except "frei" belongs at the seat — the decided one
+           walks the same way back, and the screen comes on there. */
+        losschicken(f, heimweg(f));
+      }
+    }
+    if (zustand === "arbeitet" && f.hatTasse) {
+      f.hatTasse = false;
+      haken.tasse?.(f.id, false);
+    }
+  }
+
+  /* ── The step ───────────────────────────────────────────────────────────── */
   function schritt(f: Figur, dt: number) {
     if (f.route.length) {
+      /* Being spoken to stops the stroll — not the walk the data asked for:
+         whoever waits for a decision still gets to the front desk. */
+      if (f.angesprochen && f.zustand === "frei") {
+        f.geht = false;
+        return;
+      }
       f.geht = true;
       const z = f.route[0];
       const dx = z.x - f.pos.x;
@@ -196,19 +307,8 @@ export function erschaffeLeben(
   }
 
   function angekommen(f: Figur) {
-    if (f.holt) {
-      const i = gaeste.findIndex((g) => g.art === "blatt");
-      if (i >= 0) {
-        gaeste.splice(i, 1);
-        haken.gaeste();
-      }
-      f.holt = false;
-      f.heimkehr = true;
-      f.pause = 1400;
-      return;
-    }
     if (f.giesst) {
-      haken.gegossen(f.giesst);
+      haken.gegossen?.(f.giesst, "kollege");
       f.giesst = null;
       f.heimkehr = true;
       f.pause = 1200;
@@ -219,65 +319,77 @@ export function erschaffeLeben(
       f.hatTasse = true;
       return;
     }
-    if (f.hatTasse && Math.hypot(f.pos.x - f.sitz.x, f.pos.y - f.sitz.y) < 8) haken.tasse(f.id, true);
+    if (f.hatTasse && Math.hypot(f.pos.x - f.sitz.x, f.pos.y - f.sitz.y) < 8) haken.tasse?.(f.id, true);
   }
 
-  /* Wer wach ist und nichts zu tun hat: zurück an den Platz, zu einem
-     Kollegen, irgendwo im Zimmer hin — oder in die Teeküche. Nicht mehr: Ein
-     Büro, in dem alle ständig unterwegs sind, ist ein Bildschirmschoner. */
+  const gemRaeume = (art: Gemein) => plan.raeume.map((r, i) => (r.gem === art ? i : -1)).filter((i) => i >= 0);
+
+  /** A place to stand in a shared room: one of its meeting points, pulled
+   *  onto free floor; without meeting points anywhere free in it. */
+  function treffpunkt(gi: number, n?: number): Punkt | null {
+    const g = plan.raeume[gi];
+    if (g.treff.length) return freiNahe(raster, gi, n == null ? zufall(g.treff) : g.treff[n % g.treff.length]);
+    return laufZufall(raster, gi);
+  }
+
+  /* Whoever is awake and has nothing to do: back to the seat, over to a
+     colleague, somewhere in the room — or to the kitchen, the meeting room or
+     a lounge. No more: an office in which everyone is always on the move is a
+     screensaver. */
   function einfall(f: Figur) {
-    const r = raumVon(f);
     if (f.heimkehr) {
-      f.route = weg(plan, f.pos, { ...f.sitz }, f.ri);
+      losschicken(f, heimweg(f));
       f.heimkehr = false;
-      f.pause = 2600 + Math.random() * 5000;
+      f.pause = 3000 + Math.random() * 5000;
       return;
     }
     const w = Math.random();
-    if (w < 0.13) {
-      const gi = gemIndex(Math.random() < 0.6 ? "teekueche" : "besprechung");
-      if (gi >= 0) {
-        const g = plan.raeume[gi];
-        f.route = weg(plan, f.pos, g.treffpunkte[Math.floor(Math.random() * g.treffpunkte.length)], gi);
+    if (w < 0.16) {
+      /* Where to: kitchen, meeting room or one of the lounges — with several
+         lounges not always the same one, or the first stands full and the
+         second empty. */
+      const art: Gemein = Math.random() < 0.45 ? "kueche" : Math.random() < 0.4 ? "besprechung" : "lounge";
+      const ziele = gemRaeume(art);
+      const gi = ziele.length ? zufall(ziele) : -1;
+      const hin = gi >= 0 ? treffpunkt(gi) : null;
+      if (hin) {
+        losschicken(f, route(f.pos, hin, gi));
         f.heimkehr = true;
-        if (g.gem === "teekueche") f.tasseHolen = true;
-        f.pause = 8000 + Math.random() * 7000;
+        if (art === "kueche") f.tasseHolen = true;
+        f.pause = 9000 + Math.random() * 7000;
         return;
       }
     }
-    const andere = [...figuren.values()].filter(
-      (x) => x.ri === f.ri && x !== f && x.zustand === "frei" && !x.route.length,
+    const andere = figuren.filter(
+      (x) => x !== f && x.ri === f.ri && x.zustand === "frei" && !x.route.length && raumAn(plan, x.pos) === f.ri,
     );
     if (andere.length && w < 0.4) {
-      /* Zwei, die beieinanderstehen. Das ist kein Gespräch, das covey kennt —
-         es ist der Unterschied zwischen einem Raum und einem Wartezimmer, in
-         dem alle einzeln an ihrem Stuhl kleben. */
-      const a = andere[Math.floor(Math.random() * andere.length)];
+      /* Two standing together. That is no conversation covey knows about —
+         it is the difference between a room and a waiting room in which
+         everyone sticks to their own chair. */
+      const a = zufall(andere);
+      const r = plan.raeume[f.ri];
       const links = a.pos.x - r.x > r.w / 2;
-      f.route = [
-        {
-          x: Math.min(Math.max(a.pos.x + (links ? -40 : 40), r.x + 24), r.x + r.w - 24),
-          y: a.pos.y,
-        },
-      ];
+      const hin = freiNahe(raster, f.ri, { x: a.pos.x + (links ? -40 : 40), y: a.pos.y });
+      losschicken(f, route(f.pos, hin, f.ri));
       f.pause = 3000 + Math.random() * 6000;
       return;
     }
-    if (w < 0.66 || !r.gaenge.length) {
-      f.route = [{ ...f.sitz }];
-      f.pause = 3000 + Math.random() * 7000;
-      return;
-    }
-    f.route = [r.gaenge[Math.floor(Math.random() * r.gaenge.length)]];
-    f.pause = 2600 + Math.random() * 6000;
+    const hin = w < 0.62 ? null : laufZufall(raster, f.ri);
+    losschicken(f, hin ? route(f.pos, hin, f.ri) : heimweg(f));
+    f.pause = hin ? 2600 + Math.random() * 6000 : 3000 + Math.random() * 6000;
   }
 
-  /* Wer steht, steht nicht IN jemandem. Bei siebzig Figuren sind das im
-     schlimmsten Fall ein paar tausend Vergleiche je Bild — und es betrifft
-     nur die, die gerade nicht laufen. */
+  /* Whoever stands does not stand INSIDE someone. With seventy figures that
+     is a few thousand comparisons per frame at worst — and it only concerns
+     those who are standing, not sitting and not walking. A push that would
+     move someone into furniture or out of the corridor is not made. */
   function ausweichen(dt: number) {
-    const steher = [...figuren.values()].filter(
-      (f) => !f.route.length && (f.zustand === "frei" || f.zustand === "wartet"),
+    const steher = figuren.filter(
+      (f) =>
+        !f.route.length &&
+        (f.zustand === "frei" || f.zustand === "wartet") &&
+        Math.hypot(f.pos.x - f.sitz.x, f.pos.y - f.sitz.y) > 4,
     );
     for (let i = 0; i < steher.length; i++)
       for (let j = i + 1; j < steher.length; j++) {
@@ -286,61 +398,50 @@ export function erschaffeLeben(
         const dx = b.pos.x - a.pos.x;
         const dy = b.pos.y - a.pos.y;
         const d = Math.hypot(dx, dy);
-        if (d > 34 || d < 0.01) continue;
-        const k = ((34 - d) / 2) * Math.min(1, dt * 6);
-        a.pos.x -= (dx / d) * k;
-        a.pos.y -= (dy / d) * k;
-        b.pos.x += (dx / d) * k;
-        b.pos.y += (dy / d) * k;
-        halten(a);
-        halten(b);
+        if (d > ABSTAND || d < 0.01) continue;
+        const k = ((ABSTAND - d) / 2) * Math.min(1, dt * 6);
+        schieben(a, -(dx / d) * k, -(dy / d) * k);
+        schieben(b, (dx / d) * k, (dy / d) * k);
       }
   }
-  /* Auch beim Ausweichen bleibt jeder in dem Raum, in dem er steht. */
-  function halten(f: Figur) {
+  function schieben(f: Figur, dx: number, dy: number) {
+    const p = { x: f.pos.x + dx, y: f.pos.y + dy };
     if (f.zustand === "wartet") {
-      f.pos.x = Math.min(Math.max(f.pos.x, plan.quer.x + 22), plan.quer.x + plan.quer.w - 22);
+      /* The queue stays in the cross corridor. */
+      p.x = Math.min(Math.max(p.x, plan.quer.x + 22), plan.quer.x + plan.quer.w - 22);
+      f.pos = p;
       return;
     }
-    const r = plan.raeume[raumAn(plan, f.pos) ?? f.ri];
-    f.pos.x = Math.min(Math.max(f.pos.x, r.x + 20), r.x + r.w - 20);
-    f.pos.y = Math.min(Math.max(f.pos.y, r.y + 30), r.y + r.h - 16);
+    const ri = raumAn(plan, p);
+    if (ri != null && istFrei(raster, ri, p)) f.pos = p;
   }
 
-  /* ── Was selten passiert ────────────────────────────────────────────────── */
+  /* ── What rarely happens ────────────────────────────────────────────────── */
 
-  /** Wen man losschicken kann, ohne über seinen Zustand zu lügen. */
+  /** Whom one can send off without lying about their state. */
   const freieHand = () =>
-    [...figuren.values()].filter(
-      (f) => f.zustand === "frei" && !f.route.length && !f.giesst && !f.holt && !f.angesprochen,
-    );
+    figuren.filter((f) => f.zustand === "frei" && !f.route.length && !f.giesst && !f.angesprochen);
 
+  /* The cat comes in at the far end of a corridor, walks to someone who is
+     working, lies down beside them and leaves the same way. */
   function katzeLos() {
     if (gaeste.some((g) => g.art === "katze")) return;
-    const warm = plan.raeume
-      .map((r, i) => i)
-      .filter((i) => [...figuren.values()].some((f) => f.ri === i && f.zustand === "arbeitet"));
-    if (!warm.length) return;
-    const zi = warm[Math.floor(Math.random() * warm.length)];
-    const ziel = plan.raeume[zi];
-    const arbeiter = [...figuren.values()].find((f) => f.ri === zi && f.zustand === "arbeitet");
-    const platz = arbeiter
-      ? { x: arbeiter.sitz.x, y: arbeiter.sitz.y + 28 }
-      : { x: ziel.x + ziel.w / 2, y: ziel.y + ziel.h - 30 };
-    const start = { x: -20, y: plan.flure[ziel.flur].mitte };
+    const arbeiter = figuren.filter((f) => f.zustand === "arbeitet" && raumAn(plan, f.pos) === f.ri);
+    if (!arbeiter.length) return;
+    const a = zufall(arbeiter);
+    const zi = a.ri;
+    const start = { x: plan.breite - 30, y: plan.raeume[zi].flurY };
+    const platz = freiNahe(raster, zi, a.sitz);
     gaeste.push({
       art: "katze",
       id: naechsteId++,
       pos: start,
-      route: [
-        { x: plan.quer.mitte, y: plan.flure[ziel.flur].mitte },
-        ...weg(plan, { x: plan.quer.mitte, y: plan.flure[ziel.flur].mitte }, platz, zi),
-      ],
+      route: route(start, platz, zi),
       ruht: 0,
       zi,
       schub: 4000 + Math.random() * 8000,
     });
-    haken.gaeste();
+    gaesteGeaendert();
   }
 
   function katzeSchritt(g: Extract<Gast, { art: "katze" }>, dt: number) {
@@ -349,234 +450,227 @@ export function erschaffeLeben(
       const dx = z.x - g.pos.x;
       const dy = z.y - g.pos.y;
       const d = Math.hypot(dx, dy);
-      const s = 48 * dt;
+      const s = 60 * dt;
       if (d <= s) {
         g.pos = { ...z };
         g.route.shift();
-        if (!g.route.length) g.ruht = 18000;
+        if (!g.route.length && g.ruht === 0) g.ruht = 18000;
       } else {
         g.pos.x += (dx / d) * s;
         g.pos.y += (dy / d) * s;
       }
       return;
     }
+    if (g.ruht === -9999) {
+      /* Back at the end of the corridor: gone. */
+      gaeste.splice(gaeste.indexOf(g), 1);
+      gaesteGeaendert();
+      return;
+    }
     g.ruht -= dt * 1000;
-    /* Und wenn sie eine Tasse findet, schiebt sie sie herunter. Eine Katze
-       tut das; ein Zustand dieser Plattform ist es nicht. */
+    /* And if she finds a cup, she pushes it off. A cat does that; a state of
+       this platform it is not. */
     if (g.schub > 0 && (g.schub -= dt * 1000) <= 0) {
-      const mit = [...figuren.values()].find((f) => f.ri === g.zi && f.hatTasse);
+      const mit = figuren.find((f) => f.ri === g.zi && f.hatTasse);
       if (mit) {
         mit.hatTasse = false;
-        haken.tasse(mit.id, false);
+        haken.tasse?.(mit.id, false);
       }
     }
     if (g.ruht > 0) return;
-    if (g.ruht > -4000) {
-      /* Der Rückweg: durch die Tür hinaus und zum Eingang. */
-      g.route = [
-        ...weg(plan, g.pos, { x: plan.quer.mitte, y: plan.flure[plan.raeume[g.zi].flur].mitte }, null),
-        { x: -30, y: plan.flure[plan.raeume[g.zi].flur].mitte },
-      ];
-      g.ruht = -9999;
-      return;
-    }
-    weg_gast(g);
+    /* The way back: out of the door and down the corridor to where she came in. */
+    const r = plan.raeume[g.zi];
+    g.route = [
+      ...wegImRaum(raster, g.zi, g.pos, r.innen),
+      { ...r.aussen },
+      { x: r.tuerX, y: r.flurY },
+      { x: plan.breite - 30, y: r.flurY },
+    ];
+    g.ruht = -9999;
   }
 
-  const weg_gast = (g: Gast) => {
-    gaeste = gaeste.filter((x) => x !== g);
-    haken.gaeste();
-  };
-
   function besprechungLos() {
-    const gi = gemIndex("besprechung");
-    if (gi < 0) return;
-    const g = plan.raeume[gi];
+    const ziele = gemRaeume("besprechung");
+    if (!ziele.length) return;
+    const gi = zufall(ziele);
     const wer = freieHand()
       .filter((f) => !f.heimkehr)
       .sort(() => Math.random() - 0.5)
       .slice(0, 3 + Math.floor(Math.random() * 3));
     if (wer.length < 2) return;
     wer.forEach((f, i) => {
-      f.route = weg(plan, f.pos, g.treffpunkte[i % g.treffpunkte.length], gi);
+      const hin = treffpunkt(gi, i);
+      if (!hin) return;
+      losschicken(f, route(f.pos, hin, gi));
       f.heimkehr = true;
       f.pause = 14000 + Math.random() * 9000;
     });
   }
 
-  function druckerLos() {
-    if (!plan.drucker.length || gaeste.some((g) => g.art === "blatt")) return;
-    const i = Math.floor(Math.random() * plan.drucker.length);
-    const d = plan.drucker[i];
-    gaeste.push({ art: "blatt", id: naechsteId++, pos: { x: d.blattX, y: d.blattY }, flur: i });
-    haken.gaeste();
-    holerSchicken();
-  }
-
-  function holerSchicken() {
-    const blatt = gaeste.find((g) => g.art === "blatt") as Extract<Gast, { art: "blatt" }> | undefined;
-    if (!blatt) return;
-    const d = plan.drucker[blatt.flur];
-    const frei = freieHand();
-    if (!frei.length) return;
-    const f = frei
-      .map((k) => ({ k, s: Math.hypot(k.pos.x - d.x, k.pos.y - d.y) }))
-      .sort((a, b) => a.s - b.s)[0].k;
-    f.holt = true;
-    /* Der Drucker steht im Flur. Der Weg dorthin endet an ihm, nicht am
-       Tresen — deshalb der Pfad in den Quergang, ohne die letzten zwei
-       Schritte, und dann quer zum Gerät. */
-    const bis = weg(plan, f.pos, { x: d.x, y: d.y }, null);
-    f.route = [...bis.slice(0, Math.max(1, bis.length - 2)), { x: d.x, y: d.y }];
-    f.pause = 3000;
-  }
-
   function kuchenLos() {
-    const gi = gemIndex("teekueche");
-    if (gi < 0 || gaeste.some((g) => g.art === "kuchen")) return;
+    const ziele = gemRaeume("kueche");
+    if (!ziele.length || gaeste.some((g) => g.art === "kuchen")) return;
+    const gi = ziele[0];
     const g = plan.raeume[gi];
-    gaeste.push({
-      art: "kuchen",
-      id: naechsteId++,
-      pos: { x: g.x + g.w / 2 - 11, y: g.y + 20 + (g.h - 20) / 2 + 12 },
-      bis: 26000,
-    });
-    haken.gaeste();
+    gaeste.push({ art: "kuchen", id: naechsteId++, pos: { x: g.x + g.w / 2, y: g.y + g.h / 2 }, bis: 26000 });
+    gaesteGeaendert();
     freieHand()
       .filter((f) => !f.heimkehr)
       .sort(() => Math.random() - 0.5)
       .slice(0, 6)
       .forEach((f, i) => {
-        f.route = weg(plan, f.pos, g.treffpunkte[i % g.treffpunkte.length], gi);
+        const hin = treffpunkt(gi, i);
+        if (!hin) return;
+        losschicken(f, route(f.pos, hin, gi));
         f.heimkehr = true;
         f.tasseHolen = true;
         f.pause = 16000 + Math.random() * 9000;
       });
   }
 
+  /* The bird lands on the outer wall of a room in the top row — the only
+     walls whose outside is the sky. */
   function vogelLos() {
-    if (!plan.fenster.length || gaeste.some((g) => g.art === "vogel")) return;
-    const f = plan.fenster[Math.floor(Math.random() * plan.fenster.length)];
-    gaeste.push({ art: "vogel", id: naechsteId++, pos: { x: f.x + f.w / 2 - 6, y: 0 }, bis: 7000 });
-    haken.gaeste();
+    if (!plan.raeume.length || gaeste.some((g) => g.art === "vogel")) return;
+    const oben = Math.min(...plan.raeume.map((r) => r.y));
+    const reihe = plan.raeume.filter((r) => r.y - oben < 1);
+    const r = zufall(reihe);
+    gaeste.push({ art: "vogel", id: naechsteId++, pos: { x: r.x + r.w * (0.25 + Math.random() * 0.5), y: r.y }, bis: 7000 });
+    gaesteGeaendert();
   }
 
+  /* A paper plane along a corridor, from the cross corridor to the far end. */
   function fliegerLos() {
     if (!plan.flure.length || gaeste.some((g) => g.art === "flieger")) return;
-    const f = plan.flure[Math.floor(Math.random() * plan.flure.length)];
-    gaeste.push({
-      art: "flieger",
-      id: naechsteId++,
-      pos: { x: plan.quer.x + plan.quer.w, y: f.y + 14 },
-      weit: plan.breite - plan.quer.x - plan.quer.w - 60,
-      bis: 5400,
-    });
-    haken.gaeste();
+    const f = zufall(plan.flure);
+    const x = plan.quer.x + plan.quer.w;
+    gaeste.push({ art: "flieger", id: naechsteId++, pos: { x, y: f.mitte }, weit: plan.breite - x - 60, bis: 5400 });
+    gaesteGeaendert();
   }
 
-  /* Eine Pflanze anklicken.
+  /* Clicking a plant.
    *
-   * Der erste Anlauf tat nichts, sobald gerade niemand frei war — und weil
-   * die meisten Kollegen die meiste Zeit schlafen, war genau das der
-   * Normalfall. Jetzt merkt sich die Pflanze den Durst, der Nächste, der
-   * nichts zu tun hat, geht hin, und wenn nach drei Sekunden niemand
-   * gekommen ist, war es eben Ihre Gießkanne. Einen Schlafenden dafür zu
-   * wecken wäre eine Lüge über seinen Zustand; eine Pflanze, die auf einen
-   * Klick nicht reagiert, ist ein kaputter Knopf. */
-  function giessen(id: string, punkt: Punkt) {
-    if (durstig.some((d) => d.id === id)) return;
-    durstig.push({ id, punkt, seit: 0 });
-    haken.durst();
-    giessdienst();
+   * A first attempt did nothing whenever nobody happened to be free — and
+   * since most colleagues are asleep most of the time, that was the normal
+   * case. Now the plant remembers its thirst, the next one who has nothing to
+   * do goes over, and if nobody has come after three seconds, it was the
+   * visitor's own watering can. Waking a sleeper for it would be a lie about
+   * their state; a plant that does not react to a click is a broken button. */
+  function giessen(id: string, punkt: Punkt): Giesser {
+    if (ruhig) {
+      haken.gegossen?.(id, "selbst");
+      return "selbst";
+    }
+    if (!durstig.some((d) => d.id === id)) {
+      durstig.push({ id, punkt, seit: 0 });
+      haken.durst?.();
+    }
+    return giessdienst() ? "kollege" : "selbst";
   }
-  function giessdienst(dt = 0) {
-    if (!durstig.length) return;
+
+  /** Sends the nearest free colleague to the first thirsty plant; true if
+   *  someone went. Without anyone free the plant's patience runs down. */
+  function giessdienst(dt = 0): boolean {
+    if (!durstig.length) return false;
     const d = durstig[0];
     const frei = freieHand();
     if (!frei.length) {
       d.seit += dt * 1000;
-      if (d.seit > 3000) {
+      if (d.seit >= GIESS_GEDULD) {
         durstig.shift();
-        haken.gegossen(d.id);
-        haken.durst();
+        haken.gegossen?.(d.id, "selbst");
+        haken.durst?.();
       }
-      return;
+      return false;
     }
     const zi = raumAn(plan, d.punkt);
     const f = frei
       .map((k) => ({ k, s: Math.hypot(k.pos.x - d.punkt.x, k.pos.y - d.punkt.y) }))
       .sort((a, b) => a.s - b.s)[0].k;
     durstig.shift();
-    haken.durst();
+    haken.durst?.();
     f.giesst = d.id;
-    f.route = weg(plan, f.pos, { x: d.punkt.x + 26, y: d.punkt.y }, zi);
+    /* The plant is furniture: the figure stands on the free floor beside it. */
+    const hin = zi != null ? freiNahe(raster, zi, d.punkt) : { ...d.punkt };
+    losschicken(f, route(f.pos, hin, zi));
     f.pause = 3600;
+    if (!f.route.length) angekommen(f);
+    return true;
   }
-  const istDurstig = (id: string) => durstig.some((d) => d.id === id);
 
   function ausloesen(e: Ereignis) {
+    if (e === "aufmerksam") {
+      hinsehen();
+      haken.aufmerksam?.();
+      return;
+    }
+    if (ruhig) return;
     if (e === "katze") katzeLos();
     else if (e === "besprechung") besprechungLos();
     else if (e === "flieger") fliegerLos();
-    else if (e === "drucker") druckerLos();
     else if (e === "kuchen") kuchenLos();
     else if (e === "vogel") vogelLos();
-    else if (e === "aufmerksam") haken.aufmerksam();
+  }
+
+  const wach = (f: Figur) => f.zustand !== "schlaeft" && f.zustand !== "gestoppt";
+
+  function hinsehen() {
+    const mx = plan.breite / 2;
+    const my = plan.hoehe / 2;
+    for (const f of figuren) {
+      if (!wach(f) || f.route.length) continue;
+      const dx = mx - f.pos.x;
+      const dy = my - f.pos.y;
+      const d = Math.hypot(dx, dy) || 1;
+      f.blick = { x: dx / d, y: dy / d };
+    }
   }
 
   let seit = 0;
   function tick(dt: number) {
-    for (const f of figuren.values()) schritt(f, dt);
+    if (ruhig || !(dt > 0)) return;
+    for (const f of figuren) schritt(f, dt);
     ausweichen(dt);
 
     let geaendert = false;
     for (const g of [...gaeste]) {
       if (g.art === "katze") katzeSchritt(g, dt);
-      else if (g.art !== "blatt") {
+      else {
         g.bis -= dt * 1000;
         if (g.bis <= 0) {
-          gaeste = gaeste.filter((x) => x !== g);
+          gaeste.splice(gaeste.indexOf(g), 1);
           geaendert = true;
         }
       }
     }
-    if (geaendert) haken.gaeste();
+    if (geaendert) gaesteGeaendert();
 
     giessdienst(dt);
     seit += dt * 1000;
     if (seit < 1000) return;
     seit = 0;
-    holerSchicken();
-    for (const [name, p] of Object.entries(HAEUFIG)) if (Math.random() < p) ausloesen(name as Ereignis);
+    for (const [name, p] of Object.entries(HAEUFIG)) if (Math.random() < (p ?? 0)) ausloesen(name as Ereignis);
   }
 
   return {
     figuren,
+    gaeste,
     tick,
-    uebernehmen,
-    ausloesen,
-    giessen,
-    istDurstig,
-    gast: () => gaeste,
-    waehlen(id: string | null) {
-      for (const f of figuren.values()) f.angesprochen = f.id === id;
-    },
-    /** Alle Wachen sehen in die Mitte — das Osterei zum Wort „covey". */
-    hinsehen() {
-      const mx = plan.breite / 2;
-      const my = plan.hoehe / 2;
-      for (const f of figuren.values()) {
-        if (f.zustand === "schlaeft" || f.zustand === "gestoppt" || f.route.length) continue;
-        const dx = mx - f.pos.x;
-        const dy = my - f.pos.y;
-        const d = Math.hypot(dx, dy) || 1;
-        f.blick = { x: dx / d, y: dy / d };
+    zustandSetzen,
+    ansprechen(id, an) {
+      for (const f of figuren) {
+        if (an === undefined) f.angesprochen = f.id === id;
+        else if (f.id === id) f.angesprochen = an;
       }
     },
-    /** Der Zeiger: Die Wachen sehen ihm nach, solange sie stehen. */
-    zeiger(p: Punkt | null) {
-      for (const f of figuren.values()) {
-        if (f.route.length || f.zustand === "schlaeft" || f.zustand === "gestoppt") continue;
+    giessen,
+    istDurstig: (id) => durstig.some((d) => d.id === id),
+    felderSetzen(neu) {
+      raster = neu;
+    },
+    blickAuf(p) {
+      for (const f of figuren) {
+        if (f.route.length || !wach(f)) continue;
         if (!p) {
           f.blick = { x: 0, y: 0 };
           continue;
@@ -587,7 +681,7 @@ export function erschaffeLeben(
         f.blick = d < 1 ? { x: 0, y: 0 } : { x: dx / d, y: dy / d };
       }
     },
-    /** Nur für die Prüfung: steht dieser Punkt im Flur? */
-    imFlur: (p: Punkt) => flurAn(plan, p),
+    hinsehen,
+    ausloesen,
   };
 }
