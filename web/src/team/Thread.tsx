@@ -2,7 +2,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { api, post, upload, type Agent, type ChatEntry, type ChatMark, type Laufend, type Principal, type Verlauf } from "../api";
+import { PEOPLE_SLUG, api, isDraft, post, upload, type Agent, type ChatEntry, type ChatMark, type Laufend, type Principal, type Verlauf } from "../api";
 import { Markdown } from "../components/Markdown";
 import Dauer from "../components/Dauer";
 import { useSucheOeffnen } from "../components/Suche";
@@ -90,6 +90,10 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
   const agent = useQuery({
     queryKey: ["agent", agentId],
     queryFn: () => api<Agent>(`/agents/${agentId}`),
+    /* While a start is under way the phase changes every few seconds and no
+       event announces it — the runner reports bytes, not states. So the
+       thread asks, and only then. */
+    refetchInterval: (q) => (q.state.data?.phase || q.state.data?.wake_trouble ? 4_000 : false),
   });
   const thread = useQuery({
     queryKey: ["thread", agentId],
@@ -114,6 +118,12 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
   });
   const schrittZu = new Map((laufendeVorgaenge.data ?? []).map((l) => [l.task_id, l]));
   const darfSchreiben = canManage(me.Role);
+  /* The People colleague drafts new colleagues (#327): a message to her is a
+     brief, and the thread says so before the first one — and again when
+     somebody arrives through the "hire a colleague" door, whatever the
+     history. Drafting is hers; hiring is a click on the draft's page. */
+  const istPeople = agent.data?.slug === PEOPLE_SLUG;
+  const leitfaden = istPeople && (params.get("einstellen") === "1" || alle.length === 0);
   /* „Denkt nach" hat zwei Quellen, und beide braucht es.
    
      Der Server weiß es: Eine angenommene Nachricht ohne Entscheidung steht
@@ -129,6 +139,26 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
      „tippen" — nur ist er es jetzt zusätzlich und nicht mehr ersatzweise. */
   const laeuft = alle.length > 0 && alle[alle.length - 1].task_state === "in_progress";
   const tippt = thread.data?.pending || laeuft;
+  /* Between "sent" and "working" lies the start: a cold one takes a minute,
+     the first on a host fetches an image and takes longer. Silence there
+     reads as "nothing happened". So the thread says "on it" as soon as the
+     message is a task, names the phase the runner reports while the
+     workplace is prepared, and says why when the wake fails — the platform
+     speaking about itself, in a status line and not in the agent's voice. */
+  const letzte = alle.length > 0 ? alle[alle.length - 1] : null;
+  const angenommen = !!letzte && letzte.kind === "message" && !!letzte.task_id && letzte.task_state === "open";
+  const phase = agent.data?.phase;
+  const sorge = agent.data?.wake_trouble;
+  const startet = !tippt && (angenommen || !!phase);
+  const phaseText = (() => {
+    if (!phase) return t("team.startetAllgemein");
+    if (phase.phase === "image") {
+      const mb = phase.bytes ? ` (${Math.round(phase.bytes / 1_048_576)} MB)` : "";
+      return t("team.startetImage", { mb });
+    }
+    if (phase.phase === "home") return t("team.startetHome");
+    return t("team.startetAllgemein");
+  })();
 
   /* Ein Anhang ist kein Bild neben der Nachricht, sondern eine Datei im
      Arbeitsplatz des Agenten: Dort kann er sie öffnen, und nur dort nützt sie
@@ -352,7 +382,22 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
 
       <div className="tm-verlauf">
         {thread.isLoading && <p className="tm-leise">{t("common.loading")}</p>}
-        {!thread.isLoading && entries.length === 0 && (
+        {!thread.isLoading && leitfaden && (
+          <div className="tm-leitfaden" role="note">
+            <p className="tm-leitfaden-titel">{t("team.einstellenLeerTitel", { name: agent.data?.display_name ?? "" })}</p>
+            <p className="tm-leise">{t("team.einstellenLeerText", { name: agent.data?.display_name ?? "" })}</p>
+            {/* She may be a draft herself: then nothing she is told runs
+                until somebody hires her — say so where the brief is typed,
+                not after it was sent. */}
+            {agent.data && isDraft(agent.data) && (
+              <p className="tm-leitfaden-warnung">
+                {t("brief.waitingForHire", { name: agent.data.display_name })}{" "}
+                <Link to={`/agents/${agent.data.id}`}>{t("team.entwurfPruefen")}</Link>
+              </p>
+            )}
+          </div>
+        )}
+        {!thread.isLoading && entries.length === 0 && !istPeople && (
           <div className="tm-leer">
             <p>{t("team.leerTitel", { name: agent.data?.display_name ?? "" })}</p>
             <p className="tm-leise">{t("team.leerText")}</p>
@@ -434,6 +479,34 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
                   <Markdown text={e.text} />
                 </div>
 
+                {/* The drafts a hiring task produced: the colleague as a card,
+                    and the way to the page where hiring is (#327). Read off
+                    the recording, not off her report. */}
+                {e.kind === "result" && e.drafts && e.drafts.length > 0 && (
+                  <ul className="tm-entwuerfe">
+                    {e.drafts.map((d) => (
+                      <li key={d.id} className={`tm-entwurf${d.hired_at ? " eingestellt" : ""}`}>
+                        <span className="tm-entwurf-zeichen" aria-hidden="true">
+                          <Gesicht schluessel={d.slug} zustand={d.hired_at ? "working" : "sleeping"} groesse={26} />
+                        </span>
+                        <span className="tm-entwurf-text">
+                          <span className="tm-entwurf-name">{d.display_name}</span>
+                          <span className="tm-entwurf-rolle">{d.job_title || d.slug}</span>
+                        </span>
+                        {d.hired_at ? (
+                          <Link to={`/team/${d.id}`} className="tm-entwurf-hin">
+                            {t("team.eingestellt")}
+                          </Link>
+                        ) : (
+                          <Link to={`/agents/${d.id}`} className="tm-entwurf-hin">
+                            {t("team.entwurfPruefen")}
+                          </Link>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
                 {/* Die offene Frage trägt ihre Antwort selbst. */}
                 {e.kind === "question" && e.task_state === "blocked" && darfSchreiben && e.task_id && (
                   <div className="tm-antwort">
@@ -494,6 +567,17 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
         {/* Der Agent arbeitet gerade an dem, was zuletzt im Verlauf steht —
             das sagt die Aufgabe selbst, es ist keine Vermutung. Drei Punkte
             sind dafür die Form, die jeder schon kennt. */}
+        {!tippt && angenommen && sorge && (
+          <p className="tm-status warn" role="status">
+            {t("team.kannNichtStarten", { error: sorge.error ?? "" })}
+          </p>
+        )}
+        {startet && !sorge && (
+          <p className="tm-status" role="status">
+            <span className="tm-status-punkt" aria-hidden="true" />
+            <strong>{t("team.binDran")}</strong> {phaseText}
+          </p>
+        )}
         {tippt && (
           <article className="tm-blase er tm-tippt">
             <span className="tm-blase-wer" aria-hidden="true">
@@ -560,7 +644,7 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
               }
             }}
             disabled={!darfSchreiben}
-            placeholder={darfSchreiben ? t("chat.placeholder") : t("chat.readOnly")}
+            placeholder={!darfSchreiben ? t("chat.readOnly") : istPeople ? t("brief.placeholder") : t("chat.placeholder")}
             aria-label={t("chat.placeholder")}
           />
           <button

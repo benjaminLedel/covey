@@ -2,7 +2,8 @@ import { Suspense, lazy, useCallback, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link, NavLink, Navigate, Route, Routes, useParams } from "react-router";
-import { api, inbox, type Agent, type Department, type Principal } from "../api";
+import { PEOPLE_SLUG, api, inbox, isDraft, type Agent, type Department, type Principal } from "../api";
+import { canManage } from "../pages/agent/roles";
 import { BirdMark } from "../components/BirdMark";
 import HelpDrawer from "../components/HelpDrawer";
 import ShellFoot from "../components/ShellFoot";
@@ -82,6 +83,13 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
 
   const liste = (agents.data ?? []).filter(eingestellt);
   const depts = abteilungen.data ?? [];
+  /* The People department, not stopped — the door. While she is still a
+     draft herself (setup without an engine leaves her one), a brief to her
+     would wait forever: a draft is never dispatched. Then the door leads to
+     her page, where hiring is. */
+  const people = liste.find((a) => a.slug === PEOPLE_SLUG && !a.killed);
+  const peopleEntwurf = !!people && isDraft(people);
+  const darfEinstellen = canManage(me.Role);
 
   /* Nach Abteilung gruppiert, wie eine Kanalliste. Wer keine hat, steht unten
      unter einer eigenen Überschrift — nicht oben, damit die Gliederung nicht
@@ -130,11 +138,29 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
         </nav>
 
         <nav className="tm-liste" aria-label={t("team.kollegen")}>
-          <NavLink to="/" end className={({ isActive }) => `tm-wartet ${isActive ? "on" : ""}`}>
-            <span className="tm-wartet-punkt" data-offen={offen > 0} aria-hidden="true" />
-            {t("team.ueberblick")}
-            {offen > 0 && <span className="tm-zahl">{offen}</span>}
-          </NavLink>
+          {/* The places above the departments: the office, and the door to a
+              new colleague (#327) — the conversation with the People
+              department, who drafts, or, without one, setup, where she comes
+              from. Two rows of one kind: both are where one goes, not whom
+              one talks to. */}
+          <div className="tm-orte">
+            <NavLink to="/" end className={({ isActive }) => `tm-wartet ${isActive ? "on" : ""}`}>
+              <span className="tm-wartet-punkt" data-offen={offen > 0} aria-hidden="true" />
+              {t("team.ueberblick")}
+              {offen > 0 && <span className="tm-zahl">{offen}</span>}
+            </NavLink>
+            {darfEinstellen && (
+              <Link
+                to={!people ? "/setup" : peopleEntwurf ? `/agents/${people.id}` : `/team/${people.id}?einstellen=1`}
+                className="tm-wartet tm-einstellen"
+                title={!people ? t("team.einstellenOhne") : peopleEntwurf ? `${people.display_name} — ${t("team.einstellenEntwurf")}` : people.display_name}
+              >
+                {/* An empty chair where the office has its dot. */}
+                <span className="tm-einstellen-punkt" aria-hidden="true">+</span>
+                {t("team.einstellen")}
+              </Link>
+            )}
+          </div>
 
           {agents.isLoading && <p className="tm-leise">{t("common.loading")}</p>}
           {!agents.isLoading && liste.length === 0 && <p className="tm-leise">{t("chat.noAgents")}</p>}

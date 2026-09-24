@@ -186,7 +186,15 @@ export type ChatEntry = {
   at: string;
   /** Nur im Browser gesetzt: abgeschickt, vom Server noch nicht bestätigt. */
   unterwegs?: boolean;
+  /** The drafts a hiring task produced — only on a result of the People
+   *  department (#327). Hiring is on the agent's page; there is no action. */
+  drafts?: EntwurfKurz[];
 };
+
+export type EntwurfKurz = { id: string; slug: string; display_name: string; job_title: string; hired_at?: string };
+
+/** The People department's fixed slug (setup.go). */
+export const PEOPLE_SLUG = "people";
 
 /** Ein Vorgang, der im Hintergrund weiterläuft, während das Gespräch steht. */
 export type Hintergrundvorgang = {

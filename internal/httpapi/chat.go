@@ -35,6 +35,7 @@ import (
 	"covey/internal/agents"
 	"covey/internal/backlog"
 	"covey/internal/chat"
+	"covey/internal/identity"
 	"covey/internal/llm"
 	"covey/internal/orchestrator"
 )
@@ -64,6 +65,22 @@ type chatEntry struct {
 	Author    string     `json:"author"`
 	Text      string     `json:"text"`
 	At        time.Time  `json:"at"`
+	/* The drafts a hiring task produced (#327). Only on a result of the
+	   People department, read off the recording where the platform wrote them
+	   (hiring.go, rule 3) — never off what the agent reported. The way to the
+	   draft is the agent page, where hiring already is; there is no hire
+	   action, and the thread does not pretend otherwise. */
+	Drafts []entwurfKurz `json:"drafts,omitempty"`
+}
+
+// entwurfKurz is a drafted colleague as the thread shows it: enough to
+// recognise it and to get to its page.
+type entwurfKurz struct {
+	ID          uuid.UUID  `json:"id"`
+	Slug        string     `json:"slug"`
+	DisplayName string     `json:"display_name"`
+	JobTitle    string     `json:"job_title"`
+	HiredAt     *time.Time `json:"hired_at,omitempty"`
 }
 
 /*
@@ -269,6 +286,10 @@ func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := s.entwuerfeAnhaengen(r.Context(), id, out.Entries); err != nil {
+		mapErr(w, err)
+		return
+	}
 	out.Marks, err = s.marksOf(r, out.Entries)
 	if err != nil {
 		mapErr(w, err)
@@ -287,6 +308,65 @@ func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+/*
+entwuerfeAnhaengen puts the drafts a hiring task produced onto its result
+
+	(#327). Only for the People department — for everyone else the query would
+	be a query for nothing — and read off the recording, where the platform
+	wrote the provenance (hiring.go, rule 3). One query for the whole thread,
+	not one per task.
+*/
+func (s *Server) entwuerfeAnhaengen(ctx context.Context, agentID uuid.UUID, entries []chatEntry) error {
+	a, err := s.Registry.Get(ctx, agentID)
+	if err != nil || a.Slug != peopleSlug {
+		return nil
+	}
+	var tasks []uuid.UUID
+	for _, e := range entries {
+		if e.Kind == "result" && e.TaskID != nil {
+			tasks = append(tasks, *e.TaskID)
+		}
+	}
+	if len(tasks) == 0 {
+		return nil
+	}
+	rows, err := s.Pool.Query(ctx, `SELECT DISTINCT task_id, payload->>'drafted_agent'
+		FROM recording_events WHERE task_id = ANY($1) AND kind='lifecycle'
+		  AND payload->>'status'='agent_drafted'`, tasks)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	je := map[uuid.UUID][]entwurfKurz{}
+	for rows.Next() {
+		var taskID uuid.UUID
+		var raw string
+		if rows.Scan(&taskID, &raw) != nil {
+			continue
+		}
+		id, perr := uuid.Parse(raw)
+		if perr != nil {
+			continue
+		}
+		/* A draft that was rejected is deleted (spec/20) — then it is gone
+		   from the thread too, and nothing here mourns it. */
+		d, gerr := s.Registry.Get(ctx, id)
+		if gerr != nil {
+			continue
+		}
+		je[taskID] = append(je[taskID], entwurfKurz{ID: d.ID, Slug: d.Slug, DisplayName: d.DisplayName, JobTitle: d.JobTitle, HiredAt: d.HiredAt})
+	}
+	if rows.Err() != nil {
+		return rows.Err()
+	}
+	for i := range entries {
+		if entries[i].Kind == "result" && entries[i].TaskID != nil {
+			entries[i].Drafts = je[*entries[i].TaskID]
+		}
+	}
+	return nil
 }
 
 /*
@@ -497,7 +577,7 @@ func (s *Server) handleChatMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !triage {
-		t, err := s.aufgabeAusNachricht(r.Context(), p.OrgID, id, msg, chat.Entscheidung{}, text, p.Email)
+		t, err := s.aufgabeAusNachricht(r.Context(), p.OrgID, id, msg, chat.Entscheidung{}, text, p.Email, langFrom(r))
 		if err != nil {
 			mapErr(w, err)
 			return
@@ -511,7 +591,7 @@ func (s *Server) handleChatMessage(w http.ResponseWriter, r *http.Request) {
 	   Request hängt: Dessen Kontext wird abgebrochen, sobald die Antwort
 	   geschrieben ist, und ein Zug, den das Abschicken der Antwort abbricht,
 	   liefe nie zu Ende. */
-	go s.triageLauf(p.OrgID, id, msg, text, p.Email)
+	go s.triageLauf(p.OrgID, id, msg, text, p.Email, langFrom(r))
 
 	s.chatEreignis(p.OrgID, id, "thinking", nil)
 	writeJSON(w, http.StatusAccepted, map[string]any{"message": msg, "pending": true})
@@ -529,12 +609,15 @@ const triageLaufFrist = 90 * time.Second
  * Was er nicht darf, ist still enden: Eine angenommene Nachricht, zu der nie
  * etwas kommt, ist schlimmer als eine überflüssige Aufgabe.
  */
-func (s *Server) triageLauf(orgID, agentID uuid.UUID, msg chat.Message, text, email string) {
+func (s *Server) triageLauf(orgID, agentID uuid.UUID, msg chat.Message, text, email, lang string) {
 	ctx, abbrechen := context.WithTimeout(context.Background(), triageLaufFrist)
 	defer abbrechen()
 
 	entscheidung, offen := s.triagieren(ctx, orgID, agentID, text)
-	zustand, daten, err := s.entscheidungAnwenden(ctx, orgID, agentID, msg, entscheidung, offen, text, email)
+	if a, err := s.Registry.Get(ctx, agentID); err == nil {
+		entscheidung = entscheidungFuer(a.Slug, entscheidung)
+	}
+	zustand, daten, err := s.entscheidungAnwenden(ctx, orgID, agentID, msg, entscheidung, offen, text, email, lang)
 	if err != nil {
 		s.Log.Error("chat triage could not be applied", "agent", agentID, "message", msg.ID, "err", err)
 		if err := s.Chat.Erledigt(ctx, msg.ID, chat.StateFailed); err != nil {
@@ -550,6 +633,27 @@ func (s *Server) triageLauf(orgID, agentID uuid.UUID, msg chat.Message, text, em
 }
 
 /*
+entscheidungFuer is the one exception to "the agent decides" (#302): the
+
+	People department does not answer briefs, she works them (#327).
+
+	The triage is a cheap turn in the control plane — no target systems, no
+	org chart, no configs of the colleagues — and a description of a job read
+	by it looks like a question about the job: "somebody who handles the
+	tickets on Zendesk" came back as "I cannot see which tickets were handled".
+	Her playbook exists precisely so that this sentence becomes a draft after
+	looking at what is connected here; an answer from a turn that cannot look
+	is the guess the brief is there to avoid. A note onto a brief that is
+	already running stays a note — that is how her question gets its reply.
+*/
+func entscheidungFuer(slug string, e chat.Entscheidung) chat.Entscheidung {
+	if slug == peopleSlug && e.Aktion == chat.AktionAntwort {
+		return chat.Entscheidung{Aktion: chat.AktionAufgabe}
+	}
+	return e
+}
+
+/*
 entscheidungAnwenden führt aus, was die Triage beschlossen hat, und gibt
 
 	zurück, was daraus geworden ist. Ein Fehler hier ist ein echter Fehler —
@@ -562,7 +666,7 @@ func (s *Server) entscheidungAnwenden(
 	msg chat.Message,
 	entscheidung chat.Entscheidung,
 	offen map[string]uuid.UUID,
-	text, email string,
+	text, email, lang string,
 ) (string, map[string]string, error) {
 	/* Die Notiz an eine laufende Aufgabe: Statt eines zweiten Vorgangs für
 	   dieselbe Sache bekommt der bestehende, was dazugekommen ist — und wenn
@@ -604,7 +708,7 @@ func (s *Server) entscheidungAnwenden(
 		return "answered", nil, nil
 	}
 
-	t, err := s.aufgabeAusNachricht(ctx, orgID, agentID, msg, entscheidung, text, email)
+	t, err := s.aufgabeAusNachricht(ctx, orgID, agentID, msg, entscheidung, text, email, lang)
 	if err != nil {
 		return "", nil, err
 	}
@@ -622,11 +726,23 @@ func (s *Server) aufgabeAusNachricht(
 	orgID, agentID uuid.UUID,
 	msg chat.Message,
 	entscheidung chat.Entscheidung,
-	text, email string,
+	text, email, lang string,
 ) (backlog.Task, error) {
 	titel, rumpf := entscheidung.Titel, entscheidung.Rumpf
 	if titel == "" {
 		titel, rumpf = chatTitle(text), text
+	}
+	/* A message to the People department is a brief (#327). Her playbook
+	   counts on the frame the console's brief builds — the company, the
+	   connected target systems, who asked — and a bare sentence made her
+	   guess at all three. The same body, from the same builder, so that the
+	   two doors lead into the same room. */
+	if a, err := s.Registry.Get(ctx, agentID); err == nil && a.Slug == peopleSlug {
+		/* The title too: the triage's reading of a brief is the wrong one
+		   ("clarify which tickets were handled" for "somebody who handles the
+		   tickets"), and the brief's title is the person's own first line. */
+		titel = briefTitle(lang, text)
+		rumpf = s.briefBody(ctx, identity.Principal{OrgID: orgID, Email: email}, lang, text, "", "", "")
 	}
 	t, err := s.Backlog.Create(ctx, orgID, agentID, titel, rumpf, "chat:"+email, 0)
 	if err != nil {
@@ -683,7 +799,9 @@ func (s *Server) NachholenOffeneTriage(ctx context.Context) {
 	for _, m := range offen {
 		s.Log.Info("finishing chat triage left over from a restart", "message", m.ID, "agent", m.AgentID)
 		email := strings.TrimPrefix(m.Author, "chat:")
-		go s.triageLauf(m.OrgID, m.AgentID, m, m.Text, email)
+		/* The language of the request is gone with the restart; the brief
+		   frame then reads in English, which every playbook reads. */
+		go s.triageLauf(m.OrgID, m.AgentID, m, m.Text, email, "")
 	}
 }
 

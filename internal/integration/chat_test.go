@@ -2,6 +2,7 @@ package integration
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -519,5 +520,137 @@ func TestThreadCarriesItsSearchAndItsBackgroundWork(t *testing.T) {
 	   der Denkzustand bleiben draußen, und die Hintergrundvorgänge auch. */
 	if len(treffer["tasks"].([]any)) != 0 {
 		t.Error("a list of hits carries no background work")
+	}
+}
+
+// TestHiringIsADialogueInTheThread walks the whole hiring conversation through
+// the team surface's door (#327): a sentence to the People department becomes
+// a brief with the frame her playbook counts on, her question comes back into
+// the thread, the reply wakes her, the draft she produced stands in the thread
+// with the way to its page — and hiring stays a person's click, which the
+// thread then shows.
+func TestHiringIsADialogueInTheThread(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	// The People department, paused so the dispatcher does not run the mock in
+	// the middle of the dialogue; her steps are played by hand below.
+	people := s.newSupportAgent("people")
+	if err := s.registry.SetKilled(ctx, people.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	admin.expect(http.MethodPatch, "/api/v1/org/description", map[string]string{"description": "We build bridges."}, http.StatusOK)
+	base := "/api/v1/agents/" + people.ID.String()
+
+	// 1. One sentence, said in the thread — and the task carries the brief's
+	//    frame, not the bare sentence: the company, the target systems, who
+	//    asked. The message itself stays what was said.
+	msg := "We need somebody for first-level support in the ticket system."
+	created := admin.expect(http.MethodPost, base+"/messages?lang=en", map[string]any{"text": msg}, http.StatusCreated)
+	aufgabe, _ := created["task"].(map[string]any)
+	body, _ := aufgabe["body"].(string)
+	for _, want := range []string{"## Assignment", msg, "## The company", "We build bridges.", "## Frame", "Requested by: admin@test.local", "Available target systems"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("the brief frame lacks %q:\n%s", want, body)
+		}
+	}
+	if got := aufgabe["origin"]; got != "chat:admin@test.local" {
+		t.Fatalf("origin: %v", got)
+	}
+	taskID := aufgabe["id"].(string)
+
+	// 2. She asks back — the ordinary blocked edge — and the question is the
+	//    next line of the conversation.
+	task, err := s.backlog.ClaimNext(ctx, people.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.backlog.Block(ctx, task.ID, "brief", "sitzung-1", "Should it answer the tickets itself, or only triage and hand them on?"); err != nil {
+		t.Fatal(err)
+	}
+	thread := admin.expect(http.MethodGet, base+"/thread", nil, http.StatusOK)
+	var frage map[string]any
+	for _, e := range thread["entries"].([]any) {
+		if m := e.(map[string]any); m["kind"] == "question" {
+			frage = m
+		}
+	}
+	if frage == nil || frage["task_state"] != "blocked" {
+		t.Fatalf("her question has to stand in the thread, waiting: %v", frage)
+	}
+
+	// 3. The reply wakes her, and she works on.
+	reply := admin.expect(http.MethodPost, "/api/v1/tasks/"+taskID+"/reply",
+		map[string]any{"text": "Only triage; the answers stay with people."}, http.StatusOK)
+	if reply["woken"] != true {
+		t.Fatalf("the reply has to wake her: %v", reply)
+	}
+	if _, err := s.backlog.ClaimNext(ctx, people.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	// 4. She drafts. The platform writes the provenance into the recording
+	//    (hiring.go, rule 3); the thread reads the draft from there, not from
+	//    her report.
+	entwurf, err := s.registry.CreateDraft(ctx, s.orgID, "support-1", "Support-1", "mock", &s.adminID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	roh, _ := json.Marshal(map[string]string{"status": "agent_drafted", "drafted_agent": entwurf.ID.String(),
+		"slug": entwurf.Slug, "display_name": entwurf.DisplayName})
+	if _, err := s.pool.Exec(ctx,
+		`INSERT INTO recording_events (org_id, agent_id, task_id, kind, payload, created_at)
+		 VALUES ($1,$2,$3,'lifecycle',$4,now())`, s.orgID, people.ID, task.ID, roh); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.backlog.Complete(ctx, task.ID, backlog.StateDone,
+		"Drafted Support-1 (support-1): first-level triage in the ticket system. Access requested: zammad read.", ""); err != nil {
+		t.Fatal(err)
+	}
+	thread = admin.expect(http.MethodGet, base+"/thread", nil, http.StatusOK)
+	var ergebnis map[string]any
+	for _, e := range thread["entries"].([]any) {
+		if m := e.(map[string]any); m["kind"] == "result" {
+			ergebnis = m
+		}
+	}
+	if ergebnis == nil {
+		t.Fatalf("her report has to stand in the thread: %v", thread["entries"])
+	}
+	drafts, _ := ergebnis["drafts"].([]any)
+	if len(drafts) != 1 {
+		t.Fatalf("the draft belongs to the result, got %v", ergebnis["drafts"])
+	}
+	d := drafts[0].(map[string]any)
+	if d["id"] != entwurf.ID.String() || d["display_name"] != "Support-1" {
+		t.Fatalf("the draft as the thread shows it: %v", d)
+	}
+	if _, hired := d["hired_at"]; hired {
+		t.Fatalf("a draft has no first day yet: %v", d)
+	}
+
+	// 5. Hiring is the person's click, on the agent's page — and the thread
+	//    then shows the colleague as hired. There is no hire action for her,
+	//    and the thread does not pretend otherwise.
+	admin.expect(http.MethodPost, "/api/v1/agents/"+entwurf.ID.String()+"/hire", nil, http.StatusOK)
+	thread = admin.expect(http.MethodGet, base+"/thread", nil, http.StatusOK)
+	for _, e := range thread["entries"].([]any) {
+		if m := e.(map[string]any); m["kind"] == "result" {
+			d := m["drafts"].([]any)[0].(map[string]any)
+			if _, hired := d["hired_at"]; !hired {
+				t.Fatalf("after the click the thread has to show the first day: %v", d)
+			}
+		}
+	}
+
+	// And a message to anybody else stays what it was: the sentence, no frame.
+	other := s.newSupportAgent("other")
+	if err := s.registry.SetKilled(ctx, other.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	plain := admin.expect(http.MethodPost, "/api/v1/agents/"+other.ID.String()+"/messages?lang=en",
+		map[string]any{"text": "Please check the Globex invoice."}, http.StatusCreated)
+	if b, _ := plain["task"].(map[string]any)["body"].(string); b != "Please check the Globex invoice." {
+		t.Fatalf("only the People department gets the frame: %q", b)
 	}
 }
