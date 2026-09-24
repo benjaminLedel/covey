@@ -135,7 +135,7 @@ func TestRecordingFiltersOverTheAPI(t *testing.T) {
 		return s.taskState(task.ID) == "done"
 	})
 	/* Und dann noch, bis der Agent wieder schläft.
-   
+
 	   Die fertige Aufgabe ist nicht das letzte, was aufgezeichnet wird: Danach
 	   legt sich der Agent hin, und das ist ein `lifecycle`-Ereignis. Wer den
 	   Verlauf im Augenblick des `done` abfragt, bekommt ihn manchmal ohne
