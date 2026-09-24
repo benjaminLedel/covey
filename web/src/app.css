@@ -3185,6 +3185,38 @@
   user-select: none;
 }
 .bu-buehne.schiebt { cursor: grabbing; }
+/* The floor change: the stage fades for a moment while the floor is rebuilt. */
+.bu-buehne canvas, .bu-buehne .bu-leute { transition: opacity 160ms ease; }
+.bu-buehne.wechsel canvas, .bu-buehne.wechsel .bu-leute { opacity: 0; }
+/* The floors, stacked like the buttons in a lift: the top floor on top. */
+.bu-etagen {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.bu-etagen button {
+  min-width: 32px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  box-shadow: 0 1px 3px var(--shadow-sm);
+}
+.bu-etagen button:hover { color: var(--text-primary); background: var(--surface-2); }
+.bu-etagen button[aria-pressed="true"] { background: var(--text-accent); border-color: var(--text-accent); color: var(--surface-2); }
+/* The own room: its sign carries the accent, nothing else — the room itself
+   stays what it is. */
+.bu-schild-3d.meins { border-color: var(--text-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--text-accent) 25%, transparent); }
 .bu-buehne canvas { display: block; width: 100%; height: 100%; }
 
 /* The overlay lets every pointer event through to the stage except on the

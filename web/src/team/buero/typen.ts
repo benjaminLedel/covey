@@ -84,4 +84,18 @@ export type Plan = {
   quer: { x: number; w: number; mitte: number };
   /** The front desk at the head of the cross corridor and the queue before it. */
   tresen: { y: number; plaetze: Punkt[] };
+  /** The stairwell at the END of the cross corridor, the same spot on every
+   *  floor: where the way up begins and where it ends. Drawn and used only
+   *  when the house has more than one floor. */
+  treppe: Punkt;
 };
+
+/* The house: one plan per floor.
+ *
+ * A storey carries about forty-four seats. Beyond that the plan grows in
+ * depth until it is a tower seen from above, with rooms so small that a face
+ * covers the desk. Departments are flat, so there is only one rule for the
+ * floors: FILL BY HEADCOUNT, in the order of the org chart, never splitting
+ * a department; one larger than the measure gets its own storey. */
+export type Etage = { nr: number; gruppen: Gruppe[]; plan: Plan };
+export type Haus = { etagen: Etage[] };

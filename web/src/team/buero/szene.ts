@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import {
   FARBEN, M, akzentFuer, anhaengen, dunkler, flaeche, glasstoff, inGruppe, kasten, leuchtstoff,
-  malenBeginnen, mischen, muster,
+  malenBeginnen, mischen, muster, zylinder,
   LICHT_FAKTOR, punktlicht,
 } from "./mal";
 import { hash, sorte, wackel } from "./mathe";
@@ -40,6 +40,10 @@ export type Lage = {
   nacht: boolean;
   dichte: number;
   drehung: number;
+  /** Which floor this plan is (0 = ground floor, where the reception is). */
+  etage: number;
+  /** How many floors the house has; stairs only when there is more than one. */
+  etagen: number;
   namen?: unknown;
 };
 
@@ -116,6 +120,31 @@ function flurdingWaag(bauen: Flurding, x: number, seite: "oben" | "unten", f: { 
   const box = new THREE.Box3().setFromObject(gr);
   gr.position.set(x, 0, seite === "oben" ? f.y + 3 - box.min.z : f.y + f.h - 3 - box.max.z);
   anhaengen(gr);
+}
+
+/** The stairwell: at the far end of the cross corridor, the same on every
+ *  floor. A straight flight rising towards the outer wall, two railings, a
+ *  landing at the top — and it is the only link between the floors: whoever
+ *  wants the lounge one storey up climbs here and arrives on the same spot
+ *  there. It sits at the end rather than the head of the corridor because
+ *  the head belongs to the front desk on the ground floor. */
+export function treppeBauen(plan: Plan): void {
+  const x = plan.quer.mitte, y = plan.treppe.y;
+  const b = plan.quer.w - 44, STUFEN = 9, TIEFE = 12, HOCH = 9;
+  /* The foot faces the corridor, the steps climb towards the outer wall. */
+  const fuss = y - 46;
+  for (let i = 0; i < STUFEN; i++)
+    kasten(x, fuss + i * TIEFE + TIEFE / 2, b, TIEFE, HOCH * (i + 1), i % 2 ? FARBEN.holzHell : FARBEN.holz, 1);
+  const oben = fuss + STUFEN * TIEFE;
+  kasten(x, oben + 16, b, 32, HOCH * STUFEN + 2, FARBEN.holzDunkel, 2);
+  for (const sx of [-1, 1]) {
+    const gx = x + sx * (b / 2 + 4);
+    for (let i = 0; i <= STUFEN; i += 3) zylinder(gx, fuss + i * TIEFE, 1.6, HOCH * (i + 1) + 88, FARBEN.metall);
+    kasten(gx, fuss + (STUFEN * TIEFE) / 2 + 8, 3, STUFEN * TIEFE + 32, 3, FARBEN.dunkel, 1, HOCH * STUFEN + 86);
+  }
+  /* A sign with the floor, so one knows where one is on arrival. The number
+     itself is rendered by the component as an overlay. */
+  kasten(x, oben + 34, 26, 3, 16, FARBEN.papier, 1, HOCH * STUFEN + 60);
 }
 
 /* Lights are the only pieces that know the time of day — and the only thing
@@ -550,15 +579,23 @@ export function szeneBauen(szene: THREE.Scene, alt: THREE.Group | null, plan: Pl
      The desk is the only piece set across the aisle — it closes off the head
      of the corridor and faces those waiting below it. */
   M.akzent = 0;
-  flurdingBauen(plan, FLURDINGE[0], plan.tresen.y, "quer");
-  pflanzeBauen(plan.quer.x + 34, plan.tresen.y - 50, "empfang");
+  /* Stairs only where they lead somewhere: a one-storey house has none. */
+  const mitTreppe = lage.etagen > 1;
+  if (mitTreppe) treppeBauen(plan);
+  /* The reception exists once in the house, on the ground floor; upstairs
+     the head of the corridor stays open. */
+  if (lage.etage === 0) {
+    flurdingBauen(plan, FLURDINGE[0], plan.tresen.y, "quer");
+    pflanzeBauen(plan.quer.x + 34, plan.tresen.y - 50, "empfang");
+  }
 
   /* Below it lies the queue (plan.tresen.plaetze) — the aisle stays free
      there. Only behind it does the row along the walls begin, alternating
      left and right, so the path between stays open. */
   const warte: Punkt[] = plan.tresen.plaetze;
   const ab = (warte.length ? warte[warte.length - 1].y : plan.tresen.y) + 90;
-  const bahn = plan.hoehe - 60 - ab;
+  /* With stairs, the row along the walls ends before the flight's foot. */
+  const bahn = (mitTreppe ? plan.treppe.y - 120 : plan.hoehe - 60) - ab;
   /* Both sides: a piece every 190, sides alternating, so the pieces on one
      side stand 380 apart. Denser was a flea market — a corridor carries less
      than a room, it is for walking through. The mouths of the long corridors

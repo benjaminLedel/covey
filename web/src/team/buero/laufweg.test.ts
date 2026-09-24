@@ -29,6 +29,7 @@ function testPlan(): Plan {
     flure: [{ y: 902, h: 80, mitte: 942 }],
     quer: { x: 12, w: 150, mitte: 87 },
     tresen: { y: 160, plaetze: Array.from({ length: 5 }, (_, i) => ({ x: 87, y: 260 + i * 56 })) },
+    treppe: { x: 87, y: 960 },
   };
 }
 

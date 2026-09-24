@@ -1,7 +1,7 @@
 import { hash, wackel } from "./mathe";
-import type { Flur, Gemein, Gruppe, Plan, Punkt, Raum, Raumnamen, Sitz } from "./typen";
+import type { Flur, Gemein, Gruppe, Haus, Plan, Punkt, Raum, Raumnamen, Sitz } from "./typen";
 
-export type { Flur, Gemein, Gruppe, Plan, Punkt, Raum, Raumnamen, Sitz, Trennwand } from "./typen";
+export type { Etage, Flur, Gemein, Gruppe, Haus, Plan, Punkt, Raum, Raumnamen, Sitz, Trennwand } from "./typen";
 
 /* The floor plan of the office.
  *
@@ -420,9 +420,16 @@ export type LoungeZone = { nr: number; x: number; y: number; b: number; t: numbe
  * `maxB` is the available width; the building grows in height, never beyond
  * that width. `dichte` is how full the house stands (1 is the measure at
  * which a room looks furnished); the plan only reads it for the number of
- * islands in a lounge. It scales budgets, not recipes.
+ * islands in a lounge. It scales budgets, not recipes. `mitTreppe` says the
+ * house has more than one floor, so this one needs room for the stairs.
  */
-export function bauplan(gruppen: Gruppe[], maxB: number, namen: Raumnamen, dichte = 1): Plan {
+export function bauplan(
+  gruppen: Gruppe[],
+  maxB: number,
+  namen: Raumnamen,
+  dichte = 1,
+  mitTreppe = false,
+): Plan {
   /* The width follows the head count, but not to the centimetre: one room is
      a little generous, the next one tight, as it happened to be allocated at
      move-in. Bounded below by the rows the room has to carry. */
@@ -508,7 +515,7 @@ export function bauplan(gruppen: Gruppe[], maxB: number, namen: Raumnamen, dicht
       y += INNEN;
     }
   }
-  const hoehe = y - INNEN + AUSSEN,
+  const gebaut = y - INNEN + AUSSEN,
     breite = AUSSEN * 2 + QUER_B + INNEN + innenB;
   const quer = { x: AUSSEN, w: QUER_B, mitte: AUSSEN + QUER_B / 2 };
   const zaehler: Record<number, number> = {};
@@ -539,13 +546,68 @@ export function bauplan(gruppen: Gruppe[], maxB: number, namen: Raumnamen, dicht
     }
   }
   const ey = AUSSEN + 60;
+  const plaetze = Array.from({ length: 5 }, (_, i) => ({ x: quer.mitte, y: ey + 230 + i * 56 }));
+  /* The stairs sit at the far end of the cross corridor, opposite the
+     entrance: the front desk and its queue keep the head of the corridor,
+     and whoever changes floors does not walk through the queue. A floor with
+     a single band of rooms is shorter than the queue plus the stairwell, so
+     in a house with stairs the cross corridor runs on past the last rooms
+     until the stairwell fits — the rooms stay where they are, only the
+     corridor and the outer wall move. */
+  const hoehe = mitTreppe ? Math.max(gebaut, plaetze[plaetze.length - 1].y + 200 + 108 + AUSSEN) : gebaut;
   return {
     breite,
     hoehe,
     flure,
     quer,
     raeume,
-    tresen: { y: ey + 130, plaetze: Array.from({ length: 5 }, (_, i) => ({ x: quer.mitte, y: ey + 230 + i * 56 })) },
+    tresen: { y: ey + 130, plaetze },
+    treppe: { x: quer.mitte, y: hoehe - AUSSEN - 96 },
+  };
+}
+
+/* ── Floors ──────────────────────────────────────────────────────────────────
+ * One floor carries a good forty seats. Beyond that the plan grows in depth
+ * until, seen from above, it is a tower block: six corridors at two hundred
+ * people, and rooms so small that a face covers them.
+ *
+ * So floors, and the rule is the only one there is with flat departments:
+ * FILL BY HEAD COUNT, in org-chart order, never splitting a department. A
+ * department that alone is larger than the measure gets a floor of its own.
+ * Every floor has its kitchen, meeting room and lounges.
+ *
+ * Forty-four, not thirty: two departments of twenty are the common case, and
+ * with thirty each would sit alone on its floor — six storeys for a hundred
+ * and forty people, each half empty. */
+export const ETAGE_PLAETZE = 44;
+
+export function etagenTeilen(gruppen: Gruppe[]): Gruppe[][] {
+  const etagen: Gruppe[][] = [];
+  let band: Gruppe[] = [],
+    voll = 0;
+  for (const g of gruppen) {
+    const n = g.leute.length;
+    if (band.length && voll + n > ETAGE_PLAETZE) {
+      etagen.push(band);
+      band = [];
+      voll = 0;
+    }
+    band.push(g);
+    voll += n;
+  }
+  /* A house has a ground floor even before anybody moved in: the component
+     asks for the shown floor's plan while the lists are still loading. */
+  if (band.length || !etagen.length) etagen.push(band);
+  return etagen;
+}
+
+/** One plan per floor; `nr` is the floor's index, 0 at the entrance. All
+ *  floors of a house have stairs, or none does. */
+export function hausBauen(gruppen: Gruppe[], maxB: number, namen: Raumnamen, dichte = 1): Haus {
+  const teile = etagenTeilen(gruppen),
+    treppe = teile.length > 1;
+  return {
+    etagen: teile.map((g, nr) => ({ nr, gruppen: g, plan: bauplan(g, maxB, namen, dichte, treppe) })),
   };
 }
 

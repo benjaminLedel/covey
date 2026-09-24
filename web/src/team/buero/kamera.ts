@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { Plan } from "./typen";
+import type { Plan, Punkt } from "./typen";
 import { START_DREHUNG } from "./szene";
 
 /* The camera and its controls: orthographic, so it stays a plan.
@@ -26,6 +26,9 @@ export type Steuerung = {
   schieben(dx: number, dy: number): void;
   zoomen(faktor: number, px?: number, py?: number): void;
   zurueck(): void;
+  /** Looks at a plan point at the given zoom — the way to a room, not to
+   *  the middle of the house. The rotation stays as it is. */
+  zentrieren(p: Punkt, zoomAuf: number): void;
   /** Eases the rotation towards its target. Returns true in the frame a
    *  quarter turn completes — the caller then rebuilds the scene so the
    *  cutaway follows the new view. */
@@ -143,6 +146,14 @@ export function erschaffeKamera(buehne: HTMLElement, ruhig = false): Steuerung {
 
   function drehen(richtung: 1 | -1): void {
     drehZiel += (richtung * Math.PI) / 2;
+  }
+
+  function zentrieren(p: Punkt, zoomAuf: number): void {
+    if (!plan) return;
+    blick.set(p.x - plan.breite / 2, 0, p.y - plan.hoehe / 2);
+    zoom = Math.max(0.6, Math.min(4.5, zoomAuf));
+    zaeumen();
+    stellen();
   }
 
   function zurueck(): void {
@@ -338,6 +349,7 @@ export function erschaffeKamera(buehne: HTMLElement, ruhig = false): Steuerung {
 
   stellen();
   return {
+    zentrieren,
     kamera,
     planSetzen,
     stellen,

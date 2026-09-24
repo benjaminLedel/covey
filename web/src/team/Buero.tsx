@@ -1,19 +1,19 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import * as THREE from "three";
-import { post, type Agent, type Department, type Laufend, type Principal } from "../api";
+import { api, post, type Agent, type Department, type Human, type Laufend, type Principal } from "../api";
 import { canManage } from "../pages/agent/roles";
 import Gesicht from "../components/Gesicht";
 import Dauer from "../components/Dauer";
-import { bauplan } from "./buero/plan";
+import { hausBauen } from "./buero/plan";
 import { aufSchirm, szeneBauen, type Bau } from "./buero/szene";
 import { erschaffeKamera, erschaffeMaler, groesse, type Steuerung } from "./buero/kamera";
 import { laufFeldBauen, type LaufFelder } from "./buero/laufweg";
 import { erschaffeLeben, type Leben } from "./buero/leben";
 import Riss from "./buero/risse";
-import type { Gruppe, Plan, Punkt, Zustand } from "./buero/typen";
+import type { Gruppe, Haus, Punkt, Zustand } from "./buero/typen";
 
 /* The office: the workforce as a building, seen from above at an angle.
  *
@@ -135,7 +135,28 @@ export default function Buero({
     () => ({ besprechung: t("team.raumBesprechung"), kueche: t("team.raumTeekueche"), lounge: t("team.raumLounge") }),
     [t],
   );
-  const plan = useMemo(() => bauplan(gruppen, BAU_BREITE, namen, dichte), [gruppen, namen, dichte]);
+  const haus = useMemo<Haus>(() => hausBauen(gruppen, BAU_BREITE, namen, dichte), [gruppen, namen, dichte]);
+
+  /* Which floor is shown. The house may shrink under it (fewer people, a
+     coarser density), so it is clamped on every render rather than trusted. */
+  const [etageWunsch, setEtage] = useState(0);
+  const etage = Math.min(etageWunsch, haus.etagen.length - 1);
+  const plan = haus.etagen[etage].plan;
+  const [wechsel, setWechsel] = useState(false);
+
+  /* Where the signed-in person belongs. The platform knows it (the human's
+     department, #315); the office opens there and the home button leads back
+     there, instead of to the whole house every morning. */
+  const profil = useQuery({ queryKey: ["me", "profile"], queryFn: () => api<Human>("/auth/me/profile"), staleTime: 60_000 });
+  const meineAbteilung = profil.data?.department_id ?? null;
+  const meinZimmer = useMemo(() => {
+    if (!meineAbteilung) return null;
+    for (const e of haus.etagen) {
+      const r = e.plan.raeume.find((x) => !x.gem && x.id === meineAbteilung);
+      if (r) return { etage: e.nr, raum: r };
+    }
+    return null;
+  }, [haus, meineAbteilung]);
 
   /* State from the data. "arbeitet" means: has a running task — the status
      alone only said that the agent is awake, and an awake agent without a
@@ -163,9 +184,9 @@ export default function Buero({
   const szene = useRef<THREE.Scene | null>(null);
   const steuerung = useRef<Steuerung | null>(null);
   const bau = useRef<Bau | null>(null);
-  const felder = useRef<LaufFelder | null>(null);
+  const felder = useRef(new Map<number, LaufFelder>());
   const leben = useRef<Leben | null>(null);
-  const planImLeben = useRef<Plan | null>(null);
+  const hausImLeben = useRef<Haus | null>(null);
   const knoepfe = useRef(new Map<string, HTMLButtonElement>());
   const blicke = useRef(new Map<string, SVGGElement>());
   const schilder = useRef(new Map<string, HTMLDivElement>());
@@ -234,23 +255,35 @@ export default function Buero({
       nacht,
       dichte,
       drehung: st.drehung,
+      etage,
+      etagen: haus.etagen.length,
     });
-    felder.current = laufFeldBauen(bau.current.welt, plan);
-    if (planImLeben.current !== plan || !leben.current) {
-      planImLeben.current = plan;
+    const f = laufFeldBauen(bau.current.welt, plan);
+    if (hausImLeben.current !== haus || !leben.current) {
+      /* A new HOUSE (other people, other rooms, another density) is the one
+         case where the life starts over: the geometry beneath it is a
+         different one. A new floor is not — the figures of every floor are
+         built once and kept, and whoever comes back finds everyone where they
+         left them. */
+      hausImLeben.current = haus;
+      felder.current = new Map([[etage, f]]);
       leben.current = erschaffeLeben(
-        plan,
-        felder.current,
-        plan.raeume.flatMap((r, ri) => r.leute.map((a, i) => ({ id: a.id, slug: a.slug, ri, i, zustand: zustandRef.current(a) }))),
+        haus,
+        haus.etagen.map((e) => felder.current.get(e.nr) ?? null),
+        haus.etagen.flatMap((e) =>
+          e.plan.raeume.flatMap((r, ri) => r.leute.map((a, i) => ({ id: a.id, slug: a.slug, ri, i, etage: e.nr, zustand: zustandRef.current(a) }))),
+        ),
         ruhig,
         haken,
       );
       setGaesteTakt((n) => n + 1);
     } else {
-      leben.current.felderSetzen(felder.current);
+      felder.current.set(etage, f);
+      leben.current.felderSetzen(etage, f);
     }
+    setWechsel(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan, nacht, dichte, ruhig, kern, haken]);
+  }, [plan, haus, etage, nacht, dichte, ruhig, kern, haken]);
   bauenRef.current = bauen;
   useEffect(() => {
     bauen();
@@ -288,6 +321,13 @@ export default function Buero({
           for (const f of l.figuren) {
             const kn = knoepfe.current.get(f.id);
             if (!kn) continue;
+            /* Whoever is on another floor is not here. The button stays in
+               the tree — it comes back when they do — but draws nothing. */
+            if (f.hier !== etage) {
+              if (kn.style.display !== "none") kn.style.display = "none";
+              continue;
+            }
+            if (kn.style.display) kn.style.display = "";
             const bob = f.geht ? Math.sin(f.phase * 0.16) * 3 : 0;
             const [x, y] = aufSchirm(st.kamera, plan, w, h, f.pos.x, f.pos.y, 44 + bob);
             kn.style.transform = `translate3d(${x}px, ${y}px, 0)`;
@@ -314,6 +354,11 @@ export default function Buero({
           for (const g of l.gaeste) {
             const el = gastRefs.current.get(g.id);
             if (!el) continue;
+            if (g.etage !== etage) {
+              el.style.display = "none";
+              continue;
+            }
+            el.style.display = "";
             const [x, y] = aufSchirm(st.kamera, plan, w, h, g.pos.x, g.pos.y, g.art === "vogel" ? 124 : g.art === "flieger" ? 90 : 8);
             el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
           }
@@ -331,7 +376,7 @@ export default function Buero({
       cancelAnimationFrame(id);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan, ruhig, gewaehlt, bauen]);
+  }, [plan, etage, ruhig, gewaehlt, bauen]);
 
   /* Signs are pushed apart in screen space, like on a map: a sign that sits
      on another sign is two signs nobody can read. */
@@ -393,7 +438,7 @@ export default function Buero({
       let o: THREE.Object3D | null = tr.object;
       while (o && !o.userData.pflanze) o = o.parent;
       if (o?.userData.pflanze) {
-        l.giessen(String(o.userData.pflanze), o.userData.punkt as Punkt);
+        l.giessen(etage, String(o.userData.pflanze), o.userData.punkt as Punkt);
         return;
       }
     }
@@ -407,6 +452,57 @@ export default function Buero({
     window.addEventListener("keydown", zu);
     return () => window.removeEventListener("keydown", zu);
   }, [gewaehlt]);
+
+  /* Changing the floor: the stage fades for a moment, the floor is rebuilt,
+     it fades back in. A camera ride upwards would need the floors stacked,
+     and they are not — every floor is a plan of its own. */
+  const etageWechseln = useCallback(
+    (i: number) => {
+      if (i === etage || i < 0 || i >= haus.etagen.length) return;
+      setGewaehlt(null);
+      setWechsel(true);
+      window.setTimeout(() => setEtage(i), 170);
+    },
+    [etage, haus],
+  );
+  useEffect(() => {
+    const auf = (e: KeyboardEvent) => {
+      const z = e.target as HTMLElement | null;
+      if (z && (/^(INPUT|TEXTAREA|SELECT)$/.test(z.tagName) || z.isContentEditable)) return;
+      if (e.key === "PageUp") etageWechseln(etage + 1);
+      else if (e.key === "PageDown") etageWechseln(etage - 1);
+      else return;
+      e.preventDefault();
+    };
+    window.addEventListener("keydown", auf);
+    return () => window.removeEventListener("keydown", auf);
+  }, [etage, etageWechseln]);
+
+  /* Home: the own room in the middle, closer — and on its floor. Without a
+     department the whole floor, as before. */
+  const heim = useCallback(() => {
+    const st = steuerung.current;
+    if (!meinZimmer || !st) return;
+    if (meinZimmer.etage !== etage) {
+      etageWechseln(meinZimmer.etage);
+      return;
+    }
+    const r = meinZimmer.raum;
+    st.zentrieren({ x: r.x + r.w / 2, y: r.y + r.h / 2 }, Math.min(2.2, Math.max(1.3, 1800 / Math.max(r.w, r.h))));
+  }, [meinZimmer, etage, etageWechseln]);
+  /* Once per house and once the profile is known: open on the own room. The
+     floor switch lands first, the centring follows on the new floor. */
+  const heimGezeigt = useRef<Haus | null>(null);
+  useEffect(() => {
+    if (!meinZimmer || !steuerung.current) return;
+    if (heimGezeigt.current === haus && meinZimmer.etage === etage) return;
+    if (meinZimmer.etage !== etage) {
+      if (heimGezeigt.current !== haus) setEtage(meinZimmer.etage);
+      return;
+    }
+    heimGezeigt.current = haus;
+    heim();
+  }, [haus, meinZimmer, etage, heim]);
 
   const dichteWaehlen = (wert: number) => {
     setDichte(wert);
@@ -432,7 +528,7 @@ export default function Buero({
   return (
     <div className="bu">
       <div
-        className={`bu-buehne${ruhig ? " ruht" : ""}`}
+        className={`bu-buehne${ruhig ? " ruht" : ""}${wechsel ? " wechsel" : ""}`}
         ref={buehne}
         onPointerMove={aufZeiger}
         onPointerLeave={() => {
@@ -447,7 +543,8 @@ export default function Buero({
           {plan.raeume.map((r) => (
             <div
               key={r.id + r.nr}
-              className="bu-schild-3d"
+              className={`bu-schild-3d${meinZimmer && meinZimmer.etage === etage && meinZimmer.raum === r ? " meins" : ""}`}
+              title={meinZimmer && meinZimmer.etage === etage && meinZimmer.raum === r ? t("team.meinZimmer") : undefined}
               ref={(el) => {
                 if (el) schilder.current.set(r.id + r.nr, el);
                 else schilder.current.delete(r.id + r.nr);
@@ -459,7 +556,7 @@ export default function Buero({
             </div>
           ))}
 
-          {plan.raeume.map((r) =>
+          {haus.etagen.flatMap((e) => e.plan.raeume).map((r) =>
             r.leute.map((a) => {
               const laeuft = laufendVon.get(a.id);
               const zustand = zustandVon(a);
@@ -545,8 +642,40 @@ export default function Buero({
           <button type="button" onClick={() => steuerung.current?.zoomen(1 / 1.16)} title={`${t("team.weiter")} (−)`} aria-label={t("team.weiter")}>−</button>
           <button type="button" onClick={() => steuerung.current?.drehen(1)} title={`${t("team.drehenLinks")} (Q)`} aria-label={t("team.drehenLinks")}>↺</button>
           <button type="button" onClick={() => steuerung.current?.drehen(-1)} title={`${t("team.drehenRechts")} (E)`} aria-label={t("team.drehenRechts")}>↻</button>
-          <button type="button" onClick={() => steuerung.current?.zurueck()} title={`${t("team.ansichtZurueck")} (0)`} aria-label={t("team.ansichtZurueck")}>⌂</button>
+          <button
+            type="button"
+            onClick={() => {
+              steuerung.current?.zurueck();
+              heim();
+            }}
+            title={`${t("team.ansichtZurueck")} (0)`}
+            aria-label={t("team.ansichtZurueck")}
+          >
+            ⌂
+          </button>
         </div>
+
+        {/* The floors, when there are several: the ground floor and the
+            numbers, like in a lift. Each button says which departments live
+            there. */}
+        {haus.etagen.length > 1 && (
+          <div className="bu-etagen" role="group" aria-label={t("team.etage")} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+            {haus.etagen
+              .slice()
+              .reverse()
+              .map((e) => (
+                <button
+                  key={e.nr}
+                  type="button"
+                  aria-pressed={e.nr === etage}
+                  title={`${e.nr === 0 ? t("team.etageErdTitel") : t("team.etageTitel", { n: e.nr })} · ${e.gruppen.map((g) => g.name).join(" · ")}`}
+                  onClick={() => etageWechseln(e.nr)}
+                >
+                  {e.nr === 0 ? t("team.etageErd") : e.nr}
+                </button>
+              ))}
+          </div>
+        )}
       </div>
 
       <div className="bu-fuss">

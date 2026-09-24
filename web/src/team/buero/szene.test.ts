@@ -28,12 +28,20 @@ function belegschaft(n: number, abteilungen = 3): Gruppe[] {
   })).filter((g) => g.leute.length > 0);
 }
 
-const machPlan = (n: number): Plan =>
-  bauplan(belegschaft(n, Math.min(6, Math.max(2, Math.round(n / 8)))), 3200,
+const machPlan = (n: number): Plan => {
+  const plan = bauplan(belegschaft(n, Math.min(6, Math.max(2, Math.round(n / 8)))), 3200,
     { besprechung: "Besprechung", kueche: "Teeküche", lounge: "Lounge" });
+  /* Until bauplan sets the stairwell itself: where the prototype puts it. */
+  plan.treppe ??= { x: plan.quer.mitte, y: plan.hoehe - AUSSEN - 96 };
+  return plan;
+};
 
-const lage = (zustand: Zustand, nacht = false): Lage =>
-  ({ zustand: () => zustand, nacht, dichte: 1, drehung: START_DREHUNG });
+const lage = (zustand: Zustand, nacht = false, etage = 0, etagen = 1): Lage =>
+  ({ zustand: () => zustand, nacht, dichte: 1, drehung: START_DREHUNG, etage, etagen });
+
+/** Top-level bodies whose world position lies inside a box on the plan. */
+const koerperIn = (welt: THREE.Group, x0: number, x1: number, y0: number, y1: number) =>
+  welt.children.filter((o) => o.position.x >= x0 && o.position.x <= x1 && o.position.z >= y0 && o.position.z <= y1);
 
 describe("szeneBauen", () => {
   for (const n of [8, 25, 60]) {
@@ -86,6 +94,38 @@ describe("szeneBauen", () => {
     /* The two lights are found again, not added a second time. */
     expect(szene.children.filter((o) => o.name === "licht")).toHaveLength(1);
     expect(szene.children.filter((o) => o.name === "himmel")).toHaveLength(1);
+  });
+});
+
+describe("floors", () => {
+  it("builds a stairwell only when the house has several floors", () => {
+    const plan = machPlan(25);
+    const t = plan.treppe;
+    const box = (w: THREE.Group) => koerperIn(w, plan.quer.x, plan.quer.x + plan.quer.w, t.y - 50, t.y + 120).length;
+    const eins = szeneBauen(new THREE.Scene(), null, plan, lage("schlaeft", false, 0, 1));
+    const zwei = szeneBauen(new THREE.Scene(), null, plan, lage("schlaeft", false, 0, 2));
+    /* Nine steps, a landing, eight posts, two rails and the sign. */
+    expect(box(zwei.welt) - box(eins.welt)).toBeGreaterThanOrEqual(20);
+  });
+
+  it("puts the reception on the ground floor only", () => {
+    const plan = machPlan(25);
+    const tresen = (w: THREE.Group) =>
+      w.children.filter((o) => Math.abs(o.position.z - plan.tresen.y) < 1 && Math.abs(o.position.x - plan.quer.mitte) < 1);
+    const unten = szeneBauen(new THREE.Scene(), null, plan, lage("schlaeft", false, 0, 2));
+    const oben = szeneBauen(new THREE.Scene(), null, plan, lage("schlaeft", false, 1, 2));
+    expect(tresen(unten.welt)).toHaveLength(1);
+    expect(tresen(oben.welt)).toHaveLength(0);
+  });
+
+  it("keeps the corridor pieces clear of the stairs", () => {
+    const plan = machPlan(25);
+    const zwei = szeneBauen(new THREE.Scene(), null, plan, lage("schlaeft", false, 1, 2));
+    /* Groups placed by flurdingBauen along the cross corridor walls. */
+    const imGang = zwei.welt.children.filter((o) => o instanceof THREE.Group
+      && o.position.x > plan.quer.x && o.position.x < plan.quer.x + plan.quer.w
+      && o.position.z > plan.treppe.y - 120);
+    expect(imGang).toHaveLength(0);
   });
 });
 

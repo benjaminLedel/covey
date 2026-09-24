@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import type { Agent } from "../../api";
 import {
   AUSSEN,
+  ETAGE_PLAETZE,
   INNEN,
   SCHILD_H,
   TUER_B,
   bauplan,
   belegung,
+  etagenTeilen,
+  hausBauen,
   loungeZonen,
   podBreite,
   raumAn,
@@ -463,5 +466,83 @@ describe("occupancy", () => {
     expect(b.frei(r.x + 20, r.y + 20, 10, 10)).toBe(false);
     expect(suche(b, 40, 40, "frei")).toBeNull();
     expect(suche(belegung(r), r.w, r.h, "frei")).toBeNull();
+  });
+});
+
+describe("floors", () => {
+  const kopf = (gs: Gruppe[]) => gs.reduce((s, g) => s + g.leute.length, 0);
+
+  it.each([
+    [25, 1],
+    [60, 2],
+    [140, 4],
+  ])("n=%i: fills %i floor(s) by head count, in order, never splitting a department", (n, zahl) => {
+    const gruppen = belegschaft(n);
+    const etagen = etagenTeilen(gruppen);
+    expect(etagen).toHaveLength(zahl);
+    /* Order kept and nothing split: the floors, read in sequence, are the
+       departments in org-chart order, each exactly once and whole. */
+    expect(etagen.flat()).toEqual(gruppen);
+    for (const e of etagen) if (e.length > 1) expect(kopf(e)).toBeLessThanOrEqual(ETAGE_PLAETZE);
+    /* Greedy: the next floor starts only because its first department would
+       not have fitted on the one before. */
+    for (let i = 1; i < etagen.length; i++)
+      expect(kopf(etagen[i - 1]) + etagen[i][0].leute.length).toBeGreaterThan(ETAGE_PLAETZE);
+  });
+
+  it("gives a department larger than a floor a floor of its own", () => {
+    const g = (id: string, k: number): Gruppe => ({
+      id,
+      name: id,
+      farbe: "",
+      leute: Array.from({ length: k }, (_, j) => agent(id.length, j)),
+    });
+    const etagen = etagenTeilen([g("a", 10), g("bb", 60), g("ccc", 5)]);
+    expect(etagen.map((e) => e.map((x) => x.id))).toEqual([["a"], ["bb"], ["ccc"]]);
+  });
+
+  const abteilungen = (...k: number[]): Gruppe[] =>
+    k.map((z, i) => ({
+      id: `d${i}`,
+      name: ABTEILUNGEN[i][0],
+      farbe: ABTEILUNGEN[i][1],
+      leute: Array.from({ length: z }, (_, j) => agent(i, j)),
+    }));
+
+  it("makes room for the stairs on a small last floor, on every floor", () => {
+    const haus = hausBauen(abteilungen(40, 5), BREITE, NAMEN);
+    expect(haus.etagen.map((e) => e.gruppen.map((g) => g.leute.length))).toEqual([[40], [5]]);
+    for (const { plan, gruppen } of haus.etagen) {
+      const letzter = plan.tresen.plaetze[plan.tresen.plaetze.length - 1].y;
+      expect(plan.treppe.y - letzter).toBeGreaterThanOrEqual(200);
+      expect(plan.treppe.y).toBeLessThan(plan.hoehe - AUSSEN);
+      expect(raumAn(plan, plan.treppe)).toBeNull();
+      /* Only the corridor grows: the rooms are where a plan without stairs
+         puts them. */
+      expect(plan.raeume).toEqual(bauplan(gruppen, BREITE, NAMEN).raeume);
+    }
+  });
+
+  it("keeps the height of a single-floor house", () => {
+    for (const k of [[5], [1], [40]]) {
+      const haus = hausBauen(abteilungen(...k), BREITE, NAMEN);
+      expect(haus.etagen).toHaveLength(1);
+      expect(haus.etagen[0].plan).toEqual(bauplan(abteilungen(...k), BREITE, NAMEN));
+    }
+  });
+
+  it.each([25, 60, 140])("n=%i: every floor is a plan with the stairs at the far end of the cross corridor", (n) => {
+    const haus = hausBauen(belegschaft(n), BREITE, NAMEN);
+    expect(haus.etagen.map((e) => e.nr)).toEqual(haus.etagen.map((_, i) => i));
+    expect(haus.etagen.reduce((s, e) => s + e.plan.raeume.reduce((t, r) => t + r.leute.length, 0), 0)).toBe(n);
+    for (const { plan, gruppen } of haus.etagen) {
+      expect(plan.raeume.filter((r) => r.leute.length).map((r) => r.id)).toEqual(gruppen.map((g) => g.id));
+      const { treppe, quer, tresen } = plan;
+      expect(treppe.x).toBeGreaterThan(quer.x);
+      expect(treppe.x).toBeLessThan(quer.x + quer.w);
+      expect(treppe.y).toBeLessThan(plan.hoehe - AUSSEN);
+      expect(raumAn(plan, treppe)).toBeNull();
+      expect(treppe.y - tresen.plaetze[tresen.plaetze.length - 1].y).toBeGreaterThanOrEqual(200);
+    }
   });
 });
