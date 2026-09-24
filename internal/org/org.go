@@ -7,6 +7,8 @@ package org
 import (
 	"context"
 	"errors"
+	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -44,12 +46,16 @@ type Organization struct {
 	// the code there and files its issues there; both from the same address,
 	// because reporting against code you have not read produces symptoms.
 	// Empty = not set up, and then nothing about it stands in any prompt.
-	PlatformRepoSystem  string    `json:"platform_repo_system"`
-	PlatformRepoProject string    `json:"platform_repo_project"`
-	FleetKilled         bool      `json:"fleet_killed"`
-	HumanCount          int       `json:"human_count"`
-	AgentCount          int       `json:"agent_count"`
-	CreatedAt           time.Time `json:"created_at"`
+	PlatformRepoSystem  string `json:"platform_repo_system"`
+	PlatformRepoProject string `json:"platform_repo_project"`
+	// OfficeFurnishing says how densely the office is furnished — "sparse",
+	// "normal" or "rich" (#325). A property of the building, and the building
+	// belongs to the organisation: set once by an admin, seen by everyone.
+	OfficeFurnishing string    `json:"office_furnishing"`
+	FleetKilled      bool      `json:"fleet_killed"`
+	HumanCount       int       `json:"human_count"`
+	AgentCount       int       `json:"agent_count"`
+	CreatedAt        time.Time `json:"created_at"`
 }
 
 type Human struct {
@@ -493,7 +499,7 @@ func ensureOtherAdmin(ctx context.Context, tx pgx.Tx, orgID, exceptID uuid.UUID)
 // is at the same time the operator role of the deployment instance — a
 // dedicated super-admin level only follows with the OIDC build-out.
 func (s *Store) ListOrgs(ctx context.Context) ([]Organization, error) {
-	rows, err := s.pool.Query(ctx, `SELECT o.id, o.name, o.description, o.fleet_killed, o.created_at,
+	rows, err := s.pool.Query(ctx, `SELECT o.id, o.name, o.description, o.office_furnishing, o.fleet_killed, o.created_at,
 			(SELECT count(*) FROM humans h WHERE h.org_id=o.id),
 			(SELECT count(*) FROM agents a WHERE a.org_id=o.id)
 		FROM organizations o ORDER BY o.created_at`)
@@ -504,7 +510,7 @@ func (s *Store) ListOrgs(ctx context.Context) ([]Organization, error) {
 	var list []Organization
 	for rows.Next() {
 		var o Organization
-		if err := rows.Scan(&o.ID, &o.Name, &o.Description, &o.FleetKilled, &o.CreatedAt, &o.HumanCount, &o.AgentCount); err != nil {
+		if err := rows.Scan(&o.ID, &o.Name, &o.Description, &o.OfficeFurnishing, &o.FleetKilled, &o.CreatedAt, &o.HumanCount, &o.AgentCount); err != nil {
 			return nil, err
 		}
 		list = append(list, o)
@@ -577,13 +583,34 @@ func (s *Store) GetOrg(ctx context.Context, id uuid.UUID) (Organization, error) 
 	var o Organization
 	err := s.pool.QueryRow(ctx,
 		`SELECT id, name, description, platform_repo_system, platform_repo_project,
-			fleet_killed, created_at FROM organizations WHERE id=$1`, id).
+			office_furnishing, fleet_killed, created_at FROM organizations WHERE id=$1`, id).
 		Scan(&o.ID, &o.Name, &o.Description, &o.PlatformRepoSystem, &o.PlatformRepoProject,
-			&o.FleetKilled, &o.CreatedAt)
+			&o.OfficeFurnishing, &o.FleetKilled, &o.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return o, ErrNotFound
 	}
 	return o, err
+}
+
+// OfficeFurnishings are the densities the office knows. The names are the
+// API's vocabulary, not the interface's: the web app translates them.
+var OfficeFurnishings = []string{"sparse", "normal", "rich"}
+
+// SetOrgOfficeFurnishing stores how densely the office is furnished (#325).
+// Anything but the three known values is refused here, not in the handler:
+// whoever writes the column writes one of three words.
+func (s *Store) SetOrgOfficeFurnishing(ctx context.Context, id uuid.UUID, furnishing string) error {
+	if !slices.Contains(OfficeFurnishings, furnishing) {
+		return fmt.Errorf("office furnishing must be one of %v, got %q", OfficeFurnishings, furnishing)
+	}
+	tag, err := s.pool.Exec(ctx, `UPDATE organizations SET office_furnishing=$1 WHERE id=$2`, furnishing, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // SetOrgDescription stores what this organisation does (spec/20). Empty is

@@ -1059,6 +1059,10 @@
       "hint": "Va a la configuración de los agentes recién redactados, a cada encargo de contratación y al asistente de configuración.",
       "save": "Guardar"
     },
+    "office": {
+      "label": "Mobiliario de la oficina",
+      "hint": "Con qué densidad están amuebladas las salas, pasillos y zonas de descanso. Se aplica a toda la organización."
+    },
     "repo": {
       "title": "El código de esta plataforma",
       "empty": "Sin configurar. Sin esto, covey Doctor informa de síntomas en vez de diagnósticos — y sin un destino, de nada en absoluto.",

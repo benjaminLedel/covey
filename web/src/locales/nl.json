@@ -1059,6 +1059,10 @@
       "hint": "Gaat mee in de configuratie van nieuw opgestelde agenten, in elke vacature-opdracht en in de configuratie-assistent.",
       "save": "Opslaan"
     },
+    "office": {
+      "label": "Inrichting van het kantoor",
+      "hint": "Hoe dicht de kamers, gangen en lounges van het kantoor zijn ingericht. Geldt voor iedereen in deze organisatie."
+    },
     "repo": {
       "title": "De broncode van dit platform",
       "empty": "Niet ingericht. Zonder dit meldt covey Doctor symptomen in plaats van diagnoses — en zonder doel helemaal niets.",

@@ -1059,6 +1059,10 @@
       "hint": "Entra nella configurazione degli agenti appena redatti, in ogni incarico di assunzione e nell'assistente di configurazione.",
       "save": "Salva"
     },
+    "office": {
+      "label": "Arredamento dell'ufficio",
+      "hint": "Quanto densamente sono arredati stanze, corridoi e lounge. Vale per tutta l'organizzazione."
+    },
     "repo": {
       "title": "Il codice sorgente di questa piattaforma",
       "empty": "Non impostato. Senza, covey Doctor riferisce sintomi invece di diagnosi — e senza una destinazione, proprio nulla.",

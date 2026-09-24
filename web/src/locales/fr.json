@@ -1059,6 +1059,10 @@
       "hint": "Entre dans la configuration des agents nouvellement rédigés, dans chaque brief de recrutement et dans l'assistant de configuration.",
       "save": "Enregistrer"
     },
+    "office": {
+      "label": "Ameublement du bureau",
+      "hint": "Densité de l'ameublement des salles, couloirs et espaces détente. S'applique à toute l'organisation."
+    },
     "repo": {
       "title": "Le code source de cette plateforme",
       "empty": "Non configuré. Sans cela, covey Doctor signale des symptômes au lieu de diagnostics — et sans cible, rien du tout.",

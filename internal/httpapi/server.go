@@ -482,6 +482,7 @@ func (s *Server) Handler() http.Handler {
 	// context every agent works in (spec/20).
 	mux.Handle("GET /api/v1/org", s.rbac(anyRole, s.handleGetOwnOrg))
 	mux.Handle("PATCH /api/v1/org/description", s.rbac(manage, s.handleSetOwnOrgDescription))
+	mux.Handle("PATCH /api/v1/org/office", s.rbac(manage, s.handleSetOwnOrgOffice))
 	// Where the source code of this platform lies (spec/21). Master data like the
 	// company description — whoever maintains it maintains this too.
 	mux.Handle("PATCH /api/v1/org/platform-repo", s.rbac(manage, s.handleSetPlatformRepo))

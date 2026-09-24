@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import * as THREE from "three";
-import { api, post, type Agent, type Department, type Human, type Laufend, type Principal } from "../api";
+import { api, post, type Agent, type Department, type Human, type Laufend, type OfficeFurnishing, type Organization, type Principal } from "../api";
 import { canManage } from "../pages/agent/roles";
 import Gesicht from "../components/Gesicht";
 import Dauer from "../components/Dauer";
@@ -51,20 +51,11 @@ const BLICK_WEITE = 1.25;
 /** The building's maximum width in centimetres; the camera fits it to the stage. */
 const BAU_BREITE = 3200;
 
-const DICHTE_STUFEN = [
-  { key: "sparsam", wert: 0.45 },
-  { key: "normal", wert: 1 },
-  { key: "ueppig", wert: 1.7 },
-] as const;
-const DICHTE_SCHLUESSEL = "covey.buero.dichte";
-function gespeicherteDichte(): number {
-  try {
-    const w = Number(localStorage.getItem(DICHTE_SCHLUESSEL));
-    return DICHTE_STUFEN.some((s) => s.wert === w) ? w : 1;
-  } catch {
-    return 1;
-  }
-}
+/* How densely the house is furnished: the organisation's choice (#325),
+   one of three words, mapped to the factor the recipes scale their budgets
+   by. 1 is the measure at which a room looks furnished; below it only what
+   makes a room a room stays, above it every free corner fills. */
+const DICHTE: Record<OfficeFurnishing, number> = { sparse: 0.45, normal: 1, rich: 1.7 };
 
 /* Day or night follows the interface theme: whoever sets the surface dark
    means the office too. The theme is an attribute on the document root
@@ -109,7 +100,8 @@ export default function Buero({
   const navigate = useNavigate();
   const ruhig = useMemo(() => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false, []);
   const nacht = useNacht();
-  const [dichte, setDichte] = useState(gespeicherteDichte);
+  const org = useQuery({ queryKey: ["own-org"], queryFn: () => api<Organization>("/org"), staleTime: 60_000 });
+  const dichte = DICHTE[org.data?.office_furnishing ?? "normal"] ?? 1;
   const [webgl, setWebgl] = useState(true);
 
   /* The building depends on what REALLY changes it: who works here and in
@@ -504,15 +496,6 @@ export default function Buero({
     heim();
   }, [haus, meinZimmer, etage, heim]);
 
-  const dichteWaehlen = (wert: number) => {
-    setDichte(wert);
-    try {
-      localStorage.setItem(DICHTE_SCHLUESSEL, String(wert));
-    } catch {
-      /* a browser without storage forgets the choice, nothing else */
-    }
-  };
-
   /* The building is fitted to the stage whatever its headcount, so the faces
      have to give way: seventy heads at thirty pixels cover the desks they
      sit at. Smaller from forty on, and the name goes with the head. */
@@ -678,17 +661,7 @@ export default function Buero({
         )}
       </div>
 
-      <div className="bu-fuss">
-        <p className="bu-legende">{t("team.bueroLegende")}</p>
-        <div className="bu-dichte" role="group" aria-label={t("team.ausstattung")}>
-          <span className="bu-dichte-marke">{t("team.ausstattung")}</span>
-          {DICHTE_STUFEN.map((s) => (
-            <button key={s.key} type="button" aria-pressed={dichte === s.wert} onClick={() => dichteWaehlen(s.wert)}>
-              {t(`team.ausstattung${s.key[0].toUpperCase()}${s.key.slice(1)}`)}
-            </button>
-          ))}
-        </div>
-      </div>
+      <p className="bu-legende">{t("team.bueroLegende")}</p>
     </div>
   );
 }

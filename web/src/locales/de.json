@@ -1059,6 +1059,10 @@
       "hint": "Geht in die Config neu entworfener Agenten, in jede Ausschreibung und in den Config-Assistenten ein.",
       "save": "Speichern"
     },
+    "office": {
+      "label": "Möblierung des Büros",
+      "hint": "Wie dicht die Zimmer, Flure und Lounges im Büro eingerichtet sind. Gilt für alle in dieser Organisation."
+    },
     "repo": {
       "title": "Quelltext dieser Plattform",
       "empty": "Nicht eingerichtet. Ohne ihn meldet covey Doctor Symptome statt Diagnosen — und ohne Ziel gar nichts.",

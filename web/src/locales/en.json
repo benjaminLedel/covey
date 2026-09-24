@@ -1059,6 +1059,10 @@
       "hint": "Goes into the config of newly drafted agents, into every hiring brief and into the config assistant.",
       "save": "Save"
     },
+    "office": {
+      "label": "Office furnishing",
+      "hint": "How densely the rooms, corridors and lounges of the office are furnished. Applies to everyone in this organisation."
+    },
     "repo": {
       "title": "This platform's source",
       "empty": "Not set up. Without it covey Doctor reports symptoms instead of diagnoses — and without a target, nothing at all.",

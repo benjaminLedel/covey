@@ -97,6 +97,19 @@ func TestOrgSelfDescriptionOverTheAPI(t *testing.T) {
 	// derives from its own source address.
 	admin.expect(http.MethodPatch, "/api/v1/org/platform-repo",
 		map[string]string{"system": "", "project": ""}, http.StatusOK)
+
+	// How densely the office is furnished is the organisation's choice, not
+	// a browser's (#325): one of three words, anything else is refused, and
+	// what was set comes back with the organisation.
+	if org["office_furnishing"] != "normal" {
+		t.Errorf("a fresh organisation is furnished normally, got %v", org["office_furnishing"])
+	}
+	admin.expect(http.MethodPatch, "/api/v1/org/office", map[string]string{"furnishing": "lavish"}, http.StatusBadRequest)
+	admin.expect(http.MethodPatch, "/api/v1/org/office", map[string]string{"furnishing": "rich"}, http.StatusOK)
+	org = admin.expect(http.MethodGet, "/api/v1/org", nil, http.StatusOK)
+	if org["office_furnishing"] != "rich" {
+		t.Errorf("the furnishing does not come back: %v", org["office_furnishing"])
+	}
 }
 
 // The profile fields are the org chart's own vocabulary: what a company wants

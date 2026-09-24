@@ -1059,6 +1059,10 @@
       "hint": "Trafia do konfiguracji nowo przygotowanych agentów, do każdego zlecenia rekrutacyjnego i do asystenta konfiguracji.",
       "save": "Zapisz"
     },
+    "office": {
+      "label": "Wyposażenie biura",
+      "hint": "Jak gęsto umeblowane są pokoje, korytarze i strefy wypoczynku. Dotyczy całej organizacji."
+    },
     "repo": {
       "title": "Kod źródłowy tej platformy",
       "empty": "Nieskonfigurowane. Bez tego covey Doctor zgłasza objawy zamiast diagnoz — a bez celu nie zgłasza nic.",
