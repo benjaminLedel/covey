@@ -1696,6 +1696,10 @@
       "expired": "Caducada",
       "revoke": "Revocar",
       "revokeConfirm": "¿Revocar esta clave? Lo que la use dejará de funcionar de inmediato.",
+      "rotate": "Rotar",
+      "rotateConfirm": "¿Rotar esta clave? Recibe un token nuevo con el mismo nombre y la misma vigencia; el token anterior deja de funcionar de inmediato.",
+      "rotated": "Token nuevo para «{{name}}»: el anterior ha dejado de funcionar. Anótalo ahora, no se volverá a mostrar.",
+      "cancel": "Cancelar",
       "orgOnly": "Solo sirve en {{org}}: la clave lleva el puesto desde el que se creó.",
       "limits": "Una clave no puede acuñar otra ni cambiar una contraseña: ambas cosas requieren el inicio de sesión en el navegador, para que una clave extraviada no pueda atrincherarse."
     },

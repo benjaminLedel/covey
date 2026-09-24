@@ -50,6 +50,10 @@ const (
 // able to tell them apart.
 var errAPIKeyAuth = errors.New("api key invalid or expired")
 
+// errAPIKeyNotFound: the id names no key of this account — the same answer
+// whether it never existed or belongs to somebody else.
+var errAPIKeyNotFound = errors.New("api key not found")
+
 type apiKeyStore struct{ pool *pgxpool.Pool }
 
 func (s *Server) apiKeys() apiKeyStore { return apiKeyStore{pool: s.Pool} }
@@ -177,6 +181,67 @@ func (st apiKeyStore) Delete(ctx context.Context, accountID, id uuid.UUID) (bool
 	return tag.RowsAffected() > 0, nil
 }
 
+// Rotate replaces a key's token and nothing else that identifies it: the name
+// and the seat stay, the lifetime stays (a ninety-day key comes out of this as
+// a ninety-day key, counted from now), and the old token stops in the same
+// transaction — there is no moment with two live tokens for one purpose.
+//
+// It is a new row, deliberately. The token exists once, in the answer, and
+// only its hash is stored (migration 0077); rewriting the hash in place would
+// leave created_at and last_used_at describing a credential that no longer
+// exists. A fresh row says what is true: this key was created now and has not
+// been used yet. The old id dies with the old token, which is what "revoked"
+// has always meant here.
+//
+// expires is the lifetime the caller asked for; nil means "the same as before".
+// Scoped to the account like Delete, so that an id from somewhere else rotates
+// nothing.
+func (st apiKeyStore) Rotate(ctx context.Context, accountID, id uuid.UUID, token string, expires *time.Time, keepLifetime bool) (APIKey, error) {
+	tx, err := st.pool.Begin(ctx)
+	if err != nil {
+		return APIKey{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	var humanID uuid.UUID
+	var name string
+	var createdAt time.Time
+	var oldExpires *time.Time
+	err = tx.QueryRow(ctx, `SELECT human_id, name, created_at, expires_at FROM api_keys
+		WHERE id=$1 AND account_id=$2 FOR UPDATE`, id, accountID).
+		Scan(&humanID, &name, &createdAt, &oldExpires)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return APIKey{}, errAPIKeyNotFound
+		}
+		return APIKey{}, err
+	}
+	if keepLifetime && oldExpires != nil {
+		// The lifetime is what the operator decided, not the remaining span:
+		// a key rotated on its last day gets its full term again, and one that
+		// has already expired comes back alive — rotation is the remedy for
+		// both, and a new key that is dead on arrival would be furniture.
+		t := time.Now().Add(oldExpires.Sub(createdAt))
+		expires = &t
+	}
+
+	k := APIKey{
+		ID:        uuid.New(),
+		Name:      name,
+		Prefix:    token[:apiKeyShownPrefix],
+		ExpiresAt: expires,
+	}
+	if err := tx.QueryRow(ctx, `INSERT INTO api_keys (id, account_id, human_id, name, prefix, token_hash, expires_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING created_at`,
+		k.ID, accountID, humanID, k.Name, k.Prefix, hashToken(token), expires).Scan(&k.CreatedAt); err != nil {
+		return APIKey{}, err
+	}
+	if _, err := tx.Exec(ctx, "DELETE FROM api_keys WHERE id=$1", id); err != nil {
+		return APIKey{}, err
+	}
+	return k, tx.Commit(ctx)
+}
+
 // --- handlers ---
 
 func (s *Server) handleListAPIKeys(w http.ResponseWriter, r *http.Request) {
@@ -255,4 +320,56 @@ func (s *Server) handleDeleteAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"revoked": true})
+}
+
+// handleRotateAPIKey exchanges the token behind a key. Session only, like
+// create and revoke: a key that could give itself a new token would outlive
+// every attempt to revoke it.
+//
+// The body is optional. Without expires_in_days the new key keeps the old
+// one's lifetime; with it, the caller sets a new one (0 = never). The
+// distinction between "absent" and "0" is why the field is a pointer.
+func (s *Server) handleRotateAPIKey(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var body struct {
+		ExpiresInDays *int `json:"expires_in_days"`
+	}
+	if r.ContentLength != 0 {
+		if err := readJSON(r, &body); err != nil {
+			writeErr(w, http.StatusBadRequest, "body not readable: "+err.Error())
+			return
+		}
+	}
+	var expires *time.Time
+	keepLifetime := body.ExpiresInDays == nil
+	if !keepLifetime && *body.ExpiresInDays > 0 {
+		if *body.ExpiresInDays > 3650 {
+			writeErr(w, http.StatusBadRequest, "expires_in_days is above ten years")
+			return
+		}
+		t := time.Now().AddDate(0, 0, *body.ExpiresInDays)
+		expires = &t
+	}
+	token, err := newAPIKeyToken()
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	key, err := s.apiKeys().Rotate(r.Context(), principalFrom(r).AccountID, id, token, expires, keepLifetime)
+	if err != nil {
+		if errors.Is(err, errAPIKeyNotFound) {
+			writeErr(w, http.StatusNotFound, "not found")
+			return
+		}
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, struct {
+		APIKey
+		Token string `json:"token"`
+	}{APIKey: key, Token: token})
 }

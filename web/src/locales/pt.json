@@ -1696,6 +1696,10 @@
       "expired": "Expirada",
       "revoke": "Revogar",
       "revokeConfirm": "Revogar esta chave? Tudo o que a usa deixa de funcionar de imediato.",
+      "rotate": "Rotacionar",
+      "rotateConfirm": "Rotacionar esta chave? Ela recebe um novo token com o mesmo nome e a mesma validade; o token antigo deixa de funcionar imediatamente.",
+      "rotated": "Novo token para “{{name}}” — o antigo deixou de funcionar. Anote-o agora, ele nunca mais será exibido.",
+      "cancel": "Cancelar",
       "orgOnly": "Vale apenas em {{org}} — a chave carrega o posto a partir do qual foi criada.",
       "limits": "Uma chave não pode criar uma segunda nem alterar uma palavra-passe — ambas as coisas exigem a entrada pelo browser, para que uma chave extraviada não se possa entrincheirar."
     },

@@ -19,6 +19,11 @@ type ApiKey = {
 
 type CreatedKey = ApiKey & { token: string };
 
+/* What the token card is showing: a key that was just created, or the new
+   token of one that was just rotated. Same card, different first line — the
+   rotated one has to say that the old token has stopped. */
+type Fresh = { key: CreatedKey; rotated: boolean };
+
 // The key list of the signed-in account. The token appears exactly once — in
 // the answer that created it — so the card holds it until it is dismissed
 // rather than re-fetching it, because there is nothing to re-fetch.
@@ -28,7 +33,8 @@ export default function ApiKeys() {
   const locale = i18n.language === "de" ? "de-DE" : "en-US";
   const [name, setName] = useState("");
   const [days, setDays] = useState("");
-  const [fresh, setFresh] = useState<CreatedKey | null>(null);
+  const [fresh, setFresh] = useState<Fresh | null>(null);
+  const [rotating, setRotating] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -49,10 +55,25 @@ export default function ApiKeys() {
         expires_in_days: days.trim() === "" ? 0 : Number(days),
       }),
     onSuccess: (key) => {
-      setFresh(key);
+      setFresh({ key, rotated: false });
       setCopied(false);
       setName("");
       setDays("");
+      setError("");
+      qc.invalidateQueries({ queryKey: ["api-keys"] });
+    },
+    onError: (e) => setError(String(e)),
+  });
+
+  /* Rotation keeps name, seat and lifetime and swaps the token; the old one
+     stops in the same transaction (#317). The answer is a created key, so it
+     goes through the same card — the one place a token is ever readable. */
+  const rotate = useMutation({
+    mutationFn: (id: string) => post<CreatedKey>(`/auth/api-keys/${id}/rotate`, {}),
+    onSuccess: (key) => {
+      setFresh({ key, rotated: true });
+      setCopied(false);
+      setRotating(null);
       setError("");
       qc.invalidateQueries({ queryKey: ["api-keys"] });
     },
@@ -80,19 +101,21 @@ export default function ApiKeys() {
 
       {fresh && (
         <div className="mb-3" style={{ border: "0.5px solid var(--border)", borderRadius: 6, padding: "8px 10px" }}>
-          <p className="text-xs mt-0 mb-2">{t("account.apiKeys.created")}</p>
+          <p className="text-xs mt-0 mb-2">
+            {fresh.rotated ? t("account.apiKeys.rotated", { name: fresh.key.name }) : t("account.apiKeys.created")}
+          </p>
           <pre
             className="mono text-[12px]"
             style={{ background: "var(--surface-2, rgba(0,0,0,.05))", padding: "6px 10px", borderRadius: 6, overflowX: "auto", margin: "0 0 8px" }}
           >
-{fresh.token}
+{fresh.key.token}
           </pre>
           <div className="flex gap-2">
             <button
               className="btn sm"
               type="button"
               onClick={() => {
-                navigator.clipboard?.writeText(fresh.token);
+                navigator.clipboard?.writeText(fresh.key.token);
                 setCopied(true);
               }}
             >
@@ -145,7 +168,17 @@ export default function ApiKeys() {
             </span>
           )}
           <span className="spacer flex-1" />
-          {confirming === k.id ? (
+          {rotating === k.id ? (
+            <>
+              <span className="muted">{t("account.apiKeys.rotateConfirm")}</span>
+              <button className="btn sm primary" type="button" onClick={() => rotate.mutate(k.id)} disabled={rotate.isPending}>
+                {rotate.isPending ? "…" : t("account.apiKeys.rotate")}
+              </button>
+              <button className="btn sm" type="button" onClick={() => setRotating(null)}>
+                {t("account.apiKeys.cancel")}
+              </button>
+            </>
+          ) : confirming === k.id ? (
             <>
               <span className="muted">{t("account.apiKeys.revokeConfirm")}</span>
               <button className="btn sm danger" type="button" onClick={() => revoke.mutate(k.id)} disabled={revoke.isPending}>
@@ -153,9 +186,28 @@ export default function ApiKeys() {
               </button>
             </>
           ) : (
-            <button className="btn sm" type="button" onClick={() => setConfirming(k.id)}>
-              {t("account.apiKeys.revoke")}
-            </button>
+            <>
+              <button
+                className="btn sm"
+                type="button"
+                onClick={() => {
+                  setRotating(k.id);
+                  setConfirming(null);
+                }}
+              >
+                {t("account.apiKeys.rotate")}
+              </button>
+              <button
+                className="btn sm"
+                type="button"
+                onClick={() => {
+                  setConfirming(k.id);
+                  setRotating(null);
+                }}
+              >
+                {t("account.apiKeys.revoke")}
+              </button>
+            </>
           )}
         </div>
       ))}

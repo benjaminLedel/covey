@@ -1696,6 +1696,10 @@
       "expired": "Expirée",
       "revoke": "Révoquer",
       "revokeConfirm": "Révoquer cette clé ? Tout ce qui l'utilise cesse aussitôt de fonctionner.",
+      "rotate": "Renouveler",
+      "rotateConfirm": "Renouveler cette clé ? Elle reçoit un nouveau jeton avec le même nom et la même durée de vie ; l’ancien jeton cesse de fonctionner immédiatement.",
+      "rotated": "Nouveau jeton pour « {{name}} » — l’ancien ne fonctionne plus. Notez-le maintenant, il ne sera plus jamais affiché.",
+      "cancel": "Annuler",
       "orgOnly": "Ne vaut que dans {{org}} — la clé porte le siège depuis lequel elle a été créée.",
       "limits": "Une clé ne peut pas en créer une seconde ni changer un mot de passe — les deux passent par la connexion au navigateur, pour qu'une clé égarée ne puisse pas s'installer durablement."
     },

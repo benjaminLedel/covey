@@ -34,10 +34,12 @@ that did not name the seat it works from would have an authority nobody can
 state. It carries that seat's role and no scope of its own: a scope that exists
 only on paper reads like a restriction and enforces nothing.
 
-Two moves stay with the session, and therefore with the password: **minting or
-revoking a key, and changing the password**. A credential that goes astray must
-not be able to entrench itself — those are exactly the two moves that would let
-it. The practical side is in [`../docs/en/operations/api-keys.md`](../docs/en/operations/api-keys.md).
+Two moves stay with the session, and therefore with the password: **minting,
+rotating or revoking a key, and changing the password**. A credential that goes
+astray must not be able to entrench itself — those are exactly the moves that
+would let it. Rotation exchanges the token behind a key and keeps what
+identifies it (name, seat, lifetime); the old token stops in the same
+transaction, so the list never holds two live tokens for one purpose. The practical side is in [`../docs/en/operations/api-keys.md`](../docs/en/operations/api-keys.md).
 
 An API key has no business inside a sandbox. An agent talks to the control
 plane through the action proxy, which needs no credential at all; a key in a
