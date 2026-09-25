@@ -50,7 +50,9 @@ What the app needs is a **device badge**: issued after a login on the device, bo
 
 That endpoint does not exist yet. It is decision 1, it is covey's side of the work, and the mobile team cannot invent it — a badge is a security object and it gets designed once, in the control plane, for every client that will ever want one.
 
-**Until it exists**, a prototype may paste an API key into the Keychain / Keystore. That is an interim, it is written here so that it is not mistaken for the design, and an app shipped that way is an app that ships a long-lived org credential on a phone.
+**Until it exists**, the key reaches the phone by **pairing** (#330): Profile & Settings shows a QR code carrying the instance address and a code that is good for one use and five minutes (`POST /auth/pairings`, session only); the app scans it and exchanges the code for an API key named after the device (`POST /auth/pair`, the one route without a badge — the code is the badge). The key is listed and revocable beside the others. That changes how the key gets to the phone, not what it is: it is still an API key, not the device badge.
+
+Before pairing, a prototype could only paste an API key into the Keychain / Keystore. That is an interim, it is written here so that it is not mistaken for the design, and an app shipped that way is an app that ships a long-lived org credential on a phone.
 
 ## The API the app builds against
 

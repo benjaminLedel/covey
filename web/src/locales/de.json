@@ -1699,6 +1699,20 @@
       "step3": "In Claude Code aufrufen mit",
       "hint": "Danach genügt auch „baue einen covey-Agenten für …“ — der Skill greift automatisch. Zum Weitergeben an Dritte: exportiere fertige Agenten als Bundle (Agenten-Seite → Config → Export) und importiere sie in einer anderen covey-Instanz."
     },
+    "pairing": {
+      "title": "Mobile App",
+      "intro": "Koppeln Sie die covey-App auf Ihrem Telefon: Scannen Sie den Code mit der App, und sie erhält einen eigenen API-Schlüssel, benannt nach dem Gerät. Der Code gilt einmal und fünf Minuten lang. Der Schlüssel erscheint in der Liste darunter, wo Sie ihn widerrufen können.",
+      "start": "Mobile App koppeln",
+      "scan": "Öffnen Sie die covey-App und tippen Sie auf „QR-Code scannen“.",
+      "waiting": "Warte auf die App … der Code gilt noch {{time}}.",
+      "notHttps": "Diese Seite läuft nicht über HTTPS. Die App verbindet sich nur mit HTTPS-Adressen.",
+      "cancel": "Abbrechen",
+      "expired": "Der Code ist abgelaufen.",
+      "again": "Neuer Code",
+      "paired": "Gekoppelt mit {{device}}. Der Schlüssel steht in der Liste darunter.",
+      "done": "Fertig",
+      "qrAlt": "QR-Code zum Koppeln der covey-App"
+    },
     "apiKeys": {
       "title": "API-Schlüssel",
       "intro": "Ein Schlüssel meldet ein Skript, eine Pipeline oder ein Werkzeug an derselben API an, die auch die Oberfläche benutzt — mit den Rechten deines Sitzes in dieser Organisation, nicht mehr und nicht weniger. Er wird als Header mitgeschickt: Authorization: Bearer covey_…",
@@ -2445,22 +2459,28 @@
     "sucheMarkieren": "Kollegen markieren"
   },
   "mobile": {
-    "verbindenTitel": "Wo ist dein covey?",
-    "verbindenLead": "Die Adresse deiner covey-Installation und ein API-Schlüssel, mit dem du dich anmeldest.",
+    "verbindenTitel": "Wo ist Ihr covey?",
+    "verbindenLead": "Die Adresse Ihrer covey-Installation und ein API-Schlüssel, mit dem Sie sich anmelden.",
     "adresse": "Adresse",
     "schluessel": "API-Schlüssel",
-    "schluesselHinweis": "Einen Schlüssel legst du in der Weboberfläche unter Profil & Einstellungen an. Der Schlüssel ist eine Übergangslösung: Er wird durch eine Anmeldung ersetzt, die an dieses Gerät gebunden ist.",
+    "schluesselHinweis": "Einen Schlüssel legen Sie in der Weboberfläche unter Profil & Einstellungen an. Der Schlüssel ist eine Übergangslösung: Er wird durch eine Anmeldung ersetzt, die an dieses Gerät gebunden ist.",
     "verbinden": "Verbinden",
     "nurHttps": "Nur HTTPS-Adressen.",
     "nichtErreichbar": "Unter dieser Adresse antwortet nichts.",
     "schluesselAbgelehnt": "Die Installation hat diesen Schlüssel nicht angenommen.",
     "keinCovey": "Dort antwortet etwas, aber es ist kein covey.",
     "trennen": "Trennen",
-    "teamAus": "Die Team-Oberfläche ist für diese Organisation nicht eingeschaltet. Du kannst mitlesen, Nachrichten werden aber abgelehnt. Eine Administratorin schaltet sie unter Verwaltung → Organisation ein.",
+    "teamAus": "Die Team-Oberfläche ist für diese Organisation nicht eingeschaltet. Sie können mitlesen, Nachrichten werden aber abgelehnt. Eine Administratorin schaltet sie unter Verwaltung → Organisation ein.",
     "teamAusKurz": "Team-Oberfläche ist aus",
     "nichtGeweckt": "Notiert. Niemand hat darauf gewartet — der Agent liest es bei seinem nächsten Lauf.",
     "fehler": "Konnte nicht laden: {{error}}",
     "erneut": "Erneut versuchen",
-    "imWebEntscheiden": "Entschieden wird vorerst in der Weboberfläche."
+    "imWebEntscheiden": "Entschieden wird vorerst in der Weboberfläche.",
+    "scannen": "QR-Code scannen",
+    "scanTitel": "Mit covey koppeln",
+    "scanHinweis": "Öffnen Sie covey im Browser, gehen Sie zu Profil & Einstellungen → Mobile App → „Mobile App koppeln“ und richten Sie die Kamera auf den Code.",
+    "manuell": "Stattdessen mit Adresse und API-Schlüssel verbinden",
+    "koppelnFehler": "Dieser Code ist ungültig, schon benutzt oder abgelaufen. Erzeugen Sie in der Weboberfläche einen neuen.",
+    "keinCoveyCode": "Das ist kein covey-Kopplungscode."
   }
 }

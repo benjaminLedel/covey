@@ -1699,6 +1699,20 @@
       "step3": "Wywołaj ją w Claude Code przez",
       "hint": "Potem wystarczy powiedzieć „zbuduj agenta covey do …”, a uruchomi się sama. Żeby podzielić się z innymi: wyeksportuj gotowych agentów jako pakiet (strona agenta → Config → Eksport) i zaimportuj w innej instancji covey."
     },
+    "pairing": {
+      "title": "Aplikacja mobilna",
+      "intro": "Aplikację covey na telefonie można sparować: po zeskanowaniu kodu aplikacja otrzyma własny klucz API nazwany od urządzenia. Kod działa raz i przez pięć minut. Klucz pojawi się na liście poniżej, gdzie można go unieważnić.",
+      "start": "Sparuj aplikację mobilną",
+      "scan": "Proszę otworzyć aplikację covey i stuknąć „Skanuj kod QR”.",
+      "waiting": "Czekam na aplikację … kod jest ważny jeszcze {{time}}.",
+      "notHttps": "Ta strona nie działa przez HTTPS. Aplikacja łączy się tylko z adresami HTTPS.",
+      "cancel": "Anuluj",
+      "expired": "Kod wygasł.",
+      "again": "Nowy kod",
+      "paired": "Sparowano z {{device}}. Jego klucz jest na liście poniżej.",
+      "done": "Gotowe",
+      "qrAlt": "Kod QR do sparowania aplikacji covey"
+    },
     "apiKeys": {
       "title": "Klucze API",
       "intro": "Klucz loguje skrypt, potok albo narzędzie do tego samego API, z którego korzysta interfejs — z uprawnieniami Twojego stanowiska w tej organizacji, ani mniej, ani więcej. Podróżuje w nagłówku: Authorization: Bearer covey_…",
@@ -2445,22 +2459,28 @@
     "sucheMarkieren": "wybierz osobę"
   },
   "mobile": {
-    "verbindenTitel": "Gdzie jest twój covey?",
-    "verbindenLead": "Adres twojej instalacji covey i klucz API do logowania.",
+    "verbindenTitel": "Gdzie jest Państwa covey?",
+    "verbindenLead": "Adres Państwa instalacji covey i klucz API do logowania.",
     "adresse": "Adres",
     "schluessel": "Klucz API",
-    "schluesselHinweis": "Klucz utworzysz w interfejsie webowym w sekcji Profil i ustawienia. Klucz jest rozwiązaniem tymczasowym: zastąpi go logowanie powiązane z tym urządzeniem.",
+    "schluesselHinweis": "Klucz można utworzyć w interfejsie webowym w sekcji Profil i ustawienia. Klucz jest rozwiązaniem tymczasowym: zastąpi go logowanie powiązane z tym urządzeniem.",
     "verbinden": "Połącz",
     "nurHttps": "Tylko adresy HTTPS.",
     "nichtErreichbar": "Pod tym adresem nic nie odpowiada.",
     "schluesselAbgelehnt": "Instalacja nie przyjęła tego klucza.",
     "keinCovey": "Coś tam odpowiada, ale to nie jest covey.",
     "trennen": "Rozłącz",
-    "teamAus": "Widok zespołu nie jest włączony dla tej organizacji. Możesz czytać, ale wiadomości są odrzucane. Administrator włącza go w Administracja → Organizacja.",
+    "teamAus": "Widok zespołu nie jest włączony dla tej organizacji. Można czytać, ale wiadomości są odrzucane. Administrator włącza go w Administracja → Organizacja.",
     "teamAusKurz": "Widok zespołu wyłączony",
     "nichtGeweckt": "Zapisano. Nikt na to nie czekał — agent przeczyta to przy następnym uruchomieniu.",
     "fehler": "Nie udało się wczytać: {{error}}",
     "erneut": "Spróbuj ponownie",
-    "imWebEntscheiden": "Na razie decyzje podejmuje się w interfejsie webowym."
+    "imWebEntscheiden": "Na razie decyzje podejmuje się w interfejsie webowym.",
+    "scannen": "Skanuj kod QR",
+    "scanTitel": "Sparuj z covey",
+    "scanHinweis": "Proszę otworzyć covey w przeglądarce, przejść do Profil i ustawienia → Aplikacja mobilna → „Sparuj aplikację mobilną” i skierować aparat na kod.",
+    "manuell": "Zamiast tego połącz adresem i kluczem API",
+    "koppelnFehler": "Ten kod jest nieprawidłowy, już użyty lub wygasł. Proszę utworzyć nowy w interfejsie webowym.",
+    "keinCoveyCode": "To nie jest kod parowania covey."
   }
 }

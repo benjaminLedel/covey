@@ -295,6 +295,12 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/auth/api-keys", s.auth(s.sessionOnly(s.handleCreateAPIKey)))
 	mux.Handle("DELETE /api/v1/auth/api-keys/{id}", s.auth(s.sessionOnly(s.handleDeleteAPIKey)))
 	mux.Handle("POST /api/v1/auth/api-keys/{id}/rotate", s.auth(s.sessionOnly(s.handleRotateAPIKey)))
+	// Pairing the mobile app (#330, pairing.go): the code is minted with the
+	// session like a key, read back while the page waits, and redeemed by the
+	// app without a badge — the code is the badge.
+	mux.Handle("POST /api/v1/auth/pairings", s.auth(s.sessionOnly(s.handleCreatePairing)))
+	mux.Handle("GET /api/v1/auth/pairings/{id}", s.auth(s.handlePairingState))
+	mux.HandleFunc("POST /api/v1/auth/pair", s.handleRedeemPairing)
 
 	// Agents & backlog. All roles may read (role-scoped views in the MVP: same
 	// data, different write rights).

@@ -1699,6 +1699,20 @@
       "step3": "Invócala en Claude Code con",
       "hint": "A partir de ahí basta con decir «construye un agente de covey para …» y se activa sola. Para compartir con otros: exporta los agentes terminados como paquete (página del agente → Config → Exportar) e impórtalos en otra instancia de covey."
     },
+    "pairing": {
+      "title": "Aplicación móvil",
+      "intro": "Vincule la aplicación covey de su teléfono: escanee el código con la aplicación y recibirá su propia clave API, con el nombre del dispositivo. El código sirve una vez y durante cinco minutos. La clave aparece en la lista de abajo, donde puede revocarla.",
+      "start": "Vincular la aplicación móvil",
+      "scan": "Abra la aplicación covey y toque «Escanear código QR».",
+      "waiting": "Esperando a la aplicación … el código es válido durante {{time}}.",
+      "notHttps": "Esta página no se sirve por HTTPS. La aplicación solo se conecta a direcciones HTTPS.",
+      "cancel": "Cancelar",
+      "expired": "El código ha caducado.",
+      "again": "Nuevo código",
+      "paired": "Vinculada con {{device}}. Su clave está en la lista de abajo.",
+      "done": "Listo",
+      "qrAlt": "Código QR para vincular la aplicación covey"
+    },
     "apiKeys": {
       "title": "Claves de API",
       "intro": "Una clave identifica a un script, una tubería o una herramienta ante la misma API que usa la interfaz, con los derechos de tu puesto en esta organización, ni más ni menos. Viaja como cabecera: Authorization: Bearer covey_…",
@@ -2445,22 +2459,28 @@
     "sucheMarkieren": "elegir colega"
   },
   "mobile": {
-    "verbindenTitel": "¿Dónde está tu covey?",
-    "verbindenLead": "La dirección de tu instalación de covey y una clave API para iniciar sesión.",
+    "verbindenTitel": "¿Dónde está su covey?",
+    "verbindenLead": "La dirección de su instalación de covey y una clave API para iniciar sesión.",
     "adresse": "Dirección",
     "schluessel": "Clave API",
-    "schluesselHinweis": "Crea una clave en la interfaz web, en Perfil y ajustes. La clave es provisional: se sustituirá por un inicio de sesión vinculado a este dispositivo.",
+    "schluesselHinweis": "Cree una clave en la interfaz web, en Perfil y ajustes. La clave es provisional: se sustituirá por un inicio de sesión vinculado a este dispositivo.",
     "verbinden": "Conectar",
     "nurHttps": "Solo direcciones HTTPS.",
     "nichtErreichbar": "Nada responde en esta dirección.",
     "schluesselAbgelehnt": "La instalación no aceptó esta clave.",
     "keinCovey": "Algo responde ahí, pero no es un covey.",
     "trennen": "Desconectar",
-    "teamAus": "La superficie de equipo no está activada para esta organización. Puedes leer, pero los mensajes se rechazan. Un administrador la activa en Administración → Organización.",
+    "teamAus": "La superficie de equipo no está activada para esta organización. Puede leer, pero los mensajes se rechazan. Un administrador la activa en Administración → Organización.",
     "teamAusKurz": "Superficie de equipo desactivada",
     "nichtGeweckt": "Anotado. Nadie lo esperaba: el agente lo leerá en su próxima ejecución.",
     "fehler": "No se pudo cargar: {{error}}",
     "erneut": "Reintentar",
-    "imWebEntscheiden": "Por ahora, las decisiones se toman en la interfaz web."
+    "imWebEntscheiden": "Por ahora, las decisiones se toman en la interfaz web.",
+    "scannen": "Escanear código QR",
+    "scanTitel": "Vincular con covey",
+    "scanHinweis": "Abra covey en el navegador, vaya a Perfil y ajustes → Aplicación móvil → «Vincular la aplicación móvil» y apunte la cámara al código.",
+    "manuell": "Conectar con dirección y clave API",
+    "koppelnFehler": "Este código no es válido, ya se usó o ha caducado. Cree uno nuevo en la interfaz web.",
+    "keinCoveyCode": "Esto no es un código de vinculación de covey."
   }
 }

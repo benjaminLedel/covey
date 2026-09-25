@@ -1699,6 +1699,20 @@
       "step3": "在 Claude Code 里这样调用",
       "hint": "此后只要说“给…做一个 covey 智能体”，它就会自动启动。要与他人分享：把做好的智能体导出为配置包（智能体页面 → Config → 导出），再导入到另一套 covey 实例里。"
     },
+    "pairing": {
+      "title": "移动应用",
+      "intro": "配对你手机上的 covey 应用：用应用扫描二维码，它会获得一个以设备命名的专属 API 密钥。二维码仅可使用一次，有效期五分钟。密钥会出现在下方列表中，你可以在那里撤销它。",
+      "start": "配对移动应用",
+      "scan": "打开 covey 应用，点按“扫描二维码”。",
+      "waiting": "正在等待应用 … 二维码剩余有效时间 {{time}}。",
+      "notHttps": "此页面未通过 HTTPS 提供。应用只连接 HTTPS 地址。",
+      "cancel": "取消",
+      "expired": "二维码已过期。",
+      "again": "新二维码",
+      "paired": "已与 {{device}} 配对。它的密钥在下方列表中。",
+      "done": "完成",
+      "qrAlt": "用于配对 covey 应用的二维码"
+    },
     "apiKeys": {
       "title": "API 密钥",
       "intro": "密钥让脚本、流水线或工具登录到界面所用的同一套 API——权限与你在本组织中的席位相同，不多也不少。它以请求头的形式传递：Authorization: Bearer covey_…",
@@ -2461,6 +2475,12 @@
     "nichtGeweckt": "已记录。没有人在等待——智能体会在下次运行时读取。",
     "fehler": "无法加载：{{error}}",
     "erneut": "重试",
-    "imWebEntscheiden": "目前请在网页界面中做决定。"
+    "imWebEntscheiden": "目前请在网页界面中做决定。",
+    "scannen": "扫描二维码",
+    "scanTitel": "与 covey 配对",
+    "scanHinweis": "在浏览器中打开 covey，前往“个人资料与设置”→“移动应用”→“配对移动应用”，然后将相机对准二维码。",
+    "manuell": "改用地址和 API 密钥连接",
+    "koppelnFehler": "此二维码无效、已被使用或已过期。请在网页界面中重新生成。",
+    "keinCoveyCode": "这不是 covey 配对码。"
   }
 }

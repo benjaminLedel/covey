@@ -1699,6 +1699,20 @@
       "step3": "Richiamala in Claude Code con",
       "hint": "Dopodiché basta dire «costruisci un agente covey per …» e parte da sola. Per condividere con altri: esporta gli agenti finiti come pacchetto (pagina dell'agente → Config → Esporta) e importali in un'altra istanza covey."
     },
+    "pairing": {
+      "title": "App mobile",
+      "intro": "Associ l'app covey del suo telefono: scansioni il codice con l'app e riceverà una propria chiave API, con il nome del dispositivo. Il codice vale una volta e per cinque minuti. La chiave compare nell'elenco qui sotto, dove può revocarla.",
+      "start": "Associa l'app mobile",
+      "scan": "Apra l'app covey e tocchi «Scansiona codice QR».",
+      "waiting": "In attesa dell'app … il codice vale ancora {{time}}.",
+      "notHttps": "Questa pagina non è servita in HTTPS. L'app si collega solo a indirizzi HTTPS.",
+      "cancel": "Annulla",
+      "expired": "Il codice è scaduto.",
+      "again": "Nuovo codice",
+      "paired": "Associata a {{device}}. La sua chiave è nell'elenco qui sotto.",
+      "done": "Fatto",
+      "qrAlt": "Codice QR per associare l'app covey"
+    },
     "apiKeys": {
       "title": "Chiavi API",
       "intro": "Una chiave fa accedere uno script, una pipeline o uno strumento alla stessa API che usa l'interfaccia — con i diritti della tua postazione in questa organizzazione, né più né meno. Viaggia come intestazione: Authorization: Bearer covey_…",
@@ -2445,22 +2459,28 @@
     "sucheMarkieren": "scegli un collega"
   },
   "mobile": {
-    "verbindenTitel": "Dov'è il tuo covey?",
-    "verbindenLead": "L'indirizzo della tua installazione covey e una chiave API per accedere.",
+    "verbindenTitel": "Dov'è il suo covey?",
+    "verbindenLead": "L'indirizzo della sua installazione covey e una chiave API per accedere.",
     "adresse": "Indirizzo",
     "schluessel": "Chiave API",
-    "schluesselHinweis": "Crea una chiave nell'interfaccia web, in Profilo e impostazioni. La chiave è provvisoria: sarà sostituita da un accesso legato a questo dispositivo.",
+    "schluesselHinweis": "Crei una chiave nell'interfaccia web, in Profilo e impostazioni. La chiave è provvisoria: sarà sostituita da un accesso legato a questo dispositivo.",
     "verbinden": "Connetti",
     "nurHttps": "Solo indirizzi HTTPS.",
     "nichtErreichbar": "Nessuna risposta a questo indirizzo.",
     "schluesselAbgelehnt": "L'installazione non ha accettato questa chiave.",
     "keinCovey": "Qualcosa risponde, ma non è un covey.",
     "trennen": "Disconnetti",
-    "teamAus": "L'area team non è attiva per questa organizzazione. Puoi leggere, ma i messaggi vengono rifiutati. Un amministratore la attiva in Amministrazione → Organizzazione.",
+    "teamAus": "L'area team non è attiva per questa organizzazione. Può leggere, ma i messaggi vengono rifiutati. Un amministratore la attiva in Amministrazione → Organizzazione.",
     "teamAusKurz": "Area team disattivata",
     "nichtGeweckt": "Annotato. Nessuno lo aspettava: l'agente lo leggerà alla prossima esecuzione.",
     "fehler": "Impossibile caricare: {{error}}",
     "erneut": "Riprova",
-    "imWebEntscheiden": "Per ora si decide nell'interfaccia web."
+    "imWebEntscheiden": "Per ora si decide nell'interfaccia web.",
+    "scannen": "Scansiona codice QR",
+    "scanTitel": "Associa a covey",
+    "scanHinweis": "Apra covey nel browser, vada su Profilo e impostazioni → App mobile → «Associa l'app mobile» e inquadri il codice con la fotocamera.",
+    "manuell": "Collegati invece con indirizzo e chiave API",
+    "koppelnFehler": "Questo codice non è valido, è già stato usato o è scaduto. Ne crei uno nuovo nell'interfaccia web.",
+    "keinCoveyCode": "Questo non è un codice di associazione covey."
   }
 }

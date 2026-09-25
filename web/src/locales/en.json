@@ -1699,6 +1699,20 @@
       "step3": "Invoke it in Claude Code with",
       "hint": "After that, just saying \"build a covey agent for …\" triggers it automatically. To share with others: export finished agents as a bundle (agent page → Config → Export) and import them into another covey instance."
     },
+    "pairing": {
+      "title": "Mobile app",
+      "intro": "Pair the covey app on your phone: scan the code with the app, and it gets an API key of its own, named after the device. The code works once and for five minutes. The key appears in the list below, where you can revoke it.",
+      "start": "Pair the mobile app",
+      "scan": "Open the covey app and tap “Scan QR code”.",
+      "waiting": "Waiting for the app … the code is valid for {{time}}.",
+      "notHttps": "This page is not served over HTTPS. The app only connects to HTTPS addresses.",
+      "cancel": "Cancel",
+      "expired": "The code has expired.",
+      "again": "New code",
+      "paired": "Paired with {{device}}. Its key is in the list below.",
+      "done": "Done",
+      "qrAlt": "QR code for pairing the covey app"
+    },
     "apiKeys": {
       "title": "API keys",
       "intro": "A key signs a script, a pipeline or a tool in to the same API the interface uses — with the rights of your seat in this organisation, no more and no less. It travels as a header: Authorization: Bearer covey_…",
@@ -2461,6 +2475,12 @@
     "nichtGeweckt": "Written down. Nobody was waiting for it — the agent reads it on its next run.",
     "fehler": "Could not load: {{error}}",
     "erneut": "Try again",
-    "imWebEntscheiden": "Decisions are made in the web interface for now."
+    "imWebEntscheiden": "Decisions are made in the web interface for now.",
+    "scannen": "Scan QR code",
+    "scanTitel": "Pair with covey",
+    "scanHinweis": "Open covey in the browser, go to Profile & Settings → Mobile app → “Pair the mobile app”, and point the camera at the code.",
+    "manuell": "Connect with an address and an API key instead",
+    "koppelnFehler": "This code is invalid, already used or expired. Create a new one in the web interface.",
+    "keinCoveyCode": "This is not a covey pairing code."
   }
 }

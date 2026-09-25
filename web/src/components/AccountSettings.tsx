@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, del, patch, put, type Principal } from "../api";
 import ApiKeys from "./ApiKeys";
+import MobilePairing from "./MobilePairing";
 
 type Session = { created_at: string; expires_at: string; current: boolean };
 
@@ -167,6 +168,9 @@ export default function AccountSettings({ me }: { me: Principal }) {
         })}
       </div>
 
+      {/* Before the key list: pairing is how most keys should reach a phone,
+          and the key it creates appears in the list right below. */}
+      <MobilePairing />
       <ApiKeys />
 
       <div className="card mt-4">

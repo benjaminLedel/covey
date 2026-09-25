@@ -1699,6 +1699,20 @@
       "step3": "Roep haar in Claude Code aan met",
       "hint": "Daarna volstaat “bouw een covey-agent voor …” en gaat ze vanzelf aan. Om te delen: exporteer voltooide agenten als bundel (agentpagina → Config → Exporteren) en importeer ze in een andere covey-installatie."
     },
+    "pairing": {
+      "title": "Mobiele app",
+      "intro": "Koppel de covey-app op uw telefoon: scan de code met de app, en die krijgt een eigen API-sleutel, genoemd naar het apparaat. De code werkt één keer en vijf minuten lang. De sleutel verschijnt in de lijst hieronder, waar u hem kunt intrekken.",
+      "start": "Mobiele app koppelen",
+      "scan": "Open de covey-app en tik op ‘QR-code scannen’.",
+      "waiting": "Wachten op de app … de code is nog {{time}} geldig.",
+      "notHttps": "Deze pagina wordt niet via HTTPS aangeboden. De app maakt alleen verbinding met HTTPS-adressen.",
+      "cancel": "Annuleren",
+      "expired": "De code is verlopen.",
+      "again": "Nieuwe code",
+      "paired": "Gekoppeld met {{device}}. De sleutel staat in de lijst hieronder.",
+      "done": "Klaar",
+      "qrAlt": "QR-code om de covey-app te koppelen"
+    },
     "apiKeys": {
       "title": "API-sleutels",
       "intro": "Een sleutel meldt een script, een pijplijn of een tool aan bij dezelfde API die de interface gebruikt — met de rechten van uw plek in deze organisatie, niet meer en niet minder. Hij reist als header: Authorization: Bearer covey_…",
@@ -2445,8 +2459,8 @@
     "sucheMarkieren": "collega kiezen"
   },
   "mobile": {
-    "verbindenTitel": "Waar is je covey?",
-    "verbindenLead": "Het adres van je covey-installatie en een API-sleutel om mee in te loggen.",
+    "verbindenTitel": "Waar is uw covey?",
+    "verbindenLead": "Het adres van uw covey-installatie en een API-sleutel om mee in te loggen.",
     "adresse": "Adres",
     "schluessel": "API-sleutel",
     "schluesselHinweis": "Maak een sleutel aan in de webinterface onder Profiel & instellingen. De sleutel is tijdelijk: hij wordt vervangen door een aanmelding die aan dit apparaat gebonden is.",
@@ -2456,11 +2470,17 @@
     "schluesselAbgelehnt": "De installatie heeft deze sleutel niet geaccepteerd.",
     "keinCovey": "Er antwoordt iets, maar het is geen covey.",
     "trennen": "Verbinding verbreken",
-    "teamAus": "De teamomgeving is voor deze organisatie niet ingeschakeld. Je kunt meelezen, maar berichten worden geweigerd. Een beheerder schakelt haar in onder Beheer → Organisatie.",
+    "teamAus": "De teamomgeving is voor deze organisatie niet ingeschakeld. U kunt meelezen, maar berichten worden geweigerd. Een beheerder schakelt haar in onder Beheer → Organisatie.",
     "teamAusKurz": "Teamomgeving staat uit",
     "nichtGeweckt": "Genoteerd. Niemand wachtte erop — de agent leest het bij zijn volgende run.",
     "fehler": "Kon niet laden: {{error}}",
     "erneut": "Opnieuw proberen",
-    "imWebEntscheiden": "Beslissingen worden voorlopig in de webinterface genomen."
+    "imWebEntscheiden": "Beslissingen worden voorlopig in de webinterface genomen.",
+    "scannen": "QR-code scannen",
+    "scanTitel": "Koppelen met covey",
+    "scanHinweis": "Open covey in de browser, ga naar Profiel & instellingen → Mobiele app → ‘Mobiele app koppelen’ en richt de camera op de code.",
+    "manuell": "In plaats daarvan verbinden met adres en API-sleutel",
+    "koppelnFehler": "Deze code is ongeldig, al gebruikt of verlopen. Maak een nieuwe aan in de webinterface.",
+    "keinCoveyCode": "Dit is geen koppelcode van covey."
   }
 }
