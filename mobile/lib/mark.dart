@@ -1,12 +1,15 @@
+import 'dart:math' as math;
+
 import 'package:flutter/widgets.dart';
 
 /// The covey mark: three birds in flight formation on a clay tile.
 ///
 /// Drawn from the same numbers as web/src/components/BirdMark.tsx — a 64
 /// unit tile with radius 14, the birds' paths translated by (-0.7, 1.1) and
-/// scaled by 2.9, a 2.3 unit white stroke. Painted rather than shipped as an
-/// image, so it stays sharp at every size and needs no SVG package. The
-/// colours are literals, as on the web: a mark does not change with the
+/// scaled by 2.9, a 2.3 unit white stroke in that scaled space. Painted
+/// rather than shipped as an image, so it stays sharp at every size, needs no
+/// SVG package, and can be drawn in stages for the start animation (#332).
+/// The colours are literals, as on the web: a mark does not change with the
 /// appearance.
 class CoveyMark extends StatelessWidget {
   const CoveyMark({super.key, this.size = 56});
@@ -15,11 +18,21 @@ class CoveyMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) =>
-      SizedBox.square(dimension: size, child: CustomPaint(painter: _MarkPainter()));
+      SizedBox.square(dimension: size, child: CustomPaint(painter: MarkPainter()));
 }
 
-class _MarkPainter extends CustomPainter {
-  static const _clay = Color(0xFFCC7A5B);
+/// Paints the mark, optionally part-way: [tile] scales the clay tile in,
+/// [birds] holds how far each bird's stroke is drawn (0..1), and [flight]
+/// lifts the birds a little and beats their wings — the one moment the mark
+/// moves.
+class MarkPainter extends CustomPainter {
+  MarkPainter({this.tile = 1, this.birds = const [1, 1, 1], this.flight = 0});
+
+  final double tile;
+  final List<double> birds;
+  final double flight;
+
+  static const clay = Color(0xFFCC7A5B);
 
   // Each bird: M a b Q c d e f Q g h i j — two quadratic curves.
   static const _birds = [
@@ -32,10 +45,17 @@ class _MarkPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final s = size.width / 64;
     canvas.scale(s);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(const Rect.fromLTWH(0, 0, 64, 64), const Radius.circular(14)),
-      Paint()..color = _clay,
-    );
+    if (tile > 0) {
+      canvas.save();
+      canvas.translate(32, 32);
+      canvas.scale(tile);
+      canvas.translate(-32, -32);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(const Rect.fromLTWH(0, 0, 64, 64), const Radius.circular(14)),
+        Paint()..color = clay,
+      );
+      canvas.restore();
+    }
     canvas.translate(-0.7, 1.1);
     canvas.scale(2.9);
     final stroke = Paint()
@@ -45,17 +65,41 @@ class _MarkPainter extends CustomPainter {
       ..strokeWidth = 2.3
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
-    for (final b in _birds) {
-      canvas.drawPath(
-        Path()
-          ..moveTo(b[0], b[1])
-          ..quadraticBezierTo(b[2], b[3], b[4], b[5])
-          ..quadraticBezierTo(b[6], b[7], b[8], b[9]),
-        stroke,
-      );
+    for (var i = 0; i < _birds.length; i++) {
+      final t = i < birds.length ? birds[i].clamp(0.0, 1.0) : 1.0;
+      if (t <= 0) continue;
+      final b = _birds[i];
+      // In flight each bird rises a little, out of step with the others, and
+      // its wings (the two control points) beat. The envelope is zero at both
+      // ends, so the last frame is exactly the resting mark — the hand-over to
+      // the static one does not jump.
+      final envelope = math.sin(math.pi * flight);
+      final phase = flight * math.pi * 2 + i * 1.3;
+      final lift = -0.8 * envelope * (1 + 0.3 * math.sin(phase));
+      final beat = 1.1 * envelope * math.sin(phase * 2);
+      final path = Path()
+        ..moveTo(b[0], b[1] + lift)
+        ..quadraticBezierTo(b[2], b[3] + lift + beat, b[4], b[5] + lift)
+        ..quadraticBezierTo(b[6], b[7] + lift + beat, b[8], b[9] + lift);
+      if (t >= 1) {
+        canvas.drawPath(path, stroke);
+      } else {
+        for (final m in path.computeMetrics()) {
+          canvas.drawPath(m.extractPath(0, m.length * t), stroke);
+        }
+      }
     }
   }
 
   @override
-  bool shouldRepaint(_MarkPainter old) => false;
+  bool shouldRepaint(MarkPainter old) =>
+      old.tile != tile || old.flight != flight || !_same(old.birds, birds);
+
+  static bool _same(List<double> a, List<double> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
 }

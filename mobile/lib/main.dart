@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -6,6 +8,7 @@ import 'i18n.dart';
 import 'profile.dart';
 import 'screens/connect.dart';
 import 'screens/home.dart';
+import 'splash.dart';
 import 'theme.dart';
 
 void main() {
@@ -30,7 +33,10 @@ class CoveyApp extends StatefulWidget {
 class _CoveyAppState extends State<CoveyApp> {
   Strings? _strings;
   CoveyApi? _api;
-  bool _ready = false;
+  final _loaded = Completer<void>();
+  // The start animation stands until it has played and the app has loaded,
+  // whichever is later (#332).
+  bool _splash = true;
 
   @override
   void initState() {
@@ -65,8 +71,8 @@ class _CoveyAppState extends State<CoveyApp> {
     setState(() {
       _strings = strings;
       _api = api;
-      _ready = true;
     });
+    _loaded.complete();
   }
 
   Future<void> _connected(Uri instance, String key) async {
@@ -87,13 +93,25 @@ class _CoveyAppState extends State<CoveyApp> {
       debugShowCheckedModeBanner: false,
       theme: coveyTheme(Brightness.light),
       darkTheme: coveyTheme(Brightness.dark),
-      builder: (context, child) =>
-          strings == null ? const SizedBox.shrink() : StringsScope(strings: strings, child: child!),
-      home: !_ready
-          ? const SizedBox.shrink()
-          : _api == null
-              ? ConnectScreen(onConnected: _connected)
-              : HomeScreen(api: _api!, onDisconnect: _disconnect),
+      // The splash needs no words; everything after it does.
+      builder: (context, child) => strings == null ? child! : StringsScope(strings: strings, child: child!),
+      home: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 450),
+        switchInCurve: Curves.easeOutCubic,
+        transitionBuilder: (child, animation) => FadeTransition(
+          opacity: animation,
+          child: ScaleTransition(scale: Tween(begin: 0.98, end: 1.0).animate(animation), child: child),
+        ),
+        child: _splash
+            ? Splash(
+                key: const ValueKey('splash'),
+                ready: _loaded.future,
+                onDone: () => setState(() => _splash = false),
+              )
+            : _api == null
+                ? ConnectScreen(key: const ValueKey('connect'), onConnected: _connected)
+                : HomeScreen(key: ValueKey(_api), api: _api!, onDisconnect: _disconnect),
+      ),
     );
   }
 }

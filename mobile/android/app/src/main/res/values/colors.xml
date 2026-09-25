@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The ground of the start animation (#332), so the native launch screen
+         does not flash white before it. surface-0 of web/src/styles.css. -->
+    <color name="launch_background">#F2F2F2</color>
+</resources>
