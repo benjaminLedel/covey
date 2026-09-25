@@ -64,10 +64,7 @@ class CoveyApi {
     );
   }
 
-  Map<String, String> get _headers => {
-        'Authorization': 'Bearer $_key',
-        'Accept': 'application/json',
-      };
+  Map<String, String> get _headers => {'Authorization': 'Bearer $_key', 'Accept': 'application/json'};
 
   Future<dynamic> _send(Future<http.Response> Function() call) async {
     final http.Response res;
@@ -97,11 +94,9 @@ class CoveyApi {
 
   Future<dynamic> get(String path) => _send(() => _http.get(_url(path), headers: _headers));
 
-  Future<dynamic> post(String path, Map<String, Object?> body) => _send(() => _http.post(
-        _url(path),
-        headers: {..._headers, 'Content-Type': 'application/json'},
-        body: jsonEncode(body),
-      ));
+  Future<dynamic> post(String path, Map<String, Object?> body) => _send(
+    () => _http.post(_url(path), headers: {..._headers, 'Content-Type': 'application/json'}, body: jsonEncode(body)),
+  );
 
   /// Whether anything answers at the address at all. The only thing an
   /// instance says without a badge, and "ok" does not yet say it is a covey —
@@ -122,12 +117,13 @@ class CoveyApi {
     return v['version'] as String? ?? '';
   }
 
-  Future<List<Agent>> agents() async =>
-      [for (final a in (await get('/agents') as List? ?? const [])) Agent.fromJson(a as Map<String, dynamic>)];
+  Future<List<Agent>> agents() async => [
+    for (final a in (await get('/agents') as List? ?? const [])) Agent.fromJson(a as Map<String, dynamic>),
+  ];
 
   Future<List<Department>> departments() async => [
-        for (final d in (await get('/departments') as List? ?? const [])) Department.fromJson(d as Map<String, dynamic>)
-      ];
+    for (final d in (await get('/departments') as List? ?? const [])) Department.fromJson(d as Map<String, dynamic>),
+  ];
 
   Future<InboxPage> waiting() async =>
       InboxPage.fromJson(await get('/inbox?status=open&sort=urgent&limit=100') as Map<String, dynamic>);

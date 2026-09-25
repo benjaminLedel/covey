@@ -26,6 +26,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Me? _me;
   Object? _meError;
 
+  /// The thread open beside the list on a wide window (#334). On a phone the
+  /// thread is pushed instead, and this stays null.
+  ({String id, String name})? _open;
+
+  /// From this width the list and the thread stand side by side: a desktop
+  /// window, a tablet in landscape.
+  static const wide = 840.0;
+
   @override
   void initState() {
     super.initState();
@@ -42,9 +50,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openThread(String agentId, String name) {
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => ThreadScreen(api: widget.api, agentId: agentId, agentName: name, me: _me!),
-    ));
+    if (MediaQuery.sizeOf(context).width >= wide) {
+      setState(() => _open = (id: agentId, name: name));
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ThreadScreen(api: widget.api, agentId: agentId, agentName: name, me: _me!),
+      ),
+    );
   }
 
   @override
@@ -55,13 +69,30 @@ class _HomeScreenState extends State<HomeScreen> {
         body: Center(
           child: _meError == null
               ? Text(context.t('common.loading'))
-              : _Failure(error: _meError!, onRetry: () {
-                  setState(() => _meError = null);
-                  _loadMe();
-                }, onDisconnect: widget.onDisconnect),
+              : _Failure(
+                  error: _meError!,
+                  onRetry: () {
+                    setState(() => _meError = null);
+                    _loadMe();
+                  },
+                  onDisconnect: widget.onDisconnect,
+                ),
         ),
       );
     }
+    final isWide = MediaQuery.sizeOf(context).width >= wide;
+    final lists = IndexedStack(
+      index: _tab,
+      children: [
+        WaitingScreen(api: widget.api, me: me, onOpen: _openThread),
+        ColleaguesScreen(api: widget.api, onOpen: _openThread),
+      ],
+    );
+    final destinations = [
+      (icon: Icons.inbox_outlined, label: context.t('team.wartet')),
+      (icon: Icons.people_outline, label: context.t('team.kollegen')),
+    ];
+    final open = _open;
     return Scaffold(
       appBar: AppBar(
         title: Text(_tab == 0 ? context.t('team.wartet') : context.t('team.kollegen')),
@@ -72,7 +103,10 @@ class _HomeScreenState extends State<HomeScreen> {
             itemBuilder: (context) => [
               PopupMenuItem(
                 enabled: false,
-                child: Text('${me.displayName}\n${widget.api.base.host}', style: TextStyle(color: context.colors.textMuted)),
+                child: Text(
+                  '${me.displayName}\n${widget.api.base.host}',
+                  style: TextStyle(color: context.colors.textMuted),
+                ),
               ),
               PopupMenuItem(value: 'disconnect', child: Text(context.t('mobile.trennen'))),
             ],
@@ -83,24 +117,54 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           if (!me.teamSurface) _Notice(text: context.t('mobile.teamAus')),
           Expanded(
-            child: IndexedStack(
-              index: _tab,
-              children: [
-                WaitingScreen(api: widget.api, me: me, onOpen: _openThread),
-                ColleaguesScreen(api: widget.api, onOpen: _openThread),
-              ],
-            ),
+            child: !isWide
+                ? lists
+                // A wide window: the rail, the list, and the thread beside it —
+                // the same three surfaces, not a second console (#334).
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      NavigationRail(
+                        selectedIndex: _tab,
+                        onDestinationSelected: (i) => setState(() => _tab = i),
+                        labelType: NavigationRailLabelType.all,
+                        backgroundColor: context.colors.surface2,
+                        destinations: [
+                          for (final d in destinations)
+                            NavigationRailDestination(icon: Icon(d.icon), label: Text(d.label)),
+                        ],
+                      ),
+                      const VerticalDivider(width: 1),
+                      SizedBox(width: 360, child: lists),
+                      const VerticalDivider(width: 1),
+                      Expanded(
+                        child: open == null
+                            ? Center(
+                                child: Text(
+                                  context.t('mobile.waehlen'),
+                                  style: TextStyle(color: context.colors.textMuted),
+                                ),
+                              )
+                            : ThreadScreen(
+                                key: ValueKey(open.id),
+                                api: widget.api,
+                                agentId: open.id,
+                                agentName: open.name,
+                                me: me,
+                              ),
+                      ),
+                    ],
+                  ),
           ),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _tab,
-        onDestinationSelected: (i) => setState(() => _tab = i),
-        destinations: [
-          NavigationDestination(icon: const Icon(Icons.inbox_outlined), label: context.t('team.wartet')),
-          NavigationDestination(icon: const Icon(Icons.people_outline), label: context.t('team.kollegen')),
-        ],
-      ),
+      bottomNavigationBar: isWide
+          ? null
+          : NavigationBar(
+              selectedIndex: _tab,
+              onDestinationSelected: (i) => setState(() => _tab = i),
+              destinations: [for (final d in destinations) NavigationDestination(icon: Icon(d.icon), label: d.label)],
+            ),
     );
   }
 }
@@ -139,8 +203,10 @@ class _Failure extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(revoked ? context.t('mobile.schluesselAbgelehnt') : context.t('mobile.fehler', args: {'error': '$error'}),
-              textAlign: TextAlign.center),
+          Text(
+            revoked ? context.t('mobile.schluesselAbgelehnt') : context.t('mobile.fehler', args: {'error': '$error'}),
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: 16),
           if (!revoked) OutlinedButton(onPressed: onRetry, child: Text(context.t('mobile.erneut'))),
           TextButton(onPressed: onDisconnect, child: Text(context.t('mobile.trennen'))),
@@ -193,7 +259,10 @@ class _LoadingListState<T> extends State<LoadingList<T>> {
       if (_error != null)
         Padding(
           padding: const EdgeInsets.all(16),
-          child: Text(context.t('mobile.fehler', args: {'error': '$_error'}), style: TextStyle(color: context.colors.textDanger)),
+          child: Text(
+            context.t('mobile.fehler', args: {'error': '$_error'}),
+            style: TextStyle(color: context.colors.textDanger),
+          ),
         ),
       if (data == null && _error == null)
         Padding(padding: const EdgeInsets.all(16), child: Text(context.t('common.loading'))),

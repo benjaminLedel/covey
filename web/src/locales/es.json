@@ -2489,7 +2489,8 @@
     "koppelnErsetzt": "Esto sustituye la conexión con {{host}}.",
     "koppeln": "Vincular",
     "desktopHinweis": "Abra covey en el navegador, vaya a Perfil y ajustes → Aplicación móvil → «Vincular la aplicación móvil» y haga clic en «Abrir en la aplicación».",
-    "keineKamera": "No hay ninguna cámara disponible en este dispositivo. Abra el código con «Abrir en la aplicación» en la interfaz web, o conéctese con dirección y clave API."
+    "keineKamera": "No hay ninguna cámara disponible en este dispositivo. Abra el código con «Abrir en la aplicación» en la interfaz web, o conéctese con dirección y clave API.",
+    "waehlen": "Elija un compañero a la izquierda para abrir la conversación."
   },
   "appLink": {
     "title": "Abrir en la aplicación covey",

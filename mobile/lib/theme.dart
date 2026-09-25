@@ -56,10 +56,7 @@ class CoveyColors extends ThemeExtension<CoveyColors> {
 
 ThemeData coveyTheme(Brightness b) {
   final c = b == Brightness.light ? CoveyColors.light : CoveyColors.dark;
-  final scheme = ColorScheme.fromSeed(
-    seedColor: c.textAccent,
-    brightness: b,
-  ).copyWith(
+  final scheme = ColorScheme.fromSeed(seedColor: c.textAccent, brightness: b).copyWith(
     primary: c.textPrimary,
     onPrimary: c.surface2,
     surface: c.surface0,
@@ -71,14 +68,25 @@ ThemeData coveyTheme(Brightness b) {
     colorScheme: scheme,
     scaffoldBackgroundColor: c.surface0,
     extensions: [c],
-    appBarTheme: AppBarTheme(backgroundColor: c.surface0, foregroundColor: c.textPrimary, elevation: 0, scrolledUnderElevation: 0),
+    appBarTheme: AppBarTheme(
+      backgroundColor: c.surface0,
+      foregroundColor: c.textPrimary,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+    ),
     dividerTheme: DividerThemeData(color: c.border, space: 1),
     navigationBarTheme: NavigationBarThemeData(backgroundColor: c.surface2, indicatorColor: c.bgAccent),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: c.surface2,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: c.border)),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: c.border)),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: c.border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: c.border),
+      ),
     ),
   );
 }

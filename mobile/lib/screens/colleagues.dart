@@ -42,16 +42,25 @@ class ColleaguesScreen extends StatelessWidget {
           for (final g in groups) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-              child: Text(g.name.toUpperCase(),
-                  style: TextStyle(fontSize: 11.5, letterSpacing: 0.6, fontWeight: FontWeight.w600, color: context.colors.textMuted)),
+              child: Text(
+                g.name.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 11.5,
+                  letterSpacing: 0.6,
+                  fontWeight: FontWeight.w600,
+                  color: context.colors.textMuted,
+                ),
+              ),
             ),
             for (final a in g.members)
               ListTile(
                 title: Text(a.displayName),
                 subtitle: Text(a.jobTitle.isEmpty ? a.slug : a.jobTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
                 // The state in words, not in a colour alone (spec/27).
-                trailing: Text(context.t('status.${a.killed ? 'killed' : a.status}'),
-                    style: TextStyle(color: context.colors.textMuted, fontSize: 12.5)),
+                trailing: Text(
+                  context.t('status.${a.killed ? 'killed' : a.status}'),
+                  style: TextStyle(color: context.colors.textMuted, fontSize: 12.5),
+                ),
                 onTap: () => onOpen(a.id, a.displayName),
               ),
           ],

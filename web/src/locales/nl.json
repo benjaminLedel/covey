@@ -2489,7 +2489,8 @@
     "koppelnErsetzt": "Dit vervangt de verbinding met {{host}}.",
     "koppeln": "Koppelen",
     "desktopHinweis": "Open covey in de browser, ga naar Profiel & instellingen → Mobiele app → ‘Mobiele app koppelen’ en klik op ‘Openen in de app’.",
-    "keineKamera": "Er is geen camera beschikbaar op dit apparaat. Open de code in plaats daarvan met ‘Openen in de app’ in de webinterface, of maak verbinding met adres en API-sleutel."
+    "keineKamera": "Er is geen camera beschikbaar op dit apparaat. Open de code in plaats daarvan met ‘Openen in de app’ in de webinterface, of maak verbinding met adres en API-sleutel.",
+    "waehlen": "Kies links een collega om het gesprek te openen."
   },
   "appLink": {
     "title": "Openen in de covey-app",

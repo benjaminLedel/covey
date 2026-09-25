@@ -26,3 +26,8 @@ linter:
 
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options
+
+# One line width for everything under lib/, test/ and tool/, so that
+# `dart format` is the style and nobody's editor decides it.
+formatter:
+  page_width: 120

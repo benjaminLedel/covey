@@ -11,8 +11,11 @@ void main() {
     test('adds https to a bare host and drops a trailing slash', () {
       expect(parseInstance('covey.example.org/').toString(), 'https://covey.example.org');
       expect(parseInstance(' https://x.org/covey/ ').toString(), 'https://x.org/covey');
-      expect(parseInstance('https://x.org:8443/?next=1#top').toString(), 'https://x.org:8443',
-          reason: 'a query or fragment in a pasted address is not part of the instance');
+      expect(
+        parseInstance('https://x.org:8443/?next=1#top').toString(),
+        'https://x.org:8443',
+        reason: 'a query or fragment in a pasted address is not part of the instance',
+      );
     });
 
     test('refuses plain http outside loopback (spec/27: HTTPS only)', () {
@@ -23,10 +26,17 @@ void main() {
 
   test('sends the key as a bearer and reads the API under /api/v1', () async {
     late http.Request seen;
-    final api = CoveyApi(Uri.parse('https://c.example/sub'), 'covey_abc', client: MockClient((req) async {
-      seen = req;
-      return http.Response(jsonEncode({'Email': 'a@b.c', 'DisplayName': 'A', 'Role': 'org_admin', 'TeamSurface': false}), 200);
-    }));
+    final api = CoveyApi(
+      Uri.parse('https://c.example/sub'),
+      'covey_abc',
+      client: MockClient((req) async {
+        seen = req;
+        return http.Response(
+          jsonEncode({'Email': 'a@b.c', 'DisplayName': 'A', 'Role': 'org_admin', 'TeamSurface': false}),
+          200,
+        );
+      }),
+    );
     final me = await api.me();
     expect(seen.url.toString(), 'https://c.example/sub/api/v1/auth/me');
     expect(seen.headers['Authorization'], 'Bearer covey_abc');
@@ -35,23 +45,32 @@ void main() {
 
   test('a query stays a query, not part of the path', () async {
     late Uri seen;
-    final api = CoveyApi(Uri.parse('https://c.example'), 'k', client: MockClient((req) async {
-      seen = req.url;
-      return http.Response(jsonEncode({'items': [], 'pending': 0}), 200);
-    }));
+    final api = CoveyApi(
+      Uri.parse('https://c.example'),
+      'k',
+      client: MockClient((req) async {
+        seen = req.url;
+        return http.Response(jsonEncode({'items': [], 'pending': 0}), 200);
+      }),
+    );
     await api.waiting();
     expect(seen.path, '/api/v1/inbox');
     expect(seen.queryParameters, {'status': 'open', 'sort': 'urgent', 'limit': '100'});
   });
 
   test('a plain-text error is an HTTP error with its sentence, not a parse error', () async {
-    final api = CoveyApi(Uri.parse('https://c.example'), 'k',
-        client: MockClient((_) async => http.Response('404 page not found\n', 404)));
+    final api = CoveyApi(
+      Uri.parse('https://c.example'),
+      'k',
+      client: MockClient((_) async => http.Response('404 page not found\n', 404)),
+    );
     await expectLater(
       api.agents(),
-      throwsA(isA<ApiException>()
-          .having((e) => e.status, 'status', 404)
-          .having((e) => e.message, 'message', 'HTTP 404: 404 page not found')),
+      throwsA(
+        isA<ApiException>()
+            .having((e) => e.status, 'status', 404)
+            .having((e) => e.message, 'message', 'HTTP 404: 404 page not found'),
+      ),
     );
   });
 
@@ -60,21 +79,31 @@ void main() {
   });
 
   test('a refusal carries the status and the instance\'s sentence', () async {
-    final api = CoveyApi(Uri.parse('https://c.example'), 'k', client: MockClient((_) async {
-      return http.Response(jsonEncode({'error': 'the team surface is not enabled for this organisation'}), 403);
-    }));
+    final api = CoveyApi(
+      Uri.parse('https://c.example'),
+      'k',
+      client: MockClient((_) async {
+        return http.Response(jsonEncode({'error': 'the team surface is not enabled for this organisation'}), 403);
+      }),
+    );
     await expectLater(
       api.send('a1', 'hallo'),
-      throwsA(isA<ApiException>()
-          .having((e) => e.status, 'status', 403)
-          .having((e) => e.message, 'message', contains('team surface'))),
+      throwsA(
+        isA<ApiException>()
+            .having((e) => e.status, 'status', 403)
+            .having((e) => e.message, 'message', contains('team surface')),
+      ),
     );
   });
 
   test('a reply that woke nobody is not an error', () async {
-    final api = CoveyApi(Uri.parse('https://c.example'), 'k', client: MockClient((_) async {
-      return http.Response(jsonEncode({'note': {}, 'woken': false}), 200);
-    }));
+    final api = CoveyApi(
+      Uri.parse('https://c.example'),
+      'k',
+      client: MockClient((_) async {
+        return http.Response(jsonEncode({'note': {}, 'woken': false}), 200);
+      }),
+    );
     expect(await api.reply('t1', 'ja'), isFalse);
   });
 
@@ -82,8 +111,22 @@ void main() {
     final th = Thread.fromJson({
       'pending': true,
       'entries': [
-        {'kind': 'message', 'id': 't1', 'task_id': 't1', 'author': 'chat:a@b.c', 'text': 'Bitte prüfen', 'task_state': 'blocked'},
-        {'kind': 'question', 'id': 'n1', 'task_id': 't1', 'author': 'agent', 'text': 'Darf ich?', 'task_state': 'blocked'},
+        {
+          'kind': 'message',
+          'id': 't1',
+          'task_id': 't1',
+          'author': 'chat:a@b.c',
+          'text': 'Bitte prüfen',
+          'task_state': 'blocked',
+        },
+        {
+          'kind': 'question',
+          'id': 'n1',
+          'task_id': 't1',
+          'author': 'agent',
+          'text': 'Darf ich?',
+          'task_state': 'blocked',
+        },
         {'kind': 'question', 'id': 'n2', 'task_id': 't2', 'author': 'agent', 'text': 'Alt', 'task_state': 'done'},
       ],
     });

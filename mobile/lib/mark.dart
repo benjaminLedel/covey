@@ -17,8 +17,10 @@ class CoveyMark extends StatelessWidget {
   final double size;
 
   @override
-  Widget build(BuildContext context) =>
-      SizedBox.square(dimension: size, child: CustomPaint(painter: MarkPainter()));
+  Widget build(BuildContext context) => SizedBox.square(
+    dimension: size,
+    child: CustomPaint(painter: MarkPainter()),
+  );
 }
 
 /// Paints the mark, optionally part-way: [tile] scales the clay tile in,

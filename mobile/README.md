@@ -1,6 +1,7 @@
 # covey mobile
 
-The covey app for iOS and Android: the chat where the person is. What it is,
+The covey app for iOS and Android — and, from the same code, for macOS, Windows
+and Linux (#334): the chat where the person is. What it is,
 what it is not and what it must never do is in
 [`spec/27-mobile-app.md`](../spec/27-mobile-app.md); this file only says how to
 work on it.
@@ -25,6 +26,12 @@ key on writes (decision 3).
 The organisation must have the team surface switched on (Admin →
 Organization → Team surface, #328). Off, the app reads along and says why it
 cannot write.
+
+On a desktop the app has no scanner: it pairs through “Open in the app” on the
+web's pairing card (a `covey://` link), and a wide window shows the list and
+the thread side by side. macOS builds here; Windows and Linux are scaffolded
+and need their `covey://` registration at install time (registry, `.desktop`
+file) once there is an installer.
 
 ## Working on it
 

@@ -2489,7 +2489,8 @@
     "koppelnErsetzt": "Cela remplace la connexion à {{host}}.",
     "koppeln": "Associer",
     "desktopHinweis": "Ouvrez covey dans le navigateur, allez dans Profil et paramètres → Application mobile → « Associer l'application mobile » et cliquez sur « Ouvrir dans l'application ».",
-    "keineKamera": "Aucun appareil photo n'est disponible sur cet appareil. Ouvrez plutôt le code avec « Ouvrir dans l'application » dans l'interface web, ou connectez-vous avec une adresse et une clé API."
+    "keineKamera": "Aucun appareil photo n'est disponible sur cet appareil. Ouvrez plutôt le code avec « Ouvrir dans l'application » dans l'interface web, ou connectez-vous avec une adresse et une clé API.",
+    "waehlen": "Choisissez un collègue à gauche pour ouvrir la conversation."
   },
   "appLink": {
     "title": "Ouvrir dans l'application covey",

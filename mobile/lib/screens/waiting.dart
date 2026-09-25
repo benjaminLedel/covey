@@ -27,8 +27,10 @@ class WaitingScreen extends StatelessWidget {
       build: (context, page) => [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-          child: Text(context.t('team.wartetTitel', args: {'name': me.displayName.split(' ').first}),
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600)),
+          child: Text(
+            context.t('team.wartetTitel', args: {'name': me.displayName.split(' ').first}),
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+          ),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),

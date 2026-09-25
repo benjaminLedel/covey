@@ -19,7 +19,10 @@ void main() {
       final p = PairingCode.parse('https://app.covey.work/pair?code=coveypair_abc');
       expect(p!.instance.toString(), 'https://app.covey.work');
       expect(p.code, 'coveypair_abc');
-      expect(PairingCode.parse('https://x.org:8443/covey/pair?code=coveypair_a')!.instance.toString(), 'https://x.org:8443/covey');
+      expect(
+        PairingCode.parse('https://x.org:8443/covey/pair?code=coveypair_a')!.instance.toString(),
+        'https://x.org:8443/covey',
+      );
       expect(PairingCode.parse('https://app.covey.work/team/x?code=coveypair_abc'), isNull);
     });
 
@@ -30,7 +33,10 @@ void main() {
     });
 
     test('a QR code does not lift the HTTPS rule', () {
-      expect(() => PairingCode.parse('covey://pair?instance=http%3A%2F%2Fevil.example&code=coveypair_x'), throwsFormatException);
+      expect(
+        () => PairingCode.parse('covey://pair?instance=http%3A%2F%2Fevil.example&code=coveypair_x'),
+        throwsFormatException,
+      );
     });
   });
 
@@ -42,7 +48,10 @@ void main() {
       client: MockClient((req) async {
         seen = req;
         // UTF-8 as the instance sends it — the key name carries a '·'.
-        return http.Response.bytes(utf8.encode(jsonEncode({'token': 'covey_new', 'name': 'Mobile app · Adas iPhone (iOS)'})), 201);
+        return http.Response.bytes(
+          utf8.encode(jsonEncode({'token': 'covey_new', 'name': 'Mobile app · Adas iPhone (iOS)'})),
+          201,
+        );
       }),
     );
     expect(token, 'covey_new');
@@ -53,8 +62,11 @@ void main() {
 
   test('a refused code is an ApiException with its status', () async {
     await expectLater(
-      redeemPairing(PairingCode(Uri.parse('https://c.example'), 'coveypair_x'),
-          device: 'd', client: MockClient((_) async => http.Response('{"error":"pairing code invalid, used or expired"}', 401))),
+      redeemPairing(
+        PairingCode(Uri.parse('https://c.example'), 'coveypair_x'),
+        device: 'd',
+        client: MockClient((_) async => http.Response('{"error":"pairing code invalid, used or expired"}', 401)),
+      ),
       throwsA(isA<ApiException>().having((e) => e.status, 'status', 401)),
     );
   });

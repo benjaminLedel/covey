@@ -2489,7 +2489,8 @@
     "koppelnErsetzt": "Isto substitui a ligação a {{host}}.",
     "koppeln": "Emparelhar",
     "desktopHinweis": "Abra o covey no navegador, vá a Perfil e definições → Aplicação móvel → «Emparelhar a aplicação móvel» e clique em «Abrir na aplicação».",
-    "keineKamera": "Não há nenhuma câmara disponível neste dispositivo. Abra o código com «Abrir na aplicação» na interface web, ou ligue-se com endereço e chave API."
+    "keineKamera": "Não há nenhuma câmara disponível neste dispositivo. Abra o código com «Abrir na aplicação» na interface web, ou ligue-se com endereço e chave API.",
+    "waehlen": "Escolha um colega à esquerda para abrir a conversa."
   },
   "appLink": {
     "title": "Abrir na aplicação covey",

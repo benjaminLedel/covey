@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../api.dart';
@@ -15,13 +17,18 @@ import 'scan.dart';
 /// for when there is no second screen at hand. The address starts at
 /// app.covey.work, where most people's covey is (#331).
 class ConnectScreen extends StatefulWidget {
-  const ConnectScreen({
+  // Not const: without an explicit [desktop] the platform is asked.
+  ConnectScreen({
     super.key,
     required this.onConnected,
     this.makeApi = CoveyApi.new,
     this.scan,
     this.redeem = redeemPairing,
-  });
+    bool? desktop,
+  }) : desktop = desktop ?? isDesktop;
+
+  /// Whether this is the desktop app; the platform decides, a test may say.
+  final bool desktop;
 
   final Future<void> Function(Uri instance, String key) onConnected;
 
@@ -33,6 +40,10 @@ class ConnectScreen extends StatefulWidget {
 
   static const defaultInstance = 'app.covey.work';
 
+  /// A desktop has no camera worth pointing at its own screen (#334): it pairs
+  /// through "Open in the app" on the web's pairing card instead.
+  static bool get isDesktop => Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+
   @override
   State<ConnectScreen> createState() => _ConnectScreenState();
 }
@@ -41,8 +52,11 @@ class _ConnectScreenState extends State<ConnectScreen> {
   final _address = TextEditingController(text: ConnectScreen.defaultInstance);
   final _key = TextEditingController();
   String? _error;
+  // Which way in the error belongs to: it stands at the button that caused it,
+  // or a person at the bottom of the form never sees it.
+  bool _errorFromForm = false;
   bool _busy = false;
-  bool _manual = false;
+  late bool _manual = widget.desktop;
 
   @override
   void dispose() {
@@ -74,6 +88,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
       setState(() {
         _busy = false;
         _error = error;
+        _errorFromForm = false;
       });
       return;
     }
@@ -86,7 +101,10 @@ class _ConnectScreenState extends State<ConnectScreen> {
     try {
       base = parseInstance(_address.text);
     } on FormatException {
-      setState(() => _error = t('mobile.nurHttps'));
+      setState(() {
+        _error = t('mobile.nurHttps');
+        _errorFromForm = true;
+      });
       return;
     }
     final key = _key.text.trim();
@@ -113,6 +131,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
       setState(() {
         _busy = false;
         _error = error;
+        _errorFromForm = true;
       });
       return;
     }
@@ -124,69 +143,88 @@ class _ConnectScreenState extends State<ConnectScreen> {
     final c = context.colors;
     return Scaffold(
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(24, 40, 24, 24),
-          children: [
-            Row(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(24, 40, 24, 24),
               children: [
-                const CoveyMark(size: 44),
-                const SizedBox(width: 12),
-                Text('covey', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600, color: c.textPrimary)),
+                Row(
+                  children: [
+                    const CoveyMark(size: 44),
+                    const SizedBox(width: 12),
+                    Text(
+                      'covey',
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600, color: c.textPrimary),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 36),
+                Text(
+                  context.t('mobile.verbindenTitel'),
+                  style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w600, height: 1.2),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  widget.desktop ? context.t('mobile.desktopHinweis') : context.t('mobile.scanHinweis'),
+                  style: TextStyle(color: c.textMuted, height: 1.4),
+                ),
+                if (!widget.desktop) ...[
+                  const SizedBox(height: 24),
+                  FilledButton.icon(
+                    onPressed: _busy ? null : _pair,
+                    icon: const Icon(Icons.qr_code_scanner),
+                    style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+                    label: Text(_busy && !_manual ? context.t('common.loading') : context.t('mobile.scannen')),
+                  ),
+                ],
+                if (_error != null && !_errorFromForm) ...[
+                  const SizedBox(height: 16),
+                  Text(_error!, style: TextStyle(color: c.textDanger)),
+                ],
+                const SizedBox(height: 20),
+                if (!_manual)
+                  TextButton(onPressed: () => setState(() => _manual = true), child: Text(context.t('mobile.manuell')))
+                else ...[
+                  Divider(color: c.border),
+                  const SizedBox(height: 16),
+                  Text(context.t('mobile.verbindenLead'), style: TextStyle(color: c.textMuted, height: 1.4)),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _address,
+                    keyboardType: TextInputType.url,
+                    autocorrect: false,
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(labelText: context.t('mobile.adresse')),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: _key,
+                    obscureText: true,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    decoration: InputDecoration(labelText: context.t('mobile.schluessel'), hintText: 'covey_…'),
+                    onSubmitted: (_) => _busy ? null : _connect(),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    context.t('mobile.schluesselHinweis'),
+                    style: TextStyle(color: c.textMuted, fontSize: 12.5, height: 1.4),
+                  ),
+                  if (_error != null && _errorFromForm) ...[
+                    const SizedBox(height: 16),
+                    Text(_error!, style: TextStyle(color: c.textDanger)),
+                  ],
+                  const SizedBox(height: 20),
+                  OutlinedButton(
+                    onPressed: _busy ? null : _connect,
+                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                    child: Text(_busy ? context.t('common.loading') : context.t('mobile.verbinden')),
+                  ),
+                ],
               ],
             ),
-            const SizedBox(height: 36),
-            Text(context.t('mobile.verbindenTitel'),
-                style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w600, height: 1.2)),
-            const SizedBox(height: 12),
-            Text(context.t('mobile.scanHinweis'), style: TextStyle(color: c.textMuted, height: 1.4)),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: _busy ? null : _pair,
-              icon: const Icon(Icons.qr_code_scanner),
-              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
-              label: Text(_busy && !_manual ? context.t('common.loading') : context.t('mobile.scannen')),
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 16),
-              Text(_error!, style: TextStyle(color: c.textDanger)),
-            ],
-            const SizedBox(height: 20),
-            if (!_manual)
-              TextButton(
-                onPressed: () => setState(() => _manual = true),
-                child: Text(context.t('mobile.manuell')),
-              )
-            else ...[
-              Divider(color: c.border),
-              const SizedBox(height: 16),
-              Text(context.t('mobile.verbindenLead'), style: TextStyle(color: c.textMuted, height: 1.4)),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _address,
-                keyboardType: TextInputType.url,
-                autocorrect: false,
-                textInputAction: TextInputAction.next,
-                decoration: InputDecoration(labelText: context.t('mobile.adresse')),
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: _key,
-                obscureText: true,
-                autocorrect: false,
-                enableSuggestions: false,
-                decoration: InputDecoration(labelText: context.t('mobile.schluessel'), hintText: 'covey_…'),
-                onSubmitted: (_) => _busy ? null : _connect(),
-              ),
-              const SizedBox(height: 8),
-              Text(context.t('mobile.schluesselHinweis'), style: TextStyle(color: c.textMuted, fontSize: 12.5, height: 1.4)),
-              const SizedBox(height: 20),
-              OutlinedButton(
-                onPressed: _busy ? null : _connect,
-                style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-                child: Text(_busy ? context.t('common.loading') : context.t('mobile.verbinden')),
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );

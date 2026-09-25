@@ -102,10 +102,13 @@ class _CoveyAppState extends State<CoveyApp> {
         context: ctx,
         builder: (context) => AlertDialog(
           title: Text(t('mobile.koppelnFrage', args: {'host': pairing!.instance.host})),
-          content: Text([
-            t('mobile.koppelnFrageText'),
-            if (current != null && current != pairing.instance.host) t('mobile.koppelnErsetzt', args: {'host': current}),
-          ].join('\n\n')),
+          content: Text(
+            [
+              t('mobile.koppelnFrageText'),
+              if (current != null && current != pairing.instance.host)
+                t('mobile.koppelnErsetzt', args: {'host': current}),
+            ].join('\n\n'),
+          ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context, false), child: Text(t('team.abbrechen'))),
             FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(t('mobile.koppeln'))),
@@ -117,9 +120,9 @@ class _CoveyAppState extends State<CoveyApp> {
         final key = await redeemPairing(pairing);
         await _connected(pairing.instance, key);
       } on ApiException catch (e) {
-        messenger?.showSnackBar(SnackBar(
-          content: Text(e.status == 401 ? t('mobile.koppelnFehler') : t('mobile.nichtErreichbar')),
-        ));
+        messenger?.showSnackBar(
+          SnackBar(content: Text(e.status == 401 ? t('mobile.koppelnFehler') : t('mobile.nichtErreichbar'))),
+        );
       }
       return;
     }
@@ -133,9 +136,11 @@ class _CoveyAppState extends State<CoveyApp> {
       final me = await api.me();
       final agent = (await api.agents()).where((a) => a.id == agentId).firstOrNull;
       if (agent == null) return;
-      _nav.currentState?.push(MaterialPageRoute(
-        builder: (_) => ThreadScreen(api: api, agentId: agent.id, agentName: agent.displayName, me: me),
-      ));
+      _nav.currentState?.push(
+        MaterialPageRoute(
+          builder: (_) => ThreadScreen(api: api, agentId: agent.id, agentName: agent.displayName, me: me),
+        ),
+      );
     } on ApiException {
       return;
     }
@@ -201,14 +206,10 @@ class _CoveyAppState extends State<CoveyApp> {
           child: ScaleTransition(scale: Tween(begin: 0.98, end: 1.0).animate(animation), child: child),
         ),
         child: _splash
-            ? Splash(
-                key: const ValueKey('splash'),
-                ready: _loaded.future,
-                onDone: _splashDone,
-              )
+            ? Splash(key: const ValueKey('splash'), ready: _loaded.future, onDone: _splashDone)
             : _api == null
-                ? ConnectScreen(key: const ValueKey('connect'), onConnected: _connected)
-                : HomeScreen(key: ValueKey(_api), api: _api!, onDisconnect: _disconnect),
+            ? ConnectScreen(key: const ValueKey('connect'), onConnected: _connected)
+            : HomeScreen(key: ValueKey(_api), api: _api!, onDisconnect: _disconnect),
       ),
     );
   }

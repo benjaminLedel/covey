@@ -45,6 +45,12 @@ void main() {
       // background layer is the clay colour, set in pubspec.yaml.
       final inner = Rect.fromCenter(center: full.center, width: _size * 0.78, height: _size * 0.78);
       await _write('foreground.png', (c) => _mark(c, inner, MarkPainter(tile: 0)));
+
+      // macOS and Windows (#334): the rounded tile with a margin, the way a
+      // desktop icon is drawn — macOS does not mask it, so the corners are
+      // the mark's own. 824 of 1024 is Apple's grid for the icon body.
+      final body = Rect.fromCenter(center: full.center, width: 824, height: 824);
+      await _write('icon-desktop.png', (c) => _mark(c, body, MarkPainter()));
     });
   });
 }

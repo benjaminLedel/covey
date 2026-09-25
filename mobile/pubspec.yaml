@@ -111,3 +111,10 @@ flutter_launcher_icons:
   # The birds are already placed inside the safe zone by render_icons.dart.
   adaptive_icon_foreground_inset: 0
   adaptive_icon_monochrome: "assets/icon/foreground.png"
+  macos:
+    generate: true
+    image_path: "assets/icon/icon-desktop.png"
+  windows:
+    generate: true
+    image_path: "assets/icon/icon-desktop.png"
+    icon_size: 256

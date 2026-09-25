@@ -64,8 +64,11 @@ class _ScanScreenState extends State<ScanScreen> {
             errorBuilder: (context, _) => Center(
               child: Padding(
                 padding: const EdgeInsets.all(32),
-                child: Text(context.t('mobile.keineKamera'),
-                    textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, height: 1.4)),
+                child: Text(
+                  context.t('mobile.keineKamera'),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white, height: 1.4),
+                ),
               ),
             ),
           ),
@@ -76,7 +79,10 @@ class _ScanScreenState extends State<ScanScreen> {
             child: SafeArea(
               child: Container(
                 padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.7), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.7),
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: Text(
                   _hint ?? context.t('mobile.scanHinweis'),
                   style: const TextStyle(color: Colors.white, height: 1.4),

@@ -9,12 +9,12 @@ class Me {
   Me({required this.email, required this.displayName, required this.role, required this.teamSurface});
 
   factory Me.fromJson(Map<String, dynamic> j) => Me(
-        email: j['Email'] as String? ?? '',
-        displayName: j['DisplayName'] as String? ?? '',
-        role: j['Role'] as String? ?? '',
-        // Absent on an instance older than #328: there the surface was always on.
-        teamSurface: j['TeamSurface'] as bool? ?? true,
-      );
+    email: j['Email'] as String? ?? '',
+    displayName: j['DisplayName'] as String? ?? '',
+    role: j['Role'] as String? ?? '',
+    // Absent on an instance older than #328: there the surface was always on.
+    teamSurface: j['TeamSurface'] as bool? ?? true,
+  );
 
   final String email;
   final String displayName;
@@ -38,14 +38,14 @@ class Agent {
   });
 
   factory Agent.fromJson(Map<String, dynamic> j) => Agent(
-        id: j['id'] as String,
-        slug: j['slug'] as String? ?? '',
-        displayName: j['display_name'] as String? ?? '',
-        jobTitle: j['job_title'] as String? ?? '',
-        status: j['status'] as String? ?? '',
-        departmentId: j['department_id'] as String?,
-        killed: j['killed'] as bool? ?? false,
-      );
+    id: j['id'] as String,
+    slug: j['slug'] as String? ?? '',
+    displayName: j['display_name'] as String? ?? '',
+    jobTitle: j['job_title'] as String? ?? '',
+    status: j['status'] as String? ?? '',
+    departmentId: j['department_id'] as String?,
+    killed: j['killed'] as bool? ?? false,
+  );
 
   final String id;
   final String slug;
@@ -81,13 +81,13 @@ class InboxEntry {
   });
 
   factory InboxEntry.fromJson(Map<String, dynamic> j) => InboxEntry(
-        type: j['type'] as String? ?? '',
-        id: j['id'] as String,
-        agentId: j['agent_id'] as String? ?? '',
-        agentName: j['agent_name'] as String? ?? '',
-        title: j['title'] as String? ?? '',
-        createdAt: _time(j['created_at']),
-      );
+    type: j['type'] as String? ?? '',
+    id: j['id'] as String,
+    agentId: j['agent_id'] as String? ?? '',
+    agentName: j['agent_name'] as String? ?? '',
+    title: j['title'] as String? ?? '',
+    createdAt: _time(j['created_at']),
+  );
 
   final String type;
   final String id;
@@ -101,9 +101,9 @@ class InboxPage {
   InboxPage({required this.items, required this.pending});
 
   factory InboxPage.fromJson(Map<String, dynamic> j) => InboxPage(
-        items: [for (final e in (j['items'] as List? ?? const [])) InboxEntry.fromJson(e as Map<String, dynamic>)],
-        pending: j['pending'] as int? ?? 0,
-      );
+    items: [for (final e in (j['items'] as List? ?? const [])) InboxEntry.fromJson(e as Map<String, dynamic>)],
+    pending: j['pending'] as int? ?? 0,
+  );
 
   final List<InboxEntry> items;
   final int pending;
@@ -123,15 +123,15 @@ class ThreadEntry {
   });
 
   factory ThreadEntry.fromJson(Map<String, dynamic> j) => ThreadEntry(
-        kind: j['kind'] as String? ?? '',
-        id: j['id'] as String? ?? '',
-        taskId: j['task_id'] as String?,
-        taskTitle: j['task_title'] as String? ?? '',
-        taskState: j['task_state'] as String? ?? '',
-        author: j['author'] as String? ?? '',
-        text: j['text'] as String? ?? '',
-        at: _time(j['at']),
-      );
+    kind: j['kind'] as String? ?? '',
+    id: j['id'] as String? ?? '',
+    taskId: j['task_id'] as String?,
+    taskTitle: j['task_title'] as String? ?? '',
+    taskState: j['task_state'] as String? ?? '',
+    author: j['author'] as String? ?? '',
+    text: j['text'] as String? ?? '',
+    at: _time(j['at']),
+  );
 
   final String kind;
   final String id;
@@ -154,9 +154,9 @@ class Thread {
   Thread({required this.entries, required this.pending});
 
   factory Thread.fromJson(Map<String, dynamic> j) => Thread(
-        entries: [for (final e in (j['entries'] as List? ?? const [])) ThreadEntry.fromJson(e as Map<String, dynamic>)],
-        pending: j['pending'] as bool? ?? false,
-      );
+    entries: [for (final e in (j['entries'] as List? ?? const [])) ThreadEntry.fromJson(e as Map<String, dynamic>)],
+    pending: j['pending'] as bool? ?? false,
+  );
 
   final List<ThreadEntry> entries;
 

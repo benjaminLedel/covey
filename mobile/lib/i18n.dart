@@ -42,8 +42,7 @@ class Strings {
     return s.replaceAllMapped(RegExp(r'\{\{\s*(\w+)\s*\}\}'), (m) => '${all[m[1]] ?? ''}');
   }
 
-  static Strings of(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<StringsScope>()!.strings;
+  static Strings of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<StringsScope>()!.strings;
 }
 
 class StringsScope extends InheritedWidget {

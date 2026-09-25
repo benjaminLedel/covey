@@ -110,36 +110,41 @@ class _ThreadScreenState extends State<ThreadScreen> {
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.all(12),
-                child: Text(context.t('mobile.fehler', args: {'error': '$_error'}), style: TextStyle(color: c.textDanger)),
+                child: Text(
+                  context.t('mobile.fehler', args: {'error': '$_error'}),
+                  style: TextStyle(color: c.textDanger),
+                ),
               ),
             Expanded(
               child: th == null
                   ? Center(child: Text(context.t('common.loading')))
                   : entries.isEmpty
-                      ? _Empty(name: widget.agentName)
-                      : ListView.builder(
-                          controller: _scroll,
-                          reverse: true,
-                          padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-                          itemCount: entries.length + (th.pending ? 1 : 0),
-                          itemBuilder: (context, i) {
-                            if (th.pending && i == 0) {
-                              return Padding(
-                                padding: const EdgeInsets.all(8),
-                                child: Text('${widget.agentName} ${context.t('team.arbeitetGerade')}',
-                                    style: TextStyle(color: c.textMuted, fontStyle: FontStyle.italic)),
-                              );
-                            }
-                            final e = entries[i - (th.pending ? 1 : 0)];
-                            return _Line(
-                              entry: e,
-                              selected: _answering?.id == e.id,
-                              onAnswer: e.isOpenQuestion && widget.me.teamSurface
-                                  ? () => setState(() => _answering = _answering?.id == e.id ? null : e)
-                                  : null,
-                            );
-                          },
-                        ),
+                  ? _Empty(name: widget.agentName)
+                  : ListView.builder(
+                      controller: _scroll,
+                      reverse: true,
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                      itemCount: entries.length + (th.pending ? 1 : 0),
+                      itemBuilder: (context, i) {
+                        if (th.pending && i == 0) {
+                          return Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: Text(
+                              '${widget.agentName} ${context.t('team.arbeitetGerade')}',
+                              style: TextStyle(color: c.textMuted, fontStyle: FontStyle.italic),
+                            ),
+                          );
+                        }
+                        final e = entries[i - (th.pending ? 1 : 0)];
+                        return _Line(
+                          entry: e,
+                          selected: _answering?.id == e.id,
+                          onAnswer: e.isOpenQuestion && widget.me.teamSurface
+                              ? () => setState(() => _answering = _answering?.id == e.id ? null : e)
+                              : null,
+                        );
+                      },
+                    ),
             ),
             _Composer(
               controller: _text,
@@ -173,10 +178,17 @@ class _Empty extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(context.t('team.leerTitel', args: {'name': name}),
-                textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w600)),
+            Text(
+              context.t('team.leerTitel', args: {'name': name}),
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: 8),
-            Text(context.t('team.leerText'), textAlign: TextAlign.center, style: TextStyle(color: context.colors.textMuted)),
+            Text(
+              context.t('team.leerText'),
+              textAlign: TextAlign.center,
+              style: TextStyle(color: context.colors.textMuted),
+            ),
           ],
         ),
       ),
@@ -261,7 +273,10 @@ class _Composer extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.colors;
     return Container(
-      decoration: BoxDecoration(color: c.surface2, border: Border(top: BorderSide(color: c.border))),
+      decoration: BoxDecoration(
+        color: c.surface2,
+        border: Border(top: BorderSide(color: c.border)),
+      ),
       padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -270,8 +285,12 @@ class _Composer extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(context.t('chat.answering', args: {'title': answering!.taskTitle}),
-                      maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: c.textWait, fontSize: 12.5)),
+                  child: Text(
+                    context.t('chat.answering', args: {'title': answering!.taskTitle}),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: c.textWait, fontSize: 12.5),
+                  ),
                 ),
                 IconButton(
                   onPressed: onCancelAnswer,
@@ -295,8 +314,8 @@ class _Composer extends StatelessWidget {
                     hintText: !enabled
                         ? context.t('mobile.teamAusKurz')
                         : answering != null
-                            ? context.t('chat.placeholderAnswer')
-                            : context.t('chat.placeholder'),
+                        ? context.t('chat.placeholderAnswer')
+                        : context.t('chat.placeholder'),
                   ),
                 ),
               ),

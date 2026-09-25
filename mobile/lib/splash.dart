@@ -74,11 +74,7 @@ class _SplashState extends State<Splash> with SingleTickerProviderStateMixin {
                   child: CustomPaint(
                     painter: MarkPainter(
                       tile: _span(t, 0.0, 0.30, Curves.easeOutBack),
-                      birds: [
-                        _span(t, 0.20, 0.45),
-                        _span(t, 0.30, 0.55),
-                        _span(t, 0.40, 0.65),
-                      ],
+                      birds: [_span(t, 0.20, 0.45), _span(t, 0.30, 0.55), _span(t, 0.40, 0.65)],
                       flight: _span(t, 0.55, 1.0, Curves.easeInOut),
                     ),
                   ),

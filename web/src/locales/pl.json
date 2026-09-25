@@ -2489,7 +2489,8 @@
     "koppelnErsetzt": "To zastąpi połączenie z {{host}}.",
     "koppeln": "Sparuj",
     "desktopHinweis": "Proszę otworzyć covey w przeglądarce, przejść do Profil i ustawienia → Aplikacja mobilna → „Sparuj aplikację mobilną” i kliknąć „Otwórz w aplikacji”.",
-    "keineKamera": "Na tym urządzeniu nie ma dostępnej kamery. Proszę otworzyć kod przyciskiem „Otwórz w aplikacji” w interfejsie webowym albo połączyć się adresem i kluczem API."
+    "keineKamera": "Na tym urządzeniu nie ma dostępnej kamery. Proszę otworzyć kod przyciskiem „Otwórz w aplikacji” w interfejsie webowym albo połączyć się adresem i kluczem API.",
+    "waehlen": "Proszę wybrać współpracownika po lewej, aby otworzyć rozmowę."
   },
   "appLink": {
     "title": "Otwórz w aplikacji covey",

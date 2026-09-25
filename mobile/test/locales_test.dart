@@ -13,8 +13,7 @@ void main() {
     for (final e in expected.entries) {
       final file = File('assets/locales/${e.key}.json');
       expect(file.existsSync(), isTrue, reason: '${file.path} is missing');
-      expect(file.readAsStringSync(), e.value,
-          reason: '${file.path} is stale — run `dart run tool/sync_locales.dart`');
+      expect(file.readAsStringSync(), e.value, reason: '${file.path} is stale — run `dart run tool/sync_locales.dart`');
     }
   });
 

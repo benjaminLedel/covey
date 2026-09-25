@@ -2489,7 +2489,8 @@
     "koppelnErsetzt": "Das ersetzt die Verbindung zu {{host}}.",
     "koppeln": "Koppeln",
     "desktopHinweis": "Öffnen Sie covey im Browser, gehen Sie zu Profil & Einstellungen → Mobile App → „Mobile App koppeln“ und klicken Sie auf „In der App öffnen“.",
-    "keineKamera": "Auf diesem Gerät ist keine Kamera verfügbar. Öffnen Sie den Code stattdessen über „In der App öffnen“ in der Weboberfläche, oder verbinden Sie sich mit Adresse und API-Schlüssel."
+    "keineKamera": "Auf diesem Gerät ist keine Kamera verfügbar. Öffnen Sie den Code stattdessen über „In der App öffnen“ in der Weboberfläche, oder verbinden Sie sich mit Adresse und API-Schlüssel.",
+    "waehlen": "Wählen Sie links einen Kollegen, um das Gespräch zu öffnen."
   },
   "appLink": {
     "title": "In der covey-App öffnen",
