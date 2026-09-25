@@ -37,6 +37,7 @@ import (
 	"covey/internal/identity"
 	"covey/internal/mail"
 	"covey/internal/marketplace"
+	"covey/internal/mediastore"
 	"covey/internal/memory"
 	"covey/internal/notify"
 	"covey/internal/observability"
@@ -64,7 +65,10 @@ type Server struct {
 	Backlog  *backlog.Store
 	/* Das Gespräch. Es liegt neben dem Backlog und nicht darin: Der Backlog
 	   ist das Hauptbuch, das Gespräch der Umschlag (internal/chat). */
-	Chat     *chat.Store
+	Chat *chat.Store
+	// Media holds a person's media — the pictures in notes (#344). Nil means
+	// the builtin Postgres store. Not Blobs, the home store below.
+	Media    mediastore.Store
 	Obs      *observability.Store
 	Rails    *guardrails.Store
 	Secrets  secrets.Store
@@ -306,6 +310,10 @@ func (s *Server) Handler() http.Handler {
 	// keep notes, and nobody reads anybody else's — the routes carry no seat.
 	mux.Handle("GET /api/v1/me/notes", s.auth(s.handleListNotes))
 	mux.Handle("POST /api/v1/me/notes", s.auth(s.handleCreateNote))
+	// Pictures in notes (#344): into the media store, served to their owner.
+	// Registered before {id}: "media" is not a note id.
+	mux.Handle("POST /api/v1/me/notes/media", s.auth(s.handleUploadNoteMedia))
+	mux.Handle("GET /api/v1/me/notes/media/{id}", s.auth(s.handleNoteMedia))
 	mux.Handle("GET /api/v1/me/notes/{id}", s.auth(s.handleGetNote))
 	mux.Handle("PATCH /api/v1/me/notes/{id}", s.auth(s.handleUpdateNote))
 	mux.Handle("DELETE /api/v1/me/notes/{id}", s.auth(s.handleDeleteNote))

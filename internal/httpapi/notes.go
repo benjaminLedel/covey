@@ -1,11 +1,18 @@
 package httpapi
 
 import (
+	"bytes"
+	"context"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 
+	"github.com/google/uuid"
+
 	"covey/internal/llm"
+	"covey/internal/mediastore"
+	mediapg "covey/internal/mediastore/pg"
 	"covey/internal/notes"
 )
 
@@ -15,6 +22,122 @@ import (
 // further. Speech is recognised on the device; what arrives is text.
 
 func (s *Server) noteStore() *notes.Store { return notes.NewStore(s.Pool) }
+
+// media is the store for pictures in notes (#344): the configured one, else
+// the builtin Postgres store.
+func (s *Server) media() mediastore.Store {
+	if s.Media != nil {
+		return s.Media
+	}
+	return mediapg.New(s.Pool)
+}
+
+// forgetMedia removes the pictures that no note of the seat references any
+// more — after a note lost them or was deleted. A failure here leaves an
+// orphan, not a broken note, so it is not an error for the caller.
+func (s *Server) forgetMedia(ctx context.Context, humanID uuid.UUID, ids []uuid.UUID) {
+	st := s.noteStore()
+	for _, id := range ids {
+		if still, err := st.Referenced(ctx, humanID, id); err == nil && !still {
+			_ = s.media().Delete(ctx, humanID, id)
+		}
+	}
+}
+
+// maxNoteMedia bounds one picture. A phone photo is 2–6 MB; this leaves room
+// and keeps a video or an archive out.
+const maxNoteMedia = 12 << 20
+
+// noteMediaType decides what a picture is from its bytes, never from what the
+// client says: the stored type is served back, and a type the client could
+// choose would let it serve HTML from this origin. SVG is not accepted for
+// the same reason — it can carry script.
+func noteMediaType(data []byte) string {
+	switch t := http.DetectContentType(data); t {
+	case "image/jpeg", "image/png", "image/gif", "image/webp":
+		return t
+	}
+	// HEIC/HEIF (the iPhone's camera format): an ISO media file whose brand
+	// says so. DetectContentType does not know it.
+	if len(data) >= 12 && string(data[4:8]) == "ftyp" {
+		switch string(data[8:12]) {
+		case "heic", "heix", "hevc", "heim", "heis", "mif1", "msf1":
+			return "image/heic"
+		}
+	}
+	return ""
+}
+
+// handleUploadNoteMedia stores one picture for the seat's notes and answers
+// with the reference the note's Markdown carries.
+func (s *Server) handleUploadNoteMedia(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	if !p.HasOrg() {
+		writeErr(w, http.StatusConflict, "this account does not belong to an organisation yet")
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxNoteMedia+1<<20)
+	file, _, err := r.FormFile("file")
+	var tooBig *http.MaxBytesError
+	if errors.As(err, &tooBig) {
+		writeErr(w, http.StatusRequestEntityTooLarge, "a picture may be at most 12 MB")
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "expected a multipart upload with one field \"file\"")
+		return
+	}
+	defer file.Close()
+	var buf bytes.Buffer
+	n, err := io.Copy(&buf, io.LimitReader(file, maxNoteMedia+1))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "upload unreadable")
+		return
+	}
+	if n > maxNoteMedia {
+		writeErr(w, http.StatusRequestEntityTooLarge, "a picture may be at most 12 MB")
+		return
+	}
+	kind := noteMediaType(buf.Bytes())
+	if kind == "" {
+		writeErr(w, http.StatusUnsupportedMediaType, "only JPEG, PNG, GIF, WebP and HEIC pictures")
+		return
+	}
+	id, err := s.media().Put(r.Context(), p.OrgID, p.ID, kind, buf.Bytes())
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]string{
+		"id":  id.String(),
+		"ref": notes.MediaScheme + id.String(),
+	})
+}
+
+// handleNoteMedia serves a picture to the seat that owns it, and to nobody
+// else — another person's picture is not found, not forbidden.
+func (s *Server) handleNoteMedia(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	b, err := s.media().Get(r.Context(), principalFrom(r).ID, id)
+	if errors.Is(err, mediastore.ErrNotFound) {
+		writeErr(w, http.StatusNotFound, "not found")
+		return
+	}
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", b.ContentType)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	// A medium never changes under its id: private, and cached for a day.
+	w.Header().Set("Cache-Control", "private, max-age=86400, immutable")
+	w.Header().Set("Content-Length", strconv.Itoa(len(b.Data)))
+	_, _ = w.Write(b.Data)
+}
 
 // noteErr maps the store's errors; everything else goes to mapErr.
 func noteErr(w http.ResponseWriter, err error) {
@@ -101,11 +224,19 @@ func (s *Server) handleUpdateNote(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	n, err := s.noteStore().Update(r.Context(), principalFrom(r).ID, id, in.Title, in.Body)
+	p := principalFrom(r)
+	before, err := s.noteStore().Get(r.Context(), p.ID, id)
 	if err != nil {
 		noteErr(w, err)
 		return
 	}
+	n, err := s.noteStore().Update(r.Context(), p.ID, id, in.Title, in.Body)
+	if err != nil {
+		noteErr(w, err)
+		return
+	}
+	// Pictures the text no longer shows go, unless another note shows them.
+	s.forgetMedia(r.Context(), p.ID, notes.MediaRefs(before.Body))
 	writeJSON(w, http.StatusOK, n)
 }
 
@@ -115,10 +246,17 @@ func (s *Server) handleDeleteNote(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	if err := s.noteStore().Delete(r.Context(), principalFrom(r).ID, id); err != nil {
+	p := principalFrom(r)
+	before, err := s.noteStore().Get(r.Context(), p.ID, id)
+	if err != nil {
 		noteErr(w, err)
 		return
 	}
+	if err := s.noteStore().Delete(r.Context(), p.ID, id); err != nil {
+		noteErr(w, err)
+		return
+	}
+	s.forgetMedia(r.Context(), p.ID, notes.MediaRefs(before.Body))
 	w.WriteHeader(http.StatusNoContent)
 }
 
