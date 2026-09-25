@@ -2443,5 +2443,24 @@
     "imGespraechSuchen": "Im Gespräch mit {{name}} suchen",
     "imGespraechLead": "Durchsucht Nachrichten, Notizen, Fragen und Ergebnisse dieses Gesprächs.",
     "sucheMarkieren": "Kollegen markieren"
+  },
+  "mobile": {
+    "verbindenTitel": "Wo ist dein covey?",
+    "verbindenLead": "Die Adresse deiner covey-Installation und ein API-Schlüssel, mit dem du dich anmeldest.",
+    "adresse": "Adresse",
+    "schluessel": "API-Schlüssel",
+    "schluesselHinweis": "Einen Schlüssel legst du in der Weboberfläche unter Profil & Einstellungen an. Der Schlüssel ist eine Übergangslösung: Er wird durch eine Anmeldung ersetzt, die an dieses Gerät gebunden ist.",
+    "verbinden": "Verbinden",
+    "nurHttps": "Nur HTTPS-Adressen.",
+    "nichtErreichbar": "Unter dieser Adresse antwortet nichts.",
+    "schluesselAbgelehnt": "Die Installation hat diesen Schlüssel nicht angenommen.",
+    "keinCovey": "Dort antwortet etwas, aber es ist kein covey.",
+    "trennen": "Trennen",
+    "teamAus": "Die Team-Oberfläche ist für diese Organisation nicht eingeschaltet. Du kannst mitlesen, Nachrichten werden aber abgelehnt. Eine Administratorin schaltet sie unter Verwaltung → Organisation ein.",
+    "teamAusKurz": "Team-Oberfläche ist aus",
+    "nichtGeweckt": "Notiert. Niemand hat darauf gewartet — der Agent liest es bei seinem nächsten Lauf.",
+    "fehler": "Konnte nicht laden: {{error}}",
+    "erneut": "Erneut versuchen",
+    "imWebEntscheiden": "Entschieden wird vorerst in der Weboberfläche."
   }
 }

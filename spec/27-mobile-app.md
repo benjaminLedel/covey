@@ -1,6 +1,6 @@
 # 27 — The mobile app: the chat where the person is
 
-**Status: specification, nothing built.** What it builds on exists: the chat is in covey (#298 — `internal/httpapi/chat.go`, `web/src/workspace/`). This document is written for the developers who build the app, and it says what they may rely on, what they have to ask for, and what the app must never do.
+**Status: a first slice is built** (#329, `mobile/`): the connection screen with an API key as the interim badge, what waits (read-only), the colleagues, and the thread with message and reply. Decisions 1–4 below are open, so it is a prototype and called one. What it builds on: the chat in covey (#298 — `internal/httpapi/chat.go`, `web/src/team/`), which since #328 has to be switched on per organisation — off, the instance refuses a message with 403, and the app reads `TeamSurface` from `/auth/me` to say so before anybody types. This document is written for the developers who build the app, and it says what they may rely on, what they have to ask for, and what the app must never do.
 
 ## Why an app
 
@@ -10,7 +10,7 @@ The cost of that is measurable in the object: a task in `blocked` costs nothing 
 
 So the app has exactly one job: **carry the question to the person and the answer back**. Everything else it does is in service of that.
 
-The web has the same split since #298: the workspace is its own shell there, not a page in the console — same three surfaces, same rule about what belongs in neither. The app inherits that division rather than inventing one.
+The web has the same split since #298: the team surface is its own shell there, not a page in the console — same three surfaces, same rule about what belongs in neither. The app inherits that division rather than inventing one.
 
 ## What the app is
 

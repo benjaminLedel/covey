@@ -2443,5 +2443,24 @@
     "imGespraechSuchen": "Search the conversation with {{name}}",
     "imGespraechLead": "Searches the messages, notes, questions and results of this conversation.",
     "sucheMarkieren": "pick a colleague"
+  },
+  "mobile": {
+    "verbindenTitel": "Where is your covey?",
+    "verbindenLead": "The address of your covey installation, and an API key to sign in with.",
+    "adresse": "Address",
+    "schluessel": "API key",
+    "schluesselHinweis": "Create a key in the web interface under Profile & Settings. The key is an interim: it will be replaced by a sign-in bound to this device.",
+    "verbinden": "Connect",
+    "nurHttps": "Only HTTPS addresses.",
+    "nichtErreichbar": "Nothing answers at this address.",
+    "schluesselAbgelehnt": "The installation did not accept this key.",
+    "keinCovey": "Something answers there, but it is not a covey.",
+    "trennen": "Disconnect",
+    "teamAus": "The team surface is not switched on for this organisation. You can read along, but messages are refused. An admin switches it on under Admin → Organization.",
+    "teamAusKurz": "Team surface is off",
+    "nichtGeweckt": "Written down. Nobody was waiting for it — the agent reads it on its next run.",
+    "fehler": "Could not load: {{error}}",
+    "erneut": "Try again",
+    "imWebEntscheiden": "Decisions are made in the web interface for now."
   }
 }

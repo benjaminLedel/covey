@@ -2443,5 +2443,24 @@
     "imGespraechSuchen": "Szukaj w rozmowie z {{name}}",
     "imGespraechLead": "Przeszukuje wiadomości, notatki, pytania i wyniki tej rozmowy.",
     "sucheMarkieren": "wybierz osobę"
+  },
+  "mobile": {
+    "verbindenTitel": "Gdzie jest twój covey?",
+    "verbindenLead": "Adres twojej instalacji covey i klucz API do logowania.",
+    "adresse": "Adres",
+    "schluessel": "Klucz API",
+    "schluesselHinweis": "Klucz utworzysz w interfejsie webowym w sekcji Profil i ustawienia. Klucz jest rozwiązaniem tymczasowym: zastąpi go logowanie powiązane z tym urządzeniem.",
+    "verbinden": "Połącz",
+    "nurHttps": "Tylko adresy HTTPS.",
+    "nichtErreichbar": "Pod tym adresem nic nie odpowiada.",
+    "schluesselAbgelehnt": "Instalacja nie przyjęła tego klucza.",
+    "keinCovey": "Coś tam odpowiada, ale to nie jest covey.",
+    "trennen": "Rozłącz",
+    "teamAus": "Widok zespołu nie jest włączony dla tej organizacji. Możesz czytać, ale wiadomości są odrzucane. Administrator włącza go w Administracja → Organizacja.",
+    "teamAusKurz": "Widok zespołu wyłączony",
+    "nichtGeweckt": "Zapisano. Nikt na to nie czekał — agent przeczyta to przy następnym uruchomieniu.",
+    "fehler": "Nie udało się wczytać: {{error}}",
+    "erneut": "Spróbuj ponownie",
+    "imWebEntscheiden": "Na razie decyzje podejmuje się w interfejsie webowym."
   }
 }

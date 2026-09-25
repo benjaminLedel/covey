@@ -2443,5 +2443,24 @@
     "imGespraechSuchen": "Procurar na conversa com {{name}}",
     "imGespraechLead": "Procura nas mensagens, notas, perguntas e resultados desta conversa.",
     "sucheMarkieren": "escolher colega"
+  },
+  "mobile": {
+    "verbindenTitel": "Onde está o teu covey?",
+    "verbindenLead": "O endereço da tua instalação covey e uma chave API para iniciar sessão.",
+    "adresse": "Endereço",
+    "schluessel": "Chave API",
+    "schluesselHinweis": "Cria uma chave na interface web, em Perfil e definições. A chave é provisória: será substituída por um início de sessão ligado a este dispositivo.",
+    "verbinden": "Ligar",
+    "nurHttps": "Apenas endereços HTTPS.",
+    "nichtErreichbar": "Nada responde neste endereço.",
+    "schluesselAbgelehnt": "A instalação não aceitou esta chave.",
+    "keinCovey": "Algo responde aí, mas não é um covey.",
+    "trennen": "Desligar",
+    "teamAus": "A área da equipa não está ativada para esta organização. Podes ler, mas as mensagens são recusadas. Um administrador ativa-a em Administração → Organização.",
+    "teamAusKurz": "Área da equipa desativada",
+    "nichtGeweckt": "Registado. Ninguém estava à espera — o agente lê-o na próxima execução.",
+    "fehler": "Não foi possível carregar: {{error}}",
+    "erneut": "Tentar novamente",
+    "imWebEntscheiden": "Por agora, as decisões são tomadas na interface web."
   }
 }

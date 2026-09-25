@@ -2443,5 +2443,24 @@
     "imGespraechSuchen": "{{name}} との会話を検索",
     "imGespraechLead": "この会話のメッセージ、メモ、質問、結果を検索します。",
     "sucheMarkieren": "相手を選ぶ"
+  },
+  "mobile": {
+    "verbindenTitel": "あなたの covey はどこですか？",
+    "verbindenLead": "covey インストールのアドレスと、サインインに使う API キー。",
+    "adresse": "アドレス",
+    "schluessel": "API キー",
+    "schluesselHinweis": "キーはウェブ画面の「プロフィールと設定」で作成します。キーは暫定的なもので、このデバイスに紐づいたサインインに置き換えられます。",
+    "verbinden": "接続",
+    "nurHttps": "HTTPS アドレスのみ。",
+    "nichtErreichbar": "このアドレスでは何も応答しません。",
+    "schluesselAbgelehnt": "インストールがこのキーを受け付けませんでした。",
+    "keinCovey": "何かが応答していますが、covey ではありません。",
+    "trennen": "切断",
+    "teamAus": "この組織ではチーム画面がオンになっていません。閲覧はできますが、メッセージは拒否されます。管理者が「管理」→「組織」でオンにできます。",
+    "teamAusKurz": "チーム画面はオフです",
+    "nichtGeweckt": "記録しました。待っている人はいませんでした — エージェントは次回の実行時に読みます。",
+    "fehler": "読み込めませんでした: {{error}}",
+    "erneut": "再試行",
+    "imWebEntscheiden": "今のところ、判断はウェブ画面で行います。"
   }
 }

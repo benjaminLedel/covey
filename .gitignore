@@ -40,3 +40,7 @@ praesentationen/~$*
 # Python bytecode of the demo scripts — build output, not project state
 __pycache__/
 *.pyc
+
+# Xcode resolves the mobile app's Swift packages here, beside the repository
+# root, when mobile/ is built for iOS.
+/build/ios/

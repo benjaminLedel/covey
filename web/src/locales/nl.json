@@ -2443,5 +2443,24 @@
     "imGespraechSuchen": "Zoeken in het gesprek met {{name}}",
     "imGespraechLead": "Doorzoekt de berichten, notities, vragen en resultaten van dit gesprek.",
     "sucheMarkieren": "collega kiezen"
+  },
+  "mobile": {
+    "verbindenTitel": "Waar is je covey?",
+    "verbindenLead": "Het adres van je covey-installatie en een API-sleutel om mee in te loggen.",
+    "adresse": "Adres",
+    "schluessel": "API-sleutel",
+    "schluesselHinweis": "Maak een sleutel aan in de webinterface onder Profiel & instellingen. De sleutel is tijdelijk: hij wordt vervangen door een aanmelding die aan dit apparaat gebonden is.",
+    "verbinden": "Verbinden",
+    "nurHttps": "Alleen HTTPS-adressen.",
+    "nichtErreichbar": "Op dit adres antwoordt niets.",
+    "schluesselAbgelehnt": "De installatie heeft deze sleutel niet geaccepteerd.",
+    "keinCovey": "Er antwoordt iets, maar het is geen covey.",
+    "trennen": "Verbinding verbreken",
+    "teamAus": "De teamomgeving is voor deze organisatie niet ingeschakeld. Je kunt meelezen, maar berichten worden geweigerd. Een beheerder schakelt haar in onder Beheer → Organisatie.",
+    "teamAusKurz": "Teamomgeving staat uit",
+    "nichtGeweckt": "Genoteerd. Niemand wachtte erop — de agent leest het bij zijn volgende run.",
+    "fehler": "Kon niet laden: {{error}}",
+    "erneut": "Opnieuw proberen",
+    "imWebEntscheiden": "Beslissingen worden voorlopig in de webinterface genomen."
   }
 }

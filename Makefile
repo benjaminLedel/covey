@@ -12,7 +12,7 @@ LDFLAGS := -X covey/internal/buildinfo.version=$(VERSION) \
            -X covey/internal/buildinfo.commit=$(COMMIT) \
            -X covey/internal/buildinfo.date=$(DATE)
 
-.PHONY: build build-nopack web test test-integration run bootstrap dev-db sandbox-image sandbox-image-dev sandbox-image-dev-flutter sandbox-image-dev-php sandbox-image-dev-web sandbox-image-dev-full sandbox-images sandbox-images-pull upgrade runner egress-image clean skill-sync
+.PHONY: build build-nopack web test test-integration run bootstrap dev-db sandbox-image sandbox-image-dev sandbox-image-dev-flutter sandbox-image-dev-php sandbox-image-dev-web sandbox-image-dev-full sandbox-images sandbox-images-pull upgrade runner egress-image clean skill-sync test-mobile mobile-locales
 
 # npm ci instead of npm install — deliberately: it installs exactly the lockfile
 # and never rewrites it. npm install on macOS throws the Linux/wasm branches
@@ -157,6 +157,15 @@ test:
 
 test-integration:
 	$(GO) test ./internal/integration/ -v
+
+# The mobile app (spec/27). Needs Flutter; not part of `make test`, which
+# needs only Go.
+test-mobile:
+	cd mobile && flutter analyze && flutter test
+
+# Copies the keys the app uses out of web/src/locales into mobile/assets.
+mobile-locales:
+	cd mobile && dart run tool/sync_locales.dart
 
 clean:
 	rm -f covey coveyd covey-runner

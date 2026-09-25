@@ -2443,5 +2443,24 @@
     "imGespraechSuchen": "在与 {{name}} 的对话中搜索",
     "imGespraechLead": "搜索这段对话里的消息、备注、提问和结果。",
     "sucheMarkieren": "选择同事"
+  },
+  "mobile": {
+    "verbindenTitel": "你的 covey 在哪里？",
+    "verbindenLead": "你的 covey 安装地址，以及用于登录的 API 密钥。",
+    "adresse": "地址",
+    "schluessel": "API 密钥",
+    "schluesselHinweis": "在网页界面的“个人资料与设置”中创建密钥。密钥只是过渡方案：之后会被绑定到此设备的登录方式取代。",
+    "verbinden": "连接",
+    "nurHttps": "仅限 HTTPS 地址。",
+    "nichtErreichbar": "此地址没有响应。",
+    "schluesselAbgelehnt": "该安装未接受此密钥。",
+    "keinCovey": "那里有响应，但不是 covey。",
+    "trennen": "断开连接",
+    "teamAus": "此组织尚未开启团队界面。你可以查看，但消息会被拒绝。管理员可在“管理”→“组织”中开启。",
+    "teamAusKurz": "团队界面已关闭",
+    "nichtGeweckt": "已记录。没有人在等待——智能体会在下次运行时读取。",
+    "fehler": "无法加载：{{error}}",
+    "erneut": "重试",
+    "imWebEntscheiden": "目前请在网页界面中做决定。"
   }
 }

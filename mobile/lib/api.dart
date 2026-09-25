@@ -1,0 +1,122 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+
+import 'models.dart';
+
+/// An answer of the instance that was not a success. [status] is 0 when no
+/// answer arrived at all.
+class ApiException implements Exception {
+  ApiException(this.status, this.message);
+
+  final int status;
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+/// Checks and normalises the address a person typed. HTTPS only (spec/27);
+/// the one exception is a loopback address in a debug build, which is how the
+/// app is developed against `make run`.
+Uri parseInstance(String input) {
+  var s = input.trim();
+  if (!s.contains('://')) s = 'https://$s';
+  final uri = Uri.tryParse(s);
+  if (uri == null || uri.host.isEmpty) throw const FormatException('address');
+  final loopback = {'localhost', '127.0.0.1', '10.0.2.2'}.contains(uri.host);
+  if (uri.scheme != 'https' && !(kDebugMode && loopback && uri.scheme == 'http')) {
+    throw const FormatException('https');
+  }
+  return uri.replace(path: uri.path.replaceAll(RegExp(r'/+$'), ''), query: null, fragment: null);
+}
+
+/// The instance, spoken to with an API key as the bearer.
+///
+/// The key is the interim spec/27 names — not the design. The device badge
+/// (decision 1) replaces it, and nothing outside this class may know which of
+/// the two it is.
+class CoveyApi {
+  CoveyApi(this.base, this._key, {http.Client? client}) : _http = client ?? http.Client();
+
+  final Uri base;
+  final String _key;
+  final http.Client _http;
+
+  static const _timeout = Duration(seconds: 20);
+
+  Uri _url(String path) => base.replace(path: '${base.path}/api/v1$path');
+
+  Map<String, String> get _headers => {
+        'Authorization': 'Bearer $_key',
+        'Accept': 'application/json',
+      };
+
+  Future<dynamic> _send(Future<http.Response> Function() call) async {
+    final http.Response res;
+    try {
+      res = await call().timeout(_timeout);
+    } catch (e) {
+      throw ApiException(0, e.toString());
+    }
+    final body = res.body.isEmpty ? null : jsonDecode(utf8.decode(res.bodyBytes));
+    if (res.statusCode >= 400) {
+      final msg = body is Map && body['error'] is String ? body['error'] as String : 'HTTP ${res.statusCode}';
+      throw ApiException(res.statusCode, msg);
+    }
+    return body;
+  }
+
+  Future<dynamic> get(String path) => _send(() => _http.get(_url(path), headers: _headers));
+
+  Future<dynamic> post(String path, Map<String, Object?> body) => _send(() => _http.post(
+        _url(path),
+        headers: {..._headers, 'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      ));
+
+  /// Whether anything answers at the address at all. The only thing an
+  /// instance says without a badge, and "ok" does not yet say it is a covey —
+  /// /auth/me does that, behind the key.
+  Future<bool> reachable() async {
+    try {
+      final res = await _http.get(base.replace(path: '${base.path}/healthz')).timeout(_timeout);
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<Me> me() async => Me.fromJson(await get('/auth/me') as Map<String, dynamic>);
+
+  Future<String> version() async {
+    final v = await get('/version') as Map<String, dynamic>;
+    return v['version'] as String? ?? '';
+  }
+
+  Future<List<Agent>> agents() async =>
+      [for (final a in (await get('/agents') as List? ?? const [])) Agent.fromJson(a as Map<String, dynamic>)];
+
+  Future<List<Department>> departments() async => [
+        for (final d in (await get('/departments') as List? ?? const [])) Department.fromJson(d as Map<String, dynamic>)
+      ];
+
+  Future<InboxPage> waiting() async =>
+      InboxPage.fromJson(await get('/inbox?status=open&sort=urgent&limit=100') as Map<String, dynamic>);
+
+  Future<Thread> thread(String agentId) async =>
+      Thread.fromJson(await get('/agents/$agentId/thread') as Map<String, dynamic>);
+
+  /// Hands work over. What becomes of it — a task, or an answer when the
+  /// organisation runs the triage — the thread shows on its next read.
+  Future<void> send(String agentId, String text) => post('/agents/$agentId/messages', {'text': text});
+
+  /// Answers a parked question. Returns whether it woke the agent; false is
+  /// not an error — nobody was waiting, and the text stays on the task as a
+  /// note (spec/27).
+  Future<bool> reply(String taskId, String text) async {
+    final r = await post('/tasks/$taskId/reply', {'text': text}) as Map<String, dynamic>;
+    return r['woken'] as bool? ?? false;
+  }
+}
