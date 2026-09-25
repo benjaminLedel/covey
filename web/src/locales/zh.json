@@ -2569,7 +2569,13 @@
     "modell_tiny": "最快，准确度最低",
     "modell_base": "均衡",
     "modell_small": "更准确，需要更多时间和存储空间",
-    "modell_medium": "最准确，在手机上较慢"
+    "modell_medium": "最准确，在手机上较慢",
+    "diagnose": "诊断",
+    "protokollAufzeichnen": "记录日志",
+    "protokollKopieren": "复制日志",
+    "protokollLoeschen": "删除日志",
+    "protokollKopiert": "日志已复制。",
+    "diagnoseHinweis": "日志保存在此设备上。它只记录操作过程、耗时和错误，不含任何内容：没有笔记、转写、消息或密钥。"
   },
   "appLink": {
     "title": "在 covey 应用中打开",

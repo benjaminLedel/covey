@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io' show stderr;
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -7,6 +6,7 @@ import 'package:record/record.dart';
 import 'package:whisper_ggml/whisper_ggml.dart';
 
 import 'api.dart';
+import 'diagnostics.dart';
 import 'speech_model.dart';
 
 /// Why dictation could not start.
@@ -260,9 +260,9 @@ bool _isHallucination(String text) {
       RegExp(r'^\W*(\[.*\]|\(.*\)|\*.*\*)\W*$').hasMatch(t);
 }
 
-/// Diagnostics on stderr: in a profile or release build that is what a
-/// device console shows (`devicectl … --console`), where print is not.
-void _log(String line) => stderr.writeln('covey dictation: $line');
+/// Into the diagnostic log (#352) and onto stderr: lengths and levels,
+/// never what was said.
+void _log(String line) => diag('dictation', line);
 
 /// Root mean square of 16-bit little-endian PCM, 0–1 linear.
 double _linearRms(Uint8List b) {

@@ -2569,7 +2569,13 @@
     "modell_tiny": "Najszybszy, najmniej dokładny",
     "modell_base": "Zrównoważony",
     "modell_small": "Dokładniejszy, wymaga więcej czasu i miejsca",
-    "modell_medium": "Najdokładniejszy, wolny na telefonie"
+    "modell_medium": "Najdokładniejszy, wolny na telefonie",
+    "diagnose": "Diagnostyka",
+    "protokollAufzeichnen": "Zapisuj dziennik",
+    "protokollKopieren": "Kopiuj dziennik",
+    "protokollLoeschen": "Usuń dziennik",
+    "protokollKopiert": "Dziennik skopiowany.",
+    "diagnoseHinweis": "Dziennik zostaje na tym urządzeniu. Zapisuje przebieg, czasy i błędy, bez treści: bez notatek, transkrypcji, wiadomości i kluczy."
   },
   "appLink": {
     "title": "Otwórz w aplikacji covey",

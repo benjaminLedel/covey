@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../api.dart';
+import '../diagnostics.dart';
 import '../dictation.dart';
 import '../dictation_view.dart';
 import '../i18n.dart';
@@ -51,16 +53,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     _model.addListener(_changed);
     _model.loadPrefs().then((_) => _model.refresh(widget.api));
+    Diagnostics.instance.addListener(_changed);
+    _measureLog();
   }
 
   @override
   void dispose() {
+    Diagnostics.instance.removeListener(_changed);
     _model.removeListener(_changed);
     super.dispose();
   }
 
   void _changed() {
     if (mounted) setState(() {});
+  }
+
+  int? _logBytes;
+
+  Future<void> _measureLog() async {
+    final n = await Diagnostics.instance.size();
+    if (mounted) setState(() => _logBytes = n);
+  }
+
+  Future<void> _copyLog() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final done = context.t('mobile.protokollKopiert');
+    final text = await Diagnostics.instance.read();
+    await Clipboard.setData(ClipboardData(text: text));
+    messenger.showSnackBar(SnackBar(content: Text(done)));
+  }
+
+  Future<void> _clearLog() async {
+    await Diagnostics.instance.clear();
+    await _measureLog();
   }
 
   String _mb(int bytes) => '${(bytes / 1000000).round()} MB';
@@ -300,6 +325,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(32, 8, 32, 0),
             child: Text(context.t('mobile.sprachHinweis'), style: small),
+          ),
+
+          SectionTitle(context.t('mobile.diagnose')),
+          InsetGroup(
+            dividerIndent: 14,
+            children: [
+              GroupRow(
+                title: context.t('mobile.protokollAufzeichnen'),
+                trailing: Switch.adaptive(
+                  value: Diagnostics.instance.enabled,
+                  onChanged: (on) async {
+                    await Diagnostics.instance.setEnabled(on);
+                    await _measureLog();
+                  },
+                ),
+              ),
+              GroupRow(
+                title: context.t('mobile.protokollKopieren'),
+                subtitle: _logBytes == null ? null : '${(_logBytes! / 1000).ceil()} KB',
+                tabularSubtitle: true,
+                onTap: (_logBytes ?? 0) > 0 ? _copyLog : null,
+              ),
+              GroupRow(title: context.t('mobile.protokollLoeschen'), onTap: (_logBytes ?? 0) > 0 ? _clearLog : null),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(32, 8, 32, 0),
+            child: Text(context.t('mobile.diagnoseHinweis'), style: small),
           ),
 
           const SizedBox(height: 28),

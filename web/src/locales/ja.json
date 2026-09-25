@@ -2569,7 +2569,13 @@
     "modell_tiny": "最速・精度は最も低い",
     "modell_base": "バランス型",
     "modell_small": "より正確・時間と容量が必要",
-    "modell_medium": "最も正確・端末では低速"
+    "modell_medium": "最も正確・端末では低速",
+    "diagnose": "診断",
+    "protokollAufzeichnen": "ログを記録",
+    "protokollKopieren": "ログをコピー",
+    "protokollLoeschen": "ログを削除",
+    "protokollKopiert": "ログをコピーしました。",
+    "diagnoseHinweis": "ログはこの端末に保存されます。動作・時間・エラーのみを記録し、メモ、文字起こし、メッセージ、キーなどの内容は含みません。"
   },
   "appLink": {
     "title": "covey アプリで開く",

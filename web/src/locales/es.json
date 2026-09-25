@@ -2569,7 +2569,13 @@
     "modell_tiny": "El más rápido, el menos preciso",
     "modell_base": "Equilibrado",
     "modell_small": "Más preciso, necesita más tiempo y espacio",
-    "modell_medium": "El más preciso, lento en el teléfono"
+    "modell_medium": "El más preciso, lento en el teléfono",
+    "diagnose": "Diagnóstico",
+    "protokollAufzeichnen": "Grabar un registro",
+    "protokollKopieren": "Copiar el registro",
+    "protokollLoeschen": "Borrar el registro",
+    "protokollKopiert": "Registro copiado.",
+    "diagnoseHinweis": "El registro se queda en este dispositivo. Anota procesos, tiempos y errores, sin contenido: ni notas, ni transcripciones, ni mensajes, ni claves."
   },
   "appLink": {
     "title": "Abrir en la aplicación covey",

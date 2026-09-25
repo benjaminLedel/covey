@@ -8,6 +8,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'api.dart';
+import 'diagnostics.dart';
 
 /// Why the speech model is not on the phone.
 enum SpeechModelProblem {
@@ -189,6 +190,7 @@ class SpeechModel extends ChangeNotifier {
     // A model somebody just picked may still be on its way to the
     // instance: wait for it there, with its progress, rather than failing.
     if (!info.ready && info.fetching) {
+      diag('speech', 'waiting for the instance to fetch ${info.name}');
       onInstance = true;
       try {
         while (!info.ready && info.fetching) {
@@ -209,6 +211,7 @@ class SpeechModel extends ChangeNotifier {
     }
 
     final part = File('${file.path}.part');
+    diag('speech', 'downloading ${info.name}, ${info.size} bytes');
     downloading = true;
     total = info.size;
     received = await part.exists() ? await part.length() : 0;
@@ -221,6 +224,7 @@ class SpeechModel extends ChangeNotifier {
         return _fail(SpeechModelProblem.failed, 'sha256 $sum');
       }
       await part.rename(file.path);
+      diag('speech', '${info.name} verified and kept');
       // Whatever model came before is not needed any more.
       await for (final f in dir.list()) {
         if (f.path != file.path && f is File && !f.path.endsWith('.part')) await f.delete();
@@ -260,6 +264,7 @@ class SpeechModel extends ChangeNotifier {
   }
 
   String? _fail(SpeechModelProblem p, String? d) {
+    diag('speech', 'model not available: ${p.name}${d == null ? '' : ' · $d'}');
     problem = p;
     detail = d;
     notifyListeners();

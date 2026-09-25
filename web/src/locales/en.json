@@ -2569,7 +2569,13 @@
     "modell_tiny": "Fastest, least accurate",
     "modell_base": "Balanced",
     "modell_small": "More accurate, needs more time and storage",
-    "modell_medium": "Most accurate, slow on the phone"
+    "modell_medium": "Most accurate, slow on the phone",
+    "diagnose": "Diagnostics",
+    "protokollAufzeichnen": "Record a log",
+    "protokollKopieren": "Copy the log",
+    "protokollLoeschen": "Delete the log",
+    "protokollKopiert": "Log copied.",
+    "diagnoseHinweis": "The log stays on this device. It records what happens, timings and errors — no content: no notes, no transcripts, no messages, no keys."
   },
   "appLink": {
     "title": "Open in the covey app",

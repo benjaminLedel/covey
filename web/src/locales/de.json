@@ -2569,7 +2569,13 @@
     "modell_tiny": "Am schnellsten, am ungenauesten",
     "modell_base": "Ausgewogen",
     "modell_small": "Genauer, braucht mehr Zeit und Speicher",
-    "modell_medium": "Am genauesten, auf dem Telefon langsam"
+    "modell_medium": "Am genauesten, auf dem Telefon langsam",
+    "diagnose": "Diagnose",
+    "protokollAufzeichnen": "Protokoll aufzeichnen",
+    "protokollKopieren": "Protokoll kopieren",
+    "protokollLoeschen": "Protokoll löschen",
+    "protokollKopiert": "Protokoll kopiert.",
+    "diagnoseHinweis": "Das Protokoll bleibt auf diesem Gerät. Es hält Abläufe, Zeiten und Fehler fest, keine Inhalte: keine Notizen, keine Transkripte, keine Nachrichten, keine Schlüssel."
   },
   "appLink": {
     "title": "In der covey-App öffnen",

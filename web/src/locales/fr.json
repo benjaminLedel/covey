@@ -2569,7 +2569,13 @@
     "modell_tiny": "Le plus rapide, le moins précis",
     "modell_base": "Équilibré",
     "modell_small": "Plus précis, demande plus de temps et d'espace",
-    "modell_medium": "Le plus précis, lent sur le téléphone"
+    "modell_medium": "Le plus précis, lent sur le téléphone",
+    "diagnose": "Diagnostic",
+    "protokollAufzeichnen": "Enregistrer un journal",
+    "protokollKopieren": "Copier le journal",
+    "protokollLoeschen": "Supprimer le journal",
+    "protokollKopiert": "Journal copié.",
+    "diagnoseHinweis": "Le journal reste sur cet appareil. Il consigne les opérations, les durées et les erreurs, sans contenu : ni notes, ni transcriptions, ni messages, ni clés."
   },
   "appLink": {
     "title": "Ouvrir dans l'application covey",

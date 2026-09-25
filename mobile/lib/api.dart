@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import 'diagnostics.dart';
+
 import 'models.dart';
 
 /// An answer of the instance that was not a success. [status] is 0 when no
@@ -80,11 +82,15 @@ class CoveyApi {
 
   Future<dynamic> _send(Future<http.Response> Function() call) async {
     final http.Response res;
+    final watch = Stopwatch()..start();
     try {
       res = await call().timeout(_timeout);
     } catch (e) {
+      diag('api', 'failed after ${watch.elapsedMilliseconds} ms: $e');
       throw ApiException(0, e.toString());
     }
+    // Method, path and status — not the query, which can carry a search.
+    diag('api', '${res.request?.method} ${res.request?.url.path} ${res.statusCode} ${watch.elapsedMilliseconds} ms');
     // Not every answer is JSON: a route the instance does not know, or a
     // proxy in front of it, answers in plain text. That is an HTTP error with
     // a sentence, not a parse error.

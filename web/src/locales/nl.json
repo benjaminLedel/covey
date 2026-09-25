@@ -2569,7 +2569,13 @@
     "modell_tiny": "Snelst, minst nauwkeurig",
     "modell_base": "Gebalanceerd",
     "modell_small": "Nauwkeuriger, kost meer tijd en ruimte",
-    "modell_medium": "Het nauwkeurigst, traag op de telefoon"
+    "modell_medium": "Het nauwkeurigst, traag op de telefoon",
+    "diagnose": "Diagnose",
+    "protokollAufzeichnen": "Logboek bijhouden",
+    "protokollKopieren": "Logboek kopiëren",
+    "protokollLoeschen": "Logboek verwijderen",
+    "protokollKopiert": "Logboek gekopieerd.",
+    "diagnoseHinweis": "Het logboek blijft op dit apparaat. Het legt handelingen, tijden en fouten vast, geen inhoud: geen notities, transcripties, berichten of sleutels."
   },
   "appLink": {
     "title": "Openen in de covey-app",

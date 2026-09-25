@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'api.dart';
+import 'diagnostics.dart';
 import 'face.dart';
 import 'i18n.dart';
 import 'pairing.dart';
@@ -19,6 +20,18 @@ import 'theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  // The diagnostic log (#352) catches what goes wrong anywhere: framework
+  // errors and uncaught async ones, next to their usual handling.
+  unawaited(Diagnostics.instance.init().then((_) => diag('app', 'start')));
+  final flutterError = FlutterError.onError;
+  FlutterError.onError = (details) {
+    diag('error', details.exceptionAsString().split('\n').first);
+    flutterError?.call(details);
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    diag('error', '$error');
+    return false;
+  };
   runApp(CoveyApp(profiles: ProfileStore(), links: AppLinks().uriLinkStream));
 }
 
