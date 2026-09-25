@@ -2541,7 +2541,8 @@
     "stilUnterueberschrift": "Subheading",
     "stilText": "Body",
     "stilNummeriert": "Numbered list",
-    "stilZitat": "Quote"
+    "stilZitat": "Quote",
+    "keinSprachmodell": "Speech recognition on the device is not set up for this language. Switch on Dictation in Settings → General → Keyboard; iOS then downloads the language. No audio leaves the phone."
   },
   "appLink": {
     "title": "Open in the covey app",

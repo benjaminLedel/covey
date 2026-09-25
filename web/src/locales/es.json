@@ -2541,7 +2541,8 @@
     "stilUnterueberschrift": "Subencabezado",
     "stilText": "Texto",
     "stilNummeriert": "Lista numerada",
-    "stilZitat": "Cita"
+    "stilZitat": "Cita",
+    "keinSprachmodell": "El reconocimiento de voz en el dispositivo no está configurado para este idioma. Active Dictado en Ajustes → General → Teclado; iOS descargará el idioma. Ningún audio sale del teléfono."
   },
   "appLink": {
     "title": "Abrir en la aplicación covey",

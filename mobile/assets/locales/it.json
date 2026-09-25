@@ -32,6 +32,7 @@
   "mobile.heute": "Oggi",
   "mobile.keinCovey": "Qualcosa risponde, ma non è un covey.",
   "mobile.keinCoveyCode": "Questo non è un codice di associazione covey.",
+  "mobile.keinSprachmodell": "Il riconoscimento vocale sul dispositivo non è configurato per questa lingua. Attivi Dettatura in Impostazioni → Generali → Tastiera; iOS scaricherà la lingua. Nessun audio lascia il telefono.",
   "mobile.keineKamera": "Su questo dispositivo non è disponibile alcuna fotocamera. Apra il codice con «Apri nell'app» nell'interfaccia web, oppure si colleghi con indirizzo e chiave API.",
   "mobile.keineSprache": "Il riconoscimento vocale sul dispositivo non è disponibile qui.",
   "mobile.koppeln": "Associa",

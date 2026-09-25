@@ -32,6 +32,7 @@
   "mobile.heute": "Dzisiaj",
   "mobile.keinCovey": "Coś tam odpowiada, ale to nie jest covey.",
   "mobile.keinCoveyCode": "To nie jest kod parowania covey.",
+  "mobile.keinSprachmodell": "Rozpoznawanie mowy na urządzeniu nie jest skonfigurowane dla tego języka. Proszę włączyć Dyktowanie w Ustawienia → Ogólne → Klawiatura; iOS pobierze wtedy język. Żaden dźwięk nie opuszcza telefonu.",
   "mobile.keineKamera": "Na tym urządzeniu nie ma dostępnej kamery. Proszę otworzyć kod przyciskiem „Otwórz w aplikacji” w interfejsie webowym albo połączyć się adresem i kluczem API.",
   "mobile.keineSprache": "Rozpoznawanie mowy na urządzeniu nie jest tu dostępne.",
   "mobile.koppeln": "Sparuj",

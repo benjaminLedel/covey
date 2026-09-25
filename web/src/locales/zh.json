@@ -2541,7 +2541,8 @@
     "stilUnterueberschrift": "副标题",
     "stilText": "正文",
     "stilNummeriert": "编号列表",
-    "stilZitat": "引用"
+    "stilZitat": "引用",
+    "keinSprachmodell": "此语言尚未设置设备端语音识别。请在“设置”→“通用”→“键盘”中打开“听写”，iOS 随后会下载该语言。音频不会离开手机。"
   },
   "appLink": {
     "title": "在 covey 应用中打开",

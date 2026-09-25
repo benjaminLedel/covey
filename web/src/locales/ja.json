@@ -2541,7 +2541,8 @@
     "stilUnterueberschrift": "小見出し",
     "stilText": "本文",
     "stilNummeriert": "番号付きリスト",
-    "stilZitat": "引用"
+    "stilZitat": "引用",
+    "keinSprachmodell": "この言語では端末上の音声認識が設定されていません。「設定」→「一般」→「キーボード」で音声入力をオンにすると、iOS が言語をダウンロードします。音声は端末から送信されません。"
   },
   "appLink": {
     "title": "covey アプリで開く",

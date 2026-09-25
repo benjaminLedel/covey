@@ -32,6 +32,7 @@
   "mobile.heute": "Hoje",
   "mobile.keinCovey": "Algo responde aí, mas não é um covey.",
   "mobile.keinCoveyCode": "Isto não é um código de emparelhamento covey.",
+  "mobile.keinSprachmodell": "O reconhecimento de voz no dispositivo não está configurado para este idioma. Ative o Ditado em Definições → Geral → Teclado; o iOS descarrega o idioma. Nenhum áudio sai do telemóvel.",
   "mobile.keineKamera": "Não há nenhuma câmara disponível neste dispositivo. Abra o código com «Abrir na aplicação» na interface web, ou ligue-se com endereço e chave API.",
   "mobile.keineSprache": "O reconhecimento de voz no dispositivo não está disponível aqui.",
   "mobile.koppeln": "Emparelhar",

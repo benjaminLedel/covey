@@ -2541,7 +2541,8 @@
     "stilUnterueberschrift": "Sottotitolo",
     "stilText": "Testo",
     "stilNummeriert": "Elenco numerato",
-    "stilZitat": "Citazione"
+    "stilZitat": "Citazione",
+    "keinSprachmodell": "Il riconoscimento vocale sul dispositivo non è configurato per questa lingua. Attivi Dettatura in Impostazioni → Generali → Tastiera; iOS scaricherà la lingua. Nessun audio lascia il telefono."
   },
   "appLink": {
     "title": "Apri nell'app covey",

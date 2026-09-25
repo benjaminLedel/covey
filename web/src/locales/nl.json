@@ -2541,7 +2541,8 @@
     "stilUnterueberschrift": "Subkop",
     "stilText": "Tekst",
     "stilNummeriert": "Genummerde lijst",
-    "stilZitat": "Citaat"
+    "stilZitat": "Citaat",
+    "keinSprachmodell": "Spraakherkenning op het apparaat is voor deze taal niet ingesteld. Zet Dicteren aan via Instellingen → Algemeen → Toetsenbord; iOS downloadt de taal dan. Er verlaat geen audio de telefoon."
   },
   "appLink": {
     "title": "Openen in de covey-app",

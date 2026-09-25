@@ -32,6 +32,7 @@
   "mobile.heute": "今日",
   "mobile.keinCovey": "何かが応答していますが、covey ではありません。",
   "mobile.keinCoveyCode": "これは covey のペアリングコードではありません。",
+  "mobile.keinSprachmodell": "この言語では端末上の音声認識が設定されていません。「設定」→「一般」→「キーボード」で音声入力をオンにすると、iOS が言語をダウンロードします。音声は端末から送信されません。",
   "mobile.keineKamera": "このデバイスではカメラを利用できません。代わりにウェブ画面の「アプリで開く」でコードを開くか、アドレスと API キーで接続してください。",
   "mobile.keineSprache": "このデバイスでは端末上の音声認識を利用できません。",
   "mobile.koppeln": "ペアリング",

@@ -32,6 +32,7 @@
   "mobile.heute": "Vandaag",
   "mobile.keinCovey": "Er antwoordt iets, maar het is geen covey.",
   "mobile.keinCoveyCode": "Dit is geen koppelcode van covey.",
+  "mobile.keinSprachmodell": "Spraakherkenning op het apparaat is voor deze taal niet ingesteld. Zet Dicteren aan via Instellingen → Algemeen → Toetsenbord; iOS downloadt de taal dan. Er verlaat geen audio de telefoon.",
   "mobile.keineKamera": "Er is geen camera beschikbaar op dit apparaat. Open de code in plaats daarvan met ‘Openen in de app’ in de webinterface, of maak verbinding met adres en API-sleutel.",
   "mobile.keineSprache": "Spraakherkenning op het apparaat is hier niet beschikbaar.",
   "mobile.koppeln": "Koppelen",

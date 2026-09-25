@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
@@ -11,6 +12,12 @@ enum DictationFailure {
 
   /// The person has not allowed the microphone or speech recognition.
   denied,
+
+  /// The device could recognise speech, but not on the device for this
+  /// language: iOS loads that model only with Dictation switched on in the
+  /// keyboard settings. Recognition off the device is not an option — the
+  /// notetaker's promise is that no audio leaves the phone.
+  noOnDeviceModel,
 }
 
 /// Speech to text on the device (#336, spec/14): the phone's own recogniser
@@ -31,6 +38,10 @@ class Dictation extends ChangeNotifier {
   bool _ready = false;
   DictationFailure? failure;
 
+  /// What the platform said, for the message: an error code is what makes a
+  /// "not available" answerable.
+  String? detail;
+
   bool get running => _running;
 
   /// Everything recognised so far, the part still being spoken included.
@@ -39,8 +50,15 @@ class Dictation extends ChangeNotifier {
   Future<bool> _init() async {
     if (_ready) return true;
     try {
-      _ready = await _stt.initialize(onStatus: _onStatus, onError: (_) => _onStatus('error'));
-    } catch (_) {
+      _ready = await _stt.initialize(
+        onStatus: _onStatus,
+        onError: (e) {
+          detail = e.errorMsg;
+          _onStatus('error');
+        },
+      );
+    } catch (e) {
+      detail = e is PlatformException ? (e.message ?? e.code) : '$e';
       _ready = false;
     }
     if (!_ready) {
@@ -52,6 +70,7 @@ class Dictation extends ChangeNotifier {
   /// Starts listening. Returns false and sets [failure] when it cannot.
   Future<bool> start({bool continuous = false}) async {
     failure = null;
+    detail = null;
     if (!await _init()) {
       notifyListeners();
       return false;
@@ -82,7 +101,13 @@ class Dictation extends ChangeNotifier {
           cancelOnError: false,
         ),
       );
-    } catch (_) {
+    } on PlatformException catch (e) {
+      detail = e.message ?? e.code;
+      failure = e.code == 'onDeviceError' ? DictationFailure.noOnDeviceModel : DictationFailure.unavailable;
+      _running = false;
+      notifyListeners();
+    } catch (e) {
+      detail = '$e';
       failure = DictationFailure.unavailable;
       _running = false;
       notifyListeners();

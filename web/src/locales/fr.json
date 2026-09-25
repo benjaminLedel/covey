@@ -2541,7 +2541,8 @@
     "stilUnterueberschrift": "Sous-titre",
     "stilText": "Texte",
     "stilNummeriert": "Liste numérotée",
-    "stilZitat": "Citation"
+    "stilZitat": "Citation",
+    "keinSprachmodell": "La reconnaissance vocale sur l'appareil n'est pas configurée pour cette langue. Activez Dictée dans Réglages → Général → Clavier ; iOS téléchargera la langue. Aucun audio ne quitte le téléphone."
   },
   "appLink": {
     "title": "Ouvrir dans l'application covey",

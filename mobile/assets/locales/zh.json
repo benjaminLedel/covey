@@ -32,6 +32,7 @@
   "mobile.heute": "今天",
   "mobile.keinCovey": "那里有响应，但不是 covey。",
   "mobile.keinCoveyCode": "这不是 covey 配对码。",
+  "mobile.keinSprachmodell": "此语言尚未设置设备端语音识别。请在“设置”→“通用”→“键盘”中打开“听写”，iOS 随后会下载该语言。音频不会离开手机。",
   "mobile.keineKamera": "此设备上没有可用的相机。请改用网页界面中的“在应用中打开”打开配对码，或使用地址和 API 密钥连接。",
   "mobile.keineSprache": "此设备不支持本地语音识别。",
   "mobile.koppeln": "配对",

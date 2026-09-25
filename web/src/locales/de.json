@@ -2541,7 +2541,8 @@
     "stilUnterueberschrift": "Unterüberschrift",
     "stilText": "Text",
     "stilNummeriert": "Nummerierte Liste",
-    "stilZitat": "Zitat"
+    "stilZitat": "Zitat",
+    "keinSprachmodell": "Für diese Sprache ist keine Spracherkennung auf dem Gerät eingerichtet. Schalten Sie unter Einstellungen → Allgemein → Tastatur die „Diktierfunktion“ ein; iOS lädt die Sprache dann. Kein Audio verlässt das Telefon."
   },
   "appLink": {
     "title": "In der covey-App öffnen",

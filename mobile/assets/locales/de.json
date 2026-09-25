@@ -32,6 +32,7 @@
   "mobile.heute": "Heute",
   "mobile.keinCovey": "Dort antwortet etwas, aber es ist kein covey.",
   "mobile.keinCoveyCode": "Das ist kein covey-Kopplungscode.",
+  "mobile.keinSprachmodell": "Für diese Sprache ist keine Spracherkennung auf dem Gerät eingerichtet. Schalten Sie unter Einstellungen → Allgemein → Tastatur die „Diktierfunktion“ ein; iOS lädt die Sprache dann. Kein Audio verlässt das Telefon.",
   "mobile.keineKamera": "Auf diesem Gerät ist keine Kamera verfügbar. Öffnen Sie den Code stattdessen über „In der App öffnen“ in der Weboberfläche, oder verbinden Sie sich mit Adresse und API-Schlüssel.",
   "mobile.keineSprache": "Spracherkennung auf dem Gerät ist hier nicht verfügbar.",
   "mobile.koppeln": "Koppeln",

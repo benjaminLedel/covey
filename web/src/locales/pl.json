@@ -2541,7 +2541,8 @@
     "stilUnterueberschrift": "Podnagłówek",
     "stilText": "Tekst",
     "stilNummeriert": "Lista numerowana",
-    "stilZitat": "Cytat"
+    "stilZitat": "Cytat",
+    "keinSprachmodell": "Rozpoznawanie mowy na urządzeniu nie jest skonfigurowane dla tego języka. Proszę włączyć Dyktowanie w Ustawienia → Ogólne → Klawiatura; iOS pobierze wtedy język. Żaden dźwięk nie opuszcza telefonu."
   },
   "appLink": {
     "title": "Otwórz w aplikacji covey",

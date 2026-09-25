@@ -32,6 +32,7 @@
   "mobile.heute": "Today",
   "mobile.keinCovey": "Something answers there, but it is not a covey.",
   "mobile.keinCoveyCode": "This is not a covey pairing code.",
+  "mobile.keinSprachmodell": "Speech recognition on the device is not set up for this language. Switch on Dictation in Settings → General → Keyboard; iOS then downloads the language. No audio leaves the phone.",
   "mobile.keineKamera": "No camera is available on this device. Open the code with “Open in the app” in the web interface instead, or connect with an address and an API key.",
   "mobile.keineSprache": "Speech recognition on the device is not available here.",
   "mobile.koppeln": "Pair",

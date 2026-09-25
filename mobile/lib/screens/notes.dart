@@ -198,9 +198,16 @@ String noteMeta(BuildContext context, Note n, {bool withDate = true}) {
   ].where((s) => s.isNotEmpty).join(' · ');
 }
 
-/// What to say when dictation cannot start.
-String dictationFailure(BuildContext context, DictationFailure? f) =>
-    f == DictationFailure.denied ? context.t('mobile.mikrofonVerweigert') : context.t('mobile.keineSprache');
+/// What to say when dictation cannot start — with the platform's own words
+/// where there are any, since "not available" alone cannot be acted on.
+String dictationFailure(BuildContext context, DictationFailure? f, [String? detail]) {
+  final base = switch (f) {
+    DictationFailure.denied => context.t('mobile.mikrofonVerweigert'),
+    DictationFailure.noOnDeviceModel => context.t('mobile.keinSprachmodell'),
+    _ => context.t('mobile.keineSprache'),
+  };
+  return detail == null || detail.isEmpty || f == DictationFailure.noOnDeviceModel ? base : '$base ($detail)';
+}
 
 /// A note, new or existing, edited in place the way Apple Notes edits (#343):
 /// no edit mode, no save button. What is typed is saved as it is typed — a
@@ -346,14 +353,18 @@ class _NotePageState extends State<NotePage> {
       return;
     }
     final messenger = ScaffoldMessenger.of(context);
-    final failed = dictationFailure(context, DictationFailure.unavailable);
-    final denied = dictationFailure(context, DictationFailure.denied);
     _dictatingAt = _editor.currentState?.beginDictation();
     if (await _dictation.start()) {
       if (_note == null) _spoken = true;
     } else {
       _dictatingAt = null;
-      messenger.showSnackBar(SnackBar(content: Text(_dictation.failure == DictationFailure.denied ? denied : failed)));
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 8),
+          content: Text(dictationFailure(context, _dictation.failure, _dictation.detail)),
+        ),
+      );
     }
   }
 
@@ -627,7 +638,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
             children: [
               if (failed)
                 Text(
-                  dictationFailure(context, _dictation.failure),
+                  dictationFailure(context, _dictation.failure, _dictation.detail),
                   style: context.type.bodyLarge?.copyWith(color: c.textDanger),
                 )
               else ...[
