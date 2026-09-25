@@ -38,5 +38,6 @@ abstract final class AppIcons {
   static const kindVoice = AppIcon(Icons.graphic_eq_rounded, CupertinoIcons.waveform);
   static const search = AppIcon(Icons.search_rounded, CupertinoIcons.search);
   static const clear = AppIcon(Icons.cancel_rounded, CupertinoIcons.clear_circled_solid);
+  static const attach = AppIcon(Icons.attach_file_rounded, CupertinoIcons.paperclip);
   static const kindMeeting = AppIcon(Icons.groups_2_outlined, CupertinoIcons.person_3);
 }

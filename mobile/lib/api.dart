@@ -174,4 +174,23 @@ class CoveyApi {
   /// A summary and the action items — one model turn on the instance.
   Future<Note> summarizeNote(String id) async =>
       Note.fromJson(await post('/me/notes/$id/summarize', const {}) as Map<String, dynamic>);
+
+  /// The folder in the agent's home a message's files go to — the web's
+  /// ANHANG_ORDNER (web/src/team/Thread.tsx), so a file from the phone lies
+  /// where a file from the browser lies.
+  static const inbox = 'eingang';
+
+  /// Uploads files into the agent's home under [inbox] (#340) and returns
+  /// the paths the message names. One multipart request, field "file", the
+  /// route the web uses.
+  Future<List<String>> uploadToInbox(String agentId, List<Attachment> files) async {
+    final req = http.MultipartRequest('POST', _url('/agents/$agentId/files/upload?path=$inbox'))
+      ..headers.addAll(_headers);
+    for (final f in files) {
+      final length = f.length ?? (await f.open().fold<int>(0, (n, chunk) => n + chunk.length));
+      req.files.add(http.MultipartFile('file', f.open(), length, filename: f.name));
+    }
+    await _send(() async => http.Response.fromStream(await _http.send(req)));
+    return [for (final f in files) '$inbox/${f.name}'];
+  }
 }

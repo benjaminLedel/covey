@@ -2519,7 +2519,9 @@
     "neu": "Nieuw",
     "heute": "Vandaag",
     "hatZusammenfassung": "Met samenvatting",
-    "notizenSuchen": "Notities doorzoeken"
+    "notizenSuchen": "Notities doorzoeken",
+    "anhangFoto": "Foto of video",
+    "anhangDatei": "Bestand"
   },
   "appLink": {
     "title": "Openen in de covey-app",

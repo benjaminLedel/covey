@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../api.dart';
@@ -25,7 +26,11 @@ class ThreadScreen extends StatefulWidget {
     required this.me,
     this.agentSlug = '',
     this.faceState = FaceState.working,
+    this.pick,
   });
+
+  /// Swapped in tests, so attaching needs no file dialog.
+  final Future<List<Attachment>> Function(FileType type)? pick;
 
   final CoveyApi api;
   final String agentId;
@@ -46,6 +51,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
   Thread? _thread;
   Object? _error;
   ThreadEntry? _answering;
+  final _files = <Attachment>[];
   bool _sending = false;
   Timer? _poll;
 
@@ -84,13 +90,50 @@ class _ThreadScreenState extends State<ThreadScreen> {
     }
   }
 
+  /// Picks photos, videos or files to go with the next message (#340).
+  Future<void> _attach() async {
+    final t = Strings.of(context).t;
+    final type = await showModalBottomSheet<FileType>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: InsetGroup(
+            dividerIndent: 16,
+            children: [
+              GroupRow(title: t('mobile.anhangFoto'), onTap: () => Navigator.pop(context, FileType.media)),
+              GroupRow(title: t('mobile.anhangDatei'), onTap: () => Navigator.pop(context, FileType.any)),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (type == null) return;
+    final picked = await (widget.pick ?? _pickFiles)(type);
+    if (picked.isEmpty || !mounted) return;
+    setState(() => _files.addAll(picked));
+  }
+
+  static Future<List<Attachment>> _pickFiles(FileType type) async {
+    final files = await FilePicker.pickFiles(type: type);
+    return [for (final f in files) Attachment(name: f.name, length: f.lengthSync(), open: () => f.readAsByteStream())];
+  }
+
   Future<void> _send() async {
-    final text = _text.text.trim();
-    if (text.isEmpty || _sending) return;
+    var text = _text.text.trim();
+    // Files alone are a message too: the line that names them is its text.
+    if ((text.isEmpty && _files.isEmpty) || _sending) return;
     final messenger = ScaffoldMessenger.of(context);
     final t = Strings.of(context).t;
     setState(() => _sending = true);
     try {
+      // First the files, then the message that names them: a message that
+      // points at a file which never arrived would send the agent looking.
+      if (_files.isNotEmpty) {
+        final paths = await widget.api.uploadToInbox(widget.agentId, _files);
+        final line = '(${t('team.anhangZeile', args: {'pfade': paths.join(', ')})})';
+        text = text.isEmpty ? line : '$text\n\n$line';
+      }
       final q = _answering;
       if (q != null) {
         final woken = await widget.api.reply(q.taskId!, text);
@@ -100,7 +143,10 @@ class _ThreadScreenState extends State<ThreadScreen> {
         await widget.api.send(widget.agentId, text);
       }
       _text.clear();
-      setState(() => _answering = null);
+      setState(() {
+        _answering = null;
+        _files.clear();
+      });
       await _load();
     } on ApiException catch (e) {
       // The instance decides what a role may do; the app says what it heard.
@@ -224,6 +270,9 @@ class _ThreadScreenState extends State<ThreadScreen> {
               enabled: widget.me.teamSurface,
               onCancelAnswer: () => setState(() => _answering = null),
               onSend: _send,
+              files: _files,
+              onAttach: _attach,
+              onRemove: (f) => setState(() => _files.remove(f)),
             ),
           ],
         ),
@@ -363,6 +412,9 @@ class _Composer extends StatelessWidget {
     required this.enabled,
     required this.onCancelAnswer,
     required this.onSend,
+    required this.files,
+    required this.onAttach,
+    required this.onRemove,
   });
 
   final TextEditingController controller;
@@ -371,6 +423,9 @@ class _Composer extends StatelessWidget {
   final bool enabled;
   final VoidCallback onCancelAnswer;
   final VoidCallback onSend;
+  final List<Attachment> files;
+  final VoidCallback onAttach;
+  final ValueChanged<Attachment> onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -404,6 +459,27 @@ class _Composer extends StatelessWidget {
                 ],
               ),
             ),
+          // What goes with the message, removable until it is sent.
+          if (files.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(6, 0, 6, 8),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final f in files)
+                    InputChip(
+                      label: Text(f.name, overflow: TextOverflow.ellipsis),
+                      avatar: Icon(AppIcons.attach.of(context), size: 16),
+                      onDeleted: () => onRemove(f),
+                      deleteButtonTooltipMessage: context.t('team.anhangEntfernen', args: {'name': f.name}),
+                      backgroundColor: c.surface2,
+                      side: BorderSide(color: c.hairline),
+                      shape: const StadiumBorder(),
+                    ),
+                ],
+              ),
+            ),
           Glass(
             radius: 28,
             child: Padding(
@@ -411,6 +487,14 @@ class _Composer extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
+                  SizedBox.square(
+                    dimension: 46,
+                    child: IconButton(
+                      onPressed: enabled && !sending ? onAttach : null,
+                      icon: Icon(AppIcons.attach.of(context), color: c.textSecondary),
+                      tooltip: context.t('team.anhaengen'),
+                    ),
+                  ),
                   Expanded(
                     child: TextField(
                       controller: controller,
@@ -425,7 +509,7 @@ class _Composer extends StatelessWidget {
                         enabledBorder: InputBorder.none,
                         focusedBorder: InputBorder.none,
                         disabledBorder: InputBorder.none,
-                        contentPadding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+                        contentPadding: const EdgeInsets.fromLTRB(2, 12, 8, 12),
                         hintText: !enabled
                             ? context.t('mobile.teamAusKurz')
                             : answering != null

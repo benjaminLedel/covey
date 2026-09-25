@@ -21,6 +21,8 @@
 	<false/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>The microphone is used to dictate notes and record meetings. Speech is recognised on this device; no audio is stored or sent.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Photos and videos you choose are attached to a message for an agent.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Speech is turned into text on this device for your notes. Only the text is saved in covey.</string>
 	<key>NSCameraUsageDescription</key>

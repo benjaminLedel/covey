@@ -2519,7 +2519,9 @@
     "neu": "New",
     "heute": "Today",
     "hatZusammenfassung": "Has a summary",
-    "notizenSuchen": "Search notes"
+    "notizenSuchen": "Search notes",
+    "anhangFoto": "Photo or video",
+    "anhangDatei": "File"
   },
   "appLink": {
     "title": "Open in the covey app",

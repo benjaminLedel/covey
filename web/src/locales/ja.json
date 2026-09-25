@@ -2519,7 +2519,9 @@
     "neu": "新規",
     "heute": "今日",
     "hatZusammenfassung": "要約あり",
-    "notizenSuchen": "メモを検索"
+    "notizenSuchen": "メモを検索",
+    "anhangFoto": "写真またはビデオ",
+    "anhangDatei": "ファイル"
   },
   "appLink": {
     "title": "covey アプリで開く",

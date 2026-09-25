@@ -2519,7 +2519,9 @@
     "neu": "新建",
     "heute": "今天",
     "hatZusammenfassung": "已有摘要",
-    "notizenSuchen": "搜索笔记"
+    "notizenSuchen": "搜索笔记",
+    "anhangFoto": "照片或视频",
+    "anhangDatei": "文件"
   },
   "appLink": {
     "title": "在 covey 应用中打开",

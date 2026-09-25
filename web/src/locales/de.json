@@ -2519,7 +2519,9 @@
     "neu": "Neu",
     "heute": "Heute",
     "hatZusammenfassung": "Mit Zusammenfassung",
-    "notizenSuchen": "Notizen durchsuchen"
+    "notizenSuchen": "Notizen durchsuchen",
+    "anhangFoto": "Foto oder Video",
+    "anhangDatei": "Datei"
   },
   "appLink": {
     "title": "In der covey-App öffnen",

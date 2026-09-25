@@ -232,3 +232,17 @@ class NotesPage {
   /// then.
   final bool summarize;
 }
+
+/// A file handed over with a message (#340): a name and its bytes, streamed.
+/// Its own type rather than the picker's, so the send path can be driven in
+/// a test without a file dialog.
+class Attachment {
+  Attachment({required this.name, required this.length, required this.open});
+
+  final String name;
+
+  /// The size, if the platform knows it; the upload reads the bytes first
+  /// when it does not.
+  final int? length;
+  final Stream<List<int>> Function() open;
+}
