@@ -6,6 +6,8 @@
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>The camera reads the QR code covey shows to pair this app.</string>
 	<key>CFBundleDisplayName</key>
 	<string>covey</string>
 	<key>CFBundleExecutable</key>

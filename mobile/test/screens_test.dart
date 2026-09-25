@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:covey_mobile/api.dart';
 import 'package:covey_mobile/i18n.dart';
 import 'package:covey_mobile/models.dart';
+import 'package:covey_mobile/pairing.dart';
 import 'package:covey_mobile/screens/connect.dart';
 import 'package:covey_mobile/screens/thread.dart';
 import 'package:covey_mobile/theme.dart';
@@ -50,7 +51,12 @@ void main() {
             return http.Response('', 200);
           })),
         ))) as Widget);
+    // The address and key are the fallback, one tap away.
+    await tester.tap(find.text('Stattdessen mit Adresse und API-Schlüssel verbinden'));
+    await tester.pump();
+    expect(find.text('app.covey.work'), findsOneWidget, reason: 'the hosted instance is the default (#331)');
     await tester.enterText(find.byType(TextField).first, 'http://covey.example.org');
+    await tester.scrollUntilVisible(find.text('Verbinden'), 200, scrollable: find.byType(Scrollable).first);
     await tester.tap(find.text('Verbinden'));
     await tester.pump();
     expect(find.text('Nur HTTPS-Adressen.'), findsOneWidget);
@@ -93,5 +99,33 @@ void main() {
     expect(find.widgetWithText(TextButton, 'Antworten'), findsNothing);
     expect(tester.widget<TextField>(find.byType(TextField)).enabled, isFalse);
     await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('a scanned code becomes the connection, without typing anything (#330)', (tester) async {
+    Uri? instance;
+    String? key;
+    await tester.pumpWidget(await tester.runAsync(() => _app(ConnectScreen(
+          onConnected: (i, k) async {
+            instance = i;
+            key = k;
+          },
+          scan: (_) async => PairingCode.parse('covey://pair?instance=https%3A%2F%2Fapp.covey.work&code=coveypair_x'),
+          redeem: (code) async => 'covey_paired',
+        ))) as Widget);
+    await tester.tap(find.text('QR-Code scannen'));
+    await _settle(tester);
+    expect(instance.toString(), 'https://app.covey.work');
+    expect(key, 'covey_paired');
+  });
+
+  testWidgets('a used code says so and offers nothing else', (tester) async {
+    await tester.pumpWidget(await tester.runAsync(() => _app(ConnectScreen(
+          onConnected: (_, _) async => fail('must not connect'),
+          scan: (_) async => PairingCode.parse('covey://pair?instance=https%3A%2F%2Fapp.covey.work&code=coveypair_x'),
+          redeem: (code) async => throw ApiException(401, 'pairing code invalid, used or expired'),
+        ))) as Widget);
+    await tester.tap(find.text('QR-Code scannen'));
+    await _settle(tester);
+    expect(find.textContaining('ungültig, schon benutzt oder abgelaufen'), findsOneWidget);
   });
 }

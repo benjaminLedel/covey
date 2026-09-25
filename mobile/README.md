@@ -12,8 +12,10 @@ key on writes (decision 3).
 
 ## What it does
 
-- **Where is your covey?** Instance address (HTTPS only) and an API key, kept
-  in the Keychain / Keystore.
+- **Where is your covey?** Scan the QR code under Profile & Settings → Mobile
+  app in the web interface (#330): the app exchanges its one-time code for an
+  API key named after the device, kept in the Keychain / Keystore. The
+  fallback is typing the address — `app.covey.work` by default — and a key.
 - **What waits** — the open points of the inbox, most urgent first. Read-only:
   decisions are made in the web interface for now.
 - **Colleagues** — the agents, grouped by department, without applicants.
