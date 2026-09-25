@@ -365,7 +365,7 @@ class _NotePageState extends State<NotePage> {
     }
     final messenger = ScaffoldMessenger.of(context);
     _dictatingAt = _editor.currentState?.beginDictation();
-    _dictation.language = SpeechModel.instance.language ?? Localizations.localeOf(context).languageCode;
+    _dictation.language = SpeechModel.instance.language ?? Strings.of(context).language;
     // The preview above the bar says what happens meanwhile — the model's
     // download on the first dictation, then the level and the words.
     final ok = await _dictation.start();
@@ -605,7 +605,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
   void _changed() => setState(() {});
 
   Future<void> _start() async {
-    _dictation.language = SpeechModel.instance.language ?? Localizations.localeOf(context).languageCode;
+    _dictation.language = SpeechModel.instance.language ?? Strings.of(context).language;
     if (await _dictation.start(continuous: true)) {
       _watch.start();
       _tick = Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));

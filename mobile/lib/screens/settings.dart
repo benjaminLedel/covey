@@ -154,7 +154,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final me = widget.me;
     final lang = _model.language;
     final langLabel = lang == null
-        ? '${context.t('mobile.wieDieApp')} · ${speechLanguages[Localizations.localeOf(context).languageCode] ?? ''}'
+        ? '${context.t('mobile.wieDieApp')} · ${speechLanguages[Strings.of(context).language] ?? ''}'
         : speechLanguages[lang] ?? lang;
     final small = context.type.bodySmall?.copyWith(color: c.textMuted);
     return Scaffold(
@@ -292,7 +292,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> {
       await _d.stop();
       return;
     }
-    _d.language = SpeechModel.instance.language ?? Localizations.localeOf(context).languageCode;
+    _d.language = SpeechModel.instance.language ?? Strings.of(context).language;
     await _d.start();
   }
 
