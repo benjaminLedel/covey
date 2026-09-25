@@ -21,7 +21,8 @@
   "mobile.diktieren": "Dicteren",
   "mobile.erneut": "Opnieuw proberen",
   "mobile.fehler": "Kon niet laden: {{error}}",
-  "mobile.imWebEntscheiden": "Beslissingen worden voorlopig in de webinterface genomen.",
+  "mobile.hatZusammenfassung": "Met samenvatting",
+  "mobile.heute": "Vandaag",
   "mobile.keinCovey": "Er antwoordt iets, maar het is geen covey.",
   "mobile.keinCoveyCode": "Dit is geen koppelcode van covey.",
   "mobile.keineKamera": "Er is geen camera beschikbaar op dit apparaat. Open de code in plaats daarvan met ‘Openen in de app’ in de webinterface, of maak verbinding met adres en API-sleutel.",
@@ -35,11 +36,11 @@
   "mobile.loeschenFrage": "Deze notitie verwijderen?",
   "mobile.manuell": "In plaats daarvan verbinden met adres en API-sleutel",
   "mobile.meetingHinweis": "Spraak wordt op dit apparaat herkend. Er wordt geen audio opgeslagen of verzonden.",
-  "mobile.meetingKnopf": "Vergadering",
   "mobile.meetingLaeuft": "Opname loopt",
   "mobile.meetingNeu": "Vergadering opnemen",
   "mobile.meetingStop": "Stoppen en opslaan",
   "mobile.mikrofonVerweigert": "De app heeft toegang nodig tot de microfoon en tot spraakherkenning. U kunt beide toestaan in de instellingen van het apparaat.",
+  "mobile.neu": "Nieuw",
   "mobile.nichtErreichbar": "Op dit adres antwoordt niets.",
   "mobile.nichtGeweckt": "Genoteerd. Niemand wachtte erop — de agent leest het bij zijn volgende run.",
   "mobile.nichtsErkannt": "Er is niets herkend. Er is niets opgeslagen.",
@@ -86,7 +87,7 @@
   "status.working": "aan het werk",
   "team.abbrechen": "Annuleren",
   "team.arbeitetGerade": "werkt eraan",
-  "team.kollegen": "Collega's",
+  "team.gestern": "Gisteren",
   "team.leerText": "Schrijf hieronder wat er moet gebeuren — daar wordt een taak van.",
   "team.leerTitel": "Nog niets met {{name}} besproken.",
   "team.ohneAbteilung": "Zonder afdeling",
@@ -94,5 +95,5 @@
   "team.wartetLead": "{{count}} punten wachten op een beslissing.",
   "team.wartetLead_one": "Eén punt wacht op een beslissing.",
   "team.wartetNichts": "Er wacht niets. Het personeel werkt of slaapt.",
-  "team.wartetTitel": "Goedendag, {{name}}"
+  "team.workspace": "Team"
 }

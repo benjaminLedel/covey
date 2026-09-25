@@ -5,6 +5,7 @@ import 'package:covey_mobile/i18n.dart';
 import 'package:covey_mobile/screens/connect.dart';
 import 'package:covey_mobile/screens/home.dart';
 import 'package:covey_mobile/theme.dart';
+import 'package:covey_mobile/ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -80,18 +81,18 @@ void main() {
     await tester.pumpWidget(await tester.runAsync(() => _app(HomeScreen(api: api, onDisconnect: () {}))) as Widget);
     await _settle(tester);
 
-    expect(find.byType(NavigationRail), findsOneWidget);
-    expect(find.byType(NavigationBar), findsNothing);
+    // A sidebar instead of the floating capsule.
+    expect(find.byType(SpaceCapsule), findsNothing);
+    expect(find.text('covey'), findsOneWidget);
     expect(find.textContaining('Wählen Sie links'), findsOneWidget);
 
-    await tester.tap(find.text('Kollegen').first);
-    await _settle(tester);
     await tester.tap(find.text('Bea'));
     await _settle(tester);
 
     // Beside the list, not on a pushed route: the list is still there.
     expect(find.text('Die Rechnung ist geprüft.'), findsOneWidget);
-    expect(find.byType(NavigationRail), findsOneWidget);
+    expect(find.text('Bea'), findsWidgets);
+    expect(find.textContaining('Wählen Sie links'), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
 }

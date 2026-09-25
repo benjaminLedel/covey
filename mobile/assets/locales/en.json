@@ -21,7 +21,8 @@
   "mobile.diktieren": "Dictate",
   "mobile.erneut": "Try again",
   "mobile.fehler": "Could not load: {{error}}",
-  "mobile.imWebEntscheiden": "Decisions are made in the web interface for now.",
+  "mobile.hatZusammenfassung": "Has a summary",
+  "mobile.heute": "Today",
   "mobile.keinCovey": "Something answers there, but it is not a covey.",
   "mobile.keinCoveyCode": "This is not a covey pairing code.",
   "mobile.keineKamera": "No camera is available on this device. Open the code with “Open in the app” in the web interface instead, or connect with an address and an API key.",
@@ -35,11 +36,11 @@
   "mobile.loeschenFrage": "Delete this note?",
   "mobile.manuell": "Connect with an address and an API key instead",
   "mobile.meetingHinweis": "Speech is recognised on this device. No audio is stored or sent.",
-  "mobile.meetingKnopf": "Meeting",
   "mobile.meetingLaeuft": "Recording",
   "mobile.meetingNeu": "Record meeting",
   "mobile.meetingStop": "Stop and save",
   "mobile.mikrofonVerweigert": "The app needs access to the microphone and to speech recognition. You can allow both in the device's settings.",
+  "mobile.neu": "New",
   "mobile.nichtErreichbar": "Nothing answers at this address.",
   "mobile.nichtGeweckt": "Written down. Nobody was waiting for it — the agent reads it on its next run.",
   "mobile.nichtsErkannt": "Nothing was recognised. Nothing was saved.",
@@ -86,7 +87,7 @@
   "status.working": "working",
   "team.abbrechen": "Cancel",
   "team.arbeitetGerade": "is working on it",
-  "team.kollegen": "Colleagues",
+  "team.gestern": "Yesterday",
   "team.leerText": "Write what needs doing below — it becomes a task.",
   "team.leerTitel": "Nothing discussed with {{name}} yet.",
   "team.ohneAbteilung": "No department",
@@ -94,5 +95,5 @@
   "team.wartetLead": "{{count}} points are waiting for a decision.",
   "team.wartetLead_one": "One point is waiting for a decision.",
   "team.wartetNichts": "Nothing is waiting. The workforce is working or asleep.",
-  "team.wartetTitel": "Hello, {{name}}"
+  "team.workspace": "Team"
 }

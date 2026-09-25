@@ -21,7 +21,8 @@
   "mobile.diktieren": "Dicter",
   "mobile.erneut": "Réessayer",
   "mobile.fehler": "Chargement impossible : {{error}}",
-  "mobile.imWebEntscheiden": "Pour l'instant, les décisions se prennent dans l'interface web.",
+  "mobile.hatZusammenfassung": "Avec résumé",
+  "mobile.heute": "Aujourd'hui",
   "mobile.keinCovey": "Quelque chose répond, mais ce n'est pas un covey.",
   "mobile.keinCoveyCode": "Ce n'est pas un code d'association covey.",
   "mobile.keineKamera": "Aucun appareil photo n'est disponible sur cet appareil. Ouvrez plutôt le code avec « Ouvrir dans l'application » dans l'interface web, ou connectez-vous avec une adresse et une clé API.",
@@ -35,11 +36,11 @@
   "mobile.loeschenFrage": "Supprimer cette note ?",
   "mobile.manuell": "Se connecter plutôt avec une adresse et une clé API",
   "mobile.meetingHinweis": "La parole est reconnue sur cet appareil. Aucun audio n'est enregistré ni envoyé.",
-  "mobile.meetingKnopf": "Réunion",
   "mobile.meetingLaeuft": "Enregistrement en cours",
   "mobile.meetingNeu": "Enregistrer une réunion",
   "mobile.meetingStop": "Arrêter et enregistrer",
   "mobile.mikrofonVerweigert": "L'application a besoin d'accéder au micro et à la reconnaissance vocale. Vous pouvez autoriser les deux dans les réglages de l'appareil.",
+  "mobile.neu": "Nouveau",
   "mobile.nichtErreichbar": "Rien ne répond à cette adresse.",
   "mobile.nichtGeweckt": "Noté. Personne ne l'attendait — l'agent le lira lors de sa prochaine exécution.",
   "mobile.nichtsErkannt": "Rien n'a été reconnu. Rien n'a été enregistré.",
@@ -86,7 +87,7 @@
   "status.working": "au travail",
   "team.abbrechen": "Annuler",
   "team.arbeitetGerade": "y travaille",
-  "team.kollegen": "Collègues",
+  "team.gestern": "Hier",
   "team.leerText": "Écrivez ci-dessous ce qu'il y a à faire — cela devient une tâche.",
   "team.leerTitel": "Rien n'a encore été discuté avec {{name}}.",
   "team.ohneAbteilung": "Sans service",
@@ -94,5 +95,5 @@
   "team.wartetLead": "{{count}} points attendent une décision.",
   "team.wartetLead_one": "Un point attend une décision.",
   "team.wartetNichts": "Rien n'attend. L'équipe travaille ou dort.",
-  "team.wartetTitel": "Bonjour, {{name}}"
+  "team.workspace": "Équipe"
 }

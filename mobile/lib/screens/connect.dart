@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../api.dart';
 import '../i18n.dart';
+import '../icons.dart';
 import '../mark.dart';
 import '../pairing.dart';
 import '../theme.dart';
@@ -153,34 +154,28 @@ class _ConnectScreenState extends State<ConnectScreen> {
                   children: [
                     const CoveyMark(size: 44),
                     const SizedBox(width: 12),
-                    Text(
-                      'covey',
-                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600, color: c.textPrimary),
-                    ),
+                    Text('covey', style: context.type.titleLarge),
                   ],
                 ),
                 const SizedBox(height: 36),
-                Text(
-                  context.t('mobile.verbindenTitel'),
-                  style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w600, height: 1.2),
-                ),
+                Text(context.t('mobile.verbindenTitel'), style: context.type.headlineMedium),
                 const SizedBox(height: 12),
                 Text(
                   widget.desktop ? context.t('mobile.desktopHinweis') : context.t('mobile.scanHinweis'),
-                  style: TextStyle(color: c.textMuted, height: 1.4),
+                  style: context.type.bodyLarge?.copyWith(color: c.textMuted),
                 ),
                 if (!widget.desktop) ...[
                   const SizedBox(height: 24),
                   FilledButton.icon(
                     onPressed: _busy ? null : _pair,
-                    icon: const Icon(Icons.qr_code_scanner),
-                    style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+                    icon: Icon(AppIcons.scan.of(context)),
+                    style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56), shape: const StadiumBorder()),
                     label: Text(_busy && !_manual ? context.t('common.loading') : context.t('mobile.scannen')),
                   ),
                 ],
                 if (_error != null && !_errorFromForm) ...[
                   const SizedBox(height: 16),
-                  Text(_error!, style: TextStyle(color: c.textDanger)),
+                  Text(_error!, style: context.type.bodyMedium?.copyWith(color: c.textDanger)),
                 ],
                 const SizedBox(height: 20),
                 if (!_manual)
@@ -188,7 +183,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
                 else ...[
                   Divider(color: c.border),
                   const SizedBox(height: 16),
-                  Text(context.t('mobile.verbindenLead'), style: TextStyle(color: c.textMuted, height: 1.4)),
+                  Text(context.t('mobile.verbindenLead'), style: context.type.bodyMedium),
                   const SizedBox(height: 16),
                   TextField(
                     controller: _address,
@@ -207,18 +202,18 @@ class _ConnectScreenState extends State<ConnectScreen> {
                     onSubmitted: (_) => _busy ? null : _connect(),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    context.t('mobile.schluesselHinweis'),
-                    style: TextStyle(color: c.textMuted, fontSize: 12.5, height: 1.4),
-                  ),
+                  Text(context.t('mobile.schluesselHinweis'), style: context.type.bodySmall),
                   if (_error != null && _errorFromForm) ...[
                     const SizedBox(height: 16),
-                    Text(_error!, style: TextStyle(color: c.textDanger)),
+                    Text(_error!, style: context.type.bodyMedium?.copyWith(color: c.textDanger)),
                   ],
                   const SizedBox(height: 20),
                   OutlinedButton(
                     onPressed: _busy ? null : _connect,
-                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                      shape: const StadiumBorder(),
+                    ),
                     child: Text(_busy ? context.t('common.loading') : context.t('mobile.verbinden')),
                   ),
                 ],

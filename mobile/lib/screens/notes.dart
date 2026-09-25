@@ -6,19 +6,35 @@ import 'package:intl/intl.dart';
 import '../api.dart';
 import '../dictation.dart';
 import '../i18n.dart';
+import '../icons.dart';
 import '../models.dart';
+import '../summary_text.dart';
 import '../theme.dart';
+import '../ui.dart';
 
-/// The notetaker (#336, spec/14): what the person captures for themselves —
+/// The Notes space (#336, spec/14): what the person captures for themselves —
 /// typed, spoken, or a whole meeting. Always there, whatever the
 /// organisation has switched on, and private: nobody else reads these notes.
+/// Capturing starts at the + beside the capsule, not here.
 class NotesScreen extends StatefulWidget {
-  const NotesScreen({super.key, required this.api, required this.onOpen});
+  const NotesScreen({
+    super.key,
+    required this.api,
+    required this.onOpen,
+    this.actions = const [],
+    this.bottomClearance = capsuleClearance,
+    this.compact = false,
+  });
 
   final CoveyApi api;
 
   /// Opens a note — pushed on a phone, beside the list on a wide window.
   final void Function(Note note, bool canSummarize, VoidCallback changed) onOpen;
+  final List<Widget> actions;
+  final double bottomClearance;
+
+  /// The list pane of a wide window: no bar row above the title.
+  final bool compact;
 
   @override
   State<NotesScreen> createState() => NotesScreenState();
@@ -27,6 +43,8 @@ class NotesScreen extends StatefulWidget {
 class NotesScreenState extends State<NotesScreen> {
   NotesPage? _page;
   Object? _error;
+
+  bool get canSummarize => _page?.summarize ?? false;
 
   @override
   void initState() {
@@ -48,94 +66,91 @@ class NotesScreenState extends State<NotesScreen> {
     }
   }
 
-  Future<void> _new(Widget screen) async {
-    final saved = await Navigator.of(context).push<Note>(MaterialPageRoute(builder: (_) => screen));
-    if (saved == null || !mounted) return;
-    await reload();
-    widget.onOpen(saved, _page?.summarize ?? false, reload);
+  /// The day a note belongs to, as a heading: today, yesterday, or the date.
+  String _day(BuildContext context, DateTime? at) {
+    if (at == null) return '';
+    final now = DateTime.now();
+    final d = DateTime(at.year, at.month, at.day);
+    final today = DateTime(now.year, now.month, now.day);
+    if (d == today) return context.t('mobile.heute');
+    if (d == today.subtract(const Duration(days: 1))) return context.t('team.gestern');
+    return DateFormat.yMMMMd(Strings.of(context).language).format(at);
   }
 
   @override
   Widget build(BuildContext context) {
-    final c = context.colors;
     final page = _page;
-    return Stack(
-      children: [
-        RefreshIndicator(
-          onRefresh: reload,
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.only(bottom: 120),
-            children: [
-              if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(
-                    context.t('mobile.fehler', args: {'error': '$_error'}),
-                    style: TextStyle(color: c.textDanger),
-                  ),
-                ),
-              if (page == null && _error == null)
-                Padding(padding: const EdgeInsets.all(16), child: Text(context.t('common.loading'))),
-              if (page != null && page.notes.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
-                  child: Text(context.t('mobile.notizenLeer'), style: TextStyle(color: c.textMuted, height: 1.4)),
-                ),
-              if (page != null)
-                for (final n in page.notes)
-                  ListTile(
-                    leading: Icon(kindIcon(n.kind), color: c.textMuted),
-                    title: Text(n.heading, maxLines: 1, overflow: TextOverflow.ellipsis),
-                    subtitle: Text(noteMeta(context, n), style: TextStyle(color: c.textMuted, fontSize: 12.5)),
-                    onTap: () => widget.onOpen(n, page.summarize, reload),
-                  ),
-            ],
-          ),
-        ),
-        // Both ways in sit where the thumb is (spec/27).
-        Positioned(
-          left: 16,
-          right: 16,
-          bottom: 16,
-          child: SafeArea(
-            child: Row(
+    final days = <String, List<Note>>{};
+    for (final n in page?.notes ?? const <Note>[]) {
+      days.putIfAbsent(_day(context, n.createdAt), () => []).add(n);
+    }
+    return SpaceScroll(
+      title: context.t('mobile.notizen'),
+      actions: widget.actions,
+      bottomClearance: widget.bottomClearance,
+      compact: widget.compact,
+      onRefresh: reload,
+      slivers: [
+        if (_error != null)
+          SliverToBoxAdapter(child: EmptyNote(context.t('mobile.fehler', args: {'error': '$_error'}))),
+        if (page == null && _error == null) SliverToBoxAdapter(child: EmptyNote(context.t('common.loading'))),
+        if (page != null && page.notes.isEmpty) SliverToBoxAdapter(child: EmptyNote(context.t('mobile.notizenLeer'))),
+        for (final day in days.entries) ...[
+          SliverToBoxAdapter(child: SectionTitle(day.key)),
+          SliverToBoxAdapter(
+            child: InsetGroup(
               children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: () => _new(NoteEditor(api: widget.api)),
-                    icon: const Icon(Icons.edit_note),
-                    label: Text(context.t('mobile.notizNeu')),
-                    style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                for (final n in day.value)
+                  GroupRow(
+                    leading: KindMark(kind: n.kind),
+                    title: n.heading,
+                    subtitle: noteMeta(context, n, withDate: false),
+                    // State, not action: muted, and said for a screen reader.
+                    trailing: n.summary.isEmpty
+                        ? null
+                        : Icon(
+                            AppIcons.summary.of(context),
+                            size: 18,
+                            color: context.colors.textMuted,
+                            semanticLabel: context.t('mobile.hatZusammenfassung'),
+                          ),
+                    tabularSubtitle: true,
+                    onTap: () => widget.onOpen(n, page!.summarize, reload),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _new(MeetingScreen(api: widget.api)),
-                    icon: const Icon(Icons.mic_none),
-                    // Short: "Meeting aufnehmen" wraps on a phone in German.
-                    label: Text(context.t('mobile.meetingKnopf')),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
-                      backgroundColor: c.surface2,
-                    ),
-                  ),
-                ),
               ],
             ),
           ),
-        ),
+        ],
       ],
     );
   }
 }
 
-IconData kindIcon(String kind) => switch (kind) {
-  'voice' => Icons.mic_none,
-  'meeting' => Icons.groups_outlined,
-  _ => Icons.notes,
-};
+/// A note's kind as a drawn mark on a small tile — the shape says what it
+/// is, the word beside it says it again.
+class KindMark extends StatelessWidget {
+  const KindMark({super.key, required this.kind});
+
+  final String kind;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final meeting = kind == 'meeting';
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(color: meeting ? c.bgAccent : c.surface0, borderRadius: BorderRadius.circular(11)),
+      child: Icon(kindIcon(context, kind), size: 19, color: meeting ? c.textAccent : c.textSecondary),
+    );
+  }
+}
+
+IconData kindIcon(BuildContext context, String kind) => switch (kind) {
+  'voice' => AppIcons.kindVoice,
+  'meeting' => AppIcons.kindMeeting,
+  _ => AppIcons.kindText,
+}.of(context);
 
 String _duration(int seconds) {
   final h = seconds ~/ 3600, m = (seconds % 3600) ~/ 60, s = seconds % 60;
@@ -144,9 +159,13 @@ String _duration(int seconds) {
 }
 
 /// The line under a note: its kind, when, and for a meeting how long.
-String noteMeta(BuildContext context, Note n) {
+String noteMeta(BuildContext context, Note n, {bool withDate = true}) {
   final lang = Strings.of(context).language;
-  final when = n.createdAt == null ? '' : DateFormat.yMMMd(lang).add_Hm().format(n.createdAt!);
+  final when = n.createdAt == null
+      ? ''
+      : withDate
+      ? DateFormat.yMMMd(lang).add_Hm().format(n.createdAt!)
+      : DateFormat.Hm(lang).format(n.createdAt!);
   return [
     context.t('mobile.art_${n.kind}'),
     when,
@@ -245,49 +264,61 @@ class _NoteEditorState extends State<NoteEditor> {
     final listening = _dictation.running;
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.t('mobile.notizNeu')),
         actions: [
-          TextButton(
-            onPressed: _saving || _body.text.trim().isEmpty ? null : _save,
-            child: Text(context.t('mobile.speichern')),
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: FilledButton(
+              onPressed: _saving || _body.text.trim().isEmpty ? null : _save,
+              style: FilledButton.styleFrom(minimumSize: const Size(44, 38), shape: const StadiumBorder()),
+              child: Text(context.t('mobile.speichern')),
+            ),
           ),
         ],
       ),
+      // Title and text sit on the sheet itself, as on a page — not in two
+      // form fields.
       body: SafeArea(
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
               child: TextField(
                 controller: _title,
-                decoration: InputDecoration(labelText: context.t('mobile.titelOptional')),
+                style: context.type.headlineSmall,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: _bare(context, context.t('mobile.titelOptional'), context.type.headlineSmall),
               ),
             ),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
                 child: TextField(
                   controller: _body,
                   autofocus: true,
                   maxLines: null,
                   expands: true,
+                  style: context.type.bodyLarge,
                   textAlignVertical: TextAlignVertical.top,
                   textCapitalization: TextCapitalization.sentences,
                   onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(hintText: context.t('mobile.notizHinweis')),
+                  decoration: _bare(context, context.t('mobile.notizHinweis'), context.type.bodyLarge),
                 ),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: FilledButton.tonalIcon(
-                onPressed: _toggleDictation,
-                icon: Icon(listening ? Icons.stop : Icons.mic_none),
-                label: Text(listening ? context.t('mobile.diktatStop') : context.t('mobile.diktieren')),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48),
-                  backgroundColor: listening ? c.bgAccent : null,
-                  foregroundColor: listening ? c.textAccent : null,
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Glass(
+                child: SizedBox(
+                  height: 56,
+                  child: TextButton.icon(
+                    onPressed: _toggleDictation,
+                    style: TextButton.styleFrom(
+                      foregroundColor: listening ? c.textAccent : c.textPrimary,
+                      shape: const StadiumBorder(),
+                    ),
+                    icon: Icon(listening ? AppIcons.stop.of(context) : AppIcons.mic.of(context)),
+                    label: Text(listening ? context.t('mobile.diktatStop') : context.t('mobile.diktieren')),
+                  ),
                 ),
               ),
             ),
@@ -374,49 +405,53 @@ class _MeetingScreenState extends State<MeetingScreen> {
       appBar: AppBar(title: Text(context.t('mobile.meetingNeu'))),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (failed)
-                Text(dictationFailure(context, _dictation.failure), style: TextStyle(color: c.textDanger))
+                Text(
+                  dictationFailure(context, _dictation.failure),
+                  style: context.type.bodyLarge?.copyWith(color: c.textDanger),
+                )
               else ...[
+                // The clock is the screen's one large thing: it says the
+                // recording runs, and for how long.
+                Text(
+                  _duration(_watch.elapsed.inSeconds),
+                  style: context.type.headlineMedium?.copyWith(
+                    fontSize: 56,
+                    letterSpacing: -2,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
                 Row(
                   children: [
-                    Icon(Icons.fiber_manual_record, size: 14, color: _dictation.running ? c.textDanger : c.textMuted),
+                    Icon(
+                      AppIcons.record.of(context),
+                      size: 10, // Activity, not failure: red means "ended against its purpose" (PRODUCT.md).
+                      color: _dictation.running ? c.textAccent : c.textMuted,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       _dictation.running ? context.t('mobile.meetingLaeuft') : context.t('common.loading'),
-                      style: TextStyle(color: c.textMuted),
-                    ),
-                    const Spacer(),
-                    Text(
-                      _duration(_watch.elapsed.inSeconds),
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w600,
-                        fontFeatures: [FontFeature.tabularFigures()],
-                      ),
+                      style: context.type.labelLarge?.copyWith(color: c.textSecondary),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
-                Text(context.t('mobile.meetingHinweis'), style: TextStyle(color: c.textMuted, fontSize: 12.5)),
+                Text(context.t('mobile.meetingHinweis'), style: context.type.bodySmall),
               ],
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               Expanded(
                 child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: c.surface2,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: c.border),
-                  ),
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(color: c.surface2, borderRadius: BorderRadius.circular(20)),
                   child: SingleChildScrollView(
                     reverse: true,
                     child: Text(
                       text.isEmpty ? context.t('mobile.nochNichtsGehoert') : text,
-                      style: TextStyle(height: 1.45, color: text.isEmpty ? c.textMuted : c.textPrimary),
+                      style: context.type.bodyLarge?.copyWith(color: text.isEmpty ? c.textMuted : c.textPrimary),
                     ),
                   ),
                 ),
@@ -424,9 +459,9 @@ class _MeetingScreenState extends State<MeetingScreen> {
               const SizedBox(height: 16),
               FilledButton.icon(
                 onPressed: _saving || failed ? null : _stop,
-                icon: const Icon(Icons.stop),
+                icon: Icon(AppIcons.stop.of(context)),
                 label: Text(context.t('mobile.meetingStop')),
-                style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+                style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56), shape: const StadiumBorder()),
               ),
             ],
           ),
@@ -492,21 +527,33 @@ class _NoteScreenState extends State<NoteScreen> {
     final n = _note;
     return Scaffold(
       appBar: AppBar(
-        title: Text(n.heading, maxLines: 1, overflow: TextOverflow.ellipsis),
         actions: [
-          IconButton(onPressed: _delete, icon: const Icon(Icons.delete_outline), tooltip: context.t('mobile.loeschen')),
+          IconButton(
+            onPressed: _delete,
+            icon: Icon(AppIcons.delete.of(context)),
+            tooltip: context.t('mobile.loeschen'),
+          ),
+          const SizedBox(width: 4),
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
         children: [
-          Text(noteMeta(context, n), style: TextStyle(color: c.textMuted, fontSize: 12.5)),
-          const SizedBox(height: 16),
+          Row(
+            children: [
+              KindMark(kind: n.kind),
+              const SizedBox(width: 12),
+              Expanded(child: Text(noteMeta(context, n), style: context.type.bodySmall)),
+            ],
+          ),
+          const SizedBox(height: 14),
+          SelectableText(n.heading, style: context.type.headlineSmall),
+          const SizedBox(height: 20),
           if (n.summary.isNotEmpty) ...[
             Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: c.bgAccent, borderRadius: BorderRadius.circular(12)),
-              child: SelectableText(n.summary, style: TextStyle(height: 1.45, color: c.textPrimary)),
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(color: c.surface2, borderRadius: BorderRadius.circular(20)),
+              child: SummaryText(n.summary),
             ),
             const SizedBox(height: 16),
           ],
@@ -516,7 +563,8 @@ class _NoteScreenState extends State<NoteScreen> {
               alignment: Alignment.centerLeft,
               child: OutlinedButton.icon(
                 onPressed: _busy ? null : _summarize,
-                icon: const Icon(Icons.auto_awesome_outlined, size: 18),
+                style: OutlinedButton.styleFrom(shape: const StadiumBorder()),
+                icon: Icon(AppIcons.summary.of(context), size: 18, color: c.textAccent),
                 label: Text(
                   _busy
                       ? context.t('common.loading')
@@ -527,16 +575,24 @@ class _NoteScreenState extends State<NoteScreen> {
               ),
             ),
           if (n.kind != 'text') ...[
-            const SizedBox(height: 20),
-            Text(
-              context.t('mobile.transkript').toUpperCase(),
-              style: TextStyle(fontSize: 11.5, letterSpacing: 0.6, fontWeight: FontWeight.w600, color: c.textMuted),
-            ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 28),
+            Text(context.t('mobile.transkript'), style: context.type.titleLarge),
+            const SizedBox(height: 10),
           ],
-          SelectableText(n.body, style: const TextStyle(height: 1.45)),
+          SelectableText(n.body, style: context.type.bodyLarge),
         ],
       ),
     );
   }
 }
+
+/// A text field that is only text: no box, no border — the page is the field.
+InputDecoration _bare(BuildContext context, String hint, TextStyle? style) => InputDecoration(
+  hintText: hint,
+  hintStyle: style?.copyWith(color: context.colors.textMuted),
+  filled: false,
+  border: InputBorder.none,
+  enabledBorder: InputBorder.none,
+  focusedBorder: InputBorder.none,
+  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+);

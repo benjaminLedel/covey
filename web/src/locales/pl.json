@@ -2515,7 +2515,10 @@
     "art_voice": "Notatka głosowa",
     "art_meeting": "Spotkanie",
     "nurNotizen": "Współpracownicy i rozmowy nie są włączone w tej organizacji.",
-    "meetingKnopf": "Spotkanie"
+    "meetingKnopf": "Spotkanie",
+    "neu": "Nowy",
+    "heute": "Dzisiaj",
+    "hatZusammenfassung": "Z podsumowaniem"
   },
   "appLink": {
     "title": "Otwórz w aplikacji covey",

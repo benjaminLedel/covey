@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'mark.dart';
+import 'theme.dart';
 
 /// The start of the app (#332): the mark assembles itself while the app
 /// loads its catalogue and reads the Keychain, and then hands over.
@@ -55,11 +56,14 @@ class _SplashState extends State<Splash> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    // The tokens, or their defaults where no covey theme is installed yet.
+    final c =
+        Theme.of(context).extension<CoveyColors>() ??
+        (Theme.of(context).brightness == Brightness.dark ? CoveyColors.dark : CoveyColors.light);
     // Material, not a bare ColoredBox: the word needs a text style to inherit,
     // or Flutter underlines it as unstyled.
     return Material(
-      color: dark ? const Color(0xFF121214) : const Color(0xFFF2F2F2),
+      color: c.surface0,
       child: Center(
         child: AnimatedBuilder(
           animation: _c,
@@ -90,7 +94,7 @@ class _SplashState extends State<Splash> with SingleTickerProviderStateMixin {
                         fontSize: 28,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 0.5,
-                        color: dark ? const Color(0xFFF4F4F5) : const Color(0xFF16161A),
+                        color: c.textPrimary,
                       ),
                     ),
                   ),

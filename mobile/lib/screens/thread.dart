@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../api.dart';
-import '../i18n.dart';
-import '../models.dart';
 import '../face.dart';
+import '../i18n.dart';
+import '../icons.dart';
+import '../models.dart';
 import '../theme.dart';
+import '../ui.dart';
 
 /// One agent, the conversation with it.
 ///
@@ -117,14 +119,35 @@ class _ThreadScreenState extends State<ThreadScreen> {
     final entries = th?.entries.reversed.toList() ?? const <ThreadEntry>[];
     return Scaffold(
       appBar: AppBar(
+        // Beside a back control the face follows it directly; without one
+        // (the detail pane of a wide window) it keeps the content margin.
+        titleSpacing: (ModalRoute.of(context)?.canPop ?? false) ? 0 : 16,
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (widget.agentSlug.isNotEmpty) ...[
-              Face(slug: widget.agentSlug, state: widget.faceState, size: 28),
-              const SizedBox(width: 10),
+              Face(slug: widget.agentSlug, state: widget.faceState, size: 34),
+              const SizedBox(width: 12),
             ],
-            Flexible(child: Text(widget.agentName, overflow: TextOverflow.ellipsis)),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(widget.agentName, overflow: TextOverflow.ellipsis, style: context.type.titleMedium),
+                  // The state in words under the name, as a messenger says
+                  // "online": the face shows it, the word says it.
+                  Text(
+                    context.t(switch (widget.faceState) {
+                      FaceState.killed => 'status.killed',
+                      FaceState.sleeping => 'status.sleeping',
+                      FaceState.working => 'status.working',
+                    }),
+                    style: context.type.labelSmall,
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -136,32 +159,45 @@ class _ThreadScreenState extends State<ThreadScreen> {
                 padding: const EdgeInsets.all(12),
                 child: Text(
                   context.t('mobile.fehler', args: {'error': '$_error'}),
-                  style: TextStyle(color: c.textDanger),
+                  style: context.type.bodyMedium?.copyWith(color: c.textDanger),
                 ),
               ),
             Expanded(
               child: th == null
                   ? Center(child: Text(context.t('common.loading')))
                   : entries.isEmpty
-                  ? _Empty(name: widget.agentName)
+                  ? _Empty(name: widget.agentName, slug: widget.agentSlug, state: widget.faceState)
                   : ListView.builder(
                       controller: _scroll,
                       reverse: true,
-                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
                       itemCount: entries.length + (th.pending ? 1 : 0),
                       itemBuilder: (context, i) {
                         if (th.pending && i == 0) {
                           return Padding(
-                            padding: const EdgeInsets.all(8),
-                            child: Text(
-                              '${widget.agentName} ${context.t('team.arbeitetGerade')}',
-                              style: TextStyle(color: c.textMuted, fontStyle: FontStyle.italic),
+                            padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+                            child: Row(
+                              children: [
+                                if (widget.agentSlug.isNotEmpty) ...[
+                                  Face(slug: widget.agentSlug, size: 22),
+                                  const SizedBox(width: 8),
+                                ],
+                                Text(
+                                  '${widget.agentName} ${context.t('team.arbeitetGerade')}',
+                                  style: context.type.bodySmall,
+                                ),
+                              ],
                             ),
                           );
                         }
-                        final e = entries[i - (th.pending ? 1 : 0)];
+                        final k = i - (th.pending ? 1 : 0);
+                        final e = entries[k];
+                        // entries is newest-first; the line before this one
+                        // in time is the next one in the list.
+                        final earlier = k + 1 < entries.length ? entries[k + 1] : null;
                         return _Line(
                           entry: e,
+                          showTask: earlier == null || earlier.taskId != e.taskId || earlier.fromPerson,
                           selected: _answering?.id == e.id,
                           onAnswer: e.isOpenQuestion && widget.me.teamSurface
                               ? () => setState(() => _answering = _answering?.id == e.id ? null : e)
@@ -190,9 +226,11 @@ class _ThreadScreenState extends State<ThreadScreen> {
 }
 
 class _Empty extends StatelessWidget {
-  const _Empty({required this.name});
+  const _Empty({required this.name, required this.slug, required this.state});
 
   final String name;
+  final String slug;
+  final FaceState state;
 
   @override
   Widget build(BuildContext context) {
@@ -202,17 +240,14 @@ class _Empty extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (slug.isNotEmpty) ...[Face(slug: slug, state: state, size: 72), const SizedBox(height: 18)],
             Text(
               context.t('team.leerTitel', args: {'name': name}),
               textAlign: TextAlign.center,
-              style: const TextStyle(fontWeight: FontWeight.w600),
+              style: context.type.titleLarge,
             ),
             const SizedBox(height: 8),
-            Text(
-              context.t('team.leerText'),
-              textAlign: TextAlign.center,
-              style: TextStyle(color: context.colors.textMuted),
-            ),
+            Text(context.t('team.leerText'), textAlign: TextAlign.center, style: context.type.bodyMedium),
           ],
         ),
       ),
@@ -221,11 +256,15 @@ class _Empty extends StatelessWidget {
 }
 
 class _Line extends StatelessWidget {
-  const _Line({required this.entry, required this.selected, this.onAnswer});
+  const _Line({required this.entry, required this.selected, this.onAnswer, this.showTask = true});
 
   final ThreadEntry entry;
   final bool selected;
   final VoidCallback? onAnswer;
+
+  /// Whether this line opens a run of its task's lines. The task is named
+  /// once where its run starts; the lines after it follow bare.
+  final bool showTask;
 
   @override
   Widget build(BuildContext context) {
@@ -233,49 +272,82 @@ class _Line extends StatelessWidget {
     final mine = entry.fromPerson;
     final question = entry.kind == 'question';
     final error = entry.kind == 'error';
-    final bg = mine ? c.bgAccent : (question ? c.bgWait : c.surface2);
-    final fg = error ? c.textDanger : (question ? c.textWait : c.textPrimary);
-    return Align(
-      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.82),
-        child: Container(
-          margin: const EdgeInsets.symmetric(vertical: 4),
-          padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: selected ? c.textWait : c.border, width: selected ? 1.5 : 1),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // The task a line belongs to, in words — its state is said, not
-              // only coloured.
-              if (entry.taskTitle.isNotEmpty && entry.kind != 'message')
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(
-                    '${entry.taskTitle} · ${context.t('status.${entry.taskState}')}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 11.5, color: c.textMuted),
-                  ),
+    // The person's lines are ink on the sheet, the agent's are white paper:
+    // two sides told apart by weight, not by a second colour. A question is
+    // the one line that asks for something, so it gets the waiting tone and
+    // its own answer button.
+    final bg = mine ? c.textPrimary : (question ? c.bgWait : c.surface2);
+    final fg = mine ? c.surface2 : (error ? c.textDanger : (question ? c.textWait : c.textPrimary));
+    const r = Radius.circular(22);
+    const tight = Radius.circular(8);
+    return LayoutBuilder(
+      builder: (context, box) {
+        final paneWidth = box.maxWidth;
+        return Align(
+          alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+          child: ConstrainedBox(
+            // Measured against the pane, not the window, and capped: a bubble
+            // wider than ~70 characters is a paragraph nobody reads to the end.
+            constraints: BoxConstraints(maxWidth: (paneWidth * 0.8).clamp(0, 560)),
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 3),
+              padding: const EdgeInsets.fromLTRB(16, 11, 16, 11),
+              decoration: BoxDecoration(
+                color: bg,
+                // The corner nearest the speaker tightens — the tail, without one.
+                borderRadius: BorderRadius.only(
+                  topLeft: r,
+                  topRight: r,
+                  bottomLeft: mine ? r : tight,
+                  bottomRight: mine ? tight : r,
                 ),
-              SelectableText(entry.text, style: TextStyle(color: fg, height: 1.35)),
-              if (onAnswer != null)
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(onPressed: onAnswer, child: Text(context.t('chat.answer'))),
-                ),
-            ],
+                border: selected ? Border.all(color: c.textWait, width: 1.6) : null,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // The task a line belongs to, in words — its state is said, not
+                  // only coloured.
+                  if (showTask && entry.taskTitle.isNotEmpty && entry.kind != 'message')
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        '${entry.taskTitle} · ${context.t('status.${entry.taskState}')}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: context.type.labelSmall?.copyWith(
+                          color: mine ? c.surface2.withValues(alpha: 0.75) : null,
+                        ),
+                      ),
+                    ),
+                  SelectableText(entry.text, style: context.type.bodyLarge?.copyWith(color: fg)),
+                  if (onAnswer != null) ...[
+                    const SizedBox(height: 10),
+                    FilledButton(
+                      onPressed: onAnswer,
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(44, 40),
+                        padding: const EdgeInsets.symmetric(horizontal: 18),
+                        backgroundColor: c.textWait,
+                        foregroundColor: c.surface2,
+                        shape: const StadiumBorder(),
+                      ),
+                      child: Text(context.t('chat.answer')),
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
 
+/// The compose box: a floating capsule like the space capsule, the field and
+/// a round send button inside, and above it — when an answer is being
+/// written — the question it answers.
 class _Composer extends StatelessWidget {
   const _Composer({
     required this.controller,
@@ -296,60 +368,77 @@ class _Composer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return Container(
-      decoration: BoxDecoration(
-        color: c.surface2,
-        border: Border(top: BorderSide(color: c.border)),
-      ),
-      padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (answering != null)
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    context.t('chat.answering', args: {'title': answering!.taskTitle}),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: c.textWait, fontSize: 12.5),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 0, 4),
+              child: Row(
+                children: [
+                  Icon(AppIcons.reply.of(context), size: 16, color: c.textWait),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      context.t('chat.answering', args: {'title': answering!.taskTitle}),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: context.type.labelMedium?.copyWith(color: c.textWait),
+                    ),
                   ),
-                ),
-                IconButton(
-                  onPressed: onCancelAnswer,
-                  icon: const Icon(Icons.close, size: 18),
-                  tooltip: context.t('team.abbrechen'),
-                ),
-              ],
+                  IconButton(
+                    onPressed: onCancelAnswer,
+                    icon: Icon(AppIcons.close.of(context), size: 18),
+                    tooltip: context.t('team.abbrechen'),
+                  ),
+                ],
+              ),
             ),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: controller,
-                  enabled: enabled,
-                  minLines: 1,
-                  maxLines: 6,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    hintText: !enabled
-                        ? context.t('mobile.teamAusKurz')
-                        : answering != null
-                        ? context.t('chat.placeholderAnswer')
-                        : context.t('chat.placeholder'),
+          Glass(
+            radius: 28,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(6, 5, 5, 5),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: controller,
+                      enabled: enabled,
+                      minLines: 1,
+                      maxLines: 6,
+                      textCapitalization: TextCapitalization.sentences,
+                      style: context.type.bodyLarge,
+                      decoration: InputDecoration(
+                        filled: false,
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        disabledBorder: InputBorder.none,
+                        contentPadding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+                        hintText: !enabled
+                            ? context.t('mobile.teamAusKurz')
+                            : answering != null
+                            ? context.t('chat.placeholderAnswer')
+                            : context.t('chat.placeholder'),
+                      ),
+                    ),
                   ),
-                ),
+                  SizedBox.square(
+                    dimension: 46,
+                    child: IconButton.filled(
+                      onPressed: enabled && !sending ? onSend : null,
+                      style: IconButton.styleFrom(backgroundColor: c.textPrimary, foregroundColor: c.surface2),
+                      icon: Icon(AppIcons.send.of(context)),
+                      tooltip: answering != null ? context.t('chat.answer') : context.t('chat.send'),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 6),
-              IconButton.filled(
-                onPressed: enabled && !sending ? onSend : null,
-                icon: const Icon(Icons.arrow_upward),
-                tooltip: answering != null ? context.t('chat.answer') : context.t('chat.send'),
-              ),
-            ],
+            ),
           ),
         ],
       ),

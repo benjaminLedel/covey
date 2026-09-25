@@ -2515,7 +2515,10 @@
     "art_voice": "Note vocale",
     "art_meeting": "Réunion",
     "nurNotizen": "Les collègues et les conversations ne sont pas activés dans cette organisation.",
-    "meetingKnopf": "Réunion"
+    "meetingKnopf": "Réunion",
+    "neu": "Nouveau",
+    "heute": "Aujourd'hui",
+    "hatZusammenfassung": "Avec résumé"
   },
   "appLink": {
     "title": "Ouvrir dans l'application covey",

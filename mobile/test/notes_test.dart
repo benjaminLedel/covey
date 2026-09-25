@@ -7,6 +7,7 @@ import 'package:covey_mobile/models.dart';
 import 'package:covey_mobile/screens/home.dart';
 import 'package:covey_mobile/screens/notes.dart';
 import 'package:covey_mobile/theme.dart';
+import 'package:covey_mobile/ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -97,9 +98,11 @@ void main() {
     await tester.pumpWidget(await tester.runAsync(() => _app(HomeScreen(api: api, onDisconnect: () {}))) as Widget);
     await _settle(tester);
 
-    expect(find.byType(NavigationBar), findsNothing, reason: 'one tab needs no bar');
-    expect(find.text('Wartet auf Sie'), findsNothing);
-    expect(find.text('Notizen'), findsOneWidget);
+    // One space: the capsule has nothing to switch, only the + remains.
+    final capsule = tester.widget<SpaceCapsule>(find.byType(SpaceCapsule));
+    expect(capsule.spaces.length, 1);
+    expect(find.text('Team'), findsNothing);
+    expect(find.text('Notizen'), findsWidgets);
     expect(find.textContaining('Meeting · '), findsOneWidget);
     expect(find.textContaining('30:05'), findsOneWidget, reason: 'a meeting shows how long it ran');
     expect(
@@ -109,7 +112,7 @@ void main() {
     );
   });
 
-  testWidgets('with the team surface the notes are a third tab', (tester) async {
+  testWidgets('with the team surface there are two spaces, Team and Notes', (tester) async {
     final api = CoveyApi(
       Uri.parse('https://c.example'),
       'k',
@@ -124,8 +127,8 @@ void main() {
     );
     await tester.pumpWidget(await tester.runAsync(() => _app(HomeScreen(api: api, onDisconnect: () {}))) as Widget);
     await _settle(tester);
-    final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
-    expect(bar.destinations.length, 3);
+    final capsule = tester.widget<SpaceCapsule>(find.byType(SpaceCapsule));
+    expect([for (final s in capsule.spaces) s.label], ['Team', 'Notizen']);
   });
 
   testWidgets('a dictated note is saved as a voice note', (tester) async {

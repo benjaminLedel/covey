@@ -2515,7 +2515,10 @@
     "art_voice": "Spraaknotitie",
     "art_meeting": "Vergadering",
     "nurNotizen": "Collega's en gesprekken zijn in deze organisatie niet ingeschakeld.",
-    "meetingKnopf": "Vergadering"
+    "meetingKnopf": "Vergadering",
+    "neu": "Nieuw",
+    "heute": "Vandaag",
+    "hatZusammenfassung": "Met samenvatting"
   },
   "appLink": {
     "title": "Openen in de covey-app",

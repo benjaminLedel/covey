@@ -2515,7 +2515,10 @@
     "art_voice": "Voice note",
     "art_meeting": "Meeting",
     "nurNotizen": "Colleagues and conversations are not switched on in this organisation.",
-    "meetingKnopf": "Meeting"
+    "meetingKnopf": "Meeting",
+    "neu": "New",
+    "heute": "Today",
+    "hatZusammenfassung": "Has a summary"
   },
   "appLink": {
     "title": "Open in the covey app",

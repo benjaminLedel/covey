@@ -2515,7 +2515,10 @@
     "art_voice": "Nota de voz",
     "art_meeting": "Reunión",
     "nurNotizen": "Los compañeros y las conversaciones no están activados en esta organización.",
-    "meetingKnopf": "Reunión"
+    "meetingKnopf": "Reunión",
+    "neu": "Nuevo",
+    "heute": "Hoy",
+    "hatZusammenfassung": "Con resumen"
   },
   "appLink": {
     "title": "Abrir en la aplicación covey",

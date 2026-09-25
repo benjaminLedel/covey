@@ -116,12 +116,12 @@ void main() {
     await _settle(tester);
 
     expect(find.text('Darf ich Globex direkt antworten?'), findsOneWidget);
-    await tester.tap(find.widgetWithText(TextButton, 'Antworten'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Antworten'));
     await tester.pump();
     expect(find.text('Antwort auf: Rechnung'), findsOneWidget);
 
     await tester.enterText(find.byType(TextField), 'Ja, bitte.');
-    await tester.tap(find.byIcon(Icons.arrow_upward));
+    await tester.tap(find.byIcon(Icons.arrow_upward_rounded));
     await _settle(tester);
     expect(posts['/api/v1/tasks/t1/reply'], {'text': 'Ja, bitte.'});
     expect(posts.containsKey('/api/v1/agents/a1/messages'), isFalse);
@@ -137,7 +137,7 @@ void main() {
     await _settle(tester);
 
     expect(find.text('Darf ich Globex direkt antworten?'), findsOneWidget);
-    expect(find.widgetWithText(TextButton, 'Antworten'), findsNothing);
+    expect(find.widgetWithText(FilledButton, 'Antworten'), findsNothing);
     expect(tester.widget<TextField>(find.byType(TextField)).enabled, isFalse);
     await tester.pumpWidget(const SizedBox());
   });

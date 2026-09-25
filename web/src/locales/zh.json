@@ -2515,7 +2515,10 @@
     "art_voice": "语音笔记",
     "art_meeting": "会议",
     "nurNotizen": "此组织尚未开启同事与对话功能。",
-    "meetingKnopf": "会议"
+    "meetingKnopf": "会议",
+    "neu": "新建",
+    "heute": "今天",
+    "hatZusammenfassung": "已有摘要"
   },
   "appLink": {
     "title": "在 covey 应用中打开",

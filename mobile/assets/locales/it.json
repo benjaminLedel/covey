@@ -21,7 +21,8 @@
   "mobile.diktieren": "Detta",
   "mobile.erneut": "Riprova",
   "mobile.fehler": "Impossibile caricare: {{error}}",
-  "mobile.imWebEntscheiden": "Per ora si decide nell'interfaccia web.",
+  "mobile.hatZusammenfassung": "Con riassunto",
+  "mobile.heute": "Oggi",
   "mobile.keinCovey": "Qualcosa risponde, ma non è un covey.",
   "mobile.keinCoveyCode": "Questo non è un codice di associazione covey.",
   "mobile.keineKamera": "Su questo dispositivo non è disponibile alcuna fotocamera. Apra il codice con «Apri nell'app» nell'interfaccia web, oppure si colleghi con indirizzo e chiave API.",
@@ -35,11 +36,11 @@
   "mobile.loeschenFrage": "Eliminare questa nota?",
   "mobile.manuell": "Collegati invece con indirizzo e chiave API",
   "mobile.meetingHinweis": "Il parlato viene riconosciuto su questo dispositivo. Nessun audio viene salvato o inviato.",
-  "mobile.meetingKnopf": "Riunione",
   "mobile.meetingLaeuft": "Registrazione in corso",
   "mobile.meetingNeu": "Registra riunione",
   "mobile.meetingStop": "Termina e salva",
   "mobile.mikrofonVerweigert": "L'app ha bisogno di accedere al microfono e al riconoscimento vocale. Può consentire entrambi nelle impostazioni del dispositivo.",
+  "mobile.neu": "Nuovo",
   "mobile.nichtErreichbar": "Nessuna risposta a questo indirizzo.",
   "mobile.nichtGeweckt": "Annotato. Nessuno lo aspettava: l'agente lo leggerà alla prossima esecuzione.",
   "mobile.nichtsErkannt": "Non è stato riconosciuto nulla. Non è stato salvato nulla.",
@@ -86,7 +87,7 @@
   "status.working": "al lavoro",
   "team.abbrechen": "Annulla",
   "team.arbeitetGerade": "ci sta lavorando",
-  "team.kollegen": "Colleghi",
+  "team.gestern": "Ieri",
   "team.leerText": "Scriva qui sotto che cosa c'è da fare: diventerà un compito.",
   "team.leerTitel": "Non si è ancora parlato con {{name}}.",
   "team.ohneAbteilung": "Senza reparto",
@@ -94,5 +95,5 @@
   "team.wartetLead": "{{count}} punti attendono una decisione.",
   "team.wartetLead_one": "Un punto attende una decisione.",
   "team.wartetNichts": "Non attende nulla. Il personale lavora o dorme.",
-  "team.wartetTitel": "Buongiorno, {{name}}"
+  "team.workspace": "Squadra"
 }

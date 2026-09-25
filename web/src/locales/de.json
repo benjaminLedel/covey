@@ -2515,7 +2515,10 @@
     "art_voice": "Sprachnotiz",
     "art_meeting": "Meeting",
     "nurNotizen": "Kollegen und Gespräche sind in dieser Organisation nicht eingeschaltet.",
-    "meetingKnopf": "Meeting"
+    "meetingKnopf": "Meeting",
+    "neu": "Neu",
+    "heute": "Heute",
+    "hatZusammenfassung": "Mit Zusammenfassung"
   },
   "appLink": {
     "title": "In der covey-App öffnen",

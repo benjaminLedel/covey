@@ -21,7 +21,8 @@
   "mobile.diktieren": "Dictar",
   "mobile.erneut": "Reintentar",
   "mobile.fehler": "No se pudo cargar: {{error}}",
-  "mobile.imWebEntscheiden": "Por ahora, las decisiones se toman en la interfaz web.",
+  "mobile.hatZusammenfassung": "Con resumen",
+  "mobile.heute": "Hoy",
   "mobile.keinCovey": "Algo responde ahí, pero no es un covey.",
   "mobile.keinCoveyCode": "Esto no es un código de vinculación de covey.",
   "mobile.keineKamera": "No hay ninguna cámara disponible en este dispositivo. Abra el código con «Abrir en la aplicación» en la interfaz web, o conéctese con dirección y clave API.",
@@ -35,11 +36,11 @@
   "mobile.loeschenFrage": "¿Eliminar esta nota?",
   "mobile.manuell": "Conectar con dirección y clave API",
   "mobile.meetingHinweis": "La voz se reconoce en este dispositivo. No se guarda ni se envía audio.",
-  "mobile.meetingKnopf": "Reunión",
   "mobile.meetingLaeuft": "Grabando",
   "mobile.meetingNeu": "Grabar reunión",
   "mobile.meetingStop": "Terminar y guardar",
   "mobile.mikrofonVerweigert": "La aplicación necesita acceso al micrófono y al reconocimiento de voz. Puede permitir ambos en los ajustes del dispositivo.",
+  "mobile.neu": "Nuevo",
   "mobile.nichtErreichbar": "Nada responde en esta dirección.",
   "mobile.nichtGeweckt": "Anotado. Nadie lo esperaba: el agente lo leerá en su próxima ejecución.",
   "mobile.nichtsErkannt": "No se reconoció nada. No se guardó nada.",
@@ -86,7 +87,7 @@
   "status.working": "trabajando",
   "team.abbrechen": "Cancelar",
   "team.arbeitetGerade": "está trabajando en ello",
-  "team.kollegen": "Colegas",
+  "team.gestern": "Ayer",
   "team.leerText": "Escriba abajo lo que hay que hacer: se convertirá en una tarea.",
   "team.leerTitel": "Todavía no se ha hablado con {{name}}.",
   "team.ohneAbteilung": "Sin departamento",
@@ -94,5 +95,5 @@
   "team.wartetLead": "{{count}} puntos esperan una decisión.",
   "team.wartetLead_one": "Un punto espera una decisión.",
   "team.wartetNichts": "No espera nada. La plantilla trabaja o duerme.",
-  "team.wartetTitel": "Hola, {{name}}"
+  "team.workspace": "Equipo"
 }

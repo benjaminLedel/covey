@@ -21,7 +21,8 @@
   "mobile.diktieren": "Diktieren",
   "mobile.erneut": "Erneut versuchen",
   "mobile.fehler": "Konnte nicht laden: {{error}}",
-  "mobile.imWebEntscheiden": "Entschieden wird vorerst in der Weboberfläche.",
+  "mobile.hatZusammenfassung": "Mit Zusammenfassung",
+  "mobile.heute": "Heute",
   "mobile.keinCovey": "Dort antwortet etwas, aber es ist kein covey.",
   "mobile.keinCoveyCode": "Das ist kein covey-Kopplungscode.",
   "mobile.keineKamera": "Auf diesem Gerät ist keine Kamera verfügbar. Öffnen Sie den Code stattdessen über „In der App öffnen“ in der Weboberfläche, oder verbinden Sie sich mit Adresse und API-Schlüssel.",
@@ -35,11 +36,11 @@
   "mobile.loeschenFrage": "Diese Notiz löschen?",
   "mobile.manuell": "Stattdessen mit Adresse und API-Schlüssel verbinden",
   "mobile.meetingHinweis": "Die Sprache wird auf diesem Gerät erkannt. Es wird kein Audio gespeichert oder übertragen.",
-  "mobile.meetingKnopf": "Meeting",
   "mobile.meetingLaeuft": "Aufnahme läuft",
   "mobile.meetingNeu": "Meeting aufnehmen",
   "mobile.meetingStop": "Beenden und speichern",
   "mobile.mikrofonVerweigert": "Die App braucht Zugriff auf Mikrofon und Spracherkennung. Beides können Sie in den Einstellungen des Geräts erlauben.",
+  "mobile.neu": "Neu",
   "mobile.nichtErreichbar": "Unter dieser Adresse antwortet nichts.",
   "mobile.nichtGeweckt": "Notiert. Niemand hat darauf gewartet — der Agent liest es bei seinem nächsten Lauf.",
   "mobile.nichtsErkannt": "Es wurde nichts erkannt. Nichts gespeichert.",
@@ -86,7 +87,7 @@
   "status.working": "arbeitet",
   "team.abbrechen": "Abbrechen",
   "team.arbeitetGerade": "arbeitet gerade daran",
-  "team.kollegen": "Kollegen",
+  "team.gestern": "Gestern",
   "team.leerText": "Schreiben Sie unten, was zu tun ist — daraus wird eine Aufgabe.",
   "team.leerTitel": "Noch nichts mit {{name}} besprochen.",
   "team.ohneAbteilung": "Ohne Abteilung",
@@ -94,5 +95,5 @@
   "team.wartetLead": "{{count}} Punkte warten auf eine Entscheidung.",
   "team.wartetLead_one": "Ein Punkt wartet auf eine Entscheidung.",
   "team.wartetNichts": "Nichts wartet. Die Belegschaft arbeitet oder schläft.",
-  "team.wartetTitel": "Guten Tag, {{name}}"
+  "team.workspace": "Team"
 }

@@ -21,7 +21,8 @@
   "mobile.diktieren": "Dyktuj",
   "mobile.erneut": "Spróbuj ponownie",
   "mobile.fehler": "Nie udało się wczytać: {{error}}",
-  "mobile.imWebEntscheiden": "Na razie decyzje podejmuje się w interfejsie webowym.",
+  "mobile.hatZusammenfassung": "Z podsumowaniem",
+  "mobile.heute": "Dzisiaj",
   "mobile.keinCovey": "Coś tam odpowiada, ale to nie jest covey.",
   "mobile.keinCoveyCode": "To nie jest kod parowania covey.",
   "mobile.keineKamera": "Na tym urządzeniu nie ma dostępnej kamery. Proszę otworzyć kod przyciskiem „Otwórz w aplikacji” w interfejsie webowym albo połączyć się adresem i kluczem API.",
@@ -35,11 +36,11 @@
   "mobile.loeschenFrage": "Usunąć tę notatkę?",
   "mobile.manuell": "Zamiast tego połącz adresem i kluczem API",
   "mobile.meetingHinweis": "Mowa jest rozpoznawana na tym urządzeniu. Żaden dźwięk nie jest zapisywany ani wysyłany.",
-  "mobile.meetingKnopf": "Spotkanie",
   "mobile.meetingLaeuft": "Nagrywanie",
   "mobile.meetingNeu": "Nagraj spotkanie",
   "mobile.meetingStop": "Zakończ i zapisz",
   "mobile.mikrofonVerweigert": "Aplikacja potrzebuje dostępu do mikrofonu i rozpoznawania mowy. Można zezwolić na oba w ustawieniach urządzenia.",
+  "mobile.neu": "Nowy",
   "mobile.nichtErreichbar": "Pod tym adresem nic nie odpowiada.",
   "mobile.nichtGeweckt": "Zapisano. Nikt na to nie czekał — agent przeczyta to przy następnym uruchomieniu.",
   "mobile.nichtsErkannt": "Nic nie rozpoznano. Nic nie zapisano.",
@@ -86,7 +87,7 @@
   "status.working": "pracuje",
   "team.abbrechen": "Anuluj",
   "team.arbeitetGerade": "właśnie nad tym pracuje",
-  "team.kollegen": "Koledzy",
+  "team.gestern": "Wczoraj",
   "team.leerText": "Proszę napisać poniżej, co jest do zrobienia — powstanie z tego zadanie.",
   "team.leerTitel": "Jeszcze nic nie omówiono z {{name}}.",
   "team.ohneAbteilung": "Bez działu",
@@ -94,5 +95,5 @@
   "team.wartetLead": "{{count}} punktów czeka na decyzję.",
   "team.wartetLead_one": "Jeden punkt czeka na decyzję.",
   "team.wartetNichts": "Nic nie czeka. Personel pracuje albo śpi.",
-  "team.wartetTitel": "Dzień dobry, {{name}}"
+  "team.workspace": "Zespół"
 }
