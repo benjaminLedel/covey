@@ -149,6 +149,15 @@ const icons: Record<string, JSX.Element> = {
     </>
   ),
   chevron: <path d="M9 6l6 6l-6 6" />,
+  // Notes (#342): a sheet with a pencil across its corner — writing, not a
+  // record of what others did (that is the clipboard below).
+  note: (
+    <>
+      <path d="M13 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7" />
+      <path d="M8 13h5M8 16.5h7" />
+      <path d="M17.6 3.6a1.5 1.5 0 0 1 2.1 2.1L13.5 12l-2.8.7l.7-2.8z" />
+    </>
+  ),
   // Audit: a clipboard — the list of what people have done.
   clipboard: (
     <>

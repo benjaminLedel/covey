@@ -18,6 +18,7 @@ import "../app.css";
 
 const Thread = lazy(() => import("./Thread"));
 const Ueberblick = lazy(() => import("./Ueberblick"));
+const Notes = lazy(() => import("../pages/Notes"));
 
 /* Der Workspace: die Oberfläche dessen, der MIT der Belegschaft arbeitet.
  *
@@ -149,6 +150,14 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
               {t("team.ueberblick")}
               {offen > 0 && <span className="tm-zahl">{offen}</span>}
             </NavLink>
+            {/* The person's own notes (#342): a place, like the office — not
+                somebody to talk to. */}
+            <NavLink to="/team/notes" className={({ isActive }) => `tm-wartet tm-notizen ${isActive ? "on" : ""}`}>
+              <span className="tm-notizen-zeichen" aria-hidden="true">
+                <NavIcon name="note" />
+              </span>
+              {t("mobile.notizen")}
+            </NavLink>
             {darfEinstellen && (
               <Link
                 to={!people ? "/setup" : peopleEntwurf ? `/agents/${people.id}` : `/team/${people.id}?einstellen=1`}
@@ -206,6 +215,7 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
         <Suspense fallback={null}>
           <Routes>
             <Route path="/" element={<Ueberblick me={me} />} />
+            <Route path="/team/notes" element={<div className="tm-notizen-seite"><Notes /></div>} />
             <Route path="/team/:id" element={<ThreadRoute me={me} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

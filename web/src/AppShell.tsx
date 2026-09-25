@@ -39,6 +39,7 @@ import "./app.css";
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const AgentPage = lazy(() => import("./pages/Agent"));
 const Inbox = lazy(() => import("./pages/Inbox"));
+const Notes = lazy(() => import("./pages/Notes"));
 const Guardrails = lazy(() => import("./pages/Guardrails"));
 const Secrets = lazy(() => import("./pages/Secrets"));
 const Skills = lazy(() => import("./pages/Skills"));
@@ -271,6 +272,9 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
         <div className="nav-group">
           <NavItem to="/agents" end icon="robot" label={t("nav.agents")} />
           <NavItem to="/inbox" icon="bell" label={t("nav.inbox")} count={pending} />
+          {/* The person's own notes (#342) — beside the inbox, because both are
+              the everyday of whoever is signed in. */}
+          <NavItem to="/notes" icon="note" label={t("mobile.notizen")} />
           <NavItem to="/costs" icon="chart" label={t("nav.costs")} />
           <NavItem to="/org" icon="sitemap" label={t("nav.org")} />
         </div>
@@ -357,6 +361,7 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
             <Route path="/people/:id" element={<PersonPage me={me} />} />
             <Route path="/profile" element={<Navigate to={`/people/${me.ID}`} replace />} />
             <Route path="/inbox" element={<Inbox me={me} />} />
+            <Route path="/notes" element={<Notes />} />
             {/* The old addresses stay valid: both were linked to. */}
             <Route path="/approvals" element={<Navigate to="/inbox" replace />} />
             <Route path="/improvements" element={<Navigate to="/inbox" replace />} />

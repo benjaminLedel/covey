@@ -2521,7 +2521,8 @@
     "hatZusammenfassung": "Z podsumowaniem",
     "notizenSuchen": "Szukaj w notatkach",
     "anhangFoto": "Zdjęcie lub wideo",
-    "anhangDatei": "Plik"
+    "anhangDatei": "Plik",
+    "webHinweis": "Notatki są prywatne: nikt inny ich nie czyta. Notatki głosowe i spotkania nagrywa się w aplikacji covey, gdzie mowa jest rozpoznawana na urządzeniu; tutaj można je czytać, przeszukiwać, podsumowywać i pisać nowe."
   },
   "appLink": {
     "title": "Otwórz w aplikacji covey",

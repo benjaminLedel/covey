@@ -1562,3 +1562,27 @@ export const ANWESEND_MS = 5 * 60 * 1000;
 
 export const istAnwesend = (gesehen?: string) =>
   !!gesehen && Date.now() - new Date(gesehen).getTime() < ANWESEND_MS;
+
+/* The notetaker (#336, #342): the signed-in seat's own notes. Private —
+   nobody else reads them, whatever the role. */
+export type Note = {
+  id: string;
+  kind: "text" | "voice" | "meeting";
+  title: string;
+  body: string;
+  summary: string;
+  duration_seconds: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type NotesPage = { notes: Note[]; summarize: boolean };
+
+export const listNotes = (q = "") =>
+  api<NotesPage>(q.trim() ? `/me/notes?q=${encodeURIComponent(q.trim())}` : "/me/notes");
+export const createNote = (body: string, title = "") =>
+  post<Note>("/me/notes", { kind: "text", title, body });
+export const updateNote = (id: string, change: { title?: string; body?: string }) =>
+  patch<Note>(`/me/notes/${id}`, change);
+export const deleteNote = (id: string) => del<void>(`/me/notes/${id}`);
+export const summarizeNote = (id: string) => post<Note>(`/me/notes/${id}/summarize`);

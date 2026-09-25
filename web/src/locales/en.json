@@ -2521,7 +2521,8 @@
     "hatZusammenfassung": "Has a summary",
     "notizenSuchen": "Search notes",
     "anhangFoto": "Photo or video",
-    "anhangDatei": "File"
+    "anhangDatei": "File",
+    "webHinweis": "Your notes are private: nobody else reads them. Voice notes and meetings are recorded in the covey app, where speech is recognised on the device; here you read, search, summarise and type them."
   },
   "appLink": {
     "title": "Open in the covey app",

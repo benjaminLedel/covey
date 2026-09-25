@@ -145,6 +145,7 @@ export const APP_ROUTE_PREFIXES = [
   "/guardrails",
   "/improvements",
   "/inbox",
+  "/notes",
   "/org",
   "/orgs",
   "/people",

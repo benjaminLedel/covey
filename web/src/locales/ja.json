@@ -2521,7 +2521,8 @@
     "hatZusammenfassung": "要約あり",
     "notizenSuchen": "メモを検索",
     "anhangFoto": "写真またはビデオ",
-    "anhangDatei": "ファイル"
+    "anhangDatei": "ファイル",
+    "webHinweis": "メモは非公開で、他の人は読めません。音声メモと会議は covey アプリで記録し、音声は端末上で認識されます。ここでは閲覧、検索、要約、入力ができます。"
   },
   "appLink": {
     "title": "covey アプリで開く",

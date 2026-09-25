@@ -145,7 +145,20 @@ export function Markdown({ text, baseLevel = 4 }: { text: string; baseLevel?: nu
       const items: ReactNode[] = [];
       while (i < lines.length && (isUl ? /^\s*[-*]\s+/ : /^\s*\d+\.\s+/).test(lines[i])) {
         const item = lines[i].replace(isUl ? /^\s*[-*]\s+/ : /^\s*\d+\.\s+/, "");
-        items.push(<li key={items.length}>{renderInline(item, `li${key}-${items.length}`)}</li>);
+        /* A task item ("- [ ] …", "- [x] …"): a meeting summary's action items
+           are a checklist (#342). A real checkbox, read-only — the state is
+           the model's report, not something to tick here. */
+        const task = isUl ? /^\[( |x|X)\]\s+(.*)$/.exec(item) : null;
+        items.push(
+          task ? (
+            <li key={items.length} className="md-task">
+              <input type="checkbox" checked={task[1] !== " "} readOnly disabled />
+              <span>{renderInline(task[2], `li${key}-${items.length}`)}</span>
+            </li>
+          ) : (
+            <li key={items.length}>{renderInline(item, `li${key}-${items.length}`)}</li>
+          ),
+        );
         i++;
       }
       blocks.push(
