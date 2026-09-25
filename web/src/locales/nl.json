@@ -2505,7 +2505,7 @@
     "meetingStop": "Stoppen en opslaan",
     "meetingHinweis": "Spraak wordt op dit apparaat herkend. Er wordt geen audio opgeslagen of verzonden.",
     "keineSprache": "Spraakherkenning op het apparaat is hier niet beschikbaar.",
-    "mikrofonVerweigert": "De app heeft toegang nodig tot de microfoon en tot spraakherkenning. U kunt beide toestaan in de instellingen van het apparaat.",
+    "mikrofonVerweigert": "De app heeft toegang tot de microfoon nodig. U kunt dit toestaan in de instellingen van het apparaat.",
     "nichtsErkannt": "Er is niets herkend. Er is niets opgeslagen.",
     "nochNichtsGehoert": "Nog niets gehoord …",
     "zusammenfassen": "Samenvatten",
@@ -2542,7 +2542,9 @@
     "stilText": "Tekst",
     "stilNummeriert": "Genummerde lijst",
     "stilZitat": "Citaat",
-    "keinSprachmodell": "Spraakherkenning op het apparaat is voor deze taal niet ingesteld. Zet Dicteren aan via Instellingen → Algemeen → Toetsenbord; iOS downloadt de taal dan. Er verlaat geen audio de telefoon."
+    "keinSprachmodell": "De covey-instantie haalt het spraakmodel nog op. Probeer het over een paar minuten opnieuw.",
+    "spracheAus": "Spraakherkenning is uitgeschakeld op deze covey-instantie.",
+    "sprachmodellLaedt": "Spraakmodel wordt geladen (eenmalig): {{pct}} %"
   },
   "appLink": {
     "title": "Openen in de covey-app",

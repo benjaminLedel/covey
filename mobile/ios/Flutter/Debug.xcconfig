@@ -1,3 +1,4 @@
+#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"
 #include "Generated.xcconfig"
 // A developer's signing team, kept out of the repository (#345):
 // ios/Flutter/Signing.xcconfig with DEVELOPMENT_TEAM = <team id>.

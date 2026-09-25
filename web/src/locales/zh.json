@@ -2505,7 +2505,7 @@
     "meetingStop": "结束并保存",
     "meetingHinweis": "语音在此设备上识别。不会保存或发送任何音频。",
     "keineSprache": "此设备不支持本地语音识别。",
-    "mikrofonVerweigert": "应用需要访问麦克风和语音识别。你可以在设备设置中允许这两项。",
+    "mikrofonVerweigert": "应用需要访问麦克风。您可以在设备设置中允许。",
     "nichtsErkannt": "没有识别到任何内容。没有保存任何内容。",
     "nochNichtsGehoert": "还没有听到内容 …",
     "zusammenfassen": "生成摘要",
@@ -2542,7 +2542,9 @@
     "stilText": "正文",
     "stilNummeriert": "编号列表",
     "stilZitat": "引用",
-    "keinSprachmodell": "此语言尚未设置设备端语音识别。请在“设置”→“通用”→“键盘”中打开“听写”，iOS 随后会下载该语言。音频不会离开手机。"
+    "keinSprachmodell": "covey 实例仍在获取语音模型。请几分钟后再试。",
+    "spracheAus": "此 covey 实例已关闭语音识别。",
+    "sprachmodellLaedt": "正在加载语音模型（仅一次）：{{pct}} %"
   },
   "appLink": {
     "title": "在 covey 应用中打开",

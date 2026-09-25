@@ -2505,7 +2505,7 @@
     "meetingStop": "終了して保存",
     "meetingHinweis": "音声はこのデバイス上で認識されます。音声データは保存も送信もされません。",
     "keineSprache": "このデバイスでは端末上の音声認識を利用できません。",
-    "mikrofonVerweigert": "アプリにはマイクと音声認識へのアクセスが必要です。デバイスの設定で両方を許可できます。",
+    "mikrofonVerweigert": "アプリにはマイクへのアクセスが必要です。端末の設定で許可できます。",
     "nichtsErkannt": "何も認識されませんでした。何も保存されていません。",
     "nochNichtsGehoert": "まだ何も聞こえていません …",
     "zusammenfassen": "要約する",
@@ -2542,7 +2542,9 @@
     "stilText": "本文",
     "stilNummeriert": "番号付きリスト",
     "stilZitat": "引用",
-    "keinSprachmodell": "この言語では端末上の音声認識が設定されていません。「設定」→「一般」→「キーボード」で音声入力をオンにすると、iOS が言語をダウンロードします。音声は端末から送信されません。"
+    "keinSprachmodell": "covey インスタンスが音声モデルを取得中です。数分後にもう一度お試しください。",
+    "spracheAus": "この covey インスタンスでは音声認識がオフになっています。",
+    "sprachmodellLaedt": "音声モデルを読み込み中（初回のみ）: {{pct}} %"
   },
   "appLink": {
     "title": "covey アプリで開く",

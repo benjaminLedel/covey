@@ -2505,7 +2505,7 @@
     "meetingStop": "Termina e salva",
     "meetingHinweis": "Il parlato viene riconosciuto su questo dispositivo. Nessun audio viene salvato o inviato.",
     "keineSprache": "Il riconoscimento vocale sul dispositivo non è disponibile qui.",
-    "mikrofonVerweigert": "L'app ha bisogno di accedere al microfono e al riconoscimento vocale. Può consentire entrambi nelle impostazioni del dispositivo.",
+    "mikrofonVerweigert": "L'app ha bisogno di accedere al microfono. Puoi consentirlo nelle impostazioni del dispositivo.",
     "nichtsErkannt": "Non è stato riconosciuto nulla. Non è stato salvato nulla.",
     "nochNichtsGehoert": "Ancora nulla di sentito …",
     "zusammenfassen": "Riassumi",
@@ -2542,7 +2542,9 @@
     "stilText": "Testo",
     "stilNummeriert": "Elenco numerato",
     "stilZitat": "Citazione",
-    "keinSprachmodell": "Il riconoscimento vocale sul dispositivo non è configurato per questa lingua. Attivi Dettatura in Impostazioni → Generali → Tastiera; iOS scaricherà la lingua. Nessun audio lascia il telefono."
+    "keinSprachmodell": "L'istanza covey sta ancora scaricando il modello vocale. Riprova tra qualche minuto.",
+    "spracheAus": "Il riconoscimento vocale è disattivato su questa istanza covey.",
+    "sprachmodellLaedt": "Caricamento del modello vocale (una sola volta): {{pct}} %"
   },
   "appLink": {
     "title": "Apri nell'app covey",

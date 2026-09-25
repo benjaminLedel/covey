@@ -2505,7 +2505,7 @@
     "meetingStop": "Zakończ i zapisz",
     "meetingHinweis": "Mowa jest rozpoznawana na tym urządzeniu. Żaden dźwięk nie jest zapisywany ani wysyłany.",
     "keineSprache": "Rozpoznawanie mowy na urządzeniu nie jest tu dostępne.",
-    "mikrofonVerweigert": "Aplikacja potrzebuje dostępu do mikrofonu i rozpoznawania mowy. Można zezwolić na oba w ustawieniach urządzenia.",
+    "mikrofonVerweigert": "Aplikacja potrzebuje dostępu do mikrofonu. Możesz na to zezwolić w ustawieniach urządzenia.",
     "nichtsErkannt": "Nic nie rozpoznano. Nic nie zapisano.",
     "nochNichtsGehoert": "Na razie nic nie słychać …",
     "zusammenfassen": "Podsumuj",
@@ -2542,7 +2542,9 @@
     "stilText": "Tekst",
     "stilNummeriert": "Lista numerowana",
     "stilZitat": "Cytat",
-    "keinSprachmodell": "Rozpoznawanie mowy na urządzeniu nie jest skonfigurowane dla tego języka. Proszę włączyć Dyktowanie w Ustawienia → Ogólne → Klawiatura; iOS pobierze wtedy język. Żaden dźwięk nie opuszcza telefonu."
+    "keinSprachmodell": "Instancja covey wciąż pobiera model mowy. Spróbuj ponownie za kilka minut.",
+    "spracheAus": "Rozpoznawanie mowy jest wyłączone w tej instancji covey.",
+    "sprachmodellLaedt": "Ładowanie modelu mowy (jednorazowo): {{pct}} %"
   },
   "appLink": {
     "title": "Otwórz w aplikacji covey",

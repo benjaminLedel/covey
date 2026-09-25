@@ -5,9 +5,7 @@
 	<!-- covey:// — the desktop app pairs through "Open in the app" on the
 	     web's pairing card (#334), having no camera to scan with. -->
 <key>NSMicrophoneUsageDescription</key>
-	<string>The microphone is used to dictate notes and record meetings. Speech is recognised on this device; no audio is stored or sent.</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Speech is turned into text on this device for your notes. Only the text is saved in covey.</string>
+	<string>The microphone is used to dictate notes and record meetings. Speech is recognised on this device with a model from your covey instance; no audio is stored or sent.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

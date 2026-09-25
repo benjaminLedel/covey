@@ -68,6 +68,14 @@ type Config struct {
 	AndroidAppPackage string
 	AndroidCertSHA256 []string
 
+	// SpeechModel is the Whisper model the instance hands the app for
+	// on-device speech recognition (#348): tiny, base, small, medium or off
+	// (COVEY_SPEECH_MODEL, default base). It is fetched once from a pinned
+	// address into DataDir/models and verified against a pinned digest; an
+	// installation without internet access places ggml-<name>.bin there
+	// itself.
+	SpeechModel string
+
 	// CookieSecure sets the Secure flag on the session cookie (delivered over
 	// HTTPS only). Default: derived automatically from the PublicURL scheme
 	// (https → true), overridable via COVEY_COOKIE_SECURE.
@@ -320,6 +328,7 @@ func FromEnv() (Config, error) {
 		SecretStore:        getenv("COVEY_SECRET_STORE", "builtin"),
 		SandboxProvider:    getenv("COVEY_SANDBOX_PROVIDER", "docker"),
 		DataDir:            getenv("COVEY_DATA_DIR", "./data"),
+		SpeechModel:        strings.TrimSpace(getenv("COVEY_SPEECH_MODEL", "base")),
 		SandboxImageEnv:    sandboxImageEnv(),
 		RunnerDownloadBase: getenv("COVEY_RUNNER_DOWNLOAD_BASE", ""),
 		SandboxCatalogURL:  getenv("COVEY_SANDBOX_CATALOG_URL", sandbox.DefaultCatalogURL()),

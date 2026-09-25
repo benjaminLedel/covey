@@ -52,6 +52,7 @@ import (
 	"covey/internal/secrets"
 	"covey/internal/settings"
 	"covey/internal/skills"
+	"covey/internal/speech"
 	targetstore "covey/internal/target/store"
 	"covey/internal/templates"
 	"covey/internal/voice"
@@ -68,7 +69,10 @@ type Server struct {
 	Chat *chat.Store
 	// Media holds a person's media — the pictures in notes (#344). Nil means
 	// the builtin Postgres store. Not Blobs, the home store below.
-	Media    mediastore.Store
+	Media mediastore.Store
+	// Speech is the Whisper model the app recognises speech with (#348,
+	// speech.go). Nil: speech is off on this instance.
+	Speech   *speech.Store
 	Obs      *observability.Store
 	Rails    *guardrails.Store
 	Secrets  secrets.Store
@@ -314,6 +318,9 @@ func (s *Server) Handler() http.Handler {
 	// Registered before {id}: "media" is not a note id.
 	mux.Handle("POST /api/v1/me/notes/media", s.auth(s.handleUploadNoteMedia))
 	mux.Handle("GET /api/v1/me/notes/media/{id}", s.auth(s.handleNoteMedia))
+	// The speech model (#348, speech.go): what it is, and the file itself.
+	mux.Handle("GET /api/v1/speech/model", s.auth(s.handleSpeechModel))
+	mux.Handle("GET /api/v1/speech/model/file", s.auth(s.handleSpeechModelFile))
 	mux.Handle("GET /api/v1/me/notes/{id}", s.auth(s.handleGetNote))
 	mux.Handle("PATCH /api/v1/me/notes/{id}", s.auth(s.handleUpdateNote))
 	mux.Handle("DELETE /api/v1/me/notes/{id}", s.auth(s.handleDeleteNote))

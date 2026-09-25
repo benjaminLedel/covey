@@ -198,15 +198,23 @@ String noteMeta(BuildContext context, Note n, {bool withDate = true}) {
   ].where((s) => s.isNotEmpty).join(' · ');
 }
 
-/// What to say when dictation cannot start — with the platform's own words
+/// What to say when dictation cannot start — with the underlying words
 /// where there are any, since "not available" alone cannot be acted on.
 String dictationFailure(BuildContext context, DictationFailure? f, [String? detail]) {
   final base = switch (f) {
     DictationFailure.denied => context.t('mobile.mikrofonVerweigert'),
-    DictationFailure.noOnDeviceModel => context.t('mobile.keinSprachmodell'),
+    DictationFailure.modelNotReady => context.t('mobile.keinSprachmodell'),
+    DictationFailure.off => context.t('mobile.spracheAus'),
     _ => context.t('mobile.keineSprache'),
   };
-  return detail == null || detail.isEmpty || f == DictationFailure.noOnDeviceModel ? base : '$base ($detail)';
+  final plain = detail == null || detail.isEmpty || f == DictationFailure.modelNotReady || f == DictationFailure.off;
+  return plain ? base : '$base ($detail)';
+}
+
+/// What the dictation says while it fetches its model, the first time.
+String modelLoading(BuildContext context, Dictation d) {
+  final p = d.progress;
+  return context.t('mobile.sprachmodellLaedt', args: {'pct': p == null ? '…' : (p * 100).floor()});
 }
 
 /// A note, new or existing, edited in place the way Apple Notes edits (#343):
@@ -257,7 +265,7 @@ class _NotePageState extends State<NotePage> {
   late String _body = widget.note?.body ?? '';
   final _titleFocus = FocusNode();
   final _editor = GlobalKey<BlockEditorState>();
-  late final Dictation _dictation = widget.dictation ?? Dictation();
+  late final Dictation _dictation = widget.dictation ?? Dictation(api: widget.api);
   ({int index, String base})? _dictatingAt;
   Timer? _debounce;
   bool _dirty = false;
@@ -354,7 +362,25 @@ class _NotePageState extends State<NotePage> {
     }
     final messenger = ScaffoldMessenger.of(context);
     _dictatingAt = _editor.currentState?.beginDictation();
-    if (await _dictation.start()) {
+    _dictation.language = Localizations.localeOf(context).languageCode;
+    final starting = _dictation.start();
+    // The first dictation fetches the model: that is said, with its progress,
+    // for as long as it takes.
+    ScaffoldFeatureController<SnackBar, SnackBarClosedReason>? loading;
+    if (_dictation.preparing) {
+      loading = messenger.showSnackBar(
+        SnackBar(
+          duration: const Duration(minutes: 30),
+          content: ListenableBuilder(
+            listenable: _dictation,
+            builder: (context, _) => Text(modelLoading(context, _dictation)),
+          ),
+        ),
+      );
+    }
+    final ok = await starting;
+    loading?.close();
+    if (ok) {
       if (_note == null) _spoken = true;
     } else {
       _dictatingAt = null;
@@ -569,7 +595,7 @@ class MeetingScreen extends StatefulWidget {
 }
 
 class _MeetingScreenState extends State<MeetingScreen> {
-  late final Dictation _dictation = widget.dictation ?? Dictation();
+  late final Dictation _dictation = widget.dictation ?? Dictation(api: widget.api);
   final _watch = Stopwatch();
   Timer? _tick;
   bool _saving = false;
@@ -585,6 +611,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
   void _changed() => setState(() {});
 
   Future<void> _start() async {
+    _dictation.language = Localizations.localeOf(context).languageCode;
     if (await _dictation.start(continuous: true)) {
       _watch.start();
       _tick = Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
@@ -661,7 +688,11 @@ class _MeetingScreenState extends State<MeetingScreen> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      _dictation.running ? context.t('mobile.meetingLaeuft') : context.t('common.loading'),
+                      _dictation.running
+                          ? context.t('mobile.meetingLaeuft')
+                          : _dictation.preparing
+                          ? modelLoading(context, _dictation)
+                          : context.t('common.loading'),
                       style: context.type.labelLarge?.copyWith(color: c.textSecondary),
                     ),
                   ],

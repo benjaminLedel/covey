@@ -2505,7 +2505,7 @@
     "meetingStop": "Stop and save",
     "meetingHinweis": "Speech is recognised on this device. No audio is stored or sent.",
     "keineSprache": "Speech recognition on the device is not available here.",
-    "mikrofonVerweigert": "The app needs access to the microphone and to speech recognition. You can allow both in the device's settings.",
+    "mikrofonVerweigert": "The app needs access to the microphone. You can allow it in the device's settings.",
     "nichtsErkannt": "Nothing was recognised. Nothing was saved.",
     "nochNichtsGehoert": "Nothing heard yet …",
     "zusammenfassen": "Summarise",
@@ -2542,7 +2542,9 @@
     "stilText": "Body",
     "stilNummeriert": "Numbered list",
     "stilZitat": "Quote",
-    "keinSprachmodell": "Speech recognition on the device is not set up for this language. Switch on Dictation in Settings → General → Keyboard; iOS then downloads the language. No audio leaves the phone."
+    "keinSprachmodell": "The covey instance is still fetching the speech model. Try again in a few minutes.",
+    "spracheAus": "Speech recognition is switched off on this covey instance.",
+    "sprachmodellLaedt": "Loading the speech model (once): {{pct}} %"
   },
   "appLink": {
     "title": "Open in the covey app",

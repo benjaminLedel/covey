@@ -43,6 +43,14 @@ Nur für eine Installation, die die covey-App unter ihrem eigenen Host ausliefer
 - `COVEY_ANDROID_CERT_SHA256` — die SHA-256-Fingerabdrücke der Signaturzertifikate der App, kommagetrennt
 - `COVEY_ANDROID_APP_PACKAGE` — der Paketname; Vorgabe `work.covey.covey_mobile`
 
+## Sprachmodell
+
+Diktat und Besprechungsnotizen der App laufen mit whisper.cpp auf dem Telefon; das Modell kommt von der Instanz. Beim Start holt covey es einmal von einer festgelegten Adresse (Hugging Face, `ggerganov/whisper.cpp`), prüft es gegen eine festgelegte SHA-256 und legt es unter `COVEY_DATA_DIR/models` ab. Die App lädt es beim ersten Diktat von `/api/v1/speech/model/file`.
+
+- `COVEY_SPEECH_MODEL` — `tiny` (78 MB), `base` (148 MB, Vorgabe), `small` (488 MB), `medium` (1,5 GB) oder `off`
+
+Ohne Internetzugang legen Sie `ggml-<Name>.bin` selbst nach `COVEY_DATA_DIR/models`; die Datei wird genauso geprüft, und eine mit anderer Prüfsumme wird entfernt statt ausgeliefert.
+
 ## HTTPS
 
 Ein Reverse-Proxy davor, TLS dort terminieren, `COVEY_PUBLIC_URL` beziehungsweise `COVEY_SITE_URL` passend setzen. Das sichere Cookie schaltet sich dann von selbst ein. Für die Datenbank `sslmode=require` oder höher.

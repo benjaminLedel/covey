@@ -2505,7 +2505,7 @@
     "meetingStop": "Beenden und speichern",
     "meetingHinweis": "Die Sprache wird auf diesem Gerät erkannt. Es wird kein Audio gespeichert oder übertragen.",
     "keineSprache": "Spracherkennung auf dem Gerät ist hier nicht verfügbar.",
-    "mikrofonVerweigert": "Die App braucht Zugriff auf Mikrofon und Spracherkennung. Beides können Sie in den Einstellungen des Geräts erlauben.",
+    "mikrofonVerweigert": "Die App braucht Zugriff auf das Mikrofon. Sie können ihn in den Einstellungen des Geräts erlauben.",
     "nichtsErkannt": "Es wurde nichts erkannt. Nichts gespeichert.",
     "nochNichtsGehoert": "Noch nichts gehört …",
     "zusammenfassen": "Zusammenfassen",
@@ -2542,7 +2542,9 @@
     "stilText": "Text",
     "stilNummeriert": "Nummerierte Liste",
     "stilZitat": "Zitat",
-    "keinSprachmodell": "Für diese Sprache ist keine Spracherkennung auf dem Gerät eingerichtet. Schalten Sie unter Einstellungen → Allgemein → Tastatur die „Diktierfunktion“ ein; iOS lädt die Sprache dann. Kein Audio verlässt das Telefon."
+    "keinSprachmodell": "Die covey-Instanz lädt das Sprachmodell gerade. Versuchen Sie es in ein paar Minuten noch einmal.",
+    "spracheAus": "Auf dieser covey-Instanz ist die Spracherkennung ausgeschaltet.",
+    "sprachmodellLaedt": "Sprachmodell wird geladen (einmalig): {{pct}} %"
   },
   "appLink": {
     "title": "In der covey-App öffnen",

@@ -228,4 +228,63 @@ class CoveyApi {
     if (res.statusCode != 200) throw ApiException(res.statusCode, 'HTTP ${res.statusCode}');
     return res.bodyBytes;
   }
+
+  /// The speech model this instance offers (#348): name, digest, size, and
+  /// whether it can be fetched yet. `enabled: false` means speech is off here.
+  Future<SpeechModelInfo> speechModel() async =>
+      SpeechModelInfo.fromJson(await get('/speech/model') as Map<String, dynamic>);
+
+  /// The model file, from byte [from] on — a download cut off by a lost
+  /// connection resumes rather than starting the 150 MB again. No timeout on
+  /// the body: it takes as long as the network takes.
+  Future<http.StreamedResponse> speechModelFile({int from = 0}) async {
+    final req = http.Request('GET', _url('/speech/model/file'))
+      ..headers.addAll({..._headers, 'Accept': 'application/octet-stream', if (from > 0) 'Range': 'bytes=$from-'});
+    final http.StreamedResponse res;
+    try {
+      res = await _http.send(req).timeout(_timeout);
+    } catch (e) {
+      throw ApiException(0, e.toString());
+    }
+    if (res.statusCode != 200 && res.statusCode != 206) {
+      final text = await res.stream.bytesToString().catchError((_) => '');
+      String msg = 'HTTP ${res.statusCode}';
+      try {
+        final body = jsonDecode(text);
+        if (body is Map && body['error'] is String) msg = body['error'] as String;
+      } on FormatException {
+        // Not JSON: the status says enough.
+      }
+      throw ApiException(res.statusCode, msg);
+    }
+    return res;
+  }
+}
+
+/// What `GET /speech/model` answers (#348).
+class SpeechModelInfo {
+  const SpeechModelInfo({
+    required this.enabled,
+    this.name = '',
+    this.sha256 = '',
+    this.size = 0,
+    this.ready = false,
+    this.error,
+  });
+
+  factory SpeechModelInfo.fromJson(Map<String, dynamic> j) => SpeechModelInfo(
+    enabled: j['enabled'] == true,
+    name: j['name'] as String? ?? '',
+    sha256: j['sha256'] as String? ?? '',
+    size: (j['size'] as num?)?.toInt() ?? 0,
+    ready: j['ready'] == true,
+    error: j['error'] as String?,
+  );
+
+  final bool enabled;
+  final String name;
+  final String sha256;
+  final int size;
+  final bool ready;
+  final String? error;
 }

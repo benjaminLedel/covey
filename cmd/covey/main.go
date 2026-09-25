@@ -48,6 +48,7 @@ import (
 	"covey/internal/orchestrator"
 	"covey/internal/org"
 	"covey/internal/reqlog"
+	"covey/internal/speech"
 
 	reqlogstore "covey/internal/reqlog/store"
 	"covey/internal/runner"
@@ -1425,8 +1426,18 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	// The speech model the app transcribes with (#348): verified, or fetched
+	// in the background, so the first app asking finds it ready.
+	speechStore, err := speech.New(cfg.SpeechModel, cfg.DataDir, log)
+	if err != nil {
+		return err
+	}
+	if speechStore != nil {
+		speechStore.Ensure()
+	}
 	srv := &httpapi.Server{
 		BaseCtx: ctx,
+		Speech:  speechStore,
 		Audit:   auditStore,
 		Pool:    pool, Registry: registry, Backlog: backlogStore, Obs: obs,
 		Chat:  chat.New(pool),
