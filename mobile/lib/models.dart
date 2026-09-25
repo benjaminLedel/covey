@@ -6,7 +6,13 @@ DateTime? _time(Object? v) => v is String ? DateTime.tryParse(v)?.toLocal() : nu
 
 /// GET /auth/me — the seat this key works from.
 class Me {
-  Me({required this.email, required this.displayName, required this.role, required this.teamSurface});
+  Me({
+    required this.email,
+    required this.displayName,
+    required this.role,
+    required this.teamSurface,
+    this.canWrite = true,
+  });
 
   factory Me.fromJson(Map<String, dynamic> j) => Me(
     email: j['Email'] as String? ?? '',
@@ -14,6 +20,9 @@ class Me {
     role: j['Role'] as String? ?? '',
     // Absent on an instance older than #328: there the surface was always on.
     teamSurface: j['TeamSurface'] as bool? ?? true,
+    // Absent on an instance older than #339: then the server's 403 is the
+    // only word, and the app lets the person try.
+    canWrite: j['CanWrite'] as bool? ?? true,
   );
 
   final String email;
@@ -24,6 +33,11 @@ class Me {
   /// instance refuses a message with 403 — the app says so up front instead of
   /// at the first send.
   final bool teamSurface;
+
+  /// Whether this seat's role may hand over work and answer (#339) — the
+  /// server says so, the app does not keep a role table of its own. A seat
+  /// that may not is never led into a conversation.
+  final bool canWrite;
 }
 
 class Agent {

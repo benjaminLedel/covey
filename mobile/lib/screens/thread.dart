@@ -104,7 +104,14 @@ class _ThreadScreenState extends State<ThreadScreen> {
       await _load();
     } on ApiException catch (e) {
       // The instance decides what a role may do; the app says what it heard.
-      messenger.showSnackBar(SnackBar(content: Text(e.status == 403 ? t('chat.readOnly') : e.message)));
+      // A 403 has two causes on this route, and they need different words:
+      // the organisation has the team surface off, or the role may not write.
+      final text = e.status != 403
+          ? e.message
+          : e.message.contains('team surface')
+          ? t('mobile.teamAusKurz')
+          : t('chat.readOnly');
+      messenger.showSnackBar(SnackBar(content: Text(text)));
     } finally {
       if (mounted) setState(() => _sending = false);
     }

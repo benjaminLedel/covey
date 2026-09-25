@@ -87,6 +87,9 @@ class _TeamSpaceState extends State<TeamSpace> {
     ({InboxPage waiting, List<Agent> agents, List<Department> departments}) data,
   ) {
     final byId = {for (final a in data.agents) a.id: a};
+    // A seat that may only read sees who waits and who works, and opens
+    // nothing: a conversation it cannot write in is a dead end (#339).
+    final open = widget.me.canWrite;
     final colleagues = data.agents.where((a) => !a.isApplicant).toList()
       ..sort((a, b) => a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()));
     final known = {for (final d in data.departments) d.id};
@@ -112,7 +115,9 @@ class _TeamSpaceState extends State<TeamSpace> {
             return _WaitCard(
               entry: e,
               state: state,
-              onTap: e.agentId.isEmpty ? null : () => widget.onOpen(e.agentId, e.agentName, e.agentSlug, state),
+              onTap: e.agentId.isEmpty || !open
+                  ? null
+                  : () => widget.onOpen(e.agentId, e.agentName, e.agentSlug, state),
             );
           },
         ),
@@ -134,8 +139,10 @@ class _TeamSpaceState extends State<TeamSpace> {
                   subtitle: a.jobTitle.isEmpty ? a.slug : a.jobTitle,
                   // The state in words, not in a colour alone (spec/27).
                   trailing: Text(context.t('status.${a.killed ? 'killed' : a.status}'), style: context.type.labelSmall),
-                  onTap: () =>
-                      widget.onOpen(a.id, a.displayName, a.slug, faceStateOf(killed: a.killed, status: a.status)),
+                  onTap: !open
+                      ? null
+                      : () =>
+                            widget.onOpen(a.id, a.displayName, a.slug, faceStateOf(killed: a.killed, status: a.status)),
                 ),
             ],
           ),
@@ -184,7 +191,7 @@ class _WaitCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                Icon(AppIcons.chevron.of(context), color: c.textMuted),
+                if (onTap != null) Icon(AppIcons.chevron.of(context), color: c.textMuted),
               ],
             ),
           ),

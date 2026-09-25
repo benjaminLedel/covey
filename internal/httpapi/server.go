@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/netip"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -318,7 +319,7 @@ func (s *Server) Handler() http.Handler {
 	// data, different write rights).
 	anyRole := []string{identity.RoleOrgAdmin, identity.RoleAgentOwner,
 		identity.RoleSecurity, identity.RoleAuditor, identity.RoleControlling}
-	manage := []string{identity.RoleOrgAdmin, identity.RoleAgentOwner}
+	manage := manageRoles
 	securityRoles := []string{identity.RoleOrgAdmin, identity.RoleSecurity}
 
 	// Setup: the credential first, then the company, then the People department
@@ -1198,6 +1199,12 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+// manageRoles may change agents and hand them work — create a task, send a
+// message, answer a parked one. One list for the routes and for /auth/me's
+// CanWrite, so what the app offers and what the server allows cannot drift
+// apart (#339).
+var manageRoles = []string{identity.RoleOrgAdmin, identity.RoleAgentOwner}
+
 func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	// TeamSurface travels with the principal so the interface picks its shell
@@ -1210,7 +1217,10 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, struct {
 		identity.Principal
 		TeamSurface bool
-	}{p, team})
+		// CanWrite: this seat's role may hand over work and answer (#339).
+		// The app leads only such a seat into a conversation.
+		CanWrite bool
+	}{p, team, slices.Contains(manageRoles, p.Role)})
 }
 
 func parseID(r *http.Request) (uuid.UUID, error) {

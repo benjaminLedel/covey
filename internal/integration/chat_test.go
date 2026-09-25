@@ -693,3 +693,25 @@ func TestTheTeamSurfaceIsAnOptIn(t *testing.T) {
 	}
 	admin.expect(http.MethodPost, base+"/messages", map[string]any{"text": "hallo"}, http.StatusCreated)
 }
+
+// TestAuthMeSaysWhetherTheSeatMayWrite (#339): the app leads only a seat that
+// may write into a conversation, and it learns that from the server — from
+// the same role list the message route checks — not from a table of its own.
+func TestAuthMeSaysWhetherTheSeatMayWrite(t *testing.T) {
+	s := newStack(t)
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	if me := admin.expect(http.MethodGet, "/api/v1/auth/me", nil, http.StatusOK); me["CanWrite"] != true {
+		t.Fatalf("an org admin may write: %v", me["CanWrite"])
+	}
+	admin.expect(http.MethodPost, "/api/v1/users", map[string]string{
+		"email": "aud@test.local", "display_name": "Aud", "role": "auditor", "password": "auditor-passwort",
+	}, http.StatusCreated)
+	aud := login(t, s, "aud@test.local", "auditor-passwort")
+	if me := aud.expect(http.MethodGet, "/api/v1/auth/me", nil, http.StatusOK); me["CanWrite"] != false {
+		t.Fatalf("an auditor may only read: %v", me["CanWrite"])
+	}
+	// And the route agrees with what /auth/me said.
+	admin.expect(http.MethodPatch, "/api/v1/org/team-surface", map[string]any{"enabled": true}, http.StatusOK)
+	agent := s.newSupportAgent("write-check")
+	aud.expect(http.MethodPost, "/api/v1/agents/"+agent.ID.String()+"/messages", map[string]any{"text": "hallo"}, http.StatusForbidden)
+}

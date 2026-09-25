@@ -137,7 +137,7 @@ class _CoveyAppState extends State<CoveyApp> {
     try {
       final me = await api.me();
       // Without the team surface there is no thread to open (#336).
-      if (!me.teamSurface) return;
+      if (!me.teamSurface || !me.canWrite) return;
       final agent = (await api.agents()).where((a) => a.id == agentId).firstOrNull;
       if (agent == null) return;
       _nav.currentState?.push(
