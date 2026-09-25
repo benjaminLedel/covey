@@ -1139,6 +1139,13 @@
       "zoomIn": "Inzoomen",
       "zoomOut": "Uitzoomen"
     },
+    "teamSurface": {
+      "title": "Teamomgeving",
+      "beta": "Bèta",
+      "hint": "De teamomgeving is het werkoverzicht voor wie met de agents werkt in plaats van ze in te richten: collega's per afdeling, een gesprek per agent, wat op een antwoord wacht. Aan: ze wordt de startpagina voor iedereen in de organisatie, en Beheer zit achter de schakelaar. Uit: Beheer blijft de startpagina, en berichten aan agents worden geweigerd.",
+      "off": "Uit — Beheer is de startpagina",
+      "on": "Aan — de teamomgeving is de startpagina"
+    },
     "triage": {
       "title": "Antwoorden of taak",
       "hint": "Uit: elk bericht in het team wordt een taak. Aan: de agent beslist of hij antwoordt of er werk van maakt — één korte beurt in de control plane, zonder sandbox, zonder doelsystemen, zonder inloggegevens.",

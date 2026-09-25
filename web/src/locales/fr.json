@@ -1139,6 +1139,13 @@
       "zoomIn": "Agrandir",
       "zoomOut": "Réduire"
     },
+    "teamSurface": {
+      "title": "Espace d'équipe",
+      "beta": "Bêta",
+      "hint": "L'espace d'équipe est la vue de travail de ceux qui travaillent avec les agents plutôt que de les configurer : les collègues par service, une conversation par agent, ce qui attend une réponse. Activé : il devient la page d'accueil de toute l'organisation, et l'Administration se trouve derrière le commutateur. Désactivé : l'Administration reste la page d'accueil, et les messages aux agents sont refusés.",
+      "off": "Désactivé — l'Administration est la page d'accueil",
+      "on": "Activé — l'espace d'équipe est la page d'accueil"
+    },
     "triage": {
       "title": "Répondre ou tâche",
       "hint": "Désactivé : chaque message de l'équipe devient une tâche. Activé : l'agent décide s'il répond ou s'il en fait du travail — un tour court dans le plan de contrôle, sans bac à sable, sans systèmes cibles, sans identifiants.",

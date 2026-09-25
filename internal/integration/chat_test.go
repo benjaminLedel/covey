@@ -32,7 +32,7 @@ func TestChatIsADoorIntoTheBacklog(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	admin := login(t, s, "admin@test.local", "admin-passwort")
+	admin := teamLogin(t, s)
 	base := "/api/v1/agents/" + agent.ID.String()
 
 	/* 1. Die Nachricht wird geschrieben, und ohne Triage wird eine Aufgabe
@@ -143,7 +143,7 @@ func TestReplyOnlyWakesATaskThatWaits(t *testing.T) {
 	if err := s.registry.SetKilled(ctx, agent.ID, true); err != nil {
 		t.Fatal(err)
 	}
-	admin := login(t, s, "admin@test.local", "admin-passwort")
+	admin := teamLogin(t, s)
 
 	reply := func(id string) map[string]any {
 		t.Helper()
@@ -205,7 +205,7 @@ func TestReplyOnlyWakesATaskThatWaits(t *testing.T) {
 func TestAMessageInAScriptWithoutSpacesSurvivesItsTitle(t *testing.T) {
 	s := newStack(t)
 	agent := s.newSupportAgent("titel-schnitt")
-	admin := login(t, s, "admin@test.local", "admin-passwort")
+	admin := teamLogin(t, s)
 
 	lang := strings.Repeat("請求書の確認をお願いします", 12) // no space, 3 bytes per character
 	created := admin.expect(http.MethodPost, "/api/v1/agents/"+agent.ID.String()+"/messages",
@@ -230,7 +230,7 @@ func TestAMessageInAScriptWithoutSpacesSurvivesItsTitle(t *testing.T) {
 func TestABodyNobodyCanReadSaysSo(t *testing.T) {
 	s := newStack(t)
 	agent := s.newSupportAgent("rumpf")
-	admin := login(t, s, "admin@test.local", "admin-passwort")
+	admin := teamLogin(t, s)
 	pfad := "/api/v1/agents/" + agent.ID.String() + "/messages"
 
 	kaputt := admin.doRaw(http.MethodPost, pfad, "{nicht wirklich json")
@@ -254,7 +254,7 @@ func TestAReactionIsAToggleAndBelongsToTheTask(t *testing.T) {
 	if err := s.registry.SetKilled(ctx, agent.ID, true); err != nil {
 		t.Fatal(err)
 	}
-	admin := login(t, s, "admin@test.local", "admin-passwort")
+	admin := teamLogin(t, s)
 	base := "/api/v1/agents/" + agent.ID.String()
 
 	created := admin.expect(http.MethodPost, base+"/messages",
@@ -353,7 +353,7 @@ func TestChatAcceptsWithoutWaitingForTheTriage(t *testing.T) {
 	if err := s.registry.SetKilled(ctx, agent.ID, true); err != nil {
 		t.Fatal(err)
 	}
-	admin := login(t, s, "admin@test.local", "admin-passwort")
+	admin := teamLogin(t, s)
 	base := "/api/v1/agents/" + agent.ID.String()
 
 	admin.expect(http.MethodPatch, "/api/v1/org/chat-triage", map[string]any{"mode": "on"}, http.StatusOK)
@@ -470,7 +470,7 @@ func TestThreadCarriesItsSearchAndItsBackgroundWork(t *testing.T) {
 	if err := s.registry.SetKilled(ctx, agent.ID, true); err != nil {
 		t.Fatal(err)
 	}
-	admin := login(t, s, "admin@test.local", "admin-passwort")
+	admin := teamLogin(t, s)
 	base := "/api/v1/agents/" + agent.ID.String()
 
 	admin.expect(http.MethodPost, base+"/messages",
@@ -538,7 +538,7 @@ func TestHiringIsADialogueInTheThread(t *testing.T) {
 	if err := s.registry.SetKilled(ctx, people.ID, true); err != nil {
 		t.Fatal(err)
 	}
-	admin := login(t, s, "admin@test.local", "admin-passwort")
+	admin := teamLogin(t, s)
 	admin.expect(http.MethodPatch, "/api/v1/org/description", map[string]string{"description": "We build bridges."}, http.StatusOK)
 	base := "/api/v1/agents/" + people.ID.String()
 
@@ -653,4 +653,43 @@ func TestHiringIsADialogueInTheThread(t *testing.T) {
 	if b, _ := plain["task"].(map[string]any)["body"].(string); b != "Please check the Globex invoice." {
 		t.Fatalf("only the People department gets the frame: %q", b)
 	}
+}
+
+// teamLogin signs the seeded admin in and turns the team surface on for the
+// organisation: it is off by default (#328), and every test in this file
+// speaks through it.
+func teamLogin(t *testing.T, s *stack) *apiClient {
+	t.Helper()
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	admin.expect(http.MethodPatch, "/api/v1/org/team-surface", map[string]any{"enabled": true}, http.StatusOK)
+	return admin
+}
+
+// TestTheTeamSurfaceIsAnOptIn checks the switch (#328): off by default, and
+// off means the server refuses a message — not only that the interface hides
+// the box. /auth/me carries the state, because that is where the interface
+// reads which shell to show.
+func TestTheTeamSurfaceIsAnOptIn(t *testing.T) {
+	s := newStack(t)
+	agent := s.newSupportAgent("team-optin")
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	base := "/api/v1/agents/" + agent.ID.String()
+
+	if me := admin.expect(http.MethodGet, "/api/v1/auth/me", nil, http.StatusOK); me["TeamSurface"] != false {
+		t.Fatalf("the team surface must be off by default: %v", me["TeamSurface"])
+	}
+	if got := admin.expect(http.MethodGet, "/api/v1/org/team-surface", nil, http.StatusOK); got["enabled"] != false {
+		t.Fatalf("GET /org/team-surface: %v", got)
+	}
+	admin.expect(http.MethodPost, base+"/messages", map[string]any{"text": "hallo"}, http.StatusForbidden)
+	admin.expect(http.MethodPatch, "/api/v1/org/team-surface", map[string]any{}, http.StatusBadRequest)
+
+	admin.expect(http.MethodPatch, "/api/v1/org/team-surface", map[string]any{"enabled": true}, http.StatusOK)
+	if me := admin.expect(http.MethodGet, "/api/v1/auth/me", nil, http.StatusOK); me["TeamSurface"] != true {
+		t.Fatalf("after switching on, /auth/me must say so: %v", me["TeamSurface"])
+	}
+	if me := admin.expect(http.MethodGet, "/api/v1/auth/me", nil, http.StatusOK); me["Email"] != "admin@test.local" {
+		t.Fatalf("/auth/me must still carry the principal: %v", me)
+	}
+	admin.expect(http.MethodPost, base+"/messages", map[string]any{"text": "hallo"}, http.StatusCreated)
 }

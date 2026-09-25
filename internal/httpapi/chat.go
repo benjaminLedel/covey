@@ -555,6 +555,17 @@ func (s *Server) handleChatMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := principalFrom(r)
+	// The team surface is where a message comes from; an organisation that
+	// has not turned it on gets no messages by the side door either (#328).
+	// Checked here and not only in the interface, since the interface is not
+	// the only client of this endpoint.
+	if on, err := s.Chat.TeamSurface(r.Context(), p.OrgID); err != nil {
+		mapErr(w, err)
+		return
+	} else if !on {
+		writeErr(w, http.StatusForbidden, "the team surface is not enabled for this organisation")
+		return
+	}
 	text, ok := chatText(w, r)
 	if !ok {
 		return
@@ -1005,6 +1016,31 @@ func (s *Server) handleSetTriage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"mode": in.Mode})
+}
+
+// handleGetTeamSurface says whether this organisation has the team surface on.
+func (s *Server) handleGetTeamSurface(w http.ResponseWriter, r *http.Request) {
+	on, err := s.Chat.TeamSurface(r.Context(), principalFrom(r).OrgID)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"enabled": on})
+}
+
+func (s *Server) handleSetTeamSurface(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Enabled *bool `json:"enabled"`
+	}
+	if err := readJSON(r, &in); err != nil || in.Enabled == nil {
+		writeErr(w, http.StatusBadRequest, "invalid body: expected {\"enabled\": true|false}")
+		return
+	}
+	if err := s.Chat.SetTeamSurface(r.Context(), principalFrom(r).OrgID, *in.Enabled); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"enabled": *in.Enabled})
 }
 
 // chatReply is what comes back from a reply: the note always, the task only

@@ -185,7 +185,9 @@ export default function App() {
   if (weiter) return <Navigate to={weiter} replace />;
   return (
     <Suspense fallback={null}>
-      {imTeam(location.pathname) ? (
+      {/* Only for an organisation that has turned it on (#328). Otherwise the
+          root and /team/* belong to the console, which sends them on. */}
+      {me.data!.TeamSurface && imTeam(location.pathname) ? (
         <Team me={me.data!} onLogout={() => me.refetch()} />
       ) : (
         <AppShell me={me.data!} onLogout={() => me.refetch()} />

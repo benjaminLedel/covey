@@ -15,7 +15,7 @@
 import { Suspense, lazy, useEffect, useState, useCallback } from "react";
 import { BirdMark } from "./components/BirdMark";
 import { useQuery } from "@tanstack/react-query";
-import { Link, NavLink, Navigate, Route, Routes, useLocation } from "react-router";
+import { Link, NavLink, Navigate, Route, Routes, useLocation, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import {
   api,
@@ -253,14 +253,17 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
         {/* Der Weg zurück in den Workspace. Er steht oben und nicht in einem
             Menü, weil er das Gegenstück zum Schalter dort ist: zwei Schalen,
             eine Bewegung zwischen ihnen. */}
-        <nav className="shell-schalter" aria-label={t("team.schalterAria")}>
-          <Link to="/" className="shell-schalter-aus">
-            {t("team.workspace")}
-          </Link>
-          <span className="shell-schalter-an" aria-current="page">
-            {t("team.verwaltung")}
-          </span>
-        </nav>
+        {/* Without the team surface (#328) there is nothing to switch to. */}
+        {me.TeamSurface && (
+          <nav className="shell-schalter" aria-label={t("team.schalterAria")}>
+            <Link to="/" className="shell-schalter-aus">
+              {t("team.workspace")}
+            </Link>
+            <span className="shell-schalter-an" aria-current="page">
+              {t("team.verwaltung")}
+            </span>
+          </nav>
+        )}
         {/* The navigation grew — the order showed when something was added,
             not when it is needed. Now sorted by the everyday: on top what
             opens daily; below what is set up once; then the
@@ -391,6 +394,10 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
             <Route path="/audit" element={<Audit />} />
             <Route path="/targets" element={<Targets me={me} />} />
             <Route path="/egress/*" element={<Egress me={me} />} />
+            {/* Reached only while the team surface is off (#328): a thread
+                link — a bookmark, a search hit — leads to the agent it is
+                about instead of to the list. */}
+            <Route path="/team/:id" element={<TeamZuAgent />} />
             <Route path="*" element={<Navigate to="/agents" />} />
           </Routes>
           </Suspense>
@@ -410,4 +417,9 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
       <HelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );
+}
+
+function TeamZuAgent() {
+  const { id = "" } = useParams();
+  return <Navigate to={`/agents/${id}`} replace />;
 }

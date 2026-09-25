@@ -181,3 +181,22 @@ func (s *Store) SetMode(ctx context.Context, orgID uuid.UUID, mode TriageMode) e
 		`UPDATE organizations SET chat_triage=$2 WHERE id=$1`, orgID, string(mode))
 	return err
 }
+
+// TeamSurface says whether the organisation has turned the team surface on
+// (#328). Off is the default while the surface is in beta; an organisation
+// that cannot be read counts as off, the same rule as Mode.
+func (s *Store) TeamSurface(ctx context.Context, orgID uuid.UUID) (bool, error) {
+	var on bool
+	if err := s.pool.QueryRow(ctx,
+		`SELECT team_surface FROM organizations WHERE id=$1`, orgID).Scan(&on); err != nil {
+		return false, err
+	}
+	return on, nil
+}
+
+// SetTeamSurface switches it.
+func (s *Store) SetTeamSurface(ctx context.Context, orgID uuid.UUID, on bool) error {
+	_, err := s.pool.Exec(ctx,
+		`UPDATE organizations SET team_surface=$2 WHERE id=$1`, orgID, on)
+	return err
+}

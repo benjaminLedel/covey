@@ -1139,6 +1139,13 @@
       "zoomIn": "Vergrößern",
       "zoomOut": "Verkleinern"
     },
+    "teamSurface": {
+      "title": "Team-Oberfläche",
+      "beta": "Beta",
+      "hint": "Die Team-Oberfläche ist die Arbeitsansicht für alle, die mit den Agenten arbeiten, statt sie einzurichten: Kollegen nach Abteilung, ein Gespräch je Agent, was auf eine Antwort wartet. An: Sie wird für alle in der Organisation die Startseite, die Verwaltung liegt hinter dem Schalter. Aus: Die Verwaltung bleibt die Startseite, und Nachrichten an Agenten werden abgelehnt.",
+      "off": "Aus — die Verwaltung ist die Startseite",
+      "on": "An — die Team-Oberfläche ist die Startseite"
+    },
     "triage": {
       "title": "Antworten oder Aufgabe",
       "hint": "Aus: Jede Nachricht im Team wird eine Aufgabe. An: Der Agent entscheidet, ob er direkt antwortet oder Arbeit daraus macht — ein kurzer Zug in der Control Plane, ohne Sandbox, ohne Zielsysteme, ohne Zugangsdaten.",

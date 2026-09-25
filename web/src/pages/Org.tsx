@@ -168,6 +168,50 @@ function RepoZugang({
    all" and now means "the project this program comes from". */
 const REPO_AUS = "-";
 
+const useTeamSurface = () =>
+  useQuery({
+    queryKey: ["org-team-surface"],
+    queryFn: () => api<{ enabled: boolean }>("/org/team-surface"),
+  });
+
+/* The switch for the team surface (#328). Off by default while it is in beta.
+ * It decides the start page for everyone in the organisation, so it sits with
+ * the organisation's settings and not in a person's preferences; switching it
+ * refetches /auth/me, which is where the shell reads it. */
+export function TeamSurfaceSettings() {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const team = useTeamSurface();
+  const setEnabled = useMutation({
+    mutationFn: (enabled: boolean) => patch<{ enabled: boolean }>("/org/team-surface", { enabled }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["org-team-surface"] });
+      qc.invalidateQueries({ queryKey: ["me"] });
+    },
+  });
+
+  if (!team.data) return null;
+
+  return (
+    <div className="card mb-4">
+      <h2 className="text-sm mb-1" style={{ fontWeight: 600 }}>
+        {t("org.teamSurface.title")}{" "}
+        <span className="muted text-xs" style={{ fontWeight: 500 }}>· {t("org.teamSurface.beta")}</span>
+      </h2>
+      <p className="muted text-xs mt-0 mb-2" style={{ maxWidth: 640 }}>{t("org.teamSurface.hint")}</p>
+      <select
+        key={`team:${team.data.enabled}`}
+        defaultValue={team.data.enabled ? "on" : "off"}
+        disabled={setEnabled.isPending}
+        onChange={(e) => setEnabled.mutate(e.target.value === "on")}
+      >
+        <option value="off">{t("org.teamSurface.off")}</option>
+        <option value="on">{t("org.teamSurface.on")}</option>
+      </select>
+    </div>
+  );
+}
+
 /* Der Schalter, der entscheidet, ob eine Nachricht im Team zwangsläufig eine
  * Aufgabe wird (#302).
  *
@@ -180,6 +224,7 @@ const REPO_AUS = "-";
 export function TriageSettings() {
   const { t } = useTranslation();
   const qc = useQueryClient();
+  const team = useTeamSurface();
   const triage = useQuery({
     queryKey: ["org-triage"],
     queryFn: () => api<{ mode: string; available: boolean }>("/org/chat-triage"),
@@ -189,7 +234,8 @@ export function TriageSettings() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["org-triage"] }),
   });
 
-  if (!triage.data) return null;
+  /* Without the team surface there are no messages to decide about (#328). */
+  if (!triage.data || !team.data?.enabled) return null;
   const an = triage.data.mode === "on";
 
   return (

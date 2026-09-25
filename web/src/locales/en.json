@@ -1139,6 +1139,13 @@
       "zoomIn": "Zoom in",
       "zoomOut": "Zoom out"
     },
+    "teamSurface": {
+      "title": "Team surface",
+      "beta": "Beta",
+      "hint": "The team surface is the working view for people who work with the agents rather than configure them: colleagues by department, a conversation per agent, what waits for an answer. On: it becomes the start page for everyone in the organisation, and Admin sits behind the switch. Off: Admin stays the start page, and messages to agents are refused.",
+      "off": "Off — Admin is the start page",
+      "on": "On — the team surface is the start page"
+    },
     "triage": {
       "title": "Answer or task",
       "hint": "Off: every message in the team becomes a task. On: the agent decides whether to answer directly or make work of it — one short turn in the control plane, without a sandbox, without target systems, without credentials.",

@@ -1139,6 +1139,13 @@
       "zoomIn": "Ingrandisci",
       "zoomOut": "Riduci"
     },
+    "teamSurface": {
+      "title": "Area team",
+      "beta": "Beta",
+      "hint": "L'area team è la vista di lavoro di chi lavora con gli agenti invece di configurarli: colleghi per reparto, una conversazione per agente, ciò che attende una risposta. Attiva: diventa la pagina iniziale per tutti nell'organizzazione e l'Amministrazione sta dietro il selettore. Disattiva: l'Amministrazione resta la pagina iniziale e i messaggi agli agenti vengono rifiutati.",
+      "off": "Disattiva — l'Amministrazione è la pagina iniziale",
+      "on": "Attiva — l'area team è la pagina iniziale"
+    },
     "triage": {
       "title": "Rispondere o compito",
       "hint": "Spento: ogni messaggio nella squadra diventa un compito. Acceso: l'agente decide se rispondere o farne lavoro — un turno breve nel piano di controllo, senza sandbox, senza sistemi di destinazione, senza credenziali.",

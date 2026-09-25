@@ -1139,6 +1139,13 @@
       "zoomIn": "Powiększ",
       "zoomOut": "Pomniejsz"
     },
+    "teamSurface": {
+      "title": "Widok zespołu",
+      "beta": "Beta",
+      "hint": "Widok zespołu to widok pracy dla osób, które pracują z agentami, zamiast je konfigurować: współpracownicy według działów, jedna rozmowa na agenta, to, co czeka na odpowiedź. Włączony: staje się stroną startową dla wszystkich w organizacji, a Administracja jest za przełącznikiem. Wyłączony: Administracja pozostaje stroną startową, a wiadomości do agentów są odrzucane.",
+      "off": "Wyłączony — Administracja jest stroną startową",
+      "on": "Włączony — widok zespołu jest stroną startową"
+    },
     "triage": {
       "title": "Odpowiedź albo zadanie",
       "hint": "Wyłączone: każda wiadomość w zespole staje się zadaniem. Włączone: agent decyduje, czy odpowiedzieć, czy zrobić z tego pracę — krótka tura w warstwie sterowania, bez piaskownicy, bez systemów docelowych, bez danych dostępowych.",

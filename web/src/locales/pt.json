@@ -1139,6 +1139,13 @@
       "zoomIn": "Ampliar",
       "zoomOut": "Reduzir"
     },
+    "teamSurface": {
+      "title": "Área da equipa",
+      "beta": "Beta",
+      "hint": "A área da equipa é a vista de trabalho de quem trabalha com os agentes em vez de os configurar: colegas por departamento, uma conversa por agente, o que aguarda resposta. Ativada: torna-se a página inicial para todos na organização, e a Administração fica atrás do comutador. Desativada: a Administração continua a ser a página inicial e as mensagens aos agentes são recusadas.",
+      "off": "Desativada — a Administração é a página inicial",
+      "on": "Ativada — a área da equipa é a página inicial"
+    },
     "triage": {
       "title": "Responder ou tarefa",
       "hint": "Desligado: cada mensagem na equipa torna-se uma tarefa. Ligado: o agente decide se responde ou se faz dela trabalho — um turno curto no plano de controlo, sem sandbox, sem sistemas de destino, sem credenciais.",

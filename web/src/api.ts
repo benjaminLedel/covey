@@ -12,6 +12,10 @@ export type Principal = {
      organisation role — org_admin grants every organisation to itself,
      nobody here does (FR-003, finding F). */
   PlatformRole: string;
+  /* Whether the organisation has the team surface on (#328). Off by default
+     while it is in beta; /auth/me carries it so the shell is picked on the
+     first answer. */
+  TeamSurface?: boolean;
 };
 
 /** Does this person manage the installation itself? */

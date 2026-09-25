@@ -32,7 +32,7 @@ function renderApp(ui: ReactElement, route: string) {
 /* A server that knows the session and then does not. Everything except
    /auth/me is beside the point, the shell asks for a number of things while it
    builds that carry nothing here. */
-function serverMitSitzung(angemeldet: () => boolean) {
+function serverMitSitzung(angemeldet: () => boolean, teamSurface = false) {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
@@ -40,7 +40,7 @@ function serverMitSitzung(angemeldet: () => boolean) {
       const abgelehnt = new Response(JSON.stringify({ error: "session expired" }), { status: 401 });
       if (!angemeldet()) return abgelehnt;
       if (url.includes("/auth/me")) {
-        return new Response(JSON.stringify(testPrincipal()), {
+        return new Response(JSON.stringify({ ...testPrincipal(), TeamSurface: teamSurface }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         });
@@ -165,5 +165,35 @@ describe("App bei ablaufender Sitzung", () => {
 
     await waitFor(() => expect(screen.getByLabelText("Passwort")).toBeInTheDocument());
     expect(screen.getByText(/Sitzung ist abgelaufen/)).toBeInTheDocument();
+  });
+});
+
+/* The team surface is an opt-in per organisation (#328). Which shell the root
+   gets is read from /auth/me, and off must mean the console at the root and no
+   switch to a surface that is not there. */
+describe("App und die Team-Oberfläche", () => {
+  it("gibt die Wurzel der Verwaltung, solange die Organisation das Team nicht eingeschaltet hat", async () => {
+    serverMitSitzung(() => true, false);
+    renderApp(<App />, "/");
+
+    expect((await screen.findAllByText("Agenten")).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("navigation", { name: "Zwischen Team und Verwaltung wechseln" })).not.toBeInTheDocument();
+  });
+
+  it("gibt die Wurzel dem Team, wenn die Organisation es eingeschaltet hat", async () => {
+    // The office measures its floor; jsdom does not.
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    serverMitSitzung(() => true, true);
+    renderApp(<App />, "/");
+
+    expect(await screen.findByText("Büro")).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Zwischen Team und Verwaltung wechseln" })).toBeInTheDocument();
   });
 });

@@ -8,6 +8,8 @@ The console is the view of somebody who *builds* a workforce. The team surface i
 
 A shell of its own at the root: the colleagues grouped by department, what waits on top, a thread per agent. A message becomes a task, a reply becomes the resume input of a parked one, and everything else is read out of the objects that already carry it ([`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md), `internal/httpapi/chat.go`). Each agent carries a face computed from its slug, and the face shows whether it works, sleeps or has been stopped.
 
+**It is an opt-in per organisation, off by default while it is in beta** (#328). `organizations.team_surface` holds the switch, `GET`/`PATCH /api/v1/org/team-surface` read and set it (reading: every role; setting: whoever manages the organisation), and `/auth/me` carries it as `TeamSurface` so the interface picks its shell on the first answer. Off means: the console keeps the root, `/team/<id>` leads to the agent's page, there is no switch between the shells, and `POST /agents/{id}/messages` answers 403. The refusal sits in the server, not only in the interface. Reading a thread, replying to a parked task and reacting stay open, because they act on tasks that exist whether the surface is on or not. The triage switch (section 5) is shown only while the surface is on, since without it there is no message to decide about.
+
 ## 1. The org chart belongs here, as the directory
 
 The console's org chart answers *how is this organisation built* — it is editable, it drags departments around, it assigns supervisors. That is administration, and it stays there.

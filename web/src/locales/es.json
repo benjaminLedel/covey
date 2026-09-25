@@ -1139,6 +1139,13 @@
       "zoomIn": "Acercar",
       "zoomOut": "Alejar"
     },
+    "teamSurface": {
+      "title": "Superficie de equipo",
+      "beta": "Beta",
+      "hint": "La superficie de equipo es la vista de trabajo para quienes trabajan con los agentes en lugar de configurarlos: compañeros por departamento, una conversación por agente, lo que espera una respuesta. Activada: pasa a ser la página de inicio para todos en la organización, y Administración queda detrás del conmutador. Desactivada: Administración sigue siendo la página de inicio y se rechazan los mensajes a los agentes.",
+      "off": "Desactivada — Administración es la página de inicio",
+      "on": "Activada — la superficie de equipo es la página de inicio"
+    },
     "triage": {
       "title": "Responder o tarea",
       "hint": "Desactivado: cada mensaje del equipo se convierte en una tarea. Activado: el agente decide si responde o crea trabajo — un turno breve en el plano de control, sin sandbox, sin sistemas de destino, sin credenciales.",

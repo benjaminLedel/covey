@@ -461,6 +461,11 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/org/presence", s.rbac(anyRole, s.handlePresence))
 	mux.Handle("GET /api/v1/org/chat-triage", s.rbac(anyRole, s.handleGetTriage))
 	mux.Handle("PATCH /api/v1/org/chat-triage", s.rbac(manage, s.handleSetTriage))
+	// The team surface is an opt-in per organisation while it is in beta
+	// (#328): every role may read whether it is on — the interface picks its
+	// shell by it — and whoever manages the organisation switches it.
+	mux.Handle("GET /api/v1/org/team-surface", s.rbac(anyRole, s.handleGetTeamSurface))
+	mux.Handle("PATCH /api/v1/org/team-surface", s.rbac(manage, s.handleSetTeamSurface))
 	mux.Handle("GET /api/v1/org/recording-level", s.rbac(anyRole, s.handleGetOrgRecording))
 	mux.Handle("PATCH /api/v1/org/recording-level", s.rbac(securityRoles, s.handleSetOrgRecording))
 	mux.Handle("PATCH /api/v1/org/recording-retention", s.rbac(securityRoles, s.handleSetOrgRecordingRetention))
@@ -1174,7 +1179,18 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, principalFrom(r))
+	p := principalFrom(r)
+	// TeamSurface travels with the principal so the interface picks its shell
+	// on the first answer (#328). A seat without an organisation, or an
+	// organisation that cannot be read, gets the console.
+	team := false
+	if p.HasOrg() && s.Chat != nil {
+		team, _ = s.Chat.TeamSurface(r.Context(), p.OrgID)
+	}
+	writeJSON(w, http.StatusOK, struct {
+		identity.Principal
+		TeamSurface bool
+	}{p, team})
 }
 
 func parseID(r *http.Request) (uuid.UUID, error) {
