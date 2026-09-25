@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api.dart';
 import '../i18n.dart';
 import '../models.dart';
+import '../face.dart';
 import '../theme.dart';
 import 'home.dart';
 
@@ -12,7 +13,7 @@ class ColleaguesScreen extends StatelessWidget {
   const ColleaguesScreen({super.key, required this.api, required this.onOpen});
 
   final CoveyApi api;
-  final void Function(String agentId, String name) onOpen;
+  final void Function(String agentId, String name, String slug, FaceState state) onOpen;
 
   Future<({List<Agent> agents, List<Department> departments})> _load() async {
     final r = await Future.wait([api.agents(), api.departments()]);
@@ -54,6 +55,13 @@ class ColleaguesScreen extends StatelessWidget {
             ),
             for (final a in g.members)
               ListTile(
+                // The face tells two colleagues apart before the name is read,
+                // and shows whether they work, sleep or have been stopped.
+                leading: Face(
+                  slug: a.slug,
+                  state: faceStateOf(killed: a.killed, status: a.status),
+                  size: 34,
+                ),
                 title: Text(a.displayName),
                 subtitle: Text(a.jobTitle.isEmpty ? a.slug : a.jobTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
                 // The state in words, not in a colour alone (spec/27).
@@ -61,7 +69,7 @@ class ColleaguesScreen extends StatelessWidget {
                   context.t('status.${a.killed ? 'killed' : a.status}'),
                   style: TextStyle(color: context.colors.textMuted, fontSize: 12.5),
                 ),
-                onTap: () => onOpen(a.id, a.displayName),
+                onTap: () => onOpen(a.id, a.displayName, a.slug, faceStateOf(killed: a.killed, status: a.status)),
               ),
           ],
         ];

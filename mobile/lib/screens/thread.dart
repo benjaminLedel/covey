@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../api.dart';
 import '../i18n.dart';
 import '../models.dart';
+import '../face.dart';
 import '../theme.dart';
 
 /// One agent, the conversation with it.
@@ -14,11 +15,23 @@ import '../theme.dart';
 /// not guessed from whichever task happens to be parked. Two intentions, two
 /// places, the same rule as the web shell (#298).
 class ThreadScreen extends StatefulWidget {
-  const ThreadScreen({super.key, required this.api, required this.agentId, required this.agentName, required this.me});
+  const ThreadScreen({
+    super.key,
+    required this.api,
+    required this.agentId,
+    required this.agentName,
+    required this.me,
+    this.agentSlug = '',
+    this.faceState = FaceState.working,
+  });
 
   final CoveyApi api;
   final String agentId;
   final String agentName;
+
+  /// For the face in the header (#337); without a slug there is none.
+  final String agentSlug;
+  final FaceState faceState;
   final Me me;
 
   @override
@@ -103,7 +116,18 @@ class _ThreadScreenState extends State<ThreadScreen> {
     // is drawn reversed.
     final entries = th?.entries.reversed.toList() ?? const <ThreadEntry>[];
     return Scaffold(
-      appBar: AppBar(title: Text(widget.agentName)),
+      appBar: AppBar(
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (widget.agentSlug.isNotEmpty) ...[
+              Face(slug: widget.agentSlug, state: widget.faceState, size: 28),
+              const SizedBox(width: 10),
+            ],
+            Flexible(child: Text(widget.agentName, overflow: TextOverflow.ellipsis)),
+          ],
+        ),
+      ),
       body: SafeArea(
         child: Column(
           children: [

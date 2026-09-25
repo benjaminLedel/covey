@@ -76,6 +76,7 @@ class InboxEntry {
     required this.id,
     required this.agentId,
     required this.agentName,
+    required this.agentSlug,
     required this.title,
     required this.createdAt,
   });
@@ -85,6 +86,7 @@ class InboxEntry {
     id: j['id'] as String,
     agentId: j['agent_id'] as String? ?? '',
     agentName: j['agent_name'] as String? ?? '',
+    agentSlug: j['agent_slug'] as String? ?? '',
     title: j['title'] as String? ?? '',
     createdAt: _time(j['created_at']),
   );
@@ -93,6 +95,7 @@ class InboxEntry {
   final String id;
   final String agentId;
   final String agentName;
+  final String agentSlug;
   final String title;
   final DateTime? createdAt;
 }

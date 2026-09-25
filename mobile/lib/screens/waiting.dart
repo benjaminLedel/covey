@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api.dart';
 import '../i18n.dart';
 import '../models.dart';
+import '../face.dart';
 import '../theme.dart';
 import 'home.dart';
 
@@ -17,7 +18,7 @@ class WaitingScreen extends StatelessWidget {
 
   final CoveyApi api;
   final Me me;
-  final void Function(String agentId, String name) onOpen;
+  final void Function(String agentId, String name, String slug, FaceState state) onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +45,8 @@ class WaitingScreen extends StatelessWidget {
             title: Text(e.title, maxLines: 2, overflow: TextOverflow.ellipsis),
             subtitle: Text('${context.t('inbox.type.${e.type}')} · ${e.agentName}'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: e.agentId.isEmpty ? null : () => onOpen(e.agentId, e.agentName),
+            leading: e.agentSlug.isEmpty ? null : Face(slug: e.agentSlug, size: 32),
+            onTap: e.agentId.isEmpty ? null : () => onOpen(e.agentId, e.agentName, e.agentSlug, FaceState.working),
           ),
         if (page.items.isNotEmpty)
           Padding(

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'api.dart';
+import 'face.dart';
 import 'i18n.dart';
 import 'pairing.dart';
 import 'profile.dart';
@@ -141,7 +142,14 @@ class _CoveyAppState extends State<CoveyApp> {
       if (agent == null) return;
       _nav.currentState?.push(
         MaterialPageRoute(
-          builder: (_) => ThreadScreen(api: api, agentId: agent.id, agentName: agent.displayName, me: me),
+          builder: (_) => ThreadScreen(
+            api: api,
+            agentId: agent.id,
+            agentName: agent.displayName,
+            agentSlug: agent.slug,
+            faceState: faceStateOf(killed: agent.killed, status: agent.status),
+            me: me,
+          ),
         ),
       );
     } on ApiException {

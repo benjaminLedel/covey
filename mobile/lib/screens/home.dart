@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api.dart';
 import '../i18n.dart';
 import '../models.dart';
+import '../face.dart';
 import '../theme.dart';
 import 'colleagues.dart';
 import 'notes.dart';
@@ -59,8 +60,16 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => detail));
   }
 
-  void _openThread(String agentId, String name) => _show(
-    ThreadScreen(key: ValueKey('thread:$agentId'), api: widget.api, agentId: agentId, agentName: name, me: _me!),
+  void _openThread(String agentId, String name, String slug, FaceState state) => _show(
+    ThreadScreen(
+      key: ValueKey('thread:$agentId'),
+      api: widget.api,
+      agentId: agentId,
+      agentName: name,
+      agentSlug: slug,
+      faceState: state,
+      me: _me!,
+    ),
   );
 
   void _openNote(Note note, bool canSummarize, VoidCallback changed) => _show(
