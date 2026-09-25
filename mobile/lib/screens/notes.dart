@@ -6,11 +6,13 @@ import 'package:intl/intl.dart';
 
 import '../api.dart';
 import '../dictation.dart';
+import '../dictation_view.dart';
 import '../i18n.dart';
 import '../icons.dart';
 import '../models.dart';
 import '../rich/bar.dart';
 import '../rich/editor.dart';
+import '../speech_model.dart';
 import '../summary_text.dart';
 import '../theme.dart';
 import '../ui.dart';
@@ -355,6 +357,7 @@ class _NotePageState extends State<NotePage> {
   }
 
   Future<void> _toggleDictation() async {
+    if (_dictation.preparing) return;
     if (_dictation.running) {
       await _dictation.stop();
       _changed();
@@ -362,24 +365,10 @@ class _NotePageState extends State<NotePage> {
     }
     final messenger = ScaffoldMessenger.of(context);
     _dictatingAt = _editor.currentState?.beginDictation();
-    _dictation.language = Localizations.localeOf(context).languageCode;
-    final starting = _dictation.start();
-    // The first dictation fetches the model: that is said, with its progress,
-    // for as long as it takes.
-    ScaffoldFeatureController<SnackBar, SnackBarClosedReason>? loading;
-    if (_dictation.preparing) {
-      loading = messenger.showSnackBar(
-        SnackBar(
-          duration: const Duration(minutes: 30),
-          content: ListenableBuilder(
-            listenable: _dictation,
-            builder: (context, _) => Text(modelLoading(context, _dictation)),
-          ),
-        ),
-      );
-    }
-    final ok = await starting;
-    loading?.close();
+    _dictation.language = SpeechModel.instance.language ?? Localizations.localeOf(context).languageCode;
+    // The preview above the bar says what happens meanwhile — the model's
+    // download on the first dictation, then the level and the words.
+    final ok = await _dictation.start();
     if (ok) {
       if (_note == null) _spoken = true;
     } else {
@@ -550,6 +539,11 @@ class _NotePageState extends State<NotePage> {
                 ],
               ),
             ),
+            if (listening || _dictation.preparing)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                child: DictationPreview(dictation: _dictation, onStop: listening ? _toggleDictation : null),
+              ),
             // With the keyboard up the formatting bar, otherwise the one
             // thing the page offers without typing: dictation.
             if (_editing && !_titleFocus.hasFocus)
@@ -611,7 +605,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
   void _changed() => setState(() {});
 
   Future<void> _start() async {
-    _dictation.language = Localizations.localeOf(context).languageCode;
+    _dictation.language = SpeechModel.instance.language ?? Localizations.localeOf(context).languageCode;
     if (await _dictation.start(continuous: true)) {
       _watch.start();
       _tick = Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
@@ -697,7 +691,9 @@ class _MeetingScreenState extends State<MeetingScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 14),
+                Waveform(levels: _dictation.levels, height: 44, active: _dictation.running),
+                const SizedBox(height: 14),
                 Text(context.t('mobile.meetingHinweis'), style: context.type.bodySmall),
               ],
               const SizedBox(height: 20),

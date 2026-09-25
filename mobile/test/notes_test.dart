@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:covey_mobile/api.dart';
 import 'package:covey_mobile/dictation.dart';
+import 'package:covey_mobile/dictation_view.dart';
 import 'package:covey_mobile/i18n.dart';
 import 'package:covey_mobile/models.dart';
 import 'package:covey_mobile/screens/home.dart';
@@ -157,7 +158,16 @@ void main() {
     dictation.hear('Milch und Brot kaufen');
     await tester.pump();
     expect(find.byTooltip('Diktat beenden'), findsOneWidget);
-    expect(find.textContaining('Milch und Brot kaufen'), findsOneWidget, reason: 'what is heard appears on the page');
+    expect(
+      find.byWidgetPredicate((w) => w is EditableText && w.controller.text.contains('Milch und Brot kaufen')),
+      findsOneWidget,
+      reason: 'what is heard goes into the page',
+    );
+    expect(
+      find.descendant(of: find.byType(DictationPreview), matching: find.text('Milch und Brot kaufen')),
+      findsOneWidget,
+      reason: 'and the preview shows it while it is heard',
+    );
     expect(find.text('Speichern'), findsNothing, reason: 'nothing to press: it saves itself');
 
     await tester.pump(const Duration(milliseconds: 150));

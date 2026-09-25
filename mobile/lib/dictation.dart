@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:record/record.dart';
@@ -26,8 +27,14 @@ enum DictationFailure {
 /// The seam to the recogniser, so tests can stand in for whisper.cpp and the
 /// microphone.
 abstract class SpeechEngine {
-  /// Starts listening; [partials] carry the whole text so far.
-  Future<void> start({required String modelPath, required String language, required void Function(String) partials});
+  /// Starts listening; [partials] carry the whole text so far, [level] the
+  /// loudness of what the microphone hears, 0–1.
+  Future<void> start({
+    required String modelPath,
+    required String language,
+    required void Function(String) partials,
+    void Function(double)? level,
+  });
 
   /// Stops and returns the final text.
   Future<String> stop();
@@ -54,10 +61,26 @@ class WhisperEngine implements SpeechEngine {
     required String modelPath,
     required String language,
     required void Function(String) partials,
+    void Function(double)? level,
   }) async {
-    final Stream<Uint8List> pcm = await _recorder.startStream(
+    final raw = await _recorder.startStream(
       const RecordConfig(encoder: AudioEncoder.pcm16bits, sampleRate: 16000, numChannels: 1),
     );
+    // The level is measured on the way to whisper: it is what says whether
+    // the microphone delivers sound at all, which no transcript can.
+    var bytes = 0;
+    var last = DateTime.now();
+    final Stream<Uint8List> pcm = raw.map((chunk) {
+      bytes += chunk.length;
+      final rms = _rms(chunk);
+      level?.call(rms);
+      final now = DateTime.now();
+      if (now.difference(last) > const Duration(seconds: 3)) {
+        last = now;
+        debugPrint('dictation: ${bytes ~/ 32000} s of audio, rms ${rms.toStringAsFixed(4)}');
+      }
+      return chunk;
+    });
     final session = await _whisper.transcribeLive(
       modelPath: modelPath,
       pcm16Stream: pcm,
@@ -67,7 +90,10 @@ class WhisperEngine implements SpeechEngine {
       keepModelLoaded: true,
     );
     _session = session;
-    _sub = session.partials.listen(partials, onError: (_) {});
+    _sub = session.partials.listen((t) {
+      debugPrint('dictation: partial, ${t.length} characters');
+      partials(t);
+    }, onError: (Object e) => debugPrint('dictation: whisper failed: $e'));
   }
 
   @override
@@ -87,6 +113,24 @@ class WhisperEngine implements SpeechEngine {
   }
 }
 
+/// Root mean square of 16-bit little-endian PCM, scaled so speech at a
+/// normal distance lands around the middle: 0–1.
+double _rms(Uint8List b) {
+  final data = ByteData.sublistView(b);
+  final n = b.length ~/ 2;
+  if (n == 0) return 0;
+  var sum = 0.0;
+  for (var i = 0; i < n; i++) {
+    final v = data.getInt16(i * 2, Endian.little) / 32768.0;
+    sum += v * v;
+  }
+  final rms = math.sqrt(sum / n);
+  // Perceived loudness is logarithmic: -60 dB → 0, 0 dB → 1.
+  if (rms <= 0) return 0;
+  final db = 20 * math.log(rms) / math.ln10;
+  return ((db + 60) / 60).clamp(0.0, 1.0);
+}
+
 /// Speech to text on the device (#336, #348): whisper.cpp turns speech into
 /// text on the phone, with a model that came from the covey instance. Only
 /// text leaves the phone; no audio is kept or sent.
@@ -98,6 +142,7 @@ class Dictation extends ChangeNotifier {
   Dictation({this.api, this.engine, SpeechModel? model}) : _model = model ?? SpeechModel.instance;
 
   final CoveyApi? api;
+
   /// The recogniser; whisper.cpp unless a test stands in.
   SpeechEngine? engine;
   final SpeechModel _model;
@@ -118,6 +163,15 @@ class Dictation extends ChangeNotifier {
   /// The model download's fraction, 0–1, while [preparing].
   double? get progress => _model.progress;
 
+  /// How loud the microphone is right now, 0–1, while [running].
+  double level = 0;
+  DateTime _levelAt = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// The recent levels, oldest first, one every 50 ms: the waveform that
+  /// runs along under the preview.
+  final List<double> levels = [];
+  static const historyLength = 120;
+
   /// Everything recognised so far.
   String get text => _text.trim();
 
@@ -132,6 +186,7 @@ class Dictation extends ChangeNotifier {
     failure = null;
     detail = null;
     _text = '';
+    levels.clear();
     final api = this.api;
     if (api == null) return _fail(DictationFailure.unavailable, 'no instance');
 
@@ -164,6 +219,17 @@ class Dictation extends ChangeNotifier {
           _text = t;
           notifyListeners();
         },
+        level: (l) {
+          level = l;
+          // A level meter at ~20 frames a second is enough to look alive.
+          final now = DateTime.now();
+          if (now.difference(_levelAt) > const Duration(milliseconds: 50)) {
+            _levelAt = now;
+            levels.add(l);
+            if (levels.length > historyLength) levels.removeRange(0, levels.length - historyLength);
+            notifyListeners();
+          }
+        },
       );
     } catch (e) {
       _running = false;
@@ -181,6 +247,7 @@ class Dictation extends ChangeNotifier {
 
   /// Stops and returns the whole text.
   Future<String> stop() async {
+    level = 0;
     if (_running) {
       _running = false;
       notifyListeners();

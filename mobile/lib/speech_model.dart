@@ -4,6 +4,7 @@ import 'dart:isolate';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'api.dart';
@@ -44,6 +45,69 @@ class SpeechModel extends ChangeNotifier {
   SpeechModelProblem? problem;
   String? detail;
 
+  /// What the instance said last: which model, how large.
+  SpeechModelInfo? info;
+
+  /// Whether the model is on this device.
+  bool get onDevice => _path != null;
+
+  /// The language whisper listens for; null follows the app's language.
+  String? language;
+  static const _languageKey = 'speech.language';
+  final _prefs = const FlutterSecureStorage();
+
+  Future<void> loadLanguage() async {
+    try {
+      language = await _prefs.read(key: _languageKey);
+    } catch (_) {
+      language = null;
+    }
+    notifyListeners();
+  }
+
+  Future<void> setLanguage(String? lang) async {
+    language = lang;
+    notifyListeners();
+    try {
+      if (lang == null) {
+        await _prefs.delete(key: _languageKey);
+      } else {
+        await _prefs.write(key: _languageKey, value: lang);
+      }
+    } catch (_) {
+      // Kept for this run; the next start follows the app again.
+    }
+  }
+
+  /// Asks the instance what it offers and looks whether that is already on
+  /// the device — without downloading anything.
+  Future<void> refresh(CoveyApi api) async {
+    try {
+      final i = await api.speechModel();
+      info = i;
+      if (i.enabled) {
+        final f = File(await _file(i));
+        if (await f.exists() && await f.length() == i.size) _path = f.path;
+      }
+      problem = i.enabled ? null : SpeechModelProblem.off;
+    } on ApiException catch (e) {
+      problem = SpeechModelProblem.failed;
+      detail = e.message;
+    }
+    notifyListeners();
+  }
+
+  /// Removes the model from the device; the next dictation fetches it again.
+  Future<void> remove() async {
+    _path = null;
+    final dir = Directory('${(await getApplicationSupportDirectory()).path}/speech');
+    if (await dir.exists()) await dir.delete(recursive: true);
+    notifyListeners();
+  }
+
+  Future<String> _file(SpeechModelInfo i) async =>
+      '${(await getApplicationSupportDirectory()).path}/speech/${i.sha256}.bin';
+
   /// The fraction downloaded, 0–1, or null when nothing is being fetched.
   double? get progress => downloading && total > 0 ? received / total : null;
 
@@ -63,6 +127,7 @@ class SpeechModel extends ChangeNotifier {
     } on ApiException catch (e) {
       return _fail(SpeechModelProblem.failed, e.message);
     }
+    this.info = info;
     if (!info.enabled) return _fail(SpeechModelProblem.off, null);
 
     final dir = Directory('${(await getApplicationSupportDirectory()).path}/speech');

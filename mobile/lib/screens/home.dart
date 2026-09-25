@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../api.dart';
@@ -12,6 +11,7 @@ import '../models.dart';
 import '../theme.dart';
 import '../ui.dart';
 import 'notes.dart';
+import 'settings.dart';
 import 'team_space.dart';
 import 'thread.dart';
 
@@ -160,7 +160,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
     final isWide = MediaQuery.sizeOf(context).width >= wide;
-    final account = _AccountButton(me: me, host: widget.api.base.host, onDisconnect: widget.onDisconnect);
+    final account = _AccountButton(me: me, api: widget.api, onDisconnect: widget.onDisconnect);
     final actions = isWide ? const <Widget>[] : [account];
     final spaces = <({IconData icon, String label, Widget body})>[
       if (me.teamSurface)
@@ -249,72 +249,23 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-/// The person, as initials in a circle at the top right: who is signed in
-/// where, why there are no colleagues when the team surface is off — one
-/// quiet line where somebody looks for it — and the way out.
+/// The person, as initials in a circle at the top right: the way into the
+/// settings (#349) — who is signed in where, speech recognition, the way out.
 class _AccountButton extends StatelessWidget {
-  const _AccountButton({required this.me, required this.host, required this.onDisconnect});
+  const _AccountButton({required this.me, required this.api, required this.onDisconnect});
 
   final Me me;
-  final String host;
+  final CoveyApi api;
   final VoidCallback onDisconnect;
 
   String get _initials =>
       me.displayName.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).take(2).map((p) => p[0].toUpperCase()).join();
 
-  /// On Apple platforms the native action sheet; elsewhere the Material
-  /// menu. Both say the same three things.
-  Future<void> _open(BuildContext context) async {
-    if (isApple(context)) {
-      final out = await showCupertinoModalPopup<bool>(
-        context: context,
-        builder: (context) => CupertinoActionSheet(
-          title: Text('${me.displayName} · $host'),
-          message: me.teamSurface ? null : Text(context.t('mobile.nurNotizen')),
-          actions: [
-            CupertinoActionSheetAction(
-              isDestructiveAction: true,
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(context.t('mobile.trennen')),
-            ),
-          ],
-          cancelButton: CupertinoActionSheetAction(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(context.t('team.abbrechen')),
-          ),
-        ),
-      );
-      if (out == true) onDisconnect();
-      return;
-    }
-    final box = context.findRenderObject()! as RenderBox;
-    final at = box.localToGlobal(Offset(0, box.size.height));
-    final c = context.colors;
-    final out = await showMenu<String>(
-      context: context,
-      position: RelativeRect.fromLTRB(at.dx, at.dy + 4, at.dx + box.size.width, 0),
-      items: [
-        PopupMenuItem(
-          enabled: false,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(me.displayName, style: context.type.titleMedium),
-              Text(host, style: context.type.bodySmall),
-            ],
-          ),
-        ),
-        if (!me.teamSurface)
-          PopupMenuItem(enabled: false, child: Text(context.t('mobile.nurNotizen'), style: context.type.bodySmall)),
-        const PopupMenuDivider(),
-        PopupMenuItem(
-          value: 'disconnect',
-          child: Text(context.t('mobile.trennen'), style: context.type.bodyLarge?.copyWith(color: c.textDanger)),
-        ),
-      ],
-    );
-    if (out == 'disconnect') onDisconnect();
-  }
+  void _open(BuildContext context) => Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => SettingsScreen(api: api, me: me, onDisconnect: onDisconnect),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
