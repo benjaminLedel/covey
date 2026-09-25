@@ -151,7 +151,10 @@ class CoveyApi {
 
   // --- The notetaker (#336): the seat's own notes. ---
 
-  Future<NotesPage> notes() async => NotesPage.fromJson(await get('/me/notes') as Map<String, dynamic>);
+  Future<NotesPage> notes({String q = ''}) async => NotesPage.fromJson(
+    await get(q.trim().isEmpty ? '/me/notes' : '/me/notes?q=${Uri.encodeQueryComponent(q.trim())}')
+        as Map<String, dynamic>,
+  );
 
   Future<Note> createNote({
     required String kind,

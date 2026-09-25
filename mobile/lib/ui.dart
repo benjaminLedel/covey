@@ -26,9 +26,14 @@ class SpaceScroll extends StatefulWidget {
     this.onRefresh,
     this.bottomClearance = capsuleClearance,
     this.compact = false,
+    this.search,
   });
 
   final String title;
+
+  /// The search field under the title, where iOS puts it; it scrolls away
+  /// with the title.
+  final Widget? search;
   final String? subtitle;
   final List<Widget> actions;
   final List<Widget> slivers;
@@ -109,6 +114,10 @@ class _SpaceScrollState extends State<SpaceScroll> {
               padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
               child: Text(widget.subtitle!, style: context.type.bodyLarge?.copyWith(color: c.textMuted)),
             ),
+          ),
+        if (widget.search != null)
+          SliverToBoxAdapter(
+            child: Padding(padding: const EdgeInsets.fromLTRB(16, 14, 16, 0), child: widget.search),
           ),
         ...widget.slivers,
         SliverToBoxAdapter(child: SizedBox(height: widget.bottomClearance)),
@@ -383,4 +392,61 @@ class EmptyNote extends StatelessWidget {
     padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
     child: Text(text, style: context.type.bodyLarge?.copyWith(color: context.colors.textMuted)),
   );
+}
+
+/// A search field: a quiet filled capsule, the magnifier, a clear button once
+/// there is something to clear.
+class SearchField extends StatefulWidget {
+  const SearchField({super.key, required this.hint, required this.onChanged});
+
+  final String hint;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<SearchField> createState() => _SearchFieldState();
+}
+
+class _SearchFieldState extends State<SearchField> {
+  final _text = TextEditingController();
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return TextField(
+      controller: _text,
+      onChanged: (v) {
+        setState(() {});
+        widget.onChanged(v);
+      },
+      textInputAction: TextInputAction.search,
+      style: context.type.bodyLarge,
+      decoration: InputDecoration(
+        isDense: true,
+        hintText: widget.hint,
+        filled: true,
+        fillColor: c.textPrimary.withValues(alpha: 0.06),
+        prefixIcon: Icon(AppIcons.search.of(context), size: 20, color: c.textMuted),
+        suffixIcon: _text.text.isEmpty
+            ? null
+            : IconButton(
+                icon: Icon(AppIcons.clear.of(context), size: 18, color: c.textMuted),
+                onPressed: () {
+                  _text.clear();
+                  setState(() {});
+                  widget.onChanged('');
+                },
+              ),
+        contentPadding: const EdgeInsets.symmetric(vertical: 11),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      ),
+    );
+  }
 }

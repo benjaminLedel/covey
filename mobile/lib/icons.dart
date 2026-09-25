@@ -36,5 +36,7 @@ abstract final class AppIcons {
   static const checkDone = AppIcon(Icons.check_box_rounded, CupertinoIcons.checkmark_square_fill);
   static const kindText = AppIcon(Icons.notes_rounded, CupertinoIcons.doc_text);
   static const kindVoice = AppIcon(Icons.graphic_eq_rounded, CupertinoIcons.waveform);
+  static const search = AppIcon(Icons.search_rounded, CupertinoIcons.search);
+  static const clear = AppIcon(Icons.cancel_rounded, CupertinoIcons.clear_circled_solid);
   static const kindMeeting = AppIcon(Icons.groups_2_outlined, CupertinoIcons.person_3);
 }

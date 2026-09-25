@@ -38,6 +38,7 @@ class TeamSpace extends StatefulWidget {
 class _TeamSpaceState extends State<TeamSpace> {
   ({InboxPage waiting, List<Agent> agents, List<Department> departments})? _data;
   Object? _error;
+  String _query = '';
 
   @override
   void initState() {
@@ -73,6 +74,7 @@ class _TeamSpaceState extends State<TeamSpace> {
       bottomClearance: widget.bottomClearance,
       compact: widget.compact,
       onRefresh: _load,
+      search: SearchField(hint: context.t('team.suche'), onChanged: (v) => setState(() => _query = v)),
       slivers: [
         if (_error != null)
           SliverToBoxAdapter(child: EmptyNote(context.t('mobile.fehler', args: {'error': '$_error'}))),
@@ -90,7 +92,20 @@ class _TeamSpaceState extends State<TeamSpace> {
     // A seat that may only read sees who waits and who works, and opens
     // nothing: a conversation it cannot write in is a dead end (#339).
     final open = widget.me.canWrite;
-    final colleagues = data.agents.where((a) => !a.isApplicant).toList()
+    // Typing narrows what is already here — name, slug, role, department —
+    // without asking the instance again.
+    final q = _query.trim().toLowerCase();
+    final deptName = {for (final d in data.departments) d.id: d.name.toLowerCase()};
+    bool matches(Agent a) =>
+        q.isEmpty ||
+        a.displayName.toLowerCase().contains(q) ||
+        a.slug.toLowerCase().contains(q) ||
+        a.jobTitle.toLowerCase().contains(q) ||
+        (deptName[a.departmentId] ?? '').contains(q);
+    final waiting = data.waiting.items
+        .where((e) => q.isEmpty || e.agentName.toLowerCase().contains(q) || e.title.toLowerCase().contains(q))
+        .toList();
+    final colleagues = data.agents.where((a) => !a.isApplicant && matches(a)).toList()
       ..sort((a, b) => a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()));
     final known = {for (final d in data.departments) d.id};
     final groups = [
@@ -103,13 +118,15 @@ class _TeamSpaceState extends State<TeamSpace> {
     ].where((g) => g.members.isNotEmpty);
 
     return [
-      if (data.waiting.items.isNotEmpty) ...[
+      if (q.isNotEmpty && waiting.isEmpty && colleagues.isEmpty)
+        SliverToBoxAdapter(child: EmptyNote(context.t('team.nichtsGefunden'))),
+      if (waiting.isNotEmpty) ...[
         SliverToBoxAdapter(child: SectionTitle(context.t('team.wartet'))),
         SliverList.separated(
-          itemCount: data.waiting.items.length,
+          itemCount: waiting.length,
           separatorBuilder: (_, _) => const SizedBox(height: 10),
           itemBuilder: (context, i) {
-            final e = data.waiting.items[i];
+            final e = waiting[i];
             final a = byId[e.agentId];
             final state = a == null ? FaceState.working : faceStateOf(killed: a.killed, status: a.status);
             return _WaitCard(
@@ -122,7 +139,7 @@ class _TeamSpaceState extends State<TeamSpace> {
           },
         ),
       ],
-      if (colleagues.isEmpty) SliverToBoxAdapter(child: EmptyNote(context.t('chat.noAgents'))),
+      if (q.isEmpty && colleagues.isEmpty) SliverToBoxAdapter(child: EmptyNote(context.t('chat.noAgents'))),
       for (final g in groups) ...[
         SliverToBoxAdapter(child: SectionTitle(g.name)),
         SliverToBoxAdapter(

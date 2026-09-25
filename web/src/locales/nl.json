@@ -2518,7 +2518,8 @@
     "meetingKnopf": "Vergadering",
     "neu": "Nieuw",
     "heute": "Vandaag",
-    "hatZusammenfassung": "Met samenvatting"
+    "hatZusammenfassung": "Met samenvatting",
+    "notizenSuchen": "Notities doorzoeken"
   },
   "appLink": {
     "title": "Openen in de covey-app",

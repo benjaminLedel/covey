@@ -43,6 +43,22 @@ class NotesScreen extends StatefulWidget {
 class NotesScreenState extends State<NotesScreen> {
   NotesPage? _page;
   Object? _error;
+  String _query = '';
+  Timer? _debounce;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  /// The instance searches title, text and summary; a quarter second after
+  /// the last key, so a word is one request, not five.
+  void _search(String q) {
+    _query = q;
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 250), reload);
+  }
 
   bool get canSummarize => _page?.summarize ?? false;
 
@@ -54,7 +70,7 @@ class NotesScreenState extends State<NotesScreen> {
 
   Future<void> reload() async {
     try {
-      final p = await widget.api.notes();
+      final p = await widget.api.notes(q: _query);
       if (mounted) {
         setState(() {
           _page = p;
@@ -90,11 +106,17 @@ class NotesScreenState extends State<NotesScreen> {
       bottomClearance: widget.bottomClearance,
       compact: widget.compact,
       onRefresh: reload,
+      search: SearchField(hint: context.t('mobile.notizenSuchen'), onChanged: _search),
       slivers: [
         if (_error != null)
           SliverToBoxAdapter(child: EmptyNote(context.t('mobile.fehler', args: {'error': '$_error'}))),
         if (page == null && _error == null) SliverToBoxAdapter(child: EmptyNote(context.t('common.loading'))),
-        if (page != null && page.notes.isEmpty) SliverToBoxAdapter(child: EmptyNote(context.t('mobile.notizenLeer'))),
+        if (page != null && page.notes.isEmpty)
+          SliverToBoxAdapter(
+            child: EmptyNote(
+              _query.trim().isEmpty ? context.t('mobile.notizenLeer') : context.t('team.nichtsGefunden'),
+            ),
+          ),
         for (final day in days.entries) ...[
           SliverToBoxAdapter(child: SectionTitle(day.key)),
           SliverToBoxAdapter(

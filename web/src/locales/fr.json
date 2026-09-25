@@ -2518,7 +2518,8 @@
     "meetingKnopf": "Réunion",
     "neu": "Nouveau",
     "heute": "Aujourd'hui",
-    "hatZusammenfassung": "Avec résumé"
+    "hatZusammenfassung": "Avec résumé",
+    "notizenSuchen": "Rechercher dans les notes"
   },
   "appLink": {
     "title": "Ouvrir dans l'application covey",

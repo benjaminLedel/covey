@@ -2518,7 +2518,8 @@
     "meetingKnopf": "会議",
     "neu": "新規",
     "heute": "今日",
-    "hatZusammenfassung": "要約あり"
+    "hatZusammenfassung": "要約あり",
+    "notizenSuchen": "メモを検索"
   },
   "appLink": {
     "title": "covey アプリで開く",
