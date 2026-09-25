@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'api.dart';
@@ -41,7 +42,18 @@ class _CoveyAppState extends State<CoveyApp> {
     // The device language, falling back to English (spec/27).
     final locale = WidgetsBinding.instance.platformDispatcher.locale;
     final strings = await Strings.load(locale);
-    final saved = await widget.profiles.read();
+    var saved = await widget.profiles.read();
+    // A debug build can be pointed at an instance from the command line —
+    // `flutter run --dart-define=COVEY_INSTANCE=http://localhost:8494
+    // --dart-define=COVEY_KEY=covey_…` — so working on the app against
+    // `make run` does not start at the connect screen every time. Release
+    // builds ignore it: a key compiled into an app is exactly what spec/27
+    // forbids.
+    const devInstance = String.fromEnvironment('COVEY_INSTANCE');
+    const devKey = String.fromEnvironment('COVEY_KEY');
+    if (kDebugMode && saved == null && devInstance != '' && devKey != '') {
+      saved = (instance: devInstance, key: devKey);
+    }
     CoveyApi? api;
     if (saved != null) {
       try {

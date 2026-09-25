@@ -46,7 +46,16 @@ class CoveyApi {
 
   static const _timeout = Duration(seconds: 20);
 
-  Uri _url(String path) => base.replace(path: '${base.path}/api/v1$path');
+  /// The API address for [path], which may carry a query. The query has to
+  /// be split off: handed to Uri.replace as part of the path, its `?` is
+  /// encoded as `%3F` and the instance answers 404.
+  Uri _url(String path) {
+    final rel = Uri.parse(path);
+    return base.replace(
+      path: '${base.path}/api/v1${rel.path}',
+      queryParameters: rel.hasQuery ? rel.queryParameters : null,
+    );
+  }
 
   Map<String, String> get _headers => {
         'Authorization': 'Bearer $_key',
@@ -60,8 +69,19 @@ class CoveyApi {
     } catch (e) {
       throw ApiException(0, e.toString());
     }
-    final body = res.body.isEmpty ? null : jsonDecode(utf8.decode(res.bodyBytes));
+    // Not every answer is JSON: a route the instance does not know, or a
+    // proxy in front of it, answers in plain text. That is an HTTP error with
+    // a sentence, not a parse error.
+    final text = utf8.decode(res.bodyBytes, allowMalformed: true);
+    Object? body;
+    try {
+      body = text.isEmpty ? null : jsonDecode(text);
+    } on FormatException {
+      if (res.statusCode < 400) throw ApiException(res.statusCode, 'not JSON: ${text.trim()}');
+      body = text.trim();
+    }
     if (res.statusCode >= 400) {
+      if (body is String && body.isNotEmpty) throw ApiException(res.statusCode, 'HTTP ${res.statusCode}: $body');
       final msg = body is Map && body['error'] is String ? body['error'] as String : 'HTTP ${res.statusCode}';
       throw ApiException(res.statusCode, msg);
     }

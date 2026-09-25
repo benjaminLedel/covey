@@ -31,6 +31,28 @@ void main() {
     expect(me.teamSurface, isFalse);
   });
 
+  test('a query stays a query, not part of the path', () async {
+    late Uri seen;
+    final api = CoveyApi(Uri.parse('https://c.example'), 'k', client: MockClient((req) async {
+      seen = req.url;
+      return http.Response(jsonEncode({'items': [], 'pending': 0}), 200);
+    }));
+    await api.waiting();
+    expect(seen.path, '/api/v1/inbox');
+    expect(seen.queryParameters, {'status': 'open', 'sort': 'urgent', 'limit': '100'});
+  });
+
+  test('a plain-text error is an HTTP error with its sentence, not a parse error', () async {
+    final api = CoveyApi(Uri.parse('https://c.example'), 'k',
+        client: MockClient((_) async => http.Response('404 page not found\n', 404)));
+    await expectLater(
+      api.agents(),
+      throwsA(isA<ApiException>()
+          .having((e) => e.status, 'status', 404)
+          .having((e) => e.message, 'message', 'HTTP 404: 404 page not found')),
+    );
+  });
+
   test('an instance older than #328 has the team surface on', () {
     expect(Me.fromJson({'Email': 'a@b.c'}).teamSurface, isTrue);
   });

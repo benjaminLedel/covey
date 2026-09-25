@@ -37,6 +37,14 @@ Against a local `make run`, a debug build accepts `http://localhost:8494`
 (`http://10.0.2.2:8494` from the Android emulator); every other address must be
 HTTPS. The iOS deployment target is 15.0.
 
+A debug build can skip the connect screen:
+
+```sh
+flutter run --dart-define=COVEY_INSTANCE=http://localhost:8494 --dart-define=COVEY_KEY=covey_…
+```
+
+Release builds ignore both.
+
 ## Wording
 
 The app uses the web's keys with the web's wording — it has no catalogue of its
