@@ -49,6 +49,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -96,3 +97,17 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# The launcher icons (#335), from assets/icon/, which tool/render_icons.dart
+# paints with the app's own MarkPainter. Regenerate with
+#   flutter test tool/render_icons.dart && dart run flutter_launcher_icons
+flutter_launcher_icons:
+  image_path: "assets/icon/icon.png"
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  adaptive_icon_background: "#CC7A5B"
+  adaptive_icon_foreground: "assets/icon/foreground.png"
+  # The birds are already placed inside the safe zone by render_icons.dart.
+  adaptive_icon_foreground_inset: 0
+  adaptive_icon_monochrome: "assets/icon/foreground.png"

@@ -3,4 +3,5 @@
     <!-- The ground of the start animation (#332), so the native launch screen
          does not flash white before it. surface-0 of web/src/styles.css. -->
     <color name="launch_background">#F2F2F2</color>
+	<color name="ic_launcher_background">#CC7A5B</color>
 </resources>

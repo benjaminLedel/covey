@@ -26,9 +26,13 @@ class CoveyMark extends StatelessWidget {
 /// lifts the birds a little and beats their wings — the one moment the mark
 /// moves.
 class MarkPainter extends CustomPainter {
-  MarkPainter({this.tile = 1, this.birds = const [1, 1, 1], this.flight = 0});
+  MarkPainter({this.tile = 1, this.birds = const [1, 1, 1], this.flight = 0, this.radius = 14});
 
   final double tile;
+
+  /// The tile's corner radius in the 64-unit space. 0 for the iOS app icon,
+  /// whose corners the system rounds itself (#335).
+  final double radius;
   final List<double> birds;
   final double flight;
 
@@ -51,7 +55,7 @@ class MarkPainter extends CustomPainter {
       canvas.scale(tile);
       canvas.translate(-32, -32);
       canvas.drawRRect(
-        RRect.fromRectAndRadius(const Rect.fromLTWH(0, 0, 64, 64), const Radius.circular(14)),
+        RRect.fromRectAndRadius(const Rect.fromLTWH(0, 0, 64, 64), Radius.circular(radius)),
         Paint()..color = clay,
       );
       canvas.restore();
@@ -93,7 +97,7 @@ class MarkPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(MarkPainter old) =>
-      old.tile != tile || old.flight != flight || !_same(old.birds, birds);
+      old.tile != tile || old.flight != flight || old.radius != radius || !_same(old.birds, birds);
 
   static bool _same(List<double> a, List<double> b) {
     if (a.length != b.length) return false;
