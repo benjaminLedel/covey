@@ -163,3 +163,55 @@ class Thread {
   /// A message is accepted and the triage has not decided yet.
   final bool pending;
 }
+
+/// One note of the notetaker (#336): the person's own, private.
+class Note {
+  Note({
+    required this.id,
+    required this.kind,
+    required this.title,
+    required this.body,
+    required this.summary,
+    required this.durationSeconds,
+    required this.createdAt,
+  });
+
+  factory Note.fromJson(Map<String, dynamic> j) => Note(
+    id: j['id'] as String,
+    kind: j['kind'] as String? ?? 'text',
+    title: j['title'] as String? ?? '',
+    body: j['body'] as String? ?? '',
+    summary: j['summary'] as String? ?? '',
+    durationSeconds: j['duration_seconds'] as int? ?? 0,
+    createdAt: _time(j['created_at']),
+  );
+
+  final String id;
+
+  /// text | voice | meeting
+  final String kind;
+  final String title;
+  final String body;
+  final String summary;
+  final int durationSeconds;
+  final DateTime? createdAt;
+
+  /// What the list shows as the line: the title, or else the first line of
+  /// the text.
+  String get heading => title.isNotEmpty ? title : body.split('\n').first;
+}
+
+class NotesPage {
+  NotesPage({required this.notes, required this.summarize});
+
+  factory NotesPage.fromJson(Map<String, dynamic> j) => NotesPage(
+    notes: [for (final n in (j['notes'] as List? ?? const [])) Note.fromJson(n as Map<String, dynamic>)],
+    summarize: j['summarize'] as bool? ?? false,
+  );
+
+  final List<Note> notes;
+
+  /// Whether the instance can summarise here — the button is offered only
+  /// then.
+  final bool summarize;
+}

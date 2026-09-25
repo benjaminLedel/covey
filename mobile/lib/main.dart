@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 import 'api.dart';
 import 'i18n.dart';
@@ -134,6 +135,8 @@ class _CoveyAppState extends State<CoveyApp> {
     if (agentId == null || api == null || (uri.scheme != 'covey' && uri.host != api.base.host)) return;
     try {
       final me = await api.me();
+      // Without the team surface there is no thread to open (#336).
+      if (!me.teamSurface) return;
       final agent = (await api.agents()).where((a) => a.id == agentId).firstOrNull;
       if (agent == null) return;
       _nav.currentState?.push(
@@ -150,6 +153,8 @@ class _CoveyAppState extends State<CoveyApp> {
     // The device language, falling back to English (spec/27).
     final locale = WidgetsBinding.instance.platformDispatcher.locale;
     final strings = await Strings.load(locale);
+    // Dates in the notes are written in the person's language (#336).
+    await initializeDateFormatting();
     var saved = await widget.profiles.read();
     // A debug build can be pointed at an instance from the command line —
     // `flutter run --dart-define=COVEY_INSTANCE=http://localhost:8494

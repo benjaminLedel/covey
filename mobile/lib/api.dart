@@ -94,6 +94,12 @@ class CoveyApi {
 
   Future<dynamic> get(String path) => _send(() => _http.get(_url(path), headers: _headers));
 
+  Future<dynamic> patch(String path, Map<String, Object?> body) => _send(
+    () => _http.patch(_url(path), headers: {..._headers, 'Content-Type': 'application/json'}, body: jsonEncode(body)),
+  );
+
+  Future<dynamic> delete(String path) => _send(() => _http.delete(_url(path), headers: _headers));
+
   Future<dynamic> post(String path, Map<String, Object?> body) => _send(
     () => _http.post(_url(path), headers: {..._headers, 'Content-Type': 'application/json'}, body: jsonEncode(body)),
   );
@@ -142,4 +148,27 @@ class CoveyApi {
     final r = await post('/tasks/$taskId/reply', {'text': text}) as Map<String, dynamic>;
     return r['woken'] as bool? ?? false;
   }
+
+  // --- The notetaker (#336): the seat's own notes. ---
+
+  Future<NotesPage> notes() async => NotesPage.fromJson(await get('/me/notes') as Map<String, dynamic>);
+
+  Future<Note> createNote({
+    required String kind,
+    required String body,
+    String title = '',
+    int durationSeconds = 0,
+  }) async => Note.fromJson(
+    await post('/me/notes', {'kind': kind, 'title': title, 'body': body, 'duration_seconds': durationSeconds})
+        as Map<String, dynamic>,
+  );
+
+  Future<Note> updateNote(String id, {String? title, String? body}) async =>
+      Note.fromJson(await patch('/me/notes/$id', {'title': ?title, 'body': ?body}) as Map<String, dynamic>);
+
+  Future<void> deleteNote(String id) => delete('/me/notes/$id');
+
+  /// A summary and the action items — one model turn on the instance.
+  Future<Note> summarizeNote(String id) async =>
+      Note.fromJson(await post('/me/notes/$id/summarize', const {}) as Map<String, dynamic>);
 }

@@ -301,6 +301,14 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/auth/pairings", s.auth(s.sessionOnly(s.handleCreatePairing)))
 	mux.Handle("GET /api/v1/auth/pairings/{id}", s.auth(s.handlePairingState))
 	mux.HandleFunc("POST /api/v1/auth/pair", s.handleRedeemPairing)
+	// The notetaker (#336, notes.go): the seat's own notes. Every role may
+	// keep notes, and nobody reads anybody else's — the routes carry no seat.
+	mux.Handle("GET /api/v1/me/notes", s.auth(s.handleListNotes))
+	mux.Handle("POST /api/v1/me/notes", s.auth(s.handleCreateNote))
+	mux.Handle("GET /api/v1/me/notes/{id}", s.auth(s.handleGetNote))
+	mux.Handle("PATCH /api/v1/me/notes/{id}", s.auth(s.handleUpdateNote))
+	mux.Handle("DELETE /api/v1/me/notes/{id}", s.auth(s.handleDeleteNote))
+	mux.Handle("POST /api/v1/me/notes/{id}/summarize", s.auth(s.handleSummarizeNote))
 	// The app's claim on /pair and /team/* (#333, applinks.go). Served only
 	// when the installation ships an app: otherwise a 404.
 	mux.HandleFunc("GET /.well-known/apple-app-site-association", s.handleAppleAppSiteAssociation)

@@ -2,6 +2,14 @@
     <!-- The app talks to exactly one thing, the covey instance it is
          connected to (spec/27). Flutter grants this only in debug. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- The notetaker (#336): dictation and meetings, recognised on the
+         device. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService"/>
+        </intent>
+    </queries>
     <application
         android:label="covey"
         android:name="${applicationName}"

@@ -19,6 +19,10 @@
 	</array>
 	<key>FlutterDeepLinkingEnabled</key>
 	<false/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>The microphone is used to dictate notes and record meetings. Speech is recognised on this device; no audio is stored or sent.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Speech is turned into text on this device for your notes. Only the text is saved in covey.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>The camera reads the QR code covey shows to pair this app.</string>
 	<key>CFBundleDisplayName</key>

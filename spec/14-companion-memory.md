@@ -1,5 +1,7 @@
 # 14 — Companion: brain dump & context for agents
 
+**Status: the capture's first slice is built** (#336) — as the notetaker in the covey app (`mobile/`, [`27-mobile-app.md`](27-mobile-app.md)), not as an app of its own. Text notes, voice notes and meetings, speech recognised on the device, stored per seat in `human_notes` and private without exception; a meeting can be summarised into a summary and action items by one control-plane turn (`internal/notes`). Not built: the curator, the human wiki, media, and sharing with one's agents — there is deliberately no "share" switch until the injection that would make it true exists.
+
 covey treats agents like employees — with an identity, a workplace and **memory** ([`05-memory.md`](05-memory.md)). What the agents lack is the context from their humans' knowledge: mails, ideas spoken on the move, whiteboard photos, screen recordings, PDFs skimmed once. That knowledge sits scattered and gets lost.
 
 The **companion** is a dedicated app alongside the covey web UI, a capture product of its own. Its purpose: to collect a person's brain dump in one place and make it available as context for their agents. The human offloads raw material, the platform condenses it into structured knowledge, the agents consume it. Unlike a private notes tool, sharing with agents is the actual purpose here, not an add-on.

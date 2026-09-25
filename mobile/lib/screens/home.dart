@@ -5,12 +5,14 @@ import '../i18n.dart';
 import '../models.dart';
 import '../theme.dart';
 import 'colleagues.dart';
+import 'notes.dart';
 import 'thread.dart';
 import 'waiting.dart';
 
-/// The two lists the app opens on: what waits — the home, the screen a
-/// notification will one day open — and the colleagues. The thread is pushed
-/// on top of either.
+/// The lists the app opens on: what waits — the home, the screen a
+/// notification will one day open — the colleagues, and the person's own
+/// notes (#336). Without the team surface only the notes remain: the app is a
+/// notetaker then, not a notice about a setting.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.api, required this.onDisconnect});
 
@@ -26,9 +28,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Me? _me;
   Object? _meError;
 
-  /// The thread open beside the list on a wide window (#334). On a phone the
-  /// thread is pushed instead, and this stays null.
-  ({String id, String name})? _open;
+  /// What stands beside the list on a wide window (#334) — a thread or a
+  /// note. On a phone it is pushed instead, and this stays null.
+  Widget? _detail;
 
   /// From this width the list and the thread stand side by side: a desktop
   /// window, a tablet in landscape.
@@ -49,17 +51,31 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _openThread(String agentId, String name) {
+  void _show(Widget detail) {
     if (MediaQuery.sizeOf(context).width >= wide) {
-      setState(() => _open = (id: agentId, name: name));
+      setState(() => _detail = detail);
       return;
     }
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ThreadScreen(api: widget.api, agentId: agentId, agentName: name, me: _me!),
-      ),
-    );
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => detail));
   }
+
+  void _openThread(String agentId, String name) => _show(
+    ThreadScreen(key: ValueKey('thread:$agentId'), api: widget.api, agentId: agentId, agentName: name, me: _me!),
+  );
+
+  void _openNote(Note note, bool canSummarize, VoidCallback changed) => _show(
+    NoteScreen(
+      key: ValueKey('note:${note.id}'),
+      api: widget.api,
+      note: note,
+      canSummarize: canSummarize,
+      onChanged: () {
+        changed();
+        // A note deleted beside the list leaves an empty pane, not a ghost.
+        if (_detail?.key == ValueKey('note:${note.id}')) setState(() => _detail = null);
+      },
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -81,21 +97,31 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
     final isWide = MediaQuery.sizeOf(context).width >= wide;
-    final lists = IndexedStack(
-      index: _tab,
-      children: [
-        WaitingScreen(api: widget.api, me: me, onOpen: _openThread),
-        ColleaguesScreen(api: widget.api, onOpen: _openThread),
+    final tabs = [
+      if (me.teamSurface) ...[
+        (
+          icon: Icons.inbox_outlined,
+          label: context.t('team.wartet'),
+          body: WaitingScreen(api: widget.api, me: me, onOpen: _openThread) as Widget,
+        ),
+        (
+          icon: Icons.people_outline,
+          label: context.t('team.kollegen'),
+          body: ColleaguesScreen(api: widget.api, onOpen: _openThread) as Widget,
+        ),
       ],
-    );
-    final destinations = [
-      (icon: Icons.inbox_outlined, label: context.t('team.wartet')),
-      (icon: Icons.people_outline, label: context.t('team.kollegen')),
+      (
+        icon: Icons.edit_note,
+        label: context.t('mobile.notizen'),
+        body: NotesScreen(api: widget.api, onOpen: _openNote) as Widget,
+      ),
     ];
-    final open = _open;
+    final tab = _tab.clamp(0, tabs.length - 1);
+    final lists = IndexedStack(index: tab, children: [for (final t in tabs) t.body]);
+    final detail = _detail;
     return Scaffold(
       appBar: AppBar(
-        title: Text(_tab == 0 ? context.t('team.wartet') : context.t('team.kollegen')),
+        title: Text(tabs[tab].label),
         actions: [
           PopupMenuButton<String>(
             tooltip: context.t('nav.userMenu'),
@@ -108,80 +134,59 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: TextStyle(color: context.colors.textMuted),
                 ),
               ),
+              // Why there are no colleagues: one quiet line where somebody
+              // looks for it, instead of a banner over every screen.
+              if (!me.teamSurface)
+                PopupMenuItem(
+                  enabled: false,
+                  child: Text(
+                    context.t('mobile.nurNotizen'),
+                    style: TextStyle(color: context.colors.textMuted, fontSize: 12.5),
+                  ),
+                ),
               PopupMenuItem(value: 'disconnect', child: Text(context.t('mobile.trennen'))),
             ],
           ),
         ],
       ),
-      body: Column(
-        children: [
-          if (!me.teamSurface) _Notice(text: context.t('mobile.teamAus')),
-          Expanded(
-            child: !isWide
-                ? lists
-                // A wide window: the rail, the list, and the thread beside it —
-                // the same three surfaces, not a second console (#334).
-                : Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      NavigationRail(
-                        selectedIndex: _tab,
-                        onDestinationSelected: (i) => setState(() => _tab = i),
-                        labelType: NavigationRailLabelType.all,
-                        backgroundColor: context.colors.surface2,
-                        destinations: [
-                          for (final d in destinations)
-                            NavigationRailDestination(icon: Icon(d.icon), label: Text(d.label)),
-                        ],
-                      ),
-                      const VerticalDivider(width: 1),
-                      SizedBox(width: 360, child: lists),
-                      const VerticalDivider(width: 1),
-                      Expanded(
-                        child: open == null
-                            ? Center(
-                                child: Text(
-                                  context.t('mobile.waehlen'),
-                                  style: TextStyle(color: context.colors.textMuted),
-                                ),
-                              )
-                            : ThreadScreen(
-                                key: ValueKey(open.id),
-                                api: widget.api,
-                                agentId: open.id,
-                                agentName: open.name,
-                                me: me,
-                              ),
-                      ),
+      body: !isWide
+          ? lists
+          // A wide window: the rail, the list, and what is open beside it —
+          // the same surfaces, not a second console (#334).
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (tabs.length > 1) ...[
+                  NavigationRail(
+                    selectedIndex: tab,
+                    onDestinationSelected: (i) => setState(() => _tab = i),
+                    labelType: NavigationRailLabelType.all,
+                    backgroundColor: context.colors.surface2,
+                    destinations: [
+                      for (final d in tabs) NavigationRailDestination(icon: Icon(d.icon), label: Text(d.label)),
                     ],
                   ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: isWide
+                  const VerticalDivider(width: 1),
+                ],
+                SizedBox(width: 380, child: lists),
+                const VerticalDivider(width: 1),
+                Expanded(
+                  child:
+                      detail ??
+                      Center(
+                        child: Text(context.t('mobile.waehlen'), style: TextStyle(color: context.colors.textMuted)),
+                      ),
+                ),
+              ],
+            ),
+      // One tab needs no bar.
+      bottomNavigationBar: isWide || tabs.length < 2
           ? null
           : NavigationBar(
-              selectedIndex: _tab,
+              selectedIndex: tab,
               onDestinationSelected: (i) => setState(() => _tab = i),
-              destinations: [for (final d in destinations) NavigationDestination(icon: Icon(d.icon), label: d.label)],
+              destinations: [for (final d in tabs) NavigationDestination(icon: Icon(d.icon), label: d.label)],
             ),
-    );
-  }
-}
-
-class _Notice extends StatelessWidget {
-  const _Notice({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.colors;
-    return Container(
-      width: double.infinity,
-      color: c.bgWait,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Text(text, style: TextStyle(color: c.textWait, fontSize: 13, height: 1.35)),
     );
   }
 }
