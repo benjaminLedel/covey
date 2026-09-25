@@ -193,4 +193,27 @@ class CoveyApi {
     await _send(() async => http.Response.fromStream(await _http.send(req)));
     return [for (final f in files) '$inbox/${f.name}'];
   }
+
+  /// Uploads a picture for the seat's notes (#344) and returns the reference
+  /// a note's Markdown carries: `covey-media://<id>`.
+  Future<String> uploadNoteMedia(Attachment f) async {
+    final req = http.MultipartRequest('POST', _url('/me/notes/media'))..headers.addAll(_headers);
+    final length = f.length ?? (await f.open().fold<int>(0, (n, chunk) => n + chunk.length));
+    req.files.add(http.MultipartFile('file', f.open(), length, filename: f.name));
+    final out = await _send(() async => http.Response.fromStream(await _http.send(req))) as Map<String, dynamic>;
+    return out['ref'] as String;
+  }
+
+  /// A picture of the seat's notes, as bytes — fetched with the key, which is
+  /// why the note cannot simply hand the image widget a URL.
+  Future<Uint8List> noteMedia(String id) async {
+    final http.Response res;
+    try {
+      res = await _http.get(_url('/me/notes/media/$id'), headers: _headers).timeout(_timeout);
+    } catch (e) {
+      throw ApiException(0, e.toString());
+    }
+    if (res.statusCode != 200) throw ApiException(res.statusCode, 'HTTP ${res.statusCode}');
+    return res.bodyBytes;
+  }
 }

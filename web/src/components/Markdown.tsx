@@ -98,7 +98,27 @@ function isTableStart(lines: string[], i: number): boolean {
 // exact opposite is right, and there baseLevel={1} stands. Before, every
 // `#` rendered as h4 there as well, and not a single docs page came with a
 // main heading.
-export function Markdown({ text, baseLevel = 4 }: { text: string; baseLevel?: number }) {
+/* A line that is a picture the page allows: its resolved source, else null. */
+function shownImage(line: string, resolveImage?: (src: string) => string | null) {
+  if (!resolveImage) return null;
+  const m = /^!\[([^\]]*)\]\(([^)\s]+)\)$/.exec(line.trim());
+  const src = m ? resolveImage(m[2]) : null;
+  return m && src ? { src, alt: m[1] } : null;
+}
+
+/* resolveImage decides whether a picture is shown at all (#344): without it,
+   `![](…)` stays text — Markdown from a model or an agent must not load
+   images from anywhere it likes (a tracking pixel is an image). The notes
+   page passes one that turns covey-media://<id> into its own endpoint. */
+export function Markdown({
+  text,
+  baseLevel = 4,
+  resolveImage,
+}: {
+  text: string;
+  baseLevel?: number;
+  resolveImage?: (src: string) => string | null;
+}) {
   const lines = text.replace(/\r\n/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
   let i = 0;
@@ -121,6 +141,41 @@ export function Markdown({ text, baseLevel = 4 }: { text: string; baseLevel?: nu
       i++; // skip the closing ```
       blocks.push(
         <pre key={key++} className="md-pre"><code>{buf.join("\n")}</code></pre>,
+      );
+      continue;
+    }
+
+    // A picture on its own line, where the page allows it.
+    const shown = shownImage(line, resolveImage);
+    if (shown) {
+      blocks.push(<img key={key++} className="md-img" src={shown.src} alt={shown.alt} loading="lazy" />);
+      i++;
+      continue;
+    }
+
+    // A divider.
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) {
+      blocks.push(<hr key={key++} className="md-hr" />);
+      i++;
+      continue;
+    }
+
+    // A quote: consecutive "> " lines.
+    if (/^>\s?/.test(line)) {
+      const buf: string[] = [];
+      while (i < lines.length && /^>\s?/.test(lines[i])) {
+        buf.push(lines[i].replace(/^>\s?/, ""));
+        i++;
+      }
+      blocks.push(
+        <blockquote key={key++} className="md-quote">
+          {buf.map((l, idx) => (
+            <Fragment key={idx}>
+              {idx > 0 && <br />}
+              {renderInline(l, `q${key}-${idx}`)}
+            </Fragment>
+          ))}
+        </blockquote>,
       );
       continue;
     }
@@ -224,6 +279,12 @@ export function Markdown({ text, baseLevel = 4 }: { text: string; baseLevel?: nu
       !/^(#{1,3})\s+/.test(lines[i]) &&
       !/^\s*[-*]\s+/.test(lines[i]) &&
       !/^\s*\d+\.\s+/.test(lines[i]) &&
+      !/^>\s?/.test(lines[i]) &&
+      !/^(-{3,}|\*{3,}|_{3,})$/.test(lines[i].trim()) &&
+      // Only a picture that is shown ends a paragraph; one the page does not
+      // allow stays text in it. Excluding every picture line here left a
+      // disallowed one in no branch at all, and the loop never advanced.
+      !shownImage(lines[i], resolveImage) &&
       !isTableStart(lines, i)
     ) {
       para.push(lines[i]);

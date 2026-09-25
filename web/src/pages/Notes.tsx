@@ -141,7 +141,12 @@ export default function Notes() {
   );
 }
 
-const heading = (n: Note) => n.title || n.body.split("\n")[0];
+const heading = (n: Note) => n.title || n.body.split("\n")[0].replace(/^(#{1,3}\s+|[-*]\s+(\[[ xX]\]\s+)?|>\s?)/, "");
+
+/* A note's pictures live in the media store and are served to their owner
+   (#344); anything else is not loaded. */
+const noteMedia = (src: string) =>
+  src.startsWith("covey-media://") ? `/api/v1/me/notes/media/${encodeURIComponent(src.slice("covey-media://".length))}` : null;
 
 function duration(s: number) {
   const h = Math.floor(s / 3600);
@@ -215,7 +220,11 @@ function Detail({ note, canSummarize, onDeleted }: { note: Note; canSummarize: b
       {summarize.isError && <p className="danger-text text-xs mb-2">{(summarize.error as Error).message}</p>}
 
       {n.kind !== "text" && <h3 className="notes-section-h">{t("mobile.transkript")}</h3>}
-      <p className="notes-body">{n.body}</p>
+      {/* The body is Markdown (#344): the app's editor writes checklists,
+          tables and pictures into it. */}
+      <div className="notes-body">
+        <Markdown text={n.body} baseLevel={3} resolveImage={noteMedia} />
+      </div>
     </article>
   );
 }

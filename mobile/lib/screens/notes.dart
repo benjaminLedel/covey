@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -8,6 +9,8 @@ import '../dictation.dart';
 import '../i18n.dart';
 import '../icons.dart';
 import '../models.dart';
+import '../rich/bar.dart';
+import '../rich/editor.dart';
 import '../summary_text.dart';
 import '../theme.dart';
 import '../ui.dart';
@@ -219,6 +222,7 @@ class NotePage extends StatefulWidget {
     this.onChanged,
     this.dictation,
     this.saveDelay = const Duration(milliseconds: 700),
+    this.pickImage,
   });
 
   final CoveyApi api;
@@ -233,6 +237,9 @@ class NotePage extends StatefulWidget {
   final Dictation? dictation;
   final Duration saveDelay;
 
+  /// Swapped in tests, so inserting a picture needs no file dialog.
+  final Future<Attachment?> Function()? pickImage;
+
   @override
   State<NotePage> createState() => _NotePageState();
 }
@@ -240,23 +247,23 @@ class NotePage extends StatefulWidget {
 class _NotePageState extends State<NotePage> {
   late Note? _note = widget.note;
   late final _title = TextEditingController(text: widget.note?.title ?? '');
-  late final _body = TextEditingController(text: widget.note?.body ?? '');
+  late String _body = widget.note?.body ?? '';
   final _titleFocus = FocusNode();
-  final _bodyFocus = FocusNode();
+  final _editor = GlobalKey<BlockEditorState>();
   late final Dictation _dictation = widget.dictation ?? Dictation();
+  ({int index, String base})? _dictatingAt;
   Timer? _debounce;
   bool _dirty = false;
   bool _spoken = false;
   bool _busy = false;
   bool _deleted = false;
-  String _before = '';
 
   @override
   void initState() {
     super.initState();
     _dictation.addListener(_onDictation);
-    _titleFocus.addListener(_focusChanged);
-    _bodyFocus.addListener(_focusChanged);
+    _titleFocus.addListener(_redraw);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _editor.currentState?.changes.addListener(_redraw));
   }
 
   @override
@@ -267,7 +274,7 @@ class _NotePageState extends State<NotePage> {
     // Leaving: an emptied note goes, anything unsaved is written. Neither
     // is awaited — the page is gone, the requests are not.
     if (!_deleted) {
-      if (_title.text.trim().isEmpty && _body.text.trim().isEmpty) {
+      if (_title.text.trim().isEmpty && _body.trim().isEmpty) {
         final n = _note;
         if (n != null) widget.api.deleteNote(n.id).then((_) => widget.onChanged?.call(), onError: (_) {});
       } else if (_dirty) {
@@ -275,17 +282,15 @@ class _NotePageState extends State<NotePage> {
       }
     }
     _titleFocus.dispose();
-    _bodyFocus.dispose();
     _title.dispose();
-    _body.dispose();
     super.dispose();
   }
 
-  void _focusChanged() {
+  void _redraw() {
     if (mounted) setState(() {});
   }
 
-  bool get _editing => _titleFocus.hasFocus || _bodyFocus.hasFocus;
+  bool get _editing => _titleFocus.hasFocus || (_editor.currentState?.hasFocus ?? false);
 
   void _changed() {
     _dirty = true;
@@ -298,7 +303,7 @@ class _NotePageState extends State<NotePage> {
   Future<void> _flush() async {
     if (!_dirty) return;
     final title = _title.text.trim();
-    final body = _body.text.trim();
+    final body = _body.trim();
     if (body.isEmpty) return;
     _dirty = false;
     final messenger = mounted ? ScaffoldMessenger.maybeOf(context) : null;
@@ -326,20 +331,11 @@ class _NotePageState extends State<NotePage> {
     _flush();
   }
 
-  // What is dictated is appended to what was typed before.
+  // What is dictated goes into the block the caret was in (editor.dart).
   void _onDictation() {
-    if (!_dictation.running && _dictation.text.isEmpty) {
-      setState(() {});
-      return;
-    }
-    final joined = [_before, _dictation.text].where((s) => s.trim().isNotEmpty).join(_before.isEmpty ? '' : ' ');
-    if (joined != _body.text) {
-      _body.value = TextEditingValue(
-        text: joined,
-        selection: TextSelection.collapsed(offset: joined.length),
-      );
-      _changed();
-    }
+    final at = _dictatingAt;
+    if (at != null && _dictation.text.isNotEmpty) _editor.currentState?.dictate(at, _dictation.text);
+    if (!_dictation.running) _dictatingAt = null;
     setState(() {});
   }
 
@@ -349,15 +345,37 @@ class _NotePageState extends State<NotePage> {
       _changed();
       return;
     }
-    _before = _body.text.trim();
     final messenger = ScaffoldMessenger.of(context);
     final failed = dictationFailure(context, DictationFailure.unavailable);
     final denied = dictationFailure(context, DictationFailure.denied);
+    _dictatingAt = _editor.currentState?.beginDictation();
     if (await _dictation.start()) {
       if (_note == null) _spoken = true;
     } else {
+      _dictatingAt = null;
       messenger.showSnackBar(SnackBar(content: Text(_dictation.failure == DictationFailure.denied ? denied : failed)));
     }
+  }
+
+  /// A picture into the note (#344): picked, uploaded to the media store,
+  /// placed after the caret's block.
+  Future<void> _addImage() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final picked = await (widget.pickImage ?? _pickImage)();
+    if (picked == null || !mounted) return;
+    try {
+      final ref = await widget.api.uploadNoteMedia(picked);
+      _editor.currentState?.insertImage(ref);
+    } on ApiException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
+  static Future<Attachment?> _pickImage() async {
+    final files = await FilePicker.pickFiles(type: FileType.image);
+    if (files.isEmpty) return null;
+    final f = files.first;
+    return Attachment(name: f.name, length: f.lengthSync(), open: () => f.readAsByteStream());
   }
 
   Future<void> _summarize() async {
@@ -425,6 +443,7 @@ class _NotePageState extends State<NotePage> {
         ],
       ),
       body: SafeArea(
+        bottom: false,
         child: Column(
           children: [
             Expanded(
@@ -446,7 +465,6 @@ class _NotePageState extends State<NotePage> {
                     maxLines: null,
                     textCapitalization: TextCapitalization.sentences,
                     textInputAction: TextInputAction.next,
-                    onSubmitted: (_) => _bodyFocus.requestFocus(),
                     onChanged: (_) => _changed(),
                     decoration: _bare(context, context.t('mobile.titelOptional'), context.type.headlineSmall),
                   ),
@@ -479,38 +497,47 @@ class _NotePageState extends State<NotePage> {
                   if (n != null && kind != 'text') ...[
                     const SizedBox(height: 22),
                     Text(context.t('mobile.transkript'), style: context.type.titleLarge),
+                    const SizedBox(height: 4),
                   ],
-                  TextField(
-                    controller: _body,
-                    focusNode: _bodyFocus,
+                  BlockEditor(
+                    key: _editor,
+                    api: widget.api,
+                    initial: _body,
+                    hint: context.t('mobile.notizHinweis'),
                     autofocus: widget.note == null,
-                    maxLines: null,
-                    minLines: 8,
-                    style: context.type.bodyLarge,
-                    textCapitalization: TextCapitalization.sentences,
-                    onChanged: (_) => _changed(),
-                    decoration: _bare(context, context.t('mobile.notizHinweis'), context.type.bodyLarge),
+                    onChanged: (md) {
+                      _body = md;
+                      _changed();
+                    },
                   ),
                 ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: Glass(
-                child: SizedBox(
-                  height: 56,
-                  child: TextButton.icon(
-                    onPressed: _toggleDictation,
-                    style: TextButton.styleFrom(
-                      foregroundColor: listening ? c.textAccent : c.textPrimary,
-                      shape: const StadiumBorder(),
+            // With the keyboard up the formatting bar, otherwise the one
+            // thing the page offers without typing: dictation.
+            if (_editing && !_titleFocus.hasFocus)
+              EditorBar(editor: _editor, onImage: _addImage, onDictate: _toggleDictation, dictating: listening)
+            else
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: Glass(
+                    child: SizedBox(
+                      height: 56,
+                      child: TextButton.icon(
+                        onPressed: _toggleDictation,
+                        style: TextButton.styleFrom(
+                          foregroundColor: listening ? c.textAccent : c.textPrimary,
+                          shape: const StadiumBorder(),
+                        ),
+                        icon: Icon(listening ? AppIcons.stop.of(context) : AppIcons.mic.of(context)),
+                        label: Text(listening ? context.t('mobile.diktatStop') : context.t('mobile.diktieren')),
+                      ),
                     ),
-                    icon: Icon(listening ? AppIcons.stop.of(context) : AppIcons.mic.of(context)),
-                    label: Text(listening ? context.t('mobile.diktatStop') : context.t('mobile.diktieren')),
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),

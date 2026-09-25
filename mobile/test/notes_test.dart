@@ -149,12 +149,15 @@ void main() {
           as Widget,
     );
 
-    await tester.tap(find.text('Diktieren'));
+    // A new note has the caret, so the formatting bar stands above the
+    // keyboard; dictation is one of its buttons.
+    await tester.pump();
+    await tester.tap(find.byTooltip('Diktieren'));
     await tester.pump();
     dictation.hear('Milch und Brot kaufen');
     await tester.pump();
-    expect(find.text('Diktat beenden'), findsOneWidget);
-    expect(find.text('Milch und Brot kaufen'), findsOneWidget, reason: 'what is heard appears on the page');
+    expect(find.byTooltip('Diktat beenden'), findsOneWidget);
+    expect(find.textContaining('Milch und Brot kaufen'), findsOneWidget, reason: 'what is heard appears on the page');
     expect(find.text('Speichern'), findsNothing, reason: 'nothing to press: it saves itself');
 
     await tester.pump(const Duration(milliseconds: 150));

@@ -60,3 +60,37 @@ describe("Markdown-Aufgabenlisten", () => {
     expect(screen.getByText("normal")).toBeInTheDocument();
   });
 });
+
+describe("Bilder in Notizen (#344)", () => {
+  it("zeigt covey-Bilder über den eigenen Endpunkt und lädt keine fremden", async () => {
+    const id = "11111111-2222-3333-4444-555555555555";
+    mockFetch({
+      "/api/v1/me/notes": {
+        summarize: false,
+        notes: [
+          {
+            id: "n1",
+            kind: "text",
+            title: "Tafel",
+            body: `Vorher\n![Tafel](covey-media://${id})\n![](https://tracker.example/p.gif)\n> ein Zitat\n---`,
+            summary: "",
+            duration_seconds: 0,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+        ],
+      },
+    });
+    renderNotes();
+    fireEvent.click(await screen.findByText("Tafel"));
+    const img = screen.getByRole("img", { name: "Tafel" });
+    expect(img.getAttribute("src")).toBe(`/api/v1/me/notes/media/${id}`);
+    expect(screen.getAllByRole("img")).toHaveLength(1);
+    expect(screen.getByText("ein Zitat").closest("blockquote")).not.toBeNull();
+  });
+
+  it("lässt Bilder als Text, wo keine Seite sie erlaubt", () => {
+    render(<Markdown text={"![x](https://tracker.example/p.gif)"} />);
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
+});
