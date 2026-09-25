@@ -106,6 +106,12 @@ export const PUBLIC_ROUTES: PublicRoute[] = [
    confirmation link answers with 404 instead of with the UI. */
 export const MAIL_LINK_PATHS = ["/verify", "/reset"];
 
+/* Addresses the covey app claims on app.covey.work (#333,
+   internal/httpapi/applinks.go). /pair is the pairing link in the QR code: on
+   a phone with the app it never reaches the browser; everywhere else it lands
+   on a page that hands it on with covey://, signed in or not. */
+export const APP_LINK_PATHS = ["/pair"];
+
 /** Path of a route in the wanted language; unknown → the sign-in page. */
 export function pathOf(id: string, lang: Lang): string {
   const route = PUBLIC_ROUTES.find((r) => r.id === id);

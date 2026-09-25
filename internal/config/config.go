@@ -52,6 +52,22 @@ type Config struct {
 	// throttles everybody at once (internal/httpapi/ratelimit.go).
 	TrustedProxies []netip.Prefix
 
+	// App links (#333): what lets iOS and Android open the covey app for
+	// /pair and /team/<id> on this host instead of the browser. Both are
+	// properties of whoever SHIPS the app — the Apple team, the signing
+	// certificate — not of an installation, so they are empty by default and
+	// /.well-known answers 404. app.covey.work sets them; a self-hosted
+	// instance has no reason to.
+	//
+	// AppleAppID is "<TEAM ID>.<bundle id>" (COVEY_APPLE_APP_ID).
+	AppleAppID string
+	// AndroidAppPackage is the app's package name (COVEY_ANDROID_APP_PACKAGE,
+	// default work.covey.covey_mobile), AndroidCertSHA256 the SHA-256
+	// fingerprints of its signing certificates, comma-separated
+	// (COVEY_ANDROID_CERT_SHA256). Without a fingerprint nothing is served.
+	AndroidAppPackage string
+	AndroidCertSHA256 []string
+
 	// CookieSecure sets the Secure flag on the session cookie (delivered over
 	// HTTPS only). Default: derived automatically from the PublicURL scheme
 	// (https → true), overridable via COVEY_COOKIE_SECURE.
@@ -296,6 +312,9 @@ func FromEnv() (Config, error) {
 		ListenAddr:         getenv("COVEY_LISTEN_ADDR", ":8494"),
 		PublicURL:          getenv("COVEY_PUBLIC_URL", "http://localhost:8494"),
 		SiteURL:            os.Getenv("COVEY_SITE_URL"),
+		AppleAppID:         strings.TrimSpace(os.Getenv("COVEY_APPLE_APP_ID")),
+		AndroidAppPackage:  getenv("COVEY_ANDROID_APP_PACKAGE", "work.covey.covey_mobile"),
+		AndroidCertSHA256:  splitList(os.Getenv("COVEY_ANDROID_CERT_SHA256")),
 		MasterKeyHex:       os.Getenv("COVEY_MASTER_KEY"),
 		IdentityProvider:   getenv("COVEY_IDENTITY_PROVIDER", "builtin"),
 		SecretStore:        getenv("COVEY_SECRET_STORE", "builtin"),

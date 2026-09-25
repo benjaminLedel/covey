@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import MobilePairing, { pairingPayload } from "./MobilePairing";
+import MobilePairing, { appLink, pairingPayload } from "./MobilePairing";
 import { mockFetch, useGerman } from "../test/render";
 
 beforeEach(() => useGerman());
@@ -14,8 +14,14 @@ const renderCard = () =>
   );
 
 describe("MobilePairing (#330)", () => {
-  it("trägt Adresse und Code in der Form, die die App liest", () => {
+  it("trägt einen https-Link, den die Kamera des Telefons öffnet (#333)", () => {
     expect(pairingPayload("https://app.covey.work", "coveypair_abc-_")).toBe(
+      "https://app.covey.work/pair?code=coveypair_abc-_",
+    );
+  });
+
+  it("gibt der Desktop-App denselben Code über covey://", () => {
+    expect(appLink("https://app.covey.work", "coveypair_abc-_")).toBe(
       "covey://pair?instance=https%3A%2F%2Fapp.covey.work&code=coveypair_abc-_",
     );
   });

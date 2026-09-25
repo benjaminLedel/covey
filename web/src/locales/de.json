@@ -1711,7 +1711,9 @@
       "again": "Neuer Code",
       "paired": "Gekoppelt mit {{device}}. Der Schlüssel steht in der Liste darunter.",
       "done": "Fertig",
-      "qrAlt": "QR-Code zum Koppeln der covey-App"
+      "qrAlt": "QR-Code zum Koppeln der covey-App",
+      "desktop": "Auf diesem Computer, mit der Desktop-App:",
+      "openApp": "In der App öffnen"
     },
     "apiKeys": {
       "title": "API-Schlüssel",
@@ -2470,8 +2472,8 @@
     "schluesselAbgelehnt": "Die Installation hat diesen Schlüssel nicht angenommen.",
     "keinCovey": "Dort antwortet etwas, aber es ist kein covey.",
     "trennen": "Trennen",
-    "teamAus": "Die Team-Oberfläche ist für diese Organisation nicht eingeschaltet. Sie können mitlesen, Nachrichten werden aber abgelehnt. Eine Administratorin schaltet sie unter Verwaltung → Organisation ein.",
-    "teamAusKurz": "Team-Oberfläche ist aus",
+    "teamAus": "Schreiben ist in dieser Organisation noch nicht freigeschaltet. Sie können alles lesen, aber keine Nachrichten senden. Freischalten kann, wer die Organisation verwaltet: in covey unter Administration → Profil → „Team-Oberfläche“.",
+    "teamAusKurz": "Schreiben ist noch nicht freigeschaltet",
     "nichtGeweckt": "Notiert. Niemand hat darauf gewartet — der Agent liest es bei seinem nächsten Lauf.",
     "fehler": "Konnte nicht laden: {{error}}",
     "erneut": "Erneut versuchen",
@@ -2481,6 +2483,19 @@
     "scanHinweis": "Öffnen Sie covey im Browser, gehen Sie zu Profil & Einstellungen → Mobile App → „Mobile App koppeln“ und richten Sie die Kamera auf den Code.",
     "manuell": "Stattdessen mit Adresse und API-Schlüssel verbinden",
     "koppelnFehler": "Dieser Code ist ungültig, schon benutzt oder abgelaufen. Erzeugen Sie in der Weboberfläche einen neuen.",
-    "keinCoveyCode": "Das ist kein covey-Kopplungscode."
+    "keinCoveyCode": "Das ist kein covey-Kopplungscode.",
+    "koppelnFrage": "Mit {{host}} koppeln?",
+    "koppelnFrageText": "Die App verbindet sich mit dieser covey-Installation und handelt dort mit Ihrem Zugang. Koppeln Sie nur, wenn Sie den Code selbst erzeugt haben.",
+    "koppelnErsetzt": "Das ersetzt die Verbindung zu {{host}}.",
+    "koppeln": "Koppeln",
+    "desktopHinweis": "Öffnen Sie covey im Browser, gehen Sie zu Profil & Einstellungen → Mobile App → „Mobile App koppeln“ und klicken Sie auf „In der App öffnen“.",
+    "keineKamera": "Auf diesem Gerät ist keine Kamera verfügbar. Öffnen Sie den Code stattdessen über „In der App öffnen“ in der Weboberfläche, oder verbinden Sie sich mit Adresse und API-Schlüssel."
+  },
+  "appLink": {
+    "title": "In der covey-App öffnen",
+    "lead": "Dieser Link koppelt die covey-App mit {{host}}. Die App fragt nach, bevor sie sich verbindet.",
+    "open": "In der App öffnen",
+    "noApp": "Keine App auf diesem Gerät? Öffnen Sie in covey Profil & Einstellungen → Mobile App und scannen Sie den QR-Code mit der App.",
+    "missing": "Dieser Link enthält keinen Kopplungscode. Erzeugen Sie in covey unter Profil & Einstellungen → Mobile App einen neuen."
   }
 }

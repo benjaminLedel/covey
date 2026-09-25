@@ -29,7 +29,14 @@ Uri parseInstance(String input) {
   if (uri.scheme != 'https' && !(kDebugMode && loopback && uri.scheme == 'http')) {
     throw const FormatException('https');
   }
-  return uri.replace(path: uri.path.replaceAll(RegExp(r'/+$'), ''), query: null, fragment: null);
+  // Built anew rather than with Uri.replace: there a null query means "keep
+  // it", and a pasted address with ?… or #… would carry that into every call.
+  return Uri(
+    scheme: uri.scheme,
+    host: uri.host,
+    port: uri.hasPort ? uri.port : null,
+    path: uri.path.replaceAll(RegExp(r'/+$'), ''),
+  );
 }
 
 /// The instance, spoken to with an API key as the bearer.

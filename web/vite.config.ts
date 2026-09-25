@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-import { APP_ROUTE_PREFIXES, LANGS, MAIL_LINK_PATHS, PUBLIC_ROUTES } from "./src/public/routes";
+import { APP_ROUTE_PREFIXES, LANGS, MAIL_LINK_PATHS, APP_LINK_PATHS, PUBLIC_ROUTES } from "./src/public/routes";
 
 /* The route list for the Go handler. It has to tell apart what belongs to the
    UI (and falls back to the shell) from what is a typo (and deserves a 404),
@@ -24,6 +24,7 @@ function appRouten() {
             publicPaths: [
               ...PUBLIC_ROUTES.flatMap((r) => LANGS.map((l) => r.path[l])),
               ...MAIL_LINK_PATHS,
+              ...APP_LINK_PATHS,
             ],
           },
           null,

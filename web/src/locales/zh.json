@@ -1711,7 +1711,9 @@
       "again": "新二维码",
       "paired": "已与 {{device}} 配对。它的密钥在下方列表中。",
       "done": "完成",
-      "qrAlt": "用于配对 covey 应用的二维码"
+      "qrAlt": "用于配对 covey 应用的二维码",
+      "desktop": "在这台电脑上使用桌面应用：",
+      "openApp": "在应用中打开"
     },
     "apiKeys": {
       "title": "API 密钥",
@@ -2470,8 +2472,8 @@
     "schluesselAbgelehnt": "该安装未接受此密钥。",
     "keinCovey": "那里有响应，但不是 covey。",
     "trennen": "断开连接",
-    "teamAus": "此组织尚未开启团队界面。你可以查看，但消息会被拒绝。管理员可在“管理”→“组织”中开启。",
-    "teamAusKurz": "团队界面已关闭",
+    "teamAus": "此组织尚未开启发送功能。你可以查看所有内容，但无法发送消息。组织管理员可以在 covey 的“组织”→“资料”→“团队界面”中开启。",
+    "teamAusKurz": "发送功能尚未开启",
     "nichtGeweckt": "已记录。没有人在等待——智能体会在下次运行时读取。",
     "fehler": "无法加载：{{error}}",
     "erneut": "重试",
@@ -2481,6 +2483,19 @@
     "scanHinweis": "在浏览器中打开 covey，前往“个人资料与设置”→“移动应用”→“配对移动应用”，然后将相机对准二维码。",
     "manuell": "改用地址和 API 密钥连接",
     "koppelnFehler": "此二维码无效、已被使用或已过期。请在网页界面中重新生成。",
-    "keinCoveyCode": "这不是 covey 配对码。"
+    "keinCoveyCode": "这不是 covey 配对码。",
+    "koppelnFrage": "与 {{host}} 配对？",
+    "koppelnFrageText": "应用将连接到此 covey 安装，并以你的身份在那里操作。仅当配对码是你自己生成的时才进行配对。",
+    "koppelnErsetzt": "这将替换与 {{host}} 的连接。",
+    "koppeln": "配对",
+    "desktopHinweis": "在浏览器中打开 covey，前往“个人资料与设置”→“移动应用”→“配对移动应用”，然后点击“在应用中打开”。",
+    "keineKamera": "此设备上没有可用的相机。请改用网页界面中的“在应用中打开”打开配对码，或使用地址和 API 密钥连接。"
+  },
+  "appLink": {
+    "title": "在 covey 应用中打开",
+    "lead": "此链接会将 covey 应用与 {{host}} 配对。应用在连接前会请求确认。",
+    "open": "在应用中打开",
+    "noApp": "此设备上没有应用？请在 covey 中打开“个人资料与设置”→“移动应用”，然后用应用扫描二维码。",
+    "missing": "此链接不包含配对码。请在 covey 的“个人资料与设置”→“移动应用”中生成新的配对码。"
   }
 }

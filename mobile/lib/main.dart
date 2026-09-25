@@ -1,19 +1,22 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 
 import 'api.dart';
 import 'i18n.dart';
+import 'pairing.dart';
 import 'profile.dart';
 import 'screens/connect.dart';
 import 'screens/home.dart';
+import 'screens/thread.dart';
 import 'splash.dart';
 import 'theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(CoveyApp(profiles: ProfileStore()));
+  runApp(CoveyApp(profiles: ProfileStore(), links: AppLinks().uriLinkStream));
 }
 
 /// The covey mobile app (spec/27): the chat where the person is.
@@ -22,9 +25,13 @@ void main() {
 /// the thread. The app starts at the question no consumer app asks, "where
 /// is your covey?", because every installation is somebody else's machine.
 class CoveyApp extends StatefulWidget {
-  const CoveyApp({super.key, required this.profiles});
+  const CoveyApp({super.key, required this.profiles, this.links});
 
   final ProfileStore profiles;
+
+  /// The links the system hands the app (#333). Null in tests, which have no
+  /// platform to receive them from.
+  final Stream<Uri>? links;
 
   @override
   State<CoveyApp> createState() => _CoveyAppState();
@@ -37,11 +44,101 @@ class _CoveyAppState extends State<CoveyApp> {
   // The start animation stands until it has played and the app has loaded,
   // whichever is later (#332).
   bool _splash = true;
+  final _nav = GlobalKey<NavigatorState>();
+  StreamSubscription<Uri>? _linkSub;
+  // A link that arrived while the splash still stood — the app started BY the
+  // link — waits until there is a screen to act from.
+  Uri? _pendingLink;
 
   @override
   void initState() {
     super.initState();
     _start();
+    _linkSub = widget.links?.listen(_onLink);
+  }
+
+  @override
+  void dispose() {
+    _linkSub?.cancel();
+    super.dispose();
+  }
+
+  void _onLink(Uri uri) {
+    if (_splash) {
+      _pendingLink = uri;
+      return;
+    }
+    _handleLink(uri);
+  }
+
+  void _splashDone() {
+    setState(() => _splash = false);
+    final link = _pendingLink;
+    _pendingLink = null;
+    if (link != null) WidgetsBinding.instance.addPostFrameCallback((_) => _handleLink(link));
+  }
+
+  /// What a link can do (#333): pair, or open a thread. Nothing else — a link
+  /// is something anybody can send.
+  Future<void> _handleLink(Uri uri) async {
+    final ctx = _nav.currentContext;
+    if (ctx == null) return;
+    final t = Strings.of(ctx).t;
+    final messenger = ScaffoldMessenger.maybeOf(ctx);
+
+    final PairingCode? pairing;
+    try {
+      pairing = PairingCode.parse(uri.toString());
+    } on FormatException {
+      messenger?.showSnackBar(SnackBar(content: Text(t('mobile.nurHttps'))));
+      return;
+    }
+    if (pairing != null) {
+      // Confirmed before it is used, naming the host: a pairing link from
+      // outside could otherwise connect the app to a stranger's instance, and
+      // everything typed afterwards would go there.
+      final current = _api?.base.host;
+      final ok = await showDialog<bool>(
+        context: ctx,
+        builder: (context) => AlertDialog(
+          title: Text(t('mobile.koppelnFrage', args: {'host': pairing!.instance.host})),
+          content: Text([
+            t('mobile.koppelnFrageText'),
+            if (current != null && current != pairing.instance.host) t('mobile.koppelnErsetzt', args: {'host': current}),
+          ].join('\n\n')),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: Text(t('team.abbrechen'))),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(t('mobile.koppeln'))),
+          ],
+        ),
+      );
+      if (ok != true) return;
+      try {
+        final key = await redeemPairing(pairing);
+        await _connected(pairing.instance, key);
+      } on ApiException catch (e) {
+        messenger?.showSnackBar(SnackBar(
+          content: Text(e.status == 401 ? t('mobile.koppelnFehler') : t('mobile.nichtErreichbar')),
+        ));
+      }
+      return;
+    }
+
+    final agentId = threadLinkAgent(uri);
+    final api = _api;
+    // A thread link only means something for the instance the app is
+    // connected to; a link to another host is left alone.
+    if (agentId == null || api == null || (uri.scheme != 'covey' && uri.host != api.base.host)) return;
+    try {
+      final me = await api.me();
+      final agent = (await api.agents()).where((a) => a.id == agentId).firstOrNull;
+      if (agent == null) return;
+      _nav.currentState?.push(MaterialPageRoute(
+        builder: (_) => ThreadScreen(api: api, agentId: agent.id, agentName: agent.displayName, me: me),
+      ));
+    } on ApiException {
+      return;
+    }
   }
 
   Future<void> _start() async {
@@ -91,6 +188,7 @@ class _CoveyAppState extends State<CoveyApp> {
     return MaterialApp(
       title: 'covey',
       debugShowCheckedModeBanner: false,
+      navigatorKey: _nav,
       theme: coveyTheme(Brightness.light),
       darkTheme: coveyTheme(Brightness.dark),
       // The splash needs no words; everything after it does.
@@ -106,7 +204,7 @@ class _CoveyAppState extends State<CoveyApp> {
             ? Splash(
                 key: const ValueKey('splash'),
                 ready: _loaded.future,
-                onDone: () => setState(() => _splash = false),
+                onDone: _splashDone,
               )
             : _api == null
                 ? ConnectScreen(key: const ValueKey('connect'), onConnected: _connected)

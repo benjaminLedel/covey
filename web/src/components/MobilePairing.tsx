@@ -17,11 +17,19 @@ type PairingState = {
   device?: string;
 };
 
-/* The payload the app scans (#330). The address is this page's own origin:
-   the browser knows under which name the person reaches the instance, and a
-   server behind a proxy does not. The app parses exactly this shape
+/* What the QR code carries (#330, #333): an ordinary https link to this
+   instance's /pair. On app.covey.work the phone's own camera opens the app
+   with it (the host is claimed, internal/httpapi/applinks.go); anywhere else
+   it opens the /pair page, which hands it on. The address is this page's own
+   origin: the browser knows under which name the person reaches the
+   instance, and a server behind a proxy does not. The app parses both shapes
    (mobile/lib/pairing.dart). */
 export const pairingPayload = (origin: string, code: string) =>
+  `${origin}/pair?code=${encodeURIComponent(code)}`;
+
+/* The same pairing through the app's own scheme — for the desktop app, which
+   has no camera to scan with, and for the /pair page. */
+export const appLink = (origin: string, code: string) =>
   `covey://pair?instance=${encodeURIComponent(origin)}&code=${encodeURIComponent(code)}`;
 
 /* Pairing the mobile app by QR code.
@@ -118,9 +126,15 @@ export default function MobilePairing() {
             <p className="mt-0 mb-2">{t("account.pairing.scan")}</p>
             <p className="muted text-xs mt-0 mb-2">{t("account.pairing.waiting", { time: countdown })}</p>
             {notHttps && <p className="danger-text text-xs mt-0 mb-2">{t("account.pairing.notHttps")}</p>}
-            <button className="btn sm" type="button" onClick={close}>
-              {t("account.pairing.cancel")}
-            </button>
+            <p className="muted text-xs mt-0 mb-2">{t("account.pairing.desktop")}</p>
+            <div className="flex gap-2 flex-wrap">
+              <a className="btn sm" href={appLink(window.location.origin, pairing.code)}>
+                {t("account.pairing.openApp")}
+              </a>
+              <button className="btn sm" type="button" onClick={close}>
+                {t("account.pairing.cancel")}
+              </button>
+            </div>
           </div>
         </div>
       )}

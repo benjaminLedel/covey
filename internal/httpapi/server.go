@@ -301,6 +301,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/auth/pairings", s.auth(s.sessionOnly(s.handleCreatePairing)))
 	mux.Handle("GET /api/v1/auth/pairings/{id}", s.auth(s.handlePairingState))
 	mux.HandleFunc("POST /api/v1/auth/pair", s.handleRedeemPairing)
+	// The app's claim on /pair and /team/* (#333, applinks.go). Served only
+	// when the installation ships an app: otherwise a 404.
+	mux.HandleFunc("GET /.well-known/apple-app-site-association", s.handleAppleAppSiteAssociation)
+	mux.HandleFunc("GET /.well-known/assetlinks.json", s.handleAssetLinks)
 
 	// Agents & backlog. All roles may read (role-scoped views in the MVP: same
 	// data, different write rights).

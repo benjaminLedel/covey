@@ -1711,7 +1711,9 @@
       "again": "New code",
       "paired": "Paired with {{device}}. Its key is in the list below.",
       "done": "Done",
-      "qrAlt": "QR code for pairing the covey app"
+      "qrAlt": "QR code for pairing the covey app",
+      "desktop": "On this computer, with the desktop app:",
+      "openApp": "Open in the app"
     },
     "apiKeys": {
       "title": "API keys",
@@ -2470,8 +2472,8 @@
     "schluesselAbgelehnt": "The installation did not accept this key.",
     "keinCovey": "Something answers there, but it is not a covey.",
     "trennen": "Disconnect",
-    "teamAus": "The team surface is not switched on for this organisation. You can read along, but messages are refused. An admin switches it on under Admin → Organization.",
-    "teamAusKurz": "Team surface is off",
+    "teamAus": "Writing is not switched on for this organisation yet. You can read everything, but not send messages. Whoever manages the organisation switches it on in covey under Organization → Profile → “Team surface”.",
+    "teamAusKurz": "Writing is not switched on yet",
     "nichtGeweckt": "Written down. Nobody was waiting for it — the agent reads it on its next run.",
     "fehler": "Could not load: {{error}}",
     "erneut": "Try again",
@@ -2481,6 +2483,19 @@
     "scanHinweis": "Open covey in the browser, go to Profile & Settings → Mobile app → “Pair the mobile app”, and point the camera at the code.",
     "manuell": "Connect with an address and an API key instead",
     "koppelnFehler": "This code is invalid, already used or expired. Create a new one in the web interface.",
-    "keinCoveyCode": "This is not a covey pairing code."
+    "keinCoveyCode": "This is not a covey pairing code.",
+    "koppelnFrage": "Pair with {{host}}?",
+    "koppelnFrageText": "The app will connect to this covey installation and act with your seat there. Pair only if you created the code yourself.",
+    "koppelnErsetzt": "This replaces the connection to {{host}}.",
+    "koppeln": "Pair",
+    "desktopHinweis": "Open covey in the browser, go to Profile & Settings → Mobile app → “Pair the mobile app”, and click “Open in the app”.",
+    "keineKamera": "No camera is available on this device. Open the code with “Open in the app” in the web interface instead, or connect with an address and an API key."
+  },
+  "appLink": {
+    "title": "Open in the covey app",
+    "lead": "This link pairs the covey app with {{host}}. The app asks you to confirm before it connects.",
+    "open": "Open in the app",
+    "noApp": "No app on this device? In covey, open Profile & Settings → Mobile app and scan the QR code with the app.",
+    "missing": "This link carries no pairing code. Create a new one in covey under Profile & Settings → Mobile app."
   }
 }

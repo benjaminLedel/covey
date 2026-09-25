@@ -56,7 +56,19 @@ class _ScanScreenState extends State<ScanScreen> {
       ),
       body: Stack(
         children: [
-          MobileScanner(controller: _camera, onDetect: _detect),
+          MobileScanner(
+            controller: _camera,
+            onDetect: _detect,
+            // The plugin's own message is English and names the plugin; this
+            // one says what to do instead.
+            errorBuilder: (context, _) => Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Text(context.t('mobile.keineKamera'),
+                    textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, height: 1.4)),
+              ),
+            ),
+          ),
           Positioned(
             left: 24,
             right: 24,

@@ -197,3 +197,20 @@ describe("App und die Team-Oberfläche", () => {
     expect(screen.getByRole("navigation", { name: "Zwischen Team und Verwaltung wechseln" })).toBeInTheDocument();
   });
 });
+
+/* The pairing link lands here when no app took it (#333): the same page
+   signed in or not — the code is the badge, the login has nothing to add. */
+describe("App und der Kopplungslink", () => {
+  for (const angemeldet of [false, true]) {
+    it(`reicht /pair an die App weiter (${angemeldet ? "angemeldet" : "abgemeldet"})`, async () => {
+      serverMitSitzung(() => angemeldet);
+      renderApp(<App />, "/pair?code=coveypair_abc");
+
+      const link = await screen.findByRole("link", { name: "In der App öffnen" });
+      expect(link.getAttribute("href")).toBe(
+        `covey://pair?instance=${encodeURIComponent(window.location.origin)}&code=coveypair_abc`,
+      );
+      expect(screen.queryByLabelText("Passwort")).not.toBeInTheDocument();
+    });
+  }
+});

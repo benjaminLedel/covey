@@ -5,13 +5,17 @@ import 'package:http/http.dart' as http;
 
 import 'api.dart';
 
-/// What the web's QR code carries (#330, web/src/components/MobilePairing.tsx):
+/// A pairing, in either of the two shapes the web hands out
+/// (web/src/components/MobilePairing.tsx):
 ///
-///   covey://pair?instance=<address>&code=coveypair_…
+/// - `https://<instance>/pair?code=coveypair_…` — the QR code (#333)
+/// - `covey://pair?instance=<instance>&code=coveypair_…` — "Open in the app"
 ///
-/// The address is the page's own origin, so it is whatever name the person
-/// reaches the instance by. It goes through [parseInstance] like a typed one:
-/// a QR code does not get to lift the HTTPS rule.
+/// The first is an ordinary link, so on app.covey.work the phone's own camera
+/// opens the app with it; the instance is the link's own origin. The second is
+/// for the desktop app and for any host the app does not claim. Either way
+/// the address goes through [parseInstance] like a typed one: a link does not
+/// get to lift the HTTPS rule.
 class PairingCode {
   PairingCode(this.instance, this.code);
 
@@ -23,11 +27,20 @@ class PairingCode {
   /// one but the address inside is not acceptable.
   static PairingCode? parse(String raw) {
     final uri = Uri.tryParse(raw.trim());
-    if (uri == null || uri.scheme != 'covey' || uri.host != 'pair') return null;
+    if (uri == null) return null;
     final code = uri.queryParameters['code'] ?? '';
-    final instance = uri.queryParameters['instance'] ?? '';
-    if (!code.startsWith('coveypair_') || instance.isEmpty) return null;
-    return PairingCode(parseInstance(instance), code);
+    if (!code.startsWith('coveypair_')) return null;
+    if (uri.scheme == 'covey') {
+      final instance = uri.queryParameters['instance'] ?? '';
+      if (uri.host != 'pair' || instance.isEmpty) return null;
+      return PairingCode(parseInstance(instance), code);
+    }
+    if ((uri.scheme == 'https' || uri.scheme == 'http') && uri.path.endsWith('/pair')) {
+      // An instance may live under a path; everything before /pair is it.
+      final base = uri.path.substring(0, uri.path.length - '/pair'.length);
+      return PairingCode(parseInstance('${uri.scheme}://${uri.authority}$base'), code);
+    }
+    return null;
   }
 }
 
@@ -63,4 +76,15 @@ Future<String> redeemPairing(PairingCode p, {http.Client? client, String? device
   final token = body['token'] as String? ?? '';
   if (!token.startsWith('covey_')) throw ApiException(res.statusCode, 'no key in the answer');
   return token;
+}
+
+/// The agent a thread link points at — `https://<instance>/team/<id>`, the
+/// address of the web's team surface, or `covey://team/<id>`. Null for any
+/// other link.
+String? threadLinkAgent(Uri uri) {
+  final segments = uri.scheme == 'covey' ? [uri.host, ...uri.pathSegments] : uri.pathSegments;
+  final i = segments.indexOf('team');
+  if (i < 0 || i + 1 >= segments.length) return null;
+  final id = segments[i + 1];
+  return RegExp(r'^[0-9a-fA-F-]{36}$').hasMatch(id) ? id : null;
 }

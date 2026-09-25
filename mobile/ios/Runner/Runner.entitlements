@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Universal links (#333): app.covey.work/pair and /team/<id> open the
+	     app. The host has to confirm it with /.well-known/apple-app-site-association,
+	     which covey serves when COVEY_APPLE_APP_ID is set. -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:app.covey.work</string>
+	</array>
+</dict>
+</plist>

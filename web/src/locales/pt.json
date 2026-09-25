@@ -1711,7 +1711,9 @@
       "again": "Novo código",
       "paired": "Emparelhada com {{device}}. A chave está na lista abaixo.",
       "done": "Concluído",
-      "qrAlt": "Código QR para emparelhar a aplicação covey"
+      "qrAlt": "Código QR para emparelhar a aplicação covey",
+      "desktop": "Neste computador, com a aplicação de ambiente de trabalho:",
+      "openApp": "Abrir na aplicação"
     },
     "apiKeys": {
       "title": "Chaves de API",
@@ -2470,8 +2472,8 @@
     "schluesselAbgelehnt": "A instalação não aceitou esta chave.",
     "keinCovey": "Algo responde aí, mas não é um covey.",
     "trennen": "Desligar",
-    "teamAus": "A área da equipa não está ativada para esta organização. Pode ler, mas as mensagens são recusadas. Um administrador ativa-a em Administração → Organização.",
-    "teamAusKurz": "Área da equipa desativada",
+    "teamAus": "A escrita ainda não está ativada nesta organização. Pode ler tudo, mas não enviar mensagens. Quem gere a organização ativa-a no covey, em Organização → Perfil → «Área da equipa».",
+    "teamAusKurz": "A escrita ainda não está ativada",
     "nichtGeweckt": "Registado. Ninguém estava à espera — o agente lê-o na próxima execução.",
     "fehler": "Não foi possível carregar: {{error}}",
     "erneut": "Tentar novamente",
@@ -2481,6 +2483,19 @@
     "scanHinweis": "Abra o covey no navegador, vá a Perfil e definições → Aplicação móvel → «Emparelhar a aplicação móvel» e aponte a câmara para o código.",
     "manuell": "Ligar antes com endereço e chave API",
     "koppelnFehler": "Este código é inválido, já foi usado ou expirou. Crie um novo na interface web.",
-    "keinCoveyCode": "Isto não é um código de emparelhamento covey."
+    "keinCoveyCode": "Isto não é um código de emparelhamento covey.",
+    "koppelnFrage": "Emparelhar com {{host}}?",
+    "koppelnFrageText": "A aplicação vai ligar-se a esta instalação covey e agir lá com o seu acesso. Emparelhe apenas se tiver sido o senhor a criar o código.",
+    "koppelnErsetzt": "Isto substitui a ligação a {{host}}.",
+    "koppeln": "Emparelhar",
+    "desktopHinweis": "Abra o covey no navegador, vá a Perfil e definições → Aplicação móvel → «Emparelhar a aplicação móvel» e clique em «Abrir na aplicação».",
+    "keineKamera": "Não há nenhuma câmara disponível neste dispositivo. Abra o código com «Abrir na aplicação» na interface web, ou ligue-se com endereço e chave API."
+  },
+  "appLink": {
+    "title": "Abrir na aplicação covey",
+    "lead": "Esta ligação emparelha a aplicação covey com {{host}}. A aplicação pede confirmação antes de se ligar.",
+    "open": "Abrir na aplicação",
+    "noApp": "Não tem a aplicação neste dispositivo? No covey, abra Perfil e definições → Aplicação móvel e leia o código QR com a aplicação.",
+    "missing": "Esta ligação não contém nenhum código de emparelhamento. Crie um novo no covey, em Perfil e definições → Aplicação móvel."
   }
 }

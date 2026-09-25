@@ -1711,7 +1711,9 @@
       "again": "Nouveau code",
       "paired": "Associée à {{device}}. Sa clé figure dans la liste ci-dessous.",
       "done": "Terminé",
-      "qrAlt": "Code QR pour associer l'application covey"
+      "qrAlt": "Code QR pour associer l'application covey",
+      "desktop": "Sur cet ordinateur, avec l'application de bureau :",
+      "openApp": "Ouvrir dans l'application"
     },
     "apiKeys": {
       "title": "Clés d'API",
@@ -2470,8 +2472,8 @@
     "schluesselAbgelehnt": "L'installation n'a pas accepté cette clé.",
     "keinCovey": "Quelque chose répond, mais ce n'est pas un covey.",
     "trennen": "Se déconnecter",
-    "teamAus": "L'espace d'équipe n'est pas activé pour cette organisation. Vous pouvez lire, mais les messages sont refusés. Un administrateur l'active sous Administration → Organisation.",
-    "teamAusKurz": "Espace d'équipe désactivé",
+    "teamAus": "L'écriture n'est pas encore activée pour cette organisation. Vous pouvez tout lire, mais pas envoyer de messages. La personne qui gère l'organisation l'active dans covey, sous Organisation → Profil → « Espace d'équipe ».",
+    "teamAusKurz": "L'écriture n'est pas encore activée",
     "nichtGeweckt": "Noté. Personne ne l'attendait — l'agent le lira lors de sa prochaine exécution.",
     "fehler": "Chargement impossible : {{error}}",
     "erneut": "Réessayer",
@@ -2481,6 +2483,19 @@
     "scanHinweis": "Ouvrez covey dans le navigateur, allez dans Profil et paramètres → Application mobile → « Associer l'application mobile » et visez le code avec l'appareil photo.",
     "manuell": "Se connecter plutôt avec une adresse et une clé API",
     "koppelnFehler": "Ce code n'est pas valide, a déjà servi ou a expiré. Créez-en un nouveau dans l'interface web.",
-    "keinCoveyCode": "Ce n'est pas un code d'association covey."
+    "keinCoveyCode": "Ce n'est pas un code d'association covey.",
+    "koppelnFrage": "Associer à {{host}} ?",
+    "koppelnFrageText": "L'application se connectera à cette installation covey et y agira avec votre accès. N'associez que si vous avez créé le code vous-même.",
+    "koppelnErsetzt": "Cela remplace la connexion à {{host}}.",
+    "koppeln": "Associer",
+    "desktopHinweis": "Ouvrez covey dans le navigateur, allez dans Profil et paramètres → Application mobile → « Associer l'application mobile » et cliquez sur « Ouvrir dans l'application ».",
+    "keineKamera": "Aucun appareil photo n'est disponible sur cet appareil. Ouvrez plutôt le code avec « Ouvrir dans l'application » dans l'interface web, ou connectez-vous avec une adresse et une clé API."
+  },
+  "appLink": {
+    "title": "Ouvrir dans l'application covey",
+    "lead": "Ce lien associe l'application covey à {{host}}. L'application demande confirmation avant de se connecter.",
+    "open": "Ouvrir dans l'application",
+    "noApp": "Pas d'application sur cet appareil ? Dans covey, ouvrez Profil et paramètres → Application mobile et scannez le code QR avec l'application.",
+    "missing": "Ce lien ne contient aucun code d'association. Créez-en un nouveau dans covey, sous Profil et paramètres → Application mobile."
   }
 }

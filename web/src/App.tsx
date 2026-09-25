@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Navigate, useLocation } from "react-router";
 import { api, setUnauthorizedHandler, type Principal } from "./api";
 import { initialLang } from "./i18n";
-import { LANGS, MAIL_LINK_PATHS, PUBLIC_ROUTES, pathOf } from "./public/routes";
+import { APP_LINK_PATHS, LANGS, MAIL_LINK_PATHS, PUBLIC_ROUTES, pathOf } from "./public/routes";
 import SignedOut from "./public/SignedOut";
 
 /* The signed-in UI comes from its own bundle — it is the larger part of the
@@ -13,6 +13,7 @@ import SignedOut from "./public/SignedOut";
 const AppShell = lazy(() => import("./AppShell"));
 const Team = lazy(() => import("./team/Team"));
 const NoOrganization = lazy(() => import("./pages/NoOrganization"));
+const PairLink = lazy(() => import("./pages/PairLink"));
 
 /* Zwei Schalen, und welche gilt, entscheidet die Adresse.
  *
@@ -163,6 +164,15 @@ export default function App() {
 
   useLiveEvents(me.isSuccess && !abgelaufen);
 
+  /* The pairing link (#333) is the same page signed in or not: the code in it
+     is the badge, and neither the login nor a shell has anything to add. */
+  if (APP_LINK_PATHS.includes(location.pathname)) {
+    return (
+      <Suspense fallback={null}>
+        <PairLink />
+      </Suspense>
+    );
+  }
   if (abgelaufen) return <Abgemeldet onLogin={anmelden} ausDerOberflaeche />;
   /* Nothing renders while /auth/me runs: a form that the UI replaces a moment
      later is more restless than a short emptiness. Until #130 the pre-rendered

@@ -1711,7 +1711,9 @@
       "again": "Nowy kod",
       "paired": "Sparowano z {{device}}. Jego klucz jest na liście poniżej.",
       "done": "Gotowe",
-      "qrAlt": "Kod QR do sparowania aplikacji covey"
+      "qrAlt": "Kod QR do sparowania aplikacji covey",
+      "desktop": "Na tym komputerze, w aplikacji desktopowej:",
+      "openApp": "Otwórz w aplikacji"
     },
     "apiKeys": {
       "title": "Klucze API",
@@ -2470,8 +2472,8 @@
     "schluesselAbgelehnt": "Instalacja nie przyjęła tego klucza.",
     "keinCovey": "Coś tam odpowiada, ale to nie jest covey.",
     "trennen": "Rozłącz",
-    "teamAus": "Widok zespołu nie jest włączony dla tej organizacji. Można czytać, ale wiadomości są odrzucane. Administrator włącza go w Administracja → Organizacja.",
-    "teamAusKurz": "Widok zespołu wyłączony",
+    "teamAus": "Pisanie nie jest jeszcze włączone w tej organizacji. Można wszystko czytać, ale nie można wysyłać wiadomości. Osoba zarządzająca organizacją włącza je w covey w sekcji Organizacja → Profil → „Widok zespołu”.",
+    "teamAusKurz": "Pisanie nie jest jeszcze włączone",
     "nichtGeweckt": "Zapisano. Nikt na to nie czekał — agent przeczyta to przy następnym uruchomieniu.",
     "fehler": "Nie udało się wczytać: {{error}}",
     "erneut": "Spróbuj ponownie",
@@ -2481,6 +2483,19 @@
     "scanHinweis": "Proszę otworzyć covey w przeglądarce, przejść do Profil i ustawienia → Aplikacja mobilna → „Sparuj aplikację mobilną” i skierować aparat na kod.",
     "manuell": "Zamiast tego połącz adresem i kluczem API",
     "koppelnFehler": "Ten kod jest nieprawidłowy, już użyty lub wygasł. Proszę utworzyć nowy w interfejsie webowym.",
-    "keinCoveyCode": "To nie jest kod parowania covey."
+    "keinCoveyCode": "To nie jest kod parowania covey.",
+    "koppelnFrage": "Sparować z {{host}}?",
+    "koppelnFrageText": "Aplikacja połączy się z tą instalacją covey i będzie tam działać z Państwa dostępem. Proszę parować tylko wtedy, gdy kod został utworzony samodzielnie.",
+    "koppelnErsetzt": "To zastąpi połączenie z {{host}}.",
+    "koppeln": "Sparuj",
+    "desktopHinweis": "Proszę otworzyć covey w przeglądarce, przejść do Profil i ustawienia → Aplikacja mobilna → „Sparuj aplikację mobilną” i kliknąć „Otwórz w aplikacji”.",
+    "keineKamera": "Na tym urządzeniu nie ma dostępnej kamery. Proszę otworzyć kod przyciskiem „Otwórz w aplikacji” w interfejsie webowym albo połączyć się adresem i kluczem API."
+  },
+  "appLink": {
+    "title": "Otwórz w aplikacji covey",
+    "lead": "Ten link paruje aplikację covey z {{host}}. Aplikacja poprosi o potwierdzenie przed połączeniem.",
+    "open": "Otwórz w aplikacji",
+    "noApp": "Brak aplikacji na tym urządzeniu? W covey proszę otworzyć Profil i ustawienia → Aplikacja mobilna i zeskanować kod QR aplikacją.",
+    "missing": "Ten link nie zawiera kodu parowania. Proszę utworzyć nowy w covey w sekcji Profil i ustawienia → Aplikacja mobilna."
   }
 }

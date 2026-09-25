@@ -15,6 +15,14 @@ void main() {
       expect(p.code, 'coveypair_abc-_');
     });
 
+    test('reads the https link of the QR code (#333), also under a path', () {
+      final p = PairingCode.parse('https://app.covey.work/pair?code=coveypair_abc');
+      expect(p!.instance.toString(), 'https://app.covey.work');
+      expect(p.code, 'coveypair_abc');
+      expect(PairingCode.parse('https://x.org:8443/covey/pair?code=coveypair_a')!.instance.toString(), 'https://x.org:8443/covey');
+      expect(PairingCode.parse('https://app.covey.work/team/x?code=coveypair_abc'), isNull);
+    });
+
     test('ignores QR codes that are not covey pairing codes', () {
       expect(PairingCode.parse('https://example.org'), isNull);
       expect(PairingCode.parse('WIFI:S:office;T:WPA;P:secret;;'), isNull);
@@ -49,5 +57,13 @@ void main() {
           device: 'd', client: MockClient((_) async => http.Response('{"error":"pairing code invalid, used or expired"}', 401))),
       throwsA(isA<ApiException>().having((e) => e.status, 'status', 401)),
     );
+  });
+
+  test('a thread link names its agent, in both shapes', () {
+    const id = '11111111-2222-3333-4444-555555555555';
+    expect(threadLinkAgent(Uri.parse('https://app.covey.work/team/$id')), id);
+    expect(threadLinkAgent(Uri.parse('covey://team/$id')), id);
+    expect(threadLinkAgent(Uri.parse('https://app.covey.work/team/not-an-id')), isNull);
+    expect(threadLinkAgent(Uri.parse('https://app.covey.work/agents/$id')), isNull);
   });
 }

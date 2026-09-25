@@ -11,6 +11,8 @@ void main() {
     test('adds https to a bare host and drops a trailing slash', () {
       expect(parseInstance('covey.example.org/').toString(), 'https://covey.example.org');
       expect(parseInstance(' https://x.org/covey/ ').toString(), 'https://x.org/covey');
+      expect(parseInstance('https://x.org:8443/?next=1#top').toString(), 'https://x.org:8443',
+          reason: 'a query or fragment in a pasted address is not part of the instance');
     });
 
     test('refuses plain http outside loopback (spec/27: HTTPS only)', () {

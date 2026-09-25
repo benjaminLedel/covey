@@ -35,6 +35,14 @@ Zwei Variablen sehen ähnlich aus und meinen Gegenteiliges:
 
 Beim Start warnt covey, wenn diese beiden Rollen vertauscht aussehen.
 
+## App-Links
+
+Nur für eine Installation, die die covey-App unter ihrem eigenen Host ausliefert — app.covey.work tut das, eine selbst betriebene Instanz normalerweise nicht. Gesetzt, liefert covey `/.well-known/apple-app-site-association` und `/.well-known/assetlinks.json` aus, und iOS und Android öffnen `/pair` (den Kopplungs-QR-Code) und `/team/<id>` (einen Verlauf) in der App statt im Browser. Ungesetzt antworten beide Dateien mit 404, und nichts ändert sich.
+
+- `COVEY_APPLE_APP_ID` — `<TEAM-ID>.<Bundle-ID>`, z. B. `ABCDE12345.work.covey.coveyMobile`
+- `COVEY_ANDROID_CERT_SHA256` — die SHA-256-Fingerabdrücke der Signaturzertifikate der App, kommagetrennt
+- `COVEY_ANDROID_APP_PACKAGE` — der Paketname; Vorgabe `work.covey.covey_mobile`
+
 ## HTTPS
 
 Ein Reverse-Proxy davor, TLS dort terminieren, `COVEY_PUBLIC_URL` beziehungsweise `COVEY_SITE_URL` passend setzen. Das sichere Cookie schaltet sich dann von selbst ein. Für die Datenbank `sslmode=require` oder höher.

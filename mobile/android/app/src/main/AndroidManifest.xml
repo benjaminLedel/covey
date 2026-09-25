@@ -27,6 +27,27 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- App links (#333): app.covey.work/pair (the pairing QR code) and
+                 /team/<id> (a thread) open the app. The host confirms it with
+                 /.well-known/assetlinks.json, served by covey when
+                 COVEY_ANDROID_CERT_SHA256 is set. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="app.covey.work" android:path="/pair"/>
+                <data android:scheme="https" android:host="app.covey.work" android:pathPrefix="/team/"/>
+            </intent-filter>
+            <!-- covey:// for every host the app does not claim, and the desktop
+                 app's way in. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="covey"/>
+            </intent-filter>
+            <!-- The links go to app_links, not to Flutter's own router. -->
+            <meta-data android:name="flutter_deeplinking_enabled" android:value="false"/>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

@@ -1711,7 +1711,9 @@
       "again": "Nuevo código",
       "paired": "Vinculada con {{device}}. Su clave está en la lista de abajo.",
       "done": "Listo",
-      "qrAlt": "Código QR para vincular la aplicación covey"
+      "qrAlt": "Código QR para vincular la aplicación covey",
+      "desktop": "En este ordenador, con la aplicación de escritorio:",
+      "openApp": "Abrir en la aplicación"
     },
     "apiKeys": {
       "title": "Claves de API",
@@ -2470,8 +2472,8 @@
     "schluesselAbgelehnt": "La instalación no aceptó esta clave.",
     "keinCovey": "Algo responde ahí, pero no es un covey.",
     "trennen": "Desconectar",
-    "teamAus": "La superficie de equipo no está activada para esta organización. Puede leer, pero los mensajes se rechazan. Un administrador la activa en Administración → Organización.",
-    "teamAusKurz": "Superficie de equipo desactivada",
+    "teamAus": "En esta organización todavía no está activada la escritura. Puede leerlo todo, pero no enviar mensajes. Quien administra la organización la activa en covey, en Organización → Perfil → «Superficie de equipo».",
+    "teamAusKurz": "La escritura aún no está activada",
     "nichtGeweckt": "Anotado. Nadie lo esperaba: el agente lo leerá en su próxima ejecución.",
     "fehler": "No se pudo cargar: {{error}}",
     "erneut": "Reintentar",
@@ -2481,6 +2483,19 @@
     "scanHinweis": "Abra covey en el navegador, vaya a Perfil y ajustes → Aplicación móvil → «Vincular la aplicación móvil» y apunte la cámara al código.",
     "manuell": "Conectar con dirección y clave API",
     "koppelnFehler": "Este código no es válido, ya se usó o ha caducado. Cree uno nuevo en la interfaz web.",
-    "keinCoveyCode": "Esto no es un código de vinculación de covey."
+    "keinCoveyCode": "Esto no es un código de vinculación de covey.",
+    "koppelnFrage": "¿Vincular con {{host}}?",
+    "koppelnFrageText": "La aplicación se conectará a esta instalación de covey y actuará allí con su acceso. Vincule solo si creó el código usted mismo.",
+    "koppelnErsetzt": "Esto sustituye la conexión con {{host}}.",
+    "koppeln": "Vincular",
+    "desktopHinweis": "Abra covey en el navegador, vaya a Perfil y ajustes → Aplicación móvil → «Vincular la aplicación móvil» y haga clic en «Abrir en la aplicación».",
+    "keineKamera": "No hay ninguna cámara disponible en este dispositivo. Abra el código con «Abrir en la aplicación» en la interfaz web, o conéctese con dirección y clave API."
+  },
+  "appLink": {
+    "title": "Abrir en la aplicación covey",
+    "lead": "Este enlace vincula la aplicación covey con {{host}}. La aplicación pide confirmación antes de conectarse.",
+    "open": "Abrir en la aplicación",
+    "noApp": "¿No tiene la aplicación en este dispositivo? En covey, abra Perfil y ajustes → Aplicación móvil y escanee el código QR con la aplicación.",
+    "missing": "Este enlace no contiene ningún código de vinculación. Cree uno nuevo en covey, en Perfil y ajustes → Aplicación móvil."
   }
 }
