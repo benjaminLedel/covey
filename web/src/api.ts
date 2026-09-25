@@ -705,6 +705,9 @@ export const setHumanDepartment = (humanId: string, departmentId: string | null)
 export const setHumanManager = (humanId: string, managerId: string | null) =>
   patch<{ ok: boolean }>(`/org/humans/${humanId}/manager`, { manager_id: managerId ?? "" });
 
+export type OfficeFurnishing = "sparse" | "normal" | "rich";
+export const OFFICE_FURNISHINGS: OfficeFurnishing[] = ["sparse", "normal", "rich"];
+
 export type Organization = {
   id: string;
   name: string;
@@ -718,6 +721,8 @@ export type Organization = {
   platform_repo_can_file?: boolean;
   platform_repo_system: string;
   platform_repo_project: string;
+  /** How densely the office is furnished — the organisation's choice (#325). */
+  office_furnishing: OfficeFurnishing;
   fleet_killed: boolean;
   human_count: number;
   agent_count: number;

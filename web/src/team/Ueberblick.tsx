@@ -1,10 +1,13 @@
+import { Suspense, lazy } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { api, inbox, type Agent, type Department, type InboxEntry, type Laufend, type Principal } from "../api";
 import Gesicht from "../components/Gesicht";
-import Buero from "./Buero";
 import Dauer from "../components/Dauer";
+
+/* The office carries three.js; it is loaded only when this page is shown. */
+const Buero = lazy(() => import("./Buero"));
 
 /* Der Überblick — die Seite, auf der jeder landet.
  *
@@ -136,13 +139,15 @@ export default function Ueberblick({ me }: { me: Principal }) {
           Ohne Überschrift: Die Seite heißt „Büro", und ein Grundriss mit
           „Das Büro" darüber sagte dasselbe ein zweites Mal. */}
       <section className="tm-block tm-block-weit">
-        <Buero
-          agents={alle}
-          departments={abteilungen.data ?? []}
-          laufend={laeuft}
-          wartetBei={new Set((offen.data?.items ?? []).map((e) => e.agent_id))}
-          me={me}
-        />
+        <Suspense fallback={null}>
+          <Buero
+            agents={alle}
+            departments={abteilungen.data ?? []}
+            laufend={laeuft}
+            wartetBei={new Set((offen.data?.items ?? []).map((e) => e.agent_id))}
+            me={me}
+          />
+        </Suspense>
       </section>
 
     </div>

@@ -52,5 +52,9 @@ export default defineConfig({
     setupFiles: ["./src/test/setup.ts"],
     // The rest of web/ is application code; tests sit beside their counterpart.
     include: ["src/**/*.test.{ts,tsx}"],
+    // The office tests build the real scene in node — sixty colleagues with
+    // furniture take a few seconds when thirty files run at once. The default
+    // five seconds made them fail under load and pass alone.
+    testTimeout: 30_000,
   },
 });

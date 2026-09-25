@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -287,6 +288,30 @@ func (s *Server) handleSetOwnOrgDescription(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	if err := s.Org.SetOrgDescription(r.Context(), p.OrgID, strings.TrimSpace(in.Description)); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// handleSetOwnOrgOffice stores how densely the office is furnished (#325):
+// "sparse", "normal" or "rich". An org admin decides it once for everyone —
+// remembered in a browser, every person saw a different house.
+func (s *Server) handleSetOwnOrgOffice(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	var in struct {
+		Furnishing string `json:"furnishing"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "body not readable")
+		return
+	}
+	in.Furnishing = strings.TrimSpace(in.Furnishing)
+	if !slices.Contains(org.OfficeFurnishings, in.Furnishing) {
+		writeErr(w, http.StatusBadRequest, "furnishing must be one of sparse, normal, rich")
+		return
+	}
+	if err := s.Org.SetOrgOfficeFurnishing(r.Context(), p.OrgID, in.Furnishing); err != nil {
 		mapErr(w, err)
 		return
 	}

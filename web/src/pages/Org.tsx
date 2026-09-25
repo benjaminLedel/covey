@@ -3,10 +3,55 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import {
-  api, patch, buildInfo,
-  type Agent, type AgentSystem, type OrgChart, type Organization,
+  api, patch, buildInfo, OFFICE_FURNISHINGS,
+  type Agent, type AgentSystem, type OfficeFurnishing as Furnishing, type OrgChart, type Organization,
 } from "../api";
 import { OrgChart as OrgChartView } from "../components/orgchart/OrgChart";
+
+/* How densely the office is furnished (#325). One of three words, set for
+   the organisation: the density is a property of the building, and the
+   building belongs to the organisation — remembered in a browser, every
+   person saw a different house and the choice was lost on another device.
+   The office reads it from the same query. */
+export function OfficeFurnishing() {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const own = useQuery({ queryKey: ["own-org"], queryFn: () => api<Organization>("/org") });
+  const save = useMutation({
+    mutationFn: (furnishing: Furnishing) => patch<{ ok: boolean }>("/org/office", { furnishing }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["own-org"] }),
+  });
+  const team = useTeamSurface();
+  // The office is part of the team surface; without it there is nothing to furnish (#328).
+  if (!own.data || !team.data?.enabled) return null;
+  const stufe: Record<Furnishing, string> = {
+    sparse: t("team.ausstattungSparsam"),
+    normal: t("team.ausstattungNormal"),
+    rich: t("team.ausstattungUeppig"),
+  };
+  return (
+    <div className="card mb-4">
+      <div className="flex items-baseline gap-2 mb-1">
+        <h2 className="text-sm" style={{ fontWeight: 600 }}>{t("org.office.label")}</h2>
+      </div>
+      <div className="flex gap-2 mb-2" role="group" aria-label={t("org.office.label")}>
+        {OFFICE_FURNISHINGS.map((f) => (
+          <button
+            key={f}
+            type="button"
+            className={`btn sm${own.data.office_furnishing === f ? " primary" : ""}`}
+            aria-pressed={own.data.office_furnishing === f}
+            disabled={save.isPending}
+            onClick={() => save.mutate(f)}
+          >
+            {stufe[f]}
+          </button>
+        ))}
+      </div>
+      <p className="muted text-xs" style={{ maxWidth: 640 }}>{t("org.office.hint")}</p>
+    </div>
+  );
+}
 
 // `head`: the band at the top of the org chart's frame; `card` (default):
 // the boxed card among the other settings on the Administration page.

@@ -1,74 +1,87 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type JSX } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
-import { post, type Agent, type Department, type Laufend, type Principal } from "../api";
+import * as THREE from "three";
+import { api, post, type Agent, type Department, type Human, type Laufend, type OfficeFurnishing, type Organization, type Principal } from "../api";
 import { canManage } from "../pages/agent/roles";
 import Gesicht from "../components/Gesicht";
 import Dauer from "../components/Dauer";
-import Riss, { MASS, type Art } from "./buero/risse";
-import {
-  AUSSEN,
-  INNEN,
-  PAD,
-  PAD_OBEN,
-  PX_JE_METER,
-  SCHILD_H,
-  SCHWUNG,
-  SITZ_B,
-  SITZ_H,
-  TUER_B,
-  ausstattungFuer,
-  bauplan,
-  podBreite,
-  streu,
-  type Gruppe,
-  type Plan,
-  type Punkt,
-  type Raum,
-} from "./buero/plan";
-import { erschaffeLeben, type Leben, type Zustand } from "./buero/leben";
+import { hausBauen } from "./buero/plan";
+import { aufSchirm, szeneBauen, type Bau } from "./buero/szene";
+import { erschaffeKamera, erschaffeMaler, groesse, type Steuerung } from "./buero/kamera";
+import { laufFeldBauen, type LaufFelder } from "./buero/laufweg";
+import { erschaffeLeben, type Leben } from "./buero/leben";
+import Riss from "./buero/risse";
+import type { Gruppe, Haus, Punkt, Zustand } from "./buero/typen";
 
-/* Das Büro: die Belegschaft als Grundriss.
+/* The office: the workforce as a building, seen from above at an angle.
  *
- * Eine Liste sagt, dass etwas läuft. Ein Raum zeigt es. Und covey hat für
- * diesen Raum bereits das Vokabular — ein Agent HAT einen Arbeitsplatz, er
- * gehört zu einer Abteilung, er schläft, wenn nichts anliegt, und er wartet
- * auf einen Menschen, wenn er nicht weiterkann. Das ist keine Verzierung,
- * sondern dieselbe Auskunft in einer Form, die man mit einem Blick liest
- * statt in vier Zeilen.
+ * A list says that something is running. A room shows it. covey already has
+ * the vocabulary for that room — an agent HAS a workplace, belongs to a
+ * department, sleeps when nothing is pending and waits for a human when it
+ * cannot go on. This is not decoration but the same information in a form
+ * that is read at a glance instead of in four lines.
  *
- * DER PLAN WIRD GERECHNET (buero/plan.ts). Es gibt keine Vorlage: Wie viele
- * Plätze ein Zimmer nebeneinander hat, wie tief es wird, wie viele Zimmer in
- * eine Zeile passen und ob es einen zweiten Flur braucht, folgt aus der
- * Kopfzahl. Acht Kollegen ergeben ein Haus mit einem Flur, hundertvierzig
- * eines mit dreien und einem Quergang, der sie verbindet.
+ * THE PLAN IS COMPUTED (buero/plan.ts): how many seats a room has abreast,
+ * how deep it is, how many rooms fit a row and whether a second corridor is
+ * needed follows from the headcount. THE HOUSE IS BUILT (buero/szene.ts) from
+ * primitives; every department room gets a character from its name
+ * (buero/charakter.ts) and one of five accent colours. THE WALLS THAT FACE
+ * THE CAMERA ARE CUT DOWN to a plinth, the others stand full with windows —
+ * an architectural cutaway, so nothing hides a desk; a quarter turn rebuilds
+ * it. THE LIGHT IS THE STATE: a screen is dark while nothing runs and lit as
+ * soon as something does, and a room with a lit desk is a lit room.
  *
- * DIE WAND IST DIE MASSE. Die ganze Fläche ist Mauerwerk, und was Raum ist,
- * wird ausgespart. Umgekehrt — helle Kästen mit einem Rahmen — treffen zwei
- * Rahmen nebeneinander als doppelte Linie aufeinander, die es in keinem Haus
- * gibt, und aus dem Grundriss wird ein Diagramm.
+ * WHAT CARRIES INFORMATION and what is only atmosphere is kept apart in
+ * buero/leben.ts — and that separation is a condition, not taste. A movement
+ * from which something could be read that no record holds would be a lie
+ * with charm.
  *
- * DAS LICHT IST DER ZUSTAND. Der Bildschirm am Platz ist dunkel, solange
- * nichts läuft, und hell, sobald etwas läuft; sein Schein fällt auf Tisch und
- * Boden, und ein Zimmer mit einem hellen Tisch darin ist ein helles Zimmer.
- * Damit beantwortet ein Blick über die Seite die Frage, für die man vorher
- * vierzig Tische einzeln lesen musste.
- *
- * WAS AUSKUNFT TRÄGT und was nur Atmosphäre ist, steht in buero/leben.ts —
- * und die Trennung ist nicht Geschmack, sondern Bedingung. Eine Bewegung, aus
- * der sich etwas ablesen ließe, das in keiner Aufzeichnung steht, wäre eine
- * Lüge mit Charme.
- *
- * Warum kein <canvas>: Die Gesichter gibt es schon als SVG-Komponente, mit
- * Zuständen, Animationen und Erscheinungsbild. Auf eine Leinwand gemalt wären
- * sie ein zweites Mal gebaut, ein Klick auf einen Kollegen wäre Mathematik
- * statt eines Knopfes, und die Tastatur käme nirgends hin. Bewegt wird
- * ausschließlich mit `transform`, ein Schreibzugriff je Figur und Bild.
+ * WHY HTML FACES OVER A CANVAS: the faces exist as an SVG component with
+ * states, animations and appearance. Painted onto the canvas they would be
+ * built a second time, a click on a colleague would be arithmetic instead of
+ * a button, and the keyboard would have nowhere to go. So the scene is a
+ * canvas and the people, the signs and the card are an overlay positioned
+ * from the camera every frame — with `transform`, one write per figure.
  */
 
-/** Wie weit die Augen ausschlagen, im Raster des Gesichts (24 breit). */
+/** How far the eyes swing, in the face's own grid (24 wide). */
 const BLICK_WEITE = 1.25;
+/** The building's maximum width in centimetres; the camera fits it to the stage. */
+const BAU_BREITE = 3200;
+
+/* How densely the house is furnished: the organisation's choice (#325),
+   one of three words, mapped to the factor the recipes scale their budgets
+   by. 1 is the measure at which a room looks furnished; below it only what
+   makes a room a room stays, above it every free corner fills. */
+const DICHTE: Record<OfficeFurnishing, number> = { sparse: 0.45, normal: 1, rich: 1.7 };
+
+/* Day or night follows the interface theme: whoever sets the surface dark
+   means the office too. The theme is an attribute on the document root
+   (theme.ts) or, when unset, the system preference. */
+function useNacht(): boolean {
+  const lesen = () => {
+    if (typeof document === "undefined") return false;
+    const t = document.documentElement.getAttribute("data-theme");
+    if (t === "dark") return true;
+    if (t === "light") return false;
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
+  };
+  const [nacht, setNacht] = useState(lesen);
+  useEffect(() => {
+    const neu = () => setNacht(lesen());
+    const beobachter = new MutationObserver(neu);
+    beobachter.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    const medium = window.matchMedia?.("(prefers-color-scheme: dark)");
+    medium?.addEventListener("change", neu);
+    return () => {
+      beobachter.disconnect();
+      medium?.removeEventListener("change", neu);
+    };
+  }, []);
+  return nacht;
+}
 
 export default function Buero({
   agents,
@@ -85,20 +98,17 @@ export default function Buero({
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-
   const ruhig = useMemo(() => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false, []);
+  const nacht = useNacht();
+  const org = useQuery({ queryKey: ["own-org"], queryFn: () => api<Organization>("/org"), staleTime: 60_000 });
+  const dichte = DICHTE[org.data?.office_furnishing ?? "normal"] ?? 1;
+  const [webgl, setWebgl] = useState(true);
 
-  /* Der Bau hängt an dem, was ihn WIRKLICH verändert: wer hier arbeitet, in
-     welcher Abteilung, und wie breit das Fenster ist. Nicht daran, ob die
-     Schale gerade ein neues Array gebaut hat.
-     
-     Das ist kein Feinschliff, sondern der Unterschied zwischen einem Büro und
-     einem Flackern: Die Startseite fragt alle zehn Sekunden nach laufenden
-     Vorgängen und rendert dabei neu, und die Liste der Kollegen ist bei jedem
-     Rendern ein anderes Array. An dessen Identität gehängt, wurde der
-     Grundriss alle zehn Sekunden neu gebaut — mit ihm das Leben darin. Jede
-     Figur sprang an ihren Platz zurück, und eine Pflanze, die auf Wasser
-     wartete, hatte ihren Durst vergessen, bevor jemand bei ihr ankam. */
+  /* The building depends on what REALLY changes it: who works here and in
+     which department. Not on whether the shell happened to allocate a new
+     array — the overview refetches running tasks every ten seconds, and a
+     plan hung on array identity was rebuilt every ten seconds, with the life
+     inside it thrown away (#312). */
   const kern = agents.map((a) => `${a.id}:${a.department_id ?? ""}:${a.slug}`).join("|");
   const abtKern = departments.map((d) => `${d.id}:${d.name}:${d.color}`).join("|");
   const ohneName = t("team.ohneAbteilung");
@@ -113,130 +123,239 @@ export default function Buero({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kern, abtKern, ohneName]);
 
-  /* Die Breite gibt das Fenster vor, und der Plan richtet sich danach. Ohne
-     das Messen stünde hier eine geratene Zahl, und bei jedem zweiten
-     Bildschirm ragte der Bau heraus oder ließe eine Spalte leer. */
-  const huelle = useRef<HTMLDivElement>(null);
-  const [breite, setBreite] = useState(1024);
-  useLayoutEffect(() => {
-    const messen = () => {
-      const w = huelle.current?.clientWidth;
-      if (w && Math.abs(w - breite) > 8) setBreite(w);
-    };
-    messen();
-    const beobachter = new ResizeObserver(messen);
-    if (huelle.current) beobachter.observe(huelle.current);
-    return () => beobachter.disconnect();
-  }, [breite]);
-
-  const besprechungName = t("team.raumBesprechung");
-  const teekuecheName = t("team.raumTeekueche");
-  const plan = useMemo(
-    () => bauplan(gruppen, breite, { besprechung: besprechungName, teekueche: teekuecheName }),
-    [gruppen, breite, besprechungName, teekuecheName],
+  const namen = useMemo(
+    () => ({ besprechung: t("team.raumBesprechung"), kueche: t("team.raumTeekueche"), lounge: t("team.raumLounge") }),
+    [t],
   );
+  const haus = useMemo<Haus>(() => hausBauen(gruppen, BAU_BREITE, namen, dichte), [gruppen, namen, dichte]);
 
-  /* Zustand aus den Daten. „arbeitet" heißt: hat einen laufenden Vorgang —
-     der Status allein sagte nur, dass der Agent wach ist, und ein wacher
-     Agent ohne Aufgabe ist keine Auskunft, sondern ein Zustand. */
+  /* Which floor is shown. The house may shrink under it (fewer people, a
+     coarser density), so it is clamped on every render rather than trusted. */
+  const [etageWunsch, setEtage] = useState(0);
+  const etage = Math.min(etageWunsch, haus.etagen.length - 1);
+  const plan = haus.etagen[etage].plan;
+  const [wechsel, setWechsel] = useState(false);
+
+  /* Where the signed-in person belongs. The platform knows it (the human's
+     department, #315); the office opens there and the home button leads back
+     there, instead of to the whole house every morning. */
+  const profil = useQuery({ queryKey: ["me", "profile"], queryFn: () => api<Human>("/auth/me/profile"), staleTime: 60_000 });
+  const meineAbteilung = profil.data?.department_id ?? null;
+  const meinZimmer = useMemo(() => {
+    if (!meineAbteilung) return null;
+    for (const e of haus.etagen) {
+      const r = e.plan.raeume.find((x) => !x.gem && x.id === meineAbteilung);
+      if (r) return { etage: e.nr, raum: r };
+    }
+    return null;
+  }, [haus, meineAbteilung]);
+
+  /* State from the data. "arbeitet" means: has a running task — the status
+     alone only said that the agent is awake, and an awake agent without a
+     task is not information but a state. */
   const laufendVon = useMemo(() => new Map(laufend.map((l) => [l.agent_id, l])), [laufend]);
   const zustandVon = useCallback(
     (a: Agent): Zustand =>
-      a.killed
-        ? "gestoppt"
-        : wartetBei.has(a.id)
-          ? "wartet"
-          : laufendVon.has(a.id)
-            ? "arbeitet"
-            : a.status === "sleeping"
-              ? "schlaeft"
-              : "frei",
+      a.killed ? "gestoppt" : wartetBei.has(a.id) ? "wartet" : laufendVon.has(a.id) ? "arbeitet" : a.status === "sleeping" ? "schlaeft" : "frei",
     [laufendVon, wartetBei],
   );
+  /* The scene is rebuilt only when a state actually changes — a lit screen is
+     geometry here — not on every poll that returns the same picture. */
+  const zustandKern = agents.map((a) => `${a.id}:${zustandVon(a)}`).join("|");
+  const zustandRef = useRef(zustandVon);
+  zustandRef.current = zustandVon;
 
   const [gewaehlt, setGewaehlt] = useState<string | null>(null);
-  const [karteAn, setKarteAn] = useState<Punkt | null>(null);
-  const [tassen, setTassen] = useState<ReadonlySet<string>>(new Set());
-  const [gegossen, setGegossen] = useState<ReadonlySet<string>>(new Set());
-  const [gaesteTakt, setGaesteTakt] = useState(0);
-  const [aufmerksam, setAufmerksam] = useState(false);
 
-  /* ── Das Leben ──────────────────────────────────────────────────────────
-     Die Simulation lebt in einem Ref, nicht im Zustand: Siebzig Figuren je
-     Bild durch React zu schicken hieße siebzig Abgleiche je Bild. React
-     zeichnet den Bau und die Knöpfe; bewegt wird über `transform`. */
+  /* ── The stage ──────────────────────────────────────────────────────────
+     Renderer, camera, scene and life live in refs, not in state: seventy
+     figures per frame through React would be seventy reconciliations per
+     frame. React draws the buttons; the frame loop moves them. */
+  const buehne = useRef<HTMLDivElement>(null);
+  const maler = useRef<THREE.WebGLRenderer | null>(null);
+  const szene = useRef<THREE.Scene | null>(null);
+  const steuerung = useRef<Steuerung | null>(null);
+  const bau = useRef<Bau | null>(null);
+  const felder = useRef(new Map<number, LaufFelder>());
   const leben = useRef<Leben | null>(null);
+  const hausImLeben = useRef<Haus | null>(null);
   const knoepfe = useRef(new Map<string, HTMLButtonElement>());
   const blicke = useRef(new Map<string, SVGGElement>());
+  const schilder = useRef(new Map<string, HTMLDivElement>());
+  const masten = useRef<SVGSVGElement>(null);
+  const karteHuelle = useRef<HTMLDivElement>(null);
+  const zeiger = useRef<Punkt | null>(null);
   const gastRefs = useRef(new Map<number, HTMLElement>());
+  /* The stage exists only once there is somebody to show. The renderer is
+     created when it appears — on the first render the lists are usually
+     still loading, and an effect that ran once against an empty page would
+     never run again. */
+  const sichtbar = plan.raeume.some((r) => r.leute.length > 0) && webgl;
+  const bauenRef = useRef<() => void>(() => {});
+  /* The guest list lives in the life; React only learns that it changed and
+     draws the sprites, the frame loop moves them. */
+  const [gaesteTakt, setGaesteTakt] = useState(0);
+  const haken = useMemo(() => ({ gaeste: () => setGaesteTakt((n) => n + 1) }), []);
 
-  const haken = useMemo(
-    () => ({
-      tasse: (id: string, da: boolean) =>
-        setTassen((alt) => {
-          const neu = new Set(alt);
-          if (da) neu.add(id);
-          else neu.delete(id);
-          return neu;
-        }),
-      gegossen: (p: string) => setGegossen((alt) => new Set(alt).add(p)),
-      gaeste: () => setGaesteTakt((n) => n + 1),
-      durst: () => setGaesteTakt((n) => n + 1),
-      aufmerksam: () => {
-        leben.current?.hinsehen();
-        setAufmerksam(true);
-        window.setTimeout(() => setAufmerksam(false), 2600);
+  useLayoutEffect(() => {
+    const el = buehne.current;
+    if (!el || !sichtbar) return;
+    const m = erschaffeMaler(el);
+    if (!m) {
+      setWebgl(false);
+      return;
+    }
+    maler.current = m;
+    szene.current = new THREE.Scene();
+    const s = erschaffeKamera(el, ruhig);
+    steuerung.current = s;
+    const loesen = s.anbinden(() => setGewaehlt(null));
+    const messen = () => {
+      groesse(m, s.kamera, el);
+      s.groesse();
+    };
+    messen();
+    const beobachter = new ResizeObserver(messen);
+    beobachter.observe(el);
+    bauenRef.current();
+    return () => {
+      beobachter.disconnect();
+      loesen();
+      m.dispose();
+      m.domElement.remove();
+      maler.current = null;
+      steuerung.current = null;
+      szene.current = null;
+      bau.current = null;
+    };
+  }, [ruhig, sichtbar]);
+
+  /* Build or rebuild the house. Afterwards the walk grid is read from what
+     was actually built, and the life gets the new grid — the figures keep
+     their positions and routes. A new PLAN (other people, other rooms) is
+     the one case where the life starts over: the geometry beneath it is a
+     different one. */
+  const bauen = useCallback(() => {
+    const sz = szene.current, st = steuerung.current;
+    if (!sz || !st) return;
+    st.planSetzen(plan);
+    bau.current = szeneBauen(sz, bau.current?.welt ?? null, plan, {
+      zustand: (id) => {
+        const a = agents.find((x) => x.id === id);
+        return a ? zustandRef.current(a) : "frei";
       },
-    }),
-    [],
-  );
-
-  /* Der Plan kann sich ändern (neue Kollegen, andere Breite). Dann wird das
-     Leben neu aufgesetzt — die Geometrie darunter ist eine andere. */
-  const planRef = useRef<Plan | null>(null);
-  if (planRef.current !== plan) {
-    planRef.current = plan;
-    leben.current = erschaffeLeben(plan, haken);
-  }
-  useEffect(() => setGaesteTakt((n) => n + 1), [plan]);
-
-  /* Zustände übernehmen, Positionen behalten. */
-  useEffect(() => {
-    const stand = plan.raeume.flatMap((r, ri) =>
-      r.leute.map((a, i) => ({ id: a.id, slug: a.slug, ri, i, sitz: r.sitze[i], zustand: zustandVon(a) })),
-    );
-    leben.current?.uebernehmen(stand);
+      nacht,
+      dichte,
+      drehung: st.drehung,
+      etage,
+      etagen: haus.etagen.length,
+    });
+    const f = laufFeldBauen(bau.current.welt, plan);
+    if (hausImLeben.current !== haus || !leben.current) {
+      /* A new HOUSE (other people, other rooms, another density) is the one
+         case where the life starts over: the geometry beneath it is a
+         different one. A new floor is not — the figures of every floor are
+         built once and kept, and whoever comes back finds everyone where they
+         left them. */
+      hausImLeben.current = haus;
+      felder.current = new Map([[etage, f]]);
+      leben.current = erschaffeLeben(
+        haus,
+        haus.etagen.map((e) => felder.current.get(e.nr) ?? null),
+        haus.etagen.flatMap((e) =>
+          e.plan.raeume.flatMap((r, ri) => r.leute.map((a, i) => ({ id: a.id, slug: a.slug, ri, i, etage: e.nr, zustand: zustandRef.current(a) }))),
+        ),
+        ruhig,
+        haken,
+      );
+      setGaesteTakt((n) => n + 1);
+    } else {
+      felder.current.set(etage, f);
+      leben.current.felderSetzen(etage, f);
+    }
+    setWechsel(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan, zustandVon, kern]);
-
-  /* Der Taktgeber. Bei „weniger Bewegung" läuft er gar nicht: Dann sitzt
-     jeder an seinem Platz, das Licht bleibt an — die Auskunft bleibt, nur
-     die Bewegung geht. */
+  }, [plan, haus, etage, nacht, dichte, ruhig, kern, haken]);
+  bauenRef.current = bauen;
   useEffect(() => {
-    if (ruhig) return;
+    bauen();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bauen, zustandKern]);
+
+  /* States are taken over as they come from the data; positions stay. */
+  useEffect(() => {
+    const l = leben.current;
+    if (!l) return;
+    for (const a of agents) l.zustandSetzen(a.id, zustandVon(a), laufendVon.get(a.id)?.step ?? null);
+  }, [agents, zustandVon, laufendVon, zustandKern]);
+
+  useEffect(() => {
+    leben.current?.ansprechen(gewaehlt);
+  }, [gewaehlt]);
+
+  /* The frame: the camera's ride, the life's step, then every overlay is set
+     from the camera. With "reduced motion" the life does not run at all —
+     everyone sits at their place, the light stays on; the information stays,
+     only the movement goes. */
+  useEffect(() => {
     let laeuft = true;
     let letzte = 0;
     const bild = (t0: number) => {
       if (!laeuft) return;
-      const dt = Math.min(64, t0 - letzte) / 1000;
+      const roh = Math.min(64, t0 - letzte) / 1000;
       letzte = t0;
-      const l = leben.current;
-      if (l) {
-        l.tick(dt);
-        for (const f of l.figuren.values()) {
-          const el = knoepfe.current.get(f.id);
-          if (!el) continue;
-          const bob = f.geht ? Math.sin(f.phase * 0.16) * 1.6 : 0;
-          el.style.transform = `translate3d(${f.pos.x}px, ${f.pos.y + bob}px, 0)`;
-          el.classList.toggle("geht", f.geht);
-          const b = blicke.current.get(f.id);
-          if (b) b.style.transform = `translate(${f.blick.x * BLICK_WEITE}px, ${f.blick.y * BLICK_WEITE}px)`;
+      const m = maler.current, sz = szene.current, st = steuerung.current, el = buehne.current, l = leben.current;
+      if (m && sz && st && el) {
+        if (st.tick(roh)) bauen();
+        if (l && !ruhig) l.tick(roh);
+        const w = el.clientWidth, h = el.clientHeight;
+        if (l) {
+          for (const f of l.figuren) {
+            const kn = knoepfe.current.get(f.id);
+            if (!kn) continue;
+            /* Whoever is on another floor is not here. The button stays in
+               the tree — it comes back when they do — but draws nothing. */
+            if (f.hier !== etage) {
+              if (kn.style.display !== "none") kn.style.display = "none";
+              continue;
+            }
+            if (kn.style.display) kn.style.display = "";
+            const bob = f.geht ? Math.sin(f.phase * 0.16) * 3 : 0;
+            const [x, y] = aufSchirm(st.kamera, plan, w, h, f.pos.x, f.pos.y, 44 + bob);
+            kn.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+            kn.classList.toggle("geht", f.geht);
+            /* The gaze follows the pointer, in screen space — where the
+               person looks is a matter of the picture, not of the plan. */
+            const b = blicke.current.get(f.id);
+            if (b) {
+              const z = zeiger.current;
+              if (z && f.zustand !== "schlaeft" && f.zustand !== "gestoppt") {
+                const dx = z.x - x, dy = z.y - y, d = Math.max(1, Math.hypot(dx, dy));
+                const k = Math.min(1, d / 160);
+                b.style.transform = `translate(${(dx / d) * k * BLICK_WEITE}px, ${(dy / d) * k * BLICK_WEITE}px)`;
+              } else b.style.transform = "";
+            }
+            if (f.id === gewaehlt && karteHuelle.current) {
+              const hoch = karteHuelle.current.offsetHeight || 170;
+              karteHuelle.current.style.left = `${Math.min(Math.max(x, 140), w - 140)}px`;
+              karteHuelle.current.style.top = `${Math.min(Math.max(y - hoch - 34, 8), h - hoch - 8)}px`;
+            }
+          }
         }
-        for (const g of l.gast()) {
-          if (g.art !== "katze") continue;
-          const el = gastRefs.current.get(g.id);
-          if (el) el.style.transform = `translate3d(${g.pos.x}px, ${g.pos.y}px, 0)`;
-        }
+        if (l)
+          for (const g of l.gaeste) {
+            const el = gastRefs.current.get(g.id);
+            if (!el) continue;
+            if (g.etage !== etage) {
+              el.style.display = "none";
+              continue;
+            }
+            el.style.display = "";
+            const [x, y] = aufSchirm(st.kamera, plan, w, h, g.pos.x, g.pos.y, g.art === "vogel" ? 124 : g.art === "flieger" ? 90 : 8);
+            el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+          }
+        schilderStellen(st, w, h);
+        m.render(sz, st.kamera);
       }
       requestAnimationFrame(bild);
     };
@@ -248,20 +367,73 @@ export default function Buero({
       laeuft = false;
       cancelAnimationFrame(id);
     };
-  }, [ruhig, plan]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan, etage, ruhig, gewaehlt, bauen]);
 
-  /* Der Zeiger, entkoppelt vom Ereignis: Mausbewegungen kommen häufiger als
-     Bilder, und jede davon zu verarbeiten hieße, mehrfach je Bild zu rechnen. */
-  const gemeldet = useRef(false);
-  const aufZeiger = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (ruhig || gemeldet.current) return;
-    const r = e.currentTarget.getBoundingClientRect();
-    const p = { x: e.clientX - r.left, y: e.clientY - r.top };
-    gemeldet.current = true;
-    requestAnimationFrame(() => {
-      gemeldet.current = false;
-      leben.current?.zeiger(p);
+  /* Signs are pushed apart in screen space, like on a map: a sign that sits
+     on another sign is two signs nobody can read. */
+  const schilderStellen = (st: Steuerung, w: number, h: number) => {
+    const k = plan.raeume.map((r) => {
+      const d = schilder.current.get(r.id + r.nr);
+      const [x, y] = aufSchirm(st.kamera, plan, w, h, r.x + r.w / 2, r.y + 30, 60);
+      const b = d?.offsetWidth || 110, hh = d?.offsetHeight || 20;
+      return { d, ax: x, ay: y, w: b, h: hh, x, y: y - 26 };
     });
+    k.sort((a, b) => a.ay - b.ay);
+    for (let runde = 0; runde < 8; runde++) {
+      let bewegt = false;
+      for (let i = 0; i < k.length; i++)
+        for (let j = i + 1; j < k.length; j++) {
+          const a = k[i], c = k[j];
+          if (Math.abs(a.x - c.x) - (a.w + c.w) / 2 - 6 >= 0) continue;
+          const dy = Math.abs(a.y - c.y) - (a.h + c.h) / 2 - 4;
+          if (dy >= 0) continue;
+          const schub = Math.min(-dy, 14) / 2;
+          (a.ay <= c.ay ? a : c).y -= schub;
+          (a.ay <= c.ay ? c : a).y += schub * 0.35;
+          bewegt = true;
+        }
+      if (!bewegt) break;
+    }
+    const svg = masten.current;
+    let pfad = "";
+    for (const s of k) {
+      if (s.d) {
+        s.d.style.left = `${s.x}px`;
+        s.d.style.top = `${s.y}px`;
+      }
+      pfad += `M${s.x.toFixed(1)} ${(s.y + 2).toFixed(1)}L${s.ax.toFixed(1)} ${s.ay.toFixed(1)}M${(s.ax - 1.8).toFixed(1)} ${s.ay.toFixed(1)}a1.8 1.8 0 1 0 3.6 0a1.8 1.8 0 1 0 -3.6 0`;
+    }
+    svg?.firstElementChild?.setAttribute("d", pfad);
+  };
+
+  /* The pointer, decoupled from the event: mouse moves come more often than
+     frames, and handling each would mean computing several times per frame. */
+  const aufZeiger = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (ruhig) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    zeiger.current = { x: e.clientX - r.left, y: e.clientY - r.top };
+  };
+
+  /* A click on the floor closes the card — and a click on a plant waters it.
+     The plant is found by casting into the scene: the catalogue builds each
+     plant into a group that carries its key. */
+  const strahl = useRef(new THREE.Raycaster());
+  const aufKlick = (e: React.MouseEvent<HTMLDivElement>) => {
+    setGewaehlt(null);
+    const st = steuerung.current, b = bau.current, l = leben.current, el = buehne.current;
+    if (!st || !b || !l || !el) return;
+    const r = el.getBoundingClientRect();
+    strahl.current.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), st.kamera);
+    const treffer = strahl.current.intersectObjects(b.welt.children, true);
+    for (const tr of treffer) {
+      let o: THREE.Object3D | null = tr.object;
+      while (o && !o.userData.pflanze) o = o.parent;
+      if (o?.userData.pflanze) {
+        l.giessen(etage, String(o.userData.pflanze), o.userData.punkt as Punkt);
+        return;
+      }
+    }
   };
 
   useEffect(() => {
@@ -273,68 +445,102 @@ export default function Buero({
     return () => window.removeEventListener("keydown", zu);
   }, [gewaehlt]);
 
-  useEffect(() => {
-    leben.current?.waehlen(gewaehlt);
-  }, [gewaehlt]);
-
-  /* Wer „covey" tippt, bekommt die ganze Belegschaft zu Gesicht. Die Augen
-     können das ohnehin — sie folgen sonst dem Zeiger; hier bekommen alle für
-     einen Moment dieselbe Richtung. */
-  useEffect(() => {
-    if (ruhig) return;
-    let getippt = "";
-    const horchen = (e: KeyboardEvent) => {
-      const z = e.target as HTMLElement | null;
-      if (e.key.length !== 1 || (z && /^(INPUT|TEXTAREA)$/.test(z.tagName)) || z?.isContentEditable) return;
-      getippt = (getippt + e.key.toLowerCase()).slice(-5);
-      if (getippt !== "covey") return;
-      getippt = "";
-      leben.current?.ausloesen("aufmerksam");
-    };
-    window.addEventListener("keydown", horchen);
-    return () => window.removeEventListener("keydown", horchen);
-  }, [ruhig]);
-
-  const gewaehlterAgent = agents.find((a) => a.id === gewaehlt);
-  const anwaehlen = (a: Agent) => {
-    if (gewaehlt === a.id) {
+  /* Changing the floor: the stage fades for a moment, the floor is rebuilt,
+     it fades back in. A camera ride upwards would need the floors stacked,
+     and they are not — every floor is a plan of its own. */
+  const etageWechseln = useCallback(
+    (i: number) => {
+      if (i === etage || i < 0 || i >= haus.etagen.length) return;
       setGewaehlt(null);
+      setWechsel(true);
+      window.setTimeout(() => setEtage(i), 170);
+    },
+    [etage, haus],
+  );
+  useEffect(() => {
+    const auf = (e: KeyboardEvent) => {
+      const z = e.target as HTMLElement | null;
+      if (z && (/^(INPUT|TEXTAREA|SELECT)$/.test(z.tagName) || z.isContentEditable)) return;
+      if (e.key === "PageUp") etageWechseln(etage + 1);
+      else if (e.key === "PageDown") etageWechseln(etage - 1);
+      else return;
+      e.preventDefault();
+    };
+    window.addEventListener("keydown", auf);
+    return () => window.removeEventListener("keydown", auf);
+  }, [etage, etageWechseln]);
+
+  /* Home: the own room in the middle, closer — and on its floor. Without a
+     department the whole floor, as before. */
+  const heim = useCallback(() => {
+    const st = steuerung.current;
+    if (!meinZimmer || !st) return;
+    if (meinZimmer.etage !== etage) {
+      etageWechseln(meinZimmer.etage);
       return;
     }
-    const f = leben.current?.figuren.get(a.id);
-    setKarteAn(f ? { ...f.pos } : null);
-    setGewaehlt(a.id);
-  };
+    const r = meinZimmer.raum;
+    st.zentrieren({ x: r.x + r.w / 2, y: r.y + r.h / 2 }, Math.min(2.2, Math.max(1.3, 1800 / Math.max(r.w, r.h))));
+  }, [meinZimmer, etage, etageWechseln]);
+  /* Once per house and once the profile is known: open on the own room. The
+     floor switch lands first, the centring follows on the new floor. */
+  const heimGezeigt = useRef<Haus | null>(null);
+  useEffect(() => {
+    if (!meinZimmer || !steuerung.current) return;
+    if (heimGezeigt.current === haus && meinZimmer.etage === etage) return;
+    if (meinZimmer.etage !== etage) {
+      if (heimGezeigt.current !== haus) setEtage(meinZimmer.etage);
+      return;
+    }
+    heimGezeigt.current = haus;
+    heim();
+  }, [haus, meinZimmer, etage, heim]);
 
-  void gaesteTakt; // die Gästeliste ist ein Ref; der Takt löst das Neuzeichnen aus
-  const gaeste = leben.current?.gast() ?? [];
+  /* The building is fitted to the stage whatever its headcount, so the faces
+     have to give way: seventy heads at thirty pixels cover the desks they
+     sit at. Smaller from forty on, and the name goes with the head. */
+  const gesichtGroesse = agents.length > 40 ? 24 : 30;
+  void gaesteTakt; // the guest list is a ref; the tick triggers the redraw
+  const gaeste = leben.current?.gaeste ?? [];
+  const gewaehlterAgent = agents.find((a) => a.id === gewaehlt);
+  const anwaehlen = (a: Agent) => setGewaehlt(gewaehlt === a.id ? null : a.id);
 
-  if (!plan.raeume.some((r) => r.leute.length)) return null;
+  if (!plan.raeume.some((r) => r.leute.length > 0)) return null;
+  if (!webgl) return <p className="bu-legende">{t("team.keinWebgl")}</p>;
 
   return (
-    <div className="bu" ref={huelle}>
-      <div className="bu-rahmen">
-        <div
-          className={`bu-bau${ruhig ? " ruht" : ""}${aufmerksam ? " aufmerksam" : ""}`}
-          style={{ width: plan.breite, height: plan.hoehe }}
-          onPointerMove={aufZeiger}
-          onPointerLeave={() => leben.current?.zeiger(null)}
-          /* Ein Klick auf den Boden schließt die Karte. Die Karte selbst hält
-             ihn auf — sonst schlösse sie sich, während man in ihr Feld tippt. */
-          onPointerDown={() => setGewaehlt(null)}
-        >
-          <Boeden plan={plan} laufendVon={laufendVon} />
-          <Zeichnung plan={plan} />
-          <Ausstattungen
-            plan={plan}
-            gegossen={gegossen}
-            durstig={(id) => !!leben.current?.istDurstig(id)}
-            onGiessen={(id, p) => leben.current?.giessen(id, p)}
-          />
-          <Arbeitsplaetze plan={plan} laufendVon={laufendVon} tassen={tassen} />
+    <div className="bu">
+      <div
+        className={`bu-buehne${ruhig ? " ruht" : ""}${wechsel ? " wechsel" : ""}`}
+        ref={buehne}
+        onPointerMove={aufZeiger}
+        onPointerLeave={() => {
+          zeiger.current = null;
+        }}
+        onClick={aufKlick}
+      >
+        <div className="bu-leute">
+          <svg className="bu-masten" ref={masten} aria-hidden="true">
+            <path d="" />
+          </svg>
+          {plan.raeume.map((r) => (
+            <div
+              key={r.id + r.nr}
+              className={`bu-schild-3d${meinZimmer && meinZimmer.etage === etage && meinZimmer.raum === r ? " meins" : ""}`}
+              title={meinZimmer && meinZimmer.etage === etage && meinZimmer.raum === r ? t("team.meinZimmer") : undefined}
+              ref={(el) => {
+                if (el) schilder.current.set(r.id + r.nr, el);
+                else schilder.current.delete(r.id + r.nr);
+              }}
+            >
+              {r.farbe && <span className="punkt" style={{ background: r.farbe }} />}
+              {r.name}
+              {!r.gem && <span className="klein">{`${r.flur + 1}.${String(r.nr).padStart(2, "0")}`}</span>}
+            </div>
+          ))}
 
-          {plan.raeume.map((r) =>
-            r.leute.map((a, i) => {
+          {haus.etagen.flatMap((e) => e.plan.raeume).map((r) =>
+            r.leute.map((a) => {
               const laeuft = laufendVon.get(a.id);
               const zustand = zustandVon(a);
               return (
@@ -346,17 +552,17 @@ export default function Buero({
                   }}
                   data-wer={a.id}
                   className={`bu-wer${laeuft ? " arbeitet" : ""}${zustand === "gestoppt" ? " gestoppt" : ""}${gewaehlt === a.id ? " gewaehlt" : ""}`}
-                  style={{ transform: `translate3d(${r.sitze[i].x}px, ${r.sitze[i].y}px, 0)` }}
-                  onClick={() => anwaehlen(a)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    anwaehlen(a);
+                  }}
                   onPointerDown={(e) => e.stopPropagation()}
                   aria-expanded={gewaehlt === a.id}
                   title={laeuft ? `${a.display_name}: ${laeuft.title}` : a.display_name}
                 >
-                  {/* Die Gedankenblase: der zuletzt aufgezeichnete Schritt,
-                      über dem Kopf dessen, der ihn gerade tut. Der Schlüssel
-                      ist der Schritt selbst — so läuft das Aufziehen erneut,
-                      wenn er sich ändert, und der Wechsel ist zu sehen statt
-                      nur zu lesen. */}
+                  {/* The thought bubble: the last recorded step, above the head
+                      of whoever is doing it. Keyed by the step itself, so the
+                      reveal runs again when it changes. */}
                   {laeuft?.step && (
                     <span key={laeuft.step} className="bu-denkt">
                       {t(`team.schritt.${laeuft.step}`, laeuft.step)}
@@ -367,7 +573,7 @@ export default function Buero({
                     <Gesicht
                       schluessel={a.slug}
                       zustand={zustand === "gestoppt" ? "killed" : zustand === "schlaeft" ? "sleeping" : "working"}
-                      groesse={30}
+                      groesse={gesichtGroesse}
                       blickRef={(g) => {
                         if (g) blicke.current.set(a.id, g);
                         else blicke.current.delete(a.id);
@@ -380,426 +586,102 @@ export default function Buero({
             }),
           )}
 
-          {/* Was selten vorbeikommt. Nichts davon trägt Auskunft. */}
-          {gaeste.map((g) => {
-            if (g.art === "katze")
-              return (
-                <span
-                  key={g.id}
-                  className="bu-katze"
-                  ref={(el) => {
-                    if (el) gastRefs.current.set(g.id, el);
-                    else gastRefs.current.delete(g.id);
-                  }}
-                  style={{ transform: `translate3d(${g.pos.x}px, ${g.pos.y}px, 0)` }}
-                >
-                  <Riss art="katze" x={0} y={0} w={22} h={26} />
-                </span>
-              );
-            if (g.art === "flieger")
-              return (
-                <span key={g.id} className="bu-flieger" style={{ left: g.pos.x, top: g.pos.y, ["--weit" as string]: `${g.weit}px` }}>
-                  <Riss art="flieger" x={0} y={0} w={22} h={12} />
-                </span>
-              );
-            const masse = g.art === "blatt" ? [9, 12] : g.art === "kuchen" ? [22, 20] : [13, 12];
-            return <Riss key={g.id} art={g.art} x={g.pos.x} y={g.pos.y} w={masse[0]} h={masse[1]} className={`bu-gast g-${g.art}`} />;
-          })}
+          {/* What rarely passes by. Nothing of it carries information. The
+              sprites are the same sketches the flat plan used; they hover
+              over the scene, positioned like the faces. */}
+          {gaeste.map((g) => (
+            <span
+              key={g.id}
+              className={`bu-gast g-${g.art}`}
+              ref={(el) => {
+                if (el) gastRefs.current.set(g.id, el);
+                else gastRefs.current.delete(g.id);
+              }}
+              style={g.art === "flieger" ? { ["--weit" as string]: `${g.weit * 0.3}px` } : undefined}
+            >
+              <Riss art={g.art} x={0} y={0} w={g.art === "katze" ? 22 : g.art === "kuchen" ? 22 : g.art === "flieger" ? 22 : 13} h={g.art === "katze" ? 26 : g.art === "kuchen" ? 20 : 12} />
+            </span>
+          ))}
 
-          {gewaehlterAgent && karteAn && (
-            <BuKarte
-              agent={gewaehlterAgent}
-              laeuft={laufendVon.get(gewaehlterAgent.id)}
-              wartet={wartetBei.has(gewaehlterAgent.id)}
-              am={karteAn}
-              breite={plan.breite}
-              me={me}
-              onOeffnen={() => navigate(`/team/${gewaehlterAgent.id}`)}
-              onSchliessen={() => setGewaehlt(null)}
-            />
+          {gewaehlterAgent && (
+            <div className="bu-karte-huelle" ref={karteHuelle}>
+              <BuKarte
+                agent={gewaehlterAgent}
+                laeuft={laufendVon.get(gewaehlterAgent.id)}
+                wartet={wartetBei.has(gewaehlterAgent.id)}
+                me={me}
+                onOeffnen={() => navigate(`/team/${gewaehlterAgent.id}`)}
+                onSchliessen={() => setGewaehlt(null)}
+              />
+            </div>
           )}
         </div>
+
+        {/* The controls are the visible promise that the handles exist.
+            Without them one has to guess whether a view can be moved — and
+            guesses wrong. */}
+        <div className="bu-steuer" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+          <button type="button" onClick={() => steuerung.current?.zoomen(1.16)} title={`${t("team.naeher")} (+)`} aria-label={t("team.naeher")}>+</button>
+          <button type="button" onClick={() => steuerung.current?.zoomen(1 / 1.16)} title={`${t("team.weiter")} (−)`} aria-label={t("team.weiter")}>−</button>
+          <button type="button" onClick={() => steuerung.current?.drehen(1)} title={`${t("team.drehenLinks")} (Q)`} aria-label={t("team.drehenLinks")}>↺</button>
+          <button type="button" onClick={() => steuerung.current?.drehen(-1)} title={`${t("team.drehenRechts")} (E)`} aria-label={t("team.drehenRechts")}>↻</button>
+          <button
+            type="button"
+            onClick={() => {
+              steuerung.current?.zurueck();
+              heim();
+            }}
+            title={`${t("team.ansichtZurueck")} (0)`}
+            aria-label={t("team.ansichtZurueck")}
+          >
+            ⌂
+          </button>
+        </div>
+
+        {/* The floors, when there are several: the ground floor and the
+            numbers, like in a lift. Each button says which departments live
+            there. */}
+        {haus.etagen.length > 1 && (
+          <div className="bu-etagen" role="group" aria-label={t("team.etage")} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+            {haus.etagen
+              .slice()
+              .reverse()
+              .map((e) => (
+                <button
+                  key={e.nr}
+                  type="button"
+                  aria-pressed={e.nr === etage}
+                  title={`${e.nr === 0 ? t("team.etageErdTitel") : t("team.etageTitel", { n: e.nr })} · ${e.gruppen.map((g) => g.name).join(" · ")}`}
+                  onClick={() => etageWechseln(e.nr)}
+                >
+                  {e.nr === 0 ? t("team.etageErd") : e.nr}
+                </button>
+              ))}
+          </div>
+        )}
       </div>
+
       <p className="bu-legende">{t("team.bueroLegende")}</p>
     </div>
   );
 }
 
-/* ── Die Böden ─────────────────────────────────────────────────────────────
-   Die Fläche darunter ist Mauerwerk; hier wird ausgespart. Der Flur ist eine
-   Spur dunkler als die Zimmer — er wird begangen. */
-function Boeden({ plan, laufendVon }: { plan: Plan; laufendVon: Map<string, Laufend> }) {
-  return (
-    <>
-      <div className="bu-boden flur" style={{ left: plan.quer.x, top: AUSSEN, width: plan.quer.w, height: plan.hoehe - AUSSEN * 2 }} />
-      {plan.flure.map((f, i) => (
-        <div key={i} className="bu-boden flur" style={{ left: plan.quer.x, top: f.y, width: plan.breite - plan.quer.x - AUSSEN, height: f.h }} />
-      ))}
-      {plan.raeume.map((r) => {
-        const arbeitet = r.leute.some((a) => laufendVon.has(a.id));
-        const leer = !arbeitet && r.leute.length > 0 && r.leute.every((a) => a.killed || a.status === "sleeping");
-        return (
-          <div
-            key={r.id}
-            className={`bu-boden${r.gem ? " gemein" : ""}${arbeitet ? " hell" : ""}${leer ? " leer" : ""}`}
-            style={{ left: r.x, top: r.y, width: r.w, height: r.h }}
-            aria-label={r.name}
-          />
-        );
-      })}
-      {/* Die Schwellen: an dieser Stelle ist die Wand nicht da. */}
-      {plan.raeume.map((r) => (
-        <div
-          key={`s-${r.id}`}
-          className="bu-schwelle"
-          style={{ left: r.tuerX - TUER_B / 2, top: r.obenDrueber ? r.wand : r.wand - INNEN, width: TUER_B, height: INNEN }}
-        />
-      ))}
-      <div className="bu-schwelle" style={{ left: 0, top: plan.eingang.y, width: AUSSEN, height: plan.eingang.hoehe }} />
-      {plan.fenster.map((f, i) => (
-        <span key={i}>
-          <div className="bu-schwelle" style={{ left: f.x, top: 0, width: f.w, height: AUSSEN }} />
-          <div className="bu-schwelle" style={{ left: f.x + 24, top: plan.hoehe - AUSSEN, width: f.w * 0.72, height: AUSSEN }} />
-        </span>
-      ))}
-    </>
-  );
-}
-
-/* ── Der Riss ──────────────────────────────────────────────────────────────
-   Türschwünge, Brüstungen, Möbelkanten — die gezeichneten Linien über dem
-   Bau. Der Türschwung ist das Zeichen, an dem ein Grundriss als Grundriss
-   gelesen wird, und er sagt nebenbei, wohin die Tür aufgeht. */
-function Zeichnung({ plan }: { plan: Plan }) {
-  const { t } = useTranslation();
-  const ey = plan.eingang.y;
-  const eb = plan.eingang.hoehe - 4;
-  return (
-    <>
-      <svg className="bu-riss" viewBox={`0 0 ${plan.breite} ${plan.hoehe}`} aria-hidden="true">
-        {plan.raeume.map((r) => {
-          const x = r.tuerX - TUER_B / 2;
-          const s = SCHWUNG * r.ri;
-          return (
-            <g key={`t-${r.id}`}>
-              <path className="blatt" d={`M${x} ${r.wand} v${s}`} />
-              <path d={`M${x} ${r.wand + s} A${SCHWUNG} ${SCHWUNG} 0 0 ${r.obenDrueber ? 0 : 1} ${x + SCHWUNG} ${r.wand}`} />
-            </g>
-          );
-        })}
-        {/* Der Eingang, mit eigenem Schwung nach innen. */}
-        <path className="blatt" d={`M${AUSSEN} ${ey} v${eb}`} />
-        <path d={`M${AUSSEN} ${ey + eb} A${eb} ${eb} 0 0 0 ${AUSSEN + eb} ${ey}`} />
-        {/* Fenster: eine Brüstungslinie im Mauerwerk, keine aufgemalte Scheibe. */}
-        {plan.fenster.map((f, i) => (
-          <g key={i}>
-            <path className="fenster" d={`M${f.x} ${AUSSEN / 2} h${f.w}`} />
-            <path className="fenster" d={`M${f.x + 24} ${plan.hoehe - AUSSEN / 2} h${f.w * 0.72}`} />
-          </g>
-        ))}
-        {/* Der Tresen, und die Bänke, die sich zwei Plätze teilen. */}
-        <path className="moebel" d={`M${plan.quer.x + 14} ${plan.tresen.y} h${plan.quer.w - 28}`} />
-        {/* Die Schreibtische. Eine gefüllte Platte allein war auf dem hellen
-            Boden kaum zu erkennen — in einem Plan wird Mobiliar umrissen.
-            Dazu der Bildschirm am hinteren Rand und die Tastatur davor: die
-            zwei Striche, an denen ein Rechteck zu einem Arbeitsplatz wird.
-            Und die gemeinsame Rückkante, wo zwei Plätze eine Bank bilden. */}
-        {plan.raeume.map((r) =>
-          r.sitze.map((p, i) => {
-            const x = p.x - SITZ_B / 2 + 7;
-            const y = p.y + 18;
-            const w = SITZ_B - 14;
-            return (
-              <g key={`${r.id}-${i}`} className="moebel">
-                <path d={`M${x + 0.5} ${y + 0.5}h${w - 1}v20h${-(w - 1)}Z`} />
-                <path className="tastatur" d={`M${x + 12} ${y + 15}h${w - 24}`} />
-                {i % 2 === 1 && <path d={`M${x} ${y} v21`} />}
-              </g>
-            );
-          }),
-        )}
-        {plan.raeume
-          .filter((r) => r.gem === "besprechung")
-          .map((r) => <path key="wb" className="moebel" d={`M${r.x + 24} ${r.y + SCHILD_H + 6} h${Math.min(90, r.w - 48)}`} />)}
-      </svg>
-
-      <span className="bu-schild eingang" style={{ left: AUSSEN + 12, top: ey + plan.eingang.hoehe + 8 }}>
-        {t("team.raumEingang")}
-      </span>
-      <span className="bu-schild mitte" style={{ left: plan.quer.mitte, top: plan.tresen.y - 17 }}>
-        {t("team.raumTresen")}
-      </span>
-      {plan.raeume.map((r) => (
-        <span key={`n-${r.id}`}>
-          {/* Der Name bekommt genau die Breite, die ihm neben der Nummer
-              bleibt — sonst schreibt eine lange Abteilung sie zu, und der
-              Plan verliert die eine Angabe, die ihn als Plan ausweist. */}
-          <h3
-            className={`bu-schild${r.gem ? " mitte" : ""}`}
-            style={
-              r.gem
-                ? { left: r.x + r.w / 2, top: r.y + 8, maxWidth: r.w - 24 }
-                : { left: r.x + PAD, top: r.y + 6, maxWidth: r.w - PAD * 2 }
-            }
-          >
-            {r.farbe && <span className="bu-punkt" style={{ background: r.farbe }} aria-hidden="true" />}
-            {r.name}
-          </h3>
-          {!r.gem && (
-            /* Nummer und Fläche UNTER dem Namen, wie auf einem gezeichneten
-               Plan. Der Maßstab steht in plan.ts: 38 Pixel je Meter. */
-            <span className="bu-nummer" style={{ left: r.x + PAD + 11, top: r.y + 19 }}>
-              {r.flur + 1}.{String(r.nr).padStart(2, "0")} · {Math.round((r.w * r.h) / (PX_JE_METER * PX_JE_METER))} m²
-            </span>
-          )}
-        </span>
-      ))}
-    </>
-  );
-}
-
-type TopfBauer = (id: string, x: number, y: number, art: Art) => JSX.Element;
-
-/* ── Die Einrichtung ───────────────────────────────────────────────────────
-   Was in einem Zimmer steht, außer Tischen. Aus dem Namen der Abteilung
-   gerechnet — dasselbe Zimmer, dieselben Möbel, jedes Mal (plan.ts,
-   `ausstattungFuer`). Nichts davon trägt Auskunft. */
-function Ausstattungen({
-  plan,
-  gegossen,
-  durstig,
-  onGiessen,
-}: {
-  plan: Plan;
-  gegossen: ReadonlySet<string>;
-  durstig: (id: string) => boolean;
-  onGiessen: (id: string, p: Punkt) => void;
-}) {
-  const { t } = useTranslation();
-  const topf: TopfBauer = (id, x, y, art) => {
-    const [w, h] = MASS[art]!;
-    return (
-      <span key={id} className={`bu-topf${gegossen.has(id) ? " blueht" : ""}${durstig(id) ? " durstig" : ""}`}>
-        <Riss art={art} x={x} y={y} w={w} h={h} onClick={() => onGiessen(id, { x: x + w / 2, y: y + h })} titel={t("team.giessen")} />
-        {gegossen.has(id) && <span className="bu-bluete" style={{ left: x + w / 2 - 3, top: y + h * 0.2 }} aria-hidden="true" />}
-      </span>
-    );
-  };
-
-  return (
-    <>
-      {/* Empfang: Garderobe, Tresen, Bank, eine große Pflanze. Ein Vorraum, in
-          dem nichts steht, ist kein Vorraum, sondern eine Lücke im Plan. */}
-      <Riss art="garderobe" x={plan.quer.x + 16} y={plan.eingang.y - 22} w={plan.quer.w - 32} h={7} />
-      <div className="bu-tisch" style={{ left: plan.quer.x + 14, top: plan.tresen.y, width: plan.quer.w - 28, height: 12 }} />
-      <div className="bu-tisch" style={{ left: plan.quer.x + 22, top: plan.tresen.y + 206, width: plan.quer.w - 44, height: 11 }} />
-      {topf("empfang", plan.quer.mitte - 13, plan.hoehe - AUSSEN - 44, "monstera")}
-
-      {/* Im Flur: Drucker und Wasserspender, an der Wand, wo man vorbeigeht. */}
-      {plan.flure.map((f, i) => (
-        <span key={i}>
-          <Riss art="drucker" x={plan.quer.x + plan.quer.w + 70} y={f.y + f.h - 22} w={22} h={17} />
-          <Riss art="spender" x={plan.breite - AUSSEN - 46} y={f.y + 5} w={15} h={18} />
-          <Riss art="feuerloescher" x={plan.quer.x + plan.quer.w + 24} y={f.y + 4} />
-          {i % 2 === 0 && topf(`flur-${i}`, plan.breite - AUSSEN - 96, f.y + f.h - 32, "monstera")}
-        </span>
-      ))}
-
-      {plan.raeume.map((r) => (r.gem ? <Gemeinschaft key={r.id} raum={r} topf={topf} /> : <Arbeitszimmer key={r.id} raum={r} topf={topf} />))}
-    </>
-  );
-}
-
-/* Die Einrichtung eines Zimmers trägt den Ton seiner Abteilung — denselben,
-   der als Punkt neben dem Namen steht. Das ist der eine Ort, an dem Farbe im
-   Grundriss etwas bindet, statt etwas zu behaupten: Möbel gehören zu einem
-   Zimmer, und das Zimmer gehört zu einer Abteilung. Gemischt wird zum Ton der
-   Zeichnung hin, damit es ein Plan bleibt und kein Bilderbuch; ohne gesetzte
-   Abteilungsfarbe bleibt alles grau. */
-function Arbeitszimmer({ raum: r, topf }: { raum: Raum; topf: TopfBauer }) {
-  const h = streu(r.name);
-  const e = ausstattungFuer(r.name);
-  const stuecke: JSX.Element[] = [];
-
-  /* An der Wand gegenüber der Tür — die einzige, an der etwas hängen kann,
-     ohne im Weg zu stehen. Und nur, was FLACH ist: In der Draufsicht hängt
-     ein Bild sechs Pixel tief an der Wand, ein Serverschrank steht dreißig
-     tief auf dem Boden. Der stand vorher mitten in der ersten Reihe. */
-  const wandY = r.obenDrueber ? r.y + SCHILD_H + 2 : r.y + r.h - 3;
-  const wandPlatz = PAD_OBEN - 6;
-  const stehend: typeof e.wand = [];
-  const haengend = e.wand.filter((art) => (MASS[art]![1] <= wandPlatz ? true : (stehend.push(art), false)));
-  haengend.forEach((art, i) => {
-    const [w, hh] = MASS[art]!;
-    const x = r.x + 24 + (i * (r.w - 66)) / Math.max(1, haengend.length);
-    if (x + w > r.x + r.w - 12) return;
-    stuecke.push(<Riss key={`w${i}`} art={art} x={x} y={r.obenDrueber ? wandY : wandY - hh} w={w} h={hh} />);
-  });
-
-  /* In der Lücke, die die letzte Reihe ohnehin lässt: die Sitzecke. Das ist
-     der Platz, den der Grundriss schon hat — Ausstattung, die keinen neuen
-     Raum kostet. */
-  const rest = r.leute.length % r.spalten;
-  if (rest !== 0 && r.sitze.length) {
-    const p = r.sitze[r.sitze.length - 1];
-    const frei = (r.spalten - rest) * SITZ_B;
-    const mx = p.x + SITZ_B / 2 + frei / 2;
-    if (frei >= 130) {
-      const [sw, sh] = MASS[e.ecke]!;
-      stuecke.push(<Riss key="tep" art="teppich" x={mx - 35} y={p.y - 8} w={70} h={46} />);
-      stuecke.push(<Riss key="eck" art={e.ecke} x={mx - sw / 2} y={p.y + 2} w={sw} h={sh} />);
-      stuecke.push(topf(`${r.id}-ecke`, mx + 26, p.y - 4, "monstera"));
-      stuecke.push(<Riss key="neb" art={e.neben} x={mx - 42} y={p.y - 2} />);
-    } else {
-      stuecke.push(topf(`${r.id}-luecke`, mx - 11, p.y - 6, "pflanze"));
-    }
-  }
-  /* Und wenn das Zimmer tiefer ist, als seine Reihen brauchen: Alle Zimmer
-     eines Bandes sind gleich tief, also hat die Abteilung mit einem Kollegen
-     so viel Boden wie die mit dreizehn. Dieser Rest bleibt nicht leer — er
-     wird die Sitzecke. Ein Zimmer, in dem nichts steht, sieht aus, als fehle
-     etwas, und genau das soll es nicht. */
-  const unten = r.y + SCHILD_H + PAD_OBEN + Math.max(0, r.zeilen - 1) * SITZ_H + 32 + 46;
-  const rest2 = r.y + r.h - unten;
-  if (rest2 > 76 && r.w > 150) {
-    const [sw, sh] = MASS[e.ecke]!;
-    const mx = r.x + r.w / 2;
-    const my = unten + 10;
-    stuecke.push(<Riss key="tep2" art="teppich" x={mx - 35} y={my} w={70} h={46} />);
-    stuecke.push(<Riss key="eck2" art={e.ecke} x={mx - sw / 2} y={my + 10} w={sw} h={sh} />);
-    stuecke.push(topf(`${r.id}-lounge`, mx + 44, my + 6, "monstera"));
-    stuecke.push(<Riss key="neb2" art={e.neben} x={mx - 58} y={my + 8} />);
-  } else if ((h >> 3) % 3 !== 0 && rest2 > 40) {
-    stuecke.push(topf(`${r.id}-ecke2`, h % 2 ? r.x + r.w - 34 : r.x + 12, r.y + r.h - 36, "monstera"));
-  }
-  /* Der Papierkorb in die freie Ecke, nicht in die erste Reihe. */
-  stuecke.push(<Riss key="korb" art="papierkorb" x={r.x + 14} y={r.y + r.h - 22} w={10} h={10} />);
-  /* Was auf dem Boden steht statt an der Wand zu hängen, kommt in den
-     Seitenstreifen, den das mittig stehende Raster ohnehin frei lässt. */
-  const seite = (r.w - podBreite(r.spalten)) / 2;
-  stehend.forEach((art, i) => {
-    const [w, hh] = MASS[art]!;
-    if (seite < w + 10) return;
-    stuecke.push(
-      <Riss
-        key={`st${i}`}
-        art={art}
-        x={i % 2 ? r.x + r.w - seite / 2 - w / 2 : r.x + seite / 2 - w / 2}
-        y={r.y + SCHILD_H + PAD_OBEN + 6 + i * (hh + 8)}
-        w={w}
-        h={hh}
-      />,
-    );
-  });
-
-  /* Auf den Tischen: Mappen überall, dazu das, was zur Abteilung gehört. */
-  r.leute.forEach((a, i) => {
-    const hs = streu(a.slug + "#");
-    const p = r.sitze[i];
-    if (hs % 3 === 0) stuecke.push(<Riss key={`m${i}`} art="mappe" x={p.x - SITZ_B / 2 + 12} y={p.y + 22} w={13} h={10} />);
-    if (e.tisch && (hs >> 2) % 5 < 3) {
-      const [w, hh] = MASS[e.tisch]!;
-      stuecke.push(<Riss key={`d${i}`} art={e.tisch} x={p.x + SITZ_B / 2 - w - 12} y={p.y + (e.tisch === "lampe" ? 12 : 24)} w={w} h={hh} />);
-    }
-  });
-  return (
-    <span className="bu-einrichtung" style={r.farbe ? ({ ["--bu-ton" as string]: r.farbe } as React.CSSProperties) : undefined}>
-      {stuecke}
-    </span>
-  );
-}
-
-function Gemeinschaft({ raum: r, topf }: { raum: Raum; topf: TopfBauer }) {
-  const cx = r.x + r.w / 2;
-  const cy = r.y + SCHILD_H + (r.h - SCHILD_H) / 2;
-  if (r.gem === "besprechung") {
-    const tw = Math.min(r.w - PAD * 4, 118);
-    const th = 44;
-    return (
-      <>
-        <div className="bu-tisch rund" style={{ left: cx - tw / 2, top: cy - th / 2, width: tw, height: th }} />
-        {[0, 1, 2].map((i) =>
-          [-1, 1].map((s) => (
-            <div
-              key={`${i}${s}`}
-              className="bu-stuhl"
-              style={{ left: cx - tw / 2 + 22 + (i * (tw - 44)) / 2 - 7, top: cy + s * (th / 2 + 7) - 2 }}
-            />
-          )),
-        )}
-        <Riss art="flipchart" x={r.x + 16} y={r.y + r.h - 40} />
-        {topf(`${r.id}-p`, r.x + r.w - 34, r.y + r.h - 36, "monstera")}
-      </>
-    );
-  }
-  return (
-    <>
-      <div className="bu-tisch" style={{ left: r.x + PAD, top: r.y + SCHILD_H + 8, width: r.w - PAD * 2, height: 16 }} />
-      <Riss art="kaffeemaschine" x={r.x + PAD + 8} y={r.y + SCHILD_H + 10} />
-      <div className="bu-tisch rund" style={{ left: cx - 21, top: cy + 8, width: 42, height: 28 }} />
-      {[-1, 1].map((s) => (
-        <div key={s} className="bu-stuhl" style={{ left: cx - 7 + s * 29, top: cy + 19 }} />
-      ))}
-      {topf(`${r.id}-p`, r.x + r.w - 34, r.y + r.h - 36, "monstera")}
-    </>
-  );
-}
-
-/* ── Die Arbeitsplätze ─────────────────────────────────────────────────────
-   Der Schreibtisch mit dem Bildschirm darauf. Der Bildschirm ist der Träger
-   des Zustands: dunkel, solange nichts läuft; hell, sobald etwas läuft, und
-   dann fällt sein Schein auf Tisch und Boden. Der leere Stuhl daneben ist
-   die zweite Auskunft — der Kollege ist nicht am Platz. */
-function Arbeitsplaetze({
-  plan,
-  laufendVon,
-  tassen,
-}: {
-  plan: Plan;
-  laufendVon: Map<string, Laufend>;
-  tassen: ReadonlySet<string>;
-}) {
-  return (
-    <>
-      {plan.raeume.map((r) =>
-        r.leute.map((a, i) => {
-          const p = r.sitze[i];
-          return (
-            <span key={a.id}>
-              <span
-                className={`bu-platz${laufendVon.has(a.id) ? " belegt" : ""}`}
-                style={{ left: p.x - SITZ_B / 2 + 7, top: p.y + 18, width: SITZ_B - 14, height: 21 }}
-                aria-hidden="true"
-              >
-                {tassen.has(a.id) && <Riss art="tasse" x={0} y={0} w={12} h={10} className="bu-tasse" />}
-              </span>
-              <span className="bu-stuhl" style={{ left: p.x - 7, top: p.y - 14 }} aria-hidden="true" />
-            </span>
-          );
-        }),
-      )}
-    </>
-  );
-}
-
-/* Die Karte am Platz.
+/* The card at the desk.
  *
- * Sie ersetzt den Sprung in den Verlauf nicht, sie kommt ihm zuvor: In neun
- * von zehn Fällen will man wissen, woran jemand sitzt, und in dem zehnten
- * will man ihm einen Satz sagen. Beides hier zu haben heißt, dass das Büro
- * eine Arbeitsfläche ist und nicht ein Bild davon. Wer angesprochen wird,
- * bleibt übrigens stehen — das tut ein Mensch auch.
+ * It does not replace the jump into the conversation, it comes before it: in
+ * nine cases out of ten one wants to know what somebody is working on, and in
+ * the tenth one wants to tell them a sentence. Having both here means the
+ * office is a working surface and not a picture of one. Whoever is addressed
+ * stops walking, by the way — a person does that too.
  *
- * Das Eingabefeld ist dasselbe Tor wie im Verlauf — dieselbe Adresse,
- * dieselbe Triage. Es antwortet nur nicht: Was der Kollege sagt, steht im
- * Gespräch, und dorthin führt der Verweis darunter.
+ * The input is the same door as in the conversation — same address, same
+ * triage. It only does not answer: what the colleague makes of it stands in
+ * the conversation, and the link below leads there.
  */
 function BuKarte({
   agent,
   laeuft,
   wartet,
-  am,
-  breite,
   me,
   onOeffnen,
   onSchliessen,
@@ -807,8 +689,6 @@ function BuKarte({
   agent: Agent;
   laeuft?: Laufend;
   wartet: boolean;
-  am: Punkt;
-  breite: number;
   me: Principal;
   onOeffnen: () => void;
   onSchliessen: () => void;
@@ -818,11 +698,9 @@ function BuKarte({
   const [text, setText] = useState("");
   const [ab, setAb] = useState(false);
   const karte = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
-    karte.current?.focus();
+    karte.current?.focus({ preventScroll: true });
   }, []);
-
   const schicken = useMutation({
     mutationFn: (nachricht: string) => post(`/agents/${agent.id}/messages`, { text: nachricht }),
     onSuccess: () => {
@@ -832,29 +710,19 @@ function BuKarte({
       qc.invalidateQueries({ queryKey: ["org-running"] });
     },
   });
-
-  /* Am Rand nicht über den Rand: Die Karte ist breit, die Fläche endet, und
-     eine halb abgeschnittene Karte ist schlimmer als eine verschobene. */
-  const HALB = 132;
-  const x = breite > 0 ? Math.min(Math.max(am.x, HALB + 8), breite - HALB - 8) : am.x;
   const darfSchreiben = canManage(me.Role);
-
   return (
     <div
       className="bu-karte"
-      style={{ left: x, top: am.y + 36 }}
       role="dialog"
       aria-label={agent.display_name}
       ref={karte}
       tabIndex={-1}
       onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
     >
       <header className="bu-karte-kopf">
-        <Gesicht
-          schluessel={agent.slug}
-          zustand={agent.killed ? "killed" : agent.status === "sleeping" ? "sleeping" : "working"}
-          groesse={28}
-        />
+        <Gesicht schluessel={agent.slug} zustand={agent.killed ? "killed" : agent.status === "sleeping" ? "sleeping" : "working"} groesse={28} />
         <span className="bu-karte-wer">
           <strong>{agent.display_name}</strong>
           <span className="bu-karte-rolle">{agent.job_title || agent.slug}</span>
@@ -863,7 +731,6 @@ function BuKarte({
           ×
         </button>
       </header>
-
       {laeuft ? (
         <p className="bu-karte-lage">
           <span className="bu-karte-titel">{laeuft.title}</span>
@@ -874,12 +741,9 @@ function BuKarte({
         </p>
       ) : (
         <p className="bu-karte-lage">
-          <span className="bu-karte-unten">
-            {wartet ? t("team.wartet") : agent.status === "sleeping" ? t("team.schlaeft") : t("team.bereit")}
-          </span>
+          <span className="bu-karte-unten">{wartet ? t("team.wartet") : agent.status === "sleeping" ? t("team.schlaeft") : t("team.bereit")}</span>
         </p>
       )}
-
       {darfSchreiben && (
         <form
           className="bu-karte-sagen"
@@ -903,11 +767,10 @@ function BuKarte({
           </button>
         </form>
       )}
-      {/* Angenommen, nicht beantwortet: Was der Kollege daraus macht, steht im
-          Gespräch, und der Verweis darunter führt hin. Hier zu behaupten, es
-          sei erledigt, wäre genau die Unwahrheit, die #304 beseitigt hat. */}
+      {/* Accepted, not answered: what the colleague makes of it stands in the
+          conversation, and the link below leads there. Claiming it was done
+          here would be exactly the untruth #304 removed. */}
       {ab && <p className="bu-karte-ab">{t("team.angenommen")}</p>}
-
       <button className="bu-karte-hin" onClick={onOeffnen}>
         {t("team.gespraech")}
       </button>
