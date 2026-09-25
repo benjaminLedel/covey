@@ -131,7 +131,7 @@ void main() {
     expect([for (final s in capsule.spaces) s.label], ['Team', 'Notizen']);
   });
 
-  testWidgets('a dictated note is saved as a voice note', (tester) async {
+  testWidgets('a dictated note is saved as a voice note, without a save button (#343)', (tester) async {
     Map<String, Object?>? posted;
     final api = CoveyApi(
       Uri.parse('https://c.example'),
@@ -142,18 +142,64 @@ void main() {
       }),
     );
     final dictation = _FakeDictation();
-    await tester.pumpWidget(await tester.runAsync(() => _app(NoteEditor(api: api, dictation: dictation))) as Widget);
+    await tester.pumpWidget(
+      await tester.runAsync(
+            () => _app(NotePage(api: api, dictation: dictation, saveDelay: const Duration(milliseconds: 100))),
+          )
+          as Widget,
+    );
 
     await tester.tap(find.text('Diktieren'));
     await tester.pump();
     dictation.hear('Milch und Brot kaufen');
     await tester.pump();
     expect(find.text('Diktat beenden'), findsOneWidget);
-    expect(find.text('Milch und Brot kaufen'), findsOneWidget, reason: 'what is heard appears in the field');
+    expect(find.text('Milch und Brot kaufen'), findsOneWidget, reason: 'what is heard appears on the page');
+    expect(find.text('Speichern'), findsNothing, reason: 'nothing to press: it saves itself');
 
-    await tester.tap(find.text('Speichern'));
+    await tester.pump(const Duration(milliseconds: 150));
     await _settle(tester);
     expect(posted, {'kind': 'voice', 'title': '', 'body': 'Milch und Brot kaufen', 'duration_seconds': 0});
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('an open note is edited in place and saved as it is typed (#343)', (tester) async {
+    final calls = <String>[];
+    Map<String, Object?>? patched;
+    final api = CoveyApi(
+      Uri.parse('https://c.example'),
+      'k',
+      client: MockClient((req) async {
+        calls.add(req.method);
+        if (req.method == 'PATCH') {
+          patched = jsonDecode(req.body) as Map<String, Object?>;
+          return _json({..._note('n1', 'text', patched!['body'] as String), 'title': patched!['title']});
+        }
+        return http.Response('', 204);
+      }),
+    );
+    final note = Note.fromJson(_note('n1', 'text', 'Milch kaufen'));
+    await tester.pumpWidget(
+      await tester.runAsync(() => _app(NotePage(api: api, note: note, saveDelay: const Duration(milliseconds: 100))))
+          as Widget,
+    );
+    expect(find.text('Fertig'), findsNothing, reason: 'no keyboard, no Fertig');
+
+    await tester.enterText(find.byType(TextField).last, 'Milch und Eier kaufen');
+    await tester.pump();
+    expect(find.text('Fertig'), findsOneWidget, reason: 'while typing, Fertig puts the keyboard away');
+    expect(calls, isEmpty, reason: 'not on every key');
+    await tester.pump(const Duration(milliseconds: 150));
+    await _settle(tester);
+    expect(calls, ['PATCH']);
+    expect(patched?['body'], 'Milch und Eier kaufen');
+
+    // Emptied and left: the note goes, as Apple Notes does.
+    await tester.enterText(find.byType(TextField).last, '');
+    await tester.pump();
+    await tester.pumpWidget(const SizedBox());
+    await _settle(tester);
+    expect(calls.last, 'DELETE');
   });
 
   testWidgets('a meeting records until it is stopped and is saved with its length', (tester) async {
@@ -194,12 +240,12 @@ void main() {
     final meeting = Note.fromJson(_note('n1', 'meeting', 'Wir verschieben den Launch.'));
 
     await tester.pumpWidget(
-      await tester.runAsync(() => _app(NoteScreen(api: api, note: meeting, canSummarize: false))) as Widget,
+      await tester.runAsync(() => _app(NotePage(api: api, note: meeting, canSummarize: false))) as Widget,
     );
     expect(find.text('Zusammenfassen'), findsNothing);
 
     await tester.pumpWidget(
-      await tester.runAsync(() => _app(NoteScreen(api: api, note: meeting, canSummarize: true))) as Widget,
+      await tester.runAsync(() => _app(NotePage(api: api, note: meeting, canSummarize: true))) as Widget,
     );
     await tester.tap(find.text('Zusammenfassen'));
     await _settle(tester);

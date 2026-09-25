@@ -2522,7 +2522,8 @@
     "notizenSuchen": "Pesquisar notas",
     "anhangFoto": "Foto ou vídeo",
     "anhangDatei": "Ficheiro",
-    "webHinweis": "As suas notas são privadas: mais ninguém as lê. As notas de voz e as reuniões gravam-se na aplicação covey, onde a fala é reconhecida no dispositivo; aqui pode lê-las, pesquisá-las, resumi-las e escrever novas."
+    "webHinweis": "As suas notas são privadas: mais ninguém as lê. As notas de voz e as reuniões gravam-se na aplicação covey, onde a fala é reconhecida no dispositivo; aqui pode lê-las, pesquisá-las, resumi-las e escrever novas.",
+    "fertig": "OK"
   },
   "appLink": {
     "title": "Abrir na aplicação covey",

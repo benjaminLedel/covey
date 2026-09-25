@@ -199,39 +199,131 @@ String noteMeta(BuildContext context, Note n, {bool withDate = true}) {
 String dictationFailure(BuildContext context, DictationFailure? f) =>
     f == DictationFailure.denied ? context.t('mobile.mikrofonVerweigert') : context.t('mobile.keineSprache');
 
-/// A new note, typed or dictated. Dictating makes it a voice note — the kind
-/// says how it was captured, not what it is about.
-class NoteEditor extends StatefulWidget {
-  const NoteEditor({super.key, required this.api, this.dictation});
+/// A note, new or existing, edited in place the way Apple Notes edits (#343):
+/// no edit mode, no save button. What is typed is saved as it is typed — a
+/// new note comes into being with its first words, later changes are written
+/// a moment after the last key and once more when the note is left. "Fertig"
+/// puts the keyboard away. A note left completely empty is removed; it was
+/// never a note.
+///
+/// Dictating into a new note makes it a voice note — the kind says how it
+/// was captured. A meeting's summary stands above its transcript as a card;
+/// the transcript is editable like any text, so a misheard word can be
+/// corrected before summarising again.
+class NotePage extends StatefulWidget {
+  const NotePage({
+    super.key,
+    required this.api,
+    this.note,
+    this.canSummarize = false,
+    this.onChanged,
+    this.dictation,
+    this.saveDelay = const Duration(milliseconds: 700),
+  });
 
   final CoveyApi api;
+
+  /// Null for a new note.
+  final Note? note;
+  final bool canSummarize;
+
+  /// Called whenever the stored note changed — created, written, deleted —
+  /// so the list behind it can follow.
+  final VoidCallback? onChanged;
   final Dictation? dictation;
+  final Duration saveDelay;
 
   @override
-  State<NoteEditor> createState() => _NoteEditorState();
+  State<NotePage> createState() => _NotePageState();
 }
 
-class _NoteEditorState extends State<NoteEditor> {
-  final _title = TextEditingController();
-  final _body = TextEditingController();
+class _NotePageState extends State<NotePage> {
+  late Note? _note = widget.note;
+  late final _title = TextEditingController(text: widget.note?.title ?? '');
+  late final _body = TextEditingController(text: widget.note?.body ?? '');
+  final _titleFocus = FocusNode();
+  final _bodyFocus = FocusNode();
   late final Dictation _dictation = widget.dictation ?? Dictation();
+  Timer? _debounce;
+  bool _dirty = false;
   bool _spoken = false;
-  bool _saving = false;
+  bool _busy = false;
+  bool _deleted = false;
   String _before = '';
 
   @override
   void initState() {
     super.initState();
     _dictation.addListener(_onDictation);
+    _titleFocus.addListener(_focusChanged);
+    _bodyFocus.addListener(_focusChanged);
   }
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _dictation.removeListener(_onDictation);
     if (widget.dictation == null) _dictation.dispose();
+    // Leaving: an emptied note goes, anything unsaved is written. Neither
+    // is awaited — the page is gone, the requests are not.
+    if (!_deleted) {
+      if (_title.text.trim().isEmpty && _body.text.trim().isEmpty) {
+        final n = _note;
+        if (n != null) widget.api.deleteNote(n.id).then((_) => widget.onChanged?.call(), onError: (_) {});
+      } else if (_dirty) {
+        _flush();
+      }
+    }
+    _titleFocus.dispose();
+    _bodyFocus.dispose();
     _title.dispose();
     _body.dispose();
     super.dispose();
+  }
+
+  void _focusChanged() {
+    if (mounted) setState(() {});
+  }
+
+  bool get _editing => _titleFocus.hasFocus || _bodyFocus.hasFocus;
+
+  void _changed() {
+    _dirty = true;
+    _debounce?.cancel();
+    _debounce = Timer(widget.saveDelay, _flush);
+  }
+
+  /// Writes what is on the page. A body is what makes a note: until there is
+  /// text, a title alone is kept on the page and not sent.
+  Future<void> _flush() async {
+    if (!_dirty) return;
+    final title = _title.text.trim();
+    final body = _body.text.trim();
+    if (body.isEmpty) return;
+    _dirty = false;
+    final messenger = mounted ? ScaffoldMessenger.maybeOf(context) : null;
+    try {
+      final n = _note;
+      if (n == null) {
+        _note = await widget.api.createNote(kind: _spoken ? 'voice' : 'text', title: title, body: body);
+      } else if (n.title != title || n.body != body) {
+        _note = await widget.api.updateNote(n.id, title: title, body: body);
+      } else {
+        return;
+      }
+      widget.onChanged?.call();
+      if (mounted) setState(() {});
+    } on ApiException catch (e) {
+      // Not saved: it stays dirty and is tried again with the next change.
+      _dirty = true;
+      messenger?.showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
+  void _done() {
+    FocusScope.of(context).unfocus();
+    _debounce?.cancel();
+    _flush();
   }
 
   // What is dictated is appended to what was typed before.
@@ -241,16 +333,20 @@ class _NoteEditorState extends State<NoteEditor> {
       return;
     }
     final joined = [_before, _dictation.text].where((s) => s.trim().isNotEmpty).join(_before.isEmpty ? '' : ' ');
-    _body.value = TextEditingValue(
-      text: joined,
-      selection: TextSelection.collapsed(offset: joined.length),
-    );
+    if (joined != _body.text) {
+      _body.value = TextEditingValue(
+        text: joined,
+        selection: TextSelection.collapsed(offset: joined.length),
+      );
+      _changed();
+    }
     setState(() {});
   }
 
   Future<void> _toggleDictation() async {
     if (_dictation.running) {
       await _dictation.stop();
+      _changed();
       return;
     }
     _before = _body.text.trim();
@@ -258,73 +354,144 @@ class _NoteEditorState extends State<NoteEditor> {
     final failed = dictationFailure(context, DictationFailure.unavailable);
     final denied = dictationFailure(context, DictationFailure.denied);
     if (await _dictation.start()) {
-      _spoken = true;
+      if (_note == null) _spoken = true;
     } else {
       messenger.showSnackBar(SnackBar(content: Text(_dictation.failure == DictationFailure.denied ? denied : failed)));
     }
   }
 
-  Future<void> _save() async {
+  Future<void> _summarize() async {
+    final n = _note;
+    if (n == null) return;
     final messenger = ScaffoldMessenger.of(context);
-    final nav = Navigator.of(context);
-    if (_dictation.running) await _dictation.stop();
-    final body = _body.text.trim();
-    if (body.isEmpty || !mounted) return;
-    setState(() => _saving = true);
+    // What is on the page is what gets summarised.
+    await _flush();
+    if (!mounted) return;
+    setState(() => _busy = true);
     try {
-      final n = await widget.api.createNote(kind: _spoken ? 'voice' : 'text', title: _title.text.trim(), body: body);
-      nav.pop(n);
+      final s = await widget.api.summarizeNote(n.id);
+      setState(() => _note = s);
+      widget.onChanged?.call();
     } on ApiException catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
-      setState(() => _saving = false);
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _delete() async {
+    final n = _note;
+    final t = Strings.of(context).t;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(t('mobile.loeschenFrage')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(t('team.abbrechen'))),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(t('mobile.loeschen'))),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final nav = Navigator.of(context);
+    _deleted = true;
+    _debounce?.cancel();
+    if (n != null) {
+      await widget.api.deleteNote(n.id);
+      widget.onChanged?.call();
+    }
+    if (nav.canPop()) nav.pop();
   }
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
+    final n = _note;
+    final kind = n?.kind ?? (_spoken ? 'voice' : 'text');
     final listening = _dictation.running;
     return Scaffold(
       appBar: AppBar(
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: FilledButton(
-              onPressed: _saving || _body.text.trim().isEmpty ? null : _save,
-              style: FilledButton.styleFrom(minimumSize: const Size(44, 38), shape: const StadiumBorder()),
-              child: Text(context.t('mobile.speichern')),
+          if (_editing)
+            // Apple Notes' "Fertig": the keyboard goes, the note is written.
+            TextButton(onPressed: _done, child: Text(context.t('mobile.fertig')))
+          else if (n != null)
+            IconButton(
+              onPressed: _delete,
+              icon: Icon(AppIcons.delete.of(context)),
+              tooltip: context.t('mobile.loeschen'),
             ),
-          ),
+          const SizedBox(width: 8),
         ],
       ),
-      // Title and text sit on the sheet itself, as on a page — not in two
-      // form fields.
       body: SafeArea(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-              child: TextField(
-                controller: _title,
-                style: context.type.headlineSmall,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: _bare(context, context.t('mobile.titelOptional'), context.type.headlineSmall),
-              ),
-            ),
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-                child: TextField(
-                  controller: _body,
-                  autofocus: true,
-                  maxLines: null,
-                  expands: true,
-                  style: context.type.bodyLarge,
-                  textAlignVertical: TextAlignVertical.top,
-                  textCapitalization: TextCapitalization.sentences,
-                  onChanged: (_) => setState(() {}),
-                  decoration: _bare(context, context.t('mobile.notizHinweis'), context.type.bodyLarge),
-                ),
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                children: [
+                  if (n != null)
+                    Row(
+                      children: [
+                        KindMark(kind: kind),
+                        const SizedBox(width: 12),
+                        Expanded(child: Text(noteMeta(context, n), style: context.type.bodySmall)),
+                      ],
+                    ),
+                  TextField(
+                    controller: _title,
+                    focusNode: _titleFocus,
+                    style: context.type.headlineSmall,
+                    maxLines: null,
+                    textCapitalization: TextCapitalization.sentences,
+                    textInputAction: TextInputAction.next,
+                    onSubmitted: (_) => _bodyFocus.requestFocus(),
+                    onChanged: (_) => _changed(),
+                    decoration: _bare(context, context.t('mobile.titelOptional'), context.type.headlineSmall),
+                  ),
+                  if (n != null && n.summary.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(color: c.surface2, borderRadius: BorderRadius.circular(20)),
+                      child: SummaryText(n.summary),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  // Summaries are for what was spoken; a typed note is its own summary.
+                  if (widget.canSummarize && n != null && kind != 'text')
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: OutlinedButton.icon(
+                        onPressed: _busy ? null : _summarize,
+                        style: OutlinedButton.styleFrom(shape: const StadiumBorder()),
+                        icon: Icon(AppIcons.summary.of(context), size: 18, color: c.textAccent),
+                        label: Text(
+                          _busy
+                              ? context.t('common.loading')
+                              : n.summary.isEmpty
+                              ? context.t('mobile.zusammenfassen')
+                              : context.t('mobile.zusammenfassenNeu'),
+                        ),
+                      ),
+                    ),
+                  if (n != null && kind != 'text') ...[
+                    const SizedBox(height: 22),
+                    Text(context.t('mobile.transkript'), style: context.type.titleLarge),
+                  ],
+                  TextField(
+                    controller: _body,
+                    focusNode: _bodyFocus,
+                    autofocus: widget.note == null,
+                    maxLines: null,
+                    minLines: 8,
+                    style: context.type.bodyLarge,
+                    textCapitalization: TextCapitalization.sentences,
+                    onChanged: (_) => _changed(),
+                    decoration: _bare(context, context.t('mobile.notizHinweis'), context.type.bodyLarge),
+                  ),
+                ],
               ),
             ),
             Padding(
@@ -488,121 +655,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// One note: its text, and for a meeting the summary with the action items.
-class NoteScreen extends StatefulWidget {
-  const NoteScreen({super.key, required this.api, required this.note, required this.canSummarize, this.onChanged});
-
-  final CoveyApi api;
-  final Note note;
-  final bool canSummarize;
-  final VoidCallback? onChanged;
-
-  @override
-  State<NoteScreen> createState() => _NoteScreenState();
-}
-
-class _NoteScreenState extends State<NoteScreen> {
-  late Note _note = widget.note;
-  bool _busy = false;
-
-  Future<void> _summarize() async {
-    setState(() => _busy = true);
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      final n = await widget.api.summarizeNote(_note.id);
-      setState(() => _note = n);
-      widget.onChanged?.call();
-    } on ApiException catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text(e.message)));
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _delete() async {
-    final t = Strings.of(context).t;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(t('mobile.loeschenFrage')),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(t('team.abbrechen'))),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(t('mobile.loeschen'))),
-        ],
-      ),
-    );
-    if (ok != true || !mounted) return;
-    final nav = Navigator.of(context);
-    await widget.api.deleteNote(_note.id);
-    widget.onChanged?.call();
-    if (nav.canPop()) nav.pop();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.colors;
-    final n = _note;
-    return Scaffold(
-      appBar: AppBar(
-        actions: [
-          IconButton(
-            onPressed: _delete,
-            icon: Icon(AppIcons.delete.of(context)),
-            tooltip: context.t('mobile.loeschen'),
-          ),
-          const SizedBox(width: 4),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
-        children: [
-          Row(
-            children: [
-              KindMark(kind: n.kind),
-              const SizedBox(width: 12),
-              Expanded(child: Text(noteMeta(context, n), style: context.type.bodySmall)),
-            ],
-          ),
-          const SizedBox(height: 14),
-          SelectableText(n.heading, style: context.type.headlineSmall),
-          const SizedBox(height: 20),
-          if (n.summary.isNotEmpty) ...[
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(color: c.surface2, borderRadius: BorderRadius.circular(20)),
-              child: SummaryText(n.summary),
-            ),
-            const SizedBox(height: 16),
-          ],
-          // Summaries are for what was spoken; a typed note is its own summary.
-          if (widget.canSummarize && n.kind != 'text')
-            Align(
-              alignment: Alignment.centerLeft,
-              child: OutlinedButton.icon(
-                onPressed: _busy ? null : _summarize,
-                style: OutlinedButton.styleFrom(shape: const StadiumBorder()),
-                icon: Icon(AppIcons.summary.of(context), size: 18, color: c.textAccent),
-                label: Text(
-                  _busy
-                      ? context.t('common.loading')
-                      : n.summary.isEmpty
-                      ? context.t('mobile.zusammenfassen')
-                      : context.t('mobile.zusammenfassenNeu'),
-                ),
-              ),
-            ),
-          if (n.kind != 'text') ...[
-            const SizedBox(height: 28),
-            Text(context.t('mobile.transkript'), style: context.type.titleLarge),
-            const SizedBox(height: 10),
-          ],
-          SelectableText(n.body, style: context.type.bodyLarge),
-        ],
       ),
     );
   }

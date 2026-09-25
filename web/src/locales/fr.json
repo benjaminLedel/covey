@@ -2522,7 +2522,8 @@
     "notizenSuchen": "Rechercher dans les notes",
     "anhangFoto": "Photo ou vidéo",
     "anhangDatei": "Fichier",
-    "webHinweis": "Vos notes sont privées : personne d'autre ne les lit. Les notes vocales et les réunions s'enregistrent dans l'application covey, où la parole est reconnue sur l'appareil ; ici, vous les lisez, les recherchez, les résumez et en tapez de nouvelles."
+    "webHinweis": "Vos notes sont privées : personne d'autre ne les lit. Les notes vocales et les réunions s'enregistrent dans l'application covey, où la parole est reconnue sur l'appareil ; ici, vous les lisez, les recherchez, les résumez et en tapez de nouvelles.",
+    "fertig": "OK"
   },
   "appLink": {
     "title": "Ouvrir dans l'application covey",

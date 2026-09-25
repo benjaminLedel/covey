@@ -81,7 +81,7 @@ class _HomeScreenState extends State<HomeScreen> {
   );
 
   void _openNote(Note note, bool canSummarize, VoidCallback changed) => _show(
-    NoteScreen(
+    NotePage(
       key: ValueKey('note:${note.id}'),
       api: widget.api,
       note: note,
@@ -122,11 +122,17 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
     if (kind == null || !mounted) return;
-    final saved = await Navigator.of(context).push<Note>(
-      MaterialPageRoute(
-        builder: (_) => kind == 'meeting' ? MeetingScreen(api: widget.api) : NoteEditor(api: widget.api),
-      ),
-    );
+    setState(() => _space = notesIndex);
+    void reload() => _notes.currentState?.reload();
+    if (kind == 'note') {
+      // A new note is the same page as an open one, empty; it comes into
+      // being with its first words (#343).
+      _show(NotePage(key: UniqueKey(), api: widget.api, onChanged: reload));
+      return;
+    }
+    final saved = await Navigator.of(
+      context,
+    ).push<Note>(MaterialPageRoute(builder: (_) => MeetingScreen(api: widget.api)));
     if (saved == null || !mounted) return;
     setState(() => _space = notesIndex);
     await _notes.currentState?.reload();

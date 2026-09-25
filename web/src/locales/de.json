@@ -2522,7 +2522,8 @@
     "notizenSuchen": "Notizen durchsuchen",
     "anhangFoto": "Foto oder Video",
     "anhangDatei": "Datei",
-    "webHinweis": "Ihre Notizen sind privat: Niemand sonst liest sie. Sprachnotizen und Meetings nehmen Sie in der covey-App auf, wo die Sprache auf dem Gerät erkannt wird; hier lesen, durchsuchen, fassen Sie zusammen und tippen Sie."
+    "webHinweis": "Ihre Notizen sind privat: Niemand sonst liest sie. Sprachnotizen und Meetings nehmen Sie in der covey-App auf, wo die Sprache auf dem Gerät erkannt wird; hier lesen, durchsuchen, fassen Sie zusammen und tippen Sie.",
+    "fertig": "Fertig"
   },
   "appLink": {
     "title": "In der covey-App öffnen",
