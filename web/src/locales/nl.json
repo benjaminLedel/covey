@@ -2562,7 +2562,14 @@
     "sprachHinweis": "Spraak wordt op dit apparaat herkend, met een model van uw covey-instantie. Er verlaat geen audio de telefoon.",
     "hoertZu": "Luistert …",
     "anhalten": "Stoppen",
-    "zuhoeren": "Luisteren"
+    "zuhoeren": "Luisteren",
+    "instanzLaedtModell": "Uw covey-instantie haalt het model op: {{pct}} %",
+    "vorgabe": "Standaard",
+    "modellWahlHinweis": "Grotere modellen herkennen nauwkeuriger, maar nemen meer ruimte in en reageren trager op de telefoon.",
+    "modell_tiny": "Snelst, minst nauwkeurig",
+    "modell_base": "Gebalanceerd",
+    "modell_small": "Nauwkeuriger, kost meer tijd en ruimte",
+    "modell_medium": "Het nauwkeurigst, traag op de telefoon"
   },
   "appLink": {
     "title": "Openen in de covey-app",

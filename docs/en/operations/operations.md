@@ -47,7 +47,8 @@ Only for an installation that ships the covey app under its own host — app.cov
 
 The app's dictation and meeting notes run on whisper.cpp on the phone; the model comes from the instance. At startup covey fetches it once from a pinned address (Hugging Face, `ggerganov/whisper.cpp`), verifies it against a pinned SHA-256 and keeps it under `COVEY_DATA_DIR/models`. Apps download it from `/api/v1/speech/model/file` the first time somebody dictates.
 
-- `COVEY_SPEECH_MODEL` — `tiny` (78 MB), `base` (148 MB, the default), `small` (488 MB), `medium` (1.5 GB) or `off`
+- `COVEY_SPEECH_MODEL` — the default: `tiny` (78 MB), `base` (148 MB, the default), `small` (488 MB), `medium` (1.5 GB) or `off`
+- `COVEY_SPEECH_MODELS` — the further models a person may pick in the app's settings, comma-separated; default `tiny,base,small`. Each is fetched the first time somebody picks it. `medium` recognises best but is slow on a phone's CPU.
 
 Without internet access, place `ggml-<name>.bin` in `COVEY_DATA_DIR/models` yourself; it is verified the same way, and a file with another digest is removed rather than served.
 

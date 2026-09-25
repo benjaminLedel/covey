@@ -75,6 +75,10 @@ type Config struct {
 	// installation without internet access places ggml-<name>.bin there
 	// itself.
 	SpeechModel string
+	// SpeechModels are the further models a person may pick in the app
+	// (COVEY_SPEECH_MODELS, comma-separated, default tiny,base,small). Each
+	// is fetched the first time somebody picks it (#351).
+	SpeechModels []string
 
 	// CookieSecure sets the Secure flag on the session cookie (delivered over
 	// HTTPS only). Default: derived automatically from the PublicURL scheme
@@ -329,6 +333,7 @@ func FromEnv() (Config, error) {
 		SandboxProvider:    getenv("COVEY_SANDBOX_PROVIDER", "docker"),
 		DataDir:            getenv("COVEY_DATA_DIR", "./data"),
 		SpeechModel:        strings.TrimSpace(getenv("COVEY_SPEECH_MODEL", "base")),
+		SpeechModels:       splitList(getenv("COVEY_SPEECH_MODELS", "tiny,base,small")),
 		SandboxImageEnv:    sandboxImageEnv(),
 		RunnerDownloadBase: getenv("COVEY_RUNNER_DOWNLOAD_BASE", ""),
 		SandboxCatalogURL:  getenv("COVEY_SANDBOX_CATALOG_URL", sandbox.DefaultCatalogURL()),

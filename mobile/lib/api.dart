@@ -231,14 +231,19 @@ class CoveyApi {
 
   /// The speech model this instance offers (#348): name, digest, size, and
   /// whether it can be fetched yet. `enabled: false` means speech is off here.
-  Future<SpeechModelInfo> speechModel() async =>
-      SpeechModelInfo.fromJson(await get('/speech/model') as Map<String, dynamic>);
+  /// [name] asks about one of the offered models (#351) — and makes the
+  /// instance fetch it when it does not have it yet.
+  Future<SpeechModelInfo> speechModel({String? name}) async => SpeechModelInfo.fromJson(
+    await get(name == null ? '/speech/model' : '/speech/model?name=${Uri.encodeQueryComponent(name)}')
+        as Map<String, dynamic>,
+  );
 
   /// The model file, from byte [from] on — a download cut off by a lost
   /// connection resumes rather than starting the 150 MB again. No timeout on
   /// the body: it takes as long as the network takes.
-  Future<http.StreamedResponse> speechModelFile({int from = 0}) async {
-    final req = http.Request('GET', _url('/speech/model/file'))
+  Future<http.StreamedResponse> speechModelFile({String? name, int from = 0}) async {
+    final path = name == null ? '/speech/model/file' : '/speech/model/file?name=${Uri.encodeQueryComponent(name)}';
+    final req = http.Request('GET', _url(path))
       ..headers.addAll({..._headers, 'Accept': 'application/octet-stream', if (from > 0) 'Range': 'bytes=$from-'});
     final http.StreamedResponse res;
     try {
@@ -261,7 +266,8 @@ class CoveyApi {
   }
 }
 
-/// What `GET /speech/model` answers (#348).
+/// What `GET /speech/model` answers (#348, #351): one model's state at the
+/// top level, and every model the instance offers under [models].
 class SpeechModelInfo {
   const SpeechModelInfo({
     required this.enabled,
@@ -269,16 +275,26 @@ class SpeechModelInfo {
     this.sha256 = '',
     this.size = 0,
     this.ready = false,
+    this.fetching = false,
+    this.received = 0,
     this.error,
+    this.defaultName = '',
+    this.models = const [],
   });
 
   factory SpeechModelInfo.fromJson(Map<String, dynamic> j) => SpeechModelInfo(
-    enabled: j['enabled'] == true,
+    enabled: j['enabled'] != false,
     name: j['name'] as String? ?? '',
     sha256: j['sha256'] as String? ?? '',
     size: (j['size'] as num?)?.toInt() ?? 0,
     ready: j['ready'] == true,
+    fetching: j['fetching'] == true,
+    received: (j['received'] as num?)?.toInt() ?? 0,
     error: j['error'] as String?,
+    defaultName: j['default'] as String? ?? j['name'] as String? ?? '',
+    models: [
+      for (final m in (j['models'] as List<dynamic>? ?? const [])) SpeechModelInfo.fromJson(m as Map<String, dynamic>),
+    ],
   );
 
   final bool enabled;
@@ -286,5 +302,13 @@ class SpeechModelInfo {
   final String sha256;
   final int size;
   final bool ready;
+
+  /// The instance is downloading this model right now; [received] bytes so far.
+  final bool fetching;
+  final int received;
   final String? error;
+
+  /// The instance's default model.
+  final String defaultName;
+  final List<SpeechModelInfo> models;
 }

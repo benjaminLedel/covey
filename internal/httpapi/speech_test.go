@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,7 +21,7 @@ func TestSpeechModelIsServedOnlyOnceVerified(t *testing.T) {
 		Model: speech.Model{Name: "test", URL: "http://127.0.0.1:1/unreachable", SHA256: hex.EncodeToString(sum[:]), Size: int64(len(weights))},
 		Dir:   t.TempDir(),
 	}
-	s := &Server{Speech: store}
+	s := &Server{Speech: speech.SetOf(store)}
 
 	info := func() map[string]any {
 		w := httptest.NewRecorder()
@@ -82,5 +83,43 @@ func TestSpeechOffSaysSo(t *testing.T) {
 	s.handleSpeechModel(w, httptest.NewRequest(http.MethodGet, "/api/v1/speech/model", nil))
 	if w.Body.String() != "{\"enabled\":false}\n" {
 		t.Fatalf("off = %q", w.Body.String())
+	}
+}
+
+func TestSpeechModelsAreListedAndPickedByName(t *testing.T) {
+	set, err := speech.NewSet("base", []string{"tiny", "small"}, t.TempDir(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Asking about a model starts its fetch: nowhere, in a test.
+	for _, n := range set.Names {
+		st, _ := set.Get(n)
+		st.Model.URL = "http://127.0.0.1:1/unreachable"
+	}
+	s := &Server{Speech: set}
+	get := func(q string) (int, map[string]any) {
+		w := httptest.NewRecorder()
+		s.handleSpeechModel(w, httptest.NewRequest(http.MethodGet, "/api/v1/speech/model"+q, nil))
+		out := map[string]any{}
+		_ = json.Unmarshal(w.Body.Bytes(), &out)
+		return w.Code, out
+	}
+	_, def := get("")
+	if def["name"] != "base" || def["default"] != "base" {
+		t.Fatalf("default = %v", def)
+	}
+	models, _ := def["models"].([]any)
+	var names []string
+	for _, m := range models {
+		names = append(names, m.(map[string]any)["name"].(string))
+	}
+	if strings.Join(names, ",") != "tiny,base,small" {
+		t.Fatalf("models = %v, want smallest first", names)
+	}
+	if _, small := get("?name=small"); small["name"] != "small" || small["size"] != float64(speech.Models["small"].Size) {
+		t.Fatalf("small = %v", small)
+	}
+	if code, _ := get("?name=medium"); code != http.StatusNotFound {
+		t.Fatalf("a model not offered: %d", code)
 	}
 }

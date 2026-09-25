@@ -2562,7 +2562,14 @@
     "sprachHinweis": "音声はこの端末上で、covey インスタンスから取得したモデルで認識されます。音声が端末の外に出ることはありません。",
     "hoertZu": "聞き取り中 …",
     "anhalten": "停止",
-    "zuhoeren": "聞き取る"
+    "zuhoeren": "聞き取る",
+    "instanzLaedtModell": "covey インスタンスがモデルを取得中: {{pct}} %",
+    "vorgabe": "既定",
+    "modellWahlHinweis": "大きいモデルほど認識は正確ですが、容量を多く使い、端末での反応が遅くなります。",
+    "modell_tiny": "最速・精度は最も低い",
+    "modell_base": "バランス型",
+    "modell_small": "より正確・時間と容量が必要",
+    "modell_medium": "最も正確・端末では低速"
   },
   "appLink": {
     "title": "covey アプリで開く",

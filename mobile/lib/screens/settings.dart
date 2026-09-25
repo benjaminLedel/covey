@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
@@ -48,8 +50,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _model.addListener(_changed);
-    _model.loadLanguage();
-    _model.refresh(widget.api);
+    _model.loadPrefs().then((_) => _model.refresh(widget.api));
   }
 
   @override
@@ -69,13 +70,86 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (_model.problem == SpeechModelProblem.off) return context.t('mobile.spracheAus');
     if (i == null) return context.t('common.loading');
     final name = 'Whisper ${i.name} · ${_mb(i.size)}';
-    if (_model.downloading) {
-      final p = _model.progress;
-      return '$name · ${p == null ? '…' : '${(p * 100).floor()} %'}';
-    }
+    final p = _model.progress;
+    final pct = p == null ? '…' : '${(p * 100).floor()} %';
+    if (_model.onInstance) return context.t('mobile.instanzLaedtModell', args: {'pct': pct});
+    if (_model.downloading) return '$name · $pct';
     if (_model.onDevice) return context.t('mobile.modellAufGeraet', args: {'name': name});
     if (_model.problem != null && _model.detail != null) return '$name · ${_model.detail}';
     return context.t('mobile.modellNichtGeladen', args: {'name': name});
+  }
+
+  /// The models the instance offers, smallest first, each with what it is
+  /// good for; picking one starts its download right away.
+  Future<void> _pickModel() async {
+    final i = _model.info;
+    if (i == null || i.models.isEmpty) return;
+    final current = _model.chosen ?? i.defaultName;
+    String label(SpeechModelInfo m) {
+      final name = 'Whisper ${m.name} · ${_mb(m.size)}';
+      return m.name == i.defaultName ? '$name (${context.t('mobile.vorgabe')})' : name;
+    }
+
+    String? picked;
+    if (isApple(context)) {
+      await showCupertinoModalPopup<void>(
+        context: context,
+        builder: (context) => CupertinoActionSheet(
+          title: Text(context.t('mobile.sprachmodell')),
+          message: Text(context.t('mobile.modellWahlHinweis')),
+          actions: [
+            for (final m in i.models)
+              CupertinoActionSheetAction(
+                isDefaultAction: m.name == current,
+                onPressed: () {
+                  picked = m.name;
+                  Navigator.pop(context);
+                },
+                child: Column(
+                  children: [
+                    Text(label(m)),
+                    Text(
+                      context.t('mobile.modell_${m.name}'),
+                      style: context.type.bodySmall?.copyWith(color: context.colors.textMuted),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+          cancelButton: CupertinoActionSheetAction(
+            onPressed: () => Navigator.pop(context),
+            child: Text(context.t('team.abbrechen')),
+          ),
+        ),
+      );
+    } else {
+      await showModalBottomSheet<void>(
+        context: context,
+        builder: (context) => SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              for (final m in i.models)
+                ListTile(
+                  title: Text(label(m)),
+                  subtitle: Text(context.t('mobile.modell_${m.name}')),
+                  trailing: m.name == current ? const Icon(Icons.check_rounded) : null,
+                  onTap: () {
+                    picked = m.name;
+                    Navigator.pop(context);
+                  },
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+    final name = picked;
+    if (name == null || name == current) return;
+    await _model.choose(name == i.defaultName ? null : name);
+    // Fetched now, not at the next dictation: that is what somebody who
+    // just picked a model expects to see happen.
+    unawaited(_model.ensure(widget.api).then((_) => _model.refresh(widget.api)));
   }
 
   Future<void> _pickLanguage() async {
@@ -197,6 +271,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               GroupRow(
                 title: context.t('mobile.sprachmodell'),
                 subtitle: _modelLine(context),
+                onTap: (_model.info?.models.length ?? 0) > 1 ? _pickModel : null,
                 tabularSubtitle: true,
                 trailing: _model.problem == SpeechModelProblem.off || _model.info == null || _model.downloading
                     ? null
@@ -321,10 +396,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> {
                       failed
                           ? dictationFailure(context, _d.failure, _d.detail)
                           : _d.preparing
-                          ? context.t(
-                              'mobile.sprachmodellLaedt',
-                              args: {'pct': _d.progress == null ? '…' : (_d.progress! * 100).floor()},
-                            )
+                          ? modelLoadingText(context, _d)
                           : text.isEmpty
                           ? (_d.running ? context.t('mobile.hoertZu') : context.t('mobile.nochNichtsGehoert'))
                           : text,

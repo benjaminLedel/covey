@@ -89,8 +89,7 @@ class DictationPreview extends StatelessWidget {
         final String line;
         final TextStyle? style;
         if (d.preparing) {
-          final p = d.progress;
-          line = context.t('mobile.sprachmodellLaedt', args: {'pct': p == null ? '…' : (p * 100).floor()});
+          line = modelLoadingText(context, d);
           style = context.type.bodyMedium;
         } else if (text.isEmpty) {
           line = context.t('mobile.hoertZu');
@@ -154,4 +153,12 @@ String tail(String text, int chars) {
   final cut = text.substring(text.length - chars);
   final space = cut.indexOf(' ');
   return '…${space >= 0 ? cut.substring(space) : cut}';
+}
+
+/// What the dictation says while its model is on the way: first to the
+/// instance, then to the phone.
+String modelLoadingText(BuildContext context, Dictation d) {
+  final p = d.progress;
+  final pct = p == null ? '…' : (p * 100).floor();
+  return context.t(d.modelOnInstance ? 'mobile.instanzLaedtModell' : 'mobile.sprachmodellLaedt', args: {'pct': pct});
 }

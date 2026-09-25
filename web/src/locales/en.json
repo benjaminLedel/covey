@@ -2562,7 +2562,14 @@
     "sprachHinweis": "Speech is recognised on this device, with a model from your covey instance. No audio leaves the phone.",
     "hoertZu": "Listening …",
     "anhalten": "Stop",
-    "zuhoeren": "Listen"
+    "zuhoeren": "Listen",
+    "instanzLaedtModell": "Your covey instance is fetching the model: {{pct}} %",
+    "vorgabe": "Default",
+    "modellWahlHinweis": "Larger models recognise more accurately, but need more storage and respond more slowly on the phone.",
+    "modell_tiny": "Fastest, least accurate",
+    "modell_base": "Balanced",
+    "modell_small": "More accurate, needs more time and storage",
+    "modell_medium": "Most accurate, slow on the phone"
   },
   "appLink": {
     "title": "Open in the covey app",

@@ -2562,7 +2562,14 @@
     "sprachHinweis": "A voz é reconhecida neste dispositivo, com um modelo da sua instância covey. Nenhum áudio sai do telefone.",
     "hoertZu": "A ouvir …",
     "anhalten": "Parar",
-    "zuhoeren": "Ouvir"
+    "zuhoeren": "Ouvir",
+    "instanzLaedtModell": "A sua instância covey está a obter o modelo: {{pct}} %",
+    "vorgabe": "Predefinido",
+    "modellWahlHinweis": "Modelos maiores reconhecem com mais precisão, mas ocupam mais espaço e respondem mais devagar no telefone.",
+    "modell_tiny": "O mais rápido, o menos preciso",
+    "modell_base": "Equilibrado",
+    "modell_small": "Mais preciso, precisa de mais tempo e espaço",
+    "modell_medium": "O mais preciso, lento no telefone"
   },
   "appLink": {
     "title": "Abrir na aplicação covey",

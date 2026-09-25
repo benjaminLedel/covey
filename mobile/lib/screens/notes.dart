@@ -213,12 +213,6 @@ String dictationFailure(BuildContext context, DictationFailure? f, [String? deta
   return plain ? base : '$base ($detail)';
 }
 
-/// What the dictation says while it fetches its model, the first time.
-String modelLoading(BuildContext context, Dictation d) {
-  final p = d.progress;
-  return context.t('mobile.sprachmodellLaedt', args: {'pct': p == null ? '…' : (p * 100).floor()});
-}
-
 /// A note, new or existing, edited in place the way Apple Notes edits (#343):
 /// no edit mode, no save button. What is typed is saved as it is typed — a
 /// new note comes into being with its first words, later changes are written
@@ -685,7 +679,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
                       _dictation.running
                           ? context.t('mobile.meetingLaeuft')
                           : _dictation.preparing
-                          ? modelLoading(context, _dictation)
+                          ? modelLoadingText(context, _dictation)
                           : context.t('common.loading'),
                       style: context.type.labelLarge?.copyWith(color: c.textSecondary),
                     ),

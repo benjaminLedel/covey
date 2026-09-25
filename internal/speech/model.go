@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -52,6 +53,10 @@ type Store struct {
 	Client *http.Client
 	Log    *slog.Logger
 
+	// received counts the bytes of a running fetch, for the progress the
+	// app shows while the instance is still downloading.
+	received atomic.Int64
+
 	mu       sync.Mutex
 	fetching bool
 	verified bool
@@ -80,6 +85,9 @@ func (s *Store) Status() (ready bool, fetching bool, lastErr error) {
 	defer s.mu.Unlock()
 	return s.verified, s.fetching, s.lastErr
 }
+
+// Received is how much of the model a running fetch has downloaded.
+func (s *Store) Received() int64 { return s.received.Load() }
 
 // Ensure makes the model available: a file already on disk is verified once;
 // a missing one is fetched in the background. It returns at once — the
@@ -145,7 +153,8 @@ func (s *Store) fetch(ctx context.Context) error {
 	}
 	defer os.Remove(tmp.Name())
 	h := sha256.New()
-	n, err := io.Copy(io.MultiWriter(tmp, h), io.LimitReader(resp.Body, s.Model.Size+1))
+	s.received.Store(0)
+	n, err := io.Copy(io.MultiWriter(tmp, h, progress{&s.received}), io.LimitReader(resp.Body, s.Model.Size+1))
 	if cerr := tmp.Close(); err == nil {
 		err = cerr
 	}
@@ -175,4 +184,12 @@ func verifyFile(path, want string) error {
 		return fmt.Errorf("%s: sha256 %s, expected %s", filepath.Base(path), got, want)
 	}
 	return nil
+}
+
+// progress counts what passes through it.
+type progress struct{ n *atomic.Int64 }
+
+func (p progress) Write(b []byte) (int, error) {
+	p.n.Add(int64(len(b)))
+	return len(b), nil
 }

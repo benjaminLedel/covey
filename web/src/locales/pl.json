@@ -2562,7 +2562,14 @@
     "sprachHinweis": "Mowa jest rozpoznawana na tym urządzeniu, modelem z Twojej instancji covey. Żaden dźwięk nie opuszcza telefonu.",
     "hoertZu": "Słucham …",
     "anhalten": "Zatrzymaj",
-    "zuhoeren": "Słuchaj"
+    "zuhoeren": "Słuchaj",
+    "instanzLaedtModell": "Twoja instancja covey pobiera model: {{pct}} %",
+    "vorgabe": "Domyślny",
+    "modellWahlHinweis": "Większe modele rozpoznają dokładniej, ale zajmują więcej miejsca i działają wolniej na telefonie.",
+    "modell_tiny": "Najszybszy, najmniej dokładny",
+    "modell_base": "Zrównoważony",
+    "modell_small": "Dokładniejszy, wymaga więcej czasu i miejsca",
+    "modell_medium": "Najdokładniejszy, wolny na telefonie"
   },
   "appLink": {
     "title": "Otwórz w aplikacji covey",

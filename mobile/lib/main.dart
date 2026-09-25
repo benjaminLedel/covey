@@ -13,6 +13,7 @@ import 'profile.dart';
 import 'screens/connect.dart';
 import 'screens/home.dart';
 import 'screens/thread.dart';
+import 'speech_model.dart';
 import 'splash.dart';
 import 'theme.dart';
 
@@ -163,6 +164,8 @@ class _CoveyAppState extends State<CoveyApp> {
     final strings = await Strings.load(locale);
     // Dates in the notes are written in the person's language (#336).
     await initializeDateFormatting();
+    // The speech model and language picked in settings (#351).
+    unawaited(SpeechModel.instance.loadPrefs());
     var saved = await widget.profiles.read();
     // A developer build (debug, or profile — which starts on a phone without
     // a debugger) can be pointed at an instance from the command line —

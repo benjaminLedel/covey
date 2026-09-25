@@ -14,7 +14,7 @@ enum SpeechModelProblem {
   /// The instance offers no model: speech is switched off there.
   off,
 
-  /// The instance is still fetching it (the first minutes after an install).
+  /// The instance could not fetch it (yet).
   notReady,
 
   /// Fetching from the instance failed, or the file was not what the digest
@@ -22,14 +22,18 @@ enum SpeechModelProblem {
   failed,
 }
 
-/// The Whisper model on the phone (#348). It comes from the covey instance,
-/// once, and is kept under the app's support directory by its digest: a new
-/// model on the instance is a new digest and a new download, the old file
-/// goes. What was downloaded is verified against the digest the instance
+/// The Whisper model on the phone (#348, #351). It comes from the covey
+/// instance, once, and is kept under the app's support directory by its
+/// digest. What was downloaded is verified against the digest the instance
 /// names before whisper.cpp ever opens it.
 ///
+/// The instance may offer several models; which one is used is the person's
+/// choice ([chosen], null: the instance's default). Only the one in use is
+/// kept: switching downloads the new one and removes the old one once the
+/// new one is verified.
+///
 /// One per app: the file is shared by dictation in notes and meetings, and
-/// two downloads of 150 MB at once would be one too many.
+/// two downloads of hundreds of MB at once would be one too many.
 class SpeechModel extends ChangeNotifier {
   SpeechModel._();
 
@@ -38,58 +42,85 @@ class SpeechModel extends ChangeNotifier {
   String? _path;
   Future<String?>? _running;
 
-  /// Bytes fetched so far and expected, while downloading.
+  /// Bytes fetched so far and expected, while the phone downloads.
   int received = 0;
   int total = 0;
   bool downloading = false;
+
+  /// While the instance itself is still fetching the model: its progress.
+  bool onInstance = false;
+  int instanceReceived = 0;
+
   SpeechModelProblem? problem;
   String? detail;
 
-  /// What the instance said last: which model, how large.
+  /// What the instance said last: the models it offers and their state.
   SpeechModelInfo? info;
 
-  /// Whether the model is on this device.
+  /// Whether the model in use is on this device.
   bool get onDevice => _path != null;
+
+  /// The model picked in settings; null follows the instance's default.
+  String? chosen;
 
   /// The language whisper listens for; null follows the app's language.
   String? language;
+
   static const _languageKey = 'speech.language';
+  static const _modelKey = 'speech.model';
   final _prefs = const FlutterSecureStorage();
 
-  Future<void> loadLanguage() async {
+  Future<void> loadPrefs() async {
     try {
       language = await _prefs.read(key: _languageKey);
+      chosen = await _prefs.read(key: _modelKey);
     } catch (_) {
-      language = null;
+      // Unreadable: the defaults.
     }
     notifyListeners();
+  }
+
+  Future<void> _save(String key, String? value) async {
+    try {
+      if (value == null) {
+        await _prefs.delete(key: key);
+      } else {
+        await _prefs.write(key: key, value: value);
+      }
+    } catch (_) {
+      // Kept for this run.
+    }
   }
 
   Future<void> setLanguage(String? lang) async {
     language = lang;
     notifyListeners();
-    try {
-      if (lang == null) {
-        await _prefs.delete(key: _languageKey);
-      } else {
-        await _prefs.write(key: _languageKey, value: lang);
-      }
-    } catch (_) {
-      // Kept for this run; the next start follows the app again.
-    }
+    await _save(_languageKey, lang);
   }
 
-  /// Asks the instance what it offers and looks whether that is already on
-  /// the device — without downloading anything.
+  /// Picks a model; the next [ensure] fetches it.
+  Future<void> choose(String? name) async {
+    chosen = name;
+    _path = null;
+    problem = null;
+    detail = null;
+    notifyListeners();
+    await _save(_modelKey, name);
+  }
+
+  Future<Directory> _dir() async => Directory('${(await getApplicationSupportDirectory()).path}/speech');
+
+  /// Asks the instance what it offers and looks whether the model in use is
+  /// already on the device — without downloading anything.
   Future<void> refresh(CoveyApi api) async {
     try {
-      final i = await api.speechModel();
+      final i = await _ask(api);
       info = i;
-      if (i.enabled) {
-        final f = File(await _file(i));
-        if (await f.exists() && await f.length() == i.size) _path = f.path;
-      }
       problem = i.enabled ? null : SpeechModelProblem.off;
+      if (i.enabled) {
+        final f = File('${(await _dir()).path}/${i.sha256}.bin');
+        _path = await f.exists() && await f.length() == i.size ? f.path : null;
+      }
     } on ApiException catch (e) {
       problem = SpeechModelProblem.failed;
       detail = e.message;
@@ -97,19 +128,35 @@ class SpeechModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// The model in use, as the instance describes it. A chosen model the
+  /// instance no longer offers falls back to its default.
+  Future<SpeechModelInfo> _ask(CoveyApi api) async {
+    final name = chosen;
+    if (name == null) return api.speechModel();
+    try {
+      return await api.speechModel(name: name);
+    } on ApiException catch (e) {
+      if (e.status != 404) rethrow;
+      await choose(null);
+      return api.speechModel();
+    }
+  }
+
   /// Removes the model from the device; the next dictation fetches it again.
   Future<void> remove() async {
     _path = null;
-    final dir = Directory('${(await getApplicationSupportDirectory()).path}/speech');
+    final dir = await _dir();
     if (await dir.exists()) await dir.delete(recursive: true);
     notifyListeners();
   }
 
-  Future<String> _file(SpeechModelInfo i) async =>
-      '${(await getApplicationSupportDirectory()).path}/speech/${i.sha256}.bin';
-
-  /// The fraction downloaded, 0–1, or null when nothing is being fetched.
-  double? get progress => downloading && total > 0 ? received / total : null;
+  /// The fraction downloaded, 0–1: of the instance's fetch while it runs,
+  /// then of the phone's. Null when nothing is being fetched.
+  double? get progress {
+    final size = info?.size ?? 0;
+    if (onInstance && size > 0) return instanceReceived / size;
+    return downloading && total > 0 ? received / total : null;
+  }
 
   /// Where the verified model lies, fetching it first when it is not there.
   /// Null with [problem] set when it cannot be had now.
@@ -121,22 +168,41 @@ class SpeechModel extends ChangeNotifier {
   Future<String?> _ensure(CoveyApi api) async {
     problem = null;
     detail = null;
-    final SpeechModelInfo info;
+    SpeechModelInfo info;
     try {
-      info = await api.speechModel();
+      info = await _ask(api);
     } on ApiException catch (e) {
       return _fail(SpeechModelProblem.failed, e.message);
     }
     this.info = info;
     if (!info.enabled) return _fail(SpeechModelProblem.off, null);
 
-    final dir = Directory('${(await getApplicationSupportDirectory()).path}/speech');
+    final dir = await _dir();
     await dir.create(recursive: true);
     final file = File('${dir.path}/${info.sha256}.bin');
     if (await file.exists() && await file.length() == info.size) {
       _path = file.path;
       notifyListeners();
       return _path;
+    }
+
+    // A model somebody just picked may still be on its way to the
+    // instance: wait for it there, with its progress, rather than failing.
+    if (!info.ready && info.fetching) {
+      onInstance = true;
+      try {
+        while (!info.ready && info.fetching) {
+          instanceReceived = info.received;
+          notifyListeners();
+          await Future<void>.delayed(const Duration(seconds: 2));
+          info = await _ask(api);
+          this.info = info;
+        }
+      } on ApiException catch (e) {
+        return _fail(SpeechModelProblem.failed, e.message);
+      } finally {
+        onInstance = false;
+      }
     }
     if (!info.ready) {
       return _fail(info.error == null ? SpeechModelProblem.notReady : SpeechModelProblem.failed, info.error);
@@ -148,7 +214,7 @@ class SpeechModel extends ChangeNotifier {
     received = await part.exists() ? await part.length() : 0;
     notifyListeners();
     try {
-      await _download(api, part);
+      await _download(api, info.name, part);
       final sum = await Isolate.run(() => _sha256(part.path));
       if (sum != info.sha256) {
         await part.delete();
@@ -171,12 +237,12 @@ class SpeechModel extends ChangeNotifier {
     }
   }
 
-  Future<void> _download(CoveyApi api, File part) async {
+  Future<void> _download(CoveyApi api, String name, File part) async {
     if (received >= total) {
       // A complete leftover: nothing to fetch, the digest decides.
       return;
     }
-    final res = await api.speechModelFile(from: received);
+    final res = await api.speechModelFile(name: name, from: received);
     if (res.statusCode == 200 && received > 0) {
       // The instance ignored the range: start over.
       received = 0;

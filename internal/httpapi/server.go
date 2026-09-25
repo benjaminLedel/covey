@@ -70,9 +70,9 @@ type Server struct {
 	// Media holds a person's media — the pictures in notes (#344). Nil means
 	// the builtin Postgres store. Not Blobs, the home store below.
 	Media mediastore.Store
-	// Speech is the Whisper model the app recognises speech with (#348,
-	// speech.go). Nil: speech is off on this instance.
-	Speech   *speech.Store
+	// Speech is the Whisper models the app recognises speech with (#348,
+	// #351, speech.go). Nil: speech is off on this instance.
+	Speech   *speech.Set
 	Obs      *observability.Store
 	Rails    *guardrails.Store
 	Secrets  secrets.Store

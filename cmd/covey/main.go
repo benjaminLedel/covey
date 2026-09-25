@@ -1428,16 +1428,18 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	}
 	// The speech model the app transcribes with (#348): verified, or fetched
 	// in the background, so the first app asking finds it ready.
-	speechStore, err := speech.New(cfg.SpeechModel, cfg.DataDir, log)
+	speechSet, err := speech.NewSet(cfg.SpeechModel, cfg.SpeechModels, cfg.DataDir, log)
 	if err != nil {
 		return err
 	}
-	if speechStore != nil {
-		speechStore.Ensure()
+	if speechSet != nil {
+		if st, err := speechSet.Get(""); err == nil {
+			st.Ensure()
+		}
 	}
 	srv := &httpapi.Server{
 		BaseCtx: ctx,
-		Speech:  speechStore,
+		Speech:  speechSet,
 		Audit:   auditStore,
 		Pool:    pool, Registry: registry, Backlog: backlogStore, Obs: obs,
 		Chat:  chat.New(pool),

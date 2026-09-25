@@ -2562,7 +2562,14 @@
     "sprachHinweis": "语音在此设备上识别，使用来自您的 covey 实例的模型。音频不会离开手机。",
     "hoertZu": "正在聆听 …",
     "anhalten": "停止",
-    "zuhoeren": "聆听"
+    "zuhoeren": "聆听",
+    "instanzLaedtModell": "您的 covey 实例正在获取模型：{{pct}} %",
+    "vorgabe": "默认",
+    "modellWahlHinweis": "模型越大识别越准确，但占用更多存储空间，在手机上反应也更慢。",
+    "modell_tiny": "最快，准确度最低",
+    "modell_base": "均衡",
+    "modell_small": "更准确，需要更多时间和存储空间",
+    "modell_medium": "最准确，在手机上较慢"
   },
   "appLink": {
     "title": "在 covey 应用中打开",

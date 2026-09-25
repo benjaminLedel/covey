@@ -316,6 +316,10 @@ class Dictation extends ChangeNotifier {
   /// The model download's fraction, 0–1, while [preparing].
   double? get progress => _model.progress;
 
+  /// Whether the instance itself is still fetching the model — before the
+  /// phone can download it.
+  bool get modelOnInstance => _model.onInstance;
+
   /// How loud the microphone is right now, 0–1, while [running].
   double level = 0;
   DateTime _levelAt = DateTime.fromMillisecondsSinceEpoch(0);
