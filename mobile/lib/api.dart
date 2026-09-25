@@ -17,16 +17,28 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
+/// Loopback, the private IPv4 ranges and mDNS names: the machines a
+/// developer's phone can reach on the desk.
+bool isLocalHost(String host) {
+  if (host == 'localhost' || host.endsWith('.local')) return true;
+  final p = host.split('.').map(int.tryParse).toList();
+  if (p.length != 4 || p.contains(null)) return false;
+  final (a, b) = (p[0]!, p[1]!);
+  return a == 127 || a == 10 || (a == 172 && b >= 16 && b <= 31) || (a == 192 && b == 168);
+}
+
 /// Checks and normalises the address a person typed. HTTPS only (spec/27);
-/// the one exception is a loopback address in a debug build, which is how the
-/// app is developed against `make run`.
+/// the one exception is a developer build (debug or profile — a profile
+/// build is what starts on a phone without a debugger attached) talking to
+/// the developer's own machine
+/// — loopback, or a private network address, which is how a phone reaches
+/// `make run` on the Mac beside it (#345). Release builds never accept http.
 Uri parseInstance(String input) {
   var s = input.trim();
   if (!s.contains('://')) s = 'https://$s';
   final uri = Uri.tryParse(s);
   if (uri == null || uri.host.isEmpty) throw const FormatException('address');
-  final loopback = {'localhost', '127.0.0.1', '10.0.2.2'}.contains(uri.host);
-  if (uri.scheme != 'https' && !(kDebugMode && loopback && uri.scheme == 'http')) {
+  if (uri.scheme != 'https' && !(!kReleaseMode && uri.scheme == 'http' && isLocalHost(uri.host))) {
     throw const FormatException('https');
   }
   // Built anew rather than with Uri.replace: there a null query means "keep

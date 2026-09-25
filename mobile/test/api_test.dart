@@ -18,6 +18,14 @@ void main() {
       );
     });
 
+    test('a debug build accepts http on the local network, nowhere else (#345)', () {
+      expect(parseInstance('http://192.168.1.20:8494').toString(), 'http://192.168.1.20:8494');
+      expect(parseInstance('http://10.0.2.2:8494').host, '10.0.2.2');
+      expect(parseInstance('http://mac.local:8494').host, 'mac.local');
+      expect(() => parseInstance('http://172.32.0.1'), throwsFormatException);
+      expect(() => parseInstance('http://8.8.8.8'), throwsFormatException);
+    });
+
     test('refuses plain http outside loopback (spec/27: HTTPS only)', () {
       expect(() => parseInstance('http://covey.example.org'), throwsFormatException);
       expect(() => parseInstance(''), throwsFormatException);

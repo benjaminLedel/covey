@@ -164,7 +164,8 @@ class _CoveyAppState extends State<CoveyApp> {
     // Dates in the notes are written in the person's language (#336).
     await initializeDateFormatting();
     var saved = await widget.profiles.read();
-    // A debug build can be pointed at an instance from the command line —
+    // A developer build (debug, or profile — which starts on a phone without
+    // a debugger) can be pointed at an instance from the command line —
     // `flutter run --dart-define=COVEY_INSTANCE=http://localhost:8494
     // --dart-define=COVEY_KEY=covey_…` — so working on the app against
     // `make run` does not start at the connect screen every time. Release
@@ -172,7 +173,7 @@ class _CoveyAppState extends State<CoveyApp> {
     // forbids.
     const devInstance = String.fromEnvironment('COVEY_INSTANCE');
     const devKey = String.fromEnvironment('COVEY_KEY');
-    if (kDebugMode && saved == null && devInstance != '' && devKey != '') {
+    if (!kReleaseMode && saved == null && devInstance != '' && devKey != '') {
       saved = (instance: devInstance, key: devKey);
     }
     CoveyApi? api;

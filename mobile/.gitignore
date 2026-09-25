@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# The developer's signing team (#345), included by Debug/Release.xcconfig.
+/ios/Flutter/Signing.xcconfig

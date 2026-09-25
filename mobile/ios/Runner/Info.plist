@@ -19,6 +19,16 @@
 	</array>
 	<key>FlutterDeepLinkingEnabled</key>
 	<false/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<!-- Local addresses only (#345): a debug build reaches covey on the
+		     developer's machine over http. Release builds refuse http in the
+		     app itself (parseInstance). -->
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>covey on a machine in your local network — used when you connect the app to it.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>The microphone is used to dictate notes and record meetings. Speech is recognised on this device; no audio is stored or sent.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
