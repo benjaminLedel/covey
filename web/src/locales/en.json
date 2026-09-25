@@ -1719,6 +1719,10 @@
       "expired": "Expired",
       "revoke": "Revoke",
       "revokeConfirm": "Revoke this key? Whatever uses it stops working immediately.",
+      "rotate": "Rotate",
+      "rotateConfirm": "Rotate this key? It gets a new token with the same name and lifetime; the old token stops working immediately.",
+      "rotated": "New token for “{{name}}” — the old one has stopped working. Write it down now, it is never shown again.",
+      "cancel": "Cancel",
       "orgOnly": "Works in {{org}} only — the key carries the seat it was created from.",
       "limits": "A key cannot mint a second one and cannot change a password — both need the browser sign-in, so that a key that goes astray cannot entrench itself."
     },

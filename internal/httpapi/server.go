@@ -294,6 +294,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/auth/api-keys", s.auth(s.handleListAPIKeys))
 	mux.Handle("POST /api/v1/auth/api-keys", s.auth(s.sessionOnly(s.handleCreateAPIKey)))
 	mux.Handle("DELETE /api/v1/auth/api-keys/{id}", s.auth(s.sessionOnly(s.handleDeleteAPIKey)))
+	mux.Handle("POST /api/v1/auth/api-keys/{id}/rotate", s.auth(s.sessionOnly(s.handleRotateAPIKey)))
 
 	// Agents & backlog. All roles may read (role-scoped views in the MVP: same
 	// data, different write rights).

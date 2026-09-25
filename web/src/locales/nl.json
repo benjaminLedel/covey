@@ -1719,6 +1719,10 @@
       "expired": "Verlopen",
       "revoke": "Intrekken",
       "revokeConfirm": "Deze sleutel intrekken? Wat hem gebruikt, stopt onmiddellijk met werken.",
+      "rotate": "Roteren",
+      "rotateConfirm": "Deze sleutel roteren? Hij krijgt een nieuw token met dezelfde naam en looptijd; het oude token werkt meteen niet meer.",
+      "rotated": "Nieuw token voor ‘{{name}}’ — het oude werkt niet meer. Schrijf het nu op, het wordt nooit meer getoond.",
+      "cancel": "Annuleren",
       "orgOnly": "Geldt alleen in {{org}} — de sleutel draagt de zetel waaruit hij is aangemaakt.",
       "limits": "Een sleutel kan geen tweede sleutel maken en geen wachtwoord wijzigen — beide vragen de aanmelding in de browser, zodat een zoekgeraakte sleutel zich niet kan ingraven."
     },
