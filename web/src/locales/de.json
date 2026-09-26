@@ -2593,7 +2593,21 @@
     "uebernehmen": "Übernehmen",
     "leertaste": "Leertaste",
     "umgebung": "Umgebung einbeziehen",
-    "umgebungHinweis": "Fenster, Feld und der Text um den Cursor gehen mit, damit der Text anschließt. Nie aus Passwortfeldern."
+    "umgebungHinweis": "Fenster, Feld und der Text um den Cursor gehen mit, damit der Text anschließt. Nie aus Passwortfeldern.",
+    "aktivitaeten": "Aktivitäten",
+    "aktivMitschreiben": "Im Hintergrund mitschreiben",
+    "aktivHeute": "Heute {{count}} Abschnitte",
+    "aktivPause": "Eine Stunde pausieren",
+    "aktivFortsetzen": "Fortsetzen",
+    "aktivPausiert": "Pausiert",
+    "aktivRueckblick": "Tagesrückblick erstellen",
+    "aktivRueckblickTitel": "Tagesrückblick {{date}}",
+    "aktivRueckblickLaeuft": "Der Rückblick wird geschrieben …",
+    "aktivLoeschenHeute": "Heutige Aktivitäten löschen",
+    "aktivLoeschenAlles": "Alle Aktivitäten löschen",
+    "aktivHinweis": "Alle fünf Sekunden: welche App, welches Fenster, welche Seite und ein Ausschnitt des Feldes, an dem Sie arbeiten. Nie Tastenanschläge, nie Bildschirmfotos, nie Passwortfelder oder Passwortmanager. Nur Sie sehen es, auch Admins nicht; nach 14 Tagen wird es gelöscht.",
+    "aktivMenue": "covey schreibt Ihre Aktivitäten mit",
+    "aktivAus": "Ausschalten"
   },
   "appLink": {
     "title": "In der covey-App öffnen",

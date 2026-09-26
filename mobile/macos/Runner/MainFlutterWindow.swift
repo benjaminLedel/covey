@@ -46,6 +46,10 @@ class MainFlutterWindow: NSWindow {
       case "zoom":
         self.performZoom(nil)
         result(nil)
+      case "activate":
+        NSApp.activate(ignoringOtherApps: true)
+        self.makeKeyAndOrderFront(nil)
+        result(nil)
       default:
         result(FlutterMethodNotImplemented)
       }
@@ -63,11 +67,83 @@ final class FlowBridge {
   private let channel: FlutterMethodChannel
   private let panel = FlowPanel()
 
+  private lazy var status = ActivityStatusItem { [weak self] action in
+    self?.channel.invokeMethod("statusAction", arguments: action)
+  }
+
   init(messenger: FlutterBinaryMessenger) {
     channel = FlutterMethodChannel(name: "covey/flow", binaryMessenger: messenger)
     channel.setMethodCallHandler { [weak self] call, result in
       self?.handle(call, result)
     }
+  }
+
+  /// Apps whose content is never read — not for dictation's context, not
+  /// for the activity log (#363): password managers and the system's
+  /// keychain. Only the fact that one was in front is recorded.
+  private static let excluded: Set<String> = [
+    "com.apple.Passwords", "com.apple.keychainaccess", "com.1password.1password", "com.agilebits.onepassword7",
+    "com.bitwarden.desktop", "com.dashlane.dashlanephonefinal", "com.lastpass.LastPass", "org.keepassxc.keepassxc",
+    "com.apple.systempreferences",
+  ]
+
+  /// Chromium browsers and Electron apps build their accessibility tree only
+  /// when asked to (AXManualAccessibility); without it they show no address
+  /// and no field.
+  private static let chromium: Set<String> = [
+    "com.google.Chrome", "com.microsoft.edgemac", "com.brave.Browser", "company.thebrowser.Browser",
+    "com.vivaldi.Vivaldi", "com.tinyspeck.slackmacgap", "com.microsoft.teams2", "com.microsoft.VSCode",
+    "com.hnc.Discord", "notion.id", "com.linear",
+  ]
+  private var enabledTrees: Set<pid_t> = []
+
+  /// One sample for the activity log (#363): what `focus` reads, plus the
+  /// app's bundle id, the page's address where there is one, and how long
+  /// the person has been idle.
+  private func sample() -> [String: Any] {
+    let idle = CGEventSource.secondsSinceLastEventType(
+      .combinedSessionState, eventType: CGEventType(rawValue: ~0)!)
+    guard let app = NSWorkspace.shared.frontmostApplication else { return ["idle": idle] }
+    let bundle = app.bundleIdentifier ?? ""
+    if Self.excluded.contains(bundle) {
+      return ["idle": idle, "app": app.localizedName ?? "", "bundle": bundle, "excluded": true]
+    }
+    if AXIsProcessTrusted(), Self.chromium.contains(bundle), !enabledTrees.contains(app.processIdentifier) {
+      let el = AXUIElementCreateApplication(app.processIdentifier)
+      AXUIElementSetAttributeValue(el, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+      enabledTrees.insert(app.processIdentifier)
+    }
+    var out = focus()
+    out["idle"] = idle
+    out["bundle"] = bundle
+    if AXIsProcessTrusted(), let url = pageAddress(app) { out["url"] = url }
+    return out
+  }
+
+  /// The address of the page in the front window: the first element below
+  /// it that has one (a browser's web area), a few levels deep at most.
+  private func pageAddress(_ app: NSRunningApplication) -> String? {
+    func attr(_ el: AXUIElement, _ name: String) -> AnyObject? {
+      var v: AnyObject?
+      return AXUIElementCopyAttributeValue(el, name as CFString, &v) == .success ? v : nil
+    }
+    let appElement = AXUIElementCreateApplication(app.processIdentifier)
+    AXUIElementSetMessagingTimeout(appElement, 0.25)
+    guard let window = attr(appElement, kAXFocusedWindowAttribute) else { return nil }
+    var queue: [(AXUIElement, Int)] = [(window as! AXUIElement, 0)]
+    var visited = 0
+    while !queue.isEmpty && visited < 400 {
+      let (el, depth) = queue.removeFirst()
+      visited += 1
+      if let url = attr(el, kAXURLAttribute) {
+        if let u = url as? URL, u.scheme == "http" || u.scheme == "https" { return u.absoluteString }
+        if let s = url as? String, s.hasPrefix("http") { return s }
+      }
+      if depth < 8, let children = attr(el, kAXChildrenAttribute) as? [AXUIElement] {
+        queue.append(contentsOf: children.map { ($0, depth + 1) })
+      }
+    }
+    return nil
   }
 
   private func handle(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
@@ -87,6 +163,13 @@ final class FlowBridge {
       result(NSWorkspace.shared.frontmostApplication?.localizedName)
     case "focus":
       result(focus())
+    case "sample":
+      result(sample())
+    case "timeZone":
+      result(TimeZone.current.identifier)
+    case "status":
+      status.update(args)
+      result(nil)
     case "show":
       panel.show()
       result(nil)
@@ -115,6 +198,10 @@ final class FlowBridge {
     var out: [String: Any] = [:]
     guard let app = NSWorkspace.shared.frontmostApplication else { return out }
     out["app"] = app.localizedName ?? ""
+    if Self.excluded.contains(app.bundleIdentifier ?? "") {
+      out["secure"] = true
+      return out
+    }
     guard AXIsProcessTrusted() else { return out }
 
     func attr(_ el: AXUIElement, _ name: String) -> AnyObject? {
@@ -520,4 +607,52 @@ final class WaveView: NSView {
     }
     CATransaction.commit()
   }
+}
+
+/// The menu-bar item of the activity log (#363): visible while it records,
+/// so recording is never silent, with pause and off one click away. The
+/// strings come from Dart, in the app's language.
+final class ActivityStatusItem {
+  private var item: NSStatusItem?
+  private let onAction: (String) -> Void
+  private var targets: [ActionTarget] = []
+
+  init(onAction: @escaping (String) -> Void) { self.onAction = onAction }
+
+  func update(_ args: [String: Any]) {
+    guard args["visible"] as? Bool == true else {
+      if let item { NSStatusBar.system.removeStatusItem(item) }
+      item = nil
+      return
+    }
+    if item == nil {
+      item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+    }
+    let paused = args["paused"] as? Bool == true
+    item?.button?.image = NSImage(
+      systemSymbolName: paused ? "pause.circle" : "record.circle", accessibilityDescription: args["title"] as? String)
+    item?.button?.image?.isTemplate = true
+
+    let menu = NSMenu()
+    let head = NSMenuItem(title: args["title"] as? String ?? "", action: nil, keyEquivalent: "")
+    head.isEnabled = false
+    menu.addItem(head)
+    menu.addItem(.separator())
+    targets = []
+    for (key, id) in [("pause", "pause"), ("resume", "resume"), ("review", "review"), ("off", "off")] {
+      guard let title = args[key] as? String, !title.isEmpty else { continue }
+      let target = ActionTarget { [weak self] in self?.onAction(id) }
+      targets.append(target)
+      let mi = NSMenuItem(title: title, action: #selector(ActionTarget.fire), keyEquivalent: "")
+      mi.target = target
+      menu.addItem(mi)
+    }
+    item?.menu = menu
+  }
+}
+
+final class ActionTarget: NSObject {
+  private let run: () -> Void
+  init(_ run: @escaping () -> Void) { self.run = run }
+  @objc func fire() { run() }
 }

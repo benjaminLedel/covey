@@ -2593,7 +2593,21 @@
     "uebernehmen": "Usa",
     "leertaste": "Spazio",
     "umgebung": "Includi il contesto",
-    "umgebungHinweis": "Finestra, campo e testo attorno al cursore vengono inviati perché il testo si colleghi. Mai dai campi password."
+    "umgebungHinweis": "Finestra, campo e testo attorno al cursore vengono inviati perché il testo si colleghi. Mai dai campi password.",
+    "aktivitaeten": "Attività",
+    "aktivMitschreiben": "Registra in background",
+    "aktivHeute": "Oggi {{count}} sessioni",
+    "aktivPause": "Metti in pausa per un'ora",
+    "aktivFortsetzen": "Riprendi",
+    "aktivPausiert": "In pausa",
+    "aktivRueckblick": "Scrivi il riepilogo del giorno",
+    "aktivRueckblickTitel": "Riepilogo del giorno {{date}}",
+    "aktivRueckblickLaeuft": "Scrittura del riepilogo …",
+    "aktivLoeschenHeute": "Elimina l'attività di oggi",
+    "aktivLoeschenAlles": "Elimina tutta l'attività",
+    "aktivHinweis": "Ogni cinque secondi: quale app, quale finestra, quale pagina e un estratto del campo su cui lavori. Mai i tasti premuti, mai screenshot, mai campi password o gestori di password. Lo vedi solo tu, nemmeno gli amministratori; viene eliminato dopo 14 giorni.",
+    "aktivMenue": "covey sta registrando la tua attività",
+    "aktivAus": "Disattiva"
   },
   "appLink": {
     "title": "Apri nell'app covey",

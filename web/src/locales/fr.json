@@ -2593,7 +2593,21 @@
     "uebernehmen": "Utiliser",
     "leertaste": "Espace",
     "umgebung": "Inclure le contexte",
-    "umgebungHinweis": "La fenêtre, le champ et le texte autour du curseur sont envoyés pour que le texte s'enchaîne. Jamais depuis un champ de mot de passe."
+    "umgebungHinweis": "La fenêtre, le champ et le texte autour du curseur sont envoyés pour que le texte s'enchaîne. Jamais depuis un champ de mot de passe.",
+    "aktivitaeten": "Activité",
+    "aktivMitschreiben": "Enregistrer en arrière-plan",
+    "aktivHeute": "{{count}} sessions aujourd'hui",
+    "aktivPause": "Mettre en pause une heure",
+    "aktivFortsetzen": "Reprendre",
+    "aktivPausiert": "En pause",
+    "aktivRueckblick": "Rédiger le bilan du jour",
+    "aktivRueckblickTitel": "Bilan du jour {{date}}",
+    "aktivRueckblickLaeuft": "Rédaction du bilan …",
+    "aktivLoeschenHeute": "Supprimer l'activité d'aujourd'hui",
+    "aktivLoeschenAlles": "Supprimer toute l'activité",
+    "aktivHinweis": "Toutes les cinq secondes : quelle app, quelle fenêtre, quelle page et un extrait du champ où vous travaillez. Jamais les frappes, jamais de captures d'écran, jamais les champs de mot de passe ni les gestionnaires de mots de passe. Vous seul le voyez, même pas les administrateurs ; supprimé après 14 jours.",
+    "aktivMenue": "covey enregistre votre activité",
+    "aktivAus": "Désactiver"
   },
   "appLink": {
     "title": "Ouvrir dans l'application covey",

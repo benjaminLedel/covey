@@ -2593,7 +2593,21 @@
     "uebernehmen": "使用",
     "leertaste": "空格键",
     "umgebung": "包含上下文",
-    "umgebungHinweis": "发送窗口、输入框和光标周围的文字，让文本衔接自然。从不读取密码框。"
+    "umgebungHinweis": "发送窗口、输入框和光标周围的文字，让文本衔接自然。从不读取密码框。",
+    "aktivitaeten": "活动",
+    "aktivMitschreiben": "在后台记录",
+    "aktivHeute": "今天 {{count}} 段",
+    "aktivPause": "暂停一小时",
+    "aktivFortsetzen": "继续",
+    "aktivPausiert": "已暂停",
+    "aktivRueckblick": "生成每日回顾",
+    "aktivRueckblickTitel": "每日回顾 {{date}}",
+    "aktivRueckblickLaeuft": "正在撰写回顾 …",
+    "aktivLoeschenHeute": "删除今天的活动",
+    "aktivLoeschenAlles": "删除所有活动",
+    "aktivHinweis": "每五秒记录：哪个应用、哪个窗口、哪个页面，以及您正在编辑的输入框的片段。从不记录按键、截图、密码框或密码管理器。只有您本人可见，管理员也看不到；14 天后自动删除。",
+    "aktivMenue": "covey 正在记录您的活动",
+    "aktivAus": "关闭"
   },
   "appLink": {
     "title": "在 covey 应用中打开",

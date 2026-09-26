@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
+import '../activity.dart';
+import '../anywhere.dart';
 import '../api.dart';
 import '../chrome.dart';
 import '../face.dart';
-import '../anywhere.dart';
 import '../i18n.dart';
 import '../icons.dart';
 import '../mark.dart';
@@ -53,12 +55,45 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadMe();
     // Dictate anywhere (#355) follows the instance the app is signed in to.
     if (DictateAnywhere.supported) unawaited(DictateAnywhere.instance.attach(widget.api));
+    // The activity log (#363) too; its menu-bar item can ask for the review.
+    if (ActivityRecorder.supported) {
+      ActivityRecorder.instance.onReviewRequested = _reviewFromMenu;
+      unawaited(ActivityRecorder.instance.attach(widget.api));
+    }
+  }
+
+  /// The day's review, asked for in the menu bar: the window comes forward
+  /// and opens the note.
+  Future<void> _reviewFromMenu() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final lang = Strings.of(context).language;
+    final title = context.t(
+      'mobile.aktivRueckblickTitel',
+      args: {'date': DateFormat.yMMMMd(lang).format(DateTime.now())},
+    );
+    await MacChrome.activate();
+    try {
+      final note = await ActivityRecorder.instance.review(lang: lang, title: title);
+      if (!mounted) return;
+      _openNote(note, false, () => _notes.currentState?.reload());
+      _notes.currentState?.reload();
+    } on ApiException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    }
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     // The panel speaks the app's language.
+    ActivityRecorder.instance.strings = {
+      'title': context.t('mobile.aktivMenue'),
+      'paused': context.t('mobile.aktivPausiert'),
+      'pause': context.t('mobile.aktivPause'),
+      'resume': context.t('mobile.aktivFortsetzen'),
+      'review': context.t('mobile.aktivRueckblick'),
+      'off': context.t('mobile.aktivAus'),
+    };
     DictateAnywhere.instance
       ..listening = context.t('mobile.hoertZu')
       ..cleaning = context.t('mobile.raeumtAuf')
@@ -68,6 +103,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     if (DictateAnywhere.supported) unawaited(DictateAnywhere.instance.detach());
+    if (ActivityRecorder.supported) unawaited(ActivityRecorder.instance.detach());
     super.dispose();
   }
 

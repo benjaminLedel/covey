@@ -321,6 +321,11 @@ func (s *Server) Handler() http.Handler {
 	// The speech model (#348, speech.go): what it is, and the file itself.
 	mux.Handle("GET /api/v1/speech/model", s.auth(s.handleSpeechModel))
 	mux.Handle("GET /api/v1/speech/model/file", s.auth(s.handleSpeechModelFile))
+	// The activity log (#363, activity.go): the caller's own, like the notes.
+	mux.Handle("POST /api/v1/me/activity", s.auth(s.handleAddActivity))
+	mux.Handle("GET /api/v1/me/activity", s.auth(s.handleListActivity))
+	mux.Handle("DELETE /api/v1/me/activity", s.auth(s.handleDeleteActivity))
+	mux.Handle("POST /api/v1/me/activity/review", s.auth(s.handleActivityReview))
 	// Dictate anywhere (#355, dictation.go): the recognised text, cleaned.
 	mux.Handle("POST /api/v1/me/dictation/clean", s.auth(s.handleDictationClean))
 	mux.Handle("GET /api/v1/me/notes/{id}", s.auth(s.handleGetNote))

@@ -2593,7 +2593,21 @@
     "uebernehmen": "Use",
     "leertaste": "Space",
     "umgebung": "Include the surroundings",
-    "umgebungHinweis": "Window, field and the text around the cursor go along, so the text fits in. Never from password fields."
+    "umgebungHinweis": "Window, field and the text around the cursor go along, so the text fits in. Never from password fields.",
+    "aktivitaeten": "Activity",
+    "aktivMitschreiben": "Record in the background",
+    "aktivHeute": "{{count}} sessions today",
+    "aktivPause": "Pause for an hour",
+    "aktivFortsetzen": "Resume",
+    "aktivPausiert": "Paused",
+    "aktivRueckblick": "Write the daily review",
+    "aktivRueckblickTitel": "Daily review {{date}}",
+    "aktivRueckblickLaeuft": "Writing the review …",
+    "aktivLoeschenHeute": "Delete today's activity",
+    "aktivLoeschenAlles": "Delete all activity",
+    "aktivHinweis": "Every five seconds: which app, which window, which page, and an excerpt of the field you are working in. Never keystrokes, never screenshots, never password fields or password managers. Only you see it, not even admins; it is deleted after 14 days.",
+    "aktivMenue": "covey is recording your activity",
+    "aktivAus": "Turn off"
   },
   "appLink": {
     "title": "Open in the covey app",

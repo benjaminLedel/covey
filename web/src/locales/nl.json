@@ -2593,7 +2593,21 @@
     "uebernehmen": "Gebruiken",
     "leertaste": "Spatie",
     "umgebung": "Omgeving meenemen",
-    "umgebungHinweis": "Venster, veld en de tekst rond de cursor gaan mee, zodat de tekst aansluit. Nooit uit wachtwoordvelden."
+    "umgebungHinweis": "Venster, veld en de tekst rond de cursor gaan mee, zodat de tekst aansluit. Nooit uit wachtwoordvelden.",
+    "aktivitaeten": "Activiteit",
+    "aktivMitschreiben": "Op de achtergrond bijhouden",
+    "aktivHeute": "Vandaag {{count}} sessies",
+    "aktivPause": "Een uur pauzeren",
+    "aktivFortsetzen": "Hervatten",
+    "aktivPausiert": "Gepauzeerd",
+    "aktivRueckblick": "Dagoverzicht maken",
+    "aktivRueckblickTitel": "Dagoverzicht {{date}}",
+    "aktivRueckblickLaeuft": "Het overzicht wordt geschreven …",
+    "aktivLoeschenHeute": "Activiteit van vandaag verwijderen",
+    "aktivLoeschenAlles": "Alle activiteit verwijderen",
+    "aktivHinweis": "Elke vijf seconden: welke app, welk venster, welke pagina en een fragment van het veld waarin u werkt. Nooit toetsaanslagen, nooit schermafbeeldingen, nooit wachtwoordvelden of wachtwoordbeheerders. Alleen u ziet het, ook beheerders niet; na 14 dagen verwijderd.",
+    "aktivMenue": "covey houdt uw activiteit bij",
+    "aktivAus": "Uitschakelen"
   },
   "appLink": {
     "title": "Openen in de covey-app",

@@ -4,9 +4,11 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hotkey_manager/hotkey_manager.dart';
+import 'package:intl/intl.dart';
 
 import '../chrome.dart';
 import '../api.dart';
+import '../activity.dart';
 import '../anywhere.dart';
 import '../diagnostics.dart';
 import '../dictation.dart';
@@ -17,7 +19,7 @@ import '../models.dart';
 import '../speech_model.dart';
 import '../theme.dart';
 import '../ui.dart';
-import 'notes.dart' show dictationFailure;
+import 'notes.dart' show NotePage, dictationFailure;
 
 /// The languages whisper is offered in here: the app's ten, by their own
 /// names — somebody looking for their language finds it in that language.
@@ -57,6 +59,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _model.addListener(_changed);
     _model.loadPrefs().then((_) => _model.refresh(widget.api));
     Diagnostics.instance.addListener(_changed);
+    if (ActivityRecorder.supported) {
+      ActivityRecorder.instance.addListener(_changed);
+      ActivityRecorder.instance.refreshCount();
+    }
     if (DictateAnywhere.supported) {
       DictateAnywhere.instance.addListener(_changed);
       DictateAnywhere.instance.refresh();
@@ -68,6 +74,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void dispose() {
     Diagnostics.instance.removeListener(_changed);
     if (DictateAnywhere.supported) DictateAnywhere.instance.removeListener(_changed);
+    if (ActivityRecorder.supported) ActivityRecorder.instance.removeListener(_changed);
     _model.removeListener(_changed);
     super.dispose();
   }
@@ -259,6 +266,89 @@ class _SettingsScreenState extends State<SettingsScreen> {
     widget.onDisconnect();
   }
 
+  /// The activity log (#363): on and off, pause, today's review, deleting —
+  /// Mac only.
+  List<Widget> _activity(BuildContext context, TextStyle? small) {
+    final a = ActivityRecorder.instance;
+    final c = context.colors;
+    return [
+      SectionTitle(context.t('mobile.aktivitaeten')),
+      InsetGroup(
+        dividerIndent: 14,
+        children: [
+          GroupRow(
+            title: context.t('mobile.aktivMitschreiben'),
+            subtitle: !a.enabled
+                ? null
+                : a.paused
+                ? context.t('mobile.aktivPausiert')
+                : context.t('mobile.aktivHeute', args: {'count': a.today}),
+            trailing: Switch.adaptive(value: a.enabled, onChanged: a.setEnabled),
+          ),
+          if (a.enabled)
+            GroupRow(
+              title: a.paused ? context.t('mobile.aktivFortsetzen') : context.t('mobile.aktivPause'),
+              onTap: a.togglePause,
+            ),
+          GroupRow(
+            title: context.t('mobile.aktivRueckblick'),
+            trailing: Icon(AppIcons.chevron.of(context), color: c.textMuted, size: 18),
+            onTap: _review,
+          ),
+          GroupRow(title: context.t('mobile.aktivLoeschenHeute'), onTap: () => _deleteActivity(all: false)),
+          GroupRow(title: context.t('mobile.aktivLoeschenAlles'), onTap: () => _deleteActivity(all: true)),
+        ],
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(32, 8, 32, 0),
+        child: Text(context.t('mobile.aktivHinweis'), style: small),
+      ),
+    ];
+  }
+
+  Future<void> _review() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final nav = Navigator.of(context);
+    final lang = Strings.of(context).language;
+    final title = context.t(
+      'mobile.aktivRueckblickTitel',
+      args: {'date': DateFormat.yMMMMd(lang).format(DateTime.now())},
+    );
+    messenger.showSnackBar(SnackBar(content: Text(context.t('mobile.aktivRueckblickLaeuft'))));
+    try {
+      final note = await ActivityRecorder.instance.review(lang: lang, title: title);
+      messenger.hideCurrentSnackBar();
+      await nav.push(
+        MaterialPageRoute<void>(
+          builder: (_) => NotePage(api: widget.api, note: note),
+        ),
+      );
+    } on ApiException catch (e) {
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
+  Future<void> _deleteActivity({required bool all}) async {
+    final t = context.t;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(all ? t('mobile.aktivLoeschenAlles') : t('mobile.aktivLoeschenHeute')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(t('team.abbrechen'))),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(t('mobile.loeschen'))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await (all ? ActivityRecorder.instance.deleteAll() : ActivityRecorder.instance.deleteToday());
+    } on ApiException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
   /// A new shortcut, recorded as it is pressed. The current one is let go
   /// meanwhile, so pressing it records it rather than starting a dictation.
   Future<void> _recordHotKey() async {
@@ -435,6 +525,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
 
           if (DictateAnywhere.supported) ..._anywhere(context, small),
+          if (ActivityRecorder.supported) ..._activity(context, small),
 
           SectionTitle(context.t('mobile.diagnose')),
           InsetGroup(

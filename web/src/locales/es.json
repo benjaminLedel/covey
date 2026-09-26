@@ -2593,7 +2593,21 @@
     "uebernehmen": "Usar",
     "leertaste": "Espacio",
     "umgebung": "Incluir el entorno",
-    "umgebungHinweis": "La ventana, el campo y el texto alrededor del cursor se envían para que el texto encaje. Nunca de campos de contraseña."
+    "umgebungHinweis": "La ventana, el campo y el texto alrededor del cursor se envían para que el texto encaje. Nunca de campos de contraseña.",
+    "aktivitaeten": "Actividad",
+    "aktivMitschreiben": "Registrar en segundo plano",
+    "aktivHeute": "Hoy {{count}} sesiones",
+    "aktivPause": "Pausar una hora",
+    "aktivFortsetzen": "Reanudar",
+    "aktivPausiert": "En pausa",
+    "aktivRueckblick": "Crear el resumen del día",
+    "aktivRueckblickTitel": "Resumen del día {{date}}",
+    "aktivRueckblickLaeuft": "Escribiendo el resumen …",
+    "aktivLoeschenHeute": "Borrar la actividad de hoy",
+    "aktivLoeschenAlles": "Borrar toda la actividad",
+    "aktivHinweis": "Cada cinco segundos: qué app, qué ventana, qué página y un fragmento del campo en el que trabaja. Nunca pulsaciones de teclas, nunca capturas de pantalla, nunca campos de contraseña ni gestores de contraseñas. Solo usted lo ve, tampoco los administradores; se borra a los 14 días.",
+    "aktivMenue": "covey está registrando su actividad",
+    "aktivAus": "Desactivar"
   },
   "appLink": {
     "title": "Abrir en la aplicación covey",

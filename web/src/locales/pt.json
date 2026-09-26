@@ -2593,7 +2593,21 @@
     "uebernehmen": "Usar",
     "leertaste": "Espaço",
     "umgebung": "Incluir o contexto",
-    "umgebungHinweis": "A janela, o campo e o texto à volta do cursor seguem junto, para o texto encaixar. Nunca de campos de palavra-passe."
+    "umgebungHinweis": "A janela, o campo e o texto à volta do cursor seguem junto, para o texto encaixar. Nunca de campos de palavra-passe.",
+    "aktivitaeten": "Atividade",
+    "aktivMitschreiben": "Registar em segundo plano",
+    "aktivHeute": "Hoje {{count}} sessões",
+    "aktivPause": "Pausar uma hora",
+    "aktivFortsetzen": "Retomar",
+    "aktivPausiert": "Em pausa",
+    "aktivRueckblick": "Criar o resumo do dia",
+    "aktivRueckblickTitel": "Resumo do dia {{date}}",
+    "aktivRueckblickLaeuft": "A escrever o resumo …",
+    "aktivLoeschenHeute": "Apagar a atividade de hoje",
+    "aktivLoeschenAlles": "Apagar toda a atividade",
+    "aktivHinweis": "A cada cinco segundos: que app, que janela, que página e um excerto do campo em que trabalha. Nunca teclas premidas, nunca capturas de ecrã, nunca campos de palavra-passe nem gestores de palavras-passe. Só o utilizador vê, nem os administradores; é apagado após 14 dias.",
+    "aktivMenue": "O covey está a registar a sua atividade",
+    "aktivAus": "Desligar"
   },
   "appLink": {
     "title": "Abrir na aplicação covey",

@@ -244,6 +244,26 @@ class CoveyApi {
         as Map<String, dynamic>,
   );
 
+  /// The activity log (#363): sessions the Mac recorded, the caller's own.
+  Future<void> addActivity(List<Map<String, Object?>> sessions) => post('/me/activity', {'sessions': sessions});
+
+  /// One day's sessions; [day] is YYYY-MM-DD in the IANA zone [tz].
+  Future<int> activityCount(String day, String tz) async {
+    final out = await get('/me/activity?day=$day&tz=${Uri.encodeQueryComponent(tz)}') as Map<String, dynamic>;
+    return (out['sessions'] as List<dynamic>).length;
+  }
+
+  /// Deletes one day, or with no [day] the whole log.
+  Future<void> deleteActivity({String? day, String? tz}) =>
+      delete(day == null ? '/me/activity' : '/me/activity?day=$day&tz=${Uri.encodeQueryComponent(tz ?? 'UTC')}');
+
+  /// Writes the review of a day as a note and returns it.
+  Future<Note> activityReview(String day, String tz, {required String lang, required String title}) async =>
+      Note.fromJson(
+        await post('/me/activity/review?day=$day&tz=${Uri.encodeQueryComponent(tz)}', {'lang': lang, 'title': title})
+            as Map<String, dynamic>,
+      );
+
   /// Dictated text as the person meant to write it (#355): filler words
   /// out, self-corrections applied, punctuation set. [app] names the
   /// application the text is for, so the form can fit it.

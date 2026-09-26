@@ -267,6 +267,10 @@ type Config struct {
 	// (COVEY_REQUEST_LOG_RETENTION, default 72h). A hard row cap in the store
 	// applies on top of it.
 	RequestLogRetention time.Duration
+	// ActivityRetention is how long a person's activity log is kept (#363,
+	// COVEY_ACTIVITY_RETENTION, default 14 days); older sessions are deleted
+	// as new ones arrive.
+	ActivityRetention time.Duration
 	// WikiCleanup is the schedule of the platform-wide wiki cleanup heartbeat:
 	// empty = off. Otherwise "HH:MM" (daily, server time) or a Go duration such
 	// as "24h" (interval). From it the control plane creates a recurring
@@ -387,6 +391,7 @@ func FromEnv() (Config, error) {
 		RequestLog:          getenvBool("COVEY_REQUEST_LOG", true),
 		RequestLogBodies:    getenvBool("COVEY_REQUEST_LOG_BODIES", true),
 		RequestLogRetention: getenvDuration("COVEY_REQUEST_LOG_RETENTION", 72*time.Hour),
+		ActivityRetention:   getenvDuration("COVEY_ACTIVITY_RETENTION", 14*24*time.Hour),
 	}
 	// The resolved map without the catalogue: the compiled defaults plus what
 	// the environment says. Whoever asks before the catalogue has been read —

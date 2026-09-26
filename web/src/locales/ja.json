@@ -2593,7 +2593,21 @@
     "uebernehmen": "使用",
     "leertaste": "スペース",
     "umgebung": "周辺の内容を含める",
-    "umgebungHinweis": "テキストが自然につながるよう、ウインドウ・入力欄・カーソル周辺の文字を送ります。パスワード欄からは送りません。"
+    "umgebungHinweis": "テキストが自然につながるよう、ウインドウ・入力欄・カーソル周辺の文字を送ります。パスワード欄からは送りません。",
+    "aktivitaeten": "アクティビティ",
+    "aktivMitschreiben": "バックグラウンドで記録",
+    "aktivHeute": "今日 {{count}} 件",
+    "aktivPause": "1時間一時停止",
+    "aktivFortsetzen": "再開",
+    "aktivPausiert": "一時停止中",
+    "aktivRueckblick": "今日の振り返りを作成",
+    "aktivRueckblickTitel": "振り返り {{date}}",
+    "aktivRueckblickLaeuft": "振り返りを作成中 …",
+    "aktivLoeschenHeute": "今日のアクティビティを削除",
+    "aktivLoeschenAlles": "すべてのアクティビティを削除",
+    "aktivHinweis": "5秒ごとに、アプリ・ウインドウ・ページと、作業中の入力欄の一部を記録します。キー入力、スクリーンショット、パスワード欄やパスワード管理アプリは記録しません。本人だけが見られ、管理者も見られません。14日後に削除されます。",
+    "aktivMenue": "covey がアクティビティを記録しています",
+    "aktivAus": "オフにする"
   },
   "appLink": {
     "title": "covey アプリで開く",

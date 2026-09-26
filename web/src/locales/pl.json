@@ -2593,7 +2593,21 @@
     "uebernehmen": "Użyj",
     "leertaste": "Spacja",
     "umgebung": "Uwzględnij otoczenie",
-    "umgebungHinweis": "Okno, pole i tekst wokół kursora są wysyłane, by tekst pasował. Nigdy z pól haseł."
+    "umgebungHinweis": "Okno, pole i tekst wokół kursora są wysyłane, by tekst pasował. Nigdy z pól haseł.",
+    "aktivitaeten": "Aktywność",
+    "aktivMitschreiben": "Zapisuj w tle",
+    "aktivHeute": "Dziś {{count}} sesji",
+    "aktivPause": "Wstrzymaj na godzinę",
+    "aktivFortsetzen": "Wznów",
+    "aktivPausiert": "Wstrzymano",
+    "aktivRueckblick": "Utwórz podsumowanie dnia",
+    "aktivRueckblickTitel": "Podsumowanie dnia {{date}}",
+    "aktivRueckblickLaeuft": "Trwa pisanie podsumowania …",
+    "aktivLoeschenHeute": "Usuń dzisiejszą aktywność",
+    "aktivLoeschenAlles": "Usuń całą aktywność",
+    "aktivHinweis": "Co pięć sekund: jaka aplikacja, jakie okno, jaka strona i fragment pola, w którym pracujesz. Nigdy naciśnięcia klawiszy, nigdy zrzuty ekranu, nigdy pola haseł ani menedżery haseł. Widzisz to tylko Ty, nawet nie administratorzy; usuwane po 14 dniach.",
+    "aktivMenue": "covey zapisuje Twoją aktywność",
+    "aktivAus": "Wyłącz"
   },
   "appLink": {
     "title": "Otwórz w aplikacji covey",

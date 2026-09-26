@@ -34,6 +34,17 @@ abstract final class MacChrome {
 
   static void drag() => _channel.invokeMethod<void>('drag').ignore();
   static void zoom() => _channel.invokeMethod<void>('zoom').ignore();
+
+  /// Brings the app and its window to the front — the window may have been
+  /// closed while the app kept running.
+  static Future<void> activate() async {
+    if (!active) return;
+    try {
+      await _channel.invokeMethod<void>('activate');
+    } on PlatformException {
+      // Stays where it is.
+    }
+  }
 }
 
 /// How much room the traffic lights take at the left edge of what is below:
