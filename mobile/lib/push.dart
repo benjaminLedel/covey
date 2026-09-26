@@ -128,7 +128,8 @@ class PushNotices {
         await Prefs.instance.write(_prefToken, token);
         diag('push', 'registered');
       } else {
-        await _channel.invokeMethod<bool>('authorize');
+        final allowed = await _channel.invokeMethod<Object?>('authorize');
+        diag('push', 'mac notifications: $allowed');
         _poll?.cancel();
         _poll = Timer.periodic(const Duration(seconds: 30), (_) => _look());
         unawaited(_look());
@@ -185,13 +186,14 @@ class PushNotices {
         if (!fresh) continue;
         final name = _names[t.agentId] ?? '';
         final kind = t.lastKind == 'note' ? 'answer' : t.lastKind;
-        await _channel.invokeMethod<void>('notify', {
+        final failed = await _channel.invokeMethod<String?>('notify', {
           'sound': fileFor(await sound, kind),
           'id': '${t.agentId}-${t.lastAt?.millisecondsSinceEpoch}',
           'title': name,
           'body': t.lastText.isNotEmpty ? t.lastText : _strings?.t('team.ungelesen', count: t.unread) ?? '',
           'agent': t.agentId,
         });
+        diag('push', failed == null ? 'shown, sound ${fileFor(await sound, kind)}' : 'not shown: $failed');
       }
     } catch (e) {
       diag('push', 'look failed: $e');

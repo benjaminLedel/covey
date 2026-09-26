@@ -86,6 +86,9 @@ class MainFlutterWindow: NSWindow {
 /// shows it, and a click opens the thread.
 final class LocalNotices: NSObject, UNUserNotificationCenterDelegate {
   private let channel: FlutterMethodChannel
+  /// The sound a preview plays. Held here: an NSSound nobody holds is
+  /// freed at once and falls silent before it is heard.
+  private var playing: NSSound?
 
   init(messenger: FlutterBinaryMessenger) {
     channel = FlutterMethodChannel(name: "covey/push", binaryMessenger: messenger)
@@ -99,8 +102,18 @@ final class LocalNotices: NSObject, UNUserNotificationCenterDelegate {
   private func handle(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
     switch call.method {
     case "authorize":
+      // Answers what the system allows, for the diagnostic log: whether
+      // notifications show at all, and whether they may make a sound.
       UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
-        DispatchQueue.main.async { result(granted) }
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+          DispatchQueue.main.async {
+            result([
+              "granted": granted,
+              "alert": settings.alertSetting == .enabled,
+              "sound": settings.soundSetting == .enabled,
+            ])
+          }
+        }
       }
     case "notify":
       let args = call.arguments as? [String: Any] ?? [:]
@@ -109,17 +122,26 @@ final class LocalNotices: NSObject, UNUserNotificationCenterDelegate {
       content.body = args["body"] as? String ?? ""
       // The sound the person chose (#381): a file in the bundle, the
       // system's, or none.
+      // covey's own sounds the app plays itself: macOS takes a named sound
+      // for a local notification without complaint and then often plays
+      // nothing. Only while the person allows notification sounds.
       switch args["sound"] as? String ?? "default" {
       case "": content.sound = nil
       case "default": content.sound = .default
-      case let name: content.sound = UNNotificationSound(named: UNNotificationSoundName(name))
+      case let name:
+        content.sound = nil
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+          guard settings.soundSetting == .enabled else { return }
+          DispatchQueue.main.async { self.play(name) }
+        }
       }
       let agent = args["agent"] as? String ?? ""
       content.threadIdentifier = agent
       content.userInfo = ["agent_id": agent]
       let request = UNNotificationRequest(identifier: args["id"] as? String ?? UUID().uuidString, content: content, trigger: nil)
-      UNUserNotificationCenter.current().add(request) { _ in }
-      result(nil)
+      UNUserNotificationCenter.current().add(request) { error in
+        DispatchQueue.main.async { result(error?.localizedDescription) }
+      }
     case "badge":
       let n = call.arguments as? Int ?? 0
       NSApp.dockTile.badgeLabel = n > 0 ? "\(n)" : nil
@@ -128,16 +150,25 @@ final class LocalNotices: NSObject, UNUserNotificationCenterDelegate {
       result(nil)
     case "preview":
       // Plays a sound as the settings offer it.
-      let name = (call.arguments as? String ?? "").replacingOccurrences(of: ".caf", with: "")
+      let name = call.arguments as? String ?? ""
       if name == "default" {
         NSSound.beep()
-      } else if let url = Bundle.main.url(forResource: name, withExtension: "caf") {
-        NSSound(contentsOf: url, byReference: true)?.play()
+      } else {
+        play(name)
       }
       result(nil)
     default:
       result(FlutterMethodNotImplemented)
     }
+  }
+
+  /// Plays one of the bundle's sounds, holding it until it has played.
+  private func play(_ file: String) {
+    let name = file.replacingOccurrences(of: ".caf", with: "")
+    guard let url = Bundle.main.url(forResource: name, withExtension: "caf") else { return }
+    playing?.stop()
+    playing = NSSound(contentsOf: url, byReference: true)
+    playing?.play()
   }
 
   func userNotificationCenter(
