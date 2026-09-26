@@ -2591,7 +2591,9 @@
     "tastenkuerzel": "Shortcut",
     "kuerzelAufnehmen": "Press the combination you want, with at least one of ⌃ ⌥ ⇧ ⌘.",
     "uebernehmen": "Use",
-    "leertaste": "Space"
+    "leertaste": "Space",
+    "umgebung": "Include the surroundings",
+    "umgebungHinweis": "Window, field and the text around the cursor go along, so the text fits in. Never from password fields."
   },
   "appLink": {
     "title": "Open in the covey app",

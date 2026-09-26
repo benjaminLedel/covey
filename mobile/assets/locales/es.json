@@ -128,6 +128,8 @@
   "mobile.ueberallHinweis": "Mantener: hablar, soltar: insertar. Tocar: manos libres, volver a tocar: insertar. El audio se queda en el Mac; para pulirlo solo el texto va a su instancia de covey, con el nombre de la app a la que va.",
   "mobile.ueberallSchalter": "Dictar en cualquier app",
   "mobile.uebernehmen": "Usar",
+  "mobile.umgebung": "Incluir el entorno",
+  "mobile.umgebungHinweis": "La ventana, el campo y el texto alrededor del cursor se envían para que el texto encaje. Nunca de campos de contraseña.",
   "mobile.verbinden": "Conectar",
   "mobile.verbindenLead": "La dirección de su instalación de covey y una clave API para iniciar sesión.",
   "mobile.verbindenTitel": "¿Dónde está su covey?",

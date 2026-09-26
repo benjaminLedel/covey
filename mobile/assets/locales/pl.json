@@ -128,6 +128,8 @@
   "mobile.ueberallHinweis": "Przytrzymaj: mów, puść: wstaw. Stuknij: bez użycia rąk, stuknij ponownie: wstaw. Dźwięk zostaje na Macu; do uporządkowania do instancji covey trafia tylko tekst, z nazwą aplikacji, dla której jest.",
   "mobile.ueberallSchalter": "Dyktuj do dowolnej aplikacji",
   "mobile.uebernehmen": "Użyj",
+  "mobile.umgebung": "Uwzględnij otoczenie",
+  "mobile.umgebungHinweis": "Okno, pole i tekst wokół kursora są wysyłane, by tekst pasował. Nigdy z pól haseł.",
   "mobile.verbinden": "Połącz",
   "mobile.verbindenLead": "Adres Państwa instalacji covey i klucz API do logowania.",
   "mobile.verbindenTitel": "Gdzie jest Państwa covey?",

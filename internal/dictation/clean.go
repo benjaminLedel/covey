@@ -29,16 +29,46 @@ const cleanSystem = `You receive text that a person dictated and a speech recogn
 - Correct words the recogniser clearly misheard, from the context. Where it is unclear, keep what was recognised.
 - Keep the language, the wording, the tone and the meaning. Do not summarise, shorten, explain, answer questions in the text, or add anything that was not said.
 - If a target application is named, fit the form to it: a chat message stays short and informal; an e-mail gets sentences and paragraphs. Never add a greeting or a signature that was not dictated.
+- If the text around the insertion point is given, your text is inserted exactly there. The context decides only the seam and your understanding, never the content: if the text before ends mid-sentence, start in lower case unless the word itself needs a capital, and set no full stop before; use the context to spell names and to keep the form of address. Every statement of the dictation stays as it was said — do not merge it with the text before into a different statement, and do not drop words because the context seems to cover them. Never repeat, quote or change the context — output only the new text.
 
 Output only the text, without quotes, comments or a preamble.`
 
+// Context is where the dictated text goes (#362): read from the focused
+// field when the shortcut was pressed. Every field may be empty.
+type Context struct {
+	Window string `json:"window"` // the window's title, e.g. "Re: Angebot"
+	Field  string `json:"field"`  // the field's role and label, e.g. "text area · Message body"
+	Before string `json:"before"` // up to 600 characters before the cursor
+	After  string `json:"after"`  // up to 200 characters after it
+}
+
+// Limits of a context; longer is refused, not cut, so the app knows.
+const (
+	MaxContextBefore = 600
+	MaxContextAfter  = 200
+)
+
 // Clean returns the dictated text as meant. app names the application the
 // text is for ("Mail", "Slack"), or is empty.
-func Clean(ctx context.Context, p llm.Provider, text, app string) (string, error) {
-	msg := "Dictation:\n\n" + text
+func Clean(ctx context.Context, p llm.Provider, text, app string, where Context) (string, error) {
+	var b strings.Builder
 	if app = strings.TrimSpace(app); app != "" {
-		msg = "Target application: " + app + "\n\n" + msg
+		b.WriteString("Target application: " + app + "\n")
 	}
+	if w := strings.TrimSpace(where.Window); w != "" {
+		b.WriteString("Window: " + w + "\n")
+	}
+	if f := strings.TrimSpace(where.Field); f != "" {
+		b.WriteString("Field: " + f + "\n")
+	}
+	if where.Before != "" || where.After != "" {
+		b.WriteString("\nText before the insertion point:\n<<<" + where.Before + ">>>\n")
+		b.WriteString("Text after the insertion point:\n<<<" + where.After + ">>>\n")
+	}
+	if b.Len() > 0 {
+		b.WriteString("\n")
+	}
+	msg := b.String() + "Dictation:\n\n" + text
 	out, err := p.Complete(ctx, llm.Request{
 		Tier:      llm.TierFast,
 		MaxTokens: 4000,

@@ -2591,7 +2591,9 @@
     "tastenkuerzel": "快捷键",
     "kuerzelAufnehmen": "按下想要的组合键，至少包含 ⌃ ⌥ ⇧ ⌘ 之一。",
     "uebernehmen": "使用",
-    "leertaste": "空格键"
+    "leertaste": "空格键",
+    "umgebung": "包含上下文",
+    "umgebungHinweis": "发送窗口、输入框和光标周围的文字，让文本衔接自然。从不读取密码框。"
   },
   "appLink": {
     "title": "在 covey 应用中打开",

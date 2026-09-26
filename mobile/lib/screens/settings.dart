@@ -333,6 +333,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onChanged: a.cleanAvailable ? a.setClean : null,
             ),
           ),
+          GroupRow(
+            title: context.t('mobile.umgebung'),
+            subtitle: context.t('mobile.umgebungHinweis'),
+            trailing: Switch.adaptive(
+              value: a.useContext && a.clean && a.cleanAvailable,
+              onChanged: a.clean && a.cleanAvailable ? a.setContext : null,
+            ),
+          ),
         ],
       ),
       Padding(

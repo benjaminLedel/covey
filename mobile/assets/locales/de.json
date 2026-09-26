@@ -128,6 +128,8 @@
   "mobile.ueberallHinweis": "Halten: sprechen, loslassen: einfügen. Kurz tippen: freihändig, noch einmal tippen: einfügen. Der Ton bleibt auf dem Mac; zum Aufräumen geht nur der Text an Ihre covey-Instanz, mit dem Namen der App, für die er ist.",
   "mobile.ueberallSchalter": "In jede App diktieren",
   "mobile.uebernehmen": "Übernehmen",
+  "mobile.umgebung": "Umgebung einbeziehen",
+  "mobile.umgebungHinweis": "Fenster, Feld und der Text um den Cursor gehen mit, damit der Text anschließt. Nie aus Passwortfeldern.",
   "mobile.verbinden": "Verbinden",
   "mobile.verbindenLead": "Die Adresse Ihrer covey-Installation und ein API-Schlüssel, mit dem Sie sich anmelden.",
   "mobile.verbindenTitel": "Wo ist Ihr covey?",

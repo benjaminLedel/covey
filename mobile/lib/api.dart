@@ -247,8 +247,12 @@ class CoveyApi {
   /// Dictated text as the person meant to write it (#355): filler words
   /// out, self-corrections applied, punctuation set. [app] names the
   /// application the text is for, so the form can fit it.
-  Future<String> cleanDictation(String text, {String? app}) async {
-    final out = await post('/me/dictation/clean', {'text': text, 'app': ?app}) as Map<String, dynamic>;
+  ///
+  /// [context] says where the text goes (#362): `window`, `field`, `before`
+  /// and `after` the insertion point.
+  Future<String> cleanDictation(String text, {String? app, Map<String, String>? context}) async {
+    final out =
+        await post('/me/dictation/clean', {'text': text, 'app': ?app, 'context': ?context}) as Map<String, dynamic>;
     return out['text'] as String;
   }
 

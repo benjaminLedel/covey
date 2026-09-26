@@ -2591,7 +2591,9 @@
     "tastenkuerzel": "Atajo de teclado",
     "kuerzelAufnehmen": "Pulse la combinación que desee, con al menos una de las teclas ⌃ ⌥ ⇧ ⌘.",
     "uebernehmen": "Usar",
-    "leertaste": "Espacio"
+    "leertaste": "Espacio",
+    "umgebung": "Incluir el entorno",
+    "umgebungHinweis": "La ventana, el campo y el texto alrededor del cursor se envían para que el texto encaje. Nunca de campos de contraseña."
   },
   "appLink": {
     "title": "Abrir en la aplicación covey",

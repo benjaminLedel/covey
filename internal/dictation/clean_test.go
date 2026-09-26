@@ -22,7 +22,7 @@ func (f *fakeModel) Complete(_ context.Context, req llm.Request) (string, error)
 
 func TestCleanSendsTheDictationAndTheTargetApp(t *testing.T) {
 	m := &fakeModel{answer: "  Wir treffen uns am Mittwoch.\n"}
-	out, err := Clean(context.Background(), m, "äh wir treffen uns am Dienstag nein Mittwoch", "Mail")
+	out, err := Clean(context.Background(), m, "äh wir treffen uns am Dienstag nein Mittwoch", "Mail", Context{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestCleanSendsTheDictationAndTheTargetApp(t *testing.T) {
 
 func TestCleanWithoutAnAppSaysNone(t *testing.T) {
 	m := &fakeModel{answer: "x"}
-	if _, err := Clean(context.Background(), m, "hallo", " "); err != nil {
+	if _, err := Clean(context.Background(), m, "hallo", " ", Context{}); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(m.got.Messages[0].Content, "Target application") {
@@ -55,7 +55,27 @@ func TestCleanWithoutAnAppSaysNone(t *testing.T) {
 }
 
 func TestCleanRefusesAnEmptyAnswer(t *testing.T) {
-	if _, err := Clean(context.Background(), &fakeModel{answer: "\n"}, "x", ""); err != ErrEmpty {
+	if _, err := Clean(context.Background(), &fakeModel{answer: "\n"}, "x", "", Context{}); err != ErrEmpty {
 		t.Fatalf("an empty answer is not a text: %v", err)
+	}
+}
+
+func TestCleanPassesWhereTheTextGoes(t *testing.T) {
+	m := &fakeModel{answer: "bis Freitag."}
+	where := Context{Window: "Re: Angebot", Field: "text area", Before: "Hallo Ada, ich schicke dir das Angebot ", After: "\n\nGruß"}
+	if _, err := Clean(context.Background(), m, "bis freitag", "Mail", where); err != nil {
+		t.Fatal(err)
+	}
+	msg := m.got.Messages[0].Content
+	for _, want := range []string{"Window: Re: Angebot", "Field: text area", "<<<Hallo Ada, ich schicke dir das Angebot >>>", "<<<\n\nGruß>>>", "Dictation:\n\nbis freitag"} {
+		if !strings.Contains(msg, want) {
+			t.Fatalf("%q missing from %q", want, msg)
+		}
+	}
+	if !strings.Contains(m.got.System, "Never repeat, quote or change the context") {
+		t.Fatal("the instruction must forbid repeating the context")
+	}
+	if !strings.Contains(m.got.System, "never the content") {
+		t.Fatal("the context must not rewrite what was said")
 	}
 }

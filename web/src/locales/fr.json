@@ -2591,7 +2591,9 @@
     "tastenkuerzel": "Raccourci",
     "kuerzelAufnehmen": "Appuyez sur la combinaison voulue, avec au moins une des touches ⌃ ⌥ ⇧ ⌘.",
     "uebernehmen": "Utiliser",
-    "leertaste": "Espace"
+    "leertaste": "Espace",
+    "umgebung": "Inclure le contexte",
+    "umgebungHinweis": "La fenêtre, le champ et le texte autour du curseur sont envoyés pour que le texte s'enchaîne. Jamais depuis un champ de mot de passe."
   },
   "appLink": {
     "title": "Ouvrir dans l'application covey",

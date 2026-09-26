@@ -2591,7 +2591,9 @@
     "tastenkuerzel": "Scorciatoia",
     "kuerzelAufnehmen": "Premi la combinazione che vuoi, con almeno uno dei tasti ⌃ ⌥ ⇧ ⌘.",
     "uebernehmen": "Usa",
-    "leertaste": "Spazio"
+    "leertaste": "Spazio",
+    "umgebung": "Includi il contesto",
+    "umgebungHinweis": "Finestra, campo e testo attorno al cursore vengono inviati perché il testo si colleghi. Mai dai campi password."
   },
   "appLink": {
     "title": "Apri nell'app covey",

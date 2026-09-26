@@ -128,6 +128,8 @@
   "mobile.ueberallHinweis": "押し続けて話し、離すと挿入。短くタップでハンズフリー、もう一度タップで挿入。音声は Mac に残ります。整える際は、テキストと挿入先アプリ名だけが covey インスタンスに送られます。",
   "mobile.ueberallSchalter": "任意のアプリに音声入力",
   "mobile.uebernehmen": "使用",
+  "mobile.umgebung": "周辺の内容を含める",
+  "mobile.umgebungHinweis": "テキストが自然につながるよう、ウインドウ・入力欄・カーソル周辺の文字を送ります。パスワード欄からは送りません。",
   "mobile.verbinden": "接続",
   "mobile.verbindenLead": "covey インストールのアドレスと、サインインに使う API キー。",
   "mobile.verbindenTitel": "あなたの covey はどこですか？",

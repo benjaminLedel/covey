@@ -128,6 +128,8 @@
   "mobile.ueberallHinweis": "按住说话，松开插入。轻点：免手持，再点一次：插入。音频留在 Mac 上；整理时只把文字和目标应用名称发送到您的 covey 实例。",
   "mobile.ueberallSchalter": "在任意应用中听写",
   "mobile.uebernehmen": "使用",
+  "mobile.umgebung": "包含上下文",
+  "mobile.umgebungHinweis": "发送窗口、输入框和光标周围的文字，让文本衔接自然。从不读取密码框。",
   "mobile.verbinden": "连接",
   "mobile.verbindenLead": "你的 covey 安装地址，以及用于登录的 API 密钥。",
   "mobile.verbindenTitel": "你的 covey 在哪里？",

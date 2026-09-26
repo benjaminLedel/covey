@@ -2591,7 +2591,9 @@
     "tastenkuerzel": "Sneltoets",
     "kuerzelAufnehmen": "Druk op de gewenste combinatie, met minstens één van de toetsen ⌃ ⌥ ⇧ ⌘.",
     "uebernehmen": "Gebruiken",
-    "leertaste": "Spatie"
+    "leertaste": "Spatie",
+    "umgebung": "Omgeving meenemen",
+    "umgebungHinweis": "Venster, veld en de tekst rond de cursor gaan mee, zodat de tekst aansluit. Nooit uit wachtwoordvelden."
   },
   "appLink": {
     "title": "Openen in de covey-app",

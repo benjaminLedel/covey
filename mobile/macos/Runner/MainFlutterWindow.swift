@@ -85,6 +85,8 @@ final class FlowBridge {
       result(nil)
     case "frontmostApp":
       result(NSWorkspace.shared.frontmostApplication?.localizedName)
+    case "focus":
+      result(focus())
     case "show":
       panel.show()
       result(nil)
@@ -102,6 +104,55 @@ final class FlowBridge {
     default:
       result(FlutterMethodNotImplemented)
     }
+  }
+
+  /// Where the text is going (#362), read when the shortcut is pressed:
+  /// the app, its window's title, the focused field's kind and label, and
+  /// the text around the insertion point — up to 600 characters before and
+  /// 200 after. A secure text field (a password) yields nothing but the
+  /// flag that it is one.
+  private func focus() -> [String: Any] {
+    var out: [String: Any] = [:]
+    guard let app = NSWorkspace.shared.frontmostApplication else { return out }
+    out["app"] = app.localizedName ?? ""
+    guard AXIsProcessTrusted() else { return out }
+
+    func attr(_ el: AXUIElement, _ name: String) -> AnyObject? {
+      var v: AnyObject?
+      return AXUIElementCopyAttributeValue(el, name as CFString, &v) == .success ? v : nil
+    }
+    let appElement = AXUIElementCreateApplication(app.processIdentifier)
+    AXUIElementSetMessagingTimeout(appElement, 0.25)
+    if let window = attr(appElement, kAXFocusedWindowAttribute) {
+      out["window"] = attr(window as! AXUIElement, kAXTitleAttribute) as? String ?? ""
+    }
+    guard let focused = attr(appElement, kAXFocusedUIElementAttribute) else { return out }
+    let el = focused as! AXUIElement
+    let role = attr(el, kAXRoleAttribute) as? String ?? ""
+    let subrole = attr(el, kAXSubroleAttribute) as? String ?? ""
+    if subrole == kAXSecureTextFieldSubrole {
+      out["secure"] = true
+      return out
+    }
+    let label = [kAXTitleAttribute, kAXDescriptionAttribute, "AXPlaceholderValue"]
+      .compactMap { attr(el, $0) as? String }
+      .first { !$0.isEmpty } ?? ""
+    let kind = attr(el, kAXRoleDescriptionAttribute) as? String ?? role
+    out["field"] = [kind, label].filter { !$0.isEmpty }.joined(separator: " · ")
+
+    if let value = attr(el, kAXValueAttribute) as? String,
+       let rangeValue = attr(el, kAXSelectedTextRangeAttribute) {
+      var range = CFRange()
+      if AXValueGetValue(rangeValue as! AXValue, .cfRange, &range) {
+        let ns = value as NSString
+        let start = min(max(range.location, 0), ns.length)
+        let end = min(start + max(range.length, 0), ns.length)
+        let from = max(0, start - 600)
+        out["before"] = ns.substring(with: NSRange(location: from, length: start - from))
+        out["after"] = ns.substring(with: NSRange(location: end, length: min(200, ns.length - end)))
+      }
+    }
+    return out
   }
 
   /// Puts [text] where the cursor is: onto the pasteboard, then ⌘V into the
@@ -153,11 +204,16 @@ final class FlowPanel {
   private let content = NSView()
   private let wave = WaveView()
   private let label = NSTextField(wrappingLabelWithString: "")
+  private let icon = NSImageView()
 
   private static let height: CGFloat = 44
-  private static let compactWidth: CGFloat = 132
+  private static let compactWidth: CGFloat = 166
   private static let maxWidth: CGFloat = 560
   private static let waveWidth: CGFloat = 92
+  /// The target app's icon, left of the wave: where the text goes.
+  private static let iconSide: CGFloat = 24
+  private static let iconGap: CGFloat = 10
+  private static var lead: CGFloat { iconSide + iconGap }
   private static let pad: CGFloat = 20
   private static let gap: CGFloat = 12
   private static let maxLines = 5
@@ -212,12 +268,14 @@ final class FlowPanel {
       g.autoresizingMask = [.width, .height]
       content.frame = g.bounds
       content.autoresizingMask = [.width, .height]
+      content.addSubview(icon)
       content.addSubview(wave)
       content.addSubview(label)
       g.contentView = content
       panel.contentView = g
       liquid = g
     } else {
+      glass.addSubview(icon)
       glass.addSubview(wave)
       glass.addSubview(label)
       panel.contentView = glass
@@ -228,7 +286,7 @@ final class FlowPanel {
   /// full width — and beyond that the end of it, "…" in front: the end is
   /// what is being said now.
   private func measure(_ full: String) -> (shown: String, size: NSSize) {
-    let maxLabel = Self.maxWidth - Self.pad - Self.waveWidth - Self.gap - Self.pad
+    let maxLabel = Self.maxWidth - Self.pad - Self.lead - Self.waveWidth - Self.gap - Self.pad
     let attrs: [NSAttributedString.Key: Any] = [.font: Self.font]
     func height(_ s: String) -> CGFloat {
       ceil(NSAttributedString(string: s, attributes: attrs).boundingRect(
@@ -257,7 +315,7 @@ final class FlowPanel {
   private func frame(for size: NSSize?) -> NSRect {
     let width: CGFloat, height: CGFloat
     if let size {
-      width = Self.pad + Self.waveWidth + Self.gap + size.width + Self.pad
+      width = Self.pad + Self.lead + Self.waveWidth + Self.gap + size.width + Self.pad
       height = max(Self.height, size.height + 24)
     } else {
       width = Self.compactWidth
@@ -271,15 +329,16 @@ final class FlowPanel {
 
   private func layout(_ rect: NSRect, labelSize: NSSize?) {
     let waveH = Self.height - 20
+    // Icon and wave stay at the bottom, beside the last line; the text grows
+    // upwards.
+    let groupX = labelSize == nil ? (rect.width - Self.lead - Self.waveWidth) / 2 : Self.pad
+    icon.frame = NSRect(
+      x: groupX, y: (Self.height - Self.iconSide) / 2, width: Self.iconSide, height: Self.iconSide)
+    wave.frame = NSRect(x: groupX + Self.lead, y: 10, width: Self.waveWidth, height: waveH)
     if let size = labelSize {
-      // The wave stays at the bottom, beside the last line; the text grows
-      // upwards.
-      wave.frame = NSRect(x: Self.pad, y: 10, width: Self.waveWidth, height: waveH)
       label.frame = NSRect(
-        x: Self.pad + Self.waveWidth + Self.gap, y: (rect.height - size.height) / 2,
+        x: Self.pad + Self.lead + Self.waveWidth + Self.gap, y: (rect.height - size.height) / 2,
         width: size.width, height: size.height)
-    } else {
-      wave.frame = NSRect(x: (rect.width - Self.waveWidth) / 2, y: 10, width: Self.waveWidth, height: waveH)
     }
     let radius = min(Self.height / 2, rect.height / 2)
     if radius != maskRadius {
@@ -310,6 +369,7 @@ final class FlowPanel {
   }
 
   func show() {
+    icon.image = NSWorkspace.shared.frontmostApplication?.icon
     text = ""
     label.stringValue = ""
     label.alphaValue = 0

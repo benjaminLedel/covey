@@ -2591,7 +2591,9 @@
     "tastenkuerzel": "Skrót klawiszowy",
     "kuerzelAufnehmen": "Naciśnij wybraną kombinację, z co najmniej jednym z klawiszy ⌃ ⌥ ⇧ ⌘.",
     "uebernehmen": "Użyj",
-    "leertaste": "Spacja"
+    "leertaste": "Spacja",
+    "umgebung": "Uwzględnij otoczenie",
+    "umgebungHinweis": "Okno, pole i tekst wokół kursora są wysyłane, by tekst pasował. Nigdy z pól haseł."
   },
   "appLink": {
     "title": "Otwórz w aplikacji covey",

@@ -2591,7 +2591,9 @@
     "tastenkuerzel": "ショートカット",
     "kuerzelAufnehmen": "使いたい組み合わせを押してください。⌃ ⌥ ⇧ ⌘ のいずれかを含めてください。",
     "uebernehmen": "使用",
-    "leertaste": "スペース"
+    "leertaste": "スペース",
+    "umgebung": "周辺の内容を含める",
+    "umgebungHinweis": "テキストが自然につながるよう、ウインドウ・入力欄・カーソル周辺の文字を送ります。パスワード欄からは送りません。"
   },
   "appLink": {
     "title": "covey アプリで開く",

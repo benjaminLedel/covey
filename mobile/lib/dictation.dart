@@ -258,7 +258,9 @@ abstract class SegmentedEngine implements SpeechEngine {
     await _close(keep: _voicedBytes >= _minVoicedBytes);
     if (!keepLoaded) await release();
     _stopping = false;
-    _log('stopped, ${_committed.length} characters from ${(_audioBytes() / _bytesPerSecond).toStringAsFixed(1)} s of audio');
+    _log(
+      'stopped, ${_committed.length} characters from ${(_audioBytes() / _bytesPerSecond).toStringAsFixed(1)} s of audio',
+    );
     return _committed;
   }
 

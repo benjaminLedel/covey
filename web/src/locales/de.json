@@ -2591,7 +2591,9 @@
     "tastenkuerzel": "Tastenkürzel",
     "kuerzelAufnehmen": "Drücken Sie die gewünschte Kombination, mit mindestens einer der Tasten ⌃ ⌥ ⇧ ⌘.",
     "uebernehmen": "Übernehmen",
-    "leertaste": "Leertaste"
+    "leertaste": "Leertaste",
+    "umgebung": "Umgebung einbeziehen",
+    "umgebungHinweis": "Fenster, Feld und der Text um den Cursor gehen mit, damit der Text anschließt. Nie aus Passwortfeldern."
   },
   "appLink": {
     "title": "In der covey-App öffnen",

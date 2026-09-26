@@ -128,6 +128,8 @@
   "mobile.ueberallHinweis": "Hold: speak, release: insert. Tap: hands-free, tap again: insert. The audio stays on the Mac; for the cleanup only the text goes to your covey instance, with the name of the app it is for.",
   "mobile.ueberallSchalter": "Dictate into any app",
   "mobile.uebernehmen": "Use",
+  "mobile.umgebung": "Include the surroundings",
+  "mobile.umgebungHinweis": "Window, field and the text around the cursor go along, so the text fits in. Never from password fields.",
   "mobile.verbinden": "Connect",
   "mobile.verbindenLead": "The address of your covey installation, and an API key to sign in with.",
   "mobile.verbindenTitel": "Where is your covey?",

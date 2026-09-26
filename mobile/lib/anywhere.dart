@@ -36,6 +36,7 @@ class DictateAnywhere extends ChangeNotifier {
   static const _channel = MethodChannel('covey/flow');
   static const _enabledKey = 'flow.enabled';
   static const _cleanKey = 'flow.clean';
+  static const _contextKey = 'flow.context';
   final _prefs = Prefs.instance;
 
   static const _hotKeyKey = 'flow.hotkey';
@@ -52,6 +53,10 @@ class DictateAnywhere extends ChangeNotifier {
 
   bool enabled = false;
   bool clean = true;
+
+  /// Send where the text goes with the cleanup: window, field, the text
+  /// around the cursor (#362).
+  bool useContext = true;
 
   /// Whether the instance can clean up (it has a model credential).
   bool cleanAvailable = false;
@@ -76,6 +81,7 @@ class DictateAnywhere extends ChangeNotifier {
   bool _busy = false;
   Future<bool>? _starting;
   String? _targetApp;
+  Map<String, Object?> _focus = const {};
   DateTime _lastPush = DateTime.fromMillisecondsSinceEpoch(0);
 
   /// Connects to the instance the app is signed in to; registers the
@@ -88,6 +94,7 @@ class DictateAnywhere extends ChangeNotifier {
     try {
       enabled = await _prefs.read(_enabledKey) == 'on';
       clean = await _prefs.read(_cleanKey) != 'off';
+      useContext = await _prefs.read(_contextKey) != 'off';
       final saved = await _prefs.read(_hotKeyKey);
       if (saved != null) {
         final k = HotKey.fromJson(jsonDecode(saved) as Map<String, dynamic>);
@@ -133,6 +140,12 @@ class DictateAnywhere extends ChangeNotifier {
     }
     notifyListeners();
     await _save(_enabledKey, on ? 'on' : 'off');
+  }
+
+  Future<void> setContext(bool on) async {
+    useContext = on;
+    notifyListeners();
+    await _save(_contextKey, on ? 'on' : 'off');
   }
 
   Future<void> setClean(bool on) async {
@@ -274,10 +287,17 @@ class DictateAnywhere extends ChangeNotifier {
 
   Future<void> _start(Dictation d) async {
     try {
-      _targetApp = await _channel.invokeMethod<String>('frontmostApp');
+      _focus = (await _channel.invokeMapMethod<String, Object?>('focus')) ?? const {};
     } on PlatformException {
-      _targetApp = null;
+      _focus = const {};
     }
+    _targetApp = _focus['app'] as String?;
+    diag(
+      'flow',
+      _focus['secure'] == true
+          ? 'target: a secure field in $_targetApp'
+          : 'target: $_targetApp · ${_focus['field'] ?? '?'} · ${(_focus['before'] as String?)?.length ?? 0} characters before',
+    );
     diag('flow', 'start');
     await _channel.invokeMethod<void>('show');
     _push(force: true);
@@ -311,14 +331,24 @@ class DictateAnywhere extends ChangeNotifier {
       if (clean && cleanAvailable) {
         await _channel.invokeMethod<void>('update', {'text': cleaning, 'levels': <double>[], 'busy': true});
         final watch = Stopwatch()..start();
+        final secure = _focus['secure'] == true;
+        final context = useContext && !secure
+            ? {
+                'window': _focus['window'] as String? ?? '',
+                'field': _focus['field'] as String? ?? '',
+                'before': _focus['before'] as String? ?? '',
+                'after': _focus['after'] as String? ?? '',
+              }
+            : null;
         try {
-          text = await api.cleanDictation(text, app: _targetApp);
+          text = await api.cleanDictation(text, app: _targetApp, context: context);
           diag('flow', 'cleaned in ${watch.elapsedMilliseconds} ms');
         } on ApiException catch (e) {
           // The raw text is better than none.
           diag('flow', 'cleanup failed, inserting as recognised: ${e.message}');
         }
       }
+      text = seam(text, before: _focus['before'] as String? ?? '', after: _focus['after'] as String? ?? '');
       final ok = await _channel.invokeMethod<bool>('insert', {'text': text}) ?? false;
       diag('flow', ok ? 'inserted ${text.length} characters' : 'not inserted: no Accessibility permission');
       if (!ok) {
@@ -364,4 +394,25 @@ class DictateAnywhere extends ChangeNotifier {
     _dictation = null;
     _api = null;
   }
+}
+
+/// The joint between what is in the field and what is inserted (#362): a
+/// space where the text before does not end in one (or in an opening
+/// bracket or quote), a space after where a word follows directly. The case
+/// of the first letter is left alone — in German a capital may be a noun,
+/// and the cleanup, which sees the context, decides it.
+String seam(String text, {required String before, required String after}) {
+  if (text.isEmpty) return text;
+  var t = text;
+  // Characters after which the text follows without a space, and with which
+  // it may begin without one.
+  const opens = ' \t\n([{"\'/-„“‚‘«»';
+  const closes = ' \t\n.,;:!?)]}';
+  if (before.isNotEmpty && !opens.contains(before[before.length - 1]) && !closes.contains(t[0])) {
+    t = ' $t';
+  }
+  if (after.isNotEmpty && RegExp(r'^[\p{L}\p{N}]', unicode: true).hasMatch(after) && !t.endsWith(' ')) {
+    t = '$t ';
+  }
+  return t;
 }

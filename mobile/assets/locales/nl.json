@@ -128,6 +128,8 @@
   "mobile.ueberallHinweis": "Vasthouden: spreken, loslaten: invoegen. Tikken: handsfree, nogmaals tikken: invoegen. Het geluid blijft op de Mac; voor het opschonen gaat alleen de tekst naar uw covey-instantie, met de naam van de app waarvoor hij is.",
   "mobile.ueberallSchalter": "In elke app dicteren",
   "mobile.uebernehmen": "Gebruiken",
+  "mobile.umgebung": "Omgeving meenemen",
+  "mobile.umgebungHinweis": "Venster, veld en de tekst rond de cursor gaan mee, zodat de tekst aansluit. Nooit uit wachtwoordvelden.",
   "mobile.verbinden": "Verbinden",
   "mobile.verbindenLead": "Het adres van uw covey-installatie en een API-sleutel om mee in te loggen.",
   "mobile.verbindenTitel": "Waar is uw covey?",
