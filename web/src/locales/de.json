@@ -2578,7 +2578,7 @@
     "diagnoseHinweis": "Das Protokoll bleibt auf diesem Gerät. Es hält Abläufe, Zeiten und Fehler fest, keine Inhalte: keine Notizen, keine Transkripte, keine Nachrichten, keine Schlüssel.",
     "modell_parakeet": "Erkennt 25 europäische Sprachen selbst, mit Satzzeichen; im Test",
     "ueberall": "Diktat überall",
-    "ueberallSchalter": "Mit ⌥ Leertaste in jede App diktieren",
+    "ueberallSchalter": "In jede App diktieren",
     "bedienungshilfen": "Bedienungshilfen",
     "freigegeben": "Freigegeben: der Text kann eingefügt werden",
     "nichtFreigegeben": "Nicht freigegeben: der Text kann nicht eingefügt werden",
@@ -2587,7 +2587,11 @@
     "aufraeumenHinweis": "Füllwörter raus, Korrekturen übernommen, Satzzeichen gesetzt",
     "aufraeumenNicht": "Braucht einen Modellzugang Ihrer Organisation",
     "ueberallHinweis": "Halten: sprechen, loslassen: einfügen. Kurz tippen: freihändig, noch einmal tippen: einfügen. Der Ton bleibt auf dem Mac; zum Aufräumen geht nur der Text an Ihre covey-Instanz, mit dem Namen der App, für die er ist.",
-    "raeumtAuf": "Räumt auf …"
+    "raeumtAuf": "Räumt auf …",
+    "tastenkuerzel": "Tastenkürzel",
+    "kuerzelAufnehmen": "Drücken Sie die gewünschte Kombination, mit mindestens einer der Tasten ⌃ ⌥ ⇧ ⌘.",
+    "uebernehmen": "Übernehmen",
+    "leertaste": "Leertaste"
   },
   "appLink": {
     "title": "In der covey-App öffnen",

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hotkey_manager/hotkey_manager.dart';
 
 import '../chrome.dart';
 import '../api.dart';
@@ -258,6 +259,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
     widget.onDisconnect();
   }
 
+  /// A new shortcut, recorded as it is pressed. The current one is let go
+  /// meanwhile, so pressing it records it rather than starting a dictation.
+  Future<void> _recordHotKey() async {
+    final a = DictateAnywhere.instance;
+    await a.pause();
+    HotKey? recorded;
+    if (!mounted) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialog) => AlertDialog(
+          title: Text(context.t('mobile.tastenkuerzel')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(context.t('mobile.kuerzelAufnehmen')),
+              const SizedBox(height: 16),
+              HotKeyRecorder(initalHotKey: a.hotKey, onHotKeyRecorded: (k) => setDialog(() => recorded = k)),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: Text(context.t('team.abbrechen'))),
+            FilledButton(
+              onPressed: (recorded?.modifiers ?? const []).isEmpty ? null : () => Navigator.pop(context, true),
+              child: Text(context.t('mobile.uebernehmen')),
+            ),
+          ],
+        ),
+      ),
+    );
+    final k = recorded;
+    if (ok == true && k != null) {
+      await a.setHotKey(k);
+    } else {
+      await a.resume();
+    }
+  }
+
   /// Dictate anywhere (#355): the shortcut, the permission it needs, and
   /// the cleanup — Mac only.
   List<Widget> _anywhere(BuildContext context, TextStyle? small) {
@@ -271,6 +311,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           GroupRow(
             title: context.t('mobile.ueberallSchalter'),
             trailing: Switch.adaptive(value: a.enabled, onChanged: a.setEnabled),
+          ),
+          GroupRow(
+            title: context.t('mobile.tastenkuerzel'),
+            subtitle: a.label(space: context.t('mobile.leertaste')),
+            trailing: Icon(AppIcons.chevron.of(context), color: c.textMuted, size: 18),
+            onTap: _recordHotKey,
           ),
           GroupRow(
             title: context.t('mobile.bedienungshilfen'),

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -37,7 +38,17 @@ class DictateAnywhere extends ChangeNotifier {
   static const _cleanKey = 'flow.clean';
   final _prefs = Prefs.instance;
 
-  final hotKey = HotKey(key: PhysicalKeyboardKey.space, modifiers: [HotKeyModifier.alt], scope: HotKeyScope.system);
+  static const _hotKeyKey = 'flow.hotkey';
+
+  /// ⌃⌥ Space unless one was recorded in settings. ⌥ Space alone is taken
+  /// by several assistants (Claude, ChatGPT, Raycast), and macOS gives a
+  /// combination to whoever registered it first — silently.
+  static final defaultHotKey = HotKey(
+    key: PhysicalKeyboardKey.space,
+    modifiers: [HotKeyModifier.control, HotKeyModifier.alt],
+    scope: HotKeyScope.system,
+  );
+  HotKey hotKey = defaultHotKey;
 
   bool enabled = false;
   bool clean = true;
@@ -77,6 +88,11 @@ class DictateAnywhere extends ChangeNotifier {
     try {
       enabled = await _prefs.read(_enabledKey) == 'on';
       clean = await _prefs.read(_cleanKey) != 'off';
+      final saved = await _prefs.read(_hotKeyKey);
+      if (saved != null) {
+        final k = HotKey.fromJson(jsonDecode(saved) as Map<String, dynamic>);
+        hotKey = HotKey(key: k.key, modifiers: k.modifiers, scope: HotKeyScope.system);
+      }
     } catch (_) {
       // Unreadable: the defaults.
     }
@@ -162,12 +178,64 @@ class DictateAnywhere extends ChangeNotifier {
     }
   }
 
+  /// Takes a new shortcut: at least one modifier, so typing never triggers
+  /// it.
+  Future<bool> setHotKey(HotKey k) async {
+    if ((k.modifiers ?? const []).isEmpty) return false;
+    final was = _registered;
+    await _unregister();
+    hotKey = HotKey(key: k.key, modifiers: k.modifiers, scope: HotKeyScope.system);
+    if (was || enabled) await _register();
+    notifyListeners();
+    await _save(_hotKeyKey, jsonEncode(hotKey.toJson()));
+    return true;
+  }
+
+  /// Lets go of the shortcut while a new one is recorded, so pressing the
+  /// old one does not start a dictation.
+  Future<void> pause() => _unregister();
+  Future<void> resume() async {
+    if (enabled) await _register();
+  }
+
+  /// The shortcut as the Mac writes it: ⌃⌥ Space.
+  String label({String space = 'Space'}) {
+    const symbols = {
+      HotKeyModifier.control: '⌃',
+      HotKeyModifier.alt: '⌥',
+      HotKeyModifier.shift: '⇧',
+      HotKeyModifier.meta: '⌘',
+      HotKeyModifier.capsLock: '⇪',
+      HotKeyModifier.fn: 'fn ',
+    };
+    final mods = [
+      for (final m in [
+        HotKeyModifier.control,
+        HotKeyModifier.alt,
+        HotKeyModifier.shift,
+        HotKeyModifier.meta,
+        HotKeyModifier.capsLock,
+        HotKeyModifier.fn,
+      ])
+        if (hotKey.modifiers?.contains(m) ?? false) symbols[m],
+    ].join();
+    final key = hotKey.physicalKey == PhysicalKeyboardKey.space ? space : hotKey.physicalKey.keyLabel.toUpperCase();
+    return '$mods $key';
+  }
+
   Future<void> _register() async {
     if (_registered) return;
     try {
-      await hotKeyManager.register(hotKey, keyDownHandler: (_) => _down(), keyUpHandler: (_) => _up());
+      await hotKeyManager.register(
+        hotKey,
+        keyDownHandler: (_) {
+          diag('flow', 'shortcut pressed');
+          _down();
+        },
+        keyUpHandler: (_) => _up(),
+      );
       _registered = true;
-      diag('flow', 'shortcut registered');
+      diag('flow', 'shortcut registered: ${label()}');
     } catch (e) {
       diag('flow', 'shortcut not registered: $e');
     }

@@ -2578,7 +2578,7 @@
     "diagnoseHinweis": "Le journal reste sur cet appareil. Il consigne les opérations, les durées et les erreurs, sans contenu : ni notes, ni transcriptions, ni messages, ni clés.",
     "modell_parakeet": "Reconnaît seul 25 langues européennes, avec ponctuation ; en test",
     "ueberall": "Dicter partout",
-    "ueberallSchalter": "Dicter dans n'importe quelle app avec ⌥ Espace",
+    "ueberallSchalter": "Dicter dans n'importe quelle app",
     "bedienungshilfen": "Accessibilité",
     "freigegeben": "Autorisé : le texte peut être inséré",
     "nichtFreigegeben": "Non autorisé : le texte ne peut pas être inséré",
@@ -2587,7 +2587,11 @@
     "aufraeumenHinweis": "Mots de remplissage retirés, corrections appliquées, ponctuation ajoutée",
     "aufraeumenNicht": "Nécessite un accès modèle de votre organisation",
     "ueberallHinweis": "Maintenir : parler, relâcher : insérer. Toucher : mains libres, toucher à nouveau : insérer. L'audio reste sur le Mac ; pour le nettoyage, seul le texte part vers votre instance covey, avec le nom de l'app à laquelle il est destiné.",
-    "raeumtAuf": "Nettoyage …"
+    "raeumtAuf": "Nettoyage …",
+    "tastenkuerzel": "Raccourci",
+    "kuerzelAufnehmen": "Appuyez sur la combinaison voulue, avec au moins une des touches ⌃ ⌥ ⇧ ⌘.",
+    "uebernehmen": "Utiliser",
+    "leertaste": "Espace"
   },
   "appLink": {
     "title": "Ouvrir dans l'application covey",

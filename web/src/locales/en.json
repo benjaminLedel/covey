@@ -2578,7 +2578,7 @@
     "diagnoseHinweis": "The log stays on this device. It records what happens, timings and errors — no content: no notes, no transcripts, no messages, no keys.",
     "modell_parakeet": "Recognises 25 European languages by itself, with punctuation; in testing",
     "ueberall": "Dictate anywhere",
-    "ueberallSchalter": "Dictate into any app with ⌥ Space",
+    "ueberallSchalter": "Dictate into any app",
     "bedienungshilfen": "Accessibility",
     "freigegeben": "Allowed: the text can be inserted",
     "nichtFreigegeben": "Not allowed: the text cannot be inserted",
@@ -2587,7 +2587,11 @@
     "aufraeumenHinweis": "Filler words out, corrections applied, punctuation set",
     "aufraeumenNicht": "Needs a model credential for your organisation",
     "ueberallHinweis": "Hold: speak, release: insert. Tap: hands-free, tap again: insert. The audio stays on the Mac; for the cleanup only the text goes to your covey instance, with the name of the app it is for.",
-    "raeumtAuf": "Cleaning up …"
+    "raeumtAuf": "Cleaning up …",
+    "tastenkuerzel": "Shortcut",
+    "kuerzelAufnehmen": "Press the combination you want, with at least one of ⌃ ⌥ ⇧ ⌘.",
+    "uebernehmen": "Use",
+    "leertaste": "Space"
   },
   "appLink": {
     "title": "Open in the covey app",

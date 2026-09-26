@@ -2578,7 +2578,7 @@
     "diagnoseHinweis": "O registo fica neste dispositivo. Regista operações, tempos e erros, sem conteúdo: sem notas, transcrições, mensagens nem chaves.",
     "modell_parakeet": "Reconhece sozinho 25 línguas europeias, com pontuação; em teste",
     "ueberall": "Ditar em qualquer lado",
-    "ueberallSchalter": "Ditar em qualquer app com ⌥ Espaço",
+    "ueberallSchalter": "Ditar em qualquer app",
     "bedienungshilfen": "Acessibilidade",
     "freigegeben": "Permitido: o texto pode ser inserido",
     "nichtFreigegeben": "Não permitido: o texto não pode ser inserido",
@@ -2587,7 +2587,11 @@
     "aufraeumenHinweis": "Sem bengalas, correções aplicadas, pontuação colocada",
     "aufraeumenNicht": "Precisa de um acesso a modelo da sua organização",
     "ueberallHinweis": "Manter: falar, soltar: inserir. Tocar: mãos livres, tocar de novo: inserir. O áudio fica no Mac; para a limpeza só o texto vai para a sua instância covey, com o nome da app a que se destina.",
-    "raeumtAuf": "A limpar …"
+    "raeumtAuf": "A limpar …",
+    "tastenkuerzel": "Atalho",
+    "kuerzelAufnehmen": "Prima a combinação que quiser, com pelo menos uma das teclas ⌃ ⌥ ⇧ ⌘.",
+    "uebernehmen": "Usar",
+    "leertaste": "Espaço"
   },
   "appLink": {
     "title": "Abrir na aplicação covey",
