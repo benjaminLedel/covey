@@ -25,7 +25,7 @@ const PairLink = lazy(() => import("./pages/PairLink"));
  *
  * Die Wurzel gehört dem Team, weil dort jeder landet. Die Agentenliste,
  * die früher hier stand, steht unter /agents. */
-const imTeam = (pfad: string) => pfad === "/" || pfad.startsWith("/team/");
+const imTeam = (pfad: string) => pfad === "/" || pfad === "/team" || pfad.startsWith("/team/");
 
 // useLiveEvents keeps the UI current over SSE: every server event invalidates
 // the queries it touches, and TanStack Query refetches just those.

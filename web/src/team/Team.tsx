@@ -127,9 +127,10 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
   ].filter((g) => g.mitglieder.length > 0);
   if (neu.length > 0) gruppen.unshift({ id: "ungelesen", name: t("team.ungelesenTitel"), color: "", mitglieder: neu });
 
-  const offen = wartend.data?.pending ?? 0;
   const pfad = useLocation().pathname;
   const notizenOffen = pfad === "/team/notes" || pfad.startsWith("/team/notes/");
+  // The office wants the full width: no list column beside it (#390).
+  const buero = pfad === "/";
   const notizId = notizenOffen ? (pfad.split("/")[3] ?? null) : null;
 
   return (
@@ -141,12 +142,13 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
           with the row picked there. */}
       <Rail
         me={me}
-        active={notizenOffen ? "notes" : "team"}
+        active={notizenOffen ? "notes" : buero ? "office" : "team"}
         onLogout={onLogout}
         onHelp={() => setHelpOpen(true)}
         onSearch={() => sucheOeffnen()}
       />
 
+      {!buero && (
       <aside className="sidebar tm-sidebar">
         {notizenOffen ? (
           <Suspense fallback={null}>
@@ -164,11 +166,6 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
               from. Two rows of one kind: both are where one goes, not whom
               one talks to. */}
           <div className="tm-orte">
-            <NavLink to="/" end className={({ isActive }) => `tm-wartet ${isActive ? "on" : ""}`}>
-              <span className="tm-wartet-punkt" data-offen={offen > 0} aria-hidden="true" />
-              {t("team.ueberblick")}
-              {offen > 0 && <span className="tm-zahl">{offen}</span>}
-            </NavLink>
             {darfEinstellen && (
               <Link
                 to={!people ? "/setup" : peopleEntwurf ? `/agents/${people.id}` : `/team/${people.id}?einstellen=1`}
@@ -230,11 +227,13 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
         </>
         )}
       </aside>
+      )}
 
       <main className="tm-haupt">
         <Suspense fallback={null}>
           <Routes>
             <Route path="/" element={<Ueberblick me={me} />} />
+            <Route path="/team" element={<p className="tm-start">{t("mobile.waehlen")}</p>} />
             <Route path="/team/notes" element={<NotesMain noteId={null} />} />
             <Route path="/team/notes/:noteId" element={<NoteRoute />} />
             <Route path="/team/:id" element={<ThreadRoute me={me} />} />
