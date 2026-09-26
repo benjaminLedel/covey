@@ -507,6 +507,17 @@ func (s *stack) newSupportAgent(slug string) agents.Agent {
 	return agent
 }
 
+// ohneLaeufe keeps an agent from being dispatched, so a test can look at
+// what a message leaves behind before any run touches it. It used to stop the
+// agent; a stopped agent takes no messages any more (#414), a draft does and
+// is not dispatched either.
+func (s *stack) ohneLaeufe(agentID uuid.UUID) {
+	s.t.Helper()
+	if _, err := s.pool.Exec(context.Background(), `UPDATE agents SET hired_at = NULL WHERE id = $1`, agentID); err != nil {
+		s.t.Fatal(err)
+	}
+}
+
 // fakeZammad is the target system: it records all requests.
 type fakeZammad struct {
 	mu       sync.Mutex

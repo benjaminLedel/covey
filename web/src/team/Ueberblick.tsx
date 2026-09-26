@@ -2,7 +2,7 @@ import { Suspense, lazy } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { api, inbox, type Agent, type Department, type InboxEntry, type Laufend, type Principal } from "../api";
+import { api, inbox, isColleague, type Agent, type Department, type InboxEntry, type Laufend, type Principal } from "../api";
 import Gesicht from "../components/Gesicht";
 import Dauer from "../components/Dauer";
 
@@ -57,7 +57,7 @@ export default function Ueberblick({ me }: { me: Principal }) {
   });
 
   const items = (offen.data?.items ?? []).slice(0, 12);
-  const alle = (agents.data ?? []).filter((a) => a.status !== "applicant");
+  const alle = (agents.data ?? []).filter(isColleague);
   const laeuft = laufend.data ?? [];
   /* „Arbeitet" heißt: hat einen laufenden Vorgang. Der Status allein sagte
      nur, dass der Agent wach ist — und ein wacher Agent ohne Aufgabe ist

@@ -270,6 +270,7 @@
   "team.etageErdTitel": "底层",
   "team.etageTitel": "{{n}} 层",
   "team.gestern": "昨天",
+  "team.gestopptHinweis": "{{name}} 已停止。紧急停止生效期间，{{name}} 不接收消息。",
   "team.leerText": "在下面写下要做的事，它会成为一个任务。",
   "team.leerTitel": "还没有和 {{name}} 谈过。",
   "team.nichtsGefunden": "没有找到。",

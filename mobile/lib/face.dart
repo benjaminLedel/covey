@@ -133,11 +133,21 @@ class _FaceState extends State<Face> {
         painter: _FacePainter(f: _f, state: widget.state, dark: isDark, clock: _attached ? _FaceClock.instance : null),
       ),
     );
-    // Stopped: no tone left. The face stays, it is just no longer there.
+    // Stopped: no tone left, and the sign everybody reads as "no entry" on
+    // the corner (#414) — grey eyes alone were close to asleep and easy to
+    // miss in a list. The sign stays red; only the face is greyed.
     if (widget.state == FaceState.killed) {
-      face = Opacity(
-        opacity: 0.55,
-        child: ColorFiltered(colorFilter: const ColorFilter.matrix(_grey), child: face),
+      face = Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Opacity(
+            opacity: 0.55,
+            child: ColorFiltered(colorFilter: const ColorFilter.matrix(_grey), child: face),
+          ),
+          Positioned.fill(
+            child: CustomPaint(painter: _StopSign(ring: Theme.of(context).colorScheme.surface)),
+          ),
+        ],
       );
     }
     return face;
@@ -229,19 +239,24 @@ class _FacePainter extends CustomPainter {
                 ..lineTo(x + f.eyeR, y));
         canvas.drawPath(path, line);
       }
-      // The sleeping mouth: a small o that breathes with the head.
-      canvas.save();
-      canvas.translate(12, y + 5);
-      canvas.scale(breath);
-      canvas.drawCircle(
-        Offset.zero,
-        1.15,
-        Paint()
-          ..color = ink
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.5,
-      );
-      canvas.restore();
+      if (sleeping) {
+        // The sleeping mouth: a small o that breathes with the head.
+        canvas.save();
+        canvas.translate(12, y + 5);
+        canvas.scale(breath);
+        canvas.drawCircle(
+          Offset.zero,
+          1.15,
+          Paint()
+            ..color = ink
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.5,
+        );
+        canvas.restore();
+      } else {
+        // Stopped: no breath, a straight line (#414).
+        canvas.drawLine(Offset(12 - f.mouth / 2, y + 5), Offset(12 + f.mouth / 2, y + 5), line);
+      }
     } else {
       // The eyes look around (5.3 s) and blink twice every 7.1 s.
       var dx = 0.0, dy = 0.0, blink = 1.0, mouth = 1.0;
@@ -336,4 +351,26 @@ class _FacePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_FacePainter old) => old.f != f || old.state != state || old.dark != dark || old.clock != clock;
+}
+
+/// The stop sign on a stopped face (#414): a red disc with a white bar, in
+/// the face's own 24-unit grid, bottom right — as Gesicht.tsx draws it.
+class _StopSign extends CustomPainter {
+  _StopSign({required this.ring});
+  final Color ring;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.scale(size.width / 24);
+    const c = Offset(19.5, 19.5);
+    canvas.drawCircle(c, 5.2 + 0.65, Paint()..color = ring);
+    canvas.drawCircle(c, 5.2, Paint()..color = const Color(0xFF9D2427));
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(const Rect.fromLTWH(16.7, 18.55, 5.6, 1.9), const Radius.circular(0.5)),
+      Paint()..color = const Color(0xFFFFFFFF),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_StopSign old) => old.ring != ring;
 }

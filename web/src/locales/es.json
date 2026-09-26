@@ -2477,7 +2477,8 @@
     "ungelesen": "{{count}} mensajes sin leer",
     "ungelesen_one": "Un mensaje sin leer",
     "ungelesenTitel": "Sin leer",
-    "bereiche": "Áreas"
+    "bereiche": "Áreas",
+    "gestopptHinweis": "{{name}} está detenido. Mientras la parada de emergencia esté activa, {{name}} no acepta mensajes."
   },
   "mobile": {
     "verbindenTitel": "¿Dónde está su covey?",

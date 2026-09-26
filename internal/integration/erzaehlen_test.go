@@ -52,9 +52,7 @@ func TestAChatTaskIsAcknowledgedAndToldInTheChat(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
 	agent := s.newSupportAgent("erzaehler")
-	if err := s.registry.SetKilled(ctx, agent.ID, true); err != nil {
-		t.Fatal(err)
-	}
+	s.ohneLaeufe(agent.ID)
 	modell := &redendesModell{}
 	s.srv.OrgLLM = func(context.Context, uuid.UUID) (llm.Provider, error) { return modell, nil }
 	admin := teamLogin(t, s)

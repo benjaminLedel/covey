@@ -60,7 +60,13 @@ void main() {
         if (p.endsWith('/me/notes')) return _json({'notes': [], 'summarize': false});
         if (p.endsWith('/agents')) {
           return _json([
-            {'id': _agent, 'slug': 'bea', 'display_name': 'Bea', 'status': 'sleeping'},
+            {
+              'id': _agent,
+              'slug': 'bea',
+              'display_name': 'Bea',
+              'hired_at': '2026-09-01T00:00:00Z',
+              'status': 'sleeping',
+            },
           ]);
         }
         if (p.endsWith('/thread')) {

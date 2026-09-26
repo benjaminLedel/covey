@@ -69,6 +69,7 @@ class Agent {
     required this.status,
     required this.departmentId,
     required this.killed,
+    this.hired = true,
   });
 
   factory Agent.fromJson(Map<String, dynamic> j) => Agent(
@@ -79,6 +80,8 @@ class Agent {
     status: j['status'] as String? ?? '',
     departmentId: j['department_id'] as String?,
     killed: j['killed'] as bool? ?? false,
+    // Absent is a draft: the instance leaves hired_at out until the first day.
+    hired: j['hired_at'] != null,
   );
 
   final String id;
@@ -91,6 +94,11 @@ class Agent {
 
   /// A draft is not a colleague (spec/27): nobody writes to an applicant.
   bool get isApplicant => status == 'applicant';
+
+  /// Hired and not an application (#414): what the team list and the office
+  /// show. Drafts belong to the administration, where they are hired.
+  final bool hired;
+  bool get isColleague => hired && !isApplicant;
 }
 
 class Department {

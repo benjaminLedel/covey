@@ -270,6 +270,7 @@
   "team.etageErdTitel": "Piano terra",
   "team.etageTitel": "Piano {{n}}",
   "team.gestern": "Ieri",
+  "team.gestopptHinweis": "{{name}} è fermato. Finché l'arresto d'emergenza è attivo, {{name}} non accetta messaggi.",
   "team.leerText": "Scriva qui sotto che cosa c'è da fare: diventerà un compito.",
   "team.leerTitel": "Non si è ancora parlato con {{name}}.",
   "team.nichtsGefunden": "Nessun risultato.",

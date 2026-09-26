@@ -270,6 +270,7 @@
   "team.etageErdTitel": "Begane grond",
   "team.etageTitel": "Verdieping {{n}}",
   "team.gestern": "Gisteren",
+  "team.gestopptHinweis": "{{name}} is gestopt. Zolang de noodstop actief is, neemt {{name}} geen berichten aan.",
   "team.leerText": "Schrijf hieronder wat er moet gebeuren — daar wordt een taak van.",
   "team.leerTitel": "Nog niets met {{name}} besproken.",
   "team.nichtsGefunden": "Niets gevonden.",

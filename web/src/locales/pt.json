@@ -2477,7 +2477,8 @@
     "ungelesen": "{{count}} mensagens não lidas",
     "ungelesen_one": "Uma mensagem não lida",
     "ungelesenTitel": "Não lidas",
-    "bereiche": "Áreas"
+    "bereiche": "Áreas",
+    "gestopptHinweis": "{{name}} está parado. Enquanto a paragem de emergência estiver ativa, {{name}} não aceita mensagens."
   },
   "mobile": {
     "verbindenTitel": "Onde está o seu covey?",

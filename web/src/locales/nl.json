@@ -2477,7 +2477,8 @@
     "ungelesen": "{{count}} ongelezen berichten",
     "ungelesen_one": "Eén ongelezen bericht",
     "ungelesenTitel": "Ongelezen",
-    "bereiche": "Onderdelen"
+    "bereiche": "Onderdelen",
+    "gestopptHinweis": "{{name}} is gestopt. Zolang de noodstop actief is, neemt {{name}} geen berichten aan."
   },
   "mobile": {
     "verbindenTitel": "Waar is uw covey?",

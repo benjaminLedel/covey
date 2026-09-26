@@ -2477,7 +2477,8 @@
     "ungelesen": "{{count}} messages non lus",
     "ungelesen_one": "Un message non lu",
     "ungelesenTitel": "Non lus",
-    "bereiche": "Espaces"
+    "bereiche": "Espaces",
+    "gestopptHinweis": "{{name}} est arrêté. Tant que l'arrêt d'urgence est actif, {{name}} n'accepte aucun message."
   },
   "mobile": {
     "verbindenTitel": "Où est votre covey ?",

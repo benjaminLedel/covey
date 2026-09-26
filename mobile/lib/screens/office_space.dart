@@ -78,7 +78,8 @@ class _OfficeSpaceState extends State<OfficeSpace> {
       final r = await Future.wait([widget.api.agents(), widget.api.departments()]);
       if (!mounted) return;
       setState(() {
-        _agents = r[0] as List<Agent>;
+        // Colleagues only, as in the web's office (#414).
+        _agents = (r[0] as List<Agent>).where((a) => a.isColleague).toList();
         _departments = r[1] as List<Department>;
         _error = null;
       });

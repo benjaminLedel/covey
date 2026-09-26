@@ -144,7 +144,7 @@ class _TeamSpaceState extends State<TeamSpace> {
     // departments, newest first (#383), and leaves its department's list
     // until it has been read.
     int unread(Agent a) => _threads[a.id]?.unread ?? 0;
-    final visible = data.agents.where((a) => !a.isApplicant && matches(a)).toList();
+    final visible = data.agents.where((a) => a.isColleague && matches(a)).toList();
     final fresh = visible.where((a) => unread(a) > 0).toList()
       ..sort((a, b) => (_threads[b.id]!.lastAt ?? DateTime(0)).compareTo(_threads[a.id]!.lastAt ?? DateTime(0)));
     final colleagues = visible.where((a) => unread(a) == 0).toList()

@@ -270,6 +270,7 @@
   "team.etageErdTitel": "Rez-de-chaussée",
   "team.etageTitel": "Étage {{n}}",
   "team.gestern": "Hier",
+  "team.gestopptHinweis": "{{name}} est arrêté. Tant que l'arrêt d'urgence est actif, {{name}} n'accepte aucun message.",
   "team.leerText": "Écrivez ci-dessous ce qu'il y a à faire — cela devient une tâche.",
   "team.leerTitel": "Rien n'a encore été discuté avec {{name}}.",
   "team.nichtsGefunden": "Rien trouvé.",

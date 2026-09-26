@@ -587,6 +587,9 @@ func (s *Server) handleChatMessage(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusForbidden, "the team surface is not enabled for this organisation")
 		return
 	}
+	if s.gestoppt(w, r, id) {
+		return
+	}
 	text, ok := chatText(w, r)
 	if !ok {
 		return
@@ -1166,6 +1169,24 @@ type chatReply struct {
 // A task nobody is waiting on keeps the note and says so with woken=false.
 // That is not an error: somebody wrote something down on a piece of work, and
 // the agent will read it on its next run.
+/* gestoppt refuses a message or a reply to a stopped agent (#414) and says
+ * so. It would be written down and never run: the dispatcher takes no task
+ * of a stopped agent, nor of any agent while the organisation's kill switch
+ * is on. The surfaces hide the composer; this is the guard that holds for
+ * every other client too. */
+func (s *Server) gestoppt(w http.ResponseWriter, r *http.Request, agentID uuid.UUID) bool {
+	var stop bool
+	if err := s.Pool.QueryRow(r.Context(), `SELECT a.killed OR o.fleet_killed
+		  FROM agents a JOIN organizations o ON o.id = a.org_id WHERE a.id = $1`, agentID).Scan(&stop); err != nil {
+		mapErr(w, err)
+		return true
+	}
+	if stop {
+		writeErr(w, http.StatusConflict, "the agent is stopped (kill switch) and takes no messages until it is released")
+	}
+	return stop
+}
+
 func (s *Server) handleTaskReply(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
@@ -1173,6 +1194,9 @@ func (s *Server) handleTaskReply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := principalFrom(r)
+	if t, err := s.Backlog.Get(r.Context(), id); err == nil && s.gestoppt(w, r, t.AgentID) {
+		return
+	}
 	text, ok := chatText(w, r)
 	if !ok {
 		return

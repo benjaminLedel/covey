@@ -2477,7 +2477,8 @@
     "ungelesen": "{{count}} unread messages",
     "ungelesen_one": "One unread message",
     "ungelesenTitel": "Unread",
-    "bereiche": "Areas"
+    "bereiche": "Areas",
+    "gestopptHinweis": "{{name}} is stopped. While the kill switch is on, {{name}} takes no messages."
   },
   "mobile": {
     "verbindenTitel": "Where is your covey?",

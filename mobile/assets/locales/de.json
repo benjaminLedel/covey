@@ -270,6 +270,7 @@
   "team.etageErdTitel": "Erdgeschoss",
   "team.etageTitel": "Etage {{n}}",
   "team.gestern": "Gestern",
+  "team.gestopptHinweis": "{{name}} ist gestoppt. Solange der Notaus steht, nimmt {{name}} keine Nachrichten an.",
   "team.leerText": "Schreiben Sie unten, was zu tun ist — daraus wird eine Aufgabe.",
   "team.leerTitel": "Noch nichts mit {{name}} besprochen.",
   "team.nichtsGefunden": "Nichts gefunden.",

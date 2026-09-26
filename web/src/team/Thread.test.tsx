@@ -42,4 +42,14 @@ describe("Thread", () => {
     expect(details.open).toBe(true);
     expect(screen.getByText("Rechnung 4711 doppelt gebucht")).toBeInTheDocument();
   });
+
+  it("nimmt bei einem gestoppten Agenten keine Nachricht an und sagt warum (#414)", async () => {
+    mockFetch({
+      [`/api/v1/agents/${AGENT}/thread`]: { entries: [], pending: false, tasks: [], marks: {} },
+      [`/api/v1/agents/${AGENT}`]: { id: AGENT, slug: "ada", display_name: "Ada", status: "idle", killed: true },
+    });
+    const { container } = renderWithProviders(<Thread agentId={AGENT} me={testPrincipal()} />);
+    expect(await screen.findByText(/Ada ist gestoppt/)).toBeInTheDocument();
+    expect((container.querySelector(".tm-eingabe") as HTMLElement).hidden).toBe(true);
+  });
 });

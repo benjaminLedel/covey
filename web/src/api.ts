@@ -127,6 +127,11 @@ export type AgentPhase = {
 /** Draft: created, but not hired yet. */
 export const isDraft = (a: Agent) => !a.hired_at;
 
+/** A colleague in the team surface (#414): hired, not an application. The
+ *  team list, the office and the search show these; drafts belong to the
+ *  administration, where they are hired. */
+export const isColleague = (a: Agent) => !isDraft(a) && a.status !== "applicant";
+
 /** Hire — the one way out of the draft, and a human takes it. */
 export const hireAgent = (id: string) => post<Agent>(`/agents/${id}/hire`);
 

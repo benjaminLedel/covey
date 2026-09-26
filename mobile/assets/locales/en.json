@@ -270,6 +270,7 @@
   "team.etageErdTitel": "Ground floor",
   "team.etageTitel": "Floor {{n}}",
   "team.gestern": "Yesterday",
+  "team.gestopptHinweis": "{{name}} is stopped. While the kill switch is on, {{name}} takes no messages.",
   "team.leerText": "Write what needs doing below — it becomes a task.",
   "team.leerTitel": "Nothing discussed with {{name}} yet.",
   "team.nichtsGefunden": "Nothing found.",

@@ -51,6 +51,8 @@ class ThreadScreen extends StatefulWidget {
 }
 
 class _ThreadScreenState extends State<ThreadScreen> {
+  bool get _stopped => widget.faceState == FaceState.killed;
+
   final _text = TextEditingController();
   final _scroll = ScrollController();
   Thread? _thread;
@@ -296,7 +298,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
                               faceState: widget.faceState,
                               showTask: earlier == null || earlier.taskId != e.taskId || earlier.fromPerson,
                               selected: _answering?.id == e.id,
-                              onAnswer: e.isOpenQuestion && widget.me.teamSurface
+                              onAnswer: e.isOpenQuestion && widget.me.teamSurface && !_stopped
                                   ? () => setState(() => _answering = _answering?.id == e.id ? null : e)
                                   : null,
                             );
@@ -313,21 +315,36 @@ class _ThreadScreenState extends State<ThreadScreen> {
                       },
                     ),
             ),
-            _Composer(
-              controller: _text,
-              answering: _answering,
-              sending: _sending,
-              // Off, the instance refuses a new message (#328). A reply to a
-              // parked question still goes through — it acts on a task that
-              // exists either way — but it is chosen at the question, and the
-              // question offers it only while the surface is on.
-              enabled: widget.me.teamSurface,
-              onCancelAnswer: () => setState(() => _answering = null),
-              onSend: _send,
-              files: _files,
-              onAttach: _attach,
-              onRemove: (f) => setState(() => _files.remove(f)),
-            ),
+            // A stopped agent takes no messages (#414): the server refuses
+            // them, and the composer gives way to a sentence saying why.
+            if (_stopped)
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 18),
+                  child: Text(
+                    context.t('team.gestopptHinweis', args: {'name': widget.agentName}),
+                    textAlign: TextAlign.center,
+                    style: context.type.bodyMedium?.copyWith(color: context.colors.textDanger),
+                  ),
+                ),
+              )
+            else
+              _Composer(
+                controller: _text,
+                answering: _answering,
+                sending: _sending,
+                // Off, the instance refuses a new message (#328). A reply to a
+                // parked question still goes through — it acts on a task that
+                // exists either way — but it is chosen at the question, and the
+                // question offers it only while the surface is on.
+                enabled: widget.me.teamSurface,
+                onCancelAnswer: () => setState(() => _answering = null),
+                onSend: _send,
+                files: _files,
+                onAttach: _attach,
+                onRemove: (f) => setState(() => _files.remove(f)),
+              ),
           ],
         ),
       ),

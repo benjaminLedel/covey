@@ -151,7 +151,10 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
     refetchInterval: 10_000,
   });
   const schrittZu = new Map((laufendeVorgaenge.data ?? []).map((l) => [l.task_id, l]));
-  const darfSchreiben = canManage(me.Role);
+  /* A stopped agent takes no messages (#414): nothing it is told would run,
+     and the server refuses it too. The composer gives way to a sentence. */
+  const gestoppt = !!agent.data?.killed;
+  const darfSchreiben = canManage(me.Role) && !gestoppt;
   /* The People colleague drafts new colleagues (#327): a message to her is a
      brief, and the thread says so before the first one — and again when
      somebody arrives through the "hire a colleague" door, whatever the
@@ -714,7 +717,12 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
 
       {/* Das Feld unten richtet sich immer an den Agenten — nie an eine
           wartende Frage; die beantwortet man an ihr selbst. */}
-      <div className="tm-eingabe" data-tour="eingabe">
+      {gestoppt && (
+        <p className="tm-gestoppt" role="note">
+          {t("team.gestopptHinweis", { name: agent.data?.display_name ?? "" })}
+        </p>
+      )}
+      <div className="tm-eingabe" data-tour="eingabe" hidden={gestoppt}>
         {anhaenge.length > 0 && (
           <div className="tm-anhaenge">
             {anhaenge.map((f, i) => (

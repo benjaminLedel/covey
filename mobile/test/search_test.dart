@@ -53,11 +53,19 @@ void main() {
         }
         if (p.endsWith('/agents')) {
           return _json([
-            {'id': 'a1', 'slug': 'bea', 'display_name': 'Bea', 'job_title': 'Support', 'status': 'sleeping'},
+            {
+              'id': 'a1',
+              'slug': 'bea',
+              'display_name': 'Bea',
+              'hired_at': '2026-09-01T00:00:00Z',
+              'job_title': 'Support',
+              'status': 'sleeping',
+            },
             {
               'id': 'a2',
               'slug': 'otto',
               'display_name': 'Otto',
+              'hired_at': '2026-09-01T00:00:00Z',
               'job_title': 'Lasttests',
               'status': 'sleeping',
               'department_id': 'd1',

@@ -2477,7 +2477,8 @@
     "ungelesen": "{{count}} 条未读消息",
     "ungelesen_one": "{{count}} 条未读消息",
     "ungelesenTitel": "未读",
-    "bereiche": "区域"
+    "bereiche": "区域",
+    "gestopptHinweis": "{{name}} 已停止。紧急停止生效期间，{{name}} 不接收消息。"
   },
   "mobile": {
     "verbindenTitel": "你的 covey 在哪里？",

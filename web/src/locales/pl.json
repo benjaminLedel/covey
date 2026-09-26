@@ -2477,7 +2477,8 @@
     "ungelesen": "Nieprzeczytane wiadomości: {{count}}",
     "ungelesen_one": "Jedna nieprzeczytana wiadomość",
     "ungelesenTitel": "Nieprzeczytane",
-    "bereiche": "Obszary"
+    "bereiche": "Obszary",
+    "gestopptHinweis": "{{name}} jest zatrzymany. Dopóki działa wyłącznik awaryjny, {{name}} nie przyjmuje wiadomości."
   },
   "mobile": {
     "verbindenTitel": "Gdzie jest Państwa covey?",

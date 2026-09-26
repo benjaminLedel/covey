@@ -270,6 +270,7 @@
   "team.etageErdTitel": "1 階",
   "team.etageTitel": "{{n}} 階",
   "team.gestern": "昨日",
+  "team.gestopptHinweis": "{{name}} は停止中です。緊急停止が有効な間、{{name}} はメッセージを受け付けません。",
   "team.leerText": "何をしてほしいか下に書いてください。タスクになります。",
   "team.leerTitel": "{{name}} とはまだ何も話していません。",
   "team.nichtsGefunden": "見つかりませんでした。",

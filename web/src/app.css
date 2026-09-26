@@ -2841,7 +2841,10 @@
 }
 
 /* Gestoppt: kein Ton mehr. Das Gesicht bleibt, es ist nur nicht mehr da. */
-.gesicht.z-killed { filter: grayscale(1); opacity: 0.55; }
+/* Only the face: the stop sign on its corner keeps its red (#414). */
+.gesicht.z-killed .gesicht-teile { filter: grayscale(1); opacity: 0.55; }
+.gesicht-stopp circle { fill: var(--text-danger); stroke: var(--surface-2); stroke-width: 1.3; }
+.gesicht-stopp rect { fill: #ffffff; }
 
 @media (prefers-reduced-motion: reduce) {
   .gesicht .gesicht-kopf,
@@ -4146,4 +4149,14 @@
   padding-left: 10px;
   border-left: 2px solid var(--border);
   color: var(--text-secondary);
+}
+
+/* Where the composer stood, for a stopped agent (#414). */
+.tm-gestoppt {
+  margin: 0;
+  padding: 14px 18px;
+  border-top: 0.5px solid var(--border);
+  color: var(--text-danger);
+  font-size: 14px;
+  text-align: center;
 }

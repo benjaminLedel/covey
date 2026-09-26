@@ -57,7 +57,13 @@ void main() {
         if (p.endsWith('/departments')) return _json([]);
         if (p.endsWith('/agents')) {
           return _json([
-            {'id': _bea, 'slug': 'bea', 'display_name': 'Bea', 'status': 'sleeping'},
+            {
+              'id': _bea,
+              'slug': 'bea',
+              'display_name': 'Bea',
+              'hired_at': '2026-09-01T00:00:00Z',
+              'status': 'sleeping',
+            },
           ]);
         }
         if (p.endsWith('/thread')) threadAsked = true;

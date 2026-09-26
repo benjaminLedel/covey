@@ -28,9 +28,7 @@ func TestChatIsADoorIntoTheBacklog(t *testing.T) {
 	// Paused: the task is meant to stay where the test puts it and not be
 	// picked up by the dispatcher in the middle of the run.
 	agent := s.newSupportAgent("chat-agent")
-	if err := s.registry.SetKilled(ctx, agent.ID, true); err != nil {
-		t.Fatal(err)
-	}
+	s.ohneLaeufe(agent.ID)
 
 	admin := teamLogin(t, s)
 	base := "/api/v1/agents/" + agent.ID.String()
@@ -140,9 +138,7 @@ func TestReplyOnlyWakesATaskThatWaits(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
 	agent := s.newSupportAgent("reply-guard")
-	if err := s.registry.SetKilled(ctx, agent.ID, true); err != nil {
-		t.Fatal(err)
-	}
+	s.ohneLaeufe(agent.ID)
 	admin := teamLogin(t, s)
 
 	reply := func(id string) map[string]any {
@@ -251,9 +247,7 @@ func TestAReactionIsAToggleAndBelongsToTheTask(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
 	agent := s.newSupportAgent("marken")
-	if err := s.registry.SetKilled(ctx, agent.ID, true); err != nil {
-		t.Fatal(err)
-	}
+	s.ohneLaeufe(agent.ID)
 	admin := teamLogin(t, s)
 	base := "/api/v1/agents/" + agent.ID.String()
 
@@ -350,9 +344,7 @@ func TestChatAcceptsWithoutWaitingForTheTriage(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
 	agent := s.newSupportAgent("chat-async")
-	if err := s.registry.SetKilled(ctx, agent.ID, true); err != nil {
-		t.Fatal(err)
-	}
+	s.ohneLaeufe(agent.ID)
 	admin := teamLogin(t, s)
 	base := "/api/v1/agents/" + agent.ID.String()
 
@@ -405,9 +397,7 @@ func TestChatTriageSurvivesARestart(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
 	agent := s.newSupportAgent("chat-restart")
-	if err := s.registry.SetKilled(ctx, agent.ID, true); err != nil {
-		t.Fatal(err)
-	}
+	s.ohneLaeufe(agent.ID)
 
 	id := uuid.New()
 	if _, err := s.pool.Exec(ctx,
@@ -465,11 +455,8 @@ TestThreadCarriesItsSearchAndItsBackgroundWork prüft die zwei Auskünfte, die
 */
 func TestThreadCarriesItsSearchAndItsBackgroundWork(t *testing.T) {
 	s := newStack(t)
-	ctx := context.Background()
 	agent := s.newSupportAgent("chat-suche")
-	if err := s.registry.SetKilled(ctx, agent.ID, true); err != nil {
-		t.Fatal(err)
-	}
+	s.ohneLaeufe(agent.ID)
 	admin := teamLogin(t, s)
 	base := "/api/v1/agents/" + agent.ID.String()
 
@@ -532,12 +519,10 @@ func TestThreadCarriesItsSearchAndItsBackgroundWork(t *testing.T) {
 func TestHiringIsADialogueInTheThread(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
-	// The People department, paused so the dispatcher does not run the mock in
-	// the middle of the dialogue; her steps are played by hand below.
+	// The People department, kept from being dispatched so the mock does not
+	// run in the middle of the dialogue; her steps are played by hand below.
 	people := s.newSupportAgent("people")
-	if err := s.registry.SetKilled(ctx, people.ID, true); err != nil {
-		t.Fatal(err)
-	}
+	s.ohneLaeufe(people.ID)
 	admin := teamLogin(t, s)
 	admin.expect(http.MethodPatch, "/api/v1/org/description", map[string]string{"description": "We build bridges."}, http.StatusOK)
 	base := "/api/v1/agents/" + people.ID.String()
@@ -645,9 +630,7 @@ func TestHiringIsADialogueInTheThread(t *testing.T) {
 
 	// And a message to anybody else stays what it was: the sentence, no frame.
 	other := s.newSupportAgent("other")
-	if err := s.registry.SetKilled(ctx, other.ID, true); err != nil {
-		t.Fatal(err)
-	}
+	s.ohneLaeufe(other.ID)
 	plain := admin.expect(http.MethodPost, "/api/v1/agents/"+other.ID.String()+"/messages?lang=en",
 		map[string]any{"text": "Please check the Globex invoice."}, http.StatusCreated)
 	if b, _ := plain["task"].(map[string]any)["body"].(string); b != "Please check the Globex invoice." {
@@ -726,9 +709,7 @@ func TestHeartbeatRunsStayOutOfTheConversation(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
 	agent := s.newSupportAgent("takt")
-	if err := s.registry.SetKilled(ctx, agent.ID, true); err != nil {
-		t.Fatal(err)
-	}
+	s.ohneLaeufe(agent.ID)
 	admin := teamLogin(t, s)
 	base := "/api/v1/agents/" + agent.ID.String()
 
@@ -826,4 +807,47 @@ func TestHeartbeatRunsStayOutOfTheConversation(t *testing.T) {
 	if unread != 1 {
 		t.Errorf("unread = %v, want 1: the question, not the runs' notes, results and errors", unread)
 	}
+}
+
+// TestAStoppedAgentTakesNoMessages is #414: whatever the surfaces show, the
+// server refuses a message or a reply to a stopped agent — it would be
+// written down and never run.
+func TestAStoppedAgentTakesNoMessages(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	agent := s.newSupportAgent("gestoppt")
+	admin := teamLogin(t, s)
+	base := "/api/v1/agents/" + agent.ID.String()
+
+	// A question it parked on before it was stopped.
+	task, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Rechnung prüfen", "", "chat:admin@test.local", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE backlog_tasks SET state='in_progress' WHERE id=$1`, task.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.backlog.Block(ctx, task.ID, "", "", "Darf ich stornieren?"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.registry.SetKilled(ctx, agent.ID, true); err != nil {
+		t.Fatal(err)
+	}
+
+	admin.expect(http.MethodPost, base+"/messages", map[string]any{"text": "Hallo?"}, http.StatusConflict)
+	admin.expect(http.MethodPost, "/api/v1/tasks/"+task.ID.String()+"/reply", map[string]any{"text": "Ja"}, http.StatusConflict)
+	var n int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM chat_messages WHERE agent_id=$1`, agent.ID).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("%d messages written to a stopped agent", n)
+	}
+
+	// Released, it listens again.
+	if err := s.registry.SetKilled(ctx, agent.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	s.ohneLaeufe(agent.ID)
+	admin.expect(http.MethodPost, base+"/messages", map[string]any{"text": "Hallo?"}, http.StatusCreated)
 }

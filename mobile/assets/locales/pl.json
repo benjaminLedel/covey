@@ -270,6 +270,7 @@
   "team.etageErdTitel": "Parter",
   "team.etageTitel": "Piętro {{n}}",
   "team.gestern": "Wczoraj",
+  "team.gestopptHinweis": "{{name}} jest zatrzymany. Dopóki działa wyłącznik awaryjny, {{name}} nie przyjmuje wiadomości.",
   "team.leerText": "Proszę napisać poniżej, co jest do zrobienia — powstanie z tego zadanie.",
   "team.leerTitel": "Jeszcze nic nie omówiono z {{name}}.",
   "team.nichtsGefunden": "Nic nie znaleziono.",

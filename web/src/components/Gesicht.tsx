@@ -124,6 +124,9 @@ export default function Gesicht({
     >
       {/* Der Kopf: ein weiches Quadrat, keine Kugel — eine Kugel neben einer
           Kugel neben einer Kugel liest sich als Aufzählungszeichen. */}
+      {/* The face in a group of its own: a stopped one is greyed, and its
+          stop sign below must stay red (#414). */}
+      <g className="gesicht-teile">
       <rect className="gesicht-kopf" x="1.5" y="1.5" width="21" height="21" rx={g.rundung} />
       {schlaeft || tot ? (
         <>
@@ -150,8 +153,13 @@ export default function Gesicht({
               <path key={x} className="gesicht-lid" d={`M${x - g.augenR} ${augeY} h${g.augenR * 2}`} />
             ),
           )}
-          {/* Der schlafende Mund: ein kleines o, das mit dem Atem geht. */}
-          <circle className="gesicht-mund-o" cx="12" cy={augeY + 5} r="1.15" />
+          {/* Der schlafende Mund: ein kleines o, das mit dem Atem geht. Der
+              gestoppte hat keinen Atem, nur einen geraden Strich. */}
+          {schlaeft ? (
+            <circle className="gesicht-mund-o" cx="12" cy={augeY + 5} r="1.15" />
+          ) : (
+            <path className="gesicht-mund" d={`M${12 - g.mund / 2} ${augeY + 5} h${g.mund}`} />
+          )}
         </>
       ) : (
         <>
@@ -174,6 +182,16 @@ export default function Gesicht({
               lächelnder Agent behauptet etwas über seine Laune. */}
           <path className="gesicht-mund" d={`M${12 - g.mund / 2} ${augeY + 5} h${g.mund}`} />
         </>
+      )}
+      </g>
+      {/* Stopped (#414): the sign everybody reads as "no entry", on the
+          corner. Grey eyes alone were close to asleep and easy to miss in a
+          list — and a stopped colleague cannot be written to. */}
+      {tot && (
+        <g className="gesicht-stopp">
+          <circle cx="19.5" cy="19.5" r="5.2" />
+          <rect x="16.7" y="18.55" width="5.6" height="1.9" rx="0.5" />
+        </g>
       )}
       {/* Drei z steigen auf, versetzt, und nur beim Schlafen. Sie liegen
           außerhalb des Rasters — das SVG darf dafür überlaufen (app.css). */}

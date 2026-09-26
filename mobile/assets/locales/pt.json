@@ -270,6 +270,7 @@
   "team.etageErdTitel": "Rés-do-chão",
   "team.etageTitel": "Piso {{n}}",
   "team.gestern": "Ontem",
+  "team.gestopptHinweis": "{{name}} está parado. Enquanto a paragem de emergência estiver ativa, {{name}} não aceita mensagens.",
   "team.leerText": "Escreva abaixo o que há a fazer — passa a ser uma tarefa.",
   "team.leerTitel": "Ainda não se falou com {{name}}.",
   "team.nichtsGefunden": "Nada encontrado.",

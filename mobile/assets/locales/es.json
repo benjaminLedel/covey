@@ -270,6 +270,7 @@
   "team.etageErdTitel": "Planta baja",
   "team.etageTitel": "Planta {{n}}",
   "team.gestern": "Ayer",
+  "team.gestopptHinweis": "{{name}} está detenido. Mientras la parada de emergencia esté activa, {{name}} no acepta mensajes.",
   "team.leerText": "Escriba abajo lo que hay que hacer: se convertirá en una tarea.",
   "team.leerTitel": "Todavía no se ha hablado con {{name}}.",
   "team.nichtsGefunden": "No se encontró nada.",

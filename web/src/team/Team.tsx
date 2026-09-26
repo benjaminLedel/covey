@@ -2,7 +2,7 @@ import { Suspense, lazy, useCallback, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useParams } from "react-router";
-import { PEOPLE_SLUG, api, inbox, isDraft, myThreads, type Agent, type Department, type Principal, type ThreadState } from "../api";
+import { PEOPLE_SLUG, api, inbox, isColleague, isDraft, myThreads, type Agent, type Department, type Principal, type ThreadState } from "../api";
 import { canManage } from "../pages/agent/roles";
 import HelpDrawer from "../components/HelpDrawer";
 import Rail from "../components/Rail";
@@ -32,7 +32,7 @@ const NotesSidebar = lazy(() => import("../notes/NotesPane").then((m) => ({ defa
  */
 
 /** Ein Agent, der Arbeit annehmen kann. Ein Bewerber ist ein Entwurf. */
-const eingestellt = (a: Agent) => a.status !== "applicant";
+const eingestellt = isColleague;
 
 /** Der Zustand, den das Gesicht zeigt — dieselbe Ableitung wie im Dashboard. */
 const zustandVon = (a: Agent) => (a.killed ? "killed" : a.status === "sleeping" ? "sleeping" : "working");
@@ -245,7 +245,7 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
       <Suche
         offen={sucheOffen}
         onClose={() => setSucheOffen(false)}
-        agents={agents.data ?? []}
+        agents={liste}
         departments={depts}
         wartetBei={wartetBei}
         pfad={(a) => `/team/${a.id}`}

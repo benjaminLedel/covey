@@ -28,6 +28,7 @@ Map<String, Object?> _agent(String id, String dept, {String status = 'idle'}) =>
   'id': id,
   'slug': id,
   'display_name': id.toUpperCase(),
+  'hired_at': '2026-09-01T00:00:00Z',
   'job_title': '',
   'status': status,
   'department_id': dept,
