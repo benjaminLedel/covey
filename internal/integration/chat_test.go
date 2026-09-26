@@ -715,3 +715,91 @@ func TestAuthMeSaysWhetherTheSeatMayWrite(t *testing.T) {
 	agent := s.newSupportAgent("write-check")
 	aud.expect(http.MethodPost, "/api/v1/agents/"+agent.ID.String()+"/messages", map[string]any{"text": "hallo"}, http.StatusForbidden)
 }
+
+// TestHeartbeatRunsStayOutOfTheConversation is #401: what the schedule
+// started is not something anybody said. A heartbeat run and its
+// continuation leave no line in the thread — neither the assignment, nor a
+// note, nor the result or the error — and they do not use up its window.
+// Only a heartbeat's question stays, because it is addressed to the person
+// and answered here.
+func TestHeartbeatRunsStayOutOfTheConversation(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	agent := s.newSupportAgent("takt")
+	if err := s.registry.SetKilled(ctx, agent.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	admin := teamLogin(t, s)
+	base := "/api/v1/agents/" + agent.ID.String()
+
+	admin.expect(http.MethodPost, base+"/messages",
+		map[string]any{"text": "Bitte die Rechnung von Globex prüfen"}, http.StatusCreated)
+
+	lauf := func(titel string) backlog.Task {
+		t.Helper()
+		task, err := s.backlog.Create(ctx, s.orgID, agent.ID, titel, "Postfach durchgehen", "heartbeat", 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return task
+	}
+	// The runs are taken as the dispatcher would take them — directly, so
+	// the order in which ClaimNext picks does not matter here.
+	laeuft := func(task backlog.Task) {
+		t.Helper()
+		if _, err := s.pool.Exec(ctx, `UPDATE backlog_tasks SET state='in_progress' WHERE id=$1`, task.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A run that wrote a note and finished.
+	fertig := lauf("Posteingang sichten")
+	laeuft(fertig)
+	if _, err := s.backlog.AddNote(ctx, fertig.ID, "agent", "drei neue Mails gelesen"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.backlog.Complete(ctx, fertig.ID, backlog.StateDone, "nichts Neues", ""); err != nil {
+		t.Fatal(err)
+	}
+	// Its continuation, cut off and failed.
+	weiter, err := s.backlog.CreateChild(ctx, fertig.ID, backlog.ChildSpec{
+		Title: "Posteingang sichten", Origin: "continuation:" + fertig.ID.String(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	laeuft(weiter)
+	if _, err := s.backlog.Complete(ctx, weiter.ID, backlog.StateFailed, "", "Turn-Limit erreicht"); err != nil {
+		t.Fatal(err)
+	}
+	// And a run that asks.
+	fragt := lauf("Kündigungen prüfen")
+	laeuft(fragt)
+	if _, err := s.backlog.Block(ctx, fragt.ID, "", "", "Darf ich den Vertrag von Initech kündigen?"); err != nil {
+		t.Fatal(err)
+	}
+	// Enough runs to fill the window twice over: the conversation must not
+	// fall out of it.
+	for i := 0; i < 2*20; i++ {
+		lauf("Posteingang sichten")
+	}
+
+	verlauf := admin.expect(http.MethodGet, base+"/thread", nil, http.StatusOK)
+	var texte []string
+	for _, roh := range verlauf["entries"].([]any) {
+		e, _ := roh.(map[string]any)
+		text, _ := e["text"].(string)
+		texte = append(texte, e["kind"].(string)+": "+text)
+		for _, verboten := range []string{"Postfach durchgehen", "drei neue Mails", "nichts Neues", "Turn-Limit"} {
+			if strings.Contains(text, verboten) {
+				t.Errorf("a heartbeat run speaks in the thread: %v", e)
+			}
+		}
+	}
+	alles := strings.Join(texte, "\n")
+	if !strings.Contains(alles, "message: Bitte die Rechnung von Globex prüfen") {
+		t.Errorf("the conversation fell out of the thread:\n%s", alles)
+	}
+	if !strings.Contains(alles, "question: Darf ich den Vertrag von Initech kündigen?") {
+		t.Errorf("the heartbeat's question belongs in the thread:\n%s", alles)
+	}
+}

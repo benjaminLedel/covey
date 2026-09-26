@@ -197,11 +197,34 @@ func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 
 	   Dafür reicht das Fenster weiter zurück: Wer sucht, sucht das, was er
 	   nicht mehr sieht. */
-	const q = `WITH t AS (
-		SELECT id, title, body, state, origin, result, error, created_at, updated_at
-		FROM backlog_tasks
-		WHERE agent_id=$1 AND archived_at IS NULL
-		ORDER BY created_at DESC LIMIT $2
+	/* Heartbeat runs are not part of the conversation (#401): nobody said
+	   anything, the schedule did, and at `alle: 15m` their blocks pushed
+	   what a person had written out of the window. `kette` walks from a
+	   continuation up to the run it continues; `takt` is every task a
+	   heartbeat started, directly or through continuations.
+
+	   Only their questions stay — a question is addressed to the person and
+	   answered here. So such a task is left out of the window unless it once
+	   parked with a question, and inside the window only its question line
+	   is drawn. */
+	const q = `WITH RECURSIVE kette AS (
+		SELECT id AS wurzel, parent_task_id, origin FROM backlog_tasks
+		 WHERE agent_id=$1 AND archived_at IS NULL
+		   AND (origin = 'heartbeat' OR origin LIKE 'continuation:%')
+		UNION ALL
+		SELECT k.wurzel, b.parent_task_id, b.origin
+		  FROM kette k JOIN backlog_tasks b ON b.id = k.parent_task_id
+		 WHERE k.origin LIKE 'continuation:%'
+	), takt AS (
+		SELECT DISTINCT wurzel AS id FROM kette WHERE origin = 'heartbeat'
+	), t AS (
+		SELECT bt.id, bt.title, bt.body, bt.state, bt.origin, bt.result, bt.error, bt.created_at, bt.updated_at,
+		       EXISTS (SELECT 1 FROM takt WHERE takt.id = bt.id) AS takt
+		FROM backlog_tasks bt
+		WHERE bt.agent_id=$1 AND bt.archived_at IS NULL
+		  AND (NOT EXISTS (SELECT 1 FROM takt WHERE takt.id = bt.id)
+		       OR EXISTS (SELECT 1 FROM task_transitions tr WHERE tr.task_id = bt.id AND tr.to_state = 'blocked'))
+		ORDER BY bt.created_at DESC LIMIT $2
 	), m AS (
 		SELECT id, author, text, task_id, created_at
 		FROM chat_messages WHERE agent_id=$1
@@ -216,24 +239,24 @@ func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 	       -- Der Rumpf, nicht Titel plus Rumpf: Die erste Zeile IST der Titel.
 	       CASE WHEN coalesce(t.body,'')='' THEN t.title ELSE t.body END,
 	       t.created_at FROM t
-	       WHERE NOT EXISTS (SELECT 1 FROM m WHERE m.task_id = t.id)
+	       WHERE NOT t.takt AND NOT EXISTS (SELECT 1 FROM m WHERE m.task_id = t.id)
 	UNION ALL
 	SELECT 'note', n.task_id, n.task_id, t.title, t.state, n.author, n.content, n.created_at
 	       FROM task_notes n JOIN t ON t.id = n.task_id
 	       -- Die Notiz der Triage ist Maschinerie, nicht Gespräch: Sie trägt
 	       -- die Nachricht an den laufenden Vorgang weiter, und die Nachricht
 	       -- selbst steht zwei Zeilen darüber.
-	       WHERE n.author NOT LIKE 'triage:%'
+	       WHERE NOT t.takt AND n.author NOT LIKE 'triage:%'
 	UNION ALL
 	SELECT 'question', tr.task_id, tr.task_id, t.title, t.state, 'agent', tr.note, tr.created_at
 	       FROM task_transitions tr JOIN t ON t.id = tr.task_id
 	       WHERE tr.to_state='blocked'
 	UNION ALL
 	SELECT 'result', t.id, t.id, t.title, t.state, 'agent', t.result, t.updated_at
-	       FROM t WHERE t.state='done' AND coalesce(t.result,'') <> ''
+	       FROM t WHERE NOT t.takt AND t.state='done' AND coalesce(t.result,'') <> ''
 	UNION ALL
 	SELECT 'error', t.id, t.id, t.title, t.state, 'agent', t.error, t.updated_at
-	       FROM t WHERE t.state='failed' AND coalesce(t.error,'') <> ''
+	       FROM t WHERE NOT t.takt AND t.state='failed' AND coalesce(t.error,'') <> ''
 	)
 	SELECT kind, eid, tid, titel, zustand, wer, text, wann FROM alles
 	 WHERE $4 = '' OR text ILIKE '%' || $4 || '%' ESCAPE '\'
