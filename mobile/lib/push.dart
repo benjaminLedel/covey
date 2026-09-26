@@ -4,10 +4,12 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'api.dart';
 import 'live.dart';
 import 'diagnostics.dart';
+import 'face.dart';
 import 'i18n.dart';
 import 'models.dart';
 import 'prefs.dart';
@@ -49,7 +51,7 @@ class PushNotices {
   /// What was last seen of each conversation — the newest entry's time —
   /// for the connection being watched; null until read.
   Map<String, DateTime?>? _seen;
-  Map<String, String> _names = {};
+  Map<String, Agent> _agents = {};
   DateTime _namesAt = DateTime(0);
   bool _listening = false;
 
@@ -196,7 +198,7 @@ class PushNotices {
     try {
       final now = await api.threads();
       if (DateTime.now().difference(_namesAt) > const Duration(minutes: 10)) {
-        _names = {for (final a in await api.agents()) a.id: a.displayName};
+        _agents = {for (final a in await api.agents()) a.id: a};
         _namesAt = DateTime.now();
       }
       final seen = _seen ?? await _loadSeen(api);
@@ -204,7 +206,8 @@ class PushNotices {
       await _saveSeen(api, _seen!);
       await badge(now.values.fold<int>(0, (n, t) => n + t.unread));
       for (final t in toAnnounce(seen, now.values)) {
-        final name = _names[t.agentId] ?? '';
+        final agent = _agents[t.agentId];
+        final name = agent?.displayName ?? '';
         final kind = t.lastKind == 'note' ? 'answer' : t.lastKind;
         final failed = await _channel.invokeMethod<String?>('notify', {
           'sound': fileFor(await sound, kind),
@@ -212,6 +215,7 @@ class PushNotices {
           'title': name,
           'body': t.lastText.isNotEmpty ? t.lastText : _strings?.t('team.ungelesen', count: t.unread) ?? '',
           'agent': t.agentId,
+          if (agent != null) 'image': await _faceFile(agent),
         });
         diag('push', failed == null ? 'shown, sound ${fileFor(await sound, kind)}' : 'not shown: $failed');
       }
@@ -253,4 +257,24 @@ class PushNotices {
 
   Future<void> _saveSeen(CoveyApi api, Map<String, DateTime?> seen) =>
       Prefs.instance.write(_seenKey(api), jsonEncode(seen.map((k, v) => MapEntry(k, v?.toUtc().toIso8601String()))));
+
+  /// The agent's face as a file for the notification's picture (#420). A new
+  /// file each time: the system moves an attachment into its own store.
+  /// Empty when it could not be drawn — the notification goes out without.
+  Future<String> _faceFile(Agent a) async {
+    try {
+      final png = await facePng(
+        a.slug,
+        state: faceStateOf(killed: a.killed, status: a.status),
+      );
+      final dir = Directory('${(await getTemporaryDirectory()).path}/covey-faces');
+      await dir.create(recursive: true);
+      final f = File('${dir.path}/${a.slug}-${DateTime.now().microsecondsSinceEpoch}.png');
+      await f.writeAsBytes(png);
+      return f.path;
+    } catch (e) {
+      diag('push', 'face not drawn: $e');
+      return '';
+    }
+  }
 }

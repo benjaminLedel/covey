@@ -144,6 +144,14 @@ final class LocalNotices: NSObject, UNUserNotificationCenterDelegate {
           DispatchQueue.main.async { self.play(name) }
         }
       }
+      // The agent's face as the picture (#420), drawn by the app into a
+      // file of its own; the system moves it into its store.
+      if let image = args["image"] as? String, !image.isEmpty,
+        let face = try? UNNotificationAttachment(
+          identifier: "face", url: URL(fileURLWithPath: image), options: [UNNotificationAttachmentOptionsTypeHintKey: "public.png"])
+      {
+        content.attachments = [face]
+      }
       let agent = args["agent"] as? String ?? ""
       content.threadIdentifier = agent
       content.userInfo = ["agent_id": agent]

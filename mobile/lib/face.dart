@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
@@ -373,4 +376,35 @@ class _StopSign extends CustomPainter {
 
   @override
   bool shouldRepaint(_StopSign old) => old.ring != ring;
+}
+
+/// The face as a PNG (#420), for where no widget can stand — the picture of
+/// a notification. The painter the screens use, held still, on a clear
+/// ground; a stopped face greyed with its stop sign, as in a list.
+Future<Uint8List> facePng(
+  String slug, {
+  FaceState state = FaceState.working,
+  double size = 256,
+  bool dark = false,
+}) async {
+  final rec = ui.PictureRecorder();
+  final canvas = Canvas(rec);
+  final area = Size.square(size);
+  final painter = _FacePainter(f: _Features(slug), state: state, dark: dark, clock: null);
+  if (state == FaceState.killed) {
+    canvas.saveLayer(
+      Offset.zero & area,
+      Paint()
+        ..colorFilter = const ColorFilter.matrix(_grey)
+        ..color = const Color.fromRGBO(0, 0, 0, 0.55),
+    );
+    painter.paint(canvas, area);
+    canvas.restore();
+    _StopSign(ring: dark ? const Color(0xFF12100F) : const Color(0xFFFFFFFF)).paint(canvas, area);
+  } else {
+    painter.paint(canvas, area);
+  }
+  final image = await rec.endRecording().toImage(size.round(), size.round());
+  final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+  return bytes!.buffer.asUint8List();
 }
