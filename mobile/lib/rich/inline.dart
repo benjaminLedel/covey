@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
 /// A block's text with its inline Markdown shown as what it means: **bold**
-/// bold, _italic_ italic, [links](…) in the accent — the markers stay in the
-/// text, drawn faint, so the cursor, selection and what is stored are the
-/// same string. Hiding them would make the caret jump over characters the
-/// person cannot see.
+/// bold, _italic_ italic, [links](…) in the accent. The markers stay in the
+/// text — the caret, the selection and what is stored are the same string —
+/// but they are drawn only where the caret is (#365): inside a bold word the
+/// asterisks appear so it can be edited, everywhere else they fold away to
+/// nothing, as in Apple Notes or Bear. A link shows its text; its address
+/// appears with the caret.
 class MarkdownController extends TextEditingController {
   MarkdownController({super.text});
 
@@ -18,8 +20,16 @@ class MarkdownController extends TextEditingController {
     final base = style ?? const TextStyle();
     final spans = <InlineSpan>[];
     var last = 0;
-    final marker = base.copyWith(color: markerColor, fontWeight: FontWeight.w400, fontStyle: FontStyle.normal);
+    final shown = base.copyWith(color: markerColor, fontWeight: FontWeight.w400, fontStyle: FontStyle.normal);
+    // Folded: no width, no colour. The characters are still there for the
+    // caret; a step over them costs one arrow press.
+    final folded = base.copyWith(color: const Color(0x00000000), fontSize: 0.01, letterSpacing: 0, height: 1);
+    final sel = selection;
     for (final m in _inline.allMatches(text)) {
+      // With the caret in it (or a selection touching it), a span shows its
+      // markers.
+      final editing = sel.isValid && sel.start <= m.end && sel.end >= m.start;
+      final marker = editing ? shown : folded;
       if (m.start > last) spans.add(TextSpan(text: text.substring(last, m.start), style: base));
       final s = m[0]!;
       if (m[1] != null) {
