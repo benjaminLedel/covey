@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
@@ -5,6 +6,7 @@ import { api, inbox, myThreads, setupIsOpen, type Principal, type SetupState } f
 import { BirdMark } from "./BirdMark";
 import { NavIcon } from "./navicons";
 import ShellFoot from "./ShellFoot";
+import Tour, { TEAM_TOUR, tourGesehen } from "./Tour";
 
 /* The rail (#388, #389): the thin column of icons at the left of every
  * signed-in page — team, notes, administration; search and the person
@@ -58,12 +60,17 @@ export default function Rail({
     staleTime: 60_000,
   });
   const setupOpen = setupIsOpen(setup.data);
+  /* The tour (#402) belongs to the team surface, and the rail is the one
+     thing both shells carry — so it lives here, and starts on the first
+     visit. */
+  const [tour, setTour] = useState(() => team && !tourGesehen());
 
   // A badge counts unread messages, or on the office open decisions.
   const item = (place: RailPlace, to: string, icon: string, label: string, badge = 0) => (
     <Link
       to={to}
       className={`tm-rail-item${active === place ? " on" : ""}`}
+      data-tour={place}
       aria-current={active === place ? "page" : undefined}
       title={label}
       aria-label={
@@ -95,10 +102,11 @@ export default function Rail({
       {item("notes", team ? "/team/notes" : "/notes", "note", t("mobile.notizen"))}
       {item("admin", "/agents", "sliders", t("team.verwaltung"))}
       <span className="tm-rail-luft" />
-      <button className="tm-rail-item" onClick={onSearch} title={`${t("team.suche")} (⌘K)`} aria-label={t("team.suche")}>
+      <button className="tm-rail-item" data-tour="search" onClick={onSearch} title={`${t("team.suche")} (⌘K)`} aria-label={t("team.suche")}>
         <NavIcon name="search" />
       </button>
-      <ShellFoot me={me} onLogout={onLogout} onHelp={onHelp} compact />
+      <ShellFoot me={me} onLogout={onLogout} onHelp={onHelp} onTour={team ? () => setTour(true) : undefined} compact />
+      {tour && <Tour schritte={TEAM_TOUR} onEnde={() => setTour(false)} />}
     </nav>
   );
 }

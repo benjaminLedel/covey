@@ -2721,5 +2721,61 @@
     "open": "Ouvrir dans l'application",
     "noApp": "Pas d'application sur cet appareil ? Dans covey, ouvrez Profil et paramètres → Application mobile et scannez le code QR avec l'application.",
     "missing": "Ce lien ne contient aucun code d'association. Créez-en un nouveau dans covey, sous Profil et paramètres → Application mobile."
+  },
+  "tour": {
+    "titel": "Présentation",
+    "schritt": "{{n}} sur {{m}}",
+    "weiter": "Suivant",
+    "zurueck": "Retour",
+    "ueberspringen": "Passer",
+    "fertig": "C'est parti",
+    "willkommen": {
+      "titel": "Bienvenue dans covey",
+      "text": "Vos collègues ici sont des agents d'IA. Vous leur confiez du travail comme à une personne : en leur écrivant. En une minute, nous vous montrons où se trouve chaque chose."
+    },
+    "buero": {
+      "titel": "Le bureau",
+      "text": "L'équipe sous forme de bâtiment : une pièce par service, un bureau par collègue. Un bureau éclairé signifie qu'une tâche y est en cours. Le nombre indique combien de décisions vous attendent."
+    },
+    "team": {
+      "titel": "L'équipe",
+      "text": "C'est ici que vous parlez à chaque collègue. Ceux qui vous attendent sont en haut ; le nombre compte les réponses que vous n'avez pas encore lues."
+    },
+    "gespraech": {
+      "titel": "Une conversation",
+      "text": "Écrivez comme dans un chat. Ce qui relève du travail devient une tâche, et la réponse revient dans la même conversation, même si cela prend du temps. Vous pouvez joindre des fichiers."
+    },
+    "entscheiden": {
+      "titel": "Quand quelqu'un a besoin de vous",
+      "text": "Lorsqu'un collègue ne peut pas avancer, il vous pose la question. Elle apparaît sous forme de carte au-dessus du champ de saisie de la conversation. Dès que vous répondez ou décidez, il reprend le travail."
+    },
+    "notizen": {
+      "titel": "Notes",
+      "text": "Vos propres notes, pour vous seul. covey peut résumer une note ; les notes vocales et les réunions s'enregistrent dans l'application."
+    },
+    "suche": {
+      "titel": "Rechercher",
+      "text": "Trouve des collègues et, une fois l'un d'eux sélectionné, des passages de votre conversation avec lui. Aussi avec ⌘K ou /."
+    },
+    "person": {
+      "titel": "Votre menu",
+      "text": "Profil, langue et apparence, ainsi que cette présentation, si vous souhaitez la revoir."
+    },
+    "teamApp": {
+      "titel": "L'équipe",
+      "text": "Touchez un collègue pour lui parler. Ceux qui vous attendent sont en haut ; le nombre compte les réponses que vous n'avez pas encore lues."
+    },
+    "notizenApp": {
+      "titel": "Notes",
+      "text": "Vos propres notes, pour vous seul, écrites ou dictées. La parole est reconnue sur l'appareil."
+    },
+    "plus": {
+      "titel": "Noter rapidement",
+      "text": "Avec +, vous écrivez ou dictez une note, où que vous soyez."
+    },
+    "personApp": {
+      "titel": "Votre compte",
+      "text": "Réglages, reconnaissance vocale et déconnexion, ainsi que cette présentation, si vous souhaitez la revoir."
+    }
   }
 }

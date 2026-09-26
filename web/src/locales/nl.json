@@ -2721,5 +2721,61 @@
     "open": "Openen in de app",
     "noApp": "Geen app op dit apparaat? Open in covey Profiel & instellingen → Mobiele app en scan de QR-code met de app.",
     "missing": "Deze link bevat geen koppelcode. Maak een nieuwe aan in covey onder Profiel & instellingen → Mobiele app."
+  },
+  "tour": {
+    "titel": "Introductie",
+    "schritt": "{{n}} van {{m}}",
+    "weiter": "Volgende",
+    "zurueck": "Terug",
+    "ueberspringen": "Overslaan",
+    "fertig": "Aan de slag",
+    "willkommen": {
+      "titel": "Welkom bij covey",
+      "text": "Uw collega's hier zijn AI-agenten. U geeft hun werk zoals u dat aan een mens zou geven: door ze te schrijven. In een minuut laten we zien waar alles staat."
+    },
+    "buero": {
+      "titel": "Het kantoor",
+      "text": "Het personeel als gebouw: een kamer per afdeling, een bureau per collega. Een verlicht bureau betekent dat daar een taak loopt. Het getal toont hoeveel beslissingen op u wachten."
+    },
+    "team": {
+      "titel": "Het team",
+      "text": "Hier praat u met afzonderlijke collega's. Bovenaan staat wie op u wacht; het getal telt antwoorden die u nog niet hebt gelezen."
+    },
+    "gespraech": {
+      "titel": "Een gesprek",
+      "text": "Schrijf zoals in een chat. Wat werk is, wordt een taak, en het antwoord komt in hetzelfde gesprek terug, ook als het even duurt. U kunt bestanden bijvoegen."
+    },
+    "entscheiden": {
+      "titel": "Als iemand u nodig heeft",
+      "text": "Kan een collega niet verder, dan vraagt die het u. De vraag staat als kaart boven het invoerveld van het gesprek. Zodra u antwoordt of beslist, gaat het werk verder."
+    },
+    "notizen": {
+      "titel": "Notities",
+      "text": "Uw eigen notities, alleen voor u. covey kan een notitie samenvatten; spraaknotities en vergaderingen neemt u op in de app."
+    },
+    "suche": {
+      "titel": "Zoeken",
+      "text": "Vindt collega's en, als u er een hebt gemarkeerd, passages in uw gesprek met die collega. Ook met ⌘K of /."
+    },
+    "person": {
+      "titel": "Uw menu",
+      "text": "Profiel, taal en weergave, en deze introductie, als u die nog eens wilt zien."
+    },
+    "teamApp": {
+      "titel": "Het team",
+      "text": "Tik op een collega om met die collega te praten. Bovenaan staat wie op u wacht; het getal telt antwoorden die u nog niet hebt gelezen."
+    },
+    "notizenApp": {
+      "titel": "Notities",
+      "text": "Uw eigen notities, alleen voor u, getypt of ingesproken. Spraak wordt op het apparaat herkend."
+    },
+    "plus": {
+      "titel": "Snel vastleggen",
+      "text": "Met + schrijft of dicteert u een notitie, waar u ook bent."
+    },
+    "personApp": {
+      "titel": "Uw account",
+      "text": "Instellingen, spraakherkenning en afmelden, en deze introductie, als u die nog eens wilt zien."
+    }
   }
 }

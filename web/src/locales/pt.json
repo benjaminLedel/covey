@@ -2721,5 +2721,61 @@
     "open": "Abrir na aplicação",
     "noApp": "Não tem a aplicação neste dispositivo? No covey, abra Perfil e definições → Aplicação móvel e leia o código QR com a aplicação.",
     "missing": "Esta ligação não contém nenhum código de emparelhamento. Crie um novo no covey, em Perfil e definições → Aplicação móvel."
+  },
+  "tour": {
+    "titel": "Introdução",
+    "schritt": "{{n}} de {{m}}",
+    "weiter": "Seguinte",
+    "zurueck": "Voltar",
+    "ueberspringen": "Saltar",
+    "fertig": "Começar",
+    "willkommen": {
+      "titel": "Bem-vindo ao covey",
+      "text": "Os seus colegas aqui são agentes de IA. Dá-lhes trabalho como o daria a uma pessoa: escrevendo-lhes. Num minuto mostramos-lhe onde está cada coisa."
+    },
+    "buero": {
+      "titel": "O escritório",
+      "text": "A equipa como um edifício: uma sala por departamento, uma secretária por colega. Uma secretária iluminada significa que ali decorre uma tarefa. O número indica quantas decisões estão à sua espera."
+    },
+    "team": {
+      "titel": "A equipa",
+      "text": "Aqui fala com cada colega. No topo está quem está à sua espera; o número conta as respostas que ainda não leu."
+    },
+    "gespraech": {
+      "titel": "Uma conversa",
+      "text": "Escreva como num chat. O que for trabalho passa a ser uma tarefa, e a resposta chega à mesma conversa, mesmo que demore. Pode anexar ficheiros."
+    },
+    "entscheiden": {
+      "titel": "Quando alguém precisa de si",
+      "text": "Quando um colega não consegue avançar, pergunta-lhe a si. A pergunta aparece como um cartão por cima do campo de escrita da conversa. Assim que responder ou decidir, o trabalho continua."
+    },
+    "notizen": {
+      "titel": "Notas",
+      "text": "As suas notas, só para si. O covey pode resumir uma nota; as notas de voz e as reuniões gravam-se na aplicação."
+    },
+    "suche": {
+      "titel": "Procurar",
+      "text": "Encontra colegas e, depois de marcar um, passagens da sua conversa com ele. Também com ⌘K ou /."
+    },
+    "person": {
+      "titel": "O seu menu",
+      "text": "Perfil, idioma e aspeto, e esta introdução, caso a queira ver de novo."
+    },
+    "teamApp": {
+      "titel": "A equipa",
+      "text": "Toque num colega para falar com ele. No topo está quem está à sua espera; o número conta as respostas que ainda não leu."
+    },
+    "notizenApp": {
+      "titel": "Notas",
+      "text": "As suas notas, só para si, escritas ou ditadas. A fala é reconhecida no dispositivo."
+    },
+    "plus": {
+      "titel": "Anotar depressa",
+      "text": "Com + escreve ou dita uma nota, esteja onde estiver."
+    },
+    "personApp": {
+      "titel": "A sua conta",
+      "text": "Definições, reconhecimento de voz e terminar sessão, e esta introdução, caso a queira ver de novo."
+    }
   }
 }

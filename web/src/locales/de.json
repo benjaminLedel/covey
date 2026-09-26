@@ -2721,5 +2721,61 @@
     "open": "In der App öffnen",
     "noApp": "Keine App auf diesem Gerät? Öffnen Sie in covey Profil & Einstellungen → Mobile App und scannen Sie den QR-Code mit der App.",
     "missing": "Dieser Link enthält keinen Kopplungscode. Erzeugen Sie in covey unter Profil & Einstellungen → Mobile App einen neuen."
+  },
+  "tour": {
+    "titel": "Einführung",
+    "schritt": "{{n}} von {{m}}",
+    "weiter": "Weiter",
+    "zurueck": "Zurück",
+    "ueberspringen": "Überspringen",
+    "fertig": "Los geht's",
+    "willkommen": {
+      "titel": "Willkommen bei covey",
+      "text": "Ihre Kolleginnen und Kollegen hier sind KI-Agenten. Sie geben ihnen Arbeit, wie Sie sie einem Menschen geben würden: indem Sie ihnen schreiben. In einer Minute zeigen wir, wo was ist."
+    },
+    "buero": {
+      "titel": "Das Büro",
+      "text": "Die Belegschaft als Gebäude: ein Raum je Abteilung, ein Tisch je Kollegin. Ein leuchtender Tisch heißt, dort läuft gerade eine Aufgabe. Die Zahl zeigt, wie viele Entscheidungen auf Sie warten."
+    },
+    "team": {
+      "titel": "Das Team",
+      "text": "Hier sprechen Sie mit einzelnen Kolleginnen. Oben steht, wer auf Sie wartet; die Zahl zählt Antworten, die Sie noch nicht gelesen haben."
+    },
+    "gespraech": {
+      "titel": "Eine Unterhaltung",
+      "text": "Schreiben Sie wie in einem Chat. Was Arbeit ist, wird zur Aufgabe, und die Antwort kommt in dieselbe Unterhaltung, auch wenn es dauert. Dateien können Sie anhängen."
+    },
+    "entscheiden": {
+      "titel": "Wenn jemand Sie braucht",
+      "text": "Kommt eine Kollegin nicht weiter, fragt sie Sie. Die Frage steht als Karte über dem Eingabefeld der Unterhaltung. Sobald Sie antworten oder entscheiden, arbeitet sie weiter."
+    },
+    "notizen": {
+      "titel": "Notizen",
+      "text": "Ihre eigenen Notizen, nur für Sie. covey kann eine Notiz zusammenfassen; Sprachnotizen und Besprechungen nehmen Sie in der App auf."
+    },
+    "suche": {
+      "titel": "Suchen",
+      "text": "Findet Kolleginnen, und wenn Sie eine markiert haben, Stellen in der Unterhaltung mit ihr. Auch mit ⌘K oder /."
+    },
+    "person": {
+      "titel": "Ihr Menü",
+      "text": "Profil, Sprache und Darstellung, und diese Einführung, falls Sie sie noch einmal sehen möchten."
+    },
+    "teamApp": {
+      "titel": "Das Team",
+      "text": "Tippen Sie auf eine Kollegin, um mit ihr zu sprechen. Oben steht, wer auf Sie wartet; die Zahl zählt Antworten, die Sie noch nicht gelesen haben."
+    },
+    "notizenApp": {
+      "titel": "Notizen",
+      "text": "Ihre eigenen Notizen, nur für Sie, geschrieben oder diktiert. Die Sprache wird auf dem Gerät erkannt."
+    },
+    "plus": {
+      "titel": "Schnell festhalten",
+      "text": "Mit + schreiben oder diktieren Sie eine Notiz, gleich wo Sie gerade sind."
+    },
+    "personApp": {
+      "titel": "Ihr Konto",
+      "text": "Einstellungen, Spracherkennung und Abmelden, und diese Einführung, falls Sie sie noch einmal sehen möchten."
+    }
   }
 }

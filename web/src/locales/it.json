@@ -2721,5 +2721,61 @@
     "open": "Apri nell'app",
     "noApp": "Nessuna app su questo dispositivo? In covey apra Profilo e impostazioni → App mobile e scansioni il codice QR con l'app.",
     "missing": "Questo link non contiene alcun codice di associazione. Ne crei uno nuovo in covey, in Profilo e impostazioni → App mobile."
+  },
+  "tour": {
+    "titel": "Introduzione",
+    "schritt": "{{n}} di {{m}}",
+    "weiter": "Avanti",
+    "zurueck": "Indietro",
+    "ueberspringen": "Salta",
+    "fertig": "Iniziamo",
+    "willkommen": {
+      "titel": "Benvenuto in covey",
+      "text": "I suoi colleghi qui sono agenti di IA. Affida loro il lavoro come lo affiderebbe a una persona: scrivendo loro. In un minuto le mostriamo dove si trova ogni cosa."
+    },
+    "buero": {
+      "titel": "L'ufficio",
+      "text": "Il personale come un edificio: una stanza per reparto, una scrivania per collega. Una scrivania illuminata significa che lì è in corso un'attività. Il numero indica quante decisioni la attendono."
+    },
+    "team": {
+      "titel": "La squadra",
+      "text": "Qui parla con i singoli colleghi. In alto c'è chi la sta aspettando; il numero conta le risposte che non ha ancora letto."
+    },
+    "gespraech": {
+      "titel": "Una conversazione",
+      "text": "Scriva come in una chat. Ciò che è lavoro diventa un'attività, e la risposta arriva nella stessa conversazione, anche se richiede tempo. Può allegare file."
+    },
+    "entscheiden": {
+      "titel": "Quando qualcuno ha bisogno di lei",
+      "text": "Se un collega non può proseguire, lo chiede a lei. La domanda appare come una scheda sopra il campo di inserimento della conversazione. Appena lei risponde o decide, riprende il lavoro."
+    },
+    "notizen": {
+      "titel": "Note",
+      "text": "Le sue note personali, solo per lei. covey può riassumere una nota; le note vocali e le riunioni si registrano nell'app."
+    },
+    "suche": {
+      "titel": "Cerca",
+      "text": "Trova i colleghi e, dopo averne selezionato uno, i passaggi della conversazione con lui. Anche con ⌘K o /."
+    },
+    "person": {
+      "titel": "Il suo menu",
+      "text": "Profilo, lingua e aspetto, e questa introduzione, se desidera rivederla."
+    },
+    "teamApp": {
+      "titel": "La squadra",
+      "text": "Tocchi un collega per parlargli. In alto c'è chi la sta aspettando; il numero conta le risposte che non ha ancora letto."
+    },
+    "notizenApp": {
+      "titel": "Note",
+      "text": "Le sue note personali, solo per lei, scritte o dettate. Il parlato viene riconosciuto sul dispositivo."
+    },
+    "plus": {
+      "titel": "Annotare al volo",
+      "text": "Con + scrive o detta una nota, ovunque si trovi."
+    },
+    "personApp": {
+      "titel": "Il suo account",
+      "text": "Impostazioni, riconoscimento vocale e uscita, e questa introduzione, se desidera rivederla."
+    }
   }
 }

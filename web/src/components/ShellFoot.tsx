@@ -23,12 +23,15 @@ export default function ShellFoot({
   me,
   onLogout,
   onHelp,
+  onTour,
   compact = false,
 }: {
   me: Principal;
   onLogout: () => void;
   /** Öffnet die Hilfe-Schublade, die die Schale selbst hält. */
   onHelp: () => void;
+  /** Starts the tour again (#402); only where there is one to start. */
+  onTour?: () => void;
   /** In the team shell's icon rail (#388): only the avatar, which opens
       the same menu — with the profile as its first entry. */
   compact?: boolean;
@@ -58,6 +61,7 @@ export default function ShellFoot({
     {compact ? (
       <button
         className={`rail-avatar${userMenu ? " open" : ""}`}
+        data-tour="person"
         onClick={() => setUserMenu((v) => !v)}
         title={`${me.DisplayName} — ${t("nav.userMenu")}`}
         aria-label={t("nav.userMenu")}
@@ -138,6 +142,12 @@ export default function ShellFoot({
             <NavIcon name="help" />
             {t("nav.help")}
           </button>
+          {onTour && (
+            <button onClick={() => { setUserMenu(false); onTour(); }}>
+              <NavIcon name="compass" />
+              {t("tour.titel")}
+            </button>
+          )}
           <div className="sep" />
           <button className="danger" onClick={logout}>
             <NavIcon name="logout" />

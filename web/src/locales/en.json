@@ -2721,5 +2721,61 @@
     "open": "Open in the app",
     "noApp": "No app on this device? In covey, open Profile & Settings → Mobile app and scan the QR code with the app.",
     "missing": "This link carries no pairing code. Create a new one in covey under Profile & Settings → Mobile app."
+  },
+  "tour": {
+    "titel": "Introduction",
+    "schritt": "{{n}} of {{m}}",
+    "weiter": "Next",
+    "zurueck": "Back",
+    "ueberspringen": "Skip",
+    "fertig": "Get started",
+    "willkommen": {
+      "titel": "Welcome to covey",
+      "text": "Your colleagues here are AI agents. You give them work the way you would give it to a person: by writing to them. This takes a minute and shows you where everything is."
+    },
+    "buero": {
+      "titel": "The office",
+      "text": "The workforce as a building: a room per department, a desk per colleague. A lit desk means a task is running there. The number shows how many decisions are waiting for you."
+    },
+    "team": {
+      "titel": "The team",
+      "text": "This is where you talk to individual colleagues. Whoever is waiting for you is at the top; the number counts answers you have not read yet."
+    },
+    "gespraech": {
+      "titel": "A conversation",
+      "text": "Write as you would in a chat. Whatever is work becomes a task, and the answer comes back into the same conversation, even if it takes a while. You can attach files."
+    },
+    "entscheiden": {
+      "titel": "When someone needs you",
+      "text": "When a colleague cannot go on, they ask you. The question appears as a card above the conversation's input. As soon as you answer or decide, they carry on."
+    },
+    "notizen": {
+      "titel": "Notes",
+      "text": "Your own notes, for you alone. covey can summarise a note; voice notes and meetings are recorded in the app."
+    },
+    "suche": {
+      "titel": "Search",
+      "text": "Finds colleagues and, once you have marked one, passages in your conversation with them. Also with ⌘K or /."
+    },
+    "person": {
+      "titel": "Your menu",
+      "text": "Profile, language and appearance, and this introduction, should you want to see it again."
+    },
+    "teamApp": {
+      "titel": "The team",
+      "text": "Tap a colleague to talk to them. Whoever is waiting for you is at the top; the number counts answers you have not read yet."
+    },
+    "notizenApp": {
+      "titel": "Notes",
+      "text": "Your own notes, for you alone, typed or dictated. Speech is recognised on the device."
+    },
+    "plus": {
+      "titel": "Capture quickly",
+      "text": "With + you write or dictate a note, wherever you are."
+    },
+    "personApp": {
+      "titel": "Your account",
+      "text": "Settings, speech recognition and signing out, and this introduction, should you want to see it again."
+    }
   }
 }

@@ -659,7 +659,7 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
           ))}
         {/* What waits for this person's decision, with its buttons (#391). */}
         {offeneEntscheidungen.length > 0 && (
-          <section className="tm-entscheiden" aria-label={t("team.wartet")}>
+          <section className="tm-entscheiden" data-tour="entscheiden" aria-label={t("team.wartet")}>
             <h3 className="tm-entscheiden-kopf">{t("team.wartet")}</h3>
             <Suspense fallback={null}>
               {offeneEntscheidungen.map((d) => (
@@ -701,7 +701,7 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
 
       {/* Das Feld unten richtet sich immer an den Agenten — nie an eine
           wartende Frage; die beantwortet man an ihr selbst. */}
-      <div className="tm-eingabe">
+      <div className="tm-eingabe" data-tour="eingabe">
         {anhaenge.length > 0 && (
           <div className="tm-anhaenge">
             {anhaenge.map((f, i) => (

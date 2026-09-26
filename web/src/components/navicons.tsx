@@ -145,6 +145,13 @@ const icons: Record<string, JSX.Element> = {
       <path d="M12 16.4v.01" />
     </>
   ),
+  // The tour (#402): a compass, the way round.
+  compass: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M15.5 8.5l-2 5-5 2 2-5z" />
+    </>
+  ),
   copy: (
     <>
       <rect x="9" y="9" width="12" height="13" rx="2" />

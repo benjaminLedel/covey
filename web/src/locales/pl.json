@@ -2721,5 +2721,61 @@
     "open": "Otwórz w aplikacji",
     "noApp": "Brak aplikacji na tym urządzeniu? W covey proszę otworzyć Profil i ustawienia → Aplikacja mobilna i zeskanować kod QR aplikacją.",
     "missing": "Ten link nie zawiera kodu parowania. Proszę utworzyć nowy w covey w sekcji Profil i ustawienia → Aplikacja mobilna."
+  },
+  "tour": {
+    "titel": "Wprowadzenie",
+    "schritt": "{{n}} z {{m}}",
+    "weiter": "Dalej",
+    "zurueck": "Wstecz",
+    "ueberspringen": "Pomiń",
+    "fertig": "Zaczynamy",
+    "willkommen": {
+      "titel": "Witamy w covey",
+      "text": "Państwa współpracownicy to tutaj agenci AI. Zleca im Państwo pracę tak, jak zleciliby ją Państwo człowiekowi: pisząc do nich. W minutę pokażemy, gdzie co jest."
+    },
+    "buero": {
+      "titel": "Biuro",
+      "text": "Zespół jako budynek: jeden pokój na dział, jedno biurko na osobę. Podświetlone biurko oznacza, że trwa tam zadanie. Liczba pokazuje, ile decyzji czeka na Państwa."
+    },
+    "team": {
+      "titel": "Zespół",
+      "text": "Tutaj rozmawiają Państwo z poszczególnymi współpracownikami. Na górze są ci, którzy na Państwa czekają; liczba to odpowiedzi, których jeszcze Państwo nie przeczytali."
+    },
+    "gespraech": {
+      "titel": "Rozmowa",
+      "text": "Proszę pisać jak na czacie. To, co jest pracą, staje się zadaniem, a odpowiedź wraca do tej samej rozmowy, nawet jeśli potrwa to dłużej. Można dołączać pliki."
+    },
+    "entscheiden": {
+      "titel": "Gdy ktoś Państwa potrzebuje",
+      "text": "Gdy współpracownik nie może kontynuować, pyta Państwa. Pytanie pojawia się jako karta nad polem wpisywania w rozmowie. Gdy tylko Państwo odpowiedzą lub zdecydują, praca jest kontynuowana."
+    },
+    "notizen": {
+      "titel": "Notatki",
+      "text": "Państwa własne notatki, tylko dla Państwa. covey może streścić notatkę; notatki głosowe i spotkania nagrywa się w aplikacji."
+    },
+    "suche": {
+      "titel": "Szukaj",
+      "text": "Znajduje współpracowników, a po zaznaczeniu jednego z nich także fragmenty rozmowy z tą osobą. Również przez ⌘K lub /."
+    },
+    "person": {
+      "titel": "Państwa menu",
+      "text": "Profil, język i wygląd, a także to wprowadzenie, jeśli zechcą Państwo zobaczyć je ponownie."
+    },
+    "teamApp": {
+      "titel": "Zespół",
+      "text": "Proszę dotknąć współpracownika, aby z nim porozmawiać. Na górze są ci, którzy na Państwa czekają; liczba to odpowiedzi, których jeszcze Państwo nie przeczytali."
+    },
+    "notizenApp": {
+      "titel": "Notatki",
+      "text": "Państwa własne notatki, tylko dla Państwa, pisane lub dyktowane. Mowa jest rozpoznawana na urządzeniu."
+    },
+    "plus": {
+      "titel": "Szybka notatka",
+      "text": "Przyciskiem + piszą lub dyktują Państwo notatkę, gdziekolwiek Państwo są."
+    },
+    "personApp": {
+      "titel": "Państwa konto",
+      "text": "Ustawienia, rozpoznawanie mowy i wylogowanie, a także to wprowadzenie, jeśli zechcą Państwo zobaczyć je ponownie."
+    }
   }
 }
