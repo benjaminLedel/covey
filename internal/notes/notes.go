@@ -57,6 +57,11 @@ type Note struct {
 	// none.
 	Icon  string `json:"icon"`
 	Cover string `json:"cover"`
+	// Status is empty, todo, doing or done; Due a date (YYYY-MM-DD) or nil;
+	// Tags a few short words (#373).
+	Status string   `json:"status"`
+	Due    *string  `json:"due"`
+	Tags   []string `json:"tags"`
 }
 
 // ReviewMeta is what a daily review was written from (#369).
@@ -80,11 +85,11 @@ type Store struct{ pool *pgxpool.Pool }
 
 func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
-const cols = `id, kind, title, body, summary, duration_seconds, created_at, updated_at, to_char(review_day, 'YYYY-MM-DD'), review_through, icon, cover`
+const cols = `id, kind, title, body, summary, duration_seconds, created_at, updated_at, to_char(review_day, 'YYYY-MM-DD'), review_through, icon, cover, status, to_char(due, 'YYYY-MM-DD'), tags`
 
 func scan(row pgx.Row) (Note, error) {
 	var n Note
-	err := row.Scan(&n.ID, &n.Kind, &n.Title, &n.Body, &n.Summary, &n.DurationSeconds, &n.CreatedAt, &n.UpdatedAt, &n.ReviewDay, &n.ReviewThrough, &n.Icon, &n.Cover)
+	err := row.Scan(&n.ID, &n.Kind, &n.Title, &n.Body, &n.Summary, &n.DurationSeconds, &n.CreatedAt, &n.UpdatedAt, &n.ReviewDay, &n.ReviewThrough, &n.Icon, &n.Cover, &n.Status, &n.Due, &n.Tags)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Note{}, ErrNotFound
 	}
@@ -207,7 +212,8 @@ func (s *Store) Update(ctx context.Context, humanID, id uuid.UUID, p Patch) (Not
 	if err != nil {
 		return Note{}, err
 	}
-	t, b, icon, cover := cur.Title, cur.Body, cur.Icon, cur.Cover
+	t, b, icon, cover, status, tags := cur.Title, cur.Body, cur.Icon, cur.Cover, cur.Status, cur.Tags
+	due := cur.Due
 	if p.Title != nil {
 		t = *p.Title
 	}
@@ -220,20 +226,67 @@ func (s *Store) Update(ctx context.Context, humanID, id uuid.UUID, p Patch) (Not
 	if p.Cover != nil {
 		cover = strings.TrimSpace(*p.Cover)
 	}
+	if p.Status != nil {
+		status = strings.TrimSpace(*p.Status)
+	}
+	if p.Due != nil {
+		d := strings.TrimSpace(*p.Due)
+		if d == "" {
+			due = nil
+		} else if _, err := time.Parse("2006-01-02", d); err != nil {
+			return Note{}, ErrInvalid
+		} else {
+			due = &d
+		}
+	}
+	if p.Tags != nil {
+		if tags, err = cleanTags(*p.Tags); err != nil {
+			return Note{}, err
+		}
+	}
 	t, b, err = clean(t, b)
 	if err != nil {
 		return Note{}, err
 	}
-	if !validIcon(icon) || !validCover(cover) {
+	if !validIcon(icon) || !validCover(cover) || !validStatus(status) {
 		return Note{}, ErrInvalid
 	}
-	return scan(s.pool.QueryRow(ctx, `UPDATE human_notes SET title=$3, body=$4, icon=$5, cover=$6, updated_at=now()
-		WHERE id=$1 AND human_id=$2 RETURNING `+cols, id, humanID, t, b, icon, cover))
+	if tags == nil {
+		tags = []string{}
+	}
+	return scan(s.pool.QueryRow(ctx, `UPDATE human_notes
+		SET title=$3, body=$4, icon=$5, cover=$6, status=$7, due=$8::date, tags=$9, updated_at=now()
+		WHERE id=$1 AND human_id=$2 RETURNING `+cols, id, humanID, t, b, icon, cover, status, due, tags))
+}
+
+func validStatus(s string) bool { return s == "" || s == "todo" || s == "doing" || s == "done" }
+
+// cleanTags trims, drops empty and repeated tags; at most 10, each at most
+// 30 characters.
+func cleanTags(in []string) ([]string, error) {
+	out := []string{}
+	seen := map[string]bool{}
+	for _, t := range in {
+		t = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(t), "#"))
+		if t == "" || seen[strings.ToLower(t)] {
+			continue
+		}
+		if len([]rune(t)) > 30 {
+			return nil, ErrInvalid
+		}
+		seen[strings.ToLower(t)] = true
+		out = append(out, t)
+	}
+	if len(out) > 10 {
+		return nil, ErrInvalid
+	}
+	return out, nil
 }
 
 // Patch is what a change of a note sets; nil leaves a field as it is.
 type Patch struct {
-	Title, Body, Icon, Cover *string
+	Title, Body, Icon, Cover, Status, Due *string
+	Tags                                  *[]string
 }
 
 // An icon is one emoji — a few code points at most (skin tones, flags,

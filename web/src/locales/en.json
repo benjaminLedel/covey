@@ -2657,7 +2657,20 @@
     "coverHinzu": "Add cover",
     "iconEntfernen": "Remove icon",
     "coverEntfernen": "Remove cover",
-    "coverBild": "Your own picture"
+    "coverBild": "Your own picture",
+    "nstatus_none": "No status",
+    "nstatus_todo": "To do",
+    "nstatus_doing": "In progress",
+    "nstatus_done": "Done",
+    "propStatus": "Status",
+    "propDatum": "Date",
+    "propTags": "Tags",
+    "tagHinweis": "One word, e.g. customer",
+    "ansichtListe": "List",
+    "ansichtTabelle": "Table",
+    "ansichtBoard": "Board",
+    "spalteTitel": "Title",
+    "spalteErstellt": "Created"
   },
   "appLink": {
     "title": "Open in the covey app",

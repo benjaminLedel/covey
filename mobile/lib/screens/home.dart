@@ -38,6 +38,10 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  /// How the notes are shown (#373); on a wide window the table and the
+  /// board take the width.
+  NotesView _notesView = NotesView.list;
+
   int _space = 0;
   Me? _me;
   Object? _meError;
@@ -283,6 +287,7 @@ class _HomeScreenState extends State<HomeScreen> {
           actions: actions,
           bottomClearance: isWide ? 24 : capsuleClearance,
           compact: isWide,
+          onViewChanged: (v) => setState(() => _notesView = v),
         ),
       ),
     ];
@@ -305,21 +310,31 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const VerticalDivider(width: 0.6),
             // The panes right of the sidebar are clear of the traffic lights.
-            SizedBox(width: 400, child: LightsInset(left: 0, child: body)),
-            const VerticalDivider(width: 0.6),
-            Expanded(
-              child: LightsInset(
-                left: 0,
-                child:
-                    _detail ??
-                    Center(
-                      child: Text(
-                        context.t('mobile.waehlen'),
-                        style: context.type.bodyLarge?.copyWith(color: context.colors.textMuted),
+            // The table and the board of the notes take the width (#373); an
+            // open note stands beside them.
+            if (space == notesIndex && _notesView != NotesView.list) ...[
+              Expanded(child: LightsInset(left: 0, child: body)),
+              if (_detail != null) ...[
+                const VerticalDivider(width: 0.6),
+                SizedBox(width: 560, child: LightsInset(left: 0, child: _detail!)),
+              ],
+            ] else ...[
+              SizedBox(width: 400, child: LightsInset(left: 0, child: body)),
+              const VerticalDivider(width: 0.6),
+              Expanded(
+                child: LightsInset(
+                  left: 0,
+                  child:
+                      _detail ??
+                      Center(
+                        child: Text(
+                          context.t('mobile.waehlen'),
+                          style: context.type.bodyLarge?.copyWith(color: context.colors.textMuted),
+                        ),
                       ),
-                    ),
+                ),
               ),
-            ),
+            ],
           ],
         ),
       );

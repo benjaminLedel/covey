@@ -184,8 +184,27 @@ class CoveyApi {
         as Map<String, dynamic>,
   );
 
-  Future<Note> updateNote(String id, {String? title, String? body, String? icon, String? cover}) async => Note.fromJson(
-    await patch('/me/notes/$id', {'title': ?title, 'body': ?body, 'icon': ?icon, 'cover': ?cover})
+  /// Changes a note; null leaves a field as it is. [due] as `YYYY-MM-DD`,
+  /// empty to clear (#373).
+  Future<Note> updateNote(
+    String id, {
+    String? title,
+    String? body,
+    String? icon,
+    String? cover,
+    String? status,
+    String? due,
+    List<String>? tags,
+  }) async => Note.fromJson(
+    await patch('/me/notes/$id', {
+          'title': ?title,
+          'body': ?body,
+          'icon': ?icon,
+          'cover': ?cover,
+          'status': ?status,
+          'due': ?due,
+          'tags': ?tags,
+        })
         as Map<String, dynamic>,
   );
 

@@ -2657,7 +2657,20 @@
     "coverHinzu": "カバーを追加",
     "iconEntfernen": "アイコンを削除",
     "coverEntfernen": "カバーを削除",
-    "coverBild": "自分の画像"
+    "coverBild": "自分の画像",
+    "nstatus_none": "ステータスなし",
+    "nstatus_todo": "未着手",
+    "nstatus_doing": "進行中",
+    "nstatus_done": "完了",
+    "propStatus": "ステータス",
+    "propDatum": "日付",
+    "propTags": "タグ",
+    "tagHinweis": "1語で（例：顧客）",
+    "ansichtListe": "リスト",
+    "ansichtTabelle": "テーブル",
+    "ansichtBoard": "ボード",
+    "spalteTitel": "タイトル",
+    "spalteErstellt": "作成日"
   },
   "appLink": {
     "title": "covey アプリで開く",

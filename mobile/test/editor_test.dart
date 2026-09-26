@@ -106,7 +106,11 @@ void main() {
     expect(find.text('Überschrift 1'), findsNothing, reason: 'filtered by what is typed');
     await tester.tap(find.text('Toggle'));
     await _settle(tester);
-    expect(out.last, '<details>\n<summary></summary>\n\n</details>', reason: 'the "/tog" is gone, the block is a toggle');
+    expect(
+      out.last,
+      '<details>\n<summary></summary>\n\n</details>',
+      reason: 'the "/tog" is gone, the block is a toggle',
+    );
     expect(find.text('Toggle'), findsNothing, reason: 'the menu closed');
   });
 

@@ -1,0 +1,1 @@
+ALTER TABLE human_notes DROP COLUMN status, DROP COLUMN due, DROP COLUMN tags;

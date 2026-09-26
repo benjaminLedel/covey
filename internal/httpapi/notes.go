@@ -146,7 +146,7 @@ func noteErr(w http.ResponseWriter, err error) {
 		writeErr(w, http.StatusNotFound, "not found")
 	case errors.Is(err, notes.ErrInvalid):
 		writeErr(w, http.StatusBadRequest,
-			"a note needs text (at most "+strconv.Itoa(notes.MaxBody)+" characters), a title of at most 200, a kind of text, voice or meeting, an icon of one emoji, and a cover of gradient:<clay|dusk|sea|moss|sand|night> or covey-media://<id>")
+			"a note needs text (at most "+strconv.Itoa(notes.MaxBody)+" characters), a title of at most 200, a kind of text, voice or meeting, an icon of one emoji, a cover of gradient:<clay|dusk|sea|moss|sand|night> or covey-media://<id>, a status of todo, doing or done, a due date YYYY-MM-DD, and at most 10 tags of 30 characters")
 	default:
 		mapErr(w, err)
 	}
@@ -217,10 +217,13 @@ func (s *Server) handleUpdateNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct {
-		Title *string `json:"title"`
-		Body  *string `json:"body"`
-		Icon  *string `json:"icon"`
-		Cover *string `json:"cover"`
+		Title  *string   `json:"title"`
+		Body   *string   `json:"body"`
+		Icon   *string   `json:"icon"`
+		Cover  *string   `json:"cover"`
+		Status *string   `json:"status"`
+		Due    *string   `json:"due"`
+		Tags   *[]string `json:"tags"`
 	}
 	if err := readJSON(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid body")
@@ -232,7 +235,10 @@ func (s *Server) handleUpdateNote(w http.ResponseWriter, r *http.Request) {
 		noteErr(w, err)
 		return
 	}
-	n, err := s.noteStore().Update(r.Context(), p.ID, id, notes.Patch{Title: in.Title, Body: in.Body, Icon: in.Icon, Cover: in.Cover})
+	n, err := s.noteStore().Update(r.Context(), p.ID, id, notes.Patch{
+		Title: in.Title, Body: in.Body, Icon: in.Icon, Cover: in.Cover,
+		Status: in.Status, Due: in.Due, Tags: in.Tags,
+	})
 	if err != nil {
 		noteErr(w, err)
 		return

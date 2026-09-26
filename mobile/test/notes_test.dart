@@ -265,4 +265,66 @@ void main() {
     expect(summarized, isTrue);
     expect(find.textContaining('Launch im Oktober.'), findsOneWidget);
   });
+
+  testWidgets('the notes as a table and as a board by status; a card moves to another status (#373)', (tester) async {
+    Map<String, Object?>? patched;
+    final api = CoveyApi(
+      Uri.parse('https://c.example'),
+      'k',
+      client: MockClient((req) async {
+        final p = req.url.path;
+        if (p.endsWith('/auth/me')) return _json({'Email': 'a@b.c', 'DisplayName': 'Ada', 'TeamSurface': false});
+        if (req.method == 'PATCH') {
+          patched = jsonDecode(req.body) as Map<String, Object?>;
+          return _json({..._note('n1', 'text', 'Angebot schicken'), 'status': patched!['status']});
+        }
+        if (p.endsWith('/me/notes')) {
+          return _json({
+            'notes': [
+              {
+                ..._note('n1', 'text', 'Angebot schicken'),
+                'status': 'todo',
+                'due': '2026-10-02',
+                'tags': ['Kunde'],
+                'icon': '📌',
+              },
+              {..._note('n2', 'text', 'Bericht fertig'), 'status': 'done'},
+            ],
+            'summarize': false,
+          });
+        }
+        return http.Response('', 404);
+      }),
+    );
+    await tester.binding.setSurfaceSize(const Size(1400, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(await tester.runAsync(() => _app(HomeScreen(api: api, onDisconnect: () {}))) as Widget);
+    await _settle(tester);
+
+    await tester.tap(find.text('Tabelle'));
+    await _settle(tester);
+    expect(find.text('#Kunde'), findsOneWidget, reason: 'the table shows the tags');
+    expect(find.text('Offen'), findsOneWidget, reason: 'and the status in words');
+
+    await tester.tap(find.text('Board'));
+    await _settle(tester);
+    expect(find.text('In Arbeit'), findsOneWidget, reason: 'a column per status, the empty ones too');
+    expect(find.text('Erledigt'), findsOneWidget);
+    expect(find.text('Bericht fertig'), findsOneWidget);
+
+    // On touch a card moves after a long press.
+    final start = tester.getCenter(find.text('Angebot schicken'));
+    final target = tester.getCenter(find.text('In Arbeit'));
+    final gesture = await tester.startGesture(start);
+    await tester.pump(const Duration(milliseconds: 700));
+    // In steps, as a finger moves: the target sees the card arrive.
+    for (var k = 1; k <= 10; k++) {
+      await gesture.moveTo(Offset.lerp(start, target + const Offset(0, 40), k / 10)!);
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await gesture.up();
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await _settle(tester);
+    expect(patched, {'status': 'doing'});
+  });
 }

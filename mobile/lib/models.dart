@@ -193,6 +193,9 @@ class Note {
     required this.createdAt,
     this.icon = '',
     this.cover = '',
+    this.status = '',
+    this.due,
+    this.tags = const [],
   });
 
   factory Note.fromJson(Map<String, dynamic> j) => Note(
@@ -205,6 +208,9 @@ class Note {
     createdAt: _time(j['created_at']),
     icon: j['icon'] as String? ?? '',
     cover: j['cover'] as String? ?? '',
+    status: j['status'] as String? ?? '',
+    due: j['due'] == null ? null : DateTime.tryParse(j['due'] as String),
+    tags: [for (final t in (j['tags'] as List? ?? const [])) '$t'],
   );
 
   final String id;
@@ -223,6 +229,12 @@ class Note {
   /// A built-in gradient (`gradient:<name>`) or a picture of the note's
   /// media (`covey-media://<id>`); empty for none (#372).
   final String cover;
+
+  /// Properties (#373): status is empty, todo, doing or done; due a day;
+  /// tags a few short words.
+  final String status;
+  final DateTime? due;
+  final List<String> tags;
 
   /// What the list shows as the line: the title, or else the first line of
   /// the text.

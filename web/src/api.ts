@@ -1578,6 +1578,10 @@ export type Note = {
   icon?: string;
   /** "gradient:<name>" or "covey-media://<id>"; empty for none (#372). */
   cover?: string;
+  /** Properties (#373). */
+  status?: "" | "todo" | "doing" | "done";
+  due?: string | null;
+  tags?: string[];
 };
 
 export type NotesPage = { notes: Note[]; summarize: boolean };

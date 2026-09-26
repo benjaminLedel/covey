@@ -151,6 +151,28 @@ const heading = (n: Note) => n.title || n.body.split("\n")[0].replace(/^(#{1,3}\
 const noteMedia = (src: string) =>
   src.startsWith("covey-media://") ? `/api/v1/me/notes/media/${encodeURIComponent(src.slice("covey-media://".length))}` : null;
 
+/* A note's properties (#373): its status, date and tags, as the app sets
+   them. */
+function Properties({ n }: { n: Note }) {
+  const { t, i18n } = useTranslation();
+  if (!n.status && !n.due && !(n.tags ?? []).length) return null;
+  return (
+    <div className="notes-props">
+      {n.status ? (
+        <span className={`notes-prop st-${n.status}`}>{t(`mobile.nstatus_${n.status}`)}</span>
+      ) : null}
+      {n.due ? (
+        <span className="notes-prop">
+          {new Date(n.due + "T00:00:00").toLocaleDateString(i18n.language, { day: "numeric", month: "short", year: "numeric" })}
+        </span>
+      ) : null}
+      {(n.tags ?? []).map((tag) => (
+        <span key={tag} className="notes-prop">#{tag}</span>
+      ))}
+    </div>
+  );
+}
+
 /* The note's cover (#372): one of the built-in gradients the app offers, or
    a picture of the note's media. */
 const gradients: Record<string, string> = {
@@ -206,6 +228,7 @@ function Detail({ note, canSummarize, onDeleted }: { note: Note; canSummarize: b
       {n.icon ? <div className={`notes-icon${n.cover ? " on-cover" : ""}`}>{n.icon}</div> : null}
       <p className="muted text-xs mb-1 notes-tabular">{meta(n, i18n.language, t, true)}</p>
       <h2 className="notes-title">{heading(n)}</h2>
+      <Properties n={n} />
 
       {n.summary && (
         <div className="notes-summary">

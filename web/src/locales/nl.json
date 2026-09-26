@@ -2657,7 +2657,20 @@
     "coverHinzu": "Omslag toevoegen",
     "iconEntfernen": "Pictogram verwijderen",
     "coverEntfernen": "Omslag verwijderen",
-    "coverBild": "Eigen afbeelding"
+    "coverBild": "Eigen afbeelding",
+    "nstatus_none": "Geen status",
+    "nstatus_todo": "Te doen",
+    "nstatus_doing": "Bezig",
+    "nstatus_done": "Klaar",
+    "propStatus": "Status",
+    "propDatum": "Datum",
+    "propTags": "Tags",
+    "tagHinweis": "Eén woord, bijv. klant",
+    "ansichtListe": "Lijst",
+    "ansichtTabelle": "Tabel",
+    "ansichtBoard": "Bord",
+    "spalteTitel": "Titel",
+    "spalteErstellt": "Gemaakt"
   },
   "appLink": {
     "title": "Openen in de covey-app",

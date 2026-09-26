@@ -115,7 +115,7 @@ class DictateAnywhere extends ChangeNotifier {
   Future<void> refresh() async {
     try {
       trusted = await _channel.invokeMethod<bool>('trusted') ?? false;
-    } on PlatformException {
+    } on Exception {
       trusted = false;
     }
     final api = _api;
@@ -160,8 +160,8 @@ class DictateAnywhere extends ChangeNotifier {
       trusted = await _channel.invokeMethod<bool>('askTrust') ?? false;
       diag('flow', 'accessibility asked: ${trusted ? 'granted' : 'not granted'}');
       if (!trusted) await _channel.invokeMethod<void>('openAccessibilitySettings');
-    } on PlatformException catch (e) {
-      diag('flow', 'accessibility: ${e.message}');
+    } on Exception catch (e) {
+      diag('flow', 'accessibility: $e');
     }
     notifyListeners();
     // Then watched for two minutes: the switch is flipped in System
@@ -287,7 +287,7 @@ class DictateAnywhere extends ChangeNotifier {
   Future<void> _start(Dictation d) async {
     try {
       _focus = (await _channel.invokeMapMethod<String, Object?>('focus')) ?? const {};
-    } on PlatformException {
+    } on Exception {
       _focus = const {};
     }
     _targetApp = _focus['app'] as String?;

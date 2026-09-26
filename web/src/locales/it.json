@@ -2657,7 +2657,20 @@
     "coverHinzu": "Aggiungi copertina",
     "iconEntfernen": "Rimuovi icona",
     "coverEntfernen": "Rimuovi copertina",
-    "coverBild": "Immagine propria"
+    "coverBild": "Immagine propria",
+    "nstatus_none": "Senza stato",
+    "nstatus_todo": "Da fare",
+    "nstatus_doing": "In corso",
+    "nstatus_done": "Fatto",
+    "propStatus": "Stato",
+    "propDatum": "Data",
+    "propTags": "Tag",
+    "tagHinweis": "Una parola, ad es. cliente",
+    "ansichtListe": "Elenco",
+    "ansichtTabelle": "Tabella",
+    "ansichtBoard": "Bacheca",
+    "spalteTitel": "Titolo",
+    "spalteErstellt": "Creata"
   },
   "appLink": {
     "title": "Apri nell'app covey",

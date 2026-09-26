@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 
 import '../chrome.dart';
 import '../api.dart';
+import '../prefs.dart';
 import '../diarize.dart';
 import '../dictation.dart';
 import '../dictation_view.dart';
@@ -33,9 +34,14 @@ class NotesScreen extends StatefulWidget {
     this.actions = const [],
     this.bottomClearance = capsuleClearance,
     this.compact = false,
+    this.onViewChanged,
   });
 
   final CoveyApi api;
+
+  /// Tells the page which view is shown (#373): a wide window gives the
+  /// table and the board its whole width.
+  final ValueChanged<NotesView>? onViewChanged;
 
   /// Opens a note — pushed on a phone, beside the list on a wide window.
   final void Function(Note note, bool canSummarize, VoidCallback changed) onOpen;
@@ -49,7 +55,11 @@ class NotesScreen extends StatefulWidget {
   State<NotesScreen> createState() => NotesScreenState();
 }
 
+/// How the notes are shown (#373).
+enum NotesView { list, table, board }
+
 class NotesScreenState extends State<NotesScreen> {
+  NotesView _view = NotesView.list;
   NotesPage? _page;
   Object? _error;
   String _query = '';
@@ -75,6 +85,30 @@ class NotesScreenState extends State<NotesScreen> {
   void initState() {
     super.initState();
     reload();
+    Prefs.instance.read('notes.view').then((v) {
+      final view = NotesView.values.where((x) => x.name == v).firstOrNull;
+      if (view != null && mounted) {
+        setState(() => _view = view);
+        widget.onViewChanged?.call(view);
+      }
+    });
+  }
+
+  void _setView(NotesView v) {
+    setState(() => _view = v);
+    widget.onViewChanged?.call(v);
+    Prefs.instance.write('notes.view', v.name);
+  }
+
+  /// A card dragged to another column of the board.
+  Future<void> _move(Note n, String status) async {
+    if (n.status == status) return;
+    try {
+      await widget.api.updateNote(n.id, status: status);
+      await reload();
+    } on ApiException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    }
   }
 
   Future<void> reload() async {
@@ -117,6 +151,49 @@ class NotesScreenState extends State<NotesScreen> {
       onRefresh: reload,
       search: SearchField(hint: context.t('mobile.notizenSuchen'), onChanged: _search),
       slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: SegmentedButton<NotesView>(
+                showSelectedIcon: false,
+                style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                segments: [
+                  ButtonSegment(
+                    value: NotesView.list,
+                    icon: const Icon(Icons.view_agenda_outlined, size: 18),
+                    label: Text(context.t('mobile.ansichtListe')),
+                  ),
+                  ButtonSegment(
+                    value: NotesView.table,
+                    icon: const Icon(Icons.table_rows_outlined, size: 18),
+                    label: Text(context.t('mobile.ansichtTabelle')),
+                  ),
+                  ButtonSegment(
+                    value: NotesView.board,
+                    icon: const Icon(Icons.view_kanban_outlined, size: 18),
+                    label: Text(context.t('mobile.ansichtBoard')),
+                  ),
+                ],
+                selected: {_view},
+                onSelectionChanged: (v) => _setView(v.first),
+              ),
+            ),
+          ),
+        ),
+        if (page != null && page.notes.isNotEmpty && _view == NotesView.table)
+          SliverToBoxAdapter(
+            child: NotesTable(notes: page.notes, onOpen: (n) => widget.onOpen(n, page.summarize, reload)),
+          ),
+        if (page != null && page.notes.isNotEmpty && _view == NotesView.board)
+          SliverToBoxAdapter(
+            child: NotesBoard(
+              notes: page.notes,
+              onOpen: (n) => widget.onOpen(n, page.summarize, reload),
+              onMove: _move,
+            ),
+          ),
         if (_error != null)
           SliverToBoxAdapter(child: EmptyNote(context.t('mobile.fehler', args: {'error': '$_error'}))),
         if (page == null && _error == null) SliverToBoxAdapter(child: EmptyNote(context.t('common.loading'))),
@@ -126,32 +203,33 @@ class NotesScreenState extends State<NotesScreen> {
               _query.trim().isEmpty ? context.t('mobile.notizenLeer') : context.t('team.nichtsGefunden'),
             ),
           ),
-        for (final day in days.entries) ...[
-          SliverToBoxAdapter(child: SectionTitle(day.key)),
-          SliverToBoxAdapter(
-            child: InsetGroup(
-              children: [
-                for (final n in day.value)
-                  GroupRow(
-                    leading: KindMark(kind: n.kind, icon: n.icon),
-                    title: n.heading,
-                    subtitle: noteMeta(context, n, withDate: false),
-                    // State, not action: muted, and said for a screen reader.
-                    trailing: n.summary.isEmpty
-                        ? null
-                        : Icon(
-                            AppIcons.summary.of(context),
-                            size: 18,
-                            color: context.colors.textMuted,
-                            semanticLabel: context.t('mobile.hatZusammenfassung'),
-                          ),
-                    tabularSubtitle: true,
-                    onTap: () => widget.onOpen(n, page!.summarize, reload),
-                  ),
-              ],
+        if (_view == NotesView.list)
+          for (final day in days.entries) ...[
+            SliverToBoxAdapter(child: SectionTitle(day.key)),
+            SliverToBoxAdapter(
+              child: InsetGroup(
+                children: [
+                  for (final n in day.value)
+                    GroupRow(
+                      leading: KindMark(kind: n.kind, icon: n.icon),
+                      title: n.heading,
+                      subtitle: noteMeta(context, n, withDate: false),
+                      // State, not action: muted, and said for a screen reader.
+                      trailing: n.summary.isEmpty
+                          ? null
+                          : Icon(
+                              AppIcons.summary.of(context),
+                              size: 18,
+                              color: context.colors.textMuted,
+                              semanticLabel: context.t('mobile.hatZusammenfassung'),
+                            ),
+                      tabularSubtitle: true,
+                      onTap: () => widget.onOpen(n, page!.summarize, reload),
+                    ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
       ],
     );
   }
@@ -271,6 +349,9 @@ class _NotePageState extends State<NotePage> {
   late String _body = widget.note?.body ?? '';
   late String _icon = widget.note?.icon ?? '';
   late String _cover = widget.note?.cover ?? '';
+  late String _status = widget.note?.status ?? '';
+  late DateTime? _due = widget.note?.due;
+  late List<String> _tags = [...?widget.note?.tags];
   bool _headerHover = false;
   final _titleFocus = FocusNode();
   final _editor = GlobalKey<BlockEditorState>();
@@ -336,12 +417,34 @@ class _NotePageState extends State<NotePage> {
       if (n == null) {
         var created = await widget.api.createNote(kind: _spoken ? 'voice' : 'text', title: title, body: body);
         // An icon or a cover chosen before the first words go on now.
-        if (_icon.isNotEmpty || _cover.isNotEmpty) {
-          created = await widget.api.updateNote(created.id, icon: _icon, cover: _cover);
+        if (_icon.isNotEmpty || _cover.isNotEmpty || _hasProperties) {
+          created = await widget.api.updateNote(
+            created.id,
+            icon: _icon,
+            cover: _cover,
+            status: _status,
+            due: _dueText,
+            tags: _tags,
+          );
         }
         _note = created;
-      } else if (n.title != title || n.body != body || n.icon != _icon || n.cover != _cover) {
-        _note = await widget.api.updateNote(n.id, title: title, body: body, icon: _icon, cover: _cover);
+      } else if (n.title != title ||
+          n.body != body ||
+          n.icon != _icon ||
+          n.cover != _cover ||
+          n.status != _status ||
+          _dayText(n.due) != _dueText ||
+          n.tags.join('\u0000') != _tags.join('\u0000')) {
+        _note = await widget.api.updateNote(
+          n.id,
+          title: title,
+          body: body,
+          icon: _icon,
+          cover: _cover,
+          status: _status,
+          due: _dueText,
+          tags: _tags,
+        );
       } else {
         return;
       }
@@ -413,6 +516,114 @@ class _NotePageState extends State<NotePage> {
     if (files.isEmpty) return null;
     final f = files.first;
     return Attachment(name: f.name, length: f.lengthSync(), open: () => f.readAsByteStream());
+  }
+
+  // --- Properties (#373). ---
+
+  bool get _hasProperties => _status.isNotEmpty || _due != null || _tags.isNotEmpty;
+  String get _dueText => _dayText(_due);
+
+  void _setProperties(void Function() change) {
+    setState(change);
+    _changed();
+  }
+
+  Future<void> _pickStatus() async {
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final st in noteStatuses)
+              ListTile(
+                leading: StatusDot(status: st),
+                title: Text(context.t('mobile.nstatus_${st.isEmpty ? 'none' : st}')),
+                trailing: st == _status ? const Icon(Icons.check_rounded) : null,
+                onTap: () => Navigator.pop(context, st),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (picked != null) _setProperties(() => _status = picked);
+  }
+
+  Future<void> _pickDue() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _due ?? now,
+      firstDate: DateTime(now.year - 5),
+      lastDate: DateTime(now.year + 10),
+    );
+    if (picked != null) _setProperties(() => _due = picked);
+  }
+
+  Future<void> _addTag() async {
+    final field = TextEditingController();
+    final tag = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(context.t('mobile.propTags')),
+        content: TextField(
+          controller: field,
+          autofocus: true,
+          maxLength: 30,
+          decoration: InputDecoration(hintText: context.t('mobile.tagHinweis')),
+          onSubmitted: (v) => Navigator.pop(context, v),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(context.t('team.abbrechen'))),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, field.text),
+            child: Text(context.t('mobile.uebernehmen')),
+          ),
+        ],
+      ),
+    );
+    field.dispose();
+    final t = tag?.trim().replaceFirst(RegExp(r'^#'), '') ?? '';
+    if (t.isEmpty || _tags.any((x) => x.toLowerCase() == t.toLowerCase()) || _tags.length >= 10) return;
+    _setProperties(() => _tags = [..._tags, t]);
+  }
+
+  /// The set properties as chips under the title; tapping one changes it.
+  Widget _properties(BuildContext context) {
+    if (!_hasProperties) return const SizedBox.shrink();
+    final c = context.colors;
+    final lang = Strings.of(context).language;
+    return Padding(
+      padding: const EdgeInsets.only(top: 2, bottom: 8),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          if (_status.isNotEmpty)
+            PropertyChip(
+              leading: StatusDot(status: _status),
+              label: context.t('mobile.nstatus_$_status'),
+              onTap: _pickStatus,
+            ),
+          if (_due != null)
+            PropertyChip(
+              leading: Icon(Icons.event_outlined, size: 15, color: c.textSecondary),
+              label: DateFormat.yMMMd(lang).format(_due!),
+              onTap: _pickDue,
+              onRemove: () => _setProperties(() => _due = null),
+            ),
+          for (final t in _tags)
+            PropertyChip(label: '#$t', onRemove: () => _setProperties(() => _tags = [..._tags]..remove(t))),
+          if (_tags.isNotEmpty && _tags.length < 10)
+            PropertyChip(
+              leading: Icon(Icons.add_rounded, size: 15, color: c.textMuted),
+              label: '',
+              onTap: _addTag,
+            ),
+        ],
+      ),
+    );
   }
 
   // --- Icon and cover (#372). ---
@@ -520,7 +731,7 @@ class _NotePageState extends State<NotePage> {
   /// hover with a mouse; on touch while the note has neither.
   Widget _headerActions(BuildContext context, bool touch) {
     final c = context.colors;
-    final show = _headerHover || (touch && _icon.isEmpty && _cover.isEmpty);
+    final show = _headerHover || (touch && _icon.isEmpty && _cover.isEmpty && !_hasProperties);
     return AnimatedOpacity(
       opacity: show ? 1 : 0,
       duration: const Duration(milliseconds: 120),
@@ -542,6 +753,27 @@ class _NotePageState extends State<NotePage> {
                 style: TextButton.styleFrom(foregroundColor: c.textMuted),
                 icon: const Icon(Icons.image_outlined, size: 18),
                 label: Text(context.t('mobile.coverHinzu')),
+              ),
+            if (_status.isEmpty)
+              TextButton.icon(
+                onPressed: _pickStatus,
+                style: TextButton.styleFrom(foregroundColor: c.textMuted),
+                icon: const Icon(Icons.radio_button_unchecked_rounded, size: 18),
+                label: Text(context.t('mobile.propStatus')),
+              ),
+            if (_due == null)
+              TextButton.icon(
+                onPressed: _pickDue,
+                style: TextButton.styleFrom(foregroundColor: c.textMuted),
+                icon: const Icon(Icons.event_outlined, size: 18),
+                label: Text(context.t('mobile.propDatum')),
+              ),
+            if (_tags.isEmpty)
+              TextButton.icon(
+                onPressed: _addTag,
+                style: TextButton.styleFrom(foregroundColor: c.textMuted),
+                icon: const Icon(Icons.sell_outlined, size: 18),
+                label: Text(context.t('mobile.propTags')),
               ),
           ],
         ),
@@ -679,6 +911,7 @@ class _NotePageState extends State<NotePage> {
                                 onChanged: (_) => _changed(),
                                 decoration: _bare(context, context.t('mobile.titelOptional'), _titleStyle(context)),
                               ),
+                              _properties(context),
                               if (n != null && n.summary.isNotEmpty) ...[
                                 const SizedBox(height: 6),
                                 Container(
@@ -1178,6 +1411,384 @@ class CoverBanner extends StatelessWidget {
           : ClipRect(
               child: MediaImage(api: api, ref: cover, fit: BoxFit.cover, radius: 0),
             ),
+    );
+  }
+}
+
+/// The statuses a note can have (#373), the empty one first.
+const noteStatuses = ['', 'todo', 'doing', 'done'];
+
+String _dayText(DateTime? d) => d == null
+    ? ''
+    : '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+/// A status as a dot: grey for open, the accent while in progress, green
+/// when done — and always with its word beside it.
+class StatusDot extends StatelessWidget {
+  const StatusDot({super.key, required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final color = switch (status) {
+      'doing' => c.textAccent,
+      'done' => c.textSuccess,
+      'todo' => c.textSecondary,
+      _ => c.border,
+    };
+    return Container(
+      width: 10,
+      height: 10,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: status == 'done' || status == 'doing' ? color : Colors.transparent,
+        border: Border.all(color: color, width: 1.6),
+      ),
+    );
+  }
+}
+
+/// A property as a chip: a small pill that changes it on a tap, and removes
+/// it with its cross.
+class PropertyChip extends StatelessWidget {
+  const PropertyChip({super.key, this.leading, required this.label, this.onTap, this.onRemove});
+
+  final Widget? leading;
+  final String label;
+  final VoidCallback? onTap;
+  final VoidCallback? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Material(
+      color: c.surface1,
+      shape: const StadiumBorder(),
+      child: InkWell(
+        customBorder: const StadiumBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(10, 5, onRemove == null ? 10 : 4, 5),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ?leading,
+              if (leading != null && label.isNotEmpty) const SizedBox(width: 6),
+              if (label.isNotEmpty) Text(label, style: context.type.labelMedium),
+              if (onRemove != null)
+                InkResponse(
+                  onTap: onRemove,
+                  radius: 14,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: Icon(Icons.close_rounded, size: 14, color: c.textMuted),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The notes as a table (#373): title, status, date, tags, created. A row
+/// opens its note.
+class NotesTable extends StatelessWidget {
+  const NotesTable({super.key, required this.notes, required this.onOpen});
+
+  final List<Note> notes;
+  final ValueChanged<Note> onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final lang = Strings.of(context).language;
+    final head = context.type.labelMedium?.copyWith(color: c.textMuted);
+    Widget cell(Widget child, double w) => SizedBox(
+      width: w,
+      child: Padding(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10), child: child),
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Container(
+          decoration: BoxDecoration(
+            color: c.surface2,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: c.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  cell(Text(context.t('mobile.spalteTitel'), style: head), 280),
+                  cell(Text(context.t('mobile.propStatus'), style: head), 130),
+                  cell(Text(context.t('mobile.propDatum'), style: head), 120),
+                  cell(Text(context.t('mobile.propTags'), style: head), 200),
+                  cell(Text(context.t('mobile.spalteErstellt'), style: head), 120),
+                ],
+              ),
+              for (final n in notes)
+                InkWell(
+                  onTap: () => onOpen(n),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: Border(top: BorderSide(color: c.border, width: 0.6)),
+                    ),
+                    child: Row(
+                      children: [
+                        cell(
+                          Row(
+                            children: [
+                              if (n.icon.isNotEmpty) ...[Text(n.icon), const SizedBox(width: 6)],
+                              Expanded(
+                                child: Text(
+                                  n.heading,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: context.type.titleSmall,
+                                ),
+                              ),
+                            ],
+                          ),
+                          280,
+                        ),
+                        cell(
+                          n.status.isEmpty
+                              ? const SizedBox.shrink()
+                              : Row(
+                                  children: [
+                                    StatusDot(status: n.status),
+                                    const SizedBox(width: 6),
+                                    Flexible(
+                                      child: Text(
+                                        context.t('mobile.nstatus_${n.status}'),
+                                        style: context.type.bodySmall,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                          130,
+                        ),
+                        cell(
+                          Text(
+                            n.due == null ? '' : DateFormat.yMMMd(lang).format(n.due!),
+                            style: context.type.bodySmall,
+                          ),
+                          120,
+                        ),
+                        cell(
+                          Text(
+                            n.tags.map((t) => '#$t').join(' '),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: context.type.bodySmall,
+                          ),
+                          200,
+                        ),
+                        cell(
+                          Text(
+                            n.createdAt == null ? '' : DateFormat.yMMMd(lang).format(n.createdAt!),
+                            style: context.type.bodySmall,
+                          ),
+                          120,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The notes as a board by status (#373): a column per status, a card per
+/// note; a card dragged to another column takes its status. With a mouse
+/// a card is dragged at once, on touch after a long press.
+class NotesBoard extends StatelessWidget {
+  const NotesBoard({super.key, required this.notes, required this.onOpen, required this.onMove});
+
+  final List<Note> notes;
+  final ValueChanged<Note> onOpen;
+  final Future<void> Function(Note note, String status) onMove;
+
+  @override
+  Widget build(BuildContext context) {
+    final touch = switch (Theme.of(context).platform) {
+      TargetPlatform.iOS || TargetPlatform.android => true,
+      _ => false,
+    };
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        // Every column as tall as the tallest, and at least a hand's
+        // height: an empty column is a place to drop a card, not a strip.
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final st in noteStatuses)
+                _BoardColumn(
+                  status: st,
+                  notes: [
+                    for (final n in notes)
+                      if (n.status == st) n,
+                  ],
+                  onOpen: onOpen,
+                  onMove: onMove,
+                  touch: touch,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BoardColumn extends StatelessWidget {
+  const _BoardColumn({
+    required this.status,
+    required this.notes,
+    required this.onOpen,
+    required this.onMove,
+    required this.touch,
+  });
+
+  final String status;
+  final List<Note> notes;
+  final ValueChanged<Note> onOpen;
+  final Future<void> Function(Note note, String status) onMove;
+  final bool touch;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return DragTarget<Note>(
+      onWillAcceptWithDetails: (d) => d.data.status != status,
+      onAcceptWithDetails: (d) => onMove(d.data, status),
+      builder: (context, candidates, _) => Container(
+        width: 260,
+        constraints: const BoxConstraints(minHeight: 200),
+        margin: const EdgeInsets.only(right: 12),
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: candidates.isNotEmpty ? c.bgAccent : c.surface1.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(6, 4, 6, 10),
+              child: Row(
+                children: [
+                  StatusDot(status: status),
+                  const SizedBox(width: 8),
+                  Text(context.t('mobile.nstatus_${status.isEmpty ? 'none' : status}'), style: context.type.titleSmall),
+                  const SizedBox(width: 6),
+                  Text('${notes.length}', style: context.type.bodySmall?.copyWith(color: c.textMuted)),
+                ],
+              ),
+            ),
+            for (final n in notes)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: touch
+                    ? LongPressDraggable<Note>(
+                        data: n,
+                        feedback: _cardFeedback(context, n),
+                        childWhenDragging: Opacity(
+                          opacity: 0.4,
+                          child: _BoardCard(note: n, onOpen: onOpen),
+                        ),
+                        child: _BoardCard(note: n, onOpen: onOpen),
+                      )
+                    : Draggable<Note>(
+                        data: n,
+                        feedback: _cardFeedback(context, n),
+                        childWhenDragging: Opacity(
+                          opacity: 0.4,
+                          child: _BoardCard(note: n, onOpen: onOpen),
+                        ),
+                        child: _BoardCard(note: n, onOpen: onOpen),
+                      ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _cardFeedback(BuildContext context, Note n) => Material(
+    color: Colors.transparent,
+    child: SizedBox(
+      width: 244,
+      child: _BoardCard(note: n, onOpen: (_) {}),
+    ),
+  );
+}
+
+class _BoardCard extends StatelessWidget {
+  const _BoardCard({required this.note, required this.onOpen});
+
+  final Note note;
+  final ValueChanged<Note> onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final lang = Strings.of(context).language;
+    return Material(
+      color: c.surface2,
+      borderRadius: BorderRadius.circular(10),
+      elevation: 0.5,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () => onOpen(note),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (note.icon.isNotEmpty) ...[Text(note.icon), const SizedBox(width: 6)],
+                  Expanded(
+                    child: Text(
+                      note.heading,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: context.type.titleSmall,
+                    ),
+                  ),
+                ],
+              ),
+              if (note.due != null || note.tags.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  [
+                    if (note.due != null) DateFormat.MMMd(lang).format(note.due!),
+                    ...note.tags.map((t) => '#$t'),
+                  ].join(' · '),
+                  style: context.type.bodySmall?.copyWith(color: c.textMuted),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

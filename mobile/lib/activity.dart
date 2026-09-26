@@ -60,7 +60,7 @@ class ActivityRecorder extends ChangeNotifier {
     _channel.setMethodCallHandler(_fromNative);
     try {
       timeZone = await _channel.invokeMethod<String>('timeZone') ?? 'UTC';
-    } on PlatformException {
+    } on Exception {
       timeZone = 'UTC';
     }
     enabled = await Prefs.instance.read(_enabledKey) == 'on';
@@ -162,7 +162,7 @@ class ActivityRecorder extends ChangeNotifier {
     final Map<String, Object?> s;
     try {
       s = await _channel.invokeMapMethod<String, Object?>('sample') ?? const {};
-    } on PlatformException {
+    } on Exception {
       return;
     }
     final idle = (s['idle'] as num?)?.toDouble() ?? 0;

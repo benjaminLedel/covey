@@ -2657,7 +2657,20 @@
     "coverHinzu": "Ajouter une couverture",
     "iconEntfernen": "Retirer l'icône",
     "coverEntfernen": "Retirer la couverture",
-    "coverBild": "Votre image"
+    "coverBild": "Votre image",
+    "nstatus_none": "Sans statut",
+    "nstatus_todo": "À faire",
+    "nstatus_doing": "En cours",
+    "nstatus_done": "Terminé",
+    "propStatus": "Statut",
+    "propDatum": "Date",
+    "propTags": "Étiquettes",
+    "tagHinweis": "Un mot, p. ex. client",
+    "ansichtListe": "Liste",
+    "ansichtTabelle": "Tableau",
+    "ansichtBoard": "Board",
+    "spalteTitel": "Titre",
+    "spalteErstellt": "Créée"
   },
   "appLink": {
     "title": "Ouvrir dans l'application covey",

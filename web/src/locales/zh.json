@@ -2657,7 +2657,20 @@
     "coverHinzu": "添加封面",
     "iconEntfernen": "移除图标",
     "coverEntfernen": "移除封面",
-    "coverBild": "自定义图片"
+    "coverBild": "自定义图片",
+    "nstatus_none": "无状态",
+    "nstatus_todo": "待办",
+    "nstatus_doing": "进行中",
+    "nstatus_done": "已完成",
+    "propStatus": "状态",
+    "propDatum": "日期",
+    "propTags": "标签",
+    "tagHinweis": "一个词，例如 客户",
+    "ansichtListe": "列表",
+    "ansichtTabelle": "表格",
+    "ansichtBoard": "看板",
+    "spalteTitel": "标题",
+    "spalteErstellt": "创建时间"
   },
   "appLink": {
     "title": "在 covey 应用中打开",
