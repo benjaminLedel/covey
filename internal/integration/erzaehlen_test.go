@@ -53,6 +53,11 @@ func TestAChatTaskIsAcknowledgedAndToldInTheChat(t *testing.T) {
 	ctx := context.Background()
 	agent := s.newSupportAgent("erzaehler")
 	s.ohneLaeufe(agent.ID)
+	// A colleague the agent should know of.
+	kollegin := s.newSupportAgent("qa-kollegin")
+	if _, err := s.pool.Exec(ctx, `UPDATE agents SET display_name='Quirina Prüfgeist', job_title='QA' WHERE id=$1`, kollegin.ID); err != nil {
+		t.Fatal(err)
+	}
 	modell := &redendesModell{}
 	s.srv.OrgLLM = func(context.Context, uuid.UUID) (llm.Provider, error) { return modell, nil }
 	admin := teamLogin(t, s)
@@ -77,6 +82,11 @@ func TestAChatTaskIsAcknowledgedAndToldInTheChat(t *testing.T) {
 		}
 		return false
 	})
+	// The org chart went in (#415): the triage knows the colleagues, the
+	// same directory a run gets at dispatch.
+	if !strings.Contains(modell.prompts(), "The organisation you work in") || !strings.Contains(modell.prompts(), "Quirina Prüfgeist") {
+		t.Errorf("the triage did not get the org chart with the colleague:\n%s", modell.prompts())
+	}
 	// The voice went in: the triage saw the agent's SOUL.md, not only its title.
 	if !strings.Contains(modell.prompts(), "Who the agent is (its SOUL.md)") {
 		t.Fatalf("the triage did not get the agent's SOUL.md:\n%s", modell.prompts())

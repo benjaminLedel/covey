@@ -95,6 +95,10 @@ sandbox**:
   answer, write onto a task that already exists, or open a new one. The short
   id a note refers to is one the turn was shown; what the model says never
   becomes an identifier pointing at something it was not handed
+- **and the org chart, read only** (#415) — the same team of humans and
+  directory of AI colleagues a run gets at dispatch, from the same function,
+  so the chat and the run never describe a different organisation. "Do you
+  know the QA agent?" is a question to answer, not a task to open
 - its output is text or a task, nothing else: no config change, no wake, no
   approval decided
 - it is recorded and counted like any other run ([`06`](06-observability-control.md))

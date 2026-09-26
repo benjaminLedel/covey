@@ -102,7 +102,7 @@ A person wrote a message to this agent. Decide what kind of thing it is, and ans
 {"action":"note","task":"ab12","text":"…"}     — this belongs to a task you already have
 {"action":"task","title":"…","body":"…","text":"…"} — this is new work
 
-Choose "answer" when the message is a question about what was already said in this thread, about your own open tasks or about one you recently finished (both are listed below, the finished ones with their outcome), a thank-you, a greeting, an acknowledgement, or a clarification you can give without looking anything up. "Did that go out yesterday?" is an answer when the task is in that list — say what it says, and say when it is not there.
+Choose "answer" when the message is a question about the organisation you can answer from the org chart below (who a colleague is, what they do, who is responsible for something, which department someone is in, who your manager is), a question about what was already said in this thread, about your own open tasks or about one you recently finished (both are listed below, the finished ones with their outcome), a thank-you, a greeting, an acknowledgement, or a clarification you can give without looking anything up. "Did that go out yesterday?" is an answer when the task is in that list — say what it says, and say when it is not there.
 
 Choose "note" when the message adds to, corrects or asks about one specific task you already have. Use the short id from the list. Your text is written onto that task, and if it was waiting for an answer this releases it. Do not open a second task for the same thing.
 
@@ -119,10 +119,19 @@ For "task": the title is one line in the imperative, the body carries what the p
 // Triagieren führt den Zug aus. Der Fehlerfall ist bewusst weich: Wer nicht
 // entscheiden kann, eröffnet eine Aufgabe — das ist das Verhalten, das immer
 // funktioniert, und der Aufrufer muss dafür nichts wissen.
-func Triagieren(ctx context.Context, p llm.Provider, rolle, seele, gegenueber string, offen []Offen, fertig []Fertig, verlauf []Message, nachricht string) (Entscheidung, error) {
+func Triagieren(ctx context.Context, p llm.Provider, rolle, seele, gegenueber, organisation string, offen []Offen, fertig []Fertig, verlauf []Message, nachricht string) (Entscheidung, error) {
 	var b strings.Builder
 	stimme(&b, rolle, seele)
 	person(&b, gegenueber)
+	/* Das Organigramm (#415), derselbe Text, den ein Lauf bekommt. Es ist
+	   coveys eigenes Objekt wie der Backlog: Es zu lesen braucht keine
+	   Zugangsdaten und verlässt das Haus nicht — und ohne es konnte der
+	   Agent auf „kennst du den QA-Kollegen?" nur raten. */
+	if o := strings.TrimSpace(organisation); o != "" {
+		b.WriteString("The organisation you work in (the org chart, as your runs know it):\n")
+		b.WriteString(kuerzen(o, OrganisationMax))
+		b.WriteString("\n\n")
+	}
 	/* Der eigene Backlog. Er steht vor dem Gespräch, weil er der Zustand ist
 	   und das Gespräch nur die Bewegung darauf. */
 	if len(offen) > 0 {
@@ -261,6 +270,10 @@ func person(b *strings.Builder, gegenueber string) {
 // Ergebnis ist länger als ein Satz, und wer „welches davon?" fragt, meint
 // etwas aus seiner Mitte (#413).
 const verlaufZeile = 1200
+
+// OrganisationMax: so viel Organigramm geht in einen Zug — genug für ein
+// paar Dutzend Kollegen mit Zuständigkeit.
+const OrganisationMax = 6000
 
 // SeeleMax: so viel SOUL.md geht in einen Zug. Der Anfang sagt, wer jemand
 // ist; was danach kommt, sind meist Regeln für die Arbeit.

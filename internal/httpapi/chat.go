@@ -880,7 +880,7 @@ func (s *Server) triagieren(ctx context.Context, orgID, agentID uuid.UUID, text,
 	liste, nach := s.offeneAufgaben(ctx, agentID)
 	fertig := s.fertigeAufgaben(ctx, agentID)
 
-	e, err := chat.Triagieren(ctx, provider, s.rolleVon(ctx, agentID), s.seeleVon(ctx, agentID), s.gegenueberVon(ctx, orgID, email), liste, fertig, verlauf, text)
+	e, err := chat.Triagieren(ctx, provider, s.rolleVon(ctx, agentID), s.seeleVon(ctx, agentID), s.gegenueberVon(ctx, orgID, email), s.organisationVon(ctx, agentID), liste, fertig, verlauf, text)
 	if err != nil {
 		s.Log.Warn("triage failed — the message becomes a task", "agent", agentID, "err", err)
 		return aufgabe, nil
@@ -1042,6 +1042,19 @@ func (s *Server) gespraechFuerLauf(ctx context.Context, agentID, ohne uuid.UUID)
 		return ""
 	}
 	return "\n\n---\nEarlier in this conversation, oldest first (for context — the task is the message above):\n" + b.String()
+}
+
+// organisationVon is the org chart as the agent's runs get it (#415), for the
+// triage. Empty without an orchestrator (a server that does not dispatch).
+func (s *Server) organisationVon(ctx context.Context, agentID uuid.UUID) string {
+	if s.Orch == nil {
+		return ""
+	}
+	a, err := s.Registry.Get(ctx, agentID)
+	if err != nil {
+		return ""
+	}
+	return s.Orch.OrgSections(ctx, a)
 }
 
 // gegenueberVon describes the person a message came from (#412): name, job

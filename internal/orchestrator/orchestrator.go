@@ -2086,6 +2086,21 @@ func (o *Orchestrator) isKilled(ctx context.Context, agent agents.Agent) (bool, 
 // target-system plugins, unknown systems keep their key. supervisorID
 // (agents.supervisor_id, nil = none) marks the supervisor — the recipient of
 // merge requests and escalations.
+// OrgSections is what a run learns about the organisation at dispatch: the
+// team of humans and the AI colleagues. Exported for the other turns that
+// answer as the agent — the chat's triage (#415) — so the chat and the run
+// never describe a different organisation.
+func (o *Orchestrator) OrgSections(ctx context.Context, agent agents.Agent) string {
+	var parts []string
+	if s := o.teamSection(ctx, agent.OrgID, agent.SupervisorID); s != "" {
+		parts = append(parts, s)
+	}
+	if s := o.agentTeamSection(ctx, agent); s != "" {
+		parts = append(parts, s)
+	}
+	return strings.Join(parts, "\n\n")
+}
+
 func (o *Orchestrator) teamSection(ctx context.Context, orgID uuid.UUID, supervisorID *uuid.UUID) string {
 	labels := map[string]string{}
 	if o.Targets != nil {
@@ -2383,13 +2398,10 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	// The team directory likewise at dispatch time: the employee profiles
 	// (responsibilities, GitLab usernames) tell the agent whom it hands things
 	// over to in target systems — e.g. assigning an issue for testing.
-	if section := o.teamSection(ctx, agent.OrgID, agent.SupervisorID); section != "" {
-		compiled += "\n\n" + section
-	}
 	// Plus the AI colleagues: the organization's other agents, so an agent can
 	// hand work over to the right colleague (e.g. the developer their MR to the
 	// QA agent of their team) — the department marks its own team.
-	if section := o.agentTeamSection(ctx, agent); section != "" {
+	if section := o.OrgSections(ctx, agent); section != "" {
 		compiled += "\n\n" + section
 	}
 
