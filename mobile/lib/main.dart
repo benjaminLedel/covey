@@ -11,6 +11,7 @@ import 'diagnostics.dart';
 import 'face.dart';
 import 'i18n.dart';
 import 'pairing.dart';
+import 'prefs.dart';
 import 'profile.dart';
 import 'push.dart';
 import 'screens/connect.dart';
@@ -54,6 +55,9 @@ class CoveyApp extends StatefulWidget {
   @override
   State<CoveyApp> createState() => _CoveyAppState();
 }
+
+/// Set when the person disconnected, cleared when they connect (#405).
+const _disconnected = 'profile.disconnected';
 
 class _CoveyAppState extends State<CoveyApp> {
   Strings? _strings;
@@ -191,7 +195,12 @@ class _CoveyAppState extends State<CoveyApp> {
     await WindowZoom.load();
     // The speech model and language picked in settings (#351).
     unawaited(SpeechModel.instance.loadPrefs());
-    var saved = await widget.profiles.read();
+    // Somebody who disconnected stays disconnected (#405): a key the
+    // keychain would not let go of is not a way back in, and neither is an
+    // instance given on the command line.
+    final disconnected = await Prefs.instance.read(_disconnected) == '1';
+    var saved = disconnected ? null : await widget.profiles.read();
+    if (disconnected) unawaited(_forget());
     // A developer build (debug, or profile — which starts on a phone without
     // a debugger) can be pointed at an instance from the command line —
     // `flutter run --dart-define=COVEY_INSTANCE=http://localhost:8494
@@ -201,7 +210,7 @@ class _CoveyAppState extends State<CoveyApp> {
     // forbids.
     const devInstance = String.fromEnvironment('COVEY_INSTANCE');
     const devKey = String.fromEnvironment('COVEY_KEY');
-    if (!kReleaseMode && saved == null && devInstance != '' && devKey != '') {
+    if (!kReleaseMode && !disconnected && saved == null && devInstance != '' && devKey != '') {
       saved = (instance: devInstance, key: devKey);
     }
     CoveyApi? api;
@@ -221,12 +230,28 @@ class _CoveyAppState extends State<CoveyApp> {
 
   Future<void> _connected(Uri instance, String key) async {
     await widget.profiles.write(instance.toString(), key);
+    await Prefs.instance.write(_disconnected, null);
     setState(() => _api = CoveyApi(instance, key));
   }
 
+  /// The screen changes first (#405): the person asked to leave, whatever
+  /// the keychain says. On the Mac a development build can be refused the
+  /// delete of an item an earlier, differently signed build wrote — the
+  /// button then did nothing at all.
   Future<void> _disconnect() async {
-    await widget.profiles.clear();
     setState(() => _api = null);
+    await Prefs.instance.write(_disconnected, '1');
+    await _forget();
+  }
+
+  /// Deletes the saved connection; a refusal is logged, and the next start
+  /// tries again.
+  Future<void> _forget() async {
+    try {
+      await widget.profiles.clear();
+    } catch (e) {
+      diag('profile', 'the saved connection could not be deleted: $e');
+    }
   }
 
   @override
