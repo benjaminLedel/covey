@@ -172,3 +172,132 @@ jobs:
               --generate-notes \
               --verify-tag
           fi
+
+  # The Mac app (#406), attached to the same release. On macOS, because a
+  # Flutter build for the Mac needs Xcode — which is also why this is here
+  # and not in the GitLab pipeline, whose runner is Linux.
+  #
+  # Signed and notarised when the repository has the means (secrets below);
+  # without them the app is attached as the build left it, signed ad hoc, and
+  # the release says so. A fork's rehearsal works either way.
+  #
+  #   MACOS_CERTIFICATE_P12       the Developer ID Application certificate
+  #                               with its private key, base64
+  #   MACOS_CERTIFICATE_PASSWORD  its password
+  #   APPLE_API_KEY_P8            an App Store Connect API key (.p8), as text
+  #   APPLE_API_KEY_ID, APPLE_API_ISSUER_ID
+  mac-app:
+    needs: release
+    # macOS 26 for its SDK: the window uses NSGlassEffectView (Liquid Glass),
+    # which an older Xcode does not know; on older systems the app falls
+    # back at runtime.
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - run: xcodebuild -version
+
+      # The version the app is developed with; a newer one is a change of its
+      # own, not something a release picks up by the way.
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.1"
+          channel: stable
+          cache: true
+
+      - name: Herkunft bestimmen
+        id: meta
+        run: |
+          set -eu
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            version="${GITHUB_REF_NAME}"
+          else
+            version="$(git describe --tags --always --dirty 2>/dev/null || echo dev)"
+          fi
+          # The bundle's version has to be numbers: v0.9.1 → 0.9.1, and a
+          # rehearsal between tags counts as 0.0.0.
+          build_name="$(printf '%s' "$version" | sed -n 's/^v\([0-9][0-9.]*\)$/\1/p')"
+          {
+            echo "version=${version}"
+            echo "build_name=${build_name:-0.0.0}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Bauen
+        working-directory: mobile
+        run: |
+          flutter build macos --release \
+            --build-name "${{ steps.meta.outputs.build_name }}" \
+            --build-number "${{ github.run_number }}"
+
+      - name: Zertifikat laden
+        env:
+          P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          P12_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          API_KEY: ${{ secrets.APPLE_API_KEY_P8 }}
+          API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: |
+          set -eu
+          if [ -z "${P12}" ]; then
+            echo "Kein Zertifikat hinterlegt — die App wird unsigniert angehängt."
+            exit 0
+          fi
+          # A keychain of its own for this run, removed at the end: the
+          # certificate never lands in the runner's login keychain.
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password="$(openssl rand -hex 16)"
+          printf '%s' "$P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/cert.p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/cert.p12"
+          identity="$(security find-identity -v -p codesigning "$keychain" | sed -n 's/.*"\(Developer ID Application: [^"]*\)".*/\1/p' | head -n 1)"
+          [ -n "$identity" ] || { echo "Keine Developer-ID-Application-Identität im Zertifikat" >&2; exit 1; }
+          echo "MACOS_SIGNING_IDENTITY=${identity}" >> "$GITHUB_ENV"
+          echo "SIGNING_KEYCHAIN=${keychain}" >> "$GITHUB_ENV"
+          if [ -n "${API_KEY}" ]; then
+            printf '%s' "$API_KEY" > "$RUNNER_TEMP/notary.p8"
+            {
+              echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/notary.p8"
+              echo "APPLE_API_KEY_ID=${API_KEY_ID}"
+              echo "APPLE_API_ISSUER_ID=${API_ISSUER_ID}"
+            } >> "$GITHUB_ENV"
+          fi
+
+      - name: Signieren und packen
+        working-directory: mobile
+        run: tool/macos_release.sh "${{ steps.meta.outputs.version }}" "$GITHUB_WORKSPACE/dist-app"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: covey-app-macos
+          path: dist-app/
+          retention-days: 7
+
+      # Only on a real tag, like the release job; that job has created the
+      # release by now (needs: release).
+      - name: Veröffentlichen
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          gh release upload "${GITHUB_REF_NAME}" dist-app/* --clobber
+          if [ -z "${MACOS_SIGNING_IDENTITY:-}" ]; then
+            # Said where the download is: an unsigned app is refused by
+            # Gatekeeper, and whoever meets that should find the way past it.
+            notes="$(gh release view "${GITHUB_REF_NAME}" --json body -q .body)"
+            printf '%s\n\n%s\n' "$notes" "**Mac app:** this build is not signed. After unpacking: right-click covey.app → Open, or \`xattr -dr com.apple.quarantine covey.app\`." \
+              | gh release edit "${GITHUB_REF_NAME}" --notes-file -
+          fi
+
+      - name: Aufräumen
+        if: always()
+        run: |
+          [ -n "${SIGNING_KEYCHAIN:-}" ] && security delete-keychain "$SIGNING_KEYCHAIN" || true
+          rm -f "$RUNNER_TEMP/notary.p8"
