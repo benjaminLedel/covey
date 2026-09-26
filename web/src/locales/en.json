@@ -2470,7 +2470,8 @@
     "sucheMarkieren": "pick a colleague",
     "ungelesen": "{{count}} unread messages",
     "ungelesen_one": "One unread message",
-    "ungelesenTitel": "Unread"
+    "ungelesenTitel": "Unread",
+    "bereiche": "Areas"
   },
   "mobile": {
     "verbindenTitel": "Where is your covey?",

@@ -2470,7 +2470,8 @@
     "sucheMarkieren": "选择同事",
     "ungelesen": "{{count}} 条未读消息",
     "ungelesen_one": "{{count}} 条未读消息",
-    "ungelesenTitel": "未读"
+    "ungelesenTitel": "未读",
+    "bereiche": "区域"
   },
   "mobile": {
     "verbindenTitel": "你的 covey 在哪里？",

@@ -4,12 +4,10 @@ import { useTranslation } from "react-i18next";
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useParams } from "react-router";
 import { PEOPLE_SLUG, api, inbox, isDraft, myThreads, type Agent, type Department, type Principal, type ThreadState } from "../api";
 import { canManage } from "../pages/agent/roles";
-import { BirdMark } from "../components/BirdMark";
 import HelpDrawer from "../components/HelpDrawer";
-import ShellFoot from "../components/ShellFoot";
+import Rail from "../components/Rail";
 import Gesicht from "../components/Gesicht";
 import Suche, { SucheProvider, useSucheKuerzel } from "../components/Suche";
-import { NavIcon } from "../components/navicons";
 
 /* Die Stilvorlage der angemeldeten Oberfläche. Sie hing bisher allein an der
    Konsole; seit es zwei Schalen gibt, braucht jede sie — wer über die Wurzel
@@ -130,7 +128,6 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
   if (neu.length > 0) gruppen.unshift({ id: "ungelesen", name: t("team.ungelesenTitel"), color: "", mitglieder: neu });
 
   const offen = wartend.data?.pending ?? 0;
-  const ungelesenSumme = [...ungelesen.values()].reduce((n, th) => n + th.unread, 0);
   const pfad = useLocation().pathname;
   const notizenOffen = pfad === "/team/notes" || pfad.startsWith("/team/notes/");
   const notizId = notizenOffen ? (pfad.split("/")[3] ?? null) : null;
@@ -142,41 +139,13 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
           icons, each with its name as tooltip and for screen readers. The
           list beside it changes with the choice; the content right of it
           with the row picked there. */}
-      <nav className="tm-rail" aria-label={t("team.schalterAria")}>
-        <Link to="/" className="tm-rail-mark" aria-label="covey">
-          <BirdMark size={30} />
-        </Link>
-        <Link
-          to="/"
-          className={`tm-rail-item${notizenOffen ? "" : " on"}`}
-          aria-current={notizenOffen ? undefined : "page"}
-          title={t("team.workspace")}
-          aria-label={ungelesenSumme > 0 ? `${t("team.workspace")} · ${t("team.ungelesen", { count: ungelesenSumme })}` : t("team.workspace")}
-        >
-          <NavIcon name="chat" />
-          {ungelesenSumme > 0 && <span className="tm-rail-zahl">{Math.min(ungelesenSumme, 99)}</span>}
-          <span className="tm-rail-wort">{t("team.workspace")}</span>
-        </Link>
-        <Link
-          to="/team/notes"
-          className={`tm-rail-item${notizenOffen ? " on" : ""}`}
-          aria-current={notizenOffen ? "page" : undefined}
-          title={t("mobile.notizen")}
-          aria-label={t("mobile.notizen")}
-        >
-          <NavIcon name="note" />
-          <span className="tm-rail-wort">{t("mobile.notizen")}</span>
-        </Link>
-        <Link to="/agents" className="tm-rail-item" title={t("team.verwaltung")} aria-label={t("team.verwaltung")}>
-          <NavIcon name="cog" />
-          <span className="tm-rail-wort">{t("team.verwaltung")}</span>
-        </Link>
-        <span className="tm-rail-luft" />
-        <button className="tm-rail-item" onClick={() => sucheOeffnen()} title={`${t("team.suche")} (⌘K)`} aria-label={t("team.suche")}>
-          <NavIcon name="search" />
-        </button>
-        <ShellFoot me={me} onLogout={onLogout} onHelp={() => setHelpOpen(true)} compact />
-      </nav>
+      <Rail
+        me={me}
+        active={notizenOffen ? "notes" : "team"}
+        onLogout={onLogout}
+        onHelp={() => setHelpOpen(true)}
+        onSearch={() => sucheOeffnen()}
+      />
 
       <aside className="sidebar tm-sidebar">
         {notizenOffen ? (

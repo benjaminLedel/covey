@@ -2470,7 +2470,8 @@
     "sucheMarkieren": "choisir un collègue",
     "ungelesen": "{{count}} messages non lus",
     "ungelesen_one": "Un message non lu",
-    "ungelesenTitel": "Non lus"
+    "ungelesenTitel": "Non lus",
+    "bereiche": "Espaces"
   },
   "mobile": {
     "verbindenTitel": "Où est votre covey ?",

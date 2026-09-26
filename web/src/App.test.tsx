@@ -177,7 +177,9 @@ describe("App und die Team-Oberfläche", () => {
     renderApp(<App />, "/");
 
     expect((await screen.findAllByText("Agenten")).length).toBeGreaterThan(0);
-    expect(screen.queryByRole("navigation", { name: "Zwischen Team und Verwaltung wechseln" })).not.toBeInTheDocument();
+    // The rail has no team to go to (#389).
+    expect(screen.getByRole("navigation", { name: "Bereiche" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Team" })).not.toBeInTheDocument();
   });
 
   it("gibt die Wurzel dem Team, wenn die Organisation es eingeschaltet hat", async () => {

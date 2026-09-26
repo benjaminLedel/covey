@@ -2470,7 +2470,8 @@
     "sucheMarkieren": "wybierz osobę",
     "ungelesen": "Nieprzeczytane wiadomości: {{count}}",
     "ungelesen_one": "Jedna nieprzeczytana wiadomość",
-    "ungelesenTitel": "Nieprzeczytane"
+    "ungelesenTitel": "Nieprzeczytane",
+    "bereiche": "Obszary"
   },
   "mobile": {
     "verbindenTitel": "Gdzie jest Państwa covey?",

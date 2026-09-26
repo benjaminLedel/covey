@@ -2470,7 +2470,8 @@
     "sucheMarkieren": "scegli un collega",
     "ungelesen": "{{count}} messaggi non letti",
     "ungelesen_one": "Un messaggio non letto",
-    "ungelesenTitel": "Da leggere"
+    "ungelesenTitel": "Da leggere",
+    "bereiche": "Aree"
   },
   "mobile": {
     "verbindenTitel": "Dov'è il suo covey?",

@@ -13,7 +13,6 @@
    whoever never opens it, never. */
 
 import { Suspense, lazy, useEffect, useState, useCallback } from "react";
-import { BirdMark } from "./components/BirdMark";
 import { useQuery } from "@tanstack/react-query";
 import { NavLink, Navigate, Route, Routes, useLocation, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
@@ -30,7 +29,7 @@ import {
 import i18n, { initialLang, ladeSprache } from "./i18n";
 import HelpDrawer from "./components/HelpDrawer";
 import { NavIcon } from "./components/navicons";
-import ShellFoot from "./components/ShellFoot";
+import Rail from "./components/Rail";
 import Suche, { useSucheKuerzel } from "./components/Suche";
 
 /* The look of the interface comes with it, not before it — see app.css. */
@@ -237,28 +236,20 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
   }
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="sidebar">
-        <div className="brand">
-          <BirdMark size={26} />
-          covey
-          <button
-            className="brand-suche"
-            onClick={() => sucheOeffnen()}
-            title={`${t("team.suche")} (⌘K)`}
-            aria-label={t("team.suche")}
-          >
-            <NavIcon name="search" />
-          </button>
+    <div className="flex min-h-screen tm-drei">
+      {/* The same rail as in the team (#389): it stays when one moves to
+          the settings; this column beside it is the console's navigation. */}
+      <Rail
+        me={me}
+        active={location.pathname === "/notes" ? "notes" : "admin"}
+        onLogout={onLogout}
+        onHelp={() => setHelpOpen(true)}
+        onSearch={() => sucheOeffnen()}
+      />
+      <aside className="sidebar konsole-spalte">
+        <div className="tm-spalte-kopf">
+          <h1 className="tm-spalte-titel">{t("team.verwaltung")}</h1>
         </div>
-        {/* The way back to the team (#387): the first row of the
-            navigation, not a switch above it. Without the team surface
-            (#328) there is nothing to go back to. */}
-        {me.TeamSurface && (
-          <div className="nav-group">
-            <NavItem to="/" end icon="chat" label={t("team.workspace")} />
-          </div>
-        )}
         {/* The navigation grew — the order showed when something was added,
             not when it is needed. Now sorted by the everyday: on top what
             opens daily; below what is set up once; then the
@@ -266,9 +257,6 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
         <div className="nav-group">
           <NavItem to="/agents" end icon="robot" label={t("nav.agents")} />
           <NavItem to="/inbox" icon="bell" label={t("nav.inbox")} count={pending} />
-          {/* The person's own notes (#342) — beside the inbox, because both are
-              the everyday of whoever is signed in. */}
-          <NavItem to="/notes" icon="note" label={t("mobile.notizen")} />
           <NavItem to="/costs" icon="chart" label={t("nav.costs")} />
           <NavItem to="/org" icon="sitemap" label={t("nav.org")} />
         </div>
@@ -326,9 +314,6 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
               )}
             </>
           )}
-          {/* Der Fuß ist ein eigenes Bauteil: Beide Schalen tragen ihn, und
-              er muss in beiden derselbe sein. */}
-          <ShellFoot me={me} onLogout={onLogout} onHelp={() => setHelpOpen(true)} />
         </div>
       </aside>
       <main className="flex-1 min-w-0 flex flex-col">
@@ -355,7 +340,9 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
             <Route path="/people/:id" element={<PersonPage me={me} />} />
             <Route path="/profile" element={<Navigate to={`/people/${me.ID}`} replace />} />
             <Route path="/inbox" element={<Inbox me={me} />} />
-            <Route path="/notes" element={<Notes />} />
+            {/* With the team surface the notes live beside the colleagues
+                (#388); the old address leads there. */}
+            <Route path="/notes" element={me.TeamSurface ? <Navigate to="/team/notes" replace /> : <Notes />} />
             {/* The old addresses stay valid: both were linked to. */}
             <Route path="/approvals" element={<Navigate to="/inbox" replace />} />
             <Route path="/improvements" element={<Navigate to="/inbox" replace />} />

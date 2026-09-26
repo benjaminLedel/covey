@@ -2470,7 +2470,8 @@
     "sucheMarkieren": "elegir colega",
     "ungelesen": "{{count}} mensajes sin leer",
     "ungelesen_one": "Un mensaje sin leer",
-    "ungelesenTitel": "Sin leer"
+    "ungelesenTitel": "Sin leer",
+    "bereiche": "Áreas"
   },
   "mobile": {
     "verbindenTitel": "¿Dónde está su covey?",

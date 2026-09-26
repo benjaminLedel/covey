@@ -4027,3 +4027,5 @@
 .tm-spalte-suche { width: auto; margin: 0 4px 12px; }
 .tm-spalte-liste { flex: 1; overflow: auto; min-height: 0; margin: 0 -6px; padding: 0 6px; }
 .tm-drei .tm-notizen-seite { padding: 24px 32px 60px; overflow: auto; flex: 1; }
+/* The console's navigation as the middle column beside the rail (#389). */
+.tm-drei .konsole-spalte { width: 240px; padding-top: 14px; overflow-y: auto; }

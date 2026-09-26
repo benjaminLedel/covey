@@ -2470,7 +2470,8 @@
     "sucheMarkieren": "collega kiezen",
     "ungelesen": "{{count}} ongelezen berichten",
     "ungelesen_one": "Eén ongelezen bericht",
-    "ungelesenTitel": "Ongelezen"
+    "ungelesenTitel": "Ongelezen",
+    "bereiche": "Onderdelen"
   },
   "mobile": {
     "verbindenTitel": "Waar is uw covey?",

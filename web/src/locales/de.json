@@ -2470,7 +2470,8 @@
     "sucheMarkieren": "Kollegen markieren",
     "ungelesen": "{{count}} ungelesene Nachrichten",
     "ungelesen_one": "Eine ungelesene Nachricht",
-    "ungelesenTitel": "Ungelesen"
+    "ungelesenTitel": "Ungelesen",
+    "bereiche": "Bereiche"
   },
   "mobile": {
     "verbindenTitel": "Wo ist Ihr covey?",
