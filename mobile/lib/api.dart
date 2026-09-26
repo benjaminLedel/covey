@@ -85,6 +85,14 @@ class CoveyApi {
 
   Map<String, String> get _headers => {'Authorization': 'Bearer $_key', 'Accept': 'application/json'};
 
+  /// Opens the instance's event stream (#419): server-sent events for this
+  /// key's organisation, held open by the server. No timeout — it is meant
+  /// to stay; the caller closes it by cancelling the subscription.
+  Future<http.StreamedResponse> events() => _http.send(
+    http.Request('GET', _url('/events'))
+      ..headers.addAll({'Authorization': 'Bearer $_key', 'Accept': 'text/event-stream', 'Cache-Control': 'no-cache'}),
+  );
+
   Future<dynamic> _send(Future<http.Response> Function() call) async {
     final http.Response res;
     final watch = Stopwatch()..start();

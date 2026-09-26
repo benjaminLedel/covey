@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'api.dart';
+import 'live.dart';
 import 'diagnostics.dart';
 import 'i18n.dart';
 import 'models.dart';
@@ -43,6 +44,7 @@ class PushNotices {
   CoveyApi? _api;
   Strings? _strings;
   Timer? _poll;
+  StreamSubscription<void>? _live;
 
   /// What was last seen of each conversation — the newest entry's time —
   /// for the connection being watched; null until read.
@@ -135,8 +137,12 @@ class PushNotices {
       } else {
         final allowed = await _channel.invokeMethod<Object?>('authorize');
         diag('push', 'mac notifications: $allowed');
+        // At once on an answer or a task that moved (#419); the timer is the
+        // net under the event stream.
+        await _live?.cancel();
+        _live = LiveEvents.instance.of({'chat', 'task'}).listen((_) => _look());
         _poll?.cancel();
-        _poll = Timer.periodic(const Duration(seconds: 15), (_) => _look());
+        _poll = Timer.periodic(const Duration(minutes: 1), (_) => _look());
         unawaited(_look());
       }
     } on PlatformException catch (e) {
@@ -150,6 +156,8 @@ class PushNotices {
   Future<void> _switchOff() async {
     _poll?.cancel();
     _poll = null;
+    await _live?.cancel();
+    _live = null;
     _seen = null;
     if (Platform.isMacOS) {
       try {

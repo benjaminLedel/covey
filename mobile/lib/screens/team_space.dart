@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../api.dart';
+import '../live.dart';
 import '../face.dart';
 import '../i18n.dart';
 import '../icons.dart';
@@ -48,19 +49,27 @@ class _TeamSpaceState extends State<TeamSpace> {
   /// that does not keep it.
   Map<String, ThreadState> _threads = const {};
   Timer? _poll;
+  StreamSubscription<void>? _live;
 
   @override
   void initState() {
     super.initState();
     _load();
     // New answers turn up without a pull; a thread just read drops its badge.
-    _poll = Timer.periodic(const Duration(seconds: 20), (_) => _loadThreads());
+    // Live from the instance's event stream (#419); the timer is the net
+    // under it, for a stream that is down.
+    _live = LiveEvents.instance.of({'chat', 'task', 'agent_status', 'approval'}).listen((_) {
+      _loadThreads();
+      _load();
+    });
+    _poll = Timer.periodic(const Duration(minutes: 1), (_) => _loadThreads());
     threadsRead.addListener(_loadThreads);
   }
 
   @override
   void dispose() {
     _poll?.cancel();
+    _live?.cancel();
     threadsRead.removeListener(_loadThreads);
     super.dispose();
   }

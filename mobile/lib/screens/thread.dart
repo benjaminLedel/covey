@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import '../chat_text.dart';
 import '../chrome.dart';
 import '../api.dart';
+import '../live.dart';
 import '../diagnostics.dart';
 import '../face.dart';
 import '../i18n.dart';
@@ -61,6 +62,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
   final _files = <Attachment>[];
   bool _sending = false;
   Timer? _poll;
+  StreamSubscription<void>? _live;
 
   @override
   void initState() {
@@ -69,12 +71,16 @@ class _ThreadScreenState extends State<ThreadScreen> {
     // No event stream yet: while the thread is open it asks again. The web
     // gets the same news over SSE; a phone that holds a stream open in the
     // background is a battery question for a later slice.
-    _poll = Timer.periodic(const Duration(seconds: 8), (_) => _load());
+    // This agent's events from the instance (#419): a message answered, a
+    // task moved, the triage thinking. The timer is the net under it.
+    _live = LiveEvents.instance.of({'chat', 'task'}, agentId: widget.agentId).listen((_) => _load());
+    _poll = Timer.periodic(const Duration(minutes: 1), (_) => _load());
   }
 
   @override
   void dispose() {
     _poll?.cancel();
+    _live?.cancel();
     _text.dispose();
     _scroll.dispose();
     super.dispose();

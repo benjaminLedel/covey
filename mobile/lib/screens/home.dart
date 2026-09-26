@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import '../activity.dart';
 import '../anywhere.dart';
 import '../api.dart';
+import '../live.dart';
 import '../chrome.dart';
 import '../face.dart';
 import '../i18n.dart';
@@ -145,6 +146,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     if (DictateAnywhere.supported) unawaited(DictateAnywhere.instance.detach());
     if (ActivityRecorder.supported) unawaited(ActivityRecorder.instance.detach());
+    LiveEvents.instance.stopFor(widget.api);
     super.dispose();
   }
 
@@ -165,7 +167,12 @@ class _HomeScreenState extends State<HomeScreen> {
         WidgetsBinding.instance.ensureVisualUpdate();
       }
       // Notifications need a conversation to be about (#379).
-      if (mounted && me.teamSurface) unawaited(PushNotices.instance.start(widget.api, Strings.of(context)));
+      if (mounted && me.teamSurface) {
+        // The instance's events, for every screen that shows what changes
+        // (#419).
+        LiveEvents.instance.start(widget.api);
+        unawaited(PushNotices.instance.start(widget.api, Strings.of(context)));
+      }
     } catch (e) {
       if (mounted) setState(() => _meError = e);
     }

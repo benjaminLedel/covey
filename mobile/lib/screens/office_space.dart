@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../api.dart';
+import '../live.dart';
 import '../chrome.dart';
 import '../face.dart';
 import '../i18n.dart';
@@ -57,6 +58,7 @@ class _OfficeSpaceState extends State<OfficeSpace> {
   Object? _error;
   int _etage = 0;
   Timer? _poll;
+  StreamSubscription<void>? _live;
 
   @override
   void initState() {
@@ -64,12 +66,16 @@ class _OfficeSpaceState extends State<OfficeSpace> {
     _load();
     // What changes while one looks: who works and who waits. The building
     // itself is asked for again only with a pull or a reopening.
-    _poll = Timer.periodic(const Duration(seconds: 10), (_) => _loadLive());
+    // Who works and who waits, as the instance says it (#419); the timer is
+    // the net under it.
+    _live = LiveEvents.instance.of({'agent_status', 'task', 'chat', 'approval'}).listen((_) => _loadLive());
+    _poll = Timer.periodic(const Duration(minutes: 1), (_) => _loadLive());
   }
 
   @override
   void dispose() {
     _poll?.cancel();
+    _live?.cancel();
     super.dispose();
   }
 
