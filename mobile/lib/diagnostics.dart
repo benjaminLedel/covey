@@ -28,7 +28,10 @@ class Diagnostics extends ChangeNotifier {
 
   bool enabled = false;
   File? _file;
-  IOSink? _sink;
+  // Written synchronously, line by line: iOS ends an app in the background
+  // without warning, and a buffered sink loses exactly the last lines —
+  // the ones that say what happened before the end.
+  RandomAccessFile? _sink;
   int _written = 0;
 
   Future<Directory> _dir() async => Directory('${(await getApplicationSupportDirectory()).path}/logs');
@@ -67,13 +70,12 @@ class Diagnostics extends ChangeNotifier {
     final f = File('${dir.path}/covey.log');
     _written = await f.exists() ? await f.length() : 0;
     _file = f;
-    _sink = f.openWrite(mode: FileMode.append);
+    _sink = await f.open(mode: FileMode.append);
   }
 
   Future<void> _close() async {
     final s = _sink;
     _sink = null;
-    await s?.flush();
     await s?.close();
   }
 
@@ -83,7 +85,11 @@ class Diagnostics extends ChangeNotifier {
     stderr.writeln('covey $text');
     final s = _sink;
     if (!enabled || s == null) return;
-    s.writeln(text);
+    try {
+      s.writeStringSync('$text\n');
+    } on FileSystemException {
+      return;
+    }
     _written += text.length + 1;
     if (_written > _maxBytes) unawaited(_rotate());
   }
@@ -100,7 +106,6 @@ class Diagnostics extends ChangeNotifier {
 
   /// Both files, oldest first, as one text.
   Future<String> read() async {
-    await _sink?.flush();
     final dir = await _dir();
     final out = StringBuffer();
     for (final name in ['covey.1.log', 'covey.log']) {
@@ -112,7 +117,6 @@ class Diagnostics extends ChangeNotifier {
 
   /// How large the log is, in bytes.
   Future<int> size() async {
-    await _sink?.flush();
     final dir = await _dir();
     var n = 0;
     for (final name in ['covey.1.log', 'covey.log']) {
