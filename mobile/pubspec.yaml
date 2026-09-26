@@ -45,6 +45,7 @@ dependencies:
   path_provider: ^2.1.5
   sherpa_onnx: ^1.13.8
   hotkey_manager: ^0.2.3
+  image_picker: ^1.2.3
 
 dev_dependencies:
   flutter_test:

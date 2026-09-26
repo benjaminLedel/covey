@@ -256,6 +256,30 @@ class CoveyApi {
     return res.bodyBytes;
   }
 
+  /// Sets the seat's profile photo (#377) and returns its id. The server
+  /// makes a square JPEG of it and keeps nothing else of the file.
+  Future<String> setPhoto(Uint8List bytes) async {
+    final req = http.MultipartRequest('PUT', _url('/me/photo'))
+      ..headers.addAll(_headers)
+      ..files.add(http.MultipartFile.fromBytes('file', bytes, filename: 'photo.png'));
+    final out = await _send(() async => http.Response.fromStream(await _http.send(req))) as Map<String, dynamic>;
+    return out['photo_id'] as String;
+  }
+
+  Future<void> deletePhoto() => delete('/me/photo');
+
+  /// A person's profile photo, as bytes — fetched with the key.
+  Future<Uint8List> humanPhoto(String humanId, String photoId) async {
+    final http.Response res;
+    try {
+      res = await _http.get(_url('/humans/$humanId/photo?v=$photoId'), headers: _headers).timeout(_timeout);
+    } catch (e) {
+      throw ApiException(0, e.toString());
+    }
+    if (res.statusCode != 200) throw ApiException(res.statusCode, 'HTTP ${res.statusCode}');
+    return res.bodyBytes;
+  }
+
   /// The speech model this instance offers (#348): name, digest, size, and
   /// whether it can be fetched yet. `enabled: false` means speech is off here.
   /// [name] asks about one of the offered models (#351) — and makes the

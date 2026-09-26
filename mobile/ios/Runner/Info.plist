@@ -32,9 +32,9 @@
 	<key>NSMicrophoneUsageDescription</key>
 	<string>The microphone is used to dictate notes and record meetings. Speech is recognised on this device with a model from your covey instance; no audio is stored or sent.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Photos and videos you choose are attached to a message for an agent.</string>
+	<string>Photos and videos you choose are attached to a message for an agent, or become your profile photo.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>The camera reads the QR code covey shows to pair this app.</string>
+	<string>The camera reads the QR code covey shows to pair this app, and takes your profile photo when you ask for it.</string>
 	<key>CFBundleDisplayName</key>
 	<string>covey</string>
 	<key>CFBundleExecutable</key>

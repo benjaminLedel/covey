@@ -10,6 +10,7 @@ import '../chrome.dart';
 import '../face.dart';
 import '../i18n.dart';
 import '../icons.dart';
+import '../photo.dart';
 import '../mark.dart';
 import '../models.dart';
 import '../theme.dart';
@@ -261,7 +262,12 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
     final isWide = MediaQuery.sizeOf(context).width >= wide;
-    final account = _AccountButton(me: me, api: widget.api, onDisconnect: widget.onDisconnect);
+    final account = _AccountButton(
+      me: me,
+      api: widget.api,
+      onDisconnect: widget.onDisconnect,
+      onChanged: (m) => setState(() => _me = m),
+    );
     final actions = isWide ? const <Widget>[] : [account];
     final spaces = <({IconData icon, String label, Widget body})>[
       if (me.teamSurface)
@@ -372,25 +378,24 @@ class _HomeScreenState extends State<HomeScreen> {
 /// The person, as initials in a circle at the top right: the way into the
 /// settings (#349) — who is signed in where, speech recognition, the way out.
 class _AccountButton extends StatelessWidget {
-  const _AccountButton({required this.me, required this.api, required this.onDisconnect});
+  const _AccountButton({required this.me, required this.api, required this.onDisconnect, required this.onChanged});
 
   final Me me;
   final CoveyApi api;
   final VoidCallback onDisconnect;
 
-  String get _initials =>
-      me.displayName.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).take(2).map((p) => p[0].toUpperCase()).join();
+  /// The seat after a change made in the settings — a new photo (#377).
+  final ValueChanged<Me> onChanged;
 
   void _open(BuildContext context) => Navigator.of(context).push(
     MaterialPageRoute<void>(
-      builder: (_) => SettingsScreen(api: api, me: me, onDisconnect: onDisconnect),
+      builder: (_) => SettingsScreen(api: api, me: me, onDisconnect: onDisconnect, onChanged: onChanged),
     ),
   );
 
   @override
   Widget build(BuildContext context) {
-    final c = context.colors;
-    // A 36 pt circle in a 44 pt target (ios.md).
+    // A 36 pt circle in a 44 pt target (ios.md): the photo, or the monogram.
     return Semantics(
       button: true,
       label: context.t('nav.userMenu'),
@@ -400,19 +405,7 @@ class _AccountButton extends StatelessWidget {
         child: SizedBox.square(
           dimension: 44,
           child: Center(
-            child: Container(
-              width: 36,
-              height: 36,
-              alignment: Alignment.center,
-              // The card colour with a hairline: visible on the sheet and on
-              // the sidebar's darker ground alike.
-              decoration: BoxDecoration(
-                color: c.surface2,
-                shape: BoxShape.circle,
-                border: Border.all(color: c.hairline),
-              ),
-              child: Text(_initials.isEmpty ? '·' : _initials, style: context.type.labelMedium),
-            ),
+            child: PersonPhoto(api: api, humanId: me.id, photoId: me.photoId, name: me.displayName),
           ),
         ),
       ),

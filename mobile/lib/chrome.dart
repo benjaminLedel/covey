@@ -254,7 +254,7 @@ class ChromeAppBar extends StatelessWidget implements PreferredSizeWidget {
     return AppBar(
       toolbarHeight: MacChrome.height,
       automaticallyImplyLeading: false,
-      leadingWidth: inset + (canPop ? 44 : 0),
+      leadingWidth: inset + (canPop ? 48 : 0),
       leading: canPop
           ? Row(
               children: [

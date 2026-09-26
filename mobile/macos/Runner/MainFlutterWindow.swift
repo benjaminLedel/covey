@@ -9,6 +9,8 @@ class MainFlutterWindow: NSWindow {
   private var chrome: FlutterMethodChannel?
   private var systemAudio: FlutterEventChannel?
   private let systemAudioHandler = SystemAudioHandler()
+  private var camera: FlutterMethodChannel?
+  private let cameraSheet = CameraSheet()
 
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
@@ -61,7 +63,120 @@ class MainFlutterWindow: NSWindow {
       }
     }
 
+    // The profile photo (#377): the Mac has no system camera screen to
+    // borrow, so the app opens a small camera sheet of its own.
+    camera = FlutterMethodChannel(name: "covey/camera", binaryMessenger: flutterViewController.engine.binaryMessenger)
+    camera?.setMethodCallHandler { [weak self] call, result in
+      guard let self, call.method == "capture" else { return result(FlutterMethodNotImplemented) }
+      let args = call.arguments as? [String: String] ?? [:]
+      self.cameraSheet.capture(over: self, take: args["take"] ?? "Take", cancel: args["cancel"] ?? "Cancel", result: result)
+    }
+
     super.awakeFromNib()
+  }
+}
+
+/// The camera sheet for the profile photo (#377): a mirrored preview, one
+/// button that takes the picture, one that cancels. Answers the JPEG, nil
+/// when cancelled, or the error "denied" when the camera is not allowed.
+final class CameraSheet: NSObject, AVCapturePhotoCaptureDelegate {
+  private let session = AVCaptureSession()
+  private let output = AVCapturePhotoOutput()
+  private var sheet: NSWindow?
+  private var parent: NSWindow?
+  private var result: FlutterResult?
+
+  func capture(over window: NSWindow, take: String, cancel: String, result: @escaping FlutterResult) {
+    guard self.result == nil else { return result(FlutterError(code: "busy", message: nil, details: nil)) }
+    switch AVCaptureDevice.authorizationStatus(for: .video) {
+    case .authorized:
+      open(over: window, take: take, cancel: cancel, result: result)
+    case .notDetermined:
+      AVCaptureDevice.requestAccess(for: .video) { ok in
+        DispatchQueue.main.async {
+          if ok {
+            self.open(over: window, take: take, cancel: cancel, result: result)
+          } else {
+            result(FlutterError(code: "denied", message: nil, details: nil))
+          }
+        }
+      }
+    default:
+      result(FlutterError(code: "denied", message: nil, details: nil))
+    }
+  }
+
+  private func open(over window: NSWindow, take: String, cancel: String, result: @escaping FlutterResult) {
+    guard let device = AVCaptureDevice.default(for: .video),
+      let input = try? AVCaptureDeviceInput(device: device)
+    else { return result(FlutterError(code: "unavailable", message: "no camera", details: nil)) }
+    session.beginConfiguration()
+    session.sessionPreset = .photo
+    session.inputs.forEach { session.removeInput($0) }
+    if session.canAddInput(input) { session.addInput(input) }
+    if !session.outputs.contains(output), session.canAddOutput(output) { session.addOutput(output) }
+    // The picture as the preview shows it: mirrored, as a mirror would.
+    if let conn = output.connection(with: .video), conn.isVideoMirroringSupported {
+      conn.automaticallyAdjustsVideoMirroring = false
+      conn.isVideoMirrored = true
+    }
+    session.commitConfiguration()
+
+    let w: CGFloat = 480, h: CGFloat = 360, bar: CGFloat = 56
+    let content = NSView(frame: NSRect(x: 0, y: 0, width: w, height: h + bar))
+    let preview = NSView(frame: NSRect(x: 0, y: bar, width: w, height: h))
+    preview.wantsLayer = true
+    let layer = AVCaptureVideoPreviewLayer(session: session)
+    layer.videoGravity = .resizeAspectFill
+    layer.frame = preview.bounds
+    if let conn = layer.connection, conn.isVideoMirroringSupported {
+      conn.automaticallyAdjustsVideoMirroring = false
+      conn.isVideoMirrored = true
+    }
+    preview.layer?.addSublayer(layer)
+    content.addSubview(preview)
+
+    let shoot = NSButton(title: take, target: self, action: #selector(shoot))
+    shoot.bezelStyle = .rounded
+    shoot.keyEquivalent = "\r"
+    let stop = NSButton(title: cancel, target: self, action: #selector(dismiss))
+    stop.bezelStyle = .rounded
+    stop.keyEquivalent = "\u{1b}"
+    shoot.sizeToFit()
+    stop.sizeToFit()
+    shoot.frame.origin = NSPoint(x: w - shoot.frame.width - 16, y: (bar - shoot.frame.height) / 2)
+    stop.frame.origin = NSPoint(x: shoot.frame.minX - stop.frame.width - 8, y: (bar - stop.frame.height) / 2)
+    content.addSubview(shoot)
+    content.addSubview(stop)
+
+    let sheet = NSWindow(contentRect: content.frame, styleMask: [.titled], backing: .buffered, defer: false)
+    sheet.contentView = content
+    self.sheet = sheet
+    self.parent = window
+    self.result = result
+    window.beginSheet(sheet)
+    DispatchQueue.global(qos: .userInitiated).async { self.session.startRunning() }
+  }
+
+  @objc private func shoot() {
+    let settings = AVCapturePhotoSettings(format: [AVVideoCodecKey: AVVideoCodecType.jpeg])
+    output.capturePhoto(with: settings, delegate: self)
+  }
+
+  @objc private func dismiss() { finish(nil) }
+
+  func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
+    let data = photo.fileDataRepresentation()
+    DispatchQueue.main.async { self.finish(data) }
+  }
+
+  private func finish(_ data: Data?) {
+    DispatchQueue.global(qos: .utility).async { self.session.stopRunning() }
+    if let sheet { parent?.endSheet(sheet) }
+    sheet = nil
+    parent = nil
+    result?(data.map { FlutterStandardTypedData(bytes: $0) })
+    result = nil
   }
 }
 

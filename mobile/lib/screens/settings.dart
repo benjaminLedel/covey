@@ -15,6 +15,7 @@ import '../dictation_view.dart';
 import '../i18n.dart';
 import '../icons.dart';
 import '../models.dart';
+import '../photo.dart';
 import '../speech_model.dart';
 import '../theme.dart';
 import '../ui.dart';
@@ -26,11 +27,14 @@ import 'suggestions.dart';
 /// device and the language it listens for, a place to try dictation, and
 /// the way out. Reached from the person's initials.
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key, required this.api, required this.me, required this.onDisconnect});
+  const SettingsScreen({super.key, required this.api, required this.me, required this.onDisconnect, this.onChanged});
 
   final CoveyApi api;
   final Me me;
   final VoidCallback onDisconnect;
+
+  /// Told about a change to the seat — a new photo (#377).
+  final ValueChanged<Me>? onChanged;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -38,6 +42,9 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final _model = SpeechModel.instance;
+
+  /// The seat after a change made here; null while it is as it came.
+  Me? _me;
 
   @override
   void initState() {
@@ -400,7 +407,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final me = widget.me;
+    final me = _me ?? widget.me;
     final small = context.type.bodySmall?.copyWith(color: c.textMuted);
     return Scaffold(
       appBar: ChromeAppBar(title: Text(context.t('mobile.einstellungen'))),
@@ -411,13 +418,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
           InsetGroup(
             children: [
               GroupRow(
-                leading: CircleAvatar(
-                  radius: 18,
-                  backgroundColor: c.surface1,
-                  child: Text(_initials(me.displayName), style: context.type.labelLarge),
-                ),
+                leading: PersonPhoto(api: widget.api, humanId: me.id, photoId: me.photoId, name: me.displayName),
                 title: me.displayName,
                 subtitle: me.email,
+              ),
+              // The profile photo (#377): taken here, or chosen, and cropped.
+              GroupRow(
+                title: me.photoId == null ? context.t('mobile.fotoHinzufuegen') : context.t('mobile.fotoAendern'),
+                trailing: Icon(AppIcons.camera.of(context), color: c.textMuted, size: 20),
+                onTap: () async {
+                  final changed = await changePhoto(context, widget.api, me);
+                  if (changed == null || !mounted) return;
+                  setState(() => _me = changed);
+                  widget.onChanged?.call(changed);
+                },
               ),
               GroupRow(
                 title: context.t('mobile.instanz'),
@@ -524,9 +538,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 }
-
-String _initials(String name) =>
-    name.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).take(2).map((p) => p[0].toUpperCase()).join();
 
 /// Dictation to try, and nothing is saved: the waveform shows whether the
 /// microphone delivers sound, the text what the model makes of it. Where a

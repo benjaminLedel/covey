@@ -12,6 +12,8 @@ class Me {
     required this.role,
     required this.teamSurface,
     this.canWrite = true,
+    this.id = '',
+    this.photoId,
   });
 
   factory Me.fromJson(Map<String, dynamic> j) => Me(
@@ -23,6 +25,8 @@ class Me {
     // Absent on an instance older than #339: then the server's 403 is the
     // only word, and the app lets the person try.
     canWrite: j['CanWrite'] as bool? ?? true,
+    id: j['ID'] as String? ?? '',
+    photoId: j['PhotoID'] as String?,
   );
 
   final String email;
@@ -38,6 +42,20 @@ class Me {
   /// server says so, the app does not keep a role table of its own. A seat
   /// that may not is never led into a conversation.
   final bool canWrite;
+
+  /// The seat's id, and its profile photo (#377) — null is the monogram.
+  final String id;
+  final String? photoId;
+
+  Me withPhoto(String? photoId) => Me(
+    email: email,
+    displayName: displayName,
+    role: role,
+    teamSurface: teamSurface,
+    canWrite: canWrite,
+    id: id,
+    photoId: photoId,
+  );
 }
 
 class Agent {

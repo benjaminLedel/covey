@@ -6,6 +6,8 @@
 	     web's pairing card (#334), having no camera to scan with. -->
 <key>NSAudioCaptureUsageDescription</key>
 	<string>In a meeting you record, covey transcribes what the Mac plays — the other side of a call — on this Mac. No audio is stored or sent.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>The camera takes your profile photo, when you ask for it in the settings.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>The microphone is used to dictate notes and record meetings. Speech is recognised on this device with a model from your covey instance; no audio is stored or sent.</string>
 	<key>CFBundleURLTypes</key>
