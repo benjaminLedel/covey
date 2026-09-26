@@ -2667,10 +2667,7 @@
     "propTags": "Tagi",
     "tagHinweis": "Jedno słowo, np. klient",
     "ansichtListe": "Lista",
-    "ansichtTabelle": "Tabela",
-    "ansichtBoard": "Tablica",
-    "spalteTitel": "Tytuł",
-    "spalteErstellt": "Utworzono"
+    "ansichtBoard": "Tablica"
   },
   "appLink": {
     "title": "Otwórz w aplikacji covey",

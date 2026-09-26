@@ -2667,10 +2667,7 @@
     "propTags": "Tag",
     "tagHinweis": "Una parola, ad es. cliente",
     "ansichtListe": "Elenco",
-    "ansichtTabelle": "Tabella",
-    "ansichtBoard": "Bacheca",
-    "spalteTitel": "Titolo",
-    "spalteErstellt": "Creata"
+    "ansichtBoard": "Bacheca"
   },
   "appLink": {
     "title": "Apri nell'app covey",

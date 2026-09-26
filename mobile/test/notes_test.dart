@@ -266,7 +266,7 @@ void main() {
     expect(find.textContaining('Launch im Oktober.'), findsOneWidget);
   });
 
-  testWidgets('the notes as a table and as a board by status; a card moves to another status (#373)', (tester) async {
+  testWidgets('the notes as a board by status; a card moves to another status (#373)', (tester) async {
     Map<String, Object?>? patched;
     final api = CoveyApi(
       Uri.parse('https://c.example'),
@@ -301,16 +301,12 @@ void main() {
     await tester.pumpWidget(await tester.runAsync(() => _app(HomeScreen(api: api, onDisconnect: () {}))) as Widget);
     await _settle(tester);
 
-    await tester.tap(find.text('Tabelle'));
-    await _settle(tester);
-    expect(find.text('#Kunde'), findsOneWidget, reason: 'the table shows the tags');
-    expect(find.text('Offen'), findsOneWidget, reason: 'and the status in words');
-
     await tester.tap(find.text('Board'));
     await _settle(tester);
     expect(find.text('In Arbeit'), findsOneWidget, reason: 'a column per status, the empty ones too');
     expect(find.text('Erledigt'), findsOneWidget);
     expect(find.text('Bericht fertig'), findsOneWidget);
+    expect(find.text('Offen'), findsOneWidget, reason: 'the status in words');
 
     // On touch a card moves after a long press.
     final start = tester.getCenter(find.text('Angebot schicken'));

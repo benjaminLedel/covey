@@ -2667,10 +2667,7 @@
     "propTags": "タグ",
     "tagHinweis": "1語で（例：顧客）",
     "ansichtListe": "リスト",
-    "ansichtTabelle": "テーブル",
-    "ansichtBoard": "ボード",
-    "spalteTitel": "タイトル",
-    "spalteErstellt": "作成日"
+    "ansichtBoard": "ボード"
   },
   "appLink": {
     "title": "covey アプリで開く",

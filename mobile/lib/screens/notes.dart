@@ -56,7 +56,7 @@ class NotesScreen extends StatefulWidget {
 }
 
 /// How the notes are shown (#373).
-enum NotesView { list, table, board }
+enum NotesView { list, board }
 
 class NotesScreenState extends State<NotesScreen> {
   NotesView _view = NotesView.list;
@@ -153,39 +153,25 @@ class NotesScreenState extends State<NotesScreen> {
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: SegmentedButton<NotesView>(
-                showSelectedIcon: false,
-                style: const ButtonStyle(visualDensity: VisualDensity.compact),
-                segments: [
-                  ButtonSegment(
-                    value: NotesView.list,
-                    icon: const Icon(Icons.view_agenda_outlined, size: 18),
-                    label: Text(context.t('mobile.ansichtListe')),
-                  ),
-                  ButtonSegment(
-                    value: NotesView.table,
-                    icon: const Icon(Icons.table_rows_outlined, size: 18),
-                    label: Text(context.t('mobile.ansichtTabelle')),
-                  ),
-                  ButtonSegment(
-                    value: NotesView.board,
-                    icon: const Icon(Icons.view_kanban_outlined, size: 18),
-                    label: Text(context.t('mobile.ansichtBoard')),
-                  ),
-                ],
-                selected: {_view},
-                onSelectionChanged: (v) => _setView(v.first),
-              ),
+            padding: const EdgeInsets.fromLTRB(12, 10, 16, 0),
+            child: Row(
+              children: [
+                _ViewTab(
+                  icon: Icons.view_agenda_outlined,
+                  label: context.t('mobile.ansichtListe'),
+                  selected: _view == NotesView.list,
+                  onTap: () => _setView(NotesView.list),
+                ),
+                _ViewTab(
+                  icon: Icons.view_kanban_outlined,
+                  label: context.t('mobile.ansichtBoard'),
+                  selected: _view == NotesView.board,
+                  onTap: () => _setView(NotesView.board),
+                ),
+              ],
             ),
           ),
         ),
-        if (page != null && page.notes.isNotEmpty && _view == NotesView.table)
-          SliverToBoxAdapter(
-            child: NotesTable(notes: page.notes, onOpen: (n) => widget.onOpen(n, page.summarize, reload)),
-          ),
         if (page != null && page.notes.isNotEmpty && _view == NotesView.board)
           SliverToBoxAdapter(
             child: NotesBoard(
@@ -1494,114 +1480,45 @@ class PropertyChip extends StatelessWidget {
   }
 }
 
-/// The notes as a table (#373): title, status, date, tags, created. A row
-/// opens its note.
-class NotesTable extends StatelessWidget {
-  const NotesTable({super.key, required this.notes, required this.onOpen});
+/// A view's tab above the notes, as Notion draws them over a database:
+/// a word with its mark, the chosen one in the text colour and underlined,
+/// the other quiet. No frame — it is a way of looking, not a control.
+class _ViewTab extends StatelessWidget {
+  const _ViewTab({required this.icon, required this.label, required this.selected, required this.onTap});
 
-  final List<Note> notes;
-  final ValueChanged<Note> onOpen;
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final lang = Strings.of(context).language;
-    final head = context.type.labelMedium?.copyWith(color: c.textMuted);
-    Widget cell(Widget child, double w) => SizedBox(
-      width: w,
-      child: Padding(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10), child: child),
-    );
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
+    final color = selected ? c.textPrimary : c.textMuted;
+    return Semantics(
+      selected: selected,
+      button: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
         child: Container(
+          padding: const EdgeInsets.fromLTRB(6, 6, 6, 5),
+          margin: const EdgeInsets.only(right: 6),
           decoration: BoxDecoration(
-            color: c.surface2,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: c.border),
+            border: Border(bottom: BorderSide(color: selected ? c.textPrimary : Colors.transparent, width: 1.5)),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                children: [
-                  cell(Text(context.t('mobile.spalteTitel'), style: head), 280),
-                  cell(Text(context.t('mobile.propStatus'), style: head), 130),
-                  cell(Text(context.t('mobile.propDatum'), style: head), 120),
-                  cell(Text(context.t('mobile.propTags'), style: head), 200),
-                  cell(Text(context.t('mobile.spalteErstellt'), style: head), 120),
-                ],
-              ),
-              for (final n in notes)
-                InkWell(
-                  onTap: () => onOpen(n),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      border: Border(top: BorderSide(color: c.border, width: 0.6)),
-                    ),
-                    child: Row(
-                      children: [
-                        cell(
-                          Row(
-                            children: [
-                              if (n.icon.isNotEmpty) ...[Text(n.icon), const SizedBox(width: 6)],
-                              Expanded(
-                                child: Text(
-                                  n.heading,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: context.type.titleSmall,
-                                ),
-                              ),
-                            ],
-                          ),
-                          280,
-                        ),
-                        cell(
-                          n.status.isEmpty
-                              ? const SizedBox.shrink()
-                              : Row(
-                                  children: [
-                                    StatusDot(status: n.status),
-                                    const SizedBox(width: 6),
-                                    Flexible(
-                                      child: Text(
-                                        context.t('mobile.nstatus_${n.status}'),
-                                        style: context.type.bodySmall,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                          130,
-                        ),
-                        cell(
-                          Text(
-                            n.due == null ? '' : DateFormat.yMMMd(lang).format(n.due!),
-                            style: context.type.bodySmall,
-                          ),
-                          120,
-                        ),
-                        cell(
-                          Text(
-                            n.tags.map((t) => '#$t').join(' '),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: context.type.bodySmall,
-                          ),
-                          200,
-                        ),
-                        cell(
-                          Text(
-                            n.createdAt == null ? '' : DateFormat.yMMMd(lang).format(n.createdAt!),
-                            style: context.type.bodySmall,
-                          ),
-                          120,
-                        ),
-                      ],
-                    ),
-                  ),
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: context.type.labelLarge?.copyWith(
+                  color: color,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
                 ),
+              ),
             ],
           ),
         ),

@@ -2667,10 +2667,7 @@
     "propTags": "Tags",
     "tagHinweis": "Eén woord, bijv. klant",
     "ansichtListe": "Lijst",
-    "ansichtTabelle": "Tabel",
-    "ansichtBoard": "Bord",
-    "spalteTitel": "Titel",
-    "spalteErstellt": "Gemaakt"
+    "ansichtBoard": "Bord"
   },
   "appLink": {
     "title": "Openen in de covey-app",

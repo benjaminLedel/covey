@@ -2667,10 +2667,7 @@
     "propTags": "标签",
     "tagHinweis": "一个词，例如 客户",
     "ansichtListe": "列表",
-    "ansichtTabelle": "表格",
-    "ansichtBoard": "看板",
-    "spalteTitel": "标题",
-    "spalteErstellt": "创建时间"
+    "ansichtBoard": "看板"
   },
   "appLink": {
     "title": "在 covey 应用中打开",
