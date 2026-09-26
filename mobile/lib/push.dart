@@ -215,6 +215,10 @@ class PushNotices {
           'title': name,
           'body': t.lastText.isNotEmpty ? t.lastText : _strings?.t('team.ungelesen', count: t.unread) ?? '',
           'agent': t.agentId,
+          // The face as the sender's picture (#420), and as the attachment
+          // where communication notifications are not available — two files,
+          // since the system moves an attachment into its store.
+          if (agent != null) 'face': await _faceFile(agent),
           if (agent != null) 'image': await _faceFile(agent),
         });
         diag('push', failed == null ? 'shown, sound ${fileFor(await sound, kind)}' : 'not shown: $failed');

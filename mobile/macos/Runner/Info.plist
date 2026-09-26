@@ -10,6 +10,11 @@
 	<string>The camera takes your profile photo, when you ask for it in the settings.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>The microphone is used to dictate notes and record meetings. Speech is recognised on this device with a model from your covey instance; no audio is stored or sent.</string>
+	<!-- A notification from an agent is a message from somebody (#420). -->
+	<key>NSUserActivityTypes</key>
+	<array>
+		<string>INSendMessageIntent</string>
+	</array>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

@@ -24,5 +24,9 @@
 	<true/>
 	<key>com.apple.security.network.server</key>
 	<true/>
+	<!-- Communication notifications (#420): a notification that says whom it
+	     is from shows the agent's face in place of the app icon. -->
+	<key>com.apple.developer.usernotifications.communication</key>
+	<true/>
 </dict>
 </plist>

@@ -1,6 +1,7 @@
 import AVFoundation
 import ApplicationServices
 import Cocoa
+import Intents
 import CoreAudio
 import FlutterMacOS
 import UserNotifications
@@ -155,7 +156,28 @@ final class LocalNotices: NSObject, UNUserNotificationCenterDelegate {
       let agent = args["agent"] as? String ?? ""
       content.threadIdentifier = agent
       content.userInfo = ["agent_id": agent]
-      let request = UNNotificationRequest(identifier: args["id"] as? String ?? UUID().uuidString, content: content, trigger: nil)
+      // A message from somebody (#420): with the agent as the sender, macOS
+      // shows its face where the app icon stands and the covey mark as a
+      // badge on it. Needs the communication notifications capability; where
+      // it is missing, the notification goes out as it was.
+      var shown: UNNotificationContent = content
+      if let image = args["face"] as? String, !image.isEmpty,
+        let data = FileManager.default.contents(atPath: image)
+      {
+        let sender = INPerson(
+          personHandle: INPersonHandle(value: agent, type: .unknown), nameComponents: nil,
+          displayName: content.title, image: INImage(imageData: data), contactIdentifier: nil,
+          customIdentifier: agent)
+        let intent = INSendMessageIntent(
+          recipients: nil, outgoingMessageType: .outgoingMessageText, content: content.body,
+          speakableGroupName: nil, conversationIdentifier: agent, serviceName: nil, sender: sender,
+          attachments: nil)
+        let interaction = INInteraction(intent: intent, response: nil)
+        interaction.direction = .incoming
+        interaction.donate(completion: nil)
+        if let updated = try? content.updating(from: intent) { shown = updated }
+      }
+      let request = UNNotificationRequest(identifier: args["id"] as? String ?? UUID().uuidString, content: shown, trigger: nil)
       UNUserNotificationCenter.current().add(request) { error in
         DispatchQueue.main.async { result(error?.localizedDescription) }
       }

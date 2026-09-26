@@ -20,5 +20,10 @@
 	<!-- The profile photo (#377), taken in the app. -->
 	<key>com.apple.security.device.camera</key>
 	<true/>
+	<!-- Communication notifications (#420) are in DebugProfile.entitlements
+	     only: a restricted entitlement needs a provisioning profile embedded
+	     in the app, and without one macOS refuses to start it. The release
+	     job embeds none yet; until it does, a released app shows the face as
+	     the notification's picture instead. -->
 </dict>
 </plist>
