@@ -165,6 +165,16 @@ class CoveyApi {
     };
   }
 
+  /// Registers this device for push notifications (#379).
+  Future<void> registerPushDevice({
+    required String token,
+    required String platform,
+    required String environment,
+    required String lang,
+  }) => post('/me/push/devices', {'token': token, 'platform': platform, 'environment': environment, 'lang': lang});
+
+  Future<void> unregisterPushDevice(String token) => delete('/me/push/devices/${Uri.encodeComponent(token)}');
+
   /// The thread has been read up to [at], the newest entry shown.
   Future<void> markThreadRead(String agentId, DateTime at) =>
       post('/agents/$agentId/thread/read', {'at': at.toUtc().toIso8601String()});

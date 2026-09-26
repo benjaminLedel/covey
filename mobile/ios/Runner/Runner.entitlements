@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Push notifications (#379). Xcode writes "production" into a build
+	     signed for the App Store or TestFlight. -->
+	<key>aps-environment</key>
+	<string>development</string>
 	<!-- Universal links (#333): app.covey.work/pair and /team/<id> open the
 	     app. The host has to confirm it with /.well-known/apple-app-site-association,
 	     which covey serves when COVEY_APPLE_APP_ID is set. -->

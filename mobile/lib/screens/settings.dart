@@ -16,6 +16,7 @@ import '../i18n.dart';
 import '../icons.dart';
 import '../models.dart';
 import '../photo.dart';
+import '../push.dart';
 import '../speech_model.dart';
 import '../theme.dart';
 import '../ui.dart';
@@ -46,9 +47,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// The seat after a change made here; null while it is as it came.
   Me? _me;
 
+  /// Whether notifications are on (#379); null until read.
+  bool? _push;
+
   @override
   void initState() {
     super.initState();
+    PushNotices.instance.enabled.then((on) {
+      if (mounted) setState(() => _push = on);
+    });
     _model.addListener(_changed);
     _model.loadPrefs().then((_) => _model.refresh(widget.api));
     Diagnostics.instance.addListener(_changed);
@@ -448,6 +455,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: const EdgeInsets.fromLTRB(32, 8, 32, 0),
               child: Text(context.t('mobile.nurNotizen'), style: small),
             ),
+
+          // Notifications (#379): questions, answers, results.
+          if (PushNotices.supported && me.teamSurface) ...[
+            SectionTitle(context.t('mobile.mitteilungen')),
+            InsetGroup(
+              children: [
+                GroupRow(
+                  title: context.t('mobile.mitteilungenAn'),
+                  trailing: Switch.adaptive(
+                    value: _push ?? true,
+                    onChanged: (on) async {
+                      setState(() => _push = on);
+                      await PushNotices.instance.setEnabled(on);
+                    },
+                  ),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(32, 8, 32, 0),
+              child: Text(context.t('mobile.mitteilungenHinweis'), style: small),
+            ),
+          ],
 
           SectionTitle(context.t('mobile.spracherkennung')),
           InsetGroup(

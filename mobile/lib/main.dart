@@ -12,6 +12,7 @@ import 'face.dart';
 import 'i18n.dart';
 import 'pairing.dart';
 import 'profile.dart';
+import 'push.dart';
 import 'screens/connect.dart';
 import 'screens/home.dart';
 import 'screens/thread.dart';
@@ -63,6 +64,7 @@ class _CoveyAppState extends State<CoveyApp> {
   bool _splash = true;
   final _nav = GlobalKey<NavigatorState>();
   StreamSubscription<Uri>? _linkSub;
+  StreamSubscription<String>? _pushSub;
   // A link that arrived while the splash still stood — the app started BY the
   // link — waits until there is a screen to act from.
   Uri? _pendingLink;
@@ -72,11 +74,14 @@ class _CoveyAppState extends State<CoveyApp> {
     super.initState();
     _start();
     _linkSub = widget.links?.listen(_onLink);
+    // A tapped notification opens its thread the way a link to it does (#379).
+    _pushSub = PushNotices.instance.opens.listen((agent) => _onLink(Uri.parse('covey://team/$agent')));
   }
 
   @override
   void dispose() {
     _linkSub?.cancel();
+    _pushSub?.cancel();
     super.dispose();
   }
 

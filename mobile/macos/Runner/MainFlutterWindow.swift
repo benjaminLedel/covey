@@ -3,6 +3,7 @@ import ApplicationServices
 import Cocoa
 import CoreAudio
 import FlutterMacOS
+import UserNotifications
 
 class MainFlutterWindow: NSWindow {
   private var flow: FlowBridge?
@@ -11,6 +12,7 @@ class MainFlutterWindow: NSWindow {
   private let systemAudioHandler = SystemAudioHandler()
   private var camera: FlutterMethodChannel?
   private let cameraSheet = CameraSheet()
+  private var notices: LocalNotices?
 
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
@@ -63,6 +65,10 @@ class MainFlutterWindow: NSWindow {
       }
     }
 
+    // Notifications (#379): the Mac app runs anyway, so it shows local ones
+    // itself rather than through Apple's push service.
+    notices = LocalNotices(messenger: flutterViewController.engine.binaryMessenger)
+
     // The profile photo (#377): the Mac has no system camera screen to
     // borrow, so the app opens a small camera sheet of its own.
     camera = FlutterMethodChannel(name: "covey/camera", binaryMessenger: flutterViewController.engine.binaryMessenger)
@@ -73,6 +79,69 @@ class MainFlutterWindow: NSWindow {
     }
 
     super.awakeFromNib()
+  }
+}
+
+/// Local notifications on the Mac (#379): Dart says what is new, this
+/// shows it, and a click opens the thread.
+final class LocalNotices: NSObject, UNUserNotificationCenterDelegate {
+  private let channel: FlutterMethodChannel
+
+  init(messenger: FlutterBinaryMessenger) {
+    channel = FlutterMethodChannel(name: "covey/push", binaryMessenger: messenger)
+    super.init()
+    UNUserNotificationCenter.current().delegate = self
+    channel.setMethodCallHandler { [weak self] call, result in
+      self?.handle(call, result)
+    }
+  }
+
+  private func handle(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+    switch call.method {
+    case "authorize":
+      UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+        DispatchQueue.main.async { result(granted) }
+      }
+    case "notify":
+      let args = call.arguments as? [String: Any] ?? [:]
+      let content = UNMutableNotificationContent()
+      content.title = args["title"] as? String ?? ""
+      content.body = args["body"] as? String ?? ""
+      content.sound = .default
+      let agent = args["agent"] as? String ?? ""
+      content.threadIdentifier = agent
+      content.userInfo = ["agent_id": agent]
+      let request = UNNotificationRequest(identifier: args["id"] as? String ?? UUID().uuidString, content: content, trigger: nil)
+      UNUserNotificationCenter.current().add(request) { _ in }
+      result(nil)
+    case "badge":
+      let n = call.arguments as? Int ?? 0
+      NSApp.dockTile.badgeLabel = n > 0 ? "\(n)" : nil
+      result(nil)
+    case "launchAgent":
+      result(nil)
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+
+  func userNotificationCenter(
+    _ center: UNUserNotificationCenter, willPresent notification: UNNotification,
+    withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+  ) {
+    completionHandler([.banner, .list, .sound])
+  }
+
+  func userNotificationCenter(
+    _ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
+    withCompletionHandler completionHandler: @escaping () -> Void
+  ) {
+    if let agent = response.notification.request.content.userInfo["agent_id"] as? String {
+      NSApp.activate(ignoringOtherApps: true)
+      NSApp.windows.first { $0 is MainFlutterWindow }?.makeKeyAndOrderFront(nil)
+      channel.invokeMethod("open", arguments: agent)
+    }
+    completionHandler()
   }
 }
 

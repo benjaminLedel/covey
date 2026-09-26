@@ -8,6 +8,7 @@ import '../face.dart';
 import '../i18n.dart';
 import '../icons.dart';
 import '../models.dart';
+import '../push.dart';
 import '../theme.dart';
 import '../ui.dart';
 
@@ -67,6 +68,8 @@ class _TeamSpaceState extends State<TeamSpace> {
   Future<void> _loadThreads() async {
     try {
       final t = await widget.api.threads();
+      // The app icon carries the same number as the list (#379).
+      unawaited(PushNotices.instance.badge(t.values.fold<int>(0, (n, e) => n + e.unread)));
       if (mounted) setState(() => _threads = t);
     } catch (_) {
       // No badges rather than an error: the list itself is what matters.

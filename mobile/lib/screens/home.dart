@@ -11,6 +11,7 @@ import '../face.dart';
 import '../i18n.dart';
 import '../icons.dart';
 import '../photo.dart';
+import '../push.dart';
 import '../mark.dart';
 import '../models.dart';
 import '../theme.dart';
@@ -118,6 +119,8 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final me = await widget.api.me();
       if (mounted) setState(() => _me = me);
+      // Notifications need a conversation to be about (#379).
+      if (mounted && me.teamSurface) unawaited(PushNotices.instance.start(widget.api, Strings.of(context)));
     } catch (e) {
       if (mounted) setState(() => _meError = e);
     }
