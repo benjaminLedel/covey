@@ -2461,7 +2461,9 @@
     "hintergrundLeer": "Nic nie jest w toku.",
     "imGespraechSuchen": "Szukaj w rozmowie z {{name}}",
     "imGespraechLead": "Przeszukuje wiadomości, notatki, pytania i wyniki tej rozmowy.",
-    "sucheMarkieren": "wybierz osobę"
+    "sucheMarkieren": "wybierz osobę",
+    "ungelesen": "Nieprzeczytane wiadomości: {{count}}",
+    "ungelesen_one": "Jedna nieprzeczytana wiadomość"
   },
   "mobile": {
     "verbindenTitel": "Gdzie jest Państwa covey?",

@@ -2461,7 +2461,9 @@
     "hintergrundLeer": "Rien n'est en cours.",
     "imGespraechSuchen": "Chercher dans la conversation avec {{name}}",
     "imGespraechLead": "Cherche dans les messages, notes, questions et résultats de cette conversation.",
-    "sucheMarkieren": "choisir un collègue"
+    "sucheMarkieren": "choisir un collègue",
+    "ungelesen": "{{count}} messages non lus",
+    "ungelesen_one": "Un message non lu"
   },
   "mobile": {
     "verbindenTitel": "Où est votre covey ?",

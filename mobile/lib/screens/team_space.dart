@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../api.dart';
 import '../face.dart';
@@ -40,14 +43,39 @@ class _TeamSpaceState extends State<TeamSpace> {
   Object? _error;
   String _query = '';
 
+  /// What the person has not read, per agent (#378). Empty on an instance
+  /// that does not keep it.
+  Map<String, ThreadState> _threads = const {};
+  Timer? _poll;
+
   @override
   void initState() {
     super.initState();
     _load();
+    // New answers turn up without a pull; a thread just read drops its badge.
+    _poll = Timer.periodic(const Duration(seconds: 20), (_) => _loadThreads());
+    threadsRead.addListener(_loadThreads);
+  }
+
+  @override
+  void dispose() {
+    _poll?.cancel();
+    threadsRead.removeListener(_loadThreads);
+    super.dispose();
+  }
+
+  Future<void> _loadThreads() async {
+    try {
+      final t = await widget.api.threads();
+      if (mounted) setState(() => _threads = t);
+    } catch (_) {
+      // No badges rather than an error: the list itself is what matters.
+    }
   }
 
   Future<void> _load() async {
     try {
+      unawaited(_loadThreads());
       final r = await Future.wait([widget.api.waiting(), widget.api.agents(), widget.api.departments()]);
       if (!mounted) return;
       setState(() {
@@ -105,8 +133,16 @@ class _TeamSpaceState extends State<TeamSpace> {
     final waiting = data.waiting.items
         .where((e) => q.isEmpty || e.agentName.toLowerCase().contains(q) || e.title.toLowerCase().contains(q))
         .toList();
+    // Who has something unread comes first, the newest on top; then the
+    // rest by name.
+    int unread(Agent a) => _threads[a.id]?.unread ?? 0;
     final colleagues = data.agents.where((a) => !a.isApplicant && matches(a)).toList()
-      ..sort((a, b) => a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()));
+      ..sort((a, b) {
+        final ua = unread(a) > 0, ub = unread(b) > 0;
+        if (ua != ub) return ua ? -1 : 1;
+        if (ua) return _threads[b.id]!.lastAt?.compareTo(_threads[a.id]!.lastAt ?? DateTime(0)) ?? 0;
+        return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
+      });
     final known = {for (final d in data.departments) d.id};
     final groups = [
       for (final d in data.departments)
@@ -146,16 +182,9 @@ class _TeamSpaceState extends State<TeamSpace> {
           child: InsetGroup(
             children: [
               for (final a in g.members)
-                GroupRow(
-                  leading: Face(
-                    slug: a.slug,
-                    state: faceStateOf(killed: a.killed, status: a.status),
-                    size: 36,
-                  ),
-                  title: a.displayName,
-                  subtitle: a.jobTitle.isEmpty ? a.slug : a.jobTitle,
-                  // The state in words, not in a colour alone (spec/27).
-                  trailing: Text(context.t('status.${a.killed ? 'killed' : a.status}'), style: context.type.labelSmall),
+                _AgentRow(
+                  agent: a,
+                  thread: _threads[a.id],
                   onTap: !open
                       ? null
                       : () =>
@@ -209,6 +238,136 @@ class _WaitCard extends StatelessWidget {
                   ),
                 ),
                 if (onTap != null) Icon(AppIcons.chevron.of(context), color: c.textMuted),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A colleague in the list. With unread entries (#378) the row says so three
+/// ways — the name in bold, the newest line as its subtitle with its time,
+/// and a count — so that it does not rest on colour alone (spec/27).
+class _AgentRow extends StatelessWidget {
+  const _AgentRow({required this.agent, required this.thread, required this.onTap});
+
+  final Agent agent;
+  final ThreadState? thread;
+  final VoidCallback? onTap;
+
+  String _when(BuildContext context, DateTime at) {
+    final lang = Strings.of(context).language;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    if (!at.isBefore(today)) return DateFormat.Hm(lang).format(at);
+    if (!at.isBefore(today.subtract(const Duration(days: 6)))) return DateFormat.E(lang).format(at);
+    return DateFormat.MMMd(lang).format(at);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final a = agent;
+    final n = thread?.unread ?? 0;
+    final state = faceStateOf(killed: a.killed, status: a.status);
+    // The state in words, not in a colour alone (spec/27).
+    final status = Text(context.t('status.${a.killed ? 'killed' : a.status}'), style: context.type.labelSmall);
+    if (n == 0) {
+      return GroupRow(
+        leading: Face(slug: a.slug, state: state, size: 36),
+        title: a.displayName,
+        subtitle: a.jobTitle.isEmpty ? a.slug : a.jobTitle,
+        trailing: status,
+        onTap: onTap,
+      );
+    }
+    final t = thread!;
+    final line = t.lastText.isEmpty ? (a.jobTitle.isEmpty ? a.slug : a.jobTitle) : t.lastText;
+    return Semantics(
+      label: context.t('team.ungelesen', count: n),
+      child: InkWell(
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 62),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 36,
+                  child: Center(
+                    child: Face(slug: a.slug, state: state, size: 36),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              a.displayName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: context.type.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                          if (t.lastAt != null)
+                            Text(
+                              _when(context, t.lastAt!),
+                              style: context.type.labelSmall?.copyWith(
+                                color: c.textAccent,
+                                fontFeatures: const [FontFeature.tabularFigures()],
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              line,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: context.type.bodyMedium?.copyWith(color: c.textPrimary),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Container(
+                                constraints: const BoxConstraints(minWidth: 22),
+                                height: 22,
+                                padding: const EdgeInsets.symmetric(horizontal: 7),
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: c.textPrimary,
+                                  borderRadius: BorderRadius.circular(11),
+                                ),
+                                child: Text(
+                                  n > 99 ? '99+' : '$n',
+                                  style: context.type.labelMedium?.copyWith(
+                                    color: c.surface2,
+                                    fontFeatures: const [FontFeature.tabularFigures()],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              status,
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),

@@ -2461,7 +2461,9 @@
     "hintergrundLeer": "Nichts läuft gerade.",
     "imGespraechSuchen": "Im Gespräch mit {{name}} suchen",
     "imGespraechLead": "Durchsucht Nachrichten, Notizen, Fragen und Ergebnisse dieses Gesprächs.",
-    "sucheMarkieren": "Kollegen markieren"
+    "sucheMarkieren": "Kollegen markieren",
+    "ungelesen": "{{count}} ungelesene Nachrichten",
+    "ungelesen_one": "Eine ungelesene Nachricht"
   },
   "mobile": {
     "verbindenTitel": "Wo ist Ihr covey?",

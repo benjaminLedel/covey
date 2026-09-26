@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 // The shapes the app reads, as the instance writes them. Only the fields the
 // app shows are read; everything else in the JSON is ignored, so a newer
 // instance with more fields does not break an older app.
@@ -184,6 +186,30 @@ class ThreadEntry {
   /// A question the agent is parked on — the one line a reply goes to.
   bool get isOpenQuestion => kind == 'question' && taskState == 'blocked' && taskId != null;
 }
+
+/// One agent's thread as the list shows it (#378): how much the person has
+/// not read, and the newest entry from the agent's side.
+class ThreadState {
+  ThreadState({required this.agentId, required this.unread, this.lastAt, this.lastText = '', this.lastKind = ''});
+
+  factory ThreadState.fromJson(Map<String, dynamic> j) => ThreadState(
+    agentId: j['agent_id'] as String,
+    unread: (j['unread'] as num?)?.toInt() ?? 0,
+    lastAt: _time(j['last_at']),
+    lastText: j['last_text'] as String? ?? '',
+    lastKind: j['last_kind'] as String? ?? '',
+  );
+
+  final String agentId;
+  final int unread;
+  final DateTime? lastAt;
+  final String lastText;
+  final String lastKind;
+}
+
+/// Told when a thread has been read, so the list drops its badge at once
+/// instead of at its next look.
+final threadsRead = ValueNotifier<int>(0);
 
 class Thread {
   Thread({required this.entries, required this.pending});

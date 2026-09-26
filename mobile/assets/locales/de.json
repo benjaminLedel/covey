@@ -255,6 +255,8 @@
   "team.nichtsGefunden": "Nichts gefunden.",
   "team.ohneAbteilung": "Ohne Abteilung",
   "team.suche": "Kollegen suchen",
+  "team.ungelesen": "{{count}} ungelesene Nachrichten",
+  "team.ungelesen_one": "Eine ungelesene Nachricht",
   "team.wartet": "Wartet auf Sie",
   "team.wartetLead": "{{count}} Punkte warten auf eine Entscheidung.",
   "team.wartetLead_one": "Ein Punkt wartet auf eine Entscheidung.",

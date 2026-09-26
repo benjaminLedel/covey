@@ -2461,7 +2461,9 @@
     "hintergrundLeer": "Nothing is running.",
     "imGespraechSuchen": "Search the conversation with {{name}}",
     "imGespraechLead": "Searches the messages, notes, questions and results of this conversation.",
-    "sucheMarkieren": "pick a colleague"
+    "sucheMarkieren": "pick a colleague",
+    "ungelesen": "{{count}} unread messages",
+    "ungelesen_one": "One unread message"
   },
   "mobile": {
     "verbindenTitel": "Where is your covey?",

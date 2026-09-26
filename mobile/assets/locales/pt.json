@@ -255,6 +255,8 @@
   "team.nichtsGefunden": "Nada encontrado.",
   "team.ohneAbteilung": "Sem departamento",
   "team.suche": "Procurar colegas",
+  "team.ungelesen": "{{count}} mensagens não lidas",
+  "team.ungelesen_one": "Uma mensagem não lida",
   "team.wartet": "À sua espera",
   "team.wartetLead": "{{count}} pontos aguardam uma decisão.",
   "team.wartetLead_one": "Um ponto aguarda uma decisão.",

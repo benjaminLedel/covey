@@ -2461,7 +2461,9 @@
     "hintergrundLeer": "Nada em curso.",
     "imGespraechSuchen": "Procurar na conversa com {{name}}",
     "imGespraechLead": "Procura nas mensagens, notas, perguntas e resultados desta conversa.",
-    "sucheMarkieren": "escolher colega"
+    "sucheMarkieren": "escolher colega",
+    "ungelesen": "{{count}} mensagens não lidas",
+    "ungelesen_one": "Uma mensagem não lida"
   },
   "mobile": {
     "verbindenTitel": "Onde está o seu covey?",

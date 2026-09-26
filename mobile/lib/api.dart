@@ -155,6 +155,20 @@ class CoveyApi {
   Future<Thread> thread(String agentId) async =>
       Thread.fromJson(await get('/agents/$agentId/thread') as Map<String, dynamic>);
 
+  /// Per agent, what the person has not read yet (#378). An instance older
+  /// than that answers 404, and the list simply shows no badges.
+  Future<Map<String, ThreadState>> threads() async {
+    final out = await get('/me/threads') as Map<String, dynamic>;
+    return {
+      for (final t in (out['threads'] as List? ?? const []))
+        (t as Map<String, dynamic>)['agent_id'] as String: ThreadState.fromJson(t),
+    };
+  }
+
+  /// The thread has been read up to [at], the newest entry shown.
+  Future<void> markThreadRead(String agentId, DateTime at) =>
+      post('/agents/$agentId/thread/read', {'at': at.toUtc().toIso8601String()});
+
   /// Hands work over. What becomes of it — a task, or an answer when the
   /// organisation runs the triage — the thread shows on its next read.
   Future<void> send(String agentId, String text) => post('/agents/$agentId/messages', {'text': text});

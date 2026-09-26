@@ -255,6 +255,8 @@
   "team.nichtsGefunden": "Nothing found.",
   "team.ohneAbteilung": "No department",
   "team.suche": "Search colleagues",
+  "team.ungelesen": "{{count}} unread messages",
+  "team.ungelesen_one": "One unread message",
   "team.wartet": "Waiting for you",
   "team.wartetLead": "{{count}} points are waiting for a decision.",
   "team.wartetLead_one": "One point is waiting for a decision.",

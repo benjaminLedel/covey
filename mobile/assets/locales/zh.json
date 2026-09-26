@@ -255,6 +255,8 @@
   "team.nichtsGefunden": "没有找到。",
   "team.ohneAbteilung": "无部门",
   "team.suche": "搜索同事",
+  "team.ungelesen": "{{count}} 条未读消息",
+  "team.ungelesen_one": "{{count}} 条未读消息",
   "team.wartet": "等着您",
   "team.wartetLead": "有 {{count}} 项等待决定。",
   "team.wartetLead_one": "有 {{count}} 项等待决定。",

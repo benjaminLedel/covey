@@ -255,6 +255,8 @@
   "team.nichtsGefunden": "Niets gevonden.",
   "team.ohneAbteilung": "Zonder afdeling",
   "team.suche": "Collega's zoeken",
+  "team.ungelesen": "{{count}} ongelezen berichten",
+  "team.ungelesen_one": "Eén ongelezen bericht",
   "team.wartet": "Wacht op u",
   "team.wartetLead": "{{count}} punten wachten op een beslissing.",
   "team.wartetLead_one": "Eén punt wacht op een beslissing.",

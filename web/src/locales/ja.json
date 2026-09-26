@@ -2461,7 +2461,9 @@
     "hintergrundLeer": "進行中のものはありません。",
     "imGespraechSuchen": "{{name}} との会話を検索",
     "imGespraechLead": "この会話のメッセージ、メモ、質問、結果を検索します。",
-    "sucheMarkieren": "相手を選ぶ"
+    "sucheMarkieren": "相手を選ぶ",
+    "ungelesen": "未読メッセージ {{count}} 件",
+    "ungelesen_one": "未読メッセージ {{count}} 件"
   },
   "mobile": {
     "verbindenTitel": "あなたの covey はどこですか？",

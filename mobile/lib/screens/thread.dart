@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import '../chrome.dart';
 import '../api.dart';
+import '../diagnostics.dart';
 import '../face.dart';
 import '../i18n.dart';
 import '../icons.dart';
@@ -79,6 +80,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
     try {
       final th = await widget.api.thread(widget.agentId);
       if (!mounted) return;
+      _markRead(th);
       setState(() {
         _thread = th;
         _error = null;
@@ -90,6 +92,22 @@ class _ThreadScreenState extends State<ThreadScreen> {
     } catch (e) {
       if (mounted) setState(() => _error = e);
     }
+  }
+
+  DateTime? _readUpTo;
+
+  /// What is on the screen has been read (#378): up to the newest entry
+  /// shown, not up to now — an answer arriving meanwhile stays unread.
+  void _markRead(Thread th) {
+    final newest = th.entries
+        .map((e) => e.at)
+        .nonNulls
+        .fold<DateTime?>(null, (a, b) => a == null || b.isAfter(a) ? b : a);
+    if (newest == null || (_readUpTo != null && !newest.isAfter(_readUpTo!))) return;
+    _readUpTo = newest;
+    widget.api.markThreadRead(widget.agentId, newest).then((_) => threadsRead.value++).catchError((Object e) {
+      diag('thread', 'not marked read: $e');
+    });
   }
 
   /// Picks photos, videos or files to go with the next message (#340).

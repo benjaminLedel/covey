@@ -255,6 +255,8 @@
   "team.nichtsGefunden": "Nic nie znaleziono.",
   "team.ohneAbteilung": "Bez działu",
   "team.suche": "Szukaj kolegów",
+  "team.ungelesen": "Nieprzeczytane wiadomości: {{count}}",
+  "team.ungelesen_one": "Jedna nieprzeczytana wiadomość",
   "team.wartet": "Czeka na Państwa",
   "team.wartetLead": "{{count}} punktów czeka na decyzję.",
   "team.wartetLead_one": "Jeden punkt czeka na decyzję.",
