@@ -21,21 +21,6 @@ import '../theme.dart';
 import '../ui.dart';
 import 'notes.dart' show NotePage, dictationFailure;
 
-/// The languages whisper is offered in here: the app's ten, by their own
-/// names — somebody looking for their language finds it in that language.
-const speechLanguages = <String, String>{
-  'de': 'Deutsch',
-  'en': 'English',
-  'es': 'Español',
-  'fr': 'Français',
-  'it': 'Italiano',
-  'nl': 'Nederlands',
-  'pl': 'Polski',
-  'pt': 'Português',
-  'ja': '日本語',
-  'zh': '中文',
-};
-
 /// Settings (#349): who is signed in where, the speech model on this
 /// device and the language it listens for, a place to try dictation, and
 /// the way out. Reached from the person's initials.
@@ -103,9 +88,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await _measureLog();
   }
 
-  /// "Whisper small", "Parakeet": the engine's name, and the size where the
-  /// engine has several.
-  String _modelName(SpeechModelInfo m) => m.engine == 'parakeet' ? 'Parakeet' : 'Whisper ${m.name}';
+  /// The model as people know it.
+  String _modelName(SpeechModelInfo m) => switch (m.engine) {
+    'parakeet' => 'Parakeet',
+    'sensevoice' => 'SenseVoice',
+    _ => m.name,
+  };
 
   String _mb(int bytes) => '${(bytes / 1000000).round()} MB';
 
@@ -128,7 +116,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _pickModel() async {
     final i = _model.info;
     if (i == null || i.models.isEmpty) return;
-    final current = _model.chosen ?? i.defaultName;
+    // The model in use — chosen, or picked for the app's language.
+    final current = i.name;
     String label(SpeechModelInfo m) {
       final name = '${_modelName(m)} · ${_mb(m.size)}';
       return m.name == i.defaultName ? '$name (${context.t('mobile.vorgabe')})' : name;
@@ -194,59 +183,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // Fetched now, not at the next dictation: that is what somebody who
     // just picked a model expects to see happen.
     unawaited(_model.ensure(widget.api).then((_) => _model.refresh(widget.api)));
-  }
-
-  Future<void> _pickLanguage() async {
-    final auto = context.t('mobile.wieDieApp');
-    final options = <String?, String>{null: auto, ...speechLanguages};
-    String? picked;
-    var chose = false;
-    if (isApple(context)) {
-      await showCupertinoModalPopup<void>(
-        context: context,
-        builder: (context) => CupertinoActionSheet(
-          title: Text(context.t('mobile.erkannteSprache')),
-          actions: [
-            for (final e in options.entries)
-              CupertinoActionSheetAction(
-                isDefaultAction: e.key == _model.language,
-                onPressed: () {
-                  picked = e.key;
-                  chose = true;
-                  Navigator.pop(context);
-                },
-                child: Text(e.value),
-              ),
-          ],
-          cancelButton: CupertinoActionSheetAction(
-            onPressed: () => Navigator.pop(context),
-            child: Text(context.t('team.abbrechen')),
-          ),
-        ),
-      );
-    } else {
-      await showModalBottomSheet<void>(
-        context: context,
-        builder: (context) => SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              for (final e in options.entries)
-                ListTile(
-                  title: Text(e.value),
-                  trailing: e.key == _model.language ? const Icon(Icons.check_rounded) : null,
-                  onTap: () {
-                    picked = e.key;
-                    chose = true;
-                    Navigator.pop(context);
-                  },
-                ),
-            ],
-          ),
-        ),
-      );
-    }
-    if (chose) await _model.setLanguage(picked);
   }
 
   Future<void> _disconnect() async {
@@ -455,10 +391,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final c = context.colors;
     final me = widget.me;
-    final lang = _model.language;
-    final langLabel = lang == null
-        ? '${context.t('mobile.wieDieApp')} · ${speechLanguages[Strings.of(context).language] ?? ''}'
-        : speechLanguages[lang] ?? lang;
     final small = context.type.bodySmall?.copyWith(color: c.textMuted);
     return Scaffold(
       appBar: ChromeAppBar(title: Text(context.t('mobile.einstellungen'))),
@@ -510,12 +442,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         onPressed: () => _model.ensure(widget.api),
                         child: Text(context.t('mobile.modellLaden')),
                       ),
-              ),
-              GroupRow(
-                title: context.t('mobile.erkannteSprache'),
-                subtitle: langLabel,
-                trailing: Icon(AppIcons.chevron.of(context), color: c.textMuted, size: 18),
-                onTap: _pickLanguage,
               ),
               GroupRow(
                 title: context.t('mobile.diktatTesten'),
@@ -593,7 +519,7 @@ String _initials(String name) =>
     name.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).take(2).map((p) => p[0].toUpperCase()).join();
 
 /// Dictation to try, and nothing is saved: the waveform shows whether the
-/// microphone delivers sound, the text what whisper makes of it. Where a
+/// microphone delivers sound, the text what the model makes of it. Where a
 /// dictation in a note fails, this is where to find out why.
 class DictationTestScreen extends StatefulWidget {
   const DictationTestScreen({super.key, required this.api, this.dictation});
@@ -631,7 +557,6 @@ class _DictationTestScreenState extends State<DictationTestScreen> {
       await _d.stop();
       return;
     }
-    _d.language = SpeechModel.instance.language ?? Strings.of(context).language;
     await _d.start();
   }
 

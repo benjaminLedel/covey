@@ -322,7 +322,7 @@ class SpeechModelInfo {
     this.error,
     this.defaultName = '',
     this.models = const [],
-    this.engine = 'whisper',
+    this.engine = 'parakeet',
     this.credit,
     this.files = const [],
     this.clean = false,
@@ -342,7 +342,7 @@ class SpeechModelInfo {
       for (final m in (j['models'] as List<dynamic>? ?? const [])) SpeechModelInfo.fromJson(m as Map<String, dynamic>),
     ],
     clean: j['clean'] == true,
-    engine: j['engine'] as String? ?? 'whisper',
+    engine: j['engine'] as String? ?? 'parakeet',
     credit: j['credit'] as String?,
     files: [
       for (final f in (j['files'] as List<dynamic>? ?? const []))
@@ -369,8 +369,8 @@ class SpeechModelInfo {
   final String defaultName;
   final List<SpeechModelInfo> models;
 
-  /// Which recogniser runs it: `whisper` (whisper.cpp) or `parakeet`
-  /// (sherpa-onnx, #353).
+  /// Which model family it is: `parakeet` or `sensevoice`, both run by
+  /// sherpa-onnx (#366).
   final String engine;
 
   /// The attribution the model's licence asks for.

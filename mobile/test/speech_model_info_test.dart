@@ -17,7 +17,7 @@ void main() {
         {'name': 'tokens.txt', 'sha256': 'ef' * 32, 'size': 10},
       ],
       'models': [
-        {'name': 'base', 'engine': 'whisper', 'size': 5, 'files': []},
+        {'name': 'sensevoice', 'engine': 'sensevoice', 'size': 5, 'files': []},
         {'name': 'parakeet', 'engine': 'parakeet', 'size': 30, 'files': []},
       ],
     });
@@ -26,12 +26,12 @@ void main() {
     expect([for (final f in i.files) f.name], ['encoder.int8.onnx', 'tokens.txt']);
     expect(i.files.first.size, 20);
     expect(i.defaultName, 'base');
-    expect([for (final m in i.models) m.engine], ['whisper', 'parakeet']);
+    expect([for (final m in i.models) m.engine], ['sensevoice', 'parakeet']);
   });
 
-  test('an instance from before #353 reads as a whisper model without files', () {
-    final i = SpeechModelInfo.fromJson({'enabled': true, 'name': 'base', 'sha256': 'ab' * 32, 'size': 5});
-    expect(i.engine, 'whisper');
+  test('a model without an engine reads as Parakeet, and without files as nothing to fetch', () {
+    final i = SpeechModelInfo.fromJson({'enabled': true, 'name': 'x', 'sha256': 'ab' * 32, 'size': 5});
+    expect(i.engine, 'parakeet');
     expect(i.files, isEmpty);
   });
 }

@@ -23,10 +23,10 @@ enum SpeechModelProblem {
   failed,
 }
 
-/// The Whisper model on the phone (#348, #351). It comes from the covey
+/// The speech model on the device (#348, #351, #366). It comes from the covey
 /// instance, once, and is kept under the app's support directory by its
 /// digest. What was downloaded is verified against the digest the instance
-/// names before whisper.cpp ever opens it.
+/// names before the recogniser ever opens it.
 ///
 /// The instance may offer several models; which one is used is the person's
 /// choice ([chosen], null: the instance's default). Only the one in use is
@@ -64,16 +64,16 @@ class SpeechModel extends ChangeNotifier {
   /// The model picked in settings; null follows the instance's default.
   String? chosen;
 
-  /// The language whisper listens for; null follows the app's language.
-  String? language;
+  /// The app's language (#366): Parakeet covers the European ones; with the
+  /// app in Chinese, Japanese or Korean and no model chosen, SenseVoice.
+  String appLanguage = 'en';
+  static const _asian = {'zh', 'ja', 'ko'};
 
-  static const _languageKey = 'speech.language';
   static const _modelKey = 'speech.model';
   final _prefs = Prefs.instance;
 
   Future<void> loadPrefs() async {
     try {
-      language = await _prefs.read(_languageKey);
       chosen = await _prefs.read(_modelKey);
     } catch (_) {
       // Unreadable: the defaults.
@@ -91,12 +91,6 @@ class SpeechModel extends ChangeNotifier {
     } catch (_) {
       // Kept for this run.
     }
-  }
-
-  Future<void> setLanguage(String? lang) async {
-    language = lang;
-    notifyListeners();
-    await _save(_languageKey, lang);
   }
 
   /// Picks a model; the next [ensure] fetches it.
@@ -132,7 +126,7 @@ class SpeechModel extends ChangeNotifier {
   /// The model in use, as the instance describes it. A chosen model the
   /// instance no longer offers falls back to its default.
   Future<SpeechModelInfo> _ask(CoveyApi api) async {
-    final name = chosen;
+    final name = chosen ?? (_asian.contains(appLanguage) ? 'sensevoice' : null);
     if (name == null) return api.speechModel();
     try {
       return await api.speechModel(name: name);
@@ -287,15 +281,8 @@ class SpeechModel extends ChangeNotifier {
     }
   }
 
-  /// The model's file for an engine that takes a single one (whisper.cpp).
-  String? get singleFile {
-    final p = _path;
-    final files = info?.files ?? const [];
-    return p == null || files.isEmpty ? null : '$p/${files.first.name}';
-  }
-
   /// Which recogniser the model in use is for.
-  String get engine => info?.engine ?? 'whisper';
+  String get engine => info?.engine ?? 'parakeet';
 
   String? _fail(SpeechModelProblem p, String? d) {
     diag('speech', 'model not available: ${p.name}${d == null ? '' : ' · $d'}');

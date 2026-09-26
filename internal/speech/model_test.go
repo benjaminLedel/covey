@@ -17,7 +17,7 @@ func fakeModel(t *testing.T, data []byte) (Model, *httptest.Server) {
 		_, _ = w.Write(data)
 	}))
 	t.Cleanup(srv.Close)
-	return Model{Name: "test", Engine: "whisper", Files: []File{{Name: "model.bin", URL: srv.URL, SHA256: hex.EncodeToString(sum[:]), Size: int64(len(data))}}}, srv
+	return Model{Name: "test", Engine: "parakeet", Files: []File{{Name: "model.bin", URL: srv.URL, SHA256: hex.EncodeToString(sum[:]), Size: int64(len(data))}}}, srv
 }
 
 func wait(t *testing.T, s *Store) (bool, error) {
@@ -35,20 +35,20 @@ func wait(t *testing.T, s *Store) (bool, error) {
 }
 
 func TestFetchesVerifiesAndKeepsTheModel(t *testing.T) {
-	m, _ := fakeModel(t, []byte("whisper weights"))
+	m, _ := fakeModel(t, []byte("model weights"))
 	s := &Store{Model: m, Dir: t.TempDir()}
 	s.Ensure()
 	if ready, err := wait(t, s); !ready {
 		t.Fatalf("not ready: %v", err)
 	}
 	got, err := os.ReadFile(s.Path("model.bin"))
-	if err != nil || string(got) != "whisper weights" {
+	if err != nil || string(got) != "model weights" {
 		t.Fatalf("file = %q, %v", got, err)
 	}
 }
 
 func TestAWrongDigestIsNeverKept(t *testing.T) {
-	m, _ := fakeModel(t, []byte("whisper weights"))
+	m, _ := fakeModel(t, []byte("model weights"))
 	m.Files[0].SHA256 = "00" + m.Files[0].SHA256[2:]
 	s := &Store{Model: m, Dir: t.TempDir()}
 	s.Ensure()
@@ -61,7 +61,7 @@ func TestAWrongDigestIsNeverKept(t *testing.T) {
 }
 
 func TestAPlacedFileIsVerifiedNotTrusted(t *testing.T) {
-	m, _ := fakeModel(t, []byte("whisper weights"))
+	m, _ := fakeModel(t, []byte("model weights"))
 	m.Files[0].URL = "http://127.0.0.1:1/unreachable"
 	dir := t.TempDir()
 	s := &Store{Model: m, Dir: dir}
@@ -75,7 +75,7 @@ func TestAPlacedFileIsVerifiedNotTrusted(t *testing.T) {
 
 	// The right file, placed by an operator, needs no network.
 	s = &Store{Model: m, Dir: dir}
-	if err := os.WriteFile(s.Path("model.bin"), []byte("whisper weights"), 0o644); err != nil {
+	if err := os.WriteFile(s.Path("model.bin"), []byte("model weights"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	s.Ensure()
@@ -88,10 +88,10 @@ func TestOffAndUnknownModels(t *testing.T) {
 	if s, err := New("off", t.TempDir(), nil); s != nil || err != nil {
 		t.Fatalf("off: %v %v", s, err)
 	}
-	if _, err := New("huge", t.TempDir(), nil); err == nil {
+	if _, err := New("base", t.TempDir(), nil); err == nil {
 		t.Fatal("unknown model accepted")
 	}
-	if s, err := New("base", "/data", nil); err != nil || s.Path("ggml-base.bin") != "/data/models/base/ggml-base.bin" {
+	if s, err := New("parakeet", "/data", nil); err != nil || s.Path("tokens.txt") != "/data/models/parakeet/tokens.txt" {
 		t.Fatalf("base: %v %v", s, err)
 	}
 }
@@ -124,19 +124,5 @@ func TestAModelOfSeveralFilesIsFetchedFileByFile(t *testing.T) {
 	}
 	if d := m.Digest(); d == m.Files[0].SHA256 || len(d) != 64 {
 		t.Fatalf("digest of several files = %q", d)
-	}
-}
-
-func TestAWhisperModelFromBeforeItsOwnDirectoryIsKept(t *testing.T) {
-	m, _ := fakeModel(t, []byte("whisper weights"))
-	m.Files[0].URL = "http://127.0.0.1:1/unreachable"
-	data := t.TempDir()
-	if err := os.WriteFile(data+"/model.bin", []byte("whisper weights"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	s := &Store{Model: m, Dir: data + "/test"}
-	s.Ensure()
-	if ready, err := wait(t, s); !ready {
-		t.Fatalf("legacy file not taken over: %v", err)
 	}
 }

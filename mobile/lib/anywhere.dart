@@ -10,7 +10,6 @@ import 'package:hotkey_manager/hotkey_manager.dart';
 import 'api.dart';
 import 'diagnostics.dart';
 import 'dictation.dart';
-import 'speech_model.dart';
 import 'prefs.dart';
 
 /// Dictate anywhere (#355): a global shortcut on the Mac starts dictation in
@@ -301,7 +300,6 @@ class DictateAnywhere extends ChangeNotifier {
     diag('flow', 'start');
     await _channel.invokeMethod<void>('show');
     _push(force: true);
-    d.language = SpeechModel.instance.language ?? d.language;
     final starting = d.start();
     _starting = starting;
     final ok = await starting;

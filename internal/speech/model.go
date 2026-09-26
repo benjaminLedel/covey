@@ -37,7 +37,7 @@ type File struct {
 // on the phone, and its files.
 type Model struct {
 	Name   string
-	Engine string // "whisper" (whisper.cpp) or "parakeet" (sherpa-onnx)
+	Engine string // "parakeet" or "sensevoice", both sherpa-onnx on the device
 	// Credit is the attribution the model's licence asks for, shown with it.
 	Credit string
 	Files  []File
@@ -76,42 +76,46 @@ func (m Model) File(name string) (File, bool) {
 	return File{}, false
 }
 
-// Models are the models the instance can offer, pinned by digest.
+// Models are the models the instance can offer, pinned by digest, both
+// run on the device through sherpa-onnx (#366):
 //
-// Whisper: the multilingual ggml models of whisper.cpp — covey is used in
-// more languages than English. Parakeet: NVIDIA's Parakeet TDT 0.6B v3 in
-// sherpa-onnx's int8 export, 25 European languages (#353).
+// Parakeet: NVIDIA's Parakeet TDT 0.6B v3, int8, 25 European languages
+// (#353). SenseVoice: FunASR's SenseVoice Small, int8, Chinese, Cantonese,
+// Japanese, Korean and English. Both detect the language themselves.
+// Whisper was offered before (#348) and left: Parakeet recognised better and
+// faster, and whisper.cpp could not run twice at once.
 var Models = map[string]Model{
-	"tiny":   whisper("tiny", "be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21", 77691713),
-	"base":   whisper("base", "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe", 147951465),
-	"small":  whisper("small", "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b", 487601967),
-	"medium": whisper("medium", "6c14d5adee5f86394037b4e4e8b59f1673b6cee10e3cf0b11bbdbee79c156208", 1533763059),
 	"parakeet": {
 		Name:   "parakeet",
 		Engine: "parakeet",
 		Credit: "NVIDIA Parakeet TDT 0.6B v3 · CC-BY-4.0",
 		Files: []File{
-			parakeet("encoder.int8.onnx", "acfc2b4456377e15d04f0243af540b7fe7c992f8d898d751cf134c3a55fd2247", 652184281),
-			parakeet("decoder.int8.onnx", "179e50c43d1a9de79c8a24149a2f9bac6eb5981823f2a2ed88d655b24248db4e", 11845275),
-			parakeet("joiner.int8.onnx", "3164c13fc2821009440d20fcb5fdc78bff28b4db2f8d0f0b329101719c0948b3", 6355277),
-			parakeet("tokens.txt", "d58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d", 93939),
+			hf(parakeetRepo, "encoder.int8.onnx", "acfc2b4456377e15d04f0243af540b7fe7c992f8d898d751cf134c3a55fd2247", 652184281),
+			hf(parakeetRepo, "decoder.int8.onnx", "179e50c43d1a9de79c8a24149a2f9bac6eb5981823f2a2ed88d655b24248db4e", 11845275),
+			hf(parakeetRepo, "joiner.int8.onnx", "3164c13fc2821009440d20fcb5fdc78bff28b4db2f8d0f0b329101719c0948b3", 6355277),
+			hf(parakeetRepo, "tokens.txt", "d58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d", 93939),
+		},
+	},
+	"sensevoice": {
+		Name:   "sensevoice",
+		Engine: "sensevoice",
+		Credit: "SenseVoice Small · FunASR (Alibaba) · FunASR Model License",
+		Files: []File{
+			hf(senseVoiceRepo, "model.int8.onnx", "c71f0ce00bec95b07744e116345e33d8cbbe08cef896382cf907bf4b51a2cd51", 239233841),
+			hf(senseVoiceRepo, "tokens.txt", "f449eb28dc567533d7fa59be34e2abca8784f771850c78a47fb731a31429a1dc", 315894),
 		},
 	},
 }
 
-func whisper(name, sum string, size int64) Model {
-	return Model{Name: name, Engine: "whisper", Files: []File{{
-		Name:   "ggml-" + name + ".bin",
-		URL:    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-" + name + ".bin",
-		SHA256: sum,
-		Size:   size,
-	}}}
-}
+const (
+	parakeetRepo   = "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8"
+	senseVoiceRepo = "csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17"
+)
 
-func parakeet(name, sum string, size int64) File {
+func hf(repo, name, sum string, size int64) File {
 	return File{
 		Name:   name,
-		URL:    "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/main/" + name,
+		URL:    "https://huggingface.co/" + repo + "/resolve/main/" + name,
 		SHA256: sum,
 		Size:   size,
 	}
@@ -142,7 +146,7 @@ func New(name, dataDir string, log *slog.Logger) (*Store, error) {
 	}
 	m, ok := Models[name]
 	if !ok {
-		return nil, fmt.Errorf("unknown speech model %q (tiny, base, small, medium, parakeet or off)", name)
+		return nil, fmt.Errorf("unknown speech model %q (parakeet, sensevoice or off)", name)
 	}
 	return &Store{Model: m, Dir: filepath.Join(dataDir, "models", name), Log: log}, nil
 }
@@ -192,14 +196,6 @@ func (s *Store) prepare(ctx context.Context) error {
 	s.received.Store(0)
 	for _, f := range s.Model.Files {
 		path := s.Path(f.Name)
-		// Before #353 a Whisper model lay directly in models/: moved into its
-		// own directory rather than fetched again.
-		legacy := filepath.Join(filepath.Dir(s.Dir), f.Name)
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			if _, err := os.Stat(legacy); err == nil {
-				_ = os.Rename(legacy, path)
-			}
-		}
 		if _, err := os.Stat(path); err == nil {
 			// Put there by a previous fetch or by an operator: verified before
 			// it is trusted, and removed if it is not what the pin says.

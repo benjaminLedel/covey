@@ -45,14 +45,12 @@ Only for an installation that ships the covey app under its own host — app.cov
 
 ## Speech model
 
-The app's dictation and meeting notes run on whisper.cpp on the phone; the model comes from the instance. At startup covey fetches it once from a pinned address (Hugging Face, `ggerganov/whisper.cpp`), verifies it against a pinned SHA-256 and keeps it under `COVEY_DATA_DIR/models`. Apps download it from `/api/v1/speech/model/file` the first time somebody dictates.
+The app's dictation and meeting notes are recognised on the device with sherpa-onnx; the model comes from the instance. At startup covey fetches the default model once from pinned addresses on Hugging Face, verifies every file against a pinned SHA-256 and keeps it under `COVEY_DATA_DIR/models/<name>/`. Apps download it from `/api/v1/speech/model/file` the first time somebody dictates.
 
-- `COVEY_SPEECH_MODEL` — the default: `tiny` (78 MB), `base` (148 MB, the default), `small` (488 MB), `medium` (1.5 GB) or `off`
-- `COVEY_SPEECH_MODELS` — the further models a person may pick in the app's settings, comma-separated; default `tiny,base,small,parakeet`. Each is fetched the first time somebody picks it. `medium` recognises best among the Whisper models but is slow on a phone's CPU. `parakeet` is NVIDIA's Parakeet TDT 0.6B v3 (670 MB, CC-BY-4.0): 25 European languages, recognised by the model itself, run on the phone through sherpa-onnx.
+- `COVEY_SPEECH_MODEL` — the default: `parakeet` (NVIDIA Parakeet TDT 0.6B v3, 670 MB, CC-BY-4.0: 25 European languages), `sensevoice` (FunASR SenseVoice Small, 240 MB, FunASR model licence: Chinese, Cantonese, Japanese, Korean, English) or `off`
+- `COVEY_SPEECH_MODELS` — the further models a person may pick in the app's settings, comma-separated; default `parakeet,sensevoice`. Each is fetched the first time somebody picks it. With the app in Chinese, Japanese or Korean and no model picked, the app takes `sensevoice`.
 
-Models are kept under `COVEY_DATA_DIR/models/<name>/`.
-
-Without internet access, place the model's files in `COVEY_DATA_DIR/models/<name>/` yourself (for Whisper `ggml-<name>.bin`); it is verified the same way, and a file with another digest is removed rather than served.
+Both models detect the language themselves. Without internet access, place the model's files in `COVEY_DATA_DIR/models/<name>/` yourself; they are verified the same way, and a file with another digest is removed rather than served.
 
 ## HTTPS
 

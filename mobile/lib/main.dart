@@ -176,6 +176,9 @@ class _CoveyAppState extends State<CoveyApp> {
     // The device language, falling back to English (spec/27).
     final locale = WidgetsBinding.instance.platformDispatcher.locale;
     final strings = await Strings.load(locale);
+    // The speech model follows the app's language where the person chose
+    // none (#366).
+    SpeechModel.instance.appLanguage = strings.language;
     // Dates in the notes are written in the person's language (#336).
     await initializeDateFormatting();
     // The window's bar metrics on macOS (#356), before the first frame.

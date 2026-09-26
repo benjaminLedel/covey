@@ -9,7 +9,7 @@ import (
 	"covey/internal/speech"
 )
 
-// The speech models (#348, #351): the Whisper models the app recognises
+// The speech models (#348, #351, #366): the models the app recognises
 // speech with on the device. The instance, not a third party, hands them
 // out, so an app that talks to this instance needs no other address — and
 // an installation without internet access can still offer dictation by

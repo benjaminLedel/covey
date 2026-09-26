@@ -7,20 +7,25 @@ import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa;
 import 'diagnostics.dart';
 import 'dictation.dart';
 
-/// NVIDIA Parakeet TDT 0.6B v3 through sherpa-onnx (#353): 25 European
-/// languages, detected by the model itself, with punctuation and capitals.
+/// Speech recognition through sherpa-onnx (#353, #366), the one engine the
+/// app runs: NVIDIA's Parakeet TDT 0.6B v3 (25 European languages) or
+/// FunASR's SenseVoice Small (Chinese, Cantonese, Japanese, Korean,
+/// English). Both detect the language themselves and set punctuation.
 ///
-/// Parakeet is not a streaming model: it decodes a segment as a whole. That
-/// fits the pause segmentation — each segment is decoded once it ends, and
-/// about once a second while it grows, for the preview; a transducer decodes
-/// a segment of a few seconds in a fraction of that on a phone. The
+/// Neither is a streaming model: each decodes a segment as a whole. That
+/// fits the pause segmentation — a segment is decoded once it ends, and
+/// about once a second while it grows, for the preview; both decode a
+/// segment of a few seconds in a fraction of that on a phone. The
 /// recogniser lives in a worker isolate, so decoding never blocks the UI,
-/// and is loaded once per dictation and freed after it: the int8 encoder
-/// alone is 650 MB, which a phone should not hold while nobody dictates.
-///
-/// The context of the previous segments is not used — Parakeet takes no
-/// prompt — and neither is the language: it recognises it.
-class ParakeetEngine extends SegmentedEngine {
+/// and is loaded per dictation and freed after it unless [keepLoaded] — the
+/// models are hundreds of MB, which a phone should not hold while nobody
+/// dictates.
+class SherpaEngine extends SegmentedEngine {
+  SherpaEngine(this.model);
+
+  /// `parakeet` or `sensevoice`.
+  final String model;
+
   _Worker? _worker;
   final _segment = BytesBuilder();
   int _segmentId = 0;
@@ -34,18 +39,18 @@ class ParakeetEngine extends SegmentedEngine {
   static const _minNewBytes = 16000;
 
   @override
-  String get kind => 'parakeet';
+  String get kind => model;
 
   @override
   Future<void> prepare() async {
     if (_worker != null) return;
     final watch = Stopwatch()..start();
-    _worker = await _Worker.spawn(modelPath);
-    diag('dictation', 'parakeet loaded in ${watch.elapsedMilliseconds} ms');
+    _worker = await _Worker.spawn(modelPath, model);
+    diag('dictation', '$model loaded in ${watch.elapsedMilliseconds} ms');
   }
 
   @override
-  Future<void> openSegment(String? context) async {
+  Future<void> openSegment() async {
     _segmentId++;
     _segment.clear();
     _decodedBytes = 0;
@@ -67,7 +72,7 @@ class ParakeetEngine extends SegmentedEngine {
           if (id == _segmentId && _tick != null) segmentPartial(text);
         })
         .catchError((Object e) {
-          diag('dictation', 'parakeet preview failed: $e');
+          diag('dictation', '$model preview failed: $e');
         })
         .whenComplete(() => _inFlight = null);
   }
@@ -109,9 +114,9 @@ class _Worker {
   final Stream<dynamic> _replies;
   int _next = 0;
 
-  static Future<_Worker> spawn(String dir) async {
+  static Future<_Worker> spawn(String dir, String model) async {
     final inbox = ReceivePort();
-    final isolate = await Isolate.spawn(_main, [inbox.sendPort, dir]);
+    final isolate = await Isolate.spawn(_main, [inbox.sendPort, dir, model]);
     final replies = inbox.asBroadcastStream();
     final first = await replies.first;
     if (first is String) {
@@ -142,26 +147,38 @@ class _Worker {
   static void _main(List<Object?> args) {
     final out = args[0]! as SendPort;
     final dir = args[1]! as String;
+    final model = args[2]! as String;
     final sherpa.OfflineRecognizer rec;
     try {
       sherpa.initBindings();
       rec = sherpa.OfflineRecognizer(
         sherpa.OfflineRecognizerConfig(
-          model: sherpa.OfflineModelConfig(
-            transducer: sherpa.OfflineTransducerModelConfig(
-              encoder: '$dir/encoder.int8.onnx',
-              decoder: '$dir/decoder.int8.onnx',
-              joiner: '$dir/joiner.int8.onnx',
-            ),
-            tokens: '$dir/tokens.txt',
-            modelType: 'nemo_transducer',
-            numThreads: 4,
-            debug: false,
-          ),
+          model: model == 'sensevoice'
+              ? sherpa.OfflineModelConfig(
+                  senseVoice: sherpa.OfflineSenseVoiceModelConfig(
+                    model: '$dir/model.int8.onnx',
+                    // Empty: the model detects the language.
+                    useInverseTextNormalization: true,
+                  ),
+                  tokens: '$dir/tokens.txt',
+                  numThreads: 4,
+                  debug: false,
+                )
+              : sherpa.OfflineModelConfig(
+                  transducer: sherpa.OfflineTransducerModelConfig(
+                    encoder: '$dir/encoder.int8.onnx',
+                    decoder: '$dir/decoder.int8.onnx',
+                    joiner: '$dir/joiner.int8.onnx',
+                  ),
+                  tokens: '$dir/tokens.txt',
+                  modelType: 'nemo_transducer',
+                  numThreads: 4,
+                  debug: false,
+                ),
         ),
       );
     } catch (e) {
-      out.send('parakeet: $e');
+      out.send('$model: $e');
       return;
     }
     final inbox = ReceivePort();

@@ -3,11 +3,10 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:record/record.dart';
-import 'package:whisper_ggml/whisper_ggml.dart';
 
 import 'api.dart';
 import 'diagnostics.dart';
-import 'parakeet.dart';
+import 'sherpa.dart';
 import 'speech_model.dart';
 
 /// Why dictation could not start.
@@ -26,14 +25,13 @@ enum DictationFailure {
   off,
 }
 
-/// The seam to the recogniser, so tests can stand in for whisper.cpp and the
+/// The seam to the recogniser, so tests can stand in for sherpa-onnx and the
 /// microphone.
 abstract class SpeechEngine {
   /// Starts listening; [partials] carry the whole text so far, [level] the
   /// loudness of what the microphone hears, 0–1.
   Future<void> start({
     required String modelPath,
-    required String language,
     required void Function(String) partials,
     void Function(double)? level,
   });
@@ -49,9 +47,7 @@ abstract class SpeechEngine {
 /// The microphone cut into segments at the speaker's pauses (#350), for any
 /// recogniser: 16 kHz mono PCM16 from `record`; a segment ends at a pause of
 /// ~0.7 s once it holds speech (or at 15 s regardless), its final text is
-/// appended, and the next segment starts with the end of the text so far as
-/// its context — which keeps sentences, names and the language going across
-/// the cut. Audio arriving while one segment is finished and the next one
+/// appended, and the next segment opens. Audio arriving while one segment is finished and the next one
 /// opened is held and fed to the next, so nothing is dropped.
 ///
 /// A recogniser implements the three steps of a segment: [openSegment],
@@ -62,7 +58,6 @@ abstract class SegmentedEngine implements SpeechEngine {
   StreamSubscription<Uint8List>? _mic;
 
   late String modelPath;
-  late String language;
   late void Function(String) _partials;
 
   bool _open = false;
@@ -97,8 +92,8 @@ abstract class SegmentedEngine implements SpeechEngine {
   /// Loads what the recogniser needs once per dictation.
   Future<void> prepare() async {}
 
-  /// Opens a segment; [context] is the end of the text so far, or null.
-  Future<void> openSegment(String? context);
+  /// Opens a segment.
+  Future<void> openSegment();
 
   /// One chunk of the open segment's audio.
   void feedSegment(Uint8List chunk);
@@ -121,18 +116,16 @@ abstract class SegmentedEngine implements SpeechEngine {
   @override
   Future<void> start({
     required String modelPath,
-    required String language,
     required void Function(String) partials,
     void Function(double)? level,
   }) async {
     this.modelPath = modelPath;
-    this.language = language;
     _partials = partials;
     _committed = '';
     _current = '';
     _held.clear();
     _resetSegment();
-    _log('listening with $kind, language $language');
+    _log('listening with $kind');
 
     await prepare();
     await _openNext();
@@ -200,7 +193,7 @@ abstract class SegmentedEngine implements SpeechEngine {
   static const _minVoicedBytes = _bytesPerSecond ~/ 4;
 
   Future<void> _openNext() async {
-    await openSegment(_committed.isEmpty ? null : _promptTail(_committed));
+    await openSegment();
     _open = true;
     _current = '';
     // What arrived while the previous segment was being finished.
@@ -271,57 +264,9 @@ abstract class SegmentedEngine implements SpeechEngine {
   }
 }
 
-/// whisper.cpp (#348): one whisper_ggml live session per segment. The live
-/// session re-decodes its window every 1.5 s of voiced audio, which is the
-/// preview; the segment's end is its final text. whisper_ggml alone commits
-/// only at 25 s, and on a phone's CPU a window that long decodes slower than
-/// it grows — the segments keep it short. The model stays loaded between
-/// segments, and the context goes in as whisper's prompt.
-class WhisperEngine extends SegmentedEngine {
-  WhisperLiveSession? _session;
-  StreamSubscription<String>? _sub;
-
-  @override
-  String get kind => 'whisper';
-
-  @override
-  Future<void> openSegment(String? context) async {
-    final session = await startWhisperLiveSession(
-      modelPath: modelPath,
-      lang: language,
-      initialPrompt: context,
-      keepModelLoaded: true,
-    );
-    _session = session;
-    _sub = session.partials.listen(segmentPartial, onError: (Object e) => _log('whisper failed: $e'));
-  }
-
-  @override
-  void feedSegment(Uint8List chunk) => _session?.feed(chunk);
-
-  @override
-  Future<String> closeSegment() async {
-    final session = _session;
-    _session = null;
-    if (session == null) return '';
-    final text = await session.stop();
-    await _sub?.cancel();
-    _sub = null;
-    return text;
-  }
-}
-
-/// The last ~200 characters of [text], from a word boundary: whisper's
-/// prompt holds 224 tokens, and the most recent words matter most.
-String _promptTail(String text) {
-  if (text.length <= 200) return text;
-  final cut = text.substring(text.length - 200);
-  final space = cut.indexOf(' ');
-  return space >= 0 ? cut.substring(space + 1) : cut;
-}
-
-/// Whisper's well-known inventions on silence or noise — subtitle credits
-/// from its training data — never a dictated sentence.
+/// What a recogniser makes of noise rather than speech — a bracketed event
+/// ("[Musik]"), subtitle credits from training data — never a dictated
+/// sentence.
 bool _isHallucination(String text) {
   final t = text.toLowerCase();
   return RegExp(r'^\W*(untertitel|subtitles|sous-titres|sottotitoli|ondertiteling|napisy)\b').hasMatch(t) ||
@@ -352,13 +297,13 @@ double _loudness(double rms) {
   return ((db + 60) / 60).clamp(0.0, 1.0);
 }
 
-/// Speech to text on the device (#336, #348): whisper.cpp turns speech into
-/// text on the phone, with a model that came from the covey instance. Only
-/// text leaves the phone; no audio is kept or sent.
+/// Speech to text on the device (#336, #366): sherpa-onnx turns speech into
+/// text on the device, with a model that came from the covey instance. Only
+/// text leaves the device; no audio is kept or sent.
 ///
-/// The first dictation may have to fetch the model (≈150 MB); [preparing]
-/// and [progress] say so while it does. [language] is what whisper listens
-/// for — the app's language unless set otherwise.
+/// The first dictation may have to fetch the model (hundreds of MB);
+/// [preparing] and [progress] say so while it does. The model recognises the
+/// language itself.
 class Dictation extends ChangeNotifier {
   Dictation({this.api, this.engine, SpeechModel? model, this.keepModelLoaded = false})
     : _model = model ?? SpeechModel.instance;
@@ -368,14 +313,13 @@ class Dictation extends ChangeNotifier {
 
   final CoveyApi? api;
 
-  /// The recogniser; whisper.cpp unless a test stands in.
+  /// The recogniser; sherpa-onnx unless a test stands in.
   SpeechEngine? engine;
   final SpeechModel _model;
   String _text = '';
   bool _running = false;
   bool _preparing = false;
   DictationFailure? failure;
-  String language = 'de';
 
   /// What went wrong in words, for the message.
   String? detail;
@@ -404,30 +348,28 @@ class Dictation extends ChangeNotifier {
   /// Everything recognised so far.
   String get text => _text.trim();
 
-  SpeechEngine get _eng => engine ??= WhisperEngine();
+  SpeechEngine get _eng => engine ??= SherpaEngine(_model.engine);
 
   /// Whether [engine] was picked here (and may be swapped when the model's
   /// engine changes) rather than handed in by a test.
   bool _picked = false;
 
-  /// The recogniser for the model in use (#353): a test's stand-in as it
-  /// is, otherwise whisper.cpp or Parakeet, whichever the model is for.
+  /// The recogniser for the model in use (#366): a test's stand-in as it
+  /// is, otherwise sherpa-onnx with Parakeet or SenseVoice, whichever the
+  /// model is.
   SpeechEngine _engineFor(String kind) {
     final e = engine;
     if (e != null && !_picked) return e;
-    final wanted = kind == 'parakeet' ? 'parakeet' : 'whisper';
-    if (e is SegmentedEngine && e.kind == wanted) return e;
+    if (e is SherpaEngine && e.model == kind) return e;
     e?.dispose();
     _picked = true;
-    final next = wanted == 'parakeet' ? ParakeetEngine() : WhisperEngine();
-    next.keepLoaded = keepModelLoaded;
-    return engine = next;
+    return engine = SherpaEngine(kind)..keepLoaded = keepModelLoaded;
   }
 
   void _modelChanged() => notifyListeners();
 
   /// Starts listening. Returns false and sets [failure] when it cannot.
-  /// [continuous] is kept for the callers: whisper's live session runs until
+  /// [continuous] is kept for the callers: the segmentation runs until
   /// [stop] either way.
   Future<bool> start({bool continuous = false}) async {
     failure = null;
@@ -455,17 +397,13 @@ class Dictation extends ChangeNotifier {
       }, _model.detail);
     }
 
-    final kind = _model.engine;
-    final eng = _engineFor(kind);
-    // whisper.cpp opens one file; sherpa-onnx the model's directory.
-    final modelPath = kind == 'whisper' ? (_model.singleFile ?? path) : path;
+    final eng = _engineFor(_model.engine);
     try {
       if (!await eng.hasPermission()) return _fail(DictationFailure.denied, null);
       _running = true;
       notifyListeners();
       await eng.start(
-        modelPath: modelPath,
-        language: language,
+        modelPath: path,
         partials: (t) {
           _text = t;
           notifyListeners();

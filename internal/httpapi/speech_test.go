@@ -15,10 +15,10 @@ import (
 )
 
 func TestSpeechModelIsServedOnlyOnceVerified(t *testing.T) {
-	weights := []byte("whisper weights")
+	weights := []byte("model weights")
 	sum := sha256.Sum256(weights)
 	store := &speech.Store{
-		Model: speech.Model{Name: "test", Engine: "whisper", Files: []speech.File{{Name: "model.bin", URL: "http://127.0.0.1:1/unreachable", SHA256: hex.EncodeToString(sum[:]), Size: int64(len(weights))}}},
+		Model: speech.Model{Name: "test", Engine: "parakeet", Files: []speech.File{{Name: "model.bin", URL: "http://127.0.0.1:1/unreachable", SHA256: hex.EncodeToString(sum[:]), Size: int64(len(weights))}}},
 		Dir:   t.TempDir(),
 	}
 	s := &Server{Speech: speech.SetOf(store)}
@@ -72,7 +72,7 @@ func TestSpeechModelIsServedOnlyOnceVerified(t *testing.T) {
 	if w := file(nil); w.Code != http.StatusOK || w.Body.String() != string(weights) {
 		t.Fatalf("file = %d %q", w.Code, w.Body.String())
 	}
-	if w := file(http.Header{"Range": {"bytes=8-"}}); w.Code != http.StatusPartialContent || w.Body.String() != "weights" {
+	if w := file(http.Header{"Range": {"bytes=6-"}}); w.Code != http.StatusPartialContent || w.Body.String() != "weights" {
 		t.Fatalf("range = %d %q", w.Code, w.Body.String())
 	}
 }
@@ -87,7 +87,7 @@ func TestSpeechOffSaysSo(t *testing.T) {
 }
 
 func TestSpeechModelsAreListedAndPickedByName(t *testing.T) {
-	set, err := speech.NewSet("base", []string{"tiny", "small"}, t.TempDir(), nil)
+	set, err := speech.NewSet("parakeet", []string{"sensevoice"}, t.TempDir(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestSpeechModelsAreListedAndPickedByName(t *testing.T) {
 		return w.Code, out
 	}
 	_, def := get("")
-	if def["name"] != "base" || def["default"] != "base" {
+	if def["name"] != "parakeet" || def["default"] != "parakeet" {
 		t.Fatalf("default = %v", def)
 	}
 	models, _ := def["models"].([]any)
@@ -115,13 +115,13 @@ func TestSpeechModelsAreListedAndPickedByName(t *testing.T) {
 	for _, m := range models {
 		names = append(names, m.(map[string]any)["name"].(string))
 	}
-	if strings.Join(names, ",") != "tiny,base,small" {
+	if strings.Join(names, ",") != "sensevoice,parakeet" {
 		t.Fatalf("models = %v, want smallest first", names)
 	}
-	if _, small := get("?name=small"); small["name"] != "small" || small["size"] != float64(speech.Models["small"].Size()) {
-		t.Fatalf("small = %v", small)
+	if _, sv := get("?name=sensevoice"); sv["name"] != "sensevoice" || sv["engine"] != "sensevoice" || sv["size"] != float64(speech.Models["sensevoice"].Size()) {
+		t.Fatalf("sensevoice = %v", sv)
 	}
-	if code, _ := get("?name=medium"); code != http.StatusNotFound {
+	if code, _ := get("?name=base"); code != http.StatusNotFound {
 		t.Fatalf("a model not offered: %d", code)
 	}
 }

@@ -67,10 +67,10 @@ class _WavePainter extends CustomPainter {
   bool shouldRepaint(_WavePainter old) => true;
 }
 
-/// What dictation hears, while it hears it (#348): the words as whisper
+/// What dictation hears, while it hears it (#348): the words as the model
 /// refines them, or the model's download while it is fetched, and under
 /// them the running waveform. It floats over the page the words are going
-/// into, so the page does not jump while whisper is still correcting itself.
+/// into, so the page does not jump while the model is still correcting itself.
 class DictationPreview extends StatelessWidget {
   const DictationPreview({super.key, required this.dictation, this.onStop, this.maxLines = 3});
 
