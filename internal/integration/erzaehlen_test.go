@@ -145,10 +145,37 @@ func TestAChatTaskIsAcknowledgedAndToldInTheChat(t *testing.T) {
 		t.Errorf("the person was described %d times, want 2 (triage and narration):\n%s", n, modell.prompts())
 	}
 
+	// A follow-up has its context (#413): the next message's triage sees
+	// what the task said back, and the task made from it carries the
+	// conversation for the run.
+	vorFolge := len(modell.prompts())
+	admin.expect(http.MethodPost, base+"/messages",
+		map[string]any{"text": "Welche Rechnung war das nochmal?"}, http.StatusAccepted)
+	var folge backlog.Task
+	wartenAuf(t, "the follow-up becomes a task", func() bool {
+		tasks, _ := s.backlog.ListByAgent(ctx, agent.ID, false)
+		for _, x := range tasks {
+			if x.ID != task.ID {
+				folge = x
+				return true
+			}
+		}
+		return false
+	})
+	if neu := modell.prompts()[vorFolge:]; !strings.Contains(neu, "Hab nachgesehen: Die Rechnung war doppelt gebucht") {
+		t.Errorf("the follow-up's triage did not see the earlier result:\n%s", neu)
+	}
+	if !strings.Contains(folge.Body, "Earlier in this conversation") || !strings.Contains(folge.Body, "doppelt gebucht") {
+		t.Errorf("the follow-up task does not carry the conversation:\n%s", folge.Body)
+	}
+	if strings.Contains(folge.Body, "- person: Welche Rechnung war das nochmal?") {
+		t.Errorf("the message itself is the task, not its own context:\n%s", folge.Body)
+	}
+
 	// Told once: a second pass does not tell it again.
-	vorher := strings.Count(modell.prompts(), "---")
+	vorher := strings.Count(modell.prompts(), "What you were asked to do")
 	s.srv.Nacherzaehlen(ctx)
-	if strings.Count(modell.prompts(), "---") != vorher {
+	if strings.Count(modell.prompts(), "What you were asked to do") != vorher {
 		t.Error("a told task was told again")
 	}
 }

@@ -155,7 +155,7 @@ func Triagieren(ctx context.Context, p llm.Provider, rolle, seele, gegenueber st
 			if !strings.HasPrefix(m.Author, "agent") {
 				wer = "person"
 			}
-			fmt.Fprintf(&b, "%s: %s\n", wer, kuerzen(m.Text, 600))
+			fmt.Fprintf(&b, "%s: %s\n", wer, kuerzen(einzeilig(m.Text), verlaufZeile))
 		}
 		b.WriteString("\n")
 	}
@@ -257,6 +257,11 @@ func person(b *strings.Builder, gegenueber string) {
 	}
 }
 
+// verlaufZeile: so viel von einem Beitrag steht im Verlauf eines Zugs. Ein
+// Ergebnis ist länger als ein Satz, und wer „welches davon?" fragt, meint
+// etwas aus seiner Mitte (#413).
+const verlaufZeile = 1200
+
 // SeeleMax: so viel SOUL.md geht in einen Zug. Der Anfang sagt, wer jemand
 // ist; was danach kommt, sind meist Regeln für die Arbeit.
 const SeeleMax = 3000
@@ -290,7 +295,7 @@ func Erzaehlen(ctx context.Context, p llm.Provider, rolle, seele, gegenueber str
 			if !strings.HasPrefix(m.Author, "agent") {
 				wer = "person"
 			}
-			fmt.Fprintf(&b, "%s: %s\n", wer, kuerzen(m.Text, 600))
+			fmt.Fprintf(&b, "%s: %s\n", wer, kuerzen(einzeilig(m.Text), verlaufZeile))
 		}
 		b.WriteString("\n")
 	}

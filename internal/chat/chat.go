@@ -125,6 +125,52 @@ func (s *Store) LinkTask(ctx context.Context, messageID, taskID uuid.UUID) error
 
 // Recent reads the newest messages of one agent, oldest first — the order a
 // thread is read in.
+/* Gespraech is the conversation with an agent as the person sees it (#413):
+ * what was said in the chat, and what the agent's tasks said back — the
+ * result (the narrated sentence where there is one, #411), the error, the
+ * question it parked on. Recent reads chat_messages only, and there a
+ * result never stands: the agent answering "which of those?" did not know
+ * what "those" were. What the platform starts on its own stays out
+ * (MachineryCTE), its questions excepted, as in the thread.
+ *
+ * Entries from tasks carry Author "agent" and the task's id; newest last. */
+func (s *Store) Gespraech(ctx context.Context, agentID uuid.UUID, limit int) ([]Message, error) {
+	rows, err := s.pool.Query(ctx, `WITH RECURSIVE `+MachineryCTE("agent_id = $1")+`, ev AS (
+		SELECT m.id, m.org_id, m.author, m.text, m.task_id, m.created_at AS at
+		  FROM chat_messages m WHERE m.agent_id = $1
+		UNION ALL
+		SELECT t.id, t.org_id, 'agent', coalesce(nullif(t.said, ''), t.result), t.id, t.updated_at
+		  FROM backlog_tasks t
+		 WHERE t.agent_id = $1 AND t.archived_at IS NULL AND t.state = 'done'
+		   AND coalesce(t.result, '') <> '' AND t.id NOT IN (SELECT id FROM maschinerie)
+		UNION ALL
+		SELECT t.id, t.org_id, 'agent', coalesce(nullif(t.said, ''), t.error), t.id, t.updated_at
+		  FROM backlog_tasks t
+		 WHERE t.agent_id = $1 AND t.archived_at IS NULL AND t.state = 'failed'
+		   AND coalesce(t.error, '') <> '' AND t.id NOT IN (SELECT id FROM maschinerie)
+		UNION ALL
+		SELECT t.id, t.org_id, 'agent', trim(regexp_replace(coalesce(tr.note, ''), '^blocked:', '')), t.id, tr.created_at
+		  FROM task_transitions tr JOIN backlog_tasks t ON t.id = tr.task_id
+		 WHERE t.agent_id = $1 AND t.archived_at IS NULL AND tr.to_state = 'blocked'
+	)
+	SELECT id, org_id, author, text, task_id, at FROM (
+		SELECT * FROM ev WHERE text <> '' ORDER BY at DESC LIMIT $2
+	) j ORDER BY at`, agentID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Message
+	for rows.Next() {
+		m := Message{AgentID: agentID}
+		if err := rows.Scan(&m.ID, &m.OrgID, &m.Author, &m.Text, &m.TaskID, &m.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) Recent(ctx context.Context, agentID uuid.UUID, limit int) ([]Message, error) {
 	rows, err := s.pool.Query(ctx,
 		`SELECT id, org_id, agent_id, author, text, task_id, created_at FROM (

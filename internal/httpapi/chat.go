@@ -785,6 +785,11 @@ func (s *Server) aufgabeAusNachricht(
 		titel = briefTitle(lang, text)
 		rumpf = s.briefBody(ctx, identity.Principal{OrgID: orgID, Email: email}, lang, text, "", "", "")
 	}
+	/* What the message refers to (#413). A run sees its task and not the
+	   thread; "do the same for Initech" or "and the other one?" needs what
+	   came before. The last part of the conversation goes into the body,
+	   the message itself excepted — it is the task. */
+	rumpf += s.gespraechFuerLauf(ctx, agentID, msg.ID)
 	t, err := s.Backlog.Create(ctx, orgID, agentID, titel, rumpf, "chat:"+email, 0)
 	if err != nil {
 		return backlog.Task{}, err
@@ -864,8 +869,9 @@ func (s *Server) triagieren(ctx context.Context, orgID, agentID uuid.UUID, text,
 	if err != nil {
 		return aufgabe, nil
 	}
-	verlauf, err := s.Chat.Recent(ctx, agentID, triageKontext)
+	verlauf, err := s.Chat.Gespraech(ctx, agentID, triageKontext)
 	if err != nil {
+		s.Log.Warn("triage: the conversation could not be read — the message becomes a task", "agent", agentID, "err", err)
 		return aufgabe, nil
 	}
 	liste, nach := s.offeneAufgaben(ctx, agentID)
@@ -1002,6 +1008,37 @@ func (s *Server) rolleVon(ctx context.Context, agentID uuid.UUID) string {
 		return ""
 	}
 	return beschreibung(a)
+}
+
+// laufKontext: how much of the conversation a task from the chat carries.
+const laufKontext = 10
+
+// gespraechFuerLauf is the conversation before a message, for the body of the
+// task made from it (#413). Empty when there is none.
+func (s *Server) gespraechFuerLauf(ctx context.Context, agentID, ohne uuid.UUID) string {
+	verlauf, err := s.Chat.Gespraech(ctx, agentID, laufKontext+1)
+	if err != nil {
+		return ""
+	}
+	var b strings.Builder
+	for _, m := range verlauf {
+		if m.ID == ohne {
+			continue
+		}
+		wer := "you"
+		if !strings.HasPrefix(m.Author, "agent") {
+			wer = "person"
+		}
+		text := strings.Join(strings.Fields(m.Text), " ")
+		if r := []rune(text); len(r) > 800 {
+			text = string(r[:800]) + " […]"
+		}
+		fmt.Fprintf(&b, "- %s: %s\n", wer, text)
+	}
+	if b.Len() == 0 {
+		return ""
+	}
+	return "\n\n---\nEarlier in this conversation, oldest first (for context — the task is the message above):\n" + b.String()
 }
 
 // gegenueberVon describes the person a message came from (#412): name, job

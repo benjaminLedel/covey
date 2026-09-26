@@ -118,7 +118,7 @@ func (s *Server) erzaehlText(ctx context.Context, z zuErzaehlen) string {
 	if err != nil {
 		return ""
 	}
-	verlauf, err := s.Chat.Recent(ctx, z.agentID, triageKontext)
+	verlauf, err := s.Chat.Gespraech(ctx, z.agentID, triageKontext)
 	if err != nil {
 		verlauf = nil
 	}
