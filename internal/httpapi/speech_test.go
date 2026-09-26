@@ -91,6 +91,21 @@ func TestSpeechModelsAreListedAndPickedByName(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The fetches the requests start run on after the test (#409). This
+	// cleanup comes after TempDir's and so runs before it: the directory is
+	// removed only once no fetch is still writing into it.
+	t.Cleanup(func() {
+		deadline := time.Now().Add(10 * time.Second)
+		for _, n := range set.Names {
+			st, _ := set.Get(n)
+			for {
+				if _, fetching, _ := st.Status(); !fetching || time.Now().After(deadline) {
+					break
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+		}
+	})
 	// Asking about a model starts its fetch: nowhere, in a test.
 	for _, n := range set.Names {
 		st, _ := set.Get(n)
