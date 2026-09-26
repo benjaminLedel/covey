@@ -341,11 +341,9 @@ class DictateAnywhere extends ChangeNotifier {
     final now = DateTime.now();
     if (!force && now.difference(_lastPush) < const Duration(milliseconds: 50)) return;
     _lastPush = now;
-    final text = d.preparing
-        ? loading
-        : d.text.isEmpty
-        ? listening
-        : d.text;
+    // No placeholder while listening: the waveform says it, and the capsule
+    // stays small until there are words.
+    final text = d.preparing ? loading : d.text;
     final levels = d.levels.length > 40 ? d.levels.sublist(d.levels.length - 40) : d.levels;
     unawaited(
       _channel.invokeMethod<void>('update', {

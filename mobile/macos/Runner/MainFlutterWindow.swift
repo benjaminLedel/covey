@@ -91,7 +91,7 @@ final class FlowBridge {
     case "update":
       panel.update(
         text: args["text"] as? String ?? "",
-        levels: (args["levels"] as? [Double]) ?? [],
+        level: (args["levels"] as? [Double])?.last ?? 0,
         busy: args["busy"] as? Bool ?? false)
       result(nil)
     case "hide":
@@ -139,18 +139,25 @@ final class FlowBridge {
   }
 }
 
-/// A small pill at the bottom of the screen: the waveform and the last words
-/// heard. It floats above every app and every Space, takes no clicks and
-/// never becomes key — the text is for the app that has the focus.
+/// A small capsule at the bottom of the screen (#355, #358): the voice as a
+/// living waveform, and the words once there are some. It floats above every
+/// app and every Space, takes no clicks and never becomes key — the text is
+/// for the app that has the focus. It starts as the waveform alone and
+/// widens when words arrive; it rises in and sinks out.
 final class FlowPanel {
   private let panel: NSPanel
+  private let glass = NSVisualEffectView()
   private let wave = WaveView()
   private let label = NSTextField(labelWithString: "")
-  private let spinner = NSProgressIndicator()
+
+  private static let height: CGFloat = 44
+  private static let compactWidth: CGFloat = 132
+  private static let maxWidth: CGFloat = 520
+  private var text = ""
 
   init() {
     panel = NSPanel(
-      contentRect: NSRect(x: 0, y: 0, width: 440, height: 52),
+      contentRect: NSRect(x: 0, y: 0, width: Self.compactWidth, height: Self.height),
       styleMask: [.nonactivatingPanel, .borderless],
       backing: .buffered, defer: true)
     panel.isFloatingPanel = true
@@ -162,83 +169,194 @@ final class FlowPanel {
     panel.isOpaque = false
     panel.hidesOnDeactivate = false
 
-    let glass = NSVisualEffectView(frame: panel.contentLayoutRect)
+    // Dark in light and dark mode alike, as the system's own HUDs are: the
+    // capsule is an instrument, not a window.
     glass.material = .hudWindow
+    glass.appearance = NSAppearance(named: .vibrantDark)
     glass.state = .active
     glass.blendingMode = .behindWindow
     glass.wantsLayer = true
-    glass.layer?.cornerRadius = 26
+    glass.layer?.cornerRadius = Self.height / 2
+    glass.layer?.cornerCurve = .continuous
     glass.layer?.masksToBounds = true
+    glass.layer?.borderWidth = 0.5
+    glass.layer?.borderColor = NSColor.white.withAlphaComponent(0.12).cgColor
     glass.autoresizingMask = [.width, .height]
+    glass.frame = panel.contentLayoutRect
 
-    wave.frame = NSRect(x: 18, y: 14, width: 96, height: 24)
-    spinner.style = .spinning
-    spinner.controlSize = .small
-    spinner.frame = NSRect(x: 18, y: 17, width: 18, height: 18)
-    spinner.isHidden = true
-
-    label.frame = NSRect(x: 126, y: 15, width: 296, height: 22)
-    label.font = .systemFont(ofSize: 15, weight: .medium)
-    label.textColor = .labelColor
+    label.font = .systemFont(ofSize: 14, weight: .medium)
+    label.textColor = NSColor.white.withAlphaComponent(0.92)
     label.lineBreakMode = .byTruncatingHead  // the end is what is being said now
     label.maximumNumberOfLines = 1
     label.cell?.truncatesLastVisibleLine = true
+    label.alphaValue = 0
 
     glass.addSubview(wave)
-    glass.addSubview(spinner)
     glass.addSubview(label)
     panel.contentView = glass
+    layout(width: Self.compactWidth)
+  }
+
+  private func layout(width: CGFloat) {
+    let waveWidth: CGFloat = 92
+    let padding: CGFloat = 20
+    if text.isEmpty {
+      wave.frame = NSRect(x: (width - waveWidth) / 2, y: 10, width: waveWidth, height: Self.height - 20)
+    } else {
+      wave.frame = NSRect(x: padding, y: 10, width: waveWidth, height: Self.height - 20)
+    }
+    let labelX = padding + waveWidth + 12
+    label.frame = NSRect(x: labelX, y: (Self.height - 20) / 2, width: max(0, width - labelX - padding), height: 20)
+  }
+
+  private func origin(width: CGFloat, lifted: Bool) -> NSPoint {
+    let mouse = NSEvent.mouseLocation
+    let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
+    let f = screen?.visibleFrame ?? .zero
+    return NSPoint(x: f.midX - width / 2, y: f.minY + (lifted ? 64 : 52))
   }
 
   func show() {
-    let mouse = NSEvent.mouseLocation
-    let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
-    if let f = screen?.visibleFrame {
-      let size = panel.frame.size
-      panel.setFrameOrigin(NSPoint(x: f.midX - size.width / 2, y: f.minY + 72))
-    }
-    panel.alphaValue = 1
+    text = ""
+    label.stringValue = ""
+    label.alphaValue = 0
+    let width = Self.compactWidth
+    panel.setFrame(NSRect(origin: origin(width: width, lifted: false), size: NSSize(width: width, height: Self.height)), display: false)
+    layout(width: width)
+    panel.alphaValue = 0
     panel.orderFrontRegardless()
+    wave.start()
+    NSAnimationContext.runAnimationGroup { ctx in
+      ctx.duration = 0.28
+      ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.9, 0.3, 1.0)
+      panel.animator().alphaValue = 1
+      panel.animator().setFrameOrigin(origin(width: width, lifted: true))
+    }
   }
 
-  func update(text: String, levels: [Double], busy: Bool) {
-    label.stringValue = text
-    wave.levels = levels
-    wave.isHidden = busy
-    spinner.isHidden = !busy
-    if busy { spinner.startAnimation(nil) } else { spinner.stopAnimation(nil) }
-    wave.needsDisplay = true
+  func update(text newText: String, level: Double, busy: Bool) {
+    wave.busy = busy
+    wave.push(level)
+    guard newText != text else { return }
+    let wasEmpty = text.isEmpty
+    text = newText
+    label.stringValue = newText
+    // Wider for the words, up to a line's worth; measured, not guessed.
+    let wanted = newText.isEmpty
+      ? Self.compactWidth
+      : min(Self.maxWidth, 20 + 92 + 12 + ceil(label.intrinsicContentSize.width) + 20)
+    let current = panel.frame.width
+    if abs(wanted - current) > 6 && (wanted > current || newText.isEmpty) {
+      NSAnimationContext.runAnimationGroup { ctx in
+        ctx.duration = 0.22
+        ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        panel.animator().setFrame(
+          NSRect(origin: origin(width: wanted, lifted: true), size: NSSize(width: wanted, height: Self.height)),
+          display: true)
+      }
+      layout(width: wanted)
+    } else {
+      layout(width: current)
+    }
+    if wasEmpty != newText.isEmpty {
+      NSAnimationContext.runAnimationGroup { ctx in
+        ctx.duration = 0.18
+        label.animator().alphaValue = newText.isEmpty ? 0 : 1
+      }
+    }
   }
 
   func hide() {
+    let width = panel.frame.width
     NSAnimationContext.runAnimationGroup({ ctx in
-      ctx.duration = 0.18
+      ctx.duration = 0.2
+      ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
       panel.animator().alphaValue = 0
-    }, completionHandler: { [panel] in
+      panel.animator().setFrameOrigin(origin(width: width, lifted: false))
+    }, completionHandler: { [panel, wave] in
       panel.orderOut(nil)
-      panel.alphaValue = 1
+      wave.stop()
     })
   }
 }
 
-/// The level of the last second or two, newest on the right.
+/// The voice as bars that breathe with it: drawn sixty times a second, each
+/// bar easing towards the level — quick up, slow down — shaped higher in the
+/// middle, and each with a sway of its own so the whole looks alive rather
+/// than stepped. Busy (the text is being cleaned up), a calm wave runs
+/// through instead.
 final class WaveView: NSView {
-  var levels: [Double] = []
+  var busy = false
+  private var target: Double = 0
+  private var level: Double = 0
+  private var bars: [CALayer] = []
+  private var heights: [Double] = []
+  private var timer: Timer?
+  private var t: Double = 0
+  private let count = 13
+  private let phases: [Double] = (0..<13).map { _ in Double.random(in: 0..<(2 * .pi)) }
+  private let speeds: [Double] = (0..<13).map { _ in Double.random(in: 5.5...9.5) }
 
-  override func draw(_ dirtyRect: NSRect) {
-    let bar: CGFloat = 3, gap: CGFloat = 2
-    let slots = Int(bounds.width / (bar + gap))
-    let tail = Array(levels.suffix(slots))
-    let pad = slots - tail.count
-    NSColor.controlAccentColor.setFill()
-    for i in 0..<slots {
-      let v = i < pad ? 0 : CGFloat(tail[i - pad])
-      let h = max(bar, bounds.height * (0.1 + 0.9 * min(max(v, 0), 1)))
-      let x = CGFloat(i) * (bar + gap)
-      let rect = NSRect(x: x, y: (bounds.height - h) / 2, width: bar, height: h)
-      let alpha = 0.35 + 0.65 * CGFloat(i) / CGFloat(max(slots, 1))
-      NSColor.controlAccentColor.withAlphaComponent(v < 0.04 ? 0.25 : alpha).setFill()
-      NSBezierPath(roundedRect: rect, xRadius: bar / 2, yRadius: bar / 2).fill()
+  override init(frame: NSRect) {
+    super.init(frame: frame)
+    wantsLayer = true
+    for _ in 0..<count {
+      let bar = CALayer()
+      bar.backgroundColor = NSColor.white.cgColor
+      bar.cornerCurve = .continuous
+      layer?.addSublayer(bar)
+      bars.append(bar)
+      heights.append(0)
     }
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  func push(_ value: Double) { target = min(max(value, 0), 1) }
+
+  func start() {
+    level = 0
+    target = 0
+    t = 0
+    timer?.invalidate()
+    let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in self?.tick() }
+    RunLoop.main.add(timer, forMode: .common)
+    self.timer = timer
+  }
+
+  func stop() {
+    timer?.invalidate()
+    timer = nil
+  }
+
+  private func tick() {
+    t += 1.0 / 60
+    // Attack fast, release slow: speech lifts the bars at once, and a pause
+    // lets them settle instead of dropping.
+    let k = target > level ? 0.45 : 0.08
+    level += (target - level) * k
+    let w = bounds.width, h = bounds.height
+    let gap: CGFloat = 3.5
+    let barW = (w - gap * CGFloat(count - 1)) / CGFloat(count)
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    for i in 0..<count {
+      let x = Double(i) / Double(count - 1)  // 0…1
+      let bell = exp(-pow((x - 0.5) / 0.28, 2))  // higher in the middle
+      var v: Double
+      if busy {
+        v = 0.18 + 0.22 * (0.5 + 0.5 * sin(t * 5 - Double(i) * 0.55))
+      } else {
+        let sway = 0.6 + 0.4 * sin(t * speeds[i] + phases[i])
+        v = 0.12 + 0.88 * level * bell * sway
+      }
+      heights[i] += (v - heights[i]) * 0.35
+      let bh = max(barW, CGFloat(heights[i]) * h)
+      let bar = bars[i]
+      bar.frame = CGRect(x: CGFloat(i) * (barW + gap), y: (h - bh) / 2, width: barW, height: bh)
+      bar.cornerRadius = barW / 2
+      bar.opacity = Float(0.55 + 0.45 * min(1, heights[i] * 2.2))
+    }
+    CATransaction.commit()
   }
 }
