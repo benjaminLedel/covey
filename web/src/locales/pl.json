@@ -2720,7 +2720,8 @@
     "notizMenue": "Więcej działań",
     "statusLeer": "Brak notatek o tym statusie.",
     "orgKoppeln": "Połącz kolejną organizację",
-    "orgNichtGekoppelt": "Jeszcze nie w aplikacji. Proszę połączyć ją w przeglądarce, w tej organizacji, w profilu → aplikacja mobilna."
+    "orgNichtGekoppelt": "Jeszcze nie w aplikacji. Proszę połączyć ją w przeglądarce, w tej organizacji, w profilu → aplikacja mobilna.",
+    "updatesSuchen": "Sprawdź aktualizacje"
   },
   "appLink": {
     "title": "Otwórz w aplikacji covey",

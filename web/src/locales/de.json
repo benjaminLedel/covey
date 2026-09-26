@@ -2720,7 +2720,8 @@
     "notizMenue": "Weitere Aktionen",
     "statusLeer": "Keine Notizen mit diesem Status.",
     "orgKoppeln": "Weitere Organisation koppeln",
-    "orgNichtGekoppelt": "Noch nicht in der App. Im Browser in dieser Organisation unter Profil → Mobile App koppeln."
+    "orgNichtGekoppelt": "Noch nicht in der App. Im Browser in dieser Organisation unter Profil → Mobile App koppeln.",
+    "updatesSuchen": "Nach Updates suchen"
   },
   "appLink": {
     "title": "In der covey-App öffnen",

@@ -227,9 +227,12 @@ jobs:
       - name: Bauen
         working-directory: mobile
         run: |
+          # The feed the app updates itself from (#421): this repository's
+          # latest release, so a fork's app follows the fork.
           flutter build macos --release \
             --build-name "${{ steps.meta.outputs.build_name }}" \
-            --build-number "${{ github.run_number }}"
+            --build-number "${{ github.run_number }}" \
+            --dart-define=COVEY_UPDATE_FEED="https://github.com/${{ github.repository }}/releases/latest/download/appcast.xml"
 
       - name: Zertifikat laden
         env:
@@ -272,6 +275,28 @@ jobs:
       - name: Signieren und packen
         working-directory: mobile
         run: tool/macos_release.sh "${{ steps.meta.outputs.version }}" "$GITHUB_WORKSPACE/dist-app"
+
+      # The appcast (#421): what Sparkle in the installed apps reads, with the
+      # zip's Ed25519 signature. Without the key there is no appcast — an app
+      # out there is never offered an update it cannot check.
+      - name: Appcast
+        env:
+          SPARKLE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          set -eu
+          if [ -z "${SPARKLE_KEY}" ]; then
+            echo "Kein Update-Schlüssel hinterlegt — keine Appcast."
+            exit 0
+          fi
+          printf '%s\n' "$SPARKLE_KEY" > "$RUNNER_TEMP/sparkle.pem"
+          openssl="$(brew --prefix openssl@3 2>/dev/null)/bin/openssl"
+          [ -x "$openssl" ] || { brew install openssl@3 >/dev/null; openssl="$(brew --prefix openssl@3)/bin/openssl"; }
+          version="${{ steps.meta.outputs.version }}"
+          SPARKLE_ED_KEY_PATH="$RUNNER_TEMP/sparkle.pem" OPENSSL="$openssl" mobile/tool/appcast.sh \
+            "$version" "${{ steps.meta.outputs.build_name }}" "${{ github.run_number }}" \
+            "dist-app/covey-app_${version}_macos.zip" "${{ github.repository }}" > dist-app/appcast.xml
+          rm -f "$RUNNER_TEMP/sparkle.pem"
+          cat dist-app/appcast.xml
 
       - uses: actions/upload-artifact@v4
         with:

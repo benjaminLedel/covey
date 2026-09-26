@@ -1,28 +1,38 @@
 PODS:
+  - auto_updater_macos (0.0.1):
+    - FlutterMacOS
+    - Sparkle
   - FlutterMacOS (1.0.0)
   - HotKey (0.2.1)
   - hotkey_manager_macos (0.0.1):
     - FlutterMacOS
     - HotKey
+  - Sparkle (2.9.0)
 
 DEPENDENCIES:
+  - auto_updater_macos (from `Flutter/ephemeral/.symlinks/plugins/auto_updater_macos/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
   - hotkey_manager_macos (from `Flutter/ephemeral/.symlinks/plugins/hotkey_manager_macos/macos`)
 
 SPEC REPOS:
   trunk:
     - HotKey
+    - Sparkle
 
 EXTERNAL SOURCES:
+  auto_updater_macos:
+    :path: Flutter/ephemeral/.symlinks/plugins/auto_updater_macos/macos
   FlutterMacOS:
     :path: Flutter/ephemeral
   hotkey_manager_macos:
     :path: Flutter/ephemeral/.symlinks/plugins/hotkey_manager_macos/macos
 
 SPEC CHECKSUMS:
+  auto_updater_macos: 3a42f1a06be6981f1a18be37e6e7bf86aa732118
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
   HotKey: 400beb7caa29054ea8d864c96f5ba7e5b4852277
   hotkey_manager_macos: a4317849af96d2430fa89944d3c58977ca089fbe
+  Sparkle: f4355f9ebbe9b7d932df4980d70f13922ac97b2a
 
 PODFILE CHECKSUM: 7b6566a42f05316b81e4cab6292ddb96fbaae052
 

@@ -2720,7 +2720,8 @@
     "notizMenue": "その他の操作",
     "statusLeer": "このステータスのメモはありません。",
     "orgKoppeln": "別の組織を連携",
-    "orgNichtGekoppelt": "まだアプリにありません。ブラウザでその組織に切り替え、プロフィール → モバイルアプリから連携してください。"
+    "orgNichtGekoppelt": "まだアプリにありません。ブラウザでその組織に切り替え、プロフィール → モバイルアプリから連携してください。",
+    "updatesSuchen": "アップデートを確認"
   },
   "appLink": {
     "title": "covey アプリで開く",

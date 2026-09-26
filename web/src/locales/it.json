@@ -2720,7 +2720,8 @@
     "notizMenue": "Altre azioni",
     "statusLeer": "Nessuna nota con questo stato.",
     "orgKoppeln": "Collega un'altra organizzazione",
-    "orgNichtGekoppelt": "Non ancora nell'app. La colleghi nel browser, in quell'organizzazione, in profilo → app mobile."
+    "orgNichtGekoppelt": "Non ancora nell'app. La colleghi nel browser, in quell'organizzazione, in profilo → app mobile.",
+    "updatesSuchen": "Cerca aggiornamenti"
   },
   "appLink": {
     "title": "Apri nell'app covey",

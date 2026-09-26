@@ -2720,7 +2720,8 @@
     "notizMenue": "More actions",
     "statusLeer": "No notes with this status.",
     "orgKoppeln": "Pair another organisation",
-    "orgNichtGekoppelt": "Not in the app yet. Pair it in the browser, in that organisation, under profile → mobile app."
+    "orgNichtGekoppelt": "Not in the app yet. Pair it in the browser, in that organisation, under profile → mobile app.",
+    "updatesSuchen": "Check for updates"
   },
   "appLink": {
     "title": "Open in the covey app",

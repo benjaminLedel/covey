@@ -2720,7 +2720,8 @@
     "notizMenue": "Meer acties",
     "statusLeer": "Geen notities met deze status.",
     "orgKoppeln": "Nog een organisatie koppelen",
-    "orgNichtGekoppelt": "Nog niet in de app. Koppel haar in de browser, in die organisatie, onder profiel → mobiele app."
+    "orgNichtGekoppelt": "Nog niet in de app. Koppel haar in de browser, in die organisatie, onder profiel → mobiele app.",
+    "updatesSuchen": "Zoeken naar updates"
   },
   "appLink": {
     "title": "Openen in de covey-app",

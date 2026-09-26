@@ -20,6 +20,7 @@ import 'screens/thread.dart';
 import 'speech_model.dart';
 import 'splash.dart';
 import 'theme.dart';
+import 'updater.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -195,6 +196,8 @@ class _CoveyAppState extends State<CoveyApp> {
     await WindowZoom.load();
     // The speech model and language picked in settings (#351).
     unawaited(SpeechModel.instance.loadPrefs());
+    // A new version of the Mac app, from the releases (#421).
+    unawaited(Updater.start());
     // Somebody who disconnected stays disconnected (#405): a key the
     // keychain would not let go of is not a way back in, and neither is an
     // instance given on the command line.

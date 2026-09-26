@@ -2720,7 +2720,8 @@
     "notizMenue": "更多操作",
     "statusLeer": "没有此状态的笔记。",
     "orgKoppeln": "关联另一个组织",
-    "orgNichtGekoppelt": "尚未在应用中。请在浏览器中切换到该组织，在个人资料 → 移动应用中关联。"
+    "orgNichtGekoppelt": "尚未在应用中。请在浏览器中切换到该组织，在个人资料 → 移动应用中关联。",
+    "updatesSuchen": "检查更新"
   },
   "appLink": {
     "title": "在 covey 应用中打开",

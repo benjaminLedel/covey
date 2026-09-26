@@ -2720,7 +2720,8 @@
     "notizMenue": "Más acciones",
     "statusLeer": "No hay notas con este estado.",
     "orgKoppeln": "Vincular otra organización",
-    "orgNichtGekoppelt": "Aún no está en la app. Vincúlela en el navegador, en esa organización, en perfil → app móvil."
+    "orgNichtGekoppelt": "Aún no está en la app. Vincúlela en el navegador, en esa organización, en perfil → app móvil.",
+    "updatesSuchen": "Buscar actualizaciones"
   },
   "appLink": {
     "title": "Abrir en la aplicación covey",

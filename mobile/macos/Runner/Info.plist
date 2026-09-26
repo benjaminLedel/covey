@@ -15,6 +15,15 @@
 	<array>
 		<string>INSendMessageIntent</string>
 	</array>
+	<!-- Updates (#421): Sparkle installs a new version only when its archive
+	     is signed with the private half of this key (a repository secret of
+	     the release job). The feed is set at run time, by release builds only. -->
+	<key>SUPublicEDKey</key>
+	<string>PONVrBvAMizJVrw8aNYp351IQXvW87p/T4cOKPdSoqo=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

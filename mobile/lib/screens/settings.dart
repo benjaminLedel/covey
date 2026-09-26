@@ -8,6 +8,7 @@ import 'package:hotkey_manager/hotkey_manager.dart';
 import '../chrome.dart';
 import '../api.dart';
 import '../profile.dart';
+import '../updater.dart';
 import '../activity.dart';
 import '../anywhere.dart';
 import '../diagnostics.dart';
@@ -613,6 +614,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
           if (DictateAnywhere.supported) ..._anywhere(context, small),
           if (ActivityRecorder.supported) ..._activity(context, small),
 
+          // A new version of the Mac app (#421); only where there is a feed.
+          if (Updater.supported) ...[
+            const SizedBox(height: 8),
+            InsetGroup(
+              children: [
+                GroupRow(
+                  title: context.t('mobile.updatesSuchen'),
+                  trailing: Icon(AppIcons.chevron.of(context), color: c.textMuted, size: 20),
+                  onTap: Updater.check,
+                ),
+              ],
+            ),
+          ],
           SectionTitle(context.t('mobile.diagnose')),
           InsetGroup(
             dividerIndent: 14,
