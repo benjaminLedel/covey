@@ -54,7 +54,8 @@ const vonMir = (e: ChatEntry) =>
 const istAuftrag = (e: ChatEntry) => e.kind === "message" && !vonMir(e);
 
 /** Die Person hinter einer Herkunft oder einem Verfasser ("chat:a@b" → "a@b"). */
-const wer = (author: string) => author.split(":").slice(1).join(":") || author;
+/** A message of one to a few emoji and nothing else, shown large (#396). */
+const nurEmoji = (text: string) => /^(?:\p{Extended_Pictographic}|\p{Emoji_Modifier}|\p{Regional_Indicator}|\u200d|\uFE0F|\s){1,12}$/u.test(text.trim()) && /\p{Extended_Pictographic}|\p{Regional_Indicator}/u.test(text);
 
 /** Woher die Arbeit kam, wenn nicht aus dem Chat: webhook:zammad → zammad. */
 const herkunft = (author: string) => (author.startsWith("chat:") ? "" : author.split(":")[0]);
@@ -327,9 +328,24 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
   return (
     <div className="tm-thread">
       <header className="tm-thread-kopf">
-        <div>
-          <h1>{agent.data?.display_name ?? "…"}</h1>
-          <p>{agent.data?.job_title || agent.data?.slug}</p>
+        {/* Who one talks to (#396): the face, the role and the state in
+            words — not the slug, which is the address, not the colleague. */}
+        <div className="tm-thread-wer">
+          {agent.data && (
+            <Gesicht
+              schluessel={agent.data.slug}
+              zustand={agent.data.killed ? "killed" : agent.data.status === "sleeping" ? "sleeping" : "working"}
+              groesse={36}
+            />
+          )}
+          <div>
+            <h1>{agent.data?.display_name ?? "…"}</h1>
+            <p>
+              {[agent.data?.job_title || agent.data?.slug, agent.data && t(`status.${agent.data.killed ? "killed" : agent.data.status}`, "")]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          </div>
         </div>
         {/* Zwei Symbole statt eines Feldes und eines Satzes: Die Kopfzeile
             eines Verlaufs gehört dem, mit dem man spricht, und nicht den
@@ -445,7 +461,23 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
           const neuerVorgang = i === 0 || gruppe(entries[i - 1]) !== gruppe(e);
           /* Erster Eintrag einer Folge desselben Sprechers: nur er trägt das
              Gesicht. */
-          const erstesDerFolge = neuerVorgang || vonMir(entries[i - 1]) !== vonMir(e);
+          /* A run (#396): the same speaker again within five minutes, on
+             the same day, in plain conversation. Only its first entry carries
+             the face and the head; a question, a result or an error always
+             starts one of its own. */
+          const vorige = i > 0 ? entries[i - 1] : null;
+          const schlicht = (x: ChatEntry) => x.kind === "message" || x.kind === "answer" || x.kind === "note";
+          const folgt =
+            !!vorige &&
+            !istAuftrag(e) &&
+            !istAuftrag(vorige) &&
+            schlicht(e) &&
+            schlicht(vorige) &&
+            vorige.author === e.author &&
+            tag(vorige.at) === tag(e.at) &&
+            Date.parse(e.at) - Date.parse(vorige.at) < 5 * 60_000 &&
+            !(neuerVorgang && e.task_id && e.kind !== "message");
+          const erstesDerFolge = !folgt;
           /* Kam die Arbeit nicht aus dem Chat, sagt die Zeile, woher: „aus
              zammad" ist eine Auskunft, „Nachricht" wäre eine Behauptung. */
           const herkunftName = herkunft(e.author) || t("chat.kind.message", "");
@@ -500,7 +532,10 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
                   </div>
                 </details>
               ) : (
-              <article className={`tm-blase ${vonMir(e) ? "ich" : "er"} k-${e.kind}${e.unterwegs ? " unterwegs" : ""}`}>
+              <article
+                className={`tm-blase ${vonMir(e) ? "ich" : "er"} k-${e.kind}${e.unterwegs ? " unterwegs" : ""}${folgt ? " folgt" : ""}${nurEmoji(e.text) ? " emoji" : ""}`}
+                title={folgt ? uhr(e.at, i18n.language) : undefined}
+              >
                 {/* Auf der Seite des Agenten steht sein Gesicht, und zwar nur
                     beim ersten Eintrag einer Folge: Fünf Gesichter
                     untereinander sind eine Bilderreihe, keine Unterhaltung. */}
@@ -510,10 +545,24 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
                   </span>
                 )}
                 <div className="tm-blase-inhalt">
-                <div className="tm-blase-kopf">
-                  {vonMir(e) ? wer(e.author) : e.kind === "message" ? herkunftName : t(`chat.kind.${e.kind}`)}
-                  <time dateTime={e.at}>{uhr(e.at, i18n.language)}</time>
-                </div>
+                {/* The head names who speaks (#396): the agent, and the kind
+                    only where it means something; one's own entries need
+                    only the time. */}
+                {!folgt && (
+                  <div className="tm-blase-kopf">
+                    {vonMir(e) ? null : e.kind === "message" ? (
+                      herkunftName
+                    ) : (
+                      <>
+                        <span className="tm-blase-name">{agent.data?.display_name ?? ""}</span>
+                        {(e.kind === "question" || e.kind === "result" || e.kind === "error") && (
+                          <span className={`tm-blase-art a-${e.kind}`}>{t(`chat.kind.${e.kind}`)}</span>
+                        )}
+                      </>
+                    )}
+                    <time dateTime={e.at}>{uhr(e.at, i18n.language)}</time>
+                  </div>
+                )}
                 <div className="tm-blase-text">
                   <Markdown text={e.text} />
                 </div>
