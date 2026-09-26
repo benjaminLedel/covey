@@ -43,6 +43,19 @@ Future<void> _start(WidgetTester tester, ProfileStore profiles) async {
   await tester.pump(const Duration(milliseconds: 600));
 }
 
+/// A keychain that refuses every save, as the data protection keychain did
+/// for the Mac app without its entitlement (#407).
+class _RefusingProfiles extends ProfileStore {
+  @override
+  Future<({String instance, String key})?> read() async => null;
+
+  @override
+  Future<void> write(String instance, String key) async => throw Exception('errSecMissingEntitlement');
+
+  @override
+  Future<void> clear() async {}
+}
+
 void main() {
   setUp(() => Prefs.instance.inMemory({'tour.team': '1'}));
 
@@ -73,5 +86,17 @@ void main() {
     expect(find.byType(HomeScreen), findsOneWidget);
     await _start(tester, profiles);
     expect(find.byType(HomeScreen), findsOneWidget);
+  });
+
+  testWidgets('a keychain that refuses the save does not stop the connection (#407)', (tester) async {
+    await _start(tester, _RefusingProfiles());
+    expect(find.byType(ConnectScreen), findsOneWidget);
+    await tester.runAsync(
+      () async => tester
+          .widget<ConnectScreen>(find.byType(ConnectScreen))
+          .onConnected(Uri.parse('https://c.example'), 'covey_neu'),
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.byType(HomeScreen), findsOneWidget, reason: 'connected for this session although nothing was saved');
   });
 }

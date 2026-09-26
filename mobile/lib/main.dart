@@ -228,10 +228,17 @@ class _CoveyAppState extends State<CoveyApp> {
     _loaded.complete();
   }
 
+  /// Connects, and keeps the connection for the next start. A keychain that
+  /// refuses the save does not stop the connection (#407): the app is then
+  /// connected for this session, and the log says why it will ask again.
   Future<void> _connected(Uri instance, String key) async {
-    await widget.profiles.write(instance.toString(), key);
-    await Prefs.instance.write(_disconnected, null);
     setState(() => _api = CoveyApi(instance, key));
+    await Prefs.instance.write(_disconnected, null);
+    try {
+      await widget.profiles.write(instance.toString(), key);
+    } catch (e) {
+      diag('profile', 'the connection could not be saved: $e');
+    }
   }
 
   /// The screen changes first (#405): the person asked to leave, whatever
