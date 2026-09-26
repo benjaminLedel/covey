@@ -58,9 +58,17 @@ class _HomeScreenState extends State<HomeScreen> {
   Object? _meError;
   final _notes = GlobalKey<NotesScreenState>();
 
-  /// What stands beside the list on a wide window — a thread or a note. On a
-  /// phone it is pushed instead, and this stays null.
-  Widget? _detail;
+  /// What stands beside the list on a wide window, one per kind (#403): the
+  /// conversation belongs to Team and the office, the note to Notes. A single
+  /// pane for both kept the conversation beside the notes after a switch. On
+  /// a phone the detail is pushed instead, and these stay null.
+  Widget? _thread, _note;
+
+  /// Where Notes stands among the spaces: last, after Team and the office.
+  int get _notesIndex => (_me?.teamSurface ?? false) ? (officeSpace ? 2 : 1) : 0;
+
+  /// The detail of the space on screen.
+  Widget? get _detail => _space == _notesIndex ? _note : _thread;
 
   /// From this width the spaces become a sidebar and the detail stands beside
   /// the list: a desktop window, a tablet in landscape.
@@ -147,9 +155,18 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _show(Widget detail) {
+  /// Opens a conversation or a note: beside the list on a wide window, in
+  /// that kind's space; pushed on a phone.
+  void _show(Widget detail, {required bool note}) {
     if (MediaQuery.sizeOf(context).width >= wide) {
-      setState(() => _detail = detail);
+      setState(() {
+        if (note) {
+          _note = detail;
+          _space = _notesIndex;
+        } else {
+          _thread = detail;
+        }
+      });
       return;
     }
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => detail));
@@ -165,6 +182,7 @@ class _HomeScreenState extends State<HomeScreen> {
       faceState: state,
       me: _me!,
     ),
+    note: false,
   );
 
   void _openNote(Note note, bool canSummarize, VoidCallback changed) => _show(
@@ -176,9 +194,10 @@ class _HomeScreenState extends State<HomeScreen> {
       onChanged: () {
         changed();
         // A note deleted beside the list leaves an empty pane, not a ghost.
-        if (_detail?.key == ValueKey('note:${note.id}')) setState(() => _detail = null);
+        if (_note?.key == ValueKey('note:${note.id}')) setState(() => _note = null);
       },
     ),
+    note: true,
   );
 
   /// The +: a sheet with the two ways to capture. What is captured lands in
@@ -253,7 +272,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (kind == 'note') {
       // A new note is the same page as an open one, empty; it comes into
       // being with its first words (#343).
-      _show(NotePage(key: UniqueKey(), api: widget.api, onChanged: reload));
+      _show(NotePage(key: UniqueKey(), api: widget.api, onChanged: reload), note: true);
       return;
     }
     final saved = await Navigator.of(

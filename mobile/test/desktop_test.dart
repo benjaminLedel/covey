@@ -57,6 +57,7 @@ void main() {
         if (p.endsWith('/auth/me')) return _json({'Email': 'a@b.c', 'DisplayName': 'Ada', 'Role': 'org_admin'});
         if (p.endsWith('/inbox')) return _json({'items': [], 'pending': 0});
         if (p.endsWith('/departments')) return _json([]);
+        if (p.endsWith('/me/notes')) return _json({'notes': [], 'summarize': false});
         if (p.endsWith('/agents')) {
           return _json([
             {'id': _agent, 'slug': 'bea', 'display_name': 'Bea', 'status': 'sleeping'},
@@ -94,6 +95,17 @@ void main() {
     expect(find.text('Die Rechnung ist geprüft.'), findsOneWidget);
     expect(find.text('Bea'), findsWidgets);
     expect(find.textContaining('Wählen Sie links'), findsNothing);
+
+    // Notes has its own pane (#403): the conversation stays with Team and
+    // does not stand beside the notes.
+    await tester.tap(find.byTooltip('Notizen'));
+    await _settle(tester);
+    expect(find.text('Die Rechnung ist geprüft.'), findsNothing);
+    expect(find.textContaining('Wählen Sie links'), findsOneWidget);
+    // Back in Team it is still open.
+    await tester.tap(find.byTooltip('Team'));
+    await _settle(tester);
+    expect(find.text('Die Rechnung ist geprüft.'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 }
