@@ -35,10 +35,10 @@ import (
 	"covey/internal/agents"
 	"covey/internal/backlog"
 	"covey/internal/chat"
-	"covey/internal/push"
 	"covey/internal/identity"
 	"covey/internal/llm"
 	"covey/internal/orchestrator"
+	"covey/internal/push"
 )
 
 // chatEntry is one line of the thread. The kinds:
