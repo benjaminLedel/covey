@@ -1199,7 +1199,10 @@
     "noDirect": "なし",
     "supervisedAgents": "担当しているエージェント",
     "noAgents": "なし",
-    "readOnlyHint": "他の人のプロフィールは、管理者が「ユーザー」で管理します。"
+    "readOnlyHint": "他の人のプロフィールは、管理者が「ユーザー」で管理します。",
+    "photoChange": "写真を変更",
+    "photoRemove": "写真を削除",
+    "photoFailed": "写真を保存できませんでした。12 MB までの JPEG と PNG に対応しています。"
   },
   "runtimes": {
     "title": "エンジン",
@@ -2670,7 +2673,18 @@
     "blockMenue": "ブロック：クリックでメニュー、ドラッグで移動",
     "blockLoeschen": "削除",
     "blockDuplizieren": "複製",
-    "blockUmwandeln": "変換 …"
+    "blockUmwandeln": "変換 …",
+    "fotoHinzufuegen": "プロフィール写真を追加",
+    "fotoAendern": "プロフィール写真を変更",
+    "fotoAufnehmen": "写真を撮る",
+    "fotoWaehlen": "写真を選ぶ",
+    "fotoEntfernen": "写真を削除",
+    "fotoZuschneiden": "切り抜き",
+    "fotoZuschneidenHinweis": "顔が円の中に収まるように移動・拡大してください。",
+    "fotoUebernehmen": "使用",
+    "fotoFehler": "写真を保存できませんでした。",
+    "kameraVerweigert": "covey はカメラを使用できません。システム設定の「プライバシーとセキュリティ」→「カメラ」で許可してください。",
+    "kameraAufnehmen": "撮影"
   },
   "appLink": {
     "title": "covey アプリで開く",

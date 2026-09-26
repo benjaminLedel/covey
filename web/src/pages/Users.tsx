@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, del, patch, post, ROLES, type Human, type Principal } from "../api";
+import { api, del, patch, photoUrl, post, ROLES, type Human, type Principal } from "../api";
 import { Avatar, PersonLink } from "../components/person";
 
 /** `embedded` leaves the own page head out — in the administration panel
@@ -139,7 +139,7 @@ function UserRow({ user, me }: { user: Human; me: Principal }) {
     <div className="card mb-2" style={{ padding: "11px 15px" }}>
       <div className="flex items-center gap-4 flex-wrap">
         <Link to={`/people/${user.id}`} title={t("org.openProfile")} style={{ color: "inherit", textDecoration: "none" }}>
-          <Avatar name={user.display_name} human />
+          <Avatar name={user.display_name} human photo={photoUrl(user.id, user.photo_id)} />
         </Link>
         <div className="flex-1 min-w-44">
           <div className="text-sm font-medium">

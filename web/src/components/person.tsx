@@ -28,8 +28,11 @@ export function Avatar({
   human,
   slug,
   zustand,
+  photo,
 }: {
   name: string;
+  /** Die Adresse des Profilfotos (#377); ohne sie das Monogramm. */
+  photo?: string;
   size?: number;
   human?: boolean;
   /** Das Kürzel des Agenten — aus ihm entsteht das Gesicht. */
@@ -42,6 +45,9 @@ export function Avatar({
         <Gesicht schluessel={slug} zustand={zustand} groesse={size} />
       </span>
     );
+  }
+  if (photo) {
+    return <img className="avatar avatar-foto" src={photo} alt="" style={{ width: size, height: size }} />;
   }
   return (
     <div className={`avatar${human ? " hum" : ""}`} style={{ width: size, height: size, fontSize: Math.round(size * 0.38) }}>

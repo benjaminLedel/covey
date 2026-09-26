@@ -1199,7 +1199,10 @@
     "noDirect": "geen",
     "supervisedAgents": "begeleide agenten",
     "noAgents": "geen",
-    "readOnlyHint": "Profielen van andere mensen beheert een beheerder onder “Gebruikers”."
+    "readOnlyHint": "Profielen van andere mensen beheert een beheerder onder “Gebruikers”.",
+    "photoChange": "Foto wijzigen",
+    "photoRemove": "Foto verwijderen",
+    "photoFailed": "De foto kon niet worden opgeslagen. JPEG en PNG tot 12 MB zijn toegestaan."
   },
   "runtimes": {
     "title": "Engines",
@@ -2670,7 +2673,18 @@
     "blockMenue": "Blok: klik voor het menu, sleep om te verplaatsen",
     "blockLoeschen": "Verwijderen",
     "blockDuplizieren": "Dupliceren",
-    "blockUmwandeln": "Omzetten naar …"
+    "blockUmwandeln": "Omzetten naar …",
+    "fotoHinzufuegen": "Profielfoto toevoegen",
+    "fotoAendern": "Profielfoto wijzigen",
+    "fotoAufnehmen": "Foto maken",
+    "fotoWaehlen": "Foto kiezen",
+    "fotoEntfernen": "Foto verwijderen",
+    "fotoZuschneiden": "Bijsnijden",
+    "fotoZuschneidenHinweis": "Verschuif en zoom tot uw gezicht in de cirkel staat.",
+    "fotoUebernehmen": "Gebruiken",
+    "fotoFehler": "De foto kon niet worden opgeslagen.",
+    "kameraVerweigert": "covey mag de camera niet gebruiken. Sta het toe in Systeeminstellingen onder Privacy en beveiliging → Camera.",
+    "kameraAufnehmen": "Maken"
   },
   "appLink": {
     "title": "Openen in de covey-app",

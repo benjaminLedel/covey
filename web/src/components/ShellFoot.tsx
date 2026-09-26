@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { NavLink } from "react-router";
-import { buildInfo, post, type Principal } from "../api";
+import { buildInfo, photoUrl, post, type Principal } from "../api";
 import { useMemberships, useSwitchOrg } from "./OrgSwitcher";
 import { NavIcon, initials } from "./navicons";
 import GitHubLink from "./GitHubLink";
@@ -46,7 +46,11 @@ export default function ShellFoot({
     <div className="side-foot">
   <div className="suser-row">
     <NavLink to="/profile" className="suser" title={t("nav.profile")}>
-      <span className="avatar">{initials(me.DisplayName)}</span>
+      {me.PhotoID ? (
+        <img className="avatar avatar-foto" src={photoUrl(me.ID, me.PhotoID)} alt="" />
+      ) : (
+        <span className="avatar">{initials(me.DisplayName)}</span>
+      )}
       <span className="min-w-0">
         <span className="nm truncate block">{me.DisplayName}</span>
         <span className="rl block truncate">

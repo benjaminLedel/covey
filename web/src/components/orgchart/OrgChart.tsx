@@ -18,7 +18,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import {
-  isDraft,
+  isDraft, photoUrl,
   createDepartment, renameDepartment, deleteDepartment, setDepartmentColor,
   setAgentDepartment, setAgentSupervisor, setHumanDepartment, setHumanManager,
   addDepartmentLead, removeDepartmentLead,
@@ -712,6 +712,7 @@ function MemberCard({ node, editing, depts, members, dragging, canDrop, onDragSt
             name={name}
             size={30}
             human={!isAgent}
+            photo={isAgent ? undefined : photoUrl(m.human.id, m.human.photo_id)}
             slug={isAgent ? m.agent.slug : undefined}
             zustand={isAgent ? (m.agent.killed ? "killed" : m.agent.status === "sleeping" ? "sleeping" : "working") : undefined}
           />

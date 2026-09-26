@@ -16,6 +16,8 @@ export type Principal = {
      while it is in beta; /auth/me carries it so the shell is picked on the
      first answer. */
   TeamSurface?: boolean;
+  /* The person's profile photo (#377); absent = the monogram. */
+  PhotoID?: string;
 };
 
 /** Does this person manage the installation itself? */
@@ -643,8 +645,24 @@ export type Human = {
      gesehen — und das ist NICHT dasselbe wie „weg": Ein Sitz, den niemand
      benutzt hat, sieht anders aus als einer, der heute Morgen benutzt wurde. */
   last_seen_at?: string;
+  /* The profile photo (#377); absent = the monogram. A new photo has a new
+     id, so it is also the cache key in the address. */
+  photo_id?: string;
   created_at: string;
 };
+
+/** Where a person's photo is served; undefined without one. */
+export const photoUrl = (humanId: string, photoId?: string) =>
+  photoId ? `/api/v1/humans/${humanId}/photo?v=${photoId}` : undefined;
+
+/** Sets one's own profile photo (#377); the server makes a square of it. */
+export const setPhoto = (file: Blob) => {
+  const form = new FormData();
+  form.append("file", file);
+  return api<{ photo_id: string }>("/me/photo", { method: "PUT", body: form });
+};
+
+export const deletePhoto = () => del<void>("/me/photo");
 
 // Lead of a department: a human or an agent — a department can
 // have several leads, a lead several departments.

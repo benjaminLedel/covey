@@ -1,7 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef } from "react";
 import { Link, Navigate, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
-import { api, isNotFound, type Human, type OrgChart, type Principal } from "../api";
+import { api, deletePhoto, isNotFound, photoUrl, setPhoto, type Human, type OrgChart, type Principal } from "../api";
 import AccountSettings from "../components/AccountSettings";
 import { Avatar, PersonLink } from "../components/person";
 import ProfileForm from "../components/ProfileForm";
@@ -44,7 +45,11 @@ export default function PersonPage({ me }: { me: Principal }) {
       </div>
 
       <div className="flex items-center gap-3 mb-5 flex-wrap">
-        <Avatar name={h.display_name} size={44} human />
+        {isSelf ? (
+          <OwnPhoto human={h} />
+        ) : (
+          <Avatar name={h.display_name} size={44} human photo={photoUrl(h.id, h.photo_id)} />
+        )}
         <div>
           <h1 className="text-[22px] m-0">
             {h.display_name}
@@ -110,6 +115,57 @@ export default function PersonPage({ me }: { me: Principal }) {
       </div>
 
       {isSelf && <AccountSettings me={me} />}
+    </div>
+  );
+}
+
+/* Das eigene Foto (#377): ein Klick auf das Bild wählt ein neues — auf dem
+   Telefon bietet der Browser dabei die Kamera an —, „Entfernen" bringt das
+   Monogramm zurück. Den Zuschnitt macht der Server. */
+function OwnPhoto({ human }: { human: Human }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const input = useRef<HTMLInputElement>(null);
+  const done = () => {
+    void qc.invalidateQueries({ queryKey: ["human", human.id] });
+    void qc.invalidateQueries({ queryKey: ["me"] });
+    void qc.invalidateQueries({ queryKey: ["orgchart"] });
+  };
+  const upload = useMutation({ mutationFn: setPhoto, onSuccess: done });
+  const remove = useMutation({ mutationFn: deletePhoto, onSuccess: done });
+  const busy = upload.isPending || remove.isPending;
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        className="avatar-pick"
+        onClick={() => input.current?.click()}
+        disabled={busy}
+        title={t("person.photoChange")}
+        aria-label={t("person.photoChange")}
+      >
+        <Avatar name={human.display_name} size={44} human photo={photoUrl(human.id, human.photo_id)} />
+      </button>
+      <input
+        ref={input}
+        type="file"
+        accept="image/jpeg,image/png"
+        capture="user"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (f) upload.mutate(f);
+        }}
+      />
+      {human.photo_id && (
+        <button type="button" className="btn sm" onClick={() => remove.mutate()} disabled={busy}>
+          {t("person.photoRemove")}
+        </button>
+      )}
+      {(upload.isError || remove.isError) && (
+        <span className="danger-text text-xs">{t("person.photoFailed")}</span>
+      )}
     </div>
   );
 }

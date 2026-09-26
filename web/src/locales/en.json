@@ -1199,7 +1199,10 @@
     "noDirect": "none",
     "supervisedAgents": "supervised agents",
     "noAgents": "none",
-    "readOnlyHint": "Other people's profiles are managed by an admin under \"Users\"."
+    "readOnlyHint": "Other people's profiles are managed by an admin under \"Users\".",
+    "photoChange": "Change photo",
+    "photoRemove": "Remove photo",
+    "photoFailed": "The photo could not be saved. JPEG and PNG up to 12 MB are allowed."
   },
   "runtimes": {
     "title": "Engines",
@@ -2670,7 +2673,18 @@
     "blockMenue": "Block: click for the menu, drag to move",
     "blockLoeschen": "Delete",
     "blockDuplizieren": "Duplicate",
-    "blockUmwandeln": "Turn into …"
+    "blockUmwandeln": "Turn into …",
+    "fotoHinzufuegen": "Add profile photo",
+    "fotoAendern": "Change profile photo",
+    "fotoAufnehmen": "Take photo",
+    "fotoWaehlen": "Choose photo",
+    "fotoEntfernen": "Remove photo",
+    "fotoZuschneiden": "Crop",
+    "fotoZuschneidenHinweis": "Move and zoom until your face sits in the circle.",
+    "fotoUebernehmen": "Use photo",
+    "fotoFehler": "The photo could not be saved.",
+    "kameraVerweigert": "covey may not use the camera. Allow it in System Settings under Privacy & Security → Camera.",
+    "kameraAufnehmen": "Take"
   },
   "appLink": {
     "title": "Open in the covey app",

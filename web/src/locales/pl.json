@@ -1199,7 +1199,10 @@
     "noDirect": "brak",
     "supervisedAgents": "nadzorowani agenci",
     "noAgents": "brak",
-    "readOnlyHint": "Profilami innych osób zarządza administrator w zakładce „Użytkownicy”."
+    "readOnlyHint": "Profilami innych osób zarządza administrator w zakładce „Użytkownicy”.",
+    "photoChange": "Zmień zdjęcie",
+    "photoRemove": "Usuń zdjęcie",
+    "photoFailed": "Nie udało się zapisać zdjęcia. Dozwolone są JPEG i PNG do 12 MB."
   },
   "runtimes": {
     "title": "Silniki",
@@ -2670,7 +2673,18 @@
     "blockMenue": "Blok: kliknij, aby otworzyć menu, przeciągnij, aby przenieść",
     "blockLoeschen": "Usuń",
     "blockDuplizieren": "Duplikuj",
-    "blockUmwandeln": "Zamień na …"
+    "blockUmwandeln": "Zamień na …",
+    "fotoHinzufuegen": "Dodaj zdjęcie profilowe",
+    "fotoAendern": "Zmień zdjęcie profilowe",
+    "fotoAufnehmen": "Zrób zdjęcie",
+    "fotoWaehlen": "Wybierz zdjęcie",
+    "fotoEntfernen": "Usuń zdjęcie",
+    "fotoZuschneiden": "Przytnij",
+    "fotoZuschneidenHinweis": "Przesuń i przybliż, aż twarz znajdzie się w okręgu.",
+    "fotoUebernehmen": "Użyj",
+    "fotoFehler": "Nie udało się zapisać zdjęcia.",
+    "kameraVerweigert": "covey nie ma dostępu do kamery. Zezwól na to w Ustawieniach systemowych, w sekcji Prywatność i ochrona → Kamera.",
+    "kameraAufnehmen": "Zrób"
   },
   "appLink": {
     "title": "Otwórz w aplikacji covey",

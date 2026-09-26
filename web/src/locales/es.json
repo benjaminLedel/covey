@@ -1199,7 +1199,10 @@
     "noDirect": "ninguna",
     "supervisedAgents": "agentes supervisados",
     "noAgents": "ninguno",
-    "readOnlyHint": "Los perfiles de otras personas los gestiona un administrador en \"Usuarios\"."
+    "readOnlyHint": "Los perfiles de otras personas los gestiona un administrador en \"Usuarios\".",
+    "photoChange": "Cambiar foto",
+    "photoRemove": "Quitar foto",
+    "photoFailed": "No se pudo guardar la foto. Se admiten JPEG y PNG de hasta 12 MB."
   },
   "runtimes": {
     "title": "Motores",
@@ -2670,7 +2673,18 @@
     "blockMenue": "Bloque: clic para el menú, arrastrar para mover",
     "blockLoeschen": "Eliminar",
     "blockDuplizieren": "Duplicar",
-    "blockUmwandeln": "Convertir en …"
+    "blockUmwandeln": "Convertir en …",
+    "fotoHinzufuegen": "Añadir foto de perfil",
+    "fotoAendern": "Cambiar foto de perfil",
+    "fotoAufnehmen": "Hacer foto",
+    "fotoWaehlen": "Elegir foto",
+    "fotoEntfernen": "Quitar foto",
+    "fotoZuschneiden": "Recortar",
+    "fotoZuschneidenHinweis": "Mueva y amplíe hasta que su cara quede dentro del círculo.",
+    "fotoUebernehmen": "Usar foto",
+    "fotoFehler": "No se pudo guardar la foto.",
+    "kameraVerweigert": "covey no puede usar la cámara. Permítalo en Ajustes del Sistema, en Privacidad y seguridad → Cámara.",
+    "kameraAufnehmen": "Hacer foto"
   },
   "appLink": {
     "title": "Abrir en la aplicación covey",

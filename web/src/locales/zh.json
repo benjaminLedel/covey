@@ -1199,7 +1199,10 @@
     "noDirect": "无",
     "supervisedAgents": "所负责的智能体",
     "noAgents": "无",
-    "readOnlyHint": "其他人的档案由管理员在“用户”里管理。"
+    "readOnlyHint": "其他人的档案由管理员在“用户”里管理。",
+    "photoChange": "更换照片",
+    "photoRemove": "删除照片",
+    "photoFailed": "无法保存照片。支持不超过 12 MB 的 JPEG 和 PNG。"
   },
   "runtimes": {
     "title": "引擎",
@@ -2670,7 +2673,18 @@
     "blockMenue": "块：点击打开菜单，拖动以移动",
     "blockLoeschen": "删除",
     "blockDuplizieren": "复制",
-    "blockUmwandeln": "转换为 …"
+    "blockUmwandeln": "转换为 …",
+    "fotoHinzufuegen": "添加头像",
+    "fotoAendern": "更换头像",
+    "fotoAufnehmen": "拍照",
+    "fotoWaehlen": "选择照片",
+    "fotoEntfernen": "删除照片",
+    "fotoZuschneiden": "裁剪",
+    "fotoZuschneidenHinweis": "移动和缩放，直到您的脸位于圆圈内。",
+    "fotoUebernehmen": "使用",
+    "fotoFehler": "无法保存照片。",
+    "kameraVerweigert": "covey 无法使用摄像头。请在“系统设置”的“隐私与安全性”→“摄像头”中允许。",
+    "kameraAufnehmen": "拍摄"
   },
   "appLink": {
     "title": "在 covey 应用中打开",

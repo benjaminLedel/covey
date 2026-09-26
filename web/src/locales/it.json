@@ -1199,7 +1199,10 @@
     "noDirect": "nessuno",
     "supervisedAgents": "agenti supervisionati",
     "noAgents": "nessuno",
-    "readOnlyHint": "I profili delle altre persone li gestisce un amministratore alla voce «Utenti»."
+    "readOnlyHint": "I profili delle altre persone li gestisce un amministratore alla voce «Utenti».",
+    "photoChange": "Cambia foto",
+    "photoRemove": "Rimuovi foto",
+    "photoFailed": "Impossibile salvare la foto. Sono ammessi JPEG e PNG fino a 12 MB."
   },
   "runtimes": {
     "title": "Motori",
@@ -2670,7 +2673,18 @@
     "blockMenue": "Blocco: clic per il menu, trascina per spostare",
     "blockLoeschen": "Elimina",
     "blockDuplizieren": "Duplica",
-    "blockUmwandeln": "Trasforma in …"
+    "blockUmwandeln": "Trasforma in …",
+    "fotoHinzufuegen": "Aggiungi foto profilo",
+    "fotoAendern": "Cambia foto profilo",
+    "fotoAufnehmen": "Scatta foto",
+    "fotoWaehlen": "Scegli foto",
+    "fotoEntfernen": "Rimuovi foto",
+    "fotoZuschneiden": "Ritaglia",
+    "fotoZuschneidenHinweis": "Sposti e ingrandisca finché il viso è nel cerchio.",
+    "fotoUebernehmen": "Usa foto",
+    "fotoFehler": "Impossibile salvare la foto.",
+    "kameraVerweigert": "covey non può usare la fotocamera. Lo consenta in Impostazioni di Sistema, sotto Privacy e sicurezza → Fotocamera.",
+    "kameraAufnehmen": "Scatta"
   },
   "appLink": {
     "title": "Apri nell'app covey",

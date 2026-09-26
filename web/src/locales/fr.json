@@ -1199,7 +1199,10 @@
     "noDirect": "aucun",
     "supervisedAgents": "agents supervisés",
     "noAgents": "aucun",
-    "readOnlyHint": "Les profils des autres personnes sont gérés par un administrateur sous « Utilisateurs »."
+    "readOnlyHint": "Les profils des autres personnes sont gérés par un administrateur sous « Utilisateurs ».",
+    "photoChange": "Changer la photo",
+    "photoRemove": "Supprimer la photo",
+    "photoFailed": "La photo n’a pas pu être enregistrée. JPEG et PNG jusqu’à 12 Mo."
   },
   "runtimes": {
     "title": "Moteurs",
@@ -2670,7 +2673,18 @@
     "blockMenue": "Bloc : cliquer pour le menu, glisser pour déplacer",
     "blockLoeschen": "Supprimer",
     "blockDuplizieren": "Dupliquer",
-    "blockUmwandeln": "Transformer en …"
+    "blockUmwandeln": "Transformer en …",
+    "fotoHinzufuegen": "Ajouter une photo de profil",
+    "fotoAendern": "Changer la photo de profil",
+    "fotoAufnehmen": "Prendre une photo",
+    "fotoWaehlen": "Choisir une photo",
+    "fotoEntfernen": "Supprimer la photo",
+    "fotoZuschneiden": "Recadrer",
+    "fotoZuschneidenHinweis": "Déplacez et zoomez jusqu’à ce que votre visage soit dans le cercle.",
+    "fotoUebernehmen": "Utiliser",
+    "fotoFehler": "La photo n’a pas pu être enregistrée.",
+    "kameraVerweigert": "covey n’a pas accès à la caméra. Autorisez-le dans Réglages Système, sous Confidentialité et sécurité → Caméra.",
+    "kameraAufnehmen": "Prendre"
   },
   "appLink": {
     "title": "Ouvrir dans l'application covey",
