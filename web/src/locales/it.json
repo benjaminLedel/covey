@@ -2651,7 +2651,6 @@
     "block_table": "Tabella",
     "block_image": "Immagine",
     "blockKeiner": "Nessun blocco corrisponde",
-    "blockVerschieben": "Sposta blocco",
     "toggleLeer": "Espandibile vuoto. Scrivi qui …",
     "iconHinzu": "Aggiungi icona",
     "coverHinzu": "Aggiungi copertina",
@@ -2667,7 +2666,11 @@
     "propTags": "Tag",
     "tagHinweis": "Una parola, ad es. cliente",
     "ansichtListe": "Elenco",
-    "ansichtBoard": "Bacheca"
+    "ansichtBoard": "Bacheca",
+    "blockMenue": "Blocco: clic per il menu, trascina per spostare",
+    "blockLoeschen": "Elimina",
+    "blockDuplizieren": "Duplica",
+    "blockUmwandeln": "Trasforma in …"
   },
   "appLink": {
     "title": "Apri nell'app covey",

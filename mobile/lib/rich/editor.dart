@@ -563,6 +563,113 @@ class BlockEditorState extends State<BlockEditor> {
     _emit();
   }
 
+  /// The block's menu (#371), from its handle: delete, duplicate, or turn
+  /// a text block into another kind. A menu at the handle with a mouse, a
+  /// sheet from below on touch.
+  Future<void> _blockMenu(BuildContext handle, int i) async {
+    if (i >= _entries.length) return;
+    final t = Strings.of(context).t;
+    final isText = _entries[i].block.isText;
+    final touch = switch (Theme.of(context).platform) {
+      TargetPlatform.iOS || TargetPlatform.android => true,
+      _ => false,
+    };
+    String? choice;
+    if (touch) {
+      choice = await showModalBottomSheet<String>(
+        context: context,
+        builder: (context) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isText)
+                ListTile(
+                  leading: const Icon(Icons.swap_horiz_rounded),
+                  title: Text(t('mobile.blockUmwandeln')),
+                  onTap: () => Navigator.pop(context, 'turn'),
+                ),
+              ListTile(
+                leading: const Icon(Icons.copy_rounded),
+                title: Text(t('mobile.blockDuplizieren')),
+                onTap: () => Navigator.pop(context, 'duplicate'),
+              ),
+              ListTile(
+                leading: Icon(Icons.delete_outline_rounded, color: context.colors.textDanger),
+                title: Text(t('mobile.blockLoeschen'), style: TextStyle(color: context.colors.textDanger)),
+                onTap: () => Navigator.pop(context, 'delete'),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else {
+      final box = handle.findRenderObject()! as RenderBox;
+      final at = box.localToGlobal(Offset(0, box.size.height));
+      Widget entry(IconData icon, String label, {Color? color}) => Row(
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 12),
+          Text(label, style: TextStyle(color: color)),
+        ],
+      );
+      final danger = context.colors.textDanger;
+      choice = await showMenu<String>(
+        context: context,
+        position: RelativeRect.fromLTRB(at.dx, at.dy + 2, at.dx + 1, at.dy + 1),
+        items: [
+          if (isText) PopupMenuItem(value: 'turn', child: entry(Icons.swap_horiz_rounded, t('mobile.blockUmwandeln'))),
+          PopupMenuItem(value: 'duplicate', child: entry(Icons.copy_rounded, t('mobile.blockDuplizieren'))),
+          PopupMenuItem(
+            value: 'delete',
+            child: entry(Icons.delete_outline_rounded, t('mobile.blockLoeschen'), color: danger),
+          ),
+        ],
+      );
+    }
+    if (!mounted || choice == null || i >= _entries.length) return;
+    switch (choice) {
+      case 'delete':
+        removeBlock(i);
+      case 'duplicate':
+        markdown; // the block's text written back first
+        _insert(i + 1, _entries[i].block.copy());
+        setState(() {});
+        _emit();
+      case 'turn':
+        await _turnInto(i);
+    }
+  }
+
+  Future<void> _turnInto(int i) async {
+    final t = Strings.of(context).t;
+    final kind = await showModalBottomSheet<BlockKind>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            for (final o in _SlashOption.all)
+              if (o.kind != null)
+                ListTile(
+                  leading: Icon(o.icon),
+                  title: Text(t(o.label)),
+                  selected: _entries[i].block.kind == o.kind,
+                  onTap: () => Navigator.pop(context, o.kind),
+                ),
+          ],
+        ),
+      ),
+    );
+    if (kind == null || !mounted || i >= _entries.length) return;
+    final b = _entries[i].block;
+    b.kind = kind;
+    b.checked = false;
+    if (kind == BlockKind.toggle) b.open = true;
+    setState(() {});
+    changes.ping();
+    _emit();
+  }
+
   void removeBlock(int i) {
     _remove(i);
     if (_entries.isEmpty) _insert(0, Block(BlockKind.paragraph));
@@ -652,13 +759,21 @@ class BlockEditorState extends State<BlockEditor> {
                   duration: const Duration(milliseconds: 120),
                   child: IgnorePointer(
                     ignoring: !handle,
-                    child: ReorderableDragStartListener(
-                      index: i,
-                      child: MouseRegion(
-                        cursor: SystemMouseCursors.grab,
-                        child: Semantics(
-                          label: Strings.of(context).t('mobile.blockVerschieben'),
-                          child: Icon(Icons.drag_indicator_rounded, size: 18, color: c.textMuted),
+                    // A click opens the block's menu; a drag moves the block —
+                    // the drag only wins once the pointer has moved.
+                    child: Builder(
+                      builder: (handleContext) => GestureDetector(
+                        onTap: () => _blockMenu(handleContext, i),
+                        child: ReorderableDragStartListener(
+                          index: i,
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.grab,
+                            child: Semantics(
+                              button: true,
+                              label: Strings.of(context).t('mobile.blockMenue'),
+                              child: Icon(Icons.drag_indicator_rounded, size: 18, color: c.textMuted),
+                            ),
+                          ),
                         ),
                       ),
                     ),

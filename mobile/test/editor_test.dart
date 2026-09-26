@@ -73,7 +73,11 @@ void main() {
     expect(find.byType(TextField), findsNWidgets(5), reason: 'a line after the table, to go on writing');
     await tester.enterText(cells.at(3), '3');
     await _settle(tester);
-    expect(out.last, '| A | B |\n| --- | --- |\n| 1 | 3 |\n\n', reason: 'the blank line after the table, then the line');
+    expect(
+      out.last,
+      '| A | B |\n| --- | --- |\n| 1 | 3 |\n\n',
+      reason: 'the blank line after the table, then the line',
+    );
 
     await tester.tap(cells.at(3));
     await _settle(tester);

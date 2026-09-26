@@ -2651,7 +2651,6 @@
     "block_table": "Tabelle",
     "block_image": "Bild",
     "blockKeiner": "Kein Block passt",
-    "blockVerschieben": "Block verschieben",
     "toggleLeer": "Leerer Toggle. Hier schreiben …",
     "iconHinzu": "Icon hinzufügen",
     "coverHinzu": "Titelbild hinzufügen",
@@ -2667,7 +2666,11 @@
     "propTags": "Tags",
     "tagHinweis": "Ein Wort, z. B. Kunde",
     "ansichtListe": "Liste",
-    "ansichtBoard": "Board"
+    "ansichtBoard": "Board",
+    "blockMenue": "Block: klicken für Menü, ziehen zum Verschieben",
+    "blockLoeschen": "Löschen",
+    "blockDuplizieren": "Duplizieren",
+    "blockUmwandeln": "Umwandeln in …"
   },
   "appLink": {
     "title": "In der covey-App öffnen",

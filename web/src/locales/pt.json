@@ -2651,7 +2651,6 @@
     "block_table": "Tabela",
     "block_image": "Imagem",
     "blockKeiner": "Nenhum bloco corresponde",
-    "blockVerschieben": "Mover bloco",
     "toggleLeer": "Alternância vazia. Escreva aqui …",
     "iconHinzu": "Adicionar ícone",
     "coverHinzu": "Adicionar capa",
@@ -2667,7 +2666,11 @@
     "propTags": "Etiquetas",
     "tagHinweis": "Uma palavra, p. ex. cliente",
     "ansichtListe": "Lista",
-    "ansichtBoard": "Quadro"
+    "ansichtBoard": "Quadro",
+    "blockMenue": "Bloco: clique para o menu, arraste para mover",
+    "blockLoeschen": "Eliminar",
+    "blockDuplizieren": "Duplicar",
+    "blockUmwandeln": "Converter em …"
   },
   "appLink": {
     "title": "Abrir na aplicação covey",

@@ -2651,7 +2651,6 @@
     "block_table": "表格",
     "block_image": "图片",
     "blockKeiner": "没有匹配的块",
-    "blockVerschieben": "移动块",
     "toggleLeer": "空折叠块。在此输入 …",
     "iconHinzu": "添加图标",
     "coverHinzu": "添加封面",
@@ -2667,7 +2666,11 @@
     "propTags": "标签",
     "tagHinweis": "一个词，例如 客户",
     "ansichtListe": "列表",
-    "ansichtBoard": "看板"
+    "ansichtBoard": "看板",
+    "blockMenue": "块：点击打开菜单，拖动以移动",
+    "blockLoeschen": "删除",
+    "blockDuplizieren": "复制",
+    "blockUmwandeln": "转换为 …"
   },
   "appLink": {
     "title": "在 covey 应用中打开",

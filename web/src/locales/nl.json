@@ -2651,7 +2651,6 @@
     "block_table": "Tabel",
     "block_image": "Afbeelding",
     "blockKeiner": "Geen blok past",
-    "blockVerschieben": "Blok verplaatsen",
     "toggleLeer": "Lege uitklapper. Schrijf hier …",
     "iconHinzu": "Pictogram toevoegen",
     "coverHinzu": "Omslag toevoegen",
@@ -2667,7 +2666,11 @@
     "propTags": "Tags",
     "tagHinweis": "Eén woord, bijv. klant",
     "ansichtListe": "Lijst",
-    "ansichtBoard": "Bord"
+    "ansichtBoard": "Bord",
+    "blockMenue": "Blok: klik voor het menu, sleep om te verplaatsen",
+    "blockLoeschen": "Verwijderen",
+    "blockDuplizieren": "Dupliceren",
+    "blockUmwandeln": "Omzetten naar …"
   },
   "appLink": {
     "title": "Openen in de covey-app",

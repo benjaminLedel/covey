@@ -2651,7 +2651,6 @@
     "block_table": "Tabela",
     "block_image": "Obraz",
     "blockKeiner": "Żaden blok nie pasuje",
-    "blockVerschieben": "Przenieś blok",
     "toggleLeer": "Pusty rozwijany blok. Pisz tutaj …",
     "iconHinzu": "Dodaj ikonę",
     "coverHinzu": "Dodaj okładkę",
@@ -2667,7 +2666,11 @@
     "propTags": "Tagi",
     "tagHinweis": "Jedno słowo, np. klient",
     "ansichtListe": "Lista",
-    "ansichtBoard": "Tablica"
+    "ansichtBoard": "Tablica",
+    "blockMenue": "Blok: kliknij, aby otworzyć menu, przeciągnij, aby przenieść",
+    "blockLoeschen": "Usuń",
+    "blockDuplizieren": "Duplikuj",
+    "blockUmwandeln": "Zamień na …"
   },
   "appLink": {
     "title": "Otwórz w aplikacji covey",

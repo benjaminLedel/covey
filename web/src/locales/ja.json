@@ -2651,7 +2651,6 @@
     "block_table": "表",
     "block_image": "画像",
     "blockKeiner": "該当するブロックがありません",
-    "blockVerschieben": "ブロックを移動",
     "toggleLeer": "空のトグル。ここに入力 …",
     "iconHinzu": "アイコンを追加",
     "coverHinzu": "カバーを追加",
@@ -2667,7 +2666,11 @@
     "propTags": "タグ",
     "tagHinweis": "1語で（例：顧客）",
     "ansichtListe": "リスト",
-    "ansichtBoard": "ボード"
+    "ansichtBoard": "ボード",
+    "blockMenue": "ブロック：クリックでメニュー、ドラッグで移動",
+    "blockLoeschen": "削除",
+    "blockDuplizieren": "複製",
+    "blockUmwandeln": "変換 …"
   },
   "appLink": {
     "title": "covey アプリで開く",

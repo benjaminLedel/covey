@@ -169,4 +169,45 @@ void main() {
     expect(find.text('Tabelle'), findsNothing);
     expect(find.text('Toggle'), findsNothing);
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+  testWidgets(
+    'a click on the handle opens the block menu: delete and duplicate (#371)',
+    (tester) async {
+      final out = await _editor(tester, 'Erste\nZweite');
+      // One mouse for the whole test, as on a desk: it moves, presses, lets go.
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      Future<void> click(Offset at) async {
+        await mouse.moveTo(at);
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.pump(const Duration(milliseconds: 200));
+        await mouse.down(at);
+        await tester.pump();
+        await mouse.up();
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump(const Duration(milliseconds: 400));
+      }
+
+      Future<void> openMenu(int line) async {
+        final field = tester.getTopLeft(find.byType(TextField).at(line));
+        await mouse.moveTo(field + const Offset(40, 10));
+        await tester.pump();
+        await mouse.moveTo(field + const Offset(-12, 10));
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.pump(const Duration(milliseconds: 200));
+        await click(tester.getCenter(find.byIcon(Icons.drag_indicator_rounded).at(line)));
+      }
+
+      await openMenu(0);
+      expect(find.text('Löschen'), findsOneWidget);
+      await click(tester.getCenter(find.text('Duplizieren')));
+      expect(out.last, 'Erste\nErste\nZweite');
+
+      await openMenu(2);
+      await click(tester.getCenter(find.text('Löschen')));
+      expect(out.last, 'Erste\nErste');
+      await mouse.removePointer();
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 }
