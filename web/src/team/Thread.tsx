@@ -2,7 +2,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { PEOPLE_SLUG, api, isDraft, post, upload, type Agent, type ChatEntry, type ChatMark, type Laufend, type Principal, type Verlauf } from "../api";
+import { PEOPLE_SLUG, api, isDraft, markThreadRead, post, upload, type Agent, type ChatEntry, type ChatMark, type Laufend, type Principal, type Verlauf } from "../api";
 import { Markdown } from "../components/Markdown";
 import Dauer from "../components/Dauer";
 import { useSucheOeffnen } from "../components/Suche";
@@ -103,6 +103,16 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
        Verbindung, die abgerissen ist, ohne es zu melden. */
     refetchInterval: 30_000,
   });
+
+  /* What is on the screen has been read (#385), up to the newest entry
+     shown. The sidebar's badge goes with it. */
+  const neuestes = (thread.data?.entries ?? []).reduce((m, e) => (!m || Date.parse(e.at) > Date.parse(m) ? e.at : m), "");
+  useEffect(() => {
+    if (!neuestes) return;
+    markThreadRead(agentId, neuestes)
+      .then(() => qc.invalidateQueries({ queryKey: ["threads"] }))
+      .catch(() => {});
+  }, [agentId, neuestes, qc]);
 
   const alle = thread.data?.entries ?? [];
   const entries = alle;

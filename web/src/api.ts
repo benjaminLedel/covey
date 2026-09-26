@@ -212,6 +212,23 @@ export type Hintergrundvorgang = {
   updated_at: string;
 };
 
+/** One agent's thread as a person's list shows it (#378, #385): how much
+    of it they have not read, and the newest entry from the agent's side. */
+export type ThreadState = {
+  agent_id: string;
+  unread: number;
+  last_at: string;
+  last_text: string;
+  last_kind: string;
+};
+
+export const myThreads = () => api<{ threads: ThreadState[] }>("/me/threads").then((r) => r.threads);
+
+/** Read up to the newest entry shown — not up to now: an answer arriving
+    meanwhile stays unread. */
+export const markThreadRead = (agentId: string, at: string) =>
+  post<void>(`/agents/${agentId}/thread/read`, { at });
+
 /** Der Verlauf, wie ihn `/agents/{id}/thread` liefert. */
 export type Verlauf = {
   entries: ChatEntry[];

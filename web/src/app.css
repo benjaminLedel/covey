@@ -2353,7 +2353,25 @@
    bekommt es den getönten Grund und die Akzentfarbe (siehe Workspace.tsx,
    warum der Ring und nicht die Fläche). */
 .tm-kollege-zeichen { flex: none; display: inline-flex; }
-.tm-kollege-text { min-width: 0; }
+.tm-kollege-text { min-width: 0; flex: 1; }
+/* Unread (#385): the name in bold, the newest line in the primary colour,
+   and a count in the ink colour — three signs, none of them colour alone. */
+.tm-kollege.neu .tm-kollege-name { font-weight: 650; }
+.tm-kollege.neu .tm-kollege-rolle { color: var(--text-primary); }
+.tm-ungelesen {
+  flex: none;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--text-primary);
+  color: var(--surface-0);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 20px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
 .tm-kollege:hover { background: var(--tint-weak); }
 .tm-kollege.on { background: var(--bg-accent); }
 .tm-kollege.on .tm-kollege-name { color: var(--text-accent); }

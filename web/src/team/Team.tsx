@@ -2,7 +2,7 @@ import { Suspense, lazy, useCallback, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link, NavLink, Navigate, Route, Routes, useParams } from "react-router";
-import { PEOPLE_SLUG, api, inbox, isDraft, type Agent, type Department, type Principal } from "../api";
+import { PEOPLE_SLUG, api, inbox, isDraft, myThreads, type Agent, type Department, type Principal, type ThreadState } from "../api";
 import { canManage } from "../pages/agent/roles";
 import { BirdMark } from "../components/BirdMark";
 import HelpDrawer from "../components/HelpDrawer";
@@ -68,6 +68,18 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
   });
   const wartetBei = new Set((wartend.data?.items ?? []).map((e) => e.agent_id));
 
+  /* What the person has not read (#385), per agent. On an instance that
+     does not keep it the query fails and the list simply has no badges. */
+  const threads = useQuery({
+    queryKey: ["threads"],
+    queryFn: myThreads,
+    refetchInterval: 20_000,
+    retry: false,
+  });
+  const ungelesen = new Map<string, ThreadState>(
+    (threads.data ?? []).filter((th) => th.unread > 0).map((th) => [th.agent_id, th]),
+  );
+
   /* Suchen. Ein Feld links oben war ein Möbelstück — immer da, selten
      benutzt, und es nahm der Liste die Zeile, die sie zum Atmen braucht.
      Jetzt: die Lupe neben der Wortmarke, ⌘K und der Schrägstrich. */
@@ -92,20 +104,29 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
   const peopleEntwurf = !!people && isDraft(people);
   const darfEinstellen = canManage(me.Role);
 
+  /* Who has something unread stands above the departments, newest first,
+     and leaves its department until it has been read (#385, as #383 in the
+     app). */
+  const neu = liste
+    .filter((a) => ungelesen.has(a.id))
+    .sort((a, b) => Date.parse(ungelesen.get(b.id)!.last_at) - Date.parse(ungelesen.get(a.id)!.last_at));
+  const gelesen = liste.filter((a) => !ungelesen.has(a.id));
+
   /* Nach Abteilung gruppiert, wie eine Kanalliste. Wer keine hat, steht unten
      unter einer eigenen Überschrift — nicht oben, damit die Gliederung nicht
      mit dem Rest anfängt. */
   const gruppen = [
     ...depts
-      .map((d) => ({ id: d.id, name: d.name, color: d.color, mitglieder: liste.filter((a) => a.department_id === d.id) }))
+      .map((d) => ({ id: d.id, name: d.name, color: d.color, mitglieder: gelesen.filter((a) => a.department_id === d.id) }))
       .filter((g) => g.mitglieder.length > 0),
     {
       id: "",
       name: t("team.ohneAbteilung"),
       color: "",
-      mitglieder: liste.filter((a) => !a.department_id || !depts.some((d) => d.id === a.department_id)),
+      mitglieder: gelesen.filter((a) => !a.department_id || !depts.some((d) => d.id === a.department_id)),
     },
   ].filter((g) => g.mitglieder.length > 0);
+  if (neu.length > 0) gruppen.unshift({ id: "ungelesen", name: t("team.ungelesenTitel"), color: "", mitglieder: neu });
 
   const offen = wartend.data?.pending ?? 0;
 
@@ -184,7 +205,7 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
                 <NavLink
                   key={a.id}
                   to={`/team/${a.id}`}
-                  className={({ isActive }) => `tm-kollege ${isActive ? "on" : ""}`}
+                  className={({ isActive }) => `tm-kollege ${isActive ? "on" : ""} ${ungelesen.has(a.id) ? "neu" : ""}`}
                 >
                   {/* Das Gesicht macht den Kollegen unterscheidbar, bevor man
                       den Namen liest, und zeigt seinen Zustand. Der Ring
@@ -200,8 +221,16 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
                         <span className="tm-kollege-wartet" title={t("team.wartet")} aria-label={t("team.wartet")} />
                       )}
                     </span>
-                    <span className="tm-kollege-rolle">{a.job_title || a.slug}</span>
+                    {/* Unread: the newest line in place of the role, and a
+                        count — the name in bold says it a third way, so it
+                        does not rest on the badge's colour. */}
+                    <span className="tm-kollege-rolle">{ungelesen.get(a.id)?.last_text || a.job_title || a.slug}</span>
                   </span>
+                  {ungelesen.has(a.id) && (
+                    <span className="tm-ungelesen" aria-label={t("team.ungelesen", { count: ungelesen.get(a.id)!.unread })}>
+                      {Math.min(ungelesen.get(a.id)!.unread, 99)}
+                    </span>
+                  )}
                 </NavLink>
               ))}
             </section>
