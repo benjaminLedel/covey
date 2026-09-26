@@ -267,6 +267,7 @@
   "team.ohneAbteilung": "无部门",
   "team.suche": "搜索同事",
   "team.ungelesen": "{{count}} 条未读消息",
+  "team.ungelesenTitel": "未读",
   "team.ungelesen_one": "{{count}} 条未读消息",
   "team.wartet": "等着您",
   "team.wartetLead": "有 {{count}} 项等待决定。",

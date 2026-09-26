@@ -267,6 +267,7 @@
   "team.ohneAbteilung": "Bez działu",
   "team.suche": "Szukaj kolegów",
   "team.ungelesen": "Nieprzeczytane wiadomości: {{count}}",
+  "team.ungelesenTitel": "Nieprzeczytane",
   "team.ungelesen_one": "Jedna nieprzeczytana wiadomość",
   "team.wartet": "Czeka na Państwa",
   "team.wartetLead": "{{count}} punktów czeka na decyzję.",

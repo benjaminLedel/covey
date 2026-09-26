@@ -50,11 +50,22 @@ void main() {
         final p = req.url.path;
         if (p.endsWith('/auth/me')) return _json({'Email': 'a@b.c', 'DisplayName': 'Ada', 'Role': 'org_admin'});
         if (p.endsWith('/inbox')) return _json({'items': [], 'pending': 0});
-        if (p.endsWith('/departments')) return _json([]);
+        if (p.endsWith('/departments')) {
+          return _json([
+            {'id': 'd1', 'name': 'Buchhaltung'},
+          ]);
+        }
         if (p.endsWith('/agents')) {
           return _json([
-            {'id': _agent, 'slug': 'bea', 'display_name': 'Bea', 'status': 'sleeping'},
-            {'id': 'other', 'slug': 'cid', 'display_name': 'Cid', 'status': 'sleeping', 'job_title': 'Support'},
+            {'id': _agent, 'slug': 'bea', 'display_name': 'Bea', 'status': 'sleeping', 'department_id': 'd1'},
+            {
+              'id': 'other',
+              'slug': 'cid',
+              'display_name': 'Cid',
+              'status': 'sleeping',
+              'job_title': 'Support',
+              'department_id': 'd1',
+            },
           ]);
         }
         if (p.endsWith('/me/threads')) {
@@ -101,6 +112,13 @@ void main() {
     expect(find.bySemanticsLabel(RegExp('^2 ungelesene Nachrichten')), findsOneWidget);
     semantics.dispose();
     expect(find.text('Support'), findsOneWidget, reason: 'a colleague with nothing unread keeps the plain row');
+    // Above the departments, in a section of its own (#383).
+    expect(
+      tester.getTopLeft(find.text('Ungelesen')).dy,
+      lessThan(tester.getTopLeft(find.text('Buchhaltung')).dy),
+      reason: 'unread stands above the departments',
+    );
+    expect(tester.getTopLeft(find.text('Bea')).dy, lessThan(tester.getTopLeft(find.text('Buchhaltung')).dy));
 
     await tester.tap(find.text('Bea'));
     await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
@@ -109,6 +127,7 @@ void main() {
     await _settle(tester);
     expect(readAt, '2026-09-26T10:15:00.000Z', reason: 'read up to the newest entry shown');
     expect(find.text('2'), findsNothing, reason: 'the badge is gone once the thread was read');
+    expect(find.text('Ungelesen'), findsNothing, reason: 'once read, Bea goes back to the department');
     await tester.pumpWidget(const SizedBox());
   });
 }

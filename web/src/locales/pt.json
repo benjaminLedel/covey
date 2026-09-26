@@ -2469,7 +2469,8 @@
     "imGespraechLead": "Procura nas mensagens, notas, perguntas e resultados desta conversa.",
     "sucheMarkieren": "escolher colega",
     "ungelesen": "{{count}} mensagens não lidas",
-    "ungelesen_one": "Uma mensagem não lida"
+    "ungelesen_one": "Uma mensagem não lida",
+    "ungelesenTitel": "Não lidas"
   },
   "mobile": {
     "verbindenTitel": "Onde está o seu covey?",

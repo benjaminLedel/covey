@@ -267,6 +267,7 @@
   "team.ohneAbteilung": "部署なし",
   "team.suche": "同僚を検索",
   "team.ungelesen": "未読メッセージ {{count}} 件",
+  "team.ungelesenTitel": "未読",
   "team.ungelesen_one": "未読メッセージ {{count}} 件",
   "team.wartet": "お待ちしています",
   "team.wartetLead": "{{count}} 件が判断を待っています。",

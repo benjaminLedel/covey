@@ -267,6 +267,7 @@
   "team.ohneAbteilung": "Sin departamento",
   "team.suche": "Buscar colegas",
   "team.ungelesen": "{{count}} mensajes sin leer",
+  "team.ungelesenTitel": "Sin leer",
   "team.ungelesen_one": "Un mensaje sin leer",
   "team.wartet": "Le espera",
   "team.wartetLead": "{{count}} puntos esperan una decisión.",

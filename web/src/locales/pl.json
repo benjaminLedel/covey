@@ -2469,7 +2469,8 @@
     "imGespraechLead": "Przeszukuje wiadomości, notatki, pytania i wyniki tej rozmowy.",
     "sucheMarkieren": "wybierz osobę",
     "ungelesen": "Nieprzeczytane wiadomości: {{count}}",
-    "ungelesen_one": "Jedna nieprzeczytana wiadomość"
+    "ungelesen_one": "Jedna nieprzeczytana wiadomość",
+    "ungelesenTitel": "Nieprzeczytane"
   },
   "mobile": {
     "verbindenTitel": "Gdzie jest Państwa covey?",

@@ -2469,7 +2469,8 @@
     "imGespraechLead": "Durchsucht Nachrichten, Notizen, Fragen und Ergebnisse dieses Gesprächs.",
     "sucheMarkieren": "Kollegen markieren",
     "ungelesen": "{{count}} ungelesene Nachrichten",
-    "ungelesen_one": "Eine ungelesene Nachricht"
+    "ungelesen_one": "Eine ungelesene Nachricht",
+    "ungelesenTitel": "Ungelesen"
   },
   "mobile": {
     "verbindenTitel": "Wo ist Ihr covey?",

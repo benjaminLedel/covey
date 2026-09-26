@@ -138,14 +138,15 @@ class _TeamSpaceState extends State<TeamSpace> {
         .toList();
     // Who has something unread comes first, the newest on top; then the
     // rest by name.
+    // Who has something unread stands in a section of its own above the
+    // departments, newest first (#383), and leaves its department's list
+    // until it has been read.
     int unread(Agent a) => _threads[a.id]?.unread ?? 0;
-    final colleagues = data.agents.where((a) => !a.isApplicant && matches(a)).toList()
-      ..sort((a, b) {
-        final ua = unread(a) > 0, ub = unread(b) > 0;
-        if (ua != ub) return ua ? -1 : 1;
-        if (ua) return _threads[b.id]!.lastAt?.compareTo(_threads[a.id]!.lastAt ?? DateTime(0)) ?? 0;
-        return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
-      });
+    final visible = data.agents.where((a) => !a.isApplicant && matches(a)).toList();
+    final fresh = visible.where((a) => unread(a) > 0).toList()
+      ..sort((a, b) => (_threads[b.id]!.lastAt ?? DateTime(0)).compareTo(_threads[a.id]!.lastAt ?? DateTime(0)));
+    final colleagues = visible.where((a) => unread(a) == 0).toList()
+      ..sort((a, b) => a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()));
     final known = {for (final d in data.departments) d.id};
     final groups = [
       for (final d in data.departments)
@@ -157,7 +158,7 @@ class _TeamSpaceState extends State<TeamSpace> {
     ].where((g) => g.members.isNotEmpty);
 
     return [
-      if (q.isNotEmpty && waiting.isEmpty && colleagues.isEmpty)
+      if (q.isNotEmpty && waiting.isEmpty && visible.isEmpty)
         SliverToBoxAdapter(child: EmptyNote(context.t('team.nichtsGefunden'))),
       if (waiting.isNotEmpty) ...[
         SliverToBoxAdapter(child: SectionTitle(context.t('team.wartet'))),
@@ -178,8 +179,8 @@ class _TeamSpaceState extends State<TeamSpace> {
           },
         ),
       ],
-      if (q.isEmpty && colleagues.isEmpty) SliverToBoxAdapter(child: EmptyNote(context.t('chat.noAgents'))),
-      for (final g in groups) ...[
+      if (q.isEmpty && visible.isEmpty) SliverToBoxAdapter(child: EmptyNote(context.t('chat.noAgents'))),
+      for (final g in [if (fresh.isNotEmpty) (name: context.t('team.ungelesenTitel'), members: fresh), ...groups]) ...[
         SliverToBoxAdapter(child: SectionTitle(g.name)),
         SliverToBoxAdapter(
           child: InsetGroup(

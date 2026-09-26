@@ -2469,7 +2469,8 @@
     "imGespraechLead": "Searches the messages, notes, questions and results of this conversation.",
     "sucheMarkieren": "pick a colleague",
     "ungelesen": "{{count}} unread messages",
-    "ungelesen_one": "One unread message"
+    "ungelesen_one": "One unread message",
+    "ungelesenTitel": "Unread"
   },
   "mobile": {
     "verbindenTitel": "Where is your covey?",

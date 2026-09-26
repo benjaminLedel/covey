@@ -267,6 +267,7 @@
   "team.ohneAbteilung": "Sans service",
   "team.suche": "Rechercher un collègue",
   "team.ungelesen": "{{count}} messages non lus",
+  "team.ungelesenTitel": "Non lus",
   "team.ungelesen_one": "Un message non lu",
   "team.wartet": "Vous attend",
   "team.wartetLead": "{{count}} points attendent une décision.",

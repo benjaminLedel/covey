@@ -267,6 +267,7 @@
   "team.ohneAbteilung": "No department",
   "team.suche": "Search colleagues",
   "team.ungelesen": "{{count}} unread messages",
+  "team.ungelesenTitel": "Unread",
   "team.ungelesen_one": "One unread message",
   "team.wartet": "Waiting for you",
   "team.wartetLead": "{{count}} points are waiting for a decision.",

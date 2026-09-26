@@ -2469,7 +2469,8 @@
     "imGespraechLead": "Doorzoekt de berichten, notities, vragen en resultaten van dit gesprek.",
     "sucheMarkieren": "collega kiezen",
     "ungelesen": "{{count}} ongelezen berichten",
-    "ungelesen_one": "Eén ongelezen bericht"
+    "ungelesen_one": "Eén ongelezen bericht",
+    "ungelesenTitel": "Ongelezen"
   },
   "mobile": {
     "verbindenTitel": "Waar is uw covey?",
