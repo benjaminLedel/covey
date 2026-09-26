@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'prefs.dart';
+
 /// The window's own chrome on macOS (#356): no grey title bar above the app,
 /// but one unified bar — the traffic lights sit in the app's top bar, as in
 /// Finder, Mail or Teams (MainFlutterWindow.swift). The Flutter view covers
@@ -14,17 +16,22 @@ abstract final class MacChrome {
 
   static const _channel = MethodChannel('covey/window');
 
-  /// The bar's height and where the traffic lights end, as the window
-  /// reports them; the values of a unified toolbar until then.
-  static double height = 52;
-  static double lightsRight = 80;
+  /// The bar's height and where the traffic lights end, in the app's
+  /// zoomed points ([WindowZoom]): the window reports them in its own, and
+  /// the lights stay where they are whatever the zoom.
+  static double get height => _height / WindowZoom.scale.value;
+  static double get lightsRight => _lightsRight / WindowZoom.scale.value;
+
+  // The values of a unified toolbar until the window reports its own.
+  static double _height = 52;
+  static double _lightsRight = 80;
 
   static Future<void> load() async {
     if (!active) return;
     try {
       final m = await _channel.invokeMapMethod<String, double>('metrics');
-      height = m?['height'] ?? height;
-      lightsRight = m?['lightsRight'] ?? lightsRight;
+      _height = m?['height'] ?? _height;
+      _lightsRight = m?['lightsRight'] ?? _lightsRight;
     } on PlatformException {
       // The defaults.
     } on MissingPluginException {
@@ -44,6 +51,105 @@ abstract final class MacChrome {
     } on PlatformException {
       // Stays where it is.
     }
+  }
+}
+
+/// The whole window drawn at a zoom factor on macOS (#375). The app's sizes
+/// are a phone's — 17 point text, 46 point controls, made for a thumb — and
+/// on a desktop read at arm's length with a pointer they look swollen. One
+/// factor shrinks type, spacing, controls, dialogs and menus together, so no
+/// screen needs a desktop twin; ⌘+ ⌘− ⌘0 change it as in a browser, and the
+/// choice is kept.
+class WindowZoom extends StatefulWidget {
+  const WindowZoom({super.key, required this.child});
+
+  final Widget child;
+
+  static const standard = 0.85;
+  static const _steps = [0.7, 0.75, 0.8, 0.85, 0.9, 1.0, 1.1, 1.25];
+  static const _pref = 'mac.zoom';
+
+  /// The factor in force; 1 away from macOS.
+  static final scale = ValueNotifier<double>(MacChrome.active ? standard : 1);
+
+  static Future<void> load() async {
+    if (!MacChrome.active) return;
+    final saved = double.tryParse(await Prefs.instance.read(_pref) ?? '');
+    if (saved != null && saved >= _steps.first && saved <= _steps.last) scale.value = saved;
+  }
+
+  static void _step(int by) {
+    final i = _steps.indexWhere((s) => s >= scale.value - 0.001);
+    _set(_steps[((i < 0 ? _steps.length - 1 : i) + by).clamp(0, _steps.length - 1)]);
+  }
+
+  static void _set(double value) {
+    if (value == scale.value) return;
+    scale.value = value;
+    Prefs.instance.write(_pref, '$value').ignore();
+  }
+
+  @override
+  State<WindowZoom> createState() => _WindowZoomState();
+}
+
+class _WindowZoomState extends State<WindowZoom> {
+  @override
+  void initState() {
+    super.initState();
+    WindowZoom.scale.addListener(_changed);
+  }
+
+  @override
+  void dispose() {
+    WindowZoom.scale.removeListener(_changed);
+    super.dispose();
+  }
+
+  void _changed() {
+    setState(() {});
+    // What read the bar's height from [MacChrome] reads it again: a zoom
+    // is rare enough to rebuild everything for it.
+    void rebuild(Element e) {
+      e.markNeedsBuild();
+      e.visitChildren(rebuild);
+    }
+
+    (context as Element).visitChildren(rebuild);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!MacChrome.active) return widget.child;
+    final s = WindowZoom.scale.value;
+    final mq = MediaQuery.of(context);
+    final size = mq.size / s;
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.equal, meta: true): () => WindowZoom._step(1),
+        const SingleActivator(LogicalKeyboardKey.add, meta: true): () => WindowZoom._step(1),
+        const SingleActivator(LogicalKeyboardKey.numpadAdd, meta: true): () => WindowZoom._step(1),
+        const SingleActivator(LogicalKeyboardKey.minus, meta: true): () => WindowZoom._step(-1),
+        const SingleActivator(LogicalKeyboardKey.numpadSubtract, meta: true): () => WindowZoom._step(-1),
+        const SingleActivator(LogicalKeyboardKey.digit0, meta: true): () => WindowZoom._set(WindowZoom.standard),
+      },
+      child: FittedBox(
+        fit: BoxFit.fill,
+        alignment: Alignment.topLeft,
+        child: SizedBox.fromSize(
+          size: size,
+          child: MediaQuery(
+            data: mq.copyWith(
+              size: size,
+              padding: mq.padding / s,
+              viewPadding: mq.viewPadding / s,
+              viewInsets: mq.viewInsets / s,
+            ),
+            child: widget.child,
+          ),
+        ),
+      ),
+    );
   }
 }
 

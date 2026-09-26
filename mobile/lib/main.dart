@@ -183,6 +183,7 @@ class _CoveyAppState extends State<CoveyApp> {
     await initializeDateFormatting();
     // The window's bar metrics on macOS (#356), before the first frame.
     await MacChrome.load();
+    await WindowZoom.load();
     // The speech model and language picked in settings (#351).
     unawaited(SpeechModel.instance.loadPrefs());
     var saved = await widget.profiles.read();
@@ -233,7 +234,11 @@ class _CoveyAppState extends State<CoveyApp> {
       theme: coveyTheme(Brightness.light),
       darkTheme: coveyTheme(Brightness.dark),
       // The splash needs no words; everything after it does.
-      builder: (context, child) => strings == null ? child! : StringsScope(strings: strings, child: child!),
+      // On the Mac the whole window, dialogs and menus included, is drawn
+      // at the desktop's size (#375).
+      builder: (context, child) => WindowZoom(
+        child: strings == null ? child! : StringsScope(strings: strings, child: child!),
+      ),
       home: AnimatedSwitcher(
         duration: const Duration(milliseconds: 450),
         switchInCurve: Curves.easeOutCubic,
