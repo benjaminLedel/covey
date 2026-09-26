@@ -1,6 +1,9 @@
 {
   "chat.answer": "Answer",
   "chat.answering": "Answering: {{title}}",
+  "chat.kind.error": "Failed",
+  "chat.kind.question": "Question",
+  "chat.kind.result": "Result",
   "chat.noAgents": "Nobody hired yet.",
   "chat.placeholder": "What needs doing?",
   "chat.placeholderAnswer": "Answer …",

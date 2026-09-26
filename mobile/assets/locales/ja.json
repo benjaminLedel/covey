@@ -1,6 +1,9 @@
 {
   "chat.answer": "返信",
   "chat.answering": "返信先： {{title}}",
+  "chat.kind.error": "失敗",
+  "chat.kind.question": "質問",
+  "chat.kind.result": "結果",
   "chat.noAgents": "まだ誰も採用していません。",
   "chat.placeholder": "何をしてほしいですか。",
   "chat.placeholderAnswer": "返信する …",

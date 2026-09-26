@@ -1,6 +1,9 @@
 {
   "chat.answer": "Antworten",
   "chat.answering": "Antwort auf: {{title}}",
+  "chat.kind.error": "Fehlgeschlagen",
+  "chat.kind.question": "Frage",
+  "chat.kind.result": "Ergebnis",
   "chat.noAgents": "Noch niemand eingestellt.",
   "chat.placeholder": "Was soll erledigt werden?",
   "chat.placeholderAnswer": "Antworten …",

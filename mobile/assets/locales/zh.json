@@ -1,6 +1,9 @@
 {
   "chat.answer": "回复",
   "chat.answering": "回复：{{title}}",
+  "chat.kind.error": "失败",
+  "chat.kind.question": "问题",
+  "chat.kind.result": "结果",
   "chat.noAgents": "还没有雇用任何人。",
   "chat.placeholder": "要做什么？",
   "chat.placeholderAnswer": "回复 …",

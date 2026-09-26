@@ -1,6 +1,9 @@
 {
   "chat.answer": "Responder",
   "chat.answering": "Respuesta a: {{title}}",
+  "chat.kind.error": "Fallida",
+  "chat.kind.question": "Pregunta",
+  "chat.kind.result": "Resultado",
   "chat.noAgents": "Todavía no hay nadie contratado.",
   "chat.placeholder": "¿Qué hay que hacer?",
   "chat.placeholderAnswer": "Responder …",

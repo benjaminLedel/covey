@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 
+import '../chat_text.dart';
 import '../chrome.dart';
 import '../api.dart';
 import '../diagnostics.dart';
@@ -240,41 +242,73 @@ class _ThreadScreenState extends State<ThreadScreen> {
                   ? Center(child: Text(context.t('common.loading')))
                   : entries.isEmpty
                   ? _Empty(name: widget.agentName, slug: widget.agentSlug, state: widget.faceState)
-                  : ListView.builder(
-                      controller: _scroll,
-                      reverse: true,
-                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
-                      itemCount: entries.length + (th.pending ? 1 : 0),
-                      itemBuilder: (context, i) {
-                        if (th.pending && i == 0) {
-                          return Padding(
-                            padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
-                            child: Row(
-                              children: [
-                                if (widget.agentSlug.isNotEmpty) ...[
-                                  Face(slug: widget.agentSlug, size: 22),
-                                  const SizedBox(width: 8),
-                                ],
-                                Text(
-                                  '${widget.agentName} ${context.t('team.arbeitetGerade')}',
-                                  style: context.type.bodySmall,
+                  : LayoutBuilder(
+                      // A reading width on a wide pane, centred (#397).
+                      builder: (context, box) {
+                        final side = ((box.maxWidth - 760) / 2).clamp(14.0, double.infinity);
+                        return ListView.builder(
+                          controller: _scroll,
+                          reverse: true,
+                          padding: EdgeInsets.fromLTRB(side, 12, side, 4),
+                          itemCount: entries.length + (th.pending ? 1 : 0),
+                          itemBuilder: (context, i) {
+                            if (th.pending && i == 0) {
+                              return Padding(
+                                padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+                                child: Row(
+                                  children: [
+                                    if (widget.agentSlug.isNotEmpty) ...[
+                                      Face(slug: widget.agentSlug, size: 22),
+                                      const SizedBox(width: 8),
+                                    ],
+                                    Text(
+                                      '${widget.agentName} ${context.t('team.arbeitetGerade')}',
+                                      style: context.type.bodySmall,
+                                    ),
+                                  ],
                                 ),
+                              );
+                            }
+                            final k = i - (th.pending ? 1 : 0);
+                            final e = entries[k];
+                            // entries is newest-first; the line before this one
+                            // in time is the next one in the list.
+                            final earlier = k + 1 < entries.length ? entries[k + 1] : null;
+                            final newDay = earlier == null || !_sameDay(earlier.at, e.at);
+                            // A run (#397): the same speaker again within five
+                            // minutes, same day, in plain conversation. Only its
+                            // first entry carries the head.
+                            bool plain(ThreadEntry x) => x.kind == 'message' || x.kind == 'answer' || x.kind == 'note';
+                            final continues =
+                                earlier != null &&
+                                !newDay &&
+                                plain(e) &&
+                                plain(earlier) &&
+                                earlier.author == e.author &&
+                                e.at != null &&
+                                earlier.at != null &&
+                                e.at!.difference(earlier.at!) < const Duration(minutes: 5);
+                            final line = _Line(
+                              entry: e,
+                              first: !continues,
+                              agentName: widget.agentName,
+                              agentSlug: widget.agentSlug,
+                              faceState: widget.faceState,
+                              showTask: earlier == null || earlier.taskId != e.taskId || earlier.fromPerson,
+                              selected: _answering?.id == e.id,
+                              onAnswer: e.isOpenQuestion && widget.me.teamSurface
+                                  ? () => setState(() => _answering = _answering?.id == e.id ? null : e)
+                                  : null,
+                            );
+                            if (!newDay || e.at == null) return line;
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _DaySeparator(at: e.at!),
+                                line,
                               ],
-                            ),
-                          );
-                        }
-                        final k = i - (th.pending ? 1 : 0);
-                        final e = entries[k];
-                        // entries is newest-first; the line before this one
-                        // in time is the next one in the list.
-                        final earlier = k + 1 < entries.length ? entries[k + 1] : null;
-                        return _Line(
-                          entry: e,
-                          showTask: earlier == null || earlier.taskId != e.taskId || earlier.fromPerson,
-                          selected: _answering?.id == e.id,
-                          onAnswer: e.isOpenQuestion && widget.me.teamSurface
-                              ? () => setState(() => _answering = _answering?.id == e.id ? null : e)
-                              : null,
+                            );
+                          },
                         );
                       },
                     ),
@@ -331,12 +365,62 @@ class _Empty extends StatelessWidget {
   }
 }
 
+bool _sameDay(DateTime? a, DateTime? b) =>
+    a != null && b != null && a.year == b.year && a.month == b.month && a.day == b.day;
+
+/// Where the day changes (#397): today, yesterday, or the date.
+class _DaySeparator extends StatelessWidget {
+  const _DaySeparator({required this.at});
+
+  final DateTime at;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final now = DateTime.now();
+    final label = _sameDay(at, now)
+        ? context.t('mobile.heute')
+        : _sameDay(at, now.subtract(const Duration(days: 1)))
+        ? context.t('team.gestern')
+        : DateFormat.yMMMMd(Strings.of(context).language).format(at);
+    return Padding(
+      padding: const EdgeInsets.only(top: 14, bottom: 6),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+          decoration: BoxDecoration(
+            color: c.textPrimary.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(99),
+          ),
+          child: Text(label, style: context.type.labelSmall?.copyWith(color: c.textSecondary)),
+        ),
+      ),
+    );
+  }
+}
+
 class _Line extends StatelessWidget {
-  const _Line({required this.entry, required this.selected, this.onAnswer, this.showTask = true});
+  const _Line({
+    required this.entry,
+    required this.selected,
+    required this.first,
+    required this.agentName,
+    required this.agentSlug,
+    required this.faceState,
+    this.onAnswer,
+    this.showTask = true,
+  });
 
   final ThreadEntry entry;
   final bool selected;
   final VoidCallback? onAnswer;
+
+  /// Whether this line opens a run (#397): it carries the head and the tail
+  /// corner; the lines after it follow closely.
+  final bool first;
+  final String agentName;
+  final String agentSlug;
+  final FaceState faceState;
 
   /// Whether this line opens a run of its task's lines. The task is named
   /// once where its run starts; the lines after it follow bare.
@@ -348,72 +432,153 @@ class _Line extends StatelessWidget {
     final mine = entry.fromPerson;
     final question = entry.kind == 'question';
     final error = entry.kind == 'error';
+    final result = entry.kind == 'result';
+    final emoji = emojiOnly(entry.text) && !question;
     // The person's lines are ink on the sheet, the agent's are white paper:
     // two sides told apart by weight, not by a second colour. A question is
     // the one line that asks for something, so it gets the waiting tone and
     // its own answer button.
     final bg = mine ? c.textPrimary : (question ? c.bgWait : c.surface2);
     final fg = mine ? c.surface2 : (error ? c.textDanger : (question ? c.textWait : c.textPrimary));
-    const r = Radius.circular(22);
-    const tight = Radius.circular(8);
-    return LayoutBuilder(
-      builder: (context, box) {
-        final paneWidth = box.maxWidth;
-        return Align(
-          alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-          child: ConstrainedBox(
-            // Measured against the pane, not the window, and capped: a bubble
-            // wider than ~70 characters is a paragraph nobody reads to the end.
-            constraints: BoxConstraints(maxWidth: (paneWidth * 0.8).clamp(0, 560)),
-            child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 3),
-              padding: const EdgeInsets.fromLTRB(16, 11, 16, 11),
-              decoration: BoxDecoration(
-                color: bg,
-                // The corner nearest the speaker tightens — the tail, without one.
-                borderRadius: BorderRadius.only(
-                  topLeft: r,
-                  topRight: r,
-                  bottomLeft: mine ? r : tight,
-                  bottomRight: mine ? tight : r,
-                ),
-                border: selected ? Border.all(color: c.textWait, width: 1.6) : null,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // The task a line belongs to, in words — its state is said, not
-                  // only coloured.
-                  if (showTask && entry.taskTitle.isNotEmpty && entry.kind != 'message')
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
+    const r = Radius.circular(20);
+    const tight = Radius.circular(6);
+    final time = entry.at == null ? '' : DateFormat.Hm(Strings.of(context).language).format(entry.at!);
+    final kindLabel = question
+        ? context.t('chat.kind.question')
+        : result
+        ? context.t('chat.kind.result')
+        : error
+        ? context.t('chat.kind.error')
+        : null;
+
+    // The head of a run: who speaks, the kind where it means something, and
+    // when; one's own lines need only the time.
+    final head = !first
+        ? null
+        : Padding(
+            padding: EdgeInsets.only(bottom: 4, left: mine ? 0 : 2, right: mine ? 4 : 0),
+            child: Row(
+              mainAxisAlignment: mine ? MainAxisAlignment.end : MainAxisAlignment.start,
+              children: [
+                if (!mine) ...[
+                  Text(agentName, style: context.type.labelMedium?.copyWith(color: c.textSecondary)),
+                  if (kindLabel != null) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: question
+                            ? c.bgWait
+                            : (result ? c.textSuccess.withValues(alpha: 0.12) : c.textDanger.withValues(alpha: 0.1)),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
                       child: Text(
-                        '${entry.taskTitle} · ${context.t('status.${entry.taskState}')}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        kindLabel,
                         style: context.type.labelSmall?.copyWith(
-                          color: mine ? c.surface2.withValues(alpha: 0.75) : null,
+                          color: question ? c.textWait : (result ? c.textSuccess : c.textDanger),
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
-                  SelectableText(entry.text, style: context.type.bodyLarge?.copyWith(color: fg)),
-                  if (onAnswer != null) ...[
-                    const SizedBox(height: 10),
-                    FilledButton(
-                      onPressed: onAnswer,
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(44, 40),
-                        padding: const EdgeInsets.symmetric(horizontal: 18),
-                        backgroundColor: c.textWait,
-                        foregroundColor: c.surface2,
-                        shape: const StadiumBorder(),
-                      ),
-                      child: Text(context.t('chat.answer')),
-                    ),
                   ],
+                  const SizedBox(width: 6),
                 ],
-              ),
+                Text(
+                  time,
+                  style: context.type.labelSmall?.copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
+                ),
+              ],
             ),
+          );
+
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // The task a line belongs to, in words — its state is said, not
+        // only coloured.
+        if (showTask && entry.taskTitle.isNotEmpty && entry.kind != 'message')
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              '${entry.taskTitle} · ${context.t('status.${entry.taskState}')}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: context.type.labelSmall?.copyWith(color: mine ? c.surface2.withValues(alpha: 0.75) : null),
+            ),
+          ),
+        if (emoji)
+          Text(entry.text.trim(), style: const TextStyle(fontSize: 38, height: 1.15))
+        else
+          ChatText(entry.text, color: fg),
+        if (onAnswer != null) ...[
+          const SizedBox(height: 10),
+          FilledButton(
+            onPressed: onAnswer,
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(44, 40),
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              backgroundColor: c.textWait,
+              foregroundColor: c.surface2,
+              shape: const StadiumBorder(),
+            ),
+            child: Text(context.t('chat.answer')),
+          ),
+        ],
+      ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, box) {
+        final paneWidth = box.maxWidth;
+        final bubble = emoji
+            ? Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: content)
+            : Container(
+                padding: const EdgeInsets.fromLTRB(15, 10, 15, 10),
+                decoration: BoxDecoration(
+                  color: bg,
+                  // The first bubble of a run points at its speaker: the
+                  // corner nearest them tightens — the tail, without one.
+                  borderRadius: BorderRadius.only(
+                    topLeft: first && !mine ? tight : r,
+                    topRight: first && mine ? tight : r,
+                    bottomLeft: r,
+                    bottomRight: r,
+                  ),
+                  border: selected ? Border.all(color: c.textWait, width: 1.6) : null,
+                ),
+                child: SelectionArea(child: content),
+              );
+        return Padding(
+          padding: EdgeInsets.only(top: first ? 12 : 3),
+          child: Row(
+            mainAxisAlignment: mine ? MainAxisAlignment.end : MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // The agent's face beside the first line of a run; the column
+              // stays where none is drawn, so a run lines up.
+              if (!mine && agentSlug.isNotEmpty) ...[
+                SizedBox(
+                  width: 28,
+                  child: first
+                      ? Padding(
+                          padding: const EdgeInsets.only(top: 20),
+                          child: Face(slug: agentSlug, state: faceState, size: 28),
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 8),
+              ],
+              ConstrainedBox(
+                // Measured against the pane, not the window, and capped: a
+                // bubble wider than ~70 characters is a paragraph nobody
+                // reads to the end.
+                constraints: BoxConstraints(maxWidth: (paneWidth * 0.78).clamp(0, 560)),
+                child: Column(
+                  crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                  children: [?head, bubble],
+                ),
+              ),
+            ],
           ),
         );
       },

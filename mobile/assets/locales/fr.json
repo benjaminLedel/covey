@@ -1,6 +1,9 @@
 {
   "chat.answer": "Répondre",
   "chat.answering": "Réponse à : {{title}}",
+  "chat.kind.error": "Échec",
+  "chat.kind.question": "Question",
+  "chat.kind.result": "Résultat",
   "chat.noAgents": "Personne n'a encore été recruté.",
   "chat.placeholder": "Qu'y a-t-il à faire ?",
   "chat.placeholderAnswer": "Répondre …",
