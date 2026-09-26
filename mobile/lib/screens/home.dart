@@ -32,6 +32,11 @@ import 'thread.dart';
 /// not a notice about a setting (#336). On a wide window the capsule becomes
 /// a sidebar, the way Arc keeps its spaces, and what is opened stands beside
 /// the list (#334).
+/// Whether the office (#398) is a space of its own. Off while it is a first
+/// draft: the plan is the web's, but the scene is still far plainer than the
+/// web's building. The code stays built and tested.
+const officeSpace = false;
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.api, required this.onDisconnect});
 
@@ -291,7 +296,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       // The office beside the team (#398). The web opens on it (#390); the
       // app still opens on the team, the list that answers "who needs me?".
-      if (me.teamSurface)
+      if (me.teamSurface && officeSpace)
         (
           icon: AppIcons.office.of(context),
           label: context.t('team.ueberblick'),
@@ -321,7 +326,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final space = _space.clamp(0, spaces.length - 1);
     final notesIndex = spaces.length - 1;
     // The office takes the width, as on the web (#390); -1 without the team surface.
-    final officeIndex = me.teamSurface ? 1 : -1;
+    final officeIndex = me.teamSurface && officeSpace ? 1 : -1;
     final body = IndexedStack(index: space, children: [for (final s in spaces) s.body]);
     final capsule = [for (final s in spaces) (icon: s.icon, label: s.label)];
 
