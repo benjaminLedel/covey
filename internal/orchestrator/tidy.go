@@ -43,6 +43,13 @@ const tidyTitle = "Arbeitsplatz aufräumen"
 // weeks, not hours.
 const tidyEvery = 24 * time.Hour
 
+// tidyAgain: how long after a tidy task an agent is not asked again (#410),
+// done or not. The pass also runs at every start, and a day of deploys made
+// several; and a home that stays above the threshold after tidying — because
+// what is there belongs there — was asked every day, a request tidying could
+// not satisfy.
+const tidyAgain = 7 * 24 * time.Hour
+
 // tidyPatterns is how many name patterns the task lists. Five cover the heap on
 // the measured home; a longer list is read as far as the fifth line anyway.
 const tidyPatterns = 5
@@ -98,8 +105,9 @@ func (o *Orchestrator) AskForTidying(ctx context.Context) {
 		WHERE NOT a.killed AND NOT org.fleet_killed AND a.hired_at IS NOT NULL
 		  AND NOT EXISTS (SELECT 1 FROM backlog_tasks t
 		      WHERE t.agent_id = s.agent_id AND t.title = $1
-		        AND t.state NOT IN ('done','failed','cancelled'))
-		ORDER BY s.agent_id, s.created_at DESC`, tidyTitle)
+		        AND (t.state NOT IN ('done','failed','cancelled')
+		             OR t.created_at > now() - make_interval(secs => $2)))
+		ORDER BY s.agent_id, s.created_at DESC`, tidyTitle, tidyAgain.Seconds())
 	if err != nil {
 		o.Log.Warn("home housekeeping query", "err", err)
 		return

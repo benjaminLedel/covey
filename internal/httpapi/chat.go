@@ -197,32 +197,22 @@ func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 
 	   Dafür reicht das Fenster weiter zurück: Wer sucht, sucht das, was er
 	   nicht mehr sieht. */
-	/* Heartbeat runs are not part of the conversation (#401): nobody said
-	   anything, the schedule did, and at `alle: 15m` their blocks pushed
-	   what a person had written out of the window. `kette` walks from a
-	   continuation up to the run it continues; `takt` is every task a
-	   heartbeat started, directly or through continuations.
+	/* What the platform starts on its own — heartbeat runs, housekeeping,
+	   their continuations — is not part of the conversation (#401, #410):
+	   nobody said anything, and at `alle: 15m` those blocks pushed what a
+	   person had written out of the window. chat.MachineryCTE holds the rule
+	   the unread count uses too.
 
 	   Only their questions stay — a question is addressed to the person and
 	   answered here. So such a task is left out of the window unless it once
 	   parked with a question, and inside the window only its question line
 	   is drawn. */
-	const q = `WITH RECURSIVE kette AS (
-		SELECT id AS wurzel, parent_task_id, origin FROM backlog_tasks
-		 WHERE agent_id=$1 AND archived_at IS NULL
-		   AND (origin = 'heartbeat' OR origin LIKE 'continuation:%')
-		UNION ALL
-		SELECT k.wurzel, b.parent_task_id, b.origin
-		  FROM kette k JOIN backlog_tasks b ON b.id = k.parent_task_id
-		 WHERE k.origin LIKE 'continuation:%'
-	), takt AS (
-		SELECT DISTINCT wurzel AS id FROM kette WHERE origin = 'heartbeat'
-	), t AS (
+	q := `WITH RECURSIVE ` + chat.MachineryCTE("agent_id=$1") + `, t AS (
 		SELECT bt.id, bt.title, bt.body, bt.state, bt.origin, bt.result, bt.error, bt.created_at, bt.updated_at,
-		       EXISTS (SELECT 1 FROM takt WHERE takt.id = bt.id) AS takt
+		       EXISTS (SELECT 1 FROM maschinerie mm WHERE mm.id = bt.id) AS takt
 		FROM backlog_tasks bt
 		WHERE bt.agent_id=$1 AND bt.archived_at IS NULL
-		  AND (NOT EXISTS (SELECT 1 FROM takt WHERE takt.id = bt.id)
+		  AND (NOT EXISTS (SELECT 1 FROM maschinerie mm WHERE mm.id = bt.id)
 		       OR EXISTS (SELECT 1 FROM task_transitions tr WHERE tr.task_id = bt.id AND tr.to_state = 'blocked'))
 		ORDER BY bt.created_at DESC LIMIT $2
 	), m AS (

@@ -777,6 +777,16 @@ func TestHeartbeatRunsStayOutOfTheConversation(t *testing.T) {
 	if _, err := s.backlog.Block(ctx, fragt.ID, "", "", "Darf ich den Vertrag von Initech kündigen?"); err != nil {
 		t.Fatal(err)
 	}
+	// Housekeeping is the platform's too (#410): the agent tidied because it
+	// was asked by nobody in this conversation.
+	putzt, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Arbeitsplatz aufräumen", "Dein Home ist gewachsen", "housekeeping", 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	laeuft(putzt)
+	if _, err := s.backlog.Complete(ctx, putzt.ID, backlog.StateDone, "Aufgeräumt: 3 GB frei", ""); err != nil {
+		t.Fatal(err)
+	}
 	// Enough runs to fill the window twice over: the conversation must not
 	// fall out of it.
 	for i := 0; i < 2*20; i++ {
@@ -789,7 +799,7 @@ func TestHeartbeatRunsStayOutOfTheConversation(t *testing.T) {
 		e, _ := roh.(map[string]any)
 		text, _ := e["text"].(string)
 		texte = append(texte, e["kind"].(string)+": "+text)
-		for _, verboten := range []string{"Postfach durchgehen", "drei neue Mails", "nichts Neues", "Turn-Limit"} {
+		for _, verboten := range []string{"Postfach durchgehen", "drei neue Mails", "nichts Neues", "Turn-Limit", "Home ist gewachsen", "Aufgeräumt"} {
 			if strings.Contains(text, verboten) {
 				t.Errorf("a heartbeat run speaks in the thread: %v", e)
 			}
@@ -801,5 +811,19 @@ func TestHeartbeatRunsStayOutOfTheConversation(t *testing.T) {
 	}
 	if !strings.Contains(alles, "question: Darf ich den Vertrag von Initech kündigen?") {
 		t.Errorf("the heartbeat's question belongs in the thread:\n%s", alles)
+	}
+
+	// The unread count follows the same rule (#410): of everything the
+	// machinery produced, only the question is news for the person.
+	threads := admin.expect(http.MethodGet, "/api/v1/me/threads", nil, http.StatusOK)
+	var unread float64 = -1
+	for _, roh := range threads["threads"].([]any) {
+		th, _ := roh.(map[string]any)
+		if th["agent_id"] == agent.ID.String() {
+			unread, _ = th["unread"].(float64)
+		}
+	}
+	if unread != 1 {
+		t.Errorf("unread = %v, want 1: the question, not the runs' notes, results and errors", unread)
 	}
 }

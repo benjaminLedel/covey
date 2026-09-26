@@ -31,13 +31,16 @@ type ThreadState struct {
 // baseline is when the person's seat was created: a new colleague does not
 // inherit the organisation's whole history as unread.
 func (s *Store) Threads(ctx context.Context, orgID, humanID uuid.UUID) ([]ThreadState, error) {
-	rows, err := s.pool.Query(ctx, `WITH ev AS (
+	// What the platform starts on its own counts as nothing unread (#410),
+	// the same rule the thread follows; a question it asks still does.
+	rows, err := s.pool.Query(ctx, `WITH RECURSIVE `+MachineryCTE("org_id = $1")+`, ev AS (
 		SELECT m.agent_id, m.created_at AS at, m.text, 'answer' AS kind
 		  FROM chat_messages m WHERE m.org_id = $1 AND m.author = 'agent'
 		UNION ALL
 		SELECT t.agent_id, n.created_at, n.content, 'note'
 		  FROM task_notes n JOIN backlog_tasks t ON t.id = n.task_id
 		 WHERE t.org_id = $1 AND t.archived_at IS NULL AND n.author = 'agent'
+		   AND t.id NOT IN (SELECT id FROM maschinerie)
 		UNION ALL
 		SELECT t.agent_id, tr.created_at, coalesce(tr.note, ''), 'question'
 		  FROM task_transitions tr JOIN backlog_tasks t ON t.id = tr.task_id
@@ -46,10 +49,12 @@ func (s *Store) Threads(ctx context.Context, orgID, humanID uuid.UUID) ([]Thread
 		SELECT t.agent_id, t.updated_at, t.result, 'result'
 		  FROM backlog_tasks t
 		 WHERE t.org_id = $1 AND t.archived_at IS NULL AND t.state = 'done' AND coalesce(t.result, '') <> ''
+		   AND t.id NOT IN (SELECT id FROM maschinerie)
 		UNION ALL
 		SELECT t.agent_id, t.updated_at, t.error, 'error'
 		  FROM backlog_tasks t
 		 WHERE t.org_id = $1 AND t.archived_at IS NULL AND t.state = 'failed' AND coalesce(t.error, '') <> ''
+		   AND t.id NOT IN (SELECT id FROM maschinerie)
 	), seen AS (
 		SELECT ev.*, coalesce(r.read_at, h.created_at) AS since
 		  FROM ev

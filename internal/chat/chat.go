@@ -200,3 +200,27 @@ func (s *Store) SetTeamSurface(ctx context.Context, orgID uuid.UUID, on bool) er
 		`UPDATE organizations SET team_surface=$2 WHERE id=$1`, orgID, on)
 	return err
 }
+
+// MachineryCTE is the one rule for what the platform starts on its own
+// (#401, #410): tasks with origin heartbeat or housekeeping, and the
+// continuations of those (followed up parent_task_id). Nobody said anything
+// there — the schedule or the janitor did — so they are not conversation:
+// the thread leaves them out and they count as nothing unread, except for a
+// question they ask, which is addressed to the person.
+//
+// It returns two common table expressions for a WITH RECURSIVE clause:
+// `kette` and `maschinerie`, the latter holding the ids. where restricts the
+// tasks looked at, as a condition on backlog_tasks ("agent_id=$1").
+func MachineryCTE(where string) string {
+	return `kette AS (
+		SELECT id AS wurzel, parent_task_id, origin FROM backlog_tasks
+		 WHERE ` + where + ` AND archived_at IS NULL
+		   AND (origin IN ('heartbeat', 'housekeeping') OR origin LIKE 'continuation:%')
+		UNION ALL
+		SELECT k.wurzel, b.parent_task_id, b.origin
+		  FROM kette k JOIN backlog_tasks b ON b.id = k.parent_task_id
+		 WHERE k.origin LIKE 'continuation:%'
+	), maschinerie AS (
+		SELECT DISTINCT wurzel AS id FROM kette WHERE origin IN ('heartbeat', 'housekeeping')
+	)`
+}

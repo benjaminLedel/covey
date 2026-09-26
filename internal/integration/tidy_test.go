@@ -63,6 +63,17 @@ func TestEinGewachsenesHomeBekommtEineAufraeumAufgabe(t *testing.T) {
 		t.Fatalf("keine Aufräum-Aufgabe angelegt (%d Aufgaben)", len(aufgaben))
 	}
 
+	zaehle := func() int {
+		alle, _ := s.backlog.ListByAgent(ctx, agent.ID, false)
+		n := 0
+		for _, a := range alle {
+			if strings.Contains(a.Title, "aufräumen") {
+				n++
+			}
+		}
+		return n
+	}
+
 	// Asking twice does not mean two tasks: as long as one stands open, no
 	// further one comes.
 	s.orch.AskForTidying(ctx)
@@ -75,6 +86,29 @@ func TestEinGewachsenesHomeBekommtEineAufraeumAufgabe(t *testing.T) {
 	}
 	if n != 1 {
 		t.Fatalf("%d Aufräum-Aufgaben — die Entdopplung greift nicht", n)
+	}
+
+	// Done is not a licence to ask again (#410): the pass also runs at every
+	// start, and a home that stays large after tidying would be asked every
+	// day. Within a week of the last tidy task, no new one.
+	for _, a := range aufgaben {
+		if strings.Contains(a.Title, "aufräumen") {
+			if _, err := s.pool.Exec(ctx, `UPDATE backlog_tasks SET state='done', result='aufgeräumt' WHERE id=$1`, a.ID); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	s.orch.AskForTidying(ctx)
+	if got := zaehle(); got != 1 {
+		t.Fatalf("%d Aufräum-Aufgaben nach einem erledigten — ein Neustart fragt sofort wieder", got)
+	}
+	// A week later it may ask again.
+	if _, err := s.pool.Exec(ctx, `UPDATE backlog_tasks SET created_at = now() - interval '8 days' WHERE agent_id=$1`, agent.ID); err != nil {
+		t.Fatal(err)
+	}
+	s.orch.AskForTidying(ctx)
+	if got := zaehle(); got != 2 {
+		t.Fatalf("%d Aufräum-Aufgaben nach einer Woche, erwartet 2", got)
 	}
 }
 
