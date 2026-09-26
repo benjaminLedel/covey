@@ -1948,7 +1948,10 @@
     },
     "progress": "{{done}} sur {{total}} faits",
     "later": "Plus tard",
-    "finish": "Terminé"
+    "finish": "Terminé",
+    "close": "Terminer la configuration",
+    "closedNote": "La configuration est terminée et n’apparaît plus dans la navigation.",
+    "reopen": "L’afficher à nouveau dans la navigation"
   },
   "brief": {
     "lead": "Votre département du personnel en fait un brouillon complet : caractère, périmètre, procédures, accès. L'embaucher vous revient.",

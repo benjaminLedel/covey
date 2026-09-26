@@ -37,6 +37,9 @@ type instanceSetupState struct {
 	// PeopleDone: a People department exists (draft or hired — it is there).
 	PeopleDone bool   `json:"people_done"`
 	PeopleID   string `json:"people_id,omitempty"`
+	// Closed: somebody finished setup although not every card is done
+	// (#394). Setup counts as open while neither this nor all cards hold.
+	Closed bool `json:"closed"`
 	// Engines are the registered engines with their declared credentials — the
 	// card renders itself from this, so a new engine brings its own setup step.
 	Engines []daemon.RuntimeDescriptor `json:"engines"`
@@ -73,7 +76,29 @@ func (s *Server) handleSetupState(w http.ResponseWriter, r *http.Request) {
 		st.PeopleID = a.ID.String()
 	}
 	st.LLMAvailable = llm.Available(ctx, s.Secrets, p.OrgID)
+	_ = s.Pool.QueryRow(ctx, `SELECT setup_closed_at IS NOT NULL FROM organizations WHERE id=$1`, p.OrgID).Scan(&st.Closed)
 	writeJSON(w, http.StatusOK, st)
+}
+
+// handleSetupClose finishes setup as it stands (#394); handleSetupReopen
+// puts it back into the navigation.
+func (s *Server) handleSetupClose(w http.ResponseWriter, r *http.Request) {
+	s.setSetupClosed(w, r, true)
+}
+
+func (s *Server) handleSetupReopen(w http.ResponseWriter, r *http.Request) {
+	s.setSetupClosed(w, r, false)
+}
+
+func (s *Server) setSetupClosed(w http.ResponseWriter, r *http.Request, closed bool) {
+	p := principalFrom(r)
+	if _, err := s.Pool.Exec(r.Context(),
+		`UPDATE organizations SET setup_closed_at = CASE WHEN $2 THEN now() ELSE NULL END WHERE id=$1`,
+		p.OrgID, closed); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"closed": closed})
 }
 
 // handleSetupEngine is card 1: the engine, its credential, and the workplace

@@ -1948,7 +1948,10 @@
     },
     "progress": "{{done}} di {{total}} fatti",
     "later": "Più tardi",
-    "finish": "Fatto"
+    "finish": "Fatto",
+    "close": "Concludi la configurazione",
+    "closedNote": "La configurazione è conclusa e non compare più nella navigazione.",
+    "reopen": "Mostrala di nuovo nella navigazione"
   },
   "brief": {
     "lead": "Il tuo reparto Personale ne ricava una bozza completa: carattere, ambito, procedure, accessi. Assumerlo tocca a te.",

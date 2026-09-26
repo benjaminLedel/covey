@@ -46,8 +46,12 @@ export default function Setup() {
           <Link className="btn sm" to="/agents">
             {done === 3 ? t("setup.finish") : t("setup.later")}
           </Link>
+          {/* Finish as it stands (#394): a card one does without should not
+              keep setup at the top of the navigation for ever. */}
+          {done < 3 && !st.closed && <CloseSetup />}
         </div>
       </header>
+      {st.closed && done < 3 && <ReopenSetup />}
 
       <div className="setup-body">
         <div className="flex items-baseline gap-3 mb-2">
@@ -261,5 +265,40 @@ function PeopleCard({ state, onDone }: { state: SetupState; onDone: () => void }
         {create.isPending ? t("setup.people.creating") : t("setup.people.create")}
       </button>
     </Card>
+  );
+}
+
+function CloseSetup() {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const close = useMutation({
+    mutationFn: () => post<{ closed: boolean }>("/setup/close"),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["setup"] });
+      navigate("/agents");
+    },
+  });
+  return (
+    <button className="btn sm primary" onClick={() => close.mutate()} disabled={close.isPending}>
+      {t("setup.close")}
+    </button>
+  );
+}
+
+function ReopenSetup() {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const reopen = useMutation({
+    mutationFn: () => post<{ closed: boolean }>("/setup/reopen"),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["setup"] }),
+  });
+  return (
+    <div className="setup-closed">
+      <span>{t("setup.closedNote")}</span>
+      <button className="btn sm" onClick={() => reopen.mutate()} disabled={reopen.isPending}>
+        {t("setup.reopen")}
+      </button>
+    </div>
   );
 }

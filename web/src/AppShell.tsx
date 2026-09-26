@@ -21,6 +21,7 @@ import {
   buildInfo,
   inbox,
   istSystemAdmin,
+  setupIsOpen,
   type Agent,
   type Department,
   type Principal,
@@ -219,7 +220,7 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
     retry: false,
     staleTime: 60_000,
   });
-  const setupOpen = !!setup.data && !(setup.data.engine_done && setup.data.org_done && setup.data.people_done);
+  const setupOpen = setupIsOpen(setup.data);
 
   /* Setup runs without the shell: no side menu, no help shelf,
      nothing that calls on the side. That is no cosmetics — the three cards are

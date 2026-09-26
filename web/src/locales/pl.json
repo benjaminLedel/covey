@@ -1948,7 +1948,10 @@
     },
     "progress": "gotowe {{done}} z {{total}}",
     "later": "Później",
-    "finish": "Gotowe"
+    "finish": "Gotowe",
+    "close": "Zakończ konfigurację",
+    "closedNote": "Konfiguracja jest zakończona i nie jest już widoczna w nawigacji.",
+    "reopen": "Pokaż ją ponownie w nawigacji"
   },
   "brief": {
     "lead": "Twój dział Personalny zrobi z tego kompletny szkic: charakter, zakres, procedury, dostępy. Zatrudnienie należy do Ciebie.",

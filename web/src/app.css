@@ -4052,3 +4052,4 @@
 .tm-entschieden.st-approved .tm-entschieden-wie, .tm-entschieden.st-accepted .tm-entschieden-wie { color: var(--text-success); }
 .tm-entschieden.st-rejected .tm-entschieden-wie, .tm-entschieden.st-denied .tm-entschieden-wie { color: var(--text-danger); }
 .tm-entschieden time { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.setup-closed { display: flex; align-items: center; gap: 12px; justify-content: center; padding: 10px 16px; font-size: 13px; color: var(--text-secondary); background: var(--tint-weak); }

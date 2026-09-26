@@ -1948,7 +1948,10 @@
     },
     "progress": "{{done}} van {{total}} gedaan",
     "later": "Later",
-    "finish": "Klaar"
+    "finish": "Klaar",
+    "close": "Inrichting afronden",
+    "closedNote": "De inrichting is afgerond en staat niet meer in de navigatie.",
+    "reopen": "Weer in de navigatie tonen"
   },
   "brief": {
     "lead": "Uw afdeling Personeel maakt hier een compleet ontwerp van: karakter, taakgebied, werkwijzen, toegang. Aannemen doet u zelf.",

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { api, inbox, myThreads, type Principal, type SetupState } from "../api";
+import { api, inbox, myThreads, setupIsOpen, type Principal, type SetupState } from "../api";
 import { BirdMark } from "./BirdMark";
 import { NavIcon } from "./navicons";
 import ShellFoot from "./ShellFoot";
@@ -57,7 +57,7 @@ export default function Rail({
     retry: false,
     staleTime: 60_000,
   });
-  const setupOpen = !!setup.data && !(setup.data.engine_done && setup.data.org_done && setup.data.people_done);
+  const setupOpen = setupIsOpen(setup.data);
 
   // A badge counts unread messages, or on the office open decisions.
   const item = (place: RailPlace, to: string, icon: string, label: string, badge = 0) => (

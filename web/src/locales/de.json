@@ -1948,7 +1948,10 @@
     },
     "progress": "{{done}} von {{total}} erledigt",
     "later": "Später",
-    "finish": "Fertig"
+    "finish": "Fertig",
+    "close": "Einrichtung abschließen",
+    "closedNote": "Die Einrichtung ist abgeschlossen und steht nicht mehr in der Navigation.",
+    "reopen": "Wieder in der Navigation zeigen"
   },
   "brief": {
     "lead": "Ihre Personalabteilung macht daraus einen vollständigen Entwurf: Charakter, Zuständigkeit, Verfahren, Zugänge. Eingestellt wird er von Ihnen.",

@@ -1948,7 +1948,10 @@
     },
     "progress": "{{done}} de {{total}} feitos",
     "later": "Mais tarde",
-    "finish": "Concluído"
+    "finish": "Concluído",
+    "close": "Concluir a configuração",
+    "closedNote": "A configuração está concluída e já não aparece na navegação.",
+    "reopen": "Mostrá-la novamente na navegação"
   },
   "brief": {
     "lead": "O seu departamento de Pessoal transforma isto num rascunho completo: carácter, âmbito, procedimentos, acessos. Contratá-lo é consigo.",

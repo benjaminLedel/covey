@@ -365,6 +365,8 @@ func (s *Server) Handler() http.Handler {
 	// (setup.go, spec/20). Everything here is also reachable by hand — the setup
 	// buys order, not exclusivity.
 	mux.Handle("GET /api/v1/setup/state", s.rbac(manage, s.handleSetupState))
+	mux.Handle("POST /api/v1/setup/close", s.rbac(manage, s.handleSetupClose))
+	mux.Handle("POST /api/v1/setup/reopen", s.rbac(manage, s.handleSetupReopen))
 	mux.Handle("POST /api/v1/setup/engine", s.rbac(manage, s.handleSetupEngine))
 	mux.Handle("POST /api/v1/setup/org", s.rbac(manage, s.handleSetupOrg))
 	mux.Handle("POST /api/v1/setup/people", s.rbac(manage, s.handleSetupPeople))

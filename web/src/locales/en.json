@@ -1948,7 +1948,10 @@
     },
     "progress": "{{done}} of {{total}} done",
     "later": "Later",
-    "finish": "Done"
+    "finish": "Done",
+    "close": "Finish setup",
+    "closedNote": "Setup is finished and no longer shown in the navigation.",
+    "reopen": "Show it in the navigation again"
   },
   "brief": {
     "lead": "Your People department turns this into a complete draft: character, remit, procedures, access. Hiring it is up to you.",

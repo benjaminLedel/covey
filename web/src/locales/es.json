@@ -1948,7 +1948,10 @@
     },
     "progress": "{{done}} de {{total}} hechos",
     "later": "Más tarde",
-    "finish": "Listo"
+    "finish": "Listo",
+    "close": "Terminar la configuración",
+    "closedNote": "La configuración está terminada y ya no aparece en la navegación.",
+    "reopen": "Mostrarla de nuevo en la navegación"
   },
   "brief": {
     "lead": "Tu departamento de Personal convierte esto en un borrador completo: carácter, ámbito, procedimientos, accesos. Contratarlo depende de ti.",

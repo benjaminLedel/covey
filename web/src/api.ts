@@ -843,7 +843,13 @@ export type SetupState = {
   org_description: string;
   /** Can the control plane personalise the HR department (stage 2)? */
   llm_available: boolean;
+  /** Somebody finished setup as it stood (#394). */
+  closed?: boolean;
 };
+
+/** Setup counts as open while it is neither closed nor done (#394). */
+export const setupIsOpen = (st?: SetupState) =>
+  !!st && !st.closed && !(st.engine_done && st.org_done && st.people_done);
 
 export type RuntimeInfo = {
   name: string;
