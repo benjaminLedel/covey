@@ -1625,7 +1625,23 @@ export const listNotes = (q = "") =>
   api<NotesPage>(q.trim() ? `/me/notes?q=${encodeURIComponent(q.trim())}` : "/me/notes");
 export const createNote = (body: string, title = "") =>
   post<Note>("/me/notes", { kind: "text", title, body });
-export const updateNote = (id: string, change: { title?: string; body?: string }) =>
-  patch<Note>(`/me/notes/${id}`, change);
+export type NoteChange = {
+  title?: string;
+  body?: string;
+  icon?: string;
+  cover?: string;
+  status?: "" | "todo" | "doing" | "done";
+  /** YYYY-MM-DD, or "" to clear. */
+  due?: string;
+  tags?: string[];
+};
+export const updateNote = (id: string, change: NoteChange) => patch<Note>(`/me/notes/${id}`, change);
+/** A picture for a note (#344): into the media store; the answer is the
+    reference the Markdown carries. */
+export const uploadNoteMedia = (file: File) => {
+  const form = new FormData();
+  form.append("file", file);
+  return upload<{ id: string; ref: string }>("/me/notes/media", form);
+};
 export const deleteNote = (id: string) => del<void>(`/me/notes/${id}`);
 export const summarizeNote = (id: string) => post<Note>(`/me/notes/${id}/summarize`);

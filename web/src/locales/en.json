@@ -2702,7 +2702,14 @@
     "tonSchar": "Flock",
     "tonGlas": "Glass",
     "tonSystem": "System sound",
-    "tonAus": "Silent"
+    "tonAus": "Silent",
+    "slashHinweis": "Type “/” for blocks",
+    "ohneTitel": "Untitled",
+    "speichert": "Saving …",
+    "gespeichert": "Saved",
+    "nichtGespeichert": "Not saved",
+    "notizWaehlen": "Pick a note on the left, or start a new one.",
+    "notizMenue": "More actions"
   },
   "appLink": {
     "title": "Open in the covey app",

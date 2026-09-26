@@ -2702,7 +2702,14 @@
     "tonSchar": "Schar",
     "tonGlas": "Glas",
     "tonSystem": "Systemton",
-    "tonAus": "Stumm"
+    "tonAus": "Stumm",
+    "slashHinweis": "Tippen Sie „/“ für Blöcke",
+    "ohneTitel": "Ohne Titel",
+    "speichert": "Speichert …",
+    "gespeichert": "Gespeichert",
+    "nichtGespeichert": "Nicht gespeichert",
+    "notizWaehlen": "Wählen Sie links eine Notiz oder legen Sie eine neue an.",
+    "notizMenue": "Weitere Aktionen"
   },
   "appLink": {
     "title": "In der covey-App öffnen",

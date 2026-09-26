@@ -38,8 +38,12 @@ describe("Notizen im Web (#342)", () => {
     fireEvent.click(await screen.findByText("Weekly"));
     expect(screen.getByText("Ada schickt das Angebot")).toBeInTheDocument();
     expect(screen.getByRole("checkbox")).not.toBeChecked();
-    expect(screen.getByText("Neu zusammenfassen")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Weekly")).toBeInTheDocument();
+    // The transcript is the page's body, as blocks (#386).
     expect(screen.getByText("Ada: Angebot bis Freitag.")).toBeInTheDocument();
+    // Summarising sits in the page's menu.
+    fireEvent.click(screen.getByLabelText("Weitere Aktionen"));
+    expect(screen.getByText("Neu zusammenfassen")).toBeInTheDocument();
   });
 
   it("sagt, dass Aufnahmen in der App entstehen", async () => {
@@ -83,10 +87,12 @@ describe("Bilder in Notizen (#344)", () => {
     });
     renderNotes();
     fireEvent.click(await screen.findByText("Tafel"));
-    const img = screen.getByRole("img", { name: "Tafel" });
-    expect(img.getAttribute("src")).toBe(`/api/v1/me/notes/media/${id}`);
-    expect(screen.getAllByRole("img")).toHaveLength(1);
-    expect(screen.getByText("ein Zitat").closest("blockquote")).not.toBeNull();
+    // Only the note's own picture is loaded; a foreign one stays its address.
+    const imgs = document.querySelectorAll("img");
+    expect(imgs).toHaveLength(1);
+    expect(imgs[0].getAttribute("src")).toBe(`/api/v1/me/notes/media/${id}`);
+    expect(screen.getByText("https://tracker.example/p.gif")).toBeInTheDocument();
+    expect(screen.getByText("ein Zitat").closest(".nb-quote")).not.toBeNull();
   });
 
   it("lässt Bilder als Text, wo keine Seite sie erlaubt", () => {

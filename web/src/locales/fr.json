@@ -2702,7 +2702,14 @@
     "tonSchar": "Nuée",
     "tonGlas": "Verre",
     "tonSystem": "Son du système",
-    "tonAus": "Silencieux"
+    "tonAus": "Silencieux",
+    "slashHinweis": "Tapez « / » pour les blocs",
+    "ohneTitel": "Sans titre",
+    "speichert": "Enregistrement …",
+    "gespeichert": "Enregistré",
+    "nichtGespeichert": "Non enregistré",
+    "notizWaehlen": "Choisissez une note à gauche ou créez-en une.",
+    "notizMenue": "Plus d’actions"
   },
   "appLink": {
     "title": "Ouvrir dans l'application covey",

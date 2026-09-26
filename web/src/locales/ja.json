@@ -2702,7 +2702,14 @@
     "tonSchar": "群れ",
     "tonGlas": "ガラス",
     "tonSystem": "システムサウンド",
-    "tonAus": "消音"
+    "tonAus": "消音",
+    "slashHinweis": "「/」でブロックを挿入",
+    "ohneTitel": "無題",
+    "speichert": "保存中 …",
+    "gespeichert": "保存しました",
+    "nichtGespeichert": "保存されていません",
+    "notizWaehlen": "左でノートを選ぶか、新しく作成してください。",
+    "notizMenue": "その他の操作"
   },
   "appLink": {
     "title": "covey アプリで開く",

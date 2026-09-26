@@ -2702,7 +2702,14 @@
     "tonSchar": "Bandada",
     "tonGlas": "Cristal",
     "tonSystem": "Sonido del sistema",
-    "tonAus": "Silencio"
+    "tonAus": "Silencio",
+    "slashHinweis": "Escriba «/» para bloques",
+    "ohneTitel": "Sin título",
+    "speichert": "Guardando …",
+    "gespeichert": "Guardado",
+    "nichtGespeichert": "No guardado",
+    "notizWaehlen": "Elija una nota a la izquierda o cree una nueva.",
+    "notizMenue": "Más acciones"
   },
   "appLink": {
     "title": "Abrir en la aplicación covey",

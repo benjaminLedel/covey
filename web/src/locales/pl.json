@@ -2702,7 +2702,14 @@
     "tonSchar": "Stado",
     "tonGlas": "Szkło",
     "tonSystem": "Dźwięk systemowy",
-    "tonAus": "Wyciszony"
+    "tonAus": "Wyciszony",
+    "slashHinweis": "Wpisz „/”, aby wstawić blok",
+    "ohneTitel": "Bez tytułu",
+    "speichert": "Zapisywanie …",
+    "gespeichert": "Zapisano",
+    "nichtGespeichert": "Nie zapisano",
+    "notizWaehlen": "Wybierz notatkę po lewej lub utwórz nową.",
+    "notizMenue": "Więcej działań"
   },
   "appLink": {
     "title": "Otwórz w aplikacji covey",

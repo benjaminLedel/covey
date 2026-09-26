@@ -2702,7 +2702,14 @@
     "tonSchar": "Zwerm",
     "tonGlas": "Glas",
     "tonSystem": "Systeemgeluid",
-    "tonAus": "Stil"
+    "tonAus": "Stil",
+    "slashHinweis": "Typ „/” voor blokken",
+    "ohneTitel": "Zonder titel",
+    "speichert": "Opslaan …",
+    "gespeichert": "Opgeslagen",
+    "nichtGespeichert": "Niet opgeslagen",
+    "notizWaehlen": "Kies links een notitie of maak een nieuwe.",
+    "notizMenue": "Meer acties"
   },
   "appLink": {
     "title": "Openen in de covey-app",

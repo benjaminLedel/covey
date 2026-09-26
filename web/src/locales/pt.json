@@ -2702,7 +2702,14 @@
     "tonSchar": "Bando",
     "tonGlas": "Vidro",
     "tonSystem": "Som do sistema",
-    "tonAus": "Silencioso"
+    "tonAus": "Silencioso",
+    "slashHinweis": "Escreva «/» para blocos",
+    "ohneTitel": "Sem título",
+    "speichert": "A guardar …",
+    "gespeichert": "Guardado",
+    "nichtGespeichert": "Não guardado",
+    "notizWaehlen": "Escolha uma nota à esquerda ou crie uma nova.",
+    "notizMenue": "Mais ações"
   },
   "appLink": {
     "title": "Abrir na aplicação covey",

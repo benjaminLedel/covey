@@ -2702,7 +2702,14 @@
     "tonSchar": "鸟群",
     "tonGlas": "玻璃",
     "tonSystem": "系统声音",
-    "tonAus": "静音"
+    "tonAus": "静音",
+    "slashHinweis": "输入“/”插入块",
+    "ohneTitel": "无标题",
+    "speichert": "正在保存 …",
+    "gespeichert": "已保存",
+    "nichtGespeichert": "未保存",
+    "notizWaehlen": "在左侧选择笔记，或新建一条。",
+    "notizMenue": "更多操作"
   },
   "appLink": {
     "title": "在 covey 应用中打开",
