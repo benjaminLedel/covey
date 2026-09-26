@@ -89,6 +89,15 @@ abstract class SegmentedEngine implements SpeechEngine {
   /// once — dictate-anywhere on the desktop (#355). Freed on [dispose].
   bool keepLoaded = false;
 
+  /// Where the audio comes from: the microphone unless set — a meeting's
+  /// second source is the Mac's own audio (#364). 16 kHz mono PCM16.
+  Stream<Uint8List> Function()? source;
+
+  /// Each finished segment's text with the moment its speech began, for a
+  /// transcript merged from two sources (#364).
+  void Function(String text, DateTime at)? onSegment;
+  DateTime? _segSpeechAt;
+
   /// Loads what the recogniser needs once per dictation.
   Future<void> prepare() async {}
 
@@ -111,7 +120,7 @@ abstract class SegmentedEngine implements SpeechEngine {
   }
 
   @override
-  Future<bool> hasPermission() => _recorder.hasPermission();
+  Future<bool> hasPermission() async => source != null || await _recorder.hasPermission();
 
   @override
   Future<void> start({
@@ -132,9 +141,11 @@ abstract class SegmentedEngine implements SpeechEngine {
     // Raw: the platform's voice processing (echoCancel) was tried against
     // background noise (#359) and on macOS left the stream without sound —
     // record's converter does not follow the input format it switches to.
-    final raw = await _recorder.startStream(
-      const RecordConfig(encoder: AudioEncoder.pcm16bits, sampleRate: 16000, numChannels: 1),
-    );
+    final raw =
+        source?.call() ??
+        await _recorder.startStream(
+          const RecordConfig(encoder: AudioEncoder.pcm16bits, sampleRate: 16000, numChannels: 1),
+        );
     var bytes = 0;
     final began = DateTime.now();
     var last = began;
@@ -170,6 +181,7 @@ abstract class SegmentedEngine implements SpeechEngine {
     final voiced = rms >= math.max(3 * _floor, 0.004);
     _segBytes += chunk.length;
     if (voiced) {
+      _segSpeechAt ??= DateTime.now().subtract(Duration(milliseconds: chunk.length * 1000 ~/ _bytesPerSecond));
       _segVoiced = true;
       _voicedBytes += chunk.length;
       _silentBytes = 0;
@@ -182,6 +194,7 @@ abstract class SegmentedEngine implements SpeechEngine {
   }
 
   void _resetSegment() {
+    _segSpeechAt = null;
     _segBytes = 0;
     _silentBytes = 0;
     _voicedBytes = 0;
@@ -207,10 +220,11 @@ abstract class SegmentedEngine implements SpeechEngine {
   Future<void> _nextSegment() async {
     _switching = true;
     final hadVoice = _segVoiced && _voicedBytes >= _minVoicedBytes;
+    final at = _segSpeechAt;
     if (_segVoiced && !hadVoice) _log('segment dropped: ${_voicedBytes * 1000 ~/ _bytesPerSecond} ms of voice');
     _resetSegment();
     try {
-      await _close(keep: hadVoice);
+      await _close(keep: hadVoice, at: at);
       if (!_stopping) await _openNext();
     } catch (e) {
       _log('segment switch failed: $e');
@@ -219,7 +233,7 @@ abstract class SegmentedEngine implements SpeechEngine {
     }
   }
 
-  Future<void> _close({required bool keep}) async {
+  Future<void> _close({required bool keep, DateTime? at}) async {
     if (!_open) return;
     _open = false;
     final watch = Stopwatch()..start();
@@ -227,6 +241,7 @@ abstract class SegmentedEngine implements SpeechEngine {
     _current = '';
     if (keep && text.isNotEmpty && !_isHallucination(text)) {
       _committed = _committed.isEmpty ? text : '$_committed $text';
+      onSegment?.call(text, at ?? DateTime.now());
     }
     _log('segment done, ${text.length} characters, finished in ${watch.elapsedMilliseconds} ms');
     _partials(_joined());
@@ -237,7 +252,7 @@ abstract class SegmentedEngine implements SpeechEngine {
   @override
   Future<String> stop() async {
     _stopping = true;
-    await _recorder.stop();
+    if (source == null) await _recorder.stop();
     await _mic?.cancel();
     _mic = null;
     await _cut;
@@ -248,7 +263,7 @@ abstract class SegmentedEngine implements SpeechEngine {
       }
       _held.clear();
     }
-    await _close(keep: _voicedBytes >= _minVoicedBytes);
+    await _close(keep: _voicedBytes >= _minVoicedBytes, at: _segSpeechAt);
     if (!keepLoaded) await release();
     _stopping = false;
     _log(
@@ -305,8 +320,14 @@ double _loudness(double rms) {
 /// [preparing] and [progress] say so while it does. The model recognises the
 /// language itself.
 class Dictation extends ChangeNotifier {
-  Dictation({this.api, this.engine, SpeechModel? model, this.keepModelLoaded = false})
+  Dictation({this.api, this.engine, SpeechModel? model, this.keepModelLoaded = false, this.source, this.onSegment})
     : _model = model ?? SpeechModel.instance;
+
+  /// Another audio source than the microphone (#364).
+  final Stream<Uint8List> Function()? source;
+
+  /// Each finished segment with the moment its speech began (#364).
+  final void Function(String text, DateTime at)? onSegment;
 
   /// Keep the recogniser's model loaded between dictations (#355).
   final bool keepModelLoaded;
@@ -363,7 +384,10 @@ class Dictation extends ChangeNotifier {
     if (e is SherpaEngine && e.model == kind) return e;
     e?.dispose();
     _picked = true;
-    return engine = SherpaEngine(kind)..keepLoaded = keepModelLoaded;
+    return engine = SherpaEngine(kind)
+      ..keepLoaded = keepModelLoaded
+      ..source = source
+      ..onSegment = onSegment;
   }
 
   void _modelChanged() => notifyListeners();

@@ -4,7 +4,9 @@
 <dict>
 	<!-- covey:// — the desktop app pairs through "Open in the app" on the
 	     web's pairing card (#334), having no camera to scan with. -->
-<key>NSMicrophoneUsageDescription</key>
+<key>NSAudioCaptureUsageDescription</key>
+	<string>In a meeting you record, covey transcribes what the Mac plays — the other side of a call — on this Mac. No audio is stored or sent.</string>
+	<key>NSMicrophoneUsageDescription</key>
 	<string>The microphone is used to dictate notes and record meetings. Speech is recognised on this device with a model from your covey instance; no audio is stored or sent.</string>
 	<key>CFBundleURLTypes</key>
 	<array>

@@ -2602,7 +2602,13 @@
     "aktivHinweis": "Indipendente dalla dettatura: finché è attivo, covey registra in quale app, finestra e pagina lavori, con un estratto del campo. Nessun tasto premuto, nessuno screenshot, nessuna password. Lo vedi solo tu, nemmeno gli amministratori. Viene eliminato dopo 14 giorni.",
     "aktivMenue": "covey sta registrando la tua attività",
     "aktivAus": "Disattiva",
-    "modell_sensevoice": "Cinese, giapponese, coreano, cantonese e inglese"
+    "modell_sensevoice": "Cinese, giapponese, coreano, cantonese e inglese",
+    "macTonTitel": "Includere l'audio del Mac?",
+    "macTonText": "covey trascriverà anche ciò che il Mac riproduce, ad esempio gli altri in Teams o Zoom, separato dal tuo microfono. Informa tutti i partecipanti che la riunione viene trascritta: registrare una conversazione di nascosto è vietato in molti paesi.",
+    "macTonJa": "Includilo, tutti lo sanno",
+    "macTonNein": "Solo microfono",
+    "sprecherIch": "Io",
+    "sprecherAndere": "Altri"
   },
   "appLink": {
     "title": "Apri nell'app covey",

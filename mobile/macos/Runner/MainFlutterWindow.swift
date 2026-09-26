@@ -1,10 +1,14 @@
+import AVFoundation
 import ApplicationServices
 import Cocoa
+import CoreAudio
 import FlutterMacOS
 
 class MainFlutterWindow: NSWindow {
   private var flow: FlowBridge?
   private var chrome: FlutterMethodChannel?
+  private var systemAudio: FlutterEventChannel?
+  private let systemAudioHandler = SystemAudioHandler()
 
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
@@ -28,6 +32,8 @@ class MainFlutterWindow: NSWindow {
 
     RegisterGeneratedPlugins(registry: flutterViewController)
     flow = FlowBridge(messenger: flutterViewController.engine.binaryMessenger)
+    systemAudio = FlutterEventChannel(name: "covey/system-audio", binaryMessenger: flutterViewController.engine.binaryMessenger)
+    systemAudio?.setStreamHandler(systemAudioHandler)
     chrome = FlutterMethodChannel(name: "covey/window", binaryMessenger: flutterViewController.engine.binaryMessenger)
     chrome?.setMethodCallHandler { [weak self] call, result in
       guard let self else { return result(nil) }
@@ -694,4 +700,136 @@ final class ActionTarget: NSObject {
   private let run: () -> Void
   init(_ run: @escaping () -> Void) { self.run = run }
   @objc func fire() { run() }
+}
+
+/// The Mac's own audio for a meeting (#364): what the Mac plays — the other
+/// side of a call in Teams, Zoom or Meet — taken with a Core Audio process
+/// tap, converted to 16 kHz mono PCM16 and handed to Dart as it comes.
+/// Listening starts the tap, cancelling stops it; macOS asks once for the
+/// permission to record other apps' audio.
+final class SystemAudioHandler: NSObject, FlutterStreamHandler {
+  private var tap: AnyObject?
+
+  func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
+    guard #available(macOS 14.4, *) else {
+      return FlutterError(code: "unsupported", message: "the Mac's audio needs macOS 14.4 or later", details: nil)
+    }
+    let t = SystemAudioTap()
+    do {
+      try t.start { data in
+        DispatchQueue.main.async { events(FlutterStandardTypedData(bytes: data)) }
+      }
+    } catch {
+      t.stop()
+      return FlutterError(code: "tap", message: "\(error)", details: nil)
+    }
+    tap = t
+    return nil
+  }
+
+  func onCancel(withArguments arguments: Any?) -> FlutterError? {
+    if #available(macOS 14.4, *) { (tap as? SystemAudioTap)?.stop() }
+    tap = nil
+    return nil
+  }
+}
+
+@available(macOS 14.4, *)
+final class SystemAudioTap {
+  private var tapID = AudioObjectID(kAudioObjectUnknown)
+  private var aggregateID = AudioObjectID(kAudioObjectUnknown)
+  private var procID: AudioDeviceIOProcID?
+  private let queue = DispatchQueue(label: "work.covey.system-audio")
+
+  struct Failure: Error, CustomStringConvertible {
+    let step: String
+    let status: OSStatus
+    var description: String { "\(step) failed (\(status))" }
+  }
+
+  private static func check(_ status: OSStatus, _ step: String) throws {
+    if status != noErr { throw Failure(step: step, status: status) }
+  }
+
+  private static func property<T>(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector, _ value: inout T) throws {
+    var address = AudioObjectPropertyAddress(
+      mSelector: selector, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+    var size = UInt32(MemoryLayout<T>.size)
+    try check(AudioObjectGetPropertyData(object, &address, 0, nil, &size, &value), "reading property \(selector)")
+  }
+
+  func start(onChunk: @escaping (Data) -> Void) throws {
+    // Everything the Mac plays, mixed to stereo; covey itself plays nothing.
+    let description = CATapDescription(stereoGlobalTapButExcludeProcesses: [])
+    description.uuid = UUID()
+    description.muteBehavior = .unmuted
+    description.isPrivate = true
+    description.name = "covey meeting"
+    try Self.check(AudioHardwareCreateProcessTap(description, &tapID), "creating the tap")
+
+    // The tap is read through a private aggregate device on the output.
+    var output = AudioObjectID(kAudioObjectUnknown)
+    try Self.property(AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultSystemOutputDevice, &output)
+    var outputUID: CFString = "" as CFString
+    try Self.property(output, kAudioDevicePropertyDeviceUID, &outputUID)
+    let aggregate: [String: Any] = [
+      kAudioAggregateDeviceNameKey: "covey meeting",
+      kAudioAggregateDeviceUIDKey: UUID().uuidString,
+      kAudioAggregateDeviceMainSubDeviceKey: outputUID as String,
+      kAudioAggregateDeviceIsPrivateKey: true,
+      kAudioAggregateDeviceIsStackedKey: false,
+      kAudioAggregateDeviceTapAutoStartKey: true,
+      kAudioAggregateDeviceSubDeviceListKey: [[kAudioSubDeviceUIDKey: outputUID as String]],
+      kAudioAggregateDeviceTapListKey: [[
+        kAudioSubTapDriftCompensationKey: true,
+        kAudioSubTapUIDKey: description.uuid.uuidString,
+      ]],
+    ]
+    try Self.check(AudioHardwareCreateAggregateDevice(aggregate as CFDictionary, &aggregateID), "creating the device")
+
+    var format = AudioStreamBasicDescription()
+    try Self.property(tapID, kAudioTapPropertyFormat, &format)
+    guard let inFormat = AVAudioFormat(streamDescription: &format),
+      let outFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16000, channels: 1, interleaved: true),
+      let converter = AVAudioConverter(from: inFormat, to: outFormat)
+    else { throw Failure(step: "setting up the conversion", status: -1) }
+
+    try Self.check(
+      AudioDeviceCreateIOProcIDWithBlock(&procID, aggregateID, queue) { _, input, _, _, _ in
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: inFormat, bufferListNoCopy: input, deallocator: nil),
+          buffer.frameLength > 0,
+          let out = AVAudioPCMBuffer(
+            pcmFormat: outFormat,
+            frameCapacity: AVAudioFrameCount(Double(buffer.frameLength) * 16000 / inFormat.sampleRate) + 32)
+        else { return }
+        var fed = false
+        converter.convert(to: out, error: nil) { _, status in
+          if fed {
+            status.pointee = .noDataNow
+            return nil
+          }
+          fed = true
+          status.pointee = .haveData
+          return buffer
+        }
+        if out.frameLength > 0, let samples = out.int16ChannelData?[0] {
+          onChunk(Data(bytes: samples, count: Int(out.frameLength) * 2))
+        }
+      }, "reading the device")
+    try Self.check(AudioDeviceStart(aggregateID, procID), "starting the device")
+  }
+
+  func stop() {
+    if aggregateID != kAudioObjectUnknown {
+      AudioDeviceStop(aggregateID, procID)
+      if let procID { AudioDeviceDestroyIOProcID(aggregateID, procID) }
+      AudioHardwareDestroyAggregateDevice(aggregateID)
+      aggregateID = AudioObjectID(kAudioObjectUnknown)
+    }
+    procID = nil
+    if tapID != kAudioObjectUnknown {
+      AudioHardwareDestroyProcessTap(tapID)
+      tapID = AudioObjectID(kAudioObjectUnknown)
+    }
+  }
 }

@@ -14,6 +14,7 @@ import '../models.dart';
 import '../rich/bar.dart';
 import '../rich/editor.dart';
 import '../summary_text.dart';
+import '../system_audio.dart';
 import '../theme.dart';
 import '../ui.dart';
 
@@ -582,7 +583,15 @@ class MeetingScreen extends StatefulWidget {
 }
 
 class _MeetingScreenState extends State<MeetingScreen> {
-  late final Dictation _dictation = widget.dictation ?? Dictation(api: widget.api);
+  late final Dictation _dictation =
+      widget.dictation ?? Dictation(api: widget.api, onSegment: (t, at) => _segment(true, t, at));
+
+  /// The Mac's own audio, when the person includes it (#364): the other
+  /// side of the call, recognised separately.
+  Dictation? _others;
+
+  /// Finished segments of both sides, merged by the time their speech began.
+  final _segments = <({DateTime at, bool mine, String text})>[];
   final _watch = Stopwatch();
   Timer? _tick;
   bool _saving = false;
@@ -597,10 +606,53 @@ class _MeetingScreenState extends State<MeetingScreen> {
 
   void _changed() => setState(() {});
 
+  void _segment(bool mine, String text, DateTime at) {
+    _segments.add((at: at, mine: mine, text: text));
+    _segments.sort((a, b) => a.at.compareTo(b.at));
+  }
+
+  /// On the Mac: include the Mac's audio? Only with everybody's knowledge —
+  /// the question says so, and the answer that includes it says it too.
+  Future<bool> _askForMacAudio() async {
+    final t = context.t;
+    final yes = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Text(t('mobile.macTonTitel')),
+        content: Text(t('mobile.macTonText')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(t('mobile.macTonNein'))),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(t('mobile.macTonJa'))),
+        ],
+      ),
+    );
+    return yes == true;
+  }
+
   Future<void> _start() async {
+    final withMac = SystemAudio.supported && widget.dictation == null && await _askForMacAudio();
+    if (!mounted) return;
     if (await _dictation.start(continuous: true)) {
       _watch.start();
       _tick = Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
+      if (withMac) {
+        final others = Dictation(
+          api: widget.api,
+          source: SystemAudio.stream,
+          onSegment: (t, at) => _segment(false, t, at),
+        )..addListener(_changed);
+        _others = others;
+        if (!await others.start(continuous: true) && mounted) {
+          // Without the Mac's audio the meeting goes on with the microphone.
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(dictationFailure(context, others.failure, others.detail))));
+          others.removeListener(_changed);
+          others.dispose();
+          _others = null;
+        }
+      }
     }
     if (mounted) setState(() => _started = true);
   }
@@ -610,13 +662,55 @@ class _MeetingScreenState extends State<MeetingScreen> {
     _tick?.cancel();
     _dictation.removeListener(_changed);
     if (widget.dictation == null) _dictation.dispose();
+    _others?.removeListener(_changed);
+    _others?.dispose();
     super.dispose();
+  }
+
+  /// What a side says beyond its finished segments: the segment being
+  /// spoken now.
+  String _live(Dictation d, bool mine) {
+    final done = _segments.where((x) => x.mine == mine).map((x) => x.text).join(' ');
+    final all = d.text;
+    return all.startsWith(done) ? all.substring(done.length).trim() : '';
+  }
+
+  /// The transcript with its speaker sides: consecutive segments of one side
+  /// form one paragraph. [live] adds what is being spoken now.
+  List<({bool mine, String text})> _turns({required bool live}) {
+    final out = <({bool mine, String text})>[];
+    void add(bool mine, String text) {
+      if (text.isEmpty) return;
+      if (out.isNotEmpty && out.last.mine == mine) {
+        out[out.length - 1] = (mine: mine, text: '${out.last.text} $text');
+      } else {
+        out.add((mine: mine, text: text));
+      }
+    }
+
+    for (final s in _segments) {
+      add(s.mine, s.text);
+    }
+    final others = _others;
+    if (live && others != null) {
+      add(false, _live(others, false));
+      add(true, _live(_dictation, true));
+    }
+    return out;
   }
 
   Future<void> _stop() async {
     _watch.stop();
     _tick?.cancel();
-    final text = await _dictation.stop();
+    final others = _others;
+    var text = await _dictation.stop();
+    if (others != null) {
+      await others.stop();
+      if (!mounted) return;
+      final me = context.t('mobile.sprecherIch');
+      final them = context.t('mobile.sprecherAndere');
+      text = [for (final t in _turns(live: false)) '**${t.mine ? me : them}:** ${t.text}'].join('\n\n');
+    }
     if (!mounted) return;
     final nav = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
@@ -695,10 +789,12 @@ class _MeetingScreenState extends State<MeetingScreen> {
                   decoration: BoxDecoration(color: c.surface2, borderRadius: BorderRadius.circular(20)),
                   child: SingleChildScrollView(
                     reverse: true,
-                    child: Text(
-                      text.isEmpty ? context.t('mobile.nochNichtsGehoert') : text,
-                      style: context.type.bodyLarge?.copyWith(color: text.isEmpty ? c.textMuted : c.textPrimary),
-                    ),
+                    child: _others == null
+                        ? Text(
+                            text.isEmpty ? context.t('mobile.nochNichtsGehoert') : text,
+                            style: context.type.bodyLarge?.copyWith(color: text.isEmpty ? c.textMuted : c.textPrimary),
+                          )
+                        : _Turns(turns: _turns(live: true)),
                   ),
                 ),
               ),
@@ -727,3 +823,40 @@ InputDecoration _bare(BuildContext context, String hint, TextStyle? style) => In
   focusedBorder: InputBorder.none,
   contentPadding: const EdgeInsets.symmetric(vertical: 10),
 );
+
+/// A meeting's transcript with its sides (#364): each turn a paragraph that
+/// begins with who spoke.
+class _Turns extends StatelessWidget {
+  const _Turns({required this.turns});
+
+  final List<({bool mine, String text})> turns;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final style = context.type.bodyLarge;
+    if (turns.isEmpty) {
+      return Text(context.t('mobile.nochNichtsGehoert'), style: style?.copyWith(color: c.textMuted));
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final t in turns)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: '${context.t(t.mine ? 'mobile.sprecherIch' : 'mobile.sprecherAndere')}: ',
+                    style: style?.copyWith(fontWeight: FontWeight.w600, color: t.mine ? c.textAccent : c.textSecondary),
+                  ),
+                  TextSpan(text: t.text, style: style),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}

@@ -2602,7 +2602,13 @@
     "aktivHinweis": "Niezależnie od dyktowania: dopóki jest włączone, covey zapisuje, w jakiej aplikacji, oknie i na jakiej stronie pracujesz, z fragmentem pola. Bez naciśnięć klawiszy, bez zrzutów ekranu, bez haseł. Widzisz to tylko Ty, nawet nie administratorzy. Usuwane po 14 dniach.",
     "aktivMenue": "covey zapisuje Twoją aktywność",
     "aktivAus": "Wyłącz",
-    "modell_sensevoice": "Chiński, japoński, koreański, kantoński i angielski"
+    "modell_sensevoice": "Chiński, japoński, koreański, kantoński i angielski",
+    "macTonTitel": "Uwzględnić dźwięk z Maca?",
+    "macTonText": "covey będzie też zapisywać to, co odtwarza Mac, np. innych w Teams lub Zoom, oddzielnie od Twojego mikrofonu. Powiedz wszystkim uczestnikom, że rozmowa jest zapisywana: potajemne nagrywanie rozmów jest w wielu krajach zabronione.",
+    "macTonJa": "Uwzględnij, wszyscy wiedzą",
+    "macTonNein": "Tylko mikrofon",
+    "sprecherIch": "Ja",
+    "sprecherAndere": "Inni"
   },
   "appLink": {
     "title": "Otwórz w aplikacji covey",

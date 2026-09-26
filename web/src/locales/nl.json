@@ -2602,7 +2602,13 @@
     "aktivHinweis": "Los van het dicteren: zolang het aan staat, legt covey vast in welke app, welk venster en op welke pagina u werkt, met een fragment van het veld. Geen toetsaanslagen, geen schermafbeeldingen, geen wachtwoorden. Alleen u ziet het, ook beheerders niet. Na 14 dagen wordt het verwijderd.",
     "aktivMenue": "covey houdt uw activiteit bij",
     "aktivAus": "Uitschakelen",
-    "modell_sensevoice": "Chinees, Japans, Koreaans, Kantonees en Engels"
+    "modell_sensevoice": "Chinees, Japans, Koreaans, Kantonees en Engels",
+    "macTonTitel": "Geluid van de Mac meenemen?",
+    "macTonText": "covey schrijft dan ook mee wat de Mac afspeelt, zoals de anderen in Teams of Zoom, gescheiden van uw microfoon. Vertel alle deelnemers dat er wordt meegeschreven: een gesprek heimelijk opnemen is in veel landen verboden.",
+    "macTonJa": "Meenemen, iedereen weet het",
+    "macTonNein": "Alleen microfoon",
+    "sprecherIch": "Ik",
+    "sprecherAndere": "Anderen"
   },
   "appLink": {
     "title": "Openen in de covey-app",

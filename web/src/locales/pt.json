@@ -2602,7 +2602,13 @@
     "aktivHinweis": "Independente do ditado: enquanto estiver ativado, o covey regista em que app, janela e página trabalha, com um excerto do campo. Sem teclas premidas, sem capturas de ecrã, sem palavras-passe. Só o utilizador vê, nem os administradores. É apagado após 14 dias.",
     "aktivMenue": "O covey está a registar a sua atividade",
     "aktivAus": "Desligar",
-    "modell_sensevoice": "Chinês, japonês, coreano, cantonês e inglês"
+    "modell_sensevoice": "Chinês, japonês, coreano, cantonês e inglês",
+    "macTonTitel": "Incluir o som do Mac?",
+    "macTonText": "O covey passa a transcrever também o que o Mac reproduz, como os outros no Teams ou Zoom, separado do seu microfone. Diga a todos os participantes que a reunião está a ser transcrita: gravar uma conversa em segredo é proibido em muitos países.",
+    "macTonJa": "Incluir, todos sabem",
+    "macTonNein": "Só microfone",
+    "sprecherIch": "Eu",
+    "sprecherAndere": "Outros"
   },
   "appLink": {
     "title": "Abrir na aplicação covey",

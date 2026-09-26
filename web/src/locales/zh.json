@@ -2602,7 +2602,13 @@
     "aktivHinweis": "与听写无关：开启期间，covey 会记录您在哪个应用、窗口和页面工作，以及输入框的片段。不记录按键、截图或密码。只有您本人可见，管理员也看不到。14 天后删除。",
     "aktivMenue": "covey 正在记录您的活动",
     "aktivAus": "关闭",
-    "modell_sensevoice": "中文、日语、韩语、粤语和英语"
+    "modell_sensevoice": "中文、日语、韩语、粤语和英语",
+    "macTonTitel": "包含 Mac 的声音吗？",
+    "macTonText": "covey 还会转写 Mac 播放的声音（例如 Teams 或 Zoom 中的其他人），并与您的麦克风分开。请告知所有参会者正在转写：在许多国家，偷偷录音是违法的。",
+    "macTonJa": "包含，大家都已知情",
+    "macTonNein": "仅麦克风",
+    "sprecherIch": "我",
+    "sprecherAndere": "其他人"
   },
   "appLink": {
     "title": "在 covey 应用中打开",

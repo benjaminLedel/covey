@@ -2602,7 +2602,13 @@
     "aktivHinweis": "Independent of dictation: while it is on, covey records which app, window and page you are working in, with an excerpt of the field. No keystrokes, no screenshots, no passwords. Only you see it, not even admins. It is deleted after 14 days.",
     "aktivMenue": "covey is recording your activity",
     "aktivAus": "Turn off",
-    "modell_sensevoice": "Chinese, Japanese, Korean, Cantonese and English"
+    "modell_sensevoice": "Chinese, Japanese, Korean, Cantonese and English",
+    "macTonTitel": "Include the Mac's audio?",
+    "macTonText": "covey then also transcribes what the Mac plays, such as the others in Teams or Zoom, kept apart from your microphone. Tell everyone in the meeting that it is being transcribed: recording a conversation secretly is against the law in many countries.",
+    "macTonJa": "Include it, everyone knows",
+    "macTonNein": "Microphone only",
+    "sprecherIch": "Me",
+    "sprecherAndere": "Others"
   },
   "appLink": {
     "title": "Open in the covey app",

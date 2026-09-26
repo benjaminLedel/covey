@@ -2602,7 +2602,13 @@
     "aktivHinweis": "Unabhängig vom Diktat: Solange es eingeschaltet ist, hält covey fest, in welcher App, welchem Fenster und auf welcher Seite Sie arbeiten, mit einem Ausschnitt des Feldes. Keine Tastenanschläge, keine Bildschirmfotos, keine Passwörter. Nur Sie sehen es, auch Admins nicht. Nach 14 Tagen wird es gelöscht.",
     "aktivMenue": "covey schreibt Ihre Aktivitäten mit",
     "aktivAus": "Ausschalten",
-    "modell_sensevoice": "Chinesisch, Japanisch, Koreanisch, Kantonesisch und Englisch"
+    "modell_sensevoice": "Chinesisch, Japanisch, Koreanisch, Kantonesisch und Englisch",
+    "macTonTitel": "Ton des Macs einbeziehen?",
+    "macTonText": "Dann schreibt covey auch mit, was der Mac abspielt, etwa die anderen in Teams oder Zoom, und trennt es von Ihrem Mikrofon. Sagen Sie allen Beteiligten, dass mitgeschrieben wird: Gespräche heimlich aufzunehmen ist in Deutschland und vielen anderen Ländern verboten.",
+    "macTonJa": "Einbeziehen, alle wissen Bescheid",
+    "macTonNein": "Nur Mikrofon",
+    "sprecherIch": "Ich",
+    "sprecherAndere": "Andere"
   },
   "appLink": {
     "title": "In der covey-App öffnen",
