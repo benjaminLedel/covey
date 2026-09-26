@@ -285,6 +285,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 : context.t('mobile.aktivHeute', args: {'count': a.today}),
             trailing: Switch.adaptive(value: a.enabled, onChanged: a.setEnabled),
           ),
+          // Window, page and field come through the Accessibility
+          // permission; without it only the apps' names are recorded.
+          if (a.enabled && DictateAnywhere.supported && !DictateAnywhere.instance.trusted)
+            GroupRow(
+              title: context.t('mobile.bedienungshilfen'),
+              subtitle: context.t('mobile.nichtFreigegeben'),
+              trailing: TextButton(
+                onPressed: DictateAnywhere.instance.askTrust,
+                child: Text(context.t('mobile.freigeben')),
+              ),
+            ),
           if (a.enabled)
             GroupRow(
               title: a.paused ? context.t('mobile.aktivFortsetzen') : context.t('mobile.aktivPause'),

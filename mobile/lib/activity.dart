@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'anywhere.dart';
 import 'api.dart';
 import 'diagnostics.dart';
 import 'models.dart';
@@ -78,6 +79,8 @@ class ActivityRecorder extends ChangeNotifier {
     pausedUntil = null;
     if (on) {
       _start();
+      // Window, page and field need the Accessibility permission.
+      if (!DictateAnywhere.instance.trusted) await DictateAnywhere.instance.askTrust();
     } else {
       await _stop();
     }

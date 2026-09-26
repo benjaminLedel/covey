@@ -619,6 +619,44 @@ final class ActivityStatusItem {
 
   init(onAction: @escaping (String) -> Void) { self.onAction = onAction }
 
+  /// covey's signet for the menu bar: the three birds of the app icon
+  /// (lib/mark.dart), without the tile, as a template image — macOS colours
+  /// it for a light or dark menu bar.
+  static let mark: NSImage = {
+    let birds: [[CGFloat]] = [
+      [7.0, 15.0, 9.75, 11.8, 12.5, 15.0, 15.25, 11.8, 18.0, 15.0],
+      [3.5, 10.0, 5.5, 7.7, 7.5, 10.0, 9.5, 7.7, 11.5, 10.0],
+      [13.0, 8.0, 14.5, 6.3, 16.0, 8.0, 17.5, 6.3, 19.0, 8.0],
+    ]
+    let image = NSImage(size: NSSize(width: 20, height: 18), flipped: true) { _ in
+      let path = NSBezierPath()
+      // The birds' box is x 3.5…19, y 6.3…15: centred in the image.
+      let dx: CGFloat = -1.25, dy: CGFloat = -1.65
+      func p(_ x: CGFloat, _ y: CGFloat) -> NSPoint { NSPoint(x: x + dx, y: y + dy) }
+      // A quadratic curve as the cubic NSBezierPath draws.
+      func quad(from a: NSPoint, control q: NSPoint, to b: NSPoint) {
+        path.curve(
+          to: b,
+          controlPoint1: NSPoint(x: a.x + 2 / 3 * (q.x - a.x), y: a.y + 2 / 3 * (q.y - a.y)),
+          controlPoint2: NSPoint(x: b.x + 2 / 3 * (q.x - b.x), y: b.y + 2 / 3 * (q.y - b.y)))
+      }
+      for b in birds {
+        let start = p(b[0], b[1]), mid = p(b[4], b[5]), end = p(b[8], b[9])
+        path.move(to: start)
+        quad(from: start, control: p(b[2], b[3]), to: mid)
+        quad(from: mid, control: p(b[6], b[7]), to: end)
+      }
+      path.lineWidth = 1.9
+      path.lineCapStyle = .round
+      path.lineJoinStyle = .round
+      NSColor.black.setStroke()
+      path.stroke()
+      return true
+    }
+    image.isTemplate = true
+    return image
+  }()
+
   func update(_ args: [String: Any]) {
     guard args["visible"] as? Bool == true else {
       if let item { NSStatusBar.system.removeStatusItem(item) }
@@ -629,9 +667,10 @@ final class ActivityStatusItem {
       item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     }
     let paused = args["paused"] as? Bool == true
-    item?.button?.image = NSImage(
-      systemSymbolName: paused ? "pause.circle" : "record.circle", accessibilityDescription: args["title"] as? String)
-    item?.button?.image?.isTemplate = true
+    item?.button?.image = Self.mark
+    item?.button?.image?.accessibilityDescription = args["title"] as? String
+    // Paused, the birds go pale — still there, visibly not recording.
+    item?.button?.appearsDisabled = paused
 
     let menu = NSMenu()
     let head = NSMenuItem(title: args["title"] as? String ?? "", action: nil, keyEquivalent: "")
