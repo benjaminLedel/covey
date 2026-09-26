@@ -43,6 +43,7 @@ import (
 	"covey/internal/observability"
 	"covey/internal/orchestrator"
 	"covey/internal/org"
+	"covey/internal/push"
 	reqlogstore "covey/internal/reqlog/store"
 	"covey/internal/runner"
 	runnerstore "covey/internal/runner/store"
@@ -70,6 +71,10 @@ type Server struct {
 	// Media holds a person's media — the pictures in notes (#344). Nil means
 	// the builtin Postgres store. Not Blobs, the home store below.
 	Media mediastore.Store
+	// PushRelay delivers notifications for other instances (#379): set only
+	// when this instance holds the app's APNs key and COVEY_PUSH_RELAY_ACCEPT
+	// is on. Nil: the relay route answers 404.
+	PushRelay push.Sender
 	// Speech is the models the app recognises speech with (#348,
 	// #351, speech.go). Nil: speech is off on this instance.
 	Speech   *speech.Set
@@ -230,6 +235,7 @@ type Server struct {
 	// whose only secret is the token being presented (#163).
 	registerLimiter *webhookLimiter
 	webhookLimiter  *webhookLimiter
+	relayLimiter    *webhookLimiter
 
 	// routen is the route list from dist/app-routes.json
 	// (internal/httpapi/approutes.go): which paths the SPA shell answers and
@@ -246,6 +252,9 @@ func (s *Server) Handler() http.Handler {
 	}
 	if s.registerLimiter == nil {
 		s.registerLimiter = newRegisterLimiter()
+	}
+	if s.relayLimiter == nil {
+		s.relayLimiter = newRelayLimiter()
 	}
 	if s.webhookLimiter == nil {
 		s.webhookLimiter = newWebhookLimiter()
@@ -417,6 +426,12 @@ func (s *Server) Handler() http.Handler {
 	// What a person has not read yet (#378): per agent, and the point up to
 	// which they have.
 	mux.Handle("GET /api/v1/me/threads", s.rbac(anyRole, s.handleMyThreads))
+	// Push notifications (#379).
+	mux.Handle("POST /api/v1/me/push/devices", s.auth(s.handleRegisterDevice))
+	mux.Handle("DELETE /api/v1/me/push/devices/{token}", s.auth(s.handleUnregisterDevice))
+	mux.Handle("GET /api/v1/org/push", s.rbac(anyRole, s.handleGetPush))
+	mux.Handle("PATCH /api/v1/org/push", s.rbac(manage, s.handleSetPush))
+	mux.Handle("POST "+push.RelayPath, http.HandlerFunc(s.handlePushRelay))
 	mux.Handle("POST /api/v1/agents/{id}/thread/read", s.agentScoped(anyRole, s.handleThreadRead))
 	mux.Handle("POST /api/v1/agents/{id}/messages", s.agentScoped(manage, s.handleChatMessage))
 	mux.Handle("POST /api/v1/agents/{id}/wake", s.agentScoped(manage, s.handleWake))

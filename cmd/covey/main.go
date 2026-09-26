@@ -47,6 +47,7 @@ import (
 	"covey/internal/observability"
 	"covey/internal/orchestrator"
 	"covey/internal/org"
+	"covey/internal/push"
 	"covey/internal/reqlog"
 	"covey/internal/speech"
 
@@ -1437,11 +1438,30 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 			st.Ensure()
 		}
 	}
+	var pushSender, pushRelay push.Sender
+	switch {
+	case cfg.APNsKeyFile != "":
+		apns, err := push.NewAPNs(cfg.APNsKeyFile, cfg.APNsKeyID, cfg.APNsTeamID, cfg.APNsTopic)
+		if err != nil {
+			return fmt.Errorf("push: %w", err)
+		}
+		pushSender = apns
+		if cfg.PushRelayAccept {
+			pushRelay = apns
+		}
+		log.Info("push: direct to APNs", "topic", cfg.APNsTopic, "relay_for_others", cfg.PushRelayAccept)
+	case cfg.PushRelay != "" && cfg.PushRelay != "off":
+		pushSender = push.NewRelay(cfg.PushRelay)
+		log.Info("push: through the relay", "relay", cfg.PushRelay)
+	default:
+		log.Info("push: off")
+	}
 	srv := &httpapi.Server{
-		BaseCtx: ctx,
-		Speech:  speechSet,
-		Audit:   auditStore,
-		Pool:    pool, Registry: registry, Backlog: backlogStore, Obs: obs,
+		BaseCtx:   ctx,
+		Speech:    speechSet,
+		PushRelay: pushRelay,
+		Audit:     auditStore,
+		Pool:      pool, Registry: registry, Backlog: backlogStore, Obs: obs,
 		Chat:  chat.New(pool),
 		Rails: rails, Secrets: secretStore, Runtimes: runtimeStore, Identity: idp, Memory: mem, Dreams: dreams,
 		Org: org.NewStore(pool), Targets: targets, Templates: templateStore,
@@ -1523,6 +1543,11 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Pool: pool, Mail: mail.New(settingsStore), Settings: settingsStore,
 		SiteURL: cfg.SiteURL, Log: log,
 	}).Run(ctx)
+	// Push notifications (#379): to Apple directly with the app's key, or
+	// through the relay that holds it. The notifier needs one of the two.
+	if pushSender != nil {
+		go (&push.Notifier{Pool: pool, Sender: pushSender, Log: log}).Run(ctx)
+	}
 	// Was ein Neustart mitten in einer Triage unterbrochen hat: Eine
 	// angenommene Chat-Nachricht ohne Entscheidung bekommt sie jetzt nach.
 	// Einmal beim Hochfahren, nicht in einer Schleife — der gewöhnliche Weg

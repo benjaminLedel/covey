@@ -52,6 +52,17 @@ Diktat und Besprechungsnotizen der App werden auf dem Gerät mit sherpa-onnx erk
 
 Beide Modelle erkennen die Sprache selbst. Ohne Internetzugang legen Sie die Dateien des Modells selbst nach `COVEY_DATA_DIR/models/<Name>/`; sie werden genauso geprüft, und eine Datei mit anderer Prüfsumme wird entfernt statt ausgeliefert.
 
+## Push-Mitteilungen
+
+Stellt ein Agent eine Rückfrage, antwortet er in einem Gespräch oder erledigt er eine Aufgabe, die aus einer Nachricht kam (oder scheitert daran), bekommen die Beteiligten eine Mitteilung. Beteiligt ist, wer in den letzten zwei Wochen im Gespräch mit diesem Agenten geschrieben hat, wer die Aufgabe gestellt hat und bei einer Rückfrage der Mensch, an den der Agent berichtet. Was jemand schon gelesen hat, wird nicht gemeldet. Die iPhone-App bekommt die Mitteilungen über Apples Push-Dienst; die Mac-App zeigt sie selbst an, solange sie läuft.
+
+Apple stellt der App nur zu, wer ihren APNs-Schlüssel hat. Daher gibt es zwei Wege:
+
+- **Direkt**, mit eigenem Schlüssel: `COVEY_APNS_KEY_FILE` (die `.p8` aus dem Entwicklerkonto), `COVEY_APNS_KEY_ID`, `COVEY_APNS_TEAM_ID` und `COVEY_APNS_TOPIC` (die Bundle-ID der App, Vorgabe `work.covey.coveyMobile`). Das geht nur für eine App, die mit diesem Team signiert ist.
+- **Über das Relay**, ohne Schlüssel: `COVEY_PUSH_RELAY` (Vorgabe `https://app.covey.work`, das den Schlüssel der App aus dem Store hat) nimmt die Mitteilung an und gibt sie an Apple weiter. `COVEY_PUSH_RELAY=off` schickt nichts. Eine Instanz mit Schlüssel wird mit `COVEY_PUSH_RELAY_ACCEPT=true` selbst zu so einem Relay für andere; sie nimmt nur die festen Felder einer Mitteilung an, in der Länge begrenzt und je Adresse gedrosselt.
+
+Von Haus aus sagt eine Mitteilung nur, wer was getan hat („Bea hat eine Rückfrage“), in der Sprache des Geräts, und vom Inhalt verlässt nichts die Instanz. Unter Verwaltung kann eine Organisation die erste Zeile des Gesagten mitschicken lassen. Diese geht dann über Apple und gegebenenfalls über das Relay.
+
 ## HTTPS
 
 Ein Reverse-Proxy davor, TLS dort terminieren, `COVEY_PUBLIC_URL` beziehungsweise `COVEY_SITE_URL` passend setzen. Das sichere Cookie schaltet sich dann von selbst ein. Für die Datenbank `sslmode=require` oder höher.

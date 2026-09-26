@@ -52,6 +52,17 @@ The app's dictation and meeting notes are recognised on the device with sherpa-o
 
 Both models detect the language themselves. Without internet access, place the model's files in `COVEY_DATA_DIR/models/<name>/` yourself; they are verified the same way, and a file with another digest is removed rather than served.
 
+## Push notifications
+
+When an agent asks a question, replies in a conversation, or finishes or fails a task that came from a message, the people involved get a notification: whoever wrote in that agent's conversation in the last two weeks, the person the task came from, and, for a question, the agent's human supervisor. What somebody has already read is not announced. The iPhone app receives them through Apple's push service; the Mac app shows them itself while it runs.
+
+Apple delivers to the app only for whoever holds its APNs key, so there are two ways:
+
+- **Direct**, with a key of your own: `COVEY_APNS_KEY_FILE` (the `.p8` from the developer account), `COVEY_APNS_KEY_ID`, `COVEY_APNS_TEAM_ID`, and `COVEY_APNS_TOPIC` (the app's bundle id, default `work.covey.coveyMobile`). This only works for an app signed by that team.
+- **Through the relay**, without a key: `COVEY_PUSH_RELAY` (default `https://app.covey.work`, which holds the key of the app in the store) receives the notification and passes it to Apple. `COVEY_PUSH_RELAY=off` sends nothing. An instance with a key becomes such a relay for others with `COVEY_PUSH_RELAY_ACCEPT=true`; it accepts only the notification's fixed fields, bounded in length and limited per address.
+
+By default a notification says only who did what ("Bea has a question"), in the device's language, and nothing of the content leaves the instance. Under Administration, an organisation can include the first line of what was said. It then passes through Apple and, where used, the relay.
+
 ## HTTPS
 
 A reverse proxy in front, TLS terminated there, `COVEY_PUBLIC_URL` and `COVEY_SITE_URL` set accordingly. The secure cookie then switches itself on. For the database, `sslmode=require` or higher.

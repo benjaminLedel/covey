@@ -35,6 +35,7 @@ import (
 	"covey/internal/agents"
 	"covey/internal/backlog"
 	"covey/internal/chat"
+	"covey/internal/push"
 	"covey/internal/identity"
 	"covey/internal/llm"
 	"covey/internal/orchestrator"
@@ -1102,7 +1103,7 @@ func (s *Server) handleMyThreads(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for i := range list {
-		list[i].LastText = firstLine(list[i].LastText, 140)
+		list[i].LastText = push.FirstLine(list[i].LastText, 140)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"threads": list})
 }
@@ -1122,22 +1123,4 @@ func (s *Server) handleThreadRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-// firstLine is the start of a text as a list shows it: one line, at most n
-// characters, Markdown's emphasis and headings left out.
-func firstLine(text string, n int) string {
-	text = strings.TrimSpace(text)
-	for _, line := range strings.Split(text, "\n") {
-		line = strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(line), "#>*- "))
-		if line == "" {
-			continue
-		}
-		line = strings.NewReplacer("**", "", "__", "", "`", "").Replace(line)
-		if r := []rune(line); len(r) > n {
-			return strings.TrimSpace(string(r[:n-1])) + "…"
-		}
-		return line
-	}
-	return ""
 }
