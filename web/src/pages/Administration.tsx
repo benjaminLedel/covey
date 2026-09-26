@@ -80,7 +80,6 @@ function Profile() {
       <PushSettings />
       <OfficeFurnishing />
       <TriageSettings />
-      <TriageSettings />
       <RecordingSettings />
       <PlatformRepo />
       <ProfileFieldsSettings />
