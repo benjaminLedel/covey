@@ -72,12 +72,14 @@ void main() {
   testWidgets('the Mac window is drawn at a zoom that ⌘− ⌘+ ⌘0 change (#375)', (tester) async {
     WindowZoom.scale.value = WindowZoom.standard;
     late Size inner;
+    late double text;
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) => WindowZoom(child: child!),
         home: Builder(
           builder: (context) {
             inner = MediaQuery.sizeOf(context);
+            text = MediaQuery.textScalerOf(context).scale(10);
             return const Scaffold(body: TextField(autofocus: true));
           },
         ),
@@ -90,6 +92,7 @@ void main() {
       closeTo(outer.width / 0.85, 0.01),
       reason: 'the app lays out on more points than the window has',
     );
+    expect(text, closeTo(10 * WindowZoom.text, 0.001), reason: 'text a step smaller than the rest (#376)');
     final bar = MacChrome.height;
 
     await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);

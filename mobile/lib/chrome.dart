@@ -66,6 +66,9 @@ class WindowZoom extends StatefulWidget {
   final Widget child;
 
   static const standard = 0.85;
+
+  /// What text gets on top of the zoom.
+  static const text = 0.92;
   static const _steps = [0.7, 0.75, 0.8, 0.85, 0.9, 1.0, 1.1, 1.25];
   static const _pref = 'mac.zoom';
 
@@ -144,6 +147,10 @@ class _WindowZoomState extends State<WindowZoom> {
               padding: mq.padding / s,
               viewPadding: mq.viewPadding / s,
               viewInsets: mq.viewInsets / s,
+              // Text a step further down than the rest (#376): the zoom
+              // alone left it reading large next to other desktop apps,
+              // while the controls were the right size.
+              textScaler: _TimesScaler(mq.textScaler, WindowZoom.text),
             ),
             child: widget.child,
           ),
@@ -151,6 +158,26 @@ class _WindowZoomState extends State<WindowZoom> {
       ),
     );
   }
+}
+
+class _TimesScaler extends TextScaler {
+  const _TimesScaler(this.base, this.factor);
+
+  final TextScaler base;
+  final double factor;
+
+  @override
+  double scale(double fontSize) => base.scale(fontSize) * factor;
+
+  @override
+  // ignore: deprecated_member_use
+  double get textScaleFactor => base.textScaleFactor * factor;
+
+  @override
+  bool operator ==(Object other) => other is _TimesScaler && other.base == base && other.factor == factor;
+
+  @override
+  int get hashCode => Object.hash(base, factor);
 }
 
 /// How much room the traffic lights take at the left edge of what is below:

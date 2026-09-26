@@ -53,7 +53,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// From this width the spaces become a sidebar and the detail stands beside
   /// the list: a desktop window, a tablet in landscape.
-  static const wide = 840.0;
+  static const wide = 920.0;
 
   @override
   void initState() {
@@ -319,7 +319,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 SizedBox(width: 560, child: LightsInset(left: 0, child: _detail!)),
               ],
             ] else ...[
-              SizedBox(width: 400, child: LightsInset(left: 0, child: body)),
+              // The list gives way before the thread does (#376).
+              SizedBox(
+                width: ((MediaQuery.sizeOf(context).width - 232) * 0.4).clamp(280, 400),
+                child: LightsInset(left: 0, child: body),
+              ),
               const VerticalDivider(width: 0.6),
               Expanded(
                 child: LightsInset(
