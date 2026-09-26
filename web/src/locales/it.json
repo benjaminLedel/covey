@@ -1722,7 +1722,9 @@
       "done": "Fatto",
       "qrAlt": "Codice QR per associare l'app covey",
       "desktop": "Su questo computer, con l'app desktop:",
-      "openApp": "Apri nell'app"
+      "openApp": "Apri nell'app",
+      "noApp": "Non ha ancora l'app sul Mac?",
+      "macDownload": "Scarica per Mac"
     },
     "apiKeys": {
       "title": "Chiavi API",

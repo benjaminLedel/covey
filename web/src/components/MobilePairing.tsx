@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import QRCode from "qrcode";
-import { api, post } from "../api";
+import { api, buildInfo, post } from "../api";
 
 type Pairing = {
   id: string;
@@ -39,8 +39,23 @@ export const appLink = (origin: string, code: string) =>
  * whether the app has used it, so it can say "paired with <device>" instead of
  * leaving the person to guess — and the key list below refreshes, because the
  * pairing has just put a key into it. */
+/* Where the Mac app comes from (#408): the release of this instance's own
+   version, which carries it since #406 — so app and server match. A build
+   between tags has no release of its own and gets the latest one. The
+   address is the source the instance reports, so a fork links its own
+   releases; one that is not on GitHub gets no link rather than a wrong one. */
+export const macAppLink = (source: string, version: string): string | null => {
+  const repo = source.replace(/\/+$/, "");
+  if (!/^https:\/\/github\.com\/[^/]+\/[^/]+$/.test(repo)) return null;
+  return /^v\d+\.\d+\.\d+$/.test(version)
+    ? `${repo}/releases/download/${version}/covey-app_${version}_macos.zip`
+    : `${repo}/releases/latest`;
+};
+
 export default function MobilePairing() {
   const { t } = useTranslation();
+  const build = useQuery({ queryKey: ["version"], queryFn: buildInfo, staleTime: Infinity, retry: false });
+  const macApp = build.data ? macAppLink(build.data.source, build.data.version) : null;
   const qc = useQueryClient();
   const [pairing, setPairing] = useState<Pairing | null>(null);
   const [qr, setQr] = useState("");
@@ -105,6 +120,14 @@ export default function MobilePairing() {
     <div className="card mt-4">
       <span className="text-sm font-medium">{t("account.pairing.title")}</span>
       <p className="muted text-xs mt-1 mb-3" style={{ maxWidth: 640 }}>{t("account.pairing.intro")}</p>
+      {macApp && (
+        <p className="text-xs mt-0 mb-3">
+          <span className="muted">{t("account.pairing.noApp")}</span>{" "}
+          <a href={macApp} target="_blank" rel="noreferrer">
+            {t("account.pairing.macDownload")}
+          </a>
+        </p>
+      )}
       {error && <p className="danger-text text-xs mb-2">{error}</p>}
 
       {!pairing && (

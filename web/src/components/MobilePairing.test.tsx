@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import MobilePairing, { appLink, pairingPayload } from "./MobilePairing";
+import MobilePairing, { appLink, macAppLink, pairingPayload } from "./MobilePairing";
 import { mockFetch, useGerman } from "../test/render";
 
 beforeEach(() => useGerman());
@@ -14,6 +14,25 @@ const renderCard = () =>
   );
 
 describe("MobilePairing (#330)", () => {
+  it("bietet die Mac-App aus dem Release der eigenen Version an (#408)", () => {
+    expect(macAppLink("https://github.com/benjaminLedel/covey", "v0.9.0")).toBe(
+      "https://github.com/benjaminLedel/covey/releases/download/v0.9.0/covey-app_v0.9.0_macos.zip",
+    );
+    // Between tags there is no release of its own: the latest one.
+    expect(macAppLink("https://github.com/benjaminLedel/covey/", "v0.8.9-154-g7ca91cd8")).toBe(
+      "https://github.com/benjaminLedel/covey/releases/latest",
+    );
+    // A fork elsewhere gets no link rather than a wrong one.
+    expect(macAppLink("https://git.example.org/team/covey", "v0.9.0")).toBeNull();
+  });
+
+  it("zeigt den Download auf der Karte", async () => {
+    mockFetch({ "/api/v1/version": { version: "v0.9.0", source: "https://github.com/benjaminLedel/covey" } });
+    renderCard();
+    const link = await screen.findByText("Für den Mac herunterladen");
+    expect(link.getAttribute("href")).toContain("/releases/download/v0.9.0/covey-app_v0.9.0_macos.zip");
+  });
+
   it("trägt einen https-Link, den die Kamera des Telefons öffnet (#333)", () => {
     expect(pairingPayload("https://app.covey.work", "coveypair_abc-_")).toBe(
       "https://app.covey.work/pair?code=coveypair_abc-_",

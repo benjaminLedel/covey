@@ -1722,7 +1722,9 @@
       "done": "Gotowe",
       "qrAlt": "Kod QR do sparowania aplikacji covey",
       "desktop": "Na tym komputerze, w aplikacji desktopowej:",
-      "openApp": "Otwórz w aplikacji"
+      "openApp": "Otwórz w aplikacji",
+      "noApp": "Nie mają Państwo jeszcze aplikacji na Maca?",
+      "macDownload": "Pobierz na Maca"
     },
     "apiKeys": {
       "title": "Klucze API",

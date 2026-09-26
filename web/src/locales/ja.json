@@ -1722,7 +1722,9 @@
       "done": "完了",
       "qrAlt": "covey アプリをペアリングするための QR コード",
       "desktop": "このコンピューターでデスクトップアプリを使う場合:",
-      "openApp": "アプリで開く"
+      "openApp": "アプリで開く",
+      "noApp": "Mac にまだアプリがありませんか？",
+      "macDownload": "Mac 版をダウンロード"
     },
     "apiKeys": {
       "title": "API キー",

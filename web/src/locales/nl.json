@@ -1722,7 +1722,9 @@
       "done": "Klaar",
       "qrAlt": "QR-code om de covey-app te koppelen",
       "desktop": "Op deze computer, met de desktop-app:",
-      "openApp": "Openen in de app"
+      "openApp": "Openen in de app",
+      "noApp": "Nog geen app op uw Mac?",
+      "macDownload": "Downloaden voor Mac"
     },
     "apiKeys": {
       "title": "API-sleutels",

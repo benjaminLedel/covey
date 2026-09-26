@@ -1722,7 +1722,9 @@
       "done": "完成",
       "qrAlt": "用于配对 covey 应用的二维码",
       "desktop": "在这台电脑上使用桌面应用：",
-      "openApp": "在应用中打开"
+      "openApp": "在应用中打开",
+      "noApp": "Mac 上还没有应用？",
+      "macDownload": "下载 Mac 版"
     },
     "apiKeys": {
       "title": "API 密钥",

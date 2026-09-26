@@ -1722,7 +1722,9 @@
       "done": "Done",
       "qrAlt": "QR code for pairing the covey app",
       "desktop": "On this computer, with the desktop app:",
-      "openApp": "Open in the app"
+      "openApp": "Open in the app",
+      "noApp": "No app on your Mac yet?",
+      "macDownload": "Download for Mac"
     },
     "apiKeys": {
       "title": "API keys",
