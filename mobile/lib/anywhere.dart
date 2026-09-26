@@ -347,7 +347,8 @@ class DictateAnywhere extends ChangeNotifier {
     final levels = d.levels.length > 40 ? d.levels.sublist(d.levels.length - 40) : d.levels;
     unawaited(
       _channel.invokeMethod<void>('update', {
-        'text': text.length > 160 ? '…${text.substring(text.length - 160)}' : text,
+        // The whole text: the capsule fits what it can and keeps the end.
+        'text': text.length > 4000 ? text.substring(text.length - 4000) : text,
         'levels': levels,
         'busy': d.preparing,
       }),

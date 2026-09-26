@@ -77,6 +77,7 @@ abstract class SegmentedEngine implements SpeechEngine {
   // The segmenter's state, in bytes of 16 kHz PCM16 (32 000 per second).
   int _segBytes = 0;
   int _silentBytes = 0;
+  int _voicedBytes = 0;
   bool _segVoiced = false;
   double _floor = 0.005;
 
@@ -134,8 +135,19 @@ abstract class SegmentedEngine implements SpeechEngine {
 
     await prepare();
     await _openNext();
+    // The platform's voice processing (#359) — on Apple devices the same
+    // as for calls: noise suppression, echo cancellation, gain control. It
+    // keeps the near voice and lets the room fall away before recognition
+    // sees it.
     final raw = await _recorder.startStream(
-      const RecordConfig(encoder: AudioEncoder.pcm16bits, sampleRate: 16000, numChannels: 1),
+      const RecordConfig(
+        encoder: AudioEncoder.pcm16bits,
+        sampleRate: 16000,
+        numChannels: 1,
+        echoCancel: true,
+        noiseSuppress: true,
+        autoGain: true,
+      ),
     );
     var bytes = 0;
     final began = DateTime.now();
@@ -172,6 +184,7 @@ abstract class SegmentedEngine implements SpeechEngine {
     _segBytes += chunk.length;
     if (voiced) {
       _segVoiced = true;
+      _voicedBytes += chunk.length;
       _silentBytes = 0;
     } else {
       _silentBytes += chunk.length;
@@ -184,8 +197,13 @@ abstract class SegmentedEngine implements SpeechEngine {
   void _resetSegment() {
     _segBytes = 0;
     _silentBytes = 0;
+    _voicedBytes = 0;
     _segVoiced = false;
   }
+
+  /// Less voice than this in a segment is a knock, a rustle, a cough — not
+  /// a word; its text is dropped (#359).
+  static const _minVoicedBytes = _bytesPerSecond ~/ 4;
 
   Future<void> _openNext() async {
     await openSegment(_committed.isEmpty ? null : _promptTail(_committed));
@@ -201,7 +219,8 @@ abstract class SegmentedEngine implements SpeechEngine {
   /// Ends the current segment and opens the next one.
   Future<void> _nextSegment() async {
     _switching = true;
-    final hadVoice = _segVoiced;
+    final hadVoice = _segVoiced && _voicedBytes >= _minVoicedBytes;
+    if (_segVoiced && !hadVoice) _log('segment dropped: ${_voicedBytes * 1000 ~/ _bytesPerSecond} ms of voice');
     _resetSegment();
     try {
       await _close(keep: hadVoice);
@@ -242,7 +261,7 @@ abstract class SegmentedEngine implements SpeechEngine {
       }
       _held.clear();
     }
-    await _close(keep: true);
+    await _close(keep: _voicedBytes >= _minVoicedBytes);
     if (!keepLoaded) await release();
     _stopping = false;
     _log('stopped, ${_committed.length} characters');

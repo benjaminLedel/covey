@@ -148,12 +148,19 @@ final class FlowPanel {
   private let panel: NSPanel
   private let glass = NSVisualEffectView()
   private let wave = WaveView()
-  private let label = NSTextField(labelWithString: "")
+  private let label = NSTextField(wrappingLabelWithString: "")
 
   private static let height: CGFloat = 44
   private static let compactWidth: CGFloat = 132
-  private static let maxWidth: CGFloat = 520
+  private static let maxWidth: CGFloat = 560
+  private static let waveWidth: CGFloat = 92
+  private static let pad: CGFloat = 20
+  private static let gap: CGFloat = 12
+  private static let maxLines = 5
+  private static let font = NSFont.systemFont(ofSize: 14, weight: .medium)
+  private static var lineHeight: CGFloat { ceil(font.ascender - font.descender + font.leading) + 3 }
   private var text = ""
+  private var bottom: CGFloat = 0
 
   init() {
     panel = NSPanel(
@@ -184,53 +191,96 @@ final class FlowPanel {
     glass.autoresizingMask = [.width, .height]
     glass.frame = panel.contentLayoutRect
 
-    label.font = .systemFont(ofSize: 14, weight: .medium)
+    label.font = Self.font
     label.textColor = NSColor.white.withAlphaComponent(0.92)
-    label.lineBreakMode = .byTruncatingHead  // the end is what is being said now
-    label.maximumNumberOfLines = 1
-    label.cell?.truncatesLastVisibleLine = true
+    label.maximumNumberOfLines = 0
     label.alphaValue = 0
 
     glass.addSubview(wave)
     glass.addSubview(label)
     panel.contentView = glass
-    layout(width: Self.compactWidth)
   }
 
-  private func layout(width: CGFloat) {
-    let waveWidth: CGFloat = 92
-    let padding: CGFloat = 20
-    if text.isEmpty {
-      wave.frame = NSRect(x: (width - waveWidth) / 2, y: 10, width: waveWidth, height: Self.height - 20)
-    } else {
-      wave.frame = NSRect(x: padding, y: 10, width: waveWidth, height: Self.height - 20)
+  /// What the text needs: one line as wide as it is, or up to five lines at
+  /// full width — and beyond that the end of it, "…" in front: the end is
+  /// what is being said now.
+  private func measure(_ full: String) -> (shown: String, size: NSSize) {
+    let maxLabel = Self.maxWidth - Self.pad - Self.waveWidth - Self.gap - Self.pad
+    let attrs: [NSAttributedString.Key: Any] = [.font: Self.font]
+    func height(_ s: String) -> CGFloat {
+      ceil(NSAttributedString(string: s, attributes: attrs).boundingRect(
+        with: NSSize(width: maxLabel, height: .greatestFiniteMagnitude),
+        options: [.usesLineFragmentOrigin, .usesFontLeading]).height)
     }
-    let labelX = padding + waveWidth + 12
-    label.frame = NSRect(x: labelX, y: (Self.height - 20) / 2, width: max(0, width - labelX - padding), height: 20)
+    let oneLine = ceil(NSAttributedString(string: full, attributes: attrs).size().width) + 4
+    if oneLine <= maxLabel { return (full, NSSize(width: oneLine, height: Self.lineHeight)) }
+    let limit = Self.lineHeight * CGFloat(Self.maxLines)
+    if height(full) <= limit { return (full, NSSize(width: maxLabel, height: height(full))) }
+    // The longest tail that fits, found by halving; cut at a word.
+    let chars = Array(full)
+    var lo = 0, hi = chars.count
+    while lo < hi {
+      let mid = (lo + hi) / 2
+      if height("…" + String(chars[mid...])) <= limit { hi = mid } else { lo = mid + 1 }
+    }
+    var tail = String(chars[lo...])
+    if let space = tail.firstIndex(of: " "), tail.distance(from: tail.startIndex, to: space) < 20 {
+      tail = String(tail[tail.index(after: space)...])
+    }
+    let shown = "…" + tail
+    return (shown, NSSize(width: maxLabel, height: height(shown)))
   }
 
-  private func origin(width: CGFloat, lifted: Bool) -> NSPoint {
+  private func frame(for size: NSSize?) -> NSRect {
+    let width: CGFloat, height: CGFloat
+    if let size {
+      width = Self.pad + Self.waveWidth + Self.gap + size.width + Self.pad
+      height = max(Self.height, size.height + 24)
+    } else {
+      width = Self.compactWidth
+      height = Self.height
+    }
     let mouse = NSEvent.mouseLocation
     let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
     let f = screen?.visibleFrame ?? .zero
-    return NSPoint(x: f.midX - width / 2, y: f.minY + (lifted ? 64 : 52))
+    return NSRect(x: f.midX - width / 2, y: bottom, width: width, height: height)
+  }
+
+  private func layout(_ rect: NSRect, labelSize: NSSize?) {
+    let waveH = Self.height - 20
+    if let size = labelSize {
+      // The wave stays at the bottom, beside the last line; the text grows
+      // upwards.
+      wave.frame = NSRect(x: Self.pad, y: 10, width: Self.waveWidth, height: waveH)
+      label.frame = NSRect(
+        x: Self.pad + Self.waveWidth + Self.gap, y: (rect.height - size.height) / 2,
+        width: size.width, height: size.height)
+    } else {
+      wave.frame = NSRect(x: (rect.width - Self.waveWidth) / 2, y: 10, width: Self.waveWidth, height: waveH)
+    }
+    glass.layer?.cornerRadius = min(Self.height / 2, rect.height / 2)
   }
 
   func show() {
     text = ""
     label.stringValue = ""
     label.alphaValue = 0
-    let width = Self.compactWidth
-    panel.setFrame(NSRect(origin: origin(width: width, lifted: false), size: NSSize(width: width, height: Self.height)), display: false)
-    layout(width: width)
+    let mouse = NSEvent.mouseLocation
+    let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
+    bottom = (screen?.visibleFrame.minY ?? 0) + 52
+    var rect = frame(for: nil)
+    panel.setFrame(rect, display: false)
+    layout(rect, labelSize: nil)
     panel.alphaValue = 0
     panel.orderFrontRegardless()
     wave.start()
+    bottom += 12
+    rect = frame(for: nil)
     NSAnimationContext.runAnimationGroup { ctx in
       ctx.duration = 0.28
       ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.9, 0.3, 1.0)
       panel.animator().alphaValue = 1
-      panel.animator().setFrameOrigin(origin(width: width, lifted: true))
+      panel.animator().setFrame(rect, display: true)
     }
   }
 
@@ -240,23 +290,25 @@ final class FlowPanel {
     guard newText != text else { return }
     let wasEmpty = text.isEmpty
     text = newText
-    label.stringValue = newText
-    // Wider for the words, up to a line's worth; measured, not guessed.
-    let wanted = newText.isEmpty
-      ? Self.compactWidth
-      : min(Self.maxWidth, 20 + 92 + 12 + ceil(label.intrinsicContentSize.width) + 20)
-    let current = panel.frame.width
-    if abs(wanted - current) > 6 && (wanted > current || newText.isEmpty) {
-      NSAnimationContext.runAnimationGroup { ctx in
-        ctx.duration = 0.22
-        ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-        panel.animator().setFrame(
-          NSRect(origin: origin(width: wanted, lifted: true), size: NSSize(width: wanted, height: Self.height)),
-          display: true)
+    let measured: (shown: String, size: NSSize)? = newText.isEmpty ? nil : measure(newText)
+    label.stringValue = measured?.shown ?? ""
+    let rect = frame(for: measured?.size)
+    let old = panel.frame
+    // Growing is animated; the shrinking of a line that whisper re-reads
+    // shorter is not worth a jitter.
+    if abs(rect.width - old.width) > 6 || abs(rect.height - old.height) > 2 {
+      if rect.width >= old.width || rect.height != old.height || newText.isEmpty {
+        NSAnimationContext.runAnimationGroup { ctx in
+          ctx.duration = 0.2
+          ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+          panel.animator().setFrame(rect, display: true)
+        }
+        layout(rect, labelSize: measured?.size)
+      } else {
+        layout(old, labelSize: measured.map { NSSize(width: old.width - (rect.width - $0.size.width), height: $0.size.height) })
       }
-      layout(width: wanted)
     } else {
-      layout(width: current)
+      layout(old, labelSize: measured?.size)
     }
     if wasEmpty != newText.isEmpty {
       NSAnimationContext.runAnimationGroup { ctx in
@@ -267,12 +319,13 @@ final class FlowPanel {
   }
 
   func hide() {
-    let width = panel.frame.width
+    bottom -= 12
+    let rect = NSRect(x: panel.frame.minX, y: bottom, width: panel.frame.width, height: panel.frame.height)
     NSAnimationContext.runAnimationGroup({ ctx in
       ctx.duration = 0.2
       ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
       panel.animator().alphaValue = 0
-      panel.animator().setFrameOrigin(origin(width: width, lifted: false))
+      panel.animator().setFrame(rect, display: true)
     }, completionHandler: { [panel, wave] in
       panel.orderOut(nil)
       wave.stop()
