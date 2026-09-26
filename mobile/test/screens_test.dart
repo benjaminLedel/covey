@@ -128,6 +128,42 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  testWidgets('a told result shows what the agent said, the report one tap away (#411)', (tester) async {
+    final api = CoveyApi(
+      Uri.parse('https://c.example'),
+      'k',
+      client: MockClient(
+        (req) async => _json({
+          'pending': false,
+          'entries': [
+            {
+              'kind': 'result',
+              'id': 't1',
+              'task_id': 't1',
+              'task_title': 'Rechnung',
+              'author': 'agent',
+              'text': '## Ergebnis\n- Rechnung 4711 doppelt gebucht',
+              'said': 'Hab nachgesehen: Die Rechnung war doppelt gebucht.',
+              'task_state': 'done',
+            },
+          ],
+        }),
+      ),
+    );
+    await tester.pumpWidget(
+      await tester.runAsync(() => _app(ThreadScreen(api: api, agentId: 'a1', agentName: 'Bea', me: _me()))) as Widget,
+    );
+    await _settle(tester);
+
+    expect(find.textContaining('Hab nachgesehen', findRichText: true), findsOneWidget);
+    expect(find.textContaining('4711', findRichText: true), findsNothing, reason: 'the report is closed');
+    expect(find.text('Ergebnis'), findsNothing, reason: 'a told result is a message, not a marked report');
+    await tester.tap(find.text('Ganzer Bericht'));
+    await _settle(tester);
+    expect(find.textContaining('4711', findRichText: true), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('without the team surface the thread can be read and not written to', (tester) async {
     final api = CoveyApi(Uri.parse('https://c.example'), 'k', client: MockClient((_) async => _json(_thread)));
     await tester.pumpWidget(

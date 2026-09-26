@@ -1,6 +1,7 @@
 {
   "chat.answer": "Answer",
   "chat.answering": "Answering: {{title}}",
+  "chat.bericht": "Full report",
   "chat.kind.error": "Failed",
   "chat.kind.question": "Question",
   "chat.kind.result": "Result",

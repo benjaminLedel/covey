@@ -2371,7 +2371,8 @@
       "question": "Frage",
       "result": "Ergebnis",
       "error": "Fehlgeschlagen"
-    }
+    },
+    "bericht": "Ganzer Bericht"
   },
   "team": {
     "workspace": "Team",

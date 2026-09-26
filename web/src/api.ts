@@ -195,6 +195,9 @@ export type ChatEntry = {
   /** The drafts a hiring task produced — only on a result of the People
    *  department (#327). Hiring is on the agent's page; there is no action. */
   drafts?: EntwurfKurz[];
+  /** On a result or an error: what the agent said about it in the chat
+   *  (#411), told from the report in `text`, which stays one click away. */
+  said?: string;
 };
 
 export type EntwurfKurz = { id: string; slug: string; display_name: string; job_title: string; hired_at?: string };

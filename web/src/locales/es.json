@@ -2371,7 +2371,8 @@
       "question": "Pregunta",
       "result": "Resultado",
       "error": "Fallida"
-    }
+    },
+    "bericht": "Informe completo"
   },
   "team": {
     "workspace": "Equipo",

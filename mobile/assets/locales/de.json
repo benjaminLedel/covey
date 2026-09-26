@@ -1,6 +1,7 @@
 {
   "chat.answer": "Antworten",
   "chat.answering": "Antwort auf: {{title}}",
+  "chat.bericht": "Ganzer Bericht",
   "chat.kind.error": "Fehlgeschlagen",
   "chat.kind.question": "Frage",
   "chat.kind.result": "Ergebnis",

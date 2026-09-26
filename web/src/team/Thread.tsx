@@ -555,7 +555,9 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
                     ) : (
                       <>
                         <span className="tm-blase-name">{agent.data?.display_name ?? ""}</span>
-                        {(e.kind === "question" || e.kind === "result" || e.kind === "error") && (
+                        {/* A told result reads as what it is, a message; the
+                            mark stays for questions and errors (#411). */}
+                        {(e.kind === "question" || (e.kind === "result" && !e.said) || e.kind === "error") && (
                           <span className={`tm-blase-art a-${e.kind}`}>{t(`chat.kind.${e.kind}`)}</span>
                         )}
                       </>
@@ -564,8 +566,19 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
                   </div>
                 )}
                 <div className="tm-blase-text">
-                  <Markdown text={e.text} />
+                  <Markdown text={e.said || e.text} />
                 </div>
+                {/* What the agent said is told from the report; the report
+                    itself stays one click away, so nobody has to take the
+                    sentence on trust (#411). */}
+                {e.said && (
+                  <details className="tm-bericht">
+                    <summary>{t("chat.bericht")}</summary>
+                    <div className="tm-blase-text">
+                      <Markdown text={e.text} />
+                    </div>
+                  </details>
+                )}
 
                 {/* The drafts a hiring task produced: the colleague as a card,
                     and the way to the page where hiring is (#327). Read off

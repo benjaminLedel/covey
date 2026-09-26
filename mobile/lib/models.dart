@@ -112,11 +112,8 @@ class Department {
 class Running {
   Running({required this.agentId, required this.title, this.step});
 
-  factory Running.fromJson(Map<String, dynamic> j) => Running(
-    agentId: j['agent_id'] as String? ?? '',
-    title: j['title'] as String? ?? '',
-    step: j['step'] as String?,
-  );
+  factory Running.fromJson(Map<String, dynamic> j) =>
+      Running(agentId: j['agent_id'] as String? ?? '', title: j['title'] as String? ?? '', step: j['step'] as String?);
 
   final String agentId;
   final String title;
@@ -179,6 +176,7 @@ class ThreadEntry {
     required this.author,
     required this.text,
     required this.at,
+    this.said = '',
   });
 
   factory ThreadEntry.fromJson(Map<String, dynamic> j) => ThreadEntry(
@@ -190,6 +188,7 @@ class ThreadEntry {
     author: j['author'] as String? ?? '',
     text: j['text'] as String? ?? '',
     at: _time(j['at']),
+    said: j['said'] as String? ?? '',
   );
 
   final String kind;
@@ -200,6 +199,10 @@ class ThreadEntry {
   final String author;
   final String text;
   final DateTime? at;
+
+  /// On a result or an error: what the agent said about it in the chat
+  /// (#411), told from the report in [text], which stays one tap away.
+  final String said;
 
   /// The person's side of the thread. The author is the only thing that
   /// decides it: `chat:<mail>` for a message, `human:<mail>` for a note.

@@ -2371,7 +2371,8 @@
       "question": "问题",
       "result": "结果",
       "error": "失败"
-    }
+    },
+    "bericht": "完整报告"
   },
   "team": {
     "workspace": "团队",

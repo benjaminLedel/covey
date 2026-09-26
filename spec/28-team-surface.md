@@ -102,6 +102,28 @@ sandbox**:
   they hold for a ticket reply — a cheap path must not become the cheap way
   around them
 
+**How it talks** (#411). A conversation is only a conversation if the other
+side talks like a colleague, and three things kept it from that: a task
+started in silence, its result arrived as the run's report — written for the
+record, with headings and lists — and the triage knew the agent's title but
+not its voice. So:
+
+- the triage's decision to open a task carries a short acknowledgement in the
+  agent's voice, written into the thread at once ("sure, I'll look at the
+  invoice") — promising nothing about the outcome;
+- when a task that came from the chat is done or has failed, a second cheap
+  turn tells the person what came out, in a few sentences of chat, from the
+  result and the conversation alone. It is kept on the task, shown in the
+  thread, in the list of conversations and in the push notification (which
+  waits for it); **the report stays one tap away**, because the sentence is a
+  retelling and nobody should have to take it on trust;
+- both turns get the agent's SOUL.md, and ask for chat as a colleague writes
+  it rather than for a sentence count.
+
+The second turn stands under the same limits as the first — no target
+system, no credential, nothing claimed beyond what the result says. Without
+a model it says nothing, and the report stands on its own as before.
+
 The open decisions are in the issue; the load-bearing one is what the answer
 is allowed to know. The recommendation is: the role and the thread, not the
 wiki memory. An answer that needs the memory is an answer that should have

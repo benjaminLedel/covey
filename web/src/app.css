@@ -4117,3 +4117,33 @@
     transition: none;
   }
 }
+
+/* The report under a told result (#411): quiet until it is opened. */
+.tm-bericht {
+  margin-top: 6px;
+  font-size: 13px;
+}
+.tm-bericht > summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  list-style: none;
+  width: fit-content;
+}
+.tm-bericht > summary::-webkit-details-marker {
+  display: none;
+}
+.tm-bericht > summary::before {
+  content: "›";
+  display: inline-block;
+  margin-right: 5px;
+  transition: transform 0.15s ease;
+}
+.tm-bericht[open] > summary::before {
+  transform: rotate(90deg);
+}
+.tm-bericht > .tm-blase-text {
+  margin-top: 6px;
+  padding-left: 10px;
+  border-left: 2px solid var(--border);
+  color: var(--text-secondary);
+}

@@ -445,7 +445,8 @@ class _Line extends StatelessWidget {
     final time = entry.at == null ? '' : DateFormat.Hm(Strings.of(context).language).format(entry.at!);
     final kindLabel = question
         ? context.t('chat.kind.question')
-        : result
+        // A told result reads as what it is, a message (#411).
+        : result && entry.said.isEmpty
         ? context.t('chat.kind.result')
         : error
         ? context.t('chat.kind.error')
@@ -509,7 +510,9 @@ class _Line extends StatelessWidget {
         if (emoji)
           Text(entry.text.trim(), style: const TextStyle(fontSize: 38, height: 1.15))
         else
-          ChatText(entry.text, color: fg),
+          ChatText(entry.said.isNotEmpty ? entry.said : entry.text, color: fg),
+        // The report the sentence was told from, one tap away (#411).
+        if (entry.said.isNotEmpty) _Report(entry.text),
         if (onAnswer != null) ...[
           const SizedBox(height: 10),
           FilledButton(
@@ -738,6 +741,62 @@ class _Composer extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The report under a told result (#411): closed until tapped, so the
+/// conversation reads as one, and nobody has to take the sentence on trust.
+class _Report extends StatefulWidget {
+  const _Report(this.text);
+  final String text;
+
+  @override
+  State<_Report> createState() => _ReportState();
+}
+
+class _ReportState extends State<_Report> {
+  var _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 6),
+        Semantics(
+          button: true,
+          expanded: _open,
+          child: InkWell(
+            onTap: () => setState(() => _open = !_open),
+            borderRadius: BorderRadius.circular(6),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AnimatedRotation(
+                    turns: _open ? 0.25 : 0,
+                    duration: const Duration(milliseconds: 150),
+                    child: Icon(Icons.chevron_right_rounded, size: 18, color: c.textMuted),
+                  ),
+                  Text(context.t('chat.bericht'), style: context.type.labelMedium?.copyWith(color: c.textMuted)),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (_open)
+          Container(
+            margin: const EdgeInsets.only(top: 6),
+            padding: const EdgeInsets.only(left: 10),
+            decoration: BoxDecoration(
+              border: Border(left: BorderSide(color: c.border, width: 2)),
+            ),
+            child: ChatText(widget.text, color: c.textSecondary),
+          ),
+      ],
     );
   }
 }

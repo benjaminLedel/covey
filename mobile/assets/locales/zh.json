@@ -1,6 +1,7 @@
 {
   "chat.answer": "回复",
   "chat.answering": "回复：{{title}}",
+  "chat.bericht": "完整报告",
   "chat.kind.error": "失败",
   "chat.kind.question": "问题",
   "chat.kind.result": "结果",

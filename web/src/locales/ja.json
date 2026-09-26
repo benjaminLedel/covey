@@ -2371,7 +2371,8 @@
       "question": "質問",
       "result": "結果",
       "error": "失敗"
-    }
+    },
+    "bericht": "レポート全文"
   },
   "team": {
     "workspace": "チーム",

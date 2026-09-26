@@ -1,6 +1,7 @@
 {
   "chat.answer": "返信",
   "chat.answering": "返信先： {{title}}",
+  "chat.bericht": "レポート全文",
   "chat.kind.error": "失敗",
   "chat.kind.question": "質問",
   "chat.kind.result": "結果",
