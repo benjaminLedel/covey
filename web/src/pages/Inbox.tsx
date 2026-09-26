@@ -203,7 +203,7 @@ function EntryRow({ entry, me }: { entry: InboxEntry; me: Principal }) {
   );
 }
 
-function EntryCard({ entry, me, onCollapse }: { entry: InboxEntry; me: Principal; onCollapse?: () => void }) {
+export function EntryCard({ entry, me, onCollapse }: { entry: InboxEntry; me: Principal; onCollapse?: () => void }) {
   if (entry.type === "approval" && entry.approval) {
     return <ApprovalCard entry={entry} approval={entry.approval} me={me} onCollapse={onCollapse} />;
   }

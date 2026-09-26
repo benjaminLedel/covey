@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { inbox, myThreads, type Principal } from "../api";
+import { api, inbox, myThreads, type Principal, type SetupState } from "../api";
 import { BirdMark } from "./BirdMark";
 import { NavIcon } from "./navicons";
 import ShellFoot from "./ShellFoot";
@@ -48,6 +48,16 @@ export default function Rail({
     enabled: team,
   });
   const pending = waiting.data?.pending ?? 0;
+  /* Setup, while it is not finished (#391): right under the mark, where
+     whoever just installed covey looks first. Those not allowed to set up
+     get a 403 here and see nothing. */
+  const setup = useQuery({
+    queryKey: ["setup"],
+    queryFn: () => api<SetupState>("/setup/state"),
+    retry: false,
+    staleTime: 60_000,
+  });
+  const setupOpen = !!setup.data && !(setup.data.engine_done && setup.data.org_done && setup.data.people_done);
 
   // A badge counts unread messages, or on the office open decisions.
   const item = (place: RailPlace, to: string, icon: string, label: string, badge = 0) => (
@@ -73,6 +83,13 @@ export default function Rail({
       <Link to={team ? "/" : "/agents"} className="tm-rail-mark" aria-label="covey">
         <BirdMark size={30} />
       </Link>
+      {setupOpen && (
+        <Link to="/setup" className="tm-rail-item tm-rail-setup" title={t("nav.setupPage")} aria-label={t("nav.setupPage")}>
+          <NavIcon name="checklist" />
+          <span className="tm-rail-punkt" aria-hidden="true" />
+          <span className="tm-rail-wort">{t("nav.setupPage")}</span>
+        </Link>
+      )}
       {team && item("office", "/", "office", t("team.ueberblick"), pending)}
       {team && item("team", "/team", "chat", t("team.workspace"), unread)}
       {item("notes", team ? "/team/notes" : "/notes", "note", t("mobile.notizen"))}

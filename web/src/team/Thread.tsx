@@ -1,14 +1,16 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { PEOPLE_SLUG, api, isDraft, markThreadRead, post, upload, type Agent, type ChatEntry, type ChatMark, type Laufend, type Principal, type Verlauf } from "../api";
+import { PEOPLE_SLUG, api, inbox, isDraft, markThreadRead, post, upload, type Agent, type ChatEntry, type ChatMark, type InboxEntry, type Laufend, type Principal, type Verlauf } from "../api";
 import { Markdown } from "../components/Markdown";
 import Dauer from "../components/Dauer";
 import { useSucheOeffnen } from "../components/Suche";
 import { canManage } from "../pages/agent/roles";
 import Gesicht from "../components/Gesicht";
 import { NavIcon } from "../components/navicons";
+
+const EntryCard = lazy(() => import("../pages/Inbox").then((m) => ({ default: m.EntryCard })));
 
 /* Der Verlauf mit einem Agenten.
  *
@@ -103,6 +105,27 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
        Verbindung, die abgerissen ist, ohne es zu melden. */
     refetchInterval: 30_000,
   });
+
+  /* What waits for a person about this agent, and what was decided (#391):
+     the inbox's entries, in the conversation they belong to. Open ones stand
+     as cards above the input; decided ones as a line where they happened. */
+  const offenBeiMir = useQuery({
+    queryKey: ["inbox", "agent-offen", agentId],
+    queryFn: () => inbox({ agent: agentId, status: "open", sort: "oldest", limit: 50 }),
+    refetchInterval: 20_000,
+  });
+  const entschieden = useQuery({
+    queryKey: ["inbox", "agent-entschieden", agentId],
+    queryFn: () => inbox({ agent: agentId, status: "decided", sort: "newest", limit: 50 }),
+    staleTime: 30_000,
+  });
+  // controlling decides costs, nothing else (as in the inbox).
+  const sichtbar = (x: { type: string }) => x.type === "approval" || me.Role !== "controlling";
+  const offeneEntscheidungen = (offenBeiMir.data?.items ?? []).filter(sichtbar);
+  const protokoll = (entschieden.data?.items ?? [])
+    .filter(sichtbar)
+    .filter((d) => d.decided_at)
+    .sort((a, b) => Date.parse(a.decided_at!) - Date.parse(b.decided_at!));
 
   /* What is on the screen has been read (#385), up to the newest entry
      shown. The sidebar's badge goes with it. */
@@ -429,8 +452,14 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
           const neuerTag = i === 0 || tag(entries[i - 1].at) !== tag(e.at);
           const datum = neuerTag ? tagName(e.at, i18n.language) : null;
           const quelle = e.kind === "message" ? herkunft(e.author) : "";
+          const davor = protokoll.filter(
+            (d) => (i === 0 || Date.parse(d.decided_at!) > Date.parse(entries[i - 1].at)) && Date.parse(d.decided_at!) <= Date.parse(e.at),
+          );
           return (
             <Fragment key={`${e.task_id}-${e.kind}-${i}`}>
+              {davor.map((d) => (
+                <Entschieden key={`${d.type}:${d.id}`} entry={d} />
+              ))}
               {datum && <div className="tm-tag">{datum === "gestern" ? t("team.gestern") : datum}</div>}
               {/* Der Anker: die Stelle, an die ein Treffer der Suche und ein
                   Klick in der Vorgangsleiste springen. Er ist unsichtbar, bis
@@ -574,6 +603,24 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
             </Fragment>
           );
         })}
+        {protokoll
+          .filter((d) => entries.length === 0 || Date.parse(d.decided_at!) > Date.parse(entries[entries.length - 1].at))
+          .map((d) => (
+            <Entschieden key={`${d.type}:${d.id}`} entry={d} />
+          ))}
+        {/* What waits for this person's decision, with its buttons (#391). */}
+        {offeneEntscheidungen.length > 0 && (
+          <section className="tm-entscheiden" aria-label={t("team.wartet")}>
+            <h3 className="tm-entscheiden-kopf">{t("team.wartet")}</h3>
+            <Suspense fallback={null}>
+              {offeneEntscheidungen.map((d) => (
+                <div key={`${d.type}:${d.id}`} className="tm-entscheiden-karte">
+                  <EntryCard entry={d} me={me} />
+                </div>
+              ))}
+            </Suspense>
+          </section>
+        )}
         {/* Der Agent arbeitet gerade an dem, was zuletzt im Verlauf steht —
             das sagt die Aufgabe selbst, es ist keine Vermutung. Drei Punkte
             sind dafür die Form, die jeder schon kennt. */}
@@ -743,6 +790,20 @@ function Marken({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/* A decided entry as one line of the conversation (#391): what it was,
+   how it ended, when. The conversation is the record. */
+function Entschieden({ entry }: { entry: InboxEntry }) {
+  const { t, i18n } = useTranslation();
+  return (
+    <div className={`tm-entschieden st-${entry.status}`}>
+      <span className="tm-entschieden-art">{t(`inbox.type.${entry.type}`)}</span>
+      <span className="tm-entschieden-titel">{entry.title}</span>
+      <span className="tm-entschieden-wie">{t(`inbox.status.${entry.status}`, entry.status)}</span>
+      <time dateTime={entry.decided_at}>{uhr(entry.decided_at!, i18n.language)}</time>
     </div>
   );
 }

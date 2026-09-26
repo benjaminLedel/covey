@@ -255,14 +255,18 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
             opens daily; below what is set up once; then the
             oversight. */}
         <div className="nav-group">
+          {/* Setup first while it is not finished (#391): whoever just
+              installed covey starts there. */}
+          {setupOpen && <NavItem to="/setup" icon="checklist" label={t("nav.setupPage")} />}
           <NavItem to="/agents" end icon="robot" label={t("nav.agents")} />
-          <NavItem to="/inbox" icon="bell" label={t("nav.inbox")} count={pending} />
+          {/* With the team surface, decisions are made in the conversation
+              with the agent (#391); the inbox is for installations without it. */}
+          {!me.TeamSurface && <NavItem to="/inbox" icon="bell" label={t("nav.inbox")} count={pending} />}
           <NavItem to="/costs" icon="chart" label={t("nav.costs")} />
           <NavItem to="/org" icon="sitemap" label={t("nav.org")} />
         </div>
         <div className="nav-sec">{t("nav.setup")}</div>
         <div className="nav-group">
-          {setupOpen && <NavItem to="/setup" icon="checklist" label={t("nav.setupPage")} />}
           <NavItem to="/secrets" icon="key" label={t("nav.secrets")} />
           <NavItem to="/targets" icon="plug" label={t("nav.targets")} />
           <NavItem to="/skills" icon="book" label={t("nav.skills")} />
@@ -339,7 +343,7 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
             <Route path="/costs" element={<Costs />} />
             <Route path="/people/:id" element={<PersonPage me={me} />} />
             <Route path="/profile" element={<Navigate to={`/people/${me.ID}`} replace />} />
-            <Route path="/inbox" element={<Inbox me={me} />} />
+            <Route path="/inbox" element={me.TeamSurface ? <Navigate to="/team" replace /> : <Inbox me={me} />} />
             {/* With the team surface the notes live beside the colleagues
                 (#388); the old address leads there. */}
             <Route path="/notes" element={me.TeamSurface ? <Navigate to="/team/notes" replace /> : <Notes />} />

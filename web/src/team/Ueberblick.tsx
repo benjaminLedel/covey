@@ -87,7 +87,7 @@ export default function Ueberblick({ me }: { me: Principal }) {
           <ul className="tm-wartet-liste">
             {items.map((e: InboxEntry) => (
               <li key={`${e.type}-${e.id}`}>
-                <Link to={e.type === "approval" ? "/inbox" : `/team/${e.agent_id}`} className="tm-wartet-zeile">
+                <Link to={`/team/${e.agent_id}`} className="tm-wartet-zeile">
                   <span className={`tm-art a-${e.type}`}>{t(`team.art.${e.type}`)}</span>
                   <span className="tm-wartet-titel">{e.title}</span>
                   <span className="tm-wartet-wer">{e.agent_name}</span>
@@ -99,7 +99,7 @@ export default function Ueberblick({ me }: { me: Principal }) {
             ))}
           </ul>
           {(offen.data?.pending ?? 0) > items.length && (
-            <Link to="/inbox" className="tm-wartet-alle">
+            <Link to="/team" className="tm-wartet-alle">
               {t("team.alleOffenen")}
             </Link>
           )}
