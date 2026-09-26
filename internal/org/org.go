@@ -80,7 +80,11 @@ type Human struct {
 	// permanently present who went home on Friday. This says when the platform
 	// last saw a person; what still counts as present is the reader's decision.
 	LastSeenAt *time.Time `json:"last_seen_at,omitempty"`
-	CreatedAt  time.Time  `json:"created_at"`
+	// PhotoID is the person's profile photo in the media store (#377); nil
+	// is the monogram. It changes with every new photo, so it is also the
+	// key a reader caches the picture under.
+	PhotoID   *uuid.UUID `json:"photo_id,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
 }
 
 // Profile is the employee master data beyond login and RBAC: role, contact and
@@ -212,7 +216,7 @@ func (s *Store) Anwesende(ctx context.Context, orgID uuid.UUID) ([]Anwesenheit, 
 
 func (s *Store) ListHumans(ctx context.Context, orgID uuid.UUID) ([]Human, error) {
 	rows, err := s.pool.Query(ctx, `SELECT id, org_id, email, display_name, role, manager_id,
-			department_id, job_title, identities, phone, responsibilities, custom, last_seen_at, created_at
+			department_id, job_title, identities, phone, responsibilities, custom, last_seen_at, photo_id, created_at
 		FROM humans WHERE org_id=$1 ORDER BY created_at`, orgID)
 	if err != nil {
 		return nil, err
@@ -224,15 +228,27 @@ func (s *Store) ListHumans(ctx context.Context, orgID uuid.UUID) ([]Human, error
 func (s *Store) GetHuman(ctx context.Context, orgID, id uuid.UUID) (Human, error) {
 	var h Human
 	err := s.pool.QueryRow(ctx, `SELECT id, org_id, email, display_name, role, manager_id,
-			department_id, job_title, identities, phone, responsibilities, custom, last_seen_at, created_at
+			department_id, job_title, identities, phone, responsibilities, custom, last_seen_at, photo_id, created_at
 		FROM humans WHERE id=$1 AND org_id=$2`, id, orgID).
 		Scan(&h.ID, &h.OrgID, &h.Email, &h.DisplayName, &h.Role, &h.ManagerID,
 			&h.DepartmentID, &h.JobTitle, &h.Identities, &h.Phone, &h.Responsibilities, &h.Custom,
-			&h.LastSeenAt, &h.CreatedAt)
+			&h.LastSeenAt, &h.PhotoID, &h.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Human{}, ErrNotFound
 	}
 	return h, err
+}
+
+// SetPhoto points the person's seat at a new profile photo (#377), or at
+// none, and returns the photo it replaced, for the caller to remove.
+func (s *Store) SetPhoto(ctx context.Context, orgID, id uuid.UUID, photo *uuid.UUID) (old *uuid.UUID, err error) {
+	err = s.pool.QueryRow(ctx, `UPDATE humans h SET photo_id = $3
+		FROM (SELECT photo_id FROM humans WHERE id=$1 AND org_id=$2 FOR UPDATE) prev
+		WHERE h.id=$1 AND h.org_id=$2 RETURNING prev.photo_id`, id, orgID, photo).Scan(&old)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return old, err
 }
 
 // CreateHuman creates a seat — and the login that goes with it, if the person
@@ -331,10 +347,10 @@ func (s *Store) UpdateHuman(ctx context.Context, orgID, id uuid.UUID, upd HumanU
 
 	var h Human
 	err = tx.QueryRow(ctx, `SELECT id, org_id, email, display_name, role, manager_id,
-			department_id, job_title, identities, phone, responsibilities, custom, created_at
+			department_id, job_title, identities, phone, responsibilities, custom, photo_id, created_at
 		FROM humans WHERE id=$1 AND org_id=$2 FOR UPDATE`, id, orgID).
 		Scan(&h.ID, &h.OrgID, &h.Email, &h.DisplayName, &h.Role, &h.ManagerID,
-			&h.DepartmentID, &h.JobTitle, &h.Identities, &h.Phone, &h.Responsibilities, &h.Custom, &h.CreatedAt)
+			&h.DepartmentID, &h.JobTitle, &h.Identities, &h.Phone, &h.Responsibilities, &h.Custom, &h.PhotoID, &h.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Human{}, ErrNotFound
 	}
@@ -648,7 +664,7 @@ func scanHumans(rows pgx.Rows) ([]Human, error) {
 		var h Human
 		if err := rows.Scan(&h.ID, &h.OrgID, &h.Email, &h.DisplayName, &h.Role, &h.ManagerID,
 			&h.DepartmentID, &h.JobTitle, &h.Identities, &h.Phone, &h.Responsibilities, &h.Custom,
-			&h.LastSeenAt, &h.CreatedAt); err != nil {
+			&h.LastSeenAt, &h.PhotoID, &h.CreatedAt); err != nil {
 			return nil, err
 		}
 		list = append(list, h)

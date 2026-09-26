@@ -288,6 +288,11 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/auth/me", s.auth(s.handleMe))
 	mux.Handle("PATCH /api/v1/auth/me", s.auth(s.handleUpdateMe))
 	mux.Handle("GET /api/v1/auth/me/profile", s.auth(s.handleMyProfile))
+	// The profile photo (#377): set and removed by its person, seen by the
+	// organisation.
+	mux.Handle("PUT /api/v1/me/photo", s.auth(s.handleSetPhoto))
+	mux.Handle("DELETE /api/v1/me/photo", s.auth(s.handleDeletePhoto))
+	mux.Handle("GET /api/v1/humans/{id}/photo", s.auth(s.handleHumanPhoto))
 	mux.Handle("GET /api/v1/auth/sessions", s.auth(s.handleListSessions))
 	mux.Handle("DELETE /api/v1/auth/sessions", s.auth(s.handleRevokeOtherSessions))
 	// The seats of this login and the switch between them (#262). auth, not
@@ -1239,13 +1244,22 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	if p.HasOrg() && s.Chat != nil {
 		team, _ = s.Chat.TeamSurface(r.Context(), p.OrgID)
 	}
+	// The photo travels with the answer (#377), so the account button shows
+	// it without a second request.
+	var photo *uuid.UUID
+	if p.HasOrg() && s.Org != nil {
+		if h, err := s.Org.GetHuman(r.Context(), p.OrgID, p.ID); err == nil {
+			photo = h.PhotoID
+		}
+	}
 	writeJSON(w, http.StatusOK, struct {
 		identity.Principal
 		TeamSurface bool
 		// CanWrite: this seat's role may hand over work and answer (#339).
 		// The app leads only such a seat into a conversation.
 		CanWrite bool
-	}{p, team, slices.Contains(manageRoles, p.Role)})
+		PhotoID  *uuid.UUID `json:",omitempty"`
+	}{p, team, slices.Contains(manageRoles, p.Role), photo})
 }
 
 func parseID(r *http.Request) (uuid.UUID, error) {
