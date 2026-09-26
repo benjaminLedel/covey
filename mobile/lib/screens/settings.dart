@@ -88,13 +88,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await _measureLog();
   }
 
+  /// "Whisper small", "Parakeet": the engine's name, and the size where the
+  /// engine has several.
+  String _modelName(SpeechModelInfo m) => m.engine == 'parakeet' ? 'Parakeet' : 'Whisper ${m.name}';
+
   String _mb(int bytes) => '${(bytes / 1000000).round()} MB';
 
   String _modelLine(BuildContext context) {
     final i = _model.info;
     if (_model.problem == SpeechModelProblem.off) return context.t('mobile.spracheAus');
     if (i == null) return context.t('common.loading');
-    final name = 'Whisper ${i.name} · ${_mb(i.size)}';
+    final name = '${_modelName(i)} · ${_mb(i.size)}';
     final p = _model.progress;
     final pct = p == null ? '…' : '${(p * 100).floor()} %';
     if (_model.onInstance) return context.t('mobile.instanzLaedtModell', args: {'pct': pct});
@@ -111,7 +115,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (i == null || i.models.isEmpty) return;
     final current = _model.chosen ?? i.defaultName;
     String label(SpeechModelInfo m) {
-      final name = 'Whisper ${m.name} · ${_mb(m.size)}';
+      final name = '${_modelName(m)} · ${_mb(m.size)}';
       return m.name == i.defaultName ? '$name (${context.t('mobile.vorgabe')})' : name;
     }
 

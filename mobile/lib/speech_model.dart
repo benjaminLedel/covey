@@ -177,6 +177,9 @@ class SpeechModel extends ChangeNotifier {
     }
     this.info = info;
     if (!info.enabled) return _fail(SpeechModelProblem.off, null);
+    // A model without files is nothing to verify — an instance from before
+    // #353 lists none; never take that for a complete download.
+    if (info.files.isEmpty) return _fail(SpeechModelProblem.failed, 'the instance lists no files for ${info.name}');
 
     final root = await _dir();
     final dir = Directory('${root.path}/${info.sha256}');

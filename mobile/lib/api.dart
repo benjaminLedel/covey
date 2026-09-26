@@ -308,6 +308,16 @@ class SpeechModelInfo {
     models: [
       for (final m in (j['models'] as List<dynamic>? ?? const [])) SpeechModelInfo.fromJson(m as Map<String, dynamic>),
     ],
+    engine: j['engine'] as String? ?? 'whisper',
+    credit: j['credit'] as String?,
+    files: [
+      for (final f in (j['files'] as List<dynamic>? ?? const []))
+        SpeechModelFile(
+          name: (f as Map<String, dynamic>)['name'] as String,
+          sha256: f['sha256'] as String,
+          size: (f['size'] as num).toInt(),
+        ),
+    ],
   );
 
   final bool enabled;
