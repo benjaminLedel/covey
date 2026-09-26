@@ -26,6 +26,7 @@ Write in the language given. Output Markdown:
 1. One or two sentences: what the day was mostly about.
 2. "## " and a heading for the timeline, then the day as a short list of activities in order, one line each: the time span, then what was done — "09:10–09:40 Answered Ada's mail about the offer". Merge sessions that belong to one activity (switching between a mail and the document it is about is one activity). Leave out fleeting sessions that show nothing.
 3. If the log shows things begun but not finished — a draft left open, a question not answered — "## " and a heading for open items, as a checklist ("- [ ] …"). Otherwise leave this section out.
+4. If some of the day's work looks mechanical and repetitive — sorting and answering tickets with standard replies, copying data between systems, the same checks in the same order — "## " and a heading for what an agent could take over, with at most three items: the activity, then the kind of agent and the systems it would need access to ("Sorting support tickets and sending standard replies → a support agent with access to Zendesk"). Only work the log shows; not judgement, conversations or creative work. If there is nothing of the kind, leave this section out.
 
 Use only what the log shows. Do not guess intentions, rate the day, or give advice. Quote no more of an excerpt than a few words where it names the subject; never passwords, codes or anything that looks like a secret.`
 

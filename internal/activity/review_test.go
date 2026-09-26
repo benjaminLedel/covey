@@ -48,6 +48,9 @@ func TestReviewListsTheSessionsInTheDaysTime(t *testing.T) {
 	if !strings.Contains(m.got.System, "Use only what the log shows") {
 		t.Fatal("the instruction must forbid invention")
 	}
+	if !strings.Contains(m.got.System, "what an agent could take over") {
+		t.Fatal("the review names work an agent could take over (#370)")
+	}
 }
 
 func TestReviewOfAnEmptyDay(t *testing.T) {

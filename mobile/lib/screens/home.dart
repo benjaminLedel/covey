@@ -16,6 +16,7 @@ import '../theme.dart';
 import '../ui.dart';
 import 'notes.dart';
 import 'review.dart';
+import 'suggestions.dart';
 import 'settings.dart';
 import 'team_space.dart';
 import 'thread.dart';
@@ -181,6 +182,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 subtitle: context.t('mobile.rueckblickZeile'),
                 onTap: () => Navigator.pop(context, 'review'),
               ),
+              // What an agent could take over, from two weeks of activity
+              // (#370).
+              GroupRow(
+                leading: Icon(AppIcons.team.of(context), color: context.colors.textAccent),
+                title: context.t('mobile.vorschlaege'),
+                subtitle: context.t('mobile.vorschlaegeZeile'),
+                onTap: () => Navigator.pop(context, 'suggestions'),
+              ),
             ],
           ),
         ),
@@ -189,6 +198,14 @@ class _HomeScreenState extends State<HomeScreen> {
     if (kind == null || !mounted) return;
     setState(() => _space = notesIndex);
     void reload() => _notes.currentState?.reload();
+    if (kind == 'suggestions') {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => SuggestionsScreen(api: widget.api, canHire: _me?.canWrite ?? false),
+        ),
+      );
+      return;
+    }
     if (kind == 'review') {
       await Navigator.of(context).push<void>(
         MaterialPageRoute(

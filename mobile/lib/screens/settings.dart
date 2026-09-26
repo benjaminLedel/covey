@@ -20,6 +20,7 @@ import '../theme.dart';
 import '../ui.dart';
 import 'notes.dart' show NotePage, dictationFailure;
 import 'review.dart';
+import 'suggestions.dart';
 
 /// Settings (#349): who is signed in where, the speech model on this
 /// device and the language it listens for, a place to try dictation, and
@@ -246,6 +247,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: context.t('mobile.aktivRueckblick'),
             trailing: Icon(AppIcons.chevron.of(context), color: c.textMuted, size: 18),
             onTap: _review,
+          ),
+          GroupRow(
+            title: context.t('mobile.vorschlaege'),
+            trailing: Icon(AppIcons.chevron.of(context), color: c.textMuted, size: 18),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => SuggestionsScreen(api: widget.api, canHire: widget.me.canWrite),
+              ),
+            ),
           ),
           GroupRow(title: context.t('mobile.aktivLoeschenHeute'), onTap: () => _deleteActivity(all: false)),
           GroupRow(title: context.t('mobile.aktivLoeschenAlles'), onTap: () => _deleteActivity(all: true)),

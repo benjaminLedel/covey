@@ -325,6 +325,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/me/activity", s.auth(s.handleAddActivity))
 	mux.Handle("GET /api/v1/me/activity", s.auth(s.handleListActivity))
 	mux.Handle("GET /api/v1/me/activity/days", s.auth(s.handleActivityDays))
+	mux.Handle("GET /api/v1/me/activity/suggestions", s.auth(s.handleGetSuggestions))
+	mux.Handle("POST /api/v1/me/activity/suggestions", s.auth(s.handleSuggest))
 	mux.Handle("DELETE /api/v1/me/activity", s.auth(s.handleDeleteActivity))
 	mux.Handle("POST /api/v1/me/activity/review", s.auth(s.handleActivityReview))
 	// Dictate anywhere (#355, dictation.go): the recognised text, cleaned.

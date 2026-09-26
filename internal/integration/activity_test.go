@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"covey/internal/activity"
 	"covey/internal/notes"
 )
 
@@ -146,4 +147,46 @@ func TestADayHasOneReview(t *testing.T) {
 		t.Fatalf("in UTC the sessions are on two days: %d", n)
 	}
 	ada.expect(http.MethodGet, "/api/v1/me/activity/days?offset=9999", nil, http.StatusBadRequest)
+}
+
+// TestSuggestionsAreTheSeatsOwn (#370): none before the first evaluation,
+// the evaluation needs activity and a control-plane credential, and the
+// suggestions kept are read back by their seat only.
+func TestSuggestionsAreTheSeatsOwn(t *testing.T) {
+	s := newStack(t)
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	if got := admin.expect(http.MethodGet, "/api/v1/me/activity/suggestions", nil, http.StatusOK); got["suggestions"] != nil {
+		t.Fatalf("nothing before the first evaluation: %v", got)
+	}
+	admin.expect(http.MethodPost, "/api/v1/me/activity/suggestions?lang=de", nil, http.StatusNotFound)
+	now := time.Now().Add(-time.Hour)
+	admin.expect(http.MethodPost, "/api/v1/me/activity", map[string]any{"sessions": []map[string]any{
+		{"started_at": now, "ended_at": now.Add(20 * time.Minute), "app": "Chrome", "url": "https://support.example.org"},
+	}}, http.StatusCreated)
+	admin.expect(http.MethodPost, "/api/v1/me/activity/suggestions?lang=de", nil, http.StatusConflict)
+
+	// Kept suggestions are the seat's own.
+	ctx := context.Background()
+	var humanID, orgID uuid.UUID
+	if err := s.pool.QueryRow(ctx, `SELECT id, org_id FROM humans WHERE email='admin@test.local'`).Scan(&humanID, &orgID); err != nil {
+		t.Fatal(err)
+	}
+	store := activity.NewStore(s.pool)
+	if _, err := store.SaveSuggestions(ctx, orgID, humanID, activity.Suggestions{Days: 1, Sessions: 1, Suggestions: []activity.Suggestion{
+		{Title: "Tickets sortieren", Brief: "Ein Support-Agent …", MinutesPerWeek: 150},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	got := admin.expect(http.MethodGet, "/api/v1/me/activity/suggestions", nil, http.StatusOK)
+	list, _ := got["suggestions"].([]any)
+	if len(list) != 1 || list[0].(map[string]any)["title"] != "Tickets sortieren" || got["days"] != float64(1) {
+		t.Fatalf("the kept suggestions: %v", got)
+	}
+	admin.expect(http.MethodPost, "/api/v1/users", map[string]string{
+		"email": "ada@test.local", "display_name": "Ada", "role": "auditor", "password": "ada-passwort",
+	}, http.StatusCreated)
+	ada := login(t, s, "ada@test.local", "ada-passwort")
+	if got := ada.expect(http.MethodGet, "/api/v1/me/activity/suggestions", nil, http.StatusOK); got["suggestions"] != nil {
+		t.Fatalf("another seat sees none of them: %v", got)
+	}
 }

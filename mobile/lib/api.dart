@@ -283,6 +283,23 @@ class CoveyApi {
     ];
   }
 
+  /// The seat's latest agent suggestions (#370), or null before the first.
+  Future<AgentSuggestions?> suggestions() async {
+    final out = await get('/me/activity/suggestions') as Map<String, dynamic>;
+    return out['suggestions'] == null ? null : AgentSuggestions.fromJson(out);
+  }
+
+  /// Computes the agent suggestions from the last two weeks, anew.
+  Future<AgentSuggestions> suggest(String zone, {required String lang}) async => AgentSuggestions.fromJson(
+    await post('/me/activity/suggestions?$zone&lang=${Uri.encodeQueryComponent(lang)}', const {})
+        as Map<String, dynamic>,
+  );
+
+  /// A job posting to the hiring flow (spec/20): the HR agent drafts the
+  /// new agent from it. Needs a role that may manage agents.
+  Future<void> hiringBrief(String description, {required String lang}) =>
+      post('/hiring/brief?lang=${Uri.encodeQueryComponent(lang)}', {'description': description});
+
   Future<Note> note(String id) async => Note.fromJson(await get('/me/notes/$id') as Map<String, dynamic>);
 
   /// Dictated text as the person meant to write it (#355): filler words
@@ -427,4 +444,57 @@ class ActivityDay {
   /// The day has activity after what its review covers (#369). The instance
   /// writes recent reviews again by itself; this says it has not yet.
   final bool stale;
+}
+
+/// Agent suggestions from the activity log (#370).
+class AgentSuggestions {
+  const AgentSuggestions({required this.days, required this.sessions, required this.items, required this.createdAt});
+
+  factory AgentSuggestions.fromJson(Map<String, dynamic> j) => AgentSuggestions(
+    days: (j['days'] as num?)?.toInt() ?? 0,
+    sessions: (j['sessions'] as num?)?.toInt() ?? 0,
+    createdAt: DateTime.tryParse(j['created_at'] as String? ?? '')?.toLocal() ?? DateTime.now(),
+    items: [
+      for (final x in (j['suggestions'] as List<dynamic>? ?? const []))
+        AgentSuggestion.fromJson(x as Map<String, dynamic>),
+    ],
+  );
+
+  final int days;
+  final int sessions;
+  final List<AgentSuggestion> items;
+  final DateTime createdAt;
+}
+
+class AgentSuggestion {
+  const AgentSuggestion({
+    required this.title,
+    this.description = '',
+    this.pattern = '',
+    this.minutesPerWeek = 0,
+    this.systems = const [],
+    this.agent = '',
+    required this.brief,
+    this.evidence = const [],
+  });
+
+  factory AgentSuggestion.fromJson(Map<String, dynamic> j) => AgentSuggestion(
+    title: j['title'] as String? ?? '',
+    description: j['description'] as String? ?? '',
+    pattern: j['pattern'] as String? ?? '',
+    minutesPerWeek: (j['minutes_per_week'] as num?)?.toInt() ?? 0,
+    systems: [for (final s in (j['systems'] as List<dynamic>? ?? const [])) '$s'],
+    agent: j['agent'] as String? ?? '',
+    brief: j['brief'] as String? ?? '',
+    evidence: [for (final s in (j['evidence'] as List<dynamic>? ?? const [])) '$s'],
+  );
+
+  final String title;
+  final String description;
+  final String pattern;
+  final int minutesPerWeek;
+  final List<String> systems;
+  final String agent;
+  final String brief;
+  final List<String> evidence;
 }

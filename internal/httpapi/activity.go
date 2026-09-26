@@ -332,3 +332,76 @@ func (s *Server) refreshReview(ctx context.Context, humanID uuid.UUID, ref notes
 	}
 	return err
 }
+
+// suggestionDays is how far back the suggestions look (#370): the log's
+// retention, at most.
+const suggestionDays = 14
+
+// handleGetSuggestions answers with the caller's latest agent suggestions,
+// or none.
+func (s *Server) handleGetSuggestions(w http.ResponseWriter, r *http.Request) {
+	x, ok, err := s.activityStore().LoadSuggestions(r.Context(), principalFrom(r).ID)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	if !ok {
+		writeJSON(w, http.StatusOK, map[string]any{"suggestions": nil})
+		return
+	}
+	writeJSON(w, http.StatusOK, x)
+}
+
+// handleSuggest computes the caller's agent suggestions from the last two
+// weeks of activity (#370) — one control-plane turn — and keeps them.
+func (s *Server) handleSuggest(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	if !p.HasOrg() {
+		writeErr(w, http.StatusConflict, "this account does not belong to an organisation yet")
+		return
+	}
+	loc, err := zone(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "tz must be an IANA time zone, offset minutes east of UTC")
+		return
+	}
+	lang := strings.TrimSpace(r.URL.Query().Get("lang"))
+	if lang == "" || len(lang) > 10 {
+		lang = "en"
+	}
+	now := time.Now()
+	sessions, err := s.activityStore().Between(r.Context(), p.ID, now.AddDate(0, 0, -suggestionDays), now.Add(time.Minute))
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	if len(sessions) == 0 {
+		writeErr(w, http.StatusNotFound, "no activity recorded in the last 14 days")
+		return
+	}
+	provider, err := llm.Resolve(r.Context(), s.Secrets, p.OrgID)
+	if errors.Is(err, llm.ErrNoCredential) {
+		writeErr(w, http.StatusConflict, "suggestions need a control-plane credential for this organisation")
+		return
+	}
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	list, err := activity.Suggest(r.Context(), provider, sessions, lang, loc)
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, "the model did not suggest: "+err.Error())
+		return
+	}
+	days := map[string]bool{}
+	for _, x := range sessions {
+		days[x.StartedAt.In(loc).Format("2006-01-02")] = true
+	}
+	out, err := s.activityStore().SaveSuggestions(r.Context(), p.OrgID, p.ID,
+		activity.Suggestions{Days: len(days), Sessions: len(sessions), Suggestions: list})
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
