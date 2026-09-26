@@ -188,6 +188,7 @@
   "mobile.sprecherBenennenHinweis": "Dai un nome alle voci, oppure lasciale così.",
   "mobile.sprecherIch": "Io",
   "mobile.sprecherN": "Relatore {{n}}",
+  "mobile.statusLeer": "Nessuna nota con questo stato.",
   "mobile.stil": "Stile del testo",
   "mobile.stilNummeriert": "Elenco numerato",
   "mobile.stilText": "Testo",

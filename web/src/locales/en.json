@@ -2713,7 +2713,8 @@
     "gespeichert": "Saved",
     "nichtGespeichert": "Not saved",
     "notizWaehlen": "Pick a note on the left, or start a new one.",
-    "notizMenue": "More actions"
+    "notizMenue": "More actions",
+    "statusLeer": "No notes with this status."
   },
   "appLink": {
     "title": "Open in the covey app",

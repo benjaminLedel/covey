@@ -188,6 +188,7 @@
   "mobile.sprecherBenennenHinweis": "Donnez un nom aux voix, ou laissez-les ainsi.",
   "mobile.sprecherIch": "Moi",
   "mobile.sprecherN": "Intervenant {{n}}",
+  "mobile.statusLeer": "Aucune note avec ce statut.",
   "mobile.stil": "Style de texte",
   "mobile.stilNummeriert": "Liste numérotée",
   "mobile.stilText": "Texte",

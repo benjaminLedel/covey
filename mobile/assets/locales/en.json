@@ -188,6 +188,7 @@
   "mobile.sprecherBenennenHinweis": "Give the voices names, or leave them as they are.",
   "mobile.sprecherIch": "Me",
   "mobile.sprecherN": "Speaker {{n}}",
+  "mobile.statusLeer": "No notes with this status.",
   "mobile.stil": "Text style",
   "mobile.stilNummeriert": "Numbered list",
   "mobile.stilText": "Body",

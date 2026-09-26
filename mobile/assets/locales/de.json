@@ -188,6 +188,7 @@
   "mobile.sprecherBenennenHinweis": "Geben Sie den Stimmen Namen, oder lassen Sie sie so.",
   "mobile.sprecherIch": "Ich",
   "mobile.sprecherN": "Sprecher {{n}}",
+  "mobile.statusLeer": "Keine Notizen mit diesem Status.",
   "mobile.stil": "Textstil",
   "mobile.stilNummeriert": "Nummerierte Liste",
   "mobile.stilText": "Text",

@@ -188,6 +188,7 @@
   "mobile.sprecherBenennenHinweis": "声に名前を付けるか、そのままにしてください。",
   "mobile.sprecherIch": "自分",
   "mobile.sprecherN": "話者 {{n}}",
+  "mobile.statusLeer": "このステータスのメモはありません。",
   "mobile.stil": "テキストスタイル",
   "mobile.stilNummeriert": "番号付きリスト",
   "mobile.stilText": "本文",

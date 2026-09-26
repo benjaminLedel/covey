@@ -2713,7 +2713,8 @@
     "gespeichert": "Salvato",
     "nichtGespeichert": "Non salvato",
     "notizWaehlen": "Scelga una nota a sinistra o ne crei una nuova.",
-    "notizMenue": "Altre azioni"
+    "notizMenue": "Altre azioni",
+    "statusLeer": "Nessuna nota con questo stato."
   },
   "appLink": {
     "title": "Apri nell'app covey",

@@ -2713,7 +2713,8 @@
     "gespeichert": "Zapisano",
     "nichtGespeichert": "Nie zapisano",
     "notizWaehlen": "Wybierz notatkę po lewej lub utwórz nową.",
-    "notizMenue": "Więcej działań"
+    "notizMenue": "Więcej działań",
+    "statusLeer": "Brak notatek o tym statusie."
   },
   "appLink": {
     "title": "Otwórz w aplikacji covey",

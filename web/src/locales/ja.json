@@ -2713,7 +2713,8 @@
     "gespeichert": "保存しました",
     "nichtGespeichert": "保存されていません",
     "notizWaehlen": "左でノートを選ぶか、新しく作成してください。",
-    "notizMenue": "その他の操作"
+    "notizMenue": "その他の操作",
+    "statusLeer": "このステータスのメモはありません。"
   },
   "appLink": {
     "title": "covey アプリで開く",

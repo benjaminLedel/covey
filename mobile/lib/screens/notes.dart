@@ -1548,44 +1548,197 @@ class _ViewTab extends StatelessWidget {
   }
 }
 
-/// The notes as a board by status (#373): a column per status, a card per
-/// note; a card dragged to another column takes its status. With a mouse
-/// a card is dragged at once, on touch after a long press.
-class NotesBoard extends StatelessWidget {
+/// The notes as a board by status (#373).
+///
+/// A wide pane has room for the four statuses side by side: a column each,
+/// sharing the width, a card dragged to another column takes its status. A
+/// phone has not (#404) — four columns of a fixed width in a sideways scroll
+/// inside the page's own scroll showed one and a half of them, and moving a
+/// card meant dragging it towards a column off screen. There the statuses
+/// are tabs with their counts and the chosen one's cards stand below at
+/// full width, and a long press on a card offers the statuses to move it to.
+/// On a wide touch screen a long press picks the card up, as before — every
+/// column is in sight there — and a secondary click opens the same menu.
+class NotesBoard extends StatefulWidget {
   const NotesBoard({super.key, required this.notes, required this.onOpen, required this.onMove});
 
   final List<Note> notes;
   final ValueChanged<Note> onOpen;
   final Future<void> Function(Note note, String status) onMove;
 
+  /// Below this width the columns become tabs.
+  static const columnsFrom = 720.0;
+
+  @override
+  State<NotesBoard> createState() => _NotesBoardState();
+}
+
+class _NotesBoardState extends State<NotesBoard> {
+  /// The tab on a narrow screen; null until chosen, then the first status
+  /// that has notes counts.
+  String? _tab;
+
+  List<Note> _of(String st) => [
+    for (final n in widget.notes)
+      if (n.status == st) n,
+  ];
+
+  Future<void> _menu(Note n) async {
+    final st = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SectionTitle(context.t('mobile.propStatus')),
+              InsetGroup(
+                dividerIndent: 48,
+                children: [
+                  for (final s in noteStatuses)
+                    GroupRow(
+                      leading: StatusDot(status: s),
+                      title: context.t('mobile.nstatus_${s.isEmpty ? 'none' : s}'),
+                      trailing: s == n.status ? Icon(Icons.check_rounded, color: context.colors.textAccent) : null,
+                      onTap: () => Navigator.pop(context, s),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (st != null && st != n.status) await widget.onMove(n, st);
+  }
+
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, box) => box.maxWidth >= NotesBoard.columnsFrom ? _columns(context) : _tabs(context),
+    );
+  }
+
+  Widget _columns(BuildContext context) {
     final touch = switch (Theme.of(context).platform) {
       TargetPlatform.iOS || TargetPlatform.android => true,
       _ => false,
     };
     return Padding(
-      padding: const EdgeInsets.only(top: 16),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        // Every column as tall as the tallest, and at least a hand's
-        // height: an empty column is a place to drop a card, not a strip.
-        child: IntrinsicHeight(
+      padding: const EdgeInsets.fromLTRB(16, 16, 4, 0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final st in noteStatuses)
+            Expanded(
+              child: _BoardColumn(
+                status: st,
+                notes: _of(st),
+                onOpen: widget.onOpen,
+                onMove: widget.onMove,
+                onMenu: _menu,
+                touch: touch,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _tabs(BuildContext context) {
+    final c = context.colors;
+    final tab = _tab ?? noteStatuses.firstWhere((st) => _of(st).isNotEmpty, orElse: () => noteStatuses.first);
+    final cards = _of(tab);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               for (final st in noteStatuses)
-                _BoardColumn(
-                  status: st,
-                  notes: [
-                    for (final n in notes)
-                      if (n.status == st) n,
-                  ],
-                  onOpen: onOpen,
-                  onMove: onMove,
-                  touch: touch,
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: _StatusTab(
+                    status: st,
+                    count: _of(st).length,
+                    selected: st == tab,
+                    onTap: () => setState(() => _tab = st),
+                  ),
                 ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+          child: cards.isEmpty
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Text(
+                    context.t('mobile.statusLeer'),
+                    textAlign: TextAlign.center,
+                    style: context.type.bodyMedium?.copyWith(color: c.textMuted),
+                  ),
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final n in cards)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _BoardCard(note: n, onOpen: widget.onOpen, onMenu: _menu, onSecondary: _menu),
+                      ),
+                  ],
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A status as a tab on a narrow board: its dot, its name, how many.
+class _StatusTab extends StatelessWidget {
+  const _StatusTab({required this.status, required this.count, required this.selected, required this.onTap});
+
+  final String status;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Semantics(
+      selected: selected,
+      button: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected ? c.textPrimary.withValues(alpha: 0.08) : Colors.transparent,
+            border: Border.all(color: selected ? c.border : c.hairline, width: 0.6),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              StatusDot(status: status),
+              const SizedBox(width: 7),
+              Text(
+                context.t('mobile.nstatus_${status.isEmpty ? 'none' : status}'),
+                style: context.type.labelLarge?.copyWith(
+                  color: selected ? c.textPrimary : c.textSecondary,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text('$count', style: context.type.labelMedium?.copyWith(color: c.textMuted)),
             ],
           ),
         ),
@@ -1600,6 +1753,7 @@ class _BoardColumn extends StatelessWidget {
     required this.notes,
     required this.onOpen,
     required this.onMove,
+    required this.onMenu,
     required this.touch,
   });
 
@@ -1607,6 +1761,9 @@ class _BoardColumn extends StatelessWidget {
   final List<Note> notes;
   final ValueChanged<Note> onOpen;
   final Future<void> Function(Note note, String status) onMove;
+  final ValueChanged<Note> onMenu;
+
+  /// On touch a card is picked up by a long press; with a mouse at once.
   final bool touch;
 
   @override
@@ -1616,7 +1773,6 @@ class _BoardColumn extends StatelessWidget {
       onWillAcceptWithDetails: (d) => d.data.status != status,
       onAcceptWithDetails: (d) => onMove(d.data, status),
       builder: (context, candidates, _) => Container(
-        width: 260,
         constraints: const BoxConstraints(minHeight: 200),
         margin: const EdgeInsets.only(right: 12),
         padding: const EdgeInsets.all(8),
@@ -1633,7 +1789,13 @@ class _BoardColumn extends StatelessWidget {
                 children: [
                   StatusDot(status: status),
                   const SizedBox(width: 8),
-                  Text(context.t('mobile.nstatus_${status.isEmpty ? 'none' : status}'), style: context.type.titleSmall),
+                  Flexible(
+                    child: Text(
+                      context.t('mobile.nstatus_${status.isEmpty ? 'none' : status}'),
+                      overflow: TextOverflow.ellipsis,
+                      style: context.type.titleSmall,
+                    ),
+                  ),
                   const SizedBox(width: 6),
                   Text('${notes.length}', style: context.type.bodySmall?.copyWith(color: c.textMuted)),
                 ],
@@ -1642,46 +1804,50 @@ class _BoardColumn extends StatelessWidget {
             for (final n in notes)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: touch
-                    ? LongPressDraggable<Note>(
-                        data: n,
-                        feedback: _cardFeedback(context, n),
-                        childWhenDragging: Opacity(
-                          opacity: 0.4,
-                          child: _BoardCard(note: n, onOpen: onOpen),
-                        ),
-                        child: _BoardCard(note: n, onOpen: onOpen),
-                      )
-                    : Draggable<Note>(
-                        data: n,
-                        feedback: _cardFeedback(context, n),
-                        childWhenDragging: Opacity(
-                          opacity: 0.4,
-                          child: _BoardCard(note: n, onOpen: onOpen),
-                        ),
-                        child: _BoardCard(note: n, onOpen: onOpen),
+                child: LayoutBuilder(
+                  builder: (context, box) {
+                    final feedback = Material(
+                      color: Colors.transparent,
+                      child: SizedBox(
+                        width: box.maxWidth,
+                        child: _BoardCard(note: n, onOpen: (_) {}),
                       ),
+                    );
+                    // On touch the long press belongs to the drag, and the
+                    // menu is a secondary click.
+                    final card = _BoardCard(
+                      note: n,
+                      onOpen: onOpen,
+                      onMenu: touch ? null : onMenu,
+                      onSecondary: onMenu,
+                    );
+                    final dragging = Opacity(opacity: 0.4, child: card);
+                    return touch
+                        ? LongPressDraggable<Note>(
+                            data: n,
+                            feedback: feedback,
+                            childWhenDragging: dragging,
+                            child: card,
+                          )
+                        : Draggable<Note>(data: n, feedback: feedback, childWhenDragging: dragging, child: card);
+                  },
+                ),
               ),
           ],
         ),
       ),
     );
   }
-
-  Widget _cardFeedback(BuildContext context, Note n) => Material(
-    color: Colors.transparent,
-    child: SizedBox(
-      width: 244,
-      child: _BoardCard(note: n, onOpen: (_) {}),
-    ),
-  );
 }
 
 class _BoardCard extends StatelessWidget {
-  const _BoardCard({required this.note, required this.onOpen});
+  const _BoardCard({required this.note, required this.onOpen, this.onMenu, this.onSecondary});
 
   final Note note;
   final ValueChanged<Note> onOpen;
+
+  /// The status menu on a long press, and on a secondary click.
+  final ValueChanged<Note>? onMenu, onSecondary;
 
   @override
   Widget build(BuildContext context) {
@@ -1694,6 +1860,8 @@ class _BoardCard extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
         onTap: () => onOpen(note),
+        onLongPress: onMenu == null ? null : () => onMenu!(note),
+        onSecondaryTap: onSecondary == null ? null : () => onSecondary!(note),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(

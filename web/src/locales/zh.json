@@ -2713,7 +2713,8 @@
     "gespeichert": "已保存",
     "nichtGespeichert": "未保存",
     "notizWaehlen": "在左侧选择笔记，或新建一条。",
-    "notizMenue": "更多操作"
+    "notizMenue": "更多操作",
+    "statusLeer": "没有此状态的笔记。"
   },
   "appLink": {
     "title": "在 covey 应用中打开",

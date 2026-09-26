@@ -2713,7 +2713,8 @@
     "gespeichert": "Enregistré",
     "nichtGespeichert": "Non enregistré",
     "notizWaehlen": "Choisissez une note à gauche ou créez-en une.",
-    "notizMenue": "Plus d’actions"
+    "notizMenue": "Plus d’actions",
+    "statusLeer": "Aucune note avec ce statut."
   },
   "appLink": {
     "title": "Ouvrir dans l'application covey",

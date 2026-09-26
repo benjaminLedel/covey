@@ -2713,7 +2713,8 @@
     "gespeichert": "Opgeslagen",
     "nichtGespeichert": "Niet opgeslagen",
     "notizWaehlen": "Kies links een notitie of maak een nieuwe.",
-    "notizMenue": "Meer acties"
+    "notizMenue": "Meer acties",
+    "statusLeer": "Geen notities met deze status."
   },
   "appLink": {
     "title": "Openen in de covey-app",
