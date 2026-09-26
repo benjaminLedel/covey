@@ -79,6 +79,7 @@ abstract class SegmentedEngine implements SpeechEngine {
   int _silentBytes = 0;
   int _voicedBytes = 0;
   bool _segVoiced = false;
+  int Function() _audioBytes = () => 0;
   double _floor = 0.005;
 
   static const _bytesPerSecond = 32000;
@@ -135,23 +136,16 @@ abstract class SegmentedEngine implements SpeechEngine {
 
     await prepare();
     await _openNext();
-    // The platform's voice processing (#359) — on Apple devices the same
-    // as for calls: noise suppression, echo cancellation, gain control. It
-    // keeps the near voice and lets the room fall away before recognition
-    // sees it.
+    // Raw: the platform's voice processing (echoCancel) was tried against
+    // background noise (#359) and on macOS left the stream without sound —
+    // record's converter does not follow the input format it switches to.
     final raw = await _recorder.startStream(
-      const RecordConfig(
-        encoder: AudioEncoder.pcm16bits,
-        sampleRate: 16000,
-        numChannels: 1,
-        echoCancel: true,
-        noiseSuppress: true,
-        autoGain: true,
-      ),
+      const RecordConfig(encoder: AudioEncoder.pcm16bits, sampleRate: 16000, numChannels: 1),
     );
     var bytes = 0;
     final began = DateTime.now();
     var last = began;
+    _audioBytes = () => bytes;
     _mic = raw.listen((chunk) {
       bytes += chunk.length;
       final rms = _linearRms(chunk);
@@ -264,7 +258,7 @@ abstract class SegmentedEngine implements SpeechEngine {
     await _close(keep: _voicedBytes >= _minVoicedBytes);
     if (!keepLoaded) await release();
     _stopping = false;
-    _log('stopped, ${_committed.length} characters');
+    _log('stopped, ${_committed.length} characters from ${(_audioBytes() / _bytesPerSecond).toStringAsFixed(1)} s of audio');
     return _committed;
   }
 
