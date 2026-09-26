@@ -2575,7 +2575,8 @@
     "protokollKopieren": "Logboek kopiëren",
     "protokollLoeschen": "Logboek verwijderen",
     "protokollKopiert": "Logboek gekopieerd.",
-    "diagnoseHinweis": "Het logboek blijft op dit apparaat. Het legt handelingen, tijden en fouten vast, geen inhoud: geen notities, transcripties, berichten of sleutels."
+    "diagnoseHinweis": "Het logboek blijft op dit apparaat. Het legt handelingen, tijden en fouten vast, geen inhoud: geen notities, transcripties, berichten of sleutels.",
+    "modell_parakeet": "Herkent zelf 25 Europese talen, met interpunctie; in test"
   },
   "appLink": {
     "title": "Openen in de covey-app",

@@ -68,6 +68,7 @@
   "mobile.modellWahlHinweis": "大きいモデルほど認識は正確ですが、容量を多く使い、端末での反応が遅くなります。",
   "mobile.modell_base": "バランス型",
   "mobile.modell_medium": "最も正確・端末では低速",
+  "mobile.modell_parakeet": "ヨーロッパの25言語を自動で認識し、句読点も付けます（テスト中）",
   "mobile.modell_small": "より正確・時間と容量が必要",
   "mobile.modell_tiny": "最速・精度は最も低い",
   "mobile.neu": "新規",

@@ -2575,7 +2575,8 @@
     "protokollKopieren": "Kopiuj dziennik",
     "protokollLoeschen": "Usuń dziennik",
     "protokollKopiert": "Dziennik skopiowany.",
-    "diagnoseHinweis": "Dziennik zostaje na tym urządzeniu. Zapisuje przebieg, czasy i błędy, bez treści: bez notatek, transkrypcji, wiadomości i kluczy."
+    "diagnoseHinweis": "Dziennik zostaje na tym urządzeniu. Zapisuje przebieg, czasy i błędy, bez treści: bez notatek, transkrypcji, wiadomości i kluczy.",
+    "modell_parakeet": "Sam rozpoznaje 25 języków europejskich, z interpunkcją; w testach"
   },
   "appLink": {
     "title": "Otwórz w aplikacji covey",

@@ -68,6 +68,7 @@
   "mobile.modellWahlHinweis": "Większe modele rozpoznają dokładniej, ale zajmują więcej miejsca i działają wolniej na telefonie.",
   "mobile.modell_base": "Zrównoważony",
   "mobile.modell_medium": "Najdokładniejszy, wolny na telefonie",
+  "mobile.modell_parakeet": "Sam rozpoznaje 25 języków europejskich, z interpunkcją; w testach",
   "mobile.modell_small": "Dokładniejszy, wymaga więcej czasu i miejsca",
   "mobile.modell_tiny": "Najszybszy, najmniej dokładny",
   "mobile.neu": "Nowy",

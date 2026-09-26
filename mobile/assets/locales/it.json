@@ -68,6 +68,7 @@
   "mobile.modellWahlHinweis": "I modelli più grandi riconoscono con più precisione, ma occupano più spazio e sono più lenti sul telefono.",
   "mobile.modell_base": "Equilibrato",
   "mobile.modell_medium": "Il più preciso, lento sul telefono",
+  "mobile.modell_parakeet": "Riconosce da solo 25 lingue europee, con punteggiatura; in prova",
   "mobile.modell_small": "Più preciso, richiede più tempo e spazio",
   "mobile.modell_tiny": "Il più veloce, il meno preciso",
   "mobile.neu": "Nuovo",

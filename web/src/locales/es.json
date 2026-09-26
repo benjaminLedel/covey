@@ -2575,7 +2575,8 @@
     "protokollKopieren": "Copiar el registro",
     "protokollLoeschen": "Borrar el registro",
     "protokollKopiert": "Registro copiado.",
-    "diagnoseHinweis": "El registro se queda en este dispositivo. Anota procesos, tiempos y errores, sin contenido: ni notas, ni transcripciones, ni mensajes, ni claves."
+    "diagnoseHinweis": "El registro se queda en este dispositivo. Anota procesos, tiempos y errores, sin contenido: ni notas, ni transcripciones, ni mensajes, ni claves.",
+    "modell_parakeet": "Reconoce 25 idiomas europeos por sí mismo, con puntuación; en pruebas"
   },
   "appLink": {
     "title": "Abrir en la aplicación covey",

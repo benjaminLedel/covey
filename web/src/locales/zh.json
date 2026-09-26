@@ -2575,7 +2575,8 @@
     "protokollKopieren": "复制日志",
     "protokollLoeschen": "删除日志",
     "protokollKopiert": "日志已复制。",
-    "diagnoseHinweis": "日志保存在此设备上。它只记录操作过程、耗时和错误，不含任何内容：没有笔记、转写、消息或密钥。"
+    "diagnoseHinweis": "日志保存在此设备上。它只记录操作过程、耗时和错误，不含任何内容：没有笔记、转写、消息或密钥。",
+    "modell_parakeet": "可自动识别 25 种欧洲语言，并加标点；测试中"
   },
   "appLink": {
     "title": "在 covey 应用中打开",

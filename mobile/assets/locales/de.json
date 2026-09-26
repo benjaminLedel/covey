@@ -68,6 +68,7 @@
   "mobile.modellWahlHinweis": "Größere Modelle erkennen genauer, brauchen aber mehr Speicher und reagieren auf dem Telefon langsamer.",
   "mobile.modell_base": "Ausgewogen",
   "mobile.modell_medium": "Am genauesten, auf dem Telefon langsam",
+  "mobile.modell_parakeet": "Erkennt 25 europäische Sprachen selbst, mit Satzzeichen; im Test",
   "mobile.modell_small": "Genauer, braucht mehr Zeit und Speicher",
   "mobile.modell_tiny": "Am schnellsten, am ungenauesten",
   "mobile.neu": "Neu",

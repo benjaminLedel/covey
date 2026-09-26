@@ -42,7 +42,7 @@ func NewSet(def string, allowed []string, dataDir string, log *slog.Logger) (*Se
 	}
 	set.Names = names
 	slices.SortFunc(set.Names, func(a, b string) int {
-		switch da, db := Models[a].Size, Models[b].Size; {
+		switch da, db := Models[a].Size(), Models[b].Size(); {
 		case da < db:
 			return -1
 		case da > db:

@@ -2575,7 +2575,8 @@
     "protokollKopieren": "Copia il log",
     "protokollLoeschen": "Elimina il log",
     "protokollKopiert": "Log copiato.",
-    "diagnoseHinweis": "Il log resta su questo dispositivo. Registra operazioni, tempi ed errori, nessun contenuto: niente note, trascrizioni, messaggi o chiavi."
+    "diagnoseHinweis": "Il log resta su questo dispositivo. Registra operazioni, tempi ed errori, nessun contenuto: niente note, trascrizioni, messaggi o chiavi.",
+    "modell_parakeet": "Riconosce da solo 25 lingue europee, con punteggiatura; in prova"
   },
   "appLink": {
     "title": "Apri nell'app covey",

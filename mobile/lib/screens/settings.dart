@@ -324,7 +324,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(32, 8, 32, 0),
-            child: Text(context.t('mobile.sprachHinweis'), style: small),
+            child: Text(
+              // The model's licence asks to be named with it (#353).
+              [context.t('mobile.sprachHinweis'), ?_model.info?.credit].join('\n'),
+              style: small,
+            ),
           ),
 
           SectionTitle(context.t('mobile.diagnose')),

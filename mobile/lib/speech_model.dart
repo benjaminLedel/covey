@@ -119,8 +119,8 @@ class SpeechModel extends ChangeNotifier {
       info = i;
       problem = i.enabled ? null : SpeechModelProblem.off;
       if (i.enabled) {
-        final f = File('${(await _dir()).path}/${i.sha256}.bin');
-        _path = await f.exists() && await f.length() == i.size ? f.path : null;
+        final d = Directory('${(await _dir()).path}/${i.sha256}');
+        _path = await _complete(d, i) ? d.path : null;
       }
     } on ApiException catch (e) {
       problem = SpeechModelProblem.failed;
@@ -178,11 +178,11 @@ class SpeechModel extends ChangeNotifier {
     this.info = info;
     if (!info.enabled) return _fail(SpeechModelProblem.off, null);
 
-    final dir = await _dir();
+    final root = await _dir();
+    final dir = Directory('${root.path}/${info.sha256}');
     await dir.create(recursive: true);
-    final file = File('${dir.path}/${info.sha256}.bin');
-    if (await file.exists() && await file.length() == info.size) {
-      _path = file.path;
+    if (await _complete(dir, info)) {
+      _path = dir.path;
       notifyListeners();
       return _path;
     }
@@ -210,26 +210,35 @@ class SpeechModel extends ChangeNotifier {
       return _fail(info.error == null ? SpeechModelProblem.notReady : SpeechModelProblem.failed, info.error);
     }
 
-    final part = File('${file.path}.part');
-    diag('speech', 'downloading ${info.name}, ${info.size} bytes');
+    diag('speech', 'downloading ${info.name}, ${info.size} bytes in ${info.files.length} files');
     downloading = true;
     total = info.size;
-    received = await part.exists() ? await part.length() : 0;
+    received = 0;
     notifyListeners();
     try {
-      await _download(api, info.name, part);
-      final sum = await Isolate.run(() => _sha256(part.path));
-      if (sum != info.sha256) {
-        await part.delete();
-        return _fail(SpeechModelProblem.failed, 'sha256 $sum');
+      for (final f in info.files) {
+        final done = File('${dir.path}/${f.name}');
+        if (await done.exists() && await done.length() == f.size) {
+          received += f.size;
+          continue;
+        }
+        final part = File('${done.path}.part');
+        final had = await part.exists() ? await part.length() : 0;
+        received += had;
+        await _download(api, info.name, f, part, had);
+        final sum = await Isolate.run(() => _sha256(part.path));
+        if (sum != f.sha256) {
+          await part.delete();
+          return _fail(SpeechModelProblem.failed, '${f.name}: sha256 $sum');
+        }
+        await part.rename(done.path);
       }
-      await part.rename(file.path);
       diag('speech', '${info.name} verified and kept');
       // Whatever model came before is not needed any more.
-      await for (final f in dir.list()) {
-        if (f.path != file.path && f is File && !f.path.endsWith('.part')) await f.delete();
+      await for (final e in root.list()) {
+        if (e.path != dir.path) await e.delete(recursive: true);
       }
-      _path = file.path;
+      _path = dir.path;
       return _path;
     } on ApiException catch (e) {
       return _fail(e.status == 503 ? SpeechModelProblem.notReady : SpeechModelProblem.failed, e.message);
@@ -241,17 +250,29 @@ class SpeechModel extends ChangeNotifier {
     }
   }
 
-  Future<void> _download(CoveyApi api, String name, File part) async {
-    if (received >= total) {
+  /// Whether every file of the model lies in [dir] at its full size. The
+  /// digests were checked when the files arrived.
+  Future<bool> _complete(Directory dir, SpeechModelInfo info) async {
+    if (info.files.isEmpty) return false;
+    for (final f in info.files) {
+      final file = File('${dir.path}/${f.name}');
+      if (!await file.exists() || await file.length() != f.size) return false;
+    }
+    return true;
+  }
+
+  Future<void> _download(CoveyApi api, String name, SpeechModelFile f, File part, int had) async {
+    if (had >= f.size) {
       // A complete leftover: nothing to fetch, the digest decides.
       return;
     }
-    final res = await api.speechModelFile(name: name, from: received);
-    if (res.statusCode == 200 && received > 0) {
+    final res = await api.speechModelFile(name: name, file: f.name, from: had);
+    if (res.statusCode == 200 && had > 0) {
       // The instance ignored the range: start over.
-      received = 0;
+      received -= had;
+      had = 0;
     }
-    final sink = part.openWrite(mode: received > 0 ? FileMode.append : FileMode.write);
+    final sink = part.openWrite(mode: had > 0 ? FileMode.append : FileMode.write);
     try {
       await for (final chunk in res.stream) {
         sink.add(chunk);
@@ -262,6 +283,16 @@ class SpeechModel extends ChangeNotifier {
       await sink.close();
     }
   }
+
+  /// The model's file for an engine that takes a single one (whisper.cpp).
+  String? get singleFile {
+    final p = _path;
+    final files = info?.files ?? const [];
+    return p == null || files.isEmpty ? null : '$p/${files.first.name}';
+  }
+
+  /// Which recogniser the model in use is for.
+  String get engine => info?.engine ?? 'whisper';
 
   String? _fail(SpeechModelProblem p, String? d) {
     diag('speech', 'model not available: ${p.name}${d == null ? '' : ' · $d'}');

@@ -2575,7 +2575,8 @@
     "protokollKopieren": "Protokoll kopieren",
     "protokollLoeschen": "Protokoll löschen",
     "protokollKopiert": "Protokoll kopiert.",
-    "diagnoseHinweis": "Das Protokoll bleibt auf diesem Gerät. Es hält Abläufe, Zeiten und Fehler fest, keine Inhalte: keine Notizen, keine Transkripte, keine Nachrichten, keine Schlüssel."
+    "diagnoseHinweis": "Das Protokoll bleibt auf diesem Gerät. Es hält Abläufe, Zeiten und Fehler fest, keine Inhalte: keine Notizen, keine Transkripte, keine Nachrichten, keine Schlüssel.",
+    "modell_parakeet": "Erkennt 25 europäische Sprachen selbst, mit Satzzeichen; im Test"
   },
   "appLink": {
     "title": "In der covey-App öffnen",

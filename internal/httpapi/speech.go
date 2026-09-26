@@ -19,10 +19,15 @@ func modelState(st *speech.Store) map[string]any {
 	ready, fetching, lastErr := st.Status()
 	out := map[string]any{
 		"name":     st.Model.Name,
-		"sha256":   st.Model.SHA256,
-		"size":     st.Model.Size,
+		"engine":   st.Model.Engine,
+		"sha256":   st.Model.Digest(),
+		"size":     st.Model.Size(),
+		"files":    st.Model.Files,
 		"ready":    ready,
 		"fetching": fetching,
+	}
+	if st.Model.Credit != "" {
+		out["credit"] = st.Model.Credit
 	}
 	if fetching {
 		out["received"] = st.Received()
@@ -66,9 +71,9 @@ func (s *Server) handleSpeechModel(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, body)
 }
 
-// handleSpeechModelFile serves a verified model (?name=, default the
-// default). Ranges are honoured (http.ServeContent), so an interrupted
-// download on a phone resumes.
+// handleSpeechModelFile serves one file of a verified model (?name=,
+// default the default; ?file=, default its only file). Ranges are honoured
+// (http.ServeContent), so an interrupted download on a phone resumes.
 func (s *Server) handleSpeechModelFile(w http.ResponseWriter, r *http.Request) {
 	if s.Speech == nil {
 		writeErr(w, http.StatusNotFound, "speech recognition is off on this instance")
@@ -85,7 +90,15 @@ func (s *Server) handleSpeechModelFile(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusServiceUnavailable, "the speech model is not ready yet")
 		return
 	}
-	f, err := os.Open(st.Path())
+	file, ok := st.Model.File(r.URL.Query().Get("file"))
+	if !ok && r.URL.Query().Get("file") == "" && len(st.Model.Files) == 1 {
+		file, ok = st.Model.Files[0], true
+	}
+	if !ok {
+		writeErr(w, http.StatusNotFound, "no such file in this model")
+		return
+	}
+	f, err := os.Open(st.Path(file.Name))
 	if err != nil {
 		mapErr(w, err)
 		return
@@ -97,7 +110,7 @@ func (s *Server) handleSpeechModelFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Header().Set("ETag", strconv.Quote(st.Model.SHA256))
+	w.Header().Set("ETag", strconv.Quote(file.SHA256))
 	w.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
 	http.ServeContent(w, r, "", fi.ModTime(), f)
 }

@@ -2575,7 +2575,8 @@
     "protokollKopieren": "ログをコピー",
     "protokollLoeschen": "ログを削除",
     "protokollKopiert": "ログをコピーしました。",
-    "diagnoseHinweis": "ログはこの端末に保存されます。動作・時間・エラーのみを記録し、メモ、文字起こし、メッセージ、キーなどの内容は含みません。"
+    "diagnoseHinweis": "ログはこの端末に保存されます。動作・時間・エラーのみを記録し、メモ、文字起こし、メッセージ、キーなどの内容は含みません。",
+    "modell_parakeet": "ヨーロッパの25言語を自動で認識し、句読点も付けます（テスト中）"
   },
   "appLink": {
     "title": "covey アプリで開く",

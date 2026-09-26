@@ -18,7 +18,7 @@ func TestSpeechModelIsServedOnlyOnceVerified(t *testing.T) {
 	weights := []byte("whisper weights")
 	sum := sha256.Sum256(weights)
 	store := &speech.Store{
-		Model: speech.Model{Name: "test", URL: "http://127.0.0.1:1/unreachable", SHA256: hex.EncodeToString(sum[:]), Size: int64(len(weights))},
+		Model: speech.Model{Name: "test", Engine: "whisper", Files: []speech.File{{Name: "model.bin", URL: "http://127.0.0.1:1/unreachable", SHA256: hex.EncodeToString(sum[:]), Size: int64(len(weights))}}},
 		Dir:   t.TempDir(),
 	}
 	s := &Server{Speech: speech.SetOf(store)}
@@ -61,7 +61,7 @@ func TestSpeechModelIsServedOnlyOnceVerified(t *testing.T) {
 	// An operator places the file: the next ask verifies and serves it,
 	// resumably.
 	settle()
-	if err := os.WriteFile(store.Path(), weights, 0o644); err != nil {
+	if err := os.WriteFile(store.Path("model.bin"), weights, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	_ = info()
@@ -94,7 +94,9 @@ func TestSpeechModelsAreListedAndPickedByName(t *testing.T) {
 	// Asking about a model starts its fetch: nowhere, in a test.
 	for _, n := range set.Names {
 		st, _ := set.Get(n)
-		st.Model.URL = "http://127.0.0.1:1/unreachable"
+		for i := range st.Model.Files {
+			st.Model.Files[i].URL = "http://127.0.0.1:1/unreachable"
+		}
 	}
 	s := &Server{Speech: set}
 	get := func(q string) (int, map[string]any) {
@@ -116,7 +118,7 @@ func TestSpeechModelsAreListedAndPickedByName(t *testing.T) {
 	if strings.Join(names, ",") != "tiny,base,small" {
 		t.Fatalf("models = %v, want smallest first", names)
 	}
-	if _, small := get("?name=small"); small["name"] != "small" || small["size"] != float64(speech.Models["small"].Size) {
+	if _, small := get("?name=small"); small["name"] != "small" || small["size"] != float64(speech.Models["small"].Size()) {
 		t.Fatalf("small = %v", small)
 	}
 	if code, _ := get("?name=medium"); code != http.StatusNotFound {

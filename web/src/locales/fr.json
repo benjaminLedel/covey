@@ -2575,7 +2575,8 @@
     "protokollKopieren": "Copier le journal",
     "protokollLoeschen": "Supprimer le journal",
     "protokollKopiert": "Journal copié.",
-    "diagnoseHinweis": "Le journal reste sur cet appareil. Il consigne les opérations, les durées et les erreurs, sans contenu : ni notes, ni transcriptions, ni messages, ni clés."
+    "diagnoseHinweis": "Le journal reste sur cet appareil. Il consigne les opérations, les durées et les erreurs, sans contenu : ni notes, ni transcriptions, ni messages, ni clés.",
+    "modell_parakeet": "Reconnaît seul 25 langues européennes, avec ponctuation ; en test"
   },
   "appLink": {
     "title": "Ouvrir dans l'application covey",

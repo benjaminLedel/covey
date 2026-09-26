@@ -2575,7 +2575,8 @@
     "protokollKopieren": "Copiar o registo",
     "protokollLoeschen": "Apagar o registo",
     "protokollKopiert": "Registo copiado.",
-    "diagnoseHinweis": "O registo fica neste dispositivo. Regista operações, tempos e erros, sem conteúdo: sem notas, transcrições, mensagens nem chaves."
+    "diagnoseHinweis": "O registo fica neste dispositivo. Regista operações, tempos e erros, sem conteúdo: sem notas, transcrições, mensagens nem chaves.",
+    "modell_parakeet": "Reconhece sozinho 25 línguas europeias, com pontuação; em teste"
   },
   "appLink": {
     "title": "Abrir na aplicação covey",

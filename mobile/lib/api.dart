@@ -247,8 +247,12 @@ class CoveyApi {
   /// The model file, from byte [from] on — a download cut off by a lost
   /// connection resumes rather than starting the 150 MB again. No timeout on
   /// the body: it takes as long as the network takes.
-  Future<http.StreamedResponse> speechModelFile({String? name, int from = 0}) async {
-    final path = name == null ? '/speech/model/file' : '/speech/model/file?name=${Uri.encodeQueryComponent(name)}';
+  Future<http.StreamedResponse> speechModelFile({String? name, String? file, int from = 0}) async {
+    final q = [
+      if (name != null) 'name=${Uri.encodeQueryComponent(name)}',
+      if (file != null) 'file=${Uri.encodeQueryComponent(file)}',
+    ];
+    final path = q.isEmpty ? '/speech/model/file' : '/speech/model/file?${q.join('&')}';
     final req = http.Request('GET', _url(path))
       ..headers.addAll({..._headers, 'Accept': 'application/octet-stream', if (from > 0) 'Range': 'bytes=$from-'});
     final http.StreamedResponse res;
@@ -286,6 +290,9 @@ class SpeechModelInfo {
     this.error,
     this.defaultName = '',
     this.models = const [],
+    this.engine = 'whisper',
+    this.credit,
+    this.files = const [],
   });
 
   factory SpeechModelInfo.fromJson(Map<String, dynamic> j) => SpeechModelInfo(
@@ -317,4 +324,23 @@ class SpeechModelInfo {
   /// The instance's default model.
   final String defaultName;
   final List<SpeechModelInfo> models;
+
+  /// Which recogniser runs it: `whisper` (whisper.cpp) or `parakeet`
+  /// (sherpa-onnx, #353).
+  final String engine;
+
+  /// The attribution the model's licence asks for.
+  final String? credit;
+
+  /// The model's files, each pinned by digest.
+  final List<SpeechModelFile> files;
+}
+
+/// One file of a speech model.
+class SpeechModelFile {
+  const SpeechModelFile({required this.name, required this.sha256, required this.size});
+
+  final String name;
+  final String sha256;
+  final int size;
 }

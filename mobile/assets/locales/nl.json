@@ -68,6 +68,7 @@
   "mobile.modellWahlHinweis": "Grotere modellen herkennen nauwkeuriger, maar nemen meer ruimte in en reageren trager op de telefoon.",
   "mobile.modell_base": "Gebalanceerd",
   "mobile.modell_medium": "Het nauwkeurigst, traag op de telefoon",
+  "mobile.modell_parakeet": "Herkent zelf 25 Europese talen, met interpunctie; in test",
   "mobile.modell_small": "Nauwkeuriger, kost meer tijd en ruimte",
   "mobile.modell_tiny": "Snelst, minst nauwkeurig",
   "mobile.neu": "Nieuw",
