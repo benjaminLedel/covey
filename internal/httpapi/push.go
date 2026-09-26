@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -24,6 +25,8 @@ func (s *Server) handleRegisterDevice(w http.ResponseWriter, r *http.Request) {
 		Platform    string `json:"platform"`
 		Environment string `json:"environment"`
 		Lang        string `json:"lang"`
+		// Sound: bot | schar | glas | system | none (#381); empty is bot.
+		Sound string `json:"sound"`
 	}
 	if err := readJSON(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid request")
@@ -36,11 +39,18 @@ func (s *Server) handleRegisterDevice(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "expected token, platform ios|macos and environment production|development")
 		return
 	}
+	if in.Sound == "" {
+		in.Sound = "bot"
+	}
+	if !slices.Contains(append([]string{"system", "none"}, push.Sounds...), in.Sound) {
+		writeErr(w, http.StatusBadRequest, "sound is one of bot, schar, glas, system, none")
+		return
+	}
 	lang := strings.ToLower(strings.TrimSpace(in.Lang))
 	if len(lang) > 2 {
 		lang = lang[:2]
 	}
-	if err := push.Register(r.Context(), s.Pool, p.ID, in.Token, in.Platform, in.Environment, lang); err != nil {
+	if err := push.Register(r.Context(), s.Pool, p.ID, in.Token, in.Platform, in.Environment, lang, in.Sound); err != nil {
 		mapErr(w, err)
 		return
 	}

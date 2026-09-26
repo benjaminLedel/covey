@@ -91,7 +91,10 @@ func (n *Notifier) Round(ctx context.Context) (int, error) {
 			}
 			for _, d := range devices {
 				title, body := Compose(d.lang, ev.kind, ev.name, FirstLine(ev.text, MaxBody), ev.preview)
-				m := Message{Token: d.token, Environment: d.env, Title: title, Body: body, Badge: badge, AgentID: ev.agentID.String()}
+				m := Message{
+					Token: d.token, Environment: d.env, Title: title, Body: body, Badge: badge,
+					AgentID: ev.agentID.String(), Sound: SoundFor(d.sound, ev.kind),
+				}
 				switch err := n.Sender.Send(ctx, m); {
 				case errors.Is(err, ErrGone):
 					_, _ = n.Pool.Exec(ctx, `DELETE FROM push_devices WHERE token=$1`, d.token)
@@ -229,10 +232,10 @@ func (n *Notifier) recipients(ctx context.Context, ev event) ([]uuid.UUID, error
 	return out, rows.Err()
 }
 
-type device struct{ token, env, lang string }
+type device struct{ token, env, lang, sound string }
 
 func (n *Notifier) devices(ctx context.Context, human uuid.UUID) ([]device, error) {
-	rows, err := n.Pool.Query(ctx, `SELECT token, environment, lang FROM push_devices WHERE human_id=$1`, human)
+	rows, err := n.Pool.Query(ctx, `SELECT token, environment, lang, sound FROM push_devices WHERE human_id=$1`, human)
 	if err != nil {
 		return nil, err
 	}
@@ -240,7 +243,7 @@ func (n *Notifier) devices(ctx context.Context, human uuid.UUID) ([]device, erro
 	var out []device
 	for rows.Next() {
 		var d device
-		if err := rows.Scan(&d.token, &d.env, &d.lang); err != nil {
+		if err := rows.Scan(&d.token, &d.env, &d.lang, &d.sound); err != nil {
 			return nil, err
 		}
 		out = append(out, d)
@@ -250,12 +253,12 @@ func (n *Notifier) devices(ctx context.Context, human uuid.UUID) ([]device, erro
 
 // Register keeps a device's token for the person; a token that moves to
 // another seat (a shared phone, somebody signed in anew) goes with it.
-func Register(ctx context.Context, pool *pgxpool.Pool, human uuid.UUID, token, platform, env, lang string) error {
-	_, err := pool.Exec(ctx, `INSERT INTO push_devices (token, human_id, platform, environment, lang)
-		VALUES ($1, $2, $3, $4, $5)
+func Register(ctx context.Context, pool *pgxpool.Pool, human uuid.UUID, token, platform, env, lang, sound string) error {
+	_, err := pool.Exec(ctx, `INSERT INTO push_devices (token, human_id, platform, environment, lang, sound)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (token) DO UPDATE SET human_id = excluded.human_id, platform = excluded.platform,
-		    environment = excluded.environment, lang = excluded.lang, seen_at = now()`,
-		token, human, platform, env, lang)
+		    environment = excluded.environment, lang = excluded.lang, sound = excluded.sound, seen_at = now()`,
+		token, human, platform, env, lang, sound)
 	return err
 }
 

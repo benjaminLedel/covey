@@ -54,6 +54,9 @@ func TestAnAnswerReachesThePhone(t *testing.T) {
 	admin.expect(http.MethodPost, "/api/v1/me/push/devices", map[string]any{
 		"token": "bad/token", "platform": "ios", "environment": "development",
 	}, http.StatusBadRequest)
+	admin.expect(http.MethodPost, "/api/v1/me/push/devices", map[string]any{
+		"token": "tok-a", "platform": "ios", "environment": "development", "sound": "../../x",
+	}, http.StatusBadRequest)
 
 	round := func() []push.Message {
 		t.Helper()
@@ -75,6 +78,9 @@ func TestAnAnswerReachesThePhone(t *testing.T) {
 	if len(got) != 1 || got[0].Token != "tok-a" || got[0].Environment != "development" {
 		t.Fatalf("one notification to the person who wrote: %+v", got)
 	}
+	if got[0].Sound != "covey-bot-answer.caf" {
+		t.Fatalf("the bot's answer is the default sound (#381): %q", got[0].Sound)
+	}
 	if got[0].Body != "" || got[0].Title == "" || got[0].AgentID != agent.ID.String() || got[0].Badge != 1 {
 		t.Fatalf("without preview no content, in German, the badge is the unread count: %+v", got[0])
 	}
@@ -87,9 +93,15 @@ func TestAnAnswerReachesThePhone(t *testing.T) {
 	if _, err := store.Add(ctx, agent.OrgID, agent.ID, "agent", "**Erledigt:** Beleg abgelegt.", false); err != nil {
 		t.Fatal(err)
 	}
+	admin.expect(http.MethodPost, "/api/v1/me/push/devices", map[string]any{
+		"token": "tok-a", "platform": "ios", "environment": "development", "lang": "de", "sound": "glas",
+	}, http.StatusNoContent)
 	got = round()
 	if len(got) != 1 || got[0].Body != "Erledigt: Beleg abgelegt." {
 		t.Fatalf("with preview the first line is the body: %+v", got)
+	}
+	if got[0].Sound != "covey-glas-answer.caf" {
+		t.Fatalf("the chosen family: %q", got[0].Sound)
 	}
 
 	// Read first, then nothing is pushed.

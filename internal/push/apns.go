@@ -89,15 +89,11 @@ func (a *APNs) Send(ctx context.Context, m Message) error {
 	if m.Body != "" {
 		alert["body"] = m.Body
 	}
-	payload, _ := json.Marshal(map[string]any{
-		"aps": map[string]any{
-			"alert":     alert,
-			"badge":     m.Badge,
-			"sound":     "default",
-			"thread-id": m.AgentID,
-		},
-		"agent_id": m.AgentID,
-	})
+	aps := map[string]any{"alert": alert, "badge": m.Badge, "thread-id": m.AgentID}
+	if m.Sound != "" {
+		aps["sound"] = m.Sound
+	}
+	payload, _ := json.Marshal(map[string]any{"aps": aps, "agent_id": m.AgentID})
 	bearer, err := a.bearer()
 	if err != nil {
 		return err

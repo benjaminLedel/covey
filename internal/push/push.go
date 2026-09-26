@@ -16,6 +16,7 @@ package push
 import (
 	"context"
 	"errors"
+	"regexp"
 	"strings"
 )
 
@@ -29,7 +30,33 @@ type Message struct {
 	// AgentID is the thread a tap opens, and the thread notifications are
 	// grouped under.
 	AgentID string `json:"agent_id"`
+	// Sound is a file in the app's bundle, "default", or empty for none
+	// (#381).
+	Sound string `json:"sound,omitempty"`
 }
+
+// Sounds are the families a device can choose, besides "system" and "none".
+var Sounds = []string{"bot", "schar", "glas"}
+
+// SoundFor is the file a notification of kind plays for a device that chose
+// pref: covey-<family>-<kind>.caf from the app's bundle, the system's
+// sound, or none.
+func SoundFor(pref, kind string) string {
+	switch pref {
+	case "system":
+		return "default"
+	case "none":
+		return ""
+	}
+	for _, f := range Sounds {
+		if f == pref {
+			return "covey-" + f + "-" + kind + ".caf"
+		}
+	}
+	return "covey-bot-" + kind + ".caf"
+}
+
+var soundName = regexp.MustCompile(`^(default|covey-(bot|schar|glas)-(question|answer|result|error)\.caf)?$`)
 
 // Limits a relay enforces, and a sender keeps to.
 const (
@@ -60,7 +87,7 @@ func (m Message) Valid() bool {
 	return m.Token != "" && len(m.Token) <= 200 &&
 		(m.Environment == "production" || m.Environment == "development") &&
 		m.Title != "" && len([]rune(m.Title)) <= MaxTitle && len([]rune(m.Body)) <= MaxBody &&
-		m.Badge >= 0 && m.Badge < 100000 && len(m.AgentID) <= 64
+		m.Badge >= 0 && m.Badge < 100000 && len(m.AgentID) <= 64 && soundName.MatchString(m.Sound)
 }
 
 // FirstLine is the start of a text as a list shows it: one line, at most n

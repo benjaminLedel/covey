@@ -117,3 +117,21 @@ func TestComposeSaysWhoAndWhat(t *testing.T) {
 		t.Fatalf("ja: %q", title)
 	}
 }
+
+func TestSoundsAreNamesFromTheBundle(t *testing.T) {
+	for pref, want := range map[string]string{
+		"bot": "covey-bot-question.caf", "glas": "covey-glas-question.caf", "system": "default", "none": "", "?": "covey-bot-question.caf",
+	} {
+		if got := SoundFor(pref, "question"); got != want {
+			t.Errorf("%s: %q, want %q", pref, got, want)
+		}
+	}
+	ok := Message{Token: "t", Environment: "production", Title: "x", Sound: "covey-schar-error.caf"}
+	if !ok.Valid() {
+		t.Fatal("a bundle sound is valid")
+	}
+	ok.Sound = "../../etc/passwd"
+	if ok.Valid() {
+		t.Fatal("a relay takes only the app's own sound names")
+	}
+}
