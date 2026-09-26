@@ -25,6 +25,7 @@ import 'suggestions.dart';
 import 'settings.dart';
 import 'team_space.dart';
 import 'thread.dart';
+import '../tour.dart';
 
 /// Two spaces — Team and Notes — and a floating capsule between them, with
 /// the + for capturing beside it (the iOS 26 tab bar and its accessory).
@@ -123,10 +124,22 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  /// Shows the tour (#402), once the home screen it points at stands.
+  void _tour() {
+    if (mounted) unawaited(zeigeTour(context));
+  }
+
   Future<void> _loadMe() async {
     try {
       final me = await widget.api.me();
       if (mounted) setState(() => _me = me);
+      // The tour, the first time this device sees the team (#402).
+      if (me.teamSurface && !await tourGesehen()) {
+        // A callback after the next frame, and that frame asked for: an idle
+        // screen draws none of its own, and the tour would wait for a touch.
+        WidgetsBinding.instance.addPostFrameCallback((_) => _tour());
+        WidgetsBinding.instance.ensureVisualUpdate();
+      }
       // Notifications need a conversation to be about (#379).
       if (mounted && me.teamSurface) unawaited(PushNotices.instance.start(widget.api, Strings.of(context)));
     } catch (e) {
@@ -273,11 +286,15 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
     final isWide = MediaQuery.sizeOf(context).width >= wide;
-    final account = _AccountButton(
-      me: me,
-      api: widget.api,
-      onDisconnect: widget.onDisconnect,
-      onChanged: (m) => setState(() => _me = m),
+    final account = TourAnker(
+      id: 'person',
+      child: _AccountButton(
+        me: me,
+        api: widget.api,
+        onDisconnect: widget.onDisconnect,
+        onChanged: (m) => setState(() => _me = m),
+        onTour: _tour,
+      ),
     );
     final actions = isWide ? const <Widget>[] : [account];
     final spaces = <({IconData icon, String label, Widget body})>[
@@ -329,6 +346,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final officeIndex = me.teamSurface && officeSpace ? 1 : -1;
     final body = IndexedStack(index: space, children: [for (final s in spaces) s.body]);
     final capsule = [for (final s in spaces) (icon: s.icon, label: s.label)];
+    // What the tour points at (#402), in the order of `spaces`.
+    final anker = <String?>[if (me.teamSurface) 'team', if (me.teamSurface && officeSpace) null, 'notes'];
 
     if (isWide) {
       return Scaffold(
@@ -345,6 +364,7 @@ class _HomeScreenState extends State<HomeScreen> {
               onSelect: (i) => setState(() => _space = i),
               onAdd: () => _capture(notesIndex),
               account: account,
+              anker: anker,
             ),
             const VerticalDivider(width: 0.6),
             // The panes right of the sidebar are clear of the traffic lights.
@@ -398,6 +418,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 onSelect: (i) => setState(() => _space = i),
                 onAdd: () => _capture(notesIndex),
                 addLabel: context.t('mobile.neu'),
+                anker: anker,
               ),
             ),
           ),
@@ -410,7 +431,13 @@ class _HomeScreenState extends State<HomeScreen> {
 /// The person, as initials in a circle at the top right: the way into the
 /// settings (#349) — who is signed in where, speech recognition, the way out.
 class _AccountButton extends StatelessWidget {
-  const _AccountButton({required this.me, required this.api, required this.onDisconnect, required this.onChanged});
+  const _AccountButton({
+    required this.me,
+    required this.api,
+    required this.onDisconnect,
+    required this.onChanged,
+    required this.onTour,
+  });
 
   final Me me;
   final CoveyApi api;
@@ -418,10 +445,12 @@ class _AccountButton extends StatelessWidget {
 
   /// The seat after a change made in the settings — a new photo (#377).
   final ValueChanged<Me> onChanged;
+  final VoidCallback onTour;
 
   void _open(BuildContext context) => Navigator.of(context).push(
     MaterialPageRoute<void>(
-      builder: (_) => SettingsScreen(api: api, me: me, onDisconnect: onDisconnect, onChanged: onChanged),
+      builder: (_) =>
+          SettingsScreen(api: api, me: me, onDisconnect: onDisconnect, onChanged: onChanged, onTour: onTour),
     ),
   );
 
@@ -454,9 +483,13 @@ class _Sidebar extends StatelessWidget {
     required this.onSelect,
     required this.onAdd,
     required this.account,
+    this.anker = const [],
   });
 
   final List<({IconData icon, String label, ValueListenable<int>? badge})> spaces;
+
+  /// The tour's name for each space, by index (#402); null: none.
+  final List<String?> anker;
   final int selected;
   final ValueChanged<int> onSelect;
   final VoidCallback onAdd;
@@ -487,21 +520,27 @@ class _Sidebar extends StatelessWidget {
               for (var i = 0; i < spaces.length; i++)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 6),
-                  child: _RailItem(
-                    icon: spaces[i].icon,
-                    label: spaces[i].label,
-                    selected: i == selected,
-                    badge: spaces[i].badge,
-                    onTap: () => onSelect(i),
+                  child: TourAnker(
+                    id: (i < anker.length ? anker[i] : null) ?? 'space-$i',
+                    child: _RailItem(
+                      icon: spaces[i].icon,
+                      label: spaces[i].label,
+                      selected: i == selected,
+                      badge: spaces[i].badge,
+                      onTap: () => onSelect(i),
+                    ),
                   ),
                 ),
               const SizedBox(height: 6),
-              _RailItem(
-                icon: AppIcons.add.of(context),
-                label: context.t('mobile.neu'),
-                selected: false,
-                accent: true,
-                onTap: onAdd,
+              TourAnker(
+                id: 'plus',
+                child: _RailItem(
+                  icon: AppIcons.add.of(context),
+                  label: context.t('mobile.neu'),
+                  selected: false,
+                  accent: true,
+                  onTap: onAdd,
+                ),
               ),
               const Spacer(),
               account,

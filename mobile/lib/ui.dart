@@ -6,6 +6,7 @@ import 'chrome.dart';
 import 'icons.dart';
 import 'mark.dart';
 import 'theme.dart';
+import 'tour.dart';
 
 /// Room the floating capsule needs at the bottom of every space.
 const capsuleClearance = 112.0;
@@ -292,9 +293,13 @@ class SpaceCapsule extends StatelessWidget {
     required this.onSelect,
     required this.onAdd,
     required this.addLabel,
+    this.anker = const [],
   });
 
   final List<({IconData icon, String label})> spaces;
+
+  /// The tour's name for each space, by index (#402); null: none.
+  final List<String?> anker;
   final int selected;
   final ValueChanged<int> onSelect;
   final VoidCallback onAdd;
@@ -314,11 +319,14 @@ class SpaceCapsule extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   for (var i = 0; i < spaces.length; i++)
-                    _CapsuleItem(
-                      icon: spaces[i].icon,
-                      label: spaces[i].label,
-                      selected: i == selected,
-                      onTap: () => onSelect(i),
+                    _mitAnker(
+                      i < anker.length ? anker[i] : null,
+                      _CapsuleItem(
+                        icon: spaces[i].icon,
+                        label: spaces[i].label,
+                        selected: i == selected,
+                        onTap: () => onSelect(i),
+                      ),
                     ),
                 ],
               ),
@@ -326,16 +334,19 @@ class SpaceCapsule extends StatelessWidget {
           ),
           const SizedBox(width: 10),
         ],
-        Semantics(
-          button: true,
-          label: addLabel,
-          child: Glass(
-            child: SizedBox.square(
-              dimension: 58,
-              child: IconButton(
-                onPressed: onAdd,
-                tooltip: addLabel,
-                icon: Icon(AppIcons.add.of(context), size: 30, color: c.textAccent),
+        TourAnker(
+          id: 'plus',
+          child: Semantics(
+            button: true,
+            label: addLabel,
+            child: Glass(
+              child: SizedBox.square(
+                dimension: 58,
+                child: IconButton(
+                  onPressed: onAdd,
+                  tooltip: addLabel,
+                  icon: Icon(AppIcons.add.of(context), size: 30, color: c.textAccent),
+                ),
               ),
             ),
           ),
@@ -344,6 +355,9 @@ class SpaceCapsule extends StatelessWidget {
     );
   }
 }
+
+/// Wraps a child in the tour's anchor when it has a name.
+Widget _mitAnker(String? id, Widget child) => id == null ? child : TourAnker(id: id, child: child);
 
 class _CapsuleItem extends StatelessWidget {
   const _CapsuleItem({required this.icon, required this.label, required this.selected, required this.onTap});

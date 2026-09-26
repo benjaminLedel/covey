@@ -28,7 +28,14 @@ import 'suggestions.dart';
 /// device and the language it listens for, a place to try dictation, and
 /// the way out. Reached from the person's initials.
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key, required this.api, required this.me, required this.onDisconnect, this.onChanged});
+  const SettingsScreen({
+    super.key,
+    required this.api,
+    required this.me,
+    required this.onDisconnect,
+    this.onChanged,
+    this.onTour,
+  });
 
   final CoveyApi api;
   final Me me;
@@ -36,6 +43,10 @@ class SettingsScreen extends StatefulWidget {
 
   /// Told about a change to the seat — a new photo (#377).
   final ValueChanged<Me>? onChanged;
+
+  /// Shows the tour again (#402); the settings close first, so it points at
+  /// the home screen it explains.
+  final VoidCallback? onTour;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -499,6 +510,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(32, 8, 32, 0),
               child: Text(context.t('mobile.nurNotizen'), style: small),
+            ),
+          if (me.teamSurface && widget.onTour != null)
+            InsetGroup(
+              children: [
+                GroupRow(
+                  title: context.t('tour.titel'),
+                  trailing: Icon(AppIcons.chevron.of(context), color: c.textMuted, size: 20),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    widget.onTour!();
+                  },
+                ),
+              ],
             ),
 
           // Notifications (#379): questions, answers, results.

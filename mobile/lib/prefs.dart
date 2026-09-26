@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'diagnostics.dart';
@@ -19,18 +20,37 @@ class Prefs {
   Map<String, String> _values = {};
   Future<void>? _loading;
 
+  /// Set by [inMemory]: no file is read or written.
+  bool _memoryOnly = false;
+
+  /// Keeps the settings in memory only, starting from [values]. For tests,
+  /// where there is no support directory to read, and asking for one before
+  /// the test binding stands never answers.
+  @visibleForTesting
+  void inMemory([Map<String, String> values = const {}]) {
+    _values = Map.of(values);
+    _memoryOnly = true;
+  }
+
   Future<File> _file() async => File('${(await getApplicationSupportDirectory()).path}/prefs.json');
 
-  Future<void> _load() => _loading ??= () async {
-    try {
-      final f = await _file();
-      if (await f.exists()) {
-        _values = (jsonDecode(await f.readAsString()) as Map<String, dynamic>).map((k, v) => MapEntry(k, v as String));
-      }
-    } catch (e) {
-      diag('prefs', 'unreadable, starting empty: $e');
-    }
-  }();
+  // In memory a fresh future each time, made in the caller's zone: one kept
+  // from the zone that set up the test would complete in that zone, which a
+  // test's fake clock never runs.
+  Future<void> _load() => _memoryOnly
+      ? Future.value()
+      : _loading ??= () async {
+          try {
+            final f = await _file();
+            if (await f.exists()) {
+              _values = (jsonDecode(await f.readAsString()) as Map<String, dynamic>).map(
+                (k, v) => MapEntry(k, v as String),
+              );
+            }
+          } catch (e) {
+            diag('prefs', 'unreadable, starting empty: $e');
+          }
+        }();
 
   Future<String?> read(String key) async {
     await _load();
@@ -44,6 +64,7 @@ class Prefs {
     } else {
       _values[key] = value;
     }
+    if (_memoryOnly) return;
     try {
       final f = await _file();
       await f.parent.create(recursive: true);
