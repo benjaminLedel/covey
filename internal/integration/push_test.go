@@ -136,3 +136,47 @@ func adminID(t *testing.T, s *stack) (id [16]byte) {
 	}
 	return id
 }
+
+// TestAToldResultIsWhatThePhoneSays (#411): with the triage on, a chat task's
+// result is told in the chat before it is pushed — the notification waits for
+// the sentence and carries it, not the report.
+func TestAToldResultIsWhatThePhoneSays(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	agent := s.newSupportAgent("push-erzaehler")
+	admin := teamLogin(t, s)
+	sender := &fakeSender{gone: map[string]bool{}}
+	n := &push.Notifier{Pool: s.pool, Sender: sender, Lag: time.Millisecond}
+	admin.expect(http.MethodPatch, "/api/v1/org/chat-triage", map[string]any{"mode": "on"}, http.StatusOK)
+	admin.expect(http.MethodPatch, "/api/v1/org/push", map[string]any{"preview": true}, http.StatusOK)
+	admin.expect(http.MethodPost, "/api/v1/me/push/devices", map[string]any{
+		"token": "tok-b", "platform": "ios", "environment": "development", "lang": "de",
+	}, http.StatusNoContent)
+	round := func() []push.Message {
+		t.Helper()
+		time.Sleep(20 * time.Millisecond)
+		if _, err := n.Round(ctx); err != nil {
+			t.Fatal(err)
+		}
+		return sender.take()
+	}
+	round()
+
+	task, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Rechnung prüfen", "", "chat:admin@test.local", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE backlog_tasks SET state='done', result='## Ergebnis\n- doppelt gebucht' WHERE id=$1`, task.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got := round(); len(got) != 0 {
+		t.Fatalf("the report went out before it was told: %+v", got)
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE backlog_tasks SET said='Die Rechnung war doppelt gebucht.', said_at=now() WHERE id=$1`, task.ID); err != nil {
+		t.Fatal(err)
+	}
+	got := round()
+	if len(got) != 1 || got[0].Body != "Die Rechnung war doppelt gebucht." {
+		t.Fatalf("the notification carries the sentence: %+v", got)
+	}
+}

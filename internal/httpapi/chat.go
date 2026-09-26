@@ -72,6 +72,11 @@ type chatEntry struct {
 	   draft is the agent page, where hiring already is; there is no hire
 	   action, and the thread does not pretend otherwise. */
 	Drafts []entwurfKurz `json:"drafts,omitempty"`
+	/* On a result or an error: what the agent said about it in the chat
+	   (#411) — a few sentences told from the report, which stays in Text.
+	   The surfaces show this and keep the report one tap away. Empty: not
+	   told (no triage, not yet, or nothing to tell with). */
+	Said string `json:"said,omitempty"`
 }
 
 // entwurfKurz is a drafted colleague as the thread shows it: enough to
@@ -209,6 +214,7 @@ func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 	   is drawn. */
 	q := `WITH RECURSIVE ` + chat.MachineryCTE("agent_id=$1") + `, t AS (
 		SELECT bt.id, bt.title, bt.body, bt.state, bt.origin, bt.result, bt.error, bt.created_at, bt.updated_at,
+		       coalesce(bt.said, '') AS said,
 		       EXISTS (SELECT 1 FROM maschinerie mm WHERE mm.id = bt.id) AS takt
 		FROM backlog_tasks bt
 		WHERE bt.agent_id=$1 AND bt.archived_at IS NULL
@@ -222,34 +228,35 @@ func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 	), alles AS (
 	SELECT CASE WHEN m.author = 'agent' THEN 'answer' ELSE 'message' END AS kind,
 	       m.id AS eid, m.task_id AS tid, coalesce(bt.title, '') AS titel, coalesce(bt.state, '') AS zustand,
-	       m.author AS wer, m.text AS text, m.created_at AS wann
+	       m.author AS wer, m.text AS text, m.created_at AS wann, '' AS gesagt
 	       FROM m LEFT JOIN backlog_tasks bt ON bt.id = m.task_id
 	UNION ALL
 	SELECT 'message', t.id, t.id, t.title, t.state, t.origin,
 	       -- Der Rumpf, nicht Titel plus Rumpf: Die erste Zeile IST der Titel.
 	       CASE WHEN coalesce(t.body,'')='' THEN t.title ELSE t.body END,
-	       t.created_at FROM t
+	       t.created_at, '' FROM t
 	       WHERE NOT t.takt AND NOT EXISTS (SELECT 1 FROM m WHERE m.task_id = t.id)
 	UNION ALL
-	SELECT 'note', n.task_id, n.task_id, t.title, t.state, n.author, n.content, n.created_at
+	SELECT 'note', n.task_id, n.task_id, t.title, t.state, n.author, n.content, n.created_at, ''
 	       FROM task_notes n JOIN t ON t.id = n.task_id
 	       -- Die Notiz der Triage ist Maschinerie, nicht Gespräch: Sie trägt
 	       -- die Nachricht an den laufenden Vorgang weiter, und die Nachricht
 	       -- selbst steht zwei Zeilen darüber.
 	       WHERE NOT t.takt AND n.author NOT LIKE 'triage:%'
 	UNION ALL
-	SELECT 'question', tr.task_id, tr.task_id, t.title, t.state, 'agent', tr.note, tr.created_at
+	SELECT 'question', tr.task_id, tr.task_id, t.title, t.state, 'agent', tr.note, tr.created_at, ''
 	       FROM task_transitions tr JOIN t ON t.id = tr.task_id
 	       WHERE tr.to_state='blocked'
 	UNION ALL
-	SELECT 'result', t.id, t.id, t.title, t.state, 'agent', t.result, t.updated_at
+	SELECT 'result', t.id, t.id, t.title, t.state, 'agent', t.result, t.updated_at, t.said
 	       FROM t WHERE NOT t.takt AND t.state='done' AND coalesce(t.result,'') <> ''
 	UNION ALL
-	SELECT 'error', t.id, t.id, t.title, t.state, 'agent', t.error, t.updated_at
+	SELECT 'error', t.id, t.id, t.title, t.state, 'agent', t.error, t.updated_at, t.said
 	       FROM t WHERE NOT t.takt AND t.state='failed' AND coalesce(t.error,'') <> ''
 	)
-	SELECT kind, eid, tid, titel, zustand, wer, text, wann FROM alles
+	SELECT kind, eid, tid, titel, zustand, wer, text, wann, gesagt FROM alles
 	 WHERE $4 = '' OR text ILIKE '%' || $4 || '%' ESCAPE '\'
+	                OR gesagt ILIKE '%' || $4 || '%' ESCAPE '\'
 	                OR titel ILIKE '%' || $4 || '%' ESCAPE '\'
 	 ORDER BY wann`
 
@@ -269,7 +276,7 @@ func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var e chatEntry
 		if err := rows.Scan(&e.Kind, &e.ID, &e.TaskID, &e.TaskTitle, &e.TaskState,
-			&e.Author, &e.Text, &e.At); err != nil {
+			&e.Author, &e.Text, &e.At, &e.Said); err != nil {
 			mapErr(w, err)
 			return
 		}
@@ -737,6 +744,15 @@ func (s *Server) entscheidungAnwenden(
 	if err != nil {
 		return "", nil, err
 	}
+	/* What a colleague says before going off to do it (#411): a task that
+	   started in silence left the person looking at a background item. The
+	   triage wrote the sentence; a task opened without it (the triage failed,
+	   or the People department's brief) stays quiet as before. */
+	if ack := strings.TrimSpace(entscheidung.Text); ack != "" {
+		if _, err := s.Chat.Add(ctx, orgID, agentID, "agent", ack, false); err != nil {
+			s.Log.Warn("chat: the acknowledgement was not written", "agent", agentID, "err", err)
+		}
+	}
 	return "task", map[string]string{"task_id": t.ID.String()}, nil
 }
 
@@ -844,7 +860,7 @@ func (s *Server) triagieren(ctx context.Context, orgID, agentID uuid.UUID, text 
 	if err != nil || mode != chat.TriageOn {
 		return aufgabe, nil
 	}
-	provider, err := llm.Resolve(ctx, s.Secrets, orgID)
+	provider, err := s.resolveOrgLLM(ctx, orgID)
 	if err != nil {
 		return aufgabe, nil
 	}
@@ -855,7 +871,7 @@ func (s *Server) triagieren(ctx context.Context, orgID, agentID uuid.UUID, text 
 	liste, nach := s.offeneAufgaben(ctx, agentID)
 	fertig := s.fertigeAufgaben(ctx, agentID)
 
-	e, err := chat.Triagieren(ctx, provider, s.rolleVon(ctx, agentID), liste, fertig, verlauf, text)
+	e, err := chat.Triagieren(ctx, provider, s.rolleVon(ctx, agentID), s.seeleVon(ctx, agentID), liste, fertig, verlauf, text)
 	if err != nil {
 		s.Log.Warn("triage failed — the message becomes a task", "agent", agentID, "err", err)
 		return aufgabe, nil
@@ -986,6 +1002,16 @@ func (s *Server) rolleVon(ctx context.Context, agentID uuid.UUID) string {
 		return ""
 	}
 	return beschreibung(a)
+}
+
+// seeleVon is the agent's SOUL.md from its current config (#411): how it
+// talks is written there, not in its title. Empty when it has none.
+func (s *Server) seeleVon(ctx context.Context, agentID uuid.UUID) string {
+	cv, err := s.Registry.CurrentConfig(ctx, agentID)
+	if err != nil {
+		return ""
+	}
+	return cv.Files["SOUL.md"]
 }
 
 func beschreibung(a agents.Agent) string {

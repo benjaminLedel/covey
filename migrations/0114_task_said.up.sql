@@ -1,0 +1,14 @@
+-- What the agent said about a finished task in the conversation (#411).
+--
+-- A task that came from the chat ends with its run's result — a report,
+-- written for the record. The person is told what came out by a second cheap
+-- turn, in a few sentences of chat, and that is kept here: shown in the
+-- thread and in the push notification, with the result one tap away.
+--
+-- NULL: not told yet (or no triage in this organisation). '': there was
+-- nothing to tell with — no model, or it failed — and the result stands on
+-- its own, as before.
+--
+-- said_at is when that happened: the push notification for such a task goes
+-- out then, with the sentence, not when the run ended with the report.
+ALTER TABLE backlog_tasks ADD COLUMN said text, ADD COLUMN said_at timestamptz;

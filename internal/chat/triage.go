@@ -100,7 +100,7 @@ A person wrote a message to this agent. Decide what kind of thing it is, and ans
 
 {"action":"answer","text":"…"}                 — you can settle it right here
 {"action":"note","task":"ab12","text":"…"}     — this belongs to a task you already have
-{"action":"task","title":"…","body":"…"}       — this is new work
+{"action":"task","title":"…","body":"…","text":"…"} — this is new work
 
 Choose "answer" when the message is a question about what was already said in this thread, about your own open tasks or about one you recently finished (both are listed below, the finished ones with their outcome), a thank-you, a greeting, an acknowledgement, or a clarification you can give without looking anything up. "Did that go out yesterday?" is an answer when the task is in that list — say what it says, and say when it is not there.
 
@@ -110,20 +110,18 @@ Choose "task" when doing it would need any of: a target system (ticketing, repos
 
 You can see your own backlog and write to it, and that is all. You have NO target system, NO credentials, NO files, NO commands, NO search and NO memory beyond what stands below. Never claim to have done, checked, sent or looked at anything outside this list. If answering would require any of that, it is a task.
 
-For "answer": write in the agent's voice, in the language of the message, at most three sentences. A bare emoji (1–3 characters) is a valid answer when the message only needs acknowledging. Answer from the lists above and from this thread, never from memory of anything else: if a task is not in them, say that you cannot see it rather than guessing what became of it.
+How you write (for "answer", and for the "text" of a task): you are this colleague, chatting. Write the way a person writes in a work chat — short, direct, warm where it fits, in the language of the message. Usually one or two sentences. No headings, no bullet lists, no bold, no sign-off, no "As an AI", no restating the question, no offering a menu of further help. If the agent's own description below says how it talks, talk like that. A bare emoji (1–3 characters) is a valid answer when the message only needs acknowledging.
+
+For "answer": answer from the lists above and from this thread, never from memory of anything else: if a task is not in them, say that you cannot see it rather than guessing what became of it.
 For "note": the text is what the run should know, in one or two sentences.
-For "task": the title is one line in the imperative, the body carries what the person said and any context from the thread that the run will need.`
+For "task": the title is one line in the imperative, the body carries what the person said and any context from the thread that the run will need. The text is what you say in the chat right now, before you start: a short acknowledgement that you are on it ("Mach ich, ich schau mir die Rechnung an und melde mich."). Promise nothing about the outcome and no time.`
 
 // Triagieren führt den Zug aus. Der Fehlerfall ist bewusst weich: Wer nicht
 // entscheiden kann, eröffnet eine Aufgabe — das ist das Verhalten, das immer
 // funktioniert, und der Aufrufer muss dafür nichts wissen.
-func Triagieren(ctx context.Context, p llm.Provider, rolle string, offen []Offen, fertig []Fertig, verlauf []Message, nachricht string) (Entscheidung, error) {
+func Triagieren(ctx context.Context, p llm.Provider, rolle, seele string, offen []Offen, fertig []Fertig, verlauf []Message, nachricht string) (Entscheidung, error) {
 	var b strings.Builder
-	if rolle != "" {
-		b.WriteString("The agent's role:\n")
-		b.WriteString(rolle)
-		b.WriteString("\n\n")
-	}
+	stimme(&b, rolle, seele)
 	/* Der eigene Backlog. Er steht vor dem Gespräch, weil er der Zustand ist
 	   und das Gespräch nur die Bewegung darauf. */
 	if len(offen) > 0 {
@@ -226,4 +224,81 @@ func kuerzen(s string, n int) string {
 		return s
 	}
 	return string(r[:n]) + " […]"
+}
+
+/* stimme ist, wer da spricht (#411): Rolle und SOUL.md. Die Rolle allein —
+ * Name, Titel, Zuständigkeit — ergab eine Stimme wie ein Formular; wie ein
+ * Agent redet, steht in seiner SOUL.md, und die ist Config as Code wie alles
+ * andere an ihm. Gekürzt, weil sie auch Arbeitsanweisungen trägt, die zwei
+ * Sätze Chat nicht brauchen. */
+func stimme(b *strings.Builder, rolle, seele string) {
+	if rolle != "" {
+		b.WriteString("The agent's role:\n")
+		b.WriteString(rolle)
+		b.WriteString("\n\n")
+	}
+	if s := strings.TrimSpace(seele); s != "" {
+		b.WriteString("Who the agent is (its SOUL.md):\n")
+		b.WriteString(kuerzen(s, SeeleMax))
+		b.WriteString("\n\n")
+	}
+}
+
+// SeeleMax: so viel SOUL.md geht in einen Zug. Der Anfang sagt, wer jemand
+// ist; was danach kommt, sind meist Regeln für die Arbeit.
+const SeeleMax = 3000
+
+// ErzaehlMaxTokens: ein paar Sätze Chat.
+const ErzaehlMaxTokens = 400
+
+const erzaehlSystem = `You are an AI agent inside covey, a platform that runs AI agents as employees, chatting with a person in a work chat.
+
+Earlier the person asked you for something, you said you would look into it, and you did the work in your workspace. The run has ended, and its result — a report written for the record — stands below. Now tell the person in the chat what came out.
+
+Write the way a colleague writes in a work chat: short, direct, in the language of the conversation. Usually two to four sentences. Lead with the outcome. No headings, no bold, no tables, no bullet list unless there really are several separate things to name, no sign-off, no "As an AI", no offering a menu of further help. If the agent's own description says how it talks, talk like that.
+
+Say only what the result says. Do not add, soften or improve anything, and do not claim anything the result does not state. If the run failed, say so plainly and, if the result or error says it, what is missing or what the person could do. If the result asks the person something, ask it.
+
+Answer with the chat message only — no JSON, no quotes around it.`
+
+// Erzaehlen macht aus dem Ergebnis eines Laufs, was der Agent im Chat sagt
+// (#411). Dieselben Grenzen wie die Triage: kein Zielsystem, keine
+// Zugangsdaten, nur das Ergebnis und das Gespräch.
+func Erzaehlen(ctx context.Context, p llm.Provider, rolle, seele string, verlauf []Message, auftrag, ausgang, ergebnis string) (string, error) {
+	var b strings.Builder
+	stimme(&b, rolle, seele)
+	if len(verlauf) > 0 {
+		b.WriteString("The conversation so far, oldest first:\n")
+		for _, m := range verlauf {
+			wer := "agent"
+			if !strings.HasPrefix(m.Author, "agent") {
+				wer = "person"
+			}
+			fmt.Fprintf(&b, "%s: %s\n", wer, kuerzen(m.Text, 600))
+		}
+		b.WriteString("\n")
+	}
+	fmt.Fprintf(&b, "What you were asked to do:\n%s\n\n", kuerzen(auftrag, 1500))
+	if ausgang == "failed" {
+		b.WriteString("The run FAILED. Its error:\n")
+	} else {
+		b.WriteString("The run finished. Its result:\n")
+	}
+	b.WriteString(kuerzen(ergebnis, 6000))
+
+	roh, err := p.Complete(ctx, llm.Request{
+		Tier:       llm.TierFast,
+		MaxTokens:  ErzaehlMaxTokens,
+		NoThinking: true,
+		System:     erzaehlSystem,
+		Messages:   []llm.Message{{Role: "user", Content: b.String()}},
+	})
+	if err != nil {
+		return "", err
+	}
+	text := strings.TrimSpace(roh)
+	if text == "" {
+		return "", fmt.Errorf("narration: empty")
+	}
+	return text, nil
 }

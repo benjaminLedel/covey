@@ -46,12 +46,12 @@ func (s *Store) Threads(ctx context.Context, orgID, humanID uuid.UUID) ([]Thread
 		  FROM task_transitions tr JOIN backlog_tasks t ON t.id = tr.task_id
 		 WHERE t.org_id = $1 AND t.archived_at IS NULL AND tr.to_state = 'blocked'
 		UNION ALL
-		SELECT t.agent_id, t.updated_at, t.result, 'result'
+		SELECT t.agent_id, t.updated_at, coalesce(nullif(t.said, ''), t.result), 'result'
 		  FROM backlog_tasks t
 		 WHERE t.org_id = $1 AND t.archived_at IS NULL AND t.state = 'done' AND coalesce(t.result, '') <> ''
 		   AND t.id NOT IN (SELECT id FROM maschinerie)
 		UNION ALL
-		SELECT t.agent_id, t.updated_at, t.error, 'error'
+		SELECT t.agent_id, t.updated_at, coalesce(nullif(t.said, ''), t.error), 'error'
 		  FROM backlog_tasks t
 		 WHERE t.org_id = $1 AND t.archived_at IS NULL AND t.state = 'failed' AND coalesce(t.error, '') <> ''
 		   AND t.id NOT IN (SELECT id FROM maschinerie)

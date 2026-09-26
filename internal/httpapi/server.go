@@ -35,6 +35,7 @@ import (
 	"covey/internal/guardrails"
 	"covey/internal/homestore"
 	"covey/internal/identity"
+	"covey/internal/llm"
 	"covey/internal/mail"
 	"covey/internal/marketplace"
 	"covey/internal/mediastore"
@@ -68,6 +69,11 @@ type Server struct {
 	/* Das Gespräch. Es liegt neben dem Backlog und nicht darin: Der Backlog
 	   ist das Hauptbuch, das Gespräch der Umschlag (internal/chat). */
 	Chat *chat.Store
+	/* OrgLLM, when set, replaces how the control plane finds an
+	   organisation's model (resolveOrgLLM). For tests, which have no
+	   credential and want to see what the triage and the narration (#411)
+	   do with an answer; nil in production. */
+	OrgLLM func(ctx context.Context, orgID uuid.UUID) (llm.Provider, error)
 	// Media holds a person's media — the pictures in notes (#344). Nil means
 	// the builtin Postgres store. Not Blobs, the home store below.
 	Media mediastore.Store

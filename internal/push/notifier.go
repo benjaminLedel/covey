@@ -151,15 +151,25 @@ func (n *Notifier) claim(ctx context.Context) ([]event, error) {
 		  FROM task_transitions tr JOIN backlog_tasks t ON t.id = tr.task_id
 		 WHERE tr.to_state = 'blocked' AND tr.created_at > $1 AND tr.created_at <= $2
 		UNION ALL
-		SELECT 'result:' || t.id, t.org_id, t.agent_id, t.id, t.updated_at, t.result, 'result'
-		  FROM backlog_tasks t
+		/* With the triage on, a chat task's result is told in the chat
+		   (#411): the notification waits for that and carries the sentence,
+		   not the report. said_at is set even when there was nothing to tell
+		   with, and then the report goes out as before. */
+		SELECT 'result:' || t.id, t.org_id, t.agent_id, t.id,
+		       CASE WHEN o2.chat_triage = 'on' THEN t.said_at ELSE t.updated_at END,
+		       coalesce(nullif(t.said, ''), t.result), 'result'
+		  FROM backlog_tasks t JOIN organizations o2 ON o2.id = t.org_id
 		 WHERE t.state = 'done' AND coalesce(t.result, '') <> '' AND t.origin LIKE 'chat:%'
-		   AND t.updated_at > $1 AND t.updated_at <= $2
+		   AND CASE WHEN o2.chat_triage = 'on' THEN t.said_at ELSE t.updated_at END > $1
+		   AND CASE WHEN o2.chat_triage = 'on' THEN t.said_at ELSE t.updated_at END <= $2
 		UNION ALL
-		SELECT 'error:' || t.id, t.org_id, t.agent_id, t.id, t.updated_at, t.error, 'error'
-		  FROM backlog_tasks t
+		SELECT 'error:' || t.id, t.org_id, t.agent_id, t.id,
+		       CASE WHEN o2.chat_triage = 'on' THEN t.said_at ELSE t.updated_at END,
+		       coalesce(nullif(t.said, ''), t.error), 'error'
+		  FROM backlog_tasks t JOIN organizations o2 ON o2.id = t.org_id
 		 WHERE t.state = 'failed' AND coalesce(t.error, '') <> '' AND t.origin LIKE 'chat:%'
-		   AND t.updated_at > $1 AND t.updated_at <= $2
+		   AND CASE WHEN o2.chat_triage = 'on' THEN t.said_at ELSE t.updated_at END > $1
+		   AND CASE WHEN o2.chat_triage = 'on' THEN t.said_at ELSE t.updated_at END <= $2
 	)
 	SELECT ev.key, ev.org_id, ev.agent_id, ev.task_id, ev.at, ev.text, ev.kind, a.display_name, o.push_preview
 	  FROM ev JOIN agents a ON a.id = ev.agent_id JOIN organizations o ON o.id = ev.org_id

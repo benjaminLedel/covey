@@ -77,6 +77,9 @@ type assistResponse struct {
 // organisation (order and key names live in internal/llm, so that copilot,
 // dream and setup see the same).
 func (s *Server) resolveOrgLLM(ctx context.Context, orgID uuid.UUID) (llm.Provider, error) {
+	if s.OrgLLM != nil {
+		return s.OrgLLM(ctx, orgID)
+	}
 	return llm.Resolve(ctx, s.Secrets, orgID)
 }
 
