@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../chrome.dart';
 import '../api.dart';
 import '../anywhere.dart';
 import '../diagnostics.dart';
@@ -305,7 +306,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         : speechLanguages[lang] ?? lang;
     final small = context.type.bodySmall?.copyWith(color: c.textMuted);
     return Scaffold(
-      appBar: AppBar(title: Text(context.t('mobile.einstellungen'))),
+      appBar: ChromeAppBar(title: Text(context.t('mobile.einstellungen'))),
       body: ListView(
         padding: const EdgeInsets.only(bottom: 40),
         children: [
@@ -484,7 +485,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> {
     final failed = !_d.running && !_d.preparing && _d.failure != null;
     final text = _d.text;
     return Scaffold(
-      appBar: AppBar(title: Text(context.t('mobile.diktatTesten'))),
+      appBar: ChromeAppBar(title: Text(context.t('mobile.diktatTesten'))),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),

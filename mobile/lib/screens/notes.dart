@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../chrome.dart';
 import '../api.dart';
 import '../dictation.dart';
 import '../dictation_view.dart';
@@ -448,7 +449,7 @@ class _NotePageState extends State<NotePage> {
     final kind = n?.kind ?? (_spoken ? 'voice' : 'text');
     final listening = _dictation.running;
     return Scaffold(
-      appBar: AppBar(
+      appBar: ChromeAppBar(
         actions: [
           if (_editing)
             // Apple Notes' "Fertig": the keyboard goes, the note is written.
@@ -644,7 +645,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
     final failed = _started && !_dictation.running && _dictation.failure != null;
     final text = _dictation.text;
     return Scaffold(
-      appBar: AppBar(title: Text(context.t('mobile.meetingNeu'))),
+      appBar: ChromeAppBar(title: Text(context.t('mobile.meetingNeu'))),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),

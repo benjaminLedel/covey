@@ -1,9 +1,9 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 
 import '../api.dart';
+import '../chrome.dart';
 import '../face.dart';
 import '../anywhere.dart';
 import '../i18n.dart';
@@ -227,17 +227,21 @@ class _HomeScreenState extends State<HomeScreen> {
               account: account,
             ),
             const VerticalDivider(width: 0.6),
-            SizedBox(width: 400, child: body),
+            // The panes right of the sidebar are clear of the traffic lights.
+            SizedBox(width: 400, child: LightsInset(left: 0, child: body)),
             const VerticalDivider(width: 0.6),
             Expanded(
-              child:
-                  _detail ??
-                  Center(
-                    child: Text(
-                      context.t('mobile.waehlen'),
-                      style: context.type.bodyLarge?.copyWith(color: context.colors.textMuted),
+              child: LightsInset(
+                left: 0,
+                child:
+                    _detail ??
+                    Center(
+                      child: Text(
+                        context.t('mobile.waehlen'),
+                        style: context.type.bodyLarge?.copyWith(color: context.colors.textMuted),
+                      ),
                     ),
-                  ),
+              ),
             ),
           ],
         ),
@@ -347,10 +351,13 @@ class _Sidebar extends StatelessWidget {
         child: Padding(
           // On macOS the window's traffic lights sit in the top-left corner of
           // this column; the mark starts below them.
-          padding: EdgeInsets.fromLTRB(12, Platform.isMacOS ? 40 : 16, 12, 16),
+          padding: EdgeInsets.fromLTRB(12, MacChrome.active ? 0 : 16, 12, 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // The traffic lights' band (#356): it moves the window, as the
+              // title bar did.
+              if (MacChrome.active) WindowDrag(child: SizedBox(height: MacChrome.height)),
               Padding(
                 padding: const EdgeInsets.fromLTRB(8, 0, 8, 20),
                 child: Row(

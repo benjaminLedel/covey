@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'api.dart';
+import 'chrome.dart';
 import 'diagnostics.dart';
 import 'face.dart';
 import 'i18n.dart';
@@ -177,6 +178,8 @@ class _CoveyAppState extends State<CoveyApp> {
     final strings = await Strings.load(locale);
     // Dates in the notes are written in the person's language (#336).
     await initializeDateFormatting();
+    // The window's bar metrics on macOS (#356), before the first frame.
+    await MacChrome.load();
     // The speech model and language picked in settings (#351).
     unawaited(SpeechModel.instance.loadPrefs());
     var saved = await widget.profiles.read();

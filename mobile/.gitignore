@@ -46,3 +46,4 @@ app.*.map.json
 
 # The developer's signing team (#345), included by Debug/Release.xcconfig.
 /ios/Flutter/Signing.xcconfig
+/macos/Runner/Configs/Signing.xcconfig

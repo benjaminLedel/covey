@@ -4,6 +4,7 @@ import FlutterMacOS
 
 class MainFlutterWindow: NSWindow {
   private var flow: FlowBridge?
+  private var chrome: FlutterMethodChannel?
 
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
@@ -14,8 +15,41 @@ class MainFlutterWindow: NSWindow {
     // shortcut (#355), and the Dock icon brings it back.
     self.isReleasedWhenClosed = false
 
+    // One unified bar (#356): the content runs under a transparent title
+    // bar, and an empty toolbar gives it the height of Finder's or Mail's,
+    // so the traffic lights sit in the app's own top bar.
+    self.styleMask.insert(.fullSizeContentView)
+    self.titlebarAppearsTransparent = true
+    self.titleVisibility = .hidden
+    let toolbar = NSToolbar(identifier: "covey")
+    toolbar.showsBaselineSeparator = false
+    self.toolbar = toolbar
+    self.toolbarStyle = .unified
+
     RegisterGeneratedPlugins(registry: flutterViewController)
     flow = FlowBridge(messenger: flutterViewController.engine.binaryMessenger)
+    chrome = FlutterMethodChannel(name: "covey/window", binaryMessenger: flutterViewController.engine.binaryMessenger)
+    chrome?.setMethodCallHandler { [weak self] call, result in
+      guard let self else { return result(nil) }
+      switch call.method {
+      case "metrics":
+        // The bar's height and where the traffic lights end, in the
+        // Flutter view's coordinates (points from the top left).
+        let bar = self.frame.height - self.contentLayoutRect.height
+        let zoom = self.standardWindowButton(.zoomButton)?.frame
+        result(["height": Double(bar), "lightsRight": Double((zoom?.maxX ?? 70) + 12)])
+      case "drag":
+        // The Flutter view takes every click, the title bar's included:
+        // the app's empty bar areas move the window instead.
+        if let event = NSApp.currentEvent { self.performDrag(with: event) }
+        result(nil)
+      case "zoom":
+        self.performZoom(nil)
+        result(nil)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
 
     super.awakeFromNib()
   }

@@ -12,3 +12,9 @@ PRODUCT_BUNDLE_IDENTIFIER = work.covey.coveyMobile
 
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2026 work.covey. All rights reserved.
+
+// A developer's signing team, kept out of the repository (#356):
+// Runner/Configs/Signing.xcconfig with DEVELOPMENT_TEAM = <team id> and
+// CODE_SIGN_IDENTITY = Apple Development. Without it the app is signed ad
+// hoc, and macOS forgets permissions like Accessibility with every build.
+#include? "Signing.xcconfig"

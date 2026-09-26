@@ -2,6 +2,7 @@ import 'dart:ui' show FontFeature, ImageFilter;
 
 import 'package:flutter/material.dart';
 
+import 'chrome.dart';
 import 'icons.dart';
 import 'mark.dart';
 import 'theme.dart';
@@ -76,15 +77,19 @@ class _SpaceScrollState extends State<SpaceScroll> {
         if (!widget.compact)
           SliverAppBar(
             pinned: true,
-            toolbarHeight: 44,
+            // On macOS the bar is the window's title bar (#356): as tall as
+            // it, the signet right of the traffic lights, the empty parts
+            // moving the window.
+            toolbarHeight: MacChrome.active ? MacChrome.height : 44,
             backgroundColor: _scrolled ? c.surface0 : c.surface0.withValues(alpha: 0),
             centerTitle: true,
+            flexibleSpace: const WindowDrag(),
             // The signet, top left, as the counterweight to the person on
             // the right: whichever space is open, this is covey.
-            leadingWidth: 60,
-            leading: const Padding(
-              padding: EdgeInsets.only(left: 16),
-              child: Align(alignment: Alignment.centerLeft, child: CoveyMark(size: 30)),
+            leadingWidth: 60 + LightsInset.of(context),
+            leading: Padding(
+              padding: EdgeInsets.only(left: 16 + LightsInset.of(context)),
+              child: const Align(alignment: Alignment.centerLeft, child: CoveyMark(size: 30)),
             ),
             automaticallyImplyLeading: false,
             title: AnimatedOpacity(

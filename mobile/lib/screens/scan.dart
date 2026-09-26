@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
+import '../chrome.dart';
 import '../i18n.dart';
 import '../pairing.dart';
 
@@ -49,7 +50,7 @@ class _ScanScreenState extends State<ScanScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
+      appBar: ChromeAppBar(
         title: Text(context.t('mobile.scanTitel')),
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,

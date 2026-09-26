@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import '../chrome.dart';
 import '../api.dart';
 import '../face.dart';
 import '../i18n.dart';
@@ -171,7 +172,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
     // is drawn reversed.
     final entries = th?.entries.reversed.toList() ?? const <ThreadEntry>[];
     return Scaffold(
-      appBar: AppBar(
+      appBar: ChromeAppBar(
         // Beside a back control the face follows it directly; without one
         // (the detail pane of a wide window) it keeps the content margin.
         titleSpacing: (ModalRoute.of(context)?.canPop ?? false) ? 0 : 16,
