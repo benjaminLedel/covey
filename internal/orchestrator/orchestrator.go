@@ -2095,7 +2095,21 @@ func (o *Orchestrator) OrgSections(ctx context.Context, agent agents.Agent) stri
 	if s := o.teamSection(ctx, agent.OrgID, agent.SupervisorID); s != "" {
 		parts = append(parts, s)
 	}
-	if s := o.agentTeamSection(ctx, agent); s != "" {
+	if s := o.agentTeamSection(ctx, agent, false); s != "" {
+		parts = append(parts, s)
+	}
+	return strings.Join(parts, "\n\n")
+}
+
+// OrgSectionsForChat is OrgSections with the stopped colleagues in, marked
+// (#416): the chat answers "do you know …?", where a stopped colleague is
+// still a colleague. A run keeps the directory without them.
+func (o *Orchestrator) OrgSectionsForChat(ctx context.Context, agent agents.Agent) string {
+	var parts []string
+	if s := o.teamSection(ctx, agent.OrgID, agent.SupervisorID); s != "" {
+		parts = append(parts, s)
+	}
+	if s := o.agentTeamSection(ctx, agent, true); s != "" {
 		parts = append(parts, s)
 	}
 	return strings.Join(parts, "\n\n")
@@ -2164,7 +2178,7 @@ func (o *Orchestrator) teamSection(ctx context.Context, orgID uuid.UUID, supervi
 // as `self` are marked as its own team — that way a developer agent finds the
 // QA agent of its team to hand the merge request over for review. Runs at
 // dispatch time, like teamSection.
-func (o *Orchestrator) agentTeamSection(ctx context.Context, self agents.Agent) string {
+func (o *Orchestrator) agentTeamSection(ctx context.Context, self agents.Agent, withStopped bool) string {
 	labels := map[string]string{}
 	if o.Targets != nil {
 		if plugins, err := o.Targets.List(ctx, self.OrgID); err == nil {
@@ -2186,9 +2200,9 @@ func (o *Orchestrator) agentTeamSection(ctx context.Context, self agents.Agent) 
 		}
 		dr.Close()
 	}
-	rows, err := o.Pool.Query(ctx, `SELECT id, display_name, job_title, identities, responsibilities, department_id
-		FROM agents WHERE org_id=$1 AND id<>$2 AND NOT killed AND hired_at IS NOT NULL
-		ORDER BY created_at`, self.OrgID, self.ID)
+	rows, err := o.Pool.Query(ctx, `SELECT id, display_name, job_title, identities, responsibilities, department_id, killed
+		FROM agents WHERE org_id=$1 AND id<>$2 AND (NOT killed OR $3) AND hired_at IS NOT NULL
+		ORDER BY created_at`, self.OrgID, self.ID, withStopped)
 	if err != nil {
 		return ""
 	}
@@ -2199,7 +2213,7 @@ func (o *Orchestrator) agentTeamSection(ctx context.Context, self agents.Agent) 
 		var id uuid.UUID
 		var deptID *uuid.UUID
 		var ids map[string]string
-		if err := rows.Scan(&id, &c.Name, &c.JobTitle, &ids, &c.Responsibilities, &deptID); err != nil {
+		if err := rows.Scan(&id, &c.Name, &c.JobTitle, &ids, &c.Responsibilities, &deptID, &c.Stopped); err != nil {
 			return ""
 		}
 		if deptID != nil {

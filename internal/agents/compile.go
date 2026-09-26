@@ -299,6 +299,10 @@ type AgentColleague struct {
 	// Supervisor marks an agent that is at the same time the manager
 	// (the org chart allows agent managers).
 	Supervisor bool
+	// Stopped marks a colleague under the kill switch. Only the chat's
+	// directory carries such colleagues (#416): a run hands them no work, but
+	// "do you know …?" should be answered with who they are.
+	Stopped bool
 }
 
 // TeamAgentsSection builds the section "Team (AI colleagues)": the organisation's
@@ -327,6 +331,9 @@ func TeamAgentsSection(colleagues []AgentColleague) string {
 		}
 		if c.Supervisor {
 			line += " — YOUR MANAGER"
+		}
+		if c.Stopped {
+			line += " — STOPPED (kill switch; takes no work)"
 		}
 		var contact []string
 		for _, id := range c.Identities {

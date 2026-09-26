@@ -11,6 +11,7 @@ package chat
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -123,19 +124,10 @@ func (s *Store) LinkTask(ctx context.Context, messageID, taskID uuid.UUID) error
 	return err
 }
 
-// Recent reads the newest messages of one agent, oldest first — the order a
-// thread is read in.
-/* Gespraech is the conversation with an agent as the person sees it (#413):
- * what was said in the chat, and what the agent's tasks said back — the
- * result (the narrated sentence where there is one, #411), the error, the
- * question it parked on. Recent reads chat_messages only, and there a
- * result never stands: the agent answering "which of those?" did not know
- * what "those" were. What the platform starts on its own stays out
- * (MachineryCTE), its questions excepted, as in the thread.
- *
- * Entries from tasks carry Author "agent" and the task's id; newest last. */
-func (s *Store) Gespraech(ctx context.Context, agentID uuid.UUID, limit int) ([]Message, error) {
-	rows, err := s.pool.Query(ctx, `WITH RECURSIVE `+MachineryCTE("agent_id = $1")+`, ev AS (
+// gespraechQuellen are the entries of a conversation as the person sees it
+// (Gespraech): messages, the tasks' results and errors, their questions.
+// Shared with the search, so both read the same conversation.
+const gespraechQuellen = `
 		SELECT m.id, m.org_id, m.author, m.text, m.task_id, m.created_at AS at
 		  FROM chat_messages m WHERE m.agent_id = $1
 		UNION ALL
@@ -152,7 +144,19 @@ func (s *Store) Gespraech(ctx context.Context, agentID uuid.UUID, limit int) ([]
 		SELECT t.id, t.org_id, 'agent', trim(regexp_replace(coalesce(tr.note, ''), '^blocked:', '')), t.id, tr.created_at
 		  FROM task_transitions tr JOIN backlog_tasks t ON t.id = tr.task_id
 		 WHERE t.agent_id = $1 AND t.archived_at IS NULL AND tr.to_state = 'blocked'
-	)
+`
+
+/* Gespraech is the conversation with an agent as the person sees it (#413):
+ * what was said in the chat, and what the agent's tasks said back — the
+ * result (the narrated sentence where there is one, #411), the error, the
+ * question it parked on. Recent reads chat_messages only, and there a
+ * result never stands: the agent answering "which of those?" did not know
+ * what "those" were. What the platform starts on its own stays out
+ * (MachineryCTE), its questions excepted, as in the thread.
+ *
+ * Entries from tasks carry Author "agent" and the task's id; newest last. */
+func (s *Store) Gespraech(ctx context.Context, agentID uuid.UUID, limit int) ([]Message, error) {
+	rows, err := s.pool.Query(ctx, `WITH RECURSIVE `+MachineryCTE("agent_id = $1")+`, ev AS (`+gespraechQuellen+`	)
 	SELECT id, org_id, author, text, task_id, at FROM (
 		SELECT * FROM ev WHERE text <> '' ORDER BY at DESC LIMIT $2
 	) j ORDER BY at`, agentID, limit)
@@ -171,6 +175,8 @@ func (s *Store) Gespraech(ctx context.Context, agentID uuid.UUID, limit int) ([]
 	return out, rows.Err()
 }
 
+// Recent reads the newest messages of one agent, oldest first — the order a
+// thread is read in.
 func (s *Store) Recent(ctx context.Context, agentID uuid.UUID, limit int) ([]Message, error) {
 	rows, err := s.pool.Query(ctx,
 		`SELECT id, org_id, agent_id, author, text, task_id, created_at FROM (
@@ -269,4 +275,35 @@ func MachineryCTE(where string) string {
 	), maschinerie AS (
 		SELECT DISTINCT wurzel AS id FROM kette WHERE origin IN ('heartbeat', 'housekeeping')
 	)`
+}
+
+/* GespraechSuchen searches the whole conversation for any of the words (#416):
+ * the triage sees only its end, and asks for what lies further back. Case
+ * does not matter; the newest hits first. */
+func (s *Store) GespraechSuchen(ctx context.Context, agentID uuid.UUID, woerter []string, limit int) ([]Message, error) {
+	var muster []string
+	r := strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`)
+	for _, w := range woerter {
+		muster = append(muster, "%"+r.Replace(w)+"%")
+	}
+	if len(muster) == 0 {
+		return nil, nil
+	}
+	rows, err := s.pool.Query(ctx, `WITH RECURSIVE `+MachineryCTE("agent_id = $1")+`, ev AS (`+gespraechQuellen+`)
+	SELECT id, org_id, author, text, task_id, at FROM ev
+	 WHERE text ILIKE ANY($3::text[])
+	 ORDER BY at DESC LIMIT $2`, agentID, limit, muster)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Message
+	for rows.Next() {
+		m := Message{AgentID: agentID}
+		if err := rows.Scan(&m.ID, &m.OrgID, &m.Author, &m.Text, &m.TaskID, &m.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
 }

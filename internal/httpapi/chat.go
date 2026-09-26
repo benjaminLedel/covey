@@ -648,11 +648,21 @@ func (s *Server) triageLauf(orgID, agentID uuid.UUID, msg chat.Message, text, em
 	ctx, abbrechen := context.WithTimeout(context.Background(), triageLaufFrist)
 	defer abbrechen()
 
-	entscheidung, offen := s.triagieren(ctx, orgID, agentID, text, email)
+	entscheidung, offen, grund := s.triagieren(ctx, orgID, agentID, text, email)
 	if a, err := s.Registry.Get(ctx, agentID); err == nil {
 		entscheidung = entscheidungFuer(a.Slug, entscheidung)
 	}
 	zustand, daten, err := s.entscheidungAnwenden(ctx, orgID, agentID, msg, entscheidung, offen, text, email, lang)
+	/* Why there was no answer (#416): a triage that failed became a task in
+	   silence, and the reason stood only in the server log. It goes onto the
+	   task as a triage note — visible at the task, kept out of the thread. */
+	if err == nil && grund != "" && daten["task_id"] != "" {
+		if id, perr := uuid.Parse(daten["task_id"]); perr == nil {
+			if _, nerr := s.Backlog.AddNote(ctx, id, "triage:covey", "The triage could not decide, so the message became a task: "+grund); nerr != nil {
+				s.Log.Warn("triage: the reason was not noted", "task", id, "err", nerr)
+			}
+		}
+	}
 	if err != nil {
 		s.Log.Error("chat triage could not be applied", "agent", agentID, "message", msg.ID, "err", err)
 		if err := s.Chat.Erledigt(ctx, msg.ID, chat.StateFailed); err != nil {
@@ -861,31 +871,52 @@ func (s *Server) NachholenOffeneTriage(ctx context.Context) {
 // with a model that answered nonsense gets the behaviour it had before #302,
 // and nobody has to be told about it. The one thing that must never happen is
 // that a message disappears because a model was not available.
-func (s *Server) triagieren(ctx context.Context, orgID, agentID uuid.UUID, text, email string) (chat.Entscheidung, map[string]uuid.UUID) {
+func (s *Server) triagieren(ctx context.Context, orgID, agentID uuid.UUID, text, email string) (chat.Entscheidung, map[string]uuid.UUID, string) {
 	aufgabe := chat.Entscheidung{Aktion: chat.AktionAufgabe}
 
 	mode, err := s.Chat.Mode(ctx, orgID)
 	if err != nil || mode != chat.TriageOn {
-		return aufgabe, nil
+		return aufgabe, nil, ""
 	}
 	provider, err := s.resolveOrgLLM(ctx, orgID)
 	if err != nil {
-		return aufgabe, nil
+		return aufgabe, nil, "no model is configured for the control plane"
 	}
 	verlauf, err := s.Chat.Gespraech(ctx, agentID, triageKontext)
 	if err != nil {
 		s.Log.Warn("triage: the conversation could not be read — the message becomes a task", "agent", agentID, "err", err)
-		return aufgabe, nil
+		return aufgabe, nil, "the conversation could not be read: " + err.Error()
 	}
 	liste, nach := s.offeneAufgaben(ctx, agentID)
 	fertig := s.fertigeAufgaben(ctx, agentID)
+	rolle, seele, gegenueber := s.rolleVon(ctx, agentID), s.seeleVon(ctx, agentID), s.gegenueberVon(ctx, orgID, email)
+	organisation := s.organisationVon(ctx, agentID)
 
-	e, err := chat.Triagieren(ctx, provider, s.rolleVon(ctx, agentID), s.seeleVon(ctx, agentID), s.gegenueberVon(ctx, orgID, email), s.organisationVon(ctx, agentID), liste, fertig, verlauf, text)
+	/* Ein Zug, einmal wiederholt (#416): Ein Modell, das einmal nicht
+	   antwortet oder unlesbar antwortet, tut es beim zweiten Mal meist doch —
+	   und jeder Fehlschlag wird eine Aufgabe, die eine Sandbox hochfährt, um
+	   „wie geht's?" zu beantworten. */
+	zug := func(suche *chat.Suche) (chat.Entscheidung, error) {
+		e, err := chat.Triagieren(ctx, provider, rolle, seele, gegenueber, organisation, liste, fertig, verlauf, text, suche)
+		if err != nil && ctx.Err() == nil {
+			s.Log.Warn("triage turn failed, trying once more", "agent", agentID, "err", err)
+			e, err = chat.Triagieren(ctx, provider, rolle, seele, gegenueber, organisation, liste, fertig, verlauf, text, suche)
+		}
+		return e, err
+	}
+	e, err := zug(nil)
+	if err == nil && e.Aktion == chat.AktionSuche {
+		treffer := s.suchen(ctx, agentID, organisation, e.Anfrage)
+		e, err = zug(&chat.Suche{Anfrage: e.Anfrage, Treffer: treffer})
+		if err == nil && e.Aktion == chat.AktionSuche {
+			err = errors.New("the model asked to search a second time")
+		}
+	}
 	if err != nil {
 		s.Log.Warn("triage failed — the message becomes a task", "agent", agentID, "err", err)
-		return aufgabe, nil
+		return aufgabe, nil, err.Error()
 	}
-	return e, nach
+	return e, nach, ""
 }
 
 // offeneAufgaben ist der Blick des Agenten auf seinen eigenen Backlog: was
@@ -1000,7 +1031,7 @@ func alter(t time.Time) string {
 // triageKontext: wie viele frühere Nachrichten der Zug zu sehen bekommt. Mehr
 // kostet Tokens bei jedem „danke"; weniger, und eine Rückfrage steht ohne
 // das, worauf sie sich bezieht.
-const triageKontext = 12
+const triageKontext = 10
 
 // rolleVon holt die kurze Selbstbeschreibung des Agenten — Anzeigename und
 // Stellenbezeichnung, mehr nicht. Die vollständige Konfiguration gehört in
@@ -1054,7 +1085,7 @@ func (s *Server) organisationVon(ctx context.Context, agentID uuid.UUID) string 
 	if err != nil {
 		return ""
 	}
-	return s.Orch.OrgSections(ctx, a)
+	return s.Orch.OrgSectionsForChat(ctx, a)
 }
 
 // gegenueberVon describes the person a message came from (#412): name, job

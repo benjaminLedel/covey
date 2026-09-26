@@ -47,7 +47,19 @@ const (
 	// Aufgabe für denselben Vorgang bekommt die bestehende eine Notiz — und
 	// wenn sie auf eine Antwort wartet, weckt sie das.
 	AktionNotiz Aktion = "note"
+	// AktionSuche: erst nachsehen (#416). Der Zug sieht nur das Ende des
+	// Gesprächs; was älter ist oder wen er nicht vor sich hat, lässt er
+	// suchen — im ganzen Gespräch und im Organigramm — und entscheidet dann
+	// mit den Treffern. Einmal, nicht in einer Schleife.
+	AktionSuche Aktion = "search"
 )
+
+// Suche ist, was ein Zug gesucht und gefunden hat — der zweite Zug bekommt
+// es und entscheidet damit.
+type Suche struct {
+	Anfrage string
+	Treffer []string
+}
 
 // Entscheidung ist, was die Triage zurückgibt.
 type Entscheidung struct {
@@ -62,6 +74,8 @@ type Entscheidung struct {
 	// Bei einer Notiz: welche der offenen Aufgaben gemeint ist, mit der
 	// kurzen Kennung aus der Liste, die dem Zug gezeigt wurde.
 	Aufgabe string `json:"task"`
+	// Bei einer Suche: wonach — ein paar Wörter, ein Name, ein Thema.
+	Anfrage string `json:"query"`
 }
 
 // Offen ist eine Aufgabe, wie der Zug sie zu sehen bekommt: knapp, und ohne
@@ -92,7 +106,7 @@ type Fertig struct {
 
 // TriageMaxTokens: die Antwort ist ein kurzes JSON-Objekt. Wer hier viel
 // Platz gibt, bekommt einen Aufsatz und zahlt dafür.
-const TriageMaxTokens = 700
+const TriageMaxTokens = 1200
 
 const triageSystem = `You are the triage step of an AI agent inside covey, a platform that runs AI agents as employees.
 
@@ -101,10 +115,13 @@ A person wrote a message to this agent. Decide what kind of thing it is, and ans
 {"action":"answer","text":"…"}                 — you can settle it right here
 {"action":"note","task":"ab12","text":"…"}     — this belongs to a task you already have
 {"action":"task","title":"…","body":"…","text":"…"} — this is new work
+{"action":"search","query":"…"}                — you need to look something up first
 
 Choose "answer" when the message is a question about the organisation you can answer from the org chart below (who a colleague is, what they do, who is responsible for something, which department someone is in, who your manager is), a question about what was already said in this thread, about your own open tasks or about one you recently finished (both are listed below, the finished ones with their outcome), a thank-you, a greeting, an acknowledgement, or a clarification you can give without looking anything up. "Did that go out yesterday?" is an answer when the task is in that list — say what it says, and say when it is not there.
 
 Choose "note" when the message adds to, corrects or asks about one specific task you already have. Use the short id from the list. Your text is written onto that task, and if it was waiting for an answer this releases it. Do not open a second task for the same thing.
+
+Choose "search" when the answer needs something you do not see below: an earlier part of this conversation (you are shown only its end), or a person or colleague who is not in the org chart as shown — a name may be misspelt. Give a few words to search for (a name, a topic). covey searches the whole conversation and the org chart, tolerating a typo in a name, and asks you again with what it found. You can search once.
 
 Choose "task" when doing it would need any of: a target system (ticketing, repository, mailbox, calendar), a file, a command, a search outside this conversation, a decision with consequences, or more than a moment of work. When in doubt choose "task" — an unnecessary task costs a run, a wrongly answered job costs the work itself.
 
@@ -119,7 +136,7 @@ For "task": the title is one line in the imperative, the body carries what the p
 // Triagieren führt den Zug aus. Der Fehlerfall ist bewusst weich: Wer nicht
 // entscheiden kann, eröffnet eine Aufgabe — das ist das Verhalten, das immer
 // funktioniert, und der Aufrufer muss dafür nichts wissen.
-func Triagieren(ctx context.Context, p llm.Provider, rolle, seele, gegenueber, organisation string, offen []Offen, fertig []Fertig, verlauf []Message, nachricht string) (Entscheidung, error) {
+func Triagieren(ctx context.Context, p llm.Provider, rolle, seele, gegenueber, organisation string, offen []Offen, fertig []Fertig, verlauf []Message, nachricht string, suche *Suche) (Entscheidung, error) {
 	var b strings.Builder
 	stimme(&b, rolle, seele)
 	person(&b, gegenueber)
@@ -170,6 +187,16 @@ func Triagieren(ctx context.Context, p llm.Provider, rolle, seele, gegenueber, o
 	}
 	b.WriteString("The new message:\n")
 	b.WriteString(nachricht)
+	if suche != nil {
+		fmt.Fprintf(&b, "\n\nYou searched the whole conversation and the org chart for %q. Found:\n", suche.Anfrage)
+		if len(suche.Treffer) == 0 {
+			b.WriteString("(nothing)\n")
+		}
+		for _, t := range suche.Treffer {
+			fmt.Fprintf(&b, "- %s\n", kuerzen(einzeilig(t), 500))
+		}
+		b.WriteString("\nDecide now: answer, note or task. Do not search again.")
+	}
 
 	roh, err := p.Complete(ctx, llm.Request{
 		Tier:      llm.TierFast,
@@ -214,6 +241,10 @@ func lesen(roh string) (Entscheidung, error) {
 	case AktionNotiz:
 		if strings.TrimSpace(e.Aufgabe) == "" || strings.TrimSpace(e.Text) == "" {
 			return Entscheidung{}, fmt.Errorf("triage: note without task or text")
+		}
+	case AktionSuche:
+		if strings.TrimSpace(e.Anfrage) == "" {
+			return Entscheidung{}, fmt.Errorf("triage: search without query")
 		}
 	default:
 		return Entscheidung{}, fmt.Errorf("triage: unknown action %q", e.Aktion)

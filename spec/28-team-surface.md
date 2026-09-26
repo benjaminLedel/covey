@@ -99,6 +99,13 @@ sandbox**:
   directory of AI colleagues a run gets at dispatch, from the same function,
   so the chat and the run never describe a different organisation. "Do you
   know the QA agent?" is a question to answer, not a task to open
+- it sees the end of the conversation, not all of it, and **looks up** what
+  lies further back (#416): a fourth move, `search`, has covey search the
+  whole conversation and the org chart — a name with a typo included — and
+  asks once more with the hits. The org chart it reads carries stopped
+  colleagues too, marked; a run's directory does not
+- a turn that fails is tried once more; when it still fails, the message
+  becomes a task as before and the reason is noted at that task
 - its output is text or a task, nothing else: no config change, no wake, no
   approval decided
 - it is recorded and counted like any other run ([`06`](06-observability-control.md))
