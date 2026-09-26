@@ -2718,7 +2718,9 @@
     "nichtGespeichert": "保存されていません",
     "notizWaehlen": "左でノートを選ぶか、新しく作成してください。",
     "notizMenue": "その他の操作",
-    "statusLeer": "このステータスのメモはありません。"
+    "statusLeer": "このステータスのメモはありません。",
+    "orgKoppeln": "別の組織を連携",
+    "orgNichtGekoppelt": "まだアプリにありません。ブラウザでその組織に切り替え、プロフィール → モバイルアプリから連携してください。"
   },
   "appLink": {
     "title": "covey アプリで開く",

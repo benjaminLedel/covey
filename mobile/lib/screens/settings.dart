@@ -7,6 +7,7 @@ import 'package:hotkey_manager/hotkey_manager.dart';
 
 import '../chrome.dart';
 import '../api.dart';
+import '../profile.dart';
 import '../activity.dart';
 import '../anywhere.dart';
 import '../diagnostics.dart';
@@ -35,6 +36,10 @@ class SettingsScreen extends StatefulWidget {
     required this.onDisconnect,
     this.onChanged,
     this.onTour,
+    this.profiles = const [],
+    this.active,
+    this.onSwitch,
+    this.onAddOrganisation,
   });
 
   final CoveyApi api;
@@ -47,6 +52,13 @@ class SettingsScreen extends StatefulWidget {
   /// Shows the tour again (#402); the settings close first, so it points at
   /// the home screen it explains.
   final VoidCallback? onTour;
+
+  /// The connections on this device and the ways to switch and to pair
+  /// another organisation (#417). Without [onSwitch] the section is left out.
+  final List<Profile> profiles;
+  final Profile? active;
+  final ValueChanged<Profile>? onSwitch;
+  final VoidCallback? onAddOrganisation;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -511,6 +523,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: const EdgeInsets.fromLTRB(32, 8, 32, 0),
               child: Text(context.t('mobile.nurNotizen'), style: small),
             ),
+          if (widget.onSwitch != null)
+            _Organisations(
+              api: widget.api,
+              profiles: widget.profiles,
+              active: widget.active,
+              onSwitch: widget.onSwitch!,
+              onAdd: widget.onAddOrganisation,
+            ),
           if (me.teamSurface && widget.onTour != null)
             InsetGroup(
               children: [
@@ -739,6 +759,90 @@ class _DictationTestScreenState extends State<DictationTestScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The organisations (#417): the ones paired on this device — the active one
+/// ticked, a tap switches — and the ones the person belongs to without a
+/// connection here, with where to pair them. A key cannot switch itself, so
+/// each organisation is paired once, from that organisation.
+class _Organisations extends StatefulWidget {
+  const _Organisations({
+    required this.api,
+    required this.profiles,
+    required this.active,
+    required this.onSwitch,
+    required this.onAdd,
+  });
+
+  final CoveyApi api;
+  final List<Profile> profiles;
+  final Profile? active;
+  final ValueChanged<Profile> onSwitch;
+  final VoidCallback? onAdd;
+
+  @override
+  State<_Organisations> createState() => _OrganisationsState();
+}
+
+class _OrganisationsState extends State<_Organisations> {
+  List<Membership> _seats = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    widget.api.memberships().then((m) {
+      if (mounted) setState(() => _seats = m);
+    }, onError: (_) {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final host = widget.api.base.host;
+    // Seats on this instance that have no connection here yet.
+    final paired = {
+      for (final p in widget.profiles)
+        if (Uri.tryParse(p.instance)?.host == host || p.instance == host) p.orgId,
+    };
+    final open = _seats.where((m) => !paired.contains(m.orgId)).toList();
+    String name(Profile p) {
+      if (p.label.isNotEmpty) return p.label;
+      return _seats.where((m) => m.orgId == p.orgId).firstOrNull?.orgName ??
+          (Uri.tryParse(p.instance)?.host ?? p.instance);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionTitle(context.t('nav.orgSwitch')),
+        InsetGroup(
+          children: [
+            for (final p in widget.profiles)
+              GroupRow(
+                title: name(p),
+                subtitle: Uri.tryParse(p.instance)?.host ?? p.instance,
+                trailing: widget.active != null && p.sameAs(widget.active!) && p.key == widget.active!.key
+                    ? Icon(Icons.check_rounded, color: c.textAccent)
+                    : null,
+                onTap: () => widget.onSwitch(p),
+              ),
+            for (final m in open)
+              GroupRow(
+                title: m.orgName,
+                subtitle: context.t('mobile.orgNichtGekoppelt'),
+                trailing: Icon(Icons.link_off_rounded, color: c.textMuted, size: 20),
+              ),
+            if (widget.onAdd != null)
+              GroupRow(
+                title: context.t('mobile.orgKoppeln'),
+                trailing: Icon(AppIcons.add.of(context), color: c.textAccent, size: 20),
+                onTap: widget.onAdd,
+              ),
+          ],
+        ),
+      ],
     );
   }
 }

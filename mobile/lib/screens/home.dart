@@ -13,6 +13,7 @@ import '../face.dart';
 import '../i18n.dart';
 import '../icons.dart';
 import '../photo.dart';
+import '../profile.dart';
 import '../push.dart';
 import '../mark.dart';
 import '../models.dart';
@@ -39,10 +40,25 @@ import '../tour.dart';
 const officeSpace = false;
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.api, required this.onDisconnect});
+  const HomeScreen({
+    super.key,
+    required this.api,
+    required this.onDisconnect,
+    this.profiles = const [],
+    this.active,
+    this.onSwitch,
+    this.onAddOrganisation,
+  });
 
   final CoveyApi api;
   final VoidCallback onDisconnect;
+
+  /// The connections saved on this device, the active one, and the ways to
+  /// switch and to pair another organisation (#417) — for the settings.
+  final List<Profile> profiles;
+  final Profile? active;
+  final ValueChanged<Profile>? onSwitch;
+  final VoidCallback? onAddOrganisation;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -313,6 +329,10 @@ class _HomeScreenState extends State<HomeScreen> {
         onDisconnect: widget.onDisconnect,
         onChanged: (m) => setState(() => _me = m),
         onTour: _tour,
+        profiles: widget.profiles,
+        active: widget.active,
+        onSwitch: widget.onSwitch,
+        onAddOrganisation: widget.onAddOrganisation,
       ),
     );
     final actions = isWide ? const <Widget>[] : [account];
@@ -456,6 +476,10 @@ class _AccountButton extends StatelessWidget {
     required this.onDisconnect,
     required this.onChanged,
     required this.onTour,
+    this.profiles = const [],
+    this.active,
+    this.onSwitch,
+    this.onAddOrganisation,
   });
 
   final Me me;
@@ -465,11 +489,24 @@ class _AccountButton extends StatelessWidget {
   /// The seat after a change made in the settings — a new photo (#377).
   final ValueChanged<Me> onChanged;
   final VoidCallback onTour;
+  final List<Profile> profiles;
+  final Profile? active;
+  final ValueChanged<Profile>? onSwitch;
+  final VoidCallback? onAddOrganisation;
 
   void _open(BuildContext context) => Navigator.of(context).push(
     MaterialPageRoute<void>(
-      builder: (_) =>
-          SettingsScreen(api: api, me: me, onDisconnect: onDisconnect, onChanged: onChanged, onTour: onTour),
+      builder: (_) => SettingsScreen(
+        api: api,
+        me: me,
+        onDisconnect: onDisconnect,
+        onChanged: onChanged,
+        onTour: onTour,
+        profiles: profiles,
+        active: active,
+        onSwitch: onSwitch,
+        onAddOrganisation: onAddOrganisation,
+      ),
     ),
   );
 

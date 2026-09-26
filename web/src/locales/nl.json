@@ -2718,7 +2718,9 @@
     "nichtGespeichert": "Niet opgeslagen",
     "notizWaehlen": "Kies links een notitie of maak een nieuwe.",
     "notizMenue": "Meer acties",
-    "statusLeer": "Geen notities met deze status."
+    "statusLeer": "Geen notities met deze status.",
+    "orgKoppeln": "Nog een organisatie koppelen",
+    "orgNichtGekoppelt": "Nog niet in de app. Koppel haar in de browser, in die organisatie, onder profiel → mobiele app."
   },
   "appLink": {
     "title": "Openen in de covey-app",

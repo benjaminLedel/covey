@@ -2718,7 +2718,9 @@
     "nichtGespeichert": "Nicht gespeichert",
     "notizWaehlen": "Wählen Sie links eine Notiz oder legen Sie eine neue an.",
     "notizMenue": "Weitere Aktionen",
-    "statusLeer": "Keine Notizen mit diesem Status."
+    "statusLeer": "Keine Notizen mit diesem Status.",
+    "orgKoppeln": "Weitere Organisation koppeln",
+    "orgNichtGekoppelt": "Noch nicht in der App. Im Browser in dieser Organisation unter Profil → Mobile App koppeln."
   },
   "appLink": {
     "title": "In der covey-App öffnen",

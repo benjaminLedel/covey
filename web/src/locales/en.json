@@ -2718,7 +2718,9 @@
     "nichtGespeichert": "Not saved",
     "notizWaehlen": "Pick a note on the left, or start a new one.",
     "notizMenue": "More actions",
-    "statusLeer": "No notes with this status."
+    "statusLeer": "No notes with this status.",
+    "orgKoppeln": "Pair another organisation",
+    "orgNichtGekoppelt": "Not in the app yet. Pair it in the browser, in that organisation, under profile → mobile app."
   },
   "appLink": {
     "title": "Open in the covey app",

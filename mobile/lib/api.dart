@@ -136,6 +136,13 @@ class CoveyApi {
 
   Future<Me> me() async => Me.fromJson(await get('/auth/me') as Map<String, dynamic>);
 
+  /// The organisations the person belongs to (#417). A key may read them; it
+  /// cannot switch itself to another (switch-org is for sessions only).
+  Future<List<Membership>> memberships() async => [
+    for (final m in (await get('/auth/memberships') as List? ?? const []))
+      Membership.fromJson(m as Map<String, dynamic>),
+  ];
+
   Future<String> version() async {
     final v = await get('/version') as Map<String, dynamic>;
     return v['version'] as String? ?? '';

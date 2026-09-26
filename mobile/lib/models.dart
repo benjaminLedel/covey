@@ -16,6 +16,7 @@ class Me {
     this.canWrite = true,
     this.id = '',
     this.photoId,
+    this.orgId = '',
   });
 
   factory Me.fromJson(Map<String, dynamic> j) => Me(
@@ -29,7 +30,11 @@ class Me {
     canWrite: j['CanWrite'] as bool? ?? true,
     id: j['ID'] as String? ?? '',
     photoId: j['PhotoID'] as String?,
+    orgId: j['OrgID'] as String? ?? '',
   );
+
+  /// The organisation of the seat this key works from (#417).
+  final String orgId;
 
   final String email;
   final String displayName;
@@ -349,4 +354,20 @@ class Attachment {
   /// when it does not.
   final int? length;
   final Stream<List<int>> Function() open;
+}
+
+/// One seat of the person's account (GET /auth/memberships, #417): an
+/// organisation they belong to, whether or not the app is paired there.
+class Membership {
+  Membership({required this.orgId, required this.orgName, required this.role});
+
+  factory Membership.fromJson(Map<String, dynamic> j) => Membership(
+    orgId: j['org_id'] as String? ?? '',
+    orgName: j['org_name'] as String? ?? '',
+    role: j['role'] as String? ?? '',
+  );
+
+  final String orgId;
+  final String orgName;
+  final String role;
 }

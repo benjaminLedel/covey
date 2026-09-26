@@ -2718,7 +2718,9 @@
     "nichtGespeichert": "Nie zapisano",
     "notizWaehlen": "Wybierz notatkę po lewej lub utwórz nową.",
     "notizMenue": "Więcej działań",
-    "statusLeer": "Brak notatek o tym statusie."
+    "statusLeer": "Brak notatek o tym statusie.",
+    "orgKoppeln": "Połącz kolejną organizację",
+    "orgNichtGekoppelt": "Jeszcze nie w aplikacji. Proszę połączyć ją w przeglądarce, w tej organizacji, w profilu → aplikacja mobilna."
   },
   "appLink": {
     "title": "Otwórz w aplikacji covey",

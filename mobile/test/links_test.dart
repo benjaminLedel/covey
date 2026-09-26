@@ -14,7 +14,8 @@ class _MemoryProfiles extends ProfileStore {
   Future<({String instance, String key})?> read() async => saved;
 
   @override
-  Future<void> write(String instance, String key) async => saved = (instance: instance, key: key);
+  Future<void> write(String instance, String key, {String orgId = '', String label = ''}) async =>
+      saved = (instance: instance, key: key);
 
   @override
   Future<void> clear() async => saved = null;

@@ -13,15 +13,13 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// A keychain that keeps what it was given and refuses to delete it, as
 /// macOS does for an item an earlier, differently signed build wrote.
-class _StubbornProfiles extends ProfileStore {
-  ({String instance, String key})? saved = (instance: 'https://c.example', key: 'covey_alt');
+class _StubbornProfiles extends MemoryProfileStore {
+  _StubbornProfiles()
+    : super({
+        'profiles': '[{"instance":"https://c.example","key":"covey_alt","org_id":"","label":""}]',
+        'active_profile': '0',
+      });
   var refusals = 0;
-
-  @override
-  Future<({String instance, String key})?> read() async => saved;
-
-  @override
-  Future<void> write(String instance, String key) async => saved = (instance: instance, key: key);
 
   @override
   Future<void> clear() async {
@@ -45,15 +43,10 @@ Future<void> _start(WidgetTester tester, ProfileStore profiles) async {
 
 /// A keychain that refuses every save, as the data protection keychain did
 /// for the Mac app without its entitlement (#407).
-class _RefusingProfiles extends ProfileStore {
+class _RefusingProfiles extends MemoryProfileStore {
   @override
-  Future<({String instance, String key})?> read() async => null;
-
-  @override
-  Future<void> write(String instance, String key) async => throw Exception('errSecMissingEntitlement');
-
-  @override
-  Future<void> clear() async {}
+  Future<void> write(String instance, String key, {String orgId = '', String label = ''}) async =>
+      throw Exception('errSecMissingEntitlement');
 }
 
 void main() {
