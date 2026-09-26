@@ -38,6 +38,7 @@ class ParakeetEngine extends SegmentedEngine {
 
   @override
   Future<void> prepare() async {
+    if (_worker != null) return;
     final watch = Stopwatch()..start();
     _worker = await _Worker.spawn(modelPath);
     diag('dictation', 'parakeet loaded in ${watch.elapsedMilliseconds} ms');

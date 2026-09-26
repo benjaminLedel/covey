@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 
 import '../api.dart';
 import '../face.dart';
+import '../anywhere.dart';
 import '../i18n.dart';
 import '../icons.dart';
 import '../mark.dart';
@@ -49,6 +51,24 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadMe();
+    // Dictate anywhere (#355) follows the instance the app is signed in to.
+    if (DictateAnywhere.supported) unawaited(DictateAnywhere.instance.attach(widget.api));
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // The panel speaks the app's language.
+    DictateAnywhere.instance
+      ..listening = context.t('mobile.hoertZu')
+      ..cleaning = context.t('mobile.raeumtAuf')
+      ..loading = context.t('mobile.sprachmodellLaedt', args: {'pct': '…'});
+  }
+
+  @override
+  void dispose() {
+    if (DictateAnywhere.supported) unawaited(DictateAnywhere.instance.detach());
+    super.dispose();
   }
 
   Future<void> _loadMe() async {

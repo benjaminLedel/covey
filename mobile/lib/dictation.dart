@@ -88,6 +88,10 @@ abstract class SegmentedEngine implements SpeechEngine {
   /// Which recogniser, for the log.
   String get kind;
 
+  /// Keep the model loaded after a dictation, for the next one to start at
+  /// once — dictate-anywhere on the desktop (#355). Freed on [dispose].
+  bool keepLoaded = false;
+
   /// Loads what the recogniser needs once per dictation.
   Future<void> prepare() async {}
 
@@ -239,7 +243,7 @@ abstract class SegmentedEngine implements SpeechEngine {
       _held.clear();
     }
     await _close(keep: true);
-    await release();
+    if (!keepLoaded) await release();
     _stopping = false;
     _log('stopped, ${_committed.length} characters');
     return _committed;
@@ -247,7 +251,7 @@ abstract class SegmentedEngine implements SpeechEngine {
 
   @override
   void dispose() {
-    unawaited(stop().catchError((_) => ''));
+    unawaited(stop().catchError((_) => '').then((_) => release()));
     unawaited(_recorder.dispose());
   }
 }
@@ -341,7 +345,11 @@ double _loudness(double rms) {
 /// and [progress] say so while it does. [language] is what whisper listens
 /// for — the app's language unless set otherwise.
 class Dictation extends ChangeNotifier {
-  Dictation({this.api, this.engine, SpeechModel? model}) : _model = model ?? SpeechModel.instance;
+  Dictation({this.api, this.engine, SpeechModel? model, this.keepModelLoaded = false})
+    : _model = model ?? SpeechModel.instance;
+
+  /// Keep the recogniser's model loaded between dictations (#355).
+  final bool keepModelLoaded;
 
   final CoveyApi? api;
 
@@ -396,7 +404,9 @@ class Dictation extends ChangeNotifier {
     if (e is SegmentedEngine && e.kind == wanted) return e;
     e?.dispose();
     _picked = true;
-    return engine = wanted == 'parakeet' ? ParakeetEngine() : WhisperEngine();
+    final next = wanted == 'parakeet' ? ParakeetEngine() : WhisperEngine();
+    next.keepLoaded = keepModelLoaded;
+    return engine = next;
   }
 
   void _modelChanged() => notifyListeners();

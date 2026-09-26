@@ -2576,7 +2576,18 @@
     "protokollLoeschen": "Borrar el registro",
     "protokollKopiert": "Registro copiado.",
     "diagnoseHinweis": "El registro se queda en este dispositivo. Anota procesos, tiempos y errores, sin contenido: ni notas, ni transcripciones, ni mensajes, ni claves.",
-    "modell_parakeet": "Reconoce 25 idiomas europeos por sí mismo, con puntuación; en pruebas"
+    "modell_parakeet": "Reconoce 25 idiomas europeos por sí mismo, con puntuación; en pruebas",
+    "ueberall": "Dictado en todas partes",
+    "ueberallSchalter": "Dictar en cualquier app con ⌥ Espacio",
+    "bedienungshilfen": "Accesibilidad",
+    "freigegeben": "Permitido: el texto se puede insertar",
+    "nichtFreigegeben": "No permitido: el texto no se puede insertar",
+    "freigeben": "Permitir",
+    "aufraeumen": "Pulir el texto",
+    "aufraeumenHinweis": "Sin muletillas, correcciones aplicadas, puntuación puesta",
+    "aufraeumenNicht": "Necesita un acceso a modelo de su organización",
+    "ueberallHinweis": "Mantener: hablar, soltar: insertar. Tocar: manos libres, volver a tocar: insertar. El audio se queda en el Mac; para pulirlo solo el texto va a su instancia de covey, con el nombre de la app a la que va.",
+    "raeumtAuf": "Puliendo …"
   },
   "appLink": {
     "title": "Abrir en la aplicación covey",

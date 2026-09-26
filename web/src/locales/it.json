@@ -2576,7 +2576,18 @@
     "protokollLoeschen": "Elimina il log",
     "protokollKopiert": "Log copiato.",
     "diagnoseHinweis": "Il log resta su questo dispositivo. Registra operazioni, tempi ed errori, nessun contenuto: niente note, trascrizioni, messaggi o chiavi.",
-    "modell_parakeet": "Riconosce da solo 25 lingue europee, con punteggiatura; in prova"
+    "modell_parakeet": "Riconosce da solo 25 lingue europee, con punteggiatura; in prova",
+    "ueberall": "Detta ovunque",
+    "ueberallSchalter": "Detta in qualsiasi app con ⌥ Spazio",
+    "bedienungshilfen": "Accessibilità",
+    "freigegeben": "Consentito: il testo può essere inserito",
+    "nichtFreigegeben": "Non consentito: il testo non può essere inserito",
+    "freigeben": "Consenti",
+    "aufraeumen": "Ripulisci il testo",
+    "aufraeumenHinweis": "Intercalari rimossi, correzioni applicate, punteggiatura inserita",
+    "aufraeumenNicht": "Richiede un accesso al modello della tua organizzazione",
+    "ueberallHinweis": "Tieni premuto: parla, rilascia: inserisci. Tocca: mani libere, tocca di nuovo: inserisci. L'audio resta sul Mac; per la pulizia solo il testo va alla tua istanza covey, con il nome dell'app a cui è destinato.",
+    "raeumtAuf": "Pulizia …"
   },
   "appLink": {
     "title": "Apri nell'app covey",

@@ -2576,7 +2576,18 @@
     "protokollLoeschen": "Usuń dziennik",
     "protokollKopiert": "Dziennik skopiowany.",
     "diagnoseHinweis": "Dziennik zostaje na tym urządzeniu. Zapisuje przebieg, czasy i błędy, bez treści: bez notatek, transkrypcji, wiadomości i kluczy.",
-    "modell_parakeet": "Sam rozpoznaje 25 języków europejskich, z interpunkcją; w testach"
+    "modell_parakeet": "Sam rozpoznaje 25 języków europejskich, z interpunkcją; w testach",
+    "ueberall": "Dyktowanie wszędzie",
+    "ueberallSchalter": "Dyktuj do dowolnej aplikacji z ⌥ Spacja",
+    "bedienungshilfen": "Dostępność",
+    "freigegeben": "Dozwolone: tekst można wstawić",
+    "nichtFreigegeben": "Niedozwolone: tekstu nie można wstawić",
+    "freigeben": "Zezwól",
+    "aufraeumen": "Uporządkuj tekst",
+    "aufraeumenHinweis": "Bez wtrąceń, poprawki uwzględnione, interpunkcja dodana",
+    "aufraeumenNicht": "Wymaga dostępu do modelu Twojej organizacji",
+    "ueberallHinweis": "Przytrzymaj: mów, puść: wstaw. Stuknij: bez użycia rąk, stuknij ponownie: wstaw. Dźwięk zostaje na Macu; do uporządkowania do instancji covey trafia tylko tekst, z nazwą aplikacji, dla której jest.",
+    "raeumtAuf": "Porządkowanie …"
   },
   "appLink": {
     "title": "Otwórz w aplikacji covey",

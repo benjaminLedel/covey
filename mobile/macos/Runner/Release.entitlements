@@ -2,8 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Outside the App Sandbox (#355): dictate-anywhere puts the text into
+	     the app that has the focus with a synthesised ⌘V, and posting events
+	     to other apps is not possible from inside the sandbox. -->
 	<key>com.apple.security.app-sandbox</key>
-	<true/>
+	<false/>
 	<!-- Outgoing connections: the app talks to the covey instance it is
 	     connected to (#334). Without this the sandbox refuses every request. -->
 	<key>com.apple.security.network.client</key>

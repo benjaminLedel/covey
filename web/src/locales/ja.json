@@ -2576,7 +2576,18 @@
     "protokollLoeschen": "ログを削除",
     "protokollKopiert": "ログをコピーしました。",
     "diagnoseHinweis": "ログはこの端末に保存されます。動作・時間・エラーのみを記録し、メモ、文字起こし、メッセージ、キーなどの内容は含みません。",
-    "modell_parakeet": "ヨーロッパの25言語を自動で認識し、句読点も付けます（テスト中）"
+    "modell_parakeet": "ヨーロッパの25言語を自動で認識し、句読点も付けます（テスト中）",
+    "ueberall": "どこでも音声入力",
+    "ueberallSchalter": "⌥ スペースで任意のアプリに音声入力",
+    "bedienungshilfen": "アクセシビリティ",
+    "freigegeben": "許可済み：テキストを挿入できます",
+    "nichtFreigegeben": "未許可：テキストを挿入できません",
+    "freigeben": "許可する",
+    "aufraeumen": "テキストを整える",
+    "aufraeumenHinweis": "フィラーを除去し、言い直しを反映し、句読点を付けます",
+    "aufraeumenNicht": "組織のモデル利用設定が必要です",
+    "ueberallHinweis": "押し続けて話し、離すと挿入。短くタップでハンズフリー、もう一度タップで挿入。音声は Mac に残ります。整える際は、テキストと挿入先アプリ名だけが covey インスタンスに送られます。",
+    "raeumtAuf": "整えています …"
   },
   "appLink": {
     "title": "covey アプリで開く",

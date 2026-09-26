@@ -2576,7 +2576,18 @@
     "protokollLoeschen": "删除日志",
     "protokollKopiert": "日志已复制。",
     "diagnoseHinweis": "日志保存在此设备上。它只记录操作过程、耗时和错误，不含任何内容：没有笔记、转写、消息或密钥。",
-    "modell_parakeet": "可自动识别 25 种欧洲语言，并加标点；测试中"
+    "modell_parakeet": "可自动识别 25 种欧洲语言，并加标点；测试中",
+    "ueberall": "随处听写",
+    "ueberallSchalter": "用 ⌥ 空格键在任意应用中听写",
+    "bedienungshilfen": "辅助功能",
+    "freigegeben": "已允许：可以插入文字",
+    "nichtFreigegeben": "未允许：无法插入文字",
+    "freigeben": "允许",
+    "aufraeumen": "整理文字",
+    "aufraeumenHinweis": "去掉口头禅，应用改口，添加标点",
+    "aufraeumenNicht": "需要您组织的模型访问权限",
+    "ueberallHinweis": "按住说话，松开插入。轻点：免手持，再点一次：插入。音频留在 Mac 上；整理时只把文字和目标应用名称发送到您的 covey 实例。",
+    "raeumtAuf": "正在整理 …"
   },
   "appLink": {
     "title": "在 covey 应用中打开",

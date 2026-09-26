@@ -2576,7 +2576,18 @@
     "protokollLoeschen": "Logboek verwijderen",
     "protokollKopiert": "Logboek gekopieerd.",
     "diagnoseHinweis": "Het logboek blijft op dit apparaat. Het legt handelingen, tijden en fouten vast, geen inhoud: geen notities, transcripties, berichten of sleutels.",
-    "modell_parakeet": "Herkent zelf 25 Europese talen, met interpunctie; in test"
+    "modell_parakeet": "Herkent zelf 25 Europese talen, met interpunctie; in test",
+    "ueberall": "Overal dicteren",
+    "ueberallSchalter": "In elke app dicteren met ⌥ Spatie",
+    "bedienungshilfen": "Toegankelijkheid",
+    "freigegeben": "Toegestaan: de tekst kan worden ingevoegd",
+    "nichtFreigegeben": "Niet toegestaan: de tekst kan niet worden ingevoegd",
+    "freigeben": "Toestaan",
+    "aufraeumen": "Tekst opschonen",
+    "aufraeumenHinweis": "Stopwoorden eruit, correcties toegepast, interpunctie gezet",
+    "aufraeumenNicht": "Vereist een modeltoegang van uw organisatie",
+    "ueberallHinweis": "Vasthouden: spreken, loslaten: invoegen. Tikken: handsfree, nogmaals tikken: invoegen. Het geluid blijft op de Mac; voor het opschonen gaat alleen de tekst naar uw covey-instantie, met de naam van de app waarvoor hij is.",
+    "raeumtAuf": "Opschonen …"
   },
   "appLink": {
     "title": "Openen in de covey-app",

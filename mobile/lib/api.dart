@@ -244,6 +244,14 @@ class CoveyApi {
         as Map<String, dynamic>,
   );
 
+  /// Dictated text as the person meant to write it (#355): filler words
+  /// out, self-corrections applied, punctuation set. [app] names the
+  /// application the text is for, so the form can fit it.
+  Future<String> cleanDictation(String text, {String? app}) async {
+    final out = await post('/me/dictation/clean', {'text': text, 'app': ?app}) as Map<String, dynamic>;
+    return out['text'] as String;
+  }
+
   /// The model file, from byte [from] on — a download cut off by a lost
   /// connection resumes rather than starting the 150 MB again. No timeout on
   /// the body: it takes as long as the network takes.
@@ -293,6 +301,7 @@ class SpeechModelInfo {
     this.engine = 'whisper',
     this.credit,
     this.files = const [],
+    this.clean = false,
   });
 
   factory SpeechModelInfo.fromJson(Map<String, dynamic> j) => SpeechModelInfo(
@@ -308,6 +317,7 @@ class SpeechModelInfo {
     models: [
       for (final m in (j['models'] as List<dynamic>? ?? const [])) SpeechModelInfo.fromJson(m as Map<String, dynamic>),
     ],
+    clean: j['clean'] == true,
     engine: j['engine'] as String? ?? 'whisper',
     credit: j['credit'] as String?,
     files: [
@@ -344,6 +354,9 @@ class SpeechModelInfo {
 
   /// The model's files, each pinned by digest.
   final List<SpeechModelFile> files;
+
+  /// Whether the instance can clean dictated text up (#355).
+  final bool clean;
 }
 
 /// One file of a speech model.

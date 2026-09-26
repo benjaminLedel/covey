@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../api.dart';
+import '../anywhere.dart';
 import '../diagnostics.dart';
 import '../dictation.dart';
 import '../dictation_view.dart';
@@ -54,12 +55,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _model.addListener(_changed);
     _model.loadPrefs().then((_) => _model.refresh(widget.api));
     Diagnostics.instance.addListener(_changed);
+    if (DictateAnywhere.supported) {
+      DictateAnywhere.instance.addListener(_changed);
+      DictateAnywhere.instance.refresh();
+    }
     _measureLog();
   }
 
   @override
   void dispose() {
     Diagnostics.instance.removeListener(_changed);
+    if (DictateAnywhere.supported) DictateAnywhere.instance.removeListener(_changed);
     _model.removeListener(_changed);
     super.dispose();
   }
@@ -251,6 +257,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
     widget.onDisconnect();
   }
 
+  /// Dictate anywhere (#355): the shortcut, the permission it needs, and
+  /// the cleanup — Mac only.
+  List<Widget> _anywhere(BuildContext context, TextStyle? small) {
+    final a = DictateAnywhere.instance;
+    final c = context.colors;
+    return [
+      SectionTitle(context.t('mobile.ueberall')),
+      InsetGroup(
+        dividerIndent: 14,
+        children: [
+          GroupRow(
+            title: context.t('mobile.ueberallSchalter'),
+            trailing: Switch.adaptive(value: a.enabled, onChanged: a.setEnabled),
+          ),
+          GroupRow(
+            title: context.t('mobile.bedienungshilfen'),
+            subtitle: a.trusted ? context.t('mobile.freigegeben') : context.t('mobile.nichtFreigegeben'),
+            trailing: a.trusted
+                ? Icon(Icons.check_circle_rounded, color: c.textSuccess, size: 20)
+                : TextButton(onPressed: a.askTrust, child: Text(context.t('mobile.freigeben'))),
+          ),
+          GroupRow(
+            title: context.t('mobile.aufraeumen'),
+            subtitle: a.cleanAvailable ? context.t('mobile.aufraeumenHinweis') : context.t('mobile.aufraeumenNicht'),
+            trailing: Switch.adaptive(
+              value: a.clean && a.cleanAvailable,
+              onChanged: a.cleanAvailable ? a.setClean : null,
+            ),
+          ),
+        ],
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(32, 8, 32, 0),
+        child: Text(context.t('mobile.ueberallHinweis'), style: small),
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
@@ -334,6 +378,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: small,
             ),
           ),
+
+          if (DictateAnywhere.supported) ..._anywhere(context, small),
 
           SectionTitle(context.t('mobile.diagnose')),
           InsetGroup(
