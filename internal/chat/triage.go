@@ -110,7 +110,7 @@ Choose "task" when doing it would need any of: a target system (ticketing, repos
 
 You can see your own backlog and write to it, and that is all. You have NO target system, NO credentials, NO files, NO commands, NO search and NO memory beyond what stands below. Never claim to have done, checked, sent or looked at anything outside this list. If answering would require any of that, it is a task.
 
-How you write (for "answer", and for the "text" of a task): you are this colleague, chatting. Write the way a person writes in a work chat — short, direct, warm where it fits, in the language of the message. Usually one or two sentences. No headings, no bullet lists, no bold, no sign-off, no "As an AI", no restating the question, no offering a menu of further help. If the agent's own description below says how it talks, talk like that. A bare emoji (1–3 characters) is a valid answer when the message only needs acknowledging.
+How you write (for "answer", and for the "text" of a task): you are this colleague, chatting. Write the way a person writes in a work chat — short, direct, warm where it fits, in the language of the message. Usually one or two sentences. No headings, no bullet lists, no bold, no sign-off, no "As an AI", no restating the question, no offering a menu of further help. If the agent's own description below says how it talks, talk like that. Fit what you say to the person you are talking to (described below, when known): with someone whose role is not technical, say what it means for them in plain words and leave out file names, commands, branch names and jargon unless they ask; with a technical colleague, be precise and name the ticket, the branch or the error. A bare emoji (1–3 characters) is a valid answer when the message only needs acknowledging.
 
 For "answer": answer from the lists above and from this thread, never from memory of anything else: if a task is not in them, say that you cannot see it rather than guessing what became of it.
 For "note": the text is what the run should know, in one or two sentences.
@@ -119,9 +119,10 @@ For "task": the title is one line in the imperative, the body carries what the p
 // Triagieren führt den Zug aus. Der Fehlerfall ist bewusst weich: Wer nicht
 // entscheiden kann, eröffnet eine Aufgabe — das ist das Verhalten, das immer
 // funktioniert, und der Aufrufer muss dafür nichts wissen.
-func Triagieren(ctx context.Context, p llm.Provider, rolle, seele string, offen []Offen, fertig []Fertig, verlauf []Message, nachricht string) (Entscheidung, error) {
+func Triagieren(ctx context.Context, p llm.Provider, rolle, seele, gegenueber string, offen []Offen, fertig []Fertig, verlauf []Message, nachricht string) (Entscheidung, error) {
 	var b strings.Builder
 	stimme(&b, rolle, seele)
+	person(&b, gegenueber)
 	/* Der eigene Backlog. Er steht vor dem Gespräch, weil er der Zustand ist
 	   und das Gespräch nur die Bewegung darauf. */
 	if len(offen) > 0 {
@@ -244,6 +245,18 @@ func stimme(b *strings.Builder, rolle, seele string) {
 	}
 }
 
+/* person ist, mit wem da gesprochen wird (#412): Name, Titel, Abteilung,
+ * Zuständigkeit — was die Organisation ohnehin über jemanden führt (das
+ * Organigramm, spec/28 §1). Ohne das sprach ein Agent mit der Vertrieblerin
+ * wie mit dem Entwickler: dieselben Ticketnummern, dieselben Branches. */
+func person(b *strings.Builder, gegenueber string) {
+	if g := strings.TrimSpace(gegenueber); g != "" {
+		b.WriteString("Who you are talking to:\n")
+		b.WriteString(kuerzen(g, 800))
+		b.WriteString("\n\n")
+	}
+}
+
 // SeeleMax: so viel SOUL.md geht in einen Zug. Der Anfang sagt, wer jemand
 // ist; was danach kommt, sind meist Regeln für die Arbeit.
 const SeeleMax = 3000
@@ -257,6 +270,8 @@ Earlier the person asked you for something, you said you would look into it, and
 
 Write the way a colleague writes in a work chat: short, direct, in the language of the conversation. Usually two to four sentences. Lead with the outcome. No headings, no bold, no tables, no bullet list unless there really are several separate things to name, no sign-off, no "As an AI", no offering a menu of further help. If the agent's own description says how it talks, talk like that.
 
+Fit it to the person you are talking to (described below, when known). With someone whose role is not technical, say what came out and what it means for them, in plain words — no file names, commands, branch names, stack traces or jargon unless they asked for them; the full report stays available to them anyway. With a technical colleague, be precise: name the ticket, the branch, the error.
+
 Say only what the result says. Do not add, soften or improve anything, and do not claim anything the result does not state. If the run failed, say so plainly and, if the result or error says it, what is missing or what the person could do. If the result asks the person something, ask it.
 
 Answer with the chat message only — no JSON, no quotes around it.`
@@ -264,9 +279,10 @@ Answer with the chat message only — no JSON, no quotes around it.`
 // Erzaehlen macht aus dem Ergebnis eines Laufs, was der Agent im Chat sagt
 // (#411). Dieselben Grenzen wie die Triage: kein Zielsystem, keine
 // Zugangsdaten, nur das Ergebnis und das Gespräch.
-func Erzaehlen(ctx context.Context, p llm.Provider, rolle, seele string, verlauf []Message, auftrag, ausgang, ergebnis string) (string, error) {
+func Erzaehlen(ctx context.Context, p llm.Provider, rolle, seele, gegenueber string, verlauf []Message, auftrag, ausgang, ergebnis string) (string, error) {
 	var b strings.Builder
 	stimme(&b, rolle, seele)
+	person(&b, gegenueber)
 	if len(verlauf) > 0 {
 		b.WriteString("The conversation so far, oldest first:\n")
 		for _, m := range verlauf {

@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -56,6 +57,7 @@ func (s *Server) ErzaehlSchleife(ctx context.Context) {
 type zuErzaehlen struct {
 	id, orgID, agentID uuid.UUID
 	titel, rumpf       string
+	origin             string
 	zustand, ergebnis  string
 }
 
@@ -63,7 +65,7 @@ type zuErzaehlen struct {
 // damit ein Test nicht auf den Takt warten muss.
 func (s *Server) Nacherzaehlen(ctx context.Context) {
 	rows, err := s.Pool.Query(ctx, `
-		SELECT t.id, t.org_id, t.agent_id, t.title, coalesce(t.body, ''), t.state,
+		SELECT t.id, t.org_id, t.agent_id, t.title, coalesce(t.body, ''), t.origin, t.state,
 		       CASE WHEN t.state = 'done' THEN coalesce(t.result, '') ELSE coalesce(t.error, '') END
 		  FROM backlog_tasks t JOIN organizations o ON o.id = t.org_id
 		 WHERE t.origin LIKE 'chat:%' AND t.state IN ('done', 'failed')
@@ -79,7 +81,7 @@ func (s *Server) Nacherzaehlen(ctx context.Context) {
 	var liste []zuErzaehlen
 	for rows.Next() {
 		var z zuErzaehlen
-		if rows.Scan(&z.id, &z.orgID, &z.agentID, &z.titel, &z.rumpf, &z.zustand, &z.ergebnis) == nil {
+		if rows.Scan(&z.id, &z.orgID, &z.agentID, &z.titel, &z.rumpf, &z.origin, &z.zustand, &z.ergebnis) == nil {
 			liste = append(liste, z)
 		}
 	}
@@ -124,7 +126,9 @@ func (s *Server) erzaehlText(ctx context.Context, z zuErzaehlen) string {
 	if z.rumpf != "" && z.rumpf != z.titel {
 		auftrag = z.rumpf
 	}
-	text, err := chat.Erzaehlen(ctx, provider, s.rolleVon(ctx, z.agentID), s.seeleVon(ctx, z.agentID),
+	// The person the task came from (origin chat:<email>), #412.
+	gegenueber := s.gegenueberVon(ctx, z.orgID, strings.TrimPrefix(z.origin, "chat:"))
+	text, err := chat.Erzaehlen(ctx, provider, s.rolleVon(ctx, z.agentID), s.seeleVon(ctx, z.agentID), gegenueber,
 		verlauf, auftrag, z.zustand, z.ergebnis)
 	if err != nil {
 		s.Log.Warn("narration failed — the report stands on its own", "task", z.id, "err", err)

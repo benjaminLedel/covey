@@ -645,7 +645,7 @@ func (s *Server) triageLauf(orgID, agentID uuid.UUID, msg chat.Message, text, em
 	ctx, abbrechen := context.WithTimeout(context.Background(), triageLaufFrist)
 	defer abbrechen()
 
-	entscheidung, offen := s.triagieren(ctx, orgID, agentID, text)
+	entscheidung, offen := s.triagieren(ctx, orgID, agentID, text, email)
 	if a, err := s.Registry.Get(ctx, agentID); err == nil {
 		entscheidung = entscheidungFuer(a.Slug, entscheidung)
 	}
@@ -853,7 +853,7 @@ func (s *Server) NachholenOffeneTriage(ctx context.Context) {
 // with a model that answered nonsense gets the behaviour it had before #302,
 // and nobody has to be told about it. The one thing that must never happen is
 // that a message disappears because a model was not available.
-func (s *Server) triagieren(ctx context.Context, orgID, agentID uuid.UUID, text string) (chat.Entscheidung, map[string]uuid.UUID) {
+func (s *Server) triagieren(ctx context.Context, orgID, agentID uuid.UUID, text, email string) (chat.Entscheidung, map[string]uuid.UUID) {
 	aufgabe := chat.Entscheidung{Aktion: chat.AktionAufgabe}
 
 	mode, err := s.Chat.Mode(ctx, orgID)
@@ -871,7 +871,7 @@ func (s *Server) triagieren(ctx context.Context, orgID, agentID uuid.UUID, text 
 	liste, nach := s.offeneAufgaben(ctx, agentID)
 	fertig := s.fertigeAufgaben(ctx, agentID)
 
-	e, err := chat.Triagieren(ctx, provider, s.rolleVon(ctx, agentID), s.seeleVon(ctx, agentID), liste, fertig, verlauf, text)
+	e, err := chat.Triagieren(ctx, provider, s.rolleVon(ctx, agentID), s.seeleVon(ctx, agentID), s.gegenueberVon(ctx, orgID, email), liste, fertig, verlauf, text)
 	if err != nil {
 		s.Log.Warn("triage failed — the message becomes a task", "agent", agentID, "err", err)
 		return aufgabe, nil
@@ -1002,6 +1002,35 @@ func (s *Server) rolleVon(ctx context.Context, agentID uuid.UUID) string {
 		return ""
 	}
 	return beschreibung(a)
+}
+
+// gegenueberVon describes the person a message came from (#412): name, job
+// title, department and responsibilities, as the organisation keeps them —
+// so the agent can tell the engineer the branch and the salesperson what it
+// means for them. Empty when the person is not known in this organisation.
+func (s *Server) gegenueberVon(ctx context.Context, orgID uuid.UUID, email string) string {
+	if email == "" || s.Pool == nil {
+		return ""
+	}
+	var name, titel, zustaendig, abteilung string
+	err := s.Pool.QueryRow(ctx, `SELECT h.display_name, h.job_title, h.responsibilities, coalesce(d.name, '')
+		  FROM humans h LEFT JOIN departments d ON d.id = h.department_id
+		 WHERE h.org_id = $1 AND lower(h.email) = lower($2)`, orgID, email).
+		Scan(&name, &titel, &zustaendig, &abteilung)
+	if err != nil {
+		return ""
+	}
+	teile := []string{name}
+	if titel != "" {
+		teile = append(teile, "job title: "+titel)
+	}
+	if abteilung != "" {
+		teile = append(teile, "department: "+abteilung)
+	}
+	if zustaendig != "" {
+		teile = append(teile, "responsible for: "+zustaendig)
+	}
+	return strings.Join(teile, " — ")
 }
 
 // seeleVon is the agent's SOUL.md from its current config (#411): how it

@@ -60,6 +60,12 @@ func TestAChatTaskIsAcknowledgedAndToldInTheChat(t *testing.T) {
 	admin := teamLogin(t, s)
 	base := "/api/v1/agents/" + agent.ID.String()
 	admin.expect(http.MethodPatch, "/api/v1/org/chat-triage", map[string]any{"mode": "on"}, http.StatusOK)
+	// Who writes (#412): the organisation keeps a job title and what the
+	// person is responsible for, and the agent is to talk to that.
+	if _, err := s.pool.Exec(ctx, `UPDATE humans SET job_title='Vertriebsleitung', responsibilities='Kundenverträge'
+		WHERE email='admin@test.local'`); err != nil {
+		t.Fatal(err)
+	}
 
 	admin.expect(http.MethodPost, base+"/messages",
 		map[string]any{"text": "Bitte die Rechnung von Globex prüfen"}, http.StatusAccepted)
@@ -131,6 +137,12 @@ func TestAChatTaskIsAcknowledgedAndToldInTheChat(t *testing.T) {
 		if th["agent_id"] == agent.ID.String() && !strings.HasPrefix(th["last_text"].(string), "Hab nachgesehen") {
 			t.Errorf("last_text = %v", th["last_text"])
 		}
+	}
+
+	// Both turns knew whom they were talking to (#412): the triage and the
+	// narration each saw the person's job title.
+	if n := strings.Count(modell.prompts(), "Who you are talking to:\nAdmin — job title: Vertriebsleitung"); n != 2 {
+		t.Errorf("the person was described %d times, want 2 (triage and narration):\n%s", n, modell.prompts())
 	}
 
 	// Told once: a second pass does not tell it again.
