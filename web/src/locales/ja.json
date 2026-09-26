@@ -2608,7 +2608,10 @@
     "macTonJa": "含める（全員に伝えた）",
     "macTonNein": "マイクのみ",
     "sprecherIch": "自分",
-    "sprecherAndere": "相手"
+    "sprecherAndere": "相手",
+    "sprecherN": "話者 {{n}}",
+    "sprecherBenennen": "誰が話しましたか？",
+    "sprecherBenennenHinweis": "声に名前を付けるか、そのままにしてください。"
   },
   "appLink": {
     "title": "covey アプリで開く",

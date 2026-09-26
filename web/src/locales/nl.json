@@ -2608,7 +2608,10 @@
     "macTonJa": "Meenemen, iedereen weet het",
     "macTonNein": "Alleen microfoon",
     "sprecherIch": "Ik",
-    "sprecherAndere": "Anderen"
+    "sprecherAndere": "Anderen",
+    "sprecherN": "Spreker {{n}}",
+    "sprecherBenennen": "Wie sprak er?",
+    "sprecherBenennenHinweis": "Geef de stemmen een naam, of laat ze zo."
   },
   "appLink": {
     "title": "Openen in de covey-app",

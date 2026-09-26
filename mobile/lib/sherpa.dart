@@ -26,6 +26,17 @@ class SherpaEngine extends SegmentedEngine {
   /// `parakeet` or `sensevoice`.
   final String model;
 
+  /// The speaker-embedding model's directory, when the voices are to be told
+  /// apart (#367): each finished segment then carries an embedding.
+  String? speakerModelPath;
+  Float32List? _embedding;
+
+  /// Less than this is too little voice for a reliable embedding: 1.5 s.
+  static const _minEmbedBytes = 48000;
+
+  @override
+  Float32List? get lastEmbedding => _embedding;
+
   _Worker? _worker;
   final _segment = BytesBuilder();
   int _segmentId = 0;
@@ -45,8 +56,11 @@ class SherpaEngine extends SegmentedEngine {
   Future<void> prepare() async {
     if (_worker != null) return;
     final watch = Stopwatch()..start();
-    _worker = await _Worker.spawn(modelPath, model);
-    diag('dictation', '$model loaded in ${watch.elapsedMilliseconds} ms');
+    _worker = await _Worker.spawn(modelPath, model, speakerModelPath);
+    diag(
+      'dictation',
+      '$model loaded in ${watch.elapsedMilliseconds} ms${speakerModelPath == null ? '' : ', with the speakers\' model'}',
+    );
   }
 
   @override
@@ -91,8 +105,17 @@ class SherpaEngine extends SegmentedEngine {
     }
     final w = _worker;
     final pcm = _segment.takeBytes();
+    _embedding = null;
     if (w == null || pcm.length < 8000) return '';
-    return w.decode(pcm);
+    final text = await w.decode(pcm);
+    if (speakerModelPath != null && pcm.length >= _minEmbedBytes && text.trim().isNotEmpty) {
+      try {
+        _embedding = await w.embed(pcm);
+      } catch (e) {
+        diag('dictation', 'no embedding: $e');
+      }
+    }
+    return text;
   }
 
   @override
@@ -114,9 +137,9 @@ class _Worker {
   final Stream<dynamic> _replies;
   int _next = 0;
 
-  static Future<_Worker> spawn(String dir, String model) async {
+  static Future<_Worker> spawn(String dir, String model, String? speakerDir) async {
     final inbox = ReceivePort();
-    final isolate = await Isolate.spawn(_main, [inbox.sendPort, dir, model]);
+    final isolate = await Isolate.spawn(_main, [inbox.sendPort, dir, model, speakerDir]);
     final replies = inbox.asBroadcastStream();
     final first = await replies.first;
     if (first is String) {
@@ -127,16 +150,22 @@ class _Worker {
     return _Worker._(isolate, first as SendPort, replies);
   }
 
-  Future<String> decode(Uint8List pcm16) async {
+  Future<String> decode(Uint8List pcm16) async => await _ask('text', pcm16) as String;
+
+  /// The speaker embedding of [pcm16] (#367).
+  Future<Float32List> embed(Uint8List pcm16) async => await _ask('embed', pcm16) as Float32List;
+
+  Future<Object?> _ask(String what, Uint8List pcm16) async {
     final id = _next++;
     final reply = _replies.firstWhere((m) => m is List && m[0] == id);
     _send.send([
       id,
+      what,
       TransferableTypedData.fromList([pcm16]),
     ]);
     final m = await reply as List;
-    if (m[1] is String && m.length > 2 && m[2] == true) throw Exception(m[1]);
-    return m[1] as String;
+    if (m.length > 2 && m[2] == true) throw Exception(m[1]);
+    return m[1];
   }
 
   void close() {
@@ -148,7 +177,9 @@ class _Worker {
     final out = args[0]! as SendPort;
     final dir = args[1]! as String;
     final model = args[2]! as String;
+    final speakerDir = args[3] as String?;
     final sherpa.OfflineRecognizer rec;
+    sherpa.SpeakerEmbeddingExtractor? voices;
     try {
       sherpa.initBindings();
       rec = sherpa.OfflineRecognizer(
@@ -177,6 +208,11 @@ class _Worker {
                 ),
         ),
       );
+      if (speakerDir != null) {
+        voices = sherpa.SpeakerEmbeddingExtractor(
+          config: sherpa.SpeakerEmbeddingExtractorConfig(model: '$speakerDir/model.onnx', numThreads: 2, debug: false),
+        );
+      }
     } catch (e) {
       out.send('$model: $e');
       return;
@@ -186,17 +222,34 @@ class _Worker {
     inbox.listen((msg) {
       if (msg == null) {
         rec.free();
+        voices?.free();
         inbox.close();
         return;
       }
       final m = msg as List;
       final id = m[0] as int;
+      final what = m[1] as String;
       try {
-        final bytes = (m[1] as TransferableTypedData).materialize().asUint8List();
+        final bytes = (m[2] as TransferableTypedData).materialize().asUint8List();
         final pcm = bytes.buffer.asInt16List(bytes.offsetInBytes, bytes.length ~/ 2);
         final samples = Float32List(pcm.length);
         for (var i = 0; i < pcm.length; i++) {
           samples[i] = pcm[i] / 32768.0;
+        }
+        if (what == 'embed') {
+          final v = voices;
+          if (v == null) throw StateError('no speakers\' model loaded');
+          final stream = v.createStream();
+          stream.acceptWaveform(samples: samples, sampleRate: 16000);
+          stream.inputFinished();
+          if (!v.isReady(stream)) {
+            stream.free();
+            throw StateError('segment too short for an embedding');
+          }
+          final embedding = v.compute(stream);
+          stream.free();
+          out.send([id, embedding]);
+          return;
         }
         final stream = rec.createStream();
         stream.acceptWaveform(samples: samples, sampleRate: 16000);

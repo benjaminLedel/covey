@@ -96,6 +96,19 @@ var Models = map[string]Model{
 			hf(parakeetRepo, "tokens.txt", "d58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d", 93939),
 		},
 	},
+	// Not a speech model: the speaker-embedding model that tells the voices
+	// of a meeting apart (#367). Offered whenever speech is on.
+	SpeakerModel: {
+		Name:   SpeakerModel,
+		Engine: "speaker",
+		Credit: "NVIDIA TitaNet small · CC-BY-4.0",
+		Files: []File{{
+			Name:   "model.onnx",
+			URL:    "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/nemo_en_titanet_small.onnx",
+			SHA256: "ad4a1802485d8b34c722d2a9d04249662f2ece5d28a7a039063ca22f515a789e",
+			Size:   40257283,
+		}},
+	},
 	"sensevoice": {
 		Name:   "sensevoice",
 		Engine: "sensevoice",
@@ -106,6 +119,9 @@ var Models = map[string]Model{
 		},
 	},
 }
+
+// SpeakerModel names the speaker-embedding model (#367).
+const SpeakerModel = "titanet"
 
 const (
 	parakeetRepo   = "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8"
@@ -146,7 +162,7 @@ func New(name, dataDir string, log *slog.Logger) (*Store, error) {
 	}
 	m, ok := Models[name]
 	if !ok {
-		return nil, fmt.Errorf("unknown speech model %q (parakeet, sensevoice or off)", name)
+		return nil, fmt.Errorf("unknown speech model %q (parakeet, sensevoice, titanet or off)", name)
 	}
 	return &Store{Model: m, Dir: filepath.Join(dataDir, "models", name), Log: log}, nil
 }

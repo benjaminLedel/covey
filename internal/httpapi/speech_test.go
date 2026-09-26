@@ -115,7 +115,7 @@ func TestSpeechModelsAreListedAndPickedByName(t *testing.T) {
 	for _, m := range models {
 		names = append(names, m.(map[string]any)["name"].(string))
 	}
-	if strings.Join(names, ",") != "sensevoice,parakeet" {
+	if strings.Join(names, ",") != "titanet,sensevoice,parakeet" {
 		t.Fatalf("models = %v, want smallest first", names)
 	}
 	if _, sv := get("?name=sensevoice"); sv["name"] != "sensevoice" || sv["engine"] != "sensevoice" || sv["size"] != float64(speech.Models["sensevoice"].Size()) {

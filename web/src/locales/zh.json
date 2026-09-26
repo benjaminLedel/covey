@@ -2608,7 +2608,10 @@
     "macTonJa": "包含，大家都已知情",
     "macTonNein": "仅麦克风",
     "sprecherIch": "我",
-    "sprecherAndere": "其他人"
+    "sprecherAndere": "其他人",
+    "sprecherN": "发言人 {{n}}",
+    "sprecherBenennen": "谁在发言？",
+    "sprecherBenennenHinweis": "为这些声音命名，或保持原样。"
   },
   "appLink": {
     "title": "在 covey 应用中打开",

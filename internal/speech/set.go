@@ -26,6 +26,9 @@ func NewSet(def string, allowed []string, dataDir string, log *slog.Logger) (*Se
 		return nil, nil
 	}
 	names := []string{def}
+	// The speakers' model rides along with any speech model (#367); the app
+	// does not list it as a choice.
+	allowed = append(append([]string{}, allowed...), SpeakerModel)
 	for _, n := range allowed {
 		n = strings.TrimSpace(n)
 		if n != "" && !slices.Contains(names, n) {

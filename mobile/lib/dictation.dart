@@ -94,8 +94,12 @@ abstract class SegmentedEngine implements SpeechEngine {
   Stream<Uint8List> Function()? source;
 
   /// Each finished segment's text with the moment its speech began, for a
-  /// transcript merged from two sources (#364).
-  void Function(String text, DateTime at)? onSegment;
+  /// transcript merged from two sources (#364), and its speaker embedding
+  /// where the voices are told apart (#367).
+  void Function(String text, DateTime at, Float32List? voice)? onSegment;
+
+  /// The embedding of the segment just closed, if the recogniser makes one.
+  Float32List? get lastEmbedding => null;
   DateTime? _segSpeechAt;
 
   /// Loads what the recogniser needs once per dictation.
@@ -241,7 +245,7 @@ abstract class SegmentedEngine implements SpeechEngine {
     _current = '';
     if (keep && text.isNotEmpty && !_isHallucination(text)) {
       _committed = _committed.isEmpty ? text : '$_committed $text';
-      onSegment?.call(text, at ?? DateTime.now());
+      onSegment?.call(text, at ?? DateTime.now(), lastEmbedding);
     }
     _log('segment done, ${text.length} characters, finished in ${watch.elapsedMilliseconds} ms');
     _partials(_joined());
@@ -320,14 +324,27 @@ double _loudness(double rms) {
 /// [preparing] and [progress] say so while it does. The model recognises the
 /// language itself.
 class Dictation extends ChangeNotifier {
-  Dictation({this.api, this.engine, SpeechModel? model, this.keepModelLoaded = false, this.source, this.onSegment})
-    : _model = model ?? SpeechModel.instance;
+  Dictation({
+    this.api,
+    this.engine,
+    SpeechModel? model,
+    this.keepModelLoaded = false,
+    this.source,
+    this.onSegment,
+    this.diarize = false,
+  }) : _model = model ?? SpeechModel.instance;
+
+  /// Tell the voices apart (#367): the speakers' model is fetched and each
+  /// segment carries an embedding. Without the model, dictation goes on
+  /// without it.
+  final bool diarize;
 
   /// Another audio source than the microphone (#364).
   final Stream<Uint8List> Function()? source;
 
-  /// Each finished segment with the moment its speech began (#364).
-  final void Function(String text, DateTime at)? onSegment;
+  /// Each finished segment with the moment its speech began (#364) and its
+  /// voice (#367).
+  final void Function(String text, DateTime at, Float32List? voice)? onSegment;
 
   /// Keep the recogniser's model loaded between dictations (#355).
   final bool keepModelLoaded;
@@ -422,6 +439,12 @@ class Dictation extends ChangeNotifier {
     }
 
     final eng = _engineFor(_model.engine);
+    if (diarize && eng is SherpaEngine && eng.speakerModelPath == null) {
+      eng.speakerModelPath = await SpeechModel.speaker.ensure(api);
+      if (eng.speakerModelPath == null) {
+        diag('dictation', 'voices not told apart: ${SpeechModel.speaker.detail ?? 'no model'}');
+      }
+    }
     try {
       if (!await eng.hasPermission()) return _fail(DictationFailure.denied, null);
       _running = true;

@@ -2608,7 +2608,10 @@
     "macTonJa": "L'inclure, tout le monde est au courant",
     "macTonNein": "Micro seulement",
     "sprecherIch": "Moi",
-    "sprecherAndere": "Autres"
+    "sprecherAndere": "Autres",
+    "sprecherN": "Intervenant {{n}}",
+    "sprecherBenennen": "Qui a parlé ?",
+    "sprecherBenennenHinweis": "Donnez un nom aux voix, ou laissez-les ainsi."
   },
   "appLink": {
     "title": "Ouvrir dans l'application covey",

@@ -36,9 +36,20 @@ enum SpeechModelProblem {
 /// One per app: the file is shared by dictation in notes and meetings, and
 /// two downloads of hundreds of MB at once would be one too many.
 class SpeechModel extends ChangeNotifier {
-  SpeechModel._();
+  SpeechModel._({this.fixed, this.root = 'speech'});
 
   static final SpeechModel instance = SpeechModel._();
+
+  /// The speaker-embedding model that tells a meeting's voices apart
+  /// (#367): not chosen, always the one the instance names; kept in a
+  /// directory of its own, so a change of speech model leaves it alone.
+  static final SpeechModel speaker = SpeechModel._(fixed: 'titanet', root: 'speaker');
+
+  /// A model that is not chosen but always this one.
+  final String? fixed;
+
+  /// The directory under the app's support directory.
+  final String root;
 
   String? _path;
   Future<String?>? _running;
@@ -103,7 +114,7 @@ class SpeechModel extends ChangeNotifier {
     await _save(_modelKey, name);
   }
 
-  Future<Directory> _dir() async => Directory('${(await getApplicationSupportDirectory()).path}/speech');
+  Future<Directory> _dir() async => Directory('${(await getApplicationSupportDirectory()).path}/$root');
 
   /// Asks the instance what it offers and looks whether the model in use is
   /// already on the device — without downloading anything.
@@ -126,7 +137,7 @@ class SpeechModel extends ChangeNotifier {
   /// The model in use, as the instance describes it. A chosen model the
   /// instance no longer offers falls back to its default.
   Future<SpeechModelInfo> _ask(CoveyApi api) async {
-    final name = chosen ?? (_asian.contains(appLanguage) ? 'sensevoice' : null);
+    final name = fixed ?? chosen ?? (_asian.contains(appLanguage) ? 'sensevoice' : null);
     if (name == null) return api.speechModel();
     try {
       return await api.speechModel(name: name);

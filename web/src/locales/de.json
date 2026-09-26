@@ -2608,7 +2608,10 @@
     "macTonJa": "Einbeziehen, alle wissen Bescheid",
     "macTonNein": "Nur Mikrofon",
     "sprecherIch": "Ich",
-    "sprecherAndere": "Andere"
+    "sprecherAndere": "Andere",
+    "sprecherN": "Sprecher {{n}}",
+    "sprecherBenennen": "Wer hat gesprochen?",
+    "sprecherBenennenHinweis": "Geben Sie den Stimmen Namen, oder lassen Sie sie so."
   },
   "appLink": {
     "title": "In der covey-App öffnen",

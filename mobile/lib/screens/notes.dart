@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:intl/intl.dart';
 
 import '../chrome.dart';
 import '../api.dart';
+import '../diarize.dart';
 import '../dictation.dart';
 import '../dictation_view.dart';
 import '../i18n.dart';
@@ -584,14 +586,19 @@ class MeetingScreen extends StatefulWidget {
 
 class _MeetingScreenState extends State<MeetingScreen> {
   late final Dictation _dictation =
-      widget.dictation ?? Dictation(api: widget.api, onSegment: (t, at) => _segment(true, t, at));
+      widget.dictation ?? Dictation(api: widget.api, diarize: true, onSegment: (t, at, v) => _segment(true, t, at, v));
 
   /// The Mac's own audio, when the person includes it (#364): the other
   /// side of the call, recognised separately.
   Dictation? _others;
+  bool _withMac = false;
 
-  /// Finished segments of both sides, merged by the time their speech began.
-  final _segments = <({DateTime at, bool mine, String text})>[];
+  /// Finished segments of both sides, merged by the time their speech began;
+  /// [key] is who spoke: `me`, or `s1`, `s2` … for the voices told apart
+  /// (#367).
+  final _segments = <({DateTime at, bool mine, String key, String text})>[];
+  final _voices = Diarizer();
+  final _names = <String, String>{};
   final _watch = Stopwatch();
   Timer? _tick;
   bool _saving = false;
@@ -606,10 +613,24 @@ class _MeetingScreenState extends State<MeetingScreen> {
 
   void _changed() => setState(() {});
 
-  void _segment(bool mine, String text, DateTime at) {
-    _segments.add((at: at, mine: mine, text: text));
+  /// With the Mac's audio the microphone is the person themselves, and the
+  /// Mac's side is split into voices; with the microphone only — a room —
+  /// the microphone is split.
+  void _segment(bool mine, String text, DateTime at, Float32List? voice) {
+    final key = mine && _withMac ? 'me' : 's${_voices.assign(voice)}';
+    _segments.add((at: at, mine: mine, key: key, text: text));
     _segments.sort((a, b) => a.at.compareTo(b.at));
   }
+
+  String _label(String key) {
+    if (key == 'me') return context.t('mobile.sprecherIch');
+    if (key == 'others') return context.t('mobile.sprecherAndere');
+    return _names[key] ?? context.t('mobile.sprecherN', args: {'n': key.substring(1)});
+  }
+
+  /// Whether the transcript names its speakers: always with the Mac's
+  /// audio, and in a room once there is more than one voice.
+  bool get _labelled => _withMac || _segments.map((s) => s.key).toSet().length > 1;
 
   /// On the Mac: include the Mac's audio? Only with everybody's knowledge —
   /// the question says so, and the answer that includes it says it too.
@@ -631,16 +652,17 @@ class _MeetingScreenState extends State<MeetingScreen> {
   }
 
   Future<void> _start() async {
-    final withMac = SystemAudio.supported && widget.dictation == null && await _askForMacAudio();
+    _withMac = SystemAudio.supported && widget.dictation == null && await _askForMacAudio();
     if (!mounted) return;
     if (await _dictation.start(continuous: true)) {
       _watch.start();
       _tick = Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
-      if (withMac) {
+      if (_withMac) {
         final others = Dictation(
           api: widget.api,
           source: SystemAudio.stream,
-          onSegment: (t, at) => _segment(false, t, at),
+          diarize: true,
+          onSegment: (t, at, v) => _segment(false, t, at, v),
         )..addListener(_changed);
         _others = others;
         if (!await others.start(continuous: true) && mounted) {
@@ -675,28 +697,83 @@ class _MeetingScreenState extends State<MeetingScreen> {
     return all.startsWith(done) ? all.substring(done.length).trim() : '';
   }
 
-  /// The transcript with its speaker sides: consecutive segments of one side
-  /// form one paragraph. [live] adds what is being spoken now.
-  List<({bool mine, String text})> _turns({required bool live}) {
-    final out = <({bool mine, String text})>[];
-    void add(bool mine, String text) {
+  /// The side's last speaker, for the words still being spoken.
+  String _liveKey(bool mine) {
+    for (final s in _segments.reversed) {
+      if (s.mine == mine) return s.key;
+    }
+    return mine ? (_withMac ? 'me' : 's1') : 'others';
+  }
+
+  /// The transcript by speaker: consecutive segments of one speaker form one
+  /// turn. [live] adds what is being spoken now.
+  List<({String key, String text})> _turns({required bool live}) {
+    final out = <({String key, String text})>[];
+    void add(String key, String text) {
       if (text.isEmpty) return;
-      if (out.isNotEmpty && out.last.mine == mine) {
-        out[out.length - 1] = (mine: mine, text: '${out.last.text} $text');
+      if (out.isNotEmpty && out.last.key == key) {
+        out[out.length - 1] = (key: key, text: '${out.last.text} $text');
       } else {
-        out.add((mine: mine, text: text));
+        out.add((key: key, text: text));
       }
     }
 
     for (final s in _segments) {
-      add(s.mine, s.text);
+      add(s.key, s.text);
     }
-    final others = _others;
-    if (live && others != null) {
-      add(false, _live(others, false));
-      add(true, _live(_dictation, true));
+    if (live) {
+      final others = _others;
+      if (others != null) add(_liveKey(false), _live(others, false));
+      add(_liveKey(true), _live(_dictation, true));
     }
     return out;
+  }
+
+  /// Names for the voices, each shown with their first words; left empty, a
+  /// voice keeps its number.
+  Future<void> _nameSpeakers() async {
+    final keys = {
+      for (final s in _segments)
+        if (s.key != 'me') s.key,
+    }.toList()..sort();
+    if (keys.isEmpty) return;
+    final fields = {for (final k in keys) k: TextEditingController()};
+    final first = {for (final k in keys) k: _segments.firstWhere((s) => s.key == k).text};
+    final t = context.t;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Text(t('mobile.sprecherBenennen')),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(t('mobile.sprecherBenennenHinweis'), style: context.type.bodySmall),
+              for (final k in keys) ...[
+                const SizedBox(height: 14),
+                TextField(
+                  controller: fields[k],
+                  textCapitalization: TextCapitalization.words,
+                  decoration: InputDecoration(
+                    labelText: t('mobile.sprecherN', args: {'n': k.substring(1)}),
+                    helperText: '„${first[k]!.length > 70 ? '${first[k]!.substring(0, 70)}…' : first[k]}“',
+                    helperMaxLines: 2,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [FilledButton(onPressed: () => Navigator.pop(context), child: Text(t('mobile.speichern')))],
+      ),
+    );
+    for (final k in keys) {
+      final name = fields[k]!.text.trim();
+      if (name.isNotEmpty) _names[k] = name;
+      fields[k]!.dispose();
+    }
   }
 
   Future<void> _stop() async {
@@ -704,12 +781,12 @@ class _MeetingScreenState extends State<MeetingScreen> {
     _tick?.cancel();
     final others = _others;
     var text = await _dictation.stop();
-    if (others != null) {
-      await others.stop();
+    await others?.stop();
+    if (!mounted) return;
+    if (_labelled && _segments.isNotEmpty) {
+      await _nameSpeakers();
       if (!mounted) return;
-      final me = context.t('mobile.sprecherIch');
-      final them = context.t('mobile.sprecherAndere');
-      text = [for (final t in _turns(live: false)) '**${t.mine ? me : them}:** ${t.text}'].join('\n\n');
+      text = [for (final t in _turns(live: false)) '**${_label(t.key)}:** ${t.text}'].join('\n\n');
     }
     if (!mounted) return;
     final nav = Navigator.of(context);
@@ -789,12 +866,12 @@ class _MeetingScreenState extends State<MeetingScreen> {
                   decoration: BoxDecoration(color: c.surface2, borderRadius: BorderRadius.circular(20)),
                   child: SingleChildScrollView(
                     reverse: true,
-                    child: _others == null
+                    child: !_labelled
                         ? Text(
                             text.isEmpty ? context.t('mobile.nochNichtsGehoert') : text,
                             style: context.type.bodyLarge?.copyWith(color: text.isEmpty ? c.textMuted : c.textPrimary),
                           )
-                        : _Turns(turns: _turns(live: true)),
+                        : _Turns(turns: _turns(live: true), label: _label),
                   ),
                 ),
               ),
@@ -824,12 +901,13 @@ InputDecoration _bare(BuildContext context, String hint, TextStyle? style) => In
   contentPadding: const EdgeInsets.symmetric(vertical: 10),
 );
 
-/// A meeting's transcript with its sides (#364): each turn a paragraph that
-/// begins with who spoke.
+/// A meeting's transcript by speaker (#364, #367): each turn a paragraph
+/// that begins with who spoke — the person themselves in the accent.
 class _Turns extends StatelessWidget {
-  const _Turns({required this.turns});
+  const _Turns({required this.turns, required this.label});
 
-  final List<({bool mine, String text})> turns;
+  final List<({String key, String text})> turns;
+  final String Function(String key) label;
 
   @override
   Widget build(BuildContext context) {
@@ -848,8 +926,11 @@ class _Turns extends StatelessWidget {
               TextSpan(
                 children: [
                   TextSpan(
-                    text: '${context.t(t.mine ? 'mobile.sprecherIch' : 'mobile.sprecherAndere')}: ',
-                    style: style?.copyWith(fontWeight: FontWeight.w600, color: t.mine ? c.textAccent : c.textSecondary),
+                    text: '${label(t.key)}: ',
+                    style: style?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: t.key == 'me' ? c.textAccent : c.textSecondary,
+                    ),
                   ),
                   TextSpan(text: t.text, style: style),
                 ],

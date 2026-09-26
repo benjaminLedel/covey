@@ -115,7 +115,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// good for; picking one starts its download right away.
   Future<void> _pickModel() async {
     final i = _model.info;
-    if (i == null || i.models.isEmpty) return;
+    // Speech models only: the speakers' model is not a choice (#367).
+    final models = [
+      for (final m in i?.models ?? const <SpeechModelInfo>[])
+        if (m.engine != 'speaker') m,
+    ];
+    if (i == null || models.isEmpty) return;
     // The model in use — chosen, or picked for the app's language.
     final current = i.name;
     String label(SpeechModelInfo m) {
@@ -131,7 +136,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           title: Text(context.t('mobile.sprachmodell')),
           message: Text(context.t('mobile.modellWahlHinweis')),
           actions: [
-            for (final m in i.models)
+            for (final m in models)
               CupertinoActionSheetAction(
                 isDefaultAction: m.name == current,
                 onPressed: () {
@@ -162,7 +167,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: ListView(
             shrinkWrap: true,
             children: [
-              for (final m in i.models)
+              for (final m in models)
                 ListTile(
                   title: Text(label(m)),
                   subtitle: Text(context.t('mobile.modell_${m.name}')),
@@ -432,7 +437,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               GroupRow(
                 title: context.t('mobile.sprachmodell'),
                 subtitle: _modelLine(context),
-                onTap: (_model.info?.models.length ?? 0) > 1 ? _pickModel : null,
+                onTap: (_model.info?.models.where((m) => m.engine != 'speaker').length ?? 0) > 1 ? _pickModel : null,
                 tabularSubtitle: true,
                 trailing: _model.problem == SpeechModelProblem.off || _model.info == null || _model.downloading
                     ? null
