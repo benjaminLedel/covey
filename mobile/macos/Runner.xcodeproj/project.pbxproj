@@ -30,6 +30,18 @@
 		3E6E980A54CD89046A55546D /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EFFDF19CA9CD83F3C2305D8F /* Pods_Runner.framework */; };
 		5DB357432D055CD315491536 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DD0F4C5C4B9C8DE17D238D3 /* Pods_RunnerTests.framework */; };
 		78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */ = {isa = PBXBuildFile; productRef = 78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */; };
+		783CD7266FEE30E8795959C3 /* covey-bot-answer.caf in Resources */ = {isa = PBXBuildFile; fileRef = 794F92630378540415ABFD6A /* covey-bot-answer.caf */; };
+		6E85AB5D9B5114F42273E161 /* covey-bot-error.caf in Resources */ = {isa = PBXBuildFile; fileRef = F31BE2467595130744B9725A /* covey-bot-error.caf */; };
+		2106CA7328891CDEB6CECFEC /* covey-bot-question.caf in Resources */ = {isa = PBXBuildFile; fileRef = 43954D8829665DEFD6DC3F83 /* covey-bot-question.caf */; };
+		86E230A802B80D55EDA40642 /* covey-bot-result.caf in Resources */ = {isa = PBXBuildFile; fileRef = 2BCEE64C2B65284263147C9F /* covey-bot-result.caf */; };
+		D0CC8D47407E5071612E18CE /* covey-glas-answer.caf in Resources */ = {isa = PBXBuildFile; fileRef = 0902680D9A84FBB50E8EF601 /* covey-glas-answer.caf */; };
+		8974D9A5933C02D777A5A5AE /* covey-glas-error.caf in Resources */ = {isa = PBXBuildFile; fileRef = E85D493E077CC491C0329866 /* covey-glas-error.caf */; };
+		32C38D0B76E7A1E6AB30B049 /* covey-glas-question.caf in Resources */ = {isa = PBXBuildFile; fileRef = 980109C41EC3234A46336177 /* covey-glas-question.caf */; };
+		F16B14ABD65816144A021432 /* covey-glas-result.caf in Resources */ = {isa = PBXBuildFile; fileRef = 33C899F798B35F3FDE8CD8E2 /* covey-glas-result.caf */; };
+		F468BB63425FE53CD829BCE4 /* covey-schar-answer.caf in Resources */ = {isa = PBXBuildFile; fileRef = 95F604335E85B62F1B6536A5 /* covey-schar-answer.caf */; };
+		A0EE88B00DF74CF4ECA8812D /* covey-schar-error.caf in Resources */ = {isa = PBXBuildFile; fileRef = 42BB2324BEE7702350F56D73 /* covey-schar-error.caf */; };
+		CDA6D640190BAF824B16E669 /* covey-schar-question.caf in Resources */ = {isa = PBXBuildFile; fileRef = DD9B1114C5AC992DE74712D3 /* covey-schar-question.caf */; };
+		760C39060F473960B2ED46EB /* covey-schar-result.caf in Resources */ = {isa = PBXBuildFile; fileRef = 6AA201BD9181E5C0775659EC /* covey-schar-result.caf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -90,6 +102,18 @@
 		CAFFAFBBDAFE1A5C198B2010 /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
 		EFFDF19CA9CD83F3C2305D8F /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		F88A74FAB10F083DCD59D92C /* Pods-RunnerTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug.xcconfig"; sourceTree = "<group>"; };
+		794F92630378540415ABFD6A /* covey-bot-answer.caf */ = {isa = PBXFileReference; lastKnownFileType = file; name = covey-bot-answer.caf; path = ../sounds/covey-bot-answer.caf; sourceTree = SOURCE_ROOT; };
+		F31BE2467595130744B9725A /* covey-bot-error.caf */ = {isa = PBXFileReference; lastKnownFileType = file; name = covey-bot-error.caf; path = ../sounds/covey-bot-error.caf; sourceTree = SOURCE_ROOT; };
+		43954D8829665DEFD6DC3F83 /* covey-bot-question.caf */ = {isa = PBXFileReference; lastKnownFileType = file; name = covey-bot-question.caf; path = ../sounds/covey-bot-question.caf; sourceTree = SOURCE_ROOT; };
+		2BCEE64C2B65284263147C9F /* covey-bot-result.caf */ = {isa = PBXFileReference; lastKnownFileType = file; name = covey-bot-result.caf; path = ../sounds/covey-bot-result.caf; sourceTree = SOURCE_ROOT; };
+		0902680D9A84FBB50E8EF601 /* covey-glas-answer.caf */ = {isa = PBXFileReference; lastKnownFileType = file; name = covey-glas-answer.caf; path = ../sounds/covey-glas-answer.caf; sourceTree = SOURCE_ROOT; };
+		E85D493E077CC491C0329866 /* covey-glas-error.caf */ = {isa = PBXFileReference; lastKnownFileType = file; name = covey-glas-error.caf; path = ../sounds/covey-glas-error.caf; sourceTree = SOURCE_ROOT; };
+		980109C41EC3234A46336177 /* covey-glas-question.caf */ = {isa = PBXFileReference; lastKnownFileType = file; name = covey-glas-question.caf; path = ../sounds/covey-glas-question.caf; sourceTree = SOURCE_ROOT; };
+		33C899F798B35F3FDE8CD8E2 /* covey-glas-result.caf */ = {isa = PBXFileReference; lastKnownFileType = file; name = covey-glas-result.caf; path = ../sounds/covey-glas-result.caf; sourceTree = SOURCE_ROOT; };
+		95F604335E85B62F1B6536A5 /* covey-schar-answer.caf */ = {isa = PBXFileReference; lastKnownFileType = file; name = covey-schar-answer.caf; path = ../sounds/covey-schar-answer.caf; sourceTree = SOURCE_ROOT; };
+		42BB2324BEE7702350F56D73 /* covey-schar-error.caf */ = {isa = PBXFileReference; lastKnownFileType = file; name = covey-schar-error.caf; path = ../sounds/covey-schar-error.caf; sourceTree = SOURCE_ROOT; };
+		DD9B1114C5AC992DE74712D3 /* covey-schar-question.caf */ = {isa = PBXFileReference; lastKnownFileType = file; name = covey-schar-question.caf; path = ../sounds/covey-schar-question.caf; sourceTree = SOURCE_ROOT; };
+		6AA201BD9181E5C0775659EC /* covey-schar-result.caf */ = {isa = PBXFileReference; lastKnownFileType = file; name = covey-schar-result.caf; path = ../sounds/covey-schar-result.caf; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -157,6 +181,18 @@
 			isa = PBXGroup;
 			children = (
 				33CC10F22044A3C60003C045 /* Assets.xcassets */,
+				794F92630378540415ABFD6A /* covey-bot-answer.caf */,
+				F31BE2467595130744B9725A /* covey-bot-error.caf */,
+				43954D8829665DEFD6DC3F83 /* covey-bot-question.caf */,
+				2BCEE64C2B65284263147C9F /* covey-bot-result.caf */,
+				0902680D9A84FBB50E8EF601 /* covey-glas-answer.caf */,
+				E85D493E077CC491C0329866 /* covey-glas-error.caf */,
+				980109C41EC3234A46336177 /* covey-glas-question.caf */,
+				33C899F798B35F3FDE8CD8E2 /* covey-glas-result.caf */,
+				95F604335E85B62F1B6536A5 /* covey-schar-answer.caf */,
+				42BB2324BEE7702350F56D73 /* covey-schar-error.caf */,
+				DD9B1114C5AC992DE74712D3 /* covey-schar-question.caf */,
+				6AA201BD9181E5C0775659EC /* covey-schar-result.caf */,
 				33CC10F42044A3C60003C045 /* MainMenu.xib */,
 				33CC10F72044A3C60003C045 /* Info.plist */,
 			);
@@ -327,6 +363,18 @@
 			files = (
 				33CC10F32044A3C60003C045 /* Assets.xcassets in Resources */,
 				33CC10F62044A3C60003C045 /* MainMenu.xib in Resources */,
+				783CD7266FEE30E8795959C3 /* covey-bot-answer.caf in Resources */,
+				6E85AB5D9B5114F42273E161 /* covey-bot-error.caf in Resources */,
+				2106CA7328891CDEB6CECFEC /* covey-bot-question.caf in Resources */,
+				86E230A802B80D55EDA40642 /* covey-bot-result.caf in Resources */,
+				D0CC8D47407E5071612E18CE /* covey-glas-answer.caf in Resources */,
+				8974D9A5933C02D777A5A5AE /* covey-glas-error.caf in Resources */,
+				32C38D0B76E7A1E6AB30B049 /* covey-glas-question.caf in Resources */,
+				F16B14ABD65816144A021432 /* covey-glas-result.caf in Resources */,
+				F468BB63425FE53CD829BCE4 /* covey-schar-answer.caf in Resources */,
+				A0EE88B00DF74CF4ECA8812D /* covey-schar-error.caf in Resources */,
+				CDA6D640190BAF824B16E669 /* covey-schar-question.caf in Resources */,
+				760C39060F473960B2ED46EB /* covey-schar-result.caf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

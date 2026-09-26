@@ -2695,7 +2695,13 @@
     "kameraAufnehmen": "拍摄",
     "mitteilungen": "通知",
     "mitteilungenAn": "接收通知",
-    "mitteilungenHinweis": "在您参与的对话中有提问、回复或任务完成时通知您。已读内容不会通知。"
+    "mitteilungenHinweis": "在您参与的对话中有提问、回复或任务完成时通知您。已读内容不会通知。",
+    "ton": "声音",
+    "tonBot": "机器人",
+    "tonSchar": "鸟群",
+    "tonGlas": "玻璃",
+    "tonSystem": "系统声音",
+    "tonAus": "静音"
   },
   "appLink": {
     "title": "在 covey 应用中打开",

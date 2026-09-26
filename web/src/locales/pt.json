@@ -2695,7 +2695,13 @@
     "kameraAufnehmen": "Tirar",
     "mitteilungen": "Notificações",
     "mitteilungenAn": "Receber notificações",
-    "mitteilungenHinweis": "Em perguntas, respostas e tarefas concluídas nas conversas em que participa. O que já leu não é notificado."
+    "mitteilungenHinweis": "Em perguntas, respostas e tarefas concluídas nas conversas em que participa. O que já leu não é notificado.",
+    "ton": "Som",
+    "tonBot": "Bot",
+    "tonSchar": "Bando",
+    "tonGlas": "Vidro",
+    "tonSystem": "Som do sistema",
+    "tonAus": "Silencioso"
   },
   "appLink": {
     "title": "Abrir na aplicação covey",

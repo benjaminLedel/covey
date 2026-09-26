@@ -2695,7 +2695,13 @@
     "kameraAufnehmen": "Zrób",
     "mitteilungen": "Powiadomienia",
     "mitteilungenAn": "Otrzymuj powiadomienia",
-    "mitteilungenHinweis": "Przy pytaniach, odpowiedziach i ukończonych zadaniach w rozmowach, w których uczestniczysz. To, co już przeczytano, nie jest zgłaszane."
+    "mitteilungenHinweis": "Przy pytaniach, odpowiedziach i ukończonych zadaniach w rozmowach, w których uczestniczysz. To, co już przeczytano, nie jest zgłaszane.",
+    "ton": "Dźwięk",
+    "tonBot": "Bot",
+    "tonSchar": "Stado",
+    "tonGlas": "Szkło",
+    "tonSystem": "Dźwięk systemowy",
+    "tonAus": "Wyciszony"
   },
   "appLink": {
     "title": "Otwórz w aplikacji covey",

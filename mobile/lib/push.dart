@@ -26,6 +26,11 @@ class PushNotices {
   static const _channel = MethodChannel('covey/push');
   static const _prefOff = 'push.off';
   static const _prefToken = 'push.token';
+  static const _prefSound = 'push.sound';
+
+  /// The sounds a person can choose (#381): covey's three families, the
+  /// system's sound, none.
+  static const sounds = ['bot', 'schar', 'glas', 'system', 'none'];
 
   final _opens = StreamController<String>.broadcast();
 
@@ -41,6 +46,35 @@ class PushNotices {
   Map<String, String> _names = {};
   DateTime _namesAt = DateTime(0);
   bool _listening = false;
+
+  Future<String> get sound async {
+    final s = await Prefs.instance.read(_prefSound);
+    return sounds.contains(s) ? s! : 'bot';
+  }
+
+  /// Chooses the sound, plays it once, and tells the instance, whose pushes
+  /// carry it.
+  Future<void> setSound(String sound) async {
+    await Prefs.instance.write(_prefSound, sound);
+    unawaited(preview(sound));
+    if (await enabled && Platform.isIOS) await _switchOn();
+  }
+
+  /// The file a notification of [kind] plays with [sound].
+  static String fileFor(String sound, String kind) => switch (sound) {
+    'system' => 'default',
+    'none' => '',
+    _ => 'covey-$sound-${const {'question', 'answer', 'result', 'error'}.contains(kind) ? kind : 'answer'}.caf',
+  };
+
+  /// Plays what a question sounds like — the kind that matters most.
+  Future<void> preview(String sound) async {
+    if (sound == 'none') return;
+    try {
+      await _channel.invokeMethod<void>('preview', fileFor(sound, 'question'));
+    } on PlatformException catch (_) {
+    } on MissingPluginException catch (_) {}
+  }
 
   /// Whether the person wants notifications; on unless switched off.
   Future<bool> get enabled async => await Prefs.instance.read(_prefOff) != 'true';
@@ -89,6 +123,7 @@ class PushNotices {
           // from the store or TestFlight to production.
           environment: kReleaseMode ? 'production' : 'development',
           lang: _strings?.language ?? 'en',
+          sound: await sound,
         );
         await Prefs.instance.write(_prefToken, token);
         diag('push', 'registered');
@@ -149,7 +184,9 @@ class PushNotices {
         final fresh = t.unread > 0 && (before == null || (t.lastAt != null && t.lastAt != before.lastAt));
         if (!fresh) continue;
         final name = _names[t.agentId] ?? '';
+        final kind = t.lastKind == 'note' ? 'answer' : t.lastKind;
         await _channel.invokeMethod<void>('notify', {
+          'sound': fileFor(await sound, kind),
           'id': '${t.agentId}-${t.lastAt?.millisecondsSinceEpoch}',
           'title': name,
           'body': t.lastText.isNotEmpty ? t.lastText : _strings?.t('team.ungelesen', count: t.unread) ?? '',

@@ -2695,7 +2695,13 @@
     "kameraAufnehmen": "Scatta",
     "mitteilungen": "Notifiche",
     "mitteilungenAn": "Ricevi notifiche",
-    "mitteilungenHinweis": "Per domande, risposte e compiti completati nelle conversazioni a cui partecipa. Ciò che ha già letto non viene segnalato."
+    "mitteilungenHinweis": "Per domande, risposte e compiti completati nelle conversazioni a cui partecipa. Ciò che ha già letto non viene segnalato.",
+    "ton": "Suono",
+    "tonBot": "Bot",
+    "tonSchar": "Stormo",
+    "tonGlas": "Vetro",
+    "tonSystem": "Suono di sistema",
+    "tonAus": "Silenzioso"
   },
   "appLink": {
     "title": "Apri nell'app covey",

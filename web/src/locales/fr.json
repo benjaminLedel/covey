@@ -2695,7 +2695,13 @@
     "kameraAufnehmen": "Prendre",
     "mitteilungen": "Notifications",
     "mitteilungenAn": "Recevoir des notifications",
-    "mitteilungenHinweis": "Pour les questions, réponses et tâches terminées dans les conversations auxquelles vous participez. Ce que vous avez déjà lu n’est pas signalé."
+    "mitteilungenHinweis": "Pour les questions, réponses et tâches terminées dans les conversations auxquelles vous participez. Ce que vous avez déjà lu n’est pas signalé.",
+    "ton": "Son",
+    "tonBot": "Bot",
+    "tonSchar": "Nuée",
+    "tonGlas": "Verre",
+    "tonSystem": "Son du système",
+    "tonAus": "Silencieux"
   },
   "appLink": {
     "title": "Ouvrir dans l'application covey",

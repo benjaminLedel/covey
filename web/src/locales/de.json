@@ -2695,7 +2695,13 @@
     "kameraAufnehmen": "Aufnehmen",
     "mitteilungen": "Mitteilungen",
     "mitteilungenAn": "Mitteilungen erhalten",
-    "mitteilungenHinweis": "Bei Rückfragen, Antworten und erledigten Aufgaben in Gesprächen, an denen Sie beteiligt sind. Was Sie schon gelesen haben, wird nicht gemeldet."
+    "mitteilungenHinweis": "Bei Rückfragen, Antworten und erledigten Aufgaben in Gesprächen, an denen Sie beteiligt sind. Was Sie schon gelesen haben, wird nicht gemeldet.",
+    "ton": "Ton",
+    "tonBot": "Bot",
+    "tonSchar": "Schar",
+    "tonGlas": "Glas",
+    "tonSystem": "Systemton",
+    "tonAus": "Stumm"
   },
   "appLink": {
     "title": "In der covey-App öffnen",

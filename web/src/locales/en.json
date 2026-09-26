@@ -2695,7 +2695,13 @@
     "kameraAufnehmen": "Take",
     "mitteilungen": "Notifications",
     "mitteilungenAn": "Receive notifications",
-    "mitteilungenHinweis": "For questions, replies and finished tasks in conversations you take part in. What you have already read is not announced."
+    "mitteilungenHinweis": "For questions, replies and finished tasks in conversations you take part in. What you have already read is not announced.",
+    "ton": "Sound",
+    "tonBot": "Bot",
+    "tonSchar": "Flock",
+    "tonGlas": "Glass",
+    "tonSystem": "System sound",
+    "tonAus": "Silent"
   },
   "appLink": {
     "title": "Open in the covey app",

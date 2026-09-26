@@ -107,7 +107,13 @@ final class LocalNotices: NSObject, UNUserNotificationCenterDelegate {
       let content = UNMutableNotificationContent()
       content.title = args["title"] as? String ?? ""
       content.body = args["body"] as? String ?? ""
-      content.sound = .default
+      // The sound the person chose (#381): a file in the bundle, the
+      // system's, or none.
+      switch args["sound"] as? String ?? "default" {
+      case "": content.sound = nil
+      case "default": content.sound = .default
+      case let name: content.sound = UNNotificationSound(named: UNNotificationSoundName(name))
+      }
       let agent = args["agent"] as? String ?? ""
       content.threadIdentifier = agent
       content.userInfo = ["agent_id": agent]
@@ -119,6 +125,15 @@ final class LocalNotices: NSObject, UNUserNotificationCenterDelegate {
       NSApp.dockTile.badgeLabel = n > 0 ? "\(n)" : nil
       result(nil)
     case "launchAgent":
+      result(nil)
+    case "preview":
+      // Plays a sound as the settings offer it.
+      let name = (call.arguments as? String ?? "").replacingOccurrences(of: ".caf", with: "")
+      if name == "default" {
+        NSSound.beep()
+      } else if let url = Bundle.main.url(forResource: name, withExtension: "caf") {
+        NSSound(contentsOf: url, byReference: true)?.play()
+      }
       result(nil)
     default:
       result(FlutterMethodNotImplemented)

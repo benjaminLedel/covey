@@ -171,7 +171,14 @@ class CoveyApi {
     required String platform,
     required String environment,
     required String lang,
-  }) => post('/me/push/devices', {'token': token, 'platform': platform, 'environment': environment, 'lang': lang});
+    String sound = 'bot',
+  }) => post('/me/push/devices', {
+    'token': token,
+    'platform': platform,
+    'environment': environment,
+    'lang': lang,
+    'sound': sound,
+  });
 
   Future<void> unregisterPushDevice(String token) => delete('/me/push/devices/${Uri.encodeComponent(token)}');
 

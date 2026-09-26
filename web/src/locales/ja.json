@@ -2695,7 +2695,13 @@
     "kameraAufnehmen": "撮影",
     "mitteilungen": "通知",
     "mitteilungenAn": "通知を受け取る",
-    "mitteilungenHinweis": "参加している会話での確認、返信、完了したタスクについて通知します。既読のものは通知しません。"
+    "mitteilungenHinweis": "参加している会話での確認、返信、完了したタスクについて通知します。既読のものは通知しません。",
+    "ton": "サウンド",
+    "tonBot": "ボット",
+    "tonSchar": "群れ",
+    "tonGlas": "ガラス",
+    "tonSystem": "システムサウンド",
+    "tonAus": "消音"
   },
   "appLink": {
     "title": "covey アプリで開く",

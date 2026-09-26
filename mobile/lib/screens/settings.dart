@@ -50,11 +50,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// Whether notifications are on (#379); null until read.
   bool? _push;
 
+  /// The notification sound (#381).
+  String _sound = 'bot';
+
+  static String _soundLabel(BuildContext context, String sound) => context.t(switch (sound) {
+    'schar' => 'mobile.tonSchar',
+    'glas' => 'mobile.tonGlas',
+    'system' => 'mobile.tonSystem',
+    'none' => 'mobile.tonAus',
+    _ => 'mobile.tonBot',
+  });
+
+  /// A list of the sounds; each plays when chosen, and the sheet stays open
+  /// so the next can be heard too.
+  Future<void> _pickSound() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheet) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: InsetGroup(
+              children: [
+                for (final s in PushNotices.sounds)
+                  GroupRow(
+                    title: _soundLabel(context, s),
+                    trailing: s == _sound ? Icon(Icons.check_rounded, color: context.colors.textAccent) : null,
+                    onTap: () async {
+                      setSheet(() {});
+                      setState(() => _sound = s);
+                      await PushNotices.instance.setSound(s);
+                    },
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
     PushNotices.instance.enabled.then((on) {
       if (mounted) setState(() => _push = on);
+    });
+    PushNotices.instance.sound.then((s) {
+      if (mounted) setState(() => _sound = s);
     });
     _model.addListener(_changed);
     _model.loadPrefs().then((_) => _model.refresh(widget.api));
@@ -470,6 +513,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       await PushNotices.instance.setEnabled(on);
                     },
                   ),
+                ),
+                // The sound (#381): covey's own, one per kind of news.
+                GroupRow(
+                  title: context.t('mobile.ton'),
+                  trailing: Text(_soundLabel(context, _sound), style: context.type.bodyMedium),
+                  onTap: _pickSound,
                 ),
               ],
             ),

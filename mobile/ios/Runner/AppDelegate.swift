@@ -1,3 +1,4 @@
+import AudioToolbox
 import Flutter
 import UIKit
 import UserNotifications
@@ -46,6 +47,17 @@ import UserNotifications
     case "launchAgent":
       result(launchAgent)
       launchAgent = nil
+    case "preview":
+      // Plays a sound as the settings offer it (#381).
+      let name = (call.arguments as? String ?? "").replacingOccurrences(of: ".caf", with: "")
+      if name == "default" {
+        AudioServicesPlayAlertSound(1007)
+      } else if let url = Bundle.main.url(forResource: name, withExtension: "caf") {
+        var id: SystemSoundID = 0
+        AudioServicesCreateSystemSoundID(url as CFURL, &id)
+        AudioServicesPlayAlertSoundWithCompletion(id) { AudioServicesDisposeSystemSoundID(id) }
+      }
+      result(nil)
     case "badge":
       let n = call.arguments as? Int ?? 0
       UNUserNotificationCenter.current().setBadgeCount(n) { _ in }
