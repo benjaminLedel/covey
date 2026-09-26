@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -311,7 +313,11 @@ class _HomeScreenState extends State<HomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _Sidebar(
-              spaces: capsule,
+              // The team carries the unread count (#393).
+              spaces: [
+                for (var i = 0; i < spaces.length; i++)
+                  (icon: spaces[i].icon, label: spaces[i].label, badge: me.teamSurface && i == 0 ? unreadTotal : null),
+              ],
               selected: space,
               onSelect: (i) => setState(() => _space = i),
               onAdd: () => _capture(notesIndex),
@@ -427,7 +433,7 @@ class _Sidebar extends StatelessWidget {
     required this.account,
   });
 
-  final List<({IconData icon, String label})> spaces;
+  final List<({IconData icon, String label, ValueListenable<int>? badge})> spaces;
   final int selected;
   final ValueChanged<int> onSelect;
   final VoidCallback onAdd;
@@ -436,68 +442,131 @@ class _Sidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
+    // As narrow as the window allows (#393): on macOS the traffic lights sit
+    // in the rail's top band, so it is at least as wide as they are.
+    final width = MacChrome.active ? math.max(72.0, MacChrome.lightsRight) : 72.0;
     return Container(
-      width: 232,
+      width: width,
       color: c.surface1,
       child: SafeArea(
+        right: false,
         child: Padding(
-          // On macOS the window's traffic lights sit in the top-left corner of
-          // this column; the mark starts below them.
-          padding: EdgeInsets.fromLTRB(12, MacChrome.active ? 0 : 16, 12, 16),
+          padding: EdgeInsets.fromLTRB(0, MacChrome.active ? 0 : 14, 0, 14),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // The traffic lights' band (#356): it moves the window, as the
               // title bar did.
-              if (MacChrome.active) WindowDrag(child: SizedBox(height: MacChrome.height)),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 0, 8, 20),
-                child: Row(
-                  children: [
-                    const CoveyMark(size: 28),
-                    const SizedBox(width: 10),
-                    Text('covey', style: context.type.titleLarge),
-                  ],
+              if (MacChrome.active)
+                WindowDrag(
+                  child: SizedBox(height: MacChrome.height, width: width),
                 ),
-              ),
+              const Padding(padding: EdgeInsets.only(bottom: 18), child: CoveyMark(size: 30)),
               for (var i = 0; i < spaces.length; i++)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Material(
-                    color: i == selected ? c.surface2 : Colors.transparent,
-                    borderRadius: BorderRadius.circular(12),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () => onSelect(i),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-                        child: Row(
-                          children: [
-                            Icon(spaces[i].icon, size: 20, color: i == selected ? c.textPrimary : c.textMuted),
-                            const SizedBox(width: 12),
-                            Text(
-                              spaces[i].label,
-                              style: context.type.labelLarge?.copyWith(
-                                color: i == selected ? c.textPrimary : c.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: _RailItem(
+                    icon: spaces[i].icon,
+                    label: spaces[i].label,
+                    selected: i == selected,
+                    badge: spaces[i].badge,
+                    onTap: () => onSelect(i),
                   ),
                 ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: onAdd,
-                icon: Icon(AppIcons.add.of(context), color: c.textAccent),
-                label: Text(context.t('mobile.neu')),
+              const SizedBox(height: 6),
+              _RailItem(
+                icon: AppIcons.add.of(context),
+                label: context.t('mobile.neu'),
+                selected: false,
+                accent: true,
+                onTap: onAdd,
               ),
               const Spacer(),
-              Align(alignment: Alignment.centerLeft, child: account),
+              account,
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// One place in the rail: an icon in a rounded square, its name as tooltip
+/// and for screen readers, and a count where there is one.
+class _RailItem extends StatelessWidget {
+  const _RailItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.badge,
+    this.accent = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final ValueListenable<int>? badge;
+  final bool accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final square = Material(
+      color: selected ? c.surface2 : (accent ? c.bgAccent : Colors.transparent),
+      elevation: selected ? 0.5 : 0,
+      shadowColor: Colors.black26,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: SizedBox.square(
+          dimension: 44,
+          child: Icon(icon, size: 22, color: accent ? c.textAccent : (selected ? c.textPrimary : c.textMuted)),
+        ),
+      ),
+    );
+    final b = badge;
+    return Tooltip(
+      message: label,
+      waitDuration: const Duration(milliseconds: 400),
+      child: Semantics(
+        button: true,
+        selected: selected,
+        label: label,
+        excludeSemantics: true,
+        child: b == null
+            ? square
+            : ValueListenableBuilder<int>(
+                valueListenable: b,
+                builder: (context, n, child) => Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    child!,
+                    if (n > 0)
+                      Positioned(
+                        top: -3,
+                        right: -3,
+                        child: Container(
+                          constraints: const BoxConstraints(minWidth: 18),
+                          height: 18,
+                          padding: const EdgeInsets.symmetric(horizontal: 5),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: c.textPrimary,
+                            borderRadius: BorderRadius.circular(9),
+                            border: Border.all(color: c.surface1, width: 2),
+                          ),
+                          child: Text(
+                            n > 99 ? '99+' : '$n',
+                            style: context.type.labelSmall?.copyWith(color: c.surface2, fontSize: 10, height: 1),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                child: square,
+              ),
       ),
     );
   }

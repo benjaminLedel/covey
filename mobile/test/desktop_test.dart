@@ -83,7 +83,8 @@ void main() {
 
     // A sidebar instead of the floating capsule.
     expect(find.byType(SpaceCapsule), findsNothing);
-    expect(find.text('covey'), findsOneWidget);
+    // A rail of icons with their names as tooltips (#393).
+    expect(find.byTooltip('Notizen'), findsOneWidget);
     expect(find.textContaining('Wählen Sie links'), findsOneWidget);
 
     await tester.tap(find.text('Bea'));

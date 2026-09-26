@@ -69,7 +69,9 @@ class _TeamSpaceState extends State<TeamSpace> {
     try {
       final t = await widget.api.threads();
       // The app icon carries the same number as the list (#379).
-      unawaited(PushNotices.instance.badge(t.values.fold<int>(0, (n, e) => n + e.unread)));
+      final total = t.values.fold<int>(0, (n, e) => n + e.unread);
+      unreadTotal.value = total;
+      unawaited(PushNotices.instance.badge(total));
       if (mounted) setState(() => _threads = t);
     } catch (_) {
       // No badges rather than an error: the list itself is what matters.

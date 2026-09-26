@@ -207,6 +207,10 @@ class ThreadState {
   final String lastKind;
 }
 
+/// How many conversations' entries the person has not read (#378): the
+/// team list writes it, the rail on a wide window shows it (#393).
+final unreadTotal = ValueNotifier<int>(0);
+
 /// Told when a thread has been read, so the list drops its badge at once
 /// instead of at its next look.
 final threadsRead = ValueNotifier<int>(0);

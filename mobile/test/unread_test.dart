@@ -106,7 +106,7 @@ void main() {
     await tester.pumpWidget(await tester.runAsync(() => _app(HomeScreen(api: api, onDisconnect: () {}))) as Widget);
     await _settle(tester);
 
-    expect(find.text('2'), findsOneWidget, reason: 'the count of unread entries');
+    expect(find.text('2'), findsNWidgets(2), reason: 'the count in the row and on the rail (#393)');
     expect(find.text('Die Rechnung ist geprüft.'), findsOneWidget, reason: 'the newest line as the subtitle');
     final semantics = tester.ensureSemantics();
     expect(find.bySemanticsLabel(RegExp('^2 ungelesene Nachrichten')), findsOneWidget);
