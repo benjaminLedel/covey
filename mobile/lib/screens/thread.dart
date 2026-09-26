@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../chrome.dart';
 import '../api.dart';
@@ -497,25 +498,45 @@ class _Composer extends StatelessWidget {
                     ),
                   ),
                   Expanded(
-                    child: TextField(
-                      controller: controller,
-                      enabled: enabled,
-                      minLines: 1,
-                      maxLines: 6,
-                      textCapitalization: TextCapitalization.sentences,
-                      style: context.type.bodyLarge,
-                      decoration: InputDecoration(
-                        filled: false,
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        disabledBorder: InputBorder.none,
-                        contentPadding: const EdgeInsets.fromLTRB(2, 12, 8, 12),
-                        hintText: !enabled
-                            ? context.t('mobile.teamAusKurz')
-                            : answering != null
-                            ? context.t('chat.placeholderAnswer')
-                            : context.t('chat.placeholder'),
+                    child: Focus(
+                      // On the desktop Enter sends and Shift+Enter breaks the
+                      // line, as in every chat there (#374). A word an input
+                      // method is still composing keeps its Enter.
+                      canRequestFocus: false,
+                      skipTraversal: true,
+                      onKeyEvent: MacChrome.active
+                          ? (_, event) {
+                              if (event is! KeyDownEvent ||
+                                  (event.logicalKey != LogicalKeyboardKey.enter &&
+                                      event.logicalKey != LogicalKeyboardKey.numpadEnter) ||
+                                  HardwareKeyboard.instance.isShiftPressed ||
+                                  controller.value.composing.isValid) {
+                                return KeyEventResult.ignored;
+                              }
+                              if (enabled && !sending) onSend();
+                              return KeyEventResult.handled;
+                            }
+                          : null,
+                      child: TextField(
+                        controller: controller,
+                        enabled: enabled,
+                        minLines: 1,
+                        maxLines: 6,
+                        textCapitalization: TextCapitalization.sentences,
+                        style: context.type.bodyLarge,
+                        decoration: InputDecoration(
+                          filled: false,
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
+                          contentPadding: const EdgeInsets.fromLTRB(2, 12, 8, 12),
+                          hintText: !enabled
+                              ? context.t('mobile.teamAusKurz')
+                              : answering != null
+                              ? context.t('chat.placeholderAnswer')
+                              : context.t('chat.placeholder'),
+                        ),
                       ),
                     ),
                   ),
