@@ -16,6 +16,9 @@ import 'media_image.dart';
 /// paragraph) — the way Apple Notes' backspace behaves.
 const _sentinel = '​';
 
+/// The width of the column the block handles stand in (#371).
+const _gutter = 26.0;
+
 /// One block on the page with the controllers that edit it.
 class _Entry {
   _Entry(this.block) {
@@ -291,8 +294,9 @@ class BlockEditorState extends State<BlockEditor> {
 
   // --- The block menu (#371). ---
 
-  /// The block whose "/" opened the menu, and what was typed after it.
-  ({int index, String query})? slash;
+  /// The block whose "/" opened the menu, what was typed after it, and
+  /// where the "/" stands in the block's text (sentinel included).
+  ({int index, String query, int at})? slash;
   int _pick = 0;
 
   List<_SlashOption> get _slashOptions {
@@ -304,19 +308,25 @@ class BlockEditorState extends State<BlockEditor> {
     ];
   }
 
-  /// A block that is "/" and a word, with the caret at its end, opens the
-  /// menu; anything else closes it.
+  /// A "/" at the start of a block or after a space, with a word after it
+  /// up to the caret, opens the menu — anywhere in a line, as in Notion;
+  /// anything else closes it.
   void _updateSlash(int i) {
     final t = _entries[i].text!;
-    final s = t.text.replaceAll(_sentinel, '');
-    final open =
-        s.startsWith('/') &&
-        !s.contains(' ') &&
-        !s.contains('\n') &&
-        s.length <= 24 &&
-        t.selection.isCollapsed &&
-        t.selection.baseOffset == t.text.length;
-    final next = open ? (index: i, query: s.substring(1)) : null;
+    final s = t.text;
+    final caret = t.selection.baseOffset;
+    ({int index, String query, int at})? next;
+    if (t.selection.isCollapsed && caret > 0 && caret <= s.length) {
+      final at = s.lastIndexOf('/', caret - 1);
+      if (at >= 0) {
+        final before = at == 0 ? '' : s[at - 1];
+        final query = s.substring(at + 1, caret);
+        final starts = before.isEmpty || before == _sentinel || before.trim().isEmpty;
+        if (starts && query.length <= 24 && !query.contains(RegExp(r'\s'))) {
+          next = (index: i, query: query, at: at);
+        }
+      }
+    }
     if (next != slash) {
       setState(() {
         slash = next;
@@ -357,31 +367,64 @@ class BlockEditorState extends State<BlockEditor> {
   /// Turns the block the menu was opened in into what was chosen — its "/"
   /// and word removed. A divider, table or picture takes the empty block's
   /// place, with a line after it to go on writing.
+  /// Applies what was chosen, its "/" and word removed. In an otherwise
+  /// empty block the block turns into it — a divider, table or picture
+  /// takes the empty block's place; in a line with text, it comes as a new
+  /// block after the line, as Notion does.
   void _applySlash(_SlashOption o) {
     final sl = slash;
     if (sl == null || sl.index >= _entries.length) return;
     final i = sl.index;
     final e = _entries[i];
-    e.text!.value = const TextEditingValue(text: _sentinel, selection: TextSelection.collapsed(offset: 1));
+    final s = e.text!.text;
+    final end = (sl.at + 1 + sl.query.length).clamp(0, s.length);
+    final rest = (s.substring(0, sl.at) + s.substring(end)).replaceAll(_sentinel, '');
     slash = null;
     final kind = o.kind;
+    if (rest.trim().isEmpty) {
+      e.text!.value = const TextEditingValue(text: _sentinel, selection: TextSelection.collapsed(offset: 1));
+      if (kind != null) {
+        e.block.kind = kind;
+        e.block.checked = false;
+        if (kind == BlockKind.toggle) e.block.open = true;
+        setState(() {});
+        changes.ping();
+        _emit();
+        WidgetsBinding.instance.addPostFrameCallback((_) => _focusText(i));
+        return;
+      }
+      focused = i;
+      switch (o.id) {
+        case 'divider':
+          _replaceEmpty(i, Block(BlockKind.divider));
+        case 'table':
+          _remove(i);
+          focused = i - 1;
+          insertTable();
+        case 'image':
+          setState(() {});
+          widget.onPickImage?.call();
+      }
+      return;
+    }
+    // The line keeps its text; what was chosen comes after it.
+    e.text!.value = TextEditingValue(
+      text: '$_sentinel${rest.trimRight()}',
+      selection: TextSelection.collapsed(offset: rest.trimRight().length + 1),
+    );
+    focused = i;
     if (kind != null) {
-      e.block.kind = kind;
-      e.block.checked = false;
-      if (kind == BlockKind.toggle) e.block.open = true;
+      _insert(i + 1, Block(kind, open: kind == BlockKind.toggle));
       setState(() {});
       changes.ping();
       _emit();
-      WidgetsBinding.instance.addPostFrameCallback((_) => _focusText(i));
+      WidgetsBinding.instance.addPostFrameCallback((_) => _focusText(i + 1));
       return;
     }
-    focused = i;
     switch (o.id) {
       case 'divider':
-        _replaceEmpty(i, Block(BlockKind.divider));
+        _insertAfterFocus(Block(BlockKind.divider));
       case 'table':
-        _remove(i);
-        focused = i - 1;
         insertTable();
       case 'image':
         setState(() {});
@@ -558,60 +601,68 @@ class BlockEditorState extends State<BlockEditor> {
       TargetPlatform.iOS || TargetPlatform.android => true,
       _ => false,
     };
-    return ReorderableListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      buildDefaultDragHandles: false,
-      padding: EdgeInsets.zero,
-      itemCount: _entries.length,
-      onReorderItem: _move,
-      proxyDecorator: (child, _, _) => Material(color: c.surface2, elevation: 4, child: child),
-      itemBuilder: (context, i) {
-        final e = _entries[i];
-        final handle = _hover == i || (touch && focused == i);
-        return MouseRegion(
-          key: ObjectKey(e),
-          onEnter: (_) => setState(() => _hover = i),
-          onExit: (_) {
-            if (_hover == i) setState(() => _hover = null);
-          },
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _blockView(context, c, i, e, numbers[i]),
-                  if (slash?.index == i) _SlashMenu(editor: this, options: _slashOptions, pick: _pick),
-                ],
-              ),
-              // The handle stands in the page's margin, beside the block's
-              // first line.
-              Positioned(
-                left: -22,
-                top: 4,
-                child: AnimatedOpacity(
-                  opacity: handle ? 1 : 0,
-                  duration: const Duration(milliseconds: 120),
-                  child: IgnorePointer(
-                    ignoring: !handle,
-                    child: ReorderableDragStartListener(
-                      index: i,
-                      child: MouseRegion(
-                        cursor: SystemMouseCursors.grab,
-                        child: Semantics(
-                          label: Strings.of(context).t('mobile.blockVerschieben'),
-                          child: Icon(Icons.drag_indicator_rounded, size: 18, color: c.textMuted),
+    // The handle's gutter belongs to each block — the mouse can go from the
+    // text to the handle without leaving the block — and the whole list is
+    // moved left by it, so the text stays where the page's margin puts it.
+    return Transform.translate(
+      offset: const Offset(-_gutter, 0),
+      child: ReorderableListView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        buildDefaultDragHandles: false,
+        padding: EdgeInsets.zero,
+        itemCount: _entries.length,
+        onReorderItem: _move,
+        proxyDecorator: (child, _, _) => Material(color: c.surface2, elevation: 4, child: child),
+        itemBuilder: (context, i) {
+          final e = _entries[i];
+          final handle = _hover == i || (touch && focused == i);
+          return MouseRegion(
+            key: ObjectKey(e),
+            onEnter: (_) => setState(() => _hover = i),
+            onExit: (_) {
+              if (_hover == i) setState(() => _hover = null);
+            },
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(left: _gutter),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _blockView(context, c, i, e, numbers[i]),
+                      if (slash?.index == i) _SlashMenu(editor: this, options: _slashOptions, pick: _pick),
+                    ],
+                  ),
+                ),
+                // The handle, in the gutter beside the block's first line.
+                Positioned(
+                  left: 0,
+                  top: 4,
+                  child: AnimatedOpacity(
+                    opacity: handle ? 1 : 0,
+                    duration: const Duration(milliseconds: 120),
+                    child: IgnorePointer(
+                      ignoring: !handle,
+                      child: ReorderableDragStartListener(
+                        index: i,
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.grab,
+                          child: Semantics(
+                            label: Strings.of(context).t('mobile.blockVerschieben'),
+                            child: Icon(Icons.drag_indicator_rounded, size: 18, color: c.textMuted),
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        );
-      },
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 
