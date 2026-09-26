@@ -2609,27 +2609,6 @@
 .tm-anhang button:hover { background: var(--tint); color: var(--text-primary); }
 .tm-fehler { padding: 0 24px 12px; color: var(--text-danger); font-size: 13px; }
 
-/* The places above the departments: the office and the door to a new
-   colleague (#327), two rows of one kind in one block. The door has an empty
-   chair where the office has its dot — the same size, so the two lines read
-   as a pair. */
-.tm-orte { display: flex; flex-direction: column; gap: 2px; margin-bottom: 14px; }
-.tm-orte .tm-wartet { margin-bottom: 0; }
-.tm-einstellen-punkt {
-  width: 12px;
-  height: 12px;
-  margin: 0 -2px;
-  border-radius: 50%;
-  border: 1.5px dashed var(--text-accent);
-  color: var(--text-accent);
-  font-size: 11px;
-  line-height: 1;
-  display: grid;
-  place-items: center;
-  transition: border-style 140ms, background 140ms;
-}
-.tm-einstellen:hover .tm-einstellen-punkt { border-style: solid; background: var(--bg-accent); }
-
 /* The status line between "sent" and "working": the platform about
    itself, quiet, with a breathing dot while a start is under way. */
 .tm-status {
@@ -4024,6 +4003,7 @@
 .tm-spalte-plus {
   width: 30px; height: 30px; border: 0; border-radius: 8px; background: var(--text-primary); color: var(--surface-0);
   font-size: 18px; line-height: 1; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; text-decoration: none; flex: none;
 }
 .tm-spalte-plus:hover { opacity: 0.88; }
 .tm-spalte-tabs { margin: 0 4px 8px; }

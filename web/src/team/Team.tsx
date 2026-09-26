@@ -158,6 +158,19 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
         <>
         <div className="tm-spalte-kopf">
           <h1 className="tm-spalte-titel">{t("team.workspace")}</h1>
+          {/* Hiring is the column's "+" (#395), as a new note is the notes'
+              — the conversation with the People department, who drafts;
+              her draft page while she is one; or setup without her. */}
+          {darfEinstellen && (
+            <Link
+              to={!people ? "/setup" : peopleEntwurf ? `/agents/${people.id}` : `/team/${people.id}?einstellen=1`}
+              className="tm-spalte-plus"
+              title={!people ? t("team.einstellenOhne") : peopleEntwurf ? `${t("team.einstellen")} — ${t("team.einstellenEntwurf")}` : t("team.einstellen")}
+              aria-label={t("team.einstellen")}
+            >
+              +
+            </Link>
+          )}
         </div>
         <nav className="tm-liste" aria-label={t("team.kollegen")}>
           {/* The places above the departments: the office, and the door to a
@@ -165,19 +178,6 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
               department, who drafts, or, without one, setup, where she comes
               from. Two rows of one kind: both are where one goes, not whom
               one talks to. */}
-          <div className="tm-orte">
-            {darfEinstellen && (
-              <Link
-                to={!people ? "/setup" : peopleEntwurf ? `/agents/${people.id}` : `/team/${people.id}?einstellen=1`}
-                className="tm-wartet tm-einstellen"
-                title={!people ? t("team.einstellenOhne") : peopleEntwurf ? `${people.display_name} — ${t("team.einstellenEntwurf")}` : people.display_name}
-              >
-                {/* An empty chair where the office has its dot. */}
-                <span className="tm-einstellen-punkt" aria-hidden="true">+</span>
-                {t("team.einstellen")}
-              </Link>
-            )}
-          </div>
 
           {agents.isLoading && <p className="tm-leise">{t("common.loading")}</p>}
           {!agents.isLoading && liste.length === 0 && <p className="tm-leise">{t("chat.noAgents")}</p>}
