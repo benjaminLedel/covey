@@ -28,10 +28,11 @@ func MediaRefs(body string) []uuid.UUID {
 }
 
 // Referenced reports whether any of the seat's notes still points at the
-// medium — the question before a picture is removed.
+// medium — in its text or as its cover (#372) — the question before a
+// picture is removed.
 func (s *Store) Referenced(ctx context.Context, humanID, mediumID uuid.UUID) (bool, error) {
 	var yes bool
 	err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM human_notes
-		WHERE human_id=$1 AND body LIKE '%' || $2 || '%')`, humanID, MediaScheme+mediumID.String()).Scan(&yes)
+		WHERE human_id=$1 AND (body LIKE '%' || $2 || '%' OR cover = $2))`, humanID, MediaScheme+mediumID.String()).Scan(&yes)
 	return yes, err
 }

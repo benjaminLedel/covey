@@ -2652,7 +2652,12 @@
     "block_image": "Bild",
     "blockKeiner": "Kein Block passt",
     "blockVerschieben": "Block verschieben",
-    "toggleLeer": "Leerer Toggle. Hier schreiben …"
+    "toggleLeer": "Leerer Toggle. Hier schreiben …",
+    "iconHinzu": "Icon hinzufügen",
+    "coverHinzu": "Titelbild hinzufügen",
+    "iconEntfernen": "Icon entfernen",
+    "coverEntfernen": "Titelbild entfernen",
+    "coverBild": "Eigenes Bild"
   },
   "appLink": {
     "title": "In der covey-App öffnen",

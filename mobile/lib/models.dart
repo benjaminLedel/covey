@@ -191,6 +191,8 @@ class Note {
     required this.summary,
     required this.durationSeconds,
     required this.createdAt,
+    this.icon = '',
+    this.cover = '',
   });
 
   factory Note.fromJson(Map<String, dynamic> j) => Note(
@@ -201,6 +203,8 @@ class Note {
     summary: j['summary'] as String? ?? '',
     durationSeconds: j['duration_seconds'] as int? ?? 0,
     createdAt: _time(j['created_at']),
+    icon: j['icon'] as String? ?? '',
+    cover: j['cover'] as String? ?? '',
   );
 
   final String id;
@@ -212,6 +216,13 @@ class Note {
   final String summary;
   final int durationSeconds;
   final DateTime? createdAt;
+
+  /// An emoji; empty for none (#372).
+  final String icon;
+
+  /// A built-in gradient (`gradient:<name>`) or a picture of the note's
+  /// media (`covey-media://<id>`); empty for none (#372).
+  final String cover;
 
   /// What the list shows as the line: the title, or else the first line of
   /// the text.

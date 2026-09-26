@@ -2652,7 +2652,12 @@
     "block_image": "画像",
     "blockKeiner": "該当するブロックがありません",
     "blockVerschieben": "ブロックを移動",
-    "toggleLeer": "空のトグル。ここに入力 …"
+    "toggleLeer": "空のトグル。ここに入力 …",
+    "iconHinzu": "アイコンを追加",
+    "coverHinzu": "カバーを追加",
+    "iconEntfernen": "アイコンを削除",
+    "coverEntfernen": "カバーを削除",
+    "coverBild": "自分の画像"
   },
   "appLink": {
     "title": "covey アプリで開く",

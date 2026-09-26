@@ -2652,7 +2652,12 @@
     "block_image": "Image",
     "blockKeiner": "No block matches",
     "blockVerschieben": "Move block",
-    "toggleLeer": "Empty toggle. Write here …"
+    "toggleLeer": "Empty toggle. Write here …",
+    "iconHinzu": "Add icon",
+    "coverHinzu": "Add cover",
+    "iconEntfernen": "Remove icon",
+    "coverEntfernen": "Remove cover",
+    "coverBild": "Your own picture"
   },
   "appLink": {
     "title": "Open in the covey app",

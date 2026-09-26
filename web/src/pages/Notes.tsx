@@ -104,7 +104,10 @@ export default function Notes() {
                       setWriting(false);
                     }}
                   >
-                    <span className="notes-row-h">{heading(n)}</span>
+                    <span className="notes-row-h">
+                      {n.icon ? <span className="notes-row-icon">{n.icon}</span> : null}
+                      {heading(n)}
+                    </span>
                     <span className="notes-row-m">{meta(n, locale, t, false)}</span>
                   </button>
                 ))}
@@ -148,6 +151,24 @@ const heading = (n: Note) => n.title || n.body.split("\n")[0].replace(/^(#{1,3}\
 const noteMedia = (src: string) =>
   src.startsWith("covey-media://") ? `/api/v1/me/notes/media/${encodeURIComponent(src.slice("covey-media://".length))}` : null;
 
+/* The note's cover (#372): one of the built-in gradients the app offers, or
+   a picture of the note's media. */
+const gradients: Record<string, string> = {
+  clay: "linear-gradient(90deg, #cc7a5b, #edc4a3)",
+  dusk: "linear-gradient(90deg, #3b2e5a, #c77d8a)",
+  sea: "linear-gradient(90deg, #1f4e6b, #6fb3b8)",
+  moss: "linear-gradient(90deg, #3c5a3a, #a3b86c)",
+  sand: "linear-gradient(90deg, #d9c3a0, #f3e7d3)",
+  night: "linear-gradient(90deg, #0f1a2b, #34495e)",
+};
+
+function Cover({ cover }: { cover: string }) {
+  const g = cover.startsWith("gradient:") ? gradients[cover.slice("gradient:".length)] : undefined;
+  const src = g ? null : noteMedia(cover);
+  if (!g && !src) return null;
+  return <div className="notes-cover" style={g ? { background: g } : { backgroundImage: `url(${src})` }} />;
+}
+
 function duration(s: number) {
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
@@ -181,6 +202,8 @@ function Detail({ note, canSummarize, onDeleted }: { note: Note; canSummarize: b
 
   return (
     <article className="notes-page">
+      {n.cover ? <Cover cover={n.cover} /> : null}
+      {n.icon ? <div className={`notes-icon${n.cover ? " on-cover" : ""}`}>{n.icon}</div> : null}
       <p className="muted text-xs mb-1 notes-tabular">{meta(n, i18n.language, t, true)}</p>
       <h2 className="notes-title">{heading(n)}</h2>
 

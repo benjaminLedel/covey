@@ -184,8 +184,10 @@ class CoveyApi {
         as Map<String, dynamic>,
   );
 
-  Future<Note> updateNote(String id, {String? title, String? body}) async =>
-      Note.fromJson(await patch('/me/notes/$id', {'title': ?title, 'body': ?body}) as Map<String, dynamic>);
+  Future<Note> updateNote(String id, {String? title, String? body, String? icon, String? cover}) async => Note.fromJson(
+    await patch('/me/notes/$id', {'title': ?title, 'body': ?body, 'icon': ?icon, 'cover': ?cover})
+        as Map<String, dynamic>,
+  );
 
   Future<void> deleteNote(String id) => delete('/me/notes/$id');
 

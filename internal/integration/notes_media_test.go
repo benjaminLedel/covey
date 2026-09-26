@@ -99,3 +99,45 @@ func TestNotePicturesBelongToTheirSeat(t *testing.T) {
 		t.Fatalf("no note shows it any more, so it is gone: %d", code)
 	}
 }
+
+// TestANoteHasAnIconAndACover (#372): set and cleared through PATCH, checked
+// for what they may be, and a cover picture is kept while it is the cover —
+// even when no text shows it.
+func TestANoteHasAnIconAndACover(t *testing.T) {
+	s := newStack(t)
+	c := login(t, s, "admin@test.local", "admin-passwort")
+	n := c.expect(http.MethodPost, "/api/v1/me/notes", map[string]any{"kind": "text", "body": "Projekt"}, http.StatusCreated)
+	id := n["id"].(string)
+	if n["icon"] != "" || n["cover"] != "" {
+		t.Fatalf("a new note has neither: %v", n)
+	}
+
+	got := c.expect(http.MethodPatch, "/api/v1/me/notes/"+id, map[string]any{"icon": "🚀", "cover": "gradient:dusk"}, http.StatusOK)
+	if got["icon"] != "🚀" || got["cover"] != "gradient:dusk" || got["body"] != "Projekt" {
+		t.Fatalf("icon and cover set, the text kept: %v", got)
+	}
+	c.expect(http.MethodPatch, "/api/v1/me/notes/"+id, map[string]any{"cover": "gradient:neon"}, http.StatusBadRequest)
+	c.expect(http.MethodPatch, "/api/v1/me/notes/"+id, map[string]any{"cover": "https://example.org/x.png"}, http.StatusBadRequest)
+	c.expect(http.MethodPatch, "/api/v1/me/notes/"+id, map[string]any{"icon": "ein ganzer Satz"}, http.StatusBadRequest)
+
+	// A picture as the cover stays while it is one.
+	status, up := uploadMedia(t, c, "cover.png", tinyPNG)
+	if status != http.StatusCreated {
+		t.Fatalf("upload: %d", status)
+	}
+	ref := up["ref"].(string)
+	c.expect(http.MethodPatch, "/api/v1/me/notes/"+id, map[string]any{"cover": ref}, http.StatusOK)
+	c.expect(http.MethodPatch, "/api/v1/me/notes/"+id, map[string]any{"body": "Projekt, neu"}, http.StatusOK)
+	mediaPath := "/api/v1/me/notes/media/" + up["id"].(string)
+	if code, _, _ := fetch(t, c, mediaPath); code != http.StatusOK {
+		t.Fatalf("the cover picture is still there: %d", code)
+	}
+	// Cleared, it goes.
+	cleared := c.expect(http.MethodPatch, "/api/v1/me/notes/"+id, map[string]any{"cover": "", "icon": ""}, http.StatusOK)
+	if cleared["cover"] != "" || cleared["icon"] != "" {
+		t.Fatalf("cleared: %v", cleared)
+	}
+	if code, _, _ := fetch(t, c, mediaPath); code != http.StatusNotFound {
+		t.Fatalf("a cover no longer shown is removed: %d", code)
+	}
+}

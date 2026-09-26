@@ -1574,6 +1574,10 @@ export type Note = {
   duration_seconds: number;
   created_at: string;
   updated_at: string;
+  /** An emoji; empty for none (#372). */
+  icon?: string;
+  /** "gradient:<name>" or "covey-media://<id>"; empty for none (#372). */
+  cover?: string;
 };
 
 export type NotesPage = { notes: Note[]; summarize: boolean };

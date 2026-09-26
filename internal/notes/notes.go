@@ -52,6 +52,11 @@ type Note struct {
 	ReviewDay *string `json:"review_day,omitempty"`
 	// ReviewThrough is the end of the last session the review covers (#369).
 	ReviewThrough *time.Time `json:"review_through,omitempty"`
+	// Icon is an emoji; Cover a built-in gradient ("gradient:<name>") or a
+	// picture of the note's media ("covey-media://<id>") (#372). Empty:
+	// none.
+	Icon  string `json:"icon"`
+	Cover string `json:"cover"`
 }
 
 // ReviewMeta is what a daily review was written from (#369).
@@ -75,11 +80,11 @@ type Store struct{ pool *pgxpool.Pool }
 
 func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
-const cols = `id, kind, title, body, summary, duration_seconds, created_at, updated_at, to_char(review_day, 'YYYY-MM-DD'), review_through`
+const cols = `id, kind, title, body, summary, duration_seconds, created_at, updated_at, to_char(review_day, 'YYYY-MM-DD'), review_through, icon, cover`
 
 func scan(row pgx.Row) (Note, error) {
 	var n Note
-	err := row.Scan(&n.ID, &n.Kind, &n.Title, &n.Body, &n.Summary, &n.DurationSeconds, &n.CreatedAt, &n.UpdatedAt, &n.ReviewDay, &n.ReviewThrough)
+	err := row.Scan(&n.ID, &n.Kind, &n.Title, &n.Body, &n.Summary, &n.DurationSeconds, &n.CreatedAt, &n.UpdatedAt, &n.ReviewDay, &n.ReviewThrough, &n.Icon, &n.Cover)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Note{}, ErrNotFound
 	}
@@ -197,24 +202,60 @@ func (s *Store) Get(ctx context.Context, humanID, id uuid.UUID) (Note, error) {
 }
 
 // Update changes title and text; nil leaves a field as it is.
-func (s *Store) Update(ctx context.Context, humanID, id uuid.UUID, title, body *string) (Note, error) {
+func (s *Store) Update(ctx context.Context, humanID, id uuid.UUID, p Patch) (Note, error) {
 	cur, err := s.Get(ctx, humanID, id)
 	if err != nil {
 		return Note{}, err
 	}
-	t, b := cur.Title, cur.Body
-	if title != nil {
-		t = *title
+	t, b, icon, cover := cur.Title, cur.Body, cur.Icon, cur.Cover
+	if p.Title != nil {
+		t = *p.Title
 	}
-	if body != nil {
-		b = *body
+	if p.Body != nil {
+		b = *p.Body
+	}
+	if p.Icon != nil {
+		icon = strings.TrimSpace(*p.Icon)
+	}
+	if p.Cover != nil {
+		cover = strings.TrimSpace(*p.Cover)
 	}
 	t, b, err = clean(t, b)
 	if err != nil {
 		return Note{}, err
 	}
-	return scan(s.pool.QueryRow(ctx, `UPDATE human_notes SET title=$3, body=$4, updated_at=now()
-		WHERE id=$1 AND human_id=$2 RETURNING `+cols, id, humanID, t, b))
+	if !validIcon(icon) || !validCover(cover) {
+		return Note{}, ErrInvalid
+	}
+	return scan(s.pool.QueryRow(ctx, `UPDATE human_notes SET title=$3, body=$4, icon=$5, cover=$6, updated_at=now()
+		WHERE id=$1 AND human_id=$2 RETURNING `+cols, id, humanID, t, b, icon, cover))
+}
+
+// Patch is what a change of a note sets; nil leaves a field as it is.
+type Patch struct {
+	Title, Body, Icon, Cover *string
+}
+
+// An icon is one emoji — a few code points at most (skin tones, flags,
+// joined sequences) — or nothing.
+func validIcon(s string) bool { return len([]rune(s)) <= 12 && !strings.ContainsAny(s, " \n\t") }
+
+// Covers the notes offer (#372): the built-in gradients, and pictures of
+// the note's media.
+var gradients = map[string]bool{"clay": true, "dusk": true, "sea": true, "moss": true, "sand": true, "night": true}
+
+func validCover(s string) bool {
+	if s == "" {
+		return true
+	}
+	if g, ok := strings.CutPrefix(s, "gradient:"); ok {
+		return gradients[g]
+	}
+	if id, ok := strings.CutPrefix(s, MediaScheme); ok {
+		_, err := uuid.Parse(id)
+		return err == nil
+	}
+	return false
 }
 
 // SetSummary stores what "Summarise" wrote.

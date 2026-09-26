@@ -2652,7 +2652,12 @@
     "block_image": "Afbeelding",
     "blockKeiner": "Geen blok past",
     "blockVerschieben": "Blok verplaatsen",
-    "toggleLeer": "Lege uitklapper. Schrijf hier …"
+    "toggleLeer": "Lege uitklapper. Schrijf hier …",
+    "iconHinzu": "Pictogram toevoegen",
+    "coverHinzu": "Omslag toevoegen",
+    "iconEntfernen": "Pictogram verwijderen",
+    "coverEntfernen": "Omslag verwijderen",
+    "coverBild": "Eigen afbeelding"
   },
   "appLink": {
     "title": "Openen in de covey-app",

@@ -2652,7 +2652,12 @@
     "block_image": "Immagine",
     "blockKeiner": "Nessun blocco corrisponde",
     "blockVerschieben": "Sposta blocco",
-    "toggleLeer": "Espandibile vuoto. Scrivi qui …"
+    "toggleLeer": "Espandibile vuoto. Scrivi qui …",
+    "iconHinzu": "Aggiungi icona",
+    "coverHinzu": "Aggiungi copertina",
+    "iconEntfernen": "Rimuovi icona",
+    "coverEntfernen": "Rimuovi copertina",
+    "coverBild": "Immagine propria"
   },
   "appLink": {
     "title": "Apri nell'app covey",

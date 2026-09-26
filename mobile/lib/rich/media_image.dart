@@ -10,10 +10,15 @@ import '../theme.dart';
 /// kept in memory, since a medium never changes under its id. Any other
 /// reference is a URL and loaded as one.
 class MediaImage extends StatefulWidget {
-  const MediaImage({super.key, required this.api, required this.ref});
+  const MediaImage({super.key, required this.api, required this.ref, this.fit = BoxFit.contain, this.radius = 14});
 
   final CoveyApi api;
   final String ref;
+
+  /// How the picture fills its place — contained in the text, covering as a
+  /// note's cover (#372) — and its corners.
+  final BoxFit fit;
+  final double radius;
 
   static const scheme = 'covey-media://';
 
@@ -47,12 +52,22 @@ class _MediaImageState extends State<MediaImage> {
     _load();
   }
 
+  @override
+  void didUpdateWidget(MediaImage old) {
+    super.didUpdateWidget(old);
+    if (old.ref != widget.ref) {
+      _bytes = null;
+      _failed = false;
+      _load();
+    }
+  }
+
   Future<void> _load() async {
     final ref = widget.ref;
     if (!ref.startsWith(MediaImage.scheme)) return;
     final hit = MediaImage._cache[ref];
     if (hit != null) {
-      _bytes = hit;
+      if (mounted) setState(() => _bytes = hit);
       return;
     }
     try {
@@ -69,15 +84,22 @@ class _MediaImageState extends State<MediaImage> {
     final c = context.colors;
     Widget body;
     if (!widget.ref.startsWith(MediaImage.scheme)) {
-      body = Image.network(widget.ref, fit: BoxFit.contain, errorBuilder: (_, _, _) => _broken(c));
+      body = Image.network(widget.ref, fit: widget.fit, errorBuilder: (_, _, _) => _broken(c));
     } else if (_bytes != null) {
-      body = Image.memory(_bytes!, fit: BoxFit.contain, gaplessPlayback: true, errorBuilder: (_, _, _) => _broken(c));
+      body = Image.memory(
+        _bytes!,
+        fit: widget.fit,
+        width: widget.fit == BoxFit.cover ? double.infinity : null,
+        height: widget.fit == BoxFit.cover ? double.infinity : null,
+        gaplessPlayback: true,
+        errorBuilder: (_, _, _) => _broken(c),
+      );
     } else if (_failed) {
       body = _broken(c);
     } else {
       body = Container(height: 180, color: c.surface1);
     }
-    return ClipRRect(borderRadius: BorderRadius.circular(14), child: body);
+    return ClipRRect(borderRadius: BorderRadius.circular(widget.radius), child: body);
   }
 
   Widget _broken(CoveyColors c) => Container(

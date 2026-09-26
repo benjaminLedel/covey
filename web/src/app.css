@@ -3787,6 +3787,12 @@
 /* Markdown pictures, quotes and dividers (#344) — shown where a page allows
    pictures (the notes). */
 .md-img { display: block; max-width: 100%; height: auto; border-radius: 12px; margin: 10px 0; }
+/* A note's cover and icon (#372). */
+.notes-cover { height: 150px; margin: -4px 0 12px; border-radius: 10px; background-size: cover; background-position: center; }
+.notes-icon { font-size: 48px; line-height: 1.1; margin-bottom: 6px; }
+.notes-icon.on-cover { margin-top: -40px; }
+.notes-row-icon { margin-right: 6px; }
+
 /* A toggle and a callout from a note (#371), as the app's editor draws them. */
 .md-toggle { margin: 6px 0; }
 .md-toggle > summary { cursor: pointer; font-weight: 600; list-style-position: outside; }

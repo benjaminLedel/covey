@@ -2652,7 +2652,12 @@
     "block_image": "Image",
     "blockKeiner": "Aucun bloc ne correspond",
     "blockVerschieben": "Déplacer le bloc",
-    "toggleLeer": "Bascule vide. Écrivez ici …"
+    "toggleLeer": "Bascule vide. Écrivez ici …",
+    "iconHinzu": "Ajouter une icône",
+    "coverHinzu": "Ajouter une couverture",
+    "iconEntfernen": "Retirer l'icône",
+    "coverEntfernen": "Retirer la couverture",
+    "coverBild": "Votre image"
   },
   "appLink": {
     "title": "Ouvrir dans l'application covey",

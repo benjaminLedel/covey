@@ -2652,7 +2652,12 @@
     "block_image": "图片",
     "blockKeiner": "没有匹配的块",
     "blockVerschieben": "移动块",
-    "toggleLeer": "空折叠块。在此输入 …"
+    "toggleLeer": "空折叠块。在此输入 …",
+    "iconHinzu": "添加图标",
+    "coverHinzu": "添加封面",
+    "iconEntfernen": "移除图标",
+    "coverEntfernen": "移除封面",
+    "coverBild": "自定义图片"
   },
   "appLink": {
     "title": "在 covey 应用中打开",

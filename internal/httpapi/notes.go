@@ -146,7 +146,7 @@ func noteErr(w http.ResponseWriter, err error) {
 		writeErr(w, http.StatusNotFound, "not found")
 	case errors.Is(err, notes.ErrInvalid):
 		writeErr(w, http.StatusBadRequest,
-			"a note needs text (at most "+strconv.Itoa(notes.MaxBody)+" characters), a title of at most 200, and a kind of text, voice or meeting")
+			"a note needs text (at most "+strconv.Itoa(notes.MaxBody)+" characters), a title of at most 200, a kind of text, voice or meeting, an icon of one emoji, and a cover of gradient:<clay|dusk|sea|moss|sand|night> or covey-media://<id>")
 	default:
 		mapErr(w, err)
 	}
@@ -219,6 +219,8 @@ func (s *Server) handleUpdateNote(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Title *string `json:"title"`
 		Body  *string `json:"body"`
+		Icon  *string `json:"icon"`
+		Cover *string `json:"cover"`
 	}
 	if err := readJSON(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid body")
@@ -230,13 +232,14 @@ func (s *Server) handleUpdateNote(w http.ResponseWriter, r *http.Request) {
 		noteErr(w, err)
 		return
 	}
-	n, err := s.noteStore().Update(r.Context(), p.ID, id, in.Title, in.Body)
+	n, err := s.noteStore().Update(r.Context(), p.ID, id, notes.Patch{Title: in.Title, Body: in.Body, Icon: in.Icon, Cover: in.Cover})
 	if err != nil {
 		noteErr(w, err)
 		return
 	}
-	// Pictures the text no longer shows go, unless another note shows them.
-	s.forgetMedia(r.Context(), p.ID, notes.MediaRefs(before.Body))
+	// Pictures the text or the cover no longer show go, unless another note
+	// shows them.
+	s.forgetMedia(r.Context(), p.ID, notes.MediaRefs(before.Body+" "+before.Cover))
 	writeJSON(w, http.StatusOK, n)
 }
 
@@ -256,7 +259,7 @@ func (s *Server) handleDeleteNote(w http.ResponseWriter, r *http.Request) {
 		noteErr(w, err)
 		return
 	}
-	s.forgetMedia(r.Context(), p.ID, notes.MediaRefs(before.Body))
+	s.forgetMedia(r.Context(), p.ID, notes.MediaRefs(before.Body+" "+before.Cover))
 	w.WriteHeader(http.StatusNoContent)
 }
 

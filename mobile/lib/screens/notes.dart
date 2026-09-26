@@ -15,6 +15,7 @@ import '../icons.dart';
 import '../models.dart';
 import '../rich/bar.dart';
 import '../rich/editor.dart';
+import '../rich/media_image.dart';
 import '../summary_text.dart';
 import '../system_audio.dart';
 import '../theme.dart';
@@ -132,7 +133,7 @@ class NotesScreenState extends State<NotesScreen> {
               children: [
                 for (final n in day.value)
                   GroupRow(
-                    leading: KindMark(kind: n.kind),
+                    leading: KindMark(kind: n.kind, icon: n.icon),
                     title: n.heading,
                     subtitle: noteMeta(context, n, withDate: false),
                     // State, not action: muted, and said for a screen reader.
@@ -159,9 +160,12 @@ class NotesScreenState extends State<NotesScreen> {
 /// A note's kind as a drawn mark on a small tile — the shape says what it
 /// is, the word beside it says it again.
 class KindMark extends StatelessWidget {
-  const KindMark({super.key, required this.kind});
+  const KindMark({super.key, required this.kind, this.icon = ''});
 
   final String kind;
+
+  /// The note's own icon, which stands in for the kind (#372).
+  final String icon;
 
   @override
   Widget build(BuildContext context) {
@@ -170,8 +174,11 @@ class KindMark extends StatelessWidget {
     return Container(
       width: 36,
       height: 36,
+      alignment: Alignment.center,
       decoration: BoxDecoration(color: meeting ? c.bgAccent : c.surface0, borderRadius: BorderRadius.circular(11)),
-      child: Icon(kindIcon(context, kind), size: 19, color: meeting ? c.textAccent : c.textSecondary),
+      child: icon.isNotEmpty
+          ? Text(icon, style: const TextStyle(fontSize: 20))
+          : Icon(kindIcon(context, kind), size: 19, color: meeting ? c.textAccent : c.textSecondary),
     );
   }
 }
@@ -262,6 +269,9 @@ class _NotePageState extends State<NotePage> {
   late Note? _note = widget.note;
   late final _title = TextEditingController(text: widget.note?.title ?? '');
   late String _body = widget.note?.body ?? '';
+  late String _icon = widget.note?.icon ?? '';
+  late String _cover = widget.note?.cover ?? '';
+  bool _headerHover = false;
   final _titleFocus = FocusNode();
   final _editor = GlobalKey<BlockEditorState>();
   late final Dictation _dictation = widget.dictation ?? Dictation(api: widget.api);
@@ -324,9 +334,14 @@ class _NotePageState extends State<NotePage> {
     try {
       final n = _note;
       if (n == null) {
-        _note = await widget.api.createNote(kind: _spoken ? 'voice' : 'text', title: title, body: body);
-      } else if (n.title != title || n.body != body) {
-        _note = await widget.api.updateNote(n.id, title: title, body: body);
+        var created = await widget.api.createNote(kind: _spoken ? 'voice' : 'text', title: title, body: body);
+        // An icon or a cover chosen before the first words go on now.
+        if (_icon.isNotEmpty || _cover.isNotEmpty) {
+          created = await widget.api.updateNote(created.id, icon: _icon, cover: _cover);
+        }
+        _note = created;
+      } else if (n.title != title || n.body != body || n.icon != _icon || n.cover != _cover) {
+        _note = await widget.api.updateNote(n.id, title: title, body: body, icon: _icon, cover: _cover);
       } else {
         return;
       }
@@ -400,6 +415,140 @@ class _NotePageState extends State<NotePage> {
     return Attachment(name: f.name, length: f.lengthSync(), open: () => f.readAsByteStream());
   }
 
+  // --- Icon and cover (#372). ---
+
+  void _setIcon(String icon) {
+    setState(() => _icon = icon);
+    _changed();
+  }
+
+  void _setCover(String cover) {
+    setState(() => _cover = cover);
+    _changed();
+  }
+
+  Future<void> _pickIcon() async {
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Wrap(
+                spacing: 4,
+                runSpacing: 4,
+                children: [
+                  for (final e in pageIcons)
+                    InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: () => Navigator.pop(context, e),
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Text(e, style: const TextStyle(fontSize: 26)),
+                      ),
+                    ),
+                ],
+              ),
+              if (_icon.isNotEmpty)
+                TextButton(onPressed: () => Navigator.pop(context, ''), child: Text(context.t('mobile.iconEntfernen'))),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (picked != null) _setIcon(picked);
+  }
+
+  Future<void> _pickCover() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  for (final g in coverGradients.keys)
+                    InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () => Navigator.pop(context, 'gradient:$g'),
+                      child: Container(
+                        width: 96,
+                        height: 56,
+                        decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), gradient: coverGradients[g]),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.pop(context, 'picture'),
+                icon: const Icon(Icons.image_outlined),
+                label: Text(context.t('mobile.coverBild')),
+              ),
+              if (_cover.isNotEmpty)
+                TextButton(
+                  onPressed: () => Navigator.pop(context, ''),
+                  child: Text(context.t('mobile.coverEntfernen')),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (choice == null) return;
+    if (choice != 'picture') return _setCover(choice);
+    final picked = await (widget.pickImage ?? _pickImage)();
+    if (picked == null) return;
+    try {
+      _setCover(await widget.api.uploadNoteMedia(picked));
+    } on ApiException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
+  /// "Add icon" and "Add cover", as Notion shows them above the title: on
+  /// hover with a mouse; on touch while the note has neither.
+  Widget _headerActions(BuildContext context, bool touch) {
+    final c = context.colors;
+    final show = _headerHover || (touch && _icon.isEmpty && _cover.isEmpty);
+    return AnimatedOpacity(
+      opacity: show ? 1 : 0,
+      duration: const Duration(milliseconds: 120),
+      child: IgnorePointer(
+        ignoring: !show,
+        child: Wrap(
+          spacing: 4,
+          children: [
+            if (_icon.isEmpty)
+              TextButton.icon(
+                onPressed: _pickIcon,
+                style: TextButton.styleFrom(foregroundColor: c.textMuted),
+                icon: const Icon(Icons.emoji_emotions_outlined, size: 18),
+                label: Text(context.t('mobile.iconHinzu')),
+              ),
+            if (_cover.isEmpty)
+              TextButton.icon(
+                onPressed: _pickCover,
+                style: TextButton.styleFrom(foregroundColor: c.textMuted),
+                icon: const Icon(Icons.image_outlined, size: 18),
+                label: Text(context.t('mobile.coverHinzu')),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _summarize() async {
     final n = _note;
     if (n == null) return;
@@ -449,6 +598,10 @@ class _NotePageState extends State<NotePage> {
     final n = _note;
     final kind = n?.kind ?? (_spoken ? 'voice' : 'text');
     final listening = _dictation.running;
+    final touch = switch (Theme.of(context).platform) {
+      TargetPlatform.iOS || TargetPlatform.android => true,
+      _ => false,
+    };
     return Scaffold(
       appBar: ChromeAppBar(
         actions: [
@@ -470,68 +623,110 @@ class _NotePageState extends State<NotePage> {
           children: [
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                padding: const EdgeInsets.only(bottom: 24),
                 children: [
-                  if (n != null)
-                    Row(
-                      children: [
-                        KindMark(kind: kind),
-                        const SizedBox(width: 12),
-                        Expanded(child: Text(noteMeta(context, n), style: context.type.bodySmall)),
-                      ],
+                  if (_cover.isNotEmpty)
+                    MouseRegion(
+                      onEnter: (_) => setState(() => _headerHover = true),
+                      child: GestureDetector(
+                        onTap: _pickCover,
+                        child: CoverBanner(api: widget.api, cover: _cover),
+                      ),
                     ),
-                  TextField(
-                    controller: _title,
-                    focusNode: _titleFocus,
-                    style: context.type.headlineSmall,
-                    maxLines: null,
-                    textCapitalization: TextCapitalization.sentences,
-                    textInputAction: TextInputAction.next,
-                    onChanged: (_) => _changed(),
-                    decoration: _bare(context, context.t('mobile.titelOptional'), context.type.headlineSmall),
-                  ),
-                  if (n != null && n.summary.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(color: c.surface2, borderRadius: BorderRadius.circular(20)),
-                      child: SummaryText(n.summary),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  // Summaries are for what was spoken; a typed note is its own summary.
-                  if (widget.canSummarize && n != null && kind != 'text')
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: OutlinedButton.icon(
-                        onPressed: _busy ? null : _summarize,
-                        style: OutlinedButton.styleFrom(shape: const StadiumBorder()),
-                        icon: Icon(AppIcons.summary.of(context), size: 18, color: c.textAccent),
-                        label: Text(
-                          _busy
-                              ? context.t('common.loading')
-                              : n.summary.isEmpty
-                              ? context.t('mobile.zusammenfassen')
-                              : context.t('mobile.zusammenfassenNeu'),
+                  // A document's column (#372): centred, about 720 points
+                  // on a wide window, the whole width on a phone.
+                  Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 760),
+                      child: MouseRegion(
+                        onEnter: (_) => setState(() => _headerHover = true),
+                        onExit: (_) => setState(() => _headerHover = false),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (_icon.isNotEmpty)
+                                Padding(
+                                  padding: EdgeInsets.only(top: _cover.isEmpty ? 8 : 0),
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Transform.translate(
+                                      offset: Offset(0, _cover.isEmpty ? 0 : -34),
+                                      child: GestureDetector(
+                                        onTap: _pickIcon,
+                                        child: Text(_icon, style: const TextStyle(fontSize: 60, height: 1.1)),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              _headerActions(context, touch),
+                              if (n != null)
+                                Row(
+                                  children: [
+                                    KindMark(kind: kind),
+                                    const SizedBox(width: 12),
+                                    Expanded(child: Text(noteMeta(context, n), style: context.type.bodySmall)),
+                                  ],
+                                ),
+                              TextField(
+                                controller: _title,
+                                focusNode: _titleFocus,
+                                style: _titleStyle(context),
+                                maxLines: null,
+                                textCapitalization: TextCapitalization.sentences,
+                                textInputAction: TextInputAction.next,
+                                onChanged: (_) => _changed(),
+                                decoration: _bare(context, context.t('mobile.titelOptional'), _titleStyle(context)),
+                              ),
+                              if (n != null && n.summary.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Container(
+                                  padding: const EdgeInsets.all(18),
+                                  decoration: BoxDecoration(color: c.surface2, borderRadius: BorderRadius.circular(20)),
+                                  child: SummaryText(n.summary),
+                                ),
+                                const SizedBox(height: 12),
+                              ],
+                              // Summaries are for what was spoken; a typed note is its own summary.
+                              if (widget.canSummarize && n != null && kind != 'text')
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: OutlinedButton.icon(
+                                    onPressed: _busy ? null : _summarize,
+                                    style: OutlinedButton.styleFrom(shape: const StadiumBorder()),
+                                    icon: Icon(AppIcons.summary.of(context), size: 18, color: c.textAccent),
+                                    label: Text(
+                                      _busy
+                                          ? context.t('common.loading')
+                                          : n.summary.isEmpty
+                                          ? context.t('mobile.zusammenfassen')
+                                          : context.t('mobile.zusammenfassenNeu'),
+                                    ),
+                                  ),
+                                ),
+                              if (n != null && kind != 'text') ...[
+                                const SizedBox(height: 22),
+                                Text(context.t('mobile.transkript'), style: context.type.titleLarge),
+                                const SizedBox(height: 4),
+                              ],
+                              BlockEditor(
+                                key: _editor,
+                                api: widget.api,
+                                initial: _body,
+                                hint: context.t('mobile.notizHinweis'),
+                                autofocus: widget.note == null,
+                                onPickImage: _addImage,
+                                onChanged: (md) {
+                                  _body = md;
+                                  _changed();
+                                },
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  if (n != null && kind != 'text') ...[
-                    const SizedBox(height: 22),
-                    Text(context.t('mobile.transkript'), style: context.type.titleLarge),
-                    const SizedBox(height: 4),
-                  ],
-                  BlockEditor(
-                    key: _editor,
-                    api: widget.api,
-                    initial: _body,
-                    hint: context.t('mobile.notizHinweis'),
-                    autofocus: widget.note == null,
-                    onPickImage: _addImage,
-                    onChanged: (md) {
-                      _body = md;
-                      _changed();
-                    },
                   ),
                 ],
               ),
@@ -939,6 +1134,50 @@ class _Turns extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// A note's title, set as a document's (#372): large and bold.
+TextStyle? _titleStyle(BuildContext context) =>
+    context.type.headlineMedium?.copyWith(fontSize: 34, fontWeight: FontWeight.w700, letterSpacing: -0.8, height: 1.15);
+
+/// Emojis offered as a page icon (#372).
+const pageIcons = [
+  '📝', '📌', '📎', '📚', '📅', '🗓️', '✅', '💡', '🎯', '🚀', '⭐', '🔥', //
+  '📈', '📊', '💼', '🏢', '🤝', '💬', '📣', '🧭', '🛠️', '⚙️', '🧪', '🔒', //
+  '🏠', '🌱', '🌍', '✈️', '🎓', '❤️', '🙂', '🎉', '🍀', '☕', '🐞', '🧾',
+];
+
+/// The built-in covers (#372), by the names the instance knows.
+const coverGradients = {
+  'clay': LinearGradient(colors: [Color(0xFFCC7A5B), Color(0xFFEDC4A3)]),
+  'dusk': LinearGradient(colors: [Color(0xFF3B2E5A), Color(0xFFC77D8A)]),
+  'sea': LinearGradient(colors: [Color(0xFF1F4E6B), Color(0xFF6FB3B8)]),
+  'moss': LinearGradient(colors: [Color(0xFF3C5A3A), Color(0xFFA3B86C)]),
+  'sand': LinearGradient(colors: [Color(0xFFD9C3A0), Color(0xFFF3E7D3)]),
+  'night': LinearGradient(colors: [Color(0xFF0F1A2B), Color(0xFF34495E)]),
+};
+
+/// A note's cover across the page (#372): a gradient or a picture.
+class CoverBanner extends StatelessWidget {
+  const CoverBanner({super.key, required this.api, required this.cover, this.height = 180});
+
+  final CoveyApi api;
+  final String cover;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final g = cover.startsWith('gradient:') ? coverGradients[cover.substring('gradient:'.length)] : null;
+    return SizedBox(
+      height: height,
+      width: double.infinity,
+      child: g != null
+          ? DecoratedBox(decoration: BoxDecoration(gradient: g))
+          : ClipRect(
+              child: MediaImage(api: api, ref: cover, fit: BoxFit.cover, radius: 0),
+            ),
     );
   }
 }
