@@ -182,12 +182,12 @@ final class FlowPanel {
     glass.appearance = NSAppearance(named: .vibrantDark)
     glass.state = .active
     glass.blendingMode = .behindWindow
+    // Blending behind the window ignores the layer's corner radius — the
+    // material fills the whole rectangle, and its corners show as pale
+    // patches. A mask image is what clips it (#360); the border and the
+    // shadow follow the same shape.
     glass.wantsLayer = true
-    glass.layer?.cornerRadius = Self.height / 2
-    glass.layer?.cornerCurve = .continuous
-    glass.layer?.masksToBounds = true
-    glass.layer?.borderWidth = 0.5
-    glass.layer?.borderColor = NSColor.white.withAlphaComponent(0.12).cgColor
+    glass.maskImage = Self.mask(radius: Self.height / 2)
     glass.autoresizingMask = [.width, .height]
     glass.frame = panel.contentLayoutRect
 
@@ -258,7 +258,28 @@ final class FlowPanel {
     } else {
       wave.frame = NSRect(x: (rect.width - Self.waveWidth) / 2, y: 10, width: Self.waveWidth, height: waveH)
     }
-    glass.layer?.cornerRadius = min(Self.height / 2, rect.height / 2)
+    let radius = min(Self.height / 2, rect.height / 2)
+    if radius != maskRadius {
+      maskRadius = radius
+      glass.maskImage = Self.mask(radius: radius)
+    }
+    panel.invalidateShadow()
+  }
+
+  private var maskRadius: CGFloat = 0
+
+  /// A rounded rectangle that stretches in the middle and keeps its corners:
+  /// the shape of the capsule at any size, with a hairline edge.
+  private static func mask(radius: CGFloat) -> NSImage {
+    let side = radius * 2 + 1
+    let image = NSImage(size: NSSize(width: side, height: side), flipped: false) { rect in
+      NSColor.black.setFill()
+      NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
+      return true
+    }
+    image.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
+    image.resizingMode = .stretch
+    return image
   }
 
   func show() {
