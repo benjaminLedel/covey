@@ -19,6 +19,7 @@ bool isApple(BuildContext context) {
 }
 
 abstract final class AppIcons {
+  static const office = AppIcon(Icons.apartment_rounded, CupertinoIcons.building_2_fill);
   static const team = AppIcon(Icons.people_alt_outlined, CupertinoIcons.person_2);
   static const notes = AppIcon(Icons.edit_note_rounded, CupertinoIcons.square_pencil);
   static const add = AppIcon(Icons.add_rounded, CupertinoIcons.add);

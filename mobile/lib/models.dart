@@ -94,13 +94,35 @@ class Agent {
 }
 
 class Department {
-  Department({required this.id, required this.name});
+  Department({required this.id, required this.name, this.color = ''});
 
   factory Department.fromJson(Map<String, dynamic> j) =>
-      Department(id: j['id'] as String, name: j['name'] as String? ?? '');
+      Department(id: j['id'] as String, name: j['name'] as String? ?? '', color: j['color'] as String? ?? '');
 
   final String id;
   final String name;
+
+  /// A CSS hex like "#6d8c5a", or "" — the office draws the room's door
+  /// frame and skirting in it (#398).
+  final String color;
+}
+
+/// One entry of GET /org/running: a task being worked on right now. In the
+/// office it is what lights a screen (#398).
+class Running {
+  Running({required this.agentId, required this.title, this.step});
+
+  factory Running.fromJson(Map<String, dynamic> j) => Running(
+    agentId: j['agent_id'] as String? ?? '',
+    title: j['title'] as String? ?? '',
+    step: j['step'] as String?,
+  );
+
+  final String agentId;
+  final String title;
+
+  /// The kind of the last recorded step, not its content.
+  final String? step;
 }
 
 /// One open point of GET /inbox.

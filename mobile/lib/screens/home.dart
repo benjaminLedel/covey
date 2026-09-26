@@ -19,6 +19,7 @@ import '../models.dart';
 import '../theme.dart';
 import '../ui.dart';
 import 'notes.dart';
+import 'office_space.dart';
 import 'review.dart';
 import 'suggestions.dart';
 import 'settings.dart';
@@ -288,6 +289,21 @@ class _HomeScreenState extends State<HomeScreen> {
             compact: isWide,
           ),
         ),
+      // The office beside the team (#398). The web opens on it (#390); the
+      // app still opens on the team, the list that answers "who needs me?".
+      if (me.teamSurface)
+        (
+          icon: AppIcons.office.of(context),
+          label: context.t('team.ueberblick'),
+          body: OfficeSpace(
+            api: widget.api,
+            me: me,
+            onOpen: _openThread,
+            actions: actions,
+            bottomClearance: isWide ? 24 : capsuleClearance,
+            compact: isWide,
+          ),
+        ),
       (
         icon: AppIcons.notes.of(context),
         label: context.t('mobile.notizen'),
@@ -304,6 +320,8 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
     final space = _space.clamp(0, spaces.length - 1);
     final notesIndex = spaces.length - 1;
+    // The office takes the width, as on the web (#390); -1 without the team surface.
+    final officeIndex = me.teamSurface ? 1 : -1;
     final body = IndexedStack(index: space, children: [for (final s in spaces) s.body]);
     final capsule = [for (final s in spaces) (icon: s.icon, label: s.label)];
 
@@ -327,7 +345,7 @@ class _HomeScreenState extends State<HomeScreen> {
             // The panes right of the sidebar are clear of the traffic lights.
             // The table and the board of the notes take the width (#373); an
             // open note stands beside them.
-            if (space == notesIndex && _notesView != NotesView.list) ...[
+            if ((space == notesIndex && _notesView != NotesView.list) || space == officeIndex) ...[
               Expanded(child: LightsInset(left: 0, child: body)),
               if (_detail != null) ...[
                 const VerticalDivider(width: 0.6),

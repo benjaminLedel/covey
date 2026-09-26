@@ -149,6 +149,10 @@ class CoveyApi {
     for (final d in (await get('/departments') as List? ?? const [])) Department.fromJson(d as Map<String, dynamic>),
   ];
 
+  Future<List<Running>> running() async => [
+    for (final r in (await get('/org/running') as List? ?? const [])) Running.fromJson(r as Map<String, dynamic>),
+  ];
+
   Future<InboxPage> waiting() async =>
       InboxPage.fromJson(await get('/inbox?status=open&sort=urgent&limit=100') as Map<String, dynamic>);
 

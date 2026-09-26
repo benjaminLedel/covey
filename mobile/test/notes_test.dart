@@ -113,7 +113,7 @@ void main() {
     );
   });
 
-  testWidgets('with the team surface there are two spaces, Team and Notes', (tester) async {
+  testWidgets('with the team surface there are three spaces, Team, Office and Notes', (tester) async {
     final api = CoveyApi(
       Uri.parse('https://c.example'),
       'k',
@@ -129,7 +129,7 @@ void main() {
     await tester.pumpWidget(await tester.runAsync(() => _app(HomeScreen(api: api, onDisconnect: () {}))) as Widget);
     await _settle(tester);
     final capsule = tester.widget<SpaceCapsule>(find.byType(SpaceCapsule));
-    expect([for (final s in capsule.spaces) s.label], ['Team', 'Notizen']);
+    expect([for (final s in capsule.spaces) s.label], ['Team', 'Büro', 'Notizen']);
   });
 
   testWidgets('a dictated note is saved as a voice note, without a save button (#343)', (tester) async {
