@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
+import 'prefs.dart';
 
 /// The diagnostic log (#352): switched on in settings, it writes what the
 /// app does — requests with their status and time, dictation's segments and
@@ -24,7 +24,7 @@ class Diagnostics extends ChangeNotifier {
 
   static const _key = 'diagnostics.enabled';
   static const _maxBytes = 1 << 20;
-  final _prefs = const FlutterSecureStorage();
+  final _prefs = Prefs.instance;
 
   bool enabled = false;
   File? _file;
@@ -38,7 +38,7 @@ class Diagnostics extends ChangeNotifier {
 
   Future<void> init() async {
     try {
-      enabled = await _prefs.read(key: _key) == 'on';
+      enabled = await _prefs.read(_key) == 'on';
     } catch (_) {
       enabled = false;
     }
@@ -57,7 +57,7 @@ class Diagnostics extends ChangeNotifier {
     }
     notifyListeners();
     try {
-      await _prefs.write(key: _key, value: on ? 'on' : 'off');
+      await _prefs.write(_key, on ? 'on' : 'off');
     } catch (_) {
       // Kept for this run.
     }

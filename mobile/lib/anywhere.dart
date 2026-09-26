@@ -3,13 +3,14 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:hotkey_manager/hotkey_manager.dart';
 
 import 'api.dart';
 import 'diagnostics.dart';
 import 'dictation.dart';
 import 'speech_model.dart';
+import 'prefs.dart';
 
 /// Dictate anywhere (#355): a global shortcut on the Mac starts dictation in
 /// whatever app has the focus, and the text lands where the cursor is.
@@ -34,7 +35,7 @@ class DictateAnywhere extends ChangeNotifier {
   static const _channel = MethodChannel('covey/flow');
   static const _enabledKey = 'flow.enabled';
   static const _cleanKey = 'flow.clean';
-  final _prefs = const FlutterSecureStorage();
+  final _prefs = Prefs.instance;
 
   final hotKey = HotKey(key: PhysicalKeyboardKey.space, modifiers: [HotKeyModifier.alt], scope: HotKeyScope.system);
 
@@ -55,6 +56,8 @@ class DictateAnywhere extends ChangeNotifier {
   CoveyApi? _api;
   Dictation? _dictation;
   bool _registered = false;
+  AppLifecycleListener? _lifecycle;
+  Timer? _trustPoll;
 
   // One dictation's state.
   DateTime? _pressedAt;
@@ -72,13 +75,16 @@ class DictateAnywhere extends ChangeNotifier {
     _dictation?.dispose();
     _dictation = Dictation(api: api, keepModelLoaded: true)..addListener(_push);
     try {
-      enabled = await _prefs.read(key: _enabledKey) == 'on';
-      clean = await _prefs.read(key: _cleanKey) != 'off';
+      enabled = await _prefs.read(_enabledKey) == 'on';
+      clean = await _prefs.read(_cleanKey) != 'off';
     } catch (_) {
       // Unreadable: the defaults.
     }
     await refresh();
     if (enabled) await _register();
+    // The permission is granted in System Settings, outside the app: asked
+    // again whenever the app comes back to the front.
+    _lifecycle ??= AppLifecycleListener(onResume: () => unawaited(refresh()));
     notifyListeners();
   }
 
@@ -124,16 +130,33 @@ class DictateAnywhere extends ChangeNotifier {
   Future<void> askTrust() async {
     try {
       trusted = await _channel.invokeMethod<bool>('askTrust') ?? false;
+      diag('flow', 'accessibility asked: ${trusted ? 'granted' : 'not granted'}');
       if (!trusted) await _channel.invokeMethod<void>('openAccessibilitySettings');
     } on PlatformException catch (e) {
       diag('flow', 'accessibility: ${e.message}');
     }
     notifyListeners();
+    // Then watched for two minutes: the switch is flipped in System
+    // Settings while the app waits in the background.
+    _trustPoll?.cancel();
+    var left = 60;
+    _trustPoll = Timer.periodic(const Duration(seconds: 2), (t) async {
+      if (--left <= 0 || trusted) {
+        t.cancel();
+        return;
+      }
+      final now = await _channel.invokeMethod<bool>('trusted') ?? false;
+      if (now != trusted) {
+        trusted = now;
+        diag('flow', 'accessibility now ${now ? 'granted' : 'not granted'}');
+        notifyListeners();
+      }
+    });
   }
 
   Future<void> _save(String key, String value) async {
     try {
-      await _prefs.write(key: key, value: value);
+      await _prefs.write(key, value);
     } catch (_) {
       // Kept for this run.
     }
@@ -266,6 +289,9 @@ class DictateAnywhere extends ChangeNotifier {
   }
 
   Future<void> detach() async {
+    _trustPoll?.cancel();
+    _lifecycle?.dispose();
+    _lifecycle = null;
     await _unregister();
     _dictation?.dispose();
     _dictation = null;

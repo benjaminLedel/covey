@@ -4,11 +4,11 @@ import 'dart:isolate';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'api.dart';
 import 'diagnostics.dart';
+import 'prefs.dart';
 
 /// Why the speech model is not on the phone.
 enum SpeechModelProblem {
@@ -69,12 +69,12 @@ class SpeechModel extends ChangeNotifier {
 
   static const _languageKey = 'speech.language';
   static const _modelKey = 'speech.model';
-  final _prefs = const FlutterSecureStorage();
+  final _prefs = Prefs.instance;
 
   Future<void> loadPrefs() async {
     try {
-      language = await _prefs.read(key: _languageKey);
-      chosen = await _prefs.read(key: _modelKey);
+      language = await _prefs.read(_languageKey);
+      chosen = await _prefs.read(_modelKey);
     } catch (_) {
       // Unreadable: the defaults.
     }
@@ -84,9 +84,9 @@ class SpeechModel extends ChangeNotifier {
   Future<void> _save(String key, String? value) async {
     try {
       if (value == null) {
-        await _prefs.delete(key: key);
+        await _prefs.write(key, null);
       } else {
-        await _prefs.write(key: key, value: value);
+        await _prefs.write(key, value);
       }
     } catch (_) {
       // Kept for this run.
