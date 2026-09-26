@@ -2243,37 +2243,6 @@
    Dunkeln darüber. Mit --tint-weak als Gleis las sich der Schalter im
    Dunkelmodus verkehrt herum — das aktive Segment hatte die Farbe seiner
    Umgebung, und das inaktive Gleis lag heller davor. */
-.shell-schalter {
-  display: flex;
-  margin: 2px 0 14px;
-  padding: 2px;
-  gap: 2px;
-  border-radius: 999px;
-  background: var(--surface-1);
-  border: 1px solid var(--border);
-  font-size: 13px;
-  line-height: 1;
-}
-.shell-schalter-an,
-.shell-schalter-aus {
-  flex: 1;
-  padding: 6px 12px;
-  border-radius: 999px;
-  text-align: center;
-  text-decoration: none;
-  white-space: nowrap;
-}
-.shell-schalter-an {
-  background: var(--surface-2);
-  color: var(--text-primary);
-  font-weight: 500;
-  /* Der Ring hält die Form auch dort, wo das Gleis dieselbe Fläche ist wie
-     seine Umgebung — in der Seitenleiste etwa, die selbst auf surface-1
-     beginnt. Der Schatten allein tut das im Dunkeln nicht. */
-  box-shadow: 0 0 0 0.5px var(--border-strong), 0 1px 2px var(--shadow-xs);
-}
-.shell-schalter-aus { color: var(--text-secondary); }
-.shell-schalter-aus:hover { color: var(--text-primary); background: var(--tint-weak); }
 
 /* ── Die Liste links ──────────────────────────────────────────────────── *//* ── Die Liste links ──────────────────────────────────────────────────── */
 .tm-liste {

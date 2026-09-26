@@ -15,7 +15,7 @@
 import { Suspense, lazy, useEffect, useState, useCallback } from "react";
 import { BirdMark } from "./components/BirdMark";
 import { useQuery } from "@tanstack/react-query";
-import { Link, NavLink, Navigate, Route, Routes, useLocation, useParams } from "react-router";
+import { NavLink, Navigate, Route, Routes, useLocation, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import {
   api,
@@ -251,19 +251,13 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
             <NavIcon name="search" />
           </button>
         </div>
-        {/* Der Weg zurück in den Workspace. Er steht oben und nicht in einem
-            Menü, weil er das Gegenstück zum Schalter dort ist: zwei Schalen,
-            eine Bewegung zwischen ihnen. */}
-        {/* Without the team surface (#328) there is nothing to switch to. */}
+        {/* The way back to the team (#387): the first row of the
+            navigation, not a switch above it. Without the team surface
+            (#328) there is nothing to go back to. */}
         {me.TeamSurface && (
-          <nav className="shell-schalter" aria-label={t("team.schalterAria")}>
-            <Link to="/" className="shell-schalter-aus">
-              {t("team.workspace")}
-            </Link>
-            <span className="shell-schalter-an" aria-current="page">
-              {t("team.verwaltung")}
-            </span>
-          </nav>
+          <div className="nav-group">
+            <NavItem to="/" end icon="chat" label={t("team.workspace")} />
+          </div>
         )}
         {/* The navigation grew — the order showed when something was added,
             not when it is needed. Now sorted by the everyday: on top what

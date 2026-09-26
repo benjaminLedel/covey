@@ -149,15 +149,6 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
           </button>
         </div>
 
-        {/* Derselbe Schalter wie in der Konsole, an derselben Stelle. */}
-        <nav className="shell-schalter" aria-label={t("team.schalterAria")}>
-          <span className="shell-schalter-an" aria-current="page">
-            {t("team.workspace")}
-          </span>
-          <Link to="/agents" className="shell-schalter-aus">
-            {t("team.verwaltung")}
-          </Link>
-        </nav>
 
         <nav className="tm-liste" aria-label={t("team.kollegen")}>
           {/* The places above the departments: the office, and the door to a
@@ -190,6 +181,14 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
                 {t("team.einstellen")}
               </Link>
             )}
+            {/* Administration is a place too (#387): a row here, not a switch
+                above the list — most people go there rarely. */}
+            <Link to="/agents" className="tm-wartet tm-notizen">
+              <span className="tm-notizen-zeichen" aria-hidden="true">
+                <NavIcon name="cog" />
+              </span>
+              {t("team.verwaltung")}
+            </Link>
           </div>
 
           {agents.isLoading && <p className="tm-leise">{t("common.loading")}</p>}

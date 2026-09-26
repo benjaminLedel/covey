@@ -194,7 +194,8 @@ describe("App und die Team-Oberfläche", () => {
     renderApp(<App />, "/");
 
     expect(await screen.findByText("Büro")).toBeInTheDocument();
-    expect(screen.getByRole("navigation", { name: "Zwischen Team und Verwaltung wechseln" })).toBeInTheDocument();
+    // Administration is a row among the places (#387).
+    expect(screen.getByRole("link", { name: "Verwaltung" }).getAttribute("href")).toBe("/agents");
   });
 });
 
