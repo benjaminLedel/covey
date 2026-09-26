@@ -147,6 +147,10 @@ final class FlowBridge {
 final class FlowPanel {
   private let panel: NSPanel
   private let glass = NSVisualEffectView()
+  /// Liquid Glass where the system has it (macOS 26 and later); typed as
+  /// NSView so the app still runs on older systems.
+  private var liquid: NSView?
+  private let content = NSView()
   private let wave = WaveView()
   private let label = NSTextField(wrappingLabelWithString: "")
 
@@ -196,9 +200,28 @@ final class FlowPanel {
     label.maximumNumberOfLines = 0
     label.alphaValue = 0
 
-    glass.addSubview(wave)
-    glass.addSubview(label)
-    panel.contentView = glass
+    if #available(macOS 26.0, *) {
+      // Liquid Glass (#361): the system's own material, refracting what is
+      // behind it. Tinted dark, so white bars and text read on any
+      // background — the capsule stays an instrument over bright pages too.
+      let g = NSGlassEffectView()
+      g.cornerRadius = Self.height / 2
+      g.tintColor = NSColor.black.withAlphaComponent(0.4)
+      g.appearance = NSAppearance(named: .darkAqua)
+      g.frame = panel.contentLayoutRect
+      g.autoresizingMask = [.width, .height]
+      content.frame = g.bounds
+      content.autoresizingMask = [.width, .height]
+      content.addSubview(wave)
+      content.addSubview(label)
+      g.contentView = content
+      panel.contentView = g
+      liquid = g
+    } else {
+      glass.addSubview(wave)
+      glass.addSubview(label)
+      panel.contentView = glass
+    }
   }
 
   /// What the text needs: one line as wide as it is, or up to five lines at
@@ -261,7 +284,11 @@ final class FlowPanel {
     let radius = min(Self.height / 2, rect.height / 2)
     if radius != maskRadius {
       maskRadius = radius
-      glass.maskImage = Self.mask(radius: radius)
+      if #available(macOS 26.0, *), let g = liquid as? NSGlassEffectView {
+        g.cornerRadius = radius
+      } else {
+        glass.maskImage = Self.mask(radius: radius)
+      }
     }
     panel.invalidateShadow()
   }
