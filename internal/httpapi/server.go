@@ -414,6 +414,10 @@ func (s *Server) Handler() http.Handler {
 	// the agent page does not show; writing needs the same permission as
 	// creating a task by hand, because that is what it does.
 	mux.Handle("GET /api/v1/agents/{id}/thread", s.agentScoped(anyRole, s.handleThread))
+	// What a person has not read yet (#378): per agent, and the point up to
+	// which they have.
+	mux.Handle("GET /api/v1/me/threads", s.rbac(anyRole, s.handleMyThreads))
+	mux.Handle("POST /api/v1/agents/{id}/thread/read", s.agentScoped(anyRole, s.handleThreadRead))
 	mux.Handle("POST /api/v1/agents/{id}/messages", s.agentScoped(manage, s.handleChatMessage))
 	mux.Handle("POST /api/v1/agents/{id}/wake", s.agentScoped(manage, s.handleWake))
 	// Hiring: the one way out of the draft state, and only a human walks it

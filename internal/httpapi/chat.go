@@ -1091,3 +1091,53 @@ func (s *Server) handleTaskReply(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, out)
 }
+
+// handleMyThreads answers, per agent, how much of its thread the signed-in
+// person has not read, and the newest entry from the agent's side (#378).
+func (s *Server) handleMyThreads(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	list, err := chat.New(s.Pool).Threads(r.Context(), p.OrgID, p.ID)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	for i := range list {
+		list[i].LastText = firstLine(list[i].LastText, 140)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"threads": list})
+}
+
+// handleThreadRead moves the person's point in the agent's thread forward to
+// the newest entry the reader has shown.
+func (s *Server) handleThreadRead(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		At time.Time `json:"at"`
+	}
+	if err := readJSON(r, &in); err != nil || in.At.IsZero() {
+		writeErr(w, http.StatusBadRequest, "expected {\"at\": <RFC 3339 time of the newest entry shown>}")
+		return
+	}
+	if err := chat.New(s.Pool).MarkRead(r.Context(), principalFrom(r).ID, agentFrom(r).ID, in.At); err != nil {
+		mapErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// firstLine is the start of a text as a list shows it: one line, at most n
+// characters, Markdown's emphasis and headings left out.
+func firstLine(text string, n int) string {
+	text = strings.TrimSpace(text)
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(line), "#>*- "))
+		if line == "" {
+			continue
+		}
+		line = strings.NewReplacer("**", "", "__", "", "`", "").Replace(line)
+		if r := []rune(line); len(r) > n {
+			return strings.TrimSpace(string(r[:n-1])) + "…"
+		}
+		return line
+	}
+	return ""
+}
