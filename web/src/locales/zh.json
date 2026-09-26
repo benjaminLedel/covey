@@ -1157,6 +1157,12 @@
       "on": "开启 — 由代理决定",
       "noCredential": "这需要组织在控制平面的凭据。",
       "cost": "届时每条消息都会产生一次简短的模型调用费用。"
+    },
+    "push": {
+      "title": "推送通知",
+      "hint": "有提问、回复或任务完成时，相关人员会在手机上收到通知。关闭：只说明谁做了什么（“Bea 有一个问题”），内容不会离开本安装。开启：包含第一行内容，因此会经过 Apple 以及（如使用）中继服务。",
+      "off": "关闭 — 仅谁和什么",
+      "on": "开启 — 包含第一行"
     }
   },
   "orgs": {
@@ -2686,7 +2692,10 @@
     "fotoUebernehmen": "使用",
     "fotoFehler": "无法保存照片。",
     "kameraVerweigert": "covey 无法使用摄像头。请在“系统设置”的“隐私与安全性”→“摄像头”中允许。",
-    "kameraAufnehmen": "拍摄"
+    "kameraAufnehmen": "拍摄",
+    "mitteilungen": "通知",
+    "mitteilungenAn": "接收通知",
+    "mitteilungenHinweis": "在您参与的对话中有提问、回复或任务完成时通知您。已读内容不会通知。"
   },
   "appLink": {
     "title": "在 covey 应用中打开",

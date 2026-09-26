@@ -1157,6 +1157,12 @@
       "on": "Włączone — decyduje agent",
       "noCredential": "Organizacja potrzebuje do tego danych dostępowych warstwy sterowania.",
       "cost": "Każda wiadomość kosztuje wtedy krótkie wywołanie modelu."
+    },
+    "push": {
+      "title": "Powiadomienia push",
+      "hint": "Przy pytaniach, odpowiedziach i ukończonych zadaniach zaangażowane osoby dostają powiadomienie na telefon. Wyłączone: mówi tylko, kto co zrobił („Bea ma pytanie”), i nic z treści nie opuszcza instalacji. Włączone: zawiera pierwszą linię, która przechodzi przez Apple i ewentualnie przez usługę przekaźnika.",
+      "off": "Wyłączone — tylko kto i co",
+      "on": "Włączone — z pierwszą linią"
     }
   },
   "orgs": {
@@ -2686,7 +2692,10 @@
     "fotoUebernehmen": "Użyj",
     "fotoFehler": "Nie udało się zapisać zdjęcia.",
     "kameraVerweigert": "covey nie ma dostępu do kamery. Zezwól na to w Ustawieniach systemowych, w sekcji Prywatność i ochrona → Kamera.",
-    "kameraAufnehmen": "Zrób"
+    "kameraAufnehmen": "Zrób",
+    "mitteilungen": "Powiadomienia",
+    "mitteilungenAn": "Otrzymuj powiadomienia",
+    "mitteilungenHinweis": "Przy pytaniach, odpowiedziach i ukończonych zadaniach w rozmowach, w których uczestniczysz. To, co już przeczytano, nie jest zgłaszane."
   },
   "appLink": {
     "title": "Otwórz w aplikacji covey",

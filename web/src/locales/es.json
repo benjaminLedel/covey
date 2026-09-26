@@ -1157,6 +1157,12 @@
       "on": "Activado — decide el agente",
       "noCredential": "Para ello la organización necesita credenciales del plano de control.",
       "cost": "Cada mensaje cuesta entonces una llamada corta al modelo."
+    },
+    "push": {
+      "title": "Notificaciones push",
+      "hint": "Ante preguntas, respuestas y tareas terminadas, las personas implicadas reciben una notificación en su teléfono. Desactivado: solo dice quién hizo qué («Bea tiene una pregunta») y nada del contenido sale de la instalación. Activado: incluye la primera línea, que pasa por Apple y, en su caso, por el servicio de relé.",
+      "off": "Desactivado — solo quién y qué",
+      "on": "Activado — con la primera línea"
     }
   },
   "orgs": {
@@ -2686,7 +2692,10 @@
     "fotoUebernehmen": "Usar foto",
     "fotoFehler": "No se pudo guardar la foto.",
     "kameraVerweigert": "covey no puede usar la cámara. Permítalo en Ajustes del Sistema, en Privacidad y seguridad → Cámara.",
-    "kameraAufnehmen": "Hacer foto"
+    "kameraAufnehmen": "Hacer foto",
+    "mitteilungen": "Notificaciones",
+    "mitteilungenAn": "Recibir notificaciones",
+    "mitteilungenHinweis": "Ante preguntas, respuestas y tareas terminadas en conversaciones en las que participa. Lo que ya ha leído no se notifica."
   },
   "appLink": {
     "title": "Abrir en la aplicación covey",

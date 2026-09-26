@@ -257,6 +257,39 @@ export function TeamSurfaceSettings() {
   );
 }
 
+/* Whether a push notification may carry the first line of what was said
+ * (#379). Off, a notification says only who and what — "Bea has a question" —
+ * and nothing of the content leaves the instance. On, the first line goes
+ * along, and with it through Apple and, where used, the relay. */
+export function PushSettings() {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const team = useTeamSurface();
+  const pushQ = useQuery({ queryKey: ["org-push"], queryFn: () => api<{ preview: boolean }>("/org/push") });
+  const setPreview = useMutation({
+    mutationFn: (preview: boolean) => patch<{ preview: boolean }>("/org/push", { preview }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["org-push"] }),
+  });
+
+  if (!pushQ.data || !team.data?.enabled) return null;
+
+  return (
+    <div className="card mb-4">
+      <h2 className="text-sm mb-1" style={{ fontWeight: 600 }}>{t("org.push.title")}</h2>
+      <p className="muted text-xs mt-0 mb-2" style={{ maxWidth: 640 }}>{t("org.push.hint")}</p>
+      <select
+        key={`push:${pushQ.data.preview}`}
+        defaultValue={pushQ.data.preview ? "on" : "off"}
+        disabled={setPreview.isPending}
+        onChange={(e) => setPreview.mutate(e.target.value === "on")}
+      >
+        <option value="off">{t("org.push.off")}</option>
+        <option value="on">{t("org.push.on")}</option>
+      </select>
+    </div>
+  );
+}
+
 /* Der Schalter, der entscheidet, ob eine Nachricht im Team zwangsläufig eine
  * Aufgabe wird (#302).
  *

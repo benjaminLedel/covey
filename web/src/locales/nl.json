@@ -1157,6 +1157,12 @@
       "on": "Aan — de agent beslist",
       "noCredential": "Hiervoor heeft de organisatie inloggegevens voor de control plane nodig.",
       "cost": "Elk bericht kost dan één korte modelaanroep."
+    },
+    "push": {
+      "title": "Pushmeldingen",
+      "hint": "Bij vragen, antwoorden en afgeronde taken krijgen de betrokkenen een melding op hun telefoon. Uit: die zegt alleen wie wat deed („Bea heeft een vraag”) en niets van de inhoud verlaat de installatie. Aan: de eerste regel staat erin en gaat zo via Apple en eventueel de relaydienst.",
+      "off": "Uit — alleen wie en wat",
+      "on": "Aan — met de eerste regel"
     }
   },
   "orgs": {
@@ -2686,7 +2692,10 @@
     "fotoUebernehmen": "Gebruiken",
     "fotoFehler": "De foto kon niet worden opgeslagen.",
     "kameraVerweigert": "covey mag de camera niet gebruiken. Sta het toe in Systeeminstellingen onder Privacy en beveiliging → Camera.",
-    "kameraAufnehmen": "Maken"
+    "kameraAufnehmen": "Maken",
+    "mitteilungen": "Meldingen",
+    "mitteilungenAn": "Meldingen ontvangen",
+    "mitteilungenHinweis": "Bij vragen, antwoorden en afgeronde taken in gesprekken waaraan u deelneemt. Wat u al gelezen hebt, wordt niet gemeld."
   },
   "appLink": {
     "title": "Openen in de covey-app",

@@ -1157,6 +1157,12 @@
       "on": "Ligado — decide o agente",
       "noCredential": "Para isso a organização precisa de credenciais do plano de controlo.",
       "cost": "Cada mensagem custa então uma chamada curta ao modelo."
+    },
+    "push": {
+      "title": "Notificações push",
+      "hint": "Em perguntas, respostas e tarefas concluídas, as pessoas envolvidas recebem uma notificação no telemóvel. Desligado: diz apenas quem fez o quê («Bea tem uma pergunta») e nada do conteúdo sai da instalação. Ligado: inclui a primeira linha, que passa assim pela Apple e, se usado, pelo serviço de relay.",
+      "off": "Desligado — só quem e o quê",
+      "on": "Ligado — com a primeira linha"
     }
   },
   "orgs": {
@@ -2686,7 +2692,10 @@
     "fotoUebernehmen": "Usar foto",
     "fotoFehler": "Não foi possível guardar a foto.",
     "kameraVerweigert": "O covey não pode usar a câmara. Permita-o nas Definições do Sistema, em Privacidade e segurança → Câmara.",
-    "kameraAufnehmen": "Tirar"
+    "kameraAufnehmen": "Tirar",
+    "mitteilungen": "Notificações",
+    "mitteilungenAn": "Receber notificações",
+    "mitteilungenHinweis": "Em perguntas, respostas e tarefas concluídas nas conversas em que participa. O que já leu não é notificado."
   },
   "appLink": {
     "title": "Abrir na aplicação covey",

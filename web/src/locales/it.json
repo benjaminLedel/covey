@@ -1157,6 +1157,12 @@
       "on": "Acceso — decide l'agente",
       "noCredential": "Per questo l'organizzazione ha bisogno di credenziali per il piano di controllo.",
       "cost": "Ogni messaggio costa allora una breve chiamata al modello."
+    },
+    "push": {
+      "title": "Notifiche push",
+      "hint": "Per domande, risposte e compiti completati, le persone coinvolte ricevono una notifica sul telefono. Disattivato: dice solo chi ha fatto cosa («Bea ha una domanda») e nulla del contenuto lascia l’installazione. Attivato: include la prima riga, che passa quindi da Apple e, se usato, dal servizio relay.",
+      "off": "Disattivato — solo chi e cosa",
+      "on": "Attivato — con la prima riga"
     }
   },
   "orgs": {
@@ -2686,7 +2692,10 @@
     "fotoUebernehmen": "Usa foto",
     "fotoFehler": "Impossibile salvare la foto.",
     "kameraVerweigert": "covey non può usare la fotocamera. Lo consenta in Impostazioni di Sistema, sotto Privacy e sicurezza → Fotocamera.",
-    "kameraAufnehmen": "Scatta"
+    "kameraAufnehmen": "Scatta",
+    "mitteilungen": "Notifiche",
+    "mitteilungenAn": "Ricevi notifiche",
+    "mitteilungenHinweis": "Per domande, risposte e compiti completati nelle conversazioni a cui partecipa. Ciò che ha già letto non viene segnalato."
   },
   "appLink": {
     "title": "Apri nell'app covey",

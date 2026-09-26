@@ -1157,6 +1157,12 @@
       "on": "An — der Agent entscheidet",
       "noCredential": "Dafür braucht die Organisation Zugangsdaten für die Control Plane.",
       "cost": "Jede Nachricht kostet damit einen kurzen Modellaufruf."
+    },
+    "push": {
+      "title": "Push-Mitteilungen",
+      "hint": "Bei Rückfragen, Antworten und erledigten Aufgaben bekommen die Beteiligten eine Mitteilung auf ihr Telefon. Aus: Sie sagt nur, wer was getan hat („Bea hat eine Rückfrage“), und vom Inhalt verlässt nichts die Installation. An: Die erste Zeile steht mit darin und geht damit über Apple und gegebenenfalls über den Relay-Dienst.",
+      "off": "Aus — nur wer und was",
+      "on": "An — mit der ersten Zeile"
     }
   },
   "orgs": {
@@ -2686,7 +2692,10 @@
     "fotoUebernehmen": "Übernehmen",
     "fotoFehler": "Das Foto konnte nicht gespeichert werden.",
     "kameraVerweigert": "covey darf die Kamera nicht benutzen. Erlauben Sie es in den Systemeinstellungen unter Datenschutz & Sicherheit → Kamera.",
-    "kameraAufnehmen": "Aufnehmen"
+    "kameraAufnehmen": "Aufnehmen",
+    "mitteilungen": "Mitteilungen",
+    "mitteilungenAn": "Mitteilungen erhalten",
+    "mitteilungenHinweis": "Bei Rückfragen, Antworten und erledigten Aufgaben in Gesprächen, an denen Sie beteiligt sind. Was Sie schon gelesen haben, wird nicht gemeldet."
   },
   "appLink": {
     "title": "In der covey-App öffnen",

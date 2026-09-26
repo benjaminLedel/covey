@@ -1157,6 +1157,12 @@
       "on": "On — the agent decides",
       "noCredential": "This needs a control-plane credential for the organisation.",
       "cost": "Every message then costs one short model call."
+    },
+    "push": {
+      "title": "Push notifications",
+      "hint": "For questions, replies and finished tasks, the people involved get a notification on their phone. Off: it says only who did what (\"Bea has a question\"), and nothing of the content leaves the installation. On: the first line is included, and with it passes through Apple and, where used, the relay service.",
+      "off": "Off — only who and what",
+      "on": "On — with the first line"
     }
   },
   "orgs": {
@@ -2686,7 +2692,10 @@
     "fotoUebernehmen": "Use photo",
     "fotoFehler": "The photo could not be saved.",
     "kameraVerweigert": "covey may not use the camera. Allow it in System Settings under Privacy & Security → Camera.",
-    "kameraAufnehmen": "Take"
+    "kameraAufnehmen": "Take",
+    "mitteilungen": "Notifications",
+    "mitteilungenAn": "Receive notifications",
+    "mitteilungenHinweis": "For questions, replies and finished tasks in conversations you take part in. What you have already read is not announced."
   },
   "appLink": {
     "title": "Open in the covey app",
