@@ -2619,7 +2619,8 @@
     "rueckblickVorhanden": "Rückblick vorhanden",
     "rueckblickNeu": "Neu erstellen",
     "rueckblickLeer": "Noch keine Aktivitäten. Schalten Sie das Mitschreiben auf dem Mac unter Einstellungen → Aktivitäten ein.",
-    "rueckblickHinweis": "Pro Tag gibt es einen Rückblick. Neu erstellt, ersetzt er den bisherigen, etwa für heute mit allem, was seitdem passiert ist. Aktivitäten werden 14 Tage aufbewahrt."
+    "rueckblickHinweis": "Pro Tag gibt es einen Rückblick. Kommen danach Aktivitäten dazu, schreibt covey die Rückblicke der letzten zwei Tage von selbst neu, höchstens alle 30 Minuten. „Neu erstellen“ tut es sofort. Aktivitäten werden 14 Tage aufbewahrt.",
+    "rueckblickVeraltet": "Neue Aktivitäten seit dem Rückblick"
   },
   "appLink": {
     "title": "In der covey-App öffnen",

@@ -2619,7 +2619,8 @@
     "rueckblickVorhanden": "Riepilogo scritto",
     "rueckblickNeu": "Riscrivi",
     "rueckblickLeer": "Ancora nessuna attività. Attiva la registrazione sul Mac in Impostazioni → Attività.",
-    "rueckblickHinweis": "Ogni giorno ha un riepilogo. Se riscritto, sostituisce il precedente; per oggi, con tutto ciò che è successo da allora. L'attività viene conservata per 14 giorni."
+    "rueckblickHinweis": "Ogni giorno ha un riepilogo. Se dopo arriva altra attività, covey riscrive da solo i riepiloghi degli ultimi due giorni, al massimo ogni 30 minuti; «Riscrivi» lo fa subito. L'attività viene conservata per 14 giorni.",
+    "rueckblickVeraltet": "Nuova attività dal riepilogo"
   },
   "appLink": {
     "title": "Apri nell'app covey",

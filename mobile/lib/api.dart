@@ -278,6 +278,7 @@ class CoveyApi {
           day: (d as Map<String, dynamic>)['day'] as String,
           sessions: (d['sessions'] as num).toInt(),
           review: d['review'] as String?,
+          stale: d['stale'] == true,
         ),
     ];
   }
@@ -414,7 +415,7 @@ class SpeechModelFile {
 
 /// One day of the activity log (#368).
 class ActivityDay {
-  const ActivityDay({required this.day, required this.sessions, this.review});
+  const ActivityDay({required this.day, required this.sessions, this.review, this.stale = false});
 
   /// YYYY-MM-DD in the person's zone.
   final String day;
@@ -422,4 +423,8 @@ class ActivityDay {
 
   /// The id of the day's review note, if it has one.
   final String? review;
+
+  /// The day has activity after what its review covers (#369). The instance
+  /// writes recent reviews again by itself; this says it has not yet.
+  final bool stale;
 }

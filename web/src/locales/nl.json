@@ -2619,7 +2619,8 @@
     "rueckblickVorhanden": "Overzicht gemaakt",
     "rueckblickNeu": "Opnieuw maken",
     "rueckblickLeer": "Nog geen activiteit. Zet het bijhouden aan op de Mac via Instellingen → Activiteit.",
-    "rueckblickHinweis": "Elke dag heeft één overzicht. Opnieuw gemaakt vervangt het het vorige — voor vandaag met alles wat sindsdien gebeurde. Activiteit wordt 14 dagen bewaard."
+    "rueckblickHinweis": "Elke dag heeft één overzicht. Komt er daarna activiteit bij, dan maakt covey de overzichten van de laatste twee dagen zelf opnieuw, hooguit elke 30 minuten; ‘Opnieuw maken’ doet het meteen. Activiteit wordt 14 dagen bewaard.",
+    "rueckblickVeraltet": "Nieuwe activiteit sinds het overzicht"
   },
   "appLink": {
     "title": "Openen in de covey-app",

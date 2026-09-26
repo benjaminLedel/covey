@@ -2619,7 +2619,8 @@
     "rueckblickVorhanden": "Review written",
     "rueckblickNeu": "Rewrite",
     "rueckblickLeer": "No activity yet. Switch on recording on the Mac under Settings → Activity.",
-    "rueckblickHinweis": "Each day has one review. Rewritten, it replaces the previous one — for today, with everything since. Activity is kept for 14 days."
+    "rueckblickHinweis": "Each day has one review. When activity comes after it, covey rewrites the reviews of the last two days by itself, at most every 30 minutes; \"Rewrite\" does it at once. Activity is kept for 14 days.",
+    "rueckblickVeraltet": "New activity since the review"
   },
   "appLink": {
     "title": "Open in the covey app",

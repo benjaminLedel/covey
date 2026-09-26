@@ -1,16 +1,19 @@
 package httpapi
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 
 	"covey/internal/activity"
 	"covey/internal/llm"
+	"covey/internal/notes"
 )
 
 // The activity log (#363, internal/activity): what the macOS app recorded in
@@ -29,25 +32,44 @@ func (s *Server) activityRetention() time.Duration {
 
 // zone reads the person's time zone: ?tz= (an IANA name) or, where the
 // device does not know its zone's name, ?offset= (minutes east of UTC);
-// UTC without either.
+// UTC without either. The name is how a review records its zone (#369).
 func zone(r *http.Request) (*time.Location, error) {
+	loc, _, err := zoneOf(r)
+	return loc, err
+}
+
+func zoneOf(r *http.Request) (*time.Location, string, error) {
 	if tz := r.URL.Query().Get("tz"); tz != "" {
-		return time.LoadLocation(tz)
+		loc, err := time.LoadLocation(tz)
+		return loc, "tz:" + tz, err
 	}
 	if o := r.URL.Query().Get("offset"); o != "" {
+		return parseZone("offset:" + o)
+	}
+	return time.UTC, "tz:UTC", nil
+}
+
+// parseZone reads a zone as a review records it: "tz:<name>" or
+// "offset:<minutes>".
+func parseZone(z string) (*time.Location, string, error) {
+	if name, ok := strings.CutPrefix(z, "tz:"); ok {
+		loc, err := time.LoadLocation(name)
+		return loc, z, err
+	}
+	if o, ok := strings.CutPrefix(z, "offset:"); ok {
 		m, err := strconv.Atoi(o)
 		if err != nil || m < -14*60 || m > 14*60 {
-			return nil, errors.New("offset must be minutes between -840 and 840")
+			return nil, "", errors.New("offset must be minutes between -840 and 840")
 		}
-		return time.FixedZone("", m*60), nil
+		return time.FixedZone("", m*60), z, nil
 	}
-	return time.UTC, nil
+	return time.UTC, "tz:UTC", nil
 }
 
 // dayRange reads ?day=YYYY-MM-DD in the person's zone: the person's
 // calendar day, not the server's.
 func dayRange(r *http.Request) (from, to time.Time, loc *time.Location, err error) {
-	if loc, err = zone(r); err != nil {
+	if loc, _, err = zoneOf(r); err != nil {
 		return
 	}
 	day, err := time.ParseInLocation("2006-01-02", r.URL.Query().Get("day"), loc)
@@ -79,12 +101,15 @@ func (s *Server) handleActivityDays(w http.ResponseWriter, r *http.Request) {
 	type day struct {
 		activity.Day
 		Review *uuid.UUID `json:"review,omitempty"`
+		// Stale: the day has activity after what its review covers (#369).
+		Stale bool `json:"stale,omitempty"`
 	}
 	out := make([]day, 0, len(days))
 	for _, d := range days {
 		x := day{Day: d}
-		if id, ok := reviews[d.Day]; ok {
-			x.Review = &id
+		if r, ok := reviews[d.Day]; ok {
+			x.Review = &r.ID
+			x.Stale = d.Last.After(r.Through)
 		}
 		out = append(out, x)
 	}
@@ -114,6 +139,7 @@ func (s *Server) handleAddActivity(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
+	s.followReviews(p.ID)
 	writeJSON(w, http.StatusCreated, map[string]int{"added": n})
 }
 
@@ -165,6 +191,7 @@ func (s *Server) handleActivityReview(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "day=YYYY-MM-DD is required; tz must be an IANA time zone, offset minutes east of UTC")
 		return
 	}
+	_, zoneName, _ := zoneOf(r)
 	var in struct {
 		Lang  string `json:"lang"`
 		Title string `json:"title"`
@@ -201,11 +228,107 @@ func (s *Server) handleActivityReview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// One review per day: written again, it replaces the note of its day
-	// (#368).
-	n, err := s.noteStore().SetReview(r.Context(), p.OrgID, p.ID, from, in.Title, body)
+	// (#368), and records what it was written from (#369).
+	n, err := s.noteStore().SetReview(r.Context(), p.OrgID, p.ID, from, in.Title, body,
+		notes.ReviewMeta{Lang: lang, Zone: zoneName, Through: lastEnd(sessions)})
 	if err != nil {
 		noteErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, n)
+}
+
+func lastEnd(sessions []activity.Session) time.Time {
+	var last time.Time
+	for _, x := range sessions {
+		if x.EndedAt.After(last) {
+			last = x.EndedAt
+		}
+	}
+	return last
+}
+
+func (s *Server) reviewRefresh() time.Duration {
+	if s.Config != nil {
+		return s.Config.ReviewRefresh
+	}
+	return 0
+}
+
+// refreshing holds the reviews being written again, so two uploads in a row
+// do not write the same one twice.
+var refreshing sync.Map
+
+// followReviews writes the seat's recent reviews again, in the background,
+// where their day has activity after what they cover (#369): at most once
+// per ReviewRefresh per review, for the last two days, with each review's
+// own language and zone and the title it has. A failure leaves the review
+// as it was.
+func (s *Server) followReviews(humanID uuid.UUID) {
+	every := s.reviewRefresh()
+	if every <= 0 || s.Secrets == nil {
+		return
+	}
+	ctx := s.BaseCtx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	go func() {
+		refs, err := s.noteStore().ReviewsSince(ctx, humanID, time.Now().AddDate(0, 0, -2))
+		if err != nil {
+			return
+		}
+		for _, ref := range refs {
+			if time.Since(ref.Updated) < every {
+				continue
+			}
+			if _, busy := refreshing.LoadOrStore(ref.ID, true); busy {
+				continue
+			}
+			err := s.refreshReview(ctx, humanID, ref)
+			refreshing.Delete(ref.ID)
+			if err != nil && s.Log != nil {
+				s.Log.Info("daily review not followed", "note", ref.ID, "err", err)
+			}
+		}
+	}()
+}
+
+func (s *Server) refreshReview(ctx context.Context, humanID uuid.UUID, ref notes.ReviewRef) error {
+	loc, _, err := parseZone(ref.Zone)
+	if err != nil {
+		return err
+	}
+	from, err := time.ParseInLocation("2006-01-02", ref.Day, loc)
+	if err != nil {
+		return err
+	}
+	sessions, err := s.activityStore().Between(ctx, humanID, from, from.AddDate(0, 0, 1))
+	if err != nil {
+		return err
+	}
+	last := lastEnd(sessions)
+	if len(sessions) == 0 || !last.After(ref.Through) {
+		return nil
+	}
+	provider, err := llm.Resolve(ctx, s.Secrets, ref.OrgID)
+	if err != nil {
+		return err
+	}
+	lang := ref.Lang
+	if lang == "" {
+		lang = "en"
+	}
+	body, err := activity.Review(ctx, provider, from, sessions, lang, loc)
+	if err != nil {
+		return err
+	}
+	// An empty title keeps the one the note has — the person may have
+	// renamed it.
+	_, err = s.noteStore().SetReview(ctx, ref.OrgID, humanID, from, "", body,
+		notes.ReviewMeta{Lang: lang, Zone: ref.Zone, Through: last})
+	if err == nil && s.Log != nil {
+		s.Log.Info("daily review followed the activity", "note", ref.ID, "day", ref.Day)
+	}
+	return err
 }

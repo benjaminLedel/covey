@@ -128,7 +128,8 @@ class _ReviewScreenState extends State<ReviewScreen> {
                         title: _dayLabel(context, d.day),
                         subtitle: [
                           context.t('mobile.rueckblickAbschnitte', args: {'count': d.sessions}),
-                          if (d.review != null) context.t('mobile.rueckblickVorhanden'),
+                          if (d.review != null)
+                            context.t(d.stale ? 'mobile.rueckblickVeraltet' : 'mobile.rueckblickVorhanden'),
                         ].join(' · '),
                         onTap: _busy == null ? () => _open(d) : null,
                         trailing: _busy == d.day

@@ -2619,7 +2619,8 @@
     "rueckblickVorhanden": "Podsumowanie gotowe",
     "rueckblickNeu": "Utwórz ponownie",
     "rueckblickLeer": "Brak aktywności. Włącz zapisywanie na Macu w Ustawienia → Aktywność.",
-    "rueckblickHinweis": "Każdy dzień ma jedno podsumowanie. Utworzone ponownie zastępuje poprzednie — dla dzisiaj ze wszystkim, co wydarzyło się od tego czasu. Aktywność jest przechowywana 14 dni."
+    "rueckblickHinweis": "Każdy dzień ma jedno podsumowanie. Gdy potem dojdzie aktywność, covey sam odświeża podsumowania z ostatnich dwóch dni, najwyżej co 30 minut; „Utwórz ponownie” robi to od razu. Aktywność jest przechowywana 14 dni.",
+    "rueckblickVeraltet": "Nowa aktywność od podsumowania"
   },
   "appLink": {
     "title": "Otwórz w aplikacji covey",

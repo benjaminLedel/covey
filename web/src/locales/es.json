@@ -2619,7 +2619,8 @@
     "rueckblickVorhanden": "Resumen creado",
     "rueckblickNeu": "Volver a crear",
     "rueckblickLeer": "Aún no hay actividad. Active el registro en el Mac en Ajustes → Actividad.",
-    "rueckblickHinweis": "Cada día tiene un resumen. Si se vuelve a crear, sustituye al anterior; para hoy, con todo lo ocurrido desde entonces. La actividad se guarda 14 días."
+    "rueckblickHinweis": "Cada día tiene un resumen. Si después llega más actividad, covey rehace por sí mismo los resúmenes de los dos últimos días, como mucho cada 30 minutos; «Volver a crear» lo hace al instante. La actividad se guarda 14 días.",
+    "rueckblickVeraltet": "Nueva actividad desde el resumen"
   },
   "appLink": {
     "title": "Abrir en la aplicación covey",

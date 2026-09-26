@@ -2619,7 +2619,8 @@
     "rueckblickVorhanden": "Bilan rédigé",
     "rueckblickNeu": "Rédiger à nouveau",
     "rueckblickLeer": "Aucune activité pour l'instant. Activez l'enregistrement sur le Mac dans Réglages → Activité.",
-    "rueckblickHinweis": "Chaque jour a un bilan. Rédigé à nouveau, il remplace le précédent ; pour aujourd'hui, avec tout ce qui s'est passé depuis. L'activité est conservée 14 jours."
+    "rueckblickHinweis": "Chaque jour a un bilan. Si de l'activité s'ajoute ensuite, covey réécrit de lui-même les bilans des deux derniers jours, au plus toutes les 30 minutes ; « Rédiger à nouveau » le fait tout de suite. L'activité est conservée 14 jours.",
+    "rueckblickVeraltet": "Nouvelle activité depuis le bilan"
   },
   "appLink": {
     "title": "Ouvrir dans l'application covey",

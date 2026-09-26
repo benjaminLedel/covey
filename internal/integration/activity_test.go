@@ -96,21 +96,30 @@ func TestADayHasOneReview(t *testing.T) {
 	}
 	store := notes.NewStore(s.pool)
 	day := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
-	first, err := store.SetReview(ctx, orgID, humanID, day, "Rückblick", "Vormittag: Mails.")
+	meta := notes.ReviewMeta{Lang: "de", Zone: "offset:120", Through: time.Date(2026, 9, 26, 7, 0, 0, 0, time.UTC)}
+	first, err := store.SetReview(ctx, orgID, humanID, day, "Rückblick", "Vormittag: Mails.", meta)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if first.ReviewDay == nil || *first.ReviewDay != "2026-09-26" {
 		t.Fatalf("the note knows its day: %v", first.ReviewDay)
 	}
-	again, err := store.SetReview(ctx, orgID, humanID, day, "Rückblick", "Vormittag: Mails. Nachmittag: Angebot.")
+	// Written again by itself (#369): an empty title keeps the note's own.
+	if _, err := s.pool.Exec(ctx, `UPDATE human_notes SET title='Mein Freitag' WHERE id=$1`, first.ID); err != nil {
+		t.Fatal(err)
+	}
+	again, err := store.SetReview(ctx, orgID, humanID, day, "", "Vormittag: Mails. Nachmittag: Angebot.", meta)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if again.ID != first.ID || again.Body != "Vormittag: Mails. Nachmittag: Angebot." {
+	if again.ID != first.ID || again.Body != "Vormittag: Mails. Nachmittag: Angebot." || again.Title != "Mein Freitag" {
 		t.Fatalf("written again, the review replaces the note of its day: %v / %v", first.ID, again)
 	}
-	other, _ := store.SetReview(ctx, orgID, humanID, day.AddDate(0, 0, -1), "Rückblick", "Gestern.")
+	other, _ := store.SetReview(ctx, orgID, humanID, day.AddDate(0, 0, -1), "Rückblick", "Gestern.", meta)
+	refs, err := store.ReviewsSince(ctx, humanID, day)
+	if err != nil || len(refs) != 1 || refs[0].Zone != "offset:120" || refs[0].Lang != "de" || !refs[0].Through.Equal(meta.Through) {
+		t.Fatalf("the review records what it was written from: %v %v", refs, err)
+	}
 	if other.ID == first.ID {
 		t.Fatal("another day, another note")
 	}
@@ -128,6 +137,10 @@ func TestADayHasOneReview(t *testing.T) {
 	d := days[0].(map[string]any)
 	if d["day"] != "2026-09-26" || d["sessions"] != float64(2) || d["review"] != first.ID.String() {
 		t.Fatalf("the day, its sessions and its review: %v", d)
+	}
+	// The later session (09:30 UTC) ends after what the review covers (07:00).
+	if d["stale"] != true {
+		t.Fatalf("activity after the review makes it stale: %v", d)
 	}
 	if n := len(ada.expect(http.MethodGet, "/api/v1/me/activity/days", nil, http.StatusOK)["days"].([]any)); n != 2 {
 		t.Fatalf("in UTC the sessions are on two days: %d", n)

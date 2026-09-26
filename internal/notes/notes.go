@@ -50,17 +50,36 @@ type Note struct {
 	// ReviewDay is the day a daily review is about (#368), YYYY-MM-DD; nil
 	// for every other note.
 	ReviewDay *string `json:"review_day,omitempty"`
+	// ReviewThrough is the end of the last session the review covers (#369).
+	ReviewThrough *time.Time `json:"review_through,omitempty"`
+}
+
+// ReviewMeta is what a daily review was written from (#369).
+type ReviewMeta struct {
+	Lang    string    // the language it is written in
+	Zone    string    // "tz:<IANA name>" or "offset:<minutes east of UTC>"
+	Through time.Time // the end of the last session it covers
+}
+
+// ReviewRef is a review with what is needed to write it again.
+type ReviewRef struct {
+	ID      uuid.UUID
+	OrgID   uuid.UUID
+	Day     string
+	Title   string
+	Updated time.Time
+	ReviewMeta
 }
 
 type Store struct{ pool *pgxpool.Pool }
 
 func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
-const cols = `id, kind, title, body, summary, duration_seconds, created_at, updated_at, to_char(review_day, 'YYYY-MM-DD')`
+const cols = `id, kind, title, body, summary, duration_seconds, created_at, updated_at, to_char(review_day, 'YYYY-MM-DD'), review_through`
 
 func scan(row pgx.Row) (Note, error) {
 	var n Note
-	err := row.Scan(&n.ID, &n.Kind, &n.Title, &n.Body, &n.Summary, &n.DurationSeconds, &n.CreatedAt, &n.UpdatedAt, &n.ReviewDay)
+	err := row.Scan(&n.ID, &n.Kind, &n.Title, &n.Body, &n.Summary, &n.DurationSeconds, &n.CreatedAt, &n.UpdatedAt, &n.ReviewDay, &n.ReviewThrough)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Note{}, ErrNotFound
 	}
@@ -91,38 +110,63 @@ func (s *Store) Create(ctx context.Context, orgID, humanID uuid.UUID, kind, titl
 }
 
 // SetReview writes the daily review of day (#368): into the seat's review
-// note of that day when there is one — title and text replaced, an old
-// summary cleared — otherwise into a new note.
-func (s *Store) SetReview(ctx context.Context, orgID, humanID uuid.UUID, day time.Time, title, body string) (Note, error) {
+// note of that day when there is one — body replaced, an old summary
+// cleared, the title kept when title is empty — otherwise into a new note.
+// meta records what it was written from (#369).
+func (s *Store) SetReview(ctx context.Context, orgID, humanID uuid.UUID, day time.Time, title, body string, meta ReviewMeta) (Note, error) {
 	title, body, err := clean(title, body)
 	if err != nil {
 		return Note{}, err
 	}
-	return scan(s.pool.QueryRow(ctx, `INSERT INTO human_notes (id, org_id, human_id, kind, title, body, review_day)
-		VALUES ($1, $2, $3, 'text', $4, $5, $6)
+	var through any
+	if !meta.Through.IsZero() {
+		through = meta.Through
+	}
+	return scan(s.pool.QueryRow(ctx, `INSERT INTO human_notes
+			(id, org_id, human_id, kind, title, body, review_day, review_lang, review_zone, review_through)
+		VALUES ($1, $2, $3, 'text', $4, $5, $6, $7, $8, $9)
 		ON CONFLICT (human_id, review_day) WHERE review_day IS NOT NULL
-		DO UPDATE SET title = EXCLUDED.title, body = EXCLUDED.body, summary = '', updated_at = now()
-		RETURNING `+cols, uuid.New(), orgID, humanID, title, body, day.Format("2006-01-02")))
+		DO UPDATE SET title = CASE WHEN EXCLUDED.title = '' THEN human_notes.title ELSE EXCLUDED.title END,
+			body = EXCLUDED.body, summary = '', review_lang = EXCLUDED.review_lang,
+			review_zone = EXCLUDED.review_zone, review_through = EXCLUDED.review_through, updated_at = now()
+		RETURNING `+cols, uuid.New(), orgID, humanID, title, body, day.Format("2006-01-02"),
+		meta.Lang, meta.Zone, through))
 }
 
-// Reviews maps the seat's review days (YYYY-MM-DD) to their notes.
-func (s *Store) Reviews(ctx context.Context, humanID uuid.UUID) (map[string]uuid.UUID, error) {
-	rows, err := s.pool.Query(ctx, `SELECT to_char(review_day, 'YYYY-MM-DD'), id FROM human_notes
-		WHERE human_id=$1 AND review_day IS NOT NULL`, humanID)
+// ReviewsSince returns the seat's reviews of days from since on, with what
+// is needed to write them again (#369).
+func (s *Store) ReviewsSince(ctx context.Context, humanID uuid.UUID, since time.Time) ([]ReviewRef, error) {
+	rows, err := s.pool.Query(ctx, `SELECT id, org_id, to_char(review_day, 'YYYY-MM-DD'), title, updated_at,
+			review_lang, review_zone, coalesce(review_through, 'epoch'::timestamptz)
+		FROM human_notes WHERE human_id=$1 AND review_day >= $2::date ORDER BY review_day`,
+		humanID, since.Format("2006-01-02"))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	out := map[string]uuid.UUID{}
+	var out []ReviewRef
 	for rows.Next() {
-		var day string
-		var id uuid.UUID
-		if err := rows.Scan(&day, &id); err != nil {
+		var r ReviewRef
+		if err := rows.Scan(&r.ID, &r.OrgID, &r.Day, &r.Title, &r.Updated, &r.Lang, &r.Zone, &r.Through); err != nil {
 			return nil, err
 		}
-		out[day] = id
+		out = append(out, r)
 	}
 	return out, rows.Err()
+}
+
+// Reviews maps the seat's review days (YYYY-MM-DD) to their notes and what
+// they cover.
+func (s *Store) Reviews(ctx context.Context, humanID uuid.UUID) (map[string]ReviewRef, error) {
+	refs, err := s.ReviewsSince(ctx, humanID, time.Time{})
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]ReviewRef, len(refs))
+	for _, r := range refs {
+		out[r.Day] = r
+	}
+	return out, nil
 }
 
 // List returns the seat's notes, newest first. q narrows to notes whose
