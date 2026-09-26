@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -42,7 +43,10 @@ class PushNotices {
   CoveyApi? _api;
   Strings? _strings;
   Timer? _poll;
-  Map<String, ThreadState>? _last;
+
+  /// What was last seen of each conversation — the newest entry's time —
+  /// for the connection being watched; null until read.
+  Map<String, DateTime?>? _seen;
   Map<String, String> _names = {};
   DateTime _namesAt = DateTime(0);
   bool _listening = false;
@@ -84,6 +88,7 @@ class PushNotices {
   /// watching (Mac).
   Future<void> start(CoveyApi api, Strings strings) async {
     if (!supported) return;
+    if (!identical(_api, api)) _seen = null;
     _api = api;
     _strings = strings;
     if (!_listening) {
@@ -131,7 +136,7 @@ class PushNotices {
         final allowed = await _channel.invokeMethod<Object?>('authorize');
         diag('push', 'mac notifications: $allowed');
         _poll?.cancel();
-        _poll = Timer.periodic(const Duration(seconds: 30), (_) => _look());
+        _poll = Timer.periodic(const Duration(seconds: 15), (_) => _look());
         unawaited(_look());
       }
     } on PlatformException catch (e) {
@@ -145,7 +150,13 @@ class PushNotices {
   Future<void> _switchOff() async {
     _poll?.cancel();
     _poll = null;
-    _last = null;
+    _seen = null;
+    if (Platform.isMacOS) {
+      try {
+        await _channel.invokeMethod<void>('stopWatching');
+      } on PlatformException catch (_) {
+      } on MissingPluginException catch (_) {}
+    }
     final token = await Prefs.instance.read(_prefToken);
     if (token != null) {
       try {
@@ -165,8 +176,12 @@ class PushNotices {
   }
 
   /// The Mac's round: what has become unread since the last look is shown.
-  /// The first look only takes stock — what was unread before the app
-  /// started is not news.
+  ///
+  /// "The last look" survives a start (#418): the newest entry seen of each
+  /// conversation is kept per connection, so what arrived while the app was
+  /// quitting or restarting is announced when it is back. Only the very first
+  /// look on a connection takes stock — what was unread before the app ever
+  /// watched is not news.
   Future<void> _look() async {
     final api = _api;
     if (api == null) return;
@@ -176,14 +191,11 @@ class PushNotices {
         _names = {for (final a in await api.agents()) a.id: a.displayName};
         _namesAt = DateTime.now();
       }
-      final last = _last;
-      _last = now;
+      final seen = _seen ?? await _loadSeen(api);
+      _seen = {for (final t in now.values) t.agentId: t.lastAt};
+      await _saveSeen(api, _seen!);
       await badge(now.values.fold<int>(0, (n, t) => n + t.unread));
-      if (last == null) return;
-      for (final t in now.values) {
-        final before = last[t.agentId];
-        final fresh = t.unread > 0 && (before == null || (t.lastAt != null && t.lastAt != before.lastAt));
-        if (!fresh) continue;
+      for (final t in toAnnounce(seen, now.values)) {
         final name = _names[t.agentId] ?? '';
         final kind = t.lastKind == 'note' ? 'answer' : t.lastKind;
         final failed = await _channel.invokeMethod<String?>('notify', {
@@ -199,4 +211,38 @@ class PushNotices {
       diag('push', 'look failed: $e');
     }
   }
+
+  /// What a look announces: the conversations with something unread that is
+  /// newer than what was last seen of them. Nothing on the very first look of
+  /// a connection ([seen] null) — what was unread before is not news.
+  @visibleForTesting
+  static List<ThreadState> toAnnounce(Map<String, DateTime?>? seen, Iterable<ThreadState> now) {
+    if (seen == null) return const [];
+    return [
+      for (final t in now)
+        if (t.unread > 0 &&
+            t.lastAt != null &&
+            (!seen.containsKey(t.agentId) || seen[t.agentId] == null || t.lastAt!.isAfter(seen[t.agentId]!)))
+          t,
+    ];
+  }
+
+  /// Where the last look of a connection is kept: per connection, under a
+  /// fingerprint — the key itself stays in the keychain.
+  static String _seenKey(CoveyApi api) => 'push.seen.${api.fingerprint}';
+
+  Future<Map<String, DateTime?>?> _loadSeen(CoveyApi api) async {
+    final raw = await Prefs.instance.read(_seenKey(api));
+    if (raw == null) return null;
+    try {
+      return (jsonDecode(raw) as Map<String, dynamic>).map(
+        (k, v) => MapEntry(k, v == null ? null : DateTime.tryParse(v as String)),
+      );
+    } on FormatException {
+      return null;
+    }
+  }
+
+  Future<void> _saveSeen(CoveyApi api, Map<String, DateTime?> seen) =>
+      Prefs.instance.write(_seenKey(api), jsonEncode(seen.map((k, v) => MapEntry(k, v?.toUtc().toIso8601String()))));
 }

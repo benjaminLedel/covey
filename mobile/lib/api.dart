@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
@@ -64,6 +65,10 @@ class CoveyApi {
   final Uri base;
   final String _key;
   final http.Client _http;
+
+  /// A name for this connection that does not give the key away (#418):
+  /// the app keeps what it has seen per connection, outside the keychain.
+  String get fingerprint => sha256.convert(utf8.encode('$base|$_key')).toString().substring(0, 16);
 
   static const _timeout = Duration(seconds: 20);
 

@@ -89,6 +89,11 @@ final class LocalNotices: NSObject, UNUserNotificationCenterDelegate {
   /// The sound a preview plays. Held here: an NSSound nobody holds is
   /// freed at once and falls silent before it is heard.
   private var playing: NSSound?
+  /// Held while notifications are on (#418): App Nap throttles the timers of
+  /// an app nobody is looking at, and the app's look for answers is such a
+  /// timer — exactly when a notification is needed, it came minutes late or
+  /// not before the app was woken. Idle sleep stays allowed.
+  private var watching: NSObjectProtocol?
 
   init(messenger: FlutterBinaryMessenger) {
     channel = FlutterMethodChannel(name: "covey/push", binaryMessenger: messenger)
@@ -102,6 +107,10 @@ final class LocalNotices: NSObject, UNUserNotificationCenterDelegate {
   private func handle(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
     switch call.method {
     case "authorize":
+      if watching == nil {
+        watching = ProcessInfo.processInfo.beginActivity(
+          options: [.userInitiatedAllowingIdleSystemSleep], reason: "covey watches for answers")
+      }
       // Answers what the system allows, for the diagnostic log: whether
       // notifications show at all, and whether they may make a sound.
       UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
@@ -147,6 +156,10 @@ final class LocalNotices: NSObject, UNUserNotificationCenterDelegate {
       NSApp.dockTile.badgeLabel = n > 0 ? "\(n)" : nil
       result(nil)
     case "launchAgent":
+      result(nil)
+    case "stopWatching":
+      if let w = watching { ProcessInfo.processInfo.endActivity(w) }
+      watching = nil
       result(nil)
     case "preview":
       // Plays a sound as the settings offer it.
