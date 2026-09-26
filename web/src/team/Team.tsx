@@ -1,7 +1,7 @@
 import { Suspense, lazy, useCallback, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Link, NavLink, Navigate, Route, Routes, useParams } from "react-router";
+import { Link, NavLink, Navigate, Route, Routes, useLocation, useParams } from "react-router";
 import { PEOPLE_SLUG, api, inbox, isDraft, myThreads, type Agent, type Department, type Principal, type ThreadState } from "../api";
 import { canManage } from "../pages/agent/roles";
 import { BirdMark } from "../components/BirdMark";
@@ -18,7 +18,8 @@ import "../app.css";
 
 const Thread = lazy(() => import("./Thread"));
 const Ueberblick = lazy(() => import("./Ueberblick"));
-const Notes = lazy(() => import("../pages/Notes"));
+const NotesMain = lazy(() => import("../notes/NotesPane").then((m) => ({ default: m.NotesMain })));
+const NotesSidebar = lazy(() => import("../notes/NotesPane").then((m) => ({ default: m.NotesSidebar })));
 
 /* Der Workspace: die Oberfläche dessen, der MIT der Belegschaft arbeitet.
  *
@@ -129,27 +130,64 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
   if (neu.length > 0) gruppen.unshift({ id: "ungelesen", name: t("team.ungelesenTitel"), color: "", mitglieder: neu });
 
   const offen = wartend.data?.pending ?? 0;
+  const ungelesenSumme = [...ungelesen.values()].reduce((n, th) => n + th.unread, 0);
+  const pfad = useLocation().pathname;
+  const notizenOffen = pfad === "/team/notes" || pfad.startsWith("/team/notes/");
+  const notizId = notizenOffen ? (pfad.split("/")[3] ?? null) : null;
 
   return (
     <SucheProvider value={sucheOeffnen}>
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen tm-drei">
+      {/* The rail (#388): where one is — team, notes, administration — as
+          icons, each with its name as tooltip and for screen readers. The
+          list beside it changes with the choice; the content right of it
+          with the row picked there. */}
+      <nav className="tm-rail" aria-label={t("team.schalterAria")}>
+        <Link to="/" className="tm-rail-mark" aria-label="covey">
+          <BirdMark size={30} />
+        </Link>
+        <Link
+          to="/"
+          className={`tm-rail-item${notizenOffen ? "" : " on"}`}
+          aria-current={notizenOffen ? undefined : "page"}
+          title={t("team.workspace")}
+          aria-label={ungelesenSumme > 0 ? `${t("team.workspace")} · ${t("team.ungelesen", { count: ungelesenSumme })}` : t("team.workspace")}
+        >
+          <NavIcon name="chat" />
+          {ungelesenSumme > 0 && <span className="tm-rail-zahl">{Math.min(ungelesenSumme, 99)}</span>}
+          <span className="tm-rail-wort">{t("team.workspace")}</span>
+        </Link>
+        <Link
+          to="/team/notes"
+          className={`tm-rail-item${notizenOffen ? " on" : ""}`}
+          aria-current={notizenOffen ? "page" : undefined}
+          title={t("mobile.notizen")}
+          aria-label={t("mobile.notizen")}
+        >
+          <NavIcon name="note" />
+          <span className="tm-rail-wort">{t("mobile.notizen")}</span>
+        </Link>
+        <Link to="/agents" className="tm-rail-item" title={t("team.verwaltung")} aria-label={t("team.verwaltung")}>
+          <NavIcon name="cog" />
+          <span className="tm-rail-wort">{t("team.verwaltung")}</span>
+        </Link>
+        <span className="tm-rail-luft" />
+        <button className="tm-rail-item" onClick={() => sucheOeffnen()} title={`${t("team.suche")} (⌘K)`} aria-label={t("team.suche")}>
+          <NavIcon name="search" />
+        </button>
+        <ShellFoot me={me} onLogout={onLogout} onHelp={() => setHelpOpen(true)} compact />
+      </nav>
+
       <aside className="sidebar tm-sidebar">
-        <div className="brand">
-          <BirdMark size={26} />
-          covey
-          {/* Auf Höhe der Wortmarke, weil die Suche zur Schale gehört und
-              nicht zur Liste darunter. */}
-          <button
-            className="brand-suche"
-            onClick={() => sucheOeffnen()}
-            title={`${t("team.suche")} (⌘K)`}
-            aria-label={t("team.suche")}
-          >
-            <NavIcon name="search" />
-          </button>
+        {notizenOffen ? (
+          <Suspense fallback={null}>
+            <NotesSidebar selected={notizId} />
+          </Suspense>
+        ) : (
+        <>
+        <div className="tm-spalte-kopf">
+          <h1 className="tm-spalte-titel">{t("team.workspace")}</h1>
         </div>
-
-
         <nav className="tm-liste" aria-label={t("team.kollegen")}>
           {/* The places above the departments: the office, and the door to a
               new colleague (#327) — the conversation with the People
@@ -162,14 +200,6 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
               {t("team.ueberblick")}
               {offen > 0 && <span className="tm-zahl">{offen}</span>}
             </NavLink>
-            {/* The person's own notes (#342): a place, like the office — not
-                somebody to talk to. */}
-            <NavLink to="/team/notes" className={({ isActive }) => `tm-wartet tm-notizen ${isActive ? "on" : ""}`}>
-              <span className="tm-notizen-zeichen" aria-hidden="true">
-                <NavIcon name="note" />
-              </span>
-              {t("mobile.notizen")}
-            </NavLink>
             {darfEinstellen && (
               <Link
                 to={!people ? "/setup" : peopleEntwurf ? `/agents/${people.id}` : `/team/${people.id}?einstellen=1`}
@@ -181,14 +211,6 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
                 {t("team.einstellen")}
               </Link>
             )}
-            {/* Administration is a place too (#387): a row here, not a switch
-                above the list — most people go there rarely. */}
-            <Link to="/agents" className="tm-wartet tm-notizen">
-              <span className="tm-notizen-zeichen" aria-hidden="true">
-                <NavIcon name="cog" />
-              </span>
-              {t("team.verwaltung")}
-            </Link>
           </div>
 
           {agents.isLoading && <p className="tm-leise">{t("common.loading")}</p>}
@@ -236,14 +258,16 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
           ))}
         </nav>
 
-        <ShellFoot me={me} onLogout={onLogout} onHelp={() => setHelpOpen(true)} />
+        </>
+        )}
       </aside>
 
       <main className="tm-haupt">
         <Suspense fallback={null}>
           <Routes>
             <Route path="/" element={<Ueberblick me={me} />} />
-            <Route path="/team/notes" element={<div className="tm-notizen-seite"><Notes /></div>} />
+            <Route path="/team/notes" element={<NotesMain noteId={null} />} />
+            <Route path="/team/notes/:noteId" element={<NoteRoute />} />
             <Route path="/team/:id" element={<ThreadRoute me={me} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
@@ -264,6 +288,11 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
     </div>
     </SucheProvider>
   );
+}
+
+function NoteRoute() {
+  const { noteId = "" } = useParams();
+  return <NotesMain noteId={noteId} />;
 }
 
 /* Die Route hält den Agenten fest, damit der Verlauf beim Wechsel wirklich neu

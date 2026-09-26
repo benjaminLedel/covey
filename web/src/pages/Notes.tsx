@@ -48,10 +48,10 @@ const GRADIENTS: Record<string, string> = {
 
 /* A note's pictures live in the media store and are served to their owner
    (#344); anything else is not loaded. */
-const noteMedia = (src: string) =>
+export const noteMedia = (src: string) =>
   src.startsWith("covey-media://") ? `/api/v1/me/notes/media/${encodeURIComponent(src.slice("covey-media://".length))}` : null;
 
-const heading = (n: Note) => n.title || n.body.split("\n")[0].replace(/^(#{1,3}\s+|[-*]\s+(\[[ xX]\]\s+)?|>\s?)/, "");
+export const heading = (n: Note) => n.title || n.body.split("\n")[0].replace(/^(#{1,3}\s+|[-*]\s+(\[[ xX]\]\s+)?|>\s?)/, "");
 
 const readView = (): View => {
   try {
@@ -61,6 +61,29 @@ const readView = (): View => {
   }
 };
 
+/** List or board, remembered per browser and shared by every part of the
+    page that shows it — the team shell's list column and its content (#388). */
+export function useNotesView(): [View, (v: View) => void] {
+  const [view, setView] = useState<View>(readView);
+  useEffect(() => {
+    const on = () => setView(readView());
+    window.addEventListener("covey-notes-view", on);
+    return () => window.removeEventListener("covey-notes-view", on);
+  }, []);
+  return [
+    view,
+    (v: View) => {
+      try {
+        localStorage.setItem("covey.notes.view", v);
+      } catch {
+        /* a private window: the choice lasts the visit */
+      }
+      setView(v);
+      window.dispatchEvent(new Event("covey-notes-view"));
+    },
+  ];
+}
+
 export default function Notes() {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
@@ -68,15 +91,7 @@ export default function Notes() {
   const [q, setQ] = useState("");
   // The open note: an id, "new" for one not yet written, or none.
   const [open, setOpen] = useState<string | null>(null);
-  const [view, setViewState] = useState<View>(readView);
-  const setView = (v: View) => {
-    setViewState(v);
-    try {
-      localStorage.setItem("covey.notes.view", v);
-    } catch {
-      /* a private window: the choice lasts the visit */
-    }
-  };
+  const [view, setView] = useNotesView();
 
   // A quarter second after the last key: one request per word.
   useEffect(() => {
@@ -190,9 +205,9 @@ export default function Notes() {
   );
 }
 
-const kindGlyph = (n: Note) => (n.kind === "meeting" ? "👥" : n.kind === "voice" ? "🎙️" : "📄");
+export const kindGlyph = (n: Note) => (n.kind === "meeting" ? "👥" : n.kind === "voice" ? "🎙️" : "📄");
 
-function groupByDay(list: Note[], locale: string, t: (k: string) => string) {
+export function groupByDay(list: Note[], locale: string, t: (k: string) => string) {
   const out: { day: string; notes: Note[] }[] = [];
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -216,7 +231,7 @@ function groupByDay(list: Note[], locale: string, t: (k: string) => string) {
 
 /* The board (#373): a column per status, a card per note; a card dragged
    into another column takes its status. */
-function Board({ notes, open, onOpen }: { notes: Note[]; open: string | null; onOpen: (id: string) => void }) {
+export function Board({ notes, open, onOpen }: { notes: Note[]; open: string | null; onOpen: (id: string) => void }) {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const [over, setOver] = useState<Status | null>(null);
@@ -282,7 +297,7 @@ function Board({ notes, open, onOpen }: { notes: Note[]; open: string | null; on
   );
 }
 
-const coverStyle = (cover: string) => {
+export const coverStyle = (cover: string) => {
   const g = cover.startsWith("gradient:") ? GRADIENTS[cover.slice("gradient:".length)] : undefined;
   const src = g ? null : noteMedia(cover);
   return g ? { background: g } : src ? { backgroundImage: `url(${src})` } : {};
@@ -298,7 +313,7 @@ function duration(s: number) {
 
 /* The line under a note: kind, time (with the date where the day heading
    does not already say it), and for a meeting how long it ran. */
-function meta(n: Note, locale: string, t: (k: string) => string, withDate: boolean) {
+export function meta(n: Note, locale: string, t: (k: string) => string, withDate: boolean) {
   const d = new Date(n.created_at);
   const when = withDate
     ? d.toLocaleString(locale, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
@@ -311,7 +326,7 @@ function meta(n: Note, locale: string, t: (k: string) => string, withDate: boole
 /* A note as a page: cover, icon, title, properties, the body as blocks. It
    saves as one types, a moment after the last key; a note never written is
    created with its first word, since the instance keeps no empty note. */
-function NotePage({
+export function NotePage({
   note,
   canSummarize,
   onCreated,

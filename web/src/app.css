@@ -2224,8 +2224,7 @@
    Geschenk an das Gespräch rechts daneben; messbar war davon nichts, und
    bezahlt hat es die Liste, für die die Spalte da ist: Bei 208px endeten
    genau die Namen in drei Punkten, die sie zeigen soll.
-
-   Der Schalter wechselt den INHALT der Spalte, nicht den Rahmen darum. */
+*/
 .tm-sidebar {
   /* Die Liste dazwischen wächst und scrollt, damit der Fuß unten stehen
      bleibt: In der Konsole tut das eine `mt-auto`-Gruppe, hier die Liste
@@ -2233,16 +2232,6 @@
   overflow: hidden;
 }
 
-/* Der Schalter zwischen den Schalen. Er steht in beiden an derselben Stelle
-   — unter der Wortmarke, über der Navigation — und sieht in beiden gleich
-   aus; das ist seine Aufgabe.
-
-   Das Gleis ist die EINGEDRÜCKTE Fläche (surface-1), der Schieber die
-   erhabene (surface-2), in dieser Reihenfolge, weil eine Lasur hier nicht
-   trägt: Eine Tönung aus Schwarz liegt im Hellen unter dem Grund und im
-   Dunkeln darüber. Mit --tint-weak als Gleis las sich der Schalter im
-   Dunkelmodus verkehrt herum — das aktive Segment hatte die Farbe seiner
-   Umgebung, und das inaktive Gleis lag heller davor. */
 
 /* ── Die Liste links ──────────────────────────────────────────────────── *//* ── Die Liste links ──────────────────────────────────────────────────── */
 .tm-liste {
@@ -3979,3 +3968,62 @@
 
 .md-quote { margin: 8px 0; padding-left: 12px; border-left: 1px solid var(--border); color: var(--text-secondary); font-style: italic; }
 .md-hr { border: 0; border-top: 0.5px solid var(--border); margin: 14px 0; }
+
+/* The team shell in three columns (#388): a rail of icons, the list, the
+   content. The rail is the darkest of the three surfaces, the list the
+   sheet between, the content white — the eye reads left to right from
+   where one is to what one does. */
+.tm-rail {
+  position: sticky; top: 0; height: 100vh; height: 100dvh; width: 64px; flex: none;
+  display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 0 12px;
+  background: var(--surface-1); border-right: 0.5px solid var(--border);
+}
+.tm-rail-mark { display: flex; margin-bottom: 14px; border-radius: 9px; }
+.tm-rail-mark:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 2px; }
+.tm-rail-item {
+  position: relative; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 11px; background: none; color: var(--text-secondary); cursor: pointer; text-decoration: none;
+  transition: background 120ms, color 120ms;
+}
+.tm-rail-item .ic {
+  width: 21px; height: 21px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+}
+.tm-rail-item:hover { background: var(--tint); color: var(--text-primary); }
+.tm-rail-item.on { background: var(--surface-2); color: var(--text-primary); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+.tm-rail-item.on::before {
+  content: ""; position: absolute; left: -11px; top: 10px; bottom: 10px; width: 3px; border-radius: 0 3px 3px 0; background: var(--text-accent);
+}
+.tm-rail-item:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 1px; }
+/* The words stay for tooltips and screen readers; the rail shows icons. */
+.tm-rail-wort { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.tm-rail-zahl {
+  position: absolute; top: 3px; right: 1px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px;
+  background: var(--text-primary); color: var(--surface-0); font-size: 10.5px; font-weight: 650; line-height: 17px; text-align: center;
+  font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--surface-1);
+}
+.tm-rail-luft { flex: 1; }
+.side-foot.compact { margin: 6px 0 0; padding: 8px 0 0; border-top: 0; align-items: center; position: relative; }
+.side-foot.compact .suser-row { position: relative; }
+.rail-avatar { border: 0; padding: 0; background: none; border-radius: 50%; cursor: pointer; display: flex; }
+.rail-avatar .avatar { width: 34px; height: 34px; font-size: 12px; }
+.rail-avatar:hover .avatar, .rail-avatar.open .avatar { box-shadow: 0 0 0 2px var(--surface-1), 0 0 0 4px var(--border); }
+.side-foot.compact .foot-menu { left: calc(100% + 10px); right: auto; bottom: 0; }
+.foot-menu-person { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 8px; text-decoration: none; color: inherit; }
+.foot-menu-person:hover { background: var(--tint); }
+.foot-menu-person .avatar { width: 30px; height: 30px; font-size: 11px; }
+.foot-menu-person .nm { font-weight: 550; font-size: 13px; }
+.foot-menu-person .rl { font-size: 11.5px; color: var(--text-muted); }
+
+.tm-drei .tm-sidebar { width: 280px; padding-top: 14px; }
+.tm-spalte { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.tm-spalte-kopf { display: flex; align-items: center; gap: 8px; margin: 2px 6px 12px 8px; min-height: 30px; }
+.tm-spalte-titel { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; margin: 0; flex: 1; }
+.tm-spalte-plus {
+  width: 30px; height: 30px; border: 0; border-radius: 8px; background: var(--text-primary); color: var(--surface-0);
+  font-size: 18px; line-height: 1; cursor: pointer;
+}
+.tm-spalte-plus:hover { opacity: 0.88; }
+.tm-spalte-tabs { margin: 0 4px 8px; }
+.tm-spalte-suche { width: auto; margin: 0 4px 12px; }
+.tm-spalte-liste { flex: 1; overflow: auto; min-height: 0; margin: 0 -6px; padding: 0 6px; }
+.tm-drei .tm-notizen-seite { padding: 24px 32px 60px; overflow: auto; flex: 1; }

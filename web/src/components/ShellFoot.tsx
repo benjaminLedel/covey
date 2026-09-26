@@ -23,11 +23,15 @@ export default function ShellFoot({
   me,
   onLogout,
   onHelp,
+  compact = false,
 }: {
   me: Principal;
   onLogout: () => void;
   /** Öffnet die Hilfe-Schublade, die die Schale selbst hält. */
   onHelp: () => void;
+  /** In the team shell's icon rail (#388): only the avatar, which opens
+      the same menu — with the profile as its first entry. */
+  compact?: boolean;
 }) {
   const { t } = useTranslation();
   const [userMenu, setUserMenu] = useState(false);
@@ -42,15 +46,29 @@ export default function ShellFoot({
     onLogout();
   };
 
+  const avatar = me.PhotoID ? (
+    <img className="avatar avatar-foto" src={photoUrl(me.ID, me.PhotoID)} alt="" />
+  ) : (
+    <span className="avatar">{initials(me.DisplayName)}</span>
+  );
+
   return (
-    <div className="side-foot">
+    <div className={`side-foot${compact ? " compact" : ""}`}>
   <div className="suser-row">
+    {compact ? (
+      <button
+        className={`rail-avatar${userMenu ? " open" : ""}`}
+        onClick={() => setUserMenu((v) => !v)}
+        title={`${me.DisplayName} — ${t("nav.userMenu")}`}
+        aria-label={t("nav.userMenu")}
+        aria-expanded={userMenu}
+      >
+        {avatar}
+      </button>
+    ) : (
+    <>
     <NavLink to="/profile" className="suser" title={t("nav.profile")}>
-      {me.PhotoID ? (
-        <img className="avatar avatar-foto" src={photoUrl(me.ID, me.PhotoID)} alt="" />
-      ) : (
-        <span className="avatar">{initials(me.DisplayName)}</span>
-      )}
+      {avatar}
       <span className="min-w-0">
         <span className="nm truncate block">{me.DisplayName}</span>
         <span className="rl block truncate">
@@ -68,10 +86,27 @@ export default function ShellFoot({
     >
       <NavIcon name="dots" />
     </button>
+    </>
+    )}
     {userMenu && (
       <>
         <div className="foot-menu-backdrop" onClick={() => setUserMenu(false)} />
         <div className="foot-menu">
+          {compact && (
+            <>
+              <NavLink to="/profile" className="foot-menu-person" onClick={() => setUserMenu(false)}>
+                {avatar}
+                <span className="min-w-0">
+                  <span className="nm truncate block">{me.DisplayName}</span>
+                  <span className="rl block truncate">
+                    {t(`role.${me.Role}`, me.Role)}
+                    {activeOrg && ` · ${activeOrg.org_name}`}
+                  </span>
+                </span>
+              </NavLink>
+              <div className="sep" />
+            </>
+          )}
           {seats.length > 1 && (
             <>
               <div className="foot-menu-sec">{t("nav.orgSwitch")}</div>
