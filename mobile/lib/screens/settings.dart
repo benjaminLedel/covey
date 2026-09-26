@@ -53,13 +53,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// The notification sound (#381).
   String _sound = 'bot';
 
-  static String _soundLabel(BuildContext context, String sound) => context.t(switch (sound) {
-    'schar' => 'mobile.tonSchar',
-    'glas' => 'mobile.tonGlas',
-    'system' => 'mobile.tonSystem',
-    'none' => 'mobile.tonAus',
-    _ => 'mobile.tonBot',
-  });
+  // Each key written out in t(…): tool/sync_locales.dart finds keys only
+  // that way.
+  static String _soundLabel(BuildContext context, String sound) => switch (sound) {
+    'schar' => context.t('mobile.tonSchar'),
+    'glas' => context.t('mobile.tonGlas'),
+    'system' => context.t('mobile.tonSystem'),
+    'none' => context.t('mobile.tonAus'),
+    _ => context.t('mobile.tonBot'),
+  };
 
   /// A list of the sounds; each plays when chosen, and the sheet stays open
   /// so the next can be heard too.

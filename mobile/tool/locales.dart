@@ -11,14 +11,21 @@ const languages = ['en', 'de', 'es', 'fr', 'it', 'nl', 'pl', 'pt', 'ja', 'zh'];
 /// literals therefore cannot see. Every key under these prefixes is carried.
 const dynamicPrefixes = ['status.', 'inbox.type.', 'mobile.art_', 'mobile.modell_', 'mobile.block_', 'mobile.nstatus_'];
 
-/// Every key the app uses: the literals in `t('…')` under lib/, the keys
-/// under [dynamicPrefixes], and the `_one` plural of any of them.
+/// Every key the app uses: the literals in `t('…')` under lib/, any other
+/// string literal that names a key of the catalogue — a key picked in a
+/// `switch` and handed to `t` afterwards (#382) —, the keys under
+/// [dynamicPrefixes], and the `_one` plural of any of them.
 Set<String> usedKeys(Directory lib, Map<String, String> english) {
   final literal = RegExp(r"""\bt\(\s*'([A-Za-z0-9_.]+)'""");
+  final named = RegExp(r"""'([a-z][A-Za-z0-9_]*\.[A-Za-z0-9_.]+)'""");
   final keys = <String>{};
   for (final f in lib.listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.dart'))) {
-    for (final m in literal.allMatches(f.readAsStringSync())) {
+    final code = f.readAsStringSync();
+    for (final m in literal.allMatches(code)) {
       keys.add(m[1]!);
+    }
+    for (final m in named.allMatches(code)) {
+      if (english.containsKey(m[1])) keys.add(m[1]!);
     }
   }
   keys.addAll(english.keys.where((k) => dynamicPrefixes.any(k.startsWith)));
