@@ -527,6 +527,7 @@ class _NotePageState extends State<NotePage> {
                     initial: _body,
                     hint: context.t('mobile.notizHinweis'),
                     autofocus: widget.note == null,
+                    onPickImage: _addImage,
                     onChanged: (md) {
                       _body = md;
                       _changed();

@@ -103,4 +103,16 @@ describe("Tabellen", () => {
     expect(container.querySelector("table")).toBeNull();
     expect(container.querySelector("p.md-p")?.textContent).toContain("a | b");
   });
+
+  it("renders a note's toggle and callout (#371)", () => {
+    const { container } = render(
+      <Markdown text={"<details>\n<summary>Mehr</summary>\n\n- Punkt\n\n</details>\n> 💡 Erst prüfen\n> Ein Zitat"} />,
+    );
+    const details = container.querySelector("details.md-toggle");
+    expect(details?.querySelector("summary")?.textContent).toBe("Mehr");
+    expect(details?.querySelector("li")?.textContent).toBe("Punkt");
+    expect(container.querySelector(".md-callout-icon")?.textContent).toBe("💡");
+    expect(container.querySelector(".md-callout")?.textContent).toContain("Erst prüfen");
+    expect(container.querySelector("blockquote")?.textContent).toBe("Ein Zitat");
+  });
 });

@@ -160,6 +160,44 @@ export function Markdown({
       continue;
     }
 
+    // A toggle (#371): <details>, its <summary>, the content, </details> —
+    // what the app's note editor writes. The content is Markdown of its own.
+    if (/^\s*<details(\s+open)?\s*>/.test(line)) {
+      const end = lines.findIndex((l, n) => n > i && l.trim() === "</details>");
+      if (end > 0) {
+        let summary = /<summary>(.*?)<\/summary>/.exec(line)?.[1];
+        let from = i + 1;
+        if (summary === undefined && from < end) {
+          const sm = /^\s*<summary>(.*?)<\/summary>\s*$/.exec(lines[from]);
+          if (sm) { summary = sm[1]; from++; }
+        }
+        const inner = lines.slice(from, end).join("\n");
+        blocks.push(
+          <details key={key++} className="md-toggle">
+            <summary>{renderInline(summary ?? "", `t${key}`)}</summary>
+            <div className="md-toggle-body">
+              <Markdown text={inner} baseLevel={baseLevel} resolveImage={resolveImage} />
+            </div>
+          </details>,
+        );
+        i = end + 1;
+        continue;
+      }
+    }
+
+    // A callout (#371): a quote line that begins with an emoji.
+    const callout = /^>\s?(\p{Extended_Pictographic}\uFE0F?|\p{Regional_Indicator}{2})\s+(.*)$/u.exec(line);
+    if (callout) {
+      blocks.push(
+        <div key={key++} className="md-callout">
+          <span className="md-callout-icon" aria-hidden="true">{callout[1]}</span>
+          <div>{renderInline(callout[2], `c${key}`)}</div>
+        </div>,
+      );
+      i++;
+      continue;
+    }
+
     // A quote: consecutive "> " lines.
     if (/^>\s?/.test(line)) {
       const buf: string[] = [];

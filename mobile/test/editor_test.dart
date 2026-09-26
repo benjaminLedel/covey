@@ -92,4 +92,59 @@ void main() {
     await _settle(tester);
     expect(out.last, '**wichtig**');
   });
+
+  testWidgets('"/" opens the block menu, typing filters it, a tap turns the block (#371)', (tester) async {
+    final (_, out) = await _editor(tester, 'Einkauf');
+    final field = find.byType(TextField).first;
+    await tester.enterText(field, '$z/');
+    await _settle(tester);
+    expect(find.text('Toggle'), findsOneWidget, reason: 'the whole menu under the block');
+    expect(find.text('Überschrift 1'), findsOneWidget);
+
+    await tester.enterText(field, '$z/tog');
+    await _settle(tester);
+    expect(find.text('Überschrift 1'), findsNothing, reason: 'filtered by what is typed');
+    await tester.tap(find.text('Toggle'));
+    await _settle(tester);
+    expect(out.last, '<details>\n<summary></summary>\n\n</details>', reason: 'the "/tog" is gone, the block is a toggle');
+    expect(find.text('Toggle'), findsNothing, reason: 'the menu closed');
+  });
+
+  testWidgets('a space closes the block menu, and English names find blocks in German (#371)', (tester) async {
+    await _editor(tester, '');
+    final field = find.byType(TextField).first;
+    await tester.enterText(field, '$z/h2');
+    await _settle(tester);
+    expect(find.text('Überschrift 2'), findsOneWidget);
+    await tester.enterText(field, '$z/h2 x');
+    await _settle(tester);
+    expect(find.text('Überschrift 2'), findsNothing);
+  });
+
+  testWidgets('"/callout" makes a callout, "/table" puts a table in place of the line (#371)', (tester) async {
+    final (_, out) = await _editor(tester, '');
+    await tester.enterText(find.byType(TextField).first, '$z/callout');
+    await _settle(tester);
+    await tester.tap(find.text('Callout'));
+    await _settle(tester);
+    expect(out.last, '> 💡 ');
+
+    final (_, out2) = await _editor(tester, 'Oben\n');
+    await tester.enterText(find.byType(TextField).last, '$z/tabelle');
+    await _settle(tester);
+    await tester.tap(find.text('Tabelle'));
+    await _settle(tester);
+    expect(out2.last, startsWith('Oben\n|  |  |\n| --- | --- |'));
+  });
+
+  testWidgets('a toggle folds its content away and opens it again (#371)', (tester) async {
+    final (_, out) = await _editor(tester, '<details>\n<summary>Mehr</summary>\n\nDetails\n\n</details>');
+    expect(find.text('Details'), findsNothing, reason: 'closed on opening the note');
+    await tester.tap(find.bySemanticsLabel('Toggle'));
+    await _settle(tester);
+    expect(find.text('Details'), findsOneWidget);
+    await tester.enterText(find.byType(TextField).last, 'Details und mehr');
+    await _settle(tester);
+    expect(out.last, '<details>\n<summary>Mehr</summary>\n\nDetails und mehr\n\n</details>');
+  });
 }

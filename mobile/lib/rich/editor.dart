@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../api.dart';
 import '../i18n.dart';
@@ -26,6 +27,11 @@ class _Entry {
 
   final Block block;
   MarkdownController? text;
+
+  /// A toggle's content (#371), made when the block first becomes one.
+  MarkdownController? _body;
+  final bodyFocus = FocusNode();
+  MarkdownController get body => _body ??= MarkdownController(text: block.body);
   final focus = FocusNode();
   List<List<TextEditingController>> cells = [];
   List<List<FocusNode>> cellFocus = [];
@@ -52,6 +58,8 @@ class _Entry {
 
   void dispose() {
     text?.dispose();
+    _body?.dispose();
+    bodyFocus.dispose();
     focus.dispose();
     for (final r in cells) {
       for (final c in r) {
@@ -82,6 +90,7 @@ class BlockEditor extends StatefulWidget {
     required this.onChanged,
     this.hint = '',
     this.autofocus = false,
+    this.onPickImage,
   });
 
   final CoveyApi api;
@@ -89,6 +98,9 @@ class BlockEditor extends StatefulWidget {
   final ValueChanged<String> onChanged;
   final String hint;
   final bool autofocus;
+
+  /// Asks the page for a picture — "/picture" in the block menu (#371).
+  final VoidCallback? onPickImage;
 
   @override
   State<BlockEditor> createState() => BlockEditorState();
@@ -127,6 +139,7 @@ class BlockEditorState extends State<BlockEditor> {
 
   void _wire(_Entry e) {
     e.focus.addListener(() => _focusChanged(e));
+    e.focus.onKeyEvent = (_, event) => _slashKey(e, event);
     for (var r = 0; r < e.cellFocus.length; r++) {
       for (var c = 0; c < e.cellFocus[r].length; c++) {
         final (rr, cc) = (r, c);
@@ -161,6 +174,7 @@ class BlockEditorState extends State<BlockEditor> {
   String get markdown {
     for (final e in _entries) {
       if (e.text != null) e.block.text = e.text!.text.replaceAll(_sentinel, '');
+      if (e.block.kind == BlockKind.toggle) e.block.body = e.body.text;
       if (e.block.kind == BlockKind.table) {
         e.block.rows = [
           for (final r in e.cells) [for (final c in r) c.text],
@@ -205,7 +219,17 @@ class BlockEditorState extends State<BlockEditor> {
     if (!s.startsWith(_sentinel)) {
       final rest = s.replaceAll(_sentinel, '');
       if (e.block.kind != BlockKind.paragraph) {
-        // A list item, heading or quote first becomes a plain line.
+        // A list item, heading or quote first becomes a plain line; a
+        // toggle's content comes out as lines after it.
+        if (e.block.kind == BlockKind.toggle) {
+          final content = e.body.text;
+          if (content.trim().isNotEmpty) {
+            var at = i + 1;
+            for (final b in parseBlocks(content)) {
+              _insert(at++, b);
+            }
+          }
+        }
         e.block.kind = BlockKind.paragraph;
         t.value = TextEditingValue(text: '$_sentinel$rest', selection: const TextSelection.collapsed(offset: 1));
       } else if (i > 0 && _entries[i - 1].text != null) {
@@ -261,6 +285,131 @@ class BlockEditorState extends State<BlockEditor> {
       _emit();
       return;
     }
+    _updateSlash(i);
+    _emit();
+  }
+
+  // --- The block menu (#371). ---
+
+  /// The block whose "/" opened the menu, and what was typed after it.
+  ({int index, String query})? slash;
+  int _pick = 0;
+
+  List<_SlashOption> get _slashOptions {
+    final q = slash?.query.toLowerCase() ?? '';
+    final t = Strings.of(context).t;
+    return [
+      for (final o in _SlashOption.all)
+        if (q.isEmpty || t(o.label).toLowerCase().contains(q) || o.aliases.any((a) => a.startsWith(q))) o,
+    ];
+  }
+
+  /// A block that is "/" and a word, with the caret at its end, opens the
+  /// menu; anything else closes it.
+  void _updateSlash(int i) {
+    final t = _entries[i].text!;
+    final s = t.text.replaceAll(_sentinel, '');
+    final open =
+        s.startsWith('/') &&
+        !s.contains(' ') &&
+        !s.contains('\n') &&
+        s.length <= 24 &&
+        t.selection.isCollapsed &&
+        t.selection.baseOffset == t.text.length;
+    final next = open ? (index: i, query: s.substring(1)) : null;
+    if (next != slash) {
+      setState(() {
+        slash = next;
+        _pick = 0;
+      });
+    }
+  }
+
+  void closeSlash() {
+    if (slash == null) return;
+    setState(() => slash = null);
+  }
+
+  KeyEventResult _slashKey(_Entry e, KeyEvent event) {
+    final sl = slash;
+    if (sl == null || _entries.indexOf(e) != sl.index || event is KeyUpEvent) return KeyEventResult.ignored;
+    final options = _slashOptions;
+    switch (event.logicalKey) {
+      case LogicalKeyboardKey.arrowDown:
+        setState(() => _pick = options.isEmpty ? 0 : (_pick + 1) % options.length);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowUp:
+        setState(() => _pick = options.isEmpty ? 0 : (_pick - 1 + options.length) % options.length);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.enter:
+      case LogicalKeyboardKey.numpadEnter:
+        if (options.isEmpty) return KeyEventResult.ignored;
+        _applySlash(options[_pick.clamp(0, options.length - 1)]);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.escape:
+        closeSlash();
+        return KeyEventResult.handled;
+      default:
+        return KeyEventResult.ignored;
+    }
+  }
+
+  /// Turns the block the menu was opened in into what was chosen — its "/"
+  /// and word removed. A divider, table or picture takes the empty block's
+  /// place, with a line after it to go on writing.
+  void _applySlash(_SlashOption o) {
+    final sl = slash;
+    if (sl == null || sl.index >= _entries.length) return;
+    final i = sl.index;
+    final e = _entries[i];
+    e.text!.value = const TextEditingValue(text: _sentinel, selection: TextSelection.collapsed(offset: 1));
+    slash = null;
+    final kind = o.kind;
+    if (kind != null) {
+      e.block.kind = kind;
+      e.block.checked = false;
+      if (kind == BlockKind.toggle) e.block.open = true;
+      setState(() {});
+      changes.ping();
+      _emit();
+      WidgetsBinding.instance.addPostFrameCallback((_) => _focusText(i));
+      return;
+    }
+    focused = i;
+    switch (o.id) {
+      case 'divider':
+        _replaceEmpty(i, Block(BlockKind.divider));
+      case 'table':
+        _remove(i);
+        focused = i - 1;
+        insertTable();
+      case 'image':
+        setState(() {});
+        widget.onPickImage?.call();
+    }
+  }
+
+  void _replaceEmpty(int i, Block b) {
+    _remove(i);
+    _insert(i, b);
+    if (i == _entries.length - 1) _insert(i + 1, Block(BlockKind.paragraph));
+    setState(() {});
+    _emit();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _focusText(i + 1));
+  }
+
+  // --- Moving blocks (#371). ---
+
+  int? _hover;
+
+  void _move(int from, int to) {
+    if (to == from) return;
+    final e = _entries.removeAt(from);
+    _entries.insert(to, e);
+    focused = null;
+    slash = null;
+    setState(() {});
+    changes.ping();
     _emit();
   }
 
@@ -405,12 +554,64 @@ class BlockEditorState extends State<BlockEditor> {
       n = e.block.kind == BlockKind.numbered ? n + 1 : 0;
       numbers.add(n);
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (var i = 0; i < _entries.length; i++)
-          KeyedSubtree(key: ObjectKey(_entries[i]), child: _blockView(context, c, i, _entries[i], numbers[i])),
-      ],
+    final touch = switch (Theme.of(context).platform) {
+      TargetPlatform.iOS || TargetPlatform.android => true,
+      _ => false,
+    };
+    return ReorderableListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      buildDefaultDragHandles: false,
+      padding: EdgeInsets.zero,
+      itemCount: _entries.length,
+      onReorderItem: _move,
+      proxyDecorator: (child, _, _) => Material(color: c.surface2, elevation: 4, child: child),
+      itemBuilder: (context, i) {
+        final e = _entries[i];
+        final handle = _hover == i || (touch && focused == i);
+        return MouseRegion(
+          key: ObjectKey(e),
+          onEnter: (_) => setState(() => _hover = i),
+          onExit: (_) {
+            if (_hover == i) setState(() => _hover = null);
+          },
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _blockView(context, c, i, e, numbers[i]),
+                  if (slash?.index == i) _SlashMenu(editor: this, options: _slashOptions, pick: _pick),
+                ],
+              ),
+              // The handle stands in the page's margin, beside the block's
+              // first line.
+              Positioned(
+                left: -22,
+                top: 4,
+                child: AnimatedOpacity(
+                  opacity: handle ? 1 : 0,
+                  duration: const Duration(milliseconds: 120),
+                  child: IgnorePointer(
+                    ignoring: !handle,
+                    child: ReorderableDragStartListener(
+                      index: i,
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.grab,
+                        child: Semantics(
+                          label: Strings.of(context).t('mobile.blockVerschieben'),
+                          child: Icon(Icons.drag_indicator_rounded, size: 18, color: c.textMuted),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -438,6 +639,7 @@ class BlockEditorState extends State<BlockEditor> {
       default:
         break;
     }
+    if (e.block.kind == BlockKind.toggle && e._body == null) e.body.text = e.block.body;
 
     e.text!
       ..markerColor = c.textMuted.withValues(alpha: 0.55)
@@ -447,6 +649,7 @@ class BlockEditorState extends State<BlockEditor> {
       BlockKind.heading2 => type.titleLarge,
       BlockKind.heading3 => type.titleMedium,
       BlockKind.quote => type.bodyLarge?.copyWith(color: c.textSecondary, fontStyle: FontStyle.italic),
+      BlockKind.toggle => type.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
       BlockKind.todo when e.block.checked => type.bodyLarge?.copyWith(
         color: c.textMuted,
         decoration: TextDecoration.lineThrough,
@@ -530,8 +733,89 @@ class BlockEditorState extends State<BlockEditor> {
           padding: const EdgeInsets.only(right: 12),
           child: Container(width: 1, height: 26, color: c.border),
         );
+      case BlockKind.toggle:
+        // The triangle folds the content away, as in Notion.
+        lead = Semantics(
+          button: true,
+          expanded: e.block.open,
+          label: Strings.of(context).t('mobile.block_toggle'),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => setState(() => e.block.open = !e.block.open),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(0, 5, 6, 5),
+              child: AnimatedRotation(
+                turns: e.block.open ? 0.25 : 0,
+                duration: const Duration(milliseconds: 150),
+                child: Icon(Icons.play_arrow_rounded, size: 20, color: c.textSecondary),
+              ),
+            ),
+          ),
+        );
+      case BlockKind.callout:
+        lead = GestureDetector(
+          onTap: () => _pickEmoji(e),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(0, 3, 10, 0),
+            child: Text(e.block.emoji, style: const TextStyle(fontSize: 20)),
+          ),
+        );
       default:
         break;
+    }
+    if (e.block.kind == BlockKind.callout) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+          decoration: BoxDecoration(color: c.surface1, borderRadius: BorderRadius.circular(10)),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              lead!,
+              Expanded(child: field),
+            ],
+          ),
+        ),
+      );
+    }
+    if (e.block.kind == BlockKind.toggle) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              lead!,
+              Expanded(child: field),
+            ],
+          ),
+          if (e.block.open)
+            Padding(
+              padding: const EdgeInsets.only(left: 26),
+              child: TextField(
+                controller: e.body..markerColor = c.textMuted.withValues(alpha: 0.55),
+                focusNode: e.bodyFocus,
+                maxLines: null,
+                style: type.bodyLarge,
+                cursorColor: c.textAccent,
+                textCapitalization: TextCapitalization.sentences,
+                keyboardType: TextInputType.multiline,
+                onChanged: (_) => _emit(),
+                decoration: InputDecoration(
+                  isDense: true,
+                  filled: false,
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 5),
+                  hintText: Strings.of(context).t('mobile.toggleLeer'),
+                  hintStyle: type.bodyLarge?.copyWith(color: c.textMuted),
+                ),
+              ),
+            ),
+        ],
+      );
     }
     final top = switch (e.block.kind) {
       BlockKind.heading1 => 14.0,
@@ -602,6 +886,38 @@ class BlockEditorState extends State<BlockEditor> {
     );
   }
 
+  static const _emojis = ['💡', '⚠️', '✅', '❗', '📌', 'ℹ️', '🔥', '📝', '🎯', '❓'];
+
+  /// A callout's icon: the next one of a few, or a chosen one.
+  Future<void> _pickEmoji(_Entry e) async {
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final em in _emojis)
+                InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () => Navigator.pop(context, em),
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Text(em, style: const TextStyle(fontSize: 26)),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (picked == null) return;
+    setState(() => e.block.emoji = picked);
+    _emit();
+  }
+
   Future<void> _confirmRemove(int i) async {
     final t = Strings.of(context).t;
     final ok = await showModalBottomSheet<bool>(
@@ -621,4 +937,117 @@ class BlockEditorState extends State<BlockEditor> {
 /// Focus moved or a block changed kind — what the bar redraws on.
 class EditorSignal extends ChangeNotifier {
   void ping() => notifyListeners();
+}
+
+/// One entry of the block menu: what it makes, how it is called, and the
+/// English words that find it in any language.
+class _SlashOption {
+  const _SlashOption(this.id, this.label, this.icon, this.aliases, [this.kind]);
+
+  final String id;
+  final String label;
+  final IconData icon;
+  final List<String> aliases;
+  final BlockKind? kind;
+
+  static const all = [
+    _SlashOption('text', 'mobile.block_text', Icons.notes_rounded, ['text', 'paragraph', 'p'], BlockKind.paragraph),
+    _SlashOption('h1', 'mobile.block_h1', Icons.title_rounded, ['h1', 'heading', 'title'], BlockKind.heading1),
+    _SlashOption('h2', 'mobile.block_h2', Icons.title_rounded, ['h2', 'heading'], BlockKind.heading2),
+    _SlashOption('h3', 'mobile.block_h3', Icons.title_rounded, ['h3', 'heading'], BlockKind.heading3),
+    _SlashOption('bullet', 'mobile.block_bullet', Icons.format_list_bulleted_rounded, [
+      'bullet',
+      'list',
+      'ul',
+    ], BlockKind.bullet),
+    _SlashOption('numbered', 'mobile.block_numbered', Icons.format_list_numbered_rounded, [
+      'numbered',
+      'ol',
+      '1.',
+    ], BlockKind.numbered),
+    _SlashOption('todo', 'mobile.block_todo', Icons.check_circle_outline_rounded, [
+      'todo',
+      'check',
+      'task',
+    ], BlockKind.todo),
+    _SlashOption('toggle', 'mobile.block_toggle', Icons.arrow_right_rounded, [
+      'toggle',
+      'details',
+      'fold',
+    ], BlockKind.toggle),
+    _SlashOption('callout', 'mobile.block_callout', Icons.lightbulb_outline_rounded, [
+      'callout',
+      'note',
+      'info',
+    ], BlockKind.callout),
+    _SlashOption('quote', 'mobile.block_quote', Icons.format_quote_rounded, ['quote', 'cite'], BlockKind.quote),
+    _SlashOption('divider', 'mobile.block_divider', Icons.horizontal_rule_rounded, ['divider', 'line', 'hr', '---']),
+    _SlashOption('table', 'mobile.block_table', Icons.table_chart_outlined, ['table', 'grid']),
+    _SlashOption('image', 'mobile.block_image', Icons.image_outlined, ['image', 'picture', 'photo', 'img']),
+  ];
+}
+
+/// The block menu under the block that opened it (#371).
+class _SlashMenu extends StatelessWidget {
+  const _SlashMenu({required this.editor, required this.options, required this.pick});
+
+  final BlockEditorState editor;
+  final List<_SlashOption> options;
+  final int pick;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final t = Strings.of(context).t;
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 8),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 320, maxHeight: 340),
+          decoration: BoxDecoration(
+            color: c.surface2,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: c.border),
+            boxShadow: [BoxShadow(color: c.shadow, blurRadius: 18, offset: const Offset(0, 6))],
+          ),
+          child: options.isEmpty
+              ? Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Text(t('mobile.blockKeiner'), style: context.type.bodyMedium?.copyWith(color: c.textMuted)),
+                )
+              : ListView(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  children: [
+                    for (var k = 0; k < options.length; k++)
+                      InkWell(
+                        onTap: () => editor._applySlash(options[k]),
+                        child: Container(
+                          color: k == pick ? c.surface1 : null,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 30,
+                                height: 30,
+                                decoration: BoxDecoration(
+                                  color: c.surface0,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: c.border),
+                                ),
+                                child: Icon(options[k].icon, size: 18, color: c.textSecondary),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(child: Text(t(options[k].label), style: context.type.bodyMedium)),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
 }
