@@ -68,17 +68,18 @@ void main() {
 
   testWidgets('a table is edited in its cells and grows by a row', (tester) async {
     final (key, out) = await _editor(tester, '| A | B |\n| --- | --- |\n| 1 | 2 |');
-    final cells = find.byType(TextField);
+    final cells = find.descendant(of: find.byType(Table), matching: find.byType(TextField));
     expect(cells, findsNWidgets(4));
+    expect(find.byType(TextField), findsNWidgets(5), reason: 'a line after the table, to go on writing');
     await tester.enterText(cells.at(3), '3');
     await _settle(tester);
-    expect(out.last, '| A | B |\n| --- | --- |\n| 1 | 3 |');
+    expect(out.last, '| A | B |\n| --- | --- |\n| 1 | 3 |\n\n', reason: 'the blank line after the table, then the line');
 
     await tester.tap(cells.at(3));
     await _settle(tester);
     key.currentState!.tableAdd(row: true);
     await _settle(tester);
-    expect(out.last, '| A | B |\n| --- | --- |\n| 1 | 3 |\n|  |  |');
+    expect(out.last, '| A | B |\n| --- | --- |\n| 1 | 3 |\n|  |  |\n\n');
   });
 
   testWidgets('bold wraps the selection in Markdown', (tester) async {

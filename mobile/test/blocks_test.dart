@@ -86,4 +86,13 @@ void main() {
     expect(b[1].emoji, '⚠️');
     expect(writeBlocks(b), '> 💡 Erst die Zahlen prüfen\n> ⚠️ Achtung\n> Ein Zitat\n> 🇩🇪 Flagge');
   });
+
+  test('the blank line after a table is the table\'s, not an empty paragraph (#371)', () {
+    const md = '| A | B |\n| --- | --- |\n| 1 | 2 |\n\nDanach';
+    final b = parseBlocks(md);
+    expect([for (final x in b) x.kind], [BlockKind.table, BlockKind.paragraph]);
+    expect(writeBlocks(b), md);
+    // Two blank lines: the second is a line of its own.
+    expect(parseBlocks('| A |\n| --- |\n\n\nDanach').length, 3);
+  });
 }

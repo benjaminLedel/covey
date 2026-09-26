@@ -17,7 +17,7 @@ import 'media_image.dart';
 const _sentinel = '​';
 
 /// The width of the column the block handles stand in (#371).
-const _gutter = 26.0;
+const _gutter = BlockEditor.gutter;
 
 /// One block on the page with the controllers that edit it.
 class _Entry {
@@ -105,12 +105,22 @@ class BlockEditor extends StatefulWidget {
   /// Asks the page for a picture — "/picture" in the block menu (#371).
   final VoidCallback? onPickImage;
 
+  /// The column at the left where the blocks' handles stand (#371). It is
+  /// part of the editor: the page puts the editor that much further left, so
+  /// the text lines up with the title and the handles stand in the margin —
+  /// within the editor's area, where the mouse reaches them.
+  static const gutter = 20.0;
+
   @override
   State<BlockEditor> createState() => BlockEditorState();
 }
 
 class BlockEditorState extends State<BlockEditor> {
-  late final List<_Entry> _entries = [for (final b in parseBlocks(widget.initial)) _Entry(b)];
+  late final List<_Entry> _entries = [
+    for (final b in parseBlocks(widget.initial)) _Entry(b),
+    // After a table, divider or picture at the end, a line to go on writing.
+    if (!(parseBlocks(widget.initial).last.isText)) _Entry(Block(BlockKind.paragraph)),
+  ];
 
   /// The block the caret is in (a table: the cell's table), for the bar.
   int? focused;
@@ -601,68 +611,64 @@ class BlockEditorState extends State<BlockEditor> {
       TargetPlatform.iOS || TargetPlatform.android => true,
       _ => false,
     };
-    // The handle's gutter belongs to each block — the mouse can go from the
-    // text to the handle without leaving the block — and the whole list is
-    // moved left by it, so the text stays where the page's margin puts it.
-    return Transform.translate(
-      offset: const Offset(-_gutter, 0),
-      child: ReorderableListView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        buildDefaultDragHandles: false,
-        padding: EdgeInsets.zero,
-        itemCount: _entries.length,
-        onReorderItem: _move,
-        proxyDecorator: (child, _, _) => Material(color: c.surface2, elevation: 4, child: child),
-        itemBuilder: (context, i) {
-          final e = _entries[i];
-          final handle = _hover == i || (touch && focused == i);
-          return MouseRegion(
-            key: ObjectKey(e),
-            onEnter: (_) => setState(() => _hover = i),
-            onExit: (_) {
-              if (_hover == i) setState(() => _hover = null);
-            },
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(left: _gutter),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _blockView(context, c, i, e, numbers[i]),
-                      if (slash?.index == i) _SlashMenu(editor: this, options: _slashOptions, pick: _pick),
-                    ],
-                  ),
+    // The handle's gutter belongs to each block: the mouse goes from the
+    // text to the handle without leaving the block.
+    return ReorderableListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      buildDefaultDragHandles: false,
+      padding: EdgeInsets.zero,
+      itemCount: _entries.length,
+      onReorderItem: _move,
+      proxyDecorator: (child, _, _) => Material(color: c.surface2, elevation: 4, child: child),
+      itemBuilder: (context, i) {
+        final e = _entries[i];
+        final handle = _hover == i || (touch && focused == i);
+        return MouseRegion(
+          key: ObjectKey(e),
+          onEnter: (_) => setState(() => _hover = i),
+          onExit: (_) {
+            if (_hover == i) setState(() => _hover = null);
+          },
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(left: _gutter),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _blockView(context, c, i, e, numbers[i]),
+                    if (slash?.index == i) _SlashMenu(editor: this, options: _slashOptions, pick: _pick),
+                  ],
                 ),
-                // The handle, in the gutter beside the block's first line.
-                Positioned(
-                  left: 0,
-                  top: 4,
-                  child: AnimatedOpacity(
-                    opacity: handle ? 1 : 0,
-                    duration: const Duration(milliseconds: 120),
-                    child: IgnorePointer(
-                      ignoring: !handle,
-                      child: ReorderableDragStartListener(
-                        index: i,
-                        child: MouseRegion(
-                          cursor: SystemMouseCursors.grab,
-                          child: Semantics(
-                            label: Strings.of(context).t('mobile.blockVerschieben'),
-                            child: Icon(Icons.drag_indicator_rounded, size: 18, color: c.textMuted),
-                          ),
+              ),
+              // The handle, in the gutter beside the block's first line.
+              Positioned(
+                left: 0,
+                top: 4,
+                child: AnimatedOpacity(
+                  opacity: handle ? 1 : 0,
+                  duration: const Duration(milliseconds: 120),
+                  child: IgnorePointer(
+                    ignoring: !handle,
+                    child: ReorderableDragStartListener(
+                      index: i,
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.grab,
+                        child: Semantics(
+                          label: Strings.of(context).t('mobile.blockVerschieben'),
+                          child: Icon(Icons.drag_indicator_rounded, size: 18, color: c.textMuted),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ],
-            ),
-          );
-        },
-      ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -819,7 +825,10 @@ class BlockEditorState extends State<BlockEditor> {
         padding: const EdgeInsets.symmetric(vertical: 6),
         child: Container(
           padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
-          decoration: BoxDecoration(color: c.surface1, borderRadius: BorderRadius.circular(10)),
+          decoration: BoxDecoration(
+            color: c.textPrimary.withValues(alpha: 0.045),
+            borderRadius: BorderRadius.circular(10),
+          ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -888,49 +897,106 @@ class BlockEditorState extends State<BlockEditor> {
     );
   }
 
+  /// A table as Notion draws one: thin lines, the header row tinted, the
+  /// body in the page's own colour — which reads the same in light and dark.
+  /// A "+" at the right adds a column and one below adds a row; they show on
+  /// hover with a mouse, and on touch while a cell has the caret.
   Widget _table(BuildContext context, CoveyColors c, int i, _Entry e) {
     final type = context.type;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: c.border),
-            borderRadius: BorderRadius.circular(10),
+    final tint = c.textPrimary.withValues(alpha: 0.045);
+    final line = BorderSide(color: c.border, width: 0.8);
+    final touch = switch (Theme.of(context).platform) {
+      TargetPlatform.iOS || TargetPlatform.android => true,
+      _ => false,
+    };
+    final active = _hover == i || (touch && focused == i && focusedCell != null);
+    Widget plus({required bool row}) => AnimatedOpacity(
+      opacity: active ? 1 : 0,
+      duration: const Duration(milliseconds: 120),
+      child: IgnorePointer(
+        ignoring: !active,
+        child: Tooltip(
+          message: Strings.of(context).t(row ? 'mobile.zeileHinzu' : 'mobile.spalteHinzu'),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(6),
+            onTap: () {
+              focused = i;
+              tableAdd(row: row);
+            },
+            child: Container(
+              width: row ? double.infinity : 22,
+              height: row ? 22 : null,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(color: tint, borderRadius: BorderRadius.circular(6)),
+              child: Icon(Icons.add_rounded, size: 16, color: c.textMuted),
+            ),
           ),
-          clipBehavior: Clip.antiAlias,
-          child: Table(
-            defaultColumnWidth: const IntrinsicColumnWidth(),
-            border: TableBorder.symmetric(inside: BorderSide(color: c.border, width: 0.6)),
+        ),
+      ),
+    );
+    final table = Table(
+      defaultColumnWidth: const IntrinsicColumnWidth(),
+      border: TableBorder(
+        top: line,
+        bottom: line,
+        left: line,
+        right: line,
+        horizontalInside: line,
+        verticalInside: line,
+      ),
+      children: [
+        for (var r = 0; r < e.cells.length; r++)
+          TableRow(
+            decoration: BoxDecoration(color: r == 0 ? tint : null),
             children: [
-              for (var r = 0; r < e.cells.length; r++)
-                TableRow(
-                  decoration: BoxDecoration(color: r == 0 ? c.surface1.withValues(alpha: 0.6) : c.surface2),
-                  children: [
-                    for (var col = 0; col < e.cells[r].length; col++)
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(minWidth: 96, maxWidth: 220),
-                        child: TextField(
-                          controller: e.cells[r][col],
-                          focusNode: e.cellFocus[r][col],
-                          maxLines: null,
-                          style: r == 0 ? type.titleSmall : type.bodyMedium?.copyWith(color: c.textPrimary),
-                          cursorColor: c.textAccent,
-                          onChanged: (_) => _emit(),
-                          decoration: const InputDecoration(
-                            isDense: true,
-                            filled: false,
-                            border: InputBorder.none,
-                            enabledBorder: InputBorder.none,
-                            focusedBorder: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-                          ),
-                        ),
-                      ),
-                  ],
+              for (var col = 0; col < e.cells[r].length; col++)
+                ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 120, maxWidth: 260),
+                  child: TextField(
+                    controller: e.cells[r][col],
+                    focusNode: e.cellFocus[r][col],
+                    maxLines: null,
+                    style: r == 0
+                        ? type.bodyMedium?.copyWith(fontWeight: FontWeight.w600, color: c.textPrimary)
+                        : type.bodyMedium?.copyWith(color: c.textPrimary),
+                    cursorColor: c.textAccent,
+                    onChanged: (_) => _emit(),
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      filled: false,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    ),
+                  ),
                 ),
             ],
+          ),
+      ],
+    );
+    // The "+" below is as wide as the table and its "+" at the right: both
+    // scroll with the table when it is wider than the page.
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 4),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: IntrinsicWidth(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [table, const SizedBox(width: 4), plus(row: false)],
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Padding(padding: const EdgeInsets.only(right: 26), child: plus(row: true)),
+              ],
+            ),
           ),
         ),
       ),

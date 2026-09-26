@@ -856,80 +856,101 @@ class _NotePageState extends State<NotePage> {
                   Center(
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 760),
-                      child: MouseRegion(
-                        onEnter: (_) => setState(() => _headerHover = true),
-                        onExit: (_) => setState(() => _headerHover = false),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              if (_icon.isNotEmpty)
-                                Padding(
-                                  padding: EdgeInsets.only(top: _cover.isEmpty ? 8 : 0),
-                                  child: Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: Transform.translate(
-                                      offset: Offset(0, _cover.isEmpty ? 0 : -34),
-                                      child: GestureDetector(
-                                        onTap: _pickIcon,
-                                        child: Text(_icon, style: const TextStyle(fontSize: 60, height: 1.1)),
+                      child: SizedBox(
+                        // The header in the page's margin; the blocks below
+                        // use the left margin for their handles (#371).
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // "Add icon", "Add cover" and the empty properties show while the
+                            // mouse is over the header, as in Notion — not anywhere on the page.
+                            MouseRegion(
+                              onEnter: (_) => setState(() => _headerHover = true),
+                              onExit: (_) => setState(() => _headerHover = false),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 20),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    if (_icon.isNotEmpty)
+                                      Padding(
+                                        padding: EdgeInsets.only(top: _cover.isEmpty ? 8 : 0),
+                                        child: Align(
+                                          alignment: Alignment.centerLeft,
+                                          child: Transform.translate(
+                                            offset: Offset(0, _cover.isEmpty ? 0 : -34),
+                                            child: GestureDetector(
+                                              onTap: _pickIcon,
+                                              child: Text(_icon, style: const TextStyle(fontSize: 60, height: 1.1)),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    _headerActions(context, touch),
+                                    if (n != null)
+                                      Row(
+                                        children: [
+                                          KindMark(kind: kind),
+                                          const SizedBox(width: 12),
+                                          Expanded(child: Text(noteMeta(context, n), style: context.type.bodySmall)),
+                                        ],
+                                      ),
+                                    TextField(
+                                      controller: _title,
+                                      focusNode: _titleFocus,
+                                      style: _titleStyle(context),
+                                      maxLines: null,
+                                      textCapitalization: TextCapitalization.sentences,
+                                      textInputAction: TextInputAction.next,
+                                      onChanged: (_) => _changed(),
+                                      decoration: _bare(
+                                        context,
+                                        context.t('mobile.titelOptional'),
+                                        _titleStyle(context),
                                       ),
                                     ),
-                                  ),
-                                ),
-                              _headerActions(context, touch),
-                              if (n != null)
-                                Row(
-                                  children: [
-                                    KindMark(kind: kind),
-                                    const SizedBox(width: 12),
-                                    Expanded(child: Text(noteMeta(context, n), style: context.type.bodySmall)),
+                                    _properties(context),
+                                    if (n != null && n.summary.isNotEmpty) ...[
+                                      const SizedBox(height: 6),
+                                      Container(
+                                        padding: const EdgeInsets.all(18),
+                                        decoration: BoxDecoration(
+                                          color: c.surface2,
+                                          borderRadius: BorderRadius.circular(20),
+                                        ),
+                                        child: SummaryText(n.summary),
+                                      ),
+                                      const SizedBox(height: 12),
+                                    ],
+                                    // Summaries are for what was spoken; a typed note is its own summary.
+                                    if (widget.canSummarize && n != null && kind != 'text')
+                                      Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: OutlinedButton.icon(
+                                          onPressed: _busy ? null : _summarize,
+                                          style: OutlinedButton.styleFrom(shape: const StadiumBorder()),
+                                          icon: Icon(AppIcons.summary.of(context), size: 18, color: c.textAccent),
+                                          label: Text(
+                                            _busy
+                                                ? context.t('common.loading')
+                                                : n.summary.isEmpty
+                                                ? context.t('mobile.zusammenfassen')
+                                                : context.t('mobile.zusammenfassenNeu'),
+                                          ),
+                                        ),
+                                      ),
+                                    if (n != null && kind != 'text') ...[
+                                      const SizedBox(height: 22),
+                                      Text(context.t('mobile.transkript'), style: context.type.titleLarge),
+                                      const SizedBox(height: 4),
+                                    ],
                                   ],
                                 ),
-                              TextField(
-                                controller: _title,
-                                focusNode: _titleFocus,
-                                style: _titleStyle(context),
-                                maxLines: null,
-                                textCapitalization: TextCapitalization.sentences,
-                                textInputAction: TextInputAction.next,
-                                onChanged: (_) => _changed(),
-                                decoration: _bare(context, context.t('mobile.titelOptional'), _titleStyle(context)),
                               ),
-                              _properties(context),
-                              if (n != null && n.summary.isNotEmpty) ...[
-                                const SizedBox(height: 6),
-                                Container(
-                                  padding: const EdgeInsets.all(18),
-                                  decoration: BoxDecoration(color: c.surface2, borderRadius: BorderRadius.circular(20)),
-                                  child: SummaryText(n.summary),
-                                ),
-                                const SizedBox(height: 12),
-                              ],
-                              // Summaries are for what was spoken; a typed note is its own summary.
-                              if (widget.canSummarize && n != null && kind != 'text')
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: OutlinedButton.icon(
-                                    onPressed: _busy ? null : _summarize,
-                                    style: OutlinedButton.styleFrom(shape: const StadiumBorder()),
-                                    icon: Icon(AppIcons.summary.of(context), size: 18, color: c.textAccent),
-                                    label: Text(
-                                      _busy
-                                          ? context.t('common.loading')
-                                          : n.summary.isEmpty
-                                          ? context.t('mobile.zusammenfassen')
-                                          : context.t('mobile.zusammenfassenNeu'),
-                                    ),
-                                  ),
-                                ),
-                              if (n != null && kind != 'text') ...[
-                                const SizedBox(height: 22),
-                                Text(context.t('mobile.transkript'), style: context.type.titleLarge),
-                                const SizedBox(height: 4),
-                              ],
-                              BlockEditor(
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 20 - BlockEditor.gutter, right: 20),
+                              child: BlockEditor(
                                 key: _editor,
                                 api: widget.api,
                                 initial: _body,
@@ -941,8 +962,8 @@ class _NotePageState extends State<NotePage> {
                                   _changed();
                                 },
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
                     ),

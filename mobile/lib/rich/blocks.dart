@@ -142,6 +142,9 @@ List<Block> parseBlocks(String markdown) {
         }
       }
       out.add(Block(BlockKind.table, rows: rows));
+      // The blank line Markdown wants after a table belongs to the table,
+      // not to the page: it is not an empty line to draw (#371).
+      if (i + 1 < lines.length && lines[i + 1].trim().isEmpty) i++;
       continue;
     }
     RegExpMatch? m;
@@ -253,6 +256,8 @@ String writeBlocks(List<Block> blocks) {
         for (final r in rows.skip(1)) {
           out.add('| ${r.map(_escapeCell).join(' | ')} |');
         }
+        // And the blank line after it, where something follows.
+        if (!identical(b, blocks.last)) out.add('');
     }
   }
   return out.join('\n');
