@@ -2611,7 +2611,15 @@
     "sprecherAndere": "Anderen",
     "sprecherN": "Spreker {{n}}",
     "sprecherBenennen": "Wie sprak er?",
-    "sprecherBenennenHinweis": "Geef de stemmen een naam, of laat ze zo."
+    "sprecherBenennenHinweis": "Geef de stemmen een naam, of laat ze zo.",
+    "rueckblick": "Dagoverzicht",
+    "rueckblickZeile": "Uit wat de Mac heeft bijgehouden",
+    "rueckblickTage": "Dagoverzichten",
+    "rueckblickAbschnitte": "{{count}} sessies",
+    "rueckblickVorhanden": "Overzicht gemaakt",
+    "rueckblickNeu": "Opnieuw maken",
+    "rueckblickLeer": "Nog geen activiteit. Zet het bijhouden aan op de Mac via Instellingen → Activiteit.",
+    "rueckblickHinweis": "Elke dag heeft één overzicht. Opnieuw gemaakt vervangt het het vorige — voor vandaag met alles wat sindsdien gebeurde. Activiteit wordt 14 dagen bewaard."
   },
   "appLink": {
     "title": "Openen in de covey-app",

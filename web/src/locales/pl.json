@@ -2611,7 +2611,15 @@
     "sprecherAndere": "Inni",
     "sprecherN": "Mówca {{n}}",
     "sprecherBenennen": "Kto mówił?",
-    "sprecherBenennenHinweis": "Nadaj głosom imiona albo zostaw je tak."
+    "sprecherBenennenHinweis": "Nadaj głosom imiona albo zostaw je tak.",
+    "rueckblick": "Podsumowanie dnia",
+    "rueckblickZeile": "Z tego, co zapisał Mac",
+    "rueckblickTage": "Podsumowania dnia",
+    "rueckblickAbschnitte": "{{count}} sesji",
+    "rueckblickVorhanden": "Podsumowanie gotowe",
+    "rueckblickNeu": "Utwórz ponownie",
+    "rueckblickLeer": "Brak aktywności. Włącz zapisywanie na Macu w Ustawienia → Aktywność.",
+    "rueckblickHinweis": "Każdy dzień ma jedno podsumowanie. Utworzone ponownie zastępuje poprzednie — dla dzisiaj ze wszystkim, co wydarzyło się od tego czasu. Aktywność jest przechowywana 14 dni."
   },
   "appLink": {
     "title": "Otwórz w aplikacji covey",

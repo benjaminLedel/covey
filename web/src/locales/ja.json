@@ -2611,7 +2611,15 @@
     "sprecherAndere": "相手",
     "sprecherN": "話者 {{n}}",
     "sprecherBenennen": "誰が話しましたか？",
-    "sprecherBenennenHinweis": "声に名前を付けるか、そのままにしてください。"
+    "sprecherBenennenHinweis": "声に名前を付けるか、そのままにしてください。",
+    "rueckblick": "今日の振り返り",
+    "rueckblickZeile": "Mac が記録した内容から",
+    "rueckblickTage": "振り返り",
+    "rueckblickAbschnitte": "{{count}} 件",
+    "rueckblickVorhanden": "振り返りあり",
+    "rueckblickNeu": "作り直す",
+    "rueckblickLeer": "まだアクティビティがありません。Mac の 設定 → アクティビティ で記録をオンにしてください。",
+    "rueckblickHinweis": "1日につき振り返りは1つです。作り直すと以前のものを置き換えます（今日なら、その後の作業も含めて）。アクティビティは14日間保存されます。"
   },
   "appLink": {
     "title": "covey アプリで開く",

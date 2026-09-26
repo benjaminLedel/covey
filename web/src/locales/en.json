@@ -2611,7 +2611,15 @@
     "sprecherAndere": "Others",
     "sprecherN": "Speaker {{n}}",
     "sprecherBenennen": "Who spoke?",
-    "sprecherBenennenHinweis": "Give the voices names, or leave them as they are."
+    "sprecherBenennenHinweis": "Give the voices names, or leave them as they are.",
+    "rueckblick": "Daily review",
+    "rueckblickZeile": "From what the Mac recorded",
+    "rueckblickTage": "Daily reviews",
+    "rueckblickAbschnitte": "{{count}} sessions",
+    "rueckblickVorhanden": "Review written",
+    "rueckblickNeu": "Rewrite",
+    "rueckblickLeer": "No activity yet. Switch on recording on the Mac under Settings → Activity.",
+    "rueckblickHinweis": "Each day has one review. Rewritten, it replaces the previous one — for today, with everything since. Activity is kept for 14 days."
   },
   "appLink": {
     "title": "Open in the covey app",

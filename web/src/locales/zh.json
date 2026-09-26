@@ -2611,7 +2611,15 @@
     "sprecherAndere": "其他人",
     "sprecherN": "发言人 {{n}}",
     "sprecherBenennen": "谁在发言？",
-    "sprecherBenennenHinweis": "为这些声音命名，或保持原样。"
+    "sprecherBenennenHinweis": "为这些声音命名，或保持原样。",
+    "rueckblick": "每日回顾",
+    "rueckblickZeile": "根据 Mac 记录的内容",
+    "rueckblickTage": "每日回顾",
+    "rueckblickAbschnitte": "{{count}} 段",
+    "rueckblickVorhanden": "已有回顾",
+    "rueckblickNeu": "重新生成",
+    "rueckblickLeer": "还没有活动。请在 Mac 的 设置 → 活动 中开启记录。",
+    "rueckblickHinweis": "每天只有一份回顾。重新生成会替换原有回顾——对今天而言，会包含此后发生的一切。活动保留 14 天。"
   },
   "appLink": {
     "title": "在 covey 应用中打开",

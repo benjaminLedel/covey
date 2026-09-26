@@ -2611,7 +2611,15 @@
     "sprecherAndere": "Autres",
     "sprecherN": "Intervenant {{n}}",
     "sprecherBenennen": "Qui a parlé ?",
-    "sprecherBenennenHinweis": "Donnez un nom aux voix, ou laissez-les ainsi."
+    "sprecherBenennenHinweis": "Donnez un nom aux voix, ou laissez-les ainsi.",
+    "rueckblick": "Bilan du jour",
+    "rueckblickZeile": "À partir de ce que le Mac a enregistré",
+    "rueckblickTage": "Bilans du jour",
+    "rueckblickAbschnitte": "{{count}} sessions",
+    "rueckblickVorhanden": "Bilan rédigé",
+    "rueckblickNeu": "Rédiger à nouveau",
+    "rueckblickLeer": "Aucune activité pour l'instant. Activez l'enregistrement sur le Mac dans Réglages → Activité.",
+    "rueckblickHinweis": "Chaque jour a un bilan. Rédigé à nouveau, il remplace le précédent ; pour aujourd'hui, avec tout ce qui s'est passé depuis. L'activité est conservée 14 jours."
   },
   "appLink": {
     "title": "Ouvrir dans l'application covey",

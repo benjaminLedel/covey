@@ -4,7 +4,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hotkey_manager/hotkey_manager.dart';
-import 'package:intl/intl.dart';
 
 import '../chrome.dart';
 import '../api.dart';
@@ -20,6 +19,7 @@ import '../speech_model.dart';
 import '../theme.dart';
 import '../ui.dart';
 import 'notes.dart' show NotePage, dictationFailure;
+import 'review.dart';
 
 /// Settings (#349): who is signed in where, the speech model on this
 /// device and the language it listens for, a place to try dictation, and
@@ -258,27 +258,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ];
   }
 
+  /// The daily reviews, any recorded day (#368).
   Future<void> _review() async {
-    final messenger = ScaffoldMessenger.of(context);
     final nav = Navigator.of(context);
-    final lang = Strings.of(context).language;
-    final title = context.t(
-      'mobile.aktivRueckblickTitel',
-      args: {'date': DateFormat.yMMMMd(lang).format(DateTime.now())},
-    );
-    messenger.showSnackBar(SnackBar(content: Text(context.t('mobile.aktivRueckblickLaeuft'))));
-    try {
-      final note = await ActivityRecorder.instance.review(lang: lang, title: title);
-      messenger.hideCurrentSnackBar();
-      await nav.push(
-        MaterialPageRoute<void>(
-          builder: (_) => NotePage(api: widget.api, note: note),
+    await nav.push<void>(
+      MaterialPageRoute(
+        builder: (_) => ReviewScreen(
+          api: widget.api,
+          onOpen: (note) => nav.push(
+            MaterialPageRoute<void>(
+              builder: (_) => NotePage(api: widget.api, note: note),
+            ),
+          ),
         ),
-      );
-    } on ApiException catch (e) {
-      messenger.hideCurrentSnackBar();
-      messenger.showSnackBar(SnackBar(content: Text(e.message)));
-    }
+      ),
+    );
+    await ActivityRecorder.instance.refreshCount();
   }
 
   Future<void> _deleteActivity({required bool all}) async {

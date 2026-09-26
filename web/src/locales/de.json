@@ -2611,7 +2611,15 @@
     "sprecherAndere": "Andere",
     "sprecherN": "Sprecher {{n}}",
     "sprecherBenennen": "Wer hat gesprochen?",
-    "sprecherBenennenHinweis": "Geben Sie den Stimmen Namen, oder lassen Sie sie so."
+    "sprecherBenennenHinweis": "Geben Sie den Stimmen Namen, oder lassen Sie sie so.",
+    "rueckblick": "Tagesrückblick",
+    "rueckblickZeile": "Aus dem, was der Mac mitgeschrieben hat",
+    "rueckblickTage": "Tagesrückblicke",
+    "rueckblickAbschnitte": "{{count}} Abschnitte",
+    "rueckblickVorhanden": "Rückblick vorhanden",
+    "rueckblickNeu": "Neu erstellen",
+    "rueckblickLeer": "Noch keine Aktivitäten. Schalten Sie das Mitschreiben auf dem Mac unter Einstellungen → Aktivitäten ein.",
+    "rueckblickHinweis": "Pro Tag gibt es einen Rückblick. Neu erstellt, ersetzt er den bisherigen, etwa für heute mit allem, was seitdem passiert ist. Aktivitäten werden 14 Tage aufbewahrt."
   },
   "appLink": {
     "title": "In der covey-App öffnen",

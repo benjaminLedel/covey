@@ -123,3 +123,33 @@ func (s *Store) Delete(ctx context.Context, humanID uuid.UUID, from, to time.Tim
 	}
 	return tag.RowsAffected(), nil
 }
+
+// Day is one day of the log with its number of sessions.
+type Day struct {
+	Day      string `json:"day"`
+	Sessions int    `json:"sessions"`
+}
+
+// Days lists the seat's days with activity, newest first, as calendar days
+// in loc.
+func (s *Store) Days(ctx context.Context, humanID uuid.UUID, loc *time.Location) ([]Day, error) {
+	rows, err := s.pool.Query(ctx, `SELECT started_at FROM human_activity WHERE human_id=$1 ORDER BY started_at DESC`, humanID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Day{}
+	for rows.Next() {
+		var at time.Time
+		if err := rows.Scan(&at); err != nil {
+			return nil, err
+		}
+		day := at.In(loc).Format("2006-01-02")
+		if n := len(out); n > 0 && out[n-1].Day == day {
+			out[n-1].Sessions++
+		} else {
+			out = append(out, Day{Day: day, Sessions: 1})
+		}
+	}
+	return out, rows.Err()
+}

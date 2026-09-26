@@ -324,6 +324,7 @@ func (s *Server) Handler() http.Handler {
 	// The activity log (#363, activity.go): the caller's own, like the notes.
 	mux.Handle("POST /api/v1/me/activity", s.auth(s.handleAddActivity))
 	mux.Handle("GET /api/v1/me/activity", s.auth(s.handleListActivity))
+	mux.Handle("GET /api/v1/me/activity/days", s.auth(s.handleActivityDays))
 	mux.Handle("DELETE /api/v1/me/activity", s.auth(s.handleDeleteActivity))
 	mux.Handle("POST /api/v1/me/activity/review", s.auth(s.handleActivityReview))
 	// Dictate anywhere (#355, dictation.go): the recognised text, cleaned.

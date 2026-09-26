@@ -2611,7 +2611,15 @@
     "sprecherAndere": "Altri",
     "sprecherN": "Relatore {{n}}",
     "sprecherBenennen": "Chi ha parlato?",
-    "sprecherBenennenHinweis": "Dai un nome alle voci, oppure lasciale così."
+    "sprecherBenennenHinweis": "Dai un nome alle voci, oppure lasciale così.",
+    "rueckblick": "Riepilogo del giorno",
+    "rueckblickZeile": "Da ciò che il Mac ha registrato",
+    "rueckblickTage": "Riepiloghi del giorno",
+    "rueckblickAbschnitte": "{{count}} sessioni",
+    "rueckblickVorhanden": "Riepilogo scritto",
+    "rueckblickNeu": "Riscrivi",
+    "rueckblickLeer": "Ancora nessuna attività. Attiva la registrazione sul Mac in Impostazioni → Attività.",
+    "rueckblickHinweis": "Ogni giorno ha un riepilogo. Se riscritto, sostituisce il precedente; per oggi, con tutto ciò che è successo da allora. L'attività viene conservata per 14 giorni."
   },
   "appLink": {
     "title": "Apri nell'app covey",

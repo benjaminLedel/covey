@@ -15,6 +15,7 @@ import '../models.dart';
 import '../theme.dart';
 import '../ui.dart';
 import 'notes.dart';
+import 'review.dart';
 import 'settings.dart';
 import 'team_space.dart';
 import 'thread.dart';
@@ -172,6 +173,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 subtitle: context.t('mobile.meetingHinweis'),
                 onTap: () => Navigator.pop(context, 'meeting'),
               ),
+              // The day's review (#368), from what the Mac recorded — also on
+              // the phone, since the activity lives on the instance.
+              GroupRow(
+                leading: Icon(AppIcons.summary.of(context), color: context.colors.textAccent),
+                title: context.t('mobile.rueckblick'),
+                subtitle: context.t('mobile.rueckblickZeile'),
+                onTap: () => Navigator.pop(context, 'review'),
+              ),
             ],
           ),
         ),
@@ -180,6 +189,21 @@ class _HomeScreenState extends State<HomeScreen> {
     if (kind == null || !mounted) return;
     setState(() => _space = notesIndex);
     void reload() => _notes.currentState?.reload();
+    if (kind == 'review') {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (routeContext) => ReviewScreen(
+            api: widget.api,
+            onOpen: (note) {
+              Navigator.of(routeContext).pop();
+              reload();
+              _openNote(note, _notes.currentState?.canSummarize ?? false, reload);
+            },
+          ),
+        ),
+      );
+      return;
+    }
     if (kind == 'note') {
       // A new note is the same page as an open one, empty; it comes into
       // being with its first words (#343).

@@ -2611,7 +2611,15 @@
     "sprecherAndere": "Otros",
     "sprecherN": "Hablante {{n}}",
     "sprecherBenennen": "¿Quién habló?",
-    "sprecherBenennenHinweis": "Ponga nombre a las voces o déjelas así."
+    "sprecherBenennenHinweis": "Ponga nombre a las voces o déjelas así.",
+    "rueckblick": "Resumen del día",
+    "rueckblickZeile": "A partir de lo que registró el Mac",
+    "rueckblickTage": "Resúmenes del día",
+    "rueckblickAbschnitte": "{{count}} sesiones",
+    "rueckblickVorhanden": "Resumen creado",
+    "rueckblickNeu": "Volver a crear",
+    "rueckblickLeer": "Aún no hay actividad. Active el registro en el Mac en Ajustes → Actividad.",
+    "rueckblickHinweis": "Cada día tiene un resumen. Si se vuelve a crear, sustituye al anterior; para hoy, con todo lo ocurrido desde entonces. La actividad se guarda 14 días."
   },
   "appLink": {
     "title": "Abrir en la aplicación covey",

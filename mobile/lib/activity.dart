@@ -241,7 +241,12 @@ class ActivityRecorder extends ChangeNotifier {
     final api = _api!;
     _close();
     await flush();
-    return api.activityReview(dayOf(DateTime.now()), timeZone, lang: lang, title: title);
+    return api.activityReview(
+      dayOf(DateTime.now()),
+      CoveyApi.zoneQuery(tz: timeZone),
+      lang: lang,
+      title: title,
+    );
   }
 
   Future<void> deleteToday() async {

@@ -47,17 +47,20 @@ type Note struct {
 	DurationSeconds int       `json:"duration_seconds"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
+	// ReviewDay is the day a daily review is about (#368), YYYY-MM-DD; nil
+	// for every other note.
+	ReviewDay *string `json:"review_day,omitempty"`
 }
 
 type Store struct{ pool *pgxpool.Pool }
 
 func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
-const cols = `id, kind, title, body, summary, duration_seconds, created_at, updated_at`
+const cols = `id, kind, title, body, summary, duration_seconds, created_at, updated_at, to_char(review_day, 'YYYY-MM-DD')`
 
 func scan(row pgx.Row) (Note, error) {
 	var n Note
-	err := row.Scan(&n.ID, &n.Kind, &n.Title, &n.Body, &n.Summary, &n.DurationSeconds, &n.CreatedAt, &n.UpdatedAt)
+	err := row.Scan(&n.ID, &n.Kind, &n.Title, &n.Body, &n.Summary, &n.DurationSeconds, &n.CreatedAt, &n.UpdatedAt, &n.ReviewDay)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Note{}, ErrNotFound
 	}
@@ -85,6 +88,41 @@ func (s *Store) Create(ctx context.Context, orgID, humanID uuid.UUID, kind, titl
 	}
 	return scan(s.pool.QueryRow(ctx, `INSERT INTO human_notes (id, org_id, human_id, kind, title, body, duration_seconds)
 		VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING `+cols, uuid.New(), orgID, humanID, kind, title, body, duration))
+}
+
+// SetReview writes the daily review of day (#368): into the seat's review
+// note of that day when there is one — title and text replaced, an old
+// summary cleared — otherwise into a new note.
+func (s *Store) SetReview(ctx context.Context, orgID, humanID uuid.UUID, day time.Time, title, body string) (Note, error) {
+	title, body, err := clean(title, body)
+	if err != nil {
+		return Note{}, err
+	}
+	return scan(s.pool.QueryRow(ctx, `INSERT INTO human_notes (id, org_id, human_id, kind, title, body, review_day)
+		VALUES ($1, $2, $3, 'text', $4, $5, $6)
+		ON CONFLICT (human_id, review_day) WHERE review_day IS NOT NULL
+		DO UPDATE SET title = EXCLUDED.title, body = EXCLUDED.body, summary = '', updated_at = now()
+		RETURNING `+cols, uuid.New(), orgID, humanID, title, body, day.Format("2006-01-02")))
+}
+
+// Reviews maps the seat's review days (YYYY-MM-DD) to their notes.
+func (s *Store) Reviews(ctx context.Context, humanID uuid.UUID) (map[string]uuid.UUID, error) {
+	rows, err := s.pool.Query(ctx, `SELECT to_char(review_day, 'YYYY-MM-DD'), id FROM human_notes
+		WHERE human_id=$1 AND review_day IS NOT NULL`, humanID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]uuid.UUID{}
+	for rows.Next() {
+		var day string
+		var id uuid.UUID
+		if err := rows.Scan(&day, &id); err != nil {
+			return nil, err
+		}
+		out[day] = id
+	}
+	return out, rows.Err()
 }
 
 // List returns the seat's notes, newest first. q narrows to notes whose

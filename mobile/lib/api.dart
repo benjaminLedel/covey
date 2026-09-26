@@ -258,11 +258,31 @@ class CoveyApi {
       delete(day == null ? '/me/activity' : '/me/activity?day=$day&tz=${Uri.encodeQueryComponent(tz ?? 'UTC')}');
 
   /// Writes the review of a day as a note and returns it.
-  Future<Note> activityReview(String day, String tz, {required String lang, required String title}) async =>
+  Future<Note> activityReview(String day, String zone, {required String lang, required String title}) async =>
       Note.fromJson(
-        await post('/me/activity/review?day=$day&tz=${Uri.encodeQueryComponent(tz)}', {'lang': lang, 'title': title})
-            as Map<String, dynamic>,
+        await post('/me/activity/review?day=$day&$zone', {'lang': lang, 'title': title}) as Map<String, dynamic>,
       );
+
+  /// The person's zone as the activity routes take it: the IANA name where
+  /// it is known, else the offset from UTC (#368).
+  static String zoneQuery({String? tz}) => tz != null && tz.isNotEmpty
+      ? 'tz=${Uri.encodeQueryComponent(tz)}'
+      : 'offset=${DateTime.now().timeZoneOffset.inMinutes}';
+
+  /// The days with activity, newest first, with their review note (#368).
+  Future<List<ActivityDay>> activityDays(String zone) async {
+    final out = await get('/me/activity/days?$zone') as Map<String, dynamic>;
+    return [
+      for (final d in out['days'] as List<dynamic>)
+        ActivityDay(
+          day: (d as Map<String, dynamic>)['day'] as String,
+          sessions: (d['sessions'] as num).toInt(),
+          review: d['review'] as String?,
+        ),
+    ];
+  }
+
+  Future<Note> note(String id) async => Note.fromJson(await get('/me/notes/$id') as Map<String, dynamic>);
 
   /// Dictated text as the person meant to write it (#355): filler words
   /// out, self-corrections applied, punctuation set. [app] names the
@@ -390,4 +410,16 @@ class SpeechModelFile {
   final String name;
   final String sha256;
   final int size;
+}
+
+/// One day of the activity log (#368).
+class ActivityDay {
+  const ActivityDay({required this.day, required this.sessions, this.review});
+
+  /// YYYY-MM-DD in the person's zone.
+  final String day;
+  final int sessions;
+
+  /// The id of the day's review note, if it has one.
+  final String? review;
 }
