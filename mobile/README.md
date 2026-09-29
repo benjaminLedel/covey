@@ -8,8 +8,8 @@ work on it.
 
 **Status: a first slice, and a prototype.** It signs in with an API key, which
 spec/27 names as an interim and not as the design — the device badge
-(decision 1) replaces it. There is no push yet (decision 2) and no idempotency
-key on writes (decision 3).
+(decision 1) replaces it. There is no idempotency key on writes yet
+(decision 3).
 
 ## What it does
 
@@ -53,6 +53,15 @@ flutter run --dart-define=COVEY_INSTANCE=http://localhost:8494 --dart-define=COV
 ```
 
 Release builds ignore both.
+
+Push notifications (#379, #424) need the app's own push credentials. On
+Android that is the Firebase project's `google-services.json`, placed at
+`android/app/google-services.json`; it is not in the repository (and is
+ignored), and a build without it works and has no push. The instance then
+needs that project's service account (`COVEY_FCM_CREDENTIALS_FILE`) or a relay
+that holds it — see [the operations guide](../docs/en/operations/operations.md#push-notifications). The notification sounds are
+synthesised by `sounds/synth.py`, which writes the iOS/macOS `.caf` files and
+the Android copies in `android/app/src/main/res/raw`.
 
 ## Wording
 
