@@ -76,6 +76,23 @@ x-covey-base: &covey-base
     COVEY_EMBEDDING_MODEL: ${COVEY_EMBEDDING_MODEL:-}
     COVEY_EMBEDDING_API_KEY: ${COVEY_EMBEDDING_API_KEY:-}
     COVEY_EMBEDDING_URL: ${COVEY_EMBEDDING_URL:-}
+    # Push notifications (#379). Without a key of its own the instance hands
+    # them to the relay (default https://app.covey.work, "off" sends nothing).
+    # With the app's APNs key it talks to Apple itself; the .p8 goes under the
+    # data directory, which is mounted at the same path, e.g.
+    #   COVEY_APNS_KEY_FILE=/opt/covey/data/apns/AuthKey_<KEY ID>.p8
+    # COVEY_PUSH_RELAY_ACCEPT=true then serves as the relay for others.
+    # Empty means unset: internal/config applies its defaults.
+    COVEY_APNS_KEY_FILE: ${COVEY_APNS_KEY_FILE:-}
+    COVEY_APNS_KEY_ID: ${COVEY_APNS_KEY_ID:-}
+    COVEY_APNS_TEAM_ID: ${COVEY_APNS_TEAM_ID:-}
+    COVEY_APNS_TOPIC: ${COVEY_APNS_TOPIC:-}
+    COVEY_PUSH_RELAY: ${COVEY_PUSH_RELAY:-}
+    COVEY_PUSH_RELAY_ACCEPT: ${COVEY_PUSH_RELAY_ACCEPT:-}
+    # App links (#333): only whoever ships the app sets these.
+    COVEY_APPLE_APP_ID: ${COVEY_APPLE_APP_ID:-}
+    COVEY_ANDROID_APP_PACKAGE: ${COVEY_ANDROID_APP_PACKAGE:-}
+    COVEY_ANDROID_CERT_SHA256: ${COVEY_ANDROID_CERT_SHA256:-}
   volumes:
     - ${COVEY_DATA_DIR:-/opt/covey/data}:${COVEY_DATA_DIR:-/opt/covey/data}
 
