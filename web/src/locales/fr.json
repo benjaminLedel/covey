@@ -1422,7 +1422,8 @@
         "done": "fait",
         "open": "à faire",
         "optional": "facultatif",
-        "blocked": "pas encore possible"
+        "blocked": "pas encore possible",
+        "preset": "déjà défini"
       },
       "block": {
         "name": "Donnez un nom à la voix.",
@@ -1565,8 +1566,15 @@
         "build": "Construire la voix",
         "describe": "Faire écrire la voix",
         "release": "Relire et valider"
-      }
-    }
+      },
+      "descShort": "Mesurée à partir de textes, décrite en mots ou rédigée par un agent dans le chat d’équipe. Rien de ce qu’un modèle a écrit n’agit avant qu’une personne le valide."
+    },
+    "tab": {
+      "flow": "Étapes",
+      "corrections": "Corrections",
+      "tone": "Ce que reçoit l’agent"
+    },
+    "toneEmpty": "Rien pour l’instant — la voix n’a ni fiche, ni passages, ni profil mesuré."
   },
   "skills": {
     "title": "Compétences",

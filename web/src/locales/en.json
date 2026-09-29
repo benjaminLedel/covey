@@ -1422,7 +1422,8 @@
         "done": "done",
         "open": "to do",
         "optional": "optional",
-        "blocked": "not yet possible"
+        "blocked": "not yet possible",
+        "preset": "set already"
       },
       "block": {
         "name": "Give the voice a name.",
@@ -1565,8 +1566,15 @@
         "build": "Build the voice",
         "describe": "Write the voice",
         "release": "Review and release"
-      }
-    }
+      },
+      "descShort": "Built from texts, described in words, or drafted by an agent in the team chat. Nothing a model wrote acts before a person releases it."
+    },
+    "tab": {
+      "flow": "Flow",
+      "corrections": "Corrections",
+      "tone": "What the agent gets"
+    },
+    "toneEmpty": "Nothing yet — the voice has no card, passages or measured profile."
   },
   "skills": {
     "title": "Skills",
