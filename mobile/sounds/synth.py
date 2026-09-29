@@ -11,7 +11,9 @@ All of them are meant to be heard many times a day: low, soft attacks, no
 harsh overtones, a little room around them.
 
 Writes covey-<family>-<kind>.caf next to this file (16-bit PCM in a CAF, the
-container both iOS and macOS notifications take).
+container both iOS and macOS notifications take), and the same sound as AAC
+in an .m4a to the Android app's res/raw (#424), named covey_<family>_<kind>:
+a resource name takes no hyphen.
 """
 import os
 import subprocess
@@ -21,6 +23,7 @@ import numpy as np
 
 SR = 44100
 HERE = os.path.dirname(os.path.abspath(__file__))
+RAW = os.path.join(HERE, "..", "android", "app", "src", "main", "res", "raw")
 
 
 def env(n, attack=0.012, release=0.4):
@@ -150,6 +153,11 @@ def main():
                 w.writeframes((x * 32767).astype(np.int16).tobytes())
             subprocess.run(
                 ["afconvert", "-f", "caff", "-d", "LEI16", wav, os.path.join(HERE, name + ".caf")], check=True
+            )
+            subprocess.run(
+                ["afconvert", "-f", "m4af", "-d", "aac", "-b", "64000", wav,
+                 os.path.join(RAW, name.replace("-", "_") + ".m4a")],
+                check=True,
             )
             os.remove(wav)
             print(name)

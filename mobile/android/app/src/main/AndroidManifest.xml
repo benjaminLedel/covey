@@ -5,6 +5,9 @@
     <!-- The notetaker (#336): dictation and meetings, recognised on the
          device by whisper.cpp (#348). -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- Push notifications (#424): from Android 13 on, asked for when the
+         app registers for them. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="covey"
         android:name="${applicationName}"
@@ -52,6 +55,14 @@
             <!-- The links go to app_links, not to Flutter's own router. -->
             <meta-data android:name="flutter_deeplinking_enabled" android:value="false"/>
         </activity>
+        <!-- Receives the instance's notifications and shows them (#424). -->
+        <service
+            android:name=".CoveyMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT"/>
+            </intent-filter>
+        </service>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
