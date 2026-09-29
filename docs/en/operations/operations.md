@@ -54,7 +54,7 @@ Both models detect the language themselves. Without internet access, place the m
 
 ## Push notifications
 
-When an agent asks a question, replies in a conversation, or finishes or fails a task that came from a message, the people involved get a notification: whoever wrote in that agent's conversation in the last two weeks, the person the task came from, and, for a question, the agent's human supervisor. What somebody has already read is not announced. The iPhone and Android apps receive them through Firebase Cloud Messaging, which passes an iPhone's notification on to Apple; the Mac app shows them itself while it runs.
+When an agent asks a question, replies in a conversation, or finishes or fails a task that came from a message, the people involved get a notification: whoever wrote in that agent's conversation in the last two weeks, the person the task came from, and, for a question, the agent's human supervisor. What somebody has already read is not announced. The iPhone and Android apps receive them through Firebase Cloud Messaging, which passes an iPhone's notification on to Apple; the Mac app shows them itself while it runs. The Windows app gets none.
 
 Google delivers to the app only for whoever holds a service account of the app's Firebase project, and Firebase reaches the iPhone only with the APNs key that whoever ships the app has uploaded to that project (Firebase console, Project settings, Cloud Messaging, Apple app configuration). The instance itself needs no Apple key. It is configured under **Platform → Push**, by an installation administrator, and a change applies within seconds, without a restart:
 

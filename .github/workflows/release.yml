@@ -316,9 +316,10 @@ jobs:
           if [ -z "${MACOS_SIGNING_IDENTITY:-}" ]; then
             # Said where the download is: an unsigned app is refused by
             # Gatekeeper, and whoever meets that should find the way past it.
-            notes="$(gh release view "${GITHUB_REF_NAME}" --json body -q .body)"
-            printf '%s\n\n%s\n' "$notes" "**Mac app:** this build is not signed. After unpacking: right-click covey.app → Open, or \`xattr -dr com.apple.quarantine covey.app\`." \
-              | gh release edit "${GITHUB_REF_NAME}" --notes-file -
+            # Through release_note.sh, since the Windows job writes to the
+            # same notes at the same time.
+            sh mobile/tool/release_note.sh "${GITHUB_REF_NAME}" \
+              "**Mac app:** this build is not signed. After unpacking: right-click covey.app → Open, or \`xattr -dr com.apple.quarantine covey.app\`."
           fi
 
       - name: Aufräumen
@@ -326,6 +327,109 @@ jobs:
         run: |
           [ -n "${SIGNING_KEYCHAIN:-}" ] && security delete-keychain "$SIGNING_KEYCHAIN" || true
           rm -f "$RUNNER_TEMP/notary.p8"
+
+  # The Windows app (#436), attached to the same release. On Windows, because
+  # a Flutter build for Windows needs Visual Studio's C++ toolchain; the
+  # runner image carries it.
+  #
+  # A zip, not an installer: unpacked anywhere, the app runs, and on its
+  # first start it registers covey:// for the current user
+  # (mobile/windows/runner/url_scheme.cpp), which is all an installer would
+  # have done for it.
+  #
+  # Not code-signed — there is no certificate to sign with — and the release
+  # says so. No update feed either: the Mac app updates itself through
+  # Sparkle (#421), the Windows app has no such path (mobile/lib/updater.dart),
+  # so a new version is a new download.
+  windows-app:
+    needs: release
+    # Pinned like the Mac job's image: a new Visual Studio is a change of its
+    # own, not something a release picks up by the way.
+    runs-on: windows-2025
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.1"
+          channel: stable
+          cache: true
+
+      - name: Version
+        id: meta
+        run: |
+          set -eu
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            version="${GITHUB_REF_NAME}"
+          else
+            version="$(git describe --tags --always --dirty 2>/dev/null || echo dev)"
+          fi
+          # The file version has to be numbers, as on the Mac: v0.9.1 → 0.9.1,
+          # and a rehearsal between tags counts as 0.0.0.
+          build_name="$(printf '%s' "$version" | sed -n 's/^v\([0-9][0-9.]*\)$/\1/p')"
+          {
+            echo "version=${version}"
+            echo "build_name=${build_name:-0.0.0}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        working-directory: mobile
+        run: |
+          flutter build windows --release \
+            --build-name "${{ steps.meta.outputs.build_name }}" \
+            --build-number "${{ github.run_number }}"
+
+      # The folder's contents, not the folder: the executable sits at the top
+      # of the zip, beside the DLLs and data\ it needs. It does not start
+      # without them, so the zip is the unit, not the .exe.
+      - name: Pack
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = 'mobile\build\windows\x64\runner\Release'
+          if (-not (Test-Path "$release\covey_mobile.exe")) {
+            Get-ChildItem -Recurse 'mobile\build\windows' -Filter *.exe | ForEach-Object FullName
+            throw "No covey_mobile.exe in $release"
+          }
+          New-Item -ItemType Directory -Force dist-app | Out-Null
+          Compress-Archive -Path "$release\*" -CompressionLevel Optimal `
+            -DestinationPath 'dist-app\covey-app_${{ steps.meta.outputs.version }}_windows.zip'
+
+      # In the format of the Mac zip's .sha256, which `sha256sum -c` checks.
+      - name: Checksum
+        run: |
+          set -eu
+          cd dist-app
+          zip="covey-app_${{ steps.meta.outputs.version }}_windows.zip"
+          sha256sum "$zip" > "$zip.sha256"
+          cat "$zip.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: covey-app-windows
+          path: dist-app/
+          retention-days: 7
+
+      # Only on a real tag, like the release job; that job has created the
+      # release by now (needs: release).
+      - name: Publish
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          gh release upload "${GITHUB_REF_NAME}" dist-app/* --clobber
+          # Said where the download is, as for the unsigned Mac app: SmartScreen
+          # stops an unsigned program from the internet on its first start,
+          # and whoever meets that should find the way past it. Plain ASCII,
+          # since release_note.sh finds the note again by comparing bytes.
+          sh mobile/tool/release_note.sh "${GITHUB_REF_NAME}" \
+            "**Windows app:** this build is not code-signed. After unpacking, start covey_mobile.exe; SmartScreen asks on the first start: choose More info, then Run anyway."
 
   # The iPhone app (#429): built on the same tag and, with the means below,
   # signed for the App Store and uploaded to App Store Connect, where

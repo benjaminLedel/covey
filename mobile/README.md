@@ -29,9 +29,50 @@ cannot write.
 
 On a desktop the app has no scanner: it pairs through “Open in the app” on the
 web's pairing card (a `covey://` link), and a wide window shows the list and
-the thread side by side. macOS builds here; Windows and Linux are scaffolded
-and need their `covey://` registration at install time (registry, `.desktop`
-file) once there is an installer.
+the thread side by side. macOS and Windows are built with every release;
+Linux is scaffolded and needs its `covey://` registration (a `.desktop` file)
+once there is a package.
+
+## The desktop apps
+
+Both are built by `.github/workflows/release.yml` on a `v*` tag and attached
+to that release, which is where the web's apps dialog links to (the release
+of the instance's own version). Started by hand, the workflow is a rehearsal:
+it builds and keeps the files on the run, and publishes nothing.
+
+- **Mac** (#406): `covey-app_<version>_macos.zip`, signed and notarised when
+  the repository holds the certificate, and updating itself through Sparkle
+  (#421). `tool/macos_release.sh` packs it.
+- **Windows** (#436): `covey-app_<version>_windows.zip`, the contents of
+  `build/windows/x64/runner/Release` — `covey_mobile.exe` with its DLLs and
+  `data\`. It needs no installer: unpacked anywhere, it runs. It is **not
+  code-signed**, so SmartScreen asks on the first start (More info → Run
+  anyway), and it does not update itself; a new version is a new download.
+  Built locally with `flutter build windows --release` on a Windows machine
+  with Visual Studio's C++ workload.
+
+On every start the Windows app checks that `covey://` is registered for the
+current user (`HKEY_CURRENT_USER\Software\Classes\covey`, no administrator
+rights) and points at its own executable, and writes the entry when it is
+missing or points at another copy — after the folder was moved, the copy
+started last wins (`windows/runner/url_scheme.cpp`). A link opens a second
+process that hands it to the running window and ends (the app_links plugin's
+`SendAppLinkToInstance`, `windows/runner/main.cpp`), so there is one window;
+a plain second start brings that window forward. To remove the registration,
+delete that key.
+
+What the Windows app does not have, since each is built on macOS APIs:
+
+- notifications — the Mac app shows them itself while it runs (#379); on
+  Windows there are none
+- dictate anywhere, the global shortcut (#355)
+- the activity log (#363)
+- recording the computer's own audio beside the microphone in a note (#364)
+- updating itself (#421)
+- the unified title bar (#356); Windows keeps its own
+
+Dictation inside the app uses sherpa-onnx and `record`, both of which ship
+for Windows.
 
 ## Working on it
 

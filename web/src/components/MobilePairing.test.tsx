@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import MobilePairing, { appLink, macAppLink, pairingPayload } from "./MobilePairing";
+import MobilePairing, { appLink, desktopAppLink, pairingPayload } from "./MobilePairing";
 import { mockFetch, useGerman } from "../test/render";
 
 beforeEach(() => useGerman());
@@ -15,15 +15,19 @@ const renderCard = () =>
 
 describe("MobilePairing (#330)", () => {
   it("bietet die Mac-App aus dem Release der eigenen Version an (#408)", () => {
-    expect(macAppLink("https://github.com/benjaminLedel/covey", "v0.9.0")).toBe(
+    expect(desktopAppLink("https://github.com/benjaminLedel/covey", "v0.9.0", "macos")).toBe(
       "https://github.com/benjaminLedel/covey/releases/download/v0.9.0/covey-app_v0.9.0_macos.zip",
     );
+    // The Windows app from the same release (#436).
+    expect(desktopAppLink("https://github.com/benjaminLedel/covey", "v0.9.0", "windows")).toBe(
+      "https://github.com/benjaminLedel/covey/releases/download/v0.9.0/covey-app_v0.9.0_windows.zip",
+    );
     // Between tags there is no release of its own: the latest one.
-    expect(macAppLink("https://github.com/benjaminLedel/covey/", "v0.8.9-154-g7ca91cd8")).toBe(
+    expect(desktopAppLink("https://github.com/benjaminLedel/covey/", "v0.8.9-154-g7ca91cd8", "windows")).toBe(
       "https://github.com/benjaminLedel/covey/releases/latest",
     );
     // A fork elsewhere gets no link rather than a wrong one.
-    expect(macAppLink("https://git.example.org/team/covey", "v0.9.0")).toBeNull();
+    expect(desktopAppLink("https://git.example.org/team/covey", "v0.9.0", "macos")).toBeNull();
   });
 
   it("zeigt den Download auf der Karte", async () => {
