@@ -2,6 +2,8 @@ package integration
 
 import (
 	"context"
+	"encoding/json"
+	"io/fs"
 	"net/http"
 	"strings"
 	"testing"
@@ -10,7 +12,9 @@ import (
 	"github.com/google/uuid"
 
 	"covey/internal/backlog"
+	"covey/internal/guardrails"
 	"covey/internal/llm"
+	"covey/migrations"
 )
 
 // builtVoice is a voice measured from the test corpus: assignable without a
@@ -308,4 +312,86 @@ func voiceEvent(t *testing.T, s *stack, taskID uuid.UUID) map[string]any {
 		t.Fatalf("no voice in the recording: %v", err)
 	}
 	return ev
+}
+
+// 0122 moves the one voice an agent carried into its two outward slots and
+// leaves the chat slot empty. Its data step, taken from the migration file
+// itself and run once more over an agent with a voice_id — not a migration
+// down and up, which would stop testing 0122 as soon as a newer one exists.
+func TestTheOneVoiceMovesIntoTheOutwardSlots(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	agent := s.newSupportAgent("umzug")
+	id := builtVoice(t, admin, "Altstimme")
+
+	raw, err := fs.ReadFile(migrations.FS, "0122_voice_occasions.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sql := string(raw)
+	start := strings.Index(sql, "INSERT INTO voice_assignments")
+	end := strings.Index(sql[start:], ";")
+	if start < 0 || end < 0 {
+		t.Fatal("the data step of 0122 is not where the test looks for it")
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE agents SET voice_id=$2 WHERE id=$1`, agent.ID, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.pool.Exec(ctx, sql[start:start+end]); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := s.pool.Query(ctx, `SELECT occasion FROM voice_assignments WHERE agent_id=$1 AND voice_id=$2 ORDER BY occasion`, agent.ID, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var occs []string
+	for rows.Next() {
+		var o string
+		if err := rows.Scan(&o); err != nil {
+			t.Fatal(err)
+		}
+		occs = append(occs, o)
+	}
+	if strings.Join(occs, ",") != "customers,publications" {
+		t.Fatalf("the one voice goes into customers and publications, the chat stays empty: %v", occs)
+	}
+}
+
+// The style gate measures against the voice the task's outward occasion
+// resolves to — here the agent's customers slot, with no TONE.md in the
+// config at all. Without the slot the gate would record that it had no
+// profile.
+func TestTheStyleGateReadsTheOutwardVoice(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	agent := s.newSupportAgent("aussenstimme")
+	id := builtVoice(t, admin, "Aussenstimme")
+	admin.expect(http.MethodPut, "/api/v1/agents/"+agent.ID.String()+"/voices", map[string]any{"customers": id}, http.StatusOK)
+	if _, err := s.rails.Create(ctx, guardrails.Rule{
+		OrgID: s.orgID, ScopeLevel: "global", RuleType: guardrails.RuleStyleGate,
+		Pattern: "covey:*", Enabled: true, Params: json.RawMessage(`{"mode":"warn","min_words":40}`),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	params, _ := json.Marshal(map[string]any{"title": "Mit Stimme", "body": styleGenericBody})
+	task, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Schreiben",
+		"[mock:action covey/create_task "+string(params)+"]\n[mock:result fertig]", "manual", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "task done", 30*time.Second, func() bool {
+		return s.taskState(task.ID) == backlog.StateDone
+	})
+	var skipped int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM recording_events
+		WHERE agent_id=$1 AND kind='guardrail' AND payload->>'rule'='style_gate' AND payload->>'decision'='skipped'`,
+		agent.ID).Scan(&skipped); err != nil {
+		t.Fatal(err)
+	}
+	if skipped != 0 {
+		t.Fatalf("the gate has to find the customers voice's profile, it skipped %d times", skipped)
+	}
 }
