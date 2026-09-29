@@ -25,7 +25,7 @@ For the moment a company runs more than one agent and somebody asks who has actu
 
 This is also where the line against an agent framework runs, and it is narrower than it sounds. **covey does not replace a framework, it operates one.** Who the agent is, what it may reach, when it runs and what it keeps are all covey's to set: `SOUL.md` is compiled into the system prompt, `HEARTBEAT.md` sets the cadence, `ACCESS.md` the access, the wiki the memory. That is the same surface LangChain or CrewAI claim, and talking it away would be dishonest.
 
-What covey does not do is drive the **model loop** — sit between the model and the tool call and decide the next step. That is the runtime's job ([Core concepts](core-concepts.md)), and because it stays there, the runtime hangs off a thin adapter and is replaceable. The first one is [Claude Code headless](architecture.md).
+What covey does not do is drive the **model loop** — sit between the model and the tool call and decide the next step. That is the runtime's job ([Core concepts](core-concepts.md)), and because it stays there, the runtime hangs off a thin adapter and is replaceable. The first one is Claude Code headless; the others are listed under [Runtimes and engines](../concepts/runtimes.md).
 
 ## The organisation is the unit, not the user
 

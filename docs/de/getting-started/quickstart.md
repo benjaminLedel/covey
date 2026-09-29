@@ -55,7 +55,7 @@ Zwei Dinge tragen dabei die Sandbox-Isolation und gehen beim Anpassen leicht ver
 
 ## Der erste Agent
 
-Nach dem Login führt die **Einrichtung** durch drei Fragen, jede überspringbar: die Engine und ihr Zugang — bei Claude Code das Secret `anthropic_api_key` (API-Schlüssel) oder `claude_code_oauth_token` (Abo-Konto, Token einmalig mit `claude setup-token` erzeugen), geprüft bevor er gespeichert wird —, dann drei Sätze darüber, was Ihr Unternehmen macht, und zuletzt die **Personalabteilung**: ein Agent, dessen Aufgabe es ist, die anderen zu entwerfen.
+Nach dem Login führt die **Einrichtung** durch drei Fragen, jede überspringbar: die Engine und ihr Zugang — bei Claude Code das Secret `anthropic_api_key` (API-Schlüssel) oder `claude_code_oauth_token` (Abo-Konto, Token einmalig mit `claude setup-token` erzeugen), geprüft bevor er gespeichert wird; die anderen Engines stehen unter [Runtimes und Engines](../concepts/runtimes.md) —, dann drei Sätze darüber, was Ihr Unternehmen macht, und zuletzt die **Personalabteilung**: ein Agent, dessen Aufgabe es ist, die anderen zu entwerfen.
 
 Danach ist *Neuer Agent → Ausschreibung* der kürzeste Weg zur ersten Kollegin: in ein paar Sätzen beschreiben, was sie tun soll. Was dabei herauskommt, ist ein **Entwurf** — er arbeitet erst, wenn Sie ihn einstellen. Der Demo-Agent, der nach dem Login bereitsteht, ist bereits eingestellt und läuft, sobald der Zugang steht.
 

@@ -111,9 +111,10 @@ of which may be skipped:
 1. **Engine and credential.** Which engine your agents think on, and the
    credential for it — for Claude Code an API key or a subscription token
    (generate the latter once with `claude setup-token`); for Codex an API key or
-   the contents of `~/.codex/auth.json`. The value is checked against the
-   provider before it is stored, and the seat (runtime) is created around
-   it. Without this every task fails with "Not logged in", because the sandbox
+   the contents of `~/.codex/auth.json`; the other engines and what each needs
+   are on [Runtimes and engines](../concepts/runtimes.md). A Claude Code
+   credential is checked against Anthropic before it is stored, and the seat
+   (runtime) is created around it. Without this every task fails with "Not logged in", because the sandbox
    has its own empty `HOME`.
 2. **What your company does.** Three to five sentences. They stay on the
    organisation and go into every hiring brief, into the configuration of newly

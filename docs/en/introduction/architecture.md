@@ -6,7 +6,7 @@ faq:
   - q: Does covey need Redis, RabbitMQ or Kafka?
     a: No. The queue is `SELECT … FOR UPDATE SKIP LOCKED`, the notification is `LISTEN/NOTIFY`, the vector search is `pgvector` — all in the same Postgres instance. A broker would be a second service with its own failure modes for something the database already does.
   - q: Can I use a runtime other than Claude Code?
-    a: 'Structurally, yes: runtimes hang off a registry as plugins and speak the daemon protocol through a thin adapter. What ships today is Claude Code headless, plus a mock runtime for tests and demos without model cost.'
+    a: 'Structurally, yes: runtimes hang off a registry as plugins and speak the daemon protocol through a thin adapter. What ships today is Claude Code headless, Codex (declared, its run not yet verified), SevenCode and educa AI, plus a mock runtime for tests and demos without model cost — see Runtimes and engines.'
   - q: Why does the sandbox run in Docker rather than as a subprocess?
     a: Because process isolation is not isolation once an agent executes tools. The container gives you namespaces, its own filesystem and a controllable way out to the network. There used to be a local provider; it was removed so nobody goes to production without isolation by accident.
   - q: How does covey scale beyond one machine?
@@ -33,7 +33,7 @@ From that follows the operating rule: lose a sandbox and it is rebuilt from conf
 
 A bidirectional protocol over WebSocket runs between control plane and sandbox. It carries the assignment in, tool calls and results out, approval requests in both directions, and at the end tokens and cost.
 
-The runtime behind it is swappable because it does not know the protocol — a thin adapter sits in between. The first one is Claude Code headless (`claude -p`); another changes nothing about the platform as long as it speaks the same messages.
+The runtime behind it is swappable because it does not know the protocol — a thin adapter sits in between. The first one is Claude Code headless (`claude -p`); Codex, SevenCode and educa AI followed without changing the platform, because each speaks the same messages ([Runtimes and engines](../concepts/runtimes.md)).
 
 ## Why the sandbox is a sibling container
 
