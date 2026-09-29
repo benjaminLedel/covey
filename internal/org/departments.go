@@ -19,18 +19,24 @@ type DeptLead struct {
 }
 
 type Department struct {
-	ID          uuid.UUID  `json:"id"`
-	OrgID       uuid.UUID  `json:"org_id"`
-	Name        string     `json:"name"`
-	Description string     `json:"description"`
-	Color       string     `json:"color"` // hex accent color, empty = default
-	Leads       []DeptLead `json:"leads"`
-	CreatedAt   time.Time  `json:"created_at"`
+	ID          uuid.UUID `json:"id"`
+	OrgID       uuid.UUID `json:"org_id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Color       string    `json:"color"` // hex accent color, empty = default
+	// AudienceNote is how the department wants to be spoken to (#471): one
+	// line added to whatever an agent writes to somebody of it.
+	AudienceNote string `json:"audience_note"`
+	// Voices are the voices the department names per occasion (chat,
+	// customers, publications), by id; a missing occasion is empty.
+	Voices    map[string]uuid.UUID `json:"voices"`
+	Leads     []DeptLead           `json:"leads"`
+	CreatedAt time.Time            `json:"created_at"`
 }
 
 func (s *Store) ListDepartments(ctx context.Context, orgID uuid.UUID) ([]Department, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, org_id, name, description, color, created_at FROM departments WHERE org_id=$1 ORDER BY name`,
+		`SELECT id, org_id, name, description, color, audience_note, created_at FROM departments WHERE org_id=$1 ORDER BY name`,
 		orgID)
 	if err != nil {
 		return nil, err
@@ -39,10 +45,11 @@ func (s *Store) ListDepartments(ctx context.Context, orgID uuid.UUID) ([]Departm
 	var list []Department
 	for rows.Next() {
 		var d Department
-		if err := rows.Scan(&d.ID, &d.OrgID, &d.Name, &d.Description, &d.Color, &d.CreatedAt); err != nil {
+		if err := rows.Scan(&d.ID, &d.OrgID, &d.Name, &d.Description, &d.Color, &d.AudienceNote, &d.CreatedAt); err != nil {
 			return nil, err
 		}
 		d.Leads = []DeptLead{}
+		d.Voices = map[string]uuid.UUID{}
 		list = append(list, d)
 	}
 	if err := rows.Err(); err != nil {
@@ -56,6 +63,23 @@ func (s *Store) ListDepartments(ctx context.Context, orgID uuid.UUID) ([]Departm
 	for i := range list {
 		byID[list[i].ID] = &list[i]
 	}
+	voiceRows, err := s.pool.Query(ctx,
+		`SELECT department_id, occasion, voice_id FROM voice_assignments WHERE org_id=$1 AND department_id IS NOT NULL`, orgID)
+	if err != nil {
+		return nil, err
+	}
+	for voiceRows.Next() {
+		var deptID, voiceID uuid.UUID
+		var occ string
+		if err := voiceRows.Scan(&deptID, &occ, &voiceID); err != nil {
+			voiceRows.Close()
+			return nil, err
+		}
+		if d := byID[deptID]; d != nil {
+			d.Voices[occ] = voiceID
+		}
+	}
+	voiceRows.Close()
 	leadRows, err := s.pool.Query(ctx,
 		`SELECT dl.department_id, dl.human_id, dl.agent_id
 		 FROM department_leads dl JOIN departments d ON d.id = dl.department_id
@@ -86,8 +110,8 @@ func (s *Store) ListDepartments(ctx context.Context, orgID uuid.UUID) ([]Departm
 func (s *Store) GetDepartment(ctx context.Context, orgID, id uuid.UUID) (Department, error) {
 	var d Department
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, org_id, name, description, color, created_at FROM departments WHERE id=$1 AND org_id=$2`,
-		id, orgID).Scan(&d.ID, &d.OrgID, &d.Name, &d.Description, &d.Color, &d.CreatedAt)
+		`SELECT id, org_id, name, description, color, audience_note, created_at FROM departments WHERE id=$1 AND org_id=$2`,
+		id, orgID).Scan(&d.ID, &d.OrgID, &d.Name, &d.Description, &d.Color, &d.AudienceNote, &d.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Department{}, ErrDeptNotFound
 	}
@@ -99,11 +123,38 @@ func (s *Store) CreateDepartment(ctx context.Context, orgID uuid.UUID, name, des
 	if name == "" {
 		return Department{}, errors.New("name is required")
 	}
-	d := Department{OrgID: orgID, Name: name, Description: strings.TrimSpace(description), Color: color}
+	d := Department{OrgID: orgID, Name: name, Description: strings.TrimSpace(description), Color: color,
+		Leads: []DeptLead{}, Voices: map[string]uuid.UUID{}}
 	err := s.pool.QueryRow(ctx,
 		`INSERT INTO departments (org_id, name, description, color) VALUES ($1,$2,$3,$4) RETURNING id, created_at`,
 		orgID, d.Name, d.Description, d.Color).Scan(&d.ID, &d.CreatedAt)
 	return d, err
+}
+
+// AudienceNoteMax bounds a department's audience note (#471): a line, not a
+// style guide — it stands in every turn that speaks to somebody of it.
+const AudienceNoteMax = 400
+
+// ErrAudienceNoteTooLong is the caller's mistake, answered with a 400.
+var ErrAudienceNoteTooLong = errors.New("the audience note is at most 400 characters")
+
+// SetDepartmentAudience sets how the department wants to be spoken to; empty
+// removes the line. Whitespace is collapsed: the note is read inside a prompt
+// line, where a paragraph break would read as a new instruction.
+func (s *Store) SetDepartmentAudience(ctx context.Context, orgID, id uuid.UUID, note string) (string, error) {
+	note = strings.Join(strings.Fields(note), " ")
+	if len([]rune(note)) > AudienceNoteMax {
+		return "", ErrAudienceNoteTooLong
+	}
+	tag, err := s.pool.Exec(ctx,
+		`UPDATE departments SET audience_note=$1 WHERE id=$2 AND org_id=$3`, note, id, orgID)
+	if err != nil {
+		return "", err
+	}
+	if tag.RowsAffected() == 0 {
+		return "", ErrDeptNotFound
+	}
+	return note, nil
 }
 
 // SetDepartmentColor sets the accent color; empty restores the default.

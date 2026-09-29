@@ -273,6 +273,10 @@ type PreviewInput struct {
 	ChatTone ChatTone
 	Topic    string
 	Kind     string
+	// Audience is the "how to speak with us" block of the department the
+	// sample is written to (AudiencePrompt, #471); empty for nobody in
+	// particular.
+	Audience string
 }
 
 // DefaultKind is the kind of sample that fits a purpose.
@@ -318,6 +322,9 @@ func PreviewPrompt(in PreviewInput) string {
 		if p := in.ChatTone.Prompt(); p != "" {
 			sb.WriteString(p + "\n")
 		}
+	}
+	if a := strings.TrimSpace(in.Audience); a != "" {
+		sb.WriteString(a + "\n")
 	}
 	return sb.String()
 }

@@ -781,6 +781,16 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/voices/{id}/corrections", s.rbac(manage, s.handleAddVoiceCorrection))
 	mux.Handle("DELETE /api/v1/voices/{id}/corrections/{correctionID}", s.rbac(manage, s.handleDeleteVoiceCorrection))
 	mux.Handle("PUT /api/v1/agents/{id}/voice", s.agentScoped(manage, s.handleSetAgentVoice))
+	// Voices per occasion, chosen by who is spoken to (#471): the agent's
+	// slots, the organisation's defaults, a department's line and voices,
+	// and the table of who gets what.
+	mux.Handle("GET /api/v1/agents/{id}/voices", s.agentScoped(anyRole, s.handleGetAgentVoices))
+	mux.Handle("PUT /api/v1/agents/{id}/voices", s.agentScoped(manage, s.handleSetAgentVoices))
+	mux.Handle("GET /api/v1/org/voices", s.rbac(anyRole, s.handleGetOrgVoices))
+	mux.Handle("PATCH /api/v1/org/voices", s.rbac(manage, s.handleSetOrgVoices))
+	mux.Handle("PATCH /api/v1/departments/{id}/audience", s.rbac(manage, s.handleSetDepartmentAudience))
+	mux.Handle("PUT /api/v1/departments/{id}/voices", s.rbac(manage, s.handleSetDepartmentVoices))
+	mux.Handle("GET /api/v1/voices/assignments", s.rbac(anyRole, s.handleVoiceAssignments))
 
 	// Template library.
 	mux.Handle("GET /api/v1/templates", s.rbac(anyRole, s.handleListTemplates))
