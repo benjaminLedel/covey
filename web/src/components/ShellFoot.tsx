@@ -140,7 +140,6 @@ export default function ShellFoot({
             {t("nav.apps")}
           </button>
           <div className="sep" />
-          <div className="foot-menu-sec">{t("theme.label")}</div>
           <ThemeSwitch />
           <LangPicker variant="menu" />
           <div className="sep" />
