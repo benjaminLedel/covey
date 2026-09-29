@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { Voice } from "../../api";
-import { deptSlotValues, parseReason, slotOptions, slotsBody, voiceAssignable } from "./occasions";
+import { chatVoice, deptSlotValues, parseReason, slotOptions, slotsBody, voiceAssignable } from "./occasions";
 
 // The few rules the voice-per-occasion screens apply themselves (#471): which
 // voices a slot offers, what a PUT carries, and how the server's short reason
@@ -73,5 +73,23 @@ describe("parseReason", () => {
   it("says nothing about what it does not know", () => {
     expect(parseReason("")).toBeNull();
     expect(parseReason("somebody×chat")).toBeNull();
+  });
+});
+
+describe("chatVoice", () => {
+  it("is nothing for a message without a voice", () => {
+    expect(chatVoice(undefined)).toBeNull();
+    expect(chatVoice({ voice_reason: "none×chat" })).toBeNull();
+  });
+
+  it("names the audience the lines came from, else the department whose voice was chosen", () => {
+    expect(chatVoice({ voice: "Klar", voice_reason: "department:Vertrieb×chat", audience: "Vertrieb, Einkauf" })).toEqual({
+      voice: "Klar",
+      audience: "Vertrieb, Einkauf",
+      level: "department",
+      department: "Vertrieb",
+    });
+    expect(chatVoice({ voice: "Klar", voice_reason: "department:Vertrieb×chat" })?.audience).toBe("Vertrieb");
+    expect(chatVoice({ voice: "Klar", voice_reason: "org×chat" })).toEqual({ voice: "Klar", audience: "", level: "org", department: undefined });
   });
 });

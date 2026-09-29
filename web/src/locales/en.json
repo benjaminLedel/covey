@@ -1622,7 +1622,9 @@
       },
       "previewFor": "Written to",
       "previewForNone": "— nobody in particular —",
-      "previewForDept": "to {{name}}"
+      "previewForDept": "to {{name}}",
+      "chatVoice": "voice: {{voice}}",
+      "chatVoiceFor": "voice: {{voice}} · for {{audience}}"
     }
   },
   "skills": {

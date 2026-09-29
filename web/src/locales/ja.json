@@ -1622,7 +1622,9 @@
       },
       "previewFor": "宛先",
       "previewForNone": "— 特定の相手なし —",
-      "previewForDept": "{{name}} 宛て"
+      "previewForDept": "{{name}} 宛て",
+      "chatVoice": "ボイス: {{voice}}",
+      "chatVoiceFor": "ボイス: {{voice}} · {{audience}} 向け"
     }
   },
   "skills": {

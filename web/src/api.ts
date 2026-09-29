@@ -281,6 +281,10 @@ export type ConversationMessage = {
   task_title?: string;
   task_state?: string;
   report?: string;
+  /** What the platform notes about a message it wrote — for an agent's
+   *  answer the voice it spoke in and why (#471): voice, voice_id,
+   *  voice_reason, audience. */
+  meta?: Record<string, string>;
 };
 
 export type ConversationSummary = Conversation & {

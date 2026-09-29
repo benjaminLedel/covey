@@ -78,6 +78,28 @@ export function parseReason(reason: string): { level: Level; department?: string
   return null;
 }
 
+/* What a chat message says about its voice (meta from the server, #471):
+   the voice's name, whom it was written for, and why that voice. Null when
+   the message names no voice — an older one, or one from an instance
+   without voices. "For" is the departments whose lines went with the turn;
+   without any, the department whose voice was chosen. */
+export function chatVoice(meta: Record<string, string> | undefined): {
+  voice: string;
+  audience: string;
+  level: Level | null;
+  department?: string;
+} | null {
+  const voice = meta?.voice?.trim();
+  if (!voice) return null;
+  const why = parseReason(meta?.voice_reason ?? "");
+  return {
+    voice,
+    audience: meta?.audience?.trim() || why?.department || "",
+    level: why?.level ?? null,
+    department: why?.department,
+  };
+}
+
 /** Why a voice is in effect, in words: "organisation default", "department Sales". */
 export function levelText(t: TFunction, cell: Pick<Cell, "level" | "reason">): string {
   if (cell.level === "department") {

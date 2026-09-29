@@ -1622,7 +1622,9 @@
       },
       "previewFor": "Geschreven aan",
       "previewForNone": "— niemand in het bijzonder —",
-      "previewForDept": "aan {{name}}"
+      "previewForDept": "aan {{name}}",
+      "chatVoice": "stem: {{voice}}",
+      "chatVoiceFor": "stem: {{voice}} · voor {{audience}}"
     }
   },
   "skills": {

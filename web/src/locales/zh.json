@@ -1622,7 +1622,9 @@
       },
       "previewFor": "写给",
       "previewForNone": "— 无特定对象 —",
-      "previewForDept": "写给 {{name}}"
+      "previewForDept": "写给 {{name}}",
+      "chatVoice": "声音：{{voice}}",
+      "chatVoiceFor": "声音：{{voice}} · 面向 {{audience}}"
     }
   },
   "skills": {

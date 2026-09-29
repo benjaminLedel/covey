@@ -4704,6 +4704,7 @@
 .vo-usedby ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; }
 .vo-usedby li { display: inline-flex; align-items: baseline; gap: 6px; }
 .orgc-card .icon-btn.on { color: var(--text-accent); }
+.tm-blase-stimme { font-size: 11px; color: var(--text-muted); cursor: default; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 
 .vp { container-type: inline-size; }
 @container (max-width: 640px) {

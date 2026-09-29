@@ -20,6 +20,7 @@ import {
   type Principal,
 } from "../api";
 import { Markdown } from "../components/Markdown";
+import { chatVoice, levelText } from "../pages/voices/occasions";
 import { Avatar } from "../components/person";
 import { NavIcon } from "../components/navicons";
 import Kopf, { Stapel } from "./Kopf";
@@ -272,6 +273,7 @@ export default function Gespraech({ id, me }: { id: string; me: Principal }) {
                       {(m.kind === "question" || m.kind === "error") && (
                         <span className={`tm-blase-art a-${m.kind}`}>{t(`chat.kind.${m.kind}`)}</span>
                       )}
+                      {m.author_kind === "agent" && <StimmeHinweis meta={m.meta} />}
                       <time dateTime={m.created_at}>{uhr(m.created_at, i18n.language)}</time>
                     </div>
                   )}
@@ -425,5 +427,20 @@ function Mitglieder({ conv, me }: { conv: Conversation; me: Principal }) {
       </div>
       {(neu.isError || raus.isError) && <p className="tm-fehler">{String(neu.error ?? raus.error)}</p>}
     </section>
+  );
+}
+
+/* The voice an agent's answer spoke in, and for whom (#471): a small label in
+   the message head, the reason behind it on hover. Nothing when the message
+   names no voice. */
+function StimmeHinweis({ meta }: { meta?: Record<string, string> }) {
+  const { t } = useTranslation();
+  const v = chatVoice(meta);
+  if (!v) return null;
+  const why = v.level ? levelText(t, { level: v.level, reason: meta?.voice_reason ?? "" }) : "";
+  return (
+    <span className="tm-blase-stimme" title={why || undefined}>
+      {v.audience ? t("voices.occ.chatVoiceFor", { voice: v.voice, audience: v.audience }) : t("voices.occ.chatVoice", { voice: v.voice })}
+    </span>
   );
 }
