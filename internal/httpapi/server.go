@@ -384,6 +384,11 @@ func (s *Server) Handler() http.Handler {
 	// in it themselves.
 	mux.Handle("GET /api/v1/audit", s.rbac([]string{identity.RoleOrgAdmin,
 		identity.RoleSecurity, identity.RoleAuditor}, s.handleAuditLog))
+	// Conversations in the audit (#440): auditor and org admin read and
+	// export the conversations they are not in — nobody else does.
+	mux.Handle("GET /api/v1/audit/conversations", s.rbac(auditConversationRoles(), s.handleAuditConversations))
+	mux.Handle("GET /api/v1/audit/conversations/{id}", s.rbac(auditConversationRoles(), s.handleAuditConversation))
+	mux.Handle("GET /api/v1/audit/legacy-threads/{id}", s.rbac(auditConversationRoles(), s.handleAuditLegacyThread))
 	mux.Handle("GET /api/v1/onboarding", s.rbac(anyRole, s.handleOnboarding))
 	mux.Handle("GET /api/v1/agents", s.rbac(anyRole, s.handleListAgents))
 	mux.Handle("POST /api/v1/agents", s.rbac(manage, s.handleCreateAgent))
@@ -427,10 +432,20 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/agents/{id}/backlog", s.agentScoped(anyRole, s.handleBacklog))
 	mux.Handle("POST /api/v1/agents/{id}/tasks", s.agentScoped(manage, s.handleCreateTask))
 
-	// The chat (#298): a door into the backlog for somebody who only wants to
-	// hand over work. Reading is open to every role — it shows nothing that
-	// the agent page does not show; writing needs the same permission as
-	// creating a task by hand, because that is what it does.
+	// Conversations (#440): only members read and write. Every seat may talk
+	// to people; addressing an agent needs the right to create a task by
+	// hand, because that is what it can do (conversations.go).
+	mux.Handle("GET /api/v1/conversations", s.rbac(anyRole, s.handleListConversations))
+	mux.Handle("POST /api/v1/conversations", s.rbac(anyRole, s.handleCreateConversation))
+	mux.Handle("GET /api/v1/conversations/{id}", s.conversationScoped(s.handleGetConversation))
+	mux.Handle("GET /api/v1/conversations/{id}/messages", s.conversationScoped(s.handleConversationMessages))
+	mux.Handle("POST /api/v1/conversations/{id}/messages", s.conversationScoped(s.handlePostConversationMessage))
+	mux.Handle("POST /api/v1/conversations/{id}/read", s.conversationScoped(s.handleConversationRead))
+	mux.Handle("PATCH /api/v1/conversations/{id}/me", s.conversationScoped(s.handleConversationMe))
+	mux.Handle("POST /api/v1/conversations/{id}/members", s.conversationScoped(s.handleAddConversationMember))
+	mux.Handle("DELETE /api/v1/conversations/{id}/members/{kind}/{member}", s.conversationScoped(s.handleRemoveConversationMember))
+	// The chat with one agent (#298), since #440 an alias onto the person's
+	// direct conversation with it, so that the current app keeps working.
 	mux.Handle("GET /api/v1/agents/{id}/thread", s.agentScoped(anyRole, s.handleThread))
 	// What a person has not read yet (#378): per agent, and the point up to
 	// which they have.
@@ -923,7 +938,7 @@ func mapErr(w http.ResponseWriter, err error) {
 		errors.Is(err, runtimes.ErrNotFound), errors.Is(err, templates.ErrNotFound),
 		errors.Is(err, skills.ErrNotFound), errors.Is(err, workplaces.ErrNotFound),
 		errors.Is(err, targetstore.ErrNotFound), errors.Is(err, sandboxfs.ErrNotFound),
-		errors.Is(err, marketplace.ErrNotFound),
+		errors.Is(err, marketplace.ErrNotFound), errors.Is(err, chat.ErrNotFound),
 		errors.Is(err, pgx.ErrNoRows):
 		writeErr(w, http.StatusNotFound, "not found")
 	case errors.Is(err, backlog.ErrInvalidTransition),

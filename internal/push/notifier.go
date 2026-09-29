@@ -57,15 +57,19 @@ func (n *Notifier) Run(ctx context.Context) {
 }
 
 type event struct {
-	key     string
-	orgID   uuid.UUID
-	agentID uuid.UUID
-	taskID  *uuid.UUID
-	at      time.Time
-	text    string
-	kind    string
-	name    string
-	preview bool
+	key            string
+	orgID          uuid.UUID
+	conversationID uuid.UUID
+	authorKind     string
+	authorID       *uuid.UUID
+	at             time.Time
+	text           string
+	kind           string
+	name           string
+	preview        bool
+	// agentID is the agent of a direct conversation with one — where the
+	// app opens the thread. Empty for anything else.
+	agentID string
 }
 
 // Round pushes what is new and answers how many notifications went out.
@@ -84,7 +88,7 @@ func (n *Notifier) Round(ctx context.Context) (int, error) {
 		return 0, err
 	}
 	sent := 0
-	threads := chat.New(n.Pool)
+	conversations := chat.New(n.Pool)
 	for _, ev := range evs {
 		humans, err := n.recipients(ctx, ev)
 		if err != nil {
@@ -95,17 +99,12 @@ func (n *Notifier) Round(ctx context.Context) (int, error) {
 			if err != nil || len(devices) == 0 {
 				continue
 			}
-			badge := 0
-			if ts, err := threads.Threads(ctx, ev.orgID, h); err == nil {
-				for _, t := range ts {
-					badge += t.Unread
-				}
-			}
+			badge, _ := conversations.Unread(ctx, h)
 			for _, d := range devices {
 				title, body := Compose(d.lang, ev.kind, ev.name, FirstLine(ev.text, MaxBody), ev.preview)
 				m := Message{
 					Token: d.token, Platform: d.platform, Environment: d.env, Title: title, Body: body, Badge: badge,
-					AgentID: ev.agentID.String(), Sound: SoundFor(d.sound, ev.kind),
+					AgentID: ev.agentID, Sound: SoundFor(d.sound, ev.kind),
 				}
 				switch err := sender.Send(ctx, m); {
 				case errors.Is(err, ErrGone):
@@ -151,51 +150,41 @@ func (n *Notifier) claim(ctx context.Context) ([]event, error) {
 	if !to.After(from) {
 		return nil, nil
 	}
-	// Results and errors of tasks that came from somebody's message; a
-	// schedule's hourly run is nobody's news. Questions whatever their
-	// origin: they hold an agent still until a person answers.
-	rows, err := tx.Query(ctx, `WITH ev AS (
-		SELECT 'answer:' || m.id AS key, m.org_id, m.agent_id, NULL::uuid AS task_id, m.created_at AS at, m.text, 'answer' AS kind
-		  FROM chat_messages m
-		 WHERE m.author = 'agent' AND m.created_at > $1 AND m.created_at <= $2
-		UNION ALL
-		SELECT 'question:' || tr.id, t.org_id, t.agent_id, t.id, tr.created_at, coalesce(tr.note, ''), 'question'
-		  FROM task_transitions tr JOIN backlog_tasks t ON t.id = tr.task_id
-		 WHERE tr.to_state = 'blocked' AND tr.created_at > $1 AND tr.created_at <= $2
-		UNION ALL
-		/* With the triage on, a chat task's result is told in the chat
-		   (#411): the notification waits for that and carries the sentence,
-		   not the report. said_at is set even when there was nothing to tell
-		   with, and then the report goes out as before. */
-		SELECT 'result:' || t.id, t.org_id, t.agent_id, t.id,
-		       CASE WHEN o2.chat_triage = 'on' THEN t.said_at ELSE t.updated_at END,
-		       coalesce(nullif(t.said, ''), t.result), 'result'
-		  FROM backlog_tasks t JOIN organizations o2 ON o2.id = t.org_id
-		 WHERE t.state = 'done' AND coalesce(t.result, '') <> '' AND t.origin LIKE 'chat:%'
-		   AND CASE WHEN o2.chat_triage = 'on' THEN t.said_at ELSE t.updated_at END > $1
-		   AND CASE WHEN o2.chat_triage = 'on' THEN t.said_at ELSE t.updated_at END <= $2
-		UNION ALL
-		SELECT 'error:' || t.id, t.org_id, t.agent_id, t.id,
-		       CASE WHEN o2.chat_triage = 'on' THEN t.said_at ELSE t.updated_at END,
-		       coalesce(nullif(t.said, ''), t.error), 'error'
-		  FROM backlog_tasks t JOIN organizations o2 ON o2.id = t.org_id
-		 WHERE t.state = 'failed' AND coalesce(t.error, '') <> '' AND t.origin LIKE 'chat:%'
-		   AND CASE WHEN o2.chat_triage = 'on' THEN t.said_at ELSE t.updated_at END > $1
-		   AND CASE WHEN o2.chat_triage = 'on' THEN t.said_at ELSE t.updated_at END <= $2
-	)
-	SELECT ev.key, ev.org_id, ev.agent_id, ev.task_id, ev.at, ev.text, ev.kind, a.display_name, o.push_preview
-	  FROM ev JOIN agents a ON a.id = ev.agent_id JOIN organizations o ON o.id = ev.org_id
-	 WHERE NOT EXISTS (SELECT 1 FROM push_sent s WHERE s.key = ev.key)
-	 ORDER BY ev.at`, from, to)
+	/* Every message of a conversation is news to its other members (#440) —
+	   and only messages: what a task reports back is a message in the
+	   conversation it came from, and the rest of the backlog is in no
+	   conversation and pushes nothing. A told result (#411) is written only
+	   once it is told, so the notification carries the sentence.
+
+	   The kind a notification says is the message's; a line somebody wrote
+	   reads as "replied", whoever wrote it. */
+	rows, err := tx.Query(ctx, `SELECT 'msg:' || m.id, m.org_id, m.conversation_id, m.author_kind, m.author_id,
+	       m.created_at, m.text, CASE WHEN m.kind = 'text' THEN 'answer' ELSE m.kind END,
+	       coalesce(h.display_name, a.display_name, ''), o.push_preview,
+	       CASE WHEN c.kind = 'direct' THEN (SELECT cm.member_id::text FROM conversation_members cm
+	            WHERE cm.conversation_id = c.id AND cm.member_kind = 'agent' LIMIT 1) END
+	  FROM conversation_messages m
+	  JOIN conversations c ON c.id = m.conversation_id
+	  JOIN organizations o ON o.id = m.org_id
+	  LEFT JOIN humans h ON m.author_kind = 'human' AND h.id = m.author_id
+	  LEFT JOIN agents a ON m.author_kind = 'agent' AND a.id = m.author_id
+	 WHERE m.created_at > $1 AND m.created_at <= $2
+	   AND NOT EXISTS (SELECT 1 FROM push_sent s WHERE s.key = 'msg:' || m.id)
+	 ORDER BY m.created_at`, from, to)
 	if err != nil {
 		return nil, err
 	}
 	var evs []event
 	for rows.Next() {
 		var e event
-		if err := rows.Scan(&e.key, &e.orgID, &e.agentID, &e.taskID, &e.at, &e.text, &e.kind, &e.name, &e.preview); err != nil {
+		var agent *string
+		if err := rows.Scan(&e.key, &e.orgID, &e.conversationID, &e.authorKind, &e.authorID, &e.at, &e.text, &e.kind,
+			&e.name, &e.preview, &agent); err != nil {
 			rows.Close()
 			return nil, err
+		}
+		if agent != nil {
+			e.agentID = *agent
 		}
 		evs = append(evs, e)
 	}
@@ -220,25 +209,16 @@ func (n *Notifier) claim(ctx context.Context) ([]event, error) {
 	return evs, tx.Commit(ctx)
 }
 
-// recipients are the people an entry concerns and who have not read it
-// yet: whoever wrote in the agent's thread in the last two weeks (for an
-// answer or a question), the person a task came from, and for a question the
-// agent's human supervisor.
+// recipients are the people a message concerns (#440): the conversation's
+// human members, except its author, except who muted the conversation, and
+// except who has read past it — with a device to send to.
 func (n *Notifier) recipients(ctx context.Context, ev event) ([]uuid.UUID, error) {
-	conversation := ev.kind == "answer" || ev.kind == "question"
-	rows, err := n.Pool.Query(ctx, `SELECT h.id FROM humans h
-		 WHERE h.org_id = $1
-		   AND (
-		        ($4 AND 'chat:' || h.email IN (
-		            SELECT author FROM chat_messages
-		             WHERE agent_id = $2 AND author LIKE 'chat:%' AND created_at > now() - interval '14 days'))
-		     OR ($3::uuid IS NOT NULL AND 'chat:' || h.email = (SELECT origin FROM backlog_tasks WHERE id = $3))
-		     OR ($5 = 'question' AND h.id = (SELECT supervisor_id FROM agents WHERE id = $2))
-		   )
-		   AND NOT EXISTS (SELECT 1 FROM chat_reads r
-		                    WHERE r.human_id = h.id AND r.agent_id = $2 AND r.read_at >= $6)
-		   AND EXISTS (SELECT 1 FROM push_devices d WHERE d.human_id = h.id)`,
-		ev.orgID, ev.agentID, ev.taskID, conversation, ev.kind, ev.at)
+	rows, err := n.Pool.Query(ctx, `SELECT cm.member_id FROM conversation_members cm
+		 WHERE cm.conversation_id = $1 AND cm.member_kind = 'human' AND cm.left_at IS NULL AND NOT cm.muted
+		   AND NOT ($2 = 'human' AND cm.member_id = $3::uuid)
+		   AND (cm.last_read_at IS NULL OR cm.last_read_at < $4)
+		   AND EXISTS (SELECT 1 FROM push_devices d WHERE d.human_id = cm.member_id)`,
+		ev.conversationID, ev.authorKind, ev.authorID, ev.at)
 	if err != nil {
 		return nil, err
 	}
