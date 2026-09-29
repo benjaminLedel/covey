@@ -132,7 +132,13 @@ function WhatTheAgentGets({ v }: { v: VoiceDetail }) {
       )}
       <section>
         <h2 className="vp-h">{t("voices.tone")}</h2>
-        {v.tone.trim() ? <pre className="mono vp-tone">{v.tone}</pre> : <p className="muted m-0">{t("voices.toneEmpty")}</p>}
+        {/* A voice nobody may carry yet gives an agent nothing: its TONE.md
+            would only say it was built from nothing. */}
+        {v.assignable && v.tone.trim() ? (
+          <pre className="mono vp-tone">{v.tone}</pre>
+        ) : (
+          <p className="muted m-0">{t("voices.toneEmpty")}</p>
+        )}
       </section>
     </div>
   );

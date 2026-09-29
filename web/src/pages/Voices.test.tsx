@@ -118,6 +118,13 @@ describe("a voice's page (#466)", () => {
     expect(await screen.findByText("Was Menschen geändert haben")).toBeInTheDocument();
     expect(screen.queryByRole("navigation", { name: "Schritte" })).toBeNull();
     fireEvent.click(screen.getByRole("tab", { name: "Was der Agent bekommt" }));
+    // A draft nobody may carry yet gives an agent nothing.
+    expect(await screen.findByText(/Noch nichts/)).toBeInTheDocument();
+  });
+
+  it("shows what the agent gets once the voice can be carried", async () => {
+    mockFetch(routes({ ...draft, released_card: draft.card, assignable: true }));
+    renderAt("/voices/v1?tab=tone");
     expect(await screen.findByText(/Kurz\./)).toBeInTheDocument();
   });
 });

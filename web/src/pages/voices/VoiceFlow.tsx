@@ -858,7 +858,12 @@ export function VoiceSteps({
             <button className="btn sm" disabled={i === 0} onClick={() => onPick(STEP_KEYS[i - 1])}>
               {t("voices.flow.back")}
             </button>
-            <span className="vf-nav-why">{blocker && at !== "release" ? t(`voices.flow.block.${blocker}`) : ""}</span>
+            {/* The reason belongs to the step on screen: once it is done,
+                Next only moves on, and a later step's blocker said here
+                reads as if this one were still missing something. */}
+            <span className="vf-nav-why">
+              {blocker && at !== "release" && step.status !== "done" ? t(`voices.flow.block.${blocker}`) : ""}
+            </span>
             {i < STEP_KEYS.length - 1 && (
               <button className="btn sm" onClick={() => onPick(STEP_KEYS[i + 1])}>
                 {t("voices.flow.next")}
