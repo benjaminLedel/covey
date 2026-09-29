@@ -104,7 +104,10 @@ sandbox**:
   line, not an exception to it: the backlog is covey's own object, reading it
   needs no credential and leaves nothing, and without it the agent can only
   guess at "what are you working on?". So there are three moves, not two —
-  answer, write onto a task that already exists, or open a new one. The short
+  answer, write onto a task that already exists, or open a new one. A note
+  stands at the task and is not seen in the conversation, so it carries a
+  reply that is posted there (#460), and a question about where a task
+  stands is an answer, not a note. The short
   id a note refers to is one the turn was shown; what the model says never
   becomes an identifier pointing at something it was not handed
 - **and the org chart, read only** (#415) — the same team of humans and
@@ -155,6 +158,7 @@ a model it says nothing, and the report stands on its own as before.
 
 - the triage's reply is always the JSON object, but a short chat line without any JSON is read as the answer rather than as a failed turn, so a greeting that the model answered with a bare emoji no longer becomes a task;
 - a task opened from a conversation is told at dispatch that its result is read out to the people there, so it carries the content itself; every other task keeps the summary for the record;
+- a request to act in a target system is a task even when the ticket is unknown; "I cannot see it" answers only a question about what already happened;
 - both turns are told that in a group the agent is one colleague among several: the author is named and addressed by first name, a greeting is answered as a greeting, nothing is said about tasks, runs or reports, nothing repeated that somebody already said, and less said than in a direct chat. A result that only records that something was done is not retold as such.
 
 How the agent talks there — address, tone, emoji and a line of free text — is part of its voice and has an organisation default ([`24`](24-voice.md)). An evaluation set of conversation scenarios with hard checks and a model-graded score (`internal/chat/testdata/eval`, `make eval-chat`) measures a change to these prompts.

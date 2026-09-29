@@ -94,14 +94,15 @@ func live(ctx context.Context, p llm.Provider, sc evalScenario) evalAusgabe {
 	if err != nil {
 		return evalAusgabe{Fehler: fmt.Errorf("triage failed, covey would open a task: %w", err)}
 	}
-	a := evalAusgabe{Aktion: e.Aktion, Endgueltig: e.Aktion, Text: e.Text}
+	a := ausgabe(e)
 	if e.Aktion == AktionSuche {
 		e2, err := zug(&Suche{Anfrage: e.Anfrage, Treffer: sc.SearchHits})
 		if err != nil {
 			a.Fehler = err
 			return a
 		}
-		a.Endgueltig, a.Text = e2.Aktion, e2.Text
+		zweiter := ausgabe(e2)
+		a.Endgueltig, a.Text = zweiter.Endgueltig, zweiter.Text
 	}
 	return a
 }
@@ -147,6 +148,8 @@ func richten(ctx context.Context, p llm.Provider, sc evalScenario, a evalAusgabe
 		fmt.Fprintf(&b, "New message from %s: %s\n", sc.Person.Name, sc.Message)
 		if a.Endgueltig == AktionAufgabe {
 			b.WriteString("The agent takes this on as work and first says in the chat:\n")
+		} else if a.Endgueltig == AktionNotiz {
+			b.WriteString("The agent adds this to the work it is already doing and says in the chat:\n")
 		} else {
 			b.WriteString("The agent answers in the chat:\n")
 		}
@@ -220,7 +223,7 @@ func TestEvalLive(t *testing.T) {
 		}
 		richt := "–"
 		// Only what is said in the chat is judged: a note goes onto the task.
-		gesprochen := sc.Kind == "narration" || a.Endgueltig == AktionAntwort || a.Endgueltig == AktionAufgabe
+		gesprochen := sc.Kind == "narration" || a.Endgueltig != AktionSuche
 		if a.Fehler == nil && gesprochen && strings.TrimSpace(a.Text) != "" {
 			if u, err := richten(ctx, p, sc, a); err == nil {
 				richt = fmt.Sprintf("%d — %s", u.Score, u.Reason)

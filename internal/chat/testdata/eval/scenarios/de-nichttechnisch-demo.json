@@ -54,7 +54,10 @@
       "1Gi",
       "Branch",
       "Pipeline",
-      "fix/demo-oom"
+      "fix/demo-oom",
+      "RAM",
+      "Container",
+      "Memory-Limit"
     ]
   },
   "recorded": "{\"action\":\"answer\",\"text\":\"Ja, läuft wieder seit heute Vormittag, für deinen Termin um drei passt das.\"}"

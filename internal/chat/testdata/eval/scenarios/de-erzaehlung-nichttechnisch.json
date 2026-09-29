@@ -54,7 +54,10 @@
       "1Gi",
       "Branch",
       "Pipeline",
-      "fix/demo-oom"
+      "fix/demo-oom",
+      "RAM",
+      "Container",
+      "Memory-Limit"
     ]
   },
   "recorded": "Die Demo läuft wieder. Ihr ging der Speicher aus, ich hab ihr mehr gegeben, damit sollte das nicht so schnell wieder passieren."
