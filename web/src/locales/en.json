@@ -1548,7 +1548,24 @@
       "describedPill": "described",
       "draftWaiting": "draft waiting",
       "describedNote": "Described, not measured — the style gate does not check against it.",
-      "exemplarsDescribed": "Written by a model from the description to show the voice, released with the card. They go into the prompt and cost tokens in every run."
+      "exemplarsDescribed": "Written by a model from the description to show the voice, released with the card. They go into the prompt and cost tokens in every run.",
+      "stepsNav": "Steps",
+      "stepOf": "Step {{n}} of {{total}}",
+      "noPurpose": "no purpose set",
+      "measured": "measured · build {{version}}",
+      "nothingYet": "nothing released yet",
+      "more": "More actions",
+      "editCard": "Edit card",
+      "showCard": "Show formatted",
+      "showAll": "Show all {{n}}",
+      "showFewer": "Show fewer",
+      "action": {
+        "purpose": "Choose a purpose",
+        "addTexts": "Add texts",
+        "build": "Build the voice",
+        "describe": "Write the voice",
+        "release": "Review and release"
+      }
     }
   },
   "skills": {

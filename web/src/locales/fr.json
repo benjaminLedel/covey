@@ -1548,7 +1548,24 @@
       "describedPill": "décrite",
       "draftWaiting": "brouillon en attente",
       "describedNote": "Décrite, pas mesurée — le contrôle de style ne s'y réfère pas.",
-      "exemplarsDescribed": "Écrits par un modèle à partir de la description pour montrer la voix, validés avec la fiche. Ils vont dans le prompt et coûtent des tokens à chaque exécution."
+      "exemplarsDescribed": "Écrits par un modèle à partir de la description pour montrer la voix, validés avec la fiche. Ils vont dans le prompt et coûtent des tokens à chaque exécution.",
+      "stepsNav": "Étapes",
+      "stepOf": "Étape {{n}} sur {{total}}",
+      "noPurpose": "aucun usage défini",
+      "measured": "mesurée · version {{version}}",
+      "nothingYet": "rien de validé pour l’instant",
+      "more": "Plus d’actions",
+      "editCard": "Modifier la fiche",
+      "showCard": "Afficher mis en forme",
+      "showAll": "Tout afficher ({{n}})",
+      "showFewer": "Afficher moins",
+      "action": {
+        "purpose": "Choisir un usage",
+        "addTexts": "Ajouter des textes",
+        "build": "Construire la voix",
+        "describe": "Faire écrire la voix",
+        "release": "Relire et valider"
+      }
     }
   },
   "skills": {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { VoiceDetail } from "../../api";
-import { blockerFor, currentStep, flowSteps, pendingDraft } from "./flow";
+import { blockerFor, currentStep, flowSteps, nextAction, pendingDraft, reachable, stepperStep, voiceStep } from "./flow";
 
 // The stepper's one promise: "Next" never leads into a dead end, and whatever
 // stands in the way is named. These pin the rule for the three sources.
@@ -106,5 +106,65 @@ describe("the voice flow", () => {
     const steps = flowSteps({ name: "S", purpose: "blog", source: "chat" });
     expect(status(steps).source).toBe("done");
     expect(blockerFor(steps, "material")).toBe("chat");
+  });
+});
+
+describe("where the page opens (#464)", () => {
+  const described = voice({ source: "described", card: "Die Hand.", draft_exemplars: [{ role: "opening", text: "x" }] });
+
+  it("an existing voice opens on the first step that needs attention", () => {
+    const empty = flowSteps({ name: "B", purpose: "blog", source: "texts", voice: voice() });
+    expect(voiceStep(empty, null)).toBe("material");
+    const draft = flowSteps({ name: "S", purpose: "chat", source: "described", voice: described });
+    expect(voiceStep(draft, null)).toBe("release");
+    // Nothing waits: the review is where a settled voice is read.
+    const settled = voice({ source: "described", card: "Alt.", released_card: "Alt.", released_at: "2026-09-29", exemplars: [{ role: "opening", text: "x" }] });
+    expect(voiceStep(flowSteps({ name: "S", purpose: "chat", source: "described", voice: settled }), null)).toBe("release");
+  });
+
+  it("an existing voice goes wherever the address says, and ignores what is no step", () => {
+    const draft = flowSteps({ name: "S", purpose: "chat", source: "described", voice: described });
+    expect(voiceStep(draft, "tone")).toBe("tone");
+    expect(voiceStep(draft, "purpose")).toBe("purpose");
+    expect(voiceStep(draft, "nonsense")).toBe("release");
+  });
+
+  it("a new voice cannot be addressed past what stands in the way", () => {
+    const blank = flowSteps({ name: "", purpose: "", source: "" });
+    expect(stepperStep(blank, "release", false)).toBe("purpose");
+    expect(reachable(blank, "source", false)).toBe(false);
+    const named = flowSteps({ name: "B", purpose: "blog", source: "" });
+    expect(stepperStep(named, "source", false)).toBe("source");
+    expect(stepperStep(named, "material", false)).toBe("source");
+  });
+
+  it("a created voice keeps its first two steps and reopens on its material", () => {
+    const steps = flowSteps({ name: "B", purpose: "blog", source: "texts", voice: voice() });
+    expect(stepperStep(steps, "purpose", true)).toBe("material");
+    expect(stepperStep(steps, "material", true)).toBe("material");
+    // The tone is optional, but the material before it is not done.
+    expect(stepperStep(steps, "tone", true)).toBe("material");
+    const written = flowSteps({ name: "S", purpose: "chat", source: "described", voice: described });
+    expect(stepperStep(written, "tone", true)).toBe("tone");
+  });
+});
+
+describe("the one next action (#464)", () => {
+  it("names what the voice waits for", () => {
+    expect(nextAction(flowSteps({ name: "B", purpose: "", source: "", voice: voice({ purpose: "" }) }))?.label).toBe("purpose");
+    expect(nextAction(flowSteps({ name: "B", purpose: "blog", source: "texts", voice: voice() }))).toEqual({ step: "material", label: "addTexts" });
+    // The closed head has no corpus; the document count stands in.
+    const listed = { ...voice({ documents: 2 }), corpus: undefined };
+    expect(nextAction(flowSteps({ name: "B", purpose: "blog", source: "texts", voice: listed }))?.label).toBe("build");
+    expect(nextAction(flowSteps({ name: "S", purpose: "chat", source: "described", voice: voice({ source: "described" }) }))?.label).toBe("describe");
+    const draft = voice({ source: "described", card: "Die Hand." });
+    expect(nextAction(flowSteps({ name: "S", purpose: "chat", source: "described", voice: draft }))).toEqual({ step: "release", label: "release" });
+  });
+
+  it("offers nothing when nothing waits", () => {
+    const settled = voice({ source: "described", card: "Alt.", released_card: "Alt.", released_at: "2026-09-29" });
+    expect(nextAction(flowSteps({ name: "S", purpose: "chat", source: "described", voice: settled }))).toBeNull();
+    // A build without a card is not a person's to-do.
+    expect(nextAction(flowSteps({ name: "B", purpose: "blog", source: "texts", voice: voice({ version: 1 }) }))).toBeNull();
   });
 });

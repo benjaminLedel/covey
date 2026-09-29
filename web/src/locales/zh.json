@@ -1548,7 +1548,24 @@
       "describedPill": "描述型",
       "draftWaiting": "草稿待发布",
       "describedNote": "是描述而非测量——风格检查不以它为准。",
-      "exemplarsDescribed": "由模型根据描述写出以展示文风，并与卡片一起发布。它们进入提示，每次运行都消耗 token。"
+      "exemplarsDescribed": "由模型根据描述写出以展示文风，并与卡片一起发布。它们进入提示，每次运行都消耗 token。",
+      "stepsNav": "步骤",
+      "stepOf": "第 {{n}} 步，共 {{total}} 步",
+      "noPurpose": "未设置用途",
+      "measured": "已测量 · 第 {{version}} 版",
+      "nothingYet": "尚未发布",
+      "more": "更多操作",
+      "editCard": "编辑卡片",
+      "showCard": "显示排版",
+      "showAll": "显示全部 {{n}} 条",
+      "showFewer": "收起",
+      "action": {
+        "purpose": "选择用途",
+        "addTexts": "添加文本",
+        "build": "构建声音",
+        "describe": "生成声音",
+        "release": "审阅并发布"
+      }
     }
   },
   "skills": {
