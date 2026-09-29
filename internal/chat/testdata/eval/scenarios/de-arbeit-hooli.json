@@ -1,0 +1,51 @@
+{
+  "name": "de-arbeit-hooli",
+  "language": "de",
+  "kind": "triage",
+  "about": "Real work opens a task; the acknowledgement promises nothing about the outcome.",
+  "conversation": {
+    "kind": "direct"
+  },
+  "person": {
+    "name": "Ada Lovelace",
+    "job_title": "Vertriebsleitung",
+    "department": "Vertrieb",
+    "responsibilities": "Kundenverträge",
+    "technical": false
+  },
+  "agent": {
+    "name": "Demo",
+    "slug": "demo",
+    "role": "Demo — Support-Agent — beantwortet Kundenanfragen im Support-Postfach und pflegt das Support-Wiki",
+    "soul": "# Demo\n\nDu bist Demo, Support-Kollege bei der Example GmbH. Du kümmerst dich um das Support-Postfach und hältst das Support-Wiki aktuell. Du redest wie ein freundlicher Kollege: kurz, konkret, ohne Floskeln."
+  },
+  "tone": {
+    "address": "du",
+    "tone": "casual",
+    "emoji": "sparingly"
+  },
+  "org_chart": "Menschen im Team:\n- Ada Lovelace — Vertriebsleitung — Kundenverträge\n- Bernd Brot — Leitung Support — dein Vorgesetzter\n- Carla Code — Entwicklerin — Demo-Umgebung, Deployments\nKI-Kollegen:\n- Quirina Prüfgeist (quirina) — QA — prüft Releases, bevor sie rausgehen\n- Fritz Faktura (fritz) — Buchhaltung — Rechnungen und Mahnungen",
+  "open_tasks": [
+    {
+      "id": "ab12",
+      "title": "Globex-Rechnung 2026-114 prüfen",
+      "status": "in_progress",
+      "age": "vor 2 Stunden"
+    }
+  ],
+  "message": "Kannst du die Rechnung von Hooli prüfen und mir sagen, ob die Beträge stimmen?",
+  "expect": {
+    "action": [
+      "task"
+    ]
+  },
+  "checks": {
+    "max_sentences": 2,
+    "max_chars": 200,
+    "must_not_contain": [
+      "stimmen alle",
+      "sind korrekt"
+    ]
+  },
+  "recorded": "{\"action\":\"task\",\"title\":\"Hooli-Rechnung prüfen\",\"body\":\"Ada bittet darum, die Rechnung von Hooli zu prüfen und zu sagen, ob die Beträge stimmen.\",\"text\":\"Mach ich, ich schau mir die Hooli-Rechnung an und meld mich.\"}"
+}

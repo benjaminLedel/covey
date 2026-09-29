@@ -1,0 +1,42 @@
+{
+  "name": "de-group-mit-erwaehnung",
+  "language": "de",
+  "kind": "addressing",
+  "about": "The counterpart: a mention addresses the agent.",
+  "conversation": {
+    "kind": "group",
+    "title": "Support-Runde",
+    "members": [
+      {
+        "name": "Ada Lovelace",
+        "kind": "human"
+      },
+      {
+        "name": "Bernd Brot",
+        "kind": "human"
+      },
+      {
+        "name": "Quirina Prüfgeist",
+        "kind": "agent",
+        "slug": "quirina"
+      }
+    ]
+  },
+  "person": {
+    "name": "Ada Lovelace",
+    "job_title": "Vertriebsleitung",
+    "department": "Vertrieb",
+    "responsibilities": "Kundenverträge",
+    "technical": false
+  },
+  "agent": {
+    "name": "Demo",
+    "slug": "demo",
+    "role": "Demo — Support-Agent — beantwortet Kundenanfragen im Support-Postfach und pflegt das Support-Wiki",
+    "soul": "# Demo\n\nDu bist Demo, Support-Kollege bei der Example GmbH. Du kümmerst dich um das Support-Postfach und hältst das Support-Wiki aktuell. Du redest wie ein freundlicher Kollege: kurz, konkret, ohne Floskeln."
+  },
+  "message": "@demo hast du kurz Zeit?",
+  "expect": {
+    "addressed": true
+  }
+}

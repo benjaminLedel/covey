@@ -1,0 +1,42 @@
+{
+  "name": "en-group-hi-no-mention",
+  "language": "en",
+  "kind": "addressing",
+  "about": "\"hi all\" in a group: not addressed.",
+  "conversation": {
+    "kind": "group",
+    "title": "Support huddle",
+    "members": [
+      {
+        "name": "Ada Lovelace",
+        "kind": "human"
+      },
+      {
+        "name": "Bernd Brot",
+        "kind": "human"
+      },
+      {
+        "name": "Quirina Tester",
+        "kind": "agent",
+        "slug": "quirina"
+      }
+    ]
+  },
+  "person": {
+    "name": "Ada Lovelace",
+    "job_title": "Head of Sales",
+    "department": "Sales",
+    "responsibilities": "customer contracts",
+    "technical": false
+  },
+  "agent": {
+    "name": "Sam",
+    "slug": "sam",
+    "role": "Sam — Support agent — answers customer requests in the support inbox and keeps the support wiki",
+    "soul": "# Sam\n\nYou are Sam, a support colleague at Example Ltd. You look after the support inbox and keep the support wiki up to date. You talk like a friendly colleague: short, concrete, no filler."
+  },
+  "message": "hi all",
+  "expect": {
+    "addressed": false
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "name": "de-group-was-geht",
+  "language": "de",
+  "kind": "triage",
+  "about": "The observed case (#457): a greeting with a mention in a group. Must be answered like a greeting, with a real answer from the open tasks, and the first name.",
+  "conversation": {
+    "kind": "group",
+    "title": "Support-Runde",
+    "members": [
+      {
+        "name": "Ada Lovelace",
+        "kind": "human"
+      },
+      {
+        "name": "Bernd Brot",
+        "kind": "human"
+      },
+      {
+        "name": "Quirina Prüfgeist",
+        "kind": "agent",
+        "slug": "quirina"
+      }
+    ]
+  },
+  "person": {
+    "name": "Ada Lovelace",
+    "job_title": "Vertriebsleitung",
+    "department": "Vertrieb",
+    "responsibilities": "Kundenverträge",
+    "technical": false
+  },
+  "agent": {
+    "name": "Demo",
+    "slug": "demo",
+    "role": "Demo — Support-Agent — beantwortet Kundenanfragen im Support-Postfach und pflegt das Support-Wiki",
+    "soul": "# Demo\n\nDu bist Demo, Support-Kollege bei der Example GmbH. Du kümmerst dich um das Support-Postfach und hältst das Support-Wiki aktuell. Du redest wie ein freundlicher Kollege: kurz, konkret, ohne Floskeln."
+  },
+  "tone": {
+    "address": "du",
+    "tone": "casual",
+    "emoji": "sparingly"
+  },
+  "org_chart": "Menschen im Team:\n- Ada Lovelace — Vertriebsleitung — Kundenverträge\n- Bernd Brot — Leitung Support — dein Vorgesetzter\n- Carla Code — Entwicklerin — Demo-Umgebung, Deployments\nKI-Kollegen:\n- Quirina Prüfgeist (quirina) — QA — prüft Releases, bevor sie rausgehen\n- Fritz Faktura (fritz) — Buchhaltung — Rechnungen und Mahnungen",
+  "open_tasks": [
+    {
+      "id": "ab12",
+      "title": "Globex-Rechnung 2026-114 prüfen",
+      "status": "in_progress",
+      "age": "vor 2 Stunden"
+    }
+  ],
+  "message": "@demo was geht?",
+  "expect": {
+    "action": [
+      "answer"
+    ]
+  },
+  "checks": {
+    "first_name": true,
+    "max_sentences": 2,
+    "must_not_contain": [
+      "Begrüßung",
+      "Rolle"
+    ]
+  },
+  "recorded": "{\"action\":\"answer\",\"text\":\"Hey Ada 👋 Ich sitz gerade an der Globex-Rechnung, sonst ist es ruhig.\"}"
+}

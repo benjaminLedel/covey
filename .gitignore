@@ -44,3 +44,6 @@ __pycache__/
 # Xcode resolves the mobile app's Swift packages here, beside the repository
 # root, when mobile/ is built for iOS.
 /build/ios/
+
+# The chat evaluation's report of the last live run (make eval-chat)
+internal/chat/testdata/eval/last-report.md

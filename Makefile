@@ -12,7 +12,7 @@ LDFLAGS := -X covey/internal/buildinfo.version=$(VERSION) \
            -X covey/internal/buildinfo.commit=$(COMMIT) \
            -X covey/internal/buildinfo.date=$(DATE)
 
-.PHONY: build build-nopack web test test-integration run bootstrap dev-db sandbox-image sandbox-image-dev sandbox-image-dev-flutter sandbox-image-dev-php sandbox-image-dev-web sandbox-image-dev-full sandbox-images sandbox-images-pull upgrade runner egress-image clean skill-sync test-mobile mobile-locales
+.PHONY: build build-nopack web test test-integration run bootstrap dev-db sandbox-image sandbox-image-dev sandbox-image-dev-flutter sandbox-image-dev-php sandbox-image-dev-web sandbox-image-dev-full sandbox-images sandbox-images-pull upgrade runner egress-image clean skill-sync test-mobile mobile-locales eval-chat
 
 # npm ci instead of npm install — deliberately: it installs exactly the lockfile
 # and never rewrites it. npm install on macOS throws the Linux/wasm branches
@@ -157,6 +157,13 @@ test:
 
 test-integration:
 	$(GO) test ./internal/integration/ -v
+
+# The chat evaluation against the real model (internal/chat/testdata/eval).
+# Costs a few cents of the fast tier; needs ANTHROPIC_API_KEY,
+# CLAUDE_CODE_OAUTH_TOKEN, or COVEY_EVAL_ORG with COVEY_MASTER_KEY. Writes
+# internal/chat/testdata/eval/last-report.md.
+eval-chat:
+	COVEY_EVAL_LLM=1 $(GO) test ./internal/chat/ -run TestEvalLive -count=1 -v -timeout 30m
 
 # The mobile app (spec/27). Needs Flutter; not part of `make test`, which
 # needs only Go.

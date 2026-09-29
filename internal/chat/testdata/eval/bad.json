@@ -1,0 +1,109 @@
+[
+  {
+    "scenario": "de-erzaehlung-protokoll",
+    "why": "The observed narration (#457): it talks about having answered.",
+    "recorded": "Alles klar. Ich habe deine Begrüßung beantwortet und dir erklärt, was meine Rolle hier ist und was im Wiki steht — bin ready für Aufgaben.",
+    "fails": [
+      "meta"
+    ]
+  },
+  {
+    "scenario": "de-group-was-geht",
+    "why": "The observed triage reply: a bare emoji — parsed as an answer now, but it does not speak to Ada.",
+    "recorded": "😀",
+    "fails": [
+      "first_name"
+    ]
+  },
+  {
+    "scenario": "de-group-was-geht",
+    "why": "A record-style reply from the triage.",
+    "recorded": "{\"action\":\"answer\",\"text\":\"Aufgabe beantwortet: Ich habe dir erklärt, was meine Rolle ist.\"}",
+    "fails": [
+      "meta",
+      "first_name"
+    ]
+  },
+  {
+    "scenario": "de-arbeit-hooli",
+    "why": "Real work answered on the spot instead of opening a task.",
+    "recorded": "{\"action\":\"answer\",\"text\":\"Die Beträge stimmen alle.\"}",
+    "fails": [
+      "action"
+    ]
+  },
+  {
+    "scenario": "de-erzaehlung-rechnung",
+    "why": "A report pasted into the chat: heading, bullets, bold.",
+    "recorded": "## Ergebnis\n- **Doppelt gebucht:** 2 × 1.240 €\n- Zweite Buchung storniert",
+    "fails": [
+      "markdown"
+    ]
+  },
+  {
+    "scenario": "en-direct-hi",
+    "why": "A service desk, not a colleague.",
+    "recorded": "{\"action\":\"answer\",\"text\":\"As an AI assistant, I am here to help. How may I assist you today?\"}",
+    "fails": [
+      "meta"
+    ]
+  },
+  {
+    "scenario": "de-sie-foermlich",
+    "why": "du where the organisation said Sie.",
+    "recorded": "{\"action\":\"answer\",\"text\":\"Hi, ich prüf gerade die Globex-Rechnung für dich.\"}",
+    "fails": [
+      "address"
+    ]
+  },
+  {
+    "scenario": "en-emoji-never",
+    "why": "An emoji where the organisation said never.",
+    "recorded": "{\"action\":\"answer\",\"text\":\"You're welcome 😊\"}",
+    "fails": [
+      "emoji"
+    ]
+  },
+  {
+    "scenario": "de-nichttechnisch-demo",
+    "why": "Jargon for a non-technical person.",
+    "recorded": "{\"action\":\"answer\",\"text\":\"Ja, der Pod demo-web hing im CrashLoop, Memory-Limit ist jetzt 1Gi.\"}",
+    "fails": [
+      "must_not_contain"
+    ]
+  },
+  {
+    "scenario": "en-narration-refund",
+    "why": "The content never arrives: it talks about the run.",
+    "recorded": "Ada, the task is done and the run finished successfully.",
+    "fails": [
+      "meta",
+      "must_contain"
+    ]
+  },
+  {
+    "scenario": "en-group-no-repeat",
+    "why": "Repeats what Quirina said, in German.",
+    "recorded": "{\"action\":\"answer\",\"text\":\"Ada, staging is back since 10:00, und der Import ist auch durch, alle 312 Rechnungen sind da.\"}",
+    "fails": [
+      "must_not_contain"
+    ]
+  },
+  {
+    "scenario": "de-direct-danke",
+    "why": "A summary instead of a short reply, and too long.",
+    "recorded": "{\"action\":\"answer\",\"text\":\"Sehr gern! Zusammengefasst: Für Mahnungen ist Fritz Faktura aus der Buchhaltung zuständig. Er versendet sie per Mail. Melde dich, wenn du noch etwas brauchst.\"}",
+    "fails": [
+      "sentences",
+      "chars"
+    ]
+  },
+  {
+    "scenario": "en-direct-thanks",
+    "why": "The wrong language.",
+    "recorded": "{\"action\":\"answer\",\"text\":\"Gern geschehen, das mache ich doch immer gern für dich.\"}",
+    "fails": [
+      "language"
+    ]
+  }
+]

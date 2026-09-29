@@ -26,6 +26,12 @@ func Resolve(ctx context.Context, store secrets.Store, orgID uuid.UUID) (Provide
 	return nil, ErrNoCredential
 }
 
+// Anthropic is the Messages API provider for a credential already in hand —
+// for a tool outside any organisation, like the chat evaluation
+// (internal/chat/testdata/eval). Everything inside the platform goes through
+// Resolve, so that every feature arrives at the same credential.
+func Anthropic(cred string, oauth bool) Provider { return anthropic{cred: cred, oauth: oauth} }
+
 // Available: is there a provider at all? For the status endpoints that decide
 // whether a feature appears in the interface.
 func Available(ctx context.Context, store secrets.Store, orgID uuid.UUID) bool {
