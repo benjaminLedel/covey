@@ -86,7 +86,9 @@
     "administrationSection": "管理",
     "administration": "组织",
     "approvals": "审批",
-    "infrastructure": "基础设施"
+    "infrastructure": "基础设施",
+    "apps": "covey 应用",
+    "helpShort": "帮助"
   },
   "costs": {
     "title": "成本与令牌",
@@ -1724,7 +1726,8 @@
       "desktop": "在这台电脑上使用桌面应用：",
       "openApp": "在应用中打开",
       "noApp": "Mac 上还没有应用？",
-      "macDownload": "下载 Mac 版"
+      "macDownload": "下载 Mac 版",
+      "pairedHere": "已与 {{device}} 配对。"
     },
     "apiKeys": {
       "title": "API 密钥",
@@ -2785,5 +2788,19 @@
       "titel": "您的账户",
       "text": "设置、语音识别和退出登录，以及再次查看本介绍的入口。"
     }
+  },
+  "apps": {
+    "title": "covey 应用",
+    "intro": "同一个应用适用于 iPhone、Android 和 Mac。首次启动时会询问要连接哪个 covey。",
+    "install": "安装",
+    "pair": "与此 covey 配对",
+    "pairIntro": "扫描二维码即可一步将应用连接到你在这里的账户。二维码仅可使用一次，五分钟内有效。",
+    "ios": "iPhone 和 iPad",
+    "android": "Android",
+    "mac": "Mac",
+    "appStore": "App Store",
+    "playStore": "Google Play",
+    "download": "下载",
+    "notYet": "尚未上架"
   }
 }

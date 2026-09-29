@@ -52,7 +52,10 @@ export const macAppLink = (source: string, version: string): string | null => {
     : `${repo}/releases/latest`;
 };
 
-export default function MobilePairing() {
+/* bare: inside the apps dialog (#432), which carries its own heading and the
+   downloads — only the pairing itself, and no word of a key list that is not
+   on that screen. */
+export default function MobilePairing({ bare = false }: { bare?: boolean }) {
   const { t } = useTranslation();
   const build = useQuery({ queryKey: ["version"], queryFn: buildInfo, staleTime: Infinity, retry: false });
   const macApp = build.data ? macAppLink(build.data.source, build.data.version) : null;
@@ -117,10 +120,14 @@ export default function MobilePairing() {
   const notHttps = window.location.protocol !== "https:" && !["localhost", "127.0.0.1"].includes(window.location.hostname);
 
   return (
-    <div className="card mt-4">
-      <span className="text-sm font-medium">{t("account.pairing.title")}</span>
-      <p className="muted text-xs mt-1 mb-3" style={{ maxWidth: 640 }}>{t("account.pairing.intro")}</p>
-      {macApp && (
+    <div className={bare ? "" : "card mt-4"}>
+      {!bare && (
+        <>
+          <span className="text-sm font-medium">{t("account.pairing.title")}</span>
+          <p className="muted text-xs mt-1 mb-3" style={{ maxWidth: 640 }}>{t("account.pairing.intro")}</p>
+        </>
+      )}
+      {macApp && !bare && (
         <p className="text-xs mt-0 mb-3">
           <span className="muted">{t("account.pairing.noApp")}</span>{" "}
           <a href={macApp} target="_blank" rel="noreferrer">
@@ -173,7 +180,7 @@ export default function MobilePairing() {
 
       {paired && (
         <div className="flex gap-2 items-center flex-wrap">
-          <span className="text-sm">{t("account.pairing.paired", { device: state.data?.device ?? "" })}</span>
+          <span className="text-sm">{t(bare ? "account.pairing.pairedHere" : "account.pairing.paired", { device: state.data?.device ?? "" })}</span>
           <button className="btn sm" type="button" onClick={close}>
             {t("account.pairing.done")}
           </button>

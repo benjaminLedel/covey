@@ -86,7 +86,9 @@
     "administrationSection": "管理",
     "administration": "組織",
     "approvals": "承認",
-    "infrastructure": "インフラ"
+    "infrastructure": "インフラ",
+    "apps": "covey アプリ",
+    "helpShort": "ヘルプ"
   },
   "costs": {
     "title": "コストとトークン",
@@ -1724,7 +1726,8 @@
       "desktop": "このコンピューターでデスクトップアプリを使う場合:",
       "openApp": "アプリで開く",
       "noApp": "Mac にまだアプリがありませんか？",
-      "macDownload": "Mac 版をダウンロード"
+      "macDownload": "Mac 版をダウンロード",
+      "pairedHere": "{{device}} と連携しました。"
     },
     "apiKeys": {
       "title": "API キー",
@@ -2785,5 +2788,19 @@
       "titel": "アカウント",
       "text": "設定、音声認識、サインアウトと、この案内をもう一度見るための項目があります。"
     }
+  },
+  "apps": {
+    "title": "covey アプリ",
+    "intro": "iPhone、Android、Mac に共通のアプリです。初回起動時に、どの covey を使うかを尋ねます。",
+    "install": "インストール",
+    "pair": "この covey と連携",
+    "pairIntro": "QR コードで、アプリをここのアカウントに一度で接続します。コードは 1 回限り、5 分間有効です。",
+    "ios": "iPhone と iPad",
+    "android": "Android",
+    "mac": "Mac",
+    "appStore": "App Store",
+    "playStore": "Google Play",
+    "download": "ダウンロード",
+    "notYet": "まだストアにありません"
   }
 }

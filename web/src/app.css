@@ -522,14 +522,27 @@
   flex-shrink: 0;
 }
 .foot-menu .sep { height: 0.5px; background: var(--border); margin: 3px 6px; }
+/* A caption only above a choice (organisation, appearance), not above
+   actions, and in the menu's own voice rather than in capitals (#432). */
 .foot-menu-sec {
-  padding: 4px 9px 3px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  padding: 5px 9px 2px;
+  font-size: 11px;
+  font-weight: 500;
   color: var(--text-muted);
 }
+/* The organisation one is in: marked by the check, not by weight alone. */
+.foot-menu button.on:disabled { color: var(--text-primary); cursor: default; opacity: 1; }
+.foot-menu button.on .ic { color: var(--text-accent); }
+.foot-menu button kbd { margin-left: auto; font-size: 10.5px; padding: 0 5px; }
+
+/* The apps dialog (#432): install, then pair. */
+.apps-step { margin: 18px 0 8px; font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.apps-step:first-of-type { margin-top: 0; }
+.apps-list { list-style: none; margin: 0; padding: 0; border: 0.5px solid var(--border); border-radius: var(--radius); }
+.apps-list li { display: flex; align-items: center; gap: 10px; padding: 9px 12px; min-height: 44px; }
+.apps-list li + li { border-top: 0.5px solid var(--border); }
+.apps-list .ic { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; color: var(--text-muted); flex: none; }
+.apps-list .nm { flex: 1; min-width: 0; font-size: 13px; color: var(--text-primary); }
 /* Erscheinungsbild: drei Möglichkeiten nebeneinander, die gewählte gehoben —
    dieselbe Zeichnung wie der Segment-Umschalter .seg, nur enger. */
 .theme-seg {
