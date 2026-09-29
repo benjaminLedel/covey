@@ -483,8 +483,11 @@
   bottom: calc(100% + 8px);
   right: 0;
   z-index: 41;
-  /* Wide enough for "Erscheinungsbild" beside its three marks on one line. */
+  /* Wide enough for "Erscheinungsbild" beside its three marks; an entry
+     never breaks — the menu grows to its longest one in every language. */
   min-width: 232px;
+  width: max-content;
+  max-width: calc(100vw - 24px);
   padding: 5px;
   background: var(--surface-0);
   border: 0.5px solid var(--border-strong);
@@ -510,6 +513,7 @@
   transition: background 0.1s, color 0.1s;
 }
 .foot-menu button:hover { background: var(--surface-2); color: var(--text-primary); }
+.foot-menu button, .foot-menu .gh-menu { white-space: nowrap; }
 .foot-menu button.danger { color: var(--text-danger); }
 .foot-menu button.danger:hover { background: var(--danger-tint); color: var(--text-danger); }
 .foot-menu .ic {
