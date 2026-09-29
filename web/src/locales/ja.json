@@ -2894,6 +2894,14 @@
     "working": "作業中",
     "workingOn": "{{title}} に取り組み中",
     "rename": "グループ名を変更",
-    "groupAgentsManage": "AIの同僚をグループに加えるには、手作業で仕事を渡す権限が必要です。"
+    "groupAgentsManage": "AIの同僚をグループに加えるには、手作業で仕事を渡す権限が必要です。",
+    "searchMore": "さらに追加 …",
+    "removePicked": "{{name}} を外す",
+    "groupTitleNeeded": "グループには名前が必要です。",
+    "groupSize_one": "あなたを含め {{count}} 人",
+    "groupSize_other": "あなたを含め {{count}} 人",
+    "groupSize_few": "あなたを含め {{count}} 人",
+    "groupSize_many": "あなたを含め {{count}} 人",
+    "mentionList": "メンション"
   }
 }

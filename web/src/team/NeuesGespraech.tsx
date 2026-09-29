@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
@@ -6,6 +6,7 @@ import { api, createGroup, openDirect, reachableAgents, type MemberRef, type Org
 import { Modal } from "../components/Modal";
 import { Avatar } from "../components/person";
 import { canManage } from "../pages/agent/roles";
+import { NavIcon } from "../components/navicons";
 
 /* Starting a conversation (#440): one person or colleague picked is a direct
  * conversation — the one that exists, or a new one; several are a group,
@@ -34,6 +35,12 @@ export default function NeuesGespraech({ me, onClose }: { me: Principal; onClose
   const umschalten = (r: MemberRef) =>
     setGewaehlt((alt) => (ist(r) ? alt.filter((g) => !(g.kind === r.kind && g.id === r.id)) : [...alt, r]));
   const gruppe = gewaehlt.length > 1;
+  const sucheRef = useRef<HTMLInputElement>(null);
+  const nameVon = (g: MemberRef): { name: string; slug?: string } => {
+    if (g.kind === "human") return { name: chart.data?.humans.find((h) => h.id === g.id)?.display_name ?? "" };
+    const a = chart.data?.agents.find((x) => x.id === g.id);
+    return { name: a?.display_name ?? "", slug: a?.slug };
+  };
   // A group with an agent is the manage roles' (conversations.go).
   const gruppeGesperrt = gruppe && gewaehlt.some((g) => g.kind === "agent") && !canManage(me.Role);
 
@@ -80,23 +87,63 @@ export default function NeuesGespraech({ me, onClose }: { me: Principal; onClose
       <p className="muted text-xs" style={{ marginBottom: 10 }}>
         {t("conversation.newLead")}
       </p>
-      <input
-        value={suche}
-        onChange={(e) => setSuche(e.target.value)}
-        placeholder={t("conversation.search")}
-        aria-label={t("conversation.search")}
-        style={{ width: "100%", marginBottom: 10 }}
-        autoFocus
-      />
-      {gruppe && (
+      {/* The recipients as chips in the field one searches in, the way a
+          mail's To line works: what is picked stays in sight while one keeps
+          typing, and Backspace in an empty field takes the last one back. */}
+      <div className="tm-an" onClick={() => sucheRef.current?.focus()}>
+        <NavIcon name="search" />
+        {gewaehlt.map((g) => {
+          const n = nameVon(g);
+          return (
+            <span key={`${g.kind}:${g.id}`} className="tm-an-chip">
+              <Avatar name={n.name} human={g.kind === "human"} slug={n.slug} size={18} />
+              <span className="truncate">{n.name}</span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  umschalten(g);
+                }}
+                aria-label={t("conversation.removePicked", { name: n.name })}
+                title={t("conversation.removePicked", { name: n.name })}
+              >
+                <svg viewBox="0 0 24 24" className="ic" aria-hidden="true">
+                  <path d="M7 7l10 10M17 7L7 17" />
+                </svg>
+              </button>
+            </span>
+          );
+        })}
         <input
-          value={titel}
-          onChange={(e) => setTitel(e.target.value)}
-          placeholder={t("conversation.groupTitlePlaceholder")}
-          aria-label={t("conversation.groupTitle")}
-          maxLength={120}
-          style={{ width: "100%", marginBottom: 10 }}
+          ref={sucheRef}
+          value={suche}
+          onChange={(e) => setSuche(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Backspace" && suche === "" && gewaehlt.length > 0) umschalten(gewaehlt[gewaehlt.length - 1]);
+          }}
+          placeholder={gewaehlt.length ? t("conversation.searchMore") : t("conversation.search")}
+          aria-label={t("conversation.search")}
+          autoFocus
         />
+      </div>
+      {/* The name only once there is a group to name: with one pick the
+          dialog opens a direct conversation, and a field for it would only ask
+          a question that has no answer. */}
+      {gruppe && (
+        <div className="tm-titel-feld">
+          <label htmlFor="tm-gruppe-titel">{t("conversation.groupTitle")}</label>
+          <input
+            id="tm-gruppe-titel"
+            value={titel}
+            onChange={(e) => setTitel(e.target.value)}
+            placeholder={t("conversation.groupTitlePlaceholder")}
+            maxLength={120}
+            aria-describedby="tm-gruppe-titel-hinweis"
+          />
+          <span id="tm-gruppe-titel-hinweis" className="muted text-xs">
+            {titel.trim() ? t("conversation.groupSize", { count: gewaehlt.length + 1 }) : t("conversation.groupTitleNeeded")}
+          </span>
+        </div>
       )}
       {chart.isLoading && <p className="muted text-xs">{t("common.loading")}</p>}
       {menschen.length > 0 && (

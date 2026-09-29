@@ -2866,7 +2866,7 @@
     "search": "Szukaj osób i współpracowników",
     "people": "Osoby",
     "agents": "Współpracownicy AI",
-    "groupTitle": "Tytuł grupy",
+    "groupTitle": "Nazwa grupy",
     "groupTitlePlaceholder": "Czego dotyczy grupa",
     "startDirect": "Otwórz rozmowę",
     "startGroup": "Utwórz grupę",
@@ -2894,6 +2894,14 @@
     "working": "pracuje",
     "workingOn": "pracuje nad: {{title}}",
     "rename": "Zmień nazwę grupy",
-    "groupAgentsManage": "Dodanie współpracownika AI do grupy wymaga prawa do ręcznego zlecania pracy."
+    "groupAgentsManage": "Dodanie współpracownika AI do grupy wymaga prawa do ręcznego zlecania pracy.",
+    "searchMore": "Dodaj więcej …",
+    "removePicked": "Usuń: {{name}}",
+    "groupTitleNeeded": "Grupa potrzebuje nazwy.",
+    "groupSize_one": "{{count}} członek razem z tobą",
+    "groupSize_other": "{{count}} członków razem z tobą",
+    "groupSize_few": "{{count}} członkowie razem z tobą",
+    "groupSize_many": "{{count}} członków razem z tobą",
+    "mentionList": "Wspomnij"
   }
 }
