@@ -247,7 +247,7 @@ func (s *Store) AddMember(ctx context.Context, id uuid.UUID, ref Ref) error {
 	_, err := s.pool.Exec(ctx, `INSERT INTO conversation_members (conversation_id, member_kind, member_id)
 		VALUES ($1, $2, $3)
 		ON CONFLICT (conversation_id, member_kind, member_id)
-		DO UPDATE SET left_at = NULL, joined_at = CASE WHEN conversation_members.left_at IS NULL
+		DO UPDATE SET left_at = NULL, changed_at = now(), joined_at = CASE WHEN conversation_members.left_at IS NULL
 		                                          THEN conversation_members.joined_at ELSE now() END`,
 		id, ref.Kind, ref.ID)
 	return err
@@ -256,7 +256,7 @@ func (s *Store) AddMember(ctx context.Context, id uuid.UUID, ref Ref) error {
 // RemoveMember lets somebody leave a group. The row stays: the audit still
 // says who was in it, and when they left.
 func (s *Store) RemoveMember(ctx context.Context, id uuid.UUID, ref Ref) error {
-	_, err := s.pool.Exec(ctx, `UPDATE conversation_members SET left_at = now()
+	_, err := s.pool.Exec(ctx, `UPDATE conversation_members SET left_at = now(), changed_at = now()
 		WHERE conversation_id = $1 AND member_kind = $2 AND member_id = $3 AND left_at IS NULL`, id, ref.Kind, ref.ID)
 	return err
 }
@@ -336,6 +336,7 @@ var (
 	ListQuery = `SELECT c.id, cm.muted, cm.last_read_at, ` + unreadCount + `
 		  FROM conversation_members cm JOIN conversations c ON c.id = cm.conversation_id
 		 WHERE cm.member_kind = 'human' AND cm.member_id = $1 AND cm.left_at IS NULL AND c.archived_at IS NULL
+		   AND ($3::timestamptz IS NULL OR c.last_message_at > $3 OR cm.changed_at > $3)
 		 ORDER BY c.last_message_at DESC LIMIT $2`
 )
 
@@ -362,6 +363,49 @@ func (s *Store) Page(ctx context.Context, id uuid.UUID, before *Cursor, limit in
 		return nil, err
 	}
 	return scanMessages(rows)
+}
+
+// After reads the messages after the cursor, oldest first — what a reader
+// that has the conversation up to that message does not have yet (#447).
+func (s *Store) After(ctx context.Context, id uuid.UUID, after Cursor, limit int) ([]Message, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	rows, err := s.pool.Query(ctx, `SELECT `+messageCols+` FROM conversation_messages m`+messageJoins+`
+		 WHERE m.conversation_id = $1 AND (m.created_at, m.id) > ($2, $3::uuid)
+		 ORDER BY m.created_at, m.id LIMIT $4`, id, after.At, after.ID, limit)
+	if err != nil {
+		return nil, err
+	}
+	return scanMessages(rows)
+}
+
+// Left are the conversations the person left after since — so that a list
+// refreshed by ListSince can drop them.
+func (s *Store) Left(ctx context.Context, humanID uuid.UUID, since time.Time) ([]uuid.UUID, error) {
+	rows, err := s.pool.Query(ctx, `SELECT conversation_id FROM conversation_members
+		 WHERE member_kind = 'human' AND member_id = $1 AND left_at > $2`, humanID, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
+
+// Now is the database's clock — the cursor a delta read hands out, so that
+// it compares with the timestamps the rows carry, not with this process's.
+func (s *Store) Now(ctx context.Context) (time.Time, error) {
+	var t time.Time
+	err := s.pool.QueryRow(ctx, `SELECT now()`).Scan(&t)
+	return t, err
 }
 
 // Search finds the messages that contain any of the words (#416), newest
@@ -452,7 +496,7 @@ func (s *Store) Liegengeblieben(ctx context.Context, limit int) ([]Message, erro
 // it has shown, so one that arrives in between stays unread.
 func (s *Store) MarkRead(ctx context.Context, id, humanID uuid.UUID, at time.Time) error {
 	_, err := s.pool.Exec(ctx, `UPDATE conversation_members
-		SET last_read_at = greatest(coalesce(last_read_at, '-infinity'), least($3::timestamptz, now()))
+		SET last_read_at = greatest(coalesce(last_read_at, '-infinity'), least($3::timestamptz, now())), changed_at = now()
 		WHERE conversation_id = $1 AND member_kind = 'human' AND member_id = $2`, id, humanID, at)
 	return err
 }
@@ -460,7 +504,7 @@ func (s *Store) MarkRead(ctx context.Context, id, humanID uuid.UUID, at time.Tim
 // SetMuted: a muted conversation is not pushed. It stays in the list and
 // counts as unread there; muting is about the phone, not about reading.
 func (s *Store) SetMuted(ctx context.Context, id, humanID uuid.UUID, muted bool) error {
-	_, err := s.pool.Exec(ctx, `UPDATE conversation_members SET muted = $3
+	_, err := s.pool.Exec(ctx, `UPDATE conversation_members SET muted = $3, changed_at = now()
 		WHERE conversation_id = $1 AND member_kind = 'human' AND member_id = $2`, id, humanID, muted)
 	return err
 }
@@ -491,10 +535,18 @@ const unreadCount = `(SELECT count(*) FROM (
 
 // List reads the person's conversations, newest first.
 func (s *Store) List(ctx context.Context, humanID uuid.UUID, limit int) ([]Summary, error) {
+	return s.ListSince(ctx, humanID, nil, limit)
+}
+
+/* ListSince reads only the conversations that changed after since (#447): a
+ * new message, the person's own read position, mute or membership. Unread
+ * rises only with a new message and falls only with a read, so both are
+ * covered. nil since is the whole list. */
+func (s *Store) ListSince(ctx context.Context, humanID uuid.UUID, since *time.Time, limit int) ([]Summary, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 200
 	}
-	rows, err := s.pool.Query(ctx, ListQuery, humanID, limit)
+	rows, err := s.pool.Query(ctx, ListQuery, humanID, limit, since)
 	if err != nil {
 		return nil, err
 	}

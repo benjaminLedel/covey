@@ -2,9 +2,11 @@ package integration
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"testing"
@@ -523,7 +525,7 @@ func TestTheHotQueriesUseTheirIndexes(t *testing.T) {
 	}
 	for name, p := range map[string]string{
 		"page": plan(chat.PageQuery, konv[0], nil, nil, 50),
-		"list": plan(chat.ListQuery, eine, 200),
+		"list": plan(chat.ListQuery, eine, 200, nil),
 	} {
 		if strings.Contains(p, "Seq Scan on conversation_messages") {
 			t.Errorf("%s reads all messages:\n%s", name, p)
@@ -532,7 +534,7 @@ func TestTheHotQueriesUseTheirIndexes(t *testing.T) {
 			t.Errorf("%s does not use the page index:\n%s", name, p)
 		}
 	}
-	if p := plan(chat.ListQuery, eine, 200); !strings.Contains(p, "idx_conversation_members_member") && !strings.Contains(p, "conversation_members_pkey") {
+	if p := plan(chat.ListQuery, eine, 200, nil); !strings.Contains(p, "idx_conversation_members_member") && !strings.Contains(p, "conversation_members_pkey") {
 		t.Errorf("the list does not start from the member index:\n%s", p)
 	}
 	if _, err := store.List(ctx, eine, 0); err != nil {
@@ -567,4 +569,66 @@ func TestAContinuationReportsWhereItsTaskWould(t *testing.T) {
 	if teil.ConversationID != nil {
 		t.Fatalf("a subtask reports into the conversation: %v", teil.ConversationID)
 	}
+}
+
+// TestRefreshingIsCheap (#447): the list answers only what changed since its
+// cursor and 304 to an ETag it gave; the messages answer only what came
+// after a message.
+func TestRefreshingIsCheap(t *testing.T) {
+	s := newStack(t)
+	admin := teamLogin(t, s)
+	adaID := s.mitglied(t, "ada@test.local", "Ada", "agent_owner", "ada-passwort")
+	bobID := s.mitglied(t, "bob@test.local", "Bob", "agent_owner", "bob-passwort")
+	mitAda := admin.expect(http.MethodPost, "/api/v1/conversations", map[string]any{
+		"kind": "direct", "member": map[string]any{"kind": "human", "id": adaID}}, http.StatusCreated)["id"].(string)
+	mitBob := admin.expect(http.MethodPost, "/api/v1/conversations", map[string]any{
+		"kind": "direct", "member": map[string]any{"kind": "human", "id": bobID}}, http.StatusCreated)["id"].(string)
+	erste := admin.expect(http.MethodPost, "/api/v1/conversations/"+mitAda+"/messages", map[string]any{"text": "eins"}, http.StatusCreated)
+	admin.expect(http.MethodPost, "/api/v1/conversations/"+mitBob+"/messages", map[string]any{"text": "an Bob"}, http.StatusCreated)
+
+	holen := func(pfad, etag string) (*http.Response, map[string]any) {
+		t.Helper()
+		req, _ := http.NewRequest(http.MethodGet, admin.base+pfad, nil)
+		if etag != "" {
+			req.Header.Set("If-None-Match", etag)
+		}
+		resp, err := admin.http.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		var out map[string]any
+		_ = json.NewDecoder(resp.Body).Decode(&out)
+		return resp, out
+	}
+	// The cursor overlaps by two seconds; past that, nothing is new.
+	time.Sleep(2100 * time.Millisecond)
+	resp, alles := holen("/api/v1/conversations", "")
+	etag := resp.Header.Get("ETag")
+	if len(alles["conversations"].([]any)) != 2 || etag == "" || alles["cursor"] == nil {
+		t.Fatalf("the whole list with a cursor and an ETag: %v %q", alles, etag)
+	}
+	if resp, _ := holen("/api/v1/conversations", etag); resp.StatusCode != http.StatusNotModified {
+		t.Fatalf("unchanged list: HTTP %d, want 304", resp.StatusCode)
+	}
+
+	cursor := alles["cursor"].(string)
+	if _, d := holen("/api/v1/conversations?since="+url.QueryEscape(cursor), ""); len(d["conversations"].([]any)) != 0 {
+		t.Fatalf("nothing changed, and the delta has: %v", d)
+	}
+	admin.expect(http.MethodPost, "/api/v1/conversations/"+mitAda+"/messages", map[string]any{"text": "zwei"}, http.StatusCreated)
+	_, d := holen("/api/v1/conversations?since="+url.QueryEscape(cursor), "")
+	if cs := d["conversations"].([]any); len(cs) != 1 || cs[0].(map[string]any)["id"] != mitAda {
+		t.Fatalf("the delta: %v", d)
+	}
+	if resp, _ := holen("/api/v1/conversations", etag); resp.StatusCode != http.StatusOK {
+		t.Fatalf("a changed list answered %d to an old ETag", resp.StatusCode)
+	}
+
+	// Only what came after the first message.
+	nach := admin.expect(http.MethodGet, "/api/v1/conversations/"+mitAda+"/messages?after="+erste["message"].(map[string]any)["id"].(string), nil, http.StatusOK)
+	if ms := nach["messages"].([]any); len(ms) != 1 || ms[0].(map[string]any)["text"] != "zwei" {
+		t.Fatalf("after: %v", nach)
+	}
+	admin.expect(http.MethodGet, "/api/v1/conversations/"+mitAda+"/messages?after="+uuid.NewString(), nil, http.StatusBadRequest)
 }

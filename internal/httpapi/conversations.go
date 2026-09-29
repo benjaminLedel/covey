@@ -2,6 +2,9 @@ package httpapi
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"slices"
@@ -60,8 +63,34 @@ var anyRoleList = []string{identity.RoleOrgAdmin, identity.RoleAgentOwner,
 	identity.RoleSecurity, identity.RoleAuditor, identity.RoleControlling}
 
 // handleListConversations is the person's list, newest first.
+//
+// For a client that refreshes it often (#447): ?since=<cursor> answers only
+// the conversations that changed after it — a new message, the person's own
+// read position, mute or membership — and in `left` those the person left.
+// Every answer carries the cursor for the next one. Beside that the answer
+// has an ETag, and If-None-Match with it is answered 304 without a body.
 func (s *Server) handleListConversations(w http.ResponseWriter, r *http.Request) {
-	list, err := s.Chat.List(r.Context(), principalFrom(r).ID, 0)
+	p := principalFrom(r)
+	var since *time.Time
+	if v := r.URL.Query().Get("since"); v != "" {
+		t, err := time.Parse(time.RFC3339Nano, v)
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, "since must be the cursor of an earlier answer (RFC 3339)")
+			return
+		}
+		since = &t
+	}
+	/* The cursor is the database's clock a little in the past: a message
+	   whose transaction began before this read and commits after it carries
+	   a created_at before now(). The next delta overlaps by that much, and
+	   the client keeps a conversation by its id. */
+	jetzt, err := s.Chat.Now(r.Context())
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	cursor := jetzt.Add(-deltaUeberlappung)
+	list, err := s.Chat.ListSince(r.Context(), p.ID, since, 0)
 	if err != nil {
 		mapErr(w, err)
 		return
@@ -72,7 +101,44 @@ func (s *Server) handleListConversations(w http.ResponseWriter, r *http.Request)
 			list[i].Last.Report = ""
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"conversations": list})
+	inhalt := map[string]any{"conversations": list}
+	if since != nil {
+		left, err := s.Chat.Left(r.Context(), p.ID, *since)
+		if err != nil {
+			mapErr(w, err)
+			return
+		}
+		inhalt["left"] = left
+	}
+	if nichtGeaendert(w, r, inhalt) {
+		return
+	}
+	inhalt["cursor"] = cursor
+	writeJSON(w, http.StatusOK, inhalt)
+}
+
+// deltaUeberlappung: how far a delta read looks back past its cursor.
+const deltaUeberlappung = 2 * time.Second
+
+/* nichtGeaendert sets an ETag over what an answer says and answers 304 when
+ * the client has it already (#447). The ETag leaves out what changes on every
+ * call (the cursor), so an unchanged list is recognised as one. */
+func nichtGeaendert(w http.ResponseWriter, r *http.Request, v any) bool {
+	roh, err := json.Marshal(v)
+	if err != nil {
+		return false
+	}
+	sum := sha256.Sum256(roh)
+	etag := `"` + hex.EncodeToString(sum[:16]) + `"`
+	w.Header().Set("ETag", etag)
+	w.Header().Set("Cache-Control", "private, no-cache")
+	for _, kandidat := range strings.Split(r.Header.Get("If-None-Match"), ",") {
+		if strings.TrimSpace(kandidat) == etag {
+			w.WriteHeader(http.StatusNotModified)
+			return true
+		}
+	}
+	return false
 }
 
 // memberIn checks that a member exists in the organisation: a seat, or an
@@ -195,19 +261,11 @@ type conversationPage struct {
 }
 
 // handleConversationMessages reads a page, newest last:
-// ?before=<RFC 3339 time>&before_id=<id>&limit=<n ≤ 200>.
+// ?before=<RFC 3339 time>&before_id=<id>&limit=<n ≤ 200> for older ones, or
+// ?after=<message id> for only what came after that message (#447). The
+// answer has an ETag like the list.
 func (s *Server) handleConversationMessages(w http.ResponseWriter, r *http.Request, c chat.Conversation) {
 	q := r.URL.Query()
-	var cursor *chat.Cursor
-	if b := q.Get("before"); b != "" {
-		at, err := time.Parse(time.RFC3339Nano, b)
-		bid, ierr := uuid.Parse(q.Get("before_id"))
-		if err != nil || ierr != nil {
-			writeErr(w, http.StatusBadRequest, "before must be an RFC 3339 time and before_id the id of that message")
-			return
-		}
-		cursor = &chat.Cursor{At: at, ID: bid}
-	}
 	limit := 50
 	if n := q.Get("limit"); n != "" {
 		var err error
@@ -216,17 +274,55 @@ func (s *Server) handleConversationMessages(w http.ResponseWriter, r *http.Reque
 			return
 		}
 	}
-	msgs, err := s.Chat.Page(r.Context(), c.ID, cursor, limit+1)
-	if err != nil {
+	var out conversationPage
+	if a := q.Get("after"); a != "" {
+		aid, err := uuid.Parse(a)
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, "after must be the id of a message of this conversation")
+			return
+		}
+		bezug, err := s.Chat.Message(r.Context(), aid)
+		if err != nil || bezug.ConversationID != c.ID {
+			writeErr(w, http.StatusBadRequest, "after must be the id of a message of this conversation")
+			return
+		}
+		msgs, err := s.Chat.After(r.Context(), c.ID, chat.Cursor{At: bezug.CreatedAt, ID: bezug.ID}, limit+1)
+		if err != nil {
+			mapErr(w, err)
+			return
+		}
+		out.Messages = msgs
+		// More here means: newer ones beyond this page; ask again after its last.
+		if len(msgs) > limit {
+			out.Messages, out.More = msgs[:limit], true
+		}
+	} else {
+		var cursor *chat.Cursor
+		if b := q.Get("before"); b != "" {
+			at, err := time.Parse(time.RFC3339Nano, b)
+			bid, ierr := uuid.Parse(q.Get("before_id"))
+			if err != nil || ierr != nil {
+				writeErr(w, http.StatusBadRequest, "before must be an RFC 3339 time and before_id the id of that message")
+				return
+			}
+			cursor = &chat.Cursor{At: at, ID: bid}
+		}
+		msgs, err := s.Chat.Page(r.Context(), c.ID, cursor, limit+1)
+		if err != nil {
+			mapErr(w, err)
+			return
+		}
+		out.Messages = msgs
+		if len(msgs) > limit {
+			out.Messages, out.More = msgs[1:], true
+		}
+	}
+	var err error
+	if out.Pending, err = s.Chat.Pending(r.Context(), c.ID); err != nil {
 		mapErr(w, err)
 		return
 	}
-	out := conversationPage{Messages: msgs}
-	if len(msgs) > limit {
-		out.Messages, out.More = msgs[1:], true
-	}
-	if out.Pending, err = s.Chat.Pending(r.Context(), c.ID); err != nil {
-		mapErr(w, err)
+	if nichtGeaendert(w, r, out) {
 		return
 	}
 	writeJSON(w, http.StatusOK, out)
