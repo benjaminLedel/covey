@@ -29,7 +29,7 @@ All the sandboxes where the work actually happens. They are deliberately dumb an
 
 ## Runtime and daemon
 
-The **runtime** is the agent framework that drives the model loop — the first adapter is Claude Code headless via `claude -p`. The **daemon** (`coveyd`) is the lean process inside the sandbox that speaks the platform protocol and starts the runtime. The adapter between them is thin, so swapping the runtime never becomes a rebuild of the platform.
+The **runtime** is the agent framework that drives the model loop — the first adapter is Claude Code headless via `claude -p`; Codex, SevenCode and educa AI stand beside it ([Runtimes and engines](../concepts/runtimes.md)). The **daemon** (`coveyd`) is the lean process inside the sandbox that speaks the platform protocol and starts the runtime. The adapter between them is thin, so swapping the runtime never becomes a rebuild of the platform.
 
 ## Workplace (runtime contract)
 

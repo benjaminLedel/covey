@@ -29,7 +29,7 @@ Die Gesamtheit der Sandboxen, in denen tatsächlich gearbeitet wird. Sie sind be
 
 ## Runtime und Daemon
 
-Die **Runtime** ist das Agenten-Framework, das die Modell-Schleife fährt — erster Adapter ist Claude Code headless über `claude -p`. Der **Daemon** (`coveyd`) ist der schlanke Prozess in der Sandbox, der das Plattform-Protokoll spricht und die Runtime startet. Der Adapter dazwischen ist dünn, damit ein Wechsel der Runtime kein Umbau der Plattform wird.
+Die **Runtime** ist das Agenten-Framework, das die Modell-Schleife fährt — erster Adapter ist Claude Code headless über `claude -p`; daneben stehen Codex, SevenCode und educa AI ([Runtimes und Engines](../concepts/runtimes.md)). Der **Daemon** (`coveyd`) ist der schlanke Prozess in der Sandbox, der das Plattform-Protokoll spricht und die Runtime startet. Der Adapter dazwischen ist dünn, damit ein Wechsel der Runtime kein Umbau der Plattform wird.
 
 ## Arbeitsplatz (Runtime-Vertrag)
 

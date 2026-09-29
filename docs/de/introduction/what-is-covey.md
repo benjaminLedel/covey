@@ -25,7 +25,7 @@ Für den Fall, dass ein Unternehmen mehr als einen Agenten betreibt und die Frag
 
 Hier verläuft auch die Grenze zu einem Agenten-Framework, und sie liegt enger, als es klingt. **covey ersetzt kein Framework, es betreibt eines.** Wer der Agent ist, was er erreichen darf, wann er läuft und was er behält, gibt covey sehr wohl vor: `SOUL.md` wird in den System-Prompt übersetzt, `HEARTBEAT.md` bestimmt den Takt, `ACCESS.md` die Zugänge, das Wiki das Gedächtnis. Das ist dieselbe Oberfläche, die LangChain oder CrewAI beanspruchen, und es wäre unehrlich, sie wegzureden.
 
-Was covey nicht tut, ist die **Modell-Schleife** fahren — zwischen Modell und Werkzeugaufruf sitzen und den nächsten Schritt entscheiden. Das ist Sache der Runtime ([Kernbegriffe](core-concepts.md)), und weil es dort bleibt, hängt sie an einem dünnen Adapter und ist austauschbar. Der erste ist [Claude Code headless](architecture.md).
+Was covey nicht tut, ist die **Modell-Schleife** fahren — zwischen Modell und Werkzeugaufruf sitzen und den nächsten Schritt entscheiden. Das ist Sache der Runtime ([Kernbegriffe](core-concepts.md)), und weil es dort bleibt, hängt sie an einem dünnen Adapter und ist austauschbar. Der erste ist Claude Code headless; die anderen stehen unter [Runtimes und Engines](../concepts/runtimes.md).
 
 ## Die Organisation ist die Einheit, nicht der Nutzer
 
