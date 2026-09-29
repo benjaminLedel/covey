@@ -21,7 +21,7 @@ Guard rails take effect exactly where the control plane and the daemon control t
 | **Secrets broker** | Which systems and scopes an agent can get a token for at all (see [`04-identity-secrets.md`](04-identity-secrets.md)). |
 | **Egress** | Outbound communication: permitted recipients/domains, blocklists, mandatory approval for external addressees. |
 | **Tool/action layer** (in the daemon) | Which tools and commands are allowed; destructive operations; file access outside the home. |
-| **Approval queue** | Actions that are not forbidden but require approval (see below). |
+| **Approval gate** | Actions that are not forbidden but require approval (see below); each waits as a decidable entry in the responsible person's conversation. |
 | **Rate & cost limits** | Frequency of actions, budget caps (see cost control). |
 | **Content filter** | Incoming/outgoing content: PII redaction, forbidden content classes. |
 | **Style gate** | Outgoing free text (a comment, an MR description, a mail) measured against the agent's `TONE.md` profile before the action runs (see below). |
@@ -119,6 +119,8 @@ Credentials do not belong in it: headers are not stored at all (that is where th
 
 Approval gates are the **interactive** guard-rail type: risky actions do not go through but wait for **approval**. The daemon reports `request_approval`; the control plane halts the action until a human (or a policy) delivers `approve`/`deny`.
 
+**Where an approval waits** (#441). There is no approval queue a person has to go and look at. An approval is a **decidable entry** in the conversation of the **responsible person** — the person the task came from, otherwise the agent's supervisor ([`28-team-surface.md`](28-team-surface.md)) — and is decided there through `POST /approvals/{id}/decide`, with the same verbs and the same role check as before: the manage roles or `security`. When the responsible person does not hold one of them, the entry still appears for them and says who decides, and it is delivered as well to those who may — the agent's supervisor first when they hold the role, otherwise the holders of the role — each in their direct conversation with the agent. An agent's own turn never decides an approval; only a person does.
+
 Typical actions requiring a gate:
 
 - outbound external mail (above all to non-internal recipients),
@@ -173,8 +175,8 @@ urgency:
 
 | Class | What it carries | Who is told |
 |---|---|---|
-| `decision` | an approval gate holding an agent still, an open point from a review ([`21`](21-operations-and-improvement.md)) | whoever may decide, plus the agent's owner |
-| `task` | a task ended — done or failed | the agent's owner |
+| `decision` | an approval gate holding an agent still, an open point from a review ([`21`](21-operations-and-improvement.md)) | the responsible person, and whoever else the entry is delivered to because they may decide it ([`28`](28-team-surface.md)); the mail links to the entry in the conversation |
+| `task` | a task ended — done or failed | the agent's owner. A task opened from a conversation also reports its outcome into that conversation, independent of this mail ([`28`](28-team-surface.md)) |
 | `cost` | a budget cap that paused an agent, the fleet kill switch | org admin and controlling |
 | `ops` | a runner that left, and what else the operation should know | org admin; system admin where it concerns the instance |
 
@@ -216,6 +218,7 @@ The platform views are **role-scoped** (see RBAC in [`09-enterprise-model.md`](0
 - **alerts** from the supervisor and from triggered guard rails,
 - a **cost dashboard** per agent and aggregated,
 - **guard-rail administration** (global / role / agent, versioned),
-- **controls**: approval queue, kill switch, budget settings.
+- **conversations in the audit**: `auditor` and `org_admin` read and export conversations, the per-agent threads from before #440 included, read-only; outside the audit only a conversation's members read it ([`28-team-surface.md`](28-team-surface.md)),
+- **controls**: kill switch, budget settings. Approvals are decided in the conversations, not here; the list of approvals stays readable for the audit, without a decision on it.
 
 This view is what turns a collection of agents into a *manageable organisation*.

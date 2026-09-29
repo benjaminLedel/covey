@@ -85,7 +85,7 @@ Origin: wizard        Correlation key: hire:<uuid>
 - Available target systems: zammad, email, gitlab   ← from the registry, not typed
 ```
 
-The interface then does not show "creating…" but the hiring conversation as it happens: the task's state and its notes over the existing event stream. If the brief is too thin — "make me an agent that does support" — the People department **asks back** through the `blocked` mechanism ([`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)), and the question appears as the next turn in the same window. That is the reason to model this as a task rather than a synchronous call: questions, answers and resumption already have a home here, and an HTTP request would have to invent one badly. When the task completes, the interface shows the drafted agent as a diff to accept, edit or discard — the same gesture the config copilot already uses.
+The interface then does not show "creating…" but the hiring conversation as it happens: the task's state and its notes over the existing event stream. It is the hiring task's live view, not a conversation in the sense of [`28-team-surface.md`](28-team-surface.md). If the brief is too thin — "make me an agent that does support" — the People department **asks back** through the `blocked` mechanism ([`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)), and the question appears as the next turn in the same window. That is the reason to model this as a task rather than a synchronous call: questions, answers and resumption already have a home here, and an HTTP request would have to invent one badly. When the task completes, the interface shows the drafted agent as a diff to accept, edit or discard — the same gesture the config copilot already uses.
 
 **Filling it in yourself.** The existing four-step form stays, in full. It is the way for somebody who knows exactly what they want, and it is the fallback when the People department cannot run — no data plane, a runtime with nothing free ([`18-runtimes-capacity.md`](18-runtimes-capacity.md) § *Scarcity is a scheduling input*), or the agent still a draft because card 1 was skipped. The interface switches to it automatically and says why. A platform whose only path to a new agent runs through an agent is a platform that cannot be recovered from an empty state.
 
@@ -161,7 +161,7 @@ Cut so that every slice is worth shipping on its own — all eight are built:
 5. **The setup page** — three cards, tiers 1 and 2.
 6. **The `covey` self-service actions** with their four rules.
 7. **The People department bundle** and the self-onboarding (tier 3).
-8. **The brief** — form → task → live conversation → draft review.
+8. **The brief** — form → task → live view of the task → draft review.
 
 ## Open points
 

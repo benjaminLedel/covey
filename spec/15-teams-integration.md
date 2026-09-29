@@ -1,6 +1,6 @@
 # 15 — Microsoft Teams integration (target system)
 
-Connects **Microsoft Teams** as a target system so that agents can **receive and send** messages there — the chat becomes the channel between human and agent, analogous to the helpdesk in [`13-zammad-integration.md`](13-zammad-integration.md). Teams is the second webhook-driven target system (after Zammad) and the first with **OAuth2/JWT** instead of a long-lived API token.
+Connects **Microsoft Teams** as a target system so that agents can **receive and send** messages there — the chat becomes the channel between human and agent, analogous to the helpdesk in [`13-zammad-integration.md`](13-zammad-integration.md). The Teams chat is a **target system**, not covey's own conversations ([`28-team-surface.md`](28-team-surface.md)): a message in Teams wakes the agent like a ticket does, and nothing is mirrored between the two in either direction. Teams is the second webhook-driven target system (after Zammad) and the first with **OAuth2/JWT** instead of a long-lived API token.
 
 Architecturally Teams is a **compiled target-system plugin** (`github.com/benjaminLedel/covey-plugin-pack/teams`, in the plugin pack rather than in covey's repository, pulled in by blank import — see [`10-architecture-stack.md`](10-architecture-stack.md), "Target systems as plugins"): the same `System`/`Webhooker` interface as Zammad, the same event router, the same dedup/correlation mechanics. Only the auth surface is new.
 
@@ -149,7 +149,7 @@ storage and stays outside this integration.
 - **Actions:** send, reply, open a 1:1 chat, load an attachment into the sandbox, send a file (the consent flow).
 - **Reading attachments** through `download_attachment` (bytes into the sandbox, not into the control plane).
 - **Sending attachments** through `send_file`/`upload_file` in chats — bytes likewise from the sandbox.
-- **`blocked`** through the conversation, correlation through the `conversation.id` — for follow-up questions as for file consents.
+- **`blocked`** through the Teams conversation, correlation through the `conversation.id` — for follow-up questions as for file consents.
 
 Later (not now): adaptive cards instead of plain text, files into **channels** (Graph), channel/team administration through Microsoft Graph, delegated user context (Graph with on-behalf-of), several bots per org.
 

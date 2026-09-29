@@ -1,14 +1,14 @@
 # 28 — The team surface: the day's working view
 
-**Status: the first slice is built** (#298 — the shell, the thread, the reply at the question, the search, reactions). Section 5 is specified and open as #302. This document describes what it becomes, and it exists because the next four steps all pull on the same joint: what the team surface is allowed to show.
+**Status: the first slice is built** (#298 — the shell, the thread, the reply at the question, the search, reactions). Section 5 is specified and open as #302. Conversations with members (#440) and the inbox folded into them (#441) are decided; sections 2 and 3 describe them, and the code follows. This document describes what it becomes, and it exists because the next four steps all pull on the same joint: what the team surface is allowed to show.
 
 The console is the view of somebody who *builds* a workforce. The team surface is the view of somebody who *works with* one, and that is a different question about scope at every turn — which is why it needs writing down once instead of being decided four times.
 
 ## What is built
 
-A shell of its own at the root: the colleagues grouped by department, what waits on top, a thread per agent. A message becomes a task, a reply becomes the resume input of a parked one, and everything else is read out of the objects that already carry it ([`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md), `internal/httpapi/chat.go`). Each agent carries a face computed from its slug, and the face shows whether it works, sleeps or has been stopped.
+A shell of its own at the root: the colleagues grouped by department, and a list of conversations — direct and group, newest first (section 3). A message to an agent is handed to it (section 5; with the triage off it becomes a task), a reply at a question becomes the resume input of the parked task, and what the backlog knows is read out of the backlog rather than copied into the conversation ([`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md), `internal/httpapi/chat.go`). Each agent carries a face computed from its slug, and the face shows whether it works, sleeps or has been stopped.
 
-**It is an opt-in per organisation, off by default while it is in beta** (#328). `organizations.team_surface` holds the switch, `GET`/`PATCH /api/v1/org/team-surface` read and set it (reading: every role; setting: whoever manages the organisation), and `/auth/me` carries it as `TeamSurface` so the interface picks its shell on the first answer. Off means: the console keeps the root, `/team/<id>` leads to the agent's page, there is no switch between the shells, and `POST /agents/{id}/messages` answers 403. The refusal sits in the server, not only in the interface. Reading a thread, replying to a parked task and reacting stay open, because they act on tasks that exist whether the surface is on or not. The triage switch (section 5) is shown only while the surface is on, since without it there is no message to decide about.
+**It is an opt-in per organisation, off by default while it is in beta** (#328). `organizations.team_surface` holds the switch, `GET`/`PATCH /api/v1/org/team-surface` read and set it (reading: every role; setting: whoever manages the organisation), and `/auth/me` carries it as `TeamSurface` so the interface picks its shell on the first answer. Off means: the console keeps the root, `/team/<id>` leads to the agent's page, there is no switch between the shells, and posting into a conversation answers 403 (`POST /agents/{id}/messages` and the conversation endpoints alike). The refusal sits in the server, not only in the interface. Reading a conversation stays open to its members, and replying to a parked task and reacting stay open, because they act on tasks and messages that exist whether the surface is on or not. The triage switch (section 5) is shown only while the surface is on, since without it there is no message to decide about.
 
 ## 1. The org chart belongs here, as the directory
 
@@ -17,33 +17,45 @@ The console's org chart answers *how is this organisation built* — it is edita
 Under the team the same structure answers a different question: **who do I talk to?** So it is not the same screen with the editing switched off; it is a directory that happens to be shaped like the org chart:
 
 - read-only, no drag, no rename
-- every node is a door: a click opens the conversation with that colleague
-- humans are in it and are not a second class — they are simply nodes you cannot open a thread with *yet* (see 2)
-- it is the picker: selecting several nodes is how a group conversation starts (see 3)
+- every node is a door: a click opens the direct conversation with that colleague, or creates it when there is none yet
+- humans are in it and are not a second class — a person is opened the same way as an agent, and a direct conversation between two people is as ordinary as one with an agent (see 2)
+- it is the picker: selecting several nodes is how a group conversation starts, and a group carries a title (see 3)
 
 That last point is the reason to build it at all. A flat list of colleagues stops working at forty, and a search finds who you can name. The chart finds who you *cannot* name — "the person who reviews invoices in finance" is a position in a structure, not a string.
 
 ## 2. Humans in the conversation
 
-Today a thread has exactly two sides: the person reading it and one agent. Everything else the agent produces arrives through the objects.
+A conversation has members, and a person is a member the way an agent is. What differs is how a message reaches them. An agent has a backlog and a wake; a message to it is handed to the agent, and the agent answers (section 5). A human has neither, so a message to a human reaches them in two ways, and they are not exclusive:
 
-Bringing humans in is a bigger step than it looks, because a human is not reachable the way an agent is. An agent has a backlog; a message to it becomes a task, and the wake is the delivery. A human has no backlog and no wake. So a message to a human is either:
+- **the conversation itself**, which is also where everything else that waits for this person now stands — the agents' questions, the approvals, the open points of a review (below)
+- **a notification** — push to the app ([`27-mobile-app.md`](27-mobile-app.md)) or mail ([`06-observability-control.md`](06-observability-control.md)) — to the conversation's members, except the author and whoever muted it. The platform already has the mail plumbing (`internal/notify`).
 
-- **a notification** (mail, Teams, whatever the organisation runs), with the thread as the record — the platform already has the mail plumbing (`internal/notify`), or
-- **an item in their inbox** on the platform, which is where every other thing that waits for a person already is ([`06-observability-control.md`](06-observability-control.md))
+**The conversation is the truth, the notification is the nudge.** The conversation holds the message and, where there is one, the decision; the notification reaches somebody who does not have the tab open and says only that something waits — it carries no content ([`27-mobile-app.md`](27-mobile-app.md)).
 
-The second keeps one list of what waits for me and needs no channel. The first reaches somebody who does not have the tab open. They are not exclusive — the inbox item is the truth, the notification is the nudge — and that is the recommendation.
+### Decidable entries: what the inbox used to hold (#441)
 
-## 3. Group conversations
+What waits for a person's decision was spread over two places: the conversation carried the agent's questions, and an inbox carried the approvals ([`06-observability-control.md`](06-observability-control.md)) and the open points of a review — proposals, findings, filed issues, tool requests ([`21-operations-and-improvement.md`](21-operations-and-improvement.md)). A person looked in two places for the same thing — *the agent needs me* — and the inbox showed it without the conversation it belonged to.
 
-A thread with several participants is the point where "chat" stops being a view of one agent's backlog and becomes an object of its own. That is the decision, and it should be taken deliberately:
+**Decided: they are decidable entries in the conversation of the responsible person.** The responsible person is the person the task came from; for a task that came from no person (a heartbeat, a webhook, a delegation, a review cycle) it is the agent's supervisor. The entry sits in the direct conversation between that person and the agent whose task raised it — for a task opened from a direct conversation, that is the one it came from; an entry is not put in front of a whole group — and is decided there, through the same decision endpoints with the same verbs and checks as before: approve / reject for an approval, accept / reject with a reason for an open point. Push announces it like a question. An open point of a review is the one case that needs a closer reading, and [`21-operations-and-improvement.md`](21-operations-and-improvement.md) gives it: the responsible person is the supervisor of the agent the point is about, and the conversation is theirs with covey Doctor, never with the reviewed agent.
 
-- **The thread stays a view.** A group conversation is then a *set* of tasks — one per agent — correlated by a shared key, and the thread merges them. Cheap, no new table, and it inherits every guard rail. What it cannot do: a message addressed to the group but to no agent in particular, and a reply by one agent that the others see.
-- **The thread becomes an object.** A `conversations` table, participants (agents and humans), messages, and tasks that hang off a message. Everything a group needs, and a second place where work is described — the thing [`03`](03-lifecycle-scheduling.md) exists to prevent.
+**Rights do not move with the entry.** Who may decide an approval or accept a configuration change is unchanged — the manage roles or `security` for an approval, `org_admin`/`security` for a proposal that touches `ACCESS.md` or `EGRESS.md`. When the responsible person may not decide an entry, it still appears for them, says who decides, and offers no button; and it is delivered as well to the people who may — the agent's supervisor first when they hold the role, otherwise the holders of the role — each in their direct conversation with the agent. Deciding it anywhere closes it everywhere.
 
-**Recommendation: the middle.** A conversation is an object, but it owns no work: it holds participants and messages, and every message that is meant as work still becomes an ordinary backlog task of the agent it is addressed to. The conversation is the envelope, the backlog stays the ledger. An agent that reads the thread reads other agents' messages as context, and nothing in the dispatcher changes.
+**Only a person decides.** An agent's own turn in a conversation — the triage, the retelling of a result — never approves, accepts or rejects an entry, whatever the conversation says to it (section 5).
 
-**Open:** whether an agent may speak in a group without being addressed. That is the difference between a group chat and a swarm, and it is a guard-rail question before it is a UI one.
+**Gone:** the inbox page, its counter in the navigation, `GET /api/v1/inbox`, and the app's "What waits" list. The decision endpoints stay; the conversation calls them.
+
+## 3. Conversations: direct and group
+
+A thread with several participants is the point where "chat" stops being a view of one agent's backlog and becomes an object of its own. The per-agent thread was such a view, and it showed why the view is the wrong shape: one conversation per agent, shared by everybody in the organisation, carrying the result of **every** task of the agent — work from the backlog, a webhook, Jira or Zendesk that the people reading it never asked for — while each of them read what the others had written.
+
+**Decided (#440): a conversation is an object, and it owns no work.** It holds members and messages; the backlog stays the ledger ([`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)).
+
+- **Two kinds.** A *direct* conversation has exactly two members — a person and an agent, or two people — and there is one per pair. A *group* has several members, people and/or agents, and a title. Tables `conversations`, `conversation_members` (with the member's read position and whether they muted it) and `conversation_messages`.
+- **Only members read and write.** Nobody reads a conversation because they may manage the agent in it. The roles `auditor` and `org_admin` read and export conversations in the audit ([`06-observability-control.md`](06-observability-control.md)) — a reading of the record, not a seat in the conversation.
+- **When an agent speaks.** In a direct conversation it answers every message. In a group it answers only when it is addressed: mentioned by name (`@`), or replied to on a message of its own. That closes what used to be open here — the difference between a group chat and a swarm — on the side of the group chat: an agent in a group does not answer a message that was not addressed to it, whoever wrote it.
+- **Beside the backlog, not a view on it.** When work comes up in a conversation, the agent looks into its own backlog — what is there, its state, its result — or opens a task linked to the conversation, and says in the conversation what matters. An agent that answers in a group reads the other members' messages as context, and nothing in the dispatcher changes.
+- **Nothing from the backlog is mirrored in.** Two messages are the exception, both written by the platform for the agent: a task opened from a conversation reports its outcome back into that conversation (`backlog_tasks.conversation_id`, section 5), and a question a task parks on that came from outside any conversation goes into the direct conversation between the agent and its supervisor. The decidable entries of section 2 are the one further kind the platform writes, and they go to the responsible person.
+- **The old threads are not carried over.** The per-agent threads (`chat_messages`) stay readable in the audit and nowhere else, and every conversation starts empty. Carrying them over would have meant assigning each line of a shared thread to members it was never written to. The per-agent thread endpoints remain as aliases onto the person's direct conversation with the agent, so an app built against them keeps working ([`27-mobile-app.md`](27-mobile-app.md)).
 
 ## 4. Several organisations at once
 
@@ -57,20 +69,20 @@ So the team surface needs **account-scoped reads**: a small set of endpoints tha
 2. **The organisation is visible on every row.** A colleague list mixing two companies without saying which is which is a mistake waiting to be made by the reader, not by the code.
 3. **Writing stays single-org.** A message creates a task in exactly one organisation — the one the agent belongs to. Reading crosses the boundary; writing never does, and the existing `agentScoped` middleware keeps doing what it does.
 
-What it costs: `GET /agents`, `GET /departments` and `GET /inbox` need account-scoped twins, and the audit trail has to record which seat a read came from. What it buys: the surface stops being a per-tenant console and becomes what the name says.
+What it costs: `GET /agents`, `GET /departments` and `GET /conversations` need account-scoped twins, and the audit trail has to record which seat a read came from. What it buys: the surface stops being a per-tenant console and becomes what the name says.
 
 **Open:** whether the console follows. The recommendation is no — administration happens inside one organisation, and a fleet-wide admin view is a different product with a different threat model.
 
 ## 5. A message is not automatically a task
 
-Today every message becomes a backlog task. That is right for "check the
+Without the triage every message to an agent becomes a backlog task. That is right for "check the
 Globex invoice" and absurd for "did that go out yesterday?" — the second gets
 an isolated sandbox, a runtime seat and a line in the cost list in order to
 answer one sentence. It is also slow in the direction that matters: a
 colleague answers in four seconds, ours opens a ticket.
 
 The message should be handed to the agent, and **the agent decides what kind
-of thing it is**: answer in the thread, acknowledge with a mark, or open the
+of thing it is**: answer in the conversation, acknowledge with a mark, or open the
 task. Whether "look at the invoice" is a question or a job depends on the
 agent's role, and the agent is the thing that knows its role — so this is not
 a rule in the interface.
@@ -101,13 +113,15 @@ sandbox**:
   know the QA agent?" is a question to answer, not a task to open
 - it sees the end of the conversation, not all of it, and **looks up** what
   lies further back (#416): a fourth move, `search`, has covey search the
-  whole conversation and the org chart — a name with a typo included — and
+  whole of the conversation it answers in — not the agent's other
+  conversations — and the org chart — a name with a typo included — and
   asks once more with the hits. The org chart it reads carries stopped
   colleagues too, marked; a run's directory does not
 - a turn that fails is tried once more; when it still fails, the message
   becomes a task as before and the reason is noted at that task
 - its output is text or a task, nothing else: no config change, no wake, no
-  approval decided
+  approval or other decidable entry decided — only a person decides one
+  (section 2)
 - it is recorded and counted like any other run ([`06`](06-observability-control.md))
 - the guard rails on what an agent says hold for a direct answer exactly as
   they hold for a ticket reply — a cheap path must not become the cheap way
@@ -120,13 +134,15 @@ record, with headings and lists — and the triage knew the agent's title but
 not its voice. So:
 
 - the triage's decision to open a task carries a short acknowledgement in the
-  agent's voice, written into the thread at once ("sure, I'll look at the
+  agent's voice, written into the conversation at once ("sure, I'll look at the
   invoice") — promising nothing about the outcome;
-- when a task that came from the chat is done or has failed, a second cheap
-  turn tells the person what came out, in a few sentences of chat, from the
-  result and the conversation alone. It is kept on the task, shown in the
-  thread, in the list of conversations and in the push notification (which
-  waits for it); **the report stays one tap away**, because the sentence is a
+- when a task opened from a conversation is done or has failed, a second
+  cheap turn tells the members what came out, in a few sentences of chat,
+  from the result and the conversation alone. It is kept on the task and
+  written into the conversation the task was opened from
+  (`backlog_tasks.conversation_id`), shown in the list of conversations and
+  in the push notification to the members except the author and whoever
+  muted it (which waits for it); **the report stays one tap away**, because the sentence is a
   retelling and nobody should have to take it on trust;
 - both turns get the agent's SOUL.md, and ask for chat as a colleague writes
   it rather than for a sentence count.
@@ -136,7 +152,7 @@ system, no credential, nothing claimed beyond what the result says. Without
 a model it says nothing, and the report stands on its own as before.
 
 The open decisions are in the issue; the load-bearing one is what the answer
-is allowed to know. The recommendation is: the role and the thread, not the
+is allowed to know. The recommendation is: the role and the conversation, not the
 wiki memory. An answer that needs the memory is an answer that should have
 been a task.
 
@@ -146,7 +162,7 @@ A second console. Every one of the four steps above has a version that ends ther
 
 ## Related
 
-- [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md) — the backlog the thread is a view of
-- [`06-observability-control.md`](06-observability-control.md) — the inbox, approvals, the recording
+- [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md) — the backlog the conversations co-exist with
+- [`06-observability-control.md`](06-observability-control.md) — approvals, decided in the responsible person's conversation; the recording; conversations read and exported in the audit
 - [`09-enterprise-model.md`](09-enterprise-model.md) — seats, roles, the organisation as the unit
 - [`27-mobile-app.md`](27-mobile-app.md) — the same surface in a pocket, and the badge it still needs
