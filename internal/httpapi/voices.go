@@ -60,12 +60,14 @@ func (s *Server) handleCreateVoice(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Name     string `json:"name"`
 		Language string `json:"language"`
+		Purpose  string `json:"purpose"`
 	}
 	if err := readJSON(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, "body not readable")
 		return
 	}
-	v, err := store.Create(r.Context(), principalFrom(r).OrgID, in.Name, in.Language)
+	v, err := store.CreateWith(r.Context(), principalFrom(r).OrgID,
+		voice.Draft{Name: in.Name, Language: in.Language, Purpose: in.Purpose})
 	switch {
 	case errors.Is(err, voice.ErrExists):
 		writeErr(w, http.StatusConflict, err.Error())
@@ -87,6 +89,10 @@ type voiceView struct {
 	// the artefacts on their own do not say what actually reaches a prompt, and
 	// that is the question somebody has in front of a voice.
 	Tone string `json:"tone"`
+	// Checks say what the author corpus lacks, while it is collected (#458).
+	Checks []voice.Check `json:"checks"`
+	// Assignable: whether an agent can carry the voice yet.
+	Assignable bool `json:"assignable"`
 }
 
 func (s *Server) handleGetVoice(w http.ResponseWriter, r *http.Request) {
@@ -102,7 +108,250 @@ func (s *Server) handleGetVoice(w http.ResponseWriter, r *http.Request) {
 	if corpus == nil {
 		corpus = []voice.StoredDocument{}
 	}
-	writeJSON(w, http.StatusOK, voiceView{Voice: v, Corpus: corpus, Tone: voice.Render(v)})
+	texts, err := store.Corpus(r.Context(), v.ID, voice.KindAuthor)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, voiceView{Voice: v, Corpus: corpus, Tone: voice.Render(v),
+		Checks: voice.CheckCorpus(texts, v.Language), Assignable: v.Assignable()})
+}
+
+// handlePatchVoice changes what a voice is for.
+func (s *Server) handlePatchVoice(w http.ResponseWriter, r *http.Request) {
+	store, v, ok := s.requireVoice(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		Purpose string `json:"purpose"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "body not readable")
+		return
+	}
+	updated, err := store.SetPurpose(r.Context(), principalFrom(r).OrgID, v.ID, in.Purpose)
+	writeVoiceResult(w, updated, err)
+}
+
+// writeVoiceResult answers a change to a voice: 400 for the caller's mistake,
+// the voice otherwise.
+func writeVoiceResult(w http.ResponseWriter, v voice.Voice, err error) {
+	switch {
+	case errors.Is(err, voice.ErrInvalid):
+		writeErr(w, http.StatusBadRequest, err.Error())
+	case err != nil:
+		mapErr(w, err)
+	default:
+		writeJSON(w, http.StatusOK, v)
+	}
+}
+
+// voiceModel is the organisation's model for the calls that write a voice. No
+// credential is a state, not a fault: the answer says so, and the page says
+// the same before anybody clicks.
+func (s *Server) voiceModel(w http.ResponseWriter, r *http.Request) (llm.Provider, bool) {
+	if s.OrgLLM == nil && s.Secrets == nil {
+		writeErr(w, http.StatusServiceUnavailable, llm.ErrNoCredential.Error())
+		return nil, false
+	}
+	provider, err := s.resolveOrgLLM(r.Context(), principalFrom(r).OrgID)
+	if err != nil {
+		writeErr(w, http.StatusServiceUnavailable, llm.ErrNoCredential.Error())
+		return nil, false
+	}
+	return provider, true
+}
+
+// handleDescribeVoice writes a voice from a description (#458): card,
+// exemplars and a suggested chat tone, in one call of the organisation's
+// model. The result is a draft — the card and the exemplars act once a person
+// releases them, the tone once somebody saves it.
+//
+// A measured voice is not described over: its exemplars are quotes and its
+// profile is what the gate checks, and a description would replace evidence
+// with a claim. Its card is refined instead.
+func (s *Server) handleDescribeVoice(w http.ResponseWriter, r *http.Request) {
+	store, v, ok := s.requireVoice(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		Description string `json:"description"`
+		Language    string `json:"language"`
+		Purpose     string `json:"purpose"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "body not readable")
+		return
+	}
+	if v.Source == voice.FromTexts && v.Measured() {
+		writeErr(w, http.StatusConflict, "this voice is measured from texts — refine its card instead of describing it")
+		return
+	}
+	in.Description = strings.TrimSpace(in.Description)
+	if in.Description == "" {
+		in.Description = v.Description // write it again from what is stored
+	}
+	if in.Description == "" {
+		writeErr(w, http.StatusBadRequest, "a described voice needs a description")
+		return
+	}
+	if n := len([]rune(in.Description)); n > voice.DescriptionMax {
+		writeErr(w, http.StatusBadRequest, "the description is longer than the limit of a few paragraphs")
+		return
+	}
+	ctx := r.Context()
+	orgID := principalFrom(r).OrgID
+	if strings.TrimSpace(in.Purpose) != "" {
+		var err error
+		if v, err = store.SetPurpose(ctx, orgID, v.ID, in.Purpose); err != nil {
+			writeVoiceResult(w, v, err)
+			return
+		}
+	}
+	lang := strings.TrimSpace(in.Language)
+	if lang == "" {
+		lang = v.Language
+	}
+	if lang == "" {
+		lang = style.DetectLanguage(in.Description)
+	}
+	provider, ok := s.voiceModel(w, r)
+	if !ok {
+		return
+	}
+	d, err := voice.Describe(ctx, provider, voice.DescribeInput{Name: v.Name, Purpose: v.Purpose,
+		Language: lang, Description: in.Description})
+	if err != nil {
+		if errors.Is(err, voice.ErrInvalid) {
+			writeErr(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		s.Log.Warn("voice: the description could not be written", "voice", v.ID, "err", err)
+		writeErr(w, http.StatusBadGateway, "the model's answer could not be used: "+err.Error())
+		return
+	}
+	updated, err := store.SaveDescribed(ctx, orgID, v.ID, in.Description, lang, d)
+	writeVoiceResult(w, updated, err)
+}
+
+// handlePreviewVoice writes one short sample in a voice, on a topic a person
+// picks, and stores nothing (#458). version "draft" (the default) hears the
+// card and exemplars waiting for release, "released" the ones that act — the
+// before and after of a refinement.
+//
+// A manage action although it changes nothing: it costs a model call, and
+// the people who build a voice are the ones who need to hear it.
+func (s *Server) handlePreviewVoice(w http.ResponseWriter, r *http.Request) {
+	store, v, ok := s.requireVoice(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		Topic   string `json:"topic"`
+		Kind    string `json:"kind"`
+		Version string `json:"version"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "body not readable")
+		return
+	}
+	card, exemplars := v.ReleasedCard, v.Exemplars
+	switch in.Version {
+	case "", "draft":
+		in.Version = "draft"
+		if strings.TrimSpace(v.Card) != "" {
+			card = v.Card
+		}
+		if len(v.DraftExemplars) > 0 {
+			exemplars = v.DraftExemplars
+		}
+	case "released":
+	default:
+		writeErr(w, http.StatusBadRequest, `version is "draft" or "released"`)
+		return
+	}
+	provider, ok := s.voiceModel(w, r)
+	if !ok {
+		return
+	}
+	ctx := r.Context()
+	org, _ := store.OrgChatTone(ctx, principalFrom(r).OrgID)
+	kind := in.Kind
+	if kind == "" {
+		kind = voice.DefaultKind(v.Purpose)
+	}
+	text, err := voice.Preview(ctx, provider, voice.PreviewInput{Name: v.Name, Language: v.Language,
+		Purpose: v.Purpose, Card: card, Exemplars: exemplars,
+		ChatTone: voice.EffectiveChatTone(v.ChatTone, org), Topic: in.Topic, Kind: kind})
+	if errors.Is(err, voice.ErrInvalid) {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err != nil {
+		s.Log.Warn("voice: the preview could not be written", "voice", v.ID, "err", err)
+		writeErr(w, http.StatusBadGateway, "the preview could not be written: "+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"text": text, "kind": kind, "version": in.Version,
+		"provider": provider.Name()})
+}
+
+// handleRefineVoice revises the card by an instruction ("less formal, more
+// concrete numbers"), and the exemplars of a described voice with it (#458).
+// The revision is a DRAFT: the released card acts until a person releases the
+// new one, as after any build. The answer carries the text before, so the
+// page can put the two side by side.
+func (s *Server) handleRefineVoice(w http.ResponseWriter, r *http.Request) {
+	store, v, ok := s.requireVoice(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		Instruction string `json:"instruction"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "body not readable")
+		return
+	}
+	// The revision starts from the draft where there is one — a second
+	// instruction builds on the first — and from the released card otherwise.
+	card := v.Card
+	if strings.TrimSpace(card) == "" {
+		card = v.ReleasedCard
+	}
+	described := v.Source == voice.FromDescription
+	exemplars := v.DraftExemplars
+	if len(exemplars) == 0 {
+		exemplars = v.Exemplars
+	}
+	provider, ok := s.voiceModel(w, r)
+	if !ok {
+		return
+	}
+	ctx := r.Context()
+	refined, err := voice.Refine(ctx, provider, voice.RefineInput{Name: v.Name, Language: v.Language,
+		Purpose: v.Purpose, Card: card, Exemplars: exemplars, Instruction: in.Instruction, Described: described})
+	if errors.Is(err, voice.ErrInvalid) {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err != nil {
+		s.Log.Warn("voice: the refinement could not be written", "voice", v.ID, "err", err)
+		writeErr(w, http.StatusBadGateway, "the model's answer could not be used: "+err.Error())
+		return
+	}
+	updated, err := store.SaveRefined(ctx, principalFrom(r).OrgID, v.ID, refined.Card, refined.Exemplars)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	before := map[string]any{"card": card}
+	if described {
+		before["exemplars"] = exemplars
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"voice": updated, "before": before})
 }
 
 func (s *Server) handleDeleteVoice(w http.ResponseWriter, r *http.Request) {
@@ -201,9 +450,10 @@ func (s *Server) handleBuildVoice(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.Log.Warn("voice: corrections not readable", "voice", v.ID, "err", err)
 	}
+	built.Purpose = v.Purpose
 	card := ""
-	if s.Secrets != nil {
-		if provider, err := llm.Resolve(ctx, s.Secrets, orgID); err == nil {
+	if s.Secrets != nil || s.OrgLLM != nil {
+		if provider, err := s.resolveOrgLLM(ctx, orgID); err == nil {
 			if card, err = voice.Card(ctx, provider, built, v.Name, pairs); err != nil {
 				s.Log.Warn("voice: the card could not be written", "voice", v.ID, "err", err)
 				built.Notes = append(built.Notes,
@@ -360,9 +610,13 @@ func (s *Server) handleSetAgentVoice(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
-	if !v.BuiltOK() {
-		writeErr(w, http.StatusBadRequest,
-			"this voice has not been built yet — there is nothing to write into the agent's TONE.md")
+	if !v.Assignable() {
+		msg := "this voice has not been built yet — there is nothing to write into the agent's TONE.md"
+		if v.Source == voice.FromDescription {
+			msg = "this voice is described and not released yet — everything in it was written by a model, " +
+				"so it acts only once a person has released it"
+		}
+		writeErr(w, http.StatusBadRequest, msg)
 		return
 	}
 	cfg, err := s.Registry.CurrentConfig(ctx, agent.ID)

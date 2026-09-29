@@ -60,7 +60,10 @@ func (o *Orchestrator) styleProse(ctx context.Context, agentID uuid.UUID) string
 	if _, prose, err := style.ParseProfile(cfg.Files["TONE.md"]); err == nil {
 		return prose
 	}
-	return ""
+	// A described voice (#458) has no profile block, and its TONE.md is prose
+	// from top to bottom — the card and the passages the revision should
+	// follow.
+	return strings.TrimSpace(cfg.Files["TONE.md"])
 }
 
 // styleCheckAction: covey/style_check {"text": "...", "language": "de|en"}.

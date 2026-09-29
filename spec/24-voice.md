@@ -1,6 +1,6 @@
 # 24 — Voice: an author's style as an object an agent carries
 
-**Status: slices 1 to 3 are built.** Slice 1 lives in the covey-style skill, slices 2 and 3 in covey (#195, #257).
+**Status: slices 1 to 3 are built, and the guided way to build a voice (#458).** Slice 1 lives in the covey-style skill, slices 2 and 3 in covey (#195, #257).
 
 The style gate ([`06-observability-control.md`](06-observability-control.md)) holds an agent's outgoing text inside bands measured from a corpus. The bands say *how far* a text is from the corpus; they cannot make the text sound like the corpus's author. This document describes what does, and how it becomes an object in covey.
 
@@ -20,7 +20,7 @@ A model satisfies "sentences of 13 to 20 words, no dashes" without sounding like
 
 ## What a voice is
 
-A **voice** is an organisation-level object, versioned, built once from texts a person uploads, assigned to an agent in its settings. Four artefacts:
+A **voice** is an organisation-level object, versioned, built once from texts a person uploads — or written from a description, see [Building a voice](#building-a-voice) — and assigned to an agent in its settings. Four artefacts:
 
 1. **Profile** — the ```style-profile``` block as in [`02-agent-model.md`](02-agent-model.md): bands per metric, the lexicon, plus `antithesis_rate`. The guard. Address metrics (wir, ich, Sie, du, man, questions) leave the profile by default: a tender document says "Sie" and never "wir", a blog by the same author may say both; they belong to the register of the corpus, not to the author's hand.
 2. **Exemplars** — five to eight paragraphs chosen from the corpus for variety: an opening, one that carries evidence, one with an example, a long one, a short one, a closing. They go into the compiled prompt under `## Tone`. A paragraph that closes on an antithesis is never an exemplar; the same paragraph reused in two documents counts once.
@@ -51,6 +51,28 @@ A fifth part of a voice is set rather than built: how an agent carrying it talks
 The organisation has the same four as its default (`organizations.chat_tone`): it applies to an agent without a voice, and field by field to what a voice leaves empty; a voice's own note replaces the default note rather than adding to it. Stored as `voices.chat_tone` and `organizations.chat_tone` (migration 0120), set with `PUT /api/v1/voices/{id}/chat-tone` and `PATCH /api/v1/org/chat-tone` by the same roles that change a voice; every role reads it.
 
 It acts where the chat is written — the triage and the narration, as one short block ("How you talk in the team chat: …") — and not in a run: what a run writes into a target system keeps the register of the `TONE.md`, and changing the chat tone writes no config version.
+
+## Building a voice (#458)
+
+The rules above — four texts, one register, a card a person releases — used to stand in this document only; a person learned them from a weak build. The voices page now walks through six steps, and an existing voice shows the same six as sections of its page: **purpose, source, material, chat tone, preview, release**. A rail marks each step as done, open, optional or held up, and the line under it names what blocks the next one. The rule for that lives in one place (`web/src/pages/voices/flow.ts`) with its own tests: a "Next" that leads into a dead end teaches people to stop trusting it.
+
+**Purpose** — `blog`, `support_mail`, `chat`, `offers` or `other`, stored as `voices.purpose`. It goes into the card prompt, the description prompt and the preview, and picks the preview's default kind (a mail for support and offers, a chat message for chat, a paragraph otherwise).
+
+**Three sources**, one column: `voices.source` is `texts` or `described` (migration 0121).
+
+- **From texts** — the build above. While the texts go in, the page shows checks from the same measurements the build uses (`voice.CheckCorpus`), and they claim only what a measurement can tell: how many more texts of 150 words or more are needed for a percentile spread (four in all); which texts are below 150 words and carry no band; which address the reader differently from the rest — "Sie" where the others say "du", read from `sie_per_1000` and `du_per_1000`, with a text that addresses nobody counted as neutral; which are in another language; and whose mean sentence length is more than 1.6 times off the others' median. Only a missing corpus blocks the build. Whether a text is *good* is not among the checks — nothing here can tell.
+- **From a description** — a person says in plain words how the organisation writes. One call of the organisation's model (best tier, at most 4000 tokens, JSON answer) writes the card in the same shape and length as a corpus card, five to eight exemplar paragraphs with their roles, and a suggested chat tone. The one rule that differs is the evidence: a measured card quotes passages, a described one can rest only on the description, and the prompt tells the model to say where the description is silent rather than invent a habit. The parser is tolerant of fences and prose around the JSON, caps the exemplars at eight, and drops a chat-tone value that is not one of the choices field by field instead of failing the answer. A measured voice is not described over (409): its exemplars are quotes and its profile is what the gate checks.
+- **From the chat** — an agent asked in the team chat drafts the voice with `covey/voice_draft {name, purpose, language, description | texts}`. What arrives is a draft: `voices.drafted_by` names the agent, nobody carries it, no card is released, and there is no op to release, build or assign — those stay on the voices page with the manage roles. No model call happens in the action; a person writes the card from the description, or builds from the texts, with one click whose cost is theirs. Its own guard-rail subject, `covey:voice_draft`, and every draft is in the recording.
+
+**Nothing a model wrote acts before a release.** For a measured voice that was the card alone; a described voice's exemplars are model-written too, so they wait in `voices.draft_exemplars` and are released with the card. The suggested chat tone waits in `voices.suggested_chat_tone`: a chat tone acts as soon as it is set, so it is shown in the tone step and applies once somebody saves it. A described voice can be assigned only once it has been released.
+
+**The gate and a described voice** (decided in #458). A voice from a description carries **no profile**: nothing was measured, and a band invented from a description would be a number with a straight face. Its `TONE.md` says "described in words rather than measured from texts" and has no ```style-profile``` block, so the style gate finds no profile, records `skipped` with the reason "the agent's voice is described, not measured", and lets the text pass. `style_apply` reads such a `TONE.md` whole as the prose to revise against. The voice acts while writing, through its card and exemplars, and the page says so. Texts added and built make it measured: `SaveBuild` sets `source = texts`, the exemplars are quotes again, the gate applies, and a released card stays.
+
+**Preview** — `POST /api/v1/voices/{id}/preview {topic, kind, version}` writes one short sample (a paragraph, a mail, a chat message) in the voice: card, exemplars and, for a chat message, the effective chat tone. Fast tier, at most 700 tokens, stored nowhere. `version` is `draft` (the default) or `released`, so a refinement can be heard before and after.
+
+**Refine by prompt** — `POST /api/v1/voices/{id}/refine {instruction}` revises the card, and a described voice's exemplars with it, by an instruction ("less formal, more concrete numbers"). The result is the draft (`voices.card`); the answer carries the text before, and the page shows the two side by side. It acts only on release, under the rule every card follows: a released card is not overwritten by a rebuild or a refinement.
+
+API beside the existing routes: `PATCH /api/v1/voices/{id}` (purpose), `POST …/describe`, `…/preview`, `…/refine`; `POST /api/v1/voices` takes `purpose`; `GET /api/v1/voices/{id}` returns `checks` and `assignable`. RBAC as for the rest of a voice: every role reads, the manage roles change — the preview included, which changes nothing but costs a model call. The interface says next to each such button that it is one.
 
 ## The build
 
@@ -94,7 +116,7 @@ Storage is `voice_corrections` (migration 0091): the pair, the agent it came fro
 - Tables `voices` and `voice_documents` (migration 0090), plus `agents.voice_id` — what ACTS is the file in the agent's config, the column says whose voice it is.
 - The library page *Voices* beside Skills: the corpus, the build with its notes, the card to correct and release, the passages, the contrast, and the rendered `TONE.md` behind a fold — because the four artefacts on their own do not say what actually reaches a prompt.
 - The picker in the agent settings: assigning writes `TONE.md` as a new config version, so a change of voice is reviewable and revertible where every other change to an agent is ([`02`](02-agent-model.md)). Taking a voice off clears the link and LEAVES the file: removing it would change how an agent writes as a side effect of a picker.
-- API: `/api/v1/voices` (+ `/documents`, `/build`, `/release`) and `PUT /api/v1/agents/{id}/voice`; RBAC as for skills, the release included — that is the moment a description of somebody's hand starts appearing in every prompt of every agent carrying the voice.
+- API: `/api/v1/voices` (+ `/documents`, `/build`, `/release`, and since #458 `/describe`, `/preview`, `/refine`) and `PUT /api/v1/agents/{id}/voice`; RBAC as for skills, the release included — that is the moment a description of somebody's hand starts appearing in every prompt of every agent carrying the voice.
 - Ten locale catalogues for the UI text.
 
 Two things turned out differently from the design above, and both for the same reason — not claiming what was not measured:

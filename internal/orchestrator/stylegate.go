@@ -58,7 +58,15 @@ func (o *Orchestrator) styleGate(ctx context.Context, agent agents.Agent, taskID
 
 	profiles := o.styleProfiles(ctx, agent.ID)
 	if len(profiles) == 0 {
-		record("skipped", map[string]any{"reason": "no style profile in the agent's config (TONE.md)"})
+		// A voice described in words rather than measured (#458) is a TONE.md
+		// without a profile block: it acts while writing, and there are no
+		// bands for the gate to hold a text to. That is a skip, never a
+		// failure — the reason says which of the two absences it was.
+		reason := "no style profile in the agent's config (TONE.md)"
+		if o.hasTone(ctx, agent.ID) {
+			reason = "the agent's voice is described, not measured — its TONE.md carries no bands to check against"
+		}
+		record("skipped", map[string]any{"reason": reason})
 		return nil
 	}
 	// A bilingual agent carries one profile per language; the text says which
@@ -154,6 +162,12 @@ func (o *Orchestrator) styleProfiles(ctx context.Context, agentID uuid.UUID) []s
 		out = append(out, style.ParseProfiles(cfg.Files[name])...)
 	}
 	return out
+}
+
+// hasTone reports whether the agent carries a TONE.md at all.
+func (o *Orchestrator) hasTone(ctx context.Context, agentID uuid.UUID) bool {
+	cfg, err := o.Registry.CurrentConfig(ctx, agentID)
+	return err == nil && strings.TrimSpace(cfg.Files["TONE.md"]) != ""
 }
 
 // countStyleDenial counts the denials of one task's action and returns the

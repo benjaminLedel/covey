@@ -101,6 +101,13 @@ var coveyOps = map[string]coveyOp{
 	// agent on that voice writes, so an organisation has to be able to gate it
 	// without gating the rest.
 	"correction": {Subject: "covey:correction"},
+
+	// A voice drafted from a conversation (#458). No scope either: what it
+	// creates is a draft in the library that acts nowhere — no agent carries
+	// it, nothing of it reaches a prompt until a person releases it on the
+	// voices page, and there is no op for releasing. Its own subject, so an
+	// organisation can gate or forbid it without touching the rest.
+	"voice_draft": {Subject: "covey:voice_draft"},
 }
 
 // hiringSystem is the name of the access in ACCESS.md that unlocks these
@@ -249,6 +256,8 @@ func (o *Orchestrator) hiring(ctx context.Context, agent agents.Agent, taskID uu
 		return o.styleApplyAction(ctx, agent, taskID, req, ok, fail)
 	case "correction":
 		return o.correctionAction(ctx, agent, taskID, req, ok, fail)
+	case "voice_draft":
+		return o.voiceDraftAction(ctx, agent, taskID, req, ok, fail)
 	}
 	return fail("unknown covey action %q", op)
 }
@@ -463,6 +472,8 @@ func hiringParams(req daemon.RequestHiring) map[string]any {
 	// The title travels so a guard rail can look at what is being filed or
 	// proposed, not only that something is.
 	add("title", req.Title)
+	add("voice_name", req.VoiceName)
+	add("purpose", req.Purpose)
 	if len(req.Files) > 0 {
 		out["files"] = sortedKeys(req.Files)
 	}

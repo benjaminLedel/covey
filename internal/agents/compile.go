@@ -39,6 +39,11 @@ const CoveyActionsDoc = `The platform's own actions — your board, your memory,
    a target system. Report the pair: it is the sharpest thing your voice can learn from, far
    better than a rule. Only a PERSON's edit counts — a colleague rewriting your text is a
    handover, not a correction. A typo is not one either; say it only when the wording moved.
+   voice_draft {"name":"<voice>","purpose":"blog|support_mail|chat|offers|other",
+   "description":"<how they write, in plain words>"} or {..., "texts":[{"name":"...","text":"..."}]} —
+   somebody asked you for a voice. Describe it from a short interview (how they open, how
+   they bring in a fact, what they never do, du or Sie) or hand over texts they wrote. It
+   files a DRAFT: nothing of it acts until a person releases it on the voices page. Say so.
    create_task {"title":"...","body":"<assignment with all names>","agent":"<slug, optional>"} —
    a task of your own for the rest, or a delegation to a colleague. The assignment is a
    handover to somebody without your context.

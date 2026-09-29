@@ -763,6 +763,14 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /api/v1/voices/{id}/documents/{docID}", s.rbac(manage, s.handleDeleteVoiceDocument))
 	mux.Handle("POST /api/v1/voices/{id}/build", s.rbac(manage, s.handleBuildVoice))
 	mux.Handle("POST /api/v1/voices/{id}/release", s.rbac(manage, s.handleReleaseVoiceCard))
+	// The guided way (#458): what a voice is for, a voice from a description,
+	// a sample to hear it, and a revision by instruction. Each of the last
+	// three is one bounded model call; the preview too is a manage action —
+	// it changes nothing, but it costs, and it belongs to building a voice.
+	mux.Handle("PATCH /api/v1/voices/{id}", s.rbac(manage, s.handlePatchVoice))
+	mux.Handle("POST /api/v1/voices/{id}/describe", s.rbac(manage, s.handleDescribeVoice))
+	mux.Handle("POST /api/v1/voices/{id}/preview", s.rbac(manage, s.handlePreviewVoice))
+	mux.Handle("POST /api/v1/voices/{id}/refine", s.rbac(manage, s.handleRefineVoice))
 	// How the agents carrying a voice talk in the team chat (#457).
 	mux.Handle("PUT /api/v1/voices/{id}/chat-tone", s.rbac(manage, s.handleSetVoiceChatTone))
 	// The correction pairs (spec/24). The approval gate fills them by itself;

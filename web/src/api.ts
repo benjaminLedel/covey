@@ -1663,6 +1663,28 @@ export type Voice = {
   agents?: { id: string; slug: string; display_name: string }[];
   /** How agents carrying the voice talk in the team chat (#457). */
   chat_tone?: ChatTone;
+  /** Where it comes from (#458): measured from texts, or described in words
+   *  — then it has no profile and the style gate does not check against it. */
+  source: "texts" | "described";
+  /** blog | support_mail | chat | offers | other, or "" for an older voice. */
+  purpose: string;
+  /** What a described voice was written from. */
+  description: string;
+  /** Exemplars a model wrote, waiting for the release with the card. */
+  draft_exemplars: VoiceExemplar[];
+  /** The chat tone the description suggests — shown, not applied. */
+  suggested_chat_tone?: ChatTone;
+  /** The agent that drafted it (covey/voice_draft). */
+  drafted_by?: { id: string; slug: string; display_name: string };
+};
+/** One finding about the corpus while it is collected (#458). */
+export type VoiceCheck = {
+  code: "no_texts" | "more_texts" | "short_texts" | "register" | "language" | "sentence_length" | "enough";
+  level: "ok" | "warn" | "block";
+  n?: number;
+  docs?: string[];
+  detail?: string;
+  message: string;
 };
 /** Address, tone and emoji in the team chat; an empty field falls back to the
  *  organisation's default (spec/24). */
@@ -1676,6 +1698,9 @@ export type VoiceDetail = Voice & {
   corpus: VoiceDocument[];
   /** The rendered TONE.md — what the agent actually gets. */
   tone: string;
+  checks: VoiceCheck[];
+  /** Whether an agent can carry it yet. */
+  assignable: boolean;
 };
 
 export const createWorkplace = (w: { name: string; label: string; description: string; image: string }) =>

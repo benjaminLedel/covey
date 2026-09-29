@@ -33,6 +33,7 @@ sections:
       - agent-model
       - runtimes
       - memory
+      - voices
       - guard-rails
       - identity-and-secrets
       - backlog-and-lifecycle

@@ -4342,3 +4342,131 @@
   .tm-verlauf { padding-left: 12px; padding-right: 12px; }
   .tm-kopf > section { margin: 0 12px 12px; }
 }
+
+/* Building a voice (#458): a rail of six steps and the one line under it that
+   says what stands in the way. Flat on purpose — the flow guides, the texts
+   are the content. States are marks (tick done, ring open, dashed ring
+   optional, bar held up); colour only repeats them. */
+.vf { display: flex; flex-direction: column; gap: 14px; font-size: 13px; container-type: inline-size; }
+.vf-rail-wrap { display: flex; flex-direction: column; gap: 6px; }
+.vf-rail {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+  border-bottom: 0.5px solid var(--border);
+}
+.vf-rail button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 6px 8px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -0.5px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.vf-rail button:hover { color: var(--text-primary); }
+.vf-rail button.on { color: var(--text-primary); border-bottom-color: var(--text-accent); font-weight: 500; }
+.vf-rail-label { min-width: 0; overflow-wrap: anywhere; }
+.vf-rail-n { color: var(--text-muted); font-variant-numeric: tabular-nums; font-weight: 400; }
+.vf-status { margin: 0; font-size: 12px; color: var(--text-muted); }
+.vf-blocker { color: var(--text-primary); }
+
+.vf-mark {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.vf-mark.done, .vf-mark.check-ok { color: var(--text-success); }
+.vf-mark.open { color: var(--text-accent); }
+.vf-mark.optional, .vf-mark.blocked { color: var(--text-muted); }
+.vf-mark.blocked, .vf-mark.check-block { stroke-width: 2.2; }
+.vf-mark.check-warn { color: var(--text-warning); }
+.vf-mark.check-block { color: var(--text-danger); }
+
+.vf-section { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 0.5px solid var(--border); scroll-margin-top: 16px; }
+.vf-section:first-of-type { border-top: 0; padding-top: 0; }
+.vf-section-h { display: flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 600; margin: 0; }
+.vf-opt { font-weight: 400; font-size: 12px; }
+.vf-hint { margin: 0; font-size: 12px; max-width: 68ch; }
+.vf-body { display: flex; flex-direction: column; gap: 10px; max-width: 720px; }
+.vf-stage { display: flex; flex-direction: column; gap: 10px; min-height: 120px; }
+.vf-nav { display: flex; justify-content: space-between; gap: 8px; padding-top: 12px; border-top: 0.5px solid var(--border); }
+
+.vf-choices { border: 0; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px; max-width: 720px; }
+.vf-choice {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  padding: 9px 11px;
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.vf-choice:hover { background: var(--tint-weak); }
+.vf-choice.on { border-color: var(--text-accent); background: var(--bg-accent); }
+.vf-choice input { margin-top: 3px; accent-color: var(--text-accent); }
+.vf-choices:disabled .vf-choice { cursor: default; }
+.vf-choice-t { display: block; font-weight: 500; }
+.vf-choice-d { display: block; font-size: 12px; line-height: 1.45; }
+
+.vf-name, .vf-preview-form, .vf-refine { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; max-width: 720px; }
+.vf-field { display: flex; flex-direction: column; gap: 4px; }
+.vf-field.grow { flex: 1 1 240px; min-width: 0; }
+.vf-field input, .vf-field textarea { width: 100%; }
+.vf-upload { display: flex; flex-direction: column; gap: 8px; }
+.vf-upload textarea, .vf-upload input:not([type="file"]) { width: 100%; }
+
+.vf-checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.vf-checks li { display: flex; gap: 8px; align-items: flex-start; line-height: 1.45; }
+.vf-checks .vf-mark { margin-top: 2px; }
+.vf-docs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.vf-docs li { display: flex; gap: 8px; align-items: center; padding: 5px 0; border-bottom: 0.5px solid var(--border); flex-wrap: wrap; }
+.vf-doc-name { min-width: 0; overflow-wrap: anywhere; }
+.vf-buildnote { margin: 0; font-size: 12px; color: var(--text-warning); max-width: 68ch; }
+
+.vf-guide { background: var(--surface-1); border-radius: var(--radius); padding: 10px 12px; max-width: 68ch; }
+.vf-guide ul { margin: 6px 0 0; padding-left: 18px; }
+.vf-guide li { margin: 2px 0; }
+.vf-note { background: var(--surface-1); border-radius: var(--radius); padding: 10px 12px; max-width: 68ch; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.vf-quote { margin: 0; padding-left: 10px; border-left: 1px solid var(--border-strong); color: var(--text-secondary); }
+.vf-error { margin: 0; font-size: 12px; color: var(--text-danger); }
+
+.vf-sample { margin: 0; padding: 10px 12px; border: 0.5px solid var(--border); border-radius: var(--radius); background: var(--surface-2); max-width: 68ch; display: flex; flex-direction: column; gap: 4px; white-space: pre-wrap; }
+.vf-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.vf-card-text { white-space: pre-wrap; padding: 10px 12px; border: 0.5px solid var(--border); border-radius: var(--radius); font-size: 12.5px; line-height: 1.5; max-height: 320px; overflow: auto; }
+.vf-card-text.was { color: var(--text-secondary); background: var(--surface-1); }
+.vf-details summary { cursor: pointer; font-size: 12.5px; color: var(--text-secondary); }
+.vf-details[open] summary { margin-bottom: 8px; }
+.vf-exemplars { display: flex; flex-direction: column; gap: 8px; max-width: 68ch; }
+.vf-exemplars p { white-space: pre-line; }
+.vf-upload select { width: auto; }
+.vf-new .vf-stage { padding-top: 4px; }
+
+/* Narrow is the flow's own width, not the window's: the page sits beside a
+   sidebar, and a voice's sections sit inside its card. */
+@container (max-width: 640px) {
+  /* Narrow: two rows of three, the number carries the order. */
+  .vf-rail { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .vf-compare { grid-template-columns: 1fr; }
+  .vf-choices { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vf-rail button, .vf-choice { transition: none; }
+}

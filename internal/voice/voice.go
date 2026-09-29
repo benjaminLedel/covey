@@ -103,6 +103,9 @@ type Built struct {
 	Notes []string `json:"notes,omitempty"`
 	Words int      `json:"words"`
 	Docs  int      `json:"documents"`
+	// Purpose is what the voice is for (#458), set by the caller rather than
+	// measured: it tells the card which register the corpus is written in.
+	Purpose string `json:"-"`
 }
 
 // Build measures a corpus and derives profile, exemplars and contrast.

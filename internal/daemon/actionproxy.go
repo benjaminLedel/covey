@@ -278,7 +278,7 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 		return map[string]string{"status": "ok", "stage": in.Stage}
 	case "list_targets", "get_agent_config", "create_agent", "set_agent_config",
 		"work_record", "read_recording", "propose_agent_config", "write_review",
-		"create_issue", "start_services", "style_check", "style_apply", "correction":
+		"create_issue", "start_services", "style_check", "style_apply", "correction", "voice_draft":
 		// The meta actions at the registry of the platform: drafting (spec/20)
 		// and reviewing (spec/21). Everything is decided in the control
 		// plane — scope, guard rails, approvals —, the proxy only carries the
@@ -318,6 +318,12 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 			After  string `json:"after"`
 			By     string `json:"by"`
 			Where  string `json:"where"`
+			// A voice draft (#458): a name, what it is for, and either a
+			// description in words or the texts to measure.
+			Name        string      `json:"name"`
+			Purpose     string      `json:"purpose"`
+			Description string      `json:"description"`
+			Texts       []VoiceText `json:"texts"`
 		}
 		_ = json.Unmarshal(params, &in)
 		resp, err := p.client.hiring(ctx, RequestHiring{
@@ -329,6 +335,7 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 			Compose: in.Compose, Only: in.Only,
 			Text: in.Text, Material: in.Material, MaxIter: in.MaxIter, Language: in.Language,
 			Before: in.Before, After: in.After, By: in.By, Where: in.Where,
+			VoiceName: in.Name, Purpose: in.Purpose, Description: in.Description, VoiceTexts: in.Texts,
 		})
 		if err != nil {
 			return map[string]string{"status": "error", "error": err.Error()}
