@@ -483,7 +483,8 @@
   bottom: calc(100% + 8px);
   right: 0;
   z-index: 41;
-  min-width: 190px;
+  /* Wide enough for "Erscheinungsbild" beside its three marks on one line. */
+  min-width: 232px;
   padding: 5px;
   background: var(--surface-0);
   border: 0.5px solid var(--border-strong);
@@ -554,7 +555,7 @@
   color: var(--text-secondary);
 }
 .theme-row > .ic { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; opacity: 0.75; flex: none; }
-.theme-row .lb { flex: 1; min-width: 0; }
+.theme-row .lb { flex: 1; min-width: 0; white-space: nowrap; }
 .theme-marks { display: flex; gap: 1px; padding: 2px; border-radius: 8px; background: var(--tint-weak); }
 .foot-menu .theme-marks button {
   width: 26px;
