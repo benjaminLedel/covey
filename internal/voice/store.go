@@ -51,6 +51,9 @@ type Voice struct {
 	BuiltAt      *time.Time `json:"built_at,omitempty"`
 	CreatedAt    time.Time  `json:"created_at"`
 	UpdatedAt    time.Time  `json:"updated_at"`
+	// ChatTone is how an agent carrying this voice talks in the team chat
+	// (#457) — set, not built (chattone.go).
+	ChatTone ChatTone `json:"chat_tone"`
 	// Agents are the agents carrying this voice — named, not counted, for the
 	// same reason the workplaces name theirs: whoever rebuilds or deletes one
 	// wants to know whom it concerns.
@@ -323,6 +326,73 @@ func (s *Store) SetAgentVoice(ctx context.Context, agentID uuid.UUID, voiceID *u
 	return err
 }
 
+// SetChatTone stores how the agents carrying this voice talk in the team chat.
+// It is not a config version: the tone acts in the control plane's turns,
+// not in a run, and there is no file of the agent it would change.
+func (s *Store) SetChatTone(ctx context.Context, orgID, id uuid.UUID, tone ChatTone) (Voice, error) {
+	tone, err := tone.Normalized()
+	if err != nil {
+		return Voice{}, err
+	}
+	raw, err := json.Marshal(tone)
+	if err != nil {
+		return Voice{}, err
+	}
+	tag, err := s.pool.Exec(ctx, `UPDATE voices SET chat_tone=$3, updated_at=now() WHERE org_id=$1 AND id=$2`,
+		orgID, id, raw)
+	if err != nil {
+		return Voice{}, err
+	}
+	if tag.RowsAffected() == 0 {
+		return Voice{}, ErrNotFound
+	}
+	return s.Get(ctx, orgID, id)
+}
+
+// OrgChatTone is the organisation's default tone in the team chat.
+func (s *Store) OrgChatTone(ctx context.Context, orgID uuid.UUID) (ChatTone, error) {
+	var raw []byte
+	if err := s.pool.QueryRow(ctx, `SELECT chat_tone FROM organizations WHERE id=$1`, orgID).Scan(&raw); err != nil {
+		return ChatTone{}, err
+	}
+	var t ChatTone
+	_ = json.Unmarshal(raw, &t)
+	return t, nil
+}
+
+// SetOrgChatTone stores the organisation's default.
+func (s *Store) SetOrgChatTone(ctx context.Context, orgID uuid.UUID, tone ChatTone) (ChatTone, error) {
+	tone, err := tone.Normalized()
+	if err != nil {
+		return ChatTone{}, err
+	}
+	raw, err := json.Marshal(tone)
+	if err != nil {
+		return ChatTone{}, err
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE organizations SET chat_tone=$2 WHERE id=$1`, orgID, raw); err != nil {
+		return ChatTone{}, err
+	}
+	return tone, nil
+}
+
+// AgentChatTone is the tone an agent talks in (EffectiveChatTone): its
+// voice's where set, the organisation's otherwise. Unreadable is no tone —
+// the turns then talk as they did before there was one.
+func (s *Store) AgentChatTone(ctx context.Context, agentID uuid.UUID) ChatTone {
+	var eigen, org []byte
+	if err := s.pool.QueryRow(ctx, `SELECT coalesce(v.chat_tone, '{}'::jsonb), o.chat_tone
+		  FROM agents a JOIN organizations o ON o.id = a.org_id
+		  LEFT JOIN voices v ON v.id = a.voice_id
+		 WHERE a.id = $1`, agentID).Scan(&eigen, &org); err != nil {
+		return ChatTone{}
+	}
+	var v, o ChatTone
+	_ = json.Unmarshal(eigen, &v)
+	_ = json.Unmarshal(org, &o)
+	return EffectiveChatTone(v, o)
+}
+
 // carriers names the agents carrying a voice.
 func (s *Store) carriers(ctx context.Context, voiceID uuid.UUID) ([]AgentRef, error) {
 	rows, err := s.pool.Query(ctx,
@@ -344,16 +414,17 @@ func (s *Store) carriers(ctx context.Context, voiceID uuid.UUID) ([]AgentRef, er
 
 const selectVoices = `SELECT v.id, v.org_id, v.name, v.language, v.version, v.profile, v.exemplars,
 	v.contrast, v.notes, v.card, v.released_card, v.released_at, v.words, v.documents,
-	v.built_at, v.created_at, v.updated_at FROM voices v`
+	v.built_at, v.created_at, v.updated_at, v.chat_tone FROM voices v`
 
 func scanVoice(rows pgx.Rows) (Voice, error) {
 	var v Voice
-	var profile, exemplars, contrast, notes []byte
+	var profile, exemplars, contrast, notes, tone []byte
 	if err := rows.Scan(&v.ID, &v.OrgID, &v.Name, &v.Language, &v.Version, &profile, &exemplars,
 		&contrast, &notes, &v.Card, &v.ReleasedCard, &v.ReleasedAt, &v.Words, &v.Documents,
-		&v.BuiltAt, &v.CreatedAt, &v.UpdatedAt); err != nil {
+		&v.BuiltAt, &v.CreatedAt, &v.UpdatedAt, &tone); err != nil {
 		return Voice{}, err
 	}
+	_ = json.Unmarshal(tone, &v.ChatTone)
 	_ = json.Unmarshal(profile, &v.Profile)
 	_ = json.Unmarshal(exemplars, &v.Exemplars)
 	_ = json.Unmarshal(contrast, &v.Contrast)

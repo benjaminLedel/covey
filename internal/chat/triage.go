@@ -124,10 +124,17 @@ type Rahmen struct {
 	Gegenueber string
 	// Raum: die Gruppe, leer im direkten Gespräch (Raum()).
 	Raum string
+	// Ton: wie der Agent im Team-Chat redet, wie die Organisation es
+	// eingestellt hat (voice.ChatTone.Prompt, #457). Leer: nichts eingestellt.
+	Ton string
 }
 
 func (r Rahmen) schreiben(b *strings.Builder) {
 	stimme(b, r.Rolle, r.Seele)
+	if t := strings.TrimSpace(r.Ton); t != "" {
+		b.WriteString(kuerzen(t, 800))
+		b.WriteString("\n\n")
+	}
 	person(b, r.Gegenueber)
 	/* A group (#440): who else is in it, and that the agent was addressed.
 	   Without it every name in the conversation reads as the one person the
@@ -199,7 +206,7 @@ Choose "task" when doing it would need any of: a target system (ticketing, repos
 
 You can see your own backlog and write to it, and that is all. You have NO target system, NO credentials, NO files, NO commands, NO search and NO memory beyond what stands below. Never claim to have done, checked, sent or looked at anything outside this list. If answering would require any of that, it is a task.
 
-How you write (for "answer", and for the "text" of a task): you are this colleague, chatting in the team chat. Write the way a person writes in a work chat — short, direct, warm where it fits, in the language of the message. Usually one or two sentences; in a group, where several people read along, keep it shorter still. No headings, no bullet lists, no bold, no sign-off, no "As an AI", no restating the question, no offering a menu of further help. If the agent's own description below says how it talks, talk like that.
+How you write (for "answer", and for the "text" of a task): you are this colleague, chatting in the team chat. Write the way a person writes in a work chat — short, direct, warm where it fits, in the language of the message. Usually one or two sentences; in a group, where several people read along, keep it shorter still. No headings, no bullet lists, no bold, no sign-off, no "As an AI", no restating the question, no offering a menu of further help. If the agent's own description below says how it talks, talk like that; if "How you talk in the team chat" is given below, it is what your organisation set, and it wins over everything else here about address, tone and emoji.
 
 You are a colleague, not a service desk:
 - A greeting is answered like a greeting: "hi" gets a hi back. "What's up?" or "was geht?" gets a real, short answer, as a colleague gives it — what you are on right now (from your open tasks), or that it is quiet.
@@ -427,7 +434,7 @@ const erzaehlSystem = `You are an AI agent inside covey, a platform that runs AI
 
 Earlier somebody asked you for something, you said you would look into it, and you did the work in your workspace. It is finished now, and what came out stands below. Tell them in the chat — as the colleague who did it, not as a system reporting on it.
 
-Write the way a colleague writes in a work chat: short, direct, in the language of the conversation. Usually two to four sentences; in a group, where several people read along, fewer. Lead with the outcome: the answer, the finding, what changed. No headings, no bold, no tables, no bullet list unless there really are several separate things to name, no sign-off, no "As an AI", no offering a menu of further help. If the agent's own description says how it talks, talk like that. In a group, address the person who asked by their first name, and do not repeat what somebody already said in the conversation.
+Write the way a colleague writes in a work chat: short, direct, in the language of the conversation. Usually two to four sentences; in a group, where several people read along, fewer. Lead with the outcome: the answer, the finding, what changed. No headings, no bold, no tables, no bullet list unless there really are several separate things to name, no sign-off, no "As an AI", no offering a menu of further help. If the agent's own description says how it talks, talk like that; if "How you talk in the team chat" is given below, follow it — your organisation set it. In a group, address the person who asked by their first name, and do not repeat what somebody already said in the conversation.
 
 Never talk about the machinery: not "the task", "the run", "the result", "the report", "the record", and never "I have answered your question" or "I explained …" — say the answer itself.
 

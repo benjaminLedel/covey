@@ -2895,5 +2895,28 @@
     "workingOn": "{{title}} に取り組み中",
     "rename": "グループ名を変更",
     "groupAgentsManage": "AIの同僚をグループに加えるには、手作業で仕事を渡す権限が必要です。"
+  },
+  "chatTone": {
+    "title": "チームチャットでは",
+    "hintVoice": "この声を持つエージェントがチームチャットでどう話すか：短い返答や、作業の結果を伝えるとき。空欄の項目は組織の既定値を使います。",
+    "orgTitle": "チームチャットでの話し方",
+    "hintOrg": "AI の同僚がチームチャットで既定でどう話すか：声を持たないエージェントと、声が決めていない項目に適用されます。",
+    "address": "呼びかけ",
+    "address_du": "くだけた呼び方（du）",
+    "address_sie": "丁寧な呼び方（Sie）",
+    "address_auto": "相手の書き方に合わせる",
+    "tone": "トーン",
+    "tone_casual": "くだけた",
+    "tone_matter_of_fact": "事務的",
+    "tone_formal": "改まった",
+    "emoji": "絵文字",
+    "emoji_never": "使わない",
+    "emoji_sparingly": "控えめに",
+    "emoji_freely": "自由に",
+    "unset": "既定",
+    "note": "その他、チームチャットでは",
+    "notePlaceholder": "例：「Hallo」ではなく「Moin」と言う",
+    "save": "保存",
+    "saved": "保存しました"
   }
 }

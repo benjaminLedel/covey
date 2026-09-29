@@ -2895,5 +2895,28 @@
     "workingOn": "trabajando en {{title}}",
     "rename": "Renombrar grupo",
     "groupAgentsManage": "Añadir un colega de IA a un grupo requiere el derecho a encargar trabajo a mano."
+  },
+  "chatTone": {
+    "title": "En el chat del equipo",
+    "hintVoice": "Cómo hablan en el chat del equipo los agentes con esta voz: en sus respuestas rápidas y al contar lo que salió de un trabajo. Un campo vacío toma el valor predeterminado de la organización.",
+    "orgTitle": "Tono en el chat del equipo",
+    "hintOrg": "Cómo hablan por defecto los colegas IA en el chat del equipo: para agentes sin voz y para lo que una voz deja abierto.",
+    "address": "Tratamiento",
+    "address_du": "tú (informal)",
+    "address_sie": "usted (formal)",
+    "address_auto": "como escriba la persona",
+    "tone": "Tono",
+    "tone_casual": "relajado",
+    "tone_matter_of_fact": "objetivo",
+    "tone_formal": "formal",
+    "emoji": "Emoji",
+    "emoji_never": "nunca",
+    "emoji_sparingly": "con moderación",
+    "emoji_freely": "libremente",
+    "unset": "predeterminado",
+    "note": "Además, en el chat del equipo",
+    "notePlaceholder": "p. ej., decir «Moin» en lugar de «Hallo»",
+    "save": "Guardar",
+    "saved": "Guardado"
   }
 }

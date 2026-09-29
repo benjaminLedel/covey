@@ -169,7 +169,8 @@ func (s *Server) erzaehlText(ctx context.Context, b chat.Report) string {
 	}
 	// The person the task came from (origin chat:<email>), #412.
 	gegenueber := s.gegenueberVon(ctx, b.OrgID, strings.TrimPrefix(b.Origin, "chat:"))
-	rahmen := chat.Rahmen{Rolle: s.rolleVon(ctx, b.AgentID), Seele: s.seeleVon(ctx, b.AgentID), Gegenueber: gegenueber}
+	rahmen := chat.Rahmen{Rolle: s.rolleVon(ctx, b.AgentID), Seele: s.seeleVon(ctx, b.AgentID),
+		Gegenueber: gegenueber, Ton: s.tonVon(ctx, b.AgentID)}
 	// In a group everybody reads the retelling, not only who asked (#457).
 	if conv, err := s.Chat.Get(ctx, b.ConversationID); err == nil {
 		rahmen.Raum = chat.Raum(conv, b.AgentID, false)

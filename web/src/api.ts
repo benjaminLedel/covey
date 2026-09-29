@@ -1661,6 +1661,16 @@ export type Voice = {
   documents: number;
   built_at?: string;
   agents?: { id: string; slug: string; display_name: string }[];
+  /** How agents carrying the voice talk in the team chat (#457). */
+  chat_tone?: ChatTone;
+};
+/** Address, tone and emoji in the team chat; an empty field falls back to the
+ *  organisation's default (spec/24). */
+export type ChatTone = {
+  address?: "" | "du" | "sie" | "auto";
+  tone?: "" | "casual" | "matter_of_fact" | "formal";
+  emoji?: "" | "never" | "sparingly" | "freely";
+  note?: string;
 };
 export type VoiceDetail = Voice & {
   corpus: VoiceDocument[];

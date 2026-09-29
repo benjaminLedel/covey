@@ -250,6 +250,67 @@ func (s *Server) handleReleaseVoiceCard(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
+// handleSetVoiceChatTone sets how the agents carrying a voice talk in the
+// team chat (#457). The same roles as every other change to a voice.
+func (s *Server) handleSetVoiceChatTone(w http.ResponseWriter, r *http.Request) {
+	store, v, ok := s.requireVoice(w, r)
+	if !ok {
+		return
+	}
+	var in voice.ChatTone
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "body not readable")
+		return
+	}
+	updated, err := store.SetChatTone(r.Context(), principalFrom(r).OrgID, v.ID, in)
+	switch {
+	case errors.Is(err, voice.ErrInvalid):
+		writeErr(w, http.StatusBadRequest, err.Error())
+	case err != nil:
+		mapErr(w, err)
+	default:
+		writeJSON(w, http.StatusOK, updated)
+	}
+}
+
+// handleGetOrgChatTone / handleSetOrgChatTone: the organisation's default
+// tone in the team chat, for agents without a voice and for what a voice
+// leaves open (#457). Read by every role, like the triage switch beside it;
+// set by whoever manages the organisation.
+func (s *Server) handleGetOrgChatTone(w http.ResponseWriter, r *http.Request) {
+	store, ok := s.voiceStore(w)
+	if !ok {
+		return
+	}
+	t, err := store.OrgChatTone(r.Context(), principalFrom(r).OrgID)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, t)
+}
+
+func (s *Server) handleSetOrgChatTone(w http.ResponseWriter, r *http.Request) {
+	store, ok := s.voiceStore(w)
+	if !ok {
+		return
+	}
+	var in voice.ChatTone
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "body not readable")
+		return
+	}
+	t, err := store.SetOrgChatTone(r.Context(), principalFrom(r).OrgID, in)
+	switch {
+	case errors.Is(err, voice.ErrInvalid):
+		writeErr(w, http.StatusBadRequest, err.Error())
+	case err != nil:
+		mapErr(w, err)
+	default:
+		writeJSON(w, http.StatusOK, t)
+	}
+}
+
 // handleSetAgentVoice puts an agent on a voice, or takes it off one.
 //
 // Assigning writes the TONE.md into the agent's config — a config version like

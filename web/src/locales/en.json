@@ -2895,5 +2895,28 @@
     "workingOn": "working on {{title}}",
     "rename": "Rename group",
     "groupAgentsManage": "Adding an AI colleague to a group needs the right to hand over work by hand."
+  },
+  "chatTone": {
+    "title": "In the team chat",
+    "hintVoice": "How agents with this voice talk in the team chat: in their quick answers and when they tell what came out of a piece of work. An empty field takes the organisation's default.",
+    "orgTitle": "Tone in the team chat",
+    "hintOrg": "How AI colleagues talk in the team chat by default: for agents without a voice, and for whatever a voice leaves open.",
+    "address": "Address",
+    "address_du": "du (informal)",
+    "address_sie": "Sie (formal)",
+    "address_auto": "as the person writes",
+    "tone": "Tone",
+    "tone_casual": "casual",
+    "tone_matter_of_fact": "matter-of-fact",
+    "tone_formal": "formal",
+    "emoji": "Emoji",
+    "emoji_never": "never",
+    "emoji_sparingly": "sparingly",
+    "emoji_freely": "freely",
+    "unset": "default",
+    "note": "Also, in the team chat",
+    "notePlaceholder": "e.g. say “Moin” rather than “Hallo”",
+    "save": "Save",
+    "saved": "Saved"
   }
 }

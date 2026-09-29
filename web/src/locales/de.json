@@ -2895,5 +2895,28 @@
     "workingOn": "arbeitet an {{title}}",
     "rename": "Gruppe umbenennen",
     "groupAgentsManage": "Einen KI-Kollegen in eine Gruppe zu holen, braucht das Recht, Arbeit von Hand zu übergeben."
+  },
+  "chatTone": {
+    "title": "Im Team-Chat",
+    "hintVoice": "Wie Agenten mit dieser Stimme im Team-Chat reden: in ihren schnellen Antworten und wenn sie erzählen, was bei einer Arbeit herauskam. Ein leeres Feld übernimmt die Vorgabe der Organisation.",
+    "orgTitle": "Umgangston im Team-Chat",
+    "hintOrg": "Wie KI-Kollegen im Team-Chat standardmäßig reden: für Agenten ohne Stimme und für alles, was eine Stimme offenlässt.",
+    "address": "Anrede",
+    "address_du": "du",
+    "address_sie": "Sie",
+    "address_auto": "wie die Person schreibt",
+    "tone": "Ton",
+    "tone_casual": "locker",
+    "tone_matter_of_fact": "sachlich",
+    "tone_formal": "förmlich",
+    "emoji": "Emoji",
+    "emoji_never": "nie",
+    "emoji_sparingly": "sparsam",
+    "emoji_freely": "gern",
+    "unset": "Vorgabe",
+    "note": "Außerdem im Team-Chat",
+    "notePlaceholder": "z. B. „Moin“ statt „Hallo“",
+    "save": "Speichern",
+    "saved": "Gespeichert"
   }
 }

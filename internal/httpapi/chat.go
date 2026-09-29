@@ -949,6 +949,7 @@ func (s *Server) triagieren(ctx context.Context, conv chat.Conversation, agentID
 		Rolle: s.rolleVon(ctx, agentID), Seele: s.seeleVon(ctx, agentID),
 		Gegenueber: s.gegenueberVon(ctx, conv.OrgID, email),
 		Raum:       chat.Raum(conv, agentID, true),
+		Ton:        s.tonVon(ctx, agentID),
 	}
 	organisation := s.organisationVon(ctx, agentID)
 
@@ -1223,6 +1224,16 @@ func (s *Server) gegenueberVon(ctx context.Context, orgID uuid.UUID, email strin
 		teile = append(teile, "responsible for: "+zustaendig)
 	}
 	return strings.Join(teile, " — ")
+}
+
+// tonVon is how the agent talks in the team chat (#457): its voice's tone,
+// the organisation's where the voice leaves it open. Empty without voices on
+// this instance or with nothing set.
+func (s *Server) tonVon(ctx context.Context, agentID uuid.UUID) string {
+	if s.Voices == nil {
+		return ""
+	}
+	return s.Voices.AgentChatTone(ctx, agentID).Prompt()
 }
 
 // seeleVon is the agent's SOUL.md from its current config (#411): how it
