@@ -343,6 +343,12 @@ jobs:
   #   IOS_PROVISIONING_PROFILE       an App Store profile for the app, base64
   #   APPLE_TEAM_ID                  the team it is signed for
   #   APPLE_API_KEY_P8, APPLE_API_KEY_ID, APPLE_API_ISSUER_ID
+  #
+  # Push notifications (#431) come through the app's Firebase project; its
+  # GoogleService-Info.plist is not in the repository. Without it the app is
+  # built and uploaded without push.
+  #
+  #   IOS_GOOGLE_SERVICE_INFO        GoogleService-Info.plist, base64
   ios-app:
     runs-on: macos-26
     steps:
@@ -411,6 +417,18 @@ jobs:
               echo "APPLE_API_ISSUER_ID=${API_ISSUER_ID}"
             } >> "$GITHUB_ENV"
           fi
+
+      - name: Firebase configuration
+        env:
+          GOOGLE_SERVICE_INFO: ${{ secrets.IOS_GOOGLE_SERVICE_INFO }}
+        run: |
+          set -eu
+          if [ -z "${GOOGLE_SERVICE_INFO}" ]; then
+            echo "No GoogleService-Info.plist — the app is built without push notifications."
+            exit 0
+          fi
+          printf '%s' "$GOOGLE_SERVICE_INFO" | base64 --decode > mobile/ios/Runner/GoogleService-Info.plist
+          plutil -lint mobile/ios/Runner/GoogleService-Info.plist
 
       - name: Bauen, signieren, hochladen
         working-directory: mobile

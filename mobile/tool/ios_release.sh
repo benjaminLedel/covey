@@ -15,6 +15,11 @@
 #   APPLE_API_KEY_PATH   the App Store Connect API key (.p8)
 #   APPLE_API_KEY_ID, APPLE_API_ISSUER_ID
 #
+# Push notifications (#431), from the checkout:
+#   ios/Runner/GoogleService-Info.plist   the app's Firebase project; the
+#                        release job writes it from IOS_GOOGLE_SERVICE_INFO.
+#                        Without it the app is built without push.
+#
 # Writes <out-dir>/covey-app_<build-name>_ios.ipa when signed.
 set -eu
 
@@ -22,6 +27,13 @@ name="$1"
 number="$2"
 out="$3"
 mkdir -p "$out"
+
+if [ -f ios/Runner/GoogleService-Info.plist ]; then
+  firebase=yes
+else
+  firebase=""
+  echo "no ios/Runner/GoogleService-Info.plist — this build has no push notifications"
+fi
 
 if [ -z "${APPLE_TEAM_ID:-}" ] || [ -z "${IOS_PROFILE_PATH:-}" ]; then
   echo "no signing means — building without signing, nothing is uploaded"
@@ -90,6 +102,11 @@ unzip -q "$ipa" -d "$check"
 codesign -d --entitlements :- "$check"/Payload/*.app > "$check/entitlements.plist" 2>/dev/null
 [ "$(plutil -extract aps-environment raw "$check/entitlements.plist" 2>/dev/null)" = production ] ||
   { echo "the app is not signed for production push" >&2; exit 1; }
+# And the Firebase project it registers with, when one was given.
+if [ -n "$firebase" ] && ! [ -f "$check"/Payload/*.app/GoogleService-Info.plist ]; then
+  echo "GoogleService-Info.plist did not reach the app" >&2
+  exit 1
+fi
 rm -rf "$check"
 
 if [ -n "${APPLE_API_KEY_PATH:-}" ]; then
