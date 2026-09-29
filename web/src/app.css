@@ -4003,6 +4003,29 @@
   display: inline-flex; align-items: center; justify-content: center; text-decoration: none; flex: none;
 }
 .tm-spalte-plus:hover { opacity: 0.88; }
+/* Conversations (#440): the second button of the column's head, the list of
+   conversations with people and groups, a group's members, and the picker
+   that starts one. */
+.tm-spalte-neu { background: var(--tint); color: var(--text-primary); }
+.tm-spalte-neu .ic { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tm-gruppe-zeichen {
+  width: 36px; height: 36px; border-radius: 50%; background: var(--tint); color: var(--text-muted);
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+}
+.tm-gruppe-zeichen.klein { width: 22px; height: 22px; }
+.tm-gruppe-zeichen .ic { width: 55%; height: 55%; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tm-werkzeug.auf { background: var(--bg-accent); color: var(--text-accent); }
+.tm-bezug { font-size: 12px; color: var(--text-muted); border-left: 2px solid var(--border); padding-left: 8px; margin: 2px 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm-antworten { margin-top: 4px; border: 0; background: none; padding: 0; font-size: 12px; color: var(--text-muted); cursor: pointer; }
+.tm-antworten:hover { color: var(--text-primary); text-decoration: underline; }
+.tm-aelter { align-self: center; margin-bottom: 8px; }
+.tm-mitglieder ul { gap: 4px; }
+.tm-mitglied { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.tm-mitglied-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm-wahl-liste { list-style: none; margin: 0 0 10px; padding: 0; max-height: 240px; overflow: auto; }
+.tm-wahl { display: flex; align-items: center; gap: 8px; padding: 5px 4px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.tm-wahl:hover { background: var(--tint-weak); }
+.tm-wahl-name { font-weight: 550; }
 .tm-spalte-tabs { margin: 0 4px 8px; }
 .tm-spalte-suche { width: auto; margin: 0 4px 12px; }
 .tm-spalte-liste { flex: 1; overflow: auto; min-height: 0; margin: 0 -6px; padding: 0 6px; }
@@ -4151,3 +4174,7 @@
   font-size: 14px;
   text-align: center;
 }
+
+/* A button that reads as a link in a table row (the audit's conversations, #440). */
+.linkish { border: 0; background: none; padding: 0; font: inherit; color: var(--text-primary); cursor: pointer; text-align: left; }
+.linkish:hover { text-decoration: underline; }

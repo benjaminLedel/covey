@@ -47,6 +47,9 @@ function useLiveEvents(enabled: boolean) {
          keinen Push gab — den gibt es jetzt (chat.go), und ein Takt, der
          daneben weiterläuft, wäre nur noch das Netz darunter. */
       qc.invalidateQueries({ queryKey: ["thread"] });
+      qc.invalidateQueries({ queryKey: ["threads"] });
+      qc.invalidateQueries({ queryKey: ["conversation"] });
+      qc.invalidateQueries({ queryKey: ["conversations"] });
       qc.invalidateQueries({ queryKey: ["org-running"] });
     };
     for (const t of ["agent_status", "task", "recording", "approval", "guardrail", "chat"]) {

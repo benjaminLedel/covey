@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, type AuditEntry } from "../api";
+import { api, auditConversations, type AuditEntry } from "../api";
+import AuditGespraeche from "./AuditGespraeche";
 
 // Supervision → Audit: what PEOPLE have done on the platform.
 //
@@ -25,6 +26,14 @@ export default function Audit({ embedded }: { embedded?: boolean }) {
     queryFn: () => api<AuditEntry[]>("/audit?limit=300"),
     refetchInterval: 15000,
   });
+  /* The conversations (#440) are for org admin and auditor; for security
+     the server says no, and then there is no second tab. */
+  const [ansicht, setAnsicht] = useState<"aktionen" | "gespraeche">("aktionen");
+  const gespraeche = useQuery({
+    queryKey: ["audit", "conversations"],
+    queryFn: auditConversations,
+    retry: false,
+  });
 
   const eintraege = (spur.data ?? []).filter((e) => {
     if (nurFehlschlaege && e.status < 400) return false;
@@ -43,7 +52,22 @@ export default function Audit({ embedded }: { embedded?: boolean }) {
         <span className="muted text-sm">
           {spur.isLoading ? t("common.loading") : t("audit.count", { count: eintraege.length })}
         </span>
+        <span className="flex-1" />
+        {gespraeche.data && (
+          <div className="seg" role="tablist" aria-label={t("audit.title")}>
+            <button className={ansicht === "aktionen" ? "active" : ""} onClick={() => setAnsicht("aktionen")}>
+              {t("audit.tabActions")}
+            </button>
+            <button className={ansicht === "gespraeche" ? "active" : ""} onClick={() => setAnsicht("gespraeche")}>
+              {t("audit.tabConversations")}
+            </button>
+          </div>
+        )}
       </div>
+      {ansicht === "gespraeche" && gespraeche.data ? (
+        <AuditGespraeche daten={gespraeche.data} />
+      ) : (
+      <>
       <p className="muted text-xs mb-4" style={{ maxWidth: 720 }}>
         {t("audit.lead")}
       </p>
@@ -112,6 +136,8 @@ export default function Audit({ embedded }: { embedded?: boolean }) {
           </table>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }

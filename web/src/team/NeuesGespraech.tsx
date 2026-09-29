@@ -1,0 +1,116 @@
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router";
+import { api, createGroup, openDirect, type MemberRef, type OrgChart, type Principal } from "../api";
+import { Modal } from "../components/Modal";
+import { Avatar } from "../components/person";
+import { canManage } from "../pages/agent/roles";
+
+/* Starting a conversation (#440): one person or colleague picked is a direct
+ * conversation — the one that exists, or a new one; several are a group,
+ * which needs a title. Agents are offered only to whoever may create a task
+ * by hand, because a message to an agent can open one (the server says the
+ * same). A direct conversation with an agent opens in the agent's thread. */
+export default function NeuesGespraech({ me, onClose }: { me: Principal; onClose: () => void }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [suche, setSuche] = useState("");
+  const [titel, setTitel] = useState("");
+  const [gewaehlt, setGewaehlt] = useState<MemberRef[]>([]);
+  const chart = useQuery({ queryKey: ["org-chart"], queryFn: () => api<OrgChart>("/org/chart") });
+
+  const q = suche.trim().toLowerCase();
+  const passt = (name: string, extra = "") => !q || (name + " " + extra).toLowerCase().includes(q);
+  const menschen = (chart.data?.humans ?? []).filter((h) => h.id !== me.ID && passt(h.display_name, h.email));
+  const agenten = canManage(me.Role)
+    ? (chart.data?.agents ?? []).filter((a) => a.hired_at && !a.killed && passt(a.display_name, a.slug))
+    : [];
+  const ist = (r: MemberRef) => gewaehlt.some((g) => g.kind === r.kind && g.id === r.id);
+  const umschalten = (r: MemberRef) =>
+    setGewaehlt((alt) => (ist(r) ? alt.filter((g) => !(g.kind === r.kind && g.id === r.id)) : [...alt, r]));
+  const gruppe = gewaehlt.length > 1;
+
+  const los = useMutation({
+    mutationFn: async () => (gruppe ? createGroup(titel.trim(), gewaehlt) : openDirect(gewaehlt[0])),
+    onSuccess: (c) => {
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+      onClose();
+      const agent = c.kind === "direct" ? c.members.find((m) => m.kind === "agent") : undefined;
+      navigate(agent ? `/team/${agent.id}` : `/team/c/${c.id}`);
+    },
+  });
+
+  const zeile = (r: MemberRef, name: string, unter: string, slug?: string) => (
+    <li key={`${r.kind}:${r.id}`}>
+      <label className="tm-wahl">
+        <input type="checkbox" checked={ist(r)} onChange={() => umschalten(r)} />
+        <Avatar name={name} human={r.kind === "human"} slug={slug} size={22} />
+        <span className="tm-wahl-name">{name}</span>
+        <span className="tm-leise">{unter}</span>
+      </label>
+    </li>
+  );
+
+  return (
+    <Modal
+      title={t("conversation.newTitle")}
+      onClose={onClose}
+      footer={
+        <div className="flex gap-2 justify-end">
+          <button className="btn" onClick={onClose}>
+            {t("team.abbrechen")}
+          </button>
+          <button
+            className="btn primary"
+            disabled={gewaehlt.length === 0 || (gruppe && !titel.trim()) || los.isPending}
+            onClick={() => los.mutate()}
+          >
+            {gruppe ? t("conversation.startGroup") : t("conversation.startDirect")}
+          </button>
+        </div>
+      }
+    >
+      <p className="muted text-xs" style={{ marginBottom: 10 }}>
+        {t("conversation.newLead")}
+      </p>
+      <input
+        value={suche}
+        onChange={(e) => setSuche(e.target.value)}
+        placeholder={t("conversation.search")}
+        aria-label={t("conversation.search")}
+        style={{ width: "100%", marginBottom: 10 }}
+        autoFocus
+      />
+      {gruppe && (
+        <input
+          value={titel}
+          onChange={(e) => setTitel(e.target.value)}
+          placeholder={t("conversation.groupTitlePlaceholder")}
+          aria-label={t("conversation.groupTitle")}
+          maxLength={120}
+          style={{ width: "100%", marginBottom: 10 }}
+        />
+      )}
+      {chart.isLoading && <p className="muted text-xs">{t("common.loading")}</p>}
+      {menschen.length > 0 && (
+        <>
+          <h3 className="tm-gruppe-kopf">{t("conversation.people")}</h3>
+          <ul className="tm-wahl-liste">
+            {menschen.map((h) => zeile({ kind: "human", id: h.id }, h.display_name, h.job_title || h.email))}
+          </ul>
+        </>
+      )}
+      {agenten.length > 0 && (
+        <>
+          <h3 className="tm-gruppe-kopf">{t("conversation.agents")}</h3>
+          <ul className="tm-wahl-liste">
+            {agenten.map((a) => zeile({ kind: "agent", id: a.id }, a.display_name, a.job_title || a.slug, a.slug))}
+          </ul>
+        </>
+      )}
+      {los.isError && <p className="danger-text text-xs">{String((los.error as Error)?.message ?? los.error)}</p>}
+    </Modal>
+  );
+}

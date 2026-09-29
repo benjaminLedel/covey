@@ -2,12 +2,15 @@ import { Suspense, lazy, useCallback, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useParams } from "react-router";
-import { PEOPLE_SLUG, api, inbox, isColleague, isDraft, myThreads, type Agent, type Department, type Principal, type ThreadState } from "../api";
+import { PEOPLE_SLUG, api, inbox, isColleague, isDraft, myConversations, myThreads, type Agent, type Department, type Principal, type ThreadState } from "../api";
 import { canManage } from "../pages/agent/roles";
 import HelpDrawer from "../components/HelpDrawer";
 import Rail from "../components/Rail";
 import Gesicht from "../components/Gesicht";
 import Suche, { SucheProvider, useSucheKuerzel } from "../components/Suche";
+import { Avatar } from "../components/person";
+import { NavIcon } from "../components/navicons";
+import { gespraechName } from "./Gespraech";
 
 /* Die Stilvorlage der angemeldeten Oberfläche. Sie hing bisher allein an der
    Konsole; seit es zwei Schalen gibt, braucht jede sie — wer über die Wurzel
@@ -15,6 +18,8 @@ import Suche, { SucheProvider, useSucheKuerzel } from "../components/Suche";
 import "../app.css";
 
 const Thread = lazy(() => import("./Thread"));
+const Gespraech = lazy(() => import("./Gespraech"));
+const NeuesGespraech = lazy(() => import("./NeuesGespraech"));
 const Ueberblick = lazy(() => import("./Ueberblick"));
 const NotesMain = lazy(() => import("../notes/NotesPane").then((m) => ({ default: m.NotesMain })));
 const NotesSidebar = lazy(() => import("../notes/NotesPane").then((m) => ({ default: m.NotesSidebar })));
@@ -78,6 +83,16 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
   const ungelesen = new Map<string, ThreadState>(
     (threads.data ?? []).filter((th) => th.unread > 0).map((th) => [th.agent_id, th]),
   );
+  /* The conversations that are not with one agent (#440): with people, and
+     groups. A direct conversation with an agent stands at the agent, below. */
+  const gespraeche = useQuery({
+    queryKey: ["conversations"],
+    queryFn: myConversations,
+    refetchInterval: 20_000,
+    retry: false,
+  });
+  const andere = (gespraeche.data ?? []).filter((c) => c.kind === "group" || !c.members.some((m) => m.kind === "agent"));
+  const [neuOffen, setNeuOffen] = useState(false);
 
   /* Suchen. Ein Feld links oben war ein Möbelstück — immer da, selten
      benutzt, und es nahm der Liste die Zeile, die sie zum Atmen braucht.
@@ -161,6 +176,15 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
           {/* Hiring is the column's "+" (#395), as a new note is the notes'
               — the conversation with the People department, who drafts;
               her draft page while she is one; or setup without her. */}
+          {/* A new conversation (#440): with a person, a colleague, or a group. */}
+          <button
+            className="tm-spalte-plus tm-spalte-neu"
+            onClick={() => setNeuOffen(true)}
+            title={t("conversation.new")}
+            aria-label={t("conversation.new")}
+          >
+            <NavIcon name="chat" />
+          </button>
           {darfEinstellen && (
             <Link
               to={!people ? "/setup" : peopleEntwurf ? `/agents/${people.id}` : `/team/${people.id}?einstellen=1`}
@@ -178,6 +202,47 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
               department, who drafts, or, without one, setup, where she comes
               from. Two rows of one kind: both are where one goes, not whom
               one talks to. */}
+
+          {andere.length > 0 && (
+            <section className="tm-gruppe">
+              <h2 className="tm-gruppe-kopf">{t("conversation.title")}</h2>
+              {andere.map((c) => {
+                const anderer = c.members.find((m) => !m.left_at && !(m.kind === "human" && m.id === me.ID));
+                return (
+                  <NavLink
+                    key={c.id}
+                    to={`/team/c/${c.id}`}
+                    className={({ isActive }) => `tm-kollege ${isActive ? "on" : ""} ${c.unread > 0 ? "neu" : ""}`}
+                  >
+                    <span className="tm-kollege-zeichen">
+                      {c.kind === "group" ? (
+                        <span className="tm-gruppe-zeichen klein" aria-hidden="true">
+                          <NavIcon name="chat" />
+                        </span>
+                      ) : (
+                        <Avatar name={anderer?.name ?? "?"} human size={22} />
+                      )}
+                    </span>
+                    <span className="tm-kollege-text">
+                      <span className="tm-kollege-name">
+                        <span className="tm-kollege-wort">{gespraechName(c, me.ID)}</span>
+                      </span>
+                      <span className="tm-kollege-rolle">
+                        {c.last
+                          ? `${c.kind === "group" && c.last.author_name ? c.last.author_name + ": " : ""}${c.last.text}`
+                          : t("conversation.emptyThread")}
+                      </span>
+                    </span>
+                    {c.unread > 0 && (
+                      <span className="tm-ungelesen" aria-label={t("team.ungelesen", { count: c.unread })}>
+                        {Math.min(c.unread, 99)}
+                      </span>
+                    )}
+                  </NavLink>
+                );
+              })}
+            </section>
+          )}
 
           {agents.isLoading && <p className="tm-leise">{t("common.loading")}</p>}
           {!agents.isLoading && liste.length === 0 && <p className="tm-leise">{t("chat.noAgents")}</p>}
@@ -236,6 +301,7 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
             <Route path="/team" element={<p className="tm-start">{t("mobile.waehlen")}</p>} />
             <Route path="/team/notes" element={<NotesMain noteId={null} />} />
             <Route path="/team/notes/:noteId" element={<NoteRoute />} />
+            <Route path="/team/c/:id" element={<GespraechRoute me={me} />} />
             <Route path="/team/:id" element={<ThreadRoute me={me} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
@@ -253,6 +319,11 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
         onFokus={setSucheFokus}
       />
       <HelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} />
+      {neuOffen && (
+        <Suspense fallback={null}>
+          <NeuesGespraech me={me} onClose={() => setNeuOffen(false)} />
+        </Suspense>
+      )}
     </div>
     </SucheProvider>
   );
@@ -268,4 +339,9 @@ function NoteRoute() {
 function ThreadRoute({ me }: { me: Principal }) {
   const { id = "" } = useParams();
   return <Thread key={id} agentId={id} me={me} />;
+}
+
+function GespraechRoute({ me }: { me: Principal }) {
+  const { id = "" } = useParams();
+  return <Gespraech key={id} id={id} me={me} />;
 }
