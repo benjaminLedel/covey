@@ -2,11 +2,14 @@
 // something (#379): a question, an answer, a result, an error.
 //
 // Apple delivers to an app only for whoever holds the app's APNs key, and a
-// third party running covey with the app from the store cannot hold it. So
-// there are two senders behind one port: APNs, when this instance has the
-// key, and Relay, which hands the notification to an instance that has —
-// by default the public one. Any covey binary with a key can be that relay
-// (Handler).
+// third party running covey with the app from the store cannot hold it;
+// Google the same for the app's Firebase project (#424). The key goes into
+// the Firebase project, and Firebase Cloud Messaging carries both platforms
+// (#431). So there are two senders behind one port: FCM, when this instance
+// has a service account of the project, and Relay, which hands the
+// notification to an instance that has — by default the public one. Which
+// applies is an instance setting (Provider); any covey binary with an account
+// can be that relay (the relay handler).
 //
 // What travels is small on purpose: who, what, a badge, and the agent to
 // open. The first line of what was said only when the organisation turned
@@ -22,8 +25,14 @@ import (
 
 // Message is one notification for one device.
 type Message struct {
-	Token       string `json:"token"`
-	Environment string `json:"environment"` // production | development
+	Token string `json:"token"`
+	// Platform: ios, macos or android; empty is ios, as an instance from
+	// before Android relays it.
+	Platform string `json:"platform,omitempty"`
+	// Environment: production | development. FCM has no sandbox — it picks
+	// Apple's environment itself — so what an instance sends is production;
+	// the field stays for the relay's older callers.
+	Environment string `json:"environment"`
 	Title       string `json:"title"`
 	Body        string `json:"body"`
 	Badge       int    `json:"badge"`
@@ -62,6 +71,9 @@ var soundName = regexp.MustCompile(`^(default|covey-(bot|schar|glas)-(question|a
 const (
 	MaxTitle = 120
 	MaxBody  = 400
+	// MaxToken: Google gives no bound for an FCM token, which is about 160
+	// characters today.
+	MaxToken = 512
 )
 
 // Sender delivers one notification.
@@ -84,7 +96,8 @@ func Clip(s string, n int) string {
 
 // Valid says whether a message fits what any sender accepts.
 func (m Message) Valid() bool {
-	return m.Token != "" && len(m.Token) <= 200 &&
+	return m.Token != "" && len(m.Token) <= MaxToken &&
+		(m.Platform == "" || m.Platform == "ios" || m.Platform == "macos" || m.Platform == "android") &&
 		(m.Environment == "production" || m.Environment == "development") &&
 		m.Title != "" && len([]rune(m.Title)) <= MaxTitle && len([]rune(m.Body)) <= MaxBody &&
 		m.Badge >= 0 && m.Badge < 100000 && len(m.AgentID) <= 64 && soundName.MatchString(m.Sound)

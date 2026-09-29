@@ -75,7 +75,8 @@ func TestAnAnswerReachesThePhone(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := round()
-	if len(got) != 1 || got[0].Token != "tok-a" || got[0].Environment != "development" {
+	// FCM picks Apple's environment itself: a device is production (#431).
+	if len(got) != 1 || got[0].Token != "tok-a" || got[0].Environment != "production" {
 		t.Fatalf("one notification to the person who wrote: %+v", got)
 	}
 	if got[0].Sound != "covey-bot-answer.caf" {

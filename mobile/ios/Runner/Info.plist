@@ -37,6 +37,15 @@
 	<string>The camera reads the QR code covey shows to pair this app, and takes your profile photo when you ask for it.</string>
 	<key>CFBundleDisplayName</key>
 	<string>covey</string>
+	<!-- The app encrypts only through the system (HTTPS, Keychain), which the
+	     export rules exempt (#427); without this App Store Connect holds each
+	     build until the question is answered by hand. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<!-- Firebase Messaging (#431) is told the APNs token by AppDelegate
+	     itself rather than by swizzling the app delegate's methods. -->
+	<key>FirebaseAppDelegateProxyEnabled</key>
+	<false/>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>

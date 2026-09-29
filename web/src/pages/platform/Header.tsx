@@ -28,6 +28,9 @@ export default function PlatformHeader() {
         <NavLink to="/platform/mail" className={({ isActive }) => (isActive ? "active" : "")}>
           {t("platform.tabMail")}
         </NavLink>
+        <NavLink to="/platform/push" className={({ isActive }) => (isActive ? "active" : "")}>
+          {t("platform.tabPush")}
+        </NavLink>
         <NavLink to="/platform/waitlist" className={({ isActive }) => (isActive ? "active" : "")}>
           {t("platform.tabWaitlist")}
         </NavLink>

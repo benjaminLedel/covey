@@ -9,6 +9,7 @@ import {
 import Organizations from "./Organizations";
 import PlatformHeader from "./platform/Header";
 import Mail from "./platform/Mail";
+import Push from "./platform/Push";
 
 // The platform panel: the installation, not an organisation inside it.
 //
@@ -24,6 +25,7 @@ export default function Platform({ me }: { me: Principal }) {
       <Route path="accounts" element={<Accounts me={me} />} />
       <Route path="settings" element={<Settings />} />
       <Route path="mail" element={<Mail />} />
+      <Route path="push" element={<Push />} />
       <Route path="waitlist" element={<Waitlist />} />
     </Routes>
   );
@@ -179,9 +181,11 @@ function Settings() {
       <p className="muted text-xs mb-4" style={{ maxWidth: 640 }}>{t("platform.settingsDesc")}</p>
       {/* mail.* has a page of its own: seven fields that only make sense
           together, plus the flag that proves them. Here they would stand as
-          seven independent lines — and the password as an eighth. */}
+          seven independent lines — and the password as an eighth. push.*
+          likewise (#431): its empty values mean "the environment decides",
+          which only its own page can show. */}
       {(settings.data ?? [])
-        .filter((s) => !s.key.startsWith("mail."))
+        .filter((s) => !s.key.startsWith("mail.") && !s.key.startsWith("push."))
         .map((s) => (
           <SettingRow key={s.key} setting={s} />
         ))}

@@ -14,9 +14,11 @@ import 'i18n.dart';
 import 'models.dart';
 import 'prefs.dart';
 
-/// Notifications (#379). On the iPhone they come from Apple's push service:
-/// the app asks for permission, hands its device token to the instance, and
-/// the instance (or the relay that holds the app's key) sends. On the Mac the
+/// Notifications (#379). On the iPhone and on Android they come through
+/// Firebase Cloud Messaging (#424, #431), which passes an iPhone's on to
+/// Apple: the app asks for permission, hands its FCM token to the instance,
+/// and the instance (or the relay that holds the app's service account)
+/// sends. On the Mac the
 /// app runs anyway — it keeps the dictation shortcut — so it looks at the
 /// unread markers itself and shows local notifications; nothing leaves the
 /// machine for it.
@@ -41,7 +43,11 @@ class PushNotices {
   /// The agents whose notification was tapped.
   Stream<String> get opens => _opens.stream;
 
-  static bool get supported => Platform.isIOS || Platform.isMacOS;
+  static bool get supported => Platform.isIOS || Platform.isAndroid || Platform.isMacOS;
+
+  /// Whether notifications come through a push service, with a token the
+  /// instance keeps, rather than from the app's own look.
+  static bool get _pushed => Platform.isIOS || Platform.isAndroid;
 
   CoveyApi? _api;
   Strings? _strings;
@@ -65,7 +71,7 @@ class PushNotices {
   Future<void> setSound(String sound) async {
     await Prefs.instance.write(_prefSound, sound);
     unawaited(preview(sound));
-    if (await enabled && Platform.isIOS) await _switchOn();
+    if (await enabled && _pushed) await _switchOn();
   }
 
   /// The file a notification of [kind] plays with [sound].
@@ -88,8 +94,8 @@ class PushNotices {
   Future<bool> get enabled async => await Prefs.instance.read(_prefOff) != 'true';
 
   /// Starts for the connected instance: listens for taps, and unless the
-  /// person switched notifications off, registers (iPhone) or starts
-  /// watching (Mac).
+  /// person switched notifications off, registers (iPhone, Android) or
+  /// starts watching (Mac).
   Future<void> start(CoveyApi api, Strings strings) async {
     if (!supported) return;
     if (!identical(_api, api)) _seen = null;
@@ -99,6 +105,8 @@ class PushNotices {
       _listening = true;
       _channel.setMethodCallHandler((call) async {
         if (call.method == 'open' && call.arguments is String) _opens.add(call.arguments as String);
+        // The iPhone's token was replaced (#431): register the new one.
+        if (call.method == 'token' && await enabled) await _switchOn();
       });
       try {
         final agent = await _channel.invokeMethod<String>('launchAgent');
@@ -122,15 +130,17 @@ class PushNotices {
     final api = _api;
     if (api == null) return;
     try {
-      if (Platform.isIOS) {
+      if (_pushed) {
+        // A build without the app's Firebase configuration answers
+        // "unavailable": that build has no push.
         final token = await _channel.invokeMethod<String>('register');
         if (token == null) return;
         await api.registerPushDevice(
           token: token,
-          platform: 'ios',
-          // A build from Xcode or `flutter run` talks to Apple's sandbox; one
-          // from the store or TestFlight to production.
-          environment: kReleaseMode ? 'production' : 'development',
+          platform: Platform.isAndroid ? 'android' : 'ios',
+          // FCM has no sandbox: for an iPhone it picks Apple's environment
+          // itself, from the APNs key uploaded to the Firebase project.
+          environment: 'production',
           lang: _strings?.language ?? 'en',
           sound: await sound,
         );

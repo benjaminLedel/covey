@@ -76,17 +76,16 @@ x-covey-base: &covey-base
     COVEY_EMBEDDING_MODEL: ${COVEY_EMBEDDING_MODEL:-}
     COVEY_EMBEDDING_API_KEY: ${COVEY_EMBEDDING_API_KEY:-}
     COVEY_EMBEDDING_URL: ${COVEY_EMBEDDING_URL:-}
-    # Push notifications (#379). Without a key of its own the instance hands
-    # them to the relay (default https://app.covey.work, "off" sends nothing).
-    # With the app's APNs key it talks to Apple itself; the .p8 goes under the
-    # data directory, which is mounted at the same path, e.g.
-    #   COVEY_APNS_KEY_FILE=/opt/covey/data/apns/AuthKey_<KEY ID>.p8
+    # Push notifications (#379, #431) are set under Platform → Push; these
+    # are the defaults for an installation configured as code, and a value
+    # set there wins. Without an account of its own the instance hands them
+    # to the relay (default https://app.covey.work, "off" sends nothing).
+    # With the Firebase service account's JSON under the data directory,
+    # which is mounted at the same path, it sends itself, e.g.
+    #   COVEY_FCM_CREDENTIALS_FILE=/opt/covey/data/fcm/service-account.json
     # COVEY_PUSH_RELAY_ACCEPT=true then serves as the relay for others.
     # Empty means unset: internal/config applies its defaults.
-    COVEY_APNS_KEY_FILE: ${COVEY_APNS_KEY_FILE:-}
-    COVEY_APNS_KEY_ID: ${COVEY_APNS_KEY_ID:-}
-    COVEY_APNS_TEAM_ID: ${COVEY_APNS_TEAM_ID:-}
-    COVEY_APNS_TOPIC: ${COVEY_APNS_TOPIC:-}
+    COVEY_FCM_CREDENTIALS_FILE: ${COVEY_FCM_CREDENTIALS_FILE:-}
     COVEY_PUSH_RELAY: ${COVEY_PUSH_RELAY:-}
     COVEY_PUSH_RELAY_ACCEPT: ${COVEY_PUSH_RELAY_ACCEPT:-}
     # App links (#333): only whoever ships the app sets these.

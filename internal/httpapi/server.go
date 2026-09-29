@@ -77,10 +77,11 @@ type Server struct {
 	// Media holds a person's media — the pictures in notes (#344). Nil means
 	// the builtin Postgres store. Not Blobs, the home store below.
 	Media mediastore.Store
-	// PushRelay delivers notifications for other instances (#379): set only
-	// when this instance holds the app's APNs key and COVEY_PUSH_RELAY_ACCEPT
-	// is on. Nil: the relay route answers 404.
-	PushRelay push.Sender
+	// Push is how this instance sends notifications, as its settings say
+	// (#379, #431): the platform page reads and changes it, and the relay
+	// route delivers for other instances when it sends directly and was told
+	// to relay. Nil: the relay route answers 404 and the page 503.
+	Push *push.Provider
 	// Speech is the models the app recognises speech with (#348,
 	// #351, speech.go). Nil: speech is off on this instance.
 	Speech   *speech.Set
@@ -774,6 +775,11 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/platform/settings", s.platformAdmin(s.handleListSettings))
 	mux.Handle("PUT /api/v1/platform/settings/{key}", s.platformAdmin(s.handleSetSetting))
 	mux.Handle("POST /api/v1/platform/mail/test", s.platformAdmin(s.handleTestMail))
+	mux.Handle("GET /api/v1/platform/push", s.platformAdmin(s.handleGetPlatformPush))
+	mux.Handle("PATCH /api/v1/platform/push", s.platformAdmin(s.handleSetPlatformPush))
+	mux.Handle("PUT /api/v1/platform/push/credentials", s.platformAdmin(s.handleSetPushCredentials))
+	mux.Handle("DELETE /api/v1/platform/push/credentials", s.platformAdmin(s.handleDeletePushCredentials))
+	mux.Handle("POST /api/v1/platform/push/test", s.platformAdmin(s.handleTestPush))
 	mux.Handle("GET /api/v1/platform/waitlist-codes", s.platformAdmin(s.handleListWaitlistCodes))
 	mux.Handle("POST /api/v1/platform/waitlist-codes", s.platformAdmin(s.handleCreateWaitlistCode))
 	mux.Handle("DELETE /api/v1/platform/waitlist-codes/{hash}", s.platformAdmin(s.handleRevokeWaitlistCode))

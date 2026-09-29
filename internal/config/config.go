@@ -275,20 +275,17 @@ type Config struct {
 	// COVEY_REVIEW_REFRESH, default 30m; 0 switches it off).
 	ReviewRefresh time.Duration
 
-	// Push notifications (#379). With an APNs key (COVEY_APNS_KEY_FILE, the
-	// .p8 from the developer account, plus COVEY_APNS_KEY_ID and
-	// COVEY_APNS_TEAM_ID) the instance talks to Apple itself; COVEY_APNS_TOPIC
-	// is the app's bundle id. Without a key it hands notifications to a relay
-	// (COVEY_PUSH_RELAY, default the public instance, which holds the key of
-	// the app in the store; "off" sends nothing). PushRelayAccept
-	// (COVEY_PUSH_RELAY_ACCEPT) makes this instance such a relay for others —
-	// it needs the key.
-	APNsKeyFile     string
-	APNsKeyID       string
-	APNsTeamID      string
-	APNsTopic       string
-	PushRelay       string
-	PushRelayAccept bool
+	// Push notifications (#379, #431) are configured under the installation
+	// administration; these are the defaults for an installation configured
+	// as code, and a value set there wins. FCMCredentialsFile
+	// (COVEY_FCM_CREDENTIALS_FILE) is the service account JSON of the app's
+	// Firebase project: with it the instance sends itself. Without it it hands
+	// notifications to a relay (COVEY_PUSH_RELAY, empty for the public
+	// instance, "off" for none). PushRelayAccept (COVEY_PUSH_RELAY_ACCEPT)
+	// makes an instance with an account a relay for others.
+	FCMCredentialsFile string
+	PushRelay          string
+	PushRelayAccept    bool
 	// WikiCleanup is the schedule of the platform-wide wiki cleanup heartbeat:
 	// empty = off. Otherwise "HH:MM" (daily, server time) or a Go duration such
 	// as "24h" (interval). From it the control plane creates a recurring
@@ -339,10 +336,6 @@ type Config struct {
 // not a fixture: whoever points COVEY_MARKETPLACE_URL somewhere else gets that
 // catalogue and nothing from here, which is also how internal, non-public
 // plugins are distributed inside a company.
-// DefaultPushRelay is the instance that holds the APNs key of the app in the
-// store and relays notifications for installations without one (#379).
-const DefaultPushRelay = "https://app.covey.work"
-
 const DefaultMarketplaceURL = "https://raw.githubusercontent.com/benjaminLedel/covey-plugins/main/catalog.json"
 
 func FromEnv() (Config, error) {
@@ -415,11 +408,8 @@ func FromEnv() (Config, error) {
 		RequestLogRetention: getenvDuration("COVEY_REQUEST_LOG_RETENTION", 72*time.Hour),
 		ActivityRetention:   getenvDuration("COVEY_ACTIVITY_RETENTION", 14*24*time.Hour),
 		ReviewRefresh:       getenvDuration("COVEY_REVIEW_REFRESH", 30*time.Minute),
-		APNsKeyFile:         getenv("COVEY_APNS_KEY_FILE", ""),
-		APNsKeyID:           getenv("COVEY_APNS_KEY_ID", ""),
-		APNsTeamID:          getenv("COVEY_APNS_TEAM_ID", ""),
-		APNsTopic:           getenv("COVEY_APNS_TOPIC", "work.covey.coveyMobile"),
-		PushRelay:           getenv("COVEY_PUSH_RELAY", DefaultPushRelay),
+		FCMCredentialsFile:  getenv("COVEY_FCM_CREDENTIALS_FILE", ""),
+		PushRelay:           getenv("COVEY_PUSH_RELAY", ""),
 		PushRelayAccept:     getenvBool("COVEY_PUSH_RELAY_ACCEPT", false),
 	}
 	// The resolved map without the catalogue: the compiled defaults plus what

@@ -47,3 +47,9 @@ app.*.map.json
 # The developer's signing team (#345), included by Debug/Release.xcconfig.
 /ios/Flutter/Signing.xcconfig
 /macos/Runner/Configs/Signing.xcconfig
+
+# The app's Firebase project (#424): whoever ships the app puts their own
+# here; without it the Android build has no push.
+/android/app/google-services.json
+# The same for the iPhone (#431): without it the iOS build has no push.
+/ios/Runner/GoogleService-Info.plist

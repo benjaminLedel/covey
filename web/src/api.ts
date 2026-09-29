@@ -819,6 +819,25 @@ export type Setting = {
   read_only?: boolean;
 };
 
+/** How the installation sends push notifications (#431). The service
+ *  account never comes back: only whether one is there, where from, and
+ *  which project and account it names — neither is secret. */
+export type PlatformPush = {
+  mode: "direct" | "relay" | "off";
+  relay_url: string;
+  relay_accept: boolean;
+  credentials: {
+    set: boolean;
+    /** settings: stored here; environment: COVEY_FCM_CREDENTIALS_FILE. */
+    source?: "settings" | "environment";
+    project_id?: string;
+    client_email?: string;
+    error?: string;
+  };
+  last_test_at: string;
+  last_test_error: string;
+};
+
 /** A waitlist code — without plaintext, that one exists only in the moment of
  *  creation. */
 export type WaitlistCode = {

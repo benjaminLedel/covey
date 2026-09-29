@@ -54,14 +54,17 @@ Both models detect the language themselves. Without internet access, place the m
 
 ## Push notifications
 
-When an agent asks a question, replies in a conversation, or finishes or fails a task that came from a message, the people involved get a notification: whoever wrote in that agent's conversation in the last two weeks, the person the task came from, and, for a question, the agent's human supervisor. What somebody has already read is not announced. The iPhone app receives them through Apple's push service; the Mac app shows them itself while it runs.
+When an agent asks a question, replies in a conversation, or finishes or fails a task that came from a message, the people involved get a notification: whoever wrote in that agent's conversation in the last two weeks, the person the task came from, and, for a question, the agent's human supervisor. What somebody has already read is not announced. The iPhone and Android apps receive them through Firebase Cloud Messaging, which passes an iPhone's notification on to Apple; the Mac app shows them itself while it runs.
 
-Apple delivers to the app only for whoever holds its APNs key, so there are two ways:
+Google delivers to the app only for whoever holds a service account of the app's Firebase project, and Firebase reaches the iPhone only with the APNs key that whoever ships the app has uploaded to that project (Firebase console, Project settings, Cloud Messaging, Apple app configuration). The instance itself needs no Apple key. It is configured under **Platform → Push**, by an installation administrator, and a change applies within seconds, without a restart:
 
-- **Direct**, with a key of your own: `COVEY_APNS_KEY_FILE` (the `.p8` from the developer account), `COVEY_APNS_KEY_ID`, `COVEY_APNS_TEAM_ID`, and `COVEY_APNS_TOPIC` (the app's bundle id, default `work.covey.coveyMobile`). This only works for an app signed by that team.
-- **Through the relay**, without a key: `COVEY_PUSH_RELAY` (default `https://app.covey.work`, which holds the key of the app in the store) receives the notification and passes it to Apple. `COVEY_PUSH_RELAY=off` sends nothing. An instance with a key becomes such a relay for others with `COVEY_PUSH_RELAY_ACCEPT=true`; it accepts only the notification's fixed fields, bounded in length and limited per address.
+- **Directly**, with a service account of your own: its JSON key (Firebase console, Project settings, Service accounts) is uploaded on that page, checked, and stored sealed with the master key; the page names its project and account, never the key. This only works for apps built with that project's `google-services.json` and `GoogleService-Info.plist`. **Test** asks Google for an access token with the stored account; it proves the account, not the APNs key, which only the first notification to an iPhone does.
+- **Through a relay**, without an account: the relay (default `https://app.covey.work`, which holds the service account of the apps in the stores) receives the notification and passes it to Firebase. An instance that sends directly becomes such a relay for others with **Relay for other installations**; it accepts only the notification's fixed fields, bounded in length and limited per address.
+- **Off**: nothing is sent; the apps show what is new when they are opened.
 
-By default a notification says only who did what ("Bea has a question"), in the device's language, and nothing of the content leaves the instance. Under Administration, an organisation can include the first line of what was said. It then passes through Apple and, where used, the relay.
+For an installation configured as code, the environment gives the defaults, and a value set on the page wins: `COVEY_FCM_CREDENTIALS_FILE` (the service account's JSON; with it the default is direct), `COVEY_PUSH_RELAY` (the relay; `off` switches push off unless there is an account), `COVEY_PUSH_RELAY_ACCEPT=true` (relay for others). The same keys are settings (`push.mode`, `push.relay_url`, `push.relay_accept`, `push.fcm_credentials`) and can be set with `covey settings`.
+
+By default a notification says only who did what ("Bea has a question"), in the device's language, and nothing of the content leaves the instance. Under Administration, an organisation can include the first line of what was said. It then passes through Google, Apple and, where used, the relay.
 
 ## HTTPS
 
