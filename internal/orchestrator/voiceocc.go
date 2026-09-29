@@ -95,6 +95,22 @@ func (o *Orchestrator) runVoiceFiles(ctx context.Context, agent agents.Agent, ta
 	return out, voice.AudiencePrompt(rv.choice.Notes)
 }
 
+// outwardVoice is the voice a text leaving through a target system during a
+// task is written in: the one the task's outward occasion resolves to
+// (voice.OutwardOccasion — a mail sent from a chat task still goes to a
+// customer). Its voice is nil when no level names an assignable one.
+func (o *Orchestrator) outwardVoice(ctx context.Context, agent agents.Agent, taskID uuid.UUID) runVoice {
+	if o.Voices == nil || o.Backlog == nil {
+		return runVoice{}
+	}
+	task, err := o.Backlog.Get(ctx, taskID)
+	if err != nil {
+		return runVoice{}
+	}
+	occ := voice.OutwardOccasion(voice.TaskOccasion(task.ConversationID != nil, task.Title, task.Body))
+	return o.resolveRunVoice(ctx, agent, task, occ)
+}
+
 // outwardProfiles are the style profiles a text leaving through a target
 // system during a task is measured against: the profile of the voice the
 // task's outward occasion resolves to (voice.OutwardOccasion — a mail sent
@@ -103,15 +119,7 @@ func (o *Orchestrator) runVoiceFiles(ctx context.Context, agent agents.Agent, ta
 // before #471. ok false means no voice was resolved and the caller keeps
 // its own lookup.
 func (o *Orchestrator) outwardProfiles(ctx context.Context, agent agents.Agent, taskID uuid.UUID) (profiles []style.Profile, described bool, ok bool) {
-	if o.Voices == nil || o.Backlog == nil {
-		return nil, false, false
-	}
-	task, err := o.Backlog.Get(ctx, taskID)
-	if err != nil {
-		return nil, false, false
-	}
-	occ := voice.OutwardOccasion(voice.TaskOccasion(task.ConversationID != nil, task.Title, task.Body))
-	rv := o.resolveRunVoice(ctx, agent, task, occ)
+	rv := o.outwardVoice(ctx, agent, taskID)
 	if rv.voice == nil {
 		return nil, false, false
 	}

@@ -395,3 +395,52 @@ func TestTheStyleGateReadsTheOutwardVoice(t *testing.T) {
 		t.Fatalf("the gate has to find the customers voice's profile, it skipped %d times", skipped)
 	}
 }
+
+// covey/style_check measures against the voice the task's outward occasion
+// resolves to, as the gate would when the text leaves — not against the
+// config's TONE.md, which the slot has replaced. Without a slot the config's
+// own profile applies, as before #471.
+func TestStyleCheckMeasuresAgainstTheOutwardVoice(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	agent := s.newSupportAgent("pruefstimme")
+	cfg, err := s.registry.CurrentConfig(ctx, agent.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := cfg.Files
+	files["TONE.md"] = styleToneMD
+	if _, err := s.registry.SaveConfig(ctx, agent.ID, files, &s.adminID); err != nil {
+		t.Fatal(err)
+	}
+	params, _ := json.Marshal(map[string]any{"text": styleGenericBody})
+	check := func(title string) map[string]any {
+		t.Helper()
+		task, err := s.backlog.Create(ctx, s.orgID, agent.ID, title,
+			"[mock:action covey/style_check "+string(params)+"]\n[mock:result gemessen]", "manual", 3)
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitFor(t, "task done", 30*time.Second, func() bool {
+			return s.taskState(task.ID) == backlog.StateDone
+		})
+		var ev map[string]any
+		if err := s.pool.QueryRow(ctx, `SELECT payload FROM recording_events
+			WHERE task_id=$1 AND kind='action' AND payload->>'action'='covey:style_check' AND payload ? 'profile'`,
+			task.ID).Scan(&ev); err != nil {
+			t.Fatalf("the check has to record what it measured against: %v", err)
+		}
+		return ev
+	}
+
+	if ev := check("Ohne Stimme"); ev["profile"] != "agent" || ev["voice"] != "" {
+		t.Fatalf("without a slot the config's TONE.md applies: %v", ev)
+	}
+
+	id := builtVoice(t, admin, "Pruefstimme")
+	admin.expect(http.MethodPut, "/api/v1/agents/"+agent.ID.String()+"/voices", map[string]any{"customers": id}, http.StatusOK)
+	if ev := check("Mit Stimme"); ev["profile"] != "voice" || ev["voice"] != "Pruefstimme" || ev["voice_reason"] != "agent×customers" {
+		t.Fatalf("with a customers slot the check measures against that voice: %v", ev)
+	}
+}
