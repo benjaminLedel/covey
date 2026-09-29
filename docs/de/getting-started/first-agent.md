@@ -23,7 +23,7 @@ Fünf Schritte, und die Checkliste **Erste Schritte** auf der Agenten-Übersicht
 
 Die Seite *Einrichtung* stellt drei Fragen, jede überspringbar:
 
-- **Motor und Zugang.** Welche Engine Ihre Agenten denken lässt, und das Credential dazu — bei Claude Code ein API-Schlüssel (Abrechnung nach Verbrauch) oder ein Abo-Token (einmalig im Terminal mit `claude setup-token` erzeugt), bei Codex ein API-Schlüssel oder der Inhalt von `~/.codex/auth.json`. Der Wert wird gegen den Anbieter geprüft, **bevor** er gespeichert wird — besser hier als eine Stunde später im Lauf eines Agenten. Der Arbeitsplatz entsteht dabei von selbst; ein zweiter Token wird automatisch zu weiterer Kapazität.
+- **Motor und Zugang.** Welche Engine Ihre Agenten denken lässt, und das Credential dazu — bei Claude Code ein API-Schlüssel (Abrechnung nach Verbrauch) oder ein Abo-Token (einmalig im Terminal mit `claude setup-token` erzeugt), bei Codex ein API-Schlüssel oder der Inhalt von `~/.codex/auth.json` ([Runtimes und Engines](../concepts/runtimes.md) nennt die anderen). Ein Zugang für Claude Code wird gegen Anthropic geprüft, **bevor** er gespeichert wird — besser hier als eine Stunde später im Lauf eines Agenten. Der Arbeitsplatz entsteht dabei von selbst; ein zweiter Token wird automatisch zu weiterer Kapazität.
 - **Was Ihr Unternehmen macht.** Drei bis fünf Sätze. Sie bleiben an der Organisation und gehen von da an in jede Ausschreibung, in die Konfiguration neu entworfener Agenten und in den Config-Assistenten ein.
 - **Ihre Personalabteilung.** Ein Agent, dessen Aufgabe es ist, die anderen zu entwerfen.
 
