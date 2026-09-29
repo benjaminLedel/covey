@@ -105,5 +105,29 @@
     "fails": [
       "language"
     ]
+  },
+  {
+    "scenario": "en-work-refund",
+    "why": "A request to act answered as if it were a question about past work (the third live run, #457).",
+    "recorded": "{\"action\":\"answer\",\"text\":\"Ada, I don't see ticket 4711 in my backlog, so I can't tell you anything about it.\"}",
+    "fails": [
+      "action"
+    ]
+  },
+  {
+    "scenario": "de-erzaehlung-nichttechnisch",
+    "why": "Jargon for a non-technical person (the third live run).",
+    "recorded": "Die Demo lief nicht, weil dem Pod zu wenig RAM zugewiesen war. Hab das hochgesetzt, jetzt läuft sie wieder.",
+    "fails": [
+      "must_not_contain"
+    ]
+  },
+  {
+    "scenario": "de-nichttechnisch-demo",
+    "why": "Container and memory limit for the sales lead.",
+    "recorded": "{\"action\":\"answer\",\"text\":\"Ja, läuft wieder, der Container hatte ein zu kleines Memory-Limit.\"}",
+    "fails": [
+      "must_not_contain"
+    ]
   }
 ]

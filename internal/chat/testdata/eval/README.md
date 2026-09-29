@@ -51,7 +51,8 @@ One JSON file per scenario in `scenarios/`, named after its `name`:
 
 Always checked, beyond `checks`: the language; the length (defaults: three
 sentences in a group, four in a direct conversation, one more for a
-narration); no words of the machinery or of a service desk in German or
+narration; a salutation like "Hi Ada!" counts as a sentence, so a greeting
+scenario allows three: the salutation and two); no words of the machinery or of a service desk in German or
 English ("Begrüßung beantwortet", "I have answered", "the task", "der Lauf",
 "As an AI" …); no headings, bullets or bold; emoji as the tone allows; in
 German, `du` or `Sie` as the tone says (`auto` follows the message).
