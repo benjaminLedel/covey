@@ -219,7 +219,19 @@ type Config struct {
 	TidyHomeAboveEntries int
 	// EgressEnforce enables the egress allowlist proxy (docker provider only):
 	// sandbox traffic then goes through a proxy that only lets allowlist hosts pass.
+	// On by default (#445): the guard-rail documentation names egress as one of
+	// the limits covey holds outside the prompt, and a limit an operator has to
+	// remember to switch on is one the quickstart installation does not have.
+	// COVEY_EGRESS_ENFORCE=false keeps the old, open behaviour explicitly.
 	EgressEnforce bool
+	// EgressListenAddr is where the cooperative proxy (inside this process)
+	// binds. Empty = a free port, which is right when covey runs directly on
+	// the host. Inside a container the sandboxes, as sibling containers, reach
+	// it only through a published port — so docker-compose fixes it
+	// (":8495") and publishes the same number. The port the proxy binds is the
+	// port the sandbox dials on host.docker.internal, so host and container
+	// side have to match. COVEY_EGRESS_LISTEN_ADDR.
+	EgressListenAddr string
 	// EgressAllow are additional permitted egress hosts (target systems such as
 	// the Zammad host), on top of the permanently allowed Anthropic hosts.
 	// COVEY_EGRESS_ALLOW="helpdesk.example.com,*.internal.example.com".
@@ -387,7 +399,8 @@ func FromEnv() (Config, error) {
 		BoardRetention:       getenvDuration("COVEY_BOARD_RETENTION", 24*time.Hour),
 		TidyHomeAboveBytes:   offWhenZero(int64(getenvInt("COVEY_HOME_TIDY_ABOVE_GB", 5)) << 30),
 		TidyHomeAboveEntries: int(offWhenZero(int64(getenvInt("COVEY_HOME_TIDY_ABOVE_ENTRIES", 200)))),
-		EgressEnforce:        getenvBool("COVEY_EGRESS_ENFORCE", false),
+		EgressEnforce:        getenvBool("COVEY_EGRESS_ENFORCE", true),
+		EgressListenAddr:     getenv("COVEY_EGRESS_LISTEN_ADDR", ""),
 		EgressAllow:          splitList(os.Getenv("COVEY_EGRESS_ALLOW")),
 		BuiltinRunner:        getenv("COVEY_BUILTIN_RUNNER", "auto"),
 		EgressIsolation:      getenv("COVEY_EGRESS_ISOLATION", "proxy"),
@@ -490,10 +503,49 @@ func (c Config) SecurityWarnings() []string {
 	if strings.Contains(c.DatabaseURL, "sslmode=disable") {
 		w = append(w, "COVEY_DATABASE_URL uses sslmode=disable — in production enforce TLS to the database (sslmode=require or stricter)")
 	}
-	if !c.EgressEnforce {
-		w = append(w, "egress enforcement off — in production set COVEY_EGRESS_ENFORCE=true (with the docker provider) so that sandboxes only reach allowlist hosts")
-	}
 	return w
+}
+
+// EgressEnforced says whether the allowlist is applied to the sandboxes this
+// control plane starts: asked for (the default) and on a provider that can
+// hold it. Only the docker provider puts a proxy between sandbox and network;
+// everywhere else the list is kept and not applied.
+func (c Config) EgressEnforced() bool {
+	return c.EgressEnforce && c.SandboxProvider == "docker"
+}
+
+// RunningInContainer says whether this process runs inside a docker
+// container, by the marker file docker puts at the root of every one. It is
+// what decides whether a cooperative proxy on a free port can be reached at
+// all: from a sibling sandbox only through a port the host publishes.
+func RunningInContainer() bool {
+	_, err := os.Stat("/.dockerenv")
+	return err == nil
+}
+
+// CooperativeProxyUnreachable is the one configuration in which enforcement is
+// on and nothing gets out: the cooperative proxy binds a free port inside a
+// container, the sandboxes dial that port on the host, and no host publishes
+// it. Every request of every agent is then refused — including the one to its
+// own LLM.
+func (c Config) CooperativeProxyUnreachable(inContainer bool) bool {
+	return inContainer && c.EgressEnforced() && c.EgressIsolation != "network" && c.EgressListenAddr == ""
+}
+
+// EgressWarnings names the cases in which sandboxes reach any host. Unlike
+// SecurityWarnings it speaks on localhost too: since enforcement is the
+// default (#445), an open egress is either a decision somebody wrote down or
+// a provider that cannot enforce — and neither should run silently.
+func (c Config) EgressWarnings() []string {
+	switch {
+	case !c.EgressEnforce:
+		return []string{"egress NOT enforced (COVEY_EGRESS_ENFORCE=false) — sandboxes reach any host; " +
+			"the allowlists are kept but not applied. Remove the variable (or set it to true) to enforce them"}
+	case c.SandboxProvider != "docker":
+		return []string{fmt.Sprintf("egress NOT enforced — the sandbox provider %q cannot enforce the allowlist, "+
+			"sandboxes reach any host; only the docker provider puts the egress proxy in between", c.SandboxProvider)}
+	}
+	return nil
 }
 
 func isLoopbackPublic(u string) bool {

@@ -438,3 +438,20 @@ func TestAdoptOnlyRunsForAHomeThatWasAlreadyThere(t *testing.T) {
 		t.Error("a home that was already there has to be walked at the start")
 	}
 }
+
+// In cooperative mode the daemon link bypasses the proxy. With a loopback
+// public URL that was already so (host.docker.internal); with a real name it
+// was not, and the daemon's WebSocket client — which honours HTTPS_PROXY —
+// asked the allowlist for the control plane, which no agent has (#445).
+func TestCooperativeNoProxyCarriesTheControlPlane(t *testing.T) {
+	for _, tc := range []struct{ ws, want string }{
+		{"ws://localhost:8494/api/daemon/ws", "host.docker.internal,localhost,127.0.0.1,::1"},
+		{"wss://covey.example/api/daemon/ws", "host.docker.internal,localhost,127.0.0.1,::1,covey.example"},
+		{"ws://10.0.0.5:8494/api/daemon/ws", "host.docker.internal,localhost,127.0.0.1,::1,10.0.0.5"},
+		{"", "host.docker.internal,localhost,127.0.0.1,::1"},
+	} {
+		if got := cooperativeNoProxy(tc.ws); got != tc.want {
+			t.Errorf("cooperativeNoProxy(%q) = %q, expected %q", tc.ws, got, tc.want)
+		}
+	}
+}

@@ -54,10 +54,10 @@ func TestFromEnvWithoutAnyVariable(t *testing.T) {
 	if c.TidyHomeAboveEntries != 200 {
 		t.Errorf("TidyHomeAboveEntries = %d, expected 200", c.TidyHomeAboveEntries)
 	}
-	if !c.HomeStore || !c.RequestLog || !c.RequestLogBodies || !c.S3PathStyle {
+	if !c.HomeStore || !c.RequestLog || !c.RequestLogBodies || !c.S3PathStyle || !c.EgressEnforce {
 		t.Error("a boolean that defaults to true came out false")
 	}
-	if c.EgressEnforce || c.CookieSecure {
+	if c.CookieSecure {
 		t.Error("a boolean that defaults to false came out true")
 	}
 	// The default image is derived from the default profile — one value, so
@@ -76,6 +76,35 @@ func TestFromEnvWithoutAnyVariable(t *testing.T) {
 // wins over both. The empty default this had until a document stood behind the
 // address did more than keep the mechanism off here — it kept it off for every
 // installation that never heard of it.
+// Egress is enforced unless an operator writes down that it is not (#445). A
+// value the parser does not know keeps it on: a typo must not open egress.
+func TestEgressEnforceDefaultsToOnAndCanBeSwitchedOff(t *testing.T) {
+	for _, tc := range []struct {
+		value string
+		want  bool
+	}{
+		{"", true}, {"false", false}, {"0", false}, {"off", false}, {"true", true}, {"nein", true},
+	} {
+		clearCoveyEnv(t)
+		if tc.value != "" {
+			t.Setenv("COVEY_EGRESS_ENFORCE", tc.value)
+		}
+		c, err := FromEnv()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if c.EgressEnforce != tc.want {
+			t.Errorf("COVEY_EGRESS_ENFORCE=%q → %v, expected %v", tc.value, c.EgressEnforce, tc.want)
+		}
+		if c.EgressEnforced() != tc.want {
+			t.Errorf("COVEY_EGRESS_ENFORCE=%q with the default provider → enforced %v, expected %v", tc.value, c.EgressEnforced(), tc.want)
+		}
+		if c.EgressListenAddr != "" {
+			t.Errorf("EgressListenAddr = %q, expected empty (a free port)", c.EgressListenAddr)
+		}
+	}
+}
+
 func TestEngineCatalogueDefaultsToTheProjectDocument(t *testing.T) {
 	clearCoveyEnv(t)
 	c, err := FromEnv()

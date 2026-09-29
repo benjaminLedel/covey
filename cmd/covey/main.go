@@ -730,6 +730,21 @@ func openBlobStore(ctx context.Context, cfg config.Config, log *slog.Logger) (ho
 	}
 }
 
+// controlPlaneHosts is what the hard-mode proxy lets through for the daemon
+// link: host.docker.internal for a loopback address, and the public host when
+// COVEY_PUBLIC_URL is a real name — in hard mode the daemon dials it through
+// the proxy by CONNECT, and without it on the list no sandbox would connect
+// back (spec/16, "Egress with distributed runners", point 3).
+func controlPlaneHosts(publicURL string) []string {
+	hosts := []string{"host.docker.internal"}
+	if u, err := url.Parse(rewriteLoopbackForContainer(publicURL)); err == nil {
+		if h := u.Hostname(); h != "" && h != "host.docker.internal" {
+			hosts = append(hosts, h)
+		}
+	}
+	return hosts
+}
+
 // rewriteLoopbackForContainer bends a loopback URL onto host.docker.internal so
 // that a container reaches the service on the host — the control plane for the
 // egress proxy, say. Non-loopback hosts (a real deployment address) stay
@@ -786,14 +801,21 @@ func runEgressProxy(ctx context.Context, cfg config.Config, log *slog.Logger) er
 }
 
 // startEgressProxy binds the cooperative proxy (inside the control plane
-// process) to a free port (all interfaces, so the container reaches it via
-// host.docker.internal). Returns the container-side base proxy URL (without
+// process) to a free port, or to COVEY_EGRESS_LISTEN_ADDR (all interfaces, so
+// the container reaches it via host.docker.internal). The fixed address is
+// for a control plane that itself runs in a container: a sibling sandbox
+// reaches host.docker.internal only on a port the host publishes, and a free
+// port chosen at startup is one nobody published. Returns the container-side base proxy URL (without
 // credentials — the provider appends the per-sandbox token per agent) plus a
 // close function.
 func startEgressProxy(ctx context.Context, cfg config.Config, store *egress.Store, log *slog.Logger) (string, func(), error) {
 	resolver := egress.NewDBResolver(ctx, store, egressBaseAllow(cfg), 15*time.Second, log)
 	proxy := egress.New(resolver, log)
-	addr, err := proxy.Start(":0")
+	listen := cfg.EgressListenAddr
+	if listen == "" {
+		listen = ":0"
+	}
+	addr, err := proxy.Start(listen)
 	if err != nil {
 		return "", nil, err
 	}
@@ -879,6 +901,16 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	for _, warn := range cfg.DataPlaneWarnings() {
 		log.Warn("data-plane: " + warn)
 	}
+	// Egress is enforced by default (#445); where it is not, that is said
+	// here rather than left to be discovered in the egress view.
+	for _, warn := range cfg.EgressWarnings() {
+		log.Warn("egress: " + warn)
+	}
+	if cfg.CooperativeProxyUnreachable(config.RunningInContainer()) {
+		log.Warn("egress: covey runs in a container and the egress proxy binds a free port no host publishes — " +
+			"sandboxes will not get out at all. Set COVEY_EGRESS_LISTEN_ADDR=:8495 and publish 8495:8495 " +
+			"(docker-compose.yml does both)")
+	}
 	pool, err := db.Connect(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return err
@@ -962,7 +994,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	workplaces := sandbox.NewSource(cfg.SandboxCatalogURL, marketplace.NewPgCache(pool), log)
 
 	// Egress enforcement can only be enforced with real network isolation (docker).
-	egressEnforced := cfg.EgressEnforce && cfg.SandboxProvider == "docker"
+	egressEnforced := cfg.EgressEnforced()
 
 	if cfg.SandboxProvider != "docker" {
 		return fmt.Errorf("sandbox provider %q: only 'docker' is implemented", cfg.SandboxProvider)
@@ -1282,7 +1314,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 				docker.EgressRunnerToken = runnerToken
 				docker.EgressProxyEnv = map[string]string{
 					"COVEY_CONTROL_URL":       rewriteLoopbackForContainer(cfg.PublicURL),
-					"COVEY_EGRESS_ALLOW":      strings.Join(append(append([]string{}, cfg.EgressAllow...), "host.docker.internal"), ","),
+					"COVEY_EGRESS_ALLOW":      strings.Join(append(append([]string{}, cfg.EgressAllow...), controlPlaneHosts(cfg.PublicURL)...), ","),
 					"COVEY_EGRESS_PROXY_ADDR": ":8888",
 				}
 			default:

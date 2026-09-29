@@ -42,6 +42,16 @@ x-covey-base: &covey-base
     COVEY_ADMIN_EMAIL: ${COVEY_ADMIN_EMAIL:-admin@covey.local}
     COVEY_ADMIN_PASSWORD: ${COVEY_ADMIN_PASSWORD:-covey-admin}
     COVEY_SANDBOX_IMAGE: ${COVEY_SANDBOX_IMAGE:-covey-sandbox:latest}
+    # Egress (#445): the allowlist is enforced by default — a sandbox reaches
+    # only the hosts on its agent's list (api.anthropic.com is on every
+    # organisation's base list). COVEY_EGRESS_ENFORCE=false in the .env keeps
+    # the old, open behaviour. The proxy runs inside the covey container, and a
+    # sandbox is a sibling container that reaches it only through a port the
+    # host publishes — hence the fixed address here and the same number under
+    # `ports:` below. Without a sandbox's own token the proxy answers 407.
+    COVEY_EGRESS_ENFORCE: ${COVEY_EGRESS_ENFORCE:-true}
+    COVEY_EGRESS_LISTEN_ADDR: ":8495"
+    COVEY_EGRESS_ALLOW: ${COVEY_EGRESS_ALLOW:-}
     # The second workplace (profile `dev`). Existing agents were put there by
     # the upgrade, because the image from before the split carried exactly what
     # `dev` adds. Whoever still has that old image points this at it instead of
@@ -90,6 +100,9 @@ services:
         condition: service_completed_successfully
     ports:
       - "8494:8494"
+      # The egress proxy, see COVEY_EGRESS_LISTEN_ADDR above. Both numbers have
+      # to match: the sandbox dials the port the proxy binds.
+      - "8495:8495"
     # A YAML merge replaces lists wholesale — hence both mounts spelled out here:
     # the data directory (as in the base) plus the Docker socket. The socket is
     # what lets the control plane start a sandbox per agent as a sibling

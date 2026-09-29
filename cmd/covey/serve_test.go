@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -200,13 +201,28 @@ func TestServeWithHomeStoreAndEgressEnforcement(t *testing.T) {
 	cfg.BlobStore = "builtin"
 	cfg.EgressEnforce = true
 	cfg.EgressIsolation = "proxy"
-	cfg.EgressProxyAddr = "127.0.0.1:0"
+	// A fixed address, as docker-compose sets it — the path a containerised
+	// control plane takes.
+	cfg.EgressListenAddr = freePort(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- runServe(ctx, cfg, quiet()) }()
 
 	waitForHTTP(t, "http://"+cfg.ListenAddr+"/api/v1/public/signup-state", 20*time.Second)
+	// The proxy sits on the address it was given, and without a sandbox's
+	// token it lets nothing through.
+	proxied := &http.Client{Timeout: 5 * time.Second, Transport: &http.Transport{
+		Proxy: http.ProxyURL(&url.URL{Scheme: "http", Host: cfg.EgressListenAddr}),
+	}}
+	if resp, err := proxied.Get("http://example.com/"); err != nil {
+		t.Errorf("the egress proxy does not answer on %s: %v", cfg.EgressListenAddr, err)
+	} else {
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusProxyAuthRequired {
+			t.Errorf("a request without a token got %d, expected 407", resp.StatusCode)
+		}
+	}
 	cancel()
 	select {
 	case err := <-done:
