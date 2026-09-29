@@ -1438,53 +1438,29 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 			st.Ensure()
 		}
 	}
-	// Push notifications (#379, #424): each platform directly where this
-	// instance holds its key, through the relay where it does not.
-	var pushSender, pushRelay push.Sender
-	var direct push.Senders
-	var paths []string
-	if cfg.APNsKeyFile != "" {
-		apns, err := push.NewAPNs(cfg.APNsKeyFile, cfg.APNsKeyID, cfg.APNsTeamID, cfg.APNsTopic)
-		if err != nil {
-			return fmt.Errorf("push: %w", err)
-		}
-		direct.APNs = apns
-		paths = append(paths, "APNs")
-	}
+	// Push notifications (#379, #431): through FCM with the instance's own
+	// service account, through the relay, or not at all — as the instance
+	// settings say, read anew each round. The environment gives the
+	// defaults; an account file named there is read once, here, and a broken
+	// one stops the start as it did before it could be set elsewhere.
+	pushEnv := settings.PushEnv{RelayURL: cfg.PushRelay, RelayAccept: cfg.PushRelayAccept}
 	if cfg.FCMCredentialsFile != "" {
-		fcm, err := push.NewFCM(cfg.FCMCredentialsFile)
+		raw, err := os.ReadFile(cfg.FCMCredentialsFile)
 		if err != nil {
-			return fmt.Errorf("push: %w", err)
+			return fmt.Errorf("push: FCM credentials: %w", err)
 		}
-		direct.FCM = fcm
-		paths = append(paths, "FCM")
+		if _, err := push.ParseFCM(string(raw)); err != nil {
+			return fmt.Errorf("push: %s: %w", cfg.FCMCredentialsFile, err)
+		}
+		pushEnv.Credentials = string(raw)
 	}
-	relayed := cfg.PushRelay != "" && cfg.PushRelay != "off"
-	switch {
-	case len(paths) > 0:
-		all, rest := direct, "off"
-		if relayed {
-			all.Fallback, rest = push.NewRelay(cfg.PushRelay), cfg.PushRelay
-		}
-		pushSender = all
-		// What others hand over goes only where this instance holds the key.
-		if cfg.PushRelayAccept {
-			pushRelay = direct
-		}
-		log.Info("push: direct", "to", strings.Join(paths, ", "), "topic", cfg.APNsTopic,
-			"relay_for_the_rest", rest, "relay_for_others", cfg.PushRelayAccept)
-	case relayed:
-		pushSender = push.NewRelay(cfg.PushRelay)
-		log.Info("push: through the relay", "relay", cfg.PushRelay)
-	default:
-		log.Info("push: off")
-	}
+	pushes := &push.Provider{Settings: settingsStore, Env: pushEnv, Log: log}
 	srv := &httpapi.Server{
-		BaseCtx:   ctx,
-		Speech:    speechSet,
-		PushRelay: pushRelay,
-		Audit:     auditStore,
-		Pool:      pool, Registry: registry, Backlog: backlogStore, Obs: obs,
+		BaseCtx: ctx,
+		Speech:  speechSet,
+		Push:    pushes,
+		Audit:   auditStore,
+		Pool:    pool, Registry: registry, Backlog: backlogStore, Obs: obs,
 		Chat:  chat.New(pool),
 		Rails: rails, Secrets: secretStore, Runtimes: runtimeStore, Identity: idp, Memory: mem, Dreams: dreams,
 		Org: org.NewStore(pool), Targets: targets, Templates: templateStore,
@@ -1566,11 +1542,9 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Pool: pool, Mail: mail.New(settingsStore), Settings: settingsStore,
 		SiteURL: cfg.SiteURL, Log: log,
 	}).Run(ctx)
-	// Push notifications (#379): to Apple and Google directly with the app's
-	// keys, or through the relay that holds them. The notifier needs one.
-	if pushSender != nil {
-		go (&push.Notifier{Pool: pool, Sender: pushSender, Log: log}).Run(ctx)
-	}
+	// Push notifications (#379): through FCM with the app's account, or
+	// through the relay that holds one. The notifier asks each round.
+	go (&push.Notifier{Pool: pool, Source: pushes, Log: log}).Run(ctx)
 	// Was ein Neustart mitten in einer Triage unterbrochen hat: Eine
 	// angenommene Chat-Nachricht ohne Entscheidung bekommt sie jetzt nach.
 	// Einmal beim Hochfahren, nicht in einer Schleife — der gewöhnliche Weg

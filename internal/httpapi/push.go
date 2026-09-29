@@ -11,8 +11,9 @@ import (
 
 // Push notifications (#379): a device registers its token, an organisation
 // decides whether a notification may carry the first line of what was said,
-// and an instance holding the app's APNs key or FCM credentials may relay
-// for others.
+// and an instance holding a service account of the app's Firebase project
+// may relay for others. How the instance sends is set on the platform page
+// (platformpush.go).
 
 // handleRegisterDevice keeps the device's token for the signed-in person.
 func (s *Server) handleRegisterDevice(w http.ResponseWriter, r *http.Request) {
@@ -40,8 +41,9 @@ func (s *Server) handleRegisterDevice(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "expected token, platform ios|macos|android and environment production|development")
 		return
 	}
-	// FCM has no sandbox: a debug build's token is delivered like any other.
-	if in.Platform == "android" {
+	// FCM has no sandbox: a debug build's token is delivered like any other,
+	// and for an iPhone FCM picks Apple's environment itself (#431).
+	if in.Platform == "android" || in.Platform == "ios" {
 		in.Environment = "production"
 	}
 	if in.Sound == "" {
@@ -100,16 +102,28 @@ func (s *Server) handleSetPush(w http.ResponseWriter, r *http.Request) {
 }
 
 // handlePushRelay delivers a notification for an instance without the app's
-// key. Only an instance that holds the key and was told to relay answers;
+// account. Only an instance that sends directly and was told to relay
+// answers;
 // what it takes is the notification's fixed fields, bounded, and rate
 // limited per address.
 func (s *Server) handlePushRelay(w http.ResponseWriter, r *http.Request) {
-	if s.PushRelay == nil {
+	if s.Push == nil {
 		writeErr(w, http.StatusNotFound, "not found")
 		return
 	}
+	// The limit first: what follows reads the settings, and this route is
+	// open to anyone.
 	if !s.relayLimiter.allow(s.clientIP(r), time.Now()) {
 		writeErr(w, http.StatusTooManyRequests, "too many notifications from this address")
+		return
+	}
+	relay, err := s.Push.Relaying(r.Context())
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	if relay == nil {
+		writeErr(w, http.StatusNotFound, "not found")
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 4<<10)
@@ -118,7 +132,7 @@ func (s *Server) handlePushRelay(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "expected token, environment, title (and body, badge, agent_id) within bounds")
 		return
 	}
-	switch err := s.PushRelay.Send(r.Context(), m); {
+	switch err := relay.Send(r.Context(), m); {
 	case err == push.ErrGone:
 		writeErr(w, http.StatusGone, "device token no longer valid")
 	case err != nil:

@@ -11,11 +11,12 @@ import (
 	"time"
 )
 
-// RelayPath is where an instance with the app's key accepts notifications
+// RelayPath is where an instance with the app's account accepts notifications
 // from instances without one.
 const RelayPath = "/api/v1/push/relay"
 
-// Relay hands a notification to an instance that holds the app's APNs key.
+// Relay hands a notification to an instance that holds a service account of
+// the app's Firebase project.
 type Relay struct {
 	URL    string // the relay instance, e.g. https://app.covey.work
 	client *http.Client

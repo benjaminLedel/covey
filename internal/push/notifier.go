@@ -22,8 +22,11 @@ import (
 // makes one process do a round at a time; push_sent makes an entry go out
 // at most once, even when a task's updated_at moves again later.
 type Notifier struct {
-	Pool   *pgxpool.Pool
+	Pool *pgxpool.Pool
+	// Sender is a fixed sender; Source, where set, answers one per round, so
+	// that a change of the settings applies without a restart (#431).
 	Sender Sender
+	Source Source
 	Log    *slog.Logger
 	// Every is the pause between rounds; Lag keeps a round away from rows
 	// whose transaction may not have committed yet.
@@ -67,8 +70,17 @@ type event struct {
 
 // Round pushes what is new and answers how many notifications went out.
 func (n *Notifier) Round(ctx context.Context) (int, error) {
+	sender := n.Sender
+	if n.Source != nil {
+		var err error
+		if sender, err = n.Source.Sender(ctx); err != nil {
+			return 0, err
+		}
+	}
 	evs, err := n.claim(ctx)
-	if err != nil || len(evs) == 0 {
+	// With push off the entries are passed over, not kept: switching it on
+	// later must not deliver a backlog of old news at once.
+	if err != nil || len(evs) == 0 || sender == nil {
 		return 0, err
 	}
 	sent := 0
@@ -95,7 +107,7 @@ func (n *Notifier) Round(ctx context.Context) (int, error) {
 					Token: d.token, Platform: d.platform, Environment: d.env, Title: title, Body: body, Badge: badge,
 					AgentID: ev.agentID.String(), Sound: SoundFor(d.sound, ev.kind),
 				}
-				switch err := n.Sender.Send(ctx, m); {
+				switch err := sender.Send(ctx, m); {
 				case errors.Is(err, ErrGone):
 					_, _ = n.Pool.Exec(ctx, `DELETE FROM push_devices WHERE token=$1`, d.token)
 				case err != nil:

@@ -2,8 +2,6 @@ package push
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -12,73 +10,13 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/golang-jwt/jwt/v5"
+
+	"covey/internal/settings"
 )
-
-func testKey(t *testing.T) (*ecdsa.PrivateKey, string) {
-	t.Helper()
-	k, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	der, _ := x509.MarshalPKCS8PrivateKey(k)
-	path := filepath.Join(t.TempDir(), "AuthKey_TEST.p8")
-	_ = os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}), 0o600)
-	return k, path
-}
-
-func TestAPNsSendsWhatAppleExpects(t *testing.T) {
-	key, path := testKey(t)
-	var got struct {
-		path, topic, kind string
-		claims            jwt.MapClaims
-		kid               string
-		body              map[string]any
-	}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		got.path, got.topic, got.kind = r.URL.Path, r.Header.Get("apns-topic"), r.Header.Get("apns-push-type")
-		tok, err := jwt.Parse(strings.TrimPrefix(r.Header.Get("authorization"), "bearer "),
-			func(*jwt.Token) (any, error) { return &key.PublicKey, nil })
-		if err != nil {
-			t.Errorf("JWT: %v", err)
-		} else {
-			got.claims, got.kid = tok.Claims.(jwt.MapClaims), tok.Header["kid"].(string)
-		}
-		_ = json.NewDecoder(r.Body).Decode(&got.body)
-		if strings.HasSuffix(r.URL.Path, "/gone") {
-			w.WriteHeader(http.StatusGone)
-			_, _ = w.Write([]byte(`{"reason":"Unregistered"}`))
-		}
-	}))
-	defer srv.Close()
-	a, err := NewAPNs(path, "KEY123", "TEAM456", "work.example.app")
-	if err != nil {
-		t.Fatal(err)
-	}
-	a.Development = srv.URL
-	err = a.Send(context.Background(), Message{Token: "abc", Environment: "development", Title: "Bea hat geantwortet", Badge: 2, AgentID: "a1"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.path != "/3/device/abc" || got.topic != "work.example.app" || got.kind != "alert" {
-		t.Fatalf("request: %+v", got)
-	}
-	if got.kid != "KEY123" || got.claims["iss"] != "TEAM456" {
-		t.Fatalf("JWT signed with the key, kid and team: %v %v", got.kid, got.claims)
-	}
-	aps := got.body["aps"].(map[string]any)
-	if aps["badge"].(float64) != 2 || aps["thread-id"] != "a1" || got.body["agent_id"] != "a1" {
-		t.Fatalf("payload: %v", got.body)
-	}
-	if _, hasBody := aps["alert"].(map[string]any)["body"]; hasBody {
-		t.Fatal("no body without preview")
-	}
-	if err := a.Send(context.Background(), Message{Token: "gone", Environment: "development", Title: "x"}); !errors.Is(err, ErrGone) {
-		t.Fatalf("an unregistered device is ErrGone: %v", err)
-	}
-}
 
 func TestRelayPassesGoneBack(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -145,9 +83,7 @@ func fcmCredentials(t *testing.T, tokenURI string) (*rsa.PrivateKey, string) {
 		"type": "service_account", "project_id": "covey-test", "client_email": "push@covey-test.iam.example.org",
 		"private_key": string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})), "token_uri": tokenURI,
 	})
-	path := filepath.Join(t.TempDir(), "service-account.json")
-	_ = os.WriteFile(path, raw, 0o600)
-	return k, path
+	return k, string(raw)
 }
 
 func TestFCMSendsADataMessage(t *testing.T) {
@@ -198,8 +134,8 @@ func TestFCMSendsADataMessage(t *testing.T) {
 		}
 	}))
 	defer srv.Close()
-	key, path := fcmCredentials(t, srv.URL+"/token")
-	f, err := NewFCM(path)
+	key, raw := fcmCredentials(t, srv.URL+"/token")
+	f, err := ParseFCM(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -243,40 +179,152 @@ func TestFCMSendsADataMessage(t *testing.T) {
 }
 
 func TestFCMRejectsWhatIsNoServiceAccount(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "google-services.json")
-	_ = os.WriteFile(path, []byte(`{"project_info":{"project_id":"covey-test"}}`), 0o600)
-	if _, err := NewFCM(path); err == nil {
+	if _, err := ParseFCM(`{"project_info":{"project_id":"covey-test"}}`); err == nil {
 		t.Fatal("the app's google-services.json is not the server's credentials")
 	}
 }
 
-type recorder struct{ got []Message }
-
-func (r *recorder) Send(_ context.Context, m Message) error {
-	r.got = append(r.got, m)
-	return nil
+// fakeGoogle answers the token exchange and records what is sent.
+func fakeGoogle(t *testing.T) (*httptest.Server, *[]map[string]any, *int) {
+	t.Helper()
+	var sent []map[string]any
+	exchanges := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/token":
+			exchanges++
+			_, _ = w.Write([]byte(`{"access_token":"at-1","expires_in":3599}`))
+		case strings.HasSuffix(r.URL.Path, "/messages:send"):
+			var body struct {
+				Message map[string]any `json:"message"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			sent = append(sent, body.Message)
+			_, _ = w.Write([]byte(`{"name":"projects/covey-test/messages/1"}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv, &sent, &exchanges
 }
 
-func TestSendersPickByPlatform(t *testing.T) {
-	apns, fcm, relay := &recorder{}, &recorder{}, &recorder{}
-	s := Senders{APNs: apns, FCM: fcm, Fallback: relay}
-	for _, p := range []string{"", "ios", "macos", "android"} {
-		_ = s.Send(context.Background(), Message{Token: p, Platform: p})
+// An iPhone's message is one Firebase hands to Apple as it stands: iOS shows
+// it without the app running, groups it by agent, and the app finds the
+// agent in userInfo (#431).
+func TestFCMSendsAnAPNsMessageToTheIPhone(t *testing.T) {
+	srv, sent, _ := fakeGoogle(t)
+	_, raw := fcmCredentials(t, srv.URL+"/token")
+	f, err := ParseFCM(raw)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if len(apns.got) != 3 || len(fcm.got) != 1 || fcm.got[0].Token != "android" || len(relay.got) != 0 {
-		t.Fatalf("apns %v, fcm %v, relay %v", apns.got, fcm.got, relay.got)
+	f.Endpoint = srv.URL
+	for _, platform := range []string{"ios", ""} {
+		if err := f.Send(context.Background(), Message{Token: "fcm-1", Platform: platform, Environment: "production",
+			Title: "Bea hat geantwortet", Badge: 2, AgentID: "a1", Sound: "covey-bot-answer.caf"}); err != nil {
+			t.Fatal(err)
+		}
 	}
-	s = Senders{APNs: apns, Fallback: relay}
-	_ = s.Send(context.Background(), Message{Token: "a", Platform: "android"})
-	if len(relay.got) != 1 {
-		t.Fatal("without FCM credentials Android goes through the relay")
+	if err := f.Send(context.Background(), Message{Token: "fcm-1", Platform: "ios", Title: "x", Body: "Welches Konto?"}); err != nil {
+		t.Fatal(err)
 	}
-	s = Senders{APNs: apns}
-	if err := s.Send(context.Background(), Message{Token: "a", Platform: "android"}); err == nil {
-		t.Fatal("neither a key nor a relay: an error")
+	if len(*sent) != 3 {
+		t.Fatalf("sent %d", len(*sent))
 	}
-	if !(Message{Token: "t", Platform: "android", Environment: "production", Title: "x"}).Valid() ||
-		(Message{Token: "t", Platform: "windows", Environment: "production", Title: "x"}).Valid() {
-		t.Fatal("platforms a relay takes: ios, macos, android")
+	for _, m := range (*sent)[:2] {
+		if m["token"] != "fcm-1" || m["data"] != nil || m["android"] != nil || m["notification"] != nil {
+			t.Fatalf("message: %v", m)
+		}
+		apns := m["apns"].(map[string]any)
+		h := apns["headers"].(map[string]any)
+		if h["apns-priority"] != "10" || h["apns-push-type"] != "alert" {
+			t.Fatalf("headers: %v", h)
+		}
+		payload := apns["payload"].(map[string]any)
+		aps := payload["aps"].(map[string]any)
+		alert := aps["alert"].(map[string]any)
+		if alert["title"] != "Bea hat geantwortet" || aps["badge"].(float64) != 2 || aps["thread-id"] != "a1" ||
+			aps["sound"] != "covey-bot-answer.caf" || payload["agent_id"] != "a1" {
+			t.Fatalf("payload: %v", payload)
+		}
+		if _, hasBody := alert["body"]; hasBody {
+			t.Fatal("no body without preview")
+		}
+	}
+	aps := (*sent)[2]["apns"].(map[string]any)["payload"].(map[string]any)["aps"].(map[string]any)
+	if aps["alert"].(map[string]any)["body"] != "Welches Konto?" {
+		t.Fatalf("with preview: %v", aps)
+	}
+	if _, sound := aps["sound"]; sound {
+		t.Fatal("the sound none is no sound key")
+	}
+}
+
+func TestFCMCheckFetchesAToken(t *testing.T) {
+	srv, _, exchanges := fakeGoogle(t)
+	_, raw := fcmCredentials(t, srv.URL+"/token")
+	f, _ := ParseFCM(raw)
+	if err := f.Check(context.Background()); err != nil || *exchanges != 1 {
+		t.Fatalf("check: %v, %d", err, *exchanges)
+	}
+	if err := f.Check(context.Background()); err != nil || *exchanges != 2 {
+		t.Fatalf("a check asks Google anew: %v, %d", err, *exchanges)
+	}
+	_, bad := fcmCredentials(t, srv.URL+"/nowhere")
+	f, _ = ParseFCM(bad)
+	if err := f.Check(context.Background()); err == nil {
+		t.Fatal("a token URI that refuses is an error")
+	}
+}
+
+// The provider follows the configuration and keeps the FCM sender — and
+// with it the access token — while the account stays the same.
+func TestProviderRebuildsOnChange(t *testing.T) {
+	srv, _, exchanges := fakeGoogle(t)
+	_, raw := fcmCredentials(t, srv.URL+"/token")
+	ctx := context.Background()
+	p := &Provider{FCMEndpoint: srv.URL}
+
+	own, err := p.Sender(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r, ok := own.(*Relay); !ok || r.URL != "https://app.covey.work" {
+		t.Fatalf("with nothing configured: the public relay, got %#v", own)
+	}
+	if others, _ := p.Relaying(ctx); others != nil {
+		t.Fatal("a relaying instance does not relay for others")
+	}
+
+	p.Env = settings.PushEnv{Credentials: raw}
+	own, _ = p.Sender(ctx)
+	f, ok := own.(*FCM)
+	if !ok {
+		t.Fatalf("with an account: direct, got %#v", own)
+	}
+	if others, _ := p.Relaying(ctx); others != nil {
+		t.Fatal("relaying for others is off unless switched on")
+	}
+	if err := own.Send(ctx, Message{Token: "t", Platform: "ios", Title: "x"}); err != nil {
+		t.Fatal(err)
+	}
+	p.Env.RelayAccept = true
+	others, _ := p.Relaying(ctx)
+	if others != Sender(f) {
+		t.Fatal("relaying for others uses the same sender")
+	}
+	if err := others.Send(ctx, Message{Token: "t", Platform: "android", Title: "x"}); err != nil || *exchanges != 1 {
+		t.Fatalf("the token survives a change that leaves the account alone: %v, %d", err, *exchanges)
+	}
+
+	p.Env = settings.PushEnv{RelayURL: "off"}
+	if own, _ := p.Sender(ctx); own != nil {
+		t.Fatalf("off: %#v", own)
+	}
+	p.Env = settings.PushEnv{RelayURL: "https://relay.example.org/"}
+	own, _ = p.Sender(ctx)
+	if r, ok := own.(*Relay); !ok || r.URL != "https://relay.example.org" {
+		t.Fatalf("the environment's relay: %#v", own)
 	}
 }

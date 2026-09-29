@@ -231,6 +231,19 @@ func (s *Store) Set(ctx context.Context, key, value string, by *uuid.UUID) error
 	return err
 }
 
+// Check says whether Set would take a value, without storing it — for a
+// caller that sets several keys and wants none stored when one is refused.
+// The gate on signup.mode, which needs the database, is not part of it.
+func (s *Store) Check(key, value string) error {
+	if _, ok := Defaults[key]; !ok {
+		return fmt.Errorf("%w: %s", ErrUnknownKey, key)
+	}
+	if Secrets[key] || ReadOnly[key] {
+		return fmt.Errorf("%w: %s is not set this way", ErrInvalid, key)
+	}
+	return validate(key, strings.TrimSpace(value))
+}
+
 func validate(key, value string) error {
 	switch key {
 	case SignupMode:
@@ -286,6 +299,9 @@ func validate(key, value string) error {
 	}
 	if strings.HasPrefix(key, "telemetry.") {
 		return validateTelemetry(key, value)
+	}
+	if strings.HasPrefix(key, "push.") {
+		return validatePush(key, value)
 	}
 	if strings.HasPrefix(key, NotifyClassPrefix) {
 		if value != On && value != Off {

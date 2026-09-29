@@ -42,6 +42,7 @@ import (
 	"covey/internal/observability"
 	"covey/internal/orchestrator"
 	"covey/internal/org"
+	"covey/internal/push"
 	reqlogstore "covey/internal/reqlog/store"
 	"covey/internal/runner"
 	runnerstore "covey/internal/runner/store"
@@ -410,6 +411,9 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 		// settings. Without a host configured it refuses, which is exactly
 		// what an unconfigured instance does.
 		Mail: mail.New(s.settings),
+		// Push as in production (#431): the platform page and the relay
+		// route read the stored settings through it.
+		Push: &push.Provider{Settings: s.settings},
 		// The notification switches (#169). Without the store the endpoints
 		// answer 503, and a test would be checking the wrong thing.
 		Notify:    notify.New(pool).WithSettings(s.settings),

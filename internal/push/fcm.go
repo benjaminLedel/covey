@@ -4,32 +4,32 @@ import (
 	"bytes"
 	"context"
 	"crypto/rsa"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+
+	"covey/internal/settings"
 )
 
-// FCM sends through Firebase Cloud Messaging (#424) with a service account
-// of the app's Firebase project: the JSON file from the Firebase console.
-// Google takes an OAuth access token, which the instance gets by signing a
-// JWT with the account's key and exchanging it at the token URI; it lasts an
-// hour.
+// FCM sends through Firebase Cloud Messaging (#424, #431) with a service
+// account of the app's Firebase project: the JSON file from the Firebase
+// console. Google takes an OAuth access token, which the instance gets by
+// signing a JWT with the account's key and exchanging it at the token URI; it
+// lasts an hour.
 //
-// What goes out is a data message: the app builds the notification itself,
-// so that it plays the chosen sound and groups by agent the same way it does
-// on the iPhone.
+// It is the one direct sender, for both platforms. To Android goes a data
+// message: the app builds the notification itself, so that it plays the
+// chosen sound and groups by agent the same way it does on the iPhone. To the
+// iPhone goes a message Firebase hands to Apple as it stands — alert, badge,
+// sound, thread — so that iOS shows it without the app running.
 type FCM struct {
 	key       *rsa.PrivateKey
 	email     string
@@ -47,46 +47,36 @@ type FCM struct {
 
 const fcmScope = "https://www.googleapis.com/auth/firebase.messaging"
 
-// NewFCM reads the service account file.
-func NewFCM(credentialsFile string) (*FCM, error) {
-	raw, err := os.ReadFile(credentialsFile)
+// NewFCM takes a service account as settings.ParseServiceAccount read it.
+func NewFCM(sa settings.ServiceAccount) *FCM {
+	return &FCM{
+		key: sa.Key, email: sa.ClientEmail, projectID: sa.ProjectID, tokenURI: sa.TokenURI,
+		client:   &http.Client{Timeout: 15 * time.Second},
+		Endpoint: "https://fcm.googleapis.com",
+	}
+}
+
+// ParseFCM reads a service account key file's content.
+func ParseFCM(raw string) (*FCM, error) {
+	sa, err := settings.ParseServiceAccount(raw)
 	if err != nil {
 		return nil, fmt.Errorf("FCM credentials: %w", err)
 	}
-	var sa struct {
-		Type        string `json:"type"`
-		ProjectID   string `json:"project_id"`
-		PrivateKey  string `json:"private_key"`
-		ClientEmail string `json:"client_email"`
-		TokenURI    string `json:"token_uri"`
-	}
-	if err := json.Unmarshal(raw, &sa); err != nil {
-		return nil, fmt.Errorf("FCM credentials: %w", err)
-	}
-	if sa.Type != "service_account" || sa.ProjectID == "" || sa.ClientEmail == "" || sa.PrivateKey == "" {
-		return nil, errors.New("FCM credentials: expected a service account key file (type service_account, project_id, client_email, private_key)")
-	}
-	if sa.TokenURI == "" {
-		sa.TokenURI = "https://oauth2.googleapis.com/token"
-	}
-	block, _ := pem.Decode([]byte(sa.PrivateKey))
-	if block == nil {
-		return nil, errors.New("FCM credentials: private_key is not PEM")
-	}
-	var rk *rsa.PrivateKey
-	if k, err := x509.ParsePKCS8PrivateKey(block.Bytes); err == nil {
-		var ok bool
-		if rk, ok = k.(*rsa.PrivateKey); !ok {
-			return nil, errors.New("FCM credentials: private_key is not an RSA key")
-		}
-	} else if rk, err = x509.ParsePKCS1PrivateKey(block.Bytes); err != nil {
-		return nil, fmt.Errorf("FCM credentials: %w", err)
-	}
-	return &FCM{
-		key: rk, email: sa.ClientEmail, projectID: sa.ProjectID, tokenURI: sa.TokenURI,
-		client:   &http.Client{Timeout: 15 * time.Second},
-		Endpoint: "https://fcm.googleapis.com",
-	}, nil
+	return NewFCM(sa), nil
+}
+
+// ProjectID is the Firebase project the account belongs to.
+func (f *FCM) ProjectID() string { return f.projectID }
+
+// Check fetches a fresh access token: the account is valid and Google knows
+// it. It needs no device, and says nothing about whether the project holds
+// an APNs key — only Apple answers that, on the first notification.
+func (f *FCM) Check(ctx context.Context) error {
+	f.mu.Lock()
+	f.token = ""
+	f.mu.Unlock()
+	_, err := f.bearer(ctx)
+	return err
 }
 
 // bearer is the access token, fetched anew a few minutes before it runs out.
@@ -133,15 +123,7 @@ func (f *FCM) bearer(ctx context.Context) (string, error) {
 }
 
 func (f *FCM) Send(ctx context.Context, m Message) error {
-	data := map[string]string{
-		"title": m.Title, "body": m.Body, "agent_id": m.AgentID,
-		"sound": m.Sound, "badge": strconv.Itoa(m.Badge),
-	}
-	payload, _ := json.Marshal(map[string]any{"message": map[string]any{
-		"token":   m.Token,
-		"data":    data,
-		"android": map[string]any{"priority": "high"},
-	}})
+	payload, _ := json.Marshal(map[string]any{"message": fcmMessage(m)})
 	bearer, err := f.bearer(ctx)
 	if err != nil {
 		return err
@@ -190,4 +172,35 @@ func (f *FCM) Send(ctx context.Context, m Message) error {
 		f.mu.Unlock()
 	}
 	return fmt.Errorf("FCM: HTTP %d %s", resp.StatusCode, code)
+}
+
+// fcmMessage is the message for the device's platform.
+func fcmMessage(m Message) map[string]any {
+	if m.Platform == "android" {
+		return map[string]any{
+			"token": m.Token,
+			"data": map[string]string{
+				"title": m.Title, "body": m.Body, "agent_id": m.AgentID,
+				"sound": m.Sound, "badge": strconv.Itoa(m.Badge),
+			},
+			"android": map[string]any{"priority": "high"},
+		}
+	}
+	// The payload Apple gets: what the direct APNs sender used to send
+	// (#379), agent_id beside aps, where the app reads it from userInfo.
+	alert := map[string]string{"title": m.Title}
+	if m.Body != "" {
+		alert["body"] = m.Body
+	}
+	aps := map[string]any{"alert": alert, "badge": m.Badge, "thread-id": m.AgentID}
+	if m.Sound != "" {
+		aps["sound"] = m.Sound
+	}
+	return map[string]any{
+		"token": m.Token,
+		"apns": map[string]any{
+			"headers": map[string]string{"apns-priority": "10", "apns-push-type": "alert"},
+			"payload": map[string]any{"aps": aps, "agent_id": m.AgentID},
+		},
+	}
 }

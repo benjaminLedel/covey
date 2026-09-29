@@ -137,6 +137,14 @@ func (s *Store) SetSecret(ctx context.Context, key, value string, by *uuid.UUID)
 	if !Secrets[key] {
 		return fmt.Errorf("%w: %s is not a secret setting", ErrUnknownKey, key)
 	}
+	// The one secret whose shape is known: a service account is checked
+	// before it is sealed, so that a wrong file is refused at the upload and
+	// not on the first notification (#431).
+	if key == PushCredentials && value != "" {
+		if _, err := ParseServiceAccount(value); err != nil {
+			return err
+		}
+	}
 	if value == "" {
 		_, err := s.pool.Exec(ctx,
 			`INSERT INTO system_settings (key, value, nonce, ciphertext, updated_by, updated_at)
