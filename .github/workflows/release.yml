@@ -326,3 +326,105 @@ jobs:
         run: |
           [ -n "${SIGNING_KEYCHAIN:-}" ] && security delete-keychain "$SIGNING_KEYCHAIN" || true
           rm -f "$RUNNER_TEMP/notary.p8"
+
+  # The iPhone app (#429): built on the same tag and, with the means below,
+  # signed for the App Store and uploaded to App Store Connect, where
+  # TestFlight hands it to the internal testers. Nothing is submitted for
+  # review — that stays a person's decision in App Store Connect.
+  #
+  # Without the secrets (a fork, a rehearsal) the app is built unsigned and
+  # nothing leaves the run. The App Store Connect API key is the one the Mac
+  # app notarises with; the role "App Manager" is enough, since signing uses
+  # the certificate and profile rather than Apple's cloud signing.
+  #
+  #   IOS_DISTRIBUTION_P12           an "Apple Distribution" certificate with
+  #                                  its private key, base64
+  #   IOS_DISTRIBUTION_P12_PASSWORD  its password
+  #   IOS_PROVISIONING_PROFILE       an App Store profile for the app, base64
+  #   APPLE_TEAM_ID                  the team it is signed for
+  #   APPLE_API_KEY_P8, APPLE_API_KEY_ID, APPLE_API_ISSUER_ID
+  ios-app:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - run: xcodebuild -version
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.1"
+          channel: stable
+          cache: true
+
+      - name: Herkunft bestimmen
+        id: meta
+        run: |
+          set -eu
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            version="${GITHUB_REF_NAME}"
+          else
+            version="$(git describe --tags --always --dirty 2>/dev/null || echo dev)"
+          fi
+          build_name="$(printf '%s' "$version" | sed -n 's/^v\([0-9][0-9.]*\)$/\1/p')"
+          echo "build_name=${build_name:-0.0.0}" >> "$GITHUB_OUTPUT"
+
+      - name: Signatur laden
+        env:
+          P12: ${{ secrets.IOS_DISTRIBUTION_P12 }}
+          P12_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_P12_PASSWORD }}
+          PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          API_KEY: ${{ secrets.APPLE_API_KEY_P8 }}
+          API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: |
+          set -eu
+          if [ -z "${P12}" ] || [ -z "${PROFILE}" ] || [ -z "${TEAM_ID}" ]; then
+            echo "Keine Signatur hinterlegt — die App wird unsigniert gebaut, nichts wird hochgeladen."
+            exit 0
+          fi
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password="$(openssl rand -hex 16)"
+          printf '%s' "$P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/cert.p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/cert.p12"
+          printf '%s' "$PROFILE" | base64 --decode > "$RUNNER_TEMP/app.mobileprovision"
+          {
+            echo "SIGNING_KEYCHAIN=${keychain}"
+            echo "APPLE_TEAM_ID=${TEAM_ID}"
+            echo "IOS_PROFILE_PATH=$RUNNER_TEMP/app.mobileprovision"
+          } >> "$GITHUB_ENV"
+          # The upload only for a real tag: a rehearsal builds and signs, and
+          # stops before App Store Connect.
+          if [ -n "${API_KEY}" ] && [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            printf '%s' "$API_KEY" > "$RUNNER_TEMP/asc.p8"
+            {
+              echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/asc.p8"
+              echo "APPLE_API_KEY_ID=${API_KEY_ID}"
+              echo "APPLE_API_ISSUER_ID=${API_ISSUER_ID}"
+            } >> "$GITHUB_ENV"
+          fi
+
+      - name: Bauen, signieren, hochladen
+        working-directory: mobile
+        run: tool/ios_release.sh "${{ steps.meta.outputs.build_name }}" "${{ github.run_number }}" "$GITHUB_WORKSPACE/dist-ios"
+
+      - uses: actions/upload-artifact@v4
+        if: hashFiles('dist-ios/*.ipa') != ''
+        with:
+          name: covey-app-ios
+          path: dist-ios/
+          retention-days: 7
+
+      - name: Aufräumen
+        if: always()
+        run: |
+          [ -n "${SIGNING_KEYCHAIN:-}" ] && security delete-keychain "$SIGNING_KEYCHAIN" || true
+          rm -f "$RUNNER_TEMP/asc.p8" "$RUNNER_TEMP/app.mobileprovision"
