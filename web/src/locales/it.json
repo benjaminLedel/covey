@@ -2866,7 +2866,7 @@
     "search": "Cerca persone e colleghi",
     "people": "Persone",
     "agents": "Colleghi IA",
-    "groupTitle": "Titolo del gruppo",
+    "groupTitle": "Nome del gruppo",
     "groupTitlePlaceholder": "Di cosa si occupa il gruppo",
     "startDirect": "Apri conversazione",
     "startGroup": "Crea gruppo",
@@ -2894,6 +2894,14 @@
     "working": "al lavoro",
     "workingOn": "lavora a {{title}}",
     "rename": "Rinomina gruppo",
-    "groupAgentsManage": "Aggiungere un collega IA a un gruppo richiede il diritto di assegnare lavoro a mano."
+    "groupAgentsManage": "Aggiungere un collega IA a un gruppo richiede il diritto di assegnare lavoro a mano.",
+    "searchMore": "Aggiungi altri …",
+    "removePicked": "Rimuovi {{name}}",
+    "groupTitleNeeded": "Un gruppo ha bisogno di un nome.",
+    "groupSize_one": "{{count}} membro con te",
+    "groupSize_other": "{{count}} membri con te",
+    "groupSize_few": "{{count}} membri con te",
+    "groupSize_many": "{{count}} membri con te",
+    "mentionList": "Menziona"
   }
 }

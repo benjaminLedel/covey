@@ -2894,6 +2894,14 @@
     "working": "工作中",
     "workingOn": "正在处理：{{title}}",
     "rename": "重命名群组",
-    "groupAgentsManage": "把 AI 同事加入群组需要手动分派工作的权限。"
+    "groupAgentsManage": "把 AI 同事加入群组需要手动分派工作的权限。",
+    "searchMore": "继续添加 …",
+    "removePicked": "移除 {{name}}",
+    "groupTitleNeeded": "群组需要一个名称。",
+    "groupSize_one": "含你在内 {{count}} 人",
+    "groupSize_other": "含你在内 {{count}} 人",
+    "groupSize_few": "含你在内 {{count}} 人",
+    "groupSize_many": "含你在内 {{count}} 人",
+    "mentionList": "提及"
   }
 }
