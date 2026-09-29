@@ -5,9 +5,11 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
+	"covey/internal/backlog"
 	"covey/internal/llm"
 )
 
@@ -235,4 +237,75 @@ func triagePrompt(t *testing.T, m *antwortendesModell) string {
 	}
 	t.Fatal("no triage prompt was seen")
 	return ""
+}
+
+// The run half of #471: the run's TONE.md is the voice of the task's
+// occasion — the chat voice for a task from a conversation, with the asking
+// person's department line; the customers voice for any other task; the
+// publications voice only when the task says so — and the recording names
+// the voice and why.
+func TestTheRunWritesInTheVoiceOfItsOccasion(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	agent := s.newSupportAgent("anlass")
+	chatVoice := builtVoice(t, admin, "Chatstimme")
+	mailVoice := builtVoice(t, admin, "Kundenstimme")
+	blogVoice := builtVoice(t, admin, "Blogstimme")
+	admin.expect(http.MethodPut, "/api/v1/agents/"+agent.ID.String()+"/voices",
+		map[string]any{"chat": chatVoice, "customers": mailVoice}, http.StatusOK)
+	admin.expect(http.MethodPatch, "/api/v1/org/voices", map[string]any{"publications": blogVoice}, http.StatusOK)
+	dept := admin.expect(http.MethodPost, "/api/v1/departments", map[string]any{"name": "Technik"}, http.StatusCreated)["id"].(string)
+	admin.expect(http.MethodPatch, "/api/v1/departments/"+dept+"/audience",
+		map[string]any{"audience_note": "Nennt Ticket und Branch."}, http.StatusOK)
+	if _, err := s.pool.Exec(ctx, `UPDATE humans SET department_id=$2 WHERE id=$1`, s.adminID, dept); err != nil {
+		t.Fatal(err)
+	}
+
+	conv := direkt(t, s, s.adminID, agent.ID)
+	aus, err := s.backlog.CreateIn(ctx, s.orgID, agent.ID, "Prompt zeigen", "[mock:prompt]", "chat:admin@test.local", 3, &conv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the conversation task finishes", 40*time.Second, func() bool {
+		return s.taskState(aus.ID) == backlog.StateDone
+	})
+	got, err := s.backlog.Get(ctx, aus.ID)
+	if err != nil || got.Result == nil {
+		t.Fatalf("result: %v %v", got.Result, err)
+	}
+	if p := *got.Result; !strings.Contains(p, `This is the voice "Chatstimme"`) || strings.Contains(p, "Kundenstimme") ||
+		!strings.Contains(p, "Nennt Ticket und Branch.") {
+		t.Fatalf("a conversation task writes in the chat voice, with the department's line:\n%s", p)
+	}
+	if ev := voiceEvent(t, s, aus.ID); ev["voice"] != "Chatstimme" || ev["voice_reason"] != "agent×chat" || ev["audience"] != "Technik" {
+		t.Fatalf("the recording has to name the voice and why: %v", ev)
+	}
+
+	mail, p := laufLassen(t, s, agent, "Prompt zeigen", "[mock:prompt]")
+	if !strings.Contains(p, `This is the voice "Kundenstimme"`) || strings.Contains(p, "Chatstimme") || strings.Contains(p, "Nennt Ticket") {
+		t.Fatalf("any other task writes in the customers voice:\n%s", p)
+	}
+	if ev := voiceEvent(t, s, mail.ID); ev["voice_reason"] != "agent×customers" || ev["voice_occasion"] != "customers" {
+		t.Fatalf("recording: %v", ev)
+	}
+
+	blog, p := laufLassen(t, s, agent, "Prompt zeigen", "[mock:prompt]\noccasion: publications")
+	if !strings.Contains(p, `This is the voice "Blogstimme"`) {
+		t.Fatalf("a task that says it is a publication writes in the publications voice:\n%s", p)
+	}
+	if ev := voiceEvent(t, s, blog.ID); ev["voice_reason"] != "org×publications" {
+		t.Fatalf("recording: %v", ev)
+	}
+}
+
+// voiceEvent is the recording's note of the voice a run wrote in.
+func voiceEvent(t *testing.T, s *stack, taskID uuid.UUID) map[string]any {
+	t.Helper()
+	var ev map[string]any
+	if err := s.pool.QueryRow(context.Background(), `SELECT payload FROM recording_events
+		WHERE task_id=$1 AND kind='lifecycle' AND payload ? 'voice_reason' ORDER BY id DESC LIMIT 1`, taskID).Scan(&ev); err != nil {
+		t.Fatalf("no voice in the recording: %v", err)
+	}
+	return ev
 }
