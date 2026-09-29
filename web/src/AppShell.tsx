@@ -12,7 +12,7 @@
    Whoever opens the overview does not need the platform administration — and
    whoever never opens it, never. */
 
-import { Suspense, lazy, useEffect, useState, useCallback } from "react";
+import { Suspense, lazy, useEffect, useRef, useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { NavLink, Navigate, Route, Routes, useLocation, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
@@ -31,6 +31,7 @@ import i18n, { initialLang, ladeSprache } from "./i18n";
 import HelpDrawer from "./components/HelpDrawer";
 import { NavIcon } from "./components/navicons";
 import Rail from "./components/Rail";
+import { useDrawer, useNarrow } from "./components/ConsoleDrawer";
 import Suche, { useSucheKuerzel } from "./components/Suche";
 
 /* The look of the interface comes with it, not before it — see app.css. */
@@ -115,6 +116,35 @@ function BuildLine() {
   );
 }
 
+/* The page's name in the bar above it at phone width (#463), where the
+   navigation that otherwise says where one is sits behind a button. The
+   longest matching entry wins, so /agents/42 is still "Agents". */
+const PAGE_TITLES: [string, string][] = [
+  ["/agents", "nav.agents"],
+  ["/inbox", "nav.inbox"],
+  ["/costs", "nav.costs"],
+  ["/org", "nav.org"],
+  ["/secrets", "nav.secrets"],
+  ["/targets", "nav.targets"],
+  ["/skills", "nav.skills"],
+  ["/voices", "nav.voices"],
+  ["/templates", "nav.templates"],
+  ["/infrastructure", "nav.infrastructure"],
+  ["/guardrails", "nav.guardrails"],
+  ["/egress", "nav.egress"],
+  ["/audit", "nav.audit"],
+  ["/requests", "nav.requests"],
+  ["/administration", "nav.administration"],
+  ["/platform", "nav.platform"],
+  ["/people", "nav.profile"],
+  ["/notes", "mobile.notizen"],
+];
+
+function pageTitleKey(path: string): string {
+  const hit = PAGE_TITLES.filter(([p]) => path === p || path.startsWith(p + "/")).sort((a, b) => b[0].length - a[0].length)[0];
+  return hit ? hit[1] : "team.verwaltung";
+}
+
 export default function AppShell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
   const { t } = useTranslation();
   const location = useLocation();
@@ -151,6 +181,18 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
     localStorage.setItem("covey.nav.platform", next ? "1" : "0");
   };
   const showPlatform = platformOpen || inPlatform;
+
+  /* At phone width the navigation is a drawer (#463). It closes on every
+     navigation, and when the window grows past the break — there it is a
+     column again and "open" means nothing. */
+  const narrow = useNarrow();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const drawerOpen = narrow && menuOpen;
+  const menuPanel = useRef<HTMLElement>(null);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  useEffect(() => setMenuOpen(false), [location.pathname, narrow]);
+  useDrawer(drawerOpen, closeMenu, menuPanel, menuButton);
 
   // "?" opens the help from anywhere — except while typing in form fields.
   useEffect(() => {
@@ -247,7 +289,16 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
         onHelp={() => setHelpOpen(true)}
         onSearch={() => sucheOeffnen()}
       />
-      <aside className="sidebar konsole-spalte">
+      {drawerOpen && <div className="konsole-scrim" onClick={closeMenu} aria-hidden="true" />}
+      <aside
+        ref={menuPanel}
+        id="konsole-nav"
+        className={`sidebar konsole-spalte${drawerOpen ? " offen" : ""}`}
+        aria-label={t("team.verwaltung")}
+        /* A link to the page one is on changes no address; it closes too. */
+        onClick={(e) => drawerOpen && (e.target as Element).closest("a") && closeMenu()}
+        {...(narrow ? { role: "dialog", "aria-modal": drawerOpen || undefined, inert: !drawerOpen || undefined } : {})}
+      >
         <div className="tm-spalte-kopf">
           <h1 className="tm-spalte-titel">{t("team.verwaltung")}</h1>
         </div>
@@ -322,13 +373,28 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
         </div>
       </aside>
       <main className="flex-1 min-w-0 flex flex-col">
+        {narrow && (
+          <div className="konsole-bar">
+            <button
+              ref={menuButton}
+              className="icon-btn konsole-bar-knopf"
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-label={t("nav.menu")}
+              aria-expanded={drawerOpen}
+              aria-controls="konsole-nav"
+            >
+              <NavIcon name="menu" />
+            </button>
+            <span className="konsole-bar-titel">{t(pageTitleKey(location.pathname))}</span>
+          </div>
+        )}
         {/* Full width. A hard cap of 1080px came from the time when this was
             mostly forms; by now it is boards, tables and the three-column wiki
             area that lack the room — on a wide screen a third stayed empty on
             the right. Reading width is therefore the business of the content
             that needs it (see `.measure` in styles.css), not of the
             frame. */}
-        <div key={location.pathname} className="fade flex-1" style={{ padding: "22px 26px 60px" }}>
+        <div key={location.pathname} className="fade flex-1 konsole-inhalt">
           {/* Every page is its own bundle and arrives only when it is
               called for. No placeholder: the frame already stands, and a
               spinner for two hundred milliseconds is a flicker, not a

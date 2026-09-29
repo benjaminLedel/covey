@@ -179,7 +179,7 @@ export default function Dashboard({ me }: { me: Principal }) {
             count "2 in the organisation" stood beside it and answered a
             question nobody has — what counts stands at the departments. */}
         {all.length > 0 && (
-          <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 320px", display: "flex", justifyContent: "center", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <div className="agent-search">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
                 <circle cx="11" cy="11" r="7" />

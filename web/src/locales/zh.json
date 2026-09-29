@@ -88,7 +88,8 @@
     "approvals": "审批",
     "infrastructure": "基础设施",
     "apps": "covey 应用",
-    "helpShort": "帮助"
+    "helpShort": "帮助",
+    "menu": "菜单"
   },
   "costs": {
     "title": "成本与令牌",

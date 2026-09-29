@@ -217,3 +217,64 @@ describe("App und der Kopplungslink", () => {
     });
   }
 });
+
+/* At phone width the console's navigation is a drawer behind a button in a
+   bar above the page (#463): the button says whether it is open, Escape and
+   the scrim close it, a link closes it, and focus comes back to the button. */
+describe("App bei Telefonbreite", () => {
+  beforeEach(() => {
+    vi.stubGlobal("matchMedia", (q: string) => ({
+      matches: q.includes("max-width"),
+      addEventListener() {},
+      removeEventListener() {},
+    }));
+  });
+
+  it("legt die Navigation der Verwaltung hinter einen Knopf", async () => {
+    serverMitSitzung(() => true);
+    // The inbox reads an object, not a list; everything else may stay empty.
+    const server = globalThis.fetch;
+    vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) =>
+      String(input).includes("/inbox")
+        ? Promise.resolve(new Response(JSON.stringify({ items: [], pending: 0 }), { status: 200, headers: { "Content-Type": "application/json" } }))
+        : server(input, init),
+    );
+    const { container } = renderApp(<App />, "/inbox");
+
+    const knopf = await screen.findByRole("button", { name: "Menü" });
+    const leiste = container.querySelector("#konsole-nav")!;
+    expect(knopf).toHaveAttribute("aria-expanded", "false");
+    expect(knopf).toHaveAttribute("aria-controls", "konsole-nav");
+    expect(leiste).toHaveAttribute("inert");
+    // The bar names the page the hidden navigation would otherwise mark.
+    expect(container.querySelector(".konsole-bar-titel")).toHaveTextContent("Posteingang");
+
+    // Open: a dialog, focus inside it, on the page one is on.
+    knopf.click();
+    await waitFor(() => expect(knopf).toHaveAttribute("aria-expanded", "true"));
+    expect(leiste).not.toHaveAttribute("inert");
+    expect(leiste).toHaveAttribute("role", "dialog");
+    expect(leiste).toHaveAttribute("aria-modal", "true");
+    expect(leiste.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).toHaveTextContent("Posteingang");
+
+    // Escape closes it and gives focus back to the button.
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await waitFor(() => expect(knopf).toHaveAttribute("aria-expanded", "false"));
+    expect(document.activeElement).toBe(knopf);
+
+    // The scrim closes it.
+    knopf.click();
+    await waitFor(() => expect(knopf).toHaveAttribute("aria-expanded", "true"));
+    (container.querySelector(".konsole-scrim") as HTMLElement).click();
+    await waitFor(() => expect(knopf).toHaveAttribute("aria-expanded", "false"));
+
+    // A link navigates and closes it.
+    knopf.click();
+    await waitFor(() => expect(knopf).toHaveAttribute("aria-expanded", "true"));
+    const agenten = [...leiste.querySelectorAll("a")].find((a) => a.textContent === "Agenten")!;
+    agenten.click();
+    await waitFor(() => expect(knopf).toHaveAttribute("aria-expanded", "false"));
+    await waitFor(() => expect(container.querySelector(".konsole-bar-titel")).toHaveTextContent("Agenten"));
+  });
+});

@@ -177,6 +177,15 @@
   .reg-kopf, .reg-row { grid-template-columns: 30px minmax(0, 1fr) 132px auto; gap: 10px; }
   .reg-budget, .reg-kopf span:nth-child(5) { display: none; }
 }
+/* A phone (#463): who and how they stand, one under the other; the action
+   beside both. The column head has nothing left to label. */
+@media (max-width: 520px) {
+  .reg-kopf { display: none; }
+  .reg-row { grid-template-columns: 30px minmax(0, 1fr) auto; row-gap: 4px; padding: 10px 12px; }
+  .reg-row > :first-child { grid-row: 1 / span 2; }
+  .reg-stand { grid-column: 2; grid-row: 2; }
+  .reg-tun { grid-column: 3; grid-row: 1 / span 2; }
+}
 
 
 /* Die Suche über der Belegschaft. Mittig und in eigener Zeile, weil sie ab
@@ -1155,7 +1164,13 @@
   gap: 2px;
   margin-bottom: 18px;
   border-bottom: 0.5px solid var(--border);
+  /* More tabs than width (a phone, #463): the row scrolls inside itself
+     instead of breaking a tab onto two lines or widening the page. */
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
 }
+.subnav > * { flex-shrink: 0; white-space: nowrap; }
 .subnav a {
   padding: 7px 13px 8px;
   font-size: 13px;
@@ -1677,7 +1692,7 @@
 }
 .tgt-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
   gap: 12px;
   align-items: stretch;
 }
@@ -4089,6 +4104,49 @@
 .tm-drei .tm-notizen-seite { padding: 24px 32px 60px; overflow: auto; flex: 1; }
 /* The console's navigation as the middle column beside the rail (#389). */
 .tm-drei .konsole-spalte { width: 240px; padding-top: 14px; overflow-y: auto; }
+.konsole-inhalt { padding: 22px 26px 60px; }
+.konsole-bar { display: none; }
+
+/* Phone width (#463): the console's navigation leaves the row and becomes a
+   drawer behind a button in a bar above the page, so the page gets the whole
+   width beside the rail. The rail stays, as it stays in the team shell at the
+   same width — it is the one thing both shells carry. The break matches
+   CONSOLE_NARROW in components/ConsoleDrawer.tsx. */
+@media (max-width: 900px) {
+  .konsole-bar {
+    position: sticky; top: 0; z-index: 30;
+    display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 16px;
+    background: var(--surface-0); border-bottom: 0.5px solid var(--border);
+  }
+  .konsole-bar-knopf { width: 40px; height: 40px; margin-left: -6px; color: var(--text-secondary); }
+  .konsole-bar-knopf .ic { width: 20px; height: 20px; }
+  .konsole-bar-knopf[aria-expanded="true"] { background: var(--surface-1); color: var(--text-primary); }
+  .konsole-bar-titel { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
+  .konsole-inhalt { padding: 16px 16px 48px; }
+  /* A page's heading row (title, subtitle, its buttons) wraps rather than
+     squeezing the title to a word a line. */
+  .konsole-inhalt .flex:has(> h1) { flex-wrap: wrap; row-gap: 8px; }
+  .konsole-inhalt .flex:has(> h1) > h1 { flex-shrink: 0; }
+  .main-build { padding: 0 16px 16px; }
+
+  .tm-drei .konsole-spalte {
+    position: fixed; top: 0; left: 0; bottom: 0; z-index: 71;
+    width: min(300px, 86vw); height: 100vh; height: 100dvh;
+    padding: 14px 14px max(14px, env(safe-area-inset-bottom));
+    box-shadow: 12px 0 32px -8px var(--shadow-md);
+    transform: translateX(-100%); visibility: hidden;
+    transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), visibility 0s linear 220ms;
+  }
+  .tm-drei .konsole-spalte.offen { transform: none; visibility: visible; transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+  .konsole-spalte .nav-item { padding-top: 10px; padding-bottom: 10px; }
+  /* Above the rail (z-index 60): while the menu is open it is the one thing
+     that answers. */
+  .konsole-scrim { position: fixed; inset: 0; z-index: 70; background: var(--scrim-weak); animation: fade 0.15s ease; }
+}
+@media (max-width: 900px) and (prefers-reduced-motion: reduce) {
+  .tm-drei .konsole-spalte, .tm-drei .konsole-spalte.offen { transition: none; }
+  .konsole-scrim { animation: none; }
+}
 .tm-start { margin: auto; padding: 40px; color: var(--text-muted); text-align: center; }
 
 /* Setup in the rail while unfinished (#391): the accent, and a dot. */

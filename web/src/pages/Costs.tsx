@@ -228,7 +228,9 @@ function Seg<T extends string | number>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div style={{ display: "inline-flex", gap: 2, background: "var(--surface-1)", border: "0.5px solid var(--border)", borderRadius: 8, padding: 2 }}>
+    /* One option per agent grows past any width with a large fleet: the
+       control scrolls inside itself rather than widening the page (#463). */
+    <div style={{ display: "inline-flex", gap: 2, maxWidth: "100%", overflowX: "auto", scrollbarWidth: "thin", background: "var(--surface-1)", border: "0.5px solid var(--border)", borderRadius: 8, padding: 2 }}>
       {options.map((o) => {
         const active = o.v === value;
         return (
@@ -237,6 +239,8 @@ function Seg<T extends string | number>({
             onClick={() => onChange(o.v)}
             style={{
               border: "none",
+              flexShrink: 0,
+              whiteSpace: "nowrap",
               borderRadius: 6,
               padding: "5px 12px",
               fontSize: 13,
@@ -548,7 +552,7 @@ export default function Costs() {
       </div>
 
       {/* Price list + cost types + priciest runs: they hold for every scope */}
-      <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" }}>
+      <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(320px, 100%), 1fr))" }}>
         <div className="card">
           <div style={{ fontWeight: 600, marginBottom: 4 }}>{t("costs.indicators.title")}</div>
           <p className="muted text-xs mb-3">{t("costs.indicators.hint")}</p>
@@ -572,7 +576,7 @@ export default function Costs() {
 
       {/* Breakdown only org-wide */}
       {isOrg && (
-        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" }}>
+        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(320px, 100%), 1fr))" }}>
           <div className="card">
             <div style={{ fontWeight: 600, marginBottom: 12 }}>{t("costs.byAgent")}</div>
             {(rep?.agents ?? []).length === 0 && <div className="muted text-sm">{t("costs.empty")}</div>}

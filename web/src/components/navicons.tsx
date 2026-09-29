@@ -222,6 +222,7 @@ const icons: Record<string, JSX.Element> = {
       <path d="M2.5 19h19" />
     </>
   ),
+  menu: <path d="M4 7h16M4 12h16M4 17h16" />,
   dots: (
     <>
       <circle cx="12" cy="5.5" r="0.9" />

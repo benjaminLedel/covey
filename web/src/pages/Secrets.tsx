@@ -120,8 +120,8 @@ function SecretCard({ secret, agents, canEdit }: { secret: SecretPreview; agents
 
   return (
     <div className="card mb-2" style={{ padding: "11px 15px" }}>
-      <div className="flex items-center gap-4">
-        <span className="mono text-sm flex-1">{secret.key}</span>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <span className="mono text-sm flex-1 min-w-0" style={{ overflowWrap: "anywhere" }}>{secret.key}</span>
         {secret.sensitive && (
           <span className="badge st-blocked" title={t("secrets.sensitiveHint")}>
             {t("secrets.sensitive")}

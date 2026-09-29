@@ -231,7 +231,7 @@ function TemplatesPage({ canEdit }: { canEdit: boolean }) {
         )}
       </div>
 
-      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
+      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(300px, 100%), 1fr))" }}>
         {list.map((tpl) => (
           <Link
             key={tpl.id}
@@ -299,7 +299,7 @@ function BuiltinCatalog({ canEdit }: { canEdit: boolean }) {
         {t("egress.catalogDesc")}
       </p>
       {err && <p className="text-xs mb-2" style={{ color: "var(--text-danger)" }}>{err}</p>}
-      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
+      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(300px, 100%), 1fr))" }}>
         {list.map((b) => (
           <div key={b.slug} className="card" style={{ padding: "13px 15px", opacity: b.imported ? 0.7 : 1 }}>
             <div className="flex items-baseline gap-2 mb-1">
