@@ -52,7 +52,7 @@
   },
   "checks": {
     "first_name": true,
-    "max_sentences": 2,
+    "max_sentences": 3,
     "must_contain_any": [
       "Globex",
       "invoice"

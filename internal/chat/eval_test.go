@@ -242,6 +242,16 @@ type evalAusgabe struct {
 	Fehler             error
 }
 
+// ausgabe is what a decision says in the conversation: the text of an
+// answer or of a task's acknowledgement, the reply of a note (#460).
+func ausgabe(e Entscheidung) evalAusgabe {
+	text := e.Text
+	if e.Aktion == AktionNotiz {
+		text = e.Antwort
+	}
+	return evalAusgabe{Aktion: e.Aktion, Endgueltig: e.Aktion, Text: text}
+}
+
 // aufgezeichnet reads a recorded answer the way covey reads the model's.
 func aufgezeichnet(sc evalScenario, roh string) evalAusgabe {
 	switch sc.Kind {
@@ -254,7 +264,7 @@ func aufgezeichnet(sc evalScenario, roh string) evalAusgabe {
 	if err != nil {
 		return evalAusgabe{Fehler: err}
 	}
-	return evalAusgabe{Aktion: e.Aktion, Endgueltig: e.Aktion, Text: e.Text}
+	return ausgabe(e)
 }
 
 func angesprochen(sc evalScenario) *bool {
@@ -396,15 +406,18 @@ func pruefen(sc evalScenario, a evalAusgabe) []befund {
 			!slices.Contains(sc.Expect.Action, string(a.Endgueltig)) {
 			add("action", "got %s (then %s), want %v", a.Aktion, a.Endgueltig, sc.Expect.Action)
 		}
-		// Only what is said in the chat is checked as chat: a note goes onto
-		// the task, a search says nothing.
-		if a.Endgueltig != AktionAntwort && a.Endgueltig != AktionAufgabe {
+		// Only what is said in the chat is checked as chat: a search says
+		// nothing, and of a note only its reply reaches the conversation.
+		if a.Endgueltig == AktionSuche {
 			return out
 		}
 	}
 	text := strings.TrimSpace(a.Text)
 	if text == "" {
-		if sc.Kind == "narration" || a.Endgueltig == AktionAntwort {
+		switch {
+		case a.Endgueltig == AktionNotiz:
+			add("silent", "a note without a reply leaves the person without an answer (#460)")
+		case sc.Kind == "narration" || a.Endgueltig == AktionAntwort:
 			add("empty", "nothing said")
 		}
 		return out

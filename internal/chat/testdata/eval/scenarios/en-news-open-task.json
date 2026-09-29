@@ -2,7 +2,7 @@
   "name": "en-news-open-task",
   "language": "en",
   "kind": "triage",
-  "about": "Asking about an open task: answer from the list, or note it.",
+  "about": "Asking about an open task (#460): answered in the conversation from the list — as an answer, or as a note with a reply, never silently.",
   "conversation": {
     "kind": "group",
     "title": "Support huddle",

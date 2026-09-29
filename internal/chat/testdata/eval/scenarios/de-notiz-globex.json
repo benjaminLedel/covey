@@ -39,5 +39,8 @@
       "note"
     ]
   },
-  "recorded": "{\"action\":\"note\",\"task\":\"ab12\",\"text\":\"Globex hat eine Gutschrift über 1.240 € geschickt.\"}"
+  "recorded": "{\"action\":\"note\",\"task\":\"ab12\",\"text\":\"Globex hat eine Gutschrift über 1.240 € geschickt.\",\"reply\":\"Danke, nehm ich bei der Prüfung mit.\"}",
+  "checks": {
+    "max_sentences": 2
+  }
 }

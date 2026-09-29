@@ -2,7 +2,7 @@
   "name": "en-work-refund",
   "language": "en",
   "kind": "triage",
-  "about": "A job in a target system opens a task.",
+  "about": "A job in a target system opens a task, also when the ticket is not in any list: finding it is part of the work.",
   "conversation": {
     "kind": "group",
     "title": "Support huddle",

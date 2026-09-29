@@ -143,3 +143,15 @@ func TestErzaehlenSiehtDieGruppe(t *testing.T) {
 		t.Error("the narration must be told not to talk about tasks and runs")
 	}
 }
+
+// TestLesenNotizMitAntwort: a note carries what the agent says in the
+// conversation (#460); without one it is still a note.
+func TestLesenNotizMitAntwort(t *testing.T) {
+	e, err := lesen(`{"action":"note","task":"ab12","text":"Gutschrift über 1.240 €.","reply":"Danke, nehm ich mit."}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.Antwort != "Danke, nehm ich mit." || e.Text != "Gutschrift über 1.240 €." {
+		t.Fatalf("note with reply: %+v", e)
+	}
+}
