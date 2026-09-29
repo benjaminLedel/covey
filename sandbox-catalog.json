@@ -177,7 +177,7 @@
       "images": [
         {
           "covey_version": "main",
-          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:2f0edc8491472e4260547a30a501c6ebf97123127ea75d8eafa69131cd18f1c0",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:b1ea111838c9d4a31f48cd71aa534952806f11f7b14207f2ea45dda98a53be1d",
           "tag": "dev-latest",
           "platforms": [
             "linux/amd64",
@@ -346,7 +346,7 @@
       "images": [
         {
           "covey_version": "main",
-          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:b0f3c0d58120f8c393c4e962949ef11386a184143c2ffd70ad2ba8bae0ab80ce",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:ec6297663851aa92892b8c11afdaffe8f6de8455058db16537ca163474a8e4fe",
           "tag": "dev-flutter-latest",
           "platforms": [
             "linux/amd64",
@@ -443,7 +443,7 @@
       "images": [
         {
           "covey_version": "main",
-          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:687fc461e42ba323b392ca05575b608715672fba54bdd10cc7e0d9e01e40d383",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:6d9cd72e3b61cd61adb67c44a0990560625b4d849cb07a2200ef843fe3fdeb5e",
           "tag": "dev-php-latest",
           "platforms": [
             "linux/amd64",
@@ -540,7 +540,7 @@
       "images": [
         {
           "covey_version": "main",
-          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:413d2132116fbac182fe013ff5cdcac28a2c2e9800d886727aa53a65af47e3e6",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:bff4d7018671d273f0f4b9641a78c3b052a0e7c01166823c0e74f8bf4705b7ea",
           "tag": "dev-web-latest",
           "platforms": [
             "linux/amd64",
@@ -637,7 +637,7 @@
       "images": [
         {
           "covey_version": "main",
-          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:d7fde432a1f3542fe87804c4e7ca6bd69a253fb980ccdfd6c72216d06152569b",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:e2bce90edc59c2e56c560bc61cd9ac0f01a6c7144774ac41246deaec5a0b28b2",
           "tag": "dev-full-latest",
           "platforms": [
             "linux/amd64",
@@ -728,5 +728,5 @@
       ]
     }
   ],
-  "generated_at": "2026-09-29T06:45:59Z"
+  "generated_at": "2026-09-29T06:51:25Z"
 }
