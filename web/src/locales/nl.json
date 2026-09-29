@@ -2866,7 +2866,7 @@
     "search": "Personen en collega's zoeken",
     "people": "Personen",
     "agents": "AI-collega's",
-    "groupTitle": "Titel van de groep",
+    "groupTitle": "Groepsnaam",
     "groupTitlePlaceholder": "Waar de groep over gaat",
     "startDirect": "Gesprek openen",
     "startGroup": "Groep aanmaken",
@@ -2894,7 +2894,15 @@
     "working": "aan het werk",
     "workingOn": "werkt aan {{title}}",
     "rename": "Groep hernoemen",
-    "groupAgentsManage": "Een AI-collega aan een groep toevoegen vraagt het recht om met de hand werk over te dragen."
+    "groupAgentsManage": "Een AI-collega aan een groep toevoegen vraagt het recht om met de hand werk over te dragen.",
+    "searchMore": "Meer toevoegen …",
+    "removePicked": "{{name}} verwijderen",
+    "groupTitleNeeded": "Een groep heeft een naam nodig.",
+    "groupSize_one": "{{count}} lid inclusief jou",
+    "groupSize_other": "{{count}} leden inclusief jou",
+    "groupSize_few": "{{count}} leden inclusief jou",
+    "groupSize_many": "{{count}} leden inclusief jou",
+    "mentionList": "Vermelden"
   },
   "chatTone": {
     "title": "In de teamchat",

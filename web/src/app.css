@@ -4022,6 +4022,63 @@
 .tm-mitglieder ul { gap: 4px; }
 .tm-mitglied { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .tm-mitglied-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Mentions (#440): the list opens above the input, like a menu. */
+.tm-eingabe-reihe { position: relative; }
+.tm-erw {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  z-index: 20;
+  min-width: 240px;
+  max-width: 100%;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface-0);
+  border: 0.5px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px var(--shadow-md), 0 2px 8px var(--shadow-sm);
+}
+.tm-erw li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 7px; cursor: pointer; font-size: 13px; }
+.tm-erw li.an { background: var(--surface-2); }
+.tm-erw .nm { flex: 1; min-width: 0; color: var(--text-primary); }
+.tm-erw .hd { color: var(--text-muted); font-size: 12px; }
+
+/* New conversation (#440): the recipients field and the group's name. */
+.tm-an {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 5px 10px;
+  margin-bottom: 12px;
+  border: 0.5px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-0);
+  cursor: text;
+}
+.tm-an:focus-within { border-color: var(--text-accent); box-shadow: 0 0 0 3px var(--accent-ring, var(--tint)); }
+.tm-an > .ic { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.8; color: var(--text-muted); flex: none; }
+.tm-an input { flex: 1; min-width: 140px; border: 0; outline: 0; background: none; padding: 4px 0; font: inherit; font-size: 13px; color: var(--text-primary); box-shadow: none; }
+.tm-an-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 220px;
+  padding: 2px 3px 2px 3px;
+  border-radius: 999px;
+  background: var(--tint);
+  font-size: 12.5px;
+  color: var(--text-primary);
+}
+.tm-an-chip button { display: inline-flex; border: 0; background: none; padding: 2px; border-radius: 50%; color: var(--text-muted); cursor: pointer; }
+.tm-an-chip button:hover { background: var(--surface-2); color: var(--text-primary); }
+.tm-an-chip .ic { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2; }
+.tm-titel-feld { display: flex; flex-direction: column; gap: 4px; margin: 0 0 14px; padding: 10px 12px; border-radius: var(--radius); background: var(--tint-weak); }
+.tm-titel-feld label { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin: 0; }
+.tm-titel-feld input { width: 100%; }
+
 .tm-wahl-liste { list-style: none; margin: 0 0 10px; padding: 0; max-height: 240px; overflow: auto; }
 .tm-wahl { display: flex; align-items: center; gap: 8px; padding: 5px 4px; border-radius: 6px; cursor: pointer; font-size: 13px; }
 .tm-wahl:hover { background: var(--tint-weak); }

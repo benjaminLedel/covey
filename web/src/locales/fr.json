@@ -2866,7 +2866,7 @@
     "search": "Rechercher des personnes et des collègues",
     "people": "Personnes",
     "agents": "Collègues IA",
-    "groupTitle": "Titre du groupe",
+    "groupTitle": "Nom du groupe",
     "groupTitlePlaceholder": "De quoi parle le groupe",
     "startDirect": "Ouvrir la conversation",
     "startGroup": "Créer le groupe",
@@ -2894,7 +2894,15 @@
     "working": "au travail",
     "workingOn": "travaille sur {{title}}",
     "rename": "Renommer le groupe",
-    "groupAgentsManage": "Ajouter un collègue IA à un groupe demande le droit de confier du travail à la main."
+    "groupAgentsManage": "Ajouter un collègue IA à un groupe demande le droit de confier du travail à la main.",
+    "searchMore": "Ajouter d’autres …",
+    "removePicked": "Retirer {{name}}",
+    "groupTitleNeeded": "Un groupe a besoin d’un nom.",
+    "groupSize_one": "{{count}} membre avec vous",
+    "groupSize_other": "{{count}} membres avec vous",
+    "groupSize_few": "{{count}} membres avec vous",
+    "groupSize_many": "{{count}} membres avec vous",
+    "mentionList": "Mentionner"
   },
   "chatTone": {
     "title": "Dans le chat d'équipe",

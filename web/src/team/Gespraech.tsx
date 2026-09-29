@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { ErwaehnungsListe, useErwaehnung, type Kandidat } from "./Erwaehnung";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
@@ -106,6 +107,23 @@ export default function Gespraech({ id, me }: { id: string; me: Principal }) {
     },
   });
   const vonMir = (m: ConversationMessage) => m.author_kind === "human" && m.author_id === me.ID;
+
+  /* "@" in a group: the other members, agents first — they are the ones a
+     mention wakes. A person is addressed by first name. */
+  const feld = useRef<HTMLTextAreaElement>(null);
+  const kandidaten: Kandidat[] = gruppe
+    ? aktive
+        .filter((m) => !(m.kind === "human" && m.id === me.ID))
+        .sort((a, b) => (a.kind === b.kind ? 0 : a.kind === "agent" ? -1 : 1))
+        .map((m) => ({
+          key: `${m.kind}:${m.id}`,
+          name: m.name,
+          handle: m.kind === "agent" ? m.slug || m.name.split(" ")[0] : m.name.split(" ")[0],
+          human: m.kind === "human",
+          slug: m.slug,
+        }))
+    : [];
+  const erw = useErwaehnung({ text, setText, feld, kandidaten });
 
   const senden = useMutation({
     mutationFn: () => postConversationMessage(id, text.trim(), antwortAuf?.id),
@@ -308,11 +326,22 @@ export default function Gespraech({ id, me }: { id: string; me: Principal }) {
           </div>
         )}
         <div className="tm-eingabe-reihe">
+          <ErwaehnungsListe e={erw} id={`tm-erw-${id}`} />
           <textarea
+            ref={feld}
             rows={1}
             value={text}
-            onChange={(ev) => setText(ev.target.value)}
+            onChange={(ev) => {
+              setText(ev.target.value);
+              erw.merke();
+            }}
+            onSelect={erw.merke}
+            onClick={erw.merke}
+            aria-autocomplete="list"
+            aria-controls={erw.sichtbar ? `tm-erw-${id}` : undefined}
+            aria-activedescendant={erw.sichtbar ? `tm-erw-${id}-${erw.index}` : undefined}
             onKeyDown={(ev) => {
+              if (erw.taste(ev)) return;
               if (ev.key === "Enter" && !ev.shiftKey) {
                 ev.preventDefault();
                 abschicken();
