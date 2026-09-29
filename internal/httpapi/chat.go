@@ -948,7 +948,7 @@ func (s *Server) triagieren(ctx context.Context, conv chat.Conversation, agentID
 	rahmen := chat.Rahmen{
 		Rolle: s.rolleVon(ctx, agentID), Seele: s.seeleVon(ctx, agentID),
 		Gegenueber: s.gegenueberVon(ctx, conv.OrgID, email),
-		Raum:       chat.Raum(conv, agentID, true),
+		Raum:       chat.Raum(conv, agentID, s.nameVon(ctx, conv.OrgID, email), true),
 		Ton:        s.tonVon(ctx, agentID),
 	}
 	organisation := s.organisationVon(ctx, agentID)
@@ -1234,6 +1234,18 @@ func (s *Server) tonVon(ctx context.Context, agentID uuid.UUID) string {
 		return ""
 	}
 	return s.Voices.AgentChatTone(ctx, agentID).Prompt()
+}
+
+// nameVon is the display name of the person behind an address, for the
+// group text (#457). Empty when unknown.
+func (s *Server) nameVon(ctx context.Context, orgID uuid.UUID, email string) string {
+	if email == "" || s.Pool == nil {
+		return ""
+	}
+	var name string
+	_ = s.Pool.QueryRow(ctx, `SELECT display_name FROM humans WHERE org_id = $1 AND lower(email) = lower($2)`,
+		orgID, email).Scan(&name)
+	return name
 }
 
 // seeleVon is the agent's SOUL.md from its current config (#411): how it

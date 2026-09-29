@@ -93,8 +93,8 @@ func TestRaumBeschreibtDieGruppe(t *testing.T) {
 		{Kind: MemberAgent, ID: kollege, Name: "Quirina"},
 		{Kind: MemberHuman, ID: uuid.New(), Name: "Ada Lovelace"},
 	}}
-	r := Raum(gruppe, ich, true)
-	for _, will := range []string{`"Rechnungen"`, "Quirina (AI colleague)", "Ada Lovelace", "one colleague among them", "first name", "You were addressed"} {
+	r := Raum(gruppe, ich, "Ada Lovelace", true)
+	for _, will := range []string{`"Rechnungen"`, "Quirina (AI colleague)", "Ada Lovelace", "one colleague among them", "Address Ada by name", "addresses you"} {
 		if !strings.Contains(r, will) {
 			t.Errorf("group text lacks %q: %s", will, r)
 		}
@@ -102,10 +102,13 @@ func TestRaumBeschreibtDieGruppe(t *testing.T) {
 	if strings.Contains(r, "Demo") {
 		t.Errorf("the agent itself is not a member it talks to: %s", r)
 	}
-	if strings.Contains(Raum(gruppe, ich, false), "You were addressed") {
+	if strings.Contains(Raum(gruppe, ich, "Ada Lovelace", false), "addresses you") {
 		t.Error("the narration was not addressed by a new message")
 	}
-	if Raum(Conversation{Kind: KindDirect, Members: gruppe.Members}, ich, true) != "" {
+	if !strings.Contains(Raum(gruppe, ich, "", true), "first name") {
+		t.Error("without a known author the agent is still told to use the first name")
+	}
+	if Raum(Conversation{Kind: KindDirect, Members: gruppe.Members}, ich, "Ada Lovelace", true) != "" {
 		t.Error("a direct conversation has no group text")
 	}
 }

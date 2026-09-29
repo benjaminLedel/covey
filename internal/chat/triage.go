@@ -152,10 +152,13 @@ Raum describes a group to the agent's turns (#440): its title, who is in
 	conversation: there the person is the one the prompt already describes.
 
 	And what kind of place it is (#457): a room with several colleagues in it,
-	people and agents, where the agent is one of them and not the host. Without
-	that sentence a greeting in a group got the answer of a service desk.
+	people and agents, where the agent is one of them and not the host.
+	Without that a greeting in a group got the answer of a service desk. The
+	author is named with the first name to use: "speak to the person by their
+	first name" alone was ignored more often than not, because the turn has to
+	work out who the person is before it can follow it.
 */
-func Raum(conv Conversation, agentID uuid.UUID, angesprochen bool) string {
+func Raum(conv Conversation, agentID uuid.UUID, von string, angesprochen bool) string {
 	if conv.Kind != KindGroup {
 		return ""
 	}
@@ -175,10 +178,23 @@ func Raum(conv Conversation, agentID uuid.UUID, angesprochen bool) string {
 		titel = fmt.Sprintf(" %q", conv.Title)
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "This is the group conversation%s. Besides you, in it: %s. You are one colleague among them, not the host: everybody here reads what you write. Speak to the person by their first name, keep it shorter than in a direct chat, and do not repeat what somebody already said.",
+	fmt.Fprintf(&b, "This is the group conversation%s. Besides you, in it: %s. You are one colleague among them, not the host: everybody here reads what you write. Keep it shorter than in a direct chat, and do not repeat what somebody already said.",
 		titel, strings.Join(wer, ", "))
-	if angesprochen {
-		b.WriteString(" You were addressed in the new message; answer what is yours to answer and leave the rest to the others.")
+	von = strings.TrimSpace(von)
+	vorname := von
+	if f := strings.Fields(von); len(f) > 0 {
+		vorname = f[0]
+	}
+	switch {
+	case angesprochen && von != "":
+		fmt.Fprintf(&b, " The new message is from %s and addresses you. Address %s by name — start with it (%q, %q) — answer what is yours to answer and leave the rest to the others.",
+			von, vorname, vorname+", …", "Hi "+vorname+"!")
+	case angesprochen:
+		b.WriteString(" You were addressed in the new message; speak to the person by their first name, answer what is yours to answer and leave the rest to the others.")
+	case von != "":
+		fmt.Fprintf(&b, " %s asked for this. Address %s by name — start with it (%q) — so the others know whom you answer.", von, vorname, vorname+", …")
+	default:
+		b.WriteString(" Speak to the person who asked by their first name.")
 	}
 	return b.String()
 }
