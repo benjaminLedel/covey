@@ -96,6 +96,12 @@ describe("the voice flow", () => {
     expect(status(steps).preview).toBe("done");
   });
 
+  it("a voice just created for a description asks for the description, not for texts", () => {
+    const fresh = voice({ source: "texts" });
+    const steps = flowSteps({ name: "S", purpose: "support_mail", source: "described", voice: fresh });
+    expect(blockerFor(steps, "material")).toBe("noDescription");
+  });
+
   it("from the chat: nothing to do here until the agent has filed the draft", () => {
     const steps = flowSteps({ name: "S", purpose: "blog", source: "chat" });
     expect(status(steps).source).toBe("done");

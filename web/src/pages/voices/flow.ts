@@ -70,7 +70,19 @@ export function flowSteps(input: FlowInput): Step[] {
     blocker: purposeDone ? undefined : input.name.trim() === "" ? "name" : "purpose",
   });
 
-  const source = voice ? (voice.source === "described" ? "described" : "texts") : input.source;
+  // A voice is stored as "texts" until a description has been written for
+  // it, so the person's choice counts until the voice says otherwise — and a
+  // built voice is measured, whatever was chosen.
+  const source: SourceChoice =
+    voice?.source === "described"
+      ? "described"
+      : voice && voice.version > 0
+        ? "texts"
+        : input.source === "described"
+          ? "described"
+          : voice
+            ? "texts"
+            : input.source;
   const sourceDone = source !== "" && (source === "chat" || voice !== undefined);
   out.push({
     key: "source",
