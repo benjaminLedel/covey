@@ -1,6 +1,6 @@
 # 27 — The mobile app: the chat where the person is
 
-**Status: a first slice is built** (#329, `mobile/`): the connection screen with an API key as the interim badge, what waits (read-only), the colleagues, and the thread with message and reply. Decisions 1–4 below are open, so it is a prototype and called one. The same project builds the desktop app (#334): the same three surfaces side by side on a wide window, pairing through a `covey://` link instead of a camera. What it builds on: the chat in covey (#298 — `internal/httpapi/chat.go`, `web/src/team/`), which since #328 has to be switched on per organisation — off, the instance refuses a message with 403, and the app reads `TeamSurface` from `/auth/me` to say so before anybody types. This document is written for the developers who build the app, and it says what they may rely on, what they have to ask for, and what the app must never do.
+**Status: a first slice is built** (#329, `mobile/`): the connection screen with an API key as the interim badge, what waits (read-only), the colleagues, and the per-agent thread with message and reply. Since #440 and #441 the app is specified against conversations instead: the list of conversations and the conversation, with the people and agents to start one from, and what waits standing inside the conversations rather than in a list of its own. Decisions 1–4 below are open, so it is a prototype and called one. The same project builds the desktop app (#334): the same surfaces side by side on a wide window, pairing through a `covey://` link instead of a camera. What it builds on: the chat in covey (#298 — `internal/httpapi/chat.go`, `web/src/team/`), which since #328 has to be switched on per organisation — off, the instance refuses a message with 403, and the app reads `TeamSurface` from `/auth/me` to say so before anybody types. This document is written for the developers who build the app, and it says what they may rely on, what they have to ask for, and what the app must never do.
 
 ## Why an app
 
@@ -10,15 +10,15 @@ The cost of that is measurable in the object: a task in `blocked` costs nothing 
 
 So the app has exactly one job: **carry the question to the person and the answer back**. Everything else it does is in service of that.
 
-The web has the same split since #298: the team surface is its own shell there, not a page in the console — same three surfaces, same rule about what belongs in neither. The app inherits that division rather than inventing one.
+The web has the same split since #298: the team surface is its own shell there, not a page in the console — same surfaces, same rule about what belongs in neither. The app inherits that division rather than inventing one.
 
 ## What the app is
 
-Three surfaces, in this order of weight:
+Two surfaces, and a directory to start from ([`28-team-surface.md`](28-team-surface.md) defines what a conversation is):
 
-1. **What waits.** The open points of the inbox, filtered to what this person may decide: the agent's questions and the approvals a guard rail is holding ([`06-observability-control.md`](06-observability-control.md)). This is the screen a notification opens. It is the app's home, not a tab beside others.
-2. **The thread.** One agent, the conversation with it: what was handed over, what it wrote down on the way, what it asked, what came out. The compose box at the bottom does what the web chat's does — a new message opens a task, a reply answers the parked one.
-3. **The colleagues.** The agents this person may write to, as a message list.
+1. **The conversations.** This person's conversations, direct and group, newest first, with what is unread. It is the app's home, not a tab beside others. There is no "What waits" list any more: what waits for this person stands in the conversations as **decidable entries** — the agent's questions, the approvals a guard rail is holding ([`06-observability-control.md`](06-observability-control.md)), the open points of a review ([`21-operations-and-improvement.md`](21-operations-and-improvement.md)) — and a conversation holding one says so in the list.
+2. **The conversation.** Its members and its messages: what was handed over, what an agent answered, what it asked, what came out of a task opened here, and the entries waiting for a decision — with the decision where this person may take it, and the name of who decides where they may not. The compose box at the bottom does what the web's does: a message is handed to the agent, a reply answers the parked task. In a direct conversation the agent answers every message; in a group only when it is addressed — mentioned, or replied to on its own message. A notification opens the conversation it is about.
+3. **The people and agents** this person may write to — the place a direct conversation is opened or a group started, not a surface of its own weight.
 
 ## What the app is not
 
@@ -56,7 +56,7 @@ Before pairing, a prototype could only paste an API key into the Keychain / Keys
 
 ## The API the app builds against
 
-All of this exists today. Paths are relative to `/api/v1`, all of them behind the badge, all scoped to the seat's organisation.
+Paths are relative to `/api/v1`, all of them behind the badge, all scoped to the seat's organisation. The conversation endpoints are specified by #440 and not built yet — their names here are the plan, not a contract; everything else exists today.
 
 | Purpose | Endpoint | Notes |
 |---|---|---|
@@ -64,20 +64,27 @@ All of this exists today. Paths are relative to `/api/v1`, all of them behind th
 | who am I | `GET /auth/me` | includes the seat role — it decides what the app may show |
 | organisations | `GET /auth/memberships`, `POST /auth/switch-org` | switching organisations inside one host |
 | colleagues | `GET /agents` | filter out `status = applicant`: a draft is not a colleague |
-| the thread | `GET /agents/{id}/thread` | the last 20 tasks as one chronological list |
-| hand over work | `POST /agents/{id}/messages` | `{text}` → a task with origin `chat:<email>` |
+| conversations | `GET /conversations` | this person's direct and group conversations, newest first, with the unread count and whether one holds an open entry |
+| messages | `GET /conversations/{id}/messages` | a page of messages; members only |
+| write | `POST /conversations/{id}/messages` | `{text}` → handed to the agent it addresses; a task it opens carries the conversation (`backlog_tasks.conversation_id`) and origin `chat:<email>` |
+| mark read | `POST /conversations/{id}/read` | moves this member's read position |
+| start one | `POST /conversations` | `{kind: direct, member}` returns the existing direct conversation or creates it; `{kind: group, title, members}` creates a group |
+| older app versions | `GET /agents/{id}/thread`, `POST /agents/{id}/messages` | kept as aliases onto the direct conversation between this person and the agent |
 | answer | `POST /tasks/{id}/reply` | `{text}` → a note, and the resume input if the task was parked |
-| what waits | `GET /inbox?status=open&sort=urgent` | approvals and open points in one list |
-| decide | `POST /approvals/{id}/decide` | needs the manage roles or `security` |
+| decide an approval | `POST /approvals/{id}/decide` | reached from the entry; needs the manage roles or `security` |
+| decide an open point | `POST /improvements/{id}/decide` | reached from the entry; accept or reject with a reason, with the role check the proposal's files ask for |
 
-The thread entry is the shape the app renders. One line, five kinds:
+`GET /inbox` is gone (#441, [`28-team-surface.md`](28-team-surface.md)): the decision endpoints stay, and the app reaches them from the entry in the conversation.
+
+The conversation message is the shape the app renders. One line, an author and a kind:
 
 ```
-kind: message | note | question | result | error
-task_id, task_title, task_state, author, text, at
+author: person | agent | system   (with the person's or agent's id)
+kind:   message | note | question | result | error | approval | open_point
+task_id, task_title, task_state, decision_id, decidable, decided_by, text, at
 ```
 
-`author` carries the origin of a message (`chat:someone@example.org`) or the author of a note (`agent`, `human:someone@example.org`). From it the app decides which side of the thread a line stands on, and nothing else. `task_state = "blocked"` on a `question` is what makes the compose box answer instead of ask — the same rule as on the web, and it belongs in the shared behaviour, not in each client's head.
+`author` says who wrote a line — a person, an agent, or the platform writing for the agent (an outcome, an entry) — and from it the app decides which side a line stands on, and nothing else. `task_state = "blocked"` on a `question` is what makes the compose box answer instead of ask — the same rule as on the web, and it belongs in the shared behaviour, not in each client's head. An `approval` or `open_point` is a **decidable entry**: `decidable` says whether this person may decide it, and when they may not, the entry names who does and offers no button. The field names are, like the endpoints above, the plan. The per-agent thread entry (`kind: message | note | question | result | error`) stays the answer of the alias endpoints.
 
 The reply answers with `woken: true|false`. **False is not an error.** It means nobody was waiting; the text was written to the task as a note and the agent will read it on its next run. The app says so in one line and does not retry.
 
@@ -93,7 +100,7 @@ A self-hosted instance cannot talk to APNs or FCM without credentials, and those
 
 **Recommendation: (b), with (a) as the default state.** An instance without push credentials is a working instance with a quieter app. The relay is decision 2 and needs an answer that is a position, not a shrug.
 
-Whatever is chosen: **the notification carries no content.** Not the question, not the task title, not the agent's name. A lock screen is a public surface, and an agent's question can quote a customer. It says that something waits and how much; the app fetches the rest behind the lock.
+Whatever is chosen: **the notification carries no content.** Not the question, not the task title, not the agent's name. A lock screen is a public surface, and an agent's question can quote a customer. It says that something waits and how much; the app fetches the rest behind the lock. It goes to the conversation's members, except the author of the line and whoever muted the conversation.
 
 ## Offline, and the message typed in a tunnel
 
@@ -101,7 +108,7 @@ An unsent message is kept, marked as unsent, and retried. It is never silently d
 
 The second half of that needs the server: a retry after a timeout must not create two tasks. The app sends an idempotency key with every write, the instance stores it per seat and answers the repeat with the original result. That does not exist yet — decision 3.
 
-Reads are cached so the app opens on the last thread instead of on a spinner, and every cached view says how old it is. A stale thread that looks live is worse than a visible "from four minutes ago", because the whole point of the screen is whether somebody is waiting right now.
+Reads are cached so the app opens on the last conversation instead of on a spinner, and every cached view says how old it is. A stale conversation that looks live is worse than a visible "from four minutes ago", because the whole point of the screen is whether somebody is waiting right now.
 
 ## Language and wording
 
@@ -131,7 +138,7 @@ One thing the app adds that the web does not need: **the thumb**. The compose bo
 | 2 | Push: operator-configured credentials, a project relay, or neither | product |
 | 3 | The idempotency key on writes, so a retry cannot double a task | covey |
 | 4 | A certificate the app cannot verify: refuse, or trust per host after an explicit dialogue | mobile + security |
-| 5 | Which role may write from the app. Today the chat needs the manage roles; the seat role that sees only the chat is decision 1 of #298 and this app is the reason it matters | covey |
+| 5 | Which role may write from the app. Settled by #440 for reading and writing a conversation: membership decides, not the seat role. Still open: which seat roles may start a conversation with an agent, and the seat role that sees only the chat (decision 1 of #298) | covey |
 | 6 | Whether an approval needs a biometric confirmation before it is sent | product |
 | 7 | Whether costs appear at all — a figure per agent is harmless, a cost centre on a phone is a different product | product |
 

@@ -18,7 +18,7 @@ Technically the companion is a separate client on covey's backend: the data live
 
 ## Capture — the universal funnel
 
-The human produces raw material; the companion takes it in **any** format and puts it into an inbox as a **capture**. Every capture gets its text representation (for retrieval) and keeps its original (as an attachment):
+The human produces raw material; the companion takes it in **any** format and stores it as a **capture**. Every capture gets its text representation (for retrieval) and keeps its original (as an attachment):
 
 | Source | Processing → text representation | Original |
 |---|---|---|
@@ -38,7 +38,7 @@ The pure cosine assignment of the ingest ([`05`](05-memory.md)) carries terse en
 
 Instead of wiring an LLM call into the control plane, the triage is an org-owned agent with its own `SOUL.md`. It thereby inherits everything agents have anyway: **config as code** (the curation rules are versioned and changeable by PR; the human defines how their brain dump is cut), the runtime abstraction, cost accounting, guard rails and the shared LLM subscription (the "global token") as a credential. The global token only determines how the curator reaches the model, not what it does.
 
-Sequence: new captures wake the curator (wake source "open captures for human H"). It reads the inbox (including the media's text representations) + the human's wiki index and decides as in the agent `done` step: new page vs. extend an existing one, set wikilinks, extract the core, **embed media into the appropriate page**, discard filler. Writing happens through a tool **scoped to exactly this human** into the `human_wiki` — the only case in which an agent writes into foreign (human) memory: on the human's behalf and in their ownership, fully audited. The purely mechanical cosine ingest remains as an LLM-free fallback.
+Sequence: new captures wake the curator (wake source "open captures for human H"). It reads the open captures (including the media's text representations) + the human's wiki index and decides as in the agent `done` step: new page vs. extend an existing one, set wikilinks, extract the core, **embed media into the appropriate page**, discard filler. Writing happens through a tool **scoped to exactly this human** into the `human_wiki` — the only case in which an agent writes into foreign (human) memory: on the human's behalf and in their ownership, fully audited. The purely mechanical cosine ingest remains as an LLM-free fallback.
 
 Scope open (see "Open decisions"): one curator **per human** (personal, but many agents) vs. one **per org with human scoping** (frugal). Implemented as a template/role so that both work.
 
@@ -52,7 +52,7 @@ The structured result is the wiki from [`05`](05-memory.md) — but the pages ar
 
 ## Context for agents
 
-The agents consume the **curated wiki** (not the raw inbox) — the condensed layer. The route there is **sharing**:
+The agents consume the **curated wiki** (not the raw captures) — the condensed layer. The route there is **sharing**:
 
 - **Private by default; sharing explicit.** Every page is `private` or `shared with my agents`. Only shared pages are eligible.
 - **Bound to supervision.** The recipients are only the agents supervised by the human (`supervisor_id`, [`02-agent-model.md`](02-agent-model.md)) — no org-wide reach (that would be the org scope, D5 in [`07-open-decisions.md`](07-open-decisions.md)).
@@ -91,7 +91,7 @@ Two interfaces on the same control-plane API:
 
 Deliberately thin — the mechanics are in [`05`](05-memory.md), here only the deltas:
 
-- **Schema.** `human_wiki_pages` / `human_wiki_log` mirroring `wiki_pages` / `wiki_log`, owner `human_id UUID REFERENCES humans(id) ON DELETE CASCADE`, visibility (`visibility: private | shared`). Plus `captures` (the inbox: source, status, text representation, blob ref) and an attachment/blob table. A new migration; never edit existing ones.
+- **Schema.** `human_wiki_pages` / `human_wiki_log` mirroring `wiki_pages` / `wiki_log`, owner `human_id UUID REFERENCES humans(id) ON DELETE CASCADE`, visibility (`visibility: private | shared`). Plus `captures` (source, status, text representation, blob ref) and an attachment/blob table. A new migration; never edit existing ones.
 - **An owner-agnostic store.** `internal/memory.Store` is parameterised with the table and owner column names (`NewStore` = agent behaviour unchanged, `NewOwnerStore` for humans). Ingest, query, consolidate, log — identical code, a different owner. No duplication.
 - **BlobStore port.** Media storage behind a narrow interface (builtin file system/Postgres, swappable S3), analogous to `SecretStore`. Pages reference blob IDs.
 - **Extraction pipeline.** One extractor per source (STT, OCR/vision, document text, HTML→text) → text representation. As a registry/plugin pattern like the target systems ([`13-zammad-integration.md`](13-zammad-integration.md)).
@@ -117,6 +117,6 @@ In addition to [`07-open-decisions.md`](07-open-decisions.md):
 - **The task call automatically.** Whether the curator only suggests "memory vs. task for agent X" or (with confirmation) triggers it itself.
 - **The employer access model.** The legal-hold process (who may see content in a compliance case, under what four-eyes procedure) has to be formally balanced with [`09-enterprise-model.md`](09-enterprise-model.md) and [`06-observability-control.md`](06-observability-control.md).
 - **The desktop surface.** A desktop build of the Flutter app vs. a slim companion for screen recording and mail/file import.
-- **The return channel agent → human.** An agent highlights something important → it lands in its supervisor's inbox. The mirror image of sharing, left out here for now.
+- **The return channel agent → human.** An agent highlights something important → it lands in the direct conversation between the agent and its supervisor ([`28-team-surface.md`](28-team-surface.md)). The mirror image of sharing, left out here for now.
 - **The product name.** The companion as a product of its own needs a name (working title "Companion").
 - **Org scope (D5).** A shared org memory that humans *and* agents feed into is the next expansion stage beyond personal sharing.

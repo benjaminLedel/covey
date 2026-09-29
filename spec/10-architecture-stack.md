@@ -4,7 +4,7 @@ Technical implementation decisions for covey's own code (not the adopted service
 
 ## Frontend
 
-A dashboard-heavy, real-time-driven admin interface (live agent status, recording timeline, backlog kanban, approval queue, cost dashboards). Stack:
+A dashboard-heavy, real-time-driven admin interface (live agent status, recording timeline, backlog kanban, approvals, cost dashboards). Stack:
 
 - a **TypeScript SPA** (React or Vue),
 - **Tailwind + shadcn/ui** (or Radix/Headless UI) for a modern, component-ready UI,

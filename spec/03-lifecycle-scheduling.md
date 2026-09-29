@@ -1,6 +1,6 @@
 # 03 — Lifecycle & scheduling
 
-This is the heart of the platform. The scheduler/dispatcher is the actual product: an OS scheduler + cron + inbox + state management for agents.
+This is the heart of the platform. The scheduler/dispatcher is the actual product: an OS scheduler + cron + queue + state management for agents.
 
 ## The "always-on" trick
 
@@ -113,6 +113,8 @@ The state nearly everyone forgets — and the one that turns an agent into an em
 
 The agent must be able to say: **"I am blocked on X, wake me when the answer arrives"** — and then *actually suspend*. The daemon reports `blocked` with a **correlation key** to the control plane; the sandbox is shut down. The `blocked → working` edge is closed when an incoming event is mapped onto that key.
 
+**Where the question goes** (#440). A task opened from a conversation asks in that conversation. A task that came from outside any conversation — a heartbeat, a webhook, a delegation — asks in the direct conversation between the agent and its supervisor, and its question is the only thing of that task that appears there ([`28-team-surface.md`](28-team-surface.md)). Either way a reply at the question is the resume input of the parked task. An approval the task waits on goes to the responsible person instead, as a decidable entry ([`06-observability-control.md`](06-observability-control.md)).
+
 Clean `blocked` handling is the difference between "agent" and "employee".
 
 ## The aborted run: turn limit instead of a result
@@ -134,7 +136,7 @@ The control plane turns that into:
 
 The follow-up task deliberately carries **the same title** as the task it came from: heartbeat dedup recognises from this that the work is still running and does not fire alongside it.
 
-**Loop protection.** A continuation that runs into the limit again produces the next one — but not endlessly. After three continuations in a row (`maxContinuations`) the task escalates to the manager instead of continuing. Whoever has no result after four full runs does not need a fifth but a human: either the assignment is cut too large or `max_turns` is too small. Without that limit the continuation would merely replace one infinite loop with another.
+**Loop protection.** A continuation that runs into the limit again produces the next one — but not endlessly. After three continuations in a row (`maxContinuations`) the task escalates to the agent's supervisor instead of continuing — as a question in the direct conversation between the agent and its supervisor ([`28-team-surface.md`](28-team-surface.md)). Whoever has no result after four full runs does not need a fifth but a human: either the assignment is cut too large or `max_turns` is too small. Without that limit the continuation would merely replace one infinite loop with another.
 
 The better route for the agent remains not running into the limit at all: if a task grows too large, it breaks it up itself (`covey/create_task`, see [Subtasks and delegation](#subtasks-and-delegation-coveycreate_task)) and closes the current assignment with a partial result.
 
@@ -144,7 +146,8 @@ The backlog is **not a transient queue** but a persistent, inspectable object in
 
 - a **state** (`open`, `in_progress`, `blocked`, `done`, `failed`, `cancelled`),
 - a **priority**,
-- an **origin** (who/what assigned it — `manual:<email>`, `heartbeat`, `webhook:<system>`, `webhook:trigger`, `agent:<slug>` for ones the agent created itself, `continuation:<task-id>` for the continuation of an aborted run),
+- an **origin** (who/what assigned it — `manual:<email>`, `heartbeat`, `webhook:<system>`, `webhook:trigger`, `agent:<slug>` for ones the agent created itself, `continuation:<task-id>` for the continuation of an aborted run, `chat:<email>` for one opened from a conversation),
+- where applicable a **conversation** (`conversation_id` — the conversation the task was opened from; its outcome is reported back there, see [`28-team-surface.md`](28-team-surface.md)),
 - a **history** (state transitions, timestamps),
 - where applicable a **correlation key** (when `blocked`),
 - where applicable an **originating task** (`parent_task_id` — subtask, delegation or continuation; it also carries the loop protection, see below),
