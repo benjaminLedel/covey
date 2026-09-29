@@ -126,10 +126,11 @@ func TestAFailedTriageSaysWhy(t *testing.T) {
 	if rufe != 2 {
 		t.Errorf("%d calls, want 2: the turn is tried once more", rufe)
 	}
+	// The reason is noted after the task exists, in a second step (#425).
 	var note string
-	if err := s.pool.QueryRow(ctx, `SELECT content FROM task_notes WHERE task_id=$1 AND author='triage:covey'`, task.id).Scan(&note); err != nil {
-		t.Fatalf("no reason at the task: %v", err)
-	}
+	wartenAuf(t, "the reason at the task", func() bool {
+		return s.pool.QueryRow(ctx, `SELECT content FROM task_notes WHERE task_id=$1 AND author='triage:covey'`, task.id).Scan(&note) == nil
+	})
 	if !strings.Contains(note, "overloaded") {
 		t.Errorf("note = %q", note)
 	}
