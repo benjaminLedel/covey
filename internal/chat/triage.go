@@ -117,7 +117,7 @@ const TriageMaxTokens = 1200
 
 const triageSystem = `You are the triage step of an AI agent inside covey, a platform that runs AI agents as employees.
 
-A person wrote a message to this agent. Decide what kind of thing it is, and answer with ONE JSON object and nothing else:
+A person wrote a message to this agent. Decide what kind of thing it is, and answer with ONE JSON object and nothing else — always, even for a greeting, a thank-you or a single emoji:
 
 {"action":"answer","text":"…"}                 — you can settle it right here
 {"action":"note","task":"ab12","text":"…"}     — this belongs to a task you already have
@@ -134,7 +134,7 @@ Choose "task" when doing it would need any of: a target system (ticketing, repos
 
 You can see your own backlog and write to it, and that is all. You have NO target system, NO credentials, NO files, NO commands, NO search and NO memory beyond what stands below. Never claim to have done, checked, sent or looked at anything outside this list. If answering would require any of that, it is a task.
 
-How you write (for "answer", and for the "text" of a task): you are this colleague, chatting. Write the way a person writes in a work chat — short, direct, warm where it fits, in the language of the message. Usually one or two sentences. No headings, no bullet lists, no bold, no sign-off, no "As an AI", no restating the question, no offering a menu of further help. If the agent's own description below says how it talks, talk like that. Fit what you say to the person you are talking to (described below, when known): with someone whose role is not technical, say what it means for them in plain words and leave out file names, commands, branch names and jargon unless they ask; with a technical colleague, be precise and name the ticket, the branch or the error. A bare emoji (1–3 characters) is a valid answer when the message only needs acknowledging.
+How you write (for "answer", and for the "text" of a task): you are this colleague, chatting. Write the way a person writes in a work chat — short, direct, warm where it fits, in the language of the message. Usually one or two sentences. No headings, no bullet lists, no bold, no sign-off, no "As an AI", no restating the question, no offering a menu of further help. If the agent's own description below says how it talks, talk like that. Fit what you say to the person you are talking to (described below, when known): with someone whose role is not technical, say what it means for them in plain words and leave out file names, commands, branch names and jargon unless they ask; with a technical colleague, be precise and name the ticket, the branch or the error. When the message only needs acknowledging, the "text" may be a bare emoji (1–3 characters) — inside the JSON object: {"action":"answer","text":"👍"}.
 
 For "answer": answer from the lists above and from this thread, never from memory of anything else: if a task is not in them, say that you cannot see it rather than guessing what became of it.
 For "note": the text is what the run should know, in one or two sentences.
@@ -221,8 +221,19 @@ func Triagieren(ctx context.Context, p llm.Provider, rolle, seele, gegenueber, r
 // lesen holt das JSON aus der Antwort. Modelle stellen gern einen Satz davor
 // oder packen es in einen Codeblock; beides ist hier kein Fehler, sondern
 // etwas, das man abschneidet.
+//
+// Und eine kurze Antwort ganz ohne JSON ist eine Antwort (#457): Auf „@demo
+// was geht?" kam zweimal ein nacktes Emoji, der Zug galt als gescheitert,
+// und ein Gruß wurde eine Aufgabe mit Sandbox. Was keine Klammer enthält und
+// kurz ist, hat das Modell den Leuten gesagt, nicht covey — es ist die
+// Antwort. Was nach JSON aussieht und keins ist, bleibt ein Fehler: Dort hat
+// das Modell etwas anderes gewollt, und eine halbe Aufgabe als Chatzeile zu
+// posten wäre schlimmer als eine Aufgabe zu viel.
 func lesen(roh string) (Entscheidung, error) {
 	s := strings.TrimSpace(roh)
+	if direkt, ok := direkteAntwort(s); ok {
+		return Entscheidung{Aktion: AktionAntwort, Text: direkt}, nil
+	}
 	if i := strings.Index(s, "{"); i > 0 {
 		s = s[i:]
 	}
@@ -254,6 +265,23 @@ func lesen(roh string) (Entscheidung, error) {
 		return Entscheidung{}, fmt.Errorf("triage: unknown action %q", e.Aktion)
 	}
 	return e, nil
+}
+
+// DirektMax: so lang darf eine Antwort ohne JSON sein. Ein Satz oder zwei
+// Chat — was länger ist, ist kein Zuruf, sondern ein Modell, das das Format
+// vergessen hat, und das soll lieber noch einmal gefragt werden.
+const DirektMax = 400
+
+// direkteAntwort erkennt die kurze Chatzeile ohne JSON: keine Klammer, kein
+// Codeblock, nicht leer, nicht länger als DirektMax Zeichen.
+func direkteAntwort(s string) (string, bool) {
+	if s == "" || strings.ContainsAny(s, "{}") || strings.Contains(s, "```") {
+		return "", false
+	}
+	if len([]rune(s)) > DirektMax {
+		return "", false
+	}
+	return s, true
 }
 
 // einzeilig macht aus dem Ergebnis eines Laufs eine Zeile. Ein Prompt, in dem

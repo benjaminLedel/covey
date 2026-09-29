@@ -1,6 +1,9 @@
 package chat
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestLesen(t *testing.T) {
 	faelle := []struct {
@@ -15,7 +18,15 @@ func TestLesen(t *testing.T) {
 		{"Antwort ohne Text", `{"action":"answer","text":"  "}`, "", true},
 		{"Aufgabe ohne Titel", `{"action":"task","body":"x"}`, "", true},
 		{"unbekannte Aktion", `{"action":"delegate"}`, "", true},
-		{"kein JSON", `I think this is a task.`, "", true},
+		// #457: a short chat line without any JSON is what the model said to
+		// the people — an answer, not a failed triage.
+		{"nacktes Emoji", "😀", AktionAntwort, false},
+		{"kurzer Satz ohne JSON", "Hey Ada, alles gut hier — ich sitz an der Globex-Rechnung.", AktionAntwort, false},
+		{"leer", "   ", "", true},
+		{"kaputtes JSON", `{"action":"answer","text":"Hallo`, "", true},
+		{"halbe Klammer", `"action":"task","title":"x"}`, "", true},
+		{"Codeblock ohne JSON", "```\nhallo\n```", "", true},
+		{"zu lang für einen Zuruf", strings.Repeat("Das ist ein langer Satz. ", 20), "", true},
 	}
 	for _, f := range faelle {
 		t.Run(f.name, func(t *testing.T) {
@@ -52,5 +63,16 @@ func TestLesenNotiz(t *testing.T) {
 	}
 	if _, err := lesen(`{"action":"note","task":"ab12"}`); err == nil {
 		t.Fatal("a note without text must not pass")
+	}
+}
+
+// TestLesenDirektBehaeltDenText: the reply is posted as it came, trimmed.
+func TestLesenDirektBehaeltDenText(t *testing.T) {
+	e, err := lesen("  👋 \n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.Aktion != AktionAntwort || e.Text != "👋" {
+		t.Fatalf("direct reply: %+v", e)
 	}
 }
