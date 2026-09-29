@@ -4,10 +4,8 @@ import { useTranslation } from "react-i18next";
 import i18n, { LANG_BY_CODE, LANG_LIST, istLang, ladeSprache, merkeSprache } from "../i18n";
 import type { Lang } from "../langs";
 
-/* The language picker — the same control in two places: at the top of the
-   sign-in page (`pill`); signed in, the language is a setting of the account (#432).
-   As with the appearance (ThemeSwitch) the choice stands in both places in
-   the same component, so it does not drift apart.
+/* The language picker at the top of the sign-in page (`pill`). Signed in,
+   the language is a setting of the account (#432), a plain select there.
 
    Up to ten languages it was a button that switched between German and
    English. A toggle has two states; from the third one must be able to

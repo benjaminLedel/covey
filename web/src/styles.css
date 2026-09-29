@@ -312,11 +312,6 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
 }
 .nav-sec.toggle.open .ic { transform: rotate(90deg); }
 .foot-menu-btn:hover, .foot-menu-btn.open { background: var(--surface-2); color: var(--text-primary); }
-.foot-menu .theme-seg button.on {
-  background: var(--surface-2);
-  color: var(--text-primary);
-  box-shadow: 0 0 0 0.5px var(--border);
-}
 .icon-btn {
   display: inline-flex;
   align-items: center;

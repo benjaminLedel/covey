@@ -7,11 +7,10 @@ import { buildInfo, photoUrl, post, type Principal } from "../api";
 import { useMemberships, useSwitchOrg } from "./OrgSwitcher";
 import { NavIcon, initials } from "./navicons";
 import GitHubLink from "./GitHubLink";
-import ThemeSwitch from "./ThemeSwitch";
 import AppsDialog from "./AppsDialog";
 
 /* Der Fuß der linken Spalte: wer angemeldet ist, und dahinter alles, was man
- * selten braucht — Organisation wechseln, Erscheinungsbild, Hilfe,
+ * selten braucht — Organisation wechseln, die App, Hilfe,
  * abmelden.
  *
  * Er liegt hier und nicht in einer der beiden Schalen, weil beide ihn tragen
@@ -138,8 +137,6 @@ export default function ShellFoot({
             <NavIcon name="phone" />
             {t("nav.apps")}
           </button>
-          <div className="sep" />
-          <ThemeSwitch />
           <div className="sep" />
           <button onClick={() => { setUserMenu(false); onHelp(); }}>
             <NavIcon name="help" />

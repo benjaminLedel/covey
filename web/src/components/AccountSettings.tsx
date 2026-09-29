@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { api, del, patch, put, type Principal } from "../api";
 import ApiKeys from "./ApiKeys";
 import MobilePairing from "./MobilePairing";
+import ThemeSwitch from "./ThemeSwitch";
 import { LANG_LIST, istLang, ladeSprache, merkeSprache } from "../i18n";
 
 type Session = { created_at: string; expires_at: string; current: boolean };
@@ -95,10 +96,10 @@ export default function AccountSettings({ me }: { me: Principal }) {
         </button>
       </form>
 
-      {/* The language (#432): here with the other settings of the account,
-          not in the menu at the foot, where it was the rarest concern among
-          the things one reaches for. Kept in this browser, like the
-          appearance. */}
+      {/* Language and appearance (#432): here with the other settings of the
+          account, not in the menu at the foot, where they were the rarest
+          concerns among the things one reaches for. Both are kept in this
+          browser. */}
       <div className="card mb-4 flex gap-3 items-end flex-wrap">
         <div className="min-w-52">
           <label htmlFor="account-lang">{t("lang.label")}</label>
@@ -118,6 +119,10 @@ export default function AccountSettings({ me }: { me: Principal }) {
               </option>
             ))}
           </select>
+        </div>
+        <div className="min-w-52">
+          <label htmlFor="account-theme">{t("theme.label")}</label>
+          <ThemeSwitch id="account-theme" />
         </div>
       </div>
 
