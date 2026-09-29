@@ -739,9 +739,6 @@
       "maxTurns": "Maximaal aantal beurten per run",
       "maxTurnsPlaceholder": "0 = standaard (30)",
       "maxTurnsHint": "Op-hol-slaan-beveiliging: breekt een run na n beurten af. Neem een hogere waarde voor taken met repo-werkkopieën.",
-      "voice": "Stem",
-      "voiceNone": "— geen —",
-      "voiceHint": "Schrijft de TONE.md van de agent vanuit de stem. Alleen gebouwde stemmen zijn te kiezen.",
       "recordingLevel": "Opnamediepte",
       "recordingInherit": "Ondergrens van de organisatie overnemen",
       "recordingMinimal": "minimaal (alleen levenscyclus en poorten)",
@@ -1575,7 +1572,58 @@
       "corrections": "Correcties",
       "tone": "Wat de agent krijgt"
     },
-    "toneEmpty": "Nog niets — de stem heeft geen kaart, geen passages en geen gemeten profiel."
+    "toneEmpty": "Nog niets — de stem heeft geen kaart, geen passages en geen gemeten profiel.",
+    "occ": {
+      "occasion": {
+        "chat": "Chat",
+        "customers": "Klanten",
+        "publications": "Publicaties"
+      },
+      "occasionHint": {
+        "chat": "Teamchat met collega's",
+        "customers": "Mails en antwoorden aan klanten",
+        "publications": "Artikelen en berichten die gepubliceerd worden"
+      },
+      "level": {
+        "agent": "ingesteld op de agent",
+        "org": "standaard van de organisatie",
+        "department": "afdeling {{name}}",
+        "none": "geen stem"
+      },
+      "notSet": "— niet ingesteld —",
+      "agentTitle": "Stemmen",
+      "agentHint": "De stem waarin de agent schrijft, per gelegenheid. Schrijft hij aan iemand van een afdeling met een eigen stem, dan geldt die.",
+      "fallsBack": "Leeg: {{voice}} geldt ({{level}}).",
+      "fallsBackNone": "Leeg: er geldt geen stem.",
+      "readOnly": "Alleen beheerders en agent-eigenaren wijzigen de stemmen.",
+      "orgTitle": "Standaardstemmen",
+      "orgHint": "De stem per gelegenheid voor elke agent die zelf geen stem heeft.",
+      "deptOpen": "Publiek en stemmen",
+      "deptTitle": "Publiek en stemmen: {{name}}",
+      "audienceLabel": "Zo spreek je ons aan",
+      "audienceHint": "Eén regel die meegaat met alles wat een agent aan iemand van deze afdeling schrijft.",
+      "audiencePlaceholder": "bijv. Korte antwoorden, cijfers eerst, geen begroetingen.",
+      "counter": "{{n}} / {{max}}",
+      "deptVoices": "Stem per gelegenheid",
+      "deptVoicesHint": "Optioneel. Vervangt de eigen stem van de agent wanneer hij alleen aan iemand van deze afdeling schrijft.",
+      "save": "Opslaan",
+      "matrixTitle": "Wie krijgt wat",
+      "matrixHint": "De geldende stem per afdeling en gelegenheid: die van de afdeling, dan die van de agent, dan de standaard van de organisatie.",
+      "matrixFor": "Agent",
+      "matrixForNone": "— geen agent —",
+      "matrixDept": "Afdeling",
+      "matrixNoDept": "Klanten / geen afdeling",
+      "usedByTitle": "Genoemd door",
+      "usedByNone": "Nog geen agent, afdeling of standaard noemt deze stem.",
+      "holder": {
+        "agent": "agent",
+        "department": "afdeling",
+        "org": "standaard van de organisatie"
+      },
+      "previewFor": "Geschreven aan",
+      "previewForNone": "— niemand in het bijzonder —",
+      "previewForDept": "aan {{name}}"
+    }
   },
   "skills": {
     "title": "Vaardigheden",

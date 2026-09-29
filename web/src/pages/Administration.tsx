@@ -6,6 +6,7 @@ import Audit from "./Audit";
 import Diagnostics from "./Diagnostics";
 import { ChatToneSettings, CompanyDescription, OfficeFurnishing, PlatformRepo, PushSettings, ReachSettings, RecordingSettings, TeamSurfaceSettings, TriageSettings } from "./Org";
 import { ProfileFieldsSettings } from "./Organizations";
+import { OrgVoiceDefaults } from "./voices/Slots";
 import Users from "./Users";
 import { fmtUSD } from "../format";
 
@@ -82,6 +83,7 @@ function Profile({ me }: { me: Principal }) {
       <TriageSettings />
       <ReachSettings me={me} />
       <ChatToneSettings me={me} />
+      <OrgVoiceDefaults me={me} />
       <RecordingSettings />
       <PlatformRepo />
       <ProfileFieldsSettings />

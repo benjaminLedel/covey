@@ -4,6 +4,7 @@ import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-r
 import { api, del, isNotFound, type Principal, type VoiceCorrection, type VoiceDetail } from "../api";
 import { VoiceSteps } from "./voices/VoiceFlow";
 import { MoreMenu, VoiceMeta, canEditVoices } from "./voices/VoiceHead";
+import { UsedBy } from "./voices/Slots";
 import { flowSteps, nextAction, voiceStep, type Purpose, type StepKey } from "./voices/flow";
 
 /* A voice's own page (#466): the head that says where it stands, then the flow
@@ -83,6 +84,9 @@ export default function VoicePage({ me }: { me: Principal }) {
           </div>
         </div>
         <VoiceMeta voice={v} />
+        {/* Who names it for what (#471): the meta line says which agents
+            carry it, this says for which occasion and who else does. */}
+        <UsedBy uses={v.used_by} />
       </header>
 
       <div className="vp-tabs" role="tablist" aria-label={v.name}>

@@ -4,6 +4,7 @@ import { Link, Navigate, useNavigate, useSearchParams } from "react-router";
 import { api, type Principal, type Voice } from "../api";
 import { VoiceStepper } from "./voices/VoiceFlow";
 import { VoiceMeta, canEditVoices } from "./voices/VoiceHead";
+import { WhoGetsWhat } from "./voices/Slots";
 import { flowSteps, nextAction, type Purpose } from "./voices/flow";
 
 /* The voices — a library beside the skills, for the other thing an agent gets
@@ -72,6 +73,9 @@ export default function Voices({ me }: { me: Principal }) {
           ))}
         </ul>
       )}
+      {/* Who gets what (#471): the voices seen from the other side — per
+          department and occasion, which of them applies and why. */}
+      {list.length > 0 && <WhoGetsWhat />}
       {voices.data && list.length === 0 && !creating && (
         <div className="card vl-empty">
           <p className="m-0 font-medium">{t("voices.empty")}</p>

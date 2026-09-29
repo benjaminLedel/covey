@@ -739,9 +739,6 @@
       "maxTurns": "每次运行的最大轮数",
       "maxTurnsPlaceholder": "0 = 默认（30）",
       "maxTurnsHint": "防跑飞的保险：n 轮之后中止运行。涉及仓库检出的任务请设得高一些。",
-      "voice": "文风",
-      "voiceNone": "— 无 —",
-      "voiceHint": "根据文风写入该代理的 TONE.md。只能选择已构建的文风。",
       "recordingLevel": "记录深度",
       "recordingInherit": "继承组织下限",
       "recordingMinimal": "最少（仅生命周期与关卡）",
@@ -1575,7 +1572,58 @@
       "corrections": "修改记录",
       "tone": "智能体得到的内容"
     },
-    "toneEmpty": "暂无 — 该声音还没有卡片、范例或测量画像。"
+    "toneEmpty": "暂无 — 该声音还没有卡片、范例或测量画像。",
+    "occ": {
+      "occasion": {
+        "chat": "聊天",
+        "customers": "客户",
+        "publications": "发布"
+      },
+      "occasionHint": {
+        "chat": "与同事的团队聊天",
+        "customers": "发给客户的邮件和回复",
+        "publications": "要发布的文章和帖子"
+      },
+      "level": {
+        "agent": "在智能体上设置",
+        "org": "组织默认",
+        "department": "部门 {{name}}",
+        "none": "无声音"
+      },
+      "notSet": "— 未设置 —",
+      "agentTitle": "声音",
+      "agentHint": "智能体按场合写作所用的声音。给有自己声音的部门的人写作时，使用该部门的声音。",
+      "fallsBack": "留空：使用 {{voice}}（{{level}}）。",
+      "fallsBackNone": "留空：不使用任何声音。",
+      "readOnly": "只有管理员和智能体负责人可以更改声音。",
+      "orgTitle": "默认声音",
+      "orgHint": "为没有自己声音的每个智能体按场合使用的声音。",
+      "deptOpen": "受众和声音",
+      "deptTitle": "受众和声音：{{name}}",
+      "audienceLabel": "如何与我们沟通",
+      "audienceHint": "智能体写给本部门人员的所有内容都会附上这一行。",
+      "audiencePlaceholder": "例如：回答简短，先给数字，不要客套。",
+      "counter": "{{n}} / {{max}}",
+      "deptVoices": "按场合的声音",
+      "deptVoicesHint": "可选。智能体只写给本部门人员时，替代其自身的声音。",
+      "save": "保存",
+      "matrixTitle": "谁用哪个声音",
+      "matrixHint": "每个部门和场合生效的声音：先看部门的，再看智能体的，最后是组织默认。",
+      "matrixFor": "智能体",
+      "matrixForNone": "— 不选智能体 —",
+      "matrixDept": "部门",
+      "matrixNoDept": "客户 / 无部门",
+      "usedByTitle": "指定者",
+      "usedByNone": "还没有智能体、部门或默认设置指定这个声音。",
+      "holder": {
+        "agent": "智能体",
+        "department": "部门",
+        "org": "组织默认"
+      },
+      "previewFor": "写给",
+      "previewForNone": "— 无特定对象 —",
+      "previewForDept": "写给 {{name}}"
+    }
   },
   "skills": {
     "title": "技能",

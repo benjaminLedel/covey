@@ -739,9 +739,6 @@
       "maxTurns": "Max turns per run",
       "maxTurnsPlaceholder": "0 = default (30)",
       "maxTurnsHint": "Runaway guard: aborts a run after n turns. Use a higher value for tasks with repo checkouts.",
-      "voice": "Voice",
-      "voiceNone": "— none —",
-      "voiceHint": "Writes the agent's TONE.md from the voice. Only built voices can be chosen.",
       "recordingLevel": "Recording depth",
       "recordingInherit": "Inherit org floor",
       "recordingMinimal": "minimal (lifecycle & gates only)",
@@ -1575,7 +1572,58 @@
       "corrections": "Corrections",
       "tone": "What the agent gets"
     },
-    "toneEmpty": "Nothing yet — the voice has no card, passages or measured profile."
+    "toneEmpty": "Nothing yet — the voice has no card, passages or measured profile.",
+    "occ": {
+      "occasion": {
+        "chat": "Chat",
+        "customers": "Customers",
+        "publications": "Publications"
+      },
+      "occasionHint": {
+        "chat": "Team chat with colleagues",
+        "customers": "Mails and replies to customers",
+        "publications": "Articles and posts that are published"
+      },
+      "level": {
+        "agent": "set on the agent",
+        "org": "organisation default",
+        "department": "department {{name}}",
+        "none": "no voice"
+      },
+      "notSet": "— not set —",
+      "agentTitle": "Voices",
+      "agentHint": "The voice the agent writes in, per occasion. When it writes to somebody of a department that names a voice of its own, that one applies.",
+      "fallsBack": "Empty: {{voice}} applies ({{level}}).",
+      "fallsBackNone": "Empty: no voice applies.",
+      "readOnly": "Only admins and agent owners change the voices.",
+      "orgTitle": "Default voices",
+      "orgHint": "The voice per occasion for every agent that names none of its own.",
+      "deptOpen": "Audience and voices",
+      "deptTitle": "Audience and voices: {{name}}",
+      "audienceLabel": "How to speak with us",
+      "audienceHint": "One line that goes with everything an agent writes to somebody of this department.",
+      "audiencePlaceholder": "e.g. Short answers, figures first, no greetings.",
+      "counter": "{{n}} / {{max}}",
+      "deptVoices": "Voice per occasion",
+      "deptVoicesHint": "Optional. Replaces the agent's own voice when it writes to somebody of this department alone.",
+      "save": "Save",
+      "matrixTitle": "Who gets what",
+      "matrixHint": "The voice in effect for each department and occasion: the department's own, then the agent's, then the organisation's default.",
+      "matrixFor": "Agent",
+      "matrixForNone": "— no agent —",
+      "matrixDept": "Department",
+      "matrixNoDept": "Customers / no department",
+      "usedByTitle": "Named by",
+      "usedByNone": "No agent, department or default names this voice yet.",
+      "holder": {
+        "agent": "agent",
+        "department": "department",
+        "org": "organisation default"
+      },
+      "previewFor": "Written to",
+      "previewForNone": "— nobody in particular —",
+      "previewForDept": "to {{name}}"
+    }
   },
   "skills": {
     "title": "Skills",

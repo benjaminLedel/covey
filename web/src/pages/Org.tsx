@@ -636,7 +636,7 @@ export function PlatformRepo() {
   );
 }
 
-export default function Org() {
+export default function Org({ me }: { me?: { Role: string } }) {
   const { t } = useTranslation();
   const chart = useQuery({
     queryKey: ["orgchart"],
@@ -665,7 +665,12 @@ export default function Org() {
         {t("org.desc")}
       </p>
 
-      <OrgChartView chart={chart.data} orgName={own.data?.name ?? ""} head={<CompanyDescription variant="head" />} />
+      <OrgChartView
+        chart={chart.data}
+        orgName={own.data?.name ?? ""}
+        head={<CompanyDescription variant="head" />}
+        canManage={!!me && (me.Role === "org_admin" || me.Role === "agent_owner")}
+      />
     </div>
   );
 }

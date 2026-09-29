@@ -739,9 +739,6 @@
       "maxTurns": "Max. Turns je Lauf",
       "maxTurnsPlaceholder": "0 = Default (30)",
       "maxTurnsHint": "Runaway-Guard: bricht einen Lauf nach n Turns ab. Für Aufgaben mit Repo-Checkout großzügig wählen.",
-      "voice": "Stimme",
-      "voiceNone": "— keine —",
-      "voiceHint": "Schreibt die TONE.md des Agenten aus der Stimme. Wählbar sind nur gebaute Stimmen.",
       "recordingLevel": "Aufzeichnungstiefe",
       "recordingInherit": "Org-Boden erben",
       "recordingMinimal": "minimal (nur Lifecycle & Gates)",
@@ -1575,7 +1572,58 @@
       "corrections": "Korrekturen",
       "tone": "Was der Agent bekommt"
     },
-    "toneEmpty": "Noch nichts — die Stimme hat keine Karte, keine Passagen und kein gemessenes Profil."
+    "toneEmpty": "Noch nichts — die Stimme hat keine Karte, keine Passagen und kein gemessenes Profil.",
+    "occ": {
+      "occasion": {
+        "chat": "Chat",
+        "customers": "Kunden",
+        "publications": "Veröffentlichungen"
+      },
+      "occasionHint": {
+        "chat": "Teamchat mit Kolleginnen und Kollegen",
+        "customers": "Mails und Antworten an Kunden",
+        "publications": "Artikel und Beiträge, die veröffentlicht werden"
+      },
+      "level": {
+        "agent": "am Agenten gesetzt",
+        "org": "Vorgabe der Organisation",
+        "department": "Abteilung {{name}}",
+        "none": "keine Stimme"
+      },
+      "notSet": "— nicht gesetzt —",
+      "agentTitle": "Stimmen",
+      "agentHint": "Die Stimme, in der der Agent schreibt, je Anlass. Schreibt er jemandem aus einer Abteilung, die eine eigene Stimme nennt, gilt diese.",
+      "fallsBack": "Leer: Es gilt {{voice}} ({{level}}).",
+      "fallsBackNone": "Leer: Es gilt keine Stimme.",
+      "readOnly": "Nur Admins und Agent-Owner ändern die Stimmen.",
+      "orgTitle": "Standardstimmen",
+      "orgHint": "Die Stimme je Anlass für jeden Agenten, der selbst keine nennt.",
+      "deptOpen": "Publikum und Stimmen",
+      "deptTitle": "Publikum und Stimmen: {{name}}",
+      "audienceLabel": "So sprechen Sie mit uns",
+      "audienceHint": "Eine Zeile, die allem beiliegt, was ein Agent jemandem aus dieser Abteilung schreibt.",
+      "audiencePlaceholder": "z. B. Kurze Antworten, Zahlen zuerst, keine Grußformeln.",
+      "counter": "{{n}} / {{max}}",
+      "deptVoices": "Stimme je Anlass",
+      "deptVoicesHint": "Optional. Ersetzt die eigene Stimme des Agenten, wenn er nur jemandem aus dieser Abteilung schreibt.",
+      "save": "Speichern",
+      "matrixTitle": "Wer bekommt was",
+      "matrixHint": "Die geltende Stimme je Abteilung und Anlass: die der Abteilung, dann die des Agenten, dann die Vorgabe der Organisation.",
+      "matrixFor": "Agent",
+      "matrixForNone": "— kein Agent —",
+      "matrixDept": "Abteilung",
+      "matrixNoDept": "Kunden / ohne Abteilung",
+      "usedByTitle": "Genannt von",
+      "usedByNone": "Noch nennt kein Agent, keine Abteilung und keine Vorgabe diese Stimme.",
+      "holder": {
+        "agent": "Agent",
+        "department": "Abteilung",
+        "org": "Vorgabe der Organisation"
+      },
+      "previewFor": "Geschrieben an",
+      "previewForNone": "— niemand Bestimmtes —",
+      "previewForDept": "an {{name}}"
+    }
   },
   "skills": {
     "title": "Skills",

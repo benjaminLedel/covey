@@ -793,6 +793,10 @@ export type Department = {
   name: string;
   description: string;
   color: string; // hex accent colour, empty = default
+  /** How the department wants to be spoken to (#471); empty = no line. */
+  audience_note?: string;
+  /** Voice id per occasion (chat, customers, publications); a missing key is empty. */
+  voices?: Record<string, string>;
   leads: DeptLead[];
   created_at: string;
 };
@@ -1650,6 +1654,8 @@ export type Voice = {
   language: string;
   /** Counts the BUILDS. 0 = never built, and then nobody carries it. */
   version: number;
+  /** The bands the style gate measures; empty for a described voice. */
+  profile?: { bands?: Record<string, [number, number]> };
   exemplars: VoiceExemplar[];
   contrast: VoiceContrast[];
   notes: string[];
@@ -1701,6 +1707,16 @@ export type VoiceDetail = Voice & {
   checks: VoiceCheck[];
   /** Whether an agent can carry it yet. */
   assignable: boolean;
+  /** Who names the voice for what (#471). */
+  used_by?: VoiceUse[];
+};
+/** Where a voice is named, per occasion (#471). */
+export type VoiceUse = {
+  holder: "agent" | "department" | "org";
+  id?: string;
+  slug?: string;
+  name: string;
+  occasion: "chat" | "customers" | "publications";
 };
 
 export const createWorkplace = (w: { name: string; label: string; description: string; image: string }) =>

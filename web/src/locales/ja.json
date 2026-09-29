@@ -739,9 +739,6 @@
       "maxTurns": "1 実行あたりの最大ターン数",
       "maxTurnsPlaceholder": "0 = 既定（30）",
       "maxTurnsHint": "暴走よけです。n ターンで実行を打ち切ります。リポジトリのチェックアウトを伴うタスクでは大きめの値にしてください。",
-      "voice": "ボイス",
-      "voiceNone": "— なし —",
-      "voiceHint": "ボイスからエージェントの TONE.md を書き込みます。選べるのはビルド済みのボイスだけです。",
       "recordingLevel": "記録の深さ",
       "recordingInherit": "組織の下限を引き継ぐ",
       "recordingMinimal": "最小（ライフサイクルとゲートのみ）",
@@ -1575,7 +1572,58 @@
       "corrections": "修正",
       "tone": "エージェントが受け取るもの"
     },
-    "toneEmpty": "まだ何もありません — カード、例文、計測プロファイルがありません。"
+    "toneEmpty": "まだ何もありません — カード、例文、計測プロファイルがありません。",
+    "occ": {
+      "occasion": {
+        "chat": "チャット",
+        "customers": "顧客",
+        "publications": "公開"
+      },
+      "occasionHint": {
+        "chat": "同僚とのチームチャット",
+        "customers": "顧客へのメールと返信",
+        "publications": "公開する記事や投稿"
+      },
+      "level": {
+        "agent": "エージェントに設定",
+        "org": "組織の既定",
+        "department": "部署 {{name}}",
+        "none": "ボイスなし"
+      },
+      "notSet": "— 未設定 —",
+      "agentTitle": "ボイス",
+      "agentHint": "エージェントが書くときのボイスを場面ごとに指定します。独自のボイスを持つ部署の人に書くときは、そちらが適用されます。",
+      "fallsBack": "空欄: {{voice}} が適用されます（{{level}}）。",
+      "fallsBackNone": "空欄: 適用されるボイスはありません。",
+      "readOnly": "ボイスを変更できるのは管理者とエージェントオーナーだけです。",
+      "orgTitle": "既定のボイス",
+      "orgHint": "独自のボイスを持たないすべてのエージェントに使う、場面ごとのボイス。",
+      "deptOpen": "相手とボイス",
+      "deptTitle": "相手とボイス: {{name}}",
+      "audienceLabel": "私たちへの話し方",
+      "audienceHint": "この部署の人にエージェントが書くすべての文に添えられる一行。",
+      "audiencePlaceholder": "例: 回答は短く、数字を先に、挨拶は不要。",
+      "counter": "{{n}} / {{max}}",
+      "deptVoices": "場面ごとのボイス",
+      "deptVoicesHint": "任意。この部署の人だけに書くとき、エージェント自身のボイスの代わりに使われます。",
+      "save": "保存",
+      "matrixTitle": "誰に何が適用されるか",
+      "matrixHint": "部署と場面ごとに適用されるボイス: 部署のもの、次にエージェントのもの、次に組織の既定。",
+      "matrixFor": "エージェント",
+      "matrixForNone": "— エージェントなし —",
+      "matrixDept": "部署",
+      "matrixNoDept": "顧客 / 部署なし",
+      "usedByTitle": "指定元",
+      "usedByNone": "このボイスを指定しているエージェント、部署、既定はまだありません。",
+      "holder": {
+        "agent": "エージェント",
+        "department": "部署",
+        "org": "組織の既定"
+      },
+      "previewFor": "宛先",
+      "previewForNone": "— 特定の相手なし —",
+      "previewForDept": "{{name}} 宛て"
+    }
   },
   "skills": {
     "title": "スキル",

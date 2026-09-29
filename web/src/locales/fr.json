@@ -739,9 +739,6 @@
       "maxTurns": "Tours maximum par exécution",
       "maxTurnsPlaceholder": "0 = par défaut (30)",
       "maxTurnsHint": "Garde-fou anti-emballement : interrompt une exécution après n tours. Prenez une valeur plus élevée pour les tâches avec copies de dépôt.",
-      "voice": "Voix",
-      "voiceNone": "— aucune —",
-      "voiceHint": "Écrit le TONE.md de l'agent à partir de la voix. Seules les voix construites sont proposées.",
       "recordingLevel": "Profondeur d'enregistrement",
       "recordingInherit": "Hériter du plancher de l'organisation",
       "recordingMinimal": "minimale (cycle de vie et portes seulement)",
@@ -1575,7 +1572,58 @@
       "corrections": "Corrections",
       "tone": "Ce que reçoit l’agent"
     },
-    "toneEmpty": "Rien pour l’instant — la voix n’a ni fiche, ni passages, ni profil mesuré."
+    "toneEmpty": "Rien pour l’instant — la voix n’a ni fiche, ni passages, ni profil mesuré.",
+    "occ": {
+      "occasion": {
+        "chat": "Chat",
+        "customers": "Clients",
+        "publications": "Publications"
+      },
+      "occasionHint": {
+        "chat": "Chat d'équipe avec les collègues",
+        "customers": "Mails et réponses aux clients",
+        "publications": "Articles et billets publiés"
+      },
+      "level": {
+        "agent": "définie sur l'agent",
+        "org": "valeur par défaut de l'organisation",
+        "department": "service {{name}}",
+        "none": "aucune voix"
+      },
+      "notSet": "— non définie —",
+      "agentTitle": "Voix",
+      "agentHint": "La voix dans laquelle l'agent écrit, par occasion. Quand il écrit à quelqu'un d'un service qui a sa propre voix, c'est celle-ci qui s'applique.",
+      "fallsBack": "Vide : {{voice}} s'applique ({{level}}).",
+      "fallsBackNone": "Vide : aucune voix ne s'applique.",
+      "readOnly": "Seuls les administrateurs et les responsables d'agents modifient les voix.",
+      "orgTitle": "Voix par défaut",
+      "orgHint": "La voix par occasion pour tout agent qui n'en a pas de propre.",
+      "deptOpen": "Public et voix",
+      "deptTitle": "Public et voix : {{name}}",
+      "audienceLabel": "Comment nous parler",
+      "audienceHint": "Une ligne jointe à tout ce qu'un agent écrit à quelqu'un de ce service.",
+      "audiencePlaceholder": "p. ex. Réponses courtes, les chiffres d'abord, pas de formules de politesse.",
+      "counter": "{{n}} / {{max}}",
+      "deptVoices": "Voix par occasion",
+      "deptVoicesHint": "Facultatif. Remplace la voix propre de l'agent quand il écrit uniquement à quelqu'un de ce service.",
+      "save": "Enregistrer",
+      "matrixTitle": "Qui reçoit quoi",
+      "matrixHint": "La voix en vigueur par service et par occasion : celle du service, puis celle de l'agent, puis la valeur par défaut de l'organisation.",
+      "matrixFor": "Agent",
+      "matrixForNone": "— aucun agent —",
+      "matrixDept": "Service",
+      "matrixNoDept": "Clients / sans service",
+      "usedByTitle": "Désignée par",
+      "usedByNone": "Aucun agent, service ni valeur par défaut ne désigne encore cette voix.",
+      "holder": {
+        "agent": "agent",
+        "department": "service",
+        "org": "valeur par défaut de l'organisation"
+      },
+      "previewFor": "Écrit à",
+      "previewForNone": "— personne en particulier —",
+      "previewForDept": "à {{name}}"
+    }
   },
   "skills": {
     "title": "Compétences",

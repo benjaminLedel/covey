@@ -739,9 +739,6 @@
       "maxTurns": "Maksimum tur na przebieg",
       "maxTurnsPlaceholder": "0 = domyślnie (30)",
       "maxTurnsHint": "Zabezpieczenie przed rozbieganiem: przerywa przebieg po n turach. Dla zadań z kopiami repozytoriów ustaw więcej.",
-      "voice": "Głos",
-      "voiceNone": "— brak —",
-      "voiceHint": "Zapisuje TONE.md agenta na podstawie głosu. Do wyboru są tylko zbudowane głosy.",
       "recordingLevel": "Głębokość nagrywania",
       "recordingInherit": "Dziedzicz minimum organizacji",
       "recordingMinimal": "minimalna (tylko cykl życia i bramki)",
@@ -1575,7 +1572,58 @@
       "corrections": "Poprawki",
       "tone": "Co dostaje agent"
     },
-    "toneEmpty": "Jeszcze nic — głos nie ma karty, fragmentów ani zmierzonego profilu."
+    "toneEmpty": "Jeszcze nic — głos nie ma karty, fragmentów ani zmierzonego profilu.",
+    "occ": {
+      "occasion": {
+        "chat": "Czat",
+        "customers": "Klienci",
+        "publications": "Publikacje"
+      },
+      "occasionHint": {
+        "chat": "Czat zespołu ze współpracownikami",
+        "customers": "Maile i odpowiedzi dla klientów",
+        "publications": "Artykuły i wpisy do publikacji"
+      },
+      "level": {
+        "agent": "ustawiony na agencie",
+        "org": "domyślny organizacji",
+        "department": "dział {{name}}",
+        "none": "brak głosu"
+      },
+      "notSet": "— nie ustawiono —",
+      "agentTitle": "Głosy",
+      "agentHint": "Głos, którym agent pisze, dla każdej okazji. Gdy pisze do kogoś z działu, który ma własny głos, obowiązuje ten głos.",
+      "fallsBack": "Puste: obowiązuje {{voice}} ({{level}}).",
+      "fallsBackNone": "Puste: nie obowiązuje żaden głos.",
+      "readOnly": "Głosy zmieniają tylko administratorzy i właściciele agentów.",
+      "orgTitle": "Głosy domyślne",
+      "orgHint": "Głos dla każdej okazji dla każdego agenta, który nie ma własnego.",
+      "deptOpen": "Odbiorcy i głosy",
+      "deptTitle": "Odbiorcy i głosy: {{name}}",
+      "audienceLabel": "Jak z nami rozmawiać",
+      "audienceHint": "Jedna linijka dołączana do wszystkiego, co agent pisze do kogoś z tego działu.",
+      "audiencePlaceholder": "np. Krótkie odpowiedzi, najpierw liczby, bez powitań.",
+      "counter": "{{n}} / {{max}}",
+      "deptVoices": "Głos dla każdej okazji",
+      "deptVoicesHint": "Opcjonalnie. Zastępuje własny głos agenta, gdy pisze wyłącznie do kogoś z tego działu.",
+      "save": "Zapisz",
+      "matrixTitle": "Kto dostaje co",
+      "matrixHint": "Obowiązujący głos dla każdego działu i okazji: głos działu, potem agenta, potem domyślny organizacji.",
+      "matrixFor": "Agent",
+      "matrixForNone": "— bez agenta —",
+      "matrixDept": "Dział",
+      "matrixNoDept": "Klienci / bez działu",
+      "usedByTitle": "Wskazany przez",
+      "usedByNone": "Żaden agent, dział ani ustawienie domyślne nie wskazuje jeszcze tego głosu.",
+      "holder": {
+        "agent": "agent",
+        "department": "dział",
+        "org": "domyślny organizacji"
+      },
+      "previewFor": "Pisane do",
+      "previewForNone": "— nikogo konkretnego —",
+      "previewForDept": "do: {{name}}"
+    }
   },
   "skills": {
     "title": "Umiejętności",

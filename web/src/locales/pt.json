@@ -739,9 +739,6 @@
       "maxTurns": "Turnos máximos por execução",
       "maxTurnsPlaceholder": "0 = predefinição (30)",
       "maxTurnsHint": "Travão contra descarrilamentos: interrompe uma execução ao fim de n turnos. Use um valor maior para tarefas com cópias de repositórios.",
-      "voice": "Voz",
-      "voiceNone": "— nenhuma —",
-      "voiceHint": "Escreve o TONE.md do agente a partir da voz. Só é possível escolher vozes já construídas.",
       "recordingLevel": "Profundidade da gravação",
       "recordingInherit": "Herdar o mínimo da organização",
       "recordingMinimal": "mínima (só ciclo de vida e portas)",
@@ -1575,7 +1572,58 @@
       "corrections": "Correções",
       "tone": "O que o agente recebe"
     },
-    "toneEmpty": "Nada ainda — a voz não tem cartão, passagens nem perfil medido."
+    "toneEmpty": "Nada ainda — a voz não tem cartão, passagens nem perfil medido.",
+    "occ": {
+      "occasion": {
+        "chat": "Chat",
+        "customers": "Clientes",
+        "publications": "Publicações"
+      },
+      "occasionHint": {
+        "chat": "Chat da equipa com colegas",
+        "customers": "E-mails e respostas a clientes",
+        "publications": "Artigos e publicações que são publicados"
+      },
+      "level": {
+        "agent": "definida no agente",
+        "org": "predefinida da organização",
+        "department": "departamento {{name}}",
+        "none": "sem voz"
+      },
+      "notSet": "— não definida —",
+      "agentTitle": "Vozes",
+      "agentHint": "A voz em que o agente escreve, por ocasião. Quando escreve a alguém de um departamento com voz própria, aplica-se essa.",
+      "fallsBack": "Vazio: aplica-se {{voice}} ({{level}}).",
+      "fallsBackNone": "Vazio: não se aplica nenhuma voz.",
+      "readOnly": "Só administradores e responsáveis por agentes alteram as vozes.",
+      "orgTitle": "Vozes predefinidas",
+      "orgHint": "A voz por ocasião para todos os agentes que não têm uma própria.",
+      "deptOpen": "Público e vozes",
+      "deptTitle": "Público e vozes: {{name}}",
+      "audienceLabel": "Como falar connosco",
+      "audienceHint": "Uma linha que acompanha tudo o que um agente escreve a alguém deste departamento.",
+      "audiencePlaceholder": "p. ex. Respostas curtas, números primeiro, sem saudações.",
+      "counter": "{{n}} / {{max}}",
+      "deptVoices": "Voz por ocasião",
+      "deptVoicesHint": "Opcional. Substitui a voz própria do agente quando escreve apenas a alguém deste departamento.",
+      "save": "Guardar",
+      "matrixTitle": "Quem recebe o quê",
+      "matrixHint": "A voz em vigor por departamento e ocasião: a do departamento, depois a do agente, depois a predefinida da organização.",
+      "matrixFor": "Agente",
+      "matrixForNone": "— nenhum agente —",
+      "matrixDept": "Departamento",
+      "matrixNoDept": "Clientes / sem departamento",
+      "usedByTitle": "Indicada por",
+      "usedByNone": "Nenhum agente, departamento ou predefinição indica ainda esta voz.",
+      "holder": {
+        "agent": "agente",
+        "department": "departamento",
+        "org": "predefinida da organização"
+      },
+      "previewFor": "Escrito para",
+      "previewForNone": "— ninguém em particular —",
+      "previewForDept": "para {{name}}"
+    }
   },
   "skills": {
     "title": "Competências",
