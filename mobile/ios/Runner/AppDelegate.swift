@@ -1,4 +1,6 @@
 import AudioToolbox
+import FirebaseCore
+import FirebaseMessaging
 import Flutter
 import UIKit
 import UserNotifications
@@ -6,9 +8,18 @@ import UserNotifications
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   /// Push notifications (#379): the permission, the device token for the
-  /// instance, and the thread a tapped notification opens.
+  /// instance, and the thread a tapped notification opens. The token is
+  /// Firebase Messaging's (#431): the instance sends through FCM, which
+  /// hands the notification to Apple with the APNs key of the app's Firebase
+  /// project.
   private var push: FlutterMethodChannel?
   private var pendingToken: FlutterResult?
+  /// Whether this build carries the app's Firebase project. Without its
+  /// GoogleService-Info.plist, which whoever ships the app puts in, there is
+  /// no push.
+  private var firebase = false
+  /// The FCM token last handed to Dart; a different one later is a refresh.
+  private var handedOut: String?
   /// The agent of a notification tapped before Dart was listening — the
   /// app was started by the tap.
   private var launchAgent: String?
@@ -18,6 +29,11 @@ import UserNotifications
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
     UNUserNotificationCenter.current().delegate = self
+    if Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil {
+      FirebaseApp.configure()
+      Messaging.messaging().delegate = self
+      firebase = true
+    }
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
@@ -34,6 +50,9 @@ import UserNotifications
   private func handle(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
     switch call.method {
     case "register":
+      guard firebase else {
+        return result(FlutterError(code: "unavailable", message: "this build has no Firebase configuration", details: nil))
+      }
       // Asks once; afterwards the answer stands and only the Settings app
       // changes it.
       UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, _ in
@@ -70,10 +89,22 @@ import UserNotifications
   override func application(
     _ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
   ) {
-    let token = deviceToken.map { String(format: "%02x", $0) }.joined()
-    pendingToken?(token)
-    pendingToken = nil
     super.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
+    guard firebase else { return }
+    // Told by hand, as swizzling is off (Info.plist); the FCM token that
+    // comes back is what the instance keeps.
+    Messaging.messaging().apnsToken = deviceToken
+    Messaging.messaging().token { token, error in
+      DispatchQueue.main.async {
+        if let token {
+          self.handedOut = token
+          self.pendingToken?(token)
+        } else {
+          self.pendingToken?(FlutterError(code: "failed", message: error?.localizedDescription, details: nil))
+        }
+        self.pendingToken = nil
+      }
+    }
   }
 
   override func application(
@@ -105,5 +136,18 @@ import UserNotifications
       }
     }
     completionHandler()
+  }
+}
+
+extension AppDelegate: MessagingDelegate {
+  /// Firebase replaced the token: Dart registers again, and the instance
+  /// forgets the old one when it is refused. The first token after a start
+  /// is the one register answers with, and is not news.
+  func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+    guard let fcmToken, let handedOut, fcmToken != handedOut else { return }
+    DispatchQueue.main.async {
+      self.handedOut = fcmToken
+      self.push?.invokeMethod("token", arguments: fcmToken)
+    }
   }
 }

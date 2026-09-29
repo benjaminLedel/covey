@@ -14,10 +14,11 @@ import 'i18n.dart';
 import 'models.dart';
 import 'prefs.dart';
 
-/// Notifications (#379). On the iPhone they come from Apple's push service,
-/// on Android from Firebase Cloud Messaging (#424): the app asks for
-/// permission, hands its device token to the instance, and the instance (or
-/// the relay that holds the app's key) sends. On the Mac the
+/// Notifications (#379). On the iPhone and on Android they come through
+/// Firebase Cloud Messaging (#424, #431), which passes an iPhone's on to
+/// Apple: the app asks for permission, hands its FCM token to the instance,
+/// and the instance (or the relay that holds the app's service account)
+/// sends. On the Mac the
 /// app runs anyway — it keeps the dictation shortcut — so it looks at the
 /// unread markers itself and shows local notifications; nothing leaves the
 /// machine for it.
@@ -104,6 +105,8 @@ class PushNotices {
       _listening = true;
       _channel.setMethodCallHandler((call) async {
         if (call.method == 'open' && call.arguments is String) _opens.add(call.arguments as String);
+        // The iPhone's token was replaced (#431): register the new one.
+        if (call.method == 'token' && await enabled) await _switchOn();
       });
       try {
         final agent = await _channel.invokeMethod<String>('launchAgent');
@@ -128,16 +131,16 @@ class PushNotices {
     if (api == null) return;
     try {
       if (_pushed) {
-        // Android without the app's Firebase configuration answers
+        // A build without the app's Firebase configuration answers
         // "unavailable": that build has no push.
         final token = await _channel.invokeMethod<String>('register');
         if (token == null) return;
         await api.registerPushDevice(
           token: token,
           platform: Platform.isAndroid ? 'android' : 'ios',
-          // A build from Xcode or `flutter run` talks to Apple's sandbox; one
-          // from the store or TestFlight to production. FCM has no sandbox.
-          environment: kReleaseMode || Platform.isAndroid ? 'production' : 'development',
+          // FCM has no sandbox: for an iPhone it picks Apple's environment
+          // itself, from the APNs key uploaded to the Firebase project.
+          environment: 'production',
           lang: _strings?.language ?? 'en',
           sound: await sound,
         );

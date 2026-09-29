@@ -30,6 +30,7 @@
 		3DBEE5A14D5600B71995F785 /* covey-schar-error.caf in Resources */ = {isa = PBXBuildFile; fileRef = 02C842C94654A0E27438EABE /* covey-schar-error.caf */; };
 		1906445CDE1D170D7AFA3DB3 /* covey-schar-question.caf in Resources */ = {isa = PBXBuildFile; fileRef = BD8C7DAFB1646509361A0E47 /* covey-schar-question.caf */; };
 		475312BE0BA9E0E8FD8BD973 /* covey-schar-result.caf in Resources */ = {isa = PBXBuildFile; fileRef = D5344F5E9EFED201268E8869 /* covey-schar-result.caf */; };
+		C0FEE431000000000000A001 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = C0FEE431000000000000A002 /* FirebaseMessaging */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -109,6 +110,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */,
+				C0FEE431000000000000A001 /* FirebaseMessaging in Frameworks */,
 				94DF9EF49D3741762FE989C5 /* Pods_Runner.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -239,6 +241,7 @@
 				97C146EA1CF9000F007C117D /* Sources */,
 				97C146EB1CF9000F007C117D /* Frameworks */,
 				97C146EC1CF9000F007C117D /* Resources */,
+				C0FEE431C0FEE431C0FEE431 /* Firebase Configuration */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 			);
@@ -249,6 +252,7 @@
 			name = Runner;
 			packageProductDependencies = (
 				78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */,
+				C0FEE431000000000000A002 /* FirebaseMessaging */,
 			);
 			productName = Runner;
 			productReference = 97C146EE1CF9000F007C117D /* Runner.app */;
@@ -285,6 +289,7 @@
 			mainGroup = 97C146E51CF9000F007C117D;
 			packageReferences = (
 				781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "FlutterGeneratedPluginSwiftPackage" */,
+				C0FEE431000000000000A003 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 			);
 			productRefGroup = 97C146EF1CF9000F007C117D /* Products */;
 			projectDirPath = "";
@@ -404,6 +409,21 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" build";
+		};
+		C0FEE431C0FEE431C0FEE431 /* Firebase Configuration */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Firebase Configuration";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# The app's Firebase project (#431) belongs to whoever ships the app and is\n# not in the repository. Bundled when Runner/GoogleService-Info.plist is\n# there; without it the build has no push, and a copy from an earlier build\n# goes.\nsrc=\"${SRCROOT}/Runner/GoogleService-Info.plist\"\ndst=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist\"\nif [ -f \"$src\" ]; then\n  cp \"$src\" \"$dst\"\nelse\n  rm -f \"$dst\"\n  echo \"note: no GoogleService-Info.plist, this build has no push notifications\"\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -778,10 +798,26 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		C0FEE431000000000000A003 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = FlutterGeneratedPluginSwiftPackage;
+		};
+		C0FEE431000000000000A002 /* FirebaseMessaging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C0FEE431000000000000A003 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseMessaging;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

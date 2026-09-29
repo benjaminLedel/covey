@@ -42,6 +42,10 @@
 	     build until the question is answered by hand. -->
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<!-- Firebase Messaging (#431) is told the APNs token by AppDelegate
+	     itself rather than by swizzling the app delegate's methods. -->
+	<key>FirebaseAppDelegateProxyEnabled</key>
+	<false/>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>

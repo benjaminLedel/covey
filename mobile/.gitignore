@@ -51,3 +51,5 @@ app.*.map.json
 # The app's Firebase project (#424): whoever ships the app puts their own
 # here; without it the Android build has no push.
 /android/app/google-services.json
+# The same for the iPhone (#431): without it the iOS build has no push.
+/ios/Runner/GoogleService-Info.plist
