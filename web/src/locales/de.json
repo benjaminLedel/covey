@@ -86,7 +86,9 @@
     "administrationSection": "Verwaltung",
     "administration": "Administration",
     "approvals": "Freigaben",
-    "infrastructure": "Infrastruktur"
+    "infrastructure": "Infrastruktur",
+    "apps": "covey-App",
+    "helpShort": "Hilfe"
   },
   "costs": {
     "title": "Kosten & Token",
@@ -1724,7 +1726,8 @@
       "desktop": "Auf diesem Computer, mit der Desktop-App:",
       "openApp": "In der App öffnen",
       "noApp": "Noch keine App auf dem Mac?",
-      "macDownload": "Für den Mac herunterladen"
+      "macDownload": "Für den Mac herunterladen",
+      "pairedHere": "Gekoppelt mit {{device}}."
     },
     "apiKeys": {
       "title": "API-Schlüssel",
@@ -2820,5 +2823,19 @@
       "titel": "Ihr Konto",
       "text": "Einstellungen, Spracherkennung und Abmelden, und diese Einführung, falls Sie sie noch einmal sehen möchten."
     }
+  },
+  "apps": {
+    "title": "covey-App",
+    "intro": "Dieselbe App für iPhone, Android und Mac. Sie fragt beim ersten Start, mit welcher covey sie arbeiten soll.",
+    "install": "Installieren",
+    "pair": "Mit dieser covey koppeln",
+    "pairIntro": "Der QR-Code verbindet die App in einem Schritt mit Ihrem Konto hier. Er gilt einmal und fünf Minuten lang.",
+    "ios": "iPhone und iPad",
+    "android": "Android",
+    "mac": "Mac",
+    "appStore": "Im App Store",
+    "playStore": "Bei Google Play",
+    "download": "Herunterladen",
+    "notYet": "Noch nicht im Store"
   }
 }

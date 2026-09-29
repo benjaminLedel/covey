@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { NavLink } from "react-router";
@@ -8,6 +9,7 @@ import { NavIcon, initials } from "./navicons";
 import GitHubLink from "./GitHubLink";
 import LangPicker from "./LangPicker";
 import ThemeSwitch from "./ThemeSwitch";
+import AppsDialog from "./AppsDialog";
 
 /* Der Fuß der linken Spalte: wer angemeldet ist, und dahinter alles, was man
  * selten braucht — Organisation wechseln, Erscheinungsbild, Sprache, Hilfe,
@@ -38,6 +40,7 @@ export default function ShellFoot({
 }) {
   const { t } = useTranslation();
   const [userMenu, setUserMenu] = useState(false);
+  const [apps, setApps] = useState(false);
   const memberships = useMemberships();
   const seats = memberships.data ?? [];
   const switchOrg = useSwitchOrg(onLogout);
@@ -119,12 +122,12 @@ export default function ShellFoot({
                 return (
                   <button
                     key={m.org_id}
+                    className={active ? "on" : undefined}
                     onClick={() => { setUserMenu(false); switchOrg.mutate(m.org_id); }}
                     disabled={active || switchOrg.isPending}
                     aria-current={active ? "true" : undefined}
-                    style={active ? { fontWeight: 600 } : undefined}
                   >
-                    <NavIcon name="box" />
+                    <NavIcon name={active ? "check" : "box"} />
                     <span className="truncate">{m.org_name}</span>
                   </button>
                 );
@@ -132,15 +135,18 @@ export default function ShellFoot({
               <div className="sep" />
             </>
           )}
-          <div className="foot-menu-sec">{t("theme.label")}</div>
-          <ThemeSwitch />
+          <button onClick={() => { setUserMenu(false); setApps(true); }}>
+            <NavIcon name="phone" />
+            {t("nav.apps")}
+          </button>
           <div className="sep" />
+          <ThemeSwitch />
           <LangPicker variant="menu" />
           <div className="sep" />
-          <GitHubLink url={build.data?.source} variant="menu" />
           <button onClick={() => { setUserMenu(false); onHelp(); }}>
             <NavIcon name="help" />
-            {t("nav.help")}
+            <span>{t("nav.helpShort")}</span>
+            <kbd aria-hidden="true">?</kbd>
           </button>
           {onTour && (
             <button onClick={() => { setUserMenu(false); onTour(); }}>
@@ -148,6 +154,7 @@ export default function ShellFoot({
               {t("tour.titel")}
             </button>
           )}
+          <GitHubLink url={build.data?.source} variant="menu" />
           <div className="sep" />
           <button className="danger" onClick={logout}>
             <NavIcon name="logout" />
@@ -157,6 +164,7 @@ export default function ShellFoot({
       </>
     )}
       </div>
+      {apps && createPortal(<AppsDialog onClose={() => setApps(false)} />, document.body)}
     </div>
   );
 }

@@ -483,7 +483,8 @@
   bottom: calc(100% + 8px);
   right: 0;
   z-index: 41;
-  min-width: 190px;
+  /* Wide enough for "Erscheinungsbild" beside its three marks on one line. */
+  min-width: 232px;
   padding: 5px;
   background: var(--surface-0);
   border: 0.5px solid var(--border-strong);
@@ -522,14 +523,53 @@
   flex-shrink: 0;
 }
 .foot-menu .sep { height: 0.5px; background: var(--border); margin: 3px 6px; }
+/* A caption only above a choice (organisation, appearance), not above
+   actions, and in the menu's own voice rather than in capitals (#432). */
 .foot-menu-sec {
-  padding: 4px 9px 3px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  padding: 5px 9px 2px;
+  font-size: 11px;
+  font-weight: 500;
   color: var(--text-muted);
 }
+/* The organisation one is in: marked by the check, not by weight alone. */
+.foot-menu button.on:disabled { color: var(--text-primary); cursor: default; opacity: 1; }
+.foot-menu button.on .ic { color: var(--text-accent); }
+.foot-menu button kbd { margin-left: auto; font-size: 10.5px; padding: 0 5px; }
+
+/* The apps dialog (#432): install, then pair. */
+.apps-step { margin: 18px 0 8px; font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.apps-step:first-of-type { margin-top: 0; }
+.apps-list { list-style: none; margin: 0; padding: 0; border: 0.5px solid var(--border); border-radius: var(--radius); }
+.apps-list li { display: flex; align-items: center; gap: 10px; padding: 9px 12px; min-height: 44px; }
+.apps-list li + li { border-top: 0.5px solid var(--border); }
+.apps-list .ic { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; color: var(--text-muted); flex: none; }
+.apps-list .nm { flex: 1; min-width: 0; font-size: 13px; color: var(--text-primary); }
+/* Appearance as a row beside the language (#432): the same metrics as
+   .lang-pick-row, the three choices as small marks at its right end. */
+.theme-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 3px 4px 3px 9px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+.theme-row > .ic { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; opacity: 0.75; flex: none; }
+.theme-row .lb { flex: 1; min-width: 0; white-space: nowrap; }
+.theme-marks { display: flex; gap: 1px; padding: 2px; border-radius: 8px; background: var(--tint-weak); }
+.foot-menu .theme-marks button {
+  width: 26px;
+  height: 24px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 6px;
+  color: var(--text-muted);
+}
+.foot-menu .theme-marks button:hover { background: var(--tint); color: var(--text-secondary); }
+.foot-menu .theme-marks button.on { background: var(--surface-2); color: var(--text-primary); box-shadow: 0 0 0 0.5px var(--border); }
+.foot-menu .theme-marks .ic { width: 13px; height: 13px; }
+.foot-menu .theme-marks button:focus-visible { outline: 2px solid var(--text-accent); outline-offset: 1px; }
+
 /* Erscheinungsbild: drei Möglichkeiten nebeneinander, die gewählte gehoben —
    dieselbe Zeichnung wie der Segment-Umschalter .seg, nur enger. */
 .theme-seg {

@@ -86,7 +86,9 @@
     "administrationSection": "Administration",
     "administration": "Organization",
     "approvals": "Approvals",
-    "infrastructure": "Infrastructure"
+    "infrastructure": "Infrastructure",
+    "apps": "covey app",
+    "helpShort": "Help"
   },
   "costs": {
     "title": "Cost & Tokens",
@@ -1724,7 +1726,8 @@
       "desktop": "On this computer, with the desktop app:",
       "openApp": "Open in the app",
       "noApp": "No app on your Mac yet?",
-      "macDownload": "Download for Mac"
+      "macDownload": "Download for Mac",
+      "pairedHere": "Paired with {{device}}."
     },
     "apiKeys": {
       "title": "API keys",
@@ -2820,5 +2823,19 @@
       "titel": "Your account",
       "text": "Settings, speech recognition and signing out, and this introduction, should you want to see it again."
     }
+  },
+  "apps": {
+    "title": "covey app",
+    "intro": "One app for iPhone, Android and Mac. On first start it asks which covey to work with.",
+    "install": "Install",
+    "pair": "Pair with this covey",
+    "pairIntro": "The QR code connects the app to your account here in one step. It works once and for five minutes.",
+    "ios": "iPhone and iPad",
+    "android": "Android",
+    "mac": "Mac",
+    "appStore": "On the App Store",
+    "playStore": "On Google Play",
+    "download": "Download",
+    "notYet": "Not in the store yet"
   }
 }

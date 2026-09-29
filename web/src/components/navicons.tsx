@@ -202,6 +202,26 @@ const icons: Record<string, JSX.Element> = {
       <path d="M16 17l5-5l-5-5M21 12H9" />
     </>
   ),
+  // The active choice in a menu (the organisation one is working in).
+  check: (
+    <>
+      <path d="M5 12.5l4.5 4.5L19 7.5" />
+    </>
+  ),
+  // The covey app on a phone (#432).
+  phone: (
+    <>
+      <rect x="7" y="2.5" width="10" height="19" rx="2.5" />
+      <path d="M11 18.5h2" />
+    </>
+  ),
+  // The covey app on a desktop computer (#432).
+  laptop: (
+    <>
+      <rect x="4.5" y="5" width="15" height="10.5" rx="1.5" />
+      <path d="M2.5 19h19" />
+    </>
+  ),
   dots: (
     <>
       <circle cx="12" cy="5.5" r="0.9" />

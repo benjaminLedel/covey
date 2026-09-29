@@ -86,7 +86,9 @@
     "administrationSection": "Beheer",
     "administration": "Organisatie",
     "approvals": "Goedkeuringen",
-    "infrastructure": "Infrastructuur"
+    "infrastructure": "Infrastructuur",
+    "apps": "covey-app",
+    "helpShort": "Help"
   },
   "costs": {
     "title": "Kosten en tokens",
@@ -1724,7 +1726,8 @@
       "desktop": "Op deze computer, met de desktop-app:",
       "openApp": "Openen in de app",
       "noApp": "Nog geen app op uw Mac?",
-      "macDownload": "Downloaden voor Mac"
+      "macDownload": "Downloaden voor Mac",
+      "pairedHere": "Gekoppeld met {{device}}."
     },
     "apiKeys": {
       "title": "API-sleutels",
@@ -2820,5 +2823,19 @@
       "titel": "Uw account",
       "text": "Instellingen, spraakherkenning en afmelden, en deze introductie, als u die nog eens wilt zien."
     }
+  },
+  "apps": {
+    "title": "covey-app",
+    "intro": "Eén app voor iPhone, Android en Mac. Bij de eerste start vraagt hij met welke covey hij werkt.",
+    "install": "Installeren",
+    "pair": "Koppelen met deze covey",
+    "pairIntro": "De QR-code verbindt de app in één stap met je account hier. Hij werkt één keer en vijf minuten lang.",
+    "ios": "iPhone en iPad",
+    "android": "Android",
+    "mac": "Mac",
+    "appStore": "In de App Store",
+    "playStore": "In Google Play",
+    "download": "Downloaden",
+    "notYet": "Nog niet in de store"
   }
 }

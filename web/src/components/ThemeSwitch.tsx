@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { THEMES, gespeichertesTheme, merkeTheme, wendeThemeAn, type Theme } from "../theme";
 
 /* Switch for the appearance — the same control in two places: in the
-   footer menu of the signed-in UI (`seg`) and in the header of the
+   footer menu of the signed-in UI (`seg`, a row) and in the header of the
    public website (`pill`, next to the language picker).
 
    Three options side by side instead of one button that cycles: you should be
@@ -53,26 +53,46 @@ export default function ThemeSwitch({ variant = "seg" }: { variant?: "seg" | "pi
     wendeThemeAn(next);
   };
 
-  const pill = variant === "pill";
+  if (variant === "pill") {
+    return (
+      <div className="lang-switch inline theme-pill" role="group" aria-label={t("theme.label")}>
+        {THEMES.map((m) => (
+          <button
+            key={m}
+            className={theme === m ? "on" : ""}
+            aria-pressed={theme === m}
+            title={t(`theme.${m}`)}
+            aria-label={t(`theme.${m}`)}
+            onClick={() => waehle(m)}
+          >
+            <ThemeIcon name={m} />
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  /* In the footer menu a row like the language beside it (#432): what it
+     is on the left, the three choices as marks on the right — each named by
+     its tooltip and for a screen reader, the chosen one raised. */
   return (
-    <div
-      className={pill ? "lang-switch inline theme-pill" : "theme-seg"}
-      role="group"
-      aria-label={t("theme.label")}
-    >
-      {THEMES.map((m) => (
-        <button
-          key={m}
-          className={theme === m ? "on" : ""}
-          aria-pressed={theme === m}
-          title={t(`theme.${m}`)}
-          aria-label={pill ? t(`theme.${m}`) : undefined}
-          onClick={() => waehle(m)}
-        >
-          <ThemeIcon name={m} />
-          {!pill && <span>{t(`theme.${m}`)}</span>}
-        </button>
-      ))}
+    <div className="theme-row">
+      <ThemeIcon name={theme} />
+      <span className="lb">{t("theme.label")}</span>
+      <div className="theme-marks" role="group" aria-label={t("theme.label")}>
+        {THEMES.map((m) => (
+          <button
+            key={m}
+            className={theme === m ? "on" : ""}
+            aria-pressed={theme === m}
+            title={t(`theme.${m}`)}
+            aria-label={t(`theme.${m}`)}
+            onClick={() => waehle(m)}
+          >
+            <ThemeIcon name={m} />
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

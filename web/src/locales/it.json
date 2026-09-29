@@ -86,7 +86,9 @@
     "administrationSection": "Amministrazione",
     "administration": "Organizzazione",
     "approvals": "Approvazioni",
-    "infrastructure": "Infrastruttura"
+    "infrastructure": "Infrastruttura",
+    "apps": "App covey",
+    "helpShort": "Aiuto"
   },
   "costs": {
     "title": "Costi e token",
@@ -1724,7 +1726,8 @@
       "desktop": "Su questo computer, con l'app desktop:",
       "openApp": "Apri nell'app",
       "noApp": "Non ha ancora l'app sul Mac?",
-      "macDownload": "Scarica per Mac"
+      "macDownload": "Scarica per Mac",
+      "pairedHere": "Abbinata a {{device}}."
     },
     "apiKeys": {
       "title": "Chiavi API",
@@ -2820,5 +2823,19 @@
       "titel": "Il suo account",
       "text": "Impostazioni, riconoscimento vocale e uscita, e questa introduzione, se desidera rivederla."
     }
+  },
+  "apps": {
+    "title": "App covey",
+    "intro": "Un’unica app per iPhone, Android e Mac. Al primo avvio chiede con quale covey lavorare.",
+    "install": "Installa",
+    "pair": "Abbina a questo covey",
+    "pairIntro": "Il codice QR collega l’app al tuo account qui in un solo passo. Vale una volta e per cinque minuti.",
+    "ios": "iPhone e iPad",
+    "android": "Android",
+    "mac": "Mac",
+    "appStore": "Su App Store",
+    "playStore": "Su Google Play",
+    "download": "Scarica",
+    "notYet": "Non ancora nello store"
   }
 }
