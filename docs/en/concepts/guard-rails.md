@@ -26,7 +26,7 @@ Guard-rails therefore sit **outside the runtime**. The agent cannot read them, t
 ## The three places it applies
 
 - **Secrets broker** — which access, at which scope, for which run. A token that never enters the sandbox cannot be carried out of it.
-- **Egress** — where the sandbox may talk at all. With `COVEY_EGRESS_ENFORCE` and hard network isolation, a proxy sits between agent and internet and enforces the allowlist.
+- **Egress** — where the sandbox may talk at all. With the docker provider a proxy sits between agent and internet and enforces the allowlist — by default, unless an operator sets `COVEY_EGRESS_ENFORCE=false`. Hard network isolation (`COVEY_EGRESS_ISOLATION=network`) takes away the way around it.
 - **Action layer** — which action is allowed, which needs an approval, which is forbidden. Rules apply globally, per department or per agent.
 
 ## Approvals
@@ -50,5 +50,5 @@ A budget per agent is a guard-rail too — the one against the mistake that hurt
 ## Next
 
 - [Identity & secrets](identity-and-secrets.md) — how access is brokered
-- [Operations & deployment](../operations/operations.md) — switching on egress isolation
+- [Operations & deployment](../operations/operations.md) — egress enforcement and hard isolation
 - [Target systems & plugins](../integrations/target-systems.md) — which actions exist in the first place

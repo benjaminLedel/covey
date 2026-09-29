@@ -197,7 +197,10 @@ least:
   reverse proxy (TLS termination) in front. The secure cookie then switches
   itself on automatically.
 - **DB TLS:** `sslmode=require` (or higher) in `COVEY_DATABASE_URL`.
-- **Egress & isolation:** the docker provider + `COVEY_EGRESS_ENFORCE=true`.
+- **Egress & isolation:** enforced by default (the docker provider, the proxy on
+  `8495`); put every host an agent needs on its allowlist, and consider hard
+  isolation (`COVEY_EGRESS_ISOLATION=network`). `COVEY_EGRESS_ENFORCE=false`
+  switches enforcement off, and `serve` warns about it.
 
 covey also prints these points as warnings itself at `serve` start, as soon as
 it is not bound purely locally (`localhost`).

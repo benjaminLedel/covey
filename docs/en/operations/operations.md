@@ -72,7 +72,13 @@ A reverse proxy in front, TLS terminated there, `COVEY_PUBLIC_URL` and `COVEY_SI
 
 ## Egress isolation
 
-Two levels. **Cooperative**: the sandbox's traffic goes through a proxy that enforces the allowlist. **Hard** (`COVEY_EGRESS_ISOLATION=network`): the sandbox sits on an internal network without internet, and the proxy container is the only way out — no longer bypassable. The hard level needs a second image built.
+On by default with the docker provider: a sandbox reaches only the hosts on its agent's allowlist — the organisation's base list (seeded with `api.anthropic.com`), the assigned templates and the agent's own hosts. `COVEY_EGRESS_ENFORCE=false` switches it off; the lists are then kept but not applied, and `covey serve` and `covey doctor` say so. A provider that cannot enforce says the same instead of running open. `GET /api/v1/egress` answers with `enforced` whether it applies on this instance.
+
+Two levels. **Cooperative** (the default): the sandbox's traffic goes through a proxy that enforces the allowlist. **Hard** (`COVEY_EGRESS_ISOLATION=network`): the sandbox sits on an internal network without internet, and the proxy container is the only way out — no longer bypassable. The hard level needs a second image built.
+
+The cooperative proxy runs inside the covey process. When covey itself runs in a container, the sandboxes reach it only through a published port: `COVEY_EGRESS_LISTEN_ADDR` fixes its address, and the host has to publish the same port. The compose files do both (`:8495`, `8495:8495`). Without a sandbox's own token the proxy answers 407.
+
+Upgrading an installation that ran with open egress: see [Upgrading](upgrade.md).
 
 ## Backups
 

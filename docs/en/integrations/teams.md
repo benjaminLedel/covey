@@ -339,15 +339,15 @@ Details: [`../spec/15-teams-integration.md`](../../../spec/15-teams-integration.
 | `COVEY_TEAMS_TOKEN_URL` | The Bot Framework endpoint | The instance-wide token endpoint; still overridable per agent through the secret `teams_url` |
 | `COVEY_TEAMS_ATTACHMENT_MAX_MB` | `25` | The size limit per attachment loaded into the sandbox (valid 1–1024; above that it is clamped) |
 | `COVEY_DAEMON_TOKEN_TTL` | `15m` | The TTL of the credential passed into the sandbox |
-| `COVEY_EGRESS_ENFORCE` | `false` | Switch on the egress allowlist proxy (only the `docker` provider) |
+| `COVEY_EGRESS_ENFORCE` | `true` | The egress allowlist proxy (only the `docker` provider); `false` switches it off |
 | `COVEY_EGRESS_ALLOW` | *(empty)* | Additional permitted egress hosts |
 | `COVEY_REQUEST_LOG` | `true` | The request log (Platform → Requests): webhooks in, connector calls out |
 | `COVEY_REQUEST_LOG_BODIES` | `true` | Record bodies too (truncated, redacted); `false` = metadata only |
 | `COVEY_REQUEST_LOG_RETENTION` | `72h` | Retention of the log entries |
 
-> **Egress:** with `COVEY_SANDBOX_PROVIDER=docker` and
-> `COVEY_EGRESS_ENFORCE=true` the sandbox traffic runs through an allowlist
-> proxy. For Teams the agent addresses two host families that have to be on the
+> **Egress:** with `COVEY_SANDBOX_PROVIDER=docker` the sandbox traffic runs
+> through an allowlist proxy (the default; `COVEY_EGRESS_ENFORCE=false` switches
+> it off). For Teams the agent addresses two host families that have to be on the
 > allowlist: `login.microsoftonline.com` (the token) and the regional connector
 > hosts (`*.botframework.com` or `smba.trafficmanager.net`). Add them e.g. via:
 >

@@ -35,6 +35,69 @@ covey doctor     # what is still in the way here
 
 ---
 
+## After 0.11.0 — egress is enforced by default
+
+`COVEY_EGRESS_ENFORCE` now defaults to `true`. With the docker provider every
+sandbox reaches only the hosts on its agent's allowlist: the organisation's
+base list (seeded with `api.anthropic.com`), the assigned templates and the
+agent's own hosts. Before, the lists were kept but applied only when an
+operator switched enforcement on — and neither compose file passed the
+variable, so a compose installation ran open whatever its `.env` said.
+
+**If your agents only ever talk to hosts that are already on their lists,
+there is nothing to do.** Everything else is refused after the restart: a
+target system (GitLab, Jira, Zendesk, a mail server — the action proxy runs
+inside the sandbox, so those calls leave from there too), a package registry,
+a model endpoint other than `api.anthropic.com`. The agent sees a refused
+connection; the refusal is in the egress monitoring, not in its prompt.
+
+### 1. Check the allowlists before the restart
+
+- `GET /api/v1/egress` — whether enforcement is on (`enforced`), the
+  organisation's base list, and the additions from `COVEY_EGRESS_ALLOW`.
+- Per agent: *Settings → Egress* on the agent page — assigned templates and
+  own hosts. That is where a target system's host belongs.
+- *Egress* in the side menu: the monitoring. While enforcement is off it logs
+  nothing, so it cannot tell you what an agent used to reach; the agent's
+  `ACCESS.md` and its target-system secrets (`gitlab_url`, `jira_url`, …) can.
+
+Changes to the lists take effect within about 15 seconds, without a restart —
+they can also be made after the upgrade, while watching the monitoring.
+
+### 2. Compose installations: one new port
+
+The proxy runs inside the covey container, and a sandbox is a sibling
+container: it reaches the proxy only through a port the host publishes. Both
+compose files now set `COVEY_EGRESS_LISTEN_ADDR=:8495` and publish
+`8495:8495`. Take the new compose file, and make sure 8495 is free on the host.
+The port answers every request without a sandbox's own token with 407; a
+firewall in front of it costs nothing.
+
+A binary started directly on the host needs nothing: the proxy binds a free
+port there, and the sandboxes reach it through `host.docker.internal`.
+
+`covey serve` warns and `covey doctor` reports a blocking finding when covey
+runs in a container with the proxy on a free port — the one configuration in
+which enforcement lets nothing out at all, not even to the model.
+
+### 3. Or keep the old behaviour, explicitly
+
+```bash
+# .env of a compose installation (the compose file passes it through)
+COVEY_EGRESS_ENFORCE=false
+```
+
+The lists stay and are not applied. `covey serve` says so at every start and
+`covey doctor` reports it, so an open egress is a decision that is written
+down, not a default nobody chose.
+
+Two limits of what "enforced" means, unchanged by this release: the default
+mode is cooperative (`HTTP(S)_PROXY` in the container — an agent that ignores
+it gets past; `COVEY_EGRESS_ISOLATION=network` closes that), and it applies to
+the sandboxes this control plane starts itself, through its built-in runner.
+
+---
+
 ## To 0.6.0 — three plugins move to the catalogue
 
 `zammad`, `vulndb` and `k8s` are no longer compiled into the binary. They are
