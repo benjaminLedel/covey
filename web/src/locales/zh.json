@@ -2878,6 +2878,14 @@
     "replyingTo": "回复 {{name}}",
     "older": "显示更早的消息",
     "agentHint": "在群组中，AI 同事只有被呼叫时才会回答：使用 @名字，或回复它的消息。",
-    "membersCount": "成员：{{count}}"
+    "membersCount": "成员：{{count}}",
+    "back": "返回对话列表",
+    "more": "更多",
+    "profile": "资料与设置",
+    "stopped": "已停止",
+    "asleep": "休眠中",
+    "working": "工作中",
+    "workingOn": "正在处理：{{title}}",
+    "rename": "重命名群组"
   }
 }

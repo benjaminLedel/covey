@@ -4178,3 +4178,110 @@
 /* A button that reads as a link in a table row (the audit's conversations, #440). */
 .linkish { border: 0; background: none; padding: 0; font: inherit; color: var(--text-primary); cursor: pointer; text-align: left; }
 .linkish:hover { text-decoration: underline; }
+
+/* ── The head of a conversation (#440, team/Kopf.tsx) ───────────────────
+   In the column of the messages, over them: they scroll under a surface
+   that lets them through, and the line appears only once something is
+   under it. The column is the one .tm-verlauf draws — the same padding
+   formula, so name and actions stand where the messages begin and end. */
+.tm-thread { position: relative; --kopf-h: 76px; }
+.tm-thread .tm-verlauf { padding-top: calc(var(--kopf-h) + 12px); }
+.tm-kopf {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  backdrop-filter: blur(14px) saturate(1.3);
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.tm-kopf.darunter { border-bottom-color: var(--border); box-shadow: 0 6px 18px -12px var(--shadow-sm); }
+.tm-kopf-reihe {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--kopf-h);
+  padding: 10px max(24px, calc(50% - 420px));
+}
+.tm-kopf-wer { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
+.tm-kopf-text { min-width: 0; }
+.tm-kopf-text h1 {
+  font-size: 17px; font-weight: 650; letter-spacing: -0.01em; line-height: 1.25;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tm-kopf-zeile {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  margin-top: 2px; font-size: 13px; color: var(--text-muted);
+}
+.tm-kopf-zeile > * + *::before { content: "·"; margin-right: 6px; color: var(--text-muted); }
+.tm-kopf-aktionen { display: flex; align-items: center; gap: 2px; flex: none; }
+/* A button with a name: 36px, above the 24px WCAG 2.2 minimum and the 32px
+   the surface keeps everywhere, and a label that shows on hover and focus. */
+.tm-knopf {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border: 0; border-radius: var(--radius);
+  background: none; color: var(--text-secondary); cursor: pointer; text-decoration: none;
+}
+.tm-knopf:hover { background: var(--tint); color: var(--text-primary); }
+.tm-knopf:focus-visible { outline: 2px solid var(--text-accent); outline-offset: 1px; }
+.tm-knopf.an { background: var(--bg-accent); color: var(--text-accent); }
+.tm-knopf .ic { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tm-knopf-zahl {
+  position: absolute; top: 3px; right: 2px; min-width: 15px; height: 15px; padding: 0 4px;
+  border-radius: 8px; background: var(--text-accent); color: var(--surface-0);
+  font-size: 10px; font-weight: 650; line-height: 15px; text-align: center;
+}
+.tm-knopf[data-tip]:hover::after,
+.tm-knopf[data-tip]:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 42;
+  padding: 4px 8px; border-radius: 6px; white-space: nowrap; pointer-events: none;
+  background: var(--text-primary); color: var(--surface-0); font-size: 12px; font-weight: 500;
+}
+.tm-kopf-mehr { position: relative; }
+.tm-kopf .foot-menu { top: calc(100% + 6px); bottom: auto; }
+.tm-menue-link {
+  display: flex; align-items: center; gap: 9px; padding: 7px 9px; border-radius: 8px;
+  font-size: 12.5px; color: var(--text-secondary); text-decoration: none; white-space: nowrap;
+}
+.tm-menue-link:hover { background: var(--surface-2); color: var(--text-primary); }
+.tm-menue-link .ic { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+/* The panels that open from the head stand in its column too. */
+.tm-kopf > section { margin: 0 max(24px, calc(50% - 420px)) 12px; border: 0.5px solid var(--border); border-radius: 12px; }
+/* The state in the quiet line: the product's drawn mark and the word, no pill. */
+.tm-zustand.state { display: inline-flex; align-items: center; gap: 5px; background: none; border: 0; padding: 0; }
+.tm-zustand.state::before {
+  content: ""; flex: none; width: 9px; height: 9px; border-radius: 50%;
+  border: 1.5px solid currentColor; box-sizing: border-box;
+}
+.tm-zustand.st-sleeping { color: var(--text-muted); }
+/* A group: its first faces overlapping, and how many there are. */
+.tm-stapel { display: inline-flex; align-items: center; }
+.tm-stapel > * + * { margin-left: -9px; }
+.tm-stapel > * { box-shadow: 0 0 0 2px var(--surface-2); border-radius: 50%; }
+.tm-stapel-zahl {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 28px; padding: 0 6px;
+  border-radius: 14px; background: var(--tint); color: var(--text-secondary); font-size: 12px; font-weight: 600;
+}
+.tm-stapel-knopf { border: 0; background: none; padding: 2px; border-radius: 18px; cursor: pointer; }
+.tm-stapel-knopf:hover { background: var(--tint); }
+.tm-stapel-knopf:focus-visible { outline: 2px solid var(--text-accent); }
+.tm-titel-feld { font: inherit; font-size: 16px; font-weight: 650; padding: 2px 6px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface-0); color: var(--text-primary); width: min(320px, 100%); }
+/* The way back to the list, only where the list is not beside it. */
+.tm-kopf-zurueck { display: none; }
+.tm-kopf-zurueck .ic { transform: rotate(180deg); }
+
+/* Narrow windows: the list or the conversation, not both (#440). */
+@media (max-width: 720px) {
+  .tm-drei.tm-offen .tm-sidebar { display: none; }
+  .tm-drei.tm-liste .tm-haupt { display: none; }
+  .tm-drei.tm-liste .tm-sidebar { flex: 1; width: auto; }
+  .tm-kopf-zurueck { display: inline-flex; margin-left: -8px; }
+  .tm-kopf-reihe { padding: 10px 12px; gap: 8px; }
+  .tm-verlauf { padding-left: 12px; padding-right: 12px; }
+  .tm-kopf > section { margin: 0 12px 12px; }
+}

@@ -2,34 +2,29 @@ import { Fragment, lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { PEOPLE_SLUG, api, inbox, isDraft, markThreadRead, post, upload, type Agent, type ChatEntry, type ChatMark, type InboxEntry, type Laufend, type Principal, type Verlauf } from "../api";
+import { PEOPLE_SLUG, api, inbox, isDraft, markThreadRead, post, setConversationMuted, upload, type Agent, type ChatEntry, type ChatMark, type Department, type InboxEntry, type Laufend, type Principal, type Verlauf } from "../api";
 import { Markdown } from "../components/Markdown";
 import Dauer from "../components/Dauer";
 import { useSucheOeffnen } from "../components/Suche";
 import { canManage } from "../pages/agent/roles";
 import Gesicht from "../components/Gesicht";
 import { NavIcon } from "../components/navicons";
+import Kopf, { Zustand } from "./Kopf";
 
 const EntryCard = lazy(() => import("../pages/Inbox").then((m) => ({ default: m.EntryCard })));
 
-/* Der Verlauf mit einem Agenten.
+/* The direct conversation of the reader with one agent (#440), read through
+ * the per-agent thread endpoint, which is an alias onto it.
  *
- * Zwei Entscheidungen tragen ihn, und beide sind aus dem ersten Entwurf
- * gelernt:
+ * What stands in it is what the two said, and what a task opened here
+ * reported back — its result, its error, its question. The rest of the
+ * agent's backlog is not mirrored in; what is still running stands beside
+ * the conversation, behind the tasks button of the head.
  *
- * 1. **Die Antwort steht an der Frage, nicht am Eingabefeld.** Vorher hat
- *    jede parkende Aufgabe das Feld unten gekapert: Wer neue Arbeit übergeben
- *    wollte, während irgendein Heartbeat-Lauf auf eine Rückfrage wartete,
- *    beantwortete stattdessen diese Rückfrage — und die gemeinte Arbeit
- *    entstand nie. Jetzt trägt jede offene Frage ihr eigenes Feld, und das
- *    Feld unten legt immer eine neue Aufgabe an. Zwei Absichten, zwei Orte.
- *
- * 2. **Der Verlauf ist nach Vorgang gegliedert.** Ein Agent bekommt Arbeit aus
- *    dem Chat, aus einem Webhook, aus seinem Takt; alles davon steht hier
- *    nebeneinander. Ohne Trennlinie liest sich das als ein einziges
- *    durcheinandergeredetes Gespräch. Mit ihr ist es, was es ist: mehrere
- *    Vorgänge, jeder mit Anfang und Ende.
- */
+ * One decision carries it from the first draft: **the answer stands at the
+ * question, not at the input.** Every open question carries its own field,
+ * and the field at the bottom always speaks to the agent. Two intentions,
+ * two places. */
 
 /* Wer spricht — und das entscheidet die HERKUNFT, nicht die Art des Eintrags.
    
@@ -89,6 +84,7 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
   const [anhaenge, setAnhaenge] = useState<File[]>([]);
   const dateiwahl = useRef<HTMLInputElement>(null);
   const ende = useRef<HTMLDivElement>(null);
+  const verlaufRef = useRef<HTMLDivElement>(null);
 
   const agent = useQuery({
     queryKey: ["agent", agentId],
@@ -138,10 +134,24 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
       .catch(() => {});
   }, [agentId, neuestes, qc]);
 
+  /* The head's quiet line (#440): role and department, not the slug; the
+     department list is the one the shell keeps warm. */
+  const abteilungen = useQuery({
+    queryKey: ["departments"],
+    queryFn: () => api<Department[] | null>("/departments"),
+    staleTime: 300_000,
+  });
+  const abteilung = (abteilungen.data ?? []).find((d) => d.id === agent.data?.department_id)?.name ?? "";
+  const stumm = useMutation({
+    mutationFn: (muted: boolean) => setConversationMuted(thread.data!.conversation_id!, muted),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["thread", agentId] }),
+  });
+
   const alle = thread.data?.entries ?? [];
   const entries = alle;
   const marken = thread.data?.marks ?? {};
   const vorgaenge = thread.data?.tasks ?? [];
+  const aktuell = vorgaenge.find((v) => v.state === "in_progress");
   /* Der Schritt kommt aus derselben Abfrage, die der Grundriss macht — die
      Schale hält sie ohnehin warm. Ihn ein zweites Mal vom Server zu holen
      hieße, ihn ein zweites Mal zu bezahlen. */
@@ -330,70 +340,64 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
 
   return (
     <div className="tm-thread">
-      <header className="tm-thread-kopf">
-        {/* Who one talks to (#396): the face, the role and the state in
-            words — not the slug, which is the address, not the colleague. */}
-        <div className="tm-thread-wer">
-          {agent.data && (
+      <Kopf
+        verlauf={verlaufRef}
+        zeichen={
+          agent.data ? (
             <Gesicht
               schluessel={agent.data.slug}
               zustand={agent.data.killed ? "killed" : agent.data.status === "sleeping" ? "sleeping" : "working"}
-              groesse={36}
+              groesse={42}
             />
-          )}
-          <div>
-            <h1>{agent.data?.display_name ?? "…"}</h1>
-            <p>
-              {[agent.data?.job_title || agent.data?.slug, agent.data && t(`status.${agent.data.killed ? "killed" : agent.data.status}`, "")]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
-          </div>
-        </div>
-        {/* Zwei Symbole statt eines Feldes und eines Satzes: Die Kopfzeile
-            eines Verlaufs gehört dem, mit dem man spricht, und nicht den
-            Werkzeugen. Das Feld klappt erst auf, wenn jemand sucht. */}
-        <div className="tm-thread-werkzeuge">
-          {/* Die Hintergrundvorgänge. Sie sind das, was nach einer Nachricht
-              weitergeht, ohne dass etwas gesagt wird — und genau deshalb
-              waren sie unsichtbar: Der Verlauf zeigt, was gesagt wurde, und
-              ein Lauf, der seit einer Stunde arbeitet, hat seit einer Stunde
-              nichts gesagt (#308). */}
-          <button
-            className={`tm-werkzeug tm-vorgaenge${vorgaenge.length > 0 ? " hat" : ""}${vorgaengeOffen ? " auf" : ""}`}
-            onClick={() => setVorgaengeOffen((v) => !v)}
-            title={t("team.hintergrund")}
-            aria-label={t("team.hintergrund")}
-            aria-expanded={vorgaengeOffen}
-          >
-            <NavIcon name="checklist" />
-            {vorgaenge.length > 0 && <span className="tm-vorgaenge-zahl">{vorgaenge.length}</span>}
-          </button>
-          {/* Eine Lupe, nicht zwei: Sie macht die große Suche auf, schon auf
-              diesen Kollegen markiert. Vorher hatte der Verlauf sein eigenes
-              Feld, und dieselbe Frage hatte zwei Orte. */}
-          <button
-            className="tm-werkzeug"
-            onClick={() => agent.data && sucheOeffnen(agent.data)}
-            title={t("team.imVerlaufSuchen")}
-            aria-label={t("team.imVerlaufSuchen")}
-          >
-            <NavIcon name="search" />
-          </button>
-          {/* Der eine Weg von hier in die Konsole: an dem Agenten, den man
-              gerade vor sich hat. */}
-          <Link
-            to={`/agents/${agentId}`}
-            className="tm-werkzeug"
-            title={t("team.imAdmin")}
-            aria-label={t("team.imAdmin")}
-          >
-            <NavIcon name="cog" />
-          </Link>
-        </div>
-      </header>
-
-      {vorgaengeOffen && (
+          ) : null
+        }
+        titel={agent.data?.display_name ?? "…"}
+        zeile={
+          agent.data && (
+            <>
+              {(agent.data.job_title || abteilung) && (
+                <span>{[agent.data.job_title, abteilung].filter(Boolean).join(", ")}</span>
+              )}
+              <Zustand
+                zustand={agent.data.killed ? "killed" : agent.data.status === "sleeping" ? "sleeping" : "working"}
+                text={
+                  agent.data.killed
+                    ? t("conversation.stopped")
+                    : agent.data.status === "sleeping"
+                      ? t("conversation.asleep")
+                      : aktuell
+                        ? t("conversation.workingOn", { title: aktuell.title })
+                        : t("conversation.working")
+                }
+              />
+            </>
+          )
+        }
+        aktionen={[
+          {
+            icon: "checklist",
+            label: t("team.hintergrund"),
+            an: vorgaengeOffen,
+            zahl: vorgaenge.length,
+            onClick: () => setVorgaengeOffen((v) => !v),
+          },
+          { icon: "search", label: t("team.imVerlaufSuchen"), onClick: () => agent.data && sucheOeffnen(agent.data) },
+        ]}
+        menue={[
+          { icon: "user", label: t("conversation.profile"), to: `/agents/${agentId}` },
+          ...(thread.data?.conversation_id
+            ? [
+                {
+                  icon: "bell",
+                  label: thread.data.muted ? t("conversation.unmute") : t("conversation.mute"),
+                  an: !!thread.data.muted,
+                  onClick: () => stumm.mutate(!thread.data?.muted),
+                },
+              ]
+            : []),
+        ]}
+        unter={
+          vorgaengeOffen ? (
         <section className="tm-vorgaenge-flaeche" aria-label={t("team.hintergrund")}>
           {vorgaenge.length === 0 ? (
             <p className="tm-leise">{t("team.hintergrundLeer")}</p>
@@ -430,9 +434,11 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
             </ul>
           )}
         </section>
-      )}
+          ) : null
+        }
+      />
 
-      <div className="tm-verlauf">
+      <div className="tm-verlauf" ref={verlaufRef}>
         {thread.isLoading && <p className="tm-leise">{t("common.loading")}</p>}
         {!thread.isLoading && leitfaden && (
           <div className="tm-leitfaden" role="note">

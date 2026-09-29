@@ -307,6 +307,7 @@ export const postConversationMessage = (id: string, text: string, replyTo?: stri
     text,
     ...(replyTo ? { reply_to: replyTo } : {}),
   });
+export const renameConversation = (id: string, title: string) => patch<Conversation>(`/conversations/${id}`, { title });
 export const markConversationRead = (id: string, at: string) => post<void>(`/conversations/${id}/read`, { at });
 export const setConversationMuted = (id: string, muted: boolean) =>
   patch<{ muted: boolean }>(`/conversations/${id}/me`, { muted });
@@ -333,6 +334,9 @@ export type Verlauf = {
   /* Eine angenommene Nachricht wartet noch auf ihre Entscheidung. Das ist das
      einzige, was kein Eintrag ist, sondern der Zustand zwischen zweien. */
   pending?: boolean;
+  /** The direct conversation behind the thread (#440), once there is one. */
+  conversation_id?: string;
+  muted?: boolean;
 };
 
 /* Eine Reaktion auf einen Vorgang, schon gruppiert: welches Zeichen, wie oft,

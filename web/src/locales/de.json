@@ -2878,6 +2878,14 @@
     "replyingTo": "Antwort an {{name}}",
     "older": "Ältere Nachrichten zeigen",
     "agentHint": "Ein KI-Kollege antwortet in einer Gruppe nur, wenn er angesprochen wird: mit @Name oder mit einer Antwort auf seine Nachricht.",
-    "membersCount": "Mitglieder: {{count}}"
+    "membersCount": "Mitglieder: {{count}}",
+    "back": "Zurück zu den Gesprächen",
+    "more": "Mehr",
+    "profile": "Profil und Einstellungen",
+    "stopped": "gestoppt",
+    "asleep": "schläft",
+    "working": "arbeitet",
+    "workingOn": "arbeitet an {{title}}",
+    "rename": "Gruppe umbenennen"
   }
 }

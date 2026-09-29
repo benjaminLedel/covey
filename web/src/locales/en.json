@@ -2878,6 +2878,14 @@
     "replyingTo": "Replying to {{name}}",
     "older": "Show older messages",
     "agentHint": "An AI colleague answers in a group only when addressed: with @name, or with a reply to its message.",
-    "membersCount": "Members: {{count}}"
+    "membersCount": "Members: {{count}}",
+    "back": "Back to the conversations",
+    "more": "More",
+    "profile": "Profile and settings",
+    "stopped": "stopped",
+    "asleep": "asleep",
+    "working": "working",
+    "workingOn": "working on {{title}}",
+    "rename": "Rename group"
   }
 }

@@ -2878,6 +2878,14 @@
     "replyingTo": "Odpowiedź dla {{name}}",
     "older": "Pokaż starsze wiadomości",
     "agentHint": "Współpracownik AI odpowiada w grupie tylko wtedy, gdy ktoś się do niego zwróci: przez @nazwa lub odpowiedź na jego wiadomość.",
-    "membersCount": "Członkowie: {{count}}"
+    "membersCount": "Członkowie: {{count}}",
+    "back": "Wróć do rozmów",
+    "more": "Więcej",
+    "profile": "Profil i ustawienia",
+    "stopped": "zatrzymany",
+    "asleep": "śpi",
+    "working": "pracuje",
+    "workingOn": "pracuje nad: {{title}}",
+    "rename": "Zmień nazwę grupy"
   }
 }

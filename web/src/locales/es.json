@@ -2878,6 +2878,14 @@
     "replyingTo": "Respuesta a {{name}}",
     "older": "Mostrar mensajes anteriores",
     "agentHint": "Un colega de IA solo responde en un grupo cuando se le menciona: con @nombre o respondiendo a su mensaje.",
-    "membersCount": "Miembros: {{count}}"
+    "membersCount": "Miembros: {{count}}",
+    "back": "Volver a las conversaciones",
+    "more": "Más",
+    "profile": "Perfil y ajustes",
+    "stopped": "detenido",
+    "asleep": "dormido",
+    "working": "trabajando",
+    "workingOn": "trabajando en {{title}}",
+    "rename": "Renombrar grupo"
   }
 }

@@ -7,8 +7,10 @@ import {
   api,
   conversationMessages,
   markConversationRead,
+  photoUrl,
   postConversationMessage,
   removeConversationMember,
+  renameConversation,
   setConversationMuted,
   type Conversation,
   type ConversationMember,
@@ -19,6 +21,7 @@ import {
 import { Markdown } from "../components/Markdown";
 import { Avatar } from "../components/person";
 import { NavIcon } from "../components/navicons";
+import Kopf, { Stapel } from "./Kopf";
 
 /* A conversation with members (#440): a group, or a direct conversation
  * between two people. The direct conversation with an agent keeps its own
@@ -48,6 +51,9 @@ export default function Gespraech({ id, me }: { id: string; me: Principal }) {
   const [antwortAuf, setAntwortAuf] = useState<ConversationMessage | null>(null);
   const [mitgliederOffen, setMitgliederOffen] = useState(false);
   const ende = useRef<HTMLDivElement>(null);
+  const verlaufRef = useRef<HTMLDivElement>(null);
+  const [umbenennen, setUmbenennen] = useState(false);
+  const [neuerTitel, setNeuerTitel] = useState("");
 
   const conv = useQuery({
     queryKey: ["conversation", id, "kopf"],
@@ -85,6 +91,20 @@ export default function Gespraech({ id, me }: { id: string; me: Principal }) {
   const ich = aktive.find((m) => m.kind === "human" && m.id === me.ID);
   const gruppe = c?.kind === "group";
   const wer = (m: ConversationMessage) => aktive.find((x) => x.kind === m.author_kind && x.id === m.author_id);
+  const anderer = aktive.find((m) => !(m.kind === "human" && m.id === me.ID));
+  /* The other person's function and photo come from the org chart the shell
+     keeps warm; a conversation carries only names. */
+  const chart = useQuery({ queryKey: ["org-chart"], queryFn: () => api<OrgChart>("/org/chart"), staleTime: 300_000 });
+  const andererMensch = anderer?.kind === "human" ? chart.data?.humans.find((h) => h.id === anderer.id) : undefined;
+  const andererFoto = andererMensch ? photoUrl(andererMensch.id, andererMensch.photo_id) : undefined;
+  const taufen = useMutation({
+    mutationFn: (titel: string) => renameConversation(id, titel),
+    onSuccess: () => {
+      setUmbenennen(false);
+      qc.invalidateQueries({ queryKey: ["conversation", id] });
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+    },
+  });
   const vonMir = (m: ConversationMessage) => m.author_kind === "human" && m.author_id === me.ID;
 
   const senden = useMutation({
@@ -119,51 +139,81 @@ export default function Gespraech({ id, me }: { id: string; me: Principal }) {
 
   return (
     <div className="tm-thread">
-      <header className="tm-thread-kopf">
-        <div className="tm-thread-wer">
-          {c && !gruppe && (() => {
-            const anderer = aktive.find((m) => m !== ich);
-            return anderer ? <Avatar name={anderer.name} human={anderer.kind === "human"} slug={anderer.slug} size={36} /> : null;
-          })()}
-          {gruppe && (
-            <span className="tm-gruppe-zeichen" aria-hidden="true">
-              <NavIcon name="chat" />
-            </span>
-          )}
-          <div>
-            <h1>{c ? gespraechName(c, me.ID) : "…"}</h1>
-            <p>{gruppe ? t("conversation.membersCount", { count: aktive.length }) : aktive.find((m) => m !== ich)?.email ?? ""}</p>
-          </div>
-        </div>
-        <div className="tm-thread-werkzeuge">
-          <button
-            className={`tm-werkzeug${ich?.muted ? " auf" : ""}`}
-            onClick={() => stumm.mutate(!ich?.muted)}
-            title={ich?.muted ? t("conversation.unmute") : t("conversation.mute")}
-            aria-label={ich?.muted ? t("conversation.unmute") : t("conversation.mute")}
-            aria-pressed={!!ich?.muted}
-          >
-            <NavIcon name="bell" />
-          </button>
-          {gruppe && (
+      <Kopf
+        verlauf={verlaufRef}
+        zeichen={
+          !c ? null : gruppe ? (
             <button
-              className={`tm-werkzeug${mitgliederOffen ? " auf" : ""}`}
+              className="tm-stapel-knopf"
               onClick={() => setMitgliederOffen((v) => !v)}
-              title={t("conversation.members")}
               aria-label={t("conversation.members")}
               aria-expanded={mitgliederOffen}
             >
-              <NavIcon name="user" />
+              <Stapel zahl={aktive.length}>
+                {aktive.slice(0, 3).map((m) => (
+                  <Avatar key={`${m.kind}:${m.id}`} name={m.name} human={m.kind === "human"} slug={m.slug} size={28} />
+                ))}
+              </Stapel>
             </button>
-          )}
-        </div>
-      </header>
+          ) : anderer ? (
+            <Avatar name={anderer.name} human={anderer.kind === "human"} slug={anderer.slug} photo={andererFoto} size={42} />
+          ) : null
+        }
+        titel={
+          umbenennen ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (neuerTitel.trim()) taufen.mutate(neuerTitel.trim());
+              }}
+            >
+              <input
+                className="tm-titel-feld"
+                autoFocus
+                value={neuerTitel}
+                maxLength={120}
+                onChange={(e) => setNeuerTitel(e.target.value)}
+                onBlur={() => setUmbenennen(false)}
+                onKeyDown={(e) => e.key === "Escape" && setUmbenennen(false)}
+                aria-label={t("conversation.groupTitle")}
+              />
+            </form>
+          ) : c ? (
+            gespraechName(c, me.ID)
+          ) : (
+            "…"
+          )
+        }
+        zeile={
+          c &&
+          (gruppe ? (
+            <span>{t("conversation.membersCount", { count: aktive.length })}</span>
+          ) : (
+            (andererMensch?.job_title || anderer?.email) && <span>{andererMensch?.job_title || anderer?.email}</span>
+          ))
+        }
+        aktionen={
+          gruppe
+            ? [{ icon: "user", label: t("conversation.members"), an: mitgliederOffen, onClick: () => setMitgliederOffen((v) => !v) }]
+            : []
+        }
+        menue={[
+          ...(!gruppe && anderer?.kind === "human" ? [{ icon: "user", label: t("conversation.profile"), to: `/people/${anderer.id}` }] : []),
+          ...(gruppe && ich?.role === "owner"
+            ? [{ icon: "note", label: t("conversation.rename"), onClick: () => { setNeuerTitel(c?.title ?? ""); setUmbenennen(true); } }]
+            : []),
+          {
+            icon: "bell",
+            label: ich?.muted ? t("conversation.unmute") : t("conversation.mute"),
+            an: !!ich?.muted,
+            onClick: () => stumm.mutate(!ich?.muted),
+          },
+          ...(gruppe ? [{ icon: "logout", label: t("conversation.leave"), danger: true, onClick: () => gehen.mutate() }] : []),
+        ]}
+        unter={gruppe && mitgliederOffen && c ? <Mitglieder conv={c} me={me} /> : null}
+      />
 
-      {gruppe && mitgliederOffen && c && (
-        <Mitglieder conv={c} me={me} onLeave={() => gehen.mutate()} />
-      )}
-
-      <div className="tm-verlauf">
+      <div className="tm-verlauf" ref={verlaufRef}>
         {seiten.hasNextPage && (
           <button className="btn sm tm-aelter" onClick={() => seiten.fetchNextPage()} disabled={seiten.isFetchingNextPage}>
             {t("conversation.older")}
@@ -289,7 +339,7 @@ export default function Gespraech({ id, me }: { id: string; me: Principal }) {
 
 /* The members of a group: who is in it, and the one way to take somebody in
    — from the org chart, people and colleagues alike. */
-function Mitglieder({ conv, me, onLeave }: { conv: Conversation; me: Principal; onLeave: () => void }) {
+function Mitglieder({ conv, me }: { conv: Conversation; me: Principal }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [wahl, setWahl] = useState("");
@@ -342,9 +392,6 @@ function Mitglieder({ conv, me, onLeave }: { conv: Conversation; me: Principal; 
         </select>
         <button className="btn sm" disabled={!wahl || neu.isPending} onClick={() => neu.mutate(wahl)}>
           {t("conversation.add")}
-        </button>
-        <button className="btn sm" style={{ marginLeft: "auto" }} onClick={onLeave}>
-          {t("conversation.leave")}
         </button>
       </div>
       {(neu.isError || raus.isError) && <p className="tm-fehler">{String(neu.error ?? raus.error)}</p>}

@@ -730,3 +730,9 @@ func (s *Store) Message(ctx context.Context, id uuid.UUID) (Message, error) {
 	}
 	return out[0], nil
 }
+
+// SetTitle renames a group.
+func (s *Store) SetTitle(ctx context.Context, id uuid.UUID, title string) error {
+	_, err := s.pool.Exec(ctx, `UPDATE conversations SET title = $2 WHERE id = $1 AND kind = 'group'`, id, title)
+	return err
+}

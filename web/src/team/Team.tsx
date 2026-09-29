@@ -150,7 +150,7 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
 
   return (
     <SucheProvider value={sucheOeffnen}>
-    <div className="flex min-h-screen tm-drei">
+    <div className={`flex min-h-screen tm-drei${pfad === "/team" ? " tm-liste" : ""}${/^\/team\/(c\/)?[^/]+$/.test(pfad) && !notizenOffen ? " tm-offen" : ""}`}>
       {/* The rail (#388): where one is — team, notes, administration — as
           icons, each with its name as tooltip and for screen readers. The
           list beside it changes with the choice; the content right of it

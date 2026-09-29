@@ -438,6 +438,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/conversations", s.rbac(anyRole, s.handleListConversations))
 	mux.Handle("POST /api/v1/conversations", s.rbac(anyRole, s.handleCreateConversation))
 	mux.Handle("GET /api/v1/conversations/{id}", s.conversationScoped(s.handleGetConversation))
+	mux.Handle("PATCH /api/v1/conversations/{id}", s.conversationScoped(s.handleRenameConversation))
 	mux.Handle("GET /api/v1/conversations/{id}/messages", s.conversationScoped(s.handleConversationMessages))
 	mux.Handle("POST /api/v1/conversations/{id}/messages", s.conversationScoped(s.handlePostConversationMessage))
 	mux.Handle("POST /api/v1/conversations/{id}/read", s.conversationScoped(s.handleConversationRead))

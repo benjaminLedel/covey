@@ -2878,6 +2878,14 @@
     "replyingTo": "Antwoord aan {{name}}",
     "older": "Oudere berichten tonen",
     "agentHint": "Een AI-collega antwoordt in een groep alleen als hij wordt aangesproken: met @naam of met een antwoord op zijn bericht.",
-    "membersCount": "Leden: {{count}}"
+    "membersCount": "Leden: {{count}}",
+    "back": "Terug naar de gesprekken",
+    "more": "Meer",
+    "profile": "Profiel en instellingen",
+    "stopped": "gestopt",
+    "asleep": "slaapt",
+    "working": "aan het werk",
+    "workingOn": "werkt aan {{title}}",
+    "rename": "Groep hernoemen"
   }
 }

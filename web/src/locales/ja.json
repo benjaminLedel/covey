@@ -2878,6 +2878,14 @@
     "replyingTo": "{{name}} への返信",
     "older": "以前のメッセージを表示",
     "agentHint": "グループでは、AIの同僚は呼びかけられたときだけ答えます。@名前 で呼ぶか、そのメッセージに返信してください。",
-    "membersCount": "メンバー: {{count}}"
+    "membersCount": "メンバー: {{count}}",
+    "back": "会話一覧に戻る",
+    "more": "その他",
+    "profile": "プロフィールと設定",
+    "stopped": "停止中",
+    "asleep": "休止中",
+    "working": "作業中",
+    "workingOn": "{{title}} に取り組み中",
+    "rename": "グループ名を変更"
   }
 }

@@ -482,3 +482,45 @@ func (s *Server) handleRemoveConversationMember(w http.ResponseWriter, r *http.R
 	s.chatEreignis(c.OrgID, uuid.Nil, c.ID, "members", nil)
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// handleRenameConversation renames a group: {"title": "…"}. Only its owner
+// does; a direct conversation is named after the other member.
+func (s *Server) handleRenameConversation(w http.ResponseWriter, r *http.Request, c chat.Conversation) {
+	if c.Kind != chat.KindGroup {
+		writeErr(w, http.StatusConflict, "a direct conversation has no title")
+		return
+	}
+	p := principalFrom(r)
+	owner := false
+	for _, m := range c.Active() {
+		if m.Kind == chat.MemberHuman && m.ID == p.ID && m.Role == "owner" {
+			owner = true
+		}
+	}
+	if !owner {
+		writeErr(w, http.StatusForbidden, "only the group's owner renames it")
+		return
+	}
+	var in struct {
+		Title string `json:"title"`
+	}
+	titel := ""
+	if err := readJSON(r, &in); err == nil {
+		titel = strings.TrimSpace(in.Title)
+	}
+	if titel == "" || len([]rune(titel)) > 120 {
+		writeErr(w, http.StatusBadRequest, "a group needs a title of at most 120 characters")
+		return
+	}
+	if err := s.Chat.SetTitle(r.Context(), c.ID, titel); err != nil {
+		mapErr(w, err)
+		return
+	}
+	s.chatEreignis(c.OrgID, uuid.Nil, c.ID, "renamed", nil)
+	neu, err := s.Chat.Get(r.Context(), c.ID)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, neu)
+}

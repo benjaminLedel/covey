@@ -132,6 +132,10 @@ type chatThread struct {
 	   (internal/backlog/reactions.go) — die Oberfläche zeigt sie deshalb am
 	   ersten Eintrag eines Vorgangs. */
 	Marks map[string][]chatMark `json:"marks"`
+	/* The direct conversation behind the thread (#440), once there is one,
+	   and whether the person muted it. */
+	ConversationID *uuid.UUID `json:"conversation_id,omitempty"`
+	Muted          bool       `json:"muted"`
 }
 
 // threadTasks is how far back a thread reaches. Whoever wants more than the
@@ -225,6 +229,14 @@ func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 		if out.Pending, err = s.Chat.Pending(r.Context(), convID); err != nil {
 			mapErr(w, err)
 			return
+		}
+		out.ConversationID = &convID
+		if c, err := s.Chat.Get(r.Context(), convID); err == nil {
+			for _, m := range c.Active() {
+				if m.Kind == chat.MemberHuman && m.ID == p.ID {
+					out.Muted = m.Muted
+				}
+			}
 		}
 	}
 	writeJSON(w, http.StatusOK, out)
