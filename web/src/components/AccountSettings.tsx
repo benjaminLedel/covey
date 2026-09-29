@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { api, del, patch, put, type Principal } from "../api";
 import ApiKeys from "./ApiKeys";
 import MobilePairing from "./MobilePairing";
+import { LANG_LIST, istLang, ladeSprache, merkeSprache } from "../i18n";
 
 type Session = { created_at: string; expires_at: string; current: boolean };
 
@@ -93,6 +94,32 @@ export default function AccountSettings({ me }: { me: Principal }) {
           {t("account.save")}
         </button>
       </form>
+
+      {/* The language (#432): here with the other settings of the account,
+          not in the menu at the foot, where it was the rarest concern among
+          the things one reaches for. Kept in this browser, like the
+          appearance. */}
+      <div className="card mb-4 flex gap-3 items-end flex-wrap">
+        <div className="min-w-52">
+          <label htmlFor="account-lang">{t("lang.label")}</label>
+          <select
+            id="account-lang"
+            value={istLang(i18n.language) ? i18n.language : "en"}
+            onChange={(e) => {
+              const lang = e.target.value;
+              if (!istLang(lang)) return;
+              merkeSprache(lang);
+              void ladeSprache(lang);
+            }}
+          >
+            {LANG_LIST.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.flag} {l.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
 
       <form
         className="card mb-4"

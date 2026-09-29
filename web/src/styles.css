@@ -1114,47 +1114,6 @@ kbd {
 .lang-pick-list button.on { background: var(--tint); color: var(--text-primary); }
 /* Im Fußmenü ist die Sprachwahl eine Zeile wie die anderen; die Liste klappt
    darunter auf und rückt ein, damit sie zur Zeile gehört. */
-.lang-pick-row {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  width: 100%;
-  padding: 6px 9px;
-  border: none;
-  background: none;
-  border-radius: 8px;
-  font: inherit;
-  font-size: 12.5px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  text-align: left;
-}
-.lang-pick-row:hover { background: var(--tint-weak); color: var(--text-primary); }
-.lang-pick-row .lb { flex: 1; }
-.lang-pick-row .cur {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--text-muted);
-  font-size: 11.5px;
-}
-.lang-pick-row .cur .flag { font-size: 14px; line-height: 1; }
-.lang-pick-row .ic {
-  width: 14px;
-  height: 14px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.6;
-  opacity: 0.75;
-}
-.lang-pick.menu .lang-pick-list {
-  background: none;
-  border: none;
-  box-shadow: none;
-  padding: 2px 0 2px 22px;
-  min-width: 0;
-  max-height: 176px;
-}
 
 .lang-switch {
   position: fixed;

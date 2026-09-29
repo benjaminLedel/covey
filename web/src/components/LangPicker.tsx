@@ -5,7 +5,7 @@ import i18n, { LANG_BY_CODE, LANG_LIST, istLang, ladeSprache, merkeSprache } fro
 import type { Lang } from "../langs";
 
 /* The language picker — the same control in two places: at the top of the
-   sign-in page (`pill`) and in the footer menu of the signed-in UI (`menu`).
+   sign-in page (`pill`); signed in, the language is a setting of the account (#432).
    As with the appearance (ThemeSwitch) the choice stands in both places in
    the same component, so it does not drift apart.
 
@@ -14,17 +14,6 @@ import type { Lang } from "../langs";
    see what exists, and find one's own among them — even when
    the UI stands in a language one does not read. Hence
    the flag and the native name side by side, not an abbreviation. */
-
-/* The same globe as in the navigation (NavIcon "globe") — the entry should
-   look like the rows below it, not like a foreign body. */
-function NavGlobe() {
-  return (
-    <svg className="ic" viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M3 12h18M12 3c2.5 2.6 2.5 15.4 0 18M12 3c-2.5 2.6-2.5 15.4 0 18" />
-    </svg>
-  );
-}
 
 function Chevron() {
   return (
@@ -38,7 +27,7 @@ export default function LangPicker({
   variant = "pill",
   onSelect,
 }: {
-  variant?: "pill" | "menu";
+  variant?: "pill";
   /* Before sign-in the language hangs on the address (/fr/connexion), so there
      the page changes with it — the caller says where to. Without a given
      callback it is enough to swap the catalogue and remember the choice. */
@@ -93,25 +82,6 @@ export default function LangPicker({
       ))}
     </div>
   );
-
-  if (variant === "menu") {
-    return (
-      <div className="lang-pick menu">
-        <button className="lang-pick-row" onClick={() => setOffen((v) => !v)} aria-expanded={offen}>
-          <NavGlobe />
-          <span className="lb">{t("lang.label")}</span>
-          <span className="cur">
-            <span className="flag" aria-hidden="true">
-              {info.flag}
-            </span>
-            {info.name}
-          </span>
-          <Chevron />
-        </button>
-        {offen && liste}
-      </div>
-    );
-  }
 
   return (
     <div className={`lang-pick ${variant}`}>
