@@ -25,7 +25,14 @@ func Render(v Voice) string {
 	if v.Language != "" {
 		fmt.Fprintf(&b, " (%s)", v.Language)
 	}
-	fmt.Fprintf(&b, ", built from %d texts, %d words. Write in it.\n\n", v.Documents, v.Words)
+	if v.Source == FromDescription {
+		// Said in the file because it is true of everything below: the card
+		// and the passages were written from a description, not taken from
+		// anybody's texts — and there is no profile block at the end.
+		b.WriteString(", described in words rather than measured from texts. Write in it.\n\n")
+	} else {
+		fmt.Fprintf(&b, ", built from %d texts, %d words. Write in it.\n\n", v.Documents, v.Words)
+	}
 
 	if card := strings.TrimSpace(v.ReleasedCard); card != "" {
 		b.WriteString("## The hand\n\n")
@@ -33,7 +40,14 @@ func Render(v Voice) string {
 		b.WriteString("\n\n")
 	}
 
-	if len(v.Exemplars) > 0 {
+	if len(v.Exemplars) > 0 && v.Source == FromDescription {
+		b.WriteString("## Passages in this voice\n\n" +
+			"Written to show the voice, not material to reuse: this is what the movement looks like. " +
+			"Match it — the opening, how a fact is brought in, how long a paragraph runs.\n\n")
+		for _, ex := range v.Exemplars {
+			fmt.Fprintf(&b, "**%s**\n\n> %s\n\n", ex.Role, blockquote(ex.Text))
+		}
+	} else if len(v.Exemplars) > 0 {
 		b.WriteString("## Passages of this author\n\n" +
 			"Not material to reuse, and not a topic: this is what the movement looks like. " +
 			"Match it — the opening, how a fact is brought in, how long a paragraph runs.\n\n")

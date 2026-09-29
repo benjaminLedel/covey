@@ -54,6 +54,22 @@ type Voice struct {
 	// ChatTone is how an agent carrying this voice talks in the team chat
 	// (#457) — set, not built (chattone.go).
 	ChatTone ChatTone `json:"chat_tone"`
+	// Source is where the voice comes from (#458): FromTexts, measured from a
+	// corpus, or FromDescription, written from a description in words and
+	// carrying no profile (describe.go).
+	Source string `json:"source"`
+	// Purpose is what the voice is for — blog, support mail, chat, offers.
+	Purpose string `json:"purpose"`
+	// Description is what a described voice was written from.
+	Description string `json:"description"`
+	// DraftExemplars are exemplars a model wrote, waiting for the release like
+	// the card. Empty when nothing is pending.
+	DraftExemplars []Exemplar `json:"draft_exemplars"`
+	// SuggestedChatTone is what the description suggests for the team chat —
+	// shown, not applied: a chat tone acts as soon as it is set.
+	SuggestedChatTone ChatTone `json:"suggested_chat_tone"`
+	// DraftedBy is the agent that drafted the voice (covey/voice_draft).
+	DraftedBy *AgentRef `json:"drafted_by,omitempty"`
 	// Agents are the agents carrying this voice — named, not counted, for the
 	// same reason the workplaces name theirs: whoever rebuilds or deletes one
 	// wants to know whom it concerns.
@@ -88,21 +104,71 @@ const (
 // nobody — there is nothing to write into a TONE.md.
 func (v Voice) BuiltOK() bool { return v.Version > 0 && len(v.Profile.Bands) > 0 }
 
+// Assignable reports whether there is anything to write into a TONE.md. A
+// measured voice is once it is built — its exemplars are quotes and act at
+// once, only the card waits. A described voice is once a person has released
+// it: everything in it was written by a model, so nothing of it acts before.
+func (v Voice) Assignable() bool {
+	if v.Source == FromDescription {
+		return v.ReleasedCard != "" && len(v.Exemplars) > 0
+	}
+	return v.BuiltOK()
+}
+
+// Measured reports whether the voice has a profile the style gate can check
+// against. A described one has none, and the gate skips it (spec/24).
+func (v Voice) Measured() bool { return len(v.Profile.Bands) > 0 }
+
 type Store struct{ pool *pgxpool.Pool }
 
 func New(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
-// Create registers a voice. It has no artefacts yet: texts are uploaded, then
-// it is built.
+// Create registers a voice. It has no artefacts yet: texts are uploaded and
+// it is built, or it is written from a description.
 func (s *Store) Create(ctx context.Context, orgID uuid.UUID, name, language string) (Voice, error) {
-	name = strings.TrimSpace(name)
+	return s.CreateWith(ctx, orgID, Draft{Name: name, Language: language})
+}
+
+// Draft is what a voice starts with.
+type Draft struct {
+	Name     string
+	Language string
+	Purpose  string
+	// Source is FromTexts unless said otherwise. Description is kept for a
+	// described voice that is written later — the draft an agent files.
+	Source      string
+	Description string
+	// DraftedBy is the agent that filed it, nil for a person.
+	DraftedBy *uuid.UUID
+}
+
+// CreateWith registers a voice with a purpose, a source or the agent that
+// drafted it.
+func (s *Store) CreateWith(ctx context.Context, orgID uuid.UUID, in Draft) (Voice, error) {
+	name := strings.TrimSpace(in.Name)
 	if name == "" {
 		return Voice{}, fmt.Errorf("%w: a voice needs a name", ErrInvalid)
 	}
-	v := Voice{ID: uuid.New(), OrgID: orgID, Name: name, Language: strings.TrimSpace(language)}
-	err := s.pool.QueryRow(ctx, `INSERT INTO voices (id, org_id, name, language)
-		VALUES ($1,$2,$3,$4) RETURNING created_at, updated_at`,
-		v.ID, v.OrgID, v.Name, v.Language).Scan(&v.CreatedAt, &v.UpdatedAt)
+	purpose, err := NormalizePurpose(in.Purpose)
+	if err != nil {
+		return Voice{}, err
+	}
+	source := in.Source
+	switch source {
+	case "":
+		source = FromTexts
+	case FromTexts, FromDescription:
+	default:
+		return Voice{}, fmt.Errorf("%w: a voice comes from %q or %q", ErrInvalid, FromTexts, FromDescription)
+	}
+	description := strings.TrimSpace(in.Description)
+	if n := len([]rune(description)); n > DescriptionMax {
+		return Voice{}, fmt.Errorf("%w: the description has %d characters, at most %d", ErrInvalid, n, DescriptionMax)
+	}
+	id := uuid.New()
+	_, err = s.pool.Exec(ctx, `INSERT INTO voices (id, org_id, name, language, purpose, source, description, drafted_by)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+		id, orgID, name, strings.TrimSpace(in.Language), purpose, source, description, in.DraftedBy)
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 		return Voice{}, ErrExists
@@ -110,7 +176,73 @@ func (s *Store) Create(ctx context.Context, orgID uuid.UUID, name, language stri
 	if err != nil {
 		return Voice{}, err
 	}
-	return v, nil
+	return s.Get(ctx, orgID, id)
+}
+
+// SetPurpose changes what a voice is for.
+func (s *Store) SetPurpose(ctx context.Context, orgID, id uuid.UUID, purpose string) (Voice, error) {
+	purpose, err := NormalizePurpose(purpose)
+	if err != nil {
+		return Voice{}, err
+	}
+	tag, err := s.pool.Exec(ctx, `UPDATE voices SET purpose=$3, updated_at=now() WHERE org_id=$1 AND id=$2`,
+		orgID, id, purpose)
+	if err != nil {
+		return Voice{}, err
+	}
+	if tag.RowsAffected() == 0 {
+		return Voice{}, ErrNotFound
+	}
+	return s.Get(ctx, orgID, id)
+}
+
+// SaveDescribed stores what the model wrote from a description: a draft card,
+// draft exemplars and a suggested chat tone. Nothing of it acts — the released
+// card and the exemplars an agent reads stay as they were until a person
+// releases (Release).
+func (s *Store) SaveDescribed(ctx context.Context, orgID, id uuid.UUID, description, language string, d Described) (Voice, error) {
+	exemplars, err := json.Marshal(orEmptyExemplars(d.Exemplars))
+	if err != nil {
+		return Voice{}, err
+	}
+	tone, err := json.Marshal(d.ChatTone)
+	if err != nil {
+		return Voice{}, err
+	}
+	tag, err := s.pool.Exec(ctx, `UPDATE voices SET source=$3, description=$4, card=$5, draft_exemplars=$6,
+		suggested_chat_tone=$7, language=CASE WHEN $8 <> '' THEN $8 ELSE language END, updated_at=now()
+		WHERE org_id=$1 AND id=$2`,
+		orgID, id, FromDescription, strings.TrimSpace(description), d.Card, exemplars, tone, language)
+	if err != nil {
+		return Voice{}, err
+	}
+	if tag.RowsAffected() == 0 {
+		return Voice{}, ErrNotFound
+	}
+	return s.Get(ctx, orgID, id)
+}
+
+// SaveRefined stores a revised draft: the card always, the exemplars only when
+// the voice is described (measured exemplars are quotes, not something to
+// revise). Like every draft it acts only once released.
+func (s *Store) SaveRefined(ctx context.Context, orgID, id uuid.UUID, card string, exemplars []Exemplar) (Voice, error) {
+	var raw []byte
+	if exemplars != nil {
+		var err error
+		if raw, err = json.Marshal(exemplars); err != nil {
+			return Voice{}, err
+		}
+	}
+	tag, err := s.pool.Exec(ctx, `UPDATE voices SET card=$3,
+		draft_exemplars=CASE WHEN $4::jsonb IS NULL THEN draft_exemplars ELSE $4::jsonb END,
+		updated_at=now() WHERE org_id=$1 AND id=$2`, orgID, id, card, raw)
+	if err != nil {
+		return Voice{}, err
+	}
+	if tag.RowsAffected() == 0 {
+		return Voice{}, ErrNotFound
+	}
+	return s.Get(ctx, orgID, id)
 }
 
 // List returns the organisation's voices, with the agents carrying each.
@@ -283,8 +415,12 @@ func (s *Store) SaveBuild(ctx context.Context, orgID, id uuid.UUID, b Built, car
 	if err != nil {
 		return Voice{}, err
 	}
+	// A build makes a voice measured, whatever it was before: the exemplars
+	// are quotes from the corpus now, and a model's draft exemplars from an
+	// earlier description have nothing left to wait for.
 	tag, err := s.pool.Exec(ctx, `UPDATE voices SET version=version+1, profile=$3, exemplars=$4,
 		contrast=$5, notes=$6, card=$7, language=$8, words=$9, documents=$10,
+		source='texts', draft_exemplars='[]',
 		built_at=now(), updated_at=now() WHERE org_id=$1 AND id=$2`,
 		orgID, id, profile, exemplars, contrast, notes, card, b.Profile.Language, b.Words, b.Docs)
 	if err != nil {
@@ -298,7 +434,8 @@ func (s *Store) SaveBuild(ctx context.Context, orgID, id uuid.UUID, b Built, car
 
 // Release makes a card the one that acts. Passing an edited text is deliberate:
 // whoever releases a description of their own hand may correct it first, and
-// what they release is then what they wrote.
+// what they release is then what they wrote. The exemplars a model drafted for
+// a described voice are released with it — they are the same kind of claim.
 func (s *Store) Release(ctx context.Context, orgID, id, by uuid.UUID, card string) (Voice, error) {
 	card = strings.TrimSpace(card)
 	if card == "" {
@@ -309,7 +446,9 @@ func (s *Store) Release(ctx context.Context, orgID, id, by uuid.UUID, card strin
 		byArg = nil
 	}
 	tag, err := s.pool.Exec(ctx, `UPDATE voices SET released_card=$3, released_at=now(),
-		released_by=$4, updated_at=now() WHERE org_id=$1 AND id=$2`, orgID, id, card, byArg)
+		released_by=$4,
+		exemplars=CASE WHEN jsonb_array_length(draft_exemplars) > 0 THEN draft_exemplars ELSE exemplars END,
+		draft_exemplars='[]', updated_at=now() WHERE org_id=$1 AND id=$2`, orgID, id, card, byArg)
 	if err != nil {
 		return Voice{}, err
 	}
@@ -414,22 +553,46 @@ func (s *Store) carriers(ctx context.Context, voiceID uuid.UUID) ([]AgentRef, er
 
 const selectVoices = `SELECT v.id, v.org_id, v.name, v.language, v.version, v.profile, v.exemplars,
 	v.contrast, v.notes, v.card, v.released_card, v.released_at, v.words, v.documents,
-	v.built_at, v.created_at, v.updated_at, v.chat_tone FROM voices v`
+	v.built_at, v.created_at, v.updated_at, v.chat_tone, v.source, v.purpose, v.description,
+	v.draft_exemplars, v.suggested_chat_tone, d.id, d.slug, d.display_name
+	FROM voices v LEFT JOIN agents d ON d.id = v.drafted_by`
 
 func scanVoice(rows pgx.Rows) (Voice, error) {
 	var v Voice
-	var profile, exemplars, contrast, notes, tone []byte
+	var profile, exemplars, contrast, notes, tone, draftEx, suggested []byte
+	var byID *uuid.UUID
+	var bySlug, byName *string
 	if err := rows.Scan(&v.ID, &v.OrgID, &v.Name, &v.Language, &v.Version, &profile, &exemplars,
 		&contrast, &notes, &v.Card, &v.ReleasedCard, &v.ReleasedAt, &v.Words, &v.Documents,
-		&v.BuiltAt, &v.CreatedAt, &v.UpdatedAt, &tone); err != nil {
+		&v.BuiltAt, &v.CreatedAt, &v.UpdatedAt, &tone, &v.Source, &v.Purpose, &v.Description,
+		&draftEx, &suggested, &byID, &bySlug, &byName); err != nil {
 		return Voice{}, err
 	}
+	if byID != nil {
+		v.DraftedBy = &AgentRef{ID: *byID, Slug: deref(bySlug), DisplayName: deref(byName)}
+	}
+	_ = json.Unmarshal(draftEx, &v.DraftExemplars)
+	_ = json.Unmarshal(suggested, &v.SuggestedChatTone)
 	_ = json.Unmarshal(tone, &v.ChatTone)
 	_ = json.Unmarshal(profile, &v.Profile)
 	_ = json.Unmarshal(exemplars, &v.Exemplars)
 	_ = json.Unmarshal(contrast, &v.Contrast)
 	_ = json.Unmarshal(notes, &v.Notes)
 	return v, nil
+}
+
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+func orEmptyExemplars(in []Exemplar) []Exemplar {
+	if in == nil {
+		return []Exemplar{}
+	}
+	return in
 }
 
 func orEmpty(in []Contrast) []Contrast {

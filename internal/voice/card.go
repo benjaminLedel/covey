@@ -46,6 +46,9 @@ func CardPrompt(b Built, name string, pairs []Correction) string {
 	fmt.Fprintf(&sb, "Describe the hand of the author whose texts are measured below. "+
 		"Write the description IN THE LANGUAGE OF THE CORPUS (%s), 250 to %d words, as continuous prose "+
 		"under these five headings: opening, argument, facts, sentences and paragraphs, and never.\n\n", lang, cardWords)
+	if w, ok := purposeWords[b.Purpose]; ok {
+		fmt.Fprintf(&sb, "The texts are %s; describe the hand in that register.\n\n", w)
+	}
 	sb.WriteString("Rules, and they decide whether this is usable at all:\n" +
 		"- Every claim names the passage it comes from, quoted, at most eight words, in quotation marks.\n" +
 		"- A claim you cannot tie to a passage or to a figure below: leave it out. Do not soften it.\n" +
