@@ -89,7 +89,7 @@ export default function Audit({ embedded }: { embedded?: boolean }) {
         </label>
       </div>
 
-      <div className="card" style={{ padding: 0 }}>
+      <div className="card" style={{ padding: 0, overflowX: "auto" }}>
         {spur.isError && (
           <p className="danger-text text-xs" style={{ padding: 14 }}>
             {(spur.error as Error).message}

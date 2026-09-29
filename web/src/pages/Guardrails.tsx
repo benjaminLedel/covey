@@ -81,14 +81,14 @@ export default function Guardrails({ me }: { me: Principal }) {
       {canEdit(me.Role) && <CreateRule agents={agents.data ?? []} />}
 
       {list.map((r) => (
-        <div key={r.id} className="card mb-2 flex items-center gap-4" style={{ padding: "11px 15px" }}>
+        <div key={r.id} className="card mb-2 flex flex-wrap items-center gap-x-4 gap-y-2" style={{ padding: "11px 15px" }}>
           <span
             className={`badge ${r.rule_type.startsWith("deny") ? "st-failed" : "st-blocked"}`}
             style={r.enabled ? undefined : { opacity: 0.45 }}
           >
             {t(`guardrails.ruleTypes.${r.rule_type}`, r.rule_type)}
           </span>
-          <span className="mono text-sm flex-1" style={r.enabled ? undefined : { opacity: 0.45 }}>
+          <span className="mono text-sm flex-1 min-w-0" style={{ overflowWrap: "anywhere", ...(r.enabled ? {} : { opacity: 0.45 }) }}>
             {r.rule_type === "budget_limit" && r.params?.usd
               ? `≤ ${fmtUSD(r.params.usd)}`
               : r.rule_type === "style_gate"
@@ -365,7 +365,7 @@ function RecentHits({ agentNameOf, locale }: { agentNameOf: (id?: string) => str
         const p = (e.payload ?? {}) as Record<string, unknown>;
         const subject = (p.action ?? p.system ?? p.pattern ?? "") as string;
         return (
-          <div key={e.id} className="card mb-2 flex items-center gap-4" style={{ padding: "9px 15px" }}>
+          <div key={e.id} className="card mb-2 flex flex-wrap items-center gap-x-4 gap-y-1" style={{ padding: "9px 15px" }}>
             <span className="badge st-failed">{String(p.rule ?? "guardrail")}</span>
             <span className="mono text-sm flex-1 min-w-0 truncate">{subject}</span>
             <span className="muted text-xs">{agentNameOf(e.agent_id)}</span>

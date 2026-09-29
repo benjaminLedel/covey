@@ -88,7 +88,8 @@
     "approvals": "Goedkeuringen",
     "infrastructure": "Infrastructuur",
     "apps": "covey-app",
-    "helpShort": "Help"
+    "helpShort": "Help",
+    "menu": "Menu"
   },
   "costs": {
     "title": "Kosten en tokens",

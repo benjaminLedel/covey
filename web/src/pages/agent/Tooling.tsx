@@ -206,7 +206,7 @@ function AgentTools({ agentId, canEdit }: { agentId: string; canEdit: boolean })
           {t("agent.tools.noMcp")}
         </p>
       )}
-      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
+      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(300px, 100%), 1fr))" }}>
         {mcp.map((p) => (
           <MCPToolAssign key={p.name} agentId={agentId} plugin={p} canEdit={canEdit} />
         ))}

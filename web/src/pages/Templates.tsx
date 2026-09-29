@@ -111,8 +111,8 @@ function TemplateCard({
 
   return (
     <div className="card" style={{ padding: "14px 18px" }}>
-      <div className="flex items-start justify-between gap-4">
-        <div style={{ flex: 1 }}>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div style={{ flex: "1 1 240px", minWidth: 0, overflowWrap: "anywhere" }}>
           <div className="flex items-center gap-2">
             <div className="font-medium" style={{ fontSize: 15 }}>{template.name}</div>
             {template.builtin && (

@@ -150,7 +150,7 @@ export default function ApiKeys() {
 
       {keys.data?.length === 0 && <p className="muted text-xs m-0">{t("account.apiKeys.none")}</p>}
       {(keys.data ?? []).map((k, i) => (
-        <div key={k.id} className="flex items-center gap-3 text-xs py-2" style={{ borderTop: i > 0 ? "0.5px solid var(--border)" : "none" }}>
+        <div key={k.id} className="flex flex-wrap items-center gap-3 text-xs py-2" style={{ borderTop: i > 0 ? "0.5px solid var(--border)" : "none" }}>
           <span className="font-medium">{k.name}</span>
           <span className="mono muted">{k.prefix}…</span>
           {showOrg && k.org_name && (

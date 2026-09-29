@@ -88,7 +88,8 @@
     "approvals": "Approvals",
     "infrastructure": "Infrastructure",
     "apps": "covey app",
-    "helpShort": "Help"
+    "helpShort": "Help",
+    "menu": "Menu"
   },
   "costs": {
     "title": "Cost & Tokens",
