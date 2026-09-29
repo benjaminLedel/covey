@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import Platform from "./Platform";
@@ -124,5 +124,44 @@ describe("Plattform-Panel", () => {
     expect(await screen.findByText("COVEY-4K7MQ-P2D9X")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Verstanden" }));
     expect(screen.queryByText("COVEY-4K7MQ-P2D9X")).not.toBeInTheDocument();
+  });
+
+  it("sagt, was bei Push gilt, und lädt das Dienstkonto als Text hoch (#431)", async () => {
+    const push = {
+      mode: "direct",
+      relay_url: "https://app.covey.work",
+      relay_accept: false,
+      credentials: { set: false },
+      last_test_at: "",
+      last_test_error: "",
+    };
+    const { calls } = mockFetch({
+      ...routen,
+      "PATCH /api/v1/platform/push": { ...push, mode: "off" },
+      "PUT /api/v1/platform/push/credentials": {
+        ...push,
+        credentials: { set: true, source: "settings", project_id: "covey-test", client_email: "push@example.org" },
+      },
+      "/api/v1/platform/push": push,
+    });
+    renderWithProviders(<Platform me={systemadmin} />, { route: "/platform/push", path: "/platform/*" });
+
+    // Direct without an account sends nothing, and the page says so.
+    expect(await screen.findByTestId("push-status")).toHaveTextContent("kein brauchbares Dienstkonto");
+    expect(screen.getByRole("button", { name: "Prüfen" })).toBeDisabled();
+
+    const json = '{"type":"service_account","project_id":"covey-test"}';
+    await userEvent.upload(
+      screen.getByLabelText("Dienstkonto hochladen"),
+      new File([json], "service-account.json", { type: "application/json" }),
+    );
+    expect(await screen.findByText("covey-test")).toBeInTheDocument();
+    const sent = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === "PUT");
+    expect(JSON.parse(String(sent?.[1]?.body))).toEqual({ credentials: json });
+
+    await userEvent.click(screen.getByLabelText(/^Aus/));
+    await userEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    expect(calls).toContain("PATCH /api/v1/platform/push");
+    expect(await screen.findByTestId("push-status")).toHaveTextContent("Push-Mitteilungen sind aus");
   });
 });
