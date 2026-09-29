@@ -11,7 +11,8 @@ import (
 
 // Push notifications (#379): a device registers its token, an organisation
 // decides whether a notification may carry the first line of what was said,
-// and an instance holding the app's APNs key may relay for others.
+// and an instance holding the app's APNs key or FCM credentials may relay
+// for others.
 
 // handleRegisterDevice keeps the device's token for the signed-in person.
 func (s *Server) handleRegisterDevice(w http.ResponseWriter, r *http.Request) {
@@ -33,11 +34,15 @@ func (s *Server) handleRegisterDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in.Token = strings.TrimSpace(in.Token)
-	if in.Token == "" || len(in.Token) > 200 || strings.ContainsAny(in.Token, "/?# ") ||
-		(in.Platform != "ios" && in.Platform != "macos") ||
+	if in.Token == "" || len(in.Token) > push.MaxToken || strings.ContainsAny(in.Token, "/?# ") ||
+		(in.Platform != "ios" && in.Platform != "macos" && in.Platform != "android") ||
 		(in.Environment != "production" && in.Environment != "development") {
-		writeErr(w, http.StatusBadRequest, "expected token, platform ios|macos and environment production|development")
+		writeErr(w, http.StatusBadRequest, "expected token, platform ios|macos|android and environment production|development")
 		return
+	}
+	// FCM has no sandbox: a debug build's token is delivered like any other.
+	if in.Platform == "android" {
+		in.Environment = "production"
 	}
 	if in.Sound == "" {
 		in.Sound = "bot"
@@ -76,8 +81,8 @@ func (s *Server) handleGetPush(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleSetPush switches the preview: with it a notification carries the
-// first line of what was said, which then passes through Apple and, where
-// used, the relay.
+// first line of what was said, which then passes through Apple or Google
+// and, where used, the relay.
 func (s *Server) handleSetPush(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Preview *bool `json:"preview"`

@@ -78,8 +78,8 @@ type Server struct {
 	// the builtin Postgres store. Not Blobs, the home store below.
 	Media mediastore.Store
 	// PushRelay delivers notifications for other instances (#379): set only
-	// when this instance holds the app's APNs key and COVEY_PUSH_RELAY_ACCEPT
-	// is on. Nil: the relay route answers 404.
+	// when this instance holds the app's APNs key or FCM credentials (#424)
+	// and COVEY_PUSH_RELAY_ACCEPT is on. Nil: the relay route answers 404.
 	PushRelay push.Sender
 	// Speech is the models the app recognises speech with (#348,
 	// #351, speech.go). Nil: speech is off on this instance.

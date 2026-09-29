@@ -280,15 +280,20 @@ type Config struct {
 	// COVEY_APNS_TEAM_ID) the instance talks to Apple itself; COVEY_APNS_TOPIC
 	// is the app's bundle id. Without a key it hands notifications to a relay
 	// (COVEY_PUSH_RELAY, default the public instance, which holds the key of
-	// the app in the store; "off" sends nothing). PushRelayAccept
-	// (COVEY_PUSH_RELAY_ACCEPT) makes this instance such a relay for others —
-	// it needs the key.
-	APNsKeyFile     string
-	APNsKeyID       string
-	APNsTeamID      string
-	APNsTopic       string
-	PushRelay       string
-	PushRelayAccept bool
+	// the app in the store; "off" sends nothing). Android devices (#424) the
+	// same way: with FCMCredentialsFile (COVEY_FCM_CREDENTIALS_FILE, the
+	// service account JSON of the app's Firebase project) directly to
+	// Google, without it through the relay. Each platform goes directly
+	// where the instance holds its key and through the relay otherwise.
+	// PushRelayAccept (COVEY_PUSH_RELAY_ACCEPT) makes this instance such a
+	// relay for others, for the platforms whose key it holds.
+	APNsKeyFile        string
+	APNsKeyID          string
+	APNsTeamID         string
+	APNsTopic          string
+	FCMCredentialsFile string
+	PushRelay          string
+	PushRelayAccept    bool
 	// WikiCleanup is the schedule of the platform-wide wiki cleanup heartbeat:
 	// empty = off. Otherwise "HH:MM" (daily, server time) or a Go duration such
 	// as "24h" (interval). From it the control plane creates a recurring
@@ -339,8 +344,9 @@ type Config struct {
 // not a fixture: whoever points COVEY_MARKETPLACE_URL somewhere else gets that
 // catalogue and nothing from here, which is also how internal, non-public
 // plugins are distributed inside a company.
-// DefaultPushRelay is the instance that holds the APNs key of the app in the
-// store and relays notifications for installations without one (#379).
+// DefaultPushRelay is the instance that holds the APNs key and the FCM
+// credentials of the app in the stores and relays notifications for
+// installations without them (#379, #424).
 const DefaultPushRelay = "https://app.covey.work"
 
 const DefaultMarketplaceURL = "https://raw.githubusercontent.com/benjaminLedel/covey-plugins/main/catalog.json"
@@ -419,6 +425,7 @@ func FromEnv() (Config, error) {
 		APNsKeyID:           getenv("COVEY_APNS_KEY_ID", ""),
 		APNsTeamID:          getenv("COVEY_APNS_TEAM_ID", ""),
 		APNsTopic:           getenv("COVEY_APNS_TOPIC", "work.covey.coveyMobile"),
+		FCMCredentialsFile:  getenv("COVEY_FCM_CREDENTIALS_FILE", ""),
 		PushRelay:           getenv("COVEY_PUSH_RELAY", DefaultPushRelay),
 		PushRelayAccept:     getenvBool("COVEY_PUSH_RELAY_ACCEPT", false),
 	}

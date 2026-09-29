@@ -2,11 +2,12 @@
 // something (#379): a question, an answer, a result, an error.
 //
 // Apple delivers to an app only for whoever holds the app's APNs key, and a
-// third party running covey with the app from the store cannot hold it. So
-// there are two senders behind one port: APNs, when this instance has the
-// key, and Relay, which hands the notification to an instance that has —
-// by default the public one. Any covey binary with a key can be that relay
-// (Handler).
+// third party running covey with the app from the store cannot hold it;
+// Google the same for the app's Firebase project (#424). So there are
+// senders behind one port: APNs and FCM, when this instance has the key, and
+// Relay, which hands the notification to an instance that has — by default
+// the public one. Senders picks between them by the device's platform. Any
+// covey binary with a key can be that relay (Handler).
 //
 // What travels is small on purpose: who, what, a badge, and the agent to
 // open. The first line of what was said only when the organisation turned
@@ -16,14 +17,18 @@ package push
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 )
 
 // Message is one notification for one device.
 type Message struct {
-	Token       string `json:"token"`
-	Environment string `json:"environment"` // production | development
+	Token string `json:"token"`
+	// Platform: ios, macos or android; empty is ios, as an instance from
+	// before Android relays it.
+	Platform    string `json:"platform,omitempty"`
+	Environment string `json:"environment"` // production | development; android is production
 	Title       string `json:"title"`
 	Body        string `json:"body"`
 	Badge       int    `json:"badge"`
@@ -62,11 +67,36 @@ var soundName = regexp.MustCompile(`^(default|covey-(bot|schar|glas)-(question|a
 const (
 	MaxTitle = 120
 	MaxBody  = 400
+	// MaxToken: an APNs token is 64 hex characters; Google gives no bound
+	// for an FCM token, which is about 160 today.
+	MaxToken = 512
 )
 
 // Sender delivers one notification.
 type Sender interface {
 	Send(ctx context.Context, m Message) error
+}
+
+// Senders sends an Android device's notification through FCM and every
+// other through APNs. Where the instance holds no key for the platform it
+// hands the notification to Fallback, the relay; without one it fails.
+type Senders struct {
+	APNs, FCM Sender
+	Fallback  Sender
+}
+
+func (s Senders) Send(ctx context.Context, m Message) error {
+	direct, name := s.APNs, "APNs"
+	if m.Platform == "android" {
+		direct, name = s.FCM, "FCM"
+	}
+	switch {
+	case direct != nil:
+		return direct.Send(ctx, m)
+	case s.Fallback != nil:
+		return s.Fallback.Send(ctx, m)
+	}
+	return fmt.Errorf("push: no %s key and no relay", name)
 }
 
 // ErrGone: the device no longer takes notifications — the app was removed,
@@ -84,7 +114,8 @@ func Clip(s string, n int) string {
 
 // Valid says whether a message fits what any sender accepts.
 func (m Message) Valid() bool {
-	return m.Token != "" && len(m.Token) <= 200 &&
+	return m.Token != "" && len(m.Token) <= MaxToken &&
+		(m.Platform == "" || m.Platform == "ios" || m.Platform == "macos" || m.Platform == "android") &&
 		(m.Environment == "production" || m.Environment == "development") &&
 		m.Title != "" && len([]rune(m.Title)) <= MaxTitle && len([]rune(m.Body)) <= MaxBody &&
 		m.Badge >= 0 && m.Badge < 100000 && len(m.AgentID) <= 64 && soundName.MatchString(m.Sound)

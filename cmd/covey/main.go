@@ -1438,19 +1438,42 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 			st.Ensure()
 		}
 	}
+	// Push notifications (#379, #424): each platform directly where this
+	// instance holds its key, through the relay where it does not.
 	var pushSender, pushRelay push.Sender
-	switch {
-	case cfg.APNsKeyFile != "":
+	var direct push.Senders
+	var paths []string
+	if cfg.APNsKeyFile != "" {
 		apns, err := push.NewAPNs(cfg.APNsKeyFile, cfg.APNsKeyID, cfg.APNsTeamID, cfg.APNsTopic)
 		if err != nil {
 			return fmt.Errorf("push: %w", err)
 		}
-		pushSender = apns
-		if cfg.PushRelayAccept {
-			pushRelay = apns
+		direct.APNs = apns
+		paths = append(paths, "APNs")
+	}
+	if cfg.FCMCredentialsFile != "" {
+		fcm, err := push.NewFCM(cfg.FCMCredentialsFile)
+		if err != nil {
+			return fmt.Errorf("push: %w", err)
 		}
-		log.Info("push: direct to APNs", "topic", cfg.APNsTopic, "relay_for_others", cfg.PushRelayAccept)
-	case cfg.PushRelay != "" && cfg.PushRelay != "off":
+		direct.FCM = fcm
+		paths = append(paths, "FCM")
+	}
+	relayed := cfg.PushRelay != "" && cfg.PushRelay != "off"
+	switch {
+	case len(paths) > 0:
+		all, rest := direct, "off"
+		if relayed {
+			all.Fallback, rest = push.NewRelay(cfg.PushRelay), cfg.PushRelay
+		}
+		pushSender = all
+		// What others hand over goes only where this instance holds the key.
+		if cfg.PushRelayAccept {
+			pushRelay = direct
+		}
+		log.Info("push: direct", "to", strings.Join(paths, ", "), "topic", cfg.APNsTopic,
+			"relay_for_the_rest", rest, "relay_for_others", cfg.PushRelayAccept)
+	case relayed:
 		pushSender = push.NewRelay(cfg.PushRelay)
 		log.Info("push: through the relay", "relay", cfg.PushRelay)
 	default:
@@ -1543,8 +1566,8 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Pool: pool, Mail: mail.New(settingsStore), Settings: settingsStore,
 		SiteURL: cfg.SiteURL, Log: log,
 	}).Run(ctx)
-	// Push notifications (#379): to Apple directly with the app's key, or
-	// through the relay that holds it. The notifier needs one of the two.
+	// Push notifications (#379): to Apple and Google directly with the app's
+	// keys, or through the relay that holds them. The notifier needs one.
 	if pushSender != nil {
 		go (&push.Notifier{Pool: pool, Sender: pushSender, Log: log}).Run(ctx)
 	}

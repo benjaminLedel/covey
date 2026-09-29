@@ -54,14 +54,14 @@ Both models detect the language themselves. Without internet access, place the m
 
 ## Push notifications
 
-When an agent asks a question, replies in a conversation, or finishes or fails a task that came from a message, the people involved get a notification: whoever wrote in that agent's conversation in the last two weeks, the person the task came from, and, for a question, the agent's human supervisor. What somebody has already read is not announced. The iPhone app receives them through Apple's push service; the Mac app shows them itself while it runs.
+When an agent asks a question, replies in a conversation, or finishes or fails a task that came from a message, the people involved get a notification: whoever wrote in that agent's conversation in the last two weeks, the person the task came from, and, for a question, the agent's human supervisor. What somebody has already read is not announced. The iPhone app receives them through Apple's push service, the Android app through Firebase Cloud Messaging; the Mac app shows them itself while it runs.
 
-Apple delivers to the app only for whoever holds its APNs key, so there are two ways:
+Apple delivers to the app only for whoever holds its APNs key, and Google only for whoever holds a service account of the app's Firebase project. So there are two ways, chosen per platform:
 
-- **Direct**, with a key of your own: `COVEY_APNS_KEY_FILE` (the `.p8` from the developer account), `COVEY_APNS_KEY_ID`, `COVEY_APNS_TEAM_ID`, and `COVEY_APNS_TOPIC` (the app's bundle id, default `work.covey.coveyMobile`). This only works for an app signed by that team.
-- **Through the relay**, without a key: `COVEY_PUSH_RELAY` (default `https://app.covey.work`, which holds the key of the app in the store) receives the notification and passes it to Apple. `COVEY_PUSH_RELAY=off` sends nothing. An instance with a key becomes such a relay for others with `COVEY_PUSH_RELAY_ACCEPT=true`; it accepts only the notification's fixed fields, bounded in length and limited per address.
+- **Direct**, with a key of your own. For the iPhone: `COVEY_APNS_KEY_FILE` (the `.p8` from the developer account), `COVEY_APNS_KEY_ID`, `COVEY_APNS_TEAM_ID`, and `COVEY_APNS_TOPIC` (the app's bundle id, default `work.covey.coveyMobile`). This only works for an app signed by that team. For Android: `COVEY_FCM_CREDENTIALS_FILE`, the service account's JSON key (Firebase console, Project settings, Service accounts). This only works for an app built with that project's `google-services.json`.
+- **Through the relay**, without a key: `COVEY_PUSH_RELAY` (default `https://app.covey.work`, which holds the keys of the apps in the stores) receives the notification and passes it to Apple or Google. `COVEY_PUSH_RELAY=off` sends nothing. An instance with a key for one platform only sends that platform directly and the other through the relay. An instance with keys becomes such a relay for others with `COVEY_PUSH_RELAY_ACCEPT=true`, for the platforms whose keys it holds; it accepts only the notification's fixed fields, bounded in length and limited per address.
 
-By default a notification says only who did what ("Bea has a question"), in the device's language, and nothing of the content leaves the instance. Under Administration, an organisation can include the first line of what was said. It then passes through Apple and, where used, the relay.
+By default a notification says only who did what ("Bea has a question"), in the device's language, and nothing of the content leaves the instance. Under Administration, an organisation can include the first line of what was said. It then passes through Apple or Google and, where used, the relay.
 
 ## HTTPS
 

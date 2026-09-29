@@ -92,7 +92,7 @@ func (n *Notifier) Round(ctx context.Context) (int, error) {
 			for _, d := range devices {
 				title, body := Compose(d.lang, ev.kind, ev.name, FirstLine(ev.text, MaxBody), ev.preview)
 				m := Message{
-					Token: d.token, Environment: d.env, Title: title, Body: body, Badge: badge,
+					Token: d.token, Platform: d.platform, Environment: d.env, Title: title, Body: body, Badge: badge,
 					AgentID: ev.agentID.String(), Sound: SoundFor(d.sound, ev.kind),
 				}
 				switch err := n.Sender.Send(ctx, m); {
@@ -242,10 +242,10 @@ func (n *Notifier) recipients(ctx context.Context, ev event) ([]uuid.UUID, error
 	return out, rows.Err()
 }
 
-type device struct{ token, env, lang, sound string }
+type device struct{ token, platform, env, lang, sound string }
 
 func (n *Notifier) devices(ctx context.Context, human uuid.UUID) ([]device, error) {
-	rows, err := n.Pool.Query(ctx, `SELECT token, environment, lang, sound FROM push_devices WHERE human_id=$1`, human)
+	rows, err := n.Pool.Query(ctx, `SELECT token, platform, environment, lang, sound FROM push_devices WHERE human_id=$1`, human)
 	if err != nil {
 		return nil, err
 	}
@@ -253,7 +253,7 @@ func (n *Notifier) devices(ctx context.Context, human uuid.UUID) ([]device, erro
 	var out []device
 	for rows.Next() {
 		var d device
-		if err := rows.Scan(&d.token, &d.env, &d.lang, &d.sound); err != nil {
+		if err := rows.Scan(&d.token, &d.platform, &d.env, &d.lang, &d.sound); err != nil {
 			return nil, err
 		}
 		out = append(out, d)

@@ -81,12 +81,15 @@ x-covey-base: &covey-base
     # With the app's APNs key it talks to Apple itself; the .p8 goes under the
     # data directory, which is mounted at the same path, e.g.
     #   COVEY_APNS_KEY_FILE=/opt/covey/data/apns/AuthKey_<KEY ID>.p8
+    # Android (#424) the same way with the Firebase service account's JSON:
+    #   COVEY_FCM_CREDENTIALS_FILE=/opt/covey/data/fcm/service-account.json
     # COVEY_PUSH_RELAY_ACCEPT=true then serves as the relay for others.
     # Empty means unset: internal/config applies its defaults.
     COVEY_APNS_KEY_FILE: ${COVEY_APNS_KEY_FILE:-}
     COVEY_APNS_KEY_ID: ${COVEY_APNS_KEY_ID:-}
     COVEY_APNS_TEAM_ID: ${COVEY_APNS_TEAM_ID:-}
     COVEY_APNS_TOPIC: ${COVEY_APNS_TOPIC:-}
+    COVEY_FCM_CREDENTIALS_FILE: ${COVEY_FCM_CREDENTIALS_FILE:-}
     COVEY_PUSH_RELAY: ${COVEY_PUSH_RELAY:-}
     COVEY_PUSH_RELAY_ACCEPT: ${COVEY_PUSH_RELAY_ACCEPT:-}
     # App links (#333): only whoever ships the app sets these.
