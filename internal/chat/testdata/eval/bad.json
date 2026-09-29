@@ -129,5 +129,13 @@
     "fails": [
       "must_not_contain"
     ]
+  },
+  {
+    "scenario": "en-news-open-task",
+    "why": "A silent note: written onto the task, nothing said to the person (#460).",
+    "recorded": "{\"action\":\"note\",\"task\":\"ab12\",\"text\":\"Ada asking for an update.\"}",
+    "fails": [
+      "silent"
+    ]
   }
 ]

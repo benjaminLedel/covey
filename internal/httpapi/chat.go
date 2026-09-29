@@ -763,7 +763,21 @@ func (s *Server) entscheidungAnwenden(
 			if err := s.Chat.LinkTask(ctx, msg.ID, ziel); err != nil {
 				return "", nil, err
 			}
-			return "noted", map[string]string{"task_id": ziel.String(), "woken": geweckt}, nil
+			daten := map[string]string{"task_id": ziel.String(), "woken": geweckt}
+			/* What the person hears (#460): the note stands at the task and
+			   nowhere else, and a message that added something and asked
+			   something got no word back. */
+			if antwort := strings.TrimSpace(entscheidung.Antwort); antwort != "" {
+				if _, _, err := s.Chat.Post(ctx, chat.Message{
+					ConversationID: conv.ID, AuthorKind: chat.MemberAgent, AuthorID: &agentID,
+					Text: antwort, TaskID: &ziel, ReplyTo: &msg.ID,
+				}); err != nil {
+					s.Log.Warn("chat: the reply to a note was not written", "agent", agentID, "err", err)
+				} else {
+					daten["answered"] = "true"
+				}
+			}
+			return "noted", daten, nil
 		}
 	}
 

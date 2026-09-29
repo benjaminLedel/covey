@@ -47,12 +47,13 @@ One JSON file per scenario in `scenarios/`, named after its `name`:
 | `task` | `title`, `body`, `state` (`done`/`failed`), `result` (narration) |
 | `expect` | `action` (the acceptable actions) or `addressed` |
 | `checks` | `first_name`, `max_sentences`, `max_chars`, `must_contain` (all), `must_contain_any`, `must_not_contain` |
-| `recorded` | a good answer as the model gives it: the raw triage output, or the chat line |
+| `recorded` | a good answer as the model gives it: the raw triage output, or the chat line; for a note the `reply` is what is checked |
 
 Always checked, beyond `checks`: the language; the length (defaults: three
 sentences in a group, four in a direct conversation, one more for a
 narration; a salutation like "Hi Ada!" counts as a sentence, so a greeting
 scenario allows three: the salutation and two); no words of the machinery or of a service desk in German or
 English ("Begrüßung beantwortet", "I have answered", "the task", "der Lauf",
-"As an AI" …); no headings, bullets or bold; emoji as the tone allows; in
+"As an AI" …); no headings, bullets or bold; a note has to carry a reply, since the note
+itself is never seen in the conversation (#460); emoji as the tone allows; in
 German, `du` or `Sie` as the tone says (`auto` follows the message).

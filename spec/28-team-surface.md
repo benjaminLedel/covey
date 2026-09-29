@@ -104,7 +104,10 @@ sandbox**:
   line, not an exception to it: the backlog is covey's own object, reading it
   needs no credential and leaves nothing, and without it the agent can only
   guess at "what are you working on?". So there are three moves, not two —
-  answer, write onto a task that already exists, or open a new one. The short
+  answer, write onto a task that already exists, or open a new one. A note
+  stands at the task and is not seen in the conversation, so it carries a
+  reply that is posted there (#460), and a question about where a task
+  stands is an answer, not a note. The short
   id a note refers to is one the turn was shown; what the model says never
   becomes an identifier pointing at something it was not handed
 - **and the org chart, read only** (#415) — the same team of humans and
