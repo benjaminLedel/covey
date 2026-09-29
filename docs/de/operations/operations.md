@@ -72,7 +72,13 @@ Ein Reverse-Proxy davor, TLS dort terminieren, `COVEY_PUBLIC_URL` beziehungsweis
 
 ## Egress-Isolation
 
-Zwei Stufen. **Kooperativ**: Der Datenverkehr der Sandbox läuft über einen Proxy, der die Allowlist durchsetzt. **Hart** (`COVEY_EGRESS_ISOLATION=network`): Die Sandbox hängt in einem internen Netz ohne Internet, und der Proxy-Container ist der einzige Weg hinaus — nicht mehr umgehbar. Für die harte Stufe wird ein zweites Image gebaut.
+Mit dem Docker-Provider von Haus aus an: Eine Sandbox erreicht nur die Hosts auf der Allowlist ihres Agenten — die Basisliste der Organisation (vorbelegt mit `api.anthropic.com`), die zugewiesenen Vorlagen und die eigenen Hosts des Agenten. `COVEY_EGRESS_ENFORCE=false` schaltet das ab; die Listen bleiben dann erhalten, werden aber nicht angewandt, und `covey serve` und `covey doctor` sagen das. Ein Provider, der nicht durchsetzen kann, sagt dasselbe, statt offen zu laufen. `GET /api/v1/egress` beantwortet mit `enforced`, ob es auf dieser Instanz greift.
+
+Zwei Stufen. **Kooperativ** (die Vorgabe): Der Datenverkehr der Sandbox läuft über einen Proxy, der die Allowlist durchsetzt. **Hart** (`COVEY_EGRESS_ISOLATION=network`): Die Sandbox hängt in einem internen Netz ohne Internet, und der Proxy-Container ist der einzige Weg hinaus — nicht mehr umgehbar. Für die harte Stufe wird ein zweites Image gebaut.
+
+Der kooperative Proxy läuft im covey-Prozess. Läuft covey selbst in einem Container, erreichen die Sandboxen ihn nur über einen veröffentlichten Port: `COVEY_EGRESS_LISTEN_ADDR` legt seine Adresse fest, und der Host muss denselben Port veröffentlichen. Die Compose-Dateien tun beides (`:8495`, `8495:8495`). Ohne das eigene Token einer Sandbox antwortet der Proxy mit 407.
+
+Beim Update einer Installation, die mit offenem Egress lief: Vor dem Neustart die Allowlists prüfen (`GET /api/v1/egress`, die eigenen Hosts je Agent unter *Einstellungen → Egress* auf der Agentenseite) — Verkehr zu Hosts, die dort nicht stehen, wird danach abgewiesen. Wer das alte Verhalten behalten will, setzt `COVEY_EGRESS_ENFORCE=false` (in der `.env` der Compose-Installation). Einzelheiten stehen auf der englischen Seite [Upgrading](../../en/operations/upgrade.md).
 
 ## Sicherungen
 

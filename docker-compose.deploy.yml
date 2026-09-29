@@ -36,6 +36,16 @@ x-covey-base: &covey-base
     COVEY_ADMIN_EMAIL: ${COVEY_ADMIN_EMAIL:-admin@covey.local}
     COVEY_ADMIN_PASSWORD: ${COVEY_ADMIN_PASSWORD:?in .env setzen}
     COVEY_SANDBOX_PROVIDER: docker
+    # Egress (#445): the allowlist is enforced by default — a sandbox reaches
+    # only the hosts on its agent's list (api.anthropic.com is on every
+    # organisation's base list). COVEY_EGRESS_ENFORCE=false in the .env keeps
+    # the old, open behaviour. The proxy runs inside the covey container, and a
+    # sandbox is a sibling container that reaches it only through a port the
+    # host publishes — hence the fixed address here and the same number under
+    # `ports:` below. Without a sandbox's own token the proxy answers 407.
+    COVEY_EGRESS_ENFORCE: ${COVEY_EGRESS_ENFORCE:-true}
+    COVEY_EGRESS_LISTEN_ADDR: ":8495"
+    COVEY_EGRESS_ALLOW: ${COVEY_EGRESS_ALLOW:-}
     # Which image stands behind a workplace is said by the PUBLISHED catalogue
     # (spec/16): one JSON file beside the source, pinned per covey version by
     # digest, public on ghcr. So nothing stands here.
@@ -133,6 +143,9 @@ services:
         condition: service_completed_successfully
     ports:
       - "${COVEY_PORT:-8494}:8494"
+      # The egress proxy, see COVEY_EGRESS_LISTEN_ADDR above. Both numbers have
+      # to match: the sandbox dials the port the proxy binds.
+      - "8495:8495"
     # A YAML merge replaces lists entirely — which is why both mounts are spelled
     # out here: data directory (as in the base) plus Docker socket for the sandbox provider.
     volumes:

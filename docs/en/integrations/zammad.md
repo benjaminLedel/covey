@@ -218,15 +218,17 @@ otherwise a blocked agent never wakes up again.
 | `COVEY_PUBLIC_URL` | `http://localhost:8494` | The base URL at which Zammad reaches the webhook |
 | `COVEY_ZAMMAD_WEBHOOK_SECRET` | *(empty = signature check off)* | The HMAC-SHA1 secret, identical to the Zammad webhook token |
 | `COVEY_DAEMON_TOKEN_TTL` | `15m` | The TTL of the credential passed into the sandbox |
-| `COVEY_EGRESS_ENFORCE` | `false` | Switch on the egress allowlist proxy (only the `docker` provider) |
+| `COVEY_EGRESS_ENFORCE` | `true` | The egress allowlist proxy (only the `docker` provider); `false` switches it off |
 | `COVEY_EGRESS_ALLOW` | *(empty)* | Additional permitted egress hosts, e.g. the Zammad host (`*.suffix` allowed) |
 | `COVEY_EGRESS_ISOLATION` | `proxy` | `proxy` (cooperative) or `network` (hard isolation, see 6.1) |
+| `COVEY_EGRESS_LISTEN_ADDR` | *(empty = a free port)* | The cooperative proxy's bind address inside the control plane; fixed (`:8495`) when covey runs in a container, with the same port published |
 | `COVEY_EGRESS_PROXY_ADDR` | `:8888` | The proxy's bind address (network mode, in the container) |
 | `COVEY_CONTROL_URL` | *(set by the control plane)* | The control plane's address as the proxy container sees it — set automatically, only relevant when running `covey egress-proxy` by hand |
 | `COVEY_RUNNER_TOKEN` | *(set by the control plane)* | The token of the runner the proxy belongs to — likewise set automatically |
 
-> **Egress:** with `COVEY_SANDBOX_PROVIDER=docker` and `COVEY_EGRESS_ENFORCE=true`
-> the sandbox traffic runs through an allowlist proxy. `api.anthropic.com` (the
+> **Egress:** with `COVEY_SANDBOX_PROVIDER=docker` the sandbox traffic runs
+> through an allowlist proxy (the default; `COVEY_EGRESS_ENFORCE=false` switches
+> it off). `api.anthropic.com` (the
 > runtime) is permanently allowed; **you have to add the Zammad host**, otherwise
 > the agent cannot reply. Two routes:
 >
@@ -311,8 +313,8 @@ have to be considered (details and file references below). Prioritised:
 
 **Blockers for production use with real customer data:**
 
-1. **Egress enforcement (implemented, two stages).** With the `docker` provider +
-   `COVEY_EGRESS_ENFORCE=true` the sandbox traffic goes through a fail-closed
+1. **Egress enforcement (implemented, two stages, on by default).** With the
+   `docker` provider the sandbox traffic goes through a fail-closed
    allowlist proxy (`internal/egress`). Two modes (`COVEY_EGRESS_ISOLATION`):
    - `proxy` (default): cooperative via HTTP(S)_PROXY — it prevents naive
      exfiltration but can be circumvented by the agent through direct IPs.

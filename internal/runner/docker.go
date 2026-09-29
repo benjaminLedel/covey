@@ -272,7 +272,7 @@ func (p *Docker) Start(ctx context.Context, spec StartSandbox) (string, []sandbo
 			// routed through as well. The proxy URL carries the per-sandbox token
 			// by which the proxy identifies the agent.
 			proxyURL := egressURLWithCreds(p.EgressProxyURL, spec.AgentID.String(), spec.EgressToken)
-			for _, e := range proxyEnvVars(proxyURL, "host.docker.internal,localhost,127.0.0.1,::1") {
+			for _, e := range proxyEnvVars(proxyURL, cooperativeNoProxy(spec.Env["COVEY_WS_URL"])) {
 				args = append(args, "-e", e)
 			}
 		}
@@ -656,6 +656,27 @@ func proxyEnvVars(proxyURL, noProxy string) []string {
 		"HTTPS_PROXY=" + proxyURL, "https_proxy=" + proxyURL,
 		"NO_PROXY=" + noProxy, "no_proxy=" + noProxy,
 	}
+}
+
+// cooperativeNoProxy is the NO_PROXY list of the cooperative mode: loopback,
+// host.docker.internal, and the host the daemon dials back to. That last one
+// matters as soon as COVEY_PUBLIC_URL is a real name (https://covey.example):
+// the daemon's WebSocket client honours HTTPS_PROXY, and without the exception
+// the link to the control plane would need an allowlist entry that no agent
+// has — every wake would end in "daemon did not connect" (#445).
+func cooperativeNoProxy(wsURL string) string {
+	list := "host.docker.internal,localhost,127.0.0.1,::1"
+	u, err := url.Parse(rewriteLoopbackForDocker(wsURL))
+	if err != nil || u.Hostname() == "" {
+		return list
+	}
+	host := u.Hostname()
+	for _, known := range strings.Split(list, ",") {
+		if known == host {
+			return list
+		}
+	}
+	return list + "," + host
 }
 
 // ensureNetworkIsolation idempotently establishes the internal network and the

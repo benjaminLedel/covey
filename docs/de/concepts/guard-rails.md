@@ -26,7 +26,7 @@ Guard-Rails stehen deshalb **außerhalb der Runtime**. Der Agent kann sie nicht 
 ## Die drei Stellen, an denen es greift
 
 - **Secrets-Broker** — welcher Zugang, mit welchem Scope, für welchen Lauf. Ein Token, das nie in die Sandbox gelangt, kann auch nicht mitgenommen werden.
-- **Egress** — wohin die Sandbox überhaupt sprechen darf. Mit `COVEY_EGRESS_ENFORCE` und harter Netz-Isolation liegt zwischen Agent und Internet ein Proxy, der die Allowlist durchsetzt.
+- **Egress** — wohin die Sandbox überhaupt sprechen darf. Mit dem Docker-Provider liegt zwischen Agent und Internet ein Proxy, der die Allowlist durchsetzt — von Haus aus, solange niemand `COVEY_EGRESS_ENFORCE=false` setzt. Harte Netz-Isolation (`COVEY_EGRESS_ISOLATION=network`) nimmt den Weg daran vorbei.
 - **Aktionsebene** — welche Aktion erlaubt ist, welche eine Freigabe braucht, welche verboten ist. Regeln greifen global, je Abteilung oder je Agent.
 
 ## Freigaben
@@ -50,5 +50,5 @@ Ein Budget je Agent ist auch eine Guard-Rail — die gegen den Fehler, der niema
 ## Weiter
 
 - [Identität & Secrets](identity-and-secrets.md) — wie Zugänge gebrokert werden
-- [Betrieb & Deployment](../operations/operations.md) — Egress-Isolation einschalten
+- [Betrieb & Deployment](../operations/operations.md) — Egress-Durchsetzung und harte Isolation
 - [Zielsysteme & Plugins](../integrations/target-systems.md) — welche Aktionen es überhaupt gibt

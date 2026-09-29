@@ -22,7 +22,8 @@ func TestSecurityWarnings(t *testing.T) {
 		t.Errorf("clean configuration warns anyway: %v", w)
 	}
 
-	// And one where all four apply.
+	// And one where all three apply. Egress is no longer among them: an open
+	// egress is reported on localhost too, by EgressWarnings.
 	bad := Config{
 		PublicURL:     "http://covey.example.com",
 		CookieSecure:  false,
@@ -30,12 +31,12 @@ func TestSecurityWarnings(t *testing.T) {
 		EgressEnforce: false,
 	}
 	w := bad.SecurityWarnings()
-	if len(w) != 4 {
-		t.Fatalf("expected 4 warnings, got %d: %v", len(w), w)
+	if len(w) != 3 {
+		t.Fatalf("expected 3 warnings, got %d: %v", len(w), w)
 	}
 	// Every warning has to say WHAT to do — a message without a remedy is just
 	// noise.
-	for _, expected := range []string{"COVEY_PUBLIC_URL", "COVEY_COOKIE_SECURE", "sslmode", "COVEY_EGRESS_ENFORCE"} {
+	for _, expected := range []string{"COVEY_PUBLIC_URL", "COVEY_COOKIE_SECURE", "sslmode"} {
 		if !strings.Contains(strings.Join(w, "\n"), expected) {
 			t.Errorf("no warning mentions %q: %v", expected, w)
 		}
@@ -59,7 +60,6 @@ func TestSecurityWarningsIndividually(t *testing.T) {
 		{"without HTTPS", func(c *Config) { c.PublicURL = "http://covey.example.com" }, "COVEY_PUBLIC_URL"},
 		{"cookie without Secure", func(c *Config) { c.CookieSecure = false }, "COVEY_COOKIE_SECURE"},
 		{"DB without TLS", func(c *Config) { c.DatabaseURL += "&sslmode=disable" }, "sslmode"},
-		{"egress off", func(c *Config) { c.EgressEnforce = false }, "COVEY_EGRESS_ENFORCE"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -193,5 +193,67 @@ func TestParseTrustedProxies(t *testing.T) {
 	// Empty means: trust nobody.
 	if leer, _ := parseTrustedProxies(""); len(leer) != 0 {
 		t.Fatalf("empty configuration must trust nobody: %v", leer)
+	}
+}
+
+// Enforcement is the default (#445), so an open egress has exactly two causes
+// and each has to be said — on localhost too, where SecurityWarnings stays
+// silent: a quickstart installation is precisely the one that must not run
+// open without a word.
+func TestEgressWarnings(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		cfg      Config
+		enforced bool
+		mentions string
+	}{
+		{"docker, enforced", Config{SandboxProvider: "docker", EgressEnforce: true}, true, ""},
+		{"switched off", Config{SandboxProvider: "docker", EgressEnforce: false}, false, "COVEY_EGRESS_ENFORCE=false"},
+		{"provider cannot enforce", Config{SandboxProvider: "e2b", EgressEnforce: true}, false, `"e2b"`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.cfg.PublicURL = "http://localhost:8494"
+			if got := tc.cfg.EgressEnforced(); got != tc.enforced {
+				t.Errorf("EgressEnforced() = %v, expected %v", got, tc.enforced)
+			}
+			w := tc.cfg.EgressWarnings()
+			if tc.mentions == "" {
+				if len(w) != 0 {
+					t.Errorf("an enforced egress must stay silent: %v", w)
+				}
+				return
+			}
+			if len(w) != 1 || !strings.Contains(w[0], tc.mentions) || !strings.Contains(w[0], "NOT enforced") {
+				t.Errorf("expected one warning naming %s and saying NOT enforced, got %v", tc.mentions, w)
+			}
+		})
+	}
+}
+
+// The one configuration in which enforcement locks everything out: a
+// cooperative proxy on a free port inside a container. Outside a container, in
+// hard mode, or with a fixed address it is fine.
+func TestCooperativeProxyUnreachable(t *testing.T) {
+	base := Config{SandboxProvider: "docker", EgressEnforce: true, EgressIsolation: "proxy"}
+	if !base.CooperativeProxyUnreachable(true) {
+		t.Error("a free port inside a container has to be reported")
+	}
+	if base.CooperativeProxyUnreachable(false) {
+		t.Error("on the host a free port is reachable through host.docker.internal")
+	}
+	fixed := base
+	fixed.EgressListenAddr = ":8495"
+	if fixed.CooperativeProxyUnreachable(true) {
+		t.Error("a fixed address is what the compose file publishes")
+	}
+	hard := base
+	hard.EgressIsolation = "network"
+	if hard.CooperativeProxyUnreachable(true) {
+		t.Error("in hard mode the proxy is a container of its own")
+	}
+	off := base
+	off.EgressEnforce = false
+	if off.CooperativeProxyUnreachable(true) {
+		t.Error("without enforcement there is no proxy to reach")
 	}
 }

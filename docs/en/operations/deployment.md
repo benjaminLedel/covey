@@ -105,8 +105,9 @@ channel. The reasoning is **D11** in
 
 ### Egress for developer agents
 
-In isolation mode `network` the sandbox reaches only what is on the allowlist —
-without the right templates, `composer install`, `fvm install` and `gradlew`
+With egress enforced (the default) the sandbox reaches only what is on the
+allowlist, and in isolation mode `network` there is no way around it — without
+the right templates, `composer install`, `fvm install` and `gradlew`
 fail. The built-in catalogue (`internal/egress/builtin.go`) holds ready-made
 host sets for that; a developer agent is usually assigned:
 
@@ -514,8 +515,9 @@ The setup is deliberately lean. For real operation, additionally (cf.
   on `https://…` — the secure cookie then switches itself on automatically.
 - **DB TLS:** `sslmode=require` in the DB URL (then in
   `docker-compose.deploy.yml` or via a DB instance of your own).
-- **Egress:** `COVEY_EGRESS_ENFORCE=true` (the docker sandbox provider is
-  already active) so that sandboxes reach only allowlist hosts.
+- **Egress:** enforced by default — sandboxes reach only allowlist hosts.
+  Check each agent's list before the first run; `COVEY_EGRESS_ENFORCE=false`
+  in the `.env` switches it off (the compose file passes it through).
 - Replace the admin password from the generated `.env` with one of your own.
 - **Session lifetime:** `COVEY_SESSION_TTL` (default `168h`, i.e. seven days).
   The session slides — every request in the second half of that window pushes

@@ -355,15 +355,30 @@ func (d *doctor) checkHomeStore(ctx context.Context, pool *pgxpool.Pool) {
 	}
 }
 
+// checkEgressMode says whether the allowlist is applied, and where it is not,
+// why. An operator's COVEY_EGRESS_ENFORCE=false is a decision written down and
+// is reported as such; a provider that cannot enforce is a finding, because
+// nobody decided that sandboxes reach any host (#445).
+func (d *doctor) checkEgressMode(inContainer bool) {
+	switch {
+	case !d.cfg.EgressEnforce:
+		d.ok("egress", "NOT enforced (COVEY_EGRESS_ENFORCE=false) — sandboxes reach any host, the allowlists are kept but not applied")
+	case !d.cfg.EgressEnforced():
+		d.problem("egress", fmt.Sprintf("NOT enforced — the sandbox provider %q cannot enforce the allowlist, sandboxes reach any host", d.cfg.SandboxProvider),
+			"COVEY_SANDBOX_PROVIDER=docker, or COVEY_EGRESS_ENFORCE=false to record that egress stays open", false)
+	case d.cfg.CooperativeProxyUnreachable(inContainer):
+		d.problem("egress", "enforced, but the proxy binds a free port inside this container that no host publishes — sandboxes get nothing out, not even to their LLM",
+			"COVEY_EGRESS_LISTEN_ADDR=:8495 and publish 8495:8495 (docker-compose.yml does both)", true)
+	case d.cfg.EgressIsolation != "network":
+		d.ok("egress", "enforced, cooperative — the agent can bypass it; `network` is the hard mode")
+	}
+}
+
 // checkEgress looks at the enforcement point — including the objects of
 // earlier versions, which the control plane clears away at the next start.
 func (d *doctor) checkEgress(ctx context.Context) {
-	if !d.cfg.EgressEnforce {
-		d.ok("egress", "not enforced (COVEY_EGRESS_ENFORCE=false)")
-		return
-	}
-	if d.cfg.EgressIsolation != "network" {
-		d.ok("egress", "cooperative — the agent can bypass it; `network` is the hard mode")
+	d.checkEgressMode(config.RunningInContainer())
+	if !d.cfg.EgressEnforced() || d.cfg.EgressIsolation != "network" {
 		return
 	}
 	if !dockerReachable(ctx) {

@@ -172,3 +172,43 @@ func TestDirSize(t *testing.T) {
 		t.Errorf("a missing directory gave %d/%d", size, n)
 	}
 }
+
+// Where egress is open the doctor says so, and says why: an operator's
+// COVEY_EGRESS_ENFORCE=false is a recorded decision, a provider that cannot
+// enforce is a finding — and a proxy nobody can reach blocks, because then no
+// agent gets anything out (#445).
+func TestEgressModeFindings(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		cfg         config.Config
+		inContainer bool
+		ok          bool
+		blocking    bool
+		mentions    string
+	}{
+		{"enforced", config.Config{SandboxProvider: "docker", EgressEnforce: true, EgressIsolation: "proxy"}, false, true, false, "enforced"},
+		{"switched off", config.Config{SandboxProvider: "docker"}, false, true, false, "NOT enforced (COVEY_EGRESS_ENFORCE=false)"},
+		{"provider cannot enforce", config.Config{SandboxProvider: "e2b", EgressEnforce: true}, false, false, false, `NOT enforced — the sandbox provider "e2b"`},
+		{"free port in a container", config.Config{SandboxProvider: "docker", EgressEnforce: true, EgressIsolation: "proxy"}, true, false, true, "no host publishes"},
+		{"fixed port in a container", config.Config{SandboxProvider: "docker", EgressEnforce: true, EgressIsolation: "proxy", EgressListenAddr: ":8495"}, true, true, false, "enforced"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d := &doctor{cfg: tc.cfg}
+			d.checkEgressMode(tc.inContainer)
+			rep := d.report()
+			if len(rep.Findings) != 1 {
+				t.Fatalf("expected one finding, got %v", rep.Findings)
+			}
+			f := rep.Findings[0]
+			if f.OK != tc.ok || f.Blocking != tc.blocking {
+				t.Errorf("OK=%v Blocking=%v, expected %v/%v: %+v", f.OK, f.Blocking, tc.ok, tc.blocking, f)
+			}
+			if !strings.Contains(f.Detail, tc.mentions) {
+				t.Errorf("detail %q does not say %q", f.Detail, tc.mentions)
+			}
+			if !f.OK && f.Remedy == "" {
+				t.Errorf("a finding without a remedy: %+v", f)
+			}
+		})
+	}
+}
