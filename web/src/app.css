@@ -483,8 +483,11 @@
   bottom: calc(100% + 8px);
   right: 0;
   z-index: 41;
-  /* Wide enough for "Erscheinungsbild" beside its three marks on one line. */
+  /* An entry never breaks — the menu grows to its longest one in every
+     language. */
   min-width: 232px;
+  width: max-content;
+  max-width: calc(100vw - 24px);
   padding: 5px;
   background: var(--surface-0);
   border: 0.5px solid var(--border-strong);
@@ -510,6 +513,7 @@
   transition: background 0.1s, color 0.1s;
 }
 .foot-menu button:hover { background: var(--surface-2); color: var(--text-primary); }
+.foot-menu button, .foot-menu .gh-menu { white-space: nowrap; }
 .foot-menu button.danger { color: var(--text-danger); }
 .foot-menu button.danger:hover { background: var(--danger-tint); color: var(--text-danger); }
 .foot-menu .ic {
@@ -544,59 +548,6 @@
 .apps-list li + li { border-top: 0.5px solid var(--border); }
 .apps-list .ic { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; color: var(--text-muted); flex: none; }
 .apps-list .nm { flex: 1; min-width: 0; font-size: 13px; color: var(--text-primary); }
-/* Appearance as a row beside the language (#432): the same metrics as
-   .lang-pick-row, the three choices as small marks at its right end. */
-.theme-row {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 3px 4px 3px 9px;
-  font-size: 12.5px;
-  color: var(--text-secondary);
-}
-.theme-row > .ic { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; opacity: 0.75; flex: none; }
-.theme-row .lb { flex: 1; min-width: 0; white-space: nowrap; }
-.theme-marks { display: flex; gap: 1px; padding: 2px; border-radius: 8px; background: var(--tint-weak); }
-.foot-menu .theme-marks button {
-  width: 26px;
-  height: 24px;
-  padding: 0;
-  justify-content: center;
-  border-radius: 6px;
-  color: var(--text-muted);
-}
-.foot-menu .theme-marks button:hover { background: var(--tint); color: var(--text-secondary); }
-.foot-menu .theme-marks button.on { background: var(--surface-2); color: var(--text-primary); box-shadow: 0 0 0 0.5px var(--border); }
-.foot-menu .theme-marks .ic { width: 13px; height: 13px; }
-.foot-menu .theme-marks button:focus-visible { outline: 2px solid var(--text-accent); outline-offset: 1px; }
-
-/* Erscheinungsbild: drei Möglichkeiten nebeneinander, die gewählte gehoben —
-   dieselbe Zeichnung wie der Segment-Umschalter .seg, nur enger. */
-.theme-seg {
-  display: flex;
-  gap: 2px;
-  margin: 0 4px 2px;
-  padding: 2px;
-  border-radius: 8px;
-  background: var(--tint-weak);
-}
-/* Symbol über der Beschriftung: nebeneinander passte „System" in der Breite
-   des Menüs nicht und wurde beschnitten. */
-.foot-menu .theme-seg button {
-  flex: 1;
-  min-width: 0;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  padding: 6px 2px;
-  border-radius: 6px;
-  font-size: 11px;
-  color: var(--text-muted);
-}
-.foot-menu .theme-seg button:hover { background: var(--tint); color: var(--text-secondary); }
-.theme-seg .ic { width: 13px; height: 13px; }
-.theme-seg span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .avatar {
   width: 38px;
