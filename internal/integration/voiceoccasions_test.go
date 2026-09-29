@@ -1,9 +1,14 @@
 package integration
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/google/uuid"
+
+	"covey/internal/llm"
 )
 
 // builtVoice is a voice measured from the test corpus: assignable without a
@@ -167,4 +172,67 @@ func TestVoiceSlotsAPI(t *testing.T) {
 		o["slots"].(map[string]any)["chat"] != nil {
 		t.Fatalf("the one voice goes into customers and publications: %v", o)
 	}
+}
+
+// The chat half of #471: the person who writes belongs to a department that
+// names a chat voice and says how it wants to be spoken to. The triage turn
+// reads both, and the answer in the thread says which voice spoke and why.
+func TestTheDepartmentReachesTheTriage(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	agent := s.newSupportAgent("abteilung")
+	s.ohneLaeufe(agent.ID)
+	modell := &antwortendesModell{}
+	s.srv.OrgLLM = func(context.Context, uuid.UUID) (llm.Provider, error) { return modell, nil }
+	admin := teamLogin(t, s)
+	admin.expect(http.MethodPatch, "/api/v1/org/chat-triage", map[string]any{"mode": "on"}, http.StatusOK)
+
+	vertrieb := builtVoice(t, admin, "Vertriebston")
+	eigen := builtVoice(t, admin, "Eigenton")
+	admin.expect(http.MethodPut, "/api/v1/agents/"+agent.ID.String()+"/voices", map[string]any{"chat": eigen}, http.StatusOK)
+	dept := admin.expect(http.MethodPost, "/api/v1/departments", map[string]any{"name": "Vertrieb"}, http.StatusCreated)["id"].(string)
+	admin.expect(http.MethodPatch, "/api/v1/departments/"+dept+"/audience",
+		map[string]any{"audience_note": "Erst was es für den Kunden heißt, dann der Rest."}, http.StatusOK)
+	admin.expect(http.MethodPut, "/api/v1/departments/"+dept+"/voices", map[string]any{"chat": vertrieb}, http.StatusOK)
+	if _, err := s.pool.Exec(ctx, `UPDATE humans SET department_id=$2 WHERE org_id=$1 AND email='admin@test.local'`, s.orgID, dept); err != nil {
+		t.Fatal(err)
+	}
+
+	admin.expect(http.MethodPost, "/api/v1/agents/"+agent.ID.String()+"/messages",
+		map[string]any{"text": "Wie steht es um Globex?"}, http.StatusAccepted)
+	wartenAuf(t, "the triage answered", func() bool {
+		return strings.Contains(strings.Join(eintraege(t, admin, agent.ID), "\n"), "Gern, mach ich.")
+	})
+	p := triagePrompt(t, modell)
+	for _, will := range []string{"How the Vertrieb department wants to be spoken to", "Erst was es für den Kunden heißt",
+		`the voice "Vertriebston"`, "Passages in this voice"} {
+		if !strings.Contains(p, will) {
+			t.Errorf("the triage prompt lacks %q:\n%s", will, p)
+		}
+	}
+	if strings.Contains(p, "Eigenton") {
+		t.Error("the department's chat voice has to take the place of the agent's")
+	}
+
+	var meta map[string]string
+	if err := s.pool.QueryRow(ctx, `SELECT meta FROM conversation_messages
+		WHERE author_kind='agent' AND author_id=$1 ORDER BY created_at DESC LIMIT 1`, agent.ID).Scan(&meta); err != nil {
+		t.Fatal(err)
+	}
+	if meta["voice"] != "Vertriebston" || meta["voice_reason"] != "department:Vertrieb×chat" || meta["audience"] != "Vertrieb" {
+		t.Fatalf("the answer has to say which voice spoke and why: %v", meta)
+	}
+}
+
+// triagePrompt is the first prompt the model saw for a triage turn — the
+// builds before it asked the same model for a card.
+func triagePrompt(t *testing.T, m *antwortendesModell) string {
+	t.Helper()
+	for _, p := range m.prompts() {
+		if strings.Contains(p, "The new message:") {
+			return p
+		}
+	}
+	t.Fatal("no triage prompt was seen")
+	return ""
 }

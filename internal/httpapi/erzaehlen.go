@@ -84,8 +84,9 @@ func (s *Server) Nacherzaehlen(ctx context.Context) {
  * or when telling failed, the report itself is the message, as before #411. */
 func (s *Server) melden(ctx context.Context, b chat.Report) {
 	text := b.Said
+	var meta map[string]string
 	if b.Triage && !b.Told {
-		text = s.erzaehle(ctx, b)
+		text, meta = s.erzaehle(ctx, b)
 	}
 	if strings.TrimSpace(text) == "" {
 		text = b.Outcome
@@ -93,6 +94,7 @@ func (s *Server) melden(ctx context.Context, b chat.Report) {
 	_, neu, err := s.Chat.Post(ctx, chat.Message{
 		ID: chat.ReportID(b.TaskID, b.Kind()), ConversationID: b.ConversationID,
 		AuthorKind: chat.MemberAgent, AuthorID: &b.AgentID, Text: text, Kind: b.Kind(), TaskID: &b.TaskID,
+		Meta: meta,
 	})
 	if err != nil {
 		s.Log.Warn("narration: the report was not written", "task", b.TaskID, "err", err)
@@ -139,25 +141,30 @@ func (s *Server) frageZustellen(ctx context.Context, f chat.Question) {
 
 // erzaehle sagt eine Aufgabe an. Ohne Modell, ohne Ergebnis oder bei einem
 // Fehler bleibt der Satz leer — und das wird trotzdem vermerkt: Dann steht der
-// Bericht selbst im Gespräch, wie vor #411.
-func (s *Server) erzaehle(ctx context.Context, b chat.Report) string {
+// Bericht selbst im Gespräch, wie vor #411. The meta is the voice the
+// retelling was written in (#471), nil when nothing was told.
+func (s *Server) erzaehle(ctx context.Context, b chat.Report) (string, map[string]string) {
 	gesagt := ""
+	var meta map[string]string
 	if b.Outcome != "" {
 		zctx, abbrechen := context.WithTimeout(ctx, erzaehlFrist)
-		gesagt = s.erzaehlText(zctx, b)
+		gesagt, meta = s.erzaehlText(zctx, b)
 		abbrechen()
 	}
 	if _, err := s.Pool.Exec(ctx, `UPDATE backlog_tasks SET said = $2, said_at = now()
 		WHERE id = $1 AND said_at IS NULL`, b.TaskID, gesagt); err != nil {
 		s.Log.Warn("narration: not stored", "task", b.TaskID, "err", err)
 	}
-	return gesagt
+	if gesagt == "" {
+		meta = nil
+	}
+	return gesagt, meta
 }
 
-func (s *Server) erzaehlText(ctx context.Context, b chat.Report) string {
+func (s *Server) erzaehlText(ctx context.Context, b chat.Report) (string, map[string]string) {
 	provider, err := s.resolveOrgLLM(ctx, b.OrgID)
 	if err != nil {
-		return ""
+		return "", nil
 	}
 	verlauf, err := s.verlaufFuer(ctx, b.ConversationID, b.AgentID, uuid.Nil, triageKontext)
 	if err != nil {
@@ -170,7 +177,8 @@ func (s *Server) erzaehlText(ctx context.Context, b chat.Report) string {
 	// The person the task came from (origin chat:<email>), #412.
 	gegenueber := s.gegenueberVon(ctx, b.OrgID, strings.TrimPrefix(b.Origin, "chat:"))
 	rahmen := chat.Rahmen{Rolle: s.rolleVon(ctx, b.AgentID), Seele: s.seeleVon(ctx, b.AgentID),
-		Gegenueber: gegenueber, Ton: s.tonVon(ctx, b.AgentID)}
+		Gegenueber: gegenueber}
+	meta := s.chatStimme(ctx, &rahmen, b.OrgID, b.AgentID, b.ConversationID, strings.TrimPrefix(b.Origin, "chat:"))
 	// In a group everybody reads the retelling, not only who asked (#457).
 	if conv, err := s.Chat.Get(ctx, b.ConversationID); err == nil {
 		rahmen.Raum = chat.Raum(conv, b.AgentID, s.nameVon(ctx, b.OrgID, strings.TrimPrefix(b.Origin, "chat:")), false)
@@ -178,7 +186,7 @@ func (s *Server) erzaehlText(ctx context.Context, b chat.Report) string {
 	text, err := chat.Erzaehlen(ctx, provider, rahmen, verlauf, auftrag, b.State, b.Outcome)
 	if err != nil {
 		s.Log.Warn("narration failed — the report stands on its own", "task", b.TaskID, "err", err)
-		return ""
+		return "", nil
 	}
-	return text
+	return text, meta
 }

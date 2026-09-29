@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"reflect"
 	"testing"
 
 	"covey/internal/chat"
@@ -16,10 +17,10 @@ func TestPeopleDepartmentNeverAnswersABrief(t *testing.T) {
 		t.Fatalf("an answer to the People department has to become a task, got %+v", got)
 	}
 	notiz := chat.Entscheidung{Aktion: chat.AktionNotiz, Aufgabe: "a1", Text: "only triage, no answers"}
-	if got := entscheidungFuer(peopleSlug, notiz); got != notiz {
+	if got := entscheidungFuer(peopleSlug, notiz); !reflect.DeepEqual(got, notiz) {
 		t.Fatalf("a note onto a running brief stays a note, got %+v", got)
 	}
-	if got := entscheidungFuer("support", antwort); got != antwort {
+	if got := entscheidungFuer("support", antwort); !reflect.DeepEqual(got, antwort) {
 		t.Fatalf("everybody else keeps the triage's decision, got %+v", got)
 	}
 }

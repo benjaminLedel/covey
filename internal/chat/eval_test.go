@@ -51,6 +51,8 @@ type evalRahmen struct {
 	Gegenueber   string
 	Raum         string
 	Ton          string
+	// The chat voice and the audience lines of #471; no scenario sets them yet.
+	Stimme, Publikum string
 }
 
 type evalScenario struct {

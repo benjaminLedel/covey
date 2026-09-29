@@ -531,18 +531,6 @@ func (s *Store) SetOrgChatTone(ctx context.Context, orgID uuid.UUID, tone ChatTo
 	return tone, nil
 }
 
-// AgentChatTone is the tone an agent talks in when nothing is known about
-// whom it talks to: ChatToneFor with the chat voice its own slot or the
-// organisation's default names. Unreadable is no tone — the turns then talk
-// as they did before there was one.
-func (s *Store) AgentChatTone(ctx context.Context, agentID uuid.UUID) ChatTone {
-	var orgID uuid.UUID
-	if err := s.pool.QueryRow(ctx, `SELECT org_id FROM agents WHERE id = $1`, agentID).Scan(&orgID); err != nil {
-		return ChatTone{}
-	}
-	return s.ChatToneFor(ctx, orgID, agentID, s.Resolve(ctx, orgID, agentID, OccasionChat, Audience{}))
-}
-
 // carriers names the agents that name a voice in any of their slots (#471).
 func (s *Store) carriers(ctx context.Context, voiceID uuid.UUID) ([]AgentRef, error) {
 	rows, err := s.pool.Query(ctx,
