@@ -6,7 +6,7 @@ faq:
   - q: Braucht covey Redis, RabbitMQ oder Kafka?
     a: Nein. Die Warteschlange ist `SELECT … FOR UPDATE SKIP LOCKED`, die Benachrichtigung `LISTEN/NOTIFY`, die Vektorsuche `pgvector` — alles in derselben Postgres-Instanz. Ein Broker wäre ein zweiter Dienst mit eigenem Ausfallverhalten für einen Nutzen, den die Datenbank schon hat.
   - q: Kann ich eine andere Runtime als Claude Code verwenden?
-    a: 'Vom Aufbau her ja: Runtimes hängen als Plugins an einer Registry und sprechen über einen dünnen Adapter das Daemon-Protokoll. Ausgeliefert ist derzeit Claude Code headless, dazu eine Mock-Runtime für Tests und Demos ohne Modellkosten.'
+    a: 'Vom Aufbau her ja: Runtimes hängen als Plugins an einer Registry und sprechen über einen dünnen Adapter das Daemon-Protokoll. Ausgeliefert sind derzeit Claude Code headless, Codex (deklariert, sein Lauf noch nicht verifiziert), SevenCode und educa AI, dazu eine Mock-Runtime für Tests und Demos ohne Modellkosten — siehe Runtimes und Engines.'
   - q: Warum läuft die Sandbox in Docker und nicht als Unterprozess?
     a: Weil Prozess-Isolation keine ist, sobald ein Agent Werkzeuge ausführt. Der Container gibt Namespaces, ein eigenes Dateisystem und einen kontrollierbaren Netzausgang. Einen local-Provider gab es früher; er ist entfernt, damit niemand versehentlich ohne Isolation produktiv geht.
   - q: Wie skaliert covey über eine Maschine hinaus?
@@ -33,7 +33,7 @@ Daraus folgt die Betriebsregel: Geht eine Sandbox verloren, wird sie aus Config 
 
 Zwischen Control Plane und Sandbox läuft ein bidirektionales Protokoll über WebSocket. Es transportiert den Auftrag hinein, Werkzeugaufrufe und Ergebnisse heraus, Freigabe-Anfragen in beide Richtungen und am Ende Tokens und Kosten.
 
-Die Runtime dahinter ist austauschbar, weil sie das Protokoll nicht kennt — dazwischen sitzt ein dünner Adapter. Der erste ist Claude Code headless (`claude -p`); ein weiterer ändert an der Plattform nichts, solange er dieselben Nachrichten spricht.
+Die Runtime dahinter ist austauschbar, weil sie das Protokoll nicht kennt — dazwischen sitzt ein dünner Adapter. Der erste ist Claude Code headless (`claude -p`); Codex, SevenCode und educa AI kamen dazu, ohne an der Plattform etwas zu ändern, weil jeder dieselben Nachrichten spricht ([Runtimes und Engines](../concepts/runtimes.md)).
 
 ## Warum die Sandbox ein Geschwister-Container ist
 

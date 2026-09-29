@@ -87,12 +87,14 @@ Full walkthrough including your first agent and a production checklist: [`docs/e
 | 🧑‍🎓 **Hiring, not a config form** | Describe the job in a few sentences; the People department writes the configuration and asks back when the brief is thin. What comes out is a draft until a human hires it. |
 | 📥 **Backlog and wake sources** | Tasks as first-class objects. Agents wake on a webhook, a heartbeat or a nudge, then go back to sleep. |
 | 🔌 **Target systems as plugins** | Jira, Confluence, GitLab, GitHub, Zammad, Zendesk, Salesforce, Teams, SharePoint, Nextcloud, Kubernetes, email (IMAP/SMTP), headless browser, MCP. |
+| ⚙️ **Swappable engines** | Claude Code, Codex, SevenCode and educa AI behind one daemon protocol — chosen per agent, with several credentials per seat and paid-for quota used first. |
 | 🛡️ **Guard rails and approvals** | Enforced centrally, outside the runtime, fail-closed. Critical actions wait for a human. |
 | 🔑 **Secrets broker** | No long-lived secret ever enters a sandbox. Access is brokered per run, short-lived and scoped. |
 | 🧩 **Skills** | Procedures an agent loads only when they apply — the description stays in context, the instructions are read on demand. |
 | 🧠 **Wiki memory** | Linked Markdown pages with a pgvector index instead of flat snippets. Readable, and correctable by hand. |
 | 📂 **Workspace** | The agent's home directory in the browser: browse it, drop files in, edit one, pull a selection out as a ZIP. Works while the agent sleeps. |
 | 🎥 **Recording and kill switch** | Every run recorded including screenshots, cost per agent and model, one emergency stop for the whole organisation. |
+| 📱 **The covey app** | One app for iPhone, Android, Mac and Windows: paired by QR code, with a notification when an agent asks or answers. Not in the stores yet. |
 | 📦 **One binary** | Frontend and migrations compiled in. Copy it, run `covey serve` — no nginx, no separate frontend hosting. |
 
 None of these target systems live in this repository. Each one is a separate Go module written against a [public SDK](https://github.com/benjaminLedel/covey-plugin-sdk). The ones covey ships with are in the [plugin pack](https://github.com/benjaminLedel/covey-plugin-pack); the others install at runtime from the [catalogue](https://github.com/benjaminLedel/covey-plugins), without rebuilding anything. Zammad, Kubernetes and the vulnerability databases run as WebAssembly modules from that catalogue, the same way a plugin you write would be installed. There is no privileged tier for the ones we wrote.
@@ -136,7 +138,7 @@ flowchart LR
 
 The **control plane** is always on and holds the state: scheduler, agent registry, backlog, identity and secrets broker, guard rails, observability. The **data plane** is a set of isolated sandboxes with a persistent home directory. A sandbox is disposable — if one is lost it is rebuilt from the config and the home.
 
-Inside each sandbox a small **daemon** speaks a single protocol to the control plane, and an **adapter** starts the actual runtime, currently Claude Code. Because covey manages the sandbox and not the agent framework, replacing the runtime does not touch the rest of the system. Details in [`spec/01-architecture.md`](spec/01-architecture.md).
+Inside each sandbox a small **daemon** speaks a single protocol to the control plane, and an **adapter** starts the actual runtime — Claude Code, Codex, SevenCode or educa AI ([`docs/en/concepts/runtimes.md`](docs/en/concepts/runtimes.md)). Because covey manages the sandbox and not the agent framework, replacing the runtime does not touch the rest of the system. Details in [`spec/01-architecture.md`](spec/01-architecture.md).
 
 Most parts of the system have a counterpart in an ordinary company:
 
@@ -215,6 +217,8 @@ holds the reading order. The operating runbooks below are English only.
 |---|---|
 | [`docs/en/getting-started/quickstart.md`](docs/en/getting-started/quickstart.md) | Compose setup, first agent, production checklist |
 | [`docs/en/operations/deployment.md`](docs/en/operations/deployment.md) | CI pipeline, auto-deploy to a target host |
+| [`docs/en/concepts/runtimes.md`](docs/en/concepts/runtimes.md) | Runtimes: Claude Code, Codex, SevenCode, educa AI — what each needs, how an agent is put on one, known limits |
+| [`docs/en/operations/apps.md`](docs/en/operations/apps.md) | The covey app: iPhone, Android, Mac, Windows — install, pairing, notifications, what works where |
 | [`docs/en/operations/upgrade.md`](docs/en/operations/upgrade.md) | Upgrades that need more than a restart — what to build and back up beforehand |
 | [`docs/en/operations/api-keys.md`](docs/en/operations/api-keys.md) | API keys: driving covey from outside — what a key may do and what only the browser may |
 | [`docs/en/operations/runner.md`](docs/en/operations/runner.md) | Runners: sandboxes on more than one host, the home store, hard egress isolation |
@@ -280,7 +284,7 @@ make run          # covey serve on http://localhost:8494
 | `anthropic_api_key` | API key (pay as you go) |
 | `claude_code_oauth_token` | Subscription account — generate the token once with `claude setup-token` |
 
-Without either, tasks fail with "Not logged in · Please run /login": the sandbox has its own empty `HOME`, so your local `claude` login is not visible in there.
+Without either, tasks fail with "Not logged in · Please run /login": the sandbox has its own empty `HOME`, so your local `claude` login is not visible in there. The other engines and the secrets each needs: [`docs/en/concepts/runtimes.md`](docs/en/concepts/runtimes.md).
 
 **Sandbox isolation.** The control plane starts sandboxes as containers (**docker provider**, the default) — real isolation at the container level. `make sandbox-image` builds the `base` profile ([`Dockerfile.sandbox`](Dockerfile.sandbox)), `make sandbox-image-dev` the `dev` one, and beside them stand the role workplaces `dev-flutter`, `dev-php` and `dev-web` ([`docs/en/operations/workplaces.md`](docs/en/operations/workplaces.md)). **The image hangs off the agent**, not off the instance: a support or mail agent runs on `base` and no longer carries a developer agent's JVM, and a Flutter agent no longer carries a database server. The profile is set per agent in the interface, and an image of your own is a valid value there. `COVEY_SANDBOX_IMAGE_<PROFILE>` overrides what a profile resolves to. The rule when extending them: **version → home, toolchain → image** — SDK versions are fetched by the agent itself into its persistent home, following the pin in the project repo. A role workplace is where that rule is deliberately reversed: for an agent whose field is settled the version is settled too, so `dev-flutter` carries its baseline SDK in the image.
 

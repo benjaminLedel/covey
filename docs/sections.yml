@@ -31,6 +31,7 @@ sections:
     title: { de: Konzepte, en: Concepts }
     pages:
       - agent-model
+      - runtimes
       - memory
       - guard-rails
       - identity-and-secrets
@@ -62,6 +63,7 @@ sections:
       - operations
       - deployment
       - mail
+      - apps
       - upgrade
       - runner
       - workplaces

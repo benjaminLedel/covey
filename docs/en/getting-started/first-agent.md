@@ -23,7 +23,7 @@ Five steps, and the **first steps** checklist on the agent overview ticks them o
 
 The *Setup* page asks three questions, each one skippable:
 
-- **Engine and credential.** Which engine your agents think on, and the credential for it — for Claude Code an API key (billed per use) or a subscription token (generate it once in the terminal with `claude setup-token`), for Codex an API key or the contents of `~/.codex/auth.json`. The value is checked against the provider **before** it is stored — better here than an hour later inside an agent's run. The workplace is created around it; a second token automatically becomes further capacity.
+- **Engine and credential.** Which engine your agents think on, and the credential for it — for Claude Code an API key (billed per use) or a subscription token (generate it once in the terminal with `claude setup-token`), for Codex an API key or the contents of `~/.codex/auth.json` ([Runtimes and engines](../concepts/runtimes.md) has the others). A Claude Code credential is checked against Anthropic **before** it is stored — better here than an hour later inside an agent's run. The workplace is created around it; a second token automatically becomes further capacity.
 - **What your company does.** Three to five sentences. They stay on the organisation and from then on go into every hiring brief, into the configuration of newly drafted agents and into the config assistant.
 - **Your People department.** An agent whose job is drafting the others.
 
