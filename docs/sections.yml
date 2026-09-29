@@ -63,6 +63,7 @@ sections:
       - operations
       - deployment
       - mail
+      - apps
       - upgrade
       - runner
       - workplaces
