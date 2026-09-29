@@ -4343,27 +4343,34 @@
   .tm-kopf > section { margin: 0 12px 12px; }
 }
 
-/* Building a voice (#458): a rail of six steps and the one line under it that
-   says what stands in the way. Flat on purpose — the flow guides, the texts
-   are the content. States are marks (tick done, ring open, dashed ring
-   optional, bar held up); colour only repeats them. */
-.vf { display: flex; flex-direction: column; gap: 14px; font-size: 13px; container-type: inline-size; }
-.vf-rail-wrap { display: flex; flex-direction: column; gap: 6px; }
-.vf-rail {
+/* Building a voice (#458, #464): a list of six steps and the one step that is
+   chosen beside it. Flat on purpose — the flow guides, the texts are the
+   content. States are marks (tick done, ring open, dashed ring optional, bar
+   held up); colour only repeats them. Wide and narrow are the flow's own
+   width: the page sits beside a sidebar that does not collapse. */
+.vf { display: flex; flex-direction: column; gap: 14px; font-size: 13px; container-type: inline-size; container-name: vf; }
+.vf-frame { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+
+/* The step list: a bar above the step while narrow. */
+.vf-steps { min-width: 0; }
+.vf-progress { margin: 0 0 6px; font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.vf-steps ol {
+  position: relative;
   list-style: none;
   margin: 0;
   padding: 0;
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 4px;
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: thin;
   border-bottom: 0.5px solid var(--border);
 }
-.vf-rail button {
-  width: 100%;
+.vf-steps li { flex: 0 0 auto; }
+.vf-steps button {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 6px 8px;
+  gap: 7px;
+  padding: 7px 10px 8px 6px;
   border: 0;
   border-bottom: 2px solid transparent;
   margin-bottom: -0.5px;
@@ -4372,15 +4379,73 @@
   font: inherit;
   font-size: 12.5px;
   text-align: left;
+  white-space: nowrap;
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
 }
-.vf-rail button:hover { color: var(--text-primary); }
-.vf-rail button.on { color: var(--text-primary); border-bottom-color: var(--text-accent); font-weight: 500; }
-.vf-rail-label { min-width: 0; overflow-wrap: anywhere; }
+.vf-steps button:hover:not(:disabled) { color: var(--text-primary); }
+.vf-steps button:disabled { cursor: default; color: var(--text-muted); }
+.vf-steps button:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: -2px; border-radius: 6px; }
+.vf-steps button.on { color: var(--text-primary); border-bottom-color: var(--text-accent); font-weight: 500; }
+.vf-step-text { display: flex; flex-direction: column; min-width: 0; }
+.vf-step-s { display: none; }
 .vf-rail-n { color: var(--text-muted); font-variant-numeric: tabular-nums; font-weight: 400; }
-.vf-status { margin: 0; font-size: 12px; color: var(--text-muted); }
-.vf-blocker { color: var(--text-primary); }
+
+/* The chosen step. */
+.vf-pane { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.vf-pane-h { display: flex; align-items: baseline; gap: 10px; }
+.vf-pane-h .vf-section-h { align-self: center; }
+.vf-stepof { margin-left: auto; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.vf-pane-body { display: flex; flex-direction: column; gap: 10px; min-height: 96px; }
+.vf-nav {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 10px 0;
+  border-top: 0.5px solid var(--border);
+  background: var(--surface-2);
+}
+.vf-nav > .btn:last-child { margin-left: auto; }
+.vf-nav-why { flex: 1 1 auto; min-width: 0; font-size: 12px; color: var(--text-secondary); text-align: right; }
+.vf-nav-why:empty { flex: 1 1 auto; }
+
+@container vf (min-width: 960px) {
+  /* Wide: the list on the left stays in view, each step with its one line. */
+  .vf-frame { grid-template-columns: 232px minmax(0, 1fr); gap: 28px; align-items: start; }
+  .vf-steps { position: sticky; top: 16px; }
+  .vf-steps ol { flex-direction: column; gap: 1px; overflow: visible; border-bottom: 0; }
+  .vf-steps button {
+    width: 100%;
+    align-items: flex-start;
+    padding: 7px 10px;
+    border-bottom: 0;
+    margin: 0;
+    border-radius: var(--radius);
+    white-space: normal;
+  }
+  .vf-steps button .vf-mark { margin-top: 2px; }
+  .vf-steps button:hover:not(:disabled) { background: var(--tint-weak); }
+  .vf-steps button.on { background: var(--tint); }
+  .vf-steps button.on .vf-mark.open { color: var(--text-accent); }
+  .vf-step-s {
+    display: block;
+    font-size: 11.5px;
+    font-weight: 400;
+    line-height: 1.4;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 190px;
+  }
+  .vf-steps button:hover .vf-step-s, .vf-steps button.on .vf-step-s { white-space: normal; }
+  .vf-pane { padding-left: 28px; border-left: 0.5px solid var(--border); min-height: 100%; }
+  .vf-nav { position: static; }
+}
 
 .vf-mark {
   width: 14px;
@@ -4399,14 +4464,10 @@
 .vf-mark.check-warn { color: var(--text-warning); }
 .vf-mark.check-block { color: var(--text-danger); }
 
-.vf-section { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 0.5px solid var(--border); scroll-margin-top: 16px; }
-.vf-section:first-of-type { border-top: 0; padding-top: 0; }
 .vf-section-h { display: flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 600; margin: 0; }
 .vf-opt { font-weight: 400; font-size: 12px; }
 .vf-hint { margin: 0; font-size: 12px; max-width: 68ch; }
 .vf-body { display: flex; flex-direction: column; gap: 10px; max-width: 720px; }
-.vf-stage { display: flex; flex-direction: column; gap: 10px; min-height: 120px; }
-.vf-nav { display: flex; justify-content: space-between; gap: 8px; padding-top: 12px; border-top: 0.5px solid var(--border); }
 
 .vf-choices { border: 0; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px; max-width: 720px; }
 .vf-choice {
@@ -4454,19 +4515,201 @@
 .vf-card-text.was { color: var(--text-secondary); background: var(--surface-1); }
 .vf-details summary { cursor: pointer; font-size: 12.5px; color: var(--text-secondary); }
 .vf-details[open] summary { margin-bottom: 8px; }
-.vf-exemplars { display: flex; flex-direction: column; gap: 8px; max-width: 68ch; }
-.vf-exemplars p { white-space: pre-line; }
 .vf-upload select { width: auto; }
-.vf-new .vf-stage { padding-top: 4px; }
 
-/* Narrow is the flow's own width, not the window's: the page sits beside a
-   sidebar, and a voice's sections sit inside its card. */
-@container (max-width: 640px) {
-  /* Narrow: two rows of three, the number carries the order. */
-  .vf-rail { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* A voice's summary head (#464). */
+.vc-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.vc-title { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; font-weight: 600; min-width: 0; }
+.vc-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: -4px;
+  padding: 2px 6px 2px 2px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+.vc-name:hover { background: var(--tint-weak); }
+.vc-name:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 1px; }
+.vc-chev { width: 14px; height: 14px; flex-shrink: 0; fill: none; stroke: var(--text-muted); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.18s ease-out; }
+.vc.open .vc-chev { transform: rotate(90deg); }
+.vc-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.vc-more { position: relative; }
+.vc-more-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 28px;
+  border: 0.5px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.vc-more-btn:hover, .vc-more-btn[aria-expanded="true"] { background: var(--tint-weak); color: var(--text-primary); border-color: var(--border); }
+.vc-more-btn svg { width: 16px; height: 16px; fill: currentColor; }
+.vc-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 30;
+  min-width: 160px;
+  padding: 4px;
+  background: var(--surface-2);
+  border: 0.5px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px var(--shadow-sm);
+}
+.vc-menu button {
+  display: block;
+  width: 100%;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.vc-menu button:hover:not(:disabled) { background: var(--tint); }
+.vc-menu button.danger { color: var(--text-danger); }
+.vc-menu button:disabled { opacity: 0.5; cursor: default; }
+.vc-meta {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.vc-meta li { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.vc-carriers { flex-wrap: wrap; }
+.vc-agent { display: inline-flex; align-items: center; gap: 5px; color: var(--text-primary); }
+.vc-agent:hover { text-decoration: underline; text-underline-offset: 2px; }
+.vc.open .vc-meta { padding-bottom: 12px; border-bottom: 0.5px solid var(--border); }
+
+.vf-icon { width: 15px; height: 15px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+/* The purpose as one segmented choice. */
+.vf-seg-wrap { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.vf-seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 2px;
+  gap: 2px;
+  border: 0.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--tint-weak);
+}
+.vf-seg label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+.vf-seg label:hover { color: var(--text-primary); }
+.vf-seg label.on { background: var(--surface-2); color: var(--text-primary); font-weight: 500; box-shadow: 0 1px 2px var(--shadow-sm), inset 0 0 0 0.5px var(--border); }
+.vf-seg label.on .vf-icon { color: var(--text-accent); }
+.vf-seg input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: inherit; }
+.vf-seg label:has(input:focus-visible) { outline: 2px solid var(--accent-ring); outline-offset: 1px; }
+.vf-seg-wrap:disabled label { cursor: default; }
+.vf-seg-wrap:disabled label:not(.on) { opacity: 0.6; }
+.vf-seg-desc { margin: 0; font-size: 12px; max-width: 68ch; }
+.vf-field .vf-lang { width: 70px; }
+.vf-new-h { display: flex; align-items: baseline; gap: 8px; }
+.vf-new-h h2 { font-weight: 600; }
+
+/* The release as a review: the card beside a sample, the passages under both. */
+.vf-review { display: flex; flex-direction: column; gap: 14px; }
+.vf-review-top { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
+.vf-block-h { display: flex; align-items: center; gap: 8px; min-height: 28px; margin-bottom: 6px; }
+.vf-block-t { font-size: 12.5px; font-weight: 600; color: var(--text-primary); }
+.vf-card-md {
+  padding: 12px 16px;
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  font-size: 13px;
+  line-height: 1.55;
+  max-height: 460px;
+  overflow: auto;
+}
+.vf-card-md > :first-child { margin-top: 0; }
+.vf-card-md > :last-child { margin-bottom: 0; }
+.vf-card-md h4, .vf-card-md h5, .vf-card-md h6 { font-size: 13px; font-weight: 600; margin: 12px 0 4px; }
+.vf-card-md p { margin: 0 0 8px; max-width: 72ch; }
+.vf-card-md ul, .vf-card-md ol { margin: 0 0 8px; padding-left: 18px; }
+.vf-card-edit { width: 100%; font-family: var(--mono); font-size: 12.5px; line-height: 1.5; }
+.vf-review-preview { padding: 10px 12px 12px; border: 0.5px solid var(--border); border-radius: var(--radius); background: var(--tint-weak); min-width: 0; }
+.vf-review-preview .vf-body { gap: 8px; }
+.vf-review-preview .vf-preview-form { flex-direction: column; align-items: stretch; }
+.vf-review-preview .vf-field, .vf-review-preview .vf-field select { width: 100%; }
+.vf-review-preview .vf-field.grow { flex: 0 0 auto; }
+.vf-review-preview .vf-sample { background: var(--surface-2); }
+
+.vf-ex-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
+.vf-ex {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  padding: 9px 11px 10px;
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.5;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.vf-ex:hover { border-color: var(--border-strong); }
+.vf-ex:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 1px; }
+.vf-ex-h { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.vf-ex-from { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.vf-ex-text { white-space: pre-line; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; line-clamp: 5; overflow: hidden; }
+.vf-ex.open { grid-column: 1 / -1; background: var(--surface-1); }
+.vf-ex.open .vf-ex-text { display: block; -webkit-line-clamp: unset; line-clamp: none; }
+.vf-ex-all { align-self: flex-start; margin-top: 8px; }
+.vf-review-passages { display: flex; flex-direction: column; }
+.vf-review-passages .vf-hint { margin-bottom: 8px; }
+.vf-review-foot { display: flex; flex-direction: column; gap: 10px; padding-top: 12px; border-top: 0.5px solid var(--border); }
+.vf-refine { max-width: none; }
+.vf-refine input, .vf-refine .btn { height: 36px; box-sizing: border-box; }
+.vf-refine input { max-width: none; }
+.vf-release { display: flex; align-items: center; gap: 12px; justify-content: flex-end; flex-wrap: wrap; }
+.vf-release .muted { flex: 1 1 240px; }
+
+@container vf (min-width: 960px) {
+  .vf-review-top { grid-template-columns: minmax(0, 1.55fr) minmax(260px, 1fr); }
+}
+@container vf (max-width: 640px) {
   .vf-compare { grid-template-columns: 1fr; }
   .vf-choices { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .vf-rail button, .vf-choice { transition: none; }
+  .vf-steps button, .vf-choice, .vf-seg label, .vf-ex, .vc-chev { transition: none; }
 }

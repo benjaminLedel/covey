@@ -1548,7 +1548,24 @@
       "describedPill": "説明",
       "draftWaiting": "下書きあり",
       "describedNote": "説明によるもので計測されていないため、スタイルチェックの基準になりません。",
-      "exemplarsDescribed": "ボイスを示すために説明からモデルが書き、カードと一緒に公開されたもの。プロンプトに入り、毎回の実行でトークンを使います。"
+      "exemplarsDescribed": "ボイスを示すために説明からモデルが書き、カードと一緒に公開されたもの。プロンプトに入り、毎回の実行でトークンを使います。",
+      "stepsNav": "ステップ",
+      "stepOf": "ステップ {{n}} / {{total}}",
+      "noPurpose": "用途未設定",
+      "measured": "計測済み · 第{{version}}版",
+      "nothingYet": "まだ公開なし",
+      "more": "その他の操作",
+      "editCard": "カードを編集",
+      "showCard": "整形して表示",
+      "showAll": "すべて表示（{{n}}）",
+      "showFewer": "表示を減らす",
+      "action": {
+        "purpose": "用途を選ぶ",
+        "addTexts": "テキストを追加",
+        "build": "ボイスを構築",
+        "describe": "ボイスを書かせる",
+        "release": "確認して公開"
+      }
     }
   },
   "skills": {

@@ -1548,7 +1548,24 @@
       "describedPill": "opisany",
       "draftWaiting": "szkic czeka",
       "describedNote": "Opisany, nie zmierzony — kontrola stylu się do niego nie odnosi.",
-      "exemplarsDescribed": "Napisane przez model na podstawie opisu, aby pokazać głos, zatwierdzone z kartą. Trafiają do promptu i kosztują tokeny w każdym przebiegu."
+      "exemplarsDescribed": "Napisane przez model na podstawie opisu, aby pokazać głos, zatwierdzone z kartą. Trafiają do promptu i kosztują tokeny w każdym przebiegu.",
+      "stepsNav": "Kroki",
+      "stepOf": "Krok {{n}} z {{total}}",
+      "noPurpose": "brak celu",
+      "measured": "zmierzony · wersja {{version}}",
+      "nothingYet": "nic jeszcze nie zatwierdzono",
+      "more": "Więcej działań",
+      "editCard": "Edytuj kartę",
+      "showCard": "Pokaż sformatowaną",
+      "showAll": "Pokaż wszystkie ({{n}})",
+      "showFewer": "Pokaż mniej",
+      "action": {
+        "purpose": "Wybierz cel",
+        "addTexts": "Dodaj teksty",
+        "build": "Zbuduj głos",
+        "describe": "Napisz głos",
+        "release": "Przejrzyj i zatwierdź"
+      }
     }
   },
   "skills": {

@@ -1548,7 +1548,24 @@
       "describedPill": "beschrieben",
       "draftWaiting": "Entwurf wartet",
       "describedNote": "Beschrieben, nicht gemessen — die Stilprüfung misst nicht an ihr.",
-      "exemplarsDescribed": "Von einem Modell aus der Beschreibung geschrieben, um die Stimme zu zeigen, mit der Karte freigegeben. Sie stehen im Prompt und kosten in jedem Lauf Tokens."
+      "exemplarsDescribed": "Von einem Modell aus der Beschreibung geschrieben, um die Stimme zu zeigen, mit der Karte freigegeben. Sie stehen im Prompt und kosten in jedem Lauf Tokens.",
+      "stepsNav": "Schritte",
+      "stepOf": "Schritt {{n}} von {{total}}",
+      "noPurpose": "kein Zweck gesetzt",
+      "measured": "gemessen · Build {{version}}",
+      "nothingYet": "noch nichts freigegeben",
+      "more": "Weitere Aktionen",
+      "editCard": "Karte bearbeiten",
+      "showCard": "Formatiert zeigen",
+      "showAll": "Alle {{n}} zeigen",
+      "showFewer": "Weniger zeigen",
+      "action": {
+        "purpose": "Zweck wählen",
+        "addTexts": "Texte hinzufügen",
+        "build": "Stimme bauen",
+        "describe": "Stimme schreiben lassen",
+        "release": "Prüfen und freigeben"
+      }
     }
   },
   "skills": {

@@ -1548,7 +1548,24 @@
       "describedPill": "descrita",
       "draftWaiting": "borrador pendiente",
       "describedNote": "Descrita, no medida: el control de estilo no compara con ella.",
-      "exemplarsDescribed": "Escritos por un modelo a partir de la descripción para mostrar la voz, publicados con la ficha. Van al prompt y cuestan tokens en cada ejecución."
+      "exemplarsDescribed": "Escritos por un modelo a partir de la descripción para mostrar la voz, publicados con la ficha. Van al prompt y cuestan tokens en cada ejecución.",
+      "stepsNav": "Pasos",
+      "stepOf": "Paso {{n}} de {{total}}",
+      "noPurpose": "sin finalidad",
+      "measured": "medida · versión {{version}}",
+      "nothingYet": "nada publicado aún",
+      "more": "Más acciones",
+      "editCard": "Editar tarjeta",
+      "showCard": "Ver con formato",
+      "showAll": "Mostrar las {{n}}",
+      "showFewer": "Mostrar menos",
+      "action": {
+        "purpose": "Elegir finalidad",
+        "addTexts": "Añadir textos",
+        "build": "Construir la voz",
+        "describe": "Escribir la voz",
+        "release": "Revisar y publicar"
+      }
     }
   },
   "skills": {

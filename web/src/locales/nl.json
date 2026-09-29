@@ -1548,7 +1548,24 @@
       "describedPill": "beschreven",
       "draftWaiting": "concept wacht",
       "describedNote": "Beschreven, niet gemeten — de stijlcontrole meet er niet aan.",
-      "exemplarsDescribed": "Door een model uit de beschrijving geschreven om de stem te tonen, met de kaart vrijgegeven. Ze staan in de prompt en kosten in elke run tokens."
+      "exemplarsDescribed": "Door een model uit de beschrijving geschreven om de stem te tonen, met de kaart vrijgegeven. Ze staan in de prompt en kosten in elke run tokens.",
+      "stepsNav": "Stappen",
+      "stepOf": "Stap {{n}} van {{total}}",
+      "noPurpose": "geen doel ingesteld",
+      "measured": "gemeten · versie {{version}}",
+      "nothingYet": "nog niets vrijgegeven",
+      "more": "Meer acties",
+      "editCard": "Kaart bewerken",
+      "showCard": "Opgemaakt tonen",
+      "showAll": "Alle {{n}} tonen",
+      "showFewer": "Minder tonen",
+      "action": {
+        "purpose": "Doel kiezen",
+        "addTexts": "Teksten toevoegen",
+        "build": "Stem bouwen",
+        "describe": "Stem laten schrijven",
+        "release": "Nakijken en vrijgeven"
+      }
     }
   },
   "skills": {

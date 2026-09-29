@@ -1,7 +1,7 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import {
   api,
   assistStatus,
@@ -16,14 +16,16 @@ import {
   type VoiceExemplar,
 } from "../../api";
 import { ChatToneForm } from "../../components/ChatToneForm";
+import { Markdown } from "../../components/Markdown";
 import {
   PURPOSES,
   STEP_KEYS,
   blockerFor,
-  currentStep,
   flowSteps,
   pendingDraft,
   progress,
+  reachable,
+  stepperStep,
   type Purpose,
   type SourceChoice,
   type Step,
@@ -31,12 +33,12 @@ import {
   type StepStatus,
 } from "./flow";
 
-/* The guided way to a voice (#458). One component in two shapes: for a new
-   voice a stepper, one step at a time; for an existing one the same six steps
-   as sections of its page. Either way the rail on top says what is done and
-   the line under it what stands in the way — the rules a corpus has to meet
-   used to be written in the specification only, and a person learned them
-   from a weak build. */
+/* The guided way to a voice (#458). One frame in two uses: for a new voice a
+   stepper whose Next waits until the step lets the flow through; for an
+   existing one the same six steps as its navigation. Either way one step is
+   shown at a time (#464), and the list beside it says what is done and what
+   stands in the way — the rules a corpus has to meet used to be written in the
+   specification only, and a person learned them from a weak build. */
 
 const USABLE_WORDS = 150;
 
@@ -63,77 +65,141 @@ function CheckMark({ level }: { level: VoiceCheck["level"] }) {
   );
 }
 
-function StepRail({
+/* Drawn, like the marks: one stroke weight, a 24-unit grid, currentColor. */
+const PURPOSE_ICON: Record<Exclude<Purpose, "">, ReactNode> = {
+  blog: (
+    <>
+      <path d="M6 3.5h8l4 4v13H6z" />
+      <path d="M14 3.5v4h4M9 12h6M9 15.5h6" />
+    </>
+  ),
+  support_mail: (
+    <>
+      <rect x="3.5" y="5.5" width="17" height="13" rx="1.5" />
+      <path d="M4 7l8 6 8-6" />
+    </>
+  ),
+  chat: (
+    <>
+      <path d="M20 12a7.5 7.5 0 0 1-7.5 7.5H8l-4 3v-4.3A7.5 7.5 0 1 1 20 12z" />
+      <path d="M8.5 11h7M8.5 14.5h4" />
+    </>
+  ),
+  offers: (
+    <>
+      <path d="M6 3.5h12v17H6z" />
+      <path d="M9 8h6M9 11h6M9 16.5c.8-1.4 1.7-1.4 2.3 0s1.5 1.4 2.3 0 1.4-1 1.9.2" />
+    </>
+  ),
+  other: (
+    <>
+      <path d="M4.5 19.5l1-4L15.8 5.2a1.8 1.8 0 0 1 2.5 0l.5.5a1.8 1.8 0 0 1 0 2.5L8.5 18.5z" />
+      <path d="M14 7l3 3" />
+    </>
+  ),
+};
+
+export function PurposeIcon({ purpose }: { purpose: string }) {
+  const icon = PURPOSE_ICON[purpose as Exclude<Purpose, "">];
+  if (!icon) return null;
+  return (
+    <svg className="vf-icon" viewBox="0 0 24 24" aria-hidden="true">
+      {icon}
+    </svg>
+  );
+}
+
+/** What a step says under its title: what stands in the way, or its state. */
+function stepLine(t: (k: string) => string, s: Step): string {
+  if (s.blocker && s.status !== "done") return t(`voices.flow.block.${s.blocker}`);
+  return t(`voices.flow.status.${s.status}`);
+}
+
+/* The frame both shapes share (#464): the six steps as a list that stays in
+   view — a bar above the step once the flow is narrow — and beside it the one
+   step that is chosen, with Back and Next under it. Narrow and wide are the
+   flow's own width (a container query), not the window's: the admin shell
+   keeps its sidebar at any width. */
+function FlowFrame({
   steps,
   at,
   onPick,
+  canPick,
+  hint,
+  nav,
+  children,
 }: {
   steps: Step[];
   at: StepKey;
   onPick: (k: StepKey) => void;
+  canPick: (k: StepKey) => boolean;
+  hint?: ReactNode;
+  nav: ReactNode;
+  children: ReactNode;
 }) {
   const { t } = useTranslation();
   const { done, total } = progress(steps);
-  const blocker = blockerFor(steps, at);
-  return (
-    <div className="vf-rail-wrap">
-      <ol className="vf-rail">
-        {steps.map((s, i) => (
-          <li key={s.key}>
-            <button
-              type="button"
-              className={s.key === at ? "on" : ""}
-              aria-current={s.key === at ? "step" : undefined}
-              onClick={() => onPick(s.key)}
-            >
-              <StepMark status={s.status} />
-              <span className="vf-rail-label">
-                <span className="vf-rail-n">{i + 1}</span> {t(`voices.flow.step.${s.key}`)}
-              </span>
-              <span className="sr-only">
-                {" — "}
-                {t(`voices.flow.status.${s.status}`)}
-              </span>
-            </button>
-          </li>
-        ))}
-      </ol>
-      <p className="vf-status" aria-live="polite">
-        <span>{t("voices.flow.progress", { done, total })}</span>
-        {blocker && (
-          <>
-            <span aria-hidden="true"> · </span>
-            <span className="vf-blocker">{t(`voices.flow.block.${blocker}`)}</span>
-          </>
-        )}
-      </p>
-    </div>
-  );
-}
+  const i = STEP_KEYS.indexOf(at);
+  const step = steps[i];
+  const listRef = useRef<HTMLOListElement>(null);
+  const headingId = useId();
 
-function Section({
-  id,
-  step,
-  children,
-  hint,
-}: {
-  id: string;
-  step: Step;
-  children: ReactNode;
-  hint?: ReactNode;
-}) {
-  const { t } = useTranslation();
-  const n = STEP_KEYS.indexOf(step.key) + 1;
+  // In the bar the chosen step may sit off to the side: bring it in, without
+  // scrolling the page (scrollIntoView would).
+  useEffect(() => {
+    const ol = listRef.current;
+    const on = ol?.querySelector<HTMLElement>("[aria-current]");
+    if (!ol || !on || ol.scrollWidth <= ol.clientWidth) return;
+    const left = on.offsetLeft - 12;
+    const right = on.offsetLeft + on.offsetWidth + 12 - ol.clientWidth;
+    if (ol.scrollLeft > left) ol.scrollLeft = left;
+    else if (ol.scrollLeft < right) ol.scrollLeft = right;
+  }, [at]);
+
   return (
-    <section className="vf-section" id={id} aria-labelledby={`${id}-h`}>
-      <h3 id={`${id}-h`} className="vf-section-h">
-        <StepMark status={step.status} />
-        <span className="vf-rail-n">{n}</span> {t(`voices.flow.step.${step.key}`)}
-        {!step.required && <span className="muted vf-opt">{t("voices.flow.optional")}</span>}
-      </h3>
-      {hint && <p className="muted vf-hint">{hint}</p>}
-      {children}
-    </section>
+    <div className="vf-frame">
+      <nav className="vf-steps" aria-label={t("voices.flow.stepsNav")}>
+        <p className="vf-progress">{t("voices.flow.progress", { done, total })}</p>
+        <ol ref={listRef}>
+          {steps.map((s, n) => (
+            <li key={s.key}>
+              <button
+                type="button"
+                className={s.key === at ? "on" : ""}
+                aria-current={s.key === at ? "step" : undefined}
+                disabled={s.key !== at && !canPick(s.key)}
+                onClick={() => onPick(s.key)}
+              >
+                <StepMark status={s.status} />
+                <span className="vf-step-text">
+                  <span className="vf-step-t">
+                    <span className="vf-rail-n">{n + 1}</span> {t(`voices.flow.step.${s.key}`)}
+                  </span>
+                  <span className="vf-step-s">{stepLine(t, s)}</span>
+                </span>
+                <span className="sr-only">
+                  {" — "}
+                  {t(`voices.flow.status.${s.status}`)}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ol>
+      </nav>
+      <section className="vf-pane" aria-labelledby={headingId}>
+        <header className="vf-pane-h">
+          <h3 id={headingId} className="vf-section-h">
+            <StepMark status={step.status} />
+            {t(`voices.flow.step.${at}`)}
+            {!step.required && <span className="muted vf-opt">{t("voices.flow.optional")}</span>}
+          </h3>
+          <span className="muted vf-stepof">{t("voices.flow.stepOf", { n: i + 1, total })}</span>
+        </header>
+        {hint && <p className="muted vf-hint">{hint}</p>}
+        <div className="vf-pane-body">{children}</div>
+        <div className="vf-nav">{nav}</div>
+      </section>
+    </div>
   );
 }
 
@@ -161,6 +227,9 @@ function useModel() {
 
 /* --- Step bodies ------------------------------------------------------- */
 
+/* The purpose as one compact choice (#464): five labels with their icon, and
+   the sentence that explains the chosen one under the row — the others carry
+   theirs as a tooltip. */
 function PurposeFields({
   purpose,
   onPurpose,
@@ -171,18 +240,22 @@ function PurposeFields({
   disabled?: boolean;
 }) {
   const { t } = useTranslation();
+  const name = useId();
   return (
-    <fieldset className="vf-choices" disabled={disabled}>
+    <fieldset className="vf-seg-wrap" disabled={disabled}>
       <legend className="sr-only">{t("voices.flow.step.purpose")}</legend>
-      {PURPOSES.map((p) => (
-        <label key={p} className={`vf-choice ${purpose === p ? "on" : ""}`}>
-          <input type="radio" name="vf-purpose" value={p} checked={purpose === p} onChange={() => onPurpose(p)} />
-          <span>
-            <span className="vf-choice-t">{t(`voices.flow.purpose.${p}`)}</span>
-            <span className="muted vf-choice-d">{t(`voices.flow.purposeHint.${p}`)}</span>
-          </span>
-        </label>
-      ))}
+      <div className="vf-seg">
+        {PURPOSES.map((p) => (
+          <label key={p} className={purpose === p ? "on" : ""} title={t(`voices.flow.purposeHint.${p}`)}>
+            <input type="radio" name={name} value={p} checked={purpose === p} onChange={() => onPurpose(p)} />
+            <PurposeIcon purpose={p} />
+            <span>{t(`voices.flow.purpose.${p}`)}</span>
+          </label>
+        ))}
+      </div>
+      <p className="muted vf-seg-desc" aria-live="polite">
+        {purpose ? t(`voices.flow.purposeHint.${purpose}`) : t("voices.flow.block.purpose")}
+      </p>
     </fieldset>
   );
 }
@@ -495,26 +568,56 @@ function PreviewStep({ v, editable, onHeard }: { v: VoiceDetail; editable: boole
   );
 }
 
-function ExemplarList({ list }: { list: VoiceExemplar[] }) {
+/* The passages as compact cards (#464): the role, the first lines, the whole
+   text on a click. Three first — enough to see the movement — the rest
+   behind one toggle, because seven full passages were half the page. */
+const FIRST_EXEMPLARS = 3;
+
+function ExemplarGrid({ list }: { list: VoiceExemplar[] }) {
   const { t } = useTranslation();
+  const [all, setAll] = useState(false);
+  const [open, setOpen] = useState<Set<number>>(new Set());
+  const shown = all ? list : list.slice(0, FIRST_EXEMPLARS);
+  const toggle = (i: number) =>
+    setOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
   return (
-    <div className="vf-exemplars">
-      {list.map((ex, i) => (
-        <div key={i}>
-          <span className="pill mut">{t(`voices.role.${ex.role}`, ex.role)}</span>
-          {ex.from && <span className="muted mono text-xs"> {ex.from}</span>}
-          <p className="mt-1 mb-0">{ex.text}</p>
-        </div>
-      ))}
-    </div>
+    <>
+      <ul className="vf-ex-grid">
+        {shown.map((ex, i) => (
+          <li key={i}>
+            <button type="button" className={`vf-ex ${open.has(i) ? "open" : ""}`} aria-expanded={open.has(i)} onClick={() => toggle(i)}>
+              <span className="vf-ex-h">
+                <span className="pill mut">{t(`voices.role.${ex.role}`, ex.role)}</span>
+                {ex.from && <span className="muted mono vf-ex-from">{ex.from}</span>}
+              </span>
+              <span className="vf-ex-text">{ex.text}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      {list.length > FIRST_EXEMPLARS && (
+        <button type="button" className="btn sm vf-ex-all" aria-expanded={all} onClick={() => setAll(!all)}>
+          {all ? t("voices.flow.showFewer") : t("voices.flow.showAll", { n: list.length })}
+        </button>
+      )}
+    </>
   );
 }
 
-function ReleaseStep({ v, editable }: { v: VoiceDetail; editable: boolean }) {
+/* The release as a review (#464): the card as it reads, beside a sample of
+   it; the passages under both; refining and releasing at the end, where a
+   person arrives once they have read it. */
+function ReleaseStep({ v, editable, onHeard }: { v: VoiceDetail; editable: boolean; onHeard: () => void }) {
   const { t } = useTranslation();
   const inval = useInvalidate(v.id);
   const model = useModel();
   const [card, setCard] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
   const [instruction, setInstruction] = useState("");
   const [before, setBefore] = useState<string | null>(null);
   const draft = card ?? (v.card || v.released_card);
@@ -523,6 +626,7 @@ function ReleaseStep({ v, editable }: { v: VoiceDetail; editable: boolean }) {
     onSuccess: () => {
       setCard(null);
       setBefore(null);
+      setEditing(false);
       inval();
     },
   });
@@ -537,74 +641,129 @@ function ReleaseStep({ v, editable }: { v: VoiceDetail; editable: boolean }) {
   });
   const pending = pendingDraft(v) || card !== null;
   const described = v.source === "described";
+  const drafts = v.draft_exemplars?.length > 0;
+  const passages = drafts ? v.draft_exemplars : (v.exemplars ?? []);
 
   if (!draft) return <p className="muted m-0">{t("voices.cardMissing")}</p>;
   return (
-    <div className="vf-body">
-      <p className="muted m-0">{described ? t("voices.flow.releaseDescribed") : t("voices.cardHint")}</p>
-      {before !== null && (
-        <div className="vf-compare">
-          <div>
-            <div className="muted text-xs mb-1">{t("voices.flow.before")}</div>
-            <div className="vf-card-text was">{before}</div>
+    <div className="vf-review">
+      <p className="muted vf-hint">{described ? t("voices.flow.releaseDescribed") : t("voices.cardHint")}</p>
+      <div className="vf-review-top">
+        <div className="vf-review-card">
+          <div className="vf-block-h">
+            <span className="vf-block-t">{pending ? t("voices.flow.cardDraft") : t("voices.flow.cardReleased")}</span>
+            {editable && (
+              <button type="button" className="btn sm ml-auto" aria-pressed={editing} onClick={() => setEditing(!editing)}>
+                {editing ? t("voices.flow.showCard") : t("voices.flow.editCard")}
+              </button>
+            )}
           </div>
-          <div>
-            <div className="muted text-xs mb-1">{t("voices.flow.after")}</div>
-            <div className="vf-card-text">{v.card}</div>
-          </div>
-        </div>
-      )}
-      <label className="vf-field">
-        <span className="muted text-xs">{pending ? t("voices.flow.cardDraft") : t("voices.flow.cardReleased")}</span>
-        <textarea rows={9} value={draft} onChange={(e) => setCard(e.target.value)} readOnly={!editable} />
-      </label>
-      {v.draft_exemplars?.length > 0 && (
-        <details className="vf-details" open={described && !v.released_at}>
-          <summary>{t("voices.flow.draftExemplars", { n: v.draft_exemplars.length })}</summary>
-          <ExemplarList list={v.draft_exemplars} />
-        </details>
-      )}
-      {editable && (
-        <div className="vf-refine">
-          <label className="vf-field grow">
-            <span className="muted text-xs">{t("voices.flow.refineLabel")}</span>
-            <input
-              value={instruction}
-              maxLength={1000}
-              onChange={(e) => setInstruction(e.target.value)}
-              placeholder={t("voices.flow.refinePlaceholder")}
+          {before !== null && (
+            <div className="vf-compare">
+              <div>
+                <div className="muted text-xs mb-1">{t("voices.flow.before")}</div>
+                <div className="vf-card-text was">{before}</div>
+              </div>
+              <div>
+                <div className="muted text-xs mb-1">{t("voices.flow.after")}</div>
+                <div className="vf-card-text">{v.card}</div>
+              </div>
+            </div>
+          )}
+          {editing ? (
+            <textarea
+              className="vf-card-edit"
+              rows={14}
+              value={draft}
+              aria-label={pending ? t("voices.flow.cardDraft") : t("voices.flow.cardReleased")}
+              onChange={(e) => setCard(e.target.value)}
             />
-          </label>
-          <button className="btn sm" disabled={!model || !instruction.trim() || refine.isPending} onClick={() => refine.mutate()}>
-            {refine.isPending ? t("voices.flow.refining") : t("voices.flow.refine")}
-          </button>
+          ) : (
+            before === null && (
+              <div className="vf-card-md">
+                <Markdown text={draft} baseLevel={4} />
+              </div>
+            )
+          )}
+        </div>
+        <aside className="vf-review-preview" aria-label={t("voices.flow.step.preview")}>
+          <div className="vf-block-h">
+            <span className="vf-block-t">{t("voices.flow.step.preview")}</span>
+          </div>
+          <PreviewStep v={v} editable={editable} onHeard={onHeard} />
+        </aside>
+      </div>
+      {passages.length > 0 && (
+        <div className="vf-review-passages">
+          <div className="vf-block-h">
+            <span className="vf-block-t">
+              {drafts ? t("voices.flow.draftExemplars", { n: passages.length }) : t("voices.exemplars")}
+            </span>
+          </div>
+          <p className="muted vf-hint">
+            {drafts || described ? t("voices.flow.exemplarsDescribed") : t("voices.exemplarsHint")}
+          </p>
+          <ExemplarGrid list={passages} />
         </div>
       )}
-      {editable && !model && <p className="muted text-xs m-0">{t("voices.flow.noModel")}</p>}
-      <ErrorLine error={refine.error} />
       {editable && (
-        <div className="flex gap-2 items-center flex-wrap">
-          <button className="btn sm primary" disabled={!pending || release.isPending} onClick={() => release.mutate()}>
-            {t("voices.release")}
-          </button>
-          <span className="muted text-xs">
-            {pending
-              ? t("voices.flow.releaseEffect")
-              : v.released_at
-                ? t("voices.releasedAt", { at: v.released_at.slice(0, 10) })
-                : ""}
-          </span>
+        <div className="vf-review-foot">
+          <div className="vf-refine">
+            <label className="vf-field grow">
+              <span className="muted text-xs">{t("voices.flow.refineLabel")}</span>
+              <input
+                value={instruction}
+                maxLength={1000}
+                onChange={(e) => setInstruction(e.target.value)}
+                placeholder={t("voices.flow.refinePlaceholder")}
+              />
+            </label>
+            <button className="btn sm" disabled={!model || !instruction.trim() || refine.isPending} onClick={() => refine.mutate()}>
+              {refine.isPending ? t("voices.flow.refining") : t("voices.flow.refine")}
+            </button>
+          </div>
+          {!model && <p className="muted text-xs m-0">{t("voices.flow.noModel")}</p>}
+          <ErrorLine error={refine.error} />
+          <div className="vf-release">
+            <span className="muted text-xs">
+              {pending
+                ? t("voices.flow.releaseEffect")
+                : v.released_at
+                  ? t("voices.releasedAt", { at: v.released_at.slice(0, 10) })
+                  : ""}
+            </span>
+            <button className="btn primary" disabled={!pending || release.isPending} onClick={() => release.mutate()}>
+              {t("voices.release")}
+            </button>
+          </div>
+          <ErrorLine error={release.error} />
         </div>
       )}
-      <ErrorLine error={release.error} />
     </div>
   );
 }
 
 /* --- The two shapes ---------------------------------------------------- */
 
-/** An existing voice: the six steps as sections of its page. */
-export function VoiceSections({ v, editable }: { v: VoiceDetail; editable: boolean }) {
+const STEP_HINT: Partial<Record<StepKey, string>> = {
+  purpose: "voices.flow.purposeLead",
+  tone: "chatTone.hintVoice",
+  preview: "voices.flow.previewLead",
+};
+
+/** An existing voice: the six steps as its navigation, one shown at a time.
+ *  Which one is the caller's — the summary head's next action moves it too. */
+export function VoiceSteps({
+  v,
+  editable,
+  at,
+  onPick,
+}: {
+  v: VoiceDetail;
+  editable: boolean;
+  at: StepKey;
+  onPick: (k: StepKey) => void;
+}) {
   const { t } = useTranslation();
   const inval = useInvalidate(v.id);
   const [previewed, setPreviewed] = useState(false);
@@ -619,77 +778,113 @@ export function VoiceSections({ v, editable }: { v: VoiceDetail; editable: boole
     voice: v,
     previewed,
   });
-  const at = currentStep(steps);
-  const step = (k: StepKey) => steps.find((s) => s.key === k)!;
-  const anchor = (k: StepKey) => `vf-${v.id}-${k}`;
+  const i = STEP_KEYS.indexOf(at);
+  const step = steps[i];
   const described = v.source === "described";
+  const blocker = blockerFor(steps, at);
 
-  return (
-    <div className="vf">
-      <StepRail
-        steps={steps}
-        at={at}
-        onPick={(k) => document.getElementById(anchor(k))?.scrollIntoView({ behavior: "smooth", block: "start" })}
-      />
-      <Section id={anchor("purpose")} step={step("purpose")} hint={t("voices.flow.purposeLead")}>
-        <PurposeFields
-          purpose={(v.purpose || "") as Purpose}
-          onPurpose={(p) => setPurpose.mutate(p)}
-          disabled={!editable || setPurpose.isPending}
-        />
-        <ErrorLine error={setPurpose.error} />
-      </Section>
-      <Section id={anchor("source")} step={step("source")}>
-        <p className="m-0">
-          {described ? t("voices.flow.isDescribed") : t("voices.flow.isMeasured", { documents: v.documents, words: v.words })}
-        </p>
-        {v.drafted_by && (
-          <p className="muted m-0">
-            {t("voices.flow.draftedBy")} <Link to={`/agents/${v.drafted_by.id}`}>{v.drafted_by.display_name}</Link>
+  let body: ReactNode;
+  switch (at) {
+    case "purpose":
+      body = (
+        <>
+          <PurposeFields
+            purpose={(v.purpose || "") as Purpose}
+            onPurpose={(p) => setPurpose.mutate(p)}
+            disabled={!editable || setPurpose.isPending}
+          />
+          <ErrorLine error={setPurpose.error} />
+        </>
+      );
+      break;
+    case "source":
+      body = (
+        <>
+          <p className="m-0">
+            {described ? t("voices.flow.isDescribed") : t("voices.flow.isMeasured", { documents: v.documents, words: v.words })}
           </p>
-        )}
-      </Section>
-      <Section id={anchor("material")} step={step("material")}>
-        {described ? (
-          <>
-            <DescriptionMaterial v={v} editable={editable} />
-            <details className="vf-details">
-              <summary>{t("voices.flow.measureIt")}</summary>
-              <p className="muted">{t("voices.flow.measureItHint")}</p>
-              <TextsMaterial v={v} editable={editable} />
-            </details>
-          </>
-        ) : (
-          <TextsMaterial v={v} editable={editable} />
-        )}
-      </Section>
-      <Section id={anchor("tone")} step={step("tone")} hint={t("chatTone.hintVoice")}>
-        <ToneStep v={v} editable={editable} />
-      </Section>
-      <Section id={anchor("preview")} step={step("preview")} hint={t("voices.flow.previewLead")}>
-        {step("preview").status === "blocked" ? (
+          {v.drafted_by && (
+            <p className="muted m-0">
+              {t("voices.flow.draftedBy")} <Link to={`/agents/${v.drafted_by.id}`}>{v.drafted_by.display_name}</Link>
+            </p>
+          )}
+        </>
+      );
+      break;
+    case "material":
+      body = described ? (
+        <>
+          <DescriptionMaterial v={v} editable={editable} />
+          <details className="vf-details">
+            <summary>{t("voices.flow.measureIt")}</summary>
+            <p className="muted">{t("voices.flow.measureItHint")}</p>
+            <TextsMaterial v={v} editable={editable} />
+          </details>
+        </>
+      ) : (
+        <TextsMaterial v={v} editable={editable} />
+      );
+      break;
+    case "tone":
+      body = <ToneStep v={v} editable={editable} />;
+      break;
+    case "preview":
+      body =
+        step.status === "blocked" ? (
           <p className="muted m-0">{t("voices.flow.block.nothingToHear")}</p>
         ) : (
           <PreviewStep v={v} editable={editable} onHeard={() => setPreviewed(true)} />
-        )}
-      </Section>
-      <Section id={anchor("release")} step={step("release")}>
-        <ReleaseStep v={v} editable={editable} />
-      </Section>
+        );
+      break;
+    default:
+      body = <ReleaseStep v={v} editable={editable} onHeard={() => setPreviewed(true)} />;
+  }
+
+  const hint = STEP_HINT[at];
+  return (
+    <div className="vf">
+      <FlowFrame
+        steps={steps}
+        at={at}
+        onPick={onPick}
+        canPick={() => true}
+        hint={hint ? t(hint) : undefined}
+        nav={
+          <>
+            <button className="btn sm" disabled={i === 0} onClick={() => onPick(STEP_KEYS[i - 1])}>
+              {t("voices.flow.back")}
+            </button>
+            <span className="vf-nav-why">{blocker && at !== "release" ? t(`voices.flow.block.${blocker}`) : ""}</span>
+            {i < STEP_KEYS.length - 1 && (
+              <button className="btn sm" onClick={() => onPick(STEP_KEYS[i + 1])}>
+                {t("voices.flow.next")}
+              </button>
+            )}
+          </>
+        }
+      >
+        {body}
+      </FlowFrame>
     </div>
   );
 }
 
-/** A new voice: the same six steps, one at a time. */
+/** A new voice: the same six steps, one at a time, and Next only once the
+ *  step lets the flow through. The step is in the address (?step=), and once
+ *  the voice exists so is the voice (?new=<id>), so a reload comes back to it. */
 export function VoiceStepper({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
+  const [params, setParams] = useSearchParams();
+  const fromURL = params.get("new");
+  const id = fromURL && fromURL !== "1" ? fromURL : null;
   const [name, setName] = useState("");
   const [language, setLanguage] = useState("de");
   const [purpose, setPurpose] = useState<Purpose>("");
-  const [source, setSource] = useState<SourceChoice>("");
-  const [id, setId] = useState<string | null>(null);
-  const [at, setAt] = useState<StepKey>("purpose");
+  const [source, setSource] = useState<SourceChoice>(() => {
+    const s = params.get("src");
+    return s === "texts" || s === "described" || s === "chat" ? s : "";
+  });
   const [previewed, setPreviewed] = useState(false);
   const detail = useQuery({
     queryKey: ["voice", id],
@@ -697,28 +892,40 @@ export function VoiceStepper({ onClose }: { onClose: () => void }) {
     enabled: !!id,
   });
   const v = id ? detail.data : undefined;
+  const go = (step: StepKey, extra: Record<string, string> = {}) =>
+    setParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("step", step);
+      for (const [k, x] of Object.entries(extra)) next.set(k, x);
+      return next;
+    });
   const create = useMutation({
     mutationFn: () => post<Voice>("/voices", { name, language, purpose }),
     onSuccess: (created) => {
-      setId(created.id);
       qc.invalidateQueries({ queryKey: ["voices"] });
-      setAt("material");
+      go("material", { new: created.id, src: source });
     },
   });
-  const steps = flowSteps({ name, purpose, source, voice: v, previewed });
+  // Once the voice exists, what it was created with is the voice's.
+  const steps = flowSteps({
+    name: v ? v.name : name,
+    purpose: v ? ((v.purpose || "") as Purpose) : purpose,
+    source,
+    voice: v,
+    previewed,
+  });
+  const loading = !!id && !v;
+  const at = loading ? "material" : stepperStep(steps, params.get("step"), !!id);
   const i = STEP_KEYS.indexOf(at);
   const blocker = blockerFor(steps, at);
   const creates = at === "source" && blocker === "create";
   const last = at === "release";
-  const canNext = !last && (creates ? !create.isPending : blocker === null);
-  const next = () => (creates ? create.mutate() : setAt(STEP_KEYS[i + 1]));
-  // Once the voice exists, the first two steps are its own: they are
-  // changed on its page, not by walking back.
+  const canNext = !loading && !last && (creates ? !create.isPending : blocker === null);
+  const next = () => (creates ? create.mutate() : go(STEP_KEYS[i + 1]));
+  const canPick = (k: StepKey) => STEP_KEYS.indexOf(k) <= i || reachable(steps, k, !!id);
   const pick = (k: StepKey) => {
     if (id && (k === "purpose" || k === "source")) return;
-    const target = STEP_KEYS.indexOf(k);
-    const open = STEP_KEYS.slice(0, target).every((key) => blockerFor(steps, key) === null || (key === "source" && !!id));
-    if (target <= i || open) setAt(k);
+    if (canPick(k)) go(k);
   };
 
   let body: ReactNode = null;
@@ -732,10 +939,9 @@ export function VoiceStepper({ onClose }: { onClose: () => void }) {
           </label>
           <label className="vf-field">
             <span className="muted text-xs">{t("voices.language")}</span>
-            <input className="mono" style={{ width: 70 }} value={language} disabled={!!id} onChange={(e) => setLanguage(e.target.value)} />
+            <input className="mono vf-lang" value={language} disabled={!!id} onChange={(e) => setLanguage(e.target.value)} />
           </label>
         </div>
-        <p className="muted vf-hint">{t("voices.flow.purposeLead")}</p>
         <PurposeFields purpose={purpose} onPurpose={setPurpose} disabled={!!id} />
       </>
     );
@@ -754,60 +960,56 @@ export function VoiceStepper({ onClose }: { onClose: () => void }) {
   } else if (at === "material") {
     body = source === "described" ? <DescriptionMaterial v={v} editable /> : <TextsMaterial v={v} editable />;
   } else if (at === "tone") {
-    body = (
-      <>
-        <p className="muted vf-hint">{t("chatTone.hintVoice")}</p>
-        <ToneStep v={v} editable />
-      </>
-    );
+    body = <ToneStep v={v} editable />;
   } else if (at === "preview") {
-    body = (
-      <>
-        <p className="muted vf-hint">{t("voices.flow.previewLead")}</p>
-        {steps[4].status === "blocked" ? (
-          <p className="muted">{t("voices.flow.block.nothingToHear")}</p>
-        ) : (
-          <PreviewStep v={v} editable onHeard={() => setPreviewed(true)} />
-        )}
-      </>
-    );
+    body =
+      steps[4].status === "blocked" ? (
+        <p className="muted">{t("voices.flow.block.nothingToHear")}</p>
+      ) : (
+        <PreviewStep v={v} editable onHeard={() => setPreviewed(true)} />
+      );
   } else {
-    body = <ReleaseStep v={v} editable />;
+    body = <ReleaseStep v={v} editable onHeard={() => setPreviewed(true)} />;
   }
 
+  const hint = STEP_HINT[at];
   return (
     <div className="card mb-4 vf vf-new">
-      <div className="flex items-baseline gap-2 mb-2">
-        <h2 className="text-sm" style={{ fontWeight: 600 }}>
-          {id && v ? v.name : t("voices.flow.newTitle")}
-        </h2>
+      <div className="vf-new-h">
+        <h2 className="text-sm">{v ? v.name : t("voices.flow.newTitle")}</h2>
         <button className="btn sm ml-auto" onClick={onClose}>
           {id ? t("voices.flow.done") : t("voices.flow.cancel")}
         </button>
       </div>
-      <StepRail steps={steps} at={at} onPick={pick} />
-      <div className="vf-stage">
-        <h3 className="vf-section-h">
-          <span className="vf-rail-n">{i + 1}</span> {t(`voices.flow.step.${at}`)}
-          {!steps[i].required && <span className="muted vf-opt">{t("voices.flow.optional")}</span>}
-        </h3>
+      <FlowFrame
+        steps={steps}
+        at={at}
+        onPick={pick}
+        canPick={(k) => !(id && (k === "purpose" || k === "source")) && canPick(k)}
+        hint={hint ? t(hint) : undefined}
+        nav={
+          <>
+            <button className="btn sm" disabled={i === 0 || (!!id && i <= 2)} onClick={() => go(STEP_KEYS[i - 1])}>
+              {t("voices.flow.back")}
+            </button>
+            <span className="vf-nav-why" aria-live="polite">
+              {!last && blocker && !creates ? t(`voices.flow.block.${blocker}`) : ""}
+            </span>
+            {!last && (
+              <button className="btn sm primary" disabled={!canNext} onClick={next}>
+                {creates ? t("voices.flow.createAndContinue") : t("voices.flow.next")}
+              </button>
+            )}
+            {last && (
+              <button className="btn sm" onClick={onClose}>
+                {t("voices.flow.done")}
+              </button>
+            )}
+          </>
+        }
+      >
         {body}
-      </div>
-      <div className="vf-nav">
-        <button className="btn sm" disabled={i === 0 || (!!id && i <= 2)} onClick={() => setAt(STEP_KEYS[i - 1])}>
-          {t("voices.flow.back")}
-        </button>
-        {!last && (
-          <button className="btn sm primary" disabled={!canNext} onClick={next}>
-            {creates ? t("voices.flow.createAndContinue") : t("voices.flow.next")}
-          </button>
-        )}
-        {last && (
-          <button className="btn sm primary" onClick={onClose}>
-            {t("voices.flow.done")}
-          </button>
-        )}
-      </div>
+      </FlowFrame>
     </div>
   );
 }
