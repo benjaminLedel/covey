@@ -1423,7 +1423,8 @@
         "done": "fatto",
         "open": "da fare",
         "optional": "facoltativo",
-        "blocked": "non ancora possibile"
+        "blocked": "non ancora possibile",
+        "preset": "già impostato"
       },
       "block": {
         "name": "Dai un nome alla voce.",
@@ -1566,8 +1567,15 @@
         "build": "Costruisci la voce",
         "describe": "Fai scrivere la voce",
         "release": "Rivedi e approva"
-      }
-    }
+      },
+      "descShort": "Misurata da testi, descritta a parole o abbozzata da un agente nella chat del team. Nulla di ciò che un modello ha scritto agisce prima che una persona lo approvi."
+    },
+    "tab": {
+      "flow": "Passaggi",
+      "corrections": "Correzioni",
+      "tone": "Cosa riceve l’agente"
+    },
+    "toneEmpty": "Ancora nulla: la voce non ha scheda, passaggi né profilo misurato."
   },
   "skills": {
     "title": "Competenze",

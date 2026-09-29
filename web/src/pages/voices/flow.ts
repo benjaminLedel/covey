@@ -170,9 +170,22 @@ export function blockerFor(steps: Step[], at: StepKey): string | null {
   return null;
 }
 
+/** A step as the list shows it. "preset": the step holds a value — a voice
+ *  that exists has its source — but an earlier required step is still open,
+ *  so it has not been walked yet and must not read as progress (#466). */
+export type ShownStatus = StepStatus | "preset";
+
+export function shownStatus(steps: Step[], k: StepKey): ShownStatus {
+  const i = steps.findIndex((s) => s.key === k);
+  const s = steps[i];
+  if (s.status !== "done") return s.status;
+  const earlierOpen = steps.slice(0, i).some((x) => x.required && x.status !== "done");
+  return earlierOpen ? "preset" : "done";
+}
+
 /** Done steps out of all, for the progress line. */
 export function progress(steps: Step[]): { done: number; total: number } {
-  return { done: steps.filter((s) => s.status === "done").length, total: steps.length };
+  return { done: steps.filter((s) => shownStatus(steps, s.key) === "done").length, total: steps.length };
 }
 
 export function isStepKey(k: string | null | undefined): k is StepKey {

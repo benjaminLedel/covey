@@ -25,12 +25,13 @@ import {
   pendingDraft,
   progress,
   reachable,
+  shownStatus,
   stepperStep,
+  type ShownStatus,
   type Purpose,
   type SourceChoice,
   type Step,
   type StepKey,
-  type StepStatus,
 } from "./flow";
 
 /* The guided way to a voice (#458). One frame in two uses: for a new voice a
@@ -43,14 +44,16 @@ import {
 const USABLE_WORDS = 150;
 
 /* The drawn marks. A state is a shape, never only a colour: a tick is done, a
-   ring is open, a dashed ring may be skipped, a bar is held up. */
-export function StepMark({ status }: { status: StepStatus }) {
+   ring is open, a dashed ring may be skipped, a bar is held up, a dot holds a
+   value that was set before the steps above it were walked (#466). */
+export function StepMark({ status }: { status: ShownStatus }) {
   return (
     <svg className={`vf-mark ${status}`} viewBox="0 0 16 16" aria-hidden="true">
       {status === "done" && <path d="M3.5 8.5l3 3 6-7" />}
       {status === "open" && <circle cx="8" cy="8" r="5" />}
       {status === "optional" && <circle cx="8" cy="8" r="5" strokeDasharray="2.2 2.2" />}
       {status === "blocked" && <path d="M4 8h8" />}
+      {status === "preset" && <circle cx="8" cy="8" r="2.2" />}
     </svg>
   );
 }
@@ -109,10 +112,12 @@ export function PurposeIcon({ purpose }: { purpose: string }) {
   );
 }
 
-/** What a step says under its title: what stands in the way, or its state. */
-function stepLine(t: (k: string) => string, s: Step): string {
-  if (s.blocker && s.status !== "done") return t(`voices.flow.block.${s.blocker}`);
-  return t(`voices.flow.status.${s.status}`);
+/** What a step says under its title: what stands in the way, or its state.
+ *  The chosen step only says its state — what holds it up is said once, at
+ *  Next (#466). */
+function stepLine(t: (k: string) => string, s: Step, shown: ShownStatus, current: boolean): string {
+  if (!current && s.blocker && s.status !== "done") return t(`voices.flow.block.${s.blocker}`);
+  return t(`voices.flow.status.${shown}`);
 }
 
 /* The frame both shapes share (#464): the six steps as a list that stays in
@@ -170,16 +175,16 @@ function FlowFrame({
                 disabled={s.key !== at && !canPick(s.key)}
                 onClick={() => onPick(s.key)}
               >
-                <StepMark status={s.status} />
+                <StepMark status={shownStatus(steps, s.key)} />
                 <span className="vf-step-text">
                   <span className="vf-step-t">
                     <span className="vf-rail-n">{n + 1}</span> {t(`voices.flow.step.${s.key}`)}
                   </span>
-                  <span className="vf-step-s">{stepLine(t, s)}</span>
+                  <span className="vf-step-s">{stepLine(t, s, shownStatus(steps, s.key), s.key === at)}</span>
                 </span>
                 <span className="sr-only">
                   {" — "}
-                  {t(`voices.flow.status.${s.status}`)}
+                  {t(`voices.flow.status.${shownStatus(steps, s.key)}`)}
                 </span>
               </button>
             </li>
@@ -189,7 +194,7 @@ function FlowFrame({
       <section className="vf-pane" aria-labelledby={headingId}>
         <header className="vf-pane-h">
           <h3 id={headingId} className="vf-section-h">
-            <StepMark status={step.status} />
+            <StepMark status={shownStatus(steps, at)} />
             {t(`voices.flow.step.${at}`)}
             {!step.required && <span className="muted vf-opt">{t("voices.flow.optional")}</span>}
           </h3>
@@ -253,9 +258,7 @@ function PurposeFields({
           </label>
         ))}
       </div>
-      <p className="muted vf-seg-desc" aria-live="polite">
-        {purpose ? t(`voices.flow.purposeHint.${purpose}`) : t("voices.flow.block.purpose")}
-      </p>
+      {purpose && <p className="muted vf-seg-desc">{t(`voices.flow.purposeHint.${purpose}`)}</p>}
     </fieldset>
   );
 }
@@ -346,7 +349,8 @@ function TextsMaterial({ v, editable }: { v: VoiceDetail; editable: boolean }) {
 
   return (
     <div className="vf-body">
-      <Checks checks={v.checks} />
+      {/* "No texts" is the step's blocker, said at Next. */}
+      <Checks checks={v.checks.filter((c) => c.code !== "no_texts")} />
       {v.corpus.length > 0 && (
         <ul className="vf-docs">
           {v.corpus.map((d) => (
@@ -872,7 +876,7 @@ export function VoiceSteps({
 /** A new voice: the same six steps, one at a time, and Next only once the
  *  step lets the flow through. The step is in the address (?step=), and once
  *  the voice exists so is the voice (?new=<id>), so a reload comes back to it. */
-export function VoiceStepper({ onClose }: { onClose: () => void }) {
+export function VoiceStepper({ onClose }: { onClose: (created?: string) => void }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [params, setParams] = useSearchParams();
@@ -977,7 +981,7 @@ export function VoiceStepper({ onClose }: { onClose: () => void }) {
     <div className="card mb-4 vf vf-new">
       <div className="vf-new-h">
         <h2 className="text-sm">{v ? v.name : t("voices.flow.newTitle")}</h2>
-        <button className="btn sm ml-auto" onClick={onClose}>
+        <button className="btn sm ml-auto" onClick={() => onClose(id ?? undefined)}>
           {id ? t("voices.flow.done") : t("voices.flow.cancel")}
         </button>
       </div>
@@ -1001,7 +1005,7 @@ export function VoiceStepper({ onClose }: { onClose: () => void }) {
               </button>
             )}
             {last && (
-              <button className="btn sm" onClick={onClose}>
+              <button className="btn sm" onClick={() => onClose(id ?? undefined)}>
                 {t("voices.flow.done")}
               </button>
             )}

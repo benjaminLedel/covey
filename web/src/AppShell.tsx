@@ -45,6 +45,7 @@ const Guardrails = lazy(() => import("./pages/Guardrails"));
 const Secrets = lazy(() => import("./pages/Secrets"));
 const Skills = lazy(() => import("./pages/Skills"));
 const Voices = lazy(() => import("./pages/Voices"));
+const VoicePage = lazy(() => import("./pages/VoicePage"));
 const Administration = lazy(() => import("./pages/Administration"));
 const Platform = lazy(() => import("./pages/Platform"));
 const Org = lazy(() => import("./pages/Org"));
@@ -406,6 +407,7 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
             <Route path="/templates" element={<Templates me={me} />} />
             <Route path="/skills" element={<Skills me={me} />} />
             <Route path="/voices" element={<Voices me={me} />} />
+            <Route path="/voices/:id" element={<VoicePage me={me} />} />
             <Route path="/org" element={<Org />} />
             <Route path="/costs" element={<Costs />} />
             <Route path="/people/:id" element={<PersonPage me={me} />} />

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { VoiceDetail } from "../../api";
-import { blockerFor, currentStep, flowSteps, nextAction, pendingDraft, reachable, stepperStep, voiceStep } from "./flow";
+import { blockerFor, currentStep, flowSteps, nextAction, pendingDraft, progress, reachable, shownStatus, stepperStep, voiceStep } from "./flow";
 
 // The stepper's one promise: "Next" never leads into a dead end, and whatever
 // stands in the way is named. These pin the rule for the three sources.
@@ -166,5 +166,23 @@ describe("the one next action (#464)", () => {
     expect(nextAction(flowSteps({ name: "S", purpose: "chat", source: "described", voice: settled }))).toBeNull();
     // A build without a card is not a person's to-do.
     expect(nextAction(flowSteps({ name: "B", purpose: "blog", source: "texts", voice: voice({ version: 1 }) }))).toBeNull();
+  });
+});
+
+describe("what the step list shows (#466)", () => {
+  it("a step set before an open required one reads as preset, not done", () => {
+    const steps = flowSteps({ name: "B", purpose: "", source: "texts", voice: voice({ purpose: "", version: 1 }) });
+    expect(shownStatus(steps, "source")).toBe("preset");
+    expect(shownStatus(steps, "material")).toBe("preset");
+    expect(progress(steps).done).toBe(0);
+    // The rule itself is unchanged: the flow still counts the source as passed.
+    expect(blockerFor(steps, "source")).toBeNull();
+  });
+
+  it("once the steps above are done, done is done", () => {
+    const steps = flowSteps({ name: "B", purpose: "blog", source: "texts", voice: voice({ version: 1 }) });
+    expect(shownStatus(steps, "source")).toBe("done");
+    expect(shownStatus(steps, "material")).toBe("done");
+    expect(progress(steps).done).toBe(3);
   });
 });

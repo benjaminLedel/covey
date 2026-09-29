@@ -1423,7 +1423,8 @@
         "done": "gedaan",
         "open": "te doen",
         "optional": "optioneel",
-        "blocked": "nog niet mogelijk"
+        "blocked": "nog niet mogelijk",
+        "preset": "al ingesteld"
       },
       "block": {
         "name": "Geef de stem een naam.",
@@ -1566,8 +1567,15 @@
         "build": "Stem bouwen",
         "describe": "Stem laten schrijven",
         "release": "Nakijken en vrijgeven"
-      }
-    }
+      },
+      "descShort": "Gemeten uit teksten, in woorden beschreven of door een agent in de teamchat opgesteld. Wat een model schreef werkt pas als een mens het vrijgeeft."
+    },
+    "tab": {
+      "flow": "Stappen",
+      "corrections": "Correcties",
+      "tone": "Wat de agent krijgt"
+    },
+    "toneEmpty": "Nog niets — de stem heeft geen kaart, geen passages en geen gemeten profiel."
   },
   "skills": {
     "title": "Vaardigheden",

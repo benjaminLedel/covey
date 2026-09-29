@@ -1423,7 +1423,8 @@
         "done": "erledigt",
         "open": "offen",
         "optional": "optional",
-        "blocked": "noch nicht möglich"
+        "blocked": "noch nicht möglich",
+        "preset": "schon gesetzt"
       },
       "block": {
         "name": "Geben Sie der Stimme einen Namen.",
@@ -1566,8 +1567,15 @@
         "build": "Stimme bauen",
         "describe": "Stimme schreiben lassen",
         "release": "Prüfen und freigeben"
-      }
-    }
+      },
+      "descShort": "Aus Texten gemessen, in Worten beschrieben oder von einem Agenten im Team-Chat entworfen. Was ein Modell daran geschrieben hat, wirkt erst, wenn ein Mensch es freigibt."
+    },
+    "tab": {
+      "flow": "Ablauf",
+      "corrections": "Korrekturen",
+      "tone": "Was der Agent bekommt"
+    },
+    "toneEmpty": "Noch nichts — die Stimme hat keine Karte, keine Passagen und kein gemessenes Profil."
   },
   "skills": {
     "title": "Skills",

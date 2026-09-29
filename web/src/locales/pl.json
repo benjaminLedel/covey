@@ -1423,7 +1423,8 @@
         "done": "zrobione",
         "open": "do zrobienia",
         "optional": "opcjonalnie",
-        "blocked": "jeszcze niemożliwe"
+        "blocked": "jeszcze niemożliwe",
+        "preset": "już ustawione"
       },
       "block": {
         "name": "Nadaj głosowi nazwę.",
@@ -1566,8 +1567,15 @@
         "build": "Zbuduj głos",
         "describe": "Napisz głos",
         "release": "Przejrzyj i zatwierdź"
-      }
-    }
+      },
+      "descShort": "Zmierzony z tekstów, opisany słowami lub naszkicowany przez agenta na czacie zespołu. Nic, co napisał model, nie działa, zanim człowiek tego nie zatwierdzi."
+    },
+    "tab": {
+      "flow": "Kroki",
+      "corrections": "Poprawki",
+      "tone": "Co dostaje agent"
+    },
+    "toneEmpty": "Jeszcze nic — głos nie ma karty, fragmentów ani zmierzonego profilu."
   },
   "skills": {
     "title": "Umiejętności",

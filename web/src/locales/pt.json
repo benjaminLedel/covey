@@ -1423,7 +1423,8 @@
         "done": "feito",
         "open": "a fazer",
         "optional": "opcional",
-        "blocked": "ainda não é possível"
+        "blocked": "ainda não é possível",
+        "preset": "já definido"
       },
       "block": {
         "name": "Dê um nome à voz.",
@@ -1566,8 +1567,15 @@
         "build": "Construir a voz",
         "describe": "Escrever a voz",
         "release": "Rever e publicar"
-      }
-    }
+      },
+      "descShort": "Medida a partir de textos, descrita em palavras ou esboçada por um agente no chat da equipa. Nada do que um modelo escreveu atua antes de uma pessoa o publicar."
+    },
+    "tab": {
+      "flow": "Passos",
+      "corrections": "Correções",
+      "tone": "O que o agente recebe"
+    },
+    "toneEmpty": "Nada ainda — a voz não tem cartão, passagens nem perfil medido."
   },
   "skills": {
     "title": "Competências",
