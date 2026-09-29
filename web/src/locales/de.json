@@ -245,7 +245,19 @@
     "colActor": "Wer",
     "colMethod": "Methode",
     "colPath": "Was",
-    "colStatus": "Ergebnis"
+    "colStatus": "Ergebnis",
+    "tabActions": "Aktionen",
+    "tabConversations": "Gespräche",
+    "convLead": "Alle Gespräche der Organisation und die gemeinsamen Verläufe aus der Zeit, bevor Gespräche Mitglieder hatten. Sonst liest niemand ein Gespräch, in dem er nicht ist; wer hier eines öffnet, steht im Audit-Protokoll.",
+    "convEmpty": "Noch keine Gespräche.",
+    "colMembers": "Gespräch",
+    "colMessages": "Nachrichten",
+    "colLast": "Letzte Nachricht",
+    "legacy": "gemeinsamer Verlauf (vor den persönlichen Gesprächen)",
+    "group": "Gruppe",
+    "direct": "direkt",
+    "exportCsv": "CSV",
+    "exportJson": "JSON"
   },
   "modal": {
     "close": "Schließen",
@@ -1165,6 +1177,13 @@
       "hint": "Bei Rückfragen, Antworten und erledigten Aufgaben bekommen die Beteiligten eine Mitteilung auf ihr Telefon. Aus: Sie sagt nur, wer was getan hat („Bea hat eine Rückfrage“), und vom Inhalt verlässt nichts die Installation. An: Die erste Zeile steht mit darin und geht damit über Apple und gegebenenfalls über den Relay-Dienst.",
       "off": "Aus — nur wer und was",
       "on": "An — mit der ersten Zeile"
+    },
+    "reach": {
+      "title": "Wer welchem Kollegen schreibt",
+      "hint": "Jedes Mitglied darf KI-Kollegen direkt schreiben. Entweder jedem Kollegen der Organisation oder nur denen der eigenen Abteilung. Wem der Kollege berichtet und Org-Admins dürfen es immer; ein bestehendes Gespräch bleibt lesbar, wenn das enger wird.",
+      "org": "Jedem Kollegen der Organisation",
+      "department": "Nur Kollegen der eigenen Abteilung",
+      "adminOnly": "Das ändert nur ein Org-Admin."
     }
   },
   "orgs": {
@@ -2838,5 +2857,43 @@
     "playStore": "Bei Google Play",
     "download": "Herunterladen",
     "notYet": "Noch nicht im Store"
+  },
+  "conversation": {
+    "title": "Gespräche",
+    "new": "Neues Gespräch",
+    "newTitle": "Neues Gespräch",
+    "newLead": "Eine Person oder einen Kollegen wählen für ein direktes Gespräch, mehrere für eine Gruppe.",
+    "search": "Personen und Kollegen suchen",
+    "people": "Personen",
+    "agents": "KI-Kollegen",
+    "groupTitle": "Titel der Gruppe",
+    "groupTitlePlaceholder": "Worum es in der Gruppe geht",
+    "startDirect": "Gespräch öffnen",
+    "startGroup": "Gruppe anlegen",
+    "emptyThread": "Noch nichts gesagt. Schreib die erste Nachricht.",
+    "members": "Mitglieder",
+    "addMember": "Mitglied hinzufügen",
+    "add": "Hinzufügen",
+    "leave": "Gruppe verlassen",
+    "owner": "angelegt",
+    "remove": "Entfernen",
+    "mute": "Mitteilungen stumm schalten",
+    "unmute": "Mitteilungen wieder einschalten",
+    "placeholder": "Nachricht schreiben",
+    "placeholderGroup": "Nachricht schreiben — @Name spricht einen Kollegen an",
+    "reply": "Antworten",
+    "replyingTo": "Antwort an {{name}}",
+    "older": "Ältere Nachrichten zeigen",
+    "agentHint": "Ein KI-Kollege antwortet in einer Gruppe nur, wenn er angesprochen wird: mit @Name oder mit einer Antwort auf seine Nachricht.",
+    "membersCount": "Mitglieder: {{count}}",
+    "back": "Zurück zu den Gesprächen",
+    "more": "Mehr",
+    "profile": "Profil und Einstellungen",
+    "stopped": "gestoppt",
+    "asleep": "schläft",
+    "working": "arbeitet",
+    "workingOn": "arbeitet an {{title}}",
+    "rename": "Gruppe umbenennen",
+    "groupAgentsManage": "Einen KI-Kollegen in eine Gruppe zu holen, braucht das Recht, Arbeit von Hand zu übergeben."
   }
 }

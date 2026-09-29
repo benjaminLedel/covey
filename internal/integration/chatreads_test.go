@@ -19,6 +19,7 @@ func TestUnreadIsWhatTheAgentSaidSinceTheLastLook(t *testing.T) {
 	agent := s.newSupportAgent("reads-agent")
 	admin := teamLogin(t, s)
 	store := chat.New(s.pool)
+	conv := direkt(t, s, s.adminID, agent.ID)
 
 	unread := func() (int, string) {
 		t.Helper()
@@ -32,18 +33,18 @@ func TestUnreadIsWhatTheAgentSaidSinceTheLastLook(t *testing.T) {
 		return 0, ""
 	}
 
-	if _, err := store.Add(ctx, agent.OrgID, agent.ID, "chat:admin@test.local", "Wie weit bist du?", false); err != nil {
+	if _, err := sagt(ctx, store, conv, chat.Human(s.adminID), "Wie weit bist du?"); err != nil {
 		t.Fatal(err)
 	}
 	if n, _ := unread(); n != 0 {
 		t.Fatalf("what the person wrote is not unread: %d", n)
 	}
-	first, err := store.Add(ctx, agent.OrgID, agent.ID, "agent", "## Stand\n\n**Halb** fertig.", false)
+	first, err := sagt(ctx, store, conv, chat.Agent(agent.ID), "## Stand\n\n**Halb** fertig.")
 	if err != nil {
 		t.Fatal(err)
 	}
 	time.Sleep(5 * time.Millisecond)
-	if _, err := store.Add(ctx, agent.OrgID, agent.ID, "agent", "Jetzt fertig.", false); err != nil {
+	if _, err := sagt(ctx, store, conv, chat.Agent(agent.ID), "Jetzt fertig."); err != nil {
 		t.Fatal(err)
 	}
 	if n, last := unread(); n != 2 || last != "Jetzt fertig." {

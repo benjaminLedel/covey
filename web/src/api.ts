@@ -237,6 +237,95 @@ export const myThreads = () => api<{ threads: ThreadState[] }>("/me/threads").th
 export const markThreadRead = (agentId: string, at: string) =>
   post<void>(`/agents/${agentId}/thread/read`, { at });
 
+/* Conversations (#440): direct — two members, one per pair — or a group
+   with a title. Only members read them. A direct conversation with an agent
+   is also what the per-agent thread above reads. */
+export type MemberRef = { kind: "human" | "agent"; id: string };
+
+export type ConversationMember = MemberRef & {
+  name: string;
+  slug?: string;
+  email?: string;
+  role: "owner" | "member";
+  joined_at: string;
+  left_at?: string;
+  last_read_at?: string;
+  muted: boolean;
+};
+
+export type Conversation = {
+  id: string;
+  org_id: string;
+  kind: "direct" | "group";
+  title?: string;
+  created_at: string;
+  last_message_at: string;
+  members: ConversationMember[];
+};
+
+/** One line. `kind` is "text" for what somebody said; "result", "error"
+    and "question" are what a task opened here reports back, and a result
+    or an error keeps the report it retells in `report`. */
+export type ConversationMessage = {
+  id: string;
+  conversation_id: string;
+  author_kind: "human" | "agent" | "system";
+  author_id?: string;
+  author_name?: string;
+  text: string;
+  kind: "text" | "result" | "error" | "question";
+  task_id?: string;
+  reply_to?: string;
+  triage_state?: string;
+  created_at: string;
+  task_title?: string;
+  task_state?: string;
+  report?: string;
+};
+
+export type ConversationSummary = Conversation & {
+  unread: number;
+  muted: boolean;
+  last_read_at?: string;
+  last?: ConversationMessage;
+};
+
+export type ConversationPage = { messages: ConversationMessage[]; more: boolean; pending: boolean };
+
+/** The agents the person writes to directly under the organisation's reach (#440). */
+export const reachableAgents = () =>
+  api<{ reach: "org" | "department"; agents: string[] }>("/me/reachable-agents");
+export const myConversations = () =>
+  api<{ conversations: ConversationSummary[] }>("/conversations").then((r) => r.conversations);
+export const openDirect = (member: MemberRef) => post<Conversation>("/conversations", { kind: "direct", member });
+export const createGroup = (title: string, members: MemberRef[]) =>
+  post<Conversation>("/conversations", { kind: "group", title, members });
+export const conversationMessages = (id: string, before?: ConversationMessage) =>
+  api<ConversationPage>(
+    `/conversations/${id}/messages` +
+      (before ? `?before=${encodeURIComponent(before.created_at)}&before_id=${before.id}` : ""),
+  );
+export const postConversationMessage = (id: string, text: string, replyTo?: string) =>
+  post<{ message: ConversationMessage; pending: boolean }>(`/conversations/${id}/messages`, {
+    text,
+    ...(replyTo ? { reply_to: replyTo } : {}),
+  });
+export const renameConversation = (id: string, title: string) => patch<Conversation>(`/conversations/${id}`, { title });
+export const markConversationRead = (id: string, at: string) => post<void>(`/conversations/${id}/read`, { at });
+export const setConversationMuted = (id: string, muted: boolean) =>
+  patch<{ muted: boolean }>(`/conversations/${id}/me`, { muted });
+export const addConversationMember = (id: string, member: MemberRef) =>
+  post<Conversation>(`/conversations/${id}/members`, member);
+export const removeConversationMember = (id: string, member: MemberRef) =>
+  del<void>(`/conversations/${id}/members/${member.kind}/${member.id}`);
+
+/* The audit's view (#440): every conversation, and the shared threads from
+   before conversations had members — org admin and auditor only. */
+export type AuditConversation = Conversation & { messages: number };
+export type LegacyThread = { agent_id: string; agent_name: string; messages: number; first_at: string; last_at: string };
+export const auditConversations = () =>
+  api<{ conversations: AuditConversation[]; legacy: LegacyThread[] }>("/audit/conversations");
+
 /** Der Verlauf, wie ihn `/agents/{id}/thread` liefert. */
 export type Verlauf = {
   entries: ChatEntry[];
@@ -248,6 +337,11 @@ export type Verlauf = {
   /* Eine angenommene Nachricht wartet noch auf ihre Entscheidung. Das ist das
      einzige, was kein Eintrag ist, sondern der Zustand zwischen zweien. */
   pending?: boolean;
+  /** The direct conversation behind the thread (#440), once there is one. */
+  conversation_id?: string;
+  muted?: boolean;
+  /** The organisation's reach lets the reader write to this agent (#440). */
+  can_write?: boolean;
 };
 
 /* Eine Reaktion auf einen Vorgang, schon gruppiert: welches Zeichen, wie oft,

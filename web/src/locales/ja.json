@@ -245,7 +245,19 @@
     "colActor": "誰が",
     "colMethod": "メソッド",
     "colPath": "何を",
-    "colStatus": "結果"
+    "colStatus": "結果",
+    "tabActions": "操作",
+    "tabConversations": "会話",
+    "convLead": "組織のすべての会話と、会話にメンバーができる前の共有スレッドです。自分が参加していない会話を読める人はほかにいません。ここで開いた記録は監査ログに残ります。",
+    "convEmpty": "まだ会話はありません。",
+    "colMembers": "会話",
+    "colMessages": "メッセージ",
+    "colLast": "最新のメッセージ",
+    "legacy": "共有スレッド（個人の会話より前）",
+    "group": "グループ",
+    "direct": "ダイレクト",
+    "exportCsv": "CSV",
+    "exportJson": "JSON"
   },
   "modal": {
     "close": "閉じる",
@@ -1165,6 +1177,13 @@
       "hint": "確認、返信、完了したタスクについて、関係者のスマートフォンに通知が届きます。オフ：誰が何をしたか（「ベアから確認があります」）だけを伝え、内容はインストール外に出ません。オン：最初の1行が含まれ、Apple と（使用する場合は）リレーサービスを経由します。",
       "off": "オフ — 誰と何だけ",
       "on": "オン — 最初の1行付き"
+    },
+    "reach": {
+      "title": "誰がどの同僚に書けるか",
+      "hint": "メンバーは誰でもAIの同僚に直接メッセージを送れます。組織内のどの同僚にも送れるか、自分の部署の同僚だけにするかを選べます。同僚の上司と組織管理者は常に送れます。範囲を狭めても、既存の会話は読めるままです。",
+      "org": "組織内のどの同僚にも",
+      "department": "自分の部署の同僚だけ",
+      "adminOnly": "変更できるのは組織管理者だけです。"
     }
   },
   "orgs": {
@@ -2838,5 +2857,43 @@
     "playStore": "Google Play",
     "download": "ダウンロード",
     "notYet": "まだストアにありません"
+  },
+  "conversation": {
+    "title": "会話",
+    "new": "新しい会話",
+    "newTitle": "新しい会話",
+    "newLead": "1人を選ぶとダイレクトの会話に、複数を選ぶとグループになります。",
+    "search": "人と同僚を検索",
+    "people": "人",
+    "agents": "AIの同僚",
+    "groupTitle": "グループ名",
+    "groupTitlePlaceholder": "このグループのテーマ",
+    "startDirect": "会話を開く",
+    "startGroup": "グループを作成",
+    "emptyThread": "まだ何も話されていません。最初のメッセージを書きましょう。",
+    "members": "メンバー",
+    "addMember": "メンバーを追加",
+    "add": "追加",
+    "leave": "グループを退出",
+    "owner": "作成者",
+    "remove": "外す",
+    "mute": "通知をミュート",
+    "unmute": "通知を再開",
+    "placeholder": "メッセージを入力",
+    "placeholderGroup": "メッセージを入力 — @名前 で同僚に呼びかけます",
+    "reply": "返信",
+    "replyingTo": "{{name}} への返信",
+    "older": "以前のメッセージを表示",
+    "agentHint": "グループでは、AIの同僚は呼びかけられたときだけ答えます。@名前 で呼ぶか、そのメッセージに返信してください。",
+    "membersCount": "メンバー: {{count}}",
+    "back": "会話一覧に戻る",
+    "more": "その他",
+    "profile": "プロフィールと設定",
+    "stopped": "停止中",
+    "asleep": "休止中",
+    "working": "作業中",
+    "workingOn": "{{title}} に取り組み中",
+    "rename": "グループ名を変更",
+    "groupAgentsManage": "AIの同僚をグループに加えるには、手作業で仕事を渡す権限が必要です。"
   }
 }

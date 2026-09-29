@@ -245,7 +245,19 @@
     "colActor": "Who",
     "colMethod": "Method",
     "colPath": "What",
-    "colStatus": "Result"
+    "colStatus": "Result",
+    "tabActions": "Actions",
+    "tabConversations": "Conversations",
+    "convLead": "Every conversation of the organisation, and the shared threads from before conversations had members. Nobody else reads a conversation they are not in; opening one here is recorded in the audit trail.",
+    "convEmpty": "No conversations yet.",
+    "colMembers": "Conversation",
+    "colMessages": "Messages",
+    "colLast": "Last message",
+    "legacy": "shared thread (before personal conversations)",
+    "group": "group",
+    "direct": "direct",
+    "exportCsv": "CSV",
+    "exportJson": "JSON"
   },
   "modal": {
     "close": "Close",
@@ -1165,6 +1177,13 @@
       "hint": "For questions, replies and finished tasks, the people involved get a notification on their phone. Off: it says only who did what (\"Bea has a question\"), and nothing of the content leaves the installation. On: the first line is included, and with it passes through Apple and, where used, the relay service.",
       "off": "Off — only who and what",
       "on": "On — with the first line"
+    },
+    "reach": {
+      "title": "Who writes to which colleague",
+      "hint": "Every member may write to AI colleagues directly. Either to any colleague of the organisation, or only to those of their own department. The colleague's supervisor and org admins always may; a conversation that exists stays readable when this narrows.",
+      "org": "Any colleague of the organisation",
+      "department": "Only colleagues of one's own department",
+      "adminOnly": "Only an org admin changes this."
     }
   },
   "orgs": {
@@ -2838,5 +2857,43 @@
     "playStore": "On Google Play",
     "download": "Download",
     "notYet": "Not in the store yet"
+  },
+  "conversation": {
+    "title": "Conversations",
+    "new": "New conversation",
+    "newTitle": "New conversation",
+    "newLead": "Pick one person or colleague for a direct conversation, or several for a group.",
+    "search": "Search people and colleagues",
+    "people": "People",
+    "agents": "AI colleagues",
+    "groupTitle": "Group title",
+    "groupTitlePlaceholder": "What the group is about",
+    "startDirect": "Open conversation",
+    "startGroup": "Create group",
+    "emptyThread": "Nothing said yet. Write the first message.",
+    "members": "Members",
+    "addMember": "Add a member",
+    "add": "Add",
+    "leave": "Leave group",
+    "owner": "owner",
+    "remove": "Remove",
+    "mute": "Mute notifications",
+    "unmute": "Turn notifications back on",
+    "placeholder": "Write a message",
+    "placeholderGroup": "Write a message — @name addresses a colleague",
+    "reply": "Reply",
+    "replyingTo": "Replying to {{name}}",
+    "older": "Show older messages",
+    "agentHint": "An AI colleague answers in a group only when addressed: with @name, or with a reply to its message.",
+    "membersCount": "Members: {{count}}",
+    "back": "Back to the conversations",
+    "more": "More",
+    "profile": "Profile and settings",
+    "stopped": "stopped",
+    "asleep": "asleep",
+    "working": "working",
+    "workingOn": "working on {{title}}",
+    "rename": "Rename group",
+    "groupAgentsManage": "Adding an AI colleague to a group needs the right to hand over work by hand."
   }
 }

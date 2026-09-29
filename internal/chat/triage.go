@@ -104,6 +104,13 @@ type Fertig struct {
 	Ergebnis string
 }
 
+// Beitrag is one line of a conversation as a turn reads it: who said it and
+// what. Wer is "you" for the agent itself, a name for everybody else.
+type Beitrag struct {
+	Wer  string
+	Text string
+}
+
 // TriageMaxTokens: die Antwort ist ein kurzes JSON-Objekt. Wer hier viel
 // Platz gibt, bekommt einen Aufsatz und zahlt dafür.
 const TriageMaxTokens = 1200
@@ -121,7 +128,7 @@ Choose "answer" when the message is a question about the organisation you can an
 
 Choose "note" when the message adds to, corrects or asks about one specific task you already have. Use the short id from the list. Your text is written onto that task, and if it was waiting for an answer this releases it. Do not open a second task for the same thing.
 
-Choose "search" when the answer needs something you do not see below: an earlier part of this conversation (you are shown only its end), or a person or colleague who is not in the org chart as shown — a name may be misspelt. Give a few words to search for (a name, a topic). covey searches the whole conversation and the org chart, tolerating a typo in a name, and asks you again with what it found. You can search once.
+Choose "search" when the answer needs something you do not see below: an earlier part of this conversation (you are shown only its end), a task of yours that is not in the lists, or a person or colleague who is not in the org chart as shown — a name may be misspelt. Give a few words to search for (a name, a topic). covey searches the whole conversation, your backlog (titles, states and outcomes of your tasks, also older ones than listed below) and the org chart, tolerating a typo in a name, and asks you again with what it found. You can search once.
 
 Choose "task" when doing it would need any of: a target system (ticketing, repository, mailbox, calendar), a file, a command, a search outside this conversation, a decision with consequences, or more than a moment of work. When in doubt choose "task" — an unnecessary task costs a run, a wrongly answered job costs the work itself.
 
@@ -136,10 +143,17 @@ For "task": the title is one line in the imperative, the body carries what the p
 // Triagieren führt den Zug aus. Der Fehlerfall ist bewusst weich: Wer nicht
 // entscheiden kann, eröffnet eine Aufgabe — das ist das Verhalten, das immer
 // funktioniert, und der Aufrufer muss dafür nichts wissen.
-func Triagieren(ctx context.Context, p llm.Provider, rolle, seele, gegenueber, organisation string, offen []Offen, fertig []Fertig, verlauf []Message, nachricht string, suche *Suche) (Entscheidung, error) {
+func Triagieren(ctx context.Context, p llm.Provider, rolle, seele, gegenueber, raum, organisation string, offen []Offen, fertig []Fertig, verlauf []Beitrag, nachricht string, suche *Suche) (Entscheidung, error) {
 	var b strings.Builder
 	stimme(&b, rolle, seele)
 	person(&b, gegenueber)
+	/* A group (#440): who else is in it, and that the agent was addressed.
+	   Without it every name in the conversation reads as the one person the
+	   agent talks to. */
+	if r := strings.TrimSpace(raum); r != "" {
+		b.WriteString(r)
+		b.WriteString("\n\n")
+	}
 	/* Das Organigramm (#415), derselbe Text, den ein Lauf bekommt. Es ist
 	   coveys eigenes Objekt wie der Backlog: Es zu lesen braucht keine
 	   Zugangsdaten und verlässt das Haus nicht — und ohne es konnte der
@@ -174,21 +188,11 @@ func Triagieren(ctx context.Context, p llm.Provider, rolle, seele, gegenueber, o
 		}
 		b.WriteString("\n")
 	}
-	if len(verlauf) > 0 {
-		b.WriteString("The conversation so far, oldest first:\n")
-		for _, m := range verlauf {
-			wer := "agent"
-			if !strings.HasPrefix(m.Author, "agent") {
-				wer = "person"
-			}
-			fmt.Fprintf(&b, "%s: %s\n", wer, kuerzen(einzeilig(m.Text), verlaufZeile))
-		}
-		b.WriteString("\n")
-	}
+	gespraech(&b, verlauf)
 	b.WriteString("The new message:\n")
 	b.WriteString(nachricht)
 	if suche != nil {
-		fmt.Fprintf(&b, "\n\nYou searched the whole conversation and the org chart for %q. Found:\n", suche.Anfrage)
+		fmt.Fprintf(&b, "\n\nYou searched the whole conversation, your backlog and the org chart for %q. Found:\n", suche.Anfrage)
 		if len(suche.Treffer) == 0 {
 			b.WriteString("(nothing)\n")
 		}
@@ -285,6 +289,18 @@ func stimme(b *strings.Builder, rolle, seele string) {
 	}
 }
 
+// gespraech is the end of the conversation, oldest first; "you" is the agent.
+func gespraech(b *strings.Builder, verlauf []Beitrag) {
+	if len(verlauf) == 0 {
+		return
+	}
+	b.WriteString("The conversation so far, oldest first (\"you\" is you):\n")
+	for _, m := range verlauf {
+		fmt.Fprintf(b, "%s: %s\n", m.Wer, kuerzen(einzeilig(m.Text), verlaufZeile))
+	}
+	b.WriteString("\n")
+}
+
 /* person ist, mit wem da gesprochen wird (#412): Name, Titel, Abteilung,
  * Zuständigkeit — was die Organisation ohnehin über jemanden führt (das
  * Organigramm, spec/28 §1). Ohne das sprach ein Agent mit der Vertrieblerin
@@ -328,21 +344,11 @@ Answer with the chat message only — no JSON, no quotes around it.`
 // Erzaehlen macht aus dem Ergebnis eines Laufs, was der Agent im Chat sagt
 // (#411). Dieselben Grenzen wie die Triage: kein Zielsystem, keine
 // Zugangsdaten, nur das Ergebnis und das Gespräch.
-func Erzaehlen(ctx context.Context, p llm.Provider, rolle, seele, gegenueber string, verlauf []Message, auftrag, ausgang, ergebnis string) (string, error) {
+func Erzaehlen(ctx context.Context, p llm.Provider, rolle, seele, gegenueber string, verlauf []Beitrag, auftrag, ausgang, ergebnis string) (string, error) {
 	var b strings.Builder
 	stimme(&b, rolle, seele)
 	person(&b, gegenueber)
-	if len(verlauf) > 0 {
-		b.WriteString("The conversation so far, oldest first:\n")
-		for _, m := range verlauf {
-			wer := "agent"
-			if !strings.HasPrefix(m.Author, "agent") {
-				wer = "person"
-			}
-			fmt.Fprintf(&b, "%s: %s\n", wer, kuerzen(einzeilig(m.Text), verlaufZeile))
-		}
-		b.WriteString("\n")
-	}
+	gespraech(&b, verlauf)
 	fmt.Fprintf(&b, "What you were asked to do:\n%s\n\n", kuerzen(auftrag, 1500))
 	if ausgang == "failed" {
 		b.WriteString("The run FAILED. Its error:\n")

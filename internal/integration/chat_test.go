@@ -73,6 +73,9 @@ func TestChatIsADoorIntoTheBacklog(t *testing.T) {
 	if _, err := s.backlog.Block(ctx, task.ID, "chat-frage", "sitzung-1", "Darf ich Globex direkt antworten?"); err != nil {
 		t.Fatal(err)
 	}
+	// The question is a message the platform writes into the conversation
+	// the task came from (#440); the round does it, here without its tick.
+	s.srv.Nacherzaehlen(ctx)
 
 	// 3. The thread shows the message and the question — and the question
 	//    without the "blocked:" its transition note was written with.
@@ -399,11 +402,12 @@ func TestChatTriageSurvivesARestart(t *testing.T) {
 	agent := s.newSupportAgent("chat-restart")
 	s.ohneLaeufe(agent.ID)
 
+	conv := direkt(t, s, s.adminID, agent.ID)
 	id := uuid.New()
 	if _, err := s.pool.Exec(ctx,
-		`INSERT INTO chat_messages (id, org_id, agent_id, author, text, triage_state)
-		 VALUES ($1,$2,$3,'chat:admin@test.local','Die Wartung von morgen absagen','pending')`,
-		id, s.orgID, agent.ID); err != nil {
+		`INSERT INTO conversation_messages (id, conversation_id, org_id, author_kind, author_id, text, triage_state)
+		 VALUES ($1,$2,$3,'human',$4,'Die Wartung von morgen absagen','pending')`,
+		id, conv, s.orgID, s.adminID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -420,7 +424,7 @@ func TestChatTriageSurvivesARestart(t *testing.T) {
 	/* Und sie hängt an der Nachricht: Der Verlauf zeigt das Gesagte und das
 	   Daraus-Gewordene als eine Zeile, nicht als zwei. */
 	var taskID *uuid.UUID
-	if err := s.pool.QueryRow(ctx, `SELECT task_id FROM chat_messages WHERE id=$1`, id).Scan(&taskID); err != nil {
+	if err := s.pool.QueryRow(ctx, `SELECT task_id FROM conversation_messages WHERE id=$1`, id).Scan(&taskID); err != nil {
 		t.Fatal(err)
 	}
 	if taskID == nil {
@@ -553,6 +557,7 @@ func TestHiringIsADialogueInTheThread(t *testing.T) {
 	if _, err := s.backlog.Block(ctx, task.ID, "brief", "sitzung-1", "Should it answer the tickets itself, or only triage and hand them on?"); err != nil {
 		t.Fatal(err)
 	}
+	s.srv.Nacherzaehlen(ctx)
 	thread := admin.expect(http.MethodGet, base+"/thread", nil, http.StatusOK)
 	var frage map[string]any
 	for _, e := range thread["entries"].([]any) {
@@ -592,6 +597,7 @@ func TestHiringIsADialogueInTheThread(t *testing.T) {
 		"Drafted Support-1 (support-1): first-level triage in the ticket system. Access requested: zammad read.", ""); err != nil {
 		t.Fatal(err)
 	}
+	s.srv.Nacherzaehlen(ctx)
 	thread = admin.expect(http.MethodGet, base+"/thread", nil, http.StatusOK)
 	var ergebnis map[string]any
 	for _, e := range thread["entries"].([]any) {
@@ -690,26 +696,34 @@ func TestAuthMeSaysWhetherTheSeatMayWrite(t *testing.T) {
 		"email": "aud@test.local", "display_name": "Aud", "role": "auditor", "password": "auditor-passwort",
 	}, http.StatusCreated)
 	aud := login(t, s, "aud@test.local", "auditor-passwort")
-	if me := aud.expect(http.MethodGet, "/api/v1/auth/me", nil, http.StatusOK); me["CanWrite"] != false {
-		t.Fatalf("an auditor may only read: %v", me["CanWrite"])
+	if me := aud.expect(http.MethodGet, "/api/v1/auth/me", nil, http.StatusOK); me["CanWrite"] != false || me["CanChat"] != true {
+		t.Fatalf("an auditor hands over no work by hand, and chats: %v %v", me["CanWrite"], me["CanChat"])
 	}
-	// And the route agrees with what /auth/me said.
+	/* Since #440 every member writes to the agents the organisation's reach
+	   allows — the auditor too; creating a task by hand stays with the
+	   manage roles. */
 	admin.expect(http.MethodPatch, "/api/v1/org/team-surface", map[string]any{"enabled": true}, http.StatusOK)
 	agent := s.newSupportAgent("write-check")
-	aud.expect(http.MethodPost, "/api/v1/agents/"+agent.ID.String()+"/messages", map[string]any{"text": "hallo"}, http.StatusForbidden)
+	s.ohneLaeufe(agent.ID)
+	aud.expect(http.MethodPost, "/api/v1/agents/"+agent.ID.String()+"/messages", map[string]any{"text": "hallo"}, http.StatusCreated)
+	aud.expect(http.MethodPost, "/api/v1/agents/"+agent.ID.String()+"/tasks", map[string]any{"title": "x"}, http.StatusForbidden)
 }
 
 // TestHeartbeatRunsStayOutOfTheConversation is #401: what the schedule
 // started is not something anybody said. A heartbeat run and its
 // continuation leave no line in the thread — neither the assignment, nor a
 // note, nor the result or the error — and they do not use up its window.
-// Only a heartbeat's question stays, because it is addressed to the person
-// and answered here.
+// Only a heartbeat's question is delivered, because somebody has to answer
+// it: since #440 into the direct conversation of the agent with its
+// supervisor, who is the person here.
 func TestHeartbeatRunsStayOutOfTheConversation(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
 	agent := s.newSupportAgent("takt")
 	s.ohneLaeufe(agent.ID)
+	if _, err := s.pool.Exec(ctx, `UPDATE agents SET supervisor_id=$2 WHERE id=$1`, agent.ID, s.adminID); err != nil {
+		t.Fatal(err)
+	}
 	admin := teamLogin(t, s)
 	base := "/api/v1/agents/" + agent.ID.String()
 
@@ -773,6 +787,7 @@ func TestHeartbeatRunsStayOutOfTheConversation(t *testing.T) {
 	for i := 0; i < 2*20; i++ {
 		lauf("Posteingang sichten")
 	}
+	s.srv.Nacherzaehlen(ctx)
 
 	verlauf := admin.expect(http.MethodGet, base+"/thread", nil, http.StatusOK)
 	var texte []string
@@ -837,7 +852,9 @@ func TestAStoppedAgentTakesNoMessages(t *testing.T) {
 	admin.expect(http.MethodPost, base+"/messages", map[string]any{"text": "Hallo?"}, http.StatusConflict)
 	admin.expect(http.MethodPost, "/api/v1/tasks/"+task.ID.String()+"/reply", map[string]any{"text": "Ja"}, http.StatusConflict)
 	var n int
-	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM chat_messages WHERE agent_id=$1`, agent.ID).Scan(&n); err != nil {
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM conversation_messages m
+		JOIN conversation_members cm ON cm.conversation_id = m.conversation_id
+		WHERE cm.member_kind = 'agent' AND cm.member_id = $1 AND m.author_kind = 'human'`, agent.ID).Scan(&n); err != nil {
 		t.Fatal(err)
 	}
 	if n != 0 {

@@ -245,7 +245,19 @@
     "colActor": "Qui",
     "colMethod": "Méthode",
     "colPath": "Quoi",
-    "colStatus": "Résultat"
+    "colStatus": "Résultat",
+    "tabActions": "Actions",
+    "tabConversations": "Conversations",
+    "convLead": "Toutes les conversations de l'organisation, et les fils partagés d'avant que les conversations aient des membres. Personne d'autre ne lit une conversation dont il n'est pas membre ; en ouvrir une ici est consigné dans le journal d'audit.",
+    "convEmpty": "Aucune conversation pour l'instant.",
+    "colMembers": "Conversation",
+    "colMessages": "Messages",
+    "colLast": "Dernier message",
+    "legacy": "fil partagé (avant les conversations personnelles)",
+    "group": "groupe",
+    "direct": "directe",
+    "exportCsv": "CSV",
+    "exportJson": "JSON"
   },
   "modal": {
     "close": "Fermer",
@@ -1165,6 +1177,13 @@
       "hint": "Pour les questions, réponses et tâches terminées, les personnes concernées reçoivent une notification sur leur téléphone. Désactivé : elle indique seulement qui a fait quoi (« Bea a une question ») et rien du contenu ne quitte l’installation. Activé : la première ligne est incluse et passe ainsi par Apple et, le cas échéant, par le service relais.",
       "off": "Désactivé — seulement qui et quoi",
       "on": "Activé — avec la première ligne"
+    },
+    "reach": {
+      "title": "Qui écrit à quel collègue",
+      "hint": "Chaque membre peut écrire directement aux collègues IA : à n'importe lequel de l'organisation, ou seulement à ceux de son propre service. Le responsable du collègue et les administrateurs le peuvent toujours ; une conversation existante reste lisible si cela se restreint.",
+      "org": "À tout collègue de l'organisation",
+      "department": "Seulement aux collègues de son propre service",
+      "adminOnly": "Seul un administrateur de l'organisation modifie ce réglage."
     }
   },
   "orgs": {
@@ -2838,5 +2857,43 @@
     "playStore": "Sur Google Play",
     "download": "Télécharger",
     "notYet": "Pas encore dans le store"
+  },
+  "conversation": {
+    "title": "Conversations",
+    "new": "Nouvelle conversation",
+    "newTitle": "Nouvelle conversation",
+    "newLead": "Choisissez une personne ou un collègue pour une conversation directe, ou plusieurs pour un groupe.",
+    "search": "Rechercher des personnes et des collègues",
+    "people": "Personnes",
+    "agents": "Collègues IA",
+    "groupTitle": "Titre du groupe",
+    "groupTitlePlaceholder": "De quoi parle le groupe",
+    "startDirect": "Ouvrir la conversation",
+    "startGroup": "Créer le groupe",
+    "emptyThread": "Rien n'a encore été dit. Écrivez le premier message.",
+    "members": "Membres",
+    "addMember": "Ajouter un membre",
+    "add": "Ajouter",
+    "leave": "Quitter le groupe",
+    "owner": "créateur",
+    "remove": "Retirer",
+    "mute": "Couper les notifications",
+    "unmute": "Réactiver les notifications",
+    "placeholder": "Écrire un message",
+    "placeholderGroup": "Écrire un message — @nom s'adresse à un collègue",
+    "reply": "Répondre",
+    "replyingTo": "Réponse à {{name}}",
+    "older": "Afficher les messages plus anciens",
+    "agentHint": "Un collègue IA ne répond dans un groupe que lorsqu'on s'adresse à lui : avec @nom, ou en répondant à son message.",
+    "membersCount": "Membres : {{count}}",
+    "back": "Retour aux conversations",
+    "more": "Plus",
+    "profile": "Profil et réglages",
+    "stopped": "arrêté",
+    "asleep": "endormi",
+    "working": "au travail",
+    "workingOn": "travaille sur {{title}}",
+    "rename": "Renommer le groupe",
+    "groupAgentsManage": "Ajouter un collègue IA à un groupe demande le droit de confier du travail à la main."
   }
 }

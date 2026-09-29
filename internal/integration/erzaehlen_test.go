@@ -176,7 +176,7 @@ func TestAChatTaskIsAcknowledgedAndToldInTheChat(t *testing.T) {
 	if !strings.Contains(folge.Body, "Earlier in this conversation") || !strings.Contains(folge.Body, "doppelt gebucht") {
 		t.Errorf("the follow-up task does not carry the conversation:\n%s", folge.Body)
 	}
-	if strings.Contains(folge.Body, "- person: Welche Rechnung war das nochmal?") {
+	if strings.Contains(folge.Body, "- Admin: Welche Rechnung war das nochmal?") {
 		t.Errorf("the message itself is the task, not its own context:\n%s", folge.Body)
 	}
 
@@ -199,7 +199,8 @@ func TestAResultNobodyCanTellStandsOnItsOwn(t *testing.T) {
 	admin := teamLogin(t, s)
 	admin.expect(http.MethodPatch, "/api/v1/org/chat-triage", map[string]any{"mode": "on"}, http.StatusOK)
 
-	task, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Etwas prüfen", "", "chat:admin@test.local", 0)
+	conv := direkt(t, s, s.adminID, agent.ID)
+	task, err := s.backlog.CreateIn(ctx, s.orgID, agent.ID, "Etwas prüfen", "", "chat:admin@test.local", 0, &conv)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,10 +220,17 @@ func TestAResultNobodyCanTellStandsOnItsOwn(t *testing.T) {
 		t.Fatalf("said = %v, said_at set = %v: want an empty sentence, marked", said, gesagt)
 	}
 	verlauf := admin.expect(http.MethodGet, "/api/v1/agents/"+agent.ID.String()+"/thread", nil, http.StatusOK)
+	gefunden := false
 	for _, roh := range verlauf["entries"].([]any) {
 		e, _ := roh.(map[string]any)
-		if e["kind"] == "result" && (e["said"] != nil || e["text"] != "Geprüft, alles in Ordnung.") {
-			t.Errorf("result entry = %v", e)
+		if e["kind"] == "result" {
+			gefunden = true
+			if e["said"] != nil || e["text"] != "Geprüft, alles in Ordnung." {
+				t.Errorf("result entry = %v", e)
+			}
 		}
+	}
+	if !gefunden {
+		t.Error("the report is not in the conversation")
 	}
 }

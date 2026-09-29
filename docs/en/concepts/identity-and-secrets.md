@@ -27,6 +27,10 @@ An agent is a subject of its own, not a process under a shared account. It has a
 
 People with different roles work on the same organisation: platform admin, agent owner, viewer, audit. Who sees which agents, who may deposit secrets, who may grant approvals — the role decides, and every administrative action lands in the audit trail.
 
+Conversations are the exception to "the role decides": a conversation is read and written by its members, whatever their role, and by nobody else. Only the org admin and the auditor read and export conversations they are not in, in the audit, next to the shared per-agent threads from before conversations had members.
+
+Every member may write to AI colleagues directly. Whom they reach is a setting of the organisation (*Administration → Who writes to which colleague*): any colleague, or only those of their own department; the colleague's supervisor and the org admin always. When it narrows, a conversation that exists stays readable and takes no new message. Adding an AI colleague to a group stays with the roles that may hand over work by hand, and so does answering a parked task that is not in one's own conversation.
+
 Sign-in is built in via JWT and Argon2id. If you want a company login, hang an OIDC provider off the same interface — Keycloak, Entra, whatever the house runs.
 
 ## How secrets are stored

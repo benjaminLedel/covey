@@ -74,6 +74,9 @@ type Task struct {
 	DaemonRetries int       `json:"daemon_retries"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
+	// ConversationID is where the task reports back (#440): set when a
+	// conversation opened it, inherited by its continuations.
+	ConversationID *uuid.UUID `json:"conversation_id,omitempty"`
 }
 
 // Stage is a freely definable Kanban column of an agent (an overlay on top of
@@ -125,13 +128,13 @@ func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
 const taskCols = `id, org_id, agent_id, title, body, state, priority, origin,
 	correlation_key, runtime_session_id, resume_input, result, error, stage_id, parent_task_id,
-	archived_at, daemon_retries, created_at, updated_at`
+	archived_at, daemon_retries, created_at, updated_at, conversation_id`
 
 func scanTask(row pgx.Row) (Task, error) {
 	var t Task
 	err := row.Scan(&t.ID, &t.OrgID, &t.AgentID, &t.Title, &t.Body, &t.State, &t.Priority, &t.Origin,
 		&t.CorrelationKey, &t.RuntimeSessionID, &t.ResumeInput, &t.Result, &t.Error, &t.StageID, &t.ParentTaskID,
-		&t.ArchivedAt, &t.DaemonRetries, &t.CreatedAt, &t.UpdatedAt)
+		&t.ArchivedAt, &t.DaemonRetries, &t.CreatedAt, &t.UpdatedAt, &t.ConversationID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return t, ErrNotFound
 	}
@@ -140,15 +143,22 @@ func scanTask(row pgx.Row) (Task, error) {
 
 // Create creates a task and fires NOTIFY so that the dispatch loop wakes up.
 func (s *Store) Create(ctx context.Context, orgID, agentID uuid.UUID, title, body, origin string, priority int) (Task, error) {
+	return s.CreateIn(ctx, orgID, agentID, title, body, origin, priority, nil)
+}
+
+// CreateIn creates a task that reports back into a conversation (#440). The
+// conversation is written with the row, not afterwards: a dispatcher that
+// picks the task up at once must already see where it answers.
+func (s *Store) CreateIn(ctx context.Context, orgID, agentID uuid.UUID, title, body, origin string, priority int, conversationID *uuid.UUID) (Task, error) {
 	if priority == 0 {
 		priority = 5
 	}
 	// A new task lands in the agent's first stage (if one is defined).
-	row := s.pool.QueryRow(ctx, `INSERT INTO backlog_tasks (id, org_id, agent_id, title, body, origin, priority, stage_id)
+	row := s.pool.QueryRow(ctx, `INSERT INTO backlog_tasks (id, org_id, agent_id, title, body, origin, priority, stage_id, conversation_id)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,
-			(SELECT id FROM agent_stages WHERE agent_id=$3 ORDER BY position, created_at LIMIT 1))
+			(SELECT id FROM agent_stages WHERE agent_id=$3 ORDER BY position, created_at LIMIT 1), $8)
 		RETURNING `+taskCols,
-		uuid.New(), orgID, agentID, title, body, origin, priority)
+		uuid.New(), orgID, agentID, title, body, origin, priority, conversationID)
 	t, err := scanTask(row)
 	if err != nil {
 		return t, err
@@ -189,14 +199,21 @@ func (s *Store) CreateChild(ctx context.Context, parentID uuid.UUID, spec ChildS
 	if spec.Priority == 0 {
 		spec.Priority = 5
 	}
+	/* A continuation is the same work carried on (#440): it reports where its
+	   parent would have. A subtask or a delegation is new work and reports
+	   nowhere unless somebody gives it a conversation. */
+	var conversationID *uuid.UUID
+	if strings.HasPrefix(spec.Origin, "continuation:") && agentID == parent.AgentID {
+		conversationID = parent.ConversationID
+	}
 	row := s.pool.QueryRow(ctx, `INSERT INTO backlog_tasks
 		(id, org_id, agent_id, title, body, origin, priority, parent_task_id,
-		 runtime_session_id, resume_input, stage_id)
+		 runtime_session_id, resume_input, stage_id, conversation_id)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8, NULLIF($9,''), NULLIF($10,''),
-			(SELECT id FROM agent_stages WHERE agent_id=$3 ORDER BY position, created_at LIMIT 1))
+			(SELECT id FROM agent_stages WHERE agent_id=$3 ORDER BY position, created_at LIMIT 1), $11)
 		RETURNING `+taskCols,
 		uuid.New(), parent.OrgID, agentID, spec.Title, spec.Body, spec.Origin, spec.Priority,
-		parentID, spec.SessionID, spec.ResumeInput)
+		parentID, spec.SessionID, spec.ResumeInput, conversationID)
 	t, err := scanTask(row)
 	if err != nil {
 		return t, err

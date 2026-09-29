@@ -1,19 +1,16 @@
 package httpapi
 
-// The chat: a door into the backlog for somebody who only wants to hand over
-// work (#298).
+// The chat with an agent (#298), since #440 a conversation between members
+// (conversations.go): what the person and the agent say, beside the backlog
+// and not a view on it. This file holds the per-agent thread endpoints, which
+// stay as aliases onto the person's direct conversation with the agent, and
+// the triage that decides what a message to an agent is.
 //
 // It is not a second orchestration path and not a conversational runtime. A
-// message becomes a task, a reply becomes the resume input of a parked task,
-// and everything the agent produces on the way — notes, its question, the
-// result — is read back out of the objects that already carry it. The agent
-// works its backlog exactly as before and does not know it is being chatted
-// with.
-//
-// The thread is a VIEW, like the inbox next door: one query over three tables
-// (backlog_tasks, task_notes, task_transitions), assembled here rather than in
-// the browser. Composed client-side it would be two requests per task — twenty
-// for a thread somebody scrolls once.
+// message becomes a task or an answer, a reply becomes the resume input of a
+// parked task, and the agent works its backlog exactly as before. What a task
+// opened in a conversation reports back is written there as a message; the
+// rest of the backlog stays in the backlog.
 //
 // What is deliberately NOT here: a role that sees only this surface. The five
 // seat roles all describe somebody who administers something, and handing out
@@ -43,15 +40,16 @@ import (
 
 // chatEntry is one line of the thread. The kinds:
 //
-//	message  — what a person handed over (the task itself)
-//	note     — what the agent wrote down along the way
-//	question — what it wants to know before it goes on (it is parked)
-//	result   — what came out
+//	message  — what the person wrote
+//	answer   — what the agent said
+//	question — what a task opened here wants to know (it is parked)
+//	result   — what came out of it
 //	error    — what went wrong
 //
-// Author carries the origin of a message ("chat:someone@example.org") or the
-// author of a note ("agent", "human:someone@example.org"); the surface only
-// has to decide left or right from it.
+// `note` was the agent's notes on its tasks; since #440 the thread mirrors
+// nothing of the backlog, and the kind no longer occurs. Author is
+// "chat:someone@example.org" for the person and "agent" for the agent; the
+// surface only has to decide left or right from it.
 type chatEntry struct {
 	Kind string `json:"kind"`
 	/* Die eigene Kennung des Eintrags — die Aufgabe, wenn es eine gibt, sonst
@@ -134,6 +132,12 @@ type chatThread struct {
 	   (internal/backlog/reactions.go) — die Oberfläche zeigt sie deshalb am
 	   ersten Eintrag eines Vorgangs. */
 	Marks map[string][]chatMark `json:"marks"`
+	/* The direct conversation behind the thread (#440), once there is one,
+	   and whether the person muted it. */
+	ConversationID *uuid.UUID `json:"conversation_id,omitempty"`
+	Muted          bool       `json:"muted"`
+	// CanWrite: the organisation's reach lets the reader write to the agent.
+	CanWrite bool `json:"can_write"`
 }
 
 // threadTasks is how far back a thread reaches. Whoever wants more than the
@@ -146,154 +150,58 @@ const threadTasks = 20
 // Verlauf kann also aus deutlich mehr Zeilen als Vorgängen bestehen.
 const threadMessages = 40
 
-/* sucheTasks und sucheMessages: das Fenster, wenn gesucht wird.
+/* sucheMessages: das Fenster, wenn gesucht wird.
  *
- * Zehnmal so weit wie das des Verlaufs. Weiter nicht: Wer über hundert
- * Vorgänge hinaus sucht, sucht im Backlog, und der Verweis daneben führt
- * dorthin — eine Volltextsuche über die ganze Geschichte eines Agenten ist
- * eine andere Sache als das Durchsehen eines Gesprächs. */
-const (
-	sucheTasks    = 200
-	sucheMessages = 400
-)
+ * Zehnmal so weit wie das des Verlaufs. Weiter nicht: Wer darüber hinaus
+ * sucht, sucht im Backlog, und der Verweis daneben führt dorthin — eine
+ * Volltextsuche über die ganze Geschichte eines Agenten ist eine andere Sache
+ * als das Durchsehen eines Gesprächs. */
+const sucheMessages = 400
 
-/*
-suchbegriff macht aus der Eingabe ein Muster, das nur das findet, wonach
-
-	gefragt wurde. Ein Prozentzeichen ist in ILIKE „alles", und wer nach „50 %"
-	sucht, bekäme sonst den halben Verlauf.
-*/
-func suchbegriff(roh string) string {
-	q := strings.TrimSpace(roh)
-	if q == "" {
-		return ""
-	}
-	r := strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`)
-	return r.Replace(q)
-}
-
-// handleThread assembles the conversation with one agent.
+// handleThread is the direct conversation of the signed-in person with one
+// agent, in the shape the thread had before conversations (#440) — the
+// current app reads it, and so does the web's agent thread.
+//
+// It reads the conversation and nothing else: what the person and the agent
+// said, and what a task opened here reported back. The agent's other tasks
+// are not in it; what is still running stands beside it (Tasks), because the
+// backlog is shared. A person who never wrote to the agent gets an empty
+// thread, and no conversation is opened by looking.
 func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-
-	/* Der Verlauf hat zwei Quellen, seit eine Nachricht nicht mehr
-	   zwangsläufig eine Aufgabe ist (#302):
-
-	     die NACHRICHTEN  — was gesagt wurde, samt der Antworten des Agenten
-	     die AUFGABEN     — was daraus wurde, mit Notizen, Fragen, Ergebnis
-
-	   Eine Aufgabe, zu der eine Nachricht gehört, steuert ihre Zeile nicht
-	   selbst bei; sonst stünde dieselbe Bitte zweimal da — einmal als das,
-	   was jemand schrieb, und einmal als das, was daraus wurde.
-
-	   Das Archiv bleibt draußen: Was jemand weggelegt hat, ist nicht mehr
-	   Teil des Gesprächs. */
-	/* ?q= sucht im Gespräch statt es zu zeigen.
-
-	   Gefiltert wird AUSSEN, über dem fertigen Verlauf: Ein Treffer ist eine
-	   Zeile, die jemand gesagt oder der Lauf hinterlassen hat, und welche der
-	   sechs Quellen sie hergab, ist dem Suchenden gleich. Drinnen zu filtern
-	   hieße, dieselbe Bedingung sechsmal zu schreiben und beim siebten Zweig
-	   zu vergessen.
-
-	   Dafür reicht das Fenster weiter zurück: Wer sucht, sucht das, was er
-	   nicht mehr sieht. */
-	/* What the platform starts on its own — heartbeat runs, housekeeping,
-	   their continuations — is not part of the conversation (#401, #410):
-	   nobody said anything, and at `alle: 15m` those blocks pushed what a
-	   person had written out of the window. chat.MachineryCTE holds the rule
-	   the unread count uses too.
-
-	   Only their questions stay — a question is addressed to the person and
-	   answered here. So such a task is left out of the window unless it once
-	   parked with a question, and inside the window only its question line
-	   is drawn. */
-	q := `WITH RECURSIVE ` + chat.MachineryCTE("agent_id=$1") + `, t AS (
-		SELECT bt.id, bt.title, bt.body, bt.state, bt.origin, bt.result, bt.error, bt.created_at, bt.updated_at,
-		       coalesce(bt.said, '') AS said,
-		       EXISTS (SELECT 1 FROM maschinerie mm WHERE mm.id = bt.id) AS takt
-		FROM backlog_tasks bt
-		WHERE bt.agent_id=$1 AND bt.archived_at IS NULL
-		  AND (NOT EXISTS (SELECT 1 FROM maschinerie mm WHERE mm.id = bt.id)
-		       OR EXISTS (SELECT 1 FROM task_transitions tr WHERE tr.task_id = bt.id AND tr.to_state = 'blocked'))
-		ORDER BY bt.created_at DESC LIMIT $2
-	), m AS (
-		SELECT id, author, text, task_id, created_at
-		FROM chat_messages WHERE agent_id=$1
-		ORDER BY created_at DESC LIMIT $3
-	), alles AS (
-	SELECT CASE WHEN m.author = 'agent' THEN 'answer' ELSE 'message' END AS kind,
-	       m.id AS eid, m.task_id AS tid, coalesce(bt.title, '') AS titel, coalesce(bt.state, '') AS zustand,
-	       m.author AS wer, m.text AS text, m.created_at AS wann, '' AS gesagt
-	       FROM m LEFT JOIN backlog_tasks bt ON bt.id = m.task_id
-	UNION ALL
-	SELECT 'message', t.id, t.id, t.title, t.state, t.origin,
-	       -- Der Rumpf, nicht Titel plus Rumpf: Die erste Zeile IST der Titel.
-	       CASE WHEN coalesce(t.body,'')='' THEN t.title ELSE t.body END,
-	       t.created_at, '' FROM t
-	       WHERE NOT t.takt AND NOT EXISTS (SELECT 1 FROM m WHERE m.task_id = t.id)
-	UNION ALL
-	SELECT 'note', n.task_id, n.task_id, t.title, t.state, n.author, n.content, n.created_at, ''
-	       FROM task_notes n JOIN t ON t.id = n.task_id
-	       -- Die Notiz der Triage ist Maschinerie, nicht Gespräch: Sie trägt
-	       -- die Nachricht an den laufenden Vorgang weiter, und die Nachricht
-	       -- selbst steht zwei Zeilen darüber.
-	       WHERE NOT t.takt AND n.author NOT LIKE 'triage:%'
-	UNION ALL
-	SELECT 'question', tr.task_id, tr.task_id, t.title, t.state, 'agent', tr.note, tr.created_at, ''
-	       FROM task_transitions tr JOIN t ON t.id = tr.task_id
-	       WHERE tr.to_state='blocked'
-	UNION ALL
-	SELECT 'result', t.id, t.id, t.title, t.state, 'agent', t.result, t.updated_at, t.said
-	       FROM t WHERE NOT t.takt AND t.state='done' AND coalesce(t.result,'') <> ''
-	UNION ALL
-	SELECT 'error', t.id, t.id, t.title, t.state, 'agent', t.error, t.updated_at, t.said
-	       FROM t WHERE NOT t.takt AND t.state='failed' AND coalesce(t.error,'') <> ''
-	)
-	SELECT kind, eid, tid, titel, zustand, wer, text, wann, gesagt FROM alles
-	 WHERE $4 = '' OR text ILIKE '%' || $4 || '%' ESCAPE '\'
-	                OR gesagt ILIKE '%' || $4 || '%' ESCAPE '\'
-	                OR titel ILIKE '%' || $4 || '%' ESCAPE '\'
-	 ORDER BY wann`
-
-	begriff := suchbegriff(r.URL.Query().Get("q"))
-	aufgaben, nachrichten := threadTasks, threadMessages
-	if begriff != "" {
-		aufgaben, nachrichten = sucheTasks, sucheMessages
-	}
-	rows, err := s.Pool.Query(r.Context(), q, id, aufgaben, nachrichten, begriff)
+	p := principalFrom(r)
+	out := chatThread{Entries: []chatEntry{}, Tasks: []offenerVorgang{}, Marks: map[string][]chatMark{}}
+	convID, gibt, err := s.Chat.FindDirect(r.Context(), p.OrgID, chat.Human(p.ID), chat.Agent(id))
 	if err != nil {
 		mapErr(w, err)
 		return
 	}
-	defer rows.Close()
 
-	out := chatThread{Entries: []chatEntry{}}
-	for rows.Next() {
-		var e chatEntry
-		if err := rows.Scan(&e.Kind, &e.ID, &e.TaskID, &e.TaskTitle, &e.TaskState,
-			&e.Author, &e.Text, &e.At, &e.Said); err != nil {
+	/* ?q= sucht im Gespräch statt es zu zeigen. Dafür reicht das Fenster
+	   weiter zurück: Wer sucht, sucht das, was er nicht mehr sieht. */
+	begriff := strings.TrimSpace(r.URL.Query().Get("q"))
+	if gibt {
+		var msgs []chat.Message
+		if begriff != "" {
+			msgs, err = s.Chat.Search(r.Context(), convID, []string{begriff}, sucheMessages)
+			// Newest first from the search; a thread reads oldest first.
+			for i, j := 0, len(msgs)-1; i < j; i, j = i+1, j-1 {
+				msgs[i], msgs[j] = msgs[j], msgs[i]
+			}
+		} else {
+			msgs, err = s.Chat.Page(r.Context(), convID, nil, threadMessages)
+		}
+		if err != nil {
 			mapErr(w, err)
 			return
 		}
-		// The question stands in the transition note, where it was written
-		// with its state in front of it ("blocked: may I send this?"). In a
-		// thread the prefix is the machine talking about itself.
-		if e.Kind == "question" {
-			e.Text = strings.TrimSpace(strings.TrimPrefix(e.Text, "blocked:"))
-			if e.Text == "" {
-				continue
-			}
+		for _, m := range msgs {
+			out.Entries = append(out.Entries, alsEintrag(m, p.Email))
 		}
-		out.Entries = append(out.Entries, e)
-	}
-	if rows.Err() != nil {
-		mapErr(w, rows.Err())
-		return
 	}
 
 	/* Bei einer Suche bleibt es bei den Treffern. Reaktionen, der Denkzustand
@@ -301,8 +209,6 @@ func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 	   von Fundstellen — und drei Abfragen, die niemand ansieht, sind drei
 	   Abfragen zu viel auf einem Weg, der bei jedem Tastendruck läuft. */
 	if begriff != "" {
-		out.Tasks = []offenerVorgang{}
-		out.Marks = map[string][]chatMark{}
 		writeJSON(w, http.StatusOK, out)
 		return
 	}
@@ -321,14 +227,57 @@ func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
-	/* Eine Zeile über einem Teilindex, der im Normalbetrieb leer ist. */
-	if err := s.Pool.QueryRow(r.Context(),
-		`SELECT EXISTS(SELECT 1 FROM chat_messages WHERE agent_id=$1 AND triage_state='pending')`,
-		id).Scan(&out.Pending); err != nil {
+	if out.CanWrite, err = s.Chat.Reaches(r.Context(), p.OrgID, p.ID, id, p.Role == identity.RoleOrgAdmin); err != nil {
 		mapErr(w, err)
 		return
 	}
+	if gibt {
+		if out.Pending, err = s.Chat.Pending(r.Context(), convID); err != nil {
+			mapErr(w, err)
+			return
+		}
+		out.ConversationID = &convID
+		if c, err := s.Chat.Get(r.Context(), convID); err == nil {
+			for _, m := range c.Active() {
+				if m.Kind == chat.MemberHuman && m.ID == p.ID {
+					out.Muted = m.Muted
+				}
+			}
+		}
+	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+/*
+alsEintrag is a message of the conversation as a line of the old thread.
+
+	What a person wrote is a `message` with the author the thread always
+	had ("chat:<mail>"); what the agent said is an `answer`; a task's report
+	is a `result` or an `error` whose Text is the report and whose Said is
+	what the message retells of it, and a parked task's question is a
+	`question`. The entry's id is the task's where there is one — the
+	surfaces group by it.
+*/
+func alsEintrag(m chat.Message, email string) chatEntry {
+	e := chatEntry{
+		ID: m.ID, TaskID: m.TaskID, TaskTitle: m.TaskTitle, TaskState: m.TaskState,
+		Text: m.Text, At: m.CreatedAt, Author: "agent", Kind: "answer",
+	}
+	if m.TaskID != nil {
+		e.ID = *m.TaskID
+	}
+	switch {
+	case m.AuthorKind == chat.MemberHuman:
+		e.Kind, e.Author = "message", "chat:"+email
+	case m.Kind == chat.MessageResult || m.Kind == chat.MessageError:
+		e.Kind = m.Kind
+		if m.Report != "" && m.Report != m.Text {
+			e.Text, e.Said = m.Report, m.Text
+		}
+	case m.Kind == chat.MessageQuestion:
+		e.Kind = "question"
+	}
+	return e
 }
 
 /*
@@ -545,30 +494,10 @@ func chatText(w http.ResponseWriter, r *http.Request) (string, bool) {
 	return text, true
 }
 
-// handleChatMessage takes a message and lets the agent decide what it is.
-//
-// The message is written down first, always — before any model has seen it
-// and whatever the triage decides afterwards. What somebody said is a fact;
-// what is made of it is a judgement, and a judgement that fails must not
-// swallow the fact.
-/* handleChatMessage nimmt eine Nachricht an — und wartet nicht auf die
-  Entscheidung.
-*
-* Vorher lief der Modell-Zug im Request. Das war die bequeme Form und die
-* falsche: Wer abschickte, sah Sekunden lang ein stehendes Eingabefeld und
-* nicht einmal die eigene Nachricht, und die Verbindung musste so lange
-* offen bleiben, wie das Modell brauchte. Ein Chat, in dem das Absenden
-* hängt, ist kein Chat, sondern ein Formular.
-*
-* Jetzt: Die Nachricht wird geschrieben, der Request ist fertig (202), und
-* die Entscheidung fällt daneben. Was dabei herauskommt, kommt über den
-* Ereignisstrom zurück, über den die Oberfläche ohnehin schon hört
-* (`/api/v1/events`, sse.go) — dieselbe Leitung, die Aufgaben und Läufe
-* meldet, meldet nun auch, dass der Kollege nachdenkt.
-*
-* Ohne Triage bleibt alles, wie es war: Da ist nichts zu warten — eine
-* Aufgabe anzulegen kostet eine Einfügung —, und der Aufrufer bekommt sie
-* wie bisher in derselben Antwort. */
+// handleChatMessage writes a message into the person's direct conversation
+// with the agent (#440) — the alias the per-agent thread keeps, so that the
+// current app goes on working. It answers in the shape it always had: the
+// message with the author "chat:<mail>", and without triage the task.
 func (s *Server) handleChatMessage(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
@@ -576,60 +505,162 @@ func (s *Server) handleChatMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := principalFrom(r)
-	// The team surface is where a message comes from; an organisation that
-	// has not turned it on gets no messages by the side door either (#328).
-	// Checked here and not only in the interface, since the interface is not
-	// the only client of this endpoint.
-	if on, err := s.Chat.TeamSurface(r.Context(), p.OrgID); err != nil {
-		mapErr(w, err)
-		return
-	} else if !on {
-		writeErr(w, http.StatusForbidden, "the team surface is not enabled for this organisation")
-		return
-	}
-	if s.gestoppt(w, r, id) {
+	if !s.teamSurfaceAn(w, r) || !s.erreicht(w, r, id) || s.gestoppt(w, r, id) {
 		return
 	}
 	text, ok := chatText(w, r)
 	if !ok {
 		return
 	}
-
-	/* Ob es überhaupt etwas zu entscheiden gibt, steht an der Organisation.
-	   Die Frage kostet eine Zeile und entscheidet, ob diese Nachricht mit
-	   einer Schuld geschrieben wird. */
-	mode, err := s.Chat.Mode(r.Context(), p.OrgID)
+	convID, err := s.Chat.Direct(r.Context(), p.OrgID, chat.Human(p.ID), chat.Agent(id), &p.ID)
 	if err != nil {
 		mapErr(w, err)
 		return
 	}
-	triage := mode == chat.TriageOn
-
-	msg, err := s.Chat.Add(r.Context(), p.OrgID, id, "chat:"+p.Email, text, triage)
+	conv, err := s.Chat.Get(r.Context(), convID)
 	if err != nil {
 		mapErr(w, err)
 		return
 	}
+	a, err := s.annehmen(r.Context(), conv, sprecherVon(p), text, nil, langFrom(r))
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	alt := map[string]any{
+		"id": a.msg.ID, "org_id": a.msg.OrgID, "agent_id": id, "conversation_id": convID,
+		"author": "chat:" + p.Email, "text": a.msg.Text, "created_at": a.msg.CreatedAt,
+		"triage_state": a.msg.TriageState,
+	}
+	if a.pending {
+		writeJSON(w, http.StatusAccepted, map[string]any{"message": alt, "pending": true})
+		return
+	}
+	var task any
+	if len(a.tasks) > 0 {
+		alt["task_id"] = a.tasks[0].ID
+		task = a.tasks[0]
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"message": alt, "task": task, "answered": false})
+}
 
-	if !triage {
-		t, err := s.aufgabeAusNachricht(r.Context(), p.OrgID, id, msg, chat.Entscheidung{}, text, p.Email, langFrom(r))
-		if err != nil {
-			mapErr(w, err)
-			return
+// teamSurfaceAn refuses a message while the organisation has not turned the
+// team surface on (#328). Checked here and not only in the interface, since
+// the interface is not the only client of these endpoints.
+func (s *Server) teamSurfaceAn(w http.ResponseWriter, r *http.Request) bool {
+	on, err := s.Chat.TeamSurface(r.Context(), principalFrom(r).OrgID)
+	if err != nil {
+		mapErr(w, err)
+		return false
+	}
+	if !on {
+		writeErr(w, http.StatusForbidden, "the team surface is not enabled for this organisation")
+		return false
+	}
+	return true
+}
+
+// sprecher is who wrote a message, with what the triage needs of them.
+type sprecher struct {
+	id    uuid.UUID
+	email string
+	role  string
+}
+
+func sprecherVon(p identity.Principal) sprecher {
+	return sprecher{id: p.ID, email: p.Email, role: p.Role}
+}
+
+// angenommen is what became of a message: the message, the tasks opened
+// without triage, and whether a triage still owes it a decision.
+type angenommen struct {
+	msg     chat.Message
+	tasks   []backlog.Task
+	pending bool
+}
+
+/*
+annehmen writes a person's message and hands it to the agents it
+
+	addresses (chat.Addressed): in a direct conversation the agent, in a group
+	whoever is mentioned or replied to, in a conversation of people nobody.
+
+	The message is written down first, always — before any model has seen it
+	and whatever the triage decides afterwards. What somebody said is a fact;
+	what is made of it is a judgement, and a judgement that fails must not
+	swallow the fact.
+
+	With the triage on, the request does not wait for the decision (202): the
+	turn runs beside it, and what comes of it arrives over the event stream
+	(`/api/v1/events`) the surfaces listen to anyway. Without triage there is
+	nothing to wait for — a task costs one insert — and the caller gets it in
+	the same answer.
+*/
+func (s *Server) annehmen(ctx context.Context, conv chat.Conversation, wer sprecher, text string, replyTo *chat.Message, lang string) (angenommen, error) {
+	var out angenommen
+	var agenten []uuid.UUID
+	for _, m := range chat.Addressed(conv, text, replyTo) {
+		/* A stopped agent takes no work (#414): in a direct conversation the
+		   request is refused before this; in a group it is simply not
+		   addressed, and the others still are. */
+		var stop bool
+		if err := s.Pool.QueryRow(ctx, `SELECT a.killed OR o.fleet_killed
+			  FROM agents a JOIN organizations o ON o.id = a.org_id WHERE a.id = $1`, m.ID).Scan(&stop); err != nil || stop {
+			continue
 		}
-		msg.TaskID = &t.ID
-		writeJSON(w, http.StatusCreated, map[string]any{"message": msg, "task": t, "answered": false})
-		return
+		agenten = append(agenten, m.ID)
+	}
+	triage := false
+	if len(agenten) > 0 {
+		mode, err := s.Chat.Mode(ctx, conv.OrgID)
+		if err != nil {
+			return out, err
+		}
+		triage = mode == chat.TriageOn
+	}
+	msg := chat.Message{
+		ConversationID: conv.ID, AuthorKind: chat.MemberHuman, AuthorID: &wer.id,
+		Text: text, Kind: chat.MessageText,
+	}
+	if replyTo != nil {
+		msg.ReplyTo = &replyTo.ID
+	}
+	if triage {
+		msg.TriageState = chat.StatePending
+	}
+	msg, _, err := s.Chat.Post(ctx, msg)
+	if err != nil {
+		return out, err
+	}
+	out.msg = msg
+	if len(agenten) == 0 {
+		s.chatEreignis(conv.OrgID, uuid.Nil, conv.ID, "message", nil)
+		return out, nil
+	}
+	if !triage {
+		for _, agentID := range agenten {
+			t, err := s.aufgabeAusNachricht(ctx, conv, agentID, msg, chat.Entscheidung{}, text, wer.email, lang)
+			if err != nil {
+				return out, err
+			}
+			out.tasks = append(out.tasks, t)
+		}
+		for _, agentID := range agenten {
+			s.chatEreignis(conv.OrgID, agentID, conv.ID, "task", nil)
+		}
+		return out, nil
 	}
 
 	/* Angenommen. Der Zug läuft daneben, mit einem Kontext, der nicht am
 	   Request hängt: Dessen Kontext wird abgebrochen, sobald die Antwort
 	   geschrieben ist, und ein Zug, den das Abschicken der Antwort abbricht,
 	   liefe nie zu Ende. */
-	go s.triageLauf(p.OrgID, id, msg, text, p.Email, langFrom(r))
-
-	s.chatEreignis(p.OrgID, id, "thinking", nil)
-	writeJSON(w, http.StatusAccepted, map[string]any{"message": msg, "pending": true})
+	go s.triageLauf(conv, agenten, msg, wer.email, lang)
+	for _, agentID := range agenten {
+		s.chatEreignis(conv.OrgID, agentID, conv.ID, "thinking", nil)
+	}
+	out.pending = true
+	return out, nil
 }
 
 // triageLaufFrist: so lange darf ein Zug dauern. Ein Modell, das länger
@@ -637,65 +668,57 @@ func (s *Server) handleChatMessage(w http.ResponseWriter, r *http.Request) {
 // ohnehin die Antwort auf jeden Fehler ist.
 const triageLaufFrist = 90 * time.Second
 
-/* triageLauf ist der Zug außerhalb des Requests.
+/* triageLauf ist der Zug außerhalb des Requests — einer je angesprochenem
+ * Agenten, nacheinander.
  *
  * Er endet IMMER mit einem Zustand an der Nachricht und einem Ereignis —
  * auch beim Absturz eines Modells, auch bei einem Fehler in der Datenbank.
  * Was er nicht darf, ist still enden: Eine angenommene Nachricht, zu der nie
  * etwas kommt, ist schlimmer als eine überflüssige Aufgabe.
  */
-func (s *Server) triageLauf(orgID, agentID uuid.UUID, msg chat.Message, text, email, lang string) {
-	ctx, abbrechen := context.WithTimeout(context.Background(), triageLaufFrist)
+func (s *Server) triageLauf(conv chat.Conversation, agenten []uuid.UUID, msg chat.Message, email, lang string) {
+	ctx, abbrechen := context.WithTimeout(context.Background(), triageLaufFrist*time.Duration(len(agenten)))
 	defer abbrechen()
 
-	entscheidung, offen, grund := s.triagieren(ctx, orgID, agentID, text, email)
-	if a, err := s.Registry.Get(ctx, agentID); err == nil {
-		entscheidung = entscheidungFuer(a.Slug, entscheidung)
+	/* The events go out after the state is written: a surface that reloads
+	   on the event must not still read "thinking". */
+	type ereignis struct {
+		agentID uuid.UUID
+		zustand string
+		daten   map[string]string
 	}
-	zustand, daten, err := s.entscheidungAnwenden(ctx, orgID, agentID, msg, entscheidung, offen, text, email, lang)
-	/* Why there was no answer (#416): a triage that failed became a task in
-	   silence, and the reason stood only in the server log. It goes onto the
-	   task as a triage note — visible at the task, kept out of the thread. */
-	if err == nil && grund != "" && daten["task_id"] != "" {
-		if id, perr := uuid.Parse(daten["task_id"]); perr == nil {
-			if _, nerr := s.Backlog.AddNote(ctx, id, "triage:covey", "The triage could not decide, so the message became a task: "+grund); nerr != nil {
-				s.Log.Warn("triage: the reason was not noted", "task", id, "err", nerr)
+	var ereignisse []ereignis
+	zustand := chat.StateDone
+	for _, agentID := range agenten {
+		entscheidung, offen, grund := s.triagieren(ctx, conv, agentID, msg, email)
+		if a, err := s.Registry.Get(ctx, agentID); err == nil {
+			entscheidung = entscheidungFuer(a.Slug, entscheidung)
+		}
+		ergebnis, daten, err := s.entscheidungAnwenden(ctx, conv, agentID, msg, entscheidung, offen, email, lang)
+		/* Why there was no answer (#416): a triage that failed became a task in
+		   silence, and the reason stood only in the server log. It goes onto the
+		   task as a triage note — visible at the task, kept out of the thread. */
+		if err == nil && grund != "" && daten["task_id"] != "" {
+			if id, perr := uuid.Parse(daten["task_id"]); perr == nil {
+				if _, nerr := s.Backlog.AddNote(ctx, id, "triage:covey", "The triage could not decide, so the message became a task: "+grund); nerr != nil {
+					s.Log.Warn("triage: the reason was not noted", "task", id, "err", nerr)
+				}
 			}
 		}
-	}
-	if err != nil {
-		s.Log.Error("chat triage could not be applied", "agent", agentID, "message", msg.ID, "err", err)
-		if err := s.Chat.Erledigt(ctx, msg.ID, chat.StateFailed); err != nil {
-			s.Log.Warn("chat message stays pending", "message", msg.ID, "err", err)
+		if err != nil {
+			s.Log.Error("chat triage could not be applied", "agent", agentID, "message", msg.ID, "err", err)
+			zustand = chat.StateFailed
+			ereignisse = append(ereignisse, ereignis{agentID, "failed", nil})
+			continue
 		}
-		s.chatEreignis(orgID, agentID, "failed", nil)
-		return
+		ereignisse = append(ereignisse, ereignis{agentID, ergebnis, daten})
 	}
-	if err := s.Chat.Erledigt(ctx, msg.ID, chat.StateDone); err != nil {
+	if err := s.Chat.SetTriage(ctx, msg.ID, zustand); err != nil {
 		s.Log.Warn("chat message stays pending", "message", msg.ID, "err", err)
 	}
-	s.chatEreignis(orgID, agentID, zustand, daten)
-}
-
-/*
-entscheidungFuer is the one exception to "the agent decides" (#302): the
-
-	People department does not answer briefs, she works them (#327).
-
-	The triage is a cheap turn in the control plane — no target systems, no
-	org chart, no configs of the colleagues — and a description of a job read
-	by it looks like a question about the job: "somebody who handles the
-	tickets on Zendesk" came back as "I cannot see which tickets were handled".
-	Her playbook exists precisely so that this sentence becomes a draft after
-	looking at what is connected here; an answer from a turn that cannot look
-	is the guess the brief is there to avoid. A note onto a brief that is
-	already running stays a note — that is how her question gets its reply.
-*/
-func entscheidungFuer(slug string, e chat.Entscheidung) chat.Entscheidung {
-	if slug == peopleSlug && e.Aktion == chat.AktionAntwort {
-		return chat.Entscheidung{Aktion: chat.AktionAufgabe}
+	for _, e := range ereignisse {
+		s.chatEreignis(conv.OrgID, e.agentID, conv.ID, e.zustand, e.daten)
 	}
-	return e
 }
 
 /*
@@ -707,11 +730,12 @@ entscheidungAnwenden führt aus, was die Triage beschlossen hat, und gibt
 */
 func (s *Server) entscheidungAnwenden(
 	ctx context.Context,
-	orgID, agentID uuid.UUID,
+	conv chat.Conversation,
+	agentID uuid.UUID,
 	msg chat.Message,
 	entscheidung chat.Entscheidung,
 	offen map[string]uuid.UUID,
-	text, email, lang string,
+	email, lang string,
 ) (string, map[string]string, error) {
 	/* Die Notiz an eine laufende Aufgabe: Statt eines zweiten Vorgangs für
 	   dieselbe Sache bekommt der bestehende, was dazugekommen ist — und wenn
@@ -728,10 +752,7 @@ func (s *Server) entscheidungAnwenden(
 			/* `triage:` und nicht `human:`: Die Notiz ist das, was der Zug aus
 			   der Nachricht gemacht hat, damit der Lauf sie versteht — nicht
 			   das, was jemand gesagt hat. Das Gesagte steht schon als
-			   Nachricht im Verlauf, und beides nebeneinander läse sich wie
-			   dieselbe Bitte zweimal, einmal davon in fremden Worten. Am
-			   Vorgang bleibt die Notiz, wo sie hingehört; aus dem Gespräch
-			   hält sie sich heraus (handleThread). */
+			   Nachricht im Gespräch. */
 			if _, err := s.Backlog.AddNote(ctx, ziel, "triage:"+email, entscheidung.Text); err != nil {
 				return "", nil, err
 			}
@@ -747,13 +768,16 @@ func (s *Server) entscheidungAnwenden(
 	}
 
 	if entscheidung.Aktion == chat.AktionAntwort {
-		if _, err := s.Chat.Add(ctx, orgID, agentID, "agent", entscheidung.Text, false); err != nil {
+		if _, _, err := s.Chat.Post(ctx, chat.Message{
+			ConversationID: conv.ID, AuthorKind: chat.MemberAgent, AuthorID: &agentID,
+			Text: entscheidung.Text, ReplyTo: &msg.ID,
+		}); err != nil {
 			return "", nil, err
 		}
 		return "answered", nil, nil
 	}
 
-	t, err := s.aufgabeAusNachricht(ctx, orgID, agentID, msg, entscheidung, text, email, lang)
+	t, err := s.aufgabeAusNachricht(ctx, conv, agentID, msg, entscheidung, msg.Text, email, lang)
 	if err != nil {
 		return "", nil, err
 	}
@@ -762,7 +786,10 @@ func (s *Server) entscheidungAnwenden(
 	   triage wrote the sentence; a task opened without it (the triage failed,
 	   or the People department's brief) stays quiet as before. */
 	if ack := strings.TrimSpace(entscheidung.Text); ack != "" {
-		if _, err := s.Chat.Add(ctx, orgID, agentID, "agent", ack, false); err != nil {
+		if _, _, err := s.Chat.Post(ctx, chat.Message{
+			ConversationID: conv.ID, AuthorKind: chat.MemberAgent, AuthorID: &agentID,
+			Text: ack, TaskID: &t.ID, ReplyTo: &msg.ID,
+		}); err != nil {
 			s.Log.Warn("chat: the acknowledgement was not written", "agent", agentID, "err", err)
 		}
 	}
@@ -773,11 +800,14 @@ func (s *Server) entscheidungAnwenden(
 aufgabeAusNachricht legt den Vorgang an und hängt die Nachricht daran.
 
 	`origin` sagt, woher die Arbeit kam, und der Chat ist eine Herkunft neben
-	manual, schedule und webhook:… — keine neue Art Aufgabe.
+	manual, schedule und webhook:… — keine neue Art Aufgabe. Wohin sie sich
+	zurückmeldet, steht daneben (conversation_id, #440): in das Gespräch, aus
+	dem sie kam, und nirgends sonst.
 */
 func (s *Server) aufgabeAusNachricht(
 	ctx context.Context,
-	orgID, agentID uuid.UUID,
+	conv chat.Conversation,
+	agentID uuid.UUID,
 	msg chat.Message,
 	entscheidung chat.Entscheidung,
 	text, email, lang string,
@@ -796,14 +826,14 @@ func (s *Server) aufgabeAusNachricht(
 		   ("clarify which tickets were handled" for "somebody who handles the
 		   tickets"), and the brief's title is the person's own first line. */
 		titel = briefTitle(lang, text)
-		rumpf = s.briefBody(ctx, identity.Principal{OrgID: orgID, Email: email}, lang, text, "", "", "")
+		rumpf = s.briefBody(ctx, identity.Principal{OrgID: conv.OrgID, Email: email}, lang, text, "", "", "")
 	}
 	/* What the message refers to (#413). A run sees its task and not the
-	   thread; "do the same for Initech" or "and the other one?" needs what
-	   came before. The last part of the conversation goes into the body,
-	   the message itself excepted — it is the task. */
-	rumpf += s.gespraechFuerLauf(ctx, agentID, msg.ID)
-	t, err := s.Backlog.Create(ctx, orgID, agentID, titel, rumpf, "chat:"+email, 0)
+	   conversation; "do the same for Initech" or "and the other one?" needs
+	   what came before. The last part of the conversation goes into the
+	   body, the message itself excepted — it is the task. */
+	rumpf += s.gespraechFuerLauf(ctx, conv.ID, agentID, msg.ID)
+	t, err := s.Backlog.CreateIn(ctx, conv.OrgID, agentID, titel, rumpf, "chat:"+email, 0, &conv.ID)
 	if err != nil {
 		return backlog.Task{}, err
 	}
@@ -813,27 +843,27 @@ func (s *Server) aufgabeAusNachricht(
 	return t, nil
 }
 
-/* chatEreignis meldet, was mit dem Verlauf geschehen ist.
+/* chatEreignis meldet, was mit einem Gespräch geschehen ist.
  *
  * Es ist dieselbe Leitung, über die Aufgaben, Läufe und Freigaben kommen, und
- * sie ist bereits je Organisation abgegrenzt (broadcast.go). Die Oberfläche
- * braucht daraufhin nur den Verlauf neu zu holen — was genau geschehen ist,
- * steht in ihm, nicht im Ereignis. `state` ist trotzdem dabei, weil eine
- * Sache NICHT im Verlauf steht: dass gerade nachgedacht wird. */
-func (s *Server) chatEreignis(orgID, agentID uuid.UUID, zustand string, daten map[string]string) {
+ * sie ist bereits je Organisation abgegrenzt (broadcast.go). Das Ereignis
+ * sagt nur, welches Gespräch sich bewegt hat, nicht was darin steht — die
+ * Oberfläche holt es daraufhin selbst, und dort gilt, wer Mitglied ist.
+ * `state` ist dabei, weil eine Sache NICHT im Gespräch steht: dass gerade
+ * nachgedacht wird. */
+func (s *Server) chatEreignis(orgID, agentID, convID uuid.UUID, zustand string, daten map[string]string) {
 	if s.Orch == nil {
 		return
 	}
-	d := map[string]string{"state": zustand}
+	d := map[string]string{"state": zustand, "conversation_id": convID.String()}
 	for k, v := range daten {
 		d[k] = v
 	}
-	s.Orch.Events().Publish(orchestrator.Event{
-		Type:    "chat",
-		AgentID: agentID.String(),
-		OrgID:   orgID,
-		Data:    d,
-	})
+	ev := orchestrator.Event{Type: "chat", OrgID: orgID, Data: d}
+	if agentID != uuid.Nil {
+		ev.AgentID = agentID.String()
+	}
+	s.Orch.Events().Publish(ev)
 }
 
 /* NachholenOffeneTriage holt nach, was ein Neustart unterbrochen hat.
@@ -856,11 +886,31 @@ func (s *Server) NachholenOffeneTriage(ctx context.Context) {
 		return
 	}
 	for _, m := range offen {
-		s.Log.Info("finishing chat triage left over from a restart", "message", m.ID, "agent", m.AgentID)
-		email := strings.TrimPrefix(m.Author, "chat:")
+		conv, err := s.Chat.Get(ctx, m.ConversationID)
+		if err != nil || m.AuthorID == nil {
+			continue
+		}
+		var email string
+		if err := s.Pool.QueryRow(ctx, `SELECT email FROM humans WHERE id = $1`, *m.AuthorID).Scan(&email); err != nil {
+			continue
+		}
+		var bezug *chat.Message
+		if m.ReplyTo != nil {
+			if b, err := s.Chat.Message(ctx, *m.ReplyTo); err == nil {
+				bezug = &b
+			}
+		}
+		var agenten []uuid.UUID
+		for _, a := range chat.Addressed(conv, m.Text, bezug) {
+			agenten = append(agenten, a.ID)
+		}
+		if len(agenten) == 0 {
+			continue
+		}
+		s.Log.Info("finishing chat triage left over from a restart", "message", m.ID, "conversation", conv.ID)
 		/* The language of the request is gone with the restart; the brief
 		   frame then reads in English, which every playbook reads. */
-		go s.triageLauf(m.OrgID, m.AgentID, m, m.Text, email, "")
+		go s.triageLauf(conv, agenten, m, email, "")
 	}
 }
 
@@ -871,42 +921,49 @@ func (s *Server) NachholenOffeneTriage(ctx context.Context) {
 // with a model that answered nonsense gets the behaviour it had before #302,
 // and nobody has to be told about it. The one thing that must never happen is
 // that a message disappears because a model was not available.
-func (s *Server) triagieren(ctx context.Context, orgID, agentID uuid.UUID, text, email string) (chat.Entscheidung, map[string]uuid.UUID, string) {
+//
+// What the turn sees (#440): the end of THIS conversation, and — beyond it —
+// the agent's own backlog, open and recently finished, which it reads and
+// writes; a search reaches further into both. That is prompt context and not
+// tool calls: the turn is one JSON decision, and a backlog read costs no
+// credential and leaves nothing.
+func (s *Server) triagieren(ctx context.Context, conv chat.Conversation, agentID uuid.UUID, msg chat.Message, email string) (chat.Entscheidung, map[string]uuid.UUID, string) {
 	aufgabe := chat.Entscheidung{Aktion: chat.AktionAufgabe}
 
-	mode, err := s.Chat.Mode(ctx, orgID)
+	mode, err := s.Chat.Mode(ctx, conv.OrgID)
 	if err != nil || mode != chat.TriageOn {
 		return aufgabe, nil, ""
 	}
-	provider, err := s.resolveOrgLLM(ctx, orgID)
+	provider, err := s.resolveOrgLLM(ctx, conv.OrgID)
 	if err != nil {
 		return aufgabe, nil, "no model is configured for the control plane"
 	}
-	verlauf, err := s.Chat.Gespraech(ctx, agentID, triageKontext)
+	verlauf, err := s.verlaufFuer(ctx, conv.ID, agentID, msg.ID, triageKontext)
 	if err != nil {
 		s.Log.Warn("triage: the conversation could not be read — the message becomes a task", "agent", agentID, "err", err)
 		return aufgabe, nil, "the conversation could not be read: " + err.Error()
 	}
 	liste, nach := s.offeneAufgaben(ctx, agentID)
 	fertig := s.fertigeAufgaben(ctx, agentID)
-	rolle, seele, gegenueber := s.rolleVon(ctx, agentID), s.seeleVon(ctx, agentID), s.gegenueberVon(ctx, orgID, email)
+	rolle, seele, gegenueber := s.rolleVon(ctx, agentID), s.seeleVon(ctx, agentID), s.gegenueberVon(ctx, conv.OrgID, email)
 	organisation := s.organisationVon(ctx, agentID)
+	raum := raumVon(conv, agentID)
 
 	/* Ein Zug, einmal wiederholt (#416): Ein Modell, das einmal nicht
 	   antwortet oder unlesbar antwortet, tut es beim zweiten Mal meist doch —
 	   und jeder Fehlschlag wird eine Aufgabe, die eine Sandbox hochfährt, um
 	   „wie geht's?" zu beantworten. */
 	zug := func(suche *chat.Suche) (chat.Entscheidung, error) {
-		e, err := chat.Triagieren(ctx, provider, rolle, seele, gegenueber, organisation, liste, fertig, verlauf, text, suche)
+		e, err := chat.Triagieren(ctx, provider, rolle, seele, gegenueber, raum, organisation, liste, fertig, verlauf, msg.Text, suche)
 		if err != nil && ctx.Err() == nil {
 			s.Log.Warn("triage turn failed, trying once more", "agent", agentID, "err", err)
-			e, err = chat.Triagieren(ctx, provider, rolle, seele, gegenueber, organisation, liste, fertig, verlauf, text, suche)
+			e, err = chat.Triagieren(ctx, provider, rolle, seele, gegenueber, raum, organisation, liste, fertig, verlauf, msg.Text, suche)
 		}
 		return e, err
 	}
 	e, err := zug(nil)
 	if err == nil && e.Aktion == chat.AktionSuche {
-		treffer := s.suchen(ctx, agentID, organisation, e.Anfrage)
+		treffer := s.suchen(ctx, agentID, conv.ID, organisation, e.Anfrage)
 		e, err = zug(&chat.Suche{Anfrage: e.Anfrage, Treffer: treffer})
 		if err == nil && e.Aktion == chat.AktionSuche {
 			err = errors.New("the model asked to search a second time")
@@ -917,6 +974,114 @@ func (s *Server) triagieren(ctx context.Context, orgID, agentID uuid.UUID, text,
 		return aufgabe, nil, err.Error()
 	}
 	return e, nach, ""
+}
+
+/*
+raumVon describes a group to the agent (#440): its title, who is in it, and
+
+	that it was addressed. Empty for a direct conversation — there the
+	person is the one the prompt already describes.
+*/
+func raumVon(conv chat.Conversation, agentID uuid.UUID) string {
+	if conv.Kind != chat.KindGroup {
+		return ""
+	}
+	var wer []string
+	for _, m := range conv.Active() {
+		switch {
+		case m.Kind == chat.MemberAgent && m.ID == agentID:
+			continue
+		case m.Kind == chat.MemberAgent:
+			wer = append(wer, m.Name+" (AI colleague)")
+		default:
+			wer = append(wer, m.Name)
+		}
+	}
+	titel := ""
+	if conv.Title != "" {
+		titel = fmt.Sprintf(" %q", conv.Title)
+	}
+	return fmt.Sprintf("This is the group conversation%s. Besides you, in it: %s. You were addressed in the new message; answer what is yours to answer and leave the rest to the others.",
+		titel, strings.Join(wer, ", "))
+}
+
+// verlaufFuer is the end of the conversation as a turn of this agent reads
+// it: its own lines as "you", everybody else by name. The message being
+// decided is left out — the turn gets it as "the new message".
+func (s *Server) verlaufFuer(ctx context.Context, convID, agentID, ohne uuid.UUID, n int) ([]chat.Beitrag, error) {
+	msgs, err := s.Chat.Page(ctx, convID, nil, n+1)
+	if err != nil {
+		return nil, err
+	}
+	var out []chat.Beitrag
+	for _, m := range msgs {
+		if m.ID == ohne {
+			continue
+		}
+		out = append(out, beitrag(m, agentID))
+	}
+	if len(out) > n {
+		out = out[len(out)-n:]
+	}
+	return out, nil
+}
+
+func beitrag(m chat.Message, agentID uuid.UUID) chat.Beitrag {
+	wer := m.AuthorName
+	switch {
+	case m.By(chat.Agent(agentID)):
+		wer = "you"
+	case wer == "" && m.AuthorKind == chat.MemberAgent:
+		wer = "an AI colleague"
+	case wer == "":
+		wer = "a person"
+	}
+	return chat.Beitrag{Wer: wer, Text: m.Text}
+}
+
+// laufKontext: how much of the conversation a task from the chat carries.
+const laufKontext = 10
+
+// gespraechFuerLauf is the conversation before a message, for the body of the
+// task made from it (#413). Empty when there is none.
+func (s *Server) gespraechFuerLauf(ctx context.Context, convID, agentID, ohne uuid.UUID) string {
+	verlauf, err := s.verlaufFuer(ctx, convID, agentID, ohne, laufKontext)
+	if err != nil {
+		return ""
+	}
+	var b strings.Builder
+	for _, m := range verlauf {
+		text := strings.Join(strings.Fields(m.Text), " ")
+		if r := []rune(text); len(r) > 800 {
+			text = string(r[:800]) + " […]"
+		}
+		fmt.Fprintf(&b, "- %s: %s\n", m.Wer, text)
+	}
+	if b.Len() == 0 {
+		return ""
+	}
+	return "\n\n---\nEarlier in this conversation, oldest first (for context — the task is the message above; \"you\" is you):\n" + b.String()
+}
+
+/*
+entscheidungFuer is the one exception to "the agent decides" (#302): the
+
+	People department does not answer briefs, she works them (#327).
+
+	The triage is a cheap turn in the control plane — no target systems, no
+	org chart, no configs of the colleagues — and a description of a job read
+	by it looks like a question about the job: "somebody who handles the
+	tickets on Zendesk" came back as "I cannot see which tickets were handled".
+	Her playbook exists precisely so that this sentence becomes a draft after
+	looking at what is connected here; an answer from a turn that cannot look
+	is the guess the brief is there to avoid. A note onto a brief that is
+	already running stays a note — that is how her question gets its reply.
+*/
+func entscheidungFuer(slug string, e chat.Entscheidung) chat.Entscheidung {
+	if slug == peopleSlug && e.Aktion == chat.AktionAntwort {
+		return chat.Entscheidung{Aktion: chat.AktionAufgabe}
+	}
+	return e
 }
 
 // offeneAufgaben ist der Blick des Agenten auf seinen eigenen Backlog: was
@@ -1042,37 +1207,6 @@ func (s *Server) rolleVon(ctx context.Context, agentID uuid.UUID) string {
 		return ""
 	}
 	return beschreibung(a)
-}
-
-// laufKontext: how much of the conversation a task from the chat carries.
-const laufKontext = 10
-
-// gespraechFuerLauf is the conversation before a message, for the body of the
-// task made from it (#413). Empty when there is none.
-func (s *Server) gespraechFuerLauf(ctx context.Context, agentID, ohne uuid.UUID) string {
-	verlauf, err := s.Chat.Gespraech(ctx, agentID, laufKontext+1)
-	if err != nil {
-		return ""
-	}
-	var b strings.Builder
-	for _, m := range verlauf {
-		if m.ID == ohne {
-			continue
-		}
-		wer := "you"
-		if !strings.HasPrefix(m.Author, "agent") {
-			wer = "person"
-		}
-		text := strings.Join(strings.Fields(m.Text), " ")
-		if r := []rune(text); len(r) > 800 {
-			text = string(r[:800]) + " […]"
-		}
-		fmt.Fprintf(&b, "- %s: %s\n", wer, text)
-	}
-	if b.Len() == 0 {
-		return ""
-	}
-	return "\n\n---\nEarlier in this conversation, oldest first (for context — the task is the message above):\n" + b.String()
 }
 
 // organisationVon is the org chart as the agent's runs get it (#415), for the
@@ -1231,6 +1365,24 @@ func (s *Server) gestoppt(w http.ResponseWriter, r *http.Request, agentID uuid.U
 	return stop
 }
 
+/* darfAntworten: who answers a task (#440). The roles that may create one by
+ * hand, as before — and the responsible person whatever their role: a member
+ * of the conversation the task reports to (its question stands there), or
+ * the agent's supervisor, to whom a question from elsewhere goes. */
+func (s *Server) darfAntworten(ctx context.Context, p identity.Principal, t backlog.Task) bool {
+	if darfArbeitGeben(p.Role) {
+		return true
+	}
+	if t.ConversationID != nil {
+		if c, err := s.Chat.Get(ctx, *t.ConversationID); err == nil && c.Has(chat.Human(p.ID)) {
+			return true
+		}
+	}
+	var sup bool
+	_ = s.Pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM agents WHERE id = $1 AND supervisor_id = $2)`, t.AgentID, p.ID).Scan(&sup)
+	return sup
+}
+
 func (s *Server) handleTaskReply(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
@@ -1238,7 +1390,16 @@ func (s *Server) handleTaskReply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := principalFrom(r)
-	if t, err := s.Backlog.Get(r.Context(), id); err == nil && s.gestoppt(w, r, t.AgentID) {
+	t, err := s.Backlog.Get(r.Context(), id)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	if !s.darfAntworten(r.Context(), p, t) {
+		writeErr(w, http.StatusForbidden, "only who may create a task by hand, a member of the conversation the task reports to, or the agent's supervisor answers it")
+		return
+	}
+	if s.gestoppt(w, r, t.AgentID) {
 		return
 	}
 	text, ok := chatText(w, r)
@@ -1253,10 +1414,10 @@ func (s *Server) handleTaskReply(w http.ResponseWriter, r *http.Request) {
 	}
 
 	out := chatReply{Note: note}
-	t, err := s.Backlog.Answer(r.Context(), id, p.Email, text)
+	geweckt, err := s.Backlog.Answer(r.Context(), id, p.Email, text)
 	switch {
 	case err == nil:
-		out.Task, out.Woken = &t, true
+		out.Task, out.Woken = &geweckt, true
 	case errors.Is(err, backlog.ErrInvalidTransition):
 		// nobody was waiting — the note stands
 	default:
@@ -1266,23 +1427,50 @@ func (s *Server) handleTaskReply(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// handleMyThreads answers, per agent, how much of its thread the signed-in
-// person has not read, and the newest entry from the agent's side (#378).
+// handleMyThreads answers, per agent, how much of the person's direct
+// conversation with it they have not read, and its newest line (#378) — the
+// alias the per-agent list keeps; GET /conversations is the whole list.
 func (s *Server) handleMyThreads(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
-	list, err := chat.New(s.Pool).Threads(r.Context(), p.OrgID, p.ID)
+	list, err := s.Chat.List(r.Context(), p.ID, 0)
 	if err != nil {
 		mapErr(w, err)
 		return
 	}
-	for i := range list {
-		list[i].LastText = push.FirstLine(list[i].LastText, 140)
+	out := []threadState{}
+	for _, c := range list {
+		if c.Kind != chat.KindDirect || c.Last == nil {
+			continue
+		}
+		for _, m := range c.Active() {
+			if m.Kind != chat.MemberAgent {
+				continue
+			}
+			kind := "answer"
+			switch {
+			case c.Last.AuthorKind == chat.MemberHuman:
+				kind = "message"
+			case c.Last.Kind != chat.MessageText:
+				kind = c.Last.Kind
+			}
+			out = append(out, threadState{AgentID: m.ID, Unread: c.Unread, LastAt: c.Last.CreatedAt,
+				LastText: push.FirstLine(c.Last.Text, 140), LastKind: kind})
+		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"threads": list})
+	writeJSON(w, http.StatusOK, map[string]any{"threads": out})
 }
 
-// handleThreadRead moves the person's point in the agent's thread forward to
-// the newest entry the reader has shown.
+// threadState is one agent's thread as the per-agent list shows it.
+type threadState struct {
+	AgentID  uuid.UUID `json:"agent_id"`
+	Unread   int       `json:"unread"`
+	LastAt   time.Time `json:"last_at"`
+	LastText string    `json:"last_text"`
+	LastKind string    `json:"last_kind"`
+}
+
+// handleThreadRead moves the person's point in their direct conversation
+// with the agent forward to the newest entry the reader has shown.
 func (s *Server) handleThreadRead(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		At time.Time `json:"at"`
@@ -1291,9 +1479,17 @@ func (s *Server) handleThreadRead(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "expected {\"at\": <RFC 3339 time of the newest entry shown>}")
 		return
 	}
-	if err := chat.New(s.Pool).MarkRead(r.Context(), principalFrom(r).ID, agentFrom(r).ID, in.At); err != nil {
+	p := principalFrom(r)
+	convID, gibt, err := s.Chat.FindDirect(r.Context(), p.OrgID, chat.Human(p.ID), chat.Agent(agentFrom(r).ID))
+	if err != nil {
 		mapErr(w, err)
 		return
+	}
+	if gibt {
+		if err := s.Chat.MarkRead(r.Context(), convID, p.ID, in.At); err != nil {
+			mapErr(w, err)
+			return
+		}
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

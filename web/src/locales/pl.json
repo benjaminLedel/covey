@@ -245,7 +245,19 @@
     "colActor": "Kto",
     "colMethod": "Metoda",
     "colPath": "Co",
-    "colStatus": "Wynik"
+    "colStatus": "Wynik",
+    "tabActions": "Działania",
+    "tabConversations": "Rozmowy",
+    "convLead": "Wszystkie rozmowy organizacji oraz wspólne wątki z czasów, zanim rozmowy miały członków. Nikt inny nie czyta rozmowy, w której nie uczestniczy; otwarcie jej tutaj jest zapisywane w dzienniku audytu.",
+    "convEmpty": "Brak rozmów.",
+    "colMembers": "Rozmowa",
+    "colMessages": "Wiadomości",
+    "colLast": "Ostatnia wiadomość",
+    "legacy": "wspólny wątek (sprzed rozmów osobistych)",
+    "group": "grupa",
+    "direct": "bezpośrednia",
+    "exportCsv": "CSV",
+    "exportJson": "JSON"
   },
   "modal": {
     "close": "Zamknij",
@@ -1165,6 +1177,13 @@
       "hint": "Przy pytaniach, odpowiedziach i ukończonych zadaniach zaangażowane osoby dostają powiadomienie na telefon. Wyłączone: mówi tylko, kto co zrobił („Bea ma pytanie”), i nic z treści nie opuszcza instalacji. Włączone: zawiera pierwszą linię, która przechodzi przez Apple i ewentualnie przez usługę przekaźnika.",
       "off": "Wyłączone — tylko kto i co",
       "on": "Włączone — z pierwszą linią"
+    },
+    "reach": {
+      "title": "Kto pisze do którego współpracownika",
+      "hint": "Każdy członek może pisać bezpośrednio do współpracowników AI: do każdego w organizacji albo tylko do tych z własnego działu. Przełożony współpracownika i administratorzy mogą zawsze; istniejąca rozmowa pozostaje czytelna, gdy to się zawęzi.",
+      "org": "Do każdego współpracownika organizacji",
+      "department": "Tylko do współpracowników własnego działu",
+      "adminOnly": "Zmienia to tylko administrator organizacji."
     }
   },
   "orgs": {
@@ -2838,5 +2857,43 @@
     "playStore": "W Google Play",
     "download": "Pobierz",
     "notYet": "Jeszcze nie ma jej w sklepie"
+  },
+  "conversation": {
+    "title": "Rozmowy",
+    "new": "Nowa rozmowa",
+    "newTitle": "Nowa rozmowa",
+    "newLead": "Wybierz jedną osobę lub współpracownika do rozmowy bezpośredniej albo kilka osób do grupy.",
+    "search": "Szukaj osób i współpracowników",
+    "people": "Osoby",
+    "agents": "Współpracownicy AI",
+    "groupTitle": "Tytuł grupy",
+    "groupTitlePlaceholder": "Czego dotyczy grupa",
+    "startDirect": "Otwórz rozmowę",
+    "startGroup": "Utwórz grupę",
+    "emptyThread": "Nic jeszcze nie powiedziano. Napisz pierwszą wiadomość.",
+    "members": "Członkowie",
+    "addMember": "Dodaj członka",
+    "add": "Dodaj",
+    "leave": "Opuść grupę",
+    "owner": "założyciel",
+    "remove": "Usuń",
+    "mute": "Wycisz powiadomienia",
+    "unmute": "Włącz powiadomienia z powrotem",
+    "placeholder": "Napisz wiadomość",
+    "placeholderGroup": "Napisz wiadomość — @nazwa zwraca się do współpracownika",
+    "reply": "Odpowiedz",
+    "replyingTo": "Odpowiedź dla {{name}}",
+    "older": "Pokaż starsze wiadomości",
+    "agentHint": "Współpracownik AI odpowiada w grupie tylko wtedy, gdy ktoś się do niego zwróci: przez @nazwa lub odpowiedź na jego wiadomość.",
+    "membersCount": "Członkowie: {{count}}",
+    "back": "Wróć do rozmów",
+    "more": "Więcej",
+    "profile": "Profil i ustawienia",
+    "stopped": "zatrzymany",
+    "asleep": "śpi",
+    "working": "pracuje",
+    "workingOn": "pracuje nad: {{title}}",
+    "rename": "Zmień nazwę grupy",
+    "groupAgentsManage": "Dodanie współpracownika AI do grupy wymaga prawa do ręcznego zlecania pracy."
   }
 }

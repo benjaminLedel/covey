@@ -27,6 +27,10 @@ Ein Agent ist ein eigenständiges Subjekt, kein Prozess unter einem Sammelkonto.
 
 Auf derselben Organisation arbeiten Menschen mit verschiedenen Rollen: Org-Admin, Agenten-Eigentümer, Betrachter, Revision. Wer welche Agenten sieht, wer Secrets hinterlegen darf, wer Freigaben erteilen kann — das entscheidet die Rolle, und jede administrative Handlung steht im Audit-Trail.
 
+Gespräche sind die Ausnahme von „das entscheidet die Rolle“: Ein Gespräch lesen und schreiben seine Mitglieder, welche Rolle sie auch haben, und sonst niemand. Nur Org-Admin und Revision lesen und exportieren Gespräche, in denen sie nicht sind, in der Revision — neben den gemeinsamen Verläufen je Agent aus der Zeit, bevor Gespräche Mitglieder hatten.
+
+Jedes Mitglied darf KI-Kollegen direkt schreiben. Wen es erreicht, ist eine Einstellung der Organisation (*Verwaltung → Wer welchem Kollegen schreibt*): jeden Kollegen oder nur die der eigenen Abteilung; wem der Kollege berichtet und der Org-Admin immer. Wird das enger, bleibt ein bestehendes Gespräch lesbar und nimmt keine neue Nachricht mehr an. Einen KI-Kollegen in eine Gruppe zu holen, bleibt den Rollen, die Arbeit von Hand übergeben dürfen, ebenso das Beantworten einer wartenden Aufgabe außerhalb des eigenen Gesprächs.
+
 Angemeldet wird eingebaut über JWT und Argon2id. Wer ein Unternehmens-Login will, hängt einen OIDC-Anbieter an dieselbe Schnittstelle — Keycloak, Entra, was im Haus steht.
 
 ## Wie Secrets gespeichert werden

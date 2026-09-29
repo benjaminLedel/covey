@@ -384,6 +384,11 @@ func (s *Server) Handler() http.Handler {
 	// in it themselves.
 	mux.Handle("GET /api/v1/audit", s.rbac([]string{identity.RoleOrgAdmin,
 		identity.RoleSecurity, identity.RoleAuditor}, s.handleAuditLog))
+	// Conversations in the audit (#440): auditor and org admin read and
+	// export the conversations they are not in — nobody else does.
+	mux.Handle("GET /api/v1/audit/conversations", s.rbac(auditConversationRoles(), s.handleAuditConversations))
+	mux.Handle("GET /api/v1/audit/conversations/{id}", s.rbac(auditConversationRoles(), s.handleAuditConversation))
+	mux.Handle("GET /api/v1/audit/legacy-threads/{id}", s.rbac(auditConversationRoles(), s.handleAuditLegacyThread))
 	mux.Handle("GET /api/v1/onboarding", s.rbac(anyRole, s.handleOnboarding))
 	mux.Handle("GET /api/v1/agents", s.rbac(anyRole, s.handleListAgents))
 	mux.Handle("POST /api/v1/agents", s.rbac(manage, s.handleCreateAgent))
@@ -427,10 +432,21 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/agents/{id}/backlog", s.agentScoped(anyRole, s.handleBacklog))
 	mux.Handle("POST /api/v1/agents/{id}/tasks", s.agentScoped(manage, s.handleCreateTask))
 
-	// The chat (#298): a door into the backlog for somebody who only wants to
-	// hand over work. Reading is open to every role — it shows nothing that
-	// the agent page does not show; writing needs the same permission as
-	// creating a task by hand, because that is what it does.
+	// Conversations (#440): only members read and write. Every seat may talk
+	// to people; addressing an agent needs the right to create a task by
+	// hand, because that is what it can do (conversations.go).
+	mux.Handle("GET /api/v1/conversations", s.rbac(anyRole, s.handleListConversations))
+	mux.Handle("POST /api/v1/conversations", s.rbac(anyRole, s.handleCreateConversation))
+	mux.Handle("GET /api/v1/conversations/{id}", s.conversationScoped(s.handleGetConversation))
+	mux.Handle("PATCH /api/v1/conversations/{id}", s.conversationScoped(s.handleRenameConversation))
+	mux.Handle("GET /api/v1/conversations/{id}/messages", s.conversationScoped(s.handleConversationMessages))
+	mux.Handle("POST /api/v1/conversations/{id}/messages", s.conversationScoped(s.handlePostConversationMessage))
+	mux.Handle("POST /api/v1/conversations/{id}/read", s.conversationScoped(s.handleConversationRead))
+	mux.Handle("PATCH /api/v1/conversations/{id}/me", s.conversationScoped(s.handleConversationMe))
+	mux.Handle("POST /api/v1/conversations/{id}/members", s.conversationScoped(s.handleAddConversationMember))
+	mux.Handle("DELETE /api/v1/conversations/{id}/members/{kind}/{member}", s.conversationScoped(s.handleRemoveConversationMember))
+	// The chat with one agent (#298), since #440 an alias onto the person's
+	// direct conversation with it, so that the current app keeps working.
 	mux.Handle("GET /api/v1/agents/{id}/thread", s.agentScoped(anyRole, s.handleThread))
 	// What a person has not read yet (#378): per agent, and the point up to
 	// which they have.
@@ -442,7 +458,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/org/push", s.rbac(manage, s.handleSetPush))
 	mux.Handle("POST "+push.RelayPath, http.HandlerFunc(s.handlePushRelay))
 	mux.Handle("POST /api/v1/agents/{id}/thread/read", s.agentScoped(anyRole, s.handleThreadRead))
-	mux.Handle("POST /api/v1/agents/{id}/messages", s.agentScoped(manage, s.handleChatMessage))
+	// Every seat may write to an agent it reaches (#440, chat.Reach); the
+	// handler asks the organisation's setting.
+	mux.Handle("POST /api/v1/agents/{id}/messages", s.agentScoped(anyRole, s.handleChatMessage))
+	mux.Handle("GET /api/v1/me/reachable-agents", s.rbac(anyRole, s.handleReachableAgents))
 	mux.Handle("POST /api/v1/agents/{id}/wake", s.agentScoped(manage, s.handleWake))
 	// Hiring: the one way out of the draft state, and only a human walks it
 	// (hiring.go, spec/20).
@@ -539,6 +558,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/org/presence", s.rbac(anyRole, s.handlePresence))
 	mux.Handle("GET /api/v1/org/chat-triage", s.rbac(anyRole, s.handleGetTriage))
 	mux.Handle("PATCH /api/v1/org/chat-triage", s.rbac(manage, s.handleSetTriage))
+	// Whom a member writes to directly (#440): any agent, or those of their
+	// own departments.
+	mux.Handle("GET /api/v1/org/chat-reach", s.rbac(anyRole, s.handleGetReach))
+	mux.Handle("PATCH /api/v1/org/chat-reach", s.rbac([]string{identity.RoleOrgAdmin}, s.handleSetReach))
 	// The team surface is an opt-in per organisation while it is in beta
 	// (#328): every role may read whether it is on — the interface picks its
 	// shell by it — and whoever manages the organisation switches it.
@@ -633,7 +656,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/tasks/{id}/stage", s.taskScoped(manage, s.handleMoveTask))
 	mux.Handle("GET /api/v1/tasks/{id}/transitions", s.taskScoped(anyRole, s.handleTransitions))
 	mux.Handle("GET /api/v1/tasks/{id}/notes", s.taskScoped(anyRole, s.handleTaskNotes))
-	mux.Handle("POST /api/v1/tasks/{id}/reply", s.taskScoped(manage, s.handleTaskReply))
+	// Answering a task: the manage roles, and the responsible person (#440,
+	// darfAntworten in chat.go).
+	mux.Handle("POST /api/v1/tasks/{id}/reply", s.taskScoped(anyRole, s.handleTaskReply))
 	/* Reagieren darf jede Rolle: Ein Zeichen an einem Vorgang ändert nichts
 	   an ihm, und wer mitlesen darf, darf auch sagen, dass er es gelesen
 	   hat. */
@@ -923,7 +948,7 @@ func mapErr(w http.ResponseWriter, err error) {
 		errors.Is(err, runtimes.ErrNotFound), errors.Is(err, templates.ErrNotFound),
 		errors.Is(err, skills.ErrNotFound), errors.Is(err, workplaces.ErrNotFound),
 		errors.Is(err, targetstore.ErrNotFound), errors.Is(err, sandboxfs.ErrNotFound),
-		errors.Is(err, marketplace.ErrNotFound),
+		errors.Is(err, marketplace.ErrNotFound), errors.Is(err, chat.ErrNotFound),
 		errors.Is(err, pgx.ErrNoRows):
 		writeErr(w, http.StatusNotFound, "not found")
 	case errors.Is(err, backlog.ErrInvalidTransition),
@@ -1288,11 +1313,14 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, struct {
 		identity.Principal
 		TeamSurface bool
-		// CanWrite: this seat's role may hand over work and answer (#339).
-		// The app leads only such a seat into a conversation.
+		// CanWrite: this seat's role may hand over work by hand, answer any
+		// parked task and hire (#339).
 		CanWrite bool
-		PhotoID  *uuid.UUID `json:",omitempty"`
-	}{p, team, slices.Contains(manageRoles, p.Role), photo})
+		// CanChat: the seat may write in conversations (#440) — every seat;
+		// which agents it reaches directly is GET /me/reachable-agents.
+		CanChat bool
+		PhotoID *uuid.UUID `json:",omitempty"`
+	}{p, team, slices.Contains(manageRoles, p.Role), p.HasOrg(), photo})
 }
 
 func parseID(r *http.Request) (uuid.UUID, error) {

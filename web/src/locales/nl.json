@@ -245,7 +245,19 @@
     "colActor": "Wie",
     "colMethod": "Methode",
     "colPath": "Wat",
-    "colStatus": "Resultaat"
+    "colStatus": "Resultaat",
+    "tabActions": "Acties",
+    "tabConversations": "Gesprekken",
+    "convLead": "Alle gesprekken van de organisatie, en de gedeelde threads van vóór de tijd dat gesprekken leden hadden. Niemand anders leest een gesprek waar hij niet in zit; wie er hier een opent, staat in het auditlogboek.",
+    "convEmpty": "Nog geen gesprekken.",
+    "colMembers": "Gesprek",
+    "colMessages": "Berichten",
+    "colLast": "Laatste bericht",
+    "legacy": "gedeelde thread (vóór de persoonlijke gesprekken)",
+    "group": "groep",
+    "direct": "direct",
+    "exportCsv": "CSV",
+    "exportJson": "JSON"
   },
   "modal": {
     "close": "Sluiten",
@@ -1165,6 +1177,13 @@
       "hint": "Bij vragen, antwoorden en afgeronde taken krijgen de betrokkenen een melding op hun telefoon. Uit: die zegt alleen wie wat deed („Bea heeft een vraag”) en niets van de inhoud verlaat de installatie. Aan: de eerste regel staat erin en gaat zo via Apple en eventueel de relaydienst.",
       "off": "Uit — alleen wie en wat",
       "on": "Aan — met de eerste regel"
+    },
+    "reach": {
+      "title": "Wie welke collega schrijft",
+      "hint": "Elk lid mag AI-collega's direct schrijven: elke collega van de organisatie, of alleen die van de eigen afdeling. De leidinggevende van de collega en org-admins mogen het altijd; een bestaand gesprek blijft leesbaar als dit wordt ingeperkt.",
+      "org": "Elke collega van de organisatie",
+      "department": "Alleen collega's van de eigen afdeling",
+      "adminOnly": "Alleen een org-admin wijzigt dit."
     }
   },
   "orgs": {
@@ -2838,5 +2857,43 @@
     "playStore": "In Google Play",
     "download": "Downloaden",
     "notYet": "Nog niet in de store"
+  },
+  "conversation": {
+    "title": "Gesprekken",
+    "new": "Nieuw gesprek",
+    "newTitle": "Nieuw gesprek",
+    "newLead": "Kies één persoon of collega voor een direct gesprek, of meerdere voor een groep.",
+    "search": "Personen en collega's zoeken",
+    "people": "Personen",
+    "agents": "AI-collega's",
+    "groupTitle": "Titel van de groep",
+    "groupTitlePlaceholder": "Waar de groep over gaat",
+    "startDirect": "Gesprek openen",
+    "startGroup": "Groep aanmaken",
+    "emptyThread": "Er is nog niets gezegd. Schrijf het eerste bericht.",
+    "members": "Leden",
+    "addMember": "Lid toevoegen",
+    "add": "Toevoegen",
+    "leave": "Groep verlaten",
+    "owner": "aangemaakt",
+    "remove": "Verwijderen",
+    "mute": "Meldingen dempen",
+    "unmute": "Meldingen weer aanzetten",
+    "placeholder": "Schrijf een bericht",
+    "placeholderGroup": "Schrijf een bericht — met @naam spreek je een collega aan",
+    "reply": "Beantwoorden",
+    "replyingTo": "Antwoord aan {{name}}",
+    "older": "Oudere berichten tonen",
+    "agentHint": "Een AI-collega antwoordt in een groep alleen als hij wordt aangesproken: met @naam of met een antwoord op zijn bericht.",
+    "membersCount": "Leden: {{count}}",
+    "back": "Terug naar de gesprekken",
+    "more": "Meer",
+    "profile": "Profiel en instellingen",
+    "stopped": "gestopt",
+    "asleep": "slaapt",
+    "working": "aan het werk",
+    "workingOn": "werkt aan {{title}}",
+    "rename": "Groep hernoemen",
+    "groupAgentsManage": "Een AI-collega aan een groep toevoegen vraagt het recht om met de hand werk over te dragen."
   }
 }

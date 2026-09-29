@@ -45,6 +45,7 @@ func TestAnAnswerReachesThePhone(t *testing.T) {
 	agent := s.newSupportAgent("push-agent")
 	admin := teamLogin(t, s)
 	store := chat.New(s.pool)
+	conv := direkt(t, s, s.adminID, agent.ID)
 	sender := &fakeSender{gone: map[string]bool{}}
 	n := &push.Notifier{Pool: s.pool, Sender: sender, Lag: time.Millisecond}
 
@@ -68,10 +69,10 @@ func TestAnAnswerReachesThePhone(t *testing.T) {
 	}
 	round() // the cursor starts at the migration; move it past the setup
 
-	if _, err := store.Add(ctx, agent.OrgID, agent.ID, "chat:admin@test.local", "Wie weit bist du?", false); err != nil {
+	if _, err := sagt(ctx, store, conv, chat.Human(s.adminID), "Wie weit bist du?"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Add(ctx, agent.OrgID, agent.ID, "agent", "## Stand\nDie Rechnung ist geprüft.", false); err != nil {
+	if _, err := sagt(ctx, store, conv, chat.Agent(agent.ID), "## Stand\nDie Rechnung ist geprüft."); err != nil {
 		t.Fatal(err)
 	}
 	got := round()
@@ -91,7 +92,7 @@ func TestAnAnswerReachesThePhone(t *testing.T) {
 
 	// With the preview the first line travels.
 	admin.expect(http.MethodPatch, "/api/v1/org/push", map[string]any{"preview": true}, http.StatusOK)
-	if _, err := store.Add(ctx, agent.OrgID, agent.ID, "agent", "**Erledigt:** Beleg abgelegt.", false); err != nil {
+	if _, err := sagt(ctx, store, conv, chat.Agent(agent.ID), "**Erledigt:** Beleg abgelegt."); err != nil {
 		t.Fatal(err)
 	}
 	admin.expect(http.MethodPost, "/api/v1/me/push/devices", map[string]any{
@@ -106,11 +107,11 @@ func TestAnAnswerReachesThePhone(t *testing.T) {
 	}
 
 	// Read first, then nothing is pushed.
-	m, err := store.Add(ctx, agent.OrgID, agent.ID, "agent", "Noch etwas.", false)
+	m, err := sagt(ctx, store, conv, chat.Agent(agent.ID), "Noch etwas.")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.MarkRead(ctx, adminID(t, s), agent.ID, m.CreatedAt); err != nil {
+	if err := store.MarkRead(ctx, conv, adminID(t, s), m.CreatedAt); err != nil {
 		t.Fatal(err)
 	}
 	if got := round(); len(got) != 0 {
@@ -119,7 +120,7 @@ func TestAnAnswerReachesThePhone(t *testing.T) {
 
 	// A device Apple no longer knows is forgotten.
 	sender.gone["tok-a"] = true
-	if _, err := store.Add(ctx, agent.OrgID, agent.ID, "agent", "Und noch.", false); err != nil {
+	if _, err := sagt(ctx, store, conv, chat.Agent(agent.ID), "Und noch."); err != nil {
 		t.Fatal(err)
 	}
 	round()
@@ -140,7 +141,9 @@ func adminID(t *testing.T, s *stack) (id [16]byte) {
 
 // TestAToldResultIsWhatThePhoneSays (#411): with the triage on, a chat task's
 // result is told in the chat before it is pushed — the notification waits for
-// the sentence and carries it, not the report.
+// the sentence and carries it, not the report. Since #440 that is simply the
+// order of things: the report is a message in the conversation, written once
+// it is told.
 func TestAToldResultIsWhatThePhoneSays(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -163,7 +166,8 @@ func TestAToldResultIsWhatThePhoneSays(t *testing.T) {
 	}
 	round()
 
-	task, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Rechnung prüfen", "", "chat:admin@test.local", 0)
+	conv := direkt(t, s, s.adminID, agent.ID)
+	task, err := s.backlog.CreateIn(ctx, s.orgID, agent.ID, "Rechnung prüfen", "", "chat:admin@test.local", 0, &conv)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,6 +180,7 @@ func TestAToldResultIsWhatThePhoneSays(t *testing.T) {
 	if _, err := s.pool.Exec(ctx, `UPDATE backlog_tasks SET said='Die Rechnung war doppelt gebucht.', said_at=now() WHERE id=$1`, task.ID); err != nil {
 		t.Fatal(err)
 	}
+	s.srv.Nacherzaehlen(ctx)
 	got := round()
 	if len(got) != 1 || got[0].Body != "Die Rechnung war doppelt gebucht." {
 		t.Fatalf("the notification carries the sentence: %+v", got)
