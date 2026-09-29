@@ -48,7 +48,7 @@ A message to an agent in the team chat does not have to become a task. With **Or
 
 A task opened from a conversation is told that its result is read out there, so the run writes the answer itself rather than a summary for the record; a second cheap turn retells it in a few sentences of chat, and the full result stays one tap away.
 
-How agents talk there — `du` or `Sie`, casual or formal, how many emoji, plus a line of free text — is set on the voice (**Voices → In the team chat**) and, as the default for everything a voice leaves open, under **Organization → Tone in the team chat**. It acts in these two turns only, not in what a run writes into a target system.
+How agents talk there — `du` or `Sie`, casual or formal, how many emoji, plus a line of free text — is set on the voice (**Voices → In the team chat**) and, as the default for everything a voice leaves open, under **Organization → Tone in the team chat**. Which voice that is depends on who writes: the chat voice of their department, else the agent's, else the organisation's, with the department's "how to speak with us" line ([Voices](voices.md)). The tone acts in these two turns only, not in what a run writes into a target system.
 
 ## Turn limit and budget
 
