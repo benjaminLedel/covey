@@ -51,8 +51,24 @@ type evalRahmen struct {
 	Gegenueber   string
 	Raum         string
 	Ton          string
-	// The chat voice and the audience lines of #471; no scenario sets them yet.
+	// The chat voice and the audience lines of #471 (evalStimme).
 	Stimme, Publikum string
+}
+
+// evalVoice is a voice of the scenario's library, as far as the chat reads
+// it: the released card, passages, and its chat tone.
+type evalVoice struct {
+	Card     string   `json:"card"`
+	Passages []string `json:"passages"`
+	ChatTone evalTone `json:"chat_tone"`
+}
+
+// evalDepartment is a department of the org chart with its "how to speak
+// with us" line and the voice it names per occasion (#471).
+type evalDepartment struct {
+	Name   string            `json:"name"`
+	Note   string            `json:"note"`
+	Voices map[string]string `json:"voices"`
 }
 
 type evalScenario struct {
@@ -69,6 +85,9 @@ type evalScenario struct {
 			Name string `json:"name"`
 			Kind string `json:"kind"` // human | agent
 			Slug string `json:"slug"`
+			// Department of a human member: in a group, the others whose
+			// departments the rule counts (#471).
+			Department string `json:"department"`
 		} `json:"members"`
 	} `json:"conversation"`
 	Person struct {
@@ -86,8 +105,18 @@ type evalScenario struct {
 		Role string `json:"role"`
 		Soul string `json:"soul"`
 	} `json:"agent"`
-	Tone      evalTone `json:"tone"`
-	OrgChart  string   `json:"org_chart"`
+	// Tone is the organisation's chat tone; the chosen voice's own chat tone
+	// goes over it field by field, as in covey.
+	Tone evalTone `json:"tone"`
+	// Voices is the library and the slots of #471 by voice name: the agent's
+	// and the organisation's, per occasion. Departments carry theirs.
+	Voices struct {
+		Library map[string]evalVoice `json:"library"`
+		Agent   map[string]string    `json:"agent"`
+		Org     map[string]string    `json:"org"`
+	} `json:"voices"`
+	Departments []evalDepartment `json:"departments"`
+	OrgChart    string           `json:"org_chart"`
 	OpenTasks []struct {
 		ID     string `json:"id"`
 		Title  string `json:"title"`
@@ -117,6 +146,12 @@ type evalScenario struct {
 	Expect struct {
 		Action    []string `json:"action"`
 		Addressed *bool    `json:"addressed"`
+		// Voice and VoiceReason: what the rule of #471 has to choose for the
+		// chat ("" and "none×chat" when no level names one); Audience the
+		// departments whose lines come along, in order. Checked offline.
+		Voice       string   `json:"voice"`
+		VoiceReason string   `json:"voice_reason"`
+		Audience    []string `json:"audience"`
 	} `json:"expect"`
 	Checks struct {
 		FirstName      bool     `json:"first_name"`
@@ -204,11 +239,37 @@ func (sc evalScenario) gegenueber() string {
 }
 
 func (sc evalScenario) rahmen() evalRahmen {
+	w := evalStimme(sc)
 	return evalRahmen{
 		Rolle: sc.Agent.Role, Seele: sc.Agent.Soul, Gegenueber: sc.gegenueber(),
 		Raum: evalRaum(sc.gespraech(), sc.agentID(), sc.Person.Name, sc.Kind == "triage"),
-		Ton:  evalTon(sc.Tone),
+		Ton:  w.Ton, Stimme: w.Stimme, Publikum: w.Publikum,
 	}
+}
+
+// evalWahl is what the rule of #471 made of a scenario: the chat voice and
+// why, the lines of the departments involved, and the chat tone in effect.
+type evalWahl struct {
+	Stimme, Publikum string
+	Name, Grund      string
+	Abteilungen      []string
+	Ton              string
+	Effektiv         evalTone
+}
+
+// abteilung is the scenario's department of that name — one without a line
+// or voices when the scenario does not describe it: in covey a person's
+// department always counts, whether it said anything or not.
+func (sc evalScenario) abteilung(name string) (evalDepartment, bool) {
+	if strings.TrimSpace(name) == "" {
+		return evalDepartment{}, false
+	}
+	for _, d := range sc.Departments {
+		if d.Name == name {
+			return d, true
+		}
+	}
+	return evalDepartment{Name: name}, true
 }
 
 func (sc evalScenario) verlauf() []Beitrag {
@@ -476,7 +537,8 @@ func pruefen(sc evalScenario, a evalAusgabe) []befund {
 			add("must_not_contain", "%q", m)
 		}
 	}
-	switch n := emojis(text); sc.Tone.Emoji {
+	ton := evalStimme(sc).Effektiv
+	switch n := emojis(text); ton.Emoji {
 	case "never":
 		if n > 0 {
 			add("emoji", "%d, the tone says never", n)
@@ -487,7 +549,7 @@ func pruefen(sc evalScenario, a evalAusgabe) []befund {
 		}
 	}
 	if sc.Language == "de" {
-		anrede := sc.Tone.Address
+		anrede := ton.Address
 		if anrede == "auto" {
 			anrede = "du"
 			if sieImText.MatchString(sc.Message) {
@@ -545,6 +607,77 @@ func TestEvalSzenarienSindVollstaendig(t *testing.T) {
 		if !gesehen[will] {
 			t.Errorf("no scenario of %q", will)
 		}
+	}
+	// The voices of #471: a department's voice, the agent's chat voice beside
+	// a customers voice, a group whose departments' lines combine, and a chat
+	// that no level names a voice for while the agent carries a customers one.
+	faelle := map[string]bool{}
+	for _, sc := range szenarien {
+		switch r := sc.Expect.VoiceReason; {
+		case strings.HasPrefix(r, "department:"):
+			faelle["department"] = true
+		case r == "agent×chat" && sc.Voices.Agent["customers"] != "":
+			faelle["chat beside customers"] = true
+		case (r == "" || r == "none×chat") && sc.Voices.Agent["customers"] != "":
+			faelle["none, customers tone"] = true
+		}
+		if sc.gruppe() && len(sc.Expect.Audience) > 1 {
+			faelle["mixed group"] = true
+		}
+		if !sc.gruppe() && len(sc.Expect.Audience) == 1 {
+			faelle["audience line"] = true
+		}
+	}
+	for _, will := range []string{"department", "chat beside customers", "none, customers tone", "mixed group", "audience line"} {
+		if !faelle[will] {
+			t.Errorf("no voice scenario of %q (#471)", will)
+		}
+	}
+}
+
+// TestEvalStimmen: the voice of #471 each scenario's chat speaks in — the
+// rule's choice and its reason, the departments whose lines come along — and
+// that both reach the turn's frame. A scenario without voices speaks in none,
+// and nothing of a voice is in its frame.
+func TestEvalStimmen(t *testing.T) {
+	for _, sc := range ladeSzenarien(t) {
+		if sc.Kind == "addressing" {
+			continue
+		}
+		t.Run(sc.Name, func(t *testing.T) {
+			w := evalStimme(sc)
+			grund := sc.Expect.VoiceReason
+			if grund == "" {
+				grund = "none×chat"
+			}
+			if w.Grund != grund || w.Name != sc.Expect.Voice {
+				t.Fatalf("voice %q (%s), want %q (%s)", w.Name, w.Grund, sc.Expect.Voice, grund)
+			}
+			if strings.Join(w.Abteilungen, ",") != strings.Join(sc.Expect.Audience, ",") {
+				t.Fatalf("audience %v, want %v", w.Abteilungen, sc.Expect.Audience)
+			}
+			var b strings.Builder
+			Rahmen(sc.rahmen()).schreiben(&b)
+			frame := b.String()
+			if sc.Expect.Voice == "" {
+				if strings.Contains(frame, "Passages in this voice") || strings.Contains(frame, "which your organisation chose") {
+					t.Fatalf("no voice applies, yet the frame carries one:\n%s", frame)
+				}
+			} else if !strings.Contains(frame, fmt.Sprintf("the voice %q", sc.Expect.Voice)) {
+				t.Fatalf("the chosen voice is not in the frame:\n%s", frame)
+			}
+			for name, v := range sc.Voices.Library {
+				if card := strings.TrimSpace(v.Card); name != sc.Expect.Voice && card != "" && strings.Contains(frame, card) {
+					t.Errorf("the card of %q, which the rule did not choose, is in the frame", name)
+				}
+			}
+			for _, d := range sc.Departments {
+				if note := strings.TrimSpace(d.Note); note != "" &&
+					slices.Contains(sc.Expect.Audience, d.Name) != strings.Contains(frame, note) {
+					t.Errorf("the line of %s: in the frame %v, expected %v", d.Name, strings.Contains(frame, note), slices.Contains(sc.Expect.Audience, d.Name))
+				}
+			}
+		})
 	}
 }
 

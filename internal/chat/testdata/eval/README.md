@@ -38,14 +38,16 @@ One JSON file per scenario in `scenarios/`, named after its `name`:
 | field | meaning |
 |---|---|
 | `name`, `language` (`de`/`en`), `kind` (`triage`/`narration`/`addressing`), `about` | what it is and why it is here |
-| `conversation` | `kind` (`direct`/`group`), `title`, `members` besides the agent (`name`, `kind` `human`/`agent`, `slug`) |
+| `conversation` | `kind` (`direct`/`group`), `title`, `members` besides the agent (`name`, `kind` `human`/`agent`, `slug`, `department`) |
 | `person` | who writes: `name`, `job_title`, `department`, `responsibilities`; `technical` documents the case, the turn reads the job title |
 | `agent` | `name`, `slug`, `role`, `soul` (an excerpt of SOUL.md) |
-| `tone` | the chat tone (`address`, `tone`, `emoji`, `note`) as on a voice |
+| `tone` | the organisation's chat tone (`address`, `tone`, `emoji`, `note`); the chosen voice's own `chat_tone` goes over it field by field |
+| `voices` | `library` (voice name → `card`, `passages`, `chat_tone`), and the slots per occasion (`chat`, `customers`, `publications` → voice name) of the `agent` and the `org` (#471) |
+| `departments` | `name`, `note` (the "how to speak with us" line), `voices` (occasion → voice name); a `person.department` or a member's `department` refers to one by name |
 | `org_chart`, `open_tasks`, `finished_tasks`, `history`, `search_hits` | what the turn sees |
 | `message` | the new message (triage, addressing) |
 | `task` | `title`, `body`, `state` (`done`/`failed`), `result` (narration) |
-| `expect` | `action` (the acceptable actions) or `addressed` |
+| `expect` | `action` (the acceptable actions) or `addressed`; `voice`, `voice_reason` (default `none×chat`) and `audience` (the departments whose lines come along, in order) |
 | `checks` | `first_name`, `max_sentences`, `max_chars`, `must_contain` (all), `must_contain_any`, `must_not_contain` |
 | `recorded` | a good answer as the model gives it: the raw triage output, or the chat line; for a note the `reply` is what is checked |
 
@@ -56,4 +58,21 @@ scenario allows three: the salutation and two); no words of the machinery or of 
 English ("Begrüßung beantwortet", "I have answered", "the task", "der Lauf",
 "As an AI" …); no headings, bullets or bold; a note has to carry a reply, since the note
 itself is never seen in the conversation (#460); emoji as the tone allows; in
-German, `du` or `Sie` as the tone says (`auto` follows the message).
+German, `du` or `Sie` as the tone says (`auto` follows the message). The tone
+is the one in effect: the chosen chat voice's over the organisation's, and
+while no level names a chat voice, that of the agent's customers voice.
+
+## Voices (#471)
+
+The chat voice is chosen the way the server chooses it (`voice.Choose`, in
+`eval_bridge_test.go`): the department of the person who writes, then the
+agent's chat slot, then the organisation's; in a group whose human members
+belong to more than one department, the department level is skipped and every
+department's line comes along. `go test` checks, without a model, that each
+scenario resolves to its `expect.voice` for `expect.voice_reason`, that the
+lines of exactly the `expect.audience` departments and the chosen voice's card
+reach the turn's frame, and that no other voice's card does. The set has to
+keep a department's voice, a chat voice beside a customers voice, an audience
+line in a direct conversation, a mixed group, and a chat with no chat voice
+while the agent carries a customers one; the live run then shows whether the
+wording follows them.

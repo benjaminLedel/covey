@@ -1,0 +1,109 @@
+{
+  "name": "en-group-mixed-departments",
+  "language": "en",
+  "kind": "triage",
+  "about": "A group with Sales and Engineering (#471): no one department's voice fits both, so Sales' own chat voice is skipped for the agent's, and both departments' lines apply — what it means for the customer, and the ticket.",
+  "conversation": {
+    "kind": "group",
+    "title": "Globex rollout",
+    "members": [
+      {
+        "name": "Ada Lovelace",
+        "kind": "human",
+        "department": "Sales"
+      },
+      {
+        "name": "Carla Code",
+        "kind": "human",
+        "department": "Engineering"
+      }
+    ]
+  },
+  "person": {
+    "name": "Ada Lovelace",
+    "job_title": "Head of Sales",
+    "department": "Sales",
+    "responsibilities": "customer contracts",
+    "technical": false
+  },
+  "agent": {
+    "name": "Sam",
+    "slug": "sam",
+    "role": "Sam — Support agent — answers customer requests in the support inbox and keeps the support wiki",
+    "soul": "# Sam\n\nYou are Sam, a support colleague at Example Ltd. You look after the support inbox and keep the support wiki up to date. You talk like a friendly colleague: short, concrete, no filler."
+  },
+  "voices": {
+    "library": {
+      "Hallway": {
+        "card": "Short and plain, like a note to a colleague down the hall. First names, no greeting line, no sign-off. One fact per sentence, the number or the name in it.",
+        "passages": [
+          "Refund's out, 240 € back to Globex this morning.",
+          "Not yet — the Initech mail is still with me, done by noon."
+        ]
+      },
+      "Pitch": {
+        "card": "Upbeat and customer-facing, benefits first, exclamation marks welcome.",
+        "passages": [
+          "Great news! Globex is all set for launch!"
+        ]
+      }
+    },
+    "agent": {
+      "chat": "Hallway"
+    }
+  },
+  "departments": [
+    {
+      "name": "Sales",
+      "note": "Say first what it means for the customer.",
+      "voices": {
+        "chat": "Pitch"
+      }
+    },
+    {
+      "name": "Engineering",
+      "note": "Name the ticket and the branch."
+    }
+  ],
+  "org_chart": "People on the team:\n- Ada Lovelace — Head of Sales — customer contracts\n- Bernd Brot — Head of Support — your manager\n- Carla Code — Engineer — demo environment, deployments\nAI colleagues:\n- Quirina Tester (quirina) — QA — checks releases before they ship\n- Fritz Ledger (fritz) — Accounting — invoices and reminders",
+  "finished_tasks": [
+    {
+      "title": "Demo environment down",
+      "outcome": "done",
+      "age": "20 minutes ago",
+      "result": "Demo pod was OOMKilled; memory limit raised to 1Gi on branch fix/demo-memory, ticket SUP-481 closed. The demo is up again."
+    }
+  ],
+  "history": [
+    {
+      "who": "Carla Code",
+      "text": "anyone know what happened to the demo box?"
+    }
+  ],
+  "message": "@sam is the Globex demo back up? they present at 3",
+  "expect": {
+    "action": [
+      "answer"
+    ],
+    "voice": "Hallway",
+    "voice_reason": "agent×chat",
+    "audience": [
+      "Sales",
+      "Engineering"
+    ]
+  },
+  "checks": {
+    "first_name": true,
+    "must_contain": [
+      "SUP-481"
+    ],
+    "must_contain_any": [
+      "Globex",
+      "3"
+    ],
+    "must_not_contain": [
+      "Great news"
+    ]
+  },
+  "recorded": "{\"action\":\"answer\",\"text\":\"Ada, yes: the demo is up again, Globex can present at 3. Carla, that was SUP-481, memory limit raised on fix/demo-memory.\"}"
+}

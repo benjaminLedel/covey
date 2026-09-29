@@ -137,5 +137,37 @@
     "fails": [
       "silent"
     ]
+  },
+  {
+    "scenario": "en-voice-chat-not-customers",
+    "why": "The customers voice leaking into the chat (#471): a colleague gets a letter.",
+    "recorded": "{\"action\":\"answer\",\"text\":\"Dear Mr Brot, the refund was issued this morning. Kind regards, Sam\"}",
+    "fails": [
+      "must_not_contain"
+    ]
+  },
+  {
+    "scenario": "de-abteilung-vertrieb",
+    "why": "The department's line ignored: ticket and pod for Vertrieb (#471).",
+    "recorded": "{\"action\":\"answer\",\"text\":\"Ja, SUP-481 ist zu, der Pod hat jetzt 1Gi.\"}",
+    "fails": [
+      "must_not_contain"
+    ]
+  },
+  {
+    "scenario": "en-group-mixed-departments",
+    "why": "Only the Sales line followed in a mixed group; the ticket Engineering asked for is missing (#471).",
+    "recorded": "{\"action\":\"answer\",\"text\":\"Ada, yes, Globex can present at 3.\"}",
+    "fails": [
+      "must_contain"
+    ]
+  },
+  {
+    "scenario": "de-ohne-chatstimme-kundenton",
+    "why": "The organisation's du where the customers voice's chat tone says Sie (#471 upgrade fallback).",
+    "recorded": "{\"action\":\"answer\",\"text\":\"Ja, die Rechnung 2026-114 ist gestern raus. Soll ich dir die Kopie schicken?\"}",
+    "fails": [
+      "address"
+    ]
   }
 ]

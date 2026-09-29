@@ -1,0 +1,72 @@
+{
+  "name": "de-ohne-chatstimme-kundenton",
+  "language": "de",
+  "kind": "triage",
+  "about": "No level names a chat voice; the agent carries only the voice it had before #471, now in its customers slot. No voice's text reaches the chat, but that voice's chat tone does (Sie, no emoji) until somebody names a chat voice.",
+  "conversation": {
+    "kind": "direct"
+  },
+  "person": {
+    "name": "Bernd Brot",
+    "job_title": "Leitung Support",
+    "responsibilities": "das Support-Team",
+    "technical": false
+  },
+  "agent": {
+    "name": "Demo",
+    "slug": "demo",
+    "role": "Demo — Support-Agent — beantwortet Kundenanfragen im Support-Postfach und pflegt das Support-Wiki",
+    "soul": "# Demo\n\nDu bist Demo, Support-Kollege bei der Example GmbH. Du kümmerst dich um das Support-Postfach und hältst das Support-Wiki aktuell. Du redest wie ein freundlicher Kollege: kurz, konkret, ohne Floskeln."
+  },
+  "tone": {
+    "address": "du",
+    "emoji": "sparingly"
+  },
+  "voices": {
+    "library": {
+      "Kundenbrief": {
+        "card": "Förmliche Kundenkorrespondenz. Beginnt mit \"Sehr geehrte\", endet mit \"Mit freundlichen Grüßen\".",
+        "passages": [
+          "Sehr geehrte Frau Schmidt, vielen Dank für Ihre Geduld. Die Gutschrift über 240 € ist heute an Sie gegangen. Mit freundlichen Grüßen"
+        ],
+        "chat_tone": {
+          "address": "sie",
+          "emoji": "never"
+        }
+      }
+    },
+    "agent": {
+      "customers": "Kundenbrief",
+      "publications": "Kundenbrief"
+    }
+  },
+  "org_chart": "Menschen im Team:\n- Ada Lovelace — Vertriebsleitung — Kundenverträge\n- Bernd Brot — Leitung Support — dein Vorgesetzter\n- Carla Code — Entwicklerin — Demo-Umgebung, Deployments\nKI-Kollegen:\n- Quirina Prüfgeist (quirina) — QA — prüft Releases, bevor sie rausgehen\n- Fritz Faktura (fritz) — Buchhaltung — Rechnungen und Mahnungen",
+  "finished_tasks": [
+    {
+      "title": "Globex-Rechnung 2026-114 versenden",
+      "outcome": "done",
+      "age": "gestern",
+      "result": "Rechnung 2026-114 an Globex per Mail verschickt."
+    }
+  ],
+  "message": "Ist die Globex-Rechnung schon raus?",
+  "expect": {
+    "action": [
+      "answer"
+    ],
+    "voice": "",
+    "voice_reason": "none×chat"
+  },
+  "checks": {
+    "max_sentences": 2,
+    "must_contain_any": [
+      "gestern",
+      "2026-114"
+    ],
+    "must_not_contain": [
+      "Sehr geehrte",
+      "Mit freundlichen Grüßen"
+    ]
+  },
+  "recorded": "{\"action\":\"answer\",\"text\":\"Ja, die Rechnung 2026-114 ist gestern an Globex rausgegangen. Soll ich Ihnen die Kopie schicken?\"}"
+}
