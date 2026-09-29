@@ -1177,6 +1177,13 @@
       "hint": "Em perguntas, respostas e tarefas concluídas, as pessoas envolvidas recebem uma notificação no telemóvel. Desligado: diz apenas quem fez o quê («Bea tem uma pergunta») e nada do conteúdo sai da instalação. Ligado: inclui a primeira linha, que passa assim pela Apple e, se usado, pelo serviço de relay.",
       "off": "Desligado — só quem e o quê",
       "on": "Ligado — com a primeira linha"
+    },
+    "reach": {
+      "title": "Quem escreve a que colega",
+      "hint": "Cada membro pode escrever diretamente aos colegas de IA: a qualquer colega da organização ou só aos do seu próprio departamento. O supervisor do colega e os administradores podem sempre; uma conversa existente continua legível quando isto se restringe.",
+      "org": "A qualquer colega da organização",
+      "department": "Só a colegas do próprio departamento",
+      "adminOnly": "Só um administrador da organização altera isto."
     }
   },
   "orgs": {
@@ -2886,6 +2893,7 @@
     "asleep": "a dormir",
     "working": "a trabalhar",
     "workingOn": "a trabalhar em {{title}}",
-    "rename": "Mudar o nome do grupo"
+    "rename": "Mudar o nome do grupo",
+    "groupAgentsManage": "Adicionar um colega de IA a um grupo exige o direito de entregar trabalho à mão."
   }
 }

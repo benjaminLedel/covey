@@ -1177,6 +1177,13 @@
       "hint": "Bei Rückfragen, Antworten und erledigten Aufgaben bekommen die Beteiligten eine Mitteilung auf ihr Telefon. Aus: Sie sagt nur, wer was getan hat („Bea hat eine Rückfrage“), und vom Inhalt verlässt nichts die Installation. An: Die erste Zeile steht mit darin und geht damit über Apple und gegebenenfalls über den Relay-Dienst.",
       "off": "Aus — nur wer und was",
       "on": "An — mit der ersten Zeile"
+    },
+    "reach": {
+      "title": "Wer welchem Kollegen schreibt",
+      "hint": "Jedes Mitglied darf KI-Kollegen direkt schreiben. Entweder jedem Kollegen der Organisation oder nur denen der eigenen Abteilung. Wem der Kollege berichtet und Org-Admins dürfen es immer; ein bestehendes Gespräch bleibt lesbar, wenn das enger wird.",
+      "org": "Jedem Kollegen der Organisation",
+      "department": "Nur Kollegen der eigenen Abteilung",
+      "adminOnly": "Das ändert nur ein Org-Admin."
     }
   },
   "orgs": {
@@ -2886,6 +2893,7 @@
     "asleep": "schläft",
     "working": "arbeitet",
     "workingOn": "arbeitet an {{title}}",
-    "rename": "Gruppe umbenennen"
+    "rename": "Gruppe umbenennen",
+    "groupAgentsManage": "Einen KI-Kollegen in eine Gruppe zu holen, braucht das Recht, Arbeit von Hand zu übergeben."
   }
 }

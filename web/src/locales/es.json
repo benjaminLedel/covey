@@ -1177,6 +1177,13 @@
       "hint": "Ante preguntas, respuestas y tareas terminadas, las personas implicadas reciben una notificación en su teléfono. Desactivado: solo dice quién hizo qué («Bea tiene una pregunta») y nada del contenido sale de la instalación. Activado: incluye la primera línea, que pasa por Apple y, en su caso, por el servicio de relé.",
       "off": "Desactivado — solo quién y qué",
       "on": "Activado — con la primera línea"
+    },
+    "reach": {
+      "title": "Quién escribe a qué colega",
+      "hint": "Cada miembro puede escribir directamente a los colegas de IA: a cualquiera de la organización o solo a los de su propio departamento. El supervisor del colega y los administradores siempre pueden; una conversación existente sigue siendo legible si esto se restringe.",
+      "org": "A cualquier colega de la organización",
+      "department": "Solo a colegas del propio departamento",
+      "adminOnly": "Solo un administrador de la organización puede cambiarlo."
     }
   },
   "orgs": {
@@ -2886,6 +2893,7 @@
     "asleep": "dormido",
     "working": "trabajando",
     "workingOn": "trabajando en {{title}}",
-    "rename": "Renombrar grupo"
+    "rename": "Renombrar grupo",
+    "groupAgentsManage": "Añadir un colega de IA a un grupo requiere el derecho a encargar trabajo a mano."
   }
 }

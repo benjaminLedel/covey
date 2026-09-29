@@ -632,3 +632,88 @@ func TestRefreshingIsCheap(t *testing.T) {
 	}
 	admin.expect(http.MethodGet, "/api/v1/conversations/"+mitAda+"/messages?after="+uuid.NewString(), nil, http.StatusBadRequest)
 }
+
+// TestEveryMemberReachesTheAgentsTheOrganisationAllows (#440): a plain member
+// writes to an agent; with the reach narrowed to departments, only to the
+// agents of their own department and the ones they supervise, while a
+// conversation that exists stays readable and refuses a new message; the
+// responsible person answers a question in their conversation whatever their
+// role; adding an agent to a group stays with the manage roles.
+func TestEveryMemberReachesTheAgentsTheOrganisationAllows(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	admin := teamLogin(t, s)
+	finanzen := s.newSupportAgent("finanzen")
+	vertrieb := s.newSupportAgent("vertrieb")
+	betreut := s.newSupportAgent("betreut")
+	for _, a := range []uuid.UUID{finanzen.ID, vertrieb.ID, betreut.ID} {
+		s.ohneLaeufe(a)
+	}
+	adaID := s.mitglied(t, "ada@test.local", "Ada", "controlling", "ada-passwort")
+	ada := login(t, s, "ada@test.local", "ada-passwort")
+	var fin, ver uuid.UUID
+	if err := s.pool.QueryRow(ctx, `INSERT INTO departments (org_id, name) VALUES ($1, 'Finanzen') RETURNING id`, s.orgID).Scan(&fin); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.pool.QueryRow(ctx, `INSERT INTO departments (org_id, name) VALUES ($1, 'Vertrieb') RETURNING id`, s.orgID).Scan(&ver); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE humans SET department_id=$2 WHERE id=$1`, adaID, fin); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE agents SET department_id = CASE id WHEN $1 THEN $3::uuid ELSE $4::uuid END,
+		supervisor_id = CASE WHEN id = $2 THEN $5::uuid END WHERE id IN ($1, $2, $6)`,
+		finanzen.ID, betreut.ID, fin, ver, adaID, vertrieb.ID); err != nil {
+		t.Fatal(err)
+	}
+	schreiben := func(a uuid.UUID, status int) {
+		t.Helper()
+		ada.expect(http.MethodPost, "/api/v1/agents/"+a.String()+"/messages", map[string]any{"text": "Hallo"}, status)
+	}
+
+	// The default: any agent of the organisation, whatever the seat role.
+	schreiben(vertrieb.ID, http.StatusCreated)
+
+	ada.expect(http.MethodPatch, "/api/v1/org/chat-reach", map[string]any{"reach": "department"}, http.StatusForbidden)
+	admin.expect(http.MethodPatch, "/api/v1/org/chat-reach", map[string]any{"reach": "department"}, http.StatusOK)
+	schreiben(finanzen.ID, http.StatusCreated) // her department
+	schreiben(betreut.ID, http.StatusCreated)  // she supervises it
+	schreiben(vertrieb.ID, http.StatusForbidden)
+	ada.expect(http.MethodPost, "/api/v1/conversations", map[string]any{
+		"kind": "direct", "member": map[string]any{"kind": "agent", "id": vertrieb.ID}}, http.StatusForbidden)
+	// The conversation from before stays readable.
+	if z := eintraege(t, ada, vertrieb.ID); !enthaelt(z, "message: Hallo") {
+		t.Fatalf("the earlier conversation: %v", z)
+	}
+	erreichbar := ada.expect(http.MethodGet, "/api/v1/me/reachable-agents", nil, http.StatusOK)
+	if n := len(erreichbar["agents"].([]any)); n != 2 {
+		t.Fatalf("reachable: %v", erreichbar)
+	}
+	// The org admin reaches every agent.
+	admin.expect(http.MethodPost, "/api/v1/agents/"+vertrieb.ID.String()+"/messages", map[string]any{"text": "Hallo"}, http.StatusCreated)
+
+	// Her conversation's task parks with a question, and she answers it.
+	var aufgabe uuid.UUID
+	if err := s.pool.QueryRow(ctx, `SELECT id FROM backlog_tasks WHERE agent_id=$1 AND origin='chat:ada@test.local'`, finanzen.ID).Scan(&aufgabe); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE backlog_tasks SET state='in_progress' WHERE id=$1`, aufgabe); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.backlog.Block(ctx, aufgabe, "", "", "Welche Rechnung?"); err != nil {
+		t.Fatal(err)
+	}
+	if r := ada.expect(http.MethodPost, "/api/v1/tasks/"+aufgabe.String()+"/reply", map[string]any{"text": "Die von Globex."}, http.StatusOK); r["woken"] != true {
+		t.Fatalf("her answer: %v", r)
+	}
+	// A task that is not hers is not hers to answer.
+	fremd, err := s.backlog.Create(ctx, s.orgID, vertrieb.ID, "Webhook", "", "webhook:zammad", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ada.expect(http.MethodPost, "/api/v1/tasks/"+fremd.ID.String()+"/reply", map[string]any{"text": "x"}, http.StatusForbidden)
+
+	// Bringing an agent into a group stays with the manage roles.
+	ada.expect(http.MethodPost, "/api/v1/conversations", map[string]any{
+		"kind": "group", "title": "Q3", "members": []any{map[string]any{"kind": "agent", "id": finanzen.ID}}}, http.StatusForbidden)
+}

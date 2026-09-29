@@ -292,6 +292,9 @@ export type ConversationSummary = Conversation & {
 
 export type ConversationPage = { messages: ConversationMessage[]; more: boolean; pending: boolean };
 
+/** The agents the person writes to directly under the organisation's reach (#440). */
+export const reachableAgents = () =>
+  api<{ reach: "org" | "department"; agents: string[] }>("/me/reachable-agents");
 export const myConversations = () =>
   api<{ conversations: ConversationSummary[] }>("/conversations").then((r) => r.conversations);
 export const openDirect = (member: MemberRef) => post<Conversation>("/conversations", { kind: "direct", member });
@@ -337,6 +340,8 @@ export type Verlauf = {
   /** The direct conversation behind the thread (#440), once there is one. */
   conversation_id?: string;
   muted?: boolean;
+  /** The organisation's reach lets the reader write to this agent (#440). */
+  can_write?: boolean;
 };
 
 /* Eine Reaktion auf einen Vorgang, schon gruppiert: welches Zeichen, wie oft,

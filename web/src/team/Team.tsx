@@ -2,7 +2,7 @@ import { Suspense, lazy, useCallback, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useParams } from "react-router";
-import { PEOPLE_SLUG, api, inbox, isColleague, isDraft, myConversations, myThreads, type Agent, type Department, type Principal, type ThreadState } from "../api";
+import { PEOPLE_SLUG, api, inbox, isColleague, isDraft, myConversations, myThreads, reachableAgents, type Agent, type Department, type Principal, type ThreadState } from "../api";
 import { canManage } from "../pages/agent/roles";
 import HelpDrawer from "../components/HelpDrawer";
 import Rail from "../components/Rail";
@@ -108,7 +108,13 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
   }, []);
   useSucheKuerzel(() => sucheOeffnen());
 
-  const liste = (agents.data ?? []).filter(eingestellt);
+  /* The doors are the agents the person reaches (#440, the organisation's
+     reach), and those they already talk to — a conversation that exists
+     stays readable when the reach narrows. Without an answer, all. */
+  const erreichbar = useQuery({ queryKey: ["reachable-agents"], queryFn: reachableAgents, staleTime: 60_000, retry: false });
+  const erreicht = erreichbar.data ? new Set(erreichbar.data.agents) : null;
+  const imGespraech = new Set((threads.data ?? []).map((th) => th.agent_id));
+  const liste = (agents.data ?? []).filter(eingestellt).filter((a) => !erreicht || erreicht.has(a.id) || imGespraech.has(a.id));
   const depts = abteilungen.data ?? [];
   /* The People department, not stopped — the door. While she is still a
      draft herself (setup without an engine leaves her one), a brief to her

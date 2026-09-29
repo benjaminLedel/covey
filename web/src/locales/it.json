@@ -1177,6 +1177,13 @@
       "hint": "Per domande, risposte e compiti completati, le persone coinvolte ricevono una notifica sul telefono. Disattivato: dice solo chi ha fatto cosa («Bea ha una domanda») e nulla del contenuto lascia l’installazione. Attivato: include la prima riga, che passa quindi da Apple e, se usato, dal servizio relay.",
       "off": "Disattivato — solo chi e cosa",
       "on": "Attivato — con la prima riga"
+    },
+    "reach": {
+      "title": "Chi scrive a quale collega",
+      "hint": "Ogni membro può scrivere direttamente ai colleghi IA: a qualsiasi collega dell'organizzazione o solo a quelli del proprio reparto. Il responsabile del collega e gli amministratori possono sempre; una conversazione esistente resta leggibile se questo si restringe.",
+      "org": "A qualsiasi collega dell'organizzazione",
+      "department": "Solo ai colleghi del proprio reparto",
+      "adminOnly": "Solo un amministratore dell'organizzazione può cambiarlo."
     }
   },
   "orgs": {
@@ -2886,6 +2893,7 @@
     "asleep": "dorme",
     "working": "al lavoro",
     "workingOn": "lavora a {{title}}",
-    "rename": "Rinomina gruppo"
+    "rename": "Rinomina gruppo",
+    "groupAgentsManage": "Aggiungere un collega IA a un gruppo richiede il diritto di assegnare lavoro a mano."
   }
 }

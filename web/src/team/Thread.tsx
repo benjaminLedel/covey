@@ -164,7 +164,9 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
   /* A stopped agent takes no messages (#414): nothing it is told would run,
      and the server refuses it too. The composer gives way to a sentence. */
   const gestoppt = !!agent.data?.killed;
-  const darfSchreiben = canManage(me.Role) && !gestoppt;
+  /* Who writes is the organisation's reach (#440), which the thread says;
+     an older server that does not say it keeps the old rule. */
+  const darfSchreiben = (thread.data?.can_write ?? canManage(me.Role)) && !gestoppt;
   /* The People colleague drafts new colleagues (#327): a message to her is a
      brief, and the thread says so before the first one — and again when
      somebody arrives through the "hire a colleague" door, whatever the

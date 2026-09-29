@@ -26,15 +26,16 @@ import (
  * else does. The per-agent thread endpoints (chat.go) are aliases onto the
  * person's direct conversation with that agent.
  *
- * Membership decides who reads and writes, not the seat role. Bringing an
- * agent in — opening a direct conversation with one, or adding one to a
- * group — needs the right to create a task by hand, as the chat always did,
- * because a message to an agent can open one. A person the platform put into
- * a conversation (the supervisor a parked question goes to) writes there
- * whatever their role. */
+ * Membership decides who reads and writes, not the seat role. Whom a member
+ * reaches directly is the organisation's setting (chat.Reach): any agent, or
+ * the agents of their own departments; the agent's supervisor and the org
+ * admin always. When the setting narrows, a direct conversation that exists
+ * stays readable, and writing in it is refused with a sentence saying why.
+ * Adding an agent to a group stays with the roles that may create a task by
+ * hand. */
 
-// darfArbeitGeben: who may bring an agent into a conversation — whoever may
-// create a task by hand, because that is what a message to an agent can do.
+// darfArbeitGeben: who may add an agent to a group — whoever may create a
+// task by hand, because that is what a message to an agent can do.
 func darfArbeitGeben(role string) bool { return slices.Contains(manageRoles, role) }
 
 // conversationScoped lets a request through when the conversation belongs to
@@ -198,11 +199,8 @@ func (s *Server) handleCreateConversation(w http.ResponseWriter, r *http.Request
 			writeErr(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		if in.Member.Kind == chat.MemberAgent && !darfArbeitGeben(p.Role) {
-			if _, gibt, _ := s.Chat.FindDirect(r.Context(), p.OrgID, chat.Human(p.ID), *in.Member); !gibt {
-				writeErr(w, http.StatusForbidden, "only who may create a task by hand may start a conversation with an agent")
-				return
-			}
+		if in.Member.Kind == chat.MemberAgent && !s.erreicht(w, r, in.Member.ID) {
+			return
 		}
 		var err error
 		if id, err = s.Chat.Direct(r.Context(), p.OrgID, chat.Human(p.ID), *in.Member, &p.ID); err != nil {
@@ -356,9 +354,10 @@ func (s *Server) handlePostConversationMessage(w http.ResponseWriter, r *http.Re
 		}
 		bezug = &m
 	}
-	// A direct conversation with a stopped agent takes no message (#414).
+	// A direct conversation with a stopped agent takes no message (#414),
+	// nor one with an agent the organisation's reach no longer allows.
 	if adressiert := chat.Addressed(c, text, bezug); len(adressiert) > 0 && c.Kind == chat.KindDirect {
-		if s.gestoppt(w, r, adressiert[0].ID) {
+		if !s.erreicht(w, r, adressiert[0].ID) || s.gestoppt(w, r, adressiert[0].ID) {
 			return
 		}
 	}
@@ -523,4 +522,62 @@ func (s *Server) handleRenameConversation(w http.ResponseWriter, r *http.Request
 		return
 	}
 	writeJSON(w, http.StatusOK, neu)
+}
+
+/* erreicht refuses, with a sentence, to let the principal write directly to
+ * an agent the organisation's reach does not allow them. */
+func (s *Server) erreicht(w http.ResponseWriter, r *http.Request, agentID uuid.UUID) bool {
+	p := principalFrom(r)
+	ok, err := s.Chat.Reaches(r.Context(), p.OrgID, p.ID, agentID, p.Role == identity.RoleOrgAdmin)
+	if err != nil {
+		mapErr(w, err)
+		return false
+	}
+	if !ok {
+		writeErr(w, http.StatusForbidden, "this organisation lets its members write directly only to the agents of their own department (or the ones they supervise); a conversation that exists stays readable")
+		return false
+	}
+	return true
+}
+
+// handleReachableAgents answers which agents the person may write to
+// directly — for the surfaces, which offer only those.
+func (s *Server) handleReachableAgents(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	alle, err := s.Chat.Reachable(r.Context(), p.OrgID, p.ID, p.Role == identity.RoleOrgAdmin)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	ids := make([]uuid.UUID, 0, len(alle))
+	for id := range alle {
+		ids = append(ids, id)
+	}
+	reach, _ := s.Chat.ReachOf(r.Context(), p.OrgID)
+	writeJSON(w, http.StatusOK, map[string]any{"reach": reach, "agents": ids})
+}
+
+// handleGetReach / handleSetReach: the organisation's setting.
+func (s *Server) handleGetReach(w http.ResponseWriter, r *http.Request) {
+	reach, err := s.Chat.ReachOf(r.Context(), principalFrom(r).OrgID)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"reach": string(reach)})
+}
+
+func (s *Server) handleSetReach(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Reach string `json:"reach"`
+	}
+	if err := readJSON(r, &in); err != nil || (in.Reach != string(chat.ReachOrg) && in.Reach != string(chat.ReachDepartment)) {
+		writeErr(w, http.StatusBadRequest, `expected {"reach": "org|department"}`)
+		return
+	}
+	if err := s.Chat.SetReach(r.Context(), principalFrom(r).OrgID, chat.Reach(in.Reach)); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"reach": in.Reach})
 }

@@ -696,13 +696,17 @@ func TestAuthMeSaysWhetherTheSeatMayWrite(t *testing.T) {
 		"email": "aud@test.local", "display_name": "Aud", "role": "auditor", "password": "auditor-passwort",
 	}, http.StatusCreated)
 	aud := login(t, s, "aud@test.local", "auditor-passwort")
-	if me := aud.expect(http.MethodGet, "/api/v1/auth/me", nil, http.StatusOK); me["CanWrite"] != false {
-		t.Fatalf("an auditor may only read: %v", me["CanWrite"])
+	if me := aud.expect(http.MethodGet, "/api/v1/auth/me", nil, http.StatusOK); me["CanWrite"] != false || me["CanChat"] != true {
+		t.Fatalf("an auditor hands over no work by hand, and chats: %v %v", me["CanWrite"], me["CanChat"])
 	}
-	// And the route agrees with what /auth/me said.
+	/* Since #440 every member writes to the agents the organisation's reach
+	   allows — the auditor too; creating a task by hand stays with the
+	   manage roles. */
 	admin.expect(http.MethodPatch, "/api/v1/org/team-surface", map[string]any{"enabled": true}, http.StatusOK)
 	agent := s.newSupportAgent("write-check")
-	aud.expect(http.MethodPost, "/api/v1/agents/"+agent.ID.String()+"/messages", map[string]any{"text": "hallo"}, http.StatusForbidden)
+	s.ohneLaeufe(agent.ID)
+	aud.expect(http.MethodPost, "/api/v1/agents/"+agent.ID.String()+"/messages", map[string]any{"text": "hallo"}, http.StatusCreated)
+	aud.expect(http.MethodPost, "/api/v1/agents/"+agent.ID.String()+"/tasks", map[string]any{"title": "x"}, http.StatusForbidden)
 }
 
 // TestHeartbeatRunsStayOutOfTheConversation is #401: what the schedule

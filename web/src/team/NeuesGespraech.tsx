@@ -2,16 +2,17 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
-import { api, createGroup, openDirect, type MemberRef, type OrgChart, type Principal } from "../api";
+import { api, createGroup, openDirect, reachableAgents, type MemberRef, type OrgChart, type Principal } from "../api";
 import { Modal } from "../components/Modal";
 import { Avatar } from "../components/person";
 import { canManage } from "../pages/agent/roles";
 
 /* Starting a conversation (#440): one person or colleague picked is a direct
  * conversation — the one that exists, or a new one; several are a group,
- * which needs a title. Agents are offered only to whoever may create a task
- * by hand, because a message to an agent can open one (the server says the
- * same). A direct conversation with an agent opens in the agent's thread. */
+ * which needs a title. The agents offered are the ones the organisation's
+ * reach lets the person write to; a group with agents needs the right to
+ * create a task by hand besides (the server says the same). A direct
+ * conversation with an agent opens in the agent's thread. */
 export default function NeuesGespraech({ me, onClose }: { me: Principal; onClose: () => void }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -20,17 +21,21 @@ export default function NeuesGespraech({ me, onClose }: { me: Principal; onClose
   const [titel, setTitel] = useState("");
   const [gewaehlt, setGewaehlt] = useState<MemberRef[]>([]);
   const chart = useQuery({ queryKey: ["org-chart"], queryFn: () => api<OrgChart>("/org/chart") });
+  const erreichbar = useQuery({ queryKey: ["reachable-agents"], queryFn: reachableAgents, staleTime: 60_000 });
+  const erreicht = new Set(erreichbar.data?.agents ?? []);
 
   const q = suche.trim().toLowerCase();
   const passt = (name: string, extra = "") => !q || (name + " " + extra).toLowerCase().includes(q);
   const menschen = (chart.data?.humans ?? []).filter((h) => h.id !== me.ID && passt(h.display_name, h.email));
-  const agenten = canManage(me.Role)
-    ? (chart.data?.agents ?? []).filter((a) => a.hired_at && !a.killed && passt(a.display_name, a.slug))
-    : [];
+  const agenten = (chart.data?.agents ?? []).filter(
+    (a) => a.hired_at && !a.killed && erreicht.has(a.id) && passt(a.display_name, a.slug),
+  );
   const ist = (r: MemberRef) => gewaehlt.some((g) => g.kind === r.kind && g.id === r.id);
   const umschalten = (r: MemberRef) =>
     setGewaehlt((alt) => (ist(r) ? alt.filter((g) => !(g.kind === r.kind && g.id === r.id)) : [...alt, r]));
   const gruppe = gewaehlt.length > 1;
+  // A group with an agent is the manage roles' (conversations.go).
+  const gruppeGesperrt = gruppe && gewaehlt.some((g) => g.kind === "agent") && !canManage(me.Role);
 
   const los = useMutation({
     mutationFn: async () => (gruppe ? createGroup(titel.trim(), gewaehlt) : openDirect(gewaehlt[0])),
@@ -64,7 +69,7 @@ export default function NeuesGespraech({ me, onClose }: { me: Principal; onClose
           </button>
           <button
             className="btn primary"
-            disabled={gewaehlt.length === 0 || (gruppe && !titel.trim()) || los.isPending}
+            disabled={gewaehlt.length === 0 || (gruppe && !titel.trim()) || gruppeGesperrt || los.isPending}
             onClick={() => los.mutate()}
           >
             {gruppe ? t("conversation.startGroup") : t("conversation.startDirect")}
@@ -110,6 +115,7 @@ export default function NeuesGespraech({ me, onClose }: { me: Principal; onClose
           </ul>
         </>
       )}
+      {gruppeGesperrt && <p className="muted text-xs">{t("conversation.groupAgentsManage")}</p>}
       {los.isError && <p className="danger-text text-xs">{String((los.error as Error)?.message ?? los.error)}</p>}
     </Modal>
   );

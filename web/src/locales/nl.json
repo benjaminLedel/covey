@@ -1177,6 +1177,13 @@
       "hint": "Bij vragen, antwoorden en afgeronde taken krijgen de betrokkenen een melding op hun telefoon. Uit: die zegt alleen wie wat deed („Bea heeft een vraag”) en niets van de inhoud verlaat de installatie. Aan: de eerste regel staat erin en gaat zo via Apple en eventueel de relaydienst.",
       "off": "Uit — alleen wie en wat",
       "on": "Aan — met de eerste regel"
+    },
+    "reach": {
+      "title": "Wie welke collega schrijft",
+      "hint": "Elk lid mag AI-collega's direct schrijven: elke collega van de organisatie, of alleen die van de eigen afdeling. De leidinggevende van de collega en org-admins mogen het altijd; een bestaand gesprek blijft leesbaar als dit wordt ingeperkt.",
+      "org": "Elke collega van de organisatie",
+      "department": "Alleen collega's van de eigen afdeling",
+      "adminOnly": "Alleen een org-admin wijzigt dit."
     }
   },
   "orgs": {
@@ -2886,6 +2893,7 @@
     "asleep": "slaapt",
     "working": "aan het werk",
     "workingOn": "werkt aan {{title}}",
-    "rename": "Groep hernoemen"
+    "rename": "Groep hernoemen",
+    "groupAgentsManage": "Een AI-collega aan een groep toevoegen vraagt het recht om met de hand werk over te dragen."
   }
 }

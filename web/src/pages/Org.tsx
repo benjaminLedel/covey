@@ -338,6 +338,48 @@ export function TriageSettings() {
   );
 }
 
+/* Whom a member writes to directly (#440): any agent of the organisation, or
+ * only the agents of their own departments. The agent's supervisor and the
+ * org admin reach it either way; a conversation that exists stays readable
+ * when the reach narrows. Only the org admin switches it. */
+export function ReachSettings({ me }: { me: { Role: string } }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const team = useTeamSurface();
+  const reach = useQuery({
+    queryKey: ["org-reach"],
+    queryFn: () => api<{ reach: string }>("/org/chat-reach"),
+  });
+  const setReach = useMutation({
+    mutationFn: (r: string) => patch<{ reach: string }>("/org/chat-reach", { reach: r }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["org-reach"] });
+      qc.invalidateQueries({ queryKey: ["reachable-agents"] });
+    },
+  });
+  if (!reach.data || !team.data?.enabled) return null;
+  const darf = me.Role === "org_admin";
+  return (
+    <div className="card mb-4">
+      <h2 className="text-sm mb-1" style={{ fontWeight: 600 }}>{t("org.reach.title")}</h2>
+      <p className="muted text-xs mt-0 mb-2" style={{ maxWidth: 640 }}>{t("org.reach.hint")}</p>
+      <div className="flex items-center gap-3 flex-wrap">
+        <select
+          key={`reach:${reach.data.reach}`}
+          defaultValue={reach.data.reach}
+          disabled={!darf || setReach.isPending}
+          onChange={(e) => setReach.mutate(e.target.value)}
+          aria-label={t("org.reach.title")}
+        >
+          <option value="org">{t("org.reach.org")}</option>
+          <option value="department">{t("org.reach.department")}</option>
+        </select>
+        {!darf && <span className="muted text-xs">{t("org.reach.adminOnly")}</span>}
+      </div>
+    </div>
+  );
+}
+
 // The recording: how deep things are written along, and how long the verbatim
 // history stays (spec/06). Both org-wide, both overridable on the agent — the
 // depth only upward, the deadline only longer. An agent that could shorten its

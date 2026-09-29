@@ -1177,6 +1177,13 @@
       "hint": "Przy pytaniach, odpowiedziach i ukończonych zadaniach zaangażowane osoby dostają powiadomienie na telefon. Wyłączone: mówi tylko, kto co zrobił („Bea ma pytanie”), i nic z treści nie opuszcza instalacji. Włączone: zawiera pierwszą linię, która przechodzi przez Apple i ewentualnie przez usługę przekaźnika.",
       "off": "Wyłączone — tylko kto i co",
       "on": "Włączone — z pierwszą linią"
+    },
+    "reach": {
+      "title": "Kto pisze do którego współpracownika",
+      "hint": "Każdy członek może pisać bezpośrednio do współpracowników AI: do każdego w organizacji albo tylko do tych z własnego działu. Przełożony współpracownika i administratorzy mogą zawsze; istniejąca rozmowa pozostaje czytelna, gdy to się zawęzi.",
+      "org": "Do każdego współpracownika organizacji",
+      "department": "Tylko do współpracowników własnego działu",
+      "adminOnly": "Zmienia to tylko administrator organizacji."
     }
   },
   "orgs": {
@@ -2886,6 +2893,7 @@
     "asleep": "śpi",
     "working": "pracuje",
     "workingOn": "pracuje nad: {{title}}",
-    "rename": "Zmień nazwę grupy"
+    "rename": "Zmień nazwę grupy",
+    "groupAgentsManage": "Dodanie współpracownika AI do grupy wymaga prawa do ręcznego zlecania pracy."
   }
 }

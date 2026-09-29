@@ -136,6 +136,8 @@ type chatThread struct {
 	   and whether the person muted it. */
 	ConversationID *uuid.UUID `json:"conversation_id,omitempty"`
 	Muted          bool       `json:"muted"`
+	// CanWrite: the organisation's reach lets the reader write to the agent.
+	CanWrite bool `json:"can_write"`
 }
 
 // threadTasks is how far back a thread reaches. Whoever wants more than the
@@ -222,6 +224,10 @@ func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 	}
 	out.Tasks, err = s.offeneVorgaenge(r.Context(), id)
 	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	if out.CanWrite, err = s.Chat.Reaches(r.Context(), p.OrgID, p.ID, id, p.Role == identity.RoleOrgAdmin); err != nil {
 		mapErr(w, err)
 		return
 	}
@@ -499,7 +505,7 @@ func (s *Server) handleChatMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := principalFrom(r)
-	if !s.teamSurfaceAn(w, r) || s.gestoppt(w, r, id) {
+	if !s.teamSurfaceAn(w, r) || !s.erreicht(w, r, id) || s.gestoppt(w, r, id) {
 		return
 	}
 	text, ok := chatText(w, r)
@@ -1359,6 +1365,24 @@ func (s *Server) gestoppt(w http.ResponseWriter, r *http.Request, agentID uuid.U
 	return stop
 }
 
+/* darfAntworten: who answers a task (#440). The roles that may create one by
+ * hand, as before — and the responsible person whatever their role: a member
+ * of the conversation the task reports to (its question stands there), or
+ * the agent's supervisor, to whom a question from elsewhere goes. */
+func (s *Server) darfAntworten(ctx context.Context, p identity.Principal, t backlog.Task) bool {
+	if darfArbeitGeben(p.Role) {
+		return true
+	}
+	if t.ConversationID != nil {
+		if c, err := s.Chat.Get(ctx, *t.ConversationID); err == nil && c.Has(chat.Human(p.ID)) {
+			return true
+		}
+	}
+	var sup bool
+	_ = s.Pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM agents WHERE id = $1 AND supervisor_id = $2)`, t.AgentID, p.ID).Scan(&sup)
+	return sup
+}
+
 func (s *Server) handleTaskReply(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
@@ -1366,7 +1390,16 @@ func (s *Server) handleTaskReply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := principalFrom(r)
-	if t, err := s.Backlog.Get(r.Context(), id); err == nil && s.gestoppt(w, r, t.AgentID) {
+	t, err := s.Backlog.Get(r.Context(), id)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	if !s.darfAntworten(r.Context(), p, t) {
+		writeErr(w, http.StatusForbidden, "only who may create a task by hand, a member of the conversation the task reports to, or the agent's supervisor answers it")
+		return
+	}
+	if s.gestoppt(w, r, t.AgentID) {
 		return
 	}
 	text, ok := chatText(w, r)
@@ -1381,10 +1414,10 @@ func (s *Server) handleTaskReply(w http.ResponseWriter, r *http.Request) {
 	}
 
 	out := chatReply{Note: note}
-	t, err := s.Backlog.Answer(r.Context(), id, p.Email, text)
+	geweckt, err := s.Backlog.Answer(r.Context(), id, p.Email, text)
 	switch {
 	case err == nil:
-		out.Task, out.Woken = &t, true
+		out.Task, out.Woken = &geweckt, true
 	case errors.Is(err, backlog.ErrInvalidTransition):
 		// nobody was waiting — the note stands
 	default:

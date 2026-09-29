@@ -4,7 +4,7 @@ import { NavLink, Route, Routes } from "react-router";
 import { api, type Agent, type Human, type OrgCostReport, type Organization, type Principal } from "../api";
 import Audit from "./Audit";
 import Diagnostics from "./Diagnostics";
-import { CompanyDescription, OfficeFurnishing, PlatformRepo, PushSettings, RecordingSettings, TeamSurfaceSettings, TriageSettings } from "./Org";
+import { CompanyDescription, OfficeFurnishing, PlatformRepo, PushSettings, ReachSettings, RecordingSettings, TeamSurfaceSettings, TriageSettings } from "./Org";
 import { ProfileFieldsSettings } from "./Organizations";
 import Users from "./Users";
 import { fmtUSD } from "../format";
@@ -21,7 +21,7 @@ import { fmtUSD } from "../format";
 export default function Administration({ me }: { me: Principal }) {
   return (
     <Routes>
-      <Route index element={<Profile />} />
+      <Route index element={<Profile me={me} />} />
       <Route path="members" element={<Members me={me} />} />
       <Route path="usage" element={<Usage />} />
       <Route path="audit" element={<AuditTab />} />
@@ -67,7 +67,7 @@ function Header() {
  * chart. They stand here because someone who administers the organisation
  * looks for them there. One store, two ways in — the same component, no second
  * editor (same pattern as ACCESS.md as a text view onto the UI store). */
-function Profile() {
+function Profile({ me }: { me: Principal }) {
   const { t } = useTranslation();
   return (
     <div>
@@ -80,6 +80,7 @@ function Profile() {
       <PushSettings />
       <OfficeFurnishing />
       <TriageSettings />
+      <ReachSettings me={me} />
       <RecordingSettings />
       <PlatformRepo />
       <ProfileFieldsSettings />

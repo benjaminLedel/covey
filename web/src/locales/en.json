@@ -1177,6 +1177,13 @@
       "hint": "For questions, replies and finished tasks, the people involved get a notification on their phone. Off: it says only who did what (\"Bea has a question\"), and nothing of the content leaves the installation. On: the first line is included, and with it passes through Apple and, where used, the relay service.",
       "off": "Off — only who and what",
       "on": "On — with the first line"
+    },
+    "reach": {
+      "title": "Who writes to which colleague",
+      "hint": "Every member may write to AI colleagues directly. Either to any colleague of the organisation, or only to those of their own department. The colleague's supervisor and org admins always may; a conversation that exists stays readable when this narrows.",
+      "org": "Any colleague of the organisation",
+      "department": "Only colleagues of one's own department",
+      "adminOnly": "Only an org admin changes this."
     }
   },
   "orgs": {
@@ -2886,6 +2893,7 @@
     "asleep": "asleep",
     "working": "working",
     "workingOn": "working on {{title}}",
-    "rename": "Rename group"
+    "rename": "Rename group",
+    "groupAgentsManage": "Adding an AI colleague to a group needs the right to hand over work by hand."
   }
 }
