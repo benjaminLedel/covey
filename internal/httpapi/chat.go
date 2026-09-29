@@ -945,19 +945,22 @@ func (s *Server) triagieren(ctx context.Context, conv chat.Conversation, agentID
 	}
 	liste, nach := s.offeneAufgaben(ctx, agentID)
 	fertig := s.fertigeAufgaben(ctx, agentID)
-	rolle, seele, gegenueber := s.rolleVon(ctx, agentID), s.seeleVon(ctx, agentID), s.gegenueberVon(ctx, conv.OrgID, email)
+	rahmen := chat.Rahmen{
+		Rolle: s.rolleVon(ctx, agentID), Seele: s.seeleVon(ctx, agentID),
+		Gegenueber: s.gegenueberVon(ctx, conv.OrgID, email),
+		Raum:       chat.Raum(conv, agentID, true),
+	}
 	organisation := s.organisationVon(ctx, agentID)
-	raum := raumVon(conv, agentID)
 
 	/* Ein Zug, einmal wiederholt (#416): Ein Modell, das einmal nicht
 	   antwortet oder unlesbar antwortet, tut es beim zweiten Mal meist doch —
 	   und jeder Fehlschlag wird eine Aufgabe, die eine Sandbox hochfährt, um
 	   „wie geht's?" zu beantworten. */
 	zug := func(suche *chat.Suche) (chat.Entscheidung, error) {
-		e, err := chat.Triagieren(ctx, provider, rolle, seele, gegenueber, raum, organisation, liste, fertig, verlauf, msg.Text, suche)
+		e, err := chat.Triagieren(ctx, provider, rahmen, organisation, liste, fertig, verlauf, msg.Text, suche)
 		if err != nil && ctx.Err() == nil {
 			s.Log.Warn("triage turn failed, trying once more", "agent", agentID, "err", err)
-			e, err = chat.Triagieren(ctx, provider, rolle, seele, gegenueber, raum, organisation, liste, fertig, verlauf, msg.Text, suche)
+			e, err = chat.Triagieren(ctx, provider, rahmen, organisation, liste, fertig, verlauf, msg.Text, suche)
 		}
 		return e, err
 	}
@@ -974,35 +977,6 @@ func (s *Server) triagieren(ctx context.Context, conv chat.Conversation, agentID
 		return aufgabe, nil, err.Error()
 	}
 	return e, nach, ""
-}
-
-/*
-raumVon describes a group to the agent (#440): its title, who is in it, and
-
-	that it was addressed. Empty for a direct conversation — there the
-	person is the one the prompt already describes.
-*/
-func raumVon(conv chat.Conversation, agentID uuid.UUID) string {
-	if conv.Kind != chat.KindGroup {
-		return ""
-	}
-	var wer []string
-	for _, m := range conv.Active() {
-		switch {
-		case m.Kind == chat.MemberAgent && m.ID == agentID:
-			continue
-		case m.Kind == chat.MemberAgent:
-			wer = append(wer, m.Name+" (AI colleague)")
-		default:
-			wer = append(wer, m.Name)
-		}
-	}
-	titel := ""
-	if conv.Title != "" {
-		titel = fmt.Sprintf(" %q", conv.Title)
-	}
-	return fmt.Sprintf("This is the group conversation%s. Besides you, in it: %s. You were addressed in the new message; answer what is yours to answer and leave the rest to the others.",
-		titel, strings.Join(wer, ", "))
 }
 
 // verlaufFuer is the end of the conversation as a turn of this agent reads
