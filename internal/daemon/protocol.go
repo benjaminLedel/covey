@@ -494,6 +494,22 @@ type RequestHiring struct {
 	// database, leave the rest. Empty = everything the file offers and the
 	// organisation allows.
 	Only []string `json:"only,omitempty"`
+
+	// --- A voice drafted from a conversation (covey/voice_draft, #458) ---
+
+	// VoiceName, Purpose and Description are the draft; VoiceTexts the texts
+	// it is measured from instead of a description. What arrives is a draft
+	// in the library and nothing more: a person releases it.
+	VoiceName   string      `json:"voice_name,omitempty"`
+	Purpose     string      `json:"purpose,omitempty"`
+	Description string      `json:"description,omitempty"`
+	VoiceTexts  []VoiceText `json:"voice_texts,omitempty"`
+}
+
+// VoiceText is one text an agent hands over for a voice draft.
+type VoiceText struct {
+	Name string `json:"name"`
+	Text string `json:"text"`
 }
 
 // ReviewNote is one finding or one filed issue: a line a human reads, the
