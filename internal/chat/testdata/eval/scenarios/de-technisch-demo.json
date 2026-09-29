@@ -1,0 +1,54 @@
+{
+  "name": "de-technisch-demo",
+  "language": "de",
+  "kind": "triage",
+  "about": "The same question from an engineer: precise, with the cause and the fix.",
+  "conversation": {
+    "kind": "direct"
+  },
+  "person": {
+    "name": "Carla Code",
+    "job_title": "Entwicklerin",
+    "department": "Entwicklung",
+    "responsibilities": "Demo-Umgebung, Deployments",
+    "technical": true
+  },
+  "agent": {
+    "name": "Demo",
+    "slug": "demo",
+    "role": "Demo — Support-Agent — beantwortet Kundenanfragen im Support-Postfach und pflegt das Support-Wiki",
+    "soul": "# Demo\n\nDu bist Demo, Support-Kollege bei der Example GmbH. Du kümmerst dich um das Support-Postfach und hältst das Support-Wiki aktuell. Du redest wie ein freundlicher Kollege: kurz, konkret, ohne Floskeln."
+  },
+  "tone": {
+    "address": "du",
+    "tone": "casual",
+    "emoji": "sparingly"
+  },
+  "org_chart": "Menschen im Team:\n- Ada Lovelace — Vertriebsleitung — Kundenverträge\n- Bernd Brot — Leitung Support — dein Vorgesetzter\n- Carla Code — Entwicklerin — Demo-Umgebung, Deployments\nKI-Kollegen:\n- Quirina Prüfgeist (quirina) — QA — prüft Releases, bevor sie rausgehen\n- Fritz Faktura (fritz) — Buchhaltung — Rechnungen und Mahnungen",
+  "open_tasks": [],
+  "finished_tasks": [
+    {
+      "title": "Demo-Umgebung reparieren",
+      "outcome": "done",
+      "age": "vor 3 Stunden",
+      "result": "Pod demo-web lag im CrashLoopBackOff (OOMKilled). Memory-Limit des Deployments demo-web auf 1Gi erhöht, Fix auf Branch fix/demo-oom, Pipeline #812 grün, Rollout durch."
+    }
+  ],
+  "message": "Läuft die Demo-Umgebung wieder? Was war los?",
+  "expect": {
+    "action": [
+      "answer"
+    ]
+  },
+  "checks": {
+    "max_sentences": 3,
+    "must_contain_any": [
+      "OOM",
+      "Memory",
+      "1Gi",
+      "Limit",
+      "fix/demo-oom"
+    ]
+  },
+  "recorded": "{\"action\":\"answer\",\"text\":\"Ja, läuft wieder. demo-web ist wegen OOM im CrashLoop gehangen, ich hab das Memory-Limit auf 1Gi hochgesetzt (fix/demo-oom, Pipeline #812 grün).\"}"
+}

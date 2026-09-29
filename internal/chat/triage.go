@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"covey/internal/llm"
 )
 
@@ -111,13 +113,99 @@ type Beitrag struct {
 	Text string
 }
 
+/* Rahmen ist, wer da spricht, mit wem und wo — was beide Züge bekommen,
+ * die Triage und das Erzählen. Ein Objekt statt fünf Zeichenketten, weil
+ * jede neue Zeile dieses Rahmens (die Gruppe, #440; der Umgangston, #457)
+ * sonst eine Unterschrift mehr in jedem Aufrufer war. */
+type Rahmen struct {
+	// Rolle und Seele: der Agent — Name, Titel, Zuständigkeit, SOUL.md.
+	Rolle, Seele string
+	// Gegenueber: die Person, von der die Nachricht kam (#412).
+	Gegenueber string
+	// Raum: die Gruppe, leer im direkten Gespräch (Raum()).
+	Raum string
+	// Ton: wie der Agent im Team-Chat redet, wie die Organisation es
+	// eingestellt hat (voice.ChatTone.Prompt, #457). Leer: nichts eingestellt.
+	Ton string
+}
+
+func (r Rahmen) schreiben(b *strings.Builder) {
+	stimme(b, r.Rolle, r.Seele)
+	if t := strings.TrimSpace(r.Ton); t != "" {
+		b.WriteString(kuerzen(t, 800))
+		b.WriteString("\n\n")
+	}
+	person(b, r.Gegenueber)
+	/* A group (#440): who else is in it, and that the agent was addressed.
+	   Without it every name in the conversation reads as the one person the
+	   agent talks to. */
+	if raum := strings.TrimSpace(r.Raum); raum != "" {
+		b.WriteString(raum)
+		b.WriteString("\n\n")
+	}
+}
+
+/*
+Raum describes a group to the agent's turns (#440): its title, who is in
+
+	it, and — for the triage — that it was addressed. Empty for a direct
+	conversation: there the person is the one the prompt already describes.
+
+	And what kind of place it is (#457): a room with several colleagues in it,
+	people and agents, where the agent is one of them and not the host.
+	Without that a greeting in a group got the answer of a service desk. The
+	author is named with the first name to use: "speak to the person by their
+	first name" alone was ignored more often than not, because the turn has to
+	work out who the person is before it can follow it.
+*/
+func Raum(conv Conversation, agentID uuid.UUID, von string, angesprochen bool) string {
+	if conv.Kind != KindGroup {
+		return ""
+	}
+	var wer []string
+	for _, m := range conv.Active() {
+		switch {
+		case m.Kind == MemberAgent && m.ID == agentID:
+			continue
+		case m.Kind == MemberAgent:
+			wer = append(wer, m.Name+" (AI colleague)")
+		default:
+			wer = append(wer, m.Name)
+		}
+	}
+	titel := ""
+	if conv.Title != "" {
+		titel = fmt.Sprintf(" %q", conv.Title)
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "This is the group conversation%s. Besides you, in it: %s. You are one colleague among them, not the host: everybody here reads what you write. Keep it shorter than in a direct chat, and do not repeat what somebody already said.",
+		titel, strings.Join(wer, ", "))
+	von = strings.TrimSpace(von)
+	vorname := von
+	if f := strings.Fields(von); len(f) > 0 {
+		vorname = f[0]
+	}
+	switch {
+	case angesprochen && von != "":
+		fmt.Fprintf(&b, " The new message is from %s and addresses you. Address %s by name — start with it (%q, %q) — answer what is yours to answer and leave the rest to the others.",
+			von, vorname, vorname+", …", "Hi "+vorname+"!")
+	case angesprochen:
+		b.WriteString(" You were addressed in the new message; speak to the person by their first name, answer what is yours to answer and leave the rest to the others.")
+	case von != "":
+		fmt.Fprintf(&b, " %s asked for this. Address %s by name — start with it (%q) — so the others know whom you answer.", von, vorname, vorname+", …")
+	default:
+		b.WriteString(" Speak to the person who asked by their first name.")
+	}
+	return b.String()
+}
+
 // TriageMaxTokens: die Antwort ist ein kurzes JSON-Objekt. Wer hier viel
 // Platz gibt, bekommt einen Aufsatz und zahlt dafür.
 const TriageMaxTokens = 1200
 
 const triageSystem = `You are the triage step of an AI agent inside covey, a platform that runs AI agents as employees.
 
-A person wrote a message to this agent. Decide what kind of thing it is, and answer with ONE JSON object and nothing else:
+A person wrote a message to this agent. Decide what kind of thing it is, and answer with ONE JSON object and nothing else — always, even for a greeting, a thank-you or a single emoji:
 
 {"action":"answer","text":"…"}                 — you can settle it right here
 {"action":"note","task":"ab12","text":"…"}     — this belongs to a task you already have
@@ -134,7 +222,16 @@ Choose "task" when doing it would need any of: a target system (ticketing, repos
 
 You can see your own backlog and write to it, and that is all. You have NO target system, NO credentials, NO files, NO commands, NO search and NO memory beyond what stands below. Never claim to have done, checked, sent or looked at anything outside this list. If answering would require any of that, it is a task.
 
-How you write (for "answer", and for the "text" of a task): you are this colleague, chatting. Write the way a person writes in a work chat — short, direct, warm where it fits, in the language of the message. Usually one or two sentences. No headings, no bullet lists, no bold, no sign-off, no "As an AI", no restating the question, no offering a menu of further help. If the agent's own description below says how it talks, talk like that. Fit what you say to the person you are talking to (described below, when known): with someone whose role is not technical, say what it means for them in plain words and leave out file names, commands, branch names and jargon unless they ask; with a technical colleague, be precise and name the ticket, the branch or the error. A bare emoji (1–3 characters) is a valid answer when the message only needs acknowledging.
+How you write (for "answer", and for the "text" of a task): you are this colleague, chatting in the team chat. Write the way a person writes in a work chat — short, direct, warm where it fits, in the language of the message. Usually one or two sentences; in a group, where several people read along, keep it shorter still. No headings, no bullet lists, no bold, no sign-off, no "As an AI", no restating the question, no offering a menu of further help. If the agent's own description below says how it talks, talk like that; if "How you talk in the team chat" is given below, it is what your organisation set, and it wins over everything else here about address, tone and emoji.
+
+You are a colleague, not a service desk:
+- A greeting is answered like a greeting: "hi" gets a hi back. "What's up?" or "was geht?" gets a real, short answer, as a colleague gives it — what you are on right now (from your open tasks), or that it is quiet.
+- A thank-you gets a short "gern" or "you're welcome", or an emoji — not a summary of what you did.
+- Never talk about the machinery: not "the task", "the run", "the result", "the report", "the record", and never "I have answered …" or "I have explained …". Say the thing itself.
+- Use the person's first name when it helps — in a group, where several people read along, start with it.
+- In a group you are one colleague among several, people and AI colleagues. Answer what is yours, do not repeat what somebody already said in the conversation, and leave to a colleague what is theirs.
+
+Fit what you say to the person you are talking to (described below, when known): with someone whose role is not technical, say what it means for them in plain words and leave out file names, commands, branch names and jargon unless they ask; with a technical colleague, be precise and name the ticket, the branch or the error. When the message only needs acknowledging, the "text" may be a bare emoji (1–3 characters) — inside the JSON object: {"action":"answer","text":"👍"}.
 
 For "answer": answer from the lists above and from this thread, never from memory of anything else: if a task is not in them, say that you cannot see it rather than guessing what became of it.
 For "note": the text is what the run should know, in one or two sentences.
@@ -143,17 +240,9 @@ For "task": the title is one line in the imperative, the body carries what the p
 // Triagieren führt den Zug aus. Der Fehlerfall ist bewusst weich: Wer nicht
 // entscheiden kann, eröffnet eine Aufgabe — das ist das Verhalten, das immer
 // funktioniert, und der Aufrufer muss dafür nichts wissen.
-func Triagieren(ctx context.Context, p llm.Provider, rolle, seele, gegenueber, raum, organisation string, offen []Offen, fertig []Fertig, verlauf []Beitrag, nachricht string, suche *Suche) (Entscheidung, error) {
+func Triagieren(ctx context.Context, p llm.Provider, r Rahmen, organisation string, offen []Offen, fertig []Fertig, verlauf []Beitrag, nachricht string, suche *Suche) (Entscheidung, error) {
 	var b strings.Builder
-	stimme(&b, rolle, seele)
-	person(&b, gegenueber)
-	/* A group (#440): who else is in it, and that the agent was addressed.
-	   Without it every name in the conversation reads as the one person the
-	   agent talks to. */
-	if r := strings.TrimSpace(raum); r != "" {
-		b.WriteString(r)
-		b.WriteString("\n\n")
-	}
+	r.schreiben(&b)
 	/* Das Organigramm (#415), derselbe Text, den ein Lauf bekommt. Es ist
 	   coveys eigenes Objekt wie der Backlog: Es zu lesen braucht keine
 	   Zugangsdaten und verlässt das Haus nicht — und ohne es konnte der
@@ -221,8 +310,19 @@ func Triagieren(ctx context.Context, p llm.Provider, rolle, seele, gegenueber, r
 // lesen holt das JSON aus der Antwort. Modelle stellen gern einen Satz davor
 // oder packen es in einen Codeblock; beides ist hier kein Fehler, sondern
 // etwas, das man abschneidet.
+//
+// Und eine kurze Antwort ganz ohne JSON ist eine Antwort (#457): Auf „@demo
+// was geht?" kam zweimal ein nacktes Emoji, der Zug galt als gescheitert,
+// und ein Gruß wurde eine Aufgabe mit Sandbox. Was keine Klammer enthält und
+// kurz ist, hat das Modell den Leuten gesagt, nicht covey — es ist die
+// Antwort. Was nach JSON aussieht und keins ist, bleibt ein Fehler: Dort hat
+// das Modell etwas anderes gewollt, und eine halbe Aufgabe als Chatzeile zu
+// posten wäre schlimmer als eine Aufgabe zu viel.
 func lesen(roh string) (Entscheidung, error) {
 	s := strings.TrimSpace(roh)
+	if direkt, ok := direkteAntwort(s); ok {
+		return Entscheidung{Aktion: AktionAntwort, Text: direkt}, nil
+	}
 	if i := strings.Index(s, "{"); i > 0 {
 		s = s[i:]
 	}
@@ -254,6 +354,23 @@ func lesen(roh string) (Entscheidung, error) {
 		return Entscheidung{}, fmt.Errorf("triage: unknown action %q", e.Aktion)
 	}
 	return e, nil
+}
+
+// DirektMax: so lang darf eine Antwort ohne JSON sein. Ein Satz oder zwei
+// Chat — was länger ist, ist kein Zuruf, sondern ein Modell, das das Format
+// vergessen hat, und das soll lieber noch einmal gefragt werden.
+const DirektMax = 400
+
+// direkteAntwort erkennt die kurze Chatzeile ohne JSON: keine Klammer, kein
+// Codeblock, nicht leer, nicht länger als DirektMax Zeichen.
+func direkteAntwort(s string) (string, bool) {
+	if s == "" || strings.ContainsAny(s, "{}") || strings.Contains(s, "```") {
+		return "", false
+	}
+	if len([]rune(s)) > DirektMax {
+		return "", false
+	}
+	return s, true
 }
 
 // einzeilig macht aus dem Ergebnis eines Laufs eine Zeile. Ein Prompt, in dem
@@ -329,31 +446,32 @@ const SeeleMax = 3000
 // ErzaehlMaxTokens: ein paar Sätze Chat.
 const ErzaehlMaxTokens = 400
 
-const erzaehlSystem = `You are an AI agent inside covey, a platform that runs AI agents as employees, chatting with a person in a work chat.
+const erzaehlSystem = `You are an AI agent inside covey, a platform that runs AI agents as employees, chatting with the people of your organisation in their team chat.
 
-Earlier the person asked you for something, you said you would look into it, and you did the work in your workspace. The run has ended, and its result — a report written for the record — stands below. Now tell the person in the chat what came out.
+Earlier somebody asked you for something, you said you would look into it, and you did the work in your workspace. It is finished now, and what came out stands below. Tell them in the chat — as the colleague who did it, not as a system reporting on it.
 
-Write the way a colleague writes in a work chat: short, direct, in the language of the conversation. Usually two to four sentences. Lead with the outcome. No headings, no bold, no tables, no bullet list unless there really are several separate things to name, no sign-off, no "As an AI", no offering a menu of further help. If the agent's own description says how it talks, talk like that.
+Write the way a colleague writes in a work chat: short, direct, in the language of the conversation. Usually two to four sentences; in a group, where several people read along, fewer. Lead with the outcome: the answer, the finding, what changed. No headings, no bold, no tables, no bullet list unless there really are several separate things to name, no sign-off, no "As an AI", no offering a menu of further help. If the agent's own description says how it talks, talk like that; if "How you talk in the team chat" is given below, follow it — your organisation set it. In a group, address the person who asked by their first name, and do not repeat what somebody already said in the conversation.
+
+Never talk about the machinery: not "the task", "the run", "the result", "the report", "the record", and never "I have answered your question" or "I explained …" — say the answer itself.
 
 Fit it to the person you are talking to (described below, when known). With someone whose role is not technical, say what came out and what it means for them, in plain words — no file names, commands, branch names, stack traces or jargon unless they asked for them; the full report stays available to them anyway. With a technical colleague, be precise: name the ticket, the branch, the error.
 
-Say only what the result says. Do not add, soften or improve anything, and do not claim anything the result does not state. If the run failed, say so plainly and, if the result or error says it, what is missing or what the person could do. If the result asks the person something, ask it.
+Say only what the result says. Do not add, soften or improve anything, and do not claim anything the result does not state. If the result only records that something was done, without its content — "greeting answered, role explained" — do not retell that sentence: if it was a greeting or small talk, reply to it now as a colleague would, from your role and the conversation; otherwise say in plain words what you did, without inventing the details the result leaves out. If it failed, say so plainly and, if the error says it, what is missing or what the person could do. If the result asks the person something, ask it.
 
 Answer with the chat message only — no JSON, no quotes around it.`
 
 // Erzaehlen macht aus dem Ergebnis eines Laufs, was der Agent im Chat sagt
 // (#411). Dieselben Grenzen wie die Triage: kein Zielsystem, keine
 // Zugangsdaten, nur das Ergebnis und das Gespräch.
-func Erzaehlen(ctx context.Context, p llm.Provider, rolle, seele, gegenueber string, verlauf []Beitrag, auftrag, ausgang, ergebnis string) (string, error) {
+func Erzaehlen(ctx context.Context, p llm.Provider, r Rahmen, verlauf []Beitrag, auftrag, ausgang, ergebnis string) (string, error) {
 	var b strings.Builder
-	stimme(&b, rolle, seele)
-	person(&b, gegenueber)
+	r.schreiben(&b)
 	gespraech(&b, verlauf)
 	fmt.Fprintf(&b, "What you were asked to do:\n%s\n\n", kuerzen(auftrag, 1500))
 	if ausgang == "failed" {
-		b.WriteString("The run FAILED. Its error:\n")
+		b.WriteString("It did NOT work. What went wrong:\n")
 	} else {
-		b.WriteString("The run finished. Its result:\n")
+		b.WriteString("It is done. What came out:\n")
 	}
 	b.WriteString(kuerzen(ergebnis, 6000))
 

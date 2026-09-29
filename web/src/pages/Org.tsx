@@ -4,8 +4,9 @@ import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import {
   api, patch, buildInfo, OFFICE_FURNISHINGS,
-  type Agent, type AgentSystem, type OfficeFurnishing as Furnishing, type OrgChart, type Organization,
+  type Agent, type AgentSystem, type ChatTone, type OfficeFurnishing as Furnishing, type OrgChart, type Organization,
 } from "../api";
+import { ChatToneForm } from "../components/ChatToneForm";
 import { OrgChart as OrgChartView } from "../components/orgchart/OrgChart";
 
 /* How densely the office is furnished (#325). One of three words, set for
@@ -376,6 +377,40 @@ export function ReachSettings({ me }: { me: { Role: string } }) {
         </select>
         {!darf && <span className="muted text-xs">{t("org.reach.adminOnly")}</span>}
       </div>
+    </div>
+  );
+}
+
+/* The organisation's tone in the team chat (#457): the default for agents
+ * without a voice and for what a voice leaves open. Beside the triage switch,
+ * because it acts in the same two turns; set by the same roles. */
+export function ChatToneSettings({ me }: { me: { Role: string } }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const team = useTeamSurface();
+  const tone = useQuery({
+    queryKey: ["org-chat-tone"],
+    queryFn: () => api<ChatTone>("/org/chat-tone"),
+    retry: false,
+  });
+  const save = useMutation({
+    mutationFn: (v: ChatTone) => patch<ChatTone>("/org/chat-tone", v),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["org-chat-tone"] }),
+  });
+  if (!tone.data || !team.data?.enabled) return null;
+  const darf = me.Role === "org_admin" || me.Role === "agent_owner";
+  return (
+    <div className="card mb-4">
+      <h2 className="text-sm mb-1" style={{ fontWeight: 600 }}>{t("chatTone.orgTitle")}</h2>
+      <p className="muted text-xs mt-0 mb-2" style={{ maxWidth: 640 }}>{t("chatTone.hintOrg")}</p>
+      <ChatToneForm
+        key={JSON.stringify(tone.data)}
+        value={tone.data}
+        editable={darf}
+        saving={save.isPending}
+        error={save.isError ? (save.error as Error).message : undefined}
+        onSave={(v) => save.mutate(v)}
+      />
     </div>
   );
 }

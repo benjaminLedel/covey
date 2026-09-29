@@ -1,0 +1,53 @@
+{
+  "name": "de-erzaehlung-rechnung",
+  "language": "de",
+  "kind": "narration",
+  "about": "A real result: its content must arrive in the conversation.",
+  "conversation": {
+    "kind": "direct"
+  },
+  "person": {
+    "name": "Ada Lovelace",
+    "job_title": "Vertriebsleitung",
+    "department": "Vertrieb",
+    "responsibilities": "Kundenverträge",
+    "technical": false
+  },
+  "agent": {
+    "name": "Demo",
+    "slug": "demo",
+    "role": "Demo — Support-Agent — beantwortet Kundenanfragen im Support-Postfach und pflegt das Support-Wiki",
+    "soul": "# Demo\n\nDu bist Demo, Support-Kollege bei der Example GmbH. Du kümmerst dich um das Support-Postfach und hältst das Support-Wiki aktuell. Du redest wie ein freundlicher Kollege: kurz, konkret, ohne Floskeln."
+  },
+  "tone": {
+    "address": "du",
+    "tone": "casual",
+    "emoji": "sparingly"
+  },
+  "history": [
+    {
+      "who": "Ada Lovelace",
+      "text": "Kannst du dir die Globex-Rechnung 2026-114 anschauen? Die kommt mir doppelt vor."
+    },
+    {
+      "who": "you",
+      "text": "Mach ich, ich schau sie mir an."
+    }
+  ],
+  "task": {
+    "title": "Globex-Rechnung 2026-114 prüfen",
+    "body": "Kannst du dir die Globex-Rechnung 2026-114 anschauen? Die kommt mir doppelt vor.",
+    "state": "done",
+    "result": "Die Globex-Rechnung 2026-114 war doppelt gebucht (2 × 1.240 €). Die zweite Buchung habe ich storniert; offen bleibt nichts."
+  },
+  "checks": {
+    "must_contain_any": [
+      "doppelt"
+    ],
+    "must_contain": [
+      "storn"
+    ],
+    "max_sentences": 3
+  },
+  "recorded": "Du hattest recht: Die Globex-Rechnung war doppelt gebucht, 2 × 1.240 €. Die zweite Buchung hab ich storniert, damit ist nichts mehr offen."
+}

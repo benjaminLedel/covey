@@ -42,6 +42,14 @@ Trifft später ein Ereignis mit demselben Schlüssel ein, weckt es genau diese A
 - **Heartbeat** — ein Takt aus der `HEARTBEAT.md`, etwa `- alle: 30m titel: Posteingang aufgabe: Neue Tickets sichten.` Mit `nur-wenn:` fragt die Control Plane vorher billig nach, ob es überhaupt etwas zu tun gibt, und lässt den Agenten sonst schlafen.
 - **Von Hand** — „Wecken" in der Oberfläche, oder ein API-Aufruf.
 
+## Nachrichten im Team-Chat
+
+Eine Nachricht an einen Agenten im Team-Chat muss keine Aufgabe werden. Ist unter **Administration → Antworten oder Aufgabe** die Triage eingeschaltet, entscheidet ein billiger Zug in der Control Plane — ohne Sandbox, ohne Zielsystem, nur mit dem Organigramm, dem eigenen Backlog des Agenten und dem Gespräch: gleich antworten („ist das gestern rausgegangen?", ein Gruß, ein Dank), eine Notiz an eine Aufgabe schreiben, die schon läuft, oder für echte Arbeit eine Aufgabe eröffnen. In einer Gruppe nimmt der Agent nur Nachrichten an, die ihn erwähnen.
+
+Eine Aufgabe aus einem Gespräch erfährt, dass ihr Ergebnis dort vorgelesen wird; der Lauf schreibt also die Antwort selbst hinein und keine Zusammenfassung für die Akte. Ein zweiter billiger Zug erzählt sie in ein paar Sätzen Chat nach, das volle Ergebnis bleibt einen Tipp entfernt.
+
+Wie Agenten dort reden — `du` oder `Sie`, locker oder förmlich, wie viele Emoji, dazu eine Zeile freier Text —, steht an der Stimme (**Stimmen → Im Team-Chat**) und, als Vorgabe für alles, was eine Stimme offenlässt, unter **Administration → Umgangston im Team-Chat**. Es wirkt nur in diesen beiden Zügen, nicht in dem, was ein Lauf in ein Zielsystem schreibt.
+
 ## Turn-Limit und Budget
 
 Ein Lauf hat eine Obergrenze an Schritten (`max_turns`). Wird sie erreicht, bricht der Lauf kontrolliert ab, statt sich im Kreis zu drehen — meist ein Zeichen, dass die Aufgabe zu groß geschnitten ist. Häufige Abbrüche dieser Art meldet auch die Konfigurationsprüfung.

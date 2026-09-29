@@ -2903,5 +2903,28 @@
     "groupSize_few": "{{count}} leden inclusief jou",
     "groupSize_many": "{{count}} leden inclusief jou",
     "mentionList": "Vermelden"
+  },
+  "chatTone": {
+    "title": "In de teamchat",
+    "hintVoice": "Hoe agents met deze stem praten in de teamchat: in hun snelle antwoorden en wanneer ze vertellen wat een klus heeft opgeleverd. Een leeg veld neemt de standaard van de organisatie over.",
+    "orgTitle": "Toon in de teamchat",
+    "hintOrg": "Hoe AI-collega's standaard praten in de teamchat: voor agents zonder stem en voor wat een stem openlaat.",
+    "address": "Aanspreekvorm",
+    "address_du": "je/jij (informeel)",
+    "address_sie": "u (formeel)",
+    "address_auto": "zoals de persoon schrijft",
+    "tone": "Toon",
+    "tone_casual": "losjes",
+    "tone_matter_of_fact": "zakelijk",
+    "tone_formal": "formeel",
+    "emoji": "Emoji",
+    "emoji_never": "nooit",
+    "emoji_sparingly": "spaarzaam",
+    "emoji_freely": "vrij",
+    "unset": "standaard",
+    "note": "Verder, in de teamchat",
+    "notePlaceholder": "bijv. „Moin” zeggen in plaats van „Hallo”",
+    "save": "Opslaan",
+    "saved": "Opgeslagen"
   }
 }

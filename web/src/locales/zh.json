@@ -2903,5 +2903,28 @@
     "groupSize_few": "含你在内 {{count}} 人",
     "groupSize_many": "含你在内 {{count}} 人",
     "mentionList": "提及"
+  },
+  "chatTone": {
+    "title": "在团队聊天中",
+    "hintVoice": "使用此声音的智能体在团队聊天中如何说话：在快速回复中，以及讲述一项工作的结果时。空字段采用组织的默认值。",
+    "orgTitle": "团队聊天中的语气",
+    "hintOrg": "AI 同事在团队聊天中的默认说话方式：适用于没有声音的智能体，以及声音未设定的部分。",
+    "address": "称呼",
+    "address_du": "随意称呼（du）",
+    "address_sie": "正式称呼（Sie）",
+    "address_auto": "随对方的写法",
+    "tone": "语气",
+    "tone_casual": "轻松",
+    "tone_matter_of_fact": "就事论事",
+    "tone_formal": "正式",
+    "emoji": "表情符号",
+    "emoji_never": "从不",
+    "emoji_sparingly": "少量",
+    "emoji_freely": "随意",
+    "unset": "默认",
+    "note": "此外，在团队聊天中",
+    "notePlaceholder": "例如：说“Moin”而不是“Hallo”",
+    "save": "保存",
+    "saved": "已保存"
   }
 }

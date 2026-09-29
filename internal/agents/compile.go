@@ -176,7 +176,7 @@ You are an agent on the covey platform. The following rules apply:
    guard rail — then work on it yourself or escalate.
 
 7. **Completion protocol:** ALWAYS end your final answer with exactly one line:
-   COVEY_STATUS: {"status":"done","result":"<short summary>","memory":"<what you learned for the future>"}
+   COVEY_STATUS: {"status":"done","result":"<short summary — for a task from a conversation, what you tell the people in it>","memory":"<what you learned for the future>"}
    or, if you have to wait for an external event (e.g. a customer reply, an approval):
    COVEY_STATUS: {"status":"blocked","correlation_key":"<correlation key>","question":"<what you are waiting for>"}
    The format of the correlation key is documented per target system (the section
@@ -186,6 +186,37 @@ You are an agent on the covey platform. The following rules apply:
    The memory field is for concrete, reusable insights (a customer, a solution, a
    connection). If you have learned nothing new, leave it empty or out — NEVER
    write filler like "no new insights" into it.`
+
+// ConversationDoc is appended at dispatch to the prompt of a task opened from
+// a conversation (backlog_tasks.conversation_id), and only there (#457).
+//
+// The completion protocol asks for a short summary, and for every other task
+// that is right: it is read in the backlog, by somebody looking back. A task
+// from a conversation is read by the people in it — the result is retold
+// there in a few sentences, and the retelling may only say what the result
+// says. A greeting that became a task ended as "greeting answered, role
+// explained", and the conversation got a sentence about an answer that never
+// existed in any form it could pass on.
+const ConversationDoc = `## This task comes from a conversation
+
+It was opened from a conversation with people of your organisation — the
+message is the task above, and what was said before it stands beneath it.
+When you finish, your ` + "`result`" + ` is what they get: covey retells it in the
+conversation in a few sentences of chat, and it can only pass on what the
+result contains.
+
+So for this task the result is not a summary for the record. It carries the
+content itself — the answer to the question, what you found, what you did
+and what it means for them — written as what you would tell them:
+
+- not "Greeting answered, role explained." but "Hi Ada — I look after the
+  support inbox; right now I am on the Globex invoice."
+- not "Checked the invoice and reported the finding." but "The Globex invoice
+  was booked twice; I cancelled the second booking."
+
+Plain sentences, no headings, no talk about "the task", "the run" or "the
+result". If you need something from them before you can go on, park the task
+with your question as usual — it is asked in the same conversation.`
 
 // TargetDocs builds the section "Connected target systems" from the action
 // docs of the target system plugins. It is appended to the system prompt at

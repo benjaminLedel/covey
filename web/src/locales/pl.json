@@ -2903,5 +2903,28 @@
     "groupSize_few": "{{count}} członkowie razem z tobą",
     "groupSize_many": "{{count}} członków razem z tobą",
     "mentionList": "Wspomnij"
+  },
+  "chatTone": {
+    "title": "Na czacie zespołu",
+    "hintVoice": "Jak agenci z tym głosem rozmawiają na czacie zespołu: w szybkich odpowiedziach i gdy opowiadają, co wyszło z pracy. Puste pole przejmuje domyślną wartość organizacji.",
+    "orgTitle": "Ton na czacie zespołu",
+    "hintOrg": "Jak domyślnie rozmawiają współpracownicy AI na czacie zespołu: dla agentów bez głosu i dla tego, co głos pozostawia otwarte.",
+    "address": "Forma zwracania się",
+    "address_du": "na ty (nieformalnie)",
+    "address_sie": "per Pan/Pani (formalnie)",
+    "address_auto": "tak, jak pisze osoba",
+    "tone": "Ton",
+    "tone_casual": "swobodny",
+    "tone_matter_of_fact": "rzeczowy",
+    "tone_formal": "formalny",
+    "emoji": "Emoji",
+    "emoji_never": "nigdy",
+    "emoji_sparingly": "oszczędnie",
+    "emoji_freely": "swobodnie",
+    "unset": "domyślnie",
+    "note": "Ponadto na czacie zespołu",
+    "notePlaceholder": "np. mówić „Moin” zamiast „Hallo”",
+    "save": "Zapisz",
+    "saved": "Zapisano"
   }
 }

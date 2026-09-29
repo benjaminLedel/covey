@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { api, del, post, type Principal, type Voice, type VoiceCorrection, type VoiceDetail } from "../api";
+import { api, del, post, put, type ChatTone, type Principal, type Voice, type VoiceCorrection, type VoiceDetail } from "../api";
+import { ChatToneForm } from "../components/ChatToneForm";
 
 const canEdit = (role: string) => role === "org_admin" || role === "agent_owner";
 
@@ -196,6 +197,10 @@ function VoiceDetailView({ id, editable }: { id: string; editable: boolean }) {
     mutationFn: () => post(`/voices/${id}/release`, { card: card ?? "" }),
     onSuccess: inval,
   });
+  const saveTone = useMutation({
+    mutationFn: (tone: ChatTone) => put<Voice>(`/voices/${id}/chat-tone`, tone),
+    onSuccess: inval,
+  });
 
   if (!detail.data) return <p className="muted text-xs mt-3">{t("common.loading")}</p>;
   const v = detail.data;
@@ -250,6 +255,23 @@ function VoiceDetailView({ id, editable }: { id: string; editable: boolean }) {
             {addDoc.isError && <span style={{ color: "var(--error)" }}>{(addDoc.error as Error).message}</span>}
           </div>
         )}
+      </div>
+
+      {/* Set, not built: whether the agent says "du" in the team chat is in
+          no corpus (#457). */}
+      <div>
+        <div className="text-sm font-medium mb-1">{t("chatTone.title")}</div>
+        <p className="muted mb-2" style={{ maxWidth: 680 }}>
+          {t("chatTone.hintVoice")}
+        </p>
+        <ChatToneForm
+          key={JSON.stringify(v.chat_tone ?? {})}
+          value={v.chat_tone ?? {}}
+          editable={editable}
+          saving={saveTone.isPending}
+          error={saveTone.isError ? (saveTone.error as Error).message : undefined}
+          onSave={(tone) => saveTone.mutate(tone)}
+        />
       </div>
 
       {/* The card is the only part a model writes — and therefore the only one

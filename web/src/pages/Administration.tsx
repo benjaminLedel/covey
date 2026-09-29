@@ -4,7 +4,7 @@ import { NavLink, Route, Routes } from "react-router";
 import { api, type Agent, type Human, type OrgCostReport, type Organization, type Principal } from "../api";
 import Audit from "./Audit";
 import Diagnostics from "./Diagnostics";
-import { CompanyDescription, OfficeFurnishing, PlatformRepo, PushSettings, ReachSettings, RecordingSettings, TeamSurfaceSettings, TriageSettings } from "./Org";
+import { ChatToneSettings, CompanyDescription, OfficeFurnishing, PlatformRepo, PushSettings, ReachSettings, RecordingSettings, TeamSurfaceSettings, TriageSettings } from "./Org";
 import { ProfileFieldsSettings } from "./Organizations";
 import Users from "./Users";
 import { fmtUSD } from "../format";
@@ -81,6 +81,7 @@ function Profile({ me }: { me: Principal }) {
       <OfficeFurnishing />
       <TriageSettings />
       <ReachSettings me={me} />
+      <ChatToneSettings me={me} />
       <RecordingSettings />
       <PlatformRepo />
       <ProfileFieldsSettings />

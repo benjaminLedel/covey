@@ -151,6 +151,14 @@ The second turn stands under the same limits as the first — no target
 system, no credential, nothing claimed beyond what the result says. Without
 a model it says nothing, and the report stands on its own as before.
 
+**As a teammate** (#457). A greeting in a group came back as "I answered your greeting and explained my role" — a report about an answer instead of the answer. Three changes, one per place the wording came from:
+
+- the triage's reply is always the JSON object, but a short chat line without any JSON is read as the answer rather than as a failed turn, so a greeting that the model answered with a bare emoji no longer becomes a task;
+- a task opened from a conversation is told at dispatch that its result is read out to the people there, so it carries the content itself; every other task keeps the summary for the record;
+- both turns are told that in a group the agent is one colleague among several: the author is named and addressed by first name, a greeting is answered as a greeting, nothing is said about tasks, runs or reports, nothing repeated that somebody already said, and less said than in a direct chat. A result that only records that something was done is not retold as such.
+
+How the agent talks there — address, tone, emoji and a line of free text — is part of its voice and has an organisation default ([`24`](24-voice.md)). An evaluation set of conversation scenarios with hard checks and a model-graded score (`internal/chat/testdata/eval`, `make eval-chat`) measures a change to these prompts.
+
 The open decisions are in the issue; the load-bearing one is what the answer
 is allowed to know. The recommendation is: the role and the conversation, not the
 wiki memory. An answer that needs the memory is an answer that should have

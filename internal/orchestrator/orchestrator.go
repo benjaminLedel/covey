@@ -2238,6 +2238,16 @@ func (o *Orchestrator) publishTask(taskID uuid.UUID, agent agents.Agent) {
 		Data: map[string]string{"task_id": taskID.String()}})
 }
 
+// conversationSection is what a run of a task opened from a conversation is
+// told about its result (#457): the people read it. Empty for every other
+// task, whose result stays the summary for the record.
+func conversationSection(task backlog.Task) string {
+	if task.ConversationID == nil {
+		return ""
+	}
+	return "\n\n" + agents.ConversationDoc
+}
+
 // processTask drives a task through triage → working → done/blocked/failed.
 func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link DaemonLink, task backlog.Task, s *session) error {
 	taskID := task.ID
@@ -2418,6 +2428,7 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	if section := o.OrgSections(ctx, agent); section != "" {
 		compiled += "\n\n" + section
 	}
+	compiled += conversationSection(task)
 
 	maxTurns := agent.MaxTurns
 	if maxTurns <= 0 {

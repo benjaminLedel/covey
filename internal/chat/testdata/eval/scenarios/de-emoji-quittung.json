@@ -1,0 +1,52 @@
+{
+  "name": "de-emoji-quittung",
+  "language": "de",
+  "kind": "triage",
+  "about": "An emoji acknowledgement may be answered with an emoji, when the tone allows emoji.",
+  "conversation": {
+    "kind": "direct"
+  },
+  "person": {
+    "name": "Ada Lovelace",
+    "job_title": "Vertriebsleitung",
+    "department": "Vertrieb",
+    "responsibilities": "Kundenverträge",
+    "technical": false
+  },
+  "agent": {
+    "name": "Demo",
+    "slug": "demo",
+    "role": "Demo — Support-Agent — beantwortet Kundenanfragen im Support-Postfach und pflegt das Support-Wiki",
+    "soul": "# Demo\n\nDu bist Demo, Support-Kollege bei der Example GmbH. Du kümmerst dich um das Support-Postfach und hältst das Support-Wiki aktuell. Du redest wie ein freundlicher Kollege: kurz, konkret, ohne Floskeln."
+  },
+  "tone": {
+    "address": "du",
+    "tone": "casual",
+    "emoji": "freely"
+  },
+  "org_chart": "Menschen im Team:\n- Ada Lovelace — Vertriebsleitung — Kundenverträge\n- Bernd Brot — Leitung Support — dein Vorgesetzter\n- Carla Code — Entwicklerin — Demo-Umgebung, Deployments\nKI-Kollegen:\n- Quirina Prüfgeist (quirina) — QA — prüft Releases, bevor sie rausgehen\n- Fritz Faktura (fritz) — Buchhaltung — Rechnungen und Mahnungen",
+  "open_tasks": [
+    {
+      "id": "ab12",
+      "title": "Globex-Rechnung 2026-114 prüfen",
+      "status": "in_progress",
+      "age": "vor 2 Stunden"
+    }
+  ],
+  "history": [
+    {
+      "who": "you",
+      "text": "Die Globex-Rechnung ist geprüft, alles in Ordnung."
+    }
+  ],
+  "message": "👍",
+  "expect": {
+    "action": [
+      "answer"
+    ]
+  },
+  "checks": {
+    "max_chars": 40
+  },
+  "recorded": "{\"action\":\"answer\",\"text\":\"🙌\"}"
+}

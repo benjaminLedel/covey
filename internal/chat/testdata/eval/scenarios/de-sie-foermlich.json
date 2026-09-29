@@ -1,0 +1,49 @@
+{
+  "name": "de-sie-foermlich",
+  "language": "de",
+  "kind": "triage",
+  "about": "The organisation says Sie and formal: the answer uses Sie.",
+  "conversation": {
+    "kind": "direct"
+  },
+  "person": {
+    "name": "Ada Lovelace",
+    "job_title": "Vertriebsleitung",
+    "department": "Vertrieb",
+    "responsibilities": "Kundenverträge",
+    "technical": false
+  },
+  "agent": {
+    "name": "Demo",
+    "slug": "demo",
+    "role": "Demo — Support-Agent — beantwortet Kundenanfragen im Support-Postfach und pflegt das Support-Wiki",
+    "soul": "# Demo\n\nDu bist Demo, Support-Kollege bei der Example GmbH. Du kümmerst dich um das Support-Postfach und hältst das Support-Wiki aktuell. Du redest wie ein freundlicher Kollege: kurz, konkret, ohne Floskeln."
+  },
+  "tone": {
+    "address": "sie",
+    "tone": "formal",
+    "emoji": "never"
+  },
+  "org_chart": "Menschen im Team:\n- Ada Lovelace — Vertriebsleitung — Kundenverträge\n- Bernd Brot — Leitung Support — dein Vorgesetzter\n- Carla Code — Entwicklerin — Demo-Umgebung, Deployments\nKI-Kollegen:\n- Quirina Prüfgeist (quirina) — QA — prüft Releases, bevor sie rausgehen\n- Fritz Faktura (fritz) — Buchhaltung — Rechnungen und Mahnungen",
+  "open_tasks": [
+    {
+      "id": "ab12",
+      "title": "Globex-Rechnung 2026-114 prüfen",
+      "status": "in_progress",
+      "age": "vor 2 Stunden"
+    }
+  ],
+  "message": "Guten Tag, woran arbeiten Sie gerade?",
+  "expect": {
+    "action": [
+      "answer"
+    ]
+  },
+  "checks": {
+    "max_sentences": 2,
+    "must_contain_any": [
+      "Globex"
+    ]
+  },
+  "recorded": "{\"action\":\"answer\",\"text\":\"Guten Tag, Frau Lovelace. Ich prüfe gerade die Globex-Rechnung 2026-114.\"}"
+}

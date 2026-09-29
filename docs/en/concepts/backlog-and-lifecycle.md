@@ -42,6 +42,14 @@ When an event with the same key arrives later, it wakes exactly that task again,
 - **Heartbeat** — a schedule from `HEARTBEAT.md`, e.g. `- alle: 30m titel: Inbox aufgabe: Triage new tickets.` With `nur-wenn:` the control plane cheaply checks first whether there is anything to do at all, and otherwise lets the agent sleep.
 - **By hand** — "Wake" in the interface, or an API call.
 
+## Messages in the team chat
+
+A message to an agent in the team chat does not have to become a task. With **Organization → Answer or task** switched on, a cheap turn in the control plane — no sandbox, no target system, only the org chart, the agent's own backlog and the conversation — decides: answer on the spot ("did that go out yesterday?", a greeting, a thank-you), add a note to a task that is already running, or open a task for real work. In a group the agent only takes messages that mention it.
+
+A task opened from a conversation is told that its result is read out there, so the run writes the answer itself rather than a summary for the record; a second cheap turn retells it in a few sentences of chat, and the full result stays one tap away.
+
+How agents talk there — `du` or `Sie`, casual or formal, how many emoji, plus a line of free text — is set on the voice (**Voices → In the team chat**) and, as the default for everything a voice leaves open, under **Organization → Tone in the team chat**. It acts in these two turns only, not in what a run writes into a target system.
+
 ## Turn limit and budget
 
 A run has an upper bound on steps (`max_turns`). When it is reached the run aborts in a controlled way instead of going in circles — usually a sign the task was cut too large. Frequent aborts of this kind are also reported by the configuration lint.

@@ -562,6 +562,10 @@ func (s *Server) Handler() http.Handler {
 	// own departments.
 	mux.Handle("GET /api/v1/org/chat-reach", s.rbac(anyRole, s.handleGetReach))
 	mux.Handle("PATCH /api/v1/org/chat-reach", s.rbac([]string{identity.RoleOrgAdmin}, s.handleSetReach))
+	// The organisation's default tone in the team chat (#457), beside the
+	// triage switch and for the same roles.
+	mux.Handle("GET /api/v1/org/chat-tone", s.rbac(anyRole, s.handleGetOrgChatTone))
+	mux.Handle("PATCH /api/v1/org/chat-tone", s.rbac(manage, s.handleSetOrgChatTone))
 	// The team surface is an opt-in per organisation while it is in beta
 	// (#328): every role may read whether it is on — the interface picks its
 	// shell by it — and whoever manages the organisation switches it.
@@ -759,6 +763,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /api/v1/voices/{id}/documents/{docID}", s.rbac(manage, s.handleDeleteVoiceDocument))
 	mux.Handle("POST /api/v1/voices/{id}/build", s.rbac(manage, s.handleBuildVoice))
 	mux.Handle("POST /api/v1/voices/{id}/release", s.rbac(manage, s.handleReleaseVoiceCard))
+	// How the agents carrying a voice talk in the team chat (#457).
+	mux.Handle("PUT /api/v1/voices/{id}/chat-tone", s.rbac(manage, s.handleSetVoiceChatTone))
 	// The correction pairs (spec/24). The approval gate fills them by itself;
 	// the POST is the way in for the other source — a plugin that notices
 	// somebody editing a published text, which lives in the pack and must not

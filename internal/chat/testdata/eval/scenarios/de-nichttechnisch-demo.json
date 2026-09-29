@@ -1,0 +1,61 @@
+{
+  "name": "de-nichttechnisch-demo",
+  "language": "de",
+  "kind": "triage",
+  "about": "A non-technical person asks whether the demo works again: plain words, no pods, no branches.",
+  "conversation": {
+    "kind": "direct"
+  },
+  "person": {
+    "name": "Ada Lovelace",
+    "job_title": "Vertriebsleitung",
+    "department": "Vertrieb",
+    "responsibilities": "Kundenverträge",
+    "technical": false
+  },
+  "agent": {
+    "name": "Demo",
+    "slug": "demo",
+    "role": "Demo — Support-Agent — beantwortet Kundenanfragen im Support-Postfach und pflegt das Support-Wiki",
+    "soul": "# Demo\n\nDu bist Demo, Support-Kollege bei der Example GmbH. Du kümmerst dich um das Support-Postfach und hältst das Support-Wiki aktuell. Du redest wie ein freundlicher Kollege: kurz, konkret, ohne Floskeln."
+  },
+  "tone": {
+    "address": "du",
+    "tone": "casual",
+    "emoji": "sparingly"
+  },
+  "org_chart": "Menschen im Team:\n- Ada Lovelace — Vertriebsleitung — Kundenverträge\n- Bernd Brot — Leitung Support — dein Vorgesetzter\n- Carla Code — Entwicklerin — Demo-Umgebung, Deployments\nKI-Kollegen:\n- Quirina Prüfgeist (quirina) — QA — prüft Releases, bevor sie rausgehen\n- Fritz Faktura (fritz) — Buchhaltung — Rechnungen und Mahnungen",
+  "open_tasks": [],
+  "finished_tasks": [
+    {
+      "title": "Demo-Umgebung reparieren",
+      "outcome": "done",
+      "age": "vor 3 Stunden",
+      "result": "Pod demo-web lag im CrashLoopBackOff (OOMKilled). Memory-Limit des Deployments demo-web auf 1Gi erhöht, Fix auf Branch fix/demo-oom, Pipeline #812 grün, Rollout durch."
+    }
+  ],
+  "message": "Läuft die Demo-Umgebung wieder? Ich hab um drei einen Kundentermin.",
+  "expect": {
+    "action": [
+      "answer"
+    ]
+  },
+  "checks": {
+    "max_sentences": 2,
+    "must_contain_any": [
+      "läuft",
+      "wieder"
+    ],
+    "must_not_contain": [
+      "Pod",
+      "CrashLoop",
+      "OOM",
+      "Deployment",
+      "1Gi",
+      "Branch",
+      "Pipeline",
+      "fix/demo-oom"
+    ]
+  },
+  "recorded": "{\"action\":\"answer\",\"text\":\"Ja, läuft wieder seit heute Vormittag, für deinen Termin um drei passt das.\"}"
+}

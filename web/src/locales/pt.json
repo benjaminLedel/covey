@@ -2903,5 +2903,28 @@
     "groupSize_few": "{{count}} membros consigo",
     "groupSize_many": "{{count}} membros consigo",
     "mentionList": "Mencionar"
+  },
+  "chatTone": {
+    "title": "No chat da equipe",
+    "hintVoice": "Como os agentes com esta voz falam no chat da equipe: nas respostas rápidas e ao contar o que saiu de um trabalho. Um campo vazio assume o padrão da organização.",
+    "orgTitle": "Tom no chat da equipe",
+    "hintOrg": "Como os colegas de IA falam por padrão no chat da equipe: para agentes sem voz e para o que uma voz deixa em aberto.",
+    "address": "Tratamento",
+    "address_du": "você/tu (informal)",
+    "address_sie": "o senhor/a senhora (formal)",
+    "address_auto": "como a pessoa escreve",
+    "tone": "Tom",
+    "tone_casual": "descontraído",
+    "tone_matter_of_fact": "objetivo",
+    "tone_formal": "formal",
+    "emoji": "Emoji",
+    "emoji_never": "nunca",
+    "emoji_sparingly": "com moderação",
+    "emoji_freely": "à vontade",
+    "unset": "padrão",
+    "note": "Além disso, no chat da equipe",
+    "notePlaceholder": "ex.: dizer “Moin” em vez de “Hallo”",
+    "save": "Salvar",
+    "saved": "Salvo"
   }
 }

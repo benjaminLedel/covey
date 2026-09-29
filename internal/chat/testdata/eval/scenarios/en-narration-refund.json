@@ -1,0 +1,62 @@
+{
+  "name": "en-narration-refund",
+  "language": "en",
+  "kind": "narration",
+  "about": "A real result in English: the amount and what was done must arrive.",
+  "conversation": {
+    "kind": "group",
+    "title": "Support huddle",
+    "members": [
+      {
+        "name": "Ada Lovelace",
+        "kind": "human"
+      },
+      {
+        "name": "Bernd Brot",
+        "kind": "human"
+      },
+      {
+        "name": "Quirina Tester",
+        "kind": "agent",
+        "slug": "quirina"
+      }
+    ]
+  },
+  "person": {
+    "name": "Ada Lovelace",
+    "job_title": "Head of Sales",
+    "department": "Sales",
+    "responsibilities": "customer contracts",
+    "technical": false
+  },
+  "agent": {
+    "name": "Sam",
+    "slug": "sam",
+    "role": "Sam — Support agent — answers customer requests in the support inbox and keeps the support wiki",
+    "soul": "# Sam\n\nYou are Sam, a support colleague at Example Ltd. You look after the support inbox and keep the support wiki up to date. You talk like a friendly colleague: short, concrete, no filler."
+  },
+  "history": [
+    {
+      "who": "Ada Lovelace",
+      "text": "@sam please reply to the customer in ticket 4711 and offer them a refund"
+    },
+    {
+      "who": "you",
+      "text": "On it, Ada, I'll reply in 4711 and offer the refund."
+    }
+  ],
+  "task": {
+    "title": "Reply to ticket 4711 and offer a refund",
+    "body": "please reply to the customer in ticket 4711 and offer them a refund",
+    "state": "done",
+    "result": "Replied in ticket 4711: apologised for the delay and offered a refund of 49 EUR; reply sent at 14:05."
+  },
+  "checks": {
+    "first_name": true,
+    "must_contain": [
+      "49"
+    ],
+    "max_sentences": 3
+  },
+  "recorded": "Ada, done: I replied in 4711, apologised for the delay and offered the 49 EUR refund."
+}

@@ -39,6 +39,19 @@ Knowledge and experience are not part of a voice. They come from the model and f
 
 The gate keeps acting on HIGH findings only; the contrast list turns the author's "never" into bands whose upper edge is close to zero, so a single dash is a MEDIUM and a page of them a HIGH.
 
+## The tone in the team chat (#457)
+
+A fifth part of a voice is set rather than built: how an agent carrying it talks in the team chat ([`28`](28-team-surface.md), section 5). Whether a colleague says "du" or "Sie", and whether a thank-you gets an emoji, is in no corpus — the corpus is written for the record — and it is a decision of the organisation, like a dress code. Four fields:
+
+- `address` — `du`, `sie`, or `auto` (the way the person writes; the organisation's `du` or `sie` when that cannot be told),
+- `tone` — `casual`, `matter_of_fact` or `formal`,
+- `emoji` — `never`, `sparingly` or `freely`,
+- `note` — free text for what the three do not say, at most 300 characters.
+
+The organisation has the same four as its default (`organizations.chat_tone`): it applies to an agent without a voice, and field by field to what a voice leaves empty; a voice's own note replaces the default note rather than adding to it. Stored as `voices.chat_tone` and `organizations.chat_tone` (migration 0120), set with `PUT /api/v1/voices/{id}/chat-tone` and `PATCH /api/v1/org/chat-tone` by the same roles that change a voice; every role reads it.
+
+It acts where the chat is written — the triage and the narration, as one short block ("How you talk in the team chat: …") — and not in a run: what a run writes into a target system keeps the register of the `TONE.md`, and changing the chat tone writes no config version.
+
 ## The build
 
 Input: a folder of texts (`.md`, `.txt`, `.docx`, `.odt`, `.html`), or texts uploaded to the organisation. One voice per register — seven blog posts and one legal notice give bands that fit neither. Fewer than four documents give min..max bands padded by 15 % instead of a percentile spread; the build says so.

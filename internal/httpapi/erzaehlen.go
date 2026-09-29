@@ -169,8 +169,13 @@ func (s *Server) erzaehlText(ctx context.Context, b chat.Report) string {
 	}
 	// The person the task came from (origin chat:<email>), #412.
 	gegenueber := s.gegenueberVon(ctx, b.OrgID, strings.TrimPrefix(b.Origin, "chat:"))
-	text, err := chat.Erzaehlen(ctx, provider, s.rolleVon(ctx, b.AgentID), s.seeleVon(ctx, b.AgentID), gegenueber,
-		verlauf, auftrag, b.State, b.Outcome)
+	rahmen := chat.Rahmen{Rolle: s.rolleVon(ctx, b.AgentID), Seele: s.seeleVon(ctx, b.AgentID),
+		Gegenueber: gegenueber, Ton: s.tonVon(ctx, b.AgentID)}
+	// In a group everybody reads the retelling, not only who asked (#457).
+	if conv, err := s.Chat.Get(ctx, b.ConversationID); err == nil {
+		rahmen.Raum = chat.Raum(conv, b.AgentID, s.nameVon(ctx, b.OrgID, strings.TrimPrefix(b.Origin, "chat:")), false)
+	}
+	text, err := chat.Erzaehlen(ctx, provider, rahmen, verlauf, auftrag, b.State, b.Outcome)
 	if err != nil {
 		s.Log.Warn("narration failed — the report stands on its own", "task", b.TaskID, "err", err)
 		return ""
