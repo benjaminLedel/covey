@@ -39,16 +39,17 @@ export const appLink = (origin: string, code: string) =>
  * whether the app has used it, so it can say "paired with <device>" instead of
  * leaving the person to guess — and the key list below refreshes, because the
  * pairing has just put a key into it. */
-/* Where the Mac app comes from (#408): the release of this instance's own
-   version, which carries it since #406 — so app and server match. A build
-   between tags has no release of its own and gets the latest one. The
-   address is the source the instance reports, so a fork links its own
-   releases; one that is not on GitHub gets no link rather than a wrong one. */
-export const macAppLink = (source: string, version: string): string | null => {
+/* Where a desktop app comes from (#408, #436): the release of this
+   instance's own version, which carries the Mac app since #406 and the
+   Windows app since #436 — so app and server match. A build between tags has
+   no release of its own and gets the latest one. The address is the source
+   the instance reports, so a fork links its own releases; one that is not on
+   GitHub gets no link rather than a wrong one. */
+export const desktopAppLink = (source: string, version: string, platform: "macos" | "windows"): string | null => {
   const repo = source.replace(/\/+$/, "");
   if (!/^https:\/\/github\.com\/[^/]+\/[^/]+$/.test(repo)) return null;
   return /^v\d+\.\d+\.\d+$/.test(version)
-    ? `${repo}/releases/download/${version}/covey-app_${version}_macos.zip`
+    ? `${repo}/releases/download/${version}/covey-app_${version}_${platform}.zip`
     : `${repo}/releases/latest`;
 };
 
@@ -58,7 +59,7 @@ export const macAppLink = (source: string, version: string): string | null => {
 export default function MobilePairing({ bare = false }: { bare?: boolean }) {
   const { t } = useTranslation();
   const build = useQuery({ queryKey: ["version"], queryFn: buildInfo, staleTime: Infinity, retry: false });
-  const macApp = build.data ? macAppLink(build.data.source, build.data.version) : null;
+  const macApp = build.data ? desktopAppLink(build.data.source, build.data.version, "macos") : null;
   const qc = useQueryClient();
   const [pairing, setPairing] = useState<Pairing | null>(null);
   const [qr, setQr] = useState("");

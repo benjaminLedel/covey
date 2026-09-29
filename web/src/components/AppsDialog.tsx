@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { buildInfo } from "../api";
 import { Modal } from "./Modal";
-import MobilePairing, { macAppLink } from "./MobilePairing";
+import MobilePairing, { desktopAppLink } from "./MobilePairing";
 import { NavIcon } from "./navicons";
 
 /* Where the apps are (#432). The phone apps are one app for every
@@ -18,12 +18,14 @@ export const stores: { ios: string | null; android: string | null } = {
 export default function AppsDialog({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const build = useQuery({ queryKey: ["version"], queryFn: buildInfo, staleTime: Infinity, retry: false });
-  const mac = build.data ? macAppLink(build.data.source, build.data.version) : null;
+  const mac = build.data ? desktopAppLink(build.data.source, build.data.version, "macos") : null;
+  const windows = build.data ? desktopAppLink(build.data.source, build.data.version, "windows") : null;
 
   const rows: { icon: string; name: string; href: string | null; action: string }[] = [
     { icon: "phone", name: t("apps.ios"), href: stores.ios, action: t("apps.appStore") },
     { icon: "phone", name: t("apps.android"), href: stores.android, action: t("apps.playStore") },
     { icon: "laptop", name: t("apps.mac"), href: mac, action: t("apps.download") },
+    { icon: "laptop", name: t("apps.windows"), href: windows, action: t("apps.download") },
   ];
 
   return (
