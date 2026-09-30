@@ -236,6 +236,12 @@ const triageSchluss = `Add "end_call": true only when the person is ending the c
 // answer to a message that asks something: a question wants its answer, not
 // a goodbye.
 func endetAnruf(e Entscheidung, nachricht string) bool {
+	/* The person has to have said goodbye in words (#521): a misheard
+	   short turn ("Tandu.") once closed a call because the model read it
+	   as a farewell. */
+	if !SaysGoodbye(nachricht) {
+		return false
+	}
 	switch e.Aktion {
 	case AktionAntwort:
 		return !strings.ContainsAny(nachricht, "?¿？")
@@ -389,4 +395,42 @@ func Sprechfassung(ctx context.Context, p llm.Provider, text string) (string, bo
 		return "", false, fmt.Errorf("spoken form: in %s, the message in %s", normalise.Language(spoken), lang)
 	}
 	return spoken, out.Details, nil
+}
+
+// farewells are the words a person closes a call with, lower-case and
+// without punctuation, matched as whole words or phrases (#521).
+var farewells = []string{
+	// German
+	"tschüss", "tschüs", "tschau", "ciao", "servus", "ade", "adieu",
+	"bis später", "bis dann", "bis morgen", "bis bald", "bis gleich", "bis nachher",
+	"auf wiederhören", "auf wiedersehen", "mach's gut", "machs gut", "macht's gut",
+	"schönen abend", "schönen tag", "schönes wochenende", "gute nacht", "schönen feierabend",
+	"das war's", "das wars", "das wär's", "das wärs", "das war alles", "das wäre alles",
+	"leg auf", "ich leg auf", "ich lege auf",
+	// English
+	"bye", "goodbye", "good bye", "bye bye", "see you", "see ya", "talk later", "talk to you later",
+	"that's all", "thats all", "that's it", "thats it", "have a good", "have a nice", "take care",
+	"i'll hang up", "hanging up", "cheers",
+}
+
+// SaysGoodbye reports whether text contains a farewell (#521): the only
+// words a call may be closed on.
+func SaysGoodbye(text string) bool {
+	t := " " + strings.Map(func(r rune) rune {
+		switch {
+		case r == '\'' || r == '’':
+			return '\''
+		case unicode.IsLetter(r) || unicode.IsDigit(r):
+			return unicode.ToLower(r)
+		}
+		return ' '
+	}, text) + " "
+	t = strings.Join(strings.Fields(t), " ")
+	t = " " + t + " "
+	for _, f := range farewells {
+		if strings.Contains(t, " "+f+" ") {
+			return true
+		}
+	}
+	return false
 }

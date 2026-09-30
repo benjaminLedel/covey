@@ -103,6 +103,8 @@ func (s *Server) melden(ctx context.Context, b chat.Report) {
 	var details, schluss bool
 	if b.ChatAnswer {
 		text, gesprochen, details, schluss = chat.SplitSpokenCall(text)
+		// Closed only on the person's farewell, not the run's reading (#521).
+		schluss = schluss && chat.SaysGoodbye(b.Title+" "+b.Body)
 	}
 	if b.SaidInCall {
 		if gesprochen == "" {
