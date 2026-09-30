@@ -1132,10 +1132,29 @@ final class SystemAudioTap {
 /// the agent says while it thinks ("filler", or "fillerSay" through a
 /// synthesiser of their own), which fade out when the reply begins. Neither
 /// reports events: Dart knows how long each lasts.
+///
+/// The call's microphone runs on the same engine (#507): "micStart" turns on
+/// Apple's voice processing on its input node — echo cancellation against
+/// what the engine plays, noise suppression, automatic gain — and streams
+/// the processed input, 16 kHz mono Float32, on `covey/voice/mic`.
+/// "micStop" (mute) removes the tap and keeps voice processing; "micRelease"
+/// (hang-up) stops the engine a moment later and starts from a fresh one, so
+/// the microphone is closed and playback is plain again. What the system's
+/// synthesiser says does not pass through the engine and is not cancelled.
 final class SpeechVoice: NSObject, AVSpeechSynthesizerDelegate {
   private let channel: FlutterMethodChannel
   private let synth = AVSpeechSynthesizer()
-  private let engine = AVAudioEngine()
+  /// Replaced by a fresh one when a call releases the microphone.
+  private var engine = AVAudioEngine()
+  private let micChannel: FlutterEventChannel
+  private let mic = MicSink()
+  /// Voice processing on the engine's input: not asked yet, on, or failed
+  /// (the microphone then runs plain on the same engine).
+  private enum Processing { case off, on, failed(String) }
+  private var processing = Processing.off
+  private var tapped = false
+  private var releaseLater: DispatchWorkItem?
+  private var configObserver: NSObjectProtocol?
   private let player = AVAudioPlayerNode()
   private var playerFormat: AVAudioFormat?
   private let fillerSynth = AVSpeechSynthesizer()
@@ -1158,12 +1177,249 @@ final class SpeechVoice: NSObject, AVSpeechSynthesizerDelegate {
 
   init(messenger: FlutterBinaryMessenger) {
     channel = FlutterMethodChannel(name: "covey/voice", binaryMessenger: messenger)
+    micChannel = FlutterEventChannel(name: "covey/voice/mic", binaryMessenger: messenger)
     super.init()
     synth.delegate = self
     fillerSynth.delegate = self
+    micChannel.setStreamHandler(mic)
+    observe()
     channel.setMethodCallHandler { [weak self] call, result in
       self?.handle(call, result)
     }
+  }
+
+  // MARK: The call's microphone (#507)
+
+  struct MicFailure: Error, CustomStringConvertible {
+    let description: String
+  }
+
+  /// Watches the engine for a route or device change, which stops it.
+  private func observe() {
+    if let o = configObserver { NotificationCenter.default.removeObserver(o) }
+    configObserver = NotificationCenter.default.addObserver(
+      forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main
+    ) { [weak self] _ in self?.configurationChanged() }
+  }
+
+  private func micStart(_ result: @escaping FlutterResult) {
+    switch AVCaptureDevice.authorizationStatus(for: .audio) {
+    case .authorized:
+      break
+    case .notDetermined:
+      AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
+        DispatchQueue.main.async {
+          guard let self else { return result(nil) }
+          if granted {
+            self.micStart(result)
+          } else {
+            result(FlutterError(code: "denied", message: "the microphone is not allowed", details: nil))
+          }
+        }
+      }
+      return
+    default:
+      return result(FlutterError(code: "denied", message: "the microphone is not allowed", details: nil))
+    }
+    releaseLater?.cancel()
+    releaseLater = nil
+    do {
+      try openMic()
+      result(micInfo())
+    } catch {
+      NSLog("covey call: the microphone did not start: \(error)")
+      removeTap()
+      result(FlutterError(code: "mic", message: "\(error)", details: nil))
+    }
+  }
+
+  /// Turns voice processing on (once per call), taps the input and makes
+  /// sure the engine runs. Voice processing can only change while the
+  /// engine is stopped; it changes the output's format too, so the mixer is
+  /// connected to the output again.
+  private func openMic() throws {
+    if case .off = processing {
+      if engine.isRunning { engine.stop() }
+      do {
+        try engine.inputNode.setVoiceProcessingEnabled(true)
+        processing = .on
+        engine.inputNode.isVoiceProcessingAGCEnabled = true
+        if #available(macOS 14.0, *) {
+          // Other audio on the Mac (music, a video) as loud as the API lets
+          // it stay.
+          engine.inputNode.voiceProcessingOtherAudioDuckingConfiguration =
+            AVAudioVoiceProcessingOtherAudioDuckingConfiguration(enableAdvancedDucking: false, duckingLevel: .min)
+        }
+        NSLog("covey call: voice processing on")
+      } catch {
+        processing = .failed("\(error)")
+        NSLog("covey call: voice processing could not be turned on, the microphone runs plain: \(error)")
+      }
+      reconnect()
+    }
+    try installTap()
+    if !engine.isRunning {
+      engine.prepare()
+      try engine.start()
+    }
+    NSLog("covey call: microphone open \(micInfo())")
+  }
+
+  /// The mixer to the output in the output's current format, and each
+  /// player to the mixer in its own.
+  private func reconnect() {
+    engine.connect(engine.mainMixerNode, to: engine.outputNode, format: nil)
+    if let f = playerFormat { engine.connect(player, to: engine.mainMixerNode, format: f) }
+    if let f = fillerFormat { engine.connect(fillerPlayer, to: engine.mainMixerNode, format: f) }
+    if let f = earconFormat { engine.connect(earconPlayer, to: engine.mainMixerNode, format: f) }
+  }
+
+  /// A tap on the input: its first channel — the processed voice — to
+  /// 16 kHz mono Float32, sent to Dart as it comes.
+  private func installTap() throws {
+    if tapped { return }
+    let input = engine.inputNode
+    let format = input.outputFormat(forBus: 0)
+    guard format.sampleRate > 0, format.channelCount > 0 else {
+      throw MicFailure(description: "the input has no usable format (\(format)); is a microphone connected?")
+    }
+    // Deinterleaved Float32 is split to its first channel here; anything
+    // else is left to the converter.
+    let split = format.commonFormat == .pcmFormatFloat32 && !format.isInterleaved && format.channelCount > 1
+    guard
+      let mono = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: format.sampleRate, channels: 1, interleaved: false),
+      let target = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16000, channels: 1, interleaved: false),
+      let converter = AVAudioConverter(from: split ? mono : format, to: target)
+    else { throw MicFailure(description: "no conversion from \(format) to 16 kHz mono") }
+    let sink = mic
+    input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
+      var source = buffer
+      if split {
+        guard let m = AVAudioPCMBuffer(pcmFormat: mono, frameCapacity: buffer.frameLength),
+          let from = buffer.floatChannelData?[0], let to = m.floatChannelData?[0]
+        else { return }
+        m.frameLength = buffer.frameLength
+        to.update(from: from, count: Int(buffer.frameLength))
+        source = m
+      }
+      guard source.frameLength > 0,
+        let out = AVAudioPCMBuffer(
+          pcmFormat: target, frameCapacity: AVAudioFrameCount(Double(source.frameLength) * 16000 / format.sampleRate) + 32)
+      else { return }
+      var fed = false
+      converter.convert(to: out, error: nil) { _, status in
+        if fed {
+          status.pointee = .noDataNow
+          return nil
+        }
+        fed = true
+        status.pointee = .haveData
+        return source
+      }
+      guard out.frameLength > 0, let samples = out.floatChannelData?[0] else { return }
+      let data = Data(bytes: samples, count: Int(out.frameLength) * MemoryLayout<Float>.size)
+      DispatchQueue.main.async { sink.send(FlutterStandardTypedData(float32: data)) }
+    }
+    tapped = true
+  }
+
+  private func removeTap() {
+    if tapped { engine.inputNode.removeTap(onBus: 0) }
+    tapped = false
+  }
+
+  /// What the call's diagnostics log: whether the voice is processed, the
+  /// devices and the rates.
+  private func micInfo() -> [String: Any] {
+    var info: [String: Any] = [
+      "inputRate": engine.inputNode.outputFormat(forBus: 0).sampleRate,
+      "inputChannels": Int(engine.inputNode.outputFormat(forBus: 0).channelCount),
+      "outputRate": engine.outputNode.outputFormat(forBus: 0).sampleRate,
+      "rate": 16000,
+      "input": SpeechVoice.deviceName(kAudioHardwarePropertyDefaultInputDevice) ?? "unknown",
+      "output": SpeechVoice.deviceName(kAudioHardwarePropertyDefaultOutputDevice) ?? "unknown",
+    ]
+    switch processing {
+    case .on: info["vp"] = engine.inputNode.isVoiceProcessingEnabled
+    case .off: info["vp"] = false
+    case .failed(let why):
+      info["vp"] = false
+      info["vpError"] = why
+    }
+    return info
+  }
+
+  private static func deviceName(_ selector: AudioObjectPropertySelector) -> String? {
+    var address = AudioObjectPropertyAddress(
+      mSelector: selector, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+    var device = AudioObjectID(kAudioObjectUnknown)
+    var size = UInt32(MemoryLayout<AudioObjectID>.size)
+    guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &device) == noErr
+    else { return nil }
+    address.mSelector = kAudioObjectPropertyName
+    var name: Unmanaged<CFString>?
+    size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+    guard AudioObjectGetPropertyData(device, &address, 0, nil, &size, &name) == noErr, let name else { return nil }
+    return name.takeRetainedValue() as String
+  }
+
+  /// A headset plugged in, AirPods connected, the default device changed:
+  /// the engine has stopped. What was playing is gone — the utterance is
+  /// reported cancelled — and the microphone is tapped and started again in
+  /// the new format.
+  private func configurationChanged() {
+    let running = engine.isRunning
+    NSLog("covey call: audio configuration changed (engine \(running ? "running" : "stopped"))")
+    guard !running else { return }
+    stopPlaying()
+    stopFiller()
+    if earconFormat != nil { earconPlayer.stop() }
+    guard tapped else { return }
+    removeTap()
+    reconnect()
+    do {
+      try installTap()
+      engine.prepare()
+      try engine.start()
+      var info = micInfo()
+      info["event"] = "restarted"
+      NSLog("covey call: microphone restarted \(info)")
+      mic.send(info)
+    } catch {
+      NSLog("covey call: the microphone did not restart: \(error)")
+      mic.send(["event": "failed", "error": "\(error)"])
+    }
+  }
+
+  /// Hang-up: the tap goes at once; a moment later — the hang-up sound
+  /// still plays — the engine stops and a fresh one takes its place, which
+  /// closes the microphone and leaves voice processing behind.
+  private func micRelease() {
+    removeTap()
+    releaseLater?.cancel()
+    let work = DispatchWorkItem { [weak self] in self?.freshEngine() }
+    releaseLater = work
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: work)
+  }
+
+  private func freshEngine() {
+    releaseLater = nil
+    if case .off = processing, !tapped { return }
+    removeTap()
+    stopPlaying()
+    stopFiller()
+    engine.stop()
+    for (node, format) in [(player, playerFormat), (fillerPlayer, fillerFormat), (earconPlayer, earconFormat)]
+    where format != nil {
+      engine.detach(node)
+    }
+    playerFormat = nil
+    fillerFormat = nil
+    earconFormat = nil
+    processing = .off
+    engine = AVAudioEngine()
+    observe()
+    NSLog("covey call: microphone released")
   }
 
   private func handle(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
@@ -1289,6 +1545,15 @@ final class SpeechVoice: NSObject, AVSpeechSynthesizerDelegate {
       }
     case "earconStop":
       earconPlayer.stop()
+      result(nil)
+    case "micStart":
+      micStart(result)
+    case "micStop":
+      removeTap()
+      NSLog("covey call: microphone tap removed")
+      result(nil)
+    case "micRelease":
+      micRelease()
       result(nil)
     default:
       result(FlutterMethodNotImplemented)
@@ -1433,6 +1698,24 @@ final class SpeechVoice: NSObject, AVSpeechSynthesizerDelegate {
     let key = ObjectIdentifier(utterance)
     send("cancelled") { [weak self] in ["id": self?.ids.removeValue(forKey: key) ?? 0] }
   }
+}
+
+/// Where the call's microphone frames go (#507): Dart's listener on
+/// `covey/voice/mic`, while there is one. Touched on the main thread only.
+final class MicSink: NSObject, FlutterStreamHandler {
+  private var sink: FlutterEventSink?
+
+  func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
+    sink = events
+    return nil
+  }
+
+  func onCancel(withArguments arguments: Any?) -> FlutterError? {
+    sink = nil
+    return nil
+  }
+
+  func send(_ event: Any) { sink?(event) }
 }
 
 /// Decodes a compressed audio stream (MP3 from the voice provider, #497) as its
