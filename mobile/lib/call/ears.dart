@@ -68,9 +68,14 @@ abstract class CallEars {
 /// dictation's does, and no audio leaves the device — only the text of a
 /// finished turn does, as a message.
 class DeviceEars implements CallEars {
-  DeviceEars(this.api, {List<CaptureSource>? sources}) : _sources = sources ?? defaultSources();
+  DeviceEars(this.api, {List<CaptureSource>? sources, this.language = ''}) : _sources = sources ?? defaultSources();
 
   final CoveyApi api;
+
+  /// The call's language, BCP 47: SenseVoice is pinned to it where it knows
+  /// it (#511). Parakeet has no such option and detects the language itself;
+  /// the call flags a turn recognised in another one in its diagnostics.
+  final String language;
 
   /// Where the microphone comes from, the preferred first (#507): on the
   /// Mac the call's own audio engine with voice processing, then the
@@ -117,9 +122,14 @@ class DeviceEars implements CallEars {
       unawaited(asked.dispose());
     }
     final watch = Stopwatch()..start();
-    _decoder ??= await SherpaDecoder.load(path, speech.engine);
+    _decoder ??= await SherpaDecoder.load(path, speech.engine, language: language);
     _vad ??= SileroDetector.load(vadPath);
-    diag('call', '${speech.engine} and silero loaded in ${watch.elapsedMilliseconds} ms');
+    final pinned = speech.engine == 'sensevoice' ? senseVoiceLanguage(language) : '';
+    diag(
+      'call',
+      '${speech.engine} and silero loaded in ${watch.elapsedMilliseconds} ms, '
+          'language ${pinned.isEmpty ? 'detected by the model' : pinned}',
+    );
   }
 
   static CallProblem _problem(SpeechModelProblem? p) => switch (p) {

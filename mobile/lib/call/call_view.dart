@@ -83,7 +83,7 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
         final backend = ApiCallBackend(api, widget.agentId);
         _call = CallController(
           backend: backend,
-          ears: DeviceEars(api),
+          ears: DeviceEars(api, language: strings.language),
           // The organisation's voice provider speaks; the Mac only
           // without one.
           speaker: AgentSpeaker(

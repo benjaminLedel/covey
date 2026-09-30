@@ -6,6 +6,7 @@ import 'package:covey_mobile/api.dart';
 import 'package:covey_mobile/call/call.dart';
 import 'package:covey_mobile/call/recording.dart';
 import 'package:covey_mobile/call/understood.dart';
+import 'package:covey_mobile/sherpa.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'call_fakes.dart';
@@ -115,6 +116,39 @@ void main() {
       await call.hangUp();
     });
 
+    test('a turn recognised in another language than the call\'s is flagged (#511)', () async {
+      final root = await Directory.systemTemp.createTemp('call-audio');
+      addTearDown(() => root.delete(recursive: true));
+      final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker();
+      final call = CallController(
+        backend: backend,
+        ears: ears,
+        speaker: speaker,
+        agentId: 'agent-1',
+        appLanguage: 'de',
+        words: (k) => k,
+        tuning: const CallTuning(window: Duration.zero, record: true),
+        recording: () => CallRecording.open(root: root),
+      );
+      await call.start();
+      ears.say('Now you are suddenly speaking English and the rest');
+      await _settle();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      final line = jsonDecode(File('${root.path}/turns.jsonl').readAsLinesSync().single) as Map<String, dynamic>;
+      expect(line['call_language'], 'de');
+      expect(line['recognised_language'], 'en');
+      expect(backend.posted, hasLength(1), reason: 'flagged, not dropped');
+      await call.hangUp();
+    });
+
+    test('SenseVoice is pinned to a language it knows; others are detected', () {
+      expect(senseVoiceLanguage('ja'), 'ja');
+      expect(senseVoiceLanguage('zh-Hans'), 'zh');
+      expect(senseVoiceLanguage('en_US'), 'en');
+      expect(senseVoiceLanguage('de'), '');
+      expect(senseVoiceLanguage(''), '');
+    });
+
     test('a turn under four words is sent as recognised, not cleaned (#511)', () async {
       final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker();
       backend.cleanAs = (t) => 'Ja.';
@@ -190,6 +224,8 @@ void main() {
       expect(line['raw'], 'hallo ada wie geht es');
       expect(line['cleaned'], 'Hallo Ada, wie geht es?');
       expect(line['clean_edit'], 0);
+      expect(line['call_language'], 'de');
+      expect(line['recognised_language'], 'de');
       expect(line['cut'], 'pause');
       expect(line['outcome'], 'sent');
       expect(line['thresholds'], containsPair('pause_ms', 1000));

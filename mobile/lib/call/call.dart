@@ -23,6 +23,8 @@ import 'understood.dart';
 import 'voice.dart';
 import 'spoken_voice.dart';
 
+String _base(String language) => language.split(RegExp('[-_]')).first.toLowerCase();
+
 /// How many words a reply needs before its own language can change the
 /// call's; shorter ones are too easily read as the wrong language.
 const minWordsToSwitchLanguage = 8;
@@ -904,6 +906,23 @@ class CallController extends ChangeNotifier {
       _update();
       return;
     }
+
+    // The recogniser may take a short German turn for English (#511):
+    // Parakeet cannot be pinned to the call's language, so a turn heard in
+    // another one is flagged here.
+    final callLanguage = _base(_language ?? appLanguage);
+    String? heardIn;
+    try {
+      heardIn = await speaker.language(text);
+    } catch (_) {}
+    facts['call_language'] = callLanguage;
+    if (heardIn != null) {
+      facts['recognised_language'] = heardIn;
+      if (_base(heardIn) != callLanguage) {
+        diag('call', 'turn $n recognised as $heardIn, the call is in $callLanguage');
+      }
+    }
+    if (ended) return;
 
     // Understood: shown while the clean-up runs, then for the window. A
     // short turn is not cleaned (#511): there is nothing to tidy in it, and
