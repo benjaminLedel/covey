@@ -34,7 +34,6 @@ abstract final class AppIcons {
   static const call = AppIcon(Icons.call_outlined, CupertinoIcons.phone);
   static const hangUp = AppIcon(Icons.call_end_rounded, CupertinoIcons.phone_down_fill);
   static const stop = AppIcon(Icons.stop_rounded, CupertinoIcons.stop_fill);
-  static const play = AppIcon(Icons.play_arrow_rounded, CupertinoIcons.play_fill);
   static const record = AppIcon(Icons.circle, CupertinoIcons.circle_fill);
   static const scan = AppIcon(Icons.qr_code_scanner, CupertinoIcons.qrcode_viewfinder);
   static const checkOpen = AppIcon(Icons.check_box_outline_blank_rounded, CupertinoIcons.square);

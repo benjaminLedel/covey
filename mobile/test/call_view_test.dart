@@ -177,6 +177,26 @@ void main() {
     expect(call.ended, isTrue);
   });
 
+  testWidgets('the Mac\'s voice standing in for the voice provider is said in a line (#497)', (tester) async {
+    tester.view.physicalSize = const Size(1000, 1400);
+    tester.view.devicePixelRatio = 2;
+    addTearDown(tester.view.reset);
+    final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker();
+    final call = fakeCall(ears, backend, speaker);
+    await _pump(tester, call);
+    await tester.runAsync(call.start);
+    await tester.pump(const Duration(milliseconds: 50));
+    final line = find.byKey(const ValueKey('call-provider-unavailable'));
+    expect(line, findsNothing, reason: 'the provider speaks');
+    speaker.fallbackNotifier.value = true;
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(line, findsOneWidget);
+    expect(tester.widget<Text>(line).data, 'Stimmen-Anbieter nicht erreichbar — es spricht die Stimme des Macs');
+    await _png(tester, 'provider-unavailable');
+    await tester.runAsync(call.hangUp);
+    await tester.pump(const Duration(milliseconds: 50));
+  });
+
   testWidgets('what was understood stands before it is sent: Enter sends, Esc discards, typing corrects (#498)', (
     tester,
   ) async {

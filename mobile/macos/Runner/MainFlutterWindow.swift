@@ -1114,14 +1114,16 @@ final class SystemAudioTap {
   }
 }
 
-/// The agent's voice in a call (#494): AVSpeechSynthesizer speaks what Dart
-/// hands over and reports back when it starts, reaches a word, and ends —
-/// the face moves its mouth on the words. NaturalLanguage tells which
-/// language a reply is in, so it is spoken in a voice of that language.
+/// The agent's voice in a call. It is the organisation's voice provider
+/// (#497): its MP3 streams in through Dart, is decoded here as it arrives
+/// ("decode"), and comes back as samples, which an AVAudioPlayerNode plays
+/// in the order they come. Only without a provider does AVSpeechSynthesizer
+/// speak what Dart hands over (#494), reporting back when it starts,
+/// reaches a word, and ends — the face moves its mouth on the words.
+/// NaturalLanguage tells which language a reply is in, so it is spoken in a
+/// voice of that language.
 ///
-/// covey's own voices (#497) are synthesised in Dart; what comes here is
-/// their samples, sentence by sentence, which an AVAudioPlayerNode plays in
-/// the order they come. "started" is reported when the first plays,
+/// For the played samples, "started" is reported when the first plays,
 /// "finished" when the last marked as such has been played, "cancelled"
 /// when it was stopped.
 final class SpeechVoice: NSObject, AVSpeechSynthesizerDelegate {
@@ -1135,7 +1137,8 @@ final class SpeechVoice: NSObject, AVSpeechSynthesizerDelegate {
   private var playing = 0
   private var queued = 0
   private var lastQueued = false
-  /// The decoder of a compressed stream per utterance: a speech server's MP3.
+  /// The decoder of a compressed stream per utterance: the voice provider's
+  /// MP3.
   private var decoders: [Int: StreamDecoder] = [:]
   /// Which of Dart's requests an utterance is, so a late "cancelled" of the
   /// previous one does not end the next.
@@ -1313,7 +1316,7 @@ final class SpeechVoice: NSObject, AVSpeechSynthesizerDelegate {
   }
 }
 
-/// Decodes a compressed audio stream (MP3 from a speech server, #497) as its
+/// Decodes a compressed audio stream (MP3 from the voice provider, #497) as its
 /// bytes arrive: AudioFileStream finds the packets, AVAudioConverter turns
 /// them into Float32 mono samples at the stream's own rate.
 final class StreamDecoder {

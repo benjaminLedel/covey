@@ -628,14 +628,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     builder: (context, on, _) => Switch.adaptive(value: on, onChanged: CallSettings.setEnabled),
                   ),
                 ),
-                // The call's tuning, its diagnostics and the agents' voices
-                // (#497, #498).
+                // The call's tuning and its diagnostics (#498).
                 GroupRow(
                   title: context.t('call.settingsTitle'),
                   trailing: Icon(AppIcons.chevron.of(context), color: c.textMuted, size: 18),
-                  onTap: () => Navigator.of(
-                    context,
-                  ).push(MaterialPageRoute<void>(builder: (_) => CallSettingsScreen(api: widget.api))),
+                  onTap: () =>
+                      Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const CallSettingsScreen())),
                 ),
               ],
             ),

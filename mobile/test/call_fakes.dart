@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:covey_mobile/call/call.dart';
 import 'package:covey_mobile/call/ears.dart';
 import 'package:covey_mobile/call/voice.dart';
-import 'package:covey_mobile/call/voice_choice.dart';
+import 'package:covey_mobile/call/spoken_voice.dart';
 import 'package:covey_mobile/models.dart';
 import 'package:flutter/foundation.dart';
 
@@ -113,10 +113,10 @@ class FakeBackend implements CallBackend {
   @override
   Future<List<String>> names() async => const ['Ada Lovelace', 'Grace'];
 
-  SpokenVoice? voice;
+  SpokenVoice voice = const SpokenVoice();
 
   @override
-  Future<SpokenVoice?> spokenVoice() async => voice;
+  Future<SpokenVoice> spokenVoice() async => voice;
 }
 
 class FakeSpeaker implements Speaker {
@@ -127,8 +127,14 @@ class FakeSpeaker implements Speaker {
   @override
   ValueListenable<double?> get level => _level;
 
-  /// The own voice's mouth, as the synthesised audio would drive it.
+  /// The provider voice's mouth, as its audio would drive it.
   set mouth(double? v) => _level.value = v;
+
+  /// Whether the Mac's voice stands in for the voice provider.
+  final fallbackNotifier = ValueNotifier<bool>(false);
+
+  @override
+  ValueListenable<bool> get fallback => fallbackNotifier;
 
   @override
   Future<String> prepare({required String language}) async => 'fake voices';

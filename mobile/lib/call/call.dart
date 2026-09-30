@@ -16,7 +16,7 @@ import 'speech_text.dart';
 import 'turns.dart';
 import 'understood.dart';
 import 'voice.dart';
-import 'voice_choice.dart';
+import 'spoken_voice.dart';
 
 /// Calls as a trial (#494): the Mac only, behind an app setting that is on
 /// by default while it is a trial. The setting is the device's, not the
@@ -198,9 +198,10 @@ abstract class CallBackend {
   /// The names that may come up in the conversation, for [clean].
   Future<List<String>> names();
 
-  /// The spoken voice of the agent's covey voice in this conversation
-  /// (#497), or null when it has none or the instance is older.
-  Future<SpokenVoice?> spokenVoice();
+  /// How the agent sounds at the voice provider in this conversation
+  /// (#497): its covey voice's spoken voice and style hint. Nothing set on
+  /// an instance from before them.
+  Future<SpokenVoice> spokenVoice();
 }
 
 /// The conversation API (#440, #447) for one agent's direct conversation.
@@ -282,17 +283,15 @@ class ApiCallBackend implements CallBackend {
   }
 
   @override
-  Future<SpokenVoice?> spokenVoice() async {
+  Future<SpokenVoice> spokenVoice() async {
     try {
       final out =
           await api.get('/conversations/$_conv/speech?agent=${Uri.encodeQueryComponent(agentId)}')
               as Map<String, dynamic>;
-      final v = SpokenVoice.fromJson(out['speech']);
-      final how = out['instructions'];
-      return v != null && how is String ? v.withInstructions(how) : v;
+      return SpokenVoice.fromConversation(out);
     } on ApiException {
-      // An instance from before spoken voices, or none resolved.
-      return null;
+      // An instance from before spoken voices: the provider's default.
+      return const SpokenVoice();
     }
   }
 }
@@ -411,7 +410,7 @@ class CallController extends ChangeNotifier {
   double level = 0;
 
   /// Counts the words the system's synthesiser reached: the face opens its
-  /// mouth on each. covey's own voices drive it by [Speaker.level] instead.
+  /// mouth on each. The voice provider drives it by [Speaker.level] instead.
   final wordTicks = ValueNotifier<int>(0);
 
   /// The last lines said, oldest first.

@@ -14,7 +14,6 @@ import 'ears.dart';
 import 'recording.dart';
 import 'understood.dart';
 import 'voice.dart';
-import 'voice_choice.dart';
 
 /// The call (#494): the agent's face large in the middle, its name and what
 /// it is doing under it, the last few lines said, and two buttons — mute
@@ -34,7 +33,8 @@ class CallScreen extends StatefulWidget {
   final String agentName;
   final String agentSlug;
 
-  /// A test's call; otherwise one on the device's microphone and voices.
+  /// A test's call; otherwise one on the device's microphone and the
+  /// organisation's voice provider.
   final CallController? controller;
 
   /// Opens the call over [context].
@@ -81,14 +81,14 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
         _call = CallController(
           backend: backend,
           ears: DeviceEars(api),
+          // The organisation's voice provider speaks; the Mac only
+          // without one.
           speaker: AgentSpeaker(
             output: MacVoiceOutput(),
             agentId: widget.agentId,
-            // The device's override first, then the agent's covey voice.
-            chosen: () async => await CallVoicePrefs.read(widget.agentId) ?? await backend.spokenVoice(),
-            offered: () async => VoiceOffer.of(await api.speechModel()),
-            fetch: fetchVoiceModel(api),
-            server: (v) => serverVoice(api, v, agentId: widget.agentId),
+            available: () async => (await api.speechModel()).synthesize,
+            spoken: backend.spokenVoice,
+            provider: (v) => providerVoice(api, v, agentId: widget.agentId),
           ),
           agentId: widget.agentId,
           agentName: widget.agentName,
@@ -102,6 +102,7 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
       }
       _call!.addListener(_changed);
       _call!.wordTicks.addListener(_word);
+      _call!.speaker.fallback.addListener(_changed);
       // The model's download, while the call prepares.
       SpeechModel.instance.addListener(_changed);
       if (_own) _call!.start();
@@ -186,6 +187,7 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
     final call = _call!;
     call.removeListener(_changed);
     call.wordTicks.removeListener(_word);
+    call.speaker.fallback.removeListener(_changed);
     SpeechModel.instance.removeListener(_changed);
     _edit.dispose();
     _editFocus.dispose();
@@ -268,6 +270,17 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
                         // A trial, and where the audio stays: said once,
                         // quietly, at the top.
                         Text(context.t('call.onDevice'), style: context.type.labelSmall),
+                        // That the Mac's voice speaks because the voice
+                        // provider is not there (#497).
+                        if (call.speaker.fallback.value && !failed && mode != CallMode.preparing)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              context.t('call.providerUnavailable'),
+                              key: const ValueKey('call-provider-unavailable'),
+                              style: context.type.labelSmall?.copyWith(color: c.textMuted),
+                            ),
+                          ),
                         // And that this call keeps its turns (#498).
                         if (call.recordingTurns)
                           Padding(
@@ -297,9 +310,9 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
                                 child: AnimatedBuilder(
                                   animation: Listenable.merge([_mouth, _breath, call.speaker.level]),
                                   builder: (context, _) {
-                                    // covey's own voice opens the mouth with
-                                    // its audio (#497); the system's on
-                                    // each word it reaches.
+                                    // The voice provider opens the mouth
+                                    // with its audio (#497); the Mac's
+                                    // voice on each word it reaches.
                                     final own = call.speaker.level.value;
                                     final open = mode == CallMode.speaking
                                         ? (still

@@ -5,22 +5,21 @@ import 'package:flutter/services.dart';
 
 import '../api.dart';
 import '../diagnostics.dart';
-import '../speech_model.dart';
+import 'provider.dart';
 import 'speech_text.dart';
-import 'synth.dart';
-import 'voice_choice.dart';
+import 'spoken_voice.dart';
 
 /// What the voice reports while it speaks (#494): it began, it reached a
-/// word (the system's synthesis only; the face's mouth moves on each), it
+/// word (the Mac's synthesis only; the face's mouth moves on each), it
 /// finished or was stopped.
 enum SpeakingEvent { started, word, finished, cancelled }
 
 /// The seam between a call and whatever speaks for the agent, so a test
 /// stands in.
 abstract class Speaker {
-  /// Gets ready to speak: the voices there are, and the agent's own voice
-  /// for [language] fetched and loaded when it has one. Returns a line for
-  /// the diagnostics log.
+  /// Gets ready to speak: the Mac's voices, whether the voice provider can
+  /// be asked, and how the agent sounds there. Returns a line for the
+  /// diagnostics log.
   Future<String> prepare({required String language});
 
   /// The language [text] is written in, BCP 47, when it can be told with
@@ -36,23 +35,28 @@ abstract class Speaker {
 
   Stream<SpeakingEvent> get events;
 
-  /// How open the mouth is, 0–1, frame by frame, while a voice of covey's
-  /// own speaks: taken from the synthesised audio. Null while the system's
-  /// synthesis speaks, which reports words instead ([SpeakingEvent.word]).
+  /// How open the mouth is, 0–1, frame by frame, while the voice provider
+  /// speaks: taken from its audio. Null while the Mac's synthesis speaks,
+  /// which reports words instead ([SpeakingEvent.word]).
   ValueListenable<double?> get level;
+
+  /// True while the Mac's own voice speaks because the voice provider is
+  /// not set or could not be reached: the call says so in a line.
+  ValueListenable<bool> get fallback;
 
   void dispose();
 }
 
 /// Where speech comes out on the Mac: the system's synthesis, and the
-/// playback of samples synthesised on the device (#497) — both through the
+/// playback of the voice provider's audio (#497) — both through the
 /// `covey/voice` channel (MainFlutterWindow.swift). Each utterance carries
 /// an id; events name the id they belong to.
 abstract class VoiceOutput implements StreamDecoding {
   Future<List<SystemVoice>> voices();
   Future<String?> language(String text);
 
-  /// The system's synthesis speaks [text].
+  /// The system's synthesis speaks [text], at [rate] times its own pace
+  /// (0 leaves it).
   Future<void> say(int id, String text, {String? voiceId, required String language, double rate = 0});
 
   /// Plays [pcm] after what utterance [id] already queued; [last] says
@@ -153,63 +157,46 @@ class MacVoiceOutput implements VoiceOutput {
   }
 }
 
-/// Where a voice model of the catalogue lies on the device, fetching it
-/// when it is not there. [wait] false only starts the fetch and answers
-/// null at once, so a call is not held up by a download.
-typedef VoiceModelFetch = Future<String?> Function(SpeechModelInfo model, {required bool wait});
-
-/// Loads a synthesiser for a model of [family] unpacked in [dir].
-typedef SynthLoader = Future<Synthesiser> Function(String dir, String family);
-
-/// The agent's voice in a call (#497): the voice [planVoice] picks for each
-/// utterance — one of covey's own, synthesised on the device or by the
-/// organisation's speech server sentence by sentence and played while the
-/// next is synthesised, or the system's synthesis when no own voice is
-/// chosen, it is not on the device yet, or the server fails.
-///
-/// Which voice is chosen comes from [chosen]: the device's override for the
-/// agent, else the `speech` of its covey voice — the natural home of the
-/// spoken voice, since it belongs to how the agent speaks — else nothing.
+/// The agent's voice in a call (#497): the organisation's voice provider,
+/// its audio played as it streams in, the face's mouth following its
+/// level. Only when the provider is not set, or fails before anything was
+/// heard, the Mac's own synthesis speaks — in a voice of the language
+/// picked per agent ([chooseVoice]) — and [fallback] says so. A provider
+/// that failed is not asked again in the same call.
 class AgentSpeaker implements Speaker {
   AgentSpeaker({
     required this.output,
     required this.agentId,
-    required this.chosen,
-    required this.offered,
-    required this.fetch,
-    this.server,
-    this.loadSynth = SherpaSynthesiser.load,
+    required this.available,
+    required this.spoken,
+    this.provider,
   }) {
     _sub = output.events.listen(_onEvent);
   }
 
   final VoiceOutput output;
   final String agentId;
-  final Future<SpokenVoice?> Function() chosen;
-  final Future<VoiceOffer> Function() offered;
-  final VoiceModelFetch fetch;
 
-  /// A synthesiser on the organisation's speech server for the chosen
-  /// voice; null when this app cannot reach one.
-  final Synthesiser Function(SpokenVoice voice)? server;
-  final SynthLoader loadSynth;
+  /// Whether the organisation has a voice provider (GET /speech/model).
+  final Future<bool> Function() available;
+
+  /// How the agent sounds at the provider.
+  final Future<SpokenVoice> Function() spoken;
+
+  /// The provider speaking a voice; null when this app cannot reach one.
+  final ProviderVoice Function(SpokenVoice voice)? provider;
 
   late final StreamSubscription<(SpeakingEvent, int)> _sub;
   final _events = StreamController<SpeakingEvent>.broadcast();
   final _level = ValueNotifier<double?>(null);
+  final _fallback = ValueNotifier<bool>(false);
 
   List<SystemVoice> _system = const [];
-  VoiceOffer _offer = const VoiceOffer();
-  SpokenVoice? _chosen;
+  ProviderVoice? _voice;
+
+  /// The agent's speed, which the Mac's voice keeps too.
+  double _speed = 0;
   bool _prepared = false;
-
-  /// One synthesiser per device model, loaded once: switching languages
-  /// mid-call keeps the first, and a model takes a moment to load.
-  final _synths = <String, Future<Synthesiser>>{};
-
-  /// Set once the speech server failed in this call: the device speaks
-  /// from then on rather than trying again with every reply.
-  bool _serverFailed = false;
 
   int _id = 0;
   Completer<void>? _done;
@@ -227,65 +214,32 @@ class AgentSpeaker implements Speaker {
   ValueListenable<double?> get level => _level;
 
   @override
+  ValueListenable<bool> get fallback => _fallback;
+
+  @override
   Future<String> prepare({required String language}) async {
     _system = await output.voices();
+    var set = false;
     try {
-      _chosen = await chosen();
+      set = await available();
     } catch (e) {
-      diag('call', 'the chosen voice could not be read: $e');
+      diag('call', 'whether there is a voice provider could not be read: $e');
     }
-    try {
-      _offer = await offered();
-    } catch (e) {
-      diag('call', 'the instance lists no voices: $e');
+    var voice = const SpokenVoice();
+    if (set) {
+      try {
+        voice = await spoken();
+      } catch (e) {
+        diag('call', 'the agent\'s spoken voice could not be read: $e');
+      }
     }
+    final make = provider;
+    _voice = set && make != null ? make(voice) : null;
+    _speed = voice.speed;
+    _fallback.value = _voice == null;
     _prepared = true;
-    final plan = _plan(language);
-    // The voice for the call's first language is fetched and loaded now,
-    // while the call opens; one for another language when first needed.
-    if (plan.onDevice) unawaited(_deviceSynth(plan.model!, wait: true).then((_) {}, onError: (_) {}));
-    return '${_system.length} system voices, ${_offer.voices.length} own'
-        '${_offer.server ? ', a speech server' : ''}, chosen ${_chosen ?? 'none'}, $plan';
-  }
-
-  VoiceOffer get _effectiveOffer => _serverFailed || server == null ? VoiceOffer(voices: _offer.voices) : _offer;
-
-  VoicePlan _plan(String language) =>
-      planVoice(chosen: _chosen, offer: _effectiveOffer, system: _system, language: language, agentId: agentId);
-
-  Future<Synthesiser?> _deviceSynth(SpeechModelInfo model, {required bool wait}) async {
-    final loading = _synths[model.name];
-    if (loading != null) return loading;
-    final dir = await fetch(model, wait: wait);
-    if (dir == null) return null;
-    final again = _synths[model.name];
-    if (again != null) return again;
-    final watch = Stopwatch()..start();
-    final f = _synths[model.name] = loadSynth(dir, model.voice?.family ?? '');
-    try {
-      final s = await f;
-      diag('call', 'voice ${model.name} loaded in ${watch.elapsedMilliseconds} ms');
-      return s;
-    } catch (e) {
-      _synths.remove(model.name);
-      diag('call', 'voice ${model.name} did not load: $e');
-      rethrow;
-    }
-  }
-
-  /// The synthesiser for [plan], or null when the system has to speak.
-  Future<Synthesiser?> _synthFor(VoicePlan plan) async {
-    if (plan.onServer) return server!(plan.server!);
-    if (!plan.onDevice) return null;
-    try {
-      // Not waited for mid-call: until the voice is on the device, the
-      // system speaks.
-      final s = await _deviceSynth(plan.model!, wait: false);
-      if (s == null) diag('call', 'voice ${plan.model!.name} not on the device yet, the system speaks');
-      return s;
-    } catch (_) {
-      return null;
-    }
+    return '${_system.length} system voices, '
+        '${_voice == null ? 'no voice provider, the Mac speaks' : '$voice'}';
   }
 
   @override
@@ -298,60 +252,45 @@ class AgentSpeaker implements Speaker {
     if (prev != null && !prev.isCompleted) prev.complete();
     final id = ++_id;
     final done = _done = Completer<void>();
-    await _speakWith(id, _plan(language), text, language);
+    _frames.clear();
+    _clock = null;
+    final voice = _voice;
+    if (voice == null) {
+      await _say(id, text, language);
+    } else {
+      unawaited(_play(id, voice, text, language));
+    }
     return done.future;
   }
 
-  Future<void> _speakWith(int id, VoicePlan plan, String text, String language) async {
-    final synth = await _synthFor(plan);
-    if (id != _id) return;
-    _frames.clear();
-    _clock = null;
-    if (synth == null) {
-      final voice = plan.systemVoice ?? chooseVoice(_system, language, agentId);
-      _level.value = null;
-      await output.say(id, text, voiceId: voice?.id, language: language, rate: plan.rate);
-      return;
-    }
-    unawaited(_play(id, synth, plan, text, language));
+  Future<void> _say(int id, String text, String language) async {
+    _level.value = null;
+    await output.say(id, text, voiceId: chooseVoice(_system, language, agentId)?.id, language: language, rate: _speed);
   }
 
-  /// Plays what [synth] makes of [text] piece by piece as it comes — the
-  /// device's voice sentence by sentence, the speech server as its stream
-  /// arrives. A voice that fails before anything was heard hands the text
-  /// on: the speech server's to the device's own voice for the language or
-  /// the system's, the device's to the system's.
-  Future<void> _play(int id, Synthesiser synth, VoicePlan plan, String text, String language) async {
-    final rate = plan.rate <= 0 ? 1.0 : plan.rate;
+  /// Plays what the provider makes of [text] piece by piece as it comes. A
+  /// provider that fails before anything was heard hands the text to the
+  /// Mac's voice, for this reply and the rest of the call.
+  Future<void> _play(int id, ProviderVoice voice, String text, String language) async {
     var played = 0;
     var sampleRate = 0;
     final watch = Stopwatch()..start();
     try {
-      await for (final pcm in synth.stream(text, speaker: plan.speaker, rate: rate, language: language)) {
+      await for (final pcm in voice.stream(text, language: language)) {
         if (id != _id) return;
         if (pcm.samples.isEmpty || pcm.sampleRate <= 0) continue;
-        if (played == 0) diag('call', 'first audio after ${watch.elapsedMilliseconds} ms ($plan)');
+        if (played == 0) diag('call', 'first audio after ${watch.elapsedMilliseconds} ms');
         _frames.addAll(levels(pcm, fps: _fps));
         sampleRate = pcm.sampleRate;
         played++;
         await output.play(id, pcm, last: false);
       }
     } catch (e) {
-      diag('call', 'synthesis failed ($plan): $e');
+      diag('call', 'the voice provider failed: $e');
       if (id != _id) return;
-      if (plan.onServer) _serverFailed = true;
-      if (played == 0) {
-        final next = plan.onServer
-            ? fallbackPlan(
-                offer: _effectiveOffer,
-                system: _system,
-                language: language,
-                agentId: agentId,
-                rate: plan.rate,
-              )
-            : VoicePlan.system(chooseVoice(_system, language, agentId), plan.rate);
-        return _speakWith(id, next, text, language);
-      }
+      _voice = null;
+      _fallback.value = true;
+      if (played == 0) return _say(id, text, language);
     }
     if (id != _id) return;
     if (played == 0) return _end(SpeakingEvent.finished);
@@ -400,7 +339,7 @@ class AgentSpeaker implements Speaker {
 
   @override
   Future<void> stop() async {
-    // Whatever is still being synthesised for the utterance is dropped.
+    // Whatever the provider still sends for the utterance is dropped.
     _id++;
     _end(SpeakingEvent.cancelled);
     await output.stop();
@@ -410,46 +349,27 @@ class AgentSpeaker implements Speaker {
   void dispose() {
     _tick?.cancel();
     unawaited(_sub.cancel());
-    for (final s in _synths.values) {
-      unawaited(s.then((s) => s.close(), onError: (_) {}));
-    }
-    _synths.clear();
     output.dispose();
     unawaited(_events.close());
     _level.dispose();
+    _fallback.dispose();
   }
 }
 
-/// Fetches voice models from [api] into the device (#497), each once: with
-/// [wait] the call waits for it, as while it opens; without, a voice not
-/// there yet is fetched in the background and the system speaks meanwhile.
-VoiceModelFetch fetchVoiceModel(CoveyApi api) => (SpeechModelInfo model, {required bool wait}) async {
-  final m = SpeechModel.voice(model.name);
-  if (wait || m.onDevice) return m.ensure(api);
-  // Maybe fetched in an earlier call: looked for on the disk, not fetched.
-  await m.refresh(api);
-  if (m.onDevice) return m.ensure(api);
-  unawaited(m.ensure(api));
-  return null;
-};
-
-/// The organisation's speech server speaking [voice] for [agentId] (#497):
-/// the instance streams its MP3, which the Mac decodes as it comes.
-Synthesiser serverVoice(CoveyApi api, SpokenVoice voice, {required String agentId, VoiceOutput? decoder}) =>
-    ServerSynthesiser(
-      (text, {model = '', voice = '', rate = 0, language = '', instructions = ''}) => api.synthesizeSpeechStream(
+/// The organisation's voice provider speaking [voice] for [agentId]
+/// (#497): the instance streams its MP3, which the Mac decodes as it comes.
+ProviderVoice providerVoice(CoveyApi api, SpokenVoice voice, {required String agentId, StreamDecoding? decoder}) =>
+    ProviderVoice(
+      (text, {voice = '', speed = 0, language = '', instructions = ''}) => api.synthesizeSpeechStream(
         text,
-        model: model,
         voice: voice,
-        rate: rate,
+        speed: speed,
         language: language,
         instructions: instructions,
         agent: agentId,
       ),
       decoder ?? _decoder,
-      model: voice.model,
-      voice: voice.voice,
-      instructions: voice.instructions,
+      voice: voice,
     );
 
 /// Decoding needs the channel only, not a speaker's events.
