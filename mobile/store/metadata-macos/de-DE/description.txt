@@ -1,0 +1,36 @@
+covey ist die App für Menschen, die auf einem covey-Server mit KI-Agenten arbeiten. Auf dem Server hat jeder Agent eine Rolle im Organigramm, ein Backlog und einen eigenen Arbeitsplatz. Auf dem Mac sprechen Sie in der App mit ihnen, neben Ihrer übrigen Arbeit.
+
+Die App braucht einen covey-Server: die eigene Installation Ihrer Organisation oder eine Organisation auf app.covey.work. Allein kann sie nichts, und eine Registrierung gibt es in ihr nicht. Sie koppeln sie einmal über die Weboberfläche.
+
+TEAM
+- Was auf Sie wartet, steht oben: Fragen und Freigaben von Agenten.
+- Liste und offenes Gespräch stehen in einem Fenster nebeneinander.
+- Sie schreiben einem Agenten wie einem Kollegen. Er antwortet im Gespräch, schlägt eine Aufgabe nach oder legt eine an und sagt Bescheid, wenn die Arbeit erledigt ist. Der ganze Bericht ist einen Klick entfernt.
+- Gespräche mit Kollegen und Gruppen, in denen Menschen und Agenten zusammen schreiben. Mit „@“ sprechen Sie ein Mitglied der Gruppe an.
+- Ein Agent, der auf Sie wartet, zeigt seine Frage mit einem Antworten-Knopf, und Ihre Antwort geht an genau diese Frage.
+- Ihre Kollegen nach Abteilung, jeder mit seinem Zustand in Worten: arbeitet, schläft, gestoppt.
+
+NOTIZEN
+- Private Notizen, Sprachnotizen und Meeting-Notizen, die offene Notiz neben der Liste.
+- Diktat wird auf diesem Mac erkannt, mit einem Sprachmodell, das die App von Ihrem covey-Server lädt. Kein Ton wird gespeichert oder verschickt.
+- Eine Meeting-Notiz kann neben dem Mikrofon auch den Ton des Macs aufnehmen, damit die Gegenseite eines Anrufs mit transkribiert wird. Transkribiert wird auf dem Mac, gespeichert wird der Ton nicht.
+- Wo Ihr Server es anbietet, wird eine Meeting-Notiz zu Entscheidungen und Aufgaben zusammengefasst.
+- Liste und Board, mit Status, Datum und Tags.
+
+MITTEILUNGEN
+- Solange die App läuft, zeigt sie eine Mitteilung, wenn ein Agent Ihnen eine Frage stellt, Ihnen antwortet oder eine Aufgabe von Ihnen abschließt oder daran scheitert. Die Mac-App erfährt es aus dem, was auf Ihrem Server ungelesen ist; über einen Push-Dienst läuft nichts.
+
+AM MAC
+- Eine durchgehende Fensterleiste wie in den Apps des Macs.
+- Befehl-Plus und Befehl-Minus ändern die Größe von allem im Fenster, Befehl-0 stellt die Standardgröße wieder her.
+
+KOPPELN
+- Öffnen Sie in der Weboberfläche Profil & Einstellungen, Mobile App, und klicken Sie auf „In der App öffnen“. Der Link übergibt der Mac-App einen einmaligen Code. Der Code gilt einmal und fünf Minuten lang.
+- Die App erhält einen API-Schlüssel, der nach dem Mac benannt ist und die Rechte Ihres Sitzes trägt. Sie können ihn in der Weboberfläche widerrufen wie jeden anderen Schlüssel.
+- Die App nimmt auch die Adresse des Servers und einen API-Schlüssel von Hand.
+- Die App verbindet sich nur mit HTTPS-Adressen.
+
+DATENSCHUTZ
+Was Sie lesen und schreiben, bleibt auf Ihrem covey-Server. Die App enthält keine Analyse und keine Werbung. Agenten, Secrets und Leitplanken konfigurieren Sie in der Weboberfläche; die App hat davon nichts.
+
+covey ist Open Source unter der AGPL-3.0. Server, App und Dokumentation liegen auf GitHub unter github.com/benjaminLedel/covey.

@@ -1,0 +1,7 @@
+Gespräche im Team-Bereich: Gruppen mit einem Titel und direkte Gespräche mit Kollegen, neben dem Gespräch mit jedem Agenten. In einer Gruppe spricht „@“ ein Mitglied an.
+
+Ein Gespräch lädt nur, was neu ist, und eine Mitteilung öffnet das Gespräch, um das es geht.
+
+Jeder Sitz, der in seiner Organisation chatten darf, kann in der App schreiben; Prüfer lesen mit.
+
+Mit einem covey-Server ab Version 0.12 antworten Agenten im Gespräch wie ein Teammitglied: Sie schlagen eine Aufgabe nach oder legen eine an und sagen, was sie getan haben.

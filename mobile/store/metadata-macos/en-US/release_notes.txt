@@ -1,0 +1,7 @@
+Conversations in the team space: groups with a title and direct conversations with colleagues, beside the conversation with each agent. In a group, "@" addresses a member.
+
+A conversation fetches only what is new, and a notification opens the conversation it is about.
+
+Every seat that may chat in its organisation can write in the app; auditors read along.
+
+With a covey server of version 0.12 or later, agents answer in a conversation as a teammate would: they look a task up or create one and say what they did.
