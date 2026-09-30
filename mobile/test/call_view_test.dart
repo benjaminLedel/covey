@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:covey_mobile/call/call.dart';
 import 'package:covey_mobile/call/call_view.dart';
 import 'package:covey_mobile/call/ears.dart';
+import 'package:covey_mobile/call/greeting.dart';
 import 'package:covey_mobile/call/recording.dart';
 import 'package:covey_mobile/face.dart';
 import 'package:covey_mobile/i18n.dart';
@@ -177,6 +178,31 @@ void main() {
     expect(call.ended, isTrue);
   });
 
+  testWidgets('the greeting is the agent\'s line, the face speaking it (#506)', (tester) async {
+    final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker()..ready.complete(true);
+    final call = fakeCall(
+      ears,
+      backend,
+      speaker,
+      greeter: CallGreeter(enabled: () => true, memory: _NoMemory(), now: () => DateTime(2026, 9, 30, 9)),
+    );
+    unawaited(call.start());
+    await _pump(tester, call);
+    await tester.pump(const Duration(milliseconds: 50));
+    final said = speaker.spokenPrepared.single.$1;
+    expect(said, contains('Grace'));
+    expect(_state(tester), 'Spricht');
+    expect(tester.widget<Face>(find.byType(Face)).talk, FaceTalk.speaking);
+    expect(find.textContaining(said), findsOneWidget);
+    await _png(tester, 'greeting');
+    speaker.finish();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(_state(tester), 'Hört zu');
+    expect(backend.posted, isEmpty);
+    await tester.runAsync(call.hangUp);
+    await tester.pump(const Duration(milliseconds: 50));
+  });
+
   testWidgets('the Mac\'s voice standing in for the voice provider is said in a line (#497)', (tester) async {
     tester.view.physicalSize = const Size(1000, 1400);
     tester.view.devicePixelRatio = 2;
@@ -267,4 +293,12 @@ void main() {
 class _Denied extends FakeEars {
   @override
   Future<void> prepare() async => throw CallException(CallProblem.denied);
+}
+
+class _NoMemory implements GreetingMemory {
+  @override
+  Future<String?> last(String agentId) async => null;
+
+  @override
+  Future<void> remember(String agentId, String key) async {}
 }

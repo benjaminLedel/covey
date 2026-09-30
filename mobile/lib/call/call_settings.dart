@@ -12,7 +12,8 @@ import 'sounds.dart';
 
 /// A call's settings on this Mac (#498): the pause that ends a turn, how
 /// long the person must speak to interrupt, how long a turn stands as
-/// understood, the call's sounds (#500) and the diagnostics recording.
+/// understood, the call's sounds (#500), the greeting (#506) and the
+/// diagnostics recording.
 /// How an agent sounds is not
 /// set here: it is its covey voice's spoken voice at the organisation's
 /// voice provider, set on the instance.
@@ -228,6 +229,31 @@ class _CallSettingsScreenState extends State<CallSettingsScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(32, 8, 32, 0),
             child: Text(context.t('call.soundsHint'), style: small),
+          ),
+
+          SectionTitle(context.t('call.greeting')),
+          InsetGroup(
+            dividerIndent: 14,
+            children: [
+              GroupRow(
+                title: context.t('call.greetingSwitch'),
+                trailing: ValueListenableBuilder<bool>(
+                  valueListenable: CallSettings.greeting,
+                  builder: (context, on, _) => Switch.adaptive(
+                    key: const ValueKey('call-greeting-switch'),
+                    value: on,
+                    onChanged: (v) async {
+                      await CallSettings.setGreeting(v);
+                      if (mounted) setState(() {});
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(32, 8, 32, 0),
+            child: Text(context.t('call.greetingHint'), style: small),
           ),
 
           SectionTitle(context.t('call.diagnostics')),

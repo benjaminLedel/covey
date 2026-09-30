@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:covey_mobile/call/call.dart';
 import 'package:covey_mobile/call/ears.dart';
 import 'package:covey_mobile/call/fillers.dart';
+import 'package:covey_mobile/call/greeting.dart';
 import 'package:covey_mobile/call/provider.dart';
 import 'package:covey_mobile/call/sounds.dart';
 import 'package:covey_mobile/call/voice.dart';
@@ -140,6 +141,11 @@ class FakeBackend implements CallBackend {
 
   @override
   Future<SpokenVoice> spokenVoice() async => voice;
+
+  GreetingFacts facts = const GreetingFacts(personName: 'Grace Hopper');
+
+  @override
+  Future<GreetingFacts> greetingFacts() async => facts;
 }
 
 class FakeSpeaker implements Speaker {
@@ -228,6 +234,25 @@ class FakeSpeaker implements Speaker {
   Future<void> prefetchFillers(List<String> texts, {required String language}) async =>
       prefetched.add((texts, language));
 
+  /// The greeting's synthesis ahead: what was asked, and when it is ready.
+  final prepared = <String>[];
+  Completer<bool> ready = Completer<bool>();
+
+  @override
+  Future<bool> prepareUtterance(String text, {required String language}) {
+    prepared.add(text);
+    return ready.future;
+  }
+
+  /// What was spoken as prepared, and whether the provider's audio was.
+  final spokenPrepared = <(String, bool)>[];
+
+  @override
+  Future<void> speakPrepared(String text, {required String language, required bool ready}) {
+    spokenPrepared.add((text, ready));
+    return speak(text, language: language);
+  }
+
   @override
   void dispose() {}
 }
@@ -266,6 +291,7 @@ CallController fakeCall(
   CallTuning tuning = const CallTuning(window: Duration.zero),
   CallSounds? sounds,
   StartTimer? startTimer,
+  CallGreeter? greeter,
 }) => CallController(
   backend: backend,
   ears: ears,
@@ -279,6 +305,7 @@ CallController fakeCall(
   tuning: tuning,
   sounds: sounds,
   startTimer: startTimer,
+  greeter: greeter,
 );
 
 /// A clock a test moves by hand, for the timers a call's fillers start

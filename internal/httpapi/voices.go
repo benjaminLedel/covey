@@ -583,14 +583,15 @@ func (s *Server) handleSetVoiceSpeech(w http.ResponseWriter, r *http.Request) {
 // organisation's — and that voice's speech, which the Mac app passes to
 // the voice provider. instructions is always set: the voice's own style
 // hint, else one derived from the chat tone in effect. Null speech leaves
-// the provider's default voice.
+// the provider's default voice. address is du, sie or "" — how the call
+// greets (#506).
 func (s *Server) handleConversationSpeech(w http.ResponseWriter, r *http.Request, c chat.Conversation) {
 	agentID, err := uuid.Parse(r.URL.Query().Get("agent"))
 	if err != nil || !c.Has(chat.Ref{Kind: chat.MemberAgent, ID: agentID}) {
 		writeErr(w, http.StatusNotFound, "no such agent in this conversation")
 		return
 	}
-	out := map[string]any{"speech": nil, "voice": nil, "level": voice.LevelNone, "instructions": voice.SpeechInstructions(voice.ChatTone{}, "")}
+	out := map[string]any{"speech": nil, "voice": nil, "level": voice.LevelNone, "instructions": voice.SpeechInstructions(voice.ChatTone{}, ""), "address": ""}
 	if s.Voices == nil {
 		writeJSON(w, http.StatusOK, out)
 		return
@@ -601,7 +602,11 @@ func (s *Server) handleConversationSpeech(w http.ResponseWriter, r *http.Request
 	choice := s.Voices.Resolve(ctx, c.OrgID, agentID, voice.OccasionChat, aud)
 	// How it is spoken, for a provider that takes instructions: from the
 	// chat tone in effect, also without a chat voice.
-	out["instructions"] = voice.SpeechInstructions(s.Voices.ChatToneFor(ctx, c.OrgID, agentID, choice), "")
+	tone := s.Voices.ChatToneFor(ctx, c.OrgID, agentID, choice)
+	out["instructions"] = voice.SpeechInstructions(tone, "")
+	// The address the call's greeting takes (#506), before the person has
+	// said anything it could follow.
+	out["address"] = tone.SpokenAddress()
 	if choice.Found() {
 		v, err := s.Voices.Get(ctx, c.OrgID, choice.VoiceID)
 		if err != nil {
@@ -610,7 +615,7 @@ func (s *Server) handleConversationSpeech(w http.ResponseWriter, r *http.Request
 		}
 		out["level"] = choice.Level
 		out["voice"] = map[string]any{"id": v.ID, "name": v.Name}
-		out["instructions"] = voice.SpeechInstructions(s.Voices.ChatToneFor(ctx, c.OrgID, agentID, choice), v.Language)
+		out["instructions"] = voice.SpeechInstructions(tone, v.Language)
 		if v.Speech != nil {
 			out["speech"] = v.Speech
 			if v.Speech.Instructions != "" {
