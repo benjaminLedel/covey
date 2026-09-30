@@ -3164,5 +3164,30 @@
     "declinedBy": "Refusée par {{name}}, {{when}}.",
     "requestedInChat": "demandée dans le chat par {{name}} ·",
     "inApp": "Proposition · à décider sur le web"
+  },
+  "call": {
+    "button": "Appeler {{name}} (essai) · ⌘⇧C",
+    "onDevice": "Appel · essai · la voix reste sur ce Mac",
+    "preparing": "Préparation de l'appel…",
+    "preparingModel": "Chargement du modèle vocal… {{percent}} %",
+    "listening": "À l'écoute",
+    "hearing": "Vous entend",
+    "thinking": "Réfléchit…",
+    "speaking": "Parle",
+    "muted": "Micro coupé",
+    "ended": "Appel terminé",
+    "denied": "Le micro n'est pas autorisé. Autorisez covey dans Réglages Système → Confidentialité et sécurité → Micro.",
+    "modelNotReady": "L'instance télécharge encore les modèles vocaux. Réessayez dans quelques minutes.",
+    "off": "La reconnaissance vocale est désactivée sur cette instance, ou l'instance est trop ancienne pour les appels.",
+    "failed": "L'appel n'a pas pu démarrer : {{error}}",
+    "mute": "Couper le micro",
+    "unmute": "Réactiver le micro",
+    "hangUp": "Raccrocher",
+    "you": "Vous",
+    "stillWorking": "J'y travaille encore.",
+    "restInChat": "La suite est dans le chat.",
+    "setting": "Appels (essai)",
+    "settingSwitch": "Appeler les agents",
+    "settingHint": "Un bouton d'appel dans la conversation avec un agent. La voix est reconnue et synthétisée sur ce Mac ; seul le texte va dans la conversation, marqué comme dit pendant un appel."
   }
 }

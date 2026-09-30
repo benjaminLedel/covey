@@ -531,7 +531,7 @@ func (s *Server) handleChatMessage(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
-	a, err := s.annehmen(r.Context(), conv, sprecherVon(p), text, nil, langFrom(r))
+	a, err := s.annehmen(r.Context(), conv, sprecherVon(p), text, nil, nil, langFrom(r))
 	if err != nil {
 		mapErr(w, err)
 		return
@@ -605,7 +605,7 @@ annehmen writes a person's message and hands it to the agents it
 	nothing to wait for — a task costs one insert — and the caller gets it in
 	the same answer.
 */
-func (s *Server) annehmen(ctx context.Context, conv chat.Conversation, wer sprecher, text string, replyTo *chat.Message, lang string) (angenommen, error) {
+func (s *Server) annehmen(ctx context.Context, conv chat.Conversation, wer sprecher, text string, replyTo *chat.Message, meta map[string]string, lang string) (angenommen, error) {
 	var out angenommen
 	var agenten []uuid.UUID
 	for _, m := range chat.Addressed(conv, text, replyTo) {
@@ -629,7 +629,7 @@ func (s *Server) annehmen(ctx context.Context, conv chat.Conversation, wer sprec
 	}
 	msg := chat.Message{
 		ConversationID: conv.ID, AuthorKind: chat.MemberHuman, AuthorID: &wer.id,
-		Text: text, Kind: chat.MessageText,
+		Text: text, Kind: chat.MessageText, Meta: meta,
 	}
 	if replyTo != nil {
 		msg.ReplyTo = &replyTo.ID

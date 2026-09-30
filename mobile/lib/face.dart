@@ -21,6 +21,13 @@ import 'package:flutter/scheduler.dart';
 /// web, because there the motion itself was the information.
 enum FaceState { working, sleeping, killed }
 
+/// What the face does in a call (#494), over [FaceState.working]:
+///
+///   listening — looks at the person; eyes and head grow with their voice
+///   thinking  — looks up and aside, the mouth a short line
+///   speaking  — the mouth opens on each word the synthesiser reaches
+enum FaceTalk { listening, thinking, speaking }
+
 /// The state the web's team shell derives from an agent (Team.tsx).
 FaceState faceStateOf({required bool killed, required String status}) =>
     killed ? FaceState.killed : (status == 'sleeping' ? FaceState.sleeping : FaceState.working);
@@ -89,12 +96,36 @@ class _FaceClock extends ChangeNotifier {
   }
 }
 
+/// The face's tone for [slug], for what is drawn around it — the rings of a
+/// call (#494).
+Color faceTone(String slug, {required bool dark}) {
+  final t = _Features(slug).tone;
+  return dark ? t.$2 : t.$1;
+}
+
 class Face extends StatefulWidget {
-  const Face({super.key, required this.slug, this.state = FaceState.working, this.size = 26});
+  const Face({
+    super.key,
+    required this.slug,
+    this.state = FaceState.working,
+    this.size = 26,
+    this.talk,
+    this.level = 0,
+    this.mouth = 0,
+  });
 
   final String slug;
   final FaceState state;
   final double size;
+
+  /// In a call: what the face is doing; null everywhere else.
+  final FaceTalk? talk;
+
+  /// The person's voice while [FaceTalk.listening], 0–1.
+  final double level;
+
+  /// How far the mouth is open while [FaceTalk.speaking], 0–1.
+  final double mouth;
 
   @override
   State<Face> createState() => _FaceState();
@@ -133,7 +164,15 @@ class _FaceState extends State<Face> {
     Widget face = SizedBox.square(
       dimension: widget.size,
       child: CustomPaint(
-        painter: _FacePainter(f: _f, state: widget.state, dark: isDark, clock: _attached ? _FaceClock.instance : null),
+        painter: _FacePainter(
+          f: _f,
+          state: widget.state,
+          dark: isDark,
+          clock: _attached ? _FaceClock.instance : null,
+          talk: widget.talk,
+          level: widget.level,
+          mouth: widget.mouth,
+        ),
       ),
     );
     // Stopped: no tone left, and the sign everybody reads as "no entry" on
@@ -187,12 +226,23 @@ double _phase(double seconds, double period, double delay) {
 }
 
 class _FacePainter extends CustomPainter {
-  _FacePainter({required this.f, required this.state, required this.dark, required this.clock}) : super(repaint: clock);
+  _FacePainter({
+    required this.f,
+    required this.state,
+    required this.dark,
+    required this.clock,
+    this.talk,
+    this.level = 0,
+    this.mouth = 0,
+  }) : super(repaint: clock);
 
   final _Features f;
   final FaceState state;
   final bool dark;
   final _FaceClock? clock;
+  final FaceTalk? talk;
+  final double level;
+  final double mouth;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -212,6 +262,8 @@ class _FacePainter extends CustomPainter {
       breath = 1 + 0.085 * v;
       rise = -0.35 * v;
     }
+    // Listening, the head leans into the person's voice.
+    if (talk == FaceTalk.listening) breath += 0.05 * level;
     canvas.save();
     canvas.translate(12, 12 + rise);
     canvas.scale(breath);
@@ -305,18 +357,49 @@ class _FacePainter extends CustomPainter {
         // The mouth shortens while it thinks (5.3 s).
         mouth = _track(look, const [(0, 1), (0.24, 1), (0.32, 0.6), (0.46, 0.6), (0.54, 1), (1, 1)]);
       }
+      // In a call the eyes do what the conversation asks of them: at the
+      // person while one of the two speaks, up and aside while it thinks.
+      var eyeScale = 1.0;
+      switch (talk) {
+        case FaceTalk.listening:
+          dx = dy = 0;
+          eyeScale = 1 + 0.14 * level;
+        case FaceTalk.speaking:
+          dx = dy = 0;
+        case FaceTalk.thinking:
+          final drift = s == null ? 0.0 : _track(_phase(s, 4.4, f.offset), const [(0, 0), (0.5, 1), (1, 0)]);
+          dx = 1.4 + 1.0 * drift;
+          dy = -1.2;
+          mouth = 0.6;
+        case null:
+      }
       final eye = Paint()..color = ink;
       for (final x in [12 - f.gap, 12 + f.gap]) {
         canvas.save();
         canvas.translate(x + dx, y + dy);
-        canvas.scale(1, blink);
+        canvas.scale(eyeScale, blink * eyeScale);
         canvas.drawCircle(Offset.zero, f.eyeR, eye);
         canvas.restore();
       }
       // A line, not an arc: an arc would be a smile, and a smiling agent
       // claims something about its mood.
       final half = f.mouth * mouth / 2;
-      canvas.drawLine(Offset(12 - half, y + 5), Offset(12 + half, y + 5), line);
+      if (talk == FaceTalk.speaking) {
+        // Speaking, the line opens into a rounded slot — taller on a word,
+        // never an arc, which would be a smile.
+        final open = this.mouth.clamp(0.0, 1.0);
+        final h = 1.9 + 1.9 * open;
+        final w = f.mouth * (1.1 - 0.1 * open);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromCenter(center: Offset(12, y + 5), width: w, height: h),
+            Radius.circular(h / 2),
+          ),
+          Paint()..color = ink,
+        );
+      } else {
+        canvas.drawLine(Offset(12 - half, y + 5), Offset(12 + half, y + 5), line);
+      }
     }
 
     // Three z rise, staggered, only while asleep. They stand beside the head
@@ -353,7 +436,14 @@ class _FacePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_FacePainter old) => old.f != f || old.state != state || old.dark != dark || old.clock != clock;
+  bool shouldRepaint(_FacePainter old) =>
+      old.f != f ||
+      old.state != state ||
+      old.dark != dark ||
+      old.clock != clock ||
+      old.talk != talk ||
+      old.level != level ||
+      old.mouth != mouth;
 }
 
 /// The stop sign on a stopped face (#414): a red disc with a white bar, in

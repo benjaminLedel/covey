@@ -260,8 +260,15 @@ class CoveyApi {
   }
 
   /// Writes in a conversation. What an agent makes of it the next read shows.
-  Future<ConversationMessage> postConversationMessage(String id, String text) async {
-    final out = await post('/conversations/$id/messages', {'text': text}) as Map<String, dynamic>;
+  /// [via] `call`: the line was said in a call (#494), and the conversation
+  /// keeps that mark.
+  Future<ConversationMessage> postConversationMessage(String id, String text, {String? via}) async {
+    final out =
+        await post('/conversations/$id/messages', {
+              'text': text,
+              if (via != null) 'meta': {'via': via},
+            })
+            as Map<String, dynamic>;
     return ConversationMessage.fromJson(out['message'] as Map<String, dynamic>);
   }
 

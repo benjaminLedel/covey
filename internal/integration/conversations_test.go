@@ -726,3 +726,49 @@ func TestEveryMemberReachesTheAgentsTheOrganisationAllows(t *testing.T) {
 	ada.expect(http.MethodPost, "/api/v1/conversations", map[string]any{
 		"kind": "group", "title": "Q3", "members": []any{map[string]any{"kind": "agent", "id": finanzen.ID}}}, http.StatusForbidden)
 }
+
+// TestALineSaidInACallSaysSo is #494: the app posts what was said in a call
+// with meta {"via": "call"}; the conversation keeps that mark and nothing
+// else a client might claim about its own line.
+func TestALineSaidInACallSaysSo(t *testing.T) {
+	s := newStack(t)
+	agent := s.newSupportAgent("anruf")
+	s.ohneLaeufe(agent.ID)
+	modell := &antwortendesModell{}
+	s.srv.OrgLLM = func(context.Context, uuid.UUID) (llm.Provider, error) { return modell, nil }
+	admin := teamLogin(t, s)
+	admin.expect(http.MethodPatch, "/api/v1/org/chat-triage", map[string]any{"mode": "on"}, http.StatusOK)
+	c := admin.expect(http.MethodPost, "/api/v1/conversations", map[string]any{
+		"kind": "direct", "member": map[string]any{"kind": "agent", "id": agent.ID}}, http.StatusCreated)
+	path := "/api/v1/conversations/" + c["id"].(string) + "/messages"
+
+	for _, meta := range []map[string]any{
+		{"via": "phone"},
+		{"reports": "result"},
+		{"via": "call", "proposal_id": "x"},
+	} {
+		admin.expect(http.MethodPost, path, map[string]any{"text": "Hallo", "meta": meta}, http.StatusBadRequest)
+	}
+	out := admin.expect(http.MethodPost, path, map[string]any{"text": "Wie weit bist du?", "meta": map[string]any{"via": "call"}}, http.StatusAccepted)
+	if m := out["message"].(map[string]any); m["meta"].(map[string]any)["via"] != "call" {
+		t.Fatalf("the posted line: %v", m)
+	}
+	admin.expect(http.MethodPost, path, map[string]any{"text": "Getippt."}, http.StatusAccepted)
+	wartenAuf(t, "both lines are answered", func() bool { return len(modell.prompts()) == 2 })
+
+	var gesagt, getippt map[string]any
+	for _, m := range nachrichten(t, admin, c["id"].(string)) {
+		switch m["text"] {
+		case "Wie weit bist du?":
+			gesagt = m
+		case "Getippt.":
+			getippt = m
+		}
+	}
+	if gesagt == nil || gesagt["meta"] == nil || gesagt["meta"].(map[string]any)["via"] != "call" {
+		t.Fatalf("the line said in the call, read back: %v", gesagt)
+	}
+	if getippt == nil || getippt["meta"] != nil {
+		t.Fatalf("the typed line, read back: %v", getippt)
+	}
+}

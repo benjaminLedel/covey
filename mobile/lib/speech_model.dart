@@ -45,6 +45,10 @@ class SpeechModel extends ChangeNotifier {
   /// directory of its own, so a change of speech model leaves it alone.
   static final SpeechModel speaker = SpeechModel._(fixed: 'titanet', root: 'speaker');
 
+  /// Silero's voice activity detector (#494), which cuts a call's turns: not
+  /// chosen either, 643 KB, in a directory of its own.
+  static final SpeechModel vad = SpeechModel._(fixed: 'silero', root: 'vad');
+
   /// A model that is not chosen but always this one.
   final String? fixed;
 
@@ -142,7 +146,10 @@ class SpeechModel extends ChangeNotifier {
     try {
       return await api.speechModel(name: name);
     } on ApiException catch (e) {
-      if (e.status != 404) rethrow;
+      // A fixed model the instance does not offer is missing, not a choice
+      // to fall back from: the default speech model is no speaker model
+      // and no voice detector.
+      if (e.status != 404 || fixed != null) rethrow;
       await choose(null);
       return api.speechModel();
     }

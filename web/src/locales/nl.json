@@ -3164,5 +3164,30 @@
     "declinedBy": "Afgewezen door {{name}}, {{when}}.",
     "requestedInChat": "in de chat gevraagd door {{name}} ·",
     "inApp": "Voorstel · beslis in de web-app"
+  },
+  "call": {
+    "button": "{{name}} bellen (test) · ⌘⇧C",
+    "onDevice": "Gesprek · test · spraak blijft op deze Mac",
+    "preparing": "Gesprek wordt voorbereid…",
+    "preparingModel": "Spraakmodel wordt geladen… {{percent}} %",
+    "listening": "Luistert",
+    "hearing": "Hoort je",
+    "thinking": "Denkt na…",
+    "speaking": "Spreekt",
+    "muted": "Gedempt",
+    "ended": "Gesprek beëindigd",
+    "denied": "De microfoon is niet toegestaan. Sta covey toe in Systeeminstellingen → Privacy en beveiliging → Microfoon.",
+    "modelNotReady": "De instantie haalt de spraakmodellen nog op. Probeer het over een paar minuten opnieuw.",
+    "off": "Spraakherkenning staat uit op deze instantie, of de instantie is te oud voor gesprekken.",
+    "failed": "Het gesprek kon niet starten: {{error}}",
+    "mute": "Dempen",
+    "unmute": "Dempen opheffen",
+    "hangUp": "Ophangen",
+    "you": "Jij",
+    "stillWorking": "Ik ben er nog mee bezig.",
+    "restInChat": "De rest staat in de chat.",
+    "setting": "Bellen (test)",
+    "settingSwitch": "Agenten bellen",
+    "settingHint": "Een belknop in het gesprek met een agent. Spraak wordt op deze Mac herkend en uitgesproken; alleen de tekst gaat het gesprek in, gemarkeerd als gezegd in een gesprek."
   }
 }

@@ -3164,5 +3164,30 @@
     "declinedBy": "Rechazada por {{name}}, {{when}}.",
     "requestedInChat": "pedida en el chat por {{name}} ·",
     "inApp": "Propuesta · se decide en la web"
+  },
+  "call": {
+    "button": "Llamar a {{name}} (prueba) · ⌘⇧C",
+    "onDevice": "Llamada · prueba · la voz se queda en este Mac",
+    "preparing": "Preparando la llamada…",
+    "preparingModel": "Cargando el modelo de voz… {{percent}} %",
+    "listening": "Escuchando",
+    "hearing": "Te escucha",
+    "thinking": "Pensando…",
+    "speaking": "Hablando",
+    "muted": "Silenciado",
+    "ended": "Llamada terminada",
+    "denied": "El micrófono no está permitido. Permite covey en Ajustes del Sistema → Privacidad y seguridad → Micrófono.",
+    "modelNotReady": "La instancia aún está descargando los modelos de voz. Inténtalo de nuevo en unos minutos.",
+    "off": "El reconocimiento de voz está desactivado en esta instancia, o la instancia es demasiado antigua para llamadas.",
+    "failed": "No se pudo iniciar la llamada: {{error}}",
+    "mute": "Silenciar",
+    "unmute": "Activar sonido",
+    "hangUp": "Colgar",
+    "you": "Tú",
+    "stillWorking": "Sigo trabajando en ello.",
+    "restInChat": "El resto está en el chat.",
+    "setting": "Llamadas (prueba)",
+    "settingSwitch": "Llamar a agentes",
+    "settingHint": "Un botón de llamada en la conversación con un agente. La voz se reconoce y se sintetiza en este Mac; solo el texto va a la conversación, marcado como dicho en una llamada."
   }
 }

@@ -72,6 +72,14 @@ How the instance reaches Firebase — **directly** with a service account of its
 
 A notification opens the thread with the agent it is about. The app offers covey's own notification sounds, the system's sound, or none.
 
+## Calling an agent (trial)
+
+On the Mac, the thread with an agent has a **Call** button (⌘⇧C). The call fills the window with the agent's face, which listens, thinks and speaks; the person talks, and the agent answers aloud. It is a trial: the Mac only, switched under **Settings → Calls (trial)**, on by default, for this device alone.
+
+The audio stays on the Mac. Silero's voice detector cuts a turn at a pause of about 0.7 s, the speech model recognises it, and only the text goes into the conversation — as an ordinary message, marked as said in a call (`meta.via = "call"`), so the chat's own path answers it and the conversation records it like any other. The reply is spoken by the Mac's own speech synthesis, in the language it is written in, with a voice chosen per agent from the voices installed for that language; a long reply is cut to its first sentences and the rest stays in the chat. A task opened in the call is acknowledged aloud, and its result is spoken when it arrives while the call is still open. Speaking while the agent speaks stops it; **Mute** closes the microphone, **Hang up** (or Esc) ends the call, and nothing listens once it is closed.
+
+Without headphones the microphone hears the agent's own voice: the call does not interrupt itself on short bursts and drops a turn that repeats what it just said, but the agent may still stop mid-sentence. Better voices are installed in System Settings → Accessibility → Spoken Content.
+
 ## What works where
 
 The app is one code base, but several features are built on macOS APIs and exist only there:
@@ -83,6 +91,7 @@ The app is one code base, but several features are built on macOS APIs and exist
 | Dictation inside the app | yes | yes | yes | yes |
 | Dictate anywhere (global shortcut) | — | — | yes | — |
 | Activity log | — | — | yes | — |
+| Calling an agent (trial) | — | — | yes | — |
 | The computer's own audio beside the microphone in a note | — | — | yes | — |
 | Updating itself | TestFlight, for testers | — | Sparkle | — |
 
