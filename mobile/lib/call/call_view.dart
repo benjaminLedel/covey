@@ -80,7 +80,7 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
       _own = widget.controller == null;
       if (widget.controller == null) {
         final api = widget.api!;
-        final backend = ApiCallBackend(api, widget.agentId);
+        final backend = ApiCallBackend(api, widget.agentId, language: strings.language);
         _call = CallController(
           backend: backend,
           ears: DeviceEars(api, language: strings.language),

@@ -3226,9 +3226,9 @@
   },
   "voiceSpeech": {
     "title": "Głos mówiony (połączenia)",
-    "hint": "Jak brzmią agenci z tym głosem, gdy połączenie wypowiada ich odpowiedzi przez dostawcę głosu organizacji. Puste — mówi domyślny głos dostawcy, w stylu tonu czatu.",
+    "hint": "Jak brzmią agenci z tym głosem, gdy połączenie wypowiada ich odpowiedzi przez dostawcę głosu organizacji. Puste — każdy agent automatycznie otrzymuje jeden z głosów dostawcy (każdy inny, o ile dostawca ma ich dość), w stylu tonu czatu.",
     "voice": "Głos u dostawcy",
-    "voiceDefault": "domyślny głos organizacji",
+    "voiceDefault": "przydzielany automatycznie",
     "speed": "Tempo {{speed}}×",
     "instructions": "Styl (krótka wskazówka po angielsku)",
     "noProvider": "Nie ustawiono dostawcy głosu: połączenia mówią głosem Maca.",
@@ -3237,7 +3237,12 @@
     "sample": "Cześć, tu {{name}}. Tak brzmię w połączeniu.",
     "save": "Zapisz",
     "saved": "Zapisano",
-    "instructionsPlaceholder": "calm and warm, a little slower"
+    "instructionsPlaceholder": "calm and warm, a little slower",
+    "agentSpoken": "Głos w połączeniach: {{voice}}",
+    "sourceVoice": "z jego głosu {{name}}",
+    "sourceAssigned": "przydzielony automatycznie",
+    "sourceDefault": "głos domyślny",
+    "providerDefaultVoice": "domyślny głos dostawcy"
   },
   "voiceProvider": {
     "title": "Dostawca głosu",
@@ -3260,6 +3265,10 @@
     "test": "Testuj",
     "testing": "Testowanie…",
     "testOk": "Działa: zdanie zsyntetyzowano w {{ms}} ms.",
-    "testFailed": "Nie działa: {{error}}"
+    "testFailed": "Nie działa: {{error}}",
+    "voiceDefault": "domyślny głos dostawcy"
+  },
+  "voicePicker": {
+    "unlisted": "{{name}} (spoza listy dostawcy)"
   }
 }

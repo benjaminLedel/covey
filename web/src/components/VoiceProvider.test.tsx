@@ -138,3 +138,75 @@ describe("the organisation's voice provider", () => {
     expect(container).toBeEmptyDOMElement();
   });
 });
+
+// The provider's named voices (#518): a choice grouped by language with
+// the names a person reads, a Listen button for the chosen one, and the
+// free text field where the provider lists none.
+describe("the provider's voice list", () => {
+  const list = {
+    listed: true,
+    default: { name: "thorsten", display_name: "Thorsten", language: "de" },
+    voices: [
+      { name: "katja", display_name: "Katja", language: "de" },
+      { name: "thorsten", display_name: "Thorsten", language: "de" },
+      { name: "linda", display_name: "Linda", language: "en" },
+    ],
+  };
+  const own = {
+    base_url: "",
+    model: "",
+    voice: "",
+    key_set: false,
+    transcribe: false,
+    transcribe_model: "whisper-1",
+    effective: { source: "educa", base_url: "https://api.educaai.de" },
+  };
+
+  it("offers the spoken voice as a choice grouped by language", async () => {
+    mockFetch({ "/api/v1/speech/model": { synthesize: true }, "/api/v1/org/voice-provider/voices": list });
+    const onSave = vi.fn();
+    renderWithProviders(<SpeechForm value={null} name="Kollegial" editable saving={false} onSave={onSave} />);
+    const select = await screen.findByRole("combobox", { name: "Stimme beim Anbieter" });
+    expect(screen.getByRole("group", { name: "Deutsch" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Englisch" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "automatisch zugewiesen" })).toBeInTheDocument();
+    fireEvent.change(select, { target: { value: "katja" } });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    expect(onSave).toHaveBeenCalledWith({ voice: "katja", instructions: undefined, speed: undefined });
+  });
+
+  it("keeps a name the list no longer has", async () => {
+    mockFetch({ "/api/v1/speech/model": { synthesize: true }, "/api/v1/org/voice-provider/voices": list });
+    renderWithProviders(<SpeechForm value={{ voice: "af_bella" }} name="Kollegial" editable saving={false} onSave={() => {}} />);
+    const select = await screen.findByRole("combobox", { name: "Stimme beim Anbieter" });
+    expect(select).toHaveValue("af_bella");
+    expect(screen.getByRole("option", { name: "af_bella (nicht in der Liste des Anbieters)" })).toBeInTheDocument();
+  });
+
+  it("lets the default voice be chosen and heard in the settings", async () => {
+    mockFetch({
+      "/api/v1/org/voice-provider/voices": list,
+      "/api/v1/org/voice-provider": own,
+      "POST /api/v1/speech/synthesize": "audio",
+    });
+    vi.stubGlobal("URL", Object.assign(URL, { createObjectURL: vi.fn(() => "blob:x"), revokeObjectURL: vi.fn() }));
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+    renderWithProviders(<VoiceProviderSettings me={{ Role: "org_admin" }} />);
+    const select = await screen.findByRole("combobox", { name: "Standardstimme" });
+    fireEvent.change(select, { target: { value: "linda" } });
+    fireEvent.click(screen.getByRole("button", { name: "Anhören" }));
+    await waitFor(() => expect(play).toHaveBeenCalled());
+    const [, init] = vi.mocked(fetch).mock.calls.find(([u]) => String(u).endsWith("/speech/synthesize"))!;
+    const body = JSON.parse(String(init!.body));
+    expect(body.voice).toBe("linda");
+    expect(body.language).toBe("en");
+  });
+
+  it("keeps free text for a provider without a list", async () => {
+    mockFetch({ "/api/v1/speech/model": { synthesize: true }, "/api/v1/org/voice-provider/voices": { listed: false, default: null, voices: [] } });
+    renderWithProviders(<SpeechForm value={null} name="Kollegial" editable saving={false} onSave={() => {}} />);
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Stimme beim Anbieter" })).toBeInTheDocument());
+    expect(screen.queryByRole("combobox", { name: "Stimme beim Anbieter" })).not.toBeInTheDocument();
+  });
+});

@@ -29,6 +29,10 @@ type fakeVoiceProvider struct {
 	// gate, so a test sees the first arrive before the rest is sent.
 	chunks [][]byte
 	gate   chan struct{}
+	// voiceList, when set, is served at GET /api/tts/voices as educa AI
+	// lists its voices (#518); listReads counts the requests.
+	voiceList string
+	listReads int
 }
 
 var fakeWAV = []byte("RIFF\x24\x00\x00\x00WAVEfmt fake audio")
@@ -45,6 +49,19 @@ func newFakeVoiceProvider(t *testing.T) *fakeVoiceProvider {
 			return
 		}
 		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/tts/voices":
+			f.mu.Lock()
+			list := f.voiceList
+			if list != "" {
+				f.listReads++
+			}
+			f.mu.Unlock()
+			if list == "" {
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(list))
 		case r.Method == http.MethodPost && r.URL.Path == "/v1/audio/speech":
 			var body map[string]any
 			_ = json.NewDecoder(r.Body).Decode(&body)

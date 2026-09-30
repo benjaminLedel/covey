@@ -262,6 +262,8 @@ func (s *Server) handleSetVoiceProvider(w http.ResponseWriter, r *http.Request) 
 		mapErr(w, err)
 		return
 	}
+	// Another provider, or another key, may list other voices (#518).
+	defer s.voiceLists.forget(p.OrgID)
 	key := in.Key
 	if !v.Configured() {
 		empty := ""

@@ -1756,6 +1756,28 @@ export type VoiceProvider = {
   transcribe_model: string;
   effective: { source: "own" | "educa" | "none"; base_url: string };
 };
+/** One voice the provider lists (#518). */
+export type ProviderVoice = { name: string; display_name: string; language: string };
+/** The provider's named voices (GET /org/voice-provider/voices); listed is
+ *  false for a provider without a list — then the name is free text. */
+export type ProviderVoiceList = {
+  listed: boolean;
+  default: ProviderVoice | null;
+  voices: ProviderVoice[];
+};
+/** Which voice at the provider an agent speaks with in a call, and the
+ *  rule that chose it (#518). */
+export type SpokenVoice = {
+  name: string;
+  display_name: string;
+  language: string;
+  source: "voice" | "assigned" | "provider-default";
+};
+export type AgentSpokenVoice = {
+  voice: { id: string; name: string } | null;
+  provider: boolean;
+  spoken: SpokenVoice;
+};
 /** What the provider's test answers: one sentence synthesised, or why not. */
 export type VoiceProviderTest = { ok: boolean; error?: string; ms?: number; bytes?: number };
 

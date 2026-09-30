@@ -3226,9 +3226,9 @@
   },
   "voiceSpeech": {
     "title": "说话的声音（通话）",
-    "hint": "通话通过组织的语音提供方朗读带有此声音的智能体的回复时的声音。留空时，由提供方的默认声音以聊天语气的风格朗读。",
+    "hint": "通话通过组织的语音提供方朗读带有此声音的智能体的回复时的声音。留空时，每个智能体会自动分配提供方的一个声音（在提供方声音足够时每个智能体各不相同），以聊天语气的风格朗读。",
     "voice": "提供方的声音",
-    "voiceDefault": "组织的默认声音",
+    "voiceDefault": "自动分配",
     "speed": "语速 {{speed}}×",
     "instructions": "风格（简短的英文提示）",
     "noProvider": "未设置语音提供方：通话使用 Mac 的声音。",
@@ -3237,7 +3237,12 @@
     "sample": "你好，我是 {{name}}。这就是我在通话中的声音。",
     "save": "保存",
     "saved": "已保存",
-    "instructionsPlaceholder": "calm and warm, a little slower"
+    "instructionsPlaceholder": "calm and warm, a little slower",
+    "agentSpoken": "通话中的声音：{{voice}}",
+    "sourceVoice": "来自其声音 {{name}}",
+    "sourceAssigned": "自动分配",
+    "sourceDefault": "默认声音",
+    "providerDefaultVoice": "提供方的默认声音"
   },
   "voiceProvider": {
     "title": "语音提供方",
@@ -3260,6 +3265,10 @@
     "test": "测试",
     "testing": "正在测试…",
     "testOk": "可用：用 {{ms}} 毫秒合成了一句话。",
-    "testFailed": "不可用：{{error}}"
+    "testFailed": "不可用：{{error}}",
+    "voiceDefault": "提供方的默认声音"
+  },
+  "voicePicker": {
+    "unlisted": "{{name}}（不在提供方的列表中）"
   }
 }

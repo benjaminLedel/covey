@@ -67,6 +67,48 @@ describe("the agent's voices", () => {
   });
 });
 
+describe("the agent's spoken voice", () => {
+  it("says which voice the agent speaks with in a call, and why", async () => {
+    mockFetch({
+      "/api/v1/agents/a1/voices": agentVoices,
+      "/api/v1/voices": voices,
+      "/api/v1/agents/a1/spoken-voice": {
+        voice: null,
+        provider: true,
+        spoken: { name: "katja", display_name: "Katja", language: "de", source: "assigned" },
+      },
+    });
+    renderWithProviders(<AgentVoices agent={{ id: "a1" }} editable />);
+    expect(await screen.findByText("Stimme in Anrufen: Katja")).toBeInTheDocument();
+    expect(screen.getByText("(automatisch zugewiesen)")).toBeInTheDocument();
+  });
+
+  it("names the covey voice it comes from", async () => {
+    mockFetch({
+      "/api/v1/agents/a1/voices": agentVoices,
+      "/api/v1/voices": voices,
+      "/api/v1/agents/a1/spoken-voice": {
+        voice: { id: "v-haus", name: "Hausstimme" },
+        provider: true,
+        spoken: { name: "linda", display_name: "Linda", language: "en", source: "voice" },
+      },
+    });
+    renderWithProviders(<AgentVoices agent={{ id: "a1" }} editable />);
+    expect(await screen.findByText("(aus seiner Stimme Hausstimme)")).toBeInTheDocument();
+  });
+
+  it("stays away without a voice provider", async () => {
+    mockFetch({
+      "/api/v1/agents/a1/voices": agentVoices,
+      "/api/v1/voices": voices,
+      "/api/v1/agents/a1/spoken-voice": { voice: null, provider: false, spoken: { name: "", display_name: "", language: "", source: "provider-default" } },
+    });
+    renderWithProviders(<AgentVoices agent={{ id: "a1" }} editable />);
+    await screen.findByText("Leer: Es gilt keine Stimme.");
+    expect(screen.queryByText(/Stimme in Anrufen/)).not.toBeInTheDocument();
+  });
+});
+
 describe("a department's audience and voices", () => {
   const dept: Department = {
     id: "d1",

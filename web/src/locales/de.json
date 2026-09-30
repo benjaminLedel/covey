@@ -3226,9 +3226,9 @@
   },
   "voiceSpeech": {
     "title": "Gesprochene Stimme (Anrufe)",
-    "hint": "Wie Agenten mit dieser Stimme klingen, wenn ein Anruf ihre Antworten über den Stimmen-Anbieter der Organisation spricht. Leer spricht die Standardstimme des Anbieters, im Stil des Chat-Tons.",
+    "hint": "Wie Agenten mit dieser Stimme klingen, wenn ein Anruf ihre Antworten über den Stimmen-Anbieter der Organisation spricht. Leer bekommt jeder Agent automatisch eine der Stimmen des Anbieters zugewiesen — je Agent eine andere, soweit der Anbieter genug anbietet —, im Stil des Chat-Tons.",
     "voice": "Stimme beim Anbieter",
-    "voiceDefault": "die Standardstimme der Organisation",
+    "voiceDefault": "automatisch zugewiesen",
     "speed": "Tempo {{speed}}×",
     "instructions": "Stil (ein kurzer Hinweis auf Englisch)",
     "noProvider": "Kein Stimmen-Anbieter eingerichtet: Anrufe sprechen mit der Stimme des Macs.",
@@ -3237,7 +3237,12 @@
     "sample": "Hallo, hier ist {{name}}. So klinge ich in einem Anruf.",
     "save": "Speichern",
     "saved": "Gespeichert",
-    "instructionsPlaceholder": "calm and warm, a little slower"
+    "instructionsPlaceholder": "calm and warm, a little slower",
+    "agentSpoken": "Stimme in Anrufen: {{voice}}",
+    "sourceVoice": "aus seiner Stimme {{name}}",
+    "sourceAssigned": "automatisch zugewiesen",
+    "sourceDefault": "die Standardstimme",
+    "providerDefaultVoice": "die Standardstimme des Anbieters"
   },
   "voiceProvider": {
     "title": "Stimmen-Anbieter",
@@ -3260,6 +3265,10 @@
     "test": "Testen",
     "testing": "Wird getestet…",
     "testOk": "Funktioniert: ein Satz wurde in {{ms}} ms erzeugt.",
-    "testFailed": "Funktioniert nicht: {{error}}"
+    "testFailed": "Funktioniert nicht: {{error}}",
+    "voiceDefault": "die Standardstimme des Anbieters"
+  },
+  "voicePicker": {
+    "unlisted": "{{name}} (nicht in der Liste des Anbieters)"
   }
 }

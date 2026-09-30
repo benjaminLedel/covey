@@ -2,16 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { api, synthesizeSpeech, type VoiceSpeech } from "../api";
+import { ProviderVoicePicker } from "./ProviderVoicePicker";
 
-const NAME_MAX = 100;
 const INSTRUCTIONS_MAX = 300;
 
 /* How the agents carrying a voice sound when a call speaks their words
  * (#497), through the organisation's voice provider — the one source of
  * covey's voices: the voice's name there, a short style hint, the speed.
- * Left empty, the provider's default voice speaks, in a style taken from the
- * chat tone. The preview plays a sentence through the provider here in the
- * browser. */
+ * Left empty, the agent gets one of the provider's voices assigned (#518),
+ * in a style taken from the chat tone. Where the provider lists its voices
+ * the name is chosen from that list. The preview plays a sentence through
+ * the provider here in the browser, with the chosen voice. */
 export function SpeechForm({
   value,
   name,
@@ -79,19 +80,17 @@ export function SpeechForm({
   return (
     <div className="flex flex-col gap-2" style={{ maxWidth: 680 }}>
       <div className="flex gap-3 flex-wrap items-end">
-        <label className="text-xs">
-          <div className="muted mb-1">{t("voiceSpeech.voice")}</div>
-          <input
-            value={voice}
-            placeholder={t("voiceSpeech.voiceDefault")}
-            maxLength={NAME_MAX}
-            readOnly={!editable}
-            onChange={(e) => {
-              touch();
-              setVoice(e.target.value);
-            }}
-          />
-        </label>
+        <ProviderVoicePicker
+          label={t("voiceSpeech.voice")}
+          value={voice}
+          placeholder={t("voiceSpeech.voiceDefault")}
+          readOnly={!editable}
+          sampleName={name}
+          onChange={(v) => {
+            touch();
+            setVoice(v);
+          }}
+        />
         <label className="text-xs">
           <div className="muted mb-1">{t("voiceSpeech.speed", { speed: speed.toFixed(2) })}</div>
           <input

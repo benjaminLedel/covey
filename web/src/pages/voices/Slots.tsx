@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { api, patch, put, type Agent, type Department, type Voice, type VoiceUse } from "../../api";
+import { api, patch, put, type Agent, type AgentSpokenVoice, type Department, type Voice, type VoiceUse } from "../../api";
 import { Modal } from "../../components/Modal";
 import {
   AUDIENCE_NOTE_MAX,
@@ -27,7 +27,7 @@ import {
 function useInvalidateVoices() {
   const qc = useQueryClient();
   return () => {
-    for (const key of ["agent-voices", "org-voices", "voice-assignments", "voices", "voice", "orgchart", "departments"]) {
+    for (const key of ["agent-voices", "agent-spoken-voice", "org-voices", "voice-assignments", "voices", "voice", "orgchart", "departments"]) {
       qc.invalidateQueries({ queryKey: [key] });
     }
   };
@@ -149,9 +149,37 @@ export function AgentVoices({ agent, editable }: { agent: Pick<Agent, "id">; edi
           </div>
         );
       })}
+      <SpokenVoiceLine agentId={agent.id} />
       <ErrorText error={save.error} />
       {!editable && <p className="muted text-xs" style={{ margin: "0 0 10px" }}>{t("voices.occ.readOnly")}</p>}
     </div>
+  );
+}
+
+/* Which voice at the voice provider the agent speaks with in a call, and
+   why (#518): its chat voice's own, one assigned to it from the provider's
+   list, or the default. Absent without a provider. */
+function SpokenVoiceLine({ agentId }: { agentId: string }) {
+  const { t } = useTranslation();
+  const q = useQuery({
+    queryKey: ["agent-spoken-voice", agentId],
+    queryFn: () => api<AgentSpokenVoice>(`/agents/${agentId}/spoken-voice`),
+    retry: false,
+  });
+  const d = q.data;
+  if (!d?.provider) return null;
+  const sp = d.spoken;
+  const voice = sp.name ? sp.display_name || sp.name : t("voiceSpeech.providerDefaultVoice");
+  const why =
+    sp.source === "voice"
+      ? t("voiceSpeech.sourceVoice", { name: d.voice?.name ?? "" })
+      : sp.source === "assigned"
+        ? t("voiceSpeech.sourceAssigned")
+        : t("voiceSpeech.sourceDefault");
+  return (
+    <p className="text-xs" style={{ margin: "8px 0 10px" }}>
+      {t("voiceSpeech.agentSpoken", { voice })} <span className="muted">({why})</span>
+    </p>
   );
 }
 
