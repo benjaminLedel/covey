@@ -261,6 +261,39 @@ func TestFCMSendsAnAPNsMessageToTheIPhone(t *testing.T) {
 	}
 }
 
+// A message in a group or between two people has no agent's thread (#440):
+// it carries its conversation, which the app opens on a tap, and an iPhone
+// groups it under that.
+func TestFCMCarriesTheConversation(t *testing.T) {
+	srv, sent, _ := fakeGoogle(t)
+	_, raw := fcmCredentials(t, srv.URL+"/token")
+	f, err := ParseFCM(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Endpoint = srv.URL
+	for _, platform := range []string{"android", "ios"} {
+		if err := f.Send(context.Background(), Message{Token: "fcm-1", Platform: platform, Environment: "production",
+			Title: "Ada hat geantwortet", ConversationID: "c1"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(*sent) != 2 {
+		t.Fatalf("sent %d", len(*sent))
+	}
+	if data := (*sent)[0]["data"].(map[string]any); data["conversation_id"] != "c1" || data["agent_id"] != "" {
+		t.Fatalf("android data: %v", data)
+	}
+	payload := (*sent)[1]["apns"].(map[string]any)["payload"].(map[string]any)
+	if payload["conversation_id"] != "c1" || payload["aps"].(map[string]any)["thread-id"] != "c1" {
+		t.Fatalf("ios payload: %v", payload)
+	}
+	m := Message{Token: "t", Environment: "production", Title: "x", ConversationID: strings.Repeat("c", 65)}
+	if m.Valid() {
+		t.Fatal("a relay takes no conversation id longer than an id")
+	}
+}
+
 func TestFCMCheckFetchesAToken(t *testing.T) {
 	srv, _, exchanges := fakeGoogle(t)
 	_, raw := fcmCredentials(t, srv.URL+"/token")

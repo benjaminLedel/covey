@@ -39,6 +39,10 @@ type Message struct {
 	// AgentID is the thread a tap opens, and the thread notifications are
 	// grouped under.
 	AgentID string `json:"agent_id"`
+	// ConversationID is the conversation the message was written in (#440).
+	// A tap opens it where there is no agent's thread to open — a group, or
+	// a direct conversation between two people — and it groups those.
+	ConversationID string `json:"conversation_id,omitempty"`
 	// Sound is a file in the app's bundle, "default", or empty for none
 	// (#381).
 	Sound string `json:"sound,omitempty"`
@@ -100,7 +104,7 @@ func (m Message) Valid() bool {
 		(m.Platform == "" || m.Platform == "ios" || m.Platform == "macos" || m.Platform == "android") &&
 		(m.Environment == "production" || m.Environment == "development") &&
 		m.Title != "" && len([]rune(m.Title)) <= MaxTitle && len([]rune(m.Body)) <= MaxBody &&
-		m.Badge >= 0 && m.Badge < 100000 && len(m.AgentID) <= 64 && soundName.MatchString(m.Sound)
+		m.Badge >= 0 && m.Badge < 100000 && len(m.AgentID) <= 64 && len(m.ConversationID) <= 64 && soundName.MatchString(m.Sound)
 }
 
 // FirstLine is the start of a text as a list shows it: one line, at most n

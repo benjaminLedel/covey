@@ -129,7 +129,7 @@ func (s *Server) handlePushRelay(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 4<<10)
 	var m push.Message
 	if err := readJSON(r, &m); err != nil || !m.Valid() {
-		writeErr(w, http.StatusBadRequest, "expected token, environment, title (and body, badge, agent_id) within bounds")
+		writeErr(w, http.StatusBadRequest, "expected token, environment, title (and body, badge, agent_id, conversation_id) within bounds")
 		return
 	}
 	switch err := relay.Send(r.Context(), m); {
