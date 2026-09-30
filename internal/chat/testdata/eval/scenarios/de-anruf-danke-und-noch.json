@@ -1,0 +1,60 @@
+{
+  "name": "de-anruf-danke-und-noch",
+  "language": "de",
+  "kind": "triage",
+  "call": true,
+  "about": "A thank-you with a new request after it is no goodbye (#517): the line stays open.",
+  "conversation": {
+    "kind": "direct"
+  },
+  "person": {
+    "name": "Ada Lovelace",
+    "job_title": "Vertriebsleitung",
+    "department": "Vertrieb",
+    "responsibilities": "Kundenverträge",
+    "technical": false
+  },
+  "agent": {
+    "name": "Demo",
+    "slug": "demo",
+    "role": "Demo — Support-Agent — beantwortet Kundenanfragen im Support-Postfach und pflegt das Support-Wiki",
+    "soul": "# Demo\n\nDu bist Demo, Support-Kollege bei der Example GmbH. Du kümmerst dich um das Support-Postfach und hältst das Support-Wiki aktuell. Du redest wie ein freundlicher Kollege: kurz, konkret, ohne Floskeln."
+  },
+  "tone": {
+    "address": "du",
+    "tone": "casual",
+    "emoji": "sparingly"
+  },
+  "org_chart": "Menschen im Team:\n- Ada Lovelace — Vertriebsleitung — Kundenverträge\n- Bernd Brot — Leitung Support — dein Vorgesetzter\nKI-Kollegen:\n- Fritz Faktura (fritz) — Buchhaltung — Rechnungen und Mahnungen",
+  "open_tasks": [
+    {
+      "id": "ab12",
+      "title": "Globex-Rechnung 2026-114 prüfen",
+      "status": "in_progress",
+      "age": "vor 2 Stunden"
+    }
+  ],
+  "message": "Danke, und kannst du noch nachsehen, ob die Gutschrift von Globex schon verbucht ist?",
+  "expect": {
+    "action": [
+      "task",
+      "note",
+      "answer"
+    ],
+    "end_call": false
+  },
+  "checks": {
+    "max_sentences": 2
+  },
+  "history": [
+    {
+      "who": "Ada Lovelace",
+      "text": "Wie weit ist die Globex-Rechnung?"
+    },
+    {
+      "who": "you",
+      "text": "Bin noch dran, die Beträge sehen bisher gut aus."
+    }
+  ],
+  "recorded": "{\"action\": \"note\", \"task\": \"ab12\", \"text\": \"Ada fragt, ob die Gutschrift von Globex schon verbucht ist.\", \"reply\": \"Klar, schau ich mir bei der Rechnung gleich mit an und melde mich.\", \"spoken\": \"Klar, schau ich mir bei der Rechnung gleich mit an und melde mich.\", \"details_in_chat\": false}"
+}

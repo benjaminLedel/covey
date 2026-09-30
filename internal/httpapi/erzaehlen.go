@@ -100,15 +100,18 @@ func (s *Server) melden(ctx context.Context, b chat.Report) {
 	   with it, in a tag that never reaches the conversation; any other report
 	   of a task from a call gets it from one short turn now. */
 	var gesprochen string
-	var details bool
+	var details, schluss bool
 	if b.ChatAnswer {
-		text, gesprochen, details = chat.SplitSpoken(text)
+		text, gesprochen, details, schluss = chat.SplitSpokenCall(text)
 	}
 	if b.SaidInCall {
 		if gesprochen == "" {
 			gesprochen, details = s.sprechfassung(ctx, b, text)
 		}
-		meta = chat.WithSpoken(meta, gesprochen, details)
+		/* The goodbye to a person who closed the call (#517): only the run
+		   of a chat answer can say so, in its tag — a task's report is not
+		   the answer to a farewell. */
+		meta = chat.WithEndCall(chat.WithSpoken(meta, gesprochen, details), schluss)
 	}
 	_, neu, err := s.Chat.Post(ctx, b.Message(text, meta))
 	if err != nil {

@@ -34,6 +34,9 @@ import (
 const (
 	MetaSpoken        = "spoken"
 	MetaDetailsInChat = "details_in_chat"
+	// MetaEndCall = "true" marks the agent's goodbye to a person who closed
+	// the call (#517): the call speaks it and hangs up.
+	MetaEndCall = "end_call"
 )
 
 // SaidInCall says whether a person's message was said aloud in a call.
@@ -216,7 +219,30 @@ The new message was said aloud in a call, not typed: the person is listening, an
 ` + spokenLanguageRule(lang, "written form") + `
 Add "details_in_chat": true when the spoken form leaves out something the written one carries (an id, a link, a list, a figure), false when it says all of it.
 "spoken" is what the person hears: for "answer" it says "text", for "note" it says "reply", for "task" the acknowledgement in "text", for "config" the "text" (write ` + ApproversPlatzhalter + ` there too). A "search" needs none.
-` + beispiel
+` + beispiel + `
+` + triageSchluss
+}
+
+/* triageSchluss is the closing of a call (#517): the person says goodbye and
+ * the agent hangs up after its own, instead of leaving the line open until
+ * they press the button. The line is narrow on purpose — a thank-you in the
+ * middle of a request is no goodbye, and a call ended too early costs more
+ * than one the person has to hang up themselves. */
+const triageSchluss = `Add "end_call": true only when the person is ending the call: they take their leave or say they are done ("Danke, das war's", "Tschüss", "Bis später", "Danke, schönen Tag noch", "That's all, bye", "Thanks, talk later") and want nothing more from you now. Then "text" and "spoken" are a short goodbye in one sentence, as a colleague says it on the phone ("Gern, bis später!", "Anytime — bye!"). If they hand you a job while they take their leave, it is a "task" as ever, and its acknowledgement is the goodbye and says you will report back in the chat ("Mach ich, ich meld mich im Chat. Tschüss!"). A thank-you with a request or a question after it ("Danke, und kannst du noch …", "Thanks — one more thing …"), a question, or anything they want answered now is not an ending: leave "end_call" out. When in doubt, leave it out — the person can still hang up themselves.`
+
+// endetAnruf says whether a decision may close the call it was said in
+// (#517): only an answer, a note's reply or a task's acknowledgement — a
+// search says nothing, a config proposal waits for somebody — and never an
+// answer to a message that asks something: a question wants its answer, not
+// a goodbye.
+func endetAnruf(e Entscheidung, nachricht string) bool {
+	switch e.Aktion {
+	case AktionAntwort:
+		return !strings.ContainsAny(nachricht, "?¿？")
+	case AktionNotiz, AktionAufgabe:
+		return true
+	}
+	return false
 }
 
 // fuerAnruf keeps the spoken form of a decision only where there is a call:
@@ -224,11 +250,15 @@ Add "details_in_chat": true when the spoken form leaves out something the writte
 // says nothing. A spoken form in another language than what it says aloud
 // is dropped (#511); lang is the conversation's language, for a written
 // answer too short to tell.
-func fuerAnruf(e Entscheidung, anruf bool, lang string) Entscheidung {
+//
+// The closing of the call (#517) stands only where endetAnruf allows it for
+// nachricht, the message the decision answers.
+func fuerAnruf(e Entscheidung, anruf bool, lang, nachricht string) Entscheidung {
 	if !anruf || e.Aktion == AktionSuche {
-		e.Gesprochen, e.DetailsImChat = "", false
+		e.Gesprochen, e.DetailsImChat, e.Schluss = "", false, false
 		return e
 	}
+	e.Schluss = e.Schluss && endetAnruf(e, nachricht)
 	e.Gesprochen = Sprechbar(e.Gesprochen)
 	geschrieben := e.Text
 	if e.Aktion == AktionNotiz {
@@ -245,26 +275,60 @@ func fuerAnruf(e Entscheidung, anruf bool, lang string) Entscheidung {
 
 // AnswerMeta is the meta of the message a decision says in the
 // conversation: the voice (Meta) and, in a call, the spoken form.
+// With the closing of a call (#517) it carries MetaEndCall.
 func (e Entscheidung) AnswerMeta() map[string]string {
-	return WithSpoken(e.Meta, e.Gesprochen, e.DetailsImChat)
+	return WithEndCall(WithSpoken(e.Meta, e.Gesprochen, e.DetailsImChat), e.Schluss)
+}
+
+// WithEndCall is meta marked as the goodbye that ends a call (#517): a copy,
+// as WithSpoken makes one. Without end it is meta unchanged.
+func WithEndCall(meta map[string]string, end bool) map[string]string {
+	if !end {
+		return meta
+	}
+	out := make(map[string]string, len(meta)+1)
+	for k, v := range meta {
+		out[k] = v
+	}
+	out[MetaEndCall] = "true"
+	return out
 }
 
 // spokenTag is the trailing section a chat answer's run writes in a call
-// (agents.ChatAnswerCallDoc).
-var spokenTag = regexp.MustCompile(`(?is)\s*<spoken(\s+details_in_chat\s*=\s*["']?(true|false)["']?)?\s*>(.*?)</spoken>\s*`)
+// (agents.ChatAnswerCallDoc): its attributes, and what is inside.
+var (
+	spokenTag  = regexp.MustCompile(`(?is)\s*<spoken((?:\s+[a-z_]+\s*=\s*["']?[a-z]*["']?)*)\s*>(.*?)</spoken>\s*`)
+	spokenAttr = regexp.MustCompile(`(?i)([a-z_]+)\s*=\s*["']?([a-z]*)["']?`)
+)
 
 // SplitSpoken takes the spoken form out of a run's result: the written reply
 // without the tag, the spoken form, and whether it left details for the chat.
 // A result without the tag is returned as it stands; a spoken form in another
 // language than the reply is dropped (#511).
 func SplitSpoken(result string) (written, spoken string, details bool) {
+	written, spoken, details, _ = SplitSpokenCall(result)
+	return written, spoken, details
+}
+
+// SplitSpokenCall is SplitSpoken with the tag's end_call="true" (#517): the
+// reply is the goodbye to a person who closed the call. It stands only with
+// a spoken form — a goodbye nobody hears ends nothing.
+func SplitSpokenCall(result string) (written, spoken string, details, end bool) {
 	m := spokenTag.FindStringSubmatchIndex(result)
 	if m == nil {
-		return result, "", false
+		return result, "", false, false
 	}
-	spoken = Sprechbar(result[m[6]:m[7]])
-	if m[4] >= 0 {
-		details = strings.EqualFold(result[m[4]:m[5]], "true")
+	spoken = Sprechbar(result[m[4]:m[5]])
+	if m[2] >= 0 {
+		for _, a := range spokenAttr.FindAllStringSubmatch(result[m[2]:m[3]], -1) {
+			on := strings.EqualFold(a[2], "true")
+			switch strings.ToLower(a[1]) {
+			case "details_in_chat":
+				details = on
+			case "end_call":
+				end = on
+			}
+		}
 	}
 	written = strings.TrimSpace(result[:m[0]] + "\n\n" + result[m[1]:])
 	// In another language than the reply (#511): not said.
@@ -272,9 +336,9 @@ func SplitSpoken(result string) (written, spoken string, details bool) {
 		spoken = ""
 	}
 	if spoken == "" {
-		details = false
+		details, end = false, false
 	}
-	return written, spoken, details
+	return written, spoken, details, end
 }
 
 // SprechMaxTokens: a JSON object with two short sentences in it.

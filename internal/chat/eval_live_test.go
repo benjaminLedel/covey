@@ -105,6 +105,7 @@ func live(ctx context.Context, p llm.Provider, sc evalScenario) evalAusgabe {
 		zweiter := ausgabe(e2)
 		a.Endgueltig, a.Text = zweiter.Endgueltig, zweiter.Text
 		a.Gesprochen, a.Details = zweiter.Gesprochen, zweiter.Details
+		a.Schluss = zweiter.Schluss
 	}
 	return a
 }

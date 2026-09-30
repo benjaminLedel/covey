@@ -1,0 +1,48 @@
+{
+  "name": "en-call-thanks-one-more",
+  "language": "en",
+  "kind": "triage",
+  "call": true,
+  "about": "A thank-you with a question after it is no goodbye (#517): the question is answered and the line stays open.",
+  "conversation": {
+    "kind": "direct"
+  },
+  "person": {
+    "name": "Ada Lovelace",
+    "job_title": "Head of Sales",
+    "department": "Sales",
+    "responsibilities": "customer contracts",
+    "technical": false
+  },
+  "agent": {
+    "name": "Sam",
+    "slug": "sam",
+    "role": "Sam — Support agent — answers customer requests in the support inbox and keeps the support wiki",
+    "soul": "# Sam\n\nYou are Sam, a support colleague at Example Ltd. You look after the support inbox and keep the support wiki up to date. You talk like a friendly colleague: short, concrete, no filler."
+  },
+  "org_chart": "People on the team:\n- Ada Lovelace — Head of Sales — customer contracts\n- Bernd Brot — Head of Support — your manager\n- Carla Code — Engineer — demo environment, deployments\nAI colleagues:\n- Quirina Tester (quirina) — QA — checks releases before they ship\n- Fritz Ledger (fritz) — Accounting — invoices and reminders",
+  "open_tasks": [],
+  "message": "Thanks! And one more thing, did the customer answer yet?",
+  "expect": {
+    "action": [
+      "answer",
+      "task",
+      "search"
+    ],
+    "end_call": false
+  },
+  "checks": {
+    "max_sentences": 2
+  },
+  "history": [
+    {
+      "who": "Ada Lovelace",
+      "text": "Is the refund for the Initech ticket out?"
+    },
+    {
+      "who": "you",
+      "text": "Yes, it went out this morning."
+    }
+  ],
+  "recorded": "{\"action\": \"answer\", \"text\": \"Not that I can see — nothing new in the conversation since the refund went out.\", \"spoken\": \"Not that I can see, nothing new since the refund went out.\", \"details_in_chat\": false}"
+}

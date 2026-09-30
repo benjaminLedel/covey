@@ -164,6 +164,9 @@ type evalScenario struct {
 		Voice       string   `json:"voice"`
 		VoiceReason string   `json:"voice_reason"`
 		Audience    []string `json:"audience"`
+		// EndCall: whether the triage closes the call (#517); unset checks
+		// nothing.
+		EndCall *bool `json:"end_call"`
 	} `json:"expect"`
 	Checks struct {
 		FirstName      bool     `json:"first_name"`
@@ -320,8 +323,10 @@ type evalAusgabe struct {
 	Text               string
 	// Gesprochen is the spoken form in a call (#502), Details whether it
 	// left details for the chat.
-	Gesprochen   string
-	Details      bool
+	Gesprochen string
+	Details    bool
+	// Schluss: the answer closes the call (#517).
+	Schluss      bool
 	Angesprochen *bool
 	Fehler       error
 }
@@ -342,7 +347,7 @@ func ausgabe(e Entscheidung) evalAusgabe {
 	if e.Aktion == AktionKonfig {
 		gesprochen = strings.ReplaceAll(gesprochen, ApproversPlatzhalter, "Bernd")
 	}
-	return evalAusgabe{Aktion: e.Aktion, Endgueltig: e.Aktion, Text: text, Gesprochen: gesprochen, Details: e.DetailsImChat}
+	return evalAusgabe{Aktion: e.Aktion, Endgueltig: e.Aktion, Text: text, Gesprochen: gesprochen, Details: e.DetailsImChat, Schluss: e.Schluss}
 }
 
 // aufgezeichnet reads a recorded answer the way covey reads the model's.
@@ -357,7 +362,7 @@ func aufgezeichnet(sc evalScenario, roh string) evalAusgabe {
 	if err != nil {
 		return evalAusgabe{Fehler: err}
 	}
-	return ausgabe(fuerAnruf(e, sc.Call, sc.Language))
+	return ausgabe(fuerAnruf(e, sc.Call, sc.Language, sc.Message))
 }
 
 func angesprochen(sc evalScenario) *bool {
@@ -501,6 +506,9 @@ func pruefen(sc evalScenario, a evalAusgabe) []befund {
 		}
 		// Only what is said in the chat is checked as chat: a search says
 		// nothing, and of a note only its reply reaches the conversation.
+		if w := sc.Expect.EndCall; w != nil && a.Schluss != *w {
+			add("end_call", "got %v, want %v", a.Schluss, *w)
+		}
 		if a.Endgueltig == AktionSuche {
 			return out
 		}
@@ -745,10 +753,20 @@ func TestEvalSzenarienSindVollstaendig(t *testing.T) {
 		for _, a := range sc.Expect.Action {
 			anruf[a] = true
 		}
+		if e := sc.Expect.EndCall; e != nil {
+			anruf[fmt.Sprintf("%s end_call %v", sc.Language, *e)] = true
+		}
 	}
 	for _, will := range []string{"de", "en", "answer", "task"} {
 		if !anruf[will] {
 			t.Errorf("no call scenario of %q (#502)", will)
+		}
+	}
+	// The closing of #517, in both languages: a goodbye that ends the call,
+	// and a thank-you with a request after it that does not.
+	for _, will := range []string{"de end_call true", "de end_call false", "en end_call true", "en end_call false"} {
+		if !anruf[will] {
+			t.Errorf("no call scenario of %q (#517)", will)
 		}
 	}
 }

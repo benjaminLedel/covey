@@ -104,6 +104,10 @@ type Entscheidung struct {
 	// said in a call (Rahmen.Anruf); the written fields stay as they are.
 	Gesprochen    string `json:"spoken"`
 	DetailsImChat bool   `json:"details_in_chat"`
+	// In a call (#517): the person closes the conversation and asks for
+	// nothing more. The answer is then the goodbye, and the call hangs up
+	// after saying it (MetaEndCall). Kept only where fuerAnruf lets it stand.
+	Schluss bool `json:"end_call"`
 	// Meta is what the platform notes on the messages this decision writes
 	// (#471): the voice chosen and why. Set by the caller, never parsed.
 	Meta map[string]string `json:"-"`
@@ -419,7 +423,7 @@ func Triagieren(ctx context.Context, p llm.Provider, r Rahmen, organisation stri
 	if err != nil {
 		return e, err
 	}
-	return fuerAnruf(e, r.Anruf, lang), nil
+	return fuerAnruf(e, r.Anruf, lang, nachricht), nil
 }
 
 // lesen holt das JSON aus der Antwort. Modelle stellen gern einen Satz davor
