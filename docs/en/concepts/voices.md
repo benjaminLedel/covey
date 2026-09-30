@@ -1,7 +1,7 @@
 ---
 slug: voices
 title: Voices
-description: 'How a covey agent writes like a person: a voice measured from texts, described in words, or drafted by an agent in the chat — a card, passages, a chat tone and, when measured, a profile the style gate checks against.'
+description: 'How a covey agent writes: a voice from texts, a description or a draft in the chat, chosen per occasion, with a card, examples and a chat tone.'
 faq:
   - q: We have no texts to upload. Can we still give an agent a voice?
     a: Yes. Describe in plain words how you write; one model call writes the card, five to eight sample passages and a suggested chat tone. Such a voice is described, not measured — the style gate does not check against it until texts are added and it is built.

@@ -1,7 +1,7 @@
 ---
 slug: apps
 title: The covey app
-description: 'One app for iPhone, Android, Mac and Windows: where each build comes from, pairing it with an instance by QR code or covey:// link, notifications, and what does not work on which platform.'
+description: 'The app for iPhone, Android, Mac and Windows: where the builds come from, pairing by QR code or covey:// link, notifications and limits per platform.'
 faq:
   - q: Is the covey app in the App Store or on Google Play?
     a: 'Not yet. The apps dialog in the web interface says so for both. Each release uploads the iPhone build to App Store Connect, where TestFlight hands it to the project''s internal testers; nothing is submitted for review. The release publishes no Android build. The Mac and Windows apps are attached to every GitHub release.'

@@ -1,7 +1,7 @@
 ---
 slug: stimmen
 title: Stimmen
-description: 'Wie ein covey-Agent schreibt wie ein Mensch: eine Stimme, aus Texten gemessen, in Worten beschrieben oder von einem Agenten im Chat entworfen — Karte, Passagen, Chat-Ton und, wenn gemessen, ein Profil, an dem die Stilprüfung misst.'
+description: 'Wie ein covey-Agent schreibt: eine Stimme aus Texten, einer Beschreibung oder einem Entwurf im Chat, je Anlass gewählt, mit Karte, Beispielen und Chat-Ton.'
 faq:
   - q: Wir haben keine Texte zum Hochladen. Bekommt ein Agent trotzdem eine Stimme?
     a: Ja. Beschreiben Sie in eigenen Worten, wie Sie schreiben; ein Modellaufruf schreibt die Karte, fünf bis acht Beispielpassagen und einen vorgeschlagenen Chat-Ton. Eine solche Stimme ist beschrieben, nicht gemessen — die Stilprüfung misst nicht an ihr, bis Texte hinzukommen und sie gebaut wird.
