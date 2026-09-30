@@ -328,18 +328,29 @@ func (s *Server) handleConversationMessages(w http.ResponseWriter, r *http.Reque
 }
 
 // handlePostConversationMessage writes a message: {"text": "…", "reply_to": "<id>"}.
+// "meta" is accepted with one entry only, {"via": "call"}: the line was said
+// in a call from the app (#494), and the conversation records it so. Nothing
+// else a client could claim about its own message is taken.
 func (s *Server) handlePostConversationMessage(w http.ResponseWriter, r *http.Request, c chat.Conversation) {
 	if !s.teamSurfaceAn(w, r) {
 		return
 	}
 	p := principalFrom(r)
 	var in struct {
-		Text    string     `json:"text"`
-		ReplyTo *uuid.UUID `json:"reply_to"`
+		Text    string            `json:"text"`
+		ReplyTo *uuid.UUID        `json:"reply_to"`
+		Meta    map[string]string `json:"meta"`
 	}
 	if err := readJSON(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, `invalid body: expected {"text": "…"}`)
 		return
+	}
+	if len(in.Meta) > 1 || (len(in.Meta) == 1 && in.Meta[chat.ViaMeta] != chat.ViaCall) {
+		writeErr(w, http.StatusBadRequest, `meta takes only {"via": "call"}`)
+		return
+	}
+	if len(in.Meta) == 0 {
+		in.Meta = nil
 	}
 	text := strings.TrimSpace(in.Text)
 	if text == "" {
@@ -362,7 +373,7 @@ func (s *Server) handlePostConversationMessage(w http.ResponseWriter, r *http.Re
 			return
 		}
 	}
-	a, err := s.annehmen(r.Context(), c, sprecherVon(p), text, bezug, langFrom(r))
+	a, err := s.annehmen(r.Context(), c, sprecherVon(p), text, bezug, in.Meta, langFrom(r))
 	if err != nil {
 		mapErr(w, err)
 		return

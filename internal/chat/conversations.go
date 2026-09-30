@@ -111,6 +111,14 @@ func (c Conversation) Has(ref Ref) bool {
 	return false
 }
 
+// ViaMeta names how a person's line reached the conversation; ViaCall is
+// its one value: said aloud in a call from the app and recognised there
+// (#494). A line without it was typed.
+const (
+	ViaMeta = "via"
+	ViaCall = "call"
+)
+
 // Message is one line of a conversation.
 type Message struct {
 	ID             uuid.UUID  `json:"id"`

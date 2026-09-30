@@ -109,6 +109,21 @@ var Models = map[string]Model{
 			Size:   40257283,
 		}},
 	},
+	// Not a speech model either: Silero's voice activity detector, which
+	// tells a call's turns apart on the device (#494) — where the person
+	// stopped speaking, and whether they start while the agent speaks.
+	// Offered whenever speech is on.
+	VADModel: {
+		Name:   VADModel,
+		Engine: "vad",
+		Credit: "Silero VAD · MIT",
+		Files: []File{{
+			Name:   "silero_vad.onnx",
+			URL:    "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx",
+			SHA256: "9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6",
+			Size:   643854,
+		}},
+	},
 	"sensevoice": {
 		Name:   "sensevoice",
 		Engine: "sensevoice",
@@ -122,6 +137,9 @@ var Models = map[string]Model{
 
 // SpeakerModel names the speaker-embedding model (#367).
 const SpeakerModel = "titanet"
+
+// VADModel names the voice activity detector a call listens with (#494).
+const VADModel = "silero"
 
 const (
 	parakeetRepo   = "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8"
@@ -162,7 +180,7 @@ func New(name, dataDir string, log *slog.Logger) (*Store, error) {
 	}
 	m, ok := Models[name]
 	if !ok {
-		return nil, fmt.Errorf("unknown speech model %q (parakeet, sensevoice, titanet or off)", name)
+		return nil, fmt.Errorf("unknown speech model %q (parakeet, sensevoice, titanet, silero or off)", name)
 	}
 	return &Store{Model: m, Dir: filepath.Join(dataDir, "models", name), Log: log}, nil
 }
