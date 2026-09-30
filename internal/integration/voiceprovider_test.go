@@ -344,6 +344,21 @@ func TestTheVoiceProviderSpeaksAndHears(t *testing.T) {
 	if own.lastAuth() != "Bearer "+ownKey {
 		t.Fatalf("transcription authorization = %q", own.lastAuth())
 	}
+	// The call's language reaches the provider as its base (#516): a device
+	// locale's "en_US" as "en", and a turn without one leaves it out, so the
+	// provider detects it.
+	rawPost("/api/v1/speech/transcribe?language=en_US", turn, http.StatusOK)
+	rawPost("/api/v1/speech/transcribe", turn, http.StatusOK)
+	own.mu.Lock()
+	forms := append([]map[string]string(nil), own.forms...)
+	own.mu.Unlock()
+	if len(forms) != 3 || forms[1]["language"] != "en" {
+		t.Fatalf("language of a device locale: %v", forms)
+	}
+	if _, set := forms[2]["language"]; set {
+		t.Fatalf("a turn without a language named one: %v", forms[2])
+	}
+	rawPost("/api/v1/speech/transcribe?language=de%20DE", turn, http.StatusBadRequest)
 	rawPost("/api/v1/speech/transcribe", []byte("not a wav at all, just some bytes here to pass the length check"), http.StatusBadRequest)
 	rawPost("/api/v1/speech/transcribe", wavOf(2<<20), http.StatusRequestEntityTooLarge)
 
