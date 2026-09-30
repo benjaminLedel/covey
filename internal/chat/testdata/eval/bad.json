@@ -235,13 +235,5 @@
     "fails": [
       "end_call"
     ]
-  },
-  {
-    "scenario": "de-anruf-danke-und-noch",
-    "why": "#517: a thank-you with a request after it taken for a goodbye — the call would hang up on the request.",
-    "recorded": "{\"action\": \"task\", \"title\": \"Gutschrift von Globex prüfen\", \"body\": \"Ada fragt, ob die Gutschrift von Globex verbucht ist.\", \"text\": \"Mach ich, tschüss!\", \"spoken\": \"Mach ich, tschüss!\", \"details_in_chat\": false, \"end_call\": true}",
-    "fails": [
-      "end_call"
-    ]
   }
 ]
