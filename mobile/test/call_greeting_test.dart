@@ -113,7 +113,7 @@ void main() {
         time: _afternoon,
       );
       expect(formal.text, isNot(contains('Grace')));
-      expect(formal.text, matches(RegExp(r'^(Guten Tag|Schönen guten Tag|Hallo)\. ')));
+      expect(formal.text, matches(RegExp(r'^(Guten Tag|Schönen guten Tag|Hallo)(\.|, schön, dass Sie anrufen\.) ')));
     });
 
     test('every language, register and time reads whole with names missing', () {
@@ -254,6 +254,120 @@ void main() {
       await _settle();
       expect(speaker.spoken.last.$1, 'Der Bericht ist fertig.');
       await call.hangUp();
+    });
+
+    group('written by the instance (#513)', () {
+      const written = 'Guten Morgen, Grace! Heute Vormittag ging es um den Export. Weiter damit?';
+
+      test('arrives while ringing: synthesised at once and said when the call connects', () async {
+        final ears = FakeEars()..gate = Completer<void>();
+        final backend = FakeBackend()..written = Completer<String?>(), speaker = FakeSpeaker(), clock = FakeClock();
+        final memory = _Memory();
+        final g = CallGreeter(enabled: () => true, memory: memory, now: () => _morning);
+        final call = fakeCall(ears, backend, speaker, startTimer: clock.start, greeter: g);
+        final started = call.start();
+        await _settle();
+        expect(backend.writtenAsked, [('de', _morning)], reason: 'asked as the line rings, on the caller\'s clock');
+        expect(speaker.prepared, isEmpty, reason: 'no template while the written one may come');
+        backend.written!.complete(written);
+        await _settle();
+        expect(speaker.prepared, [written], reason: 'synthesised as soon as it arrives');
+        speaker.ready.complete(true);
+        ears.gate!.complete();
+        await started;
+        await _settle();
+        expect(speaker.spokenPrepared, [(written, true)]);
+        expect(speaker.prepared, [written], reason: 'the template was never needed');
+        expect(call.lines.single.text, written);
+        expect(memory.keys, isEmpty, reason: 'a written greeting is not a template to avoid next time');
+        speaker.finish();
+        await call.hangUp();
+      });
+
+      test('late at connect: the template is made, and the written one said if it comes within the wait', () async {
+        final ears = FakeEars(), backend = FakeBackend()..written = Completer<String?>();
+        final speaker = FakeSpeaker(), clock = FakeClock();
+        speaker.readyFor[written] = Completer<bool>()..complete(true);
+        final call = fakeCall(ears, backend, speaker, startTimer: clock.start, greeter: greeter());
+        await call.start();
+        await _settle();
+        expect(speaker.prepared, hasLength(1), reason: 'the template, made as the call connects');
+        expect(speaker.prepared.single, isNot(written));
+        speaker.ready.complete(true);
+        await _settle();
+        expect(speaker.spokenPrepared, isEmpty, reason: 'the written one is waited for, within the wait');
+        await clock.advance(const Duration(milliseconds: 700));
+        backend.written!.complete(written);
+        await _settle();
+        expect(speaker.spokenPrepared, [(written, true)]);
+        speaker.finish();
+        await call.hangUp();
+      });
+
+      test('not there within the wait: the template, in the provider\'s voice, remembered', () async {
+        final ears = FakeEars(), backend = FakeBackend()..written = Completer<String?>();
+        final speaker = FakeSpeaker(), clock = FakeClock(), memory = _Memory();
+        final call = fakeCall(
+          ears,
+          backend,
+          speaker,
+          startTimer: clock.start,
+          greeter: CallGreeter(enabled: () => true, memory: memory, now: () => _morning),
+        );
+        await call.start();
+        await _settle();
+        speaker.ready.complete(true);
+        await clock.advance(const Duration(milliseconds: 1400));
+        expect(speaker.spokenPrepared, isEmpty);
+        await clock.advance(const Duration(milliseconds: 200));
+        final template = speaker.prepared.single;
+        expect(speaker.spokenPrepared, [(template, true)]);
+        expect(memory.keys['agent-1'], startsWith('de.informal.morning.'));
+        backend.written!.complete(written);
+        await _settle();
+        expect(speaker.prepared, [template], reason: 'too late: not made any more');
+        speaker.finish();
+        await call.hangUp();
+      });
+
+      test('its audio late: at the end of the wait the Mac\'s voice says it', () async {
+        final ears = FakeEars(), backend = FakeBackend()..written = (Completer<String?>()..complete(written));
+        final speaker = FakeSpeaker(), clock = FakeClock();
+        final call = fakeCall(ears, backend, speaker, startTimer: clock.start, greeter: greeter());
+        await call.start();
+        await _settle();
+        expect(speaker.prepared, [written]);
+        await clock.advance(const Duration(milliseconds: 1500));
+        expect(speaker.spokenPrepared, [(written, false)]);
+        speaker.finish();
+        await call.hangUp();
+      });
+
+      test('its audio failing: the template takes its place', () async {
+        final ears = FakeEars(), backend = FakeBackend()..written = (Completer<String?>()..complete(written));
+        final speaker = FakeSpeaker(), clock = FakeClock();
+        speaker.readyFor[written] = Completer<bool>()..completeError(StateError('provider down'));
+        final call = fakeCall(ears, backend, speaker, startTimer: clock.start, greeter: greeter());
+        await call.start();
+        await _settle();
+        expect(speaker.prepared, hasLength(2));
+        speaker.ready.complete(true);
+        await _settle();
+        expect(speaker.spokenPrepared, [(speaker.prepared.last, true)]);
+        expect(speaker.prepared.last, isNot(written));
+        speaker.finish();
+        await call.hangUp();
+      });
+    });
+
+    test('the caller\'s clock as the instance takes it', () {
+      final t = DateTime(2026, 9, 28, 9, 5, 7);
+      final iso = isoWithOffset(t);
+      expect(iso, startsWith('2026-09-28T09:05:07'));
+      expect(iso, matches(RegExp(r'[+-]\d\d:\d\d$')));
+      expect(DateTime.parse(iso).isAtSameMomentAs(t), isTrue);
+      expect(weekdayName(t), 'Monday');
+      expect(weekdayName(DateTime(2026, 9, 27)), 'Sunday');
     });
 
     test('switched off: nothing is made or said', () async {

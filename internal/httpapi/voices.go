@@ -597,12 +597,9 @@ func (s *Server) handleConversationSpeech(w http.ResponseWriter, r *http.Request
 		return
 	}
 	ctx := r.Context()
-	p := principalFrom(r)
-	aud := s.Voices.ConversationAudience(ctx, c.OrgID, c.ID, p.Email)
-	choice := s.Voices.Resolve(ctx, c.OrgID, agentID, voice.OccasionChat, aud)
 	// How it is spoken, for a provider that takes instructions: from the
 	// chat tone in effect, also without a chat voice.
-	tone := s.Voices.ChatToneFor(ctx, c.OrgID, agentID, choice)
+	choice, tone := s.callVoice(r, c, agentID)
 	out["instructions"] = voice.SpeechInstructions(tone, "")
 	// The address the call's greeting takes (#506), before the person has
 	// said anything it could follow.
@@ -624,6 +621,17 @@ func (s *Server) handleConversationSpeech(w http.ResponseWriter, r *http.Request
 		}
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// callVoice is the voice and the chat tone an agent speaks with in a call
+// in this conversation: the chat occasion's voice for the caller's
+// audience (#471), and the tone in effect also without one. The speech
+// settings and the greeting (#513) read the same.
+func (s *Server) callVoice(r *http.Request, c chat.Conversation, agentID uuid.UUID) (voice.Choice, voice.ChatTone) {
+	ctx := r.Context()
+	aud := s.Voices.ConversationAudience(ctx, c.OrgID, c.ID, principalFrom(r).Email)
+	choice := s.Voices.Resolve(ctx, c.OrgID, agentID, voice.OccasionChat, aud)
+	return choice, s.Voices.ChatToneFor(ctx, c.OrgID, agentID, choice)
 }
 
 // handleGetOrgChatTone / handleSetOrgChatTone: the organisation's default

@@ -74,6 +74,9 @@ type Server struct {
 	   credential and want to see what the triage and the narration (#411)
 	   do with an answer; nil in production. */
 	OrgLLM func(ctx context.Context, orgID uuid.UUID) (llm.Provider, error)
+	// CallGreetingTimeout bounds the model's turn for a call's greeting
+	// (#513); zero is callgreeting.Timeout. Set shorter only by tests.
+	CallGreetingTimeout time.Duration
 	// Media holds a person's media — the pictures in notes (#344). Nil means
 	// the builtin Postgres store. Not Blobs, the home store below.
 	Media mediastore.Store
@@ -448,6 +451,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/conversations/{id}", s.conversationScoped(s.handleRenameConversation))
 	mux.Handle("GET /api/v1/conversations/{id}/messages", s.conversationScoped(s.handleConversationMessages))
 	mux.Handle("GET /api/v1/conversations/{id}/speech", s.conversationScoped(s.handleConversationSpeech))
+	mux.Handle("POST /api/v1/conversations/{id}/greeting", s.conversationScoped(s.handleCallGreeting))
 	mux.Handle("POST /api/v1/conversations/{id}/messages", s.conversationScoped(s.handlePostConversationMessage))
 	mux.Handle("POST /api/v1/conversations/{id}/read", s.conversationScoped(s.handleConversationRead))
 	mux.Handle("PATCH /api/v1/conversations/{id}/me", s.conversationScoped(s.handleConversationMe))
