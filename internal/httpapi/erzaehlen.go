@@ -96,6 +96,20 @@ func (s *Server) melden(ctx context.Context, b chat.Report) {
 	if strings.TrimSpace(text) == "" {
 		text = b.Outcome
 	}
+	/* The spoken form (#502). A chat answer's run from a call ends its reply
+	   with it, in a tag that never reaches the conversation; any other report
+	   of a task from a call gets it from one short turn now. */
+	var gesprochen string
+	var details bool
+	if b.ChatAnswer {
+		text, gesprochen, details = chat.SplitSpoken(text)
+	}
+	if b.SaidInCall {
+		if gesprochen == "" {
+			gesprochen, details = s.sprechfassung(ctx, b, text)
+		}
+		meta = chat.WithSpoken(meta, gesprochen, details)
+	}
 	_, neu, err := s.Chat.Post(ctx, b.Message(text, meta))
 	if err != nil {
 		s.Log.Warn("narration: the report was not written", "task", b.TaskID, "err", err)
@@ -104,6 +118,31 @@ func (s *Server) melden(ctx context.Context, b chat.Report) {
 	if neu {
 		s.chatEreignis(b.OrgID, b.AgentID, b.ConversationID, "said", map[string]string{"task_id": b.TaskID.String()})
 	}
+}
+
+// sprechFrist: the turn for a spoken form is a few sentences; one that takes
+// longer leaves the report to be spoken as it is written.
+const sprechFrist = 30 * time.Second
+
+/* sprechfassung is the spoken form of a report of a task that came from a
+ * call (#502): one turn on the fast tier. Without a model, or when the turn
+ * fails, it is empty — the call then speaks the written message, as before. */
+func (s *Server) sprechfassung(ctx context.Context, b chat.Report, text string) (string, bool) {
+	if strings.TrimSpace(text) == "" {
+		return "", false
+	}
+	provider, err := s.resolveOrgLLM(ctx, b.OrgID)
+	if err != nil {
+		return "", false
+	}
+	zctx, abbrechen := context.WithTimeout(ctx, sprechFrist)
+	defer abbrechen()
+	gesprochen, details, err := chat.Sprechfassung(zctx, provider, text)
+	if err != nil {
+		s.Log.Warn("spoken form failed — the report is spoken as written", "task", b.TaskID, "err", err)
+		return "", false
+	}
+	return gesprochen, details
 }
 
 /* frageZustellen delivers a parked task's question: into the conversation the

@@ -124,8 +124,12 @@ func (s *Server) konfigVorschlagen(conv chat.Conversation, agentID uuid.UUID, ms
 	if text == "" {
 		text = konfigStandard(lang)
 	}
-	text = strings.ReplaceAll(text, chat.ApproversPlatzhalter, aufzaehlen(namen, lang))
-	if err := sagen(text, chat.MessageText, e.Meta); err != nil {
+	wer := aufzaehlen(namen, lang)
+	text = strings.ReplaceAll(text, chat.ApproversPlatzhalter, wer)
+	/* In a call (#502) the line is heard as well: its spoken form names the
+	   same people. */
+	zeile := chat.WithSpoken(e.Meta, strings.ReplaceAll(e.Gesprochen, chat.ApproversPlatzhalter, wer), e.DetailsImChat)
+	if err := sagen(text, chat.MessageText, zeile); err != nil {
 		s.Log.Warn("chat: the line beside a config proposal was not written", "agent", agentID, "err", err)
 	}
 	if s.Orch != nil {

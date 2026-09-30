@@ -2,6 +2,7 @@
   "call.bargeIn": "打断所需的说话时长",
   "call.button": "呼叫 {{name}}（试用）· ⌘⇧C",
   "call.denied": "未允许使用麦克风。请在 系统设置 → 隐私与安全性 → 麦克风 中允许 covey。",
+  "call.detailsInChat": "详情在聊天中。",
   "call.diagnostics": "诊断",
   "call.ended": "通话已结束",
   "call.failed": "无法开始通话：{{error}}",

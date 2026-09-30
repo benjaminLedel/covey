@@ -81,6 +81,10 @@ type Task struct {
 	// answers the message, and its result is posted into the conversation as
 	// that answer rather than as a report. Inherited by its continuations.
 	ChatAnswer bool `json:"chat_answer,omitempty"`
+	// SaidInCall: the message the task came from was said aloud in a call
+	// (#502). Its reply or result is heard as well as read, and carries a
+	// spoken form beside the written one. Inherited by its continuations.
+	SaidInCall bool `json:"said_in_call,omitempty"`
 }
 
 // Stage is a freely definable Kanban column of an agent (an overlay on top of
@@ -132,13 +136,13 @@ func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
 const taskCols = `id, org_id, agent_id, title, body, state, priority, origin,
 	correlation_key, runtime_session_id, resume_input, result, error, stage_id, parent_task_id,
-	archived_at, daemon_retries, created_at, updated_at, conversation_id, chat_answer`
+	archived_at, daemon_retries, created_at, updated_at, conversation_id, chat_answer, said_in_call`
 
 func scanTask(row pgx.Row) (Task, error) {
 	var t Task
 	err := row.Scan(&t.ID, &t.OrgID, &t.AgentID, &t.Title, &t.Body, &t.State, &t.Priority, &t.Origin,
 		&t.CorrelationKey, &t.RuntimeSessionID, &t.ResumeInput, &t.Result, &t.Error, &t.StageID, &t.ParentTaskID,
-		&t.ArchivedAt, &t.DaemonRetries, &t.CreatedAt, &t.UpdatedAt, &t.ConversationID, &t.ChatAnswer)
+		&t.ArchivedAt, &t.DaemonRetries, &t.CreatedAt, &t.UpdatedAt, &t.ConversationID, &t.ChatAnswer, &t.SaidInCall)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return t, ErrNotFound
 	}
@@ -154,7 +158,14 @@ func (s *Store) Create(ctx context.Context, orgID, agentID uuid.UUID, title, bod
 // conversation is written with the row, not afterwards: a dispatcher that
 // picks the task up at once must already see where it answers.
 func (s *Store) CreateIn(ctx context.Context, orgID, agentID uuid.UUID, title, body, origin string, priority int, conversationID *uuid.UUID) (Task, error) {
-	return s.create(ctx, orgID, agentID, title, body, origin, priority, conversationID, false)
+	return s.create(ctx, orgID, agentID, title, body, origin, priority, conversationID, false, false)
+}
+
+// CreateFromMessage creates the task a message of a conversation becomes:
+// as CreateIn, or — with chatAnswer — as CreateChatAnswer, and marked as
+// said in a call when it was (#502). Both flags are written with the row.
+func (s *Store) CreateFromMessage(ctx context.Context, orgID, agentID uuid.UUID, title, body, origin string, conversationID uuid.UUID, chatAnswer, saidInCall bool) (Task, error) {
+	return s.create(ctx, orgID, agentID, title, body, origin, 0, &conversationID, chatAnswer, saidInCall)
 }
 
 // CreateChatAnswer creates the task a chat message becomes when nobody
@@ -163,19 +174,19 @@ func (s *Store) CreateIn(ctx context.Context, orgID, agentID uuid.UUID, title, b
 // report and its result is posted as that reply. Marked in the same insert —
 // a dispatcher that claims the task a moment later must already see it.
 func (s *Store) CreateChatAnswer(ctx context.Context, orgID, agentID uuid.UUID, title, body, origin string, conversationID uuid.UUID) (Task, error) {
-	return s.create(ctx, orgID, agentID, title, body, origin, 0, &conversationID, true)
+	return s.create(ctx, orgID, agentID, title, body, origin, 0, &conversationID, true, false)
 }
 
-func (s *Store) create(ctx context.Context, orgID, agentID uuid.UUID, title, body, origin string, priority int, conversationID *uuid.UUID, chatAnswer bool) (Task, error) {
+func (s *Store) create(ctx context.Context, orgID, agentID uuid.UUID, title, body, origin string, priority int, conversationID *uuid.UUID, chatAnswer, saidInCall bool) (Task, error) {
 	if priority == 0 {
 		priority = 5
 	}
 	// A new task lands in the agent's first stage (if one is defined).
-	row := s.pool.QueryRow(ctx, `INSERT INTO backlog_tasks (id, org_id, agent_id, title, body, origin, priority, stage_id, conversation_id, chat_answer)
+	row := s.pool.QueryRow(ctx, `INSERT INTO backlog_tasks (id, org_id, agent_id, title, body, origin, priority, stage_id, conversation_id, chat_answer, said_in_call)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,
-			(SELECT id FROM agent_stages WHERE agent_id=$3 ORDER BY position, created_at LIMIT 1), $8, $9)
+			(SELECT id FROM agent_stages WHERE agent_id=$3 ORDER BY position, created_at LIMIT 1), $8, $9, $10)
 		RETURNING `+taskCols,
-		uuid.New(), orgID, agentID, title, body, origin, priority, conversationID, chatAnswer)
+		uuid.New(), orgID, agentID, title, body, origin, priority, conversationID, chatAnswer, saidInCall)
 	t, err := scanTask(row)
 	if err != nil {
 		return t, err
@@ -220,19 +231,20 @@ func (s *Store) CreateChild(ctx context.Context, parentID uuid.UUID, spec ChildS
 	   parent would have. A subtask or a delegation is new work and reports
 	   nowhere unless somebody gives it a conversation. */
 	var conversationID *uuid.UUID
-	chatAnswer := false
+	chatAnswer, saidInCall := false, false
 	if strings.HasPrefix(spec.Origin, "continuation:") && agentID == parent.AgentID {
 		conversationID = parent.ConversationID
 		chatAnswer = parent.ChatAnswer
+		saidInCall = parent.SaidInCall
 	}
 	row := s.pool.QueryRow(ctx, `INSERT INTO backlog_tasks
 		(id, org_id, agent_id, title, body, origin, priority, parent_task_id,
-		 runtime_session_id, resume_input, stage_id, conversation_id, chat_answer)
+		 runtime_session_id, resume_input, stage_id, conversation_id, chat_answer, said_in_call)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8, NULLIF($9,''), NULLIF($10,''),
-			(SELECT id FROM agent_stages WHERE agent_id=$3 ORDER BY position, created_at LIMIT 1), $11, $12)
+			(SELECT id FROM agent_stages WHERE agent_id=$3 ORDER BY position, created_at LIMIT 1), $11, $12, $13)
 		RETURNING `+taskCols,
 		uuid.New(), parent.OrgID, agentID, spec.Title, spec.Body, spec.Origin, spec.Priority,
-		parentID, spec.SessionID, spec.ResumeInput, conversationID, chatAnswer)
+		parentID, spec.SessionID, spec.ResumeInput, conversationID, chatAnswer, saidInCall)
 	t, err := scanTask(row)
 	if err != nil {
 		return t, err

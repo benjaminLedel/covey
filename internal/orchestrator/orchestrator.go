@@ -2242,10 +2242,15 @@ func (o *Orchestrator) publishTask(taskID uuid.UUID, agent agents.Agent) {
 // told about its result (#457): the people read it. Empty for every other
 // task, whose result stays the summary for the record. A chat answer — a
 // message nobody triaged (#483) — is told instead that its result is the
-// reply itself, posted as it stands.
+// reply itself, posted as it stands — and, when the message was said in a
+// call, that it ends with its spoken form (#502).
 func conversationSection(task backlog.Task) string {
 	if task.ConversationID == nil {
 		return ""
+	}
+	if task.ChatAnswer && task.SaidInCall {
+		// Said in a call (#502): the reply carries its spoken form.
+		return "\n\n" + agents.ChatAnswerDoc + "\n\n" + agents.ChatAnswerCallDoc
 	}
 	if task.ChatAnswer {
 		return "\n\n" + agents.ChatAnswerDoc

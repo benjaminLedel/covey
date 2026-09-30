@@ -178,6 +178,14 @@ The card is read with the conversation (`proposal` on the message and on the thr
 
 What the trial does not do yet: the voice slots are not a config file and are not drafted; a proposal that is superseded by a later one is not withdrawn; the drafting turn's cost is not attributed to the agent.
 
+**Said in a call** (#502). A message the app posts from a call (`meta.via = "call"`, #494) is answered in two forms: the written one the conversation shows, unchanged, and a spoken one the call reads out — one to three short sentences, no ids, links, lists, emojis, markdown or parentheses unless asked for ("the merge request for the login bug", not "MR !475"), numbers as they are said, in the same voice. It stands in the agent message's meta: `spoken`, and `details_in_chat = "true"` when it left something out, so that the call adds that the details are in the chat. Three places write it, and a typed message gets none — neither the prompt nor the meta changes for it:
+
+- the triage, asked only for a message said in a call: `"spoken"` and `"details_in_chat"` beside the move, for an answer, a note's reply, a task's acknowledgement and the line beside a config proposal (with the approvers put in there too);
+- the run of a chat answer (#483): the task is marked `backlog_tasks.said_in_call` in the same insert (migration 0127, carried on by a continuation), its run is told to end its reply with `<spoken details_in_chat="…">…</spoken>` (`agents.ChatAnswerCallDoc`), and covey takes the tag off the reply it posts;
+- any other report of a task from a call — the retelling, the report itself, an error: one short turn on the fast tier (`chat.Sprechfassung`) when it is posted. Without a model, or when that turn fails, the message has no spoken form and the call speaks the written one.
+
+The spoken form is bounded (`chat.SpokenMax`); a parked question from a call is still spoken as written.
+
 The open decisions are in the issue; the load-bearing one is what the answer
 is allowed to know. The recommendation is: the role and the conversation, not the
 wiki memory. An answer that needs the memory is an answer that should have

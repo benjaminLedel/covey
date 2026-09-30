@@ -97,6 +97,29 @@ void main() {
     await call.hangUp();
   });
 
+  test('an answer with a spoken form is heard in it, and says where the details are', () async {
+    final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker();
+    final call = fakeCall(ears, backend, speaker);
+    await call.start();
+    backend.agentSays(
+      'Doch, ist drin – DLES-273, MR !475, alle Tests grün, wartet auf Gertruds Review.',
+      meta: {
+        'spoken':
+            'Ja, ist drin. Der Merge Request ist fertig, alle Tests sind grün, und er wartet noch auf Gertruds Review.',
+        'details_in_chat': 'true',
+      },
+    );
+    await _settle();
+    speaker.finish();
+    await _settle();
+    expect(speaker.spoken.map((s) => s.$1), [
+      'Ja, ist drin. Der Merge Request ist fertig, alle Tests sind grün, und er wartet noch auf Gertruds Review.',
+      'Die Details stehen im Chat.',
+    ]);
+    expect(call.lines.single.text, contains('DLES-273'));
+    await call.hangUp();
+  });
+
   test('the agent heard back from the loudspeaker is not posted', () async {
     final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker();
     final call = fakeCall(ears, backend, speaker);

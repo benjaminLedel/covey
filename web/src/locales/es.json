@@ -3185,6 +3185,7 @@
     "hangUp": "Colgar",
     "you": "Tú",
     "restInChat": "El resto está en el chat.",
+    "detailsInChat": "Los detalles están en el chat.",
     "setting": "Llamadas (prueba)",
     "settingSwitch": "Llamar a agentes",
     "settingHint": "Un botón de llamada en la conversación con un agente. La voz se reconoce en este Mac; las respuestas del agente las pronuncia el proveedor de voz de la organización, o el Mac si no hay ninguno. Solo el texto va a la conversación, marcado como dicho en una llamada.",

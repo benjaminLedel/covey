@@ -54,6 +54,9 @@ type Report struct {
 	// result is the reply itself and is posted as a message of the agent —
 	// neither retold nor shown as a report.
 	ChatAnswer bool
+	// SaidInCall: the task came from a message said in a call (#502). Its
+	// report carries a spoken form beside the written one.
+	SaidInCall bool
 }
 
 // ReportsMeta is the meta key that names which outcome a message reports
@@ -95,7 +98,7 @@ func (s *Store) DueReports(ctx context.Context, window time.Duration, limit int)
 	rows, err := s.pool.Query(ctx, `
 		SELECT t.id, t.org_id, t.agent_id, t.conversation_id, t.title, coalesce(t.body, ''), t.origin, t.state,
 		       CASE WHEN t.state = 'done' THEN coalesce(t.result, '') ELSE coalesce(t.error, '') END,
-		       coalesce(t.said, ''), t.said_at IS NOT NULL, o.chat_triage = 'on', t.chat_answer
+		       coalesce(t.said, ''), t.said_at IS NOT NULL, o.chat_triage = 'on', t.chat_answer, t.said_in_call
 		  FROM backlog_tasks t JOIN organizations o ON o.id = t.org_id
 		 WHERE t.conversation_id IS NOT NULL AND t.state IN ('done', 'failed') AND t.archived_at IS NULL
 		   AND t.updated_at > now() - make_interval(secs => $1)
@@ -113,7 +116,7 @@ func (s *Store) DueReports(ctx context.Context, window time.Duration, limit int)
 	for rows.Next() {
 		var r Report
 		if err := rows.Scan(&r.TaskID, &r.OrgID, &r.AgentID, &r.ConversationID, &r.Title, &r.Body, &r.Origin,
-			&r.State, &r.Outcome, &r.Said, &r.Told, &r.Triage, &r.ChatAnswer); err != nil {
+			&r.State, &r.Outcome, &r.Said, &r.Told, &r.Triage, &r.ChatAnswer, &r.SaidInCall); err != nil {
 			return nil, err
 		}
 		out = append(out, r)

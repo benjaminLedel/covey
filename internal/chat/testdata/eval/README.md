@@ -47,8 +47,9 @@ One JSON file per scenario in `scenarios/`, named after its `name`:
 | `org_chart`, `open_tasks`, `finished_tasks`, `history`, `search_hits` | what the turn sees |
 | `message` | the new message (triage, addressing) |
 | `task` | `title`, `body`, `state` (`done`/`failed`), `result` (narration) |
+| `call` | the message was said aloud in a call (#502): the triage gives a spoken form beside the written one |
 | `expect` | `action` (the acceptable actions) or `addressed`; `voice`, `voice_reason` (default `none×chat`) and `audience` (the departments whose lines come along, in order) |
-| `checks` | `first_name`, `max_sentences`, `max_chars`, `must_contain` (all), `must_contain_any`, `must_not_contain` |
+| `checks` | `first_name`, `max_sentences`, `max_chars`, `must_contain` (all), `must_contain_any`, `must_not_contain`; for a call, `spoken_must_not_contain` and `spoken_must_contain_any` of the spoken form |
 | `recorded` | a good answer as the model gives it: the raw triage output, or the chat line; for a note the `reply` is what is checked |
 
 Always checked, beyond `checks`: the language; the length (defaults: three
@@ -61,6 +62,12 @@ itself is never seen in the conversation (#460); emoji as the tone allows; in
 German, `du` or `Sie` as the tone says (`auto` follows the message). The tone
 is the one in effect: the chosen chat voice's over the organisation's, and
 while no level names a chat voice, that of the agent's customers voice.
+
+In a call scenario the spoken form is checked as well: it is there, at most
+three sentences, in the scenario's language, with no issue or pipeline number
+(`#12`), merge request (`!475`), ticket key (`DLES-273`), link, parentheses,
+emoji or markdown, and none of the machinery; the written form keeps its own
+checks, so a scenario can demand that it still names the ids.
 
 ## Voices (#471)
 

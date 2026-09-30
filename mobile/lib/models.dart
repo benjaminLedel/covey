@@ -401,6 +401,7 @@ class ConversationMessage {
     this.report = '',
     this.replyTo,
     this.createdAt,
+    this.meta = const {},
   });
 
   factory ConversationMessage.fromJson(Map<String, dynamic> j) => ConversationMessage(
@@ -417,6 +418,11 @@ class ConversationMessage {
     report: j['report'] as String? ?? '',
     replyTo: j['reply_to'] as String?,
     createdAt: _time(j['created_at']),
+    meta: {
+      if (j['meta'] is Map)
+        for (final e in (j['meta'] as Map).entries)
+          if (e.value is String) e.key.toString(): e.value as String,
+    },
   );
 
   final String id;
@@ -434,6 +440,11 @@ class ConversationMessage {
   final String report;
   final String? replyTo;
   final DateTime? createdAt;
+
+  /// What the platform notes on the message, e.g. `via` on a line said in a
+  /// call, and on the agent's answer to one its spoken form (`spoken`,
+  /// `details_in_chat`, #502).
+  final Map<String, String> meta;
 }
 
 /// A conversation (#440): direct — two members, one per pair — or a group

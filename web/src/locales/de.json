@@ -3185,6 +3185,7 @@
     "hangUp": "Auflegen",
     "you": "Du",
     "restInChat": "Der Rest steht im Chat.",
+    "detailsInChat": "Die Details stehen im Chat.",
     "setting": "Anrufe (Test)",
     "settingSwitch": "Agenten anrufen",
     "settingHint": "Ein Anruf-Knopf im Gespräch mit einem Agenten. Sprache wird auf diesem Mac erkannt; die Antworten des Agenten spricht der Stimmen-Anbieter der Organisation, ohne ihn der Mac. Nur der Text geht ins Gespräch, als im Anruf gesagt markiert.",

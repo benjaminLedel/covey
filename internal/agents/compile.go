@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"covey/internal/buildinfo"
+	"covey/internal/chat"
 
 	"covey/internal/style"
 )
@@ -248,6 +249,25 @@ of this run is shown there.
   "the result".
 - If you need something from them before you can go on, park the task with
   your question as usual — it is asked in the same conversation.`
+
+// ChatAnswerCallDoc follows ChatAnswerDoc when the message was said aloud in
+// a call (#502). Nothing retells a chat answer, so its run writes the spoken
+// form itself, in a tag covey takes off the reply (chat.SplitSpoken): the
+// conversation shows the written reply, the call speaks what is inside.
+const ChatAnswerCallDoc = `## It was said in a call
+
+The message was said aloud in a call, and your reply is read out to the
+person by a voice. Write the reply as above, and end the ` + "`result`" + ` with its
+spoken form in a tag of its own:
+
+<spoken details_in_chat="true">Yes, it's in. The merge request is ready, the tests are green, and it's waiting for Ada's review.</spoken>
+
+The spoken form is what the person hears:
+` + chat.SpokenRules + `
+
+Set details_in_chat="true" when it leaves out something the written reply
+carries (an id, a link, a list, a figure), "false" when it says all of it.
+covey takes the tag off: the conversation shows only the reply above it.`
 
 // TargetDocs builds the section "Connected target systems" from the action
 // docs of the target system plugins. It is appended to the system prompt at
