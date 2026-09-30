@@ -32,7 +32,27 @@ class Prefs {
     _memoryOnly = true;
   }
 
-  Future<File> _file() async => File('${(await getApplicationSupportDirectory()).path}/prefs.json');
+  /// Set by [atDirectory]: where the file is, instead of the support
+  /// directory.
+  Directory? _dir;
+
+  /// Keeps the settings in a file under [dir]. For tests of what reaches
+  /// the file.
+  @visibleForTesting
+  void atDirectory(Directory dir) {
+    _dir = dir;
+    _values = {};
+    _loading = null;
+    _memoryOnly = false;
+  }
+
+  Future<File> _file() async => File('${(_dir ?? await getApplicationSupportDirectory()).path}/prefs.json');
+
+  /// The writes, one after the other (#511): two at once wrote the same
+  /// temporary file, and the one renamed first could carry the other's
+  /// state — a switch turned on in the call settings was missing from the
+  /// file afterwards.
+  Future<void> _writing = Future.value();
 
   // In memory a fresh future each time, made in the caller's zone: one kept
   // from the zone that set up the test would complete in that zone, which a
@@ -59,17 +79,36 @@ class Prefs {
 
   Future<void> write(String key, String? value) async {
     await _load();
-    if (value == null) {
-      _values.remove(key);
-    } else {
-      _values[key] = value;
-    }
+    void apply(Map<String, String> m) => value == null ? m.remove(key) : m[key] = value;
+    apply(_values);
     if (_memoryOnly) return;
+    final done = _writing.then((_) => _save(key, apply));
+    _writing = done.catchError((_) {});
+    await done;
+  }
+
+  /// Writes the file with [apply] made to what it holds now — so a key
+  /// another copy of the app wrote meanwhile is not lost — and keeps that
+  /// in memory.
+  Future<void> _save(String key, void Function(Map<String, String>) apply) async {
     try {
       final f = await _file();
       await f.parent.create(recursive: true);
+      if (await f.exists()) {
+        try {
+          final onDisk = (jsonDecode(await f.readAsString()) as Map<String, dynamic>).map(
+            (k, v) => MapEntry(k, v as String),
+          );
+          // Every write of this copy is in the file already: what the file
+          // holds is the newest, but for the one key written now.
+          apply(onDisk);
+          _values = onDisk;
+        } catch (_) {
+          // Unreadable: what is in memory replaces it.
+        }
+      }
       final tmp = File('${f.path}.tmp');
-      await tmp.writeAsString(jsonEncode(_values));
+      await tmp.writeAsString(jsonEncode(_values), flush: true);
       await tmp.rename(f.path);
     } catch (e) {
       diag('prefs', 'not saved: $key · $e');
