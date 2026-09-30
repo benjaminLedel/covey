@@ -341,7 +341,7 @@ class ApiCallBackend implements CallBackend {
     if (_noClean || SpeechModel.instance.info?.clean == false) return null;
     try {
       return await api
-          .cleanDictation(text, app: 'covey call', context: context.toFields())
+          .cleanDictation(text, app: 'covey call', context: context.toFields(), turn: true)
           .timeout(const Duration(seconds: 4));
     } on ApiException catch (e) {
       // No endpoint (404) or no credential (409): not again this call.
@@ -904,20 +904,37 @@ class CallController extends ChangeNotifier {
       return;
     }
 
-    // Understood: shown while the clean-up runs, then for the window.
-    final u = _understood = UnderstoodTurn(text, window: tuning.window, cleaning: true);
+    // Understood: shown while the clean-up runs, then for the window. A
+    // short turn is not cleaned (#511): there is nothing to tidy in it, and
+    // the clean-up only had the conversation to go on.
+    final short = turnWords(text).length < minCleanWords;
+    final u = _understood = UnderstoodTurn(text, window: tuning.window, cleaning: !short);
     u.addListener(_update);
     _update();
-    final cleanWatch = Stopwatch()..start();
-    unawaited(
-      backend
-          .clean(text, CleanContext(agentName: agentName, names: _names, recent: List.of(_recent)))
-          .then((c) => c, onError: (Object _) => null)
-          .then((c) {
-            facts['clean_ms'] = cleanWatch.elapsedMilliseconds;
-            u.cleanedUp(c);
-          }),
-    );
+    if (short) {
+      facts['clean_kept'] = 'short';
+    } else {
+      final cleanWatch = Stopwatch()..start();
+      unawaited(
+        backend
+            .clean(text, CleanContext(agentName: agentName, names: _names, recent: List.of(_recent)))
+            .then((c) => c, onError: (Object _) => null)
+            .then((c) {
+              facts['clean_ms'] = cleanWatch.elapsedMilliseconds;
+              if (c != null && c.trim().isNotEmpty) {
+                // A correction changes little; a rewrite goes as recognised.
+                final edit = turnEdit(text, c);
+                facts['clean_edit'] = double.parse(edit.toStringAsFixed(2));
+                if (edit > maxTurnEdit) {
+                  facts['clean_kept'] = 'edited';
+                  facts['clean_rejected'] = c;
+                  c = null;
+                }
+              }
+              u.cleanedUp(c);
+            }),
+      );
+    }
     final shownAt = DateTime.now();
     final (sent, how) = await u.result;
     u.removeListener(_update);
@@ -946,6 +963,8 @@ class CallController extends ChangeNotifier {
       'turn $n: speech ${facts['speech_ms']} ms, silence ${facts['silence_ms']} ms, length ${facts['length_ms']} ms, '
           'cut ${facts['cut']}, recognised in ${facts['recognise_ms']} ms, raw ${raw.length} characters'
           '${cleaned == null ? '' : ', cleaned ${cleaned.length} in ${facts['clean_ms']} ms'}'
+          '${facts['clean_edit'] == null ? '' : ', word edit ${facts['clean_edit']}'}'
+          '${facts['clean_kept'] == null ? '' : ', sent as recognised (${facts['clean_kept']})'}'
           '${sent == null ? '' : ', sent ${sent.length}'}, ${facts['outcome']}'
           '${detail ? ' · raw «$raw»${cleaned == null ? '' : ' · cleaned «$cleaned»'}' : ''}',
     );

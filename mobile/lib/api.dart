@@ -518,9 +518,13 @@ class CoveyApi {
   ///
   /// [context] says where the text goes (#362): `window`, `field`, `before`
   /// and `after` the insertion point.
-  Future<String> cleanDictation(String text, {String? app, Map<String, String>? context}) async {
+  ///
+  /// [turn] marks a turn said in a call (#511): it is only corrected, in its
+  /// language, and comes back as recognised when the clean-up rewrote it.
+  Future<String> cleanDictation(String text, {String? app, Map<String, String>? context, bool turn = false}) async {
     final out =
-        await post('/me/dictation/clean', {'text': text, 'app': ?app, 'context': ?context}) as Map<String, dynamic>;
+        await post('/me/dictation/clean', {'text': text, 'app': ?app, 'context': ?context, if (turn) 'turn': true})
+            as Map<String, dynamic>;
     return out['text'] as String;
   }
 

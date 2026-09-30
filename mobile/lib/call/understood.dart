@@ -122,3 +122,51 @@ class UnderstoodTurn extends ChangeNotifier {
     super.dispose();
   }
 }
+
+/// A turn with fewer words is sent as recognised, not cleaned (#511):
+/// "Hallo" had come back as "Ja.", and the agent answered a yes nobody said.
+/// The instance holds the same bound (`dictation.MinTurnWords`).
+const minCleanWords = 4;
+
+/// How much of a turn a clean-up may change, as the share of its words
+/// ([turnEdit]); more, and the turn goes as recognised. The instance holds
+/// the same bound (`dictation.MaxTurnEdit`); the app checks too, for an
+/// instance from before it.
+const maxTurnEdit = 0.3;
+
+/// A text's words in lower case, without punctuation.
+List<String> turnWords(String s) =>
+    s.toLowerCase().split(RegExp(r'[^\p{L}\p{N}]+', unicode: true)).where((w) => w.isNotEmpty).toList();
+
+/// How much the clean-up changed a turn: the word-level edit distance
+/// between [raw] and [cleaned] as a share of the raw turn's words. A word
+/// replaced by one spelled close to it (a misheard name) counts half.
+double turnEdit(String raw, String cleaned) {
+  final a = turnWords(raw), b = turnWords(cleaned);
+  if (a.isEmpty) return b.isEmpty ? 0 : 1;
+  var prev = List<double>.generate(b.length + 1, (j) => j.toDouble());
+  for (var i = 1; i <= a.length; i++) {
+    final cur = List<double>.filled(b.length + 1, 0)..[0] = i.toDouble();
+    for (var j = 1; j <= b.length; j++) {
+      final sub = prev[j - 1] + (a[i - 1] == b[j - 1] ? 0 : _substitution(a[i - 1], b[j - 1]));
+      cur[j] = [prev[j] + 1, cur[j - 1] + 1, sub].reduce((x, y) => x < y ? x : y);
+    }
+    prev = cur;
+  }
+  return prev[b.length] / a.length;
+}
+
+double _substitution(String a, String b) {
+  final ra = a.runes.toList(), rb = b.runes.toList();
+  var prev = List<int>.generate(rb.length + 1, (j) => j);
+  for (var i = 1; i <= ra.length; i++) {
+    final cur = List<int>.filled(rb.length + 1, 0)..[0] = i;
+    for (var j = 1; j <= rb.length; j++) {
+      final c = ra[i - 1] == rb[j - 1] ? 0 : 1;
+      cur[j] = [prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + c].reduce((x, y) => x < y ? x : y);
+    }
+    prev = cur;
+  }
+  final n = ra.length > rb.length ? ra.length : rb.length;
+  return prev[rb.length] <= 0.4 * n ? 0.5 : 1;
+}

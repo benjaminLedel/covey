@@ -68,6 +68,22 @@ void main() {
     });
   });
 
+  group('how much a clean-up changed', () {
+    test('a correction is little, a rewrite much', () {
+      expect(
+        turnEdit('hat gertrut den merge request schon angeschaut', 'Hat Gertrud den Merge Request schon angeschaut?'),
+        lessThan(0.1),
+      );
+      expect(turnEdit('äh kannst du mal schauen', 'Kannst du mal schauen?'), lessThanOrEqualTo(0.2));
+      expect(turnEdit('Hallo', 'Ja.'), greaterThan(maxTurnEdit));
+      expect(
+        turnEdit('kannst du mal nach den pipelines schauen', 'Ja, die Pipelines laufen alle.'),
+        greaterThan(maxTurnEdit),
+      );
+      expect(turnWords('Hallo, Ada!  Wie geht’s?'), ['hallo', 'ada', 'wie', 'geht', 's']);
+    });
+  });
+
   group('a call', () {
     test('a turn is cleaned up with the conversation as context, then posted', () async {
       final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker();
@@ -99,6 +115,30 @@ void main() {
       await call.hangUp();
     });
 
+    test('a turn under four words is sent as recognised, not cleaned (#511)', () async {
+      final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker();
+      backend.cleanAs = (t) => 'Ja.';
+      final call = fakeCall(ears, backend, speaker);
+      await call.start();
+      ears.say('Hallo');
+      await _settle();
+      expect(backend.cleaned, isEmpty, reason: 'the clean-up is not asked');
+      expect(backend.posted, ['Hallo']);
+      await call.hangUp();
+    });
+
+    test('a clean-up that rewrote the turn is dropped for what was recognised (#511)', () async {
+      final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker();
+      backend.cleanAs = (t) => 'Ja, die Pipelines laufen alle.';
+      final call = fakeCall(ears, backend, speaker);
+      await call.start();
+      ears.say('kannst du mal nach den pipelines schauen');
+      await _settle();
+      expect(backend.cleaned, hasLength(1));
+      expect(backend.posted, ['kannst du mal nach den pipelines schauen']);
+      await call.hangUp();
+    });
+
     test('while it stands as understood nothing is posted; discarded, nothing is', () async {
       final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker();
       final call = fakeCall(ears, backend, speaker, tuning: const CallTuning(window: Duration(seconds: 30)));
@@ -126,7 +166,7 @@ void main() {
       final root = await Directory.systemTemp.createTemp('call-audio');
       addTearDown(() => root.delete(recursive: true));
       final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker();
-      backend.cleanAs = (t) => 'Hallo Ada.';
+      backend.cleanAs = (t) => 'Hallo Ada, wie geht es?';
       final call = CallController(
         backend: backend,
         ears: ears,
@@ -140,15 +180,16 @@ void main() {
       );
       await call.start();
       expect(call.recordingTurns, isTrue);
-      ears.say('hallo ada');
+      ears.say('hallo ada wie geht es');
       await _settle();
       await Future<void>.delayed(const Duration(milliseconds: 50));
       final wavs = root.listSync().whereType<File>().where((f) => f.path.endsWith('.wav')).toList();
       expect(wavs, hasLength(1));
       expect(String.fromCharCodes(wavs.single.readAsBytesSync().sublist(0, 4)), 'RIFF');
       final line = jsonDecode(File('${root.path}/turns.jsonl').readAsLinesSync().single) as Map<String, dynamic>;
-      expect(line['raw'], 'hallo ada');
-      expect(line['cleaned'], 'Hallo Ada.');
+      expect(line['raw'], 'hallo ada wie geht es');
+      expect(line['cleaned'], 'Hallo Ada, wie geht es?');
+      expect(line['clean_edit'], 0);
       expect(line['cut'], 'pause');
       expect(line['outcome'], 'sent');
       expect(line['thresholds'], containsPair('pause_ms', 700));
