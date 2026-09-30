@@ -11,6 +11,7 @@ import '../live.dart';
 import '../models.dart';
 import '../prefs.dart';
 import '../speech_model.dart';
+import 'capture.dart' show bargeInConfirm;
 import 'ears.dart';
 import 'fillers.dart';
 import 'greeting.dart';
@@ -797,8 +798,15 @@ class CallController extends ChangeNotifier {
     // listen: the keys would be heard as a turn.
     if (_understood?.editing ?? false) return;
     // The agent's voice from the loudspeaker must not interrupt it: while
-    // it speaks, the person has to be heard for a moment first.
-    _turns.confirm = _speaking || _fillers.playing || _greetingPending ? tuning.bargeIn : Duration.zero;
+    // it speaks, the person has to be heard for a moment first — shorter
+    // when the microphone is echo-cancelled (#507), which covers what the
+    // call's own engine plays, not the Mac's synthesiser. Not during the
+    // greeting: it comes before the canceller has learnt the room.
+    _turns.confirm = _greetingPending
+        ? tuning.bargeIn
+        : _speaking || _fillers.playing
+        ? bargeInConfirm(tuning.bargeIn, echoCancelled: _echoCancelled)
+        : Duration.zero;
     _turns.add(pcm, voiced);
     level = l > level ? l : level * 0.85 + l * 0.15;
     final now = DateTime.now();
@@ -807,6 +815,8 @@ class CallController extends ChangeNotifier {
       _update();
     }
   }
+
+  bool get _echoCancelled => ears.echoCancelled && !speaker.fallback.value;
 
   void _onSpeech() {
     // The person speaks: a filler would talk over them, and a greeting
@@ -859,6 +869,7 @@ class CallController extends ChangeNotifier {
         ...tuning.toJson(),
         'min_speech_ms': _turns.minSpeech.inMilliseconds,
         'max_turn_ms': _turns.maxTurn.inMilliseconds,
+        'echo_cancelled': _echoCancelled,
       },
     };
     _recognising = true;
