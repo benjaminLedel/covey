@@ -163,6 +163,28 @@ class FakeBackend implements CallBackend {
     writtenAsked.add((language, now));
     return written?.future;
   }
+
+  /// Whether the organisation recognises at its voice provider (#516).
+  bool serverRecognises = false;
+
+  /// What the voice provider answers for each next turn: a text, an
+  /// exception, or a completer a test finishes when it likes. Empty: "".
+  final serverHeard = <Object>[];
+
+  /// What was sent to it: the WAV and the language.
+  final transcribed = <(Uint8List, String)>[];
+
+  @override
+  Future<bool> transcribes() async => serverRecognises;
+
+  @override
+  Future<String> transcribe(Uint8List wav, {required String language}) async {
+    transcribed.add((wav, language));
+    final next = serverHeard.isEmpty ? '' : serverHeard.removeAt(0);
+    if (next is Exception) throw next;
+    if (next is Completer<String>) return next.future;
+    return next as String;
+  }
 }
 
 class FakeSpeaker implements Speaker {
@@ -326,6 +348,7 @@ CallController fakeCall(
   CallSounds? sounds,
   StartTimer? startTimer,
   CallGreeter? greeter,
+  Duration serverBound = const Duration(milliseconds: 200),
 }) => CallController(
   backend: backend,
   ears: ears,
@@ -340,6 +363,7 @@ CallController fakeCall(
   sounds: sounds,
   startTimer: startTimer,
   greeter: greeter,
+  serverBound: serverBound,
 );
 
 /// A clock a test moves by hand, for the timers a call's fillers start

@@ -17,6 +17,7 @@
   "call.muted": "Stummgeschaltet",
   "call.off": "Die Spracherkennung ist auf dieser Instanz aus, oder die Instanz ist zu alt für Anrufe.",
   "call.onDevice": "Anruf · Test · Sprache bleibt auf diesem Mac",
+  "call.onServer": "Anruf · Test · Sprache wird auf dem Server deiner Organisation erkannt",
   "call.pause": "Pause, die einen Beitrag beendet",
   "call.preparing": "Anruf wird vorbereitet…",
   "call.preparingModel": "Sprachmodell wird geladen… {{percent}} %",

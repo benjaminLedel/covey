@@ -17,6 +17,7 @@
   "call.muted": "Microfono disattivato",
   "call.off": "Il riconoscimento vocale è disattivato su questa istanza, oppure l'istanza è troppo vecchia per le chiamate.",
   "call.onDevice": "Chiamata · prova · la voce resta su questo Mac",
+  "call.onServer": "Chiamata · prova · la voce viene riconosciuta sul server della tua organizzazione",
   "call.pause": "Pausa che chiude un turno",
   "call.preparing": "Preparazione della chiamata…",
   "call.preparingModel": "Caricamento del modello vocale… {{percent}} %",

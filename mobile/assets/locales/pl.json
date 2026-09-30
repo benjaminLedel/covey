@@ -17,6 +17,7 @@
   "call.muted": "Wyciszony",
   "call.off": "Rozpoznawanie mowy jest wyłączone na tej instancji albo instancja jest za stara na połączenia.",
   "call.onDevice": "Połączenie · test · głos zostaje na tym Macu",
+  "call.onServer": "Połączenie · test · mowa jest rozpoznawana na serwerze twojej organizacji",
   "call.pause": "Pauza kończąca wypowiedź",
   "call.preparing": "Przygotowywanie połączenia…",
   "call.preparingModel": "Ładowanie modelu mowy… {{percent}} %",

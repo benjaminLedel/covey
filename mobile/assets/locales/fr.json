@@ -17,6 +17,7 @@
   "call.muted": "Micro coupé",
   "call.off": "La reconnaissance vocale est désactivée sur cette instance, ou l'instance est trop ancienne pour les appels.",
   "call.onDevice": "Appel · essai · la voix reste sur ce Mac",
+  "call.onServer": "Appel · essai · la voix est reconnue sur le serveur de votre organisation",
   "call.pause": "Pause qui termine un tour",
   "call.preparing": "Préparation de l'appel…",
   "call.preparingModel": "Chargement du modèle vocal… {{percent}} %",

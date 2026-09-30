@@ -3168,6 +3168,7 @@
   "call": {
     "button": "Chiama {{name}} (prova) · ⌘⇧C",
     "onDevice": "Chiamata · prova · la voce resta su questo Mac",
+    "onServer": "Chiamata · prova · la voce viene riconosciuta sul server della tua organizzazione",
     "preparing": "Preparazione della chiamata…",
     "preparingModel": "Caricamento del modello vocale… {{percent}} %",
     "listening": "In ascolto",

@@ -17,6 +17,7 @@
   "call.muted": "Sem som",
   "call.off": "O reconhecimento de fala está desativado nesta instância, ou a instância é antiga demais para chamadas.",
   "call.onDevice": "Chamada · teste · a voz fica neste Mac",
+  "call.onServer": "Chamada · teste · a voz é reconhecida no servidor da sua organização",
   "call.pause": "Pausa que termina uma fala",
   "call.preparing": "Preparando a chamada…",
   "call.preparingModel": "Carregando o modelo de fala… {{percent}} %",

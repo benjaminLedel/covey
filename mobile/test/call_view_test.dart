@@ -223,6 +223,24 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
   });
 
+  testWidgets('recognition at the organisation\'s server is said in the line at the top (#516)', (tester) async {
+    tester.view.physicalSize = const Size(1000, 1400);
+    tester.view.devicePixelRatio = 2;
+    addTearDown(tester.view.reset);
+    final ears = FakeEars(), backend = FakeBackend()..serverRecognises = true, speaker = FakeSpeaker();
+    final call = fakeCall(ears, backend, speaker);
+    await _pump(tester, call);
+    await tester.runAsync(call.start);
+    await tester.pump(const Duration(milliseconds: 50));
+    final line = find.byKey(const ValueKey('call-on-server'));
+    expect(line, findsOneWidget);
+    expect(tester.widget<Text>(line).data, 'Anruf · Test · Sprache wird auf dem Server deiner Organisation erkannt');
+    expect(find.byKey(const ValueKey('call-on-device')), findsNothing);
+    await _png(tester, 'on-server');
+    await tester.runAsync(call.hangUp);
+    await tester.pump(const Duration(milliseconds: 50));
+  });
+
   testWidgets('what was understood stands before it is sent: Enter sends, Esc discards, typing corrects (#498)', (
     tester,
   ) async {

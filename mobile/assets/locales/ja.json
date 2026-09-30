@@ -17,6 +17,7 @@
   "call.muted": "ミュート中",
   "call.off": "このインスタンスでは音声認識がオフになっているか、通話に対応していない古いインスタンスです。",
   "call.onDevice": "通話 · 試験運用 · 音声はこの Mac から出ません",
+  "call.onServer": "通話 · 試験運用 · 音声は組織のサーバーで認識されます",
   "call.pause": "発話を区切る間",
   "call.preparing": "通話を準備しています…",
   "call.preparingModel": "音声モデルを読み込んでいます… {{percent}} %",

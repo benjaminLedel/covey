@@ -17,6 +17,7 @@
   "call.muted": "Silenciado",
   "call.off": "El reconocimiento de voz está desactivado en esta instancia, o la instancia es demasiado antigua para llamadas.",
   "call.onDevice": "Llamada · prueba · la voz se queda en este Mac",
+  "call.onServer": "Llamada · prueba · la voz se reconoce en el servidor de tu organización",
   "call.pause": "Pausa que termina un turno",
   "call.preparing": "Preparando la llamada…",
   "call.preparingModel": "Cargando el modelo de voz… {{percent}} %",

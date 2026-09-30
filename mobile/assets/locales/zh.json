@@ -17,6 +17,7 @@
   "call.muted": "已静音",
   "call.off": "此实例已关闭语音识别，或实例版本太旧，不支持通话。",
   "call.onDevice": "通话 · 试用 · 语音留在这台 Mac 上",
+  "call.onServer": "通话 · 试用 · 语音在你组织的服务器上识别",
   "call.pause": "结束一段发言的停顿",
   "call.preparing": "正在准备通话…",
   "call.preparingModel": "正在加载语音模型… {{percent}} %",

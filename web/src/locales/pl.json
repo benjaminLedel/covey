@@ -3168,6 +3168,7 @@
   "call": {
     "button": "Zadzwoń do: {{name}} (test) · ⌘⇧C",
     "onDevice": "Połączenie · test · głos zostaje na tym Macu",
+    "onServer": "Połączenie · test · mowa jest rozpoznawana na serwerze twojej organizacji",
     "preparing": "Przygotowywanie połączenia…",
     "preparingModel": "Ładowanie modelu mowy… {{percent}} %",
     "listening": "Słucha",

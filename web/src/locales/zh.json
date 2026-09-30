@@ -3168,6 +3168,7 @@
   "call": {
     "button": "呼叫 {{name}}（试用）· ⌘⇧C",
     "onDevice": "通话 · 试用 · 语音留在这台 Mac 上",
+    "onServer": "通话 · 试用 · 语音在你组织的服务器上识别",
     "preparing": "正在准备通话…",
     "preparingModel": "正在加载语音模型… {{percent}} %",
     "listening": "正在聆听",

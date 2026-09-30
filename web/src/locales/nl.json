@@ -3168,6 +3168,7 @@
   "call": {
     "button": "{{name}} bellen (test) · ⌘⇧C",
     "onDevice": "Gesprek · test · spraak blijft op deze Mac",
+    "onServer": "Gesprek · test · spraak wordt herkend op de server van je organisatie",
     "preparing": "Gesprek wordt voorbereid…",
     "preparingModel": "Spraakmodel wordt geladen… {{percent}} %",
     "listening": "Luistert",

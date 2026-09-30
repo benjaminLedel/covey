@@ -573,6 +573,27 @@ class CoveyApi {
     return (res.headers['content-type'] ?? '', res.stream);
   }
 
+  /// One turn of a call recognised at the organisation's voice provider
+  /// (#516): [wav] is the turn as 16 kHz mono PCM16, [language] the call's
+  /// (BCP 47), [agent] the agent the call is with, for its recording.
+  /// Throws [ApiException]; 409 when the organisation does not allow it.
+  Future<String> transcribeSpeech(Uint8List wav, {String language = '', String agent = ''}) async {
+    final q = [
+      if (language.isNotEmpty) 'language=${Uri.encodeQueryComponent(language)}',
+      if (agent.isNotEmpty) 'agent=${Uri.encodeQueryComponent(agent)}',
+    ];
+    final out =
+        await _send(
+              () => _http.post(
+                _url(q.isEmpty ? '/speech/transcribe' : '/speech/transcribe?${q.join('&')}'),
+                headers: {..._headers, 'Content-Type': 'audio/wav'},
+                body: wav,
+              ),
+            )
+            as Map<String, dynamic>;
+    return out['text'] as String? ?? '';
+  }
+
   /// The model file, from byte [from] on — a download cut off by a lost
   /// connection resumes rather than starting the 150 MB again. No timeout on
   /// the body: it takes as long as the network takes.
@@ -624,6 +645,7 @@ class SpeechModelInfo {
     this.files = const [],
     this.clean = false,
     this.synthesize = false,
+    this.transcribe = false,
   });
 
   factory SpeechModelInfo.fromJson(Map<String, dynamic> j) => SpeechModelInfo(
@@ -641,6 +663,7 @@ class SpeechModelInfo {
     ],
     clean: j['clean'] == true,
     synthesize: j['synthesize'] == true,
+    transcribe: j['transcribe'] == true,
     engine: j['engine'] as String? ?? 'parakeet',
     credit: j['credit'] as String?,
     files: [
@@ -684,6 +707,10 @@ class SpeechModelInfo {
   /// Whether the organisation has a voice provider (#497) that calls speak
   /// through ([CoveyApi.synthesizeSpeechStream]).
   final bool synthesize;
+
+  /// Whether the organisation lets a call's turns be recognised at its
+  /// voice provider (#498, #516) — [CoveyApi.transcribeSpeech].
+  final bool transcribe;
 }
 
 /// One file of a speech model.

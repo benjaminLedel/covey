@@ -17,6 +17,7 @@
   "call.muted": "Muted",
   "call.off": "Speech recognition is off on this instance, or the instance is too old for calls.",
   "call.onDevice": "Call · trial · speech stays on this Mac",
+  "call.onServer": "Call · trial · speech is recognised on your organisation's server",
   "call.pause": "Pause that ends a turn",
   "call.preparing": "Preparing the call…",
   "call.preparingModel": "Loading the speech model… {{percent}} %",

@@ -17,6 +17,7 @@
   "call.muted": "Gedempt",
   "call.off": "Spraakherkenning staat uit op deze instantie, of de instantie is te oud voor gesprekken.",
   "call.onDevice": "Gesprek · test · spraak blijft op deze Mac",
+  "call.onServer": "Gesprek · test · spraak wordt herkend op de server van je organisatie",
   "call.pause": "Pauze die een beurt beëindigt",
   "call.preparing": "Gesprek wordt voorbereid…",
   "call.preparingModel": "Spraakmodel wordt geladen… {{percent}} %",
