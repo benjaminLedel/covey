@@ -312,6 +312,16 @@ export function TriageSettings() {
     mutationFn: (mode: string) => patch<{ mode: string }>("/org/chat-triage", { mode }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["org-triage"] }),
   });
+  /* Configuration changes from the chat (#491): a trial that rides on the
+     triage — without it nobody decides that a message is such a wish. */
+  const vorschlaege = useQuery({
+    queryKey: ["org-chat-config-proposals"],
+    queryFn: () => api<{ enabled: boolean }>("/org/chat-config-proposals"),
+  });
+  const setVorschlaege = useMutation({
+    mutationFn: (enabled: boolean) => patch<{ enabled: boolean }>("/org/chat-config-proposals", { enabled }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["org-chat-config-proposals"] }),
+  });
 
   /* Without the team surface there are no messages to decide about (#328). */
   if (!triage.data || !team.data?.enabled) return null;
@@ -334,6 +344,20 @@ export function TriageSettings() {
         </select>
         {triage.data.available && an && <span className="muted text-xs">{t("org.triage.cost")}</span>}
       </div>
+      {an && vorschlaege.data && (
+        <div className="mt-3" style={{ maxWidth: 640 }}>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={vorschlaege.data.enabled}
+              disabled={setVorschlaege.isPending}
+              onChange={(e) => setVorschlaege.mutate(e.target.checked)}
+            />
+            {t("org.triage.configProposals")}
+          </label>
+          <p className="muted text-xs mt-1 mb-0">{t("org.triage.configProposalsHint")}</p>
+        </div>
+      )}
       {/* What is missing and where it goes (#483) — not a greyed-out switch
           that leaves the reader to guess why. */}
       {!triage.data.available && (

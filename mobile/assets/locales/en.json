@@ -10,6 +10,7 @@
   "chat.placeholderAnswer": "Answer …",
   "chat.readOnly": "Your role may read along, but not write.",
   "chat.send": "Send",
+  "chatProposal.inApp": "Proposal · decide it in the web",
   "common.loading": "loading …",
   "conversation.agentHint": "An AI colleague answers in a group only when addressed: with @name, or with a reply to its message.",
   "conversation.agents": "AI colleagues",

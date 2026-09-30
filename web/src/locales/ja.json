@@ -1168,7 +1168,9 @@
       "off": "オフ — すべてのメッセージがタスク",
       "on": "オン — エージェントが決める",
       "noCredential": "利用できません：コントロールプレーンにモデルへのアクセスがありません。シークレットに Anthropic API キー（anthropic_api_key）または Claude Code トークン（claude_code_oauth_token）を登録するか、インフラで Claude Code ランタイムに認証情報を設定してください。それまでは、すべてのメッセージがタスクになり、その実行が返信します。",
-      "cost": "メッセージごとに短いモデル呼び出しの費用がかかります。"
+      "cost": "メッセージごとに短いモデル呼び出しの費用がかかります。",
+      "configProposals": "試験運用: チャットから設定変更を下書きする",
+      "configProposalsHint": "チャットでエージェントに設定の変更 — キューを確認する頻度、手順、話し方 — を頼むと、エージェントはタスクを作る代わりに変更を提案として下書きします。エージェントを変更できる人が承認して初めて有効になります。"
     },
     "push": {
       "title": "プッシュ通知",
@@ -3150,5 +3152,17 @@
     "notePlaceholder": "例：「Hallo」ではなく「Moin」と言う",
     "save": "保存",
     "saved": "保存しました"
+  },
+  "chatProposal": {
+    "label": "設定の提案",
+    "widens": "アクセスを広げます（{{files}}）— 承認できるのは org_admin または security のみです。",
+    "accept": "承認",
+    "decline": "却下",
+    "waitingFor": "{{names}} の承認待ちです。",
+    "waiting": "承認待ちです。",
+    "acceptedBy": "{{name}} が承認しました（{{when}}）。",
+    "declinedBy": "{{name}} が却下しました（{{when}}）。",
+    "requestedInChat": "{{name}} がチャットで依頼 ·",
+    "inApp": "提案 · Web で判断"
   }
 }

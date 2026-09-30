@@ -10,6 +10,7 @@
   "chat.placeholderAnswer": "返信する …",
   "chat.readOnly": "この役割は読むことはできますが、書くことはできません。",
   "chat.send": "送信",
+  "chatProposal.inApp": "提案 · Web で判断",
   "common.loading": "読み込み中 …",
   "conversation.agentHint": "グループでは、AIの同僚は呼びかけられたときだけ答えます。@名前 で呼ぶか、そのメッセージに返信してください。",
   "conversation.agents": "AIの同僚",

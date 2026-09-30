@@ -10,6 +10,7 @@
   "chat.placeholderAnswer": "回复 …",
   "chat.readOnly": "您的角色可以查看，但不能撰写。",
   "chat.send": "发送",
+  "chatProposal.inApp": "提案 · 请在网页端决定",
   "common.loading": "加载中 …",
   "conversation.agentHint": "在群组中，AI 同事只有被呼叫时才会回答：使用 @名字，或回复它的消息。",
   "conversation.agents": "AI 同事",

@@ -1168,7 +1168,9 @@
       "off": "关闭 — 每条消息都是任务",
       "on": "开启 — 由代理决定",
       "noCredential": "不可用：控制平面没有模型访问权限。请在“密钥”中存入 Anthropic API 密钥（anthropic_api_key）或 Claude Code 令牌（claude_code_oauth_token），或在“基础设施”中为 Claude Code 运行时提供凭据。在此之前，每条消息都会变成任务，由其运行来回复。",
-      "cost": "届时每条消息都会产生一次简短的模型调用费用。"
+      "cost": "届时每条消息都会产生一次简短的模型调用费用。",
+      "configProposals": "试用：从聊天中起草配置变更",
+      "configProposalsHint": "当有人在聊天中请智能体更改其设置——多久检查一次队列、某个流程、说话方式——时，智能体会把变更起草为提案，而不是创建任务。只有在有权修改该智能体的人接受后才会生效。"
     },
     "push": {
       "title": "推送通知",
@@ -3150,5 +3152,17 @@
     "notePlaceholder": "例如：说“Moin”而不是“Hallo”",
     "save": "保存",
     "saved": "已保存"
+  },
+  "chatProposal": {
+    "label": "配置提案",
+    "widens": "扩大了访问权限（{{files}}）——只有 org_admin 或 security 可以接受。",
+    "accept": "接受",
+    "decline": "拒绝",
+    "waitingFor": "等待 {{names}} 批准。",
+    "waiting": "等待批准。",
+    "acceptedBy": "已由 {{name}} 接受，{{when}}。",
+    "declinedBy": "已由 {{name}} 拒绝，{{when}}。",
+    "requestedInChat": "由 {{name}} 在聊天中提出 ·",
+    "inApp": "提案 · 请在网页端决定"
   }
 }

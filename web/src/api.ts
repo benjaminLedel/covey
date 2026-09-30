@@ -183,8 +183,28 @@ export type Stage = {
    per task. `author` carries the origin of a message ("chat:a@b") or the
    author of a note ("agent", "human:a@b"); from that the surface decides left
    or right, and nothing else. */
+/** A configuration change drafted from the chat (#491), as the reader may
+ *  see and decide it. The server says whether the reader may decide. */
+export type ProposalCard = {
+  id: string;
+  status: "pending" | "accepted" | "rejected";
+  title: string;
+  rationale: string;
+  diff: { file: string; before: string; after: string }[];
+  /** ACCESS.md or EGRESS.md change — only org_admin or security accept. */
+  widens?: string[];
+  conflicts?: string[];
+  can_decide: boolean;
+  can_accept: boolean;
+  approvers: string[];
+  requested_by?: string;
+  decided_by?: string;
+  decided_at?: string;
+  applied_version?: number;
+};
+
 export type ChatEntry = {
-  kind: "message" | "answer" | "note" | "question" | "result" | "error";
+  kind: "message" | "answer" | "note" | "question" | "result" | "error" | "config_proposal";
   /** Die eigene Kennung: die Aufgabe, wenn es eine gibt, sonst die Nachricht. */
   id: string;
   /** Fehlt, wenn der Agent die Nachricht einfach beantwortet hat (#302). */
@@ -203,6 +223,8 @@ export type ChatEntry = {
   /** On a result or an error: what the agent said about it in the chat
    *  (#411), told from the report in `text`, which stays one click away. */
   said?: string;
+  /** On a config_proposal (#491): the drafted change. */
+  proposal?: ProposalCard;
 };
 
 export type EntwurfKurz = { id: string; slug: string; display_name: string; job_title: string; hired_at?: string };
@@ -273,7 +295,7 @@ export type ConversationMessage = {
   author_id?: string;
   author_name?: string;
   text: string;
-  kind: "text" | "result" | "error" | "question";
+  kind: "text" | "result" | "error" | "question" | "config_proposal";
   task_id?: string;
   reply_to?: string;
   triage_state?: string;
@@ -285,6 +307,8 @@ export type ConversationMessage = {
    *  answer the voice it spoke in and why (#471): voice, voice_id,
    *  voice_reason, audience. */
   meta?: Record<string, string>;
+  /** On a config_proposal (#491): the drafted change. */
+  proposal?: ProposalCard;
 };
 
 export type ConversationSummary = Conversation & {
@@ -456,6 +480,8 @@ export type ImprovementItem = {
   agent_owner_id?: string;
   author_slug?: string;
   author_name?: string;
+  /** The person whose chat message the proposal was drafted from (#491). */
+  requested_by_name?: string;
   current_version: number;
   // Written against an older version. By itself not yet a reason against it.
   stale: boolean;

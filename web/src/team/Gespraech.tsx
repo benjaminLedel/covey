@@ -24,6 +24,7 @@ import { chatVoice, levelText } from "../pages/voices/occasions";
 import { Avatar } from "../components/person";
 import { NavIcon } from "../components/navicons";
 import Kopf, { Stapel } from "./Kopf";
+import Vorschlag from "./Vorschlag";
 
 /* A conversation with members (#440): a group, or a direct conversation
  * between two people. The direct conversation with an agent keeps its own
@@ -290,9 +291,13 @@ export default function Gespraech({ id, me }: { id: string; me: Principal }) {
                       {t("conversation.replyingTo", { name: bezug.author_name || "" })}: {bezug.text.slice(0, 80)}
                     </p>
                   )}
-                  <div className="tm-blase-text">
-                    <Markdown text={m.text} />
-                  </div>
+                  {m.kind === "config_proposal" && m.proposal ? (
+                    <Vorschlag card={m.proposal} />
+                  ) : (
+                    <div className="tm-blase-text">
+                      <Markdown text={m.text} />
+                    </div>
+                  )}
                   {m.report && m.report !== m.text && (
                     <details className="tm-bericht">
                       <summary>{t("chat.bericht")}</summary>
