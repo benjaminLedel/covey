@@ -22,6 +22,10 @@ import 'understood.dart';
 import 'voice.dart';
 import 'spoken_voice.dart';
 
+/// How many words a reply needs before its own language can change the
+/// call's; shorter ones are too easily read as the wrong language.
+const minWordsToSwitchLanguage = 8;
+
 /// Calls as a trial (#494): the Mac only, behind an app setting that is on
 /// by default while it is a trial. The setting is the device's, not the
 /// organisation's — nothing on the instance changes. Beside it, the call's
@@ -1056,7 +1060,12 @@ class CallController extends ChangeNotifier {
         if (s.text.isEmpty) continue;
         text = s.text;
         cut = s.cut;
-        lang = await speaker.language(s.text) ?? _language ?? appLanguage;
+        // A call keeps one language: the app's, or the one a reply was
+        // clearly written in. A German reply full of English terms ("Merge
+        // Request", "Tests") must not tip it over, so only a sentence long
+        // enough to judge can change it, and only when the recogniser is sure.
+        final judgeable = s.text.trim().split(RegExp(r'\s+')).length >= minWordsToSwitchLanguage;
+        lang = (judgeable ? await speaker.language(s.text) : null) ?? _language ?? appLanguage;
         _language = lang;
         _prefetch(lang);
       }

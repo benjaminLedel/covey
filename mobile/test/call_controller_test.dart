@@ -42,6 +42,30 @@ void main() {
     await call.hangUp();
   });
 
+  test('a short German reply with English words keeps the call\'s language; a long English one changes it', () async {
+    final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker();
+    final call = fakeCall(ears, backend, speaker);
+    await call.start();
+    ears.feed(320, voiced: true);
+    ears.heard.add('Ist der Merge Request drin?');
+    ears.feed(736, voiced: false);
+    await _settle();
+
+    // The fake recogniser calls anything with "is" English; too short to judge.
+    backend.agentSays('Ja, der Review is done.');
+    await _settle();
+    expect(speaker.spoken.last.$2, 'de');
+    speaker.finish();
+    await _settle();
+
+    backend.agentSays('The export is running and the report will be ready in ten minutes.');
+    await _settle();
+    expect(speaker.spoken.last.$2, 'en');
+    speaker.finish();
+    await _settle();
+    await call.hangUp();
+  });
+
   test('speaking on while the agent speaks stops it', () async {
     final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker();
     final call = fakeCall(ears, backend, speaker);
