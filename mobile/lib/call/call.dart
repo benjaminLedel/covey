@@ -11,7 +11,7 @@ import '../live.dart';
 import '../models.dart';
 import '../prefs.dart';
 import '../speech_model.dart';
-import 'capture.dart' show bargeInConfirm;
+import 'capture.dart' show bargeInConfirm, doubleTalkMargin, echoWarmUp, loudnessDb, overPlayback;
 import 'ears.dart';
 import 'fillers.dart';
 import 'greeting.dart';
@@ -22,6 +22,8 @@ import 'turns.dart';
 import 'understood.dart';
 import 'voice.dart';
 import 'spoken_voice.dart';
+
+String _base(String language) => language.split(RegExp('[-_]')).first.toLowerCase();
 
 /// How many words a reply needs before its own language can change the
 /// call's; shorter ones are too easily read as the wrong language.
@@ -47,8 +49,9 @@ class CallSettings {
 
   static final enabled = ValueNotifier<bool>(true);
 
-  /// The defaults are the values the trial started with (#494).
-  static const defaultPause = Duration(milliseconds: 700);
+  /// The defaults are the values the trial started with (#494), but the
+  /// pause: 0.7 s cut people off mid-sentence, so it is 1 s (#511).
+  static const defaultPause = Duration(milliseconds: 1000);
   static const defaultBargeIn = Duration(milliseconds: 400);
   static const defaultWindow = Duration(milliseconds: 1500);
 
@@ -341,7 +344,7 @@ class ApiCallBackend implements CallBackend {
     if (_noClean || SpeechModel.instance.info?.clean == false) return null;
     try {
       return await api
-          .cleanDictation(text, app: 'covey call', context: context.toFields())
+          .cleanDictation(text, app: 'covey call', context: context.toFields(), turn: true)
           .timeout(const Duration(seconds: 4));
     } on ApiException catch (e) {
       // No endpoint (404) or no credential (409): not again this call.
@@ -513,8 +516,9 @@ class CallController extends ChangeNotifier {
   /// The call's sounds; null plays none.
   final CallSounds? sounds;
 
-  /// How long the call waits for the reply's first audio before the agent
-  /// says a short filler — once per turn.
+  /// How long the call waits for the reply before the agent says a short
+  /// filler — once per turn, and only while the reply's message has not
+  /// arrived (#511).
   final Duration fillerAfter;
 
   /// How long the call waits for a reply before the agent says it takes a
@@ -566,6 +570,10 @@ class CallController extends ChangeNotifier {
   bool _recognising = false;
   bool _awaiting = false;
   bool _bargedIn = false;
+
+  /// Counts the barge-ins, so a reply waiting for a filler to fade knows
+  /// the person spoke meanwhile.
+  int _interrupts = 0;
   Timer? _poll;
   Timer? _giveUp;
   StreamSubscription<void>? _changes;
@@ -802,11 +810,34 @@ class CallController extends ChangeNotifier {
     // when the microphone is echo-cancelled (#507), which covers what the
     // call's own engine plays, not the Mac's synthesiser. Not during the
     // greeting: it comes before the canceller has learnt the room.
+    final warming = _echoWarming;
     _turns.confirm = _greetingPending
         ? tuning.bargeIn
         : _speaking || _fillers.playing
-        ? bargeInConfirm(tuning.bargeIn, echoCancelled: _echoCancelled)
+        ? bargeInConfirm(tuning.bargeIn, echoCancelled: _echoCancelled, warmingUp: warming)
         : Duration.zero;
+    if (warming && !_warmUpLogged && (_speaking || _fillers.playing)) {
+      _warmUpLogged = true;
+      diag('call', 'echo canceller settling: barge-in at the tuned ${tuning.bargeIn.inMilliseconds} ms');
+    }
+    // Double-talk (#511): while the call plays something, a window counts
+    // as the person only when it is louder than what plays by a margin —
+    // what of the agent's voice gets past the canceller is quieter.
+    if (voiced && !_turns.speaking && (_greetingPending || _speaking || _fillers.playing)) {
+      final played = speaker.playbackDb;
+      final heard = loudnessDb(l);
+      if (!overPlayback(heard, played)) {
+        voiced = false;
+        if (!_doubleTalkLogged) {
+          _doubleTalkLogged = true;
+          diag(
+            'call',
+            'voice under what plays: ${heard.toStringAsFixed(0)} dB against ${played!.toStringAsFixed(0)} dB '
+                '+ ${doubleTalkMargin.toStringAsFixed(0)} — not a barge-in',
+          );
+        }
+      }
+    }
     _turns.add(pcm, voiced);
     level = l > level ? l : level * 0.85 + l * 0.15;
     final now = DateTime.now();
@@ -817,6 +848,17 @@ class CallController extends ChangeNotifier {
   }
 
   bool get _echoCancelled => ears.echoCancelled && !speaker.fallback.value;
+
+  /// Voice processing started less than [echoWarmUp] ago (#511).
+  bool get _echoWarming {
+    final since = ears.echoCancelledSince;
+    return _echoCancelled && since != null && DateTime.now().difference(since) < echoWarmUp;
+  }
+
+  bool _warmUpLogged = false;
+
+  /// Logged once per utterance: a window held back as the agent's own voice.
+  bool _doubleTalkLogged = false;
 
   void _onSpeech() {
     // The person speaks: a filler would talk over them, and a greeting
@@ -829,8 +871,14 @@ class CallController extends ChangeNotifier {
     if (_speaking) {
       // Barge-in: the person speaks, the agent stops mid-sentence, and what
       // it had still to say is dropped — it stands in the chat.
-      diag('call', 'barge-in');
+      final played = speaker.playbackDb;
+      diag(
+        'call',
+        'barge-in, microphone ${loudnessDb(level).toStringAsFixed(0)} dB'
+            '${played == null ? '' : ', playing ${played.toStringAsFixed(0)} dB'}',
+      );
       _bargedIn = true;
+      _interrupts++;
       _queue.clear();
       unawaited(speaker.stop());
     }
@@ -898,20 +946,54 @@ class CallController extends ChangeNotifier {
       return;
     }
 
-    // Understood: shown while the clean-up runs, then for the window.
-    final u = _understood = UnderstoodTurn(text, window: tuning.window, cleaning: true);
+    // The recogniser may take a short German turn for English (#511):
+    // Parakeet cannot be pinned to the call's language, so a turn heard in
+    // another one is flagged here.
+    final callLanguage = _base(_language ?? appLanguage);
+    String? heardIn;
+    try {
+      heardIn = await speaker.language(text);
+    } catch (_) {}
+    facts['call_language'] = callLanguage;
+    if (heardIn != null) {
+      facts['recognised_language'] = heardIn;
+      if (_base(heardIn) != callLanguage) {
+        diag('call', 'turn $n recognised as $heardIn, the call is in $callLanguage');
+      }
+    }
+    if (ended) return;
+
+    // Understood: shown while the clean-up runs, then for the window. A
+    // short turn is not cleaned (#511): there is nothing to tidy in it, and
+    // the clean-up only had the conversation to go on.
+    final short = turnWords(text).length < minCleanWords;
+    final u = _understood = UnderstoodTurn(text, window: tuning.window, cleaning: !short);
     u.addListener(_update);
     _update();
-    final cleanWatch = Stopwatch()..start();
-    unawaited(
-      backend
-          .clean(text, CleanContext(agentName: agentName, names: _names, recent: List.of(_recent)))
-          .then((c) => c, onError: (Object _) => null)
-          .then((c) {
-            facts['clean_ms'] = cleanWatch.elapsedMilliseconds;
-            u.cleanedUp(c);
-          }),
-    );
+    if (short) {
+      facts['clean_kept'] = 'short';
+    } else {
+      final cleanWatch = Stopwatch()..start();
+      unawaited(
+        backend
+            .clean(text, CleanContext(agentName: agentName, names: _names, recent: List.of(_recent)))
+            .then((c) => c, onError: (Object _) => null)
+            .then((c) {
+              facts['clean_ms'] = cleanWatch.elapsedMilliseconds;
+              if (c != null && c.trim().isNotEmpty) {
+                // A correction changes little; a rewrite goes as recognised.
+                final edit = turnEdit(text, c);
+                facts['clean_edit'] = double.parse(edit.toStringAsFixed(2));
+                if (edit > maxTurnEdit) {
+                  facts['clean_kept'] = 'edited';
+                  facts['clean_rejected'] = c;
+                  c = null;
+                }
+              }
+              u.cleanedUp(c);
+            }),
+      );
+    }
     final shownAt = DateTime.now();
     final (sent, how) = await u.result;
     u.removeListener(_update);
@@ -940,6 +1022,8 @@ class CallController extends ChangeNotifier {
       'turn $n: speech ${facts['speech_ms']} ms, silence ${facts['silence_ms']} ms, length ${facts['length_ms']} ms, '
           'cut ${facts['cut']}, recognised in ${facts['recognise_ms']} ms, raw ${raw.length} characters'
           '${cleaned == null ? '' : ', cleaned ${cleaned.length} in ${facts['clean_ms']} ms'}'
+          '${facts['clean_edit'] == null ? '' : ', word edit ${facts['clean_edit']}'}'
+          '${facts['clean_kept'] == null ? '' : ', sent as recognised (${facts['clean_kept']})'}'
           '${sent == null ? '' : ', sent ${sent.length}'}, ${facts['outcome']}'
           '${detail ? ' · raw «$raw»${cleaned == null ? '' : ' · cleaned «$cleaned»'}' : ''}',
     );
@@ -1082,7 +1166,19 @@ class CallController extends ChangeNotifier {
       }
       if (cut) _queue.insert(0, _Utterance(words('call.restInChat'), plain: true));
       _speaking = true;
+      // A filler still playing finishes its word first (#511).
+      if (_fillers.playing) {
+        final interrupts = _interrupts;
+        await _fillers.makeWay();
+        // Hung up, or the person spoke meanwhile: this reply is not said.
+        if (ended || interrupts != _interrupts) {
+          _speaking = false;
+          _update();
+          break;
+        }
+      }
       _saying = text;
+      _doubleTalkLogged = false;
       _update();
       try {
         await speaker.speak(text, language: lang);

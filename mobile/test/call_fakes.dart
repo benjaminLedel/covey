@@ -22,6 +22,9 @@ class FakeEars implements CallEars {
   @override
   bool echoCancelled = false;
 
+  @override
+  DateTime? echoCancelledSince;
+
   /// What each next turn is recognised as.
   final heard = <String>[];
 
@@ -57,7 +60,7 @@ class FakeEars implements CallEars {
   void say(String text, {int ms = 640}) {
     heard.add(text);
     feed(ms, voiced: true);
-    feed(736, voiced: false);
+    feed(1056, voiced: false);
   }
 }
 
@@ -168,6 +171,10 @@ class FakeSpeaker implements Speaker {
   @override
   ValueListenable<bool> get fallback => fallbackNotifier;
 
+  /// How loud what plays is, as the provider's audio would say.
+  @override
+  double? playbackDb;
+
   @override
   Future<String> prepare({required String language}) async => 'fake voices';
   int stops = 0;
@@ -220,15 +227,25 @@ class FakeSpeaker implements Speaker {
 
   final prefetched = <(List<String>, String)>[];
 
+  /// Holds a filler's lookup until completed; null answers at once.
+  Completer<void>? fillerGate;
+
+  /// How long each fade lasted.
+  final fadedOver = <Duration>[];
+
   @override
   Future<Duration?> filler(String text, {required String language}) async {
     if (fillerLength == null) return null;
+    await fillerGate?.future;
     fillers.add(text);
     return fillerLength;
   }
 
   @override
-  Future<void> fadeFiller(Duration over) async => fades++;
+  Future<void> fadeFiller(Duration over) async {
+    fades++;
+    fadedOver.add(over);
+  }
 
   @override
   Future<void> stopFiller() async => fillerStops++;

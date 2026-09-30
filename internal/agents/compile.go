@@ -265,6 +265,10 @@ spoken form in a tag of its own:
 The spoken form is what the person hears:
 ` + chat.SpokenRules + `
 
+Write the spoken form in the same language as your written reply, the
+language of the message — never translate it, whatever the language of this
+example. A spoken form in another language than the reply is not said.
+
 Set details_in_chat="true" when it leaves out something the written reply
 carries (an id, a link, a list, a figure), "false" when it says all of it.
 covey takes the tag off: the conversation shows only the reply above it.`

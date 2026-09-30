@@ -175,6 +175,55 @@ void main() {
       await call.hangUp();
     });
 
+    test('while the canceller settles, the tuned one holds (#511)', () async {
+      const tuned = Duration(milliseconds: 400);
+      expect(bargeInConfirm(tuned, echoCancelled: true, warmingUp: true), tuned);
+      final (ears, speaker, call) = await speaking(echoCancelled: true);
+      ears.echoCancelledSince = DateTime.now();
+      ears.feed(160, voiced: true);
+      ears.feed(64, voiced: false);
+      expect(speaker.stops, 0, reason: 'its first 3 s it does not hold the agent back yet');
+      ears.echoCancelledSince = DateTime.now().subtract(echoWarmUp + const Duration(milliseconds: 1));
+      ears.feed(160, voiced: true);
+      expect(speaker.stops, 1);
+      await call.hangUp();
+    });
+
+    test('voice under what plays plus the margin is the agent, not the person (#511)', () async {
+      expect(overPlayback(-20, -20), isFalse);
+      expect(overPlayback(-14, -20), isTrue);
+      expect(overPlayback(-50, null), isTrue, reason: 'nothing known to play: every window counts');
+      expect(loudnessDb(0.6), closeTo(-24, 0.001));
+
+      final (ears, speaker, call) = await speaking(echoCancelled: true);
+      speaker.playbackDb = -20;
+      ears.feed(640, voiced: true, level: 0.6); // −24 dB: its own voice
+      expect(speaker.stops, 0);
+      ears.feed(64, voiced: false);
+      ears.feed(160, voiced: true, level: 0.8); // −12 dB: the person
+      expect(speaker.stops, 1);
+      await call.hangUp();
+    });
+
+    test('a filler playing is held to the same check', () async {
+      final ears = FakeEars()..echoCancelled = true;
+      final backend = FakeBackend(), speaker = FakeSpeaker(), clock = FakeClock();
+      final call = fakeCall(ears, backend, speaker, startTimer: clock.start);
+      await call.start();
+      ears.say('Was steht an?');
+      await _settle();
+      await clock.advance(const Duration(milliseconds: 850));
+      expect(speaker.fillers, hasLength(1));
+      speaker.playbackDb = -18;
+      ears.feed(640, voiced: true, level: 0.6);
+      expect(speaker.fillerStops, 0);
+      ears.feed(64, voiced: false);
+      ears.feed(160, voiced: true, level: 0.9);
+      await _settle();
+      expect(speaker.fillerStops, 1);
+      await call.hangUp();
+    });
+
     test('while the Mac\'s own voice speaks, which is not cancelled, the tuned one holds', () async {
       final (ears, speaker, call) = await speaking(echoCancelled: true);
       speaker.fallbackNotifier.value = true;

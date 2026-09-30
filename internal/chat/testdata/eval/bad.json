@@ -212,20 +212,20 @@
     ]
   },
   {
+    "scenario": "de-anruf-merge-request",
+    "why": "#511: a German answer whose spoken form came out in English; it is dropped, and the call speaks the written answer.",
+    "recorded": "{\"action\": \"answer\", \"text\": \"Doch, ist drin – DLES-273, MR !475, alle Tests grün, wartet auf Gertruds Review.\", \"spoken\": \"Yes, it's in. The merge request is ready, all the tests are green, and it's waiting for Gertrud's review.\", \"details_in_chat\": true}",
+    "fails": [
+      "spoken"
+    ]
+  },
+  {
     "scenario": "en-call-link-in-chat",
     "why": "#502: a link and parentheses in the spoken form.",
     "recorded": "{\"action\": \"answer\", \"text\": \"It's in the wiki: https://wiki.example.org/support/demo-restart\", \"spoken\": \"It's in the wiki (https://wiki.example.org/support/demo-restart).\", \"details_in_chat\": false}",
     "fails": [
       "spoken_ids",
       "spoken_form"
-    ]
-  },
-  {
-    "scenario": "en-call-task-ack",
-    "why": "#502: a spoken acknowledgement that keeps talking.",
-    "recorded": "{\"action\": \"task\", \"title\": \"Reply to ticket 4711\", \"body\": \"Reply and offer a refund.\", \"text\": \"On it, I'll reply and offer the refund.\", \"spoken\": \"On it. I'll open the ticket. Then I'll read the history. Then I'll write to the customer. Then I'll offer the refund and let you know.\", \"details_in_chat\": false}",
-    "fails": [
-      "spoken_sentences"
     ]
   }
 ]

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"covey/internal/llm"
+	"covey/internal/speech/normalise"
 )
 
 // ErrEmpty: the model answered with nothing.
@@ -27,7 +28,8 @@ const cleanSystem = `You receive text that a person dictated and a speech recogn
 - Apply spoken self-corrections: "on Tuesday — no, Wednesday" becomes "on Wednesday".
 - Set punctuation, capitalisation and paragraphs. Spoken formatting cues ("new paragraph", "bullet point", "question mark") become the formatting and disappear as words.
 - Correct words the recogniser clearly misheard, from the context. Where it is unclear, keep what was recognised.
-- Keep the language, the wording, the tone and the meaning. Do not summarise, shorten, explain, answer questions in the text, or add anything that was not said.
+- Keep the input's language. Never translate: German stays German, English stays English, whatever the language of these instructions, of the context or of the target application.
+- Keep the wording, the tone and the meaning. Do not summarise, shorten, explain, answer questions in the text, or add anything that was not said.
 - If a target application is named, fit the form to it: a chat message stays short and informal; an e-mail gets sentences and paragraphs. Never add a greeting or a signature that was not dictated.
 - If the text around the insertion point is given, your text is inserted exactly there. The context decides only the seam and your understanding, never the content: if the text before ends mid-sentence, start in lower case unless the word itself needs a capital, and set no full stop before; use the context to spell names and to keep the form of address. Every statement of the dictation stays as it was said — do not merge it with the text before into a different statement, and do not drop words because the context seems to cover them. Never repeat, quote or change the context — output only the new text.
 
@@ -49,8 +51,21 @@ const (
 )
 
 // Clean returns the dictated text as meant. app names the application the
-// text is for ("Mail", "Slack"), or is empty.
+// text is for ("Mail", "Slack"), or is empty. An answer in another language
+// than the dictation is a translation, not a clean-up (#511): the dictation
+// is returned as it was recognised.
 func Clean(ctx context.Context, p llm.Provider, text, app string, where Context) (string, error) {
+	out, err := complete(ctx, p, cleanSystem, text, app, where)
+	if err != nil {
+		return "", err
+	}
+	if !normalise.SameLanguage(text, out) {
+		return text, nil
+	}
+	return out, nil
+}
+
+func complete(ctx context.Context, p llm.Provider, system, text, app string, where Context) (string, error) {
 	var b strings.Builder
 	if app = strings.TrimSpace(app); app != "" {
 		b.WriteString("Target application: " + app + "\n")
@@ -76,7 +91,7 @@ func Clean(ctx context.Context, p llm.Provider, text, app string, where Context)
 		// where waiting is the whole cost. The fast model takes no effort
 		// parameter either.
 		NoThinking: true,
-		System:     cleanSystem,
+		System:     system,
 		Messages:   []llm.Message{{Role: "user", Content: msg}},
 	})
 	if err != nil {

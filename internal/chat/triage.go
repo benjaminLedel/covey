@@ -396,8 +396,10 @@ func Triagieren(ctx context.Context, p llm.Provider, r Rahmen, organisation stri
 	if r.Vorschlaege {
 		system += triageKonfig
 	}
+	lang := ""
 	if r.Anruf {
-		system += triageAnruf
+		lang = conversationLanguage(nachricht, verlauf)
+		system += triageAnruf(lang)
 	}
 
 	roh, err := p.Complete(ctx, llm.Request{
@@ -417,7 +419,7 @@ func Triagieren(ctx context.Context, p llm.Provider, r Rahmen, organisation stri
 	if err != nil {
 		return e, err
 	}
-	return fuerAnruf(e, r.Anruf), nil
+	return fuerAnruf(e, r.Anruf, lang), nil
 }
 
 // lesen holt das JSON aus der Antwort. Modelle stellen gern einen Satz davor

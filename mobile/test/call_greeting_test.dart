@@ -206,7 +206,7 @@ void main() {
       expect(speaker.stops, 1);
       expect(call.mode, CallMode.hearing);
       ears.heard.add('Ich brauche den Bericht.');
-      ears.feed(736, voiced: false);
+      ears.feed(1056, voiced: false);
       await _settle();
       expect(backend.posted, ['Ich brauche den Bericht.']);
       await call.hangUp();

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -129,6 +130,53 @@ void main() {
       expect(voice.fillers, hasLength(1), reason: 'a stop ends the turn\'s fillers, the long wait too');
     });
 
+    test('none once the reply\'s text is there, though its audio is not yet (#511)', () async {
+      f.waiting();
+      await clock.advance(_ms * 700);
+      f.replyArrived(); // the message, its audio still being made
+      await clock.advance(const Duration(seconds: 20));
+      expect(voice.fillers, isEmpty);
+    });
+
+    test('one still being looked up when the text arrives does not start', () async {
+      voice.fillerGate = Completer<void>();
+      f.waiting();
+      await clock.advance(_ms * 850);
+      f.replyArrived();
+      voice.fillerGate!.complete();
+      await clock.advance(_ms * 10);
+      expect(f.playing, isFalse);
+      expect(voice.fillerStops, 1, reason: 'what was looked up is stopped');
+    });
+
+    test('a filler playing fades over 250 ms, and the reply waits for it', () async {
+      f.waiting();
+      await clock.advance(_ms * 850);
+      expect(f.playing, isTrue);
+      f.replyArrived();
+      expect(f.playing, isTrue, reason: 'the text alone does not cut it off');
+      var done = false;
+      unawaited(f.makeWay().then((_) => done = true));
+      await clock.advance(_ms * 249);
+      expect(voice.fadedOver.single, const Duration(milliseconds: 250));
+      expect(done, isFalse);
+      await clock.advance(_ms * 1);
+      expect(done, isTrue);
+      expect(f.playing, isFalse);
+      await clock.advance(const Duration(seconds: 20));
+      expect(voice.fillers, hasLength(1), reason: 'nothing more for this turn');
+    });
+
+    test('making way without a filler playing is at once', () async {
+      f.waiting();
+      await clock.advance(_ms * 300);
+      var done = false;
+      unawaited(f.makeWay().then((_) => done = true));
+      await clock.advance(Duration.zero);
+      expect(done, isTrue);
+      expect(voice.fades, 0);
+    });
+
     test('nothing to say it with: nothing plays, nothing to fade', () async {
       voice.fillerLength = null;
       f.waiting();
@@ -163,8 +211,11 @@ void main() {
 
       backend.agentSays('Der Export läuft noch.');
       await _settle();
+      expect(speaker.fades, 1, reason: 'the reply fades the filler');
+      expect(speaker.fadedOver.single, const Duration(milliseconds: 250));
+      expect(speaker.spoken, isEmpty, reason: 'the reply waits for the filler\'s fade (#511)');
+      await clock.advance(_ms * 250);
       expect(speaker.spoken.single.$1, 'Der Export läuft noch.');
-      expect(speaker.fades, 1, reason: 'the reply\'s first audio fades the filler');
       expect(out.names.where((e) => e == Earcon.task), isEmpty, reason: 'an answer, not a task');
       await call.hangUp();
       await _settle();
@@ -194,6 +245,22 @@ void main() {
       await call.setMuted(false);
       await _settle();
       expect(out.names.skip(2).where((e) => e != Earcon.heard), [Earcon.mute, Earcon.unmute]);
+      await call.hangUp();
+    });
+
+    test('the reply\'s text before 0.8 s: no filler, whenever its audio comes (#511)', () async {
+      final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker();
+      final clock = FakeClock();
+      final call = fakeCall(ears, backend, speaker, startTimer: clock.start);
+      await call.start();
+      ears.say('Wie weit ist der Export?');
+      await _settle();
+      await clock.advance(_ms * 700);
+      backend.agentSays('Der Export läuft noch.');
+      await _settle();
+      await clock.advance(const Duration(seconds: 10));
+      expect(speaker.fillers, isEmpty);
+      expect(speaker.spoken.single.$1, 'Der Export läuft noch.');
       await call.hangUp();
     });
 

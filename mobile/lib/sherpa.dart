@@ -135,14 +135,24 @@ class SherpaDecoder {
 
   final _Worker _worker;
 
-  /// Loads [model] (`parakeet` or `sensevoice`) from [modelPath].
-  static Future<SherpaDecoder> load(String modelPath, String model) async =>
-      SherpaDecoder._(await _Worker.spawn(modelPath, model, null));
+  /// Loads [model] (`parakeet` or `sensevoice`) from [modelPath]. A call
+  /// pins SenseVoice to its [language] when the model knows it (#511);
+  /// Parakeet takes no language and detects it itself.
+  static Future<SherpaDecoder> load(String modelPath, String model, {String language = ''}) async =>
+      SherpaDecoder._(await _Worker.spawn(modelPath, model, null, language: senseVoiceLanguage(language)));
 
   /// The text of one turn of 16 kHz mono PCM16.
   Future<String> decode(Uint8List pcm16) => _worker.decode(pcm16);
 
   void close() => _worker.close();
+}
+
+/// The languages SenseVoice can be pinned to, by the app's code: its
+/// own codes are the same, Cantonese aside. Another language, or none, is
+/// "" — the model detects it.
+String senseVoiceLanguage(String language) {
+  final base = language.split(RegExp('[-_]')).first.toLowerCase();
+  return const {'zh', 'en', 'ja', 'ko', 'yue'}.contains(base) ? base : '';
 }
 
 /// Silero's voice activity detector through sherpa-onnx (#494): fed one
@@ -204,9 +214,9 @@ class _Worker {
   final Stream<dynamic> _replies;
   int _next = 0;
 
-  static Future<_Worker> spawn(String dir, String model, String? speakerDir) async {
+  static Future<_Worker> spawn(String dir, String model, String? speakerDir, {String language = ''}) async {
     final inbox = ReceivePort();
-    final isolate = await Isolate.spawn(_main, [inbox.sendPort, dir, model, speakerDir]);
+    final isolate = await Isolate.spawn(_main, [inbox.sendPort, dir, model, speakerDir, language]);
     final replies = inbox.asBroadcastStream();
     final first = await replies.first;
     if (first is String) {
@@ -245,6 +255,7 @@ class _Worker {
     final dir = args[1]! as String;
     final model = args[2]! as String;
     final speakerDir = args[3] as String?;
+    final language = args.length > 4 ? args[4] as String? ?? '' : '';
     final sherpa.OfflineRecognizer rec;
     sherpa.SpeakerEmbeddingExtractor? voices;
     try {
@@ -256,6 +267,7 @@ class _Worker {
                   senseVoice: sherpa.OfflineSenseVoiceModelConfig(
                     model: '$dir/model.int8.onnx',
                     // Empty: the model detects the language.
+                    language: language,
                     useInverseTextNormalization: true,
                   ),
                   tokens: '$dir/tokens.txt',

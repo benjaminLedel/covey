@@ -357,7 +357,7 @@ func aufgezeichnet(sc evalScenario, roh string) evalAusgabe {
 	if err != nil {
 		return evalAusgabe{Fehler: err}
 	}
-	return ausgabe(fuerAnruf(e, sc.Call))
+	return ausgabe(fuerAnruf(e, sc.Call, sc.Language))
 }
 
 func angesprochen(sc evalScenario) *bool {
@@ -612,8 +612,9 @@ var (
 )
 
 // pruefenGesprochen checks the spoken form of a call scenario (#502): it is
-// there, at most three sentences, in the language of the message, with no
-// ids, links, emoji or marks of writing, and none of the machinery.
+// there, at most two sentences (#511), in the language of the message and of the
+// written answer, with no ids, links, emoji or marks of writing, and none of
+// the machinery.
 func pruefenGesprochen(sc evalScenario, a evalAusgabe) []befund {
 	var out []befund
 	add := func(check, format string, args ...any) {
@@ -624,15 +625,21 @@ func pruefenGesprochen(sc evalScenario, a evalAusgabe) []befund {
 	}
 	g := strings.TrimSpace(a.Gesprochen)
 	if g == "" {
-		add("spoken", "a message said in a call got no spoken form")
+		// fuerAnruf drops a spoken form in another language than the
+		// written answer (#511): that lands here too.
+		add("spoken", "a message said in a call got no spoken form, or one in another language than the written answer")
 		return out
 	}
 	klein := strings.ToLower(g)
-	if n := saetze(g); n > 3 {
-		add("spoken_sentences", "%d, at most 3", n)
+	if n := saetze(g); n > SpokenSentences {
+		add("spoken_sentences", "%d, at most %d", n, SpokenSentences)
 	}
 	if l := sprache(g); l != "" && sc.Language != "" && l != sc.Language {
 		add("spoken_language", "reads as %s, want %s", l, sc.Language)
+	}
+	// In the written answer's language (#511), whatever the message's was.
+	if l, w := sprache(g), sprache(a.Text); l != "" && w != "" && l != w {
+		add("spoken_language", "reads as %s, the written answer as %s", l, w)
 	}
 	if m := gesprocheneKennung.FindString(g); m != "" {
 		add("spoken_ids", "%q", m)

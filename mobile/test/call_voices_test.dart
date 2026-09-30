@@ -50,6 +50,16 @@ void main() {
       expect(l.last, greaterThan(0.8));
     });
 
+    test('the loudness in dB, frame by frame, for the double-talk check (#511)', () {
+      final samples = Float32List(22050);
+      for (var i = 11025; i < 22050; i++) {
+        samples[i] = i.isEven ? 0.5 : -0.5;
+      }
+      final db = levelsDb(Pcm(samples, 22050), fps: 10);
+      expect(db.first, -100);
+      expect(db.last, closeTo(-6.02, 0.01));
+    });
+
     test('the provider\'s MP3 is decoded as it streams in, with the voice it is told', () async {
       final out = _Output();
       final v = ProviderVoice(
@@ -123,6 +133,29 @@ void main() {
       await _settle();
       expect(said, ['Eins.'], reason: 'not asked again in this call');
       expect(out.said.last.$1, 'Zwei.');
+      s.dispose();
+    });
+
+    test('what plays is known in dB while it plays, the reply\'s and a filler\'s (#511)', () async {
+      final out = _Output();
+      final s = _speaker(out, provider: _provider(out, []));
+      await s.prepare(language: 'de');
+      expect(s.playbackDb, isNull);
+      final done = s.speak('Der Export läuft.', language: 'de');
+      await _settle();
+      expect(s.playbackDb, isNull, reason: 'queued, not heard yet');
+      out.emit(SpeakingEvent.started);
+      await _settle();
+      expect(s.playbackDb, closeTo(-10.46, 0.01));
+      out.emit(SpeakingEvent.finished);
+      await done;
+      expect(s.playbackDb, isNull);
+
+      await s.prefetchFillers(['Hm…'], language: 'de');
+      await s.filler('Hm…', language: 'de');
+      expect(s.playbackDb, closeTo(-10.46, 0.01));
+      await s.fadeFiller(const Duration(milliseconds: 250));
+      expect(s.playbackDb, isNull);
       s.dispose();
     });
 

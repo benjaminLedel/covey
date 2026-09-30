@@ -156,8 +156,26 @@ class FrameChunker {
 /// is shorter still. Without it the tuned value holds, as before.
 const echoCancelledBargeIn = Duration(milliseconds: 128);
 
-Duration bargeInConfirm(Duration tuned, {required bool echoCancelled}) =>
-    echoCancelled && tuned > echoCancelledBargeIn ? echoCancelledBargeIn : tuned;
+/// How long Apple's echo canceller needs after it started before it holds
+/// back the agent's voice (#511): with it on, the agent stopped itself
+/// 0.67 s into its greeting. Until then the tuned confirmation stands.
+const echoWarmUp = Duration(seconds: 3);
+
+/// [warmingUp]: voice processing started less than [echoWarmUp] ago.
+Duration bargeInConfirm(Duration tuned, {required bool echoCancelled, bool warmingUp = false}) =>
+    echoCancelled && !warmingUp && tuned > echoCancelledBargeIn ? echoCancelledBargeIn : tuned;
+
+/// How much louder than what the call plays the microphone must be for a
+/// window to count as the person barging in (#511), in dB: the agent's own
+/// voice that gets past the echo canceller is quieter than what is played.
+const doubleTalkMargin = 6.0;
+
+/// A window's level ([loudness], 0–1) in dB: 0 is −60 dB, 1 is 0 dB.
+double loudnessDb(double level) => level * 60 - 60;
+
+/// Whether a microphone window at [micDb] counts as the person while
+/// something plays at [playbackDb]; with nothing known to play, it does.
+bool overPlayback(double micDb, double? playbackDb) => playbackDb == null || micDb >= playbackDb + doubleTalkMargin;
 
 /// The Mac's microphone through the call's own audio engine, with voice
 /// processing on (MainFlutterWindow.swift, `covey/voice`): the frames come
