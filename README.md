@@ -6,17 +6,17 @@
 
 **The IT and HR department for AI agents.**
 
+A self-hosted platform that runs Claude Code and Codex agents inside a company.<br/>
 Every agent gets its own sandbox, its own logins and its own backlog.<br/>
 You hand out the work, set the limits, and read back what was done.
 
-[![covey.work](https://img.shields.io/badge/live-covey.work-cc7a5b)](https://covey.work)
+[![covey.work](https://img.shields.io/badge/website-covey.work-cc7a5b)](https://covey.work)
 [![CI](https://github.com/benjaminLedel/covey/actions/workflows/ci.yml/badge.svg)](https://github.com/benjaminLedel/covey/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FbenjaminLedel%2Fcovey%2Fbadges%2Fcoverage.json)](https://github.com/benjaminLedel/covey/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/benjaminLedel/covey?color=1f883d)](https://github.com/benjaminLedel/covey/releases/latest)
-[![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](go.mod)
 [![Licence](https://img.shields.io/badge/licence-AGPL--3.0-336791)](LICENSE)
 
-**[covey.work](https://covey.work)** — a live instance, before you install anything
+**[covey.work](https://covey.work)**: what it does, with the docs · **[app.covey.work](https://app.covey.work)**: the hosted beta, with a waiting list
 
 [Deutsch](README.de.md) · **English**
 
@@ -48,7 +48,7 @@ An agent sleeps until a webhook, a scheduled check or a person wakes it, so an i
 
 covey is built for organisations rather than for one person at a desk. Several people administer it — IT, team leads, security, controlling — permissions and guard rails are set centrally, and humans and agents appear in the same org chart.
 
-**Status:** covey is ready to use. [covey.work](https://covey.work) runs this repository's `main` and is redeployed on every push; releases are versioned, upgrades are documented, and an integration suite covers the whole path from wake to result.
+**Status:** usable and young: the first release was in August 2026, and one person maintains it. [app.covey.work](https://app.covey.work) runs this repository's `main` and is redeployed on every push; releases are versioned, upgrades are documented, and an integration suite covers the whole path from wake to result.
 
 > **Codename.** A *covey* is a small flock that moves together — roughly what the platform does with agents.
 
@@ -65,6 +65,8 @@ echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env
 make sandbox-images-pull        # the prebuilt workplaces an agent runs in
 docker compose up -d --build    # Postgres + covey
 ```
+
+An installation sends a few anonymous counts to the project once a day (the version, how many people, agents and tasks there are, which engines and target systems are switched on), never titles, prompts or names. `COVEY_TELEMETRY=off` in `.env` switches that off before the first start; every field is listed in [`docs/en/operations/telemetry.md`](docs/en/operations/telemetry.md).
 
 Open **[http://localhost:8494](http://localhost:8494)** and log in with `admin@covey.local` / `covey-admin`.
 
