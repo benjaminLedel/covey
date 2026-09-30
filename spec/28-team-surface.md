@@ -126,7 +126,8 @@ sandbox**:
   becomes a task as before and the reason is noted at that task
 - its output is text or a task, nothing else: no config change, no wake, no
   approval or other decidable entry decided — only a person decides one
-  (section 2)
+  (section 2). The one addition, behind a trial setting, is a config
+  *proposal* (below): stored, not in effect, decided by a person
 - it is recorded and counted like any other run ([`06`](06-observability-control.md))
 - the guard rails on what an agent says hold for a direct answer exactly as
   they hold for a ticket reply — a cheap path must not become the cheap way
@@ -167,6 +168,16 @@ a model it says nothing, and the report stands on its own as before.
 
 How the agent talks there comes from the voice chosen for the chat — the department of the person who wrote, else the agent's chat slot, else the organisation's — with its card, two passages and its chat tone (address, tone, emoji and a line of free text, with an organisation default), plus the "how to speak with us" lines of the departments involved; the answer's meta names the voice and why ([`24`](24-voice.md), voices per occasion). An evaluation set of conversation scenarios with hard checks and a model-graded score (`internal/chat/testdata/eval`, `make eval-chat`) measures a change to these prompts.
 
+**A wish to change the agent itself** (#491, a trial). "Check the inbox only every two hours" is neither a question nor work a run could do: an ordinary agent may not touch its own configuration (`covey/propose_agent_config` needs `agents:write` or `agents:review`). Behind the organisation setting `chat_config_proposals` (`GET`/`PATCH /api/v1/org/chat-config-proposals`, `{"enabled": bool}`, off by default, the manage roles switch it beside the triage) the triage gets a fifth move:
+
+- `{"action":"config","title":…,"change":…,"text":…}` when the message asks the addressed agent to change its **own** setup — heartbeat, playbooks, soul, access. A question about the setup is an answer (the turn sees the agent's `HEARTBEAT.md` for that), a one-off job is a task, and a colleague's setup is the colleague's. In a group only the addressed agent's triage can choose it. With the setting off the move is not offered, and a model that chooses it anyway gets a task, so the wish is not lost;
+- the server drafts the change with the config assistant's turn (`assistDraft` in `internal/httpapi/assist.go`, the same one `POST /agents/{id}/config/assist` takes, through `llm.Resolve`) from the running config files and the change in plain words, keeps only the files that really change, runs the checks the accept path would refuse on (`HEARTBEAT.md` must parse; a proposal never grants the system `covey`), and stores it as the same kind of row `propose_agent_config` writes — a proposal in `improvement_items`, not in effect — with its origin: `origin_message_id` and `requested_by` (migration 0124);
+- the conversation gets a message of kind `config_proposal` (`meta.proposal_id`; its text is the title and the rationale, for a surface without the card) and a short line in the agent's voice, in which covey puts the names of those who may accept where the turn wrote `{approvers}`. A draft that fails is answered plainly in the conversation, never turned into a task a run could not do either.
+
+The card is read with the conversation (`proposal` on the message and on the thread entry): the diff per file against the running state, the rationale, which of `ACCESS.md`/`EGRESS.md` it widens, whether the reader may decide (`can_decide`, `can_accept` — the server's answer, not a role table in the client), whom it waits for, and once decided, who and when. It is decided through `POST /api/v1/improvements/{id}/decide`, the agent page's path, so accepting from the chat is accepting there: a new version with the person as author, the lint, the write-through of `ACCESS.md`/`EGRESS.md`, org admin or security for access, a conflict refused. A decision anywhere moves the conversation the proposal came from over the event stream. The app shows the text with a label that sends the reader to the web.
+
+What the trial does not do yet: the voice slots are not a config file and are not drafted; a proposal that is superseded by a later one is not withdrawn; the drafting turn's cost is not attributed to the agent.
+
 The open decisions are in the issue; the load-bearing one is what the answer
 is allowed to know. The recommendation is: the role and the conversation, not the
 wiki memory. An answer that needs the memory is an answer that should have
@@ -174,7 +185,7 @@ been a task.
 
 ## What the surface must not become
 
-A second console. Every one of the four steps above has a version that ends there: an editable chart, a message that can change a config, a group conversation that assigns work to departments, a cross-org view that also writes. The line is the same each time — **the team surface reads across and writes narrowly**, and anything that configures an agent stays where the config already is.
+A second console. Every one of the four steps above has a version that ends there: an editable chart, a message that can change a config, a group conversation that assigns work to departments, a cross-org view that also writes. The line is the same each time — **the team surface reads across and writes narrowly**, and anything that configures an agent stays where the config already is. The config proposal of section 5 keeps to it: a message produces a proposal, and putting it in effect is the agent page's accept, with its roles and checks.
 
 ## Related
 

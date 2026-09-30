@@ -39,6 +39,8 @@ Der Arbeitsplatz ist im Browser einsehbar: durchsehen, eine Vorlage hineinlegen,
 
 `SOUL.md`, `PLAYBOOKS.md`, `CAPABILITIES.md`, `ACCESS.md`, `HEARTBEAT.md`, `ORG.md` — sechs Dateien, versioniert, mit Verlauf und Rücksprung. Eine Verhaltensänderung ist damit ein Vorgang, den man lesen, prüfen und zurücknehmen kann, und kein Deployment.
 
+**Aus dem Chat (Versuch).** Ist die Organisationseinstellung *Konfigurationsänderungen aus dem Chat entwerfen* an (standardmäßig aus, neben dem Triage-Schalter), wird ein Wunsch wie „schau nur noch alle zwei Stunden ins Postfach" an einen Agenten keine Aufgabe. Der Agent entwirft die Änderung mit demselben Konfigurationsassistenten, den die Agentenseite anbietet, und stellt sie als Karte ins Gespräch: der Unterschied je Datei, die Begründung und ein Hinweis, wenn sie Zugänge erweitert. In Kraft ist damit noch nichts. Annehmen kann sie nur, wer den Agenten ändern darf — sein Owner, ein Org-Admin, bei `ACCESS.md` oder `EGRESS.md` nur Org-Admin oder Security —, und Annehmen ist dasselbe wie auf der Agentenseite: eine neue Version im Verlauf, mit denselben Prüfungen. Alle anderen sehen, auf wen sie wartet.
+
 ## Seriell vor parallel
 
 Ein Agent bearbeitet eine Aufgabe zur Zeit. Das ist eine Entscheidung, keine Beschränkung: Zwei gleichzeitige Läufe desselben Agenten würden sich um dasselbe Home und denselben Zustand streiten, und der Fehler wäre nicht reproduzierbar. Mehr Durchsatz kommt über mehr Agenten.

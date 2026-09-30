@@ -39,6 +39,8 @@ The workplace is browsable in the UI: look through it, drop in a template, edit 
 
 `SOUL.md`, `PLAYBOOKS.md`, `CAPABILITIES.md`, `ACCESS.md`, `HEARTBEAT.md`, `ORG.md` — six files, versioned, with history and rollback. A change in behaviour is therefore something you can read, review and take back, not a deployment.
 
+**From the chat (trial).** With the organisation setting *draft configuration changes from the chat* on (off by default, beside the triage switch), a wish like "check the inbox only every two hours" written to an agent does not become a task. The agent drafts the change with the same config assistant the agent page offers and posts it into the conversation as a card: the diff per file, why, and a note when it widens access. Nothing is in effect yet. Only somebody who may change the agent — its owner, an org admin, and for `ACCESS.md` or `EGRESS.md` only org admin or security — can accept it, and accepting it is the same as on the agent page: a new version in the history, with the same checks. Everybody else sees whom it waits for.
+
 ## Serial before parallel
 
 An agent handles one task at a time. That is a decision, not a limitation: two concurrent runs of the same agent would fight over the same home and the same state, and the resulting bug would not reproduce. Throughput comes from more agents.
