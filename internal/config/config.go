@@ -79,6 +79,12 @@ type Config struct {
 	// (COVEY_SPEECH_MODELS, comma-separated, default parakeet,sensevoice).
 	// Each is fetched the first time somebody picks it (#351).
 	SpeechModels []string
+	// SpeechVoices are the voices the instance offers the apps to speak with
+	// on the device (#497): names from the speech package's catalogue
+	// (COVEY_SPEECH_VOICES, comma-separated, default none — the apps then
+	// speak with the system's synthesis). Each is fetched the first time an
+	// app asks for it.
+	SpeechVoices []string
 
 	// CookieSecure sets the Secure flag on the session cookie (delivered over
 	// HTTPS only). Default: derived automatically from the PublicURL scheme
@@ -366,6 +372,7 @@ func FromEnv() (Config, error) {
 		DataDir:            getenv("COVEY_DATA_DIR", "./data"),
 		SpeechModel:        strings.TrimSpace(getenv("COVEY_SPEECH_MODEL", "parakeet")),
 		SpeechModels:       splitList(getenv("COVEY_SPEECH_MODELS", "parakeet,sensevoice")),
+		SpeechVoices:       splitList(os.Getenv("COVEY_SPEECH_VOICES")),
 		SandboxImageEnv:    sandboxImageEnv(),
 		RunnerDownloadBase: getenv("COVEY_RUNNER_DOWNLOAD_BASE", ""),
 		SandboxCatalogURL:  getenv("COVEY_SANDBOX_CATALOG_URL", sandbox.DefaultCatalogURL()),

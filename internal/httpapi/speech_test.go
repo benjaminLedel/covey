@@ -87,7 +87,7 @@ func TestSpeechOffSaysSo(t *testing.T) {
 }
 
 func TestSpeechModelsAreListedAndPickedByName(t *testing.T) {
-	set, err := speech.NewSet("parakeet", []string{"sensevoice"}, t.TempDir(), nil)
+	set, err := speech.NewSet("parakeet", []string{"sensevoice"}, nil, t.TempDir(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,5 +138,58 @@ func TestSpeechModelsAreListedAndPickedByName(t *testing.T) {
 	}
 	if code, _ := get("?name=base"); code != http.StatusNotFound {
 		t.Fatalf("a model not offered: %d", code)
+	}
+}
+
+// A voice the operator offers (#497) is listed under voices, with what the
+// app needs to load it, and not under models, which an older app takes for
+// recognisers.
+func TestSpeechVoicesAreListedApart(t *testing.T) {
+	set, err := speech.NewSet("parakeet", nil, []string{"piper-en-norman"}, t.TempDir(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Nothing is fetched in a test: the stores are asked, not ensured.
+	for _, n := range append(append([]string{}, set.Names...), set.Voices...) {
+		st, _ := set.Get(n)
+		for i := range st.Model.Files {
+			st.Model.Files[i].URL = "http://127.0.0.1:1/unreachable"
+		}
+	}
+	t.Cleanup(func() {
+		deadline := time.Now().Add(10 * time.Second)
+		for _, n := range append(append([]string{}, set.Names...), set.Voices...) {
+			st, _ := set.Get(n)
+			for {
+				if _, fetching, _ := st.Status(); !fetching || time.Now().After(deadline) {
+					break
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+		}
+	})
+	s := &Server{Speech: set}
+	w := httptest.NewRecorder()
+	s.handleSpeechModel(w, httptest.NewRequest(http.MethodGet, "/api/v1/speech/model", nil))
+	var out struct {
+		Models []map[string]any `json:"models"`
+		Voices []map[string]any `json:"voices"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range out.Models {
+		if m["engine"] == speech.EngineTTS {
+			t.Fatalf("a voice among the models: %v", m)
+		}
+	}
+	if len(out.Voices) != 1 {
+		t.Fatalf("voices = %v", out.Voices)
+	}
+	v := out.Voices[0]
+	info, _ := v["voice"].(map[string]any)
+	if v["name"] != "piper-en-norman" || v["engine"] != "tts" || v["unpack"] != "tar.bz2" ||
+		info["family"] != "vits" || info["language"] != "en-US" || info["placeholder"] != true || info["licence"] == "" {
+		t.Fatalf("voice = %v", v)
 	}
 }

@@ -30,6 +30,12 @@ func modelState(st *speech.Store) map[string]any {
 	if st.Model.Credit != "" {
 		out["credit"] = st.Model.Credit
 	}
+	if st.Model.Unpack != "" {
+		out["unpack"] = st.Model.Unpack
+	}
+	if v := st.Model.Voice; v != nil {
+		out["voice"] = v
+	}
 	if fetching {
 		out["received"] = st.Received()
 	}
@@ -69,6 +75,15 @@ func (s *Server) handleSpeechModel(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	body["models"] = models
+	// The voices the app may speak with (#497), apart from the models: an
+	// app from before them lists every entry of models as a recogniser.
+	voices := make([]map[string]any, 0, len(s.Speech.Voices))
+	for _, n := range s.Speech.Voices {
+		if m, err := s.Speech.Get(n); err == nil {
+			voices = append(voices, modelState(m))
+		}
+	}
+	body["voices"] = voices
 	// Whether dictation can be cleaned up here (#355): the app offers the
 	// switch only then.
 	body["clean"] = s.Secrets != nil && llm.Available(r.Context(), s.Secrets, s.Runtimes, principalFrom(r).OrgID)
