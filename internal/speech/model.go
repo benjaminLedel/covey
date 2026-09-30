@@ -37,15 +37,10 @@ type File struct {
 // on the phone, and its files.
 type Model struct {
 	Name   string
-	Engine string // "parakeet", "sensevoice", "speaker", "vad" or "tts", all sherpa-onnx on the device
+	Engine string // "parakeet" or "sensevoice", both sherpa-onnx on the device
 	// Credit is the attribution the model's licence asks for, shown with it.
 	Credit string
 	Files  []File
-	// Unpack says the model's file is an archive the app unpacks after
-	// verifying it (UnpackTarBz2); empty for files used as they are.
-	Unpack string
-	// Voice describes a speech synthesis model (Engine "tts", #497).
-	Voice *VoiceInfo
 }
 
 // Size is the model's files together.
@@ -185,7 +180,7 @@ func New(name, dataDir string, log *slog.Logger) (*Store, error) {
 	}
 	m, ok := Models[name]
 	if !ok {
-		return nil, fmt.Errorf("unknown speech model %q (parakeet, sensevoice, titanet, silero, a voice of %v, or off)", name, VoiceNames())
+		return nil, fmt.Errorf("unknown speech model %q (parakeet, sensevoice, titanet, silero or off)", name)
 	}
 	return &Store{Model: m, Dir: filepath.Join(dataDir, "models", name), Log: log}, nil
 }

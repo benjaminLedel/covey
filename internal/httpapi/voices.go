@@ -551,7 +551,8 @@ func (s *Server) handleSetVoiceChatTone(w http.ResponseWriter, r *http.Request) 
 }
 
 // handleSetVoiceSpeech sets how the agents carrying a voice sound when a
-// call speaks their words (#497); an empty body or engine clears it.
+// call speaks their words through the voice provider (#497): the voice's
+// name there, a style hint and the speed. An empty body clears it.
 func (s *Server) handleSetVoiceSpeech(w http.ResponseWriter, r *http.Request) {
 	store, v, ok := s.requireVoice(w, r)
 	if !ok {
@@ -579,8 +580,10 @@ func (s *Server) handleSetVoiceSpeech(w http.ResponseWriter, r *http.Request) {
 // handleConversationSpeech says how an agent of the conversation sounds in
 // a call (#497): the voice the #471 rule chooses for the chat occasion —
 // the caller's department, then the agent's chat slot, then the
-// organisation's — and that voice's speech. The Mac app asks this when a
-// call opens; null speech leaves the choice to the app.
+// organisation's — and that voice's speech, which the Mac app passes to
+// the voice provider. instructions is always set: the voice's own style
+// hint, else one derived from the chat tone in effect. Null speech leaves
+// the provider's default voice.
 func (s *Server) handleConversationSpeech(w http.ResponseWriter, r *http.Request, c chat.Conversation) {
 	agentID, err := uuid.Parse(r.URL.Query().Get("agent"))
 	if err != nil || !c.Has(chat.Ref{Kind: chat.MemberAgent, ID: agentID}) {
@@ -596,8 +599,8 @@ func (s *Server) handleConversationSpeech(w http.ResponseWriter, r *http.Request
 	p := principalFrom(r)
 	aud := s.Voices.ConversationAudience(ctx, c.OrgID, c.ID, p.Email)
 	choice := s.Voices.Resolve(ctx, c.OrgID, agentID, voice.OccasionChat, aud)
-	// How it is spoken, for a speech server that takes instructions: from
-	// the chat tone in effect, also without a chat voice.
+	// How it is spoken, for a provider that takes instructions: from the
+	// chat tone in effect, also without a chat voice.
 	out["instructions"] = voice.SpeechInstructions(s.Voices.ChatToneFor(ctx, c.OrgID, agentID, choice), "")
 	if choice.Found() {
 		v, err := s.Voices.Get(ctx, c.OrgID, choice.VoiceID)
@@ -610,6 +613,9 @@ func (s *Server) handleConversationSpeech(w http.ResponseWriter, r *http.Request
 		out["instructions"] = voice.SpeechInstructions(s.Voices.ChatToneFor(ctx, c.OrgID, agentID, choice), v.Language)
 		if v.Speech != nil {
 			out["speech"] = v.Speech
+			if v.Speech.Instructions != "" {
+				out["instructions"] = v.Speech.Instructions
+			}
 		}
 	}
 	writeJSON(w, http.StatusOK, out)

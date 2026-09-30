@@ -14,10 +14,10 @@ import (
 	"time"
 )
 
-// fakeSpeechServer is an OpenAI-compatible speech server in the shape educa
+// fakeVoiceProvider is an OpenAI-compatible speech server in the shape educa
 // AI speaks: /v1/audio/speech buffered (wav) or streamed (mp3, raw chunks)
 // and /v1/audio/transcriptions.
-type fakeSpeechServer struct {
+type fakeVoiceProvider struct {
 	*httptest.Server
 	mu        sync.Mutex
 	speech    []map[string]any
@@ -33,8 +33,8 @@ type fakeSpeechServer struct {
 
 var fakeWAV = []byte("RIFF\x24\x00\x00\x00WAVEfmt fake audio")
 
-func newFakeSpeechServer(t *testing.T) *fakeSpeechServer {
-	f := &fakeSpeechServer{chunks: [][]byte{[]byte("chunk-one|"), []byte("chunk-two|"), []byte("chunk-three")}}
+func newFakeVoiceProvider(t *testing.T) *fakeVoiceProvider {
+	f := &fakeVoiceProvider{chunks: [][]byte{[]byte("chunk-one|"), []byte("chunk-two|"), []byte("chunk-three")}}
 	f.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		f.auth = append(f.auth, r.Header.Get("Authorization"))
@@ -98,19 +98,19 @@ func newFakeSpeechServer(t *testing.T) *fakeSpeechServer {
 	return f
 }
 
-func (f *fakeSpeechServer) setFail(on bool) {
+func (f *fakeVoiceProvider) setFail(on bool) {
 	f.mu.Lock()
 	f.fail = on
 	f.mu.Unlock()
 }
 
-func (f *fakeSpeechServer) lastSpeech() map[string]any {
+func (f *fakeVoiceProvider) lastSpeech() map[string]any {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.speech[len(f.speech)-1]
 }
 
-func (f *fakeSpeechServer) lastAuth() string {
+func (f *fakeVoiceProvider) lastAuth() string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.auth[len(f.auth)-1]
@@ -122,15 +122,17 @@ func wavOf(n int) []byte {
 	return append(b, make([]byte, n)...)
 }
 
-// TestTheSpeechServerSpeaksAndHears walks #497's and #498's server source:
-// an organisation holding an educa AI token speaks through educa AI without
-// further setup, its own server and key override that, the requests reach
-// the server in the OpenAI shape with the key as a bearer — buffered and
-// streamed, with the speed held to what the server honours —, recognition works only once an admin turns it on, and
-// no key is in any answer.
-func TestTheSpeechServerSpeaksAndHears(t *testing.T) {
+// TestTheVoiceProviderSpeaksAndHears walks #497's and #498's one voice
+// source: an organisation holding an educa AI token speaks through educa AI
+// without further setup, its own server and key override that, the requests
+// reach the provider in the OpenAI shape with the key as a bearer —
+// buffered and streamed, with the speed held to what the provider honours
+// —, the settings' test says whether it speaks without handing out audio,
+// recognition works only once an admin turns it on, and no key is in any
+// answer.
+func TestTheVoiceProviderSpeaksAndHears(t *testing.T) {
 	const educaKey, ownKey = "educa-seat-geheim-0815", "sk-own-geheim-4711"
-	educa, own := newFakeSpeechServer(t), newFakeSpeechServer(t)
+	educa, own := newFakeVoiceProvider(t), newFakeVoiceProvider(t)
 	t.Setenv("COVEY_EDUCA_BASE_URL", educa.URL)
 
 	s := newStack(t)
@@ -158,23 +160,28 @@ func TestTheSpeechServerSpeaksAndHears(t *testing.T) {
 		return m
 	}
 	synth := "/api/v1/speech/synthesize"
+	test := "/api/v1/org/voice-provider/test"
 
 	// No server and no educa token: nothing to speak with.
 	post(ada, synth, map[string]any{"text": "Hallo."}, http.StatusConflict)
+	if m := expect(admin, http.MethodPost, test, nil, http.StatusOK); m["ok"] != false || m["error"] == "" {
+		t.Fatalf("test without a provider: %v", m)
+	}
+	expect(ada, http.MethodPost, test, nil, http.StatusForbidden)
 	if m := expect(ada, http.MethodGet, "/api/v1/speech/model", nil, http.StatusOK); m["synthesize"] != false || m["transcribe"] != false {
 		t.Fatalf("flags without a server: %v", m)
 	}
 
 	// The educa token the engine uses is enough.
 	expect(admin, http.MethodPut, "/api/v1/secrets/educa_seat_token", map[string]string{"value": educaKey}, http.StatusOK)
-	view := expect(admin, http.MethodGet, "/api/v1/org/speech-server", nil, http.StatusOK)
+	view := expect(admin, http.MethodGet, "/api/v1/org/voice-provider", nil, http.StatusOK)
 	if eff := view["effective"].(map[string]any); eff["source"] != "educa" || eff["base_url"] != educa.URL || view["key_set"] != false {
 		t.Fatalf("educa as the default: %v", view)
 	}
 	if m := expect(ada, http.MethodGet, "/api/v1/speech/model", nil, http.StatusOK); m["synthesize"] != true || m["transcribe"] != false {
 		t.Fatalf("flags with educa: %v", m)
 	}
-	resp, audio := post(ada, synth, map[string]any{"text": "  Der Export läuft.  ", "rate": 2.5, "language": "de-DE",
+	resp, audio := post(ada, synth, map[string]any{"text": "  Der Export läuft.  ", "speed": 2.5, "language": "de-DE",
 		"instructions": "casual and friendly, concise"}, http.StatusOK)
 	if resp.Header.Get("Content-Type") != "audio/wav" || !bytes.Equal(audio, fakeWAV) {
 		t.Fatalf("buffered audio: %q %q", resp.Header.Get("Content-Type"), audio)
@@ -193,25 +200,35 @@ func TestTheSpeechServerSpeaksAndHears(t *testing.T) {
 	if educa.lastAuth() != "Bearer "+educaKey {
 		t.Fatalf("educa authorization = %q", educa.lastAuth())
 	}
-	post(ada, synth, map[string]any{"text": "Langsam.", "rate": 0.2}, http.StatusOK)
+	post(ada, synth, map[string]any{"text": "Langsam.", "speed": 0.2}, http.StatusOK)
 	if educa.lastSpeech()["speed"] != 0.7 {
 		t.Fatalf("slow speed not clamped: %v", educa.lastSpeech())
 	}
 	post(ada, synth, map[string]any{"text": "Normal."}, http.StatusOK)
 	if _, has := educa.lastSpeech()["speed"]; has {
-		t.Fatalf("rate 0 sends no speed: %v", educa.lastSpeech())
+		t.Fatalf("speed 0 sends no speed: %v", educa.lastSpeech())
+	}
+
+	// The settings' test: one sentence, ok, and no audio in the answer.
+	tested := expect(admin, http.MethodPost, test, nil, http.StatusOK)
+	if tested["ok"] != true || tested["bytes"] != float64(len(fakeWAV)) {
+		t.Fatalf("test with educa: %v", tested)
+	}
+	if got := educa.lastSpeech(); got["input"] != "This is a test of the voice provider." || got["response_format"] != "wav" {
+		t.Fatalf("test request: %v", got)
 	}
 
 	// Refusals before the server is asked.
 	post(ada, synth, map[string]any{"text": "   "}, http.StatusBadRequest)
 	post(ada, synth, map[string]any{"text": strings.Repeat("ä", 1001)}, http.StatusBadRequest)
 	post(ada, synth, map[string]any{"text": "x", "instructions": strings.Repeat("i", 301)}, http.StatusBadRequest)
-	post(ada, synth, map[string]any{"text": "x", "rate": -1}, http.StatusBadRequest)
+	post(ada, synth, map[string]any{"text": "x", "speed": -1}, http.StatusBadRequest)
+	post(ada, synth, map[string]any{"text": "x", "voice": strings.Repeat("v", 101)}, http.StatusBadRequest)
 
 	// The organisation's own server and key override educa AI.
-	expect(ada, http.MethodPatch, "/api/v1/org/speech-server", map[string]any{"base_url": own.URL}, http.StatusForbidden)
-	expect(admin, http.MethodPatch, "/api/v1/org/speech-server", map[string]any{"base_url": "ftp://x"}, http.StatusBadRequest)
-	view = expect(admin, http.MethodPatch, "/api/v1/org/speech-server", map[string]any{
+	expect(ada, http.MethodPatch, "/api/v1/org/voice-provider", map[string]any{"base_url": own.URL}, http.StatusForbidden)
+	expect(admin, http.MethodPatch, "/api/v1/org/voice-provider", map[string]any{"base_url": "ftp://x"}, http.StatusBadRequest)
+	view = expect(admin, http.MethodPatch, "/api/v1/org/voice-provider", map[string]any{
 		"base_url": own.URL + "/v1/", "model": "kokoro", "voice": "af_bella", "key": ownKey,
 	}, http.StatusOK)
 	if view["base_url"] != own.URL || view["key_set"] != true ||
@@ -223,8 +240,8 @@ func TestTheSpeechServerSpeaksAndHears(t *testing.T) {
 		t.Fatalf("request to the own server: %v, %q", got, own.lastAuth())
 	}
 	post(ada, synth, map[string]any{"text": "Hallo.", "model": "tts-1", "voice": "alloy"}, http.StatusOK)
-	if got := own.lastSpeech(); got["model"] != "tts-1" || got["voice"] != "alloy" {
-		t.Fatalf("named model and voice: %v", got)
+	if got := own.lastSpeech(); got["model"] != "kokoro" || got["voice"] != "alloy" {
+		t.Fatalf("a named voice, the organisation's model: %v", got)
 	}
 
 	// Streamed: MP3 passed through chunk by chunk — the first arrives
@@ -265,6 +282,9 @@ func TestTheSpeechServerSpeaksAndHears(t *testing.T) {
 	own.setFail(true)
 	post(ada, synth, map[string]any{"text": "Hallo."}, http.StatusBadGateway)
 	post(ada, synth, map[string]any{"text": "Hallo.", "stream": true}, http.StatusBadGateway)
+	if m := expect(admin, http.MethodPost, test, nil, http.StatusOK); m["ok"] != false || m["error"] != "the voice provider answered HTTP 500" {
+		t.Fatalf("test of a failing provider: %v", m)
+	}
 	own.setFail(false)
 
 	// Recognition: off until an admin turns it on.
@@ -286,7 +306,7 @@ func TestTheSpeechServerSpeaksAndHears(t *testing.T) {
 		return raw
 	}
 	rawPost("/api/v1/speech/transcribe", turn, http.StatusConflict)
-	view = expect(admin, http.MethodPatch, "/api/v1/org/speech-server", map[string]any{
+	view = expect(admin, http.MethodPatch, "/api/v1/org/voice-provider", map[string]any{
 		"base_url": own.URL, "model": "kokoro", "voice": "af_bella", "transcribe": true, "transcribe_model": "whisper-large-v3",
 	}, http.StatusOK)
 	if view["transcribe"] != true || view["key_set"] != true {
@@ -334,7 +354,7 @@ func TestTheSpeechServerSpeaksAndHears(t *testing.T) {
 	}
 
 	// Removing the own server removes its key; educa AI applies again.
-	view = expect(admin, http.MethodPatch, "/api/v1/org/speech-server", map[string]any{"base_url": ""}, http.StatusOK)
+	view = expect(admin, http.MethodPatch, "/api/v1/org/voice-provider", map[string]any{"base_url": ""}, http.StatusOK)
 	if view["key_set"] != false || view["effective"].(map[string]any)["source"] != "educa" {
 		t.Fatalf("cleared: %v", view)
 	}

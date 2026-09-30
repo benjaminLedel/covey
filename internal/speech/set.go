@@ -15,19 +15,13 @@ import (
 type Set struct {
 	Default string
 	// Names in the order the app lists them: smallest first.
-	Names []string
-	// Voices are the speech synthesis models offered (#497), sorted by
-	// name. They are not among Names: an app that knows only recognition
-	// models must not list a voice as one.
-	Voices []string
+	Names  []string
 	stores map[string]*Store
 }
 
 // NewSet returns the set, or nil when speech is off (def "off" or empty).
-// The default is always offered, whether or not allowed names it. voices
-// are the voices the operator offers (COVEY_SPEECH_VOICES); each is fetched
-// the first time an app asks for it.
-func NewSet(def string, allowed, voices []string, dataDir string, log *slog.Logger) (*Set, error) {
+// The default is always offered, whether or not allowed names it.
+func NewSet(def string, allowed []string, dataDir string, log *slog.Logger) (*Set, error) {
 	if def == "" || def == "off" {
 		return nil, nil
 	}
@@ -38,9 +32,6 @@ func NewSet(def string, allowed, voices []string, dataDir string, log *slog.Logg
 	allowed = append(append([]string{}, allowed...), SpeakerModel, VADModel)
 	for _, n := range allowed {
 		n = strings.TrimSpace(n)
-		if Models[n].Engine == EngineTTS {
-			return nil, fmt.Errorf("COVEY_SPEECH_MODELS: %q is a voice; name it in COVEY_SPEECH_VOICES", n)
-		}
 		if n != "" && !slices.Contains(names, n) {
 			names = append(names, n)
 		}
@@ -53,22 +44,6 @@ func NewSet(def string, allowed, voices []string, dataDir string, log *slog.Logg
 		}
 		set.stores[n] = st
 	}
-	for _, n := range voices {
-		n = strings.TrimSpace(n)
-		if n == "" || slices.Contains(set.Voices, n) {
-			continue
-		}
-		if m, ok := Models[n]; !ok || m.Engine != EngineTTS {
-			return nil, fmt.Errorf("COVEY_SPEECH_VOICES: %q is not a voice of the catalogue (%s)", n, strings.Join(VoiceNames(), ", "))
-		}
-		st, err := New(n, dataDir, log)
-		if err != nil {
-			return nil, err
-		}
-		set.stores[n] = st
-		set.Voices = append(set.Voices, n)
-	}
-	slices.Sort(set.Voices)
 	set.Names = names
 	slices.SortFunc(set.Names, func(a, b string) int {
 		switch da, db := Models[a].Size(), Models[b].Size(); {
@@ -100,11 +75,7 @@ func SetOf(stores ...*Store) *Set {
 	set := &Set{Default: stores[0].Model.Name, stores: map[string]*Store{}}
 	for _, st := range stores {
 		set.stores[st.Model.Name] = st
-		if st.Model.Engine == EngineTTS {
-			set.Voices = append(set.Voices, st.Model.Name)
-		} else {
-			set.Names = append(set.Names, st.Model.Name)
-		}
+		set.Names = append(set.Names, st.Model.Name)
 	}
 	return set
 }

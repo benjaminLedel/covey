@@ -7,18 +7,22 @@ import (
 	"github.com/google/uuid"
 )
 
-// SpeechServer is the organisation's own speech server (#497): where the
-// control plane asks for speech when a voice is synthesised by the
-// organisation rather than on the device. The key is an organisation secret
-// (SpeechServerKey), not part of this.
-type SpeechServer struct {
+// VoiceProvider is the organisation's voice provider (#497): the
+// OpenAI-compatible speech server the control plane asks for speech when a
+// call speaks an agent's replies. It is the only source of covey's voices;
+// without one, the apps speak with the system's synthesis. The key is an
+// organisation secret (VoiceProviderKey), not part of this.
+//
+// Stored in organizations.speech_server (migration 0126): the column kept
+// the name it was introduced with.
+type VoiceProvider struct {
 	// BaseURL is the organisation's own server; empty falls back to its
 	// educa AI endpoint when it holds an educa token.
 	BaseURL string `json:"base_url,omitempty"`
 	// Model and Voice are the defaults when a request names none.
 	Model string `json:"model,omitempty"`
 	Voice string `json:"voice,omitempty"`
-	// Transcribe lets the app send a call's audio to the server for
+	// Transcribe lets the app send a call's audio to the provider for
 	// recognition (#498). Off unless an admin turns it on: the audio then
 	// leaves the device.
 	Transcribe bool `json:"transcribe,omitempty"`
@@ -26,26 +30,26 @@ type SpeechServer struct {
 	TranscribeModel string `json:"transcribe_model,omitempty"`
 }
 
-// SpeechServerKey is the name of the organisation secret that holds the
-// speech server's bearer key.
-const SpeechServerKey = "speech_server_key"
+// VoiceProviderKey is the name of the organisation secret that holds the
+// voice provider's bearer key.
+const VoiceProviderKey = "voice_provider_key"
 
 // Configured reports whether an own server is set.
-func (s SpeechServer) Configured() bool { return s.BaseURL != "" }
+func (v VoiceProvider) Configured() bool { return v.BaseURL != "" }
 
-// SpeechServer reads the organisation's speech server; empty when none.
-func (s *Store) SpeechServer(ctx context.Context, id uuid.UUID) (SpeechServer, error) {
+// VoiceProvider reads the organisation's voice provider; empty when none.
+func (s *Store) VoiceProvider(ctx context.Context, id uuid.UUID) (VoiceProvider, error) {
 	var raw []byte
 	if err := s.pool.QueryRow(ctx, `SELECT speech_server FROM organizations WHERE id=$1`, id).Scan(&raw); err != nil {
-		return SpeechServer{}, err
+		return VoiceProvider{}, err
 	}
-	var out SpeechServer
+	var out VoiceProvider
 	_ = json.Unmarshal(raw, &out)
 	return out, nil
 }
 
-// SetSpeechServer stores it. The caller validates.
-func (s *Store) SetSpeechServer(ctx context.Context, id uuid.UUID, v SpeechServer) error {
+// SetVoiceProvider stores it. The caller validates.
+func (s *Store) SetVoiceProvider(ctx context.Context, id uuid.UUID, v VoiceProvider) error {
 	raw, err := json.Marshal(v)
 	if err != nil {
 		return err

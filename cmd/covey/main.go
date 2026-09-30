@@ -1461,7 +1461,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	}
 	// The speech model the app transcribes with (#348): verified, or fetched
 	// in the background, so the first app asking finds it ready.
-	speechSet, err := speech.NewSet(cfg.SpeechModel, cfg.SpeechModels, cfg.SpeechVoices, cfg.DataDir, log)
+	speechSet, err := speech.NewSet(cfg.SpeechModel, cfg.SpeechModels, cfg.DataDir, log)
 	if err != nil {
 		return err
 	}

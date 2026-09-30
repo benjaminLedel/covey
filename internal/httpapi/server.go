@@ -578,8 +578,10 @@ func (s *Server) Handler() http.Handler {
 	// triage switch and for the same roles.
 	mux.Handle("GET /api/v1/org/chat-tone", s.rbac(anyRole, s.handleGetOrgChatTone))
 	mux.Handle("PATCH /api/v1/org/chat-tone", s.rbac(manage, s.handleSetOrgChatTone))
-	mux.Handle("GET /api/v1/org/speech-server", s.rbac(manage, s.handleGetSpeechServer))
-	mux.Handle("PATCH /api/v1/org/speech-server", s.rbac(manage, s.handleSetSpeechServer))
+	// The voice provider calls speak through (#497, voiceprovider.go).
+	mux.Handle("GET /api/v1/org/voice-provider", s.rbac(manage, s.handleGetVoiceProvider))
+	mux.Handle("PATCH /api/v1/org/voice-provider", s.rbac(manage, s.handleSetVoiceProvider))
+	mux.Handle("POST /api/v1/org/voice-provider/test", s.rbac(manage, s.handleTestVoiceProvider))
 	// The team surface is an opt-in per organisation while it is in beta
 	// (#328): every role may read whether it is on — the interface picks its
 	// shell by it — and whoever manages the organisation switches it.

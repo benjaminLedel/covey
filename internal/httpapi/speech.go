@@ -30,12 +30,6 @@ func modelState(st *speech.Store) map[string]any {
 	if st.Model.Credit != "" {
 		out["credit"] = st.Model.Credit
 	}
-	if st.Model.Unpack != "" {
-		out["unpack"] = st.Model.Unpack
-	}
-	if v := st.Model.Voice; v != nil {
-		out["voice"] = v
-	}
 	if fetching {
 		out["received"] = st.Received()
 	}
@@ -51,11 +45,11 @@ func modelState(st *speech.Store) map[string]any {
 // fields describe that model (the default without ?name=), so an app that
 // knows only one model reads what it always read.
 func (s *Server) handleSpeechModel(w http.ResponseWriter, r *http.Request) {
-	// Whether the organisation runs a speech server the app may have speak
-	// through POST /speech/synthesize (#497) — also where recognition is off.
-	// And whether it may recognise a call's turns there (#498).
-	srv, _ := s.speechEndpointOf(r.Context(), principalFrom(r).OrgID)
-	synthesize, transcribe := srv.ok(), srv.ok() && srv.settings.Transcribe
+	// Whether the organisation has a voice provider the app speaks a call
+	// through (POST /speech/synthesize, #497) — also where recognition is
+	// off — and whether it may recognise a call's turns there (#498).
+	vp, _ := s.voiceProviderOf(r.Context(), principalFrom(r).OrgID)
+	synthesize, transcribe := vp.ok(), vp.ok() && vp.settings.Transcribe
 	if s.Speech == nil {
 		writeJSON(w, http.StatusOK, map[string]any{"enabled": false, "synthesize": synthesize, "transcribe": transcribe})
 		return
@@ -80,15 +74,6 @@ func (s *Server) handleSpeechModel(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	body["models"] = models
-	// The voices the app may speak with (#497), apart from the models: an
-	// app from before them lists every entry of models as a recogniser.
-	voices := make([]map[string]any, 0, len(s.Speech.Voices))
-	for _, n := range s.Speech.Voices {
-		if m, err := s.Speech.Get(n); err == nil {
-			voices = append(voices, modelState(m))
-		}
-	}
-	body["voices"] = voices
 	// Whether dictation can be cleaned up here (#355): the app offers the
 	// switch only then.
 	body["synthesize"], body["transcribe"] = synthesize, transcribe

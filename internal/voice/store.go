@@ -54,8 +54,9 @@ type Voice struct {
 	// ChatTone is how an agent carrying this voice talks in the team chat
 	// (#457) — set, not built (chattone.go).
 	ChatTone ChatTone `json:"chat_tone"`
-	// Speech is how the agents carrying it sound when their words are
-	// spoken, in a call (#497); nil leaves it to the app (speech.go).
+	// Speech is how the agents carrying it sound when a call speaks their
+	// words through the voice provider (#497); nil leaves it to the
+	// provider's default voice (speech.go).
 	Speech *Speech `json:"speech"`
 	// Source is where the voice comes from (#458): FromTexts, measured from a
 	// corpus, or FromDescription, written from a description in words and
@@ -508,7 +509,7 @@ func (s *Store) SetChatTone(ctx context.Context, orgID, id uuid.UUID, tone ChatT
 }
 
 // SetSpeech stores how the agents carrying this voice sound when their
-// words are spoken (#497); an empty source clears it. Like the chat tone,
+// words are spoken (#497); an empty speech clears it. Like the chat tone,
 // not a config version: it acts in the app, not in a run.
 func (s *Store) SetSpeech(ctx context.Context, orgID, id uuid.UUID, in Speech) (Voice, error) {
 	sp, err := in.Normalized()
@@ -604,9 +605,10 @@ func scanVoice(rows pgx.Rows) (Voice, error) {
 	_ = json.Unmarshal(suggested, &v.SuggestedChatTone)
 	_ = json.Unmarshal(tone, &v.ChatTone)
 	if len(spoken) > 0 && string(spoken) != "null" {
+		// A stored speech the provider cannot take any longer reads as unset.
 		var sp Speech
-		if json.Unmarshal(spoken, &sp) == nil && sp.Source != "" {
-			v.Speech = &sp
+		if json.Unmarshal(spoken, &sp) == nil {
+			v.Speech, _ = sp.Normalized()
 		}
 	}
 	_ = json.Unmarshal(profile, &v.Profile)

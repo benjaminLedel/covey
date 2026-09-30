@@ -21,17 +21,17 @@ import (
 	"covey/internal/voice"
 )
 
-/* The organisation's speech server (#497, #498).
+/* The organisation's voice provider (#497, #498).
  *
- * A call speaks an agent's replies with a voice synthesised on the device, or
- * with one from a speech server of the organisation's — an OpenAI-compatible
- * endpoint: POST /v1/audio/speech and, when an admin allows it,
- * POST /v1/audio/transcriptions. The first such server is educa AI: an
- * organisation that already holds an educa token for its engine speaks
- * through educa AI without further setup; its own base URL and key override
- * that. The app never reaches the server itself — the control plane holds
- * the key and hands back audio or text. No cloud synthesis billed per
- * character is wired in.
+ * A call speaks an agent's replies with one voice source: the
+ * organisation's voice provider, an OpenAI-compatible speech server —
+ * POST /v1/audio/speech and, when an admin allows it,
+ * POST /v1/audio/transcriptions. The default is educa AI: an organisation
+ * that already holds an educa token for its engine speaks through educa AI
+ * without further setup; its own base URL and key override that. Without
+ * either, the apps speak with the system's synthesis. The app never reaches
+ * the provider itself — the control plane holds the key and hands back
+ * audio or text.
  */
 
 // Bounds of one request.
@@ -40,18 +40,12 @@ const (
 	synthesizeMaxBytes      = 20 << 20
 	synthesizeTimeout       = 60 * time.Second
 	synthesizeStreamTimeout = 3 * time.Minute
-	instructionsMaxRunes    = 300
-	speechServerURLMax      = 500
+	voiceProviderURLMax     = 500
 	// A call's turn is cut at 30 s; a minute of 16 kHz mono PCM16 is 1.92 MB.
 	transcribeMaxBytes = 2 << 20
 	transcribeTimeout  = 60 * time.Second
-)
-
-// The speed a server honours; outside it educa AI clamps anyway, and a
-// sentence at double speed is not understood.
-const (
-	minSpeed = 0.70
-	maxSpeed = 1.30
+	// The test of the settings waits no longer than a person would.
+	voiceProviderTestTimeout = 20 * time.Second
 )
 
 // Defaults of the OpenAI dialect educa AI speaks.
@@ -61,42 +55,46 @@ const (
 	educaDefaultBaseURL    = "https://api.educaai.de"
 )
 
+// voiceProviderTestText is the sentence the settings' test synthesises.
+const voiceProviderTestText = "This is a test of the voice provider."
+
 // The organisation secrets an educa AI endpoint is reached with — the ones
 // the educa-ai engine uses (internal/daemon/runtime_educa.go). The contract
 // seat first: it is paid for either way, the API token is billed per use.
 var educaSecrets = []string{"educa_seat_token", "educa_api_token"}
 
-// speechServerClient is the client the control plane speaks to the server
-// with. No client timeout: a streamed answer takes as long as the speech, so
-// every request carries its own deadline.
-var speechServerClient = &http.Client{}
+// voiceProviderClient is the client the control plane speaks to the
+// provider with. No client timeout: a streamed answer takes as long as the
+// speech, so every request carries its own deadline.
+var voiceProviderClient = &http.Client{}
 
 // newSynthLimiter caps requests per seat: 30 a minute is a busy call, and
-// far below what a script looping over the endpoint would ask of the server.
+// far below what a script looping over the endpoint would ask of the
+// provider.
 func newSynthLimiter() *webhookLimiter {
 	return &webhookLimiter{hits: map[string][]time.Time{}, maxHits: 30, window: time.Minute}
 }
 
-// speechEndpoint is the server a request goes to: the organisation's own, or
+// voiceProvider is where a request goes: the organisation's own server, or
 // its educa AI endpoint.
-type speechEndpoint struct {
-	settings org.SpeechServer
+type voiceProvider struct {
+	settings org.VoiceProvider
 	base     string
 	key      string
 	// source is "own", "educa" or "" (none).
 	source string
 }
 
-func (e speechEndpoint) ok() bool { return e.base != "" }
+func (e voiceProvider) ok() bool { return e.base != "" }
 
-func (e speechEndpoint) transcribeModel() string {
+func (e voiceProvider) transcribeModel() string {
 	if e.settings.TranscribeModel != "" {
 		return e.settings.TranscribeModel
 	}
 	return defaultTranscribeModel
 }
 
-func (e speechEndpoint) request(ctx context.Context, method, path string, body io.Reader) (*http.Request, error) {
+func (e voiceProvider) request(ctx context.Context, method, path string, body io.Reader) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, method, e.base+path, body)
 	if err != nil {
 		return nil, err
@@ -130,19 +128,19 @@ func (s *Server) secretValue(ctx context.Context, orgID uuid.UUID, key string) s
 	return strings.TrimSpace(v)
 }
 
-// speechEndpointOf resolves where the organisation's speech goes.
-func (s *Server) speechEndpointOf(ctx context.Context, orgID uuid.UUID) (speechEndpoint, error) {
-	var e speechEndpoint
+// voiceProviderOf resolves where the organisation's speech goes.
+func (s *Server) voiceProviderOf(ctx context.Context, orgID uuid.UUID) (voiceProvider, error) {
+	var e voiceProvider
 	if s.Org == nil {
 		return e, nil
 	}
-	st, err := s.Org.SpeechServer(ctx, orgID)
+	st, err := s.Org.VoiceProvider(ctx, orgID)
 	if err != nil {
 		return e, err
 	}
 	e.settings = st
 	if st.Configured() {
-		e.base, e.key, e.source = st.BaseURL, s.secretValue(ctx, orgID, org.SpeechServerKey), "own"
+		e.base, e.key, e.source = st.BaseURL, s.secretValue(ctx, orgID, org.VoiceProviderKey), "own"
 		return e, nil
 	}
 	for _, name := range educaSecrets {
@@ -154,29 +152,29 @@ func (s *Server) speechEndpointOf(ctx context.Context, orgID uuid.UUID) (speechE
 	return e, nil
 }
 
-// speechServerView is what the settings show: never a key, only whether the
-// own one is stored, and which server is in effect.
-type speechServerView struct {
+// voiceProviderView is what the settings show: never a key, only whether
+// the own one is stored, and which provider is in effect.
+type voiceProviderView struct {
 	BaseURL         string `json:"base_url"`
 	Model           string `json:"model"`
 	Voice           string `json:"voice"`
 	KeySet          bool   `json:"key_set"`
 	Transcribe      bool   `json:"transcribe"`
 	TranscribeModel string `json:"transcribe_model"`
-	// Effective is the server in use: the own one, educa AI, or none.
+	// Effective is the provider in use: the own server, educa AI, or none.
 	Effective struct {
 		Source  string `json:"source"`
 		BaseURL string `json:"base_url"`
 	} `json:"effective"`
 }
 
-func (s *Server) speechServerView(ctx context.Context, orgID uuid.UUID) (speechServerView, error) {
-	e, err := s.speechEndpointOf(ctx, orgID)
+func (s *Server) voiceProviderView(ctx context.Context, orgID uuid.UUID) (voiceProviderView, error) {
+	e, err := s.voiceProviderOf(ctx, orgID)
 	if err != nil {
-		return speechServerView{}, err
+		return voiceProviderView{}, err
 	}
-	v := speechServerView{BaseURL: e.settings.BaseURL, Model: e.settings.Model, Voice: e.settings.Voice,
-		KeySet:     s.secretValue(ctx, orgID, org.SpeechServerKey) != "",
+	v := voiceProviderView{BaseURL: e.settings.BaseURL, Model: e.settings.Model, Voice: e.settings.Voice,
+		KeySet:     s.secretValue(ctx, orgID, org.VoiceProviderKey) != "",
 		Transcribe: e.settings.Transcribe, TranscribeModel: e.transcribeModel()}
 	v.Effective.Source, v.Effective.BaseURL = e.source, e.base
 	if v.Effective.Source == "" {
@@ -185,9 +183,9 @@ func (s *Server) speechServerView(ctx context.Context, orgID uuid.UUID) (speechS
 	return v, nil
 }
 
-// handleGetSpeechServer: the organisation's speech server, without a key.
-func (s *Server) handleGetSpeechServer(w http.ResponseWriter, r *http.Request) {
-	v, err := s.speechServerView(r.Context(), principalFrom(r).OrgID)
+// handleGetVoiceProvider: the organisation's voice provider, without a key.
+func (s *Server) handleGetVoiceProvider(w http.ResponseWriter, r *http.Request) {
+	v, err := s.voiceProviderView(r.Context(), principalFrom(r).OrgID)
 	if err != nil {
 		mapErr(w, err)
 		return
@@ -195,16 +193,16 @@ func (s *Server) handleGetSpeechServer(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, v)
 }
 
-// normalizeSpeechServerURL accepts an http(s) address without query,
+// normalizeVoiceProviderURL accepts an http(s) address without query,
 // fragment or credentials and drops a trailing slash and a trailing /v1 —
 // the path the requests add themselves.
-func normalizeSpeechServerURL(raw string) (string, error) {
+func normalizeVoiceProviderURL(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return "", nil
 	}
-	if len(raw) > speechServerURLMax {
-		return "", fmt.Errorf("the base URL is at most %d characters", speechServerURLMax)
+	if len(raw) > voiceProviderURLMax {
+		return "", fmt.Errorf("the base URL is at most %d characters", voiceProviderURLMax)
 	}
 	u, err := url.Parse(raw)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.RawQuery != "" || u.Fragment != "" || u.User != nil {
@@ -215,10 +213,11 @@ func normalizeSpeechServerURL(raw string) (string, error) {
 	return base, nil
 }
 
-// handleSetSpeechServer stores the settings; key, when given, goes into the
-// organisation's secrets ("" removes it). An empty base URL removes the own
-// server and its key — educa AI applies again where the organisation has it.
-func (s *Server) handleSetSpeechServer(w http.ResponseWriter, r *http.Request) {
+// handleSetVoiceProvider stores the settings; key, when given, goes into
+// the organisation's secrets ("" removes it). An empty base URL removes the
+// own server and its key — educa AI applies again where the organisation
+// has it.
+func (s *Server) handleSetVoiceProvider(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	var in struct {
 		BaseURL         string  `json:"base_url"`
@@ -232,16 +231,16 @@ func (s *Server) handleSetSpeechServer(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "body not readable")
 		return
 	}
-	base, err := normalizeSpeechServerURL(in.BaseURL)
+	base, err := normalizeVoiceProviderURL(in.BaseURL)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	v := org.SpeechServer{BaseURL: base, Model: strings.TrimSpace(in.Model), Voice: strings.TrimSpace(in.Voice),
+	v := org.VoiceProvider{BaseURL: base, Model: strings.TrimSpace(in.Model), Voice: strings.TrimSpace(in.Voice),
 		Transcribe: in.Transcribe, TranscribeModel: strings.TrimSpace(in.TranscribeModel)}
 	for _, n := range []string{v.Model, v.Voice, v.TranscribeModel} {
-		if utf8.RuneCountInString(n) > voice.ServerNameMax {
-			writeErr(w, http.StatusBadRequest, fmt.Sprintf("model and voice names are at most %d characters", voice.ServerNameMax))
+		if utf8.RuneCountInString(n) > voice.ProviderNameMax {
+			writeErr(w, http.StatusBadRequest, fmt.Sprintf("model and voice names are at most %d characters", voice.ProviderNameMax))
 			return
 		}
 	}
@@ -256,7 +255,7 @@ func (s *Server) handleSetSpeechServer(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusServiceUnavailable, "settings are not available")
 		return
 	}
-	if err := s.Org.SetSpeechServer(r.Context(), p.OrgID, v); err != nil {
+	if err := s.Org.SetVoiceProvider(r.Context(), p.OrgID, v); err != nil {
 		mapErr(w, err)
 		return
 	}
@@ -267,53 +266,150 @@ func (s *Server) handleSetSpeechServer(w http.ResponseWriter, r *http.Request) {
 	}
 	if key != nil {
 		if k := strings.TrimSpace(*key); k != "" {
-			if err := s.Secrets.Put(r.Context(), p.OrgID, org.SpeechServerKey, k); err != nil {
+			if err := s.Secrets.Put(r.Context(), p.OrgID, org.VoiceProviderKey, k); err != nil {
 				mapErr(w, err)
 				return
 			}
-			if err := s.Secrets.MarkSensitive(r.Context(), p.OrgID, org.SpeechServerKey); err != nil {
+			if err := s.Secrets.MarkSensitive(r.Context(), p.OrgID, org.VoiceProviderKey); err != nil {
 				mapErr(w, err)
 				return
 			}
-		} else if s.secretValue(r.Context(), p.OrgID, org.SpeechServerKey) != "" {
-			if err := s.Secrets.Delete(r.Context(), p.OrgID, org.SpeechServerKey); err != nil {
+		} else if s.secretValue(r.Context(), p.OrgID, org.VoiceProviderKey) != "" {
+			if err := s.Secrets.Delete(r.Context(), p.OrgID, org.VoiceProviderKey); err != nil {
 				mapErr(w, err)
 				return
 			}
 		}
 	}
-	s.handleGetSpeechServer(w, r)
+	s.handleGetVoiceProvider(w, r)
 }
 
-// clampSpeed turns a rate into the speed the server takes: 0 is omitted,
-// the rest held to 0.70–1.30.
-func clampSpeed(rate float64) (float64, bool) {
-	if rate == 0 {
+// clampSpeed turns a speed into the one the provider takes: 0 is omitted,
+// the rest held to what it honours.
+func clampSpeed(speed float64) (float64, bool) {
+	if speed == 0 {
 		return 0, false
 	}
-	if rate < minSpeed {
-		rate = minSpeed
-	}
-	if rate > maxSpeed {
-		rate = maxSpeed
-	}
-	return rate, true
+	return min(max(speed, voice.MinSpeed), voice.MaxSpeed), true
 }
 
-// handleSynthesize speaks a text with the organisation's speech server. The
-// app asks this in a call when the agent's voice names the server as its
-// source; model and voice default to the organisation's, then to the
-// server's own. Buffered, it answers WAV; with stream it passes the
-// server's MP3 through as it arrives — educa AI's first bytes come after
-// about half a second, so the app starts speaking before the reply is whole. Nothing is stored: the recording
-// gets lengths, no text.
+// speechRequest is one synthesis at the provider.
+type speechRequest struct {
+	Text, Voice, Language, Instructions string
+	Speed                               float64
+	Stream                              bool
+}
+
+// speak asks the provider for speech. The answer is the provider's 200
+// response, whose body the caller closes; an error is a short message for
+// the app, nothing of the provider's own answer.
+func (e voiceProvider) speak(ctx context.Context, in speechRequest) (*http.Response, error) {
+	vname := in.Voice
+	if vname == "" {
+		vname = e.settings.Voice
+	}
+	if vname == "" {
+		vname = defaultSpeechVoice
+	}
+	body := map[string]any{"input": in.Text, "voice": vname, "response_format": "wav"}
+	if e.settings.Model != "" {
+		body["model"] = e.settings.Model
+	}
+	if in.Language != "" {
+		body["language"] = in.Language
+	}
+	if in.Instructions != "" {
+		body["instructions"] = in.Instructions
+	}
+	if speed, ok := clampSpeed(in.Speed); ok {
+		body["speed"] = speed
+	}
+	if in.Stream {
+		body["response_format"], body["stream_format"] = "mp3", "audio"
+	}
+	raw, _ := json.Marshal(body)
+	req, err := e.request(ctx, http.MethodPost, "/v1/audio/speech", bytes.NewReader(raw))
+	if err != nil {
+		return nil, errors.New("the voice provider's address is not usable")
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := voiceProviderClient.Do(req)
+	if err != nil {
+		return nil, errors.New("the voice provider did not answer")
+	}
+	if resp.StatusCode != http.StatusOK {
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
+		resp.Body.Close()
+		return nil, fmt.Errorf("the voice provider answered HTTP %d", resp.StatusCode)
+	}
+	return resp, nil
+}
+
+// readAudio reads a buffered answer, bounded.
+func readAudio(body io.Reader) ([]byte, error) {
+	audio, err := io.ReadAll(io.LimitReader(body, synthesizeMaxBytes+1))
+	switch {
+	case err != nil:
+		return nil, errors.New("the voice provider's answer broke off")
+	case len(audio) > synthesizeMaxBytes:
+		return nil, errors.New("the voice provider's answer is larger than 20 MB")
+	case len(audio) == 0:
+		return nil, errors.New("the voice provider answered no audio")
+	}
+	return audio, nil
+}
+
+// handleTestVoiceProvider synthesises one sentence with the saved settings
+// and says whether it worked: {ok, ms, bytes} or {ok: false, error}. The
+// audio is dropped — the test is for whoever sets the provider up, not a
+// way to fetch speech.
+func (s *Server) handleTestVoiceProvider(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	e, err := s.voiceProviderOf(r.Context(), p.OrgID)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	fail := func(msg string) { writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": msg}) }
+	if !e.ok() {
+		fail("no voice provider is set")
+		return
+	}
+	if !s.synthLimiter.allow(p.ID.String(), time.Now()) {
+		w.Header().Set("Retry-After", "10")
+		writeErr(w, http.StatusTooManyRequests, "too many syntheses in a minute")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), voiceProviderTestTimeout)
+	defer cancel()
+	started := time.Now()
+	resp, err := e.speak(ctx, speechRequest{Text: voiceProviderTestText, Language: "en"})
+	if err != nil {
+		fail(err.Error())
+		return
+	}
+	defer resp.Body.Close()
+	audio, err := readAudio(resp.Body)
+	if err != nil {
+		fail(err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "ms": time.Since(started).Milliseconds(), "bytes": len(audio)})
+}
+
+// handleSynthesize speaks a text with the organisation's voice provider:
+// the Mac app in a call, and the voice page's preview. The voice defaults
+// to the organisation's, then to the provider's own; the model is always
+// the organisation's. Buffered, it answers WAV; with stream it passes the
+// provider's MP3 through as it arrives — educa AI's first bytes come after
+// about half a second, so the app starts speaking before the reply is
+// whole. Nothing is stored: the recording gets lengths, no text.
 func (s *Server) handleSynthesize(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	var in struct {
 		Text         string  `json:"text"`
-		Model        string  `json:"model"`
 		Voice        string  `json:"voice"`
-		Rate         float64 `json:"rate"`
+		Speed        float64 `json:"speed"`
 		Language     string  `json:"language"`
 		Instructions string  `json:"instructions"`
 		Stream       bool    `json:"stream"`
@@ -325,36 +421,37 @@ func (s *Server) handleSynthesize(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "body not readable")
 		return
 	}
-	text := strings.TrimSpace(in.Text)
-	if n := utf8.RuneCountInString(text); n == 0 || n > synthesizeMaxRunes {
+	req := speechRequest{
+		Text: strings.TrimSpace(in.Text), Voice: strings.TrimSpace(in.Voice), Speed: in.Speed,
+		Language: strings.TrimSpace(in.Language), Instructions: strings.TrimSpace(in.Instructions), Stream: in.Stream,
+	}
+	if n := utf8.RuneCountInString(req.Text); n == 0 || n > synthesizeMaxRunes {
 		writeErr(w, http.StatusBadRequest, fmt.Sprintf("text is required, at most %d characters", synthesizeMaxRunes))
 		return
 	}
-	model, vname := strings.TrimSpace(in.Model), strings.TrimSpace(in.Voice)
-	lang, instr := strings.TrimSpace(in.Language), strings.TrimSpace(in.Instructions)
-	if utf8.RuneCountInString(model) > voice.ServerNameMax || utf8.RuneCountInString(vname) > voice.ServerNameMax {
-		writeErr(w, http.StatusBadRequest, fmt.Sprintf("model and voice are at most %d characters", voice.ServerNameMax))
+	if utf8.RuneCountInString(req.Voice) > voice.ProviderNameMax {
+		writeErr(w, http.StatusBadRequest, fmt.Sprintf("the voice is at most %d characters", voice.ProviderNameMax))
 		return
 	}
-	if utf8.RuneCountInString(instr) > instructionsMaxRunes {
-		writeErr(w, http.StatusBadRequest, fmt.Sprintf("instructions are at most %d characters", instructionsMaxRunes))
+	if utf8.RuneCountInString(req.Instructions) > voice.InstructionsMax {
+		writeErr(w, http.StatusBadRequest, fmt.Sprintf("instructions are at most %d characters", voice.InstructionsMax))
 		return
 	}
-	if len(lang) > 35 || strings.ContainsAny(lang, " \t\n") {
+	if len(req.Language) > 35 || strings.ContainsAny(req.Language, " \t\n") {
 		writeErr(w, http.StatusBadRequest, "language is a BCP 47 tag like de-DE")
 		return
 	}
-	if in.Rate < 0 {
-		writeErr(w, http.StatusBadRequest, "rate is positive, or 0 for the server's own")
+	if req.Speed < 0 {
+		writeErr(w, http.StatusBadRequest, "speed is positive, or 0 for the voice's own")
 		return
 	}
-	e, err := s.speechEndpointOf(r.Context(), p.OrgID)
+	e, err := s.voiceProviderOf(r.Context(), p.OrgID)
 	if err != nil {
 		mapErr(w, err)
 		return
 	}
 	if !e.ok() {
-		writeErr(w, http.StatusConflict, "this organisation has no speech server")
+		writeErr(w, http.StatusConflict, "this organisation has no voice provider")
 		return
 	}
 	if !s.synthLimiter.allow(p.ID.String(), time.Now()) {
@@ -362,84 +459,42 @@ func (s *Server) handleSynthesize(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusTooManyRequests, "too many syntheses in a minute")
 		return
 	}
-	if model == "" {
-		model = e.settings.Model
-	}
-	if vname == "" {
-		vname = e.settings.Voice
-	}
-	if vname == "" {
-		vname = defaultSpeechVoice
-	}
-	body := map[string]any{"input": text, "voice": vname, "response_format": "wav"}
-	if model != "" {
-		body["model"] = model
-	}
-	if lang != "" {
-		body["language"] = lang
-	}
-	if instr != "" {
-		body["instructions"] = instr
-	}
-	if speed, ok := clampSpeed(in.Rate); ok {
-		body["speed"] = speed
-	}
 	timeout := synthesizeTimeout
-	if in.Stream {
-		body["response_format"], body["stream_format"] = "mp3", "audio"
+	if req.Stream {
 		timeout = synthesizeStreamTimeout
 	}
-	raw, _ := json.Marshal(body)
 	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
-	req, err := e.request(ctx, http.MethodPost, "/v1/audio/speech", bytes.NewReader(raw))
-	if err != nil {
-		writeErr(w, http.StatusBadGateway, "the speech server's address is not usable")
-		return
-	}
-	req.Header.Set("Content-Type", "application/json")
 	started := time.Now()
-	resp, err := speechServerClient.Do(req)
+	resp, err := e.speak(ctx, req)
 	if err != nil {
-		writeErr(w, http.StatusBadGateway, "the speech server did not answer")
+		writeErr(w, http.StatusBadGateway, err.Error())
 		return
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
-		writeErr(w, http.StatusBadGateway, fmt.Sprintf("the speech server answered HTTP %d", resp.StatusCode))
-		return
-	}
-	chars := utf8.RuneCountInString(text)
-	if in.Stream {
+	chars := utf8.RuneCountInString(req.Text)
+	if req.Stream {
 		n := s.streamAudio(w, resp.Body)
 		if n > 0 {
 			s.recordSpeech(r.Context(), p.OrgID, in.Agent, "speech_synthesized",
-				map[string]any{"chars": chars, "bytes": n, "ms": time.Since(started).Milliseconds(), "model": model, "stream": true})
+				map[string]any{"chars": chars, "bytes": n, "ms": time.Since(started).Milliseconds(), "model": e.settings.Model, "stream": true})
 		}
 		return
 	}
-	audio, err := io.ReadAll(io.LimitReader(resp.Body, synthesizeMaxBytes+1))
-	switch {
-	case err != nil:
-		writeErr(w, http.StatusBadGateway, "the speech server's answer broke off")
-		return
-	case len(audio) > synthesizeMaxBytes:
-		writeErr(w, http.StatusBadGateway, "the speech server's answer is larger than 20 MB")
-		return
-	case len(audio) == 0:
-		writeErr(w, http.StatusBadGateway, "the speech server answered no audio")
+	audio, err := readAudio(resp.Body)
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, err.Error())
 		return
 	}
 	s.recordSpeech(r.Context(), p.OrgID, in.Agent, "speech_synthesized",
-		map[string]any{"chars": chars, "bytes": len(audio), "ms": time.Since(started).Milliseconds(), "model": model})
+		map[string]any{"chars": chars, "bytes": len(audio), "ms": time.Since(started).Milliseconds(), "model": e.settings.Model})
 	w.Header().Set("Content-Type", "audio/wav")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(audio)
 }
 
-// streamAudio passes the server's MP3 through, flushed chunk by chunk, so
+// streamAudio passes the provider's MP3 through, flushed chunk by chunk, so
 // the app can start speaking with the first sentence. Until the first byte
 // has come, a failure is still a 502; after it the stream just ends. It
 // returns the bytes passed.
@@ -467,9 +522,9 @@ func (s *Server) streamAudio(w http.ResponseWriter, body io.Reader) int {
 		if err != nil {
 			if !started {
 				if errors.Is(err, io.EOF) {
-					writeErr(w, http.StatusBadGateway, "the speech server answered no audio")
+					writeErr(w, http.StatusBadGateway, "the voice provider answered no audio")
 				} else {
-					writeErr(w, http.StatusBadGateway, "the speech server's answer broke off")
+					writeErr(w, http.StatusBadGateway, "the voice provider's answer broke off")
 				}
 			}
 			return total
@@ -478,19 +533,19 @@ func (s *Server) streamAudio(w http.ResponseWriter, body io.Reader) int {
 	return total
 }
 
-// handleTranscribe recognises one turn of a call on the organisation's
-// speech server (#498): the body is the turn as WAV, 16 kHz mono PCM16, at
+// handleTranscribe recognises one turn of a call at the organisation's
+// voice provider (#498): the body is the turn as WAV, 16 kHz mono PCM16, at
 // most a minute. Only where an admin has turned it on — the audio then
-// leaves the device, to the organisation's own server. Nothing is stored.
+// leaves the device, to the organisation's provider. Nothing is stored.
 func (s *Server) handleTranscribe(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
-	e, err := s.speechEndpointOf(r.Context(), p.OrgID)
+	e, err := s.voiceProviderOf(r.Context(), p.OrgID)
 	if err != nil {
 		mapErr(w, err)
 		return
 	}
 	if !e.ok() || !e.settings.Transcribe {
-		writeErr(w, http.StatusConflict, "recognition on the speech server is off for this organisation")
+		writeErr(w, http.StatusConflict, "recognition at the voice provider is off for this organisation")
 		return
 	}
 	lang := strings.TrimSpace(r.URL.Query().Get("language"))
@@ -532,27 +587,27 @@ func (s *Server) handleTranscribe(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	req, err := e.request(ctx, http.MethodPost, "/v1/audio/transcriptions", &form)
 	if err != nil {
-		writeErr(w, http.StatusBadGateway, "the speech server's address is not usable")
+		writeErr(w, http.StatusBadGateway, "the voice provider's address is not usable")
 		return
 	}
 	req.Header.Set("Content-Type", mw.FormDataContentType())
 	started := time.Now()
-	resp, err := speechServerClient.Do(req)
+	resp, err := voiceProviderClient.Do(req)
 	if err != nil {
-		writeErr(w, http.StatusBadGateway, "the speech server did not answer")
+		writeErr(w, http.StatusBadGateway, "the voice provider did not answer")
 		return
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
-		writeErr(w, http.StatusBadGateway, fmt.Sprintf("the speech server answered HTTP %d", resp.StatusCode))
+		writeErr(w, http.StatusBadGateway, fmt.Sprintf("the voice provider answered HTTP %d", resp.StatusCode))
 		return
 	}
 	var out struct {
 		Text string `json:"text"`
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&out); err != nil {
-		writeErr(w, http.StatusBadGateway, "the speech server's answer is not readable")
+		writeErr(w, http.StatusBadGateway, "the voice provider's answer is not readable")
 		return
 	}
 	text := strings.TrimSpace(out.Text)
@@ -561,11 +616,11 @@ func (s *Server) handleTranscribe(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"text": text})
 }
 
-// recordSpeech notes one request to the speech server: in the recording of
+// recordSpeech notes one request to the voice provider: in the recording of
 // the agent the app spoke with, when it named one of this organisation, and
 // in the log. Lengths, durations and the model only — never text or audio.
 func (s *Server) recordSpeech(ctx context.Context, orgID uuid.UUID, agent, kind string, payload map[string]any) {
-	payload["source"] = "server"
+	payload["source"] = "provider"
 	if s.Log != nil {
 		args := []any{"org", orgID}
 		for k, v := range payload {
