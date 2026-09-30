@@ -21,7 +21,7 @@ void main() {
     ears.feed(320, voiced: true);
     expect(call.mode, CallMode.hearing);
     ears.heard.add('Wie weit ist der Export?');
-    ears.feed(736, voiced: false);
+    ears.feed(1056, voiced: false);
     await _settle();
     expect(backend.posted, ['Wie weit ist der Export?']);
     expect(call.mode, CallMode.thinking);
@@ -48,7 +48,7 @@ void main() {
     await call.start();
     ears.feed(320, voiced: true);
     ears.heard.add('Ist der Merge Request drin?');
-    ears.feed(736, voiced: false);
+    ears.feed(1056, voiced: false);
     await _settle();
 
     // The fake recogniser calls anything with "is" English; too short to judge.

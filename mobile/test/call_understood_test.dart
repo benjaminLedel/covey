@@ -192,7 +192,7 @@ void main() {
       expect(line['clean_edit'], 0);
       expect(line['cut'], 'pause');
       expect(line['outcome'], 'sent');
-      expect(line['thresholds'], containsPair('pause_ms', 700));
+      expect(line['thresholds'], containsPair('pause_ms', 1000));
       expect((line['vad'] as Map)['voiced'], greaterThan(0));
       await call.hangUp();
     });

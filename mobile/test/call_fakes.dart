@@ -57,7 +57,7 @@ class FakeEars implements CallEars {
   void say(String text, {int ms = 640}) {
     heard.add(text);
     feed(ms, voiced: true);
-    feed(736, voiced: false);
+    feed(1056, voiced: false);
   }
 }
 

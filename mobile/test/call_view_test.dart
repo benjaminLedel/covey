@@ -102,7 +102,7 @@ void main() {
     await _png(tester, 'hearing');
 
     ears.heard.add('Wie weit ist der Export für Initech?');
-    ears.feed(736, voiced: false);
+    ears.feed(1056, voiced: false);
     await tester.pump(const Duration(milliseconds: 50));
     expect(_state(tester), 'Denkt nach…');
     expect(tester.widget<Face>(find.byType(Face)).talk, FaceTalk.thinking);

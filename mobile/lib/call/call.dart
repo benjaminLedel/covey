@@ -47,8 +47,9 @@ class CallSettings {
 
   static final enabled = ValueNotifier<bool>(true);
 
-  /// The defaults are the values the trial started with (#494).
-  static const defaultPause = Duration(milliseconds: 700);
+  /// The defaults are the values the trial started with (#494), but the
+  /// pause: 0.7 s cut people off mid-sentence, so it is 1 s (#511).
+  static const defaultPause = Duration(milliseconds: 1000);
   static const defaultBargeIn = Duration(milliseconds: 400);
   static const defaultWindow = Duration(milliseconds: 1500);
 
