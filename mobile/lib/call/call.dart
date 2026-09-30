@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
@@ -11,7 +12,9 @@ import '../models.dart';
 import '../prefs.dart';
 import '../speech_model.dart';
 import 'ears.dart';
+import 'fillers.dart';
 import 'recording.dart';
+import 'sounds.dart';
 import 'speech_text.dart';
 import 'turns.dart';
 import 'understood.dart';
@@ -58,8 +61,16 @@ class CallSettings {
   /// ([CallRecording]); off unless switched on.
   static final record = ValueNotifier<bool>(false);
 
+  /// The call's short sounds (#500): on, quiet, unless changed.
+  static final sounds = ValueNotifier<bool>(true);
+  static const defaultVolume = 0.35;
+
+  /// The sounds' volume, 0–1, under the voice's.
+  static final volume = ValueNotifier<double>(defaultVolume);
+
   static const _pauseKey = 'call.pause', _bargeInKey = 'call.bargeIn', _windowKey = 'call.window';
   static const _recordKey = 'call.record';
+  static const _soundsKey = 'call.sounds', _volumeKey = 'call.volume';
 
   static Future<void> load() async {
     try {
@@ -69,6 +80,9 @@ class CallSettings {
       bargeIn.value = _ms(await p.read(_bargeInKey)) ?? defaultBargeIn;
       window.value = _ms(await p.read(_windowKey)) ?? defaultWindow;
       record.value = await p.read(_recordKey) == 'on';
+      sounds.value = await p.read(_soundsKey) != 'off';
+      final v = double.tryParse(await p.read(_volumeKey) ?? '');
+      volume.value = v == null || v < 0 || v > 1 ? defaultVolume : v;
     } catch (_) {
       // Unreadable: the defaults.
     }
@@ -118,6 +132,16 @@ class CallSettings {
     await _write(_recordKey, on ? 'on' : 'off');
     // Switched off, nothing recorded is kept any longer than asked.
     if (!on) await CallRecording.deleteAll();
+  }
+
+  static Future<void> setSounds(bool on) async {
+    sounds.value = on;
+    await _write(_soundsKey, on ? 'on' : 'off');
+  }
+
+  static Future<void> setVolume(double v) async {
+    volume.value = v.clamp(0.0, 1.0);
+    await _write(_volumeKey, '${volume.value}');
   }
 
   /// The tuning as a call starts with it.
@@ -352,6 +376,10 @@ class _Utterance {
 /// open is spoken: the answer, the acknowledgement of a task, and the task's
 /// result when it arrives later. When the person speaks while the agent
 /// does, the agent stops.
+///
+/// Short sounds mark what happens (#500): ringing while the call connects,
+/// connected, a turn heard, a task created, mute, unmute, hang-up. While the
+/// agent thinks, it says one short filler in its own voice ([CallFillers]).
 class CallController extends ChangeNotifier {
   CallController({
     required this.backend,
@@ -363,10 +391,28 @@ class CallController extends ChangeNotifier {
     this.agentName = '',
     this.tuning = const CallTuning(),
     this.recording,
-    this.nudgeAfter = const Duration(seconds: 20),
+    this.sounds,
+    this.fillerAfter = const Duration(milliseconds: 800),
+    this.nudgeAfter = const Duration(seconds: 8),
     this.pollEvery = const Duration(seconds: 5),
+    StartTimer? startTimer,
+    math.Random? random,
   }) {
     _turns = TurnSegmenter(onSpeech: _onSpeech, onTurn: _onTurn, onDiscard: _onDiscard, endSilence: tuning.pause);
+    _fillers = CallFillers(
+      voice: speaker,
+      language: () => _language ?? appLanguage,
+      quiet: () => ended || muted || _speaking || _turns.speaking,
+      after: fillerAfter,
+      longAfter: nudgeAfter,
+      timer: startTimer,
+      random: random,
+      onPlaying: (text, length) {
+        // Its own filler from the loudspeaker is not the person.
+        _saying = text;
+        _saidUntil = DateTime.now().add(length);
+      },
+    );
   }
 
   final CallBackend backend;
@@ -379,8 +425,7 @@ class CallController extends ChangeNotifier {
   /// for the app's own words.
   final String appLanguage;
 
-  /// The app's own spoken words, by key: `call.stillWorking`,
-  /// `call.restInChat`.
+  /// The app's own spoken words, by key: `call.restInChat`.
   final String Function(String key) words;
 
   final CallTuning tuning;
@@ -389,14 +434,22 @@ class CallController extends ChangeNotifier {
   /// records nothing.
   final Future<CallRecording> Function()? recording;
 
-  /// How long the call waits for a reply before saying it is still being
-  /// worked on — once per turn.
+  /// The call's sounds; null plays none.
+  final CallSounds? sounds;
+
+  /// How long the call waits for the reply's first audio before the agent
+  /// says a short filler — once per turn.
+  final Duration fillerAfter;
+
+  /// How long the call waits for a reply before the agent says it takes a
+  /// moment longer — once per turn.
   final Duration nudgeAfter;
 
   /// The net under the event stream while a reply is awaited.
   final Duration pollEvery;
 
   late final TurnSegmenter _turns;
+  late final CallFillers _fillers;
 
   CallMode _mode = CallMode.preparing;
   CallMode get mode => _mode;
@@ -431,9 +484,7 @@ class CallController extends ChangeNotifier {
   bool _speaking = false;
   bool _recognising = false;
   bool _awaiting = false;
-  bool _nudged = false;
   bool _bargedIn = false;
-  Timer? _nudge;
   Timer? _poll;
   Timer? _giveUp;
   StreamSubscription<void>? _changes;
@@ -441,6 +492,13 @@ class CallController extends ChangeNotifier {
   String? _lastId;
   final _seen = <String>{};
   String? _language;
+
+  /// The tasks the conversation already knew of: a message of the agent
+  /// naming another is the acknowledgement of a task just created.
+  final _tasks = <String>{};
+
+  /// The languages whose fillers were asked for in this call.
+  final _prefetched = <String>{};
 
   /// The conversation's last lines, for the clean-up's context.
   final _recent = <String>[];
@@ -463,6 +521,8 @@ class CallController extends ChangeNotifier {
   /// hearing.
   Future<void> start() async {
     _set(CallMode.preparing);
+    unawaited(sounds?.play(Earcon.ringing, loops: 2));
+    unawaited(sounds?.preload());
     try {
       await ears.prepare();
       // Hung up while the models loaded: what just loaded is freed again.
@@ -471,10 +531,12 @@ class CallController extends ChangeNotifier {
       for (final m in had) {
         _seen.add(m.id);
         _remember(m);
+        if (m.authorKind == 'agent' && m.taskId != null) _tasks.add(m.taskId!);
       }
       if (had.isNotEmpty) _lastId = had.last.id;
       final voices = await speaker.prepare(language: appLanguage);
       if (ended) return;
+      _prefetch(appLanguage);
       unawaited(backend.names().then((n) => _names = n, onError: (_) {}));
       if (tuning.record && recording != null) {
         try {
@@ -485,6 +547,8 @@ class CallController extends ChangeNotifier {
       }
       _spoken = speaker.events.listen((e) {
         if (e == SpeakingEvent.word) wordTicks.value++;
+        // The reply is heard: a filler makes way.
+        if (e == SpeakingEvent.started) _fillers.replyAudio();
       });
       _changes = backend.changes().listen((_) => _fetch());
       _poll = Timer.periodic(pollEvery, (_) {
@@ -498,6 +562,7 @@ class CallController extends ChangeNotifier {
         'open, $voices; pause ${tuning.pause.inMilliseconds} ms, barge-in ${tuning.bargeIn.inMilliseconds} ms, '
             'window ${tuning.window.inMilliseconds} ms${_recording == null ? '' : ', recording turns'}',
       );
+      unawaited(sounds?.play(Earcon.connected));
       _set(CallMode.listening);
     } on CallException catch (e) {
       _fail(e);
@@ -511,6 +576,7 @@ class CallController extends ChangeNotifier {
   void _fail(CallException e) {
     if (ended) return;
     diag('call', 'failed: $e');
+    unawaited(sounds?.stop());
     failure = e;
     unawaited(_shut());
     _set(CallMode.failed);
@@ -519,6 +585,9 @@ class CallController extends ChangeNotifier {
   /// Mutes or unmutes: muted, the microphone is closed.
   Future<void> setMuted(bool on) async {
     if (ended || _mode == CallMode.failed || _mode == CallMode.preparing) return;
+    if (muted != on) unawaited(sounds?.play(on ? Earcon.mute : Earcon.unmute));
+    // Nothing is said into a muted call.
+    if (on) _fillers.stop();
     muted = on;
     level = 0;
     _turns.reset();
@@ -534,15 +603,17 @@ class CallController extends ChangeNotifier {
   /// running.
   Future<void> hangUp() async {
     if (ended) return;
+    final wasOpen = _mode != CallMode.failed;
     _mode = CallMode.ended;
     if (!_disposed) notifyListeners();
+    if (wasOpen) unawaited(sounds?.play(Earcon.hangUp));
     await _shut();
     diag('call', 'ended');
   }
 
   Future<void> _shut() async {
     _queue.clear();
-    _nudge?.cancel();
+    _fillers.stop();
     _poll?.cancel();
     _giveUp?.cancel();
     _understood?.discard();
@@ -571,7 +642,7 @@ class CallController extends ChangeNotifier {
     if (_understood?.editing ?? false) return;
     // The agent's voice from the loudspeaker must not interrupt it: while
     // it speaks, the person has to be heard for a moment first.
-    _turns.confirm = _speaking ? tuning.bargeIn : Duration.zero;
+    _turns.confirm = _speaking || _fillers.playing ? tuning.bargeIn : Duration.zero;
     _turns.add(pcm, voiced);
     level = l > level ? l : level * 0.85 + l * 0.15;
     final now = DateTime.now();
@@ -582,6 +653,8 @@ class CallController extends ChangeNotifier {
   }
 
   void _onSpeech() {
+    // The person speaks: a filler would talk over them.
+    _fillers.stop();
     if (_speaking) {
       // Barge-in: the person speaks, the agent stops mid-sentence, and what
       // it had still to say is dropped — it stands in the chat.
@@ -601,6 +674,7 @@ class CallController extends ChangeNotifier {
   void _onTurn(Uint8List pcm, TurnStats stats) {
     final bargedIn = _bargedIn;
     _bargedIn = false;
+    unawaited(sounds?.play(Earcon.heard));
     _turnChain = _turnChain.then((_) => _handleTurn(pcm, stats, bargedIn)).catchError((Object e) {
       diag('call', 'turn failed: $e');
     });
@@ -709,9 +783,7 @@ class CallController extends ChangeNotifier {
     _recent.add('Person: $text');
     _trimRecent();
     _awaiting = true;
-    _nudged = false;
-    _nudge?.cancel();
-    _nudge = Timer(nudgeAfter, _stillWorking);
+    _fillers.waiting();
     _giveUp?.cancel();
     // Thinking does not last for ever: a task's result may come in an hour,
     // and it is spoken then whether or not the face still thinks.
@@ -726,7 +798,7 @@ class CallController extends ChangeNotifier {
       diag('call', 'turn posted, ${text.length} characters');
     } on ApiException catch (e) {
       _awaiting = false;
-      _nudge?.cancel();
+      _fillers.stop();
       _say(CallLine(mine: false, text: e.message));
       _update();
       return;
@@ -746,11 +818,17 @@ class CallController extends ChangeNotifier {
     if (_recent.length > _keepRecent) _recent.removeRange(0, _recent.length - _keepRecent);
   }
 
-  void _stillWorking() {
-    if (!_awaiting || _nudged || ended) return;
-    _nudged = true;
-    _queue.add(_Utterance(words('call.stillWorking'), plain: true));
-    unawaited(_speakNext());
+  /// Has the fillers of [language] synthesised ahead, once per language.
+  void _prefetch(String language) {
+    final base = language.split(RegExp('[-_]')).first.toLowerCase();
+    if (!_prefetched.add(base)) return;
+    final texts = fillerTexts(base);
+    if (texts.isEmpty) return;
+    unawaited(
+      speaker.prefetchFillers(texts, language: language).catchError((Object e) {
+        diag('call', 'fillers not prepared: $e');
+      }),
+    );
   }
 
   /// Reads what is new; every message of the agent is spoken.
@@ -773,8 +851,13 @@ class CallController extends ChangeNotifier {
           _remember(m);
           if (m.authorKind != 'agent' || m.text.trim().isEmpty) continue;
           if (m.authorId != null && m.authorId != agentId) continue;
+          final task = m.taskId;
+          if (task != null && _tasks.add(task) && m.kind == 'text' && m.replyTo != null) {
+            // The turn became a task: its acknowledgement, not a result.
+            unawaited(sounds?.play(Earcon.task));
+          }
           _awaiting = false;
-          _nudge?.cancel();
+          _fillers.replyArrived();
           _giveUp?.cancel();
           _say(CallLine(mine: false, text: textForSpeech(m.text).text));
           _queue.add(_Utterance(m.text));
@@ -806,6 +889,7 @@ class CallController extends ChangeNotifier {
         cut = s.cut;
         lang = await speaker.language(s.text) ?? _language ?? appLanguage;
         _language = lang;
+        _prefetch(lang);
       }
       if (cut) _queue.insert(0, _Utterance(words('call.restInChat'), plain: true));
       _speaking = true;
@@ -858,6 +942,7 @@ class CallController extends ChangeNotifier {
   @override
   void dispose() {
     unawaited(hangUp());
+    _fillers.dispose();
     _disposed = true;
     wordTicks.dispose();
     super.dispose();

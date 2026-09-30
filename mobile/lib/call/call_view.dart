@@ -11,7 +11,9 @@ import '../speech_model.dart';
 import '../theme.dart';
 import 'call.dart';
 import 'ears.dart';
+import 'fillers.dart';
 import 'recording.dart';
+import 'sounds.dart';
 import 'understood.dart';
 import 'voice.dart';
 
@@ -89,6 +91,13 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
             available: () async => (await api.speechModel()).synthesize,
             spoken: backend.spokenVoice,
             provider: (v) => providerVoice(api, v, agentId: widget.agentId),
+            // The fillers stay synthesised between calls (#500).
+            fillerCache: FillerCache.appSupport(),
+          ),
+          sounds: CallSounds(
+            output: const ChannelEarconOutput(),
+            enabled: () => CallSettings.sounds.value,
+            volume: () => CallSettings.volume.value,
           ),
           agentId: widget.agentId,
           agentName: widget.agentName,

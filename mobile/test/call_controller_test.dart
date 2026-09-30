@@ -66,24 +66,19 @@ void main() {
     await call.hangUp();
   });
 
-  test('a reply the agent is still working on is said to be so, once', () async {
+  test('a task\'s acknowledgement and its later result are both spoken', () async {
     final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker();
-    final call = fakeCall(ears, backend, speaker, nudgeAfter: const Duration(milliseconds: 30));
+    final call = fakeCall(ears, backend, speaker);
     await call.start();
     ears.say('Mach bitte den Monatsbericht.');
-    await Future<void>.delayed(const Duration(milliseconds: 80));
-    expect(speaker.spoken.map((s) => s.$1), ['Ich bin noch dran.']);
-    speaker.finish();
-    await Future<void>.delayed(const Duration(milliseconds: 80));
-    expect(speaker.spoken, hasLength(1), reason: 'said once per turn');
-    // The task's acknowledgement, and later its result, are spoken as they come.
-    backend.agentSays('Mach ich, ich melde mich mit dem Bericht.');
+    await _settle();
+    backend.agentSays('Mach ich, ich melde mich mit dem Bericht.', taskId: 't1', replyTo: 'm0');
     await _settle();
     speaker.finish();
     await _settle();
-    backend.agentSays('Der Monatsbericht ist fertig und liegt im Wiki.');
+    backend.agentSays('Der Monatsbericht ist fertig und liegt im Wiki.', taskId: 't1', kind: 'result');
     await _settle();
-    expect(speaker.spoken.map((s) => s.$1).skip(1), [
+    expect(speaker.spoken.map((s) => s.$1), [
       'Mach ich, ich melde mich mit dem Bericht.',
       'Der Monatsbericht ist fertig und liegt im Wiki.',
     ]);

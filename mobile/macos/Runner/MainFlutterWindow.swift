@@ -1126,12 +1126,24 @@ final class SystemAudioTap {
 /// For the played samples, "started" is reported when the first plays,
 /// "finished" when the last marked as such has been played, "cancelled"
 /// when it was stopped.
+///
+/// Beside the voice, two players of their own (#500), mixed with it rather
+/// than replacing it: the call's short sounds ("earcon"), and the fillers
+/// the agent says while it thinks ("filler", or "fillerSay" through a
+/// synthesiser of their own), which fade out when the reply begins. Neither
+/// reports events: Dart knows how long each lasts.
 final class SpeechVoice: NSObject, AVSpeechSynthesizerDelegate {
   private let channel: FlutterMethodChannel
   private let synth = AVSpeechSynthesizer()
   private let engine = AVAudioEngine()
   private let player = AVAudioPlayerNode()
   private var playerFormat: AVAudioFormat?
+  private let fillerSynth = AVSpeechSynthesizer()
+  private let fillerPlayer = AVAudioPlayerNode()
+  private var fillerFormat: AVAudioFormat?
+  private var fillerFade: Timer?
+  private let earconPlayer = AVAudioPlayerNode()
+  private var earconFormat: AVAudioFormat?
   /// The utterance being played, how many of its buffers are still queued,
   /// and whether its last buffer has come.
   private var playing = 0
@@ -1148,6 +1160,7 @@ final class SpeechVoice: NSObject, AVSpeechSynthesizerDelegate {
     channel = FlutterMethodChannel(name: "covey/voice", binaryMessenger: messenger)
     super.init()
     synth.delegate = self
+    fillerSynth.delegate = self
     channel.setMethodCallHandler { [weak self] call, result in
       self?.handle(call, result)
     }
@@ -1202,8 +1215,9 @@ final class SpeechVoice: NSObject, AVSpeechSynthesizerDelegate {
       }
     case "decodeOpen":
       let id = args["id"] as? Int ?? 0
-      // Only the utterance being prepared keeps a decoder.
-      decoders.removeAll()
+      // Only the utterance being prepared keeps a decoder. Fillers decode
+      // under negative ids, aside from the replies (#500).
+      decoders = decoders.filter { ($0.key < 0) != (id < 0) }
       decoders[id] = StreamDecoder(hint: kAudioFileMP3Type)
       result(decoders[id] != nil)
     case "decode":
@@ -1219,7 +1233,62 @@ final class SpeechVoice: NSObject, AVSpeechSynthesizerDelegate {
     case "stop":
       synth.stopSpeaking(at: .immediate)
       stopPlaying()
-      decoders.removeAll()
+      stopFiller()
+      decoders = decoders.filter { $0.key < 0 }
+      result(nil)
+    case "filler":
+      guard let data = args["samples"] as? FlutterStandardTypedData, let rate = args["sampleRate"] as? Int, rate > 0 else {
+        return result(FlutterError(code: "args", message: "samples and sampleRate", details: nil))
+      }
+      stopFiller()
+      do {
+        guard let buffer = SpeechVoice.buffer(data.data, rate: Double(rate)) else { return result(nil) }
+        try route(fillerPlayer, buffer.format, &fillerFormat)
+        fillerPlayer.volume = 1
+        fillerPlayer.scheduleBuffer(buffer, completionHandler: nil)
+        fillerPlayer.play()
+        result(nil)
+      } catch {
+        result(FlutterError(code: "filler", message: error.localizedDescription, details: nil))
+      }
+    case "fillerSay":
+      stopFiller()
+      let utterance = AVSpeechUtterance(string: args["text"] as? String ?? "")
+      if let id = args["voice"] as? String, let v = AVSpeechSynthesisVoice(identifier: id) {
+        utterance.voice = v
+      } else if let lang = args["language"] as? String {
+        utterance.voice = AVSpeechSynthesisVoice(language: lang)
+      }
+      let pace = args["rate"] as? Double ?? 1
+      utterance.rate = min(
+        AVSpeechUtteranceMaximumSpeechRate, max(AVSpeechUtteranceMinimumSpeechRate, AVSpeechUtteranceDefaultSpeechRate * Float(pace)))
+      fillerSynth.speak(utterance)
+      result(nil)
+    case "fillerFade":
+      fadeFiller(over: Double(args["ms"] as? Int ?? 120) / 1000)
+      result(nil)
+    case "fillerStop":
+      stopFiller()
+      result(nil)
+    case "earcon":
+      guard let data = args["samples"] as? FlutterStandardTypedData, let rate = args["sampleRate"] as? Int, rate > 0 else {
+        return result(FlutterError(code: "args", message: "samples and sampleRate", details: nil))
+      }
+      earconPlayer.stop()
+      do {
+        guard let buffer = SpeechVoice.buffer(data.data, rate: Double(rate)) else { return result(nil) }
+        try route(earconPlayer, buffer.format, &earconFormat)
+        earconPlayer.volume = Float(min(max(args["volume"] as? Double ?? 0.35, 0), 1))
+        for _ in 0..<max(1, min(args["loops"] as? Int ?? 1, 4)) {
+          earconPlayer.scheduleBuffer(buffer, completionHandler: nil)
+        }
+        earconPlayer.play()
+        result(nil)
+      } catch {
+        result(FlutterError(code: "earcon", message: error.localizedDescription, details: nil))
+      }
+    case "earconStop":
+      earconPlayer.stop()
       result(nil)
     default:
       result(FlutterMethodNotImplemented)
@@ -1231,25 +1300,8 @@ final class SpeechVoice: NSObject, AVSpeechSynthesizerDelegate {
   private func play(id: Int, data: Data, rate: Double, last: Bool) throws {
     if synth.isSpeaking { synth.stopSpeaking(at: .immediate) }
     if id != playing { stopPlaying() }
-    let count = data.count / MemoryLayout<Float>.size
-    guard count > 0, let format = AVAudioFormat(standardFormatWithSampleRate: rate, channels: 1),
-      let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(count))
-    else { return }
-    buffer.frameLength = AVAudioFrameCount(count)
-    data.withUnsafeBytes { raw in
-      if let src = raw.bindMemory(to: Float.self).baseAddress {
-        buffer.floatChannelData![0].update(from: src, count: count)
-      }
-    }
-    if playerFormat != format {
-      if playerFormat == nil { engine.attach(player) }
-      engine.connect(player, to: engine.mainMixerNode, format: format)
-      playerFormat = format
-    }
-    if !engine.isRunning {
-      engine.prepare()
-      try engine.start()
-    }
+    guard let buffer = SpeechVoice.buffer(data, rate: rate) else { return }
+    try route(player, buffer.format, &playerFormat)
     let first = id != playing || queued == 0 && !player.isPlaying
     playing = id
     queued += 1
@@ -1261,6 +1313,68 @@ final class SpeechVoice: NSObject, AVSpeechSynthesizerDelegate {
       player.play()
       send("started") { ["id": id] }
     }
+  }
+
+  /// Float32 mono samples as a buffer to schedule; nil for none.
+  private static func buffer(_ data: Data, rate: Double) -> AVAudioPCMBuffer? {
+    let count = data.count / MemoryLayout<Float>.size
+    guard count > 0, let format = AVAudioFormat(standardFormatWithSampleRate: rate, channels: 1),
+      let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(count))
+    else { return nil }
+    buffer.frameLength = AVAudioFrameCount(count)
+    data.withUnsafeBytes { raw in
+      if let src = raw.bindMemory(to: Float.self).baseAddress {
+        buffer.floatChannelData![0].update(from: src, count: count)
+      }
+    }
+    return buffer
+  }
+
+  /// Connects [node] into the mixer for [format] the first time or when the
+  /// format changed, and makes sure the engine runs.
+  private func route(_ node: AVAudioPlayerNode, _ format: AVAudioFormat, _ current: inout AVAudioFormat?) throws {
+    if current != format {
+      if current == nil { engine.attach(node) }
+      engine.connect(node, to: engine.mainMixerNode, format: format)
+      current = format
+    }
+    if !engine.isRunning {
+      engine.prepare()
+      try engine.start()
+    }
+  }
+
+  /// Lowers the filler to nothing over [seconds], then stops it; the Mac's
+  /// voice, which cannot be faded, stops at the end of its word.
+  private func fadeFiller(over seconds: Double) {
+    if fillerSynth.isSpeaking { fillerSynth.stopSpeaking(at: .word) }
+    guard fillerFormat != nil, fillerPlayer.isPlaying else { return }
+    fillerFade?.invalidate()
+    let steps = max(1, Int(seconds / 0.01))
+    let start = fillerPlayer.volume
+    var step = 0
+    fillerFade = Timer.scheduledTimer(withTimeInterval: seconds / Double(steps), repeats: true) { [weak self] t in
+      guard let self else { return t.invalidate() }
+      step += 1
+      if step >= steps {
+        t.invalidate()
+        self.fillerFade = nil
+        self.fillerPlayer.stop()
+        self.fillerPlayer.volume = 1
+      } else {
+        // Equal steps in loudness rather than in amplitude.
+        let left = Float(steps - step) / Float(steps)
+        self.fillerPlayer.volume = start * left * left
+      }
+    }
+  }
+
+  private func stopFiller() {
+    fillerFade?.invalidate()
+    fillerFade = nil
+    if fillerSynth.isSpeaking { fillerSynth.stopSpeaking(at: .immediate) }
+    if fillerFormat != nil { fillerPlayer.stop() }
+    fillerPlayer.volume = 1
   }
 
   /// One buffer of [id] has been played back, or dropped by a stop.
@@ -1292,6 +1406,8 @@ final class SpeechVoice: NSObject, AVSpeechSynthesizerDelegate {
   }
 
   func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
+    // A filler's synthesiser reports nothing: it is not the reply.
+    guard synthesizer === synth else { return }
     let key = ObjectIdentifier(utterance)
     send("started") { [weak self] in ["id": self?.ids[key] ?? 0] }
   }
@@ -1299,6 +1415,7 @@ final class SpeechVoice: NSObject, AVSpeechSynthesizerDelegate {
   func speechSynthesizer(
     _ synthesizer: AVSpeechSynthesizer, willSpeakRangeOfSpeechString characterRange: NSRange, utterance: AVSpeechUtterance
   ) {
+    guard synthesizer === synth else { return }
     let key = ObjectIdentifier(utterance)
     send("word") { [weak self] in
       ["id": self?.ids[key] ?? 0, "start": characterRange.location, "length": characterRange.length]
@@ -1306,11 +1423,13 @@ final class SpeechVoice: NSObject, AVSpeechSynthesizerDelegate {
   }
 
   func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+    guard synthesizer === synth else { return }
     let key = ObjectIdentifier(utterance)
     send("finished") { [weak self] in ["id": self?.ids.removeValue(forKey: key) ?? 0] }
   }
 
   func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+    guard synthesizer === synth else { return }
     let key = ObjectIdentifier(utterance)
     send("cancelled") { [weak self] in ["id": self?.ids.removeValue(forKey: key) ?? 0] }
   }
