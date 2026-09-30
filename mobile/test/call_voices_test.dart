@@ -168,6 +168,47 @@ void main() {
       s.dispose();
     });
 
+    test('the greeting is synthesised ahead and played from it, not asked again (#506)', () async {
+      final dir = await Directory.systemTemp.createTemp('greeting');
+      addTearDown(() => dir.delete(recursive: true));
+      final out = _Output();
+      final said = <String>[];
+      final s = _speaker(out, provider: _provider(out, said), cache: FillerCache(() async => dir));
+      // Asked before the call prepares the voice: it prepares it once.
+      expect(await s.prepareUtterance('Hallo Ada, hier ist Mira.', language: 'de'), isTrue);
+      expect(said, ['Hallo Ada, hier ist Mira.']);
+      expect(out.decoderIds.every((id) => id < 0), isTrue, reason: 'decoded aside from the replies');
+      final done = s.speakPrepared('Hallo Ada, hier ist Mira.', language: 'de', ready: true);
+      await _settle();
+      expect(said, hasLength(1), reason: 'played from what was made');
+      expect(out.played, [(4410, false), (1, true)]);
+      out.emit(SpeakingEvent.started);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(s.level.value, isNotNull, reason: 'the mouth follows it');
+      out.emit(SpeakingEvent.finished);
+      await done;
+      s.dispose();
+    });
+
+    test('a greeting not ready in time: the Mac says it; without a provider nothing is made', () async {
+      final out = _Output();
+      final said = <String>[];
+      final s = _speaker(out, provider: _provider(out, said));
+      await s.prepare(language: 'de');
+      unawaited(s.speakPrepared('Hallo Ada.', language: 'de', ready: false));
+      await _settle();
+      expect(said, isEmpty, reason: 'asking now would be too late');
+      expect(out.said.single.$1, 'Hallo Ada.');
+      expect(s.fallback.value, isFalse, reason: 'the provider speaks the rest of the call');
+      s.dispose();
+
+      final none = _Output();
+      final t = _speaker(none, available: false, provider: _provider(none, said));
+      expect(await t.prepareUtterance('Hallo Ada.', language: 'de'), isFalse);
+      expect(none.decoders, isEmpty);
+      t.dispose();
+    });
+
     test('stopping drops what the provider still sends', () async {
       final out = _Output();
       final gate = Completer<void>();

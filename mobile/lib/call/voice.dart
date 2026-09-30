@@ -39,6 +39,17 @@ abstract class Speaker implements FillerVoice {
   /// provider, where the Mac says them when they come.
   Future<void> prefetchFillers(List<String> texts, {required String language});
 
+  /// Synthesises [text] ahead through the voice provider and keeps it, as
+  /// the fillers are kept (#506): the greeting, while the call still rings.
+  /// Completes with whether the provider's audio is ready — false without a
+  /// provider, or when it failed.
+  Future<bool> prepareUtterance(String text, {required String language});
+
+  /// Speaks [text] as [prepareUtterance] made it, as [speak] would — events,
+  /// the mouth, a stop — and when it did not ([ready] false), in the Mac's
+  /// voice rather than asking the provider now.
+  Future<void> speakPrepared(String text, {required String language, required bool ready});
+
   Stream<SpeakingEvent> get events;
 
   /// How open the mouth is, 0–1, frame by frame, while the voice provider
@@ -244,6 +255,9 @@ class AgentSpeaker implements Speaker {
   double _speed = 0;
   bool _prepared = false;
 
+  /// Getting ready runs once: the greeting may ask before the call does.
+  Future<String>? _preparing;
+
   int _id = 0;
   Completer<void>? _done;
 
@@ -263,7 +277,12 @@ class AgentSpeaker implements Speaker {
   ValueListenable<bool> get fallback => _fallback;
 
   @override
-  Future<String> prepare({required String language}) async {
+  Future<String> prepare({required String language}) => _preparing ??= _prepare().catchError((Object e) {
+    _preparing = null;
+    throw e;
+  });
+
+  Future<String> _prepare() async {
     _system = await output.voices();
     var set = false;
     try {
@@ -294,18 +313,64 @@ class AgentSpeaker implements Speaker {
   @override
   Future<void> speak(String text, {required String language}) async {
     if (!_prepared) await prepare(language: language);
-    final prev = _done;
-    if (prev != null && !prev.isCompleted) prev.complete();
-    final id = ++_id;
-    final done = _done = Completer<void>();
-    _frames.clear();
-    _clock = null;
+    final (id, done) = _begin();
     final voice = _voice;
     if (voice == null) {
       await _say(id, text, language);
     } else {
       unawaited(_play(id, voice, text, language));
     }
+    return done.future;
+  }
+
+  /// A new utterance: the one before it, if any, counts as done.
+  (int, Completer<void>) _begin() {
+    final prev = _done;
+    if (prev != null && !prev.isCompleted) prev.complete();
+    final id = ++_id;
+    final done = _done = Completer<void>();
+    _frames.clear();
+    _clock = null;
+    return (id, done);
+  }
+
+  @override
+  Future<bool> prepareUtterance(String text, {required String language}) async {
+    await prepare(language: language);
+    final voice = _voice;
+    if (voice == null) return false;
+    if (_fillers[text] != null) return true;
+    final cached = await fillerCache?.read(voice.voice, text);
+    if (cached != null && cached.samples.isNotEmpty) {
+      _fillers[text] = cached;
+      return true;
+    }
+    try {
+      final aside = ProviderVoice(voice.open, _AsideDecoder(voice.decoder), voice: voice.voice);
+      final pcm = joinPcm(await aside.stream(text, language: language).toList());
+      if (pcm.samples.isEmpty || pcm.sampleRate <= 0) return false;
+      _fillers[text] = pcm;
+      await fillerCache?.write(voice.voice, text, pcm);
+      return true;
+    } catch (e) {
+      diag('call', 'not synthesised ahead: $e');
+      return false;
+    }
+  }
+
+  @override
+  Future<void> speakPrepared(String text, {required String language, required bool ready}) async {
+    if (!_prepared) await prepare(language: language);
+    final pcm = ready && _voice != null ? _fillers[text] : null;
+    final (id, done) = _begin();
+    if (pcm == null) {
+      // Not ready in time: the Mac's voice, for this one only.
+      await _say(id, text, language);
+      return done.future;
+    }
+    _frames.addAll(levels(pcm, fps: _fps));
+    await output.play(id, pcm, last: false);
+    if (id == _id) await output.play(id, Pcm(Float32List(1), pcm.sampleRate), last: true);
     return done.future;
   }
 

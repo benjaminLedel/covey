@@ -89,17 +89,20 @@ class CallSounds {
     }
   }
 
-  /// Plays [e], unless sounds are off. Never throws: a sound that cannot
-  /// play is not worth a failed call.
-  Future<void> play(Earcon e, {int loops = 1}) async {
-    if (!enabled()) return;
+  /// Plays [e], unless sounds are off, and answers how long it plays —
+  /// zero when it does not. Never throws: a sound that cannot play is not
+  /// worth a failed call.
+  Future<Duration> play(Earcon e, {int loops = 1}) async {
+    if (!enabled()) return Duration.zero;
     final v = volume();
-    if (v <= 0) return;
+    if (v <= 0) return Duration.zero;
     try {
       final pcm = _cache[e] ??= await _load(e);
       await output.playEarcon(pcm, volume: v, loops: loops);
+      return pcm.duration * loops;
     } catch (err) {
       debugPrint('call sound ${e.file}: $err');
+      return Duration.zero;
     }
   }
 
