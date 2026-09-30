@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { ErwaehnungsListe, useErwaehnung, type Kandidat } from "./Erwaehnung";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import {
   addConversationMember,
   api,
@@ -76,6 +76,14 @@ export default function Gespraech({ id, me }: { id: string; me: Principal }) {
     [seiten.data],
   );
   const pending = seiten.data?.pages[0]?.pending ?? false;
+  /* Whether messages here get a quick reply at all (#483): without model
+     access in the control plane every one becomes a task, and the thread
+     says so rather than leaving the wait unexplained. */
+  const triage = useQuery({
+    queryKey: ["org-triage"],
+    queryFn: () => api<{ mode: string; available: boolean }>("/org/chat-triage"),
+    staleTime: 300_000,
+  });
 
   const neueste = nachrichten.length > 0 ? nachrichten[nachrichten.length - 1].created_at : "";
   useEffect(() => {
@@ -317,6 +325,19 @@ export default function Gespraech({ id, me }: { id: string; me: Principal }) {
       </div>
 
       <div className="tm-eingabe">
+        {triage.data && !triage.data.available && aktive.some((m) => m.kind === "agent") && (
+          <p className="tm-leise tm-ohne-triage">
+            {t("conversation.noTriage")}{" "}
+            {me.Role === "org_admin" ? (
+              <>
+                {t("conversation.noTriageFix")} <Link to="/secrets">{t("nav.secrets")}</Link> ·{" "}
+                <Link to="/infrastructure">{t("nav.infrastructure")}</Link>
+              </>
+            ) : (
+              t("conversation.noTriageAsk")
+            )}
+          </p>
+        )}
         {antwortAuf && (
           <div className="tm-anhaenge">
             <span className="tm-anhang">

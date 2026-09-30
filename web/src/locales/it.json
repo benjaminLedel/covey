@@ -1167,7 +1167,7 @@
       "hint": "Spento: ogni messaggio nella squadra diventa un compito. Acceso: l'agente decide se rispondere o farne lavoro — un turno breve nel piano di controllo, senza sandbox, senza sistemi di destinazione, senza credenziali.",
       "off": "Spento — ogni messaggio è un compito",
       "on": "Acceso — decide l'agente",
-      "noCredential": "Per questo l'organizzazione ha bisogno di credenziali per il piano di controllo.",
+      "noCredential": "Non disponibile: il piano di controllo non ha accesso a un modello. Deposita una chiave API Anthropic (anthropic_api_key) o un token Claude Code (claude_code_oauth_token) in Segreti, oppure dai una credenziale al runtime Claude Code in Infrastruttura. Fino ad allora ogni messaggio diventa un'attività, e la sua esecuzione risponde.",
       "cost": "Ogni messaggio costa allora una breve chiamata al modello."
     },
     "push": {
@@ -3123,7 +3123,10 @@
     "groupSize_other": "{{count}} membri con te",
     "groupSize_few": "{{count}} membri con te",
     "groupSize_many": "{{count}} membri con te",
-    "mentionList": "Menziona"
+    "mentionList": "Menziona",
+    "noTriage": "Qui ogni messaggio diventa un'attività e risponde un'esecuzione completa: il piano di controllo non ha accesso a un modello per le risposte rapide.",
+    "noTriageFix": "Aggiungi una credenziale Anthropic in",
+    "noTriageAsk": "Un amministratore può aggiungerla in Segreti o Infrastruttura."
   },
   "chatTone": {
     "title": "Nella chat del team",

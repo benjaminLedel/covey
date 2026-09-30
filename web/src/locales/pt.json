@@ -1167,7 +1167,7 @@
       "hint": "Desligado: cada mensagem na equipa torna-se uma tarefa. Ligado: o agente decide se responde ou se faz dela trabalho — um turno curto no plano de controlo, sem sandbox, sem sistemas de destino, sem credenciais.",
       "off": "Desligado — cada mensagem é uma tarefa",
       "on": "Ligado — decide o agente",
-      "noCredential": "Para isso a organização precisa de credenciais do plano de controlo.",
+      "noCredential": "Indisponível: o plano de controlo não tem acesso a um modelo. Guarde uma chave de API da Anthropic (anthropic_api_key) ou um token do Claude Code (claude_code_oauth_token) em Segredos, ou dê uma credencial ao runtime do Claude Code em Infraestrutura. Até lá, cada mensagem torna-se uma tarefa, e a sua execução responde-lhe.",
       "cost": "Cada mensagem custa então uma chamada curta ao modelo."
     },
     "push": {
@@ -3123,7 +3123,10 @@
     "groupSize_other": "{{count}} membros consigo",
     "groupSize_few": "{{count}} membros consigo",
     "groupSize_many": "{{count}} membros consigo",
-    "mentionList": "Mencionar"
+    "mentionList": "Mencionar",
+    "noTriage": "Aqui cada mensagem torna-se uma tarefa e é respondida por uma execução completa: o plano de controlo não tem acesso a um modelo para respostas rápidas.",
+    "noTriageFix": "Adicione uma credencial da Anthropic em",
+    "noTriageAsk": "Um administrador pode adicioná-la em Segredos ou Infraestrutura."
   },
   "chatTone": {
     "title": "No chat da equipe",

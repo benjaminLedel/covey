@@ -1167,7 +1167,7 @@
       "hint": "Désactivé : chaque message de l'équipe devient une tâche. Activé : l'agent décide s'il répond ou s'il en fait du travail — un tour court dans le plan de contrôle, sans bac à sable, sans systèmes cibles, sans identifiants.",
       "off": "Désactivé — chaque message devient une tâche",
       "on": "Activé — l'agent décide",
-      "noCredential": "Cela demande des identifiants du plan de contrôle pour l'organisation.",
+      "noCredential": "Indisponible : le plan de contrôle n'a pas d'accès à un modèle. Déposez une clé d'API Anthropic (anthropic_api_key) ou un jeton Claude Code (claude_code_oauth_token) dans Secrets, ou donnez un identifiant au runtime Claude Code dans Infrastructure. D'ici là, chaque message devient une tâche, et son exécution y répond.",
       "cost": "Chaque message coûte alors un appel de modèle court."
     },
     "push": {
@@ -3123,7 +3123,10 @@
     "groupSize_other": "{{count}} membres avec vous",
     "groupSize_few": "{{count}} membres avec vous",
     "groupSize_many": "{{count}} membres avec vous",
-    "mentionList": "Mentionner"
+    "mentionList": "Mentionner",
+    "noTriage": "Ici, chaque message devient une tâche et une exécution complète y répond : le plan de contrôle n'a pas d'accès à un modèle pour les réponses rapides.",
+    "noTriageFix": "Ajoutez un identifiant Anthropic dans",
+    "noTriageAsk": "Un administrateur peut en ajouter un dans Secrets ou Infrastructure."
   },
   "chatTone": {
     "title": "Dans le chat d'équipe",

@@ -332,9 +332,16 @@ export function TriageSettings() {
           <option value="off">{t("org.triage.off")}</option>
           <option value="on">{t("org.triage.on")}</option>
         </select>
-        {!triage.data.available && <span className="muted text-xs">{t("org.triage.noCredential")}</span>}
         {triage.data.available && an && <span className="muted text-xs">{t("org.triage.cost")}</span>}
       </div>
+      {/* What is missing and where it goes (#483) — not a greyed-out switch
+          that leaves the reader to guess why. */}
+      {!triage.data.available && (
+        <p className="muted text-xs mt-2 mb-0" style={{ maxWidth: 640 }}>
+          {t("org.triage.noCredential")} <Link to="/secrets">{t("nav.secrets")}</Link> ·{" "}
+          <Link to="/infrastructure">{t("nav.infrastructure")}</Link>
+        </p>
+      )}
     </div>
   );
 }

@@ -1167,7 +1167,7 @@
       "hint": "Uit: elk bericht in het team wordt een taak. Aan: de agent beslist of hij antwoordt of er werk van maakt — één korte beurt in de control plane, zonder sandbox, zonder doelsystemen, zonder inloggegevens.",
       "off": "Uit — elk bericht wordt een taak",
       "on": "Aan — de agent beslist",
-      "noCredential": "Hiervoor heeft de organisatie inloggegevens voor de control plane nodig.",
+      "noCredential": "Niet beschikbaar: de control plane heeft geen toegang tot een model. Zet een Anthropic-API-sleutel (anthropic_api_key) of een Claude Code-token (claude_code_oauth_token) onder Geheimen, of geef de Claude Code-runtime inloggegevens onder Infrastructuur. Tot dan wordt elk bericht een taak, en de run ervan beantwoordt het.",
       "cost": "Elk bericht kost dan één korte modelaanroep."
     },
     "push": {
@@ -3123,7 +3123,10 @@
     "groupSize_other": "{{count}} leden inclusief jou",
     "groupSize_few": "{{count}} leden inclusief jou",
     "groupSize_many": "{{count}} leden inclusief jou",
-    "mentionList": "Vermelden"
+    "mentionList": "Vermelden",
+    "noTriage": "Elk bericht hier wordt een taak en een volledige run beantwoordt het: de control plane heeft geen toegang tot een model voor snelle antwoorden.",
+    "noTriageFix": "Voeg Anthropic-inloggegevens toe onder",
+    "noTriageAsk": "Een beheerder kan ze toevoegen onder Geheimen of Infrastructuur."
   },
   "chatTone": {
     "title": "In de teamchat",

@@ -2248,6 +2248,9 @@
   padding: 0 6px;
 }
 .tm-leise { color: var(--text-muted); font-size: 13px; padding: 6px 10px; }
+/* Why a message here waits for a whole run (#483): one line above the box. */
+.tm-ohne-triage { margin: 0 0 6px; padding: 0 4px; font-size: 12px; }
+.tm-ohne-triage a { color: inherit; text-decoration: underline; }
 
 /* Was wartet steht ganz oben und ist der Grund, warum es diese Oberfläche
    gibt. Der Punkt davor ist gefüllt, solange etwas offen ist — und er trägt

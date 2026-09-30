@@ -94,6 +94,8 @@ the control plane, and covey already has that shape — `internal/httpapi/assist
 uses the organisation's credential server-side, without a sandbox, to help
 write a config. Off is the default, and off means today's behaviour exactly.
 
+The model is the organisation's control-plane credential, found the way a run finds its own (#483, [`18`](18-runtimes-capacity.md)): the two org secrets by name, else the first usable credential of the Claude Code seats. `GET /api/v1/org/chat-triage` answers `available: false` only when neither exists, and then the settings card and every conversation with an agent say so — what is missing, that every message becomes a task until then, and, for an administrator, the links to Secrets and Infrastructure — rather than showing a greyed-out switch. The default stays off even where the model is available: it was chosen so that an upgrade changes nothing and no turn is paid for that nobody switched on, not because a credential was missing, and `organizations.chat_triage` cannot tell a switch left alone from one turned off.
+
 The limits are the point, not a detail, because the turn runs **outside the
 sandbox**:
 
