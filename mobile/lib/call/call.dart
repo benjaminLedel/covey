@@ -284,10 +284,14 @@ abstract class CallBackend {
 
 /// The conversation API (#440, #447) for one agent's direct conversation.
 class ApiCallBackend implements CallBackend {
-  ApiCallBackend(this.api, this.agentId);
+  ApiCallBackend(this.api, this.agentId, {this.language = ''});
 
   final CoveyApi api;
   final String agentId;
+
+  /// The call's language, so the voice assigned to the agent is one of that
+  /// language (#518); empty leaves it to the server.
+  final String language;
   String? _id;
   List<ConversationMember> _members = const [];
 
@@ -315,7 +319,10 @@ class ApiCallBackend implements CallBackend {
 
   Future<Map<String, dynamic>> _speechOf() => _speech ??= () async {
     final c = await _conversation();
-    return await api.get('/conversations/${c.id}/speech?agent=${Uri.encodeQueryComponent(agentId)}')
+    return await api.get(
+          '/conversations/${c.id}/speech?agent=${Uri.encodeQueryComponent(agentId)}'
+          '${language.isEmpty ? '' : '&lang=${Uri.encodeQueryComponent(language)}'}',
+        )
         as Map<String, dynamic>;
   }();
 
