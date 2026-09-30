@@ -214,9 +214,25 @@ func TestTheVoiceProviderSpeaksAndHears(t *testing.T) {
 	if tested["ok"] != true || tested["bytes"] != float64(len(fakeWAV)) {
 		t.Fatalf("test with educa: %v", tested)
 	}
-	if got := educa.lastSpeech(); got["input"] != "This is a test of the voice provider." || got["response_format"] != "wav" {
-		t.Fatalf("test request: %v", got)
+	const testSpoken = "This is a test of the voice provider, ticket four hundred eighty-one, " +
+		"one thousand two hundred fifty euros and fifty cents, on September thirtieth twenty twenty-six at ten thirty."
+	if got := educa.lastSpeech(); got["input"] != testSpoken || got["response_format"] != "wav" || tested["text"] != testSpoken {
+		t.Fatalf("test request: %v, answer %v", got, tested)
 	}
+
+	// The provider gets words (#501): the reply's numbers, codes and emojis
+	// written out in the request's language, or the one its words suggest.
+	post(ada, synth, map[string]any{"language": "de-DE",
+		"text": "Doch, ist drin – DLES-273, MR !475 🎉, um 10:30 für 1.250 €."}, http.StatusOK)
+	if got := educa.lastSpeech()["input"]; got != "Doch, ist drin, D L E S zweihundertdreiundsiebzig, "+
+		"Merge Request vierhundertfünfundsiebzig, um zehn Uhr dreißig für eintausendzweihundertfünfzig Euro." {
+		t.Fatalf("normalised German: %q", got)
+	}
+	post(ada, synth, map[string]any{"text": "The export is at 12% and costs $5 👍", "stream": true}, http.StatusOK)
+	if got := educa.lastSpeech()["input"]; got != "The export is at twelve percent and costs five dollars" {
+		t.Fatalf("normalised English: %q", got)
+	}
+	post(ada, synth, map[string]any{"text": "🎉🎉 👍"}, http.StatusBadRequest)
 
 	// Refusals before the server is asked.
 	post(ada, synth, map[string]any{"text": "   "}, http.StatusBadRequest)

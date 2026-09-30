@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 
 	"covey/internal/org"
+	"covey/internal/speech/normalise"
 	"covey/internal/voice"
 )
 
@@ -55,8 +56,10 @@ const (
 	educaDefaultBaseURL    = "https://api.educaai.de"
 )
 
-// voiceProviderTestText is the sentence the settings' test synthesises.
-const voiceProviderTestText = "This is a test of the voice provider."
+// voiceProviderTestText is the sentence the settings' test synthesises. It
+// carries what the normaliser writes out (#501), so the test also shows
+// that numbers, times and emojis come out as words.
+const voiceProviderTestText = "This is a test of the voice provider 🎙️ – ticket #481, €1,250.50, on 2026-09-30 at 10:30."
 
 // The organisation secrets an educa AI endpoint is reached with — the ones
 // the educa-ai engine uses (internal/daemon/runtime_educa.go). The contract
@@ -383,7 +386,8 @@ func (s *Server) handleTestVoiceProvider(w http.ResponseWriter, r *http.Request)
 	ctx, cancel := context.WithTimeout(r.Context(), voiceProviderTestTimeout)
 	defer cancel()
 	started := time.Now()
-	resp, err := e.speak(ctx, speechRequest{Text: voiceProviderTestText, Language: "en"})
+	spoken := normalise.Normalise(voiceProviderTestText, "en")
+	resp, err := e.speak(ctx, speechRequest{Text: spoken, Language: "en"})
 	if err != nil {
 		fail(err.Error())
 		return
@@ -394,7 +398,7 @@ func (s *Server) handleTestVoiceProvider(w http.ResponseWriter, r *http.Request)
 		fail(err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "ms": time.Since(started).Milliseconds(), "bytes": len(audio)})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "ms": time.Since(started).Milliseconds(), "bytes": len(audio), "text": spoken})
 }
 
 // handleSynthesize speaks a text with the organisation's voice provider:
@@ -445,6 +449,14 @@ func (s *Server) handleSynthesize(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "speed is positive, or 0 for the voice's own")
 		return
 	}
+	// The provider gets words (#501): synthesis models read numbers,
+	// amounts, times and emojis unreliably, so they are written out here, in
+	// the request's language. The recording counts what the app sent.
+	chars := utf8.RuneCountInString(req.Text)
+	if req.Text = normalise.Normalise(req.Text, req.Language); req.Text == "" {
+		writeErr(w, http.StatusBadRequest, "the text has nothing to speak")
+		return
+	}
 	e, err := s.voiceProviderOf(r.Context(), p.OrgID)
 	if err != nil {
 		mapErr(w, err)
@@ -472,7 +484,6 @@ func (s *Server) handleSynthesize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer resp.Body.Close()
-	chars := utf8.RuneCountInString(req.Text)
 	if req.Stream {
 		n := s.streamAudio(w, resp.Body)
 		if n > 0 {
