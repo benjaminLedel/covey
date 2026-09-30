@@ -227,13 +227,5 @@
       "spoken_ids",
       "spoken_form"
     ]
-  },
-  {
-    "scenario": "en-call-task-ack",
-    "why": "#502: a spoken acknowledgement that keeps talking.",
-    "recorded": "{\"action\": \"task\", \"title\": \"Reply to ticket 4711\", \"body\": \"Reply and offer a refund.\", \"text\": \"On it, I'll reply and offer the refund.\", \"spoken\": \"On it. I'll open the ticket. Then I'll read the history. Then I'll write to the customer. Then I'll offer the refund and let you know.\", \"details_in_chat\": false}",
-    "fails": [
-      "spoken_sentences"
-    ]
   }
 ]

@@ -612,7 +612,7 @@ var (
 )
 
 // pruefenGesprochen checks the spoken form of a call scenario (#502): it is
-// there, at most three sentences, in the language of the message and of the
+// there, at most two sentences (#511), in the language of the message and of the
 // written answer, with no ids, links, emoji or marks of writing, and none of
 // the machinery.
 func pruefenGesprochen(sc evalScenario, a evalAusgabe) []befund {
@@ -631,8 +631,8 @@ func pruefenGesprochen(sc evalScenario, a evalAusgabe) []befund {
 		return out
 	}
 	klein := strings.ToLower(g)
-	if n := saetze(g); n > 3 {
-		add("spoken_sentences", "%d, at most 3", n)
+	if n := saetze(g); n > SpokenSentences {
+		add("spoken_sentences", "%d, at most %d", n, SpokenSentences)
 	}
 	if l := sprache(g); l != "" && sc.Language != "" && l != sc.Language {
 		add("spoken_language", "reads as %s, want %s", l, sc.Language)

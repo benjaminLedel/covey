@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"covey/internal/llm"
@@ -38,16 +39,24 @@ const (
 // SaidInCall says whether a person's message was said aloud in a call.
 func SaidInCall(m Message) bool { return m.Meta[ViaMeta] == ViaCall }
 
-// SpokenMax bounds a spoken form: three short sentences are well under it.
+// SpokenMax bounds a spoken form: two short sentences are well under it.
 // What is longer is cut at its last sentence end within the bound — a model
 // that wrote a paragraph for the ear still must not keep a caller listening.
-const SpokenMax = 360
+const SpokenMax = 240
+
+// SpokenSentences is how many sentences a spoken form keeps (#511): in a
+// call, a third sentence was an offer nobody asked for or a second topic.
+const SpokenSentences = 2
 
 // Sprechbar is a spoken form as it is stored: on one line, without the
-// markdown a model may still have put in, and bounded by SpokenMax.
+// markdown a model may still have put in, at most SpokenSentences
+// sentences, and bounded by SpokenMax.
 func Sprechbar(s string) string {
 	s = strings.Join(strings.Fields(s), " ")
 	s = strings.NewReplacer("**", "", "__", "", "`", "").Replace(s)
+	if i := sentenceEnd(s, SpokenSentences); i > 0 {
+		s = strings.TrimSpace(s[:i])
+	}
 	r := []rune(s)
 	if len(r) <= SpokenMax {
 		return s
@@ -61,6 +70,37 @@ func Sprechbar(s string) string {
 		cut = cut[:i]
 	}
 	return strings.TrimSpace(cut) + "…"
+}
+
+// sentenceEnd is the byte offset after the n-th sentence of s when more
+// follows, else 0. A sentence ends at . ! ? or … before a space and a word
+// that starts with a capital or no letter; "z. B." and "d. h." end none.
+func sentenceEnd(s string, n int) int {
+	count := 0
+	for i, r := range s {
+		if !strings.ContainsRune(".!?…", r) {
+			continue
+		}
+		after := i + utf8.RuneLen(r)
+		rest := s[after:]
+		if !strings.HasPrefix(rest, " ") {
+			continue
+		}
+		next, _ := utf8.DecodeRuneInString(rest[1:])
+		if unicode.IsLower(next) {
+			continue
+		}
+		if r == '.' {
+			word := s[strings.LastIndex(s[:i], " ")+1 : i]
+			if utf8.RuneCountInString(word) == 1 && unicode.IsLower([]rune(word)[0]) {
+				continue
+			}
+		}
+		if count++; count == n {
+			return after
+		}
+	}
+	return 0
 }
 
 // WithSpoken is meta with the spoken form beside what it carries: a copy,
@@ -84,7 +124,7 @@ func WithSpoken(meta map[string]string, spoken string, details bool) map[string]
 
 // SpokenRules is how a spoken form is written — the same rules for the
 // triage, the run of a chat answer and the turn after a result.
-const SpokenRules = `- one to three short sentences, as you would say them on the phone;
+const SpokenRules = `- at most two short sentences, as you would say them on the phone, that answer what was asked and nothing else: no preamble, no second topic, no offer of more help — whatever is left over stays in the written form;
 - no ids, ticket or merge request numbers, links, addresses, file paths, lists, emojis, markdown or parentheses, unless the person asked for exactly that: say what a thing is — "the merge request for the login bug", not "MR !475";
 - numbers as they are said — "about two hundred euros", "half past three" — and no symbols;
 - the same language, voice and tone as the written form, and nothing the written form does not say.`
@@ -237,7 +277,7 @@ func SplitSpoken(result string) (written, spoken string, details bool) {
 	return written, spoken, details
 }
 
-// SprechMaxTokens: a JSON object with three short sentences in it.
+// SprechMaxTokens: a JSON object with two short sentences in it.
 const SprechMaxTokens = 300
 
 const sprechSystem = `You are part of covey, a platform that runs AI agents as employees. An AI colleague is in a call with a person, and a message of theirs has just been posted into the conversation. A voice reads it out. Write what the voice says — the same message for the ear:

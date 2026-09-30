@@ -115,6 +115,22 @@ func TestSprechbarBegrenzt(t *testing.T) {
 	}
 }
 
+// TestSprechbarZweiSaetze: a spoken form keeps two sentences (#511); an
+// abbreviation or a lower-case word after a point ends none.
+func TestSprechbarZweiSaetze(t *testing.T) {
+	for _, c := range []struct{ in, want string }{
+		{"Ja, ist drin. Die Tests sind grün. Soll ich noch was machen?", "Ja, ist drin. Die Tests sind grün."},
+		{"Hi! Ich schau mir gerade die Reviews an. Und danach die Pipelines.", "Hi! Ich schau mir gerade die Reviews an."},
+		{"Das geht z. B. über den Export. Mehr steht im Chat.", "Das geht z. B. über den Export. Mehr steht im Chat."},
+		{"Hm… okay, das dauert. Ich melde mich.", "Hm… okay, das dauert. Ich melde mich."},
+		{"Yes. It's in. And the tests are green.", "Yes. It's in."},
+	} {
+		if got := Sprechbar(c.in); got != c.want {
+			t.Errorf("Sprechbar(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
 // TestSplitSpoken: the trailing tag a chat answer's run writes in a call is
 // taken off the written reply.
 func TestSplitSpoken(t *testing.T) {
@@ -148,7 +164,7 @@ func TestSprechfassung(t *testing.T) {
 	if err != nil || g != gesprochenMR || !d {
 		t.Fatalf("spoken form: %q %v %v", g, d, err)
 	}
-	if !strings.Contains(m.prompt, geschriebenMR) || !strings.Contains(m.system, "one to three short sentences") {
+	if !strings.Contains(m.prompt, geschriebenMR) || !strings.Contains(m.system, "at most two short sentences") {
 		t.Fatalf("turn: %s\n%s", m.system, m.prompt)
 	}
 	if _, _, err := Sprechfassung(context.Background(), fehlerModell{}, geschriebenMR); err == nil {
