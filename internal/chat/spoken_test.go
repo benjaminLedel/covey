@@ -158,3 +158,84 @@ func TestSprechfassung(t *testing.T) {
 		t.Fatal("an empty spoken form must not pass")
 	}
 }
+
+// The two answers of a German call whose spoken forms came out in English
+// (#511), and their spoken forms as they should have been.
+const (
+	geschriebenReviews      = "Hi! Bin gerade bei den Reviews – schau mir die MRs an und warte auf die Pipelines."
+	englischReviews         = "Hi! I'm looking at the merge requests right now and waiting for the pipelines to finish."
+	gesprochenReviews       = "Hi! Ich schau mir gerade die Merge Requests an und warte auf die Pipelines."
+	geschriebenHollaendisch = "Nein, Holländisch kann ich nicht. Warum?"
+	englischHollaendisch    = "No, I don't speak Dutch. Why do you ask?"
+)
+
+// TestTriageImAnrufSpracheDerAntwort: the call's instruction names the
+// spoken form's language, and a spoken form in another language than the
+// written answer is dropped — the call then speaks the written one (#511).
+func TestTriageImAnrufSpracheDerAntwort(t *testing.T) {
+	for _, c := range []struct{ nachricht, text, spoken, want string }{
+		{"Was machst du gerade?", geschriebenReviews, englischReviews, ""},
+		{"Kannst du eigentlich Holländisch?", geschriebenHollaendisch, englischHollaendisch, ""},
+		{"Was machst du gerade?", geschriebenReviews, gesprochenReviews, gesprochenReviews},
+	} {
+		m := &fangModell{antwort: `{"action":"answer","text":"` + c.text + `","spoken":"` + c.spoken + `"}`}
+		e, err := Triagieren(context.Background(), m, Rahmen{Anruf: true}, "", nil, nil, nil, c.nachricht, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if e.Text != c.text || e.Gesprochen != c.want {
+			t.Errorf("%q: spoken %q, want %q", c.spoken, e.Gesprochen, c.want)
+		}
+		if meta := e.AnswerMeta(); c.want == "" && meta[MetaSpoken] != "" {
+			t.Errorf("meta carries the dropped spoken form: %v", meta)
+		}
+		if !strings.Contains(m.system, "same language as the written form") || !strings.Contains(m.system, "German") {
+			t.Fatalf("the call's instruction does not name the language:\n%s", m.system)
+		}
+		if !strings.Contains(m.system, "Ja, ist drin.") {
+			t.Fatalf("a German conversation gets the German example:\n%s", m.system)
+		}
+	}
+}
+
+// TestTriageImAnrufSpracheAusDemGespraech: a message too short to tell
+// takes the conversation's language, for the prompt and for a written
+// answer too short to tell.
+func TestTriageImAnrufSpracheAusDemGespraech(t *testing.T) {
+	verlauf := []Beitrag{{Wer: "Ada", Text: "Kannst du mir sagen, wie weit die Reviews sind?"}, {Wer: "you", Text: "Bin noch dabei, dauert nicht mehr lang."}}
+	m := &fangModell{antwort: `{"action":"answer","text":"👍","spoken":"Okay, I will do that right away for you."}`}
+	e, err := Triagieren(context.Background(), m, Rahmen{Anruf: true}, "", nil, nil, verlauf, "Okay.", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(m.system, "here that is German") {
+		t.Fatalf("the conversation's language is not named:\n%s", m.system)
+	}
+	if e.Gesprochen != "" {
+		t.Fatalf("an English spoken form in a German conversation was kept: %q", e.Gesprochen)
+	}
+}
+
+// TestSplitSpokenAndereSprache: a chat answer's spoken form in another
+// language than its reply is not said (#511).
+func TestSplitSpokenAndereSprache(t *testing.T) {
+	w, g, d := SplitSpoken(geschriebenReviews + "\n<spoken details_in_chat=\"true\">" + englischReviews + "</spoken>")
+	if w != geschriebenReviews || g != "" || d {
+		t.Fatalf("split: %q | %q | %v", w, g, d)
+	}
+	if _, g, _ := SplitSpoken(geschriebenReviews + "\n<spoken>" + gesprochenReviews + "</spoken>"); g != gesprochenReviews {
+		t.Fatalf("a German spoken form was dropped: %q", g)
+	}
+}
+
+// TestSprechfassungAndereSprache: the turn after a result names the
+// message's language, and its spoken form in another is refused (#511).
+func TestSprechfassungAndereSprache(t *testing.T) {
+	m := &fangModell{antwort: `{"spoken":"` + englischHollaendisch + `"}`}
+	if g, _, err := Sprechfassung(context.Background(), m, geschriebenHollaendisch); err == nil {
+		t.Fatalf("an English spoken form of a German message passed: %q", g)
+	}
+	if !strings.Contains(m.system, "same language as the message") || !strings.Contains(m.system, "German") {
+		t.Fatalf("the turn does not name the language:\n%s", m.system)
+	}
+}

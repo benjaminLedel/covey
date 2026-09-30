@@ -186,6 +186,8 @@ What the trial does not do yet: the voice slots are not a config file and are no
 
 The spoken form is bounded (`chat.SpokenMax`); a parked question from a call is still spoken as written.
 
+The spoken form is in the written answer's language (#511). Each of the three prompts says so, and names the language when it is known — the triage the conversation's (`normalise.Language` over the message, else the last lines of the conversation), the turn after a result the message's; a German conversation gets a German example. A spoken form that `normalise.Language` reads as another language than its written answer (or, when the written answer is too short to tell, than the conversation) is dropped (`chat.SpokenFits`), and the call speaks the written answer. The detector is sure or says nothing: it counts function words that belong to one of the app's Latin-script languages only and tells Japanese and Chinese by their script; a text too short to tell keeps its spoken form.
+
 The open decisions are in the issue; the load-bearing one is what the answer
 is allowed to know. The recommendation is: the role and the conversation, not the
 wiki memory. An answer that needs the memory is an answer that should have
