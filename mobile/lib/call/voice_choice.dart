@@ -15,9 +15,19 @@ import 'speech_text.dart';
 /// app's own per-agent choice ([CallVoicePrefs]) is a device's override on
 /// top of it, and only there can the Mac's own voice be named.
 class SpokenVoice {
-  const SpokenVoice.device(this.model, {this.speaker = 0, this.rate = 0}) : source = sourceDevice, voice = '';
-  const SpokenVoice.server({this.model = '', this.voice = '', this.rate = 0}) : source = sourceServer, speaker = 0;
-  const SpokenVoice.system({this.rate = 0}) : source = sourceSystem, model = '', voice = '', speaker = 0;
+  const SpokenVoice.device(this.model, {this.speaker = 0, this.rate = 0})
+    : source = sourceDevice,
+      voice = '',
+      instructions = '';
+  const SpokenVoice.server({this.model = '', this.voice = '', this.rate = 0, this.instructions = ''})
+    : source = sourceServer,
+      speaker = 0;
+  const SpokenVoice.system({this.rate = 0})
+    : source = sourceSystem,
+      model = '',
+      voice = '',
+      speaker = 0,
+      instructions = '';
 
   static const sourceDevice = 'device';
   static const sourceServer = 'server';
@@ -37,6 +47,14 @@ class SpokenVoice {
 
   /// 1 is the voice's own pace; 0 leaves it at that.
   final double rate;
+
+  /// How a speech server is to speak, in a short English line the instance
+  /// derives from the agent's chat tone; not part of the stored choice.
+  final String instructions;
+
+  /// The same voice, told how to speak.
+  SpokenVoice withInstructions(String i) =>
+      onServer ? SpokenVoice.server(model: model, voice: voice, rate: rate, instructions: i) : this;
 
   bool get onDevice => source == sourceDevice && model.isNotEmpty;
   bool get onServer => source == sourceServer;

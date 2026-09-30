@@ -13,7 +13,6 @@ import '../theme.dart';
 import '../ui.dart';
 import 'call.dart';
 import 'recording.dart';
-import 'synth.dart';
 import 'voice.dart';
 import 'voice_choice.dart';
 
@@ -320,7 +319,7 @@ class VoicePreview {
       chosen: () async => voice,
       offered: () async => VoiceOffer(voices: model == null ? const [] : [model], server: server),
       fetch: fetchVoiceModel(api),
-      server: (m, v) => ServerSynthesiser(api.synthesizeSpeech, model: m, voice: v),
+      server: (v) => serverVoice(api, v, agentId: agent.id),
     );
     // The voice is fetched first, so the preview is heard in it.
     if (model != null) await fetchVoiceModel(api)(model, wait: true);

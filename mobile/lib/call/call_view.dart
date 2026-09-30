@@ -12,7 +12,6 @@ import '../theme.dart';
 import 'call.dart';
 import 'ears.dart';
 import 'recording.dart';
-import 'synth.dart';
 import 'understood.dart';
 import 'voice.dart';
 import 'voice_choice.dart';
@@ -89,7 +88,7 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
             chosen: () async => await CallVoicePrefs.read(widget.agentId) ?? await backend.spokenVoice(),
             offered: () async => VoiceOffer.of(await api.speechModel()),
             fetch: fetchVoiceModel(api),
-            server: (model, voice) => ServerSynthesiser(api.synthesizeSpeech, model: model, voice: voice),
+            server: (v) => serverVoice(api, v, agentId: widget.agentId),
           ),
           agentId: widget.agentId,
           agentName: widget.agentName,

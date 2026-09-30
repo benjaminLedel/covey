@@ -6,15 +6,29 @@ import 'dart:typed_data';
 
 import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa;
 
-/// Speech synthesis on the device (#497), apart from any one engine: text
-/// and a voice in, samples out. The first implementation is sherpa-onnx's
-/// offline TTS ([SherpaSynthesiser]); which models it runs is the covey
-/// instance's catalogue, so a better voice is a catalogue entry, not a new
-/// path through the app.
+import 'speech_text.dart' show splitSentences;
+
+/// Speech synthesis (#497), apart from any one engine: text and a voice in,
+/// samples out. Two implementations: sherpa-onnx's offline TTS on the
+/// device ([SherpaSynthesiser]), and the organisation's own speech server
+/// through the instance ([ServerSynthesiser]). Which models the device runs
+/// is the instance's catalogue, so a better voice is a catalogue entry, not
+/// a new path through the app.
 abstract class Synthesiser {
+  const Synthesiser();
+
   /// [text] spoken by speaker [speaker] of the loaded model, at [rate]
   /// (1 is the model's own pace).
   Future<Pcm> synthesise(String text, {int speaker = 0, double rate = 1});
+
+  /// [text] in pieces as they are ready, so playing starts with the first:
+  /// sentence by sentence unless the engine streams by itself. [language]
+  /// is what the reply is written in, for an engine that is told.
+  Stream<Pcm> stream(String text, {int speaker = 0, double rate = 1, String language = ''}) async* {
+    for (final s in splitSentences(text)) {
+      yield await synthesise(s, speaker: speaker, rate: rate);
+    }
+  }
 
   /// Frees the model.
   void close();
@@ -81,7 +95,7 @@ class TtsFiles {
 /// sherpa-onnx's offline TTS in a worker isolate: loading takes a moment
 /// and synthesis a fraction of the speech's length, neither of which may
 /// hold the UI.
-class SherpaSynthesiser implements Synthesiser {
+class SherpaSynthesiser extends Synthesiser {
   SherpaSynthesiser._(this._isolate, this._send, this._replies, this.speakers);
 
   final Isolate _isolate;
@@ -220,24 +234,95 @@ Pcm? decodeWav(Uint8List bytes) {
   return null;
 }
 
+/// Opens a stream of synthesised audio at the instance: its content type
+/// and its bytes as they arrive ([CoveyApi.synthesizeSpeechStream]).
+typedef SpeechStreamOpen =
+    Future<(String, Stream<List<int>>)> Function(
+      String text, {
+      String model,
+      String voice,
+      double rate,
+      String language,
+      String instructions,
+    });
+
+/// Turns the chunks of a compressed stream into samples as they arrive: the
+/// Mac decodes MP3 in the voice channel ([VoiceOutput]).
+abstract class StreamDecoding {
+  Future<bool> openDecoder(int id);
+  Future<Pcm> decode(int id, Uint8List bytes);
+  Future<void> closeDecoder(int id);
+}
+
 /// Speech synthesis by the organisation's own speech server (#497): the
 /// instance calls it with the organisation's key — an OpenAI-compatible
-/// `/v1/audio/speech` — and hands back a WAV file. No per-token cloud
-/// service: the server is the organisation's.
-class ServerSynthesiser implements Synthesiser {
-  ServerSynthesiser(this.fetch, {this.model = '', this.voice = ''});
+/// `/v1/audio/speech`, educa AI first — and passes its audio through as it
+/// comes, MP3 while it streams, so the first sentence plays while the rest
+/// is still being synthesised. No per-token cloud service: the server is
+/// the organisation's, and its key never reaches the app.
+class ServerSynthesiser extends Synthesiser {
+  ServerSynthesiser(this.open, this.decoder, {this.model = '', this.voice = '', this.instructions = ''});
 
-  /// The WAV of a text, as the instance answers `POST /speech/synthesize`.
-  final Future<Uint8List> Function(String text, {String model, String voice, double rate}) fetch;
+  final SpeechStreamOpen open;
+  final StreamDecoding decoder;
   final String model;
   final String voice;
 
+  /// How it is to be spoken, in a short English line.
+  final String instructions;
+
+  static int _streams = 0;
+
   @override
   Future<Pcm> synthesise(String text, {int speaker = 0, double rate = 1}) async {
-    final wav = await fetch(text, model: model, voice: voice, rate: rate == 1 ? 0 : rate);
-    final pcm = decodeWav(wav);
-    if (pcm == null) throw const FormatException('the speech server did not answer with a WAV file');
-    return pcm;
+    final parts = await stream(text, rate: rate).toList();
+    if (parts.isEmpty) return Pcm(_none, 0);
+    final all = Float32List(parts.fold(0, (n, p) => n + p.samples.length));
+    var at = 0;
+    for (final p in parts) {
+      all.setAll(at, p.samples);
+      at += p.samples.length;
+    }
+    return Pcm(all, parts.first.sampleRate);
+  }
+
+  static final _none = Float32List(0);
+
+  @override
+  Stream<Pcm> stream(String text, {int speaker = 0, double rate = 1, String language = ''}) async* {
+    final (type, bytes) = await open(
+      text,
+      model: model,
+      voice: voice,
+      rate: rate == 1 ? 0 : rate,
+      language: language,
+      instructions: instructions,
+    );
+    final kind = type.split(';').first.trim().toLowerCase();
+    if (kind == 'audio/mpeg' || kind == 'audio/mp3') {
+      final id = ++_streams;
+      if (!await decoder.openDecoder(id)) throw const FormatException('this Mac cannot decode MP3');
+      try {
+        await for (final chunk in bytes) {
+          final pcm = await decoder.decode(id, chunk is Uint8List ? chunk : Uint8List.fromList(chunk));
+          if (pcm.samples.isNotEmpty) yield pcm;
+        }
+      } finally {
+        await decoder.closeDecoder(id);
+      }
+      return;
+    }
+    if (kind == 'audio/wav' || kind == 'audio/x-wav' || kind == 'audio/wave') {
+      final b = BytesBuilder(copy: false);
+      await for (final chunk in bytes) {
+        b.add(chunk);
+      }
+      final pcm = decodeWav(b.takeBytes());
+      if (pcm == null) throw const FormatException('the speech server did not answer with a WAV file');
+      yield pcm;
+      return;
+    }
+    throw FormatException('the speech server answered with $type');
   }
 
   @override

@@ -287,7 +287,9 @@ class ApiCallBackend implements CallBackend {
       final out =
           await api.get('/conversations/$_conv/speech?agent=${Uri.encodeQueryComponent(agentId)}')
               as Map<String, dynamic>;
-      return SpokenVoice.fromJson(out['speech']);
+      final v = SpokenVoice.fromJson(out['speech']);
+      final how = out['instructions'];
+      return v != null && how is String ? v.withInstructions(how) : v;
     } on ApiException {
       // An instance from before spoken voices, or none resolved.
       return null;

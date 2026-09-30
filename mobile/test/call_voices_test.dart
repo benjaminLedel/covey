@@ -175,6 +175,39 @@ void main() {
     });
   });
 
+  group('the speech server', () {
+    test('its MP3 is decoded as it streams in, and a WAV is read whole', () async {
+      final out = _Output();
+      final mp3 = ServerSynthesiser(
+        (text, {model = '', voice = '', rate = 0, language = '', instructions = ''}) async {
+          expect((voice, language, instructions), ('DEFAULT_VOICE', 'de', 'calm, concise'));
+          return ('audio/mpeg', Stream<List<int>>.fromIterable([List.filled(100, 1), List.filled(50, 2)]));
+        },
+        out,
+        voice: 'DEFAULT_VOICE',
+        instructions: 'calm, concise',
+      );
+      final parts = await mp3.stream('Hallo.', language: 'de').toList();
+      expect(parts.map((p) => p.samples.length), [100, 50]);
+      expect(parts.first.sampleRate, 48000);
+
+      final pcm = Uint8List(4);
+      final wav = ServerSynthesiser(
+        (text, {model = '', voice = '', rate = 0, language = '', instructions = ''}) async =>
+            ('audio/wav', Stream<List<int>>.value(_wav(pcm, format: 1, bits: 16, rate: 24000))),
+        out,
+      );
+      expect((await wav.synthesise('Hallo.')).sampleRate, 24000);
+
+      final other = ServerSynthesiser(
+        (text, {model = '', voice = '', rate = 0, language = '', instructions = ''}) async =>
+            ('text/plain', const Stream<List<int>>.empty()),
+        out,
+      );
+      expect(other.stream('x').toList(), throwsFormatException);
+    });
+  });
+
   group('the speaker', () {
     test('an own voice plays sentence by sentence and drives the mouth', () async {
       final out = _Output();
@@ -184,7 +217,7 @@ void main() {
       final done = s.speak('Der Export läuft. Er ist gleich fertig.', language: 'de');
       await _settle();
       expect(synth.said, ['Der Export läuft.', 'Er ist gleich fertig.']);
-      expect(out.played.map((p) => p.$2), [false, true], reason: 'the last one says it is the last');
+      expect(out.played.map((p) => p.$2), [false, false, true], reason: 'a mark of silence ends it');
       expect(out.said, isEmpty);
       out.emit(SpeakingEvent.started);
       await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -229,7 +262,7 @@ void main() {
       await s.prepare(language: 'de');
       unawaited(s.speak('Eins. Zwei.', language: 'de'));
       await _settle();
-      expect(server.said, ['Eins.']);
+      expect(server.said, ['Eins.'], reason: 'the server fails with the first piece');
       expect(device.said, ['Eins.', 'Zwei.']);
       out.emit(SpeakingEvent.finished);
       await _settle();
@@ -277,11 +310,11 @@ AgentSpeaker _speaker(
   chosen: () async => chosen,
   offered: () async => offer ?? VoiceOffer(voices: [_voice('a-de', 'de-DE')]),
   fetch: fetch ?? (m, {required wait}) async => '/voices/${m.name}',
-  server: server == null ? null : (model, voice) => server,
+  server: server == null ? null : (voice) => server,
   loadSynth: (dir, family) async => device,
 );
 
-class _Synth implements Synthesiser {
+class _Synth extends Synthesiser {
   _Synth({this.fail = false, this.gate});
   final bool fail;
   final Completer<void>? gate;
@@ -332,6 +365,15 @@ class _Output implements VoiceOutput {
 
   @override
   Future<void> stop() async => stops++;
+
+  @override
+  Future<bool> openDecoder(int id) async => true;
+
+  @override
+  Future<Pcm> decode(int id, Uint8List bytes) async => Pcm(Float32List(bytes.length), 48000);
+
+  @override
+  Future<void> closeDecoder(int id) async {}
 
   @override
   Future<List<SystemVoice>> voices() async => _system;

@@ -524,35 +524,52 @@ class CoveyApi {
     return out['text'] as String;
   }
 
-  /// [text] spoken by the organisation's own speech server (#497), through
-  /// the instance, which holds the server's key: a WAV file. [model] and
-  /// [voice] empty take the organisation's defaults.
-  Future<Uint8List> synthesizeSpeech(String text, {String model = '', String voice = '', double rate = 0}) async {
+  /// [text] spoken by the organisation's speech server as a stream (#497):
+  /// the audio's content type (`audio/mpeg` while it streams, `audio/wav`
+  /// otherwise) and its bytes as they arrive — the first sentence plays
+  /// while the rest is still being synthesised.
+  Future<(String, Stream<List<int>>)> synthesizeSpeechStream(
+    String text, {
+    String model = '',
+    String voice = '',
+    double rate = 0,
+    String language = '',
+    String instructions = '',
+    String agent = '',
+  }) async {
+    final req = http.Request('POST', _url('/speech/synthesize'))
+      ..headers.addAll({..._headers, 'Content-Type': 'application/json', 'Accept': 'audio/mpeg, audio/wav'})
+      ..body = jsonEncode({
+        'text': text,
+        'stream': true,
+        if (model.isNotEmpty) 'model': model,
+        if (voice.isNotEmpty) 'voice': voice,
+        if (rate > 0) 'rate': rate,
+        if (language.isNotEmpty) 'language': language,
+        if (instructions.isNotEmpty) 'instructions': instructions,
+        // The agent it is spoken for: the instance files it in its recording.
+        if (agent.isNotEmpty) 'agent': agent,
+      });
     final watch = Stopwatch()..start();
-    final http.Response res;
+    final http.StreamedResponse res;
     try {
-      res = await _http
-          .post(
-            _url('/speech/synthesize'),
-            headers: {..._headers, 'Content-Type': 'application/json', 'Accept': 'audio/wav'},
-            body: jsonEncode({'text': text, 'model': model, 'voice': voice, if (rate > 0) 'rate': rate}),
-          )
-          .timeout(_timeout);
+      res = await _http.send(req).timeout(_timeout);
     } catch (e) {
       throw ApiException(0, e.toString());
     }
     diag('api', 'POST /speech/synthesize ${res.statusCode} ${watch.elapsedMilliseconds} ms');
     if (res.statusCode != 200) {
+      final text = await res.stream.bytesToString().catchError((_) => '');
       var msg = 'HTTP ${res.statusCode}';
       try {
-        final body = jsonDecode(utf8.decode(res.bodyBytes, allowMalformed: true));
+        final body = jsonDecode(text);
         if (body is Map && body['error'] is String) msg = body['error'] as String;
       } on FormatException {
         // The status says enough.
       }
       throw ApiException(res.statusCode, msg);
     }
-    return res.bodyBytes;
+    return (res.headers['content-type'] ?? '', res.stream);
   }
 
   /// The model file, from byte [from] on — a download cut off by a lost
