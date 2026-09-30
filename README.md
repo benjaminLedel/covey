@@ -24,7 +24,7 @@ You hand out the work, set the limits, and read back what was done.
 
 ---
 
-![A pass through covey](web/public/shots/tour.gif)
+![A pass through covey](docs/assets/shots/tour.gif)
 
 <div align="center">
 
@@ -101,15 +101,15 @@ None of these target systems live in this repository. Each one is a separate Go 
 
 ## What it looks like
 
-![Agent overview](web/public/shots/agents.jpg)
+![Agent overview](docs/assets/shots/agents.jpg)
 
 *An organisation's workforce at a glance — state, runtime and budget per agent, and the kill switch for all of them. Above them the **applications**: agents that have been drafted and are waiting to be hired.*
 
 | | |
 |---|---|
-| ![An agent's backlog](web/public/shots/backlog.jpg) | ![Org chart](web/public/shots/org.jpg) |
+| ![An agent's backlog](docs/assets/shots/backlog.jpg) | ![Org chart](docs/assets/shots/org.jpg) |
 | **Backlog** — tasks as first-class objects with freely configurable columns; cost, tokens and budget sit in the agent's header. | **Org chart** — humans and agents in the same structure on a zoomable canvas; department, reporting line and lead change in an edit mode, by select or drag & drop. |
-| ![An agent's memory](web/public/shots/memory.jpg) | ![Cost & tokens](web/public/shots/costs.jpg) |
+| ![An agent's memory](docs/assets/shots/memory.jpg) | ![Cost & tokens](docs/assets/shots/costs.jpg) |
 | **Memory** — what the agent has learned, readable and editable: add knowledge by hand or make it forget selectively. | **Cost & tokens** — spend over time, broken down by agent and model, for the whole organisation or a single agent. |
 
 ## How it works

@@ -24,7 +24,7 @@ Sie verteilen die Arbeit, setzen die Grenzen und lesen nach, was getan wurde.
 
 ---
 
-![Ein Durchgang durch covey](web/public/shots/tour.de.gif)
+![Ein Durchgang durch covey](docs/assets/shots/tour.de.gif)
 
 <div align="center">
 
@@ -101,15 +101,15 @@ Keines dieser Zielsysteme liegt in diesem Repository. Jedes ist ein eigenes Go-M
 
 ## Wie es aussieht
 
-![Agenten-Übersicht](web/public/shots/agents.de.jpg)
+![Agenten-Übersicht](docs/assets/shots/agents.de.jpg)
 
 *Die Belegschaft einer Organisation auf einen Blick — Zustand, Runtime und Budget je Agent, und der Kill-Switch für alle. Darüber die **Bewerbungen**: Agenten, die entworfen sind und darauf warten, eingestellt zu werden.*
 
 | | |
 |---|---|
-| ![Der Backlog eines Agenten](web/public/shots/backlog.de.jpg) | ![Organigramm](web/public/shots/org.de.jpg) |
+| ![Der Backlog eines Agenten](docs/assets/shots/backlog.de.jpg) | ![Organigramm](docs/assets/shots/org.de.jpg) |
 | **Backlog** — Aufgaben als First-Class-Objekte mit frei konfigurierbaren Spalten; Kosten, Tokens und Budget stehen im Kopf des Agenten. | **Organigramm** — Menschen und Agenten in derselben Struktur auf einer zoombaren Fläche; Abteilung, Berichtslinie und Leitung ändern sich im Bearbeiten-Modus, per Auswahl oder Drag & Drop. |
-| ![Das Gedächtnis eines Agenten](web/public/shots/memory.de.jpg) | ![Kosten & Tokens](web/public/shots/costs.de.jpg) |
+| ![Das Gedächtnis eines Agenten](docs/assets/shots/memory.de.jpg) | ![Kosten & Tokens](docs/assets/shots/costs.de.jpg) |
 | **Gedächtnis** — was der Agent gelernt hat, lesbar und änderbar: Wissen von Hand ergänzen oder gezielt vergessen lassen. | **Kosten & Tokens** — Ausgaben über die Zeit, aufgeschlüsselt nach Agent und Modell, für die ganze Organisation oder einen einzelnen Agenten. |
 
 ## Wie es funktioniert
