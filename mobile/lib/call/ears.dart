@@ -61,6 +61,11 @@ abstract class CallEars {
   /// Whether the microphone is echo-cancelled (#507): the agent's own voice
   /// from the loudspeaker is taken out before the call hears it.
   bool get echoCancelled;
+
+  /// When voice processing last started, while it is on (#511): the
+  /// canceller needs a moment ([echoWarmUp]) before it holds. Null when it
+  /// is off or not known.
+  DateTime? get echoCancelledSince;
 }
 
 /// The Mac's microphone, Silero and Parakeet (or SenseVoice), all on the
@@ -98,6 +103,10 @@ class DeviceEars implements CallEars {
 
   @override
   bool get echoCancelled => _info?.echoCancelled ?? false;
+
+  @override
+  DateTime? get echoCancelledSince => echoCancelled ? _since : null;
+  DateTime? _since;
 
   @override
   Future<void> prepare() async {
@@ -156,6 +165,13 @@ class DeviceEars implements CallEars {
     final first = _info == null || _source != opened.$1;
     _source = opened.$1;
     _info = opened.$2.info;
+    if (_info!.echoCancelled) {
+      _since = DateTime.now();
+      diag(
+        'call',
+        'echo cancellation on: barge-in at the tuned confirmation for ${echoWarmUp.inSeconds} s while it settles',
+      );
+    }
     _mic = opened.$2.frames.listen((chunk) {
       for (final w in _chunker.add(chunk)) {
         onWindow(floatsPcm16(w), vad.feed(w), loudness(w));

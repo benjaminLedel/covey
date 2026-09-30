@@ -11,7 +11,7 @@ import '../live.dart';
 import '../models.dart';
 import '../prefs.dart';
 import '../speech_model.dart';
-import 'capture.dart' show bargeInConfirm;
+import 'capture.dart' show bargeInConfirm, doubleTalkMargin, echoWarmUp, loudnessDb, overPlayback;
 import 'ears.dart';
 import 'fillers.dart';
 import 'greeting.dart';
@@ -810,11 +810,34 @@ class CallController extends ChangeNotifier {
     // when the microphone is echo-cancelled (#507), which covers what the
     // call's own engine plays, not the Mac's synthesiser. Not during the
     // greeting: it comes before the canceller has learnt the room.
+    final warming = _echoWarming;
     _turns.confirm = _greetingPending
         ? tuning.bargeIn
         : _speaking || _fillers.playing
-        ? bargeInConfirm(tuning.bargeIn, echoCancelled: _echoCancelled)
+        ? bargeInConfirm(tuning.bargeIn, echoCancelled: _echoCancelled, warmingUp: warming)
         : Duration.zero;
+    if (warming && !_warmUpLogged && (_speaking || _fillers.playing)) {
+      _warmUpLogged = true;
+      diag('call', 'echo canceller settling: barge-in at the tuned ${tuning.bargeIn.inMilliseconds} ms');
+    }
+    // Double-talk (#511): while the call plays something, a window counts
+    // as the person only when it is louder than what plays by a margin —
+    // what of the agent's voice gets past the canceller is quieter.
+    if (voiced && !_turns.speaking && (_greetingPending || _speaking || _fillers.playing)) {
+      final played = speaker.playbackDb;
+      final heard = loudnessDb(l);
+      if (!overPlayback(heard, played)) {
+        voiced = false;
+        if (!_doubleTalkLogged) {
+          _doubleTalkLogged = true;
+          diag(
+            'call',
+            'voice under what plays: ${heard.toStringAsFixed(0)} dB against ${played!.toStringAsFixed(0)} dB '
+                '+ ${doubleTalkMargin.toStringAsFixed(0)} — not a barge-in',
+          );
+        }
+      }
+    }
     _turns.add(pcm, voiced);
     level = l > level ? l : level * 0.85 + l * 0.15;
     final now = DateTime.now();
@@ -825,6 +848,17 @@ class CallController extends ChangeNotifier {
   }
 
   bool get _echoCancelled => ears.echoCancelled && !speaker.fallback.value;
+
+  /// Voice processing started less than [echoWarmUp] ago (#511).
+  bool get _echoWarming {
+    final since = ears.echoCancelledSince;
+    return _echoCancelled && since != null && DateTime.now().difference(since) < echoWarmUp;
+  }
+
+  bool _warmUpLogged = false;
+
+  /// Logged once per utterance: a window held back as the agent's own voice.
+  bool _doubleTalkLogged = false;
 
   void _onSpeech() {
     // The person speaks: a filler would talk over them, and a greeting
@@ -837,7 +871,12 @@ class CallController extends ChangeNotifier {
     if (_speaking) {
       // Barge-in: the person speaks, the agent stops mid-sentence, and what
       // it had still to say is dropped — it stands in the chat.
-      diag('call', 'barge-in');
+      final played = speaker.playbackDb;
+      diag(
+        'call',
+        'barge-in, microphone ${loudnessDb(level).toStringAsFixed(0)} dB'
+            '${played == null ? '' : ', playing ${played.toStringAsFixed(0)} dB'}',
+      );
       _bargedIn = true;
       _interrupts++;
       _queue.clear();
@@ -1139,6 +1178,7 @@ class CallController extends ChangeNotifier {
         }
       }
       _saying = text;
+      _doubleTalkLogged = false;
       _update();
       try {
         await speaker.speak(text, language: lang);

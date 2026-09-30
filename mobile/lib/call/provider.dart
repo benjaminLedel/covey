@@ -35,6 +35,25 @@ Float32List levels(Pcm pcm, {int fps = 60}) {
   return out;
 }
 
+/// How loud [pcm] is, frame by frame at [fps], in dB of full scale; −100
+/// for a silent frame (#511).
+Float32List levelsDb(Pcm pcm, {int fps = 60}) {
+  final per = math.max(1, pcm.sampleRate ~/ fps);
+  final n = (pcm.samples.length + per - 1) ~/ per;
+  final out = Float32List(n);
+  for (var i = 0; i < n; i++) {
+    final end = math.min(pcm.samples.length, (i + 1) * per);
+    var sum = 0.0;
+    for (var j = i * per; j < end; j++) {
+      final v = pcm.samples[j];
+      sum += v * v;
+    }
+    final rms = math.sqrt(sum / math.max(1, end - i * per));
+    out[i] = rms <= 1e-5 ? -100 : 20 * math.log(rms) / math.ln10;
+  }
+  return out;
+}
+
 /// Opens a stream of speech at the instance: its content type and its
 /// bytes as they arrive ([CoveyApi.synthesizeSpeechStream]).
 typedef SpeechStreamOpen =

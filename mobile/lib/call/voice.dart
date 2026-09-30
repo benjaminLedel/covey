@@ -61,6 +61,12 @@ abstract class Speaker implements FillerVoice {
   /// not set or could not be reached: the call says so in a line.
   ValueListenable<bool> get fallback;
 
+  /// How loud what plays now is, in dB — the reply, the greeting or a
+  /// filler, the louder when both — from the provider's audio (#511). Null
+  /// when nothing of it plays, or the Mac's synthesis speaks, whose level
+  /// is not known.
+  double? get playbackDb;
+
   void dispose();
 }
 
@@ -265,8 +271,14 @@ class AgentSpeaker implements Speaker {
   int _id = 0;
   Completer<void>? _done;
 
-  /// The level of what is being played, frame by frame from when it started.
+  /// The level of what is being played, frame by frame from when it started;
+  /// the same in dB for [playbackDb].
   final _frames = <double>[];
+  final _framesDb = <double>[];
+
+  /// The filler playing, in dB frame by frame, and since when.
+  Float32List? _fillerDb;
+  Stopwatch? _fillerClock;
   static const _fps = 60;
   Stopwatch? _clock;
   Timer? _tick;
@@ -279,6 +291,19 @@ class AgentSpeaker implements Speaker {
 
   @override
   ValueListenable<bool> get fallback => _fallback;
+
+  @override
+  double? get playbackDb {
+    double? at(List<double>? frames, Stopwatch? clock) {
+      if (frames == null || clock == null) return null;
+      final i = clock.elapsedMicroseconds * _fps ~/ 1000000;
+      return i < frames.length ? frames[i] : null;
+    }
+
+    final speech = at(_framesDb, _clock), filler = at(_fillerDb, _fillerClock);
+    if (speech == null || filler == null) return speech ?? filler;
+    return speech > filler ? speech : filler;
+  }
 
   @override
   Future<String> prepare({required String language}) => _preparing ??= _prepare().catchError((Object e) {
@@ -334,6 +359,7 @@ class AgentSpeaker implements Speaker {
     final id = ++_id;
     final done = _done = Completer<void>();
     _frames.clear();
+    _framesDb.clear();
     _clock = null;
     return (id, done);
   }
@@ -373,6 +399,7 @@ class AgentSpeaker implements Speaker {
       return done.future;
     }
     _frames.addAll(levels(pcm, fps: _fps));
+    _framesDb.addAll(levelsDb(pcm, fps: _fps));
     await output.play(id, pcm, last: false);
     if (id == _id) await output.play(id, Pcm(Float32List(1), pcm.sampleRate), last: true);
     return done.future;
@@ -396,6 +423,7 @@ class AgentSpeaker implements Speaker {
         if (pcm.samples.isEmpty || pcm.sampleRate <= 0) continue;
         if (played == 0) diag('call', 'first audio after ${watch.elapsedMilliseconds} ms');
         _frames.addAll(levels(pcm, fps: _fps));
+        _framesDb.addAll(levelsDb(pcm, fps: _fps));
         sampleRate = pcm.sampleRate;
         played++;
         await output.play(id, pcm, last: false);
@@ -502,6 +530,8 @@ class AgentSpeaker implements Speaker {
       if (pcm == null || pcm.samples.isEmpty || g != _fillerGeneration) return null;
       _fillers[text] = pcm;
       await output.playFiller(pcm);
+      _fillerDb = levelsDb(pcm, fps: _fps);
+      _fillerClock = Stopwatch()..start();
       return pcm.duration;
     }
     final v = chooseVoice(_system, language, agentId);
@@ -514,12 +544,16 @@ class AgentSpeaker implements Speaker {
   @override
   Future<void> fadeFiller(Duration over) async {
     _fillerGeneration++;
+    _fillerDb = null;
+    _fillerClock = null;
     await output.fadeFiller(over);
   }
 
   @override
   Future<void> stopFiller() async {
     _fillerGeneration++;
+    _fillerDb = null;
+    _fillerClock = null;
     await output.stopFiller();
   }
 

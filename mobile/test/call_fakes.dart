@@ -22,6 +22,9 @@ class FakeEars implements CallEars {
   @override
   bool echoCancelled = false;
 
+  @override
+  DateTime? echoCancelledSince;
+
   /// What each next turn is recognised as.
   final heard = <String>[];
 
@@ -167,6 +170,10 @@ class FakeSpeaker implements Speaker {
 
   @override
   ValueListenable<bool> get fallback => fallbackNotifier;
+
+  /// How loud what plays is, as the provider's audio would say.
+  @override
+  double? playbackDb;
 
   @override
   Future<String> prepare({required String language}) async => 'fake voices';
