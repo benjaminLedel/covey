@@ -1,7 +1,7 @@
 ---
 slug: runtimes
 title: Runtimes and engines
-description: 'The engines covey ships — Claude Code, Codex, SevenCode, educa AI and the mock: what each needs, how an agent is put on one, where the CLI comes from and what each cannot do yet.'
+description: 'The engines covey ships, from Claude Code and Codex to SevenCode and educa AI: what each needs, how an agent is put on one and what each cannot do yet.'
 faq:
   - q: Which runtimes does covey ship?
     a: 'Five engines are registered in the daemon: Claude Code (claude -p), Codex (codex exec), SevenCode (sevencode -p), educa AI (the Claude Code harness against an educa AI endpoint) and a mock for tests and demos. Claude Code is the one the sandbox images carry and the one the platform is measured against; Codex is declared but its run is not yet verified.'
