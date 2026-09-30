@@ -98,6 +98,12 @@ type Entscheidung struct {
 	// config assistant that drafts it. Title names it in one line; Text is
 	// what the agent says in the chat, with ApproversPlatzhalter.
 	Aenderung string `json:"change"`
+	// In a call (#502): what the person hears — the same answer, reply,
+	// acknowledgement or config line said for the ear — and whether it left
+	// details for the chat. Asked for and kept only when the message was
+	// said in a call (Rahmen.Anruf); the written fields stay as they are.
+	Gesprochen    string `json:"spoken"`
+	DetailsImChat bool   `json:"details_in_chat"`
 	// Meta is what the platform notes on the messages this decision writes
 	// (#471): the voice chosen and why. Set by the caller, never parsed.
 	Meta map[string]string `json:"-"`
@@ -163,6 +169,9 @@ type Rahmen struct {
 	// the triage reads them; the narration changes nothing.
 	Vorschlaege bool
 	Takt        string
+	// Anruf: the message was said aloud in a call (#502). The triage then
+	// asks for a spoken form beside the written one. Only the triage reads it.
+	Anruf bool
 }
 
 // Bounds of the two #471 blocks in a turn. Both are bounded where they are
@@ -362,7 +371,11 @@ func Triagieren(ctx context.Context, p llm.Provider, r Rahmen, organisation stri
 		b.WriteString("\n\n")
 	}
 	gespraech(&b, verlauf)
-	b.WriteString("The new message:\n")
+	if r.Anruf {
+		b.WriteString("The new message, said aloud in a call:\n")
+	} else {
+		b.WriteString("The new message:\n")
+	}
 	b.WriteString(nachricht)
 	if suche != nil {
 		fmt.Fprintf(&b, "\n\nYou searched the whole conversation, your backlog and the org chart for %q. Found:\n", suche.Anfrage)
@@ -383,6 +396,9 @@ func Triagieren(ctx context.Context, p llm.Provider, r Rahmen, organisation stri
 	if r.Vorschlaege {
 		system += triageKonfig
 	}
+	if r.Anruf {
+		system += triageAnruf
+	}
 
 	roh, err := p.Complete(ctx, llm.Request{
 		Tier:      llm.TierFast,
@@ -397,7 +413,11 @@ func Triagieren(ctx context.Context, p llm.Provider, r Rahmen, organisation stri
 	if err != nil {
 		return Entscheidung{}, err
 	}
-	return lesen(roh)
+	e, err := lesen(roh)
+	if err != nil {
+		return e, err
+	}
+	return fuerAnruf(e, r.Anruf), nil
 }
 
 // lesen holt das JSON aus der Antwort. Modelle stellen gern einen Satz davor

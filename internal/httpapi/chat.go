@@ -788,7 +788,7 @@ func (s *Server) entscheidungAnwenden(
 			if antwort := strings.TrimSpace(entscheidung.Antwort); antwort != "" {
 				if _, _, err := s.Chat.Post(ctx, chat.Message{
 					ConversationID: conv.ID, AuthorKind: chat.MemberAgent, AuthorID: &agentID,
-					Text: antwort, TaskID: &ziel, ReplyTo: &msg.ID, Meta: entscheidung.Meta,
+					Text: antwort, TaskID: &ziel, ReplyTo: &msg.ID, Meta: entscheidung.AnswerMeta(),
 				}); err != nil {
 					s.Log.Warn("chat: the reply to a note was not written", "agent", agentID, "err", err)
 				} else {
@@ -802,7 +802,7 @@ func (s *Server) entscheidungAnwenden(
 	if entscheidung.Aktion == chat.AktionAntwort {
 		if _, _, err := s.Chat.Post(ctx, chat.Message{
 			ConversationID: conv.ID, AuthorKind: chat.MemberAgent, AuthorID: &agentID,
-			Text: entscheidung.Text, ReplyTo: &msg.ID, Meta: entscheidung.Meta,
+			Text: entscheidung.Text, ReplyTo: &msg.ID, Meta: entscheidung.AnswerMeta(),
 		}); err != nil {
 			return "", nil, err
 		}
@@ -820,7 +820,7 @@ func (s *Server) entscheidungAnwenden(
 	if ack := strings.TrimSpace(entscheidung.Text); ack != "" {
 		if _, _, err := s.Chat.Post(ctx, chat.Message{
 			ConversationID: conv.ID, AuthorKind: chat.MemberAgent, AuthorID: &agentID,
-			Text: ack, TaskID: &t.ID, ReplyTo: &msg.ID, Meta: entscheidung.Meta,
+			Text: ack, TaskID: &t.ID, ReplyTo: &msg.ID, Meta: entscheidung.AnswerMeta(),
 		}); err != nil {
 			s.Log.Warn("chat: the acknowledgement was not written", "agent", agentID, "err", err)
 		}
@@ -871,11 +871,10 @@ func (s *Server) aufgabeAusNachricht(
 	rumpf += s.gespraechFuerLauf(ctx, conv.ID, agentID, msg.ID)
 	var t backlog.Task
 	var err error
-	if antwort {
-		t, err = s.Backlog.CreateChatAnswer(ctx, conv.OrgID, agentID, titel, rumpf, "chat:"+email, conv.ID)
-	} else {
-		t, err = s.Backlog.CreateIn(ctx, conv.OrgID, agentID, titel, rumpf, "chat:"+email, 0, &conv.ID)
-	}
+	/* Said in a call (#502): the reply or the result is heard as well as
+	   read. Marked with the row, so that the run of a chat answer is told
+	   at dispatch to give a spoken form too. */
+	t, err = s.Backlog.CreateFromMessage(ctx, conv.OrgID, agentID, titel, rumpf, "chat:"+email, conv.ID, antwort, chat.SaidInCall(msg))
 	if err != nil {
 		return backlog.Task{}, err
 	}
@@ -991,6 +990,8 @@ func (s *Server) triagieren(ctx context.Context, conv chat.Conversation, agentID
 		Rolle: s.rolleVon(ctx, agentID), Seele: s.seeleVon(ctx, agentID),
 		Gegenueber: s.gegenueberVon(ctx, conv.OrgID, email),
 		Raum:       chat.Raum(conv, agentID, s.nameVon(ctx, conv.OrgID, email), true),
+		// Said in a call (#502): the turn gives a spoken form too.
+		Anruf: chat.SaidInCall(msg),
 	}
 	/* The trial of #491: the fifth choice, and the heartbeat to answer
 	   questions about it from. */
@@ -1187,7 +1188,8 @@ func (s *Server) fertigeAufgaben(ctx context.Context, agentID uuid.UUID) []chat.
 			return out
 		}
 		f.Alter = alter(wann)
-		f.Ergebnis = ergebnis
+		// A chat answer from a call keeps its spoken form in its result (#502).
+		f.Ergebnis, _, _ = chat.SplitSpoken(ergebnis)
 		if f.Ausgang == backlog.StateFailed && fehler != "" {
 			f.Ergebnis = fehler
 		}
