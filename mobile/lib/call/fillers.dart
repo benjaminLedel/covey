@@ -88,11 +88,14 @@ abstract class FillerVoice {
 typedef StartTimer = Timer Function(Duration after, void Function() fire);
 
 /// When a call says a filler (#500). A turn was sent ([waiting]): after
-/// [after] without the reply's first audio, one short filler; after
-/// [longAfter] without the reply, the long wait, once. The reply's first
-/// audio fades a filler out ([replyAudio]); barge-in, mute and hanging up
-/// stop it ([stop]). Nothing is said while [quiet] — muted, the agent
-/// speaking, the person speaking.
+/// [after] without the reply, one short filler; after [longAfter] without
+/// the reply, the long wait, once. Once the reply's message is there
+/// ([replyArrived]) no filler starts any more, even while its audio is
+/// still being made (#511): a filler that started then was cut off by the
+/// reply a few hundred milliseconds later. One that is playing finishes its
+/// word — it fades over [fade], and the reply waits for that ([makeWay]).
+/// Barge-in, mute and hanging up stop it ([stop]). Nothing is said while
+/// [quiet] — muted, the agent speaking, the person speaking.
 class CallFillers {
   CallFillers({
     required this.voice,
@@ -100,7 +103,7 @@ class CallFillers {
     required this.quiet,
     this.after = const Duration(milliseconds: 800),
     this.longAfter = const Duration(seconds: 8),
-    this.fade = const Duration(milliseconds: 120),
+    this.fade = const Duration(milliseconds: 250),
     this.onPlaying,
     StartTimer? timer,
     math.Random? random,
@@ -130,6 +133,9 @@ class CallFillers {
   int _generation = 0;
   bool _playing = false;
 
+  /// A filler asked for and not yet playing: its audio is being looked up.
+  bool _starting = false;
+
   /// Whether a filler is playing now.
   bool get playing => _playing;
 
@@ -141,11 +147,32 @@ class CallFillers {
     _long = _timer(longAfter, () => _fire(g, picker.longWait(language())));
   }
 
-  /// The reply's message is there: no long wait any more. A short filler
-  /// still to come plays unless the reply's audio comes first.
+  /// The reply's message is there: no filler starts any more, and one
+  /// still being looked up does not start. One already playing goes on
+  /// until the reply makes way for it ([makeWay]).
   void replyArrived() {
-    _long?.cancel();
-    _long = null;
+    _cancel();
+    if (_starting) {
+      _generation++;
+      _starting = false;
+      _playing = false;
+    }
+  }
+
+  /// The reply is about to be spoken: nothing more is said for this turn,
+  /// and a filler playing fades out over [fade] — the returned future
+  /// completes when it has, so the reply does not talk over its last word.
+  Future<void> makeWay() async {
+    replyArrived();
+    if (!_playing) return;
+    _generation++;
+    _playing = false;
+    _ends?.cancel();
+    diag('call', 'filler fading over ${fade.inMilliseconds} ms before the reply');
+    unawaited(voice.fadeFiller(fade).catchError((_) {}));
+    final faded = Completer<void>();
+    _timer(fade, faded.complete);
+    await faded.future;
   }
 
   /// The reply's first audio: nothing more is said for this turn, and a
@@ -153,6 +180,7 @@ class CallFillers {
   void replyAudio() {
     _cancel();
     _generation++;
+    _starting = false;
     if (_playing) {
       _playing = false;
       unawaited(voice.fadeFiller(fade).catchError((_) {}));
@@ -164,6 +192,7 @@ class CallFillers {
   void stop() {
     _cancel();
     _generation++;
+    _starting = false;
     if (_playing) {
       _playing = false;
       unawaited(voice.stopFiller().catchError((_) {}));
@@ -180,12 +209,14 @@ class CallFillers {
     if (g != _generation || text == null || quiet() || _playing) return;
     final lang = language();
     _playing = true;
+    _starting = true;
     Duration? length;
     try {
       length = await voice.filler(text, language: lang);
     } catch (e) {
       diag('call', 'filler failed: $e');
     }
+    if (g == _generation) _starting = false;
     if (g != _generation) {
       // The reply came, or the person spoke, while it was looked up.
       if (length != null) unawaited(voice.stopFiller().catchError((_) {}));

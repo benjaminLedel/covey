@@ -220,15 +220,25 @@ class FakeSpeaker implements Speaker {
 
   final prefetched = <(List<String>, String)>[];
 
+  /// Holds a filler's lookup until completed; null answers at once.
+  Completer<void>? fillerGate;
+
+  /// How long each fade lasted.
+  final fadedOver = <Duration>[];
+
   @override
   Future<Duration?> filler(String text, {required String language}) async {
     if (fillerLength == null) return null;
+    await fillerGate?.future;
     fillers.add(text);
     return fillerLength;
   }
 
   @override
-  Future<void> fadeFiller(Duration over) async => fades++;
+  Future<void> fadeFiller(Duration over) async {
+    fades++;
+    fadedOver.add(over);
+  }
 
   @override
   Future<void> stopFiller() async => fillerStops++;

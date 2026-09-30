@@ -513,8 +513,9 @@ class CallController extends ChangeNotifier {
   /// The call's sounds; null plays none.
   final CallSounds? sounds;
 
-  /// How long the call waits for the reply's first audio before the agent
-  /// says a short filler — once per turn.
+  /// How long the call waits for the reply before the agent says a short
+  /// filler — once per turn, and only while the reply's message has not
+  /// arrived (#511).
   final Duration fillerAfter;
 
   /// How long the call waits for a reply before the agent says it takes a
@@ -566,6 +567,10 @@ class CallController extends ChangeNotifier {
   bool _recognising = false;
   bool _awaiting = false;
   bool _bargedIn = false;
+
+  /// Counts the barge-ins, so a reply waiting for a filler to fade knows
+  /// the person spoke meanwhile.
+  int _interrupts = 0;
   Timer? _poll;
   Timer? _giveUp;
   StreamSubscription<void>? _changes;
@@ -831,6 +836,7 @@ class CallController extends ChangeNotifier {
       // it had still to say is dropped — it stands in the chat.
       diag('call', 'barge-in');
       _bargedIn = true;
+      _interrupts++;
       _queue.clear();
       unawaited(speaker.stop());
     }
@@ -1082,6 +1088,17 @@ class CallController extends ChangeNotifier {
       }
       if (cut) _queue.insert(0, _Utterance(words('call.restInChat'), plain: true));
       _speaking = true;
+      // A filler still playing finishes its word first (#511).
+      if (_fillers.playing) {
+        final interrupts = _interrupts;
+        await _fillers.makeWay();
+        // Hung up, or the person spoke meanwhile: this reply is not said.
+        if (ended || interrupts != _interrupts) {
+          _speaking = false;
+          _update();
+          break;
+        }
+      }
       _saying = text;
       _update();
       try {
