@@ -12,6 +12,7 @@ import '../theme.dart';
 import 'call.dart';
 import 'ears.dart';
 import 'fillers.dart';
+import 'greeting.dart';
 import 'recording.dart';
 import 'sounds.dart';
 import 'understood.dart';
@@ -105,6 +106,8 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
           words: strings.t,
           tuning: CallSettings.tuning,
           recording: CallRecording.open,
+          // The agent greets when the call connects (#506).
+          greeter: CallGreeter(enabled: () => CallSettings.greeting.value),
         );
       } else {
         _call = widget.controller;
