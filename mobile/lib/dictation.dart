@@ -243,7 +243,7 @@ abstract class SegmentedEngine implements SpeechEngine {
     final watch = Stopwatch()..start();
     final text = (await closeSegment()).trim();
     _current = '';
-    if (keep && text.isNotEmpty && !_isHallucination(text)) {
+    if (keep && text.isNotEmpty && !isHallucination(text)) {
       _committed = _committed.isEmpty ? text : '$_committed $text';
       onSegment?.call(text, at ?? DateTime.now(), lastEmbedding);
     }
@@ -286,7 +286,7 @@ abstract class SegmentedEngine implements SpeechEngine {
 /// What a recogniser makes of noise rather than speech — a bracketed event
 /// ("[Musik]"), subtitle credits from training data — never a dictated
 /// sentence.
-bool _isHallucination(String text) {
+bool isHallucination(String text) {
   final t = text.toLowerCase();
   return RegExp(r'^\W*(untertitel|subtitles|sous-titres|sottotitoli|ondertiteling|napisy)\b').hasMatch(t) ||
       RegExp(r'^\W*(\[.*\]|\(.*\)|\*.*\*)\W*$').hasMatch(t);

@@ -4,6 +4,7 @@ import Cocoa
 import Intents
 import CoreAudio
 import FlutterMacOS
+import NaturalLanguage
 import UserNotifications
 
 class MainFlutterWindow: NSWindow {
@@ -14,6 +15,7 @@ class MainFlutterWindow: NSWindow {
   private var camera: FlutterMethodChannel?
   private let cameraSheet = CameraSheet()
   private var notices: LocalNotices?
+  private var voice: SpeechVoice?
 
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
@@ -69,6 +71,10 @@ class MainFlutterWindow: NSWindow {
     // Notifications (#379): the Mac app runs anyway, so it shows local ones
     // itself rather than through Apple's push service.
     notices = LocalNotices(messenger: flutterViewController.engine.binaryMessenger)
+
+    // A call's voice (#494): the agent's replies spoken by the system's
+    // synthesiser, on the Mac.
+    voice = SpeechVoice(messenger: flutterViewController.engine.binaryMessenger)
 
     // The profile photo (#377): the Mac has no system camera screen to
     // borrow, so the app opens a small camera sheet of its own.
@@ -1104,5 +1110,98 @@ final class SystemAudioTap {
       AudioHardwareDestroyProcessTap(tapID)
       tapID = AudioObjectID(kAudioObjectUnknown)
     }
+  }
+}
+
+/// The agent's voice in a call (#494): AVSpeechSynthesizer speaks what Dart
+/// hands over and reports back when it starts, reaches a word, and ends —
+/// the face moves its mouth on the words. NaturalLanguage tells which
+/// language a reply is in, so it is spoken in a voice of that language.
+final class SpeechVoice: NSObject, AVSpeechSynthesizerDelegate {
+  private let channel: FlutterMethodChannel
+  private let synth = AVSpeechSynthesizer()
+  /// Which of Dart's requests an utterance is, so a late "cancelled" of the
+  /// previous one does not end the next.
+  private var ids: [ObjectIdentifier: Int] = [:]
+
+  init(messenger: FlutterBinaryMessenger) {
+    channel = FlutterMethodChannel(name: "covey/voice", binaryMessenger: messenger)
+    super.init()
+    synth.delegate = self
+    channel.setMethodCallHandler { [weak self] call, result in
+      self?.handle(call, result)
+    }
+  }
+
+  private func handle(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+    let args = call.arguments as? [String: Any] ?? [:]
+    switch call.method {
+    case "voices":
+      result(AVSpeechSynthesisVoice.speechVoices().map { v -> [String: Any] in
+        let quality: Int
+        switch v.quality {
+        case .enhanced: quality = 2
+        case .premium: quality = 3
+        default: quality = 1
+        }
+        return ["id": v.identifier, "name": v.name, "language": v.language, "quality": quality]
+      })
+    case "language":
+      let recogniser = NLLanguageRecognizer()
+      recogniser.processString(args["text"] as? String ?? "")
+      guard let best = recogniser.languageHypotheses(withMaximum: 1).first else { return result(nil) }
+      result(["language": best.key.rawValue, "confidence": best.value])
+    case "speak":
+      let utterance = AVSpeechUtterance(string: args["text"] as? String ?? "")
+      if let id = args["voice"] as? String, let v = AVSpeechSynthesisVoice(identifier: id) {
+        utterance.voice = v
+      } else if let lang = args["language"] as? String {
+        utterance.voice = AVSpeechSynthesisVoice(language: lang)
+      }
+      utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+      // A short breath before a reply, as somebody draws in air to answer.
+      utterance.preUtteranceDelay = 0.1
+      ids[ObjectIdentifier(utterance)] = args["id"] as? Int ?? 0
+      if synth.isSpeaking { synth.stopSpeaking(at: .immediate) }
+      synth.speak(utterance)
+      result(nil)
+    case "stop":
+      synth.stopSpeaking(at: .immediate)
+      result(nil)
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+
+  /// The synthesiser's delegate may be called off the main thread; the
+  /// channel and [ids] are touched on it only.
+  private func send(_ method: String, _ arguments: @escaping () -> [String: Any]) {
+    DispatchQueue.main.async { [weak self] in
+      self?.channel.invokeMethod(method, arguments: arguments())
+    }
+  }
+
+  func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
+    let key = ObjectIdentifier(utterance)
+    send("started") { [weak self] in ["id": self?.ids[key] ?? 0] }
+  }
+
+  func speechSynthesizer(
+    _ synthesizer: AVSpeechSynthesizer, willSpeakRangeOfSpeechString characterRange: NSRange, utterance: AVSpeechUtterance
+  ) {
+    let key = ObjectIdentifier(utterance)
+    send("word") { [weak self] in
+      ["id": self?.ids[key] ?? 0, "start": characterRange.location, "length": characterRange.length]
+    }
+  }
+
+  func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+    let key = ObjectIdentifier(utterance)
+    send("finished") { [weak self] in ["id": self?.ids.removeValue(forKey: key) ?? 0] }
+  }
+
+  func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+    let key = ObjectIdentifier(utterance)
+    send("cancelled") { [weak self] in ["id": self?.ids.removeValue(forKey: key) ?? 0] }
   }
 }

@@ -127,6 +127,73 @@ class SherpaEngine extends SegmentedEngine {
   }
 }
 
+/// The recogniser alone, without a microphone or a segmenter of its own:
+/// a call (#494) cuts its turns with the voice activity detector and hands
+/// each finished turn here. The same worker isolate as [SherpaEngine].
+class SherpaDecoder {
+  SherpaDecoder._(this._worker);
+
+  final _Worker _worker;
+
+  /// Loads [model] (`parakeet` or `sensevoice`) from [modelPath].
+  static Future<SherpaDecoder> load(String modelPath, String model) async =>
+      SherpaDecoder._(await _Worker.spawn(modelPath, model, null));
+
+  /// The text of one turn of 16 kHz mono PCM16.
+  Future<String> decode(Uint8List pcm16) => _worker.decode(pcm16);
+
+  void close() => _worker.close();
+}
+
+/// Silero's voice activity detector through sherpa-onnx (#494): fed one
+/// window of 512 samples (32 ms at 16 kHz) at a time, it says whether that
+/// window is speech. It is small and fast enough to run beside the UI; the
+/// segments it collects itself are dropped — the call keeps its own audio
+/// and decides where a turn ends.
+class SileroDetector {
+  SileroDetector._(this._vad);
+
+  final sherpa.VoiceActivityDetector _vad;
+
+  /// Samples per window: what Silero is trained on at 16 kHz.
+  static const window = 512;
+
+  static SileroDetector load(String modelPath) {
+    sherpa.initBindings();
+    return SileroDetector._(
+      sherpa.VoiceActivityDetector(
+        config: sherpa.VadModelConfig(
+          sileroVad: sherpa.SileroVadModelConfig(
+            model: '$modelPath/silero_vad.onnx',
+            // Short on both sides: the call's own segmenter holds the
+            // pause that ends a turn; the detector only says "voice now".
+            minSilenceDuration: 0.1,
+            minSpeechDuration: 0.1,
+            maxSpeechDuration: 30,
+          ),
+          numThreads: 1,
+          debug: false,
+        ),
+        bufferSizeInSeconds: 30,
+      ),
+    );
+  }
+
+  /// Whether the detector hears voice after this window of samples in −1…1.
+  bool feed(Float32List samples) {
+    _vad.acceptWaveform(samples);
+    final voiced = _vad.isDetected();
+    while (!_vad.isEmpty()) {
+      _vad.pop();
+    }
+    return voiced;
+  }
+
+  void reset() => _vad.reset();
+
+  void free() => _vad.free();
+}
+
 /// The recogniser in its own isolate: one request at a time, PCM16 in, text
 /// out.
 class _Worker {
