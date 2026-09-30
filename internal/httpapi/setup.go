@@ -75,7 +75,7 @@ func (s *Server) handleSetupState(w http.ResponseWriter, r *http.Request) {
 		st.PeopleDone = true
 		st.PeopleID = a.ID.String()
 	}
-	st.LLMAvailable = llm.Available(ctx, s.Secrets, p.OrgID)
+	st.LLMAvailable = llm.Available(ctx, s.Secrets, s.Runtimes, p.OrgID)
 	_ = s.Pool.QueryRow(ctx, `SELECT setup_closed_at IS NOT NULL FROM organizations WHERE id=$1`, p.OrgID).Scan(&st.Closed)
 	writeJSON(w, http.StatusOK, st)
 }
@@ -255,7 +255,7 @@ func (s *Server) handleSetupPeople(w http.ResponseWriter, r *http.Request) {
 	// Tier 2: personalise on top of the base. Best effort by design — the base
 	// bundle is a working agent, and a provider that does not answer must not
 	// cost the card.
-	if provider, perr := llm.Resolve(ctx, s.Secrets, p.OrgID); perr == nil && strings.TrimSpace(org.Description) != "" {
+	if provider, perr := llm.Resolve(ctx, s.Secrets, s.Runtimes, p.OrgID); perr == nil && strings.TrimSpace(org.Description) != "" {
 		if files, ferr := personaliseFiles(ctx, provider, bundle.Files, org.Name, org.Description); ferr == nil {
 			bundle.Files = files
 		} else {

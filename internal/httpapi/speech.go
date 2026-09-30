@@ -71,7 +71,7 @@ func (s *Server) handleSpeechModel(w http.ResponseWriter, r *http.Request) {
 	body["models"] = models
 	// Whether dictation can be cleaned up here (#355): the app offers the
 	// switch only then.
-	body["clean"] = s.Secrets != nil && llm.Available(r.Context(), s.Secrets, principalFrom(r).OrgID)
+	body["clean"] = s.Secrets != nil && llm.Available(r.Context(), s.Secrets, s.Runtimes, principalFrom(r).OrgID)
 	writeJSON(w, http.StatusOK, body)
 }
 

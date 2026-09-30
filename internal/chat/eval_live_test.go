@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"covey/internal/llm"
+	"covey/internal/runtimes"
 	secbuiltin "covey/internal/secrets/builtin"
 )
 
@@ -61,7 +62,7 @@ func evalProvider(ctx context.Context) (llm.Provider, string, error) {
 	if err != nil {
 		return nil, "", fmt.Errorf("secret store: %w", err)
 	}
-	p, err := llm.Resolve(ctx, store, orgID)
+	p, err := llm.Resolve(ctx, store, runtimes.New(pool, store), orgID)
 	if err != nil {
 		return nil, "", err
 	}

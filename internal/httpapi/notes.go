@@ -168,7 +168,7 @@ func (s *Server) handleListNotes(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"notes":     list,
-		"summarize": llm.Available(r.Context(), s.Secrets, p.OrgID),
+		"summarize": llm.Available(r.Context(), s.Secrets, s.Runtimes, p.OrgID),
 	})
 }
 
@@ -285,7 +285,7 @@ func (s *Server) handleSummarizeNote(w http.ResponseWriter, r *http.Request) {
 		noteErr(w, err)
 		return
 	}
-	provider, err := llm.Resolve(r.Context(), s.Secrets, p.OrgID)
+	provider, err := llm.Resolve(r.Context(), s.Secrets, s.Runtimes, p.OrgID)
 	if errors.Is(err, llm.ErrNoCredential) {
 		writeErr(w, http.StatusConflict, "summaries need a control-plane credential for this organisation")
 		return

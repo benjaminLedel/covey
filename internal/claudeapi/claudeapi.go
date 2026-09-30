@@ -170,3 +170,20 @@ func ResolveOrg(ctx context.Context, store secrets.Store, orgID uuid.UUID) (cred
 	}
 	return "", false, false
 }
+
+// IsOAuth says how a credential authenticates: as a subscription OAuth token
+// (Bearer) or as an API key (x-api-key). The value's own prefix decides where
+// it has one — sk-ant-oat… is a token, sk-ant-api… a key, whatever it was
+// filed as (the save check in internal/httpapi/credcheck.go reads the same
+// prefixes). Only a value without a known prefix falls back on what it was
+// declared as.
+func IsOAuth(value string, declaredSubscription bool) bool {
+	value = strings.TrimSpace(value)
+	switch {
+	case strings.HasPrefix(value, "sk-ant-oat"):
+		return true
+	case strings.HasPrefix(value, "sk-ant-api"):
+		return false
+	}
+	return declaredSubscription
+}

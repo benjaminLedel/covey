@@ -1319,7 +1319,7 @@ func (s *Server) handleGetTriage(w http.ResponseWriter, r *http.Request) {
 	   Oberfläche soll das sagen dürfen, statt ihn anzubieten. */
 	writeJSON(w, http.StatusOK, map[string]any{
 		"mode":      string(mode),
-		"available": llm.Available(r.Context(), s.Secrets, p.OrgID),
+		"available": llm.Available(r.Context(), s.Secrets, s.Runtimes, p.OrgID),
 	})
 }
 
