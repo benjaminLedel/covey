@@ -48,6 +48,9 @@ type improvementView struct {
 	AgentOwnerID *uuid.UUID `json:"agent_owner_id,omitempty"`
 	AuthorSlug   string     `json:"author_slug,omitempty"`
 	AuthorName   string     `json:"author_name,omitempty"`
+	// RequestedByName: the person whose chat message the proposal was
+	// drafted from (#491).
+	RequestedByName string `json:"requested_by_name,omitempty"`
 	// CurrentVersion is the version that runs right now. Stale says that the
 	// proposal was written against an older one — that alone does not make it
 	// wrong, it is a warning.
@@ -171,6 +174,7 @@ func (s *Server) improvementViews(r *http.Request, items []agents.ImprovementIte
 				v.AuthorSlug, v.AuthorName = a.Slug, a.DisplayName
 			}
 		}
+		v.RequestedByName = s.menschName(ctx, item.RequestedBy)
 		if item.Kind != agents.KindProposal {
 			out = append(out, v)
 			continue
@@ -341,6 +345,7 @@ func (s *Server) finishImprovement(w http.ResponseWriter, r *http.Request, id uu
 		mapErr(w, err)
 		return
 	}
+	s.vorschlagEntschieden(r.Context(), decided)
 	views := s.improvementViews(r, []agents.ImprovementItem{decided})
 	writeJSON(w, http.StatusOK, views[0])
 }

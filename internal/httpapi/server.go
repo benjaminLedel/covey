@@ -558,6 +558,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/org/presence", s.rbac(anyRole, s.handlePresence))
 	mux.Handle("GET /api/v1/org/chat-triage", s.rbac(anyRole, s.handleGetTriage))
 	mux.Handle("PATCH /api/v1/org/chat-triage", s.rbac(manage, s.handleSetTriage))
+	// Configuration changes drafted from the chat (#491), a trial beside the
+	// triage switch and for the same roles.
+	mux.Handle("GET /api/v1/org/chat-config-proposals", s.rbac(anyRole, s.handleGetChatConfigProposals))
+	mux.Handle("PATCH /api/v1/org/chat-config-proposals", s.rbac(manage, s.handleSetChatConfigProposals))
 	// Whom a member writes to directly (#440): any agent, or those of their
 	// own departments.
 	mux.Handle("GET /api/v1/org/chat-reach", s.rbac(anyRole, s.handleGetReach))
