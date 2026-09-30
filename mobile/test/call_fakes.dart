@@ -19,6 +19,9 @@ class FakeEars implements CallEars {
   bool listening = false;
   bool closed = false;
 
+  @override
+  bool echoCancelled = false;
+
   /// What each next turn is recognised as.
   final heard = <String>[];
 

@@ -1,13 +1,15 @@
 import 'dart:async';
-import 'dart:math' as math;
+import 'dart:io' show Platform;
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:record/record.dart';
 
 import '../api.dart';
 import '../diagnostics.dart';
 import '../sherpa.dart';
 import '../speech_model.dart';
+import 'capture.dart';
 
 /// Why a call cannot listen.
 enum CallProblem {
@@ -55,6 +57,10 @@ abstract class CallEars {
 
   /// Frees everything; the microphone is closed.
   Future<void> close();
+
+  /// Whether the microphone is echo-cancelled (#507): the agent's own voice
+  /// from the loudspeaker is taken out before the call hears it.
+  bool get echoCancelled;
 }
 
 /// The Mac's microphone, Silero and Parakeet (or SenseVoice), all on the
@@ -62,16 +68,31 @@ abstract class CallEars {
 /// dictation's does, and no audio leaves the device — only the text of a
 /// finished turn does, as a message.
 class DeviceEars implements CallEars {
-  DeviceEars(this.api);
+  DeviceEars(this.api, {List<CaptureSource>? sources}) : _sources = sources ?? defaultSources();
 
   final CoveyApi api;
-  final _recorder = AudioRecorder();
-  StreamSubscription<Uint8List>? _mic;
+
+  /// Where the microphone comes from, the preferred first (#507): on the
+  /// Mac the call's own audio engine with voice processing, then the
+  /// `record` package.
+  final List<CaptureSource> _sources;
+
+  static List<CaptureSource> defaultSources() => [
+    if (!kIsWeb && Platform.isMacOS) NativeVoiceCapture(),
+    RecordCapture(),
+  ];
+
+  /// The source that started last; one that failed is not tried again in
+  /// the same call.
+  int _source = 0;
+  CaptureInfo? _info;
+  StreamSubscription<Float32List>? _mic;
   SherpaDecoder? _decoder;
   SileroDetector? _vad;
-  final _pending = BytesBuilder();
+  final _chunker = FrameChunker(SileroDetector.window);
 
-  static const _windowBytes = SileroDetector.window * 2;
+  @override
+  bool get echoCancelled => _info?.echoCancelled ?? false;
 
   @override
   Future<void> prepare() async {
@@ -89,7 +110,12 @@ class DeviceEars implements CallEars {
         SpeechModel.vad.detail,
       );
     }
-    if (!await _recorder.hasPermission()) throw CallException(CallProblem.denied);
+    final asked = AudioRecorder();
+    try {
+      if (!await asked.hasPermission()) throw CallException(CallProblem.denied);
+    } finally {
+      unawaited(asked.dispose());
+    }
     final watch = Stopwatch()..start();
     _decoder ??= await SherpaDecoder.load(path, speech.engine);
     _vad ??= SileroDetector.load(vadPath);
@@ -108,25 +134,24 @@ class DeviceEars implements CallEars {
     final vad = _vad;
     if (vad == null) throw CallException(CallProblem.unavailable, 'not prepared');
     vad.reset();
-    _pending.clear();
-    // Raw, as dictation records (#359): record's voice processing left the
-    // stream silent on macOS.
-    final raw = await _recorder.startStream(
-      const RecordConfig(encoder: AudioEncoder.pcm16bits, sampleRate: 16000, numChannels: 1),
-    );
-    _mic = raw.listen((chunk) {
-      _pending.add(chunk);
-      if (_pending.length < _windowBytes) return;
-      final all = _pending.takeBytes();
-      var at = 0;
-      for (; at + _windowBytes <= all.length; at += _windowBytes) {
-        final w = Uint8List.fromList(Uint8List.sublistView(all, at, at + _windowBytes));
-        final samples = _floats(w);
-        onWindow(w, vad.feed(samples), _loudness(samples));
+    _chunker.reset();
+    final (int, OpenCapture) opened;
+    try {
+      opened = await openCapture(_sources, from: _source);
+    } on CaptureDeniedException {
+      throw CallException(CallProblem.denied);
+    } catch (e) {
+      throw CallException(CallProblem.unavailable, 'the microphone did not start: $e');
+    }
+    final first = _info == null || _source != opened.$1;
+    _source = opened.$1;
+    _info = opened.$2.info;
+    _mic = opened.$2.frames.listen((chunk) {
+      for (final w in _chunker.add(chunk)) {
+        onWindow(floatsPcm16(w), vad.feed(w), loudness(w));
       }
-      if (at < all.length) _pending.add(Uint8List.sublistView(all, at));
     });
-    diag('call', 'listening');
+    diag('call', first ? 'listening, ${opened.$2.info}' : 'listening');
   }
 
   @override
@@ -134,7 +159,7 @@ class DeviceEars implements CallEars {
     final mic = _mic;
     _mic = null;
     if (mic == null) return;
-    await _recorder.stop();
+    await _sources[_source].stop();
     await mic.cancel();
     diag('call', 'microphone closed');
   }
@@ -153,28 +178,10 @@ class DeviceEars implements CallEars {
     _decoder = null;
     _vad?.free();
     _vad = null;
-    await _recorder.dispose();
+    for (final s in _sources) {
+      try {
+        await s.dispose();
+      } catch (_) {}
+    }
   }
-}
-
-Float32List _floats(Uint8List pcm16) {
-  final data = ByteData.sublistView(pcm16);
-  final out = Float32List(pcm16.length ~/ 2);
-  for (var i = 0; i < out.length; i++) {
-    out[i] = data.getInt16(i * 2, Endian.little) / 32768.0;
-  }
-  return out;
-}
-
-/// Perceived loudness, 0–1: -60 dB → 0, 0 dB → 1.
-double _loudness(Float32List s) {
-  if (s.isEmpty) return 0;
-  var sum = 0.0;
-  for (final v in s) {
-    sum += v * v;
-  }
-  final rms = math.sqrt(sum / s.length);
-  if (rms <= 0) return 0;
-  final db = 20 * math.log(rms) / math.ln10;
-  return ((db + 60) / 60).clamp(0.0, 1.0);
 }
