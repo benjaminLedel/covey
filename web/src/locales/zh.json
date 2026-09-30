@@ -1167,7 +1167,7 @@
       "hint": "关闭：团队中的每条消息都会变成任务。开启：由代理决定直接回答还是转为工作——控制平面中的一次简短调用，没有沙箱、没有目标系统、没有凭据。",
       "off": "关闭 — 每条消息都是任务",
       "on": "开启 — 由代理决定",
-      "noCredential": "这需要组织在控制平面的凭据。",
+      "noCredential": "不可用：控制平面没有模型访问权限。请在“密钥”中存入 Anthropic API 密钥（anthropic_api_key）或 Claude Code 令牌（claude_code_oauth_token），或在“基础设施”中为 Claude Code 运行时提供凭据。在此之前，每条消息都会变成任务，由其运行来回复。",
       "cost": "届时每条消息都会产生一次简短的模型调用费用。"
     },
     "push": {
@@ -3123,7 +3123,10 @@
     "groupSize_other": "含你在内 {{count}} 人",
     "groupSize_few": "含你在内 {{count}} 人",
     "groupSize_many": "含你在内 {{count}} 人",
-    "mentionList": "提及"
+    "mentionList": "提及",
+    "noTriage": "这里的每条消息都会变成任务，并由一次完整运行来回复：控制平面没有用于快速回复的模型访问权限。",
+    "noTriageFix": "在以下位置添加 Anthropic 凭据：",
+    "noTriageAsk": "管理员可以在“密钥”或“基础设施”中添加。"
   },
   "chatTone": {
     "title": "在团队聊天中",

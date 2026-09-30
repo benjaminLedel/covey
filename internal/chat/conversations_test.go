@@ -58,3 +58,25 @@ func TestAddressed(t *testing.T) {
 		t.Fatalf("an agent that left is not addressed: %v", got)
 	}
 }
+
+// TestReportMessageOfAChatAnswer: the reply of a chat answer is a plain
+// message that still names the outcome it reports (#483); its error, and
+// every other task's outcome, keep their kind.
+func TestReportMessageOfAChatAnswer(t *testing.T) {
+	r := Report{TaskID: uuid.New(), AgentID: uuid.New(), ConversationID: uuid.New(), State: "done", ChatAnswer: true}
+	m := r.Message("Hi!", map[string]string{"voice": "Warm"})
+	if m.Kind != MessageText || m.Meta[ReportsMeta] != MessageResult || m.Meta["voice"] != "Warm" {
+		t.Fatalf("chat answer: %+v", m)
+	}
+	if m.ID != ReportID(r.TaskID, MessageResult) {
+		t.Fatal("the id has to stay the report's, so a second round writes nothing")
+	}
+	r.State = "failed"
+	if m := r.Message("boom", nil); m.Kind != MessageError || m.Meta != nil {
+		t.Fatalf("a failed chat answer stays an error: %+v", m)
+	}
+	r.State, r.ChatAnswer = "done", false
+	if m := r.Message("report", nil); m.Kind != MessageResult {
+		t.Fatalf("a task keeps its result kind: %+v", m)
+	}
+}

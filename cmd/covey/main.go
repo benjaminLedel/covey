@@ -1560,7 +1560,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 			if err != nil {
 				return nil, false
 			}
-			p, err := llm.Resolve(ctx, secretStore, a.OrgID)
+			p, err := llm.Resolve(ctx, secretStore, runtimeStore, a.OrgID)
 			return p, err == nil
 		}, log)
 	}

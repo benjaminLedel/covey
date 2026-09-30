@@ -81,21 +81,22 @@ func (s *Server) Nacherzaehlen(ctx context.Context) {
 
 /* melden writes a task's outcome into its conversation. With the triage on,
  * the agent tells it first (erzaehle); without a model, without the triage
- * or when telling failed, the report itself is the message, as before #411. */
+ * or when telling failed, the report itself is the message, as before #411.
+ *
+ * A chat answer (#483) is neither: its run was told it replies to a chat
+ * message, so what it returned IS the reply, and it goes into the
+ * conversation as the agent's message — not retold, and not as a report
+ * with the run's work behind it. Its error stays an error. */
 func (s *Server) melden(ctx context.Context, b chat.Report) {
 	text := b.Said
 	var meta map[string]string
-	if b.Triage && !b.Told {
+	if b.Triage && !b.Told && !b.ChatAnswer {
 		text, meta = s.erzaehle(ctx, b)
 	}
 	if strings.TrimSpace(text) == "" {
 		text = b.Outcome
 	}
-	_, neu, err := s.Chat.Post(ctx, chat.Message{
-		ID: chat.ReportID(b.TaskID, b.Kind()), ConversationID: b.ConversationID,
-		AuthorKind: chat.MemberAgent, AuthorID: &b.AgentID, Text: text, Kind: b.Kind(), TaskID: &b.TaskID,
-		Meta: meta,
-	})
+	_, neu, err := s.Chat.Post(ctx, b.Message(text, meta))
 	if err != nil {
 		s.Log.Warn("narration: the report was not written", "task", b.TaskID, "err", err)
 		return

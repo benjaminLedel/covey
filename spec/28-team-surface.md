@@ -94,6 +94,8 @@ the control plane, and covey already has that shape — `internal/httpapi/assist
 uses the organisation's credential server-side, without a sandbox, to help
 write a config. Off is the default, and off means today's behaviour exactly.
 
+The model is the organisation's control-plane credential, found the way a run finds its own (#483, [`18`](18-runtimes-capacity.md)): the two org secrets by name, else the first usable credential of the Claude Code seats. `GET /api/v1/org/chat-triage` answers `available: false` only when neither exists, and then the settings card and every conversation with an agent say so — what is missing, that every message becomes a task until then, and, for an administrator, the links to Secrets and Infrastructure — rather than showing a greyed-out switch. The default stays off even where the model is available: it was chosen so that an upgrade changes nothing and no turn is paid for that nobody switched on, not because a credential was missing, and `organizations.chat_triage` cannot tell a switch left alone from one turned off.
+
 The limits are the point, not a detail, because the turn runs **outside the
 sandbox**:
 
@@ -153,6 +155,8 @@ not its voice. So:
 The second turn stands under the same limits as the first — no target
 system, no credential, nothing claimed beyond what the result says. Without
 a model it says nothing, and the report stands on its own as before.
+
+**Without the triage** (#483) a message is still answered, not reported on. It becomes a task, because nothing decided otherwise — but a task marked as the answer to that message (`backlog_tasks.chat_answer`, set in the same insert and carried on by a continuation). Its run is told so at dispatch (`agents.ChatAnswerDoc` in place of the retelling instruction, plus the chat tone the triage would read): sort the message first, answer a greeting or a question without touching a target system, and write the result as the chat reply itself — short, in the message's language, no headings, no account of the run. When it is done, that result is written into the conversation as the agent's plain message (kind `text`, `meta.reports = result`, so the round writes it once), not as a `result` entry with the report behind it; a failure stays an `error`. A task the triage opened is not a chat answer and keeps the retelling. A brief to the People department is work whatever the switch says and keeps its result entry, which carries the drafts.
 
 **As a teammate** (#457). A greeting in a group came back as "I answered your greeting and explained my role" — a report about an answer instead of the answer. Three changes, one per place the wording came from:
 

@@ -2240,10 +2240,15 @@ func (o *Orchestrator) publishTask(taskID uuid.UUID, agent agents.Agent) {
 
 // conversationSection is what a run of a task opened from a conversation is
 // told about its result (#457): the people read it. Empty for every other
-// task, whose result stays the summary for the record.
+// task, whose result stays the summary for the record. A chat answer — a
+// message nobody triaged (#483) — is told instead that its result is the
+// reply itself, posted as it stands.
 func conversationSection(task backlog.Task) string {
 	if task.ConversationID == nil {
 		return ""
+	}
+	if task.ChatAnswer {
+		return "\n\n" + agents.ChatAnswerDoc
 	}
 	return "\n\n" + agents.ConversationDoc
 }
@@ -2433,6 +2438,13 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 		compiled += "\n\n" + section
 	}
 	compiled += conversationSection(task)
+	if task.ChatAnswer {
+		// The reply goes out as it stands, so the chat tone the triage and
+		// the retelling read (address, tone, emoji) is the run's to follow.
+		if tone := o.chatTone(ctx, agent, task); tone != "" {
+			compiled += "\n\n" + tone
+		}
+	}
 	if audience != "" {
 		compiled += "\n\n" + audience
 	}

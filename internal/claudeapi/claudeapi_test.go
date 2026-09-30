@@ -210,3 +210,24 @@ func TestResolveOrgWithoutAnyCredential(t *testing.T) {
 		t.Fatalf("ResolveOrg = %q, oauth=%v, ok=%v — expected nothing", cred, oauth, ok)
 	}
 }
+
+// TestIsOAuth: the prefix beats the declaration — a token filed as an API key
+// still has to go out as Bearer (#483) — and only an unknown format falls back
+// on what it was filed as.
+func TestIsOAuth(t *testing.T) {
+	for _, c := range []struct {
+		value    string
+		declared bool
+		want     bool
+	}{
+		{"sk-ant-oat01-x", false, true},
+		{"sk-ant-api03-x", true, false},
+		{"  sk-ant-oat01-x ", false, true},
+		{"something-else", true, true},
+		{"something-else", false, false},
+	} {
+		if got := IsOAuth(c.value, c.declared); got != c.want {
+			t.Errorf("IsOAuth(%q, %v) = %v, want %v", c.value, c.declared, got, c.want)
+		}
+	}
+}

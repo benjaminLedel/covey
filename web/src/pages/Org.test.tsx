@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
-import Org, { PlatformRepo } from "./Org";
+import Org, { PlatformRepo, TriageSettings } from "./Org";
 import { mockFetch, renderWithProviders, useGerman } from "../test/render";
 
 /* The card "source code of this platform" is a setting for exactly one
@@ -145,5 +145,34 @@ describe("Quelltext dieser Plattform", () => {
 
     expect(await screen.findByText(/Abgeschaltet/)).toBeInTheDocument();
     expect(screen.queryByText(/Wirkt/)).not.toBeInTheDocument();
+  });
+});
+
+/* Without model access the switch cannot act, and the card has to say what is
+   missing and where it goes (#483) — a greyed-out switch left the reader to
+   guess. */
+describe("Antwort oder Aufgabe", () => {
+  it("nennt, was fehlt, und wohin es gehört", async () => {
+    mockFetch({
+      "/api/v1/org/chat-triage": { mode: "off", available: false },
+      "/api/v1/org/team-surface": { enabled: true },
+    });
+    renderWithProviders(<TriageSettings />);
+
+    expect(await screen.findByText(/Control Plane hat keinen Modellzugang/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Secrets" })).toHaveAttribute("href", "/secrets");
+    expect(screen.getByRole("link", { name: "Infrastruktur" })).toHaveAttribute("href", "/infrastructure");
+    expect(screen.getByRole("combobox")).toBeDisabled();
+  });
+
+  it("schweigt darüber, wenn der Zugang steht", async () => {
+    mockFetch({
+      "/api/v1/org/chat-triage": { mode: "on", available: true },
+      "/api/v1/org/team-surface": { enabled: true },
+    });
+    renderWithProviders(<TriageSettings />);
+
+    expect(await screen.findByRole("combobox")).toBeEnabled();
+    expect(screen.queryByText(/keinen Modellzugang/)).not.toBeInTheDocument();
   });
 });

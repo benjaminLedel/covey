@@ -50,6 +50,35 @@ type Report struct {
 	Said   string
 	Told   bool
 	Triage bool
+	// ChatAnswer: the task is a chat message nobody triaged (#483). Its
+	// result is the reply itself and is posted as a message of the agent —
+	// neither retold nor shown as a report.
+	ChatAnswer bool
+}
+
+// ReportsMeta is the meta key that names which outcome a message reports
+// when it is not written as that kind — the reply of a chat answer is a
+// plain message and still reports the result.
+const ReportsMeta = "reports"
+
+// Message is how the report is written into the conversation: as a result
+// or an error, or — for a chat answer that is done — as the agent's plain
+// reply, which still says in its meta which outcome it reports, so that the
+// round finds it written.
+func (r Report) Message(text string, meta map[string]string) Message {
+	kind := r.Kind()
+	if r.ChatAnswer && kind == MessageResult {
+		out := map[string]string{ReportsMeta: kind}
+		for k, v := range meta {
+			out[k] = v
+		}
+		meta, kind = out, MessageText
+	}
+	return Message{
+		ID: ReportID(r.TaskID, r.Kind()), ConversationID: r.ConversationID,
+		AuthorKind: MemberAgent, AuthorID: &r.AgentID, Text: text, Kind: kind, TaskID: &r.TaskID,
+		Meta: meta,
+	}
 }
 
 // Kind is the message kind the report is written as.
@@ -66,13 +95,14 @@ func (s *Store) DueReports(ctx context.Context, window time.Duration, limit int)
 	rows, err := s.pool.Query(ctx, `
 		SELECT t.id, t.org_id, t.agent_id, t.conversation_id, t.title, coalesce(t.body, ''), t.origin, t.state,
 		       CASE WHEN t.state = 'done' THEN coalesce(t.result, '') ELSE coalesce(t.error, '') END,
-		       coalesce(t.said, ''), t.said_at IS NOT NULL, o.chat_triage = 'on'
+		       coalesce(t.said, ''), t.said_at IS NOT NULL, o.chat_triage = 'on', t.chat_answer
 		  FROM backlog_tasks t JOIN organizations o ON o.id = t.org_id
 		 WHERE t.conversation_id IS NOT NULL AND t.state IN ('done', 'failed') AND t.archived_at IS NULL
 		   AND t.updated_at > now() - make_interval(secs => $1)
 		   AND CASE WHEN t.state = 'done' THEN coalesce(t.result, '') ELSE coalesce(t.error, '') END <> ''
 		   AND NOT EXISTS (SELECT 1 FROM conversation_messages m
-		                    WHERE m.task_id = t.id AND m.kind = CASE WHEN t.state = 'done' THEN 'result' ELSE 'error' END)
+		                    WHERE m.task_id = t.id
+		                      AND CASE WHEN t.state = 'done' THEN 'result' ELSE 'error' END IN (m.kind, m.meta->>'reports'))
 		 ORDER BY t.updated_at
 		 LIMIT $2`, window.Seconds(), limit)
 	if err != nil {
@@ -83,7 +113,7 @@ func (s *Store) DueReports(ctx context.Context, window time.Duration, limit int)
 	for rows.Next() {
 		var r Report
 		if err := rows.Scan(&r.TaskID, &r.OrgID, &r.AgentID, &r.ConversationID, &r.Title, &r.Body, &r.Origin,
-			&r.State, &r.Outcome, &r.Said, &r.Told, &r.Triage); err != nil {
+			&r.State, &r.Outcome, &r.Said, &r.Told, &r.Triage, &r.ChatAnswer); err != nil {
 			return nil, err
 		}
 		out = append(out, r)

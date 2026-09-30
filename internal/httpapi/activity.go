@@ -213,7 +213,7 @@ func (s *Server) handleActivityReview(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "no activity recorded for that day")
 		return
 	}
-	provider, err := llm.Resolve(r.Context(), s.Secrets, p.OrgID)
+	provider, err := llm.Resolve(r.Context(), s.Secrets, s.Runtimes, p.OrgID)
 	if errors.Is(err, llm.ErrNoCredential) {
 		writeErr(w, http.StatusConflict, "the review needs a control-plane credential for this organisation")
 		return
@@ -311,7 +311,7 @@ func (s *Server) refreshReview(ctx context.Context, humanID uuid.UUID, ref notes
 	if len(sessions) == 0 || !last.After(ref.Through) {
 		return nil
 	}
-	provider, err := llm.Resolve(ctx, s.Secrets, ref.OrgID)
+	provider, err := llm.Resolve(ctx, s.Secrets, s.Runtimes, ref.OrgID)
 	if err != nil {
 		return err
 	}
@@ -379,7 +379,7 @@ func (s *Server) handleSuggest(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "no activity recorded in the last 14 days")
 		return
 	}
-	provider, err := llm.Resolve(r.Context(), s.Secrets, p.OrgID)
+	provider, err := llm.Resolve(r.Context(), s.Secrets, s.Runtimes, p.OrgID)
 	if errors.Is(err, llm.ErrNoCredential) {
 		writeErr(w, http.StatusConflict, "suggestions need a control-plane credential for this organisation")
 		return

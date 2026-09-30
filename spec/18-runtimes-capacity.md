@@ -63,6 +63,8 @@ On an empty instance the two decisions collapse into one, and the setup makes th
 
 That is the reason the credential is the first question the platform asks at all. It is not one consumer's setting but three at once: the sandbox runs, the control plane's own LLM calls (config copilot, dream), and the agent that drafts other agents. Before it exists, nothing the interface offers can actually run; after it exists, most of the rest can be done for the person rather than by them.
 
+The control plane's calls find it the way a run does (#483). `llm.Resolve` reads the two org secrets the Claude Code engine declares by name first, and then the credentials the organisation's Claude Code seats hold: the first one in merit order that is neither paused by hand nor parked by a cooldown, read by its own key **and slot** (`runtimes.Store.ControlPlaneCredential`). Whether it goes out as an API key or as a subscription token is decided by its prefix (`sk-ant-api…`, `sk-ant-oat…`), and only a value without a known prefix by the seat's kind. A seat's credential is always an org-wide value; agent-own secrets are never part of a seat and are never read for the control plane, so one agent's private access does not become the whole organisation's triage. The control plane takes no seat: nothing is bound and nothing is booked against the credential.
+
 ### What an engine declares about its credentials
 
 The engine, not the platform, knows which secret it needs and how it wants it. It declares them in order of precedence — an API key before a subscription token, so that an organisation holding both uses the one it is billed for deliberately rather than by accident. Each entry carries:

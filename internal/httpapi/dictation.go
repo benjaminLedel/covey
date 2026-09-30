@@ -37,7 +37,7 @@ func (s *Server) handleDictationClean(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := principalFrom(r)
-	provider, err := llm.Resolve(r.Context(), s.Secrets, p.OrgID)
+	provider, err := llm.Resolve(r.Context(), s.Secrets, s.Runtimes, p.OrgID)
 	if errors.Is(err, llm.ErrNoCredential) {
 		writeErr(w, http.StatusConflict, "cleanup needs a control-plane credential for this organisation")
 		return

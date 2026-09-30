@@ -1167,7 +1167,7 @@
       "hint": "Aus: Jede Nachricht im Team wird eine Aufgabe. An: Der Agent entscheidet, ob er direkt antwortet oder Arbeit daraus macht — ein kurzer Zug in der Control Plane, ohne Sandbox, ohne Zielsysteme, ohne Zugangsdaten.",
       "off": "Aus — jede Nachricht wird eine Aufgabe",
       "on": "An — der Agent entscheidet",
-      "noCredential": "Dafür braucht die Organisation Zugangsdaten für die Control Plane.",
+      "noCredential": "Nicht verfügbar: Die Control Plane hat keinen Modellzugang. Hinterlege einen Anthropic-API-Key (anthropic_api_key) oder ein Claude-Code-Token (claude_code_oauth_token) unter Secrets, oder gib der Claude-Code-Runtime unter Infrastruktur Zugangsdaten. Bis dahin wird jede Nachricht eine Aufgabe, und ihr Lauf beantwortet sie.",
       "cost": "Jede Nachricht kostet damit einen kurzen Modellaufruf."
     },
     "push": {
@@ -3123,7 +3123,10 @@
     "groupSize_other": "{{count}} Mitglieder mit Ihnen",
     "groupSize_few": "{{count}} Mitglieder mit Ihnen",
     "groupSize_many": "{{count}} Mitglieder mit Ihnen",
-    "mentionList": "Erwähnen"
+    "mentionList": "Erwähnen",
+    "noTriage": "Jede Nachricht hier wird eine Aufgabe, und ein ganzer Lauf beantwortet sie: Die Control Plane hat keinen Modellzugang für schnelle Antworten.",
+    "noTriageFix": "Anthropic-Zugangsdaten hinterlegen unter",
+    "noTriageAsk": "Eine Administratorin kann sie unter Secrets oder Infrastruktur hinterlegen."
   },
   "chatTone": {
     "title": "Im Team-Chat",

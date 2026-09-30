@@ -1167,7 +1167,7 @@
       "hint": "Off: every message in the team becomes a task. On: the agent decides whether to answer directly or make work of it — one short turn in the control plane, without a sandbox, without target systems, without credentials.",
       "off": "Off — every message becomes a task",
       "on": "On — the agent decides",
-      "noCredential": "This needs a control-plane credential for the organisation.",
+      "noCredential": "Not available: the control plane has no model access. Deposit an Anthropic API key (anthropic_api_key) or a Claude Code token (claude_code_oauth_token) under Secrets, or give the Claude Code runtime a credential under Infrastructure. Until then every message becomes a task, and its run answers it.",
       "cost": "Every message then costs one short model call."
     },
     "push": {
@@ -3123,7 +3123,10 @@
     "groupSize_other": "{{count}} members including you",
     "groupSize_few": "{{count}} members including you",
     "groupSize_many": "{{count}} members including you",
-    "mentionList": "Mention"
+    "mentionList": "Mention",
+    "noTriage": "Every message here becomes a task, and a full run answers it: the control plane has no model access for quick replies.",
+    "noTriageFix": "Add an Anthropic credential under",
+    "noTriageAsk": "An administrator can add one under Secrets or Infrastructure."
   },
   "chatTone": {
     "title": "In the team chat",

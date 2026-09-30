@@ -1167,7 +1167,7 @@
       "hint": "Wyłączone: każda wiadomość w zespole staje się zadaniem. Włączone: agent decyduje, czy odpowiedzieć, czy zrobić z tego pracę — krótka tura w warstwie sterowania, bez piaskownicy, bez systemów docelowych, bez danych dostępowych.",
       "off": "Wyłączone — każda wiadomość to zadanie",
       "on": "Włączone — decyduje agent",
-      "noCredential": "Organizacja potrzebuje do tego danych dostępowych warstwy sterowania.",
+      "noCredential": "Niedostępne: warstwa sterowania nie ma dostępu do modelu. Zapisz klucz API Anthropic (anthropic_api_key) lub token Claude Code (claude_code_oauth_token) w Sekretach albo daj środowisku Claude Code dane dostępowe w Infrastrukturze. Do tego czasu każda wiadomość staje się zadaniem, a odpowiada na nią jego przebieg.",
       "cost": "Każda wiadomość kosztuje wtedy krótkie wywołanie modelu."
     },
     "push": {
@@ -3123,7 +3123,10 @@
     "groupSize_other": "{{count}} członków razem z tobą",
     "groupSize_few": "{{count}} członkowie razem z tobą",
     "groupSize_many": "{{count}} członków razem z tobą",
-    "mentionList": "Wspomnij"
+    "mentionList": "Wspomnij",
+    "noTriage": "Tutaj każda wiadomość staje się zadaniem i odpowiada na nią pełny przebieg: warstwa sterowania nie ma dostępu do modelu do szybkich odpowiedzi.",
+    "noTriageFix": "Dodaj dane dostępowe Anthropic w",
+    "noTriageAsk": "Administrator może je dodać w Sekretach lub Infrastrukturze."
   },
   "chatTone": {
     "title": "Na czacie zespołu",

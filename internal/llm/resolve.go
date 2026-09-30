@@ -10,18 +10,44 @@ import (
 	"covey/internal/secrets"
 )
 
+// Seats is where the agents' own engine access lives: the credentials the
+// organisation's runtime seats hold (internal/runtimes, spec/18). An interface
+// here rather than an import, so that this package keeps knowing nothing about
+// the capacity layer beyond the one question it asks of it.
+//
+// *runtimes.Store implements it, and answers ErrNotFound on a nil receiver —
+// a caller without the capacity layer passes nil and gets the named secrets
+// only.
+type Seats interface {
+	ControlPlaneCredential(ctx context.Context, orgID uuid.UUID, engine string) (value string, subscription bool, err error)
+}
+
+// claudeEngine is the engine whose seats carry Anthropic access.
+const claudeEngine = "claude-code"
+
 // Resolve finds the provider an organisation can use for control-plane calls.
 //
 // The order is the order of what the organisation actually operates on, and it
-// lives in one place so that copilot, dream and setup arrive at the same
-// answer. Anthropic first, because its credential is the one every existing
-// installation has.
+// lives in one place so that copilot, dream, setup, the chat triage and the
+// narration arrive at the same answer. Anthropic first, because its credential
+// is the one every existing installation has — and within Anthropic, first the
+// two org secrets by the names the engine declares, then whatever the
+// organisation's Claude Code seats hold (#483). An organisation whose agents
+// run on a token filed under another name must not have a control plane that
+// reports no model.
 //
 // Not found is ErrNoCredential and not an error to display: whoever has no
 // credential should not be offered the feature at all.
-func Resolve(ctx context.Context, store secrets.Store, orgID uuid.UUID) (Provider, error) {
-	if cred, oauth, ok := claudeapi.ResolveOrg(ctx, store, orgID); ok {
-		return anthropic{cred: cred, oauth: oauth}, nil
+func Resolve(ctx context.Context, store secrets.Store, seats Seats, orgID uuid.UUID) (Provider, error) {
+	if store != nil {
+		if cred, oauth, ok := claudeapi.ResolveOrg(ctx, store, orgID); ok {
+			return anthropic{cred: cred, oauth: oauth}, nil
+		}
+	}
+	if seats != nil {
+		if v, sub, err := seats.ControlPlaneCredential(ctx, orgID, claudeEngine); err == nil && v != "" {
+			return anthropic{cred: v, oauth: claudeapi.IsOAuth(v, sub)}, nil
+		}
 	}
 	return nil, ErrNoCredential
 }
@@ -34,8 +60,8 @@ func Anthropic(cred string, oauth bool) Provider { return anthropic{cred: cred, 
 
 // Available: is there a provider at all? For the status endpoints that decide
 // whether a feature appears in the interface.
-func Available(ctx context.Context, store secrets.Store, orgID uuid.UUID) bool {
-	_, err := Resolve(ctx, store, orgID)
+func Available(ctx context.Context, store secrets.Store, seats Seats, orgID uuid.UUID) bool {
+	_, err := Resolve(ctx, store, seats, orgID)
 	return err == nil
 }
 

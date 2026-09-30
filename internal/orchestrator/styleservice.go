@@ -131,7 +131,7 @@ func (o *Orchestrator) styleApplyAction(ctx context.Context, agent agents.Agent,
 	if len(text) > styleTextLimit {
 		return fail("style_apply: the text is longer than %d characters; revise it in parts", styleTextLimit)
 	}
-	provider, err := llm.Resolve(ctx, o.Secrets, agent.OrgID)
+	provider, err := llm.Resolve(ctx, o.Secrets, o.Runtimes, agent.OrgID)
 	if err != nil {
 		if errors.Is(err, llm.ErrNoCredential) {
 			return fail("style_apply needs a control-plane model: the organisation has no LLM credential configured " +

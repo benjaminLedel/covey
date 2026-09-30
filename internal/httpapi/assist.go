@@ -80,7 +80,7 @@ func (s *Server) resolveOrgLLM(ctx context.Context, orgID uuid.UUID) (llm.Provid
 	if s.OrgLLM != nil {
 		return s.OrgLLM(ctx, orgID)
 	}
-	return llm.Resolve(ctx, s.Secrets, orgID)
+	return llm.Resolve(ctx, s.Secrets, s.Runtimes, orgID)
 }
 
 // handleAssistStatus tells the UI whether the config copilot is available —
