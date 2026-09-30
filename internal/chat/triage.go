@@ -54,7 +54,19 @@ const (
 	// suchen — im ganzen Gespräch und im Organigramm — und entscheidet dann
 	// mit den Treffern. Einmal, nicht in einer Schleife.
 	AktionSuche Aktion = "search"
+	// AktionKonfig: the message asks the agent to change its own
+	// configuration (#491) — how often it looks at its queue, a procedure,
+	// how it talks, what it may reach. Only offered while the organisation
+	// has the trial on (Rahmen.Vorschlaege). The turn says what to change in
+	// plain words; the server drafts it with the config assistant and
+	// stores a proposal a person accepts — nothing changes before that.
+	AktionKonfig Aktion = "config"
 )
+
+// ApproversPlatzhalter is what a config decision's text writes where the
+// names of those who may accept go; the server puts them in (#491). The turn
+// cannot know them: who may accept depends on the files the draft touches.
+const ApproversPlatzhalter = "{approvers}"
 
 // Suche ist, was ein Zug gesucht und gefunden hat — der zweite Zug bekommt
 // es und entscheidet damit.
@@ -82,6 +94,10 @@ type Entscheidung struct {
 	Antwort string `json:"reply"`
 	// Bei einer Suche: wonach — ein paar Wörter, ein Name, ein Thema.
 	Anfrage string `json:"query"`
+	// For a config change (#491): what to change, in plain words, for the
+	// config assistant that drafts it. Title names it in one line; Text is
+	// what the agent says in the chat, with ApproversPlatzhalter.
+	Aenderung string `json:"change"`
 	// Meta is what the platform notes on the messages this decision writes
 	// (#471): the voice chosen and why. Set by the caller, never parsed.
 	Meta map[string]string `json:"-"`
@@ -141,6 +157,12 @@ type Rahmen struct {
 	// Publikum is how the departments of the people spoken to want to be
 	// spoken to (voice.AudiencePrompt, #471). Empty when none said.
 	Publikum string
+	// Vorschlaege: the organisation lets the triage draft changes to the
+	// agent's own configuration (#491). Takt is its HEARTBEAT.md, so that
+	// "how often do you check?" can be answered rather than proposed. Only
+	// the triage reads them; the narration changes nothing.
+	Vorschlaege bool
+	Takt        string
 }
 
 // Bounds of the two #471 blocks in a turn. Both are bounded where they are
@@ -270,6 +292,24 @@ For "answer": answer from the lists above and from this thread, never from memor
 For "note": the "text" is what the run should know, in one or two sentences; the "reply" is what you say in the chat.
 For "task": the title is one line in the imperative, the body carries what the person said and any context from the thread that the run will need. The text is what you say in the chat right now, before you start: a short acknowledgement that you are on it ("Mach ich, ich schau mir die Rechnung an und melde mich."). Promise nothing about the outcome and no time.`
 
+// TaktMax: so much HEARTBEAT.md goes into a turn. A heartbeat is a few
+// lines; one that is longer is still answered from its beginning.
+const TaktMax = 1500
+
+/* triageKonfig is the fifth choice (#491), appended only while the
+ * organisation has the trial on. Its boundary is the agent's OWN
+ * configuration: a wish about a colleague's is not this agent's to draft,
+ * and a question about the configuration is answered, not proposed. */
+const triageKonfig = `
+
+Your organisation also lets people change your own configuration from this chat (a trial). There is a fifth choice:
+
+{"action":"config","title":"…","change":"…","text":"…"} — change how YOU are set up
+
+Choose "config" when the message asks you to change your own setup from now on: when or how often you check your queue or wake up (your heartbeat, shown below), a procedure you follow (your playbooks), who you are or how you talk (your soul), which systems or hosts you may use (your access). "Check your queue only on weekdays" is config; "don't do the Monday report any more" is config.
+It is NOT config when the message only asks about your setup — "how often do you check your queue?" is an answer, from your heartbeat below; when it is one piece of work — "check the queue now" is a task; or when it is about a colleague's setup — then answer that it is theirs to change and name them. In a group, choose it only when the message addresses you.
+"title" is one line naming the change. "change" says what to change in plain words, complete enough for somebody who edits your configuration files: the person's wish and any detail from the conversation. "text" is what you say in the chat, short and in the language of the message: that you drafted it and that it waits for ` + ApproversPlatzhalter + ` to accept it — write ` + ApproversPlatzhalter + ` literally, covey puts in the names. Nothing changes before somebody accepts it: never say it is done.`
+
 // Triagieren führt den Zug aus. Der Fehlerfall ist bewusst weich: Wer nicht
 // entscheiden kann, eröffnet eine Aufgabe — das ist das Verhalten, das immer
 // funktioniert, und der Aufrufer muss dafür nichts wissen.
@@ -310,6 +350,17 @@ func Triagieren(ctx context.Context, p llm.Provider, r Rahmen, organisation stri
 		}
 		b.WriteString("\n")
 	}
+	/* The heartbeat (#491), beside the backlog: coveys own object as well,
+	   and without it "how often do you look?" could only be guessed at. */
+	if r.Vorschlaege {
+		takt := strings.TrimSpace(r.Takt)
+		if takt == "" {
+			takt = "(empty — you have no heartbeat)"
+		}
+		b.WriteString("Your HEARTBEAT.md, as it runs now:\n")
+		b.WriteString(kuerzen(takt, TaktMax))
+		b.WriteString("\n\n")
+	}
 	gespraech(&b, verlauf)
 	b.WriteString("The new message:\n")
 	b.WriteString(nachricht)
@@ -321,7 +372,16 @@ func Triagieren(ctx context.Context, p llm.Provider, r Rahmen, organisation stri
 		for _, t := range suche.Treffer {
 			fmt.Fprintf(&b, "- %s\n", kuerzen(einzeilig(t), 500))
 		}
-		b.WriteString("\nDecide now: answer, note or task. Do not search again.")
+		if r.Vorschlaege {
+			b.WriteString("\nDecide now: answer, note, task or config. Do not search again.")
+		} else {
+			b.WriteString("\nDecide now: answer, note or task. Do not search again.")
+		}
+	}
+
+	system := triageSystem
+	if r.Vorschlaege {
+		system += triageKonfig
 	}
 
 	roh, err := p.Complete(ctx, llm.Request{
@@ -331,7 +391,7 @@ func Triagieren(ctx context.Context, p llm.Provider, r Rahmen, organisation stri
 		   und ein kurzer Text. Denkzeit kostet hier Geld und Latenz und
 		   verbessert nichts. */
 		NoThinking: true,
-		System:     triageSystem,
+		System:     system,
 		Messages:   []llm.Message{{Role: "user", Content: b.String()}},
 	})
 	if err != nil {
@@ -382,6 +442,10 @@ func lesen(roh string) (Entscheidung, error) {
 	case AktionSuche:
 		if strings.TrimSpace(e.Anfrage) == "" {
 			return Entscheidung{}, fmt.Errorf("triage: search without query")
+		}
+	case AktionKonfig:
+		if strings.TrimSpace(e.Aenderung) == "" {
+			return Entscheidung{}, fmt.Errorf("triage: config without change")
 		}
 	default:
 		return Entscheidung{}, fmt.Errorf("triage: unknown action %q", e.Aktion)

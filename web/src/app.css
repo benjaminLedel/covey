@@ -4829,3 +4829,26 @@
 @media (prefers-reduced-motion: reduce) {
   .vf-steps button, .vf-choice, .vf-seg label, .vf-ex, .vp-tabs button { transition: none; }
 }
+
+/* A configuration change drafted from the chat (#491): a card inside the
+   agent's bubble, like the drafts of the People department. */
+.tm-vorschlag {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-1);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.tm-vorschlag-kopf { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.tm-vorschlag-art { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.tm-vorschlag-titel { font-size: 13px; }
+.tm-vorschlag-text { font-size: 13px; }
+.tm-vorschlag-warnung { margin: 0; font-size: 12px; color: var(--text-wait); }
+.tm-vorschlag-knoepfe { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.tm-vorschlag-stand { margin: 0; font-size: 12px; color: var(--text-muted); }
+.tm-vorschlag.st-rejected .tm-vorschlag-titel { text-decoration: line-through; color: var(--text-muted); }

@@ -695,6 +695,10 @@ class _Line extends StatelessWidget {
     final question = entry.kind == 'question';
     final error = entry.kind == 'error';
     final result = entry.kind == 'result';
+    // A configuration change drafted from the chat (#491): the app shows its
+    // title and rationale; the card with the diff and the decision is the
+    // web's.
+    final proposal = entry.kind == 'config_proposal';
     final emoji = emojiOnly(entry.text) && !question;
     // The person's lines are ink on the sheet, the agent's are white paper:
     // two sides told apart by weight, not by a second colour. A question is
@@ -712,6 +716,8 @@ class _Line extends StatelessWidget {
         ? context.t('chat.kind.result')
         : error
         ? context.t('chat.kind.error')
+        : proposal
+        ? context.t('chatProposal.inApp')
         : null;
 
     // The head of a run: who speaks, the kind where it means something, and
@@ -733,7 +739,7 @@ class _Line extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
                       decoration: BoxDecoration(
-                        color: question
+                        color: question || proposal
                             ? c.bgWait
                             : (result ? c.textSuccess.withValues(alpha: 0.12) : c.textDanger.withValues(alpha: 0.1)),
                         borderRadius: BorderRadius.circular(99),
@@ -741,7 +747,7 @@ class _Line extends StatelessWidget {
                       child: Text(
                         kindLabel,
                         style: context.type.labelSmall?.copyWith(
-                          color: question ? c.textWait : (result ? c.textSuccess : c.textDanger),
+                          color: question || proposal ? c.textWait : (result ? c.textSuccess : c.textDanger),
                           fontWeight: FontWeight.w600,
                         ),
                       ),

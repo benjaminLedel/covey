@@ -1168,7 +1168,9 @@
       "off": "Désactivé — chaque message devient une tâche",
       "on": "Activé — l'agent décide",
       "noCredential": "Indisponible : le plan de contrôle n'a pas d'accès à un modèle. Déposez une clé d'API Anthropic (anthropic_api_key) ou un jeton Claude Code (claude_code_oauth_token) dans Secrets, ou donnez un identifiant au runtime Claude Code dans Infrastructure. D'ici là, chaque message devient une tâche, et son exécution y répond.",
-      "cost": "Chaque message coûte alors un appel de modèle court."
+      "cost": "Chaque message coûte alors un appel de modèle court.",
+      "configProposals": "Essai : rédiger des changements de configuration depuis le chat",
+      "configProposalsHint": "Quand quelqu'un demande dans le chat à un agent de changer sa configuration — la fréquence à laquelle il consulte sa file, une procédure, sa façon de parler —, l'agent rédige le changement comme proposition au lieu d'ouvrir une tâche. Il ne s'applique qu'une fois accepté par quelqu'un qui peut modifier l'agent."
     },
     "push": {
       "title": "Notifications push",
@@ -3150,5 +3152,17 @@
     "notePlaceholder": "p. ex. dire « Moin » plutôt que « Hallo »",
     "save": "Enregistrer",
     "saved": "Enregistré"
+  },
+  "chatProposal": {
+    "label": "Proposition de configuration",
+    "widens": "Élargit les accès ({{files}}) — seuls org_admin ou security peuvent l'accepter.",
+    "accept": "Accepter",
+    "decline": "Refuser",
+    "waitingFor": "En attente de validation par {{names}}.",
+    "waiting": "En attente de validation.",
+    "acceptedBy": "Acceptée par {{name}}, {{when}}.",
+    "declinedBy": "Refusée par {{name}}, {{when}}.",
+    "requestedInChat": "demandée dans le chat par {{name}} ·",
+    "inApp": "Proposition · à décider sur le web"
   }
 }

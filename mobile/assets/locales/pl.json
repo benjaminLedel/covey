@@ -10,6 +10,7 @@
   "chat.placeholderAnswer": "Odpowiedz …",
   "chat.readOnly": "Pańska rola może czytać, ale nie pisać.",
   "chat.send": "Wyślij",
+  "chatProposal.inApp": "Propozycja · decyzja w wersji web",
   "common.loading": "wczytywanie …",
   "conversation.agentHint": "Współpracownik AI odpowiada w grupie tylko wtedy, gdy ktoś się do niego zwróci: przez @nazwa lub odpowiedź na jego wiadomość.",
   "conversation.agents": "Współpracownicy AI",

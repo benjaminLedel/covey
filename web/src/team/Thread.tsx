@@ -10,6 +10,7 @@ import { canManage } from "../pages/agent/roles";
 import Gesicht from "../components/Gesicht";
 import { NavIcon } from "../components/navicons";
 import Kopf, { Zustand } from "./Kopf";
+import Vorschlag from "./Vorschlag";
 
 const EntryCard = lazy(() => import("../pages/Inbox").then((m) => ({ default: m.EntryCard })));
 
@@ -118,9 +119,14 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
   });
   // controlling decides costs, nothing else (as in the inbox).
   const sichtbar = (x: { type: string }) => x.type === "approval" || me.Role !== "controlling";
-  const offeneEntscheidungen = (offenBeiMir.data?.items ?? []).filter(sichtbar);
+  /* A proposal drafted in this conversation (#491) stands in it as a card;
+     it is not shown a second time among the open points and decisions. */
+  const imVerlauf = new Set((thread.data?.entries ?? []).flatMap((e) => (e.proposal ? [e.proposal.id] : [])));
+  const nichtImVerlauf = (x: InboxEntry) => !imVerlauf.has(x.id);
+  const offeneEntscheidungen = (offenBeiMir.data?.items ?? []).filter(sichtbar).filter(nichtImVerlauf);
   const protokoll = (entschieden.data?.items ?? [])
     .filter(sichtbar)
+    .filter(nichtImVerlauf)
     .filter((d) => d.decided_at)
     .sort((a, b) => Date.parse(a.decided_at!) - Date.parse(b.decided_at!));
 
@@ -576,9 +582,13 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
                     <time dateTime={e.at}>{uhr(e.at, i18n.language)}</time>
                   </div>
                 )}
-                <div className="tm-blase-text">
-                  <Markdown text={e.said || e.text} />
-                </div>
+                {e.kind === "config_proposal" && e.proposal ? (
+                  <Vorschlag card={e.proposal} />
+                ) : (
+                  <div className="tm-blase-text">
+                    <Markdown text={e.said || e.text} />
+                  </div>
+                )}
                 {/* What the agent said is told from the report; the report
                     itself stays one click away, so nobody has to take the
                     sentence on trust (#411). */}

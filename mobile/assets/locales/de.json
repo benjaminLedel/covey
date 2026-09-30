@@ -10,6 +10,7 @@
   "chat.placeholderAnswer": "Antworten …",
   "chat.readOnly": "Ihre Rolle darf mitlesen, aber nicht schreiben.",
   "chat.send": "Senden",
+  "chatProposal.inApp": "Vorschlag · im Web entscheiden",
   "common.loading": "lädt …",
   "conversation.agentHint": "Ein KI-Kollege antwortet in einer Gruppe nur, wenn er angesprochen wird: mit @Name oder mit einer Antwort auf seine Nachricht.",
   "conversation.agents": "KI-Kollegen",

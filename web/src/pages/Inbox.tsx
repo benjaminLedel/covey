@@ -14,7 +14,7 @@ import {
   type Principal,
 } from "../api";
 import { Markdown } from "../components/Markdown";
-import { collapse, diffLines } from "../diff";
+import { FileDiff } from "../components/FileDiff";
 import { canManage } from "./agent/roles";
 
 /* The inbox: everything that waits for the decision of a human.
@@ -371,6 +371,9 @@ function ItemCard({
       {item.author_name && (
         <div className="muted text-xs mb-2">{t("improvements.by", { name: item.author_name })}</div>
       )}
+      {!item.author_name && item.requested_by_name && (
+        <div className="muted text-xs mb-2">{t("chatProposal.requestedInChat", { name: item.requested_by_name })}</div>
+      )}
 
       {item.rationale && (
         <div className="text-sm mb-2" style={{ maxWidth: 780 }}>
@@ -438,30 +441,3 @@ function ItemCard({
   );
 }
 
-// FileDiff shows the changed file line by line against the RUNNING state —
-// what gets judged is the change that accepting produces.
-function FileDiff({ file, before, after }: { file: string; before: string; after: string }) {
-  const { t } = useTranslation();
-  const chunks = collapse(diffLines(before, after));
-  return (
-    <div className="diff mb-2">
-      <div className="diff-head mono">
-        {file}
-        {before === "" && <span className="muted"> · {t("improvements.newFile")}</span>}
-      </div>
-      <pre className="diff-body">
-        {chunks.map((c, i) =>
-          c.kind === "skip" ? (
-            <span key={i} className="diff-skip">
-              {t("improvements.skipped", { count: c.skipped })}
-            </span>
-          ) : (
-            <span key={i} className={`diff-line ${c.kind}`}>
-              {c.kind === "add" ? "+" : c.kind === "del" ? "−" : " "} {c.text}
-            </span>
-          ),
-        )}
-      </pre>
-    </div>
-  );
-}

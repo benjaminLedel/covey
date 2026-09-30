@@ -76,6 +76,9 @@ type chatEntry struct {
 	   The surfaces show this and keep the report one tap away. Empty: not
 	   told (no triage, not yet, or nothing to tell with). */
 	Said string `json:"said,omitempty"`
+	/* On a config_proposal (#491): the drafted change as the reader may see
+	   and decide it (chatconfig.go). */
+	Proposal *chat.ProposalCard `json:"proposal,omitempty"`
 }
 
 // entwurfKurz is a drafted colleague as the thread shows it: enough to
@@ -200,6 +203,7 @@ func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 			mapErr(w, err)
 			return
 		}
+		s.kartenAnhaengen(r, msgs)
 		for _, m := range msgs {
 			out.Entries = append(out.Entries, alsEintrag(m, p.Email))
 		}
@@ -277,6 +281,10 @@ func alsEintrag(m chat.Message, email string) chatEntry {
 		}
 	case m.Kind == chat.MessageQuestion:
 		e.Kind = "question"
+	case m.Kind == chat.MessageConfigProposal:
+		// A client that does not know the kind shows Text, the proposal's
+		// title and rationale (#491).
+		e.Kind, e.Proposal = m.Kind, m.Proposal
 	}
 	return e
 }
@@ -741,6 +749,12 @@ func (s *Server) entscheidungAnwenden(
 	offen map[string]uuid.UUID,
 	email, lang string,
 ) (string, map[string]string, error) {
+	/* A change to the agent's own configuration (#491): drafted and stored
+	   as a proposal a person accepts — offered only while the organisation
+	   has the trial on (triagieren turns it into a task otherwise). */
+	if entscheidung.Aktion == chat.AktionKonfig {
+		return s.konfigVorschlagen(conv, agentID, msg, entscheidung, lang)
+	}
 	/* Die Notiz an eine laufende Aufgabe: Statt eines zweiten Vorgangs für
 	   dieselbe Sache bekommt der bestehende, was dazugekommen ist — und wenn
 	   er auf eine Antwort wartete, weckt ihn das über denselben Weg wie eine
@@ -978,6 +992,14 @@ func (s *Server) triagieren(ctx context.Context, conv chat.Conversation, agentID
 		Gegenueber: s.gegenueberVon(ctx, conv.OrgID, email),
 		Raum:       chat.Raum(conv, agentID, s.nameVon(ctx, conv.OrgID, email), true),
 	}
+	/* The trial of #491: the fifth choice, and the heartbeat to answer
+	   questions about it from. */
+	if an, err := s.Chat.ConfigProposals(ctx, conv.OrgID); err == nil && an {
+		rahmen.Vorschlaege = true
+		if cv, err := s.Registry.CurrentConfig(ctx, agentID); err == nil {
+			rahmen.Takt = cv.Files["HEARTBEAT.md"]
+		}
+	}
 	meta := s.chatStimme(ctx, &rahmen, conv.OrgID, agentID, conv.ID, email)
 	organisation := s.organisationVon(ctx, agentID)
 
@@ -1004,6 +1026,11 @@ func (s *Server) triagieren(ctx context.Context, conv chat.Conversation, agentID
 	if err != nil {
 		s.Log.Warn("triage failed — the message becomes a task", "agent", agentID, "err", err)
 		return aufgabe, nil, err.Error()
+	}
+	/* A config decision that was not offered is work: the model chose a
+	   door that is closed, and the wish still must not get lost. */
+	if e.Aktion == chat.AktionKonfig && !rahmen.Vorschlaege {
+		e = chat.Entscheidung{Aktion: chat.AktionAufgabe, Titel: e.Titel, Rumpf: e.Aenderung, Text: ""}
 	}
 	e.Meta = meta
 	return e, nach, ""

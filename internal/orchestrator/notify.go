@@ -60,6 +60,12 @@ func (o *Orchestrator) notifyImprovement(ctx context.Context, item agents.Improv
 	})
 }
 
+// NotifyImprovement is the same for a point that did not come from an
+// agent's run — a proposal drafted from the chat (#491).
+func (o *Orchestrator) NotifyImprovement(ctx context.Context, item agents.ImprovementItem) {
+	o.notifyImprovement(ctx, item)
+}
+
 // notifyDelegationRefused: an agent wanted to hand work to a colleague and the
 // chain brake closed. That is the one refusal an agent cannot work around —
 // it may not pass the work on, and it is not the station that finishes it.

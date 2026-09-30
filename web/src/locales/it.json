@@ -1168,7 +1168,9 @@
       "off": "Spento — ogni messaggio è un compito",
       "on": "Acceso — decide l'agente",
       "noCredential": "Non disponibile: il piano di controllo non ha accesso a un modello. Deposita una chiave API Anthropic (anthropic_api_key) o un token Claude Code (claude_code_oauth_token) in Segreti, oppure dai una credenziale al runtime Claude Code in Infrastruttura. Fino ad allora ogni messaggio diventa un'attività, e la sua esecuzione risponde.",
-      "cost": "Ogni messaggio costa allora una breve chiamata al modello."
+      "cost": "Ogni messaggio costa allora una breve chiamata al modello.",
+      "configProposals": "Prova: redigere modifiche di configurazione dalla chat",
+      "configProposalsHint": "Quando qualcuno chiede in chat a un agente di cambiare la sua configurazione — quanto spesso controlla la coda, una procedura, come parla —, l'agente redige la modifica come proposta invece di aprire un'attività. Entra in vigore solo quando la accetta qualcuno che può modificare l'agente."
     },
     "push": {
       "title": "Notifiche push",
@@ -3150,5 +3152,17 @@
     "notePlaceholder": "ad es. dire «Moin» invece di «Hallo»",
     "save": "Salva",
     "saved": "Salvato"
+  },
+  "chatProposal": {
+    "label": "Proposta di configurazione",
+    "widens": "Amplia gli accessi ({{files}}) — solo org_admin o security possono accettarla.",
+    "accept": "Accetta",
+    "decline": "Rifiuta",
+    "waitingFor": "In attesa di approvazione da {{names}}.",
+    "waiting": "In attesa di approvazione.",
+    "acceptedBy": "Accettata da {{name}}, {{when}}.",
+    "declinedBy": "Rifiutata da {{name}}, {{when}}.",
+    "requestedInChat": "richiesta in chat da {{name}} ·",
+    "inApp": "Proposta · da decidere sul web"
   }
 }

@@ -315,6 +315,7 @@ func (s *Server) handleConversationMessages(w http.ResponseWriter, r *http.Reque
 			out.Messages, out.More = msgs[1:], true
 		}
 	}
+	s.kartenAnhaengen(r, out.Messages)
 	var err error
 	if out.Pending, err = s.Chat.Pending(r.Context(), c.ID); err != nil {
 		mapErr(w, err)

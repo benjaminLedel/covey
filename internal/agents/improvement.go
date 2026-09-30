@@ -89,14 +89,19 @@ type ImprovementItem struct {
 	// reason: nothing here has to be able to delete a file.
 	Files map[string]string `json:"files"`
 	// AuthorAgentID is the sender; nil = a human created the point.
-	AuthorAgentID  *uuid.UUID `json:"author_agent_id,omitempty"`
-	TaskID         *uuid.UUID `json:"task_id,omitempty"`
-	Status         string     `json:"status"`
-	DecidedBy      *uuid.UUID `json:"decided_by,omitempty"`
-	DecidedAt      *time.Time `json:"decided_at,omitempty"`
-	DecisionNote   string     `json:"decision_note"`
-	AppliedVersion int        `json:"applied_version"`
-	CreatedAt      time.Time  `json:"created_at"`
+	AuthorAgentID *uuid.UUID `json:"author_agent_id,omitempty"`
+	TaskID        *uuid.UUID `json:"task_id,omitempty"`
+	// OriginMessageID and RequestedBy: a proposal drafted from the chat
+	// (#491) — the message it came from and the person who wrote it. Both
+	// nil for what an agent proposed from a task.
+	OriginMessageID *uuid.UUID `json:"origin_message_id,omitempty"`
+	RequestedBy     *uuid.UUID `json:"requested_by,omitempty"`
+	Status          string     `json:"status"`
+	DecidedBy       *uuid.UUID `json:"decided_by,omitempty"`
+	DecidedAt       *time.Time `json:"decided_at,omitempty"`
+	DecisionNote    string     `json:"decision_note"`
+	AppliedVersion  int        `json:"applied_version"`
+	CreatedAt       time.Time  `json:"created_at"`
 }
 
 // ImprovementFilter narrows the list. The zero value means "everything".
@@ -163,22 +168,26 @@ func (r *Registry) CreateImprovement(ctx context.Context, item ImprovementItem) 
 		return item, err
 	}
 	err = r.pool.QueryRow(ctx, `INSERT INTO improvement_items
-		(id, org_id, agent_id, kind, title, rationale, link, base_version, files, author_agent_id, task_id)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING created_at`,
+		(id, org_id, agent_id, kind, title, rationale, link, base_version, files, author_agent_id, task_id,
+		 origin_message_id, requested_by)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING created_at`,
 		item.ID, item.OrgID, item.AgentID, item.Kind, strings.TrimSpace(item.Title), item.Rationale,
-		strings.TrimSpace(item.Link), item.BaseVersion, filesJSON, item.AuthorAgentID, item.TaskID).Scan(&item.CreatedAt)
+		strings.TrimSpace(item.Link), item.BaseVersion, filesJSON, item.AuthorAgentID, item.TaskID,
+		item.OriginMessageID, item.RequestedBy).Scan(&item.CreatedAt)
 	return item, err
 }
 
 const improvementCols = `id, org_id, agent_id, kind, title, rationale, link, base_version, files,
-	author_agent_id, task_id, status, decided_by, decided_at, decision_note, applied_version, created_at`
+	author_agent_id, task_id, status, decided_by, decided_at, decision_note, applied_version, created_at,
+	origin_message_id, requested_by`
 
 func scanImprovement(row pgx.Row) (ImprovementItem, error) {
 	var it ImprovementItem
 	var filesJSON []byte
 	if err := row.Scan(&it.ID, &it.OrgID, &it.AgentID, &it.Kind, &it.Title, &it.Rationale, &it.Link,
 		&it.BaseVersion, &filesJSON, &it.AuthorAgentID, &it.TaskID, &it.Status,
-		&it.DecidedBy, &it.DecidedAt, &it.DecisionNote, &it.AppliedVersion, &it.CreatedAt); err != nil {
+		&it.DecidedBy, &it.DecidedAt, &it.DecisionNote, &it.AppliedVersion, &it.CreatedAt,
+		&it.OriginMessageID, &it.RequestedBy); err != nil {
 		return it, err
 	}
 	if len(filesJSON) > 0 {

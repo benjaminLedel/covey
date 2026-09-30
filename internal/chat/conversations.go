@@ -35,6 +35,10 @@ const (
 	MessageResult   = "result"
 	MessageError    = "error"
 	MessageQuestion = "question"
+	// MessageConfigProposal is a drafted change to the agent's configuration
+	// (#491): Meta["proposal_id"] names the stored proposal, Text is what a
+	// surface without the card shows.
+	MessageConfigProposal = "config_proposal"
 )
 
 // ErrNotFound: no such conversation, or none of the reader's.
@@ -130,6 +134,41 @@ type Message struct {
 	TaskTitle string `json:"task_title,omitempty"`
 	TaskState string `json:"task_state,omitempty"`
 	Report    string `json:"report,omitempty"`
+	/* Read with a config_proposal message, never written (#491): the
+	   proposal as the reader may see and decide it. Filled by the API. */
+	Proposal *ProposalCard `json:"proposal,omitempty"`
+}
+
+// ProposalCard is a configuration proposal as a conversation shows it
+// (#491): what changes, why, whether it widens access, who may decide, and —
+// once decided — who and when. The reader's own right to decide stands in
+// CanDecide; the server says it, so that no client keeps a table of roles.
+type ProposalCard struct {
+	ID        uuid.UUID      `json:"id"`
+	Status    string         `json:"status"`
+	Title     string         `json:"title"`
+	Rationale string         `json:"rationale"`
+	Diff      []ProposalFile `json:"diff"`
+	// Widens: ACCESS.md or EGRESS.md change — only org_admin or security
+	// may accept then.
+	Widens    []string `json:"widens,omitempty"`
+	Conflicts []string `json:"conflicts,omitempty"`
+	CanDecide bool     `json:"can_decide"`
+	// CanAccept: CanDecide, and nothing blocks the acceptance (a conflict,
+	// or access that only security may widen).
+	CanAccept      bool       `json:"can_accept"`
+	Approvers      []string   `json:"approvers"`
+	RequestedBy    string     `json:"requested_by,omitempty"`
+	DecidedBy      string     `json:"decided_by,omitempty"`
+	DecidedAt      *time.Time `json:"decided_at,omitempty"`
+	AppliedVersion int        `json:"applied_version,omitempty"`
+}
+
+// ProposalFile is one changed file: the running state and the proposed one.
+type ProposalFile struct {
+	File   string `json:"file"`
+	Before string `json:"before"`
+	After  string `json:"after"`
 }
 
 // By says whether ref wrote the message.

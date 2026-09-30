@@ -1168,7 +1168,9 @@
       "off": "Off — every message becomes a task",
       "on": "On — the agent decides",
       "noCredential": "Not available: the control plane has no model access. Deposit an Anthropic API key (anthropic_api_key) or a Claude Code token (claude_code_oauth_token) under Secrets, or give the Claude Code runtime a credential under Infrastructure. Until then every message becomes a task, and its run answers it.",
-      "cost": "Every message then costs one short model call."
+      "cost": "Every message then costs one short model call.",
+      "configProposals": "Trial: draft configuration changes from the chat",
+      "configProposalsHint": "When somebody asks an agent in the chat to change how it is set up — how often it checks its queue, a procedure, how it talks — the agent drafts the change as a proposal instead of opening a task. It takes effect only once somebody who may change the agent accepts it."
     },
     "push": {
       "title": "Push notifications",
@@ -3150,5 +3152,17 @@
     "notePlaceholder": "e.g. say “Moin” rather than “Hallo”",
     "save": "Save",
     "saved": "Saved"
+  },
+  "chatProposal": {
+    "label": "Configuration proposal",
+    "widens": "Widens access ({{files}}) — only org_admin or security can accept it.",
+    "accept": "Accept",
+    "decline": "Decline",
+    "waitingFor": "Waiting for approval by {{names}}.",
+    "waiting": "Waiting for approval.",
+    "acceptedBy": "Accepted by {{name}}, {{when}}.",
+    "declinedBy": "Declined by {{name}}, {{when}}.",
+    "requestedInChat": "requested in the chat by {{name}} ·",
+    "inApp": "Proposal · decide it in the web"
   }
 }

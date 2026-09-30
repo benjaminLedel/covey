@@ -1168,7 +1168,9 @@
       "off": "Aus — jede Nachricht wird eine Aufgabe",
       "on": "An — der Agent entscheidet",
       "noCredential": "Nicht verfügbar: Die Control Plane hat keinen Modellzugang. Hinterlege einen Anthropic-API-Key (anthropic_api_key) oder ein Claude-Code-Token (claude_code_oauth_token) unter Secrets, oder gib der Claude-Code-Runtime unter Infrastruktur Zugangsdaten. Bis dahin wird jede Nachricht eine Aufgabe, und ihr Lauf beantwortet sie.",
-      "cost": "Jede Nachricht kostet damit einen kurzen Modellaufruf."
+      "cost": "Jede Nachricht kostet damit einen kurzen Modellaufruf.",
+      "configProposals": "Versuch: Konfigurationsänderungen aus dem Chat entwerfen",
+      "configProposalsHint": "Bittet jemand einen Agenten im Chat, etwas an seiner Einrichtung zu ändern — wie oft er seine Warteschlange prüft, einen Ablauf, wie er redet —, entwirft der Agent die Änderung als Vorschlag, statt eine Aufgabe zu eröffnen. Sie gilt erst, wenn jemand sie annimmt, der den Agenten ändern darf."
     },
     "push": {
       "title": "Push-Mitteilungen",
@@ -3150,5 +3152,17 @@
     "notePlaceholder": "z. B. „Moin“ statt „Hallo“",
     "save": "Speichern",
     "saved": "Gespeichert"
+  },
+  "chatProposal": {
+    "label": "Konfigurationsvorschlag",
+    "widens": "Erweitert Zugänge ({{files}}) — annehmen können nur org_admin oder security.",
+    "accept": "Annehmen",
+    "decline": "Ablehnen",
+    "waitingFor": "Wartet auf Freigabe durch {{names}}.",
+    "waiting": "Wartet auf Freigabe.",
+    "acceptedBy": "Angenommen von {{name}}, {{when}}.",
+    "declinedBy": "Abgelehnt von {{name}}, {{when}}.",
+    "requestedInChat": "im Chat gewünscht von {{name}} ·",
+    "inApp": "Vorschlag · im Web entscheiden"
   }
 }

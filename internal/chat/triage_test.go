@@ -155,3 +155,41 @@ func TestLesenNotizMitAntwort(t *testing.T) {
 		t.Fatalf("note with reply: %+v", e)
 	}
 }
+
+// TestLesenKonfig: a config decision (#491) carries what to change; without
+// it there is nothing the assistant could draft.
+func TestLesenKonfig(t *testing.T) {
+	e, err := lesen(`{"action":"config","title":"Alle zwei Stunden","change":"HEARTBEAT.md: alle 2h statt 30m.","text":"Entworfen, {approvers} kann es annehmen."}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.Aktion != AktionKonfig || e.Aenderung == "" || e.Titel != "Alle zwei Stunden" || !strings.Contains(e.Text, ApproversPlatzhalter) {
+		t.Fatalf("config: %+v", e)
+	}
+	if _, err := lesen(`{"action":"config","title":"x","text":"y"}`); err == nil {
+		t.Fatal("a config decision without a change must not pass")
+	}
+}
+
+// TestKonfigNurWennAngeboten: the fifth choice and the heartbeat reach the
+// turn only while the organisation has the trial on (#491). Off, the prompt
+// is the one it was before.
+func TestKonfigNurWennAngeboten(t *testing.T) {
+	m := &fangModell{antwort: `{"action":"answer","text":"Hi!"}`}
+	takt := "- alle: 30m titel: Postfach aufgabe: Tickets sichten."
+	if _, err := Triagieren(context.Background(), m, Rahmen{Rolle: "Demo", Takt: takt}, "", nil, nil, nil, "Hallo", nil); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(m.system, `"action":"config"`) || strings.Contains(m.prompt, "HEARTBEAT.md") {
+		t.Fatal("without the trial the turn must not be offered config or see the heartbeat")
+	}
+	if _, err := Triagieren(context.Background(), m, Rahmen{Rolle: "Demo", Vorschlaege: true, Takt: takt}, "", nil, nil, nil, "Hallo", nil); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(m.system, `"action":"config"`) || !strings.Contains(m.system, ApproversPlatzhalter) {
+		t.Fatal("with the trial on the turn is offered config")
+	}
+	if !strings.Contains(m.prompt, "alle: 30m") {
+		t.Fatalf("the heartbeat must be in the prompt:\n%s", m.prompt)
+	}
+}

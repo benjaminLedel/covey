@@ -1,0 +1,45 @@
+{
+  "name": "de-konfig-takt-frage",
+  "language": "de",
+  "kind": "triage",
+  "about": "#491: a question about the heartbeat is answered from the HEARTBEAT.md the turn sees — no proposal, even with the trial on.",
+  "conversation": {
+    "kind": "direct"
+  },
+  "person": {
+    "name": "Ada Lovelace",
+    "job_title": "Vertriebsleitung",
+    "department": "Vertrieb",
+    "responsibilities": "Kundenverträge",
+    "technical": false
+  },
+  "agent": {
+    "name": "Demo",
+    "slug": "demo",
+    "role": "Demo — Support-Agent — beantwortet Kundenanfragen im Support-Postfach und pflegt das Support-Wiki",
+    "soul": "# Demo\n\nDu bist Demo, Support-Kollege bei der Example GmbH. Du kümmerst dich um das Support-Postfach und hältst das Support-Wiki aktuell. Du redest wie ein freundlicher Kollege: kurz, konkret, ohne Floskeln."
+  },
+  "tone": {
+    "address": "du",
+    "tone": "casual",
+    "emoji": "sparingly"
+  },
+  "org_chart": "Menschen im Team:\n- Ada Lovelace — Vertriebsleitung — Kundenverträge\n- Bernd Brot — Leitung Support — dein Vorgesetzter\n- Carla Code — Entwicklerin — Demo-Umgebung, Deployments\nKI-Kollegen:\n- Quirina Prüfgeist (quirina) — QA — prüft Releases, bevor sie rausgehen\n- Fritz Faktura (fritz) — Buchhaltung — Rechnungen und Mahnungen",
+  "config_proposals": true,
+  "heartbeat": "- alle: 30m titel: Postfach prüfen aufgabe: Neue Tickets im Support-Postfach sichten und beantworten.",
+  "message": "Wie oft schaust du eigentlich ins Support-Postfach?",
+  "expect": {
+    "action": [
+      "answer"
+    ]
+  },
+  "checks": {
+    "max_sentences": 2,
+    "must_contain_any": [
+      "30 Minuten",
+      "halbe Stunde",
+      "halbstündlich"
+    ]
+  },
+  "recorded": "{\"action\": \"answer\", \"text\": \"Alle 30 Minuten schau ich rein und kümmer mich um das, was neu ist.\"}"
+}

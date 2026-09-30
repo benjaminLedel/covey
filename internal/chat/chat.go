@@ -91,3 +91,21 @@ func (s *Store) SetTeamSurface(ctx context.Context, orgID uuid.UUID, on bool) er
 		`UPDATE organizations SET team_surface=$2 WHERE id=$1`, orgID, on)
 	return err
 }
+
+// ConfigProposals says whether the organisation lets the triage draft a
+// change to an agent's own configuration from the chat (#491). A trial, off
+// by default; without the triage it does nothing, since nobody decides what
+// a message is.
+func (s *Store) ConfigProposals(ctx context.Context, orgID uuid.UUID) (bool, error) {
+	var on bool
+	err := s.pool.QueryRow(ctx,
+		`SELECT chat_config_proposals FROM organizations WHERE id=$1`, orgID).Scan(&on)
+	return on, err
+}
+
+// SetConfigProposals switches it.
+func (s *Store) SetConfigProposals(ctx context.Context, orgID uuid.UUID, on bool) error {
+	_, err := s.pool.Exec(ctx,
+		`UPDATE organizations SET chat_config_proposals=$2 WHERE id=$1`, orgID, on)
+	return err
+}

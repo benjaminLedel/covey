@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import Org, { PlatformRepo, TriageSettings } from "./Org";
 import { mockFetch, renderWithProviders, useGerman } from "../test/render";
 
@@ -174,5 +174,33 @@ describe("Antwort oder Aufgabe", () => {
 
     expect(await screen.findByRole("combobox")).toBeEnabled();
     expect(screen.queryByText(/keinen Modellzugang/)).not.toBeInTheDocument();
+  });
+
+  /* The trial of #491 rides on the triage: its switch stands beside it,
+     and only while the triage is on. */
+  it("bietet den Versuch mit Konfigurationsvorschlägen neben der Triage an", async () => {
+    const { calls } = mockFetch({
+      "/api/v1/org/chat-triage": { mode: "on", available: true },
+      "/api/v1/org/team-surface": { enabled: true },
+      "PATCH /api/v1/org/chat-config-proposals": { enabled: true },
+      "/api/v1/org/chat-config-proposals": { enabled: false },
+    });
+    renderWithProviders(<TriageSettings />);
+
+    const schalter = await screen.findByRole("checkbox", { name: /Konfigurationsänderungen aus dem Chat/ });
+    expect(schalter).not.toBeChecked();
+    fireEvent.click(schalter);
+    await waitFor(() => expect(calls).toContain("PATCH /api/v1/org/chat-config-proposals"));
+  });
+
+  it("zeigt den Versuch nicht, solange die Triage aus ist", async () => {
+    mockFetch({
+      "/api/v1/org/chat-triage": { mode: "off", available: true },
+      "/api/v1/org/team-surface": { enabled: true },
+      "/api/v1/org/chat-config-proposals": { enabled: false },
+    });
+    renderWithProviders(<TriageSettings />);
+    expect(await screen.findByRole("combobox")).toBeEnabled();
+    expect(screen.queryByRole("checkbox")).toBeNull();
   });
 });

@@ -121,20 +121,35 @@ func (s *Server) handleConfigAssist(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
-	system := s.buildAssistSystem(r.Context(), p.OrgID, a, in.Files)
-
-	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), assistTimeout)
 	defer cancel()
-	raw, err := provider.Complete(ctx, llm.Request{
-		Tier: llm.TierBest, MaxTokens: assistMaxTokens,
-		System: system, Messages: in.Messages,
-	})
+	out, err := s.assistDraft(ctx, provider, p.OrgID, a, in.Files, in.Messages)
 	if err != nil {
 		s.Log.Error("config-assist", "agent", id, "err", err)
 		writeErr(w, http.StatusBadGateway, "AI assistant unreachable: "+err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, parseAssistReply(raw))
+	writeJSON(w, http.StatusOK, out)
+}
+
+// assistTimeout bounds one drafting turn.
+const assistTimeout = 90 * time.Second
+
+// assistDraft is one turn of the config assistant: the platform context, the
+// config state it is given, the dialogue so far — and back the prose reply
+// with the proposed files. The agent page's dialogue and the chat's config
+// proposals (#491) both draft through here, so that there is one assistant
+// and not two that drift apart.
+func (s *Server) assistDraft(ctx context.Context, provider llm.Provider, orgID uuid.UUID, a agents.Agent,
+	files map[string]string, msgs []llm.Message) (assistResponse, error) {
+	raw, err := provider.Complete(ctx, llm.Request{
+		Tier: llm.TierBest, MaxTokens: assistMaxTokens,
+		System: s.buildAssistSystem(ctx, orgID, a, files), Messages: msgs,
+	})
+	if err != nil {
+		return assistResponse{}, err
+	}
+	return parseAssistReply(raw), nil
 }
 
 // buildAssistSystem builds the system prompt: role, platform protocol,

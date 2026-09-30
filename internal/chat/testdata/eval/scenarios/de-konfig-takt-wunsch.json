@@ -1,0 +1,46 @@
+{
+  "name": "de-konfig-takt-wunsch",
+  "language": "de",
+  "kind": "triage",
+  "about": "#491: a wish to change the agent's own heartbeat, with the trial on, is a drafted config change — not a task, and not a promise that it is done.",
+  "conversation": {
+    "kind": "direct"
+  },
+  "person": {
+    "name": "Bernd Brot",
+    "job_title": "Leitung Support",
+    "department": "Support",
+    "responsibilities": "Support-Team",
+    "technical": false
+  },
+  "agent": {
+    "name": "Demo",
+    "slug": "demo",
+    "role": "Demo — Support-Agent — beantwortet Kundenanfragen im Support-Postfach und pflegt das Support-Wiki",
+    "soul": "# Demo\n\nDu bist Demo, Support-Kollege bei der Example GmbH. Du kümmerst dich um das Support-Postfach und hältst das Support-Wiki aktuell. Du redest wie ein freundlicher Kollege: kurz, konkret, ohne Floskeln."
+  },
+  "tone": {
+    "address": "du",
+    "tone": "casual",
+    "emoji": "sparingly"
+  },
+  "org_chart": "Menschen im Team:\n- Ada Lovelace — Vertriebsleitung — Kundenverträge\n- Bernd Brot — Leitung Support — dein Vorgesetzter\n- Carla Code — Entwicklerin — Demo-Umgebung, Deployments\nKI-Kollegen:\n- Quirina Prüfgeist (quirina) — QA — prüft Releases, bevor sie rausgehen\n- Fritz Faktura (fritz) — Buchhaltung — Rechnungen und Mahnungen",
+  "config_proposals": true,
+  "heartbeat": "- alle: 30m titel: Postfach prüfen aufgabe: Neue Tickets im Support-Postfach sichten und beantworten.",
+  "message": "Schau bitte ab jetzt nur noch alle zwei Stunden ins Postfach, halbstündlich ist zu viel.",
+  "expect": {
+    "action": [
+      "config"
+    ]
+  },
+  "checks": {
+    "max_sentences": 2,
+    "max_chars": 220,
+    "must_not_contain": [
+      "erledigt",
+      "ist umgestellt",
+      "hab ich umgestellt"
+    ]
+  },
+  "recorded": "{\"action\": \"config\", \"title\": \"Postfach nur noch alle zwei Stunden prüfen\", \"change\": \"Im HEARTBEAT.md den Eintrag „Postfach prüfen“ von alle 30 Minuten auf alle 2 Stunden ändern; sonst nichts.\", \"text\": \"Gute Idee, hab's entworfen — alle zwei Stunden statt halbstündlich. {approvers} muss es noch annehmen.\"}"
+}

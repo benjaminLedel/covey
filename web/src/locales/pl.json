@@ -1168,7 +1168,9 @@
       "off": "Wyłączone — każda wiadomość to zadanie",
       "on": "Włączone — decyduje agent",
       "noCredential": "Niedostępne: warstwa sterowania nie ma dostępu do modelu. Zapisz klucz API Anthropic (anthropic_api_key) lub token Claude Code (claude_code_oauth_token) w Sekretach albo daj środowisku Claude Code dane dostępowe w Infrastrukturze. Do tego czasu każda wiadomość staje się zadaniem, a odpowiada na nią jego przebieg.",
-      "cost": "Każda wiadomość kosztuje wtedy krótkie wywołanie modelu."
+      "cost": "Każda wiadomość kosztuje wtedy krótkie wywołanie modelu.",
+      "configProposals": "Próba: szkicowanie zmian konfiguracji z czatu",
+      "configProposalsHint": "Gdy ktoś poprosi agenta na czacie o zmianę jego ustawień — jak często sprawdza kolejkę, procedury, sposobu mówienia — agent szkicuje zmianę jako propozycję zamiast otwierać zadanie. Zaczyna obowiązywać dopiero, gdy zaakceptuje ją ktoś, kto może zmieniać agenta."
     },
     "push": {
       "title": "Powiadomienia push",
@@ -3150,5 +3152,17 @@
     "notePlaceholder": "np. mówić „Moin” zamiast „Hallo”",
     "save": "Zapisz",
     "saved": "Zapisano"
+  },
+  "chatProposal": {
+    "label": "Propozycja konfiguracji",
+    "widens": "Rozszerza dostępy ({{files}}) — zaakceptować mogą tylko org_admin lub security.",
+    "accept": "Akceptuj",
+    "decline": "Odrzuć",
+    "waitingFor": "Czeka na zatwierdzenie przez {{names}}.",
+    "waiting": "Czeka na zatwierdzenie.",
+    "acceptedBy": "Zaakceptowane przez {{name}}, {{when}}.",
+    "declinedBy": "Odrzucone przez {{name}}, {{when}}.",
+    "requestedInChat": "zgłoszone na czacie przez {{name}} ·",
+    "inApp": "Propozycja · decyzja w wersji web"
   }
 }

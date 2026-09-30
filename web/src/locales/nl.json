@@ -1168,7 +1168,9 @@
       "off": "Uit — elk bericht wordt een taak",
       "on": "Aan — de agent beslist",
       "noCredential": "Niet beschikbaar: de control plane heeft geen toegang tot een model. Zet een Anthropic-API-sleutel (anthropic_api_key) of een Claude Code-token (claude_code_oauth_token) onder Geheimen, of geef de Claude Code-runtime inloggegevens onder Infrastructuur. Tot dan wordt elk bericht een taak, en de run ervan beantwoordt het.",
-      "cost": "Elk bericht kost dan één korte modelaanroep."
+      "cost": "Elk bericht kost dan één korte modelaanroep.",
+      "configProposals": "Proef: configuratiewijzigingen vanuit de chat opstellen",
+      "configProposalsHint": "Vraagt iemand een agent in de chat iets aan zijn inrichting te veranderen — hoe vaak hij zijn wachtrij bekijkt, een procedure, hoe hij praat —, dan stelt de agent de wijziging op als voorstel in plaats van een taak te openen. Die geldt pas als iemand die de agent mag wijzigen haar accepteert."
     },
     "push": {
       "title": "Pushmeldingen",
@@ -3150,5 +3152,17 @@
     "notePlaceholder": "bijv. „Moin” zeggen in plaats van „Hallo”",
     "save": "Opslaan",
     "saved": "Opgeslagen"
+  },
+  "chatProposal": {
+    "label": "Configuratievoorstel",
+    "widens": "Breidt toegang uit ({{files}}) — alleen org_admin of security kan het accepteren.",
+    "accept": "Accepteren",
+    "decline": "Afwijzen",
+    "waitingFor": "Wacht op goedkeuring door {{names}}.",
+    "waiting": "Wacht op goedkeuring.",
+    "acceptedBy": "Geaccepteerd door {{name}}, {{when}}.",
+    "declinedBy": "Afgewezen door {{name}}, {{when}}.",
+    "requestedInChat": "in de chat gevraagd door {{name}} ·",
+    "inApp": "Voorstel · beslis in de web-app"
   }
 }
