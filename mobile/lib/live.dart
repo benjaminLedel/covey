@@ -35,9 +35,15 @@ class LiveEvents {
   /// Whether the stream is open right now.
   bool connected = false;
 
-  /// Events of the given types, optionally of one agent, gathered for
+  /// Events of the given types, optionally of one agent or of one
+  /// conversation (#440: a chat event names it in its data), gathered for
   /// [settle] so that a burst (a run's steps) causes one reload, not ten.
-  Stream<void> of(Set<String> types, {String? agentId, Duration settle = const Duration(milliseconds: 600)}) {
+  Stream<void> of(
+    Set<String> types, {
+    String? agentId,
+    String? conversationId,
+    Duration settle = const Duration(milliseconds: 600),
+  }) {
     late StreamController<void> out;
     StreamSubscription<LiveEvent>? sub;
     Timer? pending;
@@ -46,6 +52,7 @@ class LiveEvents {
         sub = _events.stream.listen((e) {
           if (!types.contains(e.type)) return;
           if (agentId != null && e.agentId != agentId) return;
+          if (conversationId != null && e.data['conversation_id'] != conversationId) return;
           pending?.cancel();
           pending = Timer(settle, () => out.add(null));
         });

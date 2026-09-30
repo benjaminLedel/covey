@@ -125,6 +125,36 @@ class CoveyApi {
 
   Future<dynamic> get(String path) => _send(() => _http.get(_url(path), headers: _headers));
 
+  /// What a conditional read last got, per path (#447): its ETag and body.
+  /// Bounded, oldest out first — a delta read's path names the message it
+  /// reads after, so the paths change as a conversation goes on.
+  final _cached = <String, ({String etag, Object? body})>{};
+  static const _cacheSize = 64;
+
+  /// A read that sends the ETag of the last answer to [path] back. An
+  /// unchanged answer is 304 without a body, and the body kept from before
+  /// is returned: a list polled every minute moves nothing when nothing
+  /// changed.
+  Future<dynamic> getCached(String path) async {
+    final before = _cached[path];
+    final http.Response res;
+    try {
+      res = await _http.get(_url(path), headers: {..._headers, 'If-None-Match': ?before?.etag}).timeout(_timeout);
+    } catch (e) {
+      diag('api', 'failed: $e');
+      throw ApiException(0, e.toString());
+    }
+    if (res.statusCode == 304 && before != null) return before.body;
+    final body = await _send(() async => res);
+    final etag = res.headers['etag'];
+    _cached.remove(path);
+    if (etag != null && etag.isNotEmpty) {
+      _cached[path] = (etag: etag, body: body);
+      if (_cached.length > _cacheSize) _cached.remove(_cached.keys.first);
+    }
+    return body;
+  }
+
   Future<dynamic> patch(String path, Map<String, Object?> body) => _send(
     () => _http.patch(_url(path), headers: {..._headers, 'Content-Type': 'application/json'}, body: jsonEncode(body)),
   );
@@ -188,6 +218,79 @@ class CoveyApi {
         (t as Map<String, dynamic>)['agent_id'] as String: ThreadState.fromJson(t),
     };
   }
+
+  // --- Conversations (#440): direct with an agent or a colleague, groups. ---
+
+  /// The person's conversations, newest first — or null when the instance
+  /// is older than conversations (404) and the app keeps to the per-agent
+  /// threads.
+  Future<List<Conversation>?> conversations() async {
+    final Object? out;
+    try {
+      out = await getCached('/conversations');
+    } on ApiException catch (e) {
+      if (e.status == 404) return null;
+      rethrow;
+    }
+    return [
+      for (final c in ((out as Map<String, dynamic>)['conversations'] as List? ?? const []))
+        Conversation.fromJson(c as Map<String, dynamic>),
+    ];
+  }
+
+  Future<Conversation> conversation(String id) async =>
+      Conversation.fromJson(await get('/conversations/$id') as Map<String, dynamic>);
+
+  /// A page of messages, oldest first: the newest page, the one before
+  /// [before], or only what came after the message [after] (#447). The
+  /// delta read carries the ETag, so an open conversation that did not move
+  /// costs a 304.
+  Future<ConversationPage> conversationMessages(String id, {String? after, ConversationMessage? before}) async {
+    final String path;
+    if (after != null) {
+      path = '/conversations/$id/messages?after=$after';
+    } else if (before != null && before.createdAt != null) {
+      path =
+          '/conversations/$id/messages?before=${Uri.encodeQueryComponent(before.createdAt!.toUtc().toIso8601String())}'
+          '&before_id=${before.id}';
+    } else {
+      path = '/conversations/$id/messages';
+    }
+    return ConversationPage.fromJson(await getCached(path) as Map<String, dynamic>);
+  }
+
+  /// Writes in a conversation. What an agent makes of it the next read shows.
+  Future<ConversationMessage> postConversationMessage(String id, String text) async {
+    final out = await post('/conversations/$id/messages', {'text': text}) as Map<String, dynamic>;
+    return ConversationMessage.fromJson(out['message'] as Map<String, dynamic>);
+  }
+
+  /// The conversation has been read up to [at], the newest message shown.
+  Future<void> markConversationRead(String id, DateTime at) =>
+      post('/conversations/$id/read', {'at': at.toUtc().toIso8601String()});
+
+  /// The direct conversation with [member]: the one that exists, or a new one.
+  Future<Conversation> openDirect(MemberRef member) async => Conversation.fromJson(
+    await post('/conversations', {'kind': 'direct', 'member': member.toJson()}) as Map<String, dynamic>,
+  );
+
+  Future<Conversation> createGroup(String title, List<MemberRef> members) async => Conversation.fromJson(
+    await post('/conversations', {
+          'kind': 'group',
+          'title': title,
+          'members': [for (final m in members) m.toJson()],
+        })
+        as Map<String, dynamic>,
+  );
+
+  /// The agents the person may write to directly under the organisation's
+  /// reach (#440).
+  Future<Set<String>> reachableAgents() async {
+    final out = await get('/me/reachable-agents') as Map<String, dynamic>;
+    return {for (final a in (out['agents'] as List? ?? const [])) '$a'};
+  }
+
+  Future<OrgChart> orgChart() async => OrgChart.fromJson(await get('/org/chart') as Map<String, dynamic>);
 
   /// Registers this device for push notifications (#379).
   Future<void> registerPushDevice({
