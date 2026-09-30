@@ -1358,7 +1358,7 @@
     "unbuilt": "未ビルド",
     "cardReleased": "カード公開済み",
     "carriedBy": "使用中:",
-    "nobody": "なし",
+    "nobody": "エージェントなし",
     "builtFrom": "{{documents}} 件のテキスト、{{words}} 語",
     "show": "表示",
     "hide": "隠す",

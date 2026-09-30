@@ -4695,10 +4695,10 @@
 .vo-matrix { margin-top: 28px; }
 .vo-filter { display: flex; align-items: center; gap: 6px; }
 .vo-table-wrap { padding: 0; overflow-x: auto; }
-.vo-table th[scope="row"] { font-weight: 500; text-align: left; padding: 7px 14px; border-top: 0.5px solid var(--border); vertical-align: top; min-width: 160px; }
+.vo-table th[scope="row"] { font-weight: 500; text-transform: none; letter-spacing: normal; font-size: 13px; color: var(--text-primary); text-align: left; padding: 7px 14px; border-top: 0.5px solid var(--border); vertical-align: top; min-width: 160px; }
 .vo-table tbody tr:first-child th[scope="row"] { border-top: none; }
 .vo-dept { display: block; }
-.vo-note { display: block; max-width: 36ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; }
+.vo-note { display: block; color: var(--text-muted); font-size: 12px; max-width: 36ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; }
 .vo-level { display: block; font-size: 11px; color: var(--text-muted); }
 .vo-usedby { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 12px; }
 .vo-usedby ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; }

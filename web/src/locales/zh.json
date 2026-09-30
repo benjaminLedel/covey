@@ -1358,7 +1358,7 @@
     "unbuilt": "尚未构建",
     "cardReleased": "卡片已发布",
     "carriedBy": "使用者：",
-    "nobody": "无人",
+    "nobody": "无智能体",
     "builtFrom": "{{documents}} 篇文本，{{words}} 词",
     "show": "展开",
     "hide": "收起",
