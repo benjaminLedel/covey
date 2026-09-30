@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
 import '../api.dart';
@@ -9,6 +7,7 @@ import '../mark.dart';
 import '../pairing.dart';
 import '../theme.dart';
 import 'scan.dart';
+import '../host.dart';
 
 /// Where is your covey?
 ///
@@ -43,7 +42,7 @@ class ConnectScreen extends StatefulWidget {
 
   /// A desktop has no camera worth pointing at its own screen (#334): it pairs
   /// through "Open in the app" on the web's pairing card instead.
-  static bool get isDesktop => Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+  static bool get isDesktop => Host.isMacOS || Host.isWindows || Host.isLinux;
 
   @override
   State<ConnectScreen> createState() => _ConnectScreenState();

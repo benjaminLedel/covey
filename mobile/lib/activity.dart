@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +8,7 @@ import 'api.dart';
 import 'diagnostics.dart';
 import 'models.dart';
 import 'prefs.dart';
+import 'host.dart';
 
 /// The activity log on the Mac (#363): switched on by the person, it samples
 /// what is in front every five seconds — app, window, page, the focused field
@@ -21,7 +21,7 @@ class ActivityRecorder extends ChangeNotifier {
 
   static final ActivityRecorder instance = ActivityRecorder._();
 
-  static bool get supported => Platform.isMacOS;
+  static bool get supported => Host.isMacOS;
 
   static const _channel = MethodChannel('covey/flow');
   static const _enabledKey = 'activity.enabled';
