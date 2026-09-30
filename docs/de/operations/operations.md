@@ -50,7 +50,7 @@ Diktat und Besprechungsnotizen der App werden auf dem Gerät mit sherpa-onnx erk
 - `COVEY_SPEECH_MODEL` — die Vorgabe: `parakeet` (NVIDIA Parakeet TDT 0.6B v3, 670 MB, CC-BY-4.0: 25 europäische Sprachen), `sensevoice` (FunASR SenseVoice Small, 240 MB, FunASR-Modelllizenz: Chinesisch, Kantonesisch, Japanisch, Koreanisch, Englisch) oder `off`
 - `COVEY_SPEECH_MODELS` — die weiteren Modelle, die man in den Einstellungen der App wählen kann, kommagetrennt; Vorgabe `parakeet,sensevoice`. Jedes wird geholt, wenn es zum ersten Mal jemand wählt. Ist die App auf Chinesisch, Japanisch oder Koreanisch eingestellt und kein Modell gewählt, nimmt sie `sensevoice`.
 
-Beide Modelle erkennen die Sprache selbst. Ohne Internetzugang legen Sie die Dateien des Modells selbst nach `COVEY_DATA_DIR/models/<Name>/`; sie werden genauso geprüft, und eine Datei mit anderer Prüfsumme wird entfernt statt ausgeliefert.
+Beide Modelle erkennen die Sprache selbst. Neben dem Sprachmodell bietet die Instanz zwei kleine an, die die App holt, wenn sie sie braucht, beide aus den Releases von sherpa-onnx auf GitHub und genauso festgelegt: das Sprechermodell, das die Stimmen einer Besprechung auseinanderhält (`titanet`, 40 MB), und der Sprachdetektor von Silero, der die Redebeiträge eines Anrufs schneidet (`silero`, 643 KB, MIT). Ohne Internetzugang legen Sie die Dateien des Modells selbst nach `COVEY_DATA_DIR/models/<Name>/`; sie werden genauso geprüft, und eine Datei mit anderer Prüfsumme wird entfernt statt ausgeliefert.
 
 ## Push-Mitteilungen
 

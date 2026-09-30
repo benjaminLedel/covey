@@ -72,6 +72,14 @@ Wie die Instanz Firebase erreicht — **direkt** mit einem eigenen Dienstkonto, 
 
 Eine Mitteilung öffnet den Verlauf mit dem Agenten, um den es geht. Die App bietet covey-eigene Mitteilungstöne, den Ton des Systems oder keinen.
 
+## Einen Agenten anrufen (Test)
+
+Auf dem Mac hat der Verlauf mit einem Agenten einen **Anrufen**-Knopf (⌘⇧C). Der Anruf füllt das Fenster mit dem Gesicht des Agenten, das zuhört, nachdenkt und spricht; die Person redet, und der Agent antwortet laut. Es ist ein Test: nur auf dem Mac, geschaltet unter **Einstellungen → Anrufe (Test)**, voreingestellt an, für dieses Gerät allein.
+
+Der Ton bleibt auf dem Mac. Der Sprachdetektor von Silero hört, wo gesprochen wird, und schneidet einen Redebeitrag an einer Pause von etwa 0,7 s ab, das Sprachmodell erkennt ihn, und nur der Text geht ins Gespräch — als gewöhnliche Nachricht, markiert als im Anruf gesagt (`meta.via = "call"`), sodass der eigene Weg des Chats sie beantwortet und das Gespräch sie festhält wie jede andere. Die Antwort spricht die Sprachausgabe des Macs, in der Sprache, in der sie geschrieben ist, mit einer Stimme, die je Agent aus den für diese Sprache installierten Stimmen gewählt wird; eine lange Antwort wird auf ihre ersten Sätze gekürzt, der Rest steht im Chat. Eine im Anruf eröffnete Aufgabe wird laut bestätigt, und ihr Ergebnis wird gesprochen, wenn es kommt, solange der Anruf noch offen ist. Wer spricht, während der Agent spricht, unterbricht ihn; **Stumm** schließt das Mikrofon, **Auflegen** (oder Esc) beendet den Anruf, und danach hört nichts mehr zu.
+
+Ohne Kopfhörer hört das Mikrofon die eigene Stimme des Agenten: Der Anruf unterbricht sich nicht an kurzen Stößen und verwirft einen Beitrag, der wiederholt, was der Agent gerade gesagt hat, aber der Agent kann trotzdem mitten im Satz abbrechen. Bessere Stimmen installiert man unter Systemeinstellungen → Bedienungshilfen → Gesprochene Inhalte.
+
 ## Was wo geht
 
 Die App ist eine Codebasis, aber mehrere Funktionen beruhen auf macOS-Schnittstellen und gibt es nur dort:
@@ -83,6 +91,7 @@ Die App ist eine Codebasis, aber mehrere Funktionen beruhen auf macOS-Schnittste
 | Diktat in der App | ja | ja | ja | ja |
 | Überall diktieren (globales Tastenkürzel) | — | — | ja | — |
 | Aktivitätsprotokoll | — | — | ja | — |
+| Einen Agenten anrufen (Test) | — | — | ja | — |
 | Der eigene Ton des Computers neben dem Mikrofon in einer Notiz | — | — | ja | — |
 | Sich selbst aktualisieren | TestFlight, für Tester | — | Sparkle | — |
 

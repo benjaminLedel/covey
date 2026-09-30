@@ -50,7 +50,7 @@ The app's dictation and meeting notes are recognised on the device with sherpa-o
 - `COVEY_SPEECH_MODEL` — the default: `parakeet` (NVIDIA Parakeet TDT 0.6B v3, 670 MB, CC-BY-4.0: 25 European languages), `sensevoice` (FunASR SenseVoice Small, 240 MB, FunASR model licence: Chinese, Cantonese, Japanese, Korean, English) or `off`
 - `COVEY_SPEECH_MODELS` — the further models a person may pick in the app's settings, comma-separated; default `parakeet,sensevoice`. Each is fetched the first time somebody picks it. With the app in Chinese, Japanese or Korean and no model picked, the app takes `sensevoice`.
 
-Both models detect the language themselves. Without internet access, place the model's files in `COVEY_DATA_DIR/models/<name>/` yourself; they are verified the same way, and a file with another digest is removed rather than served.
+Both models detect the language themselves. Beside the speech model the instance offers two small ones the app fetches when it needs them, both from the sherpa-onnx releases on GitHub, pinned the same way: the speaker model that tells a meeting's voices apart (`titanet`, 40 MB) and Silero's voice detector that cuts a call's turns (`silero`, 643 KB, MIT). Without internet access, place the model's files in `COVEY_DATA_DIR/models/<name>/` yourself; they are verified the same way, and a file with another digest is removed rather than served.
 
 ## Push notifications
 
