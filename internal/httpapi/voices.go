@@ -580,45 +580,70 @@ func (s *Server) handleSetVoiceSpeech(w http.ResponseWriter, r *http.Request) {
 // handleConversationSpeech says how an agent of the conversation sounds in
 // a call (#497): the voice the #471 rule chooses for the chat occasion —
 // the caller's department, then the agent's chat slot, then the
-// organisation's — and that voice's speech, which the Mac app passes to
-// the voice provider. instructions is always set: the voice's own style
-// hint, else one derived from the chat tone in effect. Null speech leaves
-// the provider's default voice. address is du, sie or "" — how the call
-// greets (#506).
+// organisation's — and that voice's speech, which the app passes to the
+// voice provider. instructions is always set: the voice's own style hint,
+// else one derived from the chat tone in effect. address is du, sie or ""
+// — how the call greets (#506).
+//
+// speech.voice is the voice at the provider every sentence of the call is
+// spoken with — replies, greeting, fillers and goodbye alike (#518): the
+// covey voice's own, else one assigned to the agent from the provider's
+// list for the call's language (?lang=, else the covey voice's, else the
+// provider default's), else the default. voice_source says which rule
+// chose it, spoken_voice names it for a person. Null speech is only left
+// where nothing names a voice: the provider speaks its default.
 func (s *Server) handleConversationSpeech(w http.ResponseWriter, r *http.Request, c chat.Conversation) {
 	agentID, err := uuid.Parse(r.URL.Query().Get("agent"))
 	if err != nil || !c.Has(chat.Ref{Kind: chat.MemberAgent, ID: agentID}) {
 		writeErr(w, http.StatusNotFound, "no such agent in this conversation")
 		return
 	}
-	out := map[string]any{"speech": nil, "voice": nil, "level": voice.LevelNone, "instructions": voice.SpeechInstructions(voice.ChatTone{}, ""), "address": ""}
-	if s.Voices == nil {
-		writeJSON(w, http.StatusOK, out)
+	lang := r.URL.Query().Get("lang")
+	if len(lang) > 35 {
+		writeErr(w, http.StatusBadRequest, "lang is a BCP 47 tag like de-DE")
 		return
 	}
+	out := map[string]any{"speech": nil, "voice": nil, "level": voice.LevelNone, "instructions": voice.SpeechInstructions(voice.ChatTone{}, ""), "address": ""}
 	ctx := r.Context()
-	// How it is spoken, for a provider that takes instructions: from the
-	// chat tone in effect, also without a chat voice.
-	choice, tone := s.callVoice(r, c, agentID)
-	out["instructions"] = voice.SpeechInstructions(tone, "")
-	// The address the call's greeting takes (#506), before the person has
-	// said anything it could follow.
-	out["address"] = tone.SpokenAddress()
-	if choice.Found() {
-		v, err := s.Voices.Get(ctx, c.OrgID, choice.VoiceID)
-		if err != nil {
-			mapErr(w, err)
-			return
-		}
-		out["level"] = choice.Level
-		out["voice"] = map[string]any{"id": v.ID, "name": v.Name}
-		out["instructions"] = voice.SpeechInstructions(tone, v.Language)
-		if v.Speech != nil {
-			out["speech"] = v.Speech
-			if v.Speech.Instructions != "" {
-				out["instructions"] = v.Speech.Instructions
+	var own *voice.Speech
+	if s.Voices != nil {
+		// How it is spoken, for a provider that takes instructions: from the
+		// chat tone in effect, also without a chat voice.
+		choice, tone := s.callVoice(r, c, agentID)
+		out["instructions"] = voice.SpeechInstructions(tone, "")
+		// The address the call's greeting takes (#506), before the person has
+		// said anything it could follow.
+		out["address"] = tone.SpokenAddress()
+		if choice.Found() {
+			v, err := s.Voices.Get(ctx, c.OrgID, choice.VoiceID)
+			if err != nil {
+				mapErr(w, err)
+				return
+			}
+			out["level"] = choice.Level
+			out["voice"] = map[string]any{"id": v.ID, "name": v.Name}
+			out["instructions"] = voice.SpeechInstructions(tone, v.Language)
+			if lang == "" {
+				lang = v.Language
+			}
+			if v.Speech != nil {
+				own = v.Speech
+				if v.Speech.Instructions != "" {
+					out["instructions"] = v.Speech.Instructions
+				}
 			}
 		}
+	}
+	spoken := s.resolveSpokenVoice(ctx, c.OrgID, agentID, own, lang)
+	out["voice_source"] = spoken.Source
+	out["spoken_voice"] = spoken
+	if own != nil || spoken.Name != "" {
+		sp := voice.Speech{}
+		if own != nil {
+			sp = *own
+		}
+		sp.Voice = spoken.Name
+		out["speech"] = sp
 	}
 	writeJSON(w, http.StatusOK, out)
 }

@@ -248,6 +248,8 @@ type Server struct {
 	relayLimiter    *webhookLimiter
 	// synthLimiter caps speech synthesis per seat (#497).
 	synthLimiter *webhookLimiter
+	// voiceLists keeps each organisation's provider voice list (#518).
+	voiceLists voiceListCache
 
 	// routen is the route list from dist/app-routes.json
 	// (internal/httpapi/approutes.go): which paths the SPA shell answers and
@@ -586,6 +588,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/org/voice-provider", s.rbac(manage, s.handleGetVoiceProvider))
 	mux.Handle("PATCH /api/v1/org/voice-provider", s.rbac(manage, s.handleSetVoiceProvider))
 	mux.Handle("POST /api/v1/org/voice-provider/test", s.rbac(manage, s.handleTestVoiceProvider))
+	// The provider's named voices (#518, voicelist.go): every member reads
+	// them — the voice page and the agent's settings show them.
+	mux.Handle("GET /api/v1/org/voice-provider/voices", s.rbac(anyRole, s.handleGetVoiceProviderVoices))
 	// The team surface is an opt-in per organisation while it is in beta
 	// (#328): every role may read whether it is on — the interface picks its
 	// shell by it — and whoever manages the organisation switches it.
@@ -806,6 +811,8 @@ func (s *Server) Handler() http.Handler {
 	// slots, the organisation's defaults, a department's line and voices,
 	// and the table of who gets what.
 	mux.Handle("GET /api/v1/agents/{id}/voices", s.agentScoped(anyRole, s.handleGetAgentVoices))
+	// Which voice at the provider the agent speaks with in a call, and why (#518).
+	mux.Handle("GET /api/v1/agents/{id}/spoken-voice", s.agentScoped(anyRole, s.handleAgentSpokenVoice))
 	mux.Handle("PUT /api/v1/agents/{id}/voices", s.agentScoped(manage, s.handleSetAgentVoices))
 	mux.Handle("GET /api/v1/org/voices", s.rbac(anyRole, s.handleGetOrgVoices))
 	mux.Handle("PATCH /api/v1/org/voices", s.rbac(manage, s.handleSetOrgVoices))
