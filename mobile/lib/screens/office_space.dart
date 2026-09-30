@@ -178,7 +178,7 @@ class _OfficeSpaceState extends State<OfficeSpace> {
               running: _running,
               oben: top + 56,
               unten: widget.bottomClearance,
-              onOpen: widget.me.canWrite
+              onOpen: widget.me.canChat
                   ? (a) => widget.onOpen(a.id, a.displayName, a.slug, faceStateOf(killed: a.killed, status: a.status))
                   : null,
             ),

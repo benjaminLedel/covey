@@ -9,19 +9,28 @@ import '../face.dart';
 import '../i18n.dart';
 import '../icons.dart';
 import '../models.dart';
+import '../photo.dart';
 import '../push.dart';
 import '../theme.dart';
 import '../ui.dart';
+import 'new_conversation.dart';
 
 /// The Team space: who waits, then who works. One scroll, where the web's
 /// team shell has two lists — on a phone the question "does anybody need
 /// me?" and "who is there?" are read in one glance, not two taps.
+///
+/// Since #440, as on the web, the conversations that are not with one agent
+/// — with colleagues, and groups — stand in a section of their own, latest
+/// first, with the way to start one; the direct conversation with an agent
+/// stays at the agent. An instance without conversations (404) shows the
+/// list as before.
 class TeamSpace extends StatefulWidget {
   const TeamSpace({
     super.key,
     required this.api,
     required this.me,
     required this.onOpen,
+    this.onOpenConversation,
     this.actions = const [],
     this.bottomClearance = capsuleClearance,
     this.compact = false,
@@ -30,6 +39,9 @@ class TeamSpace extends StatefulWidget {
   final CoveyApi api;
   final Me me;
   final void Function(String agentId, String name, String slug, FaceState state) onOpen;
+
+  /// Opens a conversation that is not an agent's thread.
+  final void Function(Conversation c)? onOpenConversation;
   final List<Widget> actions;
   final double bottomClearance;
 
@@ -48,6 +60,10 @@ class _TeamSpaceState extends State<TeamSpace> {
   /// What the person has not read, per agent (#378). Empty on an instance
   /// that does not keep it.
   Map<String, ThreadState> _threads = const {};
+
+  /// The person's conversations (#440); null until read, and on an
+  /// instance that has none (older than #440).
+  List<Conversation>? _conversations;
   Timer? _poll;
   StreamSubscription<void>? _live;
 
@@ -75,16 +91,62 @@ class _TeamSpaceState extends State<TeamSpace> {
   }
 
   Future<void> _loadThreads() async {
+    List<Conversation>? convs;
+    try {
+      convs = await widget.api.conversations();
+    } catch (_) {
+      // The list stays as it was; the next look asks again.
+      convs = _conversations;
+    }
     try {
       final t = await widget.api.threads();
-      // The app icon carries the same number as the list (#379).
-      final total = t.values.fold<int>(0, (n, e) => n + e.unread);
+      // The app icon carries the same number as the list (#379): the agents'
+      // threads, and the conversations that are not one.
+      final total =
+          t.values.fold<int>(0, (n, e) => n + e.unread) +
+          _others(convs ?? const []).fold<int>(0, (n, c) => n + c.unread);
       unreadTotal.value = total;
       unawaited(PushNotices.instance.badge(total));
-      if (mounted) setState(() => _threads = t);
+      if (mounted) {
+        setState(() {
+          _threads = t;
+          _conversations = convs;
+        });
+      }
     } catch (_) {
       // No badges rather than an error: the list itself is what matters.
+      if (mounted) setState(() => _conversations = convs);
     }
+  }
+
+  /// The conversations that are not an agent's thread: groups, and direct
+  /// ones with a colleague — latest first.
+  List<Conversation> _others(List<Conversation> all) =>
+      all.where((c) => c.directAgent == null).toList()..sort((a, b) => b.latest.compareTo(a.latest));
+
+  /// Starts a conversation (#440): one pick opens the direct one, several
+  /// make a group. A direct conversation with an agent opens as its thread.
+  Future<void> _startConversation(List<Agent> agents) async {
+    final c = await Navigator.of(context).push<Conversation>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => NewConversationScreen(api: widget.api, me: widget.me),
+      ),
+    );
+    if (c == null || !mounted) return;
+    unawaited(_loadThreads());
+    final agent = c.directAgent;
+    if (agent != null) {
+      final a = agents.where((x) => x.id == agent.id).firstOrNull;
+      widget.onOpen(
+        agent.id,
+        agent.name,
+        agent.slug,
+        a == null ? FaceState.working : faceStateOf(killed: a.killed, status: a.status),
+      );
+      return;
+    }
+    widget.onOpenConversation?.call(c);
   }
 
   Future<void> _load() async {
@@ -131,9 +193,10 @@ class _TeamSpaceState extends State<TeamSpace> {
     ({InboxPage waiting, List<Agent> agents, List<Department> departments}) data,
   ) {
     final byId = {for (final a in data.agents) a.id: a};
-    // A seat that may only read sees who waits and who works, and opens
-    // nothing: a conversation it cannot write in is a dead end (#339).
-    final open = widget.me.canWrite;
+    // A seat that may not chat sees who waits and who works, and opens
+    // nothing: a conversation it cannot write in is a dead end (#339). Since
+    // #440 every seat may chat; an older instance says so with CanWrite.
+    final open = widget.me.canChat;
     // Typing narrows what is already here — name, slug, role, department —
     // without asking the instance again.
     final q = _query.trim().toLowerCase();
@@ -168,8 +231,23 @@ class _TeamSpaceState extends State<TeamSpace> {
       ),
     ].where((g) => g.members.isNotEmpty);
 
+    // The conversations with colleagues and the groups (#440), narrowed by
+    // the same search: their name, a member, the newest line.
+    final meId = widget.me.id;
+    final convs = widget.onOpenConversation == null || _conversations == null
+        ? null
+        : _others(_conversations!)
+              .where(
+                (c) =>
+                    q.isEmpty ||
+                    c.name(meId).toLowerCase().contains(q) ||
+                    c.active.any((m) => m.name.toLowerCase().contains(q)) ||
+                    (c.last?.text.toLowerCase().contains(q) ?? false),
+              )
+              .toList();
+
     return [
-      if (q.isNotEmpty && waiting.isEmpty && visible.isEmpty)
+      if (q.isNotEmpty && waiting.isEmpty && visible.isEmpty && (convs?.isEmpty ?? true))
         SliverToBoxAdapter(child: EmptyNote(context.t('team.nichtsGefunden'))),
       if (waiting.isNotEmpty) ...[
         SliverToBoxAdapter(child: SectionTitle(context.t('team.wartet'))),
@@ -189,6 +267,34 @@ class _TeamSpaceState extends State<TeamSpace> {
             );
           },
         ),
+      ],
+      if (convs != null && (convs.isNotEmpty || (q.isEmpty && open))) ...[
+        SliverToBoxAdapter(
+          child: SectionTitle(
+            context.t('conversation.title'),
+            trailing: open
+                ? TextButton.icon(
+                    onPressed: () => _startConversation(data.agents),
+                    icon: Icon(AppIcons.add.of(context), size: 20),
+                    label: Text(context.t('conversation.new')),
+                  )
+                : null,
+          ),
+        ),
+        if (convs.isNotEmpty)
+          SliverToBoxAdapter(
+            child: InsetGroup(
+              children: [
+                for (final c in convs)
+                  _ConversationRow(
+                    api: widget.api,
+                    conversation: c,
+                    meId: meId,
+                    onTap: !open ? null : () => widget.onOpenConversation!(c),
+                  ),
+              ],
+            ),
+          ),
       ],
       if (q.isEmpty && visible.isEmpty) SliverToBoxAdapter(child: EmptyNote(context.t('chat.noAgents'))),
       for (final g in [if (fresh.isNotEmpty) (name: context.t('team.ungelesenTitel'), members: fresh), ...groups]) ...[
@@ -272,34 +378,120 @@ class _AgentRow extends StatelessWidget {
   final ThreadState? thread;
   final VoidCallback? onTap;
 
-  String _when(BuildContext context, DateTime at) {
-    final lang = Strings.of(context).language;
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    if (!at.isBefore(today)) return DateFormat.Hm(lang).format(at);
-    if (!at.isBefore(today.subtract(const Duration(days: 6)))) return DateFormat.E(lang).format(at);
-    return DateFormat.MMMd(lang).format(at);
-  }
-
   @override
   Widget build(BuildContext context) {
-    final c = context.colors;
     final a = agent;
     final n = thread?.unread ?? 0;
     final state = faceStateOf(killed: a.killed, status: a.status);
     // The state in words, not in a colour alone (spec/27).
     final status = Text(context.t('status.${a.killed ? 'killed' : a.status}'), style: context.type.labelSmall);
+    final role = a.jobTitle.isEmpty ? a.slug : a.jobTitle;
     if (n == 0) {
       return GroupRow(
         leading: Face(slug: a.slug, state: state, size: 36),
         title: a.displayName,
-        subtitle: a.jobTitle.isEmpty ? a.slug : a.jobTitle,
+        subtitle: role,
         trailing: status,
         onTap: onTap,
       );
     }
     final t = thread!;
-    final line = t.lastText.isEmpty ? (a.jobTitle.isEmpty ? a.slug : a.jobTitle) : t.lastText;
+    return _UnreadRow(
+      leading: Face(slug: a.slug, state: state, size: 36),
+      title: a.displayName,
+      line: t.lastText.isEmpty ? role : t.lastText,
+      at: t.lastAt,
+      unread: n,
+      below: status,
+      onTap: onTap,
+    );
+  }
+}
+
+/// A conversation with colleagues or a group (#440): the group's mark or the
+/// colleague's monogram, the name, the newest line — in a group with who
+/// said it —, and what is unread, as a colleague's row says it.
+class _ConversationRow extends StatelessWidget {
+  const _ConversationRow({required this.api, required this.conversation, required this.meId, required this.onTap});
+
+  final CoveyApi api;
+  final Conversation conversation;
+  final String meId;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = conversation;
+    final other = c.other(meId);
+    final leading = c.group || other == null
+        ? const GroupMark(size: 36)
+        : PersonPhoto(api: api, humanId: other.id, photoId: null, name: other.name, size: 36);
+    final last = c.last;
+    final line = last == null
+        ? context.t('conversation.emptyThread')
+        : '${c.group && last.authorName.isNotEmpty ? '${last.authorName}: ' : ''}${last.text}';
+    if (c.unread == 0) {
+      return GroupRow(
+        leading: leading,
+        title: c.name(meId),
+        subtitle: line,
+        trailing: last?.createdAt == null
+            ? null
+            : Text(
+                _when(context, last!.createdAt!),
+                style: context.type.labelSmall?.copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
+              ),
+        onTap: onTap,
+      );
+    }
+    return _UnreadRow(
+      leading: leading,
+      title: c.name(meId),
+      line: line,
+      at: last?.createdAt ?? c.lastMessageAt,
+      unread: c.unread,
+      onTap: onTap,
+    );
+  }
+}
+
+/// Today the time, this week the day, before that the date.
+String _when(BuildContext context, DateTime at) {
+  final lang = Strings.of(context).language;
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  if (!at.isBefore(today)) return DateFormat.Hm(lang).format(at);
+  if (!at.isBefore(today.subtract(const Duration(days: 6)))) return DateFormat.E(lang).format(at);
+  return DateFormat.MMMd(lang).format(at);
+}
+
+/// A row with something unread: the name in bold, the newest line with its
+/// time, and the count.
+class _UnreadRow extends StatelessWidget {
+  const _UnreadRow({
+    required this.leading,
+    required this.title,
+    required this.line,
+    required this.at,
+    required this.unread,
+    this.below,
+    this.onTap,
+  });
+
+  final Widget leading;
+  final String title;
+  final String line;
+  final DateTime? at;
+  final int unread;
+
+  /// Under the count: an agent's state in words.
+  final Widget? below;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final n = unread;
     return Semantics(
       label: context.t('team.ungelesen', count: n),
       child: InkWell(
@@ -310,12 +502,7 @@ class _AgentRow extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             child: Row(
               children: [
-                SizedBox(
-                  width: 36,
-                  child: Center(
-                    child: Face(slug: a.slug, state: state, size: 36),
-                  ),
-                ),
+                SizedBox(width: 36, child: Center(child: leading)),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
@@ -325,15 +512,15 @@ class _AgentRow extends StatelessWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              a.displayName,
+                              title,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: context.type.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                             ),
                           ),
-                          if (t.lastAt != null)
+                          if (at != null)
                             Text(
-                              _when(context, t.lastAt!),
+                              _when(context, at!),
                               style: context.type.labelSmall?.copyWith(
                                 color: c.textAccent,
                                 fontFeatures: const [FontFeature.tabularFigures()],
@@ -374,8 +561,7 @@ class _AgentRow extends StatelessWidget {
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 4),
-                              status,
+                              if (below != null) ...[const SizedBox(height: 4), below!],
                             ],
                           ),
                         ],

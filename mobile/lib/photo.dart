@@ -30,7 +30,8 @@ class PersonPhoto extends StatefulWidget {
     this.size = 36,
   });
 
-  final CoveyApi api;
+  /// Null where only the monogram is wanted: nothing is fetched.
+  final CoveyApi? api;
   final String humanId;
   final String? photoId;
   final String name;
@@ -66,9 +67,10 @@ class _PersonPhotoState extends State<PersonPhoto> {
   Future<void> _load() async {
     final id = widget.photoId;
     _bytes = id == null ? null : PersonPhoto._cache[id];
-    if (id == null || _bytes != null || widget.humanId.isEmpty) return;
+    final api = widget.api;
+    if (id == null || _bytes != null || widget.humanId.isEmpty || api == null) return;
     try {
-      final bytes = await widget.api.humanPhoto(widget.humanId, id);
+      final bytes = await api.humanPhoto(widget.humanId, id);
       PersonPhoto._cache[id] = bytes;
       if (mounted && widget.photoId == id) setState(() => _bytes = bytes);
     } on ApiException catch (e) {

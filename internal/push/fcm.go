@@ -180,7 +180,7 @@ func fcmMessage(m Message) map[string]any {
 		return map[string]any{
 			"token": m.Token,
 			"data": map[string]string{
-				"title": m.Title, "body": m.Body, "agent_id": m.AgentID,
+				"title": m.Title, "body": m.Body, "agent_id": m.AgentID, "conversation_id": m.ConversationID,
 				"sound": m.Sound, "badge": strconv.Itoa(m.Badge),
 			},
 			"android": map[string]any{"priority": "high"},
@@ -192,7 +192,12 @@ func fcmMessage(m Message) map[string]any {
 	if m.Body != "" {
 		alert["body"] = m.Body
 	}
-	aps := map[string]any{"alert": alert, "badge": m.Badge, "thread-id": m.AgentID}
+	// A conversation that is no agent's thread groups under its own id.
+	group := m.AgentID
+	if group == "" {
+		group = m.ConversationID
+	}
+	aps := map[string]any{"alert": alert, "badge": m.Badge, "thread-id": group}
 	if m.Sound != "" {
 		aps["sound"] = m.Sound
 	}
@@ -200,7 +205,7 @@ func fcmMessage(m Message) map[string]any {
 		"token": m.Token,
 		"apns": map[string]any{
 			"headers": map[string]string{"apns-priority": "10", "apns-push-type": "alert"},
-			"payload": map[string]any{"aps": aps, "agent_id": m.AgentID},
+			"payload": map[string]any{"aps": aps, "agent_id": m.AgentID, "conversation_id": m.ConversationID},
 		},
 	}
 }

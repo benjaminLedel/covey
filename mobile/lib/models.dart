@@ -14,10 +14,11 @@ class Me {
     required this.role,
     required this.teamSurface,
     this.canWrite = true,
+    bool? canChat,
     this.id = '',
     this.photoId,
     this.orgId = '',
-  });
+  }) : canChat = canChat ?? canWrite;
 
   factory Me.fromJson(Map<String, dynamic> j) => Me(
     email: j['Email'] as String? ?? '',
@@ -28,6 +29,9 @@ class Me {
     // Absent on an instance older than #339: then the server's 403 is the
     // only word, and the app lets the person try.
     canWrite: j['CanWrite'] as bool? ?? true,
+    // Absent on an instance older than #440: there chatting was what the
+    // role might write, and CanWrite says it.
+    canChat: j['CanChat'] as bool? ?? j['CanWrite'] as bool? ?? true,
     id: j['ID'] as String? ?? '',
     photoId: j['PhotoID'] as String?,
     orgId: j['OrgID'] as String? ?? '',
@@ -46,9 +50,15 @@ class Me {
   final bool teamSurface;
 
   /// Whether this seat's role may hand over work and answer (#339) — the
-  /// server says so, the app does not keep a role table of its own. A seat
-  /// that may not is never led into a conversation.
+  /// server says so, the app does not keep a role table of its own. It also
+  /// decides who may bring an agent into a group (#440).
   final bool canWrite;
+
+  /// Whether the seat may write in conversations (#440) — every seat of an
+  /// organisation, auditors and viewers included. Which agents it reaches
+  /// directly is the organisation's reach, not the role. Hiring and handing
+  /// over work by hand stay with [canWrite].
+  final bool canChat;
 
   /// The seat's id, and its profile photo (#377) — null is the monogram.
   final String id;
@@ -60,8 +70,10 @@ class Me {
     role: role,
     teamSurface: teamSurface,
     canWrite: canWrite,
+    canChat: canChat,
     id: id,
     photoId: photoId,
+    orgId: orgId,
   );
 }
 
@@ -190,7 +202,36 @@ class ThreadEntry {
     required this.text,
     required this.at,
     this.said = '',
+    this.speaker = '',
+    this.speakerId = '',
+    this.speakerSlug = '',
+    this.speakerHuman = false,
+    this.mine,
   });
+
+  /// A line of a conversation (#440) as the thread draws it: `text` is a
+  /// message, a told result keeps its report one tap away as in the agent's
+  /// thread, and the speaker is whoever wrote it — in a group not always the
+  /// same agent. [slug] is the author's, when it is an agent.
+  factory ThreadEntry.fromMessage(ConversationMessage m, {required String meId, String slug = ''}) {
+    final told = m.report.isNotEmpty && m.report != m.text;
+    return ThreadEntry(
+      kind: m.kind == 'text' ? 'message' : m.kind,
+      id: m.id,
+      taskId: m.taskId,
+      taskTitle: m.taskTitle,
+      taskState: m.taskState,
+      author: '${m.authorKind}:${m.authorId ?? ''}',
+      text: told ? m.report : m.text,
+      said: told ? m.text : '',
+      at: m.createdAt,
+      speaker: m.authorName,
+      speakerId: m.authorId ?? '',
+      speakerSlug: slug,
+      speakerHuman: m.authorKind == 'human',
+      mine: meId.isNotEmpty && m.authorKind == 'human' && m.authorId == meId,
+    );
+  }
 
   factory ThreadEntry.fromJson(Map<String, dynamic> j) => ThreadEntry(
     kind: j['kind'] as String? ?? '',
@@ -217,9 +258,22 @@ class ThreadEntry {
   /// (#411), told from the report in [text], which stays one tap away.
   final String said;
 
-  /// The person's side of the thread. The author is the only thing that
-  /// decides it: `chat:<mail>` for a message, `human:<mail>` for a note.
-  bool get fromPerson => author.startsWith('chat:') || author.startsWith('human:');
+  /// Who said it, where it is not the thread's agent (a conversation, #440):
+  /// the name, the member's id and, for an agent, its slug. Empty in an
+  /// agent's thread, which has one speaker besides the person.
+  final String speaker;
+  final String speakerId;
+  final String speakerSlug;
+  final bool speakerHuman;
+
+  /// Set in a conversation, where the author's id decides it; null in an
+  /// agent's thread, where the author string does.
+  final bool? mine;
+
+  /// The person's side of the thread. In an agent's thread the author is the
+  /// only thing that decides it: `chat:<mail>` for a message, `human:<mail>`
+  /// for a note.
+  bool get fromPerson => mine ?? (author.startsWith('chat:') || author.startsWith('human:'));
 
   /// A question the agent is parked on — the one line a reply goes to.
   bool get isOpenQuestion => kind == 'question' && taskState == 'blocked' && taskId != null;
@@ -265,6 +319,240 @@ class Thread {
 
   /// A message is accepted and the triage has not decided yet.
   final bool pending;
+}
+
+/// Somebody a conversation can have as a member (#440): a person (a seat)
+/// or an agent.
+class MemberRef {
+  const MemberRef(this.kind, this.id);
+
+  /// `human` or `agent`.
+  final String kind;
+  final String id;
+
+  bool get human => kind == 'human';
+
+  Map<String, Object?> toJson() => {'kind': kind, 'id': id};
+
+  @override
+  bool operator ==(Object other) => other is MemberRef && other.kind == kind && other.id == id;
+
+  @override
+  int get hashCode => Object.hash(kind, id);
+}
+
+/// One member of a conversation, as GET /conversations names them.
+class ConversationMember {
+  ConversationMember({
+    required this.kind,
+    required this.id,
+    required this.name,
+    this.slug = '',
+    this.email = '',
+    this.role = 'member',
+    this.left = false,
+    this.muted = false,
+  });
+
+  factory ConversationMember.fromJson(Map<String, dynamic> j) => ConversationMember(
+    kind: j['kind'] as String? ?? '',
+    id: j['id'] as String? ?? '',
+    name: j['name'] as String? ?? '',
+    slug: j['slug'] as String? ?? '',
+    email: j['email'] as String? ?? '',
+    role: j['role'] as String? ?? 'member',
+    left: j['left_at'] != null,
+    muted: j['muted'] as bool? ?? false,
+  );
+
+  final String kind;
+  final String id;
+  final String name;
+  final String slug;
+  final String email;
+
+  /// `owner` or `member`.
+  final String role;
+
+  /// Left the group; still named at what they wrote.
+  final bool left;
+  final bool muted;
+
+  bool get human => kind == 'human';
+  bool get agent => kind == 'agent';
+  MemberRef get ref => MemberRef(kind, id);
+}
+
+/// One line of a conversation. `kind` is `text` for what somebody said;
+/// `result`, `error` and `question` are what a task opened there reported
+/// back, and a result or an error keeps the report it retells in [report].
+class ConversationMessage {
+  ConversationMessage({
+    required this.id,
+    required this.conversationId,
+    required this.authorKind,
+    required this.text,
+    required this.kind,
+    this.authorId,
+    this.authorName = '',
+    this.taskId,
+    this.taskTitle = '',
+    this.taskState = '',
+    this.report = '',
+    this.replyTo,
+    this.createdAt,
+  });
+
+  factory ConversationMessage.fromJson(Map<String, dynamic> j) => ConversationMessage(
+    id: j['id'] as String? ?? '',
+    conversationId: j['conversation_id'] as String? ?? '',
+    authorKind: j['author_kind'] as String? ?? '',
+    authorId: j['author_id'] as String?,
+    authorName: j['author_name'] as String? ?? '',
+    text: j['text'] as String? ?? '',
+    kind: j['kind'] as String? ?? 'text',
+    taskId: j['task_id'] as String?,
+    taskTitle: j['task_title'] as String? ?? '',
+    taskState: j['task_state'] as String? ?? '',
+    report: j['report'] as String? ?? '',
+    replyTo: j['reply_to'] as String?,
+    createdAt: _time(j['created_at']),
+  );
+
+  final String id;
+  final String conversationId;
+
+  /// `human`, `agent` or `system`.
+  final String authorKind;
+  final String? authorId;
+  final String authorName;
+  final String text;
+  final String kind;
+  final String? taskId;
+  final String taskTitle;
+  final String taskState;
+  final String report;
+  final String? replyTo;
+  final DateTime? createdAt;
+}
+
+/// A conversation (#440): direct — two members, one per pair — or a group
+/// with a title.
+class Conversation {
+  Conversation({
+    required this.id,
+    required this.kind,
+    required this.members,
+    this.title = '',
+    this.lastMessageAt,
+    this.unread = 0,
+    this.muted = false,
+    this.last,
+  });
+
+  factory Conversation.fromJson(Map<String, dynamic> j) => Conversation(
+    id: j['id'] as String? ?? '',
+    kind: j['kind'] as String? ?? 'direct',
+    title: j['title'] as String? ?? '',
+    members: [
+      for (final m in (j['members'] as List? ?? const [])) ConversationMember.fromJson(m as Map<String, dynamic>),
+    ],
+    lastMessageAt: _time(j['last_message_at']),
+    unread: (j['unread'] as num?)?.toInt() ?? 0,
+    muted: j['muted'] as bool? ?? false,
+    last: j['last'] is Map<String, dynamic> ? ConversationMessage.fromJson(j['last'] as Map<String, dynamic>) : null,
+  );
+
+  final String id;
+
+  /// `direct` or `group`.
+  final String kind;
+  final String title;
+  final List<ConversationMember> members;
+  final DateTime? lastMessageAt;
+
+  /// Only in the list (GET /conversations): what the person has not read,
+  /// whether they muted it, and the newest line, cut to its first line.
+  final int unread;
+  final bool muted;
+  final ConversationMessage? last;
+
+  bool get group => kind == 'group';
+
+  /// The members who have not left.
+  List<ConversationMember> get active => [
+    for (final m in members)
+      if (!m.left) m,
+  ];
+
+  /// The other side of a direct conversation, seen from the person [meId];
+  /// null in a group.
+  ConversationMember? other(String meId) => group ? null : active.where((m) => !(m.human && m.id == meId)).firstOrNull;
+
+  /// The agent of a direct conversation with one. That conversation is the
+  /// agent's thread and opens as it, as on the web.
+  ConversationMember? get directAgent => group ? null : active.where((m) => m.agent).firstOrNull;
+
+  /// The name it goes by: its title, or the other member (the web's
+  /// gespraechName).
+  String name(String meId) => group ? (title.isEmpty ? '…' : title) : (other(meId)?.name ?? '…');
+
+  /// When anything was last said, for "latest first".
+  DateTime get latest => last?.createdAt ?? lastMessageAt ?? DateTime(0);
+}
+
+/// A page of GET /conversations/{id}/messages, oldest first.
+class ConversationPage {
+  ConversationPage({required this.messages, required this.more, required this.pending});
+
+  factory ConversationPage.fromJson(Map<String, dynamic> j) => ConversationPage(
+    messages: [
+      for (final m in (j['messages'] as List? ?? const [])) ConversationMessage.fromJson(m as Map<String, dynamic>),
+    ],
+    more: j['more'] as bool? ?? false,
+    pending: j['pending'] as bool? ?? false,
+  );
+
+  final List<ConversationMessage> messages;
+
+  /// On a first page or a `before` page: there are older ones. On an
+  /// `after` page: there are newer ones beyond it.
+  final bool more;
+
+  /// A message still waits for a triage's decision.
+  final bool pending;
+}
+
+/// A person of the organisation, as GET /org/chart lists them.
+class OrgHuman {
+  OrgHuman({required this.id, required this.displayName, this.email = '', this.jobTitle = '', this.photoId});
+
+  factory OrgHuman.fromJson(Map<String, dynamic> j) => OrgHuman(
+    id: j['id'] as String? ?? '',
+    displayName: j['display_name'] as String? ?? '',
+    email: j['email'] as String? ?? '',
+    jobTitle: j['job_title'] as String? ?? '',
+    photoId: j['photo_id'] as String?,
+  );
+
+  final String id;
+  final String displayName;
+  final String email;
+  final String jobTitle;
+  final String? photoId;
+}
+
+/// GET /org/chart: the people and the agents of the organisation.
+class OrgChart {
+  OrgChart({required this.humans, required this.agents});
+
+  factory OrgChart.fromJson(Map<String, dynamic> j) => OrgChart(
+    humans: [for (final h in (j['humans'] as List? ?? const [])) OrgHuman.fromJson(h as Map<String, dynamic>)],
+    agents: [for (final a in (j['agents'] as List? ?? const [])) Agent.fromJson(a as Map<String, dynamic>)],
+  );
+
+  final List<OrgHuman> humans;
+  final List<Agent> agents;
 }
 
 /// One note of the notetaker (#336): the person's own, private.

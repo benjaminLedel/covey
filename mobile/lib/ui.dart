@@ -469,3 +469,25 @@ class _SearchFieldState extends State<SearchField> {
     );
   }
 }
+
+/// A group's mark where a person has a face: a circle with the group sign.
+class GroupMark extends StatelessWidget {
+  const GroupMark({super.key, this.size = 36});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: c.surface0,
+        shape: BoxShape.circle,
+        border: Border.all(color: c.hairline),
+      ),
+      child: Icon(AppIcons.kindMeeting.of(context), size: size * 0.52, color: c.textSecondary),
+    );
+  }
+}

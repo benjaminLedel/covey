@@ -372,6 +372,7 @@ func TestPushGoesToTheMembers(t *testing.T) {
 	}
 	sender := &fakeSender{gone: map[string]bool{}}
 	n := &push.Notifier{Pool: s.pool, Sender: sender, Lag: time.Millisecond}
+	var conversationOf map[string]string
 	round := func() map[string]bool {
 		t.Helper()
 		time.Sleep(20 * time.Millisecond)
@@ -379,8 +380,10 @@ func TestPushGoesToTheMembers(t *testing.T) {
 			t.Fatal(err)
 		}
 		out := map[string]bool{}
+		conversationOf = map[string]string{}
 		for _, m := range sender.take() {
 			out[m.Token] = true
+			conversationOf[m.Token] = m.ConversationID
 		}
 		return out
 	}
@@ -394,6 +397,10 @@ func TestPushGoesToTheMembers(t *testing.T) {
 	admin.expect(http.MethodPost, "/api/v1/conversations/"+gid+"/messages", map[string]any{"text": "Um zwölf?"}, http.StatusCreated)
 	if got := round(); len(got) != 2 || !got["tok-ada"] || !got["tok-bob"] {
 		t.Fatalf("pushed to %v, want Ada and Bob", got)
+	}
+	// A group is no agent's thread: the tap opens the conversation.
+	if conversationOf["tok-ada"] != gid || conversationOf["tok-bob"] != gid {
+		t.Fatalf("the notifications name %v, want the group %s", conversationOf, gid)
 	}
 	bob.expect(http.MethodPatch, "/api/v1/conversations/"+gid+"/me", map[string]any{"muted": true}, http.StatusOK)
 	ada.expect(http.MethodPost, "/api/v1/conversations/"+gid+"/messages", map[string]any{"text": "Gern."}, http.StatusCreated)

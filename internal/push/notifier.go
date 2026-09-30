@@ -104,7 +104,7 @@ func (n *Notifier) Round(ctx context.Context) (int, error) {
 				title, body := Compose(d.lang, ev.kind, ev.name, FirstLine(ev.text, MaxBody), ev.preview)
 				m := Message{
 					Token: d.token, Platform: d.platform, Environment: d.env, Title: title, Body: body, Badge: badge,
-					AgentID: ev.agentID, Sound: SoundFor(d.sound, ev.kind),
+					AgentID: ev.agentID, ConversationID: ev.conversationID.String(), Sound: SoundFor(d.sound, ev.kind),
 				}
 				switch err := sender.Send(ctx, m); {
 				case errors.Is(err, ErrGone):

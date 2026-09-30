@@ -88,3 +88,14 @@ String? threadLinkAgent(Uri uri) {
   final id = segments[i + 1];
   return RegExp(r'^[0-9a-fA-F-]{36}$').hasMatch(id) ? id : null;
 }
+
+/// The conversation a link points at (#440) — `https://<instance>/team/c/<id>`,
+/// the web's address of a conversation, or `covey://team/c/<id>`. Null for
+/// any other link.
+String? conversationLink(Uri uri) {
+  final segments = uri.scheme == 'covey' ? [uri.host, ...uri.pathSegments] : uri.pathSegments;
+  final i = segments.indexOf('team');
+  if (i < 0 || i + 2 >= segments.length || segments[i + 1] != 'c') return null;
+  final id = segments[i + 2];
+  return RegExp(r'^[0-9a-fA-F-]{36}$').hasMatch(id) ? id : null;
+}
