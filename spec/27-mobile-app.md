@@ -100,6 +100,12 @@ A call speaks through the organisation's **voice provider**, the one source of c
 - **What it leaves behind.** Nothing of the text or the audio: the log, and the recording of the agent the app names (`agent`), get lengths, durations and the model (`speech_synthesized`, `speech_transcribed`). The audit trail has the request like every other.
 - `GET /speech/model` answers `synthesize` and `transcribe`, so the app knows before it asks.
 
+### Sounds and fillers (#500)
+
+A call is never silent while something happens. Short sounds, synthesised by the project (`mobile/tool/call_sounds.dart` → `mobile/assets/sounds/`, 16-bit mono WAV at 44.1 kHz, no third-party audio), mark ringing while it connects (at most two loops), connected, the end of a turn heard, a task created (an agent message naming a task the conversation did not know, in reply to a message), mute, unmute and hang-up. They play on a player of their own, mixed under the voice, and never interrupt it. On by default and quiet; the call settings switch them off and set their volume, on the device.
+
+While the agent thinks, it says one short filler in its own voice: 0.8 s after the turn was sent without the reply's first audio, one from a pool per language ("Hm…", "Okay, one sec…", "Let me check.", "One moment…"; the app's ten languages), never the same twice in a row, at most one a turn; after 8 s without the reply, once "Just a moment." The fillers are synthesised through the voice provider once per spoken voice and language, in the background at the start of a call, and kept on the device under the app's support directory (`call-fillers/`, one WAV per voice, style hint, speed and text, the name a hash of them), so they play without asking the provider; a filler not yet kept is skipped. Without a provider the Mac's voice says it, and without a Mac voice of the language only the sound plays. The reply's first audio fades a filler out over 120 ms; the person speaking, mute and hang-up stop it; nothing is said into a muted call.
+
 ## Push
 
 Nothing exists for this, and it is the hardest part of the app, not the last one.
