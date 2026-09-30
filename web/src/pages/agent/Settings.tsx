@@ -7,10 +7,8 @@ import {
   api,
   post,
   patch,
-  put,
   del,
   type Agent,
-  type Voice,
   type RuntimeInfo,
   type SandboxService,
   type Workplace,
@@ -23,6 +21,7 @@ import { AgentSecrets } from "./AgentSecrets";
 import { Config } from "./Config";
 import { Heartbeats } from "./Heartbeats";
 import { WebhookTrigger } from "./Webhook";
+import { AgentVoices } from "../voices/Slots";
 
 export function AgentSettings({
   agent,
@@ -129,19 +128,6 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
   const setRuntime = useMutation({
     mutationFn: (runtime: string) =>
       patch<{ ok: boolean; warning?: string }>(`/agents/${agent.id}/runtime`, { runtime }),
-    onSuccess: invalidate,
-  });
-  // The organisation's voices (spec/24). Assigning writes the TONE.md into the
-  // agent's config — a config version like any other, readable and revertible
-  // in the same place as the rest.
-  const voices = useQuery({
-    queryKey: ["voices"],
-    queryFn: () => api<Voice[]>("/voices"),
-    retry: false,
-  });
-  const setVoice = useMutation({
-    mutationFn: (voiceID: string) =>
-      put<{ ok: boolean; note?: string }>(`/agents/${agent.id}/voice`, { voice_id: voiceID }),
     onSuccess: invalidate,
   });
   const setModel = useMutation({
@@ -417,36 +403,10 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
         />
         <span className="muted text-xs">{t("agent.settings.maxTurnsHint")}</span>
       </div>
-      {/* The voice this agent writes in. Only built ones can be chosen: a
-          voice without a build has nothing to put into a TONE.md. */}
-      <div style={row}>
-        <span className="text-sm">{t("agent.settings.voice")}</span>
-        <select
-          value={agent.voice_id ?? ""}
-          disabled={!editable || setVoice.isPending || !voices.isSuccess}
-          onChange={(e) => setVoice.mutate(e.target.value)}
-        >
-          <option value="">{t("agent.settings.voiceNone")}</option>
-          {(voices.data ?? [])
-            .filter((v) => v.version > 0)
-            .map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name}
-                {v.language ? ` (${v.language})` : ""}
-              </option>
-            ))}
-        </select>
-        <span className="muted text-xs">{t("agent.settings.voiceHint")}</span>
-      </div>
-      {setVoice.isError && (
-        <p className="text-xs" style={{ color: "var(--error)", margin: "0 0 8px" }}>
-          {(setVoice.error as Error).message}
-        </p>
-      )}
-      {setVoice.data?.note && (
-        <p className="text-xs muted" style={{ margin: "0 0 8px" }}>{setVoice.data.note}</p>
-      )}
     </div>
+    {/* The voices it writes in, per occasion (#471) — beside how it thinks,
+        before where it works. */}
+    <AgentVoices agent={agent} editable={editable} />
     <div className="card mb-4" style={{ maxWidth: 760, padding: "14px 18px 4px" }}>
       <div className="text-sm font-medium mb-1">{t("agent.settings.group.workplace")}</div>
       <p className="muted text-xs mt-0 mb-2">{t("agent.settings.group.workplaceHint")}</p>

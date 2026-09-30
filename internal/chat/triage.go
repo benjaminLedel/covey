@@ -82,6 +82,9 @@ type Entscheidung struct {
 	Antwort string `json:"reply"`
 	// Bei einer Suche: wonach — ein paar Wörter, ein Name, ein Thema.
 	Anfrage string `json:"query"`
+	// Meta is what the platform notes on the messages this decision writes
+	// (#471): the voice chosen and why. Set by the caller, never parsed.
+	Meta map[string]string `json:"-"`
 }
 
 // Offen ist eine Aufgabe, wie der Zug sie zu sehen bekommt: knapp, und ohne
@@ -131,15 +134,37 @@ type Rahmen struct {
 	// Ton: wie der Agent im Team-Chat redet, wie die Organisation es
 	// eingestellt hat (voice.ChatTone.Prompt, #457). Leer: nichts eingestellt.
 	Ton string
+	// Stimme is the chat voice chosen for this conversation (#471): its
+	// released description and at most two passages (voice.ChatPrompt).
+	// Empty when no level names one.
+	Stimme string
+	// Publikum is how the departments of the people spoken to want to be
+	// spoken to (voice.AudiencePrompt, #471). Empty when none said.
+	Publikum string
 }
+
+// Bounds of the two #471 blocks in a turn. Both are bounded where they are
+// built; these hold even for a caller that did not.
+const (
+	stimmeMax   = 2400
+	publikumMax = 1600
+)
 
 func (r Rahmen) schreiben(b *strings.Builder) {
 	stimme(b, r.Rolle, r.Seele)
+	if v := strings.TrimSpace(r.Stimme); v != "" {
+		b.WriteString(kuerzen(v, stimmeMax))
+		b.WriteString("\n\n")
+	}
 	if t := strings.TrimSpace(r.Ton); t != "" {
 		b.WriteString(kuerzen(t, 800))
 		b.WriteString("\n\n")
 	}
 	person(b, r.Gegenueber)
+	if p := strings.TrimSpace(r.Publikum); p != "" {
+		b.WriteString(kuerzen(p, publikumMax))
+		b.WriteString("\n\n")
+	}
 	/* A group (#440): who else is in it, and that the agent was addressed.
 	   Without it every name in the conversation reads as the one person the
 	   agent talks to. */
@@ -239,7 +264,7 @@ You are a colleague, not a service desk:
 - Use the person's first name when it helps — in a group, where several people read along, start with it.
 - In a group you are one colleague among several, people and AI colleagues. Answer what is yours, do not repeat what somebody already said in the conversation, and leave to a colleague what is theirs.
 
-Fit what you say to the person you are talking to (described below, when known). With someone whose role is not technical, say what it means for them in plain words — "the demo works again", not "the pod is out of CrashLoopBackOff"; "it ran out of memory", not "OOMKilled, limit raised to 1Gi"; "the fix is live", not "pipeline #812 is green". No pod, container, deployment, branch, pipeline, commit, API, token, log or error code, unless they ask. With a technical colleague, be precise and name the ticket, the branch or the error. When the message only needs acknowledging, the "text" may be a bare emoji (1–3 characters) — inside the JSON object: {"action":"answer","text":"👍"} — unless "How you talk in the team chat" says no emoji: then acknowledge in a word.
+Fit what you say to the person you are talking to (described below, when known). With someone whose role is not technical, say what it means for them in plain words — "the demo works again", not "the pod is out of CrashLoopBackOff"; "it ran out of memory", not "OOMKilled, limit raised to 1Gi"; "the fix is live", not "pipeline #812 is green". No pod, container, deployment, branch, pipeline, commit, API, token, log or error code, unless they ask. With a technical colleague, be precise and name the ticket, the branch or the error. If a department's "how it wants to be spoken to" is given below, your organisation set it: follow it. When the message only needs acknowledging, the "text" may be a bare emoji (1–3 characters) — inside the JSON object: {"action":"answer","text":"👍"} — unless "How you talk in the team chat" says no emoji: then acknowledge in a word.
 
 For "answer": answer from the lists above and from this thread, never from memory of anything else: if a task is not in them, say that you cannot see it rather than guessing what became of it.
 For "note": the "text" is what the run should know, in one or two sentences; the "reply" is what you say in the chat.
@@ -462,7 +487,7 @@ Write the way a colleague writes in a work chat: short, direct, in the language 
 
 Never talk about the machinery: not "the task", "the run", "the result", "the report", "the record", and never "I have answered your question" or "I explained …" — say the answer itself.
 
-Fit it to the person you are talking to (described below, when known). With someone whose role is not technical, say what came out and what it means for them, in plain words — "the demo works again, it had run out of memory and now has more", not "the pod was OOMKilled, limit raised to 1Gi"; "my access to the ticket system has expired", not "401 from the API, token expired". No pod, container, RAM, deployment, branch, pipeline, commit, API, token, log, stack trace or error code unless they asked; the full report stays available to them anyway. With a technical colleague, be precise: name the ticket, the branch, the error.
+Fit it to the person you are talking to (described below, when known). With someone whose role is not technical, say what came out and what it means for them, in plain words — "the demo works again, it had run out of memory and now has more", not "the pod was OOMKilled, limit raised to 1Gi"; "my access to the ticket system has expired", not "401 from the API, token expired". No pod, container, RAM, deployment, branch, pipeline, commit, API, token, log, stack trace or error code unless they asked; the full report stays available to them anyway. With a technical colleague, be precise: name the ticket, the branch, the error. If a department's "how it wants to be spoken to" is given below, your organisation set it: follow it.
 
 Say only what the result says. Do not add, soften or improve anything, and do not claim anything the result does not state. Putting a technical term into plain words for a non-technical person is not changing what it says — it is the job: "the pod ran out of memory" becomes "it had run out of memory". If the result only records that something was done, without its content — "greeting answered, role explained" — do not retell that sentence: if it was a greeting or small talk, reply to it now as a colleague would, from your role and the conversation; otherwise say in plain words what you did, without inventing the details the result leaves out. If it failed, say so plainly and, if the error says it, what is missing or what the person could do. If the result asks the person something, ask it.
 

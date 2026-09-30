@@ -48,7 +48,7 @@ Eine Nachricht an einen Agenten im Team-Chat muss keine Aufgabe werden. Ist unte
 
 Eine Aufgabe aus einem Gespräch erfährt, dass ihr Ergebnis dort vorgelesen wird; der Lauf schreibt also die Antwort selbst hinein und keine Zusammenfassung für die Akte. Ein zweiter billiger Zug erzählt sie in ein paar Sätzen Chat nach, das volle Ergebnis bleibt einen Tipp entfernt.
 
-Wie Agenten dort reden — `du` oder `Sie`, locker oder förmlich, wie viele Emoji, dazu eine Zeile freier Text —, steht an der Stimme (**Stimmen → Im Team-Chat**) und, als Vorgabe für alles, was eine Stimme offenlässt, unter **Administration → Umgangston im Team-Chat**. Es wirkt nur in diesen beiden Zügen, nicht in dem, was ein Lauf in ein Zielsystem schreibt.
+Wie Agenten dort reden — `du` oder `Sie`, locker oder förmlich, wie viele Emoji, dazu eine Zeile freier Text —, steht an der Stimme (**Stimmen → Im Team-Chat**) und, als Vorgabe für alles, was eine Stimme offenlässt, unter **Administration → Umgangston im Team-Chat**. Welche Stimme das ist, hängt davon ab, wer schreibt: die Chat-Stimme seiner Abteilung, sonst die des Agenten, sonst die der Organisation, dazu die Zeile „So sprechen Sie mit uns“ der Abteilung ([Stimmen](voices.md)). Der Ton wirkt nur in diesen beiden Zügen, nicht in dem, was ein Lauf in ein Zielsystem schreibt.
 
 ## Turn-Limit und Budget
 

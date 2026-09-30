@@ -251,7 +251,7 @@ func (o *Orchestrator) hiring(ctx context.Context, agent agents.Agent, taskID uu
 	case "start_services":
 		return o.startServices(ctx, agent, taskID, req, ok, fail)
 	case "style_check":
-		return o.styleCheckAction(ctx, agent, req, ok, fail)
+		return o.styleCheckAction(ctx, agent, taskID, req, ok, fail)
 	case "style_apply":
 		return o.styleApplyAction(ctx, agent, taskID, req, ok, fail)
 	case "correction":

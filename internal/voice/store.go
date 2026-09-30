@@ -458,11 +458,27 @@ func (s *Store) Release(ctx context.Context, orgID, id, by uuid.UUID, card strin
 	return s.Get(ctx, orgID, id)
 }
 
-// SetAgentVoice records which voice an agent carries. Writing the TONE.md is
-// the caller's job — it is a config version, and versions are the registry's.
+// SetAgentVoice is the one-voice assignment from before #471: the voice goes
+// into the agent's customers and publications slots — what 0122 made of every
+// voice_id — and into agents.voice_id, which nothing reads any more and a
+// binary rolled back past 0122 still expects. nil empties the two slots.
+// Writing the TONE.md is the caller's job — it is a config version, and
+// versions are the registry's.
 func (s *Store) SetAgentVoice(ctx context.Context, agentID uuid.UUID, voiceID *uuid.UUID) error {
-	_, err := s.pool.Exec(ctx, `UPDATE agents SET voice_id=$2 WHERE id=$1`, agentID, voiceID)
-	return err
+	var orgID uuid.UUID
+	if err := s.pool.QueryRow(ctx, `UPDATE agents SET voice_id=$2 WHERE id=$1 RETURNING org_id`, agentID, voiceID).Scan(&orgID); err != nil {
+		return err
+	}
+	id := uuid.Nil
+	if voiceID != nil {
+		id = *voiceID
+	}
+	slots, err := s.AgentSlots(ctx, orgID, agentID)
+	if err != nil {
+		return err
+	}
+	slots[OccasionCustomers], slots[OccasionPublications] = id, id
+	return s.SetAgentSlots(ctx, orgID, agentID, slots)
 }
 
 // SetChatTone stores how the agents carrying this voice talk in the team chat.
@@ -515,27 +531,12 @@ func (s *Store) SetOrgChatTone(ctx context.Context, orgID uuid.UUID, tone ChatTo
 	return tone, nil
 }
 
-// AgentChatTone is the tone an agent talks in (EffectiveChatTone): its
-// voice's where set, the organisation's otherwise. Unreadable is no tone —
-// the turns then talk as they did before there was one.
-func (s *Store) AgentChatTone(ctx context.Context, agentID uuid.UUID) ChatTone {
-	var eigen, org []byte
-	if err := s.pool.QueryRow(ctx, `SELECT coalesce(v.chat_tone, '{}'::jsonb), o.chat_tone
-		  FROM agents a JOIN organizations o ON o.id = a.org_id
-		  LEFT JOIN voices v ON v.id = a.voice_id
-		 WHERE a.id = $1`, agentID).Scan(&eigen, &org); err != nil {
-		return ChatTone{}
-	}
-	var v, o ChatTone
-	_ = json.Unmarshal(eigen, &v)
-	_ = json.Unmarshal(org, &o)
-	return EffectiveChatTone(v, o)
-}
-
-// carriers names the agents carrying a voice.
+// carriers names the agents that name a voice in any of their slots (#471).
 func (s *Store) carriers(ctx context.Context, voiceID uuid.UUID) ([]AgentRef, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, slug, display_name FROM agents WHERE voice_id=$1 AND NOT killed ORDER BY display_name`, voiceID)
+		`SELECT DISTINCT a.id, a.slug, a.display_name FROM agents a
+		   JOIN voice_assignments va ON va.agent_id = a.id
+		  WHERE va.voice_id=$1 AND NOT a.killed ORDER BY a.display_name`, voiceID)
 	if err != nil {
 		return nil, err
 	}
@@ -727,16 +728,17 @@ func (s *Store) DeleteCorrection(ctx context.Context, orgID, voiceID, id uuid.UU
 	return nil
 }
 
-// VoiceOfAgent is the voice an agent carries, for the moments where a pair
-// turns up and only the agent is known — the approval gate is one. false means
-// the agent carries none, and then there is nowhere to put the correction.
+// VoiceOfAgent is the voice an agent writes outward in, for the moments where
+// a pair turns up and only the agent is known — the approval gate is one: a
+// text a reviewer rewrote went out to a customer, so the customers slot, and
+// the publications slot for an agent that only publishes. false means the
+// agent names none, and then there is nowhere to put the correction.
 func (s *Store) VoiceOfAgent(ctx context.Context, agentID uuid.UUID) (uuid.UUID, bool) {
-	var id *uuid.UUID
-	if err := s.pool.QueryRow(ctx, `SELECT voice_id FROM agents WHERE id=$1`, agentID).Scan(&id); err != nil {
+	var id uuid.UUID
+	if err := s.pool.QueryRow(ctx, `SELECT voice_id FROM voice_assignments
+		WHERE agent_id=$1 AND occasion IN ('customers', 'publications')
+		ORDER BY occasion = 'customers' DESC LIMIT 1`, agentID).Scan(&id); err != nil {
 		return uuid.Nil, false
 	}
-	if id == nil {
-		return uuid.Nil, false
-	}
-	return *id, true
+	return id, true
 }

@@ -161,7 +161,7 @@ a model it says nothing, and the report stands on its own as before.
 - a request to act in a target system is a task even when the ticket is unknown; "I cannot see it" answers only a question about what already happened;
 - both turns are told that in a group the agent is one colleague among several: the author is named and addressed by first name, a greeting is answered as a greeting, nothing is said about tasks, runs or reports, nothing repeated that somebody already said, and less said than in a direct chat. A result that only records that something was done is not retold as such.
 
-How the agent talks there — address, tone, emoji and a line of free text — is part of its voice and has an organisation default ([`24`](24-voice.md)). An evaluation set of conversation scenarios with hard checks and a model-graded score (`internal/chat/testdata/eval`, `make eval-chat`) measures a change to these prompts.
+How the agent talks there comes from the voice chosen for the chat — the department of the person who wrote, else the agent's chat slot, else the organisation's — with its card, two passages and its chat tone (address, tone, emoji and a line of free text, with an organisation default), plus the "how to speak with us" lines of the departments involved; the answer's meta names the voice and why ([`24`](24-voice.md), voices per occasion). An evaluation set of conversation scenarios with hard checks and a model-graded score (`internal/chat/testdata/eval`, `make eval-chat`) measures a change to these prompts.
 
 The open decisions are in the issue; the load-bearing one is what the answer
 is allowed to know. The recommendation is: the role and the conversation, not the

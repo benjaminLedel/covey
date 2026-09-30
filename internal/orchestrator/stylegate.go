@@ -56,14 +56,20 @@ func (o *Orchestrator) styleGate(ctx context.Context, agent agents.Agent, taskID
 			Data: map[string]string{"action": req.Action, "decision": decision, "rule": guardrails.RuleStyleGate}})
 	}
 
-	profiles := o.styleProfiles(ctx, agent.ID)
+	// The voice the task's outward occasion resolves to (#471); the config's
+	// own TONE.md when no level names one.
+	profiles, described, resolved := o.outwardProfiles(ctx, agent, taskID)
+	if !resolved {
+		profiles = o.styleProfiles(ctx, agent.ID)
+		described = o.hasTone(ctx, agent.ID)
+	}
 	if len(profiles) == 0 {
 		// A voice described in words rather than measured (#458) is a TONE.md
 		// without a profile block: it acts while writing, and there are no
 		// bands for the gate to hold a text to. That is a skip, never a
 		// failure — the reason says which of the two absences it was.
 		reason := "no style profile in the agent's config (TONE.md)"
-		if o.hasTone(ctx, agent.ID) {
+		if described {
 			reason = "the agent's voice is described, not measured — its TONE.md carries no bands to check against"
 		}
 		record("skipped", map[string]any{"reason": reason})
@@ -150,16 +156,22 @@ func (o *Orchestrator) styleProfiles(ctx context.Context, agentID uuid.UUID) []s
 	if err != nil {
 		return nil
 	}
-	out := style.ParseProfiles(cfg.Files["TONE.md"])
-	names := make([]string, 0, len(cfg.Files))
-	for name := range cfg.Files {
+	return append(style.ParseProfiles(cfg.Files["TONE.md"]), otherProfiles(cfg.Files)...)
+}
+
+// otherProfiles are the profile blocks of every Markdown file but TONE.md,
+// in name order.
+func otherProfiles(files map[string]string) []style.Profile {
+	names := make([]string, 0, len(files))
+	for name := range files {
 		if name != "TONE.md" && strings.HasSuffix(name, ".md") {
 			names = append(names, name)
 		}
 	}
 	sort.Strings(names)
+	var out []style.Profile
 	for _, name := range names {
-		out = append(out, style.ParseProfiles(cfg.Files[name])...)
+		out = append(out, style.ParseProfiles(files[name])...)
 	}
 	return out
 }

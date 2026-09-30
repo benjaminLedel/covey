@@ -93,6 +93,9 @@ type voiceView struct {
 	Checks []voice.Check `json:"checks"`
 	// Assignable: whether an agent can carry the voice yet.
 	Assignable bool `json:"assignable"`
+	// UsedBy: who names the voice for what — agents, departments and the
+	// organisation's defaults, per occasion (#471).
+	UsedBy []voice.Use `json:"used_by"`
 }
 
 func (s *Server) handleGetVoice(w http.ResponseWriter, r *http.Request) {
@@ -113,8 +116,13 @@ func (s *Server) handleGetVoice(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
+	usedBy, err := store.UsedBy(r.Context(), v.OrgID, v.ID)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, voiceView{Voice: v, Corpus: corpus, Tone: voice.Render(v),
-		Checks: voice.CheckCorpus(texts, v.Language), Assignable: v.Assignable()})
+		Checks: voice.CheckCorpus(texts, v.Language), Assignable: v.Assignable(), UsedBy: usedBy})
 }
 
 // handlePatchVoice changes what a voice is for.
@@ -252,6 +260,9 @@ func (s *Server) handlePreviewVoice(w http.ResponseWriter, r *http.Request) {
 		Topic   string `json:"topic"`
 		Kind    string `json:"kind"`
 		Version string `json:"version"`
+		// Audience is a department id (#471): the sample is written to
+		// somebody of it, with its "how to speak with us" line.
+		Audience string `json:"audience"`
 	}
 	if err := readJSON(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, "body not readable")
@@ -272,6 +283,20 @@ func (s *Server) handlePreviewVoice(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, `version is "draft" or "released"`)
 		return
 	}
+	audience := ""
+	if in.Audience != "" {
+		deptID, err := uuid.Parse(in.Audience)
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, "audience is a department id")
+			return
+		}
+		aud, err := store.DepartmentAudience(r.Context(), principalFrom(r).OrgID, deptID)
+		if err != nil {
+			writeVoiceResult(w, voice.Voice{}, err)
+			return
+		}
+		audience = voice.AudiencePrompt(voice.Choose(voice.OccasionChat, aud, nil, nil).Notes)
+	}
 	provider, ok := s.voiceModel(w, r)
 	if !ok {
 		return
@@ -284,7 +309,7 @@ func (s *Server) handlePreviewVoice(w http.ResponseWriter, r *http.Request) {
 	}
 	text, err := voice.Preview(ctx, provider, voice.PreviewInput{Name: v.Name, Language: v.Language,
 		Purpose: v.Purpose, Card: card, Exemplars: exemplars,
-		ChatTone: voice.EffectiveChatTone(v.ChatTone, org), Topic: in.Topic, Kind: kind})
+		ChatTone: voice.EffectiveChatTone(v.ChatTone, org), Topic: in.Topic, Kind: kind, Audience: audience})
 	if errors.Is(err, voice.ErrInvalid) {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
@@ -561,7 +586,10 @@ func (s *Server) handleSetOrgChatTone(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleSetAgentVoice puts an agent on a voice, or takes it off one.
+// handleSetAgentVoice puts an agent on a voice, or takes it off one — the
+// one-voice assignment from before #471, which now fills the agent's
+// customers and publications slots (SetAgentVoice). The slots themselves are
+// PUT /agents/{id}/voices (voiceslots.go).
 //
 // Assigning writes the TONE.md into the agent's config — a config version like
 // any other, so the change is visible, reviewable and revertible where every

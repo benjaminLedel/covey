@@ -71,7 +71,7 @@ It is master data rather than a setup prompt because the same three sentences an
 
 ## Organisational structure: departments, cost centres, tenants
 
-- **Departments / teams** — agents are assigned to organisational units. The org chart maps the real structure (team lead → their agents), and guard rails as well as budgets can be scoped **per department** (see guard-rail scope in [`06-observability-control.md`](06-observability-control.md)).
+- **Departments / teams** — agents are assigned to organisational units. The org chart maps the real structure (team lead → their agents), and guard rails as well as budgets can be scoped **per department** (see guard-rail scope in [`06-observability-control.md`](06-observability-control.md)). A department can also say how it wants to be spoken to and name a voice per occasion ([`24-voice.md`](24-voice.md)).
 - **Cost centres** — costs (from cost tracking) are aggregated per agent, department and cost centre so that controlling can charge them cleanly.
 - **Tenant model** — primarily **single-org self-hosted**: one company operates one covey instance for itself. Several organisations on one instance work: they are isolated in the data model (`org_id` everywhere, enforced by middleware rather than by each handler remembering), the login sits one level above the membership, and the instance level that administers them all is out of reach of any single tenant. What an instance carrying *strangers* still needs is the data plane — sandboxes of different tenants share one Docker network today (finding G in [`003-mandantentrennung.md`](../feature-requests/003-mandantentrennung.md)).
 

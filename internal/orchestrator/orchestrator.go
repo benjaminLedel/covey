@@ -2303,7 +2303,11 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	// The stored compiled_prompt is kept as a snapshot for audit and display —
 	// the source of truth for the run are the files. Target-system docs and the
 	// team directory below follow the same logic.
-	compiled := agents.CompilePrompt(cfg.Files)
+	//
+	// The TONE.md is the one file the dispatch replaces: the voice the task's
+	// occasion and audience resolve to (#471, voiceocc.go).
+	files, audience := o.runVoiceFiles(ctx, agent, task, cfg.Files)
+	compiled := agents.CompilePrompt(files)
 	// Append the target-system docs at dispatch time — they reflect the
 	// organization's currently enabled plugins (including manifest uploads) and
 	// the agent's current ACCESS.md, not the state at the time the config was
@@ -2429,6 +2433,9 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 		compiled += "\n\n" + section
 	}
 	compiled += conversationSection(task)
+	if audience != "" {
+		compiled += "\n\n" + audience
+	}
 
 	maxTurns := agent.MaxTurns
 	if maxTurns <= 0 {

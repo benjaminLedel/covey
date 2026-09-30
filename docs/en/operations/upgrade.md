@@ -35,6 +35,20 @@ covey doctor     # what is still in the way here
 
 ---
 
+## Voices per occasion (migration 0122)
+
+Nothing to do by hand; one thing to decide. An agent's one voice moves into
+its **Customers** and **Publications** slots, and its **Chat** slot stays
+empty: the team chat used only that voice's chat tone before, never its card,
+and it keeps doing exactly that — the tone (du/Sie, emoji) still comes from
+the customers voice until somebody names a chat voice. If colleagues should
+hear a voice of its own in the chat, name one on the agent (*Settings →
+Voices*) or as the organisation's default (*Administration → Default
+voices*). `agents.voice_id` stays in the table, unread, so a rollback past
+0122 still works. See [Voices](../concepts/voices.md#which-voice-applies-per-occasion-and-per-reader).
+
+---
+
 ## After 0.11.0 — egress is enforced by default
 
 `COVEY_EGRESS_ENFORCE` now defaults to `true`. With the docker provider every

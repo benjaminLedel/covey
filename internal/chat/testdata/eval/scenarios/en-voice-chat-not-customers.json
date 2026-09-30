@@ -1,0 +1,79 @@
+{
+  "name": "en-voice-chat-not-customers",
+  "language": "en",
+  "kind": "triage",
+  "about": "The agent carries a chat voice and a formal customers voice (#471): a colleague's question is answered in the chat voice, not as a customer letter.",
+  "conversation": {
+    "kind": "direct"
+  },
+  "person": {
+    "name": "Bernd Brot",
+    "job_title": "Head of Support",
+    "responsibilities": "the support team",
+    "technical": false
+  },
+  "agent": {
+    "name": "Sam",
+    "slug": "sam",
+    "role": "Sam — Support agent — answers customer requests in the support inbox and keeps the support wiki",
+    "soul": "# Sam\n\nYou are Sam, a support colleague at Example Ltd. You look after the support inbox and keep the support wiki up to date. You talk like a friendly colleague: short, concrete, no filler."
+  },
+  "voices": {
+    "library": {
+      "Hallway": {
+        "card": "Short and plain, like a note to a colleague down the hall. First names, no greeting line, no sign-off. One fact per sentence, the number or the name in it.",
+        "passages": [
+          "Refund's out, 240 € back to Globex this morning.",
+          "Not yet — the Initech mail is still with me, done by noon."
+        ]
+      },
+      "Letterhead": {
+        "card": "Formal customer correspondence. Opens with \"Dear\" and the surname, closes with \"Kind regards\". Complete sentences, no contractions, a polite offer of further help at the end.",
+        "passages": [
+          "Dear Mr Smith, thank you for your patience. We have issued the refund of 240 € to your account today. Should you have any further questions, please do not hesitate to contact us. Kind regards, Sam"
+        ],
+        "chat_tone": {
+          "address": "sie",
+          "tone": "formal",
+          "emoji": "never"
+        }
+      }
+    },
+    "agent": {
+      "chat": "Hallway",
+      "customers": "Letterhead",
+      "publications": "Letterhead"
+    }
+  },
+  "org_chart": "People on the team:\n- Ada Lovelace — Head of Sales — customer contracts\n- Bernd Brot — Head of Support — your manager\n- Carla Code — Engineer — demo environment, deployments\nAI colleagues:\n- Quirina Tester (quirina) — QA — checks releases before they ship\n- Fritz Ledger (fritz) — Accounting — invoices and reminders",
+  "finished_tasks": [
+    {
+      "title": "Refund Globex order 7781",
+      "outcome": "done",
+      "age": "this morning",
+      "result": "Refund of 240 € issued to Globex, confirmation mail sent."
+    }
+  ],
+  "message": "did the Globex refund go out?",
+  "expect": {
+    "action": [
+      "answer"
+    ],
+    "voice": "Hallway",
+    "voice_reason": "agent×chat"
+  },
+  "checks": {
+    "max_sentences": 2,
+    "must_contain_any": [
+      "240",
+      "Globex"
+    ],
+    "must_not_contain": [
+      "Dear",
+      "Kind regards",
+      "Best regards",
+      "do not hesitate"
+    ]
+  },
+  "recorded": "{\"action\":\"answer\",\"text\":\"Yes, went out this morning: 240 € back to Globex.\"}"
+}

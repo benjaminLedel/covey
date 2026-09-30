@@ -4683,6 +4683,29 @@
 .vp-pair-h { display: flex; align-items: center; gap: 8px; font-size: 12px; }
 .vp-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; line-height: 1.5; }
 .vp-was { color: var(--text-secondary); }
+/* Voices per occasion (#471): slots side by side, the audience note with its
+   counter, the table of who gets what and where one voice is named. */
+.vo-slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px 14px; max-width: 760px; }
+.vo-slot { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.vo-slot select { width: 100%; }
+.vo-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px; }
+.vo-field textarea { width: 100%; resize: vertical; }
+.vo-count { align-self: flex-end; font-variant-numeric: tabular-nums; }
+.vo-count.over { color: var(--text-danger); }
+.vo-matrix { margin-top: 28px; }
+.vo-filter { display: flex; align-items: center; gap: 6px; }
+.vo-table-wrap { padding: 0; overflow-x: auto; }
+.vo-table th[scope="row"] { font-weight: 500; text-transform: none; letter-spacing: normal; font-size: 13px; color: var(--text-primary); text-align: left; padding: 7px 14px; border-top: 0.5px solid var(--border); vertical-align: top; min-width: 160px; }
+.vo-table tbody tr:first-child th[scope="row"] { border-top: none; }
+.vo-dept { display: block; }
+.vo-note { display: block; color: var(--text-muted); font-size: 12px; max-width: 36ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; }
+.vo-level { display: block; font-size: 11px; color: var(--text-muted); }
+.vo-usedby { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+.vo-usedby ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.vo-usedby li { display: inline-flex; align-items: baseline; gap: 6px; }
+.orgc-card .icon-btn.on { color: var(--text-accent); }
+.tm-blase-stimme { font-size: 11px; color: var(--text-muted); cursor: default; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+
 .vp { container-type: inline-size; }
 @container (max-width: 640px) {
   .vp-pair { grid-template-columns: minmax(0, 1fr); }

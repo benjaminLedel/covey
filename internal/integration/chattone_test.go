@@ -43,7 +43,11 @@ func TestChatToneReachesTheTriage(t *testing.T) {
 		t.Fatalf("voice tone: %v", gesetzt)
 	}
 	admin.expect(http.MethodPut, "/api/v1/voices/"+id+"/chat-tone", map[string]any{"emoji": "always"}, http.StatusBadRequest)
-	if _, err := s.pool.Exec(ctx, `UPDATE agents SET voice_id=$2 WHERE id=$1`, agent.ID, id); err != nil {
+	// The agent carries the voice as 0122 left every voice_id: in its
+	// customers slot, with the chat slot empty — and the voice's chat tone
+	// still acts in the chat (voice.Store.ChatToneFor, #471).
+	if _, err := s.pool.Exec(ctx, `INSERT INTO voice_assignments (org_id, agent_id, occasion, voice_id)
+		VALUES ($1, $2, 'customers', $3)`, agent.OrgID, agent.ID, id); err != nil {
 		t.Fatal(err)
 	}
 

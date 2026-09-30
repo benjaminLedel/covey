@@ -26,6 +26,7 @@ import {
 } from "../../api";
 import { Avatar } from "../person";
 import { ConfirmDialog } from "../Modal";
+import { DepartmentVoicesDialog } from "../../pages/voices/Slots";
 import { layoutTree, type Placed } from "./layout";
 import {
   buildModel, descendantsOf, memberBoss, memberDept, memberName, memberNodeId,
@@ -97,6 +98,7 @@ const IC = {
   grip: "M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01",
   lead: "M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z",
   pencil: "M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17z M13 6l3 3",
+  speech: "M4 5h16v11H9l-5 4z M8 9h8M8 12h5",
 };
 
 /* ── Component ────────────────────────────────────────────────────────── */
@@ -108,7 +110,9 @@ type Pending =
 
 // `head` is the band above the tools: the organisation this chart belongs
 // to, rendered by the page. Head, tools and ground share one frame.
-export function OrgChart({ chart, orgName, head }: { chart: OrgChartData; orgName: string; head?: ReactNode }) {
+// `canManage`: whether the viewer may change a department's audience note
+// and voices (#471); the dialog opens for everybody, locked for the others.
+export function OrgChart({ chart, orgName, head, canManage = false }: { chart: OrgChartData; orgName: string; head?: ReactNode; canManage?: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [mode, setMode] = useState<Mode>("view");
@@ -118,6 +122,7 @@ export function OrgChart({ chart, orgName, head }: { chart: OrgChartData; orgNam
   const [pending, setPending] = useState<Pending | null>(null);
   const [dragging, setDragging] = useState<Member | null>(null);
   const [showNew, setShowNew] = useState(false);
+  const [voicesOf, setVoicesOf] = useState<string | null>(null);
 
   const model = useMemo(() => buildModel(chart, collapse.isOpen, SIZES[mode]), [chart, collapse.isOpen, mode]);
   const layout = useMemo(() => layoutTree(model.root), [model]);
@@ -470,6 +475,7 @@ export function OrgChart({ chart, orgName, head }: { chart: OrgChartData; orgNam
                     onRename={(name) => renameMut.mutate({ dept: n.dept, name })}
                     onColor={(color) => colorMut.mutate({ dept: n.dept, color })}
                     onDelete={() => setPending({ kind: "delete", dept: n.dept })}
+                    onVoices={() => setVoicesOf(n.dept.id)}
                   />
                 )}
                 {n.kind === "unassigned" && (
@@ -507,6 +513,9 @@ export function OrgChart({ chart, orgName, head }: { chart: OrgChartData; orgNam
         </p>
       </div>
 
+      {voicesOf && deptById.get(voicesOf) && (
+        <DepartmentVoicesDialog dept={deptById.get(voicesOf)!} editable={canManage} onClose={() => setVoicesOf(null)} />
+      )}
       {pending?.kind === "delete" && (
         <ConfirmDialog
           title={t("org.deleteDept")}
@@ -566,7 +575,7 @@ function Toggle({ open, count, onToggle }: { open: boolean; count: number; onTog
   );
 }
 
-function DeptCard({ node, editing, dragging, onToggle, onDrop, onRename, onColor, onDelete }: {
+function DeptCard({ node, editing, dragging, onToggle, onDrop, onRename, onColor, onDelete, onVoices }: {
   node: Extract<ChartNode, { kind: "dept" }>;
   editing: boolean;
   dragging: Member | null;
@@ -575,6 +584,7 @@ function DeptCard({ node, editing, dragging, onToggle, onDrop, onRename, onColor
   onRename: (name: string) => void;
   onColor: (color: string) => void;
   onDelete: () => void;
+  onVoices: () => void;
 }) {
   const { t } = useTranslation();
   const [over, setOver] = useState(false);
@@ -606,6 +616,16 @@ function DeptCard({ node, editing, dragging, onToggle, onDrop, onRename, onColor
           <div className="orgc-nm" title={node.dept.description || node.dept.name}>{node.dept.name}</div>
         )}
         {node.total > 0 && <Toggle open={node.open} count={node.total} onToggle={onToggle} />}
+        {editing && (
+          <button
+            className={`icon-btn${node.dept.audience_note || Object.keys(node.dept.voices ?? {}).length ? " on" : ""}`}
+            onClick={onVoices}
+            title={t("voices.occ.deptOpen")}
+            aria-label={`${t("voices.occ.deptOpen")}: ${node.dept.name}`}
+          >
+            <Ico d={IC.speech} size={15} />
+          </button>
+        )}
         {editing && (
           <button className="icon-btn danger" onClick={onDelete} title={t("org.deleteDept")} aria-label={`${t("org.deleteDept")}: ${node.dept.name}`}>
             <Ico d={IC.trash} size={15} />

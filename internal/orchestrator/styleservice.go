@@ -12,13 +12,15 @@ import (
 	"covey/internal/llm"
 	"covey/internal/observability"
 	"covey/internal/style"
+	"covey/internal/voice"
 )
 
 // Measuring and restyling text as platform services (spec/06). The first real
 // run of the style gate showed why: the writer's sandbox had no Python for the
 // skill's scripts, and the post never passed an action the gate could see. A
 // meta action needs neither. covey/style_check measures a text against the
-// agent's profile with the same numbers the gate uses; covey/style_apply runs
+// profile the gate would use — the voice of the task's outward occasion
+// (#471), else the config's TONE.md — with the same numbers; covey/style_apply runs
 // the revision loop with the organisation's control-plane model and hands the
 // revised text back. Both are recorded as actions like every other.
 
@@ -32,42 +34,58 @@ const (
 type styleContext struct {
 	profile  style.Profile
 	prose    string
-	source   string // "agent" | "defaults"
+	source   string // "voice" | "agent" | "defaults"
 	language string
+	// voice and reason name the voice the task's outward occasion resolved to
+	// (#471); empty when no level names one and the config's TONE.md applies.
+	voice, reason string
 }
 
-func (o *Orchestrator) styleContextFor(ctx context.Context, agentID uuid.UUID, text, language string) styleContext {
+// styleContextFor measures a text the way the style gate would measure it
+// when it leaves: against the voice the task's outward occasion resolves to
+// (#471) — a style_check is the agent asking before it sends — and, when no
+// level names a voice, against the config's own TONE.md, as before. The
+// other Markdown files of the config come after either.
+func (o *Orchestrator) styleContextFor(ctx context.Context, agent agents.Agent, taskID uuid.UUID, text, language string) styleContext {
 	lang := strings.TrimSpace(language)
 	if lang == "" {
 		lang = style.DetectLanguage(text)
 	}
-	profiles := o.styleProfiles(ctx, agentID)
-	if p, ok := style.PickProfile(profiles, lang); ok {
-		return styleContext{profile: p, prose: o.styleProse(ctx, agentID), source: "agent", language: lang}
+	var files map[string]string
+	if cfg, err := o.Registry.CurrentConfig(ctx, agent.ID); err == nil {
+		files = cfg.Files
 	}
-	return styleContext{profile: style.DefaultProfile(lang), source: "defaults", language: lang}
+	sc := styleContext{language: lang, source: "agent"}
+	tone := files["TONE.md"]
+	if rv := o.outwardVoice(ctx, agent, taskID); rv.voice != nil {
+		tone = voice.Render(*rv.voice)
+		sc.source, sc.voice, sc.reason = "voice", rv.voice.Name, rv.choice.Reason()
+	}
+	sc.prose = toneProse(tone)
+	profiles := append(style.ParseProfiles(tone), otherProfiles(files)...)
+	if p, ok := style.PickProfile(profiles, lang); ok {
+		sc.profile = p
+		return sc
+	}
+	sc.profile, sc.source = style.DefaultProfile(lang), "defaults"
+	return sc
 }
 
-// styleProse is the voice the model reads while revising: the prose of
-// TONE.md when the agent has one. SOUL.md is not repeated here — the agent's
-// own runtime already carries it, and a revision is about the text, not the
-// role.
-func (o *Orchestrator) styleProse(ctx context.Context, agentID uuid.UUID) string {
-	cfg, err := o.Registry.CurrentConfig(ctx, agentID)
-	if err != nil {
-		return ""
-	}
-	if _, prose, err := style.ParseProfile(cfg.Files["TONE.md"]); err == nil {
+// toneProse is the voice the model reads while revising: the prose of a
+// TONE.md. SOUL.md is not repeated here — the agent's own runtime already
+// carries it, and a revision is about the text, not the role. A described
+// voice (#458) has no profile block, and its TONE.md is prose from top to
+// bottom — the card and the passages the revision should follow, also when
+// the numbers come from the defaults.
+func toneProse(tone string) string {
+	if _, prose, err := style.ParseProfile(tone); err == nil {
 		return prose
 	}
-	// A described voice (#458) has no profile block, and its TONE.md is prose
-	// from top to bottom — the card and the passages the revision should
-	// follow.
-	return strings.TrimSpace(cfg.Files["TONE.md"])
+	return strings.TrimSpace(tone)
 }
 
 // styleCheckAction: covey/style_check {"text": "...", "language": "de|en"}.
-func (o *Orchestrator) styleCheckAction(ctx context.Context, agent agents.Agent, req daemon.RequestHiring,
+func (o *Orchestrator) styleCheckAction(ctx context.Context, agent agents.Agent, taskID uuid.UUID, req daemon.RequestHiring,
 	ok func(any) daemon.InjectHiring, fail func(string, ...any) daemon.InjectHiring) daemon.InjectHiring {
 
 	text := strings.TrimSpace(req.Text)
@@ -77,10 +95,17 @@ func (o *Orchestrator) styleCheckAction(ctx context.Context, agent agents.Agent,
 	if len(text) > styleTextLimit {
 		return fail("style_check: the text is longer than %d characters; measure it in parts", styleTextLimit)
 	}
-	sc := o.styleContextFor(ctx, agent.ID, text, req.Language)
+	sc := o.styleContextFor(ctx, agent, taskID, text, req.Language)
 	report := style.Check(text, &sc.profile)
+	// What it was measured against, in the recording beside the proxy's note
+	// of the call: "why did the check pass" has an answer months later.
+	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindAction, map[string]any{
+		"action": "covey:style_check", "profile": sc.source, "voice": sc.voice, "voice_reason": sc.reason,
+		"language": sc.language, "score": report.Score,
+	})
 	return ok(map[string]any{
 		"profile":        sc.source,
+		"voice":          sc.voice,
 		"language":       sc.language,
 		"words":          report.Metrics.Words,
 		"metrics":        report.Metrics.Values,
@@ -114,7 +139,7 @@ func (o *Orchestrator) styleApplyAction(ctx context.Context, agent agents.Agent,
 		}
 		return fail("style_apply: %v", err)
 	}
-	sc := o.styleContextFor(ctx, agent.ID, text, req.Language)
+	sc := o.styleContextFor(ctx, agent, taskID, text, req.Language)
 	call := func(ctx context.Context, system, user string) (string, error) {
 		return provider.Complete(ctx, llm.Request{
 			Tier: llm.TierBest, MaxTokens: 16000, Effort: styleApplyEffort, System: system,
@@ -126,8 +151,8 @@ func (o *Orchestrator) styleApplyAction(ctx context.Context, agent agents.Agent,
 		MaxIter: req.MaxIter, Language: sc.language,
 	}, call)
 	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindAction, map[string]any{
-		"action": "covey:style_apply", "provider": provider.Name(), "profile": sc.source, "language": sc.language,
-		"iterations": len(res.Iterations), "score_before": res.Before.Score, "score_after": res.Best.Score,
+		"action": "covey:style_apply", "provider": provider.Name(), "profile": sc.source, "voice": sc.voice, "voice_reason": sc.reason,
+		"language": sc.language, "iterations": len(res.Iterations), "score_before": res.Before.Score, "score_after": res.Best.Score,
 		"stop": res.StopReason, "error": errString(err),
 	})
 	if err != nil && len(res.Iterations) == 0 {
@@ -136,6 +161,7 @@ func (o *Orchestrator) styleApplyAction(ctx context.Context, agent agents.Agent,
 	data := map[string]any{
 		"text":           res.Text,
 		"profile":        sc.source,
+		"voice":          sc.voice,
 		"language":       sc.language,
 		"score_before":   res.Before.Score,
 		"score_after":    res.Best.Score,

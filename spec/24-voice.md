@@ -1,6 +1,6 @@
 # 24 — Voice: an author's style as an object an agent carries
 
-**Status: slices 1 to 3 are built, and the guided way to build a voice (#458).** Slice 1 lives in the covey-style skill, slices 2 and 3 in covey (#195, #257).
+**Status: slices 1 to 3 are built, the guided way to build a voice (#458), and voices per occasion (#471).** Slice 1 lives in the covey-style skill, slices 2 and 3 in covey (#195, #257).
 
 The style gate ([`06-observability-control.md`](06-observability-control.md)) holds an agent's outgoing text inside bands measured from a corpus. The bands say *how far* a text is from the corpus; they cannot make the text sound like the corpus's author. This document describes what does, and how it becomes an object in covey.
 
@@ -20,7 +20,7 @@ A model satisfies "sentences of 13 to 20 words, no dashes" without sounding like
 
 ## What a voice is
 
-A **voice** is an organisation-level object, versioned, built once from texts a person uploads — or written from a description, see [Building a voice](#building-a-voice) — and assigned to an agent in its settings. Four artefacts:
+A **voice** is an organisation-level object, versioned, built once from texts a person uploads — or written from a description, see [Building a voice](#building-a-voice) — and assigned per occasion to an agent, a department or the organisation, see [Voices per occasion](#voices-per-occasion-471). Four artefacts:
 
 1. **Profile** — the ```style-profile``` block as in [`02-agent-model.md`](02-agent-model.md): bands per metric, the lexicon, plus `antithesis_rate`. The guard. Address metrics (wir, ich, Sie, du, man, questions) leave the profile by default: a tender document says "Sie" and never "wir", a blog by the same author may say both; they belong to the register of the corpus, not to the author's hand.
 2. **Exemplars** — five to eight paragraphs chosen from the corpus for variety: an opening, one that carries evidence, one with an example, a long one, a short one, a closing. They go into the compiled prompt under `## Tone`. A paragraph that closes on an antithesis is never an exemplar; the same paragraph reused in two documents counts once.
@@ -33,9 +33,9 @@ Knowledge and experience are not part of a voice. They come from the model and f
 
 | Moment | What acts | Where |
 |---|---|---|
-| writing | exemplars and card in the prompt | `agents.CompilePrompt`, the `## Tone` section |
-| revising | card as the editor rules, exemplars beside the findings | `covey/style_apply` ([`06`](06-observability-control.md)) |
-| leaving | profile bands and the contrast list as findings with evidence | the style gate |
+| writing | exemplars and card in the prompt | the run's `TONE.md`, rendered at dispatch from the voice of the task's occasion; `agents.CompilePrompt`, the `## Tone` section. In the team chat: card and two passages in the triage and the narration (`voice.ChatPrompt`) |
+| revising | card as the editor rules, exemplars beside the findings | `covey/style_apply` ([`06`](06-observability-control.md)), with the voice of the task's outward occasion |
+| leaving | profile bands and the contrast list as findings with evidence | the style gate, with the voice of the task's outward occasion |
 
 The gate keeps acting on HIGH findings only; the contrast list turns the author's "never" into bands whose upper edge is close to zero, so a single dash is a MEDIUM and a page of them a HIGH.
 
@@ -48,9 +48,55 @@ A fifth part of a voice is set rather than built: how an agent carrying it talks
 - `emoji` — `never`, `sparingly` or `freely`,
 - `note` — free text for what the three do not say, at most 300 characters.
 
-The organisation has the same four as its default (`organizations.chat_tone`): it applies to an agent without a voice, and field by field to what a voice leaves empty; a voice's own note replaces the default note rather than adding to it. Stored as `voices.chat_tone` and `organizations.chat_tone` (migration 0120), set with `PUT /api/v1/voices/{id}/chat-tone` and `PATCH /api/v1/org/chat-tone` by the same roles that change a voice; every role reads it.
+The organisation has the same four as its default (`organizations.chat_tone`): it applies where no voice brings a tone, and field by field to what a voice leaves empty; a voice's own note replaces the default note rather than adding to it. Stored as `voices.chat_tone` and `organizations.chat_tone` (migration 0120), set with `PUT /api/v1/voices/{id}/chat-tone` and `PATCH /api/v1/org/chat-tone` by the same roles that change a voice; every role reads it.
 
-It acts where the chat is written — the triage and the narration, as one short block ("How you talk in the team chat: …") — and not in a run: what a run writes into a target system keeps the register of the `TONE.md`, and changing the chat tone writes no config version.
+The tone that acts is the one of the voice chosen for the chat ([below](#voices-per-occasion-471)); while no level names a chat voice, it is the tone of the agent's customers voice — the one voice an agent carried before #471, whose tone acted in the chat and keeps doing so. It acts where the chat is written — the triage and the narration, as one short block ("How you talk in the team chat: …") — and not in a run: what a run writes into a target system keeps the register of its voice, and changing the chat tone writes no config version.
+
+## Voices per occasion (#471)
+
+One voice cannot fit both a customer mail and a quick answer to a colleague, and the person spoken to matters as much as the occasion: sales wants what a thing means for the customer, engineering the ticket and the branch. So a voice is assigned per **occasion**, and at three **levels**.
+
+**Occasions** — three, and no more, because each has a different reader:
+
+| Occasion | What is written | Who writes it |
+|---|---|---|
+| `chat` | the team chat | the triage and the narration ([`28`](28-team-surface.md)), and the run of a task that came from a conversation — its result is read out there |
+| `customers` | outward: mails, tickets, replies in target systems | every other run |
+| `publications` | blog, docs, offers | a run whose task carries a line `occasion: publications` (a `HEARTBEAT.md` `aufgabe:` can say it too) |
+
+`voice.TaskOccasion` decides a run's occasion in that order: from a conversation it is `chat`; otherwise an explicit `occasion:` line; otherwise `customers`. The platform cannot tell a blog post from a ticket reply by looking at a task, so a publication has to say so. A text that leaves through a target system during a chat task — a mail sent from a conversation — still goes to a customer: its occasion for the style gate and the style services is `customers` (`voice.OutwardOccasion`).
+
+**Resolution.** At the moment of writing, the first of these that names a voice for the occasion applies (`voice.Choose`, a rule without the database so it is tested as a rule):
+
+1. the addressed person's **department** × occasion,
+2. the **agent** × occasion,
+3. the **organisation** × occasion.
+
+The addressed person is the one who wrote the message, or who asked for the task (a task's origin `chat:<address>`). A customer has no department: levels 2 and 3. In a **group** whose people belong to more than one department — the addressed person and those who wrote among the conversation's last eight messages — level 1 is skipped: no one department's voice is right for all of them, and the agent's applies. A voice that is not assignable (any more) counts as none; a deleted voice leaves an empty slot, which falls to the next level. When no level names one, a run keeps the config's own `TONE.md` and the chat speaks without a voice block — what every agent without a slot has carried all along.
+
+**The department's line.** A department has a short "how to speak with us" note (`departments.audience_note`, at most 400 characters, whitespace collapsed; the column checks it). It is added to what an agent writes to somebody of that department **whichever voice applies** — in the triage, the narration and the run of a conversation task, never to a customer. In a group the lines of every department involved come along, the addressed person's first, each department once, at most four lines and 1200 characters together; one line reads "How the Sales department wants to be spoken to (set by your organisation): …", several are introduced as "write so that it works for all of them". The turns are told that the organisation set these lines and to follow them.
+
+**Reasons.** Every choice has a reason in one short form, the same in the recording, in a chat message's meta and in the table below: `department:<name>×<occasion>`, `agent×<occasion>`, `org×<occasion>`, and `none×<occasion>` when no level names one. A run records a lifecycle event with `voice_occasion`, `voice_reason`, `voice` and `voice_id` when there is one, `tone: the config's own TONE.md` when there is not, and `audience` (the departments whose lines came along); a chat answer carries `voice`, `voice_id`, `voice_reason` and `audience` in its meta, and the message head shows "voice: X · for Sales". "Why did it write like that" has an answer in the run and in the thread.
+
+**What a slot is.** A slot is the assignment, and it acts at the moment of writing: the dispatch renders the chosen voice as the run's `TONE.md` from the voice as it stands then (`voice.Render`), and the chat reads the voice's released card and two passages (`voice.ChatPrompt`, bounded). Setting a slot therefore writes no config version — the change is in the slot table and every run records what it wrote in. Only a released card and the passages an agent reads act, never a draft. The style gate, `covey/style_check` and `covey/style_apply` measure against the profile of the voice the task's outward occasion resolves to, followed by the profiles in the config's other Markdown files, and fall back to the config's `TONE.md` only when no level names a voice ([`06`](06-observability-control.md)). Correction pairs from the approval gate go to the agent's `customers` voice, or its `publications` voice for an agent that only publishes: a rewritten text went out.
+
+**Storage** — `voice_assignments` (migration 0122): one table for the three levels, `(org_id, agent_id | department_id | neither, occasion, voice_id)`, one voice per holder and occasion, cascading from the agent, the department and the voice. A row with neither holder is the organisation's default.
+
+**API.** Every role reads; the manage roles (`org_admin`, `agent_owner`) change.
+
+- `GET /api/v1/agents/{id}/voices` — `slots` (the agent's own, per occasion, `{voice_id, voice}` or null) and `effective` (what each occasion resolves to with nobody known: `voice_id`, `voice`, `level`, `reason`).
+- `PUT /api/v1/agents/{id}/voices {"chat": "<id>", "customers": "", "publications": null}` — replaces the agent's slots; an occasion left out, `""` or `null` is empty. An unknown occasion, a malformed id or a voice that is not assignable is 400.
+- `GET /api/v1/org/voices`, `PATCH /api/v1/org/voices` — the organisation's defaults; a PATCH changes only the occasions it names.
+- `PATCH /api/v1/departments/{id}/audience {"audience_note": "…"}` — the line; longer than 400 characters is a 400.
+- `PUT /api/v1/departments/{id}/voices` — the department's slots, replaced as for an agent. `GET /api/v1/departments` carries `audience_note` and `voices`.
+- `GET /api/v1/voices/assignments[?agent_id=]` — **who gets what**: a row per department and one for everybody without (customers, people the org chart has not placed), a cell per occasion with the voice in effect, its level and reason. Without `agent_id` level 2 does not count.
+- `GET /api/v1/voices/{id}` carries `used_by`: every agent, department and organisation default that names the voice, per occasion.
+- `POST /api/v1/voices/{id}/preview` takes `audience` (a department id): the sample is written to somebody of it, with its line.
+- `PUT /api/v1/agents/{id}/voice {"voice_id"}` — the one-voice assignment from before #471 — stays: it fills the `customers` and `publications` slots and still writes the `TONE.md` as a config version, which is what acts when no level names a voice.
+
+In the interface: the agent's settings have one slot per occasion, and an empty slot says what applies instead and from where; the administration page sets the organisation's defaults; the org chart's edit mode opens a department's line (counted) and its voices; the voices list shows who gets what, optionally with one agent's slots counted; a voice's page lists who names it for what.
+
+**Upgrade.** Migration 0122 copies every `agents.voice_id` into that agent's `customers` and `publications` slots and leaves the `chat` slot empty on purpose. Until then the team chat read only the voice's chat tone, never its card or passages; with an empty chat slot the chat falls back to the organisation's chat default, and with none to no voice block — while the chat *tone* still comes from the customers voice (see [the tone in the team chat](#the-tone-in-the-team-chat-457)). Nobody's colleague starts sounding like a tender. `agents.voice_id` stays as a column that nothing reads any more; the one-voice endpoint keeps writing it so that a binary rolled back past 0122 finds what it expects, and dropping it is a later migration's job.
 
 ## Building a voice (#458)
 
@@ -113,9 +159,9 @@ Storage is `voice_corrections` (migration 0091): the pair, the agent it came fro
 ## In covey (slice 2, built)
 
 - `internal/voice` on top of `internal/style`: `Build(corpus, lang, reference) → Built` (profile, exemplars, contrast, notes), the card through `llm.Resolve`, and `Render(voice)` writing the `TONE.md`. The three measured artefacts are deterministic; only the card is a model call.
-- Tables `voices` and `voice_documents` (migration 0090), plus `agents.voice_id` — what ACTS is the file in the agent's config, the column says whose voice it is.
+- Tables `voices` and `voice_documents` (migration 0090), plus `agents.voice_id` — what ACTS is the file in the agent's config, the column says whose voice it is. Since #471 the slots of `voice_assignments` are the assignment and act at dispatch; the column is read by nothing ([above](#voices-per-occasion-471)).
 - The library page *Voices* beside Skills: the corpus, the build with its notes, the card to correct and release, the passages, the contrast, and the rendered `TONE.md` behind a fold — because the four artefacts on their own do not say what actually reaches a prompt.
-- The picker in the agent settings: assigning writes `TONE.md` as a new config version, so a change of voice is reviewable and revertible where every other change to an agent is ([`02`](02-agent-model.md)). Taking a voice off clears the link and LEAVES the file: removing it would change how an agent writes as a side effect of a picker.
+- The picker in the agent settings (replaced by the slots per occasion in #471; the endpoint stays): assigning writes `TONE.md` as a new config version, so a change of voice is reviewable and revertible where every other change to an agent is ([`02`](02-agent-model.md)). Taking a voice off clears the link and LEAVES the file: removing it would change how an agent writes as a side effect of a picker.
 - API: `/api/v1/voices` (+ `/documents`, `/build`, `/release`, and since #458 `/describe`, `/preview`, `/refine`) and `PUT /api/v1/agents/{id}/voice`; RBAC as for skills, the release included — that is the moment a description of somebody's hand starts appearing in every prompt of every agent carrying the voice.
 - Ten locale catalogues for the UI text.
 

@@ -10,6 +10,7 @@ import {
   post,
   put,
   type ChatTone,
+  type Department,
   type Voice,
   type VoiceCheck,
   type VoiceDetail,
@@ -506,7 +507,7 @@ function ToneStep({ v, editable }: { v: VoiceDetail; editable: boolean }) {
   );
 }
 
-type Sample = { text: string; kind: string; version: string };
+type Sample = { text: string; kind: string; version: string; audience?: string };
 
 function PreviewStep({ v, editable, onHeard }: { v: VoiceDetail; editable: boolean; onHeard: () => void }) {
   const { t } = useTranslation();
@@ -516,8 +517,23 @@ function PreviewStep({ v, editable, onHeard }: { v: VoiceDetail; editable: boole
   const [samples, setSamples] = useState<Sample[]>([]);
   const both = !!v.released_card && pendingDraft(v);
   const [version, setVersion] = useState<"draft" | "released">("draft");
+  // Written to somebody of a department (#471): the sample then carries that
+  // department's "how to speak with us" line, as a turn to them would.
+  const [audience, setAudience] = useState("");
+  const departments = useQuery({
+    queryKey: ["departments"],
+    queryFn: () => api<Department[] | null>("/departments"),
+    enabled: editable,
+  });
+  const depts = departments.data ?? [];
   const write = useMutation({
-    mutationFn: () => post<Sample>(`/voices/${v.id}/preview`, { topic, kind, version: both ? version : "draft" }),
+    mutationFn: () =>
+      post<Sample>(`/voices/${v.id}/preview`, {
+        topic,
+        kind,
+        version: both ? version : "draft",
+        ...(audience ? { audience } : {}),
+      }).then((s) => ({ ...s, audience: depts.find((d) => d.id === audience)?.name ?? "" })),
     onSuccess: (s) => {
       // Two at most: enough to hear the voice twice, or before beside after.
       setSamples((prev) => [s, ...prev].slice(0, 2));
@@ -543,6 +559,19 @@ function PreviewStep({ v, editable, onHeard }: { v: VoiceDetail; editable: boole
             ))}
           </select>
         </label>
+        {depts.length > 0 && (
+          <label className="vf-field">
+            <span className="muted text-xs">{t("voices.occ.previewFor")}</span>
+            <select value={audience} onChange={(e) => setAudience(e.target.value)}>
+              <option value="">{t("voices.occ.previewForNone")}</option>
+              {depts.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {both && (
           <label className="vf-field">
             <span className="muted text-xs">{t("voices.flow.hear")}</span>
@@ -564,6 +593,7 @@ function PreviewStep({ v, editable, onHeard }: { v: VoiceDetail; editable: boole
         <figure key={samples.length - i} className="vf-sample">
           <figcaption className="muted text-xs">
             {t(`voices.flow.kinds.${s.kind}`, s.kind)} · {s.version === "released" ? t("voices.flow.versionReleased") : t("voices.flow.versionDraft")}
+            {s.audience ? ` · ${t("voices.occ.previewForDept", { name: s.audience })}` : ""}
           </figcaption>
           <p className="m-0">{s.text}</p>
         </figure>

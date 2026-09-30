@@ -135,8 +135,15 @@ func richten(ctx context.Context, p llm.Provider, sc evalScenario, a evalAusgabe
 		fmt.Fprintf(&b, " with %s", strings.Join(wer, ", "))
 	}
 	fmt.Fprintf(&b, "\nThe person: %s\nThe agent: %s\n", sc.gegenueber(), sc.Agent.Role)
-	if t := evalTon(sc.Tone); t != "" {
-		fmt.Fprintf(&b, "Tone the organisation set: %s\n", t)
+	w := evalStimme(sc)
+	if w.Ton != "" {
+		fmt.Fprintf(&b, "Tone the organisation set: %s\n", w.Ton)
+	}
+	if w.Name != "" {
+		fmt.Fprintf(&b, "The voice chosen for this chat (%s): %s\n", w.Grund, strings.Join(strings.Fields(sc.Voices.Library[w.Name].Card), " "))
+	}
+	if w.Publikum != "" {
+		fmt.Fprintf(&b, "%s\n", w.Publikum)
 	}
 	for _, h := range sc.History {
 		fmt.Fprintf(&b, "Earlier — %s: %s\n", h.Who, h.Text)

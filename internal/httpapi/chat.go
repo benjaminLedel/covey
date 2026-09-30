@@ -36,6 +36,7 @@ import (
 	"covey/internal/llm"
 	"covey/internal/orchestrator"
 	"covey/internal/push"
+	"covey/internal/voice"
 )
 
 // chatEntry is one line of the thread. The kinds:
@@ -770,7 +771,7 @@ func (s *Server) entscheidungAnwenden(
 			if antwort := strings.TrimSpace(entscheidung.Antwort); antwort != "" {
 				if _, _, err := s.Chat.Post(ctx, chat.Message{
 					ConversationID: conv.ID, AuthorKind: chat.MemberAgent, AuthorID: &agentID,
-					Text: antwort, TaskID: &ziel, ReplyTo: &msg.ID,
+					Text: antwort, TaskID: &ziel, ReplyTo: &msg.ID, Meta: entscheidung.Meta,
 				}); err != nil {
 					s.Log.Warn("chat: the reply to a note was not written", "agent", agentID, "err", err)
 				} else {
@@ -784,7 +785,7 @@ func (s *Server) entscheidungAnwenden(
 	if entscheidung.Aktion == chat.AktionAntwort {
 		if _, _, err := s.Chat.Post(ctx, chat.Message{
 			ConversationID: conv.ID, AuthorKind: chat.MemberAgent, AuthorID: &agentID,
-			Text: entscheidung.Text, ReplyTo: &msg.ID,
+			Text: entscheidung.Text, ReplyTo: &msg.ID, Meta: entscheidung.Meta,
 		}); err != nil {
 			return "", nil, err
 		}
@@ -802,7 +803,7 @@ func (s *Server) entscheidungAnwenden(
 	if ack := strings.TrimSpace(entscheidung.Text); ack != "" {
 		if _, _, err := s.Chat.Post(ctx, chat.Message{
 			ConversationID: conv.ID, AuthorKind: chat.MemberAgent, AuthorID: &agentID,
-			Text: ack, TaskID: &t.ID, ReplyTo: &msg.ID,
+			Text: ack, TaskID: &t.ID, ReplyTo: &msg.ID, Meta: entscheidung.Meta,
 		}); err != nil {
 			s.Log.Warn("chat: the acknowledgement was not written", "agent", agentID, "err", err)
 		}
@@ -963,8 +964,8 @@ func (s *Server) triagieren(ctx context.Context, conv chat.Conversation, agentID
 		Rolle: s.rolleVon(ctx, agentID), Seele: s.seeleVon(ctx, agentID),
 		Gegenueber: s.gegenueberVon(ctx, conv.OrgID, email),
 		Raum:       chat.Raum(conv, agentID, s.nameVon(ctx, conv.OrgID, email), true),
-		Ton:        s.tonVon(ctx, agentID),
 	}
+	meta := s.chatStimme(ctx, &rahmen, conv.OrgID, agentID, conv.ID, email)
 	organisation := s.organisationVon(ctx, agentID)
 
 	/* Ein Zug, einmal wiederholt (#416): Ein Modell, das einmal nicht
@@ -991,6 +992,7 @@ func (s *Server) triagieren(ctx context.Context, conv chat.Conversation, agentID
 		s.Log.Warn("triage failed — the message becomes a task", "agent", agentID, "err", err)
 		return aufgabe, nil, err.Error()
 	}
+	e.Meta = meta
 	return e, nach, ""
 }
 
@@ -1240,14 +1242,35 @@ func (s *Server) gegenueberVon(ctx context.Context, orgID uuid.UUID, email strin
 	return strings.Join(teile, " — ")
 }
 
-// tonVon is how the agent talks in the team chat (#457): its voice's tone,
-// the organisation's where the voice leaves it open. Empty without voices on
-// this instance or with nothing set.
-func (s *Server) tonVon(ctx context.Context, agentID uuid.UUID) string {
+/* chatStimme puts the chat voice into a turn's frame (#471): the voice the
+ * rule chooses for this conversation — the department of the person who
+ * wrote, then the agent's chat slot, then the organisation's — its tone, and
+ * the "how to speak with us" lines of the departments involved. What it
+ * returns is the meta the answer carries, so that the thread says which voice
+ * spoke and why. Without voices on this instance the frame stays as it was. */
+func (s *Server) chatStimme(ctx context.Context, r *chat.Rahmen, orgID, agentID, convID uuid.UUID, email string) map[string]string {
 	if s.Voices == nil {
-		return ""
+		return nil
 	}
-	return s.Voices.AgentChatTone(ctx, agentID).Prompt()
+	aud := s.Voices.ConversationAudience(ctx, orgID, convID, email)
+	c := s.Voices.Resolve(ctx, orgID, agentID, voice.OccasionChat, aud)
+	meta := map[string]string{"voice_reason": c.Reason()}
+	if c.Found() {
+		if v, err := s.Voices.Get(ctx, orgID, c.VoiceID); err == nil {
+			r.Stimme = voice.ChatPrompt(v)
+			meta["voice_id"], meta["voice"] = v.ID.String(), v.Name
+		}
+	}
+	r.Ton = s.Voices.ChatToneFor(ctx, orgID, agentID, c).Prompt()
+	r.Publikum = voice.AudiencePrompt(c.Notes)
+	if len(c.Notes) > 0 {
+		var names []string
+		for _, n := range c.Notes {
+			names = append(names, n.Department)
+		}
+		meta["audience"] = strings.Join(names, ", ")
+	}
+	return meta
 }
 
 // nameVon is the display name of the person behind an address, for the

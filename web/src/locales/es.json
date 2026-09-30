@@ -739,9 +739,6 @@
       "maxTurns": "Turnos máximos por ejecución",
       "maxTurnsPlaceholder": "0 = por defecto (30)",
       "maxTurnsHint": "Protección contra desbocamiento: aborta una ejecución después de n turnos. Usa un valor mayor para tareas con copias de repositorios.",
-      "voice": "Voz",
-      "voiceNone": "— ninguna —",
-      "voiceHint": "Escribe el TONE.md del agente a partir de la voz. Solo se pueden elegir voces ya construidas.",
       "recordingLevel": "Profundidad de la grabación",
       "recordingInherit": "Heredar el mínimo de la organización",
       "recordingMinimal": "mínima (solo ciclo de vida y puertas)",
@@ -1361,7 +1358,7 @@
     "unbuilt": "aún sin construir",
     "cardReleased": "ficha publicada",
     "carriedBy": "la llevan:",
-    "nobody": "nadie",
+    "nobody": "ningún agente",
     "builtFrom": "{{documents}} textos, {{words}} palabras",
     "show": "Mostrar",
     "hide": "Ocultar",
@@ -1575,7 +1572,60 @@
       "corrections": "Correcciones",
       "tone": "Lo que recibe el agente"
     },
-    "toneEmpty": "Nada aún: la voz no tiene tarjeta, pasajes ni perfil medido."
+    "toneEmpty": "Nada aún: la voz no tiene tarjeta, pasajes ni perfil medido.",
+    "occ": {
+      "occasion": {
+        "chat": "Chat",
+        "customers": "Clientes",
+        "publications": "Publicaciones"
+      },
+      "occasionHint": {
+        "chat": "Chat de equipo con colegas",
+        "customers": "Correos y respuestas a clientes",
+        "publications": "Artículos y entradas que se publican"
+      },
+      "level": {
+        "agent": "definida en el agente",
+        "org": "predeterminada de la organización",
+        "department": "departamento {{name}}",
+        "none": "sin voz"
+      },
+      "notSet": "— sin definir —",
+      "agentTitle": "Voces",
+      "agentHint": "La voz en la que escribe el agente, por ocasión. Cuando escribe a alguien de un departamento que tiene voz propia, se aplica esa.",
+      "fallsBack": "Vacío: se aplica {{voice}} ({{level}}).",
+      "fallsBackNone": "Vacío: no se aplica ninguna voz.",
+      "readOnly": "Solo los administradores y los responsables de agentes cambian las voces.",
+      "orgTitle": "Voces predeterminadas",
+      "orgHint": "La voz por ocasión para todo agente que no tenga una propia.",
+      "deptOpen": "Público y voces",
+      "deptTitle": "Público y voces: {{name}}",
+      "audienceLabel": "Cómo hablar con nosotros",
+      "audienceHint": "Una línea que acompaña todo lo que un agente escribe a alguien de este departamento.",
+      "audiencePlaceholder": "p. ej. Respuestas breves, primero las cifras, sin saludos.",
+      "counter": "{{n}} / {{max}}",
+      "deptVoices": "Voz por ocasión",
+      "deptVoicesHint": "Opcional. Sustituye la voz propia del agente cuando escribe solo a alguien de este departamento.",
+      "save": "Guardar",
+      "matrixTitle": "Quién recibe qué",
+      "matrixHint": "La voz vigente por departamento y ocasión: la del departamento, luego la del agente, luego la predeterminada de la organización.",
+      "matrixFor": "Agente",
+      "matrixForNone": "— ningún agente —",
+      "matrixDept": "Departamento",
+      "matrixNoDept": "Clientes / sin departamento",
+      "usedByTitle": "Asignada por",
+      "usedByNone": "Ningún agente, departamento ni predeterminado asigna aún esta voz.",
+      "holder": {
+        "agent": "agente",
+        "department": "departamento",
+        "org": "predeterminada de la organización"
+      },
+      "previewFor": "Escrito para",
+      "previewForNone": "— nadie en particular —",
+      "previewForDept": "para {{name}}",
+      "chatVoice": "voz: {{voice}}",
+      "chatVoiceFor": "voz: {{voice}} · para {{audience}}"
+    }
   },
   "skills": {
     "title": "Habilidades",

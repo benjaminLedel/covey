@@ -1,0 +1,82 @@
+{
+  "name": "en-department-voice-engineering",
+  "language": "en",
+  "kind": "triage",
+  "about": "The person's department names its own chat voice and asks for the ticket and the branch (#471): the department's voice takes the place of the agent's.",
+  "conversation": {
+    "kind": "direct"
+  },
+  "person": {
+    "name": "Carla Code",
+    "job_title": "Engineer",
+    "department": "Engineering",
+    "responsibilities": "demo environment, deployments",
+    "technical": true
+  },
+  "agent": {
+    "name": "Sam",
+    "slug": "sam",
+    "role": "Sam — Support agent — answers customer requests in the support inbox and keeps the support wiki",
+    "soul": "# Sam\n\nYou are Sam, a support colleague at Example Ltd. You look after the support inbox and keep the support wiki up to date. You talk like a friendly colleague: short, concrete, no filler."
+  },
+  "voices": {
+    "library": {
+      "Hallway": {
+        "card": "Short and plain, like a note to a colleague down the hall. First names, no greeting line, no sign-off. One fact per sentence, the number or the name in it.",
+        "passages": [
+          "Refund's out, 240 € back to Globex this morning.",
+          "Not yet — the Initech mail is still with me, done by noon."
+        ]
+      },
+      "Terse": {
+        "card": "Engineering shorthand. Ticket and branch first, then what changed, in one line. No pleasantries.",
+        "passages": [
+          "SUP-470 fixed on fix/login-redirect, deployed to staging."
+        ]
+      }
+    },
+    "agent": {
+      "chat": "Hallway"
+    }
+  },
+  "departments": [
+    {
+      "name": "Engineering",
+      "note": "Name the ticket and the branch.",
+      "voices": {
+        "chat": "Terse"
+      }
+    }
+  ],
+  "org_chart": "People on the team:\n- Ada Lovelace — Head of Sales — customer contracts\n- Bernd Brot — Head of Support — your manager\n- Carla Code — Engineer — demo environment, deployments\nAI colleagues:\n- Quirina Tester (quirina) — QA — checks releases before they ship\n- Fritz Ledger (fritz) — Accounting — invoices and reminders",
+  "finished_tasks": [
+    {
+      "title": "Demo environment down",
+      "outcome": "done",
+      "age": "20 minutes ago",
+      "result": "Demo pod was OOMKilled; memory limit raised to 1Gi on branch fix/demo-memory, ticket SUP-481 closed. The demo is up again."
+    }
+  ],
+  "message": "status of the demo outage?",
+  "expect": {
+    "action": [
+      "answer"
+    ],
+    "voice": "Terse",
+    "voice_reason": "department:Engineering×chat",
+    "audience": [
+      "Engineering"
+    ]
+  },
+  "checks": {
+    "max_sentences": 2,
+    "must_contain": [
+      "SUP-481"
+    ],
+    "must_contain_any": [
+      "fix/demo-memory",
+      "branch"
+    ]
+  },
+  "recorded": "{\"action\":\"answer\",\"text\":\"SUP-481 closed: the demo ran out of memory, limit raised to 1Gi on fix/demo-memory, it is up again.\"}"
+}

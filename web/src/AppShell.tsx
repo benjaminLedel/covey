@@ -408,7 +408,7 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
             <Route path="/skills" element={<Skills me={me} />} />
             <Route path="/voices" element={<Voices me={me} />} />
             <Route path="/voices/:id" element={<VoicePage me={me} />} />
-            <Route path="/org" element={<Org />} />
+            <Route path="/org" element={<Org me={me} />} />
             <Route path="/costs" element={<Costs />} />
             <Route path="/people/:id" element={<PersonPage me={me} />} />
             <Route path="/profile" element={<Navigate to={`/people/${me.ID}`} replace />} />
