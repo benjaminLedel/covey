@@ -524,6 +524,37 @@ class CoveyApi {
     return out['text'] as String;
   }
 
+  /// [text] spoken by the organisation's own speech server (#497), through
+  /// the instance, which holds the server's key: a WAV file. [model] and
+  /// [voice] empty take the organisation's defaults.
+  Future<Uint8List> synthesizeSpeech(String text, {String model = '', String voice = '', double rate = 0}) async {
+    final watch = Stopwatch()..start();
+    final http.Response res;
+    try {
+      res = await _http
+          .post(
+            _url('/speech/synthesize'),
+            headers: {..._headers, 'Content-Type': 'application/json', 'Accept': 'audio/wav'},
+            body: jsonEncode({'text': text, 'model': model, 'voice': voice, if (rate > 0) 'rate': rate}),
+          )
+          .timeout(_timeout);
+    } catch (e) {
+      throw ApiException(0, e.toString());
+    }
+    diag('api', 'POST /speech/synthesize ${res.statusCode} ${watch.elapsedMilliseconds} ms');
+    if (res.statusCode != 200) {
+      var msg = 'HTTP ${res.statusCode}';
+      try {
+        final body = jsonDecode(utf8.decode(res.bodyBytes, allowMalformed: true));
+        if (body is Map && body['error'] is String) msg = body['error'] as String;
+      } on FormatException {
+        // The status says enough.
+      }
+      throw ApiException(res.statusCode, msg);
+    }
+    return res.bodyBytes;
+  }
+
   /// The model file, from byte [from] on — a download cut off by a lost
   /// connection resumes rather than starting the 150 MB again. No timeout on
   /// the body: it takes as long as the network takes.
@@ -574,6 +605,10 @@ class SpeechModelInfo {
     this.credit,
     this.files = const [],
     this.clean = false,
+    this.unpack,
+    this.voice,
+    this.voices = const [],
+    this.synthesize = false,
   });
 
   factory SpeechModelInfo.fromJson(Map<String, dynamic> j) => SpeechModelInfo(
@@ -590,6 +625,12 @@ class SpeechModelInfo {
       for (final m in (j['models'] as List<dynamic>? ?? const [])) SpeechModelInfo.fromJson(m as Map<String, dynamic>),
     ],
     clean: j['clean'] == true,
+    unpack: j['unpack'] as String?,
+    synthesize: j['synthesize'] == true,
+    voice: j['voice'] is Map<String, dynamic> ? TtsVoiceInfo.fromJson(j['voice'] as Map<String, dynamic>) : null,
+    voices: [
+      for (final m in (j['voices'] as List<dynamic>? ?? const [])) SpeechModelInfo.fromJson(m as Map<String, dynamic>),
+    ],
     engine: j['engine'] as String? ?? 'parakeet',
     credit: j['credit'] as String?,
     files: [
@@ -629,6 +670,57 @@ class SpeechModelInfo {
 
   /// Whether the instance can clean dictated text up (#355).
   final bool clean;
+
+  /// The model's file is an archive to unpack after verifying it
+  /// (`tar.bz2`); null for files used as they are.
+  final String? unpack;
+
+  /// What a voice is (#497), for a model with the engine `tts`.
+  final TtsVoiceInfo? voice;
+
+  /// The voices the instance offers to speak with (#497), apart from
+  /// [models]; empty on an instance from before them or with none offered.
+  final List<SpeechModelInfo> voices;
+
+  /// Whether the organisation has a speech server of its own that the
+  /// instance synthesises with ([CoveyApi.synthesizeSpeech]).
+  final bool synthesize;
+}
+
+/// A speech synthesis model as the instance describes it (#497).
+class TtsVoiceInfo {
+  const TtsVoiceInfo({
+    required this.family,
+    required this.language,
+    this.speakers = 1,
+    this.label = '',
+    this.licence = '',
+    this.source = '',
+    this.placeholder = false,
+  });
+
+  factory TtsVoiceInfo.fromJson(Map<String, dynamic> j) => TtsVoiceInfo(
+    family: j['family'] as String? ?? '',
+    language: j['language'] as String? ?? '',
+    speakers: (j['speakers'] as num?)?.toInt() ?? 1,
+    label: j['label'] as String? ?? '',
+    licence: j['licence'] as String? ?? '',
+    source: j['source'] as String? ?? '',
+    placeholder: j['placeholder'] == true,
+  );
+
+  /// How sherpa-onnx loads it: `vits` for now.
+  final String family;
+
+  /// BCP 47, `en-US`.
+  final String language;
+  final int speakers;
+  final String label;
+  final String licence;
+  final String source;
+
+  /// There to exercise the path, not a chosen voice.
+  final bool placeholder;
 }
 
 /// One file of a speech model.

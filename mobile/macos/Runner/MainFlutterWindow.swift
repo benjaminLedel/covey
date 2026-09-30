@@ -1117,9 +1117,23 @@ final class SystemAudioTap {
 /// hands over and reports back when it starts, reaches a word, and ends —
 /// the face moves its mouth on the words. NaturalLanguage tells which
 /// language a reply is in, so it is spoken in a voice of that language.
+///
+/// covey's own voices (#497) are synthesised in Dart; what comes here is
+/// their samples, sentence by sentence, which an AVAudioPlayerNode plays in
+/// the order they come. "started" is reported when the first plays,
+/// "finished" when the last marked as such has been played, "cancelled"
+/// when it was stopped.
 final class SpeechVoice: NSObject, AVSpeechSynthesizerDelegate {
   private let channel: FlutterMethodChannel
   private let synth = AVSpeechSynthesizer()
+  private let engine = AVAudioEngine()
+  private let player = AVAudioPlayerNode()
+  private var playerFormat: AVAudioFormat?
+  /// The utterance being played, how many of its buffers are still queued,
+  /// and whether its last buffer has come.
+  private var playing = 0
+  private var queued = 0
+  private var lastQueued = false
   /// Which of Dart's requests an utterance is, so a late "cancelled" of the
   /// previous one does not end the next.
   private var ids: [ObjectIdentifier: Int] = [:]
@@ -1158,19 +1172,92 @@ final class SpeechVoice: NSObject, AVSpeechSynthesizerDelegate {
       } else if let lang = args["language"] as? String {
         utterance.voice = AVSpeechSynthesisVoice(language: lang)
       }
-      utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+      stopPlaying()
+      let pace = args["rate"] as? Double ?? 1
+      utterance.rate = min(
+        AVSpeechUtteranceMaximumSpeechRate, max(AVSpeechUtteranceMinimumSpeechRate, AVSpeechUtteranceDefaultSpeechRate * Float(pace)))
       // A short breath before a reply, as somebody draws in air to answer.
       utterance.preUtteranceDelay = 0.1
       ids[ObjectIdentifier(utterance)] = args["id"] as? Int ?? 0
       if synth.isSpeaking { synth.stopSpeaking(at: .immediate) }
       synth.speak(utterance)
       result(nil)
+    case "play":
+      guard let data = args["samples"] as? FlutterStandardTypedData,
+        let rate = args["sampleRate"] as? Int, rate > 0
+      else {
+        return result(FlutterError(code: "args", message: "samples and sampleRate", details: nil))
+      }
+      do {
+        try play(id: args["id"] as? Int ?? 0, data: data.data, rate: Double(rate), last: args["last"] as? Bool ?? true)
+        result(nil)
+      } catch {
+        result(FlutterError(code: "play", message: error.localizedDescription, details: nil))
+      }
     case "stop":
       synth.stopSpeaking(at: .immediate)
+      stopPlaying()
       result(nil)
     default:
       result(FlutterMethodNotImplemented)
     }
+  }
+
+  /// Queues one buffer of Float32 samples for utterance [id]; a new id stops
+  /// what played before. Called on the main thread, as the channel is.
+  private func play(id: Int, data: Data, rate: Double, last: Bool) throws {
+    if synth.isSpeaking { synth.stopSpeaking(at: .immediate) }
+    if id != playing { stopPlaying() }
+    let count = data.count / MemoryLayout<Float>.size
+    guard count > 0, let format = AVAudioFormat(standardFormatWithSampleRate: rate, channels: 1),
+      let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(count))
+    else { return }
+    buffer.frameLength = AVAudioFrameCount(count)
+    data.withUnsafeBytes { raw in
+      if let src = raw.bindMemory(to: Float.self).baseAddress {
+        buffer.floatChannelData![0].update(from: src, count: count)
+      }
+    }
+    if playerFormat != format {
+      if playerFormat == nil { engine.attach(player) }
+      engine.connect(player, to: engine.mainMixerNode, format: format)
+      playerFormat = format
+    }
+    if !engine.isRunning {
+      engine.prepare()
+      try engine.start()
+    }
+    let first = id != playing || queued == 0 && !player.isPlaying
+    playing = id
+    queued += 1
+    lastQueued = last
+    player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
+      DispatchQueue.main.async { self?.played(id) }
+    }
+    if first {
+      player.play()
+      send("started") { ["id": id] }
+    }
+  }
+
+  /// One buffer of [id] has been played back, or dropped by a stop.
+  private func played(_ id: Int) {
+    guard id == playing, queued > 0 else { return }
+    queued -= 1
+    if queued == 0 && lastQueued {
+      playing = 0
+      send("finished") { ["id": id] }
+    }
+  }
+
+  private func stopPlaying() {
+    let id = playing
+    let wasPlaying = queued > 0
+    playing = 0
+    queued = 0
+    lastQueued = false
+    if playerFormat != nil { player.stop() }
+    if wasPlaying { send("cancelled") { ["id": id] } }
   }
 
   /// The synthesiser's delegate may be called off the main thread; the

@@ -1,5 +1,43 @@
 import 'dart:typed_data';
 
+/// Why a turn ended (#498).
+enum TurnCut {
+  /// The person paused for [TurnSegmenter.endSilence].
+  pause,
+
+  /// The turn reached [TurnSegmenter.maxTurn] without a pause.
+  cap,
+}
+
+/// What the segmenter measured of one turn, for the diagnostics (#498).
+class TurnStats {
+  const TurnStats({
+    required this.speech,
+    required this.silence,
+    required this.length,
+    required this.cut,
+    required this.windows,
+    required this.voicedWindows,
+    required this.longestRun,
+  });
+
+  /// Voice in the turn, all runs together.
+  final Duration speech;
+
+  /// The silence at its end, before the tail was trimmed.
+  final Duration silence;
+
+  /// The audio handed over.
+  final Duration length;
+  final TurnCut cut;
+
+  /// The detector's verdicts: windows seen, windows voiced, and the longest
+  /// run of voiced windows.
+  final int windows;
+  final int voicedWindows;
+  final Duration longestRun;
+}
+
 /// Cuts a call's audio into turns (#494). Fed window by window — 16 kHz
 /// mono PCM16 with the voice detector's verdict for each window — it says
 /// when the person starts speaking ([onSpeech], which stops the agent
@@ -23,8 +61,8 @@ class TurnSegmenter {
   final void Function() onSpeech;
 
   /// A finished turn: its audio, from a little before the first voice to a
-  /// little after the last.
-  final void Function(Uint8List pcm) onTurn;
+  /// little after the last, and what was measured of it.
+  final void Function(Uint8List pcm, TurnStats stats) onTurn;
 
   /// A turn that ended with too little voice to be words — a knock, a
   /// cough, a click of the keyboard.
@@ -59,6 +97,9 @@ class TurnSegmenter {
   int _voicedBytes = 0;
   int _runBytes = 0;
   int _silentBytes = 0;
+  int _longestRunBytes = 0;
+  int _windows = 0;
+  int _voicedWindows = 0;
 
   /// The trailing silence of a turn is not handed over beyond this.
   static const _tailBytes = 200 * _bytesPerMs;
@@ -80,9 +121,12 @@ class TurnSegmenter {
       _open();
     }
     _turn.add(window);
+    _windows++;
     if (voiced) {
+      _voicedWindows++;
       _voicedBytes += window.length;
       _runBytes += window.length;
+      if (_runBytes > _longestRunBytes) _longestRunBytes = _runBytes;
       _silentBytes = 0;
       if (!_confirmed && _runBytes >= confirm.inMilliseconds * _bytesPerMs) {
         _confirmed = true;
@@ -93,9 +137,9 @@ class TurnSegmenter {
       _silentBytes += window.length;
     }
     if (_silentBytes >= endSilence.inMilliseconds * _bytesPerMs) {
-      _close();
+      _close(TurnCut.pause);
     } else if (_turn.length >= maxTurn.inMilliseconds * _bytesPerMs) {
-      _close();
+      _close(TurnCut.cap);
     }
   }
 
@@ -106,7 +150,7 @@ class TurnSegmenter {
     _turn.clear();
     _inTurn = false;
     _confirmed = false;
-    _voicedBytes = _runBytes = _silentBytes = 0;
+    _voicedBytes = _runBytes = _silentBytes = _longestRunBytes = _windows = _voicedWindows = 0;
   }
 
   void _keepPreRoll(Uint8List window) {
@@ -120,7 +164,7 @@ class TurnSegmenter {
   void _open() {
     _inTurn = true;
     _confirmed = false;
-    _voicedBytes = _runBytes = _silentBytes = 0;
+    _voicedBytes = _runBytes = _silentBytes = _longestRunBytes = _windows = _voicedWindows = 0;
     for (final w in _preRoll) {
       _turn.add(w);
     }
@@ -128,17 +172,31 @@ class TurnSegmenter {
     _preRollBytes = 0;
   }
 
-  void _close() {
+  void _close(TurnCut why) {
     final pcm = _turn.takeBytes();
     final keep = _confirmed && _voicedBytes >= minSpeech.inMilliseconds * _bytesPerMs;
     final silent = _silentBytes;
+    Duration ms(int bytes) => Duration(milliseconds: bytes ~/ _bytesPerMs);
+    final stats = (speech: ms(_voicedBytes), windows: _windows, voiced: _voicedWindows, run: ms(_longestRunBytes));
     reset();
     if (!keep) {
       onDiscard?.call();
       return;
     }
     final cut = silent > _tailBytes ? silent - _tailBytes : 0;
-    onTurn(Uint8List.sublistView(pcm, 0, pcm.length - cut));
+    final turn = Uint8List.sublistView(pcm, 0, pcm.length - cut);
+    onTurn(
+      turn,
+      TurnStats(
+        speech: stats.speech,
+        silence: ms(silent),
+        length: ms(turn.length),
+        cut: why,
+        windows: stats.windows,
+        voicedWindows: stats.voiced,
+        longestRun: stats.run,
+      ),
+    );
   }
 }
 

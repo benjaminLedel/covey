@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:archive/archive_io.dart' show extractFileToDisk;
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
@@ -48,6 +49,13 @@ class SpeechModel extends ChangeNotifier {
   /// Silero's voice activity detector (#494), which cuts a call's turns: not
   /// chosen either, 643 KB, in a directory of its own.
   static final SpeechModel vad = SpeechModel._(fixed: 'silero', root: 'vad');
+
+  /// A voice the call speaks with (#497): not chosen here either, each in a
+  /// directory of its own under `voices/`, fetched the first time a call
+  /// needs it and kept, so a second voice does not replace the first.
+  static SpeechModel voice(String name) =>
+      _voices.putIfAbsent(name, () => SpeechModel._(fixed: name, root: 'voices/$name'));
+  static final _voices = <String, SpeechModel>{};
 
   /// A model that is not chosen but always this one.
   final String? fixed;
@@ -248,6 +256,7 @@ class SpeechModel extends ChangeNotifier {
         }
         await part.rename(done.path);
       }
+      if (info.unpack != null) await _unpack(dir, info);
       diag('speech', '${info.name} verified and kept');
       // Whatever model came before is not needed any more.
       await for (final e in root.list()) {
@@ -265,10 +274,33 @@ class SpeechModel extends ChangeNotifier {
     }
   }
 
+  /// Unpacks the verified archives of a model that comes as one (#497), in
+  /// a worker isolate — a voice's archive takes seconds — and removes them:
+  /// what is kept is what the synthesiser opens, marked complete by
+  /// [_unpacked] only once all of it is there.
+  Future<void> _unpack(Directory dir, SpeechModelInfo info) async {
+    if (info.unpack != 'tar.bz2') throw Exception('${info.name}: cannot unpack ${info.unpack}');
+    final watch = Stopwatch()..start();
+    for (final f in info.files) {
+      final archive = '${dir.path}/${f.name}';
+      await Isolate.run(() => extractFileToDisk(archive, dir.path));
+      await File(archive).delete();
+    }
+    await File('${dir.path}/$_unpacked').writeAsString(info.sha256);
+    diag('speech', '${info.name} unpacked in ${watch.elapsedMilliseconds} ms');
+  }
+
+  static const _unpacked = '.unpacked';
+
   /// Whether every file of the model lies in [dir] at its full size. The
-  /// digests were checked when the files arrived.
+  /// digests were checked when the files arrived. A model that comes as an
+  /// archive is complete once it was unpacked.
   Future<bool> _complete(Directory dir, SpeechModelInfo info) async {
     if (info.files.isEmpty) return false;
+    if (info.unpack != null) {
+      final mark = File('${dir.path}/$_unpacked');
+      return await mark.exists() && await mark.readAsString() == info.sha256;
+    }
     for (final f in info.files) {
       final file = File('${dir.path}/${f.name}');
       if (!await file.exists() || await file.length() != f.size) return false;

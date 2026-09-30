@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:covey_mobile/call/call.dart';
 import 'package:covey_mobile/call/call_view.dart';
 import 'package:covey_mobile/call/ears.dart';
+import 'package:covey_mobile/call/recording.dart';
 import 'package:covey_mobile/face.dart';
 import 'package:covey_mobile/i18n.dart';
 import 'package:covey_mobile/theme.dart';
@@ -174,6 +175,72 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pump(const Duration(milliseconds: 50));
     expect(call.ended, isTrue);
+  });
+
+  testWidgets('what was understood stands before it is sent: Enter sends, Esc discards, typing corrects (#498)', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 1400);
+    tester.view.devicePixelRatio = 2;
+    addTearDown(tester.view.reset);
+    final root = (await tester.runAsync(() => Directory.systemTemp.createTemp('call-audio')))!;
+    addTearDown(() => root.deleteSync(recursive: true));
+    final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker();
+    backend.cleanAs = (t) => t == 'wie weit ist der export für initech' ? 'Wie weit ist der Export für Initech?' : null;
+    final call = CallController(
+      backend: backend,
+      ears: ears,
+      speaker: speaker,
+      agentId: 'agent-1',
+      agentName: 'Ada Lovelace',
+      appLanguage: 'de',
+      words: (k) => k,
+      tuning: const CallTuning(window: Duration(seconds: 30), record: true),
+      recording: () => CallRecording.open(root: root),
+    );
+    await _pump(tester, call);
+    await tester.runAsync(call.start);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.byKey(const ValueKey('call-recording')), findsOneWidget, reason: 'recording is said while it is on');
+
+    ears.say('wie weit ist der export für initech');
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(_state(tester), 'Verstanden');
+    expect(find.byKey(const ValueKey('call-understood')), findsOneWidget);
+    expect(find.text('Wie weit ist der Export für Initech?'), findsOneWidget, reason: 'the cleaned text is shown');
+    expect(backend.posted, isEmpty);
+    await tester.pump(const Duration(milliseconds: 600));
+    await _png(tester, 'understood');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(backend.posted, ['Wie weit ist der Export für Initech?']);
+    expect(find.byKey(const ValueKey('call-understood')), findsNothing);
+
+    ears.say('lösch den bericht');
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(backend.posted, hasLength(1), reason: 'discarded, not sent');
+    expect(call.ended, isFalse, reason: 'Esc discards the turn; it does not hang up');
+
+    ears.say('schick ihn an greis');
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.sendKeyEvent(LogicalKeyboardKey.period, character: '.');
+    await tester.pump(const Duration(milliseconds: 50));
+    final field = find.byKey(const ValueKey('call-understood-field'));
+    expect(field, findsOneWidget);
+    expect(tester.widget<TextField>(field).controller!.text, 'schick ihn an greis.');
+    await tester.enterText(field, 'Schick ihn an Grace.');
+    await tester.pump(const Duration(milliseconds: 50));
+    await _png(tester, 'understood-editing');
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(backend.posted.last, 'Schick ihn an Grace.');
+    await tester.runAsync(call.hangUp);
+    await tester.pump(const Duration(milliseconds: 50));
   });
 }
 

@@ -8,6 +8,7 @@ import 'package:hotkey_manager/hotkey_manager.dart';
 import '../chrome.dart';
 import '../api.dart';
 import '../call/call.dart';
+import '../call/call_settings.dart';
 import '../profile.dart';
 import '../updater.dart';
 import '../activity.dart';
@@ -626,6 +627,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     valueListenable: CallSettings.enabled,
                     builder: (context, on, _) => Switch.adaptive(value: on, onChanged: CallSettings.setEnabled),
                   ),
+                ),
+                // The call's tuning, its diagnostics and the agents' voices
+                // (#497, #498).
+                GroupRow(
+                  title: context.t('call.settingsTitle'),
+                  trailing: Icon(AppIcons.chevron.of(context), color: c.textMuted, size: 18),
+                  onTap: () => Navigator.of(
+                    context,
+                  ).push(MaterialPageRoute<void>(builder: (_) => CallSettingsScreen(api: widget.api))),
                 ),
               ],
             ),

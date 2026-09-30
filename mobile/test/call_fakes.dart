@@ -1,11 +1,11 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:covey_mobile/call/call.dart';
 import 'package:covey_mobile/call/ears.dart';
-import 'package:covey_mobile/call/speech_text.dart';
 import 'package:covey_mobile/call/voice.dart';
+import 'package:covey_mobile/call/voice_choice.dart';
 import 'package:covey_mobile/models.dart';
+import 'package:flutter/foundation.dart';
 
 // Stand-ins for a call's microphone, instance and voice (#494).
 
@@ -97,10 +97,41 @@ class FakeBackend implements CallBackend {
 
   @override
   Stream<void> changes() => _changes.stream;
+
+  /// What each clean-up answers: a text, null (skipped), or an error.
+  Object? Function(String text)? cleanAs;
+  final cleaned = <(String, CleanContext)>[];
+
+  @override
+  Future<String?> clean(String text, CleanContext context) async {
+    cleaned.add((text, context));
+    final c = cleanAs?.call(text);
+    if (c is Exception) throw c;
+    return c as String?;
+  }
+
+  @override
+  Future<List<String>> names() async => const ['Ada Lovelace', 'Grace'];
+
+  SpokenVoice? voice;
+
+  @override
+  Future<SpokenVoice?> spokenVoice() async => voice;
 }
 
 class FakeSpeaker implements Speaker {
-  final spoken = <(String, String?)>[];
+  /// What was spoken, in which language.
+  final spoken = <(String, String)>[];
+  final _level = ValueNotifier<double?>(null);
+
+  @override
+  ValueListenable<double?> get level => _level;
+
+  /// The own voice's mouth, as the synthesised audio would drive it.
+  set mouth(double? v) => _level.value = v;
+
+  @override
+  Future<String> prepare({required String language}) async => 'fake voices';
   int stops = 0;
   Completer<void>? _current;
   final _events = StreamController<SpeakingEvent>.broadcast();
@@ -114,8 +145,8 @@ class FakeSpeaker implements Speaker {
   Future<String?> language(String text) async => RegExp(r'\b(the|is|and)\b').hasMatch(text) ? 'en' : 'de';
 
   @override
-  Future<void> speak(String text, {SystemVoice? voice, required String language}) {
-    spoken.add((text, voice?.id));
+  Future<void> speak(String text, {required String language}) {
+    spoken.add((text, language));
     _events.add(SpeakingEvent.started);
     return (_current = Completer<void>()).future;
   }
@@ -143,13 +174,6 @@ class FakeSpeaker implements Speaker {
   }
 
   @override
-  Future<List<SystemVoice>> voices() async => const [
-    SystemVoice(id: 'de.anna', name: 'Anna', language: 'de-DE'),
-    SystemVoice(id: 'de.markus', name: 'Markus', language: 'de-DE'),
-    SystemVoice(id: 'en.samantha', name: 'Samantha', language: 'en-US'),
-  ];
-
-  @override
   void dispose() {}
 }
 
@@ -160,6 +184,7 @@ CallController fakeCall(
   FakeBackend backend,
   FakeSpeaker speaker, {
   Duration nudgeAfter = const Duration(seconds: 20),
+  CallTuning tuning = const CallTuning(window: Duration.zero),
 }) => CallController(
   backend: backend,
   ears: ears,
@@ -168,4 +193,6 @@ CallController fakeCall(
   appLanguage: 'de',
   words: (k) => words[k] ?? k,
   nudgeAfter: nudgeAfter,
+  agentName: 'Ada Lovelace',
+  tuning: tuning,
 );
