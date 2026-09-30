@@ -251,6 +251,12 @@ abstract class CallBackend {
   /// name, the agent's department, the chat tone's address. Whatever cannot
   /// be read is left empty; it never throws.
   Future<GreetingFacts> greetingFacts();
+
+  /// A greeting the instance writes for this call from the situation
+  /// (#513): what the agent works on, what was said last, the time of day
+  /// at [now]. Null when it writes none — an older instance, no model, too
+  /// slow —, and the call greets from its templates. It never throws.
+  Future<String?> writtenGreeting({required String language, required DateTime now});
 }
 
 /// The conversation API (#440, #447) for one agent's direct conversation.
@@ -390,6 +396,27 @@ class ApiCallBackend implements CallBackend {
     ]);
     return GreetingFacts(personName: got[0], department: got[1], address: got[2]);
   }
+
+  @override
+  Future<String?> writtenGreeting({required String language, required DateTime now}) async {
+    try {
+      final c = await _conversation();
+      final out = await api
+          .post('/conversations/${c.id}/greeting', {
+            'agent_id': agentId,
+            'lang': language,
+            'local_time': isoWithOffset(now),
+            'weekday': weekdayName(now),
+          })
+          .timeout(const Duration(seconds: 4));
+      final text = out is Map<String, dynamic> ? (out['text'] as String? ?? '').trim() : '';
+      return text.isEmpty ? null : text;
+    } catch (e) {
+      // 204, an instance from before #513 (404), or too slow.
+      diag('call', 'no written greeting: $e');
+      return null;
+    }
+  }
 }
 
 /// Where a call stands, as the face and the line under it show it.
@@ -453,10 +480,12 @@ class _Utterance {
 /// connected, a turn heard, a task created, mute, unmute, hang-up. While the
 /// agent thinks, it says one short filler in its own voice ([CallFillers]).
 ///
-/// When the call connects, the agent greets (#506): a greeting chosen as the
-/// line starts ringing ([CallGreeter]) and synthesised while it rings,
-/// said after the connected sound; the person speaking stops it. It is part
-/// of the call, not a message in the conversation.
+/// When the call connects, the agent greets (#506): a greeting the instance
+/// writes from the situation (#513), asked as the line starts ringing and
+/// synthesised as soon as it arrives, or a template greeting ([CallGreeter])
+/// when it is not there in time ([GreetingInFlight]); said after the
+/// connected sound; the person speaking stops it. It is part of the call,
+/// not a message in the conversation.
 class CallController extends ChangeNotifier {
   CallController({
     required this.backend,
@@ -617,7 +646,7 @@ class CallController extends ChangeNotifier {
     _set(CallMode.preparing);
     unawaited(sounds?.play(Earcon.ringing, loops: 2));
     unawaited(sounds?.preload());
-    // Chosen and synthesised while the line rings and the models load.
+    // Asked for and synthesised while the line rings and the models load.
     final greeting = (greeter?.enabled() ?? false) ? _composeGreeting() : null;
     try {
       await ears.prepare();
@@ -670,22 +699,22 @@ class CallController extends ChangeNotifier {
     }
   }
 
-  /// The greeting for this call and its audio being made; null when there
-  /// is none to say.
-  Future<(Greeting, Future<bool>)?> _composeGreeting() async {
-    try {
-      final facts = await backend.greetingFacts();
-      final g = await greeter!.choose(agentId: agentId, agentName: agentName, language: appLanguage, facts: facts);
-      if (g == null || ended) return null;
-      final ready = speaker.prepareUtterance(g.text, language: g.language).catchError((Object e) {
-        diag('call', 'greeting not synthesised: $e');
-        return false;
-      });
-      return (g, ready);
-    } catch (e) {
-      diag('call', 'no greeting: $e');
-      return null;
-    }
+  /// The greeting for this call on its way: the written one asked for, the
+  /// template behind it.
+  GreetingInFlight _composeGreeting() {
+    final language = appLanguage.split(RegExp('[-_]')).first.toLowerCase();
+    return GreetingInFlight(
+      written: backend
+          .writtenGreeting(language: appLanguage, now: greeter!.now)
+          .then((t) => t == null || ended ? null : Greeting(key: writtenGreetingKey, text: t, language: language)),
+      template: () async {
+        final facts = await backend.greetingFacts();
+        if (ended) return null;
+        return greeter!.compose(agentId: agentId, agentName: agentName, language: appLanguage, facts: facts);
+      },
+      synthesise: (g) => ended ? Future.value(false) : speaker.prepareUtterance(g.text, language: g.language),
+      log: (what) => diag('call', what),
+    );
   }
 
   /// The greeting's waits, cancelled when it is said or dropped.
@@ -701,19 +730,17 @@ class CallController extends ChangeNotifier {
   /// provider's audio when it is ready by then, or within [CallGreeter.wait]
   /// after; otherwise the Mac's voice says it. Listening goes on under it,
   /// so the person can interrupt.
-  Future<void> _greet(Future<(Greeting, Future<bool>)?> composed, Future<Duration> connected) async {
+  Future<void> _greet(GreetingInFlight greeting, Future<Duration> connected) async {
     _greetingPending = true;
     _greetingDropped = false;
     try {
       final sound = await connected;
       if (sound > Duration.zero) await _after(sound);
       if (ended || _greetingDropped) return;
-      final deadline = _after(greeter!.wait);
-      final c = await Future.any([composed, deadline.then((_) => null)]);
+      final c = await greeting.pick(_after(greeter!.wait));
       if (c == null || ended || _greetingDropped) return;
-      final (g, making) = c;
-      final ready = await Future.any([making, deadline.then((_) => false)]);
-      if (ended || _greetingDropped) return;
+      final (g, ready) = c;
+      unawaited(greeter!.remember(agentId, g));
       diag('call', ready ? '$g' : '$g in the Mac voice: the provider\'s audio was not ready');
       _greetingPending = false;
       _speaking = true;

@@ -152,6 +152,17 @@ class FakeBackend implements CallBackend {
 
   @override
   Future<GreetingFacts> greetingFacts() async => facts;
+
+  /// What the instance writes as the greeting (#513): none by default, as
+  /// an instance from before it; a completer a test finishes when it likes.
+  Completer<String?>? written;
+  final writtenAsked = <(String, DateTime)>[];
+
+  @override
+  Future<String?> writtenGreeting({required String language, required DateTime now}) async {
+    writtenAsked.add((language, now));
+    return written?.future;
+  }
 }
 
 class FakeSpeaker implements Speaker {
@@ -258,10 +269,13 @@ class FakeSpeaker implements Speaker {
   final prepared = <String>[];
   Completer<bool> ready = Completer<bool>();
 
+  /// Per text, when it is ready; a text not in it takes [ready].
+  final readyFor = <String, Completer<bool>>{};
+
   @override
   Future<bool> prepareUtterance(String text, {required String language}) {
     prepared.add(text);
-    return ready.future;
+    return (readyFor[text] ?? ready).future;
   }
 
   /// What was spoken as prepared, and whether the provider's audio was.
