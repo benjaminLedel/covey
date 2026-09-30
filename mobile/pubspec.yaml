@@ -75,6 +75,8 @@ flutter:
   # tool/sync_locales.dart. Not edited by hand.
   assets:
     - assets/locales/
+    # A call's short sounds (#500), made by tool/call_sounds.dart.
+    - assets/sounds/
 
   # Inter carries the interface, as on the web (PRODUCT.md). Bundled, not
   # fetched: an app that loads fonts from Google at runtime phones out, which
