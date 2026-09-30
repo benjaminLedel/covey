@@ -22,3 +22,17 @@ func TestConversationSectionNurImGespraech(t *testing.T) {
 		t.Fatalf("a task from a conversation got: %q", s)
 	}
 }
+
+// TestConversationSectionChatAnswer: a message nobody triaged is told that
+// its result is the reply itself (#483), and not the retelling instruction —
+// nothing retells it.
+func TestConversationSectionChatAnswer(t *testing.T) {
+	conv := uuid.New()
+	s := conversationSection(backlog.Task{ConversationID: &conv, ChatAnswer: true})
+	if !strings.Contains(s, "This task is a chat message") || !strings.Contains(s, "word for word") {
+		t.Fatalf("a chat answer got: %q", s)
+	}
+	if strings.Contains(s, "covey retells it") {
+		t.Fatalf("a chat answer must not be told it is retold: %q", s)
+	}
+}

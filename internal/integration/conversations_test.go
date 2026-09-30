@@ -319,7 +319,9 @@ func TestATaskReportsWhereItCameFrom(t *testing.T) {
 	if n != 0 {
 		t.Fatalf("%d messages from backlog tasks in conversations, want none", n)
 	}
-	if z := eintraege(t, admin, agent.ID); !enthaelt(z, "result: Rechnung 4711") || enthaelt(z, "Ticket 12") {
+	/* Untriaged, the task was the answer to the message (#483): its result
+	   stands as the agent's reply, not as a report. */
+	if z := eintraege(t, admin, agent.ID); !enthaelt(z, "answer: Rechnung 4711") || enthaelt(z, "result:") || enthaelt(z, "Ticket 12") {
 		t.Fatalf("the admin's thread: %v", z)
 	}
 	if z := eintraege(t, ada, agent.ID); enthaelt(z, "Rechnung 4711") || enthaelt(z, "Ticket") {

@@ -640,7 +640,10 @@ func (s *Server) annehmen(ctx context.Context, conv chat.Conversation, wer sprec
 	}
 	if !triage {
 		for _, agentID := range agenten {
-			t, err := s.aufgabeAusNachricht(ctx, conv, agentID, msg, chat.Entscheidung{}, text, wer.email, lang)
+			/* Nobody decided what this message is, so the task is the
+			   answer to it (#483): the run replies, and its result is the
+			   reply in the conversation — not a report of the run. */
+			t, err := s.aufgabeAusNachricht(ctx, conv, agentID, msg, chat.Entscheidung{}, text, wer.email, lang, true)
 			if err != nil {
 				return out, err
 			}
@@ -792,7 +795,7 @@ func (s *Server) entscheidungAnwenden(
 		return "answered", nil, nil
 	}
 
-	t, err := s.aufgabeAusNachricht(ctx, conv, agentID, msg, entscheidung, msg.Text, email, lang)
+	t, err := s.aufgabeAusNachricht(ctx, conv, agentID, msg, entscheidung, msg.Text, email, lang, false)
 	if err != nil {
 		return "", nil, err
 	}
@@ -826,6 +829,7 @@ func (s *Server) aufgabeAusNachricht(
 	msg chat.Message,
 	entscheidung chat.Entscheidung,
 	text, email, lang string,
+	antwort bool,
 ) (backlog.Task, error) {
 	titel, rumpf := entscheidung.Titel, entscheidung.Rumpf
 	if titel == "" {
@@ -842,13 +846,22 @@ func (s *Server) aufgabeAusNachricht(
 		   tickets"), and the brief's title is the person's own first line. */
 		titel = briefTitle(lang, text)
 		rumpf = s.briefBody(ctx, identity.Principal{OrgID: conv.OrgID, Email: email}, lang, text, "", "", "")
+		/* A brief is work whatever the switch says, and its result carries
+		   the drafts the thread shows beside it (#327). */
+		antwort = false
 	}
 	/* What the message refers to (#413). A run sees its task and not the
 	   conversation; "do the same for Initech" or "and the other one?" needs
 	   what came before. The last part of the conversation goes into the
 	   body, the message itself excepted — it is the task. */
 	rumpf += s.gespraechFuerLauf(ctx, conv.ID, agentID, msg.ID)
-	t, err := s.Backlog.CreateIn(ctx, conv.OrgID, agentID, titel, rumpf, "chat:"+email, 0, &conv.ID)
+	var t backlog.Task
+	var err error
+	if antwort {
+		t, err = s.Backlog.CreateChatAnswer(ctx, conv.OrgID, agentID, titel, rumpf, "chat:"+email, conv.ID)
+	} else {
+		t, err = s.Backlog.CreateIn(ctx, conv.OrgID, agentID, titel, rumpf, "chat:"+email, 0, &conv.ID)
+	}
 	if err != nil {
 		return backlog.Task{}, err
 	}

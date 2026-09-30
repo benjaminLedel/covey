@@ -59,6 +59,18 @@ func (o *Orchestrator) resolveRunVoice(ctx context.Context, agent agents.Agent, 
 	return rv
 }
 
+// chatTone is the team chat's tone for a task's run (#483), as the triage
+// reads it: the chat voice's, over the organisation's. Only a chat answer
+// asks for it — its result is posted as the reply, with no turn in between
+// that would put it in that tone. Empty without voices or without a tone.
+func (o *Orchestrator) chatTone(ctx context.Context, agent agents.Agent, task backlog.Task) string {
+	if o.Voices == nil {
+		return ""
+	}
+	rv := o.resolveRunVoice(ctx, agent, task, voice.OccasionChat)
+	return o.Voices.ChatToneFor(ctx, agent.OrgID, agent.ID, rv.choice).Prompt()
+}
+
 // runVoiceFiles is the config as the run's prompt is compiled from it: the
 // TONE.md replaced by the chosen voice when there is one, and the audience
 // block that goes after the prompt. The recording names the voice and why —

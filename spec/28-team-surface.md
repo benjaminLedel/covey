@@ -154,6 +154,8 @@ The second turn stands under the same limits as the first — no target
 system, no credential, nothing claimed beyond what the result says. Without
 a model it says nothing, and the report stands on its own as before.
 
+**Without the triage** (#483) a message is still answered, not reported on. It becomes a task, because nothing decided otherwise — but a task marked as the answer to that message (`backlog_tasks.chat_answer`, set in the same insert and carried on by a continuation). Its run is told so at dispatch (`agents.ChatAnswerDoc` in place of the retelling instruction, plus the chat tone the triage would read): sort the message first, answer a greeting or a question without touching a target system, and write the result as the chat reply itself — short, in the message's language, no headings, no account of the run. When it is done, that result is written into the conversation as the agent's plain message (kind `text`, `meta.reports = result`, so the round writes it once), not as a `result` entry with the report behind it; a failure stays an `error`. A task the triage opened is not a chat answer and keeps the retelling. A brief to the People department is work whatever the switch says and keeps its result entry, which carries the drafts.
+
 **As a teammate** (#457). A greeting in a group came back as "I answered your greeting and explained my role" — a report about an answer instead of the answer. Three changes, one per place the wording came from:
 
 - the triage's reply is always the JSON object, but a short chat line without any JSON is read as the answer rather than as a failed turn, so a greeting that the model answered with a bare emoji no longer becomes a task;

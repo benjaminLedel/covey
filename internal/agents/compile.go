@@ -223,6 +223,32 @@ Plain sentences, no headings, no talk about "the task", "the run" or "the
 result". If you need something from them before you can go on, park the task
 with your question as usual — it is asked in the same conversation.`
 
+// ChatAnswerDoc takes ConversationDoc's place for a task that is a chat
+// message nobody triaged (#483). Without the triage every message becomes a
+// task — "hey, what's up?" included — and the result used to be posted into
+// the conversation as it stood: a run's report, answering a greeting with a
+// log of what had been read. Nothing retells it on this path, so the run has
+// to write the reply itself, and it is told so.
+const ChatAnswerDoc = `## This task is a chat message
+
+Somebody wrote this to you in a conversation, and nobody has sorted it yet:
+it may be a greeting, a question, or a request for work. Your ` + "`result`" + ` is
+posted into the conversation as your reply, word for word, and nothing else
+of this run is shown there.
+
+- Decide first what it is. A greeting, small talk or a question you can
+  answer from what you know: answer it and stop — do not open target
+  systems, read files or search the wiki for it.
+- A request for work: do the work, and then write the result as what you
+  would tell them.
+- Either way the result is a chat reply: short, in the language of the
+  message, in your voice and the chat tone your organisation set (where it
+  set one), as a colleague writes it. No headings,
+  no lists of what you read or did, no talk about "the task", "the run" or
+  "the result".
+- If you need something from them before you can go on, park the task with
+  your question as usual — it is asked in the same conversation.`
+
 // TargetDocs builds the section "Connected target systems" from the action
 // docs of the target system plugins. It is appended to the system prompt at
 // dispatch time (not compiled in) so that it reflects the organisation's
