@@ -117,7 +117,7 @@ type evalScenario struct {
 	} `json:"voices"`
 	Departments []evalDepartment `json:"departments"`
 	OrgChart    string           `json:"org_chart"`
-	OpenTasks []struct {
+	OpenTasks   []struct {
 		ID     string `json:"id"`
 		Title  string `json:"title"`
 		Status string `json:"status"`
