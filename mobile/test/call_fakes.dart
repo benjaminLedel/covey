@@ -92,7 +92,13 @@ class FakeBackend implements CallBackend {
   /// [taskId] and [replyTo] as the triage writes a task's acknowledgement
   /// (#411); [kind] `result` as a task's result; [meta] as the server stores
   /// it (e.g. `spoken`, #502).
-  void agentSays(String text, {String? taskId, String? replyTo, String kind = 'text', Map<String, String> meta = const {}}) {
+  void agentSays(
+    String text, {
+    String? taskId,
+    String? replyTo,
+    String kind = 'text',
+    Map<String, String> meta = const {},
+  }) {
     _add('agent', text, author: 'agent-1', taskId: taskId, replyTo: replyTo, messageKind: kind, meta: meta);
     _changes.add(null);
   }
@@ -249,10 +255,7 @@ class FakeEarcons implements EarconOutput {
   );
 }
 
-const words = {
-  'call.restInChat': 'Der Rest steht im Chat.',
-  'call.detailsInChat': 'Die Details stehen im Chat.',
-};
+const words = {'call.restInChat': 'Der Rest steht im Chat.', 'call.detailsInChat': 'Die Details stehen im Chat.'};
 
 CallController fakeCall(
   FakeEars ears,
