@@ -3164,5 +3164,30 @@
     "declinedBy": "Recusada por {{name}}, {{when}}.",
     "requestedInChat": "pedida no chat por {{name}} ·",
     "inApp": "Proposta · decide-se na web"
+  },
+  "call": {
+    "button": "Ligar para {{name}} (teste) · ⌘⇧C",
+    "onDevice": "Chamada · teste · a voz fica neste Mac",
+    "preparing": "Preparando a chamada…",
+    "preparingModel": "Carregando o modelo de fala… {{percent}} %",
+    "listening": "Ouvindo",
+    "hearing": "Ouvindo você",
+    "thinking": "Pensando…",
+    "speaking": "Falando",
+    "muted": "Sem som",
+    "ended": "Chamada encerrada",
+    "denied": "O microfone não está permitido. Permita o covey em Ajustes do Sistema → Privacidade e Segurança → Microfone.",
+    "modelNotReady": "A instância ainda está baixando os modelos de fala. Tente de novo em alguns minutos.",
+    "off": "O reconhecimento de fala está desativado nesta instância, ou a instância é antiga demais para chamadas.",
+    "failed": "Não foi possível iniciar a chamada: {{error}}",
+    "mute": "Silenciar",
+    "unmute": "Ativar som",
+    "hangUp": "Desligar",
+    "you": "Você",
+    "stillWorking": "Ainda estou trabalhando nisso.",
+    "restInChat": "O resto está no chat.",
+    "setting": "Chamadas (teste)",
+    "settingSwitch": "Ligar para agentes",
+    "settingHint": "Um botão de chamada na conversa com um agente. A fala é reconhecida e sintetizada neste Mac; só o texto vai para a conversa, marcado como dito numa chamada."
   }
 }

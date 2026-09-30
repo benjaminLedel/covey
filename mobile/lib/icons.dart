@@ -30,6 +30,9 @@ abstract final class AppIcons {
   static const close = AppIcon(Icons.close_rounded, CupertinoIcons.xmark);
   static const delete = AppIcon(Icons.delete_outline_rounded, CupertinoIcons.trash);
   static const mic = AppIcon(Icons.mic_none_rounded, CupertinoIcons.mic);
+  static const micOff = AppIcon(Icons.mic_off_rounded, CupertinoIcons.mic_slash);
+  static const call = AppIcon(Icons.call_outlined, CupertinoIcons.phone);
+  static const hangUp = AppIcon(Icons.call_end_rounded, CupertinoIcons.phone_down_fill);
   static const stop = AppIcon(Icons.stop_rounded, CupertinoIcons.stop_fill);
   static const record = AppIcon(Icons.circle, CupertinoIcons.circle_fill);
   static const scan = AppIcon(Icons.qr_code_scanner, CupertinoIcons.qrcode_viewfinder);

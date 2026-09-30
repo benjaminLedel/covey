@@ -3164,5 +3164,30 @@
     "declinedBy": "Odrzucone przez {{name}}, {{when}}.",
     "requestedInChat": "zgłoszone na czacie przez {{name}} ·",
     "inApp": "Propozycja · decyzja w wersji web"
+  },
+  "call": {
+    "button": "Zadzwoń do: {{name}} (test) · ⌘⇧C",
+    "onDevice": "Połączenie · test · głos zostaje na tym Macu",
+    "preparing": "Przygotowywanie połączenia…",
+    "preparingModel": "Ładowanie modelu mowy… {{percent}} %",
+    "listening": "Słucha",
+    "hearing": "Słyszy cię",
+    "thinking": "Myśli…",
+    "speaking": "Mówi",
+    "muted": "Wyciszony",
+    "ended": "Połączenie zakończone",
+    "denied": "Mikrofon nie jest dozwolony. Zezwól covey w Ustawieniach systemowych → Prywatność i ochrona → Mikrofon.",
+    "modelNotReady": "Instancja wciąż pobiera modele mowy. Spróbuj ponownie za kilka minut.",
+    "off": "Rozpoznawanie mowy jest wyłączone na tej instancji albo instancja jest za stara na połączenia.",
+    "failed": "Nie udało się rozpocząć połączenia: {{error}}",
+    "mute": "Wycisz",
+    "unmute": "Wyłącz wyciszenie",
+    "hangUp": "Rozłącz",
+    "you": "Ty",
+    "stillWorking": "Nadal nad tym pracuję.",
+    "restInChat": "Reszta jest w czacie.",
+    "setting": "Połączenia (test)",
+    "settingSwitch": "Dzwoń do agentów",
+    "settingHint": "Przycisk połączenia w rozmowie z agentem. Mowa jest rozpoznawana i syntezowana na tym Macu; do rozmowy trafia tylko tekst, oznaczony jako powiedziany w połączeniu."
   }
 }

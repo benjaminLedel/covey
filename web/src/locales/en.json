@@ -3164,5 +3164,30 @@
     "declinedBy": "Declined by {{name}}, {{when}}.",
     "requestedInChat": "requested in the chat by {{name}} ·",
     "inApp": "Proposal · decide it in the web"
+  },
+  "call": {
+    "button": "Call {{name}} (trial) · ⌘⇧C",
+    "onDevice": "Call · trial · speech stays on this Mac",
+    "preparing": "Preparing the call…",
+    "preparingModel": "Loading the speech model… {{percent}} %",
+    "listening": "Listening",
+    "hearing": "Hearing you",
+    "thinking": "Thinking…",
+    "speaking": "Speaking",
+    "muted": "Muted",
+    "ended": "Call ended",
+    "denied": "The microphone is not allowed. Allow covey in System Settings → Privacy & Security → Microphone.",
+    "modelNotReady": "The instance is still fetching the speech models. Try again in a few minutes.",
+    "off": "Speech recognition is off on this instance, or the instance is too old for calls.",
+    "failed": "The call could not start: {{error}}",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "hangUp": "Hang up",
+    "you": "You",
+    "stillWorking": "I'm still working on it.",
+    "restInChat": "The rest is in the chat.",
+    "setting": "Calls (trial)",
+    "settingSwitch": "Call agents",
+    "settingHint": "A call button in the conversation with an agent. Speech is recognised and spoken on this Mac; only the text goes into the conversation, marked as said in a call."
   }
 }

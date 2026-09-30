@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'api.dart';
+import 'call/call.dart';
 import 'chrome.dart';
 import 'diagnostics.dart';
 import 'face.dart';
@@ -214,6 +215,7 @@ class _CoveyAppState extends State<CoveyApp> {
     await WindowZoom.load();
     // The speech model and language picked in settings (#351).
     unawaited(SpeechModel.instance.loadPrefs());
+    unawaited(CallSettings.load());
     // A new version of the Mac app, from the releases (#421).
     unawaited(Updater.start());
     // Somebody who disconnected stays disconnected (#405): a key the

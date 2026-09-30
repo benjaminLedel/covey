@@ -7,6 +7,7 @@ import 'package:hotkey_manager/hotkey_manager.dart';
 
 import '../chrome.dart';
 import '../api.dart';
+import '../call/call.dart';
 import '../profile.dart';
 import '../updater.dart';
 import '../activity.dart';
@@ -199,10 +200,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// good for; picking one starts its download right away.
   Future<void> _pickModel() async {
     final i = _model.info;
-    // Speech models only: the speakers' model is not a choice (#367).
+    // Speech models only: the speakers' model (#367) and the voice
+    // detector (#494) are not a choice.
     final models = [
       for (final m in i?.models ?? const <SpeechModelInfo>[])
-        if (m.engine != 'speaker') m,
+        if (m.engine != 'speaker' && m.engine != 'vad') m,
     ];
     if (i == null || models.isEmpty) return;
     // The model in use — chosen, or picked for the app's language.
@@ -582,7 +584,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               GroupRow(
                 title: context.t('mobile.sprachmodell'),
                 subtitle: _modelLine(context),
-                onTap: (_model.info?.models.where((m) => m.engine != 'speaker').length ?? 0) > 1 ? _pickModel : null,
+                onTap: (_model.info?.models.where((m) => m.engine != 'speaker' && m.engine != 'vad').length ?? 0) > 1
+                    ? _pickModel
+                    : null,
                 tabularSubtitle: true,
                 trailing: _model.problem == SpeechModelProblem.off || _model.info == null || _model.downloading
                     ? null
@@ -610,6 +614,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: small,
             ),
           ),
+
+          // Calls (#494): a trial on the Mac, switched here, on this device.
+          if (CallSettings.supported && me.teamSurface) ...[
+            SectionTitle(context.t('call.setting')),
+            InsetGroup(
+              children: [
+                GroupRow(
+                  title: context.t('call.settingSwitch'),
+                  trailing: ValueListenableBuilder<bool>(
+                    valueListenable: CallSettings.enabled,
+                    builder: (context, on, _) => Switch.adaptive(value: on, onChanged: CallSettings.setEnabled),
+                  ),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(32, 8, 32, 0),
+              child: Text(context.t('call.settingHint'), style: small),
+            ),
+          ],
 
           if (DictateAnywhere.supported) ..._anywhere(context, small),
           if (ActivityRecorder.supported) ..._activity(context, small),

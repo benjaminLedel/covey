@@ -3164,5 +3164,30 @@
     "declinedBy": "已由 {{name}} 拒绝，{{when}}。",
     "requestedInChat": "由 {{name}} 在聊天中提出 ·",
     "inApp": "提案 · 请在网页端决定"
+  },
+  "call": {
+    "button": "呼叫 {{name}}（试用）· ⌘⇧C",
+    "onDevice": "通话 · 试用 · 语音留在这台 Mac 上",
+    "preparing": "正在准备通话…",
+    "preparingModel": "正在加载语音模型… {{percent}} %",
+    "listening": "正在聆听",
+    "hearing": "正在听你说",
+    "thinking": "正在思考…",
+    "speaking": "正在说话",
+    "muted": "已静音",
+    "ended": "通话已结束",
+    "denied": "未允许使用麦克风。请在 系统设置 → 隐私与安全性 → 麦克风 中允许 covey。",
+    "modelNotReady": "实例仍在获取语音模型。请几分钟后再试。",
+    "off": "此实例已关闭语音识别，或实例版本太旧，不支持通话。",
+    "failed": "无法开始通话：{{error}}",
+    "mute": "静音",
+    "unmute": "取消静音",
+    "hangUp": "挂断",
+    "you": "你",
+    "stillWorking": "我还在处理。",
+    "restInChat": "其余内容在聊天中。",
+    "setting": "通话（试用）",
+    "settingSwitch": "呼叫智能体",
+    "settingHint": "在与智能体的对话中显示通话按钮。语音在这台 Mac 上识别和合成；只有文字会进入对话，并标记为通话中所说。"
   }
 }

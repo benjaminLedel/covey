@@ -3164,5 +3164,30 @@
     "declinedBy": "Abgelehnt von {{name}}, {{when}}.",
     "requestedInChat": "im Chat gewünscht von {{name}} ·",
     "inApp": "Vorschlag · im Web entscheiden"
+  },
+  "call": {
+    "button": "{{name}} anrufen (Test) · ⌘⇧C",
+    "onDevice": "Anruf · Test · Sprache bleibt auf diesem Mac",
+    "preparing": "Anruf wird vorbereitet…",
+    "preparingModel": "Sprachmodell wird geladen… {{percent}} %",
+    "listening": "Hört zu",
+    "hearing": "Hört dich",
+    "thinking": "Denkt nach…",
+    "speaking": "Spricht",
+    "muted": "Stummgeschaltet",
+    "ended": "Anruf beendet",
+    "denied": "Das Mikrofon ist nicht erlaubt. Erlaube covey unter Systemeinstellungen → Datenschutz & Sicherheit → Mikrofon.",
+    "modelNotReady": "Die Instanz lädt die Sprachmodelle noch. Versuch es in ein paar Minuten noch einmal.",
+    "off": "Die Spracherkennung ist auf dieser Instanz aus, oder die Instanz ist zu alt für Anrufe.",
+    "failed": "Der Anruf konnte nicht starten: {{error}}",
+    "mute": "Stumm",
+    "unmute": "Laut",
+    "hangUp": "Auflegen",
+    "you": "Du",
+    "stillWorking": "Ich bin noch dran.",
+    "restInChat": "Der Rest steht im Chat.",
+    "setting": "Anrufe (Test)",
+    "settingSwitch": "Agenten anrufen",
+    "settingHint": "Ein Anruf-Knopf im Gespräch mit einem Agenten. Sprache wird auf diesem Mac erkannt und gesprochen; nur der Text geht ins Gespräch, als im Anruf gesagt markiert."
   }
 }

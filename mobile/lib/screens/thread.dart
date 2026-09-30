@@ -8,6 +8,8 @@ import 'package:intl/intl.dart';
 import '../chat_text.dart';
 import '../chrome.dart';
 import '../api.dart';
+import '../call/call.dart';
+import '../call/call_view.dart';
 import '../live.dart';
 import '../diagnostics.dart';
 import '../face.dart';
@@ -116,10 +118,16 @@ class _ThreadScreenState extends State<ThreadScreen> {
                 : LiveEvents.instance.of({'chat', 'task'}, agentId: widget.agentId))
             .listen((_) => _load());
     _poll = Timer.periodic(const Duration(minutes: 1), (_) => _load());
+    CallSettings.enabled.addListener(_callSettingChanged);
+  }
+
+  void _callSettingChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    CallSettings.enabled.removeListener(_callSettingChanged);
     _poll?.cancel();
     _live?.cancel();
     _text.dispose();
@@ -316,6 +324,27 @@ class _ThreadScreenState extends State<ThreadScreen> {
     }
   }
 
+  /// Whether this thread offers a call (#494): the direct conversation with
+  /// an agent that is not stopped, on the Mac, with the trial switched on.
+  bool get _canCall =>
+      !_isConversation &&
+      !_stopped &&
+      widget.me.teamSurface &&
+      widget.agentId.isNotEmpty &&
+      CallSettings.supported &&
+      CallSettings.enabled.value;
+
+  void _call() {
+    if (!_canCall) return;
+    CallScreen.open(
+      context,
+      api: widget.api,
+      agentId: widget.agentId,
+      agentName: widget.agentName,
+      agentSlug: widget.agentSlug,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
@@ -334,8 +363,20 @@ class _ThreadScreenState extends State<ThreadScreen> {
         ? (agents.single.name, agents.single.slug)
         : ('', '');
     final older = _isConversation && _older && entries.isNotEmpty;
-    return Scaffold(
+    final scaffold = Scaffold(
       appBar: ChromeAppBar(
+        actions: [
+          if (_canCall)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: IconButton(
+                key: const ValueKey('call'),
+                tooltip: context.t('call.button', args: {'name': widget.agentName}),
+                icon: Icon(AppIcons.call.of(context)),
+                onPressed: _call,
+              ),
+            ),
+        ],
         // Beside a back control the face follows it directly; without one
         // (the detail pane of a wide window) it keeps the content margin.
         titleSpacing: (ModalRoute.of(context)?.canPop ?? false) ? 0 : 16,
@@ -511,6 +552,12 @@ class _ThreadScreenState extends State<ThreadScreen> {
           ],
         ),
       ),
+    );
+    if (!_canCall) return scaffold;
+    // ⌘⇧C calls, as the button does.
+    return CallbackShortcuts(
+      bindings: {const SingleActivator(LogicalKeyboardKey.keyC, meta: true, shift: true): _call},
+      child: scaffold,
     );
   }
 
