@@ -2,6 +2,9 @@ import 'dart:async';
 
 import 'package:covey_mobile/call/call.dart';
 import 'package:covey_mobile/call/ears.dart';
+import 'package:covey_mobile/call/fillers.dart';
+import 'package:covey_mobile/call/provider.dart';
+import 'package:covey_mobile/call/sounds.dart';
 import 'package:covey_mobile/call/voice.dart';
 import 'package:covey_mobile/call/spoken_voice.dart';
 import 'package:covey_mobile/models.dart';
@@ -60,14 +63,23 @@ class FakeBackend implements CallBackend {
   final _changes = StreamController<void>.broadcast();
   var _n = 0;
 
-  ConversationMessage _add(String kind, String text, {String? author}) {
+  ConversationMessage _add(
+    String kind,
+    String text, {
+    String? author,
+    String? taskId,
+    String? replyTo,
+    String messageKind = 'text',
+  }) {
     final m = ConversationMessage(
       id: 'm${_n++}',
       conversationId: 'c1',
       authorKind: kind,
       authorId: author,
       text: text,
-      kind: 'text',
+      kind: messageKind,
+      taskId: taskId,
+      replyTo: replyTo,
       createdAt: DateTime(2026, 9, 30, 12).add(Duration(seconds: _n)),
     );
     messages.add(m);
@@ -75,8 +87,10 @@ class FakeBackend implements CallBackend {
   }
 
   /// The agent writes into the conversation.
-  void agentSays(String text) {
-    _add('agent', text, author: 'agent-1');
+  /// [taskId] and [replyTo] as the triage writes a task's acknowledgement
+  /// (#411); [kind] `result` as a task's result.
+  void agentSays(String text, {String? taskId, String? replyTo, String kind = 'text'}) {
+    _add('agent', text, author: 'agent-1', taskId: taskId, replyTo: replyTo, messageKind: kind);
     _changes.add(null);
   }
 
@@ -179,18 +193,70 @@ class FakeSpeaker implements Speaker {
     }
   }
 
+  /// The fillers said, and how they were ended.
+  final fillers = <String>[];
+  int fades = 0, fillerStops = 0;
+
+  /// How long each filler lasts; null has nothing to say one with.
+  Duration? fillerLength = const Duration(milliseconds: 600);
+
+  final prefetched = <(List<String>, String)>[];
+
+  @override
+  Future<Duration?> filler(String text, {required String language}) async {
+    if (fillerLength == null) return null;
+    fillers.add(text);
+    return fillerLength;
+  }
+
+  @override
+  Future<void> fadeFiller(Duration over) async => fades++;
+
+  @override
+  Future<void> stopFiller() async => fillerStops++;
+
+  @override
+  Future<void> prefetchFillers(List<String> texts, {required String language}) async =>
+      prefetched.add((texts, language));
+
   @override
   void dispose() {}
 }
 
-const words = {'call.stillWorking': 'Ich bin noch dran.', 'call.restInChat': 'Der Rest steht im Chat.'};
+/// Where a call's sounds go in a test: each sound is loaded as that many
+/// samples as its place in [Earcon], so what plays says which it was.
+class FakeEarcons implements EarconOutput {
+  final played = <(Earcon, double, int)>[];
+  int stops = 0;
+
+  @override
+  Future<void> playEarcon(Pcm pcm, {required double volume, int loops = 1}) async =>
+      played.add((Earcon.values[pcm.samples.length - 1], volume, loops));
+
+  @override
+  Future<void> stopEarcon() async => stops++;
+
+  List<Earcon> get names => [for (final p in played) p.$1];
+
+  CallSounds sounds({bool Function()? enabled, double Function()? volume}) => CallSounds(
+    output: this,
+    enabled: enabled ?? () => true,
+    volume: volume ?? () => 0.35,
+    load: (e) async => Pcm(Float32List(e.index + 1), 44100),
+  );
+}
+
+const words = {'call.restInChat': 'Der Rest steht im Chat.'};
 
 CallController fakeCall(
   FakeEars ears,
   FakeBackend backend,
   FakeSpeaker speaker, {
-  Duration nudgeAfter = const Duration(seconds: 20),
+  Duration fillerAfter = const Duration(milliseconds: 800),
+  Duration nudgeAfter = const Duration(seconds: 8),
   CallTuning tuning = const CallTuning(window: Duration.zero),
+  CallSounds? sounds,
+  StartTimer? startTimer,
 }) => CallController(
   backend: backend,
   ears: ears,
@@ -198,7 +264,60 @@ CallController fakeCall(
   agentId: 'agent-1',
   appLanguage: 'de',
   words: (k) => words[k] ?? k,
+  fillerAfter: fillerAfter,
   nudgeAfter: nudgeAfter,
   agentName: 'Ada Lovelace',
   tuning: tuning,
+  sounds: sounds,
+  startTimer: startTimer,
 );
+
+/// A clock a test moves by hand, for the timers a call's fillers start
+/// ([StartTimer]).
+class FakeClock {
+  Duration now = Duration.zero;
+  final _timers = <_FakeTimer>[];
+
+  Timer start(Duration after, void Function() fire) {
+    final t = _FakeTimer(now + after, fire);
+    _timers.add(t);
+    return t;
+  }
+
+  /// Moves on by [d], firing every timer due on the way, in order, and
+  /// letting what each starts run before the next.
+  Future<void> advance(Duration d) async {
+    final end = now + d;
+    while (true) {
+      final due = _timers.where((t) => t.isActive && t.at <= end).toList()..sort((a, b) => a.at.compareTo(b.at));
+      if (due.isEmpty) break;
+      final t = due.first;
+      now = t.at;
+      t.active = false;
+      t.fire();
+      for (var i = 0; i < 10; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
+    now = end;
+    for (var i = 0; i < 10; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+  }
+}
+
+class _FakeTimer implements Timer {
+  _FakeTimer(this.at, this.fire);
+  final Duration at;
+  final void Function() fire;
+  bool active = true;
+
+  @override
+  void cancel() => active = false;
+
+  @override
+  bool get isActive => active;
+
+  @override
+  int get tick => 0;
+}

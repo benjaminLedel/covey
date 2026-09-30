@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:covey_mobile/api.dart';
+import 'package:covey_mobile/call/fillers.dart';
 import 'package:covey_mobile/call/provider.dart';
 import 'package:covey_mobile/call/speech_text.dart';
 import 'package:covey_mobile/call/spoken_voice.dart';
@@ -124,6 +126,48 @@ void main() {
       s.dispose();
     });
 
+    test('fillers are synthesised ahead, kept on disk, and played from there', () async {
+      final dir = await Directory.systemTemp.createTemp('fillers');
+      addTearDown(() => dir.delete(recursive: true));
+      final cache = FillerCache(() async => dir);
+      final out = _Output();
+      final said = <String>[];
+      final s = _speaker(out, provider: _provider(out, said), cache: cache);
+      await s.prepare(language: 'de');
+      expect(await s.filler('Hm…', language: 'de'), isNull, reason: 'not ready: asking now would come too late');
+      expect(said, isEmpty);
+      await s.prefetchFillers(['Hm…', 'Sekunde…'], language: 'de');
+      expect(said, ['Hm…', 'Sekunde…']);
+      expect(out.decoderIds.every((id) => id < 0), isTrue, reason: 'decoded aside from the replies');
+      expect(await cache.has(_voice, 'Hm…'), isTrue);
+      final length = await s.filler('Hm…', language: 'de');
+      expect(length, Pcm(Float32List(4410), 48000).duration, reason: 'both chunks, as one');
+      expect(out.fillersPlayed, [4410]);
+      s.dispose();
+
+      // The next call with the same voice asks the provider nothing.
+      final again = <String>[];
+      final t = _speaker(_Output(), provider: _provider(out, again), cache: cache);
+      await t.prefetchFillers(['Hm…', 'Sekunde…'], language: 'de');
+      expect(again, isEmpty);
+      expect(await t.filler('Sekunde…', language: 'de'), isNotNull);
+      t.dispose();
+    });
+
+    test('no provider: the Mac says the filler, or nothing without a voice of the language', () async {
+      final out = _Output();
+      final s = _speaker(out, available: false, provider: _provider(out, []));
+      await s.prepare(language: 'de');
+      await s.prefetchFillers(['Hm…'], language: 'de');
+      expect(out.decoders, isEmpty);
+      expect(await s.filler('Hm…', language: 'de'), isNotNull);
+      expect(out.fillersSaid.single, ('Hm…', 'de.anna'));
+      expect(await s.filler('Hmm…', language: 'sv'), isNull);
+      await s.fadeFiller(const Duration(milliseconds: 120));
+      expect(out.fillerFades, 1);
+      s.dispose();
+    });
+
     test('stopping drops what the provider still sends', () async {
       final out = _Output();
       final gate = Completer<void>();
@@ -150,14 +194,19 @@ Future<void> _settle() async {
 
 const _voice = SpokenVoice(voice: 'af_bella', instructions: 'calm and warm', speed: 1.2);
 
-AgentSpeaker _speaker(_Output out, {bool available = true, ProviderVoice Function(SpokenVoice)? provider}) =>
-    AgentSpeaker(
-      output: out,
-      agentId: 'agent-1',
-      available: () async => available,
-      spoken: () async => _voice,
-      provider: provider,
-    );
+AgentSpeaker _speaker(
+  _Output out, {
+  bool available = true,
+  ProviderVoice Function(SpokenVoice)? provider,
+  FillerCache? cache,
+}) => AgentSpeaker(
+  output: out,
+  agentId: 'agent-1',
+  available: () async => available,
+  spoken: () async => _voice,
+  provider: provider,
+  fillerCache: cache,
+);
 
 /// A provider that answers two chunks of MP3, or fails, noting each text.
 ProviderVoice Function(SpokenVoice) _provider(
@@ -208,9 +257,28 @@ class _Output implements VoiceOutput {
   @override
   Future<void> stop() async => stops++;
 
+  final fillersPlayed = <int>[];
+  final fillersSaid = <(String, String?)>[];
+  int fillerFades = 0;
+  final decoderIds = <int>[];
+
+  @override
+  Future<void> playFiller(Pcm pcm) async => fillersPlayed.add(pcm.samples.length);
+
+  @override
+  Future<void> sayFiller(String text, {String? voiceId, required String language, double rate = 0}) async =>
+      fillersSaid.add((text, voiceId));
+
+  @override
+  Future<void> fadeFiller(Duration over) async => fillerFades++;
+
+  @override
+  Future<void> stopFiller() async {}
+
   @override
   Future<bool> openDecoder(int id) async {
     decoders.add('open');
+    decoderIds.add(id);
     return true;
   }
 

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../api.dart';
 import '../diagnostics.dart';
+import 'fillers.dart';
 import 'provider.dart';
 import 'speech_text.dart';
 import 'spoken_voice.dart';
@@ -15,8 +16,8 @@ import 'spoken_voice.dart';
 enum SpeakingEvent { started, word, finished, cancelled }
 
 /// The seam between a call and whatever speaks for the agent, so a test
-/// stands in.
-abstract class Speaker {
+/// stands in. It says the fillers too (#500), in the same voice.
+abstract class Speaker implements FillerVoice {
   /// Gets ready to speak: the Mac's voices, whether the voice provider can
   /// be asked, and how the agent sounds there. Returns a line for the
   /// diagnostics log.
@@ -30,8 +31,13 @@ abstract class Speaker {
   /// finished or stopped.
   Future<void> speak(String text, {required String language});
 
-  /// Stops at once, mid-word.
+  /// Stops at once, mid-word; a filler too.
   Future<void> stop();
+
+  /// Synthesises [texts] as fillers in [language] ahead of need, in the
+  /// background, and keeps them ([FillerCache]); nothing without a voice
+  /// provider, where the Mac says them when they come.
+  Future<void> prefetchFillers(List<String> texts, {required String language});
 
   Stream<SpeakingEvent> get events;
 
@@ -63,8 +69,17 @@ abstract class VoiceOutput implements StreamDecoding {
   /// nothing more comes for it, so its end is reported.
   Future<void> play(int id, Pcm pcm, {required bool last});
 
-  /// Stops speaking and playing at once.
+  /// Stops speaking and playing at once, a filler too.
   Future<void> stop();
+
+  /// A filler (#500) on a player of its own, mixed beside the reply's: the
+  /// provider's [pcm], or the Mac's voice saying [text].
+  Future<void> playFiller(Pcm pcm);
+  Future<void> sayFiller(String text, {String? voiceId, required String language, double rate = 0});
+
+  /// Lets the filler fade out over [over], or stops it at once.
+  Future<void> fadeFiller(Duration over);
+  Future<void> stopFiller();
 
   Stream<(SpeakingEvent, int)> get events;
 
@@ -141,6 +156,25 @@ class MacVoiceOutput implements VoiceOutput {
   Future<void> stop() => _channel.invokeMethod<void>('stop');
 
   @override
+  Future<void> playFiller(Pcm pcm) =>
+      _channel.invokeMethod<void>('filler', {'samples': pcm.samples, 'sampleRate': pcm.sampleRate});
+
+  @override
+  Future<void> sayFiller(String text, {String? voiceId, required String language, double rate = 0}) =>
+      _channel.invokeMethod<void>('fillerSay', {
+        'text': text,
+        'voice': voiceId,
+        'language': language,
+        if (rate > 0) 'rate': rate,
+      });
+
+  @override
+  Future<void> fadeFiller(Duration over) => _channel.invokeMethod<void>('fillerFade', {'ms': over.inMilliseconds});
+
+  @override
+  Future<void> stopFiller() => _channel.invokeMethod<void>('fillerStop');
+
+  @override
   Future<bool> openDecoder(int id) => _decoder.openDecoder(id);
 
   @override
@@ -170,6 +204,7 @@ class AgentSpeaker implements Speaker {
     required this.available,
     required this.spoken,
     this.provider,
+    this.fillerCache,
   }) {
     _sub = output.events.listen(_onEvent);
   }
@@ -185,6 +220,17 @@ class AgentSpeaker implements Speaker {
 
   /// The provider speaking a voice; null when this app cannot reach one.
   final ProviderVoice Function(SpokenVoice voice)? provider;
+
+  /// Where the provider's fillers are kept between calls; null keeps them
+  /// for this call only.
+  final FillerCache? fillerCache;
+
+  /// The provider's fillers of this call, by text.
+  final _fillers = <String, Pcm>{};
+
+  /// Counts the fillers stopped or faded, so one still being looked up
+  /// does not start after its stop.
+  int _fillerGeneration = 0;
 
   late final StreamSubscription<(SpeakingEvent, int)> _sub;
   final _events = StreamController<SpeakingEvent>.broadcast();
@@ -341,8 +387,71 @@ class AgentSpeaker implements Speaker {
   Future<void> stop() async {
     // Whatever the provider still sends for the utterance is dropped.
     _id++;
+    _fillerGeneration++;
     _end(SpeakingEvent.cancelled);
     await output.stop();
+  }
+
+  @override
+  Future<void> prefetchFillers(List<String> texts, {required String language}) async {
+    if (!_prepared) await prepare(language: language);
+    for (final text in texts) {
+      final voice = _voice;
+      // No provider, or it failed in this call: the Mac says the fillers.
+      if (voice == null) return;
+      if (_fillers.containsKey(text)) continue;
+      final cached = await fillerCache?.read(voice.voice, text);
+      if (cached != null) {
+        _fillers[text] = cached;
+        continue;
+      }
+      try {
+        // Decoded aside from the reply's stream: a reply that starts or is
+        // stopped meanwhile does not cut the filler short.
+        final aside = ProviderVoice(voice.open, _AsideDecoder(voice.decoder), voice: voice.voice);
+        final pcm = joinPcm(await aside.stream(text, language: language).toList());
+        if (pcm.samples.isEmpty || pcm.sampleRate <= 0) continue;
+        _fillers[text] = pcm;
+        await fillerCache?.write(voice.voice, text, pcm);
+      } catch (e) {
+        // Not worth asking again for the rest: the call goes on without.
+        diag('call', 'fillers not synthesised: $e');
+        return;
+      }
+    }
+  }
+
+  @override
+  Future<Duration?> filler(String text, {required String language}) async {
+    if (!_prepared) return null;
+    final g = _fillerGeneration;
+    final voice = _voice;
+    if (voice != null) {
+      // Only what is ready: asking the provider now would come after the
+      // reply.
+      final pcm = _fillers[text] ?? await fillerCache?.read(voice.voice, text);
+      if (pcm == null || pcm.samples.isEmpty || g != _fillerGeneration) return null;
+      _fillers[text] = pcm;
+      await output.playFiller(pcm);
+      return pcm.duration;
+    }
+    final v = chooseVoice(_system, language, agentId);
+    if (v == null || g != _fillerGeneration) return null;
+    await output.sayFiller(text, voiceId: v.id, language: language, rate: _speed);
+    // The Mac does not say how long it speaks: about as long as it takes.
+    return Duration(milliseconds: (300 + text.length * 70).clamp(600, 2500));
+  }
+
+  @override
+  Future<void> fadeFiller(Duration over) async {
+    _fillerGeneration++;
+    await output.fadeFiller(over);
+  }
+
+  @override
+  Future<void> stopFiller() async {
+    _fillerGeneration++;
+    await output.stopFiller();
   }
 
   @override
@@ -371,6 +480,22 @@ ProviderVoice providerVoice(CoveyApi api, SpokenVoice voice, {required String ag
       decoder ?? _decoder,
       voice: voice,
     );
+
+/// A decoder under negative ids (#500): the voice channel keeps them apart
+/// from the reply's, which a new reply or a stop clears.
+class _AsideDecoder implements StreamDecoding {
+  _AsideDecoder(this.inner);
+  final StreamDecoding inner;
+
+  @override
+  Future<bool> openDecoder(int id) => inner.openDecoder(-id);
+
+  @override
+  Future<Pcm> decode(int id, Uint8List bytes) => inner.decode(-id, bytes);
+
+  @override
+  Future<void> closeDecoder(int id) => inner.closeDecoder(-id);
+}
 
 /// Decoding needs the channel only, not a speaker's events.
 final _decoder = _ChannelDecoder();
