@@ -341,6 +341,42 @@ func (s *Store) OpenWithTitle(ctx context.Context, agentID uuid.UUID, title stri
 	return exists, err
 }
 
+// InProgressTitles are the titles of an agent's tasks in progress, the one
+// it moved to last first, at most limit — what a call's greeting may
+// mention (#513). A chat answer (#483) is left out: its title is only the
+// message it answers.
+func (s *Store) InProgressTitles(ctx context.Context, agentID uuid.UUID, limit int) ([]string, error) {
+	rows, err := s.pool.Query(ctx, `SELECT title FROM backlog_tasks
+		WHERE agent_id=$1 AND state='in_progress' AND NOT chat_answer AND archived_at IS NULL
+		ORDER BY updated_at DESC LIMIT $2`, agentID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+// LastDoneSince is the title of the task the agent finished last since t,
+// empty when there is none; chat answers are left out as above.
+func (s *Store) LastDoneSince(ctx context.Context, agentID uuid.UUID, since time.Time) (string, error) {
+	var title string
+	err := s.pool.QueryRow(ctx, `SELECT title FROM backlog_tasks
+		WHERE agent_id=$1 AND state='done' AND NOT chat_answer AND updated_at >= $2
+		ORDER BY updated_at DESC LIMIT 1`, agentID, since).Scan(&title)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	return title, err
+}
+
 func (s *Store) notify(ctx context.Context, agentID uuid.UUID) {
 	// The wake signal is best-effort — the periodic tick catches losses.
 	_, _ = s.pool.Exec(ctx, "SELECT pg_notify($1,$2)", NotifyChannel, agentID.String())
