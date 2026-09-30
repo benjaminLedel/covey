@@ -271,7 +271,14 @@ example. A spoken form in another language than the reply is not said.
 
 Set details_in_chat="true" when it leaves out something the written reply
 carries (an id, a link, a list, a figure), "false" when it says all of it.
-covey takes the tag off: the conversation shows only the reply above it.`
+covey takes the tag off: the conversation shows only the reply above it.
+
+When the person was ending the call — they said goodbye or that they are
+done, and asked nothing more — your reply is a short goodbye, it says you
+will report back in the chat if work is still open, and the tag carries
+end_call="true": <spoken end_call="true">Gern, bis später!</spoken>. The
+call hangs up after saying it. Anything they still asked is no ending: leave
+it out.`
 
 // TargetDocs builds the section "Connected target systems" from the action
 // docs of the target system plugins. It is appended to the system prompt at

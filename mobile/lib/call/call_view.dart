@@ -108,6 +108,8 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
           recording: CallRecording.open,
           // The agent greets when the call connects (#506).
           greeter: CallGreeter(enabled: () => CallSettings.greeting.value),
+          // And hangs up after its goodbye when the person ends it (#517).
+          mayHangUp: () => CallSettings.hangUp.value,
         );
       } else {
         _call = widget.controller;
@@ -279,9 +281,14 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
                     padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
                     child: Column(
                       children: [
-                        // A trial, and where the audio stays: said once,
-                        // quietly, at the top.
-                        Text(context.t('call.onDevice'), style: context.type.labelSmall),
+                        // A trial, and where the audio goes: said once,
+                        // quietly, at the top — on this Mac, or, while the
+                        // organisation allows it, its server (#516).
+                        Text(
+                          context.t(call.serverRecognition ? 'call.onServer' : 'call.onDevice'),
+                          key: ValueKey(call.serverRecognition ? 'call-on-server' : 'call-on-device'),
+                          style: context.type.labelSmall,
+                        ),
                         // That the Mac's voice speaks because the voice
                         // provider is not there (#497).
                         if (call.speaker.fallback.value && !failed && mode != CallMode.preparing)

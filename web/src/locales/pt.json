@@ -3168,6 +3168,7 @@
   "call": {
     "button": "Ligar para {{name}} (teste) · ⌘⇧C",
     "onDevice": "Chamada · teste · a voz fica neste Mac",
+    "onServer": "Chamada · teste · a voz é reconhecida no servidor da sua organização",
     "preparing": "Preparando a chamada…",
     "preparingModel": "Carregando o modelo de fala… {{percent}} %",
     "listening": "Ouvindo",
@@ -3213,6 +3214,9 @@
     "greeting": "Saudação",
     "greetingSwitch": "O agente cumprimenta ao ligar",
     "greetingHint": "Quando a chamada liga, o agente diz o seu nome e pergunta em que pode ajudar — de forma informal ou formal, como o tom do chat define, e de acordo com a hora do dia. A saudação faz parte da chamada, não é uma mensagem no chat. Se falar, ele para.",
+    "goodbye": "Despedida",
+    "hangUpSwitch": "O agente pode desligar",
+    "hangUpHint": "Quando você encerra a conversa — “Obrigado, é só isso”, “Tchau” —, o agente se despede e desliga. Falar durante a despedida mantém a chamada aberta. Se ele assumiu algo nessa vez, diz que dará retorno no chat.",
     "diagnostics": "Diagnóstico",
     "record": "Gravar chamadas para diagnóstico",
     "recordDelete": "Apagar gravações agora",

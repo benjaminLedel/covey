@@ -3168,6 +3168,7 @@
   "call": {
     "button": "{{name}} bellen (test) · ⌘⇧C",
     "onDevice": "Gesprek · test · spraak blijft op deze Mac",
+    "onServer": "Gesprek · test · spraak wordt herkend op de server van je organisatie",
     "preparing": "Gesprek wordt voorbereid…",
     "preparingModel": "Spraakmodel wordt geladen… {{percent}} %",
     "listening": "Luistert",
@@ -3213,6 +3214,9 @@
     "greeting": "Begroeting",
     "greetingSwitch": "Agent begroet bij het verbinden",
     "greetingHint": "Als het gesprek verbonden is, noemt de agent zijn naam en vraagt waarmee hij kan helpen — met je of u zoals de chattoon het bepaalt, en passend bij het tijdstip. De begroeting hoort bij het gesprek en is geen bericht in de chat. Als je begint te praten, stopt hij.",
+    "goodbye": "Afscheid",
+    "hangUpSwitch": "Agent mag ophangen",
+    "hangUpHint": "Als je het gesprek beëindigt — ‘Bedankt, dat was het’, ‘Doei’ — neemt de agent afscheid en hangt op. Praat je tijdens het afscheid, dan blijft het gesprek open. Heeft hij in die beurt iets overgenomen, dan zegt hij dat hij zich in de chat meldt.",
     "diagnostics": "Diagnose",
     "record": "Gesprekken opnemen voor diagnose",
     "recordDelete": "Opnamen nu verwijderen",

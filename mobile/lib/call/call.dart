@@ -15,12 +15,14 @@ import 'capture.dart' show bargeInConfirm, doubleTalkMargin, echoWarmUp, loudnes
 import 'ears.dart';
 import 'fillers.dart';
 import 'greeting.dart';
+import 'recognition.dart';
 import 'recording.dart';
 import 'sounds.dart';
 import 'speech_text.dart';
 import 'turns.dart';
 import 'understood.dart';
 import 'voice.dart';
+import 'wav.dart';
 import 'spoken_voice.dart';
 
 String _base(String language) => language.split(RegExp('[-_]')).first.toLowerCase();
@@ -81,10 +83,15 @@ class CallSettings {
   /// switched off.
   static final greeting = ValueNotifier<bool>(true);
 
+  /// Whether the agent may hang up after its goodbye when the person ends
+  /// the conversation (#517): on unless switched off.
+  static final hangUp = ValueNotifier<bool>(true);
+
   static const _pauseKey = 'call.pause', _bargeInKey = 'call.bargeIn', _windowKey = 'call.window';
   static const _recordKey = 'call.record';
   static const _soundsKey = 'call.sounds', _volumeKey = 'call.volume';
   static const _greetingKey = 'call.greeting';
+  static const _hangUpKey = 'call.agentHangsUp';
 
   static Future<void> load() async {
     try {
@@ -98,6 +105,7 @@ class CallSettings {
       final v = double.tryParse(await p.read(_volumeKey) ?? '');
       volume.value = v == null || v < 0 || v > 1 ? defaultVolume : v;
       greeting.value = await p.read(_greetingKey) != 'off';
+      hangUp.value = await p.read(_hangUpKey) != 'off';
     } catch (_) {
       // Unreadable: the defaults.
     }
@@ -157,6 +165,11 @@ class CallSettings {
   static Future<void> setGreeting(bool on) async {
     greeting.value = on;
     await _write(_greetingKey, on ? 'on' : 'off');
+  }
+
+  static Future<void> setHangUp(bool on) async {
+    hangUp.value = on;
+    await _write(_hangUpKey, on ? 'on' : 'off');
   }
 
   static Future<void> setVolume(double v) async {
@@ -257,6 +270,16 @@ abstract class CallBackend {
   /// at [now]. Null when it writes none — an older instance, no model, too
   /// slow —, and the call greets from its templates. It never throws.
   Future<String?> writtenGreeting({required String language, required DateTime now});
+
+  /// Whether the organisation lets this call's turns be recognised at its
+  /// voice provider (#516), as `/speech/model` says. False on an instance
+  /// from before it, and when it cannot be read; it never throws.
+  Future<bool> transcribes();
+
+  /// One turn recognised at the voice provider (#516): [wav] is the turn as
+  /// the voice detector cut it, [language] the call's. Throws when it cannot
+  /// be; the call then takes the device's text.
+  Future<String> transcribe(Uint8List wav, {required String language});
 }
 
 /// The conversation API (#440, #447) for one agent's direct conversation.
@@ -417,6 +440,20 @@ class ApiCallBackend implements CallBackend {
       return null;
     }
   }
+
+  @override
+  Future<bool> transcribes() async {
+    try {
+      return (await api.speechModel()).transcribe;
+    } catch (e) {
+      diag('call', 'whether the voice provider recognises is not known: $e');
+      return false;
+    }
+  }
+
+  @override
+  Future<String> transcribe(Uint8List wav, {required String language}) =>
+      api.transcribeSpeech(wav, language: language, agent: agentId);
 }
 
 /// Where a call stands, as the face and the line under it show it.
@@ -486,6 +523,10 @@ class _Utterance {
 /// when it is not there in time ([GreetingInFlight]); said after the
 /// connected sound; the person speaking stops it. It is part of the call,
 /// not a message in the conversation.
+///
+/// When the person ends the conversation by voice, the agent's answer is its
+/// goodbye, marked `end_call` (#517): the call speaks it, plays the hang-up
+/// sound and ends. The person speaking during the goodbye keeps it open.
 class CallController extends ChangeNotifier {
   CallController({
     required this.backend,
@@ -501,6 +542,8 @@ class CallController extends ChangeNotifier {
     this.fillerAfter = const Duration(milliseconds: 800),
     this.nudgeAfter = const Duration(seconds: 8),
     this.pollEvery = const Duration(seconds: 5),
+    this.serverBound = serverRecognitionBound,
+    this.mayHangUp,
     StartTimer? startTimer,
     math.Random? random,
     this.greeter,
@@ -557,6 +600,14 @@ class CallController extends ChangeNotifier {
   /// The net under the event stream while a reply is awaited.
   final Duration pollEvery;
 
+  /// How long a turn waits for the voice provider's text before it takes
+  /// the device's (#516).
+  final Duration serverBound;
+
+  /// Whether the call ends after the agent's goodbye (#517), asked when the
+  /// goodbye arrives; null: it does.
+  final bool Function()? mayHangUp;
+
   /// How the call greets; null does not.
   final CallGreeter? greeter;
 
@@ -593,6 +644,13 @@ class CallController extends ChangeNotifier {
   CallRecording? _recording;
 
   bool get ended => _mode == CallMode.ended;
+
+  /// Whether this call's turns are recognised at the organisation's voice
+  /// provider (#516), the device's recogniser beside it as the fallback. The
+  /// call view says so while it is on; a provider that refuses turns it off
+  /// for the rest of the call.
+  bool get serverRecognition => _serverRecognition;
+  bool _serverRecognition = false;
 
   final _queue = <_Utterance>[];
   bool _speaking = false;
@@ -636,6 +694,13 @@ class CallController extends ChangeNotifier {
   bool _greetingPending = false;
   bool _greetingDropped = false;
 
+  /// The agent's goodbye is queued or being said (#517): the call hangs up
+  /// once it has been said, unless the person speaks meanwhile.
+  bool _goodbye = false;
+
+  /// Whether the call is about to hang up after the agent's goodbye.
+  bool get endingAfterGoodbye => _goodbye;
+
   Future<void> _turnChain = Future.value();
   bool _fetching = false;
   bool _fetchAgain = false;
@@ -648,11 +713,15 @@ class CallController extends ChangeNotifier {
     unawaited(sounds?.preload());
     // Asked for and synthesised while the line rings and the models load.
     final greeting = (greeter?.enabled() ?? false) ? _composeGreeting() : null;
+    // Asked while the models load; the answer is needed at the first turn.
+    final transcribes = backend.transcribes().catchError((Object _) => false);
     try {
       await ears.prepare();
       // Hung up while the models loaded: what just loaded is freed again.
       if (ended) return await ears.close();
       final had = await backend.open();
+      _serverRecognition = await transcribes;
+      if (_serverRecognition) diag('call', 'turns recognised at the voice provider, on this Mac as the fallback');
       for (final m in had) {
         _seen.add(m.id);
         _remember(m);
@@ -891,6 +960,11 @@ class CallController extends ChangeNotifier {
     // The person speaks: a filler would talk over them, and a greeting
     // still to come is not said any more.
     _fillers.stop();
+    // Nor does the call hang up after a goodbye they speak into (#517).
+    if (_goodbye) {
+      _goodbye = false;
+      diag('call', 'hang-up cancelled: the person spoke during the goodbye');
+    }
     if (_greetingPending && !_greetingDropped) {
       diag('call', 'greeting dropped: the person spoke first');
       _greetingDropped = true;
@@ -949,14 +1023,22 @@ class CallController extends ChangeNotifier {
     };
     _recognising = true;
     _update();
-    String text;
-    final watch = Stopwatch()..start();
+    final TurnText heard;
     try {
-      text = (await ears.recognise(pcm)).trim();
+      // At the voice provider when the organisation allows it (#516), the
+      // device's recogniser alongside as the fallback.
+      heard = await recogniseTurn(
+        device: () => ears.recognise(pcm),
+        server: _serverRecognition ? () => _transcribe(pcm) : null,
+        bound: serverBound,
+      );
     } finally {
       _recognising = false;
     }
-    facts['recognise_ms'] = watch.elapsedMilliseconds;
+    final text = heard.text;
+    facts['recogniser'] = heard.by.name;
+    facts['recognise_ms'] = heard.elapsed.inMilliseconds;
+    if (heard.serverProblem != null) facts['server_problem'] = heard.serverProblem;
     facts['raw'] = text;
     if (ended) return;
     String? dropped;
@@ -1037,6 +1119,22 @@ class CallController extends ChangeNotifier {
     await _post(sent);
   }
 
+  /// The turn at the voice provider, in the call's language. A provider
+  /// that refuses (409: the organisation turned it off; 404: an instance
+  /// from before it) is not asked again in this call.
+  Future<String> _transcribe(Uint8List pcm) async {
+    try {
+      return await backend.transcribe(wavOfPcm16(pcm), language: _language ?? appLanguage);
+    } on ApiException catch (e) {
+      if (e.status == 409 || e.status == 404) {
+        _serverRecognition = false;
+        diag('call', 'the voice provider does not recognise (${e.status}): on this Mac for the rest of the call');
+        _update();
+      }
+      rethrow;
+    }
+  }
+
   /// One line per turn in the diagnostics log — the text only while the
   /// diagnostics recording is on — and the turn in the recording.
   void _logTurn(int n, Uint8List pcm, Map<String, Object?> facts) {
@@ -1047,7 +1145,8 @@ class CallController extends ChangeNotifier {
     diag(
       'call',
       'turn $n: speech ${facts['speech_ms']} ms, silence ${facts['silence_ms']} ms, length ${facts['length_ms']} ms, '
-          'cut ${facts['cut']}, recognised in ${facts['recognise_ms']} ms, raw ${raw.length} characters'
+          'cut ${facts['cut']}, recognised by ${facts['recogniser']} in ${facts['recognise_ms']} ms'
+          '${facts['server_problem'] == null ? '' : ' (voice provider: ${facts['server_problem']})'}, raw ${raw.length} characters'
           '${cleaned == null ? '' : ', cleaned ${cleaned.length} in ${facts['clean_ms']} ms'}'
           '${facts['clean_edit'] == null ? '' : ', word edit ${facts['clean_edit']}'}'
           '${facts['clean_kept'] == null ? '' : ', sent as recognised (${facts['clean_kept']})'}'
@@ -1144,6 +1243,14 @@ class CallController extends ChangeNotifier {
           _giveUp?.cancel();
           _say(CallLine(mine: false, text: textForSpeech(m.text).text));
           _queue.addAll(_toSpeak(m));
+          if (m.meta['end_call'] == 'true') {
+            if (mayHangUp?.call() ?? true) {
+              _goodbye = true;
+              diag('call', 'the agent says goodbye: hanging up after it');
+            } else {
+              diag('call', 'the agent says goodbye: the call stays open, hanging up is switched off');
+            }
+          }
         }
       } while (_fetchAgain && !ended);
     } on ApiException catch (e) {
@@ -1215,6 +1322,12 @@ class CallController extends ChangeNotifier {
       _speaking = false;
       _saidUntil = DateTime.now();
       _update();
+    }
+    // The goodbye has been said and nobody spoke into it (#517).
+    if (_goodbye && _queue.isEmpty && !ended) {
+      _goodbye = false;
+      diag('call', 'goodbye said: hanging up');
+      await hangUp();
     }
   }
 

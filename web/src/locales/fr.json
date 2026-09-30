@@ -3168,6 +3168,7 @@
   "call": {
     "button": "Appeler {{name}} (essai) · ⌘⇧C",
     "onDevice": "Appel · essai · la voix reste sur ce Mac",
+    "onServer": "Appel · essai · la voix est reconnue sur le serveur de votre organisation",
     "preparing": "Préparation de l'appel…",
     "preparingModel": "Chargement du modèle vocal… {{percent}} %",
     "listening": "À l'écoute",
@@ -3213,6 +3214,9 @@
     "greeting": "Salutation",
     "greetingSwitch": "L’agent salue à la connexion",
     "greetingHint": "Quand l’appel est connecté, l’agent dit son nom et demande ce qu’il peut faire — en tutoyant ou en vouvoyant selon le ton du chat, et selon le moment de la journée. La salutation fait partie de l’appel, ce n’est pas un message du chat. Si tu parles, il s’arrête.",
+    "goodbye": "Au revoir",
+    "hangUpSwitch": "L’agent peut raccrocher",
+    "hangUpHint": "Quand vous terminez la conversation — « Merci, c’est tout », « Au revoir » —, l’agent dit au revoir et raccroche. Parler pendant son au revoir garde l’appel ouvert. S’il a pris quelque chose en charge à ce moment-là, il dit qu’il reviendra vers vous dans le chat.",
     "diagnostics": "Diagnostic",
     "record": "Enregistrer les appels pour diagnostic",
     "recordDelete": "Supprimer les enregistrements",

@@ -589,9 +589,12 @@ func (s *Server) handleTranscribe(w http.ResponseWriter, r *http.Request) {
 	_ = mw.WriteField("model", e.transcribeModel())
 	_ = mw.WriteField("response_format", "json")
 	if lang != "" {
-		// Whisper takes the language as ISO 639-1: the tag's first part.
-		base, _, _ := strings.Cut(lang, "-")
-		_ = mw.WriteField("language", strings.ToLower(base))
+		// Whisper takes the language as ISO 639-1: the tag's first part —
+		// "de-DE", and the "de_DE" a device locale spells it as (#516).
+		base, _, _ := strings.Cut(strings.ReplaceAll(lang, "_", "-"), "-")
+		if base = strings.ToLower(base); base != "" {
+			_ = mw.WriteField("language", base)
+		}
 	}
 	_ = mw.Close()
 	ctx, cancel := context.WithTimeout(r.Context(), transcribeTimeout)

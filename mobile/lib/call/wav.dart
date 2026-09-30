@@ -32,6 +32,35 @@ Uint8List encodeWav(Pcm pcm) {
   return b.buffer.asUint8List();
 }
 
+/// Little-endian 16-bit mono PCM as it is, in a WAV file (#516): a call's
+/// turn as the voice detector cut it, for the voice provider's recognition.
+Uint8List wavOfPcm16(Uint8List pcm16, {int sampleRate = 16000}) {
+  final data = pcm16.length - pcm16.length % 2;
+  final out = Uint8List(44 + data);
+  final b = ByteData.sublistView(out);
+  void tag(int at, String s) {
+    for (var i = 0; i < 4; i++) {
+      b.setUint8(at + i, s.codeUnitAt(i));
+    }
+  }
+
+  tag(0, 'RIFF');
+  b.setUint32(4, 36 + data, Endian.little);
+  tag(8, 'WAVE');
+  tag(12, 'fmt ');
+  b.setUint32(16, 16, Endian.little);
+  b.setUint16(20, 1, Endian.little);
+  b.setUint16(22, 1, Endian.little);
+  b.setUint32(24, sampleRate, Endian.little);
+  b.setUint32(28, sampleRate * 2, Endian.little);
+  b.setUint16(32, 2, Endian.little);
+  b.setUint16(34, 16, Endian.little);
+  tag(36, 'data');
+  b.setUint32(40, data, Endian.little);
+  out.setRange(44, 44 + data, pcm16);
+  return out;
+}
+
 /// The samples of a 16-bit PCM WAV; the first channel of more than one.
 /// Throws a [FormatException] on anything else.
 Pcm decodeWav(Uint8List bytes) {
