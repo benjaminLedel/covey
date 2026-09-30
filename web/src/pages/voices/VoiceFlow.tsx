@@ -492,7 +492,7 @@ function ToneStep({ v, editable }: { v: VoiceDetail; editable: boolean }) {
   const inval = useInvalidate(v.id);
   const save = useMutation({ mutationFn: (tone: ChatTone) => put<Voice>(`/voices/${v.id}/chat-tone`, tone), onSuccess: inval });
   const saveSpeech = useMutation({
-    mutationFn: (sp: VoiceSpeech | Record<string, never>) => put<Voice>(`/voices/${v.id}/speech`, sp),
+    mutationFn: (sp: VoiceSpeech) => put<Voice>(`/voices/${v.id}/speech`, sp),
     onSuccess: inval,
   });
   const own = v.chat_tone && Object.values(v.chat_tone).some((x) => x);
@@ -509,12 +509,14 @@ function ToneStep({ v, editable }: { v: VoiceDetail; editable: boolean }) {
         error={save.isError ? (save.error as Error).message : undefined}
         onSave={(tone) => save.mutate(tone)}
       />
-      {/* The spoken voice (#497): how the same agents sound in a call. */}
+      {/* The spoken voice (#497): how the same agents sound in a call, at
+          the organisation's voice provider. */}
       <h4 className="m-0 mt-3">{t("voiceSpeech.title")}</h4>
       <p className="vf-note m-0">{t("voiceSpeech.hint")}</p>
       <SpeechForm
         key={JSON.stringify(v.speech ?? null)}
         value={v.speech}
+        name={v.name}
         editable={editable}
         saving={saveSpeech.isPending}
         error={saveSpeech.isError ? (saveSpeech.error as Error).message : undefined}

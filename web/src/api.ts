@@ -1733,21 +1733,21 @@ export type ChatTone = {
   emoji?: "" | "never" | "sparingly" | "freely";
   note?: string;
 };
-/** The spoken voice (#497): a voice of the speech catalogue synthesised on
- *  the device, or a model (and voice) of the organisation's speech server. */
+/** The spoken voice (#497): what the organisation's voice provider is told
+ *  when a call speaks the words of agents carrying the voice. */
 export type VoiceSpeech = {
-  source: "device" | "server";
-  model: string;
-  /** The speech server's voice name; empty on the device. */
+  /** The voice's name at the provider; empty uses the organisation's. */
   voice?: string;
-  speaker: number;
-  /** 1 is the model's own rate; 0 or missing means 1. */
-  rate?: number;
+  /** A short English style hint; empty derives one from the chat tone. */
+  instructions?: string;
+  /** 1 is the voice's own speed (0.7–1.3); 0 or missing means 1. */
+  speed?: number;
 };
-/** The organisation's speech server (#497, #498); the key is never
- *  answered, only whether the own one is stored. Without an own server an
- *  organisation holding an educa AI token speaks through educa AI. */
-export type SpeechServer = {
+/** The organisation's voice provider (#497, #498): an OpenAI-compatible
+ *  speech server; the key is never answered, only whether the own one is
+ *  stored. Without an own server an organisation holding an educa AI token
+ *  speaks through educa AI. */
+export type VoiceProvider = {
   base_url: string;
   model: string;
   voice: string;
@@ -1756,13 +1756,35 @@ export type SpeechServer = {
   transcribe_model: string;
   effective: { source: "own" | "educa" | "none"; base_url: string };
 };
-/** A voice the instance offers the apps to speak with (GET /speech/model,
- *  voices[]). */
-export type OfferedVoice = {
-  name: string;
-  size: number;
-  voice: { family: string; language: string; speakers: number; label: string; licence: string; source: string; placeholder?: boolean };
-};
+/** What the provider's test answers: one sentence synthesised, or why not. */
+export type VoiceProviderTest = { ok: boolean; error?: string; ms?: number; bytes?: number };
+
+/** A sentence spoken by the organisation's voice provider, as audio to play
+ *  in the browser (the voice page's preview). */
+export async function synthesizeSpeech(body: {
+  text: string;
+  voice?: string;
+  instructions?: string;
+  speed?: number;
+  language?: string;
+}): Promise<Blob> {
+  const res = await fetch("/api/v1/speech/synthesize", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    let msg = res.statusText;
+    try {
+      const b = await res.json();
+      if (b.error) msg = b.error;
+    } catch {
+      /* not JSON */
+    }
+    throw new ApiError(res.status, msg);
+  }
+  return res.blob();
+}
 export type VoiceDetail = Voice & {
   corpus: VoiceDocument[];
   /** The rendered TONE.md — what the agent actually gets. */
