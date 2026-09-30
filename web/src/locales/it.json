@@ -3189,5 +3189,18 @@
     "setting": "Chiamate (prova)",
     "settingSwitch": "Chiama gli agenti",
     "settingHint": "Un pulsante di chiamata nella conversazione con un agente. La voce viene riconosciuta e sintetizzata su questo Mac; solo il testo va nella conversazione, segnato come detto in una chiamata."
+  },
+  "voiceSpeech": {
+    "title": "Voce parlata (chiamate)",
+    "hint": "Vale quando l'app per Mac legge ad alta voce, in una chiamata, le risposte degli agenti con questa voce. Senza impostazione l'app sceglie una voce per agente.",
+    "voice": "Voce",
+    "unset": "Non impostata — sceglie l'app",
+    "system": "La voce del dispositivo",
+    "placeholder": "provvisoria",
+    "speaker": "Parlante",
+    "rate": "Velocità {{rate}}×",
+    "noneOffered": "Questa istanza non offre voci proprie; parla la voce del dispositivo.",
+    "save": "Salva",
+    "saved": "Salvato"
   }
 }

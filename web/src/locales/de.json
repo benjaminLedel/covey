@@ -3189,5 +3189,18 @@
     "setting": "Anrufe (Test)",
     "settingSwitch": "Agenten anrufen",
     "settingHint": "Ein Anruf-Knopf im Gespräch mit einem Agenten. Sprache wird auf diesem Mac erkannt und gesprochen; nur der Text geht ins Gespräch, als im Anruf gesagt markiert."
+  },
+  "voiceSpeech": {
+    "title": "Gesprochene Stimme (Anrufe)",
+    "hint": "Gilt, wenn die Mac-App die Antworten von Agenten mit dieser Stimme in einem Anruf spricht. Ohne Angabe wählt die App je Agent eine Stimme.",
+    "voice": "Stimme",
+    "unset": "Nicht gesetzt — die App wählt",
+    "system": "Die Stimme des Geräts",
+    "placeholder": "Platzhalter",
+    "speaker": "Sprecher",
+    "rate": "Tempo {{rate}}×",
+    "noneOffered": "Diese Instanz bietet keine eigenen Stimmen an; es spricht die Stimme des Geräts.",
+    "save": "Speichern",
+    "saved": "Gespeichert"
   }
 }

@@ -440,6 +440,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/conversations/{id}", s.conversationScoped(s.handleGetConversation))
 	mux.Handle("PATCH /api/v1/conversations/{id}", s.conversationScoped(s.handleRenameConversation))
 	mux.Handle("GET /api/v1/conversations/{id}/messages", s.conversationScoped(s.handleConversationMessages))
+	mux.Handle("GET /api/v1/conversations/{id}/speech", s.conversationScoped(s.handleConversationSpeech))
 	mux.Handle("POST /api/v1/conversations/{id}/messages", s.conversationScoped(s.handlePostConversationMessage))
 	mux.Handle("POST /api/v1/conversations/{id}/read", s.conversationScoped(s.handleConversationRead))
 	mux.Handle("PATCH /api/v1/conversations/{id}/me", s.conversationScoped(s.handleConversationMe))
@@ -777,6 +778,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/voices/{id}/refine", s.rbac(manage, s.handleRefineVoice))
 	// How the agents carrying a voice talk in the team chat (#457).
 	mux.Handle("PUT /api/v1/voices/{id}/chat-tone", s.rbac(manage, s.handleSetVoiceChatTone))
+	mux.Handle("PUT /api/v1/voices/{id}/speech", s.rbac(manage, s.handleSetVoiceSpeech))
 	// The correction pairs (spec/24). The approval gate fills them by itself;
 	// the POST is the way in for the other source — a plugin that notices
 	// somebody editing a published text, which lives in the pack and must not

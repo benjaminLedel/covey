@@ -16,11 +16,13 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 
 	"github.com/google/uuid"
 
+	"covey/internal/chat"
 	"covey/internal/llm"
 	"covey/internal/observability"
 	"covey/internal/style"
@@ -546,6 +548,67 @@ func (s *Server) handleSetVoiceChatTone(w http.ResponseWriter, r *http.Request) 
 	default:
 		writeJSON(w, http.StatusOK, updated)
 	}
+}
+
+// handleSetVoiceSpeech sets how the agents carrying a voice sound when a
+// call speaks their words (#497); an empty body or engine clears it.
+func (s *Server) handleSetVoiceSpeech(w http.ResponseWriter, r *http.Request) {
+	store, v, ok := s.requireVoice(w, r)
+	if !ok {
+		return
+	}
+	var in *voice.Speech
+	if err := readJSON(r, &in); err != nil && !errors.Is(err, io.EOF) {
+		writeErr(w, http.StatusBadRequest, "body not readable")
+		return
+	}
+	if in == nil {
+		in = &voice.Speech{}
+	}
+	updated, err := store.SetSpeech(r.Context(), principalFrom(r).OrgID, v.ID, *in)
+	switch {
+	case errors.Is(err, voice.ErrInvalid):
+		writeErr(w, http.StatusBadRequest, err.Error())
+	case err != nil:
+		mapErr(w, err)
+	default:
+		writeJSON(w, http.StatusOK, updated)
+	}
+}
+
+// handleConversationSpeech says how an agent of the conversation sounds in
+// a call (#497): the voice the #471 rule chooses for the chat occasion —
+// the caller's department, then the agent's chat slot, then the
+// organisation's — and that voice's speech. The Mac app asks this when a
+// call opens; null speech leaves the choice to the app.
+func (s *Server) handleConversationSpeech(w http.ResponseWriter, r *http.Request, c chat.Conversation) {
+	agentID, err := uuid.Parse(r.URL.Query().Get("agent"))
+	if err != nil || !c.Has(chat.Ref{Kind: chat.MemberAgent, ID: agentID}) {
+		writeErr(w, http.StatusNotFound, "no such agent in this conversation")
+		return
+	}
+	out := map[string]any{"speech": nil, "voice": nil, "level": voice.LevelNone}
+	if s.Voices == nil {
+		writeJSON(w, http.StatusOK, out)
+		return
+	}
+	ctx := r.Context()
+	p := principalFrom(r)
+	aud := s.Voices.ConversationAudience(ctx, c.OrgID, c.ID, p.Email)
+	choice := s.Voices.Resolve(ctx, c.OrgID, agentID, voice.OccasionChat, aud)
+	if choice.Found() {
+		v, err := s.Voices.Get(ctx, c.OrgID, choice.VoiceID)
+		if err != nil {
+			mapErr(w, err)
+			return
+		}
+		out["level"] = choice.Level
+		out["voice"] = map[string]any{"id": v.ID, "name": v.Name}
+		if v.Speech != nil {
+			out["speech"] = v.Speech
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // handleGetOrgChatTone / handleSetOrgChatTone: the organisation's default

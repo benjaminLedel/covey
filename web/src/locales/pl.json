@@ -3189,5 +3189,18 @@
     "setting": "Połączenia (test)",
     "settingSwitch": "Dzwoń do agentów",
     "settingHint": "Przycisk połączenia w rozmowie z agentem. Mowa jest rozpoznawana i syntezowana na tym Macu; do rozmowy trafia tylko tekst, oznaczony jako powiedziany w połączeniu."
+  },
+  "voiceSpeech": {
+    "title": "Głos mówiony (połączenia)",
+    "hint": "Obowiązuje, gdy aplikacja na Maca odczytuje w połączeniu odpowiedzi agentów z tym głosem. Bez ustawienia aplikacja wybiera głos dla każdego agenta.",
+    "voice": "Głos",
+    "unset": "Nie ustawiono — wybiera aplikacja",
+    "system": "Głos urządzenia",
+    "placeholder": "tymczasowy",
+    "speaker": "Mówca",
+    "rate": "Tempo {{rate}}×",
+    "noneOffered": "Ta instancja nie oferuje własnych głosów; mówi głos urządzenia.",
+    "save": "Zapisz",
+    "saved": "Zapisano"
   }
 }

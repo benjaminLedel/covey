@@ -1699,6 +1699,9 @@ export type Voice = {
   agents?: { id: string; slug: string; display_name: string }[];
   /** How agents carrying the voice talk in the team chat (#457). */
   chat_tone?: ChatTone;
+  /** How they sound when a call speaks their words (#497); null leaves it
+   *  to the app. */
+  speech?: VoiceSpeech | null;
   /** Where it comes from (#458): measured from texts, or described in words
    *  — then it has no profile and the style gate does not check against it. */
   source: "texts" | "described";
@@ -1729,6 +1732,22 @@ export type ChatTone = {
   tone?: "" | "casual" | "matter_of_fact" | "formal";
   emoji?: "" | "never" | "sparingly" | "freely";
   note?: string;
+};
+/** The spoken voice (#497): a synthesis model of the speech catalogue and
+ *  one of its speakers, or the device's own synthesis. */
+export type VoiceSpeech = {
+  engine: "sherpa-onnx" | "system";
+  model?: string;
+  speaker: number;
+  /** 1 is the model's own rate; 0 or missing means 1. */
+  rate?: number;
+};
+/** A voice the instance offers the apps to speak with (GET /speech/model,
+ *  voices[]). */
+export type OfferedVoice = {
+  name: string;
+  size: number;
+  voice: { family: string; language: string; speakers: number; label: string; licence: string; source: string; placeholder?: boolean };
 };
 export type VoiceDetail = Voice & {
   corpus: VoiceDocument[];

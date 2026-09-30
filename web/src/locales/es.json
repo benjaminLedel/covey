@@ -3189,5 +3189,18 @@
     "setting": "Llamadas (prueba)",
     "settingSwitch": "Llamar a agentes",
     "settingHint": "Un botón de llamada en la conversación con un agente. La voz se reconoce y se sintetiza en este Mac; solo el texto va a la conversación, marcado como dicho en una llamada."
+  },
+  "voiceSpeech": {
+    "title": "Voz hablada (llamadas)",
+    "hint": "Se aplica cuando la app de Mac lee en voz alta, en una llamada, las respuestas de los agentes con esta voz. Sin ella, la app elige una voz por agente.",
+    "voice": "Voz",
+    "unset": "Sin definir — elige la app",
+    "system": "La voz del propio dispositivo",
+    "placeholder": "provisional",
+    "speaker": "Hablante",
+    "rate": "Velocidad {{rate}}×",
+    "noneOffered": "Esta instancia no ofrece voces propias; habla la voz del dispositivo.",
+    "save": "Guardar",
+    "saved": "Guardado"
   }
 }

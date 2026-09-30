@@ -3189,5 +3189,18 @@
     "setting": "Bellen (test)",
     "settingSwitch": "Agenten bellen",
     "settingHint": "Een belknop in het gesprek met een agent. Spraak wordt op deze Mac herkend en uitgesproken; alleen de tekst gaat het gesprek in, gemarkeerd als gezegd in een gesprek."
+  },
+  "voiceSpeech": {
+    "title": "Gesproken stem (gesprekken)",
+    "hint": "Geldt wanneer de Mac-app de antwoorden van agents met deze stem in een gesprek uitspreekt. Zonder instelling kiest de app per agent een stem.",
+    "voice": "Stem",
+    "unset": "Niet ingesteld — de app kiest",
+    "system": "De eigen stem van het apparaat",
+    "placeholder": "tijdelijk",
+    "speaker": "Spreker",
+    "rate": "Tempo {{rate}}×",
+    "noneOffered": "Deze instantie biedt geen eigen stemmen aan; de stem van het apparaat spreekt.",
+    "save": "Opslaan",
+    "saved": "Opgeslagen"
   }
 }

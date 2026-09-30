@@ -3189,5 +3189,18 @@
     "setting": "Calls (trial)",
     "settingSwitch": "Call agents",
     "settingHint": "A call button in the conversation with an agent. Speech is recognised and spoken on this Mac; only the text goes into the conversation, marked as said in a call."
+  },
+  "voiceSpeech": {
+    "title": "Spoken voice (calls)",
+    "hint": "Applies when the Mac app speaks the replies of agents with this voice in a call. Without it the app picks a voice per agent.",
+    "voice": "Voice",
+    "unset": "Not set — the app picks",
+    "system": "The device's own voice",
+    "placeholder": "placeholder",
+    "speaker": "Speaker",
+    "rate": "Rate {{rate}}×",
+    "noneOffered": "This instance offers no voices of its own; the device's voice is spoken.",
+    "save": "Save",
+    "saved": "Saved"
   }
 }
