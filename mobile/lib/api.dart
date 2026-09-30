@@ -524,6 +524,51 @@ class CoveyApi {
     return out['text'] as String;
   }
 
+  /// [text] spoken by the organisation's voice provider as a stream (#497):
+  /// the audio's content type (`audio/mpeg`) and its bytes as they arrive —
+  /// the first sentence plays while the rest is still being synthesised.
+  Future<(String, Stream<List<int>>)> synthesizeSpeechStream(
+    String text, {
+    String voice = '',
+    double speed = 0,
+    String language = '',
+    String instructions = '',
+    String agent = '',
+  }) async {
+    final req = http.Request('POST', _url('/speech/synthesize'))
+      ..headers.addAll({..._headers, 'Content-Type': 'application/json', 'Accept': 'audio/mpeg'})
+      ..body = jsonEncode({
+        'text': text,
+        'stream': true,
+        if (voice.isNotEmpty) 'voice': voice,
+        if (speed > 0 && speed != 1) 'speed': speed,
+        if (language.isNotEmpty) 'language': language,
+        if (instructions.isNotEmpty) 'instructions': instructions,
+        // The agent it is spoken for: the instance files it in its recording.
+        if (agent.isNotEmpty) 'agent': agent,
+      });
+    final watch = Stopwatch()..start();
+    final http.StreamedResponse res;
+    try {
+      res = await _http.send(req).timeout(_timeout);
+    } catch (e) {
+      throw ApiException(0, e.toString());
+    }
+    diag('api', 'POST /speech/synthesize ${res.statusCode} ${watch.elapsedMilliseconds} ms');
+    if (res.statusCode != 200) {
+      final text = await res.stream.bytesToString().catchError((_) => '');
+      var msg = 'HTTP ${res.statusCode}';
+      try {
+        final body = jsonDecode(text);
+        if (body is Map && body['error'] is String) msg = body['error'] as String;
+      } on FormatException {
+        // The status says enough.
+      }
+      throw ApiException(res.statusCode, msg);
+    }
+    return (res.headers['content-type'] ?? '', res.stream);
+  }
+
   /// The model file, from byte [from] on — a download cut off by a lost
   /// connection resumes rather than starting the 150 MB again. No timeout on
   /// the body: it takes as long as the network takes.
@@ -574,6 +619,7 @@ class SpeechModelInfo {
     this.credit,
     this.files = const [],
     this.clean = false,
+    this.synthesize = false,
   });
 
   factory SpeechModelInfo.fromJson(Map<String, dynamic> j) => SpeechModelInfo(
@@ -590,6 +636,7 @@ class SpeechModelInfo {
       for (final m in (j['models'] as List<dynamic>? ?? const [])) SpeechModelInfo.fromJson(m as Map<String, dynamic>),
     ],
     clean: j['clean'] == true,
+    synthesize: j['synthesize'] == true,
     engine: j['engine'] as String? ?? 'parakeet',
     credit: j['credit'] as String?,
     files: [
@@ -629,6 +676,10 @@ class SpeechModelInfo {
 
   /// Whether the instance can clean dictated text up (#355).
   final bool clean;
+
+  /// Whether the organisation has a voice provider (#497) that calls speak
+  /// through ([CoveyApi.synthesizeSpeechStream]).
+  final bool synthesize;
 }
 
 /// One file of a speech model.

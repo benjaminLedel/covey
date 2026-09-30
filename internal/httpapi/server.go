@@ -243,6 +243,8 @@ type Server struct {
 	registerLimiter *webhookLimiter
 	webhookLimiter  *webhookLimiter
 	relayLimiter    *webhookLimiter
+	// synthLimiter caps speech synthesis per seat (#497).
+	synthLimiter *webhookLimiter
 
 	// routen is the route list from dist/app-routes.json
 	// (internal/httpapi/approutes.go): which paths the SPA shell answers and
@@ -265,6 +267,9 @@ func (s *Server) Handler() http.Handler {
 	}
 	if s.webhookLimiter == nil {
 		s.webhookLimiter = newWebhookLimiter()
+	}
+	if s.synthLimiter == nil {
+		s.synthLimiter = newSynthLimiter()
 	}
 	s.routen = ladeAppRouten(s.WebFS)
 	mux := http.NewServeMux()
@@ -342,6 +347,8 @@ func (s *Server) Handler() http.Handler {
 	// The speech model (#348, speech.go): what it is, and the file itself.
 	mux.Handle("GET /api/v1/speech/model", s.auth(s.handleSpeechModel))
 	mux.Handle("GET /api/v1/speech/model/file", s.auth(s.handleSpeechModelFile))
+	mux.Handle("POST /api/v1/speech/synthesize", s.auth(s.handleSynthesize))
+	mux.Handle("POST /api/v1/speech/transcribe", s.auth(s.handleTranscribe))
 	// The activity log (#363, activity.go): the caller's own, like the notes.
 	mux.Handle("POST /api/v1/me/activity", s.auth(s.handleAddActivity))
 	mux.Handle("GET /api/v1/me/activity", s.auth(s.handleListActivity))
@@ -440,6 +447,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/conversations/{id}", s.conversationScoped(s.handleGetConversation))
 	mux.Handle("PATCH /api/v1/conversations/{id}", s.conversationScoped(s.handleRenameConversation))
 	mux.Handle("GET /api/v1/conversations/{id}/messages", s.conversationScoped(s.handleConversationMessages))
+	mux.Handle("GET /api/v1/conversations/{id}/speech", s.conversationScoped(s.handleConversationSpeech))
 	mux.Handle("POST /api/v1/conversations/{id}/messages", s.conversationScoped(s.handlePostConversationMessage))
 	mux.Handle("POST /api/v1/conversations/{id}/read", s.conversationScoped(s.handleConversationRead))
 	mux.Handle("PATCH /api/v1/conversations/{id}/me", s.conversationScoped(s.handleConversationMe))
@@ -570,6 +578,10 @@ func (s *Server) Handler() http.Handler {
 	// triage switch and for the same roles.
 	mux.Handle("GET /api/v1/org/chat-tone", s.rbac(anyRole, s.handleGetOrgChatTone))
 	mux.Handle("PATCH /api/v1/org/chat-tone", s.rbac(manage, s.handleSetOrgChatTone))
+	// The voice provider calls speak through (#497, voiceprovider.go).
+	mux.Handle("GET /api/v1/org/voice-provider", s.rbac(manage, s.handleGetVoiceProvider))
+	mux.Handle("PATCH /api/v1/org/voice-provider", s.rbac(manage, s.handleSetVoiceProvider))
+	mux.Handle("POST /api/v1/org/voice-provider/test", s.rbac(manage, s.handleTestVoiceProvider))
 	// The team surface is an opt-in per organisation while it is in beta
 	// (#328): every role may read whether it is on — the interface picks its
 	// shell by it — and whoever manages the organisation switches it.
@@ -777,6 +789,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/voices/{id}/refine", s.rbac(manage, s.handleRefineVoice))
 	// How the agents carrying a voice talk in the team chat (#457).
 	mux.Handle("PUT /api/v1/voices/{id}/chat-tone", s.rbac(manage, s.handleSetVoiceChatTone))
+	mux.Handle("PUT /api/v1/voices/{id}/speech", s.rbac(manage, s.handleSetVoiceSpeech))
 	// The correction pairs (spec/24). The approval gate fills them by itself;
 	// the POST is the way in for the other source — a plugin that notices
 	// somebody editing a published text, which lives in the pack and must not

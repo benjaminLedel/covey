@@ -20,6 +20,7 @@ Eine Stimme trägt:
 - eine **Karte** — 250 bis 400 Wörter darüber, wie der Autor einsteigt, argumentiert, Fakten einbringt, Sätze baut und was er nie tut;
 - **Passagen** — fünf bis acht Absätze, die die Hand zeigen; sie stehen im Prompt;
 - einen **Chat-Ton** — Anrede, Ton und Emoji im Team-Chat;
+- auf Wunsch eine **gesprochene Stimme** — wie die Agenten mit dieser Stimme klingen, wenn ein Anruf ihre Antworten über den Stimmen-Anbieter der Organisation spricht: der Name der Stimme dort, ein kurzer Stilhinweis und das Tempo; ohne sie spricht die Standardstimme des Anbieters, im Stil des Chat-Tons. Die Seite der Stimme spielt einen Beispielsatz über den Anbieter ab;
 - wenn sie aus Texten gemessen ist: ein **Profil**, an dem die Stilprüfung jeden ausgehenden Text misst, und einen **Kontrast** zu KI-Text, wenn eine Referenz hochgeladen wurde.
 
 ## Welche Stimme gilt: je Anlass und je Leser

@@ -14,7 +14,17 @@ class _Recorder {
   int speech = 0;
   int discarded = 0;
   final turns = <Uint8List>[];
-  late final seg = TurnSegmenter(onSpeech: () => speech++, onTurn: turns.add, onDiscard: () => discarded++);
+  final cuts = <TurnCut>[];
+  final stats = <TurnStats>[];
+  late final seg = TurnSegmenter(
+    onSpeech: () => speech++,
+    onTurn: (pcm, stats) {
+      turns.add(pcm);
+      cuts.add(stats.cut);
+      this.stats.add(stats);
+    },
+    onDiscard: () => discarded++,
+  );
 
   /// [ms] of voice (or of silence), in whole windows.
   void feed(int ms, {required bool voiced, int value = 1}) {
@@ -103,5 +113,23 @@ void main() {
     expect(looksLikeEcho('Warte, nicht die für Initech, die für Globex!', said), isFalse);
     expect(looksLikeEcho('Stopp', said), isFalse, reason: 'one word is no evidence');
     expect(looksLikeEcho('die Rechnung', ''), isFalse);
+  });
+
+  test('each turn says how it was cut and what was heard in it (#498)', () {
+    final r = _Recorder();
+    r.feed(640, voiced: true);
+    r.feed(320, voiced: false);
+    r.feed(320, voiced: true);
+    r.feed(736, voiced: false);
+    expect(r.cuts, [TurnCut.pause]);
+    final s = r.stats.single;
+    expect(s.speech, const Duration(milliseconds: 960));
+    expect(s.silence.inMilliseconds, greaterThanOrEqualTo(700));
+    expect(s.longestRun, const Duration(milliseconds: 640));
+    expect(s.voicedWindows, 30);
+    expect(s.windows, greaterThan(s.voicedWindows));
+
+    r.feed(31000, voiced: true);
+    expect(r.cuts.last, TurnCut.cap, reason: 'thirty seconds without a pause');
   });
 }

@@ -1,5 +1,6 @@
 import AVFoundation
 import ApplicationServices
+import AudioToolbox
 import Cocoa
 import Intents
 import CoreAudio
@@ -1113,13 +1114,32 @@ final class SystemAudioTap {
   }
 }
 
-/// The agent's voice in a call (#494): AVSpeechSynthesizer speaks what Dart
-/// hands over and reports back when it starts, reaches a word, and ends —
-/// the face moves its mouth on the words. NaturalLanguage tells which
-/// language a reply is in, so it is spoken in a voice of that language.
+/// The agent's voice in a call. It is the organisation's voice provider
+/// (#497): its MP3 streams in through Dart, is decoded here as it arrives
+/// ("decode"), and comes back as samples, which an AVAudioPlayerNode plays
+/// in the order they come. Only without a provider does AVSpeechSynthesizer
+/// speak what Dart hands over (#494), reporting back when it starts,
+/// reaches a word, and ends — the face moves its mouth on the words.
+/// NaturalLanguage tells which language a reply is in, so it is spoken in a
+/// voice of that language.
+///
+/// For the played samples, "started" is reported when the first plays,
+/// "finished" when the last marked as such has been played, "cancelled"
+/// when it was stopped.
 final class SpeechVoice: NSObject, AVSpeechSynthesizerDelegate {
   private let channel: FlutterMethodChannel
   private let synth = AVSpeechSynthesizer()
+  private let engine = AVAudioEngine()
+  private let player = AVAudioPlayerNode()
+  private var playerFormat: AVAudioFormat?
+  /// The utterance being played, how many of its buffers are still queued,
+  /// and whether its last buffer has come.
+  private var playing = 0
+  private var queued = 0
+  private var lastQueued = false
+  /// The decoder of a compressed stream per utterance: the voice provider's
+  /// MP3.
+  private var decoders: [Int: StreamDecoder] = [:]
   /// Which of Dart's requests an utterance is, so a late "cancelled" of the
   /// previous one does not end the next.
   private var ids: [ObjectIdentifier: Int] = [:]
@@ -1158,19 +1178,109 @@ final class SpeechVoice: NSObject, AVSpeechSynthesizerDelegate {
       } else if let lang = args["language"] as? String {
         utterance.voice = AVSpeechSynthesisVoice(language: lang)
       }
-      utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+      stopPlaying()
+      let pace = args["rate"] as? Double ?? 1
+      utterance.rate = min(
+        AVSpeechUtteranceMaximumSpeechRate, max(AVSpeechUtteranceMinimumSpeechRate, AVSpeechUtteranceDefaultSpeechRate * Float(pace)))
       // A short breath before a reply, as somebody draws in air to answer.
       utterance.preUtteranceDelay = 0.1
       ids[ObjectIdentifier(utterance)] = args["id"] as? Int ?? 0
       if synth.isSpeaking { synth.stopSpeaking(at: .immediate) }
       synth.speak(utterance)
       result(nil)
+    case "play":
+      guard let data = args["samples"] as? FlutterStandardTypedData,
+        let rate = args["sampleRate"] as? Int, rate > 0
+      else {
+        return result(FlutterError(code: "args", message: "samples and sampleRate", details: nil))
+      }
+      do {
+        try play(id: args["id"] as? Int ?? 0, data: data.data, rate: Double(rate), last: args["last"] as? Bool ?? true)
+        result(nil)
+      } catch {
+        result(FlutterError(code: "play", message: error.localizedDescription, details: nil))
+      }
+    case "decodeOpen":
+      let id = args["id"] as? Int ?? 0
+      // Only the utterance being prepared keeps a decoder.
+      decoders.removeAll()
+      decoders[id] = StreamDecoder(hint: kAudioFileMP3Type)
+      result(decoders[id] != nil)
+    case "decode":
+      guard let d = decoders[args["id"] as? Int ?? 0], let bytes = args["bytes"] as? FlutterStandardTypedData else {
+        return result(["samples": FlutterStandardTypedData(float32: Data()), "sampleRate": 0])
+      }
+      let samples = d.feed(bytes.data)
+      let data = samples.withUnsafeBufferPointer { Data(buffer: $0) }
+      result(["samples": FlutterStandardTypedData(float32: data), "sampleRate": Int(d.sampleRate)])
+    case "decodeClose":
+      decoders.removeValue(forKey: args["id"] as? Int ?? 0)
+      result(nil)
     case "stop":
       synth.stopSpeaking(at: .immediate)
+      stopPlaying()
+      decoders.removeAll()
       result(nil)
     default:
       result(FlutterMethodNotImplemented)
     }
+  }
+
+  /// Queues one buffer of Float32 samples for utterance [id]; a new id stops
+  /// what played before. Called on the main thread, as the channel is.
+  private func play(id: Int, data: Data, rate: Double, last: Bool) throws {
+    if synth.isSpeaking { synth.stopSpeaking(at: .immediate) }
+    if id != playing { stopPlaying() }
+    let count = data.count / MemoryLayout<Float>.size
+    guard count > 0, let format = AVAudioFormat(standardFormatWithSampleRate: rate, channels: 1),
+      let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(count))
+    else { return }
+    buffer.frameLength = AVAudioFrameCount(count)
+    data.withUnsafeBytes { raw in
+      if let src = raw.bindMemory(to: Float.self).baseAddress {
+        buffer.floatChannelData![0].update(from: src, count: count)
+      }
+    }
+    if playerFormat != format {
+      if playerFormat == nil { engine.attach(player) }
+      engine.connect(player, to: engine.mainMixerNode, format: format)
+      playerFormat = format
+    }
+    if !engine.isRunning {
+      engine.prepare()
+      try engine.start()
+    }
+    let first = id != playing || queued == 0 && !player.isPlaying
+    playing = id
+    queued += 1
+    lastQueued = last
+    player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
+      DispatchQueue.main.async { self?.played(id) }
+    }
+    if first {
+      player.play()
+      send("started") { ["id": id] }
+    }
+  }
+
+  /// One buffer of [id] has been played back, or dropped by a stop.
+  private func played(_ id: Int) {
+    guard id == playing, queued > 0 else { return }
+    queued -= 1
+    if queued == 0 && lastQueued {
+      playing = 0
+      send("finished") { ["id": id] }
+    }
+  }
+
+  private func stopPlaying() {
+    let id = playing
+    let wasPlaying = queued > 0
+    playing = 0
+    queued = 0
+    lastQueued = false
+    if playerFormat != nil { player.stop() }
+    if wasPlaying { send("cancelled") { ["id": id] } }
   }
 
   /// The synthesiser's delegate may be called off the main thread; the
@@ -1203,5 +1313,93 @@ final class SpeechVoice: NSObject, AVSpeechSynthesizerDelegate {
   func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
     let key = ObjectIdentifier(utterance)
     send("cancelled") { [weak self] in ["id": self?.ids.removeValue(forKey: key) ?? 0] }
+  }
+}
+
+/// Decodes a compressed audio stream (MP3 from the voice provider, #497) as its
+/// bytes arrive: AudioFileStream finds the packets, AVAudioConverter turns
+/// them into Float32 mono samples at the stream's own rate.
+final class StreamDecoder {
+  private var stream: AudioFileStreamID?
+  private var converter: AVAudioConverter?
+  private var inFormat: AVAudioFormat?
+  private var outFormat: AVAudioFormat?
+  private var maxPacket: UInt32 = 0
+  private var out: [Float] = []
+  private(set) var sampleRate: Double = 0
+
+  init?(hint: AudioFileTypeID) {
+    let me = Unmanaged.passUnretained(self).toOpaque()
+    let status = AudioFileStreamOpen(me, { client, stream, property, _ in
+      Unmanaged<StreamDecoder>.fromOpaque(client).takeUnretainedValue().property(stream, property)
+    }, { client, bytes, packets, data, descriptions in
+      Unmanaged<StreamDecoder>.fromOpaque(client).takeUnretainedValue().packets(bytes, packets, data, descriptions)
+    }, hint, &stream)
+    if status != noErr { return nil }
+  }
+
+  deinit {
+    if let s = stream { AudioFileStreamClose(s) }
+  }
+
+  /// The samples the bytes complete; empty until the stream's format is known.
+  func feed(_ data: Data) -> [Float] {
+    guard let s = stream, !data.isEmpty else { return [] }
+    out.removeAll(keepingCapacity: true)
+    data.withUnsafeBytes { raw in
+      _ = AudioFileStreamParseBytes(s, UInt32(data.count), raw.baseAddress, [])
+    }
+    return out
+  }
+
+  private func property(_ s: AudioFileStreamID, _ id: AudioFileStreamPropertyID) {
+    guard id == kAudioFileStreamProperty_ReadyToProducePackets else { return }
+    var asbd = AudioStreamBasicDescription()
+    var size = UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
+    guard AudioFileStreamGetProperty(s, kAudioFileStreamProperty_DataFormat, &size, &asbd) == noErr else { return }
+    var maxSize = UInt32(MemoryLayout<UInt32>.size)
+    var packet: UInt32 = 0
+    if AudioFileStreamGetProperty(s, kAudioFileStreamProperty_PacketSizeUpperBound, &maxSize, &packet) == noErr {
+      maxPacket = packet
+    }
+    if maxPacket == 0 { maxPacket = 4096 }
+    guard let input = AVAudioFormat(streamDescription: &asbd),
+      let output = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: asbd.mSampleRate, channels: 1, interleaved: false)
+    else { return }
+    inFormat = input
+    outFormat = output
+    sampleRate = asbd.mSampleRate
+    converter = AVAudioConverter(from: input, to: output)
+  }
+
+  private func packets(
+    _ bytes: UInt32, _ count: UInt32, _ data: UnsafeRawPointer, _ descriptions: UnsafeMutablePointer<AudioStreamPacketDescription>?
+  ) {
+    guard let converter, let inFormat, let outFormat, count > 0, let descriptions else { return }
+    let buffer = AVAudioCompressedBuffer(format: inFormat, packetCapacity: AVAudioPacketCount(count), maximumPacketSize: Int(max(maxPacket, bytes)))
+    memcpy(buffer.data, data, Int(bytes))
+    buffer.byteLength = bytes
+    buffer.packetCount = AVAudioPacketCount(count)
+    if let target = buffer.packetDescriptions {
+      target.update(from: descriptions, count: Int(count))
+    }
+    let perPacket = inFormat.streamDescription.pointee.mFramesPerPacket
+    let capacity = AVAudioFrameCount(count) * AVAudioFrameCount(perPacket == 0 ? 1152 : perPacket) + 4096
+    guard let pcm = AVAudioPCMBuffer(pcmFormat: outFormat, frameCapacity: capacity) else { return }
+    var given = false
+    var error: NSError?
+    let status = converter.convert(to: pcm, error: &error) { _, state in
+      if given {
+        state.pointee = .noDataNow
+        return nil
+      }
+      given = true
+      state.pointee = .haveData
+      return buffer
+    }
+    if status == .error { return }
+    if let ch = pcm.floatChannelData?[0], pcm.frameLength > 0 {
+      out.append(contentsOf: UnsafeBufferPointer(start: ch, count: Int(pcm.frameLength)))
+    }
   }
 }

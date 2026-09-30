@@ -31,7 +31,7 @@ void main() {
     await _settle();
     expect(call.mode, CallMode.speaking);
     expect(speaker.spoken.single.$1, 'Der Export läuft, fertig in zehn Minuten.');
-    expect(speaker.spoken.single.$2, startsWith('de.'));
+    expect(speaker.spoken.single.$2, 'de');
     speaker.word();
     await _settle();
     expect(call.wordTicks.value, 1);

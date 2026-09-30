@@ -54,6 +54,10 @@ type Voice struct {
 	// ChatTone is how an agent carrying this voice talks in the team chat
 	// (#457) — set, not built (chattone.go).
 	ChatTone ChatTone `json:"chat_tone"`
+	// Speech is how the agents carrying it sound when a call speaks their
+	// words through the voice provider (#497); nil leaves it to the
+	// provider's default voice (speech.go).
+	Speech *Speech `json:"speech"`
 	// Source is where the voice comes from (#458): FromTexts, measured from a
 	// corpus, or FromDescription, written from a description in words and
 	// carrying no profile (describe.go).
@@ -504,6 +508,31 @@ func (s *Store) SetChatTone(ctx context.Context, orgID, id uuid.UUID, tone ChatT
 	return s.Get(ctx, orgID, id)
 }
 
+// SetSpeech stores how the agents carrying this voice sound when their
+// words are spoken (#497); an empty speech clears it. Like the chat tone,
+// not a config version: it acts in the app, not in a run.
+func (s *Store) SetSpeech(ctx context.Context, orgID, id uuid.UUID, in Speech) (Voice, error) {
+	sp, err := in.Normalized()
+	if err != nil {
+		return Voice{}, err
+	}
+	var raw []byte
+	if sp != nil {
+		if raw, err = json.Marshal(sp); err != nil {
+			return Voice{}, err
+		}
+	}
+	tag, err := s.pool.Exec(ctx, `UPDATE voices SET speech=$3, updated_at=now() WHERE org_id=$1 AND id=$2`,
+		orgID, id, raw)
+	if err != nil {
+		return Voice{}, err
+	}
+	if tag.RowsAffected() == 0 {
+		return Voice{}, ErrNotFound
+	}
+	return s.Get(ctx, orgID, id)
+}
+
 // OrgChatTone is the organisation's default tone in the team chat.
 func (s *Store) OrgChatTone(ctx context.Context, orgID uuid.UUID) (ChatTone, error) {
 	var raw []byte
@@ -555,18 +584,18 @@ func (s *Store) carriers(ctx context.Context, voiceID uuid.UUID) ([]AgentRef, er
 const selectVoices = `SELECT v.id, v.org_id, v.name, v.language, v.version, v.profile, v.exemplars,
 	v.contrast, v.notes, v.card, v.released_card, v.released_at, v.words, v.documents,
 	v.built_at, v.created_at, v.updated_at, v.chat_tone, v.source, v.purpose, v.description,
-	v.draft_exemplars, v.suggested_chat_tone, d.id, d.slug, d.display_name
+	v.draft_exemplars, v.suggested_chat_tone, v.speech, d.id, d.slug, d.display_name
 	FROM voices v LEFT JOIN agents d ON d.id = v.drafted_by`
 
 func scanVoice(rows pgx.Rows) (Voice, error) {
 	var v Voice
-	var profile, exemplars, contrast, notes, tone, draftEx, suggested []byte
+	var profile, exemplars, contrast, notes, tone, draftEx, suggested, spoken []byte
 	var byID *uuid.UUID
 	var bySlug, byName *string
 	if err := rows.Scan(&v.ID, &v.OrgID, &v.Name, &v.Language, &v.Version, &profile, &exemplars,
 		&contrast, &notes, &v.Card, &v.ReleasedCard, &v.ReleasedAt, &v.Words, &v.Documents,
 		&v.BuiltAt, &v.CreatedAt, &v.UpdatedAt, &tone, &v.Source, &v.Purpose, &v.Description,
-		&draftEx, &suggested, &byID, &bySlug, &byName); err != nil {
+		&draftEx, &suggested, &spoken, &byID, &bySlug, &byName); err != nil {
 		return Voice{}, err
 	}
 	if byID != nil {
@@ -575,6 +604,13 @@ func scanVoice(rows pgx.Rows) (Voice, error) {
 	_ = json.Unmarshal(draftEx, &v.DraftExemplars)
 	_ = json.Unmarshal(suggested, &v.SuggestedChatTone)
 	_ = json.Unmarshal(tone, &v.ChatTone)
+	if len(spoken) > 0 && string(spoken) != "null" {
+		// A stored speech the provider cannot take any longer reads as unset.
+		var sp Speech
+		if json.Unmarshal(spoken, &sp) == nil {
+			v.Speech, _ = sp.Normalized()
+		}
+	}
 	_ = json.Unmarshal(profile, &v.Profile)
 	_ = json.Unmarshal(exemplars, &v.Exemplars)
 	_ = json.Unmarshal(contrast, &v.Contrast)

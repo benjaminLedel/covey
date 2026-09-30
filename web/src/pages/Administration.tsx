@@ -4,6 +4,7 @@ import { NavLink, Route, Routes } from "react-router";
 import { api, type Agent, type Human, type OrgCostReport, type Organization, type Principal } from "../api";
 import Audit from "./Audit";
 import Diagnostics from "./Diagnostics";
+import { VoiceProviderSettings } from "../components/VoiceProviderSettings";
 import { ChatToneSettings, CompanyDescription, OfficeFurnishing, PlatformRepo, PushSettings, ReachSettings, RecordingSettings, TeamSurfaceSettings, TriageSettings } from "./Org";
 import { ProfileFieldsSettings } from "./Organizations";
 import { OrgVoiceDefaults } from "./voices/Slots";
@@ -83,6 +84,7 @@ function Profile({ me }: { me: Principal }) {
       <TriageSettings />
       <ReachSettings me={me} />
       <ChatToneSettings me={me} />
+      <VoiceProviderSettings me={me} />
       <OrgVoiceDefaults me={me} />
       <RecordingSettings />
       <PlatformRepo />
