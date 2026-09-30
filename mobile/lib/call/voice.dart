@@ -86,6 +86,10 @@ abstract class VoiceOutput implements StreamDecoding {
   void dispose();
 }
 
+/// How sure the recogniser must be before a reply's language counts: a
+/// German sentence with English terms scores around 0.6–0.8 for English.
+const languageConfidence = 0.9;
+
 /// The Mac's side of [VoiceOutput].
 class MacVoiceOutput implements VoiceOutput {
   MacVoiceOutput() {
@@ -128,7 +132,7 @@ class MacVoiceOutput implements VoiceOutput {
       final r = await _channel.invokeMapMethod<String, Object?>('language', {'text': text});
       final p = (r?['confidence'] as num?)?.toDouble() ?? 0;
       final lang = r?['language'];
-      return p >= 0.6 && lang is String ? lang : null;
+      return p >= languageConfidence && lang is String ? lang : null;
     } on PlatformException {
       return null;
     }
