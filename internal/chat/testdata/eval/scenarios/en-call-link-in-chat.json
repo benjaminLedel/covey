@@ -1,0 +1,55 @@
+{
+  "name": "en-call-link-in-chat",
+  "language": "en",
+  "kind": "triage",
+  "call": true,
+  "about": "A call answer whose written form carries a link: the spoken form says where it is in words and leaves the address to the chat.",
+  "conversation": {
+    "kind": "direct"
+  },
+  "person": {
+    "name": "Carla Code",
+    "job_title": "Engineer",
+    "department": "Engineering",
+    "responsibilities": "demo environment, deployments",
+    "technical": true
+  },
+  "agent": {
+    "name": "Sam",
+    "slug": "sam",
+    "role": "Sam — Support agent — answers customer requests in the support inbox and keeps the support wiki",
+    "soul": "# Sam\n\nYou are Sam, a support colleague at Example Ltd. You look after the support inbox and keep the support wiki up to date. You talk like a friendly colleague: short, concrete, no filler."
+  },
+  "org_chart": "People on the team:\n- Ada Lovelace — Head of Sales — customer contracts\n- Bernd Brot — Head of Support — your manager\n- Carla Code — Engineer — demo environment, deployments\nAI colleagues:\n- Quirina Tester (quirina) — QA — checks releases before they ship\n- Fritz Ledger (fritz) — Accounting — invoices and reminders",
+  "open_tasks": [],
+  "finished_tasks": [
+    {
+      "title": "Write the runbook for restarting the demo",
+      "outcome": "done",
+      "age": "1 day ago",
+      "result": "Runbook written: https://wiki.example.org/support/demo-restart — section 3 covers the memory limit."
+    }
+  ],
+  "message": "Where did you put the runbook for restarting the demo?",
+  "expect": {
+    "action": [
+      "answer"
+    ]
+  },
+  "checks": {
+    "max_sentences": 3,
+    "must_contain": [
+      "https://wiki.example.org/support/demo-restart"
+    ],
+    "spoken_must_not_contain": [
+      "http",
+      "wiki.example.org",
+      "/"
+    ],
+    "spoken_must_contain_any": [
+      "wiki",
+      "runbook"
+    ]
+  },
+  "recorded": "{\"action\": \"answer\", \"text\": \"It's in the wiki: https://wiki.example.org/support/demo-restart \\u2014 section 3 covers the memory limit.\", \"spoken\": \"It's in the support wiki, under restarting the demo. The part about the memory limit is section three.\", \"details_in_chat\": true}"
+}

@@ -56,6 +56,8 @@ type evalRahmen struct {
 	// The config proposals of #491: offered or not, and the heartbeat.
 	Vorschlaege bool
 	Takt        string
+	// The call of #502: the message was said aloud.
+	Anruf bool
 }
 
 // evalVoice is a voice of the scenario's library, as far as the chat reads
@@ -149,6 +151,9 @@ type evalScenario struct {
 	// triage may choose "config"; Heartbeat is the agent's HEARTBEAT.md.
 	ConfigProposals bool   `json:"config_proposals"`
 	Heartbeat       string `json:"heartbeat"`
+	// Call: the message was said aloud in a call (#502), so the triage
+	// gives a spoken form beside the written one.
+	Call bool `json:"call"`
 
 	Expect struct {
 		Action    []string `json:"action"`
@@ -167,6 +172,9 @@ type evalScenario struct {
 		MustContain    []string `json:"must_contain"`
 		MustContainAny []string `json:"must_contain_any"`
 		MustNotContain []string `json:"must_not_contain"`
+		// Of the spoken form in a call (#502).
+		SpokenMustNotContain []string `json:"spoken_must_not_contain"`
+		SpokenMustContainAny []string `json:"spoken_must_contain_any"`
 	} `json:"checks"`
 	// Recorded is a good answer as the model gives it: the raw triage output,
 	// or the narrated chat line.
@@ -252,6 +260,7 @@ func (sc evalScenario) rahmen() evalRahmen {
 		Raum: evalRaum(sc.gespraech(), sc.agentID(), sc.Person.Name, sc.Kind == "triage"),
 		Ton:  w.Ton, Stimme: w.Stimme, Publikum: w.Publikum,
 		Vorschlaege: sc.ConfigProposals, Takt: sc.Heartbeat,
+		Anruf: sc.Call,
 	}
 }
 
@@ -309,8 +318,12 @@ type evalAusgabe struct {
 	// Aktion is the triage's first decision; Endgueltig the one after a search.
 	Aktion, Endgueltig Aktion
 	Text               string
-	Angesprochen       *bool
-	Fehler             error
+	// Gesprochen is the spoken form in a call (#502), Details whether it
+	// left details for the chat.
+	Gesprochen   string
+	Details      bool
+	Angesprochen *bool
+	Fehler       error
 }
 
 // ausgabe is what a decision says in the conversation: the text of an
@@ -325,7 +338,11 @@ func ausgabe(e Entscheidung) evalAusgabe {
 	if e.Aktion == AktionKonfig {
 		text = strings.ReplaceAll(text, ApproversPlatzhalter, "Bernd")
 	}
-	return evalAusgabe{Aktion: e.Aktion, Endgueltig: e.Aktion, Text: text}
+	gesprochen := e.Gesprochen
+	if e.Aktion == AktionKonfig {
+		gesprochen = strings.ReplaceAll(gesprochen, ApproversPlatzhalter, "Bernd")
+	}
+	return evalAusgabe{Aktion: e.Aktion, Endgueltig: e.Aktion, Text: text, Gesprochen: gesprochen, Details: e.DetailsImChat}
 }
 
 // aufgezeichnet reads a recorded answer the way covey reads the model's.
@@ -340,7 +357,7 @@ func aufgezeichnet(sc evalScenario, roh string) evalAusgabe {
 	if err != nil {
 		return evalAusgabe{Fehler: err}
 	}
-	return ausgabe(e)
+	return ausgabe(fuerAnruf(e, sc.Call))
 }
 
 func angesprochen(sc evalScenario) *bool {
@@ -580,6 +597,67 @@ func pruefen(sc evalScenario, a evalAusgabe) []befund {
 			}
 		}
 	}
+	if sc.Call {
+		out = append(out, pruefenGesprochen(sc, a)...)
+	}
+	return out
+}
+
+var (
+	// What a spoken form must not carry (#502): a reference written for
+	// reading — an issue or pipeline number, a merge request, a ticket key,
+	// a link — and the marks of writing.
+	gesprocheneKennung = regexp.MustCompile(`#\s?\d|![0-9]|\b[A-Z][A-Z0-9]+-\d+\b|https?://|www\.|\b[\w.-]+\.(org|com|de|io|net)/`)
+	gesprocheneSchrift = regexp.MustCompile(`[()\[\]{}*_|<>]|^\s*[-•]\s`)
+)
+
+// pruefenGesprochen checks the spoken form of a call scenario (#502): it is
+// there, at most three sentences, in the language of the message, with no
+// ids, links, emoji or marks of writing, and none of the machinery.
+func pruefenGesprochen(sc evalScenario, a evalAusgabe) []befund {
+	var out []befund
+	add := func(check, format string, args ...any) {
+		out = append(out, befund{check, fmt.Sprintf(format, args...)})
+	}
+	if a.Endgueltig == AktionSuche {
+		return nil
+	}
+	g := strings.TrimSpace(a.Gesprochen)
+	if g == "" {
+		add("spoken", "a message said in a call got no spoken form")
+		return out
+	}
+	klein := strings.ToLower(g)
+	if n := saetze(g); n > 3 {
+		add("spoken_sentences", "%d, at most 3", n)
+	}
+	if l := sprache(g); l != "" && sc.Language != "" && l != sc.Language {
+		add("spoken_language", "reads as %s, want %s", l, sc.Language)
+	}
+	if m := gesprocheneKennung.FindString(g); m != "" {
+		add("spoken_ids", "%q", m)
+	}
+	if m := gesprocheneSchrift.FindString(g); m != "" {
+		add("spoken_form", "%q", m)
+	}
+	if n := emojis(g); n > 0 {
+		add("spoken_form", "%d emoji", n)
+	}
+	for _, m := range metaPhrasen {
+		if alsWort(klein, m) {
+			add("meta", "spoken %q", m)
+		}
+	}
+	for _, m := range sc.Checks.SpokenMustNotContain {
+		if strings.Contains(klein, strings.ToLower(m)) {
+			add("spoken_must_not_contain", "%q", m)
+		}
+	}
+	if len(sc.Checks.SpokenMustContainAny) > 0 && !slices.ContainsFunc(sc.Checks.SpokenMustContainAny, func(m string) bool {
+		return strings.Contains(klein, strings.ToLower(m))
+	}) {
+		add("spoken_must_contain", "none of %q", sc.Checks.SpokenMustContainAny)
+	}
 	return out
 }
 
@@ -644,6 +722,26 @@ func TestEvalSzenarienSindVollstaendig(t *testing.T) {
 	for _, will := range []string{"department", "chat beside customers", "none, customers tone", "mixed group", "audience line"} {
 		if !faelle[will] {
 			t.Errorf("no voice scenario of %q (#471)", will)
+		}
+	}
+	// The call of #502: in both languages, an answer and a task's
+	// acknowledgement among them.
+	anruf := map[string]bool{}
+	for _, sc := range szenarien {
+		if !sc.Call {
+			continue
+		}
+		if sc.Kind != "triage" {
+			t.Errorf("%s: a call scenario is a triage scenario", sc.Name)
+		}
+		anruf[sc.Language] = true
+		for _, a := range sc.Expect.Action {
+			anruf[a] = true
+		}
+	}
+	for _, will := range []string{"de", "en", "answer", "task"} {
+		if !anruf[will] {
+			t.Errorf("no call scenario of %q (#502)", will)
 		}
 	}
 }

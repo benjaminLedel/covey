@@ -1,0 +1,61 @@
+{
+  "name": "de-anruf-merge-request",
+  "language": "de",
+  "kind": "triage",
+  "call": true,
+  "about": "The case of #502: in a call the written answer keeps its ids for the chat, and the spoken one says what they are — no ticket key, no merge request number.",
+  "conversation": {
+    "kind": "direct"
+  },
+  "person": {
+    "name": "Carla Code",
+    "job_title": "Entwicklerin",
+    "department": "Entwicklung",
+    "responsibilities": "Anwendung, Releases",
+    "technical": true
+  },
+  "agent": {
+    "name": "Dev",
+    "slug": "dev",
+    "role": "Dev — Entwickler-Agent — behebt Fehler im Anwendungs-Repository und stellt Merge Requests",
+    "soul": "# Dev\n\nDu bist Dev, Entwickler bei der Example GmbH. Du behebst Fehler, schreibst Tests und stellst Merge Requests. Du redest wie ein Kollege aus dem Team: kurz, genau, ohne Floskeln."
+  },
+  "tone": {
+    "address": "du",
+    "tone": "casual",
+    "emoji": "sparingly"
+  },
+  "org_chart": "Menschen im Team:\n- Carla Code — Entwicklerin — Anwendung, Releases\n- Gertrud Gründlich — Entwicklerin — Code-Reviews\n- Bernd Brot — Leitung Entwicklung — dein Vorgesetzter\nKI-Kollegen:\n- Quirina Prüfgeist (quirina) — QA — prüft Releases, bevor sie rausgehen",
+  "open_tasks": [],
+  "finished_tasks": [
+    {
+      "title": "DLES-273: Login schlägt nach Passwortwechsel fehl",
+      "outcome": "done",
+      "age": "vor 2 Stunden",
+      "result": "Fehler behoben, MR !475 gestellt, alle Tests grün. Review bei Gertrud angefragt."
+    }
+  ],
+  "message": "Der Login-Fix ist noch nicht drin, oder?",
+  "expect": {
+    "action": [
+      "answer"
+    ]
+  },
+  "checks": {
+    "max_sentences": 3,
+    "must_contain": [
+      "DLES-273",
+      "!475"
+    ],
+    "spoken_must_not_contain": [
+      "DLES",
+      "475",
+      "!"
+    ],
+    "spoken_must_contain_any": [
+      "Review",
+      "Gertrud"
+    ]
+  },
+  "recorded": "{\"action\": \"answer\", \"text\": \"Doch, ist drin – DLES-273, MR !475, alle Tests grün, wartet auf Gertruds Review.\", \"spoken\": \"Ja, ist drin. Der Merge Request ist fertig, alle Tests sind grün, und er wartet noch auf Gertruds Review.\", \"details_in_chat\": true}"
+}

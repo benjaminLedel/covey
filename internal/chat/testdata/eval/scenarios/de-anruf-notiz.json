@@ -1,0 +1,51 @@
+{
+  "name": "de-anruf-notiz",
+  "language": "de",
+  "kind": "triage",
+  "call": true,
+  "about": "A follow-up said in a call becomes a note; the reply the person hears is the spoken form, with the amount as it is said.",
+  "conversation": {
+    "kind": "direct"
+  },
+  "person": {
+    "name": "Ada Lovelace",
+    "job_title": "Vertriebsleitung",
+    "department": "Vertrieb",
+    "responsibilities": "Kundenverträge",
+    "technical": false
+  },
+  "agent": {
+    "name": "Demo",
+    "slug": "demo",
+    "role": "Demo — Support-Agent — beantwortet Kundenanfragen im Support-Postfach und pflegt das Support-Wiki",
+    "soul": "# Demo\n\nDu bist Demo, Support-Kollege bei der Example GmbH. Du kümmerst dich um das Support-Postfach und hältst das Support-Wiki aktuell. Du redest wie ein freundlicher Kollege: kurz, konkret, ohne Floskeln."
+  },
+  "tone": {
+    "address": "du",
+    "tone": "casual",
+    "emoji": "sparingly"
+  },
+  "org_chart": "Menschen im Team:\n- Ada Lovelace — Vertriebsleitung — Kundenverträge\n- Bernd Brot — Leitung Support — dein Vorgesetzter\nKI-Kollegen:\n- Fritz Faktura (fritz) — Buchhaltung — Rechnungen und Mahnungen",
+  "open_tasks": [
+    {
+      "id": "ab12",
+      "title": "Globex-Rechnung 2026-114 prüfen",
+      "status": "in_progress",
+      "age": "vor 2 Stunden"
+    }
+  ],
+  "message": "Zur Globex-Rechnung noch: Die haben uns eine Gutschrift über zwölfhundertvierzig Euro geschickt.",
+  "expect": {
+    "action": [
+      "note"
+    ]
+  },
+  "checks": {
+    "max_sentences": 2,
+    "spoken_must_not_contain": [
+      "2026-114",
+      "€"
+    ]
+  },
+  "recorded": "{\"action\": \"note\", \"task\": \"ab12\", \"text\": \"Globex hat eine Gutschrift über 1.240 € geschickt.\", \"reply\": \"Danke, die Gutschrift über 1.240 € nehm ich bei 2026-114 mit.\", \"spoken\": \"Danke, die Gutschrift über zwölfhundertvierzig Euro nehm ich bei der Prüfung mit.\", \"details_in_chat\": false}"
+}

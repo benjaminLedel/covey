@@ -104,6 +104,7 @@ func live(ctx context.Context, p llm.Provider, sc evalScenario) evalAusgabe {
 		}
 		zweiter := ausgabe(e2)
 		a.Endgueltig, a.Text = zweiter.Endgueltig, zweiter.Text
+		a.Gesprochen, a.Details = zweiter.Gesprochen, zweiter.Details
 	}
 	return a
 }
@@ -242,6 +243,10 @@ func TestEvalLive(t *testing.T) {
 			}
 		}
 		gesagt := a.Text
+		if g := strings.TrimSpace(a.Gesprochen); g != "" {
+			// In a call (#502), what the person hears beside what is written.
+			gesagt += " — spoken: " + g
+		}
 		if a.Fehler != nil {
 			gesagt = "error: " + a.Fehler.Error()
 		}
