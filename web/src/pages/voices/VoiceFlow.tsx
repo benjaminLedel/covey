@@ -489,11 +489,16 @@ function DescriptionMaterial({ v, editable }: { v: VoiceDetail; editable: boolea
 
 function ToneStep({ v, editable }: { v: VoiceDetail; editable: boolean }) {
   const { t } = useTranslation();
+  const qc = useQueryClient();
   const inval = useInvalidate(v.id);
   const save = useMutation({ mutationFn: (tone: ChatTone) => put<Voice>(`/voices/${v.id}/chat-tone`, tone), onSuccess: inval });
   const saveSpeech = useMutation({
     mutationFn: (sp: VoiceSpeech) => put<Voice>(`/voices/${v.id}/speech`, sp),
-    onSuccess: inval,
+    onSuccess: () => {
+      inval();
+      // The agents carrying it may speak with another voice now (#518).
+      qc.invalidateQueries({ queryKey: ["agent-spoken-voice"] });
+    },
   });
   const own = v.chat_tone && Object.values(v.chat_tone).some((x) => x);
   const suggested = v.suggested_chat_tone && Object.values(v.suggested_chat_tone).some((x) => x);

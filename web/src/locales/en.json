@@ -3226,9 +3226,9 @@
   },
   "voiceSpeech": {
     "title": "Spoken voice (calls)",
-    "hint": "How agents with this voice sound when a call speaks their replies through the organisation's voice provider. Left empty, the provider's default voice speaks, in a style taken from the chat tone.",
+    "hint": "How agents with this voice sound when a call speaks their replies through the organisation's voice provider. Left empty, each agent gets one of the provider's voices assigned automatically — a different one per agent where the provider lists enough — in a style taken from the chat tone.",
     "voice": "Voice at the provider",
-    "voiceDefault": "the organisation's default",
+    "voiceDefault": "assigned automatically",
     "speed": "Speed {{speed}}×",
     "instructions": "Style (a short hint in English)",
     "noProvider": "No voice provider is set: calls speak with the Mac's voice.",
@@ -3237,7 +3237,12 @@
     "sample": "Hello, this is {{name}}. This is how I sound in a call.",
     "save": "Save",
     "saved": "Saved",
-    "instructionsPlaceholder": "calm and warm, a little slower"
+    "instructionsPlaceholder": "calm and warm, a little slower",
+    "agentSpoken": "Spoken voice in calls: {{voice}}",
+    "sourceVoice": "from its voice {{name}}",
+    "sourceAssigned": "assigned automatically",
+    "sourceDefault": "the default voice",
+    "providerDefaultVoice": "the provider's default voice"
   },
   "voiceProvider": {
     "title": "Voice provider",
@@ -3260,6 +3265,10 @@
     "test": "Test",
     "testing": "Testing…",
     "testOk": "Works: a sentence was synthesised in {{ms}} ms.",
-    "testFailed": "Does not work: {{error}}"
+    "testFailed": "Does not work: {{error}}",
+    "voiceDefault": "the provider's default"
+  },
+  "voicePicker": {
+    "unlisted": "{{name}} (not in the provider's list)"
   }
 }

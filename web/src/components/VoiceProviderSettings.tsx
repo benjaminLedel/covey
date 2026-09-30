@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, patch, post, type VoiceProvider, type VoiceProviderTest } from "../api";
+import { ProviderVoicePicker } from "./ProviderVoicePicker";
 
 /* The organisation's voice provider (#497, #498): the OpenAI-compatible
  * speech server calls speak through — the one source of covey's voices —
@@ -9,7 +10,8 @@ import { api, patch, post, type VoiceProvider, type VoiceProviderTest } from "..
  * Without an own server an organisation holding an educa AI token speaks
  * through educa AI. The key goes into the organisation's secrets and is
  * never shown again, only whether one is stored. The test synthesises one
- * sentence with what is saved and says whether it worked. */
+ * sentence with what is saved and says whether it worked. The default voice
+ * is chosen from the provider's list where it has one (#518). */
 export function VoiceProviderSettings({ me }: { me: { Role: string } }) {
   const qc = useQueryClient();
   const darf = me.Role === "org_admin" || me.Role === "agent_owner";
@@ -39,6 +41,8 @@ function Form({ value, onSaved }: { value: VoiceProvider; onSaved: () => void })
     onSuccess: () => {
       onSaved();
       qc.invalidateQueries({ queryKey: ["speech-provider"] });
+      qc.invalidateQueries({ queryKey: ["provider-voices"] });
+      qc.invalidateQueries({ queryKey: ["agent-spoken-voice"] });
     },
   });
   const test = useMutation({ mutationFn: () => post<VoiceProviderTest>("/org/voice-provider/test") });
@@ -71,7 +75,14 @@ function Form({ value, onSaved }: { value: VoiceProvider; onSaved: () => void })
       <div className="flex gap-3 flex-wrap items-end">
         {field(t("voiceProvider.baseUrl"), base, setBase, { placeholder: "https://speech.example.org", style: { minWidth: 280 } })}
         {field(t("voiceProvider.model"), model, setModel, { maxLength: 100 })}
-        {field(t("voiceProvider.voice"), voice, setVoice, { maxLength: 100, placeholder: "DEFAULT_VOICE" })}
+        <ProviderVoicePicker
+          label={t("voiceProvider.voice")}
+          value={voice}
+          onChange={setVoice}
+          placeholder={t("voiceProvider.voiceDefault")}
+          listen
+          sampleName="covey"
+        />
         {field(t("voiceProvider.key"), key, setKey, {
           type: "password",
           autoComplete: "off",

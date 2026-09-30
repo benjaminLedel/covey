@@ -3226,9 +3226,9 @@
   },
   "voiceSpeech": {
     "title": "Gesproken stem (gesprekken)",
-    "hint": "Hoe agenten met deze stem klinken wanneer een gesprek hun antwoorden uitspreekt via de stemprovider van de organisatie. Leeg spreekt de standaardstem van de provider, in de stijl van de chattoon.",
+    "hint": "Hoe agenten met deze stem klinken wanneer een gesprek hun antwoorden uitspreekt via de stemprovider van de organisatie. Leeg krijgt elke agent automatisch een van de stemmen van de provider toegewezen — per agent een andere, zolang de provider er genoeg biedt —, in de stijl van de chattoon.",
     "voice": "Stem bij de provider",
-    "voiceDefault": "de standaardstem van de organisatie",
+    "voiceDefault": "automatisch toegewezen",
     "speed": "Snelheid {{speed}}×",
     "instructions": "Stijl (een korte aanwijzing in het Engels)",
     "noProvider": "Geen stemprovider ingesteld: gesprekken spreken met de stem van de Mac.",
@@ -3237,7 +3237,12 @@
     "sample": "Hallo, dit is {{name}}. Zo klink ik in een gesprek.",
     "save": "Opslaan",
     "saved": "Opgeslagen",
-    "instructionsPlaceholder": "calm and warm, a little slower"
+    "instructionsPlaceholder": "calm and warm, a little slower",
+    "agentSpoken": "Stem in gesprekken: {{voice}}",
+    "sourceVoice": "uit zijn stem {{name}}",
+    "sourceAssigned": "automatisch toegewezen",
+    "sourceDefault": "de standaardstem",
+    "providerDefaultVoice": "de standaardstem van de provider"
   },
   "voiceProvider": {
     "title": "Stemprovider",
@@ -3260,6 +3265,10 @@
     "test": "Testen",
     "testing": "Bezig met testen…",
     "testOk": "Werkt: een zin is in {{ms}} ms gesynthetiseerd.",
-    "testFailed": "Werkt niet: {{error}}"
+    "testFailed": "Werkt niet: {{error}}",
+    "voiceDefault": "de standaardstem van de provider"
+  },
+  "voicePicker": {
+    "unlisted": "{{name}} (niet in de lijst van de provider)"
   }
 }

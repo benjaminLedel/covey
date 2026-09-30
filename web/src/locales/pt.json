@@ -3226,9 +3226,9 @@
   },
   "voiceSpeech": {
     "title": "Voz falada (chamadas)",
-    "hint": "Como soam os agentes com esta voz quando uma chamada diz as suas respostas através do fornecedor de voz da organização. Vazio, fala a voz predefinida do fornecedor, no estilo do tom do chat.",
+    "hint": "Como soam os agentes com esta voz quando uma chamada diz as suas respostas através do fornecedor de voz da organização. Vazio, cada agente recebe automaticamente uma das vozes do fornecedor — uma diferente por agente enquanto o fornecedor tiver suficientes —, no estilo do tom do chat.",
     "voice": "Voz no fornecedor",
-    "voiceDefault": "a predefinida da organização",
+    "voiceDefault": "atribuída automaticamente",
     "speed": "Velocidade {{speed}}×",
     "instructions": "Estilo (uma indicação curta em inglês)",
     "noProvider": "Nenhum fornecedor de voz definido: as chamadas falam com a voz do Mac.",
@@ -3237,7 +3237,12 @@
     "sample": "Olá, fala {{name}}. É assim que soo numa chamada.",
     "save": "Guardar",
     "saved": "Guardado",
-    "instructionsPlaceholder": "calm and warm, a little slower"
+    "instructionsPlaceholder": "calm and warm, a little slower",
+    "agentSpoken": "Voz nas chamadas: {{voice}}",
+    "sourceVoice": "da sua voz {{name}}",
+    "sourceAssigned": "atribuída automaticamente",
+    "sourceDefault": "a voz predefinida",
+    "providerDefaultVoice": "a voz predefinida do fornecedor"
   },
   "voiceProvider": {
     "title": "Fornecedor de voz",
@@ -3260,6 +3265,10 @@
     "test": "Testar",
     "testing": "A testar…",
     "testOk": "Funciona: uma frase foi sintetizada em {{ms}} ms.",
-    "testFailed": "Não funciona: {{error}}"
+    "testFailed": "Não funciona: {{error}}",
+    "voiceDefault": "a predefinida do fornecedor"
+  },
+  "voicePicker": {
+    "unlisted": "{{name}} (fora da lista do fornecedor)"
   }
 }
