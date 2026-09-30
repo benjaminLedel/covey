@@ -51,8 +51,13 @@ func modelState(st *speech.Store) map[string]any {
 // fields describe that model (the default without ?name=), so an app that
 // knows only one model reads what it always read.
 func (s *Server) handleSpeechModel(w http.ResponseWriter, r *http.Request) {
+	// Whether the organisation runs a speech server the app may have speak
+	// through POST /speech/synthesize (#497) — also where recognition is off.
+	// And whether it may recognise a call's turns there (#498).
+	srv, _ := s.speechEndpointOf(r.Context(), principalFrom(r).OrgID)
+	synthesize, transcribe := srv.ok(), srv.ok() && srv.settings.Transcribe
 	if s.Speech == nil {
-		writeJSON(w, http.StatusOK, map[string]any{"enabled": false})
+		writeJSON(w, http.StatusOK, map[string]any{"enabled": false, "synthesize": synthesize, "transcribe": transcribe})
 		return
 	}
 	st, err := s.Speech.Get(r.URL.Query().Get("name"))
@@ -86,6 +91,7 @@ func (s *Server) handleSpeechModel(w http.ResponseWriter, r *http.Request) {
 	body["voices"] = voices
 	// Whether dictation can be cleaned up here (#355): the app offers the
 	// switch only then.
+	body["synthesize"], body["transcribe"] = synthesize, transcribe
 	body["clean"] = s.Secrets != nil && llm.Available(r.Context(), s.Secrets, s.Runtimes, principalFrom(r).OrgID)
 	writeJSON(w, http.StatusOK, body)
 }

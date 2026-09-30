@@ -587,7 +587,7 @@ func (s *Server) handleConversationSpeech(w http.ResponseWriter, r *http.Request
 		writeErr(w, http.StatusNotFound, "no such agent in this conversation")
 		return
 	}
-	out := map[string]any{"speech": nil, "voice": nil, "level": voice.LevelNone}
+	out := map[string]any{"speech": nil, "voice": nil, "level": voice.LevelNone, "instructions": voice.SpeechInstructions(voice.ChatTone{}, "")}
 	if s.Voices == nil {
 		writeJSON(w, http.StatusOK, out)
 		return
@@ -596,6 +596,9 @@ func (s *Server) handleConversationSpeech(w http.ResponseWriter, r *http.Request
 	p := principalFrom(r)
 	aud := s.Voices.ConversationAudience(ctx, c.OrgID, c.ID, p.Email)
 	choice := s.Voices.Resolve(ctx, c.OrgID, agentID, voice.OccasionChat, aud)
+	// How it is spoken, for a speech server that takes instructions: from
+	// the chat tone in effect, also without a chat voice.
+	out["instructions"] = voice.SpeechInstructions(s.Voices.ChatToneFor(ctx, c.OrgID, agentID, choice), "")
 	if choice.Found() {
 		v, err := s.Voices.Get(ctx, c.OrgID, choice.VoiceID)
 		if err != nil {
@@ -604,6 +607,7 @@ func (s *Server) handleConversationSpeech(w http.ResponseWriter, r *http.Request
 		}
 		out["level"] = choice.Level
 		out["voice"] = map[string]any{"id": v.ID, "name": v.Name}
+		out["instructions"] = voice.SpeechInstructions(s.Voices.ChatToneFor(ctx, c.OrgID, agentID, choice), v.Language)
 		if v.Speech != nil {
 			out["speech"] = v.Speech
 		}

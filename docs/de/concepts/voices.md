@@ -20,7 +20,7 @@ Eine Stimme trägt:
 - eine **Karte** — 250 bis 400 Wörter darüber, wie der Autor einsteigt, argumentiert, Fakten einbringt, Sätze baut und was er nie tut;
 - **Passagen** — fünf bis acht Absätze, die die Hand zeigen; sie stehen im Prompt;
 - einen **Chat-Ton** — Anrede, Ton und Emoji im Team-Chat;
-- auf Wunsch eine **gesprochene Stimme** — wie die Agenten mit dieser Stimme klingen, wenn die Mac-App ihre Antworten in einem Anruf spricht; ohne sie wählt die App je Agent eine Stimme;
+- auf Wunsch eine **gesprochene Stimme** — wie die Agenten mit dieser Stimme klingen, wenn die Mac-App ihre Antworten in einem Anruf spricht: eine Stimme, die auf dem Gerät entsteht, oder Modell und Stimme des Sprachservers der Organisation; ohne sie wählt die App je Agent eine Stimme;
 - wenn sie aus Texten gemessen ist: ein **Profil**, an dem die Stilprüfung jeden ausgehenden Text misst, und einen **Kontrast** zu KI-Text, wenn eine Referenz hochgeladen wurde.
 
 ## Welche Stimme gilt: je Anlass und je Leser

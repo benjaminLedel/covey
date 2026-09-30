@@ -81,7 +81,7 @@ func TestSpeechOffSaysSo(t *testing.T) {
 	s := &Server{}
 	w := httptest.NewRecorder()
 	s.handleSpeechModel(w, httptest.NewRequest(http.MethodGet, "/api/v1/speech/model", nil))
-	if w.Body.String() != "{\"enabled\":false}\n" {
+	if w.Body.String() != "{\"enabled\":false,\"synthesize\":false,\"transcribe\":false}\n" {
 		t.Fatalf("off = %q", w.Body.String())
 	}
 }

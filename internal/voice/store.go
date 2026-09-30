@@ -508,7 +508,7 @@ func (s *Store) SetChatTone(ctx context.Context, orgID, id uuid.UUID, tone ChatT
 }
 
 // SetSpeech stores how the agents carrying this voice sound when their
-// words are spoken (#497); an empty engine clears it. Like the chat tone,
+// words are spoken (#497); an empty source clears it. Like the chat tone,
 // not a config version: it acts in the app, not in a run.
 func (s *Store) SetSpeech(ctx context.Context, orgID, id uuid.UUID, in Speech) (Voice, error) {
 	sp, err := in.Normalized()
@@ -605,7 +605,7 @@ func scanVoice(rows pgx.Rows) (Voice, error) {
 	_ = json.Unmarshal(tone, &v.ChatTone)
 	if len(spoken) > 0 && string(spoken) != "null" {
 		var sp Speech
-		if json.Unmarshal(spoken, &sp) == nil && sp.Engine != "" {
+		if json.Unmarshal(spoken, &sp) == nil && sp.Source != "" {
 			v.Speech = &sp
 		}
 	}

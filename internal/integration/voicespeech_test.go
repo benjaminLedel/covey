@@ -30,11 +30,16 @@ func TestTheSpokenVoiceFollowsTheChatVoice(t *testing.T) {
 	admin.expect(http.MethodGet, "/api/v1/conversations/"+c["id"].(string)+"/speech", nil, http.StatusNotFound)
 
 	base := "/api/v1/voices/" + chatVoice + "/speech"
-	admin.expect(http.MethodPut, base, map[string]any{"engine": "sherpa-onnx", "model": "parakeet"}, http.StatusBadRequest)
-	admin.expect(http.MethodPut, base, map[string]any{"engine": "sherpa-onnx", "model": "piper-en-norman", "speaker": 3}, http.StatusBadRequest)
-	admin.expect(http.MethodPut, base, map[string]any{"engine": "system", "rate": 4}, http.StatusBadRequest)
-	auditor.expect(http.MethodPut, base, map[string]any{"engine": "system"}, http.StatusForbidden)
-	v := admin.expect(http.MethodPut, base, map[string]any{"engine": "sherpa-onnx", "model": "piper-en-norman", "rate": 1.2}, http.StatusOK)
+	admin.expect(http.MethodPut, base, map[string]any{"source": "device", "model": "parakeet"}, http.StatusBadRequest)
+	admin.expect(http.MethodPut, base, map[string]any{"source": "device", "model": "piper-en-norman", "speaker": 3}, http.StatusBadRequest)
+	admin.expect(http.MethodPut, base, map[string]any{"source": "server"}, http.StatusBadRequest)
+	admin.expect(http.MethodPut, base, map[string]any{"source": "server", "model": "kokoro", "rate": 4}, http.StatusBadRequest)
+	auditor.expect(http.MethodPut, base, map[string]any{"source": "server", "model": "kokoro"}, http.StatusForbidden)
+	srv := admin.expect(http.MethodPut, base, map[string]any{"source": "server", "model": "kokoro", "voice": "af_bella"}, http.StatusOK)
+	if sp, _ := srv["speech"].(map[string]any); sp["source"] != "server" || sp["voice"] != "af_bella" {
+		t.Fatalf("server speech: %v", srv)
+	}
+	v := admin.expect(http.MethodPut, base, map[string]any{"source": "device", "model": "piper-en-norman", "rate": 1.2}, http.StatusOK)
 	if sp, _ := v["speech"].(map[string]any); sp["model"] != "piper-en-norman" || sp["rate"] != 1.2 {
 		t.Fatalf("stored speech: %v", v)
 	}
@@ -43,7 +48,7 @@ func TestTheSpokenVoiceFollowsTheChatVoice(t *testing.T) {
 	got = admin.expect(http.MethodGet, conv, nil, http.StatusOK)
 	sp, _ := got["speech"].(map[string]any)
 	named, _ := got["voice"].(map[string]any)
-	if got["level"] != "agent" || named["name"] != "Kollegial" || sp["engine"] != "sherpa-onnx" || sp["model"] != "piper-en-norman" {
+	if got["level"] != "agent" || named["name"] != "Kollegial" || sp["source"] != "device" || sp["model"] != "piper-en-norman" {
 		t.Fatalf("with the agent's chat voice: %v", got)
 	}
 

@@ -20,7 +20,7 @@ A voice carries:
 - a **card** — 250 to 400 words on how the author opens, carries an argument, brings in facts, builds sentences, and what they never do;
 - **passages** — five to eight paragraphs that show the hand; they go into the prompt;
 - a **chat tone** — address, tone and emoji in the team chat;
-- optionally a **spoken voice** — how the agents carrying it sound when the Mac app speaks their replies in a call; without one the app picks a voice per agent;
+- optionally a **spoken voice** — how the agents carrying it sound when the Mac app speaks their replies in a call: a voice synthesised on the device, or a model and voice of the organisation's speech server; without one the app picks a voice per agent;
 - when it is measured from texts: a **profile** the style gate checks every outgoing text against, and a **contrast** against AI text if a reference was uploaded.
 
 ## Which voice applies: per occasion and per reader

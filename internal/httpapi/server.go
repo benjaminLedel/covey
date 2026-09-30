@@ -243,6 +243,8 @@ type Server struct {
 	registerLimiter *webhookLimiter
 	webhookLimiter  *webhookLimiter
 	relayLimiter    *webhookLimiter
+	// synthLimiter caps speech synthesis per seat (#497).
+	synthLimiter *webhookLimiter
 
 	// routen is the route list from dist/app-routes.json
 	// (internal/httpapi/approutes.go): which paths the SPA shell answers and
@@ -265,6 +267,9 @@ func (s *Server) Handler() http.Handler {
 	}
 	if s.webhookLimiter == nil {
 		s.webhookLimiter = newWebhookLimiter()
+	}
+	if s.synthLimiter == nil {
+		s.synthLimiter = newSynthLimiter()
 	}
 	s.routen = ladeAppRouten(s.WebFS)
 	mux := http.NewServeMux()
@@ -342,6 +347,8 @@ func (s *Server) Handler() http.Handler {
 	// The speech model (#348, speech.go): what it is, and the file itself.
 	mux.Handle("GET /api/v1/speech/model", s.auth(s.handleSpeechModel))
 	mux.Handle("GET /api/v1/speech/model/file", s.auth(s.handleSpeechModelFile))
+	mux.Handle("POST /api/v1/speech/synthesize", s.auth(s.handleSynthesize))
+	mux.Handle("POST /api/v1/speech/transcribe", s.auth(s.handleTranscribe))
 	// The activity log (#363, activity.go): the caller's own, like the notes.
 	mux.Handle("POST /api/v1/me/activity", s.auth(s.handleAddActivity))
 	mux.Handle("GET /api/v1/me/activity", s.auth(s.handleListActivity))
@@ -571,6 +578,8 @@ func (s *Server) Handler() http.Handler {
 	// triage switch and for the same roles.
 	mux.Handle("GET /api/v1/org/chat-tone", s.rbac(anyRole, s.handleGetOrgChatTone))
 	mux.Handle("PATCH /api/v1/org/chat-tone", s.rbac(manage, s.handleSetOrgChatTone))
+	mux.Handle("GET /api/v1/org/speech-server", s.rbac(manage, s.handleGetSpeechServer))
+	mux.Handle("PATCH /api/v1/org/speech-server", s.rbac(manage, s.handleSetSpeechServer))
 	// The team surface is an opt-in per organisation while it is in beta
 	// (#328): every role may read whether it is on — the interface picks its
 	// shell by it — and whoever manages the organisation switches it.

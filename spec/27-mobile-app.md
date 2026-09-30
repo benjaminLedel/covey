@@ -88,6 +88,17 @@ task_id, task_title, task_state, decision_id, decidable, decided_by, text, at
 
 The reply answers with `woken: true|false`. **False is not an error.** It means nobody was waiting; the text was written to the task as a note and the agent will read it on its next run. The app says so in one line and does not retry.
 
+## The speech server (#497, #498)
+
+A call speaks on the device unless the agent's voice names the organisation's speech server as its source ([`24`](24-voice.md)). The server is an OpenAI-compatible endpoint the control plane talks to on the app's behalf; the app never reaches it and never holds its key.
+
+- **Which server.** The organisation's own (`organizations.speech_server`, migration 0126: `base_url`, default `model` and `voice`, `transcribe`, `transcribe_model`; the key in the organisation secret `speech_server_key`), set with `GET`/`PATCH /org/speech-server` by the manage roles. Without an own base URL, an organisation that holds an educa AI token for its engine (`educa_seat_token` first, then `educa_api_token`) speaks through educa AI at `COVEY_EDUCA_BASE_URL` of the control plane's environment, default `https://api.educaai.de`. The settings answer which one is in effect (`effective.source`: `own`, `educa`, `none`) and whether an own key is stored (`key_set`), never a key.
+- **Speaking.** `POST /speech/synthesize {text, model, voice, rate, language, instructions, stream, agent}`, any signed-in seat, 30 a minute per seat (429). Text 1–1000 characters, instructions at most 300; model and voice default to the organisation's, the voice then to `DEFAULT_VOICE`; `rate` becomes `speed`, held to 0.70–1.30, left out at 0. Upstream: `POST {base}/v1/audio/speech {input, voice, model?, language?, instructions?, speed?, response_format}` with `Authorization: Bearer <key>`. Buffered, `response_format: wav` and covey answers `audio/wav`; with `stream`, `response_format: mp3, stream_format: audio` and covey passes the bytes through as they come, flushed per chunk, as `audio/mpeg` — educa AI's first bytes arrive after about half a second, so the app starts speaking before the reply is whole. No server: 409; the server failing before the first byte: 502 with a short message.
+- **Models and voices** are free text: educa AI lists no speech models and no voices, and takes `DEFAULT_VOICE`.
+- **Hearing.** `POST /speech/transcribe?language=` takes one turn as WAV (16 kHz mono PCM16, at most 2 MB) and forwards it to `{base}/v1/audio/transcriptions` (multipart: `file`, `model`, `language`, `response_format: json`) → `{text}`. Off unless an admin switches `transcribe` on: the audio then leaves the device. Off or no server: 409.
+- **What it leaves behind.** Nothing of the text or the audio: the log, and the recording of the agent the app names (`agent`), get lengths, durations and the model (`speech_synthesized`, `speech_transcribed`). The audit trail has the request like every other.
+- `GET /speech/model` answers `synthesize` and `transcribe`, so the app knows before it asks.
+
 ## Push
 
 Nothing exists for this, and it is the hardest part of the app, not the last one.

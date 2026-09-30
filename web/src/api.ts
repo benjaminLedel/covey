@@ -1733,14 +1733,28 @@ export type ChatTone = {
   emoji?: "" | "never" | "sparingly" | "freely";
   note?: string;
 };
-/** The spoken voice (#497): a synthesis model of the speech catalogue and
- *  one of its speakers, or the device's own synthesis. */
+/** The spoken voice (#497): a voice of the speech catalogue synthesised on
+ *  the device, or a model (and voice) of the organisation's speech server. */
 export type VoiceSpeech = {
-  engine: "sherpa-onnx" | "system";
-  model?: string;
+  source: "device" | "server";
+  model: string;
+  /** The speech server's voice name; empty on the device. */
+  voice?: string;
   speaker: number;
   /** 1 is the model's own rate; 0 or missing means 1. */
   rate?: number;
+};
+/** The organisation's speech server (#497, #498); the key is never
+ *  answered, only whether the own one is stored. Without an own server an
+ *  organisation holding an educa AI token speaks through educa AI. */
+export type SpeechServer = {
+  base_url: string;
+  model: string;
+  voice: string;
+  key_set: boolean;
+  transcribe: boolean;
+  transcribe_model: string;
+  effective: { source: "own" | "educa" | "none"; base_url: string };
 };
 /** A voice the instance offers the apps to speak with (GET /speech/model,
  *  voices[]). */
