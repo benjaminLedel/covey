@@ -122,6 +122,10 @@ The address is the chat tone's (#457), read from `GET /conversations/{id}/speech
 
 **Timing.** The written greeting is synthesised through the voice provider the moment it arrives, while the models load, and kept like a filler (`call-fillers/`, per voice and text). When the instance answers nothing, or its audio cannot be made, the template is chosen and synthesised at once; when the call connects and the written greeting has not arrived, the template is made then. After the connected sound the call waits at most 1.5 s: the written greeting whose audio is ready is said first; otherwise, once the wait is over or the written one is not coming, the template whose audio is ready; otherwise whatever text there is in the Mac's voice — for the greeting only, the provider speaks the rest of the call. A written greeting arriving after that is dropped. Without a provider the Mac's voice says it. The face speaks it, it stands in the call's transcript as the agent's line, and it is not a message in the conversation. The microphone is open under it: the person speaking stops it, as it stops a reply, and speaking before it began drops it. A reply arriving meanwhile is spoken after it. The call settings switch it off, on the device; it is on by default.
 
+### The closing (#517)
+
+When the person ends the conversation by voice, the agent's answer is its goodbye, marked `end_call = "true"` in the message's meta ([`28`](28-team-surface.md), said in a call). The call speaks it — its spoken form, and the word that the details are in the chat when it carries one — then plays the hang-up sound and ends, as the button does; the person's turn and the goodbye stay in the conversation. The microphone stays open under the goodbye: the person speaking into it stops it, as it stops any reply, and the call stays open. A goodbye that says the agent took something on promises its report in the chat, where the task's result arrives. The call settings switch it off ("Agent may hang up", on the device, on by default); the goodbye is then spoken and the line stays open.
+
 ## Push
 
 Nothing exists for this, and it is the hardest part of the app, not the last one.

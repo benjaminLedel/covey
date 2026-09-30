@@ -83,10 +83,15 @@ class CallSettings {
   /// switched off.
   static final greeting = ValueNotifier<bool>(true);
 
+  /// Whether the agent may hang up after its goodbye when the person ends
+  /// the conversation (#517): on unless switched off.
+  static final hangUp = ValueNotifier<bool>(true);
+
   static const _pauseKey = 'call.pause', _bargeInKey = 'call.bargeIn', _windowKey = 'call.window';
   static const _recordKey = 'call.record';
   static const _soundsKey = 'call.sounds', _volumeKey = 'call.volume';
   static const _greetingKey = 'call.greeting';
+  static const _hangUpKey = 'call.agentHangsUp';
 
   static Future<void> load() async {
     try {
@@ -100,6 +105,7 @@ class CallSettings {
       final v = double.tryParse(await p.read(_volumeKey) ?? '');
       volume.value = v == null || v < 0 || v > 1 ? defaultVolume : v;
       greeting.value = await p.read(_greetingKey) != 'off';
+      hangUp.value = await p.read(_hangUpKey) != 'off';
     } catch (_) {
       // Unreadable: the defaults.
     }
@@ -159,6 +165,11 @@ class CallSettings {
   static Future<void> setGreeting(bool on) async {
     greeting.value = on;
     await _write(_greetingKey, on ? 'on' : 'off');
+  }
+
+  static Future<void> setHangUp(bool on) async {
+    hangUp.value = on;
+    await _write(_hangUpKey, on ? 'on' : 'off');
   }
 
   static Future<void> setVolume(double v) async {
@@ -512,6 +523,10 @@ class _Utterance {
 /// when it is not there in time ([GreetingInFlight]); said after the
 /// connected sound; the person speaking stops it. It is part of the call,
 /// not a message in the conversation.
+///
+/// When the person ends the conversation by voice, the agent's answer is its
+/// goodbye, marked `end_call` (#517): the call speaks it, plays the hang-up
+/// sound and ends. The person speaking during the goodbye keeps it open.
 class CallController extends ChangeNotifier {
   CallController({
     required this.backend,
@@ -528,6 +543,7 @@ class CallController extends ChangeNotifier {
     this.nudgeAfter = const Duration(seconds: 8),
     this.pollEvery = const Duration(seconds: 5),
     this.serverBound = serverRecognitionBound,
+    this.mayHangUp,
     StartTimer? startTimer,
     math.Random? random,
     this.greeter,
@@ -587,6 +603,10 @@ class CallController extends ChangeNotifier {
   /// How long a turn waits for the voice provider's text before it takes
   /// the device's (#516).
   final Duration serverBound;
+
+  /// Whether the call ends after the agent's goodbye (#517), asked when the
+  /// goodbye arrives; null: it does.
+  final bool Function()? mayHangUp;
 
   /// How the call greets; null does not.
   final CallGreeter? greeter;
@@ -673,6 +693,13 @@ class CallController extends ChangeNotifier {
   /// is awaited. The person speaking meanwhile drops it ([_greetingDropped]).
   bool _greetingPending = false;
   bool _greetingDropped = false;
+
+  /// The agent's goodbye is queued or being said (#517): the call hangs up
+  /// once it has been said, unless the person speaks meanwhile.
+  bool _goodbye = false;
+
+  /// Whether the call is about to hang up after the agent's goodbye.
+  bool get endingAfterGoodbye => _goodbye;
 
   Future<void> _turnChain = Future.value();
   bool _fetching = false;
@@ -933,6 +960,11 @@ class CallController extends ChangeNotifier {
     // The person speaks: a filler would talk over them, and a greeting
     // still to come is not said any more.
     _fillers.stop();
+    // Nor does the call hang up after a goodbye they speak into (#517).
+    if (_goodbye) {
+      _goodbye = false;
+      diag('call', 'hang-up cancelled: the person spoke during the goodbye');
+    }
     if (_greetingPending && !_greetingDropped) {
       diag('call', 'greeting dropped: the person spoke first');
       _greetingDropped = true;
@@ -1211,6 +1243,14 @@ class CallController extends ChangeNotifier {
           _giveUp?.cancel();
           _say(CallLine(mine: false, text: textForSpeech(m.text).text));
           _queue.addAll(_toSpeak(m));
+          if (m.meta['end_call'] == 'true') {
+            if (mayHangUp?.call() ?? true) {
+              _goodbye = true;
+              diag('call', 'the agent says goodbye: hanging up after it');
+            } else {
+              diag('call', 'the agent says goodbye: the call stays open, hanging up is switched off');
+            }
+          }
         }
       } while (_fetchAgain && !ended);
     } on ApiException catch (e) {
@@ -1282,6 +1322,12 @@ class CallController extends ChangeNotifier {
       _speaking = false;
       _saidUntil = DateTime.now();
       _update();
+    }
+    // The goodbye has been said and nobody spoke into it (#517).
+    if (_goodbye && _queue.isEmpty && !ended) {
+      _goodbye = false;
+      diag('call', 'goodbye said: hanging up');
+      await hangUp();
     }
   }
 

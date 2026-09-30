@@ -108,6 +108,8 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
           recording: CallRecording.open,
           // The agent greets when the call connects (#506).
           greeter: CallGreeter(enabled: () => CallSettings.greeting.value),
+          // And hangs up after its goodbye when the person ends it (#517).
+          mayHangUp: () => CallSettings.hangUp.value,
         );
       } else {
         _call = widget.controller;
