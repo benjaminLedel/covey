@@ -13,6 +13,7 @@ import 'face.dart';
 import 'i18n.dart';
 import 'models.dart';
 import 'prefs.dart';
+import 'host.dart';
 
 /// Notifications (#379). On the iPhone and on Android they come through
 /// Firebase Cloud Messaging (#424, #431), which passes an iPhone's on to
@@ -51,11 +52,11 @@ class PushNotices {
       ? Uri.parse('covey://team/c/${target.substring('conversation:'.length)}')
       : Uri.parse('covey://team/$target');
 
-  static bool get supported => Platform.isIOS || Platform.isAndroid || Platform.isMacOS;
+  static bool get supported => Host.isIOS || Host.isAndroid || Host.isMacOS;
 
   /// Whether notifications come through a push service, with a token the
   /// instance keeps, rather than from the app's own look.
-  static bool get _pushed => Platform.isIOS || Platform.isAndroid;
+  static bool get _pushed => Host.isIOS || Host.isAndroid;
 
   CoveyApi? _api;
   Strings? _strings;
@@ -145,7 +146,7 @@ class PushNotices {
         if (token == null) return;
         await api.registerPushDevice(
           token: token,
-          platform: Platform.isAndroid ? 'android' : 'ios',
+          platform: Host.isAndroid ? 'android' : 'ios',
           // FCM has no sandbox: for an iPhone it picks Apple's environment
           // itself, from the APNs key uploaded to the Firebase project.
           environment: 'production',
@@ -179,7 +180,7 @@ class PushNotices {
     await _live?.cancel();
     _live = null;
     _seen = null;
-    if (Platform.isMacOS) {
+    if (Host.isMacOS) {
       try {
         await _channel.invokeMethod<void>('stopWatching');
       } on PlatformException catch (_) {

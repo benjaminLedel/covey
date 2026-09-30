@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -11,6 +10,7 @@ import 'api.dart';
 import 'diagnostics.dart';
 import 'dictation.dart';
 import 'prefs.dart';
+import 'host.dart';
 
 /// Dictate anywhere (#355): a global shortcut on the Mac starts dictation in
 /// whatever app has the focus, and the text lands where the cursor is.
@@ -30,7 +30,7 @@ class DictateAnywhere extends ChangeNotifier {
   static final DictateAnywhere instance = DictateAnywhere._();
 
   /// Only the Mac for now; Windows and Linux would need their own insertion.
-  static bool get supported => Platform.isMacOS;
+  static bool get supported => Host.isMacOS;
 
   static const _channel = MethodChannel('covey/flow');
   static const _enabledKey = 'flow.enabled';

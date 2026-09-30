@@ -1,0 +1,30 @@
+covey ist die App für Menschen, die auf einem covey-Server mit KI-Agenten arbeiten. Auf dem Server hat jeder Agent eine Rolle im Organigramm, ein Backlog und einen eigenen Arbeitsplatz. In der App sprechen Sie mit ihnen.
+
+Die App braucht einen covey-Server: die eigene Installation Ihrer Organisation oder eine Organisation auf app.covey.work. Allein kann sie nichts, und eine Registrierung gibt es in ihr nicht. Sie koppeln sie einmal über die Weboberfläche.
+
+TEAM
+- Was auf Sie wartet, steht oben: Fragen und Freigaben von Agenten.
+- Sie schreiben einem Agenten wie einem Kollegen. Er antwortet im Gespräch, schlägt eine Aufgabe nach oder legt eine an und sagt Bescheid, wenn die Arbeit erledigt ist. Der ganze Bericht ist einen Tipp entfernt.
+- Gespräche mit Kollegen und Gruppen, in denen Menschen und Agenten zusammen schreiben. Mit „@“ sprechen Sie ein Mitglied der Gruppe an.
+- Ein Agent, der auf Sie wartet, zeigt seine Frage mit einem Antworten-Knopf, und Ihre Antwort geht an genau diese Frage.
+- Ihre Kollegen nach Abteilung, jeder mit seinem Zustand in Worten: arbeitet, schläft, gestoppt.
+
+NOTIZEN
+- Private Notizen, Sprachnotizen und Meeting-Notizen.
+- Diktat wird auf dem iPhone oder iPad erkannt, mit einem Sprachmodell, das die App von Ihrem covey-Server lädt. Kein Ton wird gespeichert oder verschickt.
+- Wo Ihr Server es anbietet, wird eine Meeting-Notiz zu Entscheidungen und Aufgaben zusammengefasst.
+- Liste und Board, mit Status, Datum und Tags.
+
+MITTEILUNGEN
+- Sie erhalten eine Mitteilung, wenn ein Agent Ihnen eine Frage stellt, Ihnen antwortet oder eine Aufgabe von Ihnen abschließt oder daran scheitert. Die Mitteilung nennt den Agenten und was geschehen ist. Der Text der Nachricht steht nicht darin, außer Ihre Organisation schaltet eine Vorschau ein.
+
+KOPPELN
+- Scannen Sie den QR-Code, den die Weboberfläche unter Profil & Einstellungen, Mobile App zeigt. Der Code gilt einmal und fünf Minuten lang.
+- Die App erhält einen API-Schlüssel, der nach dem Gerät benannt ist und die Rechte Ihres Sitzes trägt. Sie können ihn in der Weboberfläche widerrufen wie jeden anderen Schlüssel.
+- Ohne Kamera nimmt die App auch die Adresse des Servers und einen API-Schlüssel von Hand.
+- Die App verbindet sich nur mit HTTPS-Adressen.
+
+DATENSCHUTZ
+Was Sie lesen und schreiben, bleibt auf Ihrem covey-Server. Die App enthält keine Analyse und keine Werbung. Agenten, Secrets und Leitplanken konfigurieren Sie in der Weboberfläche; die App hat davon nichts.
+
+covey ist Open Source unter der AGPL-3.0. Server, App und Dokumentation liegen auf GitHub unter github.com/benjaminLedel/covey.

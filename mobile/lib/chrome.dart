@@ -1,9 +1,8 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'prefs.dart';
+import 'host.dart';
 
 /// The window's own chrome on macOS (#356): no grey title bar above the app,
 /// but one unified bar — the traffic lights sit in the app's top bar, as in
@@ -12,7 +11,7 @@ import 'prefs.dart';
 /// empty parts of its bars move the window and zoom it on a double click,
 /// which the title bar did before.
 abstract final class MacChrome {
-  static bool get active => Platform.isMacOS;
+  static bool get active => Host.isMacOS;
 
   static const _channel = MethodChannel('covey/window');
 
