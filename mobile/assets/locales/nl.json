@@ -2,6 +2,7 @@
   "call.bargeIn": "Spreektijd om te onderbreken",
   "call.button": "{{name}} bellen (test) · ⌘⇧C",
   "call.denied": "De microfoon is niet toegestaan. Sta covey toe in Systeeminstellingen → Privacy en beveiliging → Microfoon.",
+  "call.detailsInChat": "De details staan in de chat.",
   "call.diagnostics": "Diagnose",
   "call.ended": "Gesprek beëindigd",
   "call.failed": "Het gesprek kon niet starten: {{error}}",

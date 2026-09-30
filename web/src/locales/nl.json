@@ -3185,6 +3185,7 @@
     "hangUp": "Ophangen",
     "you": "Jij",
     "restInChat": "De rest staat in de chat.",
+    "detailsInChat": "De details staan in de chat.",
     "setting": "Bellen (test)",
     "settingSwitch": "Agenten bellen",
     "settingHint": "Een belknop in het gesprek met een agent. Spraak wordt op deze Mac herkend; de antwoorden van de agent spreekt de stemprovider van de organisatie uit, of de Mac als er geen is. Alleen de tekst gaat het gesprek in, gemarkeerd als gezegd in een gesprek.",

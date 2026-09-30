@@ -3185,6 +3185,7 @@
     "hangUp": "Rozłącz",
     "you": "Ty",
     "restInChat": "Reszta jest w czacie.",
+    "detailsInChat": "Szczegóły są w czacie.",
     "setting": "Połączenia (test)",
     "settingSwitch": "Dzwoń do agentów",
     "settingHint": "Przycisk połączenia w rozmowie z agentem. Mowa jest rozpoznawana na tym Macu; odpowiedzi agenta wypowiada dostawca głosu organizacji, a bez niego Mac. Do rozmowy trafia tylko tekst, oznaczony jako powiedziany w połączeniu.",

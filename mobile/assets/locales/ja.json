@@ -2,6 +2,7 @@
   "call.bargeIn": "割り込みに必要な発話時間",
   "call.button": "{{name}} に通話（試験運用）· ⌘⇧C",
   "call.denied": "マイクが許可されていません。システム設定 → プライバシーとセキュリティ → マイク で covey を許可してください。",
+  "call.detailsInChat": "詳細はチャットにあります。",
   "call.diagnostics": "診断",
   "call.ended": "通話を終了しました",
   "call.failed": "通話を開始できませんでした: {{error}}",

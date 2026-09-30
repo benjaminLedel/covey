@@ -2,6 +2,7 @@
   "call.bargeIn": "Speaking time to interrupt",
   "call.button": "Call {{name}} (trial) · ⌘⇧C",
   "call.denied": "The microphone is not allowed. Allow covey in System Settings → Privacy & Security → Microphone.",
+  "call.detailsInChat": "The details are in the chat.",
   "call.diagnostics": "Diagnostics",
   "call.ended": "Call ended",
   "call.failed": "The call could not start: {{error}}",

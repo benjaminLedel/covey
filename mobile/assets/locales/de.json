@@ -2,6 +2,7 @@
   "call.bargeIn": "Sprechdauer zum Unterbrechen",
   "call.button": "{{name}} anrufen (Test) · ⌘⇧C",
   "call.denied": "Das Mikrofon ist nicht erlaubt. Erlaube covey unter Systemeinstellungen → Datenschutz & Sicherheit → Mikrofon.",
+  "call.detailsInChat": "Die Details stehen im Chat.",
   "call.diagnostics": "Diagnose",
   "call.ended": "Anruf beendet",
   "call.failed": "Der Anruf konnte nicht starten: {{error}}",

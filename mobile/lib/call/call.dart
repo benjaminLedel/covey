@@ -425,7 +425,8 @@ class CallController extends ChangeNotifier {
   /// for the app's own words.
   final String appLanguage;
 
-  /// The app's own spoken words, by key: `call.restInChat`.
+  /// The app's own spoken words, by key: `call.restInChat`,
+  /// `call.detailsInChat`.
   final String Function(String key) words;
 
   final CallTuning tuning;
@@ -860,7 +861,7 @@ class CallController extends ChangeNotifier {
           _fillers.replyArrived();
           _giveUp?.cancel();
           _say(CallLine(mine: false, text: textForSpeech(m.text).text));
-          _queue.add(_Utterance(m.text));
+          _queue.addAll(_toSpeak(m));
         }
       } while (_fetchAgain && !ended);
     } on ApiException catch (e) {
@@ -870,6 +871,18 @@ class CallController extends ChangeNotifier {
     }
     _update();
     unawaited(_speakNext());
+  }
+
+  /// What of an agent's message the call speaks: its spoken form when it
+  /// has one (#502), with a word that the details are in the chat when that
+  /// form left some out; otherwise the written message.
+  List<_Utterance> _toSpeak(ConversationMessage m) {
+    final spoken = (m.meta['spoken'] ?? '').trim();
+    if (spoken.isEmpty) return [_Utterance(m.text)];
+    return [
+      _Utterance(spoken),
+      if (m.meta['details_in_chat'] == 'true') _Utterance(words('call.detailsInChat'), plain: true),
+    ];
   }
 
   Future<void> _speakNext() async {

@@ -3185,6 +3185,7 @@
     "hangUp": "Raccrocher",
     "you": "Vous",
     "restInChat": "La suite est dans le chat.",
+    "detailsInChat": "Les détails sont dans le chat.",
     "setting": "Appels (essai)",
     "settingSwitch": "Appeler les agents",
     "settingHint": "Un bouton d'appel dans la conversation avec un agent. La voix est reconnue sur ce Mac ; les réponses de l'agent sont dites par le fournisseur de voix de l'organisation, ou par le Mac s'il n'y en a pas. Seul le texte va dans la conversation, marqué comme dit pendant un appel.",

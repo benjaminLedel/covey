@@ -70,6 +70,7 @@ class FakeBackend implements CallBackend {
     String? taskId,
     String? replyTo,
     String messageKind = 'text',
+    Map<String, String> meta = const {},
   }) {
     final m = ConversationMessage(
       id: 'm${_n++}',
@@ -81,6 +82,7 @@ class FakeBackend implements CallBackend {
       taskId: taskId,
       replyTo: replyTo,
       createdAt: DateTime(2026, 9, 30, 12).add(Duration(seconds: _n)),
+      meta: meta,
     );
     messages.add(m);
     return m;
@@ -88,9 +90,10 @@ class FakeBackend implements CallBackend {
 
   /// The agent writes into the conversation.
   /// [taskId] and [replyTo] as the triage writes a task's acknowledgement
-  /// (#411); [kind] `result` as a task's result.
-  void agentSays(String text, {String? taskId, String? replyTo, String kind = 'text'}) {
-    _add('agent', text, author: 'agent-1', taskId: taskId, replyTo: replyTo, messageKind: kind);
+  /// (#411); [kind] `result` as a task's result; [meta] as the server stores
+  /// it (e.g. `spoken`, #502).
+  void agentSays(String text, {String? taskId, String? replyTo, String kind = 'text', Map<String, String> meta = const {}}) {
+    _add('agent', text, author: 'agent-1', taskId: taskId, replyTo: replyTo, messageKind: kind, meta: meta);
     _changes.add(null);
   }
 
@@ -246,7 +249,10 @@ class FakeEarcons implements EarconOutput {
   );
 }
 
-const words = {'call.restInChat': 'Der Rest steht im Chat.'};
+const words = {
+  'call.restInChat': 'Der Rest steht im Chat.',
+  'call.detailsInChat': 'Die Details stehen im Chat.',
+};
 
 CallController fakeCall(
   FakeEars ears,
