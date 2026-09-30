@@ -13,16 +13,26 @@ import '../diagnostics.dart';
 import '../face.dart';
 import '../i18n.dart';
 import '../icons.dart';
+import '../mention.dart';
 import '../models.dart';
+import '../photo.dart';
 import '../theme.dart';
 import '../ui.dart';
 
-/// One agent, the conversation with it.
+/// One agent, the conversation with it — or, since #440, any conversation:
+/// a group, or a direct one with a colleague ([ThreadScreen.conversation]).
 ///
 /// The compose box does what the web's does: a new message hands work over,
 /// and an answer goes to the question it answers — chosen at the question,
 /// not guessed from whichever task happens to be parked. Two intentions, two
 /// places, the same rule as the web shell (#298).
+///
+/// A conversation reads through the conversation API and, once it has its
+/// first page, only what came after the newest message it holds (#447) —
+/// an open conversation that did not move costs a 304, not a page. Its
+/// speakers are its members, each named at what they said; the direct
+/// conversation with one agent stays the agent's thread, as on the web,
+/// because it carries the agent's work around it.
 class ThreadScreen extends StatefulWidget {
   const ThreadScreen({
     super.key,
@@ -33,7 +43,21 @@ class ThreadScreen extends StatefulWidget {
     this.agentSlug = '',
     this.faceState = FaceState.working,
     this.pick,
-  });
+  }) : conversation = null;
+
+  const ThreadScreen.conversation({
+    super.key,
+    required this.api,
+    required Conversation this.conversation,
+    required this.me,
+  }) : agentId = '',
+       agentName = '',
+       agentSlug = '',
+       faceState = FaceState.working,
+       pick = null;
+
+  /// The conversation this screen reads; null for an agent's thread.
+  final Conversation? conversation;
 
   /// Swapped in tests, so attaching needs no file dialog.
   final Future<List<Attachment>> Function(FileType type)? pick;
@@ -54,6 +78,19 @@ class ThreadScreen extends StatefulWidget {
 class _ThreadScreenState extends State<ThreadScreen> {
   bool get _stopped => widget.faceState == FaceState.killed;
 
+  bool get _isConversation => widget.conversation != null;
+
+  /// The conversation as last read: members and title. Starts as what the
+  /// list handed over.
+  late Conversation? _conv = widget.conversation;
+  DateTime _convAt = DateTime(0);
+
+  /// The conversation's messages held so far, oldest first, and whether
+  /// there are older ones than the first.
+  final _messages = <ConversationMessage>[];
+  bool _older = false;
+  bool _loadingOlder = false;
+
   final _text = TextEditingController();
   final _scroll = ScrollController();
   Thread? _thread;
@@ -73,7 +110,11 @@ class _ThreadScreenState extends State<ThreadScreen> {
     // background is a battery question for a later slice.
     // This agent's events from the instance (#419): a message answered, a
     // task moved, the triage thinking. The timer is the net under it.
-    _live = LiveEvents.instance.of({'chat', 'task'}, agentId: widget.agentId).listen((_) => _load());
+    _live =
+        (_isConversation
+                ? LiveEvents.instance.of({'chat'}, conversationId: widget.conversation!.id)
+                : LiveEvents.instance.of({'chat', 'task'}, agentId: widget.agentId))
+            .listen((_) => _load());
     _poll = Timer.periodic(const Duration(minutes: 1), (_) => _load());
   }
 
@@ -88,7 +129,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
 
   Future<void> _load() async {
     try {
-      final th = await widget.api.thread(widget.agentId);
+      final th = _isConversation ? await _loadConversation() : await widget.api.thread(widget.agentId);
       if (!mounted) return;
       _markRead(th);
       setState(() {
@@ -104,6 +145,74 @@ class _ThreadScreenState extends State<ThreadScreen> {
     }
   }
 
+  /// A conversation's read: the members now and then (a group changes
+  /// while it is open), the newest page the first time, and afterwards only
+  /// what came after the newest message held — page by page while the
+  /// instance says there is more.
+  Future<Thread> _loadConversation() async {
+    final id = widget.conversation!.id;
+    if (DateTime.now().difference(_convAt) > const Duration(seconds: 30)) {
+      _conv = await widget.api.conversation(id);
+      _convAt = DateTime.now();
+    }
+    var pending = false;
+    if (_messages.isEmpty) {
+      final page = await widget.api.conversationMessages(id);
+      _merge(page.messages);
+      _older = page.more;
+      pending = page.pending;
+    } else {
+      for (var i = 0; i < 20; i++) {
+        final page = await widget.api.conversationMessages(id, after: _messages.last.id);
+        _merge(page.messages);
+        pending = page.pending;
+        if (!page.more || page.messages.isEmpty) break;
+      }
+    }
+    return _asThread(pending);
+  }
+
+  /// Takes messages in by their id: a delta overlaps what is held, and a
+  /// message just sent is held before the next read brings it.
+  void _merge(Iterable<ConversationMessage> incoming) {
+    final known = {for (final m in _messages) m.id};
+    for (final m in incoming) {
+      if (known.add(m.id)) _messages.add(m);
+    }
+    _messages.sort((a, b) => (a.createdAt ?? DateTime(0)).compareTo(b.createdAt ?? DateTime(0)));
+  }
+
+  Thread _asThread(bool pending) {
+    final members = {for (final m in _conv?.members ?? const <ConversationMember>[]) '${m.kind}:${m.id}': m};
+    return Thread(
+      entries: [
+        for (final m in _messages)
+          ThreadEntry.fromMessage(m, meId: widget.me.id, slug: members['${m.authorKind}:${m.authorId}']?.slug ?? ''),
+      ],
+      pending: pending,
+    );
+  }
+
+  /// The page before the oldest message held.
+  Future<void> _loadOlder() async {
+    if (_loadingOlder || _messages.isEmpty) return;
+    setState(() => _loadingOlder = true);
+    try {
+      final page = await widget.api.conversationMessages(widget.conversation!.id, before: _messages.first);
+      _merge(page.messages);
+      if (mounted) {
+        setState(() {
+          _older = page.more;
+          _thread = _asThread(_thread?.pending ?? false);
+        });
+      }
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e);
+    } finally {
+      if (mounted) setState(() => _loadingOlder = false);
+    }
+  }
+
   DateTime? _readUpTo;
 
   /// What is on the screen has been read (#378): up to the newest entry
@@ -115,9 +224,16 @@ class _ThreadScreenState extends State<ThreadScreen> {
         .fold<DateTime?>(null, (a, b) => a == null || b.isAfter(a) ? b : a);
     if (newest == null || (_readUpTo != null && !newest.isAfter(_readUpTo!))) return;
     _readUpTo = newest;
-    widget.api.markThreadRead(widget.agentId, newest).then((_) => threadsRead.value++).catchError((Object e) {
-      diag('thread', 'not marked read: $e');
-    });
+    final mark = _isConversation
+        ? widget.api.markConversationRead(widget.conversation!.id, newest)
+        : widget.api.markThreadRead(widget.agentId, newest);
+    mark
+        .then<void>((_) {
+          threadsRead.value++;
+        })
+        .catchError((Object e) {
+          diag('thread', 'not marked read: $e');
+        });
   }
 
   /// Picks photos, videos or files to go with the next message (#340).
@@ -169,6 +285,9 @@ class _ThreadScreenState extends State<ThreadScreen> {
         final woken = await widget.api.reply(q.taskId!, text);
         // Not an error, and not retried: nobody was waiting (spec/27).
         if (!woken) messenger.showSnackBar(SnackBar(content: Text(t('mobile.nichtGeweckt'))));
+      } else if (_isConversation) {
+        final sent = await widget.api.postConversationMessage(widget.conversation!.id, text);
+        _merge([sent]);
       } else {
         await widget.api.send(widget.agentId, text);
       }
@@ -182,10 +301,14 @@ class _ThreadScreenState extends State<ThreadScreen> {
       // The instance decides what a role may do; the app says what it heard.
       // A 403 has two causes on this route, and they need different words:
       // the organisation has the team surface off, or the role may not write.
+      // In a conversation a 403 says its own reason — the organisation's
+      // reach, a group's rules (#440) — and is shown as it is.
       final text = e.status != 403
           ? e.message
           : e.message.contains('team surface')
           ? t('mobile.teamAusKurz')
+          : _isConversation
+          ? e.message
           : t('chat.readOnly');
       messenger.showSnackBar(SnackBar(content: Text(text)));
     } finally {
@@ -200,39 +323,52 @@ class _ThreadScreenState extends State<ThreadScreen> {
     // Newest at the bottom, where the thumb and the compose box are: the list
     // is drawn reversed.
     final entries = th?.entries.reversed.toList() ?? const <ThreadEntry>[];
+    final conv = _conv;
+    final meId = widget.me.id;
+    final agents = conv?.active.where((m) => m.agent).toList() ?? const <ConversationMember>[];
+    // Who is thinking while a message waits for its decision: the agent of
+    // the thread, or in a conversation the one agent in it.
+    final (thinkerName, thinkerSlug) = !_isConversation
+        ? (widget.agentName, widget.agentSlug)
+        : agents.length == 1
+        ? (agents.single.name, agents.single.slug)
+        : ('', '');
+    final older = _isConversation && _older && entries.isNotEmpty;
     return Scaffold(
       appBar: ChromeAppBar(
         // Beside a back control the face follows it directly; without one
         // (the detail pane of a wide window) it keeps the content margin.
         titleSpacing: (ModalRoute.of(context)?.canPop ?? false) ? 0 : 16,
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (widget.agentSlug.isNotEmpty) ...[
-              Face(slug: widget.agentSlug, state: widget.faceState, size: 34),
-              const SizedBox(width: 12),
-            ],
-            Flexible(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        title: _isConversation
+            ? _ConversationHead(api: widget.api, conversation: conv!, meId: meId)
+            : Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(widget.agentName, overflow: TextOverflow.ellipsis, style: context.type.titleMedium),
-                  // The state in words under the name, as a messenger says
-                  // "online": the face shows it, the word says it.
-                  Text(
-                    context.t(switch (widget.faceState) {
-                      FaceState.killed => 'status.killed',
-                      FaceState.sleeping => 'status.sleeping',
-                      FaceState.working => 'status.working',
-                    }),
-                    style: context.type.labelSmall,
+                  if (widget.agentSlug.isNotEmpty) ...[
+                    Face(slug: widget.agentSlug, state: widget.faceState, size: 34),
+                    const SizedBox(width: 12),
+                  ],
+                  Flexible(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(widget.agentName, overflow: TextOverflow.ellipsis, style: context.type.titleMedium),
+                        // The state in words under the name, as a messenger
+                        // says "online": the face shows it, the word says it.
+                        Text(
+                          context.t(switch (widget.faceState) {
+                            FaceState.killed => 'status.killed',
+                            FaceState.sleeping => 'status.sleeping',
+                            FaceState.working => 'status.working',
+                          }),
+                          style: context.type.labelSmall,
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
-            ),
-          ],
-        ),
       ),
       body: SafeArea(
         child: Column(
@@ -249,7 +385,9 @@ class _ThreadScreenState extends State<ThreadScreen> {
               child: th == null
                   ? Center(child: Text(context.t('common.loading')))
                   : entries.isEmpty
-                  ? _Empty(name: widget.agentName, slug: widget.agentSlug, state: widget.faceState)
+                  ? (_isConversation
+                        ? _EmptyConversation(hint: conv!.group && agents.isNotEmpty)
+                        : _Empty(name: widget.agentName, slug: widget.agentSlug, state: widget.faceState))
                   : LayoutBuilder(
                       // A reading width on a wide pane, centred (#397).
                       builder: (context, box) {
@@ -258,22 +396,35 @@ class _ThreadScreenState extends State<ThreadScreen> {
                           controller: _scroll,
                           reverse: true,
                           padding: EdgeInsets.fromLTRB(side, 12, side, 4),
-                          itemCount: entries.length + (th.pending ? 1 : 0),
+                          itemCount: entries.length + (th.pending ? 1 : 0) + (older ? 1 : 0),
                           itemBuilder: (context, i) {
                             if (th.pending && i == 0) {
                               return Padding(
                                 padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
                                 child: Row(
                                   children: [
-                                    if (widget.agentSlug.isNotEmpty) ...[
-                                      Face(slug: widget.agentSlug, size: 22),
+                                    if (thinkerSlug.isNotEmpty) ...[
+                                      Face(slug: thinkerSlug, size: 22),
                                       const SizedBox(width: 8),
                                     ],
                                     Text(
-                                      '${widget.agentName} ${context.t('team.arbeitetGerade')}',
+                                      thinkerName.isEmpty ? '…' : '$thinkerName ${context.t('team.arbeitetGerade')}',
                                       style: context.type.bodySmall,
                                     ),
                                   ],
+                                ),
+                              );
+                            }
+                            // The oldest end of the list: the page before it,
+                            // on request.
+                            if (older && i == entries.length + (th.pending ? 1 : 0)) {
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                child: Center(
+                                  child: TextButton(
+                                    onPressed: _loadingOlder ? null : _loadOlder,
+                                    child: Text(context.t('conversation.older')),
+                                  ),
                                 ),
                               );
                             }
@@ -300,8 +451,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
                               entry: e,
                               first: !continues,
                               agentName: widget.agentName,
-                              agentSlug: widget.agentSlug,
-                              faceState: widget.faceState,
+                              avatar: _avatarOf(e),
                               showTask: earlier == null || earlier.taskId != e.taskId || earlier.fromPerson,
                               selected: _answering?.id == e.id,
                               onAnswer: e.isOpenQuestion && widget.me.teamSurface && !_stopped
@@ -338,6 +488,12 @@ class _ThreadScreenState extends State<ThreadScreen> {
             else
               _Composer(
                 controller: _text,
+                mentions: conv == null ? const [] : mentionCandidates(conv, meId),
+                hint: !_isConversation
+                    ? null
+                    : conv!.group && agents.isNotEmpty
+                    ? context.t('conversation.placeholderGroup')
+                    : context.t('conversation.placeholder'),
                 answering: _answering,
                 sending: _sending,
                 // Off, the instance refuses a new message (#328). A reply to a
@@ -348,9 +504,91 @@ class _ThreadScreenState extends State<ThreadScreen> {
                 onCancelAnswer: () => setState(() => _answering = null),
                 onSend: _send,
                 files: _files,
-                onAttach: _attach,
+                // Files go into an agent's home; a conversation has none.
+                onAttach: _isConversation ? null : _attach,
                 onRemove: (f) => setState(() => _files.remove(f)),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// The picture beside the first line of a run: the thread's agent, or in
+  /// a conversation whoever spoke — an agent's face, a person's monogram.
+  Widget? _avatarOf(ThreadEntry e) {
+    if (!_isConversation) {
+      return widget.agentSlug.isEmpty ? null : Face(slug: widget.agentSlug, state: widget.faceState, size: 28);
+    }
+    if (e.speakerHuman) {
+      return PersonPhoto(api: widget.api, humanId: e.speakerId, photoId: null, name: e.speaker, size: 28);
+    }
+    if (e.speakerSlug.isNotEmpty) return Face(slug: e.speakerSlug, size: 28);
+    return null;
+  }
+}
+
+/// A conversation's header (#440): a group's mark, its name and how many
+/// are in it; a colleague's monogram, name and address.
+class _ConversationHead extends StatelessWidget {
+  const _ConversationHead({required this.api, required this.conversation, required this.meId});
+
+  final CoveyApi api;
+  final Conversation conversation;
+  final String meId;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = conversation;
+    final other = c.other(meId);
+    final line = c.group
+        ? context.t('conversation.membersCount', args: {'count': c.active.length})
+        : (other?.email ?? '');
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (c.group)
+          const GroupMark(size: 34)
+        else if (other != null && other.agent && other.slug.isNotEmpty)
+          Face(slug: other.slug, size: 34)
+        else if (other != null)
+          PersonPhoto(api: api, humanId: other.id, photoId: null, name: other.name, size: 34),
+        const SizedBox(width: 12),
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(c.name(meId), overflow: TextOverflow.ellipsis, style: context.type.titleMedium),
+              if (line.isNotEmpty) Text(line, overflow: TextOverflow.ellipsis, style: context.type.labelSmall),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A conversation nobody has said anything in yet; in a group with agents,
+/// how one addresses them.
+class _EmptyConversation extends StatelessWidget {
+  const _EmptyConversation({required this.hint});
+
+  final bool hint;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(context.t('conversation.emptyThread'), textAlign: TextAlign.center, style: context.type.titleLarge),
+            if (hint) ...[
+              const SizedBox(height: 8),
+              Text(context.t('conversation.agentHint'), textAlign: TextAlign.center, style: context.type.bodyMedium),
+            ],
           ],
         ),
       ),
@@ -428,8 +666,7 @@ class _Line extends StatelessWidget {
     required this.selected,
     required this.first,
     required this.agentName,
-    required this.agentSlug,
-    required this.faceState,
+    this.avatar,
     this.onAnswer,
     this.showTask = true,
   });
@@ -442,8 +679,10 @@ class _Line extends StatelessWidget {
   /// corner; the lines after it follow closely.
   final bool first;
   final String agentName;
-  final String agentSlug;
-  final FaceState faceState;
+
+  /// Beside the first line of a run from the other side: the agent's face,
+  /// or in a conversation the speaker's (#440). Null draws none.
+  final Widget? avatar;
 
   /// Whether this line opens a run of its task's lines. The task is named
   /// once where its run starts; the lines after it follow bare.
@@ -485,7 +724,10 @@ class _Line extends StatelessWidget {
               mainAxisAlignment: mine ? MainAxisAlignment.end : MainAxisAlignment.start,
               children: [
                 if (!mine) ...[
-                  Text(agentName, style: context.type.labelMedium?.copyWith(color: c.textSecondary)),
+                  Text(
+                    entry.speaker.isNotEmpty ? entry.speaker : agentName,
+                    style: context.type.labelMedium?.copyWith(color: c.textSecondary),
+                  ),
                   if (kindLabel != null) ...[
                     const SizedBox(width: 6),
                     Container(
@@ -582,15 +824,10 @@ class _Line extends StatelessWidget {
             children: [
               // The agent's face beside the first line of a run; the column
               // stays where none is drawn, so a run lines up.
-              if (!mine && agentSlug.isNotEmpty) ...[
+              if (!mine && avatar != null) ...[
                 SizedBox(
                   width: 28,
-                  child: first
-                      ? Padding(
-                          padding: const EdgeInsets.only(top: 20),
-                          child: Face(slug: agentSlug, state: faceState, size: 28),
-                        )
-                      : null,
+                  child: first ? Padding(padding: const EdgeInsets.only(top: 20), child: avatar) : null,
                 ),
                 const SizedBox(width: 8),
               ],
@@ -626,17 +863,39 @@ class _Composer extends StatelessWidget {
     required this.files,
     required this.onAttach,
     required this.onRemove,
+    this.mentions = const [],
+    this.hint,
   });
 
   final TextEditingController controller;
+
+  /// Who "@" offers (#440): a group's other members; empty elsewhere.
+  final List<MentionCandidate> mentions;
+
+  /// The field's hint where it is not the agent thread's.
+  final String? hint;
   final ThreadEntry? answering;
   final bool sending;
   final bool enabled;
   final VoidCallback onCancelAnswer;
   final VoidCallback onSend;
   final List<Attachment> files;
-  final VoidCallback onAttach;
+
+  /// Null where nothing can be attached: the button is not drawn.
+  final VoidCallback? onAttach;
   final ValueChanged<Attachment> onRemove;
+
+  /// Puts the handle in for the "@…" the caret stands in.
+  void _mention(MentionCandidate k) {
+    final v = controller.value;
+    final open = openMention(v.text, v.selection.baseOffset);
+    if (open == null) return;
+    final out = insertMention(v.text, v.selection.baseOffset, open.start, k.handle);
+    controller.value = TextEditingValue(
+      text: out.text,
+      selection: TextSelection.collapsed(offset: out.caret),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -670,6 +929,68 @@ class _Composer extends StatelessWidget {
                 ],
               ),
             ),
+          // "@" in a group: the members that match what follows it, a tap
+          // puts the handle in.
+          if (mentions.isNotEmpty)
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: controller,
+              builder: (context, v, _) {
+                final open = v.selection.isCollapsed ? openMention(v.text, v.selection.baseOffset) : null;
+                final hits = open == null ? const <MentionCandidate>[] : mentionMatches(mentions, open.query);
+                if (hits.isEmpty) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Semantics(
+                    container: true,
+                    label: context.t('conversation.mentionList'),
+                    child: Material(
+                      color: c.surface2,
+                      borderRadius: BorderRadius.circular(18),
+                      clipBehavior: Clip.antiAlias,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (final k in hits)
+                            InkWell(
+                              onTap: () => _mention(k),
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(minHeight: 44),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                  child: Row(
+                                    children: [
+                                      if (k.member.agent && k.member.slug.isNotEmpty)
+                                        Face(slug: k.member.slug, size: 24)
+                                      else
+                                        PersonPhoto(
+                                          api: null,
+                                          humanId: k.member.id,
+                                          photoId: null,
+                                          name: k.name,
+                                          size: 24,
+                                        ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          k.name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: context.type.bodyLarge,
+                                        ),
+                                      ),
+                                      Text('@${k.handle}', style: context.type.labelSmall),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
           // What goes with the message, removable until it is sent.
           if (files.isNotEmpty)
             Padding(
@@ -698,14 +1019,17 @@ class _Composer extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  SizedBox.square(
-                    dimension: 46,
-                    child: IconButton(
-                      onPressed: enabled && !sending ? onAttach : null,
-                      icon: Icon(AppIcons.attach.of(context), color: c.textSecondary),
-                      tooltip: context.t('team.anhaengen'),
-                    ),
-                  ),
+                  if (onAttach != null)
+                    SizedBox.square(
+                      dimension: 46,
+                      child: IconButton(
+                        onPressed: enabled && !sending ? onAttach : null,
+                        icon: Icon(AppIcons.attach.of(context), color: c.textSecondary),
+                        tooltip: context.t('team.anhaengen'),
+                      ),
+                    )
+                  else
+                    const SizedBox(width: 12),
                   Expanded(
                     child: Focus(
                       // On the desktop Enter sends and Shift+Enter breaks the
@@ -744,7 +1068,7 @@ class _Composer extends StatelessWidget {
                               ? context.t('mobile.teamAusKurz')
                               : answering != null
                               ? context.t('chat.placeholderAnswer')
-                              : context.t('chat.placeholder'),
+                              : hint ?? context.t('chat.placeholder'),
                         ),
                       ),
                     ),

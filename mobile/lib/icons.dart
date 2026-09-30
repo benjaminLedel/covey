@@ -43,4 +43,6 @@ abstract final class AppIcons {
   static const photo = AppIcon(Icons.photo_library_outlined, CupertinoIcons.photo_on_rectangle);
   static const attach = AppIcon(Icons.attach_file_rounded, CupertinoIcons.paperclip);
   static const kindMeeting = AppIcon(Icons.groups_2_outlined, CupertinoIcons.person_3);
+  static const picked = AppIcon(Icons.check_circle_rounded, CupertinoIcons.checkmark_alt_circle_fill);
+  static const unpicked = AppIcon(Icons.radio_button_unchecked_rounded, CupertinoIcons.circle);
 }

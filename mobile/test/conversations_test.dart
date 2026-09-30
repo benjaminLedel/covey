@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:covey_mobile/api.dart';
 import 'package:covey_mobile/models.dart';
+import 'package:covey_mobile/pairing.dart';
+import 'package:covey_mobile/push.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -257,6 +259,22 @@ void main() {
           {'kind': 'agent', 'id': _agent},
         ],
       });
+    });
+  });
+
+  group('links and notifications', () {
+    test('a conversation link is /team/c/<id>, on the web or as covey://', () {
+      const id = '22222222-3333-4444-5555-666666666666';
+      expect(conversationLink(Uri.parse('https://c.example/team/c/$id')), id);
+      expect(conversationLink(Uri.parse('covey://team/c/$id')), id);
+      expect(conversationLink(Uri.parse('covey://team/$id')), isNull);
+      expect(threadLinkAgent(Uri.parse('covey://team/c/$id')), isNull, reason: 'not an agent’s thread');
+      expect(conversationLink(Uri.parse('covey://team/c/nope')), isNull);
+    });
+
+    test('a tapped notification opens the agent’s thread, or the conversation it names', () {
+      expect(PushNotices.linkFor(_agent), Uri.parse('covey://team/$_agent'));
+      expect(PushNotices.linkFor('conversation:c1'), Uri.parse('covey://team/c/c1'));
     });
   });
 }

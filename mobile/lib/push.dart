@@ -23,7 +23,9 @@ import 'prefs.dart';
 /// unread markers itself and shows local notifications; nothing leaves the
 /// machine for it.
 ///
-/// Either way a tap opens the thread: [opens] carries the agent's id.
+/// Either way a tap opens the thread: [opens] carries the agent's id — or,
+/// for a conversation that is no agent's thread (#440), `conversation:<id>`;
+/// [linkFor] makes the link the app opens of it.
 class PushNotices {
   PushNotices._();
 
@@ -40,8 +42,14 @@ class PushNotices {
 
   final _opens = StreamController<String>.broadcast();
 
-  /// The agents whose notification was tapped.
+  /// The agents (or `conversation:<id>`) whose notification was tapped.
   Stream<String> get opens => _opens.stream;
+
+  /// The link a tapped notification opens: the agent's thread, or the
+  /// conversation it names.
+  static Uri linkFor(String target) => target.startsWith('conversation:')
+      ? Uri.parse('covey://team/c/${target.substring('conversation:'.length)}')
+      : Uri.parse('covey://team/$target');
 
   static bool get supported => Platform.isIOS || Platform.isAndroid || Platform.isMacOS;
 

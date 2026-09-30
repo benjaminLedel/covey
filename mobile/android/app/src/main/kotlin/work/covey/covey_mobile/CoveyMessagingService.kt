@@ -22,8 +22,12 @@ class CoveyMessagingService : FirebaseMessagingService() {
     override fun onMessageReceived(message: RemoteMessage) {
         val d = message.data
         val title = d["title"] ?: return
+        // The agent's thread, or a conversation that is none (#440): Dart
+        // reads "conversation:<id>" as the latter.
+        val conversation = d["conversation_id"].orEmpty()
+        val target = d["agent_id"].orEmpty().ifEmpty { if (conversation.isEmpty()) "" else "conversation:$conversation" }
         Notices.show(
-            this, title, d["body"].orEmpty(), d["agent_id"].orEmpty(), d["sound"].orEmpty(),
+            this, title, d["body"].orEmpty(), target, d["sound"].orEmpty(),
             d["badge"]?.toIntOrNull() ?: 0,
         )
     }

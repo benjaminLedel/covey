@@ -128,11 +128,17 @@ import UserNotifications
     _ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
     withCompletionHandler completionHandler: @escaping () -> Void
   ) {
-    if let agent = response.notification.request.content.userInfo["agent_id"] as? String {
+    // The agent's thread, or a conversation that is none (#440): Dart reads
+    // "conversation:<id>" as the latter.
+    let info = response.notification.request.content.userInfo
+    let agent = info["agent_id"] as? String ?? ""
+    let conversation = info["conversation_id"] as? String ?? ""
+    let target = !agent.isEmpty ? agent : (!conversation.isEmpty ? "conversation:" + conversation : "")
+    if !target.isEmpty {
       if let push {
-        push.invokeMethod("open", arguments: agent)
+        push.invokeMethod("open", arguments: target)
       } else {
-        launchAgent = agent
+        launchAgent = target
       }
     }
     completionHandler()

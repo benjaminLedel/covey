@@ -80,7 +80,7 @@ class _CoveyAppState extends State<CoveyApp> {
     _start();
     _linkSub = widget.links?.listen(_onLink);
     // A tapped notification opens its thread the way a link to it does (#379).
-    _pushSub = PushNotices.instance.opens.listen((agent) => _onLink(Uri.parse('covey://team/$agent')));
+    _pushSub = PushNotices.instance.opens.listen((target) => _onLink(PushNotices.linkFor(target)));
   }
 
   @override
@@ -105,8 +105,8 @@ class _CoveyAppState extends State<CoveyApp> {
     if (link != null) WidgetsBinding.instance.addPostFrameCallback((_) => _handleLink(link));
   }
 
-  /// What a link can do (#333): pair, or open a thread. Nothing else — a link
-  /// is something anybody can send.
+  /// What a link can do (#333): pair, or open a thread or a conversation
+  /// (#440). Nothing else — a link is something anybody can send.
   Future<void> _handleLink(Uri uri) async {
     final ctx = _nav.currentContext;
     if (ctx == null) return;
@@ -154,15 +154,33 @@ class _CoveyAppState extends State<CoveyApp> {
       return;
     }
 
-    final agentId = threadLinkAgent(uri);
+    final conversationId = conversationLink(uri);
+    var agentId = threadLinkAgent(uri);
     final api = _api;
     // A thread link only means something for the instance the app is
     // connected to; a link to another host is left alone.
-    if (agentId == null || api == null || (uri.scheme != 'covey' && uri.host != api.base.host)) return;
+    if ((agentId == null && conversationId == null) ||
+        api == null ||
+        (uri.scheme != 'covey' && uri.host != api.base.host)) {
+      return;
+    }
     try {
       final me = await api.me();
       // Without the team surface there is no thread to open (#336).
-      if (!me.teamSurface || !me.canWrite) return;
+      if (!me.teamSurface || !me.canChat) return;
+      if (conversationId != null) {
+        // Only a member reads it; anybody else gets a 404 and nothing opens.
+        final c = await api.conversation(conversationId);
+        agentId = c.directAgent?.id;
+        if (agentId == null) {
+          _nav.currentState?.push(
+            MaterialPageRoute(
+              builder: (_) => ThreadScreen.conversation(api: api, conversation: c, me: me),
+            ),
+          );
+          return;
+        }
+      }
       final agent = (await api.agents()).where((a) => a.id == agentId).firstOrNull;
       if (agent == null) return;
       _nav.currentState?.push(

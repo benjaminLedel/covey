@@ -208,6 +208,13 @@ class _HomeScreenState extends State<HomeScreen> {
     note: false,
   );
 
+  /// A conversation that is not an agent's thread (#440): a group, or a
+  /// direct one with a colleague.
+  void _openConversation(Conversation c) => _show(
+    ThreadScreen.conversation(key: ValueKey('conversation:${c.id}'), api: widget.api, conversation: c, me: _me!),
+    note: false,
+  );
+
   void _openNote(Note note, bool canSummarize, VoidCallback changed) => _show(
     NotePage(
       key: ValueKey('note:${note.id}'),
@@ -352,6 +359,7 @@ class _HomeScreenState extends State<HomeScreen> {
             api: widget.api,
             me: me,
             onOpen: _openThread,
+            onOpenConversation: _openConversation,
             actions: actions,
             bottomClearance: isWide ? 24 : capsuleClearance,
             compact: isWide,
