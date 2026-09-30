@@ -169,5 +169,29 @@
     "fails": [
       "address"
     ]
+  },
+  {
+    "scenario": "de-konfig-takt-wunsch",
+    "why": "#491: a config change that claims to be in effect before anybody accepted it.",
+    "recorded": "{\"action\": \"config\", \"title\": \"Postfach alle zwei Stunden\", \"change\": \"HEARTBEAT.md: alle 2h.\", \"text\": \"Erledigt, ich schau ab jetzt nur noch alle zwei Stunden rein.\"}",
+    "fails": [
+      "must_not_contain"
+    ]
+  },
+  {
+    "scenario": "de-konfig-takt-frage",
+    "why": "#491: a question about the heartbeat turned into a proposal.",
+    "recorded": "{\"action\": \"config\", \"title\": \"Takt erklären\", \"change\": \"nichts\", \"text\": \"Hab was entworfen, {approvers} kann es annehmen.\"}",
+    "fails": [
+      "action"
+    ]
+  },
+  {
+    "scenario": "en-config-no-rights",
+    "why": "#491: a config decision that says nothing in the chat.",
+    "recorded": "{\"action\": \"config\", \"title\": \"Every two hours\", \"change\": \"HEARTBEAT.md: every 2h.\", \"text\": \"\"}",
+    "fails": [
+      "empty"
+    ]
   }
 ]

@@ -53,6 +53,9 @@ type evalRahmen struct {
 	Ton          string
 	// The chat voice and the audience lines of #471 (evalStimme).
 	Stimme, Publikum string
+	// The config proposals of #491: offered or not, and the heartbeat.
+	Vorschlaege bool
+	Takt        string
 }
 
 // evalVoice is a voice of the scenario's library, as far as the chat reads
@@ -142,6 +145,10 @@ type evalScenario struct {
 		Result string `json:"result"`
 	} `json:"task"`
 	SearchHits []string `json:"search_hits"`
+	// ConfigProposals: the organisation has the trial of #491 on, so the
+	// triage may choose "config"; Heartbeat is the agent's HEARTBEAT.md.
+	ConfigProposals bool   `json:"config_proposals"`
+	Heartbeat       string `json:"heartbeat"`
 
 	Expect struct {
 		Action    []string `json:"action"`
@@ -244,6 +251,7 @@ func (sc evalScenario) rahmen() evalRahmen {
 		Rolle: sc.Agent.Role, Seele: sc.Agent.Soul, Gegenueber: sc.gegenueber(),
 		Raum: evalRaum(sc.gespraech(), sc.agentID(), sc.Person.Name, sc.Kind == "triage"),
 		Ton:  w.Ton, Stimme: w.Stimme, Publikum: w.Publikum,
+		Vorschlaege: sc.ConfigProposals, Takt: sc.Heartbeat,
 	}
 }
 
@@ -311,6 +319,11 @@ func ausgabe(e Entscheidung) evalAusgabe {
 	text := e.Text
 	if e.Aktion == AktionNotiz {
 		text = e.Antwort
+	}
+	// A config decision's text names who may accept through a placeholder
+	// the server fills (#491); the checks read it with a name in it.
+	if e.Aktion == AktionKonfig {
+		text = strings.ReplaceAll(text, ApproversPlatzhalter, "Bernd")
 	}
 	return evalAusgabe{Aktion: e.Aktion, Endgueltig: e.Aktion, Text: text}
 }
@@ -480,7 +493,7 @@ func pruefen(sc evalScenario, a evalAusgabe) []befund {
 		switch {
 		case a.Endgueltig == AktionNotiz:
 			add("silent", "a note without a reply leaves the person without an answer (#460)")
-		case sc.Kind == "narration" || a.Endgueltig == AktionAntwort:
+		case sc.Kind == "narration" || a.Endgueltig == AktionAntwort || a.Endgueltig == AktionKonfig:
 			add("empty", "nothing said")
 		}
 		return out

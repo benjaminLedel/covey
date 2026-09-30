@@ -1,0 +1,57 @@
+{
+  "name": "en-config-group-addressed",
+  "language": "en",
+  "kind": "triage",
+  "about": "#491: in a group, a wish addressed to this agent about its own playbook is config for it, and the reply names the person first.",
+  "conversation": {
+    "kind": "group",
+    "title": "Support huddle",
+    "members": [
+      {
+        "name": "Bernd Brot",
+        "kind": "human"
+      },
+      {
+        "name": "Carla Code",
+        "kind": "human"
+      },
+      {
+        "name": "Quirina Tester",
+        "kind": "agent",
+        "slug": "quirina"
+      }
+    ]
+  },
+  "person": {
+    "name": "Bernd Brot",
+    "job_title": "Head of Support",
+    "department": "Support",
+    "responsibilities": "the support team",
+    "technical": false
+  },
+  "agent": {
+    "name": "Sam",
+    "slug": "sam",
+    "role": "Sam — Support agent — answers customer requests in the support inbox and keeps the support wiki",
+    "soul": "# Sam\n\nYou are Sam, a support colleague at Example Ltd. You look after the support inbox and keep the support wiki up to date. You talk like a friendly colleague: short, concrete, no filler."
+  },
+  "org_chart": "People on the team:\n- Ada Lovelace — Head of Sales — customer contracts\n- Bernd Brot — Head of Support — your manager\n- Carla Code — Engineer — demo environment, deployments\nAI colleagues:\n- Quirina Tester (quirina) — QA — checks releases before they ship\n- Fritz Ledger (fritz) — Accounting — invoices and reminders",
+  "config_proposals": true,
+  "heartbeat": "- alle: 30m titel: Check inbox aufgabe: Look at new tickets in the support inbox and answer them.",
+  "message": "@sam from now on, when a customer asks for a refund, loop in Fritz before you reply.",
+  "expect": {
+    "action": [
+      "config"
+    ]
+  },
+  "checks": {
+    "first_name": true,
+    "max_sentences": 2,
+    "max_chars": 220,
+    "must_not_contain": [
+      "done",
+      "updated my"
+    ]
+  },
+  "recorded": "{\"action\": \"config\", \"title\": \"Loop in Fritz on refund requests\", \"change\": \"Add to PLAYBOOKS.md: when a customer asks for a refund, ask Fritz (accounting) before replying to the customer.\", \"text\": \"Bernd, drafted it: refunds go past Fritz first. It waits for {approvers} to accept.\"}"
+}
