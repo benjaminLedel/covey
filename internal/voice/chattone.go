@@ -115,6 +115,19 @@ func EffectiveChatTone(voice, org ChatTone) ChatTone {
 	return out
 }
 
+// SpokenAddress is du or sie, as a call's greeting says it before the
+// person has said a word (#506): auto has nothing to follow yet and takes
+// the organisation's du or Sie behind it; "" when nothing says either.
+func (c ChatTone) SpokenAddress() string {
+	switch c.Address {
+	case AddressDu, AddressSie:
+		return c.Address
+	case AddressAuto:
+		return c.fallbackAddress
+	}
+	return ""
+}
+
 // Prompt is the tone as the turns read it: one short block, empty when
 // nothing is set. Compact on purpose — it stands in every turn.
 func (c ChatTone) Prompt() string {

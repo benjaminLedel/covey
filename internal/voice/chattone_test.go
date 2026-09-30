@@ -59,3 +59,23 @@ func TestChatTonePromptLeer(t *testing.T) {
 		t.Fatalf("a note alone: %q", p)
 	}
 }
+
+// TestSpokenAddress: a call's greeting says du or Sie as set; auto takes the
+// organisation's behind it, and nothing set says nothing (#506).
+func TestSpokenAddress(t *testing.T) {
+	cases := []struct {
+		voice, org ChatTone
+		want       string
+	}{
+		{ChatTone{Address: AddressSie}, ChatTone{}, AddressSie},
+		{ChatTone{}, ChatTone{Address: AddressDu}, AddressDu},
+		{ChatTone{Address: AddressAuto}, ChatTone{Address: AddressSie}, AddressSie},
+		{ChatTone{Address: AddressAuto}, ChatTone{}, ""},
+		{ChatTone{}, ChatTone{}, ""},
+	}
+	for _, c := range cases {
+		if got := EffectiveChatTone(c.voice, c.org).SpokenAddress(); got != c.want {
+			t.Errorf("voice %+v, org %+v: %q, want %q", c.voice, c.org, got, c.want)
+		}
+	}
+}
