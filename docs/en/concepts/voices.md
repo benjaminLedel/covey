@@ -20,7 +20,7 @@ A voice carries:
 - a **card** — 250 to 400 words on how the author opens, carries an argument, brings in facts, builds sentences, and what they never do;
 - **passages** — five to eight paragraphs that show the hand; they go into the prompt;
 - a **chat tone** — address, tone and emoji in the team chat;
-- optionally a **spoken voice** — how the agents carrying it sound when a call speaks their replies through the organisation's voice provider: the voice's name there, a short style hint and the speed; without one the provider's default voice speaks, in a style taken from the chat tone. The voice page plays a sample sentence through the provider;
+- optionally a **spoken voice** — how the agents carrying it sound when a call speaks their replies through the organisation's voice provider: the voice's name there, a short style hint and the speed. Where the provider lists its voices (educa AI does), the name is chosen from that list, grouped by language, with a Listen button; otherwise it is typed. Without one, each agent gets one of the provider's voices of the call's language assigned automatically — a different one per agent while the list has enough — in a style taken from the chat tone; the agent's settings show which voice it speaks with in a call and why. Greeting, the short words while it thinks and the goodbye use the same voice. The voice page plays a sample sentence through the provider;
 - when it is measured from texts: a **profile** the style gate checks every outgoing text against, and a **contrast** against AI text if a reference was uploaded.
 
 ## Which voice applies: per occasion and per reader
