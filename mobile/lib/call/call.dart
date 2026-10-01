@@ -245,6 +245,10 @@ abstract class CallBackend {
   /// Writes what the person said, marked as said in a call.
   Future<ConversationMessage> post(String text);
 
+  /// Marks the conversation read up to [at]: what the call fetched is heard,
+  /// and the instance sends no notification for it (#525).
+  Future<void> read(DateTime at);
+
   /// Fires when the conversation may have moved.
   Stream<void> changes();
 
@@ -353,6 +357,9 @@ class ApiCallBackend implements CallBackend {
 
   @override
   Future<ConversationMessage> post(String text) => api.postConversationMessage(_conv, text, via: 'call');
+
+  @override
+  Future<void> read(DateTime at) => api.markConversationRead(_conv, at);
 
   @override
   Stream<void> changes() =>
@@ -551,6 +558,7 @@ class CallController extends ChangeNotifier {
     this.pollEvery = const Duration(seconds: 5),
     this.serverBound = serverRecognitionBound,
     this.mayHangUp,
+    this.hush,
     StartTimer? startTimer,
     math.Random? random,
     this.greeter,
@@ -614,6 +622,10 @@ class CallController extends ChangeNotifier {
   /// Whether the call ends after the agent's goodbye (#517), asked when the
   /// goodbye arrives; null: it does.
   final bool Function()? mayHangUp;
+
+  /// Told true when the call starts and false when it ends (#525): the
+  /// app's notifications hold still in between. Null tells nobody.
+  final void Function(bool on)? hush;
 
   /// How the call greets; null does not.
   final CallGreeter? greeter;
@@ -716,6 +728,7 @@ class CallController extends ChangeNotifier {
   /// hearing.
   Future<void> start() async {
     _set(CallMode.preparing);
+    _hush(true);
     unawaited(sounds?.play(Earcon.ringing, loops: 2));
     unawaited(sounds?.preload());
     // Asked for and synthesised while the line rings and the models load.
@@ -846,8 +859,18 @@ class CallController extends ChangeNotifier {
     diag('call', 'failed: $e');
     unawaited(sounds?.stop());
     failure = e;
+    _hush(false);
     unawaited(_shut());
     _set(CallMode.failed);
+  }
+
+  bool _hushed = false;
+
+  /// Tells [hush], once for each change.
+  void _hush(bool on) {
+    if (_hushed == on) return;
+    _hushed = on;
+    hush?.call(on);
   }
 
   /// Mutes or unmutes: muted, the microphone is closed.
@@ -875,6 +898,7 @@ class CallController extends ChangeNotifier {
     _mode = CallMode.ended;
     if (!_disposed) notifyListeners();
     if (wasOpen) unawaited(sounds?.play(Earcon.hangUp));
+    _hush(false);
     await _shut();
     diag('call', 'ended');
   }
@@ -1234,6 +1258,10 @@ class CallController extends ChangeNotifier {
         final last = _lastId;
         final msgs = last == null ? await backend.open() : await backend.after(last);
         if (ended) return;
+        // Read as soon as fetched, before the instance's notifier gets to
+        // it: the person hears it in the call (#525).
+        final newest = msgs.map((m) => m.createdAt).nonNulls.fold<DateTime?>(null, (a, b) => a == null || b.isAfter(a) ? b : a);
+        if (newest != null) unawaited(_markRead(newest));
         for (final m in msgs) {
           _lastId = m.id;
           if (!_seen.add(m.id)) continue;
@@ -1267,6 +1295,14 @@ class CallController extends ChangeNotifier {
     }
     _update();
     unawaited(_speakNext());
+  }
+
+  Future<void> _markRead(DateTime at) async {
+    try {
+      await backend.read(at);
+    } catch (e) {
+      diag('call', 'marking the conversation read: $e');
+    }
   }
 
   /// What of an agent's message the call speaks: its spoken form when it

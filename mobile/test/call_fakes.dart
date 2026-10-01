@@ -125,6 +125,12 @@ class FakeBackend implements CallBackend {
     return _add('human', text, author: 'me');
   }
 
+  /// The times the call marked the conversation read up to.
+  final readUpTo = <DateTime>[];
+
+  @override
+  Future<void> read(DateTime at) async => readUpTo.add(at);
+
   @override
   Stream<void> changes() => _changes.stream;
 

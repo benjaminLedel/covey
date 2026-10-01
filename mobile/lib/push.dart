@@ -70,6 +70,9 @@ class PushNotices {
   DateTime _namesAt = DateTime(0);
   bool _listening = false;
 
+  /// Whether a call is on (#525): the Mac's look shows nothing meanwhile.
+  bool _hushed = false;
+
   Future<String> get sound async {
     final s = await Prefs.instance.read(_prefSound);
     return sounds.contains(s) ? s! : 'bot';
@@ -195,6 +198,17 @@ class PushNotices {
     }
   }
 
+  /// A call started (true) or ended (false), as the call tells it (#525).
+  /// While it is on, the look keeps the badge but shows nothing and leaves
+  /// the last look where it was; when it ends, a look announces what came
+  /// in meanwhile, once per conversation. The call itself marks what it
+  /// heard read, so that is not among it.
+  void hush(bool on) {
+    if (_hushed == on) return;
+    _hushed = on;
+    if (!on && _live != null) unawaited(_look());
+  }
+
   /// The app icon's number: what the person has not read.
   Future<void> badge(int unread) async {
     if (!supported) return;
@@ -220,10 +234,11 @@ class PushNotices {
         _agents = {for (final a in await api.agents()) a.id: a};
         _namesAt = DateTime.now();
       }
+      await badge(now.values.fold<int>(0, (n, t) => n + t.unread));
+      if (_hushed) return;
       final seen = _seen ?? await _loadSeen(api);
       _seen = {for (final t in now.values) t.agentId: t.lastAt};
       await _saveSeen(api, _seen!);
-      await badge(now.values.fold<int>(0, (n, t) => n + t.unread));
       for (final t in toAnnounce(seen, now.values)) {
         final agent = _agents[t.agentId];
         final name = agent?.displayName ?? '';
