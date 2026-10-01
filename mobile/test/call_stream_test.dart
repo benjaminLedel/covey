@@ -1,3 +1,4 @@
+import 'package:covey_mobile/call/sounds.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'call_fakes.dart';
@@ -111,6 +112,57 @@ void main() {
     backend.agentReplies(backend.spokenAsked.single, 'Hallo!');
     await _settle();
     expect(speaker.spoken.map((s) => s.$1), ['Hallo!']);
+    await call.hangUp();
+  });
+
+  test('the reply is read when its stream ends, without an event (#531)', () async {
+    final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker();
+    final call = fakeCall(ears, backend, speaker);
+    await call.start();
+    final stream = backend.streamNext();
+    ears.say('Wie weit ist der Export?');
+    await _settle();
+    final asked = backend.spokenAsked.single;
+    stream.add('Läuft noch.');
+    await _settle();
+    backend.agentReplies(
+      asked,
+      'Läuft noch — 3 von 7.',
+      meta: {'spoken': 'Läuft noch. Gut die Hälfte ist durch.'},
+      notify: false,
+    );
+    await stream.close();
+    await _settle();
+    speaker.finish();
+    await _settle();
+    expect(speaker.spoken.map((s) => s.$1), ['Läuft noch.', 'Gut die Hälfte ist durch.']);
+    await call.hangUp();
+  });
+
+  test('the previous reply, read late, does not end the next wait (#531)', () async {
+    final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker(), clock = FakeClock();
+    final call = fakeCall(ears, backend, speaker, sounds: FakeEarcons().sounds(), startTimer: clock.start);
+    await call.start();
+    // The first turn's reply: streamed, its message written without an event,
+    // and its stream not closed yet when the next turn is posted.
+    final first = backend.streamNext();
+    ears.say('Hallo?');
+    await _settle();
+    final asked = backend.spokenAsked.single;
+    first.add('Hallo!');
+    await _settle();
+    speaker.finish();
+    await _settle();
+    backend.agentReplies(asked, 'Hallo!', meta: {'spoken': 'Hallo!'}, notify: false);
+
+    backend.streamNext();
+    ears.say('Wie weit ist der Export?');
+    await _settle();
+    await clock.advance(const Duration(milliseconds: 900));
+    expect(speaker.fillers, hasLength(1), reason: 'the typing of the second wait');
+    await _settle();
+    expect(speaker.fades, 0, reason: 'the first reply, read now, is no answer to the second turn');
+    expect(speaker.spoken.map((s) => s.$1), ['Hallo!'], reason: 'and was heard already');
     await call.hangUp();
   });
 }

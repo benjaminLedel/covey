@@ -146,9 +146,11 @@ class FakeBackend implements CallBackend {
   StreamController<String> streamNext() => spoken['m$_n'] = StreamController<String>();
 
   /// The agent's reply to [to], as the triage writes it after streaming.
-  void agentReplies(String to, String text, {Map<String, String> meta = const {}}) {
+  /// [notify] false: no event says so, as when the app's event stream is
+  /// silent (#531).
+  void agentReplies(String to, String text, {Map<String, String> meta = const {}, bool notify = true}) {
     _add('agent', text, author: 'agent-1', replyTo: to, meta: meta);
-    _changes.add(null);
+    if (notify) _changes.add(null);
   }
 
   /// The times the call marked the conversation read up to.

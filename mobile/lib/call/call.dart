@@ -992,6 +992,10 @@ class CallController extends ChangeNotifier {
   StreamSubscription<String>? _spokenSub;
   final _streamed = <String, String>{};
 
+  /// The person's last message, whose reply is awaited: a reply to an
+  /// earlier one does not end the wait (#531).
+  String? _posted;
+
   /// Replies whose stream a barge-in cut: their message is not spoken.
   final _cutStreams = <String>{};
 
@@ -1007,6 +1011,10 @@ class CallController extends ChangeNotifier {
           onError: (Object e) => diag('call', 'spoken reply: $e'),
           onDone: () {
             if (_spokenFor == messageId) _spokenFor = null;
+            // The instance writes the reply's message before it closes the
+            // stream: read it now rather than on an event that may not come
+            // (#531).
+            if (!ended) unawaited(_fetch());
           },
         );
   }
@@ -1274,6 +1282,7 @@ class CallController extends ChangeNotifier {
     try {
       final m = await backend.post(text);
       _seen.add(m.id);
+      _posted = m.id;
       _listenSpoken(m.id);
       diag('call', 'turn posted, ${text.length} characters');
     } on ApiException catch (e) {
@@ -1330,11 +1339,15 @@ class CallController extends ChangeNotifier {
             // The turn became a task: its acknowledgement, not a result.
             unawaited(sounds?.play(Earcon.task));
           }
-          _awaiting = false;
-          _fillers.replyArrived();
-          _giveUp?.cancel();
-          _say(CallLine(mine: false, text: textForSpeech(m.text).text));
           final to = m.replyTo;
+          // The reply to an earlier turn, read late, is spoken, but the
+          // wait for the last one goes on (#531).
+          if (to == null || to == _posted) {
+            _awaiting = false;
+            _fillers.replyArrived();
+            _giveUp?.cancel();
+          }
+          _say(CallLine(mine: false, text: textForSpeech(m.text).text));
           if (to != null && _cutStreams.remove(to)) {
             // Its stream was cut by the person speaking: the rest stands in
             // the chat, and a goodbye they spoke into does not hang up.
