@@ -52,6 +52,40 @@ void main() {
     expect(hushed, [true, false]);
   });
 
+  // Not quiet, but beside it: the wait after a turn (#527).
+  test('a turn is recognised once, in the pause before its end', () async {
+    final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker();
+    final call = _call(ears, backend, speaker, []);
+    await call.start();
+    ears.heard.add('Wie weit ist der Export?');
+    ears.feed(640, voiced: true);
+    ears.feed(576, voiced: false); // past half of the 1 s pause
+    await _settle();
+    expect(ears.recognitions, 1, reason: 'recognised ahead');
+    expect(backend.posted, isEmpty, reason: 'the turn has not ended');
+    ears.feed(480, voiced: false);
+    await _settle();
+    expect(ears.recognitions, 1, reason: 'the turn is what was recognised ahead');
+    expect(backend.posted, ['Wie weit ist der Export?']);
+    await call.hangUp();
+  });
+
+  test('speaking on after the pause began: the whole turn is recognised again', () async {
+    final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker();
+    final call = _call(ears, backend, speaker, []);
+    await call.start();
+    ears.heard.addAll(['Wie weit', 'Wie weit ist der Export?']);
+    ears.feed(640, voiced: true);
+    ears.feed(576, voiced: false);
+    await _settle();
+    ears.feed(640, voiced: true);
+    ears.feed(1056, voiced: false);
+    await _settle();
+    expect(ears.recognitions, greaterThanOrEqualTo(2));
+    expect(backend.posted, ['Wie weit ist der Export?']);
+    await call.hangUp();
+  });
+
   test('a reply the call fetched is marked read up to its time', () async {
     final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker();
     final call = _call(ears, backend, speaker, []);

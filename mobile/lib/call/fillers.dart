@@ -32,9 +32,10 @@ typedef StartTimer = Timer Function(Duration after, void Function() fire);
 /// reply, the typing starts — the
 /// sound [sound] answers with its volume, null when the call's sounds are
 /// off — and goes on until the reply. Once the reply's message is there
-/// ([replyArrived]) it no longer starts; one that is playing fades over
-/// [fade] when the reply is about to be spoken, and the reply waits for
-/// that ([makeWay]). Barge-in, mute and hanging up stop it ([stop]).
+/// ([replyArrived]) it no longer starts, and one that is playing fades over
+/// [fade] — while the reply's audio is being made, which takes longer, so
+/// the reply need not wait for it (#527). Barge-in, mute and hanging up
+/// stop it ([stop]).
 /// Nothing starts while [quiet] — muted, the agent speaking, the person
 /// speaking.
 ///
@@ -83,29 +84,21 @@ class CallFillers {
     });
   }
 
-  /// The reply's message is there: the typing no longer starts. One
-  /// already playing goes on until the reply makes way for it ([makeWay]).
+  /// The reply's message is there: the typing no longer starts, and one
+  /// playing fades out while the reply's audio is being made.
   void replyArrived() {
     _cancel();
-    if (_starting || !_playing) {
-      _generation++;
-      _starting = _playing = false;
-    }
-  }
-
-  /// The reply is about to be spoken: the typing fades out over [fade] —
-  /// the returned future completes when it has, so the reply does not
-  /// start over its last keystrokes.
-  Future<void> makeWay() async {
-    _cancel();
     _generation++;
+    final wasStarting = _starting;
+    _starting = false;
     if (!_playing) return;
     _playing = false;
-    diag('call', 'typing fading over ${fade.inMilliseconds} ms before the reply');
+    if (wasStarting) {
+      // Still being looked up: it does not start ([_fire] stops it).
+      return;
+    }
+    diag('call', 'typing fading over ${fade.inMilliseconds} ms, the reply on its way');
     unawaited(voice.fadeFiller(fade).catchError((_) {}));
-    final faded = Completer<void>();
-    _timer(fade, faded.complete);
-    await faded.future;
   }
 
   /// The reply's first audio: the typing fades out.

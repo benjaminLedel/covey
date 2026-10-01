@@ -360,9 +360,11 @@ class ApiCallBackend implements CallBackend {
   @override
   Future<void> read(DateTime at) => api.markConversationRead(_conv, at);
 
+  /// A short settle (#527): the reply is waited for, and every 100 ms of
+  /// it is heard as silence.
   @override
   Stream<void> changes() =>
-      LiveEvents.instance.of({'chat'}, conversationId: _id, settle: const Duration(milliseconds: 250));
+      LiveEvents.instance.of({'chat'}, conversationId: _id, settle: const Duration(milliseconds: 40));
 
   @override
   Future<List<String>> names() async {
@@ -560,7 +562,14 @@ class CallController extends ChangeNotifier {
     StartTimer? startTimer,
     this.greeter,
   }) : _timer = startTimer ?? Timer.new {
-    _turns = TurnSegmenter(onSpeech: _onSpeech, onTurn: _onTurn, onDiscard: _onDiscard, endSilence: tuning.pause);
+    _turns = TurnSegmenter(
+      onSpeech: _onSpeech,
+      onTurn: _onTurn,
+      onDiscard: _onDiscard,
+      onLull: _onLull,
+      lullAfter: lullAfter(tuning.pause),
+      endSilence: tuning.pause,
+    );
     _fillers = CallFillers(
       voice: speaker,
       // The typing (#526), with the call's other sounds: off when they are.
@@ -665,9 +674,6 @@ class CallController extends ChangeNotifier {
   bool _awaiting = false;
   bool _bargedIn = false;
 
-  /// Counts the barge-ins, so a reply waiting for a filler to fade knows
-  /// the person spoke meanwhile.
-  int _interrupts = 0;
   Timer? _poll;
   Timer? _giveUp;
   StreamSubscription<void>? _changes;
@@ -889,6 +895,7 @@ class CallController extends ChangeNotifier {
 
   Future<void> _shut() async {
     _queue.clear();
+    _ahead = null;
     _fillers.stop();
     _poll?.cancel();
     _giveUp?.cancel();
@@ -994,7 +1001,6 @@ class CallController extends ChangeNotifier {
             '${played == null ? '' : ', playing ${played.toStringAsFixed(0)} dB'}',
       );
       _bargedIn = true;
-      _interrupts++;
       _queue.clear();
       unawaited(speaker.stop());
     }
@@ -1003,7 +1009,55 @@ class CallController extends ChangeNotifier {
 
   void _onDiscard() {
     _bargedIn = false;
+    _ahead = null;
     _update();
+  }
+
+  /// The turn recognised ahead, in the person's pause before its end
+  /// (#527): the length of its audio, and the work.
+  ({int length, Future<_Heard> heard})? _ahead;
+
+  /// The person paused partway to the end of a turn: what the turn will be
+  /// unless they speak again is recognised — and cleaned up — now, so it is
+  /// ready when the pause has run out. Speaking again makes another turn,
+  /// of another length, and this one is not used.
+  void _onLull(Uint8List pcm) {
+    if (ended || muted) return;
+    final heard = _hear(pcm);
+    unawaited(heard.then((_) {}, onError: (_) {}));
+    _ahead = (length: pcm.length, heard: heard);
+  }
+
+  /// One turn's audio recognised: its text, the language it was heard in,
+  /// whether it goes nowhere, and its clean-up under way.
+  Future<_Heard> _hear(Uint8List pcm) async {
+    // At the voice provider when the organisation allows it (#516), the
+    // device's recogniser alongside as the fallback.
+    final heard = await recogniseTurn(
+      device: () => ears.recognise(pcm),
+      server: _serverRecognition ? () => _transcribe(pcm) : null,
+      bound: serverBound,
+    );
+    final text = heard.text;
+    if (text.isEmpty || isHallucination(text)) return _Heard(heard, dropped: 'nothing recognised');
+    if ((DateTime.now().difference(_saidUntil) < const Duration(seconds: 2) || _speaking) &&
+        looksLikeEcho(text, _saying)) {
+      // The agent heard itself: what came in is what it had just said.
+      return _Heard(heard, dropped: 'echo');
+    }
+    String? language;
+    try {
+      language = await speaker.language(text);
+    } catch (_) {}
+    // A short turn is not cleaned (#511): there is nothing to tidy in it,
+    // and the clean-up only had the conversation to go on.
+    if (turnWords(text).length < minCleanWords) return _Heard(heard, language: language);
+    final watch = Stopwatch()..start();
+    final clean = backend
+        .clean(text, CleanContext(agentName: agentName, names: _names, recent: List.of(_recent)))
+        .then((c) => c, onError: (Object _) => null)
+        .then((c) => (c, watch.elapsedMilliseconds));
+    return _Heard(heard, language: language, clean: clean);
   }
 
   void _onTurn(Uint8List pcm, TurnStats stats) {
@@ -1037,36 +1091,28 @@ class CallController extends ChangeNotifier {
         'echo_cancelled': _echoCancelled,
       },
     };
+    // Recognised ahead in the pause when the turn is what was heard then.
+    final ahead = _ahead;
+    _ahead = null;
+    final reused = ahead != null && ahead.length == pcm.length;
+    facts['ahead'] = reused;
     _recognising = true;
     _update();
-    final TurnText heard;
+    final _Heard h;
     try {
-      // At the voice provider when the organisation allows it (#516), the
-      // device's recogniser alongside as the fallback.
-      heard = await recogniseTurn(
-        device: () => ears.recognise(pcm),
-        server: _serverRecognition ? () => _transcribe(pcm) : null,
-        bound: serverBound,
-      );
+      h = await (reused ? ahead.heard : _hear(pcm));
     } finally {
       _recognising = false;
     }
+    final heard = h.heard;
     final text = heard.text;
     facts['recogniser'] = heard.by.name;
     facts['recognise_ms'] = heard.elapsed.inMilliseconds;
     if (heard.serverProblem != null) facts['server_problem'] = heard.serverProblem;
     facts['raw'] = text;
     if (ended) return;
-    String? dropped;
-    if (text.isEmpty || isHallucination(text)) {
-      dropped = 'nothing recognised';
-    } else if ((DateTime.now().difference(_saidUntil) < const Duration(seconds: 2) || _speaking) &&
-        looksLikeEcho(text, _saying)) {
-      // The agent heard itself: what came in is what it had just said.
-      dropped = 'echo';
-    }
-    if (dropped != null) {
-      _logTurn(n, pcm, facts..['outcome'] = dropped);
+    if (h.dropped != null) {
+      _logTurn(n, pcm, facts..['outcome'] = h.dropped);
       // Nothing goes to the agent: nothing to wait for.
       _fillers.stop();
       _update();
@@ -1077,10 +1123,7 @@ class CallController extends ChangeNotifier {
     // Parakeet cannot be pinned to the call's language, so a turn heard in
     // another one is flagged here.
     final callLanguage = _base(_language ?? appLanguage);
-    String? heardIn;
-    try {
-      heardIn = await speaker.language(text);
-    } catch (_) {}
+    final heardIn = h.language;
     facts['call_language'] = callLanguage;
     if (heardIn != null) {
       facts['recognised_language'] = heardIn;
@@ -1088,37 +1131,31 @@ class CallController extends ChangeNotifier {
         diag('call', 'turn $n recognised as $heardIn, the call is in $callLanguage');
       }
     }
-    if (ended) return;
 
-    // Understood: shown while the clean-up runs, then for the window. A
-    // short turn is not cleaned (#511): there is nothing to tidy in it, and
-    // the clean-up only had the conversation to go on.
-    final short = turnWords(text).length < minCleanWords;
-    final u = _understood = UnderstoodTurn(text, window: tuning.window, cleaning: !short);
+    // Understood: shown while the clean-up runs, then for the window.
+    final clean = h.clean;
+    final u = _understood = UnderstoodTurn(text, window: tuning.window, cleaning: clean != null);
     u.addListener(_update);
     _update();
-    if (short) {
+    if (clean == null) {
       facts['clean_kept'] = 'short';
     } else {
-      final cleanWatch = Stopwatch()..start();
       unawaited(
-        backend
-            .clean(text, CleanContext(agentName: agentName, names: _names, recent: List.of(_recent)))
-            .then((c) => c, onError: (Object _) => null)
-            .then((c) {
-              facts['clean_ms'] = cleanWatch.elapsedMilliseconds;
-              if (c != null && c.trim().isNotEmpty) {
-                // A correction changes little; a rewrite goes as recognised.
-                final edit = turnEdit(text, c);
-                facts['clean_edit'] = double.parse(edit.toStringAsFixed(2));
-                if (edit > maxTurnEdit) {
-                  facts['clean_kept'] = 'edited';
-                  facts['clean_rejected'] = c;
-                  c = null;
-                }
-              }
-              u.cleanedUp(c);
-            }),
+        clean.then((r) {
+          var (c, ms) = r;
+          facts['clean_ms'] = ms;
+          if (c != null && c.trim().isNotEmpty) {
+            // A correction changes little; a rewrite goes as recognised.
+            final edit = turnEdit(text, c);
+            facts['clean_edit'] = double.parse(edit.toStringAsFixed(2));
+            if (edit > maxTurnEdit) {
+              facts['clean_kept'] = 'edited';
+              facts['clean_rejected'] = c;
+              c = null;
+            }
+          }
+          u.cleanedUp(c);
+        }),
       );
     }
     final shownAt = DateTime.now();
@@ -1165,6 +1202,7 @@ class CallController extends ChangeNotifier {
       'call',
       'turn $n: speech ${facts['speech_ms']} ms, silence ${facts['silence_ms']} ms, length ${facts['length_ms']} ms, '
           'cut ${facts['cut']}, recognised by ${facts['recogniser']} in ${facts['recognise_ms']} ms'
+          '${facts['ahead'] == true ? ' (ahead, in the pause)' : ''}'
           '${facts['server_problem'] == null ? '' : ' (voice provider: ${facts['server_problem']})'}, raw ${raw.length} characters'
           '${cleaned == null ? '' : ', cleaned ${cleaned.length} in ${facts['clean_ms']} ms'}'
           '${facts['clean_edit'] == null ? '' : ', word edit ${facts['clean_edit']}'}'
@@ -1317,17 +1355,6 @@ class CallController extends ChangeNotifier {
       }
       if (cut) _queue.insert(0, _Utterance(words('call.restInChat'), plain: true));
       _speaking = true;
-      // The typing still playing fades out first (#511, #526).
-      if (_fillers.playing) {
-        final interrupts = _interrupts;
-        await _fillers.makeWay();
-        // Hung up, or the person spoke meanwhile: this reply is not said.
-        if (ended || interrupts != _interrupts) {
-          _speaking = false;
-          _update();
-          break;
-        }
-      }
       _saying = text;
       _doubleTalkLogged = false;
       _update();
@@ -1389,4 +1416,24 @@ class CallController extends ChangeNotifier {
     wordTicks.dispose();
     super.dispose();
   }
+}
+
+/// A turn's audio recognised (#527): the text, the language it was heard
+/// in, why it goes nowhere — null when it goes to the agent — and its
+/// clean-up with how long it took, null for a short turn.
+class _Heard {
+  _Heard(this.heard, {this.dropped, this.language, this.clean});
+
+  final TurnText heard;
+  final String? dropped;
+  final String? language;
+  final Future<(String?, int)>? clean;
+}
+
+/// How far into the pause that ends a turn it is recognised ahead (#527):
+/// half way, not sooner than 0.3 s — a breath within a sentence is
+/// shorter — and never at its end.
+Duration lullAfter(Duration pause) {
+  final half = pause ~/ 2;
+  return half < const Duration(milliseconds: 300) ? const Duration(milliseconds: 300) : half;
 }

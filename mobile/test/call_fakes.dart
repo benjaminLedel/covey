@@ -41,7 +41,13 @@ class FakeEars implements CallEars {
   Future<void> pause() async => listening = false;
 
   @override
-  Future<String> recognise(Uint8List pcm) async => heard.isEmpty ? '' : heard.removeAt(0);
+  Future<String> recognise(Uint8List pcm) async {
+    recognitions++;
+    return heard.isEmpty ? '' : heard.removeAt(0);
+  }
+
+  /// How often a turn was recognised.
+  int recognitions = 0;
 
   @override
   Future<void> close() async {

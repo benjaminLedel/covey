@@ -124,32 +124,17 @@ void main() {
       expect(voice.fillerStops, 1, reason: 'what was looked up is stopped');
     });
 
-    test('a filler playing fades over 250 ms, and the reply waits for it', () async {
+    test('the reply\'s message fades the typing over 250 ms at once, its audio not awaited (#527)', () async {
       f.waiting();
       await clock.advance(_ms * 850);
       expect(f.playing, isTrue);
       f.replyArrived();
-      expect(f.playing, isTrue, reason: 'the text alone does not cut it off');
-      var done = false;
-      unawaited(f.makeWay().then((_) => done = true));
-      await clock.advance(_ms * 249);
       expect(voice.fadedOver.single, const Duration(milliseconds: 250));
-      expect(done, isFalse);
-      await clock.advance(_ms * 1);
-      expect(done, isTrue);
       expect(f.playing, isFalse);
+      f.replyAudio();
+      expect(voice.fades, 1, reason: 'faded once');
       await clock.advance(const Duration(seconds: 20));
       expect(voice.fillers, hasLength(1), reason: 'nothing more for this turn');
-    });
-
-    test('making way without a filler playing is at once', () async {
-      f.waiting();
-      await clock.advance(_ms * 300);
-      var done = false;
-      unawaited(f.makeWay().then((_) => done = true));
-      await clock.advance(Duration.zero);
-      expect(done, isTrue);
-      expect(voice.fades, 0);
     });
 
     test('nothing to say it with: nothing plays, nothing to fade', () async {
@@ -184,11 +169,9 @@ void main() {
 
       backend.agentSays('Der Export läuft noch.');
       await _settle();
-      expect(speaker.fades, 1, reason: 'the reply fades the filler');
+      expect(speaker.fades, 1, reason: 'the reply fades the typing');
       expect(speaker.fadedOver.single, const Duration(milliseconds: 250));
-      expect(speaker.spoken, isEmpty, reason: 'the reply waits for the filler\'s fade (#511)');
-      await clock.advance(_ms * 250);
-      expect(speaker.spoken.single.$1, 'Der Export läuft noch.');
+      expect(speaker.spoken.single.$1, 'Der Export läuft noch.', reason: 'asked for at once, under the fade (#527)');
       expect(out.names.where((e) => e == Earcon.task), isEmpty, reason: 'an answer, not a task');
       await call.hangUp();
       await _settle();

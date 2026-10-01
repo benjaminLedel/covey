@@ -42,7 +42,9 @@ class TurnStats {
 /// mono PCM16 with the voice detector's verdict for each window — it says
 /// when the person starts speaking ([onSpeech], which stops the agent
 /// mid-sentence) and hands over each finished turn ([onTurn]) once the
-/// person has been silent for [endSilence].
+/// person has been silent for [endSilence]. Partway into that pause it
+/// hands over what the turn will be unless they speak again ([onLull]), so
+/// it can be recognised ahead.
 ///
 /// Knows nothing of microphones or models, so a test feeds it synthetic
 /// windows.
@@ -51,6 +53,8 @@ class TurnSegmenter {
     required this.onSpeech,
     required this.onTurn,
     this.onDiscard,
+    this.onLull,
+    this.lullAfter = const Duration(milliseconds: 500),
     this.endSilence = const Duration(milliseconds: 700),
     this.minSpeech = const Duration(milliseconds: 250),
     this.maxTurn = const Duration(seconds: 30),
@@ -67,6 +71,14 @@ class TurnSegmenter {
   /// A turn that ended with too little voice to be words — a knock, a
   /// cough, a click of the keyboard.
   final void Function()? onDiscard;
+
+  /// The person has paused for [lullAfter] in a turn that would be kept:
+  /// its audio so far, trimmed as [onTurn] trims it. The trailing silence
+  /// beyond the tail is cut either way, so unless they speak again, the
+  /// turn [onTurn] hands over is these very bytes. Once per pause, and only
+  /// when [lullAfter] is shorter than [endSilence] and longer than the tail.
+  final void Function(Uint8List pcm)? onLull;
+  final Duration lullAfter;
 
   /// The pause that ends a turn.
   final Duration endSilence;
@@ -100,6 +112,7 @@ class TurnSegmenter {
   int _longestRunBytes = 0;
   int _windows = 0;
   int _voicedWindows = 0;
+  bool _lulled = false;
 
   /// The trailing silence of a turn is not handed over beyond this.
   static const _tailBytes = 200 * _bytesPerMs;
@@ -128,6 +141,7 @@ class TurnSegmenter {
       _runBytes += window.length;
       if (_runBytes > _longestRunBytes) _longestRunBytes = _runBytes;
       _silentBytes = 0;
+      _lulled = false;
       if (!_confirmed && _runBytes >= confirm.inMilliseconds * _bytesPerMs) {
         _confirmed = true;
         onSpeech();
@@ -138,6 +152,8 @@ class TurnSegmenter {
     }
     if (_silentBytes >= endSilence.inMilliseconds * _bytesPerMs) {
       _close(TurnCut.pause);
+    } else if (!_lulled && onLull != null && _silentBytes >= lullAfter.inMilliseconds * _bytesPerMs) {
+      _lull();
     } else if (_turn.length >= maxTurn.inMilliseconds * _bytesPerMs) {
       _close(TurnCut.cap);
     }
@@ -150,7 +166,16 @@ class TurnSegmenter {
     _turn.clear();
     _inTurn = false;
     _confirmed = false;
+    _lulled = false;
     _voicedBytes = _runBytes = _silentBytes = _longestRunBytes = _windows = _voicedWindows = 0;
+  }
+
+  void _lull() {
+    _lulled = true;
+    if (_silentBytes <= _tailBytes) return;
+    if (!_confirmed || _voicedBytes < minSpeech.inMilliseconds * _bytesPerMs) return;
+    final pcm = _turn.toBytes();
+    onLull!(Uint8List.sublistView(pcm, 0, pcm.length - (_silentBytes - _tailBytes)));
   }
 
   void _keepPreRoll(Uint8List window) {
@@ -164,6 +189,7 @@ class TurnSegmenter {
   void _open() {
     _inTurn = true;
     _confirmed = false;
+    _lulled = false;
     _voicedBytes = _runBytes = _silentBytes = _longestRunBytes = _windows = _voicedWindows = 0;
     for (final w in _preRoll) {
       _turn.add(w);
