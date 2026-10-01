@@ -263,16 +263,10 @@ abstract class CallBackend {
   /// an instance from before them.
   Future<SpokenVoice> spokenVoice();
 
-  /// What the greeting says beside the agent's name (#506): the person's
-  /// name, the agent's department, the chat tone's address. Whatever cannot
-  /// be read is left empty; it never throws.
+  /// What the greeting says (#506, #528): the person's name and the chat
+  /// tone's address. Whatever cannot be read is left empty; it never
+  /// throws.
   Future<GreetingFacts> greetingFacts();
-
-  /// A greeting the instance writes for this call from the situation
-  /// (#513): what the agent works on, what was said last, the time of day
-  /// at [now]. Null when it writes none — an older instance, no model, too
-  /// slow —, and the call greets from its templates. It never throws.
-  Future<String?> writtenGreeting({required String language, required DateTime now});
 
   /// Whether the organisation lets this call's turns be recognised at its
   /// voice provider (#516), as `/speech/model` says. False on an instance
@@ -424,36 +418,10 @@ class ApiCallBackend implements CallBackend {
 
     final got = await Future.wait([
       read(() async => (await api.me()).displayName),
-      read(() async {
-        final dept = (await api.agents()).where((a) => a.id == agentId).firstOrNull?.departmentId;
-        if (dept == null) return '';
-        return (await api.departments()).where((d) => d.id == dept).firstOrNull?.name ?? '';
-      }),
       // An instance from before #506 does not say: the greeting's default.
       read(() async => (await _speechOf())['address'] as String? ?? ''),
     ]);
-    return GreetingFacts(personName: got[0], department: got[1], address: got[2]);
-  }
-
-  @override
-  Future<String?> writtenGreeting({required String language, required DateTime now}) async {
-    try {
-      final c = await _conversation();
-      final out = await api
-          .post('/conversations/${c.id}/greeting', {
-            'agent_id': agentId,
-            'lang': language,
-            'local_time': isoWithOffset(now),
-            'weekday': weekdayName(now),
-          })
-          .timeout(const Duration(seconds: 4));
-      final text = out is Map<String, dynamic> ? (out['text'] as String? ?? '').trim() : '';
-      return text.isEmpty ? null : text;
-    } catch (e) {
-      // 204, an instance from before #513 (404), or too slow.
-      diag('call', 'no written greeting: $e');
-      return null;
-    }
+    return GreetingFacts(personName: got[0], address: got[1]);
   }
 
   @override
@@ -778,18 +746,14 @@ class CallController extends ChangeNotifier {
     }
   }
 
-  /// The greeting for this call on its way: the written one asked for, the
-  /// template behind it.
+  /// The greeting for this call on its way: chosen and synthesised while
+  /// the line rings.
   GreetingInFlight _composeGreeting() {
-    final language = appLanguage.split(RegExp('[-_]')).first.toLowerCase();
     return GreetingInFlight(
-      written: backend
-          .writtenGreeting(language: appLanguage, now: greeter!.now)
-          .then((t) => t == null || ended ? null : Greeting(key: writtenGreetingKey, text: t, language: language)),
       template: () async {
         final facts = await backend.greetingFacts();
         if (ended) return null;
-        return greeter!.compose(agentId: agentId, agentName: agentName, language: appLanguage, facts: facts);
+        return greeter!.compose(agentId: agentId, language: appLanguage, facts: facts);
       },
       synthesise: (g) => ended ? Future.value(false) : speaker.prepareUtterance(g.text, language: g.language),
       log: (what) => diag('call', what),
@@ -1273,7 +1237,10 @@ class CallController extends ChangeNotifier {
         if (ended) return;
         // Read as soon as fetched, before the instance's notifier gets to
         // it: the person hears it in the call (#525).
-        final newest = msgs.map((m) => m.createdAt).nonNulls.fold<DateTime?>(null, (a, b) => a == null || b.isAfter(a) ? b : a);
+        final newest = msgs
+            .map((m) => m.createdAt)
+            .nonNulls
+            .fold<DateTime?>(null, (a, b) => a == null || b.isAfter(a) ? b : a);
         if (newest != null) unawaited(_markRead(newest));
         for (final m in msgs) {
           _lastId = m.id;

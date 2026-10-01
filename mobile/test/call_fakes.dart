@@ -165,17 +165,6 @@ class FakeBackend implements CallBackend {
   @override
   Future<GreetingFacts> greetingFacts() async => facts;
 
-  /// What the instance writes as the greeting (#513): none by default, as
-  /// an instance from before it; a completer a test finishes when it likes.
-  Completer<String?>? written;
-  final writtenAsked = <(String, DateTime)>[];
-
-  @override
-  Future<String?> writtenGreeting({required String language, required DateTime now}) async {
-    writtenAsked.add((language, now));
-    return written?.future;
-  }
-
   /// Whether the organisation recognises at its voice provider (#516).
   bool serverRecognises = false;
 
