@@ -176,6 +176,10 @@ type Rahmen struct {
 	// Anruf: the message was said aloud in a call (#502). The triage then
 	// asks for a spoken form beside the written one. Only the triage reads it.
 	Anruf bool
+	// Gesprochen gets the spoken form's sentences while the model still
+	// writes the decision (#529), in a call and where the provider streams;
+	// returning false stops them. Nil: nothing is streamed.
+	Gesprochen func(satz string) bool
 }
 
 // Bounds of the two #471 blocks in a turn. Both are bounded where they are
@@ -406,7 +410,7 @@ func Triagieren(ctx context.Context, p llm.Provider, r Rahmen, organisation stri
 		system += triageAnruf(lang)
 	}
 
-	roh, err := p.Complete(ctx, llm.Request{
+	req := llm.Request{
 		Tier:      llm.TierFast,
 		MaxTokens: TriageMaxTokens,
 		/* Ohne Nachdenken: Die Antwort ist eine Auswahl aus zwei Möglichkeiten
@@ -415,7 +419,14 @@ func Triagieren(ctx context.Context, p llm.Provider, r Rahmen, organisation stri
 		NoThinking: true,
 		System:     system,
 		Messages:   []llm.Message{{Role: "user", Content: b.String()}},
-	})
+	}
+	var roh string
+	var err error
+	if st, ok := p.(llm.Streamer); ok && r.Anruf && r.Gesprochen != nil {
+		roh, err = st.Stream(ctx, req, gesprochenAlsStrom(r.Gesprochen, lang).Feed)
+	} else {
+		roh, err = p.Complete(ctx, req)
+	}
 	if err != nil {
 		return Entscheidung{}, err
 	}

@@ -58,6 +58,8 @@ type evalRahmen struct {
 	Takt        string
 	// The call of #502: the message was said aloud.
 	Anruf bool
+	// The streamed spoken form of #529; the evaluation reads the decision.
+	Gesprochen func(satz string) bool
 }
 
 // evalVoice is a voice of the scenario's library, as far as the chat reads

@@ -250,6 +250,8 @@ type Server struct {
 	synthLimiter *webhookLimiter
 	// voiceLists keeps each organisation's provider voice list (#518).
 	voiceLists voiceListCache
+	// gesprochen holds a call's spoken replies while they are written (#529).
+	gesprochen gesprochenHub
 
 	// routen is the route list from dist/app-routes.json
 	// (internal/httpapi/approutes.go): which paths the SPA shell answers and
@@ -453,6 +455,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/conversations/{id}", s.conversationScoped(s.handleRenameConversation))
 	mux.Handle("GET /api/v1/conversations/{id}/messages", s.conversationScoped(s.handleConversationMessages))
 	mux.Handle("GET /api/v1/conversations/{id}/speech", s.conversationScoped(s.handleConversationSpeech))
+	mux.Handle("GET /api/v1/conversations/{id}/messages/{message}/spoken", s.conversationScoped(s.handleSpokenReply))
 	mux.Handle("POST /api/v1/conversations/{id}/greeting", s.conversationScoped(s.handleCallGreeting))
 	mux.Handle("POST /api/v1/conversations/{id}/messages", s.conversationScoped(s.handlePostConversationMessage))
 	mux.Handle("POST /api/v1/conversations/{id}/read", s.conversationScoped(s.handleConversationRead))

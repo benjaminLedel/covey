@@ -667,6 +667,11 @@ func (s *Server) annehmen(ctx context.Context, conv chat.Conversation, wer sprec
 	   Request hängt: Dessen Kontext wird abgebrochen, sobald die Antwort
 	   geschrieben ist, und ein Zug, den das Abschicken der Antwort abbricht,
 	   liefe nie zu Ende. */
+	/* Said in a call to one agent (#529): its spoken reply is streamed to
+	   the caller while the turn writes it. */
+	if chat.SaidInCall(msg) && len(agenten) == 1 {
+		s.gesprochen.oeffnen(msg.ID, conv.ID)
+	}
 	go s.triageLauf(conv, agenten, msg, wer.email, lang)
 	for _, agentID := range agenten {
 		s.chatEreignis(conv.OrgID, agentID, conv.ID, "thinking", nil)
@@ -691,6 +696,8 @@ const triageLaufFrist = 90 * time.Second
 func (s *Server) triageLauf(conv chat.Conversation, agenten []uuid.UUID, msg chat.Message, email, lang string) {
 	ctx, abbrechen := context.WithTimeout(context.Background(), triageLaufFrist*time.Duration(len(agenten)))
 	defer abbrechen()
+	// The spoken reply streamed (#529) ends with the turn, its message written.
+	defer s.gesprochen.schliessen(msg.ID)
 
 	/* The events go out after the state is written: a surface that reloads
 	   on the event must not still read "thinking". */
@@ -1008,9 +1015,22 @@ func (s *Server) triagieren(ctx context.Context, conv chat.Conversation, agentID
 	   antwortet oder unlesbar antwortet, tut es beim zweiten Mal meist doch —
 	   und jeder Fehlschlag wird eine Aufgabe, die eine Sandbox hochfährt, um
 	   „wie geht's?" zu beantworten. */
+	/* In a call, the spoken form goes to the caller as it is written
+	   (#529) — once: a turn that failed after it began speaking is not
+	   streamed again, its retry is heard when its message is there. */
+	gestreamt := false
+	if rahmen.Anruf {
+		rahmen.Gesprochen = func(satz string) bool {
+			gestreamt = true
+			return s.gesprochen.satz(msg.ID, satz)
+		}
+	}
 	zug := func(suche *chat.Suche) (chat.Entscheidung, error) {
 		e, err := chat.Triagieren(ctx, provider, rahmen, organisation, liste, fertig, verlauf, msg.Text, suche)
 		if err != nil && ctx.Err() == nil {
+			if gestreamt {
+				rahmen.Gesprochen = nil
+			}
 			s.Log.Warn("triage turn failed, trying once more", "agent", agentID, "err", err)
 			e, err = chat.Triagieren(ctx, provider, rahmen, organisation, liste, fertig, verlauf, msg.Text, suche)
 		}

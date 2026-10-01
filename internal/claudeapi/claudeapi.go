@@ -12,6 +12,7 @@
 package claudeapi
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -75,6 +76,7 @@ type messagesReq struct {
 	Messages     []Message       `json:"messages"`
 	OutputConfig *outputConfig   `json:"output_config,omitempty"`
 	Thinking     *thinkingConfig `json:"thinking,omitempty"`
+	Stream       bool            `json:"stream,omitempty"`
 }
 
 type messagesResp struct {
@@ -89,47 +91,10 @@ type messagesResp struct {
 	} `json:"error"`
 }
 
-// Messages calls the Messages API with exactly the auth mechanics the runtime
-// uses too: API key via x-api-key, subscription OAuth token via Bearer plus the
-// oauth beta header. For OAuth tokens Anthropic requires the Claude Code
-// identity block as the first system segment.
+// Messages calls the Messages API and returns the answer's text; send has
+// the auth mechanics.
 func Messages(ctx context.Context, credential string, oauth bool, call Call, system string, messages []Message) (string, error) {
-	sys := []textBlock{}
-	if oauth {
-		sys = append(sys, textBlock{Type: "text",
-			Text: "You are Claude Code, Anthropic's official CLI for Claude."})
-	}
-	sys = append(sys, textBlock{Type: "text", Text: system})
-
-	req := messagesReq{
-		Model:     call.Model,
-		MaxTokens: call.MaxTokens,
-		System:    sys,
-		Messages:  messages,
-	}
-	if call.Effort != "" {
-		req.OutputConfig = &outputConfig{Effort: call.Effort}
-	}
-	if call.NoThinking {
-		req.Thinking = &thinkingConfig{Type: "disabled"}
-	}
-	body, err := json.Marshal(req)
-	if err != nil {
-		return "", err
-	}
-	hreq, err := http.NewRequestWithContext(ctx, http.MethodPost, BaseURL+"/v1/messages", bytes.NewReader(body))
-	if err != nil {
-		return "", err
-	}
-	hreq.Header.Set("content-type", "application/json")
-	hreq.Header.Set("anthropic-version", "2023-06-01")
-	if oauth {
-		hreq.Header.Set("Authorization", "Bearer "+credential)
-		hreq.Header.Set("anthropic-beta", "oauth-2025-04-20")
-	} else {
-		hreq.Header.Set("x-api-key", credential)
-	}
-	resp, err := http.DefaultClient.Do(hreq)
+	resp, err := send(ctx, credential, oauth, call, system, messages, false)
 	if err != nil {
 		return "", err
 	}
@@ -151,6 +116,121 @@ func Messages(ctx context.Context, credential string, oauth bool, call Call, sys
 		}
 	}
 	return out.String(), nil
+}
+
+// streamEvent is the part of a streamed event this package reads: the text
+// a delta adds, and an error the stream ends with.
+type streamEvent struct {
+	Type  string `json:"type"`
+	Delta struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	} `json:"delta"`
+	Error *struct {
+		Type    string `json:"type"`
+		Message string `json:"message"`
+	} `json:"error"`
+}
+
+// MessagesStream is Messages with the answer streamed (#529): onText gets
+// each piece of text as it comes, in order, and the whole text is returned
+// at the end, as Messages returns it. A stream that breaks off or reports
+// an error is an error, whatever onText has been given by then.
+func MessagesStream(ctx context.Context, credential string, oauth bool, call Call, system string, messages []Message, onText func(string)) (string, error) {
+	resp, err := send(ctx, credential, oauth, call, system, messages, true)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		var parsed messagesResp
+		_ = json.Unmarshal(raw, &parsed)
+		if parsed.Error != nil && parsed.Error.Message != "" {
+			return "", errors.New(parsed.Error.Message)
+		}
+		return "", errors.New("HTTP " + resp.Status)
+	}
+	var out strings.Builder
+	sc := bufio.NewScanner(resp.Body)
+	sc.Buffer(make([]byte, 64<<10), 4<<20)
+	stopped := false
+	for sc.Scan() {
+		line := sc.Text()
+		data, ok := strings.CutPrefix(line, "data:")
+		if !ok {
+			continue
+		}
+		var ev streamEvent
+		if json.Unmarshal([]byte(strings.TrimSpace(data)), &ev) != nil {
+			continue
+		}
+		switch ev.Type {
+		case "content_block_delta":
+			if ev.Delta.Type == "text_delta" && ev.Delta.Text != "" {
+				out.WriteString(ev.Delta.Text)
+				onText(ev.Delta.Text)
+			}
+		case "error":
+			if ev.Error != nil && ev.Error.Message != "" {
+				return "", errors.New(ev.Error.Message)
+			}
+			return "", errors.New("the stream reported an error")
+		case "message_stop":
+			stopped = true
+		}
+	}
+	if err := sc.Err(); err != nil {
+		return "", err
+	}
+	if !stopped {
+		return "", errors.New("the stream ended before the message did")
+	}
+	return out.String(), nil
+}
+
+// send makes the request, with exactly the auth mechanics the runtime uses
+// too: API key via x-api-key, subscription OAuth token via Bearer plus the
+// oauth beta header. For OAuth tokens Anthropic requires the Claude Code
+// identity block as the first system segment.
+func send(ctx context.Context, credential string, oauth bool, call Call, system string, messages []Message, stream bool) (*http.Response, error) {
+	sys := []textBlock{}
+	if oauth {
+		sys = append(sys, textBlock{Type: "text",
+			Text: "You are Claude Code, Anthropic's official CLI for Claude."})
+	}
+	sys = append(sys, textBlock{Type: "text", Text: system})
+
+	req := messagesReq{
+		Model:     call.Model,
+		MaxTokens: call.MaxTokens,
+		System:    sys,
+		Messages:  messages,
+		Stream:    stream,
+	}
+	if call.Effort != "" {
+		req.OutputConfig = &outputConfig{Effort: call.Effort}
+	}
+	if call.NoThinking {
+		req.Thinking = &thinkingConfig{Type: "disabled"}
+	}
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+	hreq, err := http.NewRequestWithContext(ctx, http.MethodPost, BaseURL+"/v1/messages", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	hreq.Header.Set("content-type", "application/json")
+	hreq.Header.Set("anthropic-version", "2023-06-01")
+	if oauth {
+		hreq.Header.Set("Authorization", "Bearer "+credential)
+		hreq.Header.Set("anthropic-beta", "oauth-2025-04-20")
+	} else {
+		hreq.Header.Set("x-api-key", credential)
+	}
+	return http.DefaultClient.Do(hreq)
 }
 
 // ResolveOrg finds an organization's Claude credential. The API key takes

@@ -231,3 +231,43 @@ func TestIsOAuth(t *testing.T) {
 		}
 	}
 }
+
+// The streamed answer (#529): the text pieces in order, the whole at the
+// end, and stream set on the request.
+func TestMessagesStreamHandsOverTheTextAsItComes(t *testing.T) {
+	got := serve(t, http.StatusOK, "event: message_start\n"+
+		`data: {"type":"message_start","message":{"id":"m"}}`+"\n\n"+
+		"event: content_block_delta\n"+
+		`data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"{\"action\":"}}`+"\n\n"+
+		"event: ping\ndata: {\"type\":\"ping\"}\n\n"+
+		"event: content_block_delta\n"+
+		`data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\"answer\"}"}}`+"\n\n"+
+		"event: message_stop\n"+`data: {"type":"message_stop"}`+"\n\n")
+	var pieces []string
+	out, err := MessagesStream(context.Background(), "sk-ant-api03-x", false, Call{Model: "m", MaxTokens: 10}, "sys",
+		[]Message{{Role: "user", Content: "hi"}}, func(s string) { pieces = append(pieces, s) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != `{"action":"answer"}` || len(pieces) != 2 || pieces[0] != `{"action":` {
+		t.Fatalf("out %q, pieces %q", out, pieces)
+	}
+	if got.body["stream"] != true {
+		t.Fatalf("stream not asked for: %v", got.body)
+	}
+}
+
+func TestMessagesStreamFailsOnAnErrorOrAnEndBeforeTheMessages(t *testing.T) {
+	serve(t, http.StatusOK, "event: error\n"+`data: {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}`+"\n\n")
+	if _, err := MessagesStream(context.Background(), "k", false, Call{}, "", nil, func(string) {}); err == nil || err.Error() != "Overloaded" {
+		t.Fatalf("err %v", err)
+	}
+	serve(t, http.StatusOK, "event: content_block_delta\n"+`data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"{"}}`+"\n\n")
+	if _, err := MessagesStream(context.Background(), "k", false, Call{}, "", nil, func(string) {}); err == nil {
+		t.Fatal("a stream cut off before message_stop is no answer")
+	}
+	serve(t, http.StatusUnauthorized, `{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}`)
+	if _, err := MessagesStream(context.Background(), "k", false, Call{}, "", nil, func(string) {}); err == nil || err.Error() != "invalid x-api-key" {
+		t.Fatalf("err %v", err)
+	}
+}
