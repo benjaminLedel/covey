@@ -32,6 +32,13 @@ class LiveEvents {
   Timer? _retry;
   var _backoff = 1;
 
+  /// The instance sends a keepalive every 20 s (#532): a stream silent for
+  /// [silentFor] is dead — a proxy kept the connection after the instance
+  /// behind it went away —, and is opened again.
+  static const silentFor = Duration(seconds: 50);
+  Timer? _watchdog;
+  DateTime _heard = DateTime.now();
+
   /// Whether the stream is open right now.
   bool connected = false;
 
@@ -84,6 +91,8 @@ class LiveEvents {
     _api = null;
     _retry?.cancel();
     _retry = null;
+    _watchdog?.cancel();
+    _watchdog = null;
     unawaited(_sub?.cancel());
     _sub = null;
     connected = false;
@@ -103,6 +112,15 @@ class LiveEvents {
       connected = true;
       _backoff = 1;
       diag('live', 'event stream open');
+      _heard = DateTime.now();
+      _watchdog?.cancel();
+      _watchdog = Timer.periodic(const Duration(seconds: 10), (_) {
+        if (!identical(api, _api) || DateTime.now().difference(_heard) < silentFor) return;
+        diag('live', 'event stream silent for ${silentFor.inSeconds} s: opening it again');
+        unawaited(_sub?.cancel());
+        _sub = null;
+        _reconnect(api);
+      });
       var type = 'message';
       final data = StringBuffer();
       _sub = res.stream
@@ -110,6 +128,7 @@ class LiveEvents {
           .transform(const LineSplitter())
           .listen(
             (line) {
+              _heard = DateTime.now();
               if (line.isEmpty) {
                 _dispatch(type, data.toString());
                 type = 'message';
@@ -153,6 +172,8 @@ class LiveEvents {
   /// asked every second.
   void _reconnect(CoveyApi api) {
     connected = false;
+    _watchdog?.cancel();
+    _watchdog = null;
     if (!identical(api, _api)) return;
     _retry?.cancel();
     _retry = Timer(Duration(seconds: _backoff), () => unawaited(_connect()));
