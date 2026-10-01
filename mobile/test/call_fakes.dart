@@ -257,27 +257,26 @@ class FakeSpeaker implements Speaker {
     }
   }
 
-  /// The fillers said, and how they were ended.
-  final fillers = <String>[];
+  /// Each time the typing started (#526), at the volume it played at, and
+  /// how it was ended.
+  final fillers = <double>[];
   int fades = 0, fillerStops = 0;
 
-  /// How long each filler lasts; null has nothing to say one with.
-  Duration? fillerLength = const Duration(milliseconds: 600);
+  /// False: there is nothing to play the typing with.
+  bool canThink = true;
 
-  final prefetched = <(List<String>, String)>[];
-
-  /// Holds a filler's lookup until completed; null answers at once.
+  /// Holds the typing's start until completed; null answers at once.
   Completer<void>? fillerGate;
 
   /// How long each fade lasted.
   final fadedOver = <Duration>[];
 
   @override
-  Future<Duration?> filler(String text, {required String language}) async {
-    if (fillerLength == null) return null;
+  Future<bool> thinking(Pcm pcm, {required double volume}) async {
+    if (!canThink) return false;
     await fillerGate?.future;
-    fillers.add(text);
-    return fillerLength;
+    fillers.add(volume);
+    return true;
   }
 
   @override
@@ -288,10 +287,6 @@ class FakeSpeaker implements Speaker {
 
   @override
   Future<void> stopFiller() async => fillerStops++;
-
-  @override
-  Future<void> prefetchFillers(List<String> texts, {required String language}) async =>
-      prefetched.add((texts, language));
 
   /// The greeting's synthesis ahead: what was asked, and when it is ready.
   final prepared = <String>[];
@@ -349,7 +344,6 @@ CallController fakeCall(
   FakeBackend backend,
   FakeSpeaker speaker, {
   Duration fillerAfter = const Duration(milliseconds: 800),
-  Duration nudgeAfter = const Duration(seconds: 8),
   CallTuning tuning = const CallTuning(window: Duration.zero),
   CallSounds? sounds,
   StartTimer? startTimer,
@@ -363,7 +357,6 @@ CallController fakeCall(
   appLanguage: 'de',
   words: (k) => words[k] ?? k,
   fillerAfter: fillerAfter,
-  nudgeAfter: nudgeAfter,
   agentName: 'Ada Lovelace',
   tuning: tuning,
   sounds: sounds,

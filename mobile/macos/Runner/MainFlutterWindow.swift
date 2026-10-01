@@ -1128,10 +1128,10 @@ final class SystemAudioTap {
 /// when it was stopped.
 ///
 /// Beside the voice, two players of their own (#500), mixed with it rather
-/// than replacing it: the call's short sounds ("earcon"), and the fillers
-/// the agent says while it thinks ("filler", or "fillerSay" through a
-/// synthesiser of their own), which fade out when the reply begins. Neither
-/// reports events: Dart knows how long each lasts.
+/// than replacing it: the call's short sounds ("earcon"), and what plays
+/// while the agent thinks ("filler", looped with `loop` — the typing,
+/// #526), which fades out when the reply begins. Neither reports events:
+/// Dart knows how long each lasts.
 ///
 /// The call's microphone runs on the same engine (#507): "micStart" turns on
 /// Apple's voice processing on its input node — echo cancellation against
@@ -1157,7 +1157,6 @@ final class SpeechVoice: NSObject, AVSpeechSynthesizerDelegate {
   private var configObserver: NSObjectProtocol?
   private let player = AVAudioPlayerNode()
   private var playerFormat: AVAudioFormat?
-  private let fillerSynth = AVSpeechSynthesizer()
   private let fillerPlayer = AVAudioPlayerNode()
   private var fillerFormat: AVAudioFormat?
   private var fillerFade: Timer?
@@ -1180,7 +1179,6 @@ final class SpeechVoice: NSObject, AVSpeechSynthesizerDelegate {
     micChannel = FlutterEventChannel(name: "covey/voice/mic", binaryMessenger: messenger)
     super.init()
     synth.delegate = self
-    fillerSynth.delegate = self
     micChannel.setStreamHandler(mic)
     observe()
     channel.setMethodCallHandler { [weak self] call, result in
@@ -1500,26 +1498,14 @@ final class SpeechVoice: NSObject, AVSpeechSynthesizerDelegate {
       do {
         guard let buffer = SpeechVoice.buffer(data.data, rate: Double(rate)) else { return result(nil) }
         try route(fillerPlayer, buffer.format, &fillerFormat)
-        fillerPlayer.volume = 1
-        fillerPlayer.scheduleBuffer(buffer, completionHandler: nil)
+        fillerPlayer.volume = Float(min(max(args["volume"] as? Double ?? 1, 0), 1))
+        let loop = args["loop"] as? Bool ?? false
+        fillerPlayer.scheduleBuffer(buffer, at: nil, options: loop ? .loops : [], completionHandler: nil)
         fillerPlayer.play()
         result(nil)
       } catch {
         result(FlutterError(code: "filler", message: error.localizedDescription, details: nil))
       }
-    case "fillerSay":
-      stopFiller()
-      let utterance = AVSpeechUtterance(string: args["text"] as? String ?? "")
-      if let id = args["voice"] as? String, let v = AVSpeechSynthesisVoice(identifier: id) {
-        utterance.voice = v
-      } else if let lang = args["language"] as? String {
-        utterance.voice = AVSpeechSynthesisVoice(language: lang)
-      }
-      let pace = args["rate"] as? Double ?? 1
-      utterance.rate = min(
-        AVSpeechUtteranceMaximumSpeechRate, max(AVSpeechUtteranceMinimumSpeechRate, AVSpeechUtteranceDefaultSpeechRate * Float(pace)))
-      fillerSynth.speak(utterance)
-      result(nil)
     case "fillerFade":
       fadeFiller(over: Double(args["ms"] as? Int ?? 120) / 1000)
       result(nil)
@@ -1609,10 +1595,8 @@ final class SpeechVoice: NSObject, AVSpeechSynthesizerDelegate {
     }
   }
 
-  /// Lowers the filler to nothing over [seconds], then stops it; the Mac's
-  /// voice, which cannot be faded, stops at the end of its word.
+  /// Lowers the filler to nothing over [seconds], then stops it.
   private func fadeFiller(over seconds: Double) {
-    if fillerSynth.isSpeaking { fillerSynth.stopSpeaking(at: .word) }
     guard fillerFormat != nil, fillerPlayer.isPlaying else { return }
     fillerFade?.invalidate()
     let steps = max(1, Int(seconds / 0.01))
@@ -1637,7 +1621,6 @@ final class SpeechVoice: NSObject, AVSpeechSynthesizerDelegate {
   private func stopFiller() {
     fillerFade?.invalidate()
     fillerFade = nil
-    if fillerSynth.isSpeaking { fillerSynth.stopSpeaking(at: .immediate) }
     if fillerFormat != nil { fillerPlayer.stop() }
     fillerPlayer.volume = 1
   }

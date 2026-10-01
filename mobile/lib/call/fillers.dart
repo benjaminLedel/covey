@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
@@ -12,171 +11,98 @@ import 'provider.dart';
 import 'spoken_voice.dart';
 import 'wav.dart';
 
-/// The short words an agent says while it thinks (#500), by language: one
-/// of them after a moment without its reply, never the same twice in a row.
-const fillerPools = <String, List<String>>{
-  'de': ['Hm…', 'Okay, Moment…', 'Mhm, ich schau kurz.', 'Sekunde…'],
-  'en': ['Hmm…', 'Okay, one sec…', 'Let me check.', 'One moment…'],
-  'es': ['Mmm…', 'Vale, un momento…', 'Déjame ver.', 'Un segundo…'],
-  'fr': ['Hmm…', 'D’accord, une seconde…', 'Je regarde.', 'Un instant…'],
-  'it': ['Mmm…', 'Okay, un attimo…', 'Fammi controllare.', 'Un secondo…'],
-  'nl': ['Hm…', 'Oké, momentje…', 'Even kijken.', 'Eén seconde…'],
-  'pl': ['Hmm…', 'Dobrze, chwileczkę…', 'Już sprawdzam.', 'Sekundkę…'],
-  'pt': ['Hum…', 'Ok, um segundo…', 'Vou verificar.', 'Só um momento…'],
-  'ja': ['うーん…', 'はい、少々お待ちください…', '確認しますね。', '少々…'],
-  'zh': ['嗯…', '好的，稍等…', '我看一下。', '稍等一下…'],
-};
-
-/// What the agent says once when the reply takes long.
-const longWaits = <String, String>{
-  'de': 'Einen Augenblick noch.',
-  'en': 'Just a moment.',
-  'es': 'Solo un momento más.',
-  'fr': 'Encore un instant.',
-  'it': 'Ancora un momento.',
-  'nl': 'Nog even geduld.',
-  'pl': 'Jeszcze chwila.',
-  'pt': 'Só mais um momento.',
-  'ja': 'もう少しお待ちください。',
-  'zh': '请再稍等一下。',
-};
-
-String _base(String language) => language.split(RegExp('[-_]')).first.toLowerCase();
-
-/// Every filler of [language], the long wait included: what is synthesised
-/// ahead. Empty for a language without fillers.
-List<String> fillerTexts(String language) {
-  final b = _base(language);
-  return [...?fillerPools[b], ?longWaits[b]];
-}
-
-/// Picks the next filler: at random from the language's pool, never the
-/// one said last.
-class FillerPicker {
-  FillerPicker({math.Random? random}) : _random = random ?? math.Random();
-
-  final math.Random _random;
-  String? _last;
-
-  /// Null for a language without fillers.
-  String? pick(String language) {
-    final pool = fillerPools[_base(language)];
-    if (pool == null || pool.isEmpty) return null;
-    final choices = pool.length > 1 ? pool.where((t) => t != _last).toList() : pool;
-    return _last = choices[_random.nextInt(choices.length)];
-  }
-
-  String? longWait(String language) => longWaits[_base(language)];
-}
-
-/// What plays a filler: the agent's voice ([Speaker]).
+/// What plays a filler: beside the agent's voice ([Speaker]).
 abstract class FillerVoice {
-  /// Plays [text] as a filler beside whatever else plays, and returns how
-  /// long it lasts — null when there is nothing to play it with: the
-  /// provider's audio is not cached yet, or neither the provider nor the
-  /// Mac has a voice for the language.
-  Future<Duration?> filler(String text, {required String language});
+  /// Plays [pcm] at [volume] (0–1) over and over, beside whatever else
+  /// plays, until it is faded or stopped (#526). Answers whether it does.
+  Future<bool> thinking(Pcm pcm, {required double volume});
 
-  /// Lets the filler playing fade out over [over]; a filler still being
-  /// looked up does not start any more.
+  /// Lets the filler playing fade out over [over].
   Future<void> fadeFiller(Duration over);
 
-  /// Stops the filler at once; one still being looked up does not start.
+  /// Stops the filler at once.
   Future<void> stopFiller();
 }
 
 typedef StartTimer = Timer Function(Duration after, void Function() fire);
 
-/// When a call says a filler (#500). A turn was sent ([waiting]): after
-/// [after] without the reply, one short filler; after [longAfter] without
-/// the reply, the long wait, once. Once the reply's message is there
-/// ([replyArrived]) no filler starts any more, even while its audio is
-/// still being made (#511): a filler that started then was cut off by the
-/// reply a few hundred milliseconds later. One that is playing finishes its
-/// word — it fades over [fade], and the reply waits for that ([makeWay]).
-/// Barge-in, mute and hanging up stop it ([stop]). Nothing is said while
-/// [quiet] — muted, the agent speaking, the person speaking.
+/// What is heard while the agent thinks (#500, #526): a turn was sent
+/// ([waiting]); after [after] without the reply, the typing starts — the
+/// sound [sound] answers with its volume, null when the call's sounds are
+/// off — and goes on until the reply. Once the reply's message is there
+/// ([replyArrived]) it no longer starts; one that is playing fades over
+/// [fade] when the reply is about to be spoken, and the reply waits for
+/// that ([makeWay]). Barge-in, mute and hanging up stop it ([stop]).
+/// Nothing starts while [quiet] — muted, the agent speaking, the person
+/// speaking.
+///
+/// It used to be spoken words — "Hm…", "Sekunde…" — in the agent's voice.
+/// Heard many times a call they sounded canned; a sound says the same
+/// without words.
 class CallFillers {
   CallFillers({
     required this.voice,
-    required this.language,
+    required this.sound,
     required this.quiet,
     this.after = const Duration(milliseconds: 800),
-    this.longAfter = const Duration(seconds: 8),
     this.fade = const Duration(milliseconds: 250),
-    this.onPlaying,
     StartTimer? timer,
-    math.Random? random,
-  }) : _timer = timer ?? Timer.new,
-       picker = FillerPicker(random: random);
+  }) : _timer = timer ?? Timer.new;
 
   final FillerVoice voice;
-  final String Function() language;
+  final Future<(Pcm, double)?> Function() sound;
   final bool Function() quiet;
   final Duration after;
-  final Duration longAfter;
   final Duration fade;
 
-  /// A filler started, lasting the given time: the call keeps its words to
-  /// tell its echo from the person.
-  final void Function(String text, Duration length)? onPlaying;
-
   final StartTimer _timer;
-  final FillerPicker picker;
 
-  Timer? _short;
-  Timer? _long;
-  Timer? _ends;
+  Timer? _start;
 
-  /// Counts the waits and the interruptions, so a filler looked up for one
+  /// Counts the waits and the interruptions, so a sound looked up for one
   /// that has ended does not start.
   int _generation = 0;
   bool _playing = false;
 
-  /// A filler asked for and not yet playing: its audio is being looked up.
+  /// Asked for and not yet playing: its sound is being looked up.
   bool _starting = false;
 
-  /// Whether a filler is playing now.
+  /// Whether the typing is playing now.
   bool get playing => _playing;
 
   /// A turn was sent: the waiting for its reply begins.
   void waiting() {
     _cancel();
     final g = ++_generation;
-    _short = _timer(after, () => _fire(g, picker.pick(language())));
-    _long = _timer(longAfter, () => _fire(g, picker.longWait(language())));
+    _start = _timer(after, () => _fire(g));
   }
 
-  /// The reply's message is there: no filler starts any more, and one
-  /// still being looked up does not start. One already playing goes on
-  /// until the reply makes way for it ([makeWay]).
+  /// The reply's message is there: the typing no longer starts. One
+  /// already playing goes on until the reply makes way for it ([makeWay]).
   void replyArrived() {
     _cancel();
-    if (_starting) {
+    if (_starting || !_playing) {
       _generation++;
-      _starting = false;
-      _playing = false;
+      _starting = _playing = false;
     }
   }
 
-  /// The reply is about to be spoken: nothing more is said for this turn,
-  /// and a filler playing fades out over [fade] — the returned future
-  /// completes when it has, so the reply does not talk over its last word.
+  /// The reply is about to be spoken: the typing fades out over [fade] —
+  /// the returned future completes when it has, so the reply does not
+  /// start over its last keystrokes.
   Future<void> makeWay() async {
-    replyArrived();
-    if (!_playing) return;
+    _cancel();
     _generation++;
+    if (!_playing) return;
     _playing = false;
-    _ends?.cancel();
-    diag('call', 'filler fading over ${fade.inMilliseconds} ms before the reply');
+    diag('call', 'typing fading over ${fade.inMilliseconds} ms before the reply');
     unawaited(voice.fadeFiller(fade).catchError((_) {}));
     final faded = Completer<void>();
     _timer(fade, faded.complete);
     await faded.future;
   }
 
-  /// The reply's first audio: nothing more is said for this turn, and a
-  /// filler playing fades out.
+  /// The reply's first audio: the typing fades out.
   void replyAudio() {
     _cancel();
     _generation++;
@@ -187,7 +113,7 @@ class CallFillers {
     }
   }
 
-  /// Barge-in, mute, hanging up: the filler stops at once, nothing more
+  /// Barge-in, mute, hanging up: the typing stops at once, nothing more
   /// for this turn.
   void stop() {
     _cancel();
@@ -200,49 +126,40 @@ class CallFillers {
   }
 
   void _cancel() {
-    _short?.cancel();
-    _long?.cancel();
-    _short = _long = null;
+    _start?.cancel();
+    _start = null;
   }
 
-  Future<void> _fire(int g, String? text) async {
-    if (g != _generation || text == null || quiet() || _playing) return;
-    final lang = language();
-    _playing = true;
-    _starting = true;
-    Duration? length;
+  Future<void> _fire(int g) async {
+    if (g != _generation || quiet() || _playing) return;
+    // Counted as playing from here, so a barge-in meanwhile stops it.
+    _playing = _starting = true;
+    var on = false;
     try {
-      length = await voice.filler(text, language: lang);
+      final s = await sound();
+      if (s != null && g == _generation) on = await voice.thinking(s.$1, volume: s.$2);
     } catch (e) {
-      diag('call', 'filler failed: $e');
+      diag('call', 'typing failed: $e');
     }
     if (g == _generation) _starting = false;
     if (g != _generation) {
       // The reply came, or the person spoke, while it was looked up.
-      if (length != null) unawaited(voice.stopFiller().catchError((_) {}));
+      if (on) unawaited(voice.stopFiller().catchError((_) {}));
       return;
     }
-    if (length == null) {
+    if (!on) {
       _playing = false;
       return;
     }
-    diag('call', 'filler, ${length.inMilliseconds} ms');
-    onPlaying?.call(text, length);
-    _ends?.cancel();
-    _ends = _timer(length, () {
-      if (g == _generation) _playing = false;
-    });
+    diag('call', 'typing');
   }
 
-  void dispose() {
-    stop();
-    _ends?.cancel();
-  }
+  void dispose() => stop();
 }
 
-/// The provider's fillers as they are kept on this Mac (#500): one WAV per
-/// voice, style hint, speed and text, so a filler plays without asking the
-/// provider — and the next call with the same voice need not ask again.
+/// What the provider synthesised ahead, as it is kept on this Mac (#500,
+/// #506) — the greeting: one WAV per voice, style hint, speed and text, so
+/// it plays without asking the provider again.
 class FillerCache {
   FillerCache(this._dir);
 

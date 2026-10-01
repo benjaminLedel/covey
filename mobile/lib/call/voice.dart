@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -16,7 +17,7 @@ import 'spoken_voice.dart';
 enum SpeakingEvent { started, word, finished, cancelled }
 
 /// The seam between a call and whatever speaks for the agent, so a test
-/// stands in. It says the fillers too (#500), in the same voice.
+/// stands in. It plays what is heard while the agent thinks too (#526).
 abstract class Speaker implements FillerVoice {
   /// Gets ready to speak: the Mac's voices, whether the voice provider can
   /// be asked, and how the agent sounds there. Returns a line for the
@@ -34,13 +35,8 @@ abstract class Speaker implements FillerVoice {
   /// Stops at once, mid-word; a filler too.
   Future<void> stop();
 
-  /// Synthesises [texts] as fillers in [language] ahead of need, in the
-  /// background, and keeps them ([FillerCache]); nothing without a voice
-  /// provider, where the Mac says them when they come.
-  Future<void> prefetchFillers(List<String> texts, {required String language});
-
-  /// Synthesises [text] ahead through the voice provider and keeps it, as
-  /// the fillers are kept (#506): the greeting, while the call still rings.
+  /// Synthesises [text] ahead through the voice provider and keeps it
+  /// ([FillerCache], #506): the greeting, while the call still rings.
   /// Completes with whether the provider's audio is ready — false without a
   /// provider, or when it failed.
   Future<bool> prepareUtterance(String text, {required String language});
@@ -61,8 +57,8 @@ abstract class Speaker implements FillerVoice {
   /// not set or could not be reached: the call says so in a line.
   ValueListenable<bool> get fallback;
 
-  /// How loud what plays now is, in dB — the reply, the greeting or a
-  /// filler, the louder when both — from the provider's audio (#511). Null
+  /// How loud what plays now is, in dB — the reply, the greeting or the
+  /// typing, the louder when both — from the provider's audio (#511). Null
   /// when nothing of it plays, or the Mac's synthesis speaks, whose level
   /// is not known.
   double? get playbackDb;
@@ -89,10 +85,10 @@ abstract class VoiceOutput implements StreamDecoding {
   /// Stops speaking and playing at once, a filler too.
   Future<void> stop();
 
-  /// A filler (#500) on a player of its own, mixed beside the reply's: the
-  /// provider's [pcm], or the Mac's voice saying [text].
-  Future<void> playFiller(Pcm pcm);
-  Future<void> sayFiller(String text, {String? voiceId, required String language, double rate = 0});
+  /// A filler on a player of its own, mixed beside the reply's, at
+  /// [volume] (0–1): the typing while the agent thinks (#526), over and
+  /// over with [loop].
+  Future<void> playFiller(Pcm pcm, {double volume = 1, bool loop = false});
 
   /// Lets the filler fade out over [over], or stops it at once.
   Future<void> fadeFiller(Duration over);
@@ -177,17 +173,12 @@ class MacVoiceOutput implements VoiceOutput {
   Future<void> stop() => _channel.invokeMethod<void>('stop');
 
   @override
-  Future<void> playFiller(Pcm pcm) =>
-      _channel.invokeMethod<void>('filler', {'samples': pcm.samples, 'sampleRate': pcm.sampleRate});
-
-  @override
-  Future<void> sayFiller(String text, {String? voiceId, required String language, double rate = 0}) =>
-      _channel.invokeMethod<void>('fillerSay', {
-        'text': text,
-        'voice': voiceId,
-        'language': language,
-        if (rate > 0) 'rate': rate,
-      });
+  Future<void> playFiller(Pcm pcm, {double volume = 1, bool loop = false}) => _channel.invokeMethod<void>('filler', {
+    'samples': pcm.samples,
+    'sampleRate': pcm.sampleRate,
+    'volume': volume,
+    'loop': loop,
+  });
 
   @override
   Future<void> fadeFiller(Duration over) => _channel.invokeMethod<void>('fillerFade', {'ms': over.inMilliseconds});
@@ -242,15 +233,15 @@ class AgentSpeaker implements Speaker {
   /// The provider speaking a voice; null when this app cannot reach one.
   final ProviderVoice Function(SpokenVoice voice)? provider;
 
-  /// Where the provider's fillers are kept between calls; null keeps them
-  /// for this call only.
+  /// Where what the provider synthesised ahead is kept between calls; null
+  /// keeps it for this call only.
   final FillerCache? fillerCache;
 
-  /// The provider's fillers of this call, by text.
-  final _fillers = <String, Pcm>{};
+  /// What the provider synthesised ahead in this call, by text.
+  final _ahead = <String, Pcm>{};
 
-  /// Counts the fillers stopped or faded, so one still being looked up
-  /// does not start after its stop.
+  /// Counts the fillers stopped or faded, so one started meanwhile does
+  /// not count as playing.
   int _fillerGeneration = 0;
 
   late final StreamSubscription<(SpeakingEvent, int)> _sub;
@@ -276,7 +267,7 @@ class AgentSpeaker implements Speaker {
   final _frames = <double>[];
   final _framesDb = <double>[];
 
-  /// The filler playing, in dB frame by frame, and since when.
+  /// The filler playing, in dB frame by frame, and since when; it loops.
   Float32List? _fillerDb;
   Stopwatch? _fillerClock;
   static const _fps = 60;
@@ -294,13 +285,14 @@ class AgentSpeaker implements Speaker {
 
   @override
   double? get playbackDb {
-    double? at(List<double>? frames, Stopwatch? clock) {
-      if (frames == null || clock == null) return null;
+    double? at(List<double>? frames, Stopwatch? clock, {bool loop = false}) {
+      if (frames == null || clock == null || frames.isEmpty) return null;
       final i = clock.elapsedMicroseconds * _fps ~/ 1000000;
+      if (loop) return frames[i % frames.length];
       return i < frames.length ? frames[i] : null;
     }
 
-    final speech = at(_framesDb, _clock), filler = at(_fillerDb, _fillerClock);
+    final speech = at(_framesDb, _clock), filler = at(_fillerDb, _fillerClock, loop: true);
     if (speech == null || filler == null) return speech ?? filler;
     return speech > filler ? speech : filler;
   }
@@ -369,17 +361,17 @@ class AgentSpeaker implements Speaker {
     await prepare(language: language);
     final voice = _voice;
     if (voice == null) return false;
-    if (_fillers[text] != null) return true;
+    if (_ahead[text] != null) return true;
     final cached = await fillerCache?.read(voice.voice, text);
     if (cached != null && cached.samples.isNotEmpty) {
-      _fillers[text] = cached;
+      _ahead[text] = cached;
       return true;
     }
     try {
       final aside = ProviderVoice(voice.open, _AsideDecoder(voice.decoder), voice: voice.voice);
       final pcm = joinPcm(await aside.stream(text, language: language).toList());
       if (pcm.samples.isEmpty || pcm.sampleRate <= 0) return false;
-      _fillers[text] = pcm;
+      _ahead[text] = pcm;
       await fillerCache?.write(voice.voice, text, pcm);
       return true;
     } catch (e) {
@@ -391,7 +383,7 @@ class AgentSpeaker implements Speaker {
   @override
   Future<void> speakPrepared(String text, {required String language, required bool ready}) async {
     if (!_prepared) await prepare(language: language);
-    final pcm = ready && _voice != null ? _fillers[text] : null;
+    final pcm = ready && _voice != null ? _ahead[text] : null;
     final (id, done) = _begin();
     if (pcm == null) {
       // Not ready in time: the Mac's voice, for this one only.
@@ -490,55 +482,16 @@ class AgentSpeaker implements Speaker {
   }
 
   @override
-  Future<void> prefetchFillers(List<String> texts, {required String language}) async {
-    if (!_prepared) await prepare(language: language);
-    for (final text in texts) {
-      final voice = _voice;
-      // No provider, or it failed in this call: the Mac says the fillers.
-      if (voice == null) return;
-      if (_fillers.containsKey(text)) continue;
-      final cached = await fillerCache?.read(voice.voice, text);
-      if (cached != null) {
-        _fillers[text] = cached;
-        continue;
-      }
-      try {
-        // Decoded aside from the reply's stream: a reply that starts or is
-        // stopped meanwhile does not cut the filler short.
-        final aside = ProviderVoice(voice.open, _AsideDecoder(voice.decoder), voice: voice.voice);
-        final pcm = joinPcm(await aside.stream(text, language: language).toList());
-        if (pcm.samples.isEmpty || pcm.sampleRate <= 0) continue;
-        _fillers[text] = pcm;
-        await fillerCache?.write(voice.voice, text, pcm);
-      } catch (e) {
-        // Not worth asking again for the rest: the call goes on without.
-        diag('call', 'fillers not synthesised: $e');
-        return;
-      }
-    }
-  }
-
-  @override
-  Future<Duration?> filler(String text, {required String language}) async {
-    if (!_prepared) return null;
+  Future<bool> thinking(Pcm pcm, {required double volume}) async {
+    if (pcm.samples.isEmpty || pcm.sampleRate <= 0 || volume <= 0) return false;
     final g = _fillerGeneration;
-    final voice = _voice;
-    if (voice != null) {
-      // Only what is ready: asking the provider now would come after the
-      // reply.
-      final pcm = _fillers[text] ?? await fillerCache?.read(voice.voice, text);
-      if (pcm == null || pcm.samples.isEmpty || g != _fillerGeneration) return null;
-      _fillers[text] = pcm;
-      await output.playFiller(pcm);
-      _fillerDb = levelsDb(pcm, fps: _fps);
-      _fillerClock = Stopwatch()..start();
-      return pcm.duration;
-    }
-    final v = chooseVoice(_system, language, agentId);
-    if (v == null || g != _fillerGeneration) return null;
-    await output.sayFiller(text, voiceId: v.id, language: language, rate: _speed);
-    // The Mac does not say how long it speaks: about as long as it takes.
-    return Duration(milliseconds: (300 + text.length * 70).clamp(600, 2500));
+    await output.playFiller(pcm, volume: volume, loop: true);
+    if (g != _fillerGeneration) return false;
+    // Its level as it plays, for telling it from the person (#511).
+    final gain = 20 * math.log(volume) / math.ln10;
+    _fillerDb = Float32List.fromList([for (final d in levelsDb(pcm, fps: _fps)) d + gain]);
+    _fillerClock = Stopwatch()..start();
+    return true;
   }
 
   @override

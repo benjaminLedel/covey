@@ -23,7 +23,11 @@ enum Earcon {
   task('call_task'),
   mute('call_mute'),
   unmute('call_unmute'),
-  hangUp('call_hangup');
+  hangUp('call_hangup'),
+
+  /// Somebody typing, while the agent thinks (#526): loops, and plays on
+  /// the filler player rather than this one ([CallSounds.take]).
+  typing('call_typing');
 
   const Earcon(this.file);
   final String file;
@@ -103,6 +107,21 @@ class CallSounds {
     } catch (err) {
       debugPrint('call sound ${e.file}: $err');
       return Duration.zero;
+    }
+  }
+
+  /// [e]'s audio and the volume it plays at, for a player of its own — the
+  /// typing on the filler player (#526). Null when sounds are off, or it
+  /// cannot be loaded.
+  Future<(Pcm, double)?> take(Earcon e) async {
+    if (!enabled()) return null;
+    final v = volume();
+    if (v <= 0) return null;
+    try {
+      return (_cache[e] ??= await _load(e), v);
+    } catch (err) {
+      debugPrint('call sound ${e.file}: $err');
+      return null;
     }
   }
 

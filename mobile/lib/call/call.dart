@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
@@ -554,29 +553,21 @@ class CallController extends ChangeNotifier {
     this.recording,
     this.sounds,
     this.fillerAfter = const Duration(milliseconds: 800),
-    this.nudgeAfter = const Duration(seconds: 8),
     this.pollEvery = const Duration(seconds: 5),
     this.serverBound = serverRecognitionBound,
     this.mayHangUp,
     this.hush,
     StartTimer? startTimer,
-    math.Random? random,
     this.greeter,
   }) : _timer = startTimer ?? Timer.new {
     _turns = TurnSegmenter(onSpeech: _onSpeech, onTurn: _onTurn, onDiscard: _onDiscard, endSilence: tuning.pause);
     _fillers = CallFillers(
       voice: speaker,
-      language: () => _language ?? appLanguage,
+      // The typing (#526), with the call's other sounds: off when they are.
+      sound: () async => await sounds?.take(Earcon.typing),
       quiet: () => ended || muted || _speaking || _turns.speaking,
       after: fillerAfter,
-      longAfter: nudgeAfter,
       timer: startTimer,
-      random: random,
-      onPlaying: (text, length) {
-        // Its own filler from the loudspeaker is not the person.
-        _saying = text;
-        _saidUntil = DateTime.now().add(length);
-      },
     );
   }
 
@@ -603,14 +594,9 @@ class CallController extends ChangeNotifier {
   /// The call's sounds; null plays none.
   final CallSounds? sounds;
 
-  /// How long the call waits for the reply before the agent says a short
-  /// filler — once per turn, and only while the reply's message has not
-  /// arrived (#511).
+  /// How long the call waits for the reply before the typing starts —
+  /// only while the reply's message has not arrived (#511, #526).
   final Duration fillerAfter;
-
-  /// How long the call waits for a reply before the agent says it takes a
-  /// moment longer — once per turn.
-  final Duration nudgeAfter;
 
   /// The net under the event stream while a reply is awaited.
   final Duration pollEvery;
@@ -692,9 +678,6 @@ class CallController extends ChangeNotifier {
   /// naming another is the acknowledgement of a task just created.
   final _tasks = <String>{};
 
-  /// The languages whose fillers were asked for in this call.
-  final _prefetched = <String>{};
-
   /// The conversation's last lines, for the clean-up's context.
   final _recent = <String>[];
   static const _keepRecent = 6;
@@ -750,7 +733,6 @@ class CallController extends ChangeNotifier {
       if (had.isNotEmpty) _lastId = had.last.id;
       final voices = await speaker.prepare(language: appLanguage);
       if (ended) return;
-      _prefetch(appLanguage);
       unawaited(backend.names().then((n) => _names = n, onError: (_) {}));
       if (tuning.record && recording != null) {
         try {
@@ -1231,19 +1213,6 @@ class CallController extends ChangeNotifier {
     if (_recent.length > _keepRecent) _recent.removeRange(0, _recent.length - _keepRecent);
   }
 
-  /// Has the fillers of [language] synthesised ahead, once per language.
-  void _prefetch(String language) {
-    final base = language.split(RegExp('[-_]')).first.toLowerCase();
-    if (!_prefetched.add(base)) return;
-    final texts = fillerTexts(base);
-    if (texts.isEmpty) return;
-    unawaited(
-      speaker.prefetchFillers(texts, language: language).catchError((Object e) {
-        diag('call', 'fillers not prepared: $e');
-      }),
-    );
-  }
-
   /// Reads what is new; every message of the agent is spoken.
   Future<void> _fetch() async {
     if (ended || _mode == CallMode.preparing) return;
@@ -1339,11 +1308,10 @@ class CallController extends ChangeNotifier {
         final judgeable = s.text.trim().split(RegExp(r'\s+')).length >= minWordsToSwitchLanguage;
         lang = (judgeable ? await speaker.language(s.text) : null) ?? _language ?? appLanguage;
         _language = lang;
-        _prefetch(lang);
       }
       if (cut) _queue.insert(0, _Utterance(words('call.restInChat'), plain: true));
       _speaking = true;
-      // A filler still playing finishes its word first (#511).
+      // The typing still playing fades out first (#511, #526).
       if (_fillers.playing) {
         final interrupts = _interrupts;
         await _fillers.makeWay();

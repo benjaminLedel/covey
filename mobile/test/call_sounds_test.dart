@@ -15,9 +15,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'call_fakes.dart';
 
-// A call's sounds and fillers (#500): short sounds for what happens, and
-// one short word in the agent's voice while it thinks — never over its
-// reply, never into a muted call.
+// A call's sounds (#500): short sounds for what happens, and the typing
+// while the agent thinks (#526) — never over its reply, never into a muted
+// call.
 
 Future<void> _settle() async {
   for (var i = 0; i < 10; i++) {
@@ -27,66 +27,50 @@ Future<void> _settle() async {
 
 const _ms = Duration(milliseconds: 1);
 
+Future<Pcm> _bundled(Earcon e) async {
+  final data = await rootBundle.load(e.asset);
+  return decodeWav(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+}
+
 void main() {
-  group('choosing a filler', () {
-    test('never the same twice in a row, always of the language', () {
-      final p = FillerPicker(random: math.Random(7));
-      String? last;
-      for (var i = 0; i < 200; i++) {
-        final t = p.pick('de-DE')!;
-        expect(fillerPools['de'], contains(t));
-        expect(t, isNot(last));
-        last = t;
-      }
-      expect(p.pick('en'), isIn(fillerPools['en']!));
-      expect(p.longWait('de'), 'Einen Augenblick noch.');
-      expect(p.longWait('en_GB'), 'Just a moment.');
-      expect(p.pick('sv'), isNull, reason: 'no fillers in a language without a pool');
-    });
-
-    test('every language of the app has a pool and a long wait', () {
-      for (final l in ['en', 'de', 'es', 'fr', 'it', 'nl', 'pl', 'pt', 'ja', 'zh']) {
-        expect(fillerPools[l], hasLength(greaterThanOrEqualTo(2)), reason: l);
-        expect(longWaits[l], isNotNull, reason: l);
-        expect(fillerTexts(l), hasLength(fillerPools[l]!.length + 1));
-      }
-    });
-  });
-
-  group('when a filler plays', () {
+  group('when the typing plays', () {
     late FakeClock clock;
     late FakeSpeaker voice;
     late bool quiet;
+    late (Pcm, double)? sound;
     late CallFillers f;
 
     setUp(() {
       clock = FakeClock();
       voice = FakeSpeaker();
       quiet = false;
-      f = CallFillers(voice: voice, language: () => 'de', quiet: () => quiet, timer: clock.start);
+      sound = (Pcm(Float32List(4), 44100), 0.35);
+      f = CallFillers(voice: voice, sound: () async => sound, quiet: () => quiet, timer: clock.start);
     });
 
-    test('after 0.8 s without the reply\'s audio, one per turn, faded when it comes', () async {
+    test('after 0.8 s without the reply\'s audio, until it comes, then faded', () async {
       f.waiting();
       await clock.advance(_ms * 790);
       expect(voice.fillers, isEmpty);
       await clock.advance(_ms * 20);
-      expect(voice.fillers, hasLength(1));
+      expect(voice.fillers, [0.35], reason: 'at the sounds\' volume');
       expect(f.playing, isTrue);
-      await clock.advance(_ms * 3000);
-      expect(voice.fillers, hasLength(1), reason: 'at most one short filler a turn');
-      f.replyAudio();
-      expect(voice.fades, 0, reason: 'the filler was over already');
-
-      f.waiting();
-      await clock.advance(_ms * 900);
-      expect(voice.fillers, hasLength(2));
-      expect(voice.fillers[1], isNot(voice.fillers[0]));
+      await clock.advance(const Duration(seconds: 30));
+      expect(voice.fillers, hasLength(1), reason: 'started once, it goes on');
+      expect(f.playing, isTrue, reason: 'it loops until the reply');
       f.replyAudio();
       expect(voice.fades, 1);
       expect(f.playing, isFalse);
       await clock.advance(const Duration(seconds: 20));
-      expect(voice.fillers, hasLength(2), reason: 'nothing after the reply\'s audio');
+      expect(voice.fillers, hasLength(1), reason: 'nothing after the reply\'s audio');
+    });
+
+    test('no typing with the call\'s sounds off', () async {
+      sound = null;
+      f.waiting();
+      await clock.advance(const Duration(seconds: 5));
+      expect(voice.fillers, isEmpty);
+      expect(f.playing, isFalse);
     });
 
     test('no filler when the reply is quicker than 0.8 s', () async {
@@ -97,21 +81,6 @@ void main() {
       await clock.advance(const Duration(seconds: 20));
       expect(voice.fillers, isEmpty);
       expect(voice.fades, 0);
-    });
-
-    test('after 8 s once the long wait; not once the reply is there', () async {
-      f.waiting();
-      await clock.advance(const Duration(seconds: 8));
-      expect(voice.fillers.last, 'Einen Augenblick noch.');
-      expect(voice.fillers, hasLength(2));
-      await clock.advance(const Duration(seconds: 30));
-      expect(voice.fillers, hasLength(2), reason: 'once a turn');
-
-      f.waiting();
-      await clock.advance(_ms * 900);
-      f.replyArrived(); // the message is there, its audio still synthesised
-      await clock.advance(const Duration(seconds: 10));
-      expect(voice.fillers, hasLength(3), reason: 'no long wait once the reply came');
     });
 
     test('never while quiet, and a stop ends the filler at once', () async {
@@ -127,7 +96,7 @@ void main() {
       f.stop();
       expect(voice.fillerStops, 1);
       await clock.advance(const Duration(seconds: 10));
-      expect(voice.fillers, hasLength(1), reason: 'a stop ends the turn\'s fillers, the long wait too');
+      expect(voice.fillers, hasLength(1), reason: 'a stop ends the turn\'s typing');
     });
 
     test('none once the reply\'s text is there, though its audio is not yet (#511)', () async {
@@ -178,7 +147,7 @@ void main() {
     });
 
     test('nothing to say it with: nothing plays, nothing to fade', () async {
-      voice.fillerLength = null;
+      voice.canThink = false;
       f.waiting();
       await clock.advance(_ms * 900);
       expect(f.playing, isFalse);
@@ -188,7 +157,7 @@ void main() {
   });
 
   group('the call', () {
-    test('rings, connects, blips at a turn, and says a filler while it waits', () async {
+    test('rings, connects, taps at a turn, and types while it waits', () async {
       final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker(), out = FakeEarcons();
       final clock = FakeClock();
       final call = fakeCall(ears, backend, speaker, sounds: out.sounds(), startTimer: clock.start);
@@ -196,8 +165,6 @@ void main() {
       await _settle();
       expect(out.names, [Earcon.ringing, Earcon.connected]);
       expect(out.played.first.$3, 2, reason: 'rings at most twice');
-      expect(speaker.prefetched.single.$1, fillerTexts('de'), reason: 'the fillers are prepared at the start');
-      expect(speaker.prefetched.single.$2, 'de');
 
       ears.say('Wie weit ist der Export?');
       await _settle();
@@ -206,8 +173,8 @@ void main() {
       await clock.advance(_ms * 700);
       expect(speaker.fillers, isEmpty);
       await clock.advance(_ms * 150);
-      expect(speaker.fillers, hasLength(1));
-      expect(fillerPools['de'], contains(speaker.fillers.single));
+      expect(speaker.fillers, [0.35], reason: 'the typing, at the sounds\' volume');
+      expect(out.names.where((e) => e == Earcon.typing), isEmpty, reason: 'not on the sounds\' own player');
 
       backend.agentSays('Der Export läuft noch.');
       await _settle();
@@ -222,7 +189,7 @@ void main() {
       expect(out.names.last, Earcon.hangUp);
     });
 
-    test('a quick reply has no filler; a muted call none either', () async {
+    test('a quick reply has no typing; a muted call none either', () async {
       final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker(), out = FakeEarcons();
       final clock = FakeClock();
       final call = fakeCall(ears, backend, speaker, sounds: out.sounds(), startTimer: clock.start);
@@ -248,10 +215,10 @@ void main() {
       await call.hangUp();
     });
 
-    test('the reply\'s text before 0.8 s: no filler, whenever its audio comes (#511)', () async {
-      final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker();
+    test('the reply\'s text before 0.8 s: no typing, whenever its audio comes (#511)', () async {
+      final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker(), out = FakeEarcons();
       final clock = FakeClock();
-      final call = fakeCall(ears, backend, speaker, startTimer: clock.start);
+      final call = fakeCall(ears, backend, speaker, sounds: out.sounds(), startTimer: clock.start);
       await call.start();
       ears.say('Wie weit ist der Export?');
       await _settle();
@@ -264,16 +231,16 @@ void main() {
       await call.hangUp();
     });
 
-    test('the person speaking stops the filler', () async {
-      final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker();
+    test('the person speaking stops the typing', () async {
+      final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker(), out = FakeEarcons();
       final clock = FakeClock();
-      final call = fakeCall(ears, backend, speaker, startTimer: clock.start);
+      final call = fakeCall(ears, backend, speaker, sounds: out.sounds(), startTimer: clock.start);
       await call.start();
       ears.say('Was steht an?');
       await _settle();
       await clock.advance(_ms * 850);
       expect(speaker.fillers, hasLength(1));
-      // Its own filler from the loudspeaker, briefly, does not stop it.
+      // Its own typing from the loudspeaker, briefly, does not stop it.
       ears.feed(160, voiced: true);
       ears.feed(64, voiced: false);
       expect(speaker.fillerStops, 0);
@@ -342,12 +309,32 @@ void main() {
 
     test('every sound is bundled as short 16-bit mono WAV at 44.1 kHz', () async {
       TestWidgetsFlutterBinding.ensureInitialized();
-      for (final e in Earcon.values) {
-        final data = await rootBundle.load(e.asset);
-        final pcm = decodeWav(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+      for (final e in Earcon.values.where((e) => e != Earcon.typing)) {
+        final pcm = await _bundled(e);
         expect(pcm.sampleRate, 44100, reason: e.file);
         expect(pcm.duration, lessThan(const Duration(milliseconds: 1400)), reason: e.file);
-        expect(pcm.samples.any((v) => v.abs() > 0.1), isTrue, reason: '${e.file} is heard');
+        expect(pcm.samples.any((v) => v.abs() > 0.05), isTrue, reason: '${e.file} is heard');
+      }
+    });
+
+    test('the typing is long enough not to be heard repeating, quiet, and loops without a seam', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final pcm = await _bundled(Earcon.typing);
+      expect(pcm.duration, greaterThanOrEqualTo(const Duration(seconds: 6)));
+      final peak = pcm.samples.fold<double>(0, (m, v) => math.max(m, v.abs()));
+      expect(peak, inInclusiveRange(0.1, 0.35));
+      // Silent at both ends: where it starts over, no keystroke is cut.
+      final edge = pcm.sampleRate ~/ 10;
+      expect(pcm.samples.take(edge).every((v) => v.abs() < 0.001), isTrue);
+      expect(pcm.samples.skip(pcm.samples.length - edge).every((v) => v.abs() < 0.001), isTrue);
+    });
+
+    test('the tap at a turn is quieter than the other sounds', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      double peak(Pcm p) => p.samples.fold<double>(0, (m, v) => math.max(m, v.abs()));
+      final heard = peak(await _bundled(Earcon.heard));
+      for (final e in [Earcon.connected, Earcon.task, Earcon.mute, Earcon.hangUp]) {
+        expect(heard, lessThan(peak(await _bundled(e))), reason: e.file);
       }
     });
 
