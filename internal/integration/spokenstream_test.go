@@ -88,6 +88,9 @@ func TestACallHearsTheReplyWhileItIsWritten(t *testing.T) {
 	if second := next(); second["text"] != "Die Tests sind grün." {
 		t.Fatalf("second: %v", second)
 	}
+	if end := next(); end["end"] != true {
+		t.Fatalf("the spoken form's end (#533): %v", end)
+	}
 	if done := next(); done["done"] != true {
 		t.Fatalf("end: %v", done)
 	}
