@@ -45,7 +45,13 @@ void main() {
       voice = FakeSpeaker();
       quiet = false;
       sound = (Pcm(Float32List(4), 44100), 0.35);
-      f = CallFillers(voice: voice, sound: () async => sound, quiet: () => quiet, timer: clock.start);
+      f = CallFillers(
+        voice: voice,
+        sound: () async => sound,
+        quiet: () => quiet,
+        after: const Duration(milliseconds: 800),
+        timer: clock.start,
+      );
     });
 
     test('after 0.8 s without the reply\'s audio, until it comes, then faded', () async {
@@ -247,6 +253,46 @@ void main() {
       ears.feed(480, voiced: true);
       await _settle();
       expect(speaker.fillerStops, 1);
+      await call.hangUp();
+    });
+
+    test('the typing starts while the turn is still recognised and shown, before it is sent', () async {
+      final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker(), out = FakeEarcons();
+      final clock = FakeClock();
+      final call = CallController(
+        backend: backend,
+        ears: ears,
+        speaker: speaker,
+        agentId: 'agent-1',
+        appLanguage: 'de',
+        words: (k) => words[k] ?? k,
+        // The understood window, as set by default: the turn waits in it.
+        tuning: const CallTuning(window: Duration(milliseconds: 1500)),
+        sounds: out.sounds(),
+        startTimer: clock.start,
+      );
+      await call.start();
+      ears.say('Wie weit ist der Export?');
+      await _settle();
+      await clock.advance(_ms * 250);
+      expect(speaker.fillers, isEmpty);
+      await clock.advance(_ms * 60);
+      expect(speaker.fillers, hasLength(1), reason: '0.3 s after the end of the turn was heard');
+      expect(backend.posted, isEmpty, reason: 'the turn is still in its window');
+      await call.hangUp();
+      expect(speaker.fillerStops, 1);
+    });
+
+    test('a turn that goes nowhere stops the typing', () async {
+      final ears = FakeEars(), backend = FakeBackend(), speaker = FakeSpeaker(), out = FakeEarcons();
+      final clock = FakeClock();
+      final call = fakeCall(ears, backend, speaker, sounds: out.sounds(), startTimer: clock.start);
+      await call.start();
+      ears.say(''); // nothing recognised
+      await _settle();
+      await clock.advance(const Duration(seconds: 2));
+      expect(speaker.fillers, isEmpty);
+      expect(backend.posted, isEmpty);
       await call.hangUp();
     });
 

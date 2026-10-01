@@ -26,8 +26,10 @@ abstract class FillerVoice {
 
 typedef StartTimer = Timer Function(Duration after, void Function() fire);
 
-/// What is heard while the agent thinks (#500, #526): a turn was sent
-/// ([waiting]); after [after] without the reply, the typing starts — the
+/// What is heard while the agent thinks (#500, #526): the end of a turn
+/// was heard ([waiting]) — it is still being recognised, cleaned up and
+/// shown before it is sent, which takes seconds; after [after] without the
+/// reply, the typing starts — the
 /// sound [sound] answers with its volume, null when the call's sounds are
 /// off — and goes on until the reply. Once the reply's message is there
 /// ([replyArrived]) it no longer starts; one that is playing fades over
@@ -44,7 +46,7 @@ class CallFillers {
     required this.voice,
     required this.sound,
     required this.quiet,
-    this.after = const Duration(milliseconds: 800),
+    this.after = const Duration(milliseconds: 300),
     this.fade = const Duration(milliseconds: 250),
     StartTimer? timer,
   }) : _timer = timer ?? Timer.new;
@@ -70,11 +72,15 @@ class CallFillers {
   /// Whether the typing is playing now.
   bool get playing => _playing;
 
-  /// A turn was sent: the waiting for its reply begins.
+  /// The end of a turn was heard, or the turn was sent: the waiting for
+  /// its reply begins — once; a wait already begun goes on.
   void waiting() {
-    _cancel();
+    if (_start != null || _playing) return;
     final g = ++_generation;
-    _start = _timer(after, () => _fire(g));
+    _start = _timer(after, () {
+      _start = null;
+      _fire(g);
+    });
   }
 
   /// The reply's message is there: the typing no longer starts. One

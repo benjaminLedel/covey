@@ -552,7 +552,7 @@ class CallController extends ChangeNotifier {
     this.tuning = const CallTuning(),
     this.recording,
     this.sounds,
-    this.fillerAfter = const Duration(milliseconds: 800),
+    this.fillerAfter = const Duration(milliseconds: 300),
     this.pollEvery = const Duration(seconds: 5),
     this.serverBound = serverRecognitionBound,
     this.mayHangUp,
@@ -594,8 +594,10 @@ class CallController extends ChangeNotifier {
   /// The call's sounds; null plays none.
   final CallSounds? sounds;
 
-  /// How long the call waits for the reply before the typing starts —
-  /// only while the reply's message has not arrived (#511, #526).
+  /// How long after the end of a turn was heard the typing starts — only
+  /// while the reply's message has not arrived (#511, #526). It starts
+  /// before the turn is sent: recognition, clean-up and the understood
+  /// window take seconds, and the call is silent no longer than this.
   final Duration fillerAfter;
 
   /// The net under the event stream while a reply is awaited.
@@ -1008,6 +1010,7 @@ class CallController extends ChangeNotifier {
     final bargedIn = _bargedIn;
     _bargedIn = false;
     unawaited(sounds?.play(Earcon.heard));
+    _fillers.waiting();
     _turnChain = _turnChain.then((_) => _handleTurn(pcm, stats, bargedIn)).catchError((Object e) {
       diag('call', 'turn failed: $e');
     });
@@ -1064,6 +1067,8 @@ class CallController extends ChangeNotifier {
     }
     if (dropped != null) {
       _logTurn(n, pcm, facts..['outcome'] = dropped);
+      // Nothing goes to the agent: nothing to wait for.
+      _fillers.stop();
       _update();
       return;
     }
@@ -1126,6 +1131,7 @@ class CallController extends ChangeNotifier {
     facts['sent'] = sent;
     _logTurn(n, pcm, facts);
     if (ended || sent == null) {
+      _fillers.stop();
       _update();
       return;
     }
