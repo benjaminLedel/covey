@@ -30,6 +30,7 @@ func TestSchutzHeaderDerOberflaeche(t *testing.T) {
 		"frame-ancestors 'none'", // no clickjacking
 		"object-src 'none'",
 		"base-uri 'none'",
+		"media-src 'self' blob:", // voice samples play from a blob (#523)
 	} {
 		if !strings.Contains(csp, pflicht) {
 			t.Errorf("CSP without %q: %s", pflicht, csp)

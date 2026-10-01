@@ -239,11 +239,13 @@ func setzeSchutzHeader(w http.ResponseWriter) {
 	// frame-ancestors 'none' + X-Frame-Options: no embedding, therefore no
 	// clickjacking on buttons like "Stop" or "Approve".
 	// img-src data: for the embedded icons, blob: for preview images.
+	// media-src blob: for the voice samples, played from a fetched blob (#523).
 	h.Set("Content-Security-Policy", strings.Join([]string{
 		"default-src 'self'",
 		"script-src 'self'",
 		"style-src 'self' 'unsafe-inline'",
 		"img-src 'self' data: blob:",
+		"media-src 'self' blob:",
 		"font-src 'self' data:",
 		"connect-src 'self'",
 		"frame-ancestors 'none'",
