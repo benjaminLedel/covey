@@ -1,6 +1,6 @@
-// The sounds of a call (#500), synthesised here from sine partials: no
-// samples, so nothing to license, and anybody can change a sound and build
-// it again.
+// The sounds of a call (#500), synthesised here from sine partials — and
+// the typing (#526) from filtered noise: no samples, so nothing to license,
+// and anybody can change a sound and build it again.
 //
 //   cd mobile && dart run tool/call_sounds.dart
 //
@@ -128,11 +128,12 @@ final sounds = <String, Float64List>{
     length: 0.8,
     peak: 0.5,
   ),
-  // Barely there: the end of the turn was heard.
+  // Barely there: the end of the turn was heard. Low and with a slow
+  // attack (#526), a tap rather than a beep.
   'heard': render(
-    const [Note(0, c6, length: 0.09, attack: 0.004, decay: 0.05, partials: round)],
-    length: 0.1,
-    peak: 0.22,
+    const [Note(0, g5, length: 0.12, attack: 0.014, decay: 0.06, partials: round)],
+    length: 0.13,
+    peak: 0.1,
   ),
   // A rising third that settles: something was taken on.
   'task': render(
@@ -163,7 +164,88 @@ final sounds = <String, Float64List>{
     length: 0.55,
     peak: 0.4,
   ),
+  // While the agent thinks (#526): looped on the filler player.
+  'typing': typing(),
 };
+
+/// A biquad band-pass (RBJ), for the keystrokes' body and click.
+class BandPass {
+  BandPass(double hz, double q) {
+    final w = 2 * math.pi * hz / rate, alpha = math.sin(w) / (2 * q), a0 = 1 + alpha;
+    b0 = alpha / a0;
+    b2 = -alpha / a0;
+    a1 = -2 * math.cos(w) / a0;
+    a2 = (1 - alpha) / a0;
+  }
+
+  late final double b0, b2, a1, a2;
+  double _x1 = 0, _x2 = 0, _y1 = 0, _y2 = 0;
+
+  double call(double x) {
+    final y = b0 * x + b2 * _x2 - a1 * _y1 - a2 * _y2;
+    _x2 = _x1;
+    _x1 = x;
+    _y2 = _y1;
+    _y1 = y;
+    return y;
+  }
+}
+
+/// Somebody typing a few words at a laptop's keyboard, heard from across a
+/// desk (#526): muffled keystrokes — a soft knock and a quieter click, each
+/// a little different — in words of a few letters, a deeper space bar
+/// between them, now and then a pause. The same seed gives the same file.
+/// It loops: it starts and ends in a pause, so the seam is not heard.
+Float64List typing({double length = 9, double peak = 0.3, int seed = 526}) {
+  final r = math.Random(seed);
+  final out = Float64List((length * rate).round());
+  double between(double lo, double hi) => lo + r.nextDouble() * (hi - lo);
+
+  void key(double at, {required bool space}) {
+    final start = (at * rate).round();
+    final count = ((space ? 0.05 : 0.035) * rate).round();
+    if (start + count >= out.length) return;
+    // The body: a hollow knock, lower for the space bar. The click: the key
+    // reaching its stop, brighter and shorter.
+    final body = BandPass(space ? between(160, 220) : between(240, 420), 3);
+    final click = BandPass(between(2200, 3600), 2.5);
+    final level = space ? between(0.7, 0.9) : between(0.45, 1);
+    final clickLevel = between(0.25, 0.5);
+    for (var i = 0; i < count; i++) {
+      final t = i / rate;
+      final n = r.nextDouble() * 2 - 1;
+      final knock = body(n) * math.exp(-t / (space ? 0.012 : 0.008)) * 6;
+      final tick = click(n) * math.exp(-t / 0.002) * clickLevel * 3;
+      // The key's release, softer, a moment after.
+      final release = t > 0.018 ? body(n) * math.exp(-(t - 0.018) / 0.004) * 1.5 : 0.0;
+      out[start + i] += (knock + tick + release) * level * math.min(1.0, t / 0.0006);
+    }
+  }
+
+  // The last keystroke well before the end, so the loop starts over in a
+  // pause.
+  final last = length - 0.4;
+  var at = between(0.25, 0.4);
+  while (at < last - 0.5) {
+    for (var k = 0, letters = 2 + r.nextInt(7); k < letters && at < last; k++) {
+      key(at, space: false);
+      at += between(0.075, 0.17);
+    }
+    if (at < last) key(at, space: true);
+    // A short breath between words; now and then a longer think.
+    at += r.nextDouble() < 0.18 ? between(0.6, 1.1) : between(0.14, 0.3);
+  }
+  var max = 0.0;
+  for (final v in out) {
+    max = math.max(max, v.abs());
+  }
+  if (max > 0) {
+    for (var i = 0; i < out.length; i++) {
+      out[i] = out[i] / max * peak;
+    }
+  }
+  return out;
+}
 
 void main() {
   final dir = Directory('assets/sounds')..createSync(recursive: true);

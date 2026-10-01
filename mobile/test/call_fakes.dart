@@ -41,7 +41,13 @@ class FakeEars implements CallEars {
   Future<void> pause() async => listening = false;
 
   @override
-  Future<String> recognise(Uint8List pcm) async => heard.isEmpty ? '' : heard.removeAt(0);
+  Future<String> recognise(Uint8List pcm) async {
+    recognitions++;
+    return heard.isEmpty ? '' : heard.removeAt(0);
+  }
+
+  /// How often a turn was recognised.
+  int recognitions = 0;
 
   @override
   Future<void> close() async {
@@ -125,6 +131,32 @@ class FakeBackend implements CallBackend {
     return _add('human', text, author: 'me');
   }
 
+  /// The spoken replies the instance streams (#529), by the message they
+  /// answer: a test adds sentences and closes it. None: nothing streamed.
+  final spoken = <String, StreamController<String>>{};
+  final spokenAsked = <String>[];
+
+  @override
+  Stream<String> spokenReply(String messageId) {
+    spokenAsked.add(messageId);
+    return spoken[messageId]?.stream ?? const Stream.empty();
+  }
+
+  /// The instance streams the reply to the person's next message.
+  StreamController<String> streamNext() => spoken['m$_n'] = StreamController<String>();
+
+  /// The agent's reply to [to], as the triage writes it after streaming.
+  void agentReplies(String to, String text, {Map<String, String> meta = const {}}) {
+    _add('agent', text, author: 'agent-1', replyTo: to, meta: meta);
+    _changes.add(null);
+  }
+
+  /// The times the call marked the conversation read up to.
+  final readUpTo = <DateTime>[];
+
+  @override
+  Future<void> read(DateTime at) async => readUpTo.add(at);
+
   @override
   Stream<void> changes() => _changes.stream;
 
@@ -152,17 +184,6 @@ class FakeBackend implements CallBackend {
 
   @override
   Future<GreetingFacts> greetingFacts() async => facts;
-
-  /// What the instance writes as the greeting (#513): none by default, as
-  /// an instance from before it; a completer a test finishes when it likes.
-  Completer<String?>? written;
-  final writtenAsked = <(String, DateTime)>[];
-
-  @override
-  Future<String?> writtenGreeting({required String language, required DateTime now}) async {
-    writtenAsked.add((language, now));
-    return written?.future;
-  }
 
   /// Whether the organisation recognises at its voice provider (#516).
   bool serverRecognises = false;
@@ -251,27 +272,26 @@ class FakeSpeaker implements Speaker {
     }
   }
 
-  /// The fillers said, and how they were ended.
-  final fillers = <String>[];
+  /// Each time the typing started (#526), at the volume it played at, and
+  /// how it was ended.
+  final fillers = <double>[];
   int fades = 0, fillerStops = 0;
 
-  /// How long each filler lasts; null has nothing to say one with.
-  Duration? fillerLength = const Duration(milliseconds: 600);
+  /// False: there is nothing to play the typing with.
+  bool canThink = true;
 
-  final prefetched = <(List<String>, String)>[];
-
-  /// Holds a filler's lookup until completed; null answers at once.
+  /// Holds the typing's start until completed; null answers at once.
   Completer<void>? fillerGate;
 
   /// How long each fade lasted.
   final fadedOver = <Duration>[];
 
   @override
-  Future<Duration?> filler(String text, {required String language}) async {
-    if (fillerLength == null) return null;
+  Future<bool> thinking(Pcm pcm, {required double volume}) async {
+    if (!canThink) return false;
     await fillerGate?.future;
-    fillers.add(text);
-    return fillerLength;
+    fillers.add(volume);
+    return true;
   }
 
   @override
@@ -282,10 +302,6 @@ class FakeSpeaker implements Speaker {
 
   @override
   Future<void> stopFiller() async => fillerStops++;
-
-  @override
-  Future<void> prefetchFillers(List<String> texts, {required String language}) async =>
-      prefetched.add((texts, language));
 
   /// The greeting's synthesis ahead: what was asked, and when it is ready.
   final prepared = <String>[];
@@ -343,7 +359,6 @@ CallController fakeCall(
   FakeBackend backend,
   FakeSpeaker speaker, {
   Duration fillerAfter = const Duration(milliseconds: 800),
-  Duration nudgeAfter = const Duration(seconds: 8),
   CallTuning tuning = const CallTuning(window: Duration.zero),
   CallSounds? sounds,
   StartTimer? startTimer,
@@ -357,7 +372,6 @@ CallController fakeCall(
   appLanguage: 'de',
   words: (k) => words[k] ?? k,
   fillerAfter: fillerAfter,
-  nudgeAfter: nudgeAfter,
   agentName: 'Ada Lovelace',
   tuning: tuning,
   sounds: sounds,

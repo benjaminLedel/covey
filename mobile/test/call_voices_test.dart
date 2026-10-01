@@ -151,54 +151,27 @@ void main() {
       await done;
       expect(s.playbackDb, isNull);
 
-      await s.prefetchFillers(['Hm…'], language: 'de');
-      await s.filler('Hm…', language: 'de');
-      expect(s.playbackDb, closeTo(-10.46, 0.01));
+      // The typing (#526): its level at the volume it plays at, −6 dB of a
+      // constant 0.5 and −6 dB more of half the volume.
+      await s.thinking(Pcm(Float32List(4800)..fillRange(0, 4800, 0.5), 48000), volume: 0.5);
+      expect(s.playbackDb, closeTo(-12.04, 0.01));
       await s.fadeFiller(const Duration(milliseconds: 250));
       expect(s.playbackDb, isNull);
       s.dispose();
     });
 
-    test('fillers are synthesised ahead, kept on disk, and played from there', () async {
-      final dir = await Directory.systemTemp.createTemp('fillers');
-      addTearDown(() => dir.delete(recursive: true));
-      final cache = FillerCache(() async => dir);
-      final out = _Output();
-      final said = <String>[];
-      final s = _speaker(out, provider: _provider(out, said), cache: cache);
-      await s.prepare(language: 'de');
-      expect(await s.filler('Hm…', language: 'de'), isNull, reason: 'not ready: asking now would come too late');
-      expect(said, isEmpty);
-      await s.prefetchFillers(['Hm…', 'Sekunde…'], language: 'de');
-      expect(said, ['Hm…', 'Sekunde…']);
-      expect(out.decoderIds.every((id) => id < 0), isTrue, reason: 'decoded aside from the replies');
-      expect(await cache.has(_voice, 'Hm…'), isTrue);
-      final length = await s.filler('Hm…', language: 'de');
-      expect(length, Pcm(Float32List(4410), 48000).duration, reason: 'both chunks, as one');
-      expect(out.fillersPlayed, [4410]);
-      s.dispose();
-
-      // The next call with the same voice asks the provider nothing.
-      final again = <String>[];
-      final t = _speaker(_Output(), provider: _provider(out, again), cache: cache);
-      await t.prefetchFillers(['Hm…', 'Sekunde…'], language: 'de');
-      expect(again, isEmpty);
-      expect(await t.filler('Sekunde…', language: 'de'), isNotNull);
-      t.dispose();
-    });
-
-    test('no provider: the Mac says the filler, or nothing without a voice of the language', () async {
-      final out = _Output();
-      final s = _speaker(out, available: false, provider: _provider(out, []));
-      await s.prepare(language: 'de');
-      await s.prefetchFillers(['Hm…'], language: 'de');
-      expect(out.decoders, isEmpty);
-      expect(await s.filler('Hm…', language: 'de'), isNotNull);
-      expect(out.fillersSaid.single, ('Hm…', 'de.anna'));
-      expect(await s.filler('Hmm…', language: 'sv'), isNull);
-      await s.fadeFiller(const Duration(milliseconds: 120));
-      expect(out.fillerFades, 1);
-      s.dispose();
+    test('the typing loops on the filler player at its volume, with or without a provider (#526)', () async {
+      for (final available in [true, false]) {
+        final out = _Output();
+        final s = _speaker(out, available: available, provider: _provider(out, []));
+        await s.prepare(language: 'de');
+        expect(await s.thinking(Pcm(Float32List(4410), 44100), volume: 0.35), isTrue);
+        expect(out.fillersPlayed.single, (4410, 0.35, true), reason: 'available: $available');
+        expect(await s.thinking(Pcm(Float32List(4410), 44100), volume: 0), isFalse, reason: 'silent: not played');
+        await s.fadeFiller(const Duration(milliseconds: 120));
+        expect(out.fillerFades, 1);
+        s.dispose();
+      }
     });
 
     test('the greeting is synthesised ahead and played from it, not asked again (#506)', () async {
@@ -331,17 +304,13 @@ class _Output implements VoiceOutput {
   @override
   Future<void> stop() async => stops++;
 
-  final fillersPlayed = <int>[];
-  final fillersSaid = <(String, String?)>[];
+  final fillersPlayed = <(int, double, bool)>[];
   int fillerFades = 0;
   final decoderIds = <int>[];
 
   @override
-  Future<void> playFiller(Pcm pcm) async => fillersPlayed.add(pcm.samples.length);
-
-  @override
-  Future<void> sayFiller(String text, {String? voiceId, required String language, double rate = 0}) async =>
-      fillersSaid.add((text, voiceId));
+  Future<void> playFiller(Pcm pcm, {double volume = 1, bool loop = false}) async =>
+      fillersPlayed.add((pcm.samples.length, volume, loop));
 
   @override
   Future<void> fadeFiller(Duration over) async => fillerFades++;

@@ -16,7 +16,9 @@ class _Recorder {
   final turns = <Uint8List>[];
   final cuts = <TurnCut>[];
   final stats = <TurnStats>[];
+  final lulls = <Uint8List>[];
   late final seg = TurnSegmenter(
+    onLull: lulls.add,
     onSpeech: () => speech++,
     onTurn: (pcm, stats) {
       turns.add(pcm);
@@ -35,6 +37,38 @@ class _Recorder {
 }
 
 void main() {
+  group('recognised ahead in the pause (#527)', () {
+    test('what the pause hands over half way is the turn, byte for byte', () {
+      final r = _Recorder();
+      r.feed(320, voiced: false, value: 7);
+      r.feed(960, voiced: true, value: 9);
+      r.feed(512, voiced: false, value: 7);
+      expect(r.lulls, hasLength(1));
+      expect(r.turns, isEmpty);
+      r.feed(256, voiced: false, value: 7);
+      expect(r.turns.single, r.lulls.single);
+    });
+
+    test('speaking again makes another turn; its own pause hands it over again', () {
+      final r = _Recorder();
+      r.feed(640, voiced: true, value: 9);
+      r.feed(544, voiced: false, value: 7);
+      r.feed(640, voiced: true, value: 8);
+      r.feed(704, voiced: false, value: 7);
+      expect(r.lulls, hasLength(2));
+      expect(r.turns.single, isNot(r.lulls.first));
+      expect(r.turns.single, r.lulls.last);
+    });
+
+    test('nothing handed over ahead for what is too short to be a turn', () {
+      final r = _Recorder();
+      r.feed(128, voiced: true);
+      r.feed(704, voiced: false);
+      expect(r.lulls, isEmpty);
+      expect(r.discarded, 1);
+    });
+  });
+
   test('a turn ends at a pause of 0.7 s, not at a shorter one', () {
     final r = _Recorder();
     r.feed(640, voiced: false);

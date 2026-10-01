@@ -12,9 +12,12 @@
 // SecretStore — interface here, implementations in subpackages
 // ([`spec/10-architecture-stack.md`], principle 10).
 //
-// What is deliberately NOT here: tools, sessions, streaming. This is the
-// tool-less single shot — anything agentic belongs in an engine with a runtime,
-// credentials and cost attribution behind it (D14).
+// What is deliberately NOT here: tools, sessions. This is the tool-less
+// single shot — anything agentic belongs in an engine with a runtime,
+// credentials and cost attribution behind it (D14). The single shot may be
+// streamed (Streamer), where waiting for its end is the cost: the triage of
+// a call speaks its first sentence before the model has written its last
+// (#529).
 //
 // Guard rail unchanged: the credential never leaves the control plane. Neither
 // into the browser nor into a sandbox.
@@ -73,4 +76,12 @@ type Provider interface {
 	Name() string
 	// Complete performs the single shot and returns the model's text.
 	Complete(ctx context.Context, req Request) (string, error)
+}
+
+// Streamer is a Provider that can hand over the model's text as it comes
+// (#529). Optional: a caller checks for it and otherwise calls Complete.
+type Streamer interface {
+	// Stream performs the single shot like Complete; onText gets each piece
+	// of the text in order, and the whole text is returned at the end.
+	Stream(ctx context.Context, req Request, onText func(string)) (string, error)
 }

@@ -200,8 +200,8 @@ func conversationLanguage(nachricht string, verlauf []Beitrag) string {
 // JSON: the German one for a German conversation, the English one for
 // every other.
 const (
-	triageBeispielEN = `For example, written: "Done — PROJ-12, MR !88, pipeline green, waiting for Ada's review." Spoken: "Yes, it's in. The merge request is ready, the tests are green, and it's waiting for Ada's review." — {"action":"answer","text":"Done — PROJ-12, MR !88, pipeline green, waiting for Ada's review.","spoken":"Yes, it's in. The merge request is ready, the tests are green, and it's waiting for Ada's review.","details_in_chat":true}`
-	triageBeispielDE = `For example, in a German conversation, written: "Ist drin — PROJ-12, MR !88, Pipeline grün, wartet auf Adas Review." Spoken: "Ja, ist drin. Der Merge Request ist fertig, die Tests sind grün, und er wartet auf Adas Review." — {"action":"answer","text":"Ist drin — PROJ-12, MR !88, Pipeline grün, wartet auf Adas Review.","spoken":"Ja, ist drin. Der Merge Request ist fertig, die Tests sind grün, und er wartet auf Adas Review.","details_in_chat":true}`
+	triageBeispielEN = `For example, written: "Done — PROJ-12, MR !88, pipeline green, waiting for Ada's review." Spoken: "Yes, it's in. The merge request is ready, the tests are green, and it's waiting for Ada's review." — {"action":"answer","spoken":"Yes, it's in. The merge request is ready, the tests are green, and it's waiting for Ada's review.","text":"Done — PROJ-12, MR !88, pipeline green, waiting for Ada's review.","details_in_chat":true}`
+	triageBeispielDE = `For example, in a German conversation, written: "Ist drin — PROJ-12, MR !88, Pipeline grün, wartet auf Adas Review." Spoken: "Ja, ist drin. Der Merge Request ist fertig, die Tests sind grün, und er wartet auf Adas Review." — {"action":"answer","spoken":"Ja, ist drin. Der Merge Request ist fertig, die Tests sind grün, und er wartet auf Adas Review.","text":"Ist drin — PROJ-12, MR !88, Pipeline grün, wartet auf Adas Review.","details_in_chat":true}`
 )
 
 // triageAnruf is appended to the triage's system prompt when the message
@@ -219,6 +219,7 @@ The new message was said aloud in a call, not typed: the person is listening, an
 ` + spokenLanguageRule(lang, "written form") + `
 Add "details_in_chat": true when the spoken form leaves out something the written one carries (an id, a link, a list, a figure), false when it says all of it.
 "spoken" is what the person hears: for "answer" it says "text", for "note" it says "reply", for "task" the acknowledgement in "text", for "config" the "text" (write ` + ApproversPlatzhalter + ` there too). A "search" needs none.
+Write "spoken" right after "action", before every other field: it is read out to the person while you write the rest.
 ` + beispiel + `
 ` + triageSchluss
 }

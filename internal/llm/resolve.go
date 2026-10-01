@@ -86,6 +86,14 @@ const (
 )
 
 func (a anthropic) Complete(ctx context.Context, req Request) (string, error) {
+	return claudeapi.Messages(ctx, a.cred, a.oauth, call(req), req.System, toClaudeMessages(req.Messages))
+}
+
+func (a anthropic) Stream(ctx context.Context, req Request, onText func(string)) (string, error) {
+	return claudeapi.MessagesStream(ctx, a.cred, a.oauth, call(req), req.System, toClaudeMessages(req.Messages), onText)
+}
+
+func call(req Request) claudeapi.Call {
 	model := strings.TrimSpace(req.Model)
 	if model == "" {
 		model = anthropicBest
@@ -93,14 +101,12 @@ func (a anthropic) Complete(ctx context.Context, req Request) (string, error) {
 			model = anthropicFast
 		}
 	}
-	return claudeapi.Messages(ctx, a.cred, a.oauth,
-		claudeapi.Call{
-			Model:      model,
-			MaxTokens:  req.MaxTokens,
-			Effort:     req.Effort,
-			NoThinking: req.NoThinking,
-		},
-		req.System, toClaudeMessages(req.Messages))
+	return claudeapi.Call{
+		Model:      model,
+		MaxTokens:  req.MaxTokens,
+		Effort:     req.Effort,
+		NoThinking: req.NoThinking,
+	}
 }
 
 func toClaudeMessages(in []Message) []claudeapi.Message {

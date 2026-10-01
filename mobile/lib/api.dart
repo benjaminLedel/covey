@@ -531,6 +531,40 @@ class CoveyApi {
   /// [text] spoken by the organisation's voice provider as a stream (#497):
   /// the audio's content type (`audio/mpeg`) and its bytes as they arrive —
   /// the first sentence plays while the rest is still being synthesised.
+  /// The spoken form of the reply to [message] in [conversation], sentence
+  /// by sentence as the instance writes it (#529):
+  /// GET /conversations/{id}/messages/{message}/spoken, NDJSON. Empty when
+  /// the instance streams none — an instance from before it, a turn not said
+  /// in a call — or the stream cannot be read: the reply comes as a message
+  /// either way.
+  Stream<String> spokenReply(String conversation, String message) async* {
+    final req = http.Request('GET', _url('/conversations/$conversation/messages/$message/spoken'))
+      ..headers.addAll({..._headers, 'Accept': 'application/x-ndjson'});
+    final http.StreamedResponse res;
+    try {
+      res = await _http.send(req).timeout(_timeout);
+    } catch (e) {
+      diag('api', 'spoken reply not reached: $e');
+      return;
+    }
+    if (res.statusCode != 200) {
+      await res.stream.drain<void>();
+      return;
+    }
+    try {
+      await for (final line in res.stream.transform(utf8.decoder).transform(const LineSplitter())) {
+        if (line.trim().isEmpty) continue;
+        final v = jsonDecode(line);
+        if (v is! Map) continue;
+        if (v['done'] == true) return;
+        final text = v['text'];
+        if (text is String && text.trim().isNotEmpty) yield text;
+      }
+    } catch (e) {
+      diag('api', 'spoken reply broke off: $e');
+    }
+  }
+
   Future<(String, Stream<List<int>>)> synthesizeSpeechStream(
     String text, {
     String voice = '',

@@ -205,10 +205,10 @@ void main() {
       await call.hangUp();
     });
 
-    test('a filler playing is held to the same check', () async {
+    test('the typing playing is held to the same check', () async {
       final ears = FakeEars()..echoCancelled = true;
       final backend = FakeBackend(), speaker = FakeSpeaker(), clock = FakeClock();
-      final call = fakeCall(ears, backend, speaker, startTimer: clock.start);
+      final call = fakeCall(ears, backend, speaker, sounds: FakeEarcons().sounds(), startTimer: clock.start);
       await call.start();
       ears.say('Was steht an?');
       await _settle();

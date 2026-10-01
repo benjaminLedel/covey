@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
@@ -245,6 +244,15 @@ abstract class CallBackend {
   /// Writes what the person said, marked as said in a call.
   Future<ConversationMessage> post(String text);
 
+  /// The spoken form of the reply to the person's message [messageId],
+  /// sentence by sentence while the instance writes it (#529); empty when
+  /// it streams none.
+  Stream<String> spokenReply(String messageId);
+
+  /// Marks the conversation read up to [at]: what the call fetched is heard,
+  /// and the instance sends no notification for it (#525).
+  Future<void> read(DateTime at);
+
   /// Fires when the conversation may have moved.
   Stream<void> changes();
 
@@ -260,16 +268,10 @@ abstract class CallBackend {
   /// an instance from before them.
   Future<SpokenVoice> spokenVoice();
 
-  /// What the greeting says beside the agent's name (#506): the person's
-  /// name, the agent's department, the chat tone's address. Whatever cannot
-  /// be read is left empty; it never throws.
+  /// What the greeting says (#506, #528): the person's name and the chat
+  /// tone's address. Whatever cannot be read is left empty; it never
+  /// throws.
   Future<GreetingFacts> greetingFacts();
-
-  /// A greeting the instance writes for this call from the situation
-  /// (#513): what the agent works on, what was said last, the time of day
-  /// at [now]. Null when it writes none — an older instance, no model, too
-  /// slow —, and the call greets from its templates. It never throws.
-  Future<String?> writtenGreeting({required String language, required DateTime now});
 
   /// Whether the organisation lets this call's turns be recognised at its
   /// voice provider (#516), as `/speech/model` says. False on an instance
@@ -355,8 +357,16 @@ class ApiCallBackend implements CallBackend {
   Future<ConversationMessage> post(String text) => api.postConversationMessage(_conv, text, via: 'call');
 
   @override
+  Future<void> read(DateTime at) => api.markConversationRead(_conv, at);
+
+  @override
+  Stream<String> spokenReply(String messageId) => api.spokenReply(_conv, messageId);
+
+  /// A short settle (#527): the reply is waited for, and every 100 ms of
+  /// it is heard as silence.
+  @override
   Stream<void> changes() =>
-      LiveEvents.instance.of({'chat'}, conversationId: _id, settle: const Duration(milliseconds: 250));
+      LiveEvents.instance.of({'chat'}, conversationId: _id, settle: const Duration(milliseconds: 40));
 
   @override
   Future<List<String>> names() async {
@@ -416,36 +426,10 @@ class ApiCallBackend implements CallBackend {
 
     final got = await Future.wait([
       read(() async => (await api.me()).displayName),
-      read(() async {
-        final dept = (await api.agents()).where((a) => a.id == agentId).firstOrNull?.departmentId;
-        if (dept == null) return '';
-        return (await api.departments()).where((d) => d.id == dept).firstOrNull?.name ?? '';
-      }),
       // An instance from before #506 does not say: the greeting's default.
       read(() async => (await _speechOf())['address'] as String? ?? ''),
     ]);
-    return GreetingFacts(personName: got[0], department: got[1], address: got[2]);
-  }
-
-  @override
-  Future<String?> writtenGreeting({required String language, required DateTime now}) async {
-    try {
-      final c = await _conversation();
-      final out = await api
-          .post('/conversations/${c.id}/greeting', {
-            'agent_id': agentId,
-            'lang': language,
-            'local_time': isoWithOffset(now),
-            'weekday': weekdayName(now),
-          })
-          .timeout(const Duration(seconds: 4));
-      final text = out is Map<String, dynamic> ? (out['text'] as String? ?? '').trim() : '';
-      return text.isEmpty ? null : text;
-    } catch (e) {
-      // 204, an instance from before #513 (404), or too slow.
-      diag('call', 'no written greeting: $e');
-      return null;
-    }
+    return GreetingFacts(personName: got[0], address: got[1]);
   }
 
   @override
@@ -546,29 +530,29 @@ class CallController extends ChangeNotifier {
     this.tuning = const CallTuning(),
     this.recording,
     this.sounds,
-    this.fillerAfter = const Duration(milliseconds: 800),
-    this.nudgeAfter = const Duration(seconds: 8),
+    this.fillerAfter = const Duration(milliseconds: 300),
     this.pollEvery = const Duration(seconds: 5),
     this.serverBound = serverRecognitionBound,
     this.mayHangUp,
+    this.hush,
     StartTimer? startTimer,
-    math.Random? random,
     this.greeter,
   }) : _timer = startTimer ?? Timer.new {
-    _turns = TurnSegmenter(onSpeech: _onSpeech, onTurn: _onTurn, onDiscard: _onDiscard, endSilence: tuning.pause);
+    _turns = TurnSegmenter(
+      onSpeech: _onSpeech,
+      onTurn: _onTurn,
+      onDiscard: _onDiscard,
+      onLull: _onLull,
+      lullAfter: lullAfter(tuning.pause),
+      endSilence: tuning.pause,
+    );
     _fillers = CallFillers(
       voice: speaker,
-      language: () => _language ?? appLanguage,
+      // The typing (#526), with the call's other sounds: off when they are.
+      sound: () async => await sounds?.take(Earcon.typing),
       quiet: () => ended || muted || _speaking || _turns.speaking,
       after: fillerAfter,
-      longAfter: nudgeAfter,
       timer: startTimer,
-      random: random,
-      onPlaying: (text, length) {
-        // Its own filler from the loudspeaker is not the person.
-        _saying = text;
-        _saidUntil = DateTime.now().add(length);
-      },
     );
   }
 
@@ -595,14 +579,11 @@ class CallController extends ChangeNotifier {
   /// The call's sounds; null plays none.
   final CallSounds? sounds;
 
-  /// How long the call waits for the reply before the agent says a short
-  /// filler — once per turn, and only while the reply's message has not
-  /// arrived (#511).
+  /// How long after the end of a turn was heard the typing starts — only
+  /// while the reply's message has not arrived (#511, #526). It starts
+  /// before the turn is sent: recognition, clean-up and the understood
+  /// window take seconds, and the call is silent no longer than this.
   final Duration fillerAfter;
-
-  /// How long the call waits for a reply before the agent says it takes a
-  /// moment longer — once per turn.
-  final Duration nudgeAfter;
 
   /// The net under the event stream while a reply is awaited.
   final Duration pollEvery;
@@ -614,6 +595,10 @@ class CallController extends ChangeNotifier {
   /// Whether the call ends after the agent's goodbye (#517), asked when the
   /// goodbye arrives; null: it does.
   final bool Function()? mayHangUp;
+
+  /// Told true when the call starts and false when it ends (#525): the
+  /// app's notifications hold still in between. Null tells nobody.
+  final void Function(bool on)? hush;
 
   /// How the call greets; null does not.
   final CallGreeter? greeter;
@@ -665,9 +650,6 @@ class CallController extends ChangeNotifier {
   bool _awaiting = false;
   bool _bargedIn = false;
 
-  /// Counts the barge-ins, so a reply waiting for a filler to fade knows
-  /// the person spoke meanwhile.
-  int _interrupts = 0;
   Timer? _poll;
   Timer? _giveUp;
   StreamSubscription<void>? _changes;
@@ -679,9 +661,6 @@ class CallController extends ChangeNotifier {
   /// The tasks the conversation already knew of: a message of the agent
   /// naming another is the acknowledgement of a task just created.
   final _tasks = <String>{};
-
-  /// The languages whose fillers were asked for in this call.
-  final _prefetched = <String>{};
 
   /// The conversation's last lines, for the clean-up's context.
   final _recent = <String>[];
@@ -716,6 +695,7 @@ class CallController extends ChangeNotifier {
   /// hearing.
   Future<void> start() async {
     _set(CallMode.preparing);
+    _hush(true);
     unawaited(sounds?.play(Earcon.ringing, loops: 2));
     unawaited(sounds?.preload());
     // Asked for and synthesised while the line rings and the models load.
@@ -737,7 +717,6 @@ class CallController extends ChangeNotifier {
       if (had.isNotEmpty) _lastId = had.last.id;
       final voices = await speaker.prepare(language: appLanguage);
       if (ended) return;
-      _prefetch(appLanguage);
       unawaited(backend.names().then((n) => _names = n, onError: (_) {}));
       if (tuning.record && recording != null) {
         try {
@@ -775,18 +754,14 @@ class CallController extends ChangeNotifier {
     }
   }
 
-  /// The greeting for this call on its way: the written one asked for, the
-  /// template behind it.
+  /// The greeting for this call on its way: chosen and synthesised while
+  /// the line rings.
   GreetingInFlight _composeGreeting() {
-    final language = appLanguage.split(RegExp('[-_]')).first.toLowerCase();
     return GreetingInFlight(
-      written: backend
-          .writtenGreeting(language: appLanguage, now: greeter!.now)
-          .then((t) => t == null || ended ? null : Greeting(key: writtenGreetingKey, text: t, language: language)),
       template: () async {
         final facts = await backend.greetingFacts();
         if (ended) return null;
-        return greeter!.compose(agentId: agentId, agentName: agentName, language: appLanguage, facts: facts);
+        return greeter!.compose(agentId: agentId, language: appLanguage, facts: facts);
       },
       synthesise: (g) => ended ? Future.value(false) : speaker.prepareUtterance(g.text, language: g.language),
       log: (what) => diag('call', what),
@@ -846,8 +821,18 @@ class CallController extends ChangeNotifier {
     diag('call', 'failed: $e');
     unawaited(sounds?.stop());
     failure = e;
+    _hush(false);
     unawaited(_shut());
     _set(CallMode.failed);
+  }
+
+  bool _hushed = false;
+
+  /// Tells [hush], once for each change.
+  void _hush(bool on) {
+    if (_hushed == on) return;
+    _hushed = on;
+    hush?.call(on);
   }
 
   /// Mutes or unmutes: muted, the microphone is closed.
@@ -875,12 +860,17 @@ class CallController extends ChangeNotifier {
     _mode = CallMode.ended;
     if (!_disposed) notifyListeners();
     if (wasOpen) unawaited(sounds?.play(Earcon.hangUp));
+    _hush(false);
     await _shut();
     diag('call', 'ended');
   }
 
   Future<void> _shut() async {
     _queue.clear();
+    _ahead = null;
+    _stopSpoken();
+    _streamed.clear();
+    _cutStreams.clear();
     _fillers.stop();
     _poll?.cancel();
     _giveUp?.cancel();
@@ -986,22 +976,135 @@ class CallController extends ChangeNotifier {
             '${played == null ? '' : ', playing ${played.toStringAsFixed(0)} dB'}',
       );
       _bargedIn = true;
-      _interrupts++;
       _queue.clear();
       unawaited(speaker.stop());
+      // Nor is the rest of a reply still being written (#529).
+      final cut = _spokenFor;
+      if (cut != null && _streamed.containsKey(cut)) _cutStreams.add(cut);
+      _stopSpoken();
     }
     _update();
   }
 
+  /// The person's message whose reply is being streamed (#529), and what
+  /// of the replies to the person's messages was spoken from a stream.
+  String? _spokenFor;
+  StreamSubscription<String>? _spokenSub;
+  final _streamed = <String, String>{};
+
+  /// Replies whose stream a barge-in cut: their message is not spoken.
+  final _cutStreams = <String>{};
+
+  /// Listens for the reply to [messageId] while the instance writes it,
+  /// and speaks each sentence as it comes.
+  void _listenSpoken(String messageId) {
+    _stopSpoken();
+    _spokenFor = messageId;
+    _spokenSub = backend
+        .spokenReply(messageId)
+        .listen(
+          (sentence) => _onSpoken(messageId, sentence),
+          onError: (Object e) => diag('call', 'spoken reply: $e'),
+          onDone: () {
+            if (_spokenFor == messageId) _spokenFor = null;
+          },
+        );
+  }
+
+  void _stopSpoken() {
+    unawaited(_spokenSub?.cancel());
+    _spokenSub = null;
+    _spokenFor = null;
+  }
+
+  void _onSpoken(String messageId, String sentence) {
+    if (ended || _spokenFor != messageId) return;
+    final before = _streamed[messageId];
+    if (before == null) {
+      // The reply has begun: the wait is over, though its message is not
+      // written yet.
+      _awaiting = false;
+      _fillers.replyArrived();
+      _giveUp?.cancel();
+      diag('call', 'reply streaming');
+    }
+    _streamed[messageId] = before == null ? sentence : '$before $sentence';
+    _queue.add(_Utterance(sentence));
+    _update();
+    unawaited(_speakNext());
+  }
+
+  /// What of [m] is still to be said when its reply was streamed: what
+  /// follows the streamed sentences in its spoken form, and the word about
+  /// the chat. When it says something else — a check dropped the spoken
+  /// form, and the written one stands — what was heard stays the answer.
+  List<_Utterance> _afterStream(ConversationMessage m, String streamed) {
+    final all = _toSpeak(m);
+    if (all.isEmpty) return all;
+    String norm(String t) => t.trim().split(RegExp(r'\s+')).join(' ');
+    final first = norm(all.first.text), heard = norm(streamed);
+    final rest = first.startsWith(heard) ? first.substring(heard.length).trim() : '';
+    return [if (rest.isNotEmpty) _Utterance(rest), ...all.skip(1)];
+  }
+
   void _onDiscard() {
     _bargedIn = false;
+    _ahead = null;
     _update();
+  }
+
+  /// The turn recognised ahead, in the person's pause before its end
+  /// (#527): the length of its audio, and the work.
+  ({int length, Future<_Heard> heard})? _ahead;
+
+  /// The person paused partway to the end of a turn: what the turn will be
+  /// unless they speak again is recognised — and cleaned up — now, so it is
+  /// ready when the pause has run out. Speaking again makes another turn,
+  /// of another length, and this one is not used.
+  void _onLull(Uint8List pcm) {
+    if (ended || muted) return;
+    final heard = _hear(pcm);
+    unawaited(heard.then((_) {}, onError: (_) {}));
+    _ahead = (length: pcm.length, heard: heard);
+  }
+
+  /// One turn's audio recognised: its text, the language it was heard in,
+  /// whether it goes nowhere, and its clean-up under way.
+  Future<_Heard> _hear(Uint8List pcm) async {
+    // At the voice provider when the organisation allows it (#516), the
+    // device's recogniser alongside as the fallback.
+    final heard = await recogniseTurn(
+      device: () => ears.recognise(pcm),
+      server: _serverRecognition ? () => _transcribe(pcm) : null,
+      bound: serverBound,
+    );
+    final text = heard.text;
+    if (text.isEmpty || isHallucination(text)) return _Heard(heard, dropped: 'nothing recognised');
+    if ((DateTime.now().difference(_saidUntil) < const Duration(seconds: 2) || _speaking) &&
+        looksLikeEcho(text, _saying)) {
+      // The agent heard itself: what came in is what it had just said.
+      return _Heard(heard, dropped: 'echo');
+    }
+    String? language;
+    try {
+      language = await speaker.language(text);
+    } catch (_) {}
+    // A short turn is not cleaned (#511): there is nothing to tidy in it,
+    // and the clean-up only had the conversation to go on.
+    if (turnWords(text).length < minCleanWords) return _Heard(heard, language: language);
+    final watch = Stopwatch()..start();
+    final clean = backend
+        .clean(text, CleanContext(agentName: agentName, names: _names, recent: List.of(_recent)))
+        .then((c) => c, onError: (Object _) => null)
+        .then((c) => (c, watch.elapsedMilliseconds));
+    return _Heard(heard, language: language, clean: clean);
   }
 
   void _onTurn(Uint8List pcm, TurnStats stats) {
     final bargedIn = _bargedIn;
     _bargedIn = false;
     unawaited(sounds?.play(Earcon.heard));
+    _fillers.waiting();
     _turnChain = _turnChain.then((_) => _handleTurn(pcm, stats, bargedIn)).catchError((Object e) {
       diag('call', 'turn failed: $e');
     });
@@ -1028,36 +1131,30 @@ class CallController extends ChangeNotifier {
         'echo_cancelled': _echoCancelled,
       },
     };
+    // Recognised ahead in the pause when the turn is what was heard then.
+    final ahead = _ahead;
+    _ahead = null;
+    final reused = ahead != null && ahead.length == pcm.length;
+    facts['ahead'] = reused;
     _recognising = true;
     _update();
-    final TurnText heard;
+    final _Heard h;
     try {
-      // At the voice provider when the organisation allows it (#516), the
-      // device's recogniser alongside as the fallback.
-      heard = await recogniseTurn(
-        device: () => ears.recognise(pcm),
-        server: _serverRecognition ? () => _transcribe(pcm) : null,
-        bound: serverBound,
-      );
+      h = await (reused ? ahead.heard : _hear(pcm));
     } finally {
       _recognising = false;
     }
+    final heard = h.heard;
     final text = heard.text;
     facts['recogniser'] = heard.by.name;
     facts['recognise_ms'] = heard.elapsed.inMilliseconds;
     if (heard.serverProblem != null) facts['server_problem'] = heard.serverProblem;
     facts['raw'] = text;
     if (ended) return;
-    String? dropped;
-    if (text.isEmpty || isHallucination(text)) {
-      dropped = 'nothing recognised';
-    } else if ((DateTime.now().difference(_saidUntil) < const Duration(seconds: 2) || _speaking) &&
-        looksLikeEcho(text, _saying)) {
-      // The agent heard itself: what came in is what it had just said.
-      dropped = 'echo';
-    }
-    if (dropped != null) {
-      _logTurn(n, pcm, facts..['outcome'] = dropped);
+    if (h.dropped != null) {
+      _logTurn(n, pcm, facts..['outcome'] = h.dropped);
+      // Nothing goes to the agent: nothing to wait for.
+      _fillers.stop();
       _update();
       return;
     }
@@ -1066,10 +1163,7 @@ class CallController extends ChangeNotifier {
     // Parakeet cannot be pinned to the call's language, so a turn heard in
     // another one is flagged here.
     final callLanguage = _base(_language ?? appLanguage);
-    String? heardIn;
-    try {
-      heardIn = await speaker.language(text);
-    } catch (_) {}
+    final heardIn = h.language;
     facts['call_language'] = callLanguage;
     if (heardIn != null) {
       facts['recognised_language'] = heardIn;
@@ -1077,37 +1171,31 @@ class CallController extends ChangeNotifier {
         diag('call', 'turn $n recognised as $heardIn, the call is in $callLanguage');
       }
     }
-    if (ended) return;
 
-    // Understood: shown while the clean-up runs, then for the window. A
-    // short turn is not cleaned (#511): there is nothing to tidy in it, and
-    // the clean-up only had the conversation to go on.
-    final short = turnWords(text).length < minCleanWords;
-    final u = _understood = UnderstoodTurn(text, window: tuning.window, cleaning: !short);
+    // Understood: shown while the clean-up runs, then for the window.
+    final clean = h.clean;
+    final u = _understood = UnderstoodTurn(text, window: tuning.window, cleaning: clean != null);
     u.addListener(_update);
     _update();
-    if (short) {
+    if (clean == null) {
       facts['clean_kept'] = 'short';
     } else {
-      final cleanWatch = Stopwatch()..start();
       unawaited(
-        backend
-            .clean(text, CleanContext(agentName: agentName, names: _names, recent: List.of(_recent)))
-            .then((c) => c, onError: (Object _) => null)
-            .then((c) {
-              facts['clean_ms'] = cleanWatch.elapsedMilliseconds;
-              if (c != null && c.trim().isNotEmpty) {
-                // A correction changes little; a rewrite goes as recognised.
-                final edit = turnEdit(text, c);
-                facts['clean_edit'] = double.parse(edit.toStringAsFixed(2));
-                if (edit > maxTurnEdit) {
-                  facts['clean_kept'] = 'edited';
-                  facts['clean_rejected'] = c;
-                  c = null;
-                }
-              }
-              u.cleanedUp(c);
-            }),
+        clean.then((r) {
+          var (c, ms) = r;
+          facts['clean_ms'] = ms;
+          if (c != null && c.trim().isNotEmpty) {
+            // A correction changes little; a rewrite goes as recognised.
+            final edit = turnEdit(text, c);
+            facts['clean_edit'] = double.parse(edit.toStringAsFixed(2));
+            if (edit > maxTurnEdit) {
+              facts['clean_kept'] = 'edited';
+              facts['clean_rejected'] = c;
+              c = null;
+            }
+          }
+          u.cleanedUp(c);
+        }),
       );
     }
     final shownAt = DateTime.now();
@@ -1120,6 +1208,7 @@ class CallController extends ChangeNotifier {
     facts['sent'] = sent;
     _logTurn(n, pcm, facts);
     if (ended || sent == null) {
+      _fillers.stop();
       _update();
       return;
     }
@@ -1153,6 +1242,7 @@ class CallController extends ChangeNotifier {
       'call',
       'turn $n: speech ${facts['speech_ms']} ms, silence ${facts['silence_ms']} ms, length ${facts['length_ms']} ms, '
           'cut ${facts['cut']}, recognised by ${facts['recogniser']} in ${facts['recognise_ms']} ms'
+          '${facts['ahead'] == true ? ' (ahead, in the pause)' : ''}'
           '${facts['server_problem'] == null ? '' : ' (voice provider: ${facts['server_problem']})'}, raw ${raw.length} characters'
           '${cleaned == null ? '' : ', cleaned ${cleaned.length} in ${facts['clean_ms']} ms'}'
           '${facts['clean_edit'] == null ? '' : ', word edit ${facts['clean_edit']}'}'
@@ -1184,6 +1274,7 @@ class CallController extends ChangeNotifier {
     try {
       final m = await backend.post(text);
       _seen.add(m.id);
+      _listenSpoken(m.id);
       diag('call', 'turn posted, ${text.length} characters');
     } on ApiException catch (e) {
       _awaiting = false;
@@ -1207,19 +1298,6 @@ class CallController extends ChangeNotifier {
     if (_recent.length > _keepRecent) _recent.removeRange(0, _recent.length - _keepRecent);
   }
 
-  /// Has the fillers of [language] synthesised ahead, once per language.
-  void _prefetch(String language) {
-    final base = language.split(RegExp('[-_]')).first.toLowerCase();
-    if (!_prefetched.add(base)) return;
-    final texts = fillerTexts(base);
-    if (texts.isEmpty) return;
-    unawaited(
-      speaker.prefetchFillers(texts, language: language).catchError((Object e) {
-        diag('call', 'fillers not prepared: $e');
-      }),
-    );
-  }
-
   /// Reads what is new; every message of the agent is spoken.
   Future<void> _fetch() async {
     if (ended || _mode == CallMode.preparing) return;
@@ -1234,6 +1312,13 @@ class CallController extends ChangeNotifier {
         final last = _lastId;
         final msgs = last == null ? await backend.open() : await backend.after(last);
         if (ended) return;
+        // Read as soon as fetched, before the instance's notifier gets to
+        // it: the person hears it in the call (#525).
+        final newest = msgs
+            .map((m) => m.createdAt)
+            .nonNulls
+            .fold<DateTime?>(null, (a, b) => a == null || b.isAfter(a) ? b : a);
+        if (newest != null) unawaited(_markRead(newest));
         for (final m in msgs) {
           _lastId = m.id;
           if (!_seen.add(m.id)) continue;
@@ -1249,7 +1334,16 @@ class CallController extends ChangeNotifier {
           _fillers.replyArrived();
           _giveUp?.cancel();
           _say(CallLine(mine: false, text: textForSpeech(m.text).text));
-          _queue.addAll(_toSpeak(m));
+          final to = m.replyTo;
+          if (to != null && _cutStreams.remove(to)) {
+            // Its stream was cut by the person speaking: the rest stands in
+            // the chat, and a goodbye they spoke into does not hang up.
+            _streamed.remove(to);
+            continue;
+          }
+          final streamed = to == null ? null : _streamed.remove(to);
+          if (to != null && to == _spokenFor) _stopSpoken();
+          _queue.addAll(streamed == null ? _toSpeak(m) : _afterStream(m, streamed));
           if (m.meta['end_call'] == 'true') {
             if (mayHangUp?.call() ?? true) {
               _goodbye = true;
@@ -1267,6 +1361,14 @@ class CallController extends ChangeNotifier {
     }
     _update();
     unawaited(_speakNext());
+  }
+
+  Future<void> _markRead(DateTime at) async {
+    try {
+      await backend.read(at);
+    } catch (e) {
+      diag('call', 'marking the conversation read: $e');
+    }
   }
 
   /// What of an agent's message the call speaks: its spoken form when it
@@ -1303,21 +1405,9 @@ class CallController extends ChangeNotifier {
         final judgeable = s.text.trim().split(RegExp(r'\s+')).length >= minWordsToSwitchLanguage;
         lang = (judgeable ? await speaker.language(s.text) : null) ?? _language ?? appLanguage;
         _language = lang;
-        _prefetch(lang);
       }
       if (cut) _queue.insert(0, _Utterance(words('call.restInChat'), plain: true));
       _speaking = true;
-      // A filler still playing finishes its word first (#511).
-      if (_fillers.playing) {
-        final interrupts = _interrupts;
-        await _fillers.makeWay();
-        // Hung up, or the person spoke meanwhile: this reply is not said.
-        if (ended || interrupts != _interrupts) {
-          _speaking = false;
-          _update();
-          break;
-        }
-      }
       _saying = text;
       _doubleTalkLogged = false;
       _update();
@@ -1379,4 +1469,24 @@ class CallController extends ChangeNotifier {
     wordTicks.dispose();
     super.dispose();
   }
+}
+
+/// A turn's audio recognised (#527): the text, the language it was heard
+/// in, why it goes nowhere — null when it goes to the agent — and its
+/// clean-up with how long it took, null for a short turn.
+class _Heard {
+  _Heard(this.heard, {this.dropped, this.language, this.clean});
+
+  final TurnText heard;
+  final String? dropped;
+  final String? language;
+  final Future<(String?, int)>? clean;
+}
+
+/// How far into the pause that ends a turn it is recognised ahead (#527):
+/// half way, not sooner than 0.3 s — a breath within a sentence is
+/// shorter — and never at its end.
+Duration lullAfter(Duration pause) {
+  final half = pause ~/ 2;
+  return half < const Duration(milliseconds: 300) ? const Duration(milliseconds: 300) : half;
 }

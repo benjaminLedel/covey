@@ -7,6 +7,7 @@ import '../api.dart';
 import '../face.dart';
 import '../i18n.dart';
 import '../icons.dart';
+import '../push.dart';
 import '../speech_model.dart';
 import '../theme.dart';
 import 'call.dart';
@@ -108,6 +109,8 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
           recording: CallRecording.open,
           // The agent greets when the call connects (#506).
           greeter: CallGreeter(enabled: () => CallSettings.greeting.value),
+          // No banners while the call is on (#525).
+          hush: PushNotices.instance.hush,
           // And hangs up after its goodbye when the person ends it (#517).
           mayHangUp: () => CallSettings.hangUp.value,
         );
