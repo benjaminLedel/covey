@@ -1024,12 +1024,13 @@ func (s *Server) triagieren(ctx context.Context, conv chat.Conversation, agentID
 			gestreamt = true
 			return s.gesprochen.satz(msg.ID, satz)
 		}
+		rahmen.GesprochenEnde = func() { s.gesprochen.gesagt(msg.ID) }
 	}
 	zug := func(suche *chat.Suche) (chat.Entscheidung, error) {
 		e, err := chat.Triagieren(ctx, provider, rahmen, organisation, liste, fertig, verlauf, msg.Text, suche)
 		if err != nil && ctx.Err() == nil {
 			if gestreamt {
-				rahmen.Gesprochen = nil
+				rahmen.Gesprochen, rahmen.GesprochenEnde = nil, nil
 			}
 			s.Log.Warn("triage turn failed, trying once more", "agent", agentID, "err", err)
 			e, err = chat.Triagieren(ctx, provider, rahmen, organisation, liste, fertig, verlauf, msg.Text, suche)

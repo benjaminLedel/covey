@@ -29,12 +29,18 @@ type SpokenStream struct {
 	// Emit gets each sentence, in order, as Sprechbar would store it. It may
 	// return false to stop the stream: nothing more is handed over.
 	Emit func(sentence string) bool
+	// End, where set, is told once that the spoken form is complete — its
+	// string closed, or as much of it handed over as is kept — when Emit
+	// took at least one sentence (#533).
+	End func()
 
-	text    strings.Builder
-	sent    int // sentences handed over
-	runes   int // and their length
-	offset  int // bytes of the decoded spoken form handed over
-	stopped bool
+	text      strings.Builder
+	delivered int  // sentences Emit took
+	ended     bool // End told
+	sent      int  // sentences handed over
+	runes     int  // and their length
+	offset    int  // bytes of the decoded spoken form handed over
+	stopped   bool
 }
 
 // Feed adds a piece of the model's text and hands over what became
@@ -63,7 +69,7 @@ func (s *SpokenStream) Feed(piece string) {
 	}, spoken)
 	for !s.stopped {
 		if s.sent >= SpokenSentences {
-			s.stopped = true
+			s.finish()
 			return
 		}
 		rest := spoken[s.offset:]
@@ -78,7 +84,7 @@ func (s *SpokenStream) Feed(piece string) {
 				return
 			}
 			if end = len(rest); end == 0 {
-				s.stopped = true
+				s.finish()
 				return
 			}
 		}
@@ -90,14 +96,26 @@ func (s *SpokenStream) Feed(piece string) {
 		// Within the bound of the whole, as Sprechbar keeps it.
 		n := utf8.RuneCountInString(sentence)
 		if s.runes+n > SpokenMax {
-			s.stopped = true
+			s.finish()
 			return
 		}
 		s.sent++
 		s.runes += n
 		if !s.Emit(sentence) {
+			// Refused: nothing more, and no end to tell.
 			s.stopped = true
+			return
 		}
+		s.delivered++
+	}
+}
+
+// finish stops the stream at the end of the spoken form, and tells End.
+func (s *SpokenStream) finish() {
+	s.stopped = true
+	if s.delivered > 0 && !s.ended && s.End != nil {
+		s.ended = true
+		s.End()
 	}
 }
 
@@ -108,8 +126,8 @@ func (s *SpokenStream) Spoken() int { return s.sent }
 // go to emit, unless the first is known to be in another language than the
 // conversation's — fuerAnruf would drop that spoken form (#511), and the
 // written answer is spoken instead, once it is there.
-func gesprochenAlsStrom(emit func(string) bool, lang string) *SpokenStream {
-	s := &SpokenStream{}
+func gesprochenAlsStrom(emit func(string) bool, end func(), lang string) *SpokenStream {
+	s := &SpokenStream{End: end}
 	s.Emit = func(satz string) bool {
 		if s.Spoken() == 0 {
 			if l := normalise.Language(satz); l != "" && lang != "" && l != baseLanguage(lang) {

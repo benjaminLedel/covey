@@ -180,6 +180,9 @@ type Rahmen struct {
 	// writes the decision (#529), in a call and where the provider streams;
 	// returning false stops them. Nil: nothing is streamed.
 	Gesprochen func(satz string) bool
+	// GesprochenEnde is told when the streamed spoken form is complete
+	// (#533). Nil: it is not told.
+	GesprochenEnde func()
 }
 
 // Bounds of the two #471 blocks in a turn. Both are bounded where they are
@@ -423,7 +426,7 @@ func Triagieren(ctx context.Context, p llm.Provider, r Rahmen, organisation stri
 	var roh string
 	var err error
 	if st, ok := p.(llm.Streamer); ok && r.Anruf && r.Gesprochen != nil {
-		roh, err = st.Stream(ctx, req, gesprochenAlsStrom(r.Gesprochen, lang).Feed)
+		roh, err = st.Stream(ctx, req, gesprochenAlsStrom(r.Gesprochen, r.GesprochenEnde, lang).Feed)
 	} else {
 		roh, err = p.Complete(ctx, req)
 	}

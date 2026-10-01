@@ -39,7 +39,9 @@ abstract class Speaker implements FillerVoice {
   /// ([FillerCache], #506): the greeting, while the call still rings.
   /// Completes with whether the provider's audio is ready — false without a
   /// provider, or when it failed.
-  Future<bool> prepareUtterance(String text, {required String language});
+  /// [keep] false: for this call only, not kept on the device — a reply
+  /// synthesised while the one before it is spoken (#533).
+  Future<bool> prepareUtterance(String text, {required String language, bool keep = true});
 
   /// Speaks [text] as [prepareUtterance] made it, as [speak] would — events,
   /// the mouth, a stop — and when it did not ([ready] false), in the Mac's
@@ -357,7 +359,7 @@ class AgentSpeaker implements Speaker {
   }
 
   @override
-  Future<bool> prepareUtterance(String text, {required String language}) async {
+  Future<bool> prepareUtterance(String text, {required String language, bool keep = true}) async {
     await prepare(language: language);
     final voice = _voice;
     if (voice == null) return false;
@@ -372,7 +374,7 @@ class AgentSpeaker implements Speaker {
       final pcm = joinPcm(await aside.stream(text, language: language).toList());
       if (pcm.samples.isEmpty || pcm.sampleRate <= 0) return false;
       _ahead[text] = pcm;
-      await fillerCache?.write(voice.voice, text, pcm);
+      if (keep) await fillerCache?.write(voice.voice, text, pcm);
       return true;
     } catch (e) {
       diag('call', 'not synthesised ahead: $e');

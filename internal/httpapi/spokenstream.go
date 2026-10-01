@@ -18,7 +18,9 @@ import (
  * to the caller only — the org-wide event stream carries no text: a direct
  * conversation is its members' business. The app asks for the reply to the
  * turn it has just posted, GET /conversations/{id}/messages/{message}/spoken,
- * and gets the sentences as NDJSON, one {"text"} per line, then {"done"}.
+ * and gets the sentences as NDJSON, one {"text"} per line, {"end"} once
+ * the spoken form is complete (#533) — the app speaks it as one utterance
+ * —, and {"done"} when the turn is.
  *
  * What it reads is held in memory while the turn runs and a little after,
  * for an app that asks late; the reply itself is a message as ever, and
@@ -37,6 +39,8 @@ const gesprochenFrist = 45 * time.Second
 type gesprochenStrom struct {
 	conv   uuid.UUID
 	saetze []string
+	// gesagt: the spoken form is complete (#533); fertig: the turn is.
+	gesagt bool
 	fertig bool
 	ende   time.Time
 	// wach is closed and replaced at each change.
@@ -81,6 +85,19 @@ func (h *gesprochenHub) satz(msg uuid.UUID, text string) bool {
 	return true
 }
 
+// gesagt marks the spoken form of the reply to msg complete (#533).
+func (h *gesprochenHub) gesagt(msg uuid.UUID) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	s := h.stroeme[msg]
+	if s == nil || s.fertig || s.gesagt {
+		return
+	}
+	s.gesagt = true
+	close(s.wach)
+	s.wach = make(chan struct{})
+}
+
 // schliessen ends the stream of the reply to msg: nothing more comes.
 func (h *gesprochenHub) schliessen(msg uuid.UUID) {
 	h.mu.Lock()
@@ -93,20 +110,20 @@ func (h *gesprochenHub) schliessen(msg uuid.UUID) {
 	close(s.wach)
 }
 
-// ab answers the sentences from the n-th on, whether the stream is done,
-// and what to wait on for more; ok is false for a stream that does not
-// exist in conv.
-func (h *gesprochenHub) ab(msg, conv uuid.UUID, n int) (saetze []string, fertig bool, wach <-chan struct{}, ok bool) {
+// ab answers the sentences from the n-th on, whether the spoken form and
+// the stream are done, and what to wait on for more; ok is false for a
+// stream that does not exist in conv.
+func (h *gesprochenHub) ab(msg, conv uuid.UUID, n int) (saetze []string, gesagt, fertig bool, wach <-chan struct{}, ok bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	s := h.stroeme[msg]
 	if s == nil || s.conv != conv {
-		return nil, false, nil, false
+		return nil, false, false, nil, false
 	}
 	if n < len(s.saetze) {
 		saetze = append([]string(nil), s.saetze[n:]...)
 	}
-	return saetze, s.fertig, s.wach, true
+	return saetze, s.gesagt, s.fertig, s.wach, true
 }
 
 // handleSpokenReply streams the spoken form of the reply to one message of
@@ -119,7 +136,7 @@ func (s *Server) handleSpokenReply(w http.ResponseWriter, r *http.Request, c cha
 		writeErr(w, http.StatusBadRequest, "invalid message id")
 		return
 	}
-	if _, _, _, ok := s.gesprochen.ab(msg, c.ID, 0); !ok {
+	if _, _, _, _, ok := s.gesprochen.ab(msg, c.ID, 0); !ok {
 		writeErr(w, http.StatusNotFound, "no spoken reply to stream")
 		return
 	}
@@ -131,8 +148,9 @@ func (s *Server) handleSpokenReply(w http.ResponseWriter, r *http.Request, c cha
 	frist := time.NewTimer(gesprochenFrist)
 	defer frist.Stop()
 	n := 0
+	endSaid := false
 	for {
-		saetze, fertig, wach, ok := s.gesprochen.ab(msg, c.ID, n)
+		saetze, gesagt, fertig, wach, ok := s.gesprochen.ab(msg, c.ID, n)
 		if !ok {
 			return
 		}
@@ -141,6 +159,12 @@ func (s *Server) handleSpokenReply(w http.ResponseWriter, r *http.Request, c cha
 				return
 			}
 			n++
+		}
+		if gesagt && !endSaid {
+			endSaid = true
+			if enc.Encode(map[string]bool{"end": true}) != nil {
+				return
+			}
 		}
 		if fertig {
 			_ = enc.Encode(map[string]bool{"done": true})

@@ -101,3 +101,33 @@ func TestSpokenStreamKeepsWhatSprechbarKeeps(t *testing.T) {
 		t.Fatalf("%q", got)
 	}
 }
+
+// The end of the spoken form (#533): told once, when its string closed or
+// as much as is kept was handed over; not when nothing was taken.
+func TestSpokenStreamTellsTheEndOfTheSpokenForm(t *testing.T) {
+	ends := 0
+	var got []string
+	s := SpokenStream{Emit: func(x string) bool { got = append(got, x); return true }, End: func() { ends++ }}
+	raw := `{"action":"answer","spoken":"Ja. Ist drin.","text":"Ist drin."}`
+	for i := range raw {
+		s.Feed(raw[i : i+1])
+		if i < strings.Index(raw, `.","text"`)+1 && ends != 0 {
+			t.Fatalf("end told before the string closed, at byte %d", i)
+		}
+	}
+	if ends != 1 || len(got) != 2 {
+		t.Fatalf("ends %d, %q", ends, got)
+	}
+	ends = 0
+	s = SpokenStream{Emit: func(string) bool { return true }, End: func() { ends++ }}
+	s.Feed(`{"action":"answer","spoken":"Eins ist fertig. Zwei auch. Drei`)
+	if ends != 1 {
+		t.Fatalf("at %d sentences the spoken form is complete: ends %d", SpokenSentences, ends)
+	}
+	ends = 0
+	s = SpokenStream{Emit: func(string) bool { return false }, End: func() { ends++ }}
+	s.Feed(`{"action":"answer","spoken":"Yes, it is in."}`)
+	if ends != 0 {
+		t.Fatal("an end told for a spoken form nobody took")
+	}
+}
