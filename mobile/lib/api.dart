@@ -532,12 +532,12 @@ class CoveyApi {
   /// the audio's content type (`audio/mpeg`) and its bytes as they arrive —
   /// the first sentence plays while the rest is still being synthesised.
   /// The spoken form of the reply to [message] in [conversation], sentence
-  /// by sentence as the instance writes it (#529):
+  /// by sentence as the instance writes it (#529), and its end (#533):
   /// GET /conversations/{id}/messages/{message}/spoken, NDJSON. Empty when
   /// the instance streams none — an instance from before it, a turn not said
   /// in a call — or the stream cannot be read: the reply comes as a message
   /// either way.
-  Stream<String> spokenReply(String conversation, String message) async* {
+  Stream<SpokenPiece> spokenReply(String conversation, String message) async* {
     final req = http.Request('GET', _url('/conversations/$conversation/messages/$message/spoken'))
       ..headers.addAll({..._headers, 'Accept': 'application/x-ndjson'});
     final http.StreamedResponse res;
@@ -557,8 +557,9 @@ class CoveyApi {
         final v = jsonDecode(line);
         if (v is! Map) continue;
         if (v['done'] == true) return;
+        if (v['end'] == true) yield const SpokenPiece.end();
         final text = v['text'];
-        if (text is String && text.trim().isNotEmpty) yield text;
+        if (text is String && text.trim().isNotEmpty) yield SpokenPiece(text);
       }
     } catch (e) {
       diag('api', 'spoken reply broke off: $e');
@@ -823,4 +824,13 @@ class AgentSuggestion {
   final String agent;
   final String brief;
   final List<String> evidence;
+}
+
+/// A piece of a streamed spoken reply (#529): a sentence, or the end of the
+/// spoken form (#533).
+class SpokenPiece {
+  const SpokenPiece(this.text) : end = false;
+  const SpokenPiece.end() : text = '', end = true;
+  final String text;
+  final bool end;
 }

@@ -245,9 +245,9 @@ abstract class CallBackend {
   Future<ConversationMessage> post(String text);
 
   /// The spoken form of the reply to the person's message [messageId],
-  /// sentence by sentence while the instance writes it (#529); empty when
-  /// it streams none.
-  Stream<String> spokenReply(String messageId);
+  /// sentence by sentence while the instance writes it (#529), and its end
+  /// (#533); empty when it streams none.
+  Stream<SpokenPiece> spokenReply(String messageId);
 
   /// Marks the conversation read up to [at]: what the call fetched is heard,
   /// and the instance sends no notification for it (#525).
@@ -360,7 +360,7 @@ class ApiCallBackend implements CallBackend {
   Future<void> read(DateTime at) => api.markConversationRead(_conv, at);
 
   @override
-  Stream<String> spokenReply(String messageId) => api.spokenReply(_conv, messageId);
+  Stream<SpokenPiece> spokenReply(String messageId) => api.spokenReply(_conv, messageId);
 
   /// A short settle (#527): the reply is waited for, and every 100 ms of
   /// it is heard as silence.
@@ -871,6 +871,7 @@ class CallController extends ChangeNotifier {
     _stopSpoken();
     _streamed.clear();
     _cutStreams.clear();
+    _synthesisedAhead.clear();
     _fillers.stop();
     _poll?.cancel();
     _giveUp?.cancel();
@@ -977,6 +978,7 @@ class CallController extends ChangeNotifier {
       );
       _bargedIn = true;
       _queue.clear();
+      _synthesisedAhead.clear();
       unawaited(speaker.stop());
       // Nor is the rest of a reply still being written (#529).
       final cut = _spokenFor;
@@ -989,7 +991,18 @@ class CallController extends ChangeNotifier {
   /// The person's message whose reply is being streamed (#529), and what
   /// of the replies to the person's messages was spoken from a stream.
   String? _spokenFor;
-  StreamSubscription<String>? _spokenSub;
+  StreamSubscription<SpokenPiece>? _spokenSub;
+
+  /// How long the first sentence of a streamed reply waits for the rest of
+  /// its spoken form (#533): the model writes the second within a fraction
+  /// of a second, and said as one utterance the two keep one intonation.
+  static const spokenHold = Duration(milliseconds: 300);
+
+  /// The sentences held for that, the hold's end, and whether this reply's
+  /// first utterance went out already.
+  final _held = <String>[];
+  Timer? _hold;
+  bool _heldOut = false;
   final _streamed = <String, String>{};
 
   /// The person's last message, whose reply is awaited: a reply to an
@@ -1007,9 +1020,11 @@ class CallController extends ChangeNotifier {
     _spokenSub = backend
         .spokenReply(messageId)
         .listen(
-          (sentence) => _onSpoken(messageId, sentence),
+          (piece) => _onSpoken(messageId, piece),
           onError: (Object e) => diag('call', 'spoken reply: $e'),
           onDone: () {
+            // Ended without its end said: what it holds goes out now.
+            _releaseHeld(messageId);
             if (_spokenFor == messageId) _spokenFor = null;
             // The instance writes the reply's message before it closes the
             // stream: read it now rather than on an event that may not come
@@ -1023,21 +1038,45 @@ class CallController extends ChangeNotifier {
     unawaited(_spokenSub?.cancel());
     _spokenSub = null;
     _spokenFor = null;
+    _hold?.cancel();
+    _hold = null;
+    _held.clear();
+    _heldOut = false;
   }
 
-  void _onSpoken(String messageId, String sentence) {
+  void _onSpoken(String messageId, SpokenPiece piece) {
     if (ended || _spokenFor != messageId) return;
-    final before = _streamed[messageId];
-    if (before == null) {
-      // The reply has begun: the wait is over, though its message is not
-      // written yet.
-      _awaiting = false;
-      _fillers.replyArrived();
-      _giveUp?.cancel();
-      diag('call', 'reply streaming');
+    if (piece.end) {
+      // The spoken form is complete: what is held goes out as one.
+      _releaseHeld(messageId);
+      return;
     }
-    _streamed[messageId] = before == null ? sentence : '$before $sentence';
-    _queue.add(_Utterance(sentence));
+    final before = _streamed[messageId];
+    _streamed[messageId] = before == null ? piece.text : '$before ${piece.text}';
+    if (_heldOut) {
+      _queue.add(_Utterance(piece.text));
+      unawaited(_speakNext());
+      return;
+    }
+    // Held for the rest of the spoken form, at most spokenHold; the typing
+    // goes on meanwhile.
+    _held.add(piece.text);
+    _hold ??= _timer(spokenHold, () => _releaseHeld(messageId));
+  }
+
+  /// The held sentences of the reply to [messageId] go out as one
+  /// utterance: the wait is over.
+  void _releaseHeld(String messageId) {
+    _hold?.cancel();
+    _hold = null;
+    if (ended || _spokenFor != messageId || _heldOut || _held.isEmpty) return;
+    _heldOut = true;
+    _awaiting = false;
+    _fillers.replyArrived();
+    _giveUp?.cancel();
+    diag('call', 'reply streaming, ${_held.length} sentence${_held.length == 1 ? '' : 's'} as one');
+    _queue.add(_Utterance(_held.join(' ')));
+    _held.clear();
     _update();
     unawaited(_speakNext());
   }
@@ -1354,8 +1393,12 @@ class CallController extends ChangeNotifier {
             _streamed.remove(to);
             continue;
           }
+          if (to != null && to == _spokenFor) {
+            // The message is there: what the stream holds goes out first.
+            _releaseHeld(to);
+            _stopSpoken();
+          }
           final streamed = to == null ? null : _streamed.remove(to);
-          if (to != null && to == _spokenFor) _stopSpoken();
           _queue.addAll(streamed == null ? _toSpeak(m) : _afterStream(m, streamed));
           if (m.meta['end_call'] == 'true') {
             if (mayHangUp?.call() ?? true) {
@@ -1424,8 +1467,14 @@ class CallController extends ChangeNotifier {
       _saying = text;
       _doubleTalkLogged = false;
       _update();
+      final ahead = _synthesisedAhead.remove(text);
+      _synthesiseNext();
       try {
-        await speaker.speak(text, language: lang);
+        if (ahead != null && ahead.ready == true && ahead.language == lang) {
+          await speaker.speakPrepared(text, language: lang, ready: true);
+        } else {
+          await speaker.speak(text, language: lang);
+        }
       } catch (e) {
         diag('call', 'speaking failed: $e');
       }
@@ -1439,6 +1488,29 @@ class CallController extends ChangeNotifier {
       diag('call', 'goodbye said: hanging up');
       await hangUp();
     }
+  }
+
+  /// What is synthesised while the utterance before it is spoken (#533),
+  /// by its text: the language it was made in, and whether it is ready.
+  final _synthesisedAhead = <String, ({String language, bool? ready})>{};
+
+  /// Has the next utterance in the queue synthesised now, so it follows
+  /// the one being spoken without a gap. Used only when it is ready by
+  /// then, and in the language it is then said in.
+  void _synthesiseNext() {
+    if (_queue.isEmpty) return;
+    final u = _queue.first;
+    final text = u.plain ? u.text : textForSpeech(u.text).text;
+    if (text.isEmpty || _synthesisedAhead.containsKey(text)) return;
+    final lang = u.plain ? appLanguage : (_language ?? appLanguage);
+    _synthesisedAhead[text] = (language: lang, ready: null);
+    unawaited(
+      speaker.prepareUtterance(text, language: lang, keep: false).then((ok) => ok, onError: (Object _) => false).then((
+        ok,
+      ) {
+        if (_synthesisedAhead[text] != null) _synthesisedAhead[text] = (language: lang, ready: ok);
+      }),
+    );
   }
 
   void _say(CallLine line) {
