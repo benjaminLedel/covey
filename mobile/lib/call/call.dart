@@ -244,6 +244,11 @@ abstract class CallBackend {
   /// Writes what the person said, marked as said in a call.
   Future<ConversationMessage> post(String text);
 
+  /// The spoken form of the reply to the person's message [messageId],
+  /// sentence by sentence while the instance writes it (#529); empty when
+  /// it streams none.
+  Stream<String> spokenReply(String messageId);
+
   /// Marks the conversation read up to [at]: what the call fetched is heard,
   /// and the instance sends no notification for it (#525).
   Future<void> read(DateTime at);
@@ -353,6 +358,9 @@ class ApiCallBackend implements CallBackend {
 
   @override
   Future<void> read(DateTime at) => api.markConversationRead(_conv, at);
+
+  @override
+  Stream<String> spokenReply(String messageId) => api.spokenReply(_conv, messageId);
 
   /// A short settle (#527): the reply is waited for, and every 100 ms of
   /// it is heard as silence.
@@ -860,6 +868,9 @@ class CallController extends ChangeNotifier {
   Future<void> _shut() async {
     _queue.clear();
     _ahead = null;
+    _stopSpoken();
+    _streamed.clear();
+    _cutStreams.clear();
     _fillers.stop();
     _poll?.cancel();
     _giveUp?.cancel();
@@ -967,8 +978,73 @@ class CallController extends ChangeNotifier {
       _bargedIn = true;
       _queue.clear();
       unawaited(speaker.stop());
+      // Nor is the rest of a reply still being written (#529).
+      final cut = _spokenFor;
+      if (cut != null && _streamed.containsKey(cut)) _cutStreams.add(cut);
+      _stopSpoken();
     }
     _update();
+  }
+
+  /// The person's message whose reply is being streamed (#529), and what
+  /// of the replies to the person's messages was spoken from a stream.
+  String? _spokenFor;
+  StreamSubscription<String>? _spokenSub;
+  final _streamed = <String, String>{};
+
+  /// Replies whose stream a barge-in cut: their message is not spoken.
+  final _cutStreams = <String>{};
+
+  /// Listens for the reply to [messageId] while the instance writes it,
+  /// and speaks each sentence as it comes.
+  void _listenSpoken(String messageId) {
+    _stopSpoken();
+    _spokenFor = messageId;
+    _spokenSub = backend
+        .spokenReply(messageId)
+        .listen(
+          (sentence) => _onSpoken(messageId, sentence),
+          onError: (Object e) => diag('call', 'spoken reply: $e'),
+          onDone: () {
+            if (_spokenFor == messageId) _spokenFor = null;
+          },
+        );
+  }
+
+  void _stopSpoken() {
+    unawaited(_spokenSub?.cancel());
+    _spokenSub = null;
+    _spokenFor = null;
+  }
+
+  void _onSpoken(String messageId, String sentence) {
+    if (ended || _spokenFor != messageId) return;
+    final before = _streamed[messageId];
+    if (before == null) {
+      // The reply has begun: the wait is over, though its message is not
+      // written yet.
+      _awaiting = false;
+      _fillers.replyArrived();
+      _giveUp?.cancel();
+      diag('call', 'reply streaming');
+    }
+    _streamed[messageId] = before == null ? sentence : '$before $sentence';
+    _queue.add(_Utterance(sentence));
+    _update();
+    unawaited(_speakNext());
+  }
+
+  /// What of [m] is still to be said when its reply was streamed: what
+  /// follows the streamed sentences in its spoken form, and the word about
+  /// the chat. When it says something else — a check dropped the spoken
+  /// form, and the written one stands — what was heard stays the answer.
+  List<_Utterance> _afterStream(ConversationMessage m, String streamed) {
+    final all = _toSpeak(m);
+    if (all.isEmpty) return all;
+    String norm(String t) => t.trim().split(RegExp(r'\s+')).join(' ');
+    final first = norm(all.first.text), heard = norm(streamed);
+    final rest = first.startsWith(heard) ? first.substring(heard.length).trim() : '';
+    return [if (rest.isNotEmpty) _Utterance(rest), ...all.skip(1)];
   }
 
   void _onDiscard() {
@@ -1198,6 +1274,7 @@ class CallController extends ChangeNotifier {
     try {
       final m = await backend.post(text);
       _seen.add(m.id);
+      _listenSpoken(m.id);
       diag('call', 'turn posted, ${text.length} characters');
     } on ApiException catch (e) {
       _awaiting = false;
@@ -1257,7 +1334,16 @@ class CallController extends ChangeNotifier {
           _fillers.replyArrived();
           _giveUp?.cancel();
           _say(CallLine(mine: false, text: textForSpeech(m.text).text));
-          _queue.addAll(_toSpeak(m));
+          final to = m.replyTo;
+          if (to != null && _cutStreams.remove(to)) {
+            // Its stream was cut by the person speaking: the rest stands in
+            // the chat, and a goodbye they spoke into does not hang up.
+            _streamed.remove(to);
+            continue;
+          }
+          final streamed = to == null ? null : _streamed.remove(to);
+          if (to != null && to == _spokenFor) _stopSpoken();
+          _queue.addAll(streamed == null ? _toSpeak(m) : _afterStream(m, streamed));
           if (m.meta['end_call'] == 'true') {
             if (mayHangUp?.call() ?? true) {
               _goodbye = true;

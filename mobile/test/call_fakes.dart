@@ -131,6 +131,26 @@ class FakeBackend implements CallBackend {
     return _add('human', text, author: 'me');
   }
 
+  /// The spoken replies the instance streams (#529), by the message they
+  /// answer: a test adds sentences and closes it. None: nothing streamed.
+  final spoken = <String, StreamController<String>>{};
+  final spokenAsked = <String>[];
+
+  @override
+  Stream<String> spokenReply(String messageId) {
+    spokenAsked.add(messageId);
+    return spoken[messageId]?.stream ?? const Stream.empty();
+  }
+
+  /// The instance streams the reply to the person's next message.
+  StreamController<String> streamNext() => spoken['m$_n'] = StreamController<String>();
+
+  /// The agent's reply to [to], as the triage writes it after streaming.
+  void agentReplies(String to, String text, {Map<String, String> meta = const {}}) {
+    _add('agent', text, author: 'agent-1', replyTo: to, meta: meta);
+    _changes.add(null);
+  }
+
   /// The times the call marked the conversation read up to.
   final readUpTo = <DateTime>[];
 
