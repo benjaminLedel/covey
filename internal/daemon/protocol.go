@@ -57,6 +57,12 @@ const (
 	TypeRequestSkills     = "request_skills"
 	TypeRequestCreateTask = "request_create_task"
 	TypeRequestHiring     = "request_hiring"
+	// TypeRequestMessage/TypeInjectMessage: the meta action covey/message
+	// (#537) — the agent writes to a person of its organisation, into their
+	// direct conversation. Until then an agent could reach a human only by
+	// stopping (a parked question) or sideways (a result nobody is told of).
+	TypeRequestMessage = "request_message"
+	TypeInjectMessage  = "inject_message"
 	// TypeRequestTool/TypeInjectTool: the request for a tool. An agent that is
 	// missing a package is root nowhere and cannot install anything for itself
 	// — without this route it rebuilds apt in its own home (spec/16, #106).
@@ -386,6 +392,30 @@ type InjectCreateTask struct {
 	Error     string `json:"error,omitempty"`
 	TaskID    string `json:"task_id,omitempty"` // the created task
 	Agent     string `json:"agent,omitempty"`   // resolved target agent (slug)
+}
+
+// RequestMessage/InjectMessage are the meta action covey/message (#537): the
+// agent tells a person of its organisation something, in their direct
+// conversation. To names the person — an e-mail address or a display name;
+// empty means the agent's supervisor. The running task is attached to the
+// message so that the reader can open what it is about.
+//
+// It goes through the guard rails (subject covey:message): an organisation
+// may want an approval in front of what an agent tells people, or forbid it
+// for an agent that should only work.
+type RequestMessage struct {
+	RequestID string `json:"request_id"`
+	TaskID    string `json:"task_id,omitempty"`
+	To        string `json:"to,omitempty"`
+	Text      string `json:"text"`
+}
+
+type InjectMessage struct {
+	RequestID      string `json:"request_id"`
+	OK             bool   `json:"ok"`
+	Error          string `json:"error,omitempty"`
+	To             string `json:"to,omitempty"`              // the resolved person's display name
+	ConversationID string `json:"conversation_id,omitempty"` // where it stands
 }
 
 // RequestHiring/InjectHiring are the meta actions an agent runs against the

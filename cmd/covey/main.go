@@ -1402,6 +1402,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	orch := orchestrator.New(orchestrator.Options{
 		Pool: pool, Registry: registry, Backlog: backlogStore, Obs: obs,
 		Rails: rails, Secrets: secretStore, Identity: idp, Memory: mem,
+		Chat: chat.New(pool), Org: org.NewStore(pool),
 		Runtimes:   runtimeStore,
 		Targets:    targets,
 		Skills:     skillStore,

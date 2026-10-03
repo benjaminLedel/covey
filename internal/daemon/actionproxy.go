@@ -180,12 +180,14 @@ func (p *actionProxy) httpSink(system string) reqlog.Sink {
 // control plane instead of a target system: set_stage (move the task into a
 // possibly new stage on the board), add_note (note on the task), remember
 // (insight straight into the memory), org_chart (query the org chart),
-// create_task (subtask/delegation) and the wiki tools
-// wiki_search/wiki_read/wiki_write/wiki_delete (spec/05).
+// create_task (subtask/delegation), message (a word to a person, #537) and
+// the wiki tools wiki_search/wiki_read/wiki_write/wiki_delete (spec/05).
 func (p *actionProxy) controlPlane(ctx context.Context, action string, params json.RawMessage) any {
 	switch action {
 	case "create_task":
 		return p.createTask(ctx, params)
+	case "message":
+		return p.message(ctx, params)
 	case "request_tool":
 		// The request for a tool. Every agent may make it — that is why it sits
 		// here and not with the meta actions of the registry, which need a
@@ -445,6 +447,49 @@ func (p *actionProxy) createTask(ctx context.Context, params json.RawMessage) an
 	}
 	return map[string]any{"status": "ok",
 		"data": map[string]string{"task_id": resp.TaskID, "agent": resp.Agent}}
+}
+
+// message is covey/message (#537): the agent tells a person of its
+// organisation something, in their direct conversation. Like create_task it
+// goes through the guard rails first — what an agent tells people is
+// governable, per agent and per organisation.
+func (p *actionProxy) message(ctx context.Context, params json.RawMessage) any {
+	var in struct {
+		To   string `json:"to"`
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(params, &in); err != nil || strings.TrimSpace(in.Text) == "" {
+		return map[string]string{"status": "error", "error": "text missing"}
+	}
+	const subject = "covey:message"
+	dec, err := p.client.checkAction(ctx, p.taskID, subject, params)
+	if err != nil {
+		return map[string]string{"status": "error", "error": err.Error()}
+	}
+	switch dec.Status {
+	case "denied":
+		return map[string]string{"status": "denied", "reason": dec.Reason}
+	case "pending":
+		return map[string]string{
+			"status":          "pending_approval",
+			"approval_id":     dec.ApprovalID,
+			"correlation_key": dec.CorrelationKey,
+		}
+	}
+	resp, err := p.client.message(ctx, RequestMessage{TaskID: p.taskID, To: in.To, Text: in.Text})
+	if err != nil {
+		return map[string]string{"status": "error", "error": err.Error()}
+	}
+	audit, _ := json.Marshal(map[string]any{"action": subject, "to": resp.To, "ok": resp.OK,
+		"conversation_id": resp.ConversationID, "text": in.Text})
+	_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
+	if !resp.OK {
+		return map[string]string{"status": "error", "error": resp.Error}
+	}
+	return map[string]any{"status": "ok",
+		"data": map[string]string{"to": resp.To, "conversation_id": resp.ConversationID},
+		"hint": "Delivered into your conversation with them. Their answer reaches you as a message or a task — " +
+			"carry on with your work, do not wait for it in this run."}
 }
 
 // actionSubject maps the action onto the guard-rail subject — each plugin knows
