@@ -135,10 +135,19 @@ class _ThreadScreenState extends State<ThreadScreen> {
     super.dispose();
   }
 
+  /// The reads started so far. Several run at once — the instance's
+  /// `thinking` and `said` events, the minute timer — and a response to an
+  /// earlier one can arrive after the response to a later one. Only the
+  /// newest read sets the screen (#536); an older response would put the
+  /// conversation back to before the answer that the notification already
+  /// announced.
+  var _reads = 0;
+
   Future<void> _load() async {
+    final read = ++_reads;
     try {
       final th = _isConversation ? await _loadConversation() : await widget.api.thread(widget.agentId);
-      if (!mounted) return;
+      if (!mounted || read != _reads) return;
       _markRead(th);
       setState(() {
         _thread = th;
@@ -149,7 +158,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
         }
       });
     } catch (e) {
-      if (mounted) setState(() => _error = e);
+      if (mounted && read == _reads) setState(() => _error = e);
     }
   }
 
