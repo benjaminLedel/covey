@@ -380,6 +380,7 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 	s.orch = orchestrator.New(orchestrator.Options{
 		Pool: pool, Registry: s.registry, Backlog: s.backlog, Obs: s.obs,
 		Rails: s.rails, Secrets: secretStore, Runtimes: s.runtimes, Identity: idp, Memory: s.mem,
+		Chat: chat.New(pool), Org: org.NewStore(pool),
 		Targets:        s.targets,
 		Skills:         s.skills,
 		Voices:         s.voices,

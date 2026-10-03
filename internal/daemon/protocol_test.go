@@ -28,6 +28,7 @@ var responseTypes = []string{
 	TypeInjectHiring,
 	TypeInjectSecret,
 	TypeInjectTool,
+	TypeInjectMessage,
 }
 
 // TestResponsesReachTheirCaller checks delivery by behavior instead of by

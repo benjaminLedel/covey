@@ -243,6 +243,7 @@ var routedInjectTypes = map[string]bool{
 	TypeInjectSkills:      true,
 	TypeInjectCreateTask:  true,
 	TypeInjectHiring:      true,
+	TypeInjectMessage:     true,
 	TypeInjectTool:        true,
 	TypeInjectSecret:      true,
 }
@@ -481,6 +482,19 @@ func (c *Client) createTask(ctx context.Context, req RequestCreateTask) (InjectC
 		return InjectCreateTask{}, err
 	}
 	return DecodePayload[InjectCreateTask](msg)
+}
+
+// message has the control plane deliver a message to a person (covey/message,
+// #537): into the direct conversation between the agent and that person.
+func (c *Client) message(ctx context.Context, req RequestMessage) (InjectMessage, error) {
+	req.RequestID = uuid.NewString()
+	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	msg, err := c.request(reqCtx, TypeRequestMessage, req.RequestID, req)
+	if err != nil {
+		return InjectMessage{}, err
+	}
+	return DecodePayload[InjectMessage](msg)
 }
 
 // requestTool reports a missing tool to the control plane. It does not fetch

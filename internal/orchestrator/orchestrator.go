@@ -27,6 +27,7 @@ import (
 	"covey/internal/agents"
 	"covey/internal/backlog"
 	"covey/internal/buildinfo"
+	"covey/internal/chat"
 	"covey/internal/daemon"
 	"covey/internal/egress"
 	"covey/internal/engines"
@@ -36,6 +37,7 @@ import (
 	"covey/internal/memory"
 	"covey/internal/notify"
 	"covey/internal/observability"
+	"covey/internal/org"
 	"covey/internal/reqlog"
 	reqlogstore "covey/internal/reqlog/store"
 	"covey/internal/runtimes"
@@ -131,7 +133,12 @@ type Options struct {
 	// Empty → daemon.DefaultAllowedTools. The list decides not only what a run
 	// may use but what exists for it at all — see daemon.DefaultAllowedTools.
 	RuntimeTools []string
-	Log          *slog.Logger
+	// Chat and Org carry covey/message (#537): the agent writes to a person
+	// of its organisation, into their direct conversation. nil = the action
+	// answers that it is not available on this instance.
+	Chat *chat.Store
+	Org  *org.Store
+	Log  *slog.Logger
 }
 
 // Upstream is the one thing the orchestrator asks of the channel to the
@@ -2682,6 +2689,14 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		}
 		resp := o.createAgentTask(ctx, agent, taskID, req)
 		return false, o.sendMsg(ctx, link, daemon.TypeInjectCreateTask, resp)
+
+	case daemon.TypeRequestMessage:
+		req, err := daemon.DecodePayload[daemon.RequestMessage](msg)
+		if err != nil {
+			return false, nil
+		}
+		resp := o.messageHuman(ctx, agent, taskID, req)
+		return false, o.sendMsg(ctx, link, daemon.TypeInjectMessage, resp)
 
 	case daemon.TypeRequestTool:
 		req, err := daemon.DecodePayload[daemon.RequestTool](msg)

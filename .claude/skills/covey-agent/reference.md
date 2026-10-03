@@ -143,8 +143,9 @@ It is still worth anchoring them in `PLAYBOOKS.md` at the right places:
 | `wiki_search/read/write/delete` | see the prompt | The linked long-term memory (spec/05) |
 | `org_chart` | `{}` | Look responsibilities/escalation paths up at runtime |
 | `create_task` | `{"title":…,"body":…,"agent":"<slug>","priority":1..9}` | A subtask (without `agent`) or a delegation to a colleague |
+| `message` | `{"to":"<e-mail or display name; empty = supervisor>","text":…}` | A word to a person of the organisation, into their direct conversation (#537). They are notified; the answer comes back as a message or a task. The run goes on — a question that has to STOP the work is the parked task (`blocked` + `question`) |
 
-Two of them need care when designing:
+Three of them need care when designing:
 
 - **`create_task`** is the way out of assignments that are too big: close the partial result off,
   file the rest as a task — instead of carrying on to the turn limit. As the only `covey` action
@@ -152,6 +153,13 @@ Two of them need care when designing:
   `covey:create_task:foreign`), so it can return `denied`/`pending`. The platform refuses
   duplicates of the same title, chains that are too deep and too many tasks per run — the
   playbook should not run into that in the first place.
+- **`message`** is how an agent reaches a person without stopping: "the target branch
+  is missing on the project page, I am touching nothing until you say which". Write it into
+  the playbook wherever the agent would otherwise guess or bury a question in its result.
+  It is a guard-rail subject (`covey:message`), so an organisation can put an approval in
+  front of it or deny it per agent. On an instance that does not have it yet the action
+  answers with an error — the playbook should name the fallback (the parked question, or
+  the result).
 - **`set_stage`** creates missing columns automatically. Prescribe a **fixed, small** set of
   names in the playbook that name working *states* (`Triage`, `Analysis`, `Waiting for
   review`) — never the item (`#83 CSV import`), never synonyms for the same state. Otherwise the
