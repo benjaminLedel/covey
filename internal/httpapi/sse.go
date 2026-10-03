@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -22,7 +23,12 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 	// The connection belongs to one organisation — it gets only that one's
 	// events (FR-003, finding A). An account without membership subscribes to
 	// the empty UUID and thus hears nothing, instead of everything.
-	ch, cancel := s.Orch.Events().Subscribe(principalFrom(r).OrgID)
+	//
+	// ?types=chat,task narrows it to those event types (#535). The web reads
+	// everything and sends no parameter; the app reads four types and never
+	// `recording`, of which a run publishes one per step — unfiltered, those
+	// filled its buffer and pushed out the events it came for.
+	ch, cancel := s.Orch.Events().Subscribe(principalFrom(r).OrgID, eventTypes(r.URL.Query().Get("types"))...)
 	defer cancel()
 
 	keepalive := time.NewTicker(20 * time.Second)
@@ -47,4 +53,16 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 		}
 	}
+}
+
+// eventTypes reads the comma-separated types parameter of /api/v1/events;
+// empty means all.
+func eventTypes(raw string) []string {
+	var out []string
+	for _, t := range strings.Split(raw, ",") {
+		if t = strings.TrimSpace(t); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
 }

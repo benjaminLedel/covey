@@ -88,8 +88,12 @@ class CoveyApi {
   /// Opens the instance's event stream (#419): server-sent events for this
   /// key's organisation, held open by the server. No timeout — it is meant
   /// to stay; the caller closes it by cancelling the subscription.
-  Future<http.StreamedResponse> events() => _http.send(
-    http.Request('GET', _url('/events'))
+  ///
+  /// [types] narrows the stream to those event types (#535); none means all.
+  /// A run publishes one `recording` event per step, and a client that does
+  /// not read them should not have its buffer at the instance filled by them.
+  Future<http.StreamedResponse> events({Iterable<String> types = const []}) => _http.send(
+    http.Request('GET', _url(types.isEmpty ? '/events' : '/events?types=${types.join(',')}'))
       ..headers.addAll({'Authorization': 'Bearer $_key', 'Accept': 'text/event-stream', 'Cache-Control': 'no-cache'}),
   );
 
