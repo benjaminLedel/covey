@@ -6,7 +6,7 @@ import 'api.dart';
 import 'diagnostics.dart';
 
 /// One event from the instance (#419): what happened — `chat`, `task`,
-/// `agent_status`, `approval`, `recording` — and to which agent. What it
+/// `agent_status`, `approval` — and to which agent. What it
 /// means is read from the instance afterwards; the event only says to look.
 class LiveEvent {
   const LiveEvent(this.type, this.agentId, this.data);
@@ -25,6 +25,12 @@ class LiveEvents {
   LiveEvents._();
 
   static final instance = LiveEvents._();
+
+  /// The event types the app reads; the stream is asked for these alone
+  /// (#535). `recording` is not among them — a run publishes one per step,
+  /// and unfiltered they filled the app's buffer at the instance and pushed
+  /// out the `agent_status` or `chat` event it was waiting for.
+  static const types = {'chat', 'task', 'agent_status', 'approval'};
 
   final _events = StreamController<LiveEvent>.broadcast();
   CoveyApi? _api;
@@ -102,7 +108,7 @@ class LiveEvents {
     final api = _api;
     if (api == null) return;
     try {
-      final res = await api.events();
+      final res = await api.events(types: types);
       if (!identical(api, _api)) return;
       if (res.statusCode != 200) {
         diag('live', 'event stream refused: ${res.statusCode}');

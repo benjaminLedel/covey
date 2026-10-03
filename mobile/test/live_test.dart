@@ -31,6 +31,8 @@ void main() {
       client: MockClient((req) async {
         expect(req.url.path, '/api/v1/events');
         expect(req.headers['Accept'], 'text/event-stream');
+        // Only the types the app reads (#535); never `recording`.
+        expect(req.url.queryParameters['types']!.split(','), unorderedEquals(LiveEvents.types));
         return http.Response(
           'event: hello\ndata: {}\n\n'
           ': keepalive\n\n'

@@ -19,7 +19,8 @@ type Event struct {
 }
 
 // Broadcaster is a simple fan-out for live events. Slow subscribers lose
-// events (non-blocking send) — the UI reloads via query anyway.
+// events (non-blocking send) — the UI reloads via query anyway, and a client
+// that was cut off asks again when its stream reopens (#536).
 //
 // Every subscription belongs to ONE organisation and receives only its events.
 // Before that, the bus knew no tenants: every signed-in human of every
@@ -32,19 +33,54 @@ type Event struct {
 // nobody reads it afterwards.
 type Broadcaster struct {
 	mu   sync.Mutex
-	subs map[chan Event]uuid.UUID
+	subs map[chan Event]subscription
 }
 
+// subscription is what one subscriber asked for: its organisation, and the
+// event types it reads — nil for all of them.
+type subscription struct {
+	orgID uuid.UUID
+	types map[string]bool
+}
+
+// subscriberBuffer is how many events a subscriber may fall behind before
+// Publish drops for it. A run publishes one `recording` event per step, so a
+// client that reads everything sees bursts of dozens in seconds; 64 was
+// filled by them while the one `agent_status` that mattered was the event
+// dropped (#535). The drop stays non-blocking — a client that never reads
+// must not hold the orchestrator — but it has to be the outlier.
+const subscriberBuffer = 256
+
 func NewBroadcaster() *Broadcaster {
-	return &Broadcaster{subs: map[chan Event]uuid.UUID{}}
+	return &Broadcaster{subs: map[chan Event]subscription{}}
 }
 
 // Subscribe opens a channel for one organisation. The zero UUID receives
 // nothing — an account without a membership has no fleet to watch.
-func (b *Broadcaster) Subscribe(orgID uuid.UUID) (ch chan Event, cancel func()) {
-	ch = make(chan Event, 64)
+//
+// types narrows the subscription to those event types; none means all. The
+// filter sits here and not at the reader for the same reason the organisation
+// does: an event that has already been copied into the channel has taken the
+// slot, whether or not anyone wanted it. The app reads chat, task,
+// agent_status and approval and never recording — without the filter the
+// recording flood of one run filled its buffer and cost it the events it
+// came for (#535).
+func (b *Broadcaster) Subscribe(orgID uuid.UUID, types ...string) (ch chan Event, cancel func()) {
+	ch = make(chan Event, subscriberBuffer)
+	sub := subscription{orgID: orgID}
+	if len(types) > 0 {
+		sub.types = make(map[string]bool, len(types))
+		for _, t := range types {
+			if t != "" {
+				sub.types[t] = true
+			}
+		}
+		if len(sub.types) == 0 {
+			sub.types = nil
+		}
+	}
 	b.mu.Lock()
-	b.subs[ch] = orgID
+	b.subs[ch] = sub
 	b.mu.Unlock()
 	return ch, func() {
 		b.mu.Lock()
@@ -56,11 +92,14 @@ func (b *Broadcaster) Subscribe(orgID uuid.UUID) (ch chan Event, cancel func()) 
 func (b *Broadcaster) Publish(e Event) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	for ch, orgID := range b.subs {
+	for ch, sub := range b.subs {
 		// Fail closed: an event without an organisation reaches nobody. That
 		// way a publish site that forgets to set it goes quiet instead of
 		// broadcasting to everyone.
-		if e.OrgID == uuid.Nil || orgID != e.OrgID {
+		if e.OrgID == uuid.Nil || sub.orgID != e.OrgID {
+			continue
+		}
+		if sub.types != nil && !sub.types[e.Type] {
 			continue
 		}
 		select {
