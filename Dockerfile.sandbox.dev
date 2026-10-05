@@ -68,8 +68,14 @@ RUN curl -fsSL https://packages.sury.org/php/apt.gpg -o /usr/share/keyrings/sury
 # Started without systemd and without root: mariadbd runs as the agent, with a
 # data directory in its home. The workplace tells it that (workplaces/dev.json) —
 # otherwise it looks for the service that does not exist here.
+#
+# postgresql-client beside it, for the other half of the databases an agent is
+# handed a read-only connection to. A support agent that verifies a customer's
+# claim against a Postgres database runs psql through dev:exec; without the
+# client that is exit 127 and a workaround nobody asked for. The client only,
+# not the server — nothing here starts a Postgres of its own.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        mariadb-server mariadb-client \
+        mariadb-server mariadb-client postgresql-client \
     && rm -rf /var/lib/apt/lists/* /var/lib/mysql
 
 # JDK for Kotlin/Java projects. Deliberately only ONE version: `gradlew` needs

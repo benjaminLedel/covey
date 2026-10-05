@@ -14,26 +14,37 @@ production use lie.
 > HMAC-SHA1 webhook, `/api/v1` paths). These are essentially
 > **configuration steps**, not a rebuild. Two behavioural points
 > (customer-visible replies, ticket selection) you should set deliberately.
+>
+> **Since plugin 1.1.0 the webhook is optional.** An agent finds the tickets
+> assigned to it by itself (`list_tickets`), and a heartbeat with
+> `nur-wenn: zammad:assigned` wakes it only when one of them changed — see
+> section 2.4a. The webhook remains the way to a wake *the moment* a customer
+> writes, and the way a parked (`blocked`) question is resumed.
 
 ---
 
 ## 1. Overview of the data flow
 
 ```
-Zammad  ──(trigger + webhook, HMAC-signed)──►  covey  /api/webhooks/zammad/<agent-slug>
-                                                   │  check signature → intake filter → backlog task
-                                                   ▼
-                                                 agent (sandbox, Claude Code)
-                                                   │  actions through the action proxy
-Zammad  ◄──(REST /api/v1, token auth)──────────────┘  get_ticket, reply, set_state, escalate
+covey   ──(heartbeat pre-check, REST, token auth)──►  Zammad   "which of my tickets are new or open?"
+   │  the answer changed → wake                         (nur-wenn: zammad:assigned)
+   ▼
+ agent (sandbox, Claude Code)
+   │  actions through the action proxy
+Zammad  ◄──(REST /api/v1, token auth)──────────────┘  list_tickets, get_ticket, list_articles,
+                                                      reply, set_state, assign, escalate
+
+Zammad  ──(optional: trigger + webhook, HMAC-signed)──►  covey  /api/webhooks/zammad/<agent-slug>
+                                                            check signature → intake filter → task / resume
 ```
 
 Two directions, two auth routes:
 
-- **Inbound** (Zammad → covey): a webhook, verified by an HMAC-SHA1 signature
-  (`COVEY_ZAMMAD_WEBHOOK_SECRET`).
 - **Outbound** (covey → Zammad): REST with a brokered API token
-  (the secret `zammad_token`) that is never persisted in the sandbox.
+  (the secret `zammad_token`) that is never persisted in the sandbox. The
+  heartbeat pre-check uses the same token from the control plane.
+- **Inbound** (Zammad → covey), optional: a webhook, verified by an HMAC-SHA1
+  signature (`COVEY_ZAMMAD_WEBHOOK_SECRET`).
 
 ---
 
@@ -44,7 +55,8 @@ Two directions, two auth routes:
 > catalogue pins before storing the module. Upgrading across 0.6.0 with the
 > plugin already in use: the plugin row and its secrets survive, only the code
 > now arrives from the catalogue, so install it once afterwards and the agents
-> keep their access.
+> keep their access. A newer catalogue version shows up in the same place as
+> *Update to v…*; the secrets and the agents' access survive an update.
 
 ### 2.1 In Zammad: create an API token + rights
 
@@ -79,7 +91,45 @@ In addition the agent has to be allowed to access `zammad` according to its
 `ACCESS.md`, and the guard rails must not forbid `zammad` /
 `zammad:reply_external`.
 
-### 2.4 In covey: set the process env
+### 2.4a Let the agent take up work by itself (no webhook)
+
+The agent's heartbeat does the asking:
+
+```
+- alle: 10m nur-wenn: zammad:assigned titel: Work the queue aufgabe: list_tickets, read each ticket's articles, answer or hand over, end with done.
+```
+
+Before every interval the control plane reads, with the agent's token, the
+tickets assigned to the agent's Zammad user that are in a state of type
+*new* or *open* (`POST /tickets/search` with a selector — SQL on the Zammad
+side, no Elasticsearch needed). The agent is woken only when that set changed:
+a new ticket, a customer reply (it moves `updated_at`), a ticket set back to
+open. Pending, closed and merged states are not work, so an agent that answers
+and sets `pending reminder` is not woken by its own reply.
+
+Three kinds:
+
+| `nur-wenn:` | looks at |
+|---|---|
+| `zammad` / `zammad:assigned` | the tickets assigned to the token's own user |
+| `zammad:unassigned` | open tickets nobody owns (the group's inbox) |
+| `zammad:owner:<login or e-mail>` | that person's tickets **and** the agent's own |
+
+The third form is for the setup where a person routes work to the agent by
+assigning tickets to themselves: the agent works them, answers as itself and
+leaves the ticket with its owner. If it takes one over (`assign` with
+`owner:"me"`), the ticket stays in its view.
+
+> The person named in `owner:` is matched **exactly** against login, e-mail or
+> name. Zammad's own user search is a `LIKE`, and `ben` must not become
+> `benno`. An unknown name is an error on the pre-check, which is visible on
+> the agent's heartbeat row — not a silent fallback to the agent's own user.
+
+Which tickets the agent may see at all is still Zammad's decision: the role
+of the agent user (2.1) decides the groups, and `list_tickets` never shows a
+ticket the token cannot read.
+
+### 2.4 In covey: set the process env (webhook only)
 
 ```bash
 COVEY_PUBLIC_URL=https://covey.example.com        # reachable from Zammad, NOT localhost
@@ -94,7 +144,11 @@ COVEY_ZAMMAD_WEBHOOK_SECRET=<long-random-secret>
 `COVEY_PUBLIC_URL` has to be publicly (or, for Zammad, network-) resolvable,
 otherwise Zammad cannot deliver the webhook.
 
-### 2.5 In Zammad: set up the webhook + trigger
+### 2.5 In Zammad: set up the webhook + trigger (optional)
+
+Skip this section if the heartbeat (2.4a) is enough. The webhook adds two
+things: a wake within seconds of a customer article instead of at the next
+interval, and the resume of a parked question (section 5).
 
 1. Create a **webhook** (*Admin → Manage → Webhooks*):
    - Endpoint: `https://covey.example.com/api/webhooks/zammad/<agent-slug>`
@@ -119,8 +173,11 @@ otherwise Zammad cannot deliver the webhook.
 
 ### 2.6 Testing
 
-1. Create a ticket in the target group in Zammad (reply as the customer).
-2. In covey: does a backlog task appear at the agent? → look at the recording.
+1. Create a ticket in the target group in Zammad (reply as the customer) and
+   assign it to the agent's user.
+2. In covey: does the heartbeat fire at the next interval (the heartbeat row
+   shows the pre-check's answer), or — with the webhook — does a backlog task
+   appear at once? → look at the recording.
 3. If the agent replies, check: does the reply arrive **visibly for the
    customer** (section 4)?
 4. On a follow-up question: does the ticket go to `pending reminder` and the
@@ -131,8 +188,15 @@ otherwise Zammad cannot deliver the webhook.
 
 ## 3. Which tickets does the agent take up?
 
-That can be steered on **two levels** — both together yield the intake
-decision.
+**By polling (2.4a):** the tickets assigned to the agent's user, or to the
+person named in `nur-wenn: zammad:owner:<login>`, in a state of type *new* or
+*open*. Assignment is the filter, and it sits where a team already does its
+routing: in Zammad, by giving the ticket to a colleague. `list_tickets` lets
+the agent look beyond that on purpose (`owner:"nobody"` for the group's
+inbox, another login, `state:"any"`); the playbook says whether it should.
+
+**By webhook:** that can be steered on **two levels** — both together yield
+the intake decision.
 
 ### 3.1 Level 1 — Zammad side (trigger conditions)
 
@@ -200,8 +264,14 @@ The adapter distinguishes:
 
 ## 5. `blocked` ↔ Zammad `pending`
 
-If the agent asks a follow-up question, it sets the ticket to `pending reminder`
-(`set_state`) and goes `blocked` itself. The correlation key is the
+**Without the webhook** a run ends with `done`, always. A follow-up question is
+`reply` to the customer plus `set_state` to `pending reminder`; the customer's
+answer moves the ticket back to *open* in Zammad, the pre-check sees the
+change, and the next interval wakes the agent with the ticket in
+`list_tickets` again. `blocked` would park a task that nothing resumes.
+
+**With the webhook:** if the agent asks a follow-up question, it sets the
+ticket to `pending reminder` (`set_state`) and goes `blocked` itself. The correlation key is the
 ticket `id`. The customer's reply (a new customer article) fires the trigger,
 covey correlates via the ticket `id` and continues the agent via
 `claude -p --resume`. Details: [`../spec/13-zammad-integration.md`](../../../spec/13-zammad-integration.md).
@@ -364,12 +434,9 @@ have to be considered (details and file references below). Prioritised:
 
 ## 8. Outlook
 
-- **Per-org intake configuration in the DB** instead of env: several support
-  queues on several agents, maintained through the UI (today: env + one webhook
-  per agent).
 - **Queue→agent routing in covey**, so that a single webhook distributes tickets
   onto different agents based on their group (today: mapping through the
-  slug URL).
+  slug URL; by polling, each agent's own assignment is already its queue).
 - **A declarative intake filter** as with the manifest plugins
   (`Webhook.IgnoreWhen`) for the compiled Zammad plugin — field-based rules
   over priority/state/tag, not just the group.
