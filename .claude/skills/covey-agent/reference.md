@@ -99,7 +99,7 @@ Frequently used:
 | `dev` | `exec,processes` | The sandbox shell: exec, start/stop/logs/list (bring a dev server up) |
 | `browser` | `navigate,content,screenshot,click,type` | Headless Chrome; CSS + `:has-text("…")`; screenshot with `highlight`+`label` |
 | `teams` | see SetupDoc | Microsoft Teams |
-| `zammad` | see SetupDoc | Zammad tickets (the first built-in, spec/13) |
+| `zammad` | `read,write,comment` | Zammad tickets (spec/13): list_tickets (the tickets assigned to an owner — `me`, `nobody`, a login — in new/open states), search_tickets, get_ticket, list_articles, reply (internal:true = a note, false = the customer reads it), set_state, assign, escalate. Heartbeat: `nur-wenn: zammad:assigned` (own user), `zammad:unassigned`, `zammad:owner:<login>` (that person's queue plus the agent's own). Webhook optional |
 | `sharepoint` | see SetupDoc | SharePoint / Teams files |
 | `mcp` | see SetupDoc | The generic MCP adapter |
 
