@@ -53,7 +53,7 @@ func TestParseValidation(t *testing.T) {
 		"no actions":         `{"name":"x1","webhook":{"id_field":"id"},"actions":{}}`,
 		"bad method":         `{"name":"x1","webhook":{"id_field":"id"},"actions":{"a":{"method":"TRACE","path":"/x"}}}`,
 		"path without slash": `{"name":"x1","webhook":{"id_field":"id"},"actions":{"a":{"method":"GET","path":"x"}}}`,
-		"id_field missing":   `{"name":"x1","webhook":{},"actions":{"a":{"method":"GET","path":"/x"}}}`,
+		"id_field missing":   `{"name":"x1","webhook":{"title_field":"t"},"actions":{"a":{"method":"GET","path":"/x"}}}`,
 		"signature unknown":  `{"name":"x1","webhook":{"id_field":"id","signature":"md5"},"actions":{"a":{"method":"GET","path":"/x"}}}`,
 		"unknown field":      `{"name":"x1","webhook":{"id_field":"id"},"actions":{"a":{"method":"GET","path":"/x"}},"extra":true}`,
 	}

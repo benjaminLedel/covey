@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"covey/internal/target/wasmplug"
 )
 
 // capManifest declares everything the engine learned to do in data: a probe, a
@@ -67,6 +69,7 @@ func TestManifestCapabilitiesAreDeclaredNotAssumed(t *testing.T) {
 		{"poll declared", full, target.CapPoll, true},
 		{"probe absent", bare, target.CapProbe, false},
 		{"poll absent", bare, target.CapPoll, false},
+		{"webhook declared", full, wasmplug.CapWebhook, true},
 	} {
 		sys := New(tc.m)
 		if got := sys.Supports(tc.cap); got != tc.want {
@@ -262,5 +265,34 @@ func TestParseValidatesTheNewBlocks(t *testing.T) {
 	ok := `{` + strings.Replace(base, "%s", `,"scope":"read"`, 1) + `,"scopes":["read"],"probe":{"path":"/me"},"poll":{"":{"path":"/issues"}}}`
 	if _, err := Parse([]byte(ok)); err != nil {
 		t.Fatalf("valid manifest rejected: %v", err)
+	}
+}
+
+// A manifest for a system that is only ever called — an application with an
+// API for the agent, never calling covey back — has no webhook block. That is
+// a choice the parser accepts and the router respects: Supports says no, so
+// the webhook entrance answers 404 instead of failing on an empty field path.
+func TestManifestWithoutAWebhookIsAPluginWithoutAnEntrance(t *testing.T) {
+	m, err := Parse([]byte(`{"name":"calledonly","probe":{"path":"/health"},"actions":{"a":{"method":"GET","path":"/x"}}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.HasWebhook() {
+		t.Fatal("no block, no webhook")
+	}
+	sys := New(m)
+	if sys.Supports(wasmplug.CapWebhook) {
+		t.Error("Supports(webhook) must say no without a block")
+	}
+	if sys.VerifyWebhook("s", []byte("{}"), nil) {
+		t.Error("nothing verifies against a webhook that is not declared")
+	}
+	if _, err := sys.ParseWebhook([]byte(`{"id":"1"}`)); err == nil {
+		t.Error("ParseWebhook must refuse without a block")
+	}
+	// An empty block is the same as none; a block with anything but the
+	// id_field is a mistake and still refused (see TestParseValidation).
+	if _, err := Parse([]byte(`{"name":"calledonly","webhook":{},"actions":{"a":{"method":"GET","path":"/x"}}}`)); err != nil {
+		t.Errorf("an empty webhook block should parse as none: %v", err)
 	}
 }
