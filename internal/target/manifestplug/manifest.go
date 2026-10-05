@@ -17,6 +17,7 @@ import (
 
 	"covey/internal/reqlog"
 	"covey/internal/target/trust"
+	"covey/internal/target/wasmplug"
 	"covey/internal/target/webhooksig"
 	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
@@ -38,7 +39,10 @@ type Manifest struct {
 	Auth ManifestAuth `json:"auth"`
 
 	// Webhook maps incoming payloads onto the wake event. Field references
-	// are dotted paths into the JSON ("ticket.id", "article.body").
+	// are dotted paths into the JSON ("ticket.id", "article.body"). Optional:
+	// a system that is only ever called — an application offering an API for
+	// the agent, never calling covey back — leaves it out, and the router
+	// then has no entrance for it (see HasWebhook).
 	Webhook ManifestWebhook `json:"webhook"`
 
 	// Actions are the actions the agent may call through the action proxy.
@@ -220,10 +224,24 @@ func Parse(raw []byte) (Manifest, error) {
 	if !webhooksig.Known(m.Webhook.Signature) {
 		return m, fmt.Errorf("manifest: webhook.signature %q unknown (hmac-sha1|hmac-sha256)", m.Webhook.Signature)
 	}
-	if m.Webhook.IDField == "" {
+	// A webhook block is a choice, not a requirement — but a block that is
+	// there and names no id_field is a mistake, not a choice.
+	if m.Webhook.IDField == "" && m.Webhook.present() {
 		return m, fmt.Errorf("manifest: webhook.id_field missing")
 	}
 	return m, nil
+}
+
+// HasWebhook says whether the manifest declares a webhook entrance. The
+// id_field is the one field that makes a block mean anything: without it no
+// payload can be mapped onto an event.
+func (m Manifest) HasWebhook() bool { return m.Webhook.IDField != "" }
+
+// present reports whether any field of the block was set at all — the
+// difference between "left out" and "filled in wrong".
+func (w ManifestWebhook) present() bool {
+	return w.Signature != "" || w.SignatureHeader != "" || w.IDField != "" || w.EventIDField != "" ||
+		w.TitleField != "" || w.BodyField != "" || len(w.IgnoreWhen) > 0
 }
 
 // Sys interprets a manifest as a target.System — the same interface
@@ -244,10 +262,16 @@ func (s *Sys) Name() string { return s.M.Name }
 // (internal/target/webhooksig) — the manifest says only which algorithm and
 // which header, never getting near the secret itself.
 func (s *Sys) VerifyWebhook(secret string, body []byte, header http.Header) bool {
+	if !s.M.HasWebhook() {
+		return false
+	}
 	return webhooksig.Verify(s.M.Webhook.Signature, s.M.Webhook.SignatureHeader, secret, body, header)
 }
 
 func (s *Sys) ParseWebhook(body []byte) (target.WebhookEvent, error) {
+	if !s.M.HasWebhook() {
+		return target.WebhookEvent{}, fmt.Errorf("%s declares no webhook", s.M.Name)
+	}
 	var payload any
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return target.WebhookEvent{}, fmt.Errorf("webhook payload: %w", err)
@@ -478,6 +502,8 @@ func (s *Sys) Supports(capability string) bool {
 		return s.M.Probe != nil
 	case target.CapPoll:
 		return len(s.M.Poll) > 0
+	case wasmplug.CapWebhook:
+		return s.M.HasWebhook()
 	default:
 		return true
 	}
