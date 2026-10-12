@@ -3274,14 +3274,10 @@
   },
   "workflows": {
     "title": "ワークフロー",
-    "preview": "プレビュー · サンプルデータ",
     "orgWide": "組織全体",
     "lead": "ワークフローは、部署やターゲットシステムをまたいで、案件を誰がどの順で担当するかを定めます。名前ではなくロールを指定し、誰がそのロールを担うかはステップの開始時に covey が決めます。",
-    "onlyFirst": "このプレビューでは最初のワークフローのみ詳細を表示しています。",
     "col": {
       "name": "ワークフロー",
-      "scope": "対象",
-      "stations": "ステーション",
       "mode": "動作",
       "cases": "案件",
       "stuck": "停滞"
@@ -3346,31 +3342,15 @@
     "name": "名前",
     "owner": "オーナー",
     "ownerHint": "ワークフローが自力で解決できないことは、すべてオーナーのチャットに届きます。",
-    "rails": "全ステップのガードレール",
-    "railsNote": "担当者ではなく covey が適用します。",
     "checks": "チェック",
-    "checkOk": "問題なし",
-    "checkHint": "注意",
-    "checkRoleEmpty": "{{step}}:ロール {{role}} が未割り当てです。",
-    "checkRoleEmptySkip": "{{step}}:ロール {{role}} が未割り当てのため、ステップはスキップされます。",
-    "checkNoIn": "{{step}}:入ってくる接続がありません。",
-    "checkNoOut": "{{step}}:出ていく接続がありません。",
-    "checkLoopOk": "{{step}} からの戻りループは、{{n}} ラウンド後に人へ引き渡されて終了します。",
-    "checkLoopNoLimit": "{{step}}:ラウンド数の上限がないループは保存できません。",
-    "checkFourEyes": "{{step}} は、{{other}} と同じ人が担当することはありません。",
     "save": "バージョン {{n}} として保存",
     "removeBlock": "ブロックを削除",
     "unfilled": "未割り当て",
     "unfilledSkipped": "未割り当て · スキップ",
     "optionalShort": "任意",
-    "roundPlus": "もう1ラウンド、同じ担当者",
-    "yes": "はい",
-    "no": "いいえ",
-    "approved": "承認",
-    "rejected": "却下",
     "sumPool": "ロール {{role}} · {{all}} 人中 {{free}} 人が対応可能",
     "sumRole": "ロール {{role}} → {{name}}",
-    "sumAi": "担当者なし · {{model}}",
+    "sumAi": "担当者なし",
     "sumCondition": "{{field}} で判定",
     "sumApproval": "{{who}}、チャットで",
     "sumWait": "{{until}} まで",
@@ -3379,28 +3359,20 @@
     "link": {
       "title": "接続",
       "branch": "分岐「{{label}}」。",
-      "back": "戻る経路は、ラウンドを1回増やします。案件は、それを作成した担当者に戻ります。",
       "remove": "接続を削除"
     },
     "trigger": {
-      "source": "発生元",
-      "event": "きっかけ",
-      "filter": "条件",
-      "filterHint": "空欄ならすべて対象です。",
-      "chatNote": "チケットがワークフローの対象範囲にある場合は、チャットでの依頼でもワークフローが始まります。依頼を受けた担当者が最初のステップを引き受けます。"
+      "note": "対象システムからのトリガーは後日対応します。それまでは、案件の画面から手動で、または API で案件を開始します。"
     },
     "agent": {
       "role": "ロール",
       "roleHint": "ワークフローはロールを指定します。誰がそのロールを担うかは、ステップの開始時に covey が決めます。",
       "addMember": "ロールに担当者を追加",
-      "open": "未処理 {{count}} 件",
-      "open_one": "未処理 {{count}} 件",
       "state_stopped": "停止中",
       "state_draft": "下書き",
       "pick": "選び方",
       "pick_load": "最も作業が少ない人",
       "pick_round": "順番に",
-      "pick_skill": "担当範囲(プロジェクト、スキル)で",
       "cap": "担当者ごとの同時処理数の上限",
       "capNone": "上限なし",
       "sticky": "案件に紐づく:以降のラウンドも同じ担当者になります",
@@ -3411,57 +3383,53 @@
       "taskHint": "担当者はこれをタスクとして受け取ります。クリックで値を挿入できます:",
       "result": "報告する結果",
       "resultHint": "後続のステップ(条件など)が参照します。",
-      "ask": "質問の送り先",
-      "askHint": "その人のチャットに表示されます。その間、実行は待機します。",
       "limit": "上限",
       "limitHint": "超えると、ワークフローはその案件を停滞として報告します。",
       "empty": "ロール {{role}} に対応できる人がいません。",
       "emptySkip": "このステップは任意のため、スキップされます。",
-      "emptyOwner": "実行はオーナーに渡されます。"
+      "emptyOwner": "実行はオーナーに渡されます。",
+      "state_ok": "利用可能",
+      "state_unknown": "該当するエージェントはありません"
     },
     "ai": {
-      "note": "担当者、ワークプレイス、メモリはありません。経験を必要としない短い作業向けで、低コストです。",
       "prompt": "指示",
-      "model": "モデル",
-      "model_small": "小型・低コスト",
-      "model_large": "大型"
+      "notYet": "AIステップはまだ接続されていません。案件はこのステップで止まります。"
     },
     "condition": {
       "field": "確認する項目",
       "rounds": "最大ラウンド数",
-      "roundsHint": "上限のないループは保存できません。"
+      "roundsHint": "上限のないループは保存できません。",
+      "addValue": "値 + Enter",
+      "fieldHint": "ステップとフィールド(例: a.result)。担当者が報告した内容です。",
+      "values": "値ごとの経路",
+      "valuesHint": "値ごとに専用の出口ができます。“else” はそれ以外のすべての値を受け止めます。"
     },
     "action": {
-      "note": "covey がワークフローとして自ら実行します。担当者は不要で、コストもかかりません。",
       "system": "ターゲットシステム",
       "op": "アクション",
       "target": "チケット",
       "value": "値",
-      "comment": "併せて書くコメント"
-    },
-    "ops": {
-      "assign": "チケットを割り当てる",
-      "reviewer": "レビュアーを設定する",
-      "label": "ラベルを設定する",
-      "comment": "コメントを書く",
-      "merge": "merge request をマージする"
+      "comment": "併せて書くコメント",
+      "notYet": "対象システムでのアクションはまだ接続されていません。案件はこのステップで止まります。"
     },
     "approval": {
       "who": "判断する人",
       "question": "質問",
       "questionHint": "その人のチャットにカードとして表示され、分岐ごとにボタンが付きます。自由記述でも回答できます。",
-      "wait": "回答を待つ"
+      "wait": "回答を待つ",
+      "addOption": "選択肢 + Enter",
+      "options": "選択肢",
+      "whoHint": "判断する人のメールアドレス、@ より前の部分、または表示名。"
     },
     "wait": {
       "until": "待つ条件",
       "max": "最大",
-      "then": "その後"
+      "untilHint": "イベント名(例: label:customer-ok)。対象システムが自ら送るようになるまでは、API 経由で届けます。"
     },
     "notify": {
       "to": "宛先",
-      "via": "経由",
       "text": "本文",
-      "note": "送信者は担当者ではなく、ワークフローです。"
+      "notYet": "メッセージはまだ接続されていません。案件は先へ進み、メッセージは履歴に記録されるだけです。"
     },
     "end": {
       "text": "実行はここで終わります。チケット自体はターゲットシステムにそのまま残ります。"
@@ -3492,41 +3460,27 @@
       "allInList_one": "一覧の {{count}} 件",
       "groupWorking": "作業中",
       "groupQueued": "待機列 · 次の分が先頭",
-      "groupWaiting": "待機中"
+      "groupWaiting": "待機中",
+      "whyStuck": "許容時間超過",
+      "whyUnstaffed": "このロールの担当者がいません"
     },
     "run": {
       "title": "実行 {{no}}",
       "here": "現在位置",
       "times": "{{n}}×",
-      "reassign": "別の担当者に渡す…",
-      "pause": "実行を一時停止",
-      "chatTag": "チャット"
+      "reported": "報告"
     },
     "file": {
       "title": "キャンバスとファイルは一体です",
       "one": "キャンバスがこのファイルを書き出し、ファイルがキャンバスを作ります。",
       "two": "保存した変更はすべて、SOUL.md と同様に新しいバージョンになります。",
       "three": "位置が保持されるのは、手で動かしたブロックのみです。",
-      "export": "エクスポート",
-      "import": "インポート…",
-      "head": "エージェントの設定と同様にバージョン管理されます。エクスポートとインポートは、このテキストそのものを扱います。"
+      "head": "エージェントの設定と同様にバージョン管理されます。エクスポートとインポートは、このテキストそのものを扱います。",
+      "save": "テキストを保存"
     },
     "chat": {
       "kindApproval": "承認",
-      "kindQuestion": "質問",
-      "cardQuestion": "3ラウンド経ても承認されていません。次はどうしますか?",
-      "cardContext": "直近の不具合:{{defects}}",
       "decidedAs": "判断:{{choice}}。",
-      "placeholderColleague": "{{name}} へのメッセージ",
-      "send": "送信",
-      "you": "あなた",
-      "now": "今",
-      "justNowRound": "たった今 · ラウンド {{n}}",
-      "stepDecided": "チャットでの {{owner}} の判断:{{choice}}",
-      "stepRound": "ラウンド {{n}} · {{name}}",
-      "stepEnded": "実行終了、チケットは {{owner}} のもとにあります",
-      "stepAnswered": "{{owner}} がチャットで回答:「{{text}}」",
-      "stepContinues": "{{name}} が続行します",
       "previewOf": "{{name}} さんのチャットではこう表示されます",
       "digestKind": "サマリー · 1日1回",
       "digestStuck": "停滞中の実行が {{count}} 件あります",
@@ -3550,7 +3504,19 @@
       "filter_queued": "待機列",
       "allSteps": "すべてのステップ",
       "none": "このフィルターに一致する実行はありません。",
-      "back": "すべての実行"
+      "back": "すべての実行",
+      "cancel": "キャンセル",
+      "finished": "完了",
+      "start": "案件を手動で開始",
+      "startCase": "チケットまたは案件(例: #431)",
+      "startGo": "開始",
+      "startTitle": "タイトル(任意)",
+      "state_working": "対応中",
+      "state_queued": "待機列",
+      "state_waiting": "待機中",
+      "state_watching": "監視中",
+      "state_done": "完了",
+      "state_failed": "停止"
     },
     "overview": {
       "new": "新しいワークフロー",
@@ -3559,15 +3525,35 @@
       "kpiStuck": "許容時間超過",
       "kpiActive": "有効なワークフロー",
       "needsYou": "あなたを待っています",
-      "kind_approval": "承認",
-      "kind_question": "質問",
       "search": "ワークフローを検索",
-      "running": "{{count}} 件進行中",
-      "running_one": "{{count}} 件進行中",
-      "meta": "担当 {{owner}} · {{when}} に変更",
       "none": "該当するワークフローはありません。",
       "explain": "3つの動作の意味",
-      "colQueued": "待ち"
-    }
+      "colQueued": "待ち",
+      "create": "作成",
+      "createExample": "例を作成",
+      "emptyText": "例(割り当てから顧客のテストまでのチケット)から始めるか、空のワークフローを作成します。新しいワークフローはオフか、監視のみで始まります。",
+      "emptyTitle": "ワークフローはまだありません",
+      "newName": "ワークフローの名前",
+      "slugIs": "アドレス: {{slug}}"
+    },
+    "addRole": "ロールを追加",
+    "newRole": "新しいロール(例: テスト)",
+    "roles": "ロール",
+    "checksClean": "このワークフローの実行を妨げるものはありません。",
+    "exit": {
+      "else": "それ以外",
+      "limit": "ラウンド上限",
+      "timeout": "時間切れ",
+      "out": "イベント到着"
+    },
+    "none": "なし",
+    "notFound": "このワークフローは組織内に存在しません。",
+    "removeWord": "{{word}} を削除",
+    "saved": "バージョン {{n}} として保存しました。",
+    "sumTrigger": "案件を開始",
+    "unsaved": "未保存 · 保存",
+    "unsavedProblems": "{{count}} 件の問題",
+    "unsavedProblems_one": "{{count}} 件の問題",
+    "versionN": "バージョン {{n}}"
   }
 }

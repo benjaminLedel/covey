@@ -89,9 +89,9 @@ type Run struct {
 }
 
 type Entry struct {
-	At   time.Time
-	Step string
-	Text string
+	At   time.Time `json:"at"`
+	Step string    `json:"step"`
+	Text string    `json:"text"`
 }
 
 func (r *Run) open() bool { return r.State != StateDone && r.State != StateFailed }

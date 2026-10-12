@@ -413,8 +413,8 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
           <Routes>
             <Route path="/agents" element={<Dashboard me={me} />} />
             <Route path="/agents/:id" element={<AgentPage me={me} />} />
-            <Route path="/workflows" element={<Workflows />} />
-            <Route path="/workflows/:id" element={<WorkflowPage />} />
+            <Route path="/workflows" element={<Workflows me={me} />} />
+            <Route path="/workflows/:id" element={<WorkflowPage me={me} />} />
             <Route path="/templates" element={<Templates me={me} />} />
             <Route path="/skills" element={<Skills me={me} />} />
             <Route path="/voices" element={<Voices me={me} />} />

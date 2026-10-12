@@ -1,11 +1,7 @@
-/* How a workflow reaches a person in the preview (#560). A run that needs
-   someone puts a card into that person's chat (#440, #441): an approval
-   from the workflow, or a question from the colleague whose step it is.
-   The preview shows the card where the run waits, so one can answer it
-   there and watch the run go on. Nothing is sent anywhere. */
-import { useState } from "react";
+/* How a workflow reaches a person (#560, #565). A run that needs someone
+   puts a card into that person's chat (#440, #441). Until the chat carries
+   workflows, the card stands where the run waits, and is answered there. */
 import { useTranslation } from "react-i18next";
-import type { Out } from "./model";
 
 export function DecisionCard({
   recipient,
@@ -20,7 +16,7 @@ export function DecisionCard({
   kind: string;
   question: string;
   context?: string;
-  options: Out[];
+  options: { key: string; label: string }[];
   decided?: string | null;
   onDecide?: (key: string) => void;
 }) {
@@ -45,60 +41,6 @@ export function DecisionCard({
               ))}
             </div>
           </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-export function QuestionCard({
-  recipient,
-  colleague,
-  question,
-  answered,
-  thanks,
-  onAnswer,
-}: {
-  recipient: string;
-  colleague: string;
-  question: string;
-  answered: string | null;
-  thanks: string;
-  onAnswer: (text: string) => void;
-}) {
-  const { t } = useTranslation();
-  const [draft, setDraft] = useState("");
-  return (
-    <div className="wf-chatcard">
-      <p className="wf-eyebrow">{t("workflows.chat.previewOf", { name: recipient })}</p>
-      <div className="wf-card">
-        <div className="wf-card-kind">
-          {colleague} · {t("workflows.chat.kindQuestion")}
-        </div>
-        <div className="wf-card-q">{question}</div>
-        {answered ? (
-          <>
-            <div className="wf-card-ctx">
-              {t("workflows.chat.you")}: {answered}
-            </div>
-            <div className="wf-card-done">
-              {colleague}: {thanks}
-            </div>
-          </>
-        ) : (
-          <form
-            className="wf-row"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const text = draft.trim();
-              if (text) onAnswer(text);
-            }}
-          >
-            <input className="input wf-card-input" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={t("workflows.chat.placeholderColleague", { name: colleague })} />
-            <button className="btn sm primary" type="submit">
-              {t("workflows.chat.send")}
-            </button>
-          </form>
         )}
       </div>
     </div>

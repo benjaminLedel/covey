@@ -3274,14 +3274,10 @@
   },
   "workflows": {
     "title": "Workflow",
-    "preview": "Anteprima · dati di esempio",
     "orgWide": "in tutta l’organizzazione",
     "lead": "Un workflow stabilisce chi lavora a un caso e in che ordine, tra reparti e sistemi di destinazione. Si rivolge a ruoli, non a nomi: chi ricopre un ruolo lo decide covey quando il passaggio parte.",
-    "onlyFirst": "In questa anteprima è sviluppato solo il primo workflow.",
     "col": {
       "name": "Workflow",
-      "scope": "Vale per",
-      "stations": "Passaggi",
       "mode": "Effetto",
       "cases": "Casi",
       "stuck": "Bloccati"
@@ -3346,31 +3342,15 @@
     "name": "Nome",
     "owner": "Responsabile",
     "ownerHint": "Riceve nella sua chat tutto ciò che il workflow non riesce a risolvere da solo.",
-    "rails": "Regole per ogni passaggio",
-    "railsNote": "Le applica covey, non il collega.",
     "checks": "Controlli",
-    "checkOk": "ok",
-    "checkHint": "nota",
-    "checkRoleEmpty": "{{step}}: il ruolo {{role}} non è coperto.",
-    "checkRoleEmptySkip": "{{step}}: il ruolo {{role}} non è coperto; il passaggio viene saltato.",
-    "checkNoIn": "{{step}}: nulla porta qui.",
-    "checkNoOut": "{{step}}: non porta da nessuna parte.",
-    "checkLoopOk": "Il ciclo di ritorno da {{step}} finisce dopo {{n}} giri presso una persona.",
-    "checkLoopNoLimit": "{{step}}: un ciclo senza limite di giri non si può salvare.",
-    "checkFourEyes": "{{step}} non lo fa mai la stessa persona di {{other}}.",
     "save": "Salva come versione {{n}}",
     "removeBlock": "Rimuovi blocco",
     "unfilled": "non coperto",
     "unfilledSkipped": "non coperto · saltato",
     "optionalShort": "facoltativo",
-    "roundPlus": "un altro giro, stessa persona",
-    "yes": "sì",
-    "no": "no",
-    "approved": "approvato",
-    "rejected": "rifiutato",
     "sumPool": "Ruolo {{role}} · {{free}} su {{all}} disponibili",
     "sumRole": "Ruolo {{role}} → {{name}}",
-    "sumAi": "senza collega · {{model}}",
+    "sumAi": "nessun collega",
     "sumCondition": "in base a {{field}}",
     "sumApproval": "{{who}}, nella chat",
     "sumWait": "fino a {{until}}",
@@ -3379,28 +3359,20 @@
     "link": {
       "title": "Collegamento",
       "branch": "Ramo «{{label}}».",
-      "back": "Il ritorno conta un giro in più. Il caso torna alla persona che l’ha realizzato.",
       "remove": "Rimuovi collegamento"
     },
     "trigger": {
-      "source": "Da dove",
-      "event": "Cosa succede",
-      "filter": "Solo se",
-      "filterHint": "Lascia vuoto per tutti.",
-      "chatNote": "Anche una richiesta nella chat avvia il workflow, se il ticket rientra nel suo ambito. Il collega interpellato prende in carico il primo passaggio."
+      "note": "Gli avvii dai sistemi di destinazione arriveranno più avanti. Fino ad allora un caso si avvia a mano sotto Casi, oppure tramite l'API."
     },
     "agent": {
       "role": "Ruolo",
       "roleHint": "Il workflow si rivolge al ruolo. Chi lo ricopre lo decide covey quando il passaggio parte.",
       "addMember": "Aggiungi un collega al ruolo",
-      "open": "{{count}} aperti",
-      "open_one": "{{count}} aperto",
       "state_stopped": "fermato",
       "state_draft": "bozza",
       "pick": "Scelta",
       "pick_load": "chi ha meno da fare",
       "pick_round": "a turno",
-      "pick_skill": "per competenza (progetto, abilità)",
       "cap": "Al massimo in contemporanea, per collega",
       "capNone": "nessun limite",
       "sticky": "Resta sul caso: i giri successivi vanno alla stessa persona",
@@ -3411,57 +3383,53 @@
       "taskHint": "Il collega lo riceve come incarico. Un clic inserisce un valore:",
       "result": "Risultato da riferire",
       "resultHint": "I passaggi successivi lo leggono, per esempio una condizione.",
-      "ask": "Le domande vanno a",
-      "askHint": "Compaiono nella chat di quella persona. Nel frattempo l’esecuzione aspetta.",
       "limit": "Al massimo",
       "limitHint": "Dopo, il workflow segnala il caso come bloccato.",
       "empty": "Nessuno nel ruolo {{role}} è disponibile.",
       "emptySkip": "Il passaggio è facoltativo e viene saltato.",
-      "emptyOwner": "Le esecuzioni vanno al responsabile."
+      "emptyOwner": "Le esecuzioni vanno al responsabile.",
+      "state_ok": "disponibile",
+      "state_unknown": "nessun agente con questo nome"
     },
     "ai": {
-      "note": "Nessun collega, nessuna postazione, nessuna memoria. Per compiti brevi che non richiedono esperienza, e costa poco.",
       "prompt": "Istruzione",
-      "model": "Modello",
-      "model_small": "piccolo ed economico",
-      "model_large": "grande"
+      "notYet": "I passaggi IA non sono ancora collegati: un caso si ferma a questo passaggio."
     },
     "condition": {
       "field": "Controlla",
       "rounds": "Al massimo giri",
-      "roundsHint": "Un ciclo senza limite non si può salvare."
+      "roundsHint": "Un ciclo senza limite non si può salvare.",
+      "addValue": "Valore + Enter",
+      "fieldHint": "Passaggio e campo, ad es. a.result: ciò che ha riferito un collega.",
+      "values": "Percorsi per valore",
+      "valuesHint": "Ogni valore ha un'uscita tutta sua. “else” raccoglie tutti gli altri valori."
     },
     "action": {
-      "note": "covey lo fa da sé, come workflow. Nessun collega, nessun costo.",
       "system": "Sistema di destinazione",
       "op": "Azione",
       "target": "Ticket",
       "value": "Valore",
-      "comment": "Commento allegato"
-    },
-    "ops": {
-      "assign": "assegna il ticket",
-      "reviewer": "imposta il revisore",
-      "label": "imposta un label",
-      "comment": "scrivi un commento",
-      "merge": "esegui il merge del merge request"
+      "comment": "Commento allegato",
+      "notYet": "Le azioni nei sistemi di destinazione non sono ancora collegate: un caso si ferma a questo passaggio."
     },
     "approval": {
       "who": "Chi decide",
       "question": "Domanda",
       "questionHint": "Compare come scheda nella chat di quella persona, con un pulsante per ramo. Va bene anche il testo libero.",
-      "wait": "Attendi una risposta"
+      "wait": "Attendi una risposta",
+      "addOption": "Opzione + Enter",
+      "options": "Opzioni",
+      "whoHint": "E-mail, la parte prima della @ o nome visualizzato di chi decide."
     },
     "wait": {
       "until": "Fino a",
       "max": "Al massimo",
-      "then": "Poi"
+      "untilHint": "Il nome dell'evento, ad es. label:customer-ok. Finché i sistemi di destinazione non lo inviano da soli, viene consegnato tramite l'API."
     },
     "notify": {
       "to": "A",
-      "via": "Tramite",
       "text": "Testo",
-      "note": "Il mittente è il workflow, non un collega."
+      "notYet": "I messaggi non sono ancora collegati: il caso va avanti, il messaggio resta solo annotato nella sua cronologia."
     },
     "end": {
       "text": "L’esecuzione finisce qui. Il ticket resta nel sistema di destinazione così com’è."
@@ -3492,41 +3460,27 @@
       "allInList_one": "{{count}} nell’elenco",
       "groupWorking": "In corso",
       "groupQueued": "In coda · prima la prossima",
-      "groupWaiting": "In attesa"
+      "groupWaiting": "In attesa",
+      "whyStuck": "oltre il tempo consentito",
+      "whyUnstaffed": "nessuno ha il ruolo"
     },
     "run": {
       "title": "Esecuzione {{no}}",
       "here": "è qui",
       "times": "{{n}}×",
-      "reassign": "Passa a un altro collega…",
-      "pause": "Metti in pausa",
-      "chatTag": "chat"
+      "reported": "Riferito"
     },
     "file": {
       "title": "Area di lavoro e file sono la stessa cosa",
       "one": "L’area di lavoro scrive questo file; il file genera l’area di lavoro.",
       "two": "Ogni modifica salvata è una nuova versione, come con SOUL.md.",
       "three": "Le posizioni vengono conservate solo per i blocchi che qualcuno ha spostato a mano.",
-      "export": "Esporta",
-      "import": "Importa…",
-      "head": "Con versioni, come la configurazione di un agente. Esportazione e importazione trasportano esattamente questo testo."
+      "head": "Con versioni, come la configurazione di un agente. Esportazione e importazione trasportano esattamente questo testo.",
+      "save": "Salva testo"
     },
     "chat": {
       "kindApproval": "Approvazione",
-      "kindQuestion": "domanda",
-      "cardQuestion": "Tre giri senza accettazione. Come si procede?",
-      "cardContext": "Ultimi difetti: {{defects}}",
       "decidedAs": "Deciso: {{choice}}.",
-      "placeholderColleague": "Messaggio a {{name}}",
-      "send": "Invia",
-      "you": "Tu",
-      "now": "ora",
-      "justNowRound": "adesso · giro {{n}}",
-      "stepDecided": "{{owner}} nella chat: {{choice}}",
-      "stepRound": "Giro {{n}} con {{name}}",
-      "stepEnded": "Esecuzione conclusa, ticket presso {{owner}}",
-      "stepAnswered": "{{owner}} ha risposto nella chat: «{{text}}»",
-      "stepContinues": "{{name}} prosegue",
       "previewOf": "Così appare nella chat di {{name}}",
       "digestKind": "Riepilogo · una volta al giorno",
       "digestStuck": "{{count}} esecuzioni sono bloccate",
@@ -3550,7 +3504,19 @@
       "filter_queued": "In coda",
       "allSteps": "Tutti i passaggi",
       "none": "Nessuna esecuzione corrisponde a questo filtro.",
-      "back": "Tutte le esecuzioni"
+      "back": "Tutte le esecuzioni",
+      "cancel": "Annulla",
+      "finished": "Concluso",
+      "start": "Avvia un caso a mano",
+      "startCase": "Ticket o caso, ad es. #431",
+      "startGo": "Avvia",
+      "startTitle": "Titolo (facoltativo)",
+      "state_working": "in corso",
+      "state_queued": "in coda",
+      "state_waiting": "in attesa",
+      "state_watching": "osservato",
+      "state_done": "fatto",
+      "state_failed": "fermato"
     },
     "overview": {
       "new": "Nuovo flusso",
@@ -3559,15 +3525,35 @@
       "kpiStuck": "oltre il tempo consentito",
       "kpiActive": "flussi attivi",
       "needsYou": "Aspetta te",
-      "kind_approval": "approvazione",
-      "kind_question": "domanda",
       "search": "Cerca flussi",
-      "running": "{{count}} in corso",
-      "running_one": "{{count}} in corso",
-      "meta": "Responsabile {{owner}} · modificato {{when}}",
       "none": "Nessun flusso corrisponde.",
       "explain": "Cosa significano i tre effetti",
-      "colQueued": "In coda"
-    }
+      "colQueued": "In coda",
+      "create": "Crea",
+      "createExample": "Crea l'esempio",
+      "emptyText": "Parti dall'esempio, un ticket dall'assegnazione al test del cliente, oppure creane uno vuoto. Un nuovo workflow parte spento o solo in osservazione.",
+      "emptyTitle": "Ancora nessun workflow",
+      "newName": "Nome del workflow",
+      "slugIs": "Indirizzo: {{slug}}"
+    },
+    "addRole": "Aggiungi ruolo",
+    "newRole": "Nuovo ruolo, ad es. Test",
+    "roles": "Ruoli",
+    "checksClean": "Niente impedisce a questo workflow di funzionare.",
+    "exit": {
+      "else": "tutto il resto",
+      "limit": "round esauriti",
+      "timeout": "tempo scaduto",
+      "out": "evento arrivato"
+    },
+    "none": "nessuno",
+    "notFound": "Questo workflow non esiste nella tua organizzazione.",
+    "removeWord": "Rimuovi {{word}}",
+    "saved": "Salvato come versione {{n}}.",
+    "sumTrigger": "avvia un caso",
+    "unsaved": "Non salvato · salva",
+    "unsavedProblems": "{{count}} problemi",
+    "unsavedProblems_one": "{{count}} problema",
+    "versionN": "versione {{n}}"
   }
 }

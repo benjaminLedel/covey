@@ -3274,14 +3274,10 @@
   },
   "workflows": {
     "title": "Workflows",
-    "preview": "Voorbeeld · voorbeeldgegevens",
     "orgWide": "organisatiebreed",
     "lead": "Een workflow legt vast wie in welke volgorde aan een zaak werkt, over afdelingen en doelsystemen heen. Hij richt zich op rollen, niet op namen: wie een rol invult, beslist covey zodra de stap begint.",
-    "onlyFirst": "In dit voorbeeld is alleen de eerste workflow uitgewerkt.",
     "col": {
       "name": "Workflow",
-      "scope": "Geldt voor",
-      "stations": "Stappen",
       "mode": "Werking",
       "cases": "Zaken",
       "stuck": "Vastgelopen"
@@ -3346,31 +3342,15 @@
     "name": "Naam",
     "owner": "Verantwoordelijke",
     "ownerHint": "Krijgt alles in zijn of haar chat wat de workflow niet zelf kan oplossen.",
-    "rails": "Vangrails voor elke stap",
-    "railsNote": "covey dwingt ze af, niet de collega.",
     "checks": "Controles",
-    "checkOk": "ok",
-    "checkHint": "opmerking",
-    "checkRoleEmpty": "{{step}}: de rol {{role}} is niet ingevuld.",
-    "checkRoleEmptySkip": "{{step}}: de rol {{role}} is niet ingevuld; de stap wordt overgeslagen.",
-    "checkNoIn": "{{step}}: er leidt niets naartoe.",
-    "checkNoOut": "{{step}}: leidt nergens heen.",
-    "checkLoopOk": "De lus terug vanaf {{step}} eindigt na {{n}} rondes bij een persoon.",
-    "checkLoopNoLimit": "{{step}}: een lus zonder rondelimiet kan niet worden opgeslagen.",
-    "checkFourEyes": "{{step}} wordt nooit door dezelfde persoon gedaan als {{other}}.",
     "save": "Opslaan als versie {{n}}",
     "removeBlock": "Bouwsteen verwijderen",
     "unfilled": "niet ingevuld",
     "unfilledSkipped": "niet ingevuld · overgeslagen",
     "optionalShort": "optioneel",
-    "roundPlus": "nog een ronde, dezelfde persoon",
-    "yes": "ja",
-    "no": "nee",
-    "approved": "goedgekeurd",
-    "rejected": "afgewezen",
     "sumPool": "Rol {{role}} · {{free}} van {{all}} beschikbaar",
     "sumRole": "Rol {{role}} → {{name}}",
-    "sumAi": "zonder collega · {{model}}",
+    "sumAi": "geen collega",
     "sumCondition": "op {{field}}",
     "sumApproval": "{{who}}, in de chat",
     "sumWait": "tot {{until}}",
@@ -3379,28 +3359,20 @@
     "link": {
       "title": "Verbinding",
       "branch": "Tak “{{label}}”.",
-      "back": "De weg terug telt een ronde extra. De zaak gaat terug naar de persoon die haar heeft uitgewerkt.",
       "remove": "Verbinding verwijderen"
     },
     "trigger": {
-      "source": "Van",
-      "event": "Wat er gebeurt",
-      "filter": "Alleen als",
-      "filterHint": "Leeg laten voor alles.",
-      "chatNote": "Ook een verzoek in de chat start de workflow, als het ticket onder het bereik valt. De collega die is aangesproken neemt de eerste stap."
+      "note": "Triggers uit doelsystemen komen later. Tot dan start je een zaak met de hand onder Zaken, of via de API."
     },
     "agent": {
       "role": "Rol",
       "roleHint": "De workflow richt zich op de rol. Wie die invult, beslist covey zodra de stap begint.",
       "addMember": "Collega aan de rol toevoegen",
-      "open": "{{count}} open",
-      "open_one": "{{count}} open",
       "state_stopped": "gestopt",
       "state_draft": "concept",
       "pick": "Keuze",
       "pick_load": "wie het minst te doen heeft",
       "pick_round": "om de beurt",
-      "pick_skill": "op verantwoordelijkheid (project, vaardigheid)",
       "cap": "Maximaal tegelijk, per collega",
       "capNone": "geen limiet",
       "sticky": "Blijft bij de zaak: volgende rondes gaan naar dezelfde persoon",
@@ -3411,57 +3383,53 @@
       "taskHint": "De collega krijgt dit als taak. Een klik voegt een waarde in:",
       "result": "Te melden resultaat",
       "resultHint": "Latere stappen lezen het, bijvoorbeeld een voorwaarde.",
-      "ask": "Vragen gaan naar",
-      "askHint": "Ze verschijnen in de chat van die persoon. De run wacht ondertussen.",
       "limit": "Maximaal",
       "limitHint": "Daarna meldt de workflow de zaak als vastgelopen.",
       "empty": "Niemand in de rol {{role}} is beschikbaar.",
       "emptySkip": "De stap is optioneel en wordt overgeslagen.",
-      "emptyOwner": "Runs gaan naar de verantwoordelijke."
+      "emptyOwner": "Runs gaan naar de verantwoordelijke.",
+      "state_ok": "beschikbaar",
+      "state_unknown": "geen zo’n agent"
     },
     "ai": {
-      "note": "Geen collega, geen werkplek, geen geheugen. Voor korte taken die geen ervaring vragen, en goedkoop.",
       "prompt": "Instructie",
-      "model": "Model",
-      "model_small": "klein en goedkoop",
-      "model_large": "groot"
+      "notYet": "AI-stappen zijn nog niet gekoppeld: een zaak stopt bij deze stap."
     },
     "condition": {
       "field": "Controleert",
       "rounds": "Maximaal rondes",
-      "roundsHint": "Een lus zonder limiet kan niet worden opgeslagen."
+      "roundsHint": "Een lus zonder limiet kan niet worden opgeslagen.",
+      "addValue": "Waarde + Enter",
+      "fieldHint": "Stap en veld, bijv. a.result: wat een collega heeft gemeld.",
+      "values": "Paden per waarde",
+      "valuesHint": "Elke waarde krijgt een eigen uitgang. “else” vangt alle andere waarden op."
     },
     "action": {
-      "note": "covey doet dit zelf, als de workflow. Geen collega, geen kosten.",
       "system": "Doelsysteem",
       "op": "Actie",
       "target": "Ticket",
       "value": "Waarde",
-      "comment": "Opmerking erbij"
-    },
-    "ops": {
-      "assign": "ticket toewijzen",
-      "reviewer": "reviewer instellen",
-      "label": "label instellen",
-      "comment": "opmerking schrijven",
-      "merge": "de merge request mergen"
+      "comment": "Opmerking erbij",
+      "notYet": "Acties in doelsystemen zijn nog niet gekoppeld: een zaak stopt bij deze stap."
     },
     "approval": {
       "who": "Wie beslist",
       "question": "Vraag",
       "questionHint": "Verschijnt als kaart in de chat van die persoon, met een knop per tak. Vrije tekst kan ook.",
-      "wait": "Op antwoord wachten"
+      "wait": "Op antwoord wachten",
+      "addOption": "Optie + Enter",
+      "options": "Opties",
+      "whoHint": "E-mail, het deel voor de @ of weergavenaam van de persoon die beslist."
     },
     "wait": {
       "until": "Tot",
       "max": "Maximaal",
-      "then": "Daarna"
+      "untilHint": "De naam van de gebeurtenis, bijv. label:customer-ok. Zolang doelsystemen die niet zelf sturen, wordt hij via de API aangeleverd."
     },
     "notify": {
       "to": "Aan",
-      "via": "Via",
       "text": "Tekst",
-      "note": "De afzender is de workflow, geen collega."
+      "notYet": "Berichten zijn nog niet gekoppeld: de zaak gaat door, het bericht staat alleen in de geschiedenis."
     },
     "end": {
       "text": "De run eindigt hier. Het ticket zelf blijft in het doelsysteem zoals het is."
@@ -3492,41 +3460,27 @@
       "allInList_one": "{{count}} in de lijst",
       "groupWorking": "Bezig",
       "groupQueued": "In de wachtrij · volgende eerst",
-      "groupWaiting": "Wachtend"
+      "groupWaiting": "Wachtend",
+      "whyStuck": "langer dan toegestaan",
+      "whyUnstaffed": "niemand heeft de rol"
     },
     "run": {
       "title": "Run {{no}}",
       "here": "staat hier",
       "times": "{{n}}×",
-      "reassign": "Aan een andere collega geven…",
-      "pause": "Run pauzeren",
-      "chatTag": "chat"
+      "reported": "Gemeld"
     },
     "file": {
       "title": "Canvas en bestand zijn één",
       "one": "Het canvas schrijft dit bestand; het bestand maakt het canvas.",
       "two": "Elke opgeslagen wijziging is een nieuwe versie, net als bij SOUL.md.",
       "three": "Posities worden alleen bewaard voor bouwstenen die iemand met de hand heeft verplaatst.",
-      "export": "Exporteren",
-      "import": "Importeren…",
-      "head": "Met versies, zoals de configuratie van een agent. Export en import dragen precies deze tekst."
+      "head": "Met versies, zoals de configuratie van een agent. Export en import dragen precies deze tekst.",
+      "save": "Tekst opslaan"
     },
     "chat": {
       "kindApproval": "Goedkeuring",
-      "kindQuestion": "vraag",
-      "cardQuestion": "Drie rondes zonder acceptatie. Hoe nu verder?",
-      "cardContext": "Laatste gebreken: {{defects}}",
       "decidedAs": "Besloten: {{choice}}.",
-      "placeholderColleague": "Bericht aan {{name}}",
-      "send": "Versturen",
-      "you": "Jij",
-      "now": "nu",
-      "justNowRound": "zojuist · ronde {{n}}",
-      "stepDecided": "{{owner}} in de chat: {{choice}}",
-      "stepRound": "Ronde {{n}} bij {{name}}",
-      "stepEnded": "Run afgerond, ticket bij {{owner}}",
-      "stepAnswered": "{{owner}} heeft in de chat geantwoord: “{{text}}”",
-      "stepContinues": "{{name}} gaat verder",
       "previewOf": "Zo staat het in de chat van {{name}}",
       "digestKind": "Samenvatting · één keer per dag",
       "digestStuck": "{{count}} runs zijn vastgelopen",
@@ -3550,7 +3504,19 @@
       "filter_queued": "In de wachtrij",
       "allSteps": "Alle stappen",
       "none": "Geen run past bij dit filter.",
-      "back": "Alle runs"
+      "back": "Alle runs",
+      "cancel": "Annuleren",
+      "finished": "Afgerond",
+      "start": "Zaak met de hand starten",
+      "startCase": "Ticket of zaak, bijv. #431",
+      "startGo": "Starten",
+      "startTitle": "Titel (optioneel)",
+      "state_working": "bezig",
+      "state_queued": "in de wachtrij",
+      "state_waiting": "wacht",
+      "state_watching": "in de gaten gehouden",
+      "state_done": "klaar",
+      "state_failed": "gestopt"
     },
     "overview": {
       "new": "Nieuwe workflow",
@@ -3559,15 +3525,35 @@
       "kpiStuck": "langer dan toegestaan",
       "kpiActive": "workflows actief",
       "needsYou": "Wacht op jou",
-      "kind_approval": "goedkeuring",
-      "kind_question": "vraag",
       "search": "Workflows zoeken",
-      "running": "{{count}} lopen",
-      "running_one": "{{count}} loopt",
-      "meta": "Verantwoordelijk {{owner}} · gewijzigd {{when}}",
       "none": "Geen workflow komt overeen.",
       "explain": "Wat de drie werkingen betekenen",
-      "colQueued": "Wachtrij"
-    }
+      "colQueued": "Wachtrij",
+      "create": "Aanmaken",
+      "createExample": "Voorbeeld aanmaken",
+      "emptyText": "Begin met het voorbeeld, een ticket van toewijzing tot de test door de klant, of maak een lege aan. Een nieuwe workflow start uitgeschakeld of alleen kijkend.",
+      "emptyTitle": "Nog geen workflow",
+      "newName": "Naam van de workflow",
+      "slugIs": "Adres: {{slug}}"
+    },
+    "addRole": "Rol toevoegen",
+    "newRole": "Nieuwe rol, bijv. Test",
+    "roles": "Rollen",
+    "checksClean": "Niets houdt deze workflow tegen.",
+    "exit": {
+      "else": "al het andere",
+      "limit": "rondes op",
+      "timeout": "tijd verstreken",
+      "out": "gebeurtenis binnen"
+    },
+    "none": "geen",
+    "notFound": "Deze workflow bestaat niet in jouw organisatie.",
+    "removeWord": "{{word}} verwijderen",
+    "saved": "Opgeslagen als versie {{n}}.",
+    "sumTrigger": "start een zaak",
+    "unsaved": "Niet opgeslagen · opslaan",
+    "unsavedProblems": "{{count}} problemen",
+    "unsavedProblems_one": "{{count}} probleem",
+    "versionN": "versie {{n}}"
   }
 }

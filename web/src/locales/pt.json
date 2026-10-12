@@ -3274,14 +3274,10 @@
   },
   "workflows": {
     "title": "Fluxos de trabalho",
-    "preview": "Pré-visualização · dados de exemplo",
     "orgWide": "em toda a organização",
     "lead": "Um fluxo de trabalho define quem trabalha num caso e por que ordem, entre departamentos e sistemas de destino. Refere funções, não nomes: quem ocupa uma função é o covey que decide no início do passo.",
-    "onlyFirst": "Nesta pré-visualização, só o primeiro fluxo de trabalho está desenvolvido.",
     "col": {
       "name": "Fluxo de trabalho",
-      "scope": "Aplica-se a",
-      "stations": "Etapas",
       "mode": "Efeito",
       "cases": "Casos",
       "stuck": "Parados"
@@ -3346,31 +3342,15 @@
     "name": "Nome",
     "owner": "Responsável",
     "ownerHint": "Recebe no chat tudo o que o fluxo de trabalho não consegue resolver sozinho.",
-    "rails": "Limites para todos os passos",
-    "railsNote": "É o covey que os faz cumprir, não o colega.",
     "checks": "Verificação",
-    "checkOk": "ok",
-    "checkHint": "nota",
-    "checkRoleEmpty": "{{step}}: a função {{role}} está por ocupar.",
-    "checkRoleEmptySkip": "{{step}}: a função {{role}} está por ocupar, o passo é ignorado.",
-    "checkNoIn": "{{step}}: nada conduz a este passo.",
-    "checkNoOut": "{{step}}: não conduz a lado nenhum.",
-    "checkLoopOk": "O caminho de volta a partir de {{step}} termina após {{n}} rondas numa pessoa.",
-    "checkLoopNoLimit": "{{step}}: um ciclo sem limite de rondas não pode ser guardado.",
-    "checkFourEyes": "{{step}} nunca é feito pela mesma pessoa que {{other}}.",
     "save": "Guardar como versão {{n}}",
     "removeBlock": "Remover bloco",
     "unfilled": "por ocupar",
     "unfilledSkipped": "por ocupar · ignorado",
     "optionalShort": "opcional",
-    "roundPlus": "mais uma ronda, a mesma pessoa",
-    "yes": "sim",
-    "no": "não",
-    "approved": "aprovado",
-    "rejected": "rejeitado",
     "sumPool": "Função {{role}} · {{free}} de {{all}} disponíveis",
     "sumRole": "Função {{role}} → {{name}}",
-    "sumAi": "sem colega · {{model}}",
+    "sumAi": "sem colega",
     "sumCondition": "segundo {{field}}",
     "sumApproval": "{{who}}, no chat",
     "sumWait": "até {{until}}",
@@ -3379,28 +3359,20 @@
     "link": {
       "title": "Ligação",
       "branch": "Ramo “{{label}}”.",
-      "back": "O caminho de volta conta mais uma ronda. O caso regressa à pessoa que o executou.",
       "remove": "Remover ligação"
     },
     "trigger": {
-      "source": "De onde",
-      "event": "O que acontece",
-      "filter": "Só se",
-      "filterHint": "Deixa vazio para todos.",
-      "chatNote": "Um pedido no chat também inicia o fluxo de trabalho, se o ticket estiver no seu âmbito. O colega a quem o pedido foi feito assume o primeiro passo."
+      "note": "Os gatilhos dos sistemas de destino chegam mais tarde. Até lá, um caso inicia-se à mão em Casos ou através da API."
     },
     "agent": {
       "role": "Função",
       "roleHint": "O fluxo de trabalho refere a função. Quem a ocupa é o covey que decide no início do passo.",
       "addMember": "Adicionar um colega à função",
-      "open": "{{count}} em aberto",
-      "open_one": "{{count}} em aberto",
       "state_stopped": "parado",
       "state_draft": "rascunho",
       "pick": "Escolha",
       "pick_load": "quem tem menos para fazer",
       "pick_round": "à vez",
-      "pick_skill": "por responsabilidade (projeto, competência)",
       "cap": "No máximo em simultâneo, por colega",
       "capNone": "sem limite",
       "sticky": "Fica com o caso: as rondas seguintes vão para a mesma pessoa",
@@ -3411,57 +3383,53 @@
       "taskHint": "O colega recebe isto como tarefa. Um clique insere um valor:",
       "result": "Resultado a comunicar",
       "resultHint": "Os passos seguintes leem-no, por exemplo uma condição.",
-      "ask": "As perguntas vão para",
-      "askHint": "Aparecem no chat dessa pessoa. Entretanto, a execução espera.",
       "limit": "No máximo",
       "limitHint": "Depois disso, o fluxo de trabalho comunica o caso como parado.",
       "empty": "Ninguém na função {{role}} está disponível.",
       "emptySkip": "O passo é opcional e é ignorado.",
-      "emptyOwner": "As execuções vão para o responsável."
+      "emptyOwner": "As execuções vão para o responsável.",
+      "state_ok": "disponível",
+      "state_unknown": "agente inexistente"
     },
     "ai": {
-      "note": "Sem colega, sem posto de trabalho, sem memória. Para tarefas curtas que não exigem experiência, e barato.",
       "prompt": "Instrução",
-      "model": "Modelo",
-      "model_small": "pequeno e barato",
-      "model_large": "grande"
+      "notYet": "Os passos de IA ainda não estão ligados: um caso pára neste passo."
     },
     "condition": {
       "field": "Verifica",
       "rounds": "No máximo de rondas",
-      "roundsHint": "Um ciclo sem limite não pode ser guardado."
+      "roundsHint": "Um ciclo sem limite não pode ser guardado.",
+      "addValue": "Valor + Enter",
+      "fieldHint": "Passo e campo, p. ex. a.result: o que um colega comunicou.",
+      "values": "Caminhos por valor",
+      "valuesHint": "Cada valor tem uma saída própria. “else” apanha todos os outros valores."
     },
     "action": {
-      "note": "O covey faz isto por si, como o fluxo de trabalho. Sem colega, sem custos.",
       "system": "Sistema de destino",
       "op": "Ação",
       "target": "Ticket",
       "value": "Valor",
-      "comment": "Comentário associado"
-    },
-    "ops": {
-      "assign": "atribuir ticket",
-      "reviewer": "definir revisor",
-      "label": "definir label",
-      "comment": "escrever comentário",
-      "merge": "fazer merge do merge request"
+      "comment": "Comentário associado",
+      "notYet": "As ações em sistemas de destino ainda não estão ligadas: um caso pára neste passo."
     },
     "approval": {
       "who": "Quem decide",
       "question": "Pergunta",
       "questionHint": "Aparece como cartão no chat dessa pessoa, com um botão por ramo. Texto livre também funciona.",
-      "wait": "Esperar por resposta"
+      "wait": "Esperar por resposta",
+      "addOption": "Opção + Enter",
+      "options": "Opções",
+      "whoHint": "E-mail, a parte antes do @ ou nome de exibição de quem decide."
     },
     "wait": {
       "until": "Até",
       "max": "No máximo",
-      "then": "Depois"
+      "untilHint": "O nome do evento, p. ex. label:customer-ok. Enquanto os sistemas de destino não o enviarem sozinhos, é entregue através da API."
     },
     "notify": {
       "to": "Para",
-      "via": "Por",
       "text": "Texto",
-      "note": "O remetente é o fluxo de trabalho, não um colega."
+      "notYet": "As mensagens ainda não estão ligadas: o caso segue, a mensagem fica apenas anotada no seu histórico."
     },
     "end": {
       "text": "A execução termina aqui. O ticket em si fica no sistema de destino tal como está."
@@ -3492,41 +3460,27 @@
       "allInList_one": "{{count}} na lista",
       "groupWorking": "Em curso",
       "groupQueued": "Em fila · a próxima primeiro",
-      "groupWaiting": "À espera"
+      "groupWaiting": "À espera",
+      "whyStuck": "mais tempo do que o permitido",
+      "whyUnstaffed": "ninguém tem a função"
     },
     "run": {
       "title": "Execução {{no}}",
       "here": "está aqui",
       "times": "{{n}}×",
-      "reassign": "Passar a outro colega…",
-      "pause": "Pausar execução",
-      "chatTag": "chat"
+      "reported": "Comunicado"
     },
     "file": {
       "title": "Área de trabalho e ficheiro são o mesmo",
       "one": "A área de trabalho escreve este ficheiro; o ficheiro cria a área de trabalho.",
       "two": "Cada alteração guardada é uma nova versão, como no SOUL.md.",
       "three": "As posições só ficam registadas para os blocos que alguém moveu à mão.",
-      "export": "Exportar",
-      "import": "Importar…",
-      "head": "Com versões, como a configuração de um agente. Exportar e importar transportam exatamente este texto."
+      "head": "Com versões, como a configuração de um agente. Exportar e importar transportam exatamente este texto.",
+      "save": "Guardar texto"
     },
     "chat": {
       "kindApproval": "Aprovação",
-      "kindQuestion": "pergunta",
-      "cardQuestion": "Três rondas sem aceitação. E agora?",
-      "cardContext": "Últimos defeitos: {{defects}}",
       "decidedAs": "Decidido: {{choice}}.",
-      "placeholderColleague": "Mensagem para {{name}}",
-      "send": "Enviar",
-      "you": "Tu",
-      "now": "agora",
-      "justNowRound": "agora mesmo · ronda {{n}}",
-      "stepDecided": "{{owner}} no chat: {{choice}}",
-      "stepRound": "Ronda {{n}} com {{name}}",
-      "stepEnded": "Execução terminada, ticket com {{owner}}",
-      "stepAnswered": "{{owner}} respondeu no chat: “{{text}}”",
-      "stepContinues": "{{name}} continua",
       "previewOf": "É assim que aparece no chat de {{name}}",
       "digestKind": "Resumo · uma vez por dia",
       "digestStuck": "{{count}} execuções estão paradas",
@@ -3550,7 +3504,19 @@
       "filter_queued": "Em fila",
       "allSteps": "Todos os passos",
       "none": "Nenhuma execução corresponde a este filtro.",
-      "back": "Todas as execuções"
+      "back": "Todas as execuções",
+      "cancel": "Cancelar",
+      "finished": "Concluído",
+      "start": "Iniciar um caso à mão",
+      "startCase": "Ticket ou caso, p. ex. #431",
+      "startGo": "Iniciar",
+      "startTitle": "Título (opcional)",
+      "state_working": "em curso",
+      "state_queued": "em fila",
+      "state_waiting": "à espera",
+      "state_watching": "observado",
+      "state_done": "feito",
+      "state_failed": "parado"
     },
     "overview": {
       "new": "Novo fluxo",
@@ -3559,15 +3525,35 @@
       "kpiStuck": "mais tempo do que o permitido",
       "kpiActive": "fluxos ativos",
       "needsYou": "Espera por ti",
-      "kind_approval": "aprovação",
-      "kind_question": "pergunta",
       "search": "Procurar fluxos",
-      "running": "{{count}} em curso",
-      "running_one": "{{count}} em curso",
-      "meta": "Responsável {{owner}} · alterado {{when}}",
       "none": "Nenhum fluxo corresponde.",
       "explain": "O que significam os três efeitos",
-      "colQueued": "Em fila"
-    }
+      "colQueued": "Em fila",
+      "create": "Criar",
+      "createExample": "Criar o exemplo",
+      "emptyText": "Começa pelo exemplo, um ticket da atribuição ao teste do cliente, ou cria um vazio. Um fluxo novo começa desligado ou só a observar.",
+      "emptyTitle": "Ainda sem fluxos de trabalho",
+      "newName": "Nome do fluxo de trabalho",
+      "slugIs": "Endereço: {{slug}}"
+    },
+    "addRole": "Adicionar função",
+    "newRole": "Nova função, p. ex. Teste",
+    "roles": "Funções",
+    "checksClean": "Nada impede este fluxo de trabalho de correr.",
+    "exit": {
+      "else": "qualquer outro",
+      "limit": "rondas esgotadas",
+      "timeout": "o tempo acabou",
+      "out": "evento chegou"
+    },
+    "none": "nenhum",
+    "notFound": "Este fluxo de trabalho não existe na tua organização.",
+    "removeWord": "Remover {{word}}",
+    "saved": "Guardado como versão {{n}}.",
+    "sumTrigger": "inicia um caso",
+    "unsaved": "Por guardar · guardar",
+    "unsavedProblems": "{{count}} problemas",
+    "unsavedProblems_one": "{{count}} problema",
+    "versionN": "versão {{n}}"
   }
 }

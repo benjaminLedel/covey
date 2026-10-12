@@ -777,6 +777,7 @@ func (s *Server) Handler() http.Handler {
 	// who manage agents; a decision checks its person in the handler.
 	mux.Handle("GET /api/v1/workflows", s.rbac(anyRole, s.handleListWorkflows))
 	mux.Handle("POST /api/v1/workflows/check", s.rbac(manage, s.handleCheckWorkflow))
+	mux.Handle("GET /api/v1/workflows/mine", s.rbac(anyRole, s.handleMyApprovals))
 	mux.Handle("GET /api/v1/workflows/{slug}", s.rbac(anyRole, s.handleGetWorkflow))
 	mux.Handle("PUT /api/v1/workflows/{slug}", s.rbac(manage, s.handlePutWorkflow))
 	mux.Handle("GET /api/v1/workflows/{slug}/runs", s.rbac(anyRole, s.handleListRuns))

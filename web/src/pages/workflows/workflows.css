@@ -264,3 +264,20 @@ button.wf-stat:hover { border-color: var(--border-strong); }
 .wf-overview .wf-waiting .wf-icon { background: var(--surface-1); color: var(--text-secondary); box-shadow: inset 0 0 0 0.5px var(--border); }
 .wf-overview .wf-filters button.on { background: var(--surface-1); color: var(--text-primary); border-color: var(--border-strong); }
 .wf-overview .wf-mode-card .wf-mode-dot { color: var(--text-primary); }
+
+/* ---------- on real data (#565) ---------- */
+.wf-center { align-items: center; justify-content: center; gap: 10px; }
+.wf-unsaved { cursor: pointer; border: 0; font: inherit; font-size: 11px; }
+.wf-unsaved:disabled { cursor: default; opacity: 0.8; }
+.wf-source { width: 100%; min-height: 70vh; font-family: var(--mono); font-size: 12.5px; line-height: 1.6; background: var(--surface-1); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 12px 14px; color: var(--text-primary); resize: vertical; max-width: none; }
+.wf-create { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; max-width: 860px; }
+.wf-create .input { width: 320px; max-width: 100%; }
+.wf-empty { display: flex; gap: 14px; align-items: flex-start; background: var(--surface-2); border: 0.5px solid var(--border); border-radius: 12px; padding: 18px 20px; max-width: 680px; margin-bottom: 18px; }
+.wf-empty b { font-weight: 500; }
+.wf-empty p { margin: 4px 0 12px; color: var(--text-secondary); font-size: 13px; }
+.wf-words { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.wf-words .wf-pill button, .wf-member-x { border: 0; background: none; color: inherit; cursor: pointer; padding: 0 0 0 4px; font-size: 13px; line-height: 1; }
+.wf-words .input { width: 140px; padding: 4px 8px; }
+.wf-member .wf-member-x { margin-left: 4px; color: var(--text-muted); }
+.wf-start { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; padding: 10px; border: 0.5px solid var(--border); border-radius: var(--radius); background: var(--surface-2); }
+.wf-start .input { width: 100%; max-width: none; }

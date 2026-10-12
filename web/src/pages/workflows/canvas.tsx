@@ -1,22 +1,31 @@
-/* The canvas of the workflow preview (#560): one node kind for every block,
+/* The canvas of the workflow pages (#560, #565): one node kind for every block,
    one edge kind for the way back. React Flow does panning, zooming,
    dragging and connecting; what a block shows comes from the page through
    a context, so the nodes need no copy of the page's state. */
 import { createContext, memo, useContext, type JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { BaseEdge, EdgeLabelRenderer, Handle, Position, type EdgeProps, type NodeProps } from "@xyflow/react";
-import { HEAD_H, NODE_W, ROW_H, heightOf, outY, outsOf, roleEmpty, type Block, type BlockType, type Example, type Mode } from "./model";
+import { HEAD_H, NODE_W, ROW_H, heightOf, outY, outsOf, type Block, type BlockType, type Case, type Mode } from "./model";
 
 export type Tab = "edit" | "live" | "run" | "file";
 
 export interface CanvasState {
-  ex: Example;
   blocks: Record<string, Block>;
+  roles: Record<string, string[]>;
   tab: Tab;
   mode: Mode;
   selected: string | null;
-  live: Example["live"];
+  // The open cases at each step, for the live view and the list of runs.
+  live: Record<string, Case[]>;
   path: { blocks: Set<string>; count: Record<string, number>; current: string | null };
+  // Whether an agent of the organisation can take work: hired, not stopped.
+  available: (slug: string) => boolean;
+  exitLabel: (key: string) => string;
+}
+
+// A colleague step whose role nobody available holds.
+export function unstaffed(s: Pick<CanvasState, "roles" | "available">, b: Block): boolean {
+  return b.type === "agent" && !(s.roles[String(b.cfg.role)] ?? []).some(s.available);
 }
 
 export const CanvasContext = createContext<CanvasState | null>(null);
@@ -81,24 +90,24 @@ export function BlockIcon({ type, small }: { type: BlockType; small?: boolean })
 // The line under a block's title: what it does, in a few words.
 export function useBlockSummary() {
   const { t } = useTranslation();
-  return (ex: Example, b: Block): string => {
+  return (s: Pick<CanvasState, "roles" | "available">, b: Block): string => {
     const c = b.cfg;
     switch (b.type) {
       case "trigger":
-        return String(c.source);
+        return t("workflows.sumTrigger");
       case "agent": {
-        const members = ex.roles[String(c.role)] ?? [];
-        const free = members.filter((p) => ex.people[p]?.state === "ok");
+        const members = s.roles[String(c.role)] ?? [];
+        const free = members.filter(s.available);
         return members.length > 1
           ? t("workflows.sumPool", { role: c.role, free: free.length, all: members.length })
           : t("workflows.sumRole", { role: c.role, name: members[0] ?? t("workflows.unfilled") });
       }
       case "ai":
-        return t("workflows.sumAi", { model: t(`workflows.ai.model_${c.model}`) });
+        return t("workflows.sumAi");
       case "condition":
         return t("workflows.sumCondition", { field: c.field });
       case "action":
-        return `${c.system}: ${t(`workflows.ops.${c.op}`)}`;
+        return `${c.system}: ${c.do}`;
       case "approval":
         return t("workflows.sumApproval", { who: c.who });
       case "wait":
@@ -119,7 +128,7 @@ function BlockNodeImpl({ id }: NodeProps) {
   const b = s.blocks[id];
   if (!b) return null;
   const outs = outsOf(b);
-  const empty = roleEmpty(s.ex, b);
+  const empty = unstaffed(s, b);
   const cls = ["wf-node"];
   const badges: JSX.Element[] = [];
   // The list of runs reads the canvas like the live view: counts per step.
@@ -130,7 +139,7 @@ function BlockNodeImpl({ id }: NodeProps) {
     badges.push(<span key="e" className="wf-pill warn">{b.cfg.optional ? t("workflows.unfilledSkipped") : t("workflows.unfilled")}</span>);
   }
   if (counts) {
-    const cases = s.live[id]?.cases ?? [];
+    const cases = s.live[id] ?? [];
     if (cases.length) {
       const bad = cases.filter((c) => c.level === "bad").length;
       const warn = cases.filter((c) => c.level === "warn").length;
@@ -165,13 +174,13 @@ function BlockNodeImpl({ id }: NodeProps) {
             {b.type === "agent" && b.cfg.optional ? ` · ${t("workflows.optionalShort")}` : ""}
           </div>
           <div className="wf-node-title">{b.title}</div>
-          <div className="wf-node-sub">{summary(s.ex, b)}</div>
+          <div className="wf-node-sub">{summary(s, b)}</div>
         </div>
       </div>
       {outs.length > 1 &&
         outs.map((o) => (
           <div key={o.key} className="wf-node-row" style={{ height: ROW_H }}>
-            {o.label}
+            {o.key === "out" ? t("workflows.exit.out") : s.exitLabel(o.key)}
           </div>
         ))}
       {b.type !== "trigger" && <Handle type="target" position={Position.Left} style={{ top: HEAD_H / 2 }} />}

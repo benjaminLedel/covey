@@ -31,18 +31,39 @@ type problemView struct {
 	Text string `json:"text"`
 }
 
+// stepView is a step with every field it has, durations in seconds — the
+// interface builds its canvas from it and needs no second parser.
 type stepView struct {
 	ID          string            `json:"id"`
 	Kind        string            `json:"kind"`
 	Title       string            `json:"title,omitempty"`
 	Next        map[string]string `json:"next,omitempty"`
 	Role        string            `json:"role,omitempty"`
+	Pick        string            `json:"pick,omitempty"`
+	Sticky      bool              `json:"sticky,omitempty"`
+	MaxParallel int               `json:"max_parallel,omitempty"`
+	NotSameAs   string            `json:"not_same_as,omitempty"`
 	Optional    bool              `json:"optional,omitempty"`
+	Task        string            `json:"task,omitempty"`
 	Result      []string          `json:"result,omitempty"`
-	Who         string            `json:"who,omitempty"`
-	Options     []string          `json:"options,omitempty"`
+	QuestionsTo string            `json:"questions_to,omitempty"`
+	Limit       int64             `json:"limit,omitempty"`
+	On          string            `json:"on,omitempty"`
 	MaxRounds   int               `json:"max_rounds,omitempty"`
-	LimitSecond int64             `json:"limit_seconds,omitempty"`
+	System      string            `json:"system,omitempty"`
+	Do          string            `json:"do,omitempty"`
+	Target      string            `json:"target,omitempty"`
+	Value       string            `json:"value,omitempty"`
+	Comment     string            `json:"comment,omitempty"`
+	Who         string            `json:"who,omitempty"`
+	Ask         string            `json:"ask,omitempty"`
+	Options     []string          `json:"options,omitempty"`
+	Wait        int64             `json:"wait,omitempty"`
+	Until       string            `json:"until,omitempty"`
+	Max         int64             `json:"max,omitempty"`
+	To          string            `json:"to,omitempty"`
+	Via         string            `json:"via,omitempty"`
+	Text        string            `json:"text,omitempty"`
 }
 
 type runCounts struct {
@@ -68,8 +89,10 @@ type workflowView struct {
 }
 
 type runView struct {
-	ID        string                       `json:"id"`
-	Case      string                       `json:"case"`
+	ID   string `json:"id"`
+	Case string `json:"case"`
+	// Title is the case's title as the trigger passed it, for lists.
+	Title     string                       `json:"title,omitempty"`
 	Step      string                       `json:"step"`
 	State     string                       `json:"state"`
 	Assignee  string                       `json:"assignee,omitempty"`
@@ -112,8 +135,13 @@ func viewOf(st workflow.Stored, runs []workflow.Run, full bool) workflowView {
 		for _, id := range st.Def.Order {
 			s := st.Def.Steps[id]
 			v.Steps = append(v.Steps, stepView{
-				ID: id, Kind: string(s.Kind), Title: s.Title, Next: s.Next, Role: s.Role, Optional: s.Optional,
-				Result: s.Result, Who: s.Who, Options: s.Options, MaxRounds: s.MaxRounds, LimitSecond: int64(s.Limit / time.Second),
+				ID: id, Kind: string(s.Kind), Title: s.Title, Next: s.Next,
+				Role: s.Role, Pick: string(s.Pick), Sticky: s.Sticky, MaxParallel: s.MaxParallel, NotSameAs: s.NotSameAs,
+				Optional: s.Optional, Task: s.Task, Result: s.Result, QuestionsTo: s.QuestionsTo, Limit: secs(s.Limit),
+				On: s.On, MaxRounds: s.MaxRounds,
+				System: s.System, Do: s.Do, Target: s.Target, Value: s.Value, Comment: s.Comment,
+				Who: s.Who, Ask: s.Ask, Options: s.Options, Wait: secs(s.Wait),
+				Until: s.Until, Max: secs(s.Max), To: s.To, Via: s.Via, Text: s.Text,
 			})
 		}
 	}
@@ -121,13 +149,15 @@ func viewOf(st workflow.Stored, runs []workflow.Run, full bool) workflowView {
 }
 
 func runViewOf(r workflow.Run, full bool) runView {
-	v := runView{ID: r.ID, Case: r.Case, Step: r.Step, State: string(r.State), Assignee: r.Assignee,
+	v := runView{ID: r.ID, Case: r.Case, Title: r.Vars["case"]["title"], Step: r.Step, State: string(r.State), Assignee: r.Assignee,
 		Since: r.Since, Stuck: r.Stuck, Unstaffed: r.Unstaffed}
 	if full {
 		v.Loops, v.Had, v.Vars, v.Log = r.Loops, r.Had, r.Vars, r.Log
 	}
 	return v
 }
+
+func secs(d time.Duration) int64 { return int64(d / time.Second) }
 
 // handleListWorkflows — GET /api/v1/workflows: the organisation's workflows
 // with how many runs stand where.
@@ -382,6 +412,62 @@ func (s *Server) handleDecideRun(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, runViewOf(run, true))
 }
 
+// waitingView is an approval that names the person asking.
+type waitingView struct {
+	Workflow string    `json:"workflow"`
+	Name     string    `json:"name"`
+	Run      string    `json:"run"`
+	Case     string    `json:"case"`
+	Title    string    `json:"title,omitempty"`
+	Step     string    `json:"step"`
+	Question string    `json:"question,omitempty"`
+	Options  []string  `json:"options"`
+	Since    time.Time `json:"since"`
+}
+
+// handleMyApprovals — GET /api/v1/workflows/mine: the approvals across all
+// workflows that name the person asking. A manager may decide any of them,
+// but these are the ones put to them.
+func (s *Server) handleMyApprovals(w http.ResponseWriter, r *http.Request) {
+	if !s.workflowsOn(w) {
+		return
+	}
+	p := principalFrom(r)
+	list, err := s.Workflows.Store.List(r.Context(), p.OrgID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	out := []waitingView{}
+	for _, st := range list {
+		for _, run := range s.Workflows.Runs(p.OrgID, st.Slug) {
+			step := st.Def.Steps[run.Step]
+			if run.State != workflow.StateWaiting || step == nil || step.Kind != workflow.KindApproval || !named(p, step.Who) {
+				continue
+			}
+			name := st.Def.Name
+			if name == "" {
+				name = st.Slug
+			}
+			out = append(out, waitingView{Workflow: st.Slug, Name: name, Run: run.ID, Case: run.Case,
+				Title: run.Vars["case"]["title"], Step: step.Title, Question: render(step.Ask, run.Vars), Options: step.Options, Since: run.Since})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Since.Before(out[j].Since) })
+	writeJSON(w, http.StatusOK, out)
+}
+
+// render fills a question's {{step.field}} the way the engine did when it
+// asked — the stored run has the values.
+func render(text string, vars map[string]map[string]string) string {
+	for step, fields := range vars {
+		for k, v := range fields {
+			text = strings.ReplaceAll(text, "{{"+step+"."+k+"}}", v)
+		}
+	}
+	return text
+}
+
 // mayDecide: the person named in the approval — by e-mail, by the part of it
 // before the @, or by display name — or a manager.
 func mayDecide(p identity.Principal, who string) bool {
@@ -390,6 +476,12 @@ func mayDecide(p identity.Principal, who string) bool {
 			return true
 		}
 	}
+	return named(p, who)
+}
+
+// named: the approval names this person — by e-mail, by the part of it
+// before the @, or by display name.
+func named(p identity.Principal, who string) bool {
 	who = strings.ToLower(strings.TrimSpace(who))
 	if who == "" {
 		return false

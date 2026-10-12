@@ -97,6 +97,18 @@ func TestWorkflowsThroughTheAPI(t *testing.T) {
 		t.Fatalf("open runs: %v", open)
 	}
 
+	mine := decider.expectList(http.MethodGet, "/api/v1/workflows/mine", nil, http.StatusOK)
+	if len(mine) != 1 || mine[0]["question"] != "Ship !9?" || mine[0]["run"] != id || mine[0]["title"] != "1.2" {
+		t.Fatalf("approvals for the decider: %v", mine)
+	}
+	if n := len(other.expectList(http.MethodGet, "/api/v1/workflows/mine", nil, http.StatusOK)); n != 0 {
+		t.Fatalf("someone the approval does not name sees %d", n)
+	}
+	admin.expect(http.MethodPut, "/api/v1/workflows/mine", map[string]string{"source": decisionWorkflow}, http.StatusUnprocessableEntity)
+	steps := one["steps"].([]any)
+	if b := steps[1].(map[string]any); b["task"] == nil || b["result"] == nil || b["role"] != "Eng" {
+		t.Errorf("a step's view lacks its fields: %v", b)
+	}
 	other.expect(http.MethodPost, path+"/decide", map[string]string{"option": "ship"}, http.StatusForbidden)
 	decider.expect(http.MethodPost, path+"/decide", map[string]string{"option": "maybe"}, http.StatusBadRequest)
 	decided := decider.expect(http.MethodPost, path+"/decide", map[string]string{"option": "ship"}, http.StatusOK)

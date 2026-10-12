@@ -54,6 +54,11 @@ var slugPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)
 // does not parse or does not pass Check is not kept: a version that cannot
 // run is no version.
 func (s *Store) Save(ctx context.Context, orgID uuid.UUID, slug, source string, by *uuid.UUID) (Stored, error) {
+	// "check" and "mine" are routes beside the workflows; a workflow of that
+	// name could never be opened.
+	if slug == "check" || slug == "mine" {
+		return Stored{}, &InvalidError{Problems: []Problem{{Code: "bad-slug", Text: fmt.Sprintf("%q is taken by the interface", slug)}}}
+	}
 	if !slugPattern.MatchString(slug) {
 		return Stored{}, &InvalidError{Problems: []Problem{{Code: "bad-slug", Text: fmt.Sprintf("%q: lower-case letters, digits and dashes", slug)}}}
 	}

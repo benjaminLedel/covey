@@ -3274,14 +3274,10 @@
   },
   "workflows": {
     "title": "Workflows",
-    "preview": "Preview · example data",
     "orgWide": "organisation-wide",
     "lead": "A workflow sets who works on a case after whom, across departments and target systems. It addresses roles, not names: covey decides who fills a role when the step starts.",
-    "onlyFirst": "Only the first workflow is worked out in this preview.",
     "col": {
       "name": "Workflow",
-      "scope": "Applies to",
-      "stations": "Stations",
       "mode": "Effect",
       "cases": "Cases",
       "stuck": "Stuck"
@@ -3346,31 +3342,15 @@
     "name": "Name",
     "owner": "Owner",
     "ownerHint": "Gets everything the workflow cannot resolve itself, in their chat.",
-    "rails": "Guard rails for every step",
-    "railsNote": "covey enforces them, not the colleague.",
     "checks": "Checks",
-    "checkOk": "ok",
-    "checkHint": "note",
-    "checkRoleEmpty": "{{step}}: the role {{role}} is unfilled.",
-    "checkRoleEmptySkip": "{{step}}: the role {{role}} is unfilled; the step is skipped.",
-    "checkNoIn": "{{step}}: nothing leads in.",
-    "checkNoOut": "{{step}}: leads nowhere.",
-    "checkLoopOk": "The loop back from {{step}} ends after {{n}} rounds with a person.",
-    "checkLoopNoLimit": "{{step}}: a loop without a round limit cannot be saved.",
-    "checkFourEyes": "{{step}} is never done by the same person as {{other}}.",
     "save": "Save as version {{n}}",
     "removeBlock": "Remove block",
     "unfilled": "unfilled",
     "unfilledSkipped": "unfilled · skipped",
     "optionalShort": "optional",
-    "roundPlus": "one more round, same person",
-    "yes": "yes",
-    "no": "no",
-    "approved": "approved",
-    "rejected": "rejected",
     "sumPool": "Role {{role}} · {{free}} of {{all}} available",
     "sumRole": "Role {{role}} → {{name}}",
-    "sumAi": "no colleague · {{model}}",
+    "sumAi": "no colleague",
     "sumCondition": "on {{field}}",
     "sumApproval": "{{who}}, in the chat",
     "sumWait": "until {{until}}",
@@ -3379,28 +3359,20 @@
     "link": {
       "title": "Connection",
       "branch": "Branch “{{label}}”.",
-      "back": "The way back counts one more round. The case returns to the person who built it.",
       "remove": "Remove connection"
     },
     "trigger": {
-      "source": "From",
-      "event": "What happens",
-      "filter": "Only if",
-      "filterHint": "Leave empty for all.",
-      "chatNote": "A request in the chat starts the workflow too, when the ticket lies in its scope. The colleague who was asked takes the first step."
+      "note": "Triggers from target systems come later. Until then a case is started by hand under Cases, or through the API."
     },
     "agent": {
       "role": "Role",
       "roleHint": "The workflow addresses the role. covey decides who fills it when the step starts.",
       "addMember": "Add a colleague to the role",
-      "open": "{{count}} open",
-      "open_one": "{{count}} open",
       "state_stopped": "stopped",
       "state_draft": "draft",
       "pick": "Pick",
       "pick_load": "whoever has least to do",
       "pick_round": "in turn",
-      "pick_skill": "by responsibility (project, skill)",
       "cap": "At most at once, per colleague",
       "capNone": "no limit",
       "sticky": "Stays with the case: further rounds go to the same person",
@@ -3411,57 +3383,53 @@
       "taskHint": "The colleague gets this as their task. A click inserts a value:",
       "result": "Result to report",
       "resultHint": "Later steps read it, e.g. a condition.",
-      "ask": "Questions go to",
-      "askHint": "They appear in that person's chat. The run waits meanwhile.",
       "limit": "At most",
       "limitHint": "After that the workflow reports the case as stuck.",
       "empty": "Nobody in the role {{role}} is available.",
       "emptySkip": "The step is optional and is skipped.",
-      "emptyOwner": "Runs go to the owner."
+      "emptyOwner": "Runs go to the owner.",
+      "state_ok": "available",
+      "state_unknown": "no such agent"
     },
     "ai": {
-      "note": "No colleague, no workplace, no memory. For short tasks that need no experience, and cheap.",
       "prompt": "Instruction",
-      "model": "Model",
-      "model_small": "small and cheap",
-      "model_large": "large"
+      "notYet": "AI steps are not connected yet: a case stops at this step."
     },
     "condition": {
       "field": "Checks",
       "rounds": "At most rounds",
-      "roundsHint": "A loop without a limit cannot be saved."
+      "roundsHint": "A loop without a limit cannot be saved.",
+      "addValue": "Value + Enter",
+      "fieldHint": "Step and field, e.g. a.result: what a colleague reported.",
+      "values": "Ways by value",
+      "valuesHint": "Each value gets an exit of its own. “else” catches every other value."
     },
     "action": {
-      "note": "covey does this itself, as the workflow. No colleague, no cost.",
       "system": "Target system",
       "op": "Action",
       "target": "Ticket",
       "value": "Value",
-      "comment": "Comment with it"
-    },
-    "ops": {
-      "assign": "assign ticket",
-      "reviewer": "set reviewer",
-      "label": "set label",
-      "comment": "write comment",
-      "merge": "merge the merge request"
+      "comment": "Comment with it",
+      "notYet": "Actions in target systems are not connected yet: a case stops at this step."
     },
     "approval": {
       "who": "Who decides",
       "question": "Question",
       "questionHint": "Appears as a card in that person's chat, with one button per branch. Free text works too.",
-      "wait": "Wait for an answer"
+      "wait": "Wait for an answer",
+      "addOption": "Option + Enter",
+      "options": "Options",
+      "whoHint": "E-mail, the part before the @, or display name of the person who decides."
     },
     "wait": {
       "until": "Until",
       "max": "At most",
-      "then": "Afterwards"
+      "untilHint": "The event's name, e.g. label:customer-ok. Until target systems send it themselves, it is delivered through the API."
     },
     "notify": {
       "to": "To",
-      "via": "Via",
       "text": "Text",
-      "note": "The sender is the workflow, not a colleague."
+      "notYet": "Messages are not connected yet: the case goes on, the message is only noted in its history."
     },
     "end": {
       "text": "The run ends here. The ticket itself stays in the target system as it is."
@@ -3492,41 +3460,27 @@
       "allInList_one": "{{count}} in the list",
       "groupWorking": "In work",
       "groupQueued": "Queued · next one first",
-      "groupWaiting": "Waiting"
+      "groupWaiting": "Waiting",
+      "whyStuck": "longer than allowed",
+      "whyUnstaffed": "nobody holds the role"
     },
     "run": {
       "title": "Run {{no}}",
       "here": "stands here",
       "times": "{{n}}×",
-      "reassign": "Give to another colleague…",
-      "pause": "Pause run",
-      "chatTag": "chat"
+      "reported": "Reported"
     },
     "file": {
       "title": "Canvas and file are one",
       "one": "The canvas writes this file; the file makes the canvas.",
       "two": "Every saved change is a new version, as with SOUL.md.",
       "three": "Positions are kept only for blocks someone moved by hand.",
-      "export": "Export",
-      "import": "Import…",
-      "head": "Versioned like an agent's configuration. Export and import carry exactly this text."
+      "head": "Versioned like an agent's configuration. Export and import carry exactly this text.",
+      "save": "Save text"
     },
     "chat": {
       "kindApproval": "Approval",
-      "kindQuestion": "question",
-      "cardQuestion": "Three rounds without acceptance. What next?",
-      "cardContext": "Last defects: {{defects}}",
       "decidedAs": "Decided: {{choice}}.",
-      "placeholderColleague": "Message to {{name}}",
-      "send": "Send",
-      "you": "You",
-      "now": "now",
-      "justNowRound": "just now · round {{n}}",
-      "stepDecided": "{{owner}} in the chat: {{choice}}",
-      "stepRound": "Round {{n}} with {{name}}",
-      "stepEnded": "Run ended, ticket with {{owner}}",
-      "stepAnswered": "{{owner}} answered in the chat: “{{text}}”",
-      "stepContinues": "{{name}} continues",
       "previewOf": "This is how it lies in {{name}}'s chat",
       "digestKind": "Summary · once a day",
       "digestStuck": "{{count}} runs are stuck",
@@ -3550,7 +3504,19 @@
       "filter_queued": "Queued",
       "allSteps": "All steps",
       "none": "No run matches this filter.",
-      "back": "All runs"
+      "back": "All runs",
+      "cancel": "Cancel",
+      "finished": "Finished",
+      "start": "Start a case by hand",
+      "startCase": "Ticket or case, e.g. #431",
+      "startGo": "Start",
+      "startTitle": "Title (optional)",
+      "state_working": "in work",
+      "state_queued": "queued",
+      "state_waiting": "waiting",
+      "state_watching": "observed",
+      "state_done": "done",
+      "state_failed": "stopped"
     },
     "overview": {
       "new": "New workflow",
@@ -3559,15 +3525,35 @@
       "kpiStuck": "longer than allowed",
       "kpiActive": "workflows active",
       "needsYou": "Waits for you",
-      "kind_approval": "approval",
-      "kind_question": "question",
       "search": "Search workflows",
-      "running": "{{count}} running",
-      "running_one": "{{count}} running",
-      "meta": "Owner {{owner}} · changed {{when}}",
       "none": "No workflow matches.",
       "explain": "What the three effects mean",
-      "colQueued": "Queued"
-    }
+      "colQueued": "Queued",
+      "create": "Create",
+      "createExample": "Create the example",
+      "emptyText": "Start from the example, a ticket from assignment to the customer's test, or create an empty one. A new workflow starts switched off or only observing.",
+      "emptyTitle": "No workflow yet",
+      "newName": "Name of the workflow",
+      "slugIs": "Address: {{slug}}"
+    },
+    "addRole": "Add role",
+    "newRole": "New role, e.g. Test",
+    "roles": "Roles",
+    "checksClean": "Nothing keeps this workflow from running.",
+    "exit": {
+      "else": "anything else",
+      "limit": "rounds used up",
+      "timeout": "time ran out",
+      "out": "event arrived"
+    },
+    "none": "none",
+    "notFound": "This workflow does not exist in your organisation.",
+    "removeWord": "Remove {{word}}",
+    "saved": "Saved as version {{n}}.",
+    "sumTrigger": "starts a case",
+    "unsaved": "Unsaved · save",
+    "unsavedProblems": "{{count}} problems",
+    "unsavedProblems_one": "{{count}} problem",
+    "versionN": "version {{n}}"
   }
 }
