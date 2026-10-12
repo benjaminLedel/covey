@@ -404,7 +404,7 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 
 	// Workflows as serve wires them: the host, and the backlog's completion
 	// hook that moves a run on when its step's task ends.
-	s.workflows = &workflowhost.Host{Store: workflow.NewStore(pool), Backlog: s.backlog, Agents: s.registry}
+	s.workflows = &workflowhost.Host{Store: workflow.NewStore(pool), Backlog: s.backlog, Agents: s.registry, Platform: s.orch}
 	if err := s.workflows.Load(ctx); err != nil {
 		t.Fatal(err)
 	}

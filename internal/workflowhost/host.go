@@ -12,10 +12,12 @@ package workflowhost
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -42,10 +44,18 @@ type Messenger interface {
 	Notify(ctx context.Context, orgID uuid.UUID, m workflow.Message) error
 }
 
+// Platform is what a workflow borrows from the orchestrator (#566): the
+// heartbeat's gate, and an action run as a colleague under its rules.
+type Platform interface {
+	HasWork(ctx context.Context, orgID, agentID uuid.UUID, condition string) (bool, string)
+	ActAs(ctx context.Context, agent agents.Agent, system, action string, params json.RawMessage, pending string) (string, error)
+}
+
 type Host struct {
 	Store     *workflow.Store
 	Backlog   *backlog.Store
 	Agents    *agents.Registry
+	Platform  Platform  // nil: gates fire, actions refuse
 	Messenger Messenger // may be nil
 	Log       *slog.Logger
 	// Now is the clock; nil means time.Now.
@@ -200,6 +210,9 @@ func (h *Host) stepFailed(hw *hosted, runID, step, reason string) {
 // Tick runs every engine's clock once: limits, waits, required steps that
 // may have found someone.
 func (h *Host) Tick() {
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	defer cancel()
+	h.fireSchedules(ctx)
 	h.mu.Lock()
 	engines := make([]*workflow.Engine, 0, len(h.engines))
 	for _, hw := range h.engines {
@@ -306,8 +319,75 @@ func (o *outside) Dispatch(t workflow.Task) error {
 	return err
 }
 
+// Act runs the action as the colleague the step names (#566), through the
+// orchestrator's own path for an agent's action.
 func (o *outside) Act(a workflow.Action) error {
-	return fmt.Errorf("actions in target systems are %w", ErrNotConnected)
+	if o.h.Platform == nil {
+		return fmt.Errorf("actions in target systems are %w", ErrNotConnected)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	agent, err := o.h.colleague(ctx, o.orgID, o.workflowID, a.As)
+	if err != nil {
+		return err
+	}
+	pending, err := o.h.Platform.ActAs(ctx, agent, a.System, a.Do, paramsJSON(a.Params), a.Pending)
+	if err != nil {
+		return err
+	}
+	if pending != "" {
+		return &workflow.PendingError{Approval: pending}
+	}
+	return nil
+}
+
+// paramsJSON passes the parameters as the plugin reads them: a value that is
+// a whole number or true/false is passed as one, everything else as text —
+// "issue_iid": "12" would not unmarshal into an int.
+func paramsJSON(params map[string]string) json.RawMessage {
+	out := make(map[string]any, len(params))
+	for k, v := range params {
+		switch {
+		case v == "true" || v == "false":
+			out[k] = v == "true"
+		case isInt(v):
+			n, _ := strconv.ParseInt(v, 10, 64)
+			out[k] = n
+		default:
+			out[k] = v
+		}
+	}
+	raw, _ := json.Marshal(out)
+	return raw
+}
+
+func isInt(v string) bool {
+	if v == "" || len(v) > 18 {
+		return false
+	}
+	_, err := strconv.ParseInt(v, 10, 64)
+	return err == nil && !strings.HasPrefix(v, "+") && (v == "0" || !strings.HasPrefix(strings.TrimPrefix(v, "-"), "0"))
+}
+
+// colleague resolves `as`: a role of the workflow (its first available
+// member) or an agent slug — hired and not stopped either way.
+func (h *Host) colleague(ctx context.Context, orgID, workflowID uuid.UUID, as string) (agents.Agent, error) {
+	h.mu.Lock()
+	hw := h.engines[workflowID]
+	h.mu.Unlock()
+	names := []string{as}
+	if hw != nil {
+		if members, ok := hw.stored.Def.Roles[as]; ok {
+			names = members
+		}
+	}
+	for _, name := range names {
+		a, err := h.Agents.GetBySlug(ctx, orgID, name)
+		if err == nil && !a.Draft() && !a.Killed {
+			return a, nil
+		}
+	}
+	return agents.Agent{}, fmt.Errorf("nobody can act as %q: no hired, running agent", as)
 }
 
 func (o *outside) Ask(q workflow.Question) error {

@@ -2,9 +2,13 @@ package workflow
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
+	"time"
 )
+
+var dailyPattern = regexp.MustCompile(`^([01][0-9]|2[0-3]):[0-5][0-9]$`)
 
 // Problem is something in a definition that keeps it from being saved.
 type Problem struct {
@@ -82,6 +86,26 @@ func Check(d *Definition) []Problem {
 		}
 
 		switch s.Kind {
+		case KindTrigger:
+			if s.Daily != "" && !dailyPattern.MatchString(s.Daily) {
+				add(id, "bad-time", "daily must be HH:MM, got %q", s.Daily)
+			}
+			if s.Every > 0 && s.Every < time.Minute {
+				add(id, "too-often", "every %s is shorter than a minute", s.Every)
+			}
+			if s.OnlyIf != "" && s.Every == 0 && s.Daily == "" {
+				add(id, "gate-without-schedule", "only_if needs every or daily, as nur-wenn needs alle or täglich")
+			}
+			if s.OnlyIf != "" && s.As == "" {
+				add(id, "no-colleague", "only_if checks with a colleague's access; name it with as")
+			}
+		case KindAction:
+			if s.System == "" || s.Do == "" {
+				add(id, "incomplete-action", "an action needs system and do")
+			}
+			if s.As == "" {
+				add(id, "no-colleague", "an action runs as a colleague; name it with as")
+			}
 		case KindAgent:
 			if _, ok := d.Roles[s.Role]; !ok {
 				add(id, "unknown-role", "role %q is not defined", s.Role)

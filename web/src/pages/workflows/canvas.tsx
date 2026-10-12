@@ -93,8 +93,11 @@ export function useBlockSummary() {
   return (s: Pick<CanvasState, "roles" | "available">, b: Block): string => {
     const c = b.cfg;
     switch (b.type) {
-      case "trigger":
-        return t("workflows.sumTrigger");
+      case "trigger": {
+        // Its sources in their own words: every 15m · gitlab:… · zammad · token.
+        const parts = [c.every ? `${t("workflows.trigger.everyShort")} ${c.every}` : "", c.daily ? `${t("workflows.trigger.dailyShort")} ${c.daily}` : "", String(c.onlyIf ?? ""), String(c.webhook ?? ""), c.token ? "token" : ""].filter(Boolean);
+        return parts.length ? parts.join(" · ") : t("workflows.sumTrigger");
+      }
       case "agent": {
         const members = s.roles[String(c.role)] ?? [];
         const free = members.filter(s.available);

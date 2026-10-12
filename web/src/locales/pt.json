@@ -3362,7 +3362,22 @@
       "remove": "Remover ligação"
     },
     "trigger": {
-      "note": "Os gatilhos dos sistemas de destino chegam mais tarde. Até lá, um caso inicia-se à mão em Casos ou através da API."
+      "reuse": "Um fluxo de trabalho começa com os gatilhos que os agentes têm: um agendamento com a condição de um heartbeat, o webhook de um sistema de destino, o gatilho por token.",
+      "every": "A cada",
+      "everyShort": "a cada",
+      "daily": "Todos os dias às",
+      "dailyShort": "diariamente",
+      "dailyHint": "HH:MM, como täglich: num heartbeat.",
+      "onlyIf": "Só se",
+      "onlyIfHint": "A mesma condição que nur-wenn: num heartbeat, p. ex. gitlab:issues:assignee:<user>:<projeto>. Sem ela, o agendamento inicia sempre um caso.",
+      "as": "Verifica como",
+      "asHint": "O colega com cujo acesso a condição é verificada, tal como um heartbeat usa o do seu agente.",
+      "webhook": "Webhook de",
+      "webhookHint": "Endereço para o sistema de destino: {{url}}",
+      "token": "Iniciar por token (como o gatilho de um agente)",
+      "newToken": "Criar novo token",
+      "tokenShown": "Mostrado apenas esta vez. O token anterior deixa de funcionar.",
+      "manual": "Um caso pode sempre ser iniciado à mão em Casos, ou através da API."
     },
     "agent": {
       "role": "Função",
@@ -3407,10 +3422,12 @@
     "action": {
       "system": "Sistema de destino",
       "op": "Ação",
-      "target": "Ticket",
-      "value": "Valor",
-      "comment": "Comentário associado",
-      "notYet": "As ações em sistemas de destino ainda não estão ligadas: um caso pára neste passo."
+      "reuse": "Executa a ação própria do sistema de destino, como o colega indicado aqui: com o seu acesso, as suas ferramentas atribuídas, os seus limites de segurança e as suas aprovações.",
+      "as": "Executa como",
+      "asHint": "Um agente, ou uma função da qual é escolhido o primeiro membro disponível.",
+      "opHint": "A ação do plugin, tal como um agente a chama, p. ex. set_state.",
+      "params": "Parâmetros",
+      "paramsHint": "Um por linha, nome: valor. Marcadores como {{case.no}} são preenchidos; números inteiros e true/false são passados como tal."
     },
     "approval": {
       "who": "Quem decide",

@@ -36,10 +36,21 @@ type Task struct {
 	Result                    []string
 }
 
+// Action is a target-system action the workflow runs as a colleague (As,
+// an agent slug or a role). Params are the plugin's own parameters with the
+// placeholders filled. Pending is the approval an earlier attempt asked for.
 type Action struct {
-	Run, Step                          string
-	System, Do, Target, Value, Comment string
+	Run, Case, Step string
+	As, System, Do  string
+	Params          map[string]string
+	Pending         string
 }
+
+// PendingError is how Act says the action waits for an approval: the run
+// waits at its step and the clock tries again until it is decided.
+type PendingError struct{ Approval string }
+
+func (p *PendingError) Error() string { return "waits for approval " + p.Approval }
 
 type Question struct {
 	Run, Step, To, Text string
@@ -391,10 +402,32 @@ func (e *Engine) Tick() {
 			e.enter(r, s.Next[ExitTimeout])
 		case r.Unstaffed:
 			e.staff(r, s)
+		case r.State == StateWaiting && s.Kind == KindAction:
+			// An action that waits for its approval asks again.
+			if e.act(r, s) {
+				e.enter(r, s.Next[ExitOut])
+			}
 		}
 	}
 	e.drainQueues()
 }
+
+// OpenRun returns the open run of a case, if it has one.
+func (e *Engine) OpenRun(caseRef string) (Run, bool) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	id, ok := e.byCase[caseRef]
+	if !ok {
+		return Run{}, false
+	}
+	return e.runs[id].snapshot(), true
+}
+
+// Trigger is the definition's trigger step.
+func (e *Engine) Trigger() *Step { return e.def.Steps[e.trigger] }
+
+// Mode is what the workflow does to the cases it sees.
+func (e *Engine) Mode() Mode { return e.def.Mode }
 
 // Run returns a copy of one run.
 func (e *Engine) Run(id string) (Run, bool) {
@@ -446,12 +479,9 @@ func (e *Engine) enter(r *Run, id string) {
 				return
 			}
 		case KindAction:
-			a := Action{Run: r.ID, Step: id, System: s.System, Do: s.Do, Target: e.render(r, s.Target), Value: e.render(r, s.Value), Comment: e.render(r, s.Comment)}
-			if err := e.out.Act(a); err != nil {
-				e.fail(r, id, "%s %s failed: %v", s.System, s.Do, err)
+			if !e.act(r, s) {
 				return
 			}
-			e.log(r, id, "%s: %s %s", s.System, s.Do, a.Target)
 			id = s.Next[ExitOut]
 		case KindApproval:
 			r.State = StateWaiting
@@ -478,6 +508,33 @@ func (e *Engine) enter(r *Run, id string) {
 			return
 		}
 	}
+}
+
+// act runs an action step. It reports whether the run moves on; a run whose
+// action waits for an approval stays at the step, waiting.
+func (e *Engine) act(r *Run, s *Step) bool {
+	params := make(map[string]string, len(s.Params))
+	for k, v := range s.Params {
+		params[k] = e.render(r, v)
+	}
+	a := Action{Run: r.ID, Case: r.Case, Step: s.ID, As: s.As, System: s.System, Do: s.Do, Params: params, Pending: r.Vars[s.ID]["approval"]}
+	err := e.out.Act(a)
+	var pending *PendingError
+	switch {
+	case errors.As(err, &pending):
+		if r.Vars[s.ID]["approval"] != pending.Approval {
+			r.Vars[s.ID] = map[string]string{"approval": pending.Approval}
+			e.log(r, s.ID, "%s %s waits for approval %s", s.System, s.Do, pending.Approval)
+		}
+		r.State = StateWaiting
+		return false
+	case err != nil:
+		e.fail(r, s.ID, "%s %s as %s failed: %v", s.System, s.Do, s.As, err)
+		return false
+	}
+	delete(r.Vars, s.ID)
+	e.log(r, s.ID, "%s: %s as %s", s.System, s.Do, s.As)
+	return true
 }
 
 // branch picks a condition's exit. A value that loops back counts a round;

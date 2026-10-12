@@ -2,6 +2,10 @@ package httpapi
 
 import (
 	"errors"
+
+	"github.com/google/uuid"
+
+	"covey/internal/workflowhost"
 	"net/http"
 	"sort"
 	"strings"
@@ -52,9 +56,13 @@ type stepView struct {
 	MaxRounds   int               `json:"max_rounds,omitempty"`
 	System      string            `json:"system,omitempty"`
 	Do          string            `json:"do,omitempty"`
-	Target      string            `json:"target,omitempty"`
-	Value       string            `json:"value,omitempty"`
-	Comment     string            `json:"comment,omitempty"`
+	Params      map[string]string `json:"params,omitempty"`
+	As          string            `json:"as,omitempty"`
+	Every       int64             `json:"every,omitempty"`
+	Daily       string            `json:"daily,omitempty"`
+	OnlyIf      string            `json:"only_if,omitempty"`
+	Webhook     string            `json:"webhook,omitempty"`
+	Token       bool              `json:"token,omitempty"`
 	Who         string            `json:"who,omitempty"`
 	Ask         string            `json:"ask,omitempty"`
 	Options     []string          `json:"options,omitempty"`
@@ -75,6 +83,7 @@ type runCounts struct {
 }
 
 type workflowView struct {
+	ID        string              `json:"id"`
 	Slug      string              `json:"slug"`
 	Name      string              `json:"name"`
 	Version   int                 `json:"version"`
@@ -107,7 +116,7 @@ type runView struct {
 
 func viewOf(st workflow.Stored, runs []workflow.Run, full bool) workflowView {
 	v := workflowView{
-		Slug: st.Slug, Name: st.Def.Name, Version: st.Version, Mode: string(st.Def.Mode),
+		ID: st.ID.String(), Slug: st.Slug, Name: st.Def.Name, Version: st.Version, Mode: string(st.Def.Mode),
 		Scope: st.Def.Scope, Owner: st.Def.Owner, Roles: st.Def.Roles, UpdatedAt: st.UpdatedAt,
 	}
 	if v.Name == "" {
@@ -139,7 +148,8 @@ func viewOf(st workflow.Stored, runs []workflow.Run, full bool) workflowView {
 				Role: s.Role, Pick: string(s.Pick), Sticky: s.Sticky, MaxParallel: s.MaxParallel, NotSameAs: s.NotSameAs,
 				Optional: s.Optional, Task: s.Task, Result: s.Result, QuestionsTo: s.QuestionsTo, Limit: secs(s.Limit),
 				On: s.On, MaxRounds: s.MaxRounds,
-				System: s.System, Do: s.Do, Target: s.Target, Value: s.Value, Comment: s.Comment,
+				System: s.System, Do: s.Do, Params: s.Params, As: s.As,
+				Every: secs(s.Every), Daily: s.Daily, OnlyIf: s.OnlyIf, Webhook: s.Webhook, Token: s.Token,
 				Who: s.Who, Ask: s.Ask, Options: s.Options, Wait: secs(s.Wait),
 				Until: s.Until, Max: secs(s.Max), To: s.To, Via: s.Via, Text: s.Text,
 			})
@@ -523,4 +533,109 @@ func (s *Server) handleRunEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	run, _ := eng.Run(r.PathValue("id"))
 	writeJSON(w, http.StatusOK, runViewOf(run, true))
+}
+
+// --- Triggers (#566): the doors agents have, opened for a workflow ---
+
+// handleWorkflowWebhook — POST /api/webhooks/{system}/workflows/{id}: a
+// target system's webhook, verified and parsed by the system's own code as
+// for an agent, delivered to the workflow. The event's correlation key is the
+// case.
+func (s *Server) handleWorkflowWebhook(w http.ResponseWriter, r *http.Request) {
+	if !s.workflowsOn(w) {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeErr(w, http.StatusNotFound, "no such workflow")
+		return
+	}
+	st, ok := s.Workflows.ByID(id)
+	if !ok {
+		writeErr(w, http.StatusNotFound, "no such workflow")
+		return
+	}
+	if !s.webhookLimiter.allow("workflow:"+id.String(), time.Now()) {
+		w.Header().Set("Retry-After", "60")
+		writeErr(w, http.StatusTooManyRequests, "too many webhook calls for this workflow — please redeliver later")
+		return
+	}
+	system := r.PathValue("system")
+	ev, ok := s.readTargetWebhook(w, r, st.OrgID, system)
+	if !ok {
+		return
+	}
+	s.deliver(w, r, id, workflowhost.Delivery{
+		Source: "webhook:" + system, Case: ev.CorrelationKey, Title: ev.Title, Body: ev.TaskBody,
+		DedupKey: ev.DedupKey, Start: ev.Wake && !ev.CorrelateOnly,
+	})
+}
+
+// handleWorkflowTrigger — POST /api/trigger/workflows/{token}: the token
+// trigger, with the payload an agent's takes, plus the case it is about.
+func (s *Server) handleWorkflowTrigger(w http.ResponseWriter, r *http.Request) {
+	if !s.workflowsOn(w) {
+		return
+	}
+	id, err := s.Workflows.Store.ByToken(r.Context(), r.PathValue("token"))
+	if err != nil {
+		writeErr(w, http.StatusNotFound, "unknown token")
+		return
+	}
+	if !s.webhookLimiter.allow("workflow:"+id.String(), time.Now()) {
+		w.Header().Set("Retry-After", "60")
+		writeErr(w, http.StatusTooManyRequests, "too many trigger calls for this workflow — please redeliver later")
+		return
+	}
+	in, ok := readTriggerPayload(w, r)
+	if !ok {
+		return
+	}
+	s.deliver(w, r, id, workflowhost.Delivery{Source: "token", Case: in.Case, Title: in.Title, Body: in.Body, DedupKey: in.DedupKey, Start: true})
+}
+
+func (s *Server) deliver(w http.ResponseWriter, r *http.Request, id uuid.UUID, d workflowhost.Delivery) {
+	outcome, err := s.Workflows.Deliver(r.Context(), id, d)
+	switch {
+	case errors.Is(err, workflow.ErrNotFound):
+		writeErr(w, http.StatusNotFound, "no such workflow")
+	case errors.Is(err, workflowhost.ErrNoTrigger):
+		writeErr(w, http.StatusNotFound, err.Error())
+	case err != nil:
+		writeErr(w, http.StatusInternalServerError, err.Error())
+	default:
+		writeJSON(w, http.StatusOK, map[string]string{"outcome": outcome})
+	}
+}
+
+// handleWorkflowToken — POST/DELETE /api/v1/workflows/{slug}/token: a new
+// token for the token trigger (shown this once), or none. The definition
+// switches the trigger on with `token: true`; the token itself is never in it.
+func (s *Server) handleWorkflowToken(w http.ResponseWriter, r *http.Request) {
+	if !s.workflowsOn(w) {
+		return
+	}
+	st, err := s.Workflows.Store.Get(r.Context(), principalFrom(r).OrgID, r.PathValue("slug"))
+	if errors.Is(err, workflow.ErrNotFound) {
+		writeErr(w, http.StatusNotFound, "workflow not found")
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if r.Method == http.MethodDelete {
+		if err := s.Workflows.Store.DropToken(r.Context(), st.ID); err != nil {
+			writeErr(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"enabled": false})
+		return
+	}
+	token, err := s.Workflows.Store.NewToken(r.Context(), st.ID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "token": token, "url": s.origin(r) + "/api/trigger/workflows/" + token})
 }

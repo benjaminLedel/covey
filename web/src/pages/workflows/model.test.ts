@@ -9,12 +9,29 @@ import { autoLayout, durationSeconds, durationText, example, fromWorkflow, layou
    if either side changes the format, one of the two fails.
    UPDATE_WORKFLOW_FIXTURE=1 npm test rewrites it. */
 const fixture = resolve(__dirname, "../../../../internal/workflow/testdata/from-editor.workflow");
+const triggersFixture = resolve(__dirname, "../../../../internal/workflow/testdata/from-editor-triggers.workflow");
 
 describe("the workflow pages' model", () => {
   it("writes the example as the fixture the engine's tests parse", () => {
     const src = toSource(example("en"));
     if (process.env.UPDATE_WORKFLOW_FIXTURE) writeFileSync(fixture, src);
     expect(src).toBe(readFileSync(fixture, "utf8"));
+  });
+
+  it("writes triggers and actions as the engine reads them", () => {
+    const doc = example("en");
+    doc.meta.mode = "steer";
+    doc.blocks.t.cfg = { as: "Engineering", every: "15m", daily: "", onlyIf: "gitlab:issues:assignee:builder:acme/app", webhook: "zammad", token: true };
+    doc.blocks.s = { id: "s", type: "action", title: "Close", cfg: { as: "Test", system: "zammad", do: "set_state", params: ["ticket_id: {{case.no}}", "state: closed"] } };
+    doc.order = [...doc.order, "s"];
+    doc.links = doc.links.map((l) => (l.from === "w" && l.port === "out" ? { ...l, to: "s" } : l));
+    doc.links.push({ from: "s", port: "out", to: "e" });
+    doc.positions.s = { x: 1500, y: 400 };
+    const src = toSource(doc);
+    if (process.env.UPDATE_WORKFLOW_FIXTURE) writeFileSync(triggersFixture, src);
+    expect(src).toBe(readFileSync(triggersFixture, "utf8"));
+    expect(src).toContain('    only_if: "gitlab:issues:assignee:builder:acme/app"');
+    expect(src).toContain('      "state": "closed"');
   });
 
   it("writes canonical values and exit keys, not the words shown", () => {
@@ -36,6 +53,7 @@ describe("the workflow pages' model", () => {
     expect(layoutOf(src).b).toEqual({ x: 777, y: 333 });
     // The API sends steps; the canvas takes the positions from the text.
     const w: Workflow = {
+      id: "00000000-0000-0000-0000-000000000000",
       slug: "x", name: "Customer ticket", version: 1, mode: "watch", scope: "", owner: "admin",
       roles: doc.meta.roles, updated_at: "", runs: { open: 0, working: 0, queued: 0, waiting: 0, stuck: 0 }, source: src,
       steps: [

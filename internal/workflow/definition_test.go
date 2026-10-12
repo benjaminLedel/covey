@@ -29,6 +29,9 @@ func TestTheExampleParsesAndPassesTheChecks(t *testing.T) {
 	if d.Steps["w"].Max != 14*24*time.Hour {
 		t.Errorf("14d read as %s", d.Steps["w"].Max)
 	}
+	if s := d.Steps["s"]; s.As != "Engineering" || s.Params["assignee"] != "alex" {
+		t.Errorf("action read wrongly: %+v", s)
+	}
 	if got := strings.Join(d.Steps["h"].Options, ","); got != "retry,self" {
 		t.Errorf("approval options = %q, want them in the file's order", got)
 	}
@@ -75,6 +78,12 @@ func TestCheckNamesWhatKeepsAWorkflowFromRunning(t *testing.T) {
 		{"endless wait", "  t:\n    type: trigger\n    next: w\n  w:\n    type: wait\n    next: e\n  e:\n    type: end\n", "endless-wait"},
 		{"approval without a person", "  t:\n    type: trigger\n    next: h\n  h:\n    type: approval\n    next:\n      ok: e\n  e:\n    type: end\n", "no-person"},
 		{"approval deadline without its exit", "  t:\n    type: trigger\n    next: h\n  h:\n    type: approval\n    who: ada\n    wait: 2d\n    next:\n      ok: e\n  e:\n    type: end\n", "no-timeout-exit"},
+		{"gate without a colleague", "  t:\n    type: trigger\n    every: 15m\n    only_if: gitlab:issues\n    next: e\n  e:\n    type: end\n", "no-colleague"},
+		{"gate without a schedule", "  t:\n    type: trigger\n    as: ada\n    only_if: gitlab:issues\n    next: e\n  e:\n    type: end\n", "gate-without-schedule"},
+		{"daily at no time", "  t:\n    type: trigger\n    daily: \"25:00\"\n    next: e\n  e:\n    type: end\n", "bad-time"},
+		{"every few seconds", "  t:\n    type: trigger\n    every: 10s\n    next: e\n  e:\n    type: end\n", "too-often"},
+		{"action as nobody", "  t:\n    type: trigger\n    next: s\n  s:\n    type: action\n    system: gitlab\n    do: assign\n    next: e\n  e:\n    type: end\n", "no-colleague"},
+		{"action without what", "  t:\n    type: trigger\n    next: s\n  s:\n    type: action\n    as: ada\n    next: e\n  e:\n    type: end\n", "incomplete-action"},
 		{"end with an exit", "  t:\n    type: trigger\n    next: e\n  e:\n    type: end\n    next: t\n", "end-has-exits"},
 	}
 	for _, c := range cases {

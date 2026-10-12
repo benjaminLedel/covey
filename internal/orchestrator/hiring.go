@@ -563,7 +563,7 @@ func (o *Orchestrator) railsAllow(ctx context.Context, agent agents.Agent, taskI
 		if err != nil {
 			raw = json.RawMessage(`{}`)
 		}
-		gate := o.approvalGate(ctx, agent, taskID, subject, raw, binding)
+		gate := o.approvalGate(ctx, agent, &taskID, subject, raw, binding)
 		switch {
 		case gate.Error != "":
 			return railsVerdict{Reason: "approval could not be created: " + gate.Error}

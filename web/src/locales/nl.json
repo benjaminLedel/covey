@@ -3362,7 +3362,22 @@
       "remove": "Verbinding verwijderen"
     },
     "trigger": {
-      "note": "Triggers uit doelsystemen komen later. Tot dan start je een zaak met de hand onder Zaken, of via de API."
+      "reuse": "Een workflow start met de triggers die agents hebben: een schema met de voorwaarde van een heartbeat, de webhook van een doelsysteem, de trigger via token.",
+      "every": "Elke",
+      "everyShort": "elke",
+      "daily": "Dagelijks om",
+      "dailyShort": "dagelijks",
+      "dailyHint": "HH:MM, zoals täglich: in een heartbeat.",
+      "onlyIf": "Alleen als",
+      "onlyIfHint": "Dezelfde voorwaarde als nur-wenn: in een heartbeat, bijv. gitlab:issues:assignee:<user>:<project>. Zonder start het schema altijd een zaak.",
+      "as": "Controleert als",
+      "asHint": "De collega met wiens toegang de voorwaarde wordt gecontroleerd, zoals een heartbeat die van zijn agent gebruikt.",
+      "webhook": "Webhook van",
+      "webhookHint": "Adres voor het doelsysteem: {{url}}",
+      "token": "Starten via token (zoals de trigger van een agent)",
+      "newToken": "Nieuw token aanmaken",
+      "tokenShown": "Wordt maar één keer getoond. Het vorige token werkt dan niet meer.",
+      "manual": "Met de hand kan altijd: onder Zaken, of via de API."
     },
     "agent": {
       "role": "Rol",
@@ -3407,10 +3422,12 @@
     "action": {
       "system": "Doelsysteem",
       "op": "Actie",
-      "target": "Ticket",
-      "value": "Waarde",
-      "comment": "Opmerking erbij",
-      "notYet": "Acties in doelsystemen zijn nog niet gekoppeld: een zaak stopt bij deze stap."
+      "reuse": "Voert de eigen actie van het doelsysteem uit, als de collega die hier staat: met diens toegang, toegewezen tools, guardrails en goedkeuringen.",
+      "as": "Uitvoeren als",
+      "asHint": "Een agent, of een rol waarvan het eerste beschikbare lid wordt genomen.",
+      "opHint": "De actie van de plugin, zoals een agent die aanroept, bijv. set_state.",
+      "params": "Parameters",
+      "paramsHint": "Eén per regel, naam: waarde. Plaatshouders zoals {{case.no}} worden ingevuld; hele getallen en true/false worden als zodanig doorgegeven."
     },
     "approval": {
       "who": "Wie beslist",

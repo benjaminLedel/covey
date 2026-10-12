@@ -3362,7 +3362,22 @@
       "remove": "Verbindung entfernen"
     },
     "trigger": {
-      "note": "Auslöser aus Zielsystemen kommen später. Bis dahin startest du einen Vorgang von Hand unter „Vorgänge“ oder über die API."
+      "reuse": "Ein Ablauf startet mit den Auslösern, die Agenten haben: Zeitplan mit Heartbeat-Bedingung, Webhook eines Zielsystems, Trigger per Token.",
+      "every": "Alle",
+      "everyShort": "alle",
+      "daily": "Täglich um",
+      "dailyShort": "täglich",
+      "dailyHint": "HH:MM, wie täglich: im Heartbeat.",
+      "onlyIf": "Nur wenn",
+      "onlyIfHint": "Dieselbe Bedingung wie nur-wenn: im Heartbeat, z. B. gitlab:issues:assignee:<user>:<projekt>. Ohne sie startet der Zeitplan immer einen Vorgang.",
+      "as": "Prüft als",
+      "asHint": "Der Kollege, mit dessen Zugang die Bedingung prüft, so wie ein Heartbeat den seines Agenten nutzt.",
+      "webhook": "Webhook von",
+      "webhookHint": "Adresse für das Zielsystem: {{url}}",
+      "token": "Start per Token (wie der Trigger eines Agenten)",
+      "newToken": "Neuen Token erzeugen",
+      "tokenShown": "Wird nur jetzt angezeigt. Der bisherige Token gilt dann nicht mehr.",
+      "manual": "Von Hand geht immer: unter „Vorgänge“ oder über die API."
     },
     "agent": {
       "role": "Rolle",
@@ -3407,10 +3422,12 @@
     "action": {
       "system": "Zielsystem",
       "op": "Aktion",
-      "target": "Ticket",
-      "value": "Wert",
-      "comment": "Kommentar",
-      "notYet": "Aktionen in Zielsystemen sind noch nicht angebunden: Ein Vorgang hält an diesem Schritt an."
+      "reuse": "Führt die eigene Aktion des Zielsystems aus, als der Kollege, der hier steht: mit seinem Zugang, seinen Tool-Freigaben, Guard-Rails und Freigaben.",
+      "as": "Ausführen als",
+      "asHint": "Ein Agent oder eine Rolle; dann übernimmt das erste verfügbare Mitglied.",
+      "opHint": "Die Aktion des Plugins, wie ein Agent sie aufruft, z. B. set_state.",
+      "params": "Parameter",
+      "paramsHint": "Einer pro Zeile, Name: Wert. Platzhalter wie {{case.no}} werden gefüllt; ganze Zahlen und true/false gehen als solche raus."
     },
     "approval": {
       "who": "Wer entscheidet",

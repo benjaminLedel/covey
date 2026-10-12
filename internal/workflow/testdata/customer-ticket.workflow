@@ -57,11 +57,13 @@ steps:
   s:
     type: action
     title: Ticket to Alex
+    as: Engineering
     system: gitlab
     do: assign
-    target: "{{case.no}}"
-    value: alex
-    comment: "Accepted, {{b.mr}}. Please start the customer test."
+    params:
+      issue_iid: "{{case.no}}"
+      assignee: alex
+      note: "Accepted, {{b.mr}}. Please start the customer test."
     next: w
   w:
     type: wait

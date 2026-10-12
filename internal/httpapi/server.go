@@ -785,6 +785,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/workflows/{slug}/runs/{id}", s.rbac(anyRole, s.handleGetRun))
 	mux.Handle("POST /api/v1/workflows/{slug}/runs/{id}/decide", s.rbac(anyRole, s.handleDecideRun))
 	mux.Handle("POST /api/v1/workflows/{slug}/runs/{id}/events", s.rbac(manage, s.handleRunEvent))
+	mux.Handle("POST /api/v1/workflows/{slug}/token", s.rbac(manage, s.handleWorkflowToken))
+	mux.Handle("DELETE /api/v1/workflows/{slug}/token", s.rbac(manage, s.handleWorkflowToken))
 	mux.Handle("GET /api/v1/skills", s.rbac(anyRole, s.handleListSkills))
 	mux.Handle("POST /api/v1/skills", s.rbac(manage, s.handleCreateSkill))
 	mux.Handle("GET /api/v1/skills/{id}", s.rbac(anyRole, s.handleGetSkill))
@@ -895,6 +897,10 @@ func (s *Server) Handler() http.Handler {
 	// question when hooking up a target system.
 	mux.HandleFunc("POST /api/webhooks/{system}/{agent}", s.logIncoming(s.handleTargetWebhook))
 	mux.HandleFunc("POST /api/trigger/{token}", s.logIncoming(s.handleAgentTrigger))
+	// A workflow's own doors (#566): the same webhook parsing and the same
+	// token trigger, delivered to the workflow instead of an agent.
+	mux.HandleFunc("POST /api/webhooks/{system}/workflows/{id}", s.logIncoming(s.handleWorkflowWebhook))
+	mux.HandleFunc("POST /api/trigger/workflows/{token}", s.logIncoming(s.handleWorkflowTrigger))
 	mux.HandleFunc("GET /api/daemon/ws", s.handleDaemonWS)
 
 	// The runner API (spec/16): a runner's only interface to the platform,

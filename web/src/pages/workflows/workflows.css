@@ -281,3 +281,6 @@ button.wf-stat:hover { border-color: var(--border-strong); }
 .wf-member .wf-member-x { margin-left: 4px; color: var(--text-muted); }
 .wf-start { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; padding: 10px; border: 0.5px solid var(--border); border-radius: var(--radius); background: var(--surface-2); }
 .wf-start .input { width: 100%; max-width: none; }
+.wf-mono { font-family: var(--mono); font-size: 12px; }
+.wf-token { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; align-items: flex-start; }
+.wf-token code { white-space: normal; word-break: break-all; padding: 4px 6px; }

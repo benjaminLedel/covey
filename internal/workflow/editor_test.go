@@ -40,3 +40,25 @@ func TestTheEngineReadsWhatTheEditorWrites(t *testing.T) {
 		t.Errorf("mode %q", d.Mode)
 	}
 }
+
+// The same for a trigger with its sources and an action with parameters.
+func TestTheEngineReadsTheEditorsTriggersAndActions(t *testing.T) {
+	src, err := os.ReadFile("testdata/from-editor-triggers.workflow")
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := Parse(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ps := Check(d); len(ps) > 0 {
+		t.Fatalf("problems: %v", ps)
+	}
+	tr, s := d.Steps["t"], d.Steps["s"]
+	if tr.As != "Engineering" || tr.Every != 15*time.Minute || tr.OnlyIf != "gitlab:issues:assignee:builder:acme/app" || tr.Webhook != "zammad" || !tr.Token {
+		t.Errorf("trigger: %+v", tr)
+	}
+	if s.As != "Test" || s.System != "zammad" || s.Do != "set_state" || s.Params["ticket_id"] != "{{case.no}}" || s.Params["state"] != "closed" {
+		t.Errorf("action: %+v", s)
+	}
+}

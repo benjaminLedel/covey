@@ -86,6 +86,20 @@ type Step struct {
 	// Next maps an exit to the step it leads to.
 	Next map[string]string
 
+	// trigger — the sources agents already wake from (#566): a schedule
+	// (every / daily, like alle: / täglich:), a gate (only_if, like nur-wenn:),
+	// a target system's webhook, the token trigger. As names the colleague
+	// (an agent or a role) whose access a gate checks with.
+	Every   time.Duration
+	Daily   string // "HH:MM", local time of the control plane
+	OnlyIf  string
+	Webhook string
+	Token   bool
+
+	// As is the colleague a trigger checks as and an action runs as: an agent
+	// slug, or a role whose first available member is taken.
+	As string
+
 	// colleague and AI steps
 	Role        string
 	Pick        Pick
@@ -102,12 +116,10 @@ type Step struct {
 	On        string // "step.field"
 	MaxRounds int
 
-	// action
-	System  string
-	Do      string
-	Target  string
-	Value   string
-	Comment string
+	// action: the plugin's own action and parameters, as an agent calls it
+	System string
+	Do     string
+	Params map[string]string
 
 	// approval
 	Who     string
@@ -128,35 +140,39 @@ type Step struct {
 // The file as YAML reads it. Durations and the two shapes of `next` are
 // converted by hand, so a mistake names the step it is in.
 type fileStep struct {
-	Type        string    `yaml:"type"`
-	Title       string    `yaml:"title"`
-	Next        yaml.Node `yaml:"next"`
-	Role        string    `yaml:"role"`
-	Pick        string    `yaml:"pick"`
-	Sticky      bool      `yaml:"sticky"`
-	MaxParallel int       `yaml:"max_parallel"`
-	NotSameAs   string    `yaml:"not_same_as"`
-	Optional    bool      `yaml:"optional"`
-	Task        string    `yaml:"task"`
-	Prompt      string    `yaml:"prompt"`
-	Result      []string  `yaml:"result"`
-	QuestionsTo string    `yaml:"questions_to"`
-	Limit       string    `yaml:"limit"`
-	On          string    `yaml:"on"`
-	MaxRounds   int       `yaml:"max_rounds"`
-	System      string    `yaml:"system"`
-	Do          string    `yaml:"do"`
-	Target      string    `yaml:"target"`
-	Value       string    `yaml:"value"`
-	Comment     string    `yaml:"comment"`
-	Who         string    `yaml:"who"`
-	Ask         string    `yaml:"ask"`
-	Wait        string    `yaml:"wait"`
-	Until       string    `yaml:"until"`
-	Max         string    `yaml:"max"`
-	To          string    `yaml:"to"`
-	Via         string    `yaml:"via"`
-	Text        string    `yaml:"text"`
+	Type        string            `yaml:"type"`
+	Every       string            `yaml:"every"`
+	Daily       string            `yaml:"daily"`
+	OnlyIf      string            `yaml:"only_if"`
+	Webhook     string            `yaml:"webhook"`
+	Token       bool              `yaml:"token"`
+	As          string            `yaml:"as"`
+	Params      map[string]string `yaml:"params"`
+	Title       string            `yaml:"title"`
+	Next        yaml.Node         `yaml:"next"`
+	Role        string            `yaml:"role"`
+	Pick        string            `yaml:"pick"`
+	Sticky      bool              `yaml:"sticky"`
+	MaxParallel int               `yaml:"max_parallel"`
+	NotSameAs   string            `yaml:"not_same_as"`
+	Optional    bool              `yaml:"optional"`
+	Task        string            `yaml:"task"`
+	Prompt      string            `yaml:"prompt"`
+	Result      []string          `yaml:"result"`
+	QuestionsTo string            `yaml:"questions_to"`
+	Limit       string            `yaml:"limit"`
+	On          string            `yaml:"on"`
+	MaxRounds   int               `yaml:"max_rounds"`
+	System      string            `yaml:"system"`
+	Do          string            `yaml:"do"`
+	Who         string            `yaml:"who"`
+	Ask         string            `yaml:"ask"`
+	Wait        string            `yaml:"wait"`
+	Until       string            `yaml:"until"`
+	Max         string            `yaml:"max"`
+	To          string            `yaml:"to"`
+	Via         string            `yaml:"via"`
+	Text        string            `yaml:"text"`
 }
 
 type file struct {
@@ -231,9 +247,12 @@ func (fs fileStep) step(id string) (*Step, error) {
 		MaxRounds:   fs.MaxRounds,
 		System:      fs.System,
 		Do:          fs.Do,
-		Target:      fs.Target,
-		Value:       fs.Value,
-		Comment:     fs.Comment,
+		Params:      fs.Params,
+		Daily:       fs.Daily,
+		OnlyIf:      fs.OnlyIf,
+		Webhook:     fs.Webhook,
+		Token:       fs.Token,
+		As:          fs.As,
 		Who:         fs.Who,
 		Ask:         fs.Ask,
 		Until:       fs.Until,
@@ -256,6 +275,9 @@ func (fs fileStep) step(id string) (*Step, error) {
 		return nil, fmt.Errorf("unknown pick %q", fs.Pick)
 	}
 	var err error
+	if s.Every, err = duration(fs.Every); err != nil {
+		return nil, fmt.Errorf("every: %w", err)
+	}
 	if s.Limit, err = duration(fs.Limit); err != nil {
 		return nil, fmt.Errorf("limit: %w", err)
 	}

@@ -3,7 +3,7 @@
    reads them; durations are chosen from a few and shown in words. */
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { isDraft, type Agent, type WorkflowProblem } from "../../api";
+import { isDraft, newWorkflowToken, type Agent, type WorkflowProblem } from "../../api";
 import { fmtDelta } from "../../format";
 import { BlockIcon } from "./canvas";
 import { DecisionCard } from "./ChatCards";
@@ -11,6 +11,10 @@ import { durationSeconds, outsOf, type Cfg, type Doc, type Meta } from "./model"
 
 interface Props {
   doc: Doc;
+  // The organisation's active target systems, for webhooks and actions.
+  systems: string[];
+  slug: string;
+  workflowId: string;
   selected: string | null;
   selectedLink: number | null;
   agents: Agent[];
@@ -121,6 +125,12 @@ export default function Inspector(p: Props) {
   );
   const durations = (k: string, values: string[]) =>
     select(k, values.map((v): [string, string] => [v, durationLabel(v, t("workflows.none"))]));
+  const colleagues = (k: string) =>
+    select(k, [
+      ["", "–"],
+      ...Object.keys(doc.meta.roles).map((r): [string, string] => [r, `${t("workflows.agent.role")}: ${r}`]),
+      ...p.agents.filter((a) => !isDraft(a) && !a.killed).map((a): [string, string] => [a.slug, `${a.display_name} (${a.slug})`]),
+    ]);
   const check = (k: string, label: string) => (
     <label className="wf-check">
       <input type="checkbox" checked={Boolean(c[k])} onChange={(e) => set(k, e.target.checked)} />
@@ -152,9 +162,31 @@ export default function Inspector(p: Props) {
 
   let body: React.ReactNode = null;
   switch (b.type) {
-    case "trigger":
-      body = <div className="wf-note info">{t("workflows.trigger.note")}</div>;
+    case "trigger": {
+      const webhookURL = c.webhook ? `${location.origin}/api/webhooks/${c.webhook}/workflows/${p.workflowId}` : "";
+      body = (
+        <>
+          <p className="wf-muted">{t("workflows.trigger.reuse")}</p>
+          <Field label={t("workflows.trigger.every")}>{durations("every", ["", "5m", "15m", "1h", "1d"])}</Field>
+          <Field label={t("workflows.trigger.daily")} hint={t("workflows.trigger.dailyHint")}>
+            {text("daily", "08:00")}
+          </Field>
+          <Field label={t("workflows.trigger.onlyIf")} hint={t("workflows.trigger.onlyIfHint")}>
+            {text("onlyIf", "gitlab:issues:assignee:<user>:<project>")}
+          </Field>
+          <Field label={t("workflows.trigger.as")} hint={t("workflows.trigger.asHint")}>
+            {colleagues("as")}
+          </Field>
+          <Field label={t("workflows.trigger.webhook")} hint={webhookURL ? t("workflows.trigger.webhookHint", { url: webhookURL }) : undefined}>
+            {select("webhook", [["", "–"], ...p.systems.map((x): [string, string] => [x, x])])}
+          </Field>
+          {check("token", t("workflows.trigger.token"))}
+          {c.token ? <TokenButton slug={p.slug} /> : null}
+          <p className="wf-hint">{t("workflows.trigger.manual")}</p>
+        </>
+      );
       break;
+    }
     case "agent": {
       const role = String(c.role ?? "");
       const members = doc.meta.roles[role] ?? [];
@@ -255,12 +287,22 @@ export default function Inspector(p: Props) {
     case "action":
       body = (
         <>
-          <div className="wf-note warn">{t("workflows.action.notYet")}</div>
-          <Field label={t("workflows.action.system")}>{text("system", "gitlab")}</Field>
-          <Field label={t("workflows.action.op")}>{text("do", "assign")}</Field>
-          <Field label={t("workflows.action.target")}>{text("target", "{{case.no}}")}</Field>
-          <Field label={t("workflows.action.value")}>{text("value")}</Field>
-          <Field label={t("workflows.action.comment")}>{area("comment")}</Field>
+          <p className="wf-muted">{t("workflows.action.reuse")}</p>
+          <Field label={t("workflows.action.as")} hint={t("workflows.action.asHint")}>
+            {colleagues("as")}
+          </Field>
+          <Field label={t("workflows.action.system")}>{select("system", [["", "–"], ...p.systems.map((x): [string, string] => [x, x])])}</Field>
+          <Field label={t("workflows.action.op")} hint={t("workflows.action.opHint")}>
+            {text("do", "set_state")}
+          </Field>
+          <Field label={t("workflows.action.params")} hint={t("workflows.action.paramsHint")}>
+            <textarea
+              className="input wf-area wf-mono"
+              value={(Array.isArray(c.params) ? (c.params as string[]) : []).join("\n")}
+              placeholder={"ticket_id: {{case.no}}\nstate: closed"}
+              onChange={(e) => set("params", e.target.value.split("\n"))}
+            />
+          </Field>
         </>
       );
       break;
@@ -433,6 +475,37 @@ function Overview(p: Props) {
         </button>
         {p.save.message && <p className="wf-hint">{p.save.message}</p>}
       </div>
+    </div>
+  );
+}
+
+/* A new token for the token trigger, shown this once: covey keeps only its
+   hash, and the definition never carries it. */
+function TokenButton({ slug }: { slug: string }) {
+  const { t } = useTranslation();
+  const [url, setURL] = useState("");
+  const [error, setError] = useState("");
+  return (
+    <div className="wf-token">
+      <button
+        className="btn sm"
+        type="button"
+        onClick={() => {
+          setError("");
+          newWorkflowToken(slug)
+            .then((r) => setURL(r.url))
+            .catch((e: Error) => setError(e.message));
+        }}
+      >
+        {t("workflows.trigger.newToken")}
+      </button>
+      {url && (
+        <>
+          <code className="wf-var">{url}</code>
+          <span className="wf-hint">{t("workflows.trigger.tokenShown")}</span>
+        </>
+      )}
+      {error && <span className="wf-hint" style={{ color: "var(--text-danger)" }}>{error}</span>}
     </div>
   );
 }

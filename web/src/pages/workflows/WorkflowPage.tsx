@@ -33,6 +33,7 @@ import {
   startWorkflowRun,
   type Agent,
   type Principal,
+  type TargetPlugin,
   type WorkflowProblem,
   type WorkflowRun,
 } from "../../api";
@@ -91,11 +92,11 @@ function blankBlock(type: BlockType, id: string, title: string): Block {
     agent: { role: "", pick: "load", sticky: true, cap: "", notSame: "", optional: false, task: "", output: [], ask: "", limit: "" },
     ai: { task: "", output: [] },
     condition: { field: "", rounds: 0, values: [] },
-    action: { system: "", do: "", target: "", value: "", comment: "" },
+    action: { as: "", system: "", do: "", params: [] },
     approval: { who: "", ask: "", wait: "", options: [] },
     wait: { until: "", max: "" },
     notify: { to: "", via: "chat", text: "" },
-    trigger: {},
+    trigger: { as: "", every: "", daily: "", onlyIf: "", webhook: "", token: false },
     end: {},
   }[type];
   return { id, type, title, cfg };
@@ -113,6 +114,8 @@ function Editor({ me }: { me: Principal }) {
   const runsQ = useQuery({ queryKey: ["workflow-runs", slug], queryFn: () => listWorkflowRuns(slug), refetchInterval: 5000, enabled: wfQ.isSuccess });
   const agentsQ = useQuery({ queryKey: ["agents"], queryFn: () => api<Agent[] | null>("/agents"), staleTime: 60_000 });
   const agents = useMemo(() => agentsQ.data ?? [], [agentsQ.data]);
+  const targetsQ = useQuery({ queryKey: ["targets"], queryFn: () => api<TargetPlugin[] | null>("/targets"), staleTime: 60_000 });
+  const systems = useMemo(() => (targetsQ.data ?? []).filter((p) => p.enabled).map((p) => p.name).sort(), [targetsQ.data]);
 
   const [doc, setDoc] = useState<Doc | null>(null);
   const [nodes, setNodes] = useState<Node[]>([]);
@@ -387,6 +390,9 @@ function Editor({ me }: { me: Principal }) {
     side = (
       <Inspector
         doc={doc}
+        systems={systems}
+        slug={slug}
+        workflowId={wfQ.data.id}
         selected={selected}
         selectedLink={selectedLink}
         agents={agents}

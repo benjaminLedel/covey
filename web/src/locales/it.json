@@ -3362,7 +3362,22 @@
       "remove": "Rimuovi collegamento"
     },
     "trigger": {
-      "note": "Gli avvii dai sistemi di destinazione arriveranno più avanti. Fino ad allora un caso si avvia a mano sotto Casi, oppure tramite l'API."
+      "reuse": "Un workflow parte con gli avvii degli agenti: una pianificazione con la condizione di un heartbeat, il webhook di un sistema di destinazione, l'avvio tramite token.",
+      "every": "Ogni",
+      "everyShort": "ogni",
+      "daily": "Ogni giorno alle",
+      "dailyShort": "ogni giorno",
+      "dailyHint": "HH:MM, come täglich: in un heartbeat.",
+      "onlyIf": "Solo se",
+      "onlyIfHint": "La stessa condizione di nur-wenn: in un heartbeat, ad es. gitlab:issues:assignee:<user>:<progetto>. Senza, la pianificazione avvia sempre un caso.",
+      "as": "Verifica come",
+      "asHint": "Il collega con il cui accesso viene verificata la condizione, come un heartbeat usa quello del suo agente.",
+      "webhook": "Webhook da",
+      "webhookHint": "Indirizzo per il sistema di destinazione: {{url}}",
+      "token": "Avvio tramite token (come l'avvio di un agente)",
+      "newToken": "Crea un nuovo token",
+      "tokenShown": "Mostrato solo questa volta. Il token precedente smette di funzionare.",
+      "manual": "Un caso si può sempre avviare a mano sotto Casi, oppure tramite l'API."
     },
     "agent": {
       "role": "Ruolo",
@@ -3407,10 +3422,12 @@
     "action": {
       "system": "Sistema di destinazione",
       "op": "Azione",
-      "target": "Ticket",
-      "value": "Valore",
-      "comment": "Commento allegato",
-      "notYet": "Le azioni nei sistemi di destinazione non sono ancora collegate: un caso si ferma a questo passaggio."
+      "reuse": "Esegue l'azione propria del sistema di destinazione, come il collega indicato qui: con il suo accesso, i suoi strumenti assegnati, i suoi guardrail e le sue approvazioni.",
+      "as": "Esegui come",
+      "asHint": "Un agente, oppure un ruolo di cui viene scelto il primo membro disponibile.",
+      "opHint": "L'azione del plugin, come la richiama un agente, ad es. set_state.",
+      "params": "Parametri",
+      "paramsHint": "Uno per riga, nome: valore. I segnaposto come {{case.no}} vengono compilati; i numeri interi e true/false vengono passati così come sono."
     },
     "approval": {
       "who": "Chi decide",

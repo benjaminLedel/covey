@@ -3362,7 +3362,22 @@
       "remove": "Supprimer la liaison"
     },
     "trigger": {
-      "note": "Les déclencheurs des systèmes cibles viendront plus tard. D’ici là, un dossier se démarre à la main sous Dossiers, ou via l’API."
+      "reuse": "Un workflow démarre avec les déclencheurs des agents : un planning avec la condition d’un heartbeat, le webhook d’un système cible, le déclencheur par jeton.",
+      "every": "Toutes les",
+      "everyShort": "toutes les",
+      "daily": "Chaque jour à",
+      "dailyShort": "chaque jour",
+      "dailyHint": "HH:MM, comme täglich: dans un heartbeat.",
+      "onlyIf": "Seulement si",
+      "onlyIfHint": "La même condition que nur-wenn: dans un heartbeat, p. ex. gitlab:issues:assignee:<user>:<projet>. Sans elle, le planning démarre toujours un dossier.",
+      "as": "Vérifie en tant que",
+      "asHint": "Le collègue dont l’accès sert à vérifier la condition, comme un heartbeat utilise celui de son agent.",
+      "webhook": "Webhook de",
+      "webhookHint": "Adresse pour le système cible : {{url}}",
+      "token": "Démarrer par jeton (comme le déclencheur d’un agent)",
+      "newToken": "Créer un nouveau jeton",
+      "tokenShown": "Affiché une seule fois. L’ancien jeton cesse de fonctionner.",
+      "manual": "Un dossier peut toujours être démarré à la main sous Dossiers, ou via l’API."
     },
     "agent": {
       "role": "Rôle",
@@ -3407,10 +3422,12 @@
     "action": {
       "system": "Système cible",
       "op": "Action",
-      "target": "Ticket",
-      "value": "Valeur",
-      "comment": "Commentaire associé",
-      "notYet": "Les actions dans les systèmes cibles ne sont pas encore connectées : un dossier s’arrête à cette étape."
+      "reuse": "Exécute l’action propre au système cible, en tant que le collègue indiqué ici : avec son accès, ses outils attribués, ses garde-fous et ses approbations.",
+      "as": "Exécute en tant que",
+      "asHint": "Un agent, ou un rôle dont le premier membre disponible est choisi.",
+      "opHint": "L’action du plugin, telle qu’un agent l’appelle, p. ex. set_state.",
+      "params": "Paramètres",
+      "paramsHint": "Un par ligne, nom : valeur. Les espaces réservés comme {{case.no}} sont remplis ; les nombres entiers et true/false sont transmis tels quels."
     },
     "approval": {
       "who": "Qui décide",

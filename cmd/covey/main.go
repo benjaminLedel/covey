@@ -1448,6 +1448,9 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Agents:  registry,
 		Log:     log,
 	}
+	// Gates and actions are the orchestrator's (#566): the heartbeat's gate,
+	// and an action run as a colleague under its rules.
+	workflows.Platform = orch
 	if err := workflows.Load(ctx); err != nil {
 		log.Error("workflows not loaded", "err", err)
 	}

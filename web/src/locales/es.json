@@ -3362,7 +3362,22 @@
       "remove": "Quitar conexión"
     },
     "trigger": {
-      "note": "Los disparadores de los sistemas de destino llegarán más adelante. Hasta entonces, un caso se inicia a mano en Casos o mediante la API."
+      "reuse": "Un flujo de trabajo arranca con los disparadores de los agentes: una programación con la condición de un heartbeat, el webhook de un sistema de destino, el disparador por token.",
+      "every": "Cada",
+      "everyShort": "cada",
+      "daily": "A diario a las",
+      "dailyShort": "a diario",
+      "dailyHint": "HH:MM, como täglich: en un heartbeat.",
+      "onlyIf": "Solo si",
+      "onlyIfHint": "La misma condición que nur-wenn: en un heartbeat, p. ej. gitlab:issues:assignee:<user>:<proyecto>. Sin ella, la programación siempre inicia un caso.",
+      "as": "Comprueba como",
+      "asHint": "El colega con cuyo acceso se comprueba la condición, igual que un heartbeat usa el de su agente.",
+      "webhook": "Webhook de",
+      "webhookHint": "Dirección para el sistema de destino: {{url}}",
+      "token": "Iniciar mediante token (como el disparador de un agente)",
+      "newToken": "Crear un token nuevo",
+      "tokenShown": "Se muestra solo esta vez. El token anterior deja de funcionar.",
+      "manual": "Un caso siempre se puede iniciar a mano en Casos, o mediante la API."
     },
     "agent": {
       "role": "Puesto",
@@ -3407,10 +3422,12 @@
     "action": {
       "system": "Sistema de destino",
       "op": "Acción",
-      "target": "Ticket",
-      "value": "Valor",
-      "comment": "Comentario adjunto",
-      "notYet": "Las acciones en sistemas de destino aún no están conectadas: un caso se detiene en este paso."
+      "reuse": "Ejecuta la acción propia del sistema de destino, como el colega indicado aquí: con su acceso, sus herramientas asignadas, sus límites de seguridad y sus aprobaciones.",
+      "as": "Se ejecuta como",
+      "asHint": "Un agente, o un puesto del que se toma el primer miembro disponible.",
+      "opHint": "La acción del plugin, tal como la llama un agente, p. ej. set_state.",
+      "params": "Parámetros",
+      "paramsHint": "Uno por línea, nombre: valor. Los marcadores como {{case.no}} se rellenan; los números enteros y true/false se pasan tal cual."
     },
     "approval": {
       "who": "Quién decide",

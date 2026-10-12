@@ -123,6 +123,9 @@ function blockOf(s: WorkflowStep): Block {
   const next = s.next ?? {};
   const b: Block = { id: s.id, type: s.kind, title: s.title ?? "", cfg: {} };
   switch (s.kind) {
+    case "trigger":
+      b.cfg = { as: s.as ?? "", every: durationText(s.every), daily: s.daily ?? "", onlyIf: s.only_if ?? "", webhook: s.webhook ?? "", token: !!s.token };
+      break;
     case "agent":
       b.cfg = {
         role: s.role ?? "",
@@ -144,7 +147,7 @@ function blockOf(s: WorkflowStep): Block {
       b.cfg = { field: s.on ?? "", rounds: s.max_rounds ?? 0, values: Object.keys(next).filter((k) => k !== EXIT_LIMIT) };
       break;
     case "action":
-      b.cfg = { system: s.system ?? "", do: s.do ?? "", target: s.target ?? "", value: s.value ?? "", comment: s.comment ?? "" };
+      b.cfg = { as: s.as ?? "", system: s.system ?? "", do: s.do ?? "", params: paramLines(s.params ?? {}) };
       break;
     case "approval":
       b.cfg = { who: s.who ?? "", ask: s.ask ?? "", wait: durationText(s.wait), options: s.options ?? [] };
@@ -178,6 +181,25 @@ export function fromWorkflow(w: Workflow): Doc {
     links,
     positions,
   };
+}
+
+/* An action's parameters, one "name: value" per line — the way they read in
+   the text, and editable as one field. */
+export function paramLines(params: Record<string, string>): string[] {
+  return Object.keys(params)
+    .sort()
+    .map((k) => `${k}: ${params[k]}`);
+}
+
+export function paramsOf(lines: string[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const line of lines) {
+    const at = line.indexOf(":");
+    if (at <= 0) continue;
+    const k = line.slice(0, at).trim();
+    if (k) out[k] = line.slice(at + 1).trim();
+  }
+  return out;
 }
 
 /* The canvas keeps its positions in the text, under `layout:` — a section
@@ -257,6 +279,14 @@ export function toSource(doc: Doc): string {
       else L.push(`    ${name}: ${v}`);
     };
     switch (b.type) {
+      case "trigger":
+        field("as", c.as);
+        field("every", c.every);
+        field("daily", c.daily);
+        field("only_if", c.onlyIf);
+        field("webhook", c.webhook);
+        field("token", c.token);
+        break;
       case "agent":
         field("role", c.role);
         if (str(c.pick) && c.pick !== "load") field("pick", c.pick);
@@ -277,13 +307,18 @@ export function toSource(doc: Doc): string {
         field("on", c.field);
         field("max_rounds", Number(c.rounds) || 0);
         break;
-      case "action":
+      case "action": {
+        field("as", c.as);
         field("system", c.system);
         field("do", c.do);
-        field("target", c.target);
-        field("value", c.value);
-        field("comment", c.comment);
+        const params = paramsOf(list(c.params));
+        const keys = Object.keys(params).sort();
+        if (keys.length) {
+          L.push("    params:");
+          for (const k of keys) L.push(`      ${q(k)}: ${q(params[k])}`);
+        }
         break;
+      }
       case "approval":
         field("who", c.who);
         field("ask", c.ask);

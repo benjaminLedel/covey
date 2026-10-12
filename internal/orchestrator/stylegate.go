@@ -110,7 +110,7 @@ func (o *Orchestrator) styleGate(ctx context.Context, agent agents.Agent, taskID
 	}
 	if mode == guardrails.StyleModeApproval {
 		record("require_approval", found)
-		v := o.approvalGate(ctx, agent, taskID, req.Action, withStyleFindings(req.Params, report), "")
+		v := o.approvalGate(ctx, agent, &taskID, req.Action, withStyleFindings(req.Params, report), "")
 		switch {
 		case v.Error != "":
 			return &daemon.ApprovalDecision{RequestID: req.RequestID, Status: "denied", Reason: v.Error}

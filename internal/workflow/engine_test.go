@@ -18,6 +18,9 @@ type world struct {
 	questions []Question
 	messages  []Message
 	actErr    error
+	// pending answers the next Act calls with "waits for approval".
+	pending []string
+	asked   []string // the Pending each Act call carried
 }
 
 func (w *world) Available(name string) bool { return !w.away[name] }
@@ -25,6 +28,12 @@ func (w *world) Dispatch(t Task) error      { w.tasks = append(w.tasks, t); retu
 func (w *world) Ask(q Question) error       { w.questions = append(w.questions, q); return nil }
 func (w *world) Notify(m Message) error     { w.messages = append(w.messages, m); return nil }
 func (w *world) Act(a Action) error {
+	w.asked = append(w.asked, a.Pending)
+	if len(w.pending) > 0 {
+		id := w.pending[0]
+		w.pending = w.pending[1:]
+		return &PendingError{Approval: id}
+	}
 	if w.actErr != nil {
 		return w.actErr
 	}
@@ -198,10 +207,12 @@ steps:
       else: n
   bug:
     type: action
+    as: mia
     system: gitlab
-    do: label
-    target: "{{case.no}}"
-    value: bug
+    do: set_labels
+    params:
+      issue_iid: "{{case.no}}"
+      labels: bug
     next: e
   n:
     type: notify
@@ -222,7 +233,7 @@ func TestAConditionBranchesOnAResultAndCoveyActsItself(t *testing.T) {
 	}
 	must(t, e.Done(a.ID, map[string]string{"kind": "bug"}))
 	expect(t, at(t, e, a.ID), "e", StateDone)
-	if len(w.actions) != 1 || w.actions[0].Target != "#1" || w.actions[0].Value != "bug" {
+	if len(w.actions) != 1 || w.actions[0].Params["issue_iid"] != "#1" || w.actions[0].Params["labels"] != "bug" || w.actions[0].As != "mia" {
 		t.Fatalf("actions = %+v", w.actions)
 	}
 
@@ -436,7 +447,7 @@ func TestTheCustomerTicketGoesRoundsThenAPersonDecides(t *testing.T) {
 
 	// Accepted: covey assigns the ticket itself and waits for the customer.
 	expect(t, at(t, e, id), "w", StateWaiting)
-	if len(w.actions) != 1 || w.actions[0].Target != "#384" || w.actions[0].Value != "alex" || w.actions[0].Comment != "Accepted, !198. Please start the customer test." {
+	if a := w.actions; len(a) != 1 || a[0].Params["issue_iid"] != "#384" || a[0].Params["assignee"] != "alex" || a[0].Params["note"] != "Accepted, !198. Please start the customer test." || a[0].As != "Engineering" {
 		t.Fatalf("actions = %+v", w.actions)
 	}
 	if err := e.Event(id, "label:something-else"); !errors.Is(err, ErrWrongState) {
@@ -714,5 +725,42 @@ func TestAFailedStepEndsTheRunButALateOneDoesNot(t *testing.T) {
 	expect(t, at(t, e, r.ID), "b", StateFailed)
 	if len(w.messages) != 1 || !strings.Contains(w.messages[0].Text, "no access") {
 		t.Fatalf("owner told %+v", w.messages)
+	}
+}
+
+// ---------- actions that need an approval ----------
+
+func TestAnActionWaitsForItsApprovalAndGoesOnOnceGranted(t *testing.T) {
+	w := &world{pending: []string{"ap1", "ap1"}}
+	e, _ := engine(t, branching, w)
+	r, _ := e.Start("#1", map[string]string{"no": "#1"})
+	must(t, e.Done(r.ID, map[string]string{"kind": "bug"}))
+	cur := at(t, e, r.ID)
+	expect(t, cur, "bug", StateWaiting)
+	if cur.Vars["bug"]["approval"] != "ap1" {
+		t.Fatalf("the approval is not kept with the run: %v", cur.Vars)
+	}
+	e.Tick() // still pending
+	expect(t, at(t, e, r.ID), "bug", StateWaiting)
+	e.Tick() // granted: the action runs and the run goes on
+	expect(t, at(t, e, r.ID), "e", StateDone)
+	if got := strings.Join(w.asked, ","); got != ",ap1,ap1" {
+		t.Errorf("each retry must name the approval it waits for: %q", got)
+	}
+	if len(w.actions) != 1 {
+		t.Errorf("actions %+v", w.actions)
+	}
+}
+
+func TestARefusedApprovalStopsTheRun(t *testing.T) {
+	w := &world{pending: []string{"ap1"}}
+	e, _ := engine(t, branching, w)
+	r, _ := e.Start("#1", map[string]string{"no": "#1"})
+	must(t, e.Done(r.ID, map[string]string{"kind": "bug"}))
+	w.actErr = errors.New("the approval for gitlab:set_labels was refused")
+	e.Tick()
+	expect(t, at(t, e, r.ID), "bug", StateFailed)
+	if last := w.messages[len(w.messages)-1]; !strings.Contains(last.Text, "refused") {
+		t.Errorf("owner told %q", last.Text)
 	}
 }

@@ -3362,7 +3362,22 @@
       "remove": "Usuń połączenie"
     },
     "trigger": {
-      "note": "Wyzwalacze z systemów docelowych pojawią się później. Do tego czasu sprawę uruchamiasz ręcznie w Sprawach albo przez API."
+      "reuse": "Przepływ pracy startuje z wyzwalaczami, które mają agenci: harmonogram z warunkiem heartbeatu, webhook systemu docelowego, wyzwalacz przez token.",
+      "every": "Co",
+      "everyShort": "co",
+      "daily": "Codziennie o",
+      "dailyShort": "codziennie",
+      "dailyHint": "HH:MM, jak täglich: w heartbeacie.",
+      "onlyIf": "Tylko jeśli",
+      "onlyIfHint": "Ten sam warunek co nur-wenn: w heartbeacie, np. gitlab:issues:assignee:<user>:<projekt>. Bez niego harmonogram zawsze uruchamia sprawę.",
+      "as": "Sprawdza jako",
+      "asHint": "Współpracownik, z którego dostępem sprawdzany jest warunek, tak jak heartbeat używa dostępu swojego agenta.",
+      "webhook": "Webhook z",
+      "webhookHint": "Adres dla systemu docelowego: {{url}}",
+      "token": "Start przez token (jak wyzwalacz agenta)",
+      "newToken": "Utwórz nowy token",
+      "tokenShown": "Pokazany tylko teraz. Dotychczasowy token przestaje działać.",
+      "manual": "Sprawę zawsze można uruchomić ręcznie w Sprawach albo przez API."
     },
     "agent": {
       "role": "Rola",
@@ -3407,10 +3422,12 @@
     "action": {
       "system": "System docelowy",
       "op": "Akcja",
-      "target": "Zgłoszenie",
-      "value": "Wartość",
-      "comment": "Komentarz do tego",
-      "notYet": "Akcje w systemach docelowych nie są jeszcze podłączone: sprawa zatrzymuje się na tym kroku."
+      "reuse": "Wykonuje własną akcję systemu docelowego jako współpracownik wskazany tutaj: z jego dostępem, przypisanymi narzędziami, zabezpieczeniami i zatwierdzeniami.",
+      "as": "Wykonuje jako",
+      "asHint": "Agent albo rola, z której wybierany jest pierwszy dostępny członek.",
+      "opHint": "Akcja wtyczki, tak jak wywołuje ją agent, np. set_state.",
+      "params": "Parametry",
+      "paramsHint": "Po jednym w wierszu, nazwa: wartość. Symbole zastępcze jak {{case.no}} są wypełniane; liczby całkowite i true/false są przekazywane bez zmian."
     },
     "approval": {
       "who": "Kto decyduje",

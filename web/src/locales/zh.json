@@ -3362,7 +3362,22 @@
       "remove": "删除连接"
     },
     "trigger": {
-      "note": "来自目标系统的触发器稍后提供。在此之前,请在“案件”中手动启动案件,或通过 API 启动。"
+      "reuse": "工作流使用与智能体相同的触发器启动:带心跳条件的计划、目标系统的 Webhook、令牌触发器。",
+      "every": "每隔",
+      "everyShort": "每隔",
+      "daily": "每天",
+      "dailyShort": "每天",
+      "dailyHint": "HH:MM,与心跳中的 täglich: 相同。",
+      "onlyIf": "仅当",
+      "onlyIfHint": "与心跳中的 nur-wenn: 相同的条件,例如 gitlab:issues:assignee:<user>:<项目>。不填时,计划总会启动一个案件。",
+      "as": "检查身份",
+      "asHint": "用其访问权限检查条件的同事,就像心跳使用其智能体的权限一样。",
+      "webhook": "Webhook 来自",
+      "webhookHint": "目标系统的地址:{{url}}",
+      "token": "通过令牌启动(类似智能体的触发器)",
+      "newToken": "创建新令牌",
+      "tokenShown": "仅显示这一次。原有令牌将失效。",
+      "manual": "随时可以在“案件”中手动启动案件,或通过 API 启动。"
     },
     "agent": {
       "role": "角色",
@@ -3407,10 +3422,12 @@
     "action": {
       "system": "目标系统",
       "op": "操作",
-      "target": "工单",
-      "value": "值",
-      "comment": "附带评论",
-      "notYet": "目标系统中的操作尚未接入:案件会在此步骤停下。"
+      "reuse": "以此处指定的同事身份执行目标系统自己的操作:使用其访问权限、工具分配、防护规则和审批。",
+      "as": "执行身份",
+      "asHint": "智能体,或角色(取第一位可用的成员)。",
+      "opHint": "插件的操作,与智能体调用的方式相同,例如 set_state。",
+      "params": "参数",
+      "paramsHint": "每行一个,名称: 值。{{case.no}} 之类的占位符会被填充;整数和 true/false 按原样传递。"
     },
     "approval": {
       "who": "由谁决定",

@@ -2,6 +2,9 @@ package workflow
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -255,4 +258,77 @@ func (s *Store) Runs(ctx context.Context, workflowID uuid.UUID) ([]Run, error) {
 		out = append(out, r.WithSeq(int(seq)))
 	}
 	return out, rows.Err()
+}
+
+// TriggerState is what a workflow's trigger remembers between firings.
+type TriggerState struct {
+	LastFired *time.Time
+	LastSig   string
+	HasToken  bool
+}
+
+// Trigger reads a workflow's trigger state; a workflow that never fired has
+// the zero state.
+func (s *Store) Trigger(ctx context.Context, workflowID uuid.UUID) (TriggerState, error) {
+	var t TriggerState
+	err := s.pool.QueryRow(ctx, `SELECT last_fired_at, last_work_sig, token_hash IS NOT NULL FROM workflow_triggers WHERE workflow_id = $1`, workflowID).
+		Scan(&t.LastFired, &t.LastSig, &t.HasToken)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return TriggerState{}, nil
+	}
+	return t, err
+}
+
+// Fired records that the schedule fired at, with the gate's signature then.
+func (s *Store) Fired(ctx context.Context, workflowID uuid.UUID, at time.Time, sig string) error {
+	_, err := s.pool.Exec(ctx, `
+		INSERT INTO workflow_triggers (workflow_id, last_fired_at, last_work_sig) VALUES ($1, $2, $3)
+		ON CONFLICT (workflow_id) DO UPDATE SET last_fired_at = EXCLUDED.last_fired_at, last_work_sig = EXCLUDED.last_work_sig`,
+		workflowID, at, sig)
+	return err
+}
+
+// NewToken makes a new trigger token for a workflow and returns it; the
+// previous one stops working. Only its hash is kept.
+func (s *Store) NewToken(ctx context.Context, workflowID uuid.UUID) (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	token := hex.EncodeToString(buf)
+	_, err := s.pool.Exec(ctx, `
+		INSERT INTO workflow_triggers (workflow_id, token_hash) VALUES ($1, $2)
+		ON CONFLICT (workflow_id) DO UPDATE SET token_hash = EXCLUDED.token_hash`, workflowID, tokenHash(token))
+	return token, err
+}
+
+// DropToken switches the token trigger off.
+func (s *Store) DropToken(ctx context.Context, workflowID uuid.UUID) error {
+	_, err := s.pool.Exec(ctx, `UPDATE workflow_triggers SET token_hash = NULL WHERE workflow_id = $1`, workflowID)
+	return err
+}
+
+// ByToken finds the workflow a trigger token belongs to.
+func (s *Store) ByToken(ctx context.Context, token string) (uuid.UUID, error) {
+	var id uuid.UUID
+	err := s.pool.QueryRow(ctx, `SELECT workflow_id FROM workflow_triggers WHERE token_hash = $1`, tokenHash(token)).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, ErrNotFound
+	}
+	return id, err
+}
+
+// Fresh records a delivery key and reports whether it is new — the same
+// webhook_events table that keeps an agent's webhooks from being taken twice.
+func (s *Store) Fresh(ctx context.Context, key, source string) (bool, error) {
+	tag, err := s.pool.Exec(ctx, `INSERT INTO webhook_events (dedup_key, source) VALUES ($1, $2) ON CONFLICT (dedup_key) DO NOTHING`, key, source)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
+func tokenHash(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
 }

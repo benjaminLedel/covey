@@ -3362,7 +3362,22 @@
       "remove": "Remove connection"
     },
     "trigger": {
-      "note": "Triggers from target systems come later. Until then a case is started by hand under Cases, or through the API."
+      "reuse": "A workflow starts from the triggers agents have: a schedule with a heartbeat's condition, a target system's webhook, the token trigger.",
+      "every": "Every",
+      "everyShort": "every",
+      "daily": "Daily at",
+      "dailyShort": "daily",
+      "dailyHint": "HH:MM, like täglich: in a heartbeat.",
+      "onlyIf": "Only if",
+      "onlyIfHint": "The same condition as nur-wenn: in a heartbeat, e.g. gitlab:issues:assignee:<user>:<project>. Without it the schedule always starts a case.",
+      "as": "Checks as",
+      "asHint": "The colleague whose access the condition uses, as a heartbeat uses its agent's.",
+      "webhook": "Webhook from",
+      "webhookHint": "Address for the target system: {{url}}",
+      "token": "Start through a token (like an agent's trigger)",
+      "newToken": "Create a new token",
+      "tokenShown": "Shown this once. The previous token stops working.",
+      "manual": "A case can always be started by hand under Cases, or through the API."
     },
     "agent": {
       "role": "Role",
@@ -3407,10 +3422,12 @@
     "action": {
       "system": "Target system",
       "op": "Action",
-      "target": "Ticket",
-      "value": "Value",
-      "comment": "Comment with it",
-      "notYet": "Actions in target systems are not connected yet: a case stops at this step."
+      "reuse": "Runs the target system's own action, as the colleague named here: with its access, tool assignment, guard rails and approvals.",
+      "as": "Runs as",
+      "asHint": "An agent, or a role whose first available member is taken.",
+      "opHint": "The plugin's action, as an agent calls it, e.g. set_state.",
+      "params": "Parameters",
+      "paramsHint": "One per line, name: value. Placeholders like {{case.no}} are filled; whole numbers and true/false are passed as such."
     },
     "approval": {
       "who": "Who decides",

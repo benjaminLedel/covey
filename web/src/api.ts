@@ -1952,9 +1952,13 @@ export type WorkflowStep = {
   max_rounds?: number;
   system?: string;
   do?: string;
-  target?: string;
-  value?: string;
-  comment?: string;
+  params?: Record<string, string>;
+  as?: string;
+  every?: number;
+  daily?: string;
+  only_if?: string;
+  webhook?: string;
+  token?: boolean;
   who?: string;
   ask?: string;
   options?: string[];
@@ -1967,6 +1971,7 @@ export type WorkflowStep = {
 };
 export type WorkflowCounts = { open: number; working: number; queued: number; waiting: number; stuck: number };
 export type Workflow = {
+  id: string;
   slug: string;
   name: string;
   version: number;
@@ -2017,6 +2022,7 @@ export const startWorkflowRun = (slug: string, caseRef: string, vars: Record<str
   post<WorkflowRun>(`${wf(slug)}/runs`, { case: caseRef, vars });
 export const decideWorkflowRun = (slug: string, id: string, option: string) =>
   post<WorkflowRun>(`${wf(slug)}/runs/${encodeURIComponent(id)}/decide`, { option });
+export const newWorkflowToken = (slug: string) => post<{ enabled: boolean; token: string; url: string }>(`${wf(slug)}/token`);
 export const checkWorkflow = (source: string) => post<{ problems: WorkflowProblem[] }>("/workflows/check", { source });
 
 /* Saving answers 422 with the problems that keep a definition from
