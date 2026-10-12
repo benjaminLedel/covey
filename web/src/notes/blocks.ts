@@ -59,16 +59,18 @@ const image = /^!\[[^\]]*\]\(([^)\s]+)\)$/;
 const divider = /^(-{3,}|\*{3,}|_{3,})$/;
 const tableSep = /^\s*\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)*\|?\s*$/;
 
-/** A table row's cells. A pipe written as \| belongs to the cell. */
+/** A table row's cells. A pipe written as \| belongs to the cell, \\ is one backslash. */
 function cells(line: string): string[] {
   let s = line.trim();
   if (s.startsWith("|")) s = s.slice(1);
-  if (s.endsWith("|") && !s.endsWith("\\|")) s = s.slice(0, -1);
+  // The closing pipe is escaped only behind an odd run of backslashes: in
+  // `a\\|` the backslash is escaped and the pipe closes the row.
+  if (s.endsWith("|") && (s.length - 1 - s.slice(0, -1).replace(/\\+$/, "").length) % 2 === 0) s = s.slice(0, -1);
   const out: string[] = [];
   let cur = "";
   for (let i = 0; i < s.length; i++) {
-    if (s[i] === "\\" && s[i + 1] === "|") {
-      cur += "|";
+    if (s[i] === "\\" && (s[i + 1] === "|" || s[i + 1] === "\\")) {
+      cur += s[i + 1];
       i++;
     } else if (s[i] === "|") {
       out.push(cur.trim());
@@ -138,7 +140,7 @@ export function parseBlocks(markdown: string): Block[] {
   return out;
 }
 
-const escapeCell = (s: string) => s.replace(/\|/g, "\\|").replace(/\n/g, " ");
+const escapeCell = (s: string) => s.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\n/g, " ");
 
 /** Blocks → Markdown. Numbered items are renumbered from their run's start. */
 export function writeBlocks(blocks: Block[]): string {

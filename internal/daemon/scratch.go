@@ -41,7 +41,13 @@ func scratchDir(home, taskID string) string {
 	if home == "" || !isTaskID(taskID) {
 		return ""
 	}
-	dir := filepath.Join(home, scratchRoot, taskID)
+	// The name is the parsed UUID's canonical form, not the string as it came:
+	// the path is then built from what the check accepted, not beside it.
+	id, err := uuid.Parse(taskID)
+	if err != nil {
+		return ""
+	}
+	dir := filepath.Join(home, scratchRoot, id.String())
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return ""
 	}
