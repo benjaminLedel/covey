@@ -112,7 +112,10 @@ of the two heartbeats fires **only for its own work**:
   one: `gitlab:issues:assignee:<username>:<group/project>` (path or numeric
   id). The project narrows on top of `COVEY_GITLAB_INTAKE_PROJECTS`, per
   heartbeat; the playbook lists the same set with
-  `list_issues {"project_id": N, "assignee": "<username>"}`.
+  `list_issues {"project_id": N, "assignee": "<username>"}`. An agent that
+  takes its own issues AND its manager's gets two heartbeats, one per person.
+- `nur-wenn: gitlab:issues:project:<group/project>` → `gitlab:issues` for one
+  project, per heartbeat.
 - `nur-wenn: gitlab:mr` → only when one of the open merge requests opened by the
   bot itself has **unanswered review feedback** (the last non-system comment in
   the thread is not from the bot).
