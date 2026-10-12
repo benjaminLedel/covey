@@ -2240,6 +2240,38 @@ func (o *Orchestrator) agentTeamSection(ctx context.Context, self agents.Agent, 
 	return agents.TeamAgentsSection(colleagues)
 }
 
+// stoppedNamedSection lists the stopped colleagues that text names (#556).
+// The directory of a run leaves them out, which a config that names them
+// outweighs; this says it explicitly. Errors leave the section out — the run
+// then knows what it knew before.
+func (o *Orchestrator) stoppedNamedSection(ctx context.Context, self agents.Agent, text string) string {
+	rows, err := o.Pool.Query(ctx, `SELECT display_name, slug, identities
+		FROM agents WHERE org_id=$1 AND id<>$2 AND killed AND hired_at IS NOT NULL
+		ORDER BY created_at`, self.OrgID, self.ID)
+	if err != nil {
+		return ""
+	}
+	defer rows.Close()
+	var named []agents.StoppedColleague
+	for rows.Next() {
+		var c agents.StoppedColleague
+		var ids map[string]string
+		if err := rows.Scan(&c.Name, &c.Slug, &ids); err != nil {
+			return ""
+		}
+		for _, system := range slices.Sorted(maps.Keys(ids)) {
+			c.Identities = append(c.Identities, agents.TeamIdentity{Label: system, Value: ids[system]})
+		}
+		if c.NamedIn(text) != "" {
+			named = append(named, c)
+		}
+	}
+	if rows.Err() != nil {
+		return ""
+	}
+	return agents.StoppedColleaguesSection(named)
+}
+
 func (o *Orchestrator) publishTask(taskID uuid.UUID, agent agents.Agent) {
 	o.events.Publish(Event{Type: "task", AgentID: agent.ID.String(), OrgID: agent.OrgID,
 		Data: map[string]string{"task_id": taskID.String()}})
@@ -2446,8 +2478,14 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	// Plus the AI colleagues: the organization's other agents, so an agent can
 	// hand work over to the right colleague (e.g. the developer their MR to the
 	// QA agent of their team) — the department marks its own team.
+	// Read before the directory is appended: what counts is whether the
+	// agent's OWN instructions or its task name a stopped colleague (#556).
+	stopped := o.stoppedNamedSection(ctx, agent, compiled+"\n"+task.Title+"\n"+task.Body)
 	if section := o.OrgSections(ctx, agent); section != "" {
 		compiled += "\n\n" + section
+	}
+	if stopped != "" {
+		compiled += "\n\n" + stopped
 	}
 	compiled += conversationSection(task)
 	if task.ChatAnswer {
@@ -3228,8 +3266,16 @@ func (o *Orchestrator) createAgentTask(ctx context.Context, agent agents.Agent, 
 	if targetAgent.ID != agent.ID && !targetAgent.Killed {
 		o.EnsureRunning(targetAgent.ID) // delegation wakes the colleague
 	}
-	return daemon.InjectCreateTask{RequestID: req.RequestID, OK: true,
+	resp := daemon.InjectCreateTask{RequestID: req.RequestID, OK: true,
 		TaskID: created.ID.String(), Agent: targetAgent.Slug}
+	if targetAgent.ID != agent.ID && targetAgent.Killed {
+		// Created, as #202 wants — but the delegating agent is told, so that it
+		// can tell "delivered" from "waiting for a person" (#556).
+		resp.Notice = fmt.Sprintf("%s is stopped (kill switch): the task waits in their backlog until a person "+
+			"releases them. If the work cannot wait, hand it to another colleague or tell your manager (covey/message).",
+			targetAgent.Slug)
+	}
+	return resp
 }
 
 // brokerWiki serves the agent's wiki tools (covey/wiki_*, spec/05) against the

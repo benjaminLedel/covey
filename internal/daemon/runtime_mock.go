@@ -101,6 +101,7 @@ func (Mock) Run(ctx context.Context, spec RunSpec, onEvent func(kind string, pay
 		}
 	}
 
+	var notices []string
 	for _, m := range mockDirective.FindAllStringSubmatch(spec.Body, -1) {
 		kind, arg := m[1], strings.TrimSpace(m[2])
 		switch kind {
@@ -116,6 +117,16 @@ func (Mock) Run(ctx context.Context, spec RunSpec, onEvent func(kind string, pay
 				return res, nil
 			}
 			emit(fmt.Sprintf("Action %s → %s", path, status))
+			var answered struct {
+				Data struct {
+					Notice string `json:"notice"`
+				} `json:"data"`
+			}
+			if json.Unmarshal(body, &answered) == nil && answered.Data.Notice != "" {
+				// A notice is what a real runtime would read and weigh; the mock
+				// carries it into its result so that a test can see it arrived.
+				notices = append(notices, answered.Data.Notice)
+			}
 			if status == "pending_approval" {
 				// As in the platform protocol: block until approval.
 				var pending struct {
@@ -193,6 +204,9 @@ func (Mock) Run(ctx context.Context, spec RunSpec, onEvent func(kind string, pay
 		} else {
 			res.Result = "Done: " + spec.Title
 		}
+	}
+	for _, n := range notices {
+		res.Result += "\nnotice: " + n
 	}
 	return res, nil
 }

@@ -445,8 +445,11 @@ func (p *actionProxy) createTask(ctx context.Context, params json.RawMessage) an
 	if !resp.OK {
 		return map[string]string{"status": "error", "error": resp.Error}
 	}
-	return map[string]any{"status": "ok",
-		"data": map[string]string{"task_id": resp.TaskID, "agent": resp.Agent}}
+	data := map[string]string{"task_id": resp.TaskID, "agent": resp.Agent}
+	if resp.Notice != "" {
+		data["notice"] = resp.Notice
+	}
+	return map[string]any{"status": "ok", "data": data}
 }
 
 // message is covey/message (#537): the agent tells a person of its

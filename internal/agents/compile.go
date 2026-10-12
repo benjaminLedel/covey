@@ -1,6 +1,7 @@
 package agents
 
 import (
+	"regexp"
 	"sort"
 	"strings"
 
@@ -470,6 +471,81 @@ if there is no fitting one there, search organisation-wide by responsibility.
 Never guess user names.
 
 ` + strings.Join(lines, "\n")
+}
+
+// StoppedColleague is a colleague under the kill switch, with everything a
+// config or a task may call it by (#556).
+type StoppedColleague struct {
+	Name       string
+	Slug       string
+	Identities []TeamIdentity
+}
+
+// namePattern matches a name as a whole word, case-insensitively: "tester-1"
+// must not be found inside "tester-10", nor "ada" inside "adam".
+func namePattern(name string) *regexp.Regexp {
+	return regexp.MustCompile(`(?i)(^|[^\pL\pN_.-])` + regexp.QuoteMeta(name) + `($|[^\pL\pN_-])`)
+}
+
+// NamedIn reports by which of its names text mentions the colleague — the
+// slug, the display name or a target-system identifier — or "" when it does
+// not. Names shorter than three characters are not looked for: they would be
+// found everywhere.
+func (c StoppedColleague) NamedIn(text string) string {
+	names := []string{c.Slug, c.Name}
+	for _, id := range c.Identities {
+		names = append(names, id.Value)
+	}
+	for _, n := range names {
+		n = strings.TrimSpace(n)
+		if len([]rune(n)) >= 3 && namePattern(n).MatchString(text) {
+			return n
+		}
+	}
+	return ""
+}
+
+// StoppedColleaguesSection tells a run which colleagues its own instructions
+// or its task name although they are stopped (#556). The run's directory
+// leaves stopped colleagues out (#416), but a silence does not outweigh a
+// config that names them: the developer whose playbook says "the reviewer is
+// quality-1" keeps writing quality-1 into the reviewer field. This says it in
+// so many words, and says what to do instead.
+func StoppedColleaguesSection(stopped []StoppedColleague) string {
+	var lines []string
+	for _, c := range stopped {
+		line := "- " + c.Name
+		var names []string
+		if c.Slug != "" {
+			names = append(names, c.Slug)
+		}
+		for _, id := range c.Identities {
+			if id.Label != "" && id.Value != "" {
+				names = append(names, id.Label+": "+id.Value)
+			}
+		}
+		if len(names) > 0 {
+			line += " (" + strings.Join(names, ", ") + ")"
+		}
+		lines = append(lines, line)
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	return `## Stopped colleagues your instructions name
+
+Your instructions or your task name these colleagues, but they are STOPPED right
+now (kill switch) and take no work:
+
+` + strings.Join(lines, "\n") + `
+
+Hand them nothing — no task, no reviewer or assignee field, no mention that waits
+for their answer. Where your instructions pass work to one of them, skip that
+station: hand the work to the next one in the chain, or to your manager when there
+is none. Work that already lies with them — a reviewer field, an assignment — you
+move on the same way when you touch it, with one sentence saying why. When they
+are back, they appear in your colleague list again and your instructions apply
+as written.`
 }
 
 // HiringDoc describes the hiring actions (spec/20). Deliberately NOT part of
