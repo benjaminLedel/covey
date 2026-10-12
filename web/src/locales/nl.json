@@ -3566,7 +3566,8 @@
       "running_one": "{{count}} loopt",
       "meta": "Verantwoordelijk {{owner}} · gewijzigd {{when}}",
       "none": "Geen workflow komt overeen.",
-      "explain": "Wat de drie werkingen betekenen"
+      "explain": "Wat de drie werkingen betekenen",
+      "colQueued": "Wachtrij"
     }
   }
 }

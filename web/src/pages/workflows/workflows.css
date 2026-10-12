@@ -28,18 +28,8 @@
 
 /* ---------- list ---------- */
 .wf-table-wrap { overflow-x: auto; }
-.wf-table { width: 100%; border-collapse: collapse; background: var(--surface-2); border: 0.5px solid var(--border); border-radius: 12px; overflow: hidden; }
-.wf-table th { font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-muted); font-weight: 400; text-align: left; padding: 9px 12px; border-bottom: 0.5px solid var(--border); }
-.wf-table td { padding: 11px 12px; border-bottom: 0.5px solid var(--border); vertical-align: top; font-size: 13px; }
-.wf-table tr:last-child td { border-bottom: 0; }
-.wf-table tbody tr { cursor: pointer; }
-.wf-table tbody tr:hover td, .wf-table tbody tr:focus-visible td { background: var(--tint-weak); }
-.wf-table .num { text-align: right; font-variant-numeric: tabular-nums; }
-.wf-table .danger { color: var(--text-danger); }
 .wf-name { font-weight: 500; font-size: 14px; }
 .wf-desc { font-size: 12px; color: var(--text-muted); }
-.wf-chain { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
-.wf-arrow { color: var(--text-muted); margin-right: 4px; }
 .wf-modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 22px; max-width: 860px; }
 .wf-mode-card { background: var(--surface-2); border: 0.5px solid var(--border); border-radius: 12px; padding: 12px 14px; }
 .wf-mode-card p { margin: 6px 0 0; font-size: 12.5px; color: var(--text-secondary); line-height: 1.45; }
@@ -246,20 +236,31 @@ button.wf-stat:hover { border-color: var(--border-strong); }
 .wf-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; padding-top: 4px; border-top: 0.5px solid var(--border); padding-top: 18px; }
 .wf-toolbar .wf-search { width: 280px; margin: 0; }
 .wf-toolbar .wf-filters { margin: 0; }
-.wf-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 10px; }
-.wf-wcard { display: flex; flex-direction: column; gap: 8px; text-align: left; background: var(--surface-2); border: 0.5px solid var(--border); border-radius: 12px; padding: 13px 15px; cursor: pointer; color: inherit; font: inherit; }
-.wf-wcard:hover { border-color: var(--border-strong); }
-.wf-wcard.off { opacity: 0.7; }
-.wf-wcard-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.wf-wcard-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
-.wf-wcard-nums { display: flex; gap: 4px; flex-wrap: wrap; }
-.wf-scope { font-size: 12px; color: var(--text-secondary); }
-.wf-wcard-meta { font-size: 11.5px; color: var(--text-muted); border-top: 0.5px solid var(--border); padding-top: 7px; }
 .wf-explain { margin-top: 10px; max-width: 860px; }
 .wf-explain summary { cursor: pointer; font-size: 13px; color: var(--text-secondary); }
 .wf-explain .wf-modes { margin-top: 12px; }
 @media (max-width: 900px) {
   .wf-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .wf-toolbar .wf-search { width: 100%; }
-  .wf-cards, .wf-waiting { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* The overview stays quiet: colour only where something is wrong. */
+.wf-list-table { width: 100%; border-collapse: collapse; }
+.wf-list-table th { font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-muted); font-weight: 400; text-align: left; padding: 8px 12px; border-bottom: 0.5px solid var(--border-strong); white-space: nowrap; }
+.wf-list-table td { padding: 12px; border-bottom: 0.5px solid var(--border); vertical-align: top; font-size: 13px; }
+.wf-list-table tbody tr { cursor: pointer; }
+.wf-list-table tbody tr:hover td, .wf-list-table tbody tr:focus-visible td { background: var(--tint-weak); }
+.wf-list-table tr.off td { color: var(--text-muted); }
+.wf-list-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.wf-list-table .danger { color: var(--text-danger); font-weight: 500; }
+.wf-stations { color: var(--text-secondary); max-width: 360px; }
+.wf-mode-dot { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; color: var(--text-secondary); }
+.wf-mode-dot::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted); }
+.wf-mode-dot.m-steer::before { background: var(--text-success); }
+.wf-mode-dot.m-watch::before { background: var(--text-wait); }
+.wf-mode-dot.m-off::before { background: transparent; box-shadow: inset 0 0 0 1.5px var(--text-muted); }
+.wf-count-plain { font-size: 12px; color: var(--text-muted); font-weight: 400; letter-spacing: 0; }
+.wf-since { font-size: 12px; color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.wf-overview .wf-waiting .wf-icon { background: var(--surface-1); color: var(--text-secondary); box-shadow: inset 0 0 0 0.5px var(--border); }
+.wf-overview .wf-filters button.on { background: var(--surface-1); color: var(--text-primary); border-color: var(--border-strong); }
+.wf-overview .wf-mode-card .wf-mode-dot { color: var(--text-primary); }

@@ -12,7 +12,6 @@ import "./workflows.css";
 import { BlockIcon } from "./canvas";
 import { example, type Mode, type WorkflowRow } from "./model";
 
-const MODE_PILL: Record<Mode, string> = { off: "mute", watch: "info", steer: "ok" };
 type ModeFilter = "all" | Mode;
 
 export default function Workflows() {
@@ -33,15 +32,16 @@ export default function Workflows() {
   const q = query.trim().toLowerCase();
   const shown = ex.workflows
     .filter((w) => modeFilter === "all" || w.mode === modeFilter)
-    .filter((w) => !q || [w.name, w.desc, w.scope, w.area, ...w.chain].some((x) => x.toLowerCase().includes(q)));
-  const areas = [...new Set(shown.map((w) => w.area))];
+    .filter((w) => !q || [w.name, w.desc, w.scope, ...w.areas, ...w.chain].some((x) => x.toLowerCase().includes(q)))
+    // What needs someone first; switched-off workflows last.
+    .sort((a, b) => Number(a.mode === "off") - Number(b.mode === "off") || b.stuck - a.stuck || b.active - a.active);
 
   return (
     <div className="wf-overview">
       <div className="flex items-baseline gap-3 mb-2">
         <h1 className="text-[22px]">{t("workflows.title")}</h1>
         <span className="wf-pill mute">{t("workflows.orgWide")}</span>
-        <span className="wf-pill clay">{t("workflows.preview")}</span>
+        <span className="wf-pill mute">{t("workflows.preview")}</span>
         <button className="btn primary sm ml-auto">{t("workflows.overview.new")}</button>
       </div>
       <p className="muted mb-4" style={{ maxWidth: 680 }}>
@@ -54,7 +54,7 @@ export default function Workflows() {
           <div className="l">{t("workflows.overview.kpiRunning")}</div>
         </div>
         <div className="wf-kpi">
-          <div className="v warn">{sum((w) => w.queued)}</div>
+          <div className="v">{sum((w) => w.queued)}</div>
           <div className="l">{t("workflows.overview.kpiQueued")}</div>
         </div>
         <div className="wf-kpi">
@@ -73,14 +73,14 @@ export default function Workflows() {
       {ex.waiting.length > 0 && (
         <section className="wf-section">
           <h2 className="wf-section-title">
-            {t("workflows.overview.needsYou")} <span className="wf-pill clay">{ex.waiting.length}</span>
+            {t("workflows.overview.needsYou")} <span className="wf-count-plain">{ex.waiting.length}</span>
           </h2>
           <div className="wf-waiting">
             {ex.waiting.map((x) => {
               const w = ex.workflows.find((y) => y.id === x.workflow)!;
               return (
                 <button key={x.no} className="wf-case" onClick={() => open(w, x.no)}>
-                  <BlockIcon type={x.kind === "approval" ? "approval" : "agent"} />
+                  <BlockIcon type={x.kind === "approval" ? "approval" : "agent"} small />
                   <span className="wf-case-text">
                     {x.title}
                     <small>
@@ -88,7 +88,7 @@ export default function Workflows() {
                       {only === w.id ? ` · ${t("workflows.onlyFirst")}` : ""}
                     </small>
                   </span>
-                  <span className="wf-pill mute">{x.since}</span>
+                  <span className="wf-since">{x.since}</span>
                 </button>
               );
             })}
@@ -108,43 +108,42 @@ export default function Workflows() {
         </div>
       </div>
 
-      {areas.map((area) => (
-        <section key={area} className="wf-section">
-          <h2 className="wf-section-title">{area}</h2>
-          <div className="wf-cards">
-            {shown
-              .filter((w) => w.area === area)
-              .map((w) => (
-                <button key={w.id} className={`wf-wcard${w.mode === "off" ? " off" : ""}`} onClick={() => open(w)}>
-                  <div className="wf-wcard-head">
-                    <span className="wf-name">{w.name}</span>
-                    <span className={`wf-pill ${MODE_PILL[w.mode]}`}>{t(`workflows.mode.${w.mode}`)}</span>
-                  </div>
-                  <div className="wf-desc">{only === w.id ? t("workflows.onlyFirst") : w.desc}</div>
-                  <div className="wf-chain">
-                    {w.chain.map((c, j) => (
-                      <span key={j}>
-                        {j > 0 && <span className="wf-arrow">→</span>}
-                        <span className="wf-pill mute">{c}</span>
-                      </span>
-                    ))}
-                  </div>
-                  <div className="wf-wcard-foot">
-                    <span className="wf-scope">{w.scope}</span>
-                    {w.mode !== "off" && (
-                      <span className="wf-wcard-nums">
-                        <span className="wf-pill info">{t("workflows.overview.running", { count: w.active })}</span>
-                        {w.queued > 0 && <span className="wf-pill warn">{t("workflows.live.queued", { count: w.queued })}</span>}
-                        {w.stuck > 0 && <span className="wf-pill bad">{t("workflows.live.stuckBadge", { count: w.stuck })}</span>}
-                      </span>
-                    )}
-                  </div>
-                  <div className="wf-wcard-meta">{t("workflows.overview.meta", { owner: w.owner, when: w.updated })}</div>
-                </button>
-              ))}
-          </div>
-        </section>
-      ))}
+      <div className="wf-table-wrap">
+        <table className="wf-list-table">
+          <thead>
+            <tr>
+              <th>{t("workflows.col.name")}</th>
+              <th>{t("workflows.col.stations")}</th>
+              <th>{t("workflows.col.mode")}</th>
+              <th className="num">{t("workflows.col.cases")}</th>
+              <th className="num">{t("workflows.overview.colQueued")}</th>
+              <th className="num">{t("workflows.col.stuck")}</th>
+              <th>{t("workflows.owner")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((w) => (
+              <tr key={w.id} tabIndex={0} className={w.mode === "off" ? "off" : ""} onClick={() => open(w)} onKeyDown={(e) => e.key === "Enter" && open(w)}>
+                <td>
+                  <div className="wf-name">{w.name}</div>
+                  <div className="wf-desc">{only === w.id ? t("workflows.onlyFirst") : `${w.areas.join(" · ")} · ${w.scope}`}</div>
+                </td>
+                <td className="wf-stations">{w.chain.join(" → ")}</td>
+                <td>
+                  <span className={`wf-mode-dot m-${w.mode}`}>{t(`workflows.mode.${w.mode}`)}</span>
+                </td>
+                <td className="num">{w.mode === "off" ? "–" : w.active}</td>
+                <td className="num">{w.mode === "off" || !w.queued ? "–" : w.queued}</td>
+                <td className={`num${w.stuck && w.mode !== "off" ? " danger" : ""}`}>{w.mode === "off" || !w.stuck ? "–" : w.stuck}</td>
+                <td>
+                  {w.owner}
+                  <div className="wf-desc">{w.updated}</div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       {shown.length === 0 && <p className="wf-muted">{t("workflows.overview.none")}</p>}
 
       <details className="wf-explain">
@@ -152,7 +151,7 @@ export default function Workflows() {
         <div className="wf-modes">
           {(["off", "watch", "steer"] as Mode[]).map((m) => (
             <div key={m} className="wf-mode-card">
-              <span className={`wf-pill ${MODE_PILL[m]}`}>{t(`workflows.mode.${m}`)}</span>
+              <span className={`wf-mode-dot m-${m}`}>{t(`workflows.mode.${m}`)}</span>
               <p>{t(`workflows.modeText.${m}`)}</p>
             </div>
           ))}

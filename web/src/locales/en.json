@@ -3566,7 +3566,8 @@
       "running_one": "{{count}} running",
       "meta": "Owner {{owner}} · changed {{when}}",
       "none": "No workflow matches.",
-      "explain": "What the three effects mean"
+      "explain": "What the three effects mean",
+      "colQueued": "Queued"
     }
   }
 }

@@ -3566,7 +3566,8 @@
       "running_one": "W toku: {{count}}",
       "meta": "Odpowiedzialny {{owner}} · zmieniono {{when}}",
       "none": "Żaden przepływ nie pasuje.",
-      "explain": "Co oznaczają trzy tryby działania"
+      "explain": "Co oznaczają trzy tryby działania",
+      "colQueued": "W kolejce"
     }
   }
 }

@@ -3566,7 +3566,8 @@
       "running_one": "{{count}} läuft",
       "meta": "Verantwortlich {{owner}} · geändert {{when}}",
       "none": "Kein Ablauf passt.",
-      "explain": "Was die drei Wirkungen bedeuten"
+      "explain": "Was die drei Wirkungen bedeuten",
+      "colQueued": "Schlange"
     }
   }
 }

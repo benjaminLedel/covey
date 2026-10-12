@@ -3566,7 +3566,8 @@
       "running_one": "{{count}} 件進行中",
       "meta": "担当 {{owner}} · {{when}} に変更",
       "none": "該当するワークフローはありません。",
-      "explain": "3つの動作の意味"
+      "explain": "3つの動作の意味",
+      "colQueued": "待ち"
     }
   }
 }

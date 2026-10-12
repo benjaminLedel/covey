@@ -3566,7 +3566,8 @@
       "running_one": "{{count}} 个进行中",
       "meta": "负责人 {{owner}} · {{when}} 修改",
       "none": "没有匹配的工作流。",
-      "explain": "三种作用方式的含义"
+      "explain": "三种作用方式的含义",
+      "colQueued": "排队"
     }
   }
 }

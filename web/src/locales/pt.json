@@ -3566,7 +3566,8 @@
       "running_one": "{{count}} em curso",
       "meta": "Responsável {{owner}} · alterado {{when}}",
       "none": "Nenhum fluxo corresponde.",
-      "explain": "O que significam os três efeitos"
+      "explain": "O que significam os três efeitos",
+      "colQueued": "Em fila"
     }
   }
 }

@@ -3566,7 +3566,8 @@
       "running_one": "{{count}} en cours",
       "meta": "Responsable {{owner}} · modifié {{when}}",
       "none": "Aucun workflow ne correspond.",
-      "explain": "Ce que signifient les trois effets"
+      "explain": "Ce que signifient les trois effets",
+      "colQueued": "En file"
     }
   }
 }
