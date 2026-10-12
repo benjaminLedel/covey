@@ -310,7 +310,7 @@ export function example(lang: string): Example {
   const roles = { [rEng]: ["Ada", "Kim", "Ole"], [rRev]: ["Theo"], [rTest]: ["Rosa"] };
 
   const blocks: Record<string, Block> = {
-    t: { id: "t", type: "trigger", title: L("Ticket zugewiesen", "Ticket assigned"), cfg: { source: "GitLab · acme/timetable", event: L("Ticket wird der Stelle Entwicklung zugewiesen, oder jemand gibt es im Chat in Auftrag", "A ticket is assigned to the Engineering role, or someone asks for it in the chat"), filter: L("Label: Kunde", "Label: customer") } },
+    t: { id: "t", type: "trigger", title: L("Ticket zugewiesen", "Ticket assigned"), cfg: { source: "GitLab · acme/timetable", event: L("Ein Ticket wird der Rolle Entwicklung zugewiesen, oder jemand bittet im Chat darum", "A ticket is assigned to the Engineering role, or someone asks for it in the chat"), filter: L("Label: Kunde", "Label: customer") } },
     b: { id: "b", type: "agent", title: L("Umsetzen", "Build"), cfg: { role: rEng, pick: "load", sticky: true, cap: "2", notSame: "", optional: false, task: L("Setz {{ticket.title}} um. Lies den Verlauf, auch frühere Mängel aus {{accept.defects}}. Öffne einen Merge Request mit „Closes #{{ticket.no}}“.", "Implement {{ticket.title}}. Read the history, including earlier defects from {{accept.defects}}. Open a merge request with “Closes #{{ticket.no}}”."), output: ["mr", "summary"], ask: owner, limit: L("4 Std.", "4 h") } },
     r: { id: "r", type: "agent", title: L("Code prüfen", "Review code"), cfg: { role: rRev, pick: "load", sticky: false, cap: "3", notSame: "b", optional: true, task: L("Prüf {{build.mr}} auf Lesbarkeit, Tests und Seiteneffekte.", "Review {{build.mr}} for readability, tests and side effects."), output: ["verdict", "notes"], ask: owner, limit: L("2 Std.", "2 h") } },
     a: { id: "a", type: "agent", title: L("Abnahme", "Acceptance"), cfg: { role: rTest, pick: "load", sticky: true, cap: "3", notSame: "b", optional: false, task: L("Teste {{build.mr}} gegen das Ticket auf der Testumgebung. Melde abgenommen oder die Mängel als Liste.", "Test {{build.mr}} against the ticket on the test system. Report accepted, or the defects as a list."), output: ["result", "defects"], ask: owner, limit: L("4 Std.", "4 h") } },
@@ -338,7 +338,7 @@ export function example(lang: string): Example {
       { no: "#427", title: L("Raumwechsel ohne Benachrichtigung", "Room change sends no notice"), by: "Ada", since: L("1 Std. · Runde 2", "1 h · round 2"), level: "ok", state: "working", age: 60 },
       { no: "#409", title: L("Doppelstunden über die Pause", "Double lessons across the break"), by: "Kim", since: L("6 Std.", "6 h"), level: "bad", why: L("Zeitlimit 4 Std. überschritten", "over the 4 h limit"), state: "working", age: 360 },
     ] },
-    r: { cases: [], note: L("Theo ist gestoppt und niemand sonst hat die Stelle. Alle Läufe überspringen den Schritt.", "Theo is stopped and nobody else holds the role. Every run skips the step.") },
+    r: { cases: [], note: L("Theo ist gestoppt, und sonst hat niemand diese Rolle. Alle Vorgänge überspringen den Schritt.", "Theo is stopped and nobody else holds the role. Every run skips the step.") },
     a: { cases: [
       { no: "#425", title: L("Vertretungsplan zeigt falsche Woche", "Cover plan shows the wrong week"), by: "Rosa", since: L("50 Min.", "50 min"), level: "ok", state: "working", age: 50 },
       { no: "#418", title: L("Kursliste filtert Ehemalige nicht", "Course list keeps former pupils"), by: "Rosa", since: L("2 Std.", "2 h"), level: "ok", state: "working", age: 120 },
@@ -371,7 +371,7 @@ export function example(lang: string): Example {
   const nobody = L("noch niemand", "nobody yet");
   add("b", { by: "Kim", state: "working", age: 90, level: "ok" });
   for (const [m, lv] of [[25, "ok"], [40, "ok"], [70, "ok"], [110, "ok"], [150, "ok"], [200, "ok"], [260, "ok"], [330, "ok"], [540, "warn"]] as const) {
-    add("b", { by: nobody, state: "queued", age: m, level: lv, why: lv === "warn" ? L("wartet seit 9 Std. auf eine freie Stelle", "waited 9 h for a free colleague") : undefined });
+    add("b", { by: nobody, state: "queued", age: m, level: lv, why: lv === "warn" ? L("wartet seit 9 Std. auf einen freien Kollegen", "waited 9 h for a free colleague") : undefined });
   }
   add("a", { by: "Rosa", state: "working", age: 30, level: "ok" });
   for (const m of [15, 45, 80, 130, 190]) add("a", { by: nobody, state: "queued", age: m, level: "ok" });
@@ -380,29 +380,29 @@ export function example(lang: string): Example {
 
   const runs: Record<string, Run> = {
     "#431": { no: "#431", title: live.b.cases[0].title, steps: [
-      { block: "t", when: L("heute 10:05", "today 10:05"), text: L("Im Chat an Ada: „schau dir bitte #431 an“. Liegt in acme/timetable, läuft deshalb über den Ablauf.", "In the chat to Ada: “please look at #431”. It lies in acme/timetable, so it runs through the workflow."), chat: true },
-      { block: "b", when: L("heute 10:06", "today 10:06"), text: L("Ada wurde im Chat direkt angesprochen und übernimmt, obwohl Kim weniger offen hat.", "Ada was asked directly in the chat and takes it, although Kim has less open."), out: { by: "Ada" } },
+      { block: "t", when: L("heute 10:05", "today 10:05"), text: L("Im Chat an Ada: „Schau dir bitte #431 an.“ Das Ticket gehört zu acme/timetable, deshalb läuft es über diesen Ablauf.", "In the chat to Ada: “please look at #431”. It lies in acme/timetable, so it runs through the workflow."), chat: true },
+      { block: "b", when: L("heute 10:06", "today 10:06"), text: L("Ada wurde im Chat direkt gefragt und übernimmt, obwohl Kim weniger zu tun hat.", "Ada was asked directly in the chat and takes it, although Kim has less open."), out: { by: "Ada" } },
       { block: "b", when: L("heute 10:31 – jetzt", "today 10:31 – now"), text: L(`Rückfrage an ${owner} im Chat: „Sollen Vertretungen mit in den Export?“`, `Question to ${owner} in the chat: “Should cover lessons go into the export?”`), now: true, chat: true },
     ] },
     "#427": { no: "#427", title: live.b.cases[1].title, steps: [
-      { block: "t", when: L("Mo 09:12", "Mon 09:12"), text: L("Ticket der Stelle Entwicklung zugewiesen", "Ticket assigned to the Engineering role"), out: { ticket: "#427" } },
-      { block: "b", when: L("Mo 09:13 – 10:02", "Mon 09:13 – 10:02"), text: L("Ada (am wenigsten ausgelastet): MR !212", "Ada (least busy): MR !212"), out: { mr: "!212", summary: L("Benachrichtigung beim Raumwechsel ergänzt", "Notice on room change added") } },
-      { block: "r", when: L("Mo 10:02", "Mon 10:02"), text: L("übersprungen: niemand in der Stelle Code-Review verfügbar", "skipped: nobody available in the Code-Review role"), skip: true },
+      { block: "t", when: L("Mo 09:12", "Mon 09:12"), text: L("Ticket an die Rolle Entwicklung", "Ticket assigned to the Engineering role"), out: { ticket: "#427" } },
+      { block: "b", when: L("Mo 09:13 – 10:02", "Mon 09:13 – 10:02"), text: L("Ada (hatte am wenigsten zu tun): MR !212", "Ada (least busy): MR !212"), out: { mr: "!212", summary: L("Benachrichtigung beim Raumwechsel ergänzt", "Notice on room change added") } },
+      { block: "r", when: L("Mo 10:02", "Mon 10:02"), text: L("übersprungen: niemand mit der Rolle Code-Review verfügbar", "skipped: nobody available in the Code-Review role"), skip: true },
       { block: "a", when: L("Mo 10:03 – 10:41", "Mon 10:03 – 10:41"), text: L("Rosa: Mängel", "Rosa: defects"), out: { result: L("Mängel", "defects"), defects: L("Mail geht auch bei Raumwechseln in der Vergangenheit raus", "Mail also goes out for room changes in the past") } },
-      { block: "c", when: L("Mo 10:41", "Mon 10:41"), text: L("Mängel, Runde 1 von 3 → zurück, bleibt bei Ada", "defects, round 1 of 3 → back, stays with Ada") },
+      { block: "c", when: L("Mo 10:41", "Mon 10:41"), text: L("Mängel gefunden, Runde 1 von 3: zurück an Ada", "defects, round 1 of 3 → back, stays with Ada") },
       { block: "b", when: L("Mo 10:42 – jetzt", "Mon 10:42 – now"), text: L("Ada arbeitet an Runde 2", "Ada works on round 2"), now: true },
     ] },
     "#402": { no: "#402", title: live.w.cases[0].title, steps: [
-      { block: "t", when: L("Do 14:20", "Thu 14:20"), text: L("Ticket der Stelle Entwicklung zugewiesen", "Ticket assigned to the Engineering role") },
+      { block: "t", when: L("Do 14:20", "Thu 14:20"), text: L("Ticket an die Rolle Entwicklung", "Ticket assigned to the Engineering role") },
       { block: "b", when: L("Do 14:21 – 15:30", "Thu 14:21 – 15:30"), text: "Kim: MR !205", out: { mr: "!205", summary: L("Leere Zeilen am Tabellenende übersprungen", "Empty rows at the end of the sheet skipped") } },
-      { block: "r", when: L("Do 15:30", "Thu 15:30"), text: L("übersprungen: Stelle Code-Review unbesetzt", "skipped: Code-Review role unfilled"), skip: true },
+      { block: "r", when: L("Do 15:30", "Thu 15:30"), text: L("übersprungen: niemand hat die Rolle Code-Review", "skipped: Code-Review role unfilled"), skip: true },
       { block: "a", when: L("Do 15:31 – 16:05", "Thu 15:31 – 16:05"), text: L("Rosa: abgenommen", "Rosa: accepted"), out: { result: L("abgenommen", "accepted") } },
-      { block: "c", when: L("Do 16:05", "Thu 16:05"), text: L("abgenommen → weiter", "accepted → on") },
+      { block: "c", when: L("Do 16:05", "Thu 16:05"), text: L("abgenommen, weiter", "accepted → on") },
       { block: "s", when: L("Do 16:05", "Thu 16:05"), text: L(`covey hat das Ticket ${owner} zugewiesen und kommentiert`, `covey assigned the ticket to ${owner} and commented`), out: { action: `assign #402 → ${owner}` } },
       { block: "w", when: L("Do 16:05 – jetzt", "Thu 16:05 – now"), text: L("wartet auf das Label „kunde-ok“", "waits for the label “customer-ok”"), now: true },
     ] },
     "#384": { no: "#384", title: live.h.cases[0].title, steps: [
-      { block: "t", when: L("Mi 08:02", "Wed 08:02"), text: L("Ticket der Stelle Entwicklung zugewiesen", "Ticket assigned to the Engineering role") },
+      { block: "t", when: L("Mi 08:02", "Wed 08:02"), text: L("Ticket an die Rolle Entwicklung", "Ticket assigned to the Engineering role") },
       { block: "b", when: L("Mi 08:03", "Wed 08:03"), text: L("Runde 1 bei Kim: MR !198", "Round 1 with Kim: MR !198") },
       { block: "a", when: L("Mi 09:10", "Wed 09:10"), text: L("Rosa: Mängel", "Rosa: defects") },
       { block: "c", when: L("Mi 09:10", "Wed 09:10"), text: L("Runde 1 von 3", "round 1 of 3") },
@@ -411,8 +411,8 @@ export function example(lang: string): Example {
       { block: "c", when: L("Mi 10:40", "Wed 10:40"), text: L("Runde 2 von 3", "round 2 of 3") },
       { block: "b", when: L("Mi 10:41", "Wed 10:41"), text: L("Runde 3, bleibt bei Kim", "Round 3, stays with Kim") },
       { block: "a", when: L("Mi 12:15", "Wed 12:15"), text: L("Rosa: Mängel", "Rosa: defects"), out: { defects: L("„ß“ wird beim Import zu „ss“", "“ß” turns into “ss” on import") } },
-      { block: "c", when: L("Mi 12:15", "Wed 12:15"), text: L(`3 Runden erreicht → an ${owner}`, `3 rounds reached → to ${owner}`) },
-      { block: "h", when: L("Mi 12:15 – jetzt", "Wed 12:15 – now"), text: L(`Entscheidungskarte liegt im Chat von ${owner}`, `The decision card lies in ${owner}'s chat`), now: true, chat: true },
+      { block: "c", when: L("Mi 12:15", "Wed 12:15"), text: L(`nach 3 Runden an ${owner}`, `3 rounds reached → to ${owner}`) },
+      { block: "h", when: L("Mi 12:15 – jetzt", "Wed 12:15 – now"), text: L(`Frage an ${owner} im Chat, wartet auf Antwort`, `The decision card lies in ${owner}'s chat`), now: true, chat: true },
     ] },
   };
 
@@ -423,15 +423,15 @@ export function example(lang: string): Example {
   for (const [block, l] of Object.entries(live)) {
     for (const c of l.cases) {
       if (runs[c.no]) continue;
-      const steps: Step[] = [done("t", L("Ticket der Stelle Entwicklung zugewiesen", "Ticket assigned to the Engineering role"))];
+      const steps: Step[] = [done("t", L("Ticket an die Rolle Entwicklung", "Ticket assigned to the Engineering role"))];
       const now = (text: string): Step => ({ block, when: L(`seit ${c.since}`, `for ${c.since}`), text, now: true, chat: c.mine });
       if (block === "b") {
-        steps.push(now(c.state === "queued" ? L("in der Schlange: Ada und Kim haben je 2 Vorgänge", "queued: Ada and Kim have 2 cases each") : L(`${c.by} arbeitet daran`, `${c.by} works on it`)));
+        steps.push(now(c.state === "queued" ? L("wartet: Ada und Kim haben schon je 2 Vorgänge", "queued: Ada and Kim have 2 cases each") : L(`${c.by} arbeitet daran`, `${c.by} works on it`)));
       } else {
-        steps.push(done("b", L("Kim: Merge Request geöffnet", "Kim: merge request opened")), { ...done("r", L("übersprungen: Stelle Code-Review unbesetzt", "skipped: Code-Review role unfilled")), skip: true });
-        if (block === "a") steps.push(now(c.state === "queued" ? L("in der Schlange: Rosa hat 3 Vorgänge", "queued: Rosa has 3 cases") : L("Rosa testet", "Rosa tests")));
-        else if (block === "w") steps.push(done("a", L("Rosa: abgenommen", "Rosa: accepted")), done("c", L("abgenommen → weiter", "accepted → on")), done("s", L(`Ticket an ${owner} zugewiesen`, `Ticket assigned to ${owner}`)), now(L("wartet auf das Label „kunde-ok“", "waits for the label “customer-ok”")));
-        else if (block === "h") steps.push(done("a", L("Rosa: Mängel, drei Runden", "Rosa: defects, three rounds")), done("c", L(`3 Runden erreicht → an ${owner}`, `3 rounds reached → to ${owner}`)), now(L(`Entscheidungskarte liegt im Chat von ${owner}`, `The decision card lies in ${owner}'s chat`)));
+        steps.push(done("b", L("Kim: Merge Request geöffnet", "Kim: merge request opened")), { ...done("r", L("übersprungen: niemand hat die Rolle Code-Review", "skipped: Code-Review role unfilled")), skip: true });
+        if (block === "a") steps.push(now(c.state === "queued" ? L("wartet: Rosa hat schon 3 Vorgänge", "queued: Rosa has 3 cases") : L("Rosa testet", "Rosa tests")));
+        else if (block === "w") steps.push(done("a", L("Rosa: abgenommen", "Rosa: accepted")), done("c", L("abgenommen, weiter", "accepted → on")), done("s", L(`Ticket an ${owner} zugewiesen`, `Ticket assigned to ${owner}`)), now(L("wartet auf das Label „kunde-ok“", "waits for the label “customer-ok”")));
+        else if (block === "h") steps.push(done("a", L("Rosa: Mängel, drei Runden", "Rosa: defects, three rounds")), done("c", L(`nach 3 Runden an ${owner}`, `3 rounds reached → to ${owner}`)), now(L(`Frage an ${owner} im Chat, wartet auf Antwort`, `The decision card lies in ${owner}'s chat`)));
       }
       runs[c.no] = { no: c.no, title: c.title, steps };
     }
@@ -468,7 +468,7 @@ export function example(lang: string): Example {
     workflows,
     waiting,
     rails: [
-      { who: L("Stelle Test", "Test role"), text: L("darf im Projekt lesen und zuweisen, nie kommentieren", "may read and assign in the project, never comment") },
+      { who: L("Rolle Test", "Test role"), text: L("darf im Projekt lesen und zuweisen, nie kommentieren", "may read and assign in the project, never comment") },
       { who: L("alle", "all"), text: L("kein Merge ohne Freigabe", "no merge without approval") },
       { who: L("alle", "all"), text: L("gestoppte Kollegen werden nicht angesprochen", "stopped colleagues are not addressed") },
     ],
@@ -485,7 +485,7 @@ export function example(lang: string): Example {
       colleague: "Ada",
       caseNo: "#431",
       request: L("Schau dir bitte #431 an, den PDF-Export vom Stundenplan.", "Please look at #431, the timetable's PDF export."),
-      answer: L("Mach ich. #431 liegt in acme/timetable und läuft deshalb über den Ablauf Kundenticket. Ich bin beim Umsetzen, danach geht es an die Abnahme.", "Will do. #431 lies in acme/timetable, so it runs through the Customer ticket workflow. I'm on the build step; acceptance comes next."),
+      answer: L("Mach ich. #431 gehört zu acme/timetable und läuft deshalb über den Ablauf Kundenticket. Ich setze es um, danach geht es zur Abnahme.", "Will do. #431 lies in acme/timetable, so it runs through the Customer ticket workflow. I'm on the build step; acceptance comes next."),
       question: L("Sollen die Vertretungen mit in den Export oder nur der reguläre Plan? Im Ticket steht dazu nichts.", "Should cover lessons go into the export, or only the regular plan? The ticket says nothing about it."),
       thanks: L("Danke, baue ich so ein.", "Thanks, I'll build it that way."),
     },
