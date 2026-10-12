@@ -3551,6 +3551,22 @@
       "allSteps": "所有步骤",
       "none": "没有运行符合此筛选条件。",
       "back": "所有运行"
+    },
+    "overview": {
+      "new": "新建工作流",
+      "kpiRunning": "进行中的运行",
+      "kpiQueued": "排队等待空闲同事",
+      "kpiStuck": "超出允许时间",
+      "kpiActive": "启用的工作流",
+      "needsYou": "等待你处理",
+      "kind_approval": "审批",
+      "kind_question": "提问",
+      "search": "搜索工作流",
+      "running": "{{count}} 个进行中",
+      "running_one": "{{count}} 个进行中",
+      "meta": "负责人 {{owner}} · {{when}} 修改",
+      "none": "没有匹配的工作流。",
+      "explain": "三种作用方式的含义"
     }
   }
 }

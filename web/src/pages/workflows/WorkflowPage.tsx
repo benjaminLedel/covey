@@ -3,7 +3,7 @@
    All state lives in this component; nothing is saved. */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import {
   Background,
   BackgroundVariant,
@@ -74,17 +74,20 @@ function Editor() {
     Object.keys(ex.blocks).map((id) => ({ id, type: "block", position: ex.positions[id], data: {} })),
   );
   const [mode, setMode] = useState<Mode>("steer");
-  const [tab, setTab] = useState<Tab>("edit");
+  // The overview links straight to a run that waits on someone (?run=#384).
+  const [params] = useSearchParams();
+  const linked = params.get("run");
+  const [tab, setTab] = useState<Tab>(linked && ex.runs[linked] ? "run" : "edit");
   /* The details float over the canvas instead of taking a column from it:
      while editing they open with a click on a block and close again; in
      the live view and a run they carry the summary and start open. */
-  const [panel, setPanel] = useState(false);
+  const [panel, setPanel] = useState(tab === "run");
   const [selected, setSelected] = useState<string | null>(null);
   const [selectedLink, setSelectedLink] = useState<number | null>(null);
   const [live, setLive] = useState(ex.live);
   const [runs, setRuns] = useState(ex.runs);
   // No run chosen shows the list of runs; a chosen one its path and steps.
-  const [run, setRun] = useState<string | null>(null);
+  const [run, setRun] = useState<string | null>(linked && ex.runs[linked] ? linked : null);
   const [runFilter, setRunFilter] = useState<RunFilter>("attention");
   const [runStep, setRunStep] = useState<string | null>(null);
   const [runQuery, setRunQuery] = useState("");

@@ -3551,6 +3551,22 @@
       "allSteps": "Todos los pasos",
       "none": "Ninguna ejecución coincide con este filtro.",
       "back": "Todas las ejecuciones"
+    },
+    "overview": {
+      "new": "Nuevo flujo de trabajo",
+      "kpiRunning": "ejecuciones en curso",
+      "kpiQueued": "en cola para un compañero libre",
+      "kpiStuck": "más tiempo del permitido",
+      "kpiActive": "flujos activos",
+      "needsYou": "Te espera",
+      "kind_approval": "aprobación",
+      "kind_question": "pregunta",
+      "search": "Buscar flujos de trabajo",
+      "running": "{{count}} en curso",
+      "running_one": "{{count}} en curso",
+      "meta": "Responsable {{owner}} · modificado {{when}}",
+      "none": "Ningún flujo coincide.",
+      "explain": "Qué significan los tres efectos"
     }
   }
 }

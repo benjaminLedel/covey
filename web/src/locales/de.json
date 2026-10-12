@@ -3551,6 +3551,22 @@
       "allSteps": "Alle Schritte",
       "none": "Kein Lauf passt zu diesem Filter.",
       "back": "Alle Läufe"
+    },
+    "overview": {
+      "new": "Neuer Ablauf",
+      "kpiRunning": "laufende Vorgänge",
+      "kpiQueued": "warten auf einen freien Kollegen",
+      "kpiStuck": "länger als erlaubt",
+      "kpiActive": "Abläufe aktiv",
+      "needsYou": "Wartet auf dich",
+      "kind_approval": "Freigabe",
+      "kind_question": "Rückfrage",
+      "search": "Abläufe suchen",
+      "running": "{{count}} laufen",
+      "running_one": "{{count}} läuft",
+      "meta": "Verantwortlich {{owner}} · geändert {{when}}",
+      "none": "Kein Ablauf passt.",
+      "explain": "Was die drei Wirkungen bedeuten"
     }
   }
 }

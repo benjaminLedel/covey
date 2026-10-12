@@ -3551,6 +3551,22 @@
       "allSteps": "Wszystkie kroki",
       "none": "Żadne uruchomienie nie pasuje do tego filtra.",
       "back": "Wszystkie uruchomienia"
+    },
+    "overview": {
+      "new": "Nowy przepływ",
+      "kpiRunning": "uruchomienia w toku",
+      "kpiQueued": "w kolejce do wolnego współpracownika",
+      "kpiStuck": "dłużej niż dozwolone",
+      "kpiActive": "aktywne przepływy",
+      "needsYou": "Czeka na ciebie",
+      "kind_approval": "zatwierdzenie",
+      "kind_question": "pytanie",
+      "search": "Szukaj przepływów",
+      "running": "W toku: {{count}}",
+      "running_one": "W toku: {{count}}",
+      "meta": "Odpowiedzialny {{owner}} · zmieniono {{when}}",
+      "none": "Żaden przepływ nie pasuje.",
+      "explain": "Co oznaczają trzy tryby działania"
     }
   }
 }

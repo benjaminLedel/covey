@@ -3551,6 +3551,22 @@
       "allSteps": "すべてのステップ",
       "none": "このフィルターに一致する実行はありません。",
       "back": "すべての実行"
+    },
+    "overview": {
+      "new": "新しいワークフロー",
+      "kpiRunning": "進行中の実行",
+      "kpiQueued": "空いている担当者待ち",
+      "kpiStuck": "許容時間超過",
+      "kpiActive": "有効なワークフロー",
+      "needsYou": "あなたを待っています",
+      "kind_approval": "承認",
+      "kind_question": "質問",
+      "search": "ワークフローを検索",
+      "running": "{{count}} 件進行中",
+      "running_one": "{{count}} 件進行中",
+      "meta": "担当 {{owner}} · {{when}} に変更",
+      "none": "該当するワークフローはありません。",
+      "explain": "3つの動作の意味"
     }
   }
 }

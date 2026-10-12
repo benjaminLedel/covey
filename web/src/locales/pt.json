@@ -3551,6 +3551,22 @@
       "allSteps": "Todos os passos",
       "none": "Nenhuma execução corresponde a este filtro.",
       "back": "Todas as execuções"
+    },
+    "overview": {
+      "new": "Novo fluxo",
+      "kpiRunning": "execuções em curso",
+      "kpiQueued": "em fila para um colega livre",
+      "kpiStuck": "mais tempo do que o permitido",
+      "kpiActive": "fluxos ativos",
+      "needsYou": "Espera por ti",
+      "kind_approval": "aprovação",
+      "kind_question": "pergunta",
+      "search": "Procurar fluxos",
+      "running": "{{count}} em curso",
+      "running_one": "{{count}} em curso",
+      "meta": "Responsável {{owner}} · alterado {{when}}",
+      "none": "Nenhum fluxo corresponde.",
+      "explain": "O que significam os três efeitos"
     }
   }
 }

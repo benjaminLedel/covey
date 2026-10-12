@@ -81,8 +81,22 @@ export interface WorkflowRow {
   scope: string;
   chain: string[];
   mode: Mode;
+  // The department the workflow is filed under on the overview.
+  area: string;
+  owner: string;
+  updated: string;
   active: number;
+  queued: number;
   stuck: number;
+}
+
+// What waits on the person looking, across all workflows.
+export interface Waiting {
+  workflow: string;
+  no: string;
+  title: string;
+  kind: "approval" | "question";
+  since: string;
 }
 
 export interface Example {
@@ -97,6 +111,7 @@ export interface Example {
   live: Record<string, { cases: Case[]; note?: string }>;
   runs: Record<string, Run>;
   workflows: WorkflowRow[];
+  waiting: Waiting[];
   rails: { who: string; text: string }[];
   options: {
     sources: string[];
@@ -422,11 +437,21 @@ export function example(lang: string): Example {
     }
   }
 
+  const eng = L("Entwicklung", "Engineering");
+  const stuckHere = Object.values(live).flatMap((l) => l.cases).filter((c) => c.level === "bad").length;
+  const queuedHere = Object.values(live).flatMap((l) => l.cases).filter((c) => c.state === "queued").length;
+  const activeHere = Object.values(live).flatMap((l) => l.cases).length;
   const workflows: WorkflowRow[] = [
-    { id: "ticket", name: L("Kundenticket", "Customer ticket"), desc: L("Ticket bis zum Kundentest", "Ticket to customer test"), scope: "GitLab · acme/timetable", chain: [rEng, rRev, rTest, owner], mode: "steer", active: 11, stuck: 2 },
-    { id: "support", name: L("Supportanfrage", "Support request"), desc: L("Kundenmail bis zur Antwort, Fehler an die Entwicklung", "Customer mail to answer, bugs to engineering"), scope: "Zammad → GitLab", chain: [L("KI: einordnen", "AI: classify"), "Support", rEng, "Support"], mode: "watch", active: 7, stuck: 0 },
-    { id: "blog", name: L("Blogartikel", "Blog post"), desc: L("Thema bis zur Veröffentlichung", "Topic to publication"), scope: "CMS", chain: [L("Redaktion", "Writing"), L("Lektorat", "Editing"), L("Freigabe", "Approval")], mode: "steer", active: 2, stuck: 0 },
-    { id: "hire", name: L("Neue Kollegin einstellen", "Hire a colleague"), desc: L("Anfrage bis zum ersten Lauf", "Request to first run"), scope: "covey", chain: [L("KI: Entwurf", "AI: draft"), L("Freigabe", "Approval"), "Secrets"], mode: "off", active: 0, stuck: 0 },
+    { id: "ticket", name: L("Kundenticket", "Customer ticket"), desc: L("Ticket bis zum Kundentest", "Ticket to customer test"), scope: "GitLab · acme/timetable", chain: [rEng, rRev, rTest, owner], mode: "steer", area: eng, owner, updated: L("vor 2 Tagen", "2 days ago"), active: activeHere, queued: queuedHere, stuck: stuckHere },
+    { id: "release", name: L("Release", "Release"), desc: L("Gemergte Änderungen bis zur Auslieferung", "Merged changes to delivery"), scope: "GitLab · acme/timetable", chain: [L("KI: Release Notes", "AI: release notes"), rTest, L("Freigabe", "Approval")], mode: "watch", area: eng, owner, updated: L("vor 3 Wochen", "3 weeks ago"), active: 1, queued: 0, stuck: 0 },
+    { id: "support", name: L("Supportanfrage", "Support request"), desc: L("Kundenmail bis zur Antwort, Fehler an die Entwicklung", "Customer mail to answer, bugs to engineering"), scope: "Zammad → GitLab", chain: [L("KI: einordnen", "AI: classify"), "Support", rEng, "Support"], mode: "watch", area: "Support", owner: "Mia", updated: L("gestern", "yesterday"), active: 7, queued: 2, stuck: 1 },
+    { id: "invoice", name: L("Eingangsrechnung", "Incoming invoice"), desc: L("Rechnung per Mail bis zur Zahlungsfreigabe", "Invoice by mail to payment approval"), scope: L("E-Mail → Buchhaltung", "Email → accounting"), chain: [L("KI: auslesen", "AI: extract"), L("Buchhaltung", "Accounting"), L("Freigabe", "Approval")], mode: "steer", area: L("Verwaltung", "Administration"), owner: "Sam", updated: L("vor 5 Tagen", "5 days ago"), active: 4, queued: 0, stuck: 0 },
+    { id: "blog", name: L("Blogartikel", "Blog post"), desc: L("Thema bis zur Veröffentlichung", "Topic to publication"), scope: "CMS", chain: [L("Redaktion", "Writing"), L("Lektorat", "Editing"), L("Freigabe", "Approval")], mode: "steer", area: L("Redaktion", "Editorial"), owner: "Nora", updated: L("vor 1 Woche", "1 week ago"), active: 2, queued: 0, stuck: 0 },
+    { id: "hire", name: L("Neue Kollegin einstellen", "Hire a colleague"), desc: L("Anfrage bis zum ersten Lauf", "Request to first run"), scope: "covey", chain: [L("KI: Entwurf", "AI: draft"), L("Freigabe", "Approval"), "Secrets"], mode: "off", area: L("Verwaltung", "Administration"), owner, updated: L("vor 2 Monaten", "2 months ago"), active: 0, queued: 0, stuck: 0 },
+  ];
+  const waiting: Waiting[] = [
+    ...Object.values(live).flatMap((l) => l.cases).filter((c) => c.mine).map((c): Waiting => ({ workflow: "ticket", no: c.no, title: c.title, kind: live.h.cases.includes(c) ? "approval" : "question", since: c.since })),
+    { workflow: "invoice", no: "R-2291", title: L("Rechnung Druckerei, 1.840 €", "Printer's invoice, €1,840"), kind: "approval", since: L("3 Std.", "3 h") },
   ];
 
   return {
@@ -441,6 +466,7 @@ export function example(lang: string): Example {
     live,
     runs,
     workflows,
+    waiting,
     rails: [
       { who: L("Stelle Test", "Test role"), text: L("darf im Projekt lesen und zuweisen, nie kommentieren", "may read and assign in the project, never comment") },
       { who: L("alle", "all"), text: L("kein Merge ohne Freigabe", "no merge without approval") },

@@ -3551,6 +3551,22 @@
       "allSteps": "All steps",
       "none": "No run matches this filter.",
       "back": "All runs"
+    },
+    "overview": {
+      "new": "New workflow",
+      "kpiRunning": "runs in progress",
+      "kpiQueued": "queued for a free colleague",
+      "kpiStuck": "longer than allowed",
+      "kpiActive": "workflows active",
+      "needsYou": "Waits for you",
+      "kind_approval": "approval",
+      "kind_question": "question",
+      "search": "Search workflows",
+      "running": "{{count}} running",
+      "running_one": "{{count}} running",
+      "meta": "Owner {{owner}} · changed {{when}}",
+      "none": "No workflow matches.",
+      "explain": "What the three effects mean"
     }
   }
 }

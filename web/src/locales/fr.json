@@ -3551,6 +3551,22 @@
       "allSteps": "Toutes les étapes",
       "none": "Aucune exécution ne correspond à ce filtre.",
       "back": "Toutes les exécutions"
+    },
+    "overview": {
+      "new": "Nouveau workflow",
+      "kpiRunning": "exécutions en cours",
+      "kpiQueued": "en file d'attente pour un collègue libre",
+      "kpiStuck": "plus long qu'autorisé",
+      "kpiActive": "workflows actifs",
+      "needsYou": "T'attend",
+      "kind_approval": "validation",
+      "kind_question": "question",
+      "search": "Rechercher des workflows",
+      "running": "{{count}} en cours",
+      "running_one": "{{count}} en cours",
+      "meta": "Responsable {{owner}} · modifié {{when}}",
+      "none": "Aucun workflow ne correspond.",
+      "explain": "Ce que signifient les trois effets"
     }
   }
 }

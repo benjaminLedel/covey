@@ -3551,6 +3551,22 @@
       "allSteps": "Tutti i passaggi",
       "none": "Nessuna esecuzione corrisponde a questo filtro.",
       "back": "Tutte le esecuzioni"
+    },
+    "overview": {
+      "new": "Nuovo flusso",
+      "kpiRunning": "esecuzioni in corso",
+      "kpiQueued": "in coda per un collega libero",
+      "kpiStuck": "oltre il tempo consentito",
+      "kpiActive": "flussi attivi",
+      "needsYou": "Aspetta te",
+      "kind_approval": "approvazione",
+      "kind_question": "domanda",
+      "search": "Cerca flussi",
+      "running": "{{count}} in corso",
+      "running_one": "{{count}} in corso",
+      "meta": "Responsabile {{owner}} · modificato {{when}}",
+      "none": "Nessun flusso corrisponde.",
+      "explain": "Cosa significano i tre effetti"
     }
   }
 }

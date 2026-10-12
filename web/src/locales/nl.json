@@ -3551,6 +3551,22 @@
       "allSteps": "Alle stappen",
       "none": "Geen run past bij dit filter.",
       "back": "Alle runs"
+    },
+    "overview": {
+      "new": "Nieuwe workflow",
+      "kpiRunning": "lopende runs",
+      "kpiQueued": "in de wachtrij voor een vrije collega",
+      "kpiStuck": "langer dan toegestaan",
+      "kpiActive": "workflows actief",
+      "needsYou": "Wacht op jou",
+      "kind_approval": "goedkeuring",
+      "kind_question": "vraag",
+      "search": "Workflows zoeken",
+      "running": "{{count}} lopen",
+      "running_one": "{{count}} loopt",
+      "meta": "Verantwoordelijk {{owner}} · gewijzigd {{when}}",
+      "none": "Geen workflow komt overeen.",
+      "explain": "Wat de drie werkingen betekenen"
     }
   }
 }
