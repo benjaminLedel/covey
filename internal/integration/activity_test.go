@@ -24,30 +24,34 @@ func TestActivityBelongsToItsSeat(t *testing.T) {
 	}, http.StatusCreated)
 	ada := login(t, s, "ada@test.local", "ada-passwort")
 
-	// 23:30 UTC on the 25th is 01:30 on the 26th in Berlin: the day is the
-	// person's, not the server's.
-	late := time.Date(2026, 9, 25, 23, 30, 0, 0, time.UTC)
-	morning := time.Date(2026, 9, 26, 7, 10, 0, 0, time.UTC)
+	// 23:30 UTC the evening before is 01:30 on the day in Berlin: the day is
+	// the person's, not the server's. The day sits a few days back, inside
+	// the retention — a fixed date drops out of it and the write purges its
+	// own sessions (#548).
+	day := recentDay()
+	late := day.Add(-30 * time.Minute)
+	morning := day.Add(7*time.Hour + 10*time.Minute)
+	ymd := day.Format("2006-01-02")
 	ada.expect(http.MethodPost, "/api/v1/me/activity", map[string]any{"sessions": []map[string]any{
 		{"started_at": late, "ended_at": late.Add(10 * time.Minute), "app": "Mail", "window": "Re: Angebot", "excerpt": "Hallo Ada"},
 		{"started_at": morning, "ended_at": morning.Add(20 * time.Minute), "app": "Safari", "url": "https://example.org"},
 	}}, http.StatusCreated)
 
-	day := ada.expect(http.MethodGet, "/api/v1/me/activity?day=2026-09-26&tz=Europe/Berlin", nil, http.StatusOK)
-	if n := len(day["sessions"].([]any)); n != 2 {
-		t.Fatalf("both sessions fall on the 26th in Berlin: %d", n)
+	got := ada.expect(http.MethodGet, "/api/v1/me/activity?day="+ymd+"&tz=Europe/Berlin", nil, http.StatusOK)
+	if n := len(got["sessions"].([]any)); n != 2 {
+		t.Fatalf("both sessions fall on the day in Berlin: %d", n)
 	}
-	utc := ada.expect(http.MethodGet, "/api/v1/me/activity?day=2026-09-26", nil, http.StatusOK)
+	utc := ada.expect(http.MethodGet, "/api/v1/me/activity?day="+ymd, nil, http.StatusOK)
 	if n := len(utc["sessions"].([]any)); n != 1 {
-		t.Fatalf("in UTC only the morning is on the 26th: %d", n)
+		t.Fatalf("in UTC only the morning is on the day: %d", n)
 	}
 
 	// Nobody else's.
-	if n := len(admin.expect(http.MethodGet, "/api/v1/me/activity?day=2026-09-26&tz=Europe/Berlin", nil, http.StatusOK)["sessions"].([]any)); n != 0 {
+	if n := len(admin.expect(http.MethodGet, "/api/v1/me/activity?day="+ymd+"&tz=Europe/Berlin", nil, http.StatusOK)["sessions"].([]any)); n != 0 {
 		t.Fatalf("the admin reads the admin's log only: %d", n)
 	}
 	admin.expect(http.MethodDelete, "/api/v1/me/activity", nil, http.StatusOK)
-	if n := len(ada.expect(http.MethodGet, "/api/v1/me/activity?day=2026-09-26&tz=Europe/Berlin", nil, http.StatusOK)["sessions"].([]any)); n != 2 {
+	if n := len(ada.expect(http.MethodGet, "/api/v1/me/activity?day="+ymd+"&tz=Europe/Berlin", nil, http.StatusOK)["sessions"].([]any)); n != 2 {
 		t.Fatalf("the admin's delete reaches only the admin's log: %d", n)
 	}
 
@@ -57,12 +61,12 @@ func TestActivityBelongsToItsSeat(t *testing.T) {
 	}}, http.StatusBadRequest)
 	ada.expect(http.MethodPost, "/api/v1/me/activity", map[string]any{"sessions": []any{}}, http.StatusBadRequest)
 	ada.expect(http.MethodGet, "/api/v1/me/activity?day=gestern", nil, http.StatusBadRequest)
-	ada.expect(http.MethodGet, "/api/v1/me/activity?day=2026-09-26&tz=Mars/Olympus", nil, http.StatusBadRequest)
+	ada.expect(http.MethodGet, "/api/v1/me/activity?day="+ymd+"&tz=Mars/Olympus", nil, http.StatusBadRequest)
 
 	// Without a control-plane credential there is no review, and it says so;
 	// a day without activity has none either.
-	ada.expect(http.MethodPost, "/api/v1/me/activity/review?day=2026-09-26&tz=Europe/Berlin", map[string]any{"lang": "de", "title": "Rückblick"}, http.StatusConflict)
-	ada.expect(http.MethodPost, "/api/v1/me/activity/review?day=2026-09-20", map[string]any{"lang": "de"}, http.StatusNotFound)
+	ada.expect(http.MethodPost, "/api/v1/me/activity/review?day="+ymd+"&tz=Europe/Berlin", map[string]any{"lang": "de", "title": "Rückblick"}, http.StatusConflict)
+	ada.expect(http.MethodPost, "/api/v1/me/activity/review?day="+day.AddDate(0, 0, -6).Format("2006-01-02"), map[string]any{"lang": "de"}, http.StatusNotFound)
 
 	// Old sessions go as new ones arrive (default retention: 14 days).
 	old := time.Now().Add(-20 * 24 * time.Hour)
@@ -75,11 +79,11 @@ func TestActivityBelongsToItsSeat(t *testing.T) {
 	}
 
 	// The person deletes a day, then everything.
-	if d := ada.expect(http.MethodDelete, "/api/v1/me/activity?day=2026-09-26&tz=UTC", nil, http.StatusOK)["deleted"].(float64); d != 1 {
-		t.Fatalf("one session on the 26th in UTC: %v", d)
+	if d := ada.expect(http.MethodDelete, "/api/v1/me/activity?day="+ymd+"&tz=UTC", nil, http.StatusOK)["deleted"].(float64); d != 1 {
+		t.Fatalf("one session on the day in UTC: %v", d)
 	}
 	ada.expect(http.MethodDelete, "/api/v1/me/activity", nil, http.StatusOK)
-	if n := len(ada.expect(http.MethodGet, "/api/v1/me/activity?day=2026-09-25", nil, http.StatusOK)["sessions"].([]any)); n != 0 {
+	if n := len(ada.expect(http.MethodGet, "/api/v1/me/activity?day="+day.AddDate(0, 0, -1).Format("2006-01-02"), nil, http.StatusOK)["sessions"].([]any)); n != 0 {
 		t.Fatalf("everything is gone: %d", n)
 	}
 }
@@ -96,13 +100,14 @@ func TestADayHasOneReview(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := notes.NewStore(s.pool)
-	day := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
-	meta := notes.ReviewMeta{Lang: "de", Zone: "offset:120", Through: time.Date(2026, 9, 26, 7, 0, 0, 0, time.UTC)}
+	day := recentDay()
+	ymd := day.Format("2006-01-02")
+	meta := notes.ReviewMeta{Lang: "de", Zone: "offset:120", Through: day.Add(7 * time.Hour)}
 	first, err := store.SetReview(ctx, orgID, humanID, day, "Rückblick", "Vormittag: Mails.", meta)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first.ReviewDay == nil || *first.ReviewDay != "2026-09-26" {
+	if first.ReviewDay == nil || *first.ReviewDay != ymd {
 		t.Fatalf("the note knows its day: %v", first.ReviewDay)
 	}
 	// Written again by itself (#369): an empty title keeps the note's own.
@@ -125,18 +130,18 @@ func TestADayHasOneReview(t *testing.T) {
 		t.Fatal("another day, another note")
 	}
 
-	// 23:30 UTC on the 25th is the 26th in UTC+2.
-	late := time.Date(2026, 9, 25, 23, 30, 0, 0, time.UTC)
+	// 23:30 UTC the evening before is the day itself in UTC+2.
+	late := day.Add(-30 * time.Minute)
 	ada.expect(http.MethodPost, "/api/v1/me/activity", map[string]any{"sessions": []map[string]any{
 		{"started_at": late, "ended_at": late.Add(time.Minute), "app": "Mail"},
 		{"started_at": late.Add(10 * time.Hour), "ended_at": late.Add(10*time.Hour + time.Minute), "app": "Safari"},
 	}}, http.StatusCreated)
 	days := ada.expect(http.MethodGet, "/api/v1/me/activity/days?offset=120", nil, http.StatusOK)["days"].([]any)
 	if len(days) != 1 {
-		t.Fatalf("both sessions fall on the 26th at UTC+2: %v", days)
+		t.Fatalf("both sessions fall on the day at UTC+2: %v", days)
 	}
 	d := days[0].(map[string]any)
-	if d["day"] != "2026-09-26" || d["sessions"] != float64(2) || d["review"] != first.ID.String() {
+	if d["day"] != ymd || d["sessions"] != float64(2) || d["review"] != first.ID.String() {
 		t.Fatalf("the day, its sessions and its review: %v", d)
 	}
 	// The later session (09:30 UTC) ends after what the review covers (07:00).
@@ -189,4 +194,11 @@ func TestSuggestionsAreTheSeatsOwn(t *testing.T) {
 	if got := ada.expect(http.MethodGet, "/api/v1/me/activity/suggestions", nil, http.StatusOK); got["suggestions"] != nil {
 		t.Fatalf("another seat sees none of them: %v", got)
 	}
+}
+
+// recentDay is midnight UTC three days ago: inside the activity retention
+// (14 days by default), so a test's sessions are not purged by the write that
+// brings them, and far enough back that "today" and its edges stay out of it.
+func recentDay() time.Time {
+	return time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -3)
 }
