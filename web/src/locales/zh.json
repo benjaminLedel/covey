@@ -3310,7 +3310,7 @@
     "tab": {
       "edit": "编辑",
       "live": "实时",
-      "run": "单次运行",
+      "run": "运行",
       "file": "文件"
     },
     "type": {
@@ -3338,8 +3338,9 @@
     "blocks": "组件",
     "legend": {
       "edit": "左侧为模块：点击即可添加。从模块右侧的圆点拖动即可连接。虚线：该角色空缺，此步骤将被跳过。",
-      "live": "数字 = 停在此步骤的案件数。红色:超出允许时长。黄色:等待某人。",
-      "run": "蓝色:{{no}} 的路径。“2×”表示该步骤运行了不止一轮。"
+      "live": "蓝色：处理中。黄色：排队，等待空闲的同事。灰色：等待外部的人。红色：超出允许时间。",
+      "run": "蓝色:{{no}} 的路径。“2×”表示该步骤运行了不止一轮。",
+      "runs": "数字显示各次运行所处的位置。点击某个步骤可筛选列表。"
     },
     "workflow": "工作流",
     "name": "名称",
@@ -3469,21 +3470,29 @@
       "title": "正在运行的内容",
       "nowAt": "{{type}} · 当前",
       "nothingHere": "此刻这里没有内容。",
-      "cases": "个案件在工作流中",
       "stuck": "超出允许时长",
-      "median": "验收所需天数(中位数)",
       "attention": "需要关注",
       "nothing": "无。",
       "hint": "点击步骤可查看当前在该步骤的人。点击案件可打开其运行。",
       "offTitle": "工作流已关闭",
       "offText": "工作流关闭期间,covey 不会向其分配案件。同事们按手册工作。",
       "watchNote": "covey 从目标系统读取进度并报告停滞的案件,但自己不做任何交接。",
-      "count": "{{count}} 个案件",
-      "count_one": "{{count}} 个案件",
       "stuckBadge": "{{count}} 个停滞",
       "stuckBadge_one": "{{count}} 个停滞",
       "skipped": "已跳过",
-      "with": "由 {{name}} 处理"
+      "working": "{{count}} 个进行中",
+      "working_one": "{{count}} 个进行中",
+      "queued": "{{count}} 个排队中",
+      "queued_one": "{{count}} 个排队中",
+      "waiting": "{{count}} 个等待中",
+      "waiting_one": "{{count}} 个等待中",
+      "statWorking": "进行中",
+      "statQueued": "排队等待空闲同事",
+      "allInList": "列表中的全部 {{count}} 个",
+      "allInList_one": "列表中的 {{count}} 个",
+      "groupWorking": "进行中",
+      "groupQueued": "排队中 · 下一个优先",
+      "groupWaiting": "等待中"
     },
     "run": {
       "title": "运行 {{no}}",
@@ -3518,9 +3527,30 @@
       "stepEnded": "运行结束,工单在 {{owner}} 处",
       "stepAnswered": "{{owner}} 在聊天中回复:“{{text}}”",
       "stepContinues": "{{name}} 继续处理",
-      "previewOf": "在 {{name}} 的聊天中显示如下"
+      "previewOf": "在 {{name}} 的聊天中显示如下",
+      "digestKind": "摘要 · 每天一次",
+      "digestStuck": "有 {{count}} 次运行停滞",
+      "digestStuck_one": "有 {{count}} 次运行停滞",
+      "digestQueue": "有 {{count}} 个在为{{role}}排队",
+      "digestQueue_one": "有 {{count}} 个在为{{role}}排队",
+      "digestMine": "有 {{count}} 个审批等你处理",
+      "digestMine_one": "有 {{count}} 个审批等你处理",
+      "digestNote": "单个停滞的运行不会单独发消息；每个审批都会，因为它是一项决定。"
     },
     "details": "详情",
-    "closeDetails": "关闭详情"
+    "closeDetails": "关闭详情",
+    "runs": {
+      "mineTag": "给你的",
+      "result": "{{count}} 次运行",
+      "result_one": "{{count}} 次运行",
+      "search": "按编号或标题搜索",
+      "filter_all": "全部",
+      "filter_attention": "需要关注",
+      "filter_mine": "等我处理",
+      "filter_queued": "排队中",
+      "allSteps": "所有步骤",
+      "none": "没有运行符合此筛选条件。",
+      "back": "所有运行"
+    }
   }
 }

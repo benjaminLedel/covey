@@ -3310,7 +3310,7 @@
     "tab": {
       "edit": "Modifica",
       "live": "Live",
-      "run": "Singola esecuzione",
+      "run": "Esecuzioni",
       "file": "Come file"
     },
     "type": {
@@ -3338,8 +3338,9 @@
     "blocks": "Blocchi",
     "legend": {
       "edit": "Blocchi a sinistra: un clic ne aggiunge uno. Trascina dal punto a destra di un blocco per collegarlo. Tratteggiato: ruolo scoperto, il passo viene saltato.",
-      "live": "Numero = casi in questo passaggio. Rosso: più a lungo del consentito. Giallo: in attesa di qualcuno.",
-      "run": "Blu: il percorso di {{no}}. «2×» significa che il passaggio è stato eseguito in più giri."
+      "live": "Blu: in lavorazione. Giallo: in coda, attende un collega libero. Grigio: attende qualcuno all'esterno. Rosso: oltre il tempo consentito.",
+      "run": "Blu: il percorso di {{no}}. «2×» significa che il passaggio è stato eseguito in più giri.",
+      "runs": "I numeri mostrano a che punto sono le esecuzioni. Un clic su un passaggio filtra l’elenco."
     },
     "workflow": "Workflow",
     "name": "Nome",
@@ -3469,21 +3470,29 @@
       "title": "Cosa è in corso",
       "nowAt": "{{type}} · ora",
       "nothingHere": "Al momento qui non c’è nulla.",
-      "cases": "casi nel workflow",
       "stuck": "più a lungo del consentito",
-      "median": "giorni all’accettazione (mediana)",
       "attention": "Richiede attenzione",
       "nothing": "Niente.",
       "hint": "Un clic su un passaggio mostra chi si trova lì. Un clic su un caso apre la sua esecuzione.",
       "offTitle": "Il workflow è spento",
       "offText": "Finché il workflow è spento, covey non gli assegna casi. I colleghi lavorano secondo i loro playbook.",
       "watchNote": "covey legge lo stato dal sistema di destinazione e segnala cosa è bloccato, ma non passa il lavoro da sé.",
-      "count": "{{count}} casi",
-      "count_one": "{{count}} caso",
       "stuckBadge": "{{count}} bloccati",
       "stuckBadge_one": "{{count}} bloccato",
       "skipped": "saltato",
-      "with": "con {{name}}"
+      "working": "{{count}} in corso",
+      "working_one": "{{count}} in corso",
+      "queued": "{{count}} in coda",
+      "queued_one": "{{count}} in coda",
+      "waiting": "{{count}} in attesa",
+      "waiting_one": "{{count}} in attesa",
+      "statWorking": "in corso",
+      "statQueued": "in coda per un collega libero",
+      "allInList": "Tutte le {{count}} dell’elenco",
+      "allInList_one": "{{count}} nell’elenco",
+      "groupWorking": "In corso",
+      "groupQueued": "In coda · prima la prossima",
+      "groupWaiting": "In attesa"
     },
     "run": {
       "title": "Esecuzione {{no}}",
@@ -3518,9 +3527,30 @@
       "stepEnded": "Esecuzione conclusa, ticket presso {{owner}}",
       "stepAnswered": "{{owner}} ha risposto nella chat: «{{text}}»",
       "stepContinues": "{{name}} prosegue",
-      "previewOf": "Così appare nella chat di {{name}}"
+      "previewOf": "Così appare nella chat di {{name}}",
+      "digestKind": "Riepilogo · una volta al giorno",
+      "digestStuck": "{{count}} esecuzioni sono bloccate",
+      "digestStuck_one": "{{count}} esecuzione è bloccata",
+      "digestQueue": "{{count}} sono in coda per {{role}}",
+      "digestQueue_one": "{{count}} è in coda per {{role}}",
+      "digestMine": "{{count}} approvazioni aspettano te",
+      "digestMine_one": "{{count}} approvazione aspetta te",
+      "digestNote": "Le singole esecuzioni bloccate non arrivano come messaggi a sé; ogni approvazione sì, perché è una decisione."
     },
     "details": "Dettagli",
-    "closeDetails": "Chiudi dettagli"
+    "closeDetails": "Chiudi dettagli",
+    "runs": {
+      "mineTag": "per te",
+      "result": "{{count}} esecuzioni",
+      "result_one": "{{count}} esecuzione",
+      "search": "Cerca per numero o titolo",
+      "filter_all": "Tutte",
+      "filter_attention": "Richiede attenzione",
+      "filter_mine": "Aspetta me",
+      "filter_queued": "In coda",
+      "allSteps": "Tutti i passaggi",
+      "none": "Nessuna esecuzione corrisponde a questo filtro.",
+      "back": "Tutte le esecuzioni"
+    }
   }
 }

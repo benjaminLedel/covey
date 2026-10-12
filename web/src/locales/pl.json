@@ -3310,7 +3310,7 @@
     "tab": {
       "edit": "Edytuj",
       "live": "Na żywo",
-      "run": "Pojedyncze uruchomienie",
+      "run": "Uruchomienia",
       "file": "Jako plik"
     },
     "type": {
@@ -3338,8 +3338,9 @@
     "blocks": "Klocki",
     "legend": {
       "edit": "Bloki po lewej: kliknięcie dodaje blok. Przeciągnij z kropki po prawej stronie bloku, aby go połączyć. Linia przerywana: rola nieobsadzona, krok jest pomijany.",
-      "live": "Liczba = sprawy na tym kroku. Czerwony: dłużej, niż wolno. Żółty: czeka na kogoś.",
-      "run": "Niebieski: droga sprawy {{no}}. „2×” oznacza, że krok przeszedł w kilku rundach."
+      "live": "Niebieski: w pracy. Żółty: w kolejce, czeka na wolnego współpracownika. Szary: czeka na kogoś z zewnątrz. Czerwony: dłużej niż dozwolone.",
+      "run": "Niebieski: droga sprawy {{no}}. „2×” oznacza, że krok przeszedł w kilku rundach.",
+      "runs": "Liczby pokazują, na jakim etapie są uruchomienia. Kliknięcie kroku filtruje listę."
     },
     "workflow": "Przepływ pracy",
     "name": "Nazwa",
@@ -3469,21 +3470,29 @@
       "title": "Co teraz trwa",
       "nowAt": "{{type}} · teraz",
       "nothingHere": "Teraz nic tu nie ma.",
-      "cases": "spraw w przepływie pracy",
       "stuck": "dłużej, niż wolno",
-      "median": "dni do odbioru (mediana)",
       "attention": "Wymaga uwagi",
       "nothing": "Nic.",
       "hint": "Kliknięcie kroku pokazuje, kto tam jest. Kliknięcie sprawy otwiera jej uruchomienie.",
       "offTitle": "Przepływ pracy jest wyłączony",
       "offText": "Dopóki przepływ pracy jest wyłączony, covey nie przypisuje mu spraw. Współpracownicy pracują według swoich playbooków.",
       "watchNote": "covey odczytuje stany z systemu docelowego i zgłasza, co utknęło, ale sam niczego nie przekazuje.",
-      "count": "{{count}} spraw",
-      "count_one": "{{count}} sprawa",
       "stuckBadge": "{{count}} utknęło",
       "stuckBadge_one": "{{count}} utknęła",
       "skipped": "pominięty",
-      "with": "u: {{name}}"
+      "working": "{{count}} w toku",
+      "working_one": "{{count}} w toku",
+      "queued": "{{count}} w kolejce",
+      "queued_one": "{{count}} w kolejce",
+      "waiting": "{{count}} czeka",
+      "waiting_one": "{{count}} czeka",
+      "statWorking": "w toku",
+      "statQueued": "w kolejce do wolnego współpracownika",
+      "allInList": "Wszystkie {{count}} na liście",
+      "allInList_one": "{{count}} na liście",
+      "groupWorking": "W toku",
+      "groupQueued": "W kolejce · najpierw następne",
+      "groupWaiting": "Oczekujące"
     },
     "run": {
       "title": "Uruchomienie {{no}}",
@@ -3518,9 +3527,30 @@
       "stepEnded": "Uruchomienie zakończone, zgłoszenie u {{owner}}",
       "stepAnswered": "{{owner}} odpowiedział(a) w czacie: „{{text}}”",
       "stepContinues": "{{name}} pracuje dalej",
-      "previewOf": "Tak wygląda to na czacie {{name}}"
+      "previewOf": "Tak wygląda to na czacie {{name}}",
+      "digestKind": "Podsumowanie · raz dziennie",
+      "digestStuck": "Utknęło uruchomień: {{count}}",
+      "digestStuck_one": "Utknęło uruchomienie: {{count}}",
+      "digestQueue": "W kolejce do roli {{role}}: {{count}}",
+      "digestQueue_one": "W kolejce do roli {{role}}: {{count}}",
+      "digestMine": "Zatwierdzeń czekających na ciebie: {{count}}",
+      "digestMine_one": "Zatwierdzenie czekające na ciebie: {{count}}",
+      "digestNote": "Pojedyncze utknięte uruchomienia nie przychodzą jako osobne wiadomości; każde zatwierdzenie tak, bo to decyzja."
     },
     "details": "Szczegóły",
-    "closeDetails": "Zamknij szczegóły"
+    "closeDetails": "Zamknij szczegóły",
+    "runs": {
+      "mineTag": "dla ciebie",
+      "result": "{{count}} uruchomień",
+      "result_one": "{{count}} uruchomienie",
+      "search": "Szukaj według numeru lub tytułu",
+      "filter_all": "Wszystkie",
+      "filter_attention": "Wymaga uwagi",
+      "filter_mine": "Czeka na mnie",
+      "filter_queued": "W kolejce",
+      "allSteps": "Wszystkie kroki",
+      "none": "Żadne uruchomienie nie pasuje do tego filtra.",
+      "back": "Wszystkie uruchomienia"
+    }
   }
 }

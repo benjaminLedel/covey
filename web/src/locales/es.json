@@ -3310,7 +3310,7 @@
     "tab": {
       "edit": "Editar",
       "live": "En directo",
-      "run": "Ejecución individual",
+      "run": "Ejecuciones",
       "file": "Como archivo"
     },
     "type": {
@@ -3338,8 +3338,9 @@
     "blocks": "Bloques",
     "legend": {
       "edit": "Bloques a la izquierda: un clic añade uno. Arrastra desde el punto derecho de un bloque para conectarlo. Discontinuo: el rol está vacante y el paso se omite.",
-      "live": "Número = casos en este paso. Rojo: más tiempo del permitido. Amarillo: espera a alguien.",
-      "run": "Azul: el recorrido de {{no}}. «2×» significa que el paso se ejecutó en más de una ronda."
+      "live": "Azul: en curso. Amarillo: en cola, espera a un compañero libre. Gris: espera a alguien de fuera. Rojo: más tiempo del permitido.",
+      "run": "Azul: el recorrido de {{no}}. «2×» significa que el paso se ejecutó en más de una ronda.",
+      "runs": "Los números muestran en qué punto están las ejecuciones. Un clic en un paso filtra la lista."
     },
     "workflow": "Flujo de trabajo",
     "name": "Nombre",
@@ -3469,21 +3470,29 @@
       "title": "Qué está en marcha",
       "nowAt": "{{type}} · ahora",
       "nothingHere": "Ahora mismo no hay nada aquí.",
-      "cases": "casos en el flujo de trabajo",
       "stuck": "más tiempo del permitido",
-      "median": "días hasta la aceptación (mediana)",
       "attention": "Necesita atención",
       "nothing": "Nada.",
       "hint": "Un clic en un paso muestra quién está ahí. Un clic en un caso abre su ejecución.",
       "offTitle": "El flujo de trabajo está desactivado",
       "offText": "Mientras el flujo de trabajo está desactivado, covey no le asigna casos. Los colegas trabajan según sus playbooks.",
       "watchNote": "covey lee las posiciones del sistema de destino e informa de lo que está atascado, pero no traspasa nada por sí mismo.",
-      "count": "{{count}} casos",
-      "count_one": "{{count}} caso",
       "stuckBadge": "{{count}} atascados",
       "stuckBadge_one": "{{count}} atascado",
       "skipped": "omitido",
-      "with": "con {{name}}"
+      "working": "{{count}} en curso",
+      "working_one": "{{count}} en curso",
+      "queued": "{{count}} en cola",
+      "queued_one": "{{count}} en cola",
+      "waiting": "{{count}} en espera",
+      "waiting_one": "{{count}} en espera",
+      "statWorking": "en curso",
+      "statQueued": "esperan a un colega libre",
+      "allInList": "Las {{count}} de la lista",
+      "allInList_one": "{{count}} en la lista",
+      "groupWorking": "En curso",
+      "groupQueued": "En cola · la siguiente primero",
+      "groupWaiting": "En espera"
     },
     "run": {
       "title": "Ejecución {{no}}",
@@ -3518,9 +3527,30 @@
       "stepEnded": "Ejecución terminada, ticket con {{owner}}",
       "stepAnswered": "{{owner}} respondió en el chat: «{{text}}»",
       "stepContinues": "{{name}} sigue trabajando",
-      "previewOf": "Así aparece en el chat de {{name}}"
+      "previewOf": "Así aparece en el chat de {{name}}",
+      "digestKind": "Resumen · una vez al día",
+      "digestStuck": "{{count}} ejecuciones están atascadas",
+      "digestStuck_one": "{{count}} ejecución está atascada",
+      "digestQueue": "{{count}} esperan a {{role}}",
+      "digestQueue_one": "{{count}} espera a {{role}}",
+      "digestMine": "{{count}} aprobaciones te esperan",
+      "digestMine_one": "{{count}} aprobación te espera",
+      "digestNote": "Las ejecuciones atascadas sueltas no llegan como mensajes propios; cada aprobación sí, porque es una decisión."
     },
     "details": "Detalles",
-    "closeDetails": "Cerrar detalles"
+    "closeDetails": "Cerrar detalles",
+    "runs": {
+      "mineTag": "para ti",
+      "result": "{{count}} ejecuciones",
+      "result_one": "{{count}} ejecución",
+      "search": "Buscar por número o título",
+      "filter_all": "Todas",
+      "filter_attention": "Necesita atención",
+      "filter_mine": "Espera por mí",
+      "filter_queued": "En cola",
+      "allSteps": "Todos los pasos",
+      "none": "Ninguna ejecución coincide con este filtro.",
+      "back": "Todas las ejecuciones"
+    }
   }
 }

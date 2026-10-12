@@ -213,3 +213,20 @@ button.wf-var { cursor: pointer; }
   .wf-canvas.has-panel .react-flow__controls { right: 0; bottom: 60%; }
   .wf-file-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* many runs: groups, the list's filters, the way back */
+.wf-group { margin-bottom: 14px; }
+.wf-more { display: block; margin: 8px 0 14px; padding: 0; border: 0; background: none; color: var(--text-accent); font-size: 12.5px; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.wf-back { border: 0; background: none; padding: 0; margin: 0 0 10px; font-size: 12.5px; color: var(--text-secondary); cursor: pointer; }
+.wf-back:hover { color: var(--text-primary); }
+.wf-search { width: 100%; max-width: none; margin-bottom: 8px; }
+.wf-filters { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.wf-filters button { font-size: 12px; padding: 3px 9px; border-radius: 20px; border: 0.5px solid var(--border-strong); background: var(--surface-2); color: var(--text-secondary); cursor: pointer; display: inline-flex; gap: 5px; align-items: center; }
+.wf-filters button span { font-variant-numeric: tabular-nums; color: var(--text-muted); }
+.wf-filters button.on { background: var(--bg-wait); color: var(--text-wait); border-color: transparent; }
+.wf-filters button.on span { color: inherit; }
+button.wf-stat { text-align: left; cursor: pointer; color: inherit; font: inherit; }
+button.wf-stat:hover { border-color: var(--border-strong); }
+.wf-stat .v.warn { color: var(--text-warning); }
+.wf-digest { margin: 2px 0 6px; padding-left: 18px; font-size: 13px; line-height: 1.5; }
+.wf-badges { white-space: nowrap; }

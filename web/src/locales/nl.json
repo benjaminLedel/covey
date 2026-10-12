@@ -3310,7 +3310,7 @@
     "tab": {
       "edit": "Bewerken",
       "live": "Live",
-      "run": "Enkele run",
+      "run": "Runs",
       "file": "Als bestand"
     },
     "type": {
@@ -3338,8 +3338,9 @@
     "blocks": "Bouwstenen",
     "legend": {
       "edit": "Bouwstenen links: een klik voegt er een toe. Sleep vanaf de stip rechts van een bouwsteen om te verbinden. Gestippeld: de rol is onbezet en de stap wordt overgeslagen.",
-      "live": "Cijfer = zaken bij deze stap. Rood: langer dan toegestaan. Geel: wacht op iemand.",
-      "run": "Blauw: het pad van {{no}}. “2×” betekent dat de stap in meer dan één ronde is uitgevoerd."
+      "live": "Blauw: in behandeling. Geel: in de wachtrij, wacht op een vrije collega. Grijs: wacht op iemand van buiten. Rood: langer dan toegestaan.",
+      "run": "Blauw: het pad van {{no}}. “2×” betekent dat de stap in meer dan één ronde is uitgevoerd.",
+      "runs": "De cijfers laten zien waar de runs staan. Een klik op een stap filtert de lijst."
     },
     "workflow": "Workflow",
     "name": "Naam",
@@ -3469,21 +3470,29 @@
       "title": "Wat er nu loopt",
       "nowAt": "{{type}} · nu",
       "nothingHere": "Er staat hier nu niets.",
-      "cases": "zaken in de workflow",
       "stuck": "langer dan toegestaan",
-      "median": "dagen tot acceptatie (mediaan)",
       "attention": "Heeft aandacht nodig",
       "nothing": "Niets.",
       "hint": "Een klik op een stap laat zien wie daar staat. Een klik op een zaak opent de bijbehorende run.",
       "offTitle": "De workflow is uit",
       "offText": "Zolang de workflow uit staat, wijst covey er geen zaken aan toe. De collega’s werken volgens hun playbooks.",
       "watchNote": "covey leest de standen uit het doelsysteem en meldt wat vastzit, maar draagt zelf niets over.",
-      "count": "{{count}} zaken",
-      "count_one": "{{count}} zaak",
       "stuckBadge": "{{count}} vastgelopen",
       "stuckBadge_one": "{{count}} vastgelopen",
       "skipped": "overgeslagen",
-      "with": "bij {{name}}"
+      "working": "{{count}} bezig",
+      "working_one": "{{count}} bezig",
+      "queued": "{{count}} in de wachtrij",
+      "queued_one": "{{count}} in de wachtrij",
+      "waiting": "{{count}} wachten",
+      "waiting_one": "{{count}} wacht",
+      "statWorking": "bezig",
+      "statQueued": "wachten op een vrije collega",
+      "allInList": "Alle {{count}} in de lijst",
+      "allInList_one": "{{count}} in de lijst",
+      "groupWorking": "Bezig",
+      "groupQueued": "In de wachtrij · volgende eerst",
+      "groupWaiting": "Wachtend"
     },
     "run": {
       "title": "Run {{no}}",
@@ -3518,9 +3527,30 @@
       "stepEnded": "Run afgerond, ticket bij {{owner}}",
       "stepAnswered": "{{owner}} heeft in de chat geantwoord: “{{text}}”",
       "stepContinues": "{{name}} gaat verder",
-      "previewOf": "Zo staat het in de chat van {{name}}"
+      "previewOf": "Zo staat het in de chat van {{name}}",
+      "digestKind": "Samenvatting · één keer per dag",
+      "digestStuck": "{{count}} runs zijn vastgelopen",
+      "digestStuck_one": "{{count}} run is vastgelopen",
+      "digestQueue": "{{count}} staan in de wachtrij voor {{role}}",
+      "digestQueue_one": "{{count}} staat in de wachtrij voor {{role}}",
+      "digestMine": "{{count}} goedkeuringen wachten op jou",
+      "digestMine_one": "{{count}} goedkeuring wacht op jou",
+      "digestNote": "Losse vastgelopen runs komen niet als eigen berichten; elke goedkeuring wel, omdat het een beslissing is."
     },
     "details": "Details",
-    "closeDetails": "Details sluiten"
+    "closeDetails": "Details sluiten",
+    "runs": {
+      "mineTag": "voor jou",
+      "result": "{{count}} runs",
+      "result_one": "{{count}} run",
+      "search": "Zoeken op nummer of titel",
+      "filter_all": "Alle",
+      "filter_attention": "Heeft aandacht nodig",
+      "filter_mine": "Wacht op mij",
+      "filter_queued": "In de wachtrij",
+      "allSteps": "Alle stappen",
+      "none": "Geen run past bij dit filter.",
+      "back": "Alle runs"
+    }
   }
 }

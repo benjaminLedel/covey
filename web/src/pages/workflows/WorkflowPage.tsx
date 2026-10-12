@@ -23,7 +23,7 @@ import "./workflows.css";
 import { BlockIcon, CanvasContext, edgeTypes, nodeTypes, type CanvasState, type Tab } from "./canvas";
 import { DecisionCard, QuestionCard } from "./ChatCards";
 import Inspector from "./Inspector";
-import { FileSide, LiveSide, RunSide } from "./Sides";
+import { FileSide, LiveSide, RunList, RunSide, type RunFilter } from "./Sides";
 import { BLOCK_TYPES, NODE_W, definitionText, example, heightOf, outsOf, roleEmpty, runPath, type Block, type BlockType, type Example, type Link as WfLink, type Mode, type Step } from "./model";
 
 const TABS: Tab[] = ["edit", "live", "run", "file"];
@@ -83,11 +83,15 @@ function Editor() {
   const [selectedLink, setSelectedLink] = useState<number | null>(null);
   const [live, setLive] = useState(ex.live);
   const [runs, setRuns] = useState(ex.runs);
-  const [run, setRun] = useState("#427");
-  const [decided, setDecided] = useState<string | null>(null);
+  // No run chosen shows the list of runs; a chosen one its path and steps.
+  const [run, setRun] = useState<string | null>(null);
+  const [runFilter, setRunFilter] = useState<RunFilter>("attention");
+  const [runStep, setRunStep] = useState<string | null>(null);
+  const [runQuery, setRunQuery] = useState("");
+  const [decided, setDecided] = useState<Record<string, string>>({});
   const [replied, setReplied] = useState<string | null>(null);
 
-  const path = useMemo(() => runPath(runs[run]), [runs, run]);
+  const path = useMemo(() => runPath(run ? runs[run] : undefined), [runs, run]);
   const positions = useMemo(() => Object.fromEntries(nodes.map((n) => [n.id, n.position])), [nodes]);
 
   const edges: Edge[] = useMemo(
@@ -101,7 +105,7 @@ function Editor() {
         const back = pb.x < pa.x + NODE_W + 20;
         const cls: string[] = [];
         if (roleEmpty(ex, a) || roleEmpty(ex, b)) cls.push("dashed");
-        if (tab === "run") cls.push(path.links.has(`${l.from}>${l.to}`) ? "on" : "dim");
+        if (tab === "run" && run) cls.push(path.links.has(`${l.from}>${l.to}`) ? "on" : "dim");
         if (tab === "edit" && selectedLink === i) cls.push("sel");
         const label = outsOf(a).find((o) => o.key === l.port)?.label ?? "";
         const low = Math.max(pa.y + heightOf(a), pb.y + heightOf(b)) + (a.type === "approval" ? 40 : 70);
@@ -119,10 +123,10 @@ function Editor() {
           },
         ];
       }),
-    [links, blocks, positions, tab, path, selectedLink, ex, t],
+    [links, blocks, positions, tab, run, path, selectedLink, ex, t],
   );
 
-  const ctx: CanvasState = { ex, blocks, tab, mode, selected, live, path };
+  const ctx: CanvasState = { ex, blocks, tab, mode, selected: tab === "run" && !run ? runStep : selected, live, path };
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => setNodes((ns) => applyNodeChanges(changes.filter((c) => c.type === "position" || c.type === "dimensions"), ns)),
@@ -175,28 +179,32 @@ function Editor() {
   };
 
   const now = t("workflows.chat.now");
-  const decide = (d: string) => {
-    setDecided(d);
-    const waiting = live.h?.cases[0];
+  const decide = (no: string, d: string) => {
+    setDecided((ds) => ({ ...ds, [no]: d }));
+    const waiting = live.h?.cases.find((c) => c.no === no);
     const choice = outsOf(blocks.h ?? ex.blocks.h).find((o) => o.key === d)?.label ?? d;
     setLive((lv) => ({
       ...lv,
-      h: { cases: [] },
-      b: waiting && d === "retry" ? { ...lv.b, cases: [...lv.b.cases, { ...waiting, by: "Kim", since: t("workflows.chat.justNowRound", { n: 4 }), level: "ok", why: undefined }] } : lv.b,
+      h: { cases: lv.h.cases.filter((c) => c.no !== no) },
+      // Another round goes back to the person who built it; it may have to queue.
+      b:
+        waiting && d === "retry"
+          ? { ...lv.b, cases: [...lv.b.cases, { ...waiting, by: "Kim", since: t("workflows.chat.justNowRound", { n: 4 }), level: "ok", why: undefined, state: "queued", age: 0, mine: false }] }
+          : lv.b,
     }));
     setRuns((rs) => {
-      const r = rs["#384"];
+      const r = rs[no];
       const steps: Step[] = r.steps.map((s) => ({ ...s, now: false }));
       steps.push({ block: "h", when: now, text: t("workflows.chat.stepDecided", { owner: ex.owner, choice }), chat: true });
       if (d === "retry") steps.push({ block: "b", when: now, text: t("workflows.chat.stepRound", { n: 4, name: "Kim" }), now: true });
       else steps.push({ block: "n", when: now, text: t("workflows.type.notify") }, { block: "e", when: now, text: t("workflows.chat.stepEnded", { owner: ex.owner }) });
-      return { ...rs, "#384": { ...r, steps } };
+      return { ...rs, [no]: { ...r, steps } };
     });
   };
   const reply = (text: string) => {
     setReplied(text);
     const no = ex.chat.caseNo;
-    setLive((lv) => ({ ...lv, b: { ...lv.b, cases: lv.b.cases.map((c) => (c.no === no ? { ...c, level: "ok", why: undefined, since: now } : c)) } }));
+    setLive((lv) => ({ ...lv, b: { ...lv.b, cases: lv.b.cases.map((c) => (c.no === no ? { ...c, level: "ok", why: undefined, since: now, mine: false } : c)) } }));
     setRuns((rs) => {
       const r = rs[no];
       const steps: Step[] = r.steps.map((s) => ({ ...s, now: false }));
@@ -212,17 +220,18 @@ function Editor() {
   /* Where a run waits on a person, the card it put into their chat. Once
      answered it stays, showing the answer, so the step that follows reads. */
   let waiting: React.ReactNode = null;
-  if (run === "#384") {
-    const approval = blocks.h ?? ex.blocks.h;
+  const atApproval = run && (live.h?.cases.some((c) => c.no === run) || decided[run]);
+  if (run && atApproval) {
+    const defects = runs[run].steps.find((s) => s.out?.defects)?.out?.defects;
     waiting = (
       <DecisionCard
         recipient={ex.owner}
-        kind={`${t("workflows.chat.kindApproval")} · #384`}
+        kind={`${t("workflows.chat.kindApproval")} · ${run}`}
         question={t("workflows.chat.cardQuestion")}
-        context={t("workflows.chat.cardContext", { defects: ex.runs["#384"].steps.find((s) => s.out?.defects)?.out?.defects ?? "" })}
-        options={outsOf(approval)}
-        decided={decided}
-        onDecide={decide}
+        context={defects ? t("workflows.chat.cardContext", { defects }) : undefined}
+        options={outsOf(blocks.h ?? ex.blocks.h)}
+        decided={decided[run] ?? null}
+        onDecide={(d) => decide(run, d)}
       />
     );
   } else if (run === ex.chat.caseNo) {
@@ -261,23 +270,45 @@ function Editor() {
         blocks={blocks}
         live={live}
         mode={mode}
+        owner={ex.owner}
         selected={selected}
-        onCase={(no, block) => {
-          if (runs[no]) openRun(no);
-          else if (block) setSelected(block);
+        onOpen={openRun}
+        onList={(f, step) => {
+          setRunFilter(f);
+          setRunStep(step ?? null);
+          setRunQuery("");
+          setRun(null);
+          switchTab("run");
         }}
       />
     );
   else if (tab === "run")
-    side = (
-      <RunSide
-        run={runs[run]}
-        blocks={blocks}
-        selected={selected}
-        waiting={waiting}
-        onStep={setSelected}
-      />
-    );
+    side =
+      run && runs[run] ? (
+        <RunSide
+          run={runs[run]}
+          blocks={blocks}
+          selected={selected}
+          waiting={waiting}
+          onStep={setSelected}
+          onBack={() => {
+            setRun(null);
+            setSelected(null);
+          }}
+        />
+      ) : (
+        <RunList
+          blocks={blocks}
+          live={live}
+          filter={runFilter}
+          step={runStep}
+          query={runQuery}
+          onFilter={setRunFilter}
+          onStep={setRunStep}
+          onQuery={setRunQuery}
+          onOpen={openRun}
+        />
+      );
   else side = null;
 
   return (
@@ -319,6 +350,11 @@ function Editor() {
                 onNodesChange={onNodesChange}
                 onConnect={onConnect}
                 onNodeClick={(_, n) => {
+                  if (tab === "run" && !run) {
+                    setRunStep(n.id);
+                    setPanel(true);
+                    return;
+                  }
                   setSelected(n.id);
                   setSelectedLink(null);
                   setPanel(true);
@@ -364,15 +400,6 @@ function Editor() {
                 ))}
               </div>
             )}
-            {tab === "run" && (
-              <div className="wf-runpick">
-                {Object.values(runs).map((r) => (
-                  <button key={r.no} className={r.no === run ? "on" : ""} onClick={() => openRun(r.no)} title={r.title}>
-                    {r.no}
-                  </button>
-                ))}
-              </div>
-            )}
             <div className="wf-overlay-top">
               <span className="wf-tag">{t("workflows.preview")}</span>
               {tab !== "file" && !panel && (
@@ -381,7 +408,7 @@ function Editor() {
                 </button>
               )}
             </div>
-            {tab !== "file" && <div className="wf-legend">{t(`workflows.legend.${tab}`, { no: run })}</div>}
+            {tab !== "file" && <div className="wf-legend">{t(`workflows.legend.${tab === "run" && !run ? "runs" : tab}`, { no: run })}</div>}
             {tab === "file" && (
               <div className="wf-file">
                 <div className="wf-file-head">

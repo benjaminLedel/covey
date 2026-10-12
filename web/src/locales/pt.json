@@ -3310,7 +3310,7 @@
     "tab": {
       "edit": "Editar",
       "live": "Em direto",
-      "run": "Execução individual",
+      "run": "Execuções",
       "file": "Como ficheiro"
     },
     "type": {
@@ -3338,8 +3338,9 @@
     "blocks": "Blocos",
     "legend": {
       "edit": "Blocos à esquerda: um clique adiciona um. Arrasta a partir do ponto à direita de um bloco para o ligar. Tracejado: a função está por preencher e o passo é ignorado.",
-      "live": "Número = casos neste passo. Vermelho: mais tempo do que o permitido. Amarelo: à espera de alguém.",
-      "run": "Azul: o percurso de {{no}}. “2×” significa que o passo correu em mais de uma ronda."
+      "live": "Azul: em curso. Amarelo: em fila, à espera de um colega livre. Cinzento: à espera de alguém de fora. Vermelho: mais tempo do que o permitido.",
+      "run": "Azul: o percurso de {{no}}. “2×” significa que o passo correu em mais de uma ronda.",
+      "runs": "Os números mostram em que ponto estão as execuções. Um clique num passo filtra a lista."
     },
     "workflow": "Fluxo de trabalho",
     "name": "Nome",
@@ -3469,21 +3470,29 @@
       "title": "O que está a decorrer",
       "nowAt": "{{type}} · agora",
       "nothingHere": "Neste momento não há nada aqui.",
-      "cases": "casos no fluxo de trabalho",
       "stuck": "mais tempo do que o permitido",
-      "median": "dias até à aceitação (mediana)",
       "attention": "Precisa de atenção",
       "nothing": "Nada.",
       "hint": "Um clique num passo mostra quem está lá. Um clique num caso abre a sua execução.",
       "offTitle": "O fluxo de trabalho está desligado",
       "offText": "Enquanto o fluxo de trabalho estiver desligado, o covey não lhe atribui casos. Os colegas trabalham pelos seus playbooks.",
       "watchNote": "O covey lê as posições no sistema de destino e comunica o que está parado, mas não passa nada por si.",
-      "count": "{{count}} casos",
-      "count_one": "{{count}} caso",
       "stuckBadge": "{{count}} parados",
       "stuckBadge_one": "{{count}} parado",
       "skipped": "ignorado",
-      "with": "com {{name}}"
+      "working": "{{count}} em curso",
+      "working_one": "{{count}} em curso",
+      "queued": "{{count}} em fila",
+      "queued_one": "{{count}} em fila",
+      "waiting": "{{count}} à espera",
+      "waiting_one": "{{count}} à espera",
+      "statWorking": "em curso",
+      "statQueued": "em fila para um colega livre",
+      "allInList": "Todas as {{count}} da lista",
+      "allInList_one": "{{count}} na lista",
+      "groupWorking": "Em curso",
+      "groupQueued": "Em fila · a próxima primeiro",
+      "groupWaiting": "À espera"
     },
     "run": {
       "title": "Execução {{no}}",
@@ -3518,9 +3527,30 @@
       "stepEnded": "Execução terminada, ticket com {{owner}}",
       "stepAnswered": "{{owner}} respondeu no chat: “{{text}}”",
       "stepContinues": "{{name}} continua",
-      "previewOf": "É assim que aparece no chat de {{name}}"
+      "previewOf": "É assim que aparece no chat de {{name}}",
+      "digestKind": "Resumo · uma vez por dia",
+      "digestStuck": "{{count}} execuções estão paradas",
+      "digestStuck_one": "{{count}} execução está parada",
+      "digestQueue": "{{count}} estão em fila para {{role}}",
+      "digestQueue_one": "{{count}} está em fila para {{role}}",
+      "digestMine": "{{count}} aprovações esperam por ti",
+      "digestMine_one": "{{count}} aprovação espera por ti",
+      "digestNote": "Execuções paradas isoladas não chegam como mensagens próprias; cada aprovação chega, porque é uma decisão."
     },
     "details": "Detalhes",
-    "closeDetails": "Fechar detalhes"
+    "closeDetails": "Fechar detalhes",
+    "runs": {
+      "mineTag": "para ti",
+      "result": "{{count}} execuções",
+      "result_one": "{{count}} execução",
+      "search": "Pesquisar por número ou título",
+      "filter_all": "Todas",
+      "filter_attention": "Precisa de atenção",
+      "filter_mine": "Espera por mim",
+      "filter_queued": "Em fila",
+      "allSteps": "Todos os passos",
+      "none": "Nenhuma execução corresponde a este filtro.",
+      "back": "Todas as execuções"
+    }
   }
 }

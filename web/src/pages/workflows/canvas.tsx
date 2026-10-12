@@ -122,25 +122,33 @@ function BlockNodeImpl({ id }: NodeProps) {
   const empty = roleEmpty(s.ex, b);
   const cls = ["wf-node"];
   const badges: JSX.Element[] = [];
-  if ((s.tab === "edit" || s.tab === "live") && s.selected === id) cls.push("sel");
+  // The list of runs reads the canvas like the live view: counts per step.
+  const counts = (s.tab === "live" || (s.tab === "run" && s.path.blocks.size === 0)) && s.mode !== "off";
+  if ((s.tab !== "run" || counts) && s.selected === id) cls.push("sel");
   if (empty) cls.push("skip");
   if (s.tab === "edit" && empty) {
     badges.push(<span key="e" className="wf-pill warn">{b.cfg.optional ? t("workflows.unfilledSkipped") : t("workflows.unfilled")}</span>);
   }
-  if (s.tab === "live" && s.mode !== "off") {
+  if (counts) {
     const cases = s.live[id]?.cases ?? [];
     if (cases.length) {
       const bad = cases.filter((c) => c.level === "bad").length;
       const warn = cases.filter((c) => c.level === "warn").length;
+      const working = cases.filter((c) => c.state === "working").length;
+      const queued = cases.filter((c) => c.state === "queued").length;
+      const waiting = cases.filter((c) => c.state === "waiting").length;
       if (bad) cls.push("bad");
       else if (warn) cls.push("warnb");
-      badges.push(<span key="n" className={`wf-pill ${bad ? "bad" : warn ? "warn" : "info"}`}>{t("workflows.live.count", { count: cases.length })}</span>);
+      // In work and in the queue apart: a full role shows as a queue, not as load.
+      if (working) badges.push(<span key="w" className="wf-pill info">{t("workflows.live.working", { count: working })}</span>);
+      if (queued) badges.push(<span key="q" className="wf-pill warn">{t("workflows.live.queued", { count: queued })}</span>);
+      if (waiting) badges.push(<span key="v" className="wf-pill mute">{t("workflows.live.waiting", { count: waiting })}</span>);
       if (bad) badges.push(<span key="b" className="wf-pill bad">{t("workflows.live.stuckBadge", { count: bad })}</span>);
     } else if (empty) {
       badges.push(<span key="s" className="wf-pill warn">{t("workflows.live.skipped")}</span>);
     }
   }
-  if (s.tab === "run") {
+  if (s.tab === "run" && !counts) {
     if (!s.path.blocks.has(id)) cls.push("dim");
     if (s.path.current === id) cls.push("cur");
     if ((s.path.count[id] ?? 0) > 1) badges.push(<span key="x" className="wf-pill info">{t("workflows.run.times", { n: s.path.count[id] })}</span>);

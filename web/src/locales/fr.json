@@ -3310,7 +3310,7 @@
     "tab": {
       "edit": "Modifier",
       "live": "En direct",
-      "run": "Exécution seule",
+      "run": "Exécutions",
       "file": "En fichier"
     },
     "type": {
@@ -3338,8 +3338,9 @@
     "blocks": "Blocs",
     "legend": {
       "edit": "Blocs à gauche : un clic en ajoute un. Fais glisser le point à droite d'un bloc pour le relier. En pointillés : rôle non pourvu, l'étape est sautée.",
-      "live": "Chiffre = dossiers à cette étape. Rouge : plus longtemps que prévu. Jaune : attend quelqu’un.",
-      "run": "Bleu : le chemin de {{no}}. « 2× » signifie que l’étape a eu lieu en plusieurs tours."
+      "live": "Bleu : en cours. Jaune : en file d'attente, attend un collègue libre. Gris : attend quelqu'un à l'extérieur. Rouge : plus long qu'autorisé.",
+      "run": "Bleu : le chemin de {{no}}. « 2× » signifie que l’étape a eu lieu en plusieurs tours.",
+      "runs": "Les chiffres montrent où en sont les exécutions. Un clic sur une étape filtre la liste."
     },
     "workflow": "Workflow",
     "name": "Nom",
@@ -3469,21 +3470,29 @@
       "title": "Ce qui tourne",
       "nowAt": "{{type}} · maintenant",
       "nothingHere": "Rien ne se trouve ici pour le moment.",
-      "cases": "dossiers dans le workflow",
       "stuck": "plus longtemps que prévu",
-      "median": "jours jusqu’à l’acceptation (médiane)",
       "attention": "Demande de l’attention",
       "nothing": "Rien.",
       "hint": "Un clic sur une étape montre qui s’y trouve. Un clic sur un dossier ouvre son exécution.",
       "offTitle": "Le workflow est désactivé",
       "offText": "Tant que le workflow est désactivé, covey ne lui attribue aucun dossier. Les collègues travaillent selon leurs playbooks.",
       "watchNote": "covey lit les états dans le système cible et signale ce qui est bloqué, mais ne transmet rien lui-même.",
-      "count": "{{count}} dossiers",
-      "count_one": "{{count}} dossier",
       "stuckBadge": "{{count}} bloqués",
       "stuckBadge_one": "{{count}} bloqué",
       "skipped": "ignoré",
-      "with": "chez {{name}}"
+      "working": "{{count}} en cours",
+      "working_one": "{{count}} en cours",
+      "queued": "{{count}} en file d’attente",
+      "queued_one": "{{count}} en file d’attente",
+      "waiting": "{{count}} en attente",
+      "waiting_one": "{{count}} en attente",
+      "statWorking": "en cours",
+      "statQueued": "attendent un collègue libre",
+      "allInList": "Les {{count}} de la liste",
+      "allInList_one": "{{count}} dans la liste",
+      "groupWorking": "En cours",
+      "groupQueued": "En file d’attente · le prochain d’abord",
+      "groupWaiting": "En attente"
     },
     "run": {
       "title": "Exécution {{no}}",
@@ -3518,9 +3527,30 @@
       "stepEnded": "Exécution terminée, ticket chez {{owner}}",
       "stepAnswered": "{{owner}} a répondu dans le chat : « {{text}} »",
       "stepContinues": "{{name}} continue",
-      "previewOf": "Voici comment cela apparaît dans le chat de {{name}}"
+      "previewOf": "Voici comment cela apparaît dans le chat de {{name}}",
+      "digestKind": "Résumé · une fois par jour",
+      "digestStuck": "{{count}} exécutions sont bloquées",
+      "digestStuck_one": "{{count}} exécution est bloquée",
+      "digestQueue": "{{count}} attendent {{role}}",
+      "digestQueue_one": "{{count}} attend {{role}}",
+      "digestMine": "{{count}} validations attendent ta réponse",
+      "digestMine_one": "{{count}} validation attend ta réponse",
+      "digestNote": "Les exécutions bloquées isolées ne donnent pas de message à part ; chaque validation en donne un, car c’est une décision."
     },
     "details": "Détails",
-    "closeDetails": "Fermer les détails"
+    "closeDetails": "Fermer les détails",
+    "runs": {
+      "mineTag": "pour toi",
+      "result": "{{count}} exécutions",
+      "result_one": "{{count}} exécution",
+      "search": "Rechercher par numéro ou titre",
+      "filter_all": "Toutes",
+      "filter_attention": "Demande de l’attention",
+      "filter_mine": "Attend ma réponse",
+      "filter_queued": "En file d’attente",
+      "allSteps": "Toutes les étapes",
+      "none": "Aucune exécution ne correspond à ce filtre.",
+      "back": "Toutes les exécutions"
+    }
   }
 }

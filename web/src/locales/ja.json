@@ -3310,7 +3310,7 @@
     "tab": {
       "edit": "編集",
       "live": "ライブ",
-      "run": "単一の実行",
+      "run": "実行",
       "file": "ファイル"
     },
     "type": {
@@ -3338,8 +3338,9 @@
     "blocks": "ブロック",
     "legend": {
       "edit": "左のブロック：クリックで追加します。ブロック右側の点からドラッグして接続します。破線：担当が空いており、このステップはスキップされます。",
-      "live": "数字 = このステップにある案件数。赤:許容時間超過。黄:誰かを待っています。",
-      "run": "青:{{no}} の経路。「2×」は、ステップが複数ラウンド実行されたことを示します。"
+      "live": "青：作業中。黄：空いている担当者を待つ列。灰：外部の誰かを待機中。赤：許容時間を超過。",
+      "run": "青:{{no}} の経路。「2×」は、ステップが複数ラウンド実行されたことを示します。",
+      "runs": "数字は各実行の状況を表します。ステップをクリックすると一覧を絞り込みます。"
     },
     "workflow": "ワークフロー",
     "name": "名前",
@@ -3469,21 +3470,29 @@
       "title": "実行中のもの",
       "nowAt": "{{type}} · 現在",
       "nothingHere": "現在ここにはありません。",
-      "cases": "ワークフロー内の案件",
       "stuck": "許容時間を超過",
-      "median": "承認までの日数(中央値)",
       "attention": "要対応",
       "nothing": "ありません。",
       "hint": "ステップをクリックすると、そこにいる担当者を表示します。案件をクリックすると、その実行を開きます。",
       "offTitle": "ワークフローはオフです",
       "offText": "ワークフローがオフの間、covey は案件を割り当てません。担当者はプレイブックに従って作業します。",
       "watchNote": "covey はターゲットシステムから位置を読み取り、停滞を報告しますが、引き継ぎは行いません。",
-      "count": "{{count}} 件",
-      "count_one": "{{count}} 件",
       "stuckBadge": "停滞 {{count}} 件",
       "stuckBadge_one": "停滞 {{count}} 件",
       "skipped": "スキップ",
-      "with": "担当:{{name}}"
+      "working": "作業中 {{count}} 件",
+      "working_one": "作業中 {{count}} 件",
+      "queued": "待機列 {{count}} 件",
+      "queued_one": "待機列 {{count}} 件",
+      "waiting": "待機中 {{count}} 件",
+      "waiting_one": "待機中 {{count}} 件",
+      "statWorking": "作業中",
+      "statQueued": "空いている担当者を待機",
+      "allInList": "一覧の全 {{count}} 件",
+      "allInList_one": "一覧の {{count}} 件",
+      "groupWorking": "作業中",
+      "groupQueued": "待機列 · 次の分が先頭",
+      "groupWaiting": "待機中"
     },
     "run": {
       "title": "実行 {{no}}",
@@ -3518,9 +3527,30 @@
       "stepEnded": "実行終了、チケットは {{owner}} のもとにあります",
       "stepAnswered": "{{owner}} がチャットで回答:「{{text}}」",
       "stepContinues": "{{name}} が続行します",
-      "previewOf": "{{name}} さんのチャットではこう表示されます"
+      "previewOf": "{{name}} さんのチャットではこう表示されます",
+      "digestKind": "サマリー · 1日1回",
+      "digestStuck": "停滞中の実行が {{count}} 件あります",
+      "digestStuck_one": "停滞中の実行が {{count}} 件あります",
+      "digestQueue": "{{role}} の待機列に {{count}} 件",
+      "digestQueue_one": "{{role}} の待機列に {{count}} 件",
+      "digestMine": "あなたの承認待ちが {{count}} 件",
+      "digestMine_one": "あなたの承認待ちが {{count}} 件",
+      "digestNote": "停滞した実行が単独でメッセージになることはありません。承認は判断なので、1件ごとに届きます。"
     },
     "details": "詳細",
-    "closeDetails": "詳細を閉じる"
+    "closeDetails": "詳細を閉じる",
+    "runs": {
+      "mineTag": "あなた宛て",
+      "result": "{{count}} 件の実行",
+      "result_one": "{{count}} 件の実行",
+      "search": "番号またはタイトルで検索",
+      "filter_all": "すべて",
+      "filter_attention": "要対応",
+      "filter_mine": "自分の対応待ち",
+      "filter_queued": "待機列",
+      "allSteps": "すべてのステップ",
+      "none": "このフィルターに一致する実行はありません。",
+      "back": "すべての実行"
+    }
   }
 }

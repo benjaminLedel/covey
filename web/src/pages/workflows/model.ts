@@ -39,6 +39,11 @@ export interface Person {
   load: number;
 }
 
+/* Where a case stands at its step: someone works on it, it queues for a
+   free colleague (the role is at its limit), or it waits for something
+   outside — a person's decision, a customer, a date. */
+export type CaseState = "working" | "queued" | "waiting";
+
 export interface Case {
   no: string;
   title: string;
@@ -46,6 +51,11 @@ export interface Case {
   since: string;
   level: Level;
   why?: string;
+  state: CaseState;
+  // Minutes at this step, for sorting; `since` is how it reads.
+  age: number;
+  // Waits on the person looking: an approval, or a question to them.
+  mine?: boolean;
 }
 
 export interface Step {
@@ -309,24 +319,49 @@ export function example(lang: string): Example {
 
   const live: Example["live"] = {
     b: { cases: [
-      { no: "#431", title: L("Stundenplan als PDF exportieren", "Export the timetable as PDF"), by: "Ada", since: L("35 Min.", "35 min"), level: "warn", why: L(`Rückfrage an ${owner} offen`, `question to ${owner} open`) },
-      { no: "#427", title: L("Raumwechsel ohne Benachrichtigung", "Room change sends no notice"), by: "Ada", since: L("1 Std. · Runde 2", "1 h · round 2"), level: "ok" },
-      { no: "#409", title: L("Doppelstunden über die Pause", "Double lessons across the break"), by: "Kim", since: L("6 Std.", "6 h"), level: "bad", why: L("Zeitlimit 4 Std. überschritten", "over the 4 h limit") },
+      { no: "#431", title: L("Stundenplan als PDF exportieren", "Export the timetable as PDF"), by: "Ada", since: L("35 Min.", "35 min"), level: "warn", why: L(`Rückfrage an ${owner} offen`, `question to ${owner} open`), state: "working", age: 35, mine: true },
+      { no: "#427", title: L("Raumwechsel ohne Benachrichtigung", "Room change sends no notice"), by: "Ada", since: L("1 Std. · Runde 2", "1 h · round 2"), level: "ok", state: "working", age: 60 },
+      { no: "#409", title: L("Doppelstunden über die Pause", "Double lessons across the break"), by: "Kim", since: L("6 Std.", "6 h"), level: "bad", why: L("Zeitlimit 4 Std. überschritten", "over the 4 h limit"), state: "working", age: 360 },
     ] },
     r: { cases: [], note: L("Theo ist gestoppt und niemand sonst hat die Stelle. Alle Läufe überspringen den Schritt.", "Theo is stopped and nobody else holds the role. Every run skips the step.") },
     a: { cases: [
-      { no: "#425", title: L("Vertretungsplan zeigt falsche Woche", "Cover plan shows the wrong week"), by: "Rosa", since: L("50 Min.", "50 min"), level: "ok" },
-      { no: "#418", title: L("Kursliste filtert Ehemalige nicht", "Course list keeps former pupils"), by: "Rosa", since: L("2 Std.", "2 h"), level: "ok" },
+      { no: "#425", title: L("Vertretungsplan zeigt falsche Woche", "Cover plan shows the wrong week"), by: "Rosa", since: L("50 Min.", "50 min"), level: "ok", state: "working", age: 50 },
+      { no: "#418", title: L("Kursliste filtert Ehemalige nicht", "Course list keeps former pupils"), by: "Rosa", since: L("2 Std.", "2 h"), level: "ok", state: "working", age: 120 },
     ] },
     w: { cases: [
-      { no: "#402", title: L("Import aus Excel bricht ab", "Excel import stops"), by: owner, since: L("2 Tage", "2 days"), level: "ok" },
-      { no: "#398", title: L("Feiertage fehlen", "Public holidays missing"), by: owner, since: L("4 Tage", "4 days"), level: "ok" },
-      { no: "#377", title: L("Anwesenheit: Export leer", "Attendance export is empty"), by: owner, since: L("9 Tage", "9 days"), level: "warn", why: L("Erinnerung in 5 Tagen", "reminder in 5 days") },
+      { no: "#402", title: L("Import aus Excel bricht ab", "Excel import stops"), by: owner, since: L("2 Tage", "2 days"), level: "ok", state: "waiting", age: 2880 },
+      { no: "#398", title: L("Feiertage fehlen", "Public holidays missing"), by: owner, since: L("4 Tage", "4 days"), level: "ok", state: "waiting", age: 5760 },
+      { no: "#377", title: L("Anwesenheit: Export leer", "Attendance export is empty"), by: owner, since: L("9 Tage", "9 days"), level: "warn", why: L("Erinnerung in 5 Tagen", "reminder in 5 days"), state: "waiting", age: 12960 },
     ] },
     h: { cases: [
-      { no: "#384", title: L("Import mit Umlauten", "Import with umlauts"), by: owner, since: L("2 Tage", "2 days"), level: "bad", why: L("wartet auf deine Entscheidung im Chat", "waits for your decision in the chat") },
+      { no: "#384", title: L("Import mit Umlauten", "Import with umlauts"), by: owner, since: L("2 Tage", "2 days"), level: "bad", why: L("wartet auf deine Entscheidung im Chat", "waits for your decision in the chat"), state: "waiting", age: 2880, mine: true },
     ] },
   };
+
+
+  /* Many runs at once, to see whether the views stay readable: the
+     Engineering role holds two colleagues with two cases each, so further
+     cases queue at the step; acceptance has one tester with three. */
+  const titles = L(
+    "Ferienkalender importieren|Lehrkraft doppelt gebucht|Raumliste sortiert falsch|Export nach Excel ohne Kopfzeile|Kurswahl schließt zu früh|Pausenaufsicht fehlt im Plan|Elternbrief mit falschem Datum|Klassenbuch lädt langsam|Fehlzeiten zählen doppelt|Notenliste druckt abgeschnitten|Wahlpflichtkurse ohne Grenze|Vertretung ohne Raum|Kalender-Abo zeigt alte Woche|Login mit Umlaut im Namen|Stundenzettel rundet falsch|Raumbuchung ohne Bestätigung|Jahrgang 13 fehlt im Filter|Prüfungsplan überschneidet sich|Zeugnisdruck bricht ab|Konferenzraum doppelt belegt|Suche findet keine Kürzel|Archiv lädt nicht|Datenschutz-Export unvollständig|AG-Liste ohne Leitung|Busplan fehlt in der App|Mensa-Plan zeigt Vorwoche|Sprechstunden überlappen",
+    "Import the holiday calendar|Teacher booked twice|Room list sorts wrongly|Excel export without header|Course choice closes too early|Break duty missing from the plan|Parent letter with wrong date|Class register loads slowly|Absences counted twice|Grade list prints cut off|Electives without a limit|Cover lesson without a room|Calendar feed shows an old week|Login with an umlaut in the name|Timesheet rounds wrongly|Room booking without confirmation|Year 13 missing from the filter|Exam plan overlaps|Report printing stops|Meeting room booked twice|Search finds no abbreviations|Archive does not load|Privacy export incomplete|Club list without a leader|Bus plan missing in the app|Canteen plan shows last week|Office hours overlap",
+  ).split("|");
+  const age = (min: number) =>
+    min < 60 ? L(`${min} Min.`, `${min} min`) : min < 1440 ? L(`${Math.round(min / 60)} Std.`, `${Math.round(min / 60)} h`) : Math.round(min / 1440) === 1 ? L("1 Tag", "1 day") : L(`${Math.round(min / 1440)} Tage`, `${Math.round(min / 1440)} days`);
+  let next = 440;
+  const add = (block: string, c: Omit<Case, "no" | "title" | "since">) => {
+    const title = titles[(next - 440) % titles.length];
+    live[block].cases.push({ no: `#${next++}`, title, since: age(c.age), ...c });
+  };
+  const nobody = L("noch niemand", "nobody yet");
+  add("b", { by: "Kim", state: "working", age: 90, level: "ok" });
+  for (const [m, lv] of [[25, "ok"], [40, "ok"], [70, "ok"], [110, "ok"], [150, "ok"], [200, "ok"], [260, "ok"], [330, "ok"], [540, "warn"]] as const) {
+    add("b", { by: nobody, state: "queued", age: m, level: lv, why: lv === "warn" ? L("wartet seit 9 Std. auf eine freie Stelle", "waited 9 h for a free colleague") : undefined });
+  }
+  add("a", { by: "Rosa", state: "working", age: 30, level: "ok" });
+  for (const m of [15, 45, 80, 130, 190]) add("a", { by: nobody, state: "queued", age: m, level: "ok" });
+  for (const m of [1500, 2000, 3100, 4300, 5000, 6200, 7400, 8800, 11500]) add("w", { by: owner, state: "waiting", age: m, level: m > 10000 ? "warn" : "ok", why: m > 10000 ? L("Erinnerung morgen", "reminder tomorrow") : undefined });
+  add("h", { by: owner, state: "waiting", age: 1500, level: "bad", why: L("wartet auf deine Entscheidung im Chat", "waits for your decision in the chat"), mine: true });
 
   const runs: Record<string, Run> = {
     "#431": { no: "#431", title: live.b.cases[0].title, steps: [
@@ -365,6 +400,27 @@ export function example(lang: string): Example {
       { block: "h", when: L("Mi 12:15 – jetzt", "Wed 12:15 – now"), text: L(`Entscheidungskarte liegt im Chat von ${owner}`, `The decision card lies in ${owner}'s chat`), now: true, chat: true },
     ] },
   };
+
+
+  /* The generated cases get a run that tells how they came to stand where
+     they stand; the hand-written ones above say more. */
+  const done = (b: string, text: string): Step => ({ block: b, when: L("früher", "earlier"), text });
+  for (const [block, l] of Object.entries(live)) {
+    for (const c of l.cases) {
+      if (runs[c.no]) continue;
+      const steps: Step[] = [done("t", L("Ticket der Stelle Entwicklung zugewiesen", "Ticket assigned to the Engineering role"))];
+      const now = (text: string): Step => ({ block, when: L(`seit ${c.since}`, `for ${c.since}`), text, now: true, chat: c.mine });
+      if (block === "b") {
+        steps.push(now(c.state === "queued" ? L("in der Schlange: Ada und Kim haben je 2 Vorgänge", "queued: Ada and Kim have 2 cases each") : L(`${c.by} arbeitet daran`, `${c.by} works on it`)));
+      } else {
+        steps.push(done("b", L("Kim: Merge Request geöffnet", "Kim: merge request opened")), { ...done("r", L("übersprungen: Stelle Code-Review unbesetzt", "skipped: Code-Review role unfilled")), skip: true });
+        if (block === "a") steps.push(now(c.state === "queued" ? L("in der Schlange: Rosa hat 3 Vorgänge", "queued: Rosa has 3 cases") : L("Rosa testet", "Rosa tests")));
+        else if (block === "w") steps.push(done("a", L("Rosa: abgenommen", "Rosa: accepted")), done("c", L("abgenommen → weiter", "accepted → on")), done("s", L(`Ticket an ${owner} zugewiesen`, `Ticket assigned to ${owner}`)), now(L("wartet auf das Label „kunde-ok“", "waits for the label “customer-ok”")));
+        else if (block === "h") steps.push(done("a", L("Rosa: Mängel, drei Runden", "Rosa: defects, three rounds")), done("c", L(`3 Runden erreicht → an ${owner}`, `3 rounds reached → to ${owner}`)), now(L(`Entscheidungskarte liegt im Chat von ${owner}`, `The decision card lies in ${owner}'s chat`)));
+      }
+      runs[c.no] = { no: c.no, title: c.title, steps };
+    }
+  }
 
   const workflows: WorkflowRow[] = [
     { id: "ticket", name: L("Kundenticket", "Customer ticket"), desc: L("Ticket bis zum Kundentest", "Ticket to customer test"), scope: "GitLab · acme/timetable", chain: [rEng, rRev, rTest, owner], mode: "steer", active: 11, stuck: 2 },

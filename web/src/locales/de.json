@@ -3310,7 +3310,7 @@
     "tab": {
       "edit": "Bearbeiten",
       "live": "Live",
-      "run": "Einzelner Lauf",
+      "run": "Läufe",
       "file": "Als Datei"
     },
     "type": {
@@ -3338,8 +3338,9 @@
     "blocks": "Bausteine",
     "legend": {
       "edit": "Bausteine links: Ein Klick fügt einen ein. Vom Punkt rechts an einem Baustein ziehst du eine Verbindung. Gestrichelt: Stelle unbesetzt, der Schritt wird übersprungen.",
-      "live": "Zahl = Vorgänge an diesem Schritt. Rot: länger als erlaubt. Gelb: wartet auf jemanden.",
-      "run": "Blau: der Weg von {{no}}. „2×“ heißt: Der Schritt lief in mehreren Runden."
+      "live": "Blau: in Arbeit. Gelb: in der Schlange, wartet auf einen freien Kollegen. Grau: wartet auf jemanden außerhalb. Rot: länger als erlaubt.",
+      "run": "Blau: der Weg von {{no}}. „2×“ heißt: Der Schritt lief in mehreren Runden.",
+      "runs": "Die Zahlen zeigen, wo die Läufe stehen. Ein Klick auf einen Schritt filtert die Liste."
     },
     "workflow": "Ablauf",
     "name": "Name",
@@ -3469,21 +3470,29 @@
       "title": "Was gerade läuft",
       "nowAt": "{{type}} · jetzt",
       "nothingHere": "Gerade steht hier nichts.",
-      "cases": "Vorgänge im Ablauf",
       "stuck": "länger als erlaubt",
-      "median": "Tage bis zur Abnahme (Median)",
       "attention": "Braucht Aufmerksamkeit",
       "nothing": "Nichts.",
       "hint": "Ein Klick auf einen Schritt zeigt, wer dort steht. Ein Klick auf einen Vorgang öffnet seinen Lauf.",
       "offTitle": "Der Ablauf ist aus",
       "offText": "Solange der Ablauf aus ist, ordnet covey ihm keine Vorgänge zu. Die Kollegen arbeiten nach ihren Playbooks.",
       "watchNote": "covey liest die Stände aus dem Zielsystem ab und meldet Hänger, übergibt aber nicht selbst.",
-      "count": "{{count}} Vorgänge",
-      "count_one": "{{count}} Vorgang",
       "stuckBadge": "{{count}} hängen",
       "stuckBadge_one": "{{count}} hängt",
       "skipped": "übersprungen",
-      "with": "bei {{name}}"
+      "working": "{{count}} in Arbeit",
+      "working_one": "{{count}} in Arbeit",
+      "queued": "{{count}} in der Schlange",
+      "queued_one": "{{count}} in der Schlange",
+      "waiting": "{{count}} warten",
+      "waiting_one": "{{count}} wartet",
+      "statWorking": "in Arbeit",
+      "statQueued": "warten auf einen freien Kollegen",
+      "allInList": "Alle {{count}} in der Liste",
+      "allInList_one": "{{count}} in der Liste",
+      "groupWorking": "In Arbeit",
+      "groupQueued": "In der Schlange · nächster zuerst",
+      "groupWaiting": "Wartet"
     },
     "run": {
       "title": "Lauf {{no}}",
@@ -3518,9 +3527,30 @@
       "stepEnded": "Lauf beendet, Ticket bei {{owner}}",
       "stepAnswered": "{{owner}} hat im Chat geantwortet: „{{text}}“",
       "stepContinues": "{{name}} arbeitet weiter",
-      "previewOf": "So liegt es im Chat von {{name}}"
+      "previewOf": "So liegt es im Chat von {{name}}",
+      "digestKind": "Zusammenfassung · einmal am Tag",
+      "digestStuck": "{{count}} Läufe hängen",
+      "digestStuck_one": "{{count}} Lauf hängt",
+      "digestQueue": "{{count}} warten in der Schlange bei {{role}}",
+      "digestQueue_one": "{{count}} wartet in der Schlange bei {{role}}",
+      "digestMine": "{{count}} Freigaben warten auf dich",
+      "digestMine_one": "{{count}} Freigabe wartet auf dich",
+      "digestNote": "Einzelne Hänger kommen nicht als eigene Nachricht; jede Freigabe schon, weil sie eine Entscheidung ist."
     },
     "details": "Details",
-    "closeDetails": "Details schließen"
+    "closeDetails": "Details schließen",
+    "runs": {
+      "mineTag": "für dich",
+      "result": "{{count}} Läufe",
+      "result_one": "{{count}} Lauf",
+      "search": "Nach Nummer oder Titel suchen",
+      "filter_all": "Alle",
+      "filter_attention": "Braucht Aufmerksamkeit",
+      "filter_mine": "Wartet auf mich",
+      "filter_queued": "In der Schlange",
+      "allSteps": "Alle Schritte",
+      "none": "Kein Lauf passt zu diesem Filter.",
+      "back": "Alle Läufe"
+    }
   }
 }

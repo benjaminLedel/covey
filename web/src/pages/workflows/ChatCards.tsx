@@ -104,3 +104,24 @@ export function QuestionCard({
     </div>
   );
 }
+
+/* Many runs must not mean many messages. What does not need a decision
+   reaches the person once a day, bundled; an approval still comes on its
+   own, because each one is a decision. */
+export function DigestCard({ recipient, stuck, queue, mine }: { recipient: string; stuck: number; queue?: { n: number; role: string }; mine: number }) {
+  const { t } = useTranslation();
+  return (
+    <div className="wf-chatcard">
+      <p className="wf-eyebrow">{t("workflows.chat.previewOf", { name: recipient })}</p>
+      <div className="wf-card">
+        <div className="wf-card-kind">{t("workflows.chat.digestKind")}</div>
+        <ul className="wf-digest">
+          {stuck > 0 && <li>{t("workflows.chat.digestStuck", { count: stuck })}</li>}
+          {queue && <li>{t("workflows.chat.digestQueue", { count: queue.n, role: queue.role })}</li>}
+          {mine > 0 && <li>{t("workflows.chat.digestMine", { count: mine })}</li>}
+        </ul>
+        <div className="wf-hint">{t("workflows.chat.digestNote")}</div>
+      </div>
+    </div>
+  );
+}

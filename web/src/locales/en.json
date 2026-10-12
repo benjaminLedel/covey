@@ -3310,7 +3310,7 @@
     "tab": {
       "edit": "Edit",
       "live": "Live",
-      "run": "Single run",
+      "run": "Runs",
       "file": "As file"
     },
     "type": {
@@ -3338,8 +3338,9 @@
     "blocks": "Building blocks",
     "legend": {
       "edit": "Building blocks on the left: a click adds one. Drag from a block's right dot to connect. Dashed: the role is unfilled and the step is skipped.",
-      "live": "Number = cases at this step. Red: longer than allowed. Yellow: waiting for someone.",
-      "run": "Blue: the path of {{no}}. “2×” means the step ran in more than one round."
+      "live": "Blue: in work. Yellow: queued for a free colleague. Grey: waiting for someone outside. Red: longer than allowed.",
+      "run": "Blue: the path of {{no}}. “2×” means the step ran in more than one round.",
+      "runs": "The numbers show where the runs stand. A click on a step filters the list."
     },
     "workflow": "Workflow",
     "name": "Name",
@@ -3469,21 +3470,29 @@
       "title": "What is running",
       "nowAt": "{{type}} · now",
       "nothingHere": "Nothing stands here right now.",
-      "cases": "cases in the workflow",
       "stuck": "longer than allowed",
-      "median": "days to acceptance (median)",
       "attention": "Needs attention",
       "nothing": "Nothing.",
       "hint": "A click on a step shows who stands there. A click on a case opens its run.",
       "offTitle": "The workflow is off",
       "offText": "While the workflow is off, covey assigns no cases to it. The colleagues work by their playbooks.",
       "watchNote": "covey reads the positions from the target system and reports what is stuck, but hands nothing over itself.",
-      "count": "{{count}} cases",
-      "count_one": "{{count}} case",
       "stuckBadge": "{{count}} stuck",
       "stuckBadge_one": "{{count}} stuck",
       "skipped": "skipped",
-      "with": "with {{name}}"
+      "working": "{{count}} in work",
+      "working_one": "{{count}} in work",
+      "queued": "{{count}} queued",
+      "queued_one": "{{count}} queued",
+      "waiting": "{{count}} waiting",
+      "waiting_one": "{{count}} waiting",
+      "statWorking": "in work",
+      "statQueued": "queued for a free colleague",
+      "allInList": "All {{count}} in the list",
+      "allInList_one": "{{count}} in the list",
+      "groupWorking": "In work",
+      "groupQueued": "Queued · next one first",
+      "groupWaiting": "Waiting"
     },
     "run": {
       "title": "Run {{no}}",
@@ -3518,9 +3527,30 @@
       "stepEnded": "Run ended, ticket with {{owner}}",
       "stepAnswered": "{{owner}} answered in the chat: “{{text}}”",
       "stepContinues": "{{name}} continues",
-      "previewOf": "This is how it lies in {{name}}'s chat"
+      "previewOf": "This is how it lies in {{name}}'s chat",
+      "digestKind": "Summary · once a day",
+      "digestStuck": "{{count}} runs are stuck",
+      "digestStuck_one": "{{count}} run is stuck",
+      "digestQueue": "{{count}} are queued for {{role}}",
+      "digestQueue_one": "{{count}} is queued for {{role}}",
+      "digestMine": "{{count}} approvals wait for you",
+      "digestMine_one": "{{count}} approval waits for you",
+      "digestNote": "Single stuck runs do not come as messages of their own; each approval does, because it is a decision."
     },
     "details": "Details",
-    "closeDetails": "Close details"
+    "closeDetails": "Close details",
+    "runs": {
+      "mineTag": "for you",
+      "result": "{{count}} runs",
+      "result_one": "{{count}} run",
+      "search": "Search by number or title",
+      "filter_all": "All",
+      "filter_attention": "Needs attention",
+      "filter_mine": "Waits for me",
+      "filter_queued": "Queued",
+      "allSteps": "All steps",
+      "none": "No run matches this filter.",
+      "back": "All runs"
+    }
   }
 }
