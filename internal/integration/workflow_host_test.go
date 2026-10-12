@@ -6,27 +6,18 @@ import (
 	"testing"
 	"time"
 
-	"covey/internal/backlog"
 	"covey/internal/workflow"
 	"covey/internal/workflowhost"
 )
 
-// hostWorkflows puts a workflow host on the stack the way serve does: its
-// store, the stack's backlog and registry, and the completion hook.
-func hostWorkflows(t *testing.T, s *stack) *workflowhost.Host {
+// hostWorkflows takes up what a test saved straight into the store — the
+// API does the same after a PUT.
+func hostWorkflows(t *testing.T, s *stack, slug string) *workflowhost.Host {
 	t.Helper()
-	h := &workflowhost.Host{Store: workflow.NewStore(s.pool), Backlog: s.backlog, Agents: s.registry}
-	if err := h.Load(context.Background()); err != nil {
+	if err := s.workflows.Reload(context.Background(), s.orgID, slug); err != nil {
 		t.Fatal(err)
 	}
-	prev := s.backlog.OnComplete
-	s.backlog.OnComplete = func(ctx context.Context, task backlog.Task) {
-		if prev != nil {
-			prev(ctx, task)
-		}
-		h.TaskEnded(ctx, task)
-	}
-	return h
+	return s.workflows
 }
 
 // The steps' tasks carry the mock runtime's directives: the agent reports
@@ -80,7 +71,7 @@ func TestAWorkflowHandsItsStepsToAgentsAndMovesOnWithTheirReports(t *testing.T) 
 	if _, err := st.Save(ctx, s.orgID, "handover", strings.Replace(handOverWorkflow, "%s", "accepted", 1), nil); err != nil {
 		t.Fatal(err)
 	}
-	h := hostWorkflows(t, s)
+	h := hostWorkflows(t, s, "handover")
 	eng, _, ok := h.Engine(s.orgID, "handover")
 	if !ok {
 		t.Fatal("the saved workflow was not loaded")
@@ -146,7 +137,7 @@ func TestAStepThatEndsWithoutItsReportStopsTheRun(t *testing.T) {
 	if _, err := workflow.NewStore(s.pool).Save(ctx, s.orgID, "handover", src, nil); err != nil {
 		t.Fatal(err)
 	}
-	h := hostWorkflows(t, s)
+	h := hostWorkflows(t, s, "handover")
 	eng, _, _ := h.Engine(s.orgID, "handover")
 	r, _ := eng.Start("#43", map[string]string{"title": "Import"})
 	waitForOr(t, "the run to stop", 30*time.Second, func() bool {

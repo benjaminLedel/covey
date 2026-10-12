@@ -4,10 +4,10 @@
 // and moves a run on when such a task ends.
 //
 // What the engine asks of the world it gets here: whether a colleague can
-// work (the registry), a task for a step (the backlog). Approvals, messages,
-// AI steps and target-system actions are refused with a clear error until
-// they are connected; the run then stops and says why, rather than
-// pretending a question reached someone.
+// work (the registry), a task for a step (the backlog). An approval waits
+// in the workflow's views until the chat carries it. Messages, AI steps and
+// target-system actions are refused with a clear error until they are
+// connected; the run then stops and says why.
 package workflowhost
 
 import (
@@ -35,7 +35,8 @@ const OriginPrefix = "workflow:"
 var ErrNotConnected = errors.New("not connected yet")
 
 // Messenger reaches people: an approval to decide, a message to read. Until
-// the chat carries workflows (#441), the host has none and refuses both.
+// the chat carries workflows (#441) the host has none: approvals wait in the
+// workflow's views, messages are refused.
 type Messenger interface {
 	Ask(ctx context.Context, orgID uuid.UUID, q workflow.Question) error
 	Notify(ctx context.Context, orgID uuid.UUID, m workflow.Message) error
@@ -310,8 +311,11 @@ func (o *outside) Act(a workflow.Action) error {
 }
 
 func (o *outside) Ask(q workflow.Question) error {
+	// Without a chat the question still stands: the run waits at the
+	// approval where the workflow's views show it, and the person decides
+	// there (#564). Nothing claims it was delivered anywhere else.
 	if o.h.Messenger == nil {
-		return fmt.Errorf("approvals are %w", ErrNotConnected)
+		return nil
 	}
 	ctx, cancel := o.ctx()
 	defer cancel()
