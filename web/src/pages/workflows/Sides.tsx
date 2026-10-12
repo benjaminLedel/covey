@@ -82,16 +82,15 @@ export function RunSide({
   run,
   blocks,
   selected,
-  waitsInChat,
+  waiting,
   onStep,
-  onChat,
 }: {
   run: Run;
   blocks: Record<string, Block>;
   selected: string | null;
-  waitsInChat: boolean;
+  // The card the run waits on, as it lies in someone's chat.
+  waiting?: React.ReactNode;
   onStep: (block: string) => void;
-  onChat: () => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -121,12 +120,8 @@ export function RunSide({
           </li>
         ))}
       </ol>
+      {waiting}
       <div className="wf-sec wf-row">
-        {waitsInChat && (
-          <button className="btn sm" onClick={onChat}>
-            {t("workflows.run.toChat")}
-          </button>
-        )}
         <button className="btn sm">{t("workflows.run.reassign")}</button>
         <button className="btn sm">{t("workflows.run.pause")}</button>
       </div>

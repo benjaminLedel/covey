@@ -3311,8 +3311,7 @@
       "edit": "編集",
       "live": "ライブ",
       "run": "単一の実行",
-      "file": "ファイル",
-      "chat": "チャット"
+      "file": "ファイル"
     },
     "type": {
       "trigger": "トリガー",
@@ -3450,8 +3449,7 @@
       "who": "判断する人",
       "question": "質問",
       "questionHint": "その人のチャットにカードとして表示され、分岐ごとにボタンが付きます。自由記述でも回答できます。",
-      "wait": "回答を待つ",
-      "showChat": "チャットでの表示"
+      "wait": "回答を待つ"
     },
     "wait": {
       "until": "待つ条件",
@@ -3491,7 +3489,6 @@
       "title": "実行 {{no}}",
       "here": "現在位置",
       "times": "{{n}}×",
-      "toChat": "チャットの質問へ",
       "reassign": "別の担当者に渡す…",
       "pause": "実行を一時停止",
       "chatTag": "チャット"
@@ -3506,26 +3503,11 @@
       "head": "エージェントの設定と同様にバージョン管理されます。エクスポートとインポートは、このテキストそのものを扱います。"
     },
     "chat": {
-      "conversations": "会話",
-      "decided": "判断済み",
-      "waits": "{{no}} があなたの判断を待っています",
-      "questionOn": "{{no}} についての質問",
-      "note": "covey では、これらはチームエリアの通常の会話です。ワークフローが書き込むのは、誰かが判断または確認する必要があるときだけです。",
-      "workflowSub": "ワークフロー · 判断または確認が必要なときだけ連絡します",
-      "colleagueSub": "{{workflow}} でロールを担当しています",
-      "kindNotice": "お知らせ",
-      "kindStuck": "停滞",
       "kindApproval": "承認",
       "kindQuestion": "質問",
-      "noticeAccepted": "{{no}} は承認され、現在 {{owner}} にあります。顧客テストを開始してください。",
-      "noticeStuck": "{{no}} は「{{step}}」で {{name}} のもとに6時間とどまっています。許容は4時間です。",
       "cardQuestion": "3ラウンド経ても承認されていません。次はどうしますか?",
       "cardContext": "直近の不具合:{{defects}}",
-      "viewRun": "実行を表示",
       "decidedAs": "判断:{{choice}}。",
-      "retried": "再び {{name}} が担当しています(ラウンド4)。あなたのメモはタスクに含まれています。",
-      "runWaits": "実行はあなたの回答を待っています。",
-      "placeholderWorkflow": "ワークフローに回答します(例:「もう1ラウンド、ßに注意」)",
       "placeholderColleague": "{{name}} へのメッセージ",
       "send": "送信",
       "you": "あなた",
@@ -3535,7 +3517,8 @@
       "stepRound": "ラウンド {{n}} · {{name}}",
       "stepEnded": "実行終了、チケットは {{owner}} のもとにあります",
       "stepAnswered": "{{owner}} がチャットで回答:「{{text}}」",
-      "stepContinues": "{{name}} が続行します"
+      "stepContinues": "{{name}} が続行します",
+      "previewOf": "{{name}} さんのチャットではこう表示されます"
     },
     "details": "詳細",
     "closeDetails": "詳細を閉じる"

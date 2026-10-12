@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { BlockIcon } from "./canvas";
+import { DecisionCard } from "./ChatCards";
 import { checks, outsOf, available, type Block, type Example, type Link } from "./model";
 
 type Cfg = Block["cfg"];
@@ -16,7 +17,6 @@ interface Props {
   onBlock: (id: string, patch: { title?: string; cfg?: Cfg }) => void;
   onRemoveBlock: (id: string) => void;
   onRemoveLink: (i: number) => void;
-  onShowChat: () => void;
 }
 
 const VARS = ["{{ticket.no}}", "{{ticket.title}}", "{{build.mr}}", "{{accept.result}}", "{{accept.defects}}"];
@@ -257,9 +257,7 @@ export default function Inspector(p: Props) {
             {area("question")}
           </Field>
           <Field label={t("workflows.approval.wait")}>{select("wait", same(p.ex.options.waits))}</Field>
-          <button className="btn sm" type="button" onClick={p.onShowChat}>
-            {t("workflows.approval.showChat")}
-          </button>
+          <DecisionCard recipient={String(c.who)} kind={t("workflows.chat.kindApproval")} question={String(c.question)} options={outsOf(b)} />
         </>
       );
       break;

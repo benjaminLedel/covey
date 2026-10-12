@@ -3311,8 +3311,7 @@
       "edit": "Edytuj",
       "live": "Na żywo",
       "run": "Pojedyncze uruchomienie",
-      "file": "Jako plik",
-      "chat": "W czacie"
+      "file": "Jako plik"
     },
     "type": {
       "trigger": "Wyzwalacz",
@@ -3450,8 +3449,7 @@
       "who": "Kto decyduje",
       "question": "Pytanie",
       "questionHint": "Pojawia się jako karta w czacie tej osoby, z jednym przyciskiem na gałąź. Działa też wolny tekst.",
-      "wait": "Czekaj na odpowiedź",
-      "showChat": "Tak to wygląda w czacie"
+      "wait": "Czekaj na odpowiedź"
     },
     "wait": {
       "until": "Do",
@@ -3491,7 +3489,6 @@
       "title": "Uruchomienie {{no}}",
       "here": "jest tutaj",
       "times": "{{n}}×",
-      "toChat": "Do pytania w czacie",
       "reassign": "Przekaż innemu współpracownikowi…",
       "pause": "Wstrzymaj uruchomienie",
       "chatTag": "chat"
@@ -3506,26 +3503,11 @@
       "head": "Wersjonowany jak konfiguracja agenta. Eksport i import przenoszą dokładnie ten tekst."
     },
     "chat": {
-      "conversations": "Rozmowy",
-      "decided": "rozstrzygnięto",
-      "waits": "{{no}} czeka na twoją decyzję",
-      "questionOn": "Pytanie do {{no}}",
-      "note": "W covey to zwykłe rozmowy w obszarze zespołu. Przepływ pracy pisze tylko wtedy, gdy ktoś musi zdecydować albo coś wiedzieć.",
-      "workflowSub": "Przepływ pracy · pisze do ciebie tylko wtedy, gdy musisz zdecydować albo coś wiedzieć",
-      "colleagueSub": "Ma rolę w {{workflow}}",
-      "kindNotice": "informacja",
-      "kindStuck": "utknęło",
       "kindApproval": "Zatwierdzenie",
       "kindQuestion": "pytanie",
-      "noticeAccepted": "{{no}} jest odebrana i leży teraz u {{owner}}. Zainicjuj test u klienta.",
-      "noticeStuck": "{{no}} od 6 godzin jest u {{name}} na kroku „{{step}}”, dozwolone są 4.",
       "cardQuestion": "Trzy rundy bez odbioru. Co dalej?",
       "cardContext": "Ostatnie usterki: {{defects}}",
-      "viewRun": "Zobacz uruchomienie",
       "decidedAs": "Rozstrzygnięto: {{choice}}.",
-      "retried": "Jest znowu u {{name}}, runda 4, twoja uwaga jest w zadaniu.",
-      "runWaits": "Uruchomienie czeka na twoją odpowiedź.",
-      "placeholderWorkflow": "Odpowiedz przepływowi pracy, np. „kolejna runda, uważaj na ß”",
       "placeholderColleague": "Wiadomość do {{name}}",
       "send": "Wyślij",
       "you": "Ty",
@@ -3535,7 +3517,8 @@
       "stepRound": "Runda {{n}} u {{name}}",
       "stepEnded": "Uruchomienie zakończone, zgłoszenie u {{owner}}",
       "stepAnswered": "{{owner}} odpowiedział(a) w czacie: „{{text}}”",
-      "stepContinues": "{{name}} pracuje dalej"
+      "stepContinues": "{{name}} pracuje dalej",
+      "previewOf": "Tak wygląda to na czacie {{name}}"
     },
     "details": "Szczegóły",
     "closeDetails": "Zamknij szczegóły"

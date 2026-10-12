@@ -3311,8 +3311,7 @@
       "edit": "Bearbeiten",
       "live": "Live",
       "run": "Einzelner Lauf",
-      "file": "Als Datei",
-      "chat": "Im Chat"
+      "file": "Als Datei"
     },
     "type": {
       "trigger": "Auslöser",
@@ -3450,8 +3449,7 @@
       "who": "Wer entscheidet",
       "question": "Frage",
       "questionHint": "Erscheint als Karte im Chat dieser Person, mit einem Knopf je Zweig. Freitext geht auch.",
-      "wait": "Antwort abwarten",
-      "showChat": "So sieht es im Chat aus"
+      "wait": "Antwort abwarten"
     },
     "wait": {
       "until": "Bis",
@@ -3491,7 +3489,6 @@
       "title": "Lauf {{no}}",
       "here": "steht hier",
       "times": "{{n}}×",
-      "toChat": "Zur Frage im Chat",
       "reassign": "Anderem Kollegen geben…",
       "pause": "Lauf anhalten",
       "chatTag": "Chat"
@@ -3506,26 +3503,11 @@
       "head": "Versioniert wie die Konfiguration eines Agenten. Export und Import tragen genau diesen Text."
     },
     "chat": {
-      "conversations": "Gespräche",
-      "decided": "entschieden",
-      "waits": "{{no}} wartet auf deine Entscheidung",
-      "questionOn": "Rückfrage zu {{no}}",
-      "note": "In covey sind das gewöhnliche Gespräche im Team-Bereich. Der Ablauf schreibt nur, wenn jemand entscheiden oder Bescheid wissen muss.",
-      "workflowSub": "Ablauf · schreibt dir nur, wenn du entscheiden oder Bescheid wissen musst",
-      "colleagueSub": "Hat eine Stelle in {{workflow}}",
-      "kindNotice": "Bescheid",
-      "kindStuck": "Hänger",
       "kindApproval": "Freigabe",
       "kindQuestion": "Rückfrage",
-      "noticeAccepted": "{{no}} ist abgenommen und liegt jetzt bei {{owner}}. Bitte Kundentest anstoßen.",
-      "noticeStuck": "{{no}} steht seit 6 Stunden bei {{name}} im Schritt „{{step}}“, erlaubt sind 4.",
       "cardQuestion": "Drei Runden ohne Abnahme. Wie weiter?",
       "cardContext": "Letzte Mängel: {{defects}}",
-      "viewRun": "Lauf ansehen",
       "decidedAs": "Entschieden: {{choice}}.",
-      "retried": "Ist wieder bei {{name}}, Runde 4, dein Hinweis steht im Auftrag.",
-      "runWaits": "Der Lauf wartet auf deine Antwort.",
-      "placeholderWorkflow": "Antwort an den Ablauf, z. B. „neue Runde, achte auf ß“",
       "placeholderColleague": "Nachricht an {{name}}",
       "send": "Senden",
       "you": "Du",
@@ -3535,7 +3517,8 @@
       "stepRound": "Runde {{n}} bei {{name}}",
       "stepEnded": "Lauf beendet, Ticket bei {{owner}}",
       "stepAnswered": "{{owner}} hat im Chat geantwortet: „{{text}}“",
-      "stepContinues": "{{name}} arbeitet weiter"
+      "stepContinues": "{{name}} arbeitet weiter",
+      "previewOf": "So liegt es im Chat von {{name}}"
     },
     "details": "Details",
     "closeDetails": "Details schließen"

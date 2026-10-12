@@ -282,104 +282,108 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
     );
   }
 
+  /* Workflows are a place of their own in the rail (#560); their pages
+     need the width, and the console's navigation has nothing to say there. */
+  const inWorkflows = location.pathname === "/workflows" || location.pathname.startsWith("/workflows/");
+
   return (
     <div className="flex min-h-screen tm-drei">
       {/* The same rail as in the team (#389): it stays when one moves to
           the settings; this column beside it is the console's navigation. */}
       <Rail
         me={me}
-        active={location.pathname === "/notes" ? "notes" : "admin"}
+        active={location.pathname === "/notes" ? "notes" : inWorkflows ? "workflows" : "admin"}
         onLogout={onLogout}
         onHelp={() => setHelpOpen(true)}
         onSearch={() => sucheOeffnen()}
       />
       {drawerOpen && <div className="konsole-scrim" onClick={closeMenu} aria-hidden="true" />}
-      <aside
-        ref={menuPanel}
-        id="konsole-nav"
-        className={`sidebar konsole-spalte${drawerOpen ? " offen" : ""}`}
-        aria-label={t("team.verwaltung")}
-        /* A link to the page one is on changes no address; it closes too. */
-        onClick={(e) => drawerOpen && (e.target as Element).closest("a") && closeMenu()}
-        {...(narrow ? { role: "dialog", "aria-modal": drawerOpen || undefined, inert: !drawerOpen || undefined } : {})}
-      >
-        <div className="tm-spalte-kopf">
-          <h1 className="tm-spalte-titel">{t("team.verwaltung")}</h1>
-        </div>
-        {/* The navigation grew — the order showed when something was added,
-            not when it is needed. Now sorted by the everyday: on top what
-            opens daily; below what is set up once; then the
-            oversight. */}
-        <div className="nav-group">
-          {/* Setup first while it is not finished (#391): whoever just
-              installed covey starts there. */}
-          {setupOpen && <NavItem to="/setup" icon="checklist" label={t("nav.setupPage")} />}
-          <NavItem to="/agents" end icon="robot" label={t("nav.agents")} />
-          {/* A preview with example data (#560), to shape spec/29 against. */}
-          <NavItem to="/workflows" icon="flow" label={t("nav.workflows")} />
-          {/* With the team surface, decisions are made in the conversation
-              with the agent (#391); the inbox is for installations without it. */}
-          {!me.TeamSurface && <NavItem to="/inbox" icon="bell" label={t("nav.inbox")} count={pending} />}
-          <NavItem to="/costs" icon="chart" label={t("nav.costs")} />
-          <NavItem to="/org" icon="sitemap" label={t("nav.org")} />
-        </div>
-        <div className="nav-sec">{t("nav.setup")}</div>
-        <div className="nav-group">
-          <NavItem to="/secrets" icon="key" label={t("nav.secrets")} />
-          <NavItem to="/targets" icon="plug" label={t("nav.targets")} />
-          <NavItem to="/skills" icon="book" label={t("nav.skills")} />
-          <NavItem to="/voices" icon="book" label={t("nav.voices")} />
-          <NavItem to="/templates" icon="copy" label={t("nav.templates")} />
-          <NavItem to="/infrastructure" icon="server" label={t("nav.infrastructure")} />
-        </div>
-        <div className="nav-sec">{t("nav.control")}</div>
-        <div className="nav-group">
-          <NavItem to="/guardrails" icon="shield" label={t("nav.guardrails")} />
-          <NavItem to="/egress" icon="globe" label={t("nav.egress")} />
-          {/* Only those who may fetch the request log should read it (the API
-              lets `org_admin` and `security` through) — otherwise the menu
-              showed a path that ends in a 403. It used to sit in the
-              admin block, which hid it from security. */}
-          {/* The audit trail is for those who review it: org admin,
-              security, auditor. Agent owners and controlling stand
-              in it themselves. */}
-          {["org_admin", "security", "auditor"].includes(me.Role) && (
-            <NavItem to="/audit" icon="clipboard" label={t("nav.audit")} />
-          )}
-          {(me.Role === "org_admin" || me.Role === "security") && (
-            <NavItem to="/requests" icon="exchange" label={t("nav.requests")} />
-          )}
+      {!inWorkflows && (
+        <aside
+          ref={menuPanel}
+          id="konsole-nav"
+          className={`sidebar konsole-spalte${drawerOpen ? " offen" : ""}`}
+          aria-label={t("team.verwaltung")}
+          /* A link to the page one is on changes no address; it closes too. */
+          onClick={(e) => drawerOpen && (e.target as Element).closest("a") && closeMenu()}
+          {...(narrow ? { role: "dialog", "aria-modal": drawerOpen || undefined, inert: !drawerOpen || undefined } : {})}
+        >
+          <div className="tm-spalte-kopf">
+            <h1 className="tm-spalte-titel">{t("team.verwaltung")}</h1>
+          </div>
+          {/* The navigation grew — the order showed when something was added,
+              not when it is needed. Now sorted by the everyday: on top what
+              opens daily; below what is set up once; then the
+              oversight. */}
+          <div className="nav-group">
+            {/* Setup first while it is not finished (#391): whoever just
+                installed covey starts there. */}
+            {setupOpen && <NavItem to="/setup" icon="checklist" label={t("nav.setupPage")} />}
+            <NavItem to="/agents" end icon="robot" label={t("nav.agents")} />
+            {/* With the team surface, decisions are made in the conversation
+                with the agent (#391); the inbox is for installations without it. */}
+            {!me.TeamSurface && <NavItem to="/inbox" icon="bell" label={t("nav.inbox")} count={pending} />}
+            <NavItem to="/costs" icon="chart" label={t("nav.costs")} />
+            <NavItem to="/org" icon="sitemap" label={t("nav.org")} />
+          </div>
+          <div className="nav-sec">{t("nav.setup")}</div>
+          <div className="nav-group">
+            <NavItem to="/secrets" icon="key" label={t("nav.secrets")} />
+            <NavItem to="/targets" icon="plug" label={t("nav.targets")} />
+            <NavItem to="/skills" icon="book" label={t("nav.skills")} />
+            <NavItem to="/voices" icon="book" label={t("nav.voices")} />
+            <NavItem to="/templates" icon="copy" label={t("nav.templates")} />
+            <NavItem to="/infrastructure" icon="server" label={t("nav.infrastructure")} />
+          </div>
+          <div className="nav-sec">{t("nav.control")}</div>
+          <div className="nav-group">
+            <NavItem to="/guardrails" icon="shield" label={t("nav.guardrails")} />
+            <NavItem to="/egress" icon="globe" label={t("nav.egress")} />
+            {/* Only those who may fetch the request log should read it (the API
+                lets `org_admin` and `security` through) — otherwise the menu
+                showed a path that ends in a 403. It used to sit in the
+                admin block, which hid it from security. */}
+            {/* The audit trail is for those who review it: org admin,
+                security, auditor. Agent owners and controlling stand
+                in it themselves. */}
+            {["org_admin", "security", "auditor"].includes(me.Role) && (
+              <NavItem to="/audit" icon="clipboard" label={t("nav.audit")} />
+            )}
+            {(me.Role === "org_admin" || me.Role === "security") && (
+              <NavItem to="/requests" icon="exchange" label={t("nav.requests")} />
+            )}
 
-        </div>
-        <div className="mt-auto">
-          {/* Two areas, two scopes — and two different levels that open
-              them. Administration manages THIS organisation, so it belongs to
-              the role the organisation grants itself. The platform
-              manages the installation and hangs on the account, where no
-              organisation can hand it out
-              (FR-003, finding F). */}
-          {(me.Role === "org_admin" || istSystemAdmin(me)) && (
-            <>
-              <button className={`nav-sec toggle ${showPlatform ? "open" : ""}`} onClick={togglePlatform} disabled={inPlatform}>
-                {t("nav.administrationSection")}
-                <NavIcon name="chevron" />
-              </button>
-              {showPlatform && (
-                <div className="nav-group">
-                  {me.Role === "org_admin" && (
-                    <NavItem to="/administration" icon="user" label={t("nav.administration")} />
-                  )}
-                  {istSystemAdmin(me) && (
-                    <NavItem to="/platform" icon="box" label={t("nav.platform")} />
-                  )}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </aside>
+          </div>
+          <div className="mt-auto">
+            {/* Two areas, two scopes — and two different levels that open
+                them. Administration manages THIS organisation, so it belongs to
+                the role the organisation grants itself. The platform
+                manages the installation and hangs on the account, where no
+                organisation can hand it out
+                (FR-003, finding F). */}
+            {(me.Role === "org_admin" || istSystemAdmin(me)) && (
+              <>
+                <button className={`nav-sec toggle ${showPlatform ? "open" : ""}`} onClick={togglePlatform} disabled={inPlatform}>
+                  {t("nav.administrationSection")}
+                  <NavIcon name="chevron" />
+                </button>
+                {showPlatform && (
+                  <div className="nav-group">
+                    {me.Role === "org_admin" && (
+                      <NavItem to="/administration" icon="user" label={t("nav.administration")} />
+                    )}
+                    {istSystemAdmin(me) && (
+                      <NavItem to="/platform" icon="box" label={t("nav.platform")} />
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </aside>
+      )}
       <main className="flex-1 min-w-0 flex flex-col">
-        {narrow && (
+        {narrow && !inWorkflows && (
           <div className="konsole-bar">
             <button
               ref={menuButton}

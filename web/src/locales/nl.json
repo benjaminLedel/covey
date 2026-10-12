@@ -3311,8 +3311,7 @@
       "edit": "Bewerken",
       "live": "Live",
       "run": "Enkele run",
-      "file": "Als bestand",
-      "chat": "In de chat"
+      "file": "Als bestand"
     },
     "type": {
       "trigger": "Trigger",
@@ -3450,8 +3449,7 @@
       "who": "Wie beslist",
       "question": "Vraag",
       "questionHint": "Verschijnt als kaart in de chat van die persoon, met een knop per tak. Vrije tekst kan ook.",
-      "wait": "Op antwoord wachten",
-      "showChat": "Zo ziet het eruit in de chat"
+      "wait": "Op antwoord wachten"
     },
     "wait": {
       "until": "Tot",
@@ -3491,7 +3489,6 @@
       "title": "Run {{no}}",
       "here": "staat hier",
       "times": "{{n}}×",
-      "toChat": "Naar de vraag in de chat",
       "reassign": "Aan een andere collega geven…",
       "pause": "Run pauzeren",
       "chatTag": "chat"
@@ -3506,26 +3503,11 @@
       "head": "Met versies, zoals de configuratie van een agent. Export en import dragen precies deze tekst."
     },
     "chat": {
-      "conversations": "Gesprekken",
-      "decided": "besloten",
-      "waits": "{{no}} wacht op jouw beslissing",
-      "questionOn": "Vraag over {{no}}",
-      "note": "In covey zijn dit gewone gesprekken in het teamgedeelte. De workflow schrijft alleen als iemand moet beslissen of iets moet weten.",
-      "workflowSub": "Workflow · schrijft je alleen als je moet beslissen of iets moet weten",
-      "colleagueSub": "Heeft een rol in {{workflow}}",
-      "kindNotice": "bericht",
-      "kindStuck": "vastgelopen",
       "kindApproval": "Goedkeuring",
       "kindQuestion": "vraag",
-      "noticeAccepted": "{{no}} is geaccepteerd en ligt nu bij {{owner}}. Start de klantentest.",
-      "noticeStuck": "{{no}} staat al 6 uur bij {{name}} in de stap “{{step}}”; 4 zijn toegestaan.",
       "cardQuestion": "Drie rondes zonder acceptatie. Hoe nu verder?",
       "cardContext": "Laatste gebreken: {{defects}}",
-      "viewRun": "Run bekijken",
       "decidedAs": "Besloten: {{choice}}.",
-      "retried": "Het ligt weer bij {{name}}, ronde 4; jouw opmerking staat in de opdracht.",
-      "runWaits": "De run wacht op jouw antwoord.",
-      "placeholderWorkflow": "Antwoord aan de workflow, bijv. “nieuwe ronde, let op de ß”",
       "placeholderColleague": "Bericht aan {{name}}",
       "send": "Versturen",
       "you": "Jij",
@@ -3535,7 +3517,8 @@
       "stepRound": "Ronde {{n}} bij {{name}}",
       "stepEnded": "Run afgerond, ticket bij {{owner}}",
       "stepAnswered": "{{owner}} heeft in de chat geantwoord: “{{text}}”",
-      "stepContinues": "{{name}} gaat verder"
+      "stepContinues": "{{name}} gaat verder",
+      "previewOf": "Zo staat het in de chat van {{name}}"
     },
     "details": "Details",
     "closeDetails": "Details sluiten"

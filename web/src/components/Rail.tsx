@@ -16,7 +16,7 @@ import Tour, { TEAM_TOUR, tourGesehen } from "./Tour";
  *
  * Without the team surface (#328) there is no team to go to, and the notes
  * live in the console. */
-export type RailPlace = "office" | "team" | "notes" | "admin";
+export type RailPlace = "office" | "team" | "workflows" | "notes" | "admin";
 
 export default function Rail({
   me,
@@ -99,6 +99,10 @@ export default function Rail({
       )}
       {team && item("office", "/", "office", t("team.ueberblick"), pending)}
       {team && item("team", "/team", "chat", t("team.workspace"), unread)}
+      {/* Workflows (#560) are their own place, not a setting: the live view
+          is daily work, and a workflow crosses departments rather than
+          belonging to one. */}
+      {item("workflows", "/workflows", "flow", t("nav.workflows"))}
       {item("notes", team ? "/team/notes" : "/notes", "note", t("mobile.notizen"))}
       {item("admin", "/agents", "sliders", t("team.verwaltung"))}
       <span className="tm-rail-luft" />

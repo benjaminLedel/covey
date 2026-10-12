@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import { BaseEdge, EdgeLabelRenderer, Handle, Position, type EdgeProps, type NodeProps } from "@xyflow/react";
 import { HEAD_H, NODE_W, ROW_H, heightOf, outY, outsOf, roleEmpty, type Block, type BlockType, type Example, type Mode } from "./model";
 
-export type Tab = "edit" | "live" | "run" | "file" | "chat";
+export type Tab = "edit" | "live" | "run" | "file";
 
 export interface CanvasState {
   ex: Example;

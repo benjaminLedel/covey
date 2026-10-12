@@ -3311,8 +3311,7 @@
       "edit": "Modifica",
       "live": "Live",
       "run": "Singola esecuzione",
-      "file": "Come file",
-      "chat": "Nella chat"
+      "file": "Come file"
     },
     "type": {
       "trigger": "Avvio",
@@ -3450,8 +3449,7 @@
       "who": "Chi decide",
       "question": "Domanda",
       "questionHint": "Compare come scheda nella chat di quella persona, con un pulsante per ramo. Va bene anche il testo libero.",
-      "wait": "Attendi una risposta",
-      "showChat": "Come appare nella chat"
+      "wait": "Attendi una risposta"
     },
     "wait": {
       "until": "Fino a",
@@ -3491,7 +3489,6 @@
       "title": "Esecuzione {{no}}",
       "here": "è qui",
       "times": "{{n}}×",
-      "toChat": "Alla domanda nella chat",
       "reassign": "Passa a un altro collega…",
       "pause": "Metti in pausa",
       "chatTag": "chat"
@@ -3506,26 +3503,11 @@
       "head": "Con versioni, come la configurazione di un agente. Esportazione e importazione trasportano esattamente questo testo."
     },
     "chat": {
-      "conversations": "Conversazioni",
-      "decided": "deciso",
-      "waits": "{{no}} aspetta la tua decisione",
-      "questionOn": "Domanda su {{no}}",
-      "note": "In covey sono normali conversazioni nell’area del team. Il workflow scrive solo quando qualcuno deve decidere o sapere qualcosa.",
-      "workflowSub": "Workflow · ti scrive solo quando devi decidere o sapere qualcosa",
-      "colleagueSub": "Ha un ruolo in {{workflow}}",
-      "kindNotice": "avviso",
-      "kindStuck": "bloccato",
       "kindApproval": "Approvazione",
       "kindQuestion": "domanda",
-      "noticeAccepted": "{{no}} è accettato e ora è presso {{owner}}. Avvia il test con il cliente.",
-      "noticeStuck": "{{no}} è fermo da 6 ore presso {{name}} nel passaggio «{{step}}»; ne sono consentite 4.",
       "cardQuestion": "Tre giri senza accettazione. Come si procede?",
       "cardContext": "Ultimi difetti: {{defects}}",
-      "viewRun": "Vedi esecuzione",
       "decidedAs": "Deciso: {{choice}}.",
-      "retried": "È di nuovo presso {{name}}, giro 4; la tua nota è nel compito.",
-      "runWaits": "L’esecuzione aspetta la tua risposta.",
-      "placeholderWorkflow": "Rispondi al workflow, ad es. «un altro giro, attenzione alla ß»",
       "placeholderColleague": "Messaggio a {{name}}",
       "send": "Invia",
       "you": "Tu",
@@ -3535,7 +3517,8 @@
       "stepRound": "Giro {{n}} con {{name}}",
       "stepEnded": "Esecuzione conclusa, ticket presso {{owner}}",
       "stepAnswered": "{{owner}} ha risposto nella chat: «{{text}}»",
-      "stepContinues": "{{name}} prosegue"
+      "stepContinues": "{{name}} prosegue",
+      "previewOf": "Così appare nella chat di {{name}}"
     },
     "details": "Dettagli",
     "closeDetails": "Chiudi dettagli"

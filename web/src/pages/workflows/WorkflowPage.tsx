@@ -21,12 +21,12 @@ import {
 import "@xyflow/react/dist/style.css";
 import "./workflows.css";
 import { BlockIcon, CanvasContext, edgeTypes, nodeTypes, type CanvasState, type Tab } from "./canvas";
-import ChatPreview, { type Decision } from "./ChatPreview";
+import { DecisionCard, QuestionCard } from "./ChatCards";
 import Inspector from "./Inspector";
 import { FileSide, LiveSide, RunSide } from "./Sides";
 import { BLOCK_TYPES, NODE_W, definitionText, example, heightOf, outsOf, roleEmpty, runPath, type Block, type BlockType, type Example, type Link as WfLink, type Mode, type Step } from "./model";
 
-const TABS: Tab[] = ["edit", "live", "run", "file", "chat"];
+const TABS: Tab[] = ["edit", "live", "run", "file"];
 const MODES: Mode[] = ["off", "watch", "steer"];
 // Room for what floats on the canvas: the tag on top, the rail on the left.
 const FIT_PADDING = { top: "56px", left: "72px", right: "24px", bottom: "56px" } as const;
@@ -84,9 +84,7 @@ function Editor() {
   const [live, setLive] = useState(ex.live);
   const [runs, setRuns] = useState(ex.runs);
   const [run, setRun] = useState("#427");
-  const [chatFocus, setChatFocus] = useState<"workflow" | "colleague">("workflow");
-  const [decided, setDecided] = useState<Decision>(null);
-  const [decisionNote, setDecisionNote] = useState("");
+  const [decided, setDecided] = useState<string | null>(null);
   const [replied, setReplied] = useState<string | null>(null);
 
   const path = useMemo(() => runPath(runs[run]), [runs, run]);
@@ -177,9 +175,8 @@ function Editor() {
   };
 
   const now = t("workflows.chat.now");
-  const decide = (d: Exclude<Decision, null>, note: string) => {
+  const decide = (d: string) => {
     setDecided(d);
-    setDecisionNote(note);
     const waiting = live.h?.cases[0];
     const choice = outsOf(blocks.h ?? ex.blocks.h).find((o) => o.key === d)?.label ?? d;
     setLive((lv) => ({
@@ -212,7 +209,34 @@ function Editor() {
   };
 
   const stuck = Object.values(live).flatMap((l) => l.cases).filter((c) => c.level === "bad").length;
-  const waitsInChat = (run === "#384" && !decided) || (run === ex.chat.caseNo && !replied);
+  /* Where a run waits on a person, the card it put into their chat. Once
+     answered it stays, showing the answer, so the step that follows reads. */
+  let waiting: React.ReactNode = null;
+  if (run === "#384") {
+    const approval = blocks.h ?? ex.blocks.h;
+    waiting = (
+      <DecisionCard
+        recipient={ex.owner}
+        kind={`${t("workflows.chat.kindApproval")} · #384`}
+        question={t("workflows.chat.cardQuestion")}
+        context={t("workflows.chat.cardContext", { defects: ex.runs["#384"].steps.find((s) => s.out?.defects)?.out?.defects ?? "" })}
+        options={outsOf(approval)}
+        decided={decided}
+        onDecide={decide}
+      />
+    );
+  } else if (run === ex.chat.caseNo) {
+    waiting = (
+      <QuestionCard
+        recipient={ex.owner}
+        colleague={ex.chat.colleague}
+        question={ex.chat.question}
+        answered={replied}
+        thanks={ex.chat.thanks}
+        onAnswer={reply}
+      />
+    );
+  }
 
   let side: React.ReactNode;
   if (tab === "edit")
@@ -228,10 +252,6 @@ function Editor() {
         onRemoveLink={(i) => {
           setLinks((ls) => ls.filter((_, j) => j !== i));
           setSelectedLink(null);
-        }}
-        onShowChat={() => {
-          setChatFocus("workflow");
-          switchTab("chat");
         }}
       />
     );
@@ -254,12 +274,8 @@ function Editor() {
         run={runs[run]}
         blocks={blocks}
         selected={selected}
-        waitsInChat={waitsInChat}
+        waiting={waiting}
         onStep={setSelected}
-        onChat={() => {
-          setChatFocus(run === "#384" ? "workflow" : "colleague");
-          switchTab("chat");
-        }}
       />
     );
   else side = null;
@@ -291,19 +307,7 @@ function Editor() {
       </div>
       <p className="wf-modebar">{t(`workflows.modeText.${mode}`)}</p>
 
-      {tab === "chat" ? (
-        <ChatPreview
-          ex={ex}
-          focus={chatFocus}
-          onFocus={setChatFocus}
-          decided={decided}
-          decisionNote={decisionNote}
-          onDecide={decide}
-          replied={replied}
-          onReply={reply}
-          onRun={openRun}
-        />
-      ) : (
+      {(
         <div className="wf-body">
           <div className={`wf-canvas${panel && tab !== "file" ? " has-panel" : ""}`}>
             <CanvasContext.Provider value={ctx}>

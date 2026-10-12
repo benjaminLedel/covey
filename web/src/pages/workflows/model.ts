@@ -362,7 +362,7 @@ export function example(lang: string): Example {
       { block: "b", when: L("Mi 10:41", "Wed 10:41"), text: L("Runde 3, bleibt bei Kim", "Round 3, stays with Kim") },
       { block: "a", when: L("Mi 12:15", "Wed 12:15"), text: L("Rosa: Mängel", "Rosa: defects"), out: { defects: L("„ß“ wird beim Import zu „ss“", "“ß” turns into “ss” on import") } },
       { block: "c", when: L("Mi 12:15", "Wed 12:15"), text: L(`3 Runden erreicht → an ${owner}`, `3 rounds reached → to ${owner}`) },
-      { block: "h", when: L("Mi 12:15 – jetzt", "Wed 12:15 – now"), text: L(`Entscheidungskarte liegt in ${owner}s Chat`, `The decision card lies in ${owner}'s chat`), now: true, chat: true },
+      { block: "h", when: L("Mi 12:15 – jetzt", "Wed 12:15 – now"), text: L(`Entscheidungskarte liegt im Chat von ${owner}`, `The decision card lies in ${owner}'s chat`), now: true, chat: true },
     ] },
   };
 

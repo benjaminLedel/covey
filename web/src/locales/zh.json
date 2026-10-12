@@ -3311,8 +3311,7 @@
       "edit": "编辑",
       "live": "实时",
       "run": "单次运行",
-      "file": "文件",
-      "chat": "聊天"
+      "file": "文件"
     },
     "type": {
       "trigger": "触发器",
@@ -3450,8 +3449,7 @@
       "who": "由谁决定",
       "question": "问题",
       "questionHint": "以卡片形式出现在该人的聊天中,每个分支对应一个按钮。也可以直接回复文字。",
-      "wait": "等待回复",
-      "showChat": "在聊天中的样子"
+      "wait": "等待回复"
     },
     "wait": {
       "until": "直到",
@@ -3491,7 +3489,6 @@
       "title": "运行 {{no}}",
       "here": "停在此处",
       "times": "{{n}}×",
-      "toChat": "前往聊天中的问题",
       "reassign": "交给其他同事…",
       "pause": "暂停运行",
       "chatTag": "聊天"
@@ -3506,26 +3503,11 @@
       "head": "与智能体的配置一样有版本管理。导出和导入处理的正是这段文本。"
     },
     "chat": {
-      "conversations": "会话",
-      "decided": "已决定",
-      "waits": "{{no}} 正在等待您的决定",
-      "questionOn": "关于 {{no}} 的问题",
-      "note": "在 covey 中,这些是团队区域里的普通会话。只有在需要某人做决定或知悉某事时,工作流才会发消息。",
-      "workflowSub": "工作流 · 仅在您需要做决定或知悉某事时才会联系您",
-      "colleagueSub": "在 {{workflow}} 中担任一个角色",
-      "kindNotice": "通知",
-      "kindStuck": "停滞",
       "kindApproval": "审批",
       "kindQuestion": "问题",
-      "noticeAccepted": "{{no}} 已通过验收,现在在 {{owner}} 处。请开始客户测试。",
-      "noticeStuck": "{{no}} 已在 {{name}} 处的“{{step}}”停留 6 小时;允许 4 小时。",
       "cardQuestion": "三轮后仍未通过验收。下一步怎么办?",
       "cardContext": "最近的缺陷:{{defects}}",
-      "viewRun": "查看运行",
       "decidedAs": "已决定:{{choice}}。",
-      "retried": "现在又在 {{name}} 手上,第 4 轮;您的备注已写入任务。",
-      "runWaits": "运行正在等待您的回复。",
-      "placeholderWorkflow": "回复工作流,例如“再来一轮,注意ß”",
       "placeholderColleague": "给 {{name}} 的消息",
       "send": "发送",
       "you": "您",
@@ -3535,7 +3517,8 @@
       "stepRound": "第 {{n}} 轮 · {{name}}",
       "stepEnded": "运行结束,工单在 {{owner}} 处",
       "stepAnswered": "{{owner}} 在聊天中回复:“{{text}}”",
-      "stepContinues": "{{name}} 继续处理"
+      "stepContinues": "{{name}} 继续处理",
+      "previewOf": "在 {{name}} 的聊天中显示如下"
     },
     "details": "详情",
     "closeDetails": "关闭详情"

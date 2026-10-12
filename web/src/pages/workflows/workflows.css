@@ -196,38 +196,14 @@ button.wf-var { cursor: pointer; }
 .wf-when { font-size: 11.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .wf-out { margin-top: 3px; font-size: 12px; color: var(--text-secondary); }
 
-/* chat preview */
-.wf-chat { flex: 1; min-height: 0; display: grid; grid-template-columns: 260px minmax(0, 1fr); }
-.wf-chat-list { border-right: 0.5px solid var(--border); padding: 12px 10px; overflow: auto; }
-.wf-chat-item { display: flex; gap: 9px; align-items: center; width: 100%; padding: 7px 8px; border-radius: var(--radius); border: 0; background: transparent; cursor: pointer; text-align: left; color: inherit; }
-.wf-chat-item:hover { background: var(--tint-weak); }
-.wf-chat-item.on { background: var(--bg-accent); }
-.wf-chat-item-text { min-width: 0; flex: 1; line-height: 1.3; }
-.wf-chat-item-text b { display: block; font-size: 13.5px; font-weight: 500; }
-.wf-chat-item-text small { display: block; font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.wf-unread { font-size: 11px; background: var(--accent-solid); color: var(--on-accent); border-radius: 20px; padding: 0 6px; font-weight: 500; }
-.wf-thread { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
-.wf-thread-head { display: flex; gap: 12px; align-items: center; padding: 12px 20px; border-bottom: 0.5px solid var(--border); }
-.wf-thread-head h2 { font-size: 16px; font-weight: 500; margin: 0; }
-.wf-thread-head p { margin: 0; font-size: 12.5px; color: var(--text-muted); }
-.wf-thread-head .wf-avatar { width: 34px; height: 34px; font-size: 13px; }
-.wf-messages { flex: 1; overflow: auto; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
-.wf-bubble { max-width: min(68ch, 84%); display: flex; gap: 10px; align-items: flex-start; }
-.wf-bubble.me { align-self: flex-end; flex-direction: row-reverse; }
-.wf-bubble-in { min-width: 0; }
-.wf-bubble-who { font-size: 11.5px; color: var(--text-muted); margin-bottom: 3px; }
-.wf-bubble.me .wf-bubble-who { text-align: right; }
-.wf-bubble-text { background: var(--surface-2); border: 0.5px solid var(--border); border-radius: 14px; border-top-left-radius: 6px; padding: 8px 12px; font-size: 13.5px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
-.wf-bubble.me .wf-bubble-text { background: var(--accent-solid); color: var(--on-accent); border-color: transparent; border-radius: 14px; border-top-right-radius: 6px; }
-.wf-bubble.q .wf-bubble-text { background: var(--bg-warning); border-color: transparent; }
-.wf-runchip { display: inline-flex; gap: 6px; align-items: center; font-size: 11.5px; border: 0.5px solid var(--border-strong); border-radius: 20px; padding: 1px 9px 1px 4px; background: var(--surface-1); color: var(--text-secondary); cursor: pointer; }
+/* the card a run puts into someone's chat, shown where the run waits */
+.wf-chatcard { margin: 6px 0 4px; }
+.wf-card-input { flex: 1; min-width: 0; max-width: none; }
 .wf-card { background: var(--surface-2); border: 0.5px solid var(--border-strong); border-radius: 12px; padding: 12px 14px; max-width: 520px; }
 .wf-card-kind { font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-warning); margin-bottom: 4px; }
 .wf-card-q { font-size: 14px; margin-bottom: 6px; }
 .wf-card-ctx { font-size: 12.5px; color: var(--text-secondary); margin-bottom: 10px; }
 .wf-card-done { font-size: 13px; color: var(--text-success); }
-.wf-composer { display: flex; gap: 8px; padding: 12px 20px 16px; border-top: 0.5px solid var(--border); }
-.wf-composer input { flex: 1; min-width: 0; max-width: none; }
 
 @media (max-width: 900px) {
   .wf-page { margin: -16px -16px 0; }
@@ -236,6 +212,4 @@ button.wf-var { cursor: pointer; }
   .wf-panel { top: auto; left: 8px; right: 8px; bottom: 8px; width: auto; height: 58%; }
   .wf-canvas.has-panel .react-flow__controls { right: 0; bottom: 60%; }
   .wf-file-grid { grid-template-columns: minmax(0, 1fr); }
-  .wf-chat { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 70vh; }
-  .wf-chat-list { border-right: 0; border-bottom: 0.5px solid var(--border); }
 }

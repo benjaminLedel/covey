@@ -3311,8 +3311,7 @@
       "edit": "Edit",
       "live": "Live",
       "run": "Single run",
-      "file": "As file",
-      "chat": "In the chat"
+      "file": "As file"
     },
     "type": {
       "trigger": "Trigger",
@@ -3450,8 +3449,7 @@
       "who": "Who decides",
       "question": "Question",
       "questionHint": "Appears as a card in that person's chat, with one button per branch. Free text works too.",
-      "wait": "Wait for an answer",
-      "showChat": "How it looks in the chat"
+      "wait": "Wait for an answer"
     },
     "wait": {
       "until": "Until",
@@ -3491,7 +3489,6 @@
       "title": "Run {{no}}",
       "here": "stands here",
       "times": "{{n}}×",
-      "toChat": "To the question in the chat",
       "reassign": "Give to another colleague…",
       "pause": "Pause run",
       "chatTag": "chat"
@@ -3506,26 +3503,11 @@
       "head": "Versioned like an agent's configuration. Export and import carry exactly this text."
     },
     "chat": {
-      "conversations": "Conversations",
-      "decided": "decided",
-      "waits": "{{no}} waits for your decision",
-      "questionOn": "Question on {{no}}",
-      "note": "In covey these are ordinary conversations in the team area. The workflow writes only when someone has to decide or know something.",
-      "workflowSub": "Workflow · writes to you only when you have to decide or know something",
-      "colleagueSub": "Holds a role in {{workflow}}",
-      "kindNotice": "notice",
-      "kindStuck": "stuck",
       "kindApproval": "Approval",
       "kindQuestion": "question",
-      "noticeAccepted": "{{no}} is accepted and now lies with {{owner}}. Please start the customer test.",
-      "noticeStuck": "{{no}} has stood with {{name}} at “{{step}}” for 6 hours; 4 are allowed.",
       "cardQuestion": "Three rounds without acceptance. What next?",
       "cardContext": "Last defects: {{defects}}",
-      "viewRun": "View run",
       "decidedAs": "Decided: {{choice}}.",
-      "retried": "It is with {{name}} again, round 4; your note is in the task.",
-      "runWaits": "The run waits for your answer.",
-      "placeholderWorkflow": "Answer the workflow, e.g. “another round, mind the ß”",
       "placeholderColleague": "Message to {{name}}",
       "send": "Send",
       "you": "You",
@@ -3535,7 +3517,8 @@
       "stepRound": "Round {{n}} with {{name}}",
       "stepEnded": "Run ended, ticket with {{owner}}",
       "stepAnswered": "{{owner}} answered in the chat: “{{text}}”",
-      "stepContinues": "{{name}} continues"
+      "stepContinues": "{{name}} continues",
+      "previewOf": "This is how it lies in {{name}}'s chat"
     },
     "details": "Details",
     "closeDetails": "Close details"
