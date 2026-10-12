@@ -151,6 +151,32 @@ func (s *Store) List(ctx context.Context, orgID uuid.UUID) ([]Stored, error) {
 	return out, rows.Err()
 }
 
+// ListAll returns the current version of every workflow of every
+// organisation — what the control plane loads when it starts.
+func (s *Store) ListAll(ctx context.Context) ([]Stored, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT w.id, w.org_id, w.slug, v.version, v.source, v.created_at
+		  FROM workflows w
+		  JOIN workflow_versions v ON v.workflow_id = w.id AND v.version = w.version
+		 ORDER BY w.org_id, w.slug`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Stored
+	for rows.Next() {
+		var st Stored
+		if err := rows.Scan(&st.ID, &st.OrgID, &st.Slug, &st.Version, &st.Source, &st.UpdatedAt); err != nil {
+			return nil, err
+		}
+		if st.Def, err = Parse([]byte(st.Source)); err != nil {
+			return nil, fmt.Errorf("workflow %s version %d no longer parses: %w", st.Slug, st.Version, err)
+		}
+		out = append(out, st)
+	}
+	return out, rows.Err()
+}
+
 // SaveRuns writes runs as the engine reported them. They are written
 // together, so a call that moved two runs — one done, the queued one handed
 // out — is never half kept.

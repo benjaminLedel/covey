@@ -2859,6 +2859,25 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		o.publishTask(taskID, agent)
 		return true, nil
 
+	case daemon.TypeReport:
+		rp, err := daemon.DecodePayload[daemon.Report](msg)
+		if err != nil {
+			return false, nil
+		}
+		// The proxy names the task it runs for; a report for any other task
+		// of the organisation would let one agent steer another's workflow.
+		if rp.TaskID != taskID.String() {
+			o.Log.Warn("report: names another task than the running one", "task", taskID, "named", rp.TaskID)
+			return false, nil
+		}
+		if err := o.Backlog.SetReport(ctx, taskID, rp.Fields); err != nil {
+			o.Log.Warn("report: could not be stored", "task", taskID, "err", err)
+			return false, nil
+		}
+		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
+			map[string]string{"status": "reported", "fields": strconv.Itoa(len(rp.Fields))})
+		return false, nil
+
 	case daemon.TypeSetStage:
 		ss, err := daemon.DecodePayload[daemon.SetStage](msg)
 		if err != nil {

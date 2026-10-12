@@ -31,9 +31,9 @@ type Outside interface {
 }
 
 type Task struct {
-	Run, Step, Assignee string // Assignee is empty for an AI step
-	Text                string
-	Result              []string
+	Run, Case, Step, Assignee string // Assignee is empty for an AI step
+	Text                      string
+	Result                    []string
 }
 
 type Action struct {
@@ -280,6 +280,25 @@ func (e *Engine) Done(runID string, result map[string]string) error {
 	return nil
 }
 
+// StepFailed ends a run whose colleague or model step could not be done —
+// the task failed, or ended without the fields the step asks for. The owner
+// hears why. step must be where the run stands; a late report for a step the
+// run has left is not its failure.
+func (e *Engine) StepFailed(runID, step, reason string) error {
+	e.mu.Lock()
+	defer e.unlockAndTell()
+	r, ok := e.runs[runID]
+	if !ok {
+		return ErrUnknownRun
+	}
+	if r.Step != step || r.State != StateWorking {
+		return ErrWrongState
+	}
+	e.fail(r, step, "%s", reason)
+	e.drainQueues()
+	return nil
+}
+
 // Decide takes a person's answer to an approval.
 func (e *Engine) Decide(runID, option string) error {
 	e.mu.Lock()
@@ -417,7 +436,7 @@ func (e *Engine) enter(r *Run, id string) {
 			return
 		case KindAI:
 			r.State = StateWorking
-			if err := e.out.Dispatch(Task{Run: r.ID, Step: id, Text: e.render(r, s.Task), Result: s.Result}); err != nil {
+			if err := e.out.Dispatch(Task{Run: r.ID, Case: r.Case, Step: id, Text: e.render(r, s.Task), Result: s.Result}); err != nil {
 				e.fail(r, id, "could not hand the step to the model: %v", err)
 			}
 			return
@@ -524,7 +543,7 @@ func (e *Engine) staff(r *Run, s *Step) (next string, moved bool) {
 	r.Assignee = who
 	r.Since = e.now()
 	e.log(r, s.ID, "given to %s", who)
-	if err := e.out.Dispatch(Task{Run: r.ID, Step: s.ID, Assignee: who, Text: e.render(r, s.Task), Result: s.Result}); err != nil {
+	if err := e.out.Dispatch(Task{Run: r.ID, Case: r.Case, Step: s.ID, Assignee: who, Text: e.render(r, s.Task), Result: s.Result}); err != nil {
 		e.fail(r, s.ID, "could not hand the step to %s: %v", who, err)
 	}
 	return "", false

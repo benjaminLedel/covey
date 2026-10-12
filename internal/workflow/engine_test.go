@@ -702,3 +702,17 @@ func TestAnEngineRestoredFromItsRunsCarriesOn(t *testing.T) {
 		t.Error("two open runs for one case were restored")
 	}
 }
+
+func TestAFailedStepEndsTheRunButALateOneDoesNot(t *testing.T) {
+	w := &world{}
+	e, _ := engine(t, straight, w)
+	r, _ := e.Start("#1", nil)
+	if err := e.StepFailed(r.ID, "e", "late"); !errors.Is(err, ErrWrongState) {
+		t.Fatalf("a failure for a step the run is not at = %v", err)
+	}
+	must(t, e.StepFailed(r.ID, "b", "the task failed: no access"))
+	expect(t, at(t, e, r.ID), "b", StateFailed)
+	if len(w.messages) != 1 || !strings.Contains(w.messages[0].Text, "no access") {
+		t.Fatalf("owner told %+v", w.messages)
+	}
+}

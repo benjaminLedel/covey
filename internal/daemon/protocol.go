@@ -52,6 +52,9 @@ const (
 	TypeCost              = "cost"
 	TypeHeartbeat         = "heartbeat"
 	TypeSetStage          = "set_stage"
+	// TypeReport: named fields an agent reports for its task (covey/report,
+	// #563) — what a workflow reads to decide where the case goes next.
+	TypeReport            = "report"
 	TypeNote              = "note"
 	TypeRequestWiki       = "request_wiki"
 	TypeRequestSkills     = "request_skills"
@@ -264,6 +267,13 @@ type TaskDone struct {
 // SetStage moves a task on the kanban board into a (possibly new) stage. Purely
 // presentational — no lifecycle transition. If the stage is new, the control
 // plane creates it ("the agent invents columns"). Empty TaskID = current task.
+// Report carries the fields of covey/report. It always names the task the
+// run is working on: an agent reports for its own task, not for another.
+type Report struct {
+	TaskID string            `json:"task_id"`
+	Fields map[string]string `json:"fields"`
+}
+
 type SetStage struct {
 	TaskID string `json:"task_id,omitempty"`
 	Stage  string `json:"stage"`
