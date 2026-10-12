@@ -162,6 +162,7 @@ export const APP_ROUTE_PREFIXES = [
   "/templates",
   "/users",
   "/voices",
+  "/workflows",
   "/workplaces",
   "/infrastructure",
 ];
