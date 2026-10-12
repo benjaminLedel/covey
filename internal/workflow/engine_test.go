@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -632,5 +633,72 @@ steps:
 	// her branch and what was wrong with it.
 	if r := at(t, e, r1.ID); r.Step != "b" || r.Assignee != "ada" {
 		t.Fatalf("the second round went to %q at %s", r.Assignee, r.Step)
+	}
+}
+
+// ---------- storage: what changed, and picking up after a restart ----------
+
+func TestEveryCallReportsTheRunsItChanged(t *testing.T) {
+	w := &world{}
+	e, _ := engine(t, strings.Replace(pool, "%s", "load", 1), w)
+	var told [][]string
+	e.OnChange(func(rs []Run) {
+		var cases []string
+		for _, r := range rs {
+			cases = append(cases, r.Case+"@"+string(r.State))
+		}
+		told = append(told, cases)
+	})
+	r1, _ := e.Start("#1", nil)
+	e.Start("#2", nil)
+	e.Start("#3", nil) // queued
+	must(t, e.Done(r1.ID, nil))
+	e.Tick() // nothing is due: nothing to tell
+	got := fmt.Sprint(told)
+	want := "[[#1@working] [#2@working] [#3@queued] [#1@done #3@working]]"
+	if got != want {
+		t.Fatalf("told %s\nwant %s", got, want)
+	}
+}
+
+func TestAnEngineRestoredFromItsRunsCarriesOn(t *testing.T) {
+	w := &world{away: map[string]bool{"theo": true}}
+	before, _ := example(t, w)
+	kept := map[string]Run{}
+	before.OnChange(func(rs []Run) {
+		for _, r := range rs {
+			kept[r.ID] = r
+		}
+	})
+	r, _ := before.Start("#384", map[string]string{"no": "#384"})
+	for i := 0; i < 2; i++ {
+		must(t, before.Done(r.ID, map[string]string{"mr": "!1"}))
+		must(t, before.Done(r.ID, map[string]string{"result": "defects", "defects": "x"}))
+	}
+
+	// A restart: a new engine, the same definition, the runs as stored.
+	after, _ := example(t, w)
+	var runs []Run
+	for _, r := range kept {
+		runs = append(runs, r)
+	}
+	must(t, after.Restore(runs))
+	again, _ := after.Start("#384", nil)
+	if again.ID != r.ID {
+		t.Fatal("the restored engine opened a second run for the same case")
+	}
+	// The third round is the last: one more defect goes to Alex.
+	must(t, after.Done(r.ID, map[string]string{"mr": "!1"}))
+	must(t, after.Done(r.ID, map[string]string{"result": "defects", "defects": "x"}))
+	expect(t, at(t, after, r.ID), "h", StateWaiting)
+
+	if err := after.Restore(runs); err == nil {
+		t.Error("restored twice into the same engine")
+	}
+	twice, _ := example(t, w)
+	dup := runs[0]
+	dup.ID = "other"
+	if err := twice.Restore([]Run{runs[0], dup}); err == nil {
+		t.Error("two open runs for one case were restored")
 	}
 }

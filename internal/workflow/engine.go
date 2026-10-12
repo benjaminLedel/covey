@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // Outside is everything a run touches beyond its own state. covey's
@@ -119,6 +121,73 @@ type Engine struct {
 	byCase map[string]string // case → its open run
 	seq    int
 	turn   map[string]int // role → next index for "in turn"
+
+	// changed collects the runs a call touched; they go to onChange once the
+	// call is through, outside the lock.
+	changed  map[string]bool
+	onChange func([]Run)
+	newID    func() string
+}
+
+// OnChange registers what is told about every run a call changed — the host
+// stores them. It is called after the call, outside the engine's lock, in
+// the order the runs were started.
+func (e *Engine) OnChange(f func([]Run)) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.onChange = f
+}
+
+// Restore puts runs read back from storage into an engine that has none
+// yet, after a restart. Queues and loads follow from the runs themselves.
+func (e *Engine) Restore(runs []Run) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if len(e.runs) > 0 {
+		return errors.New("workflow: restore into an engine that already has runs")
+	}
+	for _, r := range runs {
+		r := r.snapshot()
+		if e.def.Steps[r.Step] == nil {
+			return fmt.Errorf("workflow: run %s stands at %q, which this version does not have", r.ID, r.Step)
+		}
+		e.runs[r.ID] = &r
+		if r.open() {
+			if other, dup := e.byCase[r.Case]; dup {
+				return fmt.Errorf("workflow: runs %s and %s are both open for %s", other, r.ID, r.Case)
+			}
+			e.byCase[r.Case] = r.ID
+		}
+		if r.seq > e.seq {
+			e.seq = r.seq
+		}
+	}
+	return nil
+}
+
+// Seq is a run's place in the order runs were started; storage keeps it so
+// a restored engine queues in the same order.
+func (r Run) Seq() int { return r.seq }
+
+// WithSeq sets the order a run read back from storage had.
+func (r Run) WithSeq(seq int) Run { r.seq = seq; return r }
+
+// unlockAndTell releases the lock and tells onChange what the call changed.
+func (e *Engine) unlockAndTell() {
+	var out []Run
+	f := e.onChange
+	if f != nil && len(e.changed) > 0 {
+		for _, r := range e.ordered() {
+			if e.changed[r.ID] {
+				out = append(out, r.snapshot())
+			}
+		}
+	}
+	e.changed = map[string]bool{}
+	e.mu.Unlock()
+	if len(out) > 0 {
+		f(out)
+	}
 }
 
 // New refuses a definition with problems: a workflow that cannot run is not
@@ -130,7 +199,7 @@ func New(def *Definition, out Outside, now func() time.Time) (*Engine, error) {
 	if now == nil {
 		now = time.Now
 	}
-	e := &Engine{def: def, out: out, now: now, runs: map[string]*Run{}, byCase: map[string]string{}, turn: map[string]int{}, loops: map[string]map[string]bool{}}
+	e := &Engine{def: def, out: out, now: now, runs: map[string]*Run{}, byCase: map[string]string{}, turn: map[string]int{}, loops: map[string]map[string]bool{}, changed: map[string]bool{}, newID: uuid.NewString}
 	for _, id := range def.Order {
 		s := def.Steps[id]
 		if s.Kind == KindTrigger {
@@ -150,7 +219,7 @@ func New(def *Definition, out Outside, now func() time.Time) (*Engine, error) {
 // back — a new comment, a reassignment — continues where it stands.
 func (e *Engine) Start(caseRef string, vars map[string]string) (Run, error) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlockAndTell()
 	if e.def.Mode == ModeOff {
 		return Run{}, ErrOff
 	}
@@ -159,7 +228,7 @@ func (e *Engine) Start(caseRef string, vars map[string]string) (Run, error) {
 	}
 	e.seq++
 	r := &Run{
-		ID:    fmt.Sprintf("r%d", e.seq),
+		ID:    e.newID(),
 		Case:  caseRef,
 		Vars:  map[string]map[string]string{e.trigger: copyMap(vars), "case": copyMap(vars)},
 		Loops: map[string]int{},
@@ -183,7 +252,7 @@ func (e *Engine) Start(caseRef string, vars map[string]string) (Run, error) {
 // further on reads them.
 func (e *Engine) Done(runID string, result map[string]string) error {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlockAndTell()
 	r, ok := e.runs[runID]
 	if !ok {
 		return ErrUnknownRun
@@ -214,7 +283,7 @@ func (e *Engine) Done(runID string, result map[string]string) error {
 // Decide takes a person's answer to an approval.
 func (e *Engine) Decide(runID, option string) error {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlockAndTell()
 	r, ok := e.runs[runID]
 	if !ok {
 		return ErrUnknownRun
@@ -238,7 +307,7 @@ func (e *Engine) Decide(runID, option string) error {
 // the ticket. Events nobody waits for are ignored.
 func (e *Engine) Event(runID, name string) error {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlockAndTell()
 	r, ok := e.runs[runID]
 	if !ok {
 		return ErrUnknownRun
@@ -257,7 +326,7 @@ func (e *Engine) Event(runID, name string) error {
 // target system. Nothing is assigned and nothing is done.
 func (e *Engine) Observe(runID, step string) error {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlockAndTell()
 	r, ok := e.runs[runID]
 	if !ok {
 		return ErrUnknownRun
@@ -278,7 +347,7 @@ func (e *Engine) Observe(runID, step string) error {
 // maximum, required steps that may have found someone in the meantime.
 func (e *Engine) Tick() {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlockAndTell()
 	now := e.now()
 	for _, r := range e.ordered() {
 		if !r.open() {
@@ -537,6 +606,7 @@ func (e *Engine) drainQueues() {
 }
 
 func (e *Engine) place(r *Run, id string, state State) {
+	e.changed[r.ID] = true
 	if r.Step != id || r.State != state {
 		r.Since = e.now()
 	}
@@ -569,6 +639,7 @@ func (e *Engine) tell(r *Run, s *Step, text string) {
 }
 
 func (e *Engine) log(r *Run, step, format string, args ...any) {
+	e.changed[r.ID] = true
 	r.Log = append(r.Log, Entry{At: e.now(), Step: step, Text: fmt.Sprintf(format, args...)})
 }
 
