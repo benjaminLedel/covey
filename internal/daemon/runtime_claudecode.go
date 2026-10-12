@@ -262,7 +262,7 @@ func runDir(spec RunSpec) string {
 // "-". Both the path as given and its resolved form are tried, because the
 // process sees the resolved one (macOS: /var is /private/var).
 func hasSession(home, cwd, id string) bool {
-	if home == "" || cwd == "" || id == "" || strings.ContainsAny(id, `/\`) {
+	if home == "" || cwd == "" || id == "" || strings.ContainsAny(id, `/\`) || strings.Contains(id, "..") {
 		return false
 	}
 	candidates := []string{cwd}

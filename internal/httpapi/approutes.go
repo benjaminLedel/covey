@@ -54,9 +54,7 @@ func (a appRouten) istAppPfad(path string) bool {
 	if !a.bekannt() {
 		return true
 	}
-	if !strings.HasPrefix(path, "/") {
-		path = "/" + path
-	}
+	path = "/" + strings.TrimPrefix(path, "/")
 	if path == "/" {
 		return true
 	}
