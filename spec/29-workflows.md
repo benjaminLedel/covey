@@ -6,7 +6,10 @@
 
 Agents rarely finish a piece of work alone. A change passes from the developer
 to a code review, from there to acceptance, from acceptance to the merge and
-back to whoever asked for it. Today that path exists only as prose in the
+back to whoever asked for it. A support ticket passes from first-level triage to
+the specialist and back for the reply; an article from the writer to the
+reviewer to publication. Software is the first case, not the only one: a
+workflow is about hand-overs in whatever target system carries the work. Today that path exists only as prose in the
 playbooks of the agents who walk it. This document makes it an object of the
 organisation: described once, resolved by the control plane, told to each agent
 as its own part, watched while work moves along it.
@@ -49,8 +52,12 @@ every agent from its own instructions on every run.
 ## 2. What a workflow is — and what it is not
 
 A **workflow** is a declarative description of a path work takes between
-stations, kept by the organisation and versioned like an agent's config
-([`02`](02-agent-model.md), config as code). It names:
+stations. It is an **object of the organisation, held by covey** — next to the
+org chart and the departments, not in a repository of any one product: the
+paths run through ticket systems, mailboxes and CMSs as much as through GitLab,
+and many of them have no repository to live in. It is versioned like an agent's
+config ([`02`](02-agent-model.md)): every save a version, a diff between
+versions, export and import as a file. It names:
 
 - its **scope** — the target-system projects whose items move along it;
 - its **stations** — roles, not agents;
@@ -65,9 +72,10 @@ What a workflow is **not**:
 - **Not a second state machine.** The target system stays the truth. Where an
   item is, is read from the target system (who is in the reviewer field), never
   kept beside it. A workflow that disagrees with GitLab is wrong, not GitLab.
-- **Not an actor.** In the first slices the control plane does not move items:
-  it does not set reviewers, does not reassign. Agents act, as today. The
-  control plane resolves, tells, watches and enforces rules.
+- **Not the first actor.** Agents hand over, as today — they know whether their
+  work is done. The control plane resolves, tells, watches and enforces rules,
+  and it **moves a baton itself only where no agent will**: when a station is
+  skipped or falls to the owner while the item still lies with it (§8a).
 - **Not a BPM engine.** No gateways, no timers that run code, no visual modelling
   language. The shape is a short list of stations and transitions, readable in
   one screen; a path that does not fit that shape is a sign it should be two
@@ -79,8 +87,9 @@ What a workflow is **not**:
 
 ## 3. The file
 
-One file per workflow, `workflows/<slug>.md`, held by the organisation (not by
-an agent), edited in the interface or imported, every save a version. A small,
+One file per workflow, stored by covey as an organisation object (table
+`workflows`, one row per version), edited in the interface, exported and
+imported as `<slug>.workflow.md` like an agent bundle. A small,
 line-based syntax in the spirit of `HEARTBEAT.md`; the keys are English, since
 this is a new format and a parser reads it.
 
@@ -122,11 +131,14 @@ Notes on the shape:
 - **`as:`** gives a project a local name so that batons and rules do not repeat
   paths. A scope may span projects — the common case is tickets in one project
   and code in another.
-- **`baton:`** is `<scope>.<item>.<field>`. The first vocabulary is small:
-  `mr.reviewer`, `mr.assignee`, `issue.assignee`, `label:<name>`. A target-system
-  plugin declares which batons it can read, in its `Descriptor`
-  (covey-plugin-sdk) — a workflow that names a baton its plugin cannot read is
-  refused at save time, not at run time.
+- **`baton:`** is `<scope>.<item>.<field>`. The vocabulary belongs to the
+  target-system plugin, not to covey: GitLab offers `mr.reviewer`,
+  `mr.assignee`, `issue.assignee`, `label:<name>`; a ticket system offers
+  `ticket.owner` or `ticket.group`; Jira `issue.assignee` and `status:<name>`.
+  A plugin declares in its `Descriptor` (covey-plugin-sdk) which batons it can
+  **read** and which it can **set** — a workflow that names a baton its plugin
+  cannot read is refused at save time, not at run time; one it cannot set
+  still works, but covey cannot move it (§8a).
 - **`optional`** marks a station that is skipped when nobody fills it (below).
   A station that is not optional and not filled stops the path at the owner.
 - **`human:`** makes a station a person. `supervisor` resolves to the supervisor
@@ -267,6 +279,37 @@ Two things are built on that:
 Items that leave the workflow — closed, merged and done at the last station,
 moved out of the scope — drop out of the view.
 
+## 8a. covey moves the baton
+
+Resolution decides who *should* hold an item; the target system says who
+*does*. When the two part — the station an item lies at is skipped or has
+fallen to the owner — covey closes the gap itself instead of waiting for an
+agent that will not run:
+
+- **When:** on the poll that sees an item at a station resolution does not fill,
+  and when an agent hands to a station that resolves elsewhere (the agent named
+  the stopped reviewer anyway).
+- **What:** it sets the baton to the station resolution names — the reviewer
+  field to the acceptance agent, the assignee to the owner — through the
+  plugin's own action, as any agent would, and only for batons the plugin
+  declares as settable.
+- **As whom:** with an identity of the workflow, not of an agent: a credential
+  the organisation assigns to the workflow (`workflow:<slug>` as the secret's
+  holder, [`04`](04-identity-secrets.md)). A move that shows up in the customer's
+  system under an agent's name would claim work that agent did not do.
+- **Visibly:** every move is recorded with the workflow as its actor and the
+  reason (`station review skipped: reviewer-a stopped`), and — where the target
+  system has comments and the scope's rules allow them — a one-line comment on
+  the item. Where the rules forbid comments, the record in covey is the only
+  trace, and the view shows it on the card.
+- **Bounded:** covey moves a baton between stations of its own workflow and
+  nowhere else; it never closes, merges, labels or edits content. The guard
+  rails of the scope apply to it like to an agent — a workflow cannot do what
+  its own rules forbid.
+
+That makes the view true without a person stepping in, and it is the reason the
+first slice can drop names from playbooks without leaving items stranded.
+
 ## 9. What stays the same
 
 - **Heartbeats, tasks and the backlog** ([`03`](03-lifecycle-scheduling.md)) are
@@ -285,10 +328,13 @@ Following "the thinnest vertical slice first":
 1. **Stations and resolution.** The `workflows` table and file, scope and
    stations only (no `flow`, `rules`, `dwell`), the assignment table, resolution
    at dispatch with the skip-or-owner rule, and the prompt section listing the
-   resolved hand-over target. One real path — build → review (optional) →
-   acceptance — described this way, and the names taken out of its agents'
-   playbooks. *Done when* stopping the review agent makes the next run of the
-   developer hand straight to acceptance without a config change.
+   resolved hand-over target, and covey moving a baton off a skipped station
+   (§8a) for GitLab's reviewer and assignee fields. One real path — build →
+   review (optional) → acceptance — described this way, and the names taken
+   out of its agents' playbooks. *Done when* stopping the review agent makes the
+   next run of the developer hand straight to acceptance without a config
+   change, and the merge requests already lying with the review agent move to
+   acceptance by themselves.
 2. **Derived gates.** Batons → gates, the `workflow` source in the heartbeat tab,
    duplicate detection.
 3. **Position and dwell.** The view and the alerts.
@@ -297,15 +343,24 @@ Following "the thinnest vertical slice first":
 5. **`flow` and `rounds`.** Transitions in the prompt section, the round limit
    per pair of stations.
 
-Slice 1 needs no plugin change and no guard-rail change; it is the part that
-removes names from playbooks, which is where most of today's failures start.
+Slice 1 needs no guard-rail change and, for GitLab, only the plugin declaring
+its batons; it is the part that removes names from playbooks, which is where
+most of today's failures start. The second plugin with batons should be a
+ticket system, so that the vocabulary is not shaped by GitLab alone.
 
-## 11. Open questions
+## 11. Decisions and open questions
 
-- **Where does the file live?** An organisation object in the database, edited
-  in the interface and exported like an agent bundle — or a file in a repository
-  the organisation names, synced? Config as code argues for the second; every
-  other organisation object today is the first.
+Decided:
+
+- **The workflow lives in covey**, as an organisation object with versions,
+  export and import — not in a repository. Workflows run through systems that
+  have no repository (ticket systems, mailboxes, CMSs), and the organisation,
+  not a product, owns them.
+- **covey may move a baton itself** (§8a), with an identity of the workflow,
+  recorded, bounded to its own stations.
+
+Open:
+
 - **Who may change a workflow?** It decides who works on what for several agents
   at once — closer to the org chart than to one agent's config. A role of its
   own, or `org_admin` only?
@@ -314,11 +369,10 @@ removes names from playbooks, which is where most of today's failures start.
   moved accordingly) would let the platform catch a hand-over that went to the
   wrong station — at the cost of a new action and a contract every agent has to
   keep.
-- **Should the control plane ever move a baton itself?** When a station falls to
-  the owner, the item still sits with the stopped agent in the target system
-  until someone moves it. Moving it would make the view true faster; it would
-  also make covey an actor in a customer's system, which slice 1 avoids on
-  purpose.
+- **A workflow without a settable baton.** Some systems only let an agent read
+  the field that marks the station (or the workflow's credential lacks the
+  right). covey then cannot close the gap of §8a — tell the owner, or refuse the
+  workflow at save time?
 - **Items without a baton.** A ticket nobody is assigned to is in no station.
   Is that "not in the workflow yet", or a station of its own (`intake`) the
   workflow should be able to name?
