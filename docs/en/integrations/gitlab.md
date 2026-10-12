@@ -106,6 +106,13 @@ of the two heartbeats fires **only for its own work**:
 - `nur-wenn: gitlab:issues:assigned` → the same, but only for the issues
   **assigned** to the bot user (`scope=assigned_to_me`) — for agents whose
   playbook works exclusively on their own issues.
+- `nur-wenn: gitlab:issues:assignee:<username>` → the same, but for the issues
+  assigned to **that person** (`assignee_username`) — for an agent that looks
+  after someone else's queue, its manager's say. Append a project to keep it to
+  one: `gitlab:issues:assignee:<username>:<group/project>` (path or numeric
+  id). The project narrows on top of `COVEY_GITLAB_INTAKE_PROJECTS`, per
+  heartbeat; the playbook lists the same set with
+  `list_issues {"project_id": N, "assignee": "<username>"}`.
 - `nur-wenn: gitlab:mr` → only when one of the open merge requests opened by the
   bot itself has **unanswered review feedback** (the last non-system comment in
   the thread is not from the bot).
