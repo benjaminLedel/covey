@@ -380,6 +380,7 @@ function Editor() {
                 fitViewOptions={{ padding: FIT_PADDING }}
                 minZoom={0.25}
                 maxZoom={2}
+                proOptions={{ hideAttribution: true }}
               >
                 <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
                 <Controls showInteractive={false} position="bottom-right" />
