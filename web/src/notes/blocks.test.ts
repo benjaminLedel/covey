@@ -49,6 +49,14 @@ describe("note blocks", () => {
     expect(writeBlocks(blocks)).toBe(md);
   });
 
+  it("keeps backslashes in table cells apart from the escape", () => {
+    const md = "| A | B |\n| --- | --- |\n| C:\\\\dir | a\\\\\\|b |";
+    const blocks = parseBlocks(md);
+    expect(blocks[0].rows).toEqual([["A", "B"], ["C:\\dir", "a\\|b"]]);
+    expect(writeBlocks(blocks)).toBe(md);
+    expect(parseBlocks("| x | y\\\\|\n| --- | --- |")[0].rows).toEqual([["x", "y\\"]]);
+  });
+
   it("keeps a toggle with its content", () => {
     const md = "<details>\n<summary>Mehr</summary>\n\nInnen\nZweite\n\n</details>";
     const blocks = parseBlocks(md);

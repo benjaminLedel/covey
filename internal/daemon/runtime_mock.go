@@ -234,11 +234,25 @@ func mockActionTimeout() time.Duration {
 	return time.Duration(float64(mockActionBudget) * f)
 }
 
+// mockActionPath is what the proxy routes: /actions/{system}/{action}. The
+// path comes from the task body, so anything else — a "../", a query — is
+// refused before it becomes part of a URL.
+var mockActionPath = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
+
 func callActionProxy(ctx context.Context, port, path, params string) (string, []byte, error) {
 	if port == "" {
 		return "", nil, fmt.Errorf("no COVEY_ACTION_PORT set")
 	}
-	url := "http://127.0.0.1:" + port + "/actions/" + path
+	// A number, and written back from the number: "1@example.org" would
+	// otherwise turn 127.0.0.1 into userinfo and the request to another host.
+	n, err := strconv.Atoi(port)
+	if err != nil || n < 1 || n > 65535 {
+		return "", nil, fmt.Errorf("COVEY_ACTION_PORT %q is not a port", port)
+	}
+	if !mockActionPath.MatchString(path) || strings.Contains(path, "..") {
+		return "", nil, fmt.Errorf("action %q is not <system>/<action>", path)
+	}
+	url := "http://127.0.0.1:" + strconv.Itoa(n) + "/actions/" + path
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader([]byte(params)))
 	if err != nil {
 		return "", nil, err

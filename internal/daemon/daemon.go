@@ -729,7 +729,11 @@ func (c *Client) writeCredentialFile() func() {
 	if !ok || !cred.Granted || cred.Path == "" || strings.TrimSpace(cred.Token) == "" {
 		return func() {}
 	}
-	if !safeCredentialPath(cred.Path) {
+	// safeCredentialPath already refuses "..", the test stands here a second
+	// time on purpose: this is where the path is joined to the home, and a
+	// check that lives only in a helper is one refactoring away from not
+	// being made at all.
+	if !safeCredentialPath(cred.Path) || strings.Contains(cred.Path, "..") {
 		c.log.Warn("credential path refused", "path", cred.Path)
 		return func() {}
 	}
