@@ -17,8 +17,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -448,12 +450,36 @@ func (s *Server) startSession(w http.ResponseWriter, r *http.Request, acc accoun
 	s.setSessionCookie(w, token, int(s.SessionTTL.Seconds()))
 }
 
+// greetingMax bounds the name a transactional mail greets with. A name longer
+// than that is a sentence, and a sentence is not what the greeting is for.
+const greetingMax = 64
+
+// looksLikeAddress catches what a mail client turns into a link on its own,
+// with or without a scheme: `https://…`, `www.…`, `example.org/…`.
+var looksLikeAddress = regexp.MustCompile(`(?i)://|www\.|\w\.[a-z]{2,}\b`)
+
+// greeting is the name a confirmation or reset mail opens with (#552). The
+// display name is whatever was typed at registration, and registration does
+// not prove the address — so the mail can reach anybody, sent from this
+// instance. In it, mail.FromText makes every address a link and a paragraph
+// that is only an address the button, and mail.Text substitutes {{…}}. A
+// name is therefore one line of plain text or it is not used: what fails the
+// test is replaced by the recipient's address, and the account keeps its name.
+func greeting(name, to string) string {
+	name = strings.Join(strings.Fields(name), " ")
+	if name == "" || utf8.RuneCountInString(name) > greetingMax ||
+		strings.Contains(name, "{{") || looksLikeAddress.MatchString(name) {
+		return to
+	}
+	return name
+}
+
 // transactional builds one of the mails that carry a single link — the
 // confirmation, the reset — from the catalogue entries under mails.<kind>:
 // subject, body, and the label of the button the HTML part makes of the
 // link (#180).
 func transactional(lang, kind, site, name, link, to string) mail.Message {
-	vars := map[string]string{"site": site, "name": name, "link": link}
+	vars := map[string]string{"site": site, "name": greeting(name, to), "link": link}
 	subject := mail.Text(lang, "mails."+kind+".subject", vars)
 	body := mail.Text(lang, "mails."+kind+".body", vars)
 	return mail.Message{
