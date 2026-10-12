@@ -89,7 +89,8 @@
     "infrastructure": "基础设施",
     "apps": "covey 应用",
     "helpShort": "帮助",
-    "menu": "菜单"
+    "menu": "菜单",
+    "workflows": "工作流"
   },
   "costs": {
     "title": "成本与令牌",
@@ -3270,5 +3271,275 @@
   },
   "voicePicker": {
     "unlisted": "{{name}}（不在提供方的列表中）"
+  },
+  "workflows": {
+    "title": "工作流",
+    "preview": "预览 · 示例数据",
+    "orgWide": "全组织",
+    "lead": "工作流规定一个案件在各部门和目标系统之间由谁、按什么顺序处理。它指定的是角色而不是姓名:由谁担任该角色,在步骤开始时由 covey 决定。",
+    "onlyFirst": "此预览中仅详细展示第一个工作流。",
+    "col": {
+      "name": "工作流",
+      "scope": "适用范围",
+      "stations": "环节",
+      "mode": "作用",
+      "cases": "案件",
+      "stuck": "停滞"
+    },
+    "mode": {
+      "off": "关闭",
+      "watch": "观察",
+      "steer": "主导"
+    },
+    "modeButton": {
+      "off": "关闭",
+      "watch": "仅观察",
+      "steer": "主导"
+    },
+    "modeLabel": "工作流的作用",
+    "viewLabel": "视图",
+    "modeText": {
+      "off": "关闭。工作流存在,但不做任何事。同事们仍按各自的手册交接,与现在一样。",
+      "watch": "仅观察。covey 从目标系统读取各案件的进度,显示停滞的案件,并请求审批。交接仍由同事自己完成。这是稳妥的起步方式。",
+      "steer": "主导。covey 负责启动步骤、从角色中选人、分配并交接。手册只说明同事如何完成自己的步骤。"
+    },
+    "without": {
+      "title": "不使用工作流也完全可以。",
+      "text": "不在任何工作流中的同事照常工作:heartbeat、聊天和 backlog。工作流适用于多个角色依次处理同一案件、交接可能中断的场景。"
+    },
+    "tab": {
+      "edit": "编辑",
+      "live": "实时",
+      "run": "单次运行",
+      "file": "文件",
+      "chat": "聊天"
+    },
+    "type": {
+      "trigger": "触发器",
+      "agent": "同事",
+      "ai": "AI 步骤",
+      "condition": "条件",
+      "action": "操作",
+      "approval": "审批",
+      "wait": "等待",
+      "notify": "通知",
+      "end": "结束"
+    },
+    "typeDesc": {
+      "trigger": "运行的启动时机:工单、邮件、计划、聊天",
+      "agent": "由某个角色凭经验和权限完成一个步骤",
+      "ai": "不需要同事的简短任务:分类、摘要",
+      "condition": "根据某一步骤的结果分支",
+      "action": "covey 直接在目标系统中执行操作",
+      "approval": "由人在聊天中决定",
+      "wait": "等到某件事发生或一段时间过去",
+      "notify": "向某人的聊天发送一条消息",
+      "end": "运行完成"
+    },
+    "blocks": "组件",
+    "runs": "运行",
+    "paletteHint": "点击即可添加组件。从组件右边缘的圆点拖动即可连接。",
+    "paletteHint_live": "数字表示此刻停在该步骤的案件数量。红色表示超出允许时长。",
+    "paletteHint_file": "该文件与画布是同一份定义。",
+    "legend": {
+      "edit": "拖动可移动画布,滚动或双指缩放可缩放。虚线:角色未分配,该步骤将被跳过。",
+      "live": "数字 = 停在此步骤的案件数。红色:超出允许时长。黄色:等待某人。",
+      "run": "蓝色:{{no}} 的路径。“2×”表示该步骤运行了不止一轮。"
+    },
+    "workflow": "工作流",
+    "name": "名称",
+    "owner": "负责人",
+    "ownerHint": "工作流自己无法解决的一切事项,都会发到负责人的聊天中。",
+    "rails": "每个步骤的护栏",
+    "railsNote": "由 covey 强制执行,而不是同事。",
+    "checks": "检查",
+    "checkOk": "正常",
+    "checkHint": "提示",
+    "checkRoleEmpty": "{{step}}:角色 {{role}} 未分配。",
+    "checkRoleEmptySkip": "{{step}}:角色 {{role}} 未分配,该步骤将被跳过。",
+    "checkNoIn": "{{step}}:没有任何连接指向它。",
+    "checkNoOut": "{{step}}:没有通向任何地方。",
+    "checkLoopOk": "从 {{step}} 返回的循环在 {{n}} 轮后交由人处理并结束。",
+    "checkLoopNoLimit": "{{step}}:没有轮数上限的循环无法保存。",
+    "checkFourEyes": "{{step}} 绝不会与 {{other}} 由同一人完成。",
+    "save": "保存为版本 {{n}}",
+    "removeBlock": "删除组件",
+    "unfilled": "未分配",
+    "unfilledSkipped": "未分配 · 已跳过",
+    "optionalShort": "可选",
+    "roundPlus": "再来一轮,同一个人",
+    "yes": "是",
+    "no": "否",
+    "approved": "已批准",
+    "rejected": "已拒绝",
+    "sumPool": "角色 {{role}} · {{all}} 人中 {{free}} 人可用",
+    "sumRole": "角色 {{role}} → {{name}}",
+    "sumAi": "无同事 · {{model}}",
+    "sumCondition": "依据 {{field}}",
+    "sumApproval": "{{who}},在聊天中",
+    "sumWait": "直到 {{until}}",
+    "sumNotify": "{{to}},通过 {{via}}",
+    "sumEnd": "运行完成",
+    "link": {
+      "title": "连接",
+      "branch": "分支“{{label}}”。",
+      "back": "返回的路径会多计一轮。案件回到当初处理它的人手上。",
+      "remove": "删除连接"
+    },
+    "trigger": {
+      "source": "来源",
+      "event": "发生什么",
+      "filter": "仅当",
+      "filterHint": "留空表示全部。",
+      "chatNote": "当工单在其范围内时,聊天中的请求也会启动该工作流。被请求的同事负责第一步。"
+    },
+    "agent": {
+      "role": "角色",
+      "roleHint": "工作流指定的是角色。由谁担任,在步骤开始时由 covey 决定。",
+      "addMember": "为该角色添加同事",
+      "open": "{{count}} 项待处理",
+      "open_one": "{{count}} 项待处理",
+      "state_stopped": "已停止",
+      "state_draft": "草稿",
+      "pick": "选择方式",
+      "pick_load": "任务最少的人",
+      "pick_round": "轮流",
+      "pick_skill": "按职责(项目、技能)",
+      "cap": "每位同事同时最多处理",
+      "capNone": "无限制",
+      "sticky": "跟随案件:后续各轮交给同一个人",
+      "notSame": "不能是同一个人:",
+      "notSameHint": "四眼原则。由 covey 强制执行。",
+      "optional": "可选:角色未分配时跳过",
+      "task": "任务",
+      "taskHint": "同事会把这段内容作为自己的任务。点击可插入一个值:",
+      "result": "需要汇报的结果",
+      "resultHint": "后续步骤会读取它,例如条件。",
+      "ask": "问题发送给",
+      "askHint": "问题会出现在该人的聊天中。运行在此期间等待。",
+      "limit": "最多",
+      "limitHint": "超过后,工作流会将该案件报告为停滞。",
+      "empty": "角色 {{role}} 中没有可用的人。",
+      "emptySkip": "该步骤为可选,将被跳过。",
+      "emptyOwner": "运行将交给负责人。"
+    },
+    "ai": {
+      "note": "没有同事、工作环境和记忆。适用于不需要经验的简短任务,成本低。",
+      "prompt": "指令",
+      "model": "模型",
+      "model_small": "小型,低成本",
+      "model_large": "大型"
+    },
+    "condition": {
+      "field": "检查",
+      "rounds": "最多轮数",
+      "roundsHint": "没有上限的循环无法保存。"
+    },
+    "action": {
+      "note": "covey 以工作流的身份自己完成。无需同事,没有费用。",
+      "system": "目标系统",
+      "op": "操作",
+      "target": "工单",
+      "value": "值",
+      "comment": "附带评论"
+    },
+    "ops": {
+      "assign": "分配工单",
+      "reviewer": "设置审阅人",
+      "label": "设置标签",
+      "comment": "写评论",
+      "merge": "合并 merge request"
+    },
+    "approval": {
+      "who": "由谁决定",
+      "question": "问题",
+      "questionHint": "以卡片形式出现在该人的聊天中,每个分支对应一个按钮。也可以直接回复文字。",
+      "wait": "等待回复",
+      "showChat": "在聊天中的样子"
+    },
+    "wait": {
+      "until": "直到",
+      "max": "最多",
+      "then": "之后"
+    },
+    "notify": {
+      "to": "收件人",
+      "via": "通过",
+      "text": "内容",
+      "note": "发送者是工作流,而不是某位同事。"
+    },
+    "end": {
+      "text": "运行到此结束。工单本身保持目标系统中的原样。"
+    },
+    "live": {
+      "title": "正在运行的内容",
+      "nowAt": "{{type}} · 当前",
+      "nothingHere": "此刻这里没有内容。",
+      "cases": "个案件在工作流中",
+      "stuck": "超出允许时长",
+      "median": "验收所需天数(中位数)",
+      "attention": "需要关注",
+      "nothing": "无。",
+      "hint": "点击步骤可查看当前在该步骤的人。点击案件可打开其运行。",
+      "offTitle": "工作流已关闭",
+      "offText": "工作流关闭期间,covey 不会向其分配案件。同事们按手册工作。",
+      "watchNote": "covey 从目标系统读取进度并报告停滞的案件,但自己不做任何交接。",
+      "count": "{{count}} 个案件",
+      "count_one": "{{count}} 个案件",
+      "stuckBadge": "{{count}} 个停滞",
+      "stuckBadge_one": "{{count}} 个停滞",
+      "skipped": "已跳过",
+      "with": "由 {{name}} 处理"
+    },
+    "run": {
+      "title": "运行 {{no}}",
+      "here": "停在此处",
+      "times": "{{n}}×",
+      "toChat": "前往聊天中的问题",
+      "reassign": "交给其他同事…",
+      "pause": "暂停运行",
+      "chatTag": "聊天"
+    },
+    "file": {
+      "title": "画布与文件是一体的",
+      "one": "画布生成这份文件;文件生成画布。",
+      "two": "每次保存的更改都是一个新版本,与 SOUL.md 相同。",
+      "three": "只有被手动移动过的组件才会保留位置。",
+      "export": "导出",
+      "import": "导入…",
+      "head": "与智能体的配置一样有版本管理。导出和导入处理的正是这段文本。"
+    },
+    "chat": {
+      "conversations": "会话",
+      "decided": "已决定",
+      "waits": "{{no}} 正在等待您的决定",
+      "questionOn": "关于 {{no}} 的问题",
+      "note": "在 covey 中,这些是团队区域里的普通会话。只有在需要某人做决定或知悉某事时,工作流才会发消息。",
+      "workflowSub": "工作流 · 仅在您需要做决定或知悉某事时才会联系您",
+      "colleagueSub": "在 {{workflow}} 中担任一个角色",
+      "kindNotice": "通知",
+      "kindStuck": "停滞",
+      "kindApproval": "审批",
+      "kindQuestion": "问题",
+      "noticeAccepted": "{{no}} 已通过验收,现在在 {{owner}} 处。请开始客户测试。",
+      "noticeStuck": "{{no}} 已在 {{name}} 处的“{{step}}”停留 6 小时;允许 4 小时。",
+      "cardQuestion": "三轮后仍未通过验收。下一步怎么办?",
+      "cardContext": "最近的缺陷:{{defects}}",
+      "viewRun": "查看运行",
+      "decidedAs": "已决定:{{choice}}。",
+      "retried": "现在又在 {{name}} 手上,第 4 轮;您的备注已写入任务。",
+      "runWaits": "运行正在等待您的回复。",
+      "placeholderWorkflow": "回复工作流,例如“再来一轮,注意ß”",
+      "placeholderColleague": "给 {{name}} 的消息",
+      "send": "发送",
+      "you": "您",
+      "now": "现在",
+      "justNowRound": "刚刚 · 第 {{n}} 轮",
+      "stepDecided": "{{owner}} 在聊天中:{{choice}}",
+      "stepRound": "第 {{n}} 轮 · {{name}}",
+      "stepEnded": "运行结束,工单在 {{owner}} 处",
+      "stepAnswered": "{{owner}} 在聊天中回复:“{{text}}”",
+      "stepContinues": "{{name}} 继续处理"
+    }
   }
 }

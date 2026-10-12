@@ -40,6 +40,8 @@ import "./app.css";
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const AgentPage = lazy(() => import("./pages/Agent"));
 const Inbox = lazy(() => import("./pages/Inbox"));
+const Workflows = lazy(() => import("./pages/workflows/Workflows"));
+const WorkflowPage = lazy(() => import("./pages/workflows/WorkflowPage"));
 const Notes = lazy(() => import("./pages/Notes"));
 const Guardrails = lazy(() => import("./pages/Guardrails"));
 const Secrets = lazy(() => import("./pages/Secrets"));
@@ -122,6 +124,7 @@ function BuildLine() {
    longest matching entry wins, so /agents/42 is still "Agents". */
 const PAGE_TITLES: [string, string][] = [
   ["/agents", "nav.agents"],
+  ["/workflows", "nav.workflows"],
   ["/inbox", "nav.inbox"],
   ["/costs", "nav.costs"],
   ["/org", "nav.org"],
@@ -312,6 +315,8 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
               installed covey starts there. */}
           {setupOpen && <NavItem to="/setup" icon="checklist" label={t("nav.setupPage")} />}
           <NavItem to="/agents" end icon="robot" label={t("nav.agents")} />
+          {/* A preview with example data (#560), to shape spec/29 against. */}
+          <NavItem to="/workflows" icon="flow" label={t("nav.workflows")} />
           {/* With the team surface, decisions are made in the conversation
               with the agent (#391); the inbox is for installations without it. */}
           {!me.TeamSurface && <NavItem to="/inbox" icon="bell" label={t("nav.inbox")} count={pending} />}
@@ -404,6 +409,8 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
           <Routes>
             <Route path="/agents" element={<Dashboard me={me} />} />
             <Route path="/agents/:id" element={<AgentPage me={me} />} />
+            <Route path="/workflows" element={<Workflows />} />
+            <Route path="/workflows/:id" element={<WorkflowPage />} />
             <Route path="/templates" element={<Templates me={me} />} />
             <Route path="/skills" element={<Skills me={me} />} />
             <Route path="/voices" element={<Voices me={me} />} />

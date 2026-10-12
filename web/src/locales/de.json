@@ -89,7 +89,8 @@
     "infrastructure": "Infrastruktur",
     "apps": "covey-App",
     "helpShort": "Hilfe",
-    "menu": "Menü"
+    "menu": "Menü",
+    "workflows": "Abläufe"
   },
   "costs": {
     "title": "Kosten & Token",
@@ -3270,5 +3271,275 @@
   },
   "voicePicker": {
     "unlisted": "{{name}} (nicht in der Liste des Anbieters)"
+  },
+  "workflows": {
+    "title": "Abläufe",
+    "preview": "Vorschau · Beispieldaten",
+    "orgWide": "organisationsweit",
+    "lead": "Ein Ablauf legt fest, wer nach wem an einem Vorgang arbeitet, über Abteilungen und Zielsysteme hinweg. Er spricht Stellen an, keine Namen: Wer eine Stelle gerade besetzt, entscheidet covey beim Start des Schritts.",
+    "onlyFirst": "In dieser Vorschau ist nur der erste Ablauf ausgearbeitet.",
+    "col": {
+      "name": "Ablauf",
+      "scope": "Gilt für",
+      "stations": "Stationen",
+      "mode": "Wirkung",
+      "cases": "Vorgänge",
+      "stuck": "hängen"
+    },
+    "mode": {
+      "off": "aus",
+      "watch": "beobachtet",
+      "steer": "steuert"
+    },
+    "modeButton": {
+      "off": "Aus",
+      "watch": "Nur beobachten",
+      "steer": "Steuert"
+    },
+    "modeLabel": "Was der Ablauf tut",
+    "viewLabel": "Ansicht",
+    "modeText": {
+      "off": "Aus. Der Ablauf existiert, wirkt aber nicht. Die Kollegen übergeben nach ihren eigenen Playbooks, wie heute.",
+      "watch": "Nur beobachten. covey liest aus den Zielsystemen ab, wo jeder Vorgang steht, zeigt Hänger und fragt bei Freigaben. Übergeben tun weiter die Kollegen selbst. Gut zum Anfangen.",
+      "steer": "Steuert. covey startet die Schritte, wählt aus der Stelle aus, weist zu und übergibt. Die Playbooks sagen nur noch, wie jemand seinen Schritt macht."
+    },
+    "without": {
+      "title": "Ohne Ablauf geht es auch.",
+      "text": "Wer in keinem Ablauf steht, arbeitet wie bisher: Heartbeat, Chat und Backlog. Ein Ablauf gehört dorthin, wo mehrere Stellen nacheinander an einem Vorgang arbeiten und eine Übergabe reißen kann."
+    },
+    "tab": {
+      "edit": "Bearbeiten",
+      "live": "Live",
+      "run": "Einzelner Lauf",
+      "file": "Als Datei",
+      "chat": "Im Chat"
+    },
+    "type": {
+      "trigger": "Auslöser",
+      "agent": "Kollege",
+      "ai": "KI-Schritt",
+      "condition": "Bedingung",
+      "action": "Aktion",
+      "approval": "Freigabe",
+      "wait": "Warten",
+      "notify": "Benachrichtigen",
+      "end": "Ende"
+    },
+    "typeDesc": {
+      "trigger": "Wann ein Lauf startet: Ticket, Mail, Zeitplan, Chat",
+      "agent": "Eine Stelle erledigt einen Schritt, mit Erfahrung und Rechten",
+      "ai": "Kurze Aufgabe ohne Kollegen: einordnen, zusammenfassen",
+      "condition": "Verzweigt nach dem Ergebnis eines Schritts",
+      "action": "covey erledigt selbst etwas im Zielsystem",
+      "approval": "Ein Mensch entscheidet, in seinem Chat",
+      "wait": "Bis etwas eintritt oder Zeit vergeht",
+      "notify": "Eine Nachricht in den Chat einer Person",
+      "end": "Der Lauf ist abgeschlossen"
+    },
+    "blocks": "Bausteine",
+    "runs": "Läufe",
+    "paletteHint": "Ein Klick fügt den Baustein ein. Vom Punkt rechts an einem Baustein ziehst du eine Verbindung.",
+    "paletteHint_live": "Die Zahlen zeigen, wie viele Vorgänge gerade an einem Schritt stehen. Rot heißt: länger als erlaubt.",
+    "paletteHint_file": "Die Datei ist dieselbe Definition wie die Fläche.",
+    "legend": {
+      "edit": "Ziehen verschiebt die Fläche, Scrollen oder Spreizen zoomt. Gestrichelt: Stelle unbesetzt, der Schritt wird übersprungen.",
+      "live": "Zahl = Vorgänge an diesem Schritt. Rot: länger als erlaubt. Gelb: wartet auf jemanden.",
+      "run": "Blau: der Weg von {{no}}. „2×“ heißt: Der Schritt lief in mehreren Runden."
+    },
+    "workflow": "Ablauf",
+    "name": "Name",
+    "owner": "Verantwortlich",
+    "ownerHint": "Bekommt alles, was der Ablauf nicht selbst lösen kann, in den Chat.",
+    "rails": "Leitplanken für alle Schritte",
+    "railsNote": "covey setzt sie durch, nicht der Kollege.",
+    "checks": "Prüfung",
+    "checkOk": "ok",
+    "checkHint": "Hinweis",
+    "checkRoleEmpty": "{{step}}: Die Stelle {{role}} ist unbesetzt.",
+    "checkRoleEmptySkip": "{{step}}: Die Stelle {{role}} ist unbesetzt, der Schritt wird übersprungen.",
+    "checkNoIn": "{{step}}: Nichts führt hinein.",
+    "checkNoOut": "{{step}}: Führt nirgendwohin.",
+    "checkLoopOk": "Der Rückweg ab {{step}} endet nach {{n}} Runden bei einem Menschen.",
+    "checkLoopNoLimit": "{{step}}: Eine Schleife ohne Rundengrenze lässt sich nicht speichern.",
+    "checkFourEyes": "{{step}} macht nie dieselbe Person wie {{other}}.",
+    "save": "Als Version {{n}} speichern",
+    "removeBlock": "Baustein entfernen",
+    "unfilled": "unbesetzt",
+    "unfilledSkipped": "unbesetzt · übersprungen",
+    "optionalShort": "optional",
+    "roundPlus": "eine Runde mehr, dieselbe Person",
+    "yes": "ja",
+    "no": "nein",
+    "approved": "freigegeben",
+    "rejected": "abgelehnt",
+    "sumPool": "Stelle {{role}} · {{free}} von {{all}} da",
+    "sumRole": "Stelle {{role}} → {{name}}",
+    "sumAi": "ohne Kollegen · {{model}}",
+    "sumCondition": "nach {{field}}",
+    "sumApproval": "{{who}}, im Chat",
+    "sumWait": "bis {{until}}",
+    "sumNotify": "{{to}}, über {{via}}",
+    "sumEnd": "Lauf abgeschlossen",
+    "link": {
+      "title": "Verbindung",
+      "branch": "Zweig „{{label}}“.",
+      "back": "Der Rückweg zählt eine Runde hoch. Der Vorgang geht an die Person zurück, die ihn umgesetzt hat.",
+      "remove": "Verbindung entfernen"
+    },
+    "trigger": {
+      "source": "Woher",
+      "event": "Was passiert",
+      "filter": "Nur wenn",
+      "filterHint": "Leer lassen für alle.",
+      "chatNote": "Auch eine Bitte im Chat startet den Ablauf, wenn das Ticket in seinen Geltungsbereich fällt. Der angesprochene Kollege übernimmt den ersten Schritt."
+    },
+    "agent": {
+      "role": "Stelle",
+      "roleHint": "Der Ablauf spricht die Stelle an. Wer sie besetzt, entscheidet covey beim Start des Schritts.",
+      "addMember": "Kollegen zur Stelle hinzufügen",
+      "open": "{{count}} offen",
+      "open_one": "{{count}} offen",
+      "state_stopped": "gestoppt",
+      "state_draft": "Entwurf",
+      "pick": "Auswahl",
+      "pick_load": "wer am wenigsten zu tun hat",
+      "pick_round": "reihum",
+      "pick_skill": "nach Zuständigkeit (Projekt, Fähigkeit)",
+      "cap": "Höchstens gleichzeitig je Kollege",
+      "capNone": "unbegrenzt",
+      "sticky": "Bleibt am Vorgang: weitere Runden gehen an dieselbe Person",
+      "notSame": "Nicht dieselbe Person wie",
+      "notSameHint": "Vier-Augen-Regel. covey setzt sie durch.",
+      "optional": "Optional: überspringen, wenn die Stelle unbesetzt ist",
+      "task": "Auftrag",
+      "taskHint": "Das bekommt der Kollege als Aufgabe. Ein Klick fügt einen Wert ein:",
+      "result": "Ergebnis, das gemeldet werden muss",
+      "resultHint": "Spätere Schritte lesen es, etwa eine Bedingung.",
+      "ask": "Rückfragen gehen an",
+      "askHint": "Sie erscheinen im Chat dieser Person. Der Lauf wartet so lange.",
+      "limit": "Höchstens",
+      "limitHint": "Danach meldet der Ablauf den Vorgang als hängend.",
+      "empty": "Niemand in der Stelle {{role}} ist verfügbar.",
+      "emptySkip": "Der Schritt ist optional und wird übersprungen.",
+      "emptyOwner": "Läufe gehen an die verantwortliche Person."
+    },
+    "ai": {
+      "note": "Kein Kollege, kein Arbeitsplatz, kein Gedächtnis. Für kurze Aufgaben, die keine Erfahrung brauchen, und günstig.",
+      "prompt": "Anweisung",
+      "model": "Modell",
+      "model_small": "klein und günstig",
+      "model_large": "groß"
+    },
+    "condition": {
+      "field": "Prüft",
+      "rounds": "Höchstens Runden",
+      "roundsHint": "Eine Schleife ohne Grenze lässt sich nicht speichern."
+    },
+    "action": {
+      "note": "covey führt das selbst aus, als Ablauf. Kein Kollege, keine Kosten.",
+      "system": "Zielsystem",
+      "op": "Aktion",
+      "target": "Ticket",
+      "value": "Wert",
+      "comment": "Kommentar dazu"
+    },
+    "ops": {
+      "assign": "Ticket zuweisen",
+      "reviewer": "Reviewer setzen",
+      "label": "Label setzen",
+      "comment": "Kommentar schreiben",
+      "merge": "Merge Request mergen"
+    },
+    "approval": {
+      "who": "Wer entscheidet",
+      "question": "Frage",
+      "questionHint": "Erscheint als Karte im Chat dieser Person, mit einem Knopf je Zweig. Freitext geht auch.",
+      "wait": "Antwort abwarten",
+      "showChat": "So sieht es im Chat aus"
+    },
+    "wait": {
+      "until": "Bis",
+      "max": "Höchstens",
+      "then": "Danach"
+    },
+    "notify": {
+      "to": "An",
+      "via": "Über",
+      "text": "Text",
+      "note": "Absender ist der Ablauf, nicht ein Kollege."
+    },
+    "end": {
+      "text": "Der Lauf ist hier abgeschlossen. Das Ticket selbst bleibt im Zielsystem, wie es ist."
+    },
+    "live": {
+      "title": "Was gerade läuft",
+      "nowAt": "{{type}} · jetzt",
+      "nothingHere": "Gerade steht hier nichts.",
+      "cases": "Vorgänge im Ablauf",
+      "stuck": "länger als erlaubt",
+      "median": "Tage bis zur Abnahme (Median)",
+      "attention": "Braucht Aufmerksamkeit",
+      "nothing": "Nichts.",
+      "hint": "Ein Klick auf einen Schritt zeigt, wer dort steht. Ein Klick auf einen Vorgang öffnet seinen Lauf.",
+      "offTitle": "Der Ablauf ist aus",
+      "offText": "Solange der Ablauf aus ist, ordnet covey ihm keine Vorgänge zu. Die Kollegen arbeiten nach ihren Playbooks.",
+      "watchNote": "covey liest die Stände aus dem Zielsystem ab und meldet Hänger, übergibt aber nicht selbst.",
+      "count": "{{count}} Vorgänge",
+      "count_one": "{{count}} Vorgang",
+      "stuckBadge": "{{count}} hängen",
+      "stuckBadge_one": "{{count}} hängt",
+      "skipped": "übersprungen",
+      "with": "bei {{name}}"
+    },
+    "run": {
+      "title": "Lauf {{no}}",
+      "here": "steht hier",
+      "times": "{{n}}×",
+      "toChat": "Zur Frage im Chat",
+      "reassign": "Anderem Kollegen geben…",
+      "pause": "Lauf anhalten",
+      "chatTag": "Chat"
+    },
+    "file": {
+      "title": "Fläche und Datei sind eins",
+      "one": "Die Fläche schreibt diese Datei, die Datei ergibt die Fläche.",
+      "two": "Jede gespeicherte Änderung ist eine neue Version, wie bei SOUL.md.",
+      "three": "Positionen stehen nur für Bausteine drin, die jemand von Hand verschoben hat.",
+      "export": "Exportieren",
+      "import": "Importieren…",
+      "head": "Versioniert wie die Konfiguration eines Agenten. Export und Import tragen genau diesen Text."
+    },
+    "chat": {
+      "conversations": "Gespräche",
+      "decided": "entschieden",
+      "waits": "{{no}} wartet auf deine Entscheidung",
+      "questionOn": "Rückfrage zu {{no}}",
+      "note": "In covey sind das gewöhnliche Gespräche im Team-Bereich. Der Ablauf schreibt nur, wenn jemand entscheiden oder Bescheid wissen muss.",
+      "workflowSub": "Ablauf · schreibt dir nur, wenn du entscheiden oder Bescheid wissen musst",
+      "colleagueSub": "Hat eine Stelle in {{workflow}}",
+      "kindNotice": "Bescheid",
+      "kindStuck": "Hänger",
+      "kindApproval": "Freigabe",
+      "kindQuestion": "Rückfrage",
+      "noticeAccepted": "{{no}} ist abgenommen und liegt jetzt bei {{owner}}. Bitte Kundentest anstoßen.",
+      "noticeStuck": "{{no}} steht seit 6 Stunden bei {{name}} im Schritt „{{step}}“, erlaubt sind 4.",
+      "cardQuestion": "Drei Runden ohne Abnahme. Wie weiter?",
+      "cardContext": "Letzte Mängel: {{defects}}",
+      "viewRun": "Lauf ansehen",
+      "decidedAs": "Entschieden: {{choice}}.",
+      "retried": "Ist wieder bei {{name}}, Runde 4, dein Hinweis steht im Auftrag.",
+      "runWaits": "Der Lauf wartet auf deine Antwort.",
+      "placeholderWorkflow": "Antwort an den Ablauf, z. B. „neue Runde, achte auf ß“",
+      "placeholderColleague": "Nachricht an {{name}}",
+      "send": "Senden",
+      "you": "Du",
+      "now": "jetzt",
+      "justNowRound": "gerade · Runde {{n}}",
+      "stepDecided": "{{owner}} im Chat: {{choice}}",
+      "stepRound": "Runde {{n}} bei {{name}}",
+      "stepEnded": "Lauf beendet, Ticket bei {{owner}}",
+      "stepAnswered": "{{owner}} hat im Chat geantwortet: „{{text}}“",
+      "stepContinues": "{{name}} arbeitet weiter"
+    }
   }
 }

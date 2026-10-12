@@ -89,7 +89,8 @@
     "infrastructure": "Infrastruttura",
     "apps": "App covey",
     "helpShort": "Aiuto",
-    "menu": "Menu"
+    "menu": "Menu",
+    "workflows": "Workflow"
   },
   "costs": {
     "title": "Costi e token",
@@ -3270,5 +3271,275 @@
   },
   "voicePicker": {
     "unlisted": "{{name}} (non nell'elenco del fornitore)"
+  },
+  "workflows": {
+    "title": "Workflow",
+    "preview": "Anteprima · dati di esempio",
+    "orgWide": "in tutta l’organizzazione",
+    "lead": "Un workflow stabilisce chi lavora a un caso e in che ordine, tra reparti e sistemi di destinazione. Si rivolge a ruoli, non a nomi: chi ricopre un ruolo lo decide covey quando il passaggio parte.",
+    "onlyFirst": "In questa anteprima è sviluppato solo il primo workflow.",
+    "col": {
+      "name": "Workflow",
+      "scope": "Vale per",
+      "stations": "Passaggi",
+      "mode": "Effetto",
+      "cases": "Casi",
+      "stuck": "Bloccati"
+    },
+    "mode": {
+      "off": "spento",
+      "watch": "osserva",
+      "steer": "guida"
+    },
+    "modeButton": {
+      "off": "Spento",
+      "watch": "Solo osservare",
+      "steer": "Guida"
+    },
+    "modeLabel": "Cosa fa il workflow",
+    "viewLabel": "Vista",
+    "modeText": {
+      "off": "Spento. Il workflow esiste ma non fa nulla. I colleghi passano il lavoro secondo i propri playbook, come oggi.",
+      "watch": "Solo osservare. covey legge dai sistemi di destinazione a che punto è ogni caso, mostra cosa è bloccato e chiede le approvazioni. I passaggi di mano restano ai colleghi. Un buon modo per iniziare.",
+      "steer": "Guida. covey avvia i passaggi, sceglie qualcuno nel ruolo, assegna e passa il lavoro. I playbook dicono solo come si svolge un passaggio."
+    },
+    "without": {
+      "title": "Si può lavorare anche senza workflow.",
+      "text": "I colleghi che non fanno parte di nessun workflow lavorano come prima: heartbeat, chat e backlog. Un workflow serve dove più ruoli lavorano a turno sullo stesso caso e un passaggio di mano può interrompersi."
+    },
+    "tab": {
+      "edit": "Modifica",
+      "live": "Live",
+      "run": "Singola esecuzione",
+      "file": "Come file",
+      "chat": "Nella chat"
+    },
+    "type": {
+      "trigger": "Avvio",
+      "agent": "Collega",
+      "ai": "Passaggio IA",
+      "condition": "Condizione",
+      "action": "Azione",
+      "approval": "Approvazione",
+      "wait": "Attesa",
+      "notify": "Avviso",
+      "end": "Fine"
+    },
+    "typeDesc": {
+      "trigger": "Quando parte un’esecuzione: ticket, e-mail, orario, chat",
+      "agent": "Un ruolo svolge un passaggio, con esperienza e permessi",
+      "ai": "Un compito breve senza collega: classificare, riassumere",
+      "condition": "Si dirama in base al risultato di un passaggio",
+      "action": "covey fa qualcosa da sé nel sistema di destinazione",
+      "approval": "Una persona decide, nella sua chat",
+      "wait": "Finché succede qualcosa o passa del tempo",
+      "notify": "Un messaggio nella chat di una persona",
+      "end": "L’esecuzione è conclusa"
+    },
+    "blocks": "Blocchi",
+    "runs": "Esecuzioni",
+    "paletteHint": "Un clic aggiunge il blocco. Trascina dal punto sul bordo destro di un blocco per collegarlo.",
+    "paletteHint_live": "I numeri mostrano quanti casi si trovano ora in un passaggio. Rosso significa: più a lungo del consentito.",
+    "paletteHint_file": "Il file è la stessa definizione dell’area di lavoro.",
+    "legend": {
+      "edit": "Trascina per spostare l’area, scorri o pizzica per ingrandire. Tratteggiato: il ruolo non è coperto e il passaggio viene saltato.",
+      "live": "Numero = casi in questo passaggio. Rosso: più a lungo del consentito. Giallo: in attesa di qualcuno.",
+      "run": "Blu: il percorso di {{no}}. «2×» significa che il passaggio è stato eseguito in più giri."
+    },
+    "workflow": "Workflow",
+    "name": "Nome",
+    "owner": "Responsabile",
+    "ownerHint": "Riceve nella sua chat tutto ciò che il workflow non riesce a risolvere da solo.",
+    "rails": "Regole per ogni passaggio",
+    "railsNote": "Le applica covey, non il collega.",
+    "checks": "Controlli",
+    "checkOk": "ok",
+    "checkHint": "nota",
+    "checkRoleEmpty": "{{step}}: il ruolo {{role}} non è coperto.",
+    "checkRoleEmptySkip": "{{step}}: il ruolo {{role}} non è coperto; il passaggio viene saltato.",
+    "checkNoIn": "{{step}}: nulla porta qui.",
+    "checkNoOut": "{{step}}: non porta da nessuna parte.",
+    "checkLoopOk": "Il ciclo di ritorno da {{step}} finisce dopo {{n}} giri presso una persona.",
+    "checkLoopNoLimit": "{{step}}: un ciclo senza limite di giri non si può salvare.",
+    "checkFourEyes": "{{step}} non lo fa mai la stessa persona di {{other}}.",
+    "save": "Salva come versione {{n}}",
+    "removeBlock": "Rimuovi blocco",
+    "unfilled": "non coperto",
+    "unfilledSkipped": "non coperto · saltato",
+    "optionalShort": "facoltativo",
+    "roundPlus": "un altro giro, stessa persona",
+    "yes": "sì",
+    "no": "no",
+    "approved": "approvato",
+    "rejected": "rifiutato",
+    "sumPool": "Ruolo {{role}} · {{free}} su {{all}} disponibili",
+    "sumRole": "Ruolo {{role}} → {{name}}",
+    "sumAi": "senza collega · {{model}}",
+    "sumCondition": "in base a {{field}}",
+    "sumApproval": "{{who}}, nella chat",
+    "sumWait": "fino a {{until}}",
+    "sumNotify": "{{to}}, tramite {{via}}",
+    "sumEnd": "esecuzione conclusa",
+    "link": {
+      "title": "Collegamento",
+      "branch": "Ramo «{{label}}».",
+      "back": "Il ritorno conta un giro in più. Il caso torna alla persona che l’ha realizzato.",
+      "remove": "Rimuovi collegamento"
+    },
+    "trigger": {
+      "source": "Da dove",
+      "event": "Cosa succede",
+      "filter": "Solo se",
+      "filterHint": "Lascia vuoto per tutti.",
+      "chatNote": "Anche una richiesta nella chat avvia il workflow, se il ticket rientra nel suo ambito. Il collega interpellato prende in carico il primo passaggio."
+    },
+    "agent": {
+      "role": "Ruolo",
+      "roleHint": "Il workflow si rivolge al ruolo. Chi lo ricopre lo decide covey quando il passaggio parte.",
+      "addMember": "Aggiungi un collega al ruolo",
+      "open": "{{count}} aperti",
+      "open_one": "{{count}} aperto",
+      "state_stopped": "fermato",
+      "state_draft": "bozza",
+      "pick": "Scelta",
+      "pick_load": "chi ha meno da fare",
+      "pick_round": "a turno",
+      "pick_skill": "per competenza (progetto, abilità)",
+      "cap": "Al massimo in contemporanea, per collega",
+      "capNone": "nessun limite",
+      "sticky": "Resta sul caso: i giri successivi vanno alla stessa persona",
+      "notSame": "Non la stessa persona di",
+      "notSameHint": "La regola dei quattro occhi. La applica covey.",
+      "optional": "Facoltativo: salta se il ruolo non è coperto",
+      "task": "Compito",
+      "taskHint": "Il collega lo riceve come incarico. Un clic inserisce un valore:",
+      "result": "Risultato da riferire",
+      "resultHint": "I passaggi successivi lo leggono, per esempio una condizione.",
+      "ask": "Le domande vanno a",
+      "askHint": "Compaiono nella chat di quella persona. Nel frattempo l’esecuzione aspetta.",
+      "limit": "Al massimo",
+      "limitHint": "Dopo, il workflow segnala il caso come bloccato.",
+      "empty": "Nessuno nel ruolo {{role}} è disponibile.",
+      "emptySkip": "Il passaggio è facoltativo e viene saltato.",
+      "emptyOwner": "Le esecuzioni vanno al responsabile."
+    },
+    "ai": {
+      "note": "Nessun collega, nessuna postazione, nessuna memoria. Per compiti brevi che non richiedono esperienza, e costa poco.",
+      "prompt": "Istruzione",
+      "model": "Modello",
+      "model_small": "piccolo ed economico",
+      "model_large": "grande"
+    },
+    "condition": {
+      "field": "Controlla",
+      "rounds": "Al massimo giri",
+      "roundsHint": "Un ciclo senza limite non si può salvare."
+    },
+    "action": {
+      "note": "covey lo fa da sé, come workflow. Nessun collega, nessun costo.",
+      "system": "Sistema di destinazione",
+      "op": "Azione",
+      "target": "Ticket",
+      "value": "Valore",
+      "comment": "Commento allegato"
+    },
+    "ops": {
+      "assign": "assegna il ticket",
+      "reviewer": "imposta il revisore",
+      "label": "imposta un label",
+      "comment": "scrivi un commento",
+      "merge": "esegui il merge del merge request"
+    },
+    "approval": {
+      "who": "Chi decide",
+      "question": "Domanda",
+      "questionHint": "Compare come scheda nella chat di quella persona, con un pulsante per ramo. Va bene anche il testo libero.",
+      "wait": "Attendi una risposta",
+      "showChat": "Come appare nella chat"
+    },
+    "wait": {
+      "until": "Fino a",
+      "max": "Al massimo",
+      "then": "Poi"
+    },
+    "notify": {
+      "to": "A",
+      "via": "Tramite",
+      "text": "Testo",
+      "note": "Il mittente è il workflow, non un collega."
+    },
+    "end": {
+      "text": "L’esecuzione finisce qui. Il ticket resta nel sistema di destinazione così com’è."
+    },
+    "live": {
+      "title": "Cosa è in corso",
+      "nowAt": "{{type}} · ora",
+      "nothingHere": "Al momento qui non c’è nulla.",
+      "cases": "casi nel workflow",
+      "stuck": "più a lungo del consentito",
+      "median": "giorni all’accettazione (mediana)",
+      "attention": "Richiede attenzione",
+      "nothing": "Niente.",
+      "hint": "Un clic su un passaggio mostra chi si trova lì. Un clic su un caso apre la sua esecuzione.",
+      "offTitle": "Il workflow è spento",
+      "offText": "Finché il workflow è spento, covey non gli assegna casi. I colleghi lavorano secondo i loro playbook.",
+      "watchNote": "covey legge lo stato dal sistema di destinazione e segnala cosa è bloccato, ma non passa il lavoro da sé.",
+      "count": "{{count}} casi",
+      "count_one": "{{count}} caso",
+      "stuckBadge": "{{count}} bloccati",
+      "stuckBadge_one": "{{count}} bloccato",
+      "skipped": "saltato",
+      "with": "con {{name}}"
+    },
+    "run": {
+      "title": "Esecuzione {{no}}",
+      "here": "è qui",
+      "times": "{{n}}×",
+      "toChat": "Alla domanda nella chat",
+      "reassign": "Passa a un altro collega…",
+      "pause": "Metti in pausa",
+      "chatTag": "chat"
+    },
+    "file": {
+      "title": "Area di lavoro e file sono la stessa cosa",
+      "one": "L’area di lavoro scrive questo file; il file genera l’area di lavoro.",
+      "two": "Ogni modifica salvata è una nuova versione, come con SOUL.md.",
+      "three": "Le posizioni vengono conservate solo per i blocchi che qualcuno ha spostato a mano.",
+      "export": "Esporta",
+      "import": "Importa…",
+      "head": "Con versioni, come la configurazione di un agente. Esportazione e importazione trasportano esattamente questo testo."
+    },
+    "chat": {
+      "conversations": "Conversazioni",
+      "decided": "deciso",
+      "waits": "{{no}} aspetta la tua decisione",
+      "questionOn": "Domanda su {{no}}",
+      "note": "In covey sono normali conversazioni nell’area del team. Il workflow scrive solo quando qualcuno deve decidere o sapere qualcosa.",
+      "workflowSub": "Workflow · ti scrive solo quando devi decidere o sapere qualcosa",
+      "colleagueSub": "Ha un ruolo in {{workflow}}",
+      "kindNotice": "avviso",
+      "kindStuck": "bloccato",
+      "kindApproval": "Approvazione",
+      "kindQuestion": "domanda",
+      "noticeAccepted": "{{no}} è accettato e ora è presso {{owner}}. Avvia il test con il cliente.",
+      "noticeStuck": "{{no}} è fermo da 6 ore presso {{name}} nel passaggio «{{step}}»; ne sono consentite 4.",
+      "cardQuestion": "Tre giri senza accettazione. Come si procede?",
+      "cardContext": "Ultimi difetti: {{defects}}",
+      "viewRun": "Vedi esecuzione",
+      "decidedAs": "Deciso: {{choice}}.",
+      "retried": "È di nuovo presso {{name}}, giro 4; la tua nota è nel compito.",
+      "runWaits": "L’esecuzione aspetta la tua risposta.",
+      "placeholderWorkflow": "Rispondi al workflow, ad es. «un altro giro, attenzione alla ß»",
+      "placeholderColleague": "Messaggio a {{name}}",
+      "send": "Invia",
+      "you": "Tu",
+      "now": "ora",
+      "justNowRound": "adesso · giro {{n}}",
+      "stepDecided": "{{owner}} nella chat: {{choice}}",
+      "stepRound": "Giro {{n}} con {{name}}",
+      "stepEnded": "Esecuzione conclusa, ticket presso {{owner}}",
+      "stepAnswered": "{{owner}} ha risposto nella chat: «{{text}}»",
+      "stepContinues": "{{name}} prosegue"
+    }
   }
 }

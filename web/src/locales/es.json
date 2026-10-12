@@ -89,7 +89,8 @@
     "infrastructure": "Infraestructura",
     "apps": "App de covey",
     "helpShort": "Ayuda",
-    "menu": "Menú"
+    "menu": "Menú",
+    "workflows": "Flujos de trabajo"
   },
   "costs": {
     "title": "Coste y tokens",
@@ -3270,5 +3271,275 @@
   },
   "voicePicker": {
     "unlisted": "{{name}} (no está en la lista del proveedor)"
+  },
+  "workflows": {
+    "title": "Flujos de trabajo",
+    "preview": "Vista previa · datos de ejemplo",
+    "orgWide": "toda la organización",
+    "lead": "Un flujo de trabajo define quién trabaja en un caso y después de quién, entre departamentos y sistemas de destino. Se dirige a puestos, no a nombres: covey decide quién ocupa un puesto cuando empieza el paso.",
+    "onlyFirst": "En esta vista previa solo está desarrollado el primer flujo de trabajo.",
+    "col": {
+      "name": "Flujo de trabajo",
+      "scope": "Se aplica a",
+      "stations": "Etapas",
+      "mode": "Efecto",
+      "cases": "Casos",
+      "stuck": "Atascados"
+    },
+    "mode": {
+      "off": "desactivado",
+      "watch": "observa",
+      "steer": "dirige"
+    },
+    "modeButton": {
+      "off": "Desactivado",
+      "watch": "Solo observar",
+      "steer": "Dirige"
+    },
+    "modeLabel": "Qué hace el flujo de trabajo",
+    "viewLabel": "Vista",
+    "modeText": {
+      "off": "Desactivado. El flujo de trabajo existe, pero no hace nada. Los colegas traspasan según sus propios playbooks, como hasta ahora.",
+      "watch": "Solo observar. covey lee en los sistemas de destino en qué punto está cada caso, muestra lo que está atascado y pide aprobaciones. Los colegas siguen traspasando por su cuenta. Una forma segura de empezar.",
+      "steer": "Dirige. covey inicia los pasos, elige a alguien del puesto, asigna y traspasa. Los playbooks solo dicen cómo hace cada uno su paso."
+    },
+    "without": {
+      "title": "Se puede trabajar sin flujo de trabajo.",
+      "text": "Los colegas que no están en ningún flujo de trabajo trabajan como antes: heartbeat, chat y backlog. Un flujo de trabajo tiene sentido donde varios puestos trabajan por turnos en un mismo caso y un traspaso puede fallar."
+    },
+    "tab": {
+      "edit": "Editar",
+      "live": "En directo",
+      "run": "Ejecución individual",
+      "file": "Como archivo",
+      "chat": "En el chat"
+    },
+    "type": {
+      "trigger": "Disparador",
+      "agent": "Colega",
+      "ai": "Paso de IA",
+      "condition": "Condición",
+      "action": "Acción",
+      "approval": "Aprobación",
+      "wait": "Espera",
+      "notify": "Notificar",
+      "end": "Fin"
+    },
+    "typeDesc": {
+      "trigger": "Cuándo empieza una ejecución: ticket, correo, calendario, chat",
+      "agent": "Un puesto hace un paso, con experiencia y permisos",
+      "ai": "Una tarea corta sin colega: clasificar, resumir",
+      "condition": "Se bifurca según el resultado de un paso",
+      "action": "covey hace algo por sí mismo en el sistema de destino",
+      "approval": "Una persona decide, en su chat",
+      "wait": "Hasta que ocurra algo o pase un tiempo",
+      "notify": "Un mensaje en el chat de una persona",
+      "end": "La ejecución ha terminado"
+    },
+    "blocks": "Bloques",
+    "runs": "Ejecuciones",
+    "paletteHint": "Un clic añade el bloque. Arrastra desde el punto del borde derecho de un bloque para conectarlo.",
+    "paletteHint_live": "Los números muestran cuántos casos hay ahora en un paso. Rojo significa más tiempo del permitido.",
+    "paletteHint_file": "El archivo es la misma definición que el lienzo.",
+    "legend": {
+      "edit": "Arrastra para mover el lienzo; desplaza o pellizca para hacer zoom. Discontinuo: el puesto está vacante y el paso se omite.",
+      "live": "Número = casos en este paso. Rojo: más tiempo del permitido. Amarillo: espera a alguien.",
+      "run": "Azul: el recorrido de {{no}}. «2×» significa que el paso se ejecutó en más de una ronda."
+    },
+    "workflow": "Flujo de trabajo",
+    "name": "Nombre",
+    "owner": "Responsable",
+    "ownerHint": "Recibe en su chat todo lo que el flujo de trabajo no puede resolver por sí mismo.",
+    "rails": "Barreras de seguridad para cada paso",
+    "railsNote": "covey las hace cumplir, no el colega.",
+    "checks": "Comprobaciones",
+    "checkOk": "ok",
+    "checkHint": "nota",
+    "checkRoleEmpty": "{{step}}: el puesto {{role}} está vacante.",
+    "checkRoleEmptySkip": "{{step}}: el puesto {{role}} está vacante; el paso se omite.",
+    "checkNoIn": "{{step}}: nada lleva hasta aquí.",
+    "checkNoOut": "{{step}}: no lleva a ninguna parte.",
+    "checkLoopOk": "El retorno desde {{step}} termina tras {{n}} rondas con una persona.",
+    "checkLoopNoLimit": "{{step}}: un bucle sin límite de rondas no se puede guardar.",
+    "checkFourEyes": "{{step}} nunca lo hace la misma persona que {{other}}.",
+    "save": "Guardar como versión {{n}}",
+    "removeBlock": "Quitar bloque",
+    "unfilled": "vacante",
+    "unfilledSkipped": "vacante · omitido",
+    "optionalShort": "opcional",
+    "roundPlus": "una ronda más, la misma persona",
+    "yes": "sí",
+    "no": "no",
+    "approved": "aprobado",
+    "rejected": "rechazado",
+    "sumPool": "Puesto {{role}} · {{free}} de {{all}} disponibles",
+    "sumRole": "Puesto {{role}} → {{name}}",
+    "sumAi": "sin colega · {{model}}",
+    "sumCondition": "según {{field}}",
+    "sumApproval": "{{who}}, en el chat",
+    "sumWait": "hasta {{until}}",
+    "sumNotify": "{{to}}, por {{via}}",
+    "sumEnd": "ejecución terminada",
+    "link": {
+      "title": "Conexión",
+      "branch": "Rama «{{label}}».",
+      "back": "El retorno cuenta una ronda más. El caso vuelve a la persona que lo hizo.",
+      "remove": "Quitar conexión"
+    },
+    "trigger": {
+      "source": "Origen",
+      "event": "Qué ocurre",
+      "filter": "Solo si",
+      "filterHint": "Déjalo vacío para todos.",
+      "chatNote": "Una petición en el chat también inicia el flujo de trabajo, cuando el ticket entra en su ámbito. El colega al que se pidió toma el primer paso."
+    },
+    "agent": {
+      "role": "Puesto",
+      "roleHint": "El flujo de trabajo se dirige al puesto. covey decide quién lo ocupa cuando empieza el paso.",
+      "addMember": "Añadir un colega al puesto",
+      "open": "{{count}} abiertos",
+      "open_one": "{{count}} abierto",
+      "state_stopped": "detenido",
+      "state_draft": "borrador",
+      "pick": "Elección",
+      "pick_load": "quien tenga menos que hacer",
+      "pick_round": "por turnos",
+      "pick_skill": "por responsabilidad (proyecto, habilidad)",
+      "cap": "Como máximo a la vez, por colega",
+      "capNone": "sin límite",
+      "sticky": "Se queda con el caso: las rondas siguientes van a la misma persona",
+      "notSame": "No la misma persona que",
+      "notSameHint": "La regla de los cuatro ojos. covey la hace cumplir.",
+      "optional": "Opcional: omitir si el puesto está vacante",
+      "task": "Tarea",
+      "taskHint": "El colega la recibe como tarea. Un clic inserta un valor:",
+      "result": "Resultado que informar",
+      "resultHint": "Los pasos posteriores lo leen, por ejemplo una condición.",
+      "ask": "Las preguntas van a",
+      "askHint": "Aparecen en el chat de esa persona. Mientras tanto, la ejecución espera.",
+      "limit": "Como máximo",
+      "limitHint": "Después, el flujo de trabajo marca el caso como atascado.",
+      "empty": "Nadie del puesto {{role}} está disponible.",
+      "emptySkip": "El paso es opcional y se omite.",
+      "emptyOwner": "Las ejecuciones van al responsable."
+    },
+    "ai": {
+      "note": "Sin colega, sin puesto de trabajo, sin memoria. Para tareas cortas que no necesitan experiencia, y económico.",
+      "prompt": "Instrucción",
+      "model": "Modelo",
+      "model_small": "pequeño y económico",
+      "model_large": "grande"
+    },
+    "condition": {
+      "field": "Comprueba",
+      "rounds": "Máximo de rondas",
+      "roundsHint": "Un bucle sin límite no se puede guardar."
+    },
+    "action": {
+      "note": "covey lo hace por sí mismo, como el flujo de trabajo. Sin colega, sin coste.",
+      "system": "Sistema de destino",
+      "op": "Acción",
+      "target": "Ticket",
+      "value": "Valor",
+      "comment": "Comentario adjunto"
+    },
+    "ops": {
+      "assign": "asignar ticket",
+      "reviewer": "definir revisor",
+      "label": "definir label",
+      "comment": "escribir comentario",
+      "merge": "fusionar la merge request"
+    },
+    "approval": {
+      "who": "Quién decide",
+      "question": "Pregunta",
+      "questionHint": "Aparece como una tarjeta en el chat de esa persona, con un botón por rama. El texto libre también funciona.",
+      "wait": "Esperar una respuesta",
+      "showChat": "Así se ve en el chat"
+    },
+    "wait": {
+      "until": "Hasta",
+      "max": "Como máximo",
+      "then": "Después"
+    },
+    "notify": {
+      "to": "Para",
+      "via": "Por",
+      "text": "Texto",
+      "note": "El remitente es el flujo de trabajo, no un colega."
+    },
+    "end": {
+      "text": "La ejecución termina aquí. El ticket en sí se queda como está en el sistema de destino."
+    },
+    "live": {
+      "title": "Qué está en marcha",
+      "nowAt": "{{type}} · ahora",
+      "nothingHere": "Ahora mismo no hay nada aquí.",
+      "cases": "casos en el flujo de trabajo",
+      "stuck": "más tiempo del permitido",
+      "median": "días hasta la aceptación (mediana)",
+      "attention": "Necesita atención",
+      "nothing": "Nada.",
+      "hint": "Un clic en un paso muestra quién está ahí. Un clic en un caso abre su ejecución.",
+      "offTitle": "El flujo de trabajo está desactivado",
+      "offText": "Mientras el flujo de trabajo está desactivado, covey no le asigna casos. Los colegas trabajan según sus playbooks.",
+      "watchNote": "covey lee las posiciones del sistema de destino e informa de lo que está atascado, pero no traspasa nada por sí mismo.",
+      "count": "{{count}} casos",
+      "count_one": "{{count}} caso",
+      "stuckBadge": "{{count}} atascados",
+      "stuckBadge_one": "{{count}} atascado",
+      "skipped": "omitido",
+      "with": "con {{name}}"
+    },
+    "run": {
+      "title": "Ejecución {{no}}",
+      "here": "está aquí",
+      "times": "{{n}}×",
+      "toChat": "A la pregunta en el chat",
+      "reassign": "Dar a otro colega…",
+      "pause": "Pausar ejecución",
+      "chatTag": "chat"
+    },
+    "file": {
+      "title": "Lienzo y archivo son uno",
+      "one": "El lienzo escribe este archivo; el archivo da el lienzo.",
+      "two": "Cada cambio guardado es una versión nueva, como con SOUL.md.",
+      "three": "Las posiciones solo se guardan para los bloques que alguien movió a mano.",
+      "export": "Exportar",
+      "import": "Importar…",
+      "head": "Con versiones, como la configuración de un agente. La exportación y la importación llevan exactamente este texto."
+    },
+    "chat": {
+      "conversations": "Conversaciones",
+      "decided": "decidido",
+      "waits": "{{no}} espera tu decisión",
+      "questionOn": "Pregunta sobre {{no}}",
+      "note": "En covey son conversaciones normales en el área del equipo. El flujo de trabajo solo escribe cuando alguien tiene que decidir o enterarse de algo.",
+      "workflowSub": "Flujo de trabajo · te escribe solo cuando tienes que decidir o enterarte de algo",
+      "colleagueSub": "Ocupa un puesto en {{workflow}}",
+      "kindNotice": "aviso",
+      "kindStuck": "atascado",
+      "kindApproval": "Aprobación",
+      "kindQuestion": "pregunta",
+      "noticeAccepted": "{{no}} está aceptado y ahora está con {{owner}}. Inicia la prueba con el cliente, por favor.",
+      "noticeStuck": "{{no}} lleva 6 horas con {{name}} en «{{step}}»; se permiten 4.",
+      "cardQuestion": "Tres rondas sin aceptación. ¿Cómo seguimos?",
+      "cardContext": "Últimos defectos: {{defects}}",
+      "viewRun": "Ver ejecución",
+      "decidedAs": "Decidido: {{choice}}.",
+      "retried": "Vuelve a estar con {{name}}, ronda 4; tu nota está en la tarea.",
+      "runWaits": "La ejecución espera tu respuesta.",
+      "placeholderWorkflow": "Responde al flujo de trabajo, p. ej. «otra ronda, ojo con la ß»",
+      "placeholderColleague": "Mensaje para {{name}}",
+      "send": "Enviar",
+      "you": "Tú",
+      "now": "ahora",
+      "justNowRound": "ahora mismo · ronda {{n}}",
+      "stepDecided": "{{owner}} en el chat: {{choice}}",
+      "stepRound": "Ronda {{n}} con {{name}}",
+      "stepEnded": "Ejecución terminada, ticket con {{owner}}",
+      "stepAnswered": "{{owner}} respondió en el chat: «{{text}}»",
+      "stepContinues": "{{name}} sigue trabajando"
+    }
   }
 }

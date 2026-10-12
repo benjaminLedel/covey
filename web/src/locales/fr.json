@@ -89,7 +89,8 @@
     "infrastructure": "Infrastructure",
     "apps": "App covey",
     "helpShort": "Aide",
-    "menu": "Menu"
+    "menu": "Menu",
+    "workflows": "Workflows"
   },
   "costs": {
     "title": "Coût et jetons",
@@ -3270,5 +3271,275 @@
   },
   "voicePicker": {
     "unlisted": "{{name}} (absente de la liste du fournisseur)"
+  },
+  "workflows": {
+    "title": "Workflows",
+    "preview": "Aperçu · données d’exemple",
+    "orgWide": "toute l’organisation",
+    "lead": "Un workflow définit qui travaille sur un dossier, et après qui, entre les services et les systèmes cibles. Il s’adresse à des rôles, pas à des noms : covey décide qui tient un rôle au démarrage de l’étape.",
+    "onlyFirst": "Dans cet aperçu, seul le premier workflow est détaillé.",
+    "col": {
+      "name": "Workflow",
+      "scope": "S’applique à",
+      "stations": "Étapes",
+      "mode": "Effet",
+      "cases": "Dossiers",
+      "stuck": "Bloqués"
+    },
+    "mode": {
+      "off": "désactivé",
+      "watch": "observe",
+      "steer": "pilote"
+    },
+    "modeButton": {
+      "off": "Désactivé",
+      "watch": "Observer seulement",
+      "steer": "Pilote"
+    },
+    "modeLabel": "Ce que fait le workflow",
+    "viewLabel": "Vue",
+    "modeText": {
+      "off": "Désactivé. Le workflow existe, mais n’agit pas. Les collègues transmettent selon leurs propres playbooks, comme aujourd’hui.",
+      "watch": "Observer seulement. covey lit dans les systèmes cibles où en est chaque dossier, montre ce qui est bloqué et demande les validations. Les collègues continuent de transmettre eux-mêmes. Une façon sûre de commencer.",
+      "steer": "Pilote. covey démarre les étapes, choisit quelqu’un dans le rôle, attribue et transmet. Les playbooks disent seulement comment chacun fait son étape."
+    },
+    "without": {
+      "title": "On peut aussi travailler sans workflow.",
+      "text": "Les collègues qui ne sont dans aucun workflow travaillent comme avant : heartbeat, chat et backlog. Un workflow a sa place là où plusieurs rôles travaillent l’un après l’autre sur un même dossier et où une transmission peut échouer."
+    },
+    "tab": {
+      "edit": "Modifier",
+      "live": "En direct",
+      "run": "Exécution seule",
+      "file": "En fichier",
+      "chat": "Dans le chat"
+    },
+    "type": {
+      "trigger": "Déclencheur",
+      "agent": "Collègue",
+      "ai": "Étape IA",
+      "condition": "Condition",
+      "action": "Action",
+      "approval": "Validation",
+      "wait": "Attente",
+      "notify": "Notification",
+      "end": "Fin"
+    },
+    "typeDesc": {
+      "trigger": "Quand une exécution démarre : ticket, e-mail, planning, chat",
+      "agent": "Un rôle fait une étape, avec son expérience et ses droits",
+      "ai": "Une tâche courte sans collègue : classer, résumer",
+      "condition": "Se divise selon le résultat d’une étape",
+      "action": "covey fait lui-même quelque chose dans le système cible",
+      "approval": "Une personne décide, dans son chat",
+      "wait": "Jusqu’à ce que quelque chose arrive ou que le temps passe",
+      "notify": "Un message dans le chat d’une personne",
+      "end": "L’exécution est terminée"
+    },
+    "blocks": "Blocs",
+    "runs": "Exécutions",
+    "paletteHint": "Un clic ajoute le bloc. Tire depuis le point au bord droit d’un bloc pour le relier.",
+    "paletteHint_live": "Les chiffres indiquent combien de dossiers sont à une étape en ce moment. Rouge : plus longtemps que prévu.",
+    "paletteHint_file": "Le fichier est la même définition que le canevas.",
+    "legend": {
+      "edit": "Glisse pour déplacer le canevas, fais défiler ou pince pour zoomer. En pointillés : le rôle n’est pas pourvu et l’étape est ignorée.",
+      "live": "Chiffre = dossiers à cette étape. Rouge : plus longtemps que prévu. Jaune : attend quelqu’un.",
+      "run": "Bleu : le chemin de {{no}}. « 2× » signifie que l’étape a eu lieu en plusieurs tours."
+    },
+    "workflow": "Workflow",
+    "name": "Nom",
+    "owner": "Responsable",
+    "ownerHint": "Reçoit dans son chat tout ce que le workflow ne peut pas résoudre seul.",
+    "rails": "Garde-fous pour chaque étape",
+    "railsNote": "covey les fait respecter, pas le collègue.",
+    "checks": "Vérifications",
+    "checkOk": "ok",
+    "checkHint": "remarque",
+    "checkRoleEmpty": "{{step}} : le rôle {{role}} n’est pas pourvu.",
+    "checkRoleEmptySkip": "{{step}} : le rôle {{role}} n’est pas pourvu ; l’étape est ignorée.",
+    "checkNoIn": "{{step}} : rien n’y mène.",
+    "checkNoOut": "{{step}} : ne mène nulle part.",
+    "checkLoopOk": "Le retour depuis {{step}} s’arrête après {{n}} tours chez une personne.",
+    "checkLoopNoLimit": "{{step}} : une boucle sans limite de tours ne peut pas être enregistrée.",
+    "checkFourEyes": "{{step}} n’est jamais faite par la même personne que {{other}}.",
+    "save": "Enregistrer comme version {{n}}",
+    "removeBlock": "Supprimer le bloc",
+    "unfilled": "non pourvu",
+    "unfilledSkipped": "non pourvu · ignoré",
+    "optionalShort": "facultatif",
+    "roundPlus": "un tour de plus, même personne",
+    "yes": "oui",
+    "no": "non",
+    "approved": "validé",
+    "rejected": "refusé",
+    "sumPool": "Rôle {{role}} · {{free}} sur {{all}} disponibles",
+    "sumRole": "Rôle {{role}} → {{name}}",
+    "sumAi": "sans collègue · {{model}}",
+    "sumCondition": "selon {{field}}",
+    "sumApproval": "{{who}}, dans le chat",
+    "sumWait": "jusqu’à {{until}}",
+    "sumNotify": "{{to}}, via {{via}}",
+    "sumEnd": "exécution terminée",
+    "link": {
+      "title": "Liaison",
+      "branch": "Branche « {{label}} ».",
+      "back": "Le retour compte un tour de plus. Le dossier revient à la personne qui l’a réalisé.",
+      "remove": "Supprimer la liaison"
+    },
+    "trigger": {
+      "source": "Origine",
+      "event": "Ce qui se passe",
+      "filter": "Seulement si",
+      "filterHint": "Laisse vide pour tout accepter.",
+      "chatNote": "Une demande dans le chat démarre aussi le workflow, quand le ticket entre dans son périmètre. Le collègue sollicité prend la première étape."
+    },
+    "agent": {
+      "role": "Rôle",
+      "roleHint": "Le workflow s’adresse au rôle. covey décide qui le tient au démarrage de l’étape.",
+      "addMember": "Ajouter un collègue au rôle",
+      "open": "{{count}} ouverts",
+      "open_one": "{{count}} ouvert",
+      "state_stopped": "arrêté",
+      "state_draft": "brouillon",
+      "pick": "Choix",
+      "pick_load": "celui qui a le moins à faire",
+      "pick_round": "à tour de rôle",
+      "pick_skill": "selon la responsabilité (projet, compétence)",
+      "cap": "Au maximum en même temps, par collègue",
+      "capNone": "sans limite",
+      "sticky": "Reste sur le dossier : les tours suivants vont à la même personne",
+      "notSame": "Pas la même personne que",
+      "notSameHint": "La règle des quatre yeux. covey la fait respecter.",
+      "optional": "Facultatif : ignorer si le rôle n’est pas pourvu",
+      "task": "Tâche",
+      "taskHint": "Le collègue la reçoit comme tâche. Un clic insère une valeur :",
+      "result": "Résultat à rapporter",
+      "resultHint": "Les étapes suivantes le lisent, par exemple une condition.",
+      "ask": "Les questions vont à",
+      "askHint": "Elles apparaissent dans le chat de cette personne. L’exécution attend entre-temps.",
+      "limit": "Au maximum",
+      "limitHint": "Ensuite, le workflow signale le dossier comme bloqué.",
+      "empty": "Personne n’est disponible dans le rôle {{role}}.",
+      "emptySkip": "L’étape est facultative et est ignorée.",
+      "emptyOwner": "Les exécutions vont au responsable."
+    },
+    "ai": {
+      "note": "Pas de collègue, pas de poste de travail, pas de mémoire. Pour des tâches courtes qui n’exigent pas d’expérience, et peu coûteuses.",
+      "prompt": "Consigne",
+      "model": "Modèle",
+      "model_small": "petit et économique",
+      "model_large": "grand"
+    },
+    "condition": {
+      "field": "Vérifie",
+      "rounds": "Tours au maximum",
+      "roundsHint": "Une boucle sans limite ne peut pas être enregistrée."
+    },
+    "action": {
+      "note": "covey le fait lui-même, en tant que workflow. Pas de collègue, pas de coût.",
+      "system": "Système cible",
+      "op": "Action",
+      "target": "Ticket",
+      "value": "Valeur",
+      "comment": "Commentaire associé"
+    },
+    "ops": {
+      "assign": "attribuer le ticket",
+      "reviewer": "définir le relecteur",
+      "label": "définir un label",
+      "comment": "écrire un commentaire",
+      "merge": "fusionner la merge request"
+    },
+    "approval": {
+      "who": "Qui décide",
+      "question": "Question",
+      "questionHint": "Apparaît comme une carte dans le chat de cette personne, avec un bouton par branche. Le texte libre fonctionne aussi.",
+      "wait": "Attendre une réponse",
+      "showChat": "Aperçu dans le chat"
+    },
+    "wait": {
+      "until": "Jusqu’à",
+      "max": "Au maximum",
+      "then": "Ensuite"
+    },
+    "notify": {
+      "to": "À",
+      "via": "Via",
+      "text": "Texte",
+      "note": "L’expéditeur est le workflow, pas un collègue."
+    },
+    "end": {
+      "text": "L’exécution s’arrête ici. Le ticket lui-même reste tel quel dans le système cible."
+    },
+    "live": {
+      "title": "Ce qui tourne",
+      "nowAt": "{{type}} · maintenant",
+      "nothingHere": "Rien ne se trouve ici pour le moment.",
+      "cases": "dossiers dans le workflow",
+      "stuck": "plus longtemps que prévu",
+      "median": "jours jusqu’à l’acceptation (médiane)",
+      "attention": "Demande de l’attention",
+      "nothing": "Rien.",
+      "hint": "Un clic sur une étape montre qui s’y trouve. Un clic sur un dossier ouvre son exécution.",
+      "offTitle": "Le workflow est désactivé",
+      "offText": "Tant que le workflow est désactivé, covey ne lui attribue aucun dossier. Les collègues travaillent selon leurs playbooks.",
+      "watchNote": "covey lit les états dans le système cible et signale ce qui est bloqué, mais ne transmet rien lui-même.",
+      "count": "{{count}} dossiers",
+      "count_one": "{{count}} dossier",
+      "stuckBadge": "{{count}} bloqués",
+      "stuckBadge_one": "{{count}} bloqué",
+      "skipped": "ignoré",
+      "with": "chez {{name}}"
+    },
+    "run": {
+      "title": "Exécution {{no}}",
+      "here": "est ici",
+      "times": "{{n}}×",
+      "toChat": "Vers la question dans le chat",
+      "reassign": "Confier à un autre collègue…",
+      "pause": "Mettre l’exécution en pause",
+      "chatTag": "chat"
+    },
+    "file": {
+      "title": "Canevas et fichier ne font qu’un",
+      "one": "Le canevas écrit ce fichier ; le fichier donne le canevas.",
+      "two": "Chaque modification enregistrée est une nouvelle version, comme pour SOUL.md.",
+      "three": "Les positions ne sont conservées que pour les blocs déplacés à la main.",
+      "export": "Exporter",
+      "import": "Importer…",
+      "head": "Versionné comme la configuration d’un agent. L’export et l’import portent exactement ce texte."
+    },
+    "chat": {
+      "conversations": "Conversations",
+      "decided": "décidé",
+      "waits": "{{no}} attend ta décision",
+      "questionOn": "Question sur {{no}}",
+      "note": "Dans covey, ce sont des conversations ordinaires dans l’espace d’équipe. Le workflow n’écrit que lorsque quelqu’un doit décider ou être informé.",
+      "workflowSub": "Workflow · t’écrit seulement quand tu dois décider ou être informé",
+      "colleagueSub": "Tient un rôle dans {{workflow}}",
+      "kindNotice": "information",
+      "kindStuck": "bloqué",
+      "kindApproval": "Validation",
+      "kindQuestion": "question",
+      "noticeAccepted": "{{no}} est accepté et se trouve maintenant chez {{owner}}. Merci de lancer le test client.",
+      "noticeStuck": "{{no}} est chez {{name}} à l’étape « {{step}} » depuis 6 heures ; 4 sont autorisées.",
+      "cardQuestion": "Trois tours sans acceptation. Et maintenant ?",
+      "cardContext": "Derniers défauts : {{defects}}",
+      "viewRun": "Voir l’exécution",
+      "decidedAs": "Décidé : {{choice}}.",
+      "retried": "C’est de nouveau chez {{name}}, tour 4 ; ta remarque figure dans la tâche.",
+      "runWaits": "L’exécution attend ta réponse.",
+      "placeholderWorkflow": "Réponds au workflow, p. ex. « un tour de plus, attention au ß »",
+      "placeholderColleague": "Message à {{name}}",
+      "send": "Envoyer",
+      "you": "Toi",
+      "now": "maintenant",
+      "justNowRound": "à l’instant · tour {{n}}",
+      "stepDecided": "{{owner}} dans le chat : {{choice}}",
+      "stepRound": "Tour {{n}} chez {{name}}",
+      "stepEnded": "Exécution terminée, ticket chez {{owner}}",
+      "stepAnswered": "{{owner}} a répondu dans le chat : « {{text}} »",
+      "stepContinues": "{{name}} continue"
+    }
   }
 }

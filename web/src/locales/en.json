@@ -89,7 +89,8 @@
     "infrastructure": "Infrastructure",
     "apps": "covey app",
     "helpShort": "Help",
-    "menu": "Menu"
+    "menu": "Menu",
+    "workflows": "Workflows"
   },
   "costs": {
     "title": "Cost & Tokens",
@@ -3270,5 +3271,275 @@
   },
   "voicePicker": {
     "unlisted": "{{name}} (not in the provider's list)"
+  },
+  "workflows": {
+    "title": "Workflows",
+    "preview": "Preview · example data",
+    "orgWide": "organisation-wide",
+    "lead": "A workflow sets who works on a case after whom, across departments and target systems. It addresses roles, not names: covey decides who fills a role when the step starts.",
+    "onlyFirst": "Only the first workflow is worked out in this preview.",
+    "col": {
+      "name": "Workflow",
+      "scope": "Applies to",
+      "stations": "Stations",
+      "mode": "Effect",
+      "cases": "Cases",
+      "stuck": "Stuck"
+    },
+    "mode": {
+      "off": "off",
+      "watch": "observes",
+      "steer": "steers"
+    },
+    "modeButton": {
+      "off": "Off",
+      "watch": "Observe only",
+      "steer": "Steers"
+    },
+    "modeLabel": "What the workflow does",
+    "viewLabel": "View",
+    "modeText": {
+      "off": "Off. The workflow exists but does nothing. The colleagues hand over by their own playbooks, as today.",
+      "watch": "Observe only. covey reads from the target systems where each case stands, shows what is stuck and asks for approvals. The colleagues still hand over themselves. A safe way to start.",
+      "steer": "Steers. covey starts the steps, picks someone from the role, assigns and hands over. The playbooks only say how someone does their step."
+    },
+    "without": {
+      "title": "Working without a workflow is fine.",
+      "text": "Colleagues who stand in no workflow work as before: heartbeat, chat and backlog. A workflow belongs where several roles work on one case in turn and a hand-over can break."
+    },
+    "tab": {
+      "edit": "Edit",
+      "live": "Live",
+      "run": "Single run",
+      "file": "As file",
+      "chat": "In the chat"
+    },
+    "type": {
+      "trigger": "Trigger",
+      "agent": "Colleague",
+      "ai": "AI step",
+      "condition": "Condition",
+      "action": "Action",
+      "approval": "Approval",
+      "wait": "Wait",
+      "notify": "Notify",
+      "end": "End"
+    },
+    "typeDesc": {
+      "trigger": "When a run starts: ticket, mail, schedule, chat",
+      "agent": "A role does a step, with experience and rights",
+      "ai": "A short task without a colleague: classify, summarise",
+      "condition": "Branches on a step's result",
+      "action": "covey does something in the target system itself",
+      "approval": "A person decides, in their chat",
+      "wait": "Until something happens or time passes",
+      "notify": "A message into a person's chat",
+      "end": "The run is finished"
+    },
+    "blocks": "Building blocks",
+    "runs": "Runs",
+    "paletteHint": "A click adds the block. Drag from the dot on a block's right edge to connect it.",
+    "paletteHint_live": "The numbers show how many cases stand at a step right now. Red means longer than allowed.",
+    "paletteHint_file": "The file is the same definition as the canvas.",
+    "legend": {
+      "edit": "Drag to move the canvas, scroll or pinch to zoom. Dashed: the role is unfilled and the step is skipped.",
+      "live": "Number = cases at this step. Red: longer than allowed. Yellow: waiting for someone.",
+      "run": "Blue: the path of {{no}}. “2×” means the step ran in more than one round."
+    },
+    "workflow": "Workflow",
+    "name": "Name",
+    "owner": "Owner",
+    "ownerHint": "Gets everything the workflow cannot resolve itself, in their chat.",
+    "rails": "Guard rails for every step",
+    "railsNote": "covey enforces them, not the colleague.",
+    "checks": "Checks",
+    "checkOk": "ok",
+    "checkHint": "note",
+    "checkRoleEmpty": "{{step}}: the role {{role}} is unfilled.",
+    "checkRoleEmptySkip": "{{step}}: the role {{role}} is unfilled; the step is skipped.",
+    "checkNoIn": "{{step}}: nothing leads in.",
+    "checkNoOut": "{{step}}: leads nowhere.",
+    "checkLoopOk": "The loop back from {{step}} ends after {{n}} rounds with a person.",
+    "checkLoopNoLimit": "{{step}}: a loop without a round limit cannot be saved.",
+    "checkFourEyes": "{{step}} is never done by the same person as {{other}}.",
+    "save": "Save as version {{n}}",
+    "removeBlock": "Remove block",
+    "unfilled": "unfilled",
+    "unfilledSkipped": "unfilled · skipped",
+    "optionalShort": "optional",
+    "roundPlus": "one more round, same person",
+    "yes": "yes",
+    "no": "no",
+    "approved": "approved",
+    "rejected": "rejected",
+    "sumPool": "Role {{role}} · {{free}} of {{all}} available",
+    "sumRole": "Role {{role}} → {{name}}",
+    "sumAi": "no colleague · {{model}}",
+    "sumCondition": "on {{field}}",
+    "sumApproval": "{{who}}, in the chat",
+    "sumWait": "until {{until}}",
+    "sumNotify": "{{to}}, via {{via}}",
+    "sumEnd": "run finished",
+    "link": {
+      "title": "Connection",
+      "branch": "Branch “{{label}}”.",
+      "back": "The way back counts one more round. The case returns to the person who built it.",
+      "remove": "Remove connection"
+    },
+    "trigger": {
+      "source": "From",
+      "event": "What happens",
+      "filter": "Only if",
+      "filterHint": "Leave empty for all.",
+      "chatNote": "A request in the chat starts the workflow too, when the ticket lies in its scope. The colleague who was asked takes the first step."
+    },
+    "agent": {
+      "role": "Role",
+      "roleHint": "The workflow addresses the role. covey decides who fills it when the step starts.",
+      "addMember": "Add a colleague to the role",
+      "open": "{{count}} open",
+      "open_one": "{{count}} open",
+      "state_stopped": "stopped",
+      "state_draft": "draft",
+      "pick": "Pick",
+      "pick_load": "whoever has least to do",
+      "pick_round": "in turn",
+      "pick_skill": "by responsibility (project, skill)",
+      "cap": "At most at once, per colleague",
+      "capNone": "no limit",
+      "sticky": "Stays with the case: further rounds go to the same person",
+      "notSame": "Not the same person as",
+      "notSameHint": "The four-eyes rule. covey enforces it.",
+      "optional": "Optional: skip when the role is unfilled",
+      "task": "Task",
+      "taskHint": "The colleague gets this as their task. A click inserts a value:",
+      "result": "Result to report",
+      "resultHint": "Later steps read it, e.g. a condition.",
+      "ask": "Questions go to",
+      "askHint": "They appear in that person's chat. The run waits meanwhile.",
+      "limit": "At most",
+      "limitHint": "After that the workflow reports the case as stuck.",
+      "empty": "Nobody in the role {{role}} is available.",
+      "emptySkip": "The step is optional and is skipped.",
+      "emptyOwner": "Runs go to the owner."
+    },
+    "ai": {
+      "note": "No colleague, no workplace, no memory. For short tasks that need no experience, and cheap.",
+      "prompt": "Instruction",
+      "model": "Model",
+      "model_small": "small and cheap",
+      "model_large": "large"
+    },
+    "condition": {
+      "field": "Checks",
+      "rounds": "At most rounds",
+      "roundsHint": "A loop without a limit cannot be saved."
+    },
+    "action": {
+      "note": "covey does this itself, as the workflow. No colleague, no cost.",
+      "system": "Target system",
+      "op": "Action",
+      "target": "Ticket",
+      "value": "Value",
+      "comment": "Comment with it"
+    },
+    "ops": {
+      "assign": "assign ticket",
+      "reviewer": "set reviewer",
+      "label": "set label",
+      "comment": "write comment",
+      "merge": "merge the merge request"
+    },
+    "approval": {
+      "who": "Who decides",
+      "question": "Question",
+      "questionHint": "Appears as a card in that person's chat, with one button per branch. Free text works too.",
+      "wait": "Wait for an answer",
+      "showChat": "How it looks in the chat"
+    },
+    "wait": {
+      "until": "Until",
+      "max": "At most",
+      "then": "Afterwards"
+    },
+    "notify": {
+      "to": "To",
+      "via": "Via",
+      "text": "Text",
+      "note": "The sender is the workflow, not a colleague."
+    },
+    "end": {
+      "text": "The run ends here. The ticket itself stays in the target system as it is."
+    },
+    "live": {
+      "title": "What is running",
+      "nowAt": "{{type}} · now",
+      "nothingHere": "Nothing stands here right now.",
+      "cases": "cases in the workflow",
+      "stuck": "longer than allowed",
+      "median": "days to acceptance (median)",
+      "attention": "Needs attention",
+      "nothing": "Nothing.",
+      "hint": "A click on a step shows who stands there. A click on a case opens its run.",
+      "offTitle": "The workflow is off",
+      "offText": "While the workflow is off, covey assigns no cases to it. The colleagues work by their playbooks.",
+      "watchNote": "covey reads the positions from the target system and reports what is stuck, but hands nothing over itself.",
+      "count": "{{count}} cases",
+      "count_one": "{{count}} case",
+      "stuckBadge": "{{count}} stuck",
+      "stuckBadge_one": "{{count}} stuck",
+      "skipped": "skipped",
+      "with": "with {{name}}"
+    },
+    "run": {
+      "title": "Run {{no}}",
+      "here": "stands here",
+      "times": "{{n}}×",
+      "toChat": "To the question in the chat",
+      "reassign": "Give to another colleague…",
+      "pause": "Pause run",
+      "chatTag": "chat"
+    },
+    "file": {
+      "title": "Canvas and file are one",
+      "one": "The canvas writes this file; the file makes the canvas.",
+      "two": "Every saved change is a new version, as with SOUL.md.",
+      "three": "Positions are kept only for blocks someone moved by hand.",
+      "export": "Export",
+      "import": "Import…",
+      "head": "Versioned like an agent's configuration. Export and import carry exactly this text."
+    },
+    "chat": {
+      "conversations": "Conversations",
+      "decided": "decided",
+      "waits": "{{no}} waits for your decision",
+      "questionOn": "Question on {{no}}",
+      "note": "In covey these are ordinary conversations in the team area. The workflow writes only when someone has to decide or know something.",
+      "workflowSub": "Workflow · writes to you only when you have to decide or know something",
+      "colleagueSub": "Holds a role in {{workflow}}",
+      "kindNotice": "notice",
+      "kindStuck": "stuck",
+      "kindApproval": "Approval",
+      "kindQuestion": "question",
+      "noticeAccepted": "{{no}} is accepted and now lies with {{owner}}. Please start the customer test.",
+      "noticeStuck": "{{no}} has stood with {{name}} at “{{step}}” for 6 hours; 4 are allowed.",
+      "cardQuestion": "Three rounds without acceptance. What next?",
+      "cardContext": "Last defects: {{defects}}",
+      "viewRun": "View run",
+      "decidedAs": "Decided: {{choice}}.",
+      "retried": "It is with {{name}} again, round 4; your note is in the task.",
+      "runWaits": "The run waits for your answer.",
+      "placeholderWorkflow": "Answer the workflow, e.g. “another round, mind the ß”",
+      "placeholderColleague": "Message to {{name}}",
+      "send": "Send",
+      "you": "You",
+      "now": "now",
+      "justNowRound": "just now · round {{n}}",
+      "stepDecided": "{{owner}} in the chat: {{choice}}",
+      "stepRound": "Round {{n}} with {{name}}",
+      "stepEnded": "Run ended, ticket with {{owner}}",
+      "stepAnswered": "{{owner}} answered in the chat: “{{text}}”",
+      "stepContinues": "{{name}} continues"
+    }
   }
 }

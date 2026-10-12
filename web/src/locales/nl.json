@@ -89,7 +89,8 @@
     "infrastructure": "Infrastructuur",
     "apps": "covey-app",
     "helpShort": "Help",
-    "menu": "Menu"
+    "menu": "Menu",
+    "workflows": "Workflows"
   },
   "costs": {
     "title": "Kosten en tokens",
@@ -3270,5 +3271,275 @@
   },
   "voicePicker": {
     "unlisted": "{{name}} (niet in de lijst van de provider)"
+  },
+  "workflows": {
+    "title": "Workflows",
+    "preview": "Voorbeeld · voorbeeldgegevens",
+    "orgWide": "organisatiebreed",
+    "lead": "Een workflow legt vast wie in welke volgorde aan een zaak werkt, over afdelingen en doelsystemen heen. Hij richt zich op rollen, niet op namen: wie een rol invult, beslist covey zodra de stap begint.",
+    "onlyFirst": "In dit voorbeeld is alleen de eerste workflow uitgewerkt.",
+    "col": {
+      "name": "Workflow",
+      "scope": "Geldt voor",
+      "stations": "Stappen",
+      "mode": "Werking",
+      "cases": "Zaken",
+      "stuck": "Vastgelopen"
+    },
+    "mode": {
+      "off": "uit",
+      "watch": "kijkt mee",
+      "steer": "stuurt"
+    },
+    "modeButton": {
+      "off": "Uit",
+      "watch": "Alleen meekijken",
+      "steer": "Stuurt"
+    },
+    "modeLabel": "Wat de workflow doet",
+    "viewLabel": "Weergave",
+    "modeText": {
+      "off": "Uit. De workflow bestaat, maar doet niets. De collega’s dragen over volgens hun eigen playbooks, zoals nu.",
+      "watch": "Alleen meekijken. covey leest in de doelsystemen af waar elke zaak staat, laat zien wat vastzit en vraagt om goedkeuring. Overdragen doen de collega’s nog zelf. Een veilige manier om te beginnen.",
+      "steer": "Stuurt. covey start de stappen, kiest iemand uit de rol, wijst toe en draagt over. De playbooks zeggen alleen nog hoe iemand zijn stap uitvoert."
+    },
+    "without": {
+      "title": "Werken zonder workflow kan ook.",
+      "text": "Collega’s die in geen enkele workflow staan, werken zoals voorheen: heartbeat, chat en backlog. Een workflow hoort waar meerdere rollen na elkaar aan één zaak werken en een overdracht kan misgaan."
+    },
+    "tab": {
+      "edit": "Bewerken",
+      "live": "Live",
+      "run": "Enkele run",
+      "file": "Als bestand",
+      "chat": "In de chat"
+    },
+    "type": {
+      "trigger": "Trigger",
+      "agent": "Collega",
+      "ai": "AI-stap",
+      "condition": "Voorwaarde",
+      "action": "Actie",
+      "approval": "Goedkeuring",
+      "wait": "Wachten",
+      "notify": "Melden",
+      "end": "Einde"
+    },
+    "typeDesc": {
+      "trigger": "Wanneer een run start: ticket, mail, tijdschema, chat",
+      "agent": "Een rol voert een stap uit, met ervaring en rechten",
+      "ai": "Een korte taak zonder collega: indelen, samenvatten",
+      "condition": "Splitst op het resultaat van een stap",
+      "action": "covey doet zelf iets in het doelsysteem",
+      "approval": "Een persoon beslist, in zijn of haar chat",
+      "wait": "Tot er iets gebeurt of er tijd verstrijkt",
+      "notify": "Een bericht in de chat van een persoon",
+      "end": "De run is afgerond"
+    },
+    "blocks": "Bouwstenen",
+    "runs": "Runs",
+    "paletteHint": "Eén klik voegt de bouwsteen toe. Sleep vanaf de stip aan de rechterkant van een bouwsteen om te verbinden.",
+    "paletteHint_live": "De cijfers laten zien hoeveel zaken nu bij een stap staan. Rood betekent: langer dan toegestaan.",
+    "paletteHint_file": "Het bestand is dezelfde definitie als het canvas.",
+    "legend": {
+      "edit": "Slepen verplaatst het canvas, scrollen of knijpen zoomt. Gestippeld: de rol is niet ingevuld en de stap wordt overgeslagen.",
+      "live": "Cijfer = zaken bij deze stap. Rood: langer dan toegestaan. Geel: wacht op iemand.",
+      "run": "Blauw: het pad van {{no}}. “2×” betekent dat de stap in meer dan één ronde is uitgevoerd."
+    },
+    "workflow": "Workflow",
+    "name": "Naam",
+    "owner": "Verantwoordelijke",
+    "ownerHint": "Krijgt alles in zijn of haar chat wat de workflow niet zelf kan oplossen.",
+    "rails": "Vangrails voor elke stap",
+    "railsNote": "covey dwingt ze af, niet de collega.",
+    "checks": "Controles",
+    "checkOk": "ok",
+    "checkHint": "opmerking",
+    "checkRoleEmpty": "{{step}}: de rol {{role}} is niet ingevuld.",
+    "checkRoleEmptySkip": "{{step}}: de rol {{role}} is niet ingevuld; de stap wordt overgeslagen.",
+    "checkNoIn": "{{step}}: er leidt niets naartoe.",
+    "checkNoOut": "{{step}}: leidt nergens heen.",
+    "checkLoopOk": "De lus terug vanaf {{step}} eindigt na {{n}} rondes bij een persoon.",
+    "checkLoopNoLimit": "{{step}}: een lus zonder rondelimiet kan niet worden opgeslagen.",
+    "checkFourEyes": "{{step}} wordt nooit door dezelfde persoon gedaan als {{other}}.",
+    "save": "Opslaan als versie {{n}}",
+    "removeBlock": "Bouwsteen verwijderen",
+    "unfilled": "niet ingevuld",
+    "unfilledSkipped": "niet ingevuld · overgeslagen",
+    "optionalShort": "optioneel",
+    "roundPlus": "nog een ronde, dezelfde persoon",
+    "yes": "ja",
+    "no": "nee",
+    "approved": "goedgekeurd",
+    "rejected": "afgewezen",
+    "sumPool": "Rol {{role}} · {{free}} van {{all}} beschikbaar",
+    "sumRole": "Rol {{role}} → {{name}}",
+    "sumAi": "zonder collega · {{model}}",
+    "sumCondition": "op {{field}}",
+    "sumApproval": "{{who}}, in de chat",
+    "sumWait": "tot {{until}}",
+    "sumNotify": "{{to}}, via {{via}}",
+    "sumEnd": "run afgerond",
+    "link": {
+      "title": "Verbinding",
+      "branch": "Tak “{{label}}”.",
+      "back": "De weg terug telt een ronde extra. De zaak gaat terug naar de persoon die haar heeft uitgewerkt.",
+      "remove": "Verbinding verwijderen"
+    },
+    "trigger": {
+      "source": "Van",
+      "event": "Wat er gebeurt",
+      "filter": "Alleen als",
+      "filterHint": "Leeg laten voor alles.",
+      "chatNote": "Ook een verzoek in de chat start de workflow, als het ticket onder het bereik valt. De collega die is aangesproken neemt de eerste stap."
+    },
+    "agent": {
+      "role": "Rol",
+      "roleHint": "De workflow richt zich op de rol. Wie die invult, beslist covey zodra de stap begint.",
+      "addMember": "Collega aan de rol toevoegen",
+      "open": "{{count}} open",
+      "open_one": "{{count}} open",
+      "state_stopped": "gestopt",
+      "state_draft": "concept",
+      "pick": "Keuze",
+      "pick_load": "wie het minst te doen heeft",
+      "pick_round": "om de beurt",
+      "pick_skill": "op verantwoordelijkheid (project, vaardigheid)",
+      "cap": "Maximaal tegelijk, per collega",
+      "capNone": "geen limiet",
+      "sticky": "Blijft bij de zaak: volgende rondes gaan naar dezelfde persoon",
+      "notSame": "Niet dezelfde persoon als",
+      "notSameHint": "De vierogenregel. covey dwingt hem af.",
+      "optional": "Optioneel: overslaan als de rol niet is ingevuld",
+      "task": "Opdracht",
+      "taskHint": "De collega krijgt dit als taak. Een klik voegt een waarde in:",
+      "result": "Te melden resultaat",
+      "resultHint": "Latere stappen lezen het, bijvoorbeeld een voorwaarde.",
+      "ask": "Vragen gaan naar",
+      "askHint": "Ze verschijnen in de chat van die persoon. De run wacht ondertussen.",
+      "limit": "Maximaal",
+      "limitHint": "Daarna meldt de workflow de zaak als vastgelopen.",
+      "empty": "Niemand in de rol {{role}} is beschikbaar.",
+      "emptySkip": "De stap is optioneel en wordt overgeslagen.",
+      "emptyOwner": "Runs gaan naar de verantwoordelijke."
+    },
+    "ai": {
+      "note": "Geen collega, geen werkplek, geen geheugen. Voor korte taken die geen ervaring vragen, en goedkoop.",
+      "prompt": "Instructie",
+      "model": "Model",
+      "model_small": "klein en goedkoop",
+      "model_large": "groot"
+    },
+    "condition": {
+      "field": "Controleert",
+      "rounds": "Maximaal rondes",
+      "roundsHint": "Een lus zonder limiet kan niet worden opgeslagen."
+    },
+    "action": {
+      "note": "covey doet dit zelf, als de workflow. Geen collega, geen kosten.",
+      "system": "Doelsysteem",
+      "op": "Actie",
+      "target": "Ticket",
+      "value": "Waarde",
+      "comment": "Opmerking erbij"
+    },
+    "ops": {
+      "assign": "ticket toewijzen",
+      "reviewer": "reviewer instellen",
+      "label": "label instellen",
+      "comment": "opmerking schrijven",
+      "merge": "de merge request mergen"
+    },
+    "approval": {
+      "who": "Wie beslist",
+      "question": "Vraag",
+      "questionHint": "Verschijnt als kaart in de chat van die persoon, met een knop per tak. Vrije tekst kan ook.",
+      "wait": "Op antwoord wachten",
+      "showChat": "Zo ziet het eruit in de chat"
+    },
+    "wait": {
+      "until": "Tot",
+      "max": "Maximaal",
+      "then": "Daarna"
+    },
+    "notify": {
+      "to": "Aan",
+      "via": "Via",
+      "text": "Tekst",
+      "note": "De afzender is de workflow, geen collega."
+    },
+    "end": {
+      "text": "De run eindigt hier. Het ticket zelf blijft in het doelsysteem zoals het is."
+    },
+    "live": {
+      "title": "Wat er nu loopt",
+      "nowAt": "{{type}} · nu",
+      "nothingHere": "Er staat hier nu niets.",
+      "cases": "zaken in de workflow",
+      "stuck": "langer dan toegestaan",
+      "median": "dagen tot acceptatie (mediaan)",
+      "attention": "Heeft aandacht nodig",
+      "nothing": "Niets.",
+      "hint": "Een klik op een stap laat zien wie daar staat. Een klik op een zaak opent de bijbehorende run.",
+      "offTitle": "De workflow is uit",
+      "offText": "Zolang de workflow uit staat, wijst covey er geen zaken aan toe. De collega’s werken volgens hun playbooks.",
+      "watchNote": "covey leest de standen uit het doelsysteem en meldt wat vastzit, maar draagt zelf niets over.",
+      "count": "{{count}} zaken",
+      "count_one": "{{count}} zaak",
+      "stuckBadge": "{{count}} vastgelopen",
+      "stuckBadge_one": "{{count}} vastgelopen",
+      "skipped": "overgeslagen",
+      "with": "bij {{name}}"
+    },
+    "run": {
+      "title": "Run {{no}}",
+      "here": "staat hier",
+      "times": "{{n}}×",
+      "toChat": "Naar de vraag in de chat",
+      "reassign": "Aan een andere collega geven…",
+      "pause": "Run pauzeren",
+      "chatTag": "chat"
+    },
+    "file": {
+      "title": "Canvas en bestand zijn één",
+      "one": "Het canvas schrijft dit bestand; het bestand maakt het canvas.",
+      "two": "Elke opgeslagen wijziging is een nieuwe versie, net als bij SOUL.md.",
+      "three": "Posities worden alleen bewaard voor bouwstenen die iemand met de hand heeft verplaatst.",
+      "export": "Exporteren",
+      "import": "Importeren…",
+      "head": "Met versies, zoals de configuratie van een agent. Export en import dragen precies deze tekst."
+    },
+    "chat": {
+      "conversations": "Gesprekken",
+      "decided": "besloten",
+      "waits": "{{no}} wacht op jouw beslissing",
+      "questionOn": "Vraag over {{no}}",
+      "note": "In covey zijn dit gewone gesprekken in het teamgedeelte. De workflow schrijft alleen als iemand moet beslissen of iets moet weten.",
+      "workflowSub": "Workflow · schrijft je alleen als je moet beslissen of iets moet weten",
+      "colleagueSub": "Heeft een rol in {{workflow}}",
+      "kindNotice": "bericht",
+      "kindStuck": "vastgelopen",
+      "kindApproval": "Goedkeuring",
+      "kindQuestion": "vraag",
+      "noticeAccepted": "{{no}} is geaccepteerd en ligt nu bij {{owner}}. Start de klantentest.",
+      "noticeStuck": "{{no}} staat al 6 uur bij {{name}} in de stap “{{step}}”; 4 zijn toegestaan.",
+      "cardQuestion": "Drie rondes zonder acceptatie. Hoe nu verder?",
+      "cardContext": "Laatste gebreken: {{defects}}",
+      "viewRun": "Run bekijken",
+      "decidedAs": "Besloten: {{choice}}.",
+      "retried": "Het ligt weer bij {{name}}, ronde 4; jouw opmerking staat in de opdracht.",
+      "runWaits": "De run wacht op jouw antwoord.",
+      "placeholderWorkflow": "Antwoord aan de workflow, bijv. “nieuwe ronde, let op de ß”",
+      "placeholderColleague": "Bericht aan {{name}}",
+      "send": "Versturen",
+      "you": "Jij",
+      "now": "nu",
+      "justNowRound": "zojuist · ronde {{n}}",
+      "stepDecided": "{{owner}} in de chat: {{choice}}",
+      "stepRound": "Ronde {{n}} bij {{name}}",
+      "stepEnded": "Run afgerond, ticket bij {{owner}}",
+      "stepAnswered": "{{owner}} heeft in de chat geantwoord: “{{text}}”",
+      "stepContinues": "{{name}} gaat verder"
+    }
   }
 }
