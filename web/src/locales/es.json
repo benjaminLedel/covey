@@ -3337,12 +3337,8 @@
       "end": "La ejecución ha terminado"
     },
     "blocks": "Bloques",
-    "runs": "Ejecuciones",
-    "paletteHint": "Un clic añade el bloque. Arrastra desde el punto del borde derecho de un bloque para conectarlo.",
-    "paletteHint_live": "Los números muestran cuántos casos hay ahora en un paso. Rojo significa más tiempo del permitido.",
-    "paletteHint_file": "El archivo es la misma definición que el lienzo.",
     "legend": {
-      "edit": "Arrastra para mover el lienzo; desplaza o pellizca para hacer zoom. Discontinuo: el puesto está vacante y el paso se omite.",
+      "edit": "Bloques a la izquierda: un clic añade uno. Arrastra desde el punto derecho de un bloque para conectarlo. Discontinuo: el rol está vacante y el paso se omite.",
       "live": "Número = casos en este paso. Rojo: más tiempo del permitido. Amarillo: espera a alguien.",
       "run": "Azul: el recorrido de {{no}}. «2×» significa que el paso se ejecutó en más de una ronda."
     },
@@ -3540,6 +3536,8 @@
       "stepEnded": "Ejecución terminada, ticket con {{owner}}",
       "stepAnswered": "{{owner}} respondió en el chat: «{{text}}»",
       "stepContinues": "{{name}} sigue trabajando"
-    }
+    },
+    "details": "Detalles",
+    "closeDetails": "Cerrar detalles"
   }
 }

@@ -3337,12 +3337,8 @@
       "end": "L’exécution est terminée"
     },
     "blocks": "Blocs",
-    "runs": "Exécutions",
-    "paletteHint": "Un clic ajoute le bloc. Tire depuis le point au bord droit d’un bloc pour le relier.",
-    "paletteHint_live": "Les chiffres indiquent combien de dossiers sont à une étape en ce moment. Rouge : plus longtemps que prévu.",
-    "paletteHint_file": "Le fichier est la même définition que le canevas.",
     "legend": {
-      "edit": "Glisse pour déplacer le canevas, fais défiler ou pince pour zoomer. En pointillés : le rôle n’est pas pourvu et l’étape est ignorée.",
+      "edit": "Blocs à gauche : un clic en ajoute un. Fais glisser le point à droite d'un bloc pour le relier. En pointillés : rôle non pourvu, l'étape est sautée.",
       "live": "Chiffre = dossiers à cette étape. Rouge : plus longtemps que prévu. Jaune : attend quelqu’un.",
       "run": "Bleu : le chemin de {{no}}. « 2× » signifie que l’étape a eu lieu en plusieurs tours."
     },
@@ -3540,6 +3536,8 @@
       "stepEnded": "Exécution terminée, ticket chez {{owner}}",
       "stepAnswered": "{{owner}} a répondu dans le chat : « {{text}} »",
       "stepContinues": "{{name}} continue"
-    }
+    },
+    "details": "Détails",
+    "closeDetails": "Fermer les détails"
   }
 }

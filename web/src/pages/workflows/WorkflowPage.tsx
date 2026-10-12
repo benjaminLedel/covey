@@ -28,6 +28,8 @@ import { BLOCK_TYPES, NODE_W, definitionText, example, heightOf, outsOf, roleEmp
 
 const TABS: Tab[] = ["edit", "live", "run", "file", "chat"];
 const MODES: Mode[] = ["off", "watch", "steer"];
+// Room for what floats on the canvas: the tag on top, the rail on the left.
+const FIT_PADDING = { top: "56px", left: "72px", right: "24px", bottom: "56px" } as const;
 
 export default function WorkflowPage() {
   return (
@@ -73,6 +75,10 @@ function Editor() {
   );
   const [mode, setMode] = useState<Mode>("steer");
   const [tab, setTab] = useState<Tab>("edit");
+  /* The details float over the canvas instead of taking a column from it:
+     while editing they open with a click on a block and close again; in
+     the live view and a run they carry the summary and start open. */
+  const [panel, setPanel] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [selectedLink, setSelectedLink] = useState<number | null>(null);
   const [live, setLive] = useState(ex.live);
@@ -161,6 +167,7 @@ function Editor() {
     setTab(next);
     if (next !== "run") setSelected(null);
     setSelectedLink(null);
+    setPanel(next === "live" || next === "run");
   };
 
   const openRun = (no: string) => {
@@ -255,7 +262,7 @@ function Editor() {
         }}
       />
     );
-  else side = <FileSide />;
+  else side = null;
 
   return (
     <div className="wf-page">
@@ -298,41 +305,7 @@ function Editor() {
         />
       ) : (
         <div className="wf-body">
-          <aside className="wf-palette">
-            {tab === "edit" && (
-              <>
-                <p className="wf-eyebrow">{t("workflows.blocks")}</p>
-                {BLOCK_TYPES.map((type) => (
-                  <button key={type} className="wf-pal-item" onClick={() => addBlock(type)}>
-                    <BlockIcon type={type} />
-                    <span>
-                      <b>{t(`workflows.type.${type}`)}</b>
-                      <small>{t(`workflows.typeDesc.${type}`)}</small>
-                    </span>
-                  </button>
-                ))}
-                <p className="wf-hint">{t("workflows.paletteHint")}</p>
-              </>
-            )}
-            {tab === "run" && (
-              <>
-                <p className="wf-eyebrow">{t("workflows.runs")}</p>
-                {Object.values(runs).map((r) => (
-                  <button key={r.no} className={`wf-pal-item${r.no === run ? " on" : ""}`} onClick={() => openRun(r.no)}>
-                    <BlockIcon type="trigger" />
-                    <span>
-                      <b>{r.no}</b>
-                      <small>{r.title}</small>
-                    </span>
-                  </button>
-                ))}
-              </>
-            )}
-            {(tab === "live" || tab === "file") && <p className="wf-hint">{t(`workflows.paletteHint_${tab}`)}</p>}
-          </aside>
-
-          <div className="wf-canvas">
-            <span className="wf-tag">{t("workflows.preview")}</span>
+          <div className={`wf-canvas${panel && tab !== "file" ? " has-panel" : ""}`}>
             <CanvasContext.Provider value={ctx}>
               <ReactFlow
                 nodes={nodes}
@@ -344,15 +317,18 @@ function Editor() {
                 onNodeClick={(_, n) => {
                   setSelected(n.id);
                   setSelectedLink(null);
+                  setPanel(true);
                 }}
                 onEdgeClick={(_, e) => {
                   if (tab !== "edit") return;
                   setSelectedLink(Number(e.id.slice(1)));
                   setSelected(null);
+                  setPanel(true);
                 }}
                 onPaneClick={() => {
                   setSelected(null);
                   setSelectedLink(null);
+                  if (tab === "edit") setPanel(false);
                 }}
                 nodesDraggable={tab === "edit"}
                 nodesConnectable={tab === "edit"}
@@ -361,6 +337,7 @@ function Editor() {
                 snapToGrid
                 snapGrid={[10, 10]}
                 fitView
+                fitViewOptions={{ padding: FIT_PADDING }}
                 minZoom={0.25}
                 maxZoom={2}
               >
@@ -369,6 +346,37 @@ function Editor() {
                 <FitOnTab tab={tab} />
               </ReactFlow>
             </CanvasContext.Provider>
+
+            {tab === "edit" && (
+              <div className="wf-rail" role="toolbar" aria-label={t("workflows.blocks")}>
+                {BLOCK_TYPES.map((type) => (
+                  <button key={type} className="wf-rail-item" onClick={() => addBlock(type)} aria-label={t(`workflows.type.${type}`)}>
+                    <BlockIcon type={type} />
+                    <span className="wf-rail-tip" role="tooltip">
+                      <b>{t(`workflows.type.${type}`)}</b>
+                      <small>{t(`workflows.typeDesc.${type}`)}</small>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {tab === "run" && (
+              <div className="wf-runpick">
+                {Object.values(runs).map((r) => (
+                  <button key={r.no} className={r.no === run ? "on" : ""} onClick={() => openRun(r.no)} title={r.title}>
+                    {r.no}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="wf-overlay-top">
+              <span className="wf-tag">{t("workflows.preview")}</span>
+              {tab !== "file" && !panel && (
+                <button className="wf-details-btn" onClick={() => setPanel(true)}>
+                  {t("workflows.details")}
+                </button>
+              )}
+            </div>
             {tab !== "file" && <div className="wf-legend">{t(`workflows.legend.${tab}`, { no: run })}</div>}
             {tab === "file" && (
               <div className="wf-file">
@@ -376,12 +384,31 @@ function Editor() {
                   <span className="wf-pill info">workflows/customer-ticket.workflow</span>
                   <span>{t("workflows.file.head")}</span>
                 </div>
-                <pre>{definitionText(ex, mode, blocks, links, positions)}</pre>
+                <div className="wf-file-grid">
+                  <pre>{definitionText(ex, mode, blocks, links, positions)}</pre>
+                  <div className="wf-file-side">
+                    <FileSide />
+                  </div>
+                </div>
               </div>
             )}
+            {panel && tab !== "file" && (
+              <aside className="wf-panel" aria-label={t("workflows.details")}>
+                <button
+                  className="wf-panel-close"
+                  aria-label={t("workflows.closeDetails")}
+                  onClick={() => {
+                    setPanel(false);
+                    setSelected(null);
+                    setSelectedLink(null);
+                  }}
+                >
+                  ×
+                </button>
+                {side}
+              </aside>
+            )}
           </div>
-
-          <aside className="wf-inspector">{side}</aside>
         </div>
       )}
     </div>
@@ -392,7 +419,7 @@ function Editor() {
 function FitOnTab({ tab }: { tab: Tab }) {
   const flow = useReactFlow();
   useEffect(() => {
-    const id = requestAnimationFrame(() => flow.fitView({ padding: 0.08 }));
+    const id = requestAnimationFrame(() => flow.fitView({ padding: FIT_PADDING }));
     return () => cancelAnimationFrame(id);
   }, [tab, flow]);
   return null;

@@ -3337,12 +3337,8 @@
       "end": "Der Lauf ist abgeschlossen"
     },
     "blocks": "Bausteine",
-    "runs": "Läufe",
-    "paletteHint": "Ein Klick fügt den Baustein ein. Vom Punkt rechts an einem Baustein ziehst du eine Verbindung.",
-    "paletteHint_live": "Die Zahlen zeigen, wie viele Vorgänge gerade an einem Schritt stehen. Rot heißt: länger als erlaubt.",
-    "paletteHint_file": "Die Datei ist dieselbe Definition wie die Fläche.",
     "legend": {
-      "edit": "Ziehen verschiebt die Fläche, Scrollen oder Spreizen zoomt. Gestrichelt: Stelle unbesetzt, der Schritt wird übersprungen.",
+      "edit": "Bausteine links: Ein Klick fügt einen ein. Vom Punkt rechts an einem Baustein ziehst du eine Verbindung. Gestrichelt: Stelle unbesetzt, der Schritt wird übersprungen.",
       "live": "Zahl = Vorgänge an diesem Schritt. Rot: länger als erlaubt. Gelb: wartet auf jemanden.",
       "run": "Blau: der Weg von {{no}}. „2×“ heißt: Der Schritt lief in mehreren Runden."
     },
@@ -3540,6 +3536,8 @@
       "stepEnded": "Lauf beendet, Ticket bei {{owner}}",
       "stepAnswered": "{{owner}} hat im Chat geantwortet: „{{text}}“",
       "stepContinues": "{{name}} arbeitet weiter"
-    }
+    },
+    "details": "Details",
+    "closeDetails": "Details schließen"
   }
 }

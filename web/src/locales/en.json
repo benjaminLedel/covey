@@ -3337,12 +3337,8 @@
       "end": "The run is finished"
     },
     "blocks": "Building blocks",
-    "runs": "Runs",
-    "paletteHint": "A click adds the block. Drag from the dot on a block's right edge to connect it.",
-    "paletteHint_live": "The numbers show how many cases stand at a step right now. Red means longer than allowed.",
-    "paletteHint_file": "The file is the same definition as the canvas.",
     "legend": {
-      "edit": "Drag to move the canvas, scroll or pinch to zoom. Dashed: the role is unfilled and the step is skipped.",
+      "edit": "Building blocks on the left: a click adds one. Drag from a block's right dot to connect. Dashed: the role is unfilled and the step is skipped.",
       "live": "Number = cases at this step. Red: longer than allowed. Yellow: waiting for someone.",
       "run": "Blue: the path of {{no}}. “2×” means the step ran in more than one round."
     },
@@ -3540,6 +3536,8 @@
       "stepEnded": "Run ended, ticket with {{owner}}",
       "stepAnswered": "{{owner}} answered in the chat: “{{text}}”",
       "stepContinues": "{{name}} continues"
-    }
+    },
+    "details": "Details",
+    "closeDetails": "Close details"
   }
 }

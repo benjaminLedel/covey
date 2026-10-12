@@ -3337,12 +3337,8 @@
       "end": "A execução terminou"
     },
     "blocks": "Blocos",
-    "runs": "Execuções",
-    "paletteHint": "Um clique adiciona o bloco. Arrasta a partir do ponto na margem direita de um bloco para o ligar.",
-    "paletteHint_live": "Os números mostram quantos casos estão agora em cada passo. Vermelho significa: mais tempo do que o permitido.",
-    "paletteHint_file": "O ficheiro é a mesma definição que a área de trabalho.",
     "legend": {
-      "edit": "Arrasta para mover a área, faz scroll ou pinça para ampliar. Tracejado: a função está por ocupar e o passo é ignorado.",
+      "edit": "Blocos à esquerda: um clique adiciona um. Arrasta a partir do ponto à direita de um bloco para o ligar. Tracejado: a função está por preencher e o passo é ignorado.",
       "live": "Número = casos neste passo. Vermelho: mais tempo do que o permitido. Amarelo: à espera de alguém.",
       "run": "Azul: o percurso de {{no}}. “2×” significa que o passo correu em mais de uma ronda."
     },
@@ -3540,6 +3536,8 @@
       "stepEnded": "Execução terminada, ticket com {{owner}}",
       "stepAnswered": "{{owner}} respondeu no chat: “{{text}}”",
       "stepContinues": "{{name}} continua"
-    }
+    },
+    "details": "Detalhes",
+    "closeDetails": "Fechar detalhes"
   }
 }

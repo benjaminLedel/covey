@@ -3337,12 +3337,8 @@
       "end": "L’esecuzione è conclusa"
     },
     "blocks": "Blocchi",
-    "runs": "Esecuzioni",
-    "paletteHint": "Un clic aggiunge il blocco. Trascina dal punto sul bordo destro di un blocco per collegarlo.",
-    "paletteHint_live": "I numeri mostrano quanti casi si trovano ora in un passaggio. Rosso significa: più a lungo del consentito.",
-    "paletteHint_file": "Il file è la stessa definizione dell’area di lavoro.",
     "legend": {
-      "edit": "Trascina per spostare l’area, scorri o pizzica per ingrandire. Tratteggiato: il ruolo non è coperto e il passaggio viene saltato.",
+      "edit": "Blocchi a sinistra: un clic ne aggiunge uno. Trascina dal punto a destra di un blocco per collegarlo. Tratteggiato: ruolo scoperto, il passo viene saltato.",
       "live": "Numero = casi in questo passaggio. Rosso: più a lungo del consentito. Giallo: in attesa di qualcuno.",
       "run": "Blu: il percorso di {{no}}. «2×» significa che il passaggio è stato eseguito in più giri."
     },
@@ -3540,6 +3536,8 @@
       "stepEnded": "Esecuzione conclusa, ticket presso {{owner}}",
       "stepAnswered": "{{owner}} ha risposto nella chat: «{{text}}»",
       "stepContinues": "{{name}} prosegue"
-    }
+    },
+    "details": "Dettagli",
+    "closeDetails": "Chiudi dettagli"
   }
 }

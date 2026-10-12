@@ -3337,12 +3337,8 @@
       "end": "Uruchomienie jest zakończone"
     },
     "blocks": "Klocki",
-    "runs": "Uruchomienia",
-    "paletteHint": "Kliknięcie dodaje klocek. Przeciągnij z kropki na prawej krawędzi klocka, aby go połączyć.",
-    "paletteHint_live": "Liczby pokazują, ile spraw jest teraz na danym kroku. Czerwony oznacza: dłużej, niż wolno.",
-    "paletteHint_file": "Plik to ta sama definicja co obszar roboczy.",
     "legend": {
-      "edit": "Przeciągnij, aby przesunąć obszar, przewiń lub rozsuń palce, aby przybliżyć. Linia przerywana: rola jest nieobsadzona, krok zostanie pominięty.",
+      "edit": "Bloki po lewej: kliknięcie dodaje blok. Przeciągnij z kropki po prawej stronie bloku, aby go połączyć. Linia przerywana: rola nieobsadzona, krok jest pomijany.",
       "live": "Liczba = sprawy na tym kroku. Czerwony: dłużej, niż wolno. Żółty: czeka na kogoś.",
       "run": "Niebieski: droga sprawy {{no}}. „2×” oznacza, że krok przeszedł w kilku rundach."
     },
@@ -3540,6 +3536,8 @@
       "stepEnded": "Uruchomienie zakończone, zgłoszenie u {{owner}}",
       "stepAnswered": "{{owner}} odpowiedział(a) w czacie: „{{text}}”",
       "stepContinues": "{{name}} pracuje dalej"
-    }
+    },
+    "details": "Szczegóły",
+    "closeDetails": "Zamknij szczegóły"
   }
 }

@@ -3337,12 +3337,8 @@
       "end": "De run is afgerond"
     },
     "blocks": "Bouwstenen",
-    "runs": "Runs",
-    "paletteHint": "Eén klik voegt de bouwsteen toe. Sleep vanaf de stip aan de rechterkant van een bouwsteen om te verbinden.",
-    "paletteHint_live": "De cijfers laten zien hoeveel zaken nu bij een stap staan. Rood betekent: langer dan toegestaan.",
-    "paletteHint_file": "Het bestand is dezelfde definitie als het canvas.",
     "legend": {
-      "edit": "Slepen verplaatst het canvas, scrollen of knijpen zoomt. Gestippeld: de rol is niet ingevuld en de stap wordt overgeslagen.",
+      "edit": "Bouwstenen links: een klik voegt er een toe. Sleep vanaf de stip rechts van een bouwsteen om te verbinden. Gestippeld: de rol is onbezet en de stap wordt overgeslagen.",
       "live": "Cijfer = zaken bij deze stap. Rood: langer dan toegestaan. Geel: wacht op iemand.",
       "run": "Blauw: het pad van {{no}}. “2×” betekent dat de stap in meer dan één ronde is uitgevoerd."
     },
@@ -3540,6 +3536,8 @@
       "stepEnded": "Run afgerond, ticket bij {{owner}}",
       "stepAnswered": "{{owner}} heeft in de chat geantwoord: “{{text}}”",
       "stepContinues": "{{name}} gaat verder"
-    }
+    },
+    "details": "Details",
+    "closeDetails": "Details sluiten"
   }
 }
