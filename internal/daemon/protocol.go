@@ -392,6 +392,9 @@ type InjectCreateTask struct {
 	Error     string `json:"error,omitempty"`
 	TaskID    string `json:"task_id,omitempty"` // the created task
 	Agent     string `json:"agent,omitempty"`   // resolved target agent (slug)
+	// Notice is something the delegating agent should know about a task that
+	// was created all the same — that its colleague is stopped, say (#556).
+	Notice string `json:"notice,omitempty"`
 }
 
 // RequestMessage/InjectMessage are the meta action covey/message (#537): the

@@ -294,6 +294,12 @@ func TestDelegationToPausedColleagueWaits(t *testing.T) {
 		return s.taskState(task.ID) == backlog.StateDone
 	})
 
+	// The sender is told that the task waits (#556): "ok" alone does not tell
+	// delivered from queued-until-released.
+	if got, _ := s.backlog.Get(ctx, task.ID); got.Result == nil || !strings.Contains(*got.Result, "pausierter-kollege is stopped") {
+		t.Fatalf("the sender should learn that its colleague is stopped, result was %v", got.Result)
+	}
+
 	// The delegation arrived, even though the colleague is paused.
 	delegated := childOf(t, s, colleague.ID, task.ID)
 	if delegated.AgentID != colleague.ID {
@@ -496,5 +502,57 @@ func TestCreateTaskRelayChainCeiling(t *testing.T) {
 	}
 	if msg := taskError(t, s, last.ID); !strings.Contains(msg, "too long") {
 		t.Fatalf("the rejection must name the length, was %q", msg)
+	}
+}
+
+// A run whose instructions or task name a stopped colleague is told so in its
+// prompt (#556). The directory leaving the colleague out is a silence, and a
+// config that names the colleague outweighs it: the developer whose playbook
+// says "the reviewer is X" keeps writing X into the reviewer field.
+func TestAStoppedColleagueNamedInTheTaskIsCalledOut(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	agent := s.newSupportAgent("entwickler-stopp")
+	stopped := s.newSupportAgent("pruefer-stopp")
+	unnamed := s.newSupportAgent("pruefer-ungenannt")
+	// Names of their own: the stack gives every agent the same display name,
+	// and a name the whole team shares names everybody.
+	for id, name := range map[uuid.UUID]string{agent.ID: "Erik Entwickler", stopped.ID: "Paula Prüfer", unnamed.ID: "Udo Ungenannt"} {
+		if _, err := s.pool.Exec(ctx, `UPDATE agents SET display_name=$2 WHERE id=$1`, id, name); err != nil {
+			t.Fatal(err)
+		}
+		if id != agent.ID {
+			if err := s.registry.SetKilled(ctx, id, true); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+
+	task, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Prompt zeigen",
+		"Gib den Merge Request an pruefer-stopp.\n[mock:prompt]", "manual", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "task done", 20*time.Second, func() bool {
+		return s.taskState(task.ID) == backlog.StateDone
+	})
+	got, _ := s.backlog.Get(ctx, task.ID)
+	prompt := ""
+	if got.Result != nil {
+		prompt = *got.Result
+	}
+	i := strings.Index(prompt, "## Stopped colleagues your instructions name")
+	if i < 0 {
+		t.Fatalf("the prompt does not call out the stopped colleague:\n%s", prompt)
+	}
+	section := prompt[i:]
+	if j := strings.Index(section[3:], "\n## "); j >= 0 {
+		section = section[:j+3]
+	}
+	if !strings.Contains(section, "pruefer-stopp") {
+		t.Fatalf("the named colleague is missing from the section:\n%s", section)
+	}
+	if strings.Contains(section, "pruefer-ungenannt") {
+		t.Fatalf("a stopped colleague nobody named does not belong in the section:\n%s", section)
 	}
 }

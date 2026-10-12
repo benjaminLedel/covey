@@ -158,3 +158,31 @@ func TestCompilePromptStripsStyleProfileBlock(t *testing.T) {
 		t.Fatal("no profile block may be compiled into the prompt, from any file")
 	}
 }
+
+// A stopped colleague is found by any of its names, as a whole word (#556).
+func TestStoppedColleagueNamedIn(t *testing.T) {
+	c := StoppedColleague{Name: "Gertrud Gegenprobe", Slug: "quality-1",
+		Identities: []TeamIdentity{{Label: "gitlab", Value: "gertrud.gegenprobe"}, {Label: "x", Value: "ab"}}}
+	cases := map[string]string{
+		"reviewer auf quality-1 setzen":    "quality-1",
+		"An Gertrud Gegenprobe übergeben.": "Gertrud Gegenprobe",
+		"set_reviewer @gertrud.gegenprobe": "gertrud.gegenprobe",
+		"(QUALITY-1)":                      "quality-1",
+		"quality-10 ist ein anderer":       "",
+		"xquality-1":                       "",
+		"ab und zu":                        "",
+		"nichts dergleichen":               "",
+	}
+	for text, want := range cases {
+		if got := c.NamedIn(text); got != want {
+			t.Errorf("NamedIn(%q) = %q, want %q", text, got, want)
+		}
+	}
+	if StoppedColleaguesSection(nil) != "" {
+		t.Error("no stopped colleague, no section")
+	}
+	s := StoppedColleaguesSection([]StoppedColleague{c})
+	if !strings.Contains(s, "- Gertrud Gegenprobe (quality-1, gitlab: gertrud.gegenprobe, x: ab)") {
+		t.Errorf("unexpected section:\n%s", s)
+	}
+}
