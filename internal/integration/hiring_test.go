@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"covey/internal/backlog"
+	"covey/internal/guardrails"
 )
 
 // TestEntwurfArbeitetNicht: a draft exists, can be configured — and does not
@@ -297,8 +298,8 @@ func TestEinstellenNurMitZugang(t *testing.T) {
 //   - No config without a SOUL.md. The refusal has to reach the agent while it
 //     can still act, not the human afterwards.
 //
-// Everything happens in ONE task, because that is the rule: an assignment may
-// configure exactly the drafts it created itself.
+// Drafting happens in one task; the follow-up in a second one reaches the
+// same draft, which is the point of #584.
 func TestEntwerfenSchreibtInMehrerenZuegen(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -377,11 +378,113 @@ func TestEntwerfenSchreibtInMehrerenZuegen(t *testing.T) {
 		t.Fatal("the refused config must not have been saved")
 	}
 
-	// And rule 4: a SECOND assignment may not touch the first one's draft.
-	fremd := run("Fremden Entwurf anfassen",
+	// A follow-up is a new task, and it reaches the draft of the first one: the
+	// People department finishes what it started (#584).
+	nachgefasst := run("Nachfassen",
+		`[mock:action covey/set_agent_config {"agent":"testkollege","files":{"HEARTBEAT.md":"# Takt"}}]`)
+	if strings.Contains(nachgefasst, "error") {
+		t.Fatalf("a follow-up has to reach the earlier draft: %s", nachgefasst)
+	}
+	if cfg, err := s.registry.CurrentConfig(ctx, drafted.ID); err != nil || cfg.Files["HEARTBEAT.md"] != "# Takt" {
+		t.Fatalf("the follow-up's file did not arrive: %v", err)
+	}
+
+	// Rule 4: not itself. Its own config stays a proposal.
+	selbst := run("Selbst umschreiben",
+		`[mock:action covey/set_agent_config {"agent":"personal-2","files":{"SOUL.md":"# Grenzenlos"}}]`)
+	if !strings.Contains(selbst, "own configuration") {
+		t.Fatalf("an agent may not write its own config: %s", selbst)
+	}
+
+	// The foreign case has a subject of its own, so an organisation can put the
+	// old boundary back without touching its own drafts.
+	if _, err := s.rails.Create(ctx, railRule(s.orgID, guardrails.RuleDenyAction, "covey:set_agent_config:foreign")); err != nil {
+		t.Fatal(err)
+	}
+	gesperrt := run("Fremd trotz Regel",
 		`[mock:action covey/set_agent_config {"agent":"testkollege","files":{"SOUL.md":"# Uebernommen"}}]`)
-	if !strings.Contains(fremd, "not drafted in this assignment") {
-		t.Fatalf("only its own children may be configured: %s", fremd)
+	if !strings.Contains(gesperrt, "covey:set_agent_config:foreign") {
+		t.Fatalf("a deny rule on covey:set_agent_config:foreign has to hold: %s", gesperrt)
+	}
+	if cfg, _ := s.registry.CurrentConfig(ctx, drafted.ID); cfg.Files["SOUL.md"] == "# Uebernommen" {
+		t.Fatal("the denied config was written anyway")
+	}
+}
+
+// What a colleague needs besides its config: a target system switched on, and
+// a host on its egress allowlist (#584). Both through the People department's
+// own access, neither for itself.
+func TestEinrichtenSystemUndEgress(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+
+	drafter, err := s.registry.Create(ctx, s.orgID, "personal-3", "Personal", "mock", &s.adminID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.registry.SaveConfig(ctx, drafter.ID, map[string]string{
+		"SOUL.md":   "# Personal",
+		"ACCESS.md": "- system: covey scope: agents:write",
+	}, &s.adminID); err != nil {
+		t.Fatal(err)
+	}
+	kollege := s.newSupportAgent("kollege-3")
+
+	run := func(name, body string) string {
+		t.Helper()
+		task, err := s.backlog.Create(ctx, s.orgID, drafter.ID, name, body, "manual", 3)
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitFor(t, "task done", 30*time.Second, func() bool {
+			st := s.taskState(task.ID)
+			return st == backlog.StateDone || st == backlog.StateFailed
+		})
+		got, err := s.backlog.Get(ctx, task.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.State == backlog.StateFailed && got.Error != nil {
+			return *got.Error
+		}
+		if got.Result == nil {
+			return ""
+		}
+		return *got.Result
+	}
+
+	run("Browser einschalten", `[mock:action covey/enable_target {"system":"browser"}]`)
+	plugins, err := s.targets.List(ctx, s.orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	on := false
+	for _, p := range plugins {
+		if p.Name == "browser" {
+			on = p.Enabled
+		}
+	}
+	if !on {
+		t.Fatal("enable_target did not switch the system on")
+	}
+	if res := run("Unbekanntes System", `[mock:action covey/enable_target {"system":"gibtsnicht"}]`); !strings.Contains(res, "no target system") {
+		t.Fatalf("an unknown system has to be refused by name: %s", res)
+	}
+
+	run("Host freigeben", `[mock:action covey/add_egress_host {"agent":"kollege-3","host":"docs.example.org","note":"Handbuch"}]`)
+	cfg, err := s.egress.AgentConfig(ctx, kollege.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Hosts) != 1 || cfg.Hosts[0].Pattern != "docs.example.org" {
+		t.Fatalf("the host did not reach the colleague's allowlist: %+v", cfg.Hosts)
+	}
+
+	if res := run("Selbst freigeben", `[mock:action covey/add_egress_host {"agent":"personal-3","host":"example.org"}]`); !strings.Contains(res, "your own egress") {
+		t.Fatalf("an agent may not widen its own allowlist: %s", res)
+	}
+	if own, _ := s.egress.AgentConfig(ctx, drafter.ID); len(own.Hosts) != 0 {
+		t.Fatalf("the refused host was written anyway: %+v", own.Hosts)
 	}
 }
 

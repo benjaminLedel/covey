@@ -18,15 +18,21 @@ package orchestrator
 //     its ACCESS.md. Rejected at the action.
 //  3. PROVENANCE is written by the platform, not reported by the model: which
 //     task an agent came out of is recorded here.
-//  4. ONLY ITS OWN CHILDREN. set_agent_config reaches exactly the agents drafted
-//     in the same assignment. A compromised People department cannot rewrite the
-//     QA agent's soul — and it cannot rewrite its own either.
+//  4. NOT ITSELF. set_agent_config reaches every agent of the organisation,
+//     hired or drafted, except the one calling it: its own configuration it
+//     may only propose. Until #584 it reached only the drafts of the same
+//     assignment, and the People department could not finish what it had
+//     started — a follow-up in the same chat is a new task. Configuring an
+//     agent this assignment did not draft runs under its own guard-rail
+//     subject (covey:set_agent_config:foreign), so an organisation that wants
+//     the old boundary back gates exactly that and nothing else.
 
 import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -37,6 +43,7 @@ import (
 	"covey/internal/daemon"
 	"covey/internal/guardrails"
 	"covey/internal/observability"
+	targetstore "covey/internal/target/store"
 )
 
 // coveyOp is a meta action: its guard-rail subject, the scopes of which
@@ -62,6 +69,12 @@ var coveyOps = map[string]coveyOp{
 	"list_targets":     {Subject: "covey:list_targets", Scopes: []string{scopeWrite}},
 	"create_agent":     {Subject: "covey:create_agent", Scopes: []string{scopeWrite}},
 	"set_agent_config": {Subject: "covey:set_agent_config", Scopes: []string{scopeWrite}},
+	// What a colleague needs besides its config (#584): a target system the
+	// organisation has not switched on yet, and a host on its egress allowlist.
+	// Without them the People department drafts an ACCESS.md that names a
+	// system nobody enabled and hands the rest back to a human as a checklist.
+	"enable_target":   {Subject: "covey:enable_target", Scopes: []string{scopeWrite}},
+	"add_egress_host": {Subject: "covey:add_egress_host", Scopes: []string{scopeWrite}},
 	// To READ a colleague's config both sides are needed: whoever drafts, to hit
 	// the house style, and whoever reviews, to know what he
 	// judges (spec/21).
@@ -220,7 +233,7 @@ func (o *Orchestrator) hiring(ctx context.Context, agent agents.Agent, taskID uu
 		// read conversations".
 		params["binding"] = strings.TrimSpace(req.Task)
 	}
-	verdict := o.railsAllow(ctx, agent, taskID, def.Subject, params, def.AlwaysApprove)
+	verdict := o.railsAllow(ctx, agent, taskID, o.hiringSubject(ctx, agent, taskID, op, def, req), params, def.AlwaysApprove)
 	if verdict.Pending {
 		return daemon.InjectHiring{RequestID: req.RequestID, Pending: true,
 			ApprovalID: verdict.ApprovalID, CorrelationKey: verdict.CorrelationKey}
@@ -238,6 +251,10 @@ func (o *Orchestrator) hiring(ctx context.Context, agent agents.Agent, taskID uu
 		return o.hiringCreateAgent(ctx, agent, taskID, req, ok, fail)
 	case "set_agent_config":
 		return o.hiringSetConfig(ctx, agent, taskID, req, ok, fail)
+	case "enable_target":
+		return o.hiringEnableTarget(ctx, agent, taskID, req, ok, fail)
+	case "add_egress_host":
+		return o.hiringAddEgressHost(ctx, agent, taskID, req, ok, fail)
 	case "work_record":
 		return o.reviewWorkRecord(ctx, agent, req, ok, fail)
 	case "read_recording":
@@ -398,11 +415,11 @@ func (o *Orchestrator) hiringSetConfig(ctx context.Context, agent agents.Agent, 
 	if err != nil {
 		return fail("no agent %q in this organisation", slug)
 	}
-	// Rule 4: only its own children. Deliberately checked against the drafts of
-	// THIS assignment and not against "is a draft" — otherwise one hiring
-	// assignment could rewrite the drafts of another.
-	if !o.draftedHere(ctx, taskID, target.ID) {
-		return fail("agent %q was not drafted in this assignment — you can only configure your own drafts", slug)
+	// Rule 4: not itself. An agent that rewrites its own SOUL.md and ACCESS.md
+	// has no boundary left that a human set; its own config goes through
+	// propose_agent_config and a human's yes.
+	if target.ID == agent.ID {
+		return fail("you cannot write your own configuration — propose it with propose_agent_config")
 	}
 	if len(req.Files) == 0 {
 		return fail("files is missing (file name → complete content)")
@@ -451,6 +468,84 @@ func (o *Orchestrator) hiringSetConfig(ctx context.Context, agent agents.Agent, 
 	return ok(map[string]any{"agent": target.Slug, "written": written, "config": sortedKeys(files)})
 }
 
+// hiringSubject is the guard-rail subject of an action. One op has two:
+// set_agent_config on a draft of this assignment stays covey:set_agent_config,
+// on any other agent it is covey:set_agent_config:foreign — the same split as
+// covey:create_task and covey:create_task:foreign. An agent the slug does not
+// resolve to keeps the plain subject; the op refuses it a moment later anyway.
+func (o *Orchestrator) hiringSubject(ctx context.Context, agent agents.Agent, taskID uuid.UUID,
+	op string, def coveyOp, req daemon.RequestHiring) string {
+	if op != "set_agent_config" {
+		return def.Subject
+	}
+	target, err := o.Registry.GetBySlug(ctx, agent.OrgID, strings.TrimSpace(req.Agent))
+	if err != nil || o.draftedHere(ctx, taskID, target.ID) {
+		return def.Subject
+	}
+	return def.Subject + ":foreign"
+}
+
+// hiringEnableTarget switches a target system on for the organisation. Only
+// on: switching one off would take it away from every agent that already
+// works with it, and that is not part of setting a colleague up. The system's
+// credentials stay where they are — a system that needs a secret the
+// organisation has not stored is on and still answers "no credential", which
+// is the human's half.
+func (o *Orchestrator) hiringEnableTarget(ctx context.Context, agent agents.Agent, taskID uuid.UUID, req daemon.RequestHiring,
+	ok func(any) daemon.InjectHiring, fail func(string, ...any) daemon.InjectHiring) daemon.InjectHiring {
+
+	name := strings.TrimSpace(req.System)
+	if name == "" {
+		return fail("system is missing (the name list_targets reports, e.g. browser)")
+	}
+	if o.Targets == nil {
+		return fail("target systems are not wired on this instance")
+	}
+	if err := o.Targets.SetEnabled(ctx, agent.OrgID, name, true); err != nil {
+		if errors.Is(err, targetstore.ErrNotFound) {
+			return fail("no target system %q — list_targets names the ones this organisation can enable", name)
+		}
+		return fail("%v", err)
+	}
+	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
+		map[string]string{"status": "target_enabled", "system": name})
+	return ok(map[string]any{"system": name, "enabled": true})
+}
+
+// hiringAddEgressHost puts one host on a colleague's egress allowlist. Never
+// on its own: an agent that widens where it may connect to has no boundary a
+// human drew, the same reason rule 4 keeps its config out of reach.
+func (o *Orchestrator) hiringAddEgressHost(ctx context.Context, agent agents.Agent, taskID uuid.UUID, req daemon.RequestHiring,
+	ok func(any) daemon.InjectHiring, fail func(string, ...any) daemon.InjectHiring) daemon.InjectHiring {
+
+	slug := strings.TrimSpace(req.Agent)
+	if slug == "" {
+		return fail("agent is missing (the slug of the colleague that needs the host)")
+	}
+	host := strings.TrimSpace(req.Host)
+	if host == "" {
+		return fail("host is missing (e.g. docs.example.org or *.example.org)")
+	}
+	if o.Egress == nil {
+		return fail("egress control is not wired on this instance")
+	}
+	target, err := o.Registry.GetBySlug(ctx, agent.OrgID, slug)
+	if err != nil {
+		return fail("no agent %q in this organisation", slug)
+	}
+	if target.ID == agent.ID {
+		return fail("you cannot widen your own egress allowlist — ask a human for it")
+	}
+	h, err := o.Egress.AddAgentHost(ctx, target.ID, host, req.Note)
+	if err != nil {
+		return fail("%v", err)
+	}
+	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
+		map[string]string{"status": "egress_host_added", "agent": target.ID.String(),
+			"slug": target.Slug, "host": h.Pattern})
+	return ok(map[string]any{"agent": target.Slug, "host": h.Pattern})
+}
+
 // hiringParams is what stands in the approval — what a human has to read to
 // decide. Deliberately not the whole request: the files of a config run for
 // pages and do not belong in one line in the inbox. Their NAMES answer the
@@ -474,6 +569,8 @@ func hiringParams(req daemon.RequestHiring) map[string]any {
 	add("title", req.Title)
 	add("voice_name", req.VoiceName)
 	add("purpose", req.Purpose)
+	add("system", req.System)
+	add("host", req.Host)
 	if len(req.Files) > 0 {
 		out["files"] = sortedKeys(req.Files)
 	}
