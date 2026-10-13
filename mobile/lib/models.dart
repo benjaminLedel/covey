@@ -207,6 +207,7 @@ class ThreadEntry {
     this.speakerSlug = '',
     this.speakerHuman = false,
     this.mine,
+    this.files = const [],
   });
 
   /// A line of a conversation (#440) as the thread draws it: `text` is a
@@ -230,6 +231,7 @@ class ThreadEntry {
       speakerSlug: slug,
       speakerHuman: m.authorKind == 'human',
       mine: meId.isNotEmpty && m.authorKind == 'human' && m.authorId == meId,
+      files: m.files,
     );
   }
 
@@ -243,6 +245,7 @@ class ThreadEntry {
     text: j['text'] as String? ?? '',
     at: _time(j['at']),
     said: j['said'] as String? ?? '',
+    files: ChatAttachment.listOf(j['attachments']),
   );
 
   final String kind;
@@ -269,6 +272,9 @@ class ThreadEntry {
   /// Set in a conversation, where the author's id decides it; null in an
   /// agent's thread, where the author string does.
   final bool? mine;
+
+  /// The files the line carries (#586).
+  final List<ChatAttachment> files;
 
   /// The person's side of the thread. In an agent's thread the author is the
   /// only thing that decides it: `chat:<mail>` for a message, `human:<mail>`
@@ -402,6 +408,7 @@ class ConversationMessage {
     this.replyTo,
     this.createdAt,
     this.meta = const {},
+    this.files = const [],
   });
 
   factory ConversationMessage.fromJson(Map<String, dynamic> j) => ConversationMessage(
@@ -423,6 +430,7 @@ class ConversationMessage {
         for (final e in (j['meta'] as Map).entries)
           if (e.value is String) e.key.toString(): e.value as String,
     },
+    files: ChatAttachment.listOf(j['attachments']),
   );
 
   final String id;
@@ -445,6 +453,47 @@ class ConversationMessage {
   /// call, and on the agent's answer to one its spoken form (`spoken`,
   /// `details_in_chat`, #502).
   final Map<String, String> meta;
+
+  /// The files the message carries (#586).
+  final List<ChatAttachment> files;
+}
+
+/// A file a chat message carries (#586): handed over by an agent, or
+/// attached by a person — then [homePath] says where it lies in the agent's
+/// home. The bytes come from GET /chat/attachments/{id}, with the key.
+class ChatAttachment {
+  const ChatAttachment({
+    required this.id,
+    required this.name,
+    required this.mime,
+    required this.size,
+    this.homePath = '',
+  });
+
+  factory ChatAttachment.fromJson(Map<String, dynamic> j) => ChatAttachment(
+    id: j['id'] as String? ?? '',
+    name: j['name'] as String? ?? '',
+    mime: j['mime'] as String? ?? '',
+    size: (j['size'] as num?)?.toInt() ?? 0,
+    homePath: j['home_path'] as String? ?? '',
+  );
+
+  static List<ChatAttachment> listOf(Object? raw) => [
+    if (raw is List)
+      for (final a in raw)
+        if (a is Map<String, dynamic>) ChatAttachment.fromJson(a),
+  ];
+
+  final String id;
+  final String name;
+  final String mime;
+  final int size;
+  final String homePath;
+
+  /// Drawn as a picture. What Flutter cannot decode (an SVG, a HEIC on some
+  /// platforms) falls back to the chip where the picture fails.
+  bool get isImage => mime.startsWith('image/') && mime != 'image/svg+xml';
+  bool get isVideo => mime.startsWith('video/');
 }
 
 /// A conversation (#440): direct — two members, one per pair — or a group
@@ -640,6 +689,12 @@ class NotesPage {
   /// then.
   final bool summarize;
 }
+
+/// The limits the server holds a message's files to (chat.MaxAttachments,
+/// chat.MaxAttachmentBytes, #586) — checked in the app first, so that the
+/// person learns it before the upload rather than after.
+const chatMaxFiles = 10;
+const chatMaxBytes = 10 * 1024 * 1024;
 
 /// A file handed over with a message (#340): a name and its bytes, streamed.
 /// Its own type rather than the picker's, so the send path can be driven in

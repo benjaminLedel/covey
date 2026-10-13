@@ -97,11 +97,15 @@ class CoveyApi {
       ..headers.addAll({'Authorization': 'Bearer $_key', 'Accept': 'text/event-stream', 'Cache-Control': 'no-cache'}),
   );
 
-  Future<dynamic> _send(Future<http.Response> Function() call) async {
+  /// An upload of a message's files (#586) may carry 10 MiB from a phone on
+  /// a slow network; twenty seconds would cut it off half way.
+  static const _uploadTimeout = Duration(minutes: 3);
+
+  Future<dynamic> _send(Future<http.Response> Function() call, {Duration timeout = _timeout}) async {
     final http.Response res;
     final watch = Stopwatch()..start();
     try {
-      res = await call().timeout(_timeout);
+      res = await call().timeout(timeout);
     } catch (e) {
       diag('api', 'failed after ${watch.elapsedMilliseconds} ms: $e');
       throw ApiException(0, e.toString());
@@ -266,14 +270,55 @@ class CoveyApi {
   /// Writes in a conversation. What an agent makes of it the next read shows.
   /// [via] `call`: the line was said in a call (#494), and the conversation
   /// keeps that mark.
-  Future<ConversationMessage> postConversationMessage(String id, String text, {String? via}) async {
+  ///
+  /// With [files] the message goes as a form (#586), and the files travel
+  /// with it.
+  Future<ConversationMessage> postConversationMessage(
+    String id,
+    String text, {
+    String? via,
+    List<Attachment> files = const [],
+  }) async {
     final out =
-        await post('/conversations/$id/messages', {
-              'text': text,
-              if (via != null) 'meta': {'via': via},
-            })
+        (files.isNotEmpty
+                ? await _postForm('/conversations/$id/messages', text, files)
+                : await post('/conversations/$id/messages', {
+                    'text': text,
+                    if (via != null) 'meta': {'via': via},
+                  }))
             as Map<String, dynamic>;
     return ConversationMessage.fromJson(out['message'] as Map<String, dynamic>);
+  }
+
+  /// A message with files (#586): one multipart request with `text` and a
+  /// `file` part per file, on the route that takes the message as JSON
+  /// otherwise. The server holds the files to [chatMaxFiles] and
+  /// [chatMaxBytes]; the composer checks them before sending.
+  Future<dynamic> _postForm(String path, String text, List<Attachment> files) async {
+    final req = http.MultipartRequest('POST', _url(path))..headers.addAll(_headers);
+    if (text.isNotEmpty) req.fields['text'] = text;
+    for (final f in files) {
+      final length = f.length ?? (await f.open().fold<int>(0, (n, chunk) => n + chunk.length));
+      req.files.add(http.MultipartFile('file', f.open(), length, filename: f.name));
+    }
+    return _send(() async => http.Response.fromStream(await _http.send(req)), timeout: _uploadTimeout);
+  }
+
+  /// A file a chat message carries (#586), as bytes — fetched with the key,
+  /// which is why a picture cannot simply hand the image widget a URL.
+  /// [download] asks for it as an attachment whatever its type.
+  Future<Uint8List> chatAttachment(String id, {bool download = false}) async {
+    final http.Response res;
+    try {
+      res = await _http
+          .get(_url(download ? '/chat/attachments/$id?download=1' : '/chat/attachments/$id'), headers: _headers)
+          .timeout(_uploadTimeout);
+    } catch (e) {
+      throw ApiException(0, e.toString());
+    }
+    diag('api', 'GET ${res.request?.url.path} ${res.statusCode}');
+    if (res.statusCode != 200) throw ApiException(res.statusCode, 'HTTP ${res.statusCode}');
+    return res.bodyBytes;
   }
 
   /// The conversation has been read up to [at], the newest message shown.
@@ -326,7 +371,12 @@ class CoveyApi {
 
   /// Hands work over. What becomes of it — a task, or an answer when the
   /// organisation runs the triage — the thread shows on its next read.
-  Future<void> send(String agentId, String text) => post('/agents/$agentId/messages', {'text': text});
+  ///
+  /// With [files] the message goes as a form (#586): the server keeps the
+  /// files at the message and puts them into the agent's home.
+  Future<void> send(String agentId, String text, {List<Attachment> files = const []}) => files.isEmpty
+      ? post('/agents/$agentId/messages', {'text': text})
+      : _postForm('/agents/$agentId/messages', text, files);
 
   /// Answers a parked question. Returns whether it woke the agent; false is
   /// not an error — nobody was waiting, and the text stays on the task as a
@@ -382,25 +432,6 @@ class CoveyApi {
   /// A summary and the action items — one model turn on the instance.
   Future<Note> summarizeNote(String id) async =>
       Note.fromJson(await post('/me/notes/$id/summarize', const {}) as Map<String, dynamic>);
-
-  /// The folder in the agent's home a message's files go to — the web's
-  /// ANHANG_ORDNER (web/src/team/Thread.tsx), so a file from the phone lies
-  /// where a file from the browser lies.
-  static const inbox = 'eingang';
-
-  /// Uploads files into the agent's home under [inbox] (#340) and returns
-  /// the paths the message names. One multipart request, field "file", the
-  /// route the web uses.
-  Future<List<String>> uploadToInbox(String agentId, List<Attachment> files) async {
-    final req = http.MultipartRequest('POST', _url('/agents/$agentId/files/upload?path=$inbox'))
-      ..headers.addAll(_headers);
-    for (final f in files) {
-      final length = f.length ?? (await f.open().fold<int>(0, (n, chunk) => n + chunk.length));
-      req.files.add(http.MultipartFile('file', f.open(), length, filename: f.name));
-    }
-    await _send(() async => http.Response.fromStream(await _http.send(req)));
-    return [for (final f in files) '$inbox/${f.name}'];
-  }
 
   /// Uploads a picture for the seat's notes (#344) and returns the reference
   /// a note's Markdown carries: `covey-media://<id>`.

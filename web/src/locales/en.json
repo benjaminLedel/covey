@@ -2827,6 +2827,7 @@
     "notizenSuchen": "Search notes",
     "anhangFoto": "Photo or video",
     "anhangDatei": "File",
+    "anhangNichtGeladen": "The file could not be loaded.",
     "webHinweis": "Your notes are private: nobody else reads them. Voice notes and meetings are recorded in the covey app, where speech is recognised on the device; here you read, search, summarise and type them.",
     "fertig": "Done",
     "entfernen": "Remove",

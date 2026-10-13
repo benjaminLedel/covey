@@ -2827,6 +2827,7 @@
     "notizenSuchen": "Pesquisar notas",
     "anhangFoto": "Foto ou vídeo",
     "anhangDatei": "Ficheiro",
+    "anhangNichtGeladen": "Não foi possível carregar o ficheiro.",
     "webHinweis": "As suas notas são privadas: mais ninguém as lê. As notas de voz e as reuniões gravam-se na aplicação covey, onde a fala é reconhecida no dispositivo; aqui pode lê-las, pesquisá-las, resumi-las e escrever novas.",
     "fertig": "OK",
     "entfernen": "Remover",

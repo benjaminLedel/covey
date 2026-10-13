@@ -34,7 +34,7 @@
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Photos and videos you choose are attached to a message for an agent, or become your profile photo.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>The camera reads the QR code covey shows to pair this app, and takes your profile photo when you ask for it.</string>
+	<string>The camera reads the QR code covey shows to pair this app, takes your profile photo when you ask for it, and takes a photo you attach to a message.</string>
 	<key>CFBundleDisplayName</key>
 	<string>covey</string>
 	<!-- The app encrypts only through the system (HTTPS, Keychain), which the
