@@ -65,6 +65,8 @@ import (
 	"covey/internal/templates"
 	"covey/internal/voice"
 	"covey/internal/waitlist"
+	"covey/internal/workflow"
+	"covey/internal/workflowhost"
 	orgworkplaces "covey/internal/workplaces"
 	"covey/migrations"
 	"covey/web"
@@ -1437,7 +1439,25 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	// A finished task is news for whoever answers for the agent. The hook sits
 	// on the store rather than on the five places that end a task — see
 	// backlog.Store.OnComplete.
-	backlogStore.OnComplete = orch.NotifyTaskEnded
+	// Workflows (#563): one engine per stored workflow, runs restored from the
+	// database. A workflow step is a backlog task; when it ends, the workflow
+	// moves its case on — so the completion hook tells both.
+	workflows := &workflowhost.Host{
+		Store:   workflow.NewStore(pool),
+		Backlog: backlogStore,
+		Agents:  registry,
+		Log:     log,
+	}
+	// Gates and actions are the orchestrator's (#566): the heartbeat's gate,
+	// and an action run as a colleague under its rules.
+	workflows.Platform = orch
+	if err := workflows.Load(ctx); err != nil {
+		log.Error("workflows not loaded", "err", err)
+	}
+	backlogStore.OnComplete = func(ctx context.Context, t backlog.Task) {
+		orch.NotifyTaskEnded(ctx, t)
+		workflows.TaskEnded(ctx, t)
+	}
 	// A registered host that leaves takes an organisation's data plane with
 	// it. Whether that is worth a mail is decided when the mail would go out:
 	// a runner back within the window produces none.
@@ -1507,11 +1527,12 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		}(),
 		Workplaces: workplaces, OrgWorkplaces: orgWorkplaces,
 		Settings: settingsStore, Accounts: accounts.New(pool), Waitlist: waitlist.New(pool),
-		Mail:   mail.New(settingsStore),
-		Notify: notifyStore,
-		Skills: skillStore,
-		Voices: voiceStore,
-		Orch:   orch, WebFS: dist, Log: log,
+		Mail:      mail.New(settingsStore),
+		Notify:    notifyStore,
+		Skills:    skillStore,
+		Workflows: workflows,
+		Voices:    voiceStore,
+		Orch:      orch, WebFS: dist, Log: log,
 		WebhookSecrets: cfg.WebhookSecrets,
 		SessionTTL:     cfg.SessionTTL,
 		SiteURL:        cfg.SiteURL,
@@ -1551,6 +1572,8 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 			log.Error("orchestrator", "err", err)
 		}
 	}()
+	// The workflows' clock: limits, waits, steps that found someone.
+	go workflows.Run(ctx, 30*time.Second)
 
 	// The agents' night rest: once a night each of them tidies up its wiki. The
 	// credential comes per agent from the organization — without one there is

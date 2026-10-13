@@ -2859,6 +2859,25 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		o.publishTask(taskID, agent)
 		return true, nil
 
+	case daemon.TypeReport:
+		rp, err := daemon.DecodePayload[daemon.Report](msg)
+		if err != nil {
+			return false, nil
+		}
+		// The proxy names the task it runs for; a report for any other task
+		// of the organisation would let one agent steer another's workflow.
+		if rp.TaskID != taskID.String() {
+			o.Log.Warn("report: names another task than the running one", "task", taskID, "named", rp.TaskID)
+			return false, nil
+		}
+		if err := o.Backlog.SetReport(ctx, taskID, rp.Fields); err != nil {
+			o.Log.Warn("report: could not be stored", "task", taskID, "err", err)
+			return false, nil
+		}
+		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
+			map[string]string{"status": "reported", "fields": strconv.Itoa(len(rp.Fields))})
+		return false, nil
+
 	case daemon.TypeSetStage:
 		ss, err := daemon.DecodePayload[daemon.SetStage](msg)
 		if err != nil {
@@ -3613,7 +3632,7 @@ func (o *Orchestrator) decideAction(ctx context.Context, agent agents.Agent, tas
 			Reason: "forbidden by guard rail " + verdict.Rule.Pattern}
 
 	case guardrails.RequireApproval:
-		v := o.approvalGate(ctx, agent, taskID, req.Action, json.RawMessage(req.Params), "")
+		v := o.approvalGate(ctx, agent, &taskID, req.Action, json.RawMessage(req.Params), "")
 		switch {
 		case v.Error != "":
 			return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "denied", Reason: v.Error}
@@ -3647,7 +3666,8 @@ type gateVerdict struct {
 	Error string
 }
 
-// approvalGate is the require_approval branch of the guard rails.
+// approvalGate is the require_approval branch of the guard rails. taskID may be
+// nil: a workflow's action (#566) waits for its approval without a task.
 //
 // Deliberately extracted and not left at the target-system path: the same
 // mechanics carry the platform's meta-actions (spec/21). There a
@@ -3666,7 +3686,7 @@ type gateVerdict struct {
 // `slug: "helper"` the one for `slug: "backdoor"`. Only the target-system
 // path still comes here with an empty binding; there the action itself is the
 // object.
-func (o *Orchestrator) approvalGate(ctx context.Context, agent agents.Agent, taskID uuid.UUID,
+func (o *Orchestrator) approvalGate(ctx context.Context, agent agents.Agent, taskID *uuid.UUID,
 	action string, params json.RawMessage, binding string) gateVerdict {
 
 	// An unused approval for exactly this action? Then consume it.
@@ -3678,18 +3698,18 @@ func (o *Orchestrator) approvalGate(ctx context.Context, agent agents.Agent, tas
 			ORDER BY decided_at DESC LIMIT 1)
 		RETURNING id`, agent.ID, action, binding).Scan(&approvalID)
 	if err == nil {
-		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindApproval,
+		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, taskID, observability.KindApproval,
 			map[string]any{"action": action, "decision": "approved", "approval_id": approvalID.String()})
 		return gateVerdict{Approved: true, ApprovalID: approvalID.String()}
 	}
 	if len(params) == 0 {
 		params = json.RawMessage(`{}`)
 	}
-	appr, err := o.Obs.CreateApproval(ctx, agent.OrgID, agent.ID, &taskID, action, params)
+	appr, err := o.Obs.CreateApproval(ctx, agent.OrgID, agent.ID, taskID, action, params)
 	if err != nil {
 		return gateVerdict{Error: err.Error()}
 	}
-	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindApproval,
+	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, taskID, observability.KindApproval,
 		map[string]any{"action": action, "decision": "pending", "approval_id": appr.ID.String()})
 	o.events.Publish(Event{Type: "approval", AgentID: agent.ID.String(), OrgID: agent.OrgID,
 		Data: map[string]string{"approval_id": appr.ID.String(), "action": action}})

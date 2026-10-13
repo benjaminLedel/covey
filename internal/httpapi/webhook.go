@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/google/uuid"
 	"io"
 	"net/http"
 	"strings"
@@ -52,44 +53,8 @@ func (s *Server) handleTargetWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sys, err := s.Targets.System(r.Context(), agent.OrgID, systemName)
-	if err != nil {
-		if errors.Is(err, targetstore.ErrNotFound) {
-			writeErr(w, http.StatusNotFound, "target system "+systemName+" unknown or disabled")
-			return
-		}
-		mapErr(w, err)
-		return
-	}
-	// Webhooks are an optional target-system capability (target.Webhooker) —
-	// systems that ingest purely by polling/heartbeat (e.g. GitLab) have no
-	// webhook entrance; fail-closed with a 404.
-	//
-	// For a compiled plugin the method set is the answer. A data-driven one
-	// (manifest, wasm) carries every method in its Go type whether or not it
-	// does anything, so it has to be asked as well — otherwise every wasm
-	// module would grow a webhook door that leads to an error message.
-	hook, ok := sys.(target.Webhooker)
-	if r, reports := sys.(target.CapabilityReporter); ok && reports {
-		ok = r.Supports(wasmplug.CapWebhook)
-	}
+	ev, ok := s.readTargetWebhook(w, r, agent.OrgID, systemName)
 	if !ok {
-		writeErr(w, http.StatusNotFound, "target system "+systemName+" has no webhook entrance (ingest via polling/heartbeat)")
-		return
-	}
-
-	body, err := io.ReadAll(io.LimitReader(r.Body, 4<<20))
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, "body not readable")
-		return
-	}
-	if !hook.VerifyWebhook(s.WebhookSecrets[systemName], body, r.Header) {
-		writeErr(w, http.StatusUnauthorized, "invalid signature")
-		return
-	}
-	ev, err := hook.ParseWebhook(body)
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -204,16 +169,86 @@ func (s *Server) handleAgentTrigger(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	in, ok := readTriggerPayload(w, r)
+	if !ok {
+		return
+	}
+
+	outcome, err := s.Orch.HandleAgentTrigger(r.Context(), agent, in.Title, in.Body, in.Priority, in.DedupKey)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"outcome": outcome})
+}
+
+// readTargetWebhook is the part of a target webhook that belongs to the
+// target system, not to its recipient: the system has to be active for the
+// organisation and have a webhook entrance, the body is verified with the
+// system's webhook secret and parsed by the system's own code. An agent's
+// webhook and a workflow's (#566) take the same way in.
+func (s *Server) readTargetWebhook(w http.ResponseWriter, r *http.Request, orgID uuid.UUID, systemName string) (target.WebhookEvent, bool) {
+	sys, err := s.Targets.System(r.Context(), orgID, systemName)
+	if err != nil {
+		if errors.Is(err, targetstore.ErrNotFound) {
+			writeErr(w, http.StatusNotFound, "target system "+systemName+" unknown or disabled")
+			return target.WebhookEvent{}, false
+		}
+		mapErr(w, err)
+		return target.WebhookEvent{}, false
+	}
+	// Webhooks are an optional target-system capability (target.Webhooker) —
+	// systems that ingest purely by polling/heartbeat (e.g. GitLab) have no
+	// webhook entrance; fail-closed with a 404.
+	//
+	// For a compiled plugin the method set is the answer. A data-driven one
+	// (manifest, wasm) carries every method in its Go type whether or not it
+	// does anything, so it has to be asked as well — otherwise every wasm
+	// module would grow a webhook door that leads to an error message.
+	hook, ok := sys.(target.Webhooker)
+	if r, reports := sys.(target.CapabilityReporter); ok && reports {
+		ok = r.Supports(wasmplug.CapWebhook)
+	}
+	if !ok {
+		writeErr(w, http.StatusNotFound, "target system "+systemName+" has no webhook entrance (ingest via polling/heartbeat)")
+		return target.WebhookEvent{}, false
+	}
+
+	body, err := io.ReadAll(io.LimitReader(r.Body, 4<<20))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "body not readable")
+		return target.WebhookEvent{}, false
+	}
+	if !hook.VerifyWebhook(s.WebhookSecrets[systemName], body, r.Header) {
+		writeErr(w, http.StatusUnauthorized, "invalid signature")
+		return target.WebhookEvent{}, false
+	}
+	ev, err := hook.ParseWebhook(body)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return target.WebhookEvent{}, false
+	}
+
+	return ev, true
+}
+
+// triggerPayload is what a token trigger carries: JSON {title, body, priority,
+// dedup_key, case}, or anything else as the body.
+type triggerPayload struct {
+	Title    string `json:"title"`
+	Body     string `json:"body"`
+	Priority int    `json:"priority"`
+	DedupKey string `json:"dedup_key"`
+	// Case names the case for a workflow's trigger (#566); agents ignore it.
+	Case string `json:"case"`
+}
+
+func readTriggerPayload(w http.ResponseWriter, r *http.Request) (triggerPayload, bool) {
+	var in triggerPayload
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "body not readable")
-		return
-	}
-	var in struct {
-		Title    string `json:"title"`
-		Body     string `json:"body"`
-		Priority int    `json:"priority"`
-		DedupKey string `json:"dedup_key"`
+		return in, false
 	}
 	raw := strings.TrimSpace(string(body))
 	if err := json.Unmarshal(body, &in); err != nil {
@@ -229,11 +264,5 @@ func (s *Server) handleAgentTrigger(w http.ResponseWriter, r *http.Request) {
 	if in.Priority < 1 || in.Priority > 5 {
 		in.Priority = 3
 	}
-
-	outcome, err := s.Orch.HandleAgentTrigger(r.Context(), agent, in.Title, in.Body, in.Priority, in.DedupKey)
-	if err != nil {
-		mapErr(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]string{"outcome": outcome})
+	return in, true
 }

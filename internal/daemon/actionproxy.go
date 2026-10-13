@@ -260,6 +260,17 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 		audit, _ := json.Marshal(map[string]any{"action": "covey:" + action, "scope": scope, "content": in.Content})
 		_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
 		return map[string]string{"status": "ok", "scope": scope}
+	case "report":
+		fields, problem := reportFields(params)
+		if problem != "" {
+			return map[string]string{"status": "error", "error": problem}
+		}
+		if err := p.client.send(TypeReport, Report{TaskID: p.taskID, Fields: fields}); err != nil {
+			return map[string]string{"status": "error", "error": err.Error()}
+		}
+		audit, _ := json.Marshal(map[string]any{"action": "covey:report", "fields": len(fields)})
+		_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
+		return map[string]string{"status": "ok", "reported": strconv.Itoa(len(fields))}
 	case "set_stage":
 		var in struct {
 			Stage  string `json:"stage"`
@@ -593,4 +604,38 @@ func jsonStringEscape(s string) string {
 		return ""
 	}
 	return string(b[1 : len(b)-1])
+}
+
+// reportFields reads the parameters of covey/report: a flat object whose
+// values become text. Numbers and true/false are taken as written; nested
+// objects are refused — a workflow's condition compares a value, and a
+// structure would only ever compare unequal.
+func reportFields(params json.RawMessage) (map[string]string, string) {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(params, &raw); err != nil || len(raw) == 0 {
+		return nil, "report needs an object of fields, e.g. {\"result\":\"accepted\"}"
+	}
+	if len(raw) > 32 {
+		return nil, "report takes at most 32 fields"
+	}
+	out := make(map[string]string, len(raw))
+	for k, v := range raw {
+		if k == "" || len(k) > 64 {
+			return nil, "a field name must have 1 to 64 characters"
+		}
+		var str string
+		if t := strings.TrimSpace(string(v)); t == "null" {
+			return nil, "field " + k + " is empty; leave it out instead"
+		} else if err := json.Unmarshal(v, &str); err == nil {
+			out[k] = str
+		} else if t := strings.TrimSpace(string(v)); t != "" && t[0] != '{' && t[0] != '[' && t != "null" {
+			out[k] = t
+		} else {
+			return nil, "field " + k + " must be text, a number or true/false"
+		}
+		if len(out[k]) > 8000 {
+			return nil, "field " + k + " is longer than 8000 characters"
+		}
+	}
+	return out, ""
 }

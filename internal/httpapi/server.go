@@ -59,6 +59,7 @@ import (
 	"covey/internal/templates"
 	"covey/internal/voice"
 	"covey/internal/waitlist"
+	"covey/internal/workflowhost"
 	"covey/internal/workplaces"
 )
 
@@ -133,6 +134,9 @@ type Server struct {
 	// nil = feature switched off; the skill routes then answer with 503
 	// (the same meaning as orchestrator.Options.Skills == nil).
 	Skills *skills.Store
+	// Workflows runs the organisation's workflows (#563, #564). nil = the
+	// workflow routes answer 503.
+	Workflows *workflowhost.Host
 	// Voices is the organisation's style library (spec/24). nil = the feature
 	// is not configured on this instance, and the API says so rather than
 	// panicking.
@@ -768,6 +772,21 @@ func (s *Server) Handler() http.Handler {
 	// The route /api/v1/skills/covey-agent.zip further up is something else
 	// (the Claude Code skill to download) and, as a literal segment, takes
 	// precedence over the {id} placeholder.
+	// Workflows (workflows.go, #564). Reading is for everyone in the
+	// organisation; writing a definition and starting a run by hand for those
+	// who manage agents; a decision checks its person in the handler.
+	mux.Handle("GET /api/v1/workflows", s.rbac(anyRole, s.handleListWorkflows))
+	mux.Handle("POST /api/v1/workflows/check", s.rbac(manage, s.handleCheckWorkflow))
+	mux.Handle("GET /api/v1/workflows/mine", s.rbac(anyRole, s.handleMyApprovals))
+	mux.Handle("GET /api/v1/workflows/{slug}", s.rbac(anyRole, s.handleGetWorkflow))
+	mux.Handle("PUT /api/v1/workflows/{slug}", s.rbac(manage, s.handlePutWorkflow))
+	mux.Handle("GET /api/v1/workflows/{slug}/runs", s.rbac(anyRole, s.handleListRuns))
+	mux.Handle("POST /api/v1/workflows/{slug}/runs", s.rbac(manage, s.handleStartRun))
+	mux.Handle("GET /api/v1/workflows/{slug}/runs/{id}", s.rbac(anyRole, s.handleGetRun))
+	mux.Handle("POST /api/v1/workflows/{slug}/runs/{id}/decide", s.rbac(anyRole, s.handleDecideRun))
+	mux.Handle("POST /api/v1/workflows/{slug}/runs/{id}/events", s.rbac(manage, s.handleRunEvent))
+	mux.Handle("POST /api/v1/workflows/{slug}/token", s.rbac(manage, s.handleWorkflowToken))
+	mux.Handle("DELETE /api/v1/workflows/{slug}/token", s.rbac(manage, s.handleWorkflowToken))
 	mux.Handle("GET /api/v1/skills", s.rbac(anyRole, s.handleListSkills))
 	mux.Handle("POST /api/v1/skills", s.rbac(manage, s.handleCreateSkill))
 	mux.Handle("GET /api/v1/skills/{id}", s.rbac(anyRole, s.handleGetSkill))
@@ -878,6 +897,10 @@ func (s *Server) Handler() http.Handler {
 	// question when hooking up a target system.
 	mux.HandleFunc("POST /api/webhooks/{system}/{agent}", s.logIncoming(s.handleTargetWebhook))
 	mux.HandleFunc("POST /api/trigger/{token}", s.logIncoming(s.handleAgentTrigger))
+	// A workflow's own doors (#566): the same webhook parsing and the same
+	// token trigger, delivered to the workflow instead of an agent.
+	mux.HandleFunc("POST /api/webhooks/{system}/workflows/{id}", s.logIncoming(s.handleWorkflowWebhook))
+	mux.HandleFunc("POST /api/trigger/workflows/{token}", s.logIncoming(s.handleWorkflowTrigger))
 	mux.HandleFunc("GET /api/daemon/ws", s.handleDaemonWS)
 
 	// The runner API (spec/16): a runner's only interface to the platform,

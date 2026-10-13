@@ -89,7 +89,8 @@
     "infrastructure": "Infrastruktura",
     "apps": "Aplikacja covey",
     "helpShort": "Pomoc",
-    "menu": "Menu"
+    "menu": "Menu",
+    "workflows": "Przepływy pracy"
   },
   "costs": {
     "title": "Koszty i tokeny",
@@ -3270,5 +3271,306 @@
   },
   "voicePicker": {
     "unlisted": "{{name}} (spoza listy dostawcy)"
+  },
+  "workflows": {
+    "title": "Przepływy pracy",
+    "orgWide": "w całej organizacji",
+    "lead": "Przepływ pracy określa, kto pracuje nad sprawą po kim, ponad działami i systemami docelowymi. Wskazuje role, nie imiona: kto zajmuje rolę, rozstrzyga covey na starcie kroku.",
+    "col": {
+      "name": "Przepływ pracy",
+      "mode": "Działanie",
+      "cases": "Sprawy",
+      "stuck": "Utknęły"
+    },
+    "mode": {
+      "off": "wyłączony",
+      "watch": "obserwuje",
+      "steer": "steruje"
+    },
+    "modeButton": {
+      "off": "Wyłączony",
+      "watch": "Tylko obserwuj",
+      "steer": "Steruje"
+    },
+    "modeLabel": "Co robi przepływ pracy",
+    "viewLabel": "Widok",
+    "modeText": {
+      "off": "Wyłączony. Przepływ pracy istnieje, ale nic nie robi. Współpracownicy przekazują sobie sprawy według własnych playbooków, tak jak dotąd.",
+      "watch": "Tylko obserwuj. covey odczytuje z systemów docelowych, na jakim etapie jest każda sprawa, pokazuje, co utknęło, i pyta o zatwierdzenia. Sprawy nadal przekazują sobie sami współpracownicy. Dobry początek.",
+      "steer": "Steruje. covey uruchamia kroki, wybiera osobę z roli, przydziela i przekazuje sprawy. Playbooki mówią już tylko, jak ktoś wykonuje swój krok."
+    },
+    "without": {
+      "title": "Można pracować bez przepływu pracy.",
+      "text": "Współpracownicy, którzy nie należą do żadnego przepływu pracy, pracują jak dotąd: heartbeat, chat i backlog. Przepływ pracy jest potrzebny tam, gdzie kilka ról pracuje po kolei nad jedną sprawą i przekazanie może się zawieść."
+    },
+    "tab": {
+      "edit": "Edytuj",
+      "live": "Na żywo",
+      "run": "Uruchomienia",
+      "file": "Jako plik"
+    },
+    "type": {
+      "trigger": "Wyzwalacz",
+      "agent": "Współpracownik",
+      "ai": "Krok AI",
+      "condition": "Warunek",
+      "action": "Akcja",
+      "approval": "Zatwierdzenie",
+      "wait": "Oczekiwanie",
+      "notify": "Powiadomienie",
+      "end": "Koniec"
+    },
+    "typeDesc": {
+      "trigger": "Kiedy startuje uruchomienie: zgłoszenie, mail, harmonogram, chat",
+      "agent": "Rola wykonuje krok, z doświadczeniem i uprawnieniami",
+      "ai": "Krótkie zadanie bez współpracownika: klasyfikacja, streszczenie",
+      "condition": "Rozgałęzia według wyniku kroku",
+      "action": "covey sam coś robi w systemie docelowym",
+      "approval": "Decyduje człowiek, w swoim czacie",
+      "wait": "Do zdarzenia albo upływu czasu",
+      "notify": "Wiadomość w czacie osoby",
+      "end": "Uruchomienie jest zakończone"
+    },
+    "blocks": "Klocki",
+    "legend": {
+      "edit": "Bloki po lewej: kliknięcie dodaje blok. Przeciągnij z kropki po prawej stronie bloku, aby go połączyć. Linia przerywana: rola nieobsadzona, krok jest pomijany.",
+      "live": "Niebieski: w pracy. Żółty: w kolejce, czeka na wolnego współpracownika. Szary: czeka na kogoś z zewnątrz. Czerwony: dłużej niż dozwolone.",
+      "run": "Niebieski: droga sprawy {{no}}. „2×” oznacza, że krok przeszedł w kilku rundach.",
+      "runs": "Liczby pokazują, na jakim etapie są uruchomienia. Kliknięcie kroku filtruje listę."
+    },
+    "workflow": "Przepływ pracy",
+    "name": "Nazwa",
+    "owner": "Odpowiedzialny",
+    "ownerHint": "Dostaje w czacie wszystko, czego przepływ pracy nie rozwiąże sam.",
+    "checks": "Kontrola",
+    "save": "Zapisz jako wersję {{n}}",
+    "removeBlock": "Usuń klocek",
+    "unfilled": "nieobsadzona",
+    "unfilledSkipped": "nieobsadzona · pominięta",
+    "optionalShort": "opcjonalnie",
+    "sumPool": "Rola {{role}} · dostępnych {{free}} z {{all}}",
+    "sumRole": "Rola {{role}} → {{name}}",
+    "sumAi": "bez współpracownika",
+    "sumCondition": "według: {{field}}",
+    "sumApproval": "{{who}}, w czacie",
+    "sumWait": "do: {{until}}",
+    "sumNotify": "{{to}}, przez {{via}}",
+    "sumEnd": "uruchomienie zakończone",
+    "link": {
+      "title": "Połączenie",
+      "branch": "Gałąź „{{label}}”.",
+      "remove": "Usuń połączenie"
+    },
+    "trigger": {
+      "reuse": "Przepływ pracy startuje z wyzwalaczami, które mają agenci: harmonogram z warunkiem heartbeatu, webhook systemu docelowego, wyzwalacz przez token.",
+      "every": "Co",
+      "everyShort": "co",
+      "daily": "Codziennie o",
+      "dailyShort": "codziennie",
+      "dailyHint": "HH:MM, jak täglich: w heartbeacie.",
+      "onlyIf": "Tylko jeśli",
+      "onlyIfHint": "Ten sam warunek co nur-wenn: w heartbeacie, np. gitlab:issues:assignee:<user>:<projekt>. Bez niego harmonogram zawsze uruchamia sprawę.",
+      "as": "Sprawdza jako",
+      "asHint": "Współpracownik, z którego dostępem sprawdzany jest warunek, tak jak heartbeat używa dostępu swojego agenta.",
+      "webhook": "Webhook z",
+      "webhookHint": "Adres dla systemu docelowego: {{url}}",
+      "token": "Start przez token (jak wyzwalacz agenta)",
+      "newToken": "Utwórz nowy token",
+      "tokenShown": "Pokazany tylko teraz. Dotychczasowy token przestaje działać.",
+      "manual": "Sprawę zawsze można uruchomić ręcznie w Sprawach albo przez API."
+    },
+    "agent": {
+      "role": "Rola",
+      "roleHint": "Przepływ pracy wskazuje rolę. Kto ją zajmuje, rozstrzyga covey na starcie kroku.",
+      "addMember": "Dodaj współpracownika do roli",
+      "state_stopped": "zatrzymany",
+      "state_draft": "szkic",
+      "pick": "Wybór",
+      "pick_load": "kto ma najmniej do zrobienia",
+      "pick_round": "po kolei",
+      "cap": "Najwyżej naraz na współpracownika",
+      "capNone": "bez limitu",
+      "sticky": "Zostaje przy sprawie: kolejne rundy trafiają do tej samej osoby",
+      "notSame": "Nie ta sama osoba co",
+      "notSameHint": "Zasada czterech oczu. Egzekwuje ją covey.",
+      "optional": "Opcjonalnie: pomiń, gdy rola jest nieobsadzona",
+      "task": "Zadanie",
+      "taskHint": "Współpracownik dostaje to jako zadanie. Kliknięcie wstawia wartość:",
+      "result": "Wynik do zgłoszenia",
+      "resultHint": "Późniejsze kroki go odczytują, np. warunek.",
+      "limit": "Najwyżej",
+      "limitHint": "Potem przepływ pracy zgłasza sprawę jako utkniętą.",
+      "empty": "Nikt w roli {{role}} nie jest dostępny.",
+      "emptySkip": "Krok jest opcjonalny i zostanie pominięty.",
+      "emptyOwner": "Uruchomienia trafiają do osoby odpowiedzialnej.",
+      "state_ok": "dostępny",
+      "state_unknown": "brak takiego agenta"
+    },
+    "ai": {
+      "prompt": "Polecenie",
+      "notYet": "Kroki AI nie są jeszcze podłączone: sprawa zatrzymuje się na tym kroku."
+    },
+    "condition": {
+      "field": "Sprawdza",
+      "rounds": "Najwyżej rund",
+      "roundsHint": "Pętli bez limitu nie można zapisać.",
+      "addValue": "Wartość + Enter",
+      "fieldHint": "Krok i pole, np. a.result: to, co zgłosił współpracownik.",
+      "values": "Drogi według wartości",
+      "valuesHint": "Każda wartość dostaje własne wyjście. “else” łapie wszystkie pozostałe wartości."
+    },
+    "action": {
+      "system": "System docelowy",
+      "op": "Akcja",
+      "reuse": "Wykonuje własną akcję systemu docelowego jako współpracownik wskazany tutaj: z jego dostępem, przypisanymi narzędziami, zabezpieczeniami i zatwierdzeniami.",
+      "as": "Wykonuje jako",
+      "asHint": "Agent albo rola, z której wybierany jest pierwszy dostępny członek.",
+      "opHint": "Akcja wtyczki, tak jak wywołuje ją agent, np. set_state.",
+      "params": "Parametry",
+      "paramsHint": "Po jednym w wierszu, nazwa: wartość. Symbole zastępcze jak {{case.no}} są wypełniane; liczby całkowite i true/false są przekazywane bez zmian."
+    },
+    "approval": {
+      "who": "Kto decyduje",
+      "question": "Pytanie",
+      "questionHint": "Pojawia się jako karta w czacie tej osoby, z jednym przyciskiem na gałąź. Działa też wolny tekst.",
+      "wait": "Czekaj na odpowiedź",
+      "addOption": "Opcja + Enter",
+      "options": "Opcje",
+      "whoHint": "E-mail, część przed @ lub wyświetlana nazwa osoby, która decyduje."
+    },
+    "wait": {
+      "until": "Do",
+      "max": "Najwyżej",
+      "untilHint": "Nazwa zdarzenia, np. label:customer-ok. Dopóki systemy docelowe same go nie wysyłają, jest dostarczane przez API."
+    },
+    "notify": {
+      "to": "Do",
+      "text": "Tekst",
+      "notYet": "Wiadomości nie są jeszcze podłączone: sprawa toczy się dalej, wiadomość jest tylko odnotowana w jej historii."
+    },
+    "end": {
+      "text": "Uruchomienie kończy się tutaj. Samo zgłoszenie zostaje w systemie docelowym bez zmian."
+    },
+    "live": {
+      "title": "Co teraz trwa",
+      "nowAt": "{{type}} · teraz",
+      "nothingHere": "Teraz nic tu nie ma.",
+      "stuck": "dłużej, niż wolno",
+      "attention": "Wymaga uwagi",
+      "nothing": "Nic.",
+      "hint": "Kliknięcie kroku pokazuje, kto tam jest. Kliknięcie sprawy otwiera jej uruchomienie.",
+      "offTitle": "Przepływ pracy jest wyłączony",
+      "offText": "Dopóki przepływ pracy jest wyłączony, covey nie przypisuje mu spraw. Współpracownicy pracują według swoich playbooków.",
+      "watchNote": "covey odczytuje stany z systemu docelowego i zgłasza, co utknęło, ale sam niczego nie przekazuje.",
+      "stuckBadge": "{{count}} utknęło",
+      "stuckBadge_one": "{{count}} utknęła",
+      "skipped": "pominięty",
+      "working": "{{count}} w toku",
+      "working_one": "{{count}} w toku",
+      "queued": "{{count}} w kolejce",
+      "queued_one": "{{count}} w kolejce",
+      "waiting": "{{count}} czeka",
+      "waiting_one": "{{count}} czeka",
+      "statWorking": "w toku",
+      "statQueued": "w kolejce do wolnego współpracownika",
+      "allInList": "Wszystkie {{count}} na liście",
+      "allInList_one": "{{count}} na liście",
+      "groupWorking": "W toku",
+      "groupQueued": "W kolejce · najpierw następne",
+      "groupWaiting": "Oczekujące",
+      "whyStuck": "dłużej niż dozwolone",
+      "whyUnstaffed": "nikt nie ma tej roli"
+    },
+    "run": {
+      "title": "Uruchomienie {{no}}",
+      "here": "jest tutaj",
+      "times": "{{n}}×",
+      "reported": "Zgłoszono"
+    },
+    "file": {
+      "title": "Obszar roboczy i plik to jedno",
+      "one": "Obszar roboczy zapisuje ten plik, a plik tworzy obszar roboczy.",
+      "two": "Każda zapisana zmiana to nowa wersja, jak w SOUL.md.",
+      "three": "Pozycje są zapisane tylko dla klocków, które ktoś przesunął ręcznie.",
+      "head": "Wersjonowany jak konfiguracja agenta. Eksport i import przenoszą dokładnie ten tekst.",
+      "save": "Zapisz tekst"
+    },
+    "chat": {
+      "kindApproval": "Zatwierdzenie",
+      "decidedAs": "Rozstrzygnięto: {{choice}}.",
+      "previewOf": "Tak wygląda to na czacie {{name}}",
+      "digestKind": "Podsumowanie · raz dziennie",
+      "digestStuck": "Utknęło uruchomień: {{count}}",
+      "digestStuck_one": "Utknęło uruchomienie: {{count}}",
+      "digestQueue": "W kolejce do roli {{role}}: {{count}}",
+      "digestQueue_one": "W kolejce do roli {{role}}: {{count}}",
+      "digestMine": "Zatwierdzeń czekających na ciebie: {{count}}",
+      "digestMine_one": "Zatwierdzenie czekające na ciebie: {{count}}",
+      "digestNote": "Pojedyncze utknięte uruchomienia nie przychodzą jako osobne wiadomości; każde zatwierdzenie tak, bo to decyzja."
+    },
+    "details": "Szczegóły",
+    "closeDetails": "Zamknij szczegóły",
+    "runs": {
+      "mineTag": "dla ciebie",
+      "result": "{{count}} uruchomień",
+      "result_one": "{{count}} uruchomienie",
+      "search": "Szukaj według numeru lub tytułu",
+      "filter_all": "Wszystkie",
+      "filter_attention": "Wymaga uwagi",
+      "filter_mine": "Czeka na mnie",
+      "filter_queued": "W kolejce",
+      "allSteps": "Wszystkie kroki",
+      "none": "Żadne uruchomienie nie pasuje do tego filtra.",
+      "back": "Wszystkie uruchomienia",
+      "cancel": "Anuluj",
+      "finished": "Zakończone",
+      "start": "Uruchom sprawę ręcznie",
+      "startCase": "Zgłoszenie lub sprawa, np. #431",
+      "startGo": "Uruchom",
+      "startTitle": "Tytuł (opcjonalnie)",
+      "state_working": "w toku",
+      "state_queued": "w kolejce",
+      "state_waiting": "czeka",
+      "state_watching": "obserwowana",
+      "state_done": "gotowe",
+      "state_failed": "zatrzymana"
+    },
+    "overview": {
+      "new": "Nowy przepływ",
+      "kpiRunning": "uruchomienia w toku",
+      "kpiQueued": "w kolejce do wolnego współpracownika",
+      "kpiStuck": "dłużej niż dozwolone",
+      "kpiActive": "aktywne przepływy",
+      "needsYou": "Czeka na ciebie",
+      "search": "Szukaj przepływów",
+      "none": "Żaden przepływ nie pasuje.",
+      "explain": "Co oznaczają trzy tryby działania",
+      "colQueued": "W kolejce",
+      "create": "Utwórz",
+      "createExample": "Utwórz przykład",
+      "emptyText": "Zacznij od przykładu, zgłoszenia od przydzielenia do testu klienta, albo utwórz pusty przepływ. Nowy przepływ startuje wyłączony lub tylko obserwujący.",
+      "emptyTitle": "Jeszcze brak przepływów",
+      "newName": "Nazwa przepływu",
+      "slugIs": "Adres: {{slug}}"
+    },
+    "addRole": "Dodaj rolę",
+    "newRole": "Nowa rola, np. Test",
+    "roles": "Role",
+    "checksClean": "Nic nie przeszkadza temu przepływowi w działaniu.",
+    "exit": {
+      "else": "cokolwiek innego",
+      "limit": "rundy wyczerpane",
+      "timeout": "czas minął",
+      "out": "zdarzenie nadeszło"
+    },
+    "none": "brak",
+    "notFound": "Takiego przepływu nie ma w twojej organizacji.",
+    "removeWord": "Usuń {{word}}",
+    "saved": "Zapisano jako wersję {{n}}.",
+    "sumTrigger": "uruchamia sprawę",
+    "unsaved": "Niezapisane · zapisz",
+    "unsavedProblems": "{{count}} problemów",
+    "unsavedProblems_one": "{{count}} problem",
+    "versionN": "wersja {{n}}"
   }
 }

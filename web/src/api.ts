@@ -1930,3 +1930,114 @@ export const uploadNoteMedia = (file: File) => {
 };
 export const deleteNote = (id: string) => del<void>(`/me/notes/${id}`);
 export const summarizeNote = (id: string) => post<Note>(`/me/notes/${id}/summarize`);
+
+/* Workflows (#564, #565). Durations come in seconds; the definition itself
+   travels as the text the engine parses. */
+export type WorkflowStep = {
+  id: string;
+  kind: "trigger" | "agent" | "ai" | "condition" | "action" | "approval" | "wait" | "notify" | "end";
+  title?: string;
+  next?: Record<string, string>;
+  role?: string;
+  pick?: string;
+  sticky?: boolean;
+  max_parallel?: number;
+  not_same_as?: string;
+  optional?: boolean;
+  task?: string;
+  result?: string[];
+  questions_to?: string;
+  limit?: number;
+  on?: string;
+  max_rounds?: number;
+  system?: string;
+  do?: string;
+  params?: Record<string, string>;
+  as?: string;
+  every?: number;
+  daily?: string;
+  only_if?: string;
+  webhook?: string;
+  token?: boolean;
+  who?: string;
+  ask?: string;
+  options?: string[];
+  wait?: number;
+  until?: string;
+  max?: number;
+  to?: string;
+  via?: string;
+  text?: string;
+};
+export type WorkflowCounts = { open: number; working: number; queued: number; waiting: number; stuck: number };
+export type Workflow = {
+  id: string;
+  slug: string;
+  name: string;
+  version: number;
+  mode: "off" | "watch" | "steer";
+  scope: string;
+  owner: string;
+  roles: Record<string, string[]> | null;
+  updated_at: string;
+  runs: WorkflowCounts;
+  steps?: WorkflowStep[];
+  source?: string;
+};
+export type WorkflowRun = {
+  id: string;
+  case: string;
+  title?: string;
+  step: string;
+  state: "working" | "queued" | "waiting" | "watching" | "done" | "failed";
+  assignee?: string;
+  since: string;
+  stuck?: boolean;
+  unstaffed?: boolean;
+  loops?: Record<string, number>;
+  had?: Record<string, string>;
+  vars?: Record<string, Record<string, string>>;
+  log?: { at: string; step: string; text: string }[];
+};
+export type WorkflowApproval = {
+  workflow: string;
+  name: string;
+  run: string;
+  case: string;
+  title?: string;
+  step: string;
+  question?: string;
+  options: string[];
+  since: string;
+};
+export type WorkflowProblem = { step?: string; code: string; text: string };
+
+const wf = (slug: string) => `/workflows/${encodeURIComponent(slug)}`;
+export const listWorkflows = () => api<Workflow[]>("/workflows");
+export const getWorkflow = (slug: string) => api<Workflow>(wf(slug));
+export const myWorkflowApprovals = () => api<WorkflowApproval[]>("/workflows/mine");
+export const listWorkflowRuns = (slug: string, open = false) => api<WorkflowRun[]>(`${wf(slug)}/runs${open ? "?open=1" : ""}`);
+export const getWorkflowRun = (slug: string, id: string) => api<WorkflowRun>(`${wf(slug)}/runs/${encodeURIComponent(id)}`);
+export const startWorkflowRun = (slug: string, caseRef: string, vars: Record<string, string>) =>
+  post<WorkflowRun>(`${wf(slug)}/runs`, { case: caseRef, vars });
+export const decideWorkflowRun = (slug: string, id: string, option: string) =>
+  post<WorkflowRun>(`${wf(slug)}/runs/${encodeURIComponent(id)}/decide`, { option });
+export const newWorkflowToken = (slug: string) => post<{ enabled: boolean; token: string; url: string }>(`${wf(slug)}/token`);
+export const checkWorkflow = (source: string) => post<{ problems: WorkflowProblem[] }>("/workflows/check", { source });
+
+/* Saving answers 422 with the problems that keep a definition from
+   running; the editor shows them rather than a bare error line. */
+export async function saveWorkflow(
+  slug: string,
+  source: string,
+): Promise<{ ok: true; version: number; warning?: string } | { ok: false; problems: WorkflowProblem[]; error: string }> {
+  const res = await fetch(`/api/v1${wf(slug)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ source }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (res.status === 422) return { ok: false, problems: body.problems ?? [], error: body.error ?? "" };
+  if (!res.ok) throw new ApiError(res.status, body.error ?? res.statusText);
+  return { ok: true, version: body.version, warning: body.warning };
+}

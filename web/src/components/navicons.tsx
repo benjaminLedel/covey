@@ -9,6 +9,15 @@ import type { JSX } from "react";
 
 // Icon paths from mockup/covey-ui-mockup.html — the nav takes over the design language of the mockup.
 const icons: Record<string, JSX.Element> = {
+  // Workflows (#560): three stations and the way between them.
+  flow: (
+    <>
+      <circle cx="5" cy="6" r="2.5" />
+      <circle cx="19" cy="6" r="2.5" />
+      <circle cx="12" cy="18" r="2.5" />
+      <path d="M7.5 6h9M6.5 8l4 8M17.5 8l-4 8" />
+    </>
+  ),
   checklist: (
     <>
       <rect x="4" y="4" width="16" height="16" rx="2" />

@@ -89,7 +89,8 @@
     "infrastructure": "Infrastructure",
     "apps": "App covey",
     "helpShort": "Aide",
-    "menu": "Menu"
+    "menu": "Menu",
+    "workflows": "Workflows"
   },
   "costs": {
     "title": "Coût et jetons",
@@ -3270,5 +3271,306 @@
   },
   "voicePicker": {
     "unlisted": "{{name}} (absente de la liste du fournisseur)"
+  },
+  "workflows": {
+    "title": "Workflows",
+    "orgWide": "toute l’organisation",
+    "lead": "Un workflow définit qui travaille sur un dossier, et après qui, entre les services et les systèmes cibles. Il s’adresse à des rôles, pas à des noms : covey décide qui tient un rôle au démarrage de l’étape.",
+    "col": {
+      "name": "Workflow",
+      "mode": "Effet",
+      "cases": "Dossiers",
+      "stuck": "Bloqués"
+    },
+    "mode": {
+      "off": "désactivé",
+      "watch": "observe",
+      "steer": "pilote"
+    },
+    "modeButton": {
+      "off": "Désactivé",
+      "watch": "Observer seulement",
+      "steer": "Pilote"
+    },
+    "modeLabel": "Ce que fait le workflow",
+    "viewLabel": "Vue",
+    "modeText": {
+      "off": "Désactivé. Le workflow existe, mais n’agit pas. Les collègues transmettent selon leurs propres playbooks, comme aujourd’hui.",
+      "watch": "Observer seulement. covey lit dans les systèmes cibles où en est chaque dossier, montre ce qui est bloqué et demande les validations. Les collègues continuent de transmettre eux-mêmes. Une façon sûre de commencer.",
+      "steer": "Pilote. covey démarre les étapes, choisit quelqu’un dans le rôle, attribue et transmet. Les playbooks disent seulement comment chacun fait son étape."
+    },
+    "without": {
+      "title": "On peut aussi travailler sans workflow.",
+      "text": "Les collègues qui ne sont dans aucun workflow travaillent comme avant : heartbeat, chat et backlog. Un workflow a sa place là où plusieurs rôles travaillent l’un après l’autre sur un même dossier et où une transmission peut échouer."
+    },
+    "tab": {
+      "edit": "Modifier",
+      "live": "En direct",
+      "run": "Exécutions",
+      "file": "En fichier"
+    },
+    "type": {
+      "trigger": "Déclencheur",
+      "agent": "Collègue",
+      "ai": "Étape IA",
+      "condition": "Condition",
+      "action": "Action",
+      "approval": "Validation",
+      "wait": "Attente",
+      "notify": "Notification",
+      "end": "Fin"
+    },
+    "typeDesc": {
+      "trigger": "Quand une exécution démarre : ticket, e-mail, planning, chat",
+      "agent": "Un rôle fait une étape, avec son expérience et ses droits",
+      "ai": "Une tâche courte sans collègue : classer, résumer",
+      "condition": "Se divise selon le résultat d’une étape",
+      "action": "covey fait lui-même quelque chose dans le système cible",
+      "approval": "Une personne décide, dans son chat",
+      "wait": "Jusqu’à ce que quelque chose arrive ou que le temps passe",
+      "notify": "Un message dans le chat d’une personne",
+      "end": "L’exécution est terminée"
+    },
+    "blocks": "Blocs",
+    "legend": {
+      "edit": "Blocs à gauche : un clic en ajoute un. Fais glisser le point à droite d'un bloc pour le relier. En pointillés : rôle non pourvu, l'étape est sautée.",
+      "live": "Bleu : en cours. Jaune : en file d'attente, attend un collègue libre. Gris : attend quelqu'un à l'extérieur. Rouge : plus long qu'autorisé.",
+      "run": "Bleu : le chemin de {{no}}. « 2× » signifie que l’étape a eu lieu en plusieurs tours.",
+      "runs": "Les chiffres montrent où en sont les exécutions. Un clic sur une étape filtre la liste."
+    },
+    "workflow": "Workflow",
+    "name": "Nom",
+    "owner": "Responsable",
+    "ownerHint": "Reçoit dans son chat tout ce que le workflow ne peut pas résoudre seul.",
+    "checks": "Vérifications",
+    "save": "Enregistrer comme version {{n}}",
+    "removeBlock": "Supprimer le bloc",
+    "unfilled": "non pourvu",
+    "unfilledSkipped": "non pourvu · ignoré",
+    "optionalShort": "facultatif",
+    "sumPool": "Rôle {{role}} · {{free}} sur {{all}} disponibles",
+    "sumRole": "Rôle {{role}} → {{name}}",
+    "sumAi": "sans collègue",
+    "sumCondition": "selon {{field}}",
+    "sumApproval": "{{who}}, dans le chat",
+    "sumWait": "jusqu’à {{until}}",
+    "sumNotify": "{{to}}, via {{via}}",
+    "sumEnd": "exécution terminée",
+    "link": {
+      "title": "Liaison",
+      "branch": "Branche « {{label}} ».",
+      "remove": "Supprimer la liaison"
+    },
+    "trigger": {
+      "reuse": "Un workflow démarre avec les déclencheurs des agents : un planning avec la condition d’un heartbeat, le webhook d’un système cible, le déclencheur par jeton.",
+      "every": "Toutes les",
+      "everyShort": "toutes les",
+      "daily": "Chaque jour à",
+      "dailyShort": "chaque jour",
+      "dailyHint": "HH:MM, comme täglich: dans un heartbeat.",
+      "onlyIf": "Seulement si",
+      "onlyIfHint": "La même condition que nur-wenn: dans un heartbeat, p. ex. gitlab:issues:assignee:<user>:<projet>. Sans elle, le planning démarre toujours un dossier.",
+      "as": "Vérifie en tant que",
+      "asHint": "Le collègue dont l’accès sert à vérifier la condition, comme un heartbeat utilise celui de son agent.",
+      "webhook": "Webhook de",
+      "webhookHint": "Adresse pour le système cible : {{url}}",
+      "token": "Démarrer par jeton (comme le déclencheur d’un agent)",
+      "newToken": "Créer un nouveau jeton",
+      "tokenShown": "Affiché une seule fois. L’ancien jeton cesse de fonctionner.",
+      "manual": "Un dossier peut toujours être démarré à la main sous Dossiers, ou via l’API."
+    },
+    "agent": {
+      "role": "Rôle",
+      "roleHint": "Le workflow s’adresse au rôle. covey décide qui le tient au démarrage de l’étape.",
+      "addMember": "Ajouter un collègue au rôle",
+      "state_stopped": "arrêté",
+      "state_draft": "brouillon",
+      "pick": "Choix",
+      "pick_load": "celui qui a le moins à faire",
+      "pick_round": "à tour de rôle",
+      "cap": "Au maximum en même temps, par collègue",
+      "capNone": "sans limite",
+      "sticky": "Reste sur le dossier : les tours suivants vont à la même personne",
+      "notSame": "Pas la même personne que",
+      "notSameHint": "La règle des quatre yeux. covey la fait respecter.",
+      "optional": "Facultatif : ignorer si le rôle n’est pas pourvu",
+      "task": "Tâche",
+      "taskHint": "Le collègue la reçoit comme tâche. Un clic insère une valeur :",
+      "result": "Résultat à rapporter",
+      "resultHint": "Les étapes suivantes le lisent, par exemple une condition.",
+      "limit": "Au maximum",
+      "limitHint": "Ensuite, le workflow signale le dossier comme bloqué.",
+      "empty": "Personne n’est disponible dans le rôle {{role}}.",
+      "emptySkip": "L’étape est facultative et est ignorée.",
+      "emptyOwner": "Les exécutions vont au responsable.",
+      "state_ok": "disponible",
+      "state_unknown": "agent inconnu"
+    },
+    "ai": {
+      "prompt": "Consigne",
+      "notYet": "Les étapes IA ne sont pas encore connectées : un dossier s’arrête à cette étape."
+    },
+    "condition": {
+      "field": "Vérifie",
+      "rounds": "Tours au maximum",
+      "roundsHint": "Une boucle sans limite ne peut pas être enregistrée.",
+      "addValue": "Valeur + Enter",
+      "fieldHint": "Étape et champ, p. ex. a.result : ce qu’un collègue a signalé.",
+      "values": "Chemins par valeur",
+      "valuesHint": "Chaque valeur a sa propre sortie. “else” attrape toutes les autres valeurs."
+    },
+    "action": {
+      "system": "Système cible",
+      "op": "Action",
+      "reuse": "Exécute l’action propre au système cible, en tant que le collègue indiqué ici : avec son accès, ses outils attribués, ses garde-fous et ses approbations.",
+      "as": "Exécute en tant que",
+      "asHint": "Un agent, ou un rôle dont le premier membre disponible est choisi.",
+      "opHint": "L’action du plugin, telle qu’un agent l’appelle, p. ex. set_state.",
+      "params": "Paramètres",
+      "paramsHint": "Un par ligne, nom : valeur. Les espaces réservés comme {{case.no}} sont remplis ; les nombres entiers et true/false sont transmis tels quels."
+    },
+    "approval": {
+      "who": "Qui décide",
+      "question": "Question",
+      "questionHint": "Apparaît comme une carte dans le chat de cette personne, avec un bouton par branche. Le texte libre fonctionne aussi.",
+      "wait": "Attendre une réponse",
+      "addOption": "Option + Enter",
+      "options": "Options",
+      "whoHint": "E-mail, partie avant le @ ou nom affiché de la personne qui décide."
+    },
+    "wait": {
+      "until": "Jusqu’à",
+      "max": "Au maximum",
+      "untilHint": "Le nom de l’événement, p. ex. label:customer-ok. Tant que les systèmes cibles ne l’envoient pas eux-mêmes, il est livré via l’API."
+    },
+    "notify": {
+      "to": "À",
+      "text": "Texte",
+      "notYet": "Les messages ne sont pas encore connectés : le dossier continue, le message figure seulement dans son historique."
+    },
+    "end": {
+      "text": "L’exécution s’arrête ici. Le ticket lui-même reste tel quel dans le système cible."
+    },
+    "live": {
+      "title": "Ce qui tourne",
+      "nowAt": "{{type}} · maintenant",
+      "nothingHere": "Rien ne se trouve ici pour le moment.",
+      "stuck": "plus longtemps que prévu",
+      "attention": "Demande de l’attention",
+      "nothing": "Rien.",
+      "hint": "Un clic sur une étape montre qui s’y trouve. Un clic sur un dossier ouvre son exécution.",
+      "offTitle": "Le workflow est désactivé",
+      "offText": "Tant que le workflow est désactivé, covey ne lui attribue aucun dossier. Les collègues travaillent selon leurs playbooks.",
+      "watchNote": "covey lit les états dans le système cible et signale ce qui est bloqué, mais ne transmet rien lui-même.",
+      "stuckBadge": "{{count}} bloqués",
+      "stuckBadge_one": "{{count}} bloqué",
+      "skipped": "ignoré",
+      "working": "{{count}} en cours",
+      "working_one": "{{count}} en cours",
+      "queued": "{{count}} en file d’attente",
+      "queued_one": "{{count}} en file d’attente",
+      "waiting": "{{count}} en attente",
+      "waiting_one": "{{count}} en attente",
+      "statWorking": "en cours",
+      "statQueued": "attendent un collègue libre",
+      "allInList": "Les {{count}} de la liste",
+      "allInList_one": "{{count}} dans la liste",
+      "groupWorking": "En cours",
+      "groupQueued": "En file d’attente · le prochain d’abord",
+      "groupWaiting": "En attente",
+      "whyStuck": "plus long qu’autorisé",
+      "whyUnstaffed": "personne n’a le rôle"
+    },
+    "run": {
+      "title": "Exécution {{no}}",
+      "here": "est ici",
+      "times": "{{n}}×",
+      "reported": "Signalé"
+    },
+    "file": {
+      "title": "Canevas et fichier ne font qu’un",
+      "one": "Le canevas écrit ce fichier ; le fichier donne le canevas.",
+      "two": "Chaque modification enregistrée est une nouvelle version, comme pour SOUL.md.",
+      "three": "Les positions ne sont conservées que pour les blocs déplacés à la main.",
+      "head": "Versionné comme la configuration d’un agent. L’export et l’import portent exactement ce texte.",
+      "save": "Enregistrer le texte"
+    },
+    "chat": {
+      "kindApproval": "Validation",
+      "decidedAs": "Décidé : {{choice}}.",
+      "previewOf": "Voici comment cela apparaît dans le chat de {{name}}",
+      "digestKind": "Résumé · une fois par jour",
+      "digestStuck": "{{count}} exécutions sont bloquées",
+      "digestStuck_one": "{{count}} exécution est bloquée",
+      "digestQueue": "{{count}} attendent {{role}}",
+      "digestQueue_one": "{{count}} attend {{role}}",
+      "digestMine": "{{count}} validations attendent ta réponse",
+      "digestMine_one": "{{count}} validation attend ta réponse",
+      "digestNote": "Les exécutions bloquées isolées ne donnent pas de message à part ; chaque validation en donne un, car c’est une décision."
+    },
+    "details": "Détails",
+    "closeDetails": "Fermer les détails",
+    "runs": {
+      "mineTag": "pour toi",
+      "result": "{{count}} exécutions",
+      "result_one": "{{count}} exécution",
+      "search": "Rechercher par numéro ou titre",
+      "filter_all": "Toutes",
+      "filter_attention": "Demande de l’attention",
+      "filter_mine": "Attend ma réponse",
+      "filter_queued": "En file d’attente",
+      "allSteps": "Toutes les étapes",
+      "none": "Aucune exécution ne correspond à ce filtre.",
+      "back": "Toutes les exécutions",
+      "cancel": "Annuler",
+      "finished": "Terminé",
+      "start": "Démarrer un dossier à la main",
+      "startCase": "Ticket ou dossier, p. ex. #431",
+      "startGo": "Démarrer",
+      "startTitle": "Titre (facultatif)",
+      "state_working": "en cours",
+      "state_queued": "en file d’attente",
+      "state_waiting": "en attente",
+      "state_watching": "observé",
+      "state_done": "terminé",
+      "state_failed": "arrêté"
+    },
+    "overview": {
+      "new": "Nouveau workflow",
+      "kpiRunning": "exécutions en cours",
+      "kpiQueued": "en file d'attente pour un collègue libre",
+      "kpiStuck": "plus long qu'autorisé",
+      "kpiActive": "workflows actifs",
+      "needsYou": "T'attend",
+      "search": "Rechercher des workflows",
+      "none": "Aucun workflow ne correspond.",
+      "explain": "Ce que signifient les trois effets",
+      "colQueued": "En file",
+      "create": "Créer",
+      "createExample": "Créer l’exemple",
+      "emptyText": "Pars de l’exemple, un ticket de l’attribution au test du client, ou crée un workflow vide. Un nouveau workflow démarre désactivé ou en observation seulement.",
+      "emptyTitle": "Pas encore de workflow",
+      "newName": "Nom du workflow",
+      "slugIs": "Adresse : {{slug}}"
+    },
+    "addRole": "Ajouter un rôle",
+    "newRole": "Nouveau rôle, p. ex. Test",
+    "roles": "Rôles",
+    "checksClean": "Rien n’empêche ce workflow de tourner.",
+    "exit": {
+      "else": "tout le reste",
+      "limit": "tours épuisés",
+      "timeout": "délai dépassé",
+      "out": "événement arrivé"
+    },
+    "none": "aucun",
+    "notFound": "Ce workflow n’existe pas dans ton organisation.",
+    "removeWord": "Retirer {{word}}",
+    "saved": "Enregistré comme version {{n}}.",
+    "sumTrigger": "démarre un dossier",
+    "unsaved": "Non enregistré · enregistrer",
+    "unsavedProblems": "{{count}} problèmes",
+    "unsavedProblems_one": "{{count}} problème",
+    "versionN": "version {{n}}"
   }
 }

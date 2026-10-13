@@ -23,6 +23,7 @@ var promptOrder = []string{"SOUL.md", "CAPABILITIES.md", "PLAYBOOKS.md", "ORG.md
 // ProtocolInstructions and is in the prompt anyway.
 const CoveyActionsDoc = `The platform's own actions — your board, your memory, your colleagues:
    set_stage {"stage":"<state>"} — move the current task into a column of your board.
+   report {"<field>":"<value>", …} — report named results of your task (e.g. {"result":"accepted"}); a task that asks for fields expects them before you finish.
    add_note {"content":"<note>"} — a note on the task (interim states, findings, what you tried).
    remember {"page":"<slug>","content":"<insight>"} — an insight into the named wiki page.
    wiki_search {"query":"<keywords>"} · wiki_read {"slug":"..."} · wiki_append {"slug":"...","text":"..."} ·

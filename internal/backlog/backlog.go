@@ -5,6 +5,7 @@ package backlog
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -1109,4 +1110,70 @@ func (s *Store) ListNotes(ctx context.Context, taskID uuid.UUID) ([]Note, error)
 		out = append(out, n)
 	}
 	return out, rows.Err()
+}
+
+// SetReport merges fields an agent reported for its task (covey/report,
+// #563). A field reported twice keeps the later value.
+func (s *Store) SetReport(ctx context.Context, taskID uuid.UUID, fields map[string]string) error {
+	raw, err := json.Marshal(fields)
+	if err != nil {
+		return err
+	}
+	tag, err := s.pool.Exec(ctx, `UPDATE backlog_tasks SET report = COALESCE(report, '{}'::jsonb) || $2::jsonb WHERE id = $1`, taskID, raw)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// ChainReport walks a task and the tasks it continues, up to the first whose
+// origin starts with prefix. It returns that origin and what the chain
+// reported, older reports first so a continuation's value wins. ok is false
+// when no task in the chain has such an origin.
+func (s *Store) ChainReport(ctx context.Context, id uuid.UUID, prefix string) (origin string, report map[string]string, ok bool, err error) {
+	rows, err := s.pool.Query(ctx, `
+		WITH RECURSIVE chain AS (
+			SELECT id, parent_task_id, origin, report, 0 AS depth FROM backlog_tasks WHERE id = $1
+			UNION ALL
+			SELECT t.id, t.parent_task_id, t.origin, t.report, c.depth + 1
+			  FROM backlog_tasks t JOIN chain c ON t.id = c.parent_task_id
+			 WHERE c.origin NOT LIKE $2 || '%'
+		)
+		SELECT origin, report FROM chain ORDER BY depth DESC`, id, prefix)
+	if err != nil {
+		return "", nil, false, err
+	}
+	defer rows.Close()
+	report = map[string]string{}
+	for rows.Next() {
+		var o string
+		var raw []byte
+		if err := rows.Scan(&o, &raw); err != nil {
+			return "", nil, false, err
+		}
+		if strings.HasPrefix(o, prefix) {
+			origin, ok = o, true
+		}
+		if len(raw) > 0 {
+			var part map[string]string
+			if err := json.Unmarshal(raw, &part); err != nil {
+				return "", nil, false, err
+			}
+			for k, v := range part {
+				report[k] = v
+			}
+		}
+	}
+	return origin, report, ok, rows.Err()
+}
+
+// HasContinuation reports whether a task was continued by a follow-up task
+// (the turn limit): its failure is then not the end of the work.
+func (s *Store) HasContinuation(ctx context.Context, id uuid.UUID) (bool, error) {
+	var yes bool
+	err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM backlog_tasks WHERE parent_task_id = $1 AND origin LIKE 'continuation:%')`, id).Scan(&yes)
+	return yes, err
 }

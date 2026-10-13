@@ -56,6 +56,8 @@ import (
 	"covey/internal/templates"
 	"covey/internal/voice"
 	"covey/internal/waitlist"
+	"covey/internal/workflow"
+	"covey/internal/workflowhost"
 	"covey/internal/workplaces"
 
 	_ "github.com/benjaminLedel/covey-plugin-pack/browser"
@@ -174,8 +176,10 @@ type stack struct {
 	egress   *egress.Store
 	runners  *runnerstore.Store
 	skills   *skills.Store
-	voices   *voice.Store
-	reqlog   *reqlogstore.Store
+	// workflows runs the stack's workflows as serve does (#563).
+	workflows *workflowhost.Host
+	voices    *voice.Store
+	reqlog    *reqlogstore.Store
 	// workplaces carries the organisation's own workplaces and the allowlist of
 	// images that may run beside a sandbox (spec/16).
 	workplaces *workplaces.Store
@@ -398,6 +402,14 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 		opts.afterOrch(s.orch)
 	}
 
+	// Workflows as serve wires them: the host, and the backlog's completion
+	// hook that moves a run on when its step's task ends.
+	s.workflows = &workflowhost.Host{Store: workflow.NewStore(pool), Backlog: s.backlog, Agents: s.registry, Platform: s.orch}
+	if err := s.workflows.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	s.backlog.OnComplete = s.workflows.TaskEnded
+
 	srv := &httpapi.Server{
 		Pool: pool, Registry: s.registry, Backlog: s.backlog, Obs: s.obs,
 		/* Das Gespräch. Ohne ihn läuft der Chat-Endpunkt in ein nil, und der
@@ -419,7 +431,8 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 		// answer 503, and a test would be checking the wrong thing.
 		Notify:    notify.New(pool).WithSettings(s.settings),
 		Templates: s.templates, Dreams: s.dreams, Audit: s.audit,
-		Skills: s.skills,
+		Skills:    s.skills,
+		Workflows: s.workflows,
 		// The voice library (spec/24): without the store the endpoints answer
 		// 503, and the test would be checking the absence of a feature.
 		Voices:      s.voices,

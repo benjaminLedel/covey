@@ -89,7 +89,8 @@
     "infrastructure": "基础设施",
     "apps": "covey 应用",
     "helpShort": "帮助",
-    "menu": "菜单"
+    "menu": "菜单",
+    "workflows": "工作流"
   },
   "costs": {
     "title": "成本与令牌",
@@ -3270,5 +3271,306 @@
   },
   "voicePicker": {
     "unlisted": "{{name}}（不在提供方的列表中）"
+  },
+  "workflows": {
+    "title": "工作流",
+    "orgWide": "全组织",
+    "lead": "工作流规定一个案件在各部门和目标系统之间由谁、按什么顺序处理。它指定的是角色而不是姓名:由谁担任该角色,在步骤开始时由 covey 决定。",
+    "col": {
+      "name": "工作流",
+      "mode": "作用",
+      "cases": "案件",
+      "stuck": "停滞"
+    },
+    "mode": {
+      "off": "关闭",
+      "watch": "观察",
+      "steer": "主导"
+    },
+    "modeButton": {
+      "off": "关闭",
+      "watch": "仅观察",
+      "steer": "主导"
+    },
+    "modeLabel": "工作流的作用",
+    "viewLabel": "视图",
+    "modeText": {
+      "off": "关闭。工作流存在,但不做任何事。同事们仍按各自的手册交接,与现在一样。",
+      "watch": "仅观察。covey 从目标系统读取各案件的进度,显示停滞的案件,并请求审批。交接仍由同事自己完成。这是稳妥的起步方式。",
+      "steer": "主导。covey 负责启动步骤、从角色中选人、分配并交接。手册只说明同事如何完成自己的步骤。"
+    },
+    "without": {
+      "title": "不使用工作流也完全可以。",
+      "text": "不在任何工作流中的同事照常工作:heartbeat、聊天和 backlog。工作流适用于多个角色依次处理同一案件、交接可能中断的场景。"
+    },
+    "tab": {
+      "edit": "编辑",
+      "live": "实时",
+      "run": "运行",
+      "file": "文件"
+    },
+    "type": {
+      "trigger": "触发器",
+      "agent": "同事",
+      "ai": "AI 步骤",
+      "condition": "条件",
+      "action": "操作",
+      "approval": "审批",
+      "wait": "等待",
+      "notify": "通知",
+      "end": "结束"
+    },
+    "typeDesc": {
+      "trigger": "运行的启动时机:工单、邮件、计划、聊天",
+      "agent": "由某个角色凭经验和权限完成一个步骤",
+      "ai": "不需要同事的简短任务:分类、摘要",
+      "condition": "根据某一步骤的结果分支",
+      "action": "covey 直接在目标系统中执行操作",
+      "approval": "由人在聊天中决定",
+      "wait": "等到某件事发生或一段时间过去",
+      "notify": "向某人的聊天发送一条消息",
+      "end": "运行完成"
+    },
+    "blocks": "组件",
+    "legend": {
+      "edit": "左侧为模块：点击即可添加。从模块右侧的圆点拖动即可连接。虚线：该角色空缺，此步骤将被跳过。",
+      "live": "蓝色：处理中。黄色：排队，等待空闲的同事。灰色：等待外部的人。红色：超出允许时间。",
+      "run": "蓝色:{{no}} 的路径。“2×”表示该步骤运行了不止一轮。",
+      "runs": "数字显示各次运行所处的位置。点击某个步骤可筛选列表。"
+    },
+    "workflow": "工作流",
+    "name": "名称",
+    "owner": "负责人",
+    "ownerHint": "工作流自己无法解决的一切事项,都会发到负责人的聊天中。",
+    "checks": "检查",
+    "save": "保存为版本 {{n}}",
+    "removeBlock": "删除组件",
+    "unfilled": "未分配",
+    "unfilledSkipped": "未分配 · 已跳过",
+    "optionalShort": "可选",
+    "sumPool": "角色 {{role}} · {{all}} 人中 {{free}} 人可用",
+    "sumRole": "角色 {{role}} → {{name}}",
+    "sumAi": "无同事",
+    "sumCondition": "依据 {{field}}",
+    "sumApproval": "{{who}},在聊天中",
+    "sumWait": "直到 {{until}}",
+    "sumNotify": "{{to}},通过 {{via}}",
+    "sumEnd": "运行完成",
+    "link": {
+      "title": "连接",
+      "branch": "分支“{{label}}”。",
+      "remove": "删除连接"
+    },
+    "trigger": {
+      "reuse": "工作流使用与智能体相同的触发器启动:带心跳条件的计划、目标系统的 Webhook、令牌触发器。",
+      "every": "每隔",
+      "everyShort": "每隔",
+      "daily": "每天",
+      "dailyShort": "每天",
+      "dailyHint": "HH:MM,与心跳中的 täglich: 相同。",
+      "onlyIf": "仅当",
+      "onlyIfHint": "与心跳中的 nur-wenn: 相同的条件,例如 gitlab:issues:assignee:<user>:<项目>。不填时,计划总会启动一个案件。",
+      "as": "检查身份",
+      "asHint": "用其访问权限检查条件的同事,就像心跳使用其智能体的权限一样。",
+      "webhook": "Webhook 来自",
+      "webhookHint": "目标系统的地址:{{url}}",
+      "token": "通过令牌启动(类似智能体的触发器)",
+      "newToken": "创建新令牌",
+      "tokenShown": "仅显示这一次。原有令牌将失效。",
+      "manual": "随时可以在“案件”中手动启动案件,或通过 API 启动。"
+    },
+    "agent": {
+      "role": "角色",
+      "roleHint": "工作流指定的是角色。由谁担任,在步骤开始时由 covey 决定。",
+      "addMember": "为该角色添加同事",
+      "state_stopped": "已停止",
+      "state_draft": "草稿",
+      "pick": "选择方式",
+      "pick_load": "任务最少的人",
+      "pick_round": "轮流",
+      "cap": "每位同事同时最多处理",
+      "capNone": "无限制",
+      "sticky": "跟随案件:后续各轮交给同一个人",
+      "notSame": "不能是同一个人:",
+      "notSameHint": "四眼原则。由 covey 强制执行。",
+      "optional": "可选:角色未分配时跳过",
+      "task": "任务",
+      "taskHint": "同事会把这段内容作为自己的任务。点击可插入一个值:",
+      "result": "需要汇报的结果",
+      "resultHint": "后续步骤会读取它,例如条件。",
+      "limit": "最多",
+      "limitHint": "超过后,工作流会将该案件报告为停滞。",
+      "empty": "角色 {{role}} 中没有可用的人。",
+      "emptySkip": "该步骤为可选,将被跳过。",
+      "emptyOwner": "运行将交给负责人。",
+      "state_ok": "可用",
+      "state_unknown": "没有这个智能体"
+    },
+    "ai": {
+      "prompt": "指令",
+      "notYet": "AI 步骤尚未接入:案件会在此步骤停下。"
+    },
+    "condition": {
+      "field": "检查",
+      "rounds": "最多轮数",
+      "roundsHint": "没有上限的循环无法保存。",
+      "addValue": "值 + Enter",
+      "fieldHint": "步骤和字段,例如 a.result:同事报告的内容。",
+      "values": "按值分路",
+      "valuesHint": "每个值都有自己的出口。“else”接住所有其他值。"
+    },
+    "action": {
+      "system": "目标系统",
+      "op": "操作",
+      "reuse": "以此处指定的同事身份执行目标系统自己的操作:使用其访问权限、工具分配、防护规则和审批。",
+      "as": "执行身份",
+      "asHint": "智能体,或角色(取第一位可用的成员)。",
+      "opHint": "插件的操作,与智能体调用的方式相同,例如 set_state。",
+      "params": "参数",
+      "paramsHint": "每行一个,名称: 值。{{case.no}} 之类的占位符会被填充;整数和 true/false 按原样传递。"
+    },
+    "approval": {
+      "who": "由谁决定",
+      "question": "问题",
+      "questionHint": "以卡片形式出现在该人的聊天中,每个分支对应一个按钮。也可以直接回复文字。",
+      "wait": "等待回复",
+      "addOption": "选项 + Enter",
+      "options": "选项",
+      "whoHint": "决定者的邮箱、@ 前面的部分或显示名称。"
+    },
+    "wait": {
+      "until": "直到",
+      "max": "最多",
+      "untilHint": "事件名称,例如 label:customer-ok。在目标系统自行发送之前,通过 API 传入。"
+    },
+    "notify": {
+      "to": "收件人",
+      "text": "内容",
+      "notYet": "消息尚未接入:案件继续进行,消息只记录在它的历史中。"
+    },
+    "end": {
+      "text": "运行到此结束。工单本身保持目标系统中的原样。"
+    },
+    "live": {
+      "title": "正在运行的内容",
+      "nowAt": "{{type}} · 当前",
+      "nothingHere": "此刻这里没有内容。",
+      "stuck": "超出允许时长",
+      "attention": "需要关注",
+      "nothing": "无。",
+      "hint": "点击步骤可查看当前在该步骤的人。点击案件可打开其运行。",
+      "offTitle": "工作流已关闭",
+      "offText": "工作流关闭期间,covey 不会向其分配案件。同事们按手册工作。",
+      "watchNote": "covey 从目标系统读取进度并报告停滞的案件,但自己不做任何交接。",
+      "stuckBadge": "{{count}} 个停滞",
+      "stuckBadge_one": "{{count}} 个停滞",
+      "skipped": "已跳过",
+      "working": "{{count}} 个进行中",
+      "working_one": "{{count}} 个进行中",
+      "queued": "{{count}} 个排队中",
+      "queued_one": "{{count}} 个排队中",
+      "waiting": "{{count}} 个等待中",
+      "waiting_one": "{{count}} 个等待中",
+      "statWorking": "进行中",
+      "statQueued": "排队等待空闲同事",
+      "allInList": "列表中的全部 {{count}} 个",
+      "allInList_one": "列表中的 {{count}} 个",
+      "groupWorking": "进行中",
+      "groupQueued": "排队中 · 下一个优先",
+      "groupWaiting": "等待中",
+      "whyStuck": "超出允许时间",
+      "whyUnstaffed": "没有人担任此角色"
+    },
+    "run": {
+      "title": "运行 {{no}}",
+      "here": "停在此处",
+      "times": "{{n}}×",
+      "reported": "已报告"
+    },
+    "file": {
+      "title": "画布与文件是一体的",
+      "one": "画布生成这份文件;文件生成画布。",
+      "two": "每次保存的更改都是一个新版本,与 SOUL.md 相同。",
+      "three": "只有被手动移动过的组件才会保留位置。",
+      "head": "与智能体的配置一样有版本管理。导出和导入处理的正是这段文本。",
+      "save": "保存文本"
+    },
+    "chat": {
+      "kindApproval": "审批",
+      "decidedAs": "已决定:{{choice}}。",
+      "previewOf": "在 {{name}} 的聊天中显示如下",
+      "digestKind": "摘要 · 每天一次",
+      "digestStuck": "有 {{count}} 次运行停滞",
+      "digestStuck_one": "有 {{count}} 次运行停滞",
+      "digestQueue": "有 {{count}} 个在为{{role}}排队",
+      "digestQueue_one": "有 {{count}} 个在为{{role}}排队",
+      "digestMine": "有 {{count}} 个审批等你处理",
+      "digestMine_one": "有 {{count}} 个审批等你处理",
+      "digestNote": "单个停滞的运行不会单独发消息；每个审批都会，因为它是一项决定。"
+    },
+    "details": "详情",
+    "closeDetails": "关闭详情",
+    "runs": {
+      "mineTag": "给你的",
+      "result": "{{count}} 次运行",
+      "result_one": "{{count}} 次运行",
+      "search": "按编号或标题搜索",
+      "filter_all": "全部",
+      "filter_attention": "需要关注",
+      "filter_mine": "等我处理",
+      "filter_queued": "排队中",
+      "allSteps": "所有步骤",
+      "none": "没有运行符合此筛选条件。",
+      "back": "所有运行",
+      "cancel": "取消",
+      "finished": "已完成",
+      "start": "手动启动案件",
+      "startCase": "工单或案件,例如 #431",
+      "startGo": "启动",
+      "startTitle": "标题(可选)",
+      "state_working": "处理中",
+      "state_queued": "排队中",
+      "state_waiting": "等待中",
+      "state_watching": "观察中",
+      "state_done": "完成",
+      "state_failed": "已停止"
+    },
+    "overview": {
+      "new": "新建工作流",
+      "kpiRunning": "进行中的运行",
+      "kpiQueued": "排队等待空闲同事",
+      "kpiStuck": "超出允许时间",
+      "kpiActive": "启用的工作流",
+      "needsYou": "等待你处理",
+      "search": "搜索工作流",
+      "none": "没有匹配的工作流。",
+      "explain": "三种作用方式的含义",
+      "colQueued": "排队",
+      "create": "创建",
+      "createExample": "创建示例",
+      "emptyText": "从示例开始(一张工单,从分配到客户测试),或创建一个空的工作流。新工作流默认关闭或仅观察。",
+      "emptyTitle": "还没有工作流",
+      "newName": "工作流名称",
+      "slugIs": "地址:{{slug}}"
+    },
+    "addRole": "添加角色",
+    "newRole": "新角色,例如 测试",
+    "roles": "角色",
+    "checksClean": "没有任何问题会妨碍此工作流运行。",
+    "exit": {
+      "else": "其他情况",
+      "limit": "轮次用完",
+      "timeout": "超时",
+      "out": "事件已到达"
+    },
+    "none": "无",
+    "notFound": "你的组织中没有这个工作流。",
+    "removeWord": "移除 {{word}}",
+    "saved": "已保存为版本 {{n}}。",
+    "sumTrigger": "启动案件",
+    "unsaved": "未保存 · 保存",
+    "unsavedProblems": "{{count}} 个问题",
+    "unsavedProblems_one": "{{count}} 个问题",
+    "versionN": "版本 {{n}}"
   }
 }

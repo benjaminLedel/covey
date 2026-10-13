@@ -89,7 +89,8 @@
     "infrastructure": "Infrastruktur",
     "apps": "covey-App",
     "helpShort": "Hilfe",
-    "menu": "Menü"
+    "menu": "Menü",
+    "workflows": "Abläufe"
   },
   "costs": {
     "title": "Kosten & Token",
@@ -3270,5 +3271,306 @@
   },
   "voicePicker": {
     "unlisted": "{{name}} (nicht in der Liste des Anbieters)"
+  },
+  "workflows": {
+    "title": "Abläufe",
+    "orgWide": "für die ganze Organisation",
+    "lead": "Ein Ablauf legt fest, wer einen Vorgang nach wem bearbeitet, auch über Abteilungen und Systeme hinweg. Er nennt Rollen statt Namen. Welcher Kollege drankommt, entscheidet covey, wenn der Schritt beginnt.",
+    "col": {
+      "name": "Ablauf",
+      "mode": "Modus",
+      "cases": "Vorgänge",
+      "stuck": "Hängen"
+    },
+    "mode": {
+      "off": "aus",
+      "watch": "beobachtet",
+      "steer": "steuert"
+    },
+    "modeButton": {
+      "off": "Aus",
+      "watch": "Nur beobachten",
+      "steer": "Steuert"
+    },
+    "modeLabel": "Modus des Ablaufs",
+    "viewLabel": "Ansicht",
+    "modeText": {
+      "off": "Aus: Der Ablauf ist angelegt, greift aber nicht ein. Die Kollegen arbeiten wie bisher nach ihren eigenen Anweisungen.",
+      "watch": "Nur beobachten: covey zeigt, wo jeder Vorgang steht, meldet, was hängt, und holt Freigaben ein. Weitergeben tun die Kollegen weiterhin selbst. Gut für den Einstieg.",
+      "steer": "Steuert: covey startet die Schritte, wählt den passenden Kollegen aus und gibt den Vorgang weiter. Die Kollegen kümmern sich nur noch um ihren eigenen Schritt."
+    },
+    "without": {
+      "title": "Nicht jeder braucht einen Ablauf.",
+      "text": "Kollegen ohne Ablauf arbeiten wie bisher, über Chat, Aufgaben und feste Zeiten. Ein Ablauf lohnt sich, wenn mehrere Rollen nacheinander am selben Vorgang arbeiten und dabei etwas liegen bleiben kann."
+    },
+    "tab": {
+      "edit": "Bearbeiten",
+      "live": "Live",
+      "run": "Vorgänge",
+      "file": "Als Text"
+    },
+    "type": {
+      "trigger": "Auslöser",
+      "agent": "Kollege",
+      "ai": "KI-Schritt",
+      "condition": "Bedingung",
+      "action": "Aktion",
+      "approval": "Freigabe",
+      "wait": "Warten",
+      "notify": "Benachrichtigen",
+      "end": "Ende"
+    },
+    "typeDesc": {
+      "trigger": "Wann ein Vorgang startet: Ticket, Mail, Zeitplan, Chat",
+      "agent": "Ein Kollege aus einer Rolle erledigt den Schritt",
+      "ai": "Kurze Aufgabe ohne Kollegen, z. B. einordnen oder zusammenfassen",
+      "condition": "Geht je nach Ergebnis unterschiedlich weiter",
+      "action": "covey erledigt etwas direkt im System, z. B. ein Ticket zuweisen",
+      "approval": "Ein Mensch entscheidet, per Chat",
+      "wait": "Pausiert, bis etwas passiert oder eine Frist abläuft",
+      "notify": "Schickt einer Person eine Nachricht in den Chat",
+      "end": "Der Vorgang ist abgeschlossen"
+    },
+    "blocks": "Bausteine",
+    "legend": {
+      "edit": "Links die Bausteine: Klicken fügt einen hinzu. Ziehe vom Punkt rechts an einem Baustein, um ihn zu verbinden. Gestrichelt: Niemand hat die Rolle, der Schritt wird übersprungen.",
+      "live": "Blau: wird bearbeitet. Gelb: wartet, bis ein Kollege frei ist. Grau: wartet auf jemand anderen. Rot: dauert länger als erlaubt.",
+      "run": "Blau: der Weg von {{no}}. „2×“ heißt: Dieser Schritt kam mehrmals dran.",
+      "runs": "Die Zahlen zeigen, wo die Vorgänge gerade stehen. Klicke auf einen Schritt, um die Liste danach zu filtern."
+    },
+    "workflow": "Ablauf",
+    "name": "Name",
+    "owner": "Verantwortlich",
+    "ownerHint": "Bekommt im Chat alles, was der Ablauf nicht allein lösen kann.",
+    "checks": "Prüfung",
+    "save": "Als Version {{n}} speichern",
+    "removeBlock": "Baustein entfernen",
+    "unfilled": "nicht besetzt",
+    "unfilledSkipped": "nicht besetzt · wird übersprungen",
+    "optionalShort": "optional",
+    "sumPool": "Rolle {{role}} · {{free}} von {{all}} verfügbar",
+    "sumRole": "Rolle {{role}} → {{name}}",
+    "sumAi": "ohne Kollegen",
+    "sumCondition": "prüft {{field}}",
+    "sumApproval": "{{who}} · per Chat",
+    "sumWait": "bis {{until}}",
+    "sumNotify": "an {{to}} per {{via}}",
+    "sumEnd": "Vorgang abgeschlossen",
+    "link": {
+      "title": "Verbindung",
+      "branch": "Weg „{{label}}“.",
+      "remove": "Verbindung entfernen"
+    },
+    "trigger": {
+      "reuse": "Ein Ablauf startet mit den Auslösern, die Agenten haben: Zeitplan mit Heartbeat-Bedingung, Webhook eines Zielsystems, Trigger per Token.",
+      "every": "Alle",
+      "everyShort": "alle",
+      "daily": "Täglich um",
+      "dailyShort": "täglich",
+      "dailyHint": "HH:MM, wie täglich: im Heartbeat.",
+      "onlyIf": "Nur wenn",
+      "onlyIfHint": "Dieselbe Bedingung wie nur-wenn: im Heartbeat, z. B. gitlab:issues:assignee:<user>:<projekt>. Ohne sie startet der Zeitplan immer einen Vorgang.",
+      "as": "Prüft als",
+      "asHint": "Der Kollege, mit dessen Zugang die Bedingung prüft, so wie ein Heartbeat den seines Agenten nutzt.",
+      "webhook": "Webhook von",
+      "webhookHint": "Adresse für das Zielsystem: {{url}}",
+      "token": "Start per Token (wie der Trigger eines Agenten)",
+      "newToken": "Neuen Token erzeugen",
+      "tokenShown": "Wird nur jetzt angezeigt. Der bisherige Token gilt dann nicht mehr.",
+      "manual": "Von Hand geht immer: unter „Vorgänge“ oder über die API."
+    },
+    "agent": {
+      "role": "Rolle",
+      "roleHint": "Der Ablauf nennt nur die Rolle. Welcher Kollege drankommt, entscheidet covey, wenn der Schritt beginnt.",
+      "addMember": "Kollegen zur Rolle hinzufügen",
+      "state_stopped": "gestoppt",
+      "state_draft": "Entwurf",
+      "pick": "Wer kommt dran?",
+      "pick_load": "wer am wenigsten zu tun hat",
+      "pick_round": "reihum",
+      "cap": "Höchstens gleichzeitig pro Kollege",
+      "capNone": "unbegrenzt",
+      "sticky": "Bei weiteren Runden bekommt dieselbe Person den Vorgang",
+      "notSame": "Nicht dieselbe Person wie bei",
+      "notSameHint": "Vier-Augen-Prinzip. covey achtet darauf.",
+      "optional": "Überspringen, wenn niemand die Rolle hat",
+      "task": "Aufgabe",
+      "taskHint": "Das bekommt der Kollege als Aufgabe. Klicke auf einen Platzhalter, um ihn einzufügen:",
+      "result": "Was der Kollege zurückmelden muss",
+      "resultHint": "Spätere Schritte nutzen das, z. B. eine Bedingung.",
+      "limit": "Zeitlimit",
+      "limitHint": "Danach gilt der Vorgang als hängend.",
+      "empty": "Niemand mit der Rolle {{role}} ist verfügbar.",
+      "emptySkip": "Der Schritt ist optional und wird übersprungen.",
+      "emptyOwner": "Vorgänge gehen dann an die verantwortliche Person.",
+      "state_ok": "verfügbar",
+      "state_unknown": "kein solcher Agent"
+    },
+    "ai": {
+      "prompt": "Anweisung",
+      "notYet": "KI-Schritte sind noch nicht angebunden: Ein Vorgang hält an diesem Schritt an."
+    },
+    "condition": {
+      "field": "Prüft",
+      "rounds": "Höchstens Runden",
+      "roundsHint": "Ohne Höchstzahl kann der Ablauf nicht gespeichert werden.",
+      "addValue": "Wert + Enter",
+      "fieldHint": "Schritt und Feld, z. B. a.result: was ein Kollege gemeldet hat.",
+      "values": "Wege je Wert",
+      "valuesHint": "Jeder Wert bekommt einen eigenen Ausgang. „else“ fängt alle anderen Werte."
+    },
+    "action": {
+      "system": "Zielsystem",
+      "op": "Aktion",
+      "reuse": "Führt die eigene Aktion des Zielsystems aus, als der Kollege, der hier steht: mit seinem Zugang, seinen Tool-Freigaben, Guard-Rails und Freigaben.",
+      "as": "Ausführen als",
+      "asHint": "Ein Agent oder eine Rolle; dann übernimmt das erste verfügbare Mitglied.",
+      "opHint": "Die Aktion des Plugins, wie ein Agent sie aufruft, z. B. set_state.",
+      "params": "Parameter",
+      "paramsHint": "Einer pro Zeile, Name: Wert. Platzhalter wie {{case.no}} werden gefüllt; ganze Zahlen und true/false gehen als solche raus."
+    },
+    "approval": {
+      "who": "Wer entscheidet",
+      "question": "Frage",
+      "questionHint": "Erscheint im Chat dieser Person, mit einem Knopf für jede Möglichkeit. Eine Antwort in eigenen Worten geht auch.",
+      "wait": "Wie lange warten",
+      "addOption": "Möglichkeit + Enter",
+      "options": "Möglichkeiten",
+      "whoHint": "E-Mail, Teil vor dem @ oder Anzeigename der Person, die entscheidet."
+    },
+    "wait": {
+      "until": "Warten bis",
+      "max": "Höchstens",
+      "untilHint": "Name des Ereignisses, z. B. label:customer-ok. Bis Zielsysteme es selbst senden, wird es über die API geliefert."
+    },
+    "notify": {
+      "to": "An",
+      "text": "Text",
+      "notYet": "Nachrichten sind noch nicht angebunden: Der Vorgang läuft weiter, die Nachricht steht nur in seinem Verlauf."
+    },
+    "end": {
+      "text": "Hier endet der Vorgang. Das Ticket bleibt im System, wie es ist."
+    },
+    "live": {
+      "title": "Was gerade läuft",
+      "nowAt": "{{type}} · aktuell",
+      "nothingHere": "Hier steht gerade nichts.",
+      "stuck": "dauern länger als erlaubt",
+      "attention": "Braucht Aufmerksamkeit",
+      "nothing": "Nichts.",
+      "hint": "Klicke auf einen Schritt, um zu sehen, wer dort dran ist. Klicke auf einen Vorgang, um seinen Verlauf zu öffnen.",
+      "offTitle": "Der Ablauf ist ausgeschaltet",
+      "offText": "Solange er aus ist, verfolgt covey keine Vorgänge. Die Kollegen arbeiten nach ihren eigenen Anweisungen.",
+      "watchNote": "covey zeigt, wo die Vorgänge stehen, und meldet, was hängt. Weitergeben tun die Kollegen selbst.",
+      "stuckBadge": "{{count}} hängen",
+      "stuckBadge_one": "{{count}} hängt",
+      "skipped": "übersprungen",
+      "working": "{{count}} in Arbeit",
+      "working_one": "{{count}} in Arbeit",
+      "queued": "{{count}} in Warteschlange",
+      "queued_one": "{{count}} in Warteschlange",
+      "waiting": "{{count}} warten",
+      "waiting_one": "{{count}} wartet",
+      "statWorking": "in Arbeit",
+      "statQueued": "warten, bis ein Kollege frei ist",
+      "allInList": "Alle {{count}} in der Liste",
+      "allInList_one": "{{count}} in der Liste",
+      "groupWorking": "In Arbeit",
+      "groupQueued": "Warteschlange · der älteste zuerst",
+      "groupWaiting": "Wartet auf jemanden",
+      "whyStuck": "länger als erlaubt",
+      "whyUnstaffed": "niemand hat die Rolle"
+    },
+    "run": {
+      "title": "Vorgang {{no}}",
+      "here": "ist gerade hier",
+      "times": "{{n}}×",
+      "reported": "Gemeldet"
+    },
+    "file": {
+      "title": "Ablauf als Text",
+      "one": "Was du auf der Fläche baust, steht hier als Text, und umgekehrt.",
+      "two": "Jede gespeicherte Änderung ergibt eine neue Version.",
+      "three": "Positionen werden nur für Bausteine gespeichert, die jemand verschoben hat.",
+      "head": "Wird versioniert wie die Einstellungen eines Agenten. Beim Export und Import wird genau dieser Text übertragen.",
+      "save": "Text speichern"
+    },
+    "chat": {
+      "kindApproval": "Freigabe",
+      "decidedAs": "Entschieden: {{choice}}.",
+      "previewOf": "So sieht es im Chat von {{name}} aus",
+      "digestKind": "Tägliche Zusammenfassung",
+      "digestStuck": "{{count}} Vorgänge hängen",
+      "digestStuck_one": "{{count}} Vorgang hängt",
+      "digestQueue": "{{count}} warten bei {{role}} auf einen freien Kollegen",
+      "digestQueue_one": "{{count}} wartet bei {{role}} auf einen freien Kollegen",
+      "digestMine": "{{count}} Freigaben warten auf dich",
+      "digestMine_one": "{{count}} Freigabe wartet auf dich",
+      "digestNote": "Was hängt, kommt gesammelt einmal am Tag. Freigaben kommen sofort und einzeln, weil du etwas entscheiden musst."
+    },
+    "details": "Details",
+    "closeDetails": "Details schließen",
+    "runs": {
+      "mineTag": "für dich",
+      "result": "{{count}} Vorgänge",
+      "result_one": "{{count}} Vorgang",
+      "search": "Nach Nummer oder Titel suchen",
+      "filter_all": "Alle",
+      "filter_attention": "Braucht Aufmerksamkeit",
+      "filter_mine": "Wartet auf mich",
+      "filter_queued": "In Warteschlange",
+      "allSteps": "Alle Schritte",
+      "none": "Kein Vorgang passt zu diesem Filter.",
+      "back": "Alle Vorgänge",
+      "cancel": "Abbrechen",
+      "finished": "Abgeschlossen",
+      "start": "Vorgang von Hand starten",
+      "startCase": "Ticket oder Vorgang, z. B. #431",
+      "startGo": "Starten",
+      "startTitle": "Titel (optional)",
+      "state_working": "in Arbeit",
+      "state_queued": "in Warteschlange",
+      "state_waiting": "wartet",
+      "state_watching": "beobachtet",
+      "state_done": "fertig",
+      "state_failed": "angehalten"
+    },
+    "overview": {
+      "new": "Neuer Ablauf",
+      "kpiRunning": "offene Vorgänge",
+      "kpiQueued": "warten, bis ein Kollege frei ist",
+      "kpiStuck": "dauern länger als erlaubt",
+      "kpiActive": "Abläufe eingeschaltet",
+      "needsYou": "Wartet auf dich",
+      "search": "Abläufe suchen",
+      "none": "Kein Ablauf passt.",
+      "explain": "Was „steuert“, „beobachtet“ und „aus“ bedeuten",
+      "colQueued": "Wartend",
+      "create": "Anlegen",
+      "createExample": "Beispiel anlegen",
+      "emptyText": "Fang mit dem Beispiel an, einem Ticket von der Zuweisung bis zum Kundentest, oder leg einen leeren Ablauf an. Ein neuer Ablauf startet ausgeschaltet oder nur beobachtend.",
+      "emptyTitle": "Noch kein Ablauf",
+      "newName": "Name des Ablaufs",
+      "slugIs": "Adresse: {{slug}}"
+    },
+    "addRole": "Rolle hinzufügen",
+    "newRole": "Neue Rolle, z. B. Test",
+    "roles": "Rollen",
+    "checksClean": "Nichts hindert diesen Ablauf am Laufen.",
+    "exit": {
+      "else": "sonst",
+      "limit": "Runden aufgebraucht",
+      "timeout": "Frist abgelaufen",
+      "out": "Ereignis eingetroffen"
+    },
+    "none": "keine",
+    "notFound": "Diesen Ablauf gibt es in deiner Organisation nicht.",
+    "removeWord": "{{word}} entfernen",
+    "saved": "Als Version {{n}} gespeichert.",
+    "sumTrigger": "startet einen Vorgang",
+    "unsaved": "Ungespeichert · speichern",
+    "unsavedProblems": "{{count}} Probleme",
+    "unsavedProblems_one": "{{count}} Problem",
+    "versionN": "Version {{n}}"
   }
 }
