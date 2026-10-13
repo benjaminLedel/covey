@@ -148,6 +148,23 @@ func TestPollThroughTheAdapter(t *testing.T) {
 	}
 }
 
+// A module's signature is read item by item only when it says so (#582),
+// and only when it polls at all.
+func TestAModuleSaysWhetherItsSignatureListsItems(t *testing.T) {
+	for _, c := range []struct {
+		desc Description
+		want bool
+	}{
+		{Description{Poll: true, SignsItems: true}, true},
+		{Description{Poll: true}, false},
+		{Description{SignsItems: true}, false},
+	} {
+		if got := target.SignsItems(&System{desc: c.desc}); got != c.want {
+			t.Errorf("%+v: SignsItems = %v", c.desc, got)
+		}
+	}
+}
+
 func TestPromptDocIsCachedPerScopeSet(t *testing.T) {
 	// The doc is read on every turn of every agent that has the system; asking
 	// the module each time would cost an instantiation per turn.

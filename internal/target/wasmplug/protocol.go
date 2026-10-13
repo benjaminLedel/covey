@@ -166,6 +166,12 @@ type Description struct {
 	// that does not must not be offered a connection test it can only fail.
 	Probe bool `json:"probe,omitempty"`
 	Poll  bool `json:"poll,omitempty"`
+	// SignsItems says that the poll signature is one "<key>@<version>" entry
+	// per waiting item (target.WorkSignature), so a host may read it item by
+	// item — a workflow then runs one case per item (#582). The module's
+	// counterpart of target.ItemSigner; absent, the signature is one piece of
+	// work.
+	SignsItems bool `json:"signs_items,omitempty"`
 	// Workdir declares that the module reads files from the agent's workspace.
 	// Declared, not asked for at runtime — the same rule as Hosts, and for the
 	// same reason: an operator decides before installing, not from a log
