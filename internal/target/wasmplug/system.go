@@ -267,6 +267,10 @@ func (s *System) HasWorkSigned(ctx context.Context, cred target.Credential, kind
 	return pr.HasWork, pr.Signature, nil
 }
 
+// SignsWorkItems (target.ItemSigner) answers what the module declared: a
+// signature read item by item has to be said, not guessed (#582).
+func (s *System) SignsWorkItems() bool { return s.desc.Poll && s.desc.SignsItems }
+
 // fetcher performs the module's requests against the brokered target system.
 //
 // Everything that makes this safe is here: the module names a PATH, never a
