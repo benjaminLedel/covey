@@ -3571,6 +3571,9 @@
     "unsaved": "Niezapisane · zapisz",
     "unsavedProblems": "{{count}} problemów",
     "unsavedProblems_one": "{{count}} problem",
-    "versionN": "wersja {{n}}"
+    "versionN": "wersja {{n}}",
+    "delete": "Usuń",
+    "deleteTitle": "Usunąć „{{name}}”?",
+    "deleteText": "Przepływ zniknie wraz ze wszystkimi wersjami, sprawami i ich historią. Tego nie da się cofnąć."
   }
 }

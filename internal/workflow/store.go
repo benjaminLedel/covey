@@ -302,6 +302,19 @@ func (s *Store) NewToken(ctx context.Context, workflowID uuid.UUID) (string, err
 	return token, err
 }
 
+// Delete removes a workflow with its versions, runs and trigger state (the
+// tables cascade). Whether it may go is the host's call: it knows the runs.
+func (s *Store) Delete(ctx context.Context, orgID uuid.UUID, slug string) error {
+	tag, err := s.pool.Exec(ctx, `DELETE FROM workflows WHERE org_id = $1 AND slug = $2`, orgID, slug)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // DropToken switches the token trigger off.
 func (s *Store) DropToken(ctx context.Context, workflowID uuid.UUID) error {
 	_, err := s.pool.Exec(ctx, `UPDATE workflow_triggers SET token_hash = NULL WHERE workflow_id = $1`, workflowID)

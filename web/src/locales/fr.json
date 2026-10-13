@@ -3571,6 +3571,9 @@
     "unsaved": "Non enregistré · enregistrer",
     "unsavedProblems": "{{count}} problèmes",
     "unsavedProblems_one": "{{count}} problème",
-    "versionN": "version {{n}}"
+    "versionN": "version {{n}}",
+    "delete": "Supprimer",
+    "deleteTitle": "Supprimer « {{name}} » ?",
+    "deleteText": "Le flux disparaît avec toutes ses versions, ses dossiers et leur historique. Impossible de revenir en arrière."
   }
 }

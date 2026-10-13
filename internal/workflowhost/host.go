@@ -241,6 +241,44 @@ func (h *Host) Run(ctx context.Context, every time.Duration) {
 	}
 }
 
+var (
+	// ErrStillOn: a workflow that watches or steers is not deleted; it is
+	// switched off first, so that nothing starts while it goes.
+	ErrStillOn = errors.New("the workflow is not off — switch it off before deleting it")
+	// ErrStepsWorking: a run stands at a colleague step, and its task is in an
+	// agent's backlog. Deleting the workflow would leave that task reporting
+	// to nothing.
+	ErrStepsWorking = errors.New("a colleague is still working on a step of this workflow")
+)
+
+// Delete removes a workflow that is off and has no colleague at work on it.
+// Runs that only watch, queue or wait go with it. A workflow the host could
+// not load has no runs to ask about and is removed as it is.
+func (h *Host) Delete(ctx context.Context, orgID uuid.UUID, slug string) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	var id uuid.UUID
+	for wid, hw := range h.engines {
+		if hw.stored.OrgID != orgID || hw.stored.Slug != slug {
+			continue
+		}
+		if hw.stored.Def.Mode != workflow.ModeOff {
+			return ErrStillOn
+		}
+		for _, r := range hw.eng.Runs() {
+			if r.State == workflow.StateWorking {
+				return ErrStepsWorking
+			}
+		}
+		id = wid
+	}
+	if err := h.Store.Delete(ctx, orgID, slug); err != nil {
+		return err
+	}
+	delete(h.engines, id)
+	return nil
+}
+
 // Runs lists the runs of one workflow, oldest first.
 func (h *Host) Runs(orgID uuid.UUID, slug string) []workflow.Run {
 	e, _, ok := h.Engine(orgID, slug)

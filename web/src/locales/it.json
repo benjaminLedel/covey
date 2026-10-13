@@ -3571,6 +3571,9 @@
     "unsaved": "Non salvato · salva",
     "unsavedProblems": "{{count}} problemi",
     "unsavedProblems_one": "{{count}} problema",
-    "versionN": "versione {{n}}"
+    "versionN": "versione {{n}}",
+    "delete": "Elimina",
+    "deleteTitle": "Eliminare «{{name}}»?",
+    "deleteText": "Il flusso scompare con tutte le versioni, i casi e la loro cronologia. Non si può annullare."
   }
 }

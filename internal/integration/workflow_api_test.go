@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -127,4 +128,63 @@ func TestWorkflowsThroughTheAPI(t *testing.T) {
 	}
 	admin.expect(http.MethodGet, "/api/v1/workflows/nope", nil, http.StatusNotFound)
 	admin.expect(http.MethodGet, "/api/v1/workflows/release/runs/nope", nil, http.StatusNotFound)
+}
+
+const deletableWorkflow = `
+owner: admin
+mode: %s
+roles:
+  Eng: [builder]
+steps:
+  t:
+    type: trigger
+    next: b
+  b:
+    type: agent
+    title: Build
+    role: Eng
+    task: '%s'
+    result: [mr]
+    next: e
+  e:
+    type: end
+`
+
+// TestAWorkflowIsDeletedOnlyWhenItIsOffAndNobodyWorksOnIt (#577): a
+// workflow that still watches is refused, so is one whose colleague still
+// has a step; one that is off goes with its runs, and is gone from the list.
+func TestAWorkflowIsDeletedOnlyWhenItIsOffAndNobodyWorksOnIt(t *testing.T) {
+	s := newStack(t)
+	s.newSupportAgent("builder")
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	s.mitglied(t, "other@test.local", "Other", "auditor", "other-passwort")
+	other := login(t, s, "other@test.local", "other-passwort")
+	put := func(slug, mode, task string) {
+		admin.expect(http.MethodPut, "/api/v1/workflows/"+slug, map[string]string{"source": fmt.Sprintf(deletableWorkflow, mode, task)}, http.StatusOK)
+	}
+
+	// Watched runs go with the workflow, once it is off.
+	put("watched", "watch", "Build")
+	admin.expect(http.MethodPost, "/api/v1/workflows/watched/runs", map[string]any{"case": "c1"}, http.StatusCreated)
+	other.expect(http.MethodDelete, "/api/v1/workflows/watched", nil, http.StatusForbidden)
+	admin.expect(http.MethodDelete, "/api/v1/workflows/watched", nil, http.StatusConflict)
+	put("watched", "off", "Build")
+	admin.expect(http.MethodDelete, "/api/v1/workflows/watched", nil, http.StatusOK)
+	admin.expect(http.MethodGet, "/api/v1/workflows/watched", nil, http.StatusNotFound)
+	admin.expect(http.MethodDelete, "/api/v1/workflows/watched", nil, http.StatusNotFound)
+
+	// A colleague at work keeps the workflow, even switched off.
+	put("busy", "steer", "Build [mock:sleep 30s]")
+	run := admin.expect(http.MethodPost, "/api/v1/workflows/busy/runs", map[string]any{"case": "c2"}, http.StatusCreated)
+	path := "/api/v1/workflows/busy/runs/" + run["id"].(string)
+	waitForOr(t, "the build step to be worked on", 30*time.Second, func() bool {
+		return admin.expect(http.MethodGet, path, nil, http.StatusOK)["state"] == "working"
+	}, func() string { return admin.expect(http.MethodGet, path, nil, http.StatusOK)["state"].(string) })
+	put("busy", "off", "Build [mock:sleep 30s]")
+	admin.expect(http.MethodDelete, "/api/v1/workflows/busy", nil, http.StatusConflict)
+
+	list := admin.expectList(http.MethodGet, "/api/v1/workflows", nil, http.StatusOK)
+	if len(list) != 1 || list[0]["slug"] != "busy" {
+		t.Fatalf("list after deleting: %v", list)
+	}
 }

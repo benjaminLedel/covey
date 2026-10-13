@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Link, useParams, useSearchParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import {
   Background,
   BackgroundVariant,
@@ -25,6 +25,7 @@ import {
   api,
   checkWorkflow,
   decideWorkflowRun,
+  deleteWorkflow,
   getWorkflow,
   getWorkflowRun,
   isNotFound,
@@ -38,6 +39,7 @@ import {
   type WorkflowRun,
 } from "../../api";
 import { fmtDelta } from "../../format";
+import { ConfirmDialog } from "../../components/Modal";
 import { canManage } from "../agent/roles";
 import { BlockIcon, CanvasContext, edgeTypes, nodeTypes, unstaffed, type CanvasState, type Tab } from "./canvas";
 import { DecisionCard } from "./ChatCards";
@@ -109,6 +111,9 @@ function Editor({ me }: { me: Principal }) {
   const qc = useQueryClient();
   const flow = useReactFlow();
   const manage = canManage(me.Role);
+  const navigate = useNavigate();
+  const [deleting, setDeleting] = useState<"ask" | "busy" | null>(null);
+  const [deleteError, setDeleteError] = useState("");
 
   const wfQ = useQuery({ queryKey: ["workflow", slug], queryFn: () => getWorkflow(slug), retry: (n, e) => !isNotFound(e) && n < 2 });
   const runsQ = useQuery({ queryKey: ["workflow-runs", slug], queryFn: () => listWorkflowRuns(slug), refetchInterval: 5000, enabled: wfQ.isSuccess });
@@ -474,6 +479,11 @@ function Editor({ me }: { me: Principal }) {
               {problems.length > 0 ? t("workflows.unsavedProblems", { count: problems.length }) : t("workflows.unsaved")}
             </button>
           )}
+          {manage && !dirty && wfQ.data.mode === "off" && (
+            <button className="wf-pill mute wf-delete" onClick={() => setDeleting("ask")}>
+              {t("workflows.delete")}
+            </button>
+          )}
         </div>
         <div className="wf-seg mode" role="group" aria-label={t("workflows.modeLabel")}>
           {MODES.map((m) => (
@@ -492,6 +502,31 @@ function Editor({ me }: { me: Principal }) {
         </div>
       </div>
       <p className="wf-modebar">{t(`workflows.modeText.${doc.meta.mode}`)}</p>
+      {deleting && (
+        <ConfirmDialog
+          title={t("workflows.deleteTitle", { name: doc.meta.name })}
+          confirmLabel={t("workflows.delete")}
+          pending={deleting === "busy"}
+          onClose={() => {
+            setDeleting(null);
+            setDeleteError("");
+          }}
+          onConfirm={async () => {
+            setDeleting("busy");
+            try {
+              await deleteWorkflow(slug);
+              await qc.invalidateQueries({ queryKey: ["workflows"] });
+              navigate("/workflows");
+            } catch (e) {
+              setDeleteError((e as Error).message);
+              setDeleting("ask");
+            }
+          }}
+        >
+          <p>{t("workflows.deleteText")}</p>
+          {deleteError && <p className="wf-error">{deleteError}</p>}
+        </ConfirmDialog>
+      )}
 
       <div className="wf-body">
         <div className={`wf-canvas${panel && tab !== "file" ? " has-panel" : ""}`}>

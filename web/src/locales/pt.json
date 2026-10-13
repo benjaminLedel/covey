@@ -3571,6 +3571,9 @@
     "unsaved": "Por guardar · guardar",
     "unsavedProblems": "{{count}} problemas",
     "unsavedProblems_one": "{{count}} problema",
-    "versionN": "versão {{n}}"
+    "versionN": "versão {{n}}",
+    "delete": "Excluir",
+    "deleteTitle": "Excluir “{{name}}”?",
+    "deleteText": "O fluxo desaparece com todas as versões, casos e o histórico deles. Não é possível desfazer."
   }
 }

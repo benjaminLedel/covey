@@ -3571,6 +3571,9 @@
     "unsaved": "Unsaved · save",
     "unsavedProblems": "{{count}} problems",
     "unsavedProblems_one": "{{count}} problem",
-    "versionN": "version {{n}}"
+    "versionN": "version {{n}}",
+    "delete": "Delete",
+    "deleteTitle": "Delete “{{name}}”?",
+    "deleteText": "The workflow goes, with all its versions, runs and their history. This cannot be undone."
   }
 }
