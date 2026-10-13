@@ -40,6 +40,18 @@ func (o *Orchestrator) messageHuman(ctx context.Context, agent agents.Agent, tas
 	if o.Chat == nil || o.Org == nil {
 		return fail("messages to people are not available on this instance")
 	}
+	/* The files the agent hands over (#586), checked again here: the daemon
+	   holds to the limits, but the sandbox is not what decides them. */
+	var total int64
+	attachments := make([]chat.Attachment, 0, len(req.Files))
+	for _, f := range req.Files {
+		total += int64(len(f.Data))
+		name := chat.AttachmentName(f.Name)
+		attachments = append(attachments, chat.Attachment{Name: name, MIME: chat.AttachmentMIME(name, f.Data), Data: f.Data})
+	}
+	if err := chat.CheckAttachments(len(attachments), total); err != nil {
+		return fail(err.Error())
+	}
 	human, err := o.resolveHuman(ctx, agent, req.To)
 	if err != nil {
 		return fail(err.Error())
@@ -51,7 +63,7 @@ func (o *Orchestrator) messageHuman(ctx context.Context, agent agents.Agent, tas
 	agentID := agent.ID
 	m := chat.Message{
 		ConversationID: convID, AuthorKind: chat.MemberAgent, AuthorID: &agentID,
-		Text: text, Kind: chat.MessageText,
+		Text: text, Kind: chat.MessageText, Attachments: attachments,
 	}
 	if taskID != uuid.Nil {
 		tid := taskID
@@ -60,8 +72,15 @@ func (o *Orchestrator) messageHuman(ctx context.Context, agent agents.Agent, tas
 	if _, _, err := o.Chat.Post(ctx, m); err != nil {
 		return fail("the message was not written: " + err.Error())
 	}
-	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindAction,
-		map[string]any{"action": "covey:message", "to": human.DisplayName, "conversation_id": convID.String()})
+	rec := map[string]any{"action": "covey:message", "to": human.DisplayName, "conversation_id": convID.String()}
+	if len(attachments) > 0 {
+		names := make([]string, len(attachments))
+		for i, a := range attachments {
+			names[i] = a.Name
+		}
+		rec["files"] = names
+	}
+	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindAction, rec)
 	// The same event a chat answer publishes (httpapi.chatEreignis): the
 	// surfaces reload the conversation, and the app shows it at once.
 	o.events.Publish(Event{Type: "chat", AgentID: agent.ID.String(), OrgID: agent.OrgID,

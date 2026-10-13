@@ -416,12 +416,34 @@ type InjectCreateTask struct {
 // It goes through the guard rails (subject covey:message): an organisation
 // may want an approval in front of what an agent tells people, or forbid it
 // for an agent that should only work.
+//
+// Files (#586) are what the agent hands over with it — read inside the
+// sandbox, because the control plane cannot see into it, and carried in this
+// one frame under MaxMessageFiles/MaxMessageFileBytes, which keep it inside
+// the WebSocket's read limit.
 type RequestMessage struct {
-	RequestID string `json:"request_id"`
-	TaskID    string `json:"task_id,omitempty"`
-	To        string `json:"to,omitempty"`
-	Text      string `json:"text"`
+	RequestID string        `json:"request_id"`
+	TaskID    string        `json:"task_id,omitempty"`
+	To        string        `json:"to,omitempty"`
+	Text      string        `json:"text"`
+	Files     []MessageFile `json:"files,omitempty"`
 }
+
+// MessageFile is one file of a covey/message: its base name and its bytes
+// (base64 on the wire, as encoding/json writes a []byte).
+type MessageFile struct {
+	Name string `json:"name"`
+	Data []byte `json:"data"`
+}
+
+// The limits of a covey/message's files: at most ten, at most 10 MiB
+// together. 10 MiB are 13.4 MiB of base64 — inside the 16 MiB a frame may
+// have (httpapi/daemonws.go). chat.MaxAttachments/MaxAttachmentBytes say the
+// same on the control plane's side, and a test holds the two together.
+const (
+	MaxMessageFiles     = 10
+	MaxMessageFileBytes = 10 << 20
+)
 
 type InjectMessage struct {
 	RequestID      string `json:"request_id"`

@@ -2,7 +2,7 @@ import { Fragment, lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { PEOPLE_SLUG, api, inbox, isDraft, markThreadRead, post, setConversationMuted, upload, type Agent, type ChatEntry, type ChatMark, type Department, type InboxEntry, type Laufend, type Principal, type Verlauf } from "../api";
+import { PEOPLE_SLUG, api, chatMessageBody, inbox, isDraft, markThreadRead, post, setConversationMuted, type Agent, type ChatEntry, type ChatMark, type Department, type InboxEntry, type Laufend, type Principal, type Verlauf } from "../api";
 import { Markdown } from "../components/Markdown";
 import Dauer from "../components/Dauer";
 import { useSucheOeffnen } from "../components/Suche";
@@ -11,6 +11,7 @@ import Gesicht from "../components/Gesicht";
 import { NavIcon } from "../components/navicons";
 import Kopf, { Zustand } from "./Kopf";
 import Vorschlag from "./Vorschlag";
+import Attachments, { attachmentLimit } from "./Attachments";
 
 const EntryCard = lazy(() => import("../pages/Inbox").then((m) => ({ default: m.EntryCard })));
 
@@ -34,11 +35,6 @@ const EntryCard = lazy(() => import("../pages/Inbox").then((m) => ({ default: m.
    einem Kollegen; das alles stand damit auf der Seite des Lesers, der es nie
    geschrieben hatte — und ein Trainingslauf von vierzig Zeilen sah aus wie
    eine Nachricht, die man selbst getippt hat. */
-/* Wohin ein Anhang im Arbeitsplatz des Agenten landet. Ein eigener Ordner,
-   damit das, was von außen hereingereicht wurde, nicht zwischen dem liegt,
-   was der Agent selbst angelegt hat. */
-const ANHANG_ORDNER = "eingang";
-
 const vonMir = (e: ChatEntry) =>
   e.author.startsWith("chat:") || e.author.startsWith("manual:") || e.author.startsWith("human:");
 
@@ -215,23 +211,14 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
     return t("team.startetAllgemein");
   })();
 
-  /* Ein Anhang ist kein Bild neben der Nachricht, sondern eine Datei im
-     Arbeitsplatz des Agenten: Dort kann er sie öffnen, und nur dort nützt sie
-     ihm. Hochgeladen wird deshalb in sein Heimverzeichnis unter `eingang/`,
-     und die Nachricht sagt, was wo liegt — ein Verweis, den auch der Lauf
-     später noch findet. */
+  /* A file attached here travels with the message (#586): the server keeps
+     it at the message and puts it into the agent's home under `chat/`, and
+     what the agent reads of the message names the path. The Files tab's
+     upload was the way before; it needs the manage role, which a person who
+     may only chat does not have. */
   const neu = useMutation({
-    mutationFn: async (nachricht: string) => {
-      let voll = nachricht;
-      if (anhaenge.length > 0) {
-        const form = new FormData();
-        for (const f of anhaenge) form.append("file", f, f.name);
-        await upload(`/agents/${agentId}/files/upload?path=${encodeURIComponent(ANHANG_ORDNER)}`, form);
-        const pfade = anhaenge.map((f) => `${ANHANG_ORDNER}/${f.name}`).join(", ");
-        voll = `${nachricht}\n\n(${t("team.anhangZeile", { pfade })})`;
-      }
-      return post(`/agents/${agentId}/messages`, { text: voll });
-    },
+    mutationFn: async (nachricht: string) =>
+      api(`/agents/${agentId}/messages`, { method: "POST", body: chatMessageBody(nachricht, anhaenge) }),
     /* Die eigene Nachricht steht im Verlauf, bevor der Server sie bestätigt
        hat. Das ist keine Beschönigung: Sie IST abgeschickt, und ob ein Chat
        sich anfühlt wie ein Chat, entscheidet sich genau hier — an dem
@@ -242,10 +229,7 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
     onMutate: async (nachricht: string) => {
       await qc.cancelQueries({ queryKey: ["thread", agentId] });
       const vorher = qc.getQueryData<Verlauf>(["thread", agentId]);
-      const anhangZeile =
-        anhaenge.length > 0
-          ? `\n\n(${t("team.anhangZeile", { pfade: anhaenge.map((f) => `${ANHANG_ORDNER}/${f.name}`).join(", ") })})`
-          : "";
+      const dateien = anhaenge;
       qc.setQueryData<Verlauf>(["thread", agentId], (alt) => ({
         entries: [
           ...(alt?.entries ?? []),
@@ -255,9 +239,10 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
             task_title: "",
             task_state: "",
             author: `chat:${me.Email}`,
-            text: nachricht + anhangZeile,
+            text: nachricht,
             at: new Date().toISOString(),
             unterwegs: true,
+            attachments: dateien.map((f, i) => ({ id: `unterwegs-${i}`, name: f.name, mime: "", size: f.size })),
           } as ChatEntry,
         ],
         marks: alt?.marks ?? {},
@@ -265,11 +250,12 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
       }));
       setText("");
       setAnhaenge([]);
-      return { vorher, nachricht };
+      return { vorher, nachricht, dateien };
     },
     onError: (_fehler, _nachricht, ctx) => {
       if (ctx?.vorher) qc.setQueryData(["thread", agentId], ctx.vorher);
       if (ctx?.nachricht) setText(ctx.nachricht);
+      if (ctx?.dateien) setAnhaenge(ctx.dateien);
     },
     /* In jedem Fall neu holen: Die eingefügte Zeile ist eine Behauptung, der
        Verlauf vom Server ist die Wahrheit. */
@@ -341,9 +327,11 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
     onSuccess: () => qc.invalidateQueries({ queryKey: ["thread", agentId] }),
   });
 
+  /* The server's limits, said before the upload rather than after it. */
+  const grenze = attachmentLimit(t, anhaenge);
   const abschicken = () => {
     const n = text.trim();
-    if ((n || anhaenge.length > 0) && !neu.isPending) neu.mutate(n);
+    if ((n || anhaenge.length > 0) && !grenze && !neu.isPending) neu.mutate(n);
   };
 
   return (
@@ -584,11 +572,12 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
                 )}
                 {e.kind === "config_proposal" && e.proposal ? (
                   <Vorschlag card={e.proposal} />
-                ) : (
+                ) : e.said || e.text ? (
                   <div className="tm-blase-text">
                     <Markdown text={e.said || e.text} />
                   </div>
-                )}
+                ) : null}
+                <Attachments files={e.attachments} />
                 {/* What the agent said is told from the report; the report
                     itself stays one click away, so nobody has to take the
                     sentence on trust (#411). */}
@@ -795,7 +784,7 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
           <button
             className="tm-eingabe-senden"
             onClick={abschicken}
-            disabled={!darfSchreiben || (!text.trim() && anhaenge.length === 0) || neu.isPending}
+            disabled={!darfSchreiben || (!text.trim() && anhaenge.length === 0) || !!grenze || neu.isPending}
             title={t("chat.send")}
             aria-label={t("chat.send")}
           >
@@ -803,6 +792,7 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
           </button>
         </div>
       </div>
+      {grenze && <p className="tm-fehler">{grenze}</p>}
       {(neu.isError || beantworten.isError) && (
         <p className="tm-fehler">{String(neu.error ?? beantworten.error)}</p>
       )}

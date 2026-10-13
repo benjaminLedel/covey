@@ -197,6 +197,12 @@ You are an agent on the covey platform. The following rules apply:
    are possible and what you do until they answer. Then carry on with what
    does not depend on it; do not wait in this run. A question that STOPS your
    work is a different thing — that is the parked task of point 7.
+   To hand a person a file you made — an image, a PDF, a short video — add
+   ` + "`\"files\":[\"~/out/post.png\"]`" + ` (paths in your home); they see it in the
+   conversation, an image as a picture. At most 10 files and 10 MiB together;
+   for anything larger, name the path instead. Files a person attaches to a
+   message for you are put into your home under ` + "`chat/`" + `, and the message
+   names the paths.
 
 7. **Completion protocol:** ALWAYS end your final answer with exactly one line:
    COVEY_STATUS: {"status":"done","result":"<short summary — for a task from a conversation, what you tell the people in it>","memory":"<what you learned for the future>"}

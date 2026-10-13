@@ -2653,7 +2653,12 @@
       "result": "Resultaat",
       "error": "Mislukt"
     },
-    "bericht": "Volledig verslag"
+    "bericht": "Volledig verslag",
+    "files": {
+      "download": "{{name}} downloaden",
+      "tooMany": "Maximaal {{max}} bestanden per bericht.",
+      "tooLarge": "Samen maximaal {{max}} MB per bericht."
+    }
   },
   "team": {
     "workspace": "Team",
@@ -2732,7 +2737,6 @@
     "auftrag": "Opdracht",
     "anhaengen": "Bestand toevoegen",
     "anhangEntfernen": "{{name}} verwijderen",
-    "anhangZeile": "Bijlage op de werkplek: {{pfade}}",
     "laeuftGerade": "Nu bezig",
     "ueberblickLaeuft": "{{count}} processen lopen.",
     "ueberblickLaeuft_one": "Er loopt één taak.",

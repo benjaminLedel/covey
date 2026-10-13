@@ -2653,7 +2653,12 @@
       "result": "Wynik",
       "error": "Niepowodzenie"
     },
-    "bericht": "Pełny raport"
+    "bericht": "Pełny raport",
+    "files": {
+      "download": "Pobierz {{name}}",
+      "tooMany": "Najwyżej {{max}} plików na wiadomość.",
+      "tooLarge": "Łącznie najwyżej {{max}} MB na wiadomość."
+    }
   },
   "team": {
     "workspace": "Zespół",
@@ -2732,7 +2737,6 @@
     "auftrag": "Zlecenie",
     "anhaengen": "Załącz plik",
     "anhangEntfernen": "Usuń {{name}}",
-    "anhangZeile": "Załącznik na stanowisku pracy: {{pfade}}",
     "laeuftGerade": "W toku",
     "ueberblickLaeuft": "Trwa {{count}} spraw.",
     "ueberblickLaeuft_one": "Trwa jedno zadanie.",

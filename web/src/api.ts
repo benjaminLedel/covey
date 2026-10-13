@@ -225,7 +225,35 @@ export type ChatEntry = {
   said?: string;
   /** On a config_proposal (#491): the drafted change. */
   proposal?: ProposalCard;
+  /** The files the message carries (#586). */
+  attachments?: ChatAttachment[];
 };
+
+/** A file a chat message carries (#586): handed over by an agent, or
+ *  attached by a person — then `home_path` says where it lies in the
+ *  agent's home. The bytes come from `chatAttachmentUrl`. */
+export type ChatAttachment = { id: string; name: string; mime: string; size: number; home_path?: string };
+
+/** Where an attachment is fetched: shown in place where the server allows
+ *  it (images, PDF, video), or always as a download. */
+export const chatAttachmentUrl = (id: string, download = false) =>
+  `/api/v1/chat/attachments/${id}${download ? "?download=1" : ""}`;
+
+/** A message with files goes as a form; without, as the JSON it always was. */
+export const chatMessageBody = (text: string, files: File[], replyTo?: string): BodyInit => {
+  if (files.length === 0) return JSON.stringify({ text, ...(replyTo ? { reply_to: replyTo } : {}) });
+  const form = new FormData();
+  if (text) form.append("text", text);
+  if (replyTo) form.append("reply_to", replyTo);
+  for (const f of files) form.append("file", f, f.name);
+  return form;
+};
+
+/** The limits the server holds a message's files to (chat.MaxAttachments,
+ *  chat.MaxAttachmentBytes) — checked here first, so that the person learns
+ *  it before the upload rather than after. */
+export const CHAT_MAX_FILES = 10;
+export const CHAT_MAX_BYTES = 10 * 1024 * 1024;
 
 export type EntwurfKurz = { id: string; slug: string; display_name: string; job_title: string; hired_at?: string };
 
@@ -309,6 +337,8 @@ export type ConversationMessage = {
   meta?: Record<string, string>;
   /** On a config_proposal (#491): the drafted change. */
   proposal?: ProposalCard;
+  /** The files the message carries (#586). */
+  attachments?: ChatAttachment[];
 };
 
 export type ConversationSummary = Conversation & {
@@ -333,10 +363,10 @@ export const conversationMessages = (id: string, before?: ConversationMessage) =
     `/conversations/${id}/messages` +
       (before ? `?before=${encodeURIComponent(before.created_at)}&before_id=${before.id}` : ""),
   );
-export const postConversationMessage = (id: string, text: string, replyTo?: string) =>
-  post<{ message: ConversationMessage; pending: boolean }>(`/conversations/${id}/messages`, {
-    text,
-    ...(replyTo ? { reply_to: replyTo } : {}),
+export const postConversationMessage = (id: string, text: string, replyTo?: string, files: File[] = []) =>
+  api<{ message: ConversationMessage; pending: boolean }>(`/conversations/${id}/messages`, {
+    method: "POST",
+    body: chatMessageBody(text, files, replyTo),
   });
 export const renameConversation = (id: string, title: string) => patch<Conversation>(`/conversations/${id}`, { title });
 export const markConversationRead = (id: string, at: string) => post<void>(`/conversations/${id}/read`, { at });

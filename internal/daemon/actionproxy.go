@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -473,11 +475,19 @@ func (p *actionProxy) createTask(ctx context.Context, params json.RawMessage) an
 // governable, per agent and per organisation.
 func (p *actionProxy) message(ctx context.Context, params json.RawMessage) any {
 	var in struct {
-		To   string `json:"to"`
-		Text string `json:"text"`
+		To    string   `json:"to"`
+		Text  string   `json:"text"`
+		Files []string `json:"files"`
 	}
 	if err := json.Unmarshal(params, &in); err != nil || strings.TrimSpace(in.Text) == "" {
 		return map[string]string{"status": "error", "error": "text missing"}
+	}
+	// The files are read before the guard rails are asked: a path that does
+	// not exist or a file over the limit is the agent's mistake to correct
+	// now, not after an approval it waited for.
+	files, err := readMessageFiles(p.client.homeDir, in.Files)
+	if err != nil {
+		return map[string]string{"status": "error", "error": err.Error()}
 	}
 	const subject = "covey:message"
 	dec, err := p.client.checkAction(ctx, p.taskID, subject, params)
@@ -494,12 +504,22 @@ func (p *actionProxy) message(ctx context.Context, params json.RawMessage) any {
 			"correlation_key": dec.CorrelationKey,
 		}
 	}
-	resp, err := p.client.message(ctx, RequestMessage{TaskID: p.taskID, To: in.To, Text: in.Text})
+	resp, err := p.client.message(ctx, RequestMessage{TaskID: p.taskID, To: in.To, Text: in.Text, Files: files})
 	if err != nil {
 		return map[string]string{"status": "error", "error": err.Error()}
 	}
-	audit, _ := json.Marshal(map[string]any{"action": subject, "to": resp.To, "ok": resp.OK,
-		"conversation_id": resp.ConversationID, "text": in.Text})
+	auditMap := map[string]any{"action": subject, "to": resp.To, "ok": resp.OK,
+		"conversation_id": resp.ConversationID, "text": in.Text}
+	if len(files) > 0 {
+		// The names and sizes, never the bytes: the recording keeps what was
+		// sent, the conversation keeps the files.
+		var names []string
+		for _, f := range files {
+			names = append(names, fmt.Sprintf("%s (%d bytes)", f.Name, len(f.Data)))
+		}
+		auditMap["files"] = names
+	}
+	audit, _ := json.Marshal(auditMap)
 	_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
 	if !resp.OK {
 		return map[string]string{"status": "error", "error": resp.Error}
@@ -508,6 +528,65 @@ func (p *actionProxy) message(ctx context.Context, params json.RawMessage) any {
 		"data": map[string]string{"to": resp.To, "conversation_id": resp.ConversationID},
 		"hint": "Delivered into your conversation with them. Their answer reaches you as a message or a task — " +
 			"carry on with your work, do not wait for it in this run."}
+}
+
+// readMessageFiles reads the files a covey/message hands over (#586). A path
+// is read the way the agent writes it: "~/out/a.png" and "out/a.png" from
+// its home, an absolute path as it stands — whatever the sandbox holds is the
+// agent's to show. Only regular files, and the limits are checked on the
+// sizes before a byte is read, so that a video of a gigabyte is refused
+// rather than loaded.
+func readMessageFiles(home string, paths []string) ([]MessageFile, error) {
+	if len(paths) == 0 {
+		return nil, nil
+	}
+	if len(paths) > MaxMessageFiles {
+		return nil, fmt.Errorf("too many files (max. %d per message)", MaxMessageFiles)
+	}
+	resolved := make([]string, 0, len(paths))
+	var total int64
+	for _, raw := range paths {
+		p := strings.TrimSpace(raw)
+		if p == "" {
+			return nil, fmt.Errorf("an empty file path")
+		}
+		switch {
+		case p == "~":
+			p = home
+		case strings.HasPrefix(p, "~/"):
+			p = filepath.Join(home, p[2:])
+		case !filepath.IsAbs(p):
+			p = filepath.Join(home, p)
+		}
+		info, err := os.Stat(p)
+		if err != nil {
+			return nil, fmt.Errorf("file %s: not found", raw)
+		}
+		if !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("file %s: not a regular file", raw)
+		}
+		total += info.Size()
+		if total > MaxMessageFileBytes {
+			return nil, fmt.Errorf("files too large: max. %d MiB together per message — "+
+				"send a smaller rendering, or name the path in your home instead", MaxMessageFileBytes>>20)
+		}
+		resolved = append(resolved, p)
+	}
+	out := make([]MessageFile, 0, len(resolved))
+	var read int
+	for _, p := range resolved {
+		data, err := os.ReadFile(p)
+		if err != nil {
+			return nil, fmt.Errorf("file %s: %v", p, err)
+		}
+		// Counted again on what was read, not trusted from the stat: a file
+		// still being written grows between the two.
+		if read += len(data); read > MaxMessageFileBytes {
+			return nil, fmt.Errorf("files too large: max. %d MiB together per message", MaxMessageFileBytes>>20)
+		}
+		out = append(out, MessageFile{Name: filepath.Base(p), Data: data})
+	}
+	return out, nil
 }
 
 // actionSubject maps the action onto the guard-rail subject — each plugin knows

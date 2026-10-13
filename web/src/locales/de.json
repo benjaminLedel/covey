@@ -2653,7 +2653,12 @@
       "result": "Ergebnis",
       "error": "Fehlgeschlagen"
     },
-    "bericht": "Ganzer Bericht"
+    "bericht": "Ganzer Bericht",
+    "files": {
+      "download": "{{name}} herunterladen",
+      "tooMany": "Höchstens {{max}} Dateien je Nachricht.",
+      "tooLarge": "Zusammen höchstens {{max}} MB je Nachricht."
+    }
   },
   "team": {
     "workspace": "Team",
@@ -2732,7 +2737,6 @@
     "auftrag": "Auftrag",
     "anhaengen": "Datei anhängen",
     "anhangEntfernen": "{{name}} entfernen",
-    "anhangZeile": "Anhang im Arbeitsplatz: {{pfade}}",
     "laeuftGerade": "Läuft gerade",
     "ueberblickLaeuft": "{{count}} Vorgänge laufen gerade.",
     "ueberblickLaeuft_one": "Ein Vorgang läuft gerade.",

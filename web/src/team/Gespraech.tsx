@@ -25,6 +25,7 @@ import { Avatar } from "../components/person";
 import { NavIcon } from "../components/navicons";
 import Kopf, { Stapel } from "./Kopf";
 import Vorschlag from "./Vorschlag";
+import Attachments, { attachmentLimit } from "./Attachments";
 
 /* A conversation with members (#440): a group, or a direct conversation
  * between two people. The direct conversation with an agent keeps its own
@@ -52,6 +53,9 @@ export default function Gespraech({ id, me }: { id: string; me: Principal }) {
   const navigate = useNavigate();
   const [text, setText] = useState("");
   const [antwortAuf, setAntwortAuf] = useState<ConversationMessage | null>(null);
+  /* Files for the next message (#586). */
+  const [dateien, setDateien] = useState<File[]>([]);
+  const dateiwahl = useRef<HTMLInputElement>(null);
   const [mitgliederOffen, setMitgliederOffen] = useState(false);
   const ende = useRef<HTMLDivElement>(null);
   const verlaufRef = useRef<HTMLDivElement>(null);
@@ -136,10 +140,11 @@ export default function Gespraech({ id, me }: { id: string; me: Principal }) {
   const erw = useErwaehnung({ text, setText, feld, kandidaten });
 
   const senden = useMutation({
-    mutationFn: () => postConversationMessage(id, text.trim(), antwortAuf?.id),
+    mutationFn: () => postConversationMessage(id, text.trim(), antwortAuf?.id, dateien),
     onSuccess: () => {
       setText("");
       setAntwortAuf(null);
+      setDateien([]);
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ["conversation", id] });
@@ -161,8 +166,10 @@ export default function Gespraech({ id, me }: { id: string; me: Principal }) {
     },
   });
 
+  /* The server's limits, said before the upload rather than after it. */
+  const grenze = attachmentLimit(t, dateien);
   const abschicken = () => {
-    if (text.trim() && !senden.isPending) senden.mutate();
+    if ((text.trim() || dateien.length > 0) && !grenze && !senden.isPending) senden.mutate();
   };
 
   return (
@@ -293,11 +300,12 @@ export default function Gespraech({ id, me }: { id: string; me: Principal }) {
                   )}
                   {m.kind === "config_proposal" && m.proposal ? (
                     <Vorschlag card={m.proposal} />
-                  ) : (
+                  ) : m.text ? (
                     <div className="tm-blase-text">
                       <Markdown text={m.text} />
                     </div>
-                  )}
+                  ) : null}
+                  <Attachments files={m.attachments} />
                   {m.report && m.report !== m.text && (
                     <details className="tm-bericht">
                       <summary>{t("chat.bericht")}</summary>
@@ -343,6 +351,23 @@ export default function Gespraech({ id, me }: { id: string; me: Principal }) {
             )}
           </p>
         )}
+        {dateien.length > 0 && (
+          <div className="tm-anhaenge">
+            {dateien.map((f, i) => (
+              <span key={`${f.name}-${i}`} className="tm-anhang">
+                <NavIcon name="clip" />
+                <span className="tm-anhang-name">{f.name}</span>
+                <button
+                  onClick={() => setDateien((a) => a.filter((_, j) => j !== i))}
+                  aria-label={t("team.anhangEntfernen", { name: f.name })}
+                  title={t("team.anhangEntfernen", { name: f.name })}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
         {antwortAuf && (
           <div className="tm-anhaenge">
             <span className="tm-anhang">
@@ -355,6 +380,24 @@ export default function Gespraech({ id, me }: { id: string; me: Principal }) {
         )}
         <div className="tm-eingabe-reihe">
           <ErwaehnungsListe e={erw} id={`tm-erw-${id}`} />
+          <input
+            ref={dateiwahl}
+            type="file"
+            multiple
+            hidden
+            onChange={(ev) => {
+              setDateien((a) => [...a, ...Array.from(ev.target.files ?? [])]);
+              ev.target.value = "";
+            }}
+          />
+          <button
+            className="tm-eingabe-knopf"
+            onClick={() => dateiwahl.current?.click()}
+            title={t("team.anhaengen")}
+            aria-label={t("team.anhaengen")}
+          >
+            <NavIcon name="clip" />
+          </button>
           <textarea
             ref={feld}
             rows={1}
@@ -381,7 +424,7 @@ export default function Gespraech({ id, me }: { id: string; me: Principal }) {
           <button
             className="tm-eingabe-senden"
             onClick={abschicken}
-            disabled={!text.trim() || senden.isPending}
+            disabled={(!text.trim() && dateien.length === 0) || !!grenze || senden.isPending}
             title={t("chat.send")}
             aria-label={t("chat.send")}
           >
@@ -389,6 +432,7 @@ export default function Gespraech({ id, me }: { id: string; me: Principal }) {
           </button>
         </div>
       </div>
+      {grenze && <p className="tm-fehler">{grenze}</p>}
       {senden.isError && <p className="tm-fehler">{String((senden.error as Error)?.message ?? senden.error)}</p>}
     </div>
   );
