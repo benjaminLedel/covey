@@ -3571,6 +3571,9 @@
     "unsaved": "未保存 · 保存",
     "unsavedProblems": "{{count}} 个问题",
     "unsavedProblems_one": "{{count}} 个问题",
-    "versionN": "版本 {{n}}"
+    "versionN": "版本 {{n}}",
+    "delete": "删除",
+    "deleteTitle": "删除“{{name}}”？",
+    "deleteText": "该流程将连同所有版本、案例及其历史一起删除，且无法撤销。"
   }
 }

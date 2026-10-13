@@ -271,6 +271,26 @@ func (s *Server) handlePutWorkflow(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+// handleDeleteWorkflow — DELETE /api/v1/workflows/{slug} (#577): the
+// workflow with its versions, runs and trigger state. Refused while it is not
+// off, or while a colleague works on one of its steps.
+func (s *Server) handleDeleteWorkflow(w http.ResponseWriter, r *http.Request) {
+	if !s.workflowsOn(w) {
+		return
+	}
+	err := s.Workflows.Delete(r.Context(), principalFrom(r).OrgID, r.PathValue("slug"))
+	switch {
+	case errors.Is(err, workflow.ErrNotFound):
+		writeErr(w, http.StatusNotFound, "workflow not found")
+	case errors.Is(err, workflowhost.ErrStillOn), errors.Is(err, workflowhost.ErrStepsWorking):
+		writeErr(w, http.StatusConflict, err.Error())
+	case err != nil:
+		writeErr(w, http.StatusInternalServerError, err.Error())
+	default:
+		writeJSON(w, http.StatusOK, map[string]any{"deleted": true})
+	}
+}
+
 // handleListRuns — GET /api/v1/workflows/{slug}/runs[?open=1]: the runs,
 // what needs someone first: stuck, then waiting, then the oldest.
 func (s *Server) handleListRuns(w http.ResponseWriter, r *http.Request) {

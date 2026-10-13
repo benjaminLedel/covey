@@ -3571,6 +3571,9 @@
     "unsaved": "Ungespeichert · speichern",
     "unsavedProblems": "{{count}} Probleme",
     "unsavedProblems_one": "{{count}} Problem",
-    "versionN": "Version {{n}}"
+    "versionN": "Version {{n}}",
+    "delete": "Löschen",
+    "deleteTitle": "„{{name}}“ löschen?",
+    "deleteText": "Der Ablauf verschwindet mit allen Versionen, Vorgängen und ihrem Verlauf. Das lässt sich nicht rückgängig machen."
   }
 }

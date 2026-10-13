@@ -3571,6 +3571,9 @@
     "unsaved": "未保存 · 保存",
     "unsavedProblems": "{{count}} 件の問題",
     "unsavedProblems_one": "{{count}} 件の問題",
-    "versionN": "バージョン {{n}}"
+    "versionN": "バージョン {{n}}",
+    "delete": "削除",
+    "deleteTitle": "「{{name}}」を削除しますか？",
+    "deleteText": "ワークフローは、すべてのバージョン、案件、その履歴とともに削除されます。元に戻せません。"
   }
 }

@@ -3571,6 +3571,9 @@
     "unsaved": "Niet opgeslagen · opslaan",
     "unsavedProblems": "{{count}} problemen",
     "unsavedProblems_one": "{{count}} probleem",
-    "versionN": "versie {{n}}"
+    "versionN": "versie {{n}}",
+    "delete": "Verwijderen",
+    "deleteTitle": "“{{name}}” verwijderen?",
+    "deleteText": "De workflow verdwijnt met alle versies, zaken en hun geschiedenis. Dit kan niet ongedaan worden gemaakt."
   }
 }

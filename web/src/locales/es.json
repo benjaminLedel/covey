@@ -3571,6 +3571,9 @@
     "unsaved": "Sin guardar · guardar",
     "unsavedProblems": "{{count}} problemas",
     "unsavedProblems_one": "{{count}} problema",
-    "versionN": "versión {{n}}"
+    "versionN": "versión {{n}}",
+    "delete": "Eliminar",
+    "deleteTitle": "¿Eliminar «{{name}}»?",
+    "deleteText": "El flujo desaparece con todas sus versiones, casos y su historial. No se puede deshacer."
   }
 }

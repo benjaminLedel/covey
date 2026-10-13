@@ -269,6 +269,9 @@ button.wf-stat:hover { border-color: var(--border-strong); }
 .wf-center { align-items: center; justify-content: center; gap: 10px; }
 .wf-unsaved { cursor: pointer; border: 0; font: inherit; font-size: 11px; }
 .wf-unsaved:disabled { cursor: default; opacity: 0.8; }
+.wf-delete { cursor: pointer; border: 0; font: inherit; font-size: 11px; margin-left: auto; }
+.wf-delete:hover { color: var(--text-danger); }
+.wf-error { color: var(--text-danger); font-size: 13px; }
 .wf-source { width: 100%; min-height: 70vh; font-family: var(--mono); font-size: 12.5px; line-height: 1.6; background: var(--surface-1); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 12px 14px; color: var(--text-primary); resize: vertical; max-width: none; }
 .wf-create { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; max-width: 860px; }
 .wf-create .input { width: 320px; max-width: 100%; }

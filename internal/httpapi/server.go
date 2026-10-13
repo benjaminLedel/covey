@@ -780,6 +780,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/workflows/mine", s.rbac(anyRole, s.handleMyApprovals))
 	mux.Handle("GET /api/v1/workflows/{slug}", s.rbac(anyRole, s.handleGetWorkflow))
 	mux.Handle("PUT /api/v1/workflows/{slug}", s.rbac(manage, s.handlePutWorkflow))
+	mux.Handle("DELETE /api/v1/workflows/{slug}", s.rbac(manage, s.handleDeleteWorkflow))
 	mux.Handle("GET /api/v1/workflows/{slug}/runs", s.rbac(anyRole, s.handleListRuns))
 	mux.Handle("POST /api/v1/workflows/{slug}/runs", s.rbac(manage, s.handleStartRun))
 	mux.Handle("GET /api/v1/workflows/{slug}/runs/{id}", s.rbac(anyRole, s.handleGetRun))

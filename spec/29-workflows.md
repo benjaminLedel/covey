@@ -325,8 +325,14 @@ sender needs that schema extended (§15).
 Routes under `/api/v1/workflows`: list with counts; one workflow as text and
 steps; check without saving; save the next version (refused with its problems);
 runs, one run; start by hand; decide; deliver an event; the approvals that wait
-for the caller; the token. Reading is open to everyone in the organisation;
-writing and starting to those who manage agents.
+for the caller; the token; delete. Reading is open to everyone in the
+organisation; writing and starting to those who manage agents.
+
+**Deleting** removes the workflow with its versions, runs and trigger state. It
+is refused while the workflow watches or steers — it is switched off first, so
+that nothing starts while it goes — and while a run stands at a colleague step,
+whose task sits in an agent's backlog and would report to nothing. Runs that
+only watch, queue or wait go with it.
 
 ## 12. Interface
 
