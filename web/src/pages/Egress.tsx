@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link, NavLink, Route, Routes, useNavigate, useParams } from "react-router";
 import {
-  api, del, post,
+  api, del, patch, post,
   type EgressBuiltin, type EgressStats, type EgressStatus, type EgressTemplate, type Principal,
 } from "../api";
 import { AddHostForm, EgressLogTable, HostChips } from "../components/EgressBits";
@@ -61,6 +61,8 @@ function Overview({ canEdit }: { canEdit: boolean }) {
       <HowItWorks />
 
       {status.data && <StatusBanner status={status.data} />}
+
+      {status.data && <OpenCard status={status.data} canEdit={canEdit} />}
 
       {status.data && <DefaultsCard status={status.data} canEdit={canEdit} />}
 
@@ -158,6 +160,46 @@ function StatusBanner({ status }: { status: EgressStatus }) {
       }}
     >
       <span>{status.enforced ? t("egress.enforced") : t("egress.notEnforced")}</span>
+    </div>
+  );
+}
+
+// OpenCard is the organisation switch (#587): open, the proxy lets every host
+// through for this organisation's agents and keeps logging. Deliberately a
+// switch of its own rather than a "*" host — that pattern is refused as an
+// entry, so "everything" stays one visible decision.
+function OpenCard({ status, canEdit }: { status: EgressStatus; canEdit: boolean }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const toggle = useMutation({
+    mutationFn: (open: boolean) => patch("/egress/open", { open }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["egress"] }),
+  });
+  return (
+    <div
+      className="card mb-4"
+      style={{
+        padding: "13px 15px",
+        borderLeft: status.open ? "3px solid var(--text-warning)" : undefined,
+      }}
+    >
+      <p className="text-xs font-medium" style={{ margin: "0 0 4px" }}>{t("egress.openTitle")}</p>
+      <p className="muted text-xs" style={{ margin: "0 0 8px", maxWidth: 620 }}>{t("egress.openDesc")}</p>
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-xs">{status.open ? t("egress.openIsOpen") : t("egress.openIsClosed")}</span>
+        {canEdit && (
+          <button
+            className="btn sm"
+            disabled={toggle.isPending}
+            onClick={() => toggle.mutate(!status.open)}
+          >
+            {status.open ? t("egress.openDoClose") : t("egress.openDoOpen")}
+          </button>
+        )}
+      </div>
+      {status.open && !status.enforced && (
+        <p className="muted text-xs" style={{ margin: "8px 0 0" }}>{t("egress.openIneffective")}</p>
+      )}
     </div>
   );
 }

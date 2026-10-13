@@ -1188,7 +1188,7 @@ export type EgressTemplate = {
 
 // Status: enforcement flag, configurable base allowlist of the org (applies to
 // alle Agenten) and ENV additions only changeable per config.
-export type EgressStatus = { enforced: boolean; defaults: EgressHost[]; env: string[] };
+export type EgressStatus = { enforced: boolean; open: boolean; defaults: EgressHost[]; env: string[] };
 
 // Built-in catalogue: curated host sets from the code, one click to take
 // them over as an org's own template.

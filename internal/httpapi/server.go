@@ -732,6 +732,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/guardrails/events", s.rbac(anyRole, s.handleGuardrailEvents))
 	// Egress: status, templates, per-agent assignment, decision log.
 	mux.Handle("GET /api/v1/egress", s.rbac(anyRole, s.handleEgressStatus))
+	mux.Handle("PATCH /api/v1/egress/open", s.rbac(securityRoles, s.handleSetEgressOpen))
 	mux.Handle("POST /api/v1/egress/defaults", s.rbac(securityRoles, s.handleAddEgressDefaultHost))
 	mux.Handle("DELETE /api/v1/egress/defaults/{id}", s.rbac(securityRoles, s.handleDeleteEgressDefaultHost))
 	mux.Handle("GET /api/v1/egress/templates", s.rbac(anyRole, s.handleListEgressTemplates))

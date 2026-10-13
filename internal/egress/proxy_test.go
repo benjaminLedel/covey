@@ -40,6 +40,23 @@ func TestAllowlistMatching(t *testing.T) {
 	}
 }
 
+// MatchAll is what an open organisation's list consists of (#587): every host
+// gets through, an empty one still does not.
+func TestAllowlistMatchAll(t *testing.T) {
+	a := NewAllowlist([]string{MatchAll})
+	for _, host := range []string{"evil.com", "brand.example.org:443", "10.0.0.1"} {
+		if !a.Allows(host) {
+			t.Errorf("MatchAll must let %q through", host)
+		}
+	}
+	if a.Allows("") {
+		t.Error("an empty host is never allowed")
+	}
+	if _, err := NormalizePattern(MatchAll); err == nil {
+		t.Error("MatchAll must not be storable as a host pattern — only the organisation switch sets it")
+	}
+}
+
 func TestAllowlistEmptyFailsClosed(t *testing.T) {
 	if NewAllowlist(nil).Allows("api.anthropic.com") {
 		t.Error("an empty allowlist must fail closed and reject everything")

@@ -27,8 +27,9 @@ import (
 )
 
 // Allowlist decides which target hosts get through. Fail-closed: an empty list
-// rejects everything. Patterns: exact host or "*.suffix".
+// rejects everything. Patterns: exact host, "*.suffix", or MatchAll.
 type Allowlist struct {
+	all      bool
 	exact    map[string]bool
 	suffixes []string
 	roots    []string
@@ -43,6 +44,10 @@ func NewAllowlist(patterns []string) *Allowlist {
 		}
 		if h, _, err := net.SplitHostPort(p); err == nil {
 			p = h
+		}
+		if p == MatchAll {
+			a.all = true
+			continue
 		}
 		if root, ok := strings.CutPrefix(p, "*."); ok {
 			a.suffixes = append(a.suffixes, "."+root)
@@ -63,7 +68,7 @@ func (a *Allowlist) Allows(hostPort string) bool {
 	if host == "" {
 		return false
 	}
-	if a.exact[host] {
+	if a.all || a.exact[host] {
 		return true
 	}
 	for _, root := range a.roots {
