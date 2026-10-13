@@ -1,10 +1,10 @@
 import 'dart:async';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
+import '../chat_files.dart';
 import '../chat_text.dart';
 import '../chrome.dart';
 import '../api.dart';
@@ -62,7 +62,7 @@ class ThreadScreen extends StatefulWidget {
   final Conversation? conversation;
 
   /// Swapped in tests, so attaching needs no file dialog.
-  final Future<List<Attachment>> Function(FileType type)? pick;
+  final Future<List<Attachment>> Function(AttachSource source)? pick;
 
   final CoveyApi api;
   final String agentId;
@@ -253,65 +253,72 @@ class _ThreadScreenState extends State<ThreadScreen> {
         });
   }
 
-  /// Picks photos, videos or files to go with the next message (#340).
+  /// Picks photos, videos or files to go with the next message (#340). They
+  /// travel with the message itself (#586), in an agent's thread as in a
+  /// conversation. What would cross the server's limits is not taken: the
+  /// person hears it now, not after the upload.
   Future<void> _attach() async {
-    final t = Strings.of(context).t;
-    final type = await showModalBottomSheet<FileType>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: InsetGroup(
-            dividerIndent: 16,
-            children: [
-              GroupRow(title: t('mobile.anhangFoto'), onTap: () => Navigator.pop(context, FileType.media)),
-              GroupRow(title: t('mobile.anhangDatei'), onTap: () => Navigator.pop(context, FileType.any)),
-            ],
+    final strings = Strings.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final source = await chooseAttachSource(context);
+    if (source == null) return;
+    final List<Attachment> picked;
+    try {
+      picked = await (widget.pick ?? pickAttachments)(source);
+    } on PlatformException catch (e) {
+      diag('thread', 'attach: ${e.code} ${e.message}');
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            e.code == 'camera_access_denied'
+                ? strings.t('mobile.kameraVerweigert')
+                : strings.t('mobile.fehler', args: {'error': e.message ?? e.code}),
           ),
         ),
-      ),
-    );
-    if (type == null) return;
-    final picked = await (widget.pick ?? _pickFiles)(type);
+      );
+      return;
+    }
     if (picked.isEmpty || !mounted) return;
+    final limit = attachmentLimit(strings, [..._files, ...picked]);
+    if (limit != null) {
+      messenger.showSnackBar(SnackBar(content: Text(limit)));
+      return;
+    }
     setState(() => _files.addAll(picked));
   }
 
-  static Future<List<Attachment>> _pickFiles(FileType type) async {
-    final files = await FilePicker.pickFiles(type: type);
-    return [for (final f in files) Attachment(name: f.name, length: f.lengthSync(), open: () => f.readAsByteStream())];
-  }
-
   Future<void> _send() async {
-    var text = _text.text.trim();
-    // Files alone are a message too: the line that names them is its text.
-    if ((text.isEmpty && _files.isEmpty) || _sending) return;
+    final text = _text.text.trim();
+    final q = _answering;
+    // Files alone are a message too (#586). An answer to a question is text
+    // only — the reply route takes no files — and the files held stay for
+    // the next message.
+    final files = q == null ? List<Attachment>.of(_files) : const <Attachment>[];
+    if ((text.isEmpty && files.isEmpty) || _sending) return;
     final messenger = ScaffoldMessenger.of(context);
-    final t = Strings.of(context).t;
+    final strings = Strings.of(context);
+    final t = strings.t;
+    final limit = attachmentLimit(strings, files);
+    if (limit != null) {
+      messenger.showSnackBar(SnackBar(content: Text(limit)));
+      return;
+    }
     setState(() => _sending = true);
     try {
-      // First the files, then the message that names them: a message that
-      // points at a file which never arrived would send the agent looking.
-      if (_files.isNotEmpty) {
-        final paths = await widget.api.uploadToInbox(widget.agentId, _files);
-        final line = '(${t('team.anhangZeile', args: {'pfade': paths.join(', ')})})';
-        text = text.isEmpty ? line : '$text\n\n$line';
-      }
-      final q = _answering;
       if (q != null) {
         final woken = await widget.api.reply(q.taskId!, text);
         // Not an error, and not retried: nobody was waiting (spec/27).
         if (!woken) messenger.showSnackBar(SnackBar(content: Text(t('mobile.nichtGeweckt'))));
       } else if (_isConversation) {
-        final sent = await widget.api.postConversationMessage(widget.conversation!.id, text);
+        final sent = await widget.api.postConversationMessage(widget.conversation!.id, text, files: files);
         _merge([sent]);
       } else {
-        await widget.api.send(widget.agentId, text);
+        await widget.api.send(widget.agentId, text, files: files);
       }
       _text.clear();
       setState(() {
         _answering = null;
-        _files.clear();
+        _files.removeWhere(files.contains);
       });
       await _load();
     } on ApiException catch (e) {
@@ -498,6 +505,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
                                 earlier.at != null &&
                                 e.at!.difference(earlier.at!) < const Duration(minutes: 5);
                             final line = _Line(
+                              api: widget.api,
                               entry: e,
                               first: !continues,
                               agentName: widget.agentName,
@@ -554,8 +562,8 @@ class _ThreadScreenState extends State<ThreadScreen> {
                 onCancelAnswer: () => setState(() => _answering = null),
                 onSend: _send,
                 files: _files,
-                // Files go into an agent's home; a conversation has none.
-                onAttach: _isConversation ? null : _attach,
+                // An answer goes to a question and carries no files.
+                onAttach: _answering != null ? null : _attach,
                 onRemove: (f) => setState(() => _files.remove(f)),
               ),
           ],
@@ -718,6 +726,7 @@ class _DaySeparator extends StatelessWidget {
 
 class _Line extends StatelessWidget {
   const _Line({
+    required this.api,
     required this.entry,
     required this.selected,
     required this.first,
@@ -727,6 +736,7 @@ class _Line extends StatelessWidget {
     this.showTask = true,
   });
 
+  final CoveyApi api;
   final ThreadEntry entry;
   final bool selected;
   final VoidCallback? onAnswer;
@@ -836,8 +846,10 @@ class _Line extends StatelessWidget {
           ),
         if (emoji)
           Text(entry.text.trim(), style: const TextStyle(fontSize: 38, height: 1.15))
-        else
+        // A message of files alone has no text to draw (#586).
+        else if (entry.said.isNotEmpty || entry.text.trim().isNotEmpty || entry.files.isEmpty)
           ChatText(entry.said.isNotEmpty ? entry.said : entry.text, color: fg),
+        if (entry.files.isNotEmpty) MessageFiles(api: api, files: entry.files),
         // The report the sentence was told from, one tap away (#411).
         if (entry.said.isNotEmpty) _Report(entry.text),
         if (onAnswer != null) ...[

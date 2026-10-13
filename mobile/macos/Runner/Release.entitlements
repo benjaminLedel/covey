@@ -11,8 +11,9 @@
 	     connected to (#334). Without this the sandbox refuses every request. -->
 	<key>com.apple.security.network.client</key>
 	<true/>
-	<!-- Attachments (#340): read the files the person picks. -->
-	<key>com.apple.security.files.user-selected.read-only</key>
+	<!-- Attachments (#340): read the files the person picks; and save a
+	     file a chat message carries where the person chooses (#586). -->
+	<key>com.apple.security.files.user-selected.read-write</key>
 	<true/>
 	<!-- The notetaker (#336): dictation and meeting recording. -->
 	<key>com.apple.security.device.audio-input</key>

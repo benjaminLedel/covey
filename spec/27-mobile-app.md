@@ -67,6 +67,7 @@ Paths are relative to `/api/v1`, all of them behind the badge, all scoped to the
 | conversations | `GET /conversations` | this person's direct and group conversations, newest first, with the unread count and whether one holds an open entry |
 | messages | `GET /conversations/{id}/messages` | a page of messages; members only |
 | write | `POST /conversations/{id}/messages` | `{text}` → handed to the agent it addresses; a task it opens carries the conversation (`backlog_tasks.conversation_id`) and origin `chat:<email>` |
+| files in a message | `POST /conversations/{id}/messages` as `multipart/form-data`, `GET /chat/attachments/{id}` | `text`, `reply_to`, `file` repeated — at most 10 files and 10 MiB together, checked in the app before the upload; each file is fetched with the key, a picture shown in place, anything else saved through the system's dialog ([`28-team-surface.md`](28-team-surface.md), #586) |
 | mark read | `POST /conversations/{id}/read` | moves this member's read position |
 | start one | `POST /conversations` | `{kind: direct, member}` returns the existing direct conversation or creates it; `{kind: group, title, members}` creates a group |
 | older app versions | `GET /agents/{id}/thread`, `POST /agents/{id}/messages` | kept as aliases onto the direct conversation between this person and the agent |

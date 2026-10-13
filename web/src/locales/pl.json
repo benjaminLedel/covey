@@ -2834,6 +2834,7 @@
     "notizenSuchen": "Szukaj w notatkach",
     "anhangFoto": "Zdjęcie lub wideo",
     "anhangDatei": "Plik",
+    "anhangNichtGeladen": "Nie udało się wczytać pliku.",
     "webHinweis": "Notatki są prywatne: nikt inny ich nie czyta. Notatki głosowe i spotkania nagrywa się w aplikacji covey, gdzie mowa jest rozpoznawana na urządzeniu; tutaj można je czytać, przeszukiwać, podsumowywać i pisać nowe.",
     "fertig": "Gotowe",
     "entfernen": "Usuń",
