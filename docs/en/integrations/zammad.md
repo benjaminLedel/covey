@@ -115,6 +115,15 @@ Three kinds:
 | `zammad:unassigned` | open tickets nobody owns (the group's inbox) |
 | `zammad:owner:<login or e-mail>` | that person's tickets **and** the agent's own |
 
+A trailing `:pending` (`zammad:owner:<login>:pending`, `zammad:assigned:pending`)
+counts the tickets in a state of type *pending reminder* as well — plugin
+version 1.2.0 or later. It is for the team where a colleague parks a ticket
+with a reminder and then hands it on: without the suffix that ticket wakes
+nobody until Zammad reopens it on the date. Type *pending action* (pending
+close) stays out, since it waits for the customer by definition. An agent that
+uses the suffix should not set `pending reminder` on its own tickets, or its
+own reply wakes it once more.
+
 The third form is for the setup where a person routes work to the agent by
 assigning tickets to themselves: the agent works them, answers as itself and
 leaves the ticket with its owner. If it takes one over (`assign` with
@@ -190,10 +199,11 @@ interval, and the resume of a parked question (section 5).
 
 **By polling (2.4a):** the tickets assigned to the agent's user, or to the
 person named in `nur-wenn: zammad:owner:<login>`, in a state of type *new* or
-*open*. Assignment is the filter, and it sits where a team already does its
+*open* — with the `:pending` suffix also *pending reminder*. Assignment is the filter, and it sits where a team already does its
 routing: in Zammad, by giving the ticket to a colleague. `list_tickets` lets
 the agent look beyond that on purpose (`owner:"nobody"` for the group's
-inbox, another login, `state:"any"`); the playbook says whether it should.
+inbox, another login, `state:"pending"` for the tickets waiting on a
+reminder, `state:"any"`); the playbook says whether it should.
 
 **By webhook:** that can be steered on **two levels** — both together yield
 the intake decision.
