@@ -405,7 +405,20 @@ func (s *Store) DeleteDefaultHost(ctx context.Context, orgID, hostID uuid.UUID) 
 // EffectiveAllowlist resolves an agent's complete pattern list: the org's base
 // allowlist + the hosts of all assigned templates + agent-owned hosts. Only the
 // environment additions (COVEY_EGRESS_ALLOW) are added on top in the proxy.
+//
+// An organisation that has opened egress (#587) gets MatchAll and nothing
+// else: the proxy still sees every connection and logs it, it just no longer
+// refuses one. Answered here, not in the proxy, so that the in-process proxy
+// and a runner's standalone one read the same list without a protocol change.
 func (s *Store) EffectiveAllowlist(ctx context.Context, agentID uuid.UUID) ([]string, error) {
+	var open bool
+	if err := s.pool.QueryRow(ctx, `SELECT o.egress_open FROM agents a
+		JOIN organizations o ON o.id=a.org_id WHERE a.id=$1`, agentID).Scan(&open); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, err
+	}
+	if open {
+		return []string{MatchAll}, nil
+	}
 	// The join goes over the agent's organisation: an assignment from the time
 	// before the check (finding E) must no longer release foreign hosts — the
 	// list thus heals itself.
@@ -433,6 +446,26 @@ func (s *Store) EffectiveAllowlist(ctx context.Context, agentID uuid.UUID) ([]st
 		out = append(out, p)
 	}
 	return out, rows.Err()
+}
+
+// MatchAll is the pattern an open organisation's allowlist consists of. It can
+// only come from the organisation switch: NormalizePattern refuses it as a
+// stored host, so "everything" is one visible decision rather than an entry
+// hidden in a template.
+const MatchAll = "*"
+
+// OrgEgressOpen reports whether an organisation lets its agents reach every host.
+func (s *Store) OrgEgressOpen(ctx context.Context, orgID uuid.UUID) (bool, error) {
+	var open bool
+	err := s.pool.QueryRow(ctx, `SELECT egress_open FROM organizations WHERE id=$1`, orgID).Scan(&open)
+	return open, err
+}
+
+// SetOrgEgressOpen opens or closes egress for an organisation. The proxies pick
+// it up with their cache TTL, like any other allowlist change.
+func (s *Store) SetOrgEgressOpen(ctx context.Context, orgID uuid.UUID, open bool) error {
+	_, err := s.pool.Exec(ctx, `UPDATE organizations SET egress_open=$2 WHERE id=$1`, orgID, open)
+	return err
 }
 
 // --- Per-sandbox token ---

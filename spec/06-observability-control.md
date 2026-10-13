@@ -30,6 +30,8 @@ Guard rails take effect exactly where the control plane and the daemon control t
 
 - **Allow/deny for systems & tools** — e.g. "must never access the HR system", "no shell access".
 - **Egress rules** — e.g. "mail only to internal domains without approval", "no outbound requests to unknown hosts".
+
+**Egress can be opened per organisation** (#587). Whether the instance enforces egress at all stays a process setting (`COVEY_EGRESS_ENFORCE`); within it, an organisation's `org_admin` or security role can switch its own egress to *open* (`PATCH /api/v1/egress/open`, the card on the egress page). Open, the effective allowlist of every agent in that organisation is the single match-all entry `*`: the proxy still sees and logs every connection, it just refuses none. The entry exists only through that switch — `*` is refused as a stored host pattern — so "everything" is one visible decision rather than a line hidden in a template. It is answered in `EffectiveAllowlist`, which both the in-process proxy and a runner's standalone proxy read, so no protocol changes; a runner proxy older than the switch reads `*` as an unknown host and stays closed.
 - **Forbidden actions** — hard no-gos that are impossible even with approval.
 - **Mandatory approvals** — actions that only run with a human sign-off.
 - **Rate/cost limits** — upper bounds per time window / per task / per agent.

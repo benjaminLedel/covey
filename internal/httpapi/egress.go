@@ -26,11 +26,37 @@ func (s *Server) handleEgressStatus(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
+	open, err := s.EgressStore.OrgEgressOpen(r.Context(), p.OrgID)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"enforced": s.EgressEnforced,
+		"open":     open,
 		"defaults": defaults,
 		"env":      s.EgressDefaults,
 	})
+}
+
+// handleSetEgressOpen opens or closes egress for the caller's organisation
+// (#587): open, the proxy lets every host through for its agents and keeps
+// logging. Only meaningful where the instance enforces egress at all — the
+// status says which.
+func (s *Server) handleSetEgressOpen(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	var in struct {
+		Open *bool `json:"open"`
+	}
+	if err := readJSON(r, &in); err != nil || in.Open == nil {
+		writeErr(w, http.StatusBadRequest, "field open (true|false) is missing")
+		return
+	}
+	if err := s.EgressStore.SetOrgEgressOpen(r.Context(), p.OrgID, *in.Open); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"open": *in.Open})
 }
 
 // --- Base allowlist (org-wide) ---
