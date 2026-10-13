@@ -106,7 +106,9 @@ function blankBlock(type: BlockType, id: string, title: string): Block {
 
 function Editor({ me }: { me: Principal }) {
   const { t } = useTranslation();
-  const { id: slug = "" } = useParams();
+  // The address names the workflow by id (#580); the API takes it wherever
+  // it takes the slug.
+  const { id: ref = "" } = useParams();
   const [params] = useSearchParams();
   const qc = useQueryClient();
   const flow = useReactFlow();
@@ -115,8 +117,8 @@ function Editor({ me }: { me: Principal }) {
   const [deleting, setDeleting] = useState<"ask" | "busy" | null>(null);
   const [deleteError, setDeleteError] = useState("");
 
-  const wfQ = useQuery({ queryKey: ["workflow", slug], queryFn: () => getWorkflow(slug), retry: (n, e) => !isNotFound(e) && n < 2 });
-  const runsQ = useQuery({ queryKey: ["workflow-runs", slug], queryFn: () => listWorkflowRuns(slug), refetchInterval: 5000, enabled: wfQ.isSuccess });
+  const wfQ = useQuery({ queryKey: ["workflow", ref], queryFn: () => getWorkflow(ref), retry: (n, e) => !isNotFound(e) && n < 2 });
+  const runsQ = useQuery({ queryKey: ["workflow-runs", ref], queryFn: () => listWorkflowRuns(ref), refetchInterval: 5000, enabled: wfQ.isSuccess });
   const agentsQ = useQuery({ queryKey: ["agents"], queryFn: () => api<Agent[] | null>("/agents"), staleTime: 60_000 });
   const agents = useMemo(() => agentsQ.data ?? [], [agentsQ.data]);
   const targetsQ = useQuery({ queryKey: ["targets"], queryFn: () => api<TargetPlugin[] | null>("/targets"), staleTime: 60_000 });
@@ -177,7 +179,7 @@ function Editor({ me }: { me: Principal }) {
     setSaving(true);
     setMessage("");
     try {
-      const res = await saveWorkflow(slug, text ?? source);
+      const res = await saveWorkflow(ref, text ?? source);
       if (!res.ok) {
         setProblems(res.problems);
         setMessage(res.error);
@@ -187,7 +189,7 @@ function Editor({ me }: { me: Principal }) {
       setLoadedVersion(0); // take up the saved version as the server parsed it
       setTextDraft(null);
       setMessage(res.warning ?? t("workflows.saved", { n: res.version }));
-      await qc.invalidateQueries({ queryKey: ["workflow", slug] });
+      await qc.invalidateQueries({ queryKey: ["workflow", ref] });
       await qc.invalidateQueries({ queryKey: ["workflows"] });
       return true;
     } catch (e) {
@@ -200,8 +202,8 @@ function Editor({ me }: { me: Principal }) {
 
   const runs = useMemo(() => runsQ.data ?? [], [runsQ.data]);
   const runQ = useQuery({
-    queryKey: ["workflow-run", slug, run],
-    queryFn: () => getWorkflowRun(slug, run!),
+    queryKey: ["workflow-run", ref, run],
+    queryFn: () => getWorkflowRun(ref, run!),
     enabled: !!run,
     refetchInterval: 5000,
   });
@@ -336,8 +338,8 @@ function Editor({ me }: { me: Principal }) {
     setPanel(true);
   };
   const refreshRuns = async () => {
-    await qc.invalidateQueries({ queryKey: ["workflow-runs", slug] });
-    await qc.invalidateQueries({ queryKey: ["workflow-run", slug] });
+    await qc.invalidateQueries({ queryKey: ["workflow-runs", ref] });
+    await qc.invalidateQueries({ queryKey: ["workflow-run", ref] });
     await qc.invalidateQueries({ queryKey: ["workflows-mine"] });
   };
 
@@ -381,7 +383,7 @@ function Editor({ me }: { me: Principal }) {
         onDecide={
           may
             ? async (option) => {
-                await decideWorkflowRun(slug, current.id, option);
+                await decideWorkflowRun(ref, current.id, option);
                 await refreshRuns();
               }
             : undefined
@@ -396,7 +398,7 @@ function Editor({ me }: { me: Principal }) {
       <Inspector
         doc={doc}
         systems={systems}
-        slug={slug}
+        slug={ref}
         workflowId={wfQ.data.id}
         selected={selected}
         selectedLink={selectedLink}
@@ -459,7 +461,7 @@ function Editor({ me }: { me: Principal }) {
           onQuery={setRunQuery}
           onOpen={openRun}
           onStart={async (caseRef, title) => {
-            const r = await startWorkflowRun(slug, caseRef, title ? { title } : {});
+            const r = await startWorkflowRun(ref, caseRef, title ? { title } : {});
             await refreshRuns();
             openRun(r.id);
           }}
@@ -514,7 +516,7 @@ function Editor({ me }: { me: Principal }) {
           onConfirm={async () => {
             setDeleting("busy");
             try {
-              await deleteWorkflow(slug);
+              await deleteWorkflow(ref);
               await qc.invalidateQueries({ queryKey: ["workflows"] });
               navigate("/workflows");
             } catch (e) {
@@ -602,7 +604,7 @@ function Editor({ me }: { me: Principal }) {
           {tab === "file" && (
             <div className="wf-file">
               <div className="wf-file-head">
-                <span className="wf-pill info">{slug}.workflow</span>
+                <span className="wf-pill info">{wfQ.data.slug}.workflow</span>
                 <span>{t("workflows.file.head")}</span>
               </div>
               <div className="wf-file-grid">

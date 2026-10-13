@@ -2001,6 +2001,7 @@ export type WorkflowRun = {
 };
 export type WorkflowApproval = {
   workflow: string;
+  workflow_id: string;
   name: string;
   run: string;
   case: string;
@@ -2024,6 +2025,19 @@ export const decideWorkflowRun = (slug: string, id: string, option: string) =>
   post<WorkflowRun>(`${wf(slug)}/runs/${encodeURIComponent(id)}/decide`, { option });
 export const newWorkflowToken = (slug: string) => post<{ enabled: boolean; token: string; url: string }>(`${wf(slug)}/token`);
 export const deleteWorkflow = (slug: string) => del<{ deleted: boolean }>(wf(slug));
+export async function createWorkflow(
+  slug: string,
+  source: string,
+): Promise<{ ok: true; id: string; slug: string } | { ok: false; problems: WorkflowProblem[]; error: string }> {
+  const res = await fetch("/api/v1/workflows", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ slug, source }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (res.ok) return { ok: true, id: body.id, slug: body.slug };
+  return { ok: false, problems: body.problems ?? [], error: body.error ?? res.statusText };
+}
 export const checkWorkflow = (source: string) => post<{ problems: WorkflowProblem[] }>("/workflows/check", { source });
 
 /* Saving answers 422 with the problems that keep a definition from

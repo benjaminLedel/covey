@@ -3550,8 +3550,7 @@
       "createExample": "Utwórz przykład",
       "emptyText": "Zacznij od przykładu, zgłoszenia od przydzielenia do testu klienta, albo utwórz pusty przepływ. Nowy przepływ startuje wyłączony lub tylko obserwujący.",
       "emptyTitle": "Jeszcze brak przepływów",
-      "newName": "Nazwa przepływu",
-      "slugIs": "Adres: {{slug}}"
+      "newName": "Nazwa przepływu"
     },
     "addRole": "Dodaj rolę",
     "newRole": "Nowa rola, np. Test",

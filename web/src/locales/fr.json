@@ -3550,8 +3550,7 @@
       "createExample": "Créer l’exemple",
       "emptyText": "Pars de l’exemple, un ticket de l’attribution au test du client, ou crée un workflow vide. Un nouveau workflow démarre désactivé ou en observation seulement.",
       "emptyTitle": "Pas encore de workflow",
-      "newName": "Nom du workflow",
-      "slugIs": "Adresse : {{slug}}"
+      "newName": "Nom du workflow"
     },
     "addRole": "Ajouter un rôle",
     "newRole": "Nouveau rôle, p. ex. Test",

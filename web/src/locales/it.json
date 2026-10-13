@@ -3550,8 +3550,7 @@
       "createExample": "Crea l'esempio",
       "emptyText": "Parti dall'esempio, un ticket dall'assegnazione al test del cliente, oppure creane uno vuoto. Un nuovo workflow parte spento o solo in osservazione.",
       "emptyTitle": "Ancora nessun workflow",
-      "newName": "Nome del workflow",
-      "slugIs": "Indirizzo: {{slug}}"
+      "newName": "Nome del workflow"
     },
     "addRole": "Aggiungi ruolo",
     "newRole": "Nuovo ruolo, ad es. Test",

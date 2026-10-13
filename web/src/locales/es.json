@@ -3550,8 +3550,7 @@
       "createExample": "Crear el ejemplo",
       "emptyText": "Empieza con el ejemplo, un ticket desde la asignación hasta la prueba del cliente, o crea uno vacío. Un flujo nuevo empieza desactivado o solo observando.",
       "emptyTitle": "Aún no hay flujos de trabajo",
-      "newName": "Nombre del flujo de trabajo",
-      "slugIs": "Dirección: {{slug}}"
+      "newName": "Nombre del flujo de trabajo"
     },
     "addRole": "Añadir puesto",
     "newRole": "Nuevo puesto, p. ej. Test",

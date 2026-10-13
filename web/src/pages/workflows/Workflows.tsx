@@ -9,7 +9,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import "./workflows.css";
-import { listWorkflows, myWorkflowApprovals, saveWorkflow, type Principal, type Workflow } from "../../api";
+import { createWorkflow, listWorkflows, myWorkflowApprovals, type Principal, type Workflow } from "../../api";
 import { fmtDelta } from "../../format";
 import { canManage } from "../agent/roles";
 import { BlockIcon } from "./canvas";
@@ -66,13 +66,13 @@ export default function Workflows({ me }: { me: Principal }) {
       if (who) who.cfg.who = doc.meta.owner;
     }
     const slug = slugOf(fromExample ? doc.meta.name : name) || "workflow";
-    const res = await saveWorkflow(slug, toSource(doc));
+    const res = await createWorkflow(slug, toSource(doc));
     if (!res.ok) {
       setError(res.problems[0]?.text ?? res.error);
       return;
     }
     await qc.invalidateQueries({ queryKey: ["workflows"] });
-    navigate(`/workflows/${slug}`);
+    navigate(`/workflows/${res.id}`);
   };
 
   return (
@@ -105,7 +105,6 @@ export default function Workflows({ me }: { me: Principal }) {
           <button className="btn sm" type="button" onClick={() => setCreating(null)}>
             {t("workflows.runs.cancel")}
           </button>
-          {creating.trim() && <span className="wf-hint">{t("workflows.overview.slugIs", { slug: slugOf(creating) || "workflow" })}</span>}
         </form>
       )}
       {error && <p className="wf-hint" style={{ color: "var(--text-danger)" }}>{error}</p>}
@@ -154,7 +153,7 @@ export default function Workflows({ me }: { me: Principal }) {
               </h2>
               <div className="wf-waiting">
                 {mine.data!.map((x) => (
-                  <button key={x.run} className="wf-case" onClick={() => navigate(`/workflows/${x.workflow}?run=${encodeURIComponent(x.run)}`)}>
+                  <button key={x.run} className="wf-case" onClick={() => navigate(`/workflows/${x.workflow_id}?run=${encodeURIComponent(x.run)}`)}>
                     <BlockIcon type="approval" small />
                     <span className="wf-case-text">
                       {x.question || x.title || x.case}
@@ -196,11 +195,11 @@ export default function Workflows({ me }: { me: Principal }) {
               <tbody>
                 {shown.map((w) => (
                   <tr
-                    key={w.slug}
+                    key={w.id}
                     tabIndex={0}
                     className={w.mode === "off" ? "off" : ""}
-                    onClick={() => navigate(`/workflows/${w.slug}`)}
-                    onKeyDown={(e) => e.key === "Enter" && navigate(`/workflows/${w.slug}`)}
+                    onClick={() => navigate(`/workflows/${w.id}`)}
+                    onKeyDown={(e) => e.key === "Enter" && navigate(`/workflows/${w.id}`)}
                   >
                     <td>
                       <div className="wf-name">{w.name}</div>

@@ -3550,8 +3550,7 @@
       "createExample": "创建示例",
       "emptyText": "从示例开始(一张工单,从分配到客户测试),或创建一个空的工作流。新工作流默认关闭或仅观察。",
       "emptyTitle": "还没有工作流",
-      "newName": "工作流名称",
-      "slugIs": "地址:{{slug}}"
+      "newName": "工作流名称"
     },
     "addRole": "添加角色",
     "newRole": "新角色,例如 测试",

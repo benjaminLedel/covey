@@ -3550,8 +3550,7 @@
       "createExample": "Beispiel anlegen",
       "emptyText": "Fang mit dem Beispiel an, einem Ticket von der Zuweisung bis zum Kundentest, oder leg einen leeren Ablauf an. Ein neuer Ablauf startet ausgeschaltet oder nur beobachtend.",
       "emptyTitle": "Noch kein Ablauf",
-      "newName": "Name des Ablaufs",
-      "slugIs": "Adresse: {{slug}}"
+      "newName": "Name des Ablaufs"
     },
     "addRole": "Rolle hinzufügen",
     "newRole": "Neue Rolle, z. B. Test",
