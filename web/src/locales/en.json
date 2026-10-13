@@ -3550,8 +3550,7 @@
       "createExample": "Create the example",
       "emptyText": "Start from the example, a ticket from assignment to the customer's test, or create an empty one. A new workflow starts switched off or only observing.",
       "emptyTitle": "No workflow yet",
-      "newName": "Name of the workflow",
-      "slugIs": "Address: {{slug}}"
+      "newName": "Name of the workflow"
     },
     "addRole": "Add role",
     "newRole": "New role, e.g. Test",

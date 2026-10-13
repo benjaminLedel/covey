@@ -188,3 +188,46 @@ func TestAWorkflowIsDeletedOnlyWhenItIsOffAndNobodyWorksOnIt(t *testing.T) {
 		t.Fatalf("list after deleting: %v", list)
 	}
 }
+
+// TestAWorkflowIsCreatedAsANewOneAndAddressedByItsID (#580): creating under
+// a name that is taken makes a second workflow rather than a version of the
+// first, and every route takes the id as well as the slug.
+func TestAWorkflowIsCreatedAsANewOneAndAddressedByItsID(t *testing.T) {
+	s := newStack(t)
+	s.newSupportAgent("builder")
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	s.mitglied(t, "decider@test.local", "Decider", "auditor", "decider-passwort")
+	decider := login(t, s, "decider@test.local", "decider-passwort")
+	decider.expect(http.MethodPost, "/api/v1/workflows", map[string]string{"slug": "release", "source": decisionWorkflow}, http.StatusForbidden)
+
+	first := admin.expect(http.MethodPost, "/api/v1/workflows", map[string]string{"slug": "release", "source": decisionWorkflow}, http.StatusCreated)
+	second := admin.expect(http.MethodPost, "/api/v1/workflows", map[string]string{"slug": "release", "source": decisionWorkflow}, http.StatusCreated)
+	if first["slug"] != "release" || second["slug"] != "release-2" || first["id"] == second["id"] || second["version"].(float64) != 1 {
+		t.Fatalf("created %v and %v", first, second)
+	}
+	if n := len(admin.expectList(http.MethodGet, "/api/v1/workflows", nil, http.StatusOK)); n != 2 {
+		t.Fatalf("%d workflows after creating two", n)
+	}
+
+	id := second["id"].(string)
+	one := admin.expect(http.MethodGet, "/api/v1/workflows/"+id, nil, http.StatusOK)
+	if one["slug"] != "release-2" || one["id"] != id {
+		t.Fatalf("by id: %v", one)
+	}
+	saved := admin.expect(http.MethodPut, "/api/v1/workflows/"+id, map[string]string{"source": decisionWorkflow}, http.StatusOK)
+	if saved["slug"] != "release-2" || saved["version"].(float64) != 2 {
+		t.Fatalf("saved by id: %v", saved)
+	}
+	admin.expect(http.MethodGet, "/api/v1/workflows/00000000-0000-0000-0000-000000000001", nil, http.StatusNotFound)
+	admin.expect(http.MethodPut, "/api/v1/workflows/00000000-0000-0000-0000-000000000001", map[string]string{"source": decisionWorkflow}, http.StatusNotFound)
+
+	run := admin.expect(http.MethodPost, "/api/v1/workflows/"+id+"/runs", map[string]any{"case": "v2"}, http.StatusCreated)
+	path := "/api/v1/workflows/" + id + "/runs/" + run["id"].(string)
+	waitForOr(t, "the run to wait for the decision", 30*time.Second, func() bool {
+		return admin.expect(http.MethodGet, path, nil, http.StatusOK)["step"] == "h"
+	}, func() string { return admin.expect(http.MethodGet, path, nil, http.StatusOK)["state"].(string) })
+	mine := decider.expectList(http.MethodGet, "/api/v1/workflows/mine", nil, http.StatusOK)
+	if len(mine) != 1 || mine[0]["workflow_id"] != id {
+		t.Fatalf("the approval does not name the workflow's id: %v", mine)
+	}
+}

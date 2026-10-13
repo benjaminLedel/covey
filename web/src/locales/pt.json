@@ -3550,8 +3550,7 @@
       "createExample": "Criar o exemplo",
       "emptyText": "Começa pelo exemplo, um ticket da atribuição ao teste do cliente, ou cria um vazio. Um fluxo novo começa desligado ou só a observar.",
       "emptyTitle": "Ainda sem fluxos de trabalho",
-      "newName": "Nome do fluxo de trabalho",
-      "slugIs": "Endereço: {{slug}}"
+      "newName": "Nome do fluxo de trabalho"
     },
     "addRole": "Adicionar função",
     "newRole": "Nova função, p. ex. Teste",

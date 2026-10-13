@@ -57,6 +57,13 @@ var slugPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)
 // does not parse or does not pass Check is not kept: a version that cannot
 // run is no version.
 func (s *Store) Save(ctx context.Context, orgID uuid.UUID, slug, source string, by *uuid.UUID) (Stored, error) {
+	return s.save(ctx, orgID, slug, source, by, false)
+}
+
+// errSlugTaken: a create met a workflow under the slug it tried.
+var errSlugTaken = errors.New("workflow: slug taken")
+
+func (s *Store) save(ctx context.Context, orgID uuid.UUID, slug, source string, by *uuid.UUID, createOnly bool) (Stored, error) {
 	// "check" and "mine" are routes beside the workflows; a workflow of that
 	// name could never be opened.
 	if slug == "check" || slug == "mine" {
@@ -86,10 +93,16 @@ func (s *Store) Save(ctx context.Context, orgID uuid.UUID, slug, source string, 
 		// A racing first save of the same slug meets the unique key; the
 		// second caller gets the conflict rather than a silent overwrite.
 		if _, err := tx.Exec(ctx, `INSERT INTO workflows (id, org_id, slug, version) VALUES ($1, $2, $3, 1)`, out.ID, orgID, slug); err != nil {
+			var pgErr *pgconn.PgError
+			if createOnly && errors.As(err, &pgErr) && pgErr.Code == "23505" {
+				return Stored{}, errSlugTaken
+			}
 			return Stored{}, err
 		}
 	case err != nil:
 		return Stored{}, err
+	case createOnly:
+		return Stored{}, errSlugTaken
 	default:
 		out.Version++
 		if _, err := tx.Exec(ctx, `UPDATE workflows SET version = $2, updated_at = now() WHERE id = $1`, out.ID, out.Version); err != nil {
@@ -101,6 +114,38 @@ func (s *Store) Save(ctx context.Context, orgID uuid.UUID, slug, source string, 
 		return Stored{}, err
 	}
 	return out, tx.Commit(ctx)
+}
+
+// Create keeps a definition as a new workflow. slug is a suggestion: when
+// it is taken, the next free one is used ("release-2", "release-3", …), so
+// creating never adds a version to a workflow that already exists (#580).
+func (s *Store) Create(ctx context.Context, orgID uuid.UUID, slug, source string, by *uuid.UUID) (Stored, error) {
+	for n := 1; n < 100; n++ {
+		try := slug
+		if n > 1 {
+			suffix := fmt.Sprintf("-%d", n)
+			if len(try)+len(suffix) > 63 {
+				try = try[:63-len(suffix)]
+			}
+			try += suffix
+		}
+		out, err := s.save(ctx, orgID, try, source, by, true)
+		if errors.Is(err, errSlugTaken) {
+			continue
+		}
+		return out, err
+	}
+	return Stored{}, fmt.Errorf("workflow: no free slug for %q", slug)
+}
+
+// SlugOf finds the slug of a workflow by its id.
+func (s *Store) SlugOf(ctx context.Context, orgID, id uuid.UUID) (string, error) {
+	var slug string
+	err := s.pool.QueryRow(ctx, `SELECT slug FROM workflows WHERE org_id = $1 AND id = $2`, orgID, id).Scan(&slug)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return slug, err
 }
 
 // Get returns the current version of a workflow.

@@ -322,11 +322,20 @@ sender needs that schema extended (§15).
 | `workflow_triggers` | per workflow: when a schedule last fired, the last gate signature, the token |
 | `backlog_tasks.report` | what an agent reported for its task |
 
-Routes under `/api/v1/workflows`: list with counts; one workflow as text and
-steps; check without saving; save the next version (refused with its problems);
+Routes under `/api/v1/workflows`: list with counts; create; one workflow as
+text and steps; check without saving; save the next version (refused with its
+problems);
 runs, one run; start by hand; decide; deliver an event; the approvals that wait
 for the caller; the token; delete. Reading is open to everyone in the
 organisation; writing and starting to those who manage agents.
+
+A workflow is addressed by its id or its slug: every route under
+`/api/v1/workflows/{…}` takes either, and the interface uses the id
+(`/workflows/<id>`). The slug is the workflow's key in its file and stays
+readable in scripts; it is not the address. **Creating** is its own call
+(`POST /api/v1/workflows {source, slug}`): the slug is a suggestion, a taken
+one gets the next free number (`release-2`), and a create never becomes a
+version of a workflow that exists.
 
 **Deleting** removes the workflow with its versions, runs and trigger state. It
 is refused while the workflow watches or steers — it is switched off first, so

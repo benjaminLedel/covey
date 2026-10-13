@@ -207,6 +207,85 @@ func (s *Server) handleGetWorkflow(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, viewOf(st, s.Workflows.Runs(orgID, st.Slug), true))
 }
 
+// workflowRef lets every route under /api/v1/workflows/{slug} take the
+// workflow's id as well (#580): the interface addresses workflows by id, and
+// links and scripts that use the slug keep working. An id that names no
+// workflow of the organisation is a 404 — it must not become the slug of a
+// new one.
+func (s *Server) workflowRef(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if s.Workflows == nil {
+			next(w, r)
+			return
+		}
+		id, err := uuid.Parse(r.PathValue("slug"))
+		if err != nil {
+			next(w, r)
+			return
+		}
+		slug, err := s.Workflows.Store.SlugOf(r.Context(), principalFrom(r).OrgID, id)
+		if errors.Is(err, workflow.ErrNotFound) {
+			writeErr(w, http.StatusNotFound, "workflow not found")
+			return
+		}
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		r.SetPathValue("slug", slug)
+		next(w, r)
+	}
+}
+
+// handleCreateWorkflow — POST /api/v1/workflows {source, slug}: a new
+// workflow. The slug is a suggestion; a taken one gets the next free number
+// rather than a version of the workflow that has it (#580).
+func (s *Server) handleCreateWorkflow(w http.ResponseWriter, r *http.Request) {
+	if !s.workflowsOn(w) {
+		return
+	}
+	var in struct {
+		Source string `json:"source"`
+		Slug   string `json:"slug"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid request")
+		return
+	}
+	if in.Slug == "" {
+		in.Slug = "workflow"
+	}
+	p := principalFrom(r)
+	by := p.ID
+	st, err := s.Workflows.Store.Create(r.Context(), p.OrgID, in.Slug, in.Source, &by)
+	if s.writeInvalid(w, err) {
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	resp := map[string]any{"id": st.ID, "slug": st.Slug, "version": st.Version}
+	if err := s.Workflows.Reload(r.Context(), p.OrgID, st.Slug); err != nil {
+		resp["warning"] = "saved, but not running: " + err.Error()
+	}
+	writeJSON(w, http.StatusCreated, resp)
+}
+
+// writeInvalid answers a definition that cannot run with its problems.
+func (s *Server) writeInvalid(w http.ResponseWriter, err error) bool {
+	var invalid *workflow.InvalidError
+	if !errors.As(err, &invalid) {
+		return false
+	}
+	problems := make([]problemView, 0, len(invalid.Problems))
+	for _, pr := range invalid.Problems {
+		problems = append(problems, problemView{Step: pr.Step, Code: pr.Code, Text: pr.Text})
+	}
+	writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"error": "the workflow cannot run as written", "problems": problems})
+	return true
+}
+
 // handleCheckWorkflow — POST /api/v1/workflows/check {source}: what keeps a
 // definition from running, without saving it — for the editor, while typing.
 func (s *Server) handleCheckWorkflow(w http.ResponseWriter, r *http.Request) {
@@ -249,20 +328,14 @@ func (s *Server) handlePutWorkflow(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	by := p.ID
 	st, err := s.Workflows.Store.Save(r.Context(), p.OrgID, r.PathValue("slug"), in.Source, &by)
-	var invalid *workflow.InvalidError
-	if errors.As(err, &invalid) {
-		problems := make([]problemView, 0, len(invalid.Problems))
-		for _, pr := range invalid.Problems {
-			problems = append(problems, problemView{Step: pr.Step, Code: pr.Code, Text: pr.Text})
-		}
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"error": "the workflow cannot run as written", "problems": problems})
+	if s.writeInvalid(w, err) {
 		return
 	}
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	resp := map[string]any{"slug": st.Slug, "version": st.Version}
+	resp := map[string]any{"id": st.ID, "slug": st.Slug, "version": st.Version}
 	// Saved but not taken up: runs stand at a step the new version lacks.
 	// The old version keeps running them; the caller hears why.
 	if err := s.Workflows.Reload(r.Context(), p.OrgID, st.Slug); err != nil {
@@ -444,15 +517,16 @@ func (s *Server) handleDecideRun(w http.ResponseWriter, r *http.Request) {
 
 // waitingView is an approval that names the person asking.
 type waitingView struct {
-	Workflow string    `json:"workflow"`
-	Name     string    `json:"name"`
-	Run      string    `json:"run"`
-	Case     string    `json:"case"`
-	Title    string    `json:"title,omitempty"`
-	Step     string    `json:"step"`
-	Question string    `json:"question,omitempty"`
-	Options  []string  `json:"options"`
-	Since    time.Time `json:"since"`
+	Workflow   string    `json:"workflow"`
+	WorkflowID uuid.UUID `json:"workflow_id"`
+	Name       string    `json:"name"`
+	Run        string    `json:"run"`
+	Case       string    `json:"case"`
+	Title      string    `json:"title,omitempty"`
+	Step       string    `json:"step"`
+	Question   string    `json:"question,omitempty"`
+	Options    []string  `json:"options"`
+	Since      time.Time `json:"since"`
 }
 
 // handleMyApprovals — GET /api/v1/workflows/mine: the approvals across all
@@ -479,7 +553,7 @@ func (s *Server) handleMyApprovals(w http.ResponseWriter, r *http.Request) {
 			if name == "" {
 				name = st.Slug
 			}
-			out = append(out, waitingView{Workflow: st.Slug, Name: name, Run: run.ID, Case: run.Case,
+			out = append(out, waitingView{Workflow: st.Slug, WorkflowID: st.ID, Name: name, Run: run.ID, Case: run.Case,
 				Title: run.Vars["case"]["title"], Step: step.Title, Question: render(step.Ask, run.Vars), Options: step.Options, Since: run.Since})
 		}
 	}

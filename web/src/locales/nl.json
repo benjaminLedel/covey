@@ -3550,8 +3550,7 @@
       "createExample": "Voorbeeld aanmaken",
       "emptyText": "Begin met het voorbeeld, een ticket van toewijzing tot de test door de klant, of maak een lege aan. Een nieuwe workflow start uitgeschakeld of alleen kijkend.",
       "emptyTitle": "Nog geen workflow",
-      "newName": "Naam van de workflow",
-      "slugIs": "Adres: {{slug}}"
+      "newName": "Naam van de workflow"
     },
     "addRole": "Rol toevoegen",
     "newRole": "Nieuwe rol, bijv. Test",
