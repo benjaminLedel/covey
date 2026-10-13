@@ -2653,7 +2653,12 @@
       "result": "Résultat",
       "error": "Échec"
     },
-    "bericht": "Rapport complet"
+    "bericht": "Rapport complet",
+    "files": {
+      "download": "Télécharger {{name}}",
+      "tooMany": "Au maximum {{max}} fichiers par message.",
+      "tooLarge": "Au maximum {{max}} Mo au total par message."
+    }
   },
   "team": {
     "workspace": "Équipe",
@@ -2732,7 +2737,6 @@
     "auftrag": "Ordre",
     "anhaengen": "Joindre un fichier",
     "anhangEntfernen": "Retirer {{name}}",
-    "anhangZeile": "Joint dans le poste de travail : {{pfade}}",
     "laeuftGerade": "En cours",
     "ueberblickLaeuft": "{{count}} traitements en cours.",
     "ueberblickLaeuft_one": "Une tâche est en cours.",

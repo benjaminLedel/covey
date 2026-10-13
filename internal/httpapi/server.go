@@ -466,6 +466,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/conversations/{id}/me", s.conversationScoped(s.handleConversationMe))
 	mux.Handle("POST /api/v1/conversations/{id}/members", s.conversationScoped(s.handleAddConversationMember))
 	mux.Handle("DELETE /api/v1/conversations/{id}/members/{kind}/{member}", s.conversationScoped(s.handleRemoveConversationMember))
+	// A file of a message (#586): the reader's conversation decides, checked
+	// in the handler, since the id names the file and not the conversation.
+	mux.Handle("GET /api/v1/chat/attachments/{id}", s.rbac(anyRole, s.handleChatAttachment))
 	// The chat with one agent (#298), since #440 an alias onto the person's
 	// direct conversation with it, so that the current app keeps working.
 	mux.Handle("GET /api/v1/agents/{id}/thread", s.agentScoped(anyRole, s.handleThread))

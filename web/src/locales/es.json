@@ -2653,7 +2653,12 @@
       "result": "Resultado",
       "error": "Fallida"
     },
-    "bericht": "Informe completo"
+    "bericht": "Informe completo",
+    "files": {
+      "download": "Descargar {{name}}",
+      "tooMany": "Como máximo {{max}} archivos por mensaje.",
+      "tooLarge": "Como máximo {{max}} MB en total por mensaje."
+    }
   },
   "team": {
     "workspace": "Equipo",
@@ -2732,7 +2737,6 @@
     "auftrag": "Encargo",
     "anhaengen": "Adjuntar archivo",
     "anhangEntfernen": "Quitar {{name}}",
-    "anhangZeile": "Adjunto en el puesto de trabajo: {{pfade}}",
     "laeuftGerade": "En curso",
     "ueberblickLaeuft": "{{count}} procesos en curso.",
     "ueberblickLaeuft_one": "Hay una tarea en curso.",

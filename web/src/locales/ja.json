@@ -2653,7 +2653,12 @@
       "result": "結果",
       "error": "失敗"
     },
-    "bericht": "レポート全文"
+    "bericht": "レポート全文",
+    "files": {
+      "download": "{{name}} をダウンロード",
+      "tooMany": "1 件のメッセージにつきファイルは最大 {{max}} 個です。",
+      "tooLarge": "1 件のメッセージにつき合計 {{max}} MB までです。"
+    }
   },
   "team": {
     "workspace": "チーム",
@@ -2732,7 +2737,6 @@
     "auftrag": "依頼",
     "anhaengen": "ファイルを添付",
     "anhangEntfernen": "{{name}} を外す",
-    "anhangZeile": "作業環境内の添付：{{pfade}}",
     "laeuftGerade": "進行中",
     "ueberblickLaeuft": "{{count}} 件が進行中です。",
     "ueberblickLaeuft_one": "{{count}} 件が進行中です。",

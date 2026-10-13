@@ -79,6 +79,9 @@ type chatEntry struct {
 	/* On a config_proposal (#491): the drafted change as the reader may see
 	   and decide it (chatconfig.go). */
 	Proposal *chat.ProposalCard `json:"proposal,omitempty"`
+	// The files the message carries (#586), fetched through
+	// /api/v1/chat/attachments/{id}.
+	Attachments []chat.Attachment `json:"attachments,omitempty"`
 }
 
 // entwurfKurz is a drafted colleague as the thread shows it: enough to
@@ -267,6 +270,7 @@ func alsEintrag(m chat.Message, email string) chatEntry {
 	e := chatEntry{
 		ID: m.ID, TaskID: m.TaskID, TaskTitle: m.TaskTitle, TaskState: m.TaskState,
 		Text: m.Text, At: m.CreatedAt, Author: "agent", Kind: "answer",
+		Attachments: m.Attachments,
 	}
 	if m.TaskID != nil {
 		e.ID = *m.TaskID
@@ -517,9 +521,20 @@ func (s *Server) handleChatMessage(w http.ResponseWriter, r *http.Request) {
 	if !s.teamSurfaceAn(w, r) || !s.erreicht(w, r, id) || s.gestoppt(w, r, id) {
 		return
 	}
-	text, ok := chatText(w, r)
-	if !ok {
-		return
+	// JSON as always, or a form with files (#586).
+	var text string
+	var files []chat.Attachment
+	if isMultipart(r) {
+		f, ok := readChatForm(w, r)
+		if !ok {
+			return
+		}
+		text, files = f.Text, f.Files
+	} else {
+		var ok bool
+		if text, ok = chatText(w, r); !ok {
+			return
+		}
 	}
 	convID, err := s.Chat.Direct(r.Context(), p.OrgID, chat.Human(p.ID), chat.Agent(id), &p.ID)
 	if err != nil {
@@ -531,15 +546,18 @@ func (s *Server) handleChatMessage(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
-	a, err := s.annehmen(r.Context(), conv, sprecherVon(p), text, nil, nil, langFrom(r))
+	a, err := s.annehmen(r.Context(), conv, sprecherVon(p), text, nil, nil, langFrom(r), files)
 	if err != nil {
-		mapErr(w, err)
+		writeChatErr(w, err)
 		return
 	}
 	alt := map[string]any{
 		"id": a.msg.ID, "org_id": a.msg.OrgID, "agent_id": id, "conversation_id": convID,
 		"author": "chat:" + p.Email, "text": a.msg.Text, "created_at": a.msg.CreatedAt,
 		"triage_state": a.msg.TriageState,
+	}
+	if len(a.msg.Attachments) > 0 {
+		alt["attachments"] = a.msg.Attachments
 	}
 	if a.pending {
 		writeJSON(w, http.StatusAccepted, map[string]any{"message": alt, "pending": true})
@@ -605,7 +623,7 @@ annehmen writes a person's message and hands it to the agents it
 	nothing to wait for — a task costs one insert — and the caller gets it in
 	the same answer.
 */
-func (s *Server) annehmen(ctx context.Context, conv chat.Conversation, wer sprecher, text string, replyTo *chat.Message, meta map[string]string, lang string) (angenommen, error) {
+func (s *Server) annehmen(ctx context.Context, conv chat.Conversation, wer sprecher, text string, replyTo *chat.Message, meta map[string]string, lang string, files []chat.Attachment) (angenommen, error) {
 	var out angenommen
 	var agenten []uuid.UUID
 	for _, m := range chat.Addressed(conv, text, replyTo) {
@@ -628,7 +646,7 @@ func (s *Server) annehmen(ctx context.Context, conv chat.Conversation, wer sprec
 		triage = mode == chat.TriageOn
 	}
 	msg := chat.Message{
-		ConversationID: conv.ID, AuthorKind: chat.MemberHuman, AuthorID: &wer.id,
+		ID: uuid.New(), ConversationID: conv.ID, AuthorKind: chat.MemberHuman, AuthorID: &wer.id,
 		Text: text, Kind: chat.MessageText, Meta: meta,
 	}
 	if replyTo != nil {
@@ -637,6 +655,14 @@ func (s *Server) annehmen(ctx context.Context, conv chat.Conversation, wer sprec
 	if triage {
 		msg.TriageState = chat.StatePending
 	}
+	/* The files go into the agents' homes before the message is written
+	   (#586): a home that refuses them refuses the message, and nothing
+	   stands in the conversation that the agent was never given. */
+	uniqueNames(files)
+	if err := s.placeInHomes(ctx, conv.OrgID, wer, msg.ID, agenten, files); err != nil {
+		return out, err
+	}
+	msg.Attachments = files
 	msg, _, err := s.Chat.Post(ctx, msg)
 	if err != nil {
 		return out, err
@@ -651,7 +677,7 @@ func (s *Server) annehmen(ctx context.Context, conv chat.Conversation, wer sprec
 			/* Nobody decided what this message is, so the task is the
 			   answer to it (#483): the run replies, and its result is the
 			   reply in the conversation — not a report of the run. */
-			t, err := s.aufgabeAusNachricht(ctx, conv, agentID, msg, chat.Entscheidung{}, text, wer.email, lang, true)
+			t, err := s.aufgabeAusNachricht(ctx, conv, agentID, msg, chat.Entscheidung{}, msg.ForAgent(), wer.email, lang, true)
 			if err != nil {
 				return out, err
 			}
@@ -816,7 +842,7 @@ func (s *Server) entscheidungAnwenden(
 		return "answered", nil, nil
 	}
 
-	t, err := s.aufgabeAusNachricht(ctx, conv, agentID, msg, entscheidung, msg.Text, email, lang, false)
+	t, err := s.aufgabeAusNachricht(ctx, conv, agentID, msg, entscheidung, msg.ForAgent(), email, lang, false)
 	if err != nil {
 		return "", nil, err
 	}
@@ -982,6 +1008,12 @@ func (s *Server) triagieren(ctx context.Context, conv chat.Conversation, agentID
 	if err != nil || mode != chat.TriageOn {
 		return aufgabe, nil, ""
 	}
+	/* A message with files is work for a run (#586): the turn reads text
+	   and cannot open a PDF, and an answer from it would be an answer about
+	   a file nobody looked at. */
+	if len(msg.Attachments) > 0 {
+		return aufgabe, nil, ""
+	}
 	provider, err := s.resolveOrgLLM(ctx, conv.OrgID)
 	if err != nil {
 		return aufgabe, nil, "no model is configured for the control plane"
@@ -1089,7 +1121,7 @@ func beitrag(m chat.Message, agentID uuid.UUID) chat.Beitrag {
 	case wer == "":
 		wer = "a person"
 	}
-	return chat.Beitrag{Wer: wer, Text: m.Text}
+	return chat.Beitrag{Wer: wer, Text: m.ForAgent()}
 }
 
 // laufKontext: how much of the conversation a task from the chat carries.

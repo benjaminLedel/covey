@@ -2653,7 +2653,12 @@
       "result": "Result",
       "error": "Failed"
     },
-    "bericht": "Full report"
+    "bericht": "Full report",
+    "files": {
+      "download": "Download {{name}}",
+      "tooMany": "At most {{max}} files per message.",
+      "tooLarge": "At most {{max}} MB together per message."
+    }
   },
   "team": {
     "workspace": "Team",
@@ -2732,7 +2737,6 @@
     "auftrag": "Work order",
     "anhaengen": "Attach a file",
     "anhangEntfernen": "Remove {{name}}",
-    "anhangZeile": "Attached in the workplace: {{pfade}}",
     "laeuftGerade": "Running now",
     "ueberblickLaeuft": "{{count}} processes are running.",
     "ueberblickLaeuft_one": "One task is running.",

@@ -2653,7 +2653,12 @@
       "result": "Resultado",
       "error": "Falhou"
     },
-    "bericht": "Relatório completo"
+    "bericht": "Relatório completo",
+    "files": {
+      "download": "Transferir {{name}}",
+      "tooMany": "No máximo {{max}} ficheiros por mensagem.",
+      "tooLarge": "No máximo {{max}} MB no total por mensagem."
+    }
   },
   "team": {
     "workspace": "Equipa",
@@ -2732,7 +2737,6 @@
     "auftrag": "Encomenda",
     "anhaengen": "Anexar ficheiro",
     "anhangEntfernen": "Remover {{name}}",
-    "anhangZeile": "Anexo no posto de trabalho: {{pfade}}",
     "laeuftGerade": "A decorrer",
     "ueberblickLaeuft": "{{count}} processos a decorrer.",
     "ueberblickLaeuft_one": "Há uma tarefa em curso.",

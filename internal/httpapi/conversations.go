@@ -341,7 +341,23 @@ func (s *Server) handlePostConversationMessage(w http.ResponseWriter, r *http.Re
 		ReplyTo *uuid.UUID        `json:"reply_to"`
 		Meta    map[string]string `json:"meta"`
 	}
-	if err := readJSON(r, &in); err != nil {
+	var files []chat.Attachment
+	if isMultipart(r) {
+		// A message with files (#586): the same fields as a form.
+		f, ok := readChatForm(w, r)
+		if !ok {
+			return
+		}
+		in.Text, files = f.Text, f.Files
+		if f.ReplyTo != "" {
+			id, err := uuid.Parse(f.ReplyTo)
+			if err != nil {
+				writeErr(w, http.StatusBadRequest, "reply_to must be a message of this conversation")
+				return
+			}
+			in.ReplyTo = &id
+		}
+	} else if err := readJSON(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, `invalid body: expected {"text": "…"}`)
 		return
 	}
@@ -353,7 +369,7 @@ func (s *Server) handlePostConversationMessage(w http.ResponseWriter, r *http.Re
 		in.Meta = nil
 	}
 	text := strings.TrimSpace(in.Text)
-	if text == "" {
+	if text == "" && len(files) == 0 {
 		writeErr(w, http.StatusBadRequest, "text is required")
 		return
 	}
@@ -373,9 +389,9 @@ func (s *Server) handlePostConversationMessage(w http.ResponseWriter, r *http.Re
 			return
 		}
 	}
-	a, err := s.annehmen(r.Context(), c, sprecherVon(p), text, bezug, in.Meta, langFrom(r))
+	a, err := s.annehmen(r.Context(), c, sprecherVon(p), text, bezug, in.Meta, langFrom(r), files)
 	if err != nil {
-		mapErr(w, err)
+		writeChatErr(w, err)
 		return
 	}
 	status := http.StatusCreated

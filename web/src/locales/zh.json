@@ -2653,7 +2653,12 @@
       "result": "结果",
       "error": "失败"
     },
-    "bericht": "完整报告"
+    "bericht": "完整报告",
+    "files": {
+      "download": "下载 {{name}}",
+      "tooMany": "每条消息最多 {{max}} 个文件。",
+      "tooLarge": "每条消息合计最多 {{max}} MB。"
+    }
   },
   "team": {
     "workspace": "团队",
@@ -2732,7 +2737,6 @@
     "auftrag": "工单",
     "anhaengen": "附加文件",
     "anhangEntfernen": "移除 {{name}}",
-    "anhangZeile": "工作环境中的附件：{{pfade}}",
     "laeuftGerade": "正在进行",
     "ueberblickLaeuft": "{{count}} 项正在进行。",
     "ueberblickLaeuft_one": "{{count}} 项正在进行。",

@@ -145,6 +145,9 @@ type Message struct {
 	/* Read with a config_proposal message, never written (#491): the
 	   proposal as the reader may see and decide it. Filled by the API. */
 	Proposal *ProposalCard `json:"proposal,omitempty"`
+	/* The files the message carries (#586), without their bytes; written
+	   with the message by Post, read with it everywhere. */
+	Attachments []Attachment `json:"attachments,omitempty"`
 }
 
 // ProposalCard is a configuration proposal as a conversation shows it
@@ -337,6 +340,9 @@ func (s *Store) Post(ctx context.Context, m Message) (Message, bool, error) {
 	if err != nil {
 		return m, false, err
 	}
+	if err := insertAttachments(ctx, tx, m); err != nil {
+		return m, false, err
+	}
 	if _, err := tx.Exec(ctx, `UPDATE conversations SET last_message_at = greatest(last_message_at, $2) WHERE id = $1`,
 		m.ConversationID, m.CreatedAt); err != nil {
 		return m, false, err
@@ -348,7 +354,8 @@ func (s *Store) Post(ctx context.Context, m Message) (Message, bool, error) {
 const messageCols = `m.id, m.conversation_id, m.org_id, m.author_kind, m.author_id,
 	coalesce(h.display_name, a.display_name, ''), m.text, m.kind, m.task_id, m.reply_to, m.triage_state, m.created_at, m.meta,
 	coalesce(t.title, ''), coalesce(t.state, ''),
-	CASE WHEN m.kind = 'result' THEN coalesce(t.result, '') WHEN m.kind = 'error' THEN coalesce(t.error, '') ELSE '' END`
+	CASE WHEN m.kind = 'result' THEN coalesce(t.result, '') WHEN m.kind = 'error' THEN coalesce(t.error, '') ELSE '' END,
+	` + attachmentsCol
 
 const messageJoins = `
 	LEFT JOIN humans h ON m.author_kind = 'human' AND h.id = m.author_id
@@ -362,7 +369,7 @@ func scanMessages(rows pgx.Rows) ([]Message, error) {
 		var m Message
 		if err := rows.Scan(&m.ID, &m.ConversationID, &m.OrgID, &m.AuthorKind, &m.AuthorID, &m.AuthorName,
 			&m.Text, &m.Kind, &m.TaskID, &m.ReplyTo, &m.TriageState, &m.CreatedAt, &m.Meta,
-			&m.TaskTitle, &m.TaskState, &m.Report); err != nil {
+			&m.TaskTitle, &m.TaskState, &m.Report, &m.Attachments); err != nil {
 			return nil, err
 		}
 		out = append(out, m)
