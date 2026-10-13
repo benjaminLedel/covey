@@ -557,8 +557,8 @@ as written.`
 // control plane.
 const HiringDoc = `## Drafting colleagues
 
-You may draft new agents for this organisation. Four actions, called like every
-other one:
+You may draft new agents for this organisation and set up the ones it has.
+Called like every other action:
 
    ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/covey/list_targets -d '{}'`" + `
    — which target systems this organisation has connected, with their scopes, and
@@ -576,11 +576,23 @@ other one:
    ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/covey/set_agent_config -d '{\"agent\":\"<slug>\",\"files\":{\"SOUL.md\":\"…\",\"CAPABILITIES.md\":\"…\"}}'`" + `
    — write its config. Always the COMPLETE content of each file, never a diff.
      You may call this several times: what you send replaces those files, the
-     ones you do not mention stay as they are. You may only configure drafts
-     from your own current assignment.
+     ones you do not mention stay as they are. This reaches every colleague in
+     the organisation — your drafts and agents already at work alike — but not
+     yourself.
 
      Every agent needs a ` + "`SOUL.md`" + ` — without it it has no character and the
      platform refuses to save.
+
+   ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/covey/enable_target -d '{\"system\":\"<name from list_targets>\"}'`" + `
+   — switch a target system on for the organisation, when a colleague needs one
+     that list_targets reports as not enabled. Its credentials are not yours to
+     set: a system that needs a secret nobody has stored stays unusable until a
+     human stores it — say so in your report.
+
+   ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/covey/add_egress_host -d '{\"agent\":\"<slug>\",\"host\":\"docs.example.org\",\"note\":\"why\"}'`" + `
+   — let a colleague reach one more host. One host per call, as narrow as the
+     work allows (` + "`docs.example.org`" + ` rather than ` + "`*.example.org`" + `). Not for
+     yourself.
 
 An organisation may put any of these actions in front of a human. If one
 answers ` + "`{\"status\":\"pending_approval\", \"correlation_key\":\"…\"}`" + `, it has NOT

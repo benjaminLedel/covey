@@ -85,11 +85,11 @@ Two properties fall out and both are worth having:
 
 The review surface is the one the platform already uses twice: the diff that the config copilot and the drafted agent are accepted through.
 
-## Rule 4 stays; the new action is strictly weaker
+## The review scope stays a proposal
 
-`set_agent_config` reaches exactly the agents drafted in the same assignment — *"A compromised People department cannot rewrite the QA agent's soul"* ([`internal/orchestrator/hiring.go`](../internal/orchestrator/hiring.go), rule 4). This agent's whole job is to reach agents it did not draft, and the tempting move is to widen that rule.
+When covey Doctor was built, `set_agent_config` reached exactly the agents drafted in the same assignment. This agent's whole job is to reach agents it did not draft, and the tempting move was to widen that rule. Instead the capability arrived as a **second action that cannot do what the first one does**: `propose_agent_config` writes an inactive version and nothing else, and needs no restriction on whom it reaches, because its output does not run. A compromised covey Doctor produces a queue of bad proposals that a human declines — which is a nuisance, not an incident.
 
-Widening it would be the single most expensive change in this document. Instead the capability arrives as a **second action that cannot do what the first one does**: `propose_agent_config` writes an inactive version and nothing else. Rule 4 stays untouched for `set_agent_config`, and the new action needs no equivalent restriction, because its output does not run. A compromised covey Doctor produces a queue of bad proposals that a human declines — which is a nuisance, not an incident.
+`set_agent_config` has since been widened for the People department (`agents:write`, [`20-hiring-and-setup.md`](20-hiring-and-setup.md) rule 4, #584), under its own guard-rail subject `covey:set_agent_config:foreign`. That changes nothing here: `agents:review` still grants no writing, and the two scopes still do not sit on the same agent.
 
 | New action | What it answers |
 |---|---|

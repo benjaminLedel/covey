@@ -457,7 +457,7 @@ type InjectMessage struct {
 // nothing to forget to check.
 type RequestHiring struct {
 	RequestID string `json:"request_id"`
-	Op        string `json:"op"` // list_targets | get_agent_config | create_agent | set_agent_config
+	Op        string `json:"op"` // list_targets | get_agent_config | create_agent | set_agent_config | enable_target | add_egress_host | …
 	TaskID    string `json:"task_id,omitempty"`
 	// Agent addresses an existing agent by slug (get_agent_config,
 	// set_agent_config).
@@ -472,6 +472,11 @@ type RequestHiring struct {
 	// Files is the config (set_agent_config) or the changed files of a proposal
 	// (propose_agent_config): file name → complete content.
 	Files map[string]string `json:"files,omitempty"`
+	// System is the target system to switch on (enable_target); Host and Note
+	// the egress allowlist entry for Agent (add_egress_host).
+	System string `json:"system,omitempty"`
+	Host   string `json:"host,omitempty"`
+	Note   string `json:"note,omitempty"`
 
 	// --- Text as a platform service (style_check, style_apply) ---
 

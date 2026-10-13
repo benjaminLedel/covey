@@ -386,6 +386,7 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 		Rails: s.rails, Secrets: secretStore, Runtimes: s.runtimes, Identity: idp, Memory: s.mem,
 		Chat: chat.New(pool), Org: org.NewStore(pool),
 		Targets:        s.targets,
+		Egress:         s.egress,
 		Skills:         s.skills,
 		Voices:         s.voices,
 		Workplaces:     s.workplaces,

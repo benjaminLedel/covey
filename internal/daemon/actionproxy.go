@@ -290,7 +290,7 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 		_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
 		return map[string]string{"status": "ok", "stage": in.Stage}
 	case "list_targets", "get_agent_config", "create_agent", "set_agent_config",
-		"work_record", "read_recording", "propose_agent_config", "write_review",
+		"enable_target", "add_egress_host", "work_record", "read_recording", "propose_agent_config", "write_review",
 		"create_issue", "start_services", "style_check", "style_apply", "correction", "voice_draft":
 		// The meta actions at the registry of the platform: drafting (spec/20)
 		// and reviewing (spec/21). Everything is decided in the control
@@ -305,6 +305,9 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 			Department  string            `json:"department"`
 			Supervisor  string            `json:"supervisor"`
 			Files       map[string]string `json:"files"`
+			System      string            `json:"system"`
+			Host        string            `json:"host"`
+			Note        string            `json:"note"`
 			Task        string            `json:"task"`
 			Days        int               `json:"days"`
 			Title       string            `json:"title"`
@@ -343,6 +346,7 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 			Op: action, TaskID: p.taskID, Agent: in.Agent, Slug: in.Slug,
 			DisplayName: in.DisplayName, Runtime: in.Runtime, JobTitle: in.JobTitle,
 			Department: in.Department, Supervisor: in.Supervisor, Files: in.Files,
+			System: in.System, Host: in.Host, Note: in.Note,
 			Task: in.Task, Days: in.Days, Title: in.Title, Rationale: in.Rationale, Body: in.Body,
 			Summary: in.Summary, Findings: in.Findings, Issues: in.Issues,
 			Compose: in.Compose, Only: in.Only,
