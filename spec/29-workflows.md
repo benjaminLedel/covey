@@ -222,7 +222,7 @@ the trigger step, in the same terms:
 | Trigger | Agent today | On a workflow | The case is |
 |---|---|---|---|
 | Schedule | `alle:` / `täglich:` in `HEARTBEAT.md` | `every:` / `daily:` | one per firing |
-| Gate | `nur-wenn: <system>:<kind>` | `only_if: <system>:<kind>` — same gate code, same signature dedup | one per firing with new work |
+| Gate | `nur-wenn: <system>:<kind>` | `only_if: <system>:<kind>` — same gate code, same signature dedup | one per waiting item, `<system>:<key>`, when the plugin signs items; else one per firing with new work |
 | Target webhook | `/api/webhooks/<system>/<agent>` | `webhook: <system>` → `/api/webhooks/<system>/workflows/<id>` | the event's correlation key (or its dedup key) |
 | Token trigger | `/api/trigger/<token>` | `token: true` → `/api/trigger/workflows/<token>` | `case`, else `dedup_key`, else a new key |
 | By hand | — | the interface, `POST /api/v1/workflows/<slug>/runs` | as given |
@@ -238,12 +238,27 @@ the trigger step, in the same terms:
 - **A known case.** An event whose case has an open run is delivered to the run
   as an event named `webhook:<system>`; a `wait` step can wait for it. It does
   not start a second run.
-- **Items, not just "work".** A gate answers whether there is work and with what
-  signature — not which items. So a scheduled or gated firing starts **one**
-  case, as a heartbeat starts one task, and its first colleague works through
-  what is there. One case **per item** (each open issue its own run) needs
-  plugins to list the items their gate sees: an addition to the plugin SDK
-  (§14). Webhooks and the token trigger already deliver one case per item.
+- **Items, not just "work".** A gate's signature is, for the plugins that sign
+  their work, already one `<key>@<version>` entry per waiting item — GitLab's
+  `issue12!4@881`, Jira's `OPS-7@<updated>`. The plugin SDK writes that shape
+  down (`target.WorkSignature`, `target.WorkEntries`), and a plugin says once
+  that its signature has it (`target.ItemSigner`; a manifest plugin by giving
+  its poll a `key_field`). It has to be said, not guessed: a signature hashed to
+  one entry looks like one item. Nothing in it is about workflows — the same
+  signature stays the heartbeat's watermark, byte for byte.
+
+  When the gate's plugin signs items, a firing compares them with the last
+  firing's. Each new or changed item is a case `<system>:<key>`:
+  - with an open run, the change is delivered to the run as the event
+    `only_if:<system>`, which a `wait` step can wait for;
+  - without one, a run starts, titled `<trigger title> · <key>`;
+  - a case whose run **ended since the last firing** is not started again: the
+    run's own last comment moved the item, and that is not news. This is the
+    heartbeat watermark's call, with its blind spot — a foreign comment in the
+    same interval is taken along.
+
+  A plugin that does not sign items keeps one case per firing, and its first
+  colleague works through what is there.
 - **Modes.** A workflow that is off starts nothing. In observe mode a trigger
   starts runs that record positions and do nothing else.
 
@@ -342,16 +357,13 @@ ticket should leave it alone (§15).
 | #564 | the API |
 | #560, #565 | the interface, on real data |
 | #566 | triggers and actions reuse covey's (§7, §8); this document |
+| #567 | one case per item a gate sees (§7); SDK `WorkSignature`/`ItemSigner`, GitLab, manifest `key_field` |
 
 Next, in order:
 
-1. **Items from gates.** An optional plugin interface beside the work check that
-   lists the items a gate sees (key, title, link), implemented for GitLab first;
-   a gated trigger then starts one case per item and delivers changes to open
-   ones.
-2. **The chat.** Workflows as senders of approvals and notices.
-3. **Agents' heartbeats stepping back** for cases a steering workflow holds.
-4. **AI steps** through the organisation's model connection.
+1. **The chat.** Workflows as senders of approvals and notices.
+2. **Agents' heartbeats stepping back** for cases a steering workflow holds.
+3. **AI steps** through the organisation's model connection.
 
 ## 15. Open questions
 
@@ -363,7 +375,14 @@ Next, in order:
   enforced, the second only told.
 - **Per-item keys across systems.** The case key of a gate item and the
   correlation key of the same system's webhook should be the same string, so a
-  case started by polling continues when the webhook arrives.
+  case started by polling continues when the webhook arrives. Today they are
+  not (`gitlab:issue12!4` against the webhook's own key), and a wait for
+  either source names it (`only_if:<system>`, `webhook:<system>`).
+- **More signing plugins.** Zammad prefixes its signature with the kind, and
+  Zendesk hashes it; both need to move to `WorkSignature` before they can say
+  `ItemSigner` — which changes their watermark once, and wakes their agents
+  once more. GitHub, Jira and Salesforce already write the shape and only need
+  to say so; the pack's manifests need a `key_field`.
 - **Versions under running cases.** A new version takes over the open runs when
   their steps still exist; otherwise the old version keeps them. Should open runs
   be migrated by hand?

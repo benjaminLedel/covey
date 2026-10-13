@@ -296,3 +296,36 @@ func TestManifestWithoutAWebhookIsAPluginWithoutAnEntrance(t *testing.T) {
 		t.Errorf("an empty webhook block should parse as none: %v", err)
 	}
 }
+
+// With key_field the poll signs its items one by one (#567) — never hashed, so
+// a host can read which items wait — and says so; without it, it does not.
+func TestAPollWithAKeyFieldSignsItsItems(t *testing.T) {
+	src := strings.Replace(capManifest,
+		`"items_field": "items", "signature_field": "updated_at"}`,
+		`"items_field": "items", "signature_field": "updated_at", "key_field": "id"}`, 1)
+	src = strings.Replace(src,
+		`"items_field": "items", "signature_field": "id"}`,
+		`"items_field": "items", "signature_field": "updated_at", "key_field": "id"}`, 1)
+	m, err := Parse([]byte(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sys := New(m)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"items":[{"id":7,"updated_at":"2026-10-02"},{"id":3,"updated_at":"2026-10-01"},{"updated_at":"x"}]}`))
+	}))
+	t.Cleanup(srv.Close)
+	sys.HTTP = srv.Client()
+	has, sig, err := sys.HasWorkSigned(context.Background(), target.Credential{BaseURL: srv.URL, Token: "tok"}, "")
+	if err != nil || !has || sig != "3@2026-10-01,7@2026-10-02" {
+		t.Fatalf("HasWorkSigned = %v, %q, %v", has, sig, err)
+	}
+	if !target.SignsItems(sys) {
+		t.Fatal("a poll with key_field does not say that it signs items")
+	}
+	plain, _ := capSystem(t, func(string) string { return `{"items":[]}` })
+	if target.SignsItems(plain) {
+		t.Fatal("a poll without key_field says it signs items")
+	}
+}

@@ -28,6 +28,14 @@ func (o *Orchestrator) HasWork(ctx context.Context, orgID, agentID uuid.UUID, co
 	return o.heartbeatHasWork(ctx, agentID, orgID, condition)
 }
 
+// SignsItems answers whether a system's gate signs its work item by item —
+// the plugin says so (target.ItemSigner); a system that cannot be resolved
+// does not.
+func (o *Orchestrator) SignsItems(ctx context.Context, orgID uuid.UUID, system string) bool {
+	sys, err := o.system(ctx, orgID, system)
+	return err == nil && target.SignsItems(sys)
+}
+
 // ActAs runs a target-system action as agent, under its rules: the tool
 // assignment, the guard rails on the action's subject, the credential
 // broker (ACCESS.md, activation, the system deny) and the audit. A rule that

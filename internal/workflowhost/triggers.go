@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"covey/internal/workflow"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // Triggers (#566): a workflow starts from the sources agents already wake
@@ -45,6 +46,7 @@ func (h *Host) fireSchedules(ctx context.Context) {
 			continue
 		}
 		sig := ""
+		var items []target.WorkEntry
 		if t.OnlyIf != "" && h.Platform != nil {
 			agent, err := h.colleague(ctx, hw.stored.OrgID, hw.stored.ID, t.As)
 			if err != nil {
@@ -63,6 +65,12 @@ func (h *Host) fireSchedules(ctx context.Context) {
 				continue
 			}
 			sig = s
+			system, _, _ := strings.Cut(t.OnlyIf, ":")
+			if h.Platform.SignsItems(ctx, hw.stored.OrgID, system) {
+				if list, ok := target.WorkEntries(s); ok {
+					items = list
+				}
+			}
 		}
 		if err := h.Store.Fired(ctx, hw.stored.ID, now, sig); err != nil {
 			h.log().Warn("workflow trigger state not written", "workflow", hw.stored.Slug, "err", err)
@@ -72,9 +80,55 @@ func (h *Host) fireSchedules(ctx context.Context) {
 		if title == "" {
 			title = hw.stored.Def.Name
 		}
+		if len(items) > 0 {
+			h.fireItems(hw, t, state, items, title)
+			continue
+		}
 		caseRef := "schedule:" + now.Format("2006-01-02T15:04")
 		if _, err := hw.eng.Start(caseRef, map[string]string{"title": title + " · " + now.Format("2006-01-02 15:04"), "no": caseRef}); err != nil {
 			h.log().Warn("workflow schedule: run not started", "workflow", hw.stored.Slug, "err", err)
+		}
+	}
+}
+
+// fireItems runs a gate's firing item by item (#567). A signature in the
+// SDK's shape — one "<key>@<version>" entry per waiting item, which the
+// signing plugins write anyway, and say so with target.ItemSigner — tells
+// which items wait and which changed since the last firing; the plugin
+// implements nothing for workflows. Each
+// new or changed item is its own case, "<system>:<key>": with an open run, it
+// gets the change as the event "only_if:<system>", which a wait step can wait
+// for; without one, a run starts.
+//
+// A case whose run ended since the last firing is not started again. Its
+// colleague's last comment moved the item's version, and that is the run's
+// own doing, not news — the heartbeat's watermark makes the same call, and
+// shares its blind spot: a foreign comment in the same interval is taken with
+// it.
+func (h *Host) fireItems(hw *hosted, t *workflow.Step, state workflow.TriggerState, items []target.WorkEntry, title string) {
+	system, _, _ := strings.Cut(t.OnlyIf, ":")
+	seen := map[string]string{}
+	if prev, ok := target.WorkEntries(state.LastSig); ok {
+		for _, e := range prev {
+			seen[e.Key] = e.Version
+		}
+	}
+	for _, it := range items {
+		if v, ok := seen[it.Key]; ok && v == it.Version {
+			continue
+		}
+		caseRef := system + ":" + it.Key
+		if run, ok := hw.eng.OpenRun(caseRef); ok {
+			if err := hw.eng.Event(run.ID, "only_if:"+system); err != nil && !errors.Is(err, workflow.ErrWrongState) {
+				h.log().Warn("workflow gate: change not delivered", "workflow", hw.stored.Slug, "case", caseRef, "err", err)
+			}
+			continue
+		}
+		if last, ok := hw.eng.LastRun(caseRef); ok && state.LastFired != nil && !last.Since.Before(*state.LastFired) {
+			continue
+		}
+		if _, err := hw.eng.Start(caseRef, map[string]string{"title": title + " · " + it.Key, "no": it.Key}); err != nil {
+			h.log().Warn("workflow gate: run not started", "workflow", hw.stored.Slug, "case", caseRef, "err", err)
 		}
 	}
 }

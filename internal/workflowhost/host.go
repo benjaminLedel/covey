@@ -48,6 +48,9 @@ type Messenger interface {
 // heartbeat's gate, and an action run as a colleague under its rules.
 type Platform interface {
 	HasWork(ctx context.Context, orgID, agentID uuid.UUID, condition string) (bool, string)
+	// SignsItems: the system's gate signature lists its waiting items
+	// (target.ItemSigner), so a firing can run one case per item.
+	SignsItems(ctx context.Context, orgID uuid.UUID, system string) bool
 	ActAs(ctx context.Context, agent agents.Agent, system, action string, params json.RawMessage, pending string) (string, error)
 }
 

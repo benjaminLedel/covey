@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"covey/internal/orchestrator"
 	"covey/internal/workflow"
 )
 
@@ -242,6 +243,100 @@ func TestAScheduleFiresLikeAHeartbeat(t *testing.T) {
 	state, _ := workflow.NewStore(s.pool).Trigger(context.Background(), st.ID)
 	if state.LastFired == nil || !state.LastFired.Equal(now) {
 		t.Fatalf("trigger state: %+v", state)
+	}
+}
+
+// gatePlatform is the orchestrator with the gate's answer set by the test: what
+// a plugin that signs its items (target.ItemSigner) would see in GitLab.
+type gatePlatform struct {
+	*orchestrator.Orchestrator
+	sig string
+}
+
+func (g *gatePlatform) HasWork(context.Context, uuid.UUID, uuid.UUID, string) (bool, string) {
+	return g.sig != "", g.sig
+}
+
+func (g *gatePlatform) SignsItems(context.Context, uuid.UUID, string) bool { return true }
+
+const itemWorkflow = `
+workflow: Triage
+owner: admin
+mode: steer
+steps:
+  t:
+    type: trigger
+    title: Triage
+    as: support
+    every: 1h
+    only_if: gitlab:issues
+    next: w
+  w:
+    type: wait
+    until: "only_if:gitlab"
+    next: e
+  e:
+    type: end
+`
+
+// TestAGateThatSignsItemsRunsOneCasePerItem (#567): each waiting issue is its
+// own case; a change on an issue with an open run reaches that run; the
+// change a run's own end made is not news; a later change starts the case
+// again.
+func TestAGateThatSignsItemsRunsOneCasePerItem(t *testing.T) {
+	s := newStack(t)
+	s.newSupportAgent("support")
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	gate := &gatePlatform{Orchestrator: s.orch}
+	s.workflows.Platform = gate
+	now := time.Date(2026, 10, 12, 9, 0, 0, 0, time.Local)
+	s.workflows.Now = func() time.Time { return now }
+	saveWorkflowAPI(t, admin, "triage", itemWorkflow)
+	runs := func() map[string][]string {
+		out := map[string][]string{}
+		for _, r := range admin.expectList(http.MethodGet, "/api/v1/workflows/triage/runs", nil, http.StatusOK) {
+			out[r["case"].(string)] = append(out[r["case"].(string)], r["state"].(string))
+		}
+		return out
+	}
+
+	gate.sig = "issue7!3@42,issue7!4@50"
+	s.workflows.Tick()
+	got := runs()
+	if len(got) != 2 || len(got["gitlab:issue7!3"]) != 1 || len(got["gitlab:issue7!4"]) != 1 {
+		t.Fatalf("first firing: %v", got)
+	}
+	for _, r := range admin.expectList(http.MethodGet, "/api/v1/workflows/triage/runs", nil, http.StatusOK) {
+		if r["case"] == "gitlab:issue7!3" && r["title"] != "Triage · issue7!3" {
+			t.Fatalf("title: %v", r["title"])
+		}
+	}
+
+	// A comment on issue 4: its run is waiting for exactly that, and ends.
+	now = now.Add(time.Hour)
+	gate.sig = "issue7!3@42,issue7!4@51"
+	s.workflows.Tick()
+	got = runs()
+	if len(got["gitlab:issue7!4"]) != 1 || got["gitlab:issue7!4"][0] != "done" || got["gitlab:issue7!3"][0] != "waiting" {
+		t.Fatalf("change not delivered to its run: %v", got)
+	}
+
+	// Issue 4 moves again — the run that just ended did that itself — and a
+	// new issue 5 arrives.
+	now = now.Add(time.Hour)
+	gate.sig = "issue7!3@42,issue7!4@52,issue7!5@1"
+	s.workflows.Tick()
+	got = runs()
+	if len(got["gitlab:issue7!4"]) != 1 || len(got["gitlab:issue7!5"]) != 1 {
+		t.Fatalf("after the run's own change: %v", got)
+	}
+
+	// A later change on issue 4 is news: its case starts again.
+	now = now.Add(time.Hour)
+	gate.sig = "issue7!3@42,issue7!4@53,issue7!5@1"
+	s.workflows.Tick()
+	if got = runs(); len(got["gitlab:issue7!4"]) != 2 {
+		t.Fatalf("a later change did not start the case again: %v", got)
 	}
 }
 

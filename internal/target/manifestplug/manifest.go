@@ -106,6 +106,13 @@ type ManifestPoll struct {
 	// Empty = no signature; the condition then fires on every level, as a plain
 	// target.WorkChecker does.
 	SignatureField string `json:"signature_field,omitempty"`
+	// KeyField is a per-item field that names the item for as long as it
+	// exists (its id, its number). With it the signature lists the items one
+	// by one — "<key>@<signature field>", target.WorkSignature — and is never
+	// hashed, so a host can tell which items wait and which changed: a
+	// workflow then runs one case per item (spec/29). Empty = the signature
+	// above, as before.
+	KeyField string `json:"key_field,omitempty"`
 }
 
 type ManifestAuth struct {
@@ -562,7 +569,44 @@ func (s *Sys) HasWorkSigned(ctx context.Context, cred target.Credential, kind st
 	if len(items) == 0 {
 		return false, "", nil
 	}
+	if p.KeyField != "" {
+		return true, pollItemSignature(items, p.KeyField, p.SignatureField), nil
+	}
 	return true, pollSignature(items, p.SignatureField), nil
+}
+
+// SignsWorkItems (target.ItemSigner): the signature lists items when every
+// poll entry names its items' key — a heartbeat may gate on any of them.
+func (s *Sys) SignsWorkItems() bool {
+	if len(s.M.Poll) == 0 {
+		return false
+	}
+	for _, p := range s.M.Poll {
+		if p.KeyField == "" {
+			return false
+		}
+	}
+	return true
+}
+
+// pollItemSignature is pollSignature item by item: one "<key>@<version>"
+// entry per item with a key. The separators are taken out of the values, so a
+// key with a comma in it cannot split into two items.
+func pollItemSignature(items []any, keyField, versionField string) string {
+	clean := strings.NewReplacer(",", " ", "@", " ")
+	entries := make([]target.WorkEntry, 0, len(items))
+	for _, it := range items {
+		key := strings.ReplaceAll(jsonPath(it, keyField), ",", " ")
+		if key == "" {
+			continue
+		}
+		version := ""
+		if versionField != "" {
+			version = clean.Replace(jsonPath(it, versionField))
+		}
+		entries = append(entries, target.WorkEntry{Key: key, Version: version})
+	}
+	return target.WorkSignature(entries)
 }
 
 // pollItems reads the array of open items out of a poll response.

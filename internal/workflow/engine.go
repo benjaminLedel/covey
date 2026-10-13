@@ -423,6 +423,22 @@ func (e *Engine) OpenRun(caseRef string) (Run, bool) {
 	return e.runs[id].snapshot(), true
 }
 
+// LastRun returns the newest run of a case, open or ended.
+func (e *Engine) LastRun(caseRef string) (Run, bool) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	var last *Run
+	for _, r := range e.runs {
+		if r.Case == caseRef && (last == nil || r.Since.After(last.Since)) {
+			last = r
+		}
+	}
+	if last == nil {
+		return Run{}, false
+	}
+	return last.snapshot(), true
+}
+
 // Trigger is the definition's trigger step.
 func (e *Engine) Trigger() *Step { return e.def.Steps[e.trigger] }
 
