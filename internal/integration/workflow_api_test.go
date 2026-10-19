@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -186,6 +187,45 @@ func TestAWorkflowIsDeletedOnlyWhenItIsOffAndNobodyWorksOnIt(t *testing.T) {
 	list := admin.expectList(http.MethodGet, "/api/v1/workflows", nil, http.StatusOK)
 	if len(list) != 1 || list[0]["slug"] != "busy" {
 		t.Fatalf("list after deleting: %v", list)
+	}
+}
+
+// TestARunIsCancelledByHandAndItsStepsTaskWithIt (#598): a run is ended by
+// hand by whoever may start one, with a reason in its log; the task its
+// colleague was at work on is cancelled with it; the case is free again.
+func TestARunIsCancelledByHandAndItsStepsTaskWithIt(t *testing.T) {
+	s := newStack(t)
+	builder := s.newSupportAgent("builder")
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	s.mitglied(t, "other@test.local", "Other", "auditor", "other-passwort")
+	other := login(t, s, "other@test.local", "other-passwort")
+	admin.expect(http.MethodPut, "/api/v1/workflows/busy", map[string]string{"source": fmt.Sprintf(deletableWorkflow, "steer", "Build [mock:sleep 30s]")}, http.StatusOK)
+
+	run := admin.expect(http.MethodPost, "/api/v1/workflows/busy/runs", map[string]any{"case": "c1"}, http.StatusCreated)
+	path := "/api/v1/workflows/busy/runs/" + run["id"].(string)
+	waitForOr(t, "the build step to be worked on", 30*time.Second, func() bool {
+		return admin.expect(http.MethodGet, path, nil, http.StatusOK)["state"] == "working"
+	}, func() string { return admin.expect(http.MethodGet, path, nil, http.StatusOK)["state"].(string) })
+
+	other.expect(http.MethodPost, path+"/cancel", map[string]string{"reason": "no"}, http.StatusForbidden)
+	ended := admin.expect(http.MethodPost, path+"/cancel", map[string]string{"reason": "wrong case"}, http.StatusOK)
+	if ended["state"] != "failed" || ended["step"] != "b" {
+		t.Fatalf("after cancelling: %v", ended)
+	}
+	log := ended["log"].([]any)
+	if last := log[len(log)-1].(map[string]any)["text"]; last != "cancelled by admin@test.local: wrong case" {
+		t.Fatalf("log: %v", last)
+	}
+	tasks, err := s.backlog.ListByAgent(context.Background(), builder.ID, true)
+	if err != nil || len(tasks) != 1 || tasks[0].State != "cancelled" {
+		t.Fatalf("the step's task: %+v %v", tasks, err)
+	}
+
+	admin.expect(http.MethodPost, path+"/cancel", nil, http.StatusConflict)
+	admin.expect(http.MethodPost, "/api/v1/workflows/busy/runs/nope/cancel", nil, http.StatusNotFound)
+	again := admin.expect(http.MethodPost, "/api/v1/workflows/busy/runs", map[string]any{"case": "c1"}, http.StatusCreated)
+	if again["id"] == run["id"] {
+		t.Fatal("the cancelled run was continued")
 	}
 }
 

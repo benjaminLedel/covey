@@ -2053,6 +2053,8 @@ export const startWorkflowRun = (slug: string, caseRef: string, vars: Record<str
   post<WorkflowRun>(`${wf(slug)}/runs`, { case: caseRef, vars });
 export const decideWorkflowRun = (slug: string, id: string, option: string) =>
   post<WorkflowRun>(`${wf(slug)}/runs/${encodeURIComponent(id)}/decide`, { option });
+export const cancelWorkflowRun = (slug: string, id: string, reason: string) =>
+  post<WorkflowRun>(`${wf(slug)}/runs/${encodeURIComponent(id)}/cancel`, { reason });
 export const newWorkflowToken = (slug: string) => post<{ enabled: boolean; token: string; url: string }>(`${wf(slug)}/token`);
 export const deleteWorkflow = (slug: string) => del<{ deleted: boolean }>(wf(slug));
 export async function createWorkflow(

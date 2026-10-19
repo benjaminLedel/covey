@@ -3545,7 +3545,11 @@
       "state_waiting": "esperando",
       "state_watching": "observado",
       "state_done": "hecho",
-      "state_failed": "detenido"
+      "state_failed": "detenido",
+      "end": "Terminar esta ejecución",
+      "endConfirm": "Terminar",
+      "endReason": "¿Por qué? (opcional)",
+      "endHint": "La ejecución se detiene donde está. Si alguien trabaja en su paso, esa tarea se retira."
     },
     "overview": {
       "new": "Nuevo flujo de trabajo",

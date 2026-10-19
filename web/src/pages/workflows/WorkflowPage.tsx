@@ -23,6 +23,7 @@ import "@xyflow/react/dist/style.css";
 import "./workflows.css";
 import {
   api,
+  cancelWorkflowRun,
   checkWorkflow,
   decideWorkflowRun,
   deleteWorkflow,
@@ -446,6 +447,14 @@ function Editor({ me }: { me: Principal }) {
             setRun(null);
             setSelected(null);
           }}
+          onEnd={
+            manage
+              ? async (reason) => {
+                  await cancelWorkflowRun(ref, current.id, reason);
+                  await refreshRuns();
+                }
+              : undefined
+          }
         />
       ) : (
         <RunList

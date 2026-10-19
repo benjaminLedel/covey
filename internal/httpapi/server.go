@@ -790,6 +790,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/workflows/{slug}/runs", s.rbac(manage, s.workflowRef(s.handleStartRun)))
 	mux.Handle("GET /api/v1/workflows/{slug}/runs/{id}", s.rbac(anyRole, s.workflowRef(s.handleGetRun)))
 	mux.Handle("POST /api/v1/workflows/{slug}/runs/{id}/decide", s.rbac(anyRole, s.workflowRef(s.handleDecideRun)))
+	mux.Handle("POST /api/v1/workflows/{slug}/runs/{id}/cancel", s.rbac(manage, s.workflowRef(s.handleCancelRun)))
 	mux.Handle("POST /api/v1/workflows/{slug}/runs/{id}/events", s.rbac(manage, s.workflowRef(s.handleRunEvent)))
 	mux.Handle("POST /api/v1/workflows/{slug}/token", s.rbac(manage, s.workflowRef(s.handleWorkflowToken)))
 	mux.Handle("DELETE /api/v1/workflows/{slug}/token", s.rbac(manage, s.workflowRef(s.handleWorkflowToken)))

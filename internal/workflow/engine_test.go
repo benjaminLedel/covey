@@ -330,6 +330,43 @@ func TestCasesQueueAtTheLimitAndGoOutOldestFirst(t *testing.T) {
 	expect(t, at(t, e, r4.ID), "b", StateQueued)
 }
 
+// A run ended by hand (#598) stops where it stands, says who ended it and
+// why, frees its case and its colleague, and cannot be ended twice.
+func TestARunCancelledByHandFreesItsCaseAndItsColleague(t *testing.T) {
+	w := &world{}
+	e, c := engine(t, strings.Replace(pool, "%s", "load", 1), w)
+	r1, _ := e.Start("#1", nil)
+	e.Start("#2", nil)
+	c.pass(time.Minute)
+	r3, _ := e.Start("#3", nil)
+	expect(t, r3, "b", StateQueued)
+
+	was, err := e.Cancel(r1.ID, "alex", " no ticket behind it ")
+	must(t, err)
+	if was.State != StateWorking || was.Step != "b" || was.Assignee != "ada" {
+		t.Fatalf("the run as it stood: %+v", was)
+	}
+	r := at(t, e, r1.ID)
+	expect(t, r, "b", StateFailed)
+	if last := r.Log[len(r.Log)-1].Text; last != "cancelled by alex: no ticket behind it" {
+		t.Fatalf("log: %q", last)
+	}
+	// Ada is free: the queued case goes to her.
+	if r := at(t, e, r3.ID); r.State != StateWorking || r.Assignee != "ada" {
+		t.Fatalf("the queue did not move on: %+v", r)
+	}
+	// The case is free: it may start again.
+	if again, _ := e.Start("#1", nil); again.ID == r1.ID {
+		t.Fatal("the cancelled run was continued")
+	}
+	if _, err := e.Cancel(r1.ID, "alex", ""); !errors.Is(err, ErrWrongState) {
+		t.Fatalf("cancelling twice: %v", err)
+	}
+	if _, err := e.Cancel("nope", "alex", ""); !errors.Is(err, ErrUnknownRun) {
+		t.Fatalf("unknown run: %v", err)
+	}
+}
+
 func TestAnOptionalStepIsSkippedARequiredOneWaitsForSomeone(t *testing.T) {
 	w := &world{away: map[string]bool{"theo": true, "rosa": true}}
 	e, c := example(t, w)

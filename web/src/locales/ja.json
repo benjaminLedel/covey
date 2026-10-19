@@ -3545,7 +3545,11 @@
       "state_waiting": "待機中",
       "state_watching": "監視中",
       "state_done": "完了",
-      "state_failed": "停止"
+      "state_failed": "停止",
+      "end": "この実行を終了",
+      "endConfirm": "終了する",
+      "endReason": "理由（任意）",
+      "endHint": "実行は現在のステップで止まります。そのステップを担当中の同僚がいれば、そのタスクは取り消されます。"
     },
     "overview": {
       "new": "新しいワークフロー",

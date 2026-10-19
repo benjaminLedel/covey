@@ -3545,7 +3545,11 @@
       "state_waiting": "等待中",
       "state_watching": "观察中",
       "state_done": "完成",
-      "state_failed": "已停止"
+      "state_failed": "已停止",
+      "end": "结束此运行",
+      "endConfirm": "结束",
+      "endReason": "原因（可选）",
+      "endHint": "运行在当前位置停止。如有同事正在处理该步骤，该任务将被撤回。"
     },
     "overview": {
       "new": "新建工作流",

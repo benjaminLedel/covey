@@ -333,6 +333,35 @@ func (e *Engine) Decide(runID, option string) error {
 	return nil
 }
 
+// Cancel ends an open run by hand (#598): a person decided the case needs no
+// more of this workflow. The run ends as failed — it did not reach an end —
+// so it needs no state of its own; its log says who ended it and why. Its case
+// is free again, and a queue behind its colleague moves on. Cancel returns
+// the run as it stood, so the caller can take back a task its step handed out.
+func (e *Engine) Cancel(runID, by, reason string) (Run, error) {
+	e.mu.Lock()
+	defer e.unlockAndTell()
+	r, ok := e.runs[runID]
+	if !ok {
+		return Run{}, ErrUnknownRun
+	}
+	if !r.open() {
+		return Run{}, ErrWrongState
+	}
+	was := r.snapshot()
+	r.State = StateFailed
+	r.Stuck = false
+	r.Unstaffed = false
+	delete(e.byCase, r.Case)
+	text := "cancelled by " + by
+	if reason = strings.TrimSpace(reason); reason != "" {
+		text += ": " + reason
+	}
+	e.log(r, r.Step, "%s", text)
+	e.drainQueues()
+	return was, nil
+}
+
 // Event delivers something a wait step waits for, such as a label set on
 // the ticket. Events nobody waits for are ignored.
 func (e *Engine) Event(runID, name string) error {

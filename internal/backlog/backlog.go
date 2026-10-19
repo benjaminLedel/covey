@@ -797,6 +797,38 @@ func (s *Store) Cancel(ctx context.Context, id uuid.UUID, note string) (Task, er
 	return s.transition(ctx, id, StateCancelled, note, "")
 }
 
+// CancelByOrigin cancels what one origin handed out and is not finished yet —
+// the task with that origin and the continuations it was carried on in. A
+// workflow run ended by hand takes back its colleague's step this way (#598).
+// It returns how many tasks it cancelled.
+func (s *Store) CancelByOrigin(ctx context.Context, orgID uuid.UUID, origin, note string) (int, error) {
+	rows, err := s.pool.Query(ctx, `WITH RECURSIVE chain AS (
+			SELECT id, state FROM backlog_tasks WHERE org_id = $1 AND origin = $2
+			UNION ALL
+			SELECT t.id, t.state FROM backlog_tasks t JOIN chain c ON t.parent_task_id = c.id
+			WHERE t.origin LIKE 'continuation:%'
+		)
+		SELECT id FROM chain WHERE state IN ('open', 'in_progress', 'blocked')`, orgID, origin)
+	if err != nil {
+		return 0, err
+	}
+	ids, err := pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, id := range ids {
+		if _, err := s.Cancel(ctx, id, note); err != nil {
+			if errors.Is(err, ErrInvalidTransition) {
+				continue // finished meanwhile
+			}
+			return n, err
+		}
+		n++
+	}
+	return n, nil
+}
+
 // CorrelateWake is the blocked→working edge (M4): an incoming event with a
 // correlation key reopens the parked task with resume input and wakes the
 // agent. Returns ErrNotFound if nothing is waiting on the key.
