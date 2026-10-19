@@ -3545,7 +3545,11 @@
       "state_waiting": "in attesa",
       "state_watching": "osservato",
       "state_done": "fatto",
-      "state_failed": "fermato"
+      "state_failed": "fermato",
+      "end": "Termina questa esecuzione",
+      "endConfirm": "Chiudi",
+      "endReason": "Perché? (facoltativo)",
+      "endHint": "L’esecuzione si ferma dove si trova. Se qualcuno sta lavorando al suo passo, quel compito viene ritirato."
     },
     "overview": {
       "new": "Nuovo flusso",

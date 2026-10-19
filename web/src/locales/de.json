@@ -3545,7 +3545,11 @@
       "state_waiting": "wartet",
       "state_watching": "beobachtet",
       "state_done": "fertig",
-      "state_failed": "angehalten"
+      "state_failed": "angehalten",
+      "end": "Vorgang beenden",
+      "endConfirm": "Beenden",
+      "endReason": "Warum? (optional)",
+      "endHint": "Der Vorgang endet dort, wo er steht. Arbeitet gerade jemand an seinem Schritt, wird diese Aufgabe zurückgenommen."
     },
     "overview": {
       "new": "Neuer Ablauf",

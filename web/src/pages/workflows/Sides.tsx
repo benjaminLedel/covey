@@ -294,6 +294,7 @@ export function RunSide({
   waiting,
   onStep,
   onBack,
+  onEnd,
 }: {
   run: WorkflowRun;
   blocks: Record<string, Block>;
@@ -302,6 +303,8 @@ export function RunSide({
   waiting?: React.ReactNode;
   onStep: (block: string) => void;
   onBack: () => void;
+  // Ends an open run by hand (#598); absent for whoever may not.
+  onEnd?: (reason: string) => Promise<void>;
 }) {
   const { t, i18n } = useTranslation();
   const log = run.log ?? [];
@@ -349,7 +352,55 @@ export function RunSide({
           </div>
         </div>
       )}
+      {onEnd && isOpen(run) && <EndRun key={run.id} onEnd={onEnd} />}
     </div>
+  );
+}
+
+// EndRun asks once more in the panel before a run is ended — no browser
+// dialog — and takes an optional reason for the run's log.
+function EndRun({ onEnd }: { onEnd: (reason: string) => Promise<void> }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!open) {
+    return (
+      <div className="wf-sec">
+        <button className="btn sm" onClick={() => setOpen(true)}>
+          {t("workflows.runs.end")}
+        </button>
+      </div>
+    );
+  }
+  return (
+    <form
+      className="wf-sec wf-start"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setBusy(true);
+        setError(null);
+        try {
+          await onEnd(reason.trim());
+        } catch (err) {
+          setError((err as Error).message);
+          setBusy(false);
+        }
+      }}
+    >
+      <p className="wf-hint">{t("workflows.runs.endHint")}</p>
+      <input className="input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t("workflows.runs.endReason")} />
+      <div className="wf-row">
+        <button className="btn primary sm" type="submit" disabled={busy}>
+          {t("workflows.runs.endConfirm")}
+        </button>
+        <button className="btn sm" type="button" onClick={() => setOpen(false)} disabled={busy}>
+          {t("workflows.runs.cancel")}
+        </button>
+      </div>
+      {error && <p className="wf-hint" style={{ color: "var(--text-danger)" }}>{error}</p>}
+    </form>
   );
 }
 

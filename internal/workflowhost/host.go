@@ -279,6 +279,29 @@ func (h *Host) Delete(ctx context.Context, orgID uuid.UUID, slug string) error {
 	return nil
 }
 
+// CancelRun ends a run by hand (#598). A run at a colleague step has put a
+// task into that colleague's backlog; it is cancelled with the run, so the
+// agent does not go on working for a run that is over. A task that cannot be
+// taken back is logged — the run is ended either way, and a late report from
+// it is not taken.
+func (h *Host) CancelRun(ctx context.Context, orgID uuid.UUID, slug, runID, by, reason string) (workflow.Run, error) {
+	e, st, ok := h.Engine(orgID, slug)
+	if !ok {
+		return workflow.Run{}, workflow.ErrUnknownRun
+	}
+	was, err := e.Cancel(runID, by, reason)
+	if err != nil {
+		return workflow.Run{}, err
+	}
+	if was.State == workflow.StateWorking && h.Backlog != nil {
+		if _, err := h.Backlog.CancelByOrigin(ctx, orgID, origin(st.ID, runID, was.Step), "workflow run cancelled by "+by); err != nil {
+			h.log().Warn("workflow run cancelled, its step's task not", "workflow", slug, "run", runID, "err", err)
+		}
+	}
+	run, _ := e.Run(runID)
+	return run, nil
+}
+
 // Runs lists the runs of one workflow, oldest first.
 func (h *Host) Runs(orgID uuid.UUID, slug string) []workflow.Run {
 	e, _, ok := h.Engine(orgID, slug)

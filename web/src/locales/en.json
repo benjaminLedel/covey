@@ -3545,7 +3545,11 @@
       "state_waiting": "waiting",
       "state_watching": "observed",
       "state_done": "done",
-      "state_failed": "stopped"
+      "state_failed": "stopped",
+      "end": "End this run",
+      "endConfirm": "End it",
+      "endReason": "Why? (optional)",
+      "endHint": "The run stops where it stands. A colleague working on its step has that task taken back."
     },
     "overview": {
       "new": "New workflow",

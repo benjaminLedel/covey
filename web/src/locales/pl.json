@@ -3545,7 +3545,11 @@
       "state_waiting": "czeka",
       "state_watching": "obserwowana",
       "state_done": "gotowe",
-      "state_failed": "zatrzymana"
+      "state_failed": "zatrzymana",
+      "end": "Zakończ to uruchomienie",
+      "endConfirm": "Zakończ",
+      "endReason": "Dlaczego? (opcjonalnie)",
+      "endHint": "Uruchomienie zatrzymuje się tam, gdzie jest. Jeśli ktoś pracuje nad jego krokiem, to zadanie zostaje wycofane."
     },
     "overview": {
       "new": "Nowy przepływ",

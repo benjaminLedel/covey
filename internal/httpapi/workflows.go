@@ -515,6 +515,38 @@ func (s *Server) handleDecideRun(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, runViewOf(run, true))
 }
 
+// handleCancelRun — POST /api/v1/workflows/{slug}/runs/{id}/cancel {reason}.
+// Ends an open run by hand (#598), for the roles that may start one. The
+// reason is optional and goes into the run's log.
+func (s *Server) handleCancelRun(w http.ResponseWriter, r *http.Request) {
+	if !s.workflowsOn(w) {
+		return
+	}
+	var in struct {
+		Reason string `json:"reason"`
+	}
+	if r.ContentLength != 0 {
+		if err := readJSON(r, &in); err != nil {
+			writeErr(w, http.StatusBadRequest, "invalid request")
+			return
+		}
+	}
+	p := principalFrom(r)
+	run, err := s.Workflows.CancelRun(r.Context(), p.OrgID, r.PathValue("slug"), r.PathValue("id"), p.Email, in.Reason)
+	switch {
+	case errors.Is(err, workflow.ErrUnknownRun):
+		writeErr(w, http.StatusNotFound, "run not found")
+		return
+	case errors.Is(err, workflow.ErrWrongState):
+		writeErr(w, http.StatusConflict, "the run has already ended")
+		return
+	case err != nil:
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, runViewOf(run, true))
+}
+
 // waitingView is an approval that names the person asking.
 type waitingView struct {
 	Workflow   string    `json:"workflow"`

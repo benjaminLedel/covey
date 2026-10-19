@@ -3545,7 +3545,11 @@
       "state_waiting": "en attente",
       "state_watching": "observé",
       "state_done": "terminé",
-      "state_failed": "arrêté"
+      "state_failed": "arrêté",
+      "end": "Mettre fin à cette exécution",
+      "endConfirm": "Terminer",
+      "endReason": "Pourquoi ? (facultatif)",
+      "endHint": "L’exécution s’arrête là où elle en est. Si quelqu’un travaille sur son étape, cette tâche lui est retirée."
     },
     "overview": {
       "new": "Nouveau workflow",

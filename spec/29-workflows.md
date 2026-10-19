@@ -214,6 +214,14 @@ that found nobody.
 A loop is counted by the condition that sends the case back: with `max_rounds: 3`
 the case goes back twice; the third time the condition takes its `limit` exit.
 
+A person who manages agents can **end a run by hand** — a case started by
+mistake, one the customer withdrew, one that should never have started. The run
+stops where it stands and ends *failed* (it did not reach an end; there is no
+state of its own for this), its log says who ended it and why, and its case is
+free again. A run at a colleague step has put a task into that colleague's
+backlog; it is cancelled with the run, so the agent does not go on working for
+a run that is over.
+
 ## 7. Triggers — the ones covey already has
 
 A workflow starts from the sources that wake agents today. They are declared on
@@ -330,7 +338,7 @@ sender needs that schema extended (§15).
 Routes under `/api/v1/workflows`: list with counts; create; one workflow as
 text and steps; check without saving; save the next version (refused with its
 problems);
-runs, one run; start by hand; decide; deliver an event; the approvals that wait
+runs, one run; start by hand; decide; deliver an event; end a run; the approvals that wait
 for the caller; the token; delete. Reading is open to everyone in the
 organisation; writing and starting to those who manage agents.
 

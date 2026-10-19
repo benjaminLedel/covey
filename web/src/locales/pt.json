@@ -3545,7 +3545,11 @@
       "state_waiting": "à espera",
       "state_watching": "observado",
       "state_done": "feito",
-      "state_failed": "parado"
+      "state_failed": "parado",
+      "end": "Encerrar esta execução",
+      "endConfirm": "Encerrar",
+      "endReason": "Porquê? (opcional)",
+      "endHint": "A execução para onde está. Se alguém está a trabalhar no seu passo, essa tarefa é retirada."
     },
     "overview": {
       "new": "Novo fluxo",

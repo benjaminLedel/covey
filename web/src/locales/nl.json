@@ -3545,7 +3545,11 @@
       "state_waiting": "wacht",
       "state_watching": "in de gaten gehouden",
       "state_done": "klaar",
-      "state_failed": "gestopt"
+      "state_failed": "gestopt",
+      "end": "Deze run beëindigen",
+      "endConfirm": "Beëindigen",
+      "endReason": "Waarom? (optioneel)",
+      "endHint": "De run stopt waar hij staat. Werkt iemand aan de stap, dan wordt die taak ingetrokken."
     },
     "overview": {
       "new": "Nieuwe workflow",
