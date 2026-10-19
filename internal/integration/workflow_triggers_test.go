@@ -251,9 +251,15 @@ func TestAScheduleFiresLikeAHeartbeat(t *testing.T) {
 type gatePlatform struct {
 	*orchestrator.Orchestrator
 	sig string
+	// failOpen: the check errors, and the gate answers as the heartbeat's
+	// does — work, without a signature.
+	failOpen bool
 }
 
 func (g *gatePlatform) HasWork(context.Context, uuid.UUID, uuid.UUID, string) (bool, string) {
+	if g.failOpen {
+		return true, ""
+	}
 	return g.sig != "", g.sig
 }
 
@@ -337,6 +343,46 @@ func TestAGateThatSignsItemsRunsOneCasePerItem(t *testing.T) {
 	s.workflows.Tick()
 	if got = runs(); len(got["gitlab:issue7!4"]) != 2 {
 		t.Fatalf("a later change did not start the case again: %v", got)
+	}
+}
+
+// TestASigningGateThatFailsOpenStartsNoCaselessRun (#596): a check that errors
+// answers "work" without a signature. On a gate that signs its items that
+// names no case, so nothing starts — no run titled by the clock with no item —
+// and the last signature stays, so an unchanged backlog is still not news.
+func TestASigningGateThatFailsOpenStartsNoCaselessRun(t *testing.T) {
+	s := newStack(t)
+	s.newSupportAgent("support")
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	gate := &gatePlatform{Orchestrator: s.orch}
+	s.workflows.Platform = gate
+	now := time.Date(2026, 10, 12, 9, 0, 0, 0, time.Local)
+	s.workflows.Now = func() time.Time { return now }
+	saveWorkflowAPI(t, admin, "triage", itemWorkflow)
+	cases := func() []string {
+		var out []string
+		for _, r := range admin.expectList(http.MethodGet, "/api/v1/workflows/triage/runs", nil, http.StatusOK) {
+			out = append(out, r["case"].(string))
+		}
+		return out
+	}
+
+	gate.sig = "issue7!3@42"
+	s.workflows.Tick()
+	if got := cases(); len(got) != 1 || got[0] != "gitlab:issue7!3" {
+		t.Fatalf("first firing: %v", got)
+	}
+
+	now = now.Add(time.Hour)
+	gate.failOpen = true
+	s.workflows.Tick()
+	if got := cases(); len(got) != 1 {
+		t.Fatalf("a failed check started a run: %v", got)
+	}
+	st, _ := workflow.NewStore(s.pool).Get(context.Background(), s.orgID, "triage")
+	state, err := workflow.NewStore(s.pool).Trigger(context.Background(), st.ID)
+	if err != nil || state.LastSig != "issue7!3@42" {
+		t.Fatalf("the last signature was not kept: %+v %v", state, err)
 	}
 }
 

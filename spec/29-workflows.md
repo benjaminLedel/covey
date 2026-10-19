@@ -259,6 +259,11 @@ the trigger step, in the same terms:
 
   A plugin that does not sign items keeps one case per firing, and its first
   colleague works through what is there.
+
+  A signing gate whose check fails answers as the heartbeat's does — work,
+  without a signature. That names no item, so the firing starts nothing: a run
+  without a case would hand its first colleague no ticket. The trigger keeps
+  its last signature, and the next check that succeeds is compared with it.
 - **Modes.** A workflow that is off starts nothing. In observe mode a trigger
   starts runs that record positions and do nothing else.
 
