@@ -67,9 +67,18 @@ func (h *Host) fireSchedules(ctx context.Context) {
 			sig = s
 			system, _, _ := strings.Cut(t.OnlyIf, ":")
 			if h.Platform.SignsItems(ctx, hw.stored.OrgID, system) {
-				if list, ok := target.WorkEntries(s); ok {
-					items = list
+				list, ok := target.WorkEntries(s)
+				if !ok || len(list) == 0 {
+					// A signing gate names the cases it fires for. Without
+					// them — a check that failed open answers "work" with an
+					// empty signature — there is no case to start: a run
+					// would carry no item (#596). The last signature stays,
+					// so the next check is compared with what was really seen.
+					h.log().Warn("workflow gate: work reported without items — no run started", "workflow", hw.stored.Slug, "gate", t.OnlyIf)
+					_ = h.Store.Fired(ctx, hw.stored.ID, now, state.LastSig)
+					continue
 				}
+				items = list
 			}
 		}
 		if err := h.Store.Fired(ctx, hw.stored.ID, now, sig); err != nil {
