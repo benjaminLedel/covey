@@ -147,7 +147,8 @@ type ManifestCondition struct {
 type ManifestAction struct {
 	Method string `json:"method"`
 	// Path relative to the base URL; {param} placeholders are substituted from
-	// the JSON params, the remaining params go out as the JSON body.
+	// the JSON params; the remaining params go out as the JSON body, or as the
+	// query for GET and DELETE (see queryOf).
 	Path string `json:"path"`
 	// Subject overrides the guard-rail subject (default system:action).
 	// SubjectWhen allows param-dependent subjects (e.g. internal=false).
@@ -373,8 +374,21 @@ func (s *Sys) Execute(ctx context.Context, action string, params json.RawMessage
 		return nil, fmt.Errorf("action %q: unresolved placeholder in %q", action, path)
 	}
 
+	// What did not fill a placeholder goes out as the body — or, for a method
+	// that has none, as the query. Dropping it there used to be silent: an
+	// agent asked for a filtered list and got the unfiltered first page,
+	// with nothing telling it that its filter never left the platform.
 	var reqBody io.Reader
-	if a.Method != http.MethodGet && len(p) > 0 {
+	var query string
+	switch {
+	case len(p) == 0:
+	case a.Method == http.MethodGet || a.Method == http.MethodDelete:
+		q, err := queryOf(p)
+		if err != nil {
+			return nil, fmt.Errorf("action %q: %w", action, err)
+		}
+		query = q
+	default:
 		raw, err := json.Marshal(p)
 		if err != nil {
 			return nil, err
@@ -384,6 +398,13 @@ func (s *Sys) Execute(ctx context.Context, action string, params json.RawMessage
 	full, err := resolve(cred.BaseURL, path)
 	if err != nil {
 		return nil, err
+	}
+	if query != "" {
+		if strings.Contains(full, "?") {
+			full += "&" + query
+		} else {
+			full += "?" + query
+		}
 	}
 	req, err := http.NewRequestWithContext(ctx, a.Method, full, reqBody)
 	if err != nil {
@@ -816,6 +837,60 @@ func checkPathParam(key, value string) error {
 		}
 	}
 	return nil
+}
+
+// queryOf encodes the parameters of a bodiless request as a query string.
+// Keys are sent as written, so an API with bracket keys ("owner[email]",
+// "type[]") needs no special case. A scalar is one key=value; an array of
+// scalars repeats the key once per element; an object, or an array holding
+// one, is sent as its JSON text — the form OpenProject's "filters" takes.
+// null is left out. The keys are sorted so that the same call always makes
+// the same URL.
+func queryOf(p map[string]json.RawMessage) (string, error) {
+	keys := make([]string, 0, len(p))
+	for k := range p {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var parts []string
+	add := func(k, v string) {
+		parts = append(parts, url.QueryEscape(k)+"="+url.QueryEscape(v))
+	}
+	for _, k := range keys {
+		raw := bytes.TrimSpace(p[k])
+		if k == "" {
+			return "", fmt.Errorf("a parameter needs a name")
+		}
+		switch {
+		case len(raw) == 0 || string(raw) == "null":
+		case raw[0] == '[':
+			var items []json.RawMessage
+			if err := json.Unmarshal(raw, &items); err != nil {
+				return "", fmt.Errorf("parameter %q: %w", k, err)
+			}
+			scalars := true
+			for _, it := range items {
+				it = bytes.TrimSpace(it)
+				if len(it) > 0 && (it[0] == '{' || it[0] == '[') {
+					scalars = false
+				}
+			}
+			if !scalars {
+				add(k, string(raw))
+				continue
+			}
+			for _, it := range items {
+				if string(bytes.TrimSpace(it)) != "null" {
+					add(k, rawToString(it))
+				}
+			}
+		case raw[0] == '{':
+			add(k, string(raw))
+		default:
+			add(k, rawToString(raw))
+		}
+	}
+	return strings.Join(parts, "&"), nil
 }
 
 func rawToString(raw json.RawMessage) string {

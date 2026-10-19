@@ -226,3 +226,88 @@ func TestResolveKeepsTheRequestOnTheBrokeredHost(t *testing.T) {
 		t.Error("an unusable base URL has to be refused, not guessed at")
 	}
 }
+
+// TestGetSendsItsParametersAsTheQuery: a GET has no body, so whatever did not
+// fill a placeholder has to travel in the query — dropping it left an agent
+// with the unfiltered first page and no hint that its filter was lost (#601).
+func TestGetSendsItsParametersAsTheQuery(t *testing.T) {
+	var got *url.URL
+	var gotBody string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.URL
+		raw := make([]byte, 256)
+		n, _ := r.Body.Read(raw)
+		gotBody = string(raw[:n])
+		json.NewEncoder(w).Encode(map[string]any{"ok": true})
+	}))
+	defer srv.Close()
+
+	m, err := Parse([]byte(`{
+	  "name": "board",
+	  "actions": {
+	    "list":   {"method": "GET", "path": "/items"},
+	    "fixed":  {"method": "GET", "path": "/items?archived=false"},
+	    "get":    {"method": "GET", "path": "/items/{id}"},
+	    "remove": {"method": "DELETE", "path": "/items/{id}"}
+	  }
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sys := New(m)
+	cred := target.Credential{BaseURL: srv.URL + "/api", Token: "tok"}
+	call := func(action, params string) url.Values {
+		t.Helper()
+		got = nil
+		if _, err := sys.Execute(context.Background(), action, []byte(params), cred); err != nil {
+			t.Fatal(err)
+		}
+		if gotBody != "" {
+			t.Errorf("%s sent a body: %s", action, gotBody)
+		}
+		return got.Query()
+	}
+
+	q := call("list", `{"q":"ada","limit":5,"done":false,"type[]":["feature","product"],"owner[email]":"ada@example.org","skip":null,"filters":[{"status":{"operator":"o"}}]}`)
+	if got.Path != "/api/items" {
+		t.Errorf("path = %s", got.Path)
+	}
+	want := map[string][]string{
+		"q": {"ada"}, "limit": {"5"}, "done": {"false"},
+		"type[]":       {"feature", "product"},
+		"owner[email]": {"ada@example.org"},
+		"filters":      {`[{"status":{"operator":"o"}}]`},
+	}
+	for k, v := range want {
+		if strings.Join(q[k], ",") != strings.Join(v, ",") {
+			t.Errorf("query %s = %v, want %v", k, q[k], v)
+		}
+	}
+	if _, ok := q["skip"]; ok {
+		t.Error("a null parameter must be left out")
+	}
+
+	// A query the manifest wrote itself is kept, the parameters join it.
+	q = call("fixed", `{"pageCursor":"abc=="}`)
+	if q.Get("archived") != "false" || q.Get("pageCursor") != "abc==" {
+		t.Errorf("fixed query lost: %v", q)
+	}
+
+	// The placeholder consumes its parameter; it does not appear twice.
+	q = call("get", `{"id":7,"fields[]":["name"]}`)
+	if got.Path != "/api/items/7" || q.Has("id") || q.Get("fields[]") != "name" {
+		t.Errorf("get: %s %v", got.Path, q)
+	}
+
+	// DELETE has no body either.
+	q = call("remove", `{"id":7,"force":true}`)
+	if q.Get("force") != "true" {
+		t.Errorf("delete: %v", q)
+	}
+
+	// Without parameters nothing is appended.
+	call("list", `{}`)
+	if got.RawQuery != "" {
+		t.Errorf("empty params made a query: %q", got.RawQuery)
+	}
+}
