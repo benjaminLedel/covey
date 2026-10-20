@@ -129,6 +129,12 @@ the queue stands still it stays quiet, so an agent that read a ticket and decide
 to write nothing is not started again a minute later by the same state; the control
 plane's watermark tells the agent's own writes from foreign ones.
 
+The fingerprint is one entry per ticket (`ticket:<id>@<updated_at>`), so a
+[workflow](../../../spec/29-workflows.md) triggered by `only_if: zendesk` runs one
+case per ticket, `zendesk:ticket:<id>` — the key the webhook below correlates on
+as well. A ticket beyond the probe window is not in the list; raise
+`COVEY_ZENDESK_PROBE_TICKETS` (at most 50) where more tickets stay open at once.
+
 What the gate deliberately does not claim is to know which of the open tickets is
 news. No Zendesk field answers that, and the author of the newest comment does not
 either: where an account takes its mail in through a shared support address, the

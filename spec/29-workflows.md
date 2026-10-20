@@ -406,11 +406,10 @@ Next, in order:
   case started by polling continues when the webhook arrives. Today they are
   not (`gitlab:issue12!4` against the webhook's own key), and a wait for
   either source names it (`only_if:<system>`, `webhook:<system>`).
-- **More signing plugins.** Zammad prefixes its signature with the kind, and
-  Zendesk hashes it; both need to move to `WorkSignature` before they can say
-  `ItemSigner` — which changes their watermark once, and wakes their agents
-  once more. GitHub, Jira and Salesforce already write the shape and only need
-  to say so; the pack's manifests need a `key_field`.
+- **More signing plugins.** Zammad (catalogue 1.3.0) and Zendesk (pack
+  v0.24.0) sign item by item, `<system>:ticket:<id>`, and Zendesk's key is the
+  one its webhook correlates on. GitHub, Jira and Salesforce already write the
+  shape and only need to say so; the pack's manifests need a `key_field`.
 - **Versions under running cases.** A new version takes over the open runs when
   their steps still exist; otherwise the old version keeps them. Should open runs
   be migrated by hand?
