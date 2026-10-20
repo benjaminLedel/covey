@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- The Mac App Store build (#486), built with COVEY_STORE=true by
+	     tool/macos_store_release.sh. The store requires the App Sandbox;
+	     dictate-anywhere and the activity log, which need to reach into
+	     other apps, are off in this build (lib/host.dart, Host.appStore). -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<!-- Outgoing connections: the instance the app is connected to (#334),
+	     the speech model's download, the voice provider in a call. -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<!-- Attachments (#340) and saving a file a chat message carries (#586),
+	     where the person picks it in the open or save panel. -->
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+	<!-- The microphone: dictation, meeting recording (#336), calls. The
+	     Mac's own audio in a meeting (a Core Audio tap) asks under
+	     NSAudioCaptureUsageDescription. -->
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+	<!-- The profile photo (#377), taken in the app. -->
+	<key>com.apple.security.device.camera</key>
+	<true/>
+	<!-- Communication notifications (#420) are restricted: the release script
+	     adds the entitlement at signing time when the provisioning profile
+	     grants it, so an unsigned build still starts. -->
+</dict>
+</plist>

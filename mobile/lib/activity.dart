@@ -21,7 +21,9 @@ class ActivityRecorder extends ChangeNotifier {
 
   static final ActivityRecorder instance = ActivityRecorder._();
 
-  static bool get supported => Host.isMacOS;
+  /// Not in the Mac App Store build: the sandbox keeps the Accessibility API
+  /// away from other apps' windows ([Host.appStore]).
+  static bool get supported => Host.isMacOS && !Host.appStore;
 
   static const _channel = MethodChannel('covey/flow');
   static const _enabledKey = 'activity.enabled';

@@ -72,25 +72,46 @@ What the pictures leave out on purpose:
 - [ ] **Screenshots:** iPhone 6.9", iPad 13" and Mac from `screenshots/`, in order.
 - [ ] **App Privacy:** the answers in [`app_privacy.md`](app_privacy.md); publish them.
 - [ ] **Demo organisation** on app.covey.work, set up as in [`review_notes.md`](review_notes.md); put the demo e-mail, password and notes into App Review Information. Keep the credentials out of this repository.
-- [ ] **Export compliance:** `ITSAppUsesNonExemptEncryption` is `false` in the iOS `Info.plist` (HTTPS only); add the same key to the macOS `Info.plist` or answer the question on each upload.
+- [ ] **Export compliance:** `ITSAppUsesNonExemptEncryption` is `false` in the iOS and the macOS `Info.plist` (HTTPS only), so no upload asks.
 - [ ] **Pricing and availability:** free, no in-app purchases.
-- [ ] **Build:** pick the TestFlight build the release uploaded (iOS), and a Mac App Store build once there is one (below).
+- [ ] **Build:** pick the build the release uploaded, for iOS and for macOS (below).
 - [ ] **Submit for review**, iOS and macOS as separate submissions of the same app.
 
 ## Mac App Store build
 
-The release workflow's `mac-app` job (`.github/workflows/release.yml`) builds a **Developer ID** app for direct download: `flutter build macos --release`, signed with a *Developer ID Application* certificate, notarised with `notarytool`, stapled and zipped by `mobile/tool/macos_release.sh`, then attached to the GitHub release with a Sparkle appcast. The Mac App Store takes none of that; it needs a second path, not built yet:
+The release workflow (`.github/workflows/release.yml`) builds the Mac app twice:
 
-1. **Certificates.** An *Apple Distribution* certificate (signs the app) and a *Mac Installer Distribution* certificate (signs the installer package), both from the team's developer account, stored as secrets like the Developer ID one.
-2. **Provisioning profile.** A *Mac App Store* distribution profile for `work.covey.coveyMobile`, embedded in the app as `Contents/embedded.provisionprofile`. With a profile the restricted entitlements the release leaves out today (communication notifications, see `Release.entitlements`) become possible too.
-3. **App Sandbox.** Required on the Mac App Store; `com.apple.security.app-sandbox` is `false` today (`mobile/macos/Runner/Release.entitlements`). Two features depend on running outside it:
-   - *dictate anywhere* (`mobile/lib/anywhere.dart`) posts a synthesised ⌘V to the app in front,
-   - the *activity log* (`mobile/lib/activity.dart`) reads other apps' windows and fields through the Accessibility API.
+- **`mac-app`**, the direct download: `flutter build macos --release`, signed with a *Developer ID Application* certificate, notarised, stapled and zipped by `mobile/tool/macos_release.sh`, attached to the GitHub release with a Sparkle appcast. Outside the App Sandbox (`macos/Runner/Release.entitlements`), with dictate-anywhere and the activity log.
+- **`mac-store`**, for the Mac App Store (#486): `mobile/tool/macos_store_release.sh`, signed with an *Apple Distribution* certificate and a Mac App Store provisioning profile, packed as an installer package with `productbuild`, and on a tag uploaded to App Store Connect, where it appears under the macOS platform of this record. Nothing is submitted for review.
 
-   Both need to be switched off in a sandboxed build, or reworked; the store texts in `metadata-macos/` already leave them out. If they ship after all, add a paragraph under ON THE MAC and the extra privacy answers in [`app_privacy.md`](app_privacy.md#macos-only-the-activity-log). Everything else the app does (network client, microphone, camera, user-selected files, notifications, the Mac's audio for meetings) has sandbox entitlements.
-4. **No self-update.** Sparkle must not be in a store build: build without `COVEY_UPDATE_FEED`, and `Updater.supported` (`mobile/lib/updater.dart`) stays off.
-5. **Category.** `LSApplicationCategoryType` = `public.app-category.business` in `mobile/macos/Runner/Info.plist`.
-6. **Package.** Sign the app with the Apple Distribution identity and the sandbox entitlements, then build a signed installer:
-   `productbuild --component covey.app /Applications --sign "3rd Party Mac Developer Installer: …" covey.pkg`
-   No notarisation: App Store Connect does its own review.
-7. **Upload.** `xcrun altool --upload-app -t macos -f covey.pkg --apiKey … --apiIssuer …` with the App Store Connect API key the release already holds, or the Transporter app by hand. The build then appears under the macOS platform of the same record.
+What makes the store build different:
+
+1. **Chosen at build time.** `--dart-define=COVEY_STORE=true` sets `Host.appStore` (`mobile/lib/host.dart`), and the script writes `macos/Runner/Configs/Store.xcconfig` for the length of the build, which points the Release configuration's `CODE_SIGN_ENTITLEMENTS` at `macos/Runner/Store.entitlements` (through `COVEY_RELEASE_ENTITLEMENTS` in `AppInfo.xcconfig`). Without both, the build is the direct download, unchanged.
+2. **App Sandbox.** `Store.entitlements`: `app-sandbox`, `network.client`, `files.user-selected.read-write`, `device.audio-input`, `device.camera`. The Mac's own audio in a meeting (a Core Audio tap) asks under `NSAudioCaptureUsageDescription`. Communication notifications (#420) are added at signing time when the profile grants them.
+3. **Without the two features that reach into other apps.** *Dictate anywhere* (`mobile/lib/anywhere.dart`, a synthesised ⌘V) and the *activity log* (`mobile/lib/activity.dart`, the Accessibility API) report `supported = false` with `Host.appStore`, so neither starts nor shows in the settings. The texts in `metadata-macos/` leave them out, and [`app_privacy.md`](app_privacy.md#macos-only-the-activity-log) answers for a build without them.
+4. **No self-update.** `Updater.supported` (`mobile/lib/updater.dart`) is false with `Host.appStore`, and the job sets no `COVEY_UPDATE_FEED`. The script also takes Sparkle's helpers (`Autoupdate`, `Updater.app`, `XPCServices`) out of the bundle and the `SU…` keys out of its `Info.plist`; the framework itself stays, since the update plugin links against it.
+5. **Category and export compliance.** `LSApplicationCategoryType` = `public.app-category.business` and `ITSAppUsesNonExemptEncryption` = `false` in `mobile/macos/Runner/Info.plist`, for both builds.
+6. **Signing and package.** The script signs the frameworks and then the app with the Apple Distribution identity and the sandbox entitlements (plus the application and team identifier the profile names), embeds the profile as `Contents/embedded.provisionprofile`, and builds `covey-app_<version>_macos-store.pkg` signed with the *Mac Installer Distribution* identity. No notarisation: App Store Connect reviews the app itself.
+7. **Upload.** `xcrun altool --upload-app --type macos` with the App Store Connect API key the iPhone app is uploaded with. Build numbers are the workflow's run number, as for iOS.
+
+The job's secrets; without the first five (a fork, a rehearsal) the store build is made and signed ad hoc, and nothing is packed or uploaded:
+
+| Secret | What |
+|---|---|
+| `MACOS_APPSTORE_DISTRIBUTION_P12` | an *Apple Distribution* certificate with its private key, base64 (may be the same one as `IOS_DISTRIBUTION_P12`) |
+| `MACOS_APPSTORE_DISTRIBUTION_P12_PASSWORD` | its password |
+| `MACOS_INSTALLER_P12` | a *Mac Installer Distribution* certificate ("3rd Party Mac Developer Installer") with its private key, base64 |
+| `MACOS_INSTALLER_P12_PASSWORD` | its password |
+| `MACOS_APPSTORE_PROVISIONING_PROFILE` | a *Mac App Store* distribution profile for `work.covey.coveyMobile`, base64 |
+| `APPLE_TEAM_ID` | shared with the iPhone app |
+| `APPLE_API_KEY_P8`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER_ID` | shared with the iPhone app and the notarisation; the upload happens only on a tag |
+
+Locally, unsigned:
+
+```sh
+cd mobile
+tool/macos_store_release.sh 0.0.0 1 /tmp/store
+codesign -d --entitlements - build/macos/Build/Products/Release/covey.app   # app-sandbox: true
+```
+
+A store build started by hand runs in its own container (`~/Library/Containers/work.covey.coveyMobile`), so it does not see the direct download's sign-in.

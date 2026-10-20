@@ -18,3 +18,10 @@ PRODUCT_COPYRIGHT = Copyright © 2026 work.covey. All rights reserved.
 // CODE_SIGN_IDENTITY = Apple Development. Without it the app is signed ad
 // hoc, and macOS forgets permissions like Accessibility with every build.
 #include? "Signing.xcconfig"
+
+// The entitlements a release build is signed with. The Mac App Store build
+// (#486) uses Runner/Store.entitlements, with the App Sandbox:
+// tool/macos_store_release.sh writes Runner/Configs/Store.xcconfig for the
+// length of its build. Without that file the build is the direct download.
+COVEY_RELEASE_ENTITLEMENTS = Runner/Release.entitlements
+#include? "Store.xcconfig"

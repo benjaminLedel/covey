@@ -4,6 +4,7 @@ import 'package:auto_updater/auto_updater.dart';
 import 'package:flutter/foundation.dart';
 
 import 'diagnostics.dart';
+import 'host.dart';
 
 /// Updates for the Mac app (#421), through Sparkle.
 ///
@@ -13,13 +14,14 @@ import 'diagnostics.dart';
 /// signed with the key whose public half is in Info.plist (SUPublicEDKey).
 /// Sparkle installs nothing that signature does not match.
 ///
-/// A development build has no feed and never asks.
+/// A development build has no feed and never asks, nor does the Mac App
+/// Store build (#486), which the store updates.
 class Updater {
   Updater._();
 
   static const _feed = String.fromEnvironment('COVEY_UPDATE_FEED');
 
-  static bool get supported => Platform.isMacOS && kReleaseMode && _feed != '';
+  static bool get supported => Platform.isMacOS && kReleaseMode && _feed != '' && !Host.appStore;
 
   /// Checks now in the background, and then once a day.
   static Future<void> start() async {
