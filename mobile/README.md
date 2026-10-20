@@ -43,6 +43,11 @@ it builds and keeps the files on the run, and publishes nothing.
 - **Mac** (#406): `covey-app_<version>_macos.zip`, signed and notarised when
   the repository holds the certificate, and updating itself through Sparkle
   (#421). `tool/macos_release.sh` packs it.
+- **Mac App Store** (#486): a second Mac build, sandboxed, without
+  dictate-anywhere, the activity log and Sparkle (`COVEY_STORE=true`),
+  signed for the store and uploaded to App Store Connect on a tag; not
+  attached to the release. `tool/macos_store_release.sh` builds it, and
+  [`store/README.md`](store/README.md#mac-app-store-build) has the details.
 - **Windows** (#436): `covey-app_<version>_windows.zip`, the contents of
   `build/windows/x64/runner/Release` — `covey_mobile.exe` with its DLLs and
   `data\`. It needs no installer: unpacked anywhere, it runs. It is **not

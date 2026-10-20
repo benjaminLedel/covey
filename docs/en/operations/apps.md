@@ -35,6 +35,8 @@ The download links in the apps dialog point at the release of **the instance's o
 
 **Mac.** The app is signed and notarised when the release was built with the project's certificate. An unsigned build says so in the release notes, and Gatekeeper then refuses the first start: right-click `covey.app` → Open, or `xattr -dr com.apple.quarantine covey.app`.
 
+**Mac App Store.** Each release also builds a second Mac app for the Mac App Store: in the App Sandbox, and therefore without dictate anywhere and the activity log, which reach into other apps; it does not update itself either, the store does that. With the project's store certificates the release uploads it to App Store Connect, under the same app record as the iPhone app; nothing is submitted for review, so it is not in the Mac App Store yet. The direct download above stays as it is.
+
 **Windows.** The app is **not code-signed**, so SmartScreen stops it on the first start: *More info*, then *Run anyway*. It does not update itself; a new version is a new download. On every start it registers `covey://` for the current user (`HKEY_CURRENT_USER\Software\Classes\covey`, no administrator rights) and points it at its own executable — after the folder was moved, the copy started last wins. There is one window: a link or a second start hands over to the running one. To remove the registration, delete that key.
 
 ## Pairing
