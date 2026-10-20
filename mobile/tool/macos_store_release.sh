@@ -110,7 +110,8 @@ fi
 cp "$MACOS_STORE_PROFILE_PATH" "$app/Contents/embedded.provisionprofile"
 sign "$MACOS_STORE_APP_IDENTITY" "$signed"
 codesign -d --entitlements :- "$app" > "$work/check.plist" 2>/dev/null
-[ "$(plutil -extract com.apple.security.app-sandbox raw "$work/check.plist")" = true ] ||
+# PlistBuddy, not plutil: plutil reads the dots of the key as a path (#629).
+[ "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.app-sandbox' "$work/check.plist" 2>/dev/null)" = true ] ||
   { echo "the app is not signed with the App Sandbox" >&2; exit 1; }
 
 # The installer package App Store Connect takes; no notarisation, the store
