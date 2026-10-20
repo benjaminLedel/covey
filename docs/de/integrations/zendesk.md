@@ -138,6 +138,18 @@ den auch der Webhook unten korreliert. Ein Ticket jenseits des Prüffensters ste
 nicht in der Liste; wo mehr Tickets gleichzeitig offen bleiben,
 `COVEY_ZENDESK_PROBE_TICKETS` anheben (höchstens 50).
 
+Eine Art (kind) engt die Menge auf die Tickets ein, auf die der Agent handelt; eine
+Bewegung auf einem Ticket, an dem ein Kollege arbeitet, weckt dann niemanden:
+
+| Gate | Zählt |
+|---|---|
+| `zendesk` | jedes offene Ticket im Bereich |
+| `zendesk:unassigned` | ohne Bearbeiter und ohne Gruppe — niemand hat es genommen |
+| `zendesk:tag:<tag>` | trägt das Tag (der Wert eines Tagger-Felds ist ein Tag) |
+| `zendesk:unassigned\|tag:<tag>` | eins von beiden |
+
+Eine unbekannte Art ist ein Fehler, nicht die ganze Warteschlange.
+
 Was die Vorprüfung ausdrücklich nicht behauptet, ist zu wissen, welches der offenen
 Tickets neu ist. Kein Zendesk-Feld beantwortet das, und der Autor des jüngsten
 Kommentars auch nicht: Wo ein Konto seine Post über eine gemeinsame Support-Adresse

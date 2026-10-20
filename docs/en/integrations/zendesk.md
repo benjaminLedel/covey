@@ -135,6 +135,18 @@ case per ticket, `zendesk:ticket:<id>` — the key the webhook below correlates 
 as well. A ticket beyond the probe window is not in the list; raise
 `COVEY_ZENDESK_PROBE_TICKETS` (at most 50) where more tickets stay open at once.
 
+A kind narrows the set to the tickets the agent acts on, so a move on a ticket a
+colleague is working on wakes nobody:
+
+| Gate | Counts |
+|---|---|
+| `zendesk` | every open ticket in scope |
+| `zendesk:unassigned` | no assignee and no group — nobody has taken it |
+| `zendesk:tag:<tag>` | carries the tag (a tagger field's value is a tag) |
+| `zendesk:unassigned\|tag:<tag>` | either |
+
+An unknown kind is an error, not the whole queue.
+
 What the gate deliberately does not claim is to know which of the open tickets is
 news. No Zendesk field answers that, and the author of the newest comment does not
 either: where an account takes its mail in through a shared support address, the
