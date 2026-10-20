@@ -57,9 +57,21 @@ Der QR-Code trägt einen gewöhnlichen Link zur Instanz, `https://<Host>/pair?co
 
 Ohne Kamera oder Browser in Reichweite nimmt die App auch die Adresse und einen von Hand eingegebenen API-Schlüssel.
 
+## Entscheidungen
+
+Was auf die Entscheidung eines Menschen wartet, wird in der App entschieden, über dieselben Wege und mit denselben Prüfungen wie in der Weboberfläche (#622):
+
+- **Im Gespräch mit einem Agenten** stehen seine offenen Freigaben (eine Guard-Rail hat eine Aktion angehalten, spec/06) und die offenen Punkte seiner Reviews (spec/21) als Karten über dem Eingabefeld. Eine Freigabe zeigt die Aktion mit genau den Parametern, die freigegeben werden, mit **Freigeben** und **Ablehnen**; steht in den Parametern genau ein Absatz Text, lässt **Text korrigieren** ihn umschreiben und diese Fassung freigeben. Ein offener Punkt hat **Annehmen** (oder **Erledigt**), **Ablehnen** und eine optionale Notiz.
+- **Ein Konfigurationsvorschlag**, aus dem Chat entworfen (#491), ist eine Karte im Gespräch, aus dem er kam: was sich ändert und warum, ein Hinweis, wenn er Zugänge erweitert, und **Annehmen** und **Ablehnen** für den, der entscheiden darf. Alle anderen lesen, wer entscheidet. Hat sich die Konfiguration seit dem Entwurf geändert, sagt die Karte, dass er neu geschrieben oder verworfen werden muss. Den Diff selbst zeigt weiter die Weboberfläche.
+- **Ein Freigabeschritt eines Ablaufs** (#564), der den Menschen nennt, steht im Team-Bereich unter **Wartet auf Sie**, mit einem Knopf je Option.
+
+Welche Knöpfe eine Karte anbietet, folgt der Rolle des Sitzes und den Angaben der Instanz — Freigaben und offene Punkte entscheiden `org_admin`, `agent_owner` und `security`, was `ACCESS.md` oder `EGRESS.md` berührt, nehmen nur `org_admin` und `security` an, `controlling` sieht nur die Freigaben. Die Instanz prüft noch einmal; lehnt sie mit 403 ab, sagt die Karte das und bietet nichts mehr an.
+
 ## Mitteilungen
 
 Stellt ein Agent eine Rückfrage, antwortet er in einem Gespräch oder erledigt er eine Aufgabe, die aus einer Nachricht kam (oder scheitert daran), bekommen die Beteiligten eine Mitteilung — wer diesem Agenten in den letzten zwei Wochen geschrieben hat, wer die Aufgabe gestellt hat und bei einer Rückfrage der Mensch, an den der Agent berichtet. Was jemand schon gelesen hat, wird nicht gemeldet.
+
+Eine wartende Entscheidung wird denen gemeldet, die sie treffen dürfen: eine Freigabe oder ein offener Punkt dem Besitzer des Agenten, wenn seine Rolle entscheiden darf, und den Admins der Organisation (und `security`, wo ein offener Punkt Zugänge berührt); ein Konfigurationsvorschlag ebenso, neben dem Gespräch, aus dem er entworfen wurde; ein Freigabeschritt eines Ablaufs dem Menschen, den er nennt. Jede hat ihre eigenen Worte („Bea wartet auf eine Freigabe“, „Release wartet auf eine Entscheidung“) und den Ton der Rückfrage.
 
 | Plattform | Wie |
 |---|---|
@@ -92,6 +104,7 @@ Die App ist eine Codebasis, aber mehrere Funktionen beruhen auf macOS-Schnittste
 |---|---|---|---|---|
 | Koppeln | QR-Code | QR-Code | `covey://`-Link | `covey://`-Link |
 | Mitteilungen | Push | Push | solange die App läuft | — |
+| Freigaben, offene Punkte, Vorschläge und Ablaufschritte entscheiden | ja | ja | ja | ja |
 | Diktat in der App | ja | ja | ja | ja |
 | Überall diktieren (globales Tastenkürzel) | — | — | ja | — |
 | Aktivitätsprotokoll | — | — | ja | — |

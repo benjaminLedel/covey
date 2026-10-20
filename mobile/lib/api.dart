@@ -214,6 +214,42 @@ class CoveyApi {
   Future<InboxPage> waiting() async =>
       InboxPage.fromJson(await get('/inbox?status=open&sort=urgent&limit=100') as Map<String, dynamic>);
 
+  // --- Decisions (#622): the routes the web's cards call, the same checks. ---
+
+  /// What waits for a decision about one agent: its open approvals and open
+  /// points, oldest first, as the web's conversation shows them.
+  Future<InboxPage> waitingFor(String agentId) async =>
+      InboxPage.fromJson(await get('/inbox?agent=$agentId&status=open&sort=oldest&limit=50') as Map<String, dynamic>);
+
+  /// Approves or denies an approval; [text] is the corrected prose an
+  /// approval may carry instead of the agent's (spec/24).
+  Future<void> decideApproval(String id, bool approve, {String? text}) =>
+      post('/approvals/$id/decide', {'approve': approve, 'text': ?text});
+
+  /// Accepts or rejects an open point or a configuration proposal. A 409
+  /// says the configuration changed since the draft, or that it is decided.
+  Future<void> decideImprovement(String id, bool accept, {String note = ''}) =>
+      post('/improvements/$id/decide', {'accept': accept, 'note': note});
+
+  /// The workflow approvals put to this person (#564). An instance without
+  /// workflows (404, 503) has none.
+  Future<List<WorkflowDecision>> workflowDecisions() async {
+    final Object? out;
+    try {
+      out = await get('/workflows/mine');
+    } on ApiException catch (e) {
+      if (e.status == 404 || e.status == 503) return const [];
+      rethrow;
+    }
+    return [
+      for (final w in (out as List? ?? const []))
+        if (w is Map<String, dynamic>) WorkflowDecision.fromJson(w),
+    ];
+  }
+
+  Future<void> decideWorkflow(String slug, String run, String option) =>
+      post('/workflows/${Uri.encodeComponent(slug)}/runs/${Uri.encodeComponent(run)}/decide', {'option': option});
+
   Future<Thread> thread(String agentId) async =>
       Thread.fromJson(await get('/agents/$agentId/thread') as Map<String, dynamic>);
 
