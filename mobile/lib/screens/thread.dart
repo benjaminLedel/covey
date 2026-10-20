@@ -12,6 +12,7 @@ import '../call/call.dart';
 import '../call/call_view.dart';
 import '../live.dart';
 import '../diagnostics.dart';
+import '../drafts.dart';
 import '../face.dart';
 import '../i18n.dart';
 import '../icons.dart';
@@ -20,6 +21,7 @@ import '../models.dart';
 import '../photo.dart';
 import '../theme.dart';
 import '../ui.dart';
+import 'decision_cards.dart';
 
 /// One agent, the conversation with it — or, since #440, any conversation:
 /// a group, or a direct one with a colleague ([ThreadScreen.conversation]).
@@ -93,7 +95,11 @@ class _ThreadScreenState extends State<ThreadScreen> {
   bool _older = false;
   bool _loadingOlder = false;
 
-  final _text = TextEditingController();
+  /// Where this thread's unsent text is kept (#621): the screen goes when
+  /// the person looks elsewhere, the draft stays.
+  String get _draftKey => _isConversation ? Drafts.conversation(widget.conversation!.id) : Drafts.agent(widget.agentId);
+
+  late final _text = TextEditingController(text: Drafts.instance.read(_draftKey));
   final _scroll = ScrollController();
   Thread? _thread;
   Object? _error;
@@ -106,6 +112,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
   @override
   void initState() {
     super.initState();
+    _text.addListener(_keepDraft);
     _load();
     // No event stream yet: while the thread is open it asks again. The web
     // gets the same news over SSE; a phone that holds a stream open in the
@@ -123,6 +130,8 @@ class _ThreadScreenState extends State<ThreadScreen> {
     CallSettings.enabled.addListener(_callSettingChanged);
   }
 
+  void _keepDraft() => Drafts.instance.write(_draftKey, _text.text);
+
   void _callSettingChanged() {
     if (mounted) setState(() {});
   }
@@ -132,6 +141,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
     CallSettings.enabled.removeListener(_callSettingChanged);
     _poll?.cancel();
     _live?.cancel();
+    _text.removeListener(_keepDraft);
     _text.dispose();
     _scroll.dispose();
     super.dispose();
@@ -308,9 +318,15 @@ class _ThreadScreenState extends State<ThreadScreen> {
     setState(() => _sending = true);
     try {
       if (q != null) {
-        final woken = await widget.api.reply(q.taskId!, text);
+        final r = await widget.api.reply(q.taskId!, text);
+        // The answer stands in the conversation the question went to
+        // (#620); held at once, as a message just sent is.
+        final answer = r.message;
+        if (_isConversation && answer != null && answer.conversationId == widget.conversation!.id) {
+          _merge([answer]);
+        }
         // Not an error, and not retried: nobody was waiting (spec/27).
-        if (!woken) messenger.showSnackBar(SnackBar(content: Text(t('mobile.nichtGeweckt'))));
+        if (!r.woken) messenger.showSnackBar(SnackBar(content: Text(t('mobile.nichtGeweckt'))));
       } else if (_isConversation) {
         final sent = await widget.api.postConversationMessage(widget.conversation!.id, text, files: files);
         _merge([sent]);
@@ -318,6 +334,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
         await widget.api.send(widget.agentId, text, files: files);
       }
       _text.clear();
+      Drafts.instance.clear(_draftKey);
       setState(() {
         _answering = null;
         _files.removeWhere(files.contains);
@@ -514,6 +531,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
                               avatar: _avatarOf(e),
                               showTask: earlier == null || earlier.taskId != e.taskId || earlier.fromPerson,
                               selected: _answering?.id == e.id,
+                              onDecided: _load,
                               onAnswer: e.isOpenQuestion && widget.me.teamSurface && !_stopped
                                   ? () => setState(() => _answering = _answering?.id == e.id ? null : e)
                                   : null,
@@ -531,6 +549,16 @@ class _ThreadScreenState extends State<ThreadScreen> {
                       },
                     ),
             ),
+            // What waits for the person's decision about this agent, with
+            // its buttons, above the input (#622).
+            if (!_isConversation && widget.agentId.isNotEmpty)
+              DecisionPanel(
+                api: widget.api,
+                me: widget.me,
+                agentId: widget.agentId,
+                inThread: {for (final e in entries) ?e.proposal?.id},
+                onDecided: _load,
+              ),
             // A stopped agent takes no messages (#414): the server refuses
             // them, and the composer gives way to a sentence saying why.
             if (_stopped)
@@ -735,11 +763,15 @@ class _Line extends StatelessWidget {
     required this.agentName,
     this.avatar,
     this.onAnswer,
+    this.onDecided,
     this.showTask = true,
   });
 
   final CoveyApi api;
   final ThreadEntry entry;
+
+  /// Told when a proposal's card was decided (#622).
+  final VoidCallback? onDecided;
   final bool selected;
   final VoidCallback? onAnswer;
 
@@ -763,10 +795,12 @@ class _Line extends StatelessWidget {
     final question = entry.kind == 'question';
     final error = entry.kind == 'error';
     final result = entry.kind == 'result';
-    // A configuration change drafted from the chat (#491): the app shows its
-    // title and rationale; the card with the diff and the decision is the
-    // web's.
+    // A configuration change drafted from the chat (#491): a card with its
+    // decision (#622); the diff stays the web's.
     final proposal = entry.kind == 'config_proposal';
+    final card = proposal && entry.proposal != null
+        ? ProposalCardView(api: api, card: entry.proposal!, onDecided: onDecided)
+        : null;
     final emoji = emojiOnly(entry.text) && !question;
     // The person's lines are ink on the sheet, the agent's are white paper:
     // two sides told apart by weight, not by a second colour. A question is
@@ -784,8 +818,8 @@ class _Line extends StatelessWidget {
         ? context.t('chat.kind.result')
         : error
         ? context.t('chat.kind.error')
-        : proposal
-        ? context.t('chatProposal.inApp')
+        : proposal && card == null
+        ? context.t('chatProposal.label')
         : null;
 
     // The head of a run: who speaks, the kind where it means something, and
@@ -874,7 +908,9 @@ class _Line extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, box) {
         final paneWidth = box.maxWidth;
-        final bubble = emoji
+        final bubble = card != null
+            ? SelectionArea(child: card)
+            : emoji
             ? Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: content)
             : Container(
                 padding: const EdgeInsets.fromLTRB(15, 10, 15, 10),

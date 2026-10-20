@@ -70,6 +70,16 @@ type event struct {
 	// agentID is the agent of a direct conversation with one — where the
 	// app opens the thread. Empty for anything else.
 	agentID string
+
+	// A decision that waits (#622, decisions.go) is no message: source
+	// says where it was read, and the rest whom it goes to — the agent
+	// whose owner may decide, whether it touches access, the conversation
+	// a proposal was drafted in, the person a workflow step names.
+	source     string
+	agent      *uuid.UUID
+	restricted bool
+	origin     *uuid.UUID
+	who        string
 }
 
 // Round pushes what is new and answers how many notifications went out.
@@ -90,7 +100,18 @@ func (n *Notifier) Round(ctx context.Context) (int, error) {
 	sent := 0
 	conversations := chat.New(n.Pool)
 	for _, ev := range evs {
-		humans, err := n.recipients(ctx, ev)
+		recipients := n.recipients
+		if ev.source != "" {
+			recipients = n.deciders
+		}
+		humans, err := recipients(ctx, ev)
+		if err != nil && ev.source != "" {
+			// A decision whose deciders cannot be read holds up nothing else.
+			if n.Log != nil {
+				n.Log.Warn("push: deciders not read", "kind", ev.kind, "err", err)
+			}
+			continue
+		}
 		if err != nil {
 			return sent, err
 		}
@@ -104,7 +125,10 @@ func (n *Notifier) Round(ctx context.Context) (int, error) {
 				title, body := Compose(d.lang, ev.kind, ev.name, FirstLine(ev.text, MaxBody), ev.preview)
 				m := Message{
 					Token: d.token, Platform: d.platform, Environment: d.env, Title: title, Body: body, Badge: badge,
-					AgentID: ev.agentID, ConversationID: ev.conversationID.String(), Sound: SoundFor(d.sound, ev.kind),
+					AgentID: ev.agentID, Sound: SoundFor(d.sound, soundKind(ev.kind)),
+				}
+				if ev.conversationID != uuid.Nil {
+					m.ConversationID = ev.conversationID.String()
 				}
 				switch err := sender.Send(ctx, m); {
 				case errors.Is(err, ErrGone):
@@ -186,11 +210,29 @@ func (n *Notifier) claim(ctx context.Context) ([]event, error) {
 		if agent != nil {
 			e.agentID = *agent
 		}
+		// A configuration change drafted from the chat (#491) says so, not
+		// "replied".
+		if e.kind == "config_proposal" {
+			e.kind = KindProposal
+		}
 		evs = append(evs, e)
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
 		return nil, err
+	}
+	/* The decisions that wait (#622) under a savepoint of their own: a
+	   failure there costs their notifications, not the messages'. */
+	if sp, err := tx.Begin(ctx); err == nil {
+		decisions, err := n.claimDecisions(ctx, sp, from, to)
+		if err != nil {
+			_ = sp.Rollback(ctx)
+			if n.Log != nil {
+				n.Log.Warn("push: decisions not read", "err", err)
+			}
+		} else if err := sp.Commit(ctx); err == nil {
+			evs = append(evs, decisions...)
+		}
 	}
 	for _, e := range evs {
 		if _, err := tx.Exec(ctx, `INSERT INTO push_sent (key) VALUES ($1) ON CONFLICT DO NOTHING`, e.key); err != nil {

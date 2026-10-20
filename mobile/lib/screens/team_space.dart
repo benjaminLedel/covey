@@ -13,6 +13,7 @@ import '../photo.dart';
 import '../push.dart';
 import '../theme.dart';
 import '../ui.dart';
+import 'decision_cards.dart';
 import 'new_conversation.dart';
 
 /// The Team space: who waits, then who works. One scroll, where the web's
@@ -64,6 +65,13 @@ class _TeamSpaceState extends State<TeamSpace> {
   /// The person's conversations (#440); null until read, and on an
   /// instance that has none (older than #440).
   List<Conversation>? _conversations;
+
+  /// The workflow approvals put to the person (#622), decided here.
+  List<WorkflowDecision> _decisions = const [];
+
+  /// After a decision the card says what was chosen for a moment, then the
+  /// list is read anew.
+  Timer? _decidedReload;
   Timer? _poll;
   StreamSubscription<void>? _live;
   StreamSubscription<void>? _roster;
@@ -99,6 +107,7 @@ class _TeamSpaceState extends State<TeamSpace> {
   @override
   void dispose() {
     _poll?.cancel();
+    _decidedReload?.cancel();
     _live?.cancel();
     _roster?.cancel();
     threadsRead.removeListener(_loadThreads);
@@ -139,10 +148,11 @@ class _TeamSpaceState extends State<TeamSpace> {
     }
   }
 
-  /// What a message, a task or an approval moves: the threads and who
-  /// waits. The roster stays as it is.
+  /// What a message, a task or an approval moves: the threads, who waits
+  /// and the workflow decisions. The roster stays as it is.
   Future<void> _loadActivity() async {
     unawaited(_loadThreads());
+    unawaited(_loadDecisions());
     final ticket = _waitingReads.begin();
     try {
       final waiting = await widget.api.waiting();
@@ -184,12 +194,22 @@ class _TeamSpaceState extends State<TeamSpace> {
     widget.onOpenConversation?.call(c);
   }
 
+  Future<void> _loadDecisions() async {
+    try {
+      final d = await widget.api.workflowDecisions();
+      if (mounted) setState(() => _decisions = d);
+    } catch (_) {
+      // The list stays as it was; the next look asks again.
+    }
+  }
+
   /// Everything: the threads, who waits, the agents and the departments.
   Future<void> _load() async {
     unawaited(_loadThreads(full: true));
     final roster = _rosterReads.begin();
     final waiting = _waitingReads.begin();
     try {
+      unawaited(_loadDecisions());
       final r = await Future.wait([widget.api.waiting(), widget.api.agents(), widget.api.departments()]);
       if (!mounted) return;
       final old = _data;
@@ -213,7 +233,7 @@ class _TeamSpaceState extends State<TeamSpace> {
   @override
   Widget build(BuildContext context) {
     final data = _data;
-    final pending = data?.waiting.pending ?? 0;
+    final pending = (data?.waiting.pending ?? 0) + _decisions.length;
     return SpaceScroll(
       title: context.t('team.workspace'),
       subtitle: data == null
@@ -257,6 +277,15 @@ class _TeamSpaceState extends State<TeamSpace> {
     final waiting = data.waiting.items
         .where((e) => q.isEmpty || e.agentName.toLowerCase().contains(q) || e.title.toLowerCase().contains(q))
         .toList();
+    final decisions = _decisions
+        .where(
+          (d) =>
+              q.isEmpty ||
+              d.name.toLowerCase().contains(q) ||
+              d.question.toLowerCase().contains(q) ||
+              d.caseRef.toLowerCase().contains(q),
+        )
+        .toList();
     // Who has something unread comes first, the newest on top; then the
     // rest by name.
     // Who has something unread stands in a section of its own above the
@@ -294,10 +323,31 @@ class _TeamSpaceState extends State<TeamSpace> {
               .toList();
 
     return [
-      if (q.isNotEmpty && waiting.isEmpty && visible.isEmpty && (convs?.isEmpty ?? true))
+      if (q.isNotEmpty && waiting.isEmpty && decisions.isEmpty && visible.isEmpty && (convs?.isEmpty ?? true))
         SliverToBoxAdapter(child: EmptyNote(context.t('team.nichtsGefunden'))),
+      if (waiting.isNotEmpty || decisions.isNotEmpty) SliverToBoxAdapter(child: SectionTitle(context.t('team.wartet'))),
+      // A workflow's approval is decided where it is listed (#622): it has
+      // no conversation to open.
+      if (decisions.isNotEmpty)
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(16, 0, 16, waiting.isEmpty ? 0 : 10),
+          sliver: SliverList.separated(
+            itemCount: decisions.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 10),
+            itemBuilder: (context, i) => WorkflowDecisionCard(
+              key: ValueKey('workflow:${decisions[i].run}'),
+              api: widget.api,
+              decision: decisions[i],
+              onDecided: () {
+                _decidedReload?.cancel();
+                _decidedReload = Timer(const Duration(seconds: 2), _loadDecisions);
+              },
+            ),
+          ),
+        ),
+      // An approval or an open point opens the agent's conversation, where
+      // its card has the parameters, the rationale and the buttons (#622).
       if (waiting.isNotEmpty) ...[
-        SliverToBoxAdapter(child: SectionTitle(context.t('team.wartet'))),
         SliverList.separated(
           itemCount: waiting.length,
           separatorBuilder: (_, _) => const SizedBox(height: 10),

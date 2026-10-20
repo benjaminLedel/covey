@@ -30,7 +30,9 @@ class DictateAnywhere extends ChangeNotifier {
   static final DictateAnywhere instance = DictateAnywhere._();
 
   /// Only the Mac for now; Windows and Linux would need their own insertion.
-  static bool get supported => Host.isMacOS;
+  /// Not in the Mac App Store build: the sandbox does not let it post a
+  /// keystroke to another app ([Host.appStore]).
+  static bool get supported => Host.isMacOS && !Host.appStore;
 
   static const _channel = MethodChannel('covey/flow');
   static const _enabledKey = 'flow.enabled';

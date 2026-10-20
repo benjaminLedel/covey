@@ -16,5 +16,12 @@ abstract final class Host {
   static bool get isWindows => _is(TargetPlatform.windows, Platform.isWindows);
   static bool get isLinux => _is(TargetPlatform.linux, Platform.isLinux);
 
+  /// The Mac App Store build (#486), chosen at build time with
+  /// `--dart-define=COVEY_STORE=true` (mobile/tool/macos_store_release.sh).
+  /// It runs in the App Sandbox, so what needs to reach into other apps —
+  /// dictate-anywhere's synthesised ⌘V, the activity log's Accessibility
+  /// reads — is off, and so is Sparkle: the store updates the app.
+  static const bool appStore = bool.fromEnvironment('COVEY_STORE');
+
   static bool _is(TargetPlatform p, bool actual) => debugOverride == null ? actual : debugOverride == p;
 }

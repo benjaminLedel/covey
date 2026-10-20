@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"covey/internal/agents"
 	"covey/internal/backlog"
@@ -1460,11 +1461,14 @@ func (s *Server) handleSetTeamSurface(w http.ResponseWriter, r *http.Request) {
 }
 
 // chatReply is what comes back from a reply: the note always, the task only
-// when the reply actually woke somebody.
+// when the reply actually woke somebody, and the message the answer became in
+// the conversation the question stands in (#620), so a client can show it
+// before its next read.
 type chatReply struct {
-	Note  backlog.Note  `json:"note"`
-	Task  *backlog.Task `json:"task,omitempty"`
-	Woken bool          `json:"woken"`
+	Note    backlog.Note  `json:"note"`
+	Task    *backlog.Task `json:"task,omitempty"`
+	Woken   bool          `json:"woken"`
+	Message *chat.Message `json:"message,omitempty"`
 }
 
 // handleTaskReply answers one task.
@@ -1476,6 +1480,10 @@ type chatReply struct {
 // A task nobody is waiting on keeps the note and says so with woken=false.
 // That is not an error: somebody wrote something down on a piece of work, and
 // the agent will read it on its next run.
+//
+// The answer then goes into the conversation the question went to (#620):
+// the surfaces read only the conversation, and an answer that is only a note
+// on the task looked lost under its question.
 /* gestoppt refuses a message or a reply to a stopped agent (#414) and says
  * so. It would be written down and never run: the dispatcher takes no task
  * of a stopped agent, nor of any agent while the organisation's kill switch
@@ -1553,7 +1561,66 @@ func (s *Server) handleTaskReply(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
+	out.Message = s.antwortZustellen(r.Context(), p, t, text, out.Woken)
 	writeJSON(w, http.StatusOK, out)
+}
+
+/* antwortZustellen posts an answer to a task into the conversation its
+ * question went to (#620), as the person's text message on the task. The
+ * conversation is the one the delivered question stands in; before the
+ * question is delivered, the one frageZustellen would choose — the task's
+ * conversation, or the direct conversation of the agent and its supervisor
+ * (the person who answers, when the agent has none). A note on a task that
+ * neither came from a conversation nor was waiting on a question stays a
+ * note: it opens no conversation.
+ *
+ * The meta marks it as an answer and the triage state stays empty, so the
+ * triage never takes it for a new request: the answer has already woken the
+ * task it belongs to. Nothing here fails the reply — the note and the wake
+ * stand; a message that cannot be written is logged and left out. */
+func (s *Server) antwortZustellen(ctx context.Context, p identity.Principal, t backlog.Task, text string, geweckt bool) *chat.Message {
+	meta := map[string]string{"answer_to": t.ID.String()}
+	var convID, frage uuid.UUID
+	err := s.Pool.QueryRow(ctx, `SELECT conversation_id, id FROM conversation_messages
+		WHERE task_id = $1 AND kind = $2 ORDER BY created_at DESC LIMIT 1`, t.ID, chat.MessageQuestion).Scan(&convID, &frage)
+	switch {
+	case err == nil:
+		meta["question"] = frage.String()
+	case !errors.Is(err, pgx.ErrNoRows):
+		s.Log.Warn("answer: the question's conversation could not be read", "task", t.ID, "err", err)
+		return nil
+	case t.ConversationID != nil:
+		convID = *t.ConversationID
+	case geweckt:
+		mensch := p.ID
+		var sup *uuid.UUID
+		_ = s.Pool.QueryRow(ctx, `SELECT h.id FROM agents a JOIN humans h ON h.id = a.supervisor_id AND h.org_id = a.org_id
+			WHERE a.id = $1`, t.AgentID).Scan(&sup)
+		if sup != nil {
+			mensch = *sup
+		}
+		id, err := s.Chat.Direct(ctx, t.OrgID, chat.Agent(t.AgentID), chat.Human(mensch), nil)
+		if err != nil {
+			s.Log.Warn("answer: the direct conversation could not be opened", "task", t.ID, "err", err)
+			return nil
+		}
+		convID = id
+	default:
+		return nil
+	}
+	m, _, err := s.Chat.Post(ctx, chat.Message{
+		ConversationID: convID, AuthorKind: chat.MemberHuman, AuthorID: &p.ID,
+		Text: text, Kind: chat.MessageText, TaskID: &t.ID, Meta: meta,
+	})
+	if err != nil {
+		s.Log.Warn("answer: not written into the conversation", "task", t.ID, "err", err)
+		return nil
+	}
+	if gelesen, err := s.Chat.Message(ctx, m.ID); err == nil {
+		m = gelesen
+	}
+	s.chatEreignis(t.OrgID, t.AgentID, convID, "message", map[string]string{"task_id": t.ID.String()})
+	return &m
 }
 
 // handleMyThreads answers, per agent, how much of the person's direct
