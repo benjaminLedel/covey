@@ -51,6 +51,7 @@ sections:
       - gitlab
       - jira
       - kubernetes
+      - m365
       - nextcloud
       - sharepoint
       - teams

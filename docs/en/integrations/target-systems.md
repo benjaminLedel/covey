@@ -25,6 +25,7 @@ An agent becomes useful when it works in the systems where the work already happ
 - **Confluence** — the documentation both of them hang off: pages read and written as Markdown. Wakes nobody — an agent comes here while it works on something else
 - **Email (IMAP/SMTP)** — a mailbox as a wake source, replies in-thread
 - **Microsoft Teams** — chat as the channel between human and agent
+- **Microsoft 365** — the agent's own M365 user through Graph: its mailbox, its calendar, its OneDrive and the SharePoint sites it may reach; Office documents are edited in the sandbox
 - **SharePoint** via Microsoft Graph and **Nextcloud** via WebDAV — files
 - **Google Search Console** — what a search engine did with a page, as opposed to what the page claims about itself: which addresses are indexed, which canonical Google chose instead of the declared one, what people searched for before they arrived. Read-only but for submitting a sitemap, and the OAuth scope is picked per action — an agent with `scope: read` holds a token that cannot write
 - **Browser** — headless Chrome for interfaces without an API, with screenshots in the recording

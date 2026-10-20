@@ -23,6 +23,7 @@ import (
 	_ "github.com/benjaminLedel/covey-plugin-pack/github"
 	_ "github.com/benjaminLedel/covey-plugin-pack/gitlab"
 	_ "github.com/benjaminLedel/covey-plugin-pack/jira"
+	_ "github.com/benjaminLedel/covey-plugin-pack/m365"
 	_ "github.com/benjaminLedel/covey-plugin-pack/nextcloud"
 	_ "github.com/benjaminLedel/covey-plugin-pack/salesforce"
 	_ "github.com/benjaminLedel/covey-plugin-pack/searchconsole"

@@ -88,7 +88,7 @@ Full walkthrough including your first agent and a production checklist: [`docs/e
 | 🧑‍💼 **An identity per agent** | Its own sandbox, home directory and credentials, and a place on the org chart next to the humans. |
 | 🧑‍🎓 **Hiring, not a config form** | Describe the job in a few sentences; the People department writes the configuration and asks back when the brief is thin. What comes out is a draft until a human hires it. |
 | 📥 **Backlog and wake sources** | Tasks as first-class objects. Agents wake on a webhook, a heartbeat or a nudge, then go back to sleep. |
-| 🔌 **Target systems as plugins** | Jira, Confluence, GitLab, GitHub, Zammad, Zendesk, Salesforce, Teams, SharePoint, Nextcloud, Kubernetes, email (IMAP/SMTP), headless browser, MCP. |
+| 🔌 **Target systems as plugins** | Jira, Confluence, GitLab, GitHub, Zammad, Zendesk, Salesforce, Microsoft 365 (mail, calendar, OneDrive), Teams, SharePoint, Nextcloud, Kubernetes, email (IMAP/SMTP), headless browser, MCP. |
 | ⚙️ **Swappable engines** | Claude Code, Codex, SevenCode and educa AI behind one daemon protocol — chosen per agent, with several credentials per seat and paid-for quota used first. |
 | 🛡️ **Guard rails and approvals** | Enforced centrally, outside the runtime, fail-closed. Critical actions wait for a human. |
 | 🔑 **Secrets broker** | No long-lived secret ever enters a sandbox. Access is brokered per run, short-lived and scoped. |

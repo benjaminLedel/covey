@@ -45,9 +45,20 @@ FROM node:26-slim
 # and the agent spent its turns writing a Node port of them instead of the
 # post. A workplace that cannot run a twenty-line script is a desk without a
 # calculator; the agent cannot install one itself.
+#
+# python3-docx, python3-openpyxl and python-pptx, because an office agent's
+# work arrives as Word, Excel and PowerPoint files (the m365 and sharepoint
+# plugins download them into the sandbox and expect them back edited, #617).
+# Without a library the agent unzips the XML and edits it by hand, or gives
+# up — it cannot install one. python-pptx is not packaged in Debian 13, so it
+# comes from PyPI at build time, pinned, without its dependencies, which do
+# come from Debian (lxml, Pillow, XlsxWriter).
 RUN apt-get update && apt-get install -y --no-install-recommends \
         git ca-certificates curl jq ripgrep unzip chromium \
         python3 python3-venv python3-pip \
+        python3-docx python3-openpyxl python3-lxml python3-pil python3-xlsxwriter \
+    && pip install --no-cache-dir --break-system-packages --no-deps python-pptx==1.0.2 \
+    && python3 -c "import docx, openpyxl, pptx" \
     && rm -rf /var/lib/apt/lists/*
 # So that chromedp finds the browser without guessing.
 ENV COVEY_BROWSER_CHROME_PATH=/usr/bin/chromium
