@@ -47,6 +47,32 @@ Ein hinterlegtes Secret lässt sich ersetzen, aber nicht wieder anzeigen. Das is
 
 Bekannte Credentials werden beim Speichern sofort gegen ihr System geprüft. Ein abgelaufener Abo-Token fällt damit an der Stelle auf, an der man ihn eingibt — und nicht eine Stunde später als rätselhafter Fehlschlag im Lauf eines Agenten.
 
+## Secrets in den Parametern einer Aktion
+
+Manche Zugänge gehören zu keinem Zielsystem: ein Login für eine Staging-Umgebung, ein Token für eine private Paket-Registry. Einen solchen Wert hinterlegt man als Secret des Agenten oder als Organisations-Secret, das ihm zugewiesen ist, und schreibt den Platzhalter `{{secret:<key>}}` in die Parameter einer Aktion. Der Action-Proxy ersetzt ihn in der Sandbox, nachdem das Modell den Aufruf abgeschickt hat und bevor das Plugin läuft. Das Modell sieht nur den Platzhalter, das Audit-Log ebenso. Für einen Agenten, dem das Secret weder gehört noch zugewiesen ist, wird nichts aufgelöst.
+
+Der häufigste Fall ist die Installation der Abhängigkeiten eines Projekts aus einer privaten Quelle. `dev:exec` führt seinen Befehl über eine Shell aus, der Wert landet also in der Umgebung genau dieses einen Prozesses, und nichts wird ins Home geschrieben:
+
+```json
+{"action": "dev:exec", "params": {"cmd": "NPM_TOKEN={{secret:npm_token}} npm ci"}}
+```
+
+```json
+{"action": "dev:exec", "params": {"cmd": "COMPOSER_AUTH='{{secret:composer_auth}}' composer install"}}
+```
+
+Eine `git:`-Abhängigkeit in einem privaten Repository (in `pubspec.yaml`, `package.json` oder `composer.json`) bekommt ihren Zugang für einen git-Aufruf über gits Umgebungskonfiguration, nicht über `.gitconfig`:
+
+```json
+{"action": "dev:exec", "params": {"cmd": "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0='url.https://oauth2:{{secret:git_deps_token}}@gitlab.example.org/.insteadOf' GIT_CONFIG_VALUE_0='https://gitlab.example.org/' flutter pub get"}}
+```
+
+Drei Grenzen:
+
+- **Nur in Aktionen.** Der Platzhalter wird in Aktionen aufgelöst, die über den Action-Proxy laufen (`dev:exec`, `dev:start`, `browser:type`, …). Im eigenen Shell-Werkzeug der Runtime landet er wörtlich im Befehl.
+- **Die Ausgabe wird nicht maskiert.** Was der Befehl ausgibt, geht an das Modell zurück. Ein Werkzeug, das seinen Zugang wiederholt, etwa eine Fehlermeldung mit der URL, trägt den Wert in den Kontext des Modells.
+- **Der Prozess kann ihn lesen.** Die Install-Skripte des Repositorys laufen in derselben Umgebung und können den Token lesen. Einen Token nehmen, der nur Pakete lesen darf.
+
 ## Kapazität statt Passwort-Zettel
 
 Mehrere Zugänge zur selben Engine — drei Abo-Sitze und ein API-Schlüssel — sind keine Sicherheitsfrage, sondern eine kaufmäntische. covey bildet sie als [Arbeitsplatz mit Merit Order](../introduction/core-concepts.md) ab: bezahltes Kontingent zuerst, Verbrauchsabrechnung als Spitzenlast.

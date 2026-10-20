@@ -47,6 +47,32 @@ A stored secret can be replaced but not shown again. That is deliberate — a va
 
 Known credentials are verified against their system the moment they are saved. An expired subscription token therefore shows up where you type it — not an hour later as a puzzling failure inside an agent's run.
 
+## Secrets in an action's parameters
+
+Some credentials belong to no target system: a login for a staging environment, a token for a private package registry. Store such a value as a secret of the agent, or as an organisation secret assigned to it, and write the placeholder `{{secret:<key>}}` into the parameters of an action. The action proxy replaces it inside the sandbox, after the model has committed to the call and before the plugin runs. The model only ever sees the placeholder, and so does the audit log. Nothing resolves for an agent the secret was not stored or assigned for.
+
+The most common case is installing a project's dependencies from a private source. `dev:exec` runs its command through a shell, so the value ends up in the environment of that one process, and nothing is written to the home:
+
+```json
+{"action": "dev:exec", "params": {"cmd": "NPM_TOKEN={{secret:npm_token}} npm ci"}}
+```
+
+```json
+{"action": "dev:exec", "params": {"cmd": "COMPOSER_AUTH='{{secret:composer_auth}}' composer install"}}
+```
+
+A `git:` dependency in a private repository (in `pubspec.yaml`, `package.json` or `composer.json`) gets its credential for one git call through git's environment configuration, not through `.gitconfig`:
+
+```json
+{"action": "dev:exec", "params": {"cmd": "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0='url.https://oauth2:{{secret:git_deps_token}}@gitlab.example.org/.insteadOf' GIT_CONFIG_VALUE_0='https://gitlab.example.org/' flutter pub get"}}
+```
+
+Three limits:
+
+- **Only in actions.** The placeholder is resolved in actions that go through the action proxy (`dev:exec`, `dev:start`, `browser:type`, …). In the runtime's own shell tool it reaches the command literally.
+- **The output is not masked.** What the command prints goes back to the model. A tool that echoes its credential, such as an error message that repeats the URL, puts the value into the model's context.
+- **The process can read it.** The install scripts of the repository run in the same environment and can read the token. Use a token that can only read packages.
+
 ## Capacity instead of a list of passwords
 
 Several credentials for the same engine — three subscription seats and an API key — are not a security question but a commercial one. covey models them as a [workplace with a merit order](../introduction/core-concepts.md): capacity already paid for first, metered billing as peak load.
