@@ -128,6 +128,23 @@ stored/assigned for. Keep the placeholder in `PLAYBOOKS.md` exactly as written a
 it yourself or ask the runtime to print it — the point is that no one, including the model, ever
 sees the value.
 
+The same route covers **private dependencies** in a development agent's playbook. `dev:exec` runs
+its `cmd` through `sh -c`, so the value lands in that one process's environment and never in the
+home:
+
+```json
+{"action": "dev:exec", "params": {"cmd": "NPM_TOKEN={{secret:npm_token}} npm ci"}}
+{"action": "dev:exec", "params": {"cmd": "COMPOSER_AUTH='{{secret:composer_auth}}' composer install"}}
+{"action": "dev:exec", "params": {"cmd": "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0='url.https://oauth2:{{secret:git_deps_token}}@gitlab.example.org/.insteadOf' GIT_CONFIG_VALUE_0='https://gitlab.example.org/' flutter pub get"}}
+```
+
+The last line gives a `git:` dependency its credential for that one git call, not through
+`.gitconfig`. When writing such a playbook step, state the limits too: the placeholder is resolved
+only in actions (`dev:exec`, `dev:start`, …), never in the runtime's own Bash tool, where it would
+reach the shell literally; the command's output goes back to the model unmasked, so a tool that
+echoes its URL leaks the value; and the repository's install scripts can read the environment, so
+the token should only be able to read packages.
+
 ## Platform actions (`covey/…`)
 
 Besides the target systems, the action proxy knows the pseudo-system `covey` — actions on the
