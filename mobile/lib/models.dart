@@ -147,7 +147,10 @@ class Running {
   final String? step;
 }
 
-/// One open point of GET /inbox.
+/// One open point of GET /inbox: an approval (spec/06) or an open point of
+/// a review (spec/21). Its own part hangs below the head as the instance
+/// writes it — [approval] or [item] — and is what the decision cards read
+/// (#622).
 class InboxEntry {
   InboxEntry({
     required this.type,
@@ -157,6 +160,11 @@ class InboxEntry {
     required this.agentSlug,
     required this.title,
     required this.createdAt,
+    this.status = 'pending',
+    this.pending = true,
+    this.taskId,
+    this.approval,
+    this.item,
   });
 
   factory InboxEntry.fromJson(Map<String, dynamic> j) => InboxEntry(
@@ -167,6 +175,13 @@ class InboxEntry {
     agentSlug: j['agent_slug'] as String? ?? '',
     title: j['title'] as String? ?? '',
     createdAt: _time(j['created_at']),
+    status: j['status'] as String? ?? 'pending',
+    pending: j['pending'] as bool? ?? (j['status'] == null || j['status'] == 'pending'),
+    taskId: j['task_id'] as String?,
+    approval: j['approval'] is Map<String, dynamic>
+        ? ApprovalInfo.fromJson(j['approval'] as Map<String, dynamic>)
+        : null,
+    item: j['item'] is Map<String, dynamic> ? ReviewItem.fromJson(j['item'] as Map<String, dynamic>) : null,
   );
 
   final String type;
@@ -176,6 +191,176 @@ class InboxEntry {
   final String agentSlug;
   final String title;
   final DateTime? createdAt;
+  final String status;
+  final bool pending;
+  final String? taskId;
+  final ApprovalInfo? approval;
+  final ReviewItem? item;
+}
+
+/// A guard rail's approval (spec/06): the action an agent waits to do, with
+/// exactly the parameters that get approved.
+class ApprovalInfo {
+  ApprovalInfo({required this.id, required this.action, this.params});
+
+  factory ApprovalInfo.fromJson(Map<String, dynamic> j) =>
+      ApprovalInfo(id: j['id'] as String? ?? '', action: j['action'] as String? ?? '', params: j['params']);
+
+  final String id;
+  final String action;
+
+  /// The action's parameters as JSON values.
+  final Object? params;
+}
+
+/// An open point of a review (spec/21) — proposal, finding, issue or tool
+/// request — as the inbox enriches it.
+class ReviewItem {
+  ReviewItem({
+    required this.id,
+    required this.kind,
+    this.rationale = '',
+    this.needsSecurity = false,
+    this.conflicts = const [],
+    this.authorName = '',
+    this.requestedByName = '',
+    this.link = '',
+    this.diffFiles = const [],
+  });
+
+  factory ReviewItem.fromJson(Map<String, dynamic> j) => ReviewItem(
+    id: j['id'] as String? ?? '',
+    kind: j['kind'] as String? ?? '',
+    rationale: j['rationale'] as String? ?? '',
+    needsSecurity: j['needs_security'] as bool? ?? false,
+    conflicts: _strings(j['conflicts']),
+    authorName: j['author_name'] as String? ?? '',
+    requestedByName: j['requested_by_name'] as String? ?? '',
+    link: j['link'] as String? ?? '',
+    diffFiles: [
+      for (final d in (j['diff'] as List? ?? const []))
+        if (d is Map && d['file'] is String) d['file'] as String,
+    ],
+  );
+
+  final String id;
+
+  /// proposal | finding | issue | tool_request
+  final String kind;
+  final String rationale;
+
+  /// Touches ACCESS.md or EGRESS.md: org_admin or security decides.
+  final bool needsSecurity;
+
+  /// Files changed by somebody else since the proposal was written; while
+  /// there are any, it is not accepted.
+  final List<String> conflicts;
+  final String authorName;
+  final String requestedByName;
+  final String link;
+  final List<String> diffFiles;
+}
+
+List<String> _strings(Object? v) => [
+  if (v is List)
+    for (final s in v)
+      if (s is String) s,
+];
+
+/// A configuration change drafted from the chat (#491), as the reader may
+/// see and decide it. Whether the reader may decide, the server says
+/// ([canDecide], [canAccept]); the app keeps no table of roles for it.
+class ProposalCard {
+  ProposalCard({
+    required this.id,
+    required this.status,
+    required this.title,
+    this.rationale = '',
+    this.widens = const [],
+    this.conflicts = const [],
+    this.canDecide = false,
+    this.canAccept = false,
+    this.approvers = const [],
+    this.decidedBy = '',
+    this.decidedAt,
+    this.diffFiles = const [],
+  });
+
+  factory ProposalCard.fromJson(Map<String, dynamic> j) => ProposalCard(
+    id: j['id'] as String? ?? '',
+    status: j['status'] as String? ?? 'pending',
+    title: j['title'] as String? ?? '',
+    rationale: j['rationale'] as String? ?? '',
+    widens: _strings(j['widens']),
+    conflicts: _strings(j['conflicts']),
+    canDecide: j['can_decide'] as bool? ?? false,
+    canAccept: j['can_accept'] as bool? ?? false,
+    approvers: _strings(j['approvers']),
+    decidedBy: j['decided_by'] as String? ?? '',
+    decidedAt: _time(j['decided_at']),
+    diffFiles: [
+      for (final d in (j['diff'] as List? ?? const []))
+        if (d is Map && d['file'] is String) d['file'] as String,
+    ],
+  );
+
+  static ProposalCard? maybe(Object? v) => v is Map<String, dynamic> ? ProposalCard.fromJson(v) : null;
+
+  final String id;
+
+  /// pending | accepted | rejected
+  final String status;
+  final String title;
+  final String rationale;
+  final List<String> widens;
+  final List<String> conflicts;
+  final bool canDecide;
+  final bool canAccept;
+  final List<String> approvers;
+  final String decidedBy;
+  final DateTime? decidedAt;
+  final List<String> diffFiles;
+
+  bool get pending => status == 'pending';
+}
+
+/// One workflow approval put to the person (GET /workflows/mine, #564): a
+/// run waits at a step that names them, with the options to choose from.
+class WorkflowDecision {
+  WorkflowDecision({
+    required this.workflow,
+    required this.name,
+    required this.run,
+    required this.caseRef,
+    required this.step,
+    required this.options,
+    this.title = '',
+    this.question = '',
+    this.since,
+  });
+
+  factory WorkflowDecision.fromJson(Map<String, dynamic> j) => WorkflowDecision(
+    workflow: j['workflow'] as String? ?? '',
+    name: j['name'] as String? ?? '',
+    run: j['run'] as String? ?? '',
+    caseRef: j['case'] as String? ?? '',
+    step: j['step'] as String? ?? '',
+    options: _strings(j['options']),
+    title: j['title'] as String? ?? '',
+    question: j['question'] as String? ?? '',
+    since: _time(j['since']),
+  );
+
+  /// The workflow's slug, which the decide route takes.
+  final String workflow;
+  final String name;
+  final String run;
+  final String caseRef;
+  final String step;
+  final List<String> options;
+  final String title;
+  final String question;
+  final DateTime? since;
 }
 
 class InboxPage {
@@ -208,6 +393,7 @@ class ThreadEntry {
     this.speakerHuman = false,
     this.mine,
     this.files = const [],
+    this.proposal,
   });
 
   /// A line of a conversation (#440) as the thread draws it: `text` is a
@@ -232,6 +418,7 @@ class ThreadEntry {
       speakerHuman: m.authorKind == 'human',
       mine: meId.isNotEmpty && m.authorKind == 'human' && m.authorId == meId,
       files: m.files,
+      proposal: m.proposal,
     );
   }
 
@@ -246,6 +433,7 @@ class ThreadEntry {
     at: _time(j['at']),
     said: j['said'] as String? ?? '',
     files: ChatAttachment.listOf(j['attachments']),
+    proposal: ProposalCard.maybe(j['proposal']),
   );
 
   final String kind;
@@ -275,6 +463,10 @@ class ThreadEntry {
 
   /// The files the line carries (#586).
   final List<ChatAttachment> files;
+
+  /// On a config_proposal (#491): the drafted change, decided on its card
+  /// (#622).
+  final ProposalCard? proposal;
 
   /// The person's side of the thread. In an agent's thread the author is the
   /// only thing that decides it: `chat:<mail>` for a message, `human:<mail>`
@@ -409,6 +601,7 @@ class ConversationMessage {
     this.createdAt,
     this.meta = const {},
     this.files = const [],
+    this.proposal,
   });
 
   factory ConversationMessage.fromJson(Map<String, dynamic> j) => ConversationMessage(
@@ -431,6 +624,7 @@ class ConversationMessage {
           if (e.value is String) e.key.toString(): e.value as String,
     },
     files: ChatAttachment.listOf(j['attachments']),
+    proposal: ProposalCard.maybe(j['proposal']),
   );
 
   final String id;
@@ -456,6 +650,10 @@ class ConversationMessage {
 
   /// The files the message carries (#586).
   final List<ChatAttachment> files;
+
+  /// On a config_proposal (#491): the drafted change as the reader may
+  /// decide it.
+  final ProposalCard? proposal;
 }
 
 /// A file a chat message carries (#586): handed over by an agent, or

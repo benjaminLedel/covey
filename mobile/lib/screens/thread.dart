@@ -20,6 +20,7 @@ import '../models.dart';
 import '../photo.dart';
 import '../theme.dart';
 import '../ui.dart';
+import 'decision_cards.dart';
 
 /// One agent, the conversation with it — or, since #440, any conversation:
 /// a group, or a direct one with a colleague ([ThreadScreen.conversation]).
@@ -512,6 +513,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
                               avatar: _avatarOf(e),
                               showTask: earlier == null || earlier.taskId != e.taskId || earlier.fromPerson,
                               selected: _answering?.id == e.id,
+                              onDecided: _load,
                               onAnswer: e.isOpenQuestion && widget.me.teamSurface && !_stopped
                                   ? () => setState(() => _answering = _answering?.id == e.id ? null : e)
                                   : null,
@@ -529,6 +531,16 @@ class _ThreadScreenState extends State<ThreadScreen> {
                       },
                     ),
             ),
+            // What waits for the person's decision about this agent, with
+            // its buttons, above the input (#622).
+            if (!_isConversation && widget.agentId.isNotEmpty)
+              DecisionPanel(
+                api: widget.api,
+                me: widget.me,
+                agentId: widget.agentId,
+                inThread: {for (final e in entries) ?e.proposal?.id},
+                onDecided: _load,
+              ),
             // A stopped agent takes no messages (#414): the server refuses
             // them, and the composer gives way to a sentence saying why.
             if (_stopped)
@@ -733,11 +745,15 @@ class _Line extends StatelessWidget {
     required this.agentName,
     this.avatar,
     this.onAnswer,
+    this.onDecided,
     this.showTask = true,
   });
 
   final CoveyApi api;
   final ThreadEntry entry;
+
+  /// Told when a proposal's card was decided (#622).
+  final VoidCallback? onDecided;
   final bool selected;
   final VoidCallback? onAnswer;
 
@@ -761,10 +777,12 @@ class _Line extends StatelessWidget {
     final question = entry.kind == 'question';
     final error = entry.kind == 'error';
     final result = entry.kind == 'result';
-    // A configuration change drafted from the chat (#491): the app shows its
-    // title and rationale; the card with the diff and the decision is the
-    // web's.
+    // A configuration change drafted from the chat (#491): a card with its
+    // decision (#622); the diff stays the web's.
     final proposal = entry.kind == 'config_proposal';
+    final card = proposal && entry.proposal != null
+        ? ProposalCardView(api: api, card: entry.proposal!, onDecided: onDecided)
+        : null;
     final emoji = emojiOnly(entry.text) && !question;
     // The person's lines are ink on the sheet, the agent's are white paper:
     // two sides told apart by weight, not by a second colour. A question is
@@ -782,8 +800,8 @@ class _Line extends StatelessWidget {
         ? context.t('chat.kind.result')
         : error
         ? context.t('chat.kind.error')
-        : proposal
-        ? context.t('chatProposal.inApp')
+        : proposal && card == null
+        ? context.t('chatProposal.label')
         : null;
 
     // The head of a run: who speaks, the kind where it means something, and
@@ -872,7 +890,9 @@ class _Line extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, box) {
         final paneWidth = box.maxWidth;
-        final bubble = emoji
+        final bubble = card != null
+            ? SelectionArea(child: card)
+            : emoji
             ? Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: content)
             : Container(
                 padding: const EdgeInsets.fromLTRB(15, 10, 15, 10),
