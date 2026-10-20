@@ -378,12 +378,17 @@ class CoveyApi {
       ? post('/agents/$agentId/messages', {'text': text})
       : _postForm('/agents/$agentId/messages', text, files);
 
-  /// Answers a parked question. Returns whether it woke the agent; false is
-  /// not an error — nobody was waiting, and the text stays on the task as a
-  /// note (spec/27).
-  Future<bool> reply(String taskId, String text) async {
+  /// Answers a parked question. Returns whether it woke the agent — false is
+  /// not an error: nobody was waiting, and the text stays on the task as a
+  /// note (spec/27) — and the message the answer became in the conversation
+  /// the question went to (#620), null where it went into none.
+  Future<({bool woken, ConversationMessage? message})> reply(String taskId, String text) async {
     final r = await post('/tasks/$taskId/reply', {'text': text}) as Map<String, dynamic>;
-    return r['woken'] as bool? ?? false;
+    final m = r['message'];
+    return (
+      woken: r['woken'] as bool? ?? false,
+      message: m is Map<String, dynamic> ? ConversationMessage.fromJson(m) : null,
+    );
   }
 
   // --- The notetaker (#336): the seat's own notes. ---

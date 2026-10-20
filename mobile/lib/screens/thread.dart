@@ -306,9 +306,15 @@ class _ThreadScreenState extends State<ThreadScreen> {
     setState(() => _sending = true);
     try {
       if (q != null) {
-        final woken = await widget.api.reply(q.taskId!, text);
+        final r = await widget.api.reply(q.taskId!, text);
+        // The answer stands in the conversation the question went to
+        // (#620); held at once, as a message just sent is.
+        final answer = r.message;
+        if (_isConversation && answer != null && answer.conversationId == widget.conversation!.id) {
+          _merge([answer]);
+        }
         // Not an error, and not retried: nobody was waiting (spec/27).
-        if (!woken) messenger.showSnackBar(SnackBar(content: Text(t('mobile.nichtGeweckt'))));
+        if (!r.woken) messenger.showSnackBar(SnackBar(content: Text(t('mobile.nichtGeweckt'))));
       } else if (_isConversation) {
         final sent = await widget.api.postConversationMessage(widget.conversation!.id, text, files: files);
         _merge([sent]);

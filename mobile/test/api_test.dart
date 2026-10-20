@@ -112,7 +112,39 @@ void main() {
         return http.Response(jsonEncode({'note': {}, 'woken': false}), 200);
       }),
     );
-    expect(await api.reply('t1', 'ja'), isFalse);
+    final r = await api.reply('t1', 'ja');
+    expect(r.woken, isFalse);
+    expect(r.message, isNull);
+  });
+
+  test('a reply carries the message it became in the conversation (#620)', () async {
+    final api = CoveyApi(
+      Uri.parse('https://c.example'),
+      'k',
+      client: MockClient((_) async {
+        return http.Response(
+          jsonEncode({
+            'note': {},
+            'woken': true,
+            'message': {
+              'id': 'm1',
+              'conversation_id': 'c1',
+              'author_kind': 'human',
+              'author_id': 'h1',
+              'text': 'ja',
+              'kind': 'text',
+              'task_id': 't1',
+              'meta': {'answer_to': 't1'},
+            },
+          }),
+          200,
+        );
+      }),
+    );
+    final r = await api.reply('t1', 'ja');
+    expect(r.woken, isTrue);
+    expect(r.message?.conversationId, 'c1');
+    expect(r.message?.meta['answer_to'], 't1');
   });
 
   test('the thread: sides and the open question', () {
