@@ -131,6 +131,13 @@ gelesen und beschlossen hat, nichts zu schreiben, wird eine Minute später nicht
 denselben Stand erneut gestartet; die eigenen Schreibzugriffe trennt die Wasserstandsmarke
 der Control Plane von den fremden.
 
+Der Fingerprint ist ein Eintrag je Ticket (`ticket:<id>@<updated_at>`); ein
+[Ablauf](../../../spec/29-workflows.md) mit dem Auslöser `only_if: zendesk` führt
+deshalb einen Vorgang je Ticket, `zendesk:ticket:<id>` — denselben Schlüssel, auf
+den auch der Webhook unten korreliert. Ein Ticket jenseits des Prüffensters steht
+nicht in der Liste; wo mehr Tickets gleichzeitig offen bleiben,
+`COVEY_ZENDESK_PROBE_TICKETS` anheben (höchstens 50).
+
 Was die Vorprüfung ausdrücklich nicht behauptet, ist zu wissen, welches der offenen
 Tickets neu ist. Kein Zendesk-Feld beantwortet das, und der Autor des jüngsten
 Kommentars auch nicht: Wo ein Konto seine Post über eine gemeinsame Support-Adresse
