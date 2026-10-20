@@ -88,7 +88,7 @@ Vollständige Anleitung inklusive erstem Agenten und Produktions-Checkliste: [`d
 | 🧑‍💼 **Eine Identität je Agent** | Eine eigene Sandbox, ein eigenes Home und eigene Zugänge, dazu ein Platz im Organigramm neben den Menschen. |
 | 🧑‍🎓 **Einstellen statt Formular** | Die Aufgabe in ein paar Sätzen beschreiben; die Personalabteilung schreibt die Konfiguration und fragt nach, wenn die Ausschreibung zu dünn ist. Heraus kommt ein Entwurf — er arbeitet erst, wenn ein Mensch ihn einstellt. |
 | 📥 **Backlog und Wake-Quellen** | Aufgaben als First-Class-Objekte. Agenten wachen per Webhook, Heartbeat oder Zuruf auf und schlafen danach wieder. |
-| 🔌 **Zielsysteme als Plugins** | Jira, Confluence, GitLab, GitHub, Zammad, Zendesk, Salesforce, Teams, SharePoint, Nextcloud, Kubernetes, E-Mail (IMAP/SMTP), headless Browser, MCP. |
+| 🔌 **Zielsysteme als Plugins** | Jira, Confluence, GitLab, GitHub, Zammad, Zendesk, Salesforce, Microsoft 365 (Mail, Kalender, OneDrive), Teams, SharePoint, Nextcloud, Kubernetes, E-Mail (IMAP/SMTP), headless Browser, MCP. |
 | ⚙️ **Austauschbare Engines** | Claude Code, Codex, SevenCode und educa AI hinter einem Daemon-Protokoll — je Agent gewählt, mit mehreren Zugängen je Platz und bezahltem Kontingent zuerst. |
 | 🛡️ **Leitplanken und Freigaben** | Zentral erzwungen, außerhalb der Runtime, fail-closed. Kritische Aktionen warten auf einen Menschen. |
 | 🔑 **Secrets-Broker** | Kein langlebiges Secret gelangt je in eine Sandbox. Zugriff wird pro Lauf gebrokert, kurzlebig und gescopt. |

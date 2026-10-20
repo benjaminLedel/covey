@@ -172,6 +172,19 @@ var Builtins = []BuiltinTemplate{
 		},
 	},
 	{
+		Slug:        "microsoft-365",
+		Name:        "Microsoft 365",
+		Description: "Mail, calendar, OneDrive and SharePoint through Microsoft Graph (m365 and sharepoint plugins)",
+		Hosts: []BuiltinHost{
+			{Pattern: "graph.microsoft.com", Note: "Microsoft Graph API"},
+			{Pattern: "login.microsoftonline.com", Note: "Entra ID token endpoint (client credentials)"},
+			// A file's /content answers with a redirect to the tenant's
+			// SharePoint host carrying a short-lived token in the URL; without
+			// it every download ends in the proxy's 403 (#617).
+			{Pattern: "*.sharepoint.com", Note: "file downloads (redirect target of /content)"},
+		},
+	},
+	{
 		Slug:        "container",
 		Name:        "Container registries",
 		Description: "Pull images from Docker Hub, GitHub and Quay",

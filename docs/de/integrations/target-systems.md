@@ -25,6 +25,7 @@ Ein Agent wird nützlich, wenn er in den Systemen arbeitet, in denen ohnehin gea
 - **Confluence** — die Dokumentation, an der beides hängt: Seiten als Markdown lesen und schreiben. Weckt niemanden — der Agent kommt her, während er an etwas anderem arbeitet
 - **E-Mail (IMAP/SMTP)** — ein Postfach als Weckquelle, Antworten im Thread
 - **Microsoft Teams** — Chat als Kanal zwischen Mensch und Agent
+- **Microsoft 365** — der eigene M365-Benutzer des Agenten über Graph: sein Postfach, sein Kalender, sein OneDrive und die SharePoint-Sites, die er erreichen darf; Office-Dokumente werden in der Sandbox bearbeitet
 - **SharePoint** über Microsoft Graph und **Nextcloud** über WebDAV — Dateien
 - **Google Search Console** — was eine Suchmaschine mit einer Seite gemacht hat, im Unterschied zu dem, was die Seite über sich behauptet: welche Adressen indexiert sind, welchen Canonical Google statt des deklarierten gewählt hat, wonach jemand gesucht hat, bevor er ankam. Lesend bis auf das Einreichen einer Sitemap — und der OAuth-Bereich wird je Aktion gewählt, ein Agent mit `scope: read` hält einen Token, der nicht schreiben kann
 - **Browser** — headless Chrome für Oberflächen ohne API, mit Screenshots im Recording
