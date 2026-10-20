@@ -74,19 +74,33 @@ class _TeamSpaceState extends State<TeamSpace> {
   Timer? _decidedReload;
   Timer? _poll;
   StreamSubscription<void>? _live;
+  StreamSubscription<void>? _roster;
+
+  /// The reads of the roster (agents, departments), of who waits, and of
+  /// the threads: each lands only while no later one of its kind has
+  /// started (#619).
+  final _rosterReads = Latest();
+  final _waitingReads = Latest();
+  final _threadReads = Latest();
 
   @override
   void initState() {
     super.initState();
     _load();
     // New answers turn up without a pull; a thread just read drops its badge.
-    // Live from the instance's event stream (#419); the timer is the net
-    // under it, for a stream that is down.
-    _live = LiveEvents.instance.of({'chat', 'task', 'agent_status', 'approval'}).listen((_) {
-      _loadThreads();
-      _load();
+    // Live from the instance's event stream (#419): a message, a task or an
+    // approval moves the threads and who waits.
+    _live = LiveEvents.instance
+        .of({'chat', 'task', 'approval'}, withResync: false)
+        .listen((_) => unawaited(_loadActivity()));
+    // The roster changed (#619) or an agent's status did — or the stream was
+    // down, or the app away, and nobody knows what moved (#536, #447):
+    // everything once.
+    _roster = LiveEvents.instance.of({'roster', 'agent_status'}).listen((_) => unawaited(_load()));
+    // The net under the stream: it asks only while the stream is down.
+    _poll = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (!LiveEvents.instance.connected) unawaited(_load());
     });
-    _poll = Timer.periodic(const Duration(minutes: 1), (_) => _loadThreads());
     threadsRead.addListener(_loadThreads);
   }
 
@@ -95,20 +109,26 @@ class _TeamSpaceState extends State<TeamSpace> {
     _poll?.cancel();
     _decidedReload?.cancel();
     _live?.cancel();
+    _roster?.cancel();
     threadsRead.removeListener(_loadThreads);
     super.dispose();
   }
 
-  Future<void> _loadThreads() async {
+  /// The threads' unread markers and the conversations. [full] reads the
+  /// whole list of conversations; otherwise only what changed since the
+  /// last read (#447).
+  Future<void> _loadThreads({bool full = false}) async {
+    final ticket = _threadReads.begin();
     List<Conversation>? convs;
     try {
-      convs = await widget.api.conversations();
+      convs = await widget.api.conversations(delta: !full);
     } catch (_) {
       // The list stays as it was; the next look asks again.
       convs = _conversations;
     }
     try {
       final t = await widget.api.threads();
+      if (!_threadReads.isCurrent(ticket)) return;
       // The app icon carries the same number as the list (#379): the agents'
       // threads, and the conversations that are not one.
       final total =
@@ -124,7 +144,23 @@ class _TeamSpaceState extends State<TeamSpace> {
       }
     } catch (_) {
       // No badges rather than an error: the list itself is what matters.
-      if (mounted) setState(() => _conversations = convs);
+      if (mounted && _threadReads.isCurrent(ticket)) setState(() => _conversations = convs);
+    }
+  }
+
+  /// What a message, a task or an approval moves: the threads, who waits
+  /// and the workflow decisions. The roster stays as it is.
+  Future<void> _loadActivity() async {
+    unawaited(_loadThreads());
+    unawaited(_loadDecisions());
+    final ticket = _waitingReads.begin();
+    try {
+      final waiting = await widget.api.waiting();
+      final data = _data;
+      if (!mounted || data == null || !_waitingReads.isCurrent(ticket)) return;
+      setState(() => _data = (waiting: waiting, agents: data.agents, departments: data.departments));
+    } catch (_) {
+      // The list stays as it was; the next event or the net asks again.
     }
   }
 
@@ -167,18 +203,30 @@ class _TeamSpaceState extends State<TeamSpace> {
     }
   }
 
+  /// Everything: the threads, who waits, the agents and the departments.
   Future<void> _load() async {
+    unawaited(_loadThreads(full: true));
+    final roster = _rosterReads.begin();
+    final waiting = _waitingReads.begin();
     try {
-      unawaited(_loadThreads());
       unawaited(_loadDecisions());
       final r = await Future.wait([widget.api.waiting(), widget.api.agents(), widget.api.departments()]);
       if (!mounted) return;
+      final old = _data;
+      // A part a later read has already replaced, or is about to, stays as
+      // that read leaves it.
+      final freshRoster = old == null || _rosterReads.isCurrent(roster);
+      final freshWaiting = old == null || _waitingReads.isCurrent(waiting);
       setState(() {
-        _data = (waiting: r[0] as InboxPage, agents: r[1] as List<Agent>, departments: r[2] as List<Department>);
-        _error = null;
+        _data = (
+          waiting: freshWaiting ? r[0] as InboxPage : old.waiting,
+          agents: freshRoster ? r[1] as List<Agent> : old.agents,
+          departments: freshRoster ? r[2] as List<Department> : old.departments,
+        );
+        if (freshRoster) _error = null;
       });
     } catch (e) {
-      if (mounted) setState(() => _error = e);
+      if (mounted && _rosterReads.isCurrent(roster)) setState(() => _error = e);
     }
   }
 

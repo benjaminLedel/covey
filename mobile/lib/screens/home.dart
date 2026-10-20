@@ -72,6 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   int _space = 0;
   Me? _me;
+  AppLifecycleListener? _lifecycle;
   Object? _meError;
   final _notes = GlobalKey<NotesScreenState>();
 
@@ -95,6 +96,8 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadMe();
+    // The event stream runs while the app is in the foreground (#447).
+    if (LiveEvents.closesInBackground) _lifecycle = LiveEvents.instance.followLifecycle();
     // Dictate anywhere (#355) follows the instance the app is signed in to.
     if (DictateAnywhere.supported) unawaited(DictateAnywhere.instance.attach(widget.api));
     // The activity log (#363) too; its menu-bar item can ask for the review.
@@ -146,6 +149,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     if (DictateAnywhere.supported) unawaited(DictateAnywhere.instance.detach());
     if (ActivityRecorder.supported) unawaited(ActivityRecorder.instance.detach());
+    _lifecycle?.dispose();
     LiveEvents.instance.stopFor(widget.api);
     super.dispose();
   }

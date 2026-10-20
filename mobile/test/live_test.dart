@@ -185,4 +185,85 @@ void main() {
     expect(find.text('Die Antwort steht'), findsOneWidget, reason: 'the older read must not overwrite the newer one');
     await tester.pumpWidget(const SizedBox());
   });
+
+  test('the stream asks for the longer keepalive (#447)', () async {
+    Uri? asked;
+    final api = CoveyApi(
+      Uri.parse('https://c.example'),
+      'k',
+      client: MockClient((req) async {
+        asked = req.url;
+        return http.Response('event: hello\ndata: {}\n\n', 200);
+      }),
+    );
+    LiveEvents.instance.start(api);
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(asked!.queryParameters['keepalive'], '${LiveEvents.keepalive.inSeconds}');
+    expect(asked!.queryParameters['types']!.split(','), contains('roster'));
+  });
+
+  test('a burst that never pauses still reloads, at most maxWait after its first event (#447)', () async {
+    final fired = <DateTime>[];
+    final sub = LiveEvents.instance
+        .of({'recording-like'}, settle: const Duration(milliseconds: 100), maxWait: const Duration(milliseconds: 300))
+        .listen((_) => fired.add(DateTime.now()));
+    // An event every 50 ms for 700 ms: the settling time never passes.
+    for (var i = 0; i < 14; i++) {
+      LiveEvents.instance.inject(const LiveEvent('recording-like', '', {}));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+    expect(fired.length, greaterThanOrEqualTo(2), reason: 'the cap fires while the burst goes on');
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    final after = fired.length;
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    expect(fired.length, after, reason: 'quiet after the burst has settled');
+    await sub.cancel();
+  });
+
+  test('in the background the stream is closed; back in front it opens at once and everyone looks (#447)', () async {
+    var opened = 0;
+    final streams = <StreamController<List<int>>>[];
+    final api = CoveyApi(
+      Uri.parse('https://c.example'),
+      'k',
+      client: MockClient.streaming((req, _) async {
+        opened++;
+        final c = StreamController<List<int>>();
+        streams.add(c);
+        c.add(utf8.encode('event: hello\ndata: {}\n\n'));
+        return http.StreamedResponse(c.stream, 200);
+      }),
+    );
+    final looks = <void>[];
+    final sub = LiveEvents.instance.of({'chat'}, settle: const Duration(milliseconds: 20)).listen(looks.add);
+    LiveEvents.instance.start(api);
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(opened, 1);
+    expect(LiveEvents.instance.connected, isTrue);
+
+    LiveEvents.instance.suspend();
+    expect(LiveEvents.instance.connected, isFalse);
+    // Longer than the reconnect back-off: nothing opens it while the app is away.
+    await Future<void>.delayed(const Duration(milliseconds: 1500));
+    expect(opened, 1, reason: 'closed in the background, and not opened again');
+    expect(looks, isEmpty);
+
+    LiveEvents.instance.resume();
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(opened, 2, reason: 'opened again at once, not after the watchdog');
+    expect(LiveEvents.instance.connected, isTrue);
+    expect(looks.length, 1, reason: 'one catch-up look for whatever happened meanwhile');
+    await sub.cancel();
+    for (final c in streams) {
+      await c.close();
+    }
+  });
+
+  test('only the newest of overlapping reads lands (#619)', () {
+    final reads = Latest();
+    final first = reads.begin();
+    final second = reads.begin();
+    expect(reads.isCurrent(first), isFalse);
+    expect(reads.isCurrent(second), isTrue);
+  });
 }

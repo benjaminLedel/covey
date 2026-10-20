@@ -124,7 +124,9 @@ class _ThreadScreenState extends State<ThreadScreen> {
                 ? LiveEvents.instance.of({'chat'}, conversationId: widget.conversation!.id)
                 : LiveEvents.instance.of({'chat', 'task'}, agentId: widget.agentId))
             .listen((_) => _load());
-    _poll = Timer.periodic(const Duration(minutes: 1), (_) => _load());
+    _poll = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (!LiveEvents.instance.connected) _load();
+    });
     CallSettings.enabled.addListener(_callSettingChanged);
   }
 

@@ -209,6 +209,75 @@ void main() {
       expect(again!.single.title, 'Mittag', reason: 'the body kept from before');
     });
 
+    test('the list after an event: only what changed, merged into what was read (#447)', () async {
+      final asked = <Uri>[];
+      final api = CoveyApi(
+        Uri.parse('https://c.example'),
+        'k',
+        client: MockClient((req) async {
+          asked.add(req.url);
+          final since = req.url.queryParameters['since'];
+          if (since == null) {
+            return _json({
+              'conversations': [
+                _summary(),
+                {..._summary(), 'id': 'c2', 'title': 'Planung', 'last_message_at': '2026-09-29T08:30:00Z'},
+                {..._summary(), 'id': 'c3', 'title': 'Alt', 'last_message_at': '2026-09-29T08:10:00Z'},
+              ],
+              'cursor': '2026-09-29T09:00:00Z',
+            });
+          }
+          if (since == '2026-09-29T09:00:00Z') {
+            // Planung moved to the top, Alt was left.
+            return _json({
+              'conversations': [
+                {
+                  ..._summary(),
+                  'id': 'c2',
+                  'title': 'Planung',
+                  'unread': 1,
+                  'last': null,
+                  'last_message_at': '2026-09-29T09:05:00Z',
+                },
+              ],
+              'left': ['c3'],
+              'cursor': '2026-09-29T09:05:00Z',
+            });
+          }
+          return _json({'conversations': [], 'left': [], 'cursor': since});
+        }),
+      );
+      expect((await api.conversations(delta: true))!.length, 3, reason: 'nothing read yet: the whole list');
+      final after = (await api.conversations(delta: true))!;
+      expect(asked[1].queryParameters['since'], '2026-09-29T09:00:00Z');
+      expect(after.map((c) => c.title), ['Planung', 'Mittag'], reason: 'merged, newest first, the left one gone');
+      expect(after.first.unread, 1);
+      await api.conversations(delta: true);
+      expect(asked[2].queryParameters['since'], '2026-09-29T09:05:00Z', reason: 'the cursor of the last answer');
+    });
+
+    test('an instance without delta reads: the whole list it sends is the list', () async {
+      var reads = 0;
+      final api = CoveyApi(
+        Uri.parse('https://c.example'),
+        'k',
+        client: MockClient((req) async {
+          reads++;
+          // An instance from before #447's cursor ignores `since`; the
+          // second answer no longer has c2.
+          return _json({
+            'conversations': [
+              _summary(),
+              if (reads == 1) {..._summary(), 'id': 'c2', 'title': 'Planung'},
+            ],
+            'cursor': reads == 1 ? '2026-09-29T09:00:00Z' : null,
+          });
+        }),
+      );
+      expect((await api.conversations())!.length, 2);
+      expect((await api.conversations(delta: true))!.map((c) => c.id), ['c1']);
+    });
+
     test('a delta read asks only for what came after the newest message', () async {
       final asked = <Uri>[];
       final api = CoveyApi(

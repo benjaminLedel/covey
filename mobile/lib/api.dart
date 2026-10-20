@@ -92,9 +92,22 @@ class CoveyApi {
   /// [types] narrows the stream to those event types (#535); none means all.
   /// A run publishes one `recording` event per step, and a client that does
   /// not read them should not have its buffer at the instance filled by them.
-  Future<http.StreamedResponse> events({Iterable<String> types = const []}) => _http.send(
-    http.Request('GET', _url(types.isEmpty ? '/events' : '/events?types=${types.join(',')}'))
-      ..headers.addAll({'Authorization': 'Bearer $_key', 'Accept': 'text/event-stream', 'Cache-Control': 'no-cache'}),
+  /// The instance's event stream (#419), of [types] alone, with a keepalive
+  /// every [keepalive] (#447) — an instance that does not know the parameter
+  /// keeps its own twenty seconds.
+  Future<http.StreamedResponse> events({Iterable<String> types = const [], Duration? keepalive}) => _http.send(
+    http.Request(
+      'GET',
+      _url(
+        Uri(
+          path: '/events',
+          queryParameters: {
+            if (types.isNotEmpty) 'types': types.join(','),
+            if (keepalive != null) 'keepalive': '${keepalive.inSeconds}',
+          },
+        ).toString(),
+      ),
+    )..headers.addAll({'Authorization': 'Bearer $_key', 'Accept': 'text/event-stream', 'Cache-Control': 'no-cache'}),
   );
 
   /// An upload of a message's files (#586) may carry 10 MiB from a phone on
@@ -268,7 +281,58 @@ class CoveyApi {
   /// The person's conversations, newest first — or null when the instance
   /// is older than conversations (404) and the app keeps to the per-agent
   /// threads.
-  Future<List<Conversation>?> conversations() async {
+  ///
+  /// [delta] asks only for what changed since the last read (#447):
+  /// `?since=` with the cursor that read handed back answers the
+  /// conversations that moved and those the person left, and they are
+  /// merged into what was read. After an event that is one or two rows
+  /// instead of the whole list. Without a read to start from, or when the
+  /// instance refuses the cursor, the whole list is read — with its ETag, so
+  /// an unchanged one costs a 304.
+  ///
+  /// Reads run one after the other: two merges at once could put an older
+  /// row back over a newer one.
+  Future<List<Conversation>?> conversations({bool delta = false}) {
+    final next = _conversationReads.then((_) => _readConversations(delta));
+    _conversationReads = next.then<void>((_) {}, onError: (Object _) {});
+    return next;
+  }
+
+  /// The list as last read, by id, and that read's cursor.
+  Map<String, Map<String, dynamic>>? _conversationRows;
+  String? _conversationCursor;
+  Future<void> _conversationReads = Future.value();
+
+  Future<List<Conversation>?> _readConversations(bool delta) async {
+    final rows = _conversationRows;
+    final cursor = _conversationCursor;
+    if (delta && rows != null && cursor != null) {
+      try {
+        final out =
+            await get(Uri(path: '/conversations', queryParameters: {'since': cursor}).toString())
+                as Map<String, dynamic>;
+        // An instance without delta reads ignores `since` and sends the whole
+        // list, without a cursor: that is taken as the whole list.
+        if (out['cursor'] is! String) return _takeConversations(out);
+        for (final c in (out['conversations'] as List? ?? const [])) {
+          final row = c as Map<String, dynamic>;
+          rows[row['id'] as String? ?? ''] = row;
+        }
+        for (final id in (out['left'] as List? ?? const [])) {
+          rows.remove(id);
+        }
+        _conversationCursor = out['cursor'] as String;
+        return _conversationList(rows.values);
+      } on ApiException catch (e) {
+        if (e.status == 404) {
+          _conversationRows = null;
+          _conversationCursor = null;
+          return null;
+        }
+        // 400: the instance does not take the cursor; read the whole list.
+        if (e.status != 400) rethrow;
+      }
+    }
     final Object? out;
     try {
       out = await getCached('/conversations');
@@ -276,11 +340,22 @@ class CoveyApi {
       if (e.status == 404) return null;
       rethrow;
     }
-    return [
-      for (final c in ((out as Map<String, dynamic>)['conversations'] as List? ?? const []))
-        Conversation.fromJson(c as Map<String, dynamic>),
-    ];
+    return _takeConversations(out as Map<String, dynamic>);
   }
+
+  List<Conversation> _takeConversations(Map<String, dynamic> out) {
+    final rows = {
+      for (final c in (out['conversations'] as List? ?? const []))
+        (c as Map<String, dynamic>)['id'] as String? ?? '': c,
+    };
+    _conversationRows = rows;
+    _conversationCursor = out['cursor'] as String?;
+    return _conversationList(rows.values);
+  }
+
+  /// Newest first, as the instance sorts them.
+  static List<Conversation> _conversationList(Iterable<Map<String, dynamic>> rows) =>
+      [for (final r in rows) Conversation.fromJson(r)]..sort((a, b) => b.latest.compareTo(a.latest));
 
   Future<Conversation> conversation(String id) async =>
       Conversation.fromJson(await get('/conversations/$id') as Map<String, dynamic>);

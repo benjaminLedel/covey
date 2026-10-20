@@ -2,16 +2,21 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:flutter/widgets.dart' show AppLifecycleListener;
+
 import 'api.dart';
 import 'diagnostics.dart';
+import 'host.dart';
 
 /// One event from the instance (#419): what happened — `chat`, `task`,
-/// `agent_status`, `approval` — and to which agent. What it means is read
+/// `agent_status`, `approval`, `roster` — and to which agent. What it means is read
 /// from the instance afterwards; the event only says to look.
 ///
 /// One type is the app's own: `resync` (#536), handed to every listener when
 /// the stream has been opened again after a break. What happened while it
-/// was down came with no event, so everyone looks once.
+/// was down came with no event, so everyone looks once. It is also handed
+/// out when the app comes back to the foreground (#447): the stream was
+/// closed meanwhile.
 class LiveEvent {
   const LiveEvent(this.type, this.agentId, this.data);
   final String type;
@@ -34,7 +39,10 @@ class LiveEvents {
   /// (#535). `recording` is not among them — a run publishes one per step,
   /// and unfiltered they filled the app's buffer at the instance and pushed
   /// out the `agent_status` or `chat` event it was waiting for.
-  static const types = {'chat', 'task', 'agent_status', 'approval'};
+  ///
+  /// `roster` (#619) says that agents or departments changed: created,
+  /// hired, renamed, moved, deleted.
+  static const types = {'chat', 'task', 'agent_status', 'approval', 'roster'};
 
   /// The type of the event handed out when the stream is open again after a
   /// break (#536).
@@ -50,19 +58,32 @@ class LiveEvents {
   Timer? _retry;
   var _backoff = 1;
 
-  /// The instance sends a keepalive every 20 s (#532): a stream silent for
-  /// [silentFor] is dead — a proxy kept the connection after the instance
-  /// behind it went away —, and is opened again.
-  static const silentFor = Duration(seconds: 50);
+  /// The keepalive the stream asks for (#447). The instance's default of
+  /// 20 s woke a phone's radio three times a minute while the app sat idle;
+  /// an instance older than the parameter keeps sending its 20 s.
+  static const keepalive = Duration(seconds: 45);
+
+  /// A stream silent for this long is dead — a proxy kept the connection
+  /// after the instance behind it went away (#532) —, and is opened again.
+  /// Two keepalives and some slack.
+  static const silentFor = Duration(seconds: 100);
+
+  /// Whether the app is in the background (#447): the stream is closed then,
+  /// push carries what happens, and it is opened again on the way back.
+  var _suspended = false;
   Timer? _watchdog;
   DateTime _heard = DateTime.now();
 
-  /// Whether the stream is open right now.
+  /// Whether the stream is open right now. The screens' timers ask only
+  /// while it is not (#447): they are the net under the stream, not a
+  /// second channel beside it.
   bool connected = false;
 
   /// Events of the given types, optionally of one agent or of one
   /// conversation (#440: a chat event names it in its data), gathered for
   /// [settle] so that a burst (a run's steps) causes one reload, not ten.
+  /// A burst that never pauses for [settle] still reloads [maxWait] after
+  /// its first event (#447) — a busy run must not hold the screen still.
   ///
   /// A [resync] (#536) passes every filter: it says the stream was down and
   /// is back, and no listener knows what it missed. Pass `withResync: false`
@@ -72,11 +93,21 @@ class LiveEvents {
     String? agentId,
     String? conversationId,
     Duration settle = const Duration(milliseconds: 600),
+    Duration maxWait = const Duration(seconds: 2),
     bool withResync = true,
   }) {
     late StreamController<void> out;
     StreamSubscription<LiveEvent>? sub;
     Timer? pending;
+    Timer? cap;
+    void fire() {
+      pending?.cancel();
+      cap?.cancel();
+      pending = null;
+      cap = null;
+      out.add(null);
+    }
+
     out = StreamController<void>(
       onListen: () {
         sub = _events.stream.listen((e) {
@@ -88,11 +119,13 @@ class LiveEvents {
             if (conversationId != null && e.data['conversation_id'] != conversationId) return;
           }
           pending?.cancel();
-          pending = Timer(settle, () => out.add(null));
+          pending = Timer(settle, fire);
+          cap ??= Timer(maxWait < settle ? settle : maxWait, fire);
         });
       },
       onCancel: () {
         pending?.cancel();
+        cap?.cancel();
         return sub?.cancel();
       },
     );
@@ -102,10 +135,57 @@ class LiveEvents {
   /// Listens to [api]'s instance; a new connection replaces the old one.
   void start(CoveyApi api) {
     if (identical(api, _api)) return;
-    stop();
+    _api = null;
+    _broken = false;
+    _close();
     _api = api;
     _backoff = 1;
+    if (!_suspended) unawaited(_connect());
+  }
+
+  /// The app went to the background (#447): the stream is closed. An open
+  /// stream kept the radio busy with every keepalive, and push carries what
+  /// happens meanwhile. The connection stays, for [resume].
+  void suspend() {
+    if (_suspended) return;
+    _suspended = true;
+    if (_api == null) return;
+    diag('live', 'app in the background: event stream closed');
+    _close();
+    // What happens from now on comes with no event: on the way back,
+    // everyone looks once.
+    _broken = true;
+  }
+
+  /// The app is back in the foreground (#447): the stream is opened again at
+  /// once, not after a watchdog's minute, and the [resync] that follows
+  /// tells every screen to look once.
+  void resume() {
+    if (!_suspended) return;
+    _suspended = false;
+    final api = _api;
+    if (api == null) return;
+    diag('live', 'app in the foreground: event stream opened again');
+    _close();
+    _broken = true;
+    _backoff = 1;
     unawaited(_connect());
+  }
+
+  /// Counts the closes: an open that was under way when the stream was
+  /// closed — and maybe opened again — must not add a second stream.
+  var _generation = 0;
+
+  /// Ends the stream and its timers, keeping the connection it belongs to.
+  void _close() {
+    _generation++;
+    _retry?.cancel();
+    _retry = null;
+    _watchdog?.cancel();
+    _watchdog = null;
+    unawaited(_sub?.cancel());
+    _sub = null;
+    connected = false;
   }
 
   /// Closes the stream if it belongs to [api] — a screen that goes does not
@@ -117,21 +197,36 @@ class LiveEvents {
   void stop() {
     _api = null;
     _broken = false;
-    _retry?.cancel();
-    _retry = null;
-    _watchdog?.cancel();
-    _watchdog = null;
-    unawaited(_sub?.cancel());
-    _sub = null;
-    connected = false;
+    // Whoever starts the next connection follows the app's state from there;
+    // a screen that went while the app was away must not leave the next
+    // stream shut.
+    _suspended = false;
+    _close();
   }
+
+  /// Whether the stream closes while the app is in the background (#447):
+  /// on a phone, where push carries what happens meanwhile and a keepalive
+  /// costs the radio. Not on the Mac, whose notifications come from the
+  /// app's own look, which the stream drives.
+  static bool get closesInBackground => Host.isIOS || Host.isAndroid;
+
+  /// Closes the stream when the app is hidden and opens it again when it is
+  /// shown; the caller disposes the listener with the screen that holds the
+  /// connection.
+  AppLifecycleListener followLifecycle() => AppLifecycleListener(onHide: suspend, onShow: resume);
 
   Future<void> _connect() async {
     final api = _api;
-    if (api == null) return;
+    if (api == null || _suspended) return;
+    final generation = _generation;
     try {
-      final res = await api.events(types: types);
-      if (!identical(api, _api)) return;
+      final res = await api.events(types: types, keepalive: keepalive);
+      if (!identical(api, _api) || _suspended || generation != _generation) {
+        // Replaced, closed or sent to the background while it was being
+        // opened.
+        unawaited(res.stream.listen(null).cancel());
+        return;
+      }
       if (res.statusCode != 200) {
         diag('live', 'event stream refused: ${res.statusCode}');
         _reconnect(api);
@@ -209,7 +304,7 @@ class LiveEvents {
     connected = false;
     _watchdog?.cancel();
     _watchdog = null;
-    if (!identical(api, _api)) return;
+    if (!identical(api, _api) || _suspended) return;
     _broken = true;
     _retry?.cancel();
     _retry = Timer(Duration(seconds: _backoff), () => unawaited(_connect()));
@@ -218,4 +313,19 @@ class LiveEvents {
 
   /// For tests: hands an event to the listeners as if it had come in.
   void inject(LiveEvent e) => _events.add(e);
+}
+
+/// Lets only the newest of overlapping reads land (#619). An event, a resync
+/// and a timer can each start a read of the same list; whichever answer comes
+/// back last used to win, so a slow, older read could put back what a newer
+/// one had already replaced. Each read takes a ticket with [begin], and
+/// applies its answer only while [isCurrent] says no later read has started.
+class Latest {
+  var _n = 0;
+
+  /// Starts a read and returns its ticket.
+  int begin() => ++_n;
+
+  /// Whether the read holding [ticket] is still the newest.
+  bool isCurrent(int ticket) => ticket == _n;
 }

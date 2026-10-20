@@ -373,6 +373,7 @@ func (o *Orchestrator) hiringCreateAgent(ctx context.Context, agent agents.Agent
 	if err := o.Backlog.SeedDefaultStages(ctx, created.ID); err != nil {
 		o.Log.Warn("hiring: board not seeded", "agent", created.Slug, "err", err)
 	}
+	o.events.PublishRoster(agent.OrgID, created.ID, RosterCreated)
 
 	return ok(map[string]any{
 		"agent": created.Slug, "id": created.ID.String(), "draft": true,
