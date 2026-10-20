@@ -27,4 +27,16 @@ void main() {
     expect(PushNotices.toAnnounce(seen, [_t('dora', 0, t1)]), isEmpty, reason: 'read already');
     expect(PushNotices.toAnnounce(seen, [_t('neu', 1, t1)]).single.agentId, 'neu');
   });
+
+  test('the names are read again for an agent they do not know (#619)', () {
+    final bea = Agent.fromJson({'id': 'bea', 'display_name': 'Bea'});
+    final names = {'bea': bea};
+    expect(PushNotices.namesStale(t0, t1, names, ['bea']), isFalse, reason: 'known, and read a minute ago');
+    expect(PushNotices.namesStale(t0, t1, names, ['cem']), isTrue, reason: 'a colleague new since the last read');
+    expect(
+      PushNotices.namesStale(t0, t0.add(const Duration(minutes: 11)), names, const []),
+      isTrue,
+      reason: 'ten minutes old',
+    );
+  });
 }

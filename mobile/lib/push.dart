@@ -62,6 +62,7 @@ class PushNotices {
   Strings? _strings;
   Timer? _poll;
   StreamSubscription<void>? _live;
+  StreamSubscription<void>? _roster;
 
   /// What was last seen of each conversation — the newest entry's time —
   /// for the connection being watched; null until read.
@@ -165,8 +166,15 @@ class PushNotices {
         // net under the event stream.
         await _live?.cancel();
         _live = LiveEvents.instance.of({'chat', 'task'}).listen((_) => _look());
+        // A colleague created or renamed (#619), or a break in the stream
+        // that may have hidden one: the next look reads the names again.
+        await _roster?.cancel();
+        _roster = LiveEvents.instance.of({'roster'}).listen((_) => _namesAt = DateTime(0));
         _poll?.cancel();
-        _poll = Timer.periodic(const Duration(minutes: 1), (_) => _look());
+        // The net under the stream: it looks only while the stream is down.
+        _poll = Timer.periodic(const Duration(minutes: 1), (_) {
+          if (!LiveEvents.instance.connected) _look();
+        });
         unawaited(_look());
       }
     } on PlatformException catch (e) {
@@ -182,6 +190,8 @@ class PushNotices {
     _poll = null;
     await _live?.cancel();
     _live = null;
+    await _roster?.cancel();
+    _roster = null;
     _seen = null;
     if (Host.isMacOS) {
       try {
@@ -230,16 +240,17 @@ class PushNotices {
     if (api == null) return;
     try {
       final now = await api.threads();
-      if (DateTime.now().difference(_namesAt) > const Duration(minutes: 10)) {
-        _agents = {for (final a in await api.agents()) a.id: a};
-        _namesAt = DateTime.now();
-      }
       await badge(now.values.fold<int>(0, (n, t) => n + t.unread));
       if (_hushed) return;
       final seen = _seen ?? await _loadSeen(api);
       _seen = {for (final t in now.values) t.agentId: t.lastAt};
       await _saveSeen(api, _seen!);
-      for (final t in toAnnounce(seen, now.values)) {
+      final announce = toAnnounce(seen, now.values);
+      if (namesStale(_namesAt, DateTime.now(), _agents, announce.map((t) => t.agentId))) {
+        _agents = {for (final a in await api.agents()) a.id: a};
+        _namesAt = DateTime.now();
+      }
+      for (final t in announce) {
         final agent = _agents[t.agentId];
         final name = agent?.displayName ?? '';
         final kind = t.lastKind == 'note' ? 'answer' : t.lastKind;
@@ -276,6 +287,14 @@ class PushNotices {
           t,
     ];
   }
+
+  /// Whether the names must be read again before a look announces [ids]:
+  /// ten minutes after the last read, or at once when one of them is an
+  /// agent the names do not know (#619) — a colleague created since, whose
+  /// first notification came without a name.
+  @visibleForTesting
+  static bool namesStale(DateTime readAt, DateTime now, Map<String, Agent> names, Iterable<String> ids) =>
+      now.difference(readAt) > const Duration(minutes: 10) || ids.any((id) => !names.containsKey(id));
 
   /// Where the last look of a connection is kept: per connection, under a
   /// fingerprint — the key itself stays in the keychain.

@@ -59,30 +59,46 @@ class _OfficeSpaceState extends State<OfficeSpace> {
   int _etage = 0;
   Timer? _poll;
   StreamSubscription<void>? _live;
+  StreamSubscription<void>? _roster;
+
+  /// The reads of the building and of who works: each lands only while no
+  /// later one of its kind has started (#619).
+  final _rosterReads = Latest();
+  final _liveReads = Latest();
 
   @override
   void initState() {
     super.initState();
     _load();
-    // What changes while one looks: who works and who waits. The building
-    // itself is asked for again only with a pull or a reopening.
-    // Who works and who waits, as the instance says it (#419); the timer is
-    // the net under it.
-    _live = LiveEvents.instance.of({'agent_status', 'task', 'chat', 'approval'}).listen((_) => _loadLive());
-    _poll = Timer.periodic(const Duration(minutes: 1), (_) => _loadLive());
+    // Who works and who waits, as the instance says it (#419).
+    _live = LiveEvents.instance
+        .of({'task', 'chat', 'approval'}, withResync: false)
+        .listen((_) => unawaited(_loadLive()));
+    // The building itself: a colleague created, hired, moved or gone, a
+    // department added (#619), an agent's status — and everything once after
+    // the stream was down or the app away (#536, #447). It used to be read
+    // only when the space was first built, which in the app's stack of
+    // spaces is once per launch.
+    _roster = LiveEvents.instance.of({'roster', 'agent_status'}).listen((_) => unawaited(_load()));
+    // The net under the stream: it asks only while the stream is down.
+    _poll = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (!LiveEvents.instance.connected) unawaited(_load());
+    });
   }
 
   @override
   void dispose() {
     _poll?.cancel();
     _live?.cancel();
+    _roster?.cancel();
     super.dispose();
   }
 
   Future<void> _load() async {
+    final ticket = _rosterReads.begin();
     try {
       final r = await Future.wait([widget.api.agents(), widget.api.departments()]);
-      if (!mounted) return;
+      if (!mounted || !_rosterReads.isCurrent(ticket)) return;
       setState(() {
         // Colleagues only, as in the web's office (#414).
         _agents = (r[0] as List<Agent>).where((a) => a.isColleague).toList();
@@ -91,14 +107,15 @@ class _OfficeSpaceState extends State<OfficeSpace> {
       });
       await _loadLive();
     } catch (e) {
-      if (mounted) setState(() => _error = e);
+      if (mounted && _rosterReads.isCurrent(ticket)) setState(() => _error = e);
     }
   }
 
   Future<void> _loadLive() async {
+    final ticket = _liveReads.begin();
     try {
       final r = await Future.wait([widget.api.running(), widget.api.waiting()]);
-      if (!mounted) return;
+      if (!mounted || !_liveReads.isCurrent(ticket)) return;
       setState(() {
         _running = {for (final l in r[0] as List<Running>) l.agentId: l};
         _waiting = {for (final e in (r[1] as InboxPage).items) e.agentId};
