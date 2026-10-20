@@ -12,7 +12,7 @@ import (
 // the recipient but the criterion for WHETHER they are one. Whoever puts it in
 // the payload has already sent it.
 type Event struct {
-	Type    string    `json:"type"` // agent_status | task | recording | approval | guardrail
+	Type    string    `json:"type"` // agent_status | task | recording | approval | guardrail | chat | roster
 	AgentID string    `json:"agent_id,omitempty"`
 	OrgID   uuid.UUID `json:"-"`
 	Data    any       `json:"data,omitempty"`
@@ -107,4 +107,29 @@ func (b *Broadcaster) Publish(e Event) {
 		default:
 		}
 	}
+}
+
+// The changes a `roster` event names (#619). Who belongs to the organisation
+// and where they sit changes without any run: an agent is created, hired,
+// renamed, moved or deleted, a department is added. None of that produced an
+// event, so a client that loads the roster once — the app's team and office
+// spaces — showed a new agent only after a restart.
+const (
+	RosterCreated     = "created"
+	RosterHired       = "hired"
+	RosterUpdated     = "updated"
+	RosterDeleted     = "deleted"
+	RosterDepartments = "departments"
+)
+
+// PublishRoster says that the organisation's roster changed. Like every
+// event it only says to look: the client reads the agents and departments
+// again, and what it may see is decided there. agentID may be nil — a
+// department change, or a creation whose id the publisher does not know.
+func (b *Broadcaster) PublishRoster(orgID, agentID uuid.UUID, change string) {
+	ev := Event{Type: "roster", OrgID: orgID, Data: map[string]string{"change": change}}
+	if agentID != uuid.Nil {
+		ev.AgentID = agentID.String()
+	}
+	b.Publish(ev)
 }

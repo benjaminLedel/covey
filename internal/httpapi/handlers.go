@@ -396,6 +396,7 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
+	s.publishTask(t)
 	writeJSON(w, http.StatusCreated, t)
 }
 
@@ -411,6 +412,7 @@ func (s *Server) handleCancelTask(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
+	s.publishTask(t)
 	writeJSON(w, http.StatusOK, t)
 }
 
@@ -427,6 +429,7 @@ func (s *Server) handleRetryTask(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
+	s.publishTask(t)
 	writeJSON(w, http.StatusOK, t)
 }
 
@@ -442,6 +445,7 @@ func (s *Server) handleArchiveTask(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
+	s.publishTask(t)
 	writeJSON(w, http.StatusOK, t)
 }
 
@@ -575,6 +579,7 @@ func (s *Server) handleMoveTask(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
+	s.publishTask(t)
 	writeJSON(w, http.StatusOK, t)
 }
 

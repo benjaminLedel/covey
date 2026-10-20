@@ -3745,6 +3745,12 @@ func (o *Orchestrator) OnApprovalDecidedWithText(ctx context.Context, appr obser
 	if appr.Status == "denied" {
 		text = fmt.Sprintf("The approval for %q was DENIED. Do not perform the action; choose another way or escalate.", appr.Action)
 	}
+	// The approval left the waiting list: every client showing that list
+	// looks again (#619). Before, only the request was published, and a
+	// decision taken in the web stayed open in the app until something else
+	// moved.
+	o.events.Publish(Event{Type: "approval", AgentID: appr.AgentID.String(), OrgID: appr.OrgID,
+		Data: map[string]string{"approval_id": appr.ID.String(), "action": appr.Action, "status": appr.Status}})
 	if _, err := o.Backlog.CorrelateWake(ctx, "approval:"+appr.ID.String(), text); err != nil &&
 		!errors.Is(err, backlog.ErrNotFound) {
 		o.Log.Warn("approval correlation", "approval", appr.ID, "err", err)

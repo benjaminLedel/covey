@@ -55,6 +55,15 @@ function useLiveEvents(enabled: boolean) {
     for (const t of ["agent_status", "task", "recording", "approval", "guardrail", "chat"]) {
       es.addEventListener(t, invalidate);
     }
+    // The roster changed (#619): an agent created, hired, renamed, moved or
+    // deleted, a department added or changed — in another tab, or by an
+    // agent drafting a colleague.
+    es.addEventListener("roster", () => {
+      invalidate();
+      qc.invalidateQueries({ queryKey: ["departments"] });
+      qc.invalidateQueries({ queryKey: ["org-chart"] });
+      qc.invalidateQueries({ queryKey: ["orgchart"] });
+    });
     /* A broken event stream can have two causes: the server was restarted
        (then the browser reconnects on its own) — or the session expired and
        the endpoint answers with 401. An EventSource does not say which of
