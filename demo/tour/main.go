@@ -25,7 +25,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 )
 
@@ -76,12 +75,12 @@ func run(base, out, lang string, width, height int) error {
 	// Sign in through the demo button the sign-in card shows on localhost —
 	// that way no password stands in this program.
 	log.Printf("anmelden an %s", base)
-	if err := chromedp.Run(ctx,
+	if err := chromedp.Do(ctx,
 		chromedp.EmulateViewport(int64(width), int64(height)),
 		chromedp.Navigate(base+"/en/sign-in"),
 		chromedp.WaitVisible(`//button[contains(., 'Demo Login')]`),
 		chromedp.Click(`//button[contains(., 'Demo Login')]`),
-		chromedp.WaitVisible(`a[href="/costs"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(chromedp.CSS(`a[href="/costs"]`)),
 	); err != nil {
 		return fmt.Errorf("anmelden: %w", err)
 	}
@@ -89,11 +88,11 @@ func run(base, out, lang string, width, height int) error {
 	// Set the language and hide the first-steps list: it is
 	// aimed at a fresh instance and tells the wrong story in the
 	// screenshot.
-	if err := chromedp.Run(ctx,
-		chromedp.Evaluate(fmt.Sprintf(`localStorage.setItem("covey.lang", %q);`+
-			`localStorage.setItem("covey.onboarding.dismissed", "1")`, lang), nil),
+	if err := chromedp.Do(ctx,
+		chromedp.Evaluate[chromedp.Void](fmt.Sprintf(`localStorage.setItem("covey.lang", %q);`+
+			`localStorage.setItem("covey.onboarding.dismissed", "1")`, lang)),
 		chromedp.Reload(),
-		chromedp.WaitVisible(`a[href="/costs"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(chromedp.CSS(`a[href="/costs"]`)),
 	); err != nil {
 		return fmt.Errorf("sprache setzen: %w", err)
 	}
@@ -133,7 +132,7 @@ func run(base, out, lang string, width, height int) error {
 	var frames []frame
 
 	for i, st := range stops {
-		actions := []chromedp.Action{}
+		actions := []chromedp.Action[chromedp.Void]{}
 		if st.nav != "" {
 			actions = append(actions, chromedp.Navigate(base+st.nav))
 		}
@@ -145,19 +144,21 @@ func run(base, out, lang string, width, height int) error {
 			actions = append(actions, chromedp.Click(st.click))
 		}
 		if st.wait != "" {
-			actions = append(actions, chromedp.WaitVisible(st.wait, chromedp.ByQuery))
+			actions = append(actions, chromedp.WaitVisible(chromedp.CSS(st.wait)))
 		}
 		if st.scroll != 0 {
-			actions = append(actions, chromedp.Evaluate(
-				fmt.Sprintf(`window.scrollTo({top: %d})`, st.scroll), nil))
+			actions = append(actions, chromedp.Evaluate[chromedp.Void](
+				fmt.Sprintf(`window.scrollTo({top: %d})`, st.scroll)))
 		}
 		// Let it settle: charts animate while building, and an image in the
 		// middle of the animation looks like a rendering fault.
 		actions = append(actions, chromedp.Sleep(1600*time.Millisecond))
 
-		var buf []byte
-		actions = append(actions, chromedp.CaptureScreenshot(&buf))
-		if err := chromedp.Run(ctx, actions...); err != nil {
+		if err := chromedp.Do(ctx, actions...); err != nil {
+			return fmt.Errorf("station %s: %w", st.name, err)
+		}
+		buf, err := chromedp.Run(ctx, chromedp.CaptureScreenshot())
+		if err != nil {
 			return fmt.Errorf("station %s: %w", st.name, err)
 		}
 		file := fmt.Sprintf("%02d-%s.png", i+1, st.name)
@@ -180,14 +181,11 @@ func run(base, out, lang string, width, height int) error {
 // agentID looks up an agent's identifier via its slug — the identifiers are
 // new with every seed, so only the slug may stand in code.
 func agentID(ctx context.Context, slug string) (string, error) {
-	var id string
-	err := chromedp.Run(ctx, chromedp.Evaluate(fmt.Sprintf(`
+	id, err := chromedp.Run(ctx, chromedp.Evaluate[string](fmt.Sprintf(`
 		fetch("/api/v1/agents", {credentials:"include"})
 			.then(r => r.json())
 			.then(l => (l.find(a => a.slug === %q) || {}).id || "")
-	`, slug), &id, func(p *runtime.EvaluateParams) *runtime.EvaluateParams {
-		return p.WithAwaitPromise(true)
-	}))
+	`, slug), chromedp.EvalAwaitPromise))
 	if err != nil {
 		return "", fmt.Errorf("Agent %q suchen: %w", slug, err)
 	}
