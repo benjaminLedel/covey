@@ -12,6 +12,7 @@ import '../call/call.dart';
 import '../call/call_view.dart';
 import '../live.dart';
 import '../diagnostics.dart';
+import '../drafts.dart';
 import '../face.dart';
 import '../i18n.dart';
 import '../icons.dart';
@@ -93,7 +94,11 @@ class _ThreadScreenState extends State<ThreadScreen> {
   bool _older = false;
   bool _loadingOlder = false;
 
-  final _text = TextEditingController();
+  /// Where this thread's unsent text is kept (#621): the screen goes when
+  /// the person looks elsewhere, the draft stays.
+  String get _draftKey => _isConversation ? Drafts.conversation(widget.conversation!.id) : Drafts.agent(widget.agentId);
+
+  late final _text = TextEditingController(text: Drafts.instance.read(_draftKey));
   final _scroll = ScrollController();
   Thread? _thread;
   Object? _error;
@@ -106,6 +111,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
   @override
   void initState() {
     super.initState();
+    _text.addListener(_keepDraft);
     _load();
     // No event stream yet: while the thread is open it asks again. The web
     // gets the same news over SSE; a phone that holds a stream open in the
@@ -121,6 +127,8 @@ class _ThreadScreenState extends State<ThreadScreen> {
     CallSettings.enabled.addListener(_callSettingChanged);
   }
 
+  void _keepDraft() => Drafts.instance.write(_draftKey, _text.text);
+
   void _callSettingChanged() {
     if (mounted) setState(() {});
   }
@@ -130,6 +138,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
     CallSettings.enabled.removeListener(_callSettingChanged);
     _poll?.cancel();
     _live?.cancel();
+    _text.removeListener(_keepDraft);
     _text.dispose();
     _scroll.dispose();
     super.dispose();
@@ -322,6 +331,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
         await widget.api.send(widget.agentId, text, files: files);
       }
       _text.clear();
+      Drafts.instance.clear(_draftKey);
       setState(() {
         _answering = null;
         _files.removeWhere(files.contains);
