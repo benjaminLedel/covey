@@ -55,6 +55,13 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+	<!-- The App Store's category (#486); harmless in the direct download. -->
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.business</string>
+	<!-- Export compliance: HTTPS and no encryption of the app's own, as on
+	     iOS; App Store Connect then asks nothing on upload. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSHumanReadableCopyright</key>
 	<string>$(PRODUCT_COPYRIGHT)</string>
 	<key>NSMainNibFile</key>
