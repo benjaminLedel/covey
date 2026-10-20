@@ -361,3 +361,31 @@ func TestProviderRebuildsOnChange(t *testing.T) {
 		t.Fatalf("the environment's relay: %#v", own)
 	}
 }
+
+// A decision that waits (#622) has its own words in every language, and a
+// sound from the app's bundle — the question's.
+func TestDecisionsHaveWordsAndASound(t *testing.T) {
+	kinds := []string{"question", "answer", "result", "error", KindApproval, KindProposal, KindReview, KindDecision}
+	for lang, words := range texts {
+		for _, k := range kinds {
+			if w, ok := words[k]; !ok || w.sentence == "" || w.label == "" {
+				t.Errorf("%s has no words for %s", lang, k)
+			}
+		}
+	}
+	if title, _ := Compose("de", KindApproval, "Bea", "", false); title != "Bea wartet auf eine Freigabe" {
+		t.Fatalf("approval: %q", title)
+	}
+	if title, body := Compose("en", KindDecision, "Release", "Ship !9?", true); title != "Release · Decision" || body != "Ship !9?" {
+		t.Fatalf("workflow step with preview: %q %q", title, body)
+	}
+	for _, k := range append(kinds, "config_proposal", "something new") {
+		m := Message{Token: "t", Environment: "production", Title: "x", Sound: SoundFor("glas", soundKind(k))}
+		if !m.Valid() {
+			t.Errorf("%s plays %q, which no sender accepts", k, m.Sound)
+		}
+	}
+	if SoundFor("bot", soundKind(KindApproval)) != "covey-bot-question.caf" {
+		t.Fatal("a decision sounds like a question")
+	}
+}

@@ -55,9 +55,21 @@ What the QR code carries is an ordinary link to the instance, `https://<host>/pa
 
 Without a camera or a browser at hand, the app also takes the address and an API key typed in by hand.
 
+## Decisions
+
+What waits for a person's decision is decided in the app, with the same routes and the same checks as in the web interface (#622):
+
+- **In the conversation with an agent**, its open approvals (a guard rail stopped an action, spec/06) and the open points of its reviews (spec/21) stand as cards above the input. An approval shows the action with exactly the parameters that get approved, with **Approve** and **Deny**; where the parameters hold one passage of prose, **Correct the text** lets the person rewrite it and approve that version. An open point has **Accept** (or **Done**), **Reject** and an optional note.
+- **A configuration proposal** drafted from the chat (#491) is a card in the conversation it came from: what changes and why, a line when it widens access, and **Accept** and **Decline** for whoever may decide. Everybody else reads who decides. When the configuration changed since the draft, the card says it has to be rewritten or discarded. The diff itself stays in the web interface.
+- **A workflow's approval step** (#564) that names the person stands under **Waiting for you** in the team space, with one button per option.
+
+Which buttons a card offers follows the seat's role and the flags the instance sends — `org_admin`, `agent_owner` and `security` decide approvals and open points, only `org_admin` and `security` accept what touches `ACCESS.md` or `EGRESS.md`, `controlling` sees the approvals only. The instance checks again; when it refuses with 403, the card says so and offers nothing more.
+
 ## Notifications
 
 When an agent asks a question, replies in a conversation, or finishes or fails a task that came from a message, the people involved are notified — whoever wrote to that agent in the last two weeks, the person the task came from, and, for a question, the agent's human supervisor. What somebody has already read is not announced.
+
+A decision that waits is announced to the people who may take it: an approval or an open point to the agent's owner, when their role may decide, and to the organisation's admins (and to `security` where an open point touches access); a configuration proposal also to them, besides the conversation it was drafted in; a workflow's approval step to the person it names. Each has its own words ("Bea waits for an approval", "Release waits for a decision") and the question's sound.
 
 | Platform | How |
 |---|---|
@@ -90,6 +102,7 @@ The app is one code base, but several features are built on macOS APIs and exist
 |---|---|---|---|---|
 | Pairing | QR code | QR code | `covey://` link | `covey://` link |
 | Notifications | push | push | while the app runs | — |
+| Deciding approvals, open points, proposals and workflow steps | yes | yes | yes | yes |
 | Dictation inside the app | yes | yes | yes | yes |
 | Dictate anywhere (global shortcut) | — | — | yes | — |
 | Activity log | — | — | yes | — |
