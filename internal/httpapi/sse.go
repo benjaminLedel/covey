@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -31,7 +32,7 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 	ch, cancel := s.Orch.Events().Subscribe(principalFrom(r).OrgID, eventTypes(r.URL.Query().Get("types"))...)
 	defer cancel()
 
-	keepalive := time.NewTicker(20 * time.Second)
+	keepalive := time.NewTicker(keepaliveEvery(r.URL.Query().Get("keepalive")))
 	defer keepalive.Stop()
 
 	fmt.Fprint(w, "event: hello\ndata: {}\n\n")
@@ -65,4 +66,25 @@ func eventTypes(raw string) []string {
 		}
 	}
 	return out
+}
+
+// The keepalive's interval. Twenty seconds by default; a client may ask for
+// a longer one with ?keepalive=<seconds> (#447). On a phone every write wakes
+// the radio from idle and holds it in a high-power state for seconds
+// afterwards, so an open, idle app at three pings a minute never let it
+// rest. The ceiling stays under the sixty seconds a reverse proxy commonly
+// waits before it cuts a silent connection (nginx's proxy_read_timeout);
+// the client opens the stream again when it hears nothing for longer.
+const (
+	keepaliveDefault = 20 * time.Second
+	keepaliveMax     = 55 * time.Second
+)
+
+func keepaliveEvery(raw string) time.Duration {
+	n, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil {
+		return keepaliveDefault
+	}
+	d := time.Duration(n) * time.Second
+	return min(max(d, keepaliveDefault), keepaliveMax)
 }
