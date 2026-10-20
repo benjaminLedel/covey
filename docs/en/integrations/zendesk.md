@@ -197,7 +197,10 @@ nothing.
   agent's sandbox, and the proxy in front of it blocks fail-closed everything
   that is not listed. *Agent → Settings → Egress → own hosts*, add
   `<subdomain>.zendesk.com`. Without it the credential is right and every call
-  still ends nowhere.
+  still ends nowhere. Add `*.zdusercontent.com` as well (or import the built-in
+  template *Zendesk*): attachments are handed out on the account host and
+  redirected there, and without it `download_attachment` ends in `Forbidden` —
+  the agent then analyses a screenshot ticket without the screenshot.
 
 ### 2.6 Testing
 
@@ -356,13 +359,18 @@ Every queue-shaped setting is configured **by name**, and the names are what
 `list_groups` reports — run that action once instead of copying strings out of the
 admin UI.
 
-**Egress.** The account root is the only host the plugin ever contacts, and OAuth
-tokens are minted from that same host (`https://<subdomain>.zendesk.com`), never
-from a generic authorisation host. So one allowlist entry per agent:
+**Egress.** The API, and the OAuth tokens, live on the account root
+(`https://<subdomain>.zendesk.com`), never on a generic authorisation host. The one
+other host is where attachments come from: their `content_url` points at the
+account, which redirects to `p<N>.zdusercontent.com`. So two allowlist entries per
+agent:
 
 ```bash
-COVEY_EGRESS_ALLOW="acme.zendesk.com"
+COVEY_EGRESS_ALLOW="acme.zendesk.com,*.zdusercontent.com"
 ```
+
+A refused redirect shows in the egress log as a CONNECT to
+`p<N>.zdusercontent.com:443` with `allowed: false`, and to the agent as `Forbidden`.
 
 > **`zendesk_url` is https**, and plain http is accepted only on a loopback address
 > (127.0.0.1, localhost, ::1) — which is how a local instance and the scripted live

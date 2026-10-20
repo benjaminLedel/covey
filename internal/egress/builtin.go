@@ -161,6 +161,17 @@ var Builtins = []BuiltinTemplate{
 		},
 	},
 	{
+		Slug:        "zendesk",
+		Name:        "Zendesk",
+		Description: "Ticket attachments of a Zendesk account (the account host itself stays an own host)",
+		Hosts: []BuiltinHost{
+			// An attachment's content_url points at <subdomain>.zendesk.com,
+			// which redirects here. Without it download_attachment ends in the
+			// proxy's 403, and the agent reads a screenshot ticket blind (#611).
+			{Pattern: "*.zdusercontent.com", Note: "attachment downloads (redirect target of content_url)"},
+		},
+	},
+	{
 		Slug:        "container",
 		Name:        "Container registries",
 		Description: "Pull images from Docker Hub, GitHub and Quay",

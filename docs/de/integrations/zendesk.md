@@ -203,7 +203,10 @@ nichts.
   Sandbox des Agenten, und der Proxy davor blockt fail-closed alles, was nicht
   eingetragen ist. *Agent → Einstellungen → Egress → eigene Hosts*, dort
   `<subdomain>.zendesk.com`. Ohne ihn stimmt das Credential, und jeder Aufruf
-  läuft trotzdem ins Leere.
+  läuft trotzdem ins Leere. Dazu `*.zdusercontent.com` (oder die eingebaute
+  Vorlage *Zendesk* importieren): Anhänge werden auf dem Kontohost ausgegeben und
+  dorthin weitergeleitet, und ohne ihn endet `download_attachment` mit
+  `Forbidden` — der Agent analysiert dann ein Screenshot-Ticket ohne Screenshot.
 
 ### 2.6 Testen
 
@@ -371,14 +374,18 @@ Jede warteschlangenartige Einstellung wird **per Name** gesetzt, und die Namen s
 die, die `list_groups` meldet — diese Aktion einmal ausführen, statt die Zeichenketten
 aus dem Admin-Interface abzutippen.
 
-**Egress.** Die Konten-URL ist der einzige Host, den das Plugin je anspricht, und
-OAuth-Token werden bei demselben Host gemintet (`https://<subdomain>.zendesk.com`),
-niemals bei einem generischen Authorisierungshost. Pro Agent also ein
-Allowlist-Eintrag:
+**Egress.** Die API und die OAuth-Token liegen auf der Konten-URL
+(`https://<subdomain>.zendesk.com`), niemals bei einem generischen
+Authorisierungshost. Der einzige andere Host ist der, von dem Anhänge kommen: ihre
+`content_url` zeigt auf das Konto, das nach `p<N>.zdusercontent.com` weiterleitet.
+Pro Agent also zwei Allowlist-Einträge:
 
 ```bash
-COVEY_EGRESS_ALLOW="acme.zendesk.com"
+COVEY_EGRESS_ALLOW="acme.zendesk.com,*.zdusercontent.com"
 ```
+
+Eine abgelehnte Weiterleitung steht im Egress-Protokoll als CONNECT auf
+`p<N>.zdusercontent.com:443` mit `allowed: false`, und beim Agenten als `Forbidden`.
 
 > **`zendesk_url` ist https**, und reines http wird nur auf einer
 > Loopback-Adresse akzeptiert (127.0.0.1, localhost, ::1) — so laufen eine lokale
